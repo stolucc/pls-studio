@@ -1,0 +1,117 @@
+# PLS Studio
+
+Browser-based editor for partial least squares structural equation modelling (PLS-SEM).
+All computation runs locally in the browser (Web Worker); data never leaves the machine.
+
+## Run
+
+```bash
+npm install
+npm run dev        # http://localhost:5175
+npm test           # engine + model tests (validated against R seminr 2.3.2)
+npm run build      # production build in dist/ (strict CSP injected)
+```
+
+## Methods
+
+| | PLS-SEM | PLSc | CB-SEM |
+|---|---|---|---|
+| Estimation | Wold/Lohmöller PLS (path, factor, centroid) | PLS + ρA correction of common factors | ML, MLM, MLMV, MLR, GLS, ULS; MIIV-2SLS (Bollen 1996) |
+| Constructs | common factors (ellipse), composites (hexagon), Mode A/B | same | common factors |
+| Moderation | two-stage interaction, simple slopes | — | latent interaction (matched-pair product indicators), Johnson–Neyman |
+| Inference | bootstrap | bootstrap | (robust) SEs; bootstrap for indirect effects |
+| Fit | SRMR, d_ULS, d_G + bootstrap test of exact fit (HI95/HI99) | same | χ² (scaled/shifted), CFI/TLI/RMSEA (+ scaled, robust), SRMR, AIC/BIC |
+| Other | IPMA (construct and indicator level), HTMT/HTMT2 | same | HTMT/HTMT2, residual correlations |
+
+**Covariance-matrix input** (CB-SEM): import a labelled covariance matrix CSV (as from R's
+`write.csv(cov(x))`), give N, and optionally a NACOV matrix for robust MLM/MLMV, as lavaan's
+`sample.cov` / `sample.nobs` / `NACOV`. CB-SEM also supports second-order factors and observed
+covariates with lavaan's `fixed.x` semantics (drawn as rectangles).
+
+**MIIV-2SLS**: Bollen's model-implied instrumental variables. Each measurement, second-order and
+structural equation is estimated separately by 2SLS on scaling indicators, with automatically derived
+instruments and a Sargan overidentification test per equation; works from raw data or a covariance
+matrix. Misspecification in one equation does not propagate to others.
+
+**Examples**: a synthetic customer survey (PLS, raw data) and the published model of Stol,
+Schaarschmidt & Goldblit (2022), *Gamification in software engineering*, Empirical Software
+Engineering 27:35 (CB-SEM, MLM, from the covariance and NACOV matrices of the replication
+package, doi:10.5281/zenodo.6322761, CC BY 4.0). The example reproduces the paper's results.
+
+**Monte Carlo** (Simulate button): specify a population (common factors with loadings, composites
+with weights and indicator correlations, standardised paths, exogenous correlations; or take the
+current estimates), then run replications at several sample sizes with any mix of PLS, PLSc and
+CB-SEM estimators. Reports mean, bias, relative bias, SD, RMSE, CI coverage and power (Type I error
+for zero paths), with power curves. Data can be multivariate normal or non-normal (Vale–Maurelli:
+Fleishman polynomials with target skewness/excess kurtosis, population correlations preserved);
+for CB-SEM estimators the model χ² test's rejection rate is tracked, showing e.g. ML over-rejecting
+under kurtosis while the Satorra–Bentler χ² holds its level. CB-SEM also offers Monte Carlo CIs for indirect effects
+(Preacher & Selig 2012).
+
+Bootstrapping, the fit test and simulations run on all CPU cores (one Web Worker per core, minus one).
+Each bootstrap sample has its own seed, so results are identical whatever the core count.
+
+## Collaboration
+
+Sign in (email + password with optional TOTP, or Google), use **Share** to upload a project
+and invite people by email as editors or viewers, and edit together in real time: live
+cursors, selections and presence, merged edits (Y.js), undo that only reverts your own
+changes. Shared datasets are stored encrypted on the server (AES-256-GCM, per-project keys).
+Calculations run on each person's computer. The server lives in `server/` (see its README);
+`npm run server` starts it for development.
+
+## Home screen
+
+The app opens on a home screen: start a new project (empty, or from a data file), open a project
+file, reopen a recent project, or open an example. Projects are kept automatically under Recent
+projects in this browser (IndexedDB); Save still writes a portable `.plsproj.json` file. The Home
+button (or the logo) in the editor returns to it.
+
+## Features
+
+- Import CSV (comma/semicolon/tab, quoted fields, decimal comma, missing codes)
+- Draw models: drag variables onto the canvas to create constructs, drop onto a construct to add
+  indicators, drag from a construct's dot to draw a path; reflective (Mode A) or formative (Mode B)
+- PLS algorithm: path / factor / centroid weighting, mean replacement or casewise deletion
+- Results on the diagram (β, R², loadings/weights) and in tables:
+  R², adj. R², f², inner/outer VIF, loadings, weights, Cronbach's α, ρA, ρC, AVE, HTMT,
+  Fornell–Larcker, construct correlations, indirect and total effects, construct scores
+- Bootstrapping with seeded RNG: standard errors, t, p, percentile CIs, cancellable
+- Undo/redo, auto-arrange, save/open project files (`.plsproj.json`, includes data), autosave
+- Copy any table as TSV or download as CSV
+
+## Shortcuts
+
+V select · C add construct · P draw path · Del delete · ⌘Z / ⌘⇧Z undo/redo ·
+⌘S save · ⌘O open · ⌘↵ calculate · ⌘⇧↵ bootstrap
+
+## Validation
+
+`npm test` runs ~220 client tests (`npm run test:server` runs the server's integration tests), including a reference corpus in `src/engine/__fixtures__/validation`
+(54 cases) produced by `npm run validate:generate` (`scripts/validation/generate.R`):
+
+| Reference | Cases |
+|---|---|
+| seminr 2.3.2 | PLS on mobi (Mode A/B), corp_rep (Hair et al.), two-stage moderation (2) |
+| plspm 0.5 | PLS on satisfaction, path / factor / centroid schemes |
+| cSEM 0.5.0 | PLSc, composite models, SRMR/d_ULS/d_G, HTMT/HTMT2, IPMA (raw, rescaled, bounded) |
+| MIIVsem 0.5.8 | MIIV-2SLS: instrument sets, coefficients, SEs, Sargan tests (Holzinger–Swineford, PoliticalDemocracy, mobi, Stol et al. 2022 from its covariance matrix) |
+| semTools 0.5.6 | Monte Carlo CIs for indirect effects (ML, MLR); HTMT/HTMT2 from a covariance matrix |
+| Stol et al. (2022) replication package | the paper's SEM (ML, MLM with NACOV: second-order factor, fixed.x covariates, indirect effect) and second-order CFA, reproduced via lavaan |
+| lavaan 0.6.16 | Holzinger–Swineford, PoliticalDemocracy, threecommonfactors, mobi × ML/MLM/MLMV/MLR/GLS/ULS; latent interactions with conditional effects (Johnson–Neyman) |
+
+Every estimate, standard error, z, p, standardised value, R² and fit measure is compared
+(tolerance 1e-5 relative). A fit measure reported by lavaan but missing here fails the test.
+
+Vale–Maurelli: Fleishman coefficients and intermediate correlations match high-precision R
+solutions to 1e-9 (`scripts/make-vm-fixtures.R`) and Fleishman's published table.
+
+The simulation engine is checked by exactness tests: on samples rotated to the population
+covariance, CB-ML and PLSc recover common-factor populations and PLS Mode B recovers composite
+populations to 1e-6; replication splitting across workers is result-invariant; CB-ML coverage,
+Type I error and PLS attenuation behave as theory predicts.
+
+Conventions matched (documented in code): lavaan fits GLS/ULS to the unbiased covariance
+matrix and uses N − 1 for their χ², SEs and RMSEA; SRMR is Bentler's (observed SDs); d_G
+uses the natural log (cSEM uses log10); f² re-estimates the model without the path; two-stage
+interaction effects are per unit of the product of standardised scores (as seminr).

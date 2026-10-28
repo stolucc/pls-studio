@@ -1,0 +1,208 @@
+{
+  "name": "miiv_miivsem_hs",
+  "source": "MIIVsem",
+  "kind": "miiv",
+  "dataset": "holzinger_swineford",
+  "matrix": null,
+  "options": {
+    "estimator": "2SLS",
+    "missing": "casewise"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "visual",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["x1", "x2", "x3"]
+      },
+      {
+        "name": "textual",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["x4", "x5", "x6"]
+      },
+      {
+        "name": "speed",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["x7", "x8", "x9"]
+      }
+    ],
+    "paths": [],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "n": 301,
+    "equations": [
+      {
+        "dv": "x2",
+        "regressors": "x1",
+        "instruments": ["x3", "x4", "x5", "x6", "x7", "x8", "x9"],
+        "lhs": "x2",
+        "rhs": "visual",
+        "coefficients": [
+          {
+            "name": "x2~visual",
+            "est": 0.631764175163323
+          }
+        ],
+        "sigma2": 1.40921932707305,
+        "sargan": 7.52786584587159,
+        "sarganDf": 6,
+        "sarganP": 0.27477199152015
+      },
+      {
+        "dv": "x3",
+        "regressors": "x1",
+        "instruments": ["x2", "x4", "x5", "x6", "x7", "x8", "x9"],
+        "lhs": "x3",
+        "rhs": "visual",
+        "coefficients": [
+          {
+            "name": "x3~visual",
+            "est": 0.726767528186071
+          }
+        ],
+        "sigma2": 1.14943964801103,
+        "sargan": 15.5558433548232,
+        "sarganDf": 6,
+        "sarganP": 0.0163472637080235
+      },
+      {
+        "dv": "x5",
+        "regressors": "x4",
+        "instruments": ["x1", "x2", "x3", "x6", "x7", "x8", "x9"],
+        "lhs": "x5",
+        "rhs": "textual",
+        "coefficients": [
+          {
+            "name": "x5~textual",
+            "est": 1.08504966020639
+          }
+        ],
+        "sigma2": 0.867734778459349,
+        "sargan": 17.306314624183,
+        "sarganDf": 6,
+        "sarganP": 0.00822102766200838
+      },
+      {
+        "dv": "x6",
+        "regressors": "x4",
+        "instruments": ["x1", "x2", "x3", "x5", "x7", "x8", "x9"],
+        "lhs": "x6",
+        "rhs": "textual",
+        "coefficients": [
+          {
+            "name": "x6~textual",
+            "est": 0.906654816577651
+          }
+        ],
+        "sigma2": 0.68278834741762,
+        "sargan": 6.23913295023242,
+        "sarganDf": 6,
+        "sarganP": 0.396942485206726
+      },
+      {
+        "dv": "x8",
+        "regressors": "x7",
+        "instruments": ["x1", "x2", "x3", "x4", "x5", "x6", "x9"],
+        "lhs": "x8",
+        "rhs": "speed",
+        "coefficients": [
+          {
+            "name": "x8~speed",
+            "est": 0.838075157112112
+          }
+        ],
+        "sigma2": 0.955832997821076,
+        "sargan": 24.023220619311,
+        "sarganDf": 6,
+        "sarganP": 0.000517146611769892
+      },
+      {
+        "dv": "x9",
+        "regressors": "x7",
+        "instruments": ["x1", "x2", "x3", "x4", "x5", "x6", "x8"],
+        "lhs": "x9",
+        "rhs": "speed",
+        "coefficients": [
+          {
+            "name": "x9~speed",
+            "est": 0.666817715839602
+          }
+        ],
+        "sigma2": 1.04323954373088,
+        "sargan": 51.6177472368594,
+        "sarganDf": 6,
+        "sarganP": 2.22576642591957e-09
+      }
+    ],
+    "params": [
+      {
+        "lhs": "speed",
+        "op": "=~",
+        "rhs": "x8",
+        "est": 0.838075157112112,
+        "se": 0.127438163577863,
+        "z": 6.57632795061474,
+        "p": 4.82208370762318e-11
+      },
+      {
+        "lhs": "speed",
+        "op": "=~",
+        "rhs": "x9",
+        "est": 0.666817715839602,
+        "se": 0.102041385692107,
+        "z": 6.53477715259193,
+        "p": 6.37043231287153e-11
+      },
+      {
+        "lhs": "textual",
+        "op": "=~",
+        "rhs": "x5",
+        "est": 1.08504966020639,
+        "se": 0.0636272771626457,
+        "z": 17.0532153597075,
+        "p": 3.30823328113475e-65
+      },
+      {
+        "lhs": "textual",
+        "op": "=~",
+        "rhs": "x6",
+        "est": 0.906654816577651,
+        "se": 0.0536724836582721,
+        "z": 16.8923581466854,
+        "p": 5.12144753334012e-64
+      },
+      {
+        "lhs": "visual",
+        "op": "=~",
+        "rhs": "x2",
+        "est": 0.631764175163323,
+        "se": 0.0990570479333971,
+        "z": 6.37778117098847,
+        "p": 1.79671986542713e-10
+      },
+      {
+        "lhs": "visual",
+        "op": "=~",
+        "rhs": "x3",
+        "est": 0.726767528186071,
+        "se": 0.0970221918633796,
+        "z": 7.49073499812763,
+        "p": 6.84889783778179e-14
+      }
+    ]
+  },
+  "tolerance": 1e-06,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1",
+    "MIIVsem": "0.5.8"
+  }
+}

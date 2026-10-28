@@ -1,0 +1,301 @@
+{
+  "name": "pls_plspm_satisfaction_path",
+  "source": "plspm",
+  "kind": "pls",
+  "dataset": "satisfaction",
+  "options": {
+    "scheme": "path",
+    "consistent": false,
+    "missing": "mean"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "IMAG",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["imag1", "imag2", "imag3", "imag4", "imag5"]
+      },
+      {
+        "name": "EXPE",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["expe1", "expe2", "expe3", "expe4", "expe5"]
+      },
+      {
+        "name": "QUAL",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["qual1", "qual2", "qual3", "qual4", "qual5"]
+      },
+      {
+        "name": "VAL",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["val1", "val2", "val3", "val4"]
+      },
+      {
+        "name": "SAT",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["sat1", "sat2", "sat3", "sat4"]
+      },
+      {
+        "name": "LOY",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["loy1", "loy2", "loy3", "loy4"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "IMAG",
+        "to": "EXPE"
+      },
+      {
+        "from": "IMAG",
+        "to": "SAT"
+      },
+      {
+        "from": "IMAG",
+        "to": "LOY"
+      },
+      {
+        "from": "EXPE",
+        "to": "QUAL"
+      },
+      {
+        "from": "EXPE",
+        "to": "VAL"
+      },
+      {
+        "from": "EXPE",
+        "to": "SAT"
+      },
+      {
+        "from": "QUAL",
+        "to": "VAL"
+      },
+      {
+        "from": "QUAL",
+        "to": "SAT"
+      },
+      {
+        "from": "VAL",
+        "to": "SAT"
+      },
+      {
+        "from": "SAT",
+        "to": "LOY"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "paths": [
+      {
+        "from": "IMAG",
+        "to": "EXPE",
+        "est": 0.559672112220773
+      },
+      {
+        "from": "EXPE",
+        "to": "QUAL",
+        "est": 0.845565065694672
+      },
+      {
+        "from": "EXPE",
+        "to": "VAL",
+        "est": 0.117508764644682
+      },
+      {
+        "from": "QUAL",
+        "to": "VAL",
+        "est": 0.660085834412167
+      },
+      {
+        "from": "IMAG",
+        "to": "SAT",
+        "est": 0.185560608123733
+      },
+      {
+        "from": "EXPE",
+        "to": "SAT",
+        "est": 0.00848671676990818
+      },
+      {
+        "from": "QUAL",
+        "to": "SAT",
+        "est": 0.137604447545706
+      },
+      {
+        "from": "VAL",
+        "to": "SAT",
+        "est": 0.580032036605211
+      },
+      {
+        "from": "IMAG",
+        "to": "LOY",
+        "est": 0.289169281041461
+      },
+      {
+        "from": "SAT",
+        "to": "LOY",
+        "est": 0.47373212413495
+      }
+    ],
+    "loadings": [
+      {
+        "construct": "IMAG",
+        "indicator": "imag1",
+        "est": 0.754335893075523
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag2",
+        "est": 0.893115190041167
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag3",
+        "est": 0.865161890065796
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag4",
+        "est": 0.634862900651587
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag5",
+        "est": 0.693705368598113
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe1",
+        "est": 0.788121909267705
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe2",
+        "est": 0.823815914512448
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe3",
+        "est": 0.732374355851568
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe4",
+        "est": 0.772035859385253
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe5",
+        "est": 0.817817591265401
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual1",
+        "est": 0.793245650224068
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual2",
+        "est": 0.869656593871987
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual3",
+        "est": 0.764241741045883
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual4",
+        "est": 0.822363366256344
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual5",
+        "est": 0.812401793740888
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val1",
+        "est": 0.857157698175803
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val2",
+        "est": 0.833503634380883
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val3",
+        "est": 0.759324991046369
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val4",
+        "est": 0.818619021354611
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat1",
+        "est": 0.915121475771312
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat2",
+        "est": 0.912052337587596
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat3",
+        "est": 0.833100102565823
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat4",
+        "est": 0.821622110061793
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy1",
+        "est": 0.889646654213487
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy2",
+        "est": 0.721950557562936
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy3",
+        "est": 0.88240928579925
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy4",
+        "est": 0.707966917326425
+      }
+    ],
+    "r2": {
+      "EXPE": 0.313232873197661,
+      "QUAL": 0.714980280323236,
+      "VAL": 0.580695600109916,
+      "SAT": 0.702274651239538,
+      "LOY": 0.493639560114519
+    }
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

@@ -1,0 +1,505 @@
+import { useEffect, useState } from 'react';
+import { fmt, fmtP } from '../format';
+import { endogenousIds, validateModel, type Construct, type Settings } from '../model/project';
+import { useFreshResults, useStore } from '../store';
+import { IconAlert, IconSwap, IconTrash, IconX } from './icons';
+import { switchMethod } from '../methodSwitch';
+import { exportRScript } from '../io';
+import { SimpleSlopes } from './SimpleSlopes';
+import { JohnsonNeymanPlot } from './JohnsonNeymanPlot';
+import { johnsonNeyman } from '../engine/jn';
+
+function NameField({ c }: { c: Construct }) {
+  const update = useStore((s) => s.updateConstruct);
+  const [v, setV] = useState(c.name);
+  useEffect(() => setV(c.name), [c.name]);
+  const commit = () => { const n = v.trim().slice(0, 100); if (n && n !== c.name) update(c.id, { name: n }); else setV(c.name); };
+  return (
+    <input className="input" value={v} maxLength={100} onChange={(e) => setV(e.target.value)} onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setV(c.name); } }} />
+  );
+}
+
+function ConstructInspector({ c }: { c: Construct }) {
+  const update = useStore((s) => s.updateConstruct);
+  const removeIndicator = useStore((s) => s.removeIndicator);
+  const del = useStore((s) => s.deleteItems);
+  const method = useStore((s) => s.settings.method);
+  const constructs = useStore((s) => s.model.constructs);
+  const results = useFreshResults();
+  const pls = method === 'pls' ? results?.pls : null;
+  const cb = method === 'cbsem' ? results?.cb : null;
+  const j = pls ? pls.constructs.indexOf(c.name) : -1;
+  const jc = cb ? cb.constructs.indexOf(c.name) : -1;
+  const cbIdx = new Map(cb?.indicators.map((ind, k) => [ind.name, k]) ?? []);
+  const q = j >= 0 ? pls!.quality[j] : null;
+  const idx = new Map(pls?.indicators.map((ind, k) => [ind.name, k]) ?? []);
+
+  return (
+    <>
+      <div className="section">
+        <div className="field"><label>Name</label><NameField c={c} /></div>
+        <div className="field">
+          <label>Construct type</label>
+          <div className="segmented">
+            <button className={c.type === 'factor' ? 'on' : ''} onClick={() => update(c.id, { type: 'factor', mode: 'A' })} title="Latent variable: indicators reflect the construct (ellipse)">Common factor</button>
+            <button className={c.type === 'composite' ? 'on' : ''} disabled={method === 'cbsem'} onClick={() => update(c.id, { type: 'composite', mode: 'B' })}
+              title={method === 'cbsem' ? 'Composites are estimated with PLS only. Switch to PLS-SEM to use them.' : 'Emergent variable: a weighted combination of its indicators (hexagon)'}>Composite</button>
+          </div>
+        </div>
+        {method === 'pls' && (
+          <div className="field">
+            <label>Weighting (PLS)</label>
+            <div className="segmented">
+              <button className={c.mode === 'A' ? 'on' : ''} onClick={() => update(c.id, { mode: 'A' })}>Mode A (correlation)</button>
+              <button className={c.mode === 'B' ? 'on' : ''} onClick={() => update(c.id, { mode: 'B' })}>Mode B (regression)</button>
+            </div>
+          </div>
+        )}
+        <div className="field">
+          <label>Indicator side</label>
+          <div className="segmented">
+            {(['left', 'top', 'right', 'bottom'] as const).map((s) => (
+              <button key={s} className={c.side === s ? 'on' : ''} onClick={() => update(c.id, { side: s })}>{s[0].toUpperCase() + s.slice(1)}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {method === 'cbsem' && (c.indicators.length === 1 || c.indicators.length === 0) && (
+        <div className="section">
+          <div className="section-title">CB-SEM</div>
+          {c.indicators.length === 1 && (
+            <label className="check">
+              <input type="checkbox" checked={!!c.covariate} onChange={(e) => update(c.id, { covariate: e.target.checked })} />
+              <span><b>Observed covariate</b><br /><span className="hint">Treat {c.indicators[0]} as an observed exogenous variable: its (co)variances are fixed at the sample values and it is not correlated with latent variables (lavaan’s fixed.x). Drawn as a rectangle.</span></span>
+            </label>
+          )}
+          {c.indicators.length === 0 && (
+            <>
+              <div className="hint" style={{ marginBottom: 6 }}>Higher-order factor: measured by other constructs (the first is the marker).</div>
+              {constructs.filter((k) => k.id !== c.id && !k.covariate).map((k) => (
+                <label key={k.id} className="check" style={{ marginBottom: 4 }}>
+                  <input type="checkbox" checked={c.components?.includes(k.id) ?? false}
+                    onChange={(e) => update(c.id, { components: e.target.checked ? [...(c.components ?? []), k.id] : (c.components ?? []).filter((x) => x !== k.id) })} />
+                  {k.name}
+                </label>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+      <div className="section">
+        <div className="section-title">{c.components?.length ? `Components (${c.components.length})` : `Indicators (${c.indicators.length})`}</div>
+        {c.indicators.length === 0 && !c.components?.length && <div className="hint">Drag variables from the data panel onto this construct{method === 'cbsem' ? ', or tick components above to make it a higher-order factor' : ''}.</div>}
+        {c.components?.map((id) => <div key={id} className="ind"><span>{constructs.find((k) => k.id === id)?.name}</span></div>)}
+        <div className="ind-list">
+          {c.indicators.map((name) => {
+            const k = idx.get(name);
+            const kc = cbIdx.get(name);
+            const v = kc !== undefined ? cb!.stdLoadings[kc]
+              : k === undefined ? null : c.type === 'composite' ? pls!.weights[k] : pls!.loadings[k];
+            return (
+              <div className="ind" key={name}>
+                <span className="vname">{name}</span>
+                <span className="num muted" title={c.type === 'composite' && !cb ? 'Weight' : cb ? 'Standardised loading' : 'Loading'}>{v === null ? '' : fmt(v)}</span>
+                <button className="btn icon ghost sm" style={{ width: 24, height: 24 }} onClick={() => removeIndicator(c.id, name)} aria-label={`Remove ${name}`}>
+                  <IconX size={13} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {cb && jc >= 0 && (
+        <div className="section">
+          <div className="section-title">Quality</div>
+          <div className="kv">
+            {cb.r2Constructs[jc] !== null && <><span>R²</span><span className="num">{fmt(cb.r2Constructs[jc])}</span></>}
+            <span>Composite reliability</span><span className="num">{fmt(cb.reliability[jc].cr)}</span>
+            <span>AVE</span><span className="num">{fmt(cb.reliability[jc].ave)}</span>
+          </div>
+        </div>
+      )}
+      {q && (
+        <div className="section">
+          <div className="section-title">Quality</div>
+          <div className="kv">
+            {j >= 0 && pls!.rSquared[j] !== null && <><span>R²</span><span className="num">{fmt(pls!.rSquared[j])}</span></>}
+            {c.type === 'factor' && <>
+              <span>Cronbach’s α</span><span className="num">{fmt(q.alpha)}</span>
+              <span>ρA</span><span className="num">{fmt(q.rhoA)}</span>
+              <span>Composite reliability ρC</span><span className="num">{fmt(q.rhoC)}</span>
+              <span>AVE</span><span className="num">{fmt(q.ave)}</span>
+            </>}
+          </div>
+        </div>
+      )}
+      <div className="section">
+        <button className="btn danger" onClick={() => del([c.id], [])}><IconTrash size={14} /> Delete construct</button>
+      </div>
+    </>
+  );
+}
+
+/** Interaction estimate (from the stage-2 PLS model) for one moderation, if results exist. */
+function useModerationEstimate(fromName: string, modName: string, toName: string) {
+  const results = useFreshResults();
+  const method = useStore((s) => s.settings.method);
+  const pls = method === 'pls' ? results?.pls : null;
+  if (!pls) return null;
+  const mo = pls.moderations.find((x) => x.from === fromName && x.moderator === modName && x.to === toName);
+  if (!mo) return null;
+  const C = pls.constructs;
+  const j = C.indexOf(toName);
+  const name = C[mo.construct];
+  return {
+    bint: pls.pathCoef[mo.construct][j],
+    bx: pls.pathCoef[C.indexOf(fromName)][j],
+    bm: pls.pathCoef[C.indexOf(modName)][j],
+    f2: pls.fSquare[mo.construct][j],
+    boot: results?.boot?.stats.find((s) => s.key === `path:${name}:${toName}`),
+    confidence: results?.boot?.confidence,
+  };
+}
+
+function ModerationInspector({ id }: { id: string }) {
+  const model = useStore((s) => s.model);
+  const del = useStore((s) => s.deleteItems);
+  const mo = model.moderations.find((x) => x.id === id);
+  const p = mo && model.paths.find((q) => q.id === mo.path);
+  const nameOf = (cid: string) => model.constructs.find((c) => c.id === cid)?.name ?? '?';
+  const fromName = p ? nameOf(p.from) : '', toName = p ? nameOf(p.to) : '', modName = mo ? nameOf(mo.moderator) : '';
+  const est = useModerationEstimate(fromName, modName, toName);
+  const results = useFreshResults();
+  const method = useStore((s) => s.settings.method);
+  const cb = method === 'cbsem' ? results?.cb : null;
+  const cbMo = cb?.moderations.find((x) => x.from === fromName && x.moderator === modName && x.to === toName);
+  let jn: ReturnType<typeof johnsonNeyman> | null = null;
+  try { jn = cb && cbMo ? johnsonNeyman(cb, cbMo) : null; } catch { jn = null; }
+  if (!mo || !p) return null;
+  return (
+    <>
+      <div className="section">
+        <div className="path-title">{modName} <span className="muted">moderates</span></div>
+        <div className="hint" style={{ marginTop: 4 }}>{fromName} → {toName}</div>
+      </div>
+      {jn && (
+        <div className="section">
+          <div className="section-title">Latent interaction (CB-SEM)</div>
+          <div className="kv">
+            <span>γ {fromName} × {modName}</span><span className="num">{fmt(jn.bint)}</span>
+            <span>J–N boundaries</span><span className="num">{jn.boundaries.length ? jn.boundaries.map((b) => `${(b / jn!.sdM).toFixed(2)} SD`).join(', ') : 'none'}</span>
+          </div>
+          <div style={{ marginTop: 12 }}><JohnsonNeymanPlot jn={jn} from={fromName} moderator={modName} width={260} height={180} /></div>
+        </div>
+      )}
+      {jn ? null : est ? (
+        <div className="section">
+          <div className="section-title">Interaction effect</div>
+          <div className="kv">
+            <span>{fromName} × {modName}</span><span className="num">{fmt(est.bint)}</span>
+            <span>f² effect size</span><span className="num">{fmt(est.f2)}</span>
+            {est.boot && <><span>p value</span><span className="num">{fmtP(est.boot.p)}</span></>}
+            {est.boot && <><span>{Math.round((est.confidence ?? 0.95) * 100)}% CI</span><span className="num">[{fmt(est.boot.ciLow)}, {fmt(est.boot.ciHigh)}]</span></>}
+          </div>
+          {!est.boot && <div className="hint" style={{ marginTop: 8 }}>Run bootstrapping to test the interaction.</div>}
+          <div style={{ marginTop: 12 }}>
+            <SimpleSlopes bx={est.bx} bm={est.bm} bint={est.bint} from={fromName} moderator={modName} to={toName} />
+          </div>
+        </div>
+      ) : (
+        <div className="section hint">Two-stage approach: the product of the standardised scores of {fromName} and {modName} predicts {toName}. Calculate to see the interaction effect and simple slopes.</div>
+      )}
+      <div className="section">
+        <button className="btn danger" onClick={() => del([], [], [mo.id])}><IconTrash size={14} /> Remove moderation</button>
+      </div>
+    </>
+  );
+}
+
+function CorrelationInspector({ id }: { id: string }) {
+  const model = useStore((s) => s.model);
+  const del = useStore((s) => s.deleteItems);
+  const settings = useStore((s) => s.settings);
+  const results = useFreshResults();
+  const k = model.correlations?.find((x) => x.id === id);
+  if (!k) return null;
+  const nameOf = (x: string) => (k.kind === 'construct' ? model.constructs.find((c) => c.id === x)?.name ?? '?' : x);
+  const a = nameOf(k.a), b = nameOf(k.b);
+  const endo = endogenousIds(model);
+  const disturbances = k.kind === 'construct' && endo.has(k.a) && endo.has(k.b);
+  const what = k.kind === 'indicator' ? 'Correlated measurement errors (ε)' : disturbances ? 'Correlated disturbances (ζ): what both constructs share beyond their predictors' : 'Covariance of exogenous constructs';
+  const est = settings.method === 'cbsem' && settings.estimator !== '2SLS'
+    ? results?.cb?.estimates.find((e) => e.op === '~~' && e.lhs !== e.rhs && ((e.lhs === a && e.rhs === b) || (e.lhs === b && e.rhs === a))
+      && (k.kind === 'indicator' ? e.kind === 'rescov' : e.kind !== 'rescov'))
+    : undefined;
+  return (
+    <>
+      <div className="section">
+        <div className="path-title">{disturbances ? <>ζ {a} <span className="muted">↔</span> ζ {b}</> : k.kind === 'indicator' ? <>ε {a} <span className="muted">↔</span> ε {b}</> : <>{a} <span className="muted">↔</span> {b}</>}</div>
+        <div className="hint" style={{ marginTop: 4 }}>{what}</div>
+      </div>
+      {est ? (
+        <div className="section">
+          <div className="section-title">Estimates</div>
+          <div className="kv">
+            <span>Covariance</span><span className="num">{fmt(est.est)}</span>
+            <span>Std. error</span><span className="num">{fmt(est.se)}</span>
+            <span>z</span><span className="num">{fmt(est.z)}</span>
+            <span>p value</span><span className="num">{est.p === null ? '—' : fmtP(est.p)}</span>
+            <span>Correlation</span><span className="num">{fmt(est.std)}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="section hint">
+          {settings.method === 'pls' ? 'Correlations are estimated in CB-SEM only; PLS-SEM ignores them.'
+            : settings.estimator === '2SLS' ? 'MIIV-2SLS drops the instruments that correlated errors make invalid; the covariance itself is estimated afterwards, with the 2SLS coefficients held fixed.'
+              : k.kind === 'indicator' ? 'Frees the covariance of the two measurement errors (lavaan: a ~~ b). Calculate to estimate it.'
+                : disturbances ? 'Frees the covariance of the two disturbances: what both constructs share beyond their predictors. Calculate to estimate it.'
+                  : 'Exogenous constructs covary freely in CB-SEM anyway; this arrow makes that visible.'}
+        </div>
+      )}
+      <div className="section">
+        <button className="btn danger" onClick={() => del([], [], [], [k.id])}><IconTrash size={14} /> Remove correlation</button>
+      </div>
+    </>
+  );
+}
+
+function PathInspector({ id }: { id: string }) {
+  const model = useStore((s) => s.model);
+  const reverse = useStore((s) => s.reversePath);
+  const del = useStore((s) => s.deleteItems);
+  const addModeration = useStore((s) => s.addModeration);
+  const results = useFreshResults();
+  const p = model.paths.find((q) => q.id === id);
+  if (!p) return null;
+  const from = model.constructs.find((c) => c.id === p.from)!, to = model.constructs.find((c) => c.id === p.to)!;
+  const method = useStore((s) => s.settings.method);
+  const pls = method === 'pls' ? results?.pls : null;
+  const cbEst = method === 'cbsem' ? results?.cb?.estimates.find((e) => e.op === '~' && e.lhs === to.name && e.rhs === from.name) : undefined;
+  const i = pls?.constructs.indexOf(from.name) ?? -1, j = pls?.constructs.indexOf(to.name) ?? -1;
+  const b = results?.boot?.stats.find((s) => s.key === `path:${from.name}:${to.name}`);
+  return (
+    <>
+      <div className="section">
+        <div className="path-title">{from.name} <span className="muted">→</span> {to.name}</div>
+      </div>
+      {pls && i >= 0 && j >= 0 && (
+        <div className="section">
+          <div className="section-title">Estimates</div>
+          <div className="kv">
+            <span>Path coefficient β</span><span className="num">{fmt(pls.pathCoef[i][j])}</span>
+            <span>f² effect size</span><span className="num">{fmt(pls.fSquare[i][j])}</span>
+            <span>VIF</span><span className="num">{fmt(pls.vifInner[i][j])}</span>
+            {b && <><span>Std. error</span><span className="num">{fmt(b.sd)}</span></>}
+            {b && <><span>t statistic</span><span className="num">{fmt(b.t)}</span></>}
+            {b && <><span>p value</span><span className="num">{fmtP(b.p)}</span></>}
+            {b && <><span>{Math.round(results!.boot!.confidence * 100)}% CI</span><span className="num">[{fmt(b.ciLow)}, {fmt(b.ciHigh)}]</span></>}
+          </div>
+          {!b && <div className="hint" style={{ marginTop: 8 }}>Run bootstrapping for significance tests.</div>}
+        </div>
+      )}
+      {cbEst && (
+        <div className="section">
+          <div className="section-title">ML estimates</div>
+          <div className="kv">
+            <span>Unstandardised</span><span className="num">{fmt(cbEst.est)}</span>
+            <span>Std. error</span><span className="num">{fmt(cbEst.se)}</span>
+            <span>z</span><span className="num">{fmt(cbEst.z)}</span>
+            <span>p value</span><span className="num">{cbEst.p === null ? '—' : fmtP(cbEst.p)}</span>
+            <span>Standardised β</span><span className="num">{fmt(cbEst.std)}</span>
+          </div>
+        </div>
+      )}
+      <div className="section">
+        <div className="section-title">Moderators</div>
+        {model.moderations.filter((mo) => mo.path === p.id).map((mo) => (
+          <div className="ind" key={mo.id}>
+            <span>{model.constructs.find((c) => c.id === mo.moderator)?.name}</span>
+            <span />
+            <button className="btn icon ghost sm" style={{ width: 24, height: 24 }} onClick={() => del([], [], [mo.id])} aria-label="Remove moderator"><IconX size={13} /></button>
+          </div>
+        ))}
+        <select className="select" value="" onChange={(e) => e.target.value && addModeration(e.target.value, p.id)} style={{ marginTop: 6 }}>
+          <option value="">Add a moderator…</option>
+          {model.constructs.filter((c) => c.id !== p.from && c.id !== p.to && !model.moderations.some((mo) => mo.path === p.id && mo.moderator === c.id))
+            .map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <div className="hint" style={{ marginTop: 6 }}>Or drag from a construct’s dot onto this arrow.</div>
+      </div>
+      <div className="section" style={{ display: 'flex', gap: 8 }}>
+        <button className="btn" onClick={() => reverse(p.id)}><IconSwap size={14} /> Reverse</button>
+        <button className="btn danger" onClick={() => del([], [p.id])}><IconTrash size={14} /> Delete</button>
+      </div>
+    </>
+  );
+}
+
+const ESTIMATORS: { id: Settings['estimator']; label: string; hint: string }[] = [
+  { id: 'ML', label: 'maximum likelihood', hint: 'Normal-theory ML with expected-information standard errors.' },
+  { id: 'MLM', label: 'robust, Satorra–Bentler', hint: 'ML estimates, robust (sandwich) standard errors and the Satorra–Bentler scaled χ². For non-normal continuous data.' },
+  { id: 'MLMV', label: 'robust, mean- and variance-adjusted', hint: 'ML estimates, robust standard errors and a scaled-and-shifted χ²; better small-sample behaviour than MLM.' },
+  { id: 'MLR', label: 'robust, Huber–White / Yuan–Bentler', hint: 'ML estimates, observed-information sandwich standard errors and the Yuan–Bentler scaled χ² (Mplus variant).' },
+  { id: 'GLS', label: 'generalised least squares', hint: 'Weights residuals by S⁻¹. Uses the unbiased covariance matrix.' },
+  { id: 'ULS', label: 'unweighted least squares', hint: 'Unweighted residuals; no χ² p-value. Standard errors are not robust: prefer bootstrapping.' },
+  { id: '2SLS', label: 'MIIV two-stage least squares', hint: 'Bollen’s model-implied instrumental variables: each equation estimated separately by 2SLS, robust to misspecification in other equations, with a Sargan test per equation. Variances and covariances are estimated afterwards with the coefficients held fixed (as MIIVsem’s var.cov), which gives standardised values; there is no global fit test.' },
+];
+
+function ModelInspector() {
+  const model = useStore((s) => s.model);
+  const data = useStore((s) => s.data);
+  const settings = useStore((s) => s.settings);
+  const setSettings = useStore((s) => s.setSettings);
+  const select = useStore((s) => s.select);
+  const issues = validateModel(model, data, settings);
+  const pls = settings.method === 'pls';
+  const numField = (label: string, key: keyof Settings, min: number, max: number, step = 1) => (
+    <div className="field">
+      <label>{label}</label>
+      <input className="input num" type="number" min={min} max={max} step={step} value={settings[key] as number}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          if (Number.isFinite(v)) setSettings({ [key]: Math.min(max, Math.max(min, v)) } as Partial<Settings>);
+        }} />
+    </div>
+  );
+
+  return (
+    <>
+      <div className="section">
+        <div className="section-title">Checks</div>
+        {issues.length === 0
+          ? <div className="hint">No problems found. Ready to calculate.</div>
+          : issues.map((iss, k) => (
+            <div key={k} className={`issue ${iss.level}${iss.constructId ? ' clickable' : ''}`}
+              onClick={() => iss.constructId && select('construct', iss.constructId)}>
+              <IconAlert size={14} /> <span>{iss.message}</span>
+            </div>
+          ))}
+      </div>
+      <div className="section">
+        <div className="section-title">Method</div>
+        <div className="segmented">
+          <button className={pls ? 'on' : ''} onClick={() => void switchMethod('pls')}>PLS-SEM</button>
+          <button className={!pls ? 'on' : ''} onClick={() => void switchMethod('cbsem')}>CB-SEM</button>
+        </div>
+        <div className="hint" style={{ marginTop: 8 }}>
+          {pls
+            ? 'Variance-based: common factors and composites. Turn on PLSc for consistent estimates of common-factor models.'
+            : 'Covariance-based SEM. Common factors only; first loading of each factor fixed to 1.'}
+        </div>
+      </div>
+      <div className="section">
+        <div className="section-title">Calculated by</div>
+        <div className="segmented" role="radiogroup" aria-label="Calculation engine">
+          <button role="radio" aria-checked={settings.engine === 'r'} className={settings.engine === 'r' ? 'on' : ''} onClick={() => setSettings({ engine: 'r' })}>R packages</button>
+          <button role="radio" aria-checked={settings.engine === 'builtin'} className={settings.engine === 'builtin' ? 'on' : ''} onClick={() => setSettings({ engine: 'builtin' })}>Built-in</button>
+        </div>
+        {settings.engine === 'r' && pls && (
+          <div className="segmented" role="radiogroup" aria-label="PLS package" style={{ marginTop: 8 }}>
+            {(['cSEM', 'seminr'] as const).map((p) => (
+              <button key={p} role="radio" aria-checked={settings.plsPackage === p} className={settings.plsPackage === p ? 'on' : ''} onClick={() => setSettings({ plsPackage: p })}>{p}</button>
+            ))}
+          </div>
+        )}
+        <div className="hint" style={{ marginTop: 8 }}>
+          {settings.engine === 'builtin'
+            ? 'PLS Studio’s own implementation, validated against the R packages. Instant, no download.'
+            : pls
+              ? settings.plsPackage === 'cSEM'
+                ? 'cSEM (Rademaker & Schuberth), running in your browser (webR): PLS, PLSc, composites, bootstrapping, the model fit test and IPMA. Interactions use cSEM’s products of construct scores.'
+                : 'seminr (Ray, Danks & Calero Valdez), running in your browser (webR): PLS, PLSc for reflective constructs, two-stage interactions. No model-fit statistics; path and factor schemes only. seminr’s bootstrap needs worker processes, so bootstrap with cSEM here (or export the script). The fit test and IPMA use cSEM.'
+              : settings.estimator === '2SLS'
+                ? 'MIIVsem (Fisher, Bollen, Gates & Rönkkö), running in your browser (webR).'
+                : 'lavaan (Rosseel), running in your browser (webR), including bootstrapping (bootstrapLavaan).'}
+          {settings.engine === 'r' && ' The first calculation loads R and the packages; your data never leave this computer. Monte Carlo simulation also runs in R (lavaan::simulateData, cSEM, lavaan).'}
+        </div>
+        <button className="btn sm" style={{ marginTop: 8 }} onClick={() => void exportRScript()}
+          title="Download the R script for this model (data embedded): exactly what the R engine runs. Open it in R or RStudio to reproduce the results.">
+          Export R script
+        </button>
+      </div>
+      {!pls && (
+        <div className="section">
+          <div className="section-title">Estimator</div>
+          <select className="select" value={settings.estimator} onChange={(e) => setSettings({ estimator: e.target.value as Settings['estimator'] })}>
+            {ESTIMATORS.map((e) => <option key={e.id} value={e.id}>{e.id} — {e.label}</option>)}
+          </select>
+          <div className="hint" style={{ marginTop: 8 }}>{ESTIMATORS.find((e) => e.id === settings.estimator)?.hint}</div>
+        </div>
+      )}
+      {pls && <div className="section">
+        <div className="section-title">PLS algorithm</div>
+        <label className="check">
+          <input type="checkbox" checked={settings.consistent} onChange={(e) => setSettings({ consistent: e.target.checked })} />
+          <span><b>Consistent PLS (PLSc)</b><br /><span className="hint">Corrects common factors for attenuation using ρA (Dijkstra &amp; Henseler, 2015).</span></span>
+        </label>
+        <div className="field">
+          <label>Inner weighting scheme</label>
+          <div className="segmented">
+            {(['path', 'factor', 'centroid'] as const).map((s) => (
+              <button key={s} className={settings.scheme === s ? 'on' : ''} onClick={() => setSettings({ scheme: s })}>{s[0].toUpperCase() + s.slice(1)}</button>
+            ))}
+          </div>
+        </div>
+        <div className="row2">
+          {numField('Max iterations', 'maxIter', 10, 10000)}
+          {numField('Stop criterion 10^−x', 'stopExp', 3, 12)}
+        </div>
+      </div>}
+      <div className="section">
+        <div className="field">
+          <label>Missing values</label>
+          <div className="segmented">
+            <button className={settings.missing === 'mean' ? 'on' : ''} onClick={() => setSettings({ missing: 'mean' })}>Mean replacement</button>
+            <button className={settings.missing === 'casewise' ? 'on' : ''} onClick={() => setSettings({ missing: 'casewise' })}>Casewise deletion</button>
+          </div>
+        </div>
+      </div>
+      <div className="section">
+        <div className="section-title">Bootstrapping</div>
+        <div className="row2">
+          {numField('Subsamples', 'bootSamples', 10, 100000, 100)}
+          {numField('Random seed', 'seed', 0, 2 ** 31)}
+        </div>
+        <div className="field">
+          <label>Confidence interval</label>
+          <div className="segmented">
+            {[0.9, 0.95, 0.99].map((c) => (
+              <button key={c} className={settings.confidence === c ? 'on' : ''} onClick={() => setSettings({ confidence: c })}>{c * 100}%</button>
+            ))}
+          </div>
+        </div>
+        <div className="hint">
+          Percentile intervals; p-values from two-tailed t tests.
+          {pls ? ' The same subsample count is used for the fit test (HI95/HI99).' : ' CB-SEM bootstraps standardised paths and indirect effects.'}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export function Inspector() {
+  const selection = useStore((s) => s.selection);
+  const constructs = useStore((s) => s.model.constructs);
+  const single = selection.nodes.length + selection.edges.length === 1;
+  const c = single && selection.nodes.length === 1 ? constructs.find((k) => k.id === selection.nodes[0]) : undefined;
+  const pathId = single && selection.edges.length === 1 ? selection.edges[0] : undefined;
+  const modId = selection.moderations?.length === 1 && !c && !pathId ? selection.moderations[0] : undefined;
+  const corId = selection.correlations?.length === 1 && !c && !pathId && !modId ? selection.correlations[0] : undefined;
+  const title = c ? 'Construct' : pathId ? 'Path' : modId ? 'Moderation' : corId ? 'Correlation' : selection.nodes.length + selection.edges.length > 1 ? 'Selection' : 'Model';
+  return (
+    <aside className="panel right" aria-label="Inspector">
+      <div className="panel-head"><span>{title}</span></div>
+      <div className="panel-body">
+        {c ? <ConstructInspector key={c.id} c={c} />
+          : pathId ? <PathInspector id={pathId} />
+          : modId ? <ModerationInspector id={modId} />
+          : corId ? <CorrelationInspector id={corId} />
+            : title === 'Selection' ? <div className="hint">{selection.nodes.length} construct(s), {selection.edges.length} path(s) selected. Press Delete to remove them.</div>
+              : <ModelInspector />}
+      </div>
+    </aside>
+  );
+}

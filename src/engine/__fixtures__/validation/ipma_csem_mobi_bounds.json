@@ -1,0 +1,168 @@
+{
+  "name": "ipma_csem_mobi_bounds",
+  "source": "cSEM",
+  "kind": "ipma",
+  "dataset": "mobi",
+  "options": {
+    "scheme": "path",
+    "consistent": false,
+    "missing": "mean",
+    "target": "Loyalty",
+    "rescale": true,
+    "min": 1,
+    "max": 10
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "Image",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5"]
+      },
+      {
+        "name": "Expectation",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUEX1", "CUEX2", "CUEX3"]
+      },
+      {
+        "name": "Satisfaction",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUSA1", "CUSA2", "CUSA3"]
+      },
+      {
+        "name": "Loyalty",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUSL1", "CUSL2", "CUSL3"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "Image",
+        "to": "Expectation"
+      },
+      {
+        "from": "Image",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Expectation",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Satisfaction",
+        "to": "Loyalty"
+      },
+      {
+        "from": "Image",
+        "to": "Loyalty"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "constructs": [
+      {
+        "name": "Image",
+        "importance": 0.912791728412595,
+        "performance": 73.5329124452914
+      },
+      {
+        "name": "Expectation",
+        "importance": 0.171481890964662,
+        "performance": 72.4844007836917
+      },
+      {
+        "name": "Satisfaction",
+        "importance": 0.783699110665493,
+        "performance": 72.6931185534427
+      }
+    ],
+    "targetPerformance": 71.0229165236631,
+    "indicators": [
+      {
+        "name": "IMAG1",
+        "importance": 0.197180929722553,
+        "performance": 73.7777777777777
+      },
+      {
+        "name": "IMAG2",
+        "importance": 0.170718620418771,
+        "performance": 75.3333333333333
+      },
+      {
+        "name": "IMAG3",
+        "importance": 0.113563242858725,
+        "performance": 63.8222222222222
+      },
+      {
+        "name": "IMAG4",
+        "importance": 0.198290653790241,
+        "performance": 73.1999999999999
+      },
+      {
+        "name": "IMAG5",
+        "importance": 0.233038281622304,
+        "performance": 77.0222222222222
+      },
+      {
+        "name": "CUEX1",
+        "importance": 0.0655115214792133,
+        "performance": 73.111111111111
+      },
+      {
+        "name": "CUEX2",
+        "importance": 0.0635104181181811,
+        "performance": 72.5777777777777
+      },
+      {
+        "name": "CUEX3",
+        "importance": 0.0424599513672674,
+        "performance": 71.3777777777777
+      },
+      {
+        "name": "CUSA1",
+        "importance": 0.322360065429946,
+        "performance": 77.6444444444443
+      },
+      {
+        "name": "CUSA2",
+        "importance": 0.208572523229204,
+        "performance": 68.0888888888888
+      },
+      {
+        "name": "CUSA3",
+        "importance": 0.252766522006343,
+        "performance": 70.1777777777777
+      },
+      {
+        "name": "CUSL1",
+        "importance": 0.345923968666639,
+        "performance": 71.6888888888889
+      },
+      {
+        "name": "CUSL2",
+        "importance": 0.0750813192680327,
+        "performance": 44.3111111111111
+      },
+      {
+        "name": "CUSL3",
+        "importance": 0.578994712065328,
+        "performance": 74.0888888888888
+      }
+    ]
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1",
+    "MIIVsem": "0.5.8"
+  }
+}

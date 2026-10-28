@@ -1,0 +1,150 @@
+# Bootstrapping with the packages' own resampling: cSEM (csem(.resample_method
+# = "bootstrap")), seminr (bootstrap_model) and lavaan (bootstrapLavaan). The
+# draws are summarised the same way for all (mean, SD, t = original / SD with
+# df = draws - 1, percentile interval), keyed like the app's built-in bootstrap.
+
+#' Summarise a draws matrix (rows = bootstrap samples, named columns).
+#' Lines of R that define it, so exported scripts carry the same summary.
+PS_BOOT_SUMMARY <- c(
+  "# Each parameter over the draws where it is defined (e.g. an R\u00b2 can be undefined in an improper draw).",
+  "boot_summary <- function(draws, original, confidence) {",
+  "  a <- (1 - confidence) / 2",
+  "  one <- function(x, o) { x <- x[is.finite(x)]; s <- stats::sd(x); t <- o / s",
+  "    c(original = o, mean = mean(x), sd = s, t = t, p = 2 * stats::pt(-abs(t), df = length(x) - 1),",
+  "      ci_low = unname(stats::quantile(x, a)), ci_high = unname(stats::quantile(x, 1 - a)), draws = length(x)) }",
+  "  out <- t(vapply(seq_len(ncol(draws)), function(j) one(draws[, j], original[[j]]), numeric(8)))",
+  "  data.frame(parameter = colnames(draws), out, row.names = NULL, check.names = FALSE)",
+  "}")
+
+# Cores for bootstrapping in desktop R. PLS Studio runs in the browser's R,
+# which has one core, so these scripts run there with cores <- 1.
+PS_CORES_CSEM <- c(
+  "# Parallel bootstrapping in desktop R: set cores > 1. cSEM's results are identical for any number of cores.",
+  "cores <- 1",
+  "plan <- if (cores == 1) \"sequential\" else if (.Platform$OS.type == \"windows\") \"multisession\" else \"multicore\"")
+PS_CORES_SEMINR <- c(
+  "# Parallel bootstrapping in desktop R: set cores > 1 (seminr's results are identical for any number of cores).",
+  "cores <- 1")
+PS_CORES_LAVAAN <- c(
+  "# Parallel bootstrapping in desktop R (macOS / Linux): cores > 1 is much faster, but lavaan's draws then",
+  "# depend on the number of cores, so the results differ from PLS Studio's (which uses cores <- 1).",
+  "cores <- 1")
+
+ps_pls_boot <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_pls_build(req)
+  B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- req$boot$confidence
+  body <- b$body
+  # seminr's bootstrap always starts a PSOCK cluster (worker processes), which
+  # R in the browser (webR) cannot do. The exported script runs in desktop R.
+  if (b$pkg == "seminr" && !export && grepl("emscripten", R.version$platform)) {
+    stop("seminr's bootstrap needs worker processes, which R in the browser cannot start. Bootstrap with cSEM, or export the seminr bootstrap script and run it in R.")
+  }
+  if (b$pkg == "cSEM") {
+    # Same call with cSEM's resampling; R² per draw via a user function.
+    body <- c(PS_CORES_CSEM, body)
+    body[length(body)] <- sub(")$", sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = %d, .eval_plan = plan, .user_funs = list(R2 = function(.object) .object$Estimates$R2))", B, seed), body[length(body)])
+    body <- c(body,
+      "res <- fit$Estimates$Estimates_resample$Estimates1",
+      "groups <- c(path = \"Path_estimates\", total = \"Total_effect\", indirect = \"Indirect_effect\", loading = \"Loading_estimates\", weight = \"Weight_estimates\", r2 = \"R2\")",
+      "draws <- do.call(cbind, lapply(names(groups), function(g) { x <- res[[groups[[g]]]]$Resampled; colnames(x) <- paste0(g, \": \", colnames(x)); x }))",
+      "original <- unlist(lapply(names(groups), function(g) setNames(res[[groups[[g]]]]$Original, paste0(g, \": \", names(res[[groups[[g]]]]$Original)))))")
+  } else {
+    body <- c(body,
+      PS_CORES_SEMINR,
+      sprintf("boot <- bootstrap_model(fit, nboot = %d, seed = %d, cores = cores)", B, seed),
+      "# Draws as columns \"group: row -> column\" (paths: from -> to; loadings/weights: indicator -> construct).",
+      "flat <- function(a, g, keep) { d <- dim(a); out <- t(matrix(a, nrow = d[1] * d[2])); colnames(out) <- paste0(g, \": \", as.vector(outer(dimnames(a)[[1]], dimnames(a)[[2]], paste, sep = \" -> \"))); out[, as.vector(keep), drop = FALSE] }",
+      "orig <- function(m, g, keep) setNames(as.vector(m)[as.vector(keep)], paste0(g, \": \", as.vector(outer(rownames(m), colnames(m), paste, sep = \" -> \")))[as.vector(keep)])",
+      "P <- fit$path_coef; TE <- summary(fit)$total_effects[rownames(P), colnames(P)]",
+      "kp <- P != 0; kt <- abs(TE) > 1e-12; ki <- abs(TE - P) > 1e-12; kl <- fit$outer_loadings != 0; kw <- fit$outer_weights != 0",
+      "draws <- cbind(flat(boot$boot_paths, \"path\", kp), flat(boot$boot_total_paths, \"total\", kt), flat(boot$boot_total_paths - boot$boot_paths, \"indirect\", ki),",
+      "  flat(boot$boot_loadings, \"loading\", kl), flat(boot$boot_weights, \"weight\", kw))",
+      "original <- c(orig(P, \"path\", kp), orig(TE, \"total\", kt), orig(TE - P, \"indirect\", ki), orig(fit$outer_loadings, \"loading\", kl), orig(fit$outer_weights, \"weight\", kw))")
+  }
+  body <- c(body, PS_BOOT_SUMMARY, sprintf("result <- boot_summary(draws, original[colnames(draws)], confidence = %s)", format(conf)))
+  title <- sprintf("Bootstrap, %d samples (%s)", B, b$pkg)
+  if (export) return(paste(ps_script(title, b$pkg, b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  ps_json(list(stats = ps_boot_keys(env$result, b, req), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0),
+    confidence = conf, warnings = env$.warnings))
+}
+
+#' Map package parameter names to the app's bootstrap keys (path:from:to, loading:indicator, …).
+ps_boot_keys <- function(r, b, req) {
+  n <- b$n
+  lv <- c(setNames(n$cname, b$cv), setNames(vapply(b$mods, function(m) paste(m$from, "×", m$moderator), ""), b$int_l))
+  ind <- setNames(n$all_inds, unname(n$iv[n$all_inds]))
+  out <- list()
+  for (i in seq_len(nrow(r))) {
+    g <- sub(":.*", "", r$parameter[i]); x <- sub("^[a-z0-9]+: ", "", r$parameter[i])
+    if (b$pkg == "cSEM") {
+      parts <- strsplit(x, " (~|=~|<~) ")[[1]]
+      lhs <- parts[1]; rhs <- parts[2]
+      if (g == "r2") { lhs <- x; rhs <- NA }
+    } else {
+      parts <- strsplit(x, " -> ")[[1]]
+      # seminr: [from, to] for paths; [indicator, construct] for loadings/weights.
+      if (g %in% c("loading", "weight")) { lhs <- parts[2]; rhs <- parts[1] } else { lhs <- parts[2]; rhs <- parts[1] }
+    }
+    # Skip package-internal entries (e.g. seminr's "X*M_intxn" pseudo-indicator).
+    if (!(lhs %in% names(lv)) || (!is.na(rhs) && !(rhs %in% c(names(lv), names(ind))))) next
+    key <- switch(g,
+      path = , total = , indirect = { f <- lv[[rhs]]; t <- lv[[lhs]]; list(key = sprintf("%s:%s:%s", g, f, t), label = sprintf("%s → %s", f, t)) },
+      loading = list(key = sprintf("loading:%s", ind[[rhs]]), label = sprintf("%s → %s", lv[[lhs]], ind[[rhs]])),
+      weight = list(key = sprintf("weight:%s", ind[[rhs]]), label = sprintf("%s → %s", ind[[rhs]], lv[[lhs]])),
+      r2 = list(key = sprintf("r2:%s", lv[[lhs]]), label = lv[[lhs]]))
+    out[[length(out) + 1]] <- c(key, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+  }
+  out
+}
+
+ps_cb_boot <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
+  B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- req$boot$confidence
+  body <- c(b$body,
+    "# Standardised paths, total and indirect effects, loadings and R² of one fitted model.",
+    "std_stats <- function(f, keep = NULL) {",
+    "  ss <- standardizedSolution(f, se = FALSE)",
+    "  lv <- lavNames(f, \"lv\"); reg <- ss[ss$op == \"~\", ]",
+    "  vars <- unique(c(lv, reg$lhs, reg$rhs))",
+    "  Bm <- matrix(0, length(vars), length(vars), dimnames = list(vars, vars))  # [from, to]",
+    "  for (i in seq_len(nrow(reg))) Bm[reg$rhs[i], reg$lhs[i]] <- reg$est.std[i]",
+    "  Tm <- solve(diag(length(vars)) - Bm) - diag(length(vars)); dimnames(Tm) <- dimnames(Bm)",
+    "  tot <- which(abs(Tm) > 1e-12, arr.ind = TRUE); ind <- which(abs(Tm - Bm) > 1e-12, arr.ind = TRUE)",
+    "  ld <- ss[ss$op == \"=~\" & !(ss$rhs %in% lv), ]",
+    "  r2 <- lavInspect(f, \"r2\"); r2 <- r2[names(r2) %in% unique(reg$lhs)]",
+    "  # (paste0 turns an empty vector into one empty string: name only non-empty groups)",
+    "  lab <- function(g, a, b = NULL) if (length(a)) paste0(g, \": \", a, if (!is.null(b)) paste0(\" -> \", b)) else character(0)",
+    "  v <- c(setNames(reg$est.std, lab(\"path\", reg$rhs, reg$lhs)),",
+    "    setNames(Tm[tot], lab(\"total\", vars[tot[, 1]], vars[tot[, 2]])),",
+    "    setNames((Tm - Bm)[ind], lab(\"indirect\", vars[ind[, 1]], vars[ind[, 2]])),",
+    "    setNames(ld$est.std, lab(\"loading\", ld$lhs, ld$rhs)),",
+    "    setNames(unname(r2), lab(\"r2\", names(r2))))",
+    "  # Every draw reports the original's parameters, in the same order.",
+    "  if (is.null(keep)) v else setNames(v[keep], keep)",
+    "}",
+    "original <- std_stats(fit)",
+    PS_CORES_LAVAAN,
+    sprintf("draws <- bootstrapLavaan(fit, R = %d, FUN = function(f) std_stats(f, names(original)), iseed = %d,", B, seed),
+    "  parallel = if (cores > 1) \"multicore\" else \"no\", ncpus = cores)",
+    "colnames(draws) <- names(original)",
+    PS_BOOT_SUMMARY,
+    sprintf("result <- boot_summary(draws, original, confidence = %s)", format(conf)))
+  if (export) return(paste(ps_script(sprintf("Bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  constructs <- c(b$n$cname, b$int_names)
+  back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
+  r <- env$result
+  stats <- lapply(seq_len(nrow(r)), function(i) {
+    g <- sub(":.*", "", r$parameter[i]); parts <- strsplit(sub("^[a-z0-9]+: ", "", r$parameter[i]), " -> ")[[1]]
+    a <- unname(back[parts[1]]); z <- if (length(parts) > 1) unname(back[parts[2]]) else NA
+    k <- switch(g, path = , total = , indirect = list(key = sprintf("%s:%s:%s", g, a, z), label = sprintf("%s → %s", a, z)),
+      loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
+      r2 = list(key = sprintf("r2:%s", a), label = a))
+    c(k, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+  })
+  ps_json(list(stats = stats, samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, warnings = env$.warnings))
+}

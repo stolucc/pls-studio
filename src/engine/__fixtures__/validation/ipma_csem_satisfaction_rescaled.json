@@ -1,0 +1,275 @@
+{
+  "name": "ipma_csem_satisfaction_rescaled",
+  "source": "cSEM",
+  "kind": "ipma",
+  "dataset": "satisfaction",
+  "options": {
+    "scheme": "path",
+    "consistent": false,
+    "missing": "mean",
+    "target": "LOY",
+    "rescale": true,
+    "min": null,
+    "max": null
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "IMAG",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["imag1", "imag2", "imag3", "imag4", "imag5"]
+      },
+      {
+        "name": "EXPE",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["expe1", "expe2", "expe3", "expe4", "expe5"]
+      },
+      {
+        "name": "QUAL",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["qual1", "qual2", "qual3", "qual4", "qual5"]
+      },
+      {
+        "name": "VAL",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["val1", "val2", "val3", "val4"]
+      },
+      {
+        "name": "SAT",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["sat1", "sat2", "sat3", "sat4"]
+      },
+      {
+        "name": "LOY",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["loy1", "loy2", "loy3", "loy4"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "IMAG",
+        "to": "EXPE"
+      },
+      {
+        "from": "IMAG",
+        "to": "SAT"
+      },
+      {
+        "from": "IMAG",
+        "to": "LOY"
+      },
+      {
+        "from": "EXPE",
+        "to": "QUAL"
+      },
+      {
+        "from": "EXPE",
+        "to": "VAL"
+      },
+      {
+        "from": "EXPE",
+        "to": "SAT"
+      },
+      {
+        "from": "QUAL",
+        "to": "VAL"
+      },
+      {
+        "from": "QUAL",
+        "to": "SAT"
+      },
+      {
+        "from": "VAL",
+        "to": "SAT"
+      },
+      {
+        "from": "SAT",
+        "to": "LOY"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "constructs": [
+      {
+        "name": "IMAG",
+        "importance": 0.694544725197017,
+        "performance": 74.5031911695748
+      },
+      {
+        "name": "EXPE",
+        "importance": 0.310253613177039,
+        "performance": 75.4012240557192
+      },
+      {
+        "name": "QUAL",
+        "importance": 0.291467927164513,
+        "performance": 69.9500116181248
+      },
+      {
+        "name": "VAL",
+        "importance": 0.329270798674932,
+        "performance": 70.9664504016878
+      },
+      {
+        "name": "SAT",
+        "importance": 0.563377279832497,
+        "performance": 68.5022363282684
+      }
+    ],
+    "targetPerformance": 71.2818026061661,
+    "indicators": [
+      {
+        "name": "imag1",
+        "importance": 0.126777374714547,
+        "performance": 78.04
+      },
+      {
+        "name": "imag2",
+        "importance": 0.167650786142364,
+        "performance": 78.04
+      },
+      {
+        "name": "imag3",
+        "importance": 0.180625796876138,
+        "performance": 79.12
+      },
+      {
+        "name": "imag4",
+        "importance": 0.087248770024206,
+        "performance": 69.6571428571429
+      },
+      {
+        "name": "imag5",
+        "importance": 0.132241997439762,
+        "performance": 63.52
+      },
+      {
+        "name": "expe1",
+        "importance": 0.0603876755755866,
+        "performance": 73.68
+      },
+      {
+        "name": "expe2",
+        "importance": 0.0651208967004938,
+        "performance": 75.96
+      },
+      {
+        "name": "expe3",
+        "importance": 0.0493887736134756,
+        "performance": 71.32
+      },
+      {
+        "name": "expe4",
+        "importance": 0.0772556042416386,
+        "performance": 80.48
+      },
+      {
+        "name": "expe5",
+        "importance": 0.0581006630458449,
+        "performance": 73.28
+      },
+      {
+        "name": "qual1",
+        "importance": 0.0594991537986835,
+        "performance": 68.08
+      },
+      {
+        "name": "qual2",
+        "importance": 0.0587208505702954,
+        "performance": 71
+      },
+      {
+        "name": "qual3",
+        "importance": 0.047962526704484,
+        "performance": 63.6
+      },
+      {
+        "name": "qual4",
+        "importance": 0.0677400872334393,
+        "performance": 75
+      },
+      {
+        "name": "qual5",
+        "importance": 0.0575453088576106,
+        "performance": 70.16
+      },
+      {
+        "name": "val1",
+        "importance": 0.0907677070329242,
+        "performance": 70.52
+      },
+      {
+        "name": "val2",
+        "importance": 0.0909048924439683,
+        "performance": 76.92
+      },
+      {
+        "name": "val3",
+        "importance": 0.0659236500011776,
+        "performance": 71.16
+      },
+      {
+        "name": "val4",
+        "importance": 0.0816745491968621,
+        "performance": 64.68
+      },
+      {
+        "name": "sat1",
+        "importance": 0.153836400379385,
+        "performance": 71.8
+      },
+      {
+        "name": "sat2",
+        "importance": 0.150950507421179,
+        "performance": 69.12
+      },
+      {
+        "name": "sat3",
+        "importance": 0.126570350785264,
+        "performance": 67.16
+      },
+      {
+        "name": "sat4",
+        "importance": 0.132020021246669,
+        "performance": 65.24
+      },
+      {
+        "name": "loy1",
+        "importance": 0.295776092396962,
+        "performance": 71.44
+      },
+      {
+        "name": "loy2",
+        "importance": 0.22187112921033,
+        "performance": 71.1555555555555
+      },
+      {
+        "name": "loy3",
+        "importance": 0.286827006652283,
+        "performance": 68
+      },
+      {
+        "name": "loy4",
+        "importance": 0.195525771740425,
+        "performance": 76
+      }
+    ]
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1",
+    "MIIVsem": "0.5.8"
+  }
+}

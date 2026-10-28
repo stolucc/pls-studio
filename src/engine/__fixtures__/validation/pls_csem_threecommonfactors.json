@@ -1,0 +1,238 @@
+{
+  "name": "pls_csem_threecommonfactors",
+  "source": "cSEM",
+  "kind": "pls",
+  "dataset": "threecommonfactors",
+  "options": {
+    "scheme": "path",
+    "consistent": false,
+    "missing": "mean"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "eta1",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["y11", "y12", "y13"]
+      },
+      {
+        "name": "eta2",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["y21", "y22", "y23"]
+      },
+      {
+        "name": "eta3",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["y31", "y32", "y33"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "eta1",
+        "to": "eta2"
+      },
+      {
+        "from": "eta1",
+        "to": "eta3"
+      },
+      {
+        "from": "eta2",
+        "to": "eta3"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "paths": [
+      {
+        "from": "eta1",
+        "to": "eta2",
+        "est": 0.504606236872253
+      },
+      {
+        "from": "eta1",
+        "to": "eta3",
+        "est": 0.358855683178331
+      },
+      {
+        "from": "eta2",
+        "to": "eta3",
+        "est": 0.297268003681778
+      }
+    ],
+    "loadings": [
+      {
+        "construct": "eta1",
+        "indicator": "y11",
+        "est": 0.794178676780145
+      },
+      {
+        "construct": "eta1",
+        "indicator": "y12",
+        "est": 0.777408729709762
+      },
+      {
+        "construct": "eta1",
+        "indicator": "y13",
+        "est": 0.847114189359189
+      },
+      {
+        "construct": "eta2",
+        "indicator": "y21",
+        "est": 0.685444997700518
+      },
+      {
+        "construct": "eta2",
+        "indicator": "y22",
+        "est": 0.852778001473804
+      },
+      {
+        "construct": "eta2",
+        "indicator": "y23",
+        "est": 0.863651758240013
+      },
+      {
+        "construct": "eta3",
+        "indicator": "y31",
+        "est": 0.876446219986725
+      },
+      {
+        "construct": "eta3",
+        "indicator": "y32",
+        "est": 0.799916475254252
+      },
+      {
+        "construct": "eta3",
+        "indicator": "y33",
+        "est": 0.831929651119436
+      }
+    ],
+    "weights": [
+      {
+        "construct": "eta1",
+        "indicator": "y11",
+        "est": 0.395556302849715
+      },
+      {
+        "construct": "eta1",
+        "indicator": "y12",
+        "est": 0.387328657449261
+      },
+      {
+        "construct": "eta1",
+        "indicator": "y13",
+        "est": 0.454183088981185
+      },
+      {
+        "construct": "eta2",
+        "indicator": "y21",
+        "est": 0.305809828298129
+      },
+      {
+        "construct": "eta2",
+        "indicator": "y22",
+        "est": 0.447289819860053
+      },
+      {
+        "construct": "eta2",
+        "indicator": "y23",
+        "est": 0.47350712875167
+      },
+      {
+        "construct": "eta3",
+        "indicator": "y31",
+        "est": 0.439982540222843
+      },
+      {
+        "construct": "eta3",
+        "indicator": "y32",
+        "est": 0.352118201031218
+      },
+      {
+        "construct": "eta3",
+        "indicator": "y33",
+        "est": 0.399930228562085
+      }
+    ],
+    "r2": {
+      "eta2": 0.254627454290376,
+      "eta3": 0.324804732639131
+    },
+    "rhoA": null,
+    "constructCor": [
+      {
+        "a": "eta2",
+        "b": "eta1",
+        "v": 0.504606236872253
+      },
+      {
+        "a": "eta3",
+        "b": "eta1",
+        "v": 0.50885897185872
+      },
+      {
+        "a": "eta3",
+        "b": "eta2",
+        "v": 0.478348819550617
+      }
+    ],
+    "htmt": [
+      {
+        "a": "eta2",
+        "b": "eta1",
+        "v": 0.6782751884626
+      },
+      {
+        "a": "eta3",
+        "b": "eta1",
+        "v": 0.666884115638019
+      },
+      {
+        "a": "eta3",
+        "b": "eta2",
+        "v": 0.612441753121887
+      }
+    ],
+    "htmt2": [
+      {
+        "a": "eta2",
+        "b": "eta1",
+        "v": 0.672400321551545
+      },
+      {
+        "a": "eta3",
+        "b": "eta1",
+        "v": 0.665276016934265
+      },
+      {
+        "a": "eta3",
+        "b": "eta2",
+        "v": 0.595872476945901
+      }
+    ],
+    "fit": {
+      "estimated": {
+        "srmr": 0.077464764887922,
+        "dULS": 0.270035540961347,
+        "dG": 0.579421472641998
+      },
+      "saturated": {
+        "srmr": 0.077464764887922,
+        "dULS": 0.270035540961347,
+        "dG": 0.579421472641999
+      }
+    }
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

@@ -1,0 +1,689 @@
+{
+  "name": "plsc_csem_satisfaction",
+  "source": "cSEM",
+  "kind": "pls",
+  "dataset": "satisfaction",
+  "options": {
+    "scheme": "path",
+    "consistent": true,
+    "missing": "mean"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "IMAG",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["imag1", "imag2", "imag3", "imag4", "imag5"]
+      },
+      {
+        "name": "EXPE",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["expe1", "expe2", "expe3", "expe4", "expe5"]
+      },
+      {
+        "name": "QUAL",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["qual1", "qual2", "qual3", "qual4", "qual5"]
+      },
+      {
+        "name": "VAL",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["val1", "val2", "val3", "val4"]
+      },
+      {
+        "name": "SAT",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["sat1", "sat2", "sat3", "sat4"]
+      },
+      {
+        "name": "LOY",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["loy1", "loy2", "loy3", "loy4"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "IMAG",
+        "to": "EXPE"
+      },
+      {
+        "from": "IMAG",
+        "to": "SAT"
+      },
+      {
+        "from": "IMAG",
+        "to": "LOY"
+      },
+      {
+        "from": "EXPE",
+        "to": "QUAL"
+      },
+      {
+        "from": "EXPE",
+        "to": "VAL"
+      },
+      {
+        "from": "EXPE",
+        "to": "SAT"
+      },
+      {
+        "from": "QUAL",
+        "to": "VAL"
+      },
+      {
+        "from": "QUAL",
+        "to": "SAT"
+      },
+      {
+        "from": "VAL",
+        "to": "SAT"
+      },
+      {
+        "from": "SAT",
+        "to": "LOY"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "paths": [
+      {
+        "from": "IMAG",
+        "to": "EXPE",
+        "est": 0.655931821214885
+      },
+      {
+        "from": "EXPE",
+        "to": "QUAL",
+        "est": 0.97994466011451
+      },
+      {
+        "from": "EXPE",
+        "to": "VAL",
+        "est": -1.7377054316726
+      },
+      {
+        "from": "QUAL",
+        "to": "VAL",
+        "est": 2.58514307500965
+      },
+      {
+        "from": "IMAG",
+        "to": "SAT",
+        "est": -0.00455369267852128
+      },
+      {
+        "from": "EXPE",
+        "to": "SAT",
+        "est": 0.624404113862284
+      },
+      {
+        "from": "QUAL",
+        "to": "SAT",
+        "est": -0.957478081383999
+      },
+      {
+        "from": "VAL",
+        "to": "SAT",
+        "est": 1.28646300948133
+      },
+      {
+        "from": "IMAG",
+        "to": "LOY",
+        "est": 0.311345945162399
+      },
+      {
+        "from": "SAT",
+        "to": "LOY",
+        "est": 0.515238218967322
+      }
+    ],
+    "loadings": [
+      {
+        "construct": "IMAG",
+        "indicator": "imag1",
+        "est": 0.560327601042446
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag2",
+        "est": 0.809693058773137
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag3",
+        "est": 0.83862376431079
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag4",
+        "est": 0.492743923531446
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag5",
+        "est": 0.775817680227174
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe1",
+        "est": 0.675799041067528
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe2",
+        "est": 0.803615583993435
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe3",
+        "est": 0.640331324872288
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe4",
+        "est": 0.740222965675926
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe5",
+        "est": 0.756937658362202
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual1",
+        "est": 0.748408573654558
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual2",
+        "est": 0.830545042267392
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual3",
+        "est": 0.696931428084359
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual4",
+        "est": 0.757655651325571
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual5",
+        "est": 0.762092355851582
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val1",
+        "est": 0.853763941143943
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val2",
+        "est": 0.717973460401026
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val3",
+        "est": 0.612339655029591
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val4",
+        "est": 0.794980610211745
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat1",
+        "est": 0.927015343530053
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat2",
+        "est": 0.886596915491413
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat3",
+        "est": 0.709046295920586
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat4",
+        "est": 0.770697041632585
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy1",
+        "est": 0.898292177964217
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy2",
+        "est": 0.58837698086202
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy3",
+        "est": 0.890774031133878
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy4",
+        "est": 0.518284614466474
+      }
+    ],
+    "weights": [
+      {
+        "construct": "IMAG",
+        "indicator": "imag1",
+        "est": 0.20582243965275
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag2",
+        "est": 0.29742065251924
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag3",
+        "est": 0.308047629279901
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag4",
+        "est": 0.180997252815372
+      },
+      {
+        "construct": "IMAG",
+        "indicator": "imag5",
+        "est": 0.284977372831573
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe1",
+        "est": 0.236780079468435
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe2",
+        "est": 0.281563231488849
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe3",
+        "est": 0.224353236355419
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe4",
+        "est": 0.259352325153111
+      },
+      {
+        "construct": "EXPE",
+        "indicator": "expe5",
+        "est": 0.265208661167284
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual1",
+        "est": 0.242142427477007
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual2",
+        "est": 0.268717114879614
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual3",
+        "est": 0.2254873523927
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual4",
+        "est": 0.245134255621617
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual5",
+        "est": 0.246569720742869
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val1",
+        "est": 0.349045678601797
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val2",
+        "est": 0.293530239011939
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val3",
+        "est": 0.250343801283309
+      },
+      {
+        "construct": "VAL",
+        "indicator": "val4",
+        "est": 0.325013195327543
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat1",
+        "est": 0.321781702648343
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat2",
+        "est": 0.307751826354044
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat3",
+        "est": 0.246121195242579
+      },
+      {
+        "construct": "SAT",
+        "indicator": "sat4",
+        "est": 0.267521145160565
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy1",
+        "est": 0.377926364868211
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy2",
+        "est": 0.247539919643132
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy3",
+        "est": 0.37476335624826
+      },
+      {
+        "construct": "LOY",
+        "indicator": "loy4",
+        "est": 0.21805090272114
+      }
+    ],
+    "r2": {
+      "EXPE": 0.430246554082276,
+      "QUAL": 0.960291536886943,
+      "VAL": 0.898336443435265,
+      "SAT": 0.887496019636476,
+      "LOY": 0.609322818180368
+    },
+    "rhoA": {
+      "IMAG": 0.855179716686956,
+      "EXPE": 0.851319424510755,
+      "QUAL": 0.874577740558374,
+      "VAL": 0.847180635974088,
+      "SAT": 0.905994574223263,
+      "LOY": 0.868581094208827
+    },
+    "constructCor": [
+      {
+        "a": "EXPE",
+        "b": "IMAG",
+        "v": 0.655931821214885
+      },
+      {
+        "a": "QUAL",
+        "b": "IMAG",
+        "v": 0.713718744294945
+      },
+      {
+        "a": "QUAL",
+        "b": "EXPE",
+        "v": 0.97994466011451
+      },
+      {
+        "a": "VAL",
+        "b": "IMAG",
+        "v": 0.814607684648992
+      },
+      {
+        "a": "VAL",
+        "b": "EXPE",
+        "v": 0.795591720315112
+      },
+      {
+        "a": "VAL",
+        "b": "QUAL",
+        "v": 0.882287916390107
+      },
+      {
+        "a": "SAT",
+        "b": "IMAG",
+        "v": 0.769605434506076
+      },
+      {
+        "a": "SAT",
+        "b": "EXPE",
+        "v": 0.706640987736485
+      },
+      {
+        "a": "SAT",
+        "b": "QUAL",
+        "v": 0.786184108076694
+      },
+      {
+        "a": "SAT",
+        "b": "VAL",
+        "v": 0.934752938137923
+      },
+      {
+        "a": "LOY",
+        "b": "IMAG",
+        "v": 0.707876078544882
+      },
+      {
+        "a": "LOY",
+        "b": "EXPE",
+        "v": 0.563227674391736
+      },
+      {
+        "a": "LOY",
+        "b": "QUAL",
+        "v": 0.703910923565988
+      },
+      {
+        "a": "LOY",
+        "b": "VAL",
+        "v": 0.796564800458392
+      },
+      {
+        "a": "LOY",
+        "b": "SAT",
+        "v": 0.754851750375735
+      }
+    ],
+    "htmt": [
+      {
+        "a": "EXPE",
+        "b": "IMAG",
+        "v": 0.643829315309858
+      },
+      {
+        "a": "QUAL",
+        "b": "IMAG",
+        "v": 0.701550014372283
+      },
+      {
+        "a": "QUAL",
+        "b": "EXPE",
+        "v": 0.981902559620551
+      },
+      {
+        "a": "VAL",
+        "b": "IMAG",
+        "v": 0.811650283512487
+      },
+      {
+        "a": "VAL",
+        "b": "EXPE",
+        "v": 0.787466125898464
+      },
+      {
+        "a": "VAL",
+        "b": "QUAL",
+        "v": 0.878356732963711
+      },
+      {
+        "a": "SAT",
+        "b": "IMAG",
+        "v": 0.758054388575123
+      },
+      {
+        "a": "SAT",
+        "b": "EXPE",
+        "v": 0.703047850873816
+      },
+      {
+        "a": "SAT",
+        "b": "QUAL",
+        "v": 0.785291911948587
+      },
+      {
+        "a": "SAT",
+        "b": "VAL",
+        "v": 0.929317828587786
+      },
+      {
+        "a": "LOY",
+        "b": "IMAG",
+        "v": 0.719052050593891
+      },
+      {
+        "a": "LOY",
+        "b": "EXPE",
+        "v": 0.551792027616512
+      },
+      {
+        "a": "LOY",
+        "b": "QUAL",
+        "v": 0.700170657795441
+      },
+      {
+        "a": "LOY",
+        "b": "VAL",
+        "v": 0.800298758707251
+      },
+      {
+        "a": "LOY",
+        "b": "SAT",
+        "v": 0.743248851663507
+      }
+    ],
+    "htmt2": [
+      {
+        "a": "EXPE",
+        "b": "IMAG",
+        "v": 0.626838889046001
+      },
+      {
+        "a": "QUAL",
+        "b": "IMAG",
+        "v": 0.681299556316575
+      },
+      {
+        "a": "QUAL",
+        "b": "EXPE",
+        "v": 0.964842004135196
+      },
+      {
+        "a": "VAL",
+        "b": "IMAG",
+        "v": 0.808800999073358
+      },
+      {
+        "a": "VAL",
+        "b": "EXPE",
+        "v": 0.77487923168202
+      },
+      {
+        "a": "VAL",
+        "b": "QUAL",
+        "v": 0.873824478069032
+      },
+      {
+        "a": "SAT",
+        "b": "IMAG",
+        "v": 0.747601185940172
+      },
+      {
+        "a": "SAT",
+        "b": "EXPE",
+        "v": 0.694460681124606
+      },
+      {
+        "a": "SAT",
+        "b": "QUAL",
+        "v": 0.778168531287782
+      },
+      {
+        "a": "SAT",
+        "b": "VAL",
+        "v": 0.920294240609985
+      },
+      {
+        "a": "LOY",
+        "b": "IMAG",
+        "v": 0.716428860217242
+      },
+      {
+        "a": "LOY",
+        "b": "EXPE",
+        "v": 0.523183281903694
+      },
+      {
+        "a": "LOY",
+        "b": "QUAL",
+        "v": 0.67497532439236
+      },
+      {
+        "a": "LOY",
+        "b": "VAL",
+        "v": 0.785827143940707
+      },
+      {
+        "a": "LOY",
+        "b": "SAT",
+        "v": 0.714004594977572
+      }
+    ],
+    "fit": {
+      "estimated": {
+        "srmr": 0.0870073317761688,
+        "dULS": 2.86156424590155,
+        "dG": 6.12041625102652
+      },
+      "saturated": {
+        "srmr": 0.0588378789753138,
+        "dULS": 1.30859668887457,
+        "dG": 5.59735211603712
+      }
+    }
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

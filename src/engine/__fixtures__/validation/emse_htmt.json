@@ -1,0 +1,217 @@
+{
+  "name": "emse_htmt",
+  "source": "semTools",
+  "kind": "htmt",
+  "dataset": "emse-htmt",
+  "matrix": {
+    "s": "emse-htmt-s.csv",
+    "n": 155
+  },
+  "options": [],
+  "model": {
+    "constructs": [
+      {
+        "name": "desire",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["num_want_learn_languages", "num_want_learn_skills"]
+      },
+      {
+        "name": "expertise",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["num_knows_languages", "num_has_skills"]
+      },
+      {
+        "name": "participation",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["num_meetings_attended", "has_chatroom_handle", "num_challenges_solved"]
+      },
+      {
+        "name": "id",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["ID1", "ID2"]
+      },
+      {
+        "name": "hc",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["HC1", "HC2", "HC3"]
+      },
+      {
+        "name": "js",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["JS1", "JS2", "JS4"]
+      }
+    ],
+    "paths": [],
+    "moderations": []
+  },
+  "expected": {
+    "htmt": [
+      {
+        "a": "expertise",
+        "b": "desire",
+        "v": 0.640450171448339
+      },
+      {
+        "a": "participation",
+        "b": "desire",
+        "v": 0.732266576118652
+      },
+      {
+        "a": "participation",
+        "b": "expertise",
+        "v": 0.455543106229172
+      },
+      {
+        "a": "id",
+        "b": "desire",
+        "v": 0.303289729422362
+      },
+      {
+        "a": "id",
+        "b": "expertise",
+        "v": 0.289815353086543
+      },
+      {
+        "a": "id",
+        "b": "participation",
+        "v": 0.440572087233212
+      },
+      {
+        "a": "hc",
+        "b": "desire",
+        "v": 0.179068863411288
+      },
+      {
+        "a": "hc",
+        "b": "expertise",
+        "v": 0.17555392778195
+      },
+      {
+        "a": "hc",
+        "b": "participation",
+        "v": 0.321843077586376
+      },
+      {
+        "a": "hc",
+        "b": "id",
+        "v": 0.685770004616112
+      },
+      {
+        "a": "js",
+        "b": "desire",
+        "v": 0.0936368942656178
+      },
+      {
+        "a": "js",
+        "b": "expertise",
+        "v": 0.0930518537198337
+      },
+      {
+        "a": "js",
+        "b": "participation",
+        "v": 0.0700550363350904
+      },
+      {
+        "a": "js",
+        "b": "id",
+        "v": 0.170142085852534
+      },
+      {
+        "a": "js",
+        "b": "hc",
+        "v": 0.272912348400921
+      }
+    ],
+    "htmt2": [
+      {
+        "a": "expertise",
+        "b": "desire",
+        "v": 0.610516992086229
+      },
+      {
+        "a": "participation",
+        "b": "desire",
+        "v": 0.715576923265925
+      },
+      {
+        "a": "participation",
+        "b": "expertise",
+        "v": 0.447268465213299
+      },
+      {
+        "a": "id",
+        "b": "desire",
+        "v": 0.299822457291964
+      },
+      {
+        "a": "id",
+        "b": "expertise",
+        "v": 0.275662689850217
+      },
+      {
+        "a": "id",
+        "b": "participation",
+        "v": 0.435831986289275
+      },
+      {
+        "a": "hc",
+        "b": "desire",
+        "v": 0.175088370343075
+      },
+      {
+        "a": "hc",
+        "b": "expertise",
+        "v": 0.164916704241859
+      },
+      {
+        "a": "hc",
+        "b": "participation",
+        "v": 0.312992175801531
+      },
+      {
+        "a": "hc",
+        "b": "id",
+        "v": 0.684563576066862
+      },
+      {
+        "a": "js",
+        "b": "desire",
+        "v": 0.0702790256044412
+      },
+      {
+        "a": "js",
+        "b": "expertise",
+        "v": 0.0587552686039979
+      },
+      {
+        "a": "js",
+        "b": "participation",
+        "v": 0.0386443066379067
+      },
+      {
+        "a": "js",
+        "b": "id",
+        "v": 0.155393686427692
+      },
+      {
+        "a": "js",
+        "b": "hc",
+        "v": 0.258716208180856
+      }
+    ]
+  },
+  "tolerance": 1e-06,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

@@ -1,0 +1,628 @@
+{
+  "name": "pls_seminr_moderation_corp_rep",
+  "source": "seminr",
+  "kind": "pls",
+  "dataset": "corp_rep",
+  "missingTokens": "-99",
+  "options": {
+    "scheme": "path",
+    "consistent": false,
+    "missing": "mean"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "QUAL",
+        "type": "composite",
+        "mode": "B",
+        "indicators": ["qual_1", "qual_2", "qual_3", "qual_4", "qual_5", "qual_6", "qual_7", "qual_8"]
+      },
+      {
+        "name": "PERF",
+        "type": "composite",
+        "mode": "B",
+        "indicators": ["perf_1", "perf_2", "perf_3", "perf_4", "perf_5"]
+      },
+      {
+        "name": "CSOR",
+        "type": "composite",
+        "mode": "B",
+        "indicators": ["csor_1", "csor_2", "csor_3", "csor_4", "csor_5"]
+      },
+      {
+        "name": "ATTR",
+        "type": "composite",
+        "mode": "B",
+        "indicators": ["attr_1", "attr_2", "attr_3"]
+      },
+      {
+        "name": "COMP",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["comp_1", "comp_2", "comp_3"]
+      },
+      {
+        "name": "LIKE",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["like_1", "like_2", "like_3"]
+      },
+      {
+        "name": "CUSA",
+        "type": "factor",
+        "mode": "A",
+        "indicators": "cusa"
+      },
+      {
+        "name": "CUSL",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["cusl_1", "cusl_2", "cusl_3"]
+      },
+      {
+        "name": "SC",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["switch_1", "switch_2", "switch_3", "switch_4"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "QUAL",
+        "to": "COMP"
+      },
+      {
+        "from": "QUAL",
+        "to": "LIKE"
+      },
+      {
+        "from": "PERF",
+        "to": "COMP"
+      },
+      {
+        "from": "PERF",
+        "to": "LIKE"
+      },
+      {
+        "from": "CSOR",
+        "to": "COMP"
+      },
+      {
+        "from": "CSOR",
+        "to": "LIKE"
+      },
+      {
+        "from": "ATTR",
+        "to": "COMP"
+      },
+      {
+        "from": "ATTR",
+        "to": "LIKE"
+      },
+      {
+        "from": "COMP",
+        "to": "CUSA"
+      },
+      {
+        "from": "COMP",
+        "to": "CUSL"
+      },
+      {
+        "from": "LIKE",
+        "to": "CUSA"
+      },
+      {
+        "from": "LIKE",
+        "to": "CUSL"
+      },
+      {
+        "from": "CUSA",
+        "to": "CUSL"
+      },
+      {
+        "from": "SC",
+        "to": "CUSL"
+      }
+    ],
+    "moderations": [
+      {
+        "from": "CUSA",
+        "moderator": "SC",
+        "to": "CUSL"
+      }
+    ],
+    "covariances": []
+  },
+  "expected": {
+    "paths": [
+      {
+        "from": "QUAL",
+        "to": "COMP",
+        "est": 0.429660955345217
+      },
+      {
+        "from": "QUAL",
+        "to": "LIKE",
+        "est": 0.379976254508565
+      },
+      {
+        "from": "PERF",
+        "to": "COMP",
+        "est": 0.29545732076322
+      },
+      {
+        "from": "PERF",
+        "to": "LIKE",
+        "est": 0.116952081790218
+      },
+      {
+        "from": "CSOR",
+        "to": "COMP",
+        "est": 0.0588898331153253
+      },
+      {
+        "from": "CSOR",
+        "to": "LIKE",
+        "est": 0.178427987283692
+      },
+      {
+        "from": "ATTR",
+        "to": "COMP",
+        "est": 0.0861240101729113
+      },
+      {
+        "from": "ATTR",
+        "to": "LIKE",
+        "est": 0.167060186248384
+      },
+      {
+        "from": "COMP",
+        "to": "CUSA",
+        "est": 0.145544299757085
+      },
+      {
+        "from": "COMP",
+        "to": "CUSL",
+        "est": -0.0203252782358925
+      },
+      {
+        "from": "LIKE",
+        "to": "CUSA",
+        "est": 0.435659753063386
+      },
+      {
+        "from": "LIKE",
+        "to": "CUSL",
+        "est": 0.319427017238523
+      },
+      {
+        "from": "CUSA",
+        "to": "CUSL",
+        "est": 0.466569112054831
+      },
+      {
+        "from": "SC",
+        "to": "CUSL",
+        "est": 0.0705276134937229
+      },
+      {
+        "from": "CUSA × SC",
+        "to": "CUSL",
+        "est": -0.0711327655132495
+      }
+    ],
+    "loadings": [
+      {
+        "construct": "QUAL",
+        "indicator": "qual_1",
+        "est": 0.740519827499947
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_2",
+        "est": 0.57012900914749
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_3",
+        "est": 0.749148916152643
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_4",
+        "est": 0.663815445784151
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_5",
+        "est": 0.786698001610262
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_6",
+        "est": 0.855583505152272
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_7",
+        "est": 0.721605350982663
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_8",
+        "est": 0.627230830145343
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_1",
+        "est": 0.846031947162718
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_2",
+        "est": 0.690174452890576
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_3",
+        "est": 0.572818927111432
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_4",
+        "est": 0.71719320804059
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_5",
+        "est": 0.637956589466552
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_1",
+        "est": 0.771331935996554
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_2",
+        "est": 0.570501786469798
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_3",
+        "est": 0.838388858702528
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_4",
+        "est": 0.616732438946924
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_5",
+        "est": 0.847970908969646
+      },
+      {
+        "construct": "ATTR",
+        "indicator": "attr_1",
+        "est": 0.754496119990654
+      },
+      {
+        "construct": "ATTR",
+        "indicator": "attr_2",
+        "est": 0.505594942472817
+      },
+      {
+        "construct": "ATTR",
+        "indicator": "attr_3",
+        "est": 0.890923211738262
+      },
+      {
+        "construct": "COMP",
+        "indicator": "comp_1",
+        "est": 0.824187551928569
+      },
+      {
+        "construct": "COMP",
+        "indicator": "comp_2",
+        "est": 0.820578584123827
+      },
+      {
+        "construct": "COMP",
+        "indicator": "comp_3",
+        "est": 0.843504181665508
+      },
+      {
+        "construct": "LIKE",
+        "indicator": "like_1",
+        "est": 0.879593991458752
+      },
+      {
+        "construct": "LIKE",
+        "indicator": "like_2",
+        "est": 0.868875287352872
+      },
+      {
+        "construct": "LIKE",
+        "indicator": "like_3",
+        "est": 0.844146124144079
+      },
+      {
+        "construct": "CUSA",
+        "indicator": "cusa",
+        "est": 0.999999999999997
+      },
+      {
+        "construct": "CUSL",
+        "indicator": "cusl_1",
+        "est": 0.835096131953943
+      },
+      {
+        "construct": "CUSL",
+        "indicator": "cusl_2",
+        "est": 0.917143288947502
+      },
+      {
+        "construct": "CUSL",
+        "indicator": "cusl_3",
+        "est": 0.840599244633942
+      },
+      {
+        "construct": "SC",
+        "indicator": "switch_1",
+        "est": 0.895275596447819
+      },
+      {
+        "construct": "SC",
+        "indicator": "switch_2",
+        "est": 0.742953760646579
+      },
+      {
+        "construct": "SC",
+        "indicator": "switch_3",
+        "est": 0.819382033423621
+      },
+      {
+        "construct": "SC",
+        "indicator": "switch_4",
+        "est": 0.891953727844788
+      }
+    ],
+    "weights": [
+      {
+        "construct": "QUAL",
+        "indicator": "qual_1",
+        "est": 0.202385337350903
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_2",
+        "est": 0.0411411089286019
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_3",
+        "est": 0.105540854914381
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_4",
+        "est": -0.00453317256464645
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_5",
+        "est": 0.159651394312184
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_6",
+        "est": 0.397980694513133
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_7",
+        "est": 0.22916136670615
+      },
+      {
+        "construct": "QUAL",
+        "indicator": "qual_8",
+        "est": 0.189962057812348
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_1",
+        "est": 0.467720788252945
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_2",
+        "est": 0.176934383003575
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_3",
+        "est": 0.194448314270992
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_4",
+        "est": 0.340429144289916
+      },
+      {
+        "construct": "PERF",
+        "indicator": "perf_5",
+        "est": 0.198509643174338
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_1",
+        "est": 0.306418895860449
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_2",
+        "est": 0.0372230572385852
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_3",
+        "est": 0.406053844842093
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_4",
+        "est": 0.0800695013039359
+      },
+      {
+        "construct": "CSOR",
+        "indicator": "csor_5",
+        "est": 0.41581735537675
+      },
+      {
+        "construct": "ATTR",
+        "indicator": "attr_1",
+        "est": 0.414380685149986
+      },
+      {
+        "construct": "ATTR",
+        "indicator": "attr_2",
+        "est": 0.200771106460127
+      },
+      {
+        "construct": "ATTR",
+        "indicator": "attr_3",
+        "est": 0.657567921809253
+      },
+      {
+        "construct": "COMP",
+        "indicator": "comp_1",
+        "est": 0.469320478009435
+      },
+      {
+        "construct": "COMP",
+        "indicator": "comp_2",
+        "est": 0.365129784101212
+      },
+      {
+        "construct": "COMP",
+        "indicator": "comp_3",
+        "est": 0.371751829707696
+      },
+      {
+        "construct": "LIKE",
+        "indicator": "like_1",
+        "est": 0.419436471989041
+      },
+      {
+        "construct": "LIKE",
+        "indicator": "like_2",
+        "est": 0.374115085081073
+      },
+      {
+        "construct": "LIKE",
+        "indicator": "like_3",
+        "est": 0.362504593262448
+      },
+      {
+        "construct": "CUSA",
+        "indicator": "cusa",
+        "est": 1
+      },
+      {
+        "construct": "CUSL",
+        "indicator": "cusl_1",
+        "est": 0.373260229150003
+      },
+      {
+        "construct": "CUSL",
+        "indicator": "cusl_2",
+        "est": 0.420089285200644
+      },
+      {
+        "construct": "CUSL",
+        "indicator": "cusl_3",
+        "est": 0.360468748548564
+      },
+      {
+        "construct": "SC",
+        "indicator": "switch_1",
+        "est": 0.286239025937422
+      },
+      {
+        "construct": "SC",
+        "indicator": "switch_2",
+        "est": 0.303886831528967
+      },
+      {
+        "construct": "SC",
+        "indicator": "switch_3",
+        "est": 0.32880227692908
+      },
+      {
+        "construct": "SC",
+        "indicator": "switch_4",
+        "est": 0.278656431391246
+      }
+    ],
+    "r2": {
+      "COMP": 0.630861403497503,
+      "LIKE": 0.557646726466363,
+      "CUSA": 0.291878572663864,
+      "CUSL": 0.571050861000539
+    },
+    "alpha": {
+      "QUAL": 0.878380019899632,
+      "PERF": 0.746747611367357,
+      "CSOR": 0.816254409996062,
+      "ATTR": 0.599881366570914,
+      "COMP": 0.776028273039251,
+      "LIKE": 0.830986638420284,
+      "CUSA": 1,
+      "CUSL": 0.830988169584044,
+      "SC": 0.858378849684444
+    },
+    "rhoC": {
+      "QUAL": 0.894307494848064,
+      "PERF": 0.824271817847574,
+      "CSOR": 0.853672052566832,
+      "ATTR": 0.770087739288288,
+      "COMP": 0.868693745204706,
+      "LIKE": 0.898563820589821,
+      "CUSA": 1,
+      "CUSL": 0.899052009447191,
+      "SC": 0.904869619701049
+    },
+    "ave": {
+      "QUAL": 0.517542677938025,
+      "PERF": 0.488317412400637,
+      "CSOR": 0.544546937191636,
+      "ATTR": 0.539544936716354,
+      "COMP": 0.688044545987957,
+      "LIKE": 0.747070844563449,
+      "CUSA": 1,
+      "CUSL": 0.748381484048344,
+      "SC": 0.705116763341884
+    },
+    "rhoA": {
+      "QUAL": 1,
+      "PERF": 1,
+      "CSOR": 1,
+      "ATTR": 1,
+      "COMP": 0.785581055813634,
+      "LIKE": 0.836047977620028,
+      "CUSA": 1,
+      "CUSL": 0.839069821706936,
+      "SC": 0.858144219663414
+    },
+    "htmt": null
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

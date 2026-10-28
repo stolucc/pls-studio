@@ -1,0 +1,256 @@
+{
+  "name": "pls_seminr_moderation_mobi",
+  "source": "seminr",
+  "kind": "pls",
+  "dataset": "mobi",
+  "missingTokens": null,
+  "options": {
+    "scheme": "path",
+    "consistent": false,
+    "missing": "mean"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "Image",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5"]
+      },
+      {
+        "name": "Expectation",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUEX1", "CUEX2", "CUEX3"]
+      },
+      {
+        "name": "Value",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["PERV1", "PERV2"]
+      },
+      {
+        "name": "Satisfaction",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUSA1", "CUSA2", "CUSA3"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "Image",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Expectation",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Value",
+        "to": "Satisfaction"
+      }
+    ],
+    "moderations": [
+      {
+        "from": "Image",
+        "moderator": "Expectation",
+        "to": "Satisfaction"
+      }
+    ],
+    "covariances": []
+  },
+  "expected": {
+    "paths": [
+      {
+        "from": "Image",
+        "to": "Satisfaction",
+        "est": 0.448154176375731
+      },
+      {
+        "from": "Expectation",
+        "to": "Satisfaction",
+        "est": 0.168475120598775
+      },
+      {
+        "from": "Value",
+        "to": "Satisfaction",
+        "est": 0.316338741148844
+      },
+      {
+        "from": "Image × Expectation",
+        "to": "Satisfaction",
+        "est": -0.0431336608683876
+      }
+    ],
+    "loadings": [
+      {
+        "construct": "Image",
+        "indicator": "IMAG1",
+        "est": 0.763198107155366
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG2",
+        "est": 0.598857402106119
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG3",
+        "est": 0.561343491209904
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG4",
+        "est": 0.769160721041681
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG5",
+        "est": 0.736259364987255
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX1",
+        "est": 0.761485546011426
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX2",
+        "est": 0.710225089178744
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX3",
+        "est": 0.59769260570399
+      },
+      {
+        "construct": "Value",
+        "indicator": "PERV1",
+        "est": 0.901399606802506
+      },
+      {
+        "construct": "Value",
+        "indicator": "PERV2",
+        "est": 0.940265809366669
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA1",
+        "est": 0.80448115289541
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA2",
+        "est": 0.842770876603523
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA3",
+        "est": 0.850093651947303
+      }
+    ],
+    "weights": [
+      {
+        "construct": "Image",
+        "indicator": "IMAG1",
+        "est": 0.331557002535047
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG2",
+        "est": 0.253419752693169
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG3",
+        "est": 0.199541112424745
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG4",
+        "est": 0.330974065358194
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG5",
+        "est": 0.310502906906285
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX1",
+        "est": 0.505781557442305
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX2",
+        "est": 0.498695592062774
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX3",
+        "est": 0.4361247416064
+      },
+      {
+        "construct": "Value",
+        "indicator": "PERV1",
+        "est": 0.476810050159052
+      },
+      {
+        "construct": "Value",
+        "indicator": "PERV2",
+        "est": 0.606428099997825
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA1",
+        "est": 0.388091518401179
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA2",
+        "est": 0.373720948085795
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA3",
+        "est": 0.438571157389886
+      }
+    ],
+    "r2": {
+      "Satisfaction": 0.593503065829677
+    },
+    "alpha": {
+      "Image": 0.722834595427083,
+      "Expectation": 0.451902555978064,
+      "Value": 0.823631979352573,
+      "Satisfaction": 0.779195021918597
+    },
+    "rhoC": {
+      "Image": 0.818325125731279,
+      "Expectation": 0.733178096296538,
+      "Value": 0.917897188802234,
+      "Satisfaction": 0.87146339339706
+    },
+    "ave": {
+      "Image": 0.477978824254268,
+      "Expectation": 0.480505454998833,
+      "Value": 0.848310521703835,
+      "Satisfaction": 0.693370630965367
+    },
+    "rhoA": {
+      "Image": 0.745288395503322,
+      "Expectation": 0.461643671781007,
+      "Value": 0.857530063247238,
+      "Satisfaction": 0.783860253932728
+    },
+    "htmt": null
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

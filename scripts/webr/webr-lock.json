@@ -1,0 +1,2157 @@
+{
+  "webr": "0.6.0",
+  "r": "4.6",
+  "packages": {
+    "abind": {
+      "version": "1.4-8",
+      "md5": "2c5bf999c682fe7fba68124c8cbc5a5c",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "abind",
+        "Version": "1.4-8",
+        "Depends": "R (>= 1.5.0)",
+        "Imports": "methods, utils",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "2c5bf999c682fe7fba68124c8cbc5a5c",
+        "Built": "R 4.6.0; ; 2026-05-12 14:42:53 UTC; unix",
+        "File": "abind_1.4-8.tgz"
+      }
+    },
+    "alabama": {
+      "version": "2025.1.0",
+      "md5": "2070692fc5039ca0abd381fb3dbb4da5",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "alabama",
+        "Version": "2025.1.0",
+        "Depends": "R (>= 4.0), numDeriv",
+        "License": "GPL (>= 2)",
+        "MD5sum": "2070692fc5039ca0abd381fb3dbb4da5",
+        "Built": "R 4.6.0; ; 2026-05-12 15:20:35 UTC; unix",
+        "File": "alabama_2025.1.0.tgz"
+      }
+    },
+    "backports": {
+      "version": "1.5.1",
+      "md5": "a42352c3977e6158b09a56d982874c82",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "backports",
+        "Version": "1.5.1",
+        "Depends": "R (>= 3.0.0)",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "a42352c3977e6158b09a56d982874c82",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 16:29:34 UTC; unix",
+        "File": "backports_1.5.1.tgz"
+      }
+    },
+    "base64enc": {
+      "version": "0.1-6",
+      "md5": "d5093b50096872598e6acc3c5d56b184",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "base64enc",
+        "Version": "0.1-6",
+        "Depends": "R (>= 2.9.0)",
+        "Enhances": "png",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "d5093b50096872598e6acc3c5d56b184",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 16:39:51 UTC; unix",
+        "File": "base64enc_0.1-6.tgz"
+      }
+    },
+    "bit": {
+      "version": "4.6.0",
+      "md5": "34611a4fbe67e7356254cf8b7b4bcc28",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "bit",
+        "Version": "4.6.0",
+        "Depends": "R (>= 3.4.0)",
+        "Suggests": "testthat (>= 3.0.0), roxygen2, knitr, markdown, rmarkdown, microbenchmark, bit64 (>= 4.0.0), ff (>= 4.0.0)",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "34611a4fbe67e7356254cf8b7b4bcc28",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 17:56:49 UTC; unix",
+        "File": "bit_4.6.0.tgz"
+      }
+    },
+    "bit64": {
+      "version": "4.8.6",
+      "md5": "674e866f7c7683090c45f40b70921f23",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "bit64",
+        "Version": "4.8.6",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "bit (>= 4.0.0), graphics, methods, stats, utils",
+        "Suggests": "patrick (>= 0.3.0), testthat (>= 3.3.0), withr",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "674e866f7c7683090c45f40b70921f23",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 14:05:53 UTC; unix",
+        "File": "bit64_4.8.6.tgz"
+      }
+    },
+    "boot": {
+      "version": "1.3-32",
+      "md5": "065265208bf9aeeec1f77bee67b1cff6",
+      "license": "Unlimited",
+      "stanza": {
+        "Package": "boot",
+        "Version": "1.3-32",
+        "Priority": "recommended",
+        "Depends": "R (>= 3.0.0), graphics, stats",
+        "Suggests": "MASS, survival",
+        "License": "Unlimited",
+        "MD5sum": "065265208bf9aeeec1f77bee67b1cff6",
+        "Built": "R 4.6.0; ; 2026-05-12 18:23:31 UTC; unix",
+        "File": "boot_1.3-32.tgz"
+      }
+    },
+    "broom": {
+      "version": "1.0.13",
+      "md5": "897c4f300454b17e033ffcbbd992329d",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "broom",
+        "Version": "1.0.13",
+        "Depends": "R (>= 4.1)",
+        "Imports": "backports, cli, dplyr (>= 1.0.0), generics (>= 0.0.2), glue, lifecycle, purrr, rlang (>= 1.1.0), stringr, tibble (>= 3.0.0), tidyr (>= 1.0.0)",
+        "Suggests": "AER, AUC, bbmle, betareg (>= 3.2-1), biglm, binGroup, boot, btergm (>= 1.10.6), car (>= 3.1-2), carData, caret, cluster, cmprsk, coda, covr, drc, e1071, emmeans, epiR (>= 2.0.85), ergm (>= 3.10.4), fixest (>= 0.9.0), gam (>= 1.15), gee, geepack, ggplot2, glmnet, glmnetUtils, gmm, Hmisc, interp, irlba, joineRML, Kendall, knitr, ks, Lahman, lavaan (>= 0.6.18), leaps, lfe, lm.beta, lme4, lmodel2, lmtest (>= 0.9.38), lsmeans, maps, margins, MASS, mclust, mediation, metafor, mfx, mgcv, mlogit, modeldata, modeltests (>= 0.1.6), muhaz, multcomp, network, nnet, ordinal, plm, poLCA, psych, quantreg, rmarkdown, robust, robustbase, rsample, sandwich, spatialreg, spdep (>= 1.1), speedglm, spelling, stats4, survey, survival (>= 3.6-4), systemfit, testthat (>= 3.0.0), tseries, vars, zoo",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "897c4f300454b17e033ffcbbd992329d",
+        "Built": "R 4.6.0; ; 2026-05-14 13:40:53 UTC; unix",
+        "File": "broom_1.0.13.tgz"
+      }
+    },
+    "bslib": {
+      "version": "0.12.0",
+      "md5": "62ab705afc29df026e3932edd9fd9d38",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "bslib",
+        "Version": "0.12.0",
+        "Depends": "R (>= 2.10)",
+        "Imports": "base64enc, cachem, fastmap (>= 1.1.1), grDevices, htmltools (>= 0.5.8), jquerylib (>= 0.1.3), jsonlite, lifecycle, memoise (>= 2.0.1), mime, rlang, sass (>= 0.4.9)",
+        "Suggests": "brand.yml, bsicons, curl, fontawesome, future, ggplot2, knitr, lattice, magrittr, rappdirs, rmarkdown (>= 2.7), shiny (>= 1.11.1.9000), testthat, thematic, tools, utils, withr, yaml",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "62ab705afc29df026e3932edd9fd9d38",
+        "Built": "R 4.6.0; ; 2026-10-09 14:34:13 UTC; unix",
+        "File": "bslib_0.12.0.tgz"
+      }
+    },
+    "cachem": {
+      "version": "1.1.0",
+      "md5": "154f936625f5e30ad6e65b6a0e25fd03",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "cachem",
+        "Version": "1.1.0",
+        "Imports": "rlang, fastmap (>= 1.2.0)",
+        "Suggests": "testthat",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "154f936625f5e30ad6e65b6a0e25fd03",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 18:59:26 UTC; unix",
+        "File": "cachem_1.1.0.tgz"
+      }
+    },
+    "car": {
+      "version": "3.1-5",
+      "md5": "7863ab220ad6ecd6ba7c433e173bf81b",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "car",
+        "Version": "3.1-5",
+        "Depends": "R (>= 3.5.0), carData (>= 3.0-0)",
+        "Imports": "abind, Formula, MASS, mgcv, nnet, pbkrtest (>= 0.4-4), quantreg, grDevices, utils, stats, graphics, lme4 (>= 1.1-27.1), nlme, scales",
+        "Suggests": "alr4, boot, coxme, effects, knitr, leaps, lmtest, Matrix, MatrixModels, ordinal, plotrix, mvtnorm, rgl (>= 0.111.3), rio, sandwich, SparseM, survival, survey",
+        "License": "GPL (>= 2)",
+        "MD5sum": "7863ab220ad6ecd6ba7c433e173bf81b",
+        "Built": "R 4.6.0; ; 2026-05-12 19:09:35 UTC; unix",
+        "File": "car_3.1-5.tgz"
+      }
+    },
+    "carData": {
+      "version": "3.0-6",
+      "md5": "731c52eb2798f96aaed151c657dc08f6",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "carData",
+        "Version": "3.0-6",
+        "Depends": "R (>= 3.5.0)",
+        "Suggests": "car (>= 3.0-0)",
+        "License": "GPL (>= 2)",
+        "MD5sum": "731c52eb2798f96aaed151c657dc08f6",
+        "Built": "R 4.6.0; ; 2026-05-12 19:11:37 UTC; unix",
+        "File": "carData_3.0-6.tgz"
+      }
+    },
+    "cli": {
+      "version": "3.6.6",
+      "md5": "9969e89a653cbd6adab0f2272549f629",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "cli",
+        "Version": "3.6.6",
+        "Depends": "R (>= 3.4)",
+        "Imports": "utils",
+        "Suggests": "callr, covr, crayon, digest, glue (>= 1.6.0), grDevices, htmltools, htmlwidgets, knitr, methods, processx, ps (>= 1.3.4.9000), rlang (>= 1.0.2.9003), rmarkdown, rprojroot, rstudioapi, testthat (>= 3.2.0), tibble, whoami, withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "9969e89a653cbd6adab0f2272549f629",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 20:13:34 UTC; unix",
+        "File": "cli_3.6.6.tgz"
+      }
+    },
+    "clipr": {
+      "version": "0.8.1",
+      "md5": "f9ca6bb09965eef86570a65029b70f04",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "clipr",
+        "Version": "0.8.1",
+        "Imports": "utils",
+        "Suggests": "covr, knitr, rmarkdown, rstudioapi (>= 0.5), testthat (>= 2.0.0)",
+        "License": "GPL-3",
+        "MD5sum": "f9ca6bb09965eef86570a65029b70f04",
+        "Built": "R 4.6.0; ; 2026-05-28 09:01:55 UTC; unix",
+        "File": "clipr_0.8.1.tgz"
+      }
+    },
+    "codetools": {
+      "version": "0.2-20",
+      "md5": "2eb1578dcd3ad1c70cd26c82204ca1ad",
+      "license": "GPL",
+      "stanza": {
+        "Package": "codetools",
+        "Version": "0.2-20",
+        "Priority": "recommended",
+        "Depends": "R (>= 2.1)",
+        "License": "GPL",
+        "MD5sum": "2eb1578dcd3ad1c70cd26c82204ca1ad",
+        "Built": "R 4.6.0; ; 2026-05-12 20:43:53 UTC; unix",
+        "File": "codetools_0.2-20.tgz"
+      }
+    },
+    "colorspace": {
+      "version": "2.1-4",
+      "md5": "dac08c7deef05bffbf068dfb77e0f6cf",
+      "license": "BSD_3_clause + file LICENSE",
+      "stanza": {
+        "Package": "colorspace",
+        "Version": "2.1-4",
+        "Depends": "R (>= 3.0.0), methods",
+        "Imports": "graphics, grDevices, stats",
+        "Suggests": "datasets, utils, KernSmooth, MASS, kernlab, mvtnorm, vcd, tcltk, shiny, shinyjs, ggplot2, dplyr, scales, grid, png, jpeg, knitr, rmarkdown, RColorBrewer, rcartocolor, scico, viridis, wesanderson",
+        "License": "BSD_3_clause + file LICENSE",
+        "MD5sum": "dac08c7deef05bffbf068dfb77e0f6cf",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 15:22:54 UTC; unix",
+        "File": "colorspace_2.1-4.tgz"
+      }
+    },
+    "combinat": {
+      "version": "0.0-9",
+      "md5": "3e2b2b66a48138253c1a58755667249d",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "combinat",
+        "Version": "0.0-9",
+        "License": "GPL-2",
+        "MD5sum": "3e2b2b66a48138253c1a58755667249d",
+        "Built": "R 4.6.0; ; 2026-10-09 15:23:35 UTC; unix",
+        "File": "combinat_0.0-9.tgz"
+      }
+    },
+    "cowplot": {
+      "version": "1.2.0",
+      "md5": "19e12ad9953489eb9697426b6ed20ff5",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "cowplot",
+        "Version": "1.2.0",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "ggplot2 (>= 3.5.2), grid, gtable, grDevices, methods, rlang, scales",
+        "Suggests": "Cairo, covr, dplyr, forcats, gridGraphics (>= 0.4-0), knitr, lattice, magick, maps, PASWR, patchwork, rmarkdown, ragg, testthat (>= 1.0.0), tidyr, vdiffr (>= 0.3.0), VennDiagram",
+        "License": "GPL-2",
+        "MD5sum": "19e12ad9953489eb9697426b6ed20ff5",
+        "Built": "R 4.6.0; ; 2026-05-12 21:39:03 UTC; unix",
+        "File": "cowplot_1.2.0.tgz"
+      }
+    },
+    "crayon": {
+      "version": "1.5.3",
+      "md5": "e2e843316f9cb55e9d8538f5df779794",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "crayon",
+        "Version": "1.5.3",
+        "Imports": "grDevices, methods, utils",
+        "Suggests": "mockery, rstudioapi, testthat, withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "e2e843316f9cb55e9d8538f5df779794",
+        "Built": "R 4.6.0; ; 2026-05-12 21:49:08 UTC; unix",
+        "File": "crayon_1.5.3.tgz"
+      }
+    },
+    "cSEM": {
+      "version": "0.7.1",
+      "md5": "26676cfd799c3cba6302b56e76f38a45",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "cSEM",
+        "Version": "0.7.1",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "alabama, cli, crayon, expm (>= 0.999-5), future.apply, future, lifecycle, lavaan, magrittr, MASS, Matrix, matrixStats, pbivnorm, progressr, psych, purrr, Rdpack, rlang, stats, symmoments, TruncatedNormal, utils",
+        "Suggests": "DiagrammeR, DiagrammeRsvg, dplyr, tidyr, knitr, nnls, prettydoc, plotly, rsvg, rmarkdown, rootSolve, listviewer, testthat (>= 3.0.0), ggplot2, GA, openxlsx, graphics, spelling",
+        "License": "GPL-3",
+        "MD5sum": "26676cfd799c3cba6302b56e76f38a45",
+        "Built": "R 4.6.0; ; 2026-10-09 15:48:34 UTC; unix",
+        "File": "cSEM_0.7.1.tgz"
+      }
+    },
+    "cubature": {
+      "version": "2.1.4-1",
+      "md5": "483a7fa4a7fc38450a1f1a492e08b1ee",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "cubature",
+        "Version": "2.1.4-1",
+        "Imports": "Rcpp",
+        "LinkingTo": "Rcpp",
+        "Suggests": "testthat, knitr, mvtnorm, bench, rmarkdown",
+        "License": "GPL-3",
+        "MD5sum": "483a7fa4a7fc38450a1f1a492e08b1ee",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 22:11:55 UTC; unix",
+        "File": "cubature_2.1.4-1.tgz"
+      }
+    },
+    "curl": {
+      "version": "8.0.0",
+      "md5": "6d7a1050c3f147426ad2845b12a814c8",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "curl",
+        "Version": "8.0.0",
+        "Depends": "R (>= 3.0.0)",
+        "Suggests": "spelling, testthat (>= 1.0.0), knitr, jsonlite, later, rmarkdown, httpuv (>= 1.4.4), webutils",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "6d7a1050c3f147426ad2845b12a814c8",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 15:53:40 UTC; unix",
+        "File": "curl_8.0.0.tgz"
+      }
+    },
+    "Deriv": {
+      "version": "4.3.5",
+      "md5": "96a9a1d2cfa3c9912394e3e839baafe6",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "Deriv",
+        "Version": "4.3.5",
+        "Depends": "Rcpp, R (>= 4.5)",
+        "Imports": "methods",
+        "LinkingTo": "Rcpp",
+        "Suggests": "testthat (>= 0.11.0)",
+        "License": "GPL (>= 3)",
+        "MD5sum": "96a9a1d2cfa3c9912394e3e839baafe6",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 16:20:07 UTC; unix",
+        "File": "Deriv_4.3.5.tgz"
+      }
+    },
+    "DiagrammeR": {
+      "version": "1.0.12",
+      "md5": "51781c1c08463c82a54e83dd4f33480a",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "DiagrammeR",
+        "Version": "1.0.12",
+        "Depends": "R (>= 4.1)",
+        "Imports": "dplyr (>= 1.0.7), glue (>= 1.5.0), htmltools (>= 0.5.2), htmlwidgets (>= 1.5), igraph (>= 2.0.0), magrittr (>= 1.5), purrr (>= 0.3.4), RColorBrewer (>= 1.1-2), readr (>= 2.1.1), rlang (>= 1.1.0), cli, rstudioapi (>= 0.7), scales (>= 1.1), stringr (>= 1.4), tibble (>= 3.1), tidyr (>= 1.1), viridisLite (>= 0.4.2), visNetwork (>= 2.1.0)",
+        "Suggests": "curl, DiagrammeRsvg, knitr, rmarkdown, rsvg, testthat (>= 3.1.0), withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "51781c1c08463c82a54e83dd4f33480a",
+        "Built": "R 4.6.0; ; 2026-05-12 23:23:07 UTC; unix",
+        "File": "DiagrammeR_1.0.12.tgz"
+      }
+    },
+    "DiagrammeRsvg": {
+      "version": "0.1",
+      "md5": "1e6fb7321fc832ee7d5ce227955b29b6",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "DiagrammeRsvg",
+        "Version": "0.1",
+        "Imports": "V8 (>= 0.10)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "1e6fb7321fc832ee7d5ce227955b29b6",
+        "Built": "R 4.6.0; ; 2026-05-12 23:23:12 UTC; unix",
+        "File": "DiagrammeRsvg_0.1.tgz"
+      }
+    },
+    "digest": {
+      "version": "0.6.39",
+      "md5": "dd041ecb4440c3188d8f7e7b4e411aa1",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "digest",
+        "Version": "0.6.39",
+        "Depends": "R (>= 3.3.0)",
+        "Imports": "utils",
+        "Suggests": "tinytest, simplermarkdown, rbenchmark",
+        "License": "GPL (>= 2)",
+        "MD5sum": "dd041ecb4440c3188d8f7e7b4e411aa1",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 23:29:34 UTC; unix",
+        "File": "digest_0.6.39.tgz"
+      }
+    },
+    "doBy": {
+      "version": "4.7.2",
+      "md5": "dfd44b54e827e15bc92b5e47a7aaac0d",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "doBy",
+        "Version": "4.7.2",
+        "Depends": "R (>= 4.2.0), methods",
+        "Imports": "boot, broom, cowplot, Deriv, dplyr, forecast, ggplot2, MASS, Matrix, modelr, rlang, purrr, tibble, tidyr,",
+        "Suggests": "geepack, knitr, lme4, markdown, rmarkdown, multcomp, microbenchmark, pbkrtest (>= 0.5.2), survival, testthat (>= 2.1.0)",
+        "License": "GPL (>= 2)",
+        "MD5sum": "dfd44b54e827e15bc92b5e47a7aaac0d",
+        "Built": "R 4.6.0; ; 2026-10-09 16:44:53 UTC; unix",
+        "File": "doBy_4.7.2.tgz"
+      }
+    },
+    "dplyr": {
+      "version": "1.2.1",
+      "md5": "743bd7ab74a190fe3a5c63b8b054fade",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "dplyr",
+        "Version": "1.2.1",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "cli (>= 3.6.2), generics, glue (>= 1.3.2), lifecycle (>= 1.0.5), magrittr (>= 1.5), methods, pillar (>= 1.9.0), R6, rlang (>= 1.1.7), tibble (>= 3.2.0), tidyselect (>= 1.2.0), utils, vctrs (>= 0.7.1)",
+        "Suggests": "broom, covr, DBI, dbplyr (>= 2.2.1), ggplot2, knitr, Lahman, lobstr, nycflights13, purrr, rmarkdown, RSQLite, stringi (>= 1.7.6), testthat (>= 3.1.5), tidyr (>= 1.3.0), withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "743bd7ab74a190fe3a5c63b8b054fade",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 00:01:17 UTC; unix",
+        "File": "dplyr_1.2.1.tgz"
+      }
+    },
+    "evaluate": {
+      "version": "1.0.5",
+      "md5": "a2512b26c925426eda02cfa33fe3170e",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "evaluate",
+        "Version": "1.0.5",
+        "Depends": "R (>= 3.6.0)",
+        "Suggests": "callr, covr, ggplot2 (>= 3.3.6), lattice, methods, pkgload, ragg (>= 1.4.0), rlang (>= 1.1.5), knitr, testthat (>= 3.0.0), withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "a2512b26c925426eda02cfa33fe3170e",
+        "Built": "R 4.6.0; ; 2026-05-13 02:04:08 UTC; unix",
+        "File": "evaluate_1.0.5.tgz"
+      }
+    },
+    "expm": {
+      "version": "1.0-1",
+      "md5": "7d969ef416832b8df56a79532b8f8662",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "expm",
+        "Version": "1.0-1",
+        "Depends": "Matrix",
+        "Imports": "methods",
+        "Suggests": "RColorBrewer, sfsmisc, Rmpfr",
+        "License": "GPL (>= 2)",
+        "MD5sum": "7d969ef416832b8df56a79532b8f8662",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 20:20:23 UTC; unix",
+        "File": "expm_1.0-1.tgz"
+      }
+    },
+    "farver": {
+      "version": "2.1.2",
+      "md5": "d4d2197542b63048e6d99dcefef59a43",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "farver",
+        "Version": "2.1.2",
+        "Suggests": "covr, testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "d4d2197542b63048e6d99dcefef59a43",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 02:35:54 UTC; unix",
+        "File": "farver_2.1.2.tgz"
+      }
+    },
+    "fastmap": {
+      "version": "1.2.0",
+      "md5": "c82b9058e1ff5341c0b08275e3d4946f",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "fastmap",
+        "Version": "1.2.0",
+        "Suggests": "testthat (>= 2.1.1)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "c82b9058e1ff5341c0b08275e3d4946f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 02:44:27 UTC; unix",
+        "File": "fastmap_1.2.0.tgz"
+      }
+    },
+    "fontawesome": {
+      "version": "0.5.3",
+      "md5": "a493310db58199378ddc337d19a9dabd",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "fontawesome",
+        "Version": "0.5.3",
+        "Depends": "R (>= 3.3.0)",
+        "Imports": "rlang (>= 1.0.6), htmltools (>= 0.5.1.1)",
+        "Suggests": "covr, dplyr (>= 1.0.8), gt (>= 0.9.0), knitr (>= 1.31), testthat (>= 3.0.0), rsvg",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "a493310db58199378ddc337d19a9dabd",
+        "Built": "R 4.6.0; ; 2026-05-13 03:44:39 UTC; unix",
+        "File": "fontawesome_0.5.3.tgz"
+      }
+    },
+    "forecast": {
+      "version": "9.0.2",
+      "md5": "9ab9f9666985ad4121d52591ce4d278c",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "forecast",
+        "Version": "9.0.2",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "colorspace, fracdiff, generics (>= 0.1.2), ggplot2 (>= 3.4.0), graphics, lmtest, magrittr, nnet, parallel, Rcpp (>= 0.12.4), stats, timeDate, urca, withr, zoo",
+        "LinkingTo": "Rcpp (>= 0.12.4), RcppArmadillo (>= 0.2.35)",
+        "Suggests": "forecTheta, knitr, methods, rmarkdown, rticles, scales, seasonal, testthat (>= 3.3.0), uroot",
+        "License": "GPL-3",
+        "MD5sum": "9ab9f9666985ad4121d52591ce4d278c",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 03:46:28 UTC; unix",
+        "File": "forecast_9.0.2.tgz"
+      }
+    },
+    "Formula": {
+      "version": "1.2-6",
+      "md5": "bd2d44be4e28f9ce327d2e427a3e698f",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "Formula",
+        "Version": "1.2-6",
+        "Depends": "R (>= 2.0.0), stats",
+        "Suggests": "knitr, rmarkdown",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "bd2d44be4e28f9ce327d2e427a3e698f",
+        "Built": "R 4.6.0; ; 2026-10-09 23:55:39 UTC; unix",
+        "File": "Formula_1.2-6.tgz"
+      }
+    },
+    "fracdiff": {
+      "version": "1.5-4",
+      "md5": "ce82c01f1cc93616642082533bcd4508",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "fracdiff",
+        "Version": "1.5-4",
+        "Imports": "stats",
+        "Suggests": "longmemo, forecast, urca",
+        "License": "GPL (>= 2)",
+        "MD5sum": "ce82c01f1cc93616642082533bcd4508",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 03:56:17 UTC; unix",
+        "File": "fracdiff_1.5-4.tgz"
+      }
+    },
+    "fs": {
+      "version": "2.1.0",
+      "md5": "d8960842a51fa7819e77e1cc177be9ae",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "fs",
+        "Version": "2.1.0",
+        "Depends": "R (>= 4.1)",
+        "Imports": "methods",
+        "Suggests": "covr, crayon, knitr, pillar (>= 1.0.0), rmarkdown, spelling, testthat (>= 3.0.0), tibble (>= 1.1.0), vctrs (>= 0.3.0), withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "d8960842a51fa7819e77e1cc177be9ae",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 04:05:40 UTC; unix",
+        "File": "fs_2.1.0.tgz"
+      }
+    },
+    "future": {
+      "version": "1.76.0",
+      "md5": "8e93143b78adec595fac8d0ae7757e47",
+      "license": "Apache License (>= 2)",
+      "stanza": {
+        "Package": "future",
+        "Version": "1.76.0",
+        "Depends": "R (>= 3.2.0)",
+        "Imports": "digest, globals (>= 0.18.0), listenv (>= 0.8.0), parallel, parallelly (>= 1.44.0), tools, utils",
+        "Suggests": "methods, RhpcBLASctl, R.rsp, markdown",
+        "License": "Apache License (>= 2)",
+        "MD5sum": "8e93143b78adec595fac8d0ae7757e47",
+        "Built": "R 4.6.0; ; 2026-10-10 00:35:40 UTC; unix",
+        "File": "future_1.76.0.tgz"
+      }
+    },
+    "future.apply": {
+      "version": "1.20.2",
+      "md5": "589eababf508c4c171e85dd1cf9e99ef",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "future.apply",
+        "Version": "1.20.2",
+        "Depends": "R (>= 3.2.0), future (>= 1.49.0)",
+        "Imports": "globals, parallel, utils",
+        "Suggests": "datasets, stats, tools, listenv, R.rsp, markdown",
+        "License": "GPL (>= 2)",
+        "MD5sum": "589eababf508c4c171e85dd1cf9e99ef",
+        "Built": "R 4.6.0; ; 2026-05-13 04:16:11 UTC; unix",
+        "File": "future.apply_1.20.2.tgz"
+      }
+    },
+    "generics": {
+      "version": "0.1.4",
+      "md5": "218be80e8ad1725dfe54cb3c3412d23b",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "generics",
+        "Version": "0.1.4",
+        "Depends": "R (>= 3.6)",
+        "Imports": "methods",
+        "Suggests": "covr, pkgload, testthat (>= 3.0.0), tibble, withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "218be80e8ad1725dfe54cb3c3412d23b",
+        "Built": "R 4.6.0; ; 2026-05-13 04:47:17 UTC; unix",
+        "File": "generics_0.1.4.tgz"
+      }
+    },
+    "ggplot2": {
+      "version": "4.0.3",
+      "md5": "853c8cabb5f13906af19a92c26210247",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "ggplot2",
+        "Version": "4.0.3",
+        "Depends": "R (>= 4.1)",
+        "Imports": "cli, grDevices, grid, gtable (>= 0.3.6), isoband, lifecycle (> 1.0.1), rlang (>= 1.1.0), S7, scales (>= 1.4.0), stats, vctrs (>= 0.6.0), withr (>= 2.5.0)",
+        "Suggests": "broom, covr, dplyr, ggplot2movies, hexbin, Hmisc, hms, knitr, mapproj, maps, MASS, mgcv, multcomp, munsell, nlme, profvis, quantreg, quarto, ragg (>= 1.2.6), RColorBrewer, roxygen2, rpart, sf (>= 0.7-3), svglite (>= 2.1.2), testthat (>= 3.1.5), tibble, vdiffr (>= 1.0.6), xml2",
+        "Enhances": "sp",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "853c8cabb5f13906af19a92c26210247",
+        "Built": "R 4.6.0; ; 2026-05-13 05:28:23 UTC; unix",
+        "File": "ggplot2_4.0.3.tgz"
+      }
+    },
+    "globals": {
+      "version": "0.20.0",
+      "md5": "4b1932d05f602266871804906a2dcb7c",
+      "license": "LGPL (>= 2.1)",
+      "stanza": {
+        "Package": "globals",
+        "Version": "0.20.0",
+        "Depends": "R (>= 3.1.2)",
+        "Imports": "codetools",
+        "License": "LGPL (>= 2.1)",
+        "MD5sum": "4b1932d05f602266871804906a2dcb7c",
+        "Built": "R 4.6.0; ; 2026-10-12 10:25:27 UTC; unix",
+        "File": "globals_0.20.0.tgz"
+      }
+    },
+    "glue": {
+      "version": "1.8.1",
+      "md5": "4e61fadc9bdd09c8b66fe9b1f8532127",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "glue",
+        "Version": "1.8.1",
+        "Depends": "R (>= 4.1)",
+        "Imports": "methods",
+        "Suggests": "crayon, DBI (>= 1.2.0), dplyr, knitr, rlang, rmarkdown, RSQLite, testthat (>= 3.2.0), vctrs (>= 0.3.0), waldo (>= 0.5.3), withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "4e61fadc9bdd09c8b66fe9b1f8532127",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 06:00:42 UTC; unix",
+        "File": "glue_1.8.1.tgz"
+      }
+    },
+    "gmp": {
+      "version": "0.7-5.1",
+      "md5": "2694741131e3c131755cfc50c49078b7",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "gmp",
+        "Version": "0.7-5.1",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "methods",
+        "Suggests": "Rmpfr, MASS, round",
+        "License": "GPL (>= 2)",
+        "MD5sum": "2694741131e3c131755cfc50c49078b7",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 06:04:03 UTC; unix",
+        "File": "gmp_0.7-5.1.tgz"
+      }
+    },
+    "GPArotation": {
+      "version": "2026.8-2",
+      "md5": "4e72bf9e2f27650f71f2e356377821e9",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "GPArotation",
+        "Version": "2026.8-2",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "stats,grDevices,graphics, utils",
+        "License": "GPL (>= 2)",
+        "MD5sum": "4e72bf9e2f27650f71f2e356377821e9",
+        "Built": "R 4.6.0; ; 2026-10-10 03:10:40 UTC; unix",
+        "File": "GPArotation_2026.8-2.tgz"
+      }
+    },
+    "gtable": {
+      "version": "0.3.6",
+      "md5": "e7fbf6603a3ff216ddcf38249bfaf3b4",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "gtable",
+        "Version": "0.3.6",
+        "Depends": "R (>= 4.0)",
+        "Imports": "cli, glue, grid, lifecycle, rlang (>= 1.1.0), stats",
+        "Suggests": "covr, ggplot2, knitr, profvis, rmarkdown, testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "e7fbf6603a3ff216ddcf38249bfaf3b4",
+        "Built": "R 4.6.0; ; 2026-05-13 06:49:40 UTC; unix",
+        "File": "gtable_0.3.6.tgz"
+      }
+    },
+    "highr": {
+      "version": "0.12",
+      "md5": "e99608d3cf6075e29c6ce2139d2b226e",
+      "license": "GPL",
+      "stanza": {
+        "Package": "highr",
+        "Version": "0.12",
+        "Depends": "R (>= 3.3.0)",
+        "Imports": "xfun (>= 0.18)",
+        "Suggests": "knitr, markdown, testit",
+        "License": "GPL",
+        "MD5sum": "e99608d3cf6075e29c6ce2139d2b226e",
+        "Built": "R 4.6.0; ; 2026-05-13 07:35:50 UTC; unix",
+        "File": "highr_0.12.tgz"
+      }
+    },
+    "hms": {
+      "version": "1.1.4",
+      "md5": "b027a9020c9236eec96d7b8eed5a8700",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "hms",
+        "Version": "1.1.4",
+        "Imports": "cli, lifecycle, methods, pkgconfig, rlang (>= 1.0.2), vctrs (>= 0.3.8)",
+        "Suggests": "crayon, lubridate, pillar (>= 1.1.0), testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "b027a9020c9236eec96d7b8eed5a8700",
+        "Built": "R 4.6.0; ; 2026-05-13 07:43:57 UTC; unix",
+        "File": "hms_1.1.4.tgz"
+      }
+    },
+    "htmltools": {
+      "version": "0.5.9",
+      "md5": "074ba05bcbee88007e97a21573b42acd",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "htmltools",
+        "Version": "0.5.9",
+        "Depends": "R (>= 2.14.1)",
+        "Imports": "base64enc, digest, fastmap (>= 1.1.0), grDevices, rlang (>= 1.0.0), utils",
+        "Suggests": "Cairo, markdown, ragg, shiny, testthat, withr",
+        "Enhances": "knitr",
+        "License": "GPL (>= 2)",
+        "MD5sum": "074ba05bcbee88007e97a21573b42acd",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 07:55:04 UTC; unix",
+        "File": "htmltools_0.5.9.tgz"
+      }
+    },
+    "htmlwidgets": {
+      "version": "1.6.4",
+      "md5": "26385444206c43d4f233802f4f942ba2",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "htmlwidgets",
+        "Version": "1.6.4",
+        "Imports": "grDevices, htmltools (>= 0.5.7), jsonlite (>= 0.9.16), knitr (>= 1.8), rmarkdown, yaml",
+        "Suggests": "testthat",
+        "Enhances": "shiny (>= 1.1)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "26385444206c43d4f233802f4f942ba2",
+        "Built": "R 4.6.0; ; 2026-05-13 07:55:11 UTC; unix",
+        "File": "htmlwidgets_1.6.4.tgz"
+      }
+    },
+    "igraph": {
+      "version": "2.3.1",
+      "md5": "e98d0d09473a17d5902a065df738097f",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "igraph",
+        "Version": "2.3.1",
+        "Depends": "methods, R (>= 3.5.0)",
+        "Imports": "cli, graphics, grDevices, lifecycle, magrittr, Matrix, pkgconfig (>= 2.0.0), rlang (>= 1.1.0), stats, utils, vctrs",
+        "LinkingTo": "cpp11 (>= 0.5.0)",
+        "Suggests": "ape (>= 5.7-0.1), callr, decor, digest, igraphdata, knitr, rgl (>= 1.3.14), rmarkdown, scales, stats4, tcltk, testthat, vdiffr, withr",
+        "Enhances": "graph",
+        "License": "GPL (>= 2)",
+        "MD5sum": "e98d0d09473a17d5902a065df738097f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 10:44:13 UTC; unix",
+        "File": "igraph_2.3.1.tgz"
+      }
+    },
+    "isoband": {
+      "version": "0.3.0",
+      "md5": "b622cf2a0d972e4e9d867e360a484692",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "isoband",
+        "Version": "0.3.0",
+        "Imports": "cli, grid, rlang, utils",
+        "LinkingTo": "cpp11",
+        "Suggests": "covr, ggplot2, knitr, magick, bench, rmarkdown, sf, testthat (>= 3.0.0), xml2",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "b622cf2a0d972e4e9d867e360a484692",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 09:19:24 UTC; unix",
+        "File": "isoband_0.3.0.tgz"
+      }
+    },
+    "jquerylib": {
+      "version": "0.1.4",
+      "md5": "62e6d390bc44e7a5eb0ec6bdcef02c29",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "jquerylib",
+        "Version": "0.1.4",
+        "Imports": "htmltools",
+        "Suggests": "testthat",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "62e6d390bc44e7a5eb0ec6bdcef02c29",
+        "Built": "R 4.6.0; ; 2026-05-13 09:43:41 UTC; unix",
+        "File": "jquerylib_0.1.4.tgz"
+      }
+    },
+    "jsonlite": {
+      "version": "2.0.0",
+      "md5": "4c4a5b39fdf8d03ea1d194080827352e",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "jsonlite",
+        "Version": "2.0.0",
+        "Depends": "methods",
+        "Suggests": "httr, vctrs, testthat, knitr, rmarkdown, R.rsp, sf",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "4c4a5b39fdf8d03ea1d194080827352e",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 09:48:20 UTC; unix",
+        "File": "jsonlite_2.0.0.tgz"
+      }
+    },
+    "knitr": {
+      "version": "1.52",
+      "md5": "81d8d086076f1ea11ad24f449508ca70",
+      "license": "GPL",
+      "stanza": {
+        "Package": "knitr",
+        "Version": "1.52",
+        "Depends": "R (>= 3.6.0)",
+        "Imports": "evaluate (>= 0.15), highr (>= 0.11), methods, tools, xfun (>= 0.52), yaml (>= 2.1.19)",
+        "Suggests": "bslib, DBI (>= 0.4-1), digest, formatR, gifski, gridSVG, htmlwidgets (>= 0.7), jpeg, JuliaCall (>= 0.11.1), magick, litedown (>= 0.10), otel, otelsdk, png, ragg (>= 1.5.0), reticulate (>= 1.4), rgl (>= 0.95.1201), rlang, rmarkdown, sass, showtext, styler (>= 1.2.0), targets (>= 0.6.0), testit, tibble, tikzDevice (>= 0.10), tinytex (>= 0.56), webshot, rstudioapi, svglite",
+        "License": "GPL",
+        "MD5sum": "81d8d086076f1ea11ad24f449508ca70",
+        "Built": "R 4.6.0; ; 2026-10-10 05:14:11 UTC; unix",
+        "File": "knitr_1.52.tgz"
+      }
+    },
+    "labeling": {
+      "version": "0.4.3",
+      "md5": "8716cde95fcede366579cc56d8952769",
+      "license": "MIT + file LICENSE | Unlimited",
+      "stanza": {
+        "Package": "labeling",
+        "Version": "0.4.3",
+        "Imports": "stats, graphics",
+        "License": "MIT + file LICENSE | Unlimited",
+        "MD5sum": "8716cde95fcede366579cc56d8952769",
+        "Built": "R 4.6.0; ; 2026-05-13 10:18:30 UTC; unix",
+        "File": "labeling_0.4.3.tgz"
+      }
+    },
+    "lattice": {
+      "version": "0.23-1",
+      "md5": "650009c18932375176db0afc690ae06c",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "lattice",
+        "Version": "0.23-1",
+        "Priority": "recommended",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "grid, grDevices, graphics, stats, utils",
+        "Suggests": "KernSmooth, MASS, latticeExtra, colorspace",
+        "Enhances": "chron, zoo",
+        "License": "GPL (>= 2)",
+        "MD5sum": "650009c18932375176db0afc690ae06c",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 05:36:55 UTC; unix",
+        "File": "lattice_0.23-1.tgz"
+      }
+    },
+    "lavaan": {
+      "version": "0.7-3",
+      "md5": "20a8ebd1d435f7a7805d8a9841ffacd5",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "lavaan",
+        "Version": "0.7-3",
+        "Depends": "R(>= 3.4)",
+        "Imports": "methods, parallel, stats4, stats, utils, graphics, grDevices, MASS, mnormt, pbivnorm, numDeriv, quadprog",
+        "License": "GPL (>= 2)",
+        "MD5sum": "20a8ebd1d435f7a7805d8a9841ffacd5",
+        "Built": "R 4.6.0; ; 2026-10-10 05:37:13 UTC; unix",
+        "File": "lavaan_0.7-3.tgz"
+      }
+    },
+    "lifecycle": {
+      "version": "1.0.5",
+      "md5": "56e8354c9d8473374c6139f2ed97be80",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "lifecycle",
+        "Version": "1.0.5",
+        "Depends": "R (>= 3.6)",
+        "Imports": "cli (>= 3.4.0), rlang (>= 1.1.0)",
+        "Suggests": "covr, knitr, lintr (>= 3.1.0), rmarkdown, testthat (>= 3.0.1), tibble, tidyverse, tools, vctrs, withr, xml2",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "56e8354c9d8473374c6139f2ed97be80",
+        "Built": "R 4.6.0; ; 2026-05-13 10:59:31 UTC; unix",
+        "File": "lifecycle_1.0.5.tgz"
+      }
+    },
+    "listenv": {
+      "version": "1.1.0",
+      "md5": "7283ad320267dfbe8660fad24f8a5be1",
+      "license": "Apache License (>= 2)",
+      "stanza": {
+        "Package": "listenv",
+        "Version": "1.1.0",
+        "Depends": "R (>= 3.1.2)",
+        "Suggests": "R.utils, R.rsp, markdown",
+        "License": "Apache License (>= 2)",
+        "MD5sum": "7283ad320267dfbe8660fad24f8a5be1",
+        "Built": "R 4.6.0; ; 2026-10-10 07:52:38 UTC; unix",
+        "File": "listenv_1.1.0.tgz"
+      }
+    },
+    "lme4": {
+      "version": "2.0-6",
+      "md5": "afc1ea9855ba8a887a57e9d244efebb9",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "lme4",
+        "Version": "2.0-6",
+        "Depends": "R (>= 3.6), Matrix, methods, stats",
+        "Imports": "MASS, Rdpack, boot, graphics, grid, lattice, minqa (>= 1.1.15), nlme (>= 3.1-123), nloptr (>= 1.0.4), parallel, reformulas (>= 0.4.3.1), splines, utils",
+        "LinkingTo": "Matrix (>= 1.5-0), Rcpp (>= 1.1.1-1.1), RcppEigen (>= 0.3.3.9.4)",
+        "Suggests": "DHARMa, HSAUR3, MEMSS, car, dfoptim, future.apply, gamm4, ggplot2, glmmTMB, gridExtra, knitr, merDeriv, mgcv, mlmRev, numDeriv, optimx (>= 2013.8.6), pbkrtest, performance, rmarkdown, rr2, see, semEff, statmod, testthat (>= 0.8.1), tibble",
+        "License": "GPL (>= 2)",
+        "MD5sum": "afc1ea9855ba8a887a57e9d244efebb9",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 08:17:10 UTC; unix",
+        "File": "lme4_2.0-6.tgz"
+      }
+    },
+    "lmtest": {
+      "version": "0.9-40",
+      "md5": "1986857597832a731f21c68772c2456e",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "lmtest",
+        "Version": "0.9-40",
+        "Depends": "R (>= 3.0.0), stats, zoo",
+        "Imports": "graphics",
+        "Suggests": "car, strucchange, sandwich, dynlm, stats4, survival, AER",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "1986857597832a731f21c68772c2456e",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 11:22:34 UTC; unix",
+        "File": "lmtest_0.9-40.tgz"
+      }
+    },
+    "magrittr": {
+      "version": "2.0.5",
+      "md5": "b8de5e142ae82a1e9ebdcc8cc60bc885",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "magrittr",
+        "Version": "2.0.5",
+        "Depends": "R (>= 3.4.0)",
+        "Suggests": "covr, knitr, rlang, rmarkdown, testthat",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "b8de5e142ae82a1e9ebdcc8cc60bc885",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 11:55:50 UTC; unix",
+        "File": "magrittr_2.0.5.tgz"
+      }
+    },
+    "MASS": {
+      "version": "7.3-66",
+      "md5": "85b17c99d6e9b9a3558e1ac3d5a1bc7a",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "MASS",
+        "Version": "7.3-66",
+        "Priority": "recommended",
+        "Depends": "R (>= 4.4.0), grDevices, graphics, stats, utils",
+        "Imports": "methods",
+        "Suggests": "lattice, nlme, nnet, survival",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "85b17c99d6e9b9a3558e1ac3d5a1bc7a",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 10:27:13 UTC; unix",
+        "File": "MASS_7.3-66.tgz"
+      }
+    },
+    "Matrix": {
+      "version": "1.7-6",
+      "md5": "8126d0a5013e40717c0da22a203b6ce3",
+      "license": "GPL (>= 2) | file LICENCE",
+      "stanza": {
+        "Package": "Matrix",
+        "Version": "1.7-6",
+        "Priority": "recommended",
+        "Depends": "R (>= 4.4), methods",
+        "Imports": "grDevices, graphics, grid, lattice, stats, utils",
+        "Suggests": "MASS, datasets, sfsmisc, tools",
+        "Enhances": "SparseM, graph",
+        "License": "GPL (>= 2) | file LICENCE",
+        "MD5sum": "8126d0a5013e40717c0da22a203b6ce3",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 10:28:16 UTC; unix",
+        "File": "Matrix_1.7-6.tgz"
+      }
+    },
+    "MatrixModels": {
+      "version": "0.5-4",
+      "md5": "9dd38440ad08252153b697d5293bd5a9",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "MatrixModels",
+        "Version": "0.5-4",
+        "Depends": "R (>= 3.6.0)",
+        "Imports": "stats, methods, Matrix (>= 1.6-0), Matrix(< 1.8-0)",
+        "License": "GPL (>= 2)",
+        "MD5sum": "9dd38440ad08252153b697d5293bd5a9",
+        "Built": "R 4.6.0; ; 2026-05-13 12:25:15 UTC; unix",
+        "File": "MatrixModels_0.5-4.tgz"
+      }
+    },
+    "matrixStats": {
+      "version": "1.5.0",
+      "md5": "beacfd32603d02aaad050e08dec6f863",
+      "license": "Artistic-2.0",
+      "stanza": {
+        "Package": "matrixStats",
+        "Version": "1.5.0",
+        "Depends": "R (>= 3.4.0)",
+        "Suggests": "utils, base64enc, ggplot2, knitr, markdown, microbenchmark, R.devices, R.rsp",
+        "License": "Artistic-2.0",
+        "MD5sum": "beacfd32603d02aaad050e08dec6f863",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 12:25:41 UTC; unix",
+        "File": "matrixStats_1.5.0.tgz"
+      }
+    },
+    "memoise": {
+      "version": "2.0.1",
+      "md5": "d82cce8a0b0e283d380bcd226f9ebcb9",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "memoise",
+        "Version": "2.0.1",
+        "Imports": "rlang (>= 0.4.10), cachem",
+        "Suggests": "digest, aws.s3, covr, googleAuthR, googleCloudStorageR, httr, testthat",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "d82cce8a0b0e283d380bcd226f9ebcb9",
+        "Built": "R 4.6.0; ; 2026-05-13 12:58:59 UTC; unix",
+        "File": "memoise_2.0.1.tgz"
+      }
+    },
+    "mgcv": {
+      "version": "1.9-4",
+      "md5": "af2dbd29efb26b586c9c6a0491e8ad95",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "mgcv",
+        "Version": "1.9-4",
+        "Priority": "recommended",
+        "Depends": "R (>= 4.4.0), nlme (>= 3.1-64)",
+        "Imports": "methods, stats, graphics, Matrix, splines, utils",
+        "Suggests": "parallel, survival, MASS",
+        "License": "GPL (>= 2)",
+        "MD5sum": "af2dbd29efb26b586c9c6a0491e8ad95",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 13:21:42 UTC; unix",
+        "File": "mgcv_1.9-4.tgz"
+      }
+    },
+    "MIIVsem": {
+      "version": "0.5.8",
+      "md5": "41a150c2704885034fe54f0700f8834b",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "MIIVsem",
+        "Version": "0.5.8",
+        "Depends": "R (>= 2.10)",
+        "Imports": "stats, utils, lavaan, numDeriv, Matrix, car, boot",
+        "License": "GPL-2",
+        "MD5sum": "41a150c2704885034fe54f0700f8834b",
+        "Built": "R 4.6.0; ; 2026-05-13 13:41:38 UTC; unix",
+        "File": "MIIVsem_0.5.8.tgz"
+      }
+    },
+    "mime": {
+      "version": "0.13",
+      "md5": "b5704733cf224d10f6c922aa3472e7ea",
+      "license": "GPL",
+      "stanza": {
+        "Package": "mime",
+        "Version": "0.13",
+        "Imports": "tools",
+        "License": "GPL",
+        "MD5sum": "b5704733cf224d10f6c922aa3472e7ea",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 13:43:32 UTC; unix",
+        "File": "mime_0.13.tgz"
+      }
+    },
+    "minqa": {
+      "version": "1.2.8",
+      "md5": "be3969af07ea65295f136cba270c8f86",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "minqa",
+        "Version": "1.2.8",
+        "Imports": "Rcpp (>= 0.9.10)",
+        "LinkingTo": "Rcpp",
+        "License": "GPL-2",
+        "MD5sum": "be3969af07ea65295f136cba270c8f86",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 13:48:36 UTC; unix",
+        "File": "minqa_1.2.8.tgz"
+      }
+    },
+    "mnormt": {
+      "version": "2.1.1",
+      "md5": "d9266619150127203b0367a4fcf635ca",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "mnormt",
+        "Version": "2.1.1",
+        "Depends": "R (>= 2.2.0)",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "d9266619150127203b0367a4fcf635ca",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 12:02:24 UTC; unix",
+        "File": "mnormt_2.1.1.tgz"
+      }
+    },
+    "modelr": {
+      "version": "0.1.11",
+      "md5": "edd34281c6dfe2e54a1b3512703ee3b8",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "modelr",
+        "Version": "0.1.11",
+        "Depends": "R (>= 3.2)",
+        "Imports": "broom, magrittr, purrr (>= 0.2.2), rlang (>= 1.0.6), tibble, tidyr (>= 0.8.0), tidyselect, vctrs",
+        "Suggests": "compiler, covr, ggplot2, testthat (>= 3.0.0)",
+        "License": "GPL-3",
+        "MD5sum": "edd34281c6dfe2e54a1b3512703ee3b8",
+        "Built": "R 4.6.0; ; 2026-05-13 14:44:08 UTC; unix",
+        "File": "modelr_0.1.11.tgz"
+      }
+    },
+    "mpoly": {
+      "version": "1.1.2",
+      "md5": "9d8b3628f05067781d189f0ca7cf2404",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "mpoly",
+        "Version": "1.1.2",
+        "Imports": "stringr (>= 1.0.0), stringi, partitions, plyr, stats, ggplot2, polynom, orthopolynom, tidyr",
+        "Suggests": "testthat (>= 2.1.0), magrittr, dplyr, covr",
+        "License": "GPL-2",
+        "MD5sum": "9d8b3628f05067781d189f0ca7cf2404",
+        "Built": "R 4.6.0; ; 2026-05-13 15:06:54 UTC; unix",
+        "File": "mpoly_1.1.2.tgz"
+      }
+    },
+    "multipol": {
+      "version": "1.0-9",
+      "md5": "b8989372b214aac8c146290591190cb5",
+      "license": "GPL",
+      "stanza": {
+        "Package": "multipol",
+        "Version": "1.0-9",
+        "Depends": "abind",
+        "Suggests": "polynom,testthat",
+        "License": "GPL",
+        "MD5sum": "b8989372b214aac8c146290591190cb5",
+        "Built": "R 4.6.0; ; 2026-05-13 15:39:57 UTC; unix",
+        "File": "multipol_1.0-9.tgz"
+      }
+    },
+    "mvtnorm": {
+      "version": "1.2-4",
+      "md5": "44dab965c495f278a033039741069fa3",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "mvtnorm",
+        "Version": "1.2-4",
+        "Depends": "R(>= 3.5.0)",
+        "Imports": "stats",
+        "Suggests": "qrng, numDeriv",
+        "License": "GPL-2",
+        "MD5sum": "44dab965c495f278a033039741069fa3",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 12:12:41 UTC; unix",
+        "File": "mvtnorm_1.2-4.tgz"
+      }
+    },
+    "nleqslv": {
+      "version": "3.3.7",
+      "md5": "f89b49f490ab150460b359f211a5d149",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "nleqslv",
+        "Version": "3.3.7",
+        "Suggests": "testthat (>= 3.0.0)",
+        "License": "GPL (>= 2)",
+        "MD5sum": "f89b49f490ab150460b359f211a5d149",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 16:40:12 UTC; unix",
+        "File": "nleqslv_3.3.7.tgz"
+      }
+    },
+    "nlme": {
+      "version": "3.1-171",
+      "md5": "55d1cbc062e3c15137fc8fbd4bacd871",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "nlme",
+        "Version": "3.1-171",
+        "Priority": "recommended",
+        "Depends": "R (>= 3.6.0)",
+        "Imports": "graphics, stats, utils, lattice",
+        "Suggests": "MASS",
+        "License": "GPL (>= 2)",
+        "MD5sum": "55d1cbc062e3c15137fc8fbd4bacd871",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 18:59:05 UTC; unix",
+        "File": "nlme_3.1-171.tgz"
+      }
+    },
+    "nloptr": {
+      "version": "2.2.1.9000",
+      "md5": "7feccba0177b0c478c6c4cc49b93a429",
+      "license": "LGPL (>= 3)",
+      "stanza": {
+        "Package": "nloptr",
+        "Version": "2.2.1.9000",
+        "Suggests": "knitr, rmarkdown, covr, tinytest",
+        "License": "LGPL (>= 3)",
+        "MD5sum": "7feccba0177b0c478c6c4cc49b93a429",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-20 09:17:42 UTC; unix",
+        "File": "nloptr_2.2.1.9000.tgz"
+      }
+    },
+    "nnet": {
+      "version": "7.3-21",
+      "md5": "a78b4310df56d141a950e39b609d0645",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "nnet",
+        "Version": "7.3-21",
+        "Priority": "recommended",
+        "Depends": "R (>= 3.0.0), stats, utils",
+        "Suggests": "MASS",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "a78b4310df56d141a950e39b609d0645",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 19:13:02 UTC; unix",
+        "File": "nnet_7.3-21.tgz"
+      }
+    },
+    "numDeriv": {
+      "version": "2016.8-1.1",
+      "md5": "4cedc70ba377c654e2d1a3c863ba0006",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "numDeriv",
+        "Version": "2016.8-1.1",
+        "Depends": "R (>= 2.11.1)",
+        "License": "GPL-2",
+        "MD5sum": "4cedc70ba377c654e2d1a3c863ba0006",
+        "Built": "R 4.6.0; ; 2026-05-13 17:09:10 UTC; unix",
+        "File": "numDeriv_2016.8-1.1.tgz"
+      }
+    },
+    "orthopolynom": {
+      "version": "1.0-6.1",
+      "md5": "77e818ca6aa9363296e7a05fc6ef62ca",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "orthopolynom",
+        "Version": "1.0-6.1",
+        "Depends": "R (>= 2.0.1)",
+        "Imports": "polynom, stats",
+        "License": "GPL (>= 2)",
+        "MD5sum": "77e818ca6aa9363296e7a05fc6ef62ca",
+        "Built": "R 4.6.0; ; 2026-05-13 17:59:54 UTC; unix",
+        "File": "orthopolynom_1.0-6.1.tgz"
+      }
+    },
+    "parallelly": {
+      "version": "1.48.0",
+      "md5": "61535a8dbfc3c97841661f232dfad77f",
+      "license": "LGPL (>= 2.1)",
+      "stanza": {
+        "Package": "parallelly",
+        "Version": "1.48.0",
+        "Imports": "parallel, tools, utils",
+        "Suggests": "commonmark, base64enc",
+        "License": "LGPL (>= 2.1)",
+        "MD5sum": "61535a8dbfc3c97841661f232dfad77f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 22:04:52 UTC; unix",
+        "File": "parallelly_1.48.0.tgz"
+      }
+    },
+    "partitions": {
+      "version": "1.11-1",
+      "md5": "f3f3d5d48ecda0d03ed7d353b419e9fa",
+      "license": "GPL",
+      "stanza": {
+        "Package": "partitions",
+        "Version": "1.11-1",
+        "Depends": "R (>= 3.6.0)",
+        "Imports": "gmp, polynom, sets, Rdpack",
+        "Suggests": "testthat, covr",
+        "License": "GPL",
+        "MD5sum": "f3f3d5d48ecda0d03ed7d353b419e9fa",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 22:21:36 UTC; unix",
+        "File": "partitions_1.11-1.tgz"
+      }
+    },
+    "pbivnorm": {
+      "version": "0.6.0",
+      "md5": "ed857893b71ffc4ad4ee03723656b157",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "pbivnorm",
+        "Version": "0.6.0",
+        "License": "GPL (>= 2)",
+        "MD5sum": "ed857893b71ffc4ad4ee03723656b157",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 18:40:38 UTC; unix",
+        "File": "pbivnorm_0.6.0.tgz"
+      }
+    },
+    "pbkrtest": {
+      "version": "0.5.5",
+      "md5": "65bcc0aca8b8af8ea10cc78fdc95bb3e",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "pbkrtest",
+        "Version": "0.5.5",
+        "Depends": "R (>= 4.2.0), lme4 (>= 1.1.31)",
+        "Imports": "broom, dplyr, MASS, methods, numDeriv, Matrix (>= 1.2.3), doBy (>= 4.6.22)",
+        "Suggests": "nlme, markdown, knitr",
+        "License": "GPL (>= 2)",
+        "MD5sum": "65bcc0aca8b8af8ea10cc78fdc95bb3e",
+        "Built": "R 4.6.0; ; 2026-05-13 18:40:44 UTC; unix",
+        "File": "pbkrtest_0.5.5.tgz"
+      }
+    },
+    "pillar": {
+      "version": "1.11.1",
+      "md5": "8f3914dfbf8e31befcb5be91e82bb7b0",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "pillar",
+        "Version": "1.11.1",
+        "Imports": "cli (>= 2.3.0), glue, lifecycle, rlang (>= 1.0.2), utf8 (>= 1.1.0), utils, vctrs (>= 0.5.0)",
+        "Suggests": "bit64, DBI, debugme, DiagrammeR, dplyr, formattable, ggplot2, knitr, lubridate, nanotime, nycflights13, palmerpenguins, rmarkdown, scales, stringi, survival, testthat (>= 3.1.1), tibble, units (>= 0.7.2), vdiffr, withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "8f3914dfbf8e31befcb5be91e82bb7b0",
+        "Built": "R 4.6.0; ; 2026-05-13 19:27:56 UTC; unix",
+        "File": "pillar_1.11.1.tgz"
+      }
+    },
+    "pkgconfig": {
+      "version": "2.0.3",
+      "md5": "d4c1433142b2533b9243ec4b41e45505",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "pkgconfig",
+        "Version": "2.0.3",
+        "Imports": "utils",
+        "Suggests": "covr, testthat, disposables (>= 1.0.3)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "d4c1433142b2533b9243ec4b41e45505",
+        "Built": "R 4.6.0; ; 2026-05-13 19:32:25 UTC; unix",
+        "File": "pkgconfig_2.0.3.tgz"
+      }
+    },
+    "plyr": {
+      "version": "1.8.9",
+      "md5": "24bbd0174625ad1546a3ffa989c478fc",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "plyr",
+        "Version": "1.8.9",
+        "Depends": "R (>= 3.1.0)",
+        "Imports": "Rcpp (>= 0.11.0)",
+        "LinkingTo": "Rcpp",
+        "Suggests": "abind, covr, doParallel, foreach, iterators, itertools, tcltk, testthat",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "24bbd0174625ad1546a3ffa989c478fc",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 19:49:21 UTC; unix",
+        "File": "plyr_1.8.9.tgz"
+      }
+    },
+    "polynom": {
+      "version": "1.4-1",
+      "md5": "7531134187fb25a8184ae8eb0e31e40d",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "polynom",
+        "Version": "1.4-1",
+        "Imports": "stats, graphics",
+        "Suggests": "knitr, rmarkdown",
+        "License": "GPL-2",
+        "MD5sum": "7531134187fb25a8184ae8eb0e31e40d",
+        "Built": "R 4.6.0; ; 2026-05-13 20:02:26 UTC; unix",
+        "File": "polynom_1.4-1.tgz"
+      }
+    },
+    "progressr": {
+      "version": "1.0.0",
+      "md5": "052ceffbf806fcc254a57cdb1db2787d",
+      "license": "Apache License (>= 2)",
+      "stanza": {
+        "Package": "progressr",
+        "Version": "1.0.0",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "digest, utils",
+        "Suggests": "graphics, tcltk, beepr, cli, crayon, pbmcapply, progress, purrr, foreach, plyr, doFuture, future, future.apply, furrr, ntfy, RPushbullet, rstudioapi, shiny, commonmark, base64enc, tools",
+        "License": "Apache License (>= 2)",
+        "MD5sum": "052ceffbf806fcc254a57cdb1db2787d",
+        "Built": "R 4.6.0; ; 2026-10-11 03:03:28 UTC; unix",
+        "File": "progressr_1.0.0.tgz"
+      }
+    },
+    "psych": {
+      "version": "2.6.9",
+      "md5": "e10924eed8a1777fc3c68468f68b21c1",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "psych",
+        "Version": "2.6.9",
+        "Imports": " mnormt,parallel,stats,graphics,grDevices,methods,lattice,nlme,GPArotation",
+        "Suggests": "psychTools, lavaan, lme4, Rcsdp, graph, knitr, Rgraphviz",
+        "License": "GPL (>= 2)",
+        "MD5sum": "e10924eed8a1777fc3c68468f68b21c1",
+        "Built": "R 4.6.0; ; 2026-10-11 03:11:37 UTC; unix",
+        "File": "psych_2.6.9.tgz"
+      }
+    },
+    "purrr": {
+      "version": "1.2.2",
+      "md5": "82b3d19fd069af28bb2c02b9ad6327a8",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "purrr",
+        "Version": "1.2.2",
+        "Depends": "R (>= 4.1)",
+        "Imports": "cli (>= 3.6.1), lifecycle (>= 1.0.3), magrittr (>= 1.5.0), rlang (>= 1.1.1), vctrs (>= 0.6.3)",
+        "LinkingTo": "cli",
+        "Suggests": "carrier (>= 0.3.0), covr, dplyr (>= 0.7.8), httr, knitr, lubridate, mirai (>= 2.5.1), rmarkdown, testthat (>= 3.0.0), tibble, tidyselect",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "82b3d19fd069af28bb2c02b9ad6327a8",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 21:16:40 UTC; unix",
+        "File": "purrr_1.2.2.tgz"
+      }
+    },
+    "qrng": {
+      "version": "0.0-11",
+      "md5": "b30056d7c2ca53e8af009a8015a3b8c8",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "qrng",
+        "Version": "0.0-11",
+        "Depends": "R (>= 3.0.0)",
+        "Imports": "utils",
+        "Suggests": "spacefillr, randtoolbox, copula, simsalapar",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "b30056d7c2ca53e8af009a8015a3b8c8",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 21:36:12 UTC; unix",
+        "File": "qrng_0.0-11.tgz"
+      }
+    },
+    "quadprog": {
+      "version": "1.5-8",
+      "md5": "f36663367072af1a357b98def99beacd",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "quadprog",
+        "Version": "1.5-8",
+        "Depends": "R (>= 3.1.0)",
+        "License": "GPL (>= 2)",
+        "MD5sum": "f36663367072af1a357b98def99beacd",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-20 09:44:14 UTC; unix",
+        "File": "quadprog_1.5-8.tgz"
+      }
+    },
+    "quantreg": {
+      "version": "6.1",
+      "md5": "bfdce7484bc0b5a50febff57b213c87f",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "quantreg",
+        "Version": "6.1",
+        "Depends": "R (>= 3.5), stats, SparseM",
+        "Imports": "methods, graphics, Matrix, MatrixModels, survival, MASS",
+        "Suggests": "interp, rgl, logspline, nor1mix, Formula, zoo, R.rsp, conquer",
+        "License": "GPL (>= 2)",
+        "MD5sum": "bfdce7484bc0b5a50febff57b213c87f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 21:47:19 UTC; unix",
+        "File": "quantreg_6.1.tgz"
+      }
+    },
+    "R6": {
+      "version": "2.6.1",
+      "md5": "2e7090562ea49b1d39c450c6377b6977",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "R6",
+        "Version": "2.6.1",
+        "Depends": "R (>= 3.6)",
+        "Suggests": "lobstr, testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "2e7090562ea49b1d39c450c6377b6977",
+        "Built": "R 4.6.0; ; 2026-05-13 22:00:12 UTC; unix",
+        "File": "R6_2.6.1.tgz"
+      }
+    },
+    "rappdirs": {
+      "version": "0.3.4",
+      "md5": "48c8ae4dd0ece9a7e927d7668c070d6a",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "rappdirs",
+        "Version": "0.3.4",
+        "Depends": "R (>= 4.1)",
+        "Suggests": "covr, roxygen2, testthat (>= 3.2.0), withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "48c8ae4dd0ece9a7e927d7668c070d6a",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 22:20:25 UTC; unix",
+        "File": "rappdirs_0.3.4.tgz"
+      }
+    },
+    "rbibutils": {
+      "version": "2.4.1",
+      "md5": "9e36d3a9fc20b8ca948d9f0af4529338",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "rbibutils",
+        "Version": "2.4.1",
+        "Depends": "R (>= 2.10)",
+        "Imports": "utils, tools",
+        "Suggests": "testthat",
+        "License": "GPL-2",
+        "MD5sum": "9e36d3a9fc20b8ca948d9f0af4529338",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 22:33:05 UTC; unix",
+        "File": "rbibutils_2.4.1.tgz"
+      }
+    },
+    "RColorBrewer": {
+      "version": "1.1-3",
+      "md5": "504f10e0d20f54951e847f0b5d53e145",
+      "license": "Apache License 2.0",
+      "stanza": {
+        "Package": "RColorBrewer",
+        "Version": "1.1-3",
+        "Depends": "R (>= 2.0.0)",
+        "License": "Apache License 2.0",
+        "MD5sum": "504f10e0d20f54951e847f0b5d53e145",
+        "Built": "R 4.6.0; ; 2026-05-13 22:52:51 UTC; unix",
+        "File": "RColorBrewer_1.1-3.tgz"
+      }
+    },
+    "Rcpp": {
+      "version": "1.1.2",
+      "md5": "8bd684a7371ad3ee690e210fce82c219",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "Rcpp",
+        "Version": "1.1.2",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "methods, utils",
+        "Suggests": "tinytest, inline, rbenchmark, pkgKitten (>= 0.1.2)",
+        "License": "GPL (>= 2)",
+        "MD5sum": "8bd684a7371ad3ee690e210fce82c219",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-11 03:48:28 UTC; unix",
+        "File": "Rcpp_1.1.2.tgz"
+      }
+    },
+    "Rdpack": {
+      "version": "2.6.6",
+      "md5": "ba7cdd4f50290ac42c728ad48b84ef8e",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "Rdpack",
+        "Version": "2.6.6",
+        "Depends": "R (>= 2.15.0), methods",
+        "Imports": "tools, utils, rbibutils (> 2.4)",
+        "Suggests": "grDevices, testthat, rstudioapi, rprojroot, gbRd",
+        "License": "GPL (>= 2)",
+        "MD5sum": "ba7cdd4f50290ac42c728ad48b84ef8e",
+        "Built": "R 4.6.0; ; 2026-05-13 23:14:44 UTC; unix",
+        "File": "Rdpack_2.6.6.tgz"
+      }
+    },
+    "readr": {
+      "version": "2.2.0",
+      "md5": "5c8691c3d2e808f90a2e7fd0cfb6d0e5",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "readr",
+        "Version": "2.2.0",
+        "Depends": "R (>= 4.1)",
+        "Imports": "cli, clipr, crayon, glue, hms (>= 0.4.1), lifecycle, methods, R6, rlang, tibble, utils, vroom (>= 1.7.0), withr",
+        "LinkingTo": "cpp11, tzdb (>= 0.1.1)",
+        "Suggests": "covr, curl, datasets, knitr, rmarkdown, spelling, stringi, testthat (>= 3.2.0), tzdb (>= 0.1.1), waldo, xml2",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "5c8691c3d2e808f90a2e7fd0cfb6d0e5",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 23:21:00 UTC; unix",
+        "File": "readr_2.2.0.tgz"
+      }
+    },
+    "reformulas": {
+      "version": "0.4.4",
+      "md5": "d119ca16b1912ea936b42b442196a211",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "reformulas",
+        "Version": "0.4.4",
+        "Imports": "stats, methods, Matrix, Rdpack",
+        "Suggests": "lme4, tinytest, glmmTMB, Formula",
+        "License": "GPL-3",
+        "MD5sum": "d119ca16b1912ea936b42b442196a211",
+        "Built": "R 4.6.0; ; 2026-05-13 23:35:46 UTC; unix",
+        "File": "reformulas_0.4.4.tgz"
+      }
+    },
+    "rlang": {
+      "version": "1.3.0",
+      "md5": "a758fe02ecac28000732930e4d7fd69c",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "rlang",
+        "Version": "1.3.0",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "utils",
+        "Suggests": "cli (>= 3.1.0), covr, crayon, desc, fs, glue, knitr, magrittr, methods, pillar, pkgload, rmarkdown, stats, testthat (>= 3.3.2), tibble, usethis, vctrs (>= 0.2.3), withr",
+        "Enhances": "winch",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "a758fe02ecac28000732930e4d7fd69c",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-11 05:07:19 UTC; unix",
+        "File": "rlang_1.3.0.tgz"
+      }
+    },
+    "rmarkdown": {
+      "version": "2.32",
+      "md5": "9d46fc88914728f1408d88242ab5dc7d",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "rmarkdown",
+        "Version": "2.32",
+        "Depends": "R (>= 3.0)",
+        "Imports": "bslib (>= 0.2.5.1), evaluate (>= 0.13), fontawesome (>= 0.5.0), htmltools (>= 0.5.1), jquerylib, jsonlite, knitr (>= 1.50), methods, tinytex (>= 0.31), tools, utils, xfun (>= 0.36), yaml (>= 2.1.19)",
+        "Suggests": "digest, dygraphs, fs, rsconnect, downlit (>= 0.4.0), katex (>= 1.4.0), sass (>= 0.4.0), shiny (>= 1.6.0), testthat (>= 3.0.3), tibble, vctrs, cleanrmd, withr (>= 2.4.2), xml2",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "9d46fc88914728f1408d88242ab5dc7d",
+        "Built": "R 4.6.0; ; 2026-10-11 05:29:17 UTC; unix",
+        "File": "rmarkdown_2.32.tgz"
+      }
+    },
+    "rstudioapi": {
+      "version": "0.19.0",
+      "md5": "3ba5ad962d7189b4531741ad3c592623",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "rstudioapi",
+        "Version": "0.19.0",
+        "Suggests": "testthat, knitr, rmarkdown, clipr, covr, curl, jsonlite, R6, withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "3ba5ad962d7189b4531741ad3c592623",
+        "Built": "R 4.6.0; ; 2026-10-11 08:48:30 UTC; unix",
+        "File": "rstudioapi_0.19.0.tgz"
+      }
+    },
+    "S7": {
+      "version": "0.2.2",
+      "md5": "d5ae73c0b21af2b5fba3fd0be60007a7",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "S7",
+        "Version": "0.2.2",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "utils",
+        "Suggests": "bench, callr, covr, knitr, methods, rmarkdown, testthat (>= 3.2.0), tibble",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "d5ae73c0b21af2b5fba3fd0be60007a7",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 02:35:52 UTC; unix",
+        "File": "S7_0.2.2.tgz"
+      }
+    },
+    "sass": {
+      "version": "0.4.10.9000",
+      "md5": "234ad625aec1615335194e2ca409d9e9",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "sass",
+        "Version": "0.4.10.9000",
+        "Imports": "fs (>= 1.2.4), rlang (>= 0.4.10), htmltools (>= 0.5.1), R6, rappdirs",
+        "Suggests": "testthat, knitr, rmarkdown, withr, shiny, curl",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "234ad625aec1615335194e2ca409d9e9",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 14:03:54 UTC; unix",
+        "File": "sass_0.4.10.9000.tgz"
+      }
+    },
+    "scales": {
+      "version": "1.4.0",
+      "md5": "c6a768d2e66ef32d1933e7f2541240a2",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "scales",
+        "Version": "1.4.0",
+        "Depends": "R (>= 4.1)",
+        "Imports": "cli, farver (>= 2.0.3), glue, labeling, lifecycle, R6, RColorBrewer, rlang (>= 1.1.0), viridisLite",
+        "Suggests": "bit64, covr, dichromat, ggplot2, hms (>= 0.5.0), stringi, testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "c6a768d2e66ef32d1933e7f2541240a2",
+        "Built": "R 4.6.0; ; 2026-05-14 02:57:52 UTC; unix",
+        "File": "scales_1.4.0.tgz"
+      }
+    },
+    "seminr": {
+      "version": "2.5.0",
+      "md5": "1725eeb5740ed68e009c2028f7f81dce",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "seminr",
+        "Version": "2.5.0",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "parallel, lavaan, glue, DiagrammeR (>= 1.0.6), DiagrammeRsvg (>= 0.1), stats",
+        "Suggests": "knitr, rmarkdown, testthat, webp",
+        "Enhances": "rsvg (>= 2.1), semPlot, vdiffr, seminrExtras",
+        "License": "GPL-3",
+        "MD5sum": "1725eeb5740ed68e009c2028f7f81dce",
+        "Built": "R 4.6.0; ; 2026-05-28 11:45:38 UTC; unix",
+        "File": "seminr_2.5.0.tgz"
+      }
+    },
+    "semTools": {
+      "version": "0.5-10",
+      "md5": "8a87ed5cf181dd119070fcf8e7cce046",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "semTools",
+        "Version": "0.5-10",
+        "Depends": "R(>= 4.0), lavaan(>= 0.7-2), methods",
+        "Imports": "graphics, pbivnorm, stats, utils",
+        "Suggests": "blavaan, emmeans, lavaan.mi, MASS, mice, mnormt, parallel, restriktor, testthat",
+        "License": "GPL (>= 2)",
+        "MD5sum": "8a87ed5cf181dd119070fcf8e7cce046",
+        "Built": "R 4.6.0; ; 2026-10-11 12:38:20 UTC; unix",
+        "File": "semTools_0.5-10.tgz"
+      }
+    },
+    "sets": {
+      "version": "1.0-25",
+      "md5": "5738c9ab18a62f968370f1dab9710e64",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "sets",
+        "Version": "1.0-25",
+        "Depends": "R (>= 2.7.0)",
+        "Imports": "graphics,grDevices,stats,utils",
+        "Suggests": "proxy",
+        "License": "GPL-2",
+        "MD5sum": "5738c9ab18a62f968370f1dab9710e64",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 03:54:27 UTC; unix",
+        "File": "sets_1.0-25.tgz"
+      }
+    },
+    "spacefillr": {
+      "version": "0.4.0",
+      "md5": "aef4ddf47a695a76e6a323d9806a7a95",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "spacefillr",
+        "Version": "0.4.0",
+        "Imports": "Rcpp (>= 1.0.0)",
+        "LinkingTo": "Rcpp",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "aef4ddf47a695a76e6a323d9806a7a95",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 05:35:10 UTC; unix",
+        "File": "spacefillr_0.4.0.tgz"
+      }
+    },
+    "SparseM": {
+      "version": "1.84-2",
+      "md5": "577e8b36d6598d192b24a4baddcf0d61",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "SparseM",
+        "Version": "1.84-2",
+        "Depends": "R (>= 2.15), methods",
+        "Imports": "graphics, stats, utils",
+        "Suggests": "knitr",
+        "License": "GPL (>= 2)",
+        "MD5sum": "577e8b36d6598d192b24a4baddcf0d61",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 05:43:06 UTC; unix",
+        "File": "SparseM_1.84-2.tgz"
+      }
+    },
+    "stringi": {
+      "version": "1.8.9",
+      "md5": "c219f03eaa536d54881626a39aacc54a",
+      "license": "file LICENSE",
+      "stanza": {
+        "Package": "stringi",
+        "Version": "1.8.9",
+        "Depends": "R (>= 3.4)",
+        "Imports": "tools, utils, stats",
+        "License": "file LICENSE",
+        "License_is_FOSS": "yes",
+        "MD5sum": "c219f03eaa536d54881626a39aacc54a",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-11 19:25:31 UTC; unix",
+        "File": "stringi_1.8.9.tgz"
+      }
+    },
+    "stringr": {
+      "version": "1.6.0",
+      "md5": "b291c4a51e4742f58ca3d8111557661f",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "stringr",
+        "Version": "1.6.0",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "cli, glue (>= 1.6.1), lifecycle (>= 1.0.3), magrittr, rlang (>= 1.0.0), stringi (>= 1.5.3), vctrs (>= 0.4.0)",
+        "Suggests": "covr, dplyr, gt, htmltools, htmlwidgets, knitr, rmarkdown, testthat (>= 3.0.0), tibble",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "b291c4a51e4742f58ca3d8111557661f",
+        "Built": "R 4.6.0; ; 2026-05-14 07:14:55 UTC; unix",
+        "File": "stringr_1.6.0.tgz"
+      }
+    },
+    "survival": {
+      "version": "3.8-12",
+      "md5": "4af6cf600e60e1e40a29e6445cd56178",
+      "license": "LGPL (>= 2)",
+      "stanza": {
+        "Package": "survival",
+        "Version": "3.8-12",
+        "Priority": "recommended",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "graphics, Matrix, methods, splines, stats, utils",
+        "License": "LGPL (>= 2)",
+        "MD5sum": "4af6cf600e60e1e40a29e6445cd56178",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-11 20:13:33 UTC; unix",
+        "File": "survival_3.8-12.tgz"
+      }
+    },
+    "symmoments": {
+      "version": "1.2.2",
+      "md5": "65b3d44b27d3cd570a654e6bc84e5989",
+      "license": "GPL",
+      "stanza": {
+        "Package": "symmoments",
+        "Version": "1.2.2",
+        "Imports": "Rdpack, mvtnorm, cubature, combinat, multipol, mpoly",
+        "Suggests": "ape, knitr, rmarkdown",
+        "License": "GPL",
+        "MD5sum": "65b3d44b27d3cd570a654e6bc84e5989",
+        "Built": "R 4.6.0; ; 2026-05-28 12:19:05 UTC; unix",
+        "File": "symmoments_1.2.2.tgz"
+      }
+    },
+    "tibble": {
+      "version": "3.3.1",
+      "md5": "2158baadd4be00f1e9b7daafd1f46ee3",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "tibble",
+        "Version": "3.3.1",
+        "Depends": "R (>= 3.4.0)",
+        "Imports": "cli, lifecycle (>= 1.0.0), magrittr, methods, pillar (>= 1.8.1), pkgconfig, rlang (>= 1.0.2), utils, vctrs (>= 0.5.0)",
+        "Suggests": "bench, bit64, blob, brio, callr, DiagrammeR, dplyr, evaluate, formattable, ggplot2, here, hms, htmltools, knitr, lubridate, nycflights13, pkgload, purrr, rmarkdown, stringi, testthat (>= 3.0.2), tidyr, withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "2158baadd4be00f1e9b7daafd1f46ee3",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 08:46:36 UTC; unix",
+        "File": "tibble_3.3.1.tgz"
+      }
+    },
+    "tidyr": {
+      "version": "1.3.2",
+      "md5": "d5c6eabd452cb4801269076e116cdfb3",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "tidyr",
+        "Version": "1.3.2",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "cli (>= 3.4.1), dplyr (>= 1.1.0), glue, lifecycle (>= 1.0.3), magrittr, purrr (>= 1.0.1), rlang (>= 1.1.1), stringr (>= 1.5.0), tibble (>= 2.1.1), tidyselect (>= 1.2.1), utils, vctrs (>= 0.5.2)",
+        "LinkingTo": "cpp11 (>= 0.4.0)",
+        "Suggests": "covr, data.table, knitr, readr, repurrrsive (>= 1.1.0), rmarkdown, testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "d5c6eabd452cb4801269076e116cdfb3",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 08:58:42 UTC; unix",
+        "File": "tidyr_1.3.2.tgz"
+      }
+    },
+    "tidyselect": {
+      "version": "1.2.1",
+      "md5": "420fa2dbdf489ac69846156133226212",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "tidyselect",
+        "Version": "1.2.1",
+        "Depends": "R (>= 3.4)",
+        "Imports": "cli (>= 3.3.0), glue (>= 1.3.0), lifecycle (>= 1.0.3), rlang (>= 1.0.4), vctrs (>= 0.5.2), withr",
+        "Suggests": "covr, crayon, dplyr, knitr, magrittr, rmarkdown, stringr, testthat (>= 3.1.1), tibble (>= 2.1.3)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "420fa2dbdf489ac69846156133226212",
+        "Built": "R 4.6.0; ; 2026-05-14 08:59:59 UTC; unix",
+        "File": "tidyselect_1.2.1.tgz"
+      }
+    },
+    "timeDate": {
+      "version": "4052.112",
+      "md5": "e1dda38e51bb2e149f13646c6c72d806",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "timeDate",
+        "Version": "4052.112",
+        "Depends": "R (>= 3.6.0), methods",
+        "Imports": "graphics, utils, stats",
+        "Suggests": "RUnit",
+        "License": "GPL (>= 2)",
+        "MD5sum": "e1dda38e51bb2e149f13646c6c72d806",
+        "Built": "R 4.6.0; ; 2026-05-14 09:06:39 UTC; unix",
+        "File": "timeDate_4052.112.tgz"
+      }
+    },
+    "tinytex": {
+      "version": "0.61",
+      "md5": "1cb09dc0bade36e38d0a38cc92ba5661",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "tinytex",
+        "Version": "0.61",
+        "Imports": "xfun (>= 0.48)",
+        "Suggests": "testit, rstudioapi",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "1cb09dc0bade36e38d0a38cc92ba5661",
+        "Built": "R 4.6.0; ; 2026-10-12 02:30:58 UTC; unix",
+        "File": "tinytex_0.61.tgz"
+      }
+    },
+    "TruncatedNormal": {
+      "version": "2.3",
+      "md5": "a1eeff530633ccfbc13f12f077b5aaef",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "TruncatedNormal",
+        "Version": "2.3",
+        "Depends": "R (>= 2.10)",
+        "Imports": "nleqslv, qrng, spacefillr, alabama, Rcpp (>= 0.12.16)",
+        "LinkingTo": "Rcpp, RcppArmadillo",
+        "Suggests": "knitr, rmarkdown, mvtnorm, carData, tinytest",
+        "License": "GPL-3",
+        "MD5sum": "a1eeff530633ccfbc13f12f077b5aaef",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 09:58:02 UTC; unix",
+        "File": "TruncatedNormal_2.3.tgz"
+      }
+    },
+    "tzdb": {
+      "version": "0.5.0",
+      "md5": "0d828859168a4e014c27153f822488c2",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "tzdb",
+        "Version": "0.5.0",
+        "Depends": "R (>= 4.0.0)",
+        "LinkingTo": "cpp11 (>= 0.5.2)",
+        "Suggests": "covr, testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "0d828859168a4e014c27153f822488c2",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 10:22:07 UTC; unix",
+        "File": "tzdb_0.5.0.tgz"
+      }
+    },
+    "urca": {
+      "version": "1.3-4",
+      "md5": "0615fea4689331ded59b8f431bde516f",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "urca",
+        "Version": "1.3-4",
+        "Depends": "R (>= 2.0.0), methods",
+        "Imports": "nlme, graphics, stats",
+        "License": "GPL (>= 2)",
+        "MD5sum": "0615fea4689331ded59b8f431bde516f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 10:40:43 UTC; unix",
+        "File": "urca_1.3-4.tgz"
+      }
+    },
+    "utf8": {
+      "version": "1.2.6",
+      "md5": "5bfeac36a8dfb027caf5a2457f4c83f8",
+      "license": "Apache License (== 2.0) | file LICENSE",
+      "stanza": {
+        "Package": "utf8",
+        "Version": "1.2.6",
+        "Depends": "R (>= 2.10)",
+        "Suggests": "cli, covr, knitr, rlang, rmarkdown, testthat (>= 3.0.0), withr",
+        "License": "Apache License (== 2.0) | file LICENSE",
+        "MD5sum": "5bfeac36a8dfb027caf5a2457f4c83f8",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 10:44:55 UTC; unix",
+        "File": "utf8_1.2.6.tgz"
+      }
+    },
+    "V8": {
+      "version": "8.2.0",
+      "md5": "397188c85bb3e6224ceacaab469af424",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "V8",
+        "Version": "8.2.0",
+        "Imports": "Rcpp (>= 0.12.12), jsonlite (>= 1.0), curl (>= 1.0), utils",
+        "LinkingTo": "Rcpp",
+        "Suggests": "testthat, knitr, rmarkdown",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "397188c85bb3e6224ceacaab469af424",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 10:46:40 UTC; unix",
+        "File": "V8_8.2.0.tgz"
+      }
+    },
+    "vctrs": {
+      "version": "0.7.3",
+      "md5": "0987e2b4d65141176b517116bbf51b20",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "vctrs",
+        "Version": "0.7.3",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "cli (>= 3.4.0), glue, lifecycle (>= 1.0.3), rlang (>= 1.1.7)",
+        "Suggests": "bit64, covr, crayon, dplyr (>= 0.8.5), generics, knitr, pillar (>= 1.4.4), pkgdown (>= 2.0.1), rmarkdown, testthat (>= 3.0.0), tibble (>= 3.1.3), waldo (>= 0.2.0), withr, xml2, zeallot",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "0987e2b4d65141176b517116bbf51b20",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 10:58:38 UTC; unix",
+        "File": "vctrs_0.7.3.tgz"
+      }
+    },
+    "viridisLite": {
+      "version": "0.4.3",
+      "md5": "83445396fcda8e37120348484c244f63",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "viridisLite",
+        "Version": "0.4.3",
+        "Depends": "R (>= 2.10)",
+        "Suggests": "hexbin (>= 1.27.0), ggplot2 (>= 1.0.1), testthat, covr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "83445396fcda8e37120348484c244f63",
+        "Built": "R 4.6.0; ; 2026-05-14 11:12:30 UTC; unix",
+        "File": "viridisLite_0.4.3.tgz"
+      }
+    },
+    "visNetwork": {
+      "version": "2.1.4",
+      "md5": "cb0a4a053a44500daf6b9b4260ef7d94",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "visNetwork",
+        "Version": "2.1.4",
+        "Depends": "R (>= 3.0)",
+        "Imports": "htmlwidgets, htmltools, jsonlite, magrittr, utils, methods, grDevices, stats",
+        "Suggests": "knitr, rmarkdown, webshot, igraph, rpart, shiny, shinyWidgets, colourpicker, sparkline, ggraph, tidygraph, flashClust",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "cb0a4a053a44500daf6b9b4260ef7d94",
+        "Built": "R 4.6.0; ; 2026-05-14 11:15:21 UTC; unix",
+        "File": "visNetwork_2.1.4.tgz"
+      }
+    },
+    "vroom": {
+      "version": "1.7.1.9000",
+      "md5": "f2fda2494fffc4785cfc833b6ad65eac",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "vroom",
+        "Version": "1.7.1.9000",
+        "Depends": "R (>= 4.1)",
+        "Imports": "bit64, cli (>= 3.2.0), crayon, glue, hms, lifecycle (>= 1.0.3), methods, rlang (>= 1.1.0), stats, tibble (>= 2.0.0), tidyselect, tzdb (>= 0.1.1), vctrs (>= 0.2.0), withr",
+        "LinkingTo": "cpp11 (>= 0.2.0), progress (>= 1.2.3), tzdb (>= 0.1.1)",
+        "Suggests": "archive, bench (>= 1.1.0), covr, curl, dplyr, forcats, fs, ggplot2, knitr, patchwork, prettyunits, purrr, rmarkdown, rstudioapi, scales, spelling, testthat (>= 2.1.0), tidyr, utils, waldo, xml2",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "f2fda2494fffc4785cfc833b6ad65eac",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 15:05:04 UTC; unix",
+        "File": "vroom_1.7.1.9000.tgz"
+      }
+    },
+    "withr": {
+      "version": "3.0.3",
+      "md5": "b9d1f008c66332e986372b51ff5ded77",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "withr",
+        "Version": "3.0.3",
+        "Depends": "R (>= 3.6.0)",
+        "Imports": "graphics, grDevices",
+        "Suggests": "callr, DBI, knitr, methods, rlang, rmarkdown (>= 2.12), RSQLite, testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "b9d1f008c66332e986372b51ff5ded77",
+        "Built": "R 4.6.0; ; 2026-10-12 03:20:22 UTC; unix",
+        "File": "withr_3.0.3.tgz"
+      }
+    },
+    "xfun": {
+      "version": "0.61",
+      "md5": "940a2109cb11acf10a942d78e425ee07",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "xfun",
+        "Version": "0.61",
+        "Depends": "R (>= 3.2.0)",
+        "Imports": "grDevices, stats, tools",
+        "Suggests": "testit, parallel, codetools, methods, rstudioapi, tinytex (>= 0.30), mime, litedown (>= 0.6), commonmark, knitr (>= 1.50), remotes, pak, curl, xml2, jsonlite, magick, yaml, data.table, qs2",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "940a2109cb11acf10a942d78e425ee07",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 03:25:57 UTC; unix",
+        "File": "xfun_0.61.tgz"
+      }
+    },
+    "yaml": {
+      "version": "2.3.12",
+      "md5": "91a473f8da540bf8ab9ab563ad3a88be",
+      "license": "BSD_3_clause + file LICENSE",
+      "stanza": {
+        "Package": "yaml",
+        "Version": "2.3.12",
+        "Suggests": "knitr, rmarkdown, testthat (>= 3.0.0)",
+        "License": "BSD_3_clause + file LICENSE",
+        "MD5sum": "91a473f8da540bf8ab9ab563ad3a88be",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 12:25:44 UTC; unix",
+        "File": "yaml_2.3.12.tgz"
+      }
+    },
+    "zoo": {
+      "version": "1.9-1",
+      "md5": "01b5f4c188696875ed0761deeb37097a",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "zoo",
+        "Version": "1.9-1",
+        "Depends": "R (>= 3.1.0), stats",
+        "Imports": "utils, graphics, grDevices, lattice (>= 0.20-27)",
+        "Suggests": "AER, coda, chron, ggplot2 (>= 3.5.0), knitr, mondate, scales, stinepack, strucchange, timeDate, timeSeries (>= 4021.104), tinyplot, tis, tseries, xts",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "01b5f4c188696875ed0761deeb37097a",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 03:43:08 UTC; unix",
+        "File": "zoo_1.9-1.tgz"
+      }
+    }
+  }
+}

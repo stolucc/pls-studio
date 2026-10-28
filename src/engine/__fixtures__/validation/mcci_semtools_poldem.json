@@ -1,0 +1,68 @@
+{
+  "name": "mcci_semtools_poldem",
+  "source": "semTools",
+  "kind": "mcci",
+  "dataset": "political_democracy",
+  "options": {
+    "estimator": "ML",
+    "missing": "casewise",
+    "draws": 200000
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "ind60",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["x1", "x2", "x3"]
+      },
+      {
+        "name": "dem60",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["y1", "y2", "y3", "y4"]
+      },
+      {
+        "name": "dem65",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["y5", "y6", "y7", "y8"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "ind60",
+        "to": "dem60"
+      },
+      {
+        "from": "ind60",
+        "to": "dem65"
+      },
+      {
+        "from": "dem60",
+        "to": "dem65"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "indirect": [
+      {
+        "from": "ind60",
+        "to": "dem65",
+        "est": 1.27389402027549,
+        "ciLow": 0.597850989771398,
+        "ciHigh": 2.01237367751363
+      }
+    ]
+  },
+  "tolerance": 0.01,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

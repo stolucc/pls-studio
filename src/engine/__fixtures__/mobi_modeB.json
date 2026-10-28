@@ -1,0 +1,892 @@
+{
+  "pathCoef": {
+    "Image": {
+      "Image": 0,
+      "Expectation": 0.504270232708537,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.161038478764254,
+      "Complaints": 0,
+      "Loyalty": 0.195956782543724
+    },
+    "Expectation": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.556732672149252,
+      "Value": 0.0394089177768612,
+      "Satisfaction": 0.0523772463516766,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "Quality": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0.579171087077398,
+      "Satisfaction": 0.562006474133368,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "Value": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.169714045890003,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "Satisfaction": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0.528124869719252,
+      "Loyalty": 0.485273996374697
+    },
+    "Complaints": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.0669071348612683
+    },
+    "Loyalty": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    }
+  },
+  "loadings": {
+    "IMAG1": {
+      "Image": 0.745230627318665,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "IMAG2": {
+      "Image": 0.599390955909307,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "IMAG3": {
+      "Image": 0.576285176723349,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "IMAG4": {
+      "Image": 0.768800106421758,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "IMAG5": {
+      "Image": 0.744289539910331,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUEX1": {
+      "Image": 0,
+      "Expectation": 0.769764849061666,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUEX2": {
+      "Image": 0,
+      "Expectation": 0.684275474323879,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUEX3": {
+      "Image": 0,
+      "Expectation": 0.616243216827412,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ1": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.84117568193305,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ2": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.570768803292991,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ3": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.789052054634291,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ4": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.707405731413158,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ5": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.704224244048065,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ6": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.706006699015591,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ7": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.850806748602793,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERV1": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0.902234628624164,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERV2": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0.939606186442673,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUSA1": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.791615078294751,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUSA2": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.847771052982642,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUSA3": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.856698000683352,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUSCO": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 1,
+      "Loyalty": 0
+    },
+    "CUSL1": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.820424396402395
+    },
+    "CUSL2": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.202067575997892
+    },
+    "CUSL3": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.915420388681674
+    }
+  },
+  "weights": {
+    "IMAG1": {
+      "Image": 0.301325288832926,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "IMAG2": {
+      "Image": 0.259932641954266,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "IMAG3": {
+      "Image": 0.217861909672601,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "IMAG4": {
+      "Image": 0.328600996988114,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "IMAG5": {
+      "Image": 0.32442054835331,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUEX1": {
+      "Image": 0,
+      "Expectation": 0.520725772873535,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUEX2": {
+      "Image": 0,
+      "Expectation": 0.465853949477464,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUEX3": {
+      "Image": 0,
+      "Expectation": 0.455000824578113,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ1": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.340802032013531,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ2": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.0586561566818914,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ3": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.192188219245357,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ4": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.135147697632883,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ5": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.0986907896647453,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ6": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.0718874516733812,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERQ7": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.367113072512783,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERV1": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0.479353939539605,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "PERV2": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0.603987377444306,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUSA1": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.363230020629904,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUSA2": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.384933041582202,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUSA3": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.450714894259242,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "CUSCO": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 1,
+      "Loyalty": 0
+    },
+    "CUSL1": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.460693344778268
+    },
+    "CUSL2": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.114317741322425
+    },
+    "CUSL3": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.654274297586554
+    }
+  },
+  "rSquared": {
+    "Rsq": {
+      "Expectation": 0.254288467595921,
+      "Satisfaction": 0.698438935566298,
+      "Loyalty": 0.45686163010901,
+      "Quality": 0.309951268238448,
+      "Value": 0.362406507059423,
+      "Complaints": 0.278915878015977
+    },
+    "AdjRsq": {
+      "Expectation": 0.251281566255582,
+      "Satisfaction": 0.69351548961636,
+      "Loyalty": 0.450237991451803,
+      "Quality": 0.307168813674893,
+      "Value": 0.357243806711726,
+      "Complaints": 0.276008280749912
+    }
+  },
+  "reliability": {
+    "Image": {
+      "alpha": 0.722834595427083,
+      "rhoC": 0.818879597729093,
+      "AVE": 0.478352666736949,
+      "rhoA": 0.740293021602183
+    },
+    "Expectation": {
+      "alpha": 0.451902555978064,
+      "rhoC": 0.733220287705494,
+      "AVE": 0.480175516632632,
+      "rhoA": 0.460602324801433
+    },
+    "Quality": {
+      "alpha": 0.877010245240235,
+      "rhoC": 0.895292122045271,
+      "AVE": 0.553518419553549,
+      "rhoA": 1
+    },
+    "Value": {
+      "alpha": 0.823631979352573,
+      "rhoC": 0.917977629446652,
+      "AVE": 0.848443555344963,
+      "rhoA": 0.854924593912901
+    },
+    "Satisfaction": {
+      "alpha": 0.779195021918597,
+      "rhoC": 0.871251426484045,
+      "AVE": 0.693100551611252,
+      "rhoA": 0.789239591442586
+    },
+    "Complaints": {
+      "alpha": 1,
+      "rhoC": 1,
+      "AVE": 1,
+      "rhoA": 1
+    },
+    "Loyalty": {
+      "alpha": 0.47239896289838,
+      "rhoC": 0.721715171765693,
+      "AVE": 0.517307327832002,
+      "rhoA": 0.74567234061971
+    }
+  },
+  "htmt": {
+    "Image": {
+      "Image": "NA",
+      "Expectation": "NA",
+      "Quality": "NA",
+      "Value": "NA",
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Expectation": {
+      "Image": 0.88803042750925,
+      "Expectation": "NA",
+      "Quality": "NA",
+      "Value": "NA",
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Quality": {
+      "Image": 0.928706389461734,
+      "Expectation": 0.878336874197207,
+      "Quality": "NA",
+      "Value": "NA",
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Value": {
+      "Image": 0.651659392487802,
+      "Expectation": 0.588628982316289,
+      "Quality": 0.673251989368684,
+      "Value": "NA",
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Satisfaction": {
+      "Image": 0.910100923782741,
+      "Expectation": 0.865108193553153,
+      "Quality": 0.95363601193348,
+      "Value": 0.740808927759395,
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Complaints": {
+      "Image": 0.544731346013021,
+      "Expectation": 0.382952274669992,
+      "Quality": 0.563896440793611,
+      "Value": 0.386767333401936,
+      "Satisfaction": 0.588173233506081,
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Loyalty": {
+      "Image": 0.866996598026726,
+      "Expectation": 0.770414260503289,
+      "Quality": 0.759320187689023,
+      "Value": 0.797316589256073,
+      "Satisfaction": 0.956645674591454,
+      "Complaints": 0.561258539823949,
+      "Loyalty": "NA"
+    }
+  },
+  "fl": {
+    "Image": {
+      "Image": 0.691630440869218,
+      "Expectation": "NA",
+      "Quality": "NA",
+      "Value": "NA",
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Expectation": {
+      "Image": 0.504270232708536,
+      "Expectation": 0.692946979669175,
+      "Quality": "NA",
+      "Value": "NA",
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Quality": {
+      "Image": 0.745226159404005,
+      "Expectation": 0.556732672149253,
+      "Quality": 0.743988185090025,
+      "Value": "NA",
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Value": {
+      "Image": 0.509145708474682,
+      "Expectation": 0.361852384717049,
+      "Quality": 0.60111131917782,
+      "Value": 0.921109958335574,
+      "Satisfaction": "NA",
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Satisfaction": {
+      "Image": 0.692681869382013,
+      "Expectation": 0.507882955847882,
+      "Quality": 0.81319371950825,
+      "Value": 0.608487380802165,
+      "Satisfaction": 0.832526607149136,
+      "Complaints": "NA",
+      "Loyalty": "NA"
+    },
+    "Complaints": {
+      "Image": 0.475272469739479,
+      "Expectation": 0.257178589384603,
+      "Quality": 0.528410227942231,
+      "Value": 0.355111524394009,
+      "Satisfaction": 0.528124869719252,
+      "Complaints": 1,
+      "Loyalty": "NA"
+    },
+    "Loyalty": {
+      "Image": 0.563896400743737,
+      "Expectation": 0.379030634165745,
+      "Quality": 0.550505023333556,
+      "Value": 0.529463269557436,
+      "Satisfaction": 0.656345028707064,
+      "Complaints": 0.416325264976554,
+      "Loyalty": 0.719240799615818
+    }
+  },
+  "fSquare": {
+    "Image": {
+      "Image": 0,
+      "Expectation": 0.341001119797796,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.0370027431136974,
+      "Complaints": 0,
+      "Loyalty": 0.0308372901617205
+    },
+    "Expectation": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.449173013400381,
+      "Value": 0.00146513912584064,
+      "Satisfaction": 0.00591572968940415,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "Quality": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0.363024691222959,
+      "Satisfaction": 0.359057649201855,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "Value": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.0600286426239392,
+      "Complaints": 0,
+      "Loyalty": 0
+    },
+    "Satisfaction": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0.386800748362834,
+      "Loyalty": 0.206100731480655
+    },
+    "Complaints": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.00700904780935356
+    },
+    "Loyalty": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    }
+  },
+  "totalEffects": {
+    "Image": {
+      "Image": 0,
+      "Expectation": 0.504270232708537,
+      "Quality": 0.280743714141149,
+      "Value": 0.182471386247405,
+      "Satisfaction": 0.376198507109424,
+      "Complaints": 0.198679787555742,
+      "Loyalty": 0.39180923085911
+    },
+    "Expectation": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0.556732672149252,
+      "Value": 0.361852384717048,
+      "Satisfaction": 0.426676044686403,
+      "Complaints": 0.225338230512332,
+      "Loyalty": 0.222131524740607
+    },
+    "Quality": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0.579171087077398,
+      "Satisfaction": 0.660299942583785,
+      "Complaints": 0.348720821152691,
+      "Loyalty": 0.343758302953411
+    },
+    "Value": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.169714045890003,
+      "Complaints": 0.0896302083751849,
+      "Loyalty": 0.0883547137293625
+    },
+    "Satisfaction": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0.528124869719252,
+      "Loyalty": 0.520609318256592
+    },
+    "Complaints": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0.0669071348612683
+    },
+    "Loyalty": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Complaints": 0,
+      "Loyalty": 0
+    }
+  },
+  "vifItems": {
+    "Image": {
+      "IMAG1": 1.46840074157899,
+      "IMAG2": 1.22511896724264,
+      "IMAG3": 1.25876515500919,
+      "IMAG4": 1.51040340151145,
+      "IMAG5": 1.40314478976676
+    },
+    "Expectation": {
+      "CUEX1": 1.16077200450282,
+      "CUEX2": 1.12060419838461,
+      "CUEX3": 1.04961624016727
+    },
+    "Quality": {
+      "PERQ1": 2.02709938021986,
+      "PERQ2": 1.49093884277268,
+      "PERQ3": 2.10475323066629,
+      "PERQ4": 2.01259204974574,
+      "PERQ5": 1.82278797118506,
+      "PERQ6": 2.00289651569577,
+      "PERQ7": 2.0061803928463
+    },
+    "Value": {
+      "PERV1": 1.96158254047704,
+      "PERV2": 1.96158254047704
+    },
+    "Satisfaction": {
+      "CUSA1": 1.50500417008445,
+      "CUSA2": 1.76197723191477,
+      "CUSA3": 1.64446280215093
+    },
+    "Complaints": {
+      "CUSCO": 1
+    },
+    "Loyalty": {
+      "CUSL1": 1.41544019627119,
+      "CUSL2": 1.01048948932009,
+      "CUSL3": 1.42705190738692
+    }
+  },
+  "vifAntecedents": {
+    "Expectation": {
+      "Image": null
+    },
+    "Satisfaction": {
+      "Image": 2.33728462443495,
+      "Expectation": 1.48869260549409,
+      "Quality": 2.8758708358583,
+      "Value": 1.5875120663478
+    },
+    "Loyalty": {
+      "Image": 1.98578599000307,
+      "Satisfaction": 2.13183014083428,
+      "Complaints": 1.43255081109757
+    },
+    "Quality": {
+      "Expectation": null
+    },
+    "Value": {
+      "Expectation": 1.44917301340038,
+      "Quality": 1.44917301340038
+    },
+    "Complaints": {
+      "Satisfaction": null
+    }
+  },
+  "iterations": 8
+}

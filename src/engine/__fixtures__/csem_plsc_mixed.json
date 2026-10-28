@@ -1,0 +1,249 @@
+{
+  "paths": {
+    "Image": {
+      "Image": 0,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Expectation": {
+      "Image": 0.863760545857698,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Quality": {
+      "Image": 0,
+      "Expectation": 0.820750592580561,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Value": {
+      "Image": 0,
+      "Expectation": 0.132558073077893,
+      "Quality": 0.541120306779555,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Satisfaction": {
+      "Image": 0.326588792012666,
+      "Expectation": 0.110604128491824,
+      "Quality": 0.416422422736455,
+      "Value": 0.197146490810791,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Loyalty": {
+      "Image": -0.111741103829117,
+      "Expectation": 0,
+      "Quality": 0,
+      "Value": 0,
+      "Satisfaction": 0.959149990861675,
+      "Loyalty": 0
+    }
+  },
+  "loadings": {
+    "IMAG1": 0.618327647892581,
+    "IMAG2": 0.534244930584643,
+    "IMAG3": 0.446923590640347,
+    "IMAG4": 0.674436398322404,
+    "IMAG5": 0.666408536201255,
+    "CUEX1": 0.507888606320571,
+    "CUEX2": 0.45485156867559,
+    "CUEX3": 0.444432151066412,
+    "PERQ1": 0.842123853176425,
+    "PERQ2": 0.571178857405164,
+    "PERQ3": 0.788260270077187,
+    "PERQ4": 0.70803675473679,
+    "PERQ5": 0.7043602245072,
+    "PERQ6": 0.706530103163819,
+    "PERQ7": 0.849897089675116,
+    "PERV1": 0.745307286314304,
+    "PERV2": 0.939408799488993,
+    "CUSA1": 0.693003464950916,
+    "CUSA2": 0.708030901142486,
+    "CUSA3": 0.803400076300893,
+    "CUSL1": 0.616173953203871,
+    "CUSL2": 0.143496180002773,
+    "CUSL3": 0.859471293563548
+  },
+  "weights": {
+    "IMAG1": 0.301170528267757,
+    "IMAG2": 0.26021613058535,
+    "IMAG3": 0.217684288171859,
+    "IMAG4": 0.328499569860815,
+    "IMAG5": 0.324589417235216,
+    "CUEX1": 0.520336638539446,
+    "CUEX2": 0.465999696259507,
+    "CUEX3": 0.455324905238744,
+    "PERQ1": 0.342715615130408,
+    "PERQ2": 0.0585963228579153,
+    "PERQ3": 0.190794896067522,
+    "PERQ4": 0.135916609974522,
+    "PERQ5": 0.098907558335192,
+    "PERQ6": 0.0723079191001789,
+    "PERQ7": 0.365382780334812,
+    "PERV1": 0.479261425415943,
+    "PERV2": 0.604076209314706,
+    "CUSA1": 0.377188423732503,
+    "CUSA2": 0.385367567498026,
+    "CUSA3": 0.437275170663064,
+    "CUSL1": 0.466326694179602,
+    "CUSL2": 0.108599363702662,
+    "CUSL3": 0.650456587763531
+  },
+  "constructCor": {
+    "Image": {
+      "Image": 1,
+      "Expectation": 0.863760545857698,
+      "Quality": 0.866207824537392,
+      "Value": 0.639924179545476,
+      "Satisfaction": 0.908991441682379,
+      "Loyalty": 0.760118029153877
+    },
+    "Expectation": {
+      "Image": 0.863760545857698,
+      "Expectation": 1,
+      "Quality": 0.820750592580561,
+      "Value": 0.576682885524588,
+      "Satisfaction": 0.848168599168282,
+      "Loyalty": 0.64759888447013
+    },
+    "Quality": {
+      "Image": 0.866207824537392,
+      "Expectation": 0.820750592580561,
+      "Quality": 1,
+      "Value": 0.649917423809573,
+      "Satisfaction": 0.918223533206409,
+      "Loyalty": 0.638301288093189
+    },
+    "Value": {
+      "Image": 0.639924179545476,
+      "Expectation": 0.576682885524588,
+      "Quality": 0.649917423809573,
+      "Value": 1,
+      "Satisfaction": 0.740562251759259,
+      "Loyalty": 0.663854358379986
+    },
+    "Satisfaction": {
+      "Image": 0.908991441682379,
+      "Expectation": 0.848168599168282,
+      "Quality": 0.918223533206409,
+      "Value": 0.740562251759259,
+      "Satisfaction": 1,
+      "Loyalty": 0.857578283796866
+    },
+    "Loyalty": {
+      "Image": 0.760118029153877,
+      "Expectation": 0.64759888447013,
+      "Quality": 0.638301288093189,
+      "Value": 0.663854358379986,
+      "Satisfaction": 0.857578283796866,
+      "Loyalty": 1
+    }
+  },
+  "r2": {
+    "Expectation": 0.746082280580388,
+    "Quality": 0.673631535221342,
+    "Value": 0.428127487835352,
+    "Satisfaction": 0.919045483086756,
+    "Loyalty": 0.737609775448867
+  },
+  "rhoA": {
+    "Image": 0.740272125378557,
+    "Expectation": 0.460490861980851,
+    "Quality": 1,
+    "Value": 0.855017455044157,
+    "Satisfaction": 0.784202231615304,
+    "Loyalty": 0.742993524501281
+  },
+  "htmt": {
+    "Image": {
+      "Image": 1,
+      "Expectation": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Expectation": {
+      "Image": 0.88803042750925,
+      "Expectation": 1,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Value": {
+      "Image": 0.651659392487802,
+      "Expectation": 0.588628982316289,
+      "Value": 1,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Satisfaction": {
+      "Image": 0.910100923782741,
+      "Expectation": 0.865108193553153,
+      "Value": 0.740808927759395,
+      "Satisfaction": 1,
+      "Loyalty": 0
+    },
+    "Loyalty": {
+      "Image": 0.866996598026726,
+      "Expectation": 0.770414260503289,
+      "Value": 0.797316589256073,
+      "Satisfaction": 0.956645674591454,
+      "Loyalty": 1
+    }
+  },
+  "htmt2": {
+    "Image": {
+      "Image": 1,
+      "Expectation": 0,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Expectation": {
+      "Image": 0.918817860858206,
+      "Expectation": 1,
+      "Value": 0,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Value": {
+      "Image": 0.644880383116499,
+      "Expectation": 0.600583756278781,
+      "Value": 1,
+      "Satisfaction": 0,
+      "Loyalty": 0
+    },
+    "Satisfaction": {
+      "Image": 0.911620822278007,
+      "Expectation": 0.900594826235303,
+      "Value": 0.727683588517307,
+      "Satisfaction": 1,
+      "Loyalty": 0
+    },
+    "Loyalty": {
+      "Image": 0.796288939689457,
+      "Expectation": 0.840582923527684,
+      "Value": 0.886110664179082,
+      "Satisfaction": 0.930472992730408,
+      "Loyalty": 1
+    }
+  },
+  "fit": {
+    "srmr": 0.0660527261612132,
+    "dL": 1.20417768679859,
+    "dG_log10": 0.43224238459298,
+    "srmr_sat": 0.0541093175346598,
+    "dL_sat": 0.808077835362394,
+    "dG_log10_sat": 0.373384125375874
+  }
+}

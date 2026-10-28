@@ -1,0 +1,78 @@
+{
+  "name": "mcci_semtools_mobi_mlr",
+  "source": "semTools",
+  "kind": "mcci",
+  "dataset": "mobi",
+  "options": {
+    "estimator": "MLR",
+    "missing": "casewise",
+    "draws": 200000
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "Image",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5"]
+      },
+      {
+        "name": "Quality",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7"]
+      },
+      {
+        "name": "Satisfaction",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUSA1", "CUSA2", "CUSA3"]
+      },
+      {
+        "name": "Value",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["PERV1", "PERV2"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "Quality",
+        "to": "Value"
+      },
+      {
+        "from": "Image",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Quality",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Value",
+        "to": "Satisfaction"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "indirect": [
+      {
+        "from": "Quality",
+        "to": "Satisfaction",
+        "est": 0.0929691652243083,
+        "ciLow": 0.000476835325097176,
+        "ciHigh": 0.190563286962791
+      }
+    ]
+  },
+  "tolerance": 0.01,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

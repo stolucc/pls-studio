@@ -1,0 +1,577 @@
+{
+  "name": "pls_seminr_mobi_A",
+  "source": "seminr",
+  "kind": "pls",
+  "dataset": "mobi",
+  "missingTokens": null,
+  "options": {
+    "scheme": "path",
+    "consistent": false,
+    "missing": "mean"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "Image",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5"]
+      },
+      {
+        "name": "Expectation",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUEX1", "CUEX2", "CUEX3"]
+      },
+      {
+        "name": "Quality",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7"]
+      },
+      {
+        "name": "Value",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["PERV1", "PERV2"]
+      },
+      {
+        "name": "Satisfaction",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUSA1", "CUSA2", "CUSA3"]
+      },
+      {
+        "name": "Complaints",
+        "type": "factor",
+        "mode": "A",
+        "indicators": "CUSCO"
+      },
+      {
+        "name": "Loyalty",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUSL1", "CUSL2", "CUSL3"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "Image",
+        "to": "Expectation"
+      },
+      {
+        "from": "Image",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Image",
+        "to": "Loyalty"
+      },
+      {
+        "from": "Expectation",
+        "to": "Quality"
+      },
+      {
+        "from": "Expectation",
+        "to": "Value"
+      },
+      {
+        "from": "Expectation",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Quality",
+        "to": "Value"
+      },
+      {
+        "from": "Quality",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Value",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Satisfaction",
+        "to": "Complaints"
+      },
+      {
+        "from": "Satisfaction",
+        "to": "Loyalty"
+      },
+      {
+        "from": "Complaints",
+        "to": "Loyalty"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "paths": [
+      {
+        "from": "Image",
+        "to": "Expectation",
+        "est": 0.50491393362921
+      },
+      {
+        "from": "Image",
+        "to": "Satisfaction",
+        "est": 0.178739500119218
+      },
+      {
+        "from": "Image",
+        "to": "Loyalty",
+        "est": 0.195755333112827
+      },
+      {
+        "from": "Expectation",
+        "to": "Quality",
+        "est": 0.556748962354268
+      },
+      {
+        "from": "Expectation",
+        "to": "Value",
+        "est": 0.0499883925356608
+      },
+      {
+        "from": "Expectation",
+        "to": "Satisfaction",
+        "est": 0.0625228695392279
+      },
+      {
+        "from": "Quality",
+        "to": "Value",
+        "est": 0.558304379470818
+      },
+      {
+        "from": "Quality",
+        "to": "Satisfaction",
+        "est": 0.512023940041866
+      },
+      {
+        "from": "Value",
+        "to": "Satisfaction",
+        "est": 0.194765104190193
+      },
+      {
+        "from": "Satisfaction",
+        "to": "Complaints",
+        "est": 0.528066246257102
+      },
+      {
+        "from": "Satisfaction",
+        "to": "Loyalty",
+        "est": 0.485477623599999
+      },
+      {
+        "from": "Complaints",
+        "to": "Loyalty",
+        "est": 0.0669260690288725
+      }
+    ],
+    "loadings": [
+      {
+        "construct": "Image",
+        "indicator": "IMAG1",
+        "est": 0.745208072912949
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG2",
+        "est": 0.599200382471533
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG3",
+        "est": 0.576358953065159
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG4",
+        "est": 0.768761659165522
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG5",
+        "est": 0.744452429374381
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX1",
+        "est": 0.77076716903232
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX2",
+        "est": 0.691245474013756
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX3",
+        "est": 0.607812640593406
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ1",
+        "est": 0.803178125267657
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ2",
+        "est": 0.638146439777288
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ3",
+        "est": 0.783746918348657
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ4",
+        "est": 0.769479738789211
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ5",
+        "est": 0.754721358853526
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ6",
+        "est": 0.774643309682286
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ7",
+        "est": 0.779864828705122
+      },
+      {
+        "construct": "Value",
+        "indicator": "PERV1",
+        "est": 0.9022112012067
+      },
+      {
+        "construct": "Value",
+        "indicator": "PERV2",
+        "est": 0.939624777144795
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA1",
+        "est": 0.792412434110373
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA2",
+        "est": 0.84702145983508
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA3",
+        "est": 0.856692681286538
+      },
+      {
+        "construct": "Complaints",
+        "indicator": "CUSCO",
+        "est": 1
+      },
+      {
+        "construct": "Loyalty",
+        "indicator": "CUSL1",
+        "est": 0.820413196007856
+      },
+      {
+        "construct": "Loyalty",
+        "indicator": "CUSL2",
+        "est": 0.202021709399004
+      },
+      {
+        "construct": "Loyalty",
+        "indicator": "CUSL3",
+        "est": 0.915436286843637
+      }
+    ],
+    "weights": [
+      {
+        "construct": "Image",
+        "indicator": "IMAG1",
+        "est": 0.301312155028411
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG2",
+        "est": 0.259691153052593
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG3",
+        "est": 0.217923053132011
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG4",
+        "est": 0.328503566516196
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG5",
+        "est": 0.324681406422246
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX1",
+        "est": 0.521180678858356
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX2",
+        "est": 0.473679656202755
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX3",
+        "est": 0.445634241589667
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ1",
+        "est": 0.213175042168098
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ2",
+        "est": 0.144721694382767
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ3",
+        "est": 0.200017711320445
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ4",
+        "est": 0.17939946745695
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ5",
+        "est": 0.17863569156493
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ6",
+        "est": 0.179120737056174
+      },
+      {
+        "construct": "Quality",
+        "indicator": "PERQ7",
+        "est": 0.21548152497645
+      },
+      {
+        "construct": "Value",
+        "indicator": "PERV1",
+        "est": 0.479282452283568
+      },
+      {
+        "construct": "Value",
+        "indicator": "PERV2",
+        "est": 0.604056019821715
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA1",
+        "est": 0.364864858320206
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA2",
+        "est": 0.383156041120828
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA3",
+        "est": 0.450961200721565
+      },
+      {
+        "construct": "Complaints",
+        "indicator": "CUSCO",
+        "est": 1
+      },
+      {
+        "construct": "Loyalty",
+        "indicator": "CUSL1",
+        "est": 0.460664728419479
+      },
+      {
+        "construct": "Loyalty",
+        "indicator": "CUSL2",
+        "est": 0.114269525625845
+      },
+      {
+        "construct": "Loyalty",
+        "indicator": "CUSL3",
+        "est": 0.654310585650237
+      }
+    ],
+    "r2": {
+      "Expectation": 0.254938080372923,
+      "Satisfaction": 0.681078291389478,
+      "Loyalty": 0.456944454679426,
+      "Quality": 0.309969407082555,
+      "Value": 0.345278941898147,
+      "Complaints": 0.278853960436066
+    },
+    "alpha": {
+      "Image": 0.722834595427083,
+      "Expectation": 0.451902555978064,
+      "Quality": 0.877010245240235,
+      "Value": 0.823631979352573,
+      "Satisfaction": 0.779195021918597,
+      "Complaints": 1,
+      "Loyalty": 0.47239896289838
+    },
+    "rhoC": {
+      "Image": 0.818878673073352,
+      "Expectation": 0.733235558500388,
+      "Quality": 0.904692421911212,
+      "Value": 0.917975411373379,
+      "Satisfaction": 0.871253232708246,
+      "Complaints": 1,
+      "Loyalty": 0.721705555704493
+    },
+    "ave": {
+      "Image": 0.478353944254275,
+      "Expectation": 0.480446180089243,
+      "Quality": 0.576650002533362,
+      "Value": 0.848439886703621,
+      "Satisfaction": 0.693095056441265,
+      "Complaints": 1,
+      "Loyalty": 0.517304726174129
+    },
+    "rhoA": {
+      "Image": 0.740328516388614,
+      "Expectation": 0.462054887723249,
+      "Quality": 0.884246470668523,
+      "Value": 0.854996336790827,
+      "Satisfaction": 0.78910157619656,
+      "Complaints": 1,
+      "Loyalty": 0.745733723579514
+    },
+    "htmt": [
+      {
+        "a": "Expectation",
+        "b": "Image",
+        "v": 0.88803042750925
+      },
+      {
+        "a": "Quality",
+        "b": "Image",
+        "v": 0.928706389461734
+      },
+      {
+        "a": "Quality",
+        "b": "Expectation",
+        "v": 0.878336874197207
+      },
+      {
+        "a": "Value",
+        "b": "Image",
+        "v": 0.651659392487802
+      },
+      {
+        "a": "Value",
+        "b": "Expectation",
+        "v": 0.588628982316289
+      },
+      {
+        "a": "Value",
+        "b": "Quality",
+        "v": 0.673251989368684
+      },
+      {
+        "a": "Satisfaction",
+        "b": "Image",
+        "v": 0.910100923782741
+      },
+      {
+        "a": "Satisfaction",
+        "b": "Expectation",
+        "v": 0.865108193553153
+      },
+      {
+        "a": "Satisfaction",
+        "b": "Quality",
+        "v": 0.95363601193348
+      },
+      {
+        "a": "Satisfaction",
+        "b": "Value",
+        "v": 0.740808927759395
+      },
+      {
+        "a": "Complaints",
+        "b": "Image",
+        "v": 0.544731346013021
+      },
+      {
+        "a": "Complaints",
+        "b": "Expectation",
+        "v": 0.382952274669992
+      },
+      {
+        "a": "Complaints",
+        "b": "Quality",
+        "v": 0.563896440793611
+      },
+      {
+        "a": "Complaints",
+        "b": "Value",
+        "v": 0.386767333401936
+      },
+      {
+        "a": "Complaints",
+        "b": "Satisfaction",
+        "v": 0.588173233506081
+      },
+      {
+        "a": "Loyalty",
+        "b": "Image",
+        "v": 0.866996598026726
+      },
+      {
+        "a": "Loyalty",
+        "b": "Expectation",
+        "v": 0.770414260503289
+      },
+      {
+        "a": "Loyalty",
+        "b": "Quality",
+        "v": 0.759320187689023
+      },
+      {
+        "a": "Loyalty",
+        "b": "Value",
+        "v": 0.797316589256073
+      },
+      {
+        "a": "Loyalty",
+        "b": "Satisfaction",
+        "v": 0.956645674591454
+      },
+      {
+        "a": "Loyalty",
+        "b": "Complaints",
+        "v": 0.561258539823949
+      }
+    ]
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

@@ -1,0 +1,589 @@
+{
+  "name": "miiv_miivsem_emse",
+  "source": "MIIVsem",
+  "kind": "miiv",
+  "dataset": "emse-sem",
+  "matrix": {
+    "s": "emse-sem-s.csv",
+    "n": 155
+  },
+  "options": {
+    "estimator": "2SLS",
+    "missing": "casewise"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "desire",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["num_want_learn_languages", "num_want_learn_skills"]
+      },
+      {
+        "name": "part",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["num_challenges_solved", "num_meetings_attended", "has_chatroom_handle"]
+      },
+      {
+        "name": "id",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["ID1", "ID2"]
+      },
+      {
+        "name": "hc",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["HC1", "HC2", "HC3"]
+      },
+      {
+        "name": "js",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["JS1", "JS2", "JS4"]
+      },
+      {
+        "name": "engag",
+        "type": "factor",
+        "mode": "A",
+        "indicators": [],
+        "components": ["id", "hc"]
+      },
+      {
+        "name": "age",
+        "type": "factor",
+        "mode": "A",
+        "indicators": "age",
+        "covariate": true
+      },
+      {
+        "name": "ismale",
+        "type": "factor",
+        "mode": "A",
+        "indicators": "ismale",
+        "covariate": true
+      },
+      {
+        "name": "tenure_s",
+        "type": "factor",
+        "mode": "A",
+        "indicators": "tenure_s",
+        "covariate": true
+      }
+    ],
+    "paths": [
+      {
+        "from": "desire",
+        "to": "part"
+      },
+      {
+        "from": "age",
+        "to": "part"
+      },
+      {
+        "from": "ismale",
+        "to": "part"
+      },
+      {
+        "from": "tenure_s",
+        "to": "part"
+      },
+      {
+        "from": "part",
+        "to": "engag"
+      },
+      {
+        "from": "age",
+        "to": "engag"
+      },
+      {
+        "from": "ismale",
+        "to": "engag"
+      },
+      {
+        "from": "tenure_s",
+        "to": "engag"
+      },
+      {
+        "from": "engag",
+        "to": "js"
+      },
+      {
+        "from": "part",
+        "to": "js"
+      },
+      {
+        "from": "age",
+        "to": "js"
+      },
+      {
+        "from": "ismale",
+        "to": "js"
+      },
+      {
+        "from": "tenure_s",
+        "to": "js"
+      }
+    ],
+    "moderations": []
+  },
+  "expected": {
+    "n": 155,
+    "equations": [
+      {
+        "dv": "num_want_learn_skills",
+        "regressors": "num_want_learn_languages",
+        "instruments": ["num_challenges_solved", "num_meetings_attended", "has_chatroom_handle", "ID1", "ID2", "HC1", "HC2", "HC3", "JS1", "JS2", "JS4", "age", "ismale", "tenure_s"],
+        "lhs": "num_want_learn_skills",
+        "rhs": "desire",
+        "coefficients": [
+          {
+            "name": "num_want_learn_skills~desire",
+            "est": 0.907128835128492
+          }
+        ],
+        "sigma2": 5.60770534959812,
+        "sargan": 21.4254234104203,
+        "sarganDf": 13,
+        "sarganP": 0.0649292914432658
+      },
+      {
+        "dv": "num_meetings_attended",
+        "regressors": "num_challenges_solved",
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "has_chatroom_handle", "ID1", "ID2", "HC1", "HC2", "HC3", "JS1", "JS2", "JS4", "age", "ismale", "tenure_s"],
+        "lhs": "num_meetings_attended",
+        "rhs": "part",
+        "coefficients": [
+          {
+            "name": "num_meetings_attended~part",
+            "est": 0.161448368202909
+          }
+        ],
+        "sigma2": 9.41757162920718,
+        "sargan": 25.7116736287598,
+        "sarganDf": 13,
+        "sarganP": 0.0185807396713266
+      },
+      {
+        "dv": "has_chatroom_handle",
+        "regressors": "num_challenges_solved",
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_meetings_attended", "ID1", "ID2", "HC1", "HC2", "HC3", "JS1", "JS2", "JS4", "age", "ismale", "tenure_s"],
+        "lhs": "has_chatroom_handle",
+        "rhs": "part",
+        "coefficients": [
+          {
+            "name": "has_chatroom_handle~part",
+            "est": 0.020588379370435
+          }
+        ],
+        "sigma2": 0.147519203242034,
+        "sargan": 13.7555127027939,
+        "sarganDf": 13,
+        "sarganP": 0.391284601022318
+      },
+      {
+        "dv": "ID2",
+        "regressors": "ID1",
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_challenges_solved", "num_meetings_attended", "has_chatroom_handle", "HC1", "HC2", "HC3", "JS1", "JS2", "JS4", "age", "ismale", "tenure_s"],
+        "lhs": "ID2",
+        "rhs": "id",
+        "coefficients": [
+          {
+            "name": "ID2~id",
+            "est": 0.9842586114731
+          }
+        ],
+        "sigma2": 0.993019682337783,
+        "sargan": 17.8636637796577,
+        "sarganDf": 13,
+        "sarganP": 0.162765017329032
+      },
+      {
+        "dv": "HC2",
+        "regressors": "HC1",
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_challenges_solved", "num_meetings_attended", "has_chatroom_handle", "ID1", "ID2", "HC3", "JS1", "JS2", "JS4", "age", "ismale", "tenure_s"],
+        "lhs": "HC2",
+        "rhs": "hc",
+        "coefficients": [
+          {
+            "name": "HC2~hc",
+            "est": 1.00426398416205
+          }
+        ],
+        "sigma2": 0.741982224283663,
+        "sargan": 15.2007294390484,
+        "sarganDf": 13,
+        "sarganP": 0.294989860235898
+      },
+      {
+        "dv": "HC3",
+        "regressors": "HC1",
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_challenges_solved", "num_meetings_attended", "has_chatroom_handle", "ID1", "ID2", "HC2", "JS1", "JS2", "JS4", "age", "ismale", "tenure_s"],
+        "lhs": "HC3",
+        "rhs": "hc",
+        "coefficients": [
+          {
+            "name": "HC3~hc",
+            "est": 1.01142651492432
+          }
+        ],
+        "sigma2": 0.632491489163031,
+        "sargan": 17.1316035000949,
+        "sarganDf": 13,
+        "sarganP": 0.193357565898368
+      },
+      {
+        "dv": "JS2",
+        "regressors": "JS1",
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_challenges_solved", "num_meetings_attended", "has_chatroom_handle", "ID1", "ID2", "HC1", "HC2", "HC3", "JS4", "age", "ismale", "tenure_s"],
+        "lhs": "JS2",
+        "rhs": "js",
+        "coefficients": [
+          {
+            "name": "JS2~js",
+            "est": 0.76474965947701
+          }
+        ],
+        "sigma2": 1.53132545485571,
+        "sargan": 12.3560415834012,
+        "sarganDf": 13,
+        "sarganP": 0.498686767719089
+      },
+      {
+        "dv": "JS4",
+        "regressors": "JS1",
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_challenges_solved", "num_meetings_attended", "has_chatroom_handle", "ID1", "ID2", "HC1", "HC2", "HC3", "JS2", "age", "ismale", "tenure_s"],
+        "lhs": "JS4",
+        "rhs": "js",
+        "coefficients": [
+          {
+            "name": "JS4~js",
+            "est": 0.735280288485067
+          }
+        ],
+        "sigma2": 1.15885605313882,
+        "sargan": 7.00599642010537,
+        "sarganDf": 13,
+        "sarganP": 0.901842276874046
+      },
+      {
+        "dv": "HC1",
+        "regressors": "ID1",
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_challenges_solved", "num_meetings_attended", "has_chatroom_handle", "JS1", "JS2", "JS4", "age", "ismale", "tenure_s"],
+        "lhs": "hc",
+        "rhs": "engag",
+        "coefficients": [
+          {
+            "name": "hc~engag",
+            "est": 0.869447870606541
+          }
+        ],
+        "sigma2": 1.74058034662693,
+        "sargan": 10.1397191358849,
+        "sarganDf": 10,
+        "sarganP": 0.4283220149352
+      },
+      {
+        "dv": "num_challenges_solved",
+        "regressors": ["num_want_learn_languages", "age", "ismale", "tenure_s"],
+        "instruments": ["num_want_learn_skills", "age", "ismale", "tenure_s"],
+        "lhs": "part",
+        "rhs": ["desire", "age", "ismale", "tenure_s"],
+        "coefficients": [
+          {
+            "name": "part~desire",
+            "est": 4.41216941472381
+          },
+          {
+            "name": "part~age",
+            "est": -0.43424308770831
+          },
+          {
+            "name": "part~ismale",
+            "est": 2.95299637109773
+          },
+          {
+            "name": "part~tenure_s",
+            "est": 0.910479000169159
+          }
+        ],
+        "sigma2": 187.621684217276,
+        "sargan": null,
+        "sarganDf": null,
+        "sarganP": null
+      },
+      {
+        "dv": "ID1",
+        "regressors": ["age", "ismale", "tenure_s", "num_challenges_solved"],
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_meetings_attended", "has_chatroom_handle", "age", "ismale", "tenure_s"],
+        "lhs": "engag",
+        "rhs": ["age", "ismale", "tenure_s", "part"],
+        "coefficients": [
+          {
+            "name": "engag~age",
+            "est": 0.0191855856723198
+          },
+          {
+            "name": "engag~ismale",
+            "est": -0.344916297213122
+          },
+          {
+            "name": "engag~tenure_s",
+            "est": -0.0193551432016901
+          },
+          {
+            "name": "engag~part",
+            "est": 0.0377031542547619
+          }
+        ],
+        "sigma2": 2.28184143090958,
+        "sargan": 5.1992385499403,
+        "sarganDf": 3,
+        "sarganP": 0.157775908560496
+      },
+      {
+        "dv": "JS1",
+        "regressors": ["age", "ismale", "tenure_s", "num_challenges_solved", "ID1"],
+        "instruments": ["num_want_learn_languages", "num_want_learn_skills", "num_meetings_attended", "has_chatroom_handle", "HC1", "HC2", "HC3", "age", "ismale", "tenure_s"],
+        "lhs": "js",
+        "rhs": ["age", "ismale", "tenure_s", "part", "engag"],
+        "coefficients": [
+          {
+            "name": "js~age",
+            "est": 0.000346622003737278
+          },
+          {
+            "name": "js~ismale",
+            "est": 0.299441783250874
+          },
+          {
+            "name": "js~tenure_s",
+            "est": 0.00288656802246668
+          },
+          {
+            "name": "js~part",
+            "est": -0.0150505196223203
+          },
+          {
+            "name": "js~engag",
+            "est": 0.484692752630788
+          }
+        ],
+        "sigma2": 2.54877824181939,
+        "sargan": 13.3381909927674,
+        "sarganDf": 5,
+        "sarganP": 0.0204074949536426
+      }
+    ],
+    "params": [
+      {
+        "lhs": "desire",
+        "op": "=~",
+        "rhs": "num_want_learn_skills",
+        "est": 0.907128835128492,
+        "se": 0.0967223250837038,
+        "z": 9.37869136565379,
+        "p": 6.67965947852854e-21
+      },
+      {
+        "lhs": "engag",
+        "op": "=~",
+        "rhs": "hc",
+        "est": 0.869447870606541,
+        "se": 0.159698702148724,
+        "z": 5.44430141828479,
+        "p": 5.20090882676304e-08
+      },
+      {
+        "lhs": "hc",
+        "op": "=~",
+        "rhs": "HC2",
+        "est": 1.00426398416205,
+        "se": 0.0531989427609637,
+        "z": 18.8775177107271,
+        "p": 1.74601340120561e-79
+      },
+      {
+        "lhs": "hc",
+        "op": "=~",
+        "rhs": "HC3",
+        "est": 1.01142651492432,
+        "se": 0.0506283831700266,
+        "z": 19.9774603018157,
+        "p": 8.65145120251062e-89
+      },
+      {
+        "lhs": "id",
+        "op": "=~",
+        "rhs": "ID2",
+        "est": 0.9842586114731,
+        "se": 0.0830192048576603,
+        "z": 11.8557942485796,
+        "p": 2.00811039511444e-32
+      },
+      {
+        "lhs": "js",
+        "op": "=~",
+        "rhs": "JS2",
+        "est": 0.76474965947701,
+        "se": 0.0981883199356637,
+        "z": 7.7886011287096,
+        "p": 6.77551303873756e-15
+      },
+      {
+        "lhs": "js",
+        "op": "=~",
+        "rhs": "JS4",
+        "est": 0.735280288485067,
+        "se": 0.0877215383973964,
+        "z": 8.38198123195352,
+        "p": 5.20441349042847e-17
+      },
+      {
+        "lhs": "part",
+        "op": "=~",
+        "rhs": "num_meetings_attended",
+        "est": 0.161448368202909,
+        "se": 0.0172814697007127,
+        "z": 9.34228228263772,
+        "p": 9.42795589623469e-21
+      },
+      {
+        "lhs": "part",
+        "op": "=~",
+        "rhs": "has_chatroom_handle",
+        "est": 0.020588379370435,
+        "se": 0.00217887619884888,
+        "z": 9.44908177036956,
+        "p": 3.41815982934697e-21
+      },
+      {
+        "lhs": "engag",
+        "op": "~",
+        "rhs": "age",
+        "est": 0.0191855856723198,
+        "se": 0.0198942961220526,
+        "z": 0.964376198816743,
+        "p": 0.334857350633177
+      },
+      {
+        "lhs": "engag",
+        "op": "~",
+        "rhs": "ismale",
+        "est": -0.344916297213122,
+        "se": 0.287539458320873,
+        "z": -1.19954422682476,
+        "p": 0.230316398441578
+      },
+      {
+        "lhs": "engag",
+        "op": "~",
+        "rhs": "tenure_s",
+        "est": -0.0193551432016901,
+        "se": 0.0272161885816657,
+        "z": -0.71116288541331,
+        "p": 0.476983304795188
+      },
+      {
+        "lhs": "engag",
+        "op": "~",
+        "rhs": "part",
+        "est": 0.0377031542547619,
+        "se": 0.00908140626034642,
+        "z": 4.15168677337904,
+        "p": 3.30033761435169e-05
+      },
+      {
+        "lhs": "js",
+        "op": "~",
+        "rhs": "age",
+        "est": 0.000346622003737278,
+        "se": 0.0212865834655208,
+        "z": 0.0162835902858119,
+        "p": 0.987008148862107
+      },
+      {
+        "lhs": "js",
+        "op": "~",
+        "rhs": "ismale",
+        "est": 0.299441783250874,
+        "se": 0.309704543103747,
+        "z": 0.966862740371766,
+        "p": 0.333612655083993
+      },
+      {
+        "lhs": "js",
+        "op": "~",
+        "rhs": "tenure_s",
+        "est": 0.00288656802246668,
+        "se": 0.0289457070638817,
+        "z": 0.0997235277789612,
+        "p": 0.920563821182251
+      },
+      {
+        "lhs": "js",
+        "op": "~",
+        "rhs": "part",
+        "est": -0.0150505196223203,
+        "se": 0.0116166765267024,
+        "z": -1.29559599836707,
+        "p": 0.195114708500474
+      },
+      {
+        "lhs": "js",
+        "op": "~",
+        "rhs": "engag",
+        "est": 0.484692752630788,
+        "se": 0.167234486267036,
+        "z": 2.89828230677758,
+        "p": 0.00375212685656509
+      },
+      {
+        "lhs": "part",
+        "op": "~",
+        "rhs": "desire",
+        "est": 4.41216941472381,
+        "se": 0.535197001306618,
+        "z": 8.2440099700709,
+        "p": 1.66533271551103e-16
+      },
+      {
+        "lhs": "part",
+        "op": "~",
+        "rhs": "age",
+        "est": -0.43424308770831,
+        "se": 0.178596865491515,
+        "z": -2.43141494400381,
+        "p": 0.0150399791261778
+      },
+      {
+        "lhs": "part",
+        "op": "~",
+        "rhs": "ismale",
+        "est": 2.95299637109773,
+        "se": 2.58670551568282,
+        "z": 1.14160516270374,
+        "p": 0.253618177103332
+      },
+      {
+        "lhs": "part",
+        "op": "~",
+        "rhs": "tenure_s",
+        "est": 0.910479000169159,
+        "se": 0.234327850829145,
+        "z": 3.8854920443623,
+        "p": 0.000102122837486897
+      }
+    ]
+  },
+  "tolerance": 1e-06,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1",
+    "MIIVsem": "0.5.8"
+  }
+}

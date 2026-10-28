@@ -1,0 +1,369 @@
+{
+  "name": "cov_miivsem_bollen",
+  "source": "MIIVsem",
+  "kind": "miiv",
+  "dataset": "political_democracy",
+  "matrix": null,
+  "options": {
+    "estimator": "2SLS",
+    "missing": "casewise"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "ind60",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["x1", "x2", "x3"]
+      },
+      {
+        "name": "dem60",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["y1", "y2", "y3", "y4"]
+      },
+      {
+        "name": "dem65",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["y5", "y6", "y7", "y8"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "ind60",
+        "to": "dem60"
+      },
+      {
+        "from": "ind60",
+        "to": "dem65"
+      },
+      {
+        "from": "dem60",
+        "to": "dem65"
+      }
+    ],
+    "moderations": [],
+    "covariances": [
+      {
+        "a": "y1",
+        "b": "y5",
+        "kind": "indicator"
+      },
+      {
+        "a": "y2",
+        "b": "y4",
+        "kind": "indicator"
+      },
+      {
+        "a": "y2",
+        "b": "y6",
+        "kind": "indicator"
+      },
+      {
+        "a": "y3",
+        "b": "y7",
+        "kind": "indicator"
+      },
+      {
+        "a": "y4",
+        "b": "y8",
+        "kind": "indicator"
+      },
+      {
+        "a": "y6",
+        "b": "y8",
+        "kind": "indicator"
+      }
+    ]
+  },
+  "expected": {
+    "n": 75,
+    "equations": [
+      {
+        "dv": "x2",
+        "regressors": "x1",
+        "instruments": ["y1", "y2", "y3", "y4", "y6", "x3", "y5", "y7", "y8"],
+        "lhs": "x2",
+        "rhs": "ind60",
+        "coefficients": [
+          {
+            "name": "x2~ind60",
+            "est": 2.07796045442509
+          }
+        ],
+        "sigma2": 0.479134922009763,
+        "sargan": 8.30117797198719,
+        "sarganDf": 8,
+        "sarganP": 0.404616821933207
+      },
+      {
+        "dv": "x3",
+        "regressors": "x1",
+        "instruments": ["y1", "y2", "y3", "y4", "y6", "x2", "y5", "y7", "y8"],
+        "lhs": "x3",
+        "rhs": "ind60",
+        "coefficients": [
+          {
+            "name": "x3~ind60",
+            "est": 1.75082880918452
+          }
+        ],
+        "sigma2": 0.72939495837399,
+        "sargan": 8.73826569898838,
+        "sarganDf": 8,
+        "sarganP": 0.364854460377191
+      },
+      {
+        "dv": "y2",
+        "regressors": "y1",
+        "instruments": ["y3", "x1", "x2", "x3", "y7", "y8"],
+        "lhs": "y2",
+        "rhs": "dem60",
+        "coefficients": [
+          {
+            "name": "y2~dem60",
+            "est": 1.1392767340933
+          }
+        ],
+        "sigma2": 10.1269387907686,
+        "sargan": 8.4090931553858,
+        "sarganDf": 5,
+        "sarganP": 0.135084413945835
+      },
+      {
+        "dv": "y3",
+        "regressors": "y1",
+        "instruments": ["y2", "y4", "y6", "x1", "x2", "x3", "y8"],
+        "lhs": "y3",
+        "rhs": "dem60",
+        "coefficients": [
+          {
+            "name": "y3~dem60",
+            "est": 0.969496717177162
+          }
+        ],
+        "sigma2": 5.82933717165473,
+        "sargan": 5.87395049075896,
+        "sarganDf": 6,
+        "sarganP": 0.437457492859796
+      },
+      {
+        "dv": "y4",
+        "regressors": "y1",
+        "instruments": ["y3", "y6", "x1", "x2", "x3", "y7"],
+        "lhs": "y4",
+        "rhs": "dem60",
+        "coefficients": [
+          {
+            "name": "y4~dem60",
+            "est": 1.20999306594961
+          }
+        ],
+        "sigma2": 6.46788977714673,
+        "sargan": 4.27617466501988,
+        "sarganDf": 5,
+        "sarganP": 0.510376562348158
+      },
+      {
+        "dv": "y6",
+        "regressors": "y5",
+        "instruments": ["y3", "y4", "x1", "x2", "x3", "y7"],
+        "lhs": "y6",
+        "rhs": "dem65",
+        "coefficients": [
+          {
+            "name": "y6~dem65",
+            "est": 1.05061878497157
+          }
+        ],
+        "sigma2": 8.33937775991925,
+        "sargan": 8.7116949023416,
+        "sarganDf": 5,
+        "sarganP": 0.121131151935909
+      },
+      {
+        "dv": "y7",
+        "regressors": "y5",
+        "instruments": ["y2", "y4", "y6", "x1", "x2", "x3", "y8"],
+        "lhs": "y7",
+        "rhs": "dem65",
+        "coefficients": [
+          {
+            "name": "y7~dem65",
+            "est": 1.18002457687785
+          }
+        ],
+        "sigma2": 6.47761297552941,
+        "sargan": 9.53806389130876,
+        "sarganDf": 6,
+        "sarganP": 0.145501835260782
+      },
+      {
+        "dv": "y8",
+        "regressors": "y5",
+        "instruments": ["y2", "y3", "x1", "x2", "x3", "y7"],
+        "lhs": "y8",
+        "rhs": "dem65",
+        "coefficients": [
+          {
+            "name": "y8~dem65",
+            "est": 1.20319485072809
+          }
+        ],
+        "sigma2": 7.46574034217559,
+        "sargan": 2.79548705841676,
+        "sarganDf": 5,
+        "sarganP": 0.731479813431415
+      },
+      {
+        "dv": "y1",
+        "regressors": "x1",
+        "instruments": ["x2", "x3"],
+        "lhs": "dem60",
+        "rhs": "ind60",
+        "coefficients": [
+          {
+            "name": "dem60~ind60",
+            "est": 1.26110203120092
+          }
+        ],
+        "sigma2": 5.80213923202398,
+        "sargan": 0.502804887334601,
+        "sarganDf": 1,
+        "sarganP": 0.478270264927064
+      },
+      {
+        "dv": "y5",
+        "regressors": ["x1", "y1"],
+        "instruments": ["y2", "y3", "y4", "x2", "x3"],
+        "lhs": "dem65",
+        "rhs": ["ind60", "dem60"],
+        "coefficients": [
+          {
+            "name": "dem65~ind60",
+            "est": 1.12323377070644
+          },
+          {
+            "name": "dem65~dem60",
+            "est": 0.724285672668941
+          }
+        ],
+        "sigma2": 2.50771337942414,
+        "sargan": 0.801002075123494,
+        "sarganDf": 3,
+        "sarganP": 0.849227335237087
+      }
+    ],
+    "params": [
+      {
+        "lhs": "dem60",
+        "op": "=~",
+        "rhs": "y2",
+        "est": 1.1392767340933,
+        "se": 0.178816232170143,
+        "z": 6.37121541074234,
+        "p": 1.87536020875464e-10
+      },
+      {
+        "lhs": "dem60",
+        "op": "=~",
+        "rhs": "y3",
+        "est": 0.969496717177162,
+        "se": 0.140027719660894,
+        "z": 6.92360569410825,
+        "p": 4.40290361401947e-12
+      },
+      {
+        "lhs": "dem60",
+        "op": "=~",
+        "rhs": "y4",
+        "est": 1.20999306594961,
+        "se": 0.138871174353514,
+        "z": 8.7130613792422,
+        "p": 2.95776396064685e-18
+      },
+      {
+        "lhs": "dem65",
+        "op": "=~",
+        "rhs": "y6",
+        "est": 1.05061878497157,
+        "se": 0.164741077498531,
+        "z": 6.37739415648131,
+        "p": 1.80126453271127e-10
+      },
+      {
+        "lhs": "dem65",
+        "op": "=~",
+        "rhs": "y7",
+        "est": 1.18002457687785,
+        "se": 0.151023488623717,
+        "z": 7.81351687496733,
+        "p": 5.56139645735204e-15
+      },
+      {
+        "lhs": "dem65",
+        "op": "=~",
+        "rhs": "y8",
+        "est": 1.20319485072809,
+        "se": 0.154289387717196,
+        "z": 7.79829947172694,
+        "p": 6.27469621923151e-15
+      },
+      {
+        "lhs": "ind60",
+        "op": "=~",
+        "rhs": "x2",
+        "est": 2.07796045442509,
+        "se": 0.128498900058749,
+        "z": 16.1710368997327,
+        "p": 8.072812722883e-59
+      },
+      {
+        "lhs": "ind60",
+        "op": "=~",
+        "rhs": "x3",
+        "est": 1.75082880918452,
+        "se": 0.148607674952382,
+        "z": 11.7815503791815,
+        "p": 4.8590997635882e-32
+      },
+      {
+        "lhs": "dem60",
+        "op": "~",
+        "rhs": "ind60",
+        "est": 1.26110203120092,
+        "se": 0.425701600904753,
+        "z": 2.96240847701928,
+        "p": 0.00305242540656006
+      },
+      {
+        "lhs": "dem65",
+        "op": "~",
+        "rhs": "ind60",
+        "est": 1.12323377070644,
+        "se": 0.312178782952786,
+        "z": 3.59804647863053,
+        "p": 0.000320616332126381
+      },
+      {
+        "lhs": "dem65",
+        "op": "~",
+        "rhs": "dem60",
+        "est": 0.724285672668941,
+        "se": 0.101441608242312,
+        "z": 7.13992695126489,
+        "p": 9.3380531127808e-13
+      }
+    ]
+  },
+  "tolerance": 1e-06,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1",
+    "MIIVsem": "0.5.8"
+  }
+}

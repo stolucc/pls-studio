@@ -1,0 +1,491 @@
+{
+  "name": "miiv_miivsem_mobi",
+  "source": "MIIVsem",
+  "kind": "miiv",
+  "dataset": "mobi",
+  "matrix": null,
+  "options": {
+    "estimator": "2SLS",
+    "missing": "casewise"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "Image",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5"]
+      },
+      {
+        "name": "Quality",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7"]
+      },
+      {
+        "name": "Satisfaction",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUSA1", "CUSA2", "CUSA3"]
+      },
+      {
+        "name": "Value",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["PERV1", "PERV2"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "Quality",
+        "to": "Value"
+      },
+      {
+        "from": "Image",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Quality",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Value",
+        "to": "Satisfaction"
+      }
+    ],
+    "moderations": [],
+    "covariances": []
+  },
+  "expected": {
+    "n": 250,
+    "equations": [
+      {
+        "dv": "IMAG2",
+        "regressors": "IMAG1",
+        "instruments": ["IMAG3", "IMAG4", "IMAG5", "PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "IMAG2",
+        "rhs": "Image",
+        "coefficients": [
+          {
+            "name": "IMAG2~Image",
+            "est": 0.736997374579218
+          }
+        ],
+        "sigma2": 2.75878515372185,
+        "sargan": 54.2506164019513,
+        "sarganDf": 14,
+        "sarganP": 1.16386284034703e-06
+      },
+      {
+        "dv": "IMAG3",
+        "regressors": "IMAG1",
+        "instruments": ["IMAG2", "IMAG4", "IMAG5", "PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "IMAG3",
+        "rhs": "Image",
+        "coefficients": [
+          {
+            "name": "IMAG3~Image",
+            "est": 0.7051168638569
+          }
+        ],
+        "sigma2": 4.62089915993975,
+        "sargan": 29.640324808056,
+        "sarganDf": 14,
+        "sarganP": 0.00855077207699779
+      },
+      {
+        "dv": "IMAG4",
+        "regressors": "IMAG1",
+        "instruments": ["IMAG2", "IMAG3", "IMAG5", "PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "IMAG4",
+        "rhs": "Image",
+        "coefficients": [
+          {
+            "name": "IMAG4~Image",
+            "est": 0.964769385825473
+          }
+        ],
+        "sigma2": 3.37983069674594,
+        "sargan": 37.6563335297626,
+        "sarganDf": 14,
+        "sarganP": 0.000586404790052676
+      },
+      {
+        "dv": "IMAG5",
+        "regressors": "IMAG1",
+        "instruments": ["IMAG2", "IMAG3", "IMAG4", "PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "IMAG5",
+        "rhs": "Image",
+        "coefficients": [
+          {
+            "name": "IMAG5~Image",
+            "est": 0.750481971548475
+          }
+        ],
+        "sigma2": 2.33818690810709,
+        "sargan": 40.0510286926105,
+        "sarganDf": 14,
+        "sarganP": 0.000250489423365455
+      },
+      {
+        "dv": "PERQ2",
+        "regressors": "PERQ1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "PERQ2",
+        "rhs": "Quality",
+        "coefficients": [
+          {
+            "name": "PERQ2~Quality",
+            "est": 1.0195276141353
+          }
+        ],
+        "sigma2": 2.88481005430188,
+        "sargan": 46.670411408674,
+        "sarganDf": 14,
+        "sarganP": 2.1774095081074e-05
+      },
+      {
+        "dv": "PERQ3",
+        "regressors": "PERQ1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ2", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "PERQ3",
+        "rhs": "Quality",
+        "coefficients": [
+          {
+            "name": "PERQ3~Quality",
+            "est": 1.14125486538352
+          }
+        ],
+        "sigma2": 2.84355306706877,
+        "sargan": 34.8347335858639,
+        "sarganDf": 14,
+        "sarganP": 0.00155508106796488
+      },
+      {
+        "dv": "PERQ4",
+        "regressors": "PERQ1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ2", "PERQ3", "PERQ5", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "PERQ4",
+        "rhs": "Quality",
+        "coefficients": [
+          {
+            "name": "PERQ4~Quality",
+            "est": 1.02064436873926
+          }
+        ],
+        "sigma2": 2.27584835355281,
+        "sargan": 26.1770555139924,
+        "sarganDf": 14,
+        "sarganP": 0.0245769828053897
+      },
+      {
+        "dv": "PERQ5",
+        "regressors": "PERQ1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ2", "PERQ3", "PERQ4", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "PERQ5",
+        "rhs": "Quality",
+        "coefficients": [
+          {
+            "name": "PERQ5~Quality",
+            "est": 0.862517863282773
+          }
+        ],
+        "sigma2": 1.75728674966475,
+        "sargan": 34.7526914671177,
+        "sarganDf": 14,
+        "sarganP": 0.00159905069823333
+      },
+      {
+        "dv": "PERQ6",
+        "regressors": "PERQ1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ7", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "PERQ6",
+        "rhs": "Quality",
+        "coefficients": [
+          {
+            "name": "PERQ6~Quality",
+            "est": 1.00830279589947
+          }
+        ],
+        "sigma2": 2.01529636510132,
+        "sargan": 28.7843944412547,
+        "sarganDf": 14,
+        "sarganP": 0.0111748036460313
+      },
+      {
+        "dv": "PERQ7",
+        "regressors": "PERQ1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "CUSA1", "CUSA2", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "PERQ7",
+        "rhs": "Quality",
+        "coefficients": [
+          {
+            "name": "PERQ7~Quality",
+            "est": 1.16620060157765
+          }
+        ],
+        "sigma2": 2.71508635016527,
+        "sargan": 47.0766758175635,
+        "sarganDf": 14,
+        "sarganP": 1.86711261675876e-05
+      },
+      {
+        "dv": "CUSA2",
+        "regressors": "CUSA1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA3", "PERV1", "PERV2"],
+        "lhs": "CUSA2",
+        "rhs": "Satisfaction",
+        "coefficients": [
+          {
+            "name": "CUSA2~Satisfaction",
+            "est": 1.3297733473336
+          }
+        ],
+        "sigma2": 2.67366424951801,
+        "sargan": 29.0367334712075,
+        "sarganDf": 14,
+        "sarganP": 0.0103314253407295
+      },
+      {
+        "dv": "CUSA3",
+        "regressors": "CUSA1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA2", "PERV1", "PERV2"],
+        "lhs": "CUSA3",
+        "rhs": "Satisfaction",
+        "coefficients": [
+          {
+            "name": "CUSA3~Satisfaction",
+            "est": 1.41753644335904
+          }
+        ],
+        "sigma2": 3.10421256882369,
+        "sargan": 28.1837939373296,
+        "sarganDf": 14,
+        "sarganP": 0.0134494468887291
+      },
+      {
+        "dv": "PERV2",
+        "regressors": "PERV1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ1", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "CUSA1", "CUSA2", "CUSA3"],
+        "lhs": "PERV2",
+        "rhs": "Value",
+        "coefficients": [
+          {
+            "name": "PERV2~Value",
+            "est": 0.962851504205239
+          }
+        ],
+        "sigma2": 2.3806254633269,
+        "sargan": 21.9961905779131,
+        "sarganDf": 14,
+        "sarganP": 0.0786926792426206
+      },
+      {
+        "dv": "PERV1",
+        "regressors": "PERQ1",
+        "instruments": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7"],
+        "lhs": "Value",
+        "rhs": "Quality",
+        "coefficients": [
+          {
+            "name": "Value~Quality",
+            "est": 0.951002524093507
+          }
+        ],
+        "sigma2": 4.5429766308999,
+        "sargan": 21.1867307750377,
+        "sarganDf": 10,
+        "sarganP": 0.0198284587859344
+      },
+      {
+        "dv": "CUSA1",
+        "regressors": ["PERQ1", "IMAG1", "PERV1"],
+        "instruments": ["IMAG2", "IMAG3", "IMAG4", "IMAG5", "PERQ2", "PERQ3", "PERQ4", "PERQ5", "PERQ6", "PERQ7", "PERV2"],
+        "lhs": "Satisfaction",
+        "rhs": ["Quality", "Image", "Value"],
+        "coefficients": [
+          {
+            "name": "Satisfaction~Quality",
+            "est": 0.717928611910855
+          },
+          {
+            "name": "Satisfaction~Image",
+            "est": 0.0884876451038271
+          },
+          {
+            "name": "Satisfaction~Value",
+            "est": -0.0387854116319912
+          }
+        ],
+        "sigma2": 1.04638471825317,
+        "sargan": 7.46204974105136,
+        "sarganDf": 8,
+        "sarganP": 0.487696921919794
+      }
+    ],
+    "params": [
+      {
+        "lhs": "Image",
+        "op": "=~",
+        "rhs": "IMAG2",
+        "est": 0.736997374579218,
+        "se": 0.0941916350024394,
+        "z": 7.82444613643378,
+        "p": 5.09896786000236e-15
+      },
+      {
+        "lhs": "Image",
+        "op": "=~",
+        "rhs": "IMAG3",
+        "est": 0.7051168638569,
+        "se": 0.120755654970263,
+        "z": 5.83920367150127,
+        "p": 5.24509175690711e-09
+      },
+      {
+        "lhs": "Image",
+        "op": "=~",
+        "rhs": "IMAG4",
+        "est": 0.964769385825473,
+        "se": 0.104044904422335,
+        "z": 9.27262503802515,
+        "p": 1.81619975058353e-20
+      },
+      {
+        "lhs": "Image",
+        "op": "=~",
+        "rhs": "IMAG5",
+        "est": 0.750481971548475,
+        "se": 0.0869204557512816,
+        "z": 8.63412375213426,
+        "p": 5.91789065078207e-18
+      },
+      {
+        "lhs": "Quality",
+        "op": "=~",
+        "rhs": "PERQ2",
+        "est": 1.0195276141353,
+        "se": 0.0994751997684237,
+        "z": 10.2490632490182,
+        "p": 1.1949597941815e-24
+      },
+      {
+        "lhs": "Quality",
+        "op": "=~",
+        "rhs": "PERQ3",
+        "est": 1.14125486538352,
+        "se": 0.0980942827223236,
+        "z": 11.634264849197,
+        "p": 2.75957432247413e-31
+      },
+      {
+        "lhs": "Quality",
+        "op": "=~",
+        "rhs": "PERQ4",
+        "est": 1.02064436873926,
+        "se": 0.0878004874642975,
+        "z": 11.6245865850606,
+        "p": 3.09086021054782e-31
+      },
+      {
+        "lhs": "Quality",
+        "op": "=~",
+        "rhs": "PERQ5",
+        "est": 0.862517863282773,
+        "se": 0.0772028037387822,
+        "z": 11.1721054354596,
+        "p": 5.58413197346947e-29
+      },
+      {
+        "lhs": "Quality",
+        "op": "=~",
+        "rhs": "PERQ6",
+        "est": 1.00830279589947,
+        "se": 0.0832742029129426,
+        "z": 12.1082251240949,
+        "p": 9.5539121067749e-34
+      },
+      {
+        "lhs": "Quality",
+        "op": "=~",
+        "rhs": "PERQ7",
+        "est": 1.16620060157765,
+        "se": 0.0961116014841435,
+        "z": 12.1338171830385,
+        "p": 6.9912911901588e-34
+      },
+      {
+        "lhs": "Satisfaction",
+        "op": "=~",
+        "rhs": "CUSA2",
+        "est": 1.3297733473336,
+        "se": 0.120598172917833,
+        "z": 11.0264800465892,
+        "p": 2.84794676586393e-28
+      },
+      {
+        "lhs": "Satisfaction",
+        "op": "=~",
+        "rhs": "CUSA3",
+        "est": 1.41753644335904,
+        "se": 0.127868038040109,
+        "z": 11.0859325370613,
+        "p": 1.46812573648075e-28
+      },
+      {
+        "lhs": "Value",
+        "op": "=~",
+        "rhs": "PERV2",
+        "est": 0.962851504205239,
+        "se": 0.0775800395038645,
+        "z": 12.4110726207774,
+        "p": 2.27583307644015e-35
+      },
+      {
+        "lhs": "Satisfaction",
+        "op": "~",
+        "rhs": "Quality",
+        "est": 0.717928611910855,
+        "se": 0.215230073480896,
+        "z": 3.33563335411201,
+        "p": 0.000851053251779456
+      },
+      {
+        "lhs": "Satisfaction",
+        "op": "~",
+        "rhs": "Image",
+        "est": 0.0884876451038271,
+        "se": 0.19557496851503,
+        "z": 0.452448724781602,
+        "p": 0.65094575218179
+      },
+      {
+        "lhs": "Satisfaction",
+        "op": "~",
+        "rhs": "Value",
+        "est": -0.0387854116319912,
+        "se": 0.0576557459556861,
+        "z": -0.672706787313124,
+        "p": 0.501133848708793
+      },
+      {
+        "lhs": "Value",
+        "op": "~",
+        "rhs": "Quality",
+        "est": 0.951002524093507,
+        "se": 0.128770779901147,
+        "z": 7.38523541461469,
+        "p": 1.52183881044598e-13
+      }
+    ]
+  },
+  "tolerance": 1e-06,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.2",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1",
+    "MIIVsem": "0.5.8"
+  }
+}
