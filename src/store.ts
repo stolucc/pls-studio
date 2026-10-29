@@ -288,7 +288,9 @@ export const useStore = create<State>((set, get) => ({
     const cb = s.results?.cb;
     const g = cb?.groups;
     if (!s.results || !cb || !g || !g.results[index]) return s;
-    return { results: { ...s.results, cb: { ...g.results[index], groups: g, groupIndex: index, modindices: cb.modindices, wald: cb.wald } } };
+    // The bootstrap follows: each group's (or level's) statistics.
+    const boot = s.results.boot?.byBlock?.[index] ? { ...s.results.boot, stats: s.results.boot.byBlock[index] } : s.results.boot;
+    return { results: { ...s.results, boot, cb: { ...g.results[index], groups: g, groupIndex: index, modindices: cb.modindices, wald: cb.wald } } };
   }),
   setEsem: (esem) => get().commit((m) => {
     const { esem: _e, ...rest } = m;

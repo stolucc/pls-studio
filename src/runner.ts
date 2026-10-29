@@ -111,6 +111,9 @@ function runR(kind: JobKind, key: string) {
     .then((r) => {
       const t = done(); if (!t) return;
       t.setResults({ boot: r }, key);
+      // Multiple groups / levels: show the bootstrap of the group on screen.
+      const gi = useStore.getState().results?.cb?.groupIndex;
+      if (gi) useStore.getState().showGroup(gi);
       t.toast('success', `${r.engine.package}: ${r.samples - r.failed} of ${r.samples} bootstrap samples used${r.failed ? ` (${r.failed} not admissible or failed)` : ''}.`);
     }).catch(failed);
 }
@@ -181,10 +184,6 @@ export function run(kind: JobKind) {
   if (s.settings.method === 'process') { if (kind === 'estimate') runProcess(key); return; }
   if (cb && kind === 'boot' && s.settings.interaction !== 'product' && s.model.moderations.length) {
     s.toast('error', 'Bootstrapping LMS / QML models is not available yet; their standard errors come from modsem.');
-    return;
-  }
-  if (cb && kind === 'boot' && (s.model.multigroup || s.model.multilevel)) {
-    s.toast('error', 'Bootstrapping multiple-group and two-level models is not available yet. Standard errors come from lavaan; choose MLR for robust ones.');
     return;
   }
   const options: PlsOptions = {

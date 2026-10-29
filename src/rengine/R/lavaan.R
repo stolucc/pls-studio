@@ -215,7 +215,7 @@ ps_cb_build <- function(req) {
         if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var)
+    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call)
 }
 
 ps_cb <- function(req_json, export = FALSE) {

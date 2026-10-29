@@ -199,6 +199,8 @@ export interface BootstrapResult {
   failed: number;
   confidence: number;
   stats: BootstrapStat[];
+  /** Several groups or levels: every block's statistics (stats holds the block shown). */
+  byBlock?: BootstrapStat[][];
   /** The R package that resampled (absent for the built-in engine). */
   engine?: { package: string; version: string };
 }

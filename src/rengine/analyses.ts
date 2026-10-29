@@ -48,11 +48,16 @@ export function analysisScript(data: Dataset, spec: ModelSpec, a: Analysis): Pro
 export type BootstrapResultR = BootstrapResult & { engine: REngineInfo; warnings: string[] };
 
 export function parseBoot(raw: Raw, engine: REngineInfo): BootstrapResultR {
-  const stats: BootstrapStat[] = (raw.stats as Raw[]).map((s) => ({
-    key: s.key, group: s.group, label: s.label, original: num(s.original), mean: num(s.mean), sd: num(s.sd),
-    t: num(s.t), p: num(s.p), ciLow: num(s.ciLow), ciHigh: num(s.ciHigh),
+  const all = (raw.stats as Raw[]).map((s) => ({
+    stat: {
+      key: s.key, group: s.group, label: s.label, original: num(s.original), mean: num(s.mean), sd: num(s.sd),
+      t: num(s.t), p: num(s.p), ciLow: num(s.ciLow), ciHigh: num(s.ciHigh),
+    } as BootstrapStat,
+    block: typeof s.block === 'number' ? s.block : 1,
   }));
-  return { samples: raw.samples, failed: raw.failed, confidence: raw.confidence, stats, engine, warnings: rStrings(raw.warnings) };
+  const nb = Math.max(1, ...all.map((x) => x.block));
+  const byBlock = Array.from({ length: nb }, (_, b) => all.filter((x) => x.block === b + 1).map((x) => x.stat));
+  return { samples: raw.samples, failed: raw.failed, confidence: raw.confidence, stats: byBlock[0], ...(nb > 1 ? { byBlock } : {}), engine, warnings: rStrings(raw.warnings) };
 }
 
 export function parseFitTest(raw: Raw): FitTestResult & { warnings: string[] } {

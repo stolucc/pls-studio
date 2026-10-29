@@ -105,9 +105,16 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- req$boot$confidence
   body <- c(b$body,
-    "# Standardised paths, total and indirect effects, loadings and R² of one fitted model.",
+    "# Standardised paths, total and indirect effects, loadings and R² of one fitted model;",
+    "# with several groups or levels (blocks) each statistic is named \"... @block\".",
     "std_stats <- function(f, keep = NULL) {",
-    "  ss <- standardizedSolution(f, se = FALSE)",
+    "  # parameterEstimates keeps the group / level columns (standardizedSolution drops them for two-level models).",
+    "  ss_all <- parameterEstimates(f, se = FALSE, standardized = TRUE); ss_all$est.std <- ss_all$std.all",
+    "  nb <- lavInspect(f, \"ngroups\") * lavInspect(f, \"nlevels\"); r2_all <- lavInspect(f, \"r2\")",
+    "  v <- unlist(lapply(seq_len(nb), function(bk) {",
+    "  # The block of each row: its group or its level (standardizedSolution names whichever applies).",
+    "  blk <- if (\"block\" %in% names(ss_all)) ss_all$block else if (\"group\" %in% names(ss_all) && max(ss_all$group) > 1) ss_all$group else if (\"level\" %in% names(ss_all)) ss_all$level else rep(1L, nrow(ss_all))",
+    "  ss <- if (nb > 1) ss_all[blk == bk, ] else ss_all",
     "  lv <- lavNames(f, \"lv\"); reg <- ss[ss$op == \"~\", ]",
     "  vars <- unique(c(lv, reg$lhs, reg$rhs))",
     "  Bm <- matrix(0, length(vars), length(vars), dimnames = list(vars, vars))  # [from, to]",
@@ -115,7 +122,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     "  Tm <- solve(diag(length(vars)) - Bm) - diag(length(vars)); dimnames(Tm) <- dimnames(Bm)",
     "  tot <- which(abs(Tm) > 1e-12, arr.ind = TRUE); ind <- which(abs(Tm - Bm) > 1e-12, arr.ind = TRUE)",
     "  ld <- ss[ss$op == \"=~\" & !(ss$rhs %in% lv), ]",
-    "  r2 <- lavInspect(f, \"r2\"); r2 <- r2[names(r2) %in% unique(reg$lhs)]",
+    "  r2 <- if (nb > 1) r2_all[[bk]] else r2_all; r2 <- r2[names(r2) %in% unique(reg$lhs)]",
     "  # (paste0 turns an empty vector into one empty string: name only non-empty groups)",
     "  lab <- function(g, a, b = NULL) if (length(a)) paste0(g, \": \", a, if (!is.null(b)) paste0(\" -> \", b)) else character(0)",
     "  v <- c(setNames(reg$est.std, lab(\"path\", reg$rhs, reg$lhs)),",
@@ -123,13 +130,29 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     "    setNames((Tm - Bm)[ind], lab(\"indirect\", vars[ind[, 1]], vars[ind[, 2]])),",
     "    setNames(ld$est.std, lab(\"loading\", ld$lhs, ld$rhs)),",
     "    setNames(unname(r2), lab(\"r2\", names(r2))))",
+    "  if (nb > 1 && length(v)) names(v) <- paste0(names(v), \" @\", bk)",
+    "  v",
+    "  }))",
     "  # Every draw reports the original's parameters, in the same order.",
     "  if (is.null(keep)) v else setNames(v[keep], keep)",
     "}",
     "original <- std_stats(fit)",
-    PS_CORES_LAVAAN,
-    sprintf("draws <- bootstrapLavaan(fit, R = %d, FUN = function(f) std_stats(f, names(original)), iseed = %d,", B, seed),
-    "  parallel = if (cores > 1) \"multicore\" else \"no\", ncpus = cores)",
+    if (!is.null(b$cluster_var)) c(
+      "# Two-level model: lavaan does not bootstrap multilevel models, so whole clusters are resampled",
+      "# with replacement (each drawn cluster gets a new id) and the model is refitted.",
+      sprintf("set.seed(%d)", seed),
+      sprintf("refit <- function(d) %s", sub("data = data", "data = d", sub("^fit <- ", "", b$call), fixed = TRUE)),
+      sprintf("cl <- data[[\"%s\"]]; ids <- unique(cl); boot_errors <- character(0)", b$cluster_var),
+      sprintf("draws <- t(vapply(seq_len(%d), function(r) {", B),
+      "  s <- sample(ids, replace = TRUE)",
+      sprintf("  d <- do.call(rbind, lapply(seq_along(s), function(k) { x <- data[cl == s[k], , drop = FALSE]; x[[\"%s\"]] <- k; x }))", b$cluster_var),
+      "  tryCatch(std_stats(refit(d), names(original)),",
+      "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) })",
+      "}, numeric(length(original))))",
+      sprintf("if (length(boot_errors)) warning(sprintf(\"%%d of %d cluster resamples failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))", B))
+    else c(PS_CORES_LAVAAN,
+      sprintf("draws <- bootstrapLavaan(fit, R = %d, FUN = function(f) std_stats(f, names(original)), iseed = %d,", B, seed),
+      "  parallel = if (cores > 1) \"multicore\" else \"no\", ncpus = cores)"),
     "colnames(draws) <- names(original)",
     PS_BOOT_SUMMARY,
     sprintf("result <- boot_summary(draws, original, confidence = %s)", format(conf)))
@@ -138,13 +161,19 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   constructs <- c(b$n$cname, b$int_names)
   back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
   r <- env$result
+  # Several groups or levels: statistics per block ("... @2"), between-level factors named *_b.
+  back <- c(back, setNames(constructs, paste0(unname(b$lname[constructs]), "_b")))
+  blocks <- if (!is.null(b$cluster_var)) c("Within", "Between") else NULL
   stats <- lapply(seq_len(nrow(r)), function(i) {
-    g <- sub(":.*", "", r$parameter[i]); parts <- strsplit(sub("^[a-z0-9]+: ", "", r$parameter[i]), " -> ")[[1]]
+    par <- r$parameter[i]
+    block <- if (grepl(" @[0-9]+$", par)) as.integer(sub(".* @", "", par)) else NULL
+    par <- sub(" @[0-9]+$", "", par)
+    g <- sub(":.*", "", par); parts <- strsplit(sub("^[a-z0-9]+: ", "", par), " -> ")[[1]]
     a <- unname(back[parts[1]]); z <- if (length(parts) > 1) unname(back[parts[2]]) else NA
     k <- switch(g, path = , total = , indirect = list(key = sprintf("%s:%s:%s", g, a, z), label = sprintf("%s → %s", a, z)),
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
       r2 = list(key = sprintf("r2:%s", a), label = a))
-    c(k, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+    c(k, list(group = g, block = block, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
   })
-  ps_json(list(stats = stats, samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, warnings = env$.warnings))
+  ps_json(list(stats = stats, samples = B, blocks = blocks, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, warnings = env$.warnings))
 }
