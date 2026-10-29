@@ -66,7 +66,7 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
     const pa = k.kind === 'indicator' ? places.get(k.a) : undefined, pb = k.kind === 'indicator' ? places.get(k.b) : undefined;
     // Indicators of one construct: bow outwards, away from the construct.
     const normal = pa && pb && pa.owner.id === pb.owner.id ? [pa.term.nx, pa.term.ny] as [number, number] : undefined;
-    return [{ k, curve: correlationCurve(a, b, { normal, away: centre }), auto: k.id.startsWith('auto:') }];
+    return [{ k, curve: correlationCurve(a, b, { normal, away: centre }), auto: k.id.startsWith('auto:'), zero: !!k.zero }];
   });
   return { places: errors ? places : new Map<string, IndicatorPlace>(), disturbances, curves, errors };
 }
@@ -133,11 +133,16 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
             {errContent(t, 'ζ', errorFor('construct', c.name))}
           </g>
         ))}
-        {curves.map(({ k, curve, on, auto }) => (
-          <g key={k.id} className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}`}>
+        {curves.map(({ k, curve, on, auto, zero }) => (
+          <g key={k.id} className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}${zero ? ' zero' : ''}`}>
             {auto
-              ? <path className="cor-hit" d={curve.d}><title>Estimated by default: exogenous constructs covary freely in CB-SEM (covariates: fixed at their sample covariance).</title></path>
-              : <path className="cor-hit" d={curve.d} onClick={(e) => select(e, k.id)} onContextMenu={(e) => { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); }} />}
+              // Right-click: fix the default covariance at zero (uncorrelated).
+              ? <path className="cor-hit" d={curve.d} onContextMenu={(e) => onMenu(e, { kind: 'implied', a: k.a, b: k.b })}>
+                <title>Estimated by default: exogenous constructs covary freely in CB-SEM (covariates: fixed at their sample covariance). Right-click to fix it at zero.</title>
+              </path>
+              : <path className="cor-hit" d={curve.d} onClick={(e) => select(e, k.id)} onContextMenu={(e) => { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); }}>
+                {zero && <title>Fixed at zero: these constructs are uncorrelated. Right-click to let them covary again.</title>}
+              </path>}
             <path className="cor-line" d={curve.d} />
             {curve.heads.map((h, i) => <path key={i} className="cor-head" d={h} />)}
           </g>
@@ -149,7 +154,7 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
         const cls = l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns';
         return (
           <div key={k.id} className={`elabel cor-label${cls}`} onClick={(e) => { if (!k.id.startsWith('auto:')) select(e, k.id); }}
-            onContextMenu={(e) => { if (!k.id.startsWith('auto:')) { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); } }}
+            onContextMenu={(e) => { if (!k.id.startsWith('auto:')) { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); } else onMenu(e, { kind: 'implied', a: k.a, b: k.b }); }}
             // Hang the label off the outer side of the arc so it never covers the error circles.
             style={{ transform: `translate(${curve.lx}px, ${curve.ly}px) translate(${-50 + 50 * curve.nx}%, ${-50 + 50 * curve.ny}%)` }}>
             {l.value.toFixed(3)}

@@ -16,7 +16,8 @@ export interface FigureInput {
   moderations: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; badge?: { x: number; y: number; text: string; w: number } }[];
   higherOrder: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
   errors: { term: ErrorTerm; kind: 'indicator' | 'disturbance'; value: number | null }[];
-  correlations: { d: string; heads: string[]; lx: number; ly: number; nx: number; ny: number; points: [number, number][]; label: FigureLabel | null }[];
+  /** zero: fixed at zero (uncorrelated), drawn dotted. */
+  correlations: { zero?: boolean; d: string; heads: string[]; lx: number; ly: number; nx: number; ny: number; points: [number, number][]; label: FigureLabel | null }[];
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -53,7 +54,7 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
   // Correlations and moderators first, so constructs draw over their ends.
   for (const k of f.correlations) {
     for (const [x, y] of k.points) extend(x, y);
-    out.push(`<path d="${k.d}" fill="none" stroke="${style.correlationColor}" stroke-width="${n(style.pathWidth * 0.8)}"/>`);
+    out.push(`<path d="${k.d}" fill="none" stroke="${style.correlationColor}" stroke-width="${n(style.pathWidth * 0.8)}"${k.zero ? ' stroke-dasharray="2 4"' : ''}/>`);
     for (const h of k.heads) out.push(`<path d="${h}" fill="${style.correlationColor}"/>`);
   }
   for (const m of f.moderations) {

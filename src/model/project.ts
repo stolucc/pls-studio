@@ -87,6 +87,8 @@ export interface Correlation {
   kind: 'construct' | 'indicator';
   a: string;
   b: string;
+  /** Two exogenous constructs fixed as uncorrelated (covariance 0) instead of the default free covariance. */
+  zero?: boolean;
 }
 
 /**
@@ -208,7 +210,7 @@ export function toSpec(model: ModelState): ModelSpec {
     }),
     ...(model.correlations?.length ? {
       covariances: pruneCorrelations(model).correlations!.map((k) => (k.kind === 'construct'
-        ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const }
+        ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}) }
         : { a: k.a, b: k.b, kind: 'indicator' as const })),
     } : {}),
   };
@@ -337,6 +339,11 @@ export function validateModel(
         const a = byId.get(k.a), b = byId.get(k.b);
         if (!a || !b) continue;
         const label = `Correlation ${a.name} ↔ ${b.name}`;
+        if (k.zero) {
+          if (a.covariate || b.covariate || endo.has(a.id) || endo.has(b.id)) err(`${a.name} and ${b.name} are fixed as uncorrelated, which applies to two exogenous constructs only. Delete the fixed zero.`, (endo.has(a.id) || a.covariate ? a : b).id);
+          else if (method.method === 'cbsem' && method.estimator === '2SLS') warn(`MIIV-2SLS does not use the fixed zero between ${a.name} and ${b.name}; it estimates their covariance.`);
+          continue;
+        }
         if (a.covariate || b.covariate) err(`${label}: covariates are observed and fixed (fixed.x); they cannot get extra covariances.`, (a.covariate ? a : b).id);
         else if (endo.has(a.id) !== endo.has(b.id)) {
           err(`${label} joins an exogenous construct with an endogenous one. Correlate exogenous constructs with each other, or the disturbances of endogenous constructs.`, (endo.has(a.id) ? b : a).id);
@@ -538,7 +545,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   const rawCorrs = Array.isArray(m.correlations) ? m.correlations.slice(0, 5000) : [];
   const correlations: Correlation[] = rawCorrs.map((k: unknown) => {
     if (!isObj(k) || (k.kind !== 'construct' && k.kind !== 'indicator')) throw new Error('Invalid correlation in project file.');
-    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b) };
+    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}) };
     const known = out.kind === 'construct' ? ids : indicatorNames;
     if (!known.has(out.a) || !known.has(out.b) || out.a === out.b) throw new Error('Invalid project file: correlation references an unknown construct or indicator.');
     return out;

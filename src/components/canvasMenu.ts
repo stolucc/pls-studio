@@ -10,12 +10,14 @@ export type MenuTarget =
   | { kind: 'path'; id: string }
   | { kind: 'moderation'; id: string }
   | { kind: 'correlation'; id: string }
+  /** A covariance CB-SEM estimates by default (two exogenous constructs), not drawn by the user. */
+  | { kind: 'implied'; a: string; b: string }
   | { kind: 'pane'; x: number; y: number };
 
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
-  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template';
+  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
@@ -86,7 +88,14 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       const k = model.correlations?.find((x) => x.id === target.id);
       if (!k) return null;
       const end = (id: string) => (k.kind === 'construct' ? nameOf(id) : id);
+      if (k.zero) return out(`${end(k.a)} ↔ ${end(k.b)} fixed at 0`, [edit && { action: 'delete-correlation', label: 'Let them covary again' }]);
       return out(`${end(k.a)} ↔ ${end(k.b)}`, [edit && { action: 'delete-correlation', label: 'Delete correlation', danger: true }]);
+    }
+    case 'implied': {
+      const a = model.constructs.find((c) => c.id === target.a), b = model.constructs.find((c) => c.id === target.b);
+      // Covariates' covariances are fixed at their sample values (fixed.x), not free parameters.
+      if (!a || !b || !cb || a.covariate || b.covariate) return null;
+      return out(`${a.name} ↔ ${b.name} (estimated by default)`, [edit && { action: 'fix-zero', label: 'Fix at zero (uncorrelated)' }]);
     }
     case 'pane': {
       const any = model.constructs.length > 0;

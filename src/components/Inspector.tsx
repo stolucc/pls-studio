@@ -289,7 +289,7 @@ function CorrelationInspector({ id }: { id: string }) {
   const a = nameOf(k.a), b = nameOf(k.b);
   const endo = endogenousIds(model);
   const disturbances = k.kind === 'construct' && endo.has(k.a) && endo.has(k.b);
-  const what = k.kind === 'indicator' ? 'Correlated measurement errors (ε)' : disturbances ? 'Correlated disturbances (ζ): what both constructs share beyond their predictors' : 'Covariance of exogenous constructs';
+  const what = k.zero ? 'Fixed at zero: uncorrelated' : k.kind === 'indicator' ? 'Correlated measurement errors (ε)' : disturbances ? 'Correlated disturbances (ζ): what both constructs share beyond their predictors' : 'Covariance of exogenous constructs';
   const est = settings.method === 'cbsem' && settings.estimator !== '2SLS'
     ? results?.cb?.estimates.find((e) => e.op === '~~' && e.lhs !== e.rhs && ((e.lhs === a && e.rhs === b) || (e.lhs === b && e.rhs === a))
       && (k.kind === 'indicator' ? e.kind === 'rescov' : e.kind !== 'rescov'))
@@ -313,7 +313,8 @@ function CorrelationInspector({ id }: { id: string }) {
         </div>
       ) : (
         <div className="section hint">
-          {settings.method === 'pls' ? 'Correlations are estimated in CB-SEM only; PLS-SEM ignores them.'
+          {k.zero ? `${a} and ${b} would covary freely by default; this fixes their covariance at zero (lavaan: ${a} ~~ 0*${b}), so the model assumes they are uncorrelated and gains one degree of freedom.`
+            : settings.method === 'pls' ? 'Correlations are estimated in CB-SEM only; PLS-SEM ignores them.'
             : settings.estimator === '2SLS' ? 'MIIV-2SLS drops the instruments that correlated errors make invalid; the covariance itself is estimated afterwards, with the 2SLS coefficients held fixed.'
               : k.kind === 'indicator' ? 'Frees the covariance of the two measurement errors (lavaan: a ~~ b). Calculate to estimate it.'
                 : disturbances ? 'Frees the covariance of the two disturbances: what both constructs share beyond their predictors. Calculate to estimate it.'
@@ -321,7 +322,7 @@ function CorrelationInspector({ id }: { id: string }) {
         </div>
       )}
       <div className="section">
-        <button className="btn danger" onClick={() => del([], [], [], [k.id])}><IconTrash size={14} /> Remove correlation</button>
+        <button className="btn danger" onClick={() => del([], [], [], [k.id])}><IconTrash size={14} /> {k.zero ? 'Let them covary again' : 'Remove correlation'}</button>
       </div>
     </>
   );

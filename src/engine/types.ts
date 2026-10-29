@@ -38,6 +38,8 @@ export interface CovarianceSpec {
   a: string;
   b: string;
   kind: 'construct' | 'indicator';
+  /** Fixed at zero: two exogenous constructs that do not covary (otherwise they covary freely). */
+  zero?: boolean;
 }
 
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */

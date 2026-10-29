@@ -432,7 +432,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     ];
     const correlations = cov.curves.map(({ k, curve }) => {
       const l = correlationLabel(k);
-      return { d: curve.d, heads: curve.heads, lx: curve.lx, ly: curve.ly, nx: curve.nx, ny: curve.ny,
+      return { zero: !!k.zero, d: curve.d, heads: curve.heads, lx: curve.lx, ly: curve.ly, nx: curve.nx, ny: curve.ny,
         points: [[curve.x1, curve.y1], [curve.x2, curve.y2], [curve.lx, curve.ly]] as [number, number][], label: lbl(l?.value, l?.p ?? null) };
     });
     return { constructs, paths, moderations, higherOrder, errors, correlations };
@@ -486,6 +486,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'make-covariate': if (target.kind === 'construct') s.updateConstruct(target.id, { covariate: true }); break;
       case 'unmake-covariate': if (target.kind === 'construct') s.updateConstruct(target.id, { covariate: false }); break;
       case 'process-template': setTemplatesOpen(true); break;
+      case 'fix-zero': if (target.kind === 'implied') s.addCorrelation('construct', target.a, target.b, true); break;
     }
   };
   const menuContent = menu ? menuFor(menu.target, model, { method, readOnly }) : null;

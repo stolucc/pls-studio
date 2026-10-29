@@ -143,7 +143,12 @@ function buildCbModel(spec: ModelSpec): CbModel {
   for (let j = 0; j < k; j++) if (!isCov.has(j)) params.push({ kind: 'lvcov', i: j, j });
   // Exogenous latent variables covary; observed covariates (fixed.x) do not covary with them (lavaan default).
   const exoLatent = exo.filter((j) => !isCov.has(j));
-  for (let a = 0; a < exoLatent.length; a++) for (let b = a + 1; b < exoLatent.length; b++) params.push({ kind: 'lvcov', i: exoLatent[a], j: exoLatent[b] });
+  // Pairs the user fixed at zero (uncorrelated exogenous constructs) get no parameter.
+  const zero = new Set((spec.covariances ?? []).filter((cv) => cv.zero && cv.kind === 'construct')
+    .map((cv) => [m.constructs.indexOf(cv.a), m.constructs.indexOf(cv.b)].sort((x, y) => x - y).join(',')));
+  for (let a = 0; a < exoLatent.length; a++) for (let b = a + 1; b < exoLatent.length; b++) {
+    if (!zero.has([exoLatent[a], exoLatent[b]].sort((x, y) => x - y).join(','))) params.push({ kind: 'lvcov', i: exoLatent[a], j: exoLatent[b] });
+  }
   m.indicatorNames.forEach((_, i) => {
     if (!singleIndicator[m.indicatorConstruct[i]]) params.push({ kind: 'residual', i, j: i });
   });
@@ -165,6 +170,10 @@ function addCovariances(spec: ModelSpec, m: CompiledModel, params: ParamDef[], e
       if (a === b) throw new Error(`Correlation ${label} connects a construct with itself.`);
       if (isCov.has(a) || isCov.has(b)) throw new Error(`Correlation ${label}: covariates (fixed.x) cannot get extra covariances.`);
       const ea = exoLatent.has(a), eb = exoLatent.has(b);
+      if (cv.zero) {
+        if (!ea || !eb) throw new Error(`Correlation ${label}: only two exogenous constructs can be fixed as uncorrelated.`);
+        continue; // handled where the exogenous covariances are set up
+      }
       if (ea && eb) continue; // exogenous constructs covary already
       if (ea !== eb) throw new Error(`Correlation ${label} joins an exogenous construct with the disturbance of an endogenous one; correlate disturbances of endogenous constructs only.`);
       const [i, j] = a < b ? [a, b] : [b, a];

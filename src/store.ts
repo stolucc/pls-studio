@@ -98,7 +98,8 @@ interface State {
   addThreeWay: (moderatorId: string, moderationId: string) => boolean;
   /** Quadratic effect of a path's predictor (X² → Y). */
   addQuadratic: (pathId: string) => boolean;
-  addCorrelation: (kind: Correlation['kind'], a: string, b: string) => boolean;
+  /** `zero`: fix two exogenous constructs as uncorrelated instead of adding a free covariance. */
+  addCorrelation: (kind: Correlation['kind'], a: string, b: string, zero?: boolean) => boolean;
   reversePath: (id: string) => void;
   /** Replace the model by PROCESS model `model` with `k` mediators (empty slots; covariates kept). */
   applyTemplate: (model: number, k: number) => boolean;
@@ -334,7 +335,7 @@ export const useStore = create<State>((set, get) => ({
     set({ selection: { nodes: [], edges: [], moderations: [id] } });
     return true;
   },
-  addCorrelation: (kind, a, b) => {
+  addCorrelation: (kind, a, b, zero = false) => {
     const { model, toast } = get();
     if (a === b) return false;
     if ((model.correlations ?? []).some((k) => k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)))) {
@@ -349,7 +350,7 @@ export const useStore = create<State>((set, get) => ({
       if (single) { toast('error', `${single.name} has a single indicator, which has no measurement error to correlate.`); return false; }
     }
     const id = newId('k');
-    get().commit((m) => ({ ...m, correlations: [...(m.correlations ?? []), { id, kind, a, b }] }));
+    get().commit((m) => ({ ...m, correlations: [...(m.correlations ?? []), { id, kind, a, b, ...(zero ? { zero: true } : {}) }] }));
     set({ selection: { nodes: [], edges: [], moderations: [], correlations: [id] } });
     return true;
   },

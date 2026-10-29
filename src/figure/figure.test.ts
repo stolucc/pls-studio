@@ -79,3 +79,11 @@ describe('figure SVG', () => {
     expect(x).toBeGreaterThan(q.bx + 60);
   });
 });
+
+describe('fixed-zero correlations in the figure', () => {
+  it('are drawn dotted, free ones solid', () => {
+    const arc = { d: 'M0 0 Q 50 -40 100 0', heads: [], lx: 50, ly: -20, nx: 0, ny: -1, points: [[0, 0], [100, 0]] as [number, number][], label: null };
+    const svg = renderFigureSvg({ ...input(), correlations: [{ ...arc, zero: true }, arc] }, DEFAULT_FIGURE_STYLE).svg;
+    expect(svg.match(/stroke-dasharray="2 4"/g)).toHaveLength(1);
+  });
+});

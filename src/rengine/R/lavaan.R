@@ -86,7 +86,8 @@ ps_cb_build <- function(req) {
     key <- paste(sort(c(a, b)), collapse = "~~")
     if (key %in% seen) next  # lavaan rejects a covariance listed twice (in either order)
     seen <- c(seen, key)
-    lines <- c(lines, paste(a, "~~", b))
+    # A fixed zero makes two exogenous factors uncorrelated (lavaan frees them by default).
+    lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else b))
   }
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\")", req$estimator)

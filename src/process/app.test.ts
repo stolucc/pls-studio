@@ -131,3 +131,22 @@ describe('context menus in process analysis', () => {
     expect(actions({ kind: 'construct', id: 'Age' }, withCov)).toContain('unmake-covariate');
   });
 });
+
+describe('implied covariances can be fixed at zero', () => {
+  it('right-click on an implied arc fixes it; the fixed zero can be removed again', () => {
+    useStore.setState({ settings: { ...DEFAULT_SETTINGS, method: 'cbsem' } });
+    s().applyTemplate(1, 0);
+    const [x, w] = [named('X').id, named('W').id];
+    const ctx = { method: 'cbsem' as const, readOnly: false };
+    expect(menuFor({ kind: 'implied', a: x, b: w }, s().model, ctx)?.items.map((i) => i.action)).toEqual(['fix-zero']);
+    expect(menuFor({ kind: 'implied', a: x, b: w }, s().model, { ...ctx, method: 'pls' })).toBeNull();
+    expect(s().addCorrelation('construct', x, w, true)).toBe(true);
+    const k = s().model.correlations![0];
+    expect(k).toMatchObject({ a: x, b: w, zero: true });
+    expect(menuFor({ kind: 'correlation', id: k.id }, s().model, ctx)?.items[0]).toMatchObject({ action: 'delete-correlation', label: 'Let them covary again' });
+    // Survives a project file, and reaches the engines as a fixed zero.
+    const p = parseProject(serializeProject(s().model, s().settings, null, null));
+    expect(p.model.correlations![0].zero).toBe(true);
+    expect(validateModel(s().model, data, s().settings).some((i) => /fixed as uncorrelated/.test(i.message))).toBe(false);
+  });
+});
