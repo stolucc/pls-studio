@@ -215,6 +215,9 @@ button, input, select { font: inherit; color: inherit; }
 
 /* path edge */
 .pedge { stroke: var(--path); stroke-width: 1.6; fill: none; }
+/* A moderator's main effect implied by its moderation: estimated, not drawn by the user. */
+.pedge.implied { stroke-dasharray: 5 4; opacity: 0.5; }
+.elabel.implied { border-style: dashed; opacity: 0.85; }
 .react-flow__edge.selected .pedge, .react-flow__edge:hover .pedge { stroke: var(--accent); }
 .elabel {
   position: absolute; pointer-events: all; padding: 2px 7px; border-radius: 99px; font-family: var(--mono); font-size: 11px;

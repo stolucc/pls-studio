@@ -12,7 +12,8 @@ export interface FigureLabel { value: number; p: number | null; fixed?: boolean 
 export interface FigureInput {
   /** `observed`: drawn as a rectangle (an observed variable) whatever the construct type. */
   constructs: { c: Construct; geom: ConstructGeom; r2: number | null; indicators: (FigureLabel | null)[]; observed?: boolean }[];
-  paths: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; moderated: boolean }[];
+  /** `implied`: a moderator's main effect implied by its moderation (dashed). */
+  paths: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; moderated: boolean; implied?: boolean }[];
   /** `badge`: a quadratic term (X²), drawn as a labelled pill the arrow starts from. */
   moderations: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; badge?: { x: number; y: number; text: string; w: number } }[];
   higherOrder: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
@@ -67,7 +68,7 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
       out.push(`<text x="${n(b.x)}" y="${n(b.y + fs * 0.35)}" font-size="${fs}" font-weight="bold" text-anchor="middle" fill="#1f2430">${esc(b.text)}</text>`);
     }
   }
-  for (const p of f.paths) line(p.x1, p.y1, p.x2, p.y2, style.pathColor, pathStrokeWidth(style, p.label?.value ?? null), true);
+  for (const p of f.paths) line(p.x1, p.y1, p.x2, p.y2, style.pathColor, pathStrokeWidth(style, p.label?.value ?? null), true, p.implied ? '5 4' : '');
   for (const h of f.higherOrder) line(h.x1, h.y1, h.x2, h.y2, style.pathColor, style.pathWidth * 0.9, true);
 
   // Error terms: circles with their (standardised) variance, or e / d.

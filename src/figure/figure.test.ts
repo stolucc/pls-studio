@@ -86,3 +86,14 @@ describe('figure SVG', () => {
     expect(x).toBeGreaterThan(q.bx + 60);
   });
 });
+
+describe('implied main effects in the figure', () => {
+  it('draws a moderator’s implied main effect dashed, drawn paths solid', () => {
+    const base = input();
+    const line = (svg: string) => svg.match(/<line [^>]*\/>/g) ?? [];
+    const solid = renderFigureSvg(base, DEFAULT_FIGURE_STYLE).svg;
+    expect(line(solid).some((l) => l.includes('stroke-dasharray'))).toBe(false);
+    const dashed = renderFigureSvg({ ...base, paths: [{ ...base.paths[0], implied: true }] }, DEFAULT_FIGURE_STYLE).svg;
+    expect(line(dashed).some((l) => l.includes('stroke-dasharray="5 4"'))).toBe(true);
+  });
+});

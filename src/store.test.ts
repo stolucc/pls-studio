@@ -216,3 +216,16 @@ describe('implied main effects and cycles', () => {
     void x;
   });
 });
+
+describe('showing implied main effects', () => {
+  it('is on by default and can be switched off (a view setting: the estimation is unchanged)', () => {
+    const { m, path } = setup();
+    s().addModeration(m, path);
+    expect(s().showImpliedEffects).toBe(true);
+    const before = toSpec(s().model);
+    s().setShowImpliedEffects(false);
+    expect(s().showImpliedEffects).toBe(false);
+    expect(toSpec(s().model)).toEqual(before);
+    s().setShowImpliedEffects(true);
+  });
+});

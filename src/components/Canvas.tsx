@@ -14,7 +14,7 @@ import { ProcessGallery } from './ProcessGallery';
 import { ProcessBar } from './ProcessBar';
 import { ContextMenu } from './ContextMenu';
 import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
-import { correlationEndError, correlationPairError, endogenousIds, newId, validateModel, type Correlation } from '../model/project';
+import { correlationEndError, correlationPairError, endogenousIds, impliedMainEffects, newId, validateModel, type Correlation } from '../model/project';
 import { covaryByDefault, endAt } from './correlationEnds';
 import type { ExampleId } from '../io';
 import { run } from '../runner';
@@ -92,9 +92,12 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   const settings = useStore((s) => s.settings);
   const readOnly = useStore((s) => s.cloud?.role === 'viewer');
   const showErrors = useStore((s) => s.showErrorTerms);
+  const showImplied = useStore((s) => s.showImpliedEffects);
   const scale = useStore((s) => s.estimateScale);
   const unstd = scale === 'unstd';
   const method = settings.method;
+  // Moderators' main effects on the outcome that the diagram does not draw (estimated anyway).
+  const implied = useMemo(() => (method === 'process' ? [] : impliedMainEffects(model)), [model, method]);
   const tools = method === 'cbsem' ? TOOLS : TOOLS.filter((t) => t.id !== 'correlate');
 
   // Correlation tool: the first end picked, waiting for the second.
@@ -322,7 +325,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
 
   const edges: PathFlowEdge[] = useMemo(() => {
     const name = new Map(model.constructs.map((c) => [c.id, c.name]));
-    return model.paths.map((p) => ({
+    const drawn: PathFlowEdge[] = model.paths.map((p) => ({
       id: p.id, source: p.from, target: p.to, sourceHandle: 's', targetHandle: 't', type: 'path',
       selected: selection.edges.includes(p.id),
       data: {
@@ -332,7 +335,13 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         ...(method === 'cbsem' && p.fixed === undefined && p.label ? { label: p.label } : {}),
       },
     }));
-  }, [model.paths, model.constructs, model.moderations, selection.edges, display, method]);
+    if (!showImplied) return drawn;
+    return [...drawn, ...implied.map((e): PathFlowEdge => ({
+      id: `implied:${e.from}:${e.to}`, source: e.from, target: e.to, sourceHandle: 's', targetHandle: 't', type: 'path',
+      selectable: false, deletable: false, focusable: false,
+      data: { ...(display ? display.path(name.get(e.from)!, name.get(e.to)!) : { beta: null, p: null }), implied: true },
+    }))];
+  }, [model.paths, model.constructs, model.moderations, selection.edges, display, method, implied, showImplied]);
 
   const onNodesChange = useCallback((changes: NodeChange<ConstructFlowNode>[]) => {
     let sel: Selection | null = null;
@@ -444,12 +453,14 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const observed = method === 'process' && !(c.latent && c.indicators.length > 1);
       return { c, geom: constructGeometry(c), r2: display?.r2(c.name) ?? null, indicators, ...(observed ? { observed } : {}) };
     });
-    const paths = m.paths.flatMap((p) => {
+    // The moderators' implied main effects (dashed), when shown on the canvas.
+    const impliedPaths = st().showImpliedEffects && method !== 'process' ? impliedMainEffects(m).map((e) => ({ id: '', from: e.from, to: e.to, implied: true })) : [];
+    const paths = [...m.paths, ...impliedPaths].flatMap((p) => {
       const s = byId.get(p.from), t = byId.get(p.to);
       const seg = s && t ? pathSegment(s, t) : null;
       if (!seg) return [];
       const l = display?.path(nameOf(p.from), nameOf(p.to));
-      return [{ ...seg, label: lbl(l?.beta, l?.p ?? null), moderated: m.moderations.some((mo) => mo.path === p.id) }];
+      return [{ ...seg, label: lbl(l?.beta, l?.p ?? null), moderated: m.moderations.some((mo) => mo.path === p.id), ...('implied' in p ? { implied: true } : {}) }];
     });
     const moderations = m.moderations.flatMap((mo) => {
       const p = m.paths.find((q) => q.id === mo.path);
@@ -674,6 +685,12 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
             <button role="radio" aria-checked={!unstd} className={!unstd ? 'on' : ''} onClick={() => st().setEstimateScale('std')} title="Standardised estimates (std.all)">Std</button>
             <button role="radio" aria-checked={unstd} className={unstd ? 'on' : ''} onClick={() => st().setEstimateScale('unstd')} title="Unstandardised estimates (marker loadings are 1)">Unstd</button>
           </div>
+        )}
+        {implied.length > 0 && (
+          <button className={`btn ghost${showImplied ? ' on' : ''}`} onClick={() => st().setShowImpliedEffects(!showImplied)} aria-pressed={showImplied}
+            title={showImplied ? 'Hide the moderators’ implied main effects (dashed; they are estimated either way)' : 'Show the moderators’ implied main effects as dashed arrows (they are estimated either way)'}>
+            Implied
+          </button>
         )}
         {method === 'cbsem' && (
           <button className={`btn ghost${showErrors ? ' on' : ''}`} onClick={() => st().setShowErrorTerms(!showErrors)} aria-pressed={showErrors}

@@ -86,6 +86,8 @@ interface State {
   showResultsOnDiagram: boolean;
   /** CB-SEM diagrams: draw error terms (ε) and disturbances (ζ). */
   showErrorTerms: boolean;
+  /** Show the moderators' implied main effects (estimated, not drawn) as dashed arrows. */
+  showImpliedEffects: boolean;
   /** CB-SEM diagrams: standardised (std.all) or unstandardised estimates. */
   estimateScale: 'std' | 'unstd';
   resultsOpen: boolean;
@@ -159,6 +161,7 @@ interface State {
   dismissToast: (id: number) => void;
   setShowResultsOnDiagram: (v: boolean) => void;
   setShowErrorTerms: (v: boolean) => void;
+  setShowImpliedEffects: (v: boolean) => void;
   setEstimateScale: (v: 'std' | 'unstd') => void;
   setResultsOpen: (v: boolean) => void;
 }
@@ -235,6 +238,7 @@ export const useStore = create<State>((set, get) => ({
   dirty: false,
   showResultsOnDiagram: true,
   showErrorTerms: true,
+  showImpliedEffects: true,
   estimateScale: 'std',
   resultsOpen: false,
   fitRequest: 0,
@@ -542,6 +546,7 @@ export const useStore = create<State>((set, get) => ({
   clearMessages: () => set({ messages: [] }),
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setShowErrorTerms: (showErrorTerms) => set({ showErrorTerms }),
+  setShowImpliedEffects: (showImpliedEffects) => set({ showImpliedEffects }),
   setEstimateScale: (estimateScale) => set({ estimateScale }),
   setShowResultsOnDiagram: (showResultsOnDiagram) => set({ showResultsOnDiagram }),
   setResultsOpen: (resultsOpen) => set({ resultsOpen }),

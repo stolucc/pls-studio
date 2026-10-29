@@ -5,7 +5,10 @@ import { useStore } from '../store';
 import { pathStrokeWidth } from '../figure/style';
 import { fixedText } from '../diagramLabels';
 
-export type PathEdgeData = { beta: number | null; p: number | null; moderated?: boolean; /** CB-SEM: coefficient held at this value. */ fixed?: number; /** CB-SEM: parameter label. */ label?: string };
+export type PathEdgeData = {
+  beta: number | null; p: number | null; moderated?: boolean; /** CB-SEM: coefficient held at this value. */ fixed?: number; /** CB-SEM: parameter label. */ label?: string;
+  /** A moderator's main effect implied by the moderation (estimated, not drawn): dashed, not editable. */ implied?: boolean;
+};
 export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
 
 function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlowEdge>) {
@@ -35,7 +38,7 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
       <BaseEdge
         id={id}
         path={geo.path}
-        className="pedge"
+        className={`pedge${data?.implied ? ' implied' : ''}`}
         style={{ strokeWidth: width }}
         markerEnd={selected ? 'url(#arrow-path-sel)' : 'url(#arrow-path)'}
         interactionWidth={18}
@@ -47,8 +50,8 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
       )}
       {beta !== null && (
         <EdgeLabelRenderer>
-          <div className={`elabel${cls}${fixed !== undefined ? ' fixed' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
-            title={fixed !== undefined ? `Fixed at ${fixedText(fixed)}: not estimated` : undefined}>
+          <div className={`elabel${cls}${fixed !== undefined ? ' fixed' : ''}${data?.implied ? ' implied' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
+            title={fixed !== undefined ? `Fixed at ${fixedText(fixed)}: not estimated` : data?.implied ? 'Main effect implied by the moderation (estimated with the model; draw the arrow to edit it)' : undefined}>
             {label && <span className="plabel-name">{label} </span>}
             {fixed !== undefined && data?.beta == null ? fixedText(fixed) : beta.toFixed(3)}
             {p !== null && <span className="p">{p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`}</span>}
