@@ -187,7 +187,8 @@ button, input, select { font: inherit; color: inherit; }
 .cnode.drop .ellipse { fill: #dfe3ff; stroke-width: 2.5; }
 .cnode .cname { font-weight: 600; font-size: 13px; fill: var(--text); }
 .cnode .cmeta { font-family: var(--mono); font-size: 11px; fill: var(--accent-strong); }
-.cnode .cmode { font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em; fill: var(--text-3); }
+.cnode .cmode { font-size: 9px; font-weight: 400; fill: var(--text-3); opacity: 0.75; }
+.cnode .cmode.unusual { opacity: 1; font-weight: 500; }
 .cnode .ibox { fill: var(--indicator-fill); stroke: var(--indicator-stroke); stroke-width: 1; }
 .cnode .itext { font-family: var(--mono); font-size: 11px; fill: var(--text-2); }
 .cnode .iline { stroke: #9aa3b5; stroke-width: 1.1; }

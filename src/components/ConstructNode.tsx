@@ -9,6 +9,22 @@ import { readDraggedVars, VARS_MIME } from './dnd';
 // Stable fallback: a selector returning a fresh [] would re-render forever.
 const NO_ORDERED: string[] = [];
 
+
+/**
+ * PLS-SEM: the weighting mode shown, gently, above every construct with
+ * indicators; `unusual` (a common factor in Mode B, a composite in Mode A)
+ * is drawn a touch stronger. Other methods: none.
+ */
+export function modeLabel(method: string, c: Pick<Construct, 'type' | 'mode' | 'indicators'>): { text: string; title: string; unusual: boolean } | null {
+  if (method !== 'pls' || c.indicators.length === 0) return null;
+  return {
+    text: `Mode ${c.mode}`,
+    // Mode A / B are PLS weighting algorithms, not measurement models (Henseler 2021): either can
+    // estimate a composite; a common factor is estimated consistently with PLSc.
+    title: c.mode === 'A' ? 'Mode A: PLS weights from correlations (an estimation choice, not a measurement model)' : 'Mode B: PLS weights from a multiple regression (an estimation choice, not a measurement model)',
+    unusual: c.type === 'composite' ? c.mode === 'A' : c.mode === 'B',
+  };
+}
 export interface IndicatorLabel { text: string; level: 'ok' | 'mid' | 'low'; fixed?: boolean }
 
 export type ConstructNodeData = {
@@ -66,7 +82,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
   // Conditional process analysis: variables are observed (a single item, or the mean of several items)
   // unless modelled as latent; draw them as rectangles, as in PROCESS diagrams.
   const observedInCpa = useStore((st) => st.settings.method === 'process') && !(c.latent && c.indicators.length > 1);
-  const nonDefaultMode = method === 'pls' && (composite ? c.mode === 'A' : c.mode === 'B');
+  const mode = modeLabel(method, c);
   const onDouble = () => { setDraft(c.name); setEditing(true); };
   const higher = (c.components?.length ?? 0) > 0;
   const nameY = c.covariate ? 4 : r2 !== null || (c.indicators.length === 0 && !higher) ? -5 : 4;
@@ -114,7 +130,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
             : composite
               ? <polygon className="ellipse" points={hexagonVertices(rx, ry).map((v) => v.join(',')).join(' ')} onDoubleClick={onDouble} />
               : <ellipse className="ellipse" cx={0} cy={0} rx={rx} ry={ry} onDoubleClick={onDouble} />}
-          {nonDefaultMode && <text className="cmode" x={0} y={-ry - 8} textAnchor="middle">MODE {c.mode}</text>}
+          {mode && <text className={`cmode${mode.unusual ? ' unusual' : ''}`} x={0} y={-ry - 8} textAnchor="middle">{mode.text}<title>{mode.title}</title></text>}
           {esem && <text className="cmode" x={0} y={-ry - 8} textAnchor="middle">ESEM<title>Exploratory SEM block: this factor loads on all the block’s indicators (rotated); only its main loadings are drawn.</title></text>}
           {!editing && (
             <text className="cname" x={0} y={nameY} textAnchor="middle" pointerEvents="none">{c.name}</text>

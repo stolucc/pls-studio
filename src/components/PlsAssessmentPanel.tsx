@@ -102,7 +102,7 @@ function CtaView({ r }: { r: CtaResult }) {
           rows={b.tetrads.map((t) => [c(t.tetrad), { ...c(t.est), bold: t.differs }, c(t.se), c(t.t, undefined, 2), pCell(t.p), c(t.low), c(t.high)])}
           note={`τ = σgh·σij − σgi·σhj vanishes in a reflective block. ${b.tetrads.length} non-redundant tetrads; bias-corrected bootstrap intervals (${r.samples} samples), Bonferroni-adjusted (α = ${r.alpha} / ${b.tetrads.length}). Bold: the interval excludes 0.`} />
       ))}
-      <div className="hint">Gudergan, Ringle, Wende &amp; Will (2008): if any non-redundant tetrad differs from zero, a reflective (common factor) model is not supported — consider a composite (formative) measurement model. PLS Studio’s implementation; no R package offers CTA-PLS.</div>
+      <div className="hint">Gudergan, Ringle, Wende &amp; Will (2008): if any non-redundant tetrad differs from zero, a reflective (common factor) model is not supported — consider a composite model (an emergent variable) instead. PLS Studio’s implementation; no R package offers CTA-PLS.</div>
     </div>
   );
 }
@@ -250,7 +250,7 @@ export function PlsAssessmentPanel() {
                 </>
               )}
               {s.tab === 'cta' && (
-                <p className="hint" style={{ marginTop: 0 }}>Confirmatory tetrad analysis (CTA-PLS; Gudergan et al. 2008): is a block reflective (indicators caused by one common factor) or better treated as formative? For constructs with at least four indicators ({ctaBlocks} here). Bootstrap samples {Math.floor(settings.bootSamples)} and α = {fmtAlpha(1 - settings.confidence)} from the Model settings.</p>
+                <p className="hint" style={{ marginTop: 0 }}>Confirmatory tetrad analysis (CTA-PLS; Gudergan et al. 2008): is a block reflective (indicators caused by one common factor) or better modelled as a composite (an emergent variable)? For constructs with at least four indicators ({ctaBlocks} here). Bootstrap samples {Math.floor(settings.bootSamples)} and α = {fmtAlpha(1 - settings.confidence)} from the Model settings.</p>
               )}
               {s.tab === 'cca' && (
                 <p className="hint" style={{ marginTop: 0 }}>Confirmatory composite analysis (Schuberth, Henseler &amp; Dijkstra 2018): do the composites — every construct formed from its indicators, Mode A or B as drawn — fit the data? Bootstrap test of overall fit (SRMR, dULS, dG) and the weights, loadings and VIFs. Bootstrap samples {Math.max(20, Math.min(5000, Math.floor(settings.bootSamples)))} and {Math.round(settings.confidence * 100)}% intervals from the Model settings.</p>

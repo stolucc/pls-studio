@@ -1,6 +1,7 @@
 // PLS-SEM estimation (Lohmöller / Wold algorithm) with path, factor or
-// centroid inner weighting and Mode A (reflective) / Mode B (formative)
-// outer estimation. Results are validated against R seminr in pls.test.ts.
+// centroid inner weighting and Mode A (correlation) / Mode B (regression)
+// outer weights (estimation choices, not measurement models: Henseler 2021).
+// Results are validated against R seminr in pls.test.ts.
 
 import { cholesky, invert, invertPD, matMul, solve, symEigen, transpose, zeros, type Mat } from './linalg';
 import { corStd, mean, sd, standardize } from './stats';

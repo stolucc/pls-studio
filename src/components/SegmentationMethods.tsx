@@ -276,7 +276,7 @@ function PosSection() {
         <SegmentationTabs />
         {problem ? <div className="empty-results">{problem}</div> : (
           <>
-            <p className="hint" style={{ marginTop: 0 }}>PLS-POS (Becker, Rai, Ringle & Völckner 2013) moves observations between segments as long as the explained variance of the endogenous constructs grows. It works with composites and formative constructs, and needs no distributional assumption. No R package implements it: PLS Studio’s implementation (in the R script) re-estimates the local models with cSEM.</p>
+            <p className="hint" style={{ marginTop: 0 }}>PLS-POS (Becker, Rai, Ringle & Völckner 2013) moves observations between segments as long as the explained variance of the endogenous constructs grows. It works with composites (Mode A or Mode B weights), and needs no distributional assumption. No R package implements it: PLS Studio’s implementation (in the R script) re-estimates the local models with cSEM.</p>
             <div className="row2">
               <div className="field"><label>Segments</label><input className="input num" type="number" min={2} max={6} value={k} onChange={(e) => setK(Math.max(2, Math.min(6, Math.round(Number(e.target.value)) || 2)))} /></div>
               <div className="field"><label>Random starts</label><input className="input num" type="number" min={1} max={50} value={nrep} onChange={(e) => setNrep(Math.max(1, Math.min(50, Math.round(Number(e.target.value)) || 3)))} /></div>
