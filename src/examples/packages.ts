@@ -11,8 +11,8 @@ import type { GrowthInput } from '../rengine/longitudinal';
 import type { IrtModel } from '../rengine/items';
 import type { GmmInput, LmmInput } from '../rengine/mixed';
 
-export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'ltm', 'poLCA', 'lme4', 'lcmm'];
+export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -53,6 +53,8 @@ export interface PackageExample {
   processModel?: number;
   /** Opens this analysis panel instead of a diagram (constructs and paths are empty). */
   panel?: ExamplePanel;
+  /** Opens the segmentation panel on the example's diagram, comparing these numbers of classes. */
+  segmentation?: { from: number; to: number };
   settings: Partial<Settings>;
 }
 
@@ -159,6 +161,14 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'manymome', name: 'data_serial' },
     constructs: [v('x'), v('m1'), v('m2'), v('y'), v('c1', true), v('c2', true)],
     paths: [['x', 'm1'], ['x', 'm2'], ['m1', 'm2'], ['x', 'y'], ['m1', 'y'], ['m2', 'y']], processModel: 6, settings: CPA,
+  },
+  {
+    id: 'plspm-rebus', package: 'plspm', title: 'REBUS-PLS: two hidden segments', source: 'plspm, ?it.reb (simdata)',
+    links: [{ label: '?it.reb', url: 'https://rdrr.io/cran/plspm/man/it.reb.html' }, { label: '?rebus.test', url: 'https://rdrr.io/cran/plspm/man/rebus.test.html' }, { label: '?simdata', url: 'https://rdrr.io/cran/plspm/man/simdata.html' }],
+    description: 'Simulated customers (N = 400) in two segments: for one, satisfaction follows price; for the other, quality. The global model blurs them (GoF .49); REBUS-PLS recovers the segments (GQI .83). Opens Segmentation.',
+    data: { package: 'plspm', name: 'simdata' },
+    constructs: [f('Price', items('mv', 5)), f('Quality', items('mv', 5, 6)), f('Satisfaction', items('mv', 3, 11))],
+    paths: [['Price', 'Satisfaction'], ['Quality', 'Satisfaction']], segmentation: { from: 2, to: 3 }, settings: { ...PLS('cSEM', false, 'centroid'), missing: 'casewise' },
   },
   {
     id: 'ltm-lsat', package: 'ltm', title: 'LSAT: Rasch model', source: 'ltm, ?rasch',

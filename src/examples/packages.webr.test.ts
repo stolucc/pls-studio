@@ -14,6 +14,7 @@ import { irtR, lcaR } from '../rengine/items';
 import { estimateCbLavaan } from '../rengine/lavaan';
 import { growthR } from '../rengine/longitudinal';
 import { gmmR, lmmR } from '../rengine/mixed';
+import { rebusR } from '../rengine/segment';
 import { estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { exampleModel, PACKAGE_EXAMPLES, panelColumns, type PackageExample } from './packages';
@@ -77,6 +78,11 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     } else {
       const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, st.plsPackage);
       expect(r.converged).toBe(true);
+    }
+    if (ex.segmentation) {
+      const seg = await rebusR(data, spec, { scheme: st.scheme, consistent: false, missing: 'casewise', tolerance: 1e-6, maxIter: 100 },
+        { classes: [ex.segmentation.from], stopCrit: 0.005, iterMax: 100, seed: 1 });
+      if (ex.id === 'plspm-rebus') expect(seg.models[0].gqi).toBeCloseTo(0.8341, 3);  // ?it.reb, nk = 2
     }
   }, 600_000);
 });

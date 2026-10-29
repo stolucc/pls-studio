@@ -47,6 +47,21 @@
         "File": "alabama_2025.1.0.tgz"
       }
     },
+    "amap": {
+      "version": "0.8-20",
+      "md5": "b9e106e003963fa19acea7b790bd90d2",
+      "license": "GPL",
+      "stanza": {
+        "Package": "amap",
+        "Version": "0.8-20",
+        "Depends": "R (>= 3.6.0)",
+        "Suggests": "Biobase",
+        "License": "GPL",
+        "MD5sum": "b9e106e003963fa19acea7b790bd90d2",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 15:28:02 UTC; unix",
+        "File": "amap_0.8-20.tgz"
+      }
+    },
     "Amelia": {
       "version": "1.8.3",
       "md5": "cf9bd03ccd5976cfab3fe9dcc886eea6",
@@ -432,6 +447,21 @@
         "MD5sum": "96a9a1d2cfa3c9912394e3e839baafe6",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 16:20:07 UTC; unix",
         "File": "Deriv_4.3.5.tgz"
+      }
+    },
+    "diagram": {
+      "version": "1.6.5",
+      "md5": "6954ffe128804a609ca7a4f21f638e0d",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "diagram",
+        "Version": "1.6.5",
+        "Depends": "R (>= 2.01), shape",
+        "Imports": "stats, graphics",
+        "License": "GPL (>= 2)",
+        "MD5sum": "6954ffe128804a609ca7a4f21f638e0d",
+        "Built": "R 4.6.0; ; 2026-05-12 23:23:01 UTC; unix",
+        "File": "diagram_1.6.5.tgz"
       }
     },
     "DiagrammeR": {
@@ -1790,6 +1820,22 @@
         "File": "plotly_4.12.1.tgz"
       }
     },
+    "plspm": {
+      "version": "0.6.0",
+      "md5": "cd8dfbf1bebe44b0dbea4bc5cc08a12f",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "plspm",
+        "Version": "0.6.0",
+        "Depends": "R (>= 3.0.1)",
+        "Imports": "tester, turner, diagram, shape, amap, methods",
+        "Suggests": "FactoMineR, ggplot2, reshape, knitr, testthat (>= 3.0.0)",
+        "License": "GPL-3",
+        "MD5sum": "cd8dfbf1bebe44b0dbea4bc5cc08a12f",
+        "Built": "R 4.6.0; ; 2026-05-13 19:46:45 UTC; unix",
+        "File": "plspm_0.6.0.tgz"
+      }
+    },
     "plyr": {
       "version": "1.8.9",
       "md5": "24bbd0174625ad1546a3ffa989c478fc",
@@ -2272,6 +2318,21 @@
         "File": "sets_1.0-25.tgz"
       }
     },
+    "shape": {
+      "version": "1.4.6.1",
+      "md5": "9ab6d83b4acc88b63676228ba5c25598",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "shape",
+        "Version": "1.4.6.1",
+        "Depends": "R (>= 2.01)",
+        "Imports": "stats, graphics, grDevices",
+        "License": "GPL (>= 3)",
+        "MD5sum": "9ab6d83b4acc88b63676228ba5c25598",
+        "Built": "R 4.6.0; ; 2026-05-14 04:05:16 UTC; unix",
+        "File": "shape_1.4.6.1.tgz"
+      }
+    },
     "spacefillr": {
       "version": "0.4.0",
       "md5": "aef4ddf47a695a76e6a323d9806a7a95",
@@ -2380,6 +2441,21 @@
         "File": "sys_3.4.3.tgz"
       }
     },
+    "tester": {
+      "version": "0.3.0",
+      "md5": "ff7bc50e63e9e1dc222e747b47ac0c09",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "tester",
+        "Version": "0.3.0",
+        "Depends": "R (>= 3.0)",
+        "Suggests": "knitr, testthat (>= 3.0.0)",
+        "License": "GPL-3",
+        "MD5sum": "ff7bc50e63e9e1dc222e747b47ac0c09",
+        "Built": "R 4.6.0; ; 2026-05-14 08:29:42 UTC; unix",
+        "File": "tester_0.3.0.tgz"
+      }
+    },
     "tibble": {
       "version": "3.3.1",
       "md5": "2158baadd4be00f1e9b7daafd1f46ee3",
@@ -2475,6 +2551,22 @@
         "MD5sum": "a1eeff530633ccfbc13f12f077b5aaef",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 09:58:02 UTC; unix",
         "File": "TruncatedNormal_2.3.tgz"
+      }
+    },
+    "turner": {
+      "version": "0.2.0",
+      "md5": "37bb39f5afa68c8b348f0c2e5fc6e7d6",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "turner",
+        "Version": "0.2.0",
+        "Depends": "R (>= 3.0)",
+        "Imports": "tester",
+        "Suggests": "knitr, testthat (>= 3.0.0)",
+        "License": "GPL-3",
+        "MD5sum": "37bb39f5afa68c8b348f0c2e5fc6e7d6",
+        "Built": "R 4.6.0; ; 2026-05-14 10:15:21 UTC; unix",
+        "File": "turner_0.2.0.tgz"
       }
     },
     "tzdb": {

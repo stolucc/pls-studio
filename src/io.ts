@@ -318,6 +318,12 @@ export async function loadPackageExample(id: string) {
       useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Estimate.`);
       return;
     }
+    if (ex.segmentation) {
+      const { useSegmentation } = await import('./components/SegmentationPanel');
+      useSegmentation.setState({ open: true, rebus: null, preset: { ...ex.segmentation } });
+      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Estimate.`);
+      return;
+    }
     useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate.`);
   } catch (e) {
     useStore.getState().toast('error', `Could not load the example: ${(e as Error).message}`);

@@ -1,3 +1,4 @@
+import { SegmentationPanel } from './components/SegmentationPanel';
 import { MultilevelPanel } from './components/MultilevelPanel';
 import { DataViewer } from './components/DataViewer';
 import { ReactFlowProvider } from '@xyflow/react';
@@ -105,6 +106,7 @@ export default function App() {
       <ItemsPanel />
       <DataViewer />
       <MultilevelPanel />
+      <SegmentationPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

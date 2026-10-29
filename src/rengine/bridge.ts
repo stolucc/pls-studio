@@ -12,9 +12,10 @@ import longitudinalR from './R/longitudinal.R?raw';
 import mcR from './R/mc.R?raw';
 import mixedR from './R/mixed.R?raw';
 import plsR from './R/pls.R?raw';
+import segmentR from './R/segment.R?raw';
 import { callJson, callString, withR } from './runtime';
 
-const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR };
+const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -30,6 +31,7 @@ export const R_PACKAGES = {
   poLCA: ['jsonlite', 'poLCA'],
   lme4: ['jsonlite', 'lme4', 'lmerTest'],
   lcmm: ['jsonlite', 'lcmm'],
+  plspm: ['jsonlite', 'plspm'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

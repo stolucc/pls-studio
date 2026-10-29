@@ -196,6 +196,12 @@
    "url": "https://cran.r-project.org/package=alabama"
   },
   {
+   "name": "amap",
+   "version": "0.8-20",
+   "license": "GPL",
+   "url": "https://cran.r-project.org/package=amap"
+  },
+  {
    "name": "Amelia",
    "version": "1.8.3",
    "license": "GPL (>= 2)",
@@ -344,6 +350,12 @@
    "version": "4.3.5",
    "license": "GPL (>= 3)",
    "url": "https://cran.r-project.org/package=Deriv"
+  },
+  {
+   "name": "diagram",
+   "version": "1.6.5",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=diagram"
   },
   {
    "name": "DiagrammeR",
@@ -868,6 +880,12 @@
    "url": "https://cran.r-project.org/package=plotly"
   },
   {
+   "name": "plspm",
+   "version": "0.6.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=plspm"
+  },
+  {
    "name": "plyr",
    "version": "1.8.9",
    "license": "MIT + file LICENSE",
@@ -1054,6 +1072,12 @@
    "url": "https://cran.r-project.org/package=sets"
   },
   {
+   "name": "shape",
+   "version": "1.4.6.1",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=shape"
+  },
+  {
    "name": "spacefillr",
    "version": "0.4.0",
    "license": "MIT + file LICENSE",
@@ -1096,6 +1120,12 @@
    "url": "https://cran.r-project.org/package=sys"
   },
   {
+   "name": "tester",
+   "version": "0.3.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=tester"
+  },
+  {
    "name": "tibble",
    "version": "3.3.1",
    "license": "MIT + file LICENSE",
@@ -1130,6 +1160,12 @@
    "version": "2.3",
    "license": "GPL-3",
    "url": "https://cran.r-project.org/package=TruncatedNormal"
+  },
+  {
+   "name": "turner",
+   "version": "0.2.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=turner"
   },
   {
    "name": "tzdb",
@@ -1263,7 +1299,7 @@
    "name": "Examples from R packages",
    "where": "loaded at run time from the packages in the browser (not stored here)",
    "license": "per package",
-   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, ltm, poLCA, lme4 and lcmm datasets; each example links to its documentation.",
+   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, lme4 and lcmm datasets; each example links to its documentation.",
    "url": ""
   }
  ]
