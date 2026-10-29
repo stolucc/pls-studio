@@ -79,3 +79,24 @@ export async function pathmoxR(data: Dataset, spec: ModelSpec, options: PlsOptio
 }
 export const pathmoxScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: PathmoxInput) =>
   rScript('ps_pathmox', pathmoxRequest(data, spec, options, input), 'genpathmox');
+
+export interface FimixInput { classes: number[]; nrep: number; seed: number; intercepts: boolean }
+export interface FimixModel {
+  k: number;
+  criteria: { logLik: number; npar: number; AIC: number; AIC3: number; AIC4: number; BIC: number; CAIC: number; HQ: number; MDL5: number; EN: number | null };
+  segments: { segment: number; share: number; paths: { from: string; to: string; est: number }[]; r2: { construct: string; r2: number | null }[] }[];
+  /** Segment (1-based) of each observation, in data order (after casewise deletion). */
+  assignment: number[];
+}
+export interface FimixResult { n: number; models: FimixModel[]; warnings: string[]; engine: REngineInfo }
+
+export const fimixRequest = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: FimixInput) => ({ ...plsRequest(data, spec, options, 'cSEM'), ...input });
+export async function fimixR(data: Dataset, spec: ModelSpec, options: PlsOptions, input: FimixInput): Promise<FimixResult> {
+  const raw = await rCall<Record<string, any>>('ps_fimix', fimixRequest(data, spec, options, input), 'flexmix');
+  return {
+    n: raw.n, warnings: rStrings(raw.warnings), engine: raw.engine,
+    models: arr<any>(raw.models).map((m) => ({ k: m.k, criteria: { ...m.criteria, EN: typeof m.criteria.EN === 'number' ? m.criteria.EN : null }, assignment: nums(m.assignment),
+      segments: arr<any>(m.segments).map((g) => ({ segment: g.segment, share: g.share, paths: arr(g.paths), r2: arr<any>(g.r2).map((x) => ({ construct: x.construct, r2: typeof x.r2 === 'number' ? x.r2 : null })) })) })),
+  };
+}
+export const fimixScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: FimixInput) => rScript('ps_fimix', fimixRequest(data, spec, options, input), 'flexmix');

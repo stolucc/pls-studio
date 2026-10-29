@@ -23,7 +23,7 @@ import { irtR, lcaR } from '../rengine/items';
 import { estimateCbLavaan } from '../rengine/lavaan';
 import { growthR } from '../rengine/longitudinal';
 import { gmmR, lmmR } from '../rengine/mixed';
-import { pathmoxR, rebusR } from '../rengine/segment';
+import { fimixR, pathmoxR, rebusR } from '../rengine/segment';
 import { estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { exampleModel, PACKAGE_EXAMPLES, panelColumns, type PackageExample } from './packages';
@@ -111,7 +111,10 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       const g = await groupsR(data, spec, { scheme: st.scheme, consistent: false, missing: 'casewise', tolerance: 1e-7, maxIter: 300 }, { group: ex.assessment.group, approaches: ['Klesel'], samples: 20, seed: 1 });
       expect(g.groups).toHaveLength(2);
     }
-    if (ex.segmentation?.method === 'pathmox') {
+    if (ex.segmentation?.method === 'fimix') {
+      const t = await fimixR(data, spec, { scheme: st.scheme, consistent: false, missing: 'casewise', tolerance: 1e-7, maxIter: 300 }, { classes: [1, 2, 3], nrep: 10, seed: 1, intercepts: true });
+      expect(t.models.reduce((a, b) => (b.criteria.BIC < a.criteria.BIC ? b : a)).k).toBe(2);
+    } else if (ex.segmentation?.method === 'pathmox') {
       const cats = (data as Dataset).categories ?? {};
       const segments = (ex.segmentation.segments ?? []).map((sg) => ({ column: sg.column, labels: cats[sg.column] ?? [], ordered: !!sg.order, ...(sg.order ? { order: sg.order.map((l) => cats[sg.column].indexOf(l) + 1) } : {}) }));
       const t = await pathmoxR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: 'casewise', tolerance: 1e-7, maxIter: 300 }, { segments, alpha: 0.05, depth: 2, size: 0.1 });

@@ -44,6 +44,7 @@ export const R_PACKAGES = {
   polynomial: ['jsonlite', 'lavaan'],
   nca: ['jsonlite'],
   genpathmox: ['jsonlite', 'cSEM', 'genpathmox'],
+  flexmix: ['jsonlite', 'cSEM', 'flexmix'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

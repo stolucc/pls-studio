@@ -63,7 +63,7 @@ export interface PackageExample {
   /** Opens this analysis panel instead of a diagram (constructs and paths are empty). */
   panel?: ExamplePanel;
   /** Opens the segmentation panel on the example's diagram: REBUS (numbers of classes) or PATHMOX (segmentation variables; ordered ones with their categories in order). */
-  segmentation?: { method?: 'rebus' | 'pathmox'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
+  segmentation?: { method?: 'rebus' | 'pathmox' | 'fimix' | 'pos'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
   /** Opens the PLS assessment panel on the example's diagram (tab, and the grouping column). */
   assessment?: { tab: 'predict' | 'compare' | 'groups'; group?: string };
   settings: Partial<Settings>;
@@ -243,6 +243,14 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Lalonde (1986): did a job-training programme raise 1978 earnings? 185 trainees matched 1:1 to non-participants on age, education, race, marital status, degree and earlier earnings. As in MatchIt’s vignette, plain nearest-neighbour matching leaves race imbalanced; try full matching. Opens Propensity score matching.',
     data: { package: 'MatchIt', name: 'lalonde' }, constructs: [], paths: [],
     panel: { kind: 'match', treatment: 'treat', covariates: ['age', 'educ', 'race', 'married', 'nodegree', 're74', 're75'], outcome: 're78', method: 'nearest', distance: 'glm', estimand: 'ATT' }, settings: CB('ML'),
+  },
+  {
+    id: 'plspm-fimix', package: 'plspm', title: 'FIMIX-PLS: the same hidden segments', source: 'plspm simdata; FIMIX-PLS with flexmix (Sarstedt et al. 2011)',
+    links: [{ label: '?simdata', url: 'https://rdrr.io/cran/plspm/man/simdata.html' }, { label: 'flexmix', url: 'https://rdrr.io/cran/flexmix/man/flexmix.html' }, { label: 'Sarstedt et al. (2011)', url: 'https://doi.org/10.1007/BF03396856' }],
+    description: 'The two simulated customer segments again, found by a finite mixture of the structural model (FIMIX-PLS): AIC3, CAIC and BIC point to two segments with price-driven and quality-driven satisfaction. Opens Segmentation.',
+    data: { package: 'plspm', name: 'simdata' },
+    constructs: [f('Price', items('mv', 5)), f('Quality', items('mv', 5, 6)), f('Satisfaction', items('mv', 3, 11))],
+    paths: [['Price', 'Satisfaction'], ['Quality', 'Satisfaction']], segmentation: { method: 'fimix' }, settings: { ...PLS('cSEM', false, 'path'), missing: 'casewise' },
   },
   {
     id: 'ltm-lsat', package: 'ltm', title: 'LSAT: Rasch model', source: 'ltm, ?rasch',

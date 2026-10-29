@@ -151,3 +151,65 @@ ps_pathmox <- function(req_json, export = FALSE) {
     importance = lapply(seq_len(nrow(p$var_imp)), function(i) list(variable = unname(fr$back[p$var_imp$variable[i]] %|NA|% p$var_imp$variable[i]), ranking = p$var_imp$ranking[i])),
     warnings = env$.warnings, engine = list(package = "genpathmox", version = as.character(utils::packageVersion("genpathmox")))))
 }
+
+#' FIMIX-PLS (Hahn, Johnson, Herrmann & Huber 2002; Sarstedt, Becker, Ringle
+#' & Schwaiger 2011): a finite mixture of the structural model on the global
+#' PLS construct scores. Each segment has its own path coefficients and error
+#' variances; the equations are independent given the segment. Estimated with
+#' flexmix (one Gaussian regression per endogenous construct, sharing the
+#' segment membership), the best of several random starts per number of segments.
+ps_fimix <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  if (length(req$model$moderations)) stop("FIMIX-PLS works on models without interaction terms.")
+  if (!length(req$model$paths)) stop("FIMIX-PLS needs a structural model (paths).")
+  ks <- as.integer(unlist(req$classes)); nrep <- as.integer(req$nrep %||% 10); seed <- as.integer(req$seed %||% 1)
+  if (!length(ks) || any(ks < 1 | ks > 8) || nrep < 1 || nrep > 100) stop("Invalid FIMIX settings.")
+  req$package <- "cSEM"
+  b <- ps_pls_build(req)
+  cv <- b$n$cv
+  ends <- unique(vapply(req$model$paths, function(p) p$to, ""))
+  intercepts <- !identical(req$intercepts, FALSE)
+  eqs <- vapply(ends, function(t) sprintf("FLXMRglm(%s ~ %s%s)", cv[[t]], paste(unique(vapply(Filter(function(p) p$to == t, req$model$paths), function(p) cv[[p$from]], "")), collapse = " + "),
+    if (intercepts) "" else " - 1"), "")
+  body <- c(b$body,
+    "suppressPackageStartupMessages(library(flexmix))",
+    "# The global model's standardised construct scores.",
+    "scores <- as.data.frame(cSEM::getConstructScores(fit)$Construct_scores)",
+    if (intercepts) "# One regression per endogenous construct, sharing the segments; segment-specific intercepts let segments differ in level too."
+    else "# One regression per endogenous construct, sharing the segments; no intercepts (Hahn et al.'s model on standardised scores).",
+    sprintf("equations <- list(%s)", paste(eqs, collapse = ", ")),
+    sprintf("set.seed(%d)", seed),
+    sprintf("fits <- stepFlexmix(~ 1, data = scores, k = %s, model = equations, nrep = %d, verbose = FALSE, control = list(minprior = 0))", paste(deparse(ks), collapse = ""), nrep),
+    "if (inherits(fits, \"flexmix\")) fits <- list(fits) else fits <- lapply(as.character(sort(unique(fits@k))), function(k) getModel(fits, k))",
+    "# Fit criteria (Sarstedt et al. 2011): AIC3 and CAIC together, BIC; EN: normed entropy (separation of the segments).",
+    "criteria <- function(m) {",
+    "  ll <- as.numeric(logLik(m)); p <- attr(logLik(m), \"df\"); n <- nrow(scores); k <- m@k",
+    "  post <- posterior(m); en <- if (k > 1) 1 - sum(-post * log(pmax(post, 1e-300))) / (n * log(k)) else NA",
+    "  c(k = k, logLik = ll, npar = p, AIC = -2 * ll + 2 * p, AIC3 = -2 * ll + 3 * p, AIC4 = -2 * ll + 4 * p, BIC = -2 * ll + log(n) * p,",
+    "    CAIC = -2 * ll + (log(n) + 1) * p, HQ = -2 * ll + 2 * log(log(n)) * p, MDL5 = -2 * ll + 5 * log(n) * p, EN = en)",
+    "}",
+    "summary_table <- t(sapply(fits, criteria))")
+  inputs <- b$inputs
+  if (export) return(paste(ps_script("FIMIX-PLS (cSEM scores, flexmix)", c("cSEM", "flexmix"), inputs, body, c("summary_table", "lapply(fits, parameters)")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  back <- setNames(names(cv), unname(cv))
+  models <- lapply(env$fits, function(m) {
+    cr <- env$criteria(m); k <- m@k; cl <- flexmix::clusters(m)
+    segs <- lapply(seq_len(k), function(s) {
+      paths <- unlist(lapply(seq_along(ends), function(j) {
+        pr <- flexmix::parameters(m, component = s, model = j)
+        co <- pr[grepl("^coef\\.", rownames(pr)), 1]; names(co) <- sub("^coef\\.", "", names(co))
+        lapply(names(co), function(f) list(from = if (f == "(Intercept)") "Intercept" else unname(back[f]), to = ends[j], est = unname(co[[f]])))
+      }), recursive = FALSE)
+      r2 <- lapply(seq_along(ends), function(j) {
+        y <- env$scores[[cv[[ends[j]]]]][cl == s]
+        pr <- flexmix::parameters(m, component = s, model = j); sigma <- pr["sigma", 1]
+        list(construct = ends[j], r2 = if (length(y) > 2) max(0, 1 - sigma^2 / stats::var(y)) else NA)
+      })
+      list(segment = s, share = mean(cl == s), paths = paths, r2 = r2)
+    })
+    list(k = k, criteria = as.list(cr[-1]), segments = segs, assignment = unname(as.integer(cl)))
+  })
+  ps_json(list(n = nrow(env$scores), models = models,
+    warnings = env$.warnings, engine = list(package = "flexmix", version = as.character(utils::packageVersion("flexmix")))))
+}
