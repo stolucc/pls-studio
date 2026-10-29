@@ -634,3 +634,4 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .selection-bar { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 12px; }
 .rev-mark { color: var(--accent); font-weight: 600; font-size: 11px; }
 td.text-left { text-align: left; }
+.mc-grid { display: flex; flex-wrap: wrap; gap: 12px; }

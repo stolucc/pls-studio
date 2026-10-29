@@ -13,6 +13,7 @@ import { endoR } from '../rengine/endo';
 import { matchR } from '../rengine/match';
 import { rsaR } from '../rengine/rsa';
 import { groupsR } from '../rengine/plsx';
+import { ncaR } from '../rengine/nca';
 import { categoriesOf } from '../io';
 import { parseCsv } from '../engine/dataset';
 import { readFileSync } from 'node:fs';
@@ -53,6 +54,9 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
           heckmanMethod: 'ml', boot: { samples: 50, seed: 1, confidence: 0.95 }, ...pre });
         expect(r.coefficients.length).toBeGreaterThan(0);
         if (ex.id === 'ivreg-kmenta') expect(r.coefficients.find((x) => x.term === 'P')!.est).toBeCloseTo(-0.2436, 4);  // ?ivreg
+      } else if (p.kind === 'nca') {
+        const r = await ncaR(data, p.x, p.y, 50);
+        expect(r.conditions[0].ceFdh).toBeCloseTo(0.4155, 3);  // ?nca_analysis: Individualism, CE-FDH
       } else if (p.kind === 'rsa') {
         const { kind: _k, ...pre } = p;
         const r = await rsaR(data, { outcome: '', x: '', y: '', controls: [], estimation: 'OLS', center: 'none', midpoint: 0, confidence: 0.95, ...pre });

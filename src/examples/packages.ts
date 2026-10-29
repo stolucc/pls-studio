@@ -13,9 +13,10 @@ import type { GmmInput, LmmInput } from '../rengine/mixed';
 import type { EndoPreset } from '../components/EndogeneityPanel';
 import type { MatchPreset } from '../components/MatchingPanel';
 import type { RsaPreset } from '../components/PolynomialPanel';
+import type { NcaPreset } from '../components/NcaPanel';
 
-export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA'];
+export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -34,7 +35,8 @@ export type ExamplePanel =
   | ({ kind: 'gmm' } & GmmInput)
   | ({ kind: 'endo' } & EndoPreset)
   | ({ kind: 'match' } & MatchPreset)
-  | ({ kind: 'rsa' } & RsaPreset);
+  | ({ kind: 'rsa' } & RsaPreset)
+  | ({ kind: 'nca' } & NcaPreset);
 
 export interface PackageExample {
   id: string;
@@ -229,6 +231,13 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     panel: { kind: 'rsa', outcome: 'postVA', x: 'ePow', y: 'iPow', controls: [], estimation: 'OLS', center: 'none' }, settings: CB('ML'),
   },
   {
+    id: 'nca-example', package: 'NCA', title: 'Necessary conditions for innovation', source: 'NCA, ?nca_analysis (nca.example)',
+    links: [{ label: '?nca_analysis', url: 'https://rdrr.io/cran/NCA/man/nca_analysis.html' }, { label: '?nca.example', url: 'https://rdrr.io/cran/NCA/man/nca.example.html' }, { label: 'Dul (2016)', url: 'https://doi.org/10.1177/1094428115584005' }],
+    description: 'Are individualism and risk taking necessary for innovation performance (28 countries)? Ceiling lines, effect sizes with a permutation test, and bottleneck tables. NCA’s data, shipped with the app. Opens Necessary condition analysis.',
+    data: { package: 'NCA', name: 'nca.example', file: 'examples/nca/nca_example.csv' }, constructs: [], paths: [],
+    panel: { kind: 'nca', x: ['Individualism', 'Risk taking'], y: 'Innovation performance' }, settings: CB('ML'),
+  },
+  {
     id: 'matchit-lalonde', package: 'MatchIt', title: 'Job training: propensity score matching', source: 'MatchIt, ?matchit (lalonde)',
     links: [{ label: '?matchit', url: 'https://rdrr.io/cran/MatchIt/man/matchit.html' }, { label: 'MatchIt: estimating effects', url: 'https://kosukeimai.github.io/MatchIt/articles/estimating-effects.html' }, { label: '?lalonde', url: 'https://rdrr.io/cran/MatchIt/man/lalonde.html' }],
     description: 'Lalonde (1986): did a job-training programme raise 1978 earnings? 185 trainees matched 1:1 to non-participants on age, education, race, marital status, degree and earlier earnings. As in MatchIt’s vignette, plain nearest-neighbour matching leaves race imbalanced; try full matching. Opens Propensity score matching.',
@@ -390,6 +399,7 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'endo': return [p.outcome ?? '', ...(p.exogenous ?? []), ...(p.endogenous ?? []), ...(p.instruments ?? []), ...(p.selection ? [p.selection.outcome, ...p.selection.regressors] : [])].filter(Boolean);
     case 'match': return [p.treatment ?? '', ...(p.covariates ?? []), p.outcome ?? ''].filter(Boolean);
     case 'rsa': return [p.outcome ?? '', p.x ?? '', p.y ?? '', ...(p.controls ?? [])].filter(Boolean);
+    case 'nca': return [...p.x, p.y];
   }
 }
 

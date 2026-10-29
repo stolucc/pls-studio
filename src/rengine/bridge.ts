@@ -13,13 +13,14 @@ import itemsR from './R/items.R?raw';
 import longitudinalR from './R/longitudinal.R?raw';
 import mcR from './R/mc.R?raw';
 import mixedR from './R/mixed.R?raw';
+import ncaR from './R/nca.R?raw';
 import plsR from './R/pls.R?raw';
 import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import segmentR from './R/segment.R?raw';
 import { callJson, callString, withR } from './runtime';
 
-const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR };
+const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -41,6 +42,7 @@ export const R_PACKAGES = {
   optimx: ['jsonlite', 'ivreg', 'lmtest', 'optimx', 'mvtnorm', 'corpcor'],
   MatchIt: ['jsonlite', 'MatchIt', 'optmatch', 'cobalt', 'sandwich', 'lmtest'],
   polynomial: ['jsonlite', 'lavaan'],
+  nca: ['jsonlite'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

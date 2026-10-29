@@ -170,6 +170,34 @@
         "File": "bit64_4.8.6.tgz"
       }
     },
+    "bitops": {
+      "version": "1.1-0",
+      "md5": "1b3f66336a024a625fb00e5fca40a3e9",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "bitops",
+        "Version": "1.1-0",
+        "License": "GPL (>= 2)",
+        "MD5sum": "1b3f66336a024a625fb00e5fca40a3e9",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 14:05:57 UTC; unix",
+        "File": "bitops_1.1-0.tgz"
+      }
+    },
+    "blob": {
+      "version": "1.3.0",
+      "md5": "d9625d0609b267c8ff41a75dac76391b",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "blob",
+        "Version": "1.3.0",
+        "Imports": "methods, rlang, vctrs (>= 0.2.1)",
+        "Suggests": "covr, crayon, pillar (>= 1.2.1), testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "d9625d0609b267c8ff41a75dac76391b",
+        "Built": "R 4.6.0; ; 2026-05-12 18:03:18 UTC; unix",
+        "File": "blob_1.3.0.tgz"
+      }
+    },
     "boot": {
       "version": "1.3-32",
       "md5": "065265208bf9aeeec1f77bee67b1cff6",
@@ -262,6 +290,22 @@
         "MD5sum": "731c52eb2798f96aaed151c657dc08f6",
         "Built": "R 4.6.0; ; 2026-05-12 19:11:37 UTC; unix",
         "File": "carData_3.0-6.tgz"
+      }
+    },
+    "caTools": {
+      "version": "1.18.4",
+      "md5": "5bab427aa48a92c94872ccfe8d2a5f95",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "caTools",
+        "Version": "1.18.4",
+        "Depends": "R (>= 3.6.0)",
+        "Imports": "bitops",
+        "Suggests": "MASS, rpart",
+        "License": "GPL-3",
+        "MD5sum": "5bab427aa48a92c94872ccfe8d2a5f95",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 14:46:56 UTC; unix",
+        "File": "caTools_1.18.4.tgz"
       }
     },
     "cli": {
@@ -479,6 +523,21 @@
         "File": "data.table_1.18.6.1.tgz"
       }
     },
+    "DBI": {
+      "version": "1.3.0",
+      "md5": "0e519767931f48ef000f2b4967750aec",
+      "license": "LGPL (>= 2.1)",
+      "stanza": {
+        "Package": "DBI",
+        "Version": "1.3.0",
+        "Depends": "methods, R (>= 3.0.0)",
+        "Suggests": "arrow, blob, callr, covr, DBItest (>= 1.8.2), dbplyr, downlit, dplyr, glue, hms, knitr, magrittr, nanoarrow (>= 0.3.0.1), otel, otelsdk, RMariaDB, rmarkdown, rprojroot, RSQLite (>= 1.1-2), testthat (>= 3.0.0), vctrs, xml2",
+        "License": "LGPL (>= 2.1)",
+        "MD5sum": "0e519767931f48ef000f2b4967750aec",
+        "Built": "R 4.6.0; ; 2026-05-12 22:42:58 UTC; unix",
+        "File": "DBI_1.3.0.tgz"
+      }
+    },
     "Deriv": {
       "version": "4.3.5",
       "md5": "96a9a1d2cfa3c9912394e3e839baafe6",
@@ -679,6 +738,22 @@
         "File": "fastmap_1.2.0.tgz"
       }
     },
+    "flexmix": {
+      "version": "2.3-21",
+      "md5": "f07d167de275cba3bd8d0a56b2ff2919",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "flexmix",
+        "Version": "2.3-21",
+        "Depends": "R (>= 2.15.0)",
+        "Imports": "graphics, grid, grDevices, lattice, methods, modeltools (>= 0.2-16), nnet, stats, stats4, utils",
+        "Suggests": "actuar, codetools, diptest, Ecdat, ellipse, gclus, glmnet, lme4 (>= 1.1), MASS, mgcv (>= 1.8-0), mlbench, multcomp, mvtnorm, SuppDists, survival",
+        "License": "GPL (>= 2)",
+        "MD5sum": "f07d167de275cba3bd8d0a56b2ff2919",
+        "Built": "R 4.6.0; ; 2026-10-09 22:25:56 UTC; unix",
+        "File": "flexmix_2.3-21.tgz"
+      }
+    },
     "fontawesome": {
       "version": "0.5.3",
       "md5": "a493310db58199378ddc337d19a9dabd",
@@ -838,6 +913,20 @@
         "File": "generics_0.1.4.tgz"
       }
     },
+    "genpathmox": {
+      "version": "1.1",
+      "md5": "768fab44108518146889c5439743c8cb",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "genpathmox",
+        "Version": "1.1",
+        "Depends": "R (>= 3.5.0), stats, cSEM, diagram, methods, graphics, grDevices, matrixcalc",
+        "License": "GPL-3",
+        "MD5sum": "768fab44108518146889c5439743c8cb",
+        "Built": "R 4.6.0; ; 2026-05-13 04:50:55 UTC; unix",
+        "File": "genpathmox_1.1.tgz"
+      }
+    },
     "ggplot2": {
       "version": "4.0.3",
       "md5": "853c8cabb5f13906af19a92c26210247",
@@ -917,6 +1006,22 @@
         "File": "GPArotation_2026.8-2.tgz"
       }
     },
+    "gplots": {
+      "version": "3.3.0",
+      "md5": "ac0d3d74a1426c9102bfc9a79ea50d66",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "gplots",
+        "Version": "3.3.0",
+        "Depends": "R (>= 3.0)",
+        "Imports": "gtools, stats, caTools, KernSmooth, methods",
+        "Suggests": "grid, MASS, knitr, rmarkdown, r2d2, nlme, dendextend, heatmaply, RColorBrewer",
+        "License": "GPL-2",
+        "MD5sum": "ac0d3d74a1426c9102bfc9a79ea50d66",
+        "Built": "R 4.6.0; ; 2026-05-13 06:20:06 UTC; unix",
+        "File": "gplots_3.3.0.tgz"
+      }
+    },
     "gridExtra": {
       "version": "2.3.1",
       "md5": "7682b2af0084b8627f05ec1384d1b3ba",
@@ -946,6 +1051,21 @@
         "MD5sum": "e7fbf6603a3ff216ddcf38249bfaf3b4",
         "Built": "R 4.6.0; ; 2026-05-13 06:49:40 UTC; unix",
         "File": "gtable_0.3.6.tgz"
+      }
+    },
+    "gtools": {
+      "version": "3.9.5",
+      "md5": "c9e5842b10dcbf9fa62c45ee695faf6a",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "gtools",
+        "Version": "3.9.5",
+        "Depends": "methods, stats, utils",
+        "Suggests": "car, gplots, knitr, rstudioapi, SGP, taxize",
+        "License": "GPL-2",
+        "MD5sum": "c9e5842b10dcbf9fa62c45ee695faf6a",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 06:51:40 UTC; unix",
+        "File": "gtools_3.9.5.tgz"
       }
     },
     "highr": {
@@ -1121,6 +1241,22 @@
         "MD5sum": "4c4a5b39fdf8d03ea1d194080827352e",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 09:48:20 UTC; unix",
         "File": "jsonlite_2.0.0.tgz"
+      }
+    },
+    "KernSmooth": {
+      "version": "2.23-27",
+      "md5": "a7cead75435398a7728baf22c458fb9e",
+      "license": "Unlimited",
+      "stanza": {
+        "Package": "KernSmooth",
+        "Version": "2.23-27",
+        "Priority": "recommended",
+        "Depends": "R (>= 2.5.0), stats",
+        "Suggests": "MASS, carData",
+        "License": "Unlimited",
+        "MD5sum": "a7cead75435398a7728baf22c458fb9e",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 05:12:39 UTC; unix",
+        "File": "KernSmooth_2.23-27.tgz"
       }
     },
     "knitr": {
@@ -1330,6 +1466,19 @@
         "File": "lmtest_0.9-40.tgz"
       }
     },
+    "lpSolve": {
+      "version": "5.6.23",
+      "md5": "1a2b45405f452050dc6a68eb86eb6f88",
+      "license": "LGPL-2",
+      "stanza": {
+        "Package": "lpSolve",
+        "Version": "5.6.23",
+        "License": "LGPL-2",
+        "MD5sum": "1a2b45405f452050dc6a68eb86eb6f88",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 11:39:14 UTC; unix",
+        "File": "lpSolve_5.6.23.tgz"
+      }
+    },
     "ltm": {
       "version": "1.2-0",
       "md5": "afb5196efb67ae1d0512c167b6a2df27",
@@ -1441,6 +1590,20 @@
         "MD5sum": "8126d0a5013e40717c0da22a203b6ce3",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 10:28:16 UTC; unix",
         "File": "Matrix_1.7-6.tgz"
+      }
+    },
+    "matrixcalc": {
+      "version": "1.0-6",
+      "md5": "86ffa1eb6b173af283d0293411760ad6",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "matrixcalc",
+        "Version": "1.0-6",
+        "Depends": "R (>= 2.0.1)",
+        "License": "GPL (>= 2)",
+        "MD5sum": "86ffa1eb6b173af283d0293411760ad6",
+        "Built": "R 4.6.0; ; 2026-05-13 12:24:11 UTC; unix",
+        "File": "matrixcalc_1.0-6.tgz"
       }
     },
     "MatrixModels": {
@@ -1611,6 +1774,21 @@
         "File": "modelr_0.1.11.tgz"
       }
     },
+    "modeltools": {
+      "version": "0.2-25",
+      "md5": "8726b43e0f340591edc9cd223709d655",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "modeltools",
+        "Version": "0.2-25",
+        "Depends": "stats, stats4",
+        "Imports": "methods",
+        "License": "GPL-2",
+        "MD5sum": "8726b43e0f340591edc9cd223709d655",
+        "Built": "R 4.6.0; ; 2026-10-10 12:54:26 UTC; unix",
+        "File": "modeltools_0.2-25.tgz"
+      }
+    },
     "modsem": {
       "version": "1.0.23",
       "md5": "2ed96fbdc000e2c598e117b82dce9484",
@@ -1703,6 +1881,22 @@
         "MD5sum": "44dab965c495f278a033039741069fa3",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 12:12:41 UTC; unix",
         "File": "mvtnorm_1.2-4.tgz"
+      }
+    },
+    "NCA": {
+      "version": "5.0.2",
+      "md5": "39441c272a6dc9080805d499ea7f29e4",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "NCA",
+        "Version": "5.0.2",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "gplots, quantreg, KernSmooth, lpSolve, ggplot2, doParallel, foreach, iterators, plotly, truncnorm, DBI, RSQLite",
+        "Suggests": "testthat",
+        "License": "GPL (>= 3)",
+        "MD5sum": "39441c272a6dc9080805d499ea7f29e4",
+        "Built": "R 4.6.0; ; 2026-10-10 16:53:32 UTC; unix",
+        "File": "NCA_5.0.2.tgz"
       }
     },
     "nleqslv": {
@@ -2372,6 +2566,23 @@
         "File": "rmarkdown_2.32.tgz"
       }
     },
+    "RSQLite": {
+      "version": "3.53.3",
+      "md5": "b7ab60980a92051719fe5bab2b89f3e6",
+      "license": "LGPL (>= 2.1)",
+      "stanza": {
+        "Package": "RSQLite",
+        "Version": "3.53.3",
+        "Depends": "R (>= 3.1.0)",
+        "Imports": "bit64, blob (>= 1.2.0), DBI (>= 1.2.0), memoise, methods, pkgconfig, rlang",
+        "LinkingTo": "cpp11 (>= 0.4.0)",
+        "Suggests": "callr, cli, DBItest (>= 1.8.0), decor, gert, gh, hms, httpuv, knitr, magrittr, rmarkdown, rvest, testthat (>= 3.0.0), withr, xml2",
+        "License": "LGPL (>= 2.1)",
+        "MD5sum": "b7ab60980a92051719fe5bab2b89f3e6",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-11 08:20:08 UTC; unix",
+        "File": "RSQLite_3.53.3.tgz"
+      }
+    },
     "rstudioapi": {
       "version": "0.19.0",
       "md5": "3ba5ad962d7189b4531741ad3c592623",
@@ -2778,6 +2989,21 @@
         "MD5sum": "a1eeff530633ccfbc13f12f077b5aaef",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 09:58:02 UTC; unix",
         "File": "TruncatedNormal_2.3.tgz"
+      }
+    },
+    "truncnorm": {
+      "version": "1.0-9",
+      "md5": "09b328c8040cd530e16b6415e54c8cd1",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "truncnorm",
+        "Version": "1.0-9",
+        "Depends": "R (>= 3.4.0)",
+        "Suggests": "testthat",
+        "License": "GPL (>= 2)",
+        "MD5sum": "09b328c8040cd530e16b6415e54c8cd1",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 09:58:17 UTC; unix",
+        "File": "truncnorm_1.0-9.tgz"
       }
     },
     "turner": {
