@@ -505,3 +505,32 @@ ps_cb_modsem <- function(req, b, export) {
     warnings = env$.warnings, droppedRows = 0L,
     engine = list(package = "modsem", version = as.character(utils::packageVersion("modsem"))))
 }
+
+#' Factor scores of the latent constructs (lavaan::lavPredict): regression
+#' (Thurstone; what AMOS's factor-score imputation gives) or Bartlett, with the
+#' data row of each score (rows dropped for missing values get none).
+ps_cb_scores <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  method <- req$scoreMethod %||% "regression"
+  if (!method %in% c("regression", "Bartlett")) stop("Invalid factor score method in the request.")
+  b <- ps_cb_build(req)
+  if (b$matrix_input) stop("Factor scores need raw data; this dataset is a covariance matrix.")
+  if (!is.null(b$modsem)) stop("Factor scores are not available for LMS / QML models; use product indicators.")
+  if (!is.null(b$cluster_var)) stop("Factor scores are not available for two-level models.")
+  body <- c(b$body,
+    sprintf("# Factor scores (%s method) for the analysed cases; case.idx gives each case's row in data.", method),
+    sprintf("scores <- lavPredict(fit, method = \"%s\")", method),
+    "idx <- lavInspect(fit, \"case.idx\")",
+    "if (!is.list(scores)) { scores <- list(scores); idx <- list(idx) }",
+    "rows <- unlist(lapply(idx, function(i) as.integer(rownames(data))[i]))",
+    "scores <- do.call(rbind, scores)")
+  inputs <- b$inputs
+  if (export) return(paste(ps_script(sprintf("Factor scores (lavaan, %s)", method), "lavaan", inputs, body, "head(cbind(row = rows, scores))"), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  cons <- c(b$n$cname, b$int_names)
+  back <- setNames(cons, unname(b$lname[cons]))
+  sc <- env$scores
+  ps_json(list(method = method, names = unname(back[colnames(sc)]), rows = env$rows,
+    scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j])),
+    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}

@@ -144,3 +144,30 @@ export async function invarianceR(data: Dataset, spec: ModelSpec, missing: Missi
 export function invarianceScriptR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): Promise<string> {
   return rScript('ps_invariance', cbRequest(data, spec, missing, estimator), 'lavaan');
 }
+
+export interface FactorScores { method: 'regression' | 'Bartlett'; names: string[]; rows: number[]; scores: number[][]; warnings: string[]; engine: REngineInfo }
+
+/** Factor scores of the latent constructs (lavPredict), with the 1-based data row of each. */
+export async function cbScoresR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, method: FactorScores['method']): Promise<FactorScores> {
+  const raw = await rCall<Record<string, any>>('ps_cb_scores', { ...cbRequest(data, spec, missing, estimator), scoreMethod: method }, 'lavaan');
+  const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
+  return { method: raw.method, names: rStrings(raw.names), rows: arr<number>(raw.rows), scores: arr<unknown>(raw.scores).map((c) => arr<number>(c)), warnings: rStrings(raw.warnings), engine: raw.engine };
+}
+
+/**
+ * Score columns for the dataset: one per construct, named "<construct>_score"
+ * (or _score_2, ...), NaN in rows without a score.
+ */
+export function scoreColumns(data: Dataset, names: string[], rows: number[], scores: number[][]): Dataset {
+  const n = data.cols[0]?.length ?? 0;
+  const out = { ...data, names: [...data.names], cols: [...data.cols] };
+  names.forEach((name, j) => {
+    let col = `${name.replace(/[^A-Za-z0-9_.]+/g, '_')}_score`, k = 2;
+    const base = col;
+    while (out.names.includes(col)) col = `${base}_${k++}`;
+    const v = new Float64Array(n).fill(NaN);
+    rows.forEach((r, i) => { if (r >= 1 && r <= n) v[r - 1] = scores[j][i]; });
+    out.names.push(col); out.cols.push(v);
+  });
+  return out;
+}

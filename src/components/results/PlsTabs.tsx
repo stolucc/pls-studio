@@ -8,6 +8,7 @@ import { IconDownload, IconRepeat } from '../icons';
 import { QuadraticCurve, SimpleSlopes } from '../SimpleSlopes';
 import { IpmaTab } from './IpmaTab';
 import { RScriptButton } from './RScriptButton';
+import { SavePlsScores } from './SaveScores';
 import { bootCells, bootCols, c, htmtCls, matrixRows, relCls, Table, type Cell, type Row } from './Table';
 
 export const PLS_TABS = [
@@ -56,6 +57,7 @@ function Overview({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null 
         <div>
           <div className="table-tools"><h3>Construct scores</h3></div>
           <button className="btn" onClick={scoresCsv}><IconDownload size={14} /> Download scores (CSV)</button>
+          <SavePlsScores pls={pls} />
           <div className="table-note">Standardised proxy scores for each observation.</div>
         </div>
       </div>

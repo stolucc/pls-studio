@@ -10,6 +10,7 @@ import { bootCells, bootCols, c, htmtCls, matrixRows, pCell, Table, type Row } f
 import { runInvariance } from '../../runner';
 import { useFreshResults, useStore } from '../../store';
 import { RScriptButton } from './RScriptButton';
+import { SaveFactorScores } from './SaveScores';
 
 export const CB_TABS = [
   { id: 'fit', label: 'Model fit' },
@@ -79,6 +80,7 @@ function Fit({ cb }: { cb: CbResult }) {
         {card(robust ? 'RMSEA (robust)' : 'RMSEA', fmt(rmsea), ok(rmsea <= 0.06))}
         {card('SRMR', fmt(f.srmr), ok(f.srmr <= 0.08))}
       </div>
+      <SaveFactorScores />
       <div className="tables">
         <Table title="Fit statistics" file="cb-fit" columns={['Statistic', 'Standard', robust ? 'Robust / scaled' : '']} rows={rows}
           note={<>Hu &amp; Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08.{robust && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'} Validated against lavaan.</>} />
