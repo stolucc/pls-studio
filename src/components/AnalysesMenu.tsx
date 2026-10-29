@@ -8,7 +8,7 @@ import { useMultilevel } from './MultilevelPanel';
 import { useSegmentation } from './SegmentationPanel';
 import { usePlsAssessment } from './PlsAssessmentPanel';
 import { useNca } from './NcaPanel';
-import { useEfa } from './EfaPanel';
+import { openEfa } from './EfaPanel';
 import { useEndogeneity } from './EndogeneityPanel';
 import { useMatching } from './MatchingPanel';
 import { usePolynomial } from './PolynomialPanel';
@@ -45,7 +45,8 @@ export function AnalysesMenu() {
       <button className="btn ghost" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>Analyses <IconChevronDown size={13} /></button>
       {open && (
         <div className="menu-pop" role="menu" aria-label="Analyses">
-          {item('Exploratory factor analysis', 'EFA and PCA, parallel analysis, rotations (psych)', () => useEfa.getState().setOpen(true))}
+          {item('Exploratory factor analysis', 'EFA: parallel analysis, rotations, cross-loadings (psych)', () => openEfa(false))}
+          {item('Principal component analysis', 'PCA: components, rotations (psych)', () => openEfa(true))}
           {item('Item analysis', 'IRT (ltm), latent classes (poLCA)', () => useItems.getState().setOpen(true))}
           {item('Longitudinal models', 'growth curves, RI-CLPM (lavaan), growth mixtures (lcmm)', () => useLong.getState().setOpen(true))}
           {item('Multilevel regression', 'random intercepts and slopes (lme4)', () => useMultilevel.getState().setOpen(true))}

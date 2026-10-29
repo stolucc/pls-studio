@@ -53,6 +53,17 @@ function VariablePicker({ columns, value, onChange }: { columns: string[]; value
   );
 }
 
+/**
+ * Open the panel as factor analysis or as PCA (the Analyses menu's two
+ * entries); keeps the rest of the project's design.
+ */
+export function openEfa(pca: boolean) {
+  const st = useStore.getState();
+  const d = st.settings.efa ?? DEFAULT_EFA;
+  if (pca !== (d.method === 'pca')) st.setSettings({ efa: { ...d, method: pca ? 'pca' : 'minres' } });
+  useEfa.getState().setOpen(true);
+}
+
 /** Scree plot: eigenvalues, with parallel analysis's simulated ones and the eigenvalue-1 line. */
 function Scree({ r }: { r: EfaResult }) {
   const W = 380, H = 230, pad = { l: 44, r: 12, t: 12, b: 36 };
@@ -200,6 +211,9 @@ export function EfaPanel() {
   const design: EfaDesign = settings.efa ?? DEFAULT_EFA;
   const setDesign = (p: Partial<EfaDesign>) => useStore.getState().setSettings({ efa: { ...design, ...p } });
   const [busy, setBusy] = useState(false);
+  // Switching back from PCA to factor analysis restores the extraction chosen before.
+  const [lastExtraction, setLastExtraction] = useState<Exclude<EfaDesign['method'], 'pca'>>('minres');
+  useEffect(() => { if (design.method !== 'pca') setLastExtraction(design.method); }, [design.method]);
   useEffect(() => { if (preset) { useStore.getState().setSettings({ efa: { ...(useStore.getState().settings.efa ?? DEFAULT_EFA), ...preset } }); useEfa.setState({ preset: null }); } }, [preset]);
   useEffect(() => {
     if (!open) return;
@@ -239,10 +253,10 @@ export function EfaPanel() {
   };
   const oblique = EFA_ROTATIONS.find((x) => x.id === design.rotation)?.oblique;
   return (
-    <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="Exploratory factor analysis">
+    <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label={design.method === 'pca' ? 'Principal component analysis' : 'Exploratory factor analysis'}>
       <div className="sim">
         <header className="sim-head">
-          <div><b>Exploratory factor analysis</b><span className="muted">EFA and PCA with psych: suitability, number of factors, rotated solution</span></div>
+          <div><b>{design.method === 'pca' ? 'Principal component analysis' : 'Exploratory factor analysis'}</b><span className="muted">{design.method === 'pca' ? 'PCA' : 'EFA'} with psych: suitability, number of {design.method === 'pca' ? 'components' : 'factors'}, rotated solution</span></div>
           <button className="btn icon ghost" onClick={close} aria-label="Close"><IconX /></button>
         </header>
         <div className="sim-body long-body">
@@ -252,11 +266,20 @@ export function EfaPanel() {
                 <VariablePicker columns={columns} value={vars} onChange={(v) => setDesign({ vars: columns.filter((x) => v.includes(x)), nfactors: Math.min(design.nfactors, Math.max(1, v.length - 1)) })} />
                 {indicators.length >= 3 && <button className="btn sm ghost" onClick={() => setDesign({ vars: indicators })}>Use the model’s indicators ({indicators.length})</button>}
                 <div className="field">
-                  <label>Method</label>
-                  <select className="select" value={design.method} onChange={(e) => setDesign({ method: e.target.value as EfaDesign['method'] })}>
-                    {EFA_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-                  </select>
+                  <label>Analysis</label>
+                  <div className="segmented" role="radiogroup" aria-label="Analysis">
+                    <button role="radio" aria-checked={design.method !== 'pca'} className={design.method !== 'pca' ? 'on' : ''} onClick={() => setDesign({ method: lastExtraction })}>Factor analysis</button>
+                    <button role="radio" aria-checked={design.method === 'pca'} className={design.method === 'pca' ? 'on' : ''} onClick={() => setDesign({ method: 'pca' })}>Principal components</button>
+                  </div>
                 </div>
+                {design.method !== 'pca' && (
+                  <div className="field">
+                    <label>Extraction</label>
+                    <select className="select" value={design.method} onChange={(e) => setDesign({ method: e.target.value as EfaDesign['method'] })}>
+                      {EFA_METHODS.filter((m) => m.id !== 'pca').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="row2">
                   <div className="field"><label>{design.method === 'pca' ? 'Components' : 'Factors'}</label>
                     <input className="input num" type="number" min={1} max={maxK} value={design.nfactors} onChange={(e) => setDesign({ nfactors: Math.max(1, Math.min(maxK, Math.round(Number(e.target.value)) || 1)) })} /></div>
@@ -281,7 +304,7 @@ export function EfaPanel() {
                 <p className="hint">{design.method === 'pca'
                   ? 'PCA summarises the variables in components that explain as much of their variance as possible; it is a data reduction, not a model of latent factors.'
                   : 'Factor analysis models common factors behind the variables (shared variance only); use it to explore a measurement structure before a CFA.'}
-                  {oblique ? ' An oblique rotation lets the factors correlate, which is usual for psychological constructs.' : ''}</p>
+                  {oblique ? ` An oblique rotation lets the ${design.method === 'pca' ? 'components' : 'factors'} correlate, which is usual for psychological constructs.` : ''}</p>
               </>
             )}
             <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
