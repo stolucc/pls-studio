@@ -132,3 +132,23 @@ func TestLoadConfig_FirstRunWritesDefaults(t *testing.T) {
 		t.Errorf("config not written: %v", err)
 	}
 }
+
+// A --port override is used for listening but never written to the config.
+func TestPortOverride_NotPersisted(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg, err := loadConfigFrom(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.PortOverride = 9999
+	if cfg.listenPort() != 9999 {
+		t.Fatalf("listenPort = %d", cfg.listenPort())
+	}
+	if err := saveConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	again, err := loadConfigFrom(path)
+	if err != nil || again.Port != defaultPort || again.listenPort() != defaultPort {
+		t.Fatalf("override persisted: %+v %v", again, err)
+	}
+}

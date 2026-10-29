@@ -8,7 +8,7 @@
 
 import { create } from 'zustand';
 
-export const HELPER_PORT = 9878;
+const HELPER_PORT = 9878;
 
 /** Release downloads (GitHub; asset names carry no version, see .github/workflows/helper-release.yml). */
 export const HELPER_RELEASES = 'https://github.com/stolucc/pls-studio/releases/latest';
@@ -164,6 +164,27 @@ export function unpairHelper() {
 
 const running = new Set<string>();
 let seq = 0;
+const newId = () => `c${Date.now().toString(36)}-${(seq++).toString(36)}`;
+
+/** POST to the helper, waiting and retrying while it answers 429 (rate limit). */
+async function postRetrying(path: string, body: string, tries = 5): Promise<Response> {
+  for (let i = 0; ; i++) {
+    const r = await helperFetch(path, { method: 'POST', headers: { ...auth(), 'Content-Type': 'application/json' }, body });
+    if (r.status !== 429 || i >= tries - 1) return r;
+    const wait = Math.min(30, Math.max(1, Number(r.headers.get('Retry-After')) || 1));
+    await new Promise((res) => setTimeout(res, wait * 1000));
+  }
+}
+
+type Reply = { id?: string; ok: boolean; result?: string; kind?: string; message?: string; packages?: string[] };
+/** A reply's result, or the error it stands for. */
+function resultOf(rep: Reply): string {
+  if (rep.ok) return rep.result ?? '';
+  if (rep.kind === 'missing_packages') throw new HelperMissingPackages(rep.packages ?? []);
+  if (rep.kind === 'cancelled') throw new Error('Cancelled.');
+  if (rep.kind === 'helper_error') throw new HelperUnavailable(rep.message ?? 'The helper could not run R.');
+  throw new Error(rep.message ?? 'R error');
+}
 
 /**
  * Run a bridge function in the helper's R. Returns the function's result (JSON
@@ -171,11 +192,11 @@ let seq = 0;
  * the helper itself throw HelperUnavailable (the caller uses the browser's R).
  */
 export async function helperCall(fn: string, req: string, packages: string[], exportScript = false): Promise<string> {
-  const id = `c${Date.now().toString(36)}-${(seq++).toString(36)}`;
+  const id = newId();
   running.add(id);
   let r: Response;
   try {
-    r = await helperFetch('/call', { method: 'POST', headers: { ...auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ id, fn, req, export: exportScript, packages }) });
+    r = await postRetrying('/call', JSON.stringify({ id, fn, req, export: exportScript, packages }));
   } catch {
     useHelper.setState({ state: 'absent', message: 'The helper stopped.' });
     throw new HelperUnavailable('The desktop R helper is not reachable.');
@@ -184,12 +205,62 @@ export async function helperCall(fn: string, req: string, packages: string[], ex
   }
   if (r.status === 401) { setToken(''); useHelper.setState({ state: 'unpaired', message: 'Pair again.' }); throw new HelperUnavailable('The helper no longer accepts this browser: pair again.'); }
   if (!r.ok) throw new HelperUnavailable(`The helper answered ${r.status}.`);
-  const rep = await r.json() as { ok: boolean; result?: string; kind?: string; message?: string; packages?: string[] };
-  if (rep.ok) return rep.result ?? '';
-  if (rep.kind === 'missing_packages') throw new HelperMissingPackages(rep.packages ?? []);
-  if (rep.kind === 'cancelled') throw new Error('Cancelled.');
-  if (rep.kind === 'helper_error') throw new HelperUnavailable(rep.message ?? 'The helper could not run R.');
-  throw new Error(rep.message ?? 'R error');
+  return resultOf(await r.json() as Reply);
+}
+
+/**
+ * Many calls of one bridge function in one request (/batch): the helper runs
+ * them on all its R processes and streams each reply as it finishes (browsers
+ * open at most six connections to a host, so separate calls would leave R
+ * processes idle). Results in request order; `onDone` counts finished calls.
+ * The first failure rejects (R error: Error; helper problem: HelperUnavailable).
+ */
+export async function helperBatch(fn: string, reqs: string[], packages: string[], onDone?: (done: number) => void): Promise<string[]> {
+  const ids = reqs.map(() => newId());
+  const index = new Map(ids.map((id, i) => [id, i]));
+  ids.forEach((id) => running.add(id));
+  try {
+    let r: Response;
+    try {
+      r = await postRetrying('/batch', JSON.stringify({ calls: reqs.map((req, i) => ({ id: ids[i], fn, req, export: false, packages })) }));
+    } catch {
+      useHelper.setState({ state: 'absent', message: 'The helper stopped.' });
+      throw new HelperUnavailable('The desktop R helper is not reachable.');
+    }
+    if (r.status === 401) { setToken(''); useHelper.setState({ state: 'unpaired', message: 'Pair again.' }); throw new HelperUnavailable('The helper no longer accepts this browser: connect again.'); }
+    if (!r.ok || !r.body) throw new HelperUnavailable(`The helper answered ${r.status}.`);
+    const out = new Array<string>(reqs.length);
+    let done = 0, buf = '';
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    const take = (line: string) => {
+      if (!line.trim()) return;
+      const rep = JSON.parse(line) as Reply;
+      const i = index.get(rep.id ?? '');
+      if (i === undefined) return;
+      out[i] = resultOf(rep);
+      done++;  // (not inside onDone?.(): without a callback its argument would not be evaluated)
+      onDone?.(done);
+    };
+    try {
+      for (;;) {
+        const { value, done: end } = await reader.read();
+        if (end) break;
+        buf += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) >= 0) { take(buf.slice(0, nl)); buf = buf.slice(nl + 1); }
+      }
+      take(buf + decoder.decode());
+    } catch (e) {
+      void reader.cancel().catch(() => undefined);  // (closing the stream stops the remaining calls)
+      if (e instanceof TypeError) throw new HelperUnavailable('The connection to the helper broke off.');
+      throw e;
+    }
+    if (done !== reqs.length) throw new HelperUnavailable('The helper did not answer every calculation.');
+    return out;
+  } finally {
+    ids.forEach((id) => running.delete(id));
+  }
 }
 
 /** Stop every calculation running in the helper. */

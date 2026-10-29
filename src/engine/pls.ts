@@ -410,7 +410,6 @@ export function standardizeColumns(cols: Float64Array[], names: string[]): Float
   return cols.map((c, i) => standardize(c, names[i]));
 }
 
-export { interactionName };
 
 export interface PlsEstimate {
   m: CompiledModel;

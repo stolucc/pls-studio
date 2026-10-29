@@ -8,14 +8,14 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from './cbsem';
 import { parseCsv } from './dataset';
-import { FIXED_SPEC } from './__fixtures__/fixedValues';
+import { FIXED_CHISQ, FIXED_DF, FIXED_SPEC } from './__fixtures__/fixedValues';
 
 const data = parseCsv(readFileSync(join(__dirname, '__fixtures__', 'validation', 'data', 'holzinger_swineford.csv'), 'utf8')).dataset;
 describe('parameters fixed at values', () => {
   it('match lavaan', () => {
     const r = estimateCb(data, FIXED_SPEC);
-    expect(r.fit.chisq).toBeCloseTo(79.940378, 3);
-    expect(r.fit.df).toBe(27);
+    expect(r.fit.chisq).toBeCloseTo(FIXED_CHISQ, 3);
+    expect(r.fit.df).toBe(FIXED_DF);
     const est = (lhs: string, op: string, rhs: string) => r.estimates.find((e) => e.lhs === lhs && e.op === op && e.rhs === rhs)!;
     expect(est('visual', '=~', 'x3').est).toBeCloseTo(0.845, 3);
     expect(est('textual', '=~', 'x5').est).toBeCloseTo(1.144, 3);

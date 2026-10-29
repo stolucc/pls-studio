@@ -11,7 +11,7 @@ export function workerChoices(cores: number): number[] {
 const HELPER_DOCS = 'https://github.com/stolucc/pls-studio/blob/main/helper/README.md';
 
 /** Download links for the helper (this computer's system first) and its guide. */
-export function HelperDownloadLinks() {
+function HelperDownloadLinks() {
   const mine = helperDownloads(browserPlatform());
   return (
     <span className="helper-downloads">

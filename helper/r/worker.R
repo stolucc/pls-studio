@@ -2,8 +2,8 @@
 # (the same files the browser's R runs), then answers requests: one JSON
 # request per line on stdin, one reply per line on stdout, marked so that
 # anything else written to stdout is ignored. Only the bridge's ps_*
-# functions can be called, with the request (JSON text) as their argument;
-# no R code is accepted from the request.
+# entry points (ps_* functions taking the JSON request) can be called, with the
+# request (JSON text) as their argument; no R code is accepted from the request.
 #   Rscript --vanilla worker.R <bridge directory>
 
 local({
@@ -22,8 +22,13 @@ if (!requireNamespace("jsonlite", quietly = TRUE)) {
 }
 `%||%` <- function(a, b) if (is.null(a)) b else a
 for (f in sort(list.files(commandArgs(trailingOnly = TRUE)[1], "\\.R$", full.names = TRUE))) sys.source(f, envir = globalenv())
-# The callable functions: the bridge's ps_* functions, fixed now (before any request).
-PS_HELPER_CALLABLE <- Filter(function(n) is.function(get(n, envir = globalenv())), grep("^ps_[a-z0-9_]+$", ls(globalenv()), value = TRUE))
+# The callable functions, fixed now (before any request): the bridge's entry
+# points only, i.e. the ps_* functions whose first argument is the JSON request
+# (req_json). Internal helpers (ps_run evaluates code, ps_script, ...) are not callable.
+PS_HELPER_CALLABLE <- Filter(function(n) {
+  f <- get(n, envir = globalenv())
+  is.function(f) && identical(names(formals(f))[1], "req_json")
+}, grep("^ps_[a-z0-9_]+$", ls(globalenv()), value = TRUE))
 lockBinding("PS_HELPER_CALLABLE", globalenv())
 reply(list(ready = TRUE, r = R.version.string, pid = Sys.getpid()))
 

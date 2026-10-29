@@ -12,7 +12,7 @@ vi.mock('./runtime', () => ({
 vi.mock('../store', () => ({ useStore: { getState: () => ({ toast: toasts }) } }));
 const toasts = vi.fn();
 
-type Handler = (path: string, init: RequestInit) => { status?: number; body?: unknown } | 'down';
+type Handler = (path: string, init: RequestInit) => { status?: number; body?: unknown; raw?: BodyInit; headers?: Record<string, string> } | 'down';
 let handler: Handler = () => 'down';
 const store = new Map<string, string>();
 
@@ -23,7 +23,7 @@ beforeEach(() => {
     expect(url.startsWith('http://127.0.0.1:9878/')).toBe(true);
     const r = handler(url.slice('http://127.0.0.1:9878'.length), init);
     if (r === 'down') throw new TypeError('Failed to fetch');
-    return new Response(JSON.stringify(r.body ?? {}), { status: r.status ?? 200 });
+    return new Response(r.raw ?? JSON.stringify(r.body ?? {}), { status: r.status ?? 200, headers: r.headers });
   }));
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
@@ -238,5 +238,81 @@ describe('parallelism with desktop R', () => {
     useCompute.getState().set({ workers: 4 });
     expect(await bootParallel({ kind: 'plsBoot', pkg: 'cSEM', options, boot })).toBe(true);
     expect(await bootParallel({ kind: 'plsBoot', pkg: 'seminr', options, boot })).toBe(false);
+  });
+});
+
+/** An NDJSON body delivered in pieces (lines split across chunks). */
+const pieces = (text: string, size: number) => new ReadableStream<Uint8Array>({
+  start(c) { const b = new TextEncoder().encode(text); for (let i = 0; i < b.length; i += size) c.enqueue(b.slice(i, i + size)); c.close(); },
+});
+
+describe('helperBatch', () => {
+  it('reads streamed replies in any order and returns them in request order', async () => {
+    const { helperBatch } = await import('./helper');
+    store.set('pls-studio.helper.token', TOKEN);
+    let sent: { calls: { id: string; fn: string; req: string; packages: string[] }[] } | null = null;
+    handler = (p, init) => {
+      expect(p).toBe('/batch');
+      sent = JSON.parse(String(init.body));
+      const lines = sent!.calls.map((c) => JSON.stringify({ id: c.id, ok: true, result: `r:${c.req}` })).reverse().join('\n') + '\n';
+      return { raw: pieces(lines, 7) };
+    };
+    const seen: number[] = [];
+    const out = await helperBatch('ps_mc', ['{"a":1}', '{"a":2}', '{"a":3}'], ['lavaan'], (d) => seen.push(d));
+    expect(out).toEqual(['r:{"a":1}', 'r:{"a":2}', 'r:{"a":3}']);
+    expect(seen).toEqual([1, 2, 3]);
+    expect(sent!.calls.map((c) => [c.fn, c.packages])).toEqual([['ps_mc', ['lavaan']], ['ps_mc', ['lavaan']], ['ps_mc', ['lavaan']]]);
+    expect(new Set(sent!.calls.map((c) => c.id)).size).toBe(3);
+  });
+  it('rejects on an R error, on missing packages, and when replies are missing', async () => {
+    const { helperBatch, HelperMissingPackages, HelperUnavailable } = await import('./helper');
+    store.set('pls-studio.helper.token', TOKEN);
+    const answer = (f: (id: string, i: number) => object) => (_p: string, init: RequestInit) => {
+      const calls = JSON.parse(String(init.body)).calls as { id: string }[];
+      return { raw: calls.map((c, i) => JSON.stringify(f(c.id, i))).join('\n') };
+    };
+    handler = answer((id, i) => (i === 1 ? { id, ok: false, kind: 'r_error', message: 'singular matrix' } : { id, ok: true, result: '1' }));
+    await expect(helperBatch('ps_mc', ['{}', '{}'], [])).rejects.toThrow('singular matrix');
+    handler = answer((id) => ({ id, ok: false, kind: 'missing_packages', packages: ['lavaan'] }));
+    await expect(helperBatch('ps_mc', ['{}'], [])).rejects.toBeInstanceOf(HelperMissingPackages);
+    handler = (_p, init) => { const c = JSON.parse(String(init.body)).calls[0]; return { raw: JSON.stringify({ id: c.id, ok: true, result: '1' }) }; };
+    await expect(helperBatch('ps_mc', ['{}', '{}'], [])).rejects.toBeInstanceOf(HelperUnavailable);
+  });
+  it('waits and retries while the helper answers 429', async () => {
+    vi.useFakeTimers();
+    try {
+      const { helperCall } = await import('./helper');
+      store.set('pls-studio.helper.token', TOKEN);
+      let n = 0;
+      handler = () => (++n < 3 ? { status: 429, headers: { 'Retry-After': '1' } } : { body: { ok: true, result: 'done' } });
+      const p = helperCall('ps_pls', '{}', []);
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(await p).toBe('done');
+      expect(n).toBe(3);
+    } finally { vi.useRealTimers(); }
+  });
+  it('desktop rCallParallel sends one batch; without the helper it uses the browser', async () => {
+    const { bridgeHash } = await import('./helper');
+    const { SOURCES, rCallParallel } = await import('./bridge');
+    const hash = await bridgeHash(SOURCES);
+    store.set('pls-studio.helper.token', TOKEN);
+    (await import('./compute')).useCompute.getState().set({ backend: 'helper', workers: 1 });
+    const paths: string[] = [];
+    handler = (p, init) => {
+      paths.push(p);
+      if (p === '/health') return { body: { ok: true } };
+      if (p === '/version') return { body: { bridge: hash, r: 'R version 4.3.1', workers: 13 } };
+      if (p === '/packages') return { body: { versions: {} } };
+      const calls = JSON.parse(String(init.body)).calls as { id: string; req: string }[];
+      return { raw: calls.map((c) => JSON.stringify({ id: c.id, ok: true, result: c.req })).join('\n') };
+    };
+    const out = await rCallParallel<{ k: number }>('ps_mc', [{ k: 1 }, { k: 2 }], 'simulation');
+    expect(out.map((o) => o.k)).toEqual([1, 2]);
+    expect(paths.filter((p) => p === '/batch')).toHaveLength(1);
+    const { parallelMap } = await import('./runtime');
+    vi.mocked(parallelMap).mockResolvedValueOnce(['browser'] as never);
+    (await import('./compute')).useCompute.getState().set({ backend: 'browser', workers: 2 });
+    expect(await rCallParallel('ps_mc', [{ k: 1 }], 'simulation')).toEqual(['browser']);
+    expect(vi.mocked(parallelMap).mock.calls.at(-1)![1]).toBe(2);
   });
 });

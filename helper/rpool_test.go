@@ -13,7 +13,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -154,8 +156,9 @@ func TestRPool_RunsBridgeFunctionsAndReportsErrors(t *testing.T) {
 	if err != nil || bad.OK || bad.Kind != "r_error" || bad.Message == "" {
 		t.Fatalf("R error: %v %+v", err, bad)
 	}
-	// Only the bridge's functions can be called.
-	for _, fn := range []string{"ps_nope", "ps_helper_callable_not"} {
+	// Only the bridge's entry points can be called: not unknown names, and not
+	// internal helpers (ps_run evaluates its argument as R code).
+	for _, fn := range []string{"ps_nope", "ps_helper_callable_not", "ps_run", "ps_json", "ps_script", "ps_expr", "ps_validate"} {
 		r, err := p.call(ctx, &callRequest{ID: "u", Fn: fn, Req: "{}"})
 		if err != nil || r.OK || r.Kind != "bad_request" {
 			t.Fatalf("%s: %v %+v", fn, err, r)
@@ -245,6 +248,87 @@ func TestRPool_CSEMMulticoreBootstrapIsIdentical(t *testing.T) {
 	if exec.Command("Rscript", "-e", "stopifnot(requireNamespace('cSEM', quietly = TRUE))").Run() != nil {
 		t.Skip("cSEM not installed")
 	}
+	req := multicoreRequest
+	ctx := context.Background()
+	one, err := p.call(ctx, &callRequest{ID: "c1", Fn: "ps_pls_boot", Req: req(1)})
+	if err != nil || !one.OK {
+		t.Fatalf("1 core: %v %+v", err, one)
+	}
+	four, err := p.call(ctx, &callRequest{ID: "c4", Fn: "ps_pls_boot", Req: req(4)})
+	if err != nil || !four.OK {
+		t.Fatalf("4 cores: %v %+v", err, four)
+	}
+	if one.Result != four.Result {
+		t.Fatalf("results differ:\n1: %.300s\n4: %.300s", one.Result, four.Result)
+	}
+	script, err := p.call(ctx, &callRequest{ID: "c4x", Fn: "ps_pls_boot", Req: req(4), Export: true})
+	if err != nil || !strings.Contains(script.Result, "cores <- 4") {
+		t.Fatalf("script: %v", err)
+	}
+}
+
+// Cancelling a multicore cSEM bootstrap kills the forked R processes too, and
+// the pool keeps serving (a replacement worker starts).
+func TestRPool_CancelKillsForkedChildren(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process groups: unix")
+	}
+	p := testPool(t, 1)
+	if exec.Command("Rscript", "-e", "stopifnot(requireNamespace('cSEM', quietly = TRUE))").Run() != nil {
+		t.Skip("cSEM not installed")
+	}
+	var w *rWorker
+	select {
+	case w = <-p.free:
+		p.free <- w
+	default:
+		t.Fatal("no free worker")
+	}
+	pgid := w.cmd.Process.Pid
+	req := strings.Replace(multicoreRequest(4), `"samples":300`, `"samples":200000`, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { _, err := p.call(ctx, &callRequest{ID: "big", Fn: "ps_pls_boot", Req: req}); done <- err }()
+	// Wait until the bootstrap has forked its workers.
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) && countGroup(pgid) < 3 {
+		time.Sleep(200 * time.Millisecond)
+	}
+	if n := countGroup(pgid); n < 3 {
+		t.Fatalf("expected forked R processes, found %d in the group", n)
+	}
+	cancel()
+	if err := <-done; err != errCancelled {
+		t.Fatalf("cancel: %v", err)
+	}
+	time.Sleep(time.Second)
+	if n := countGroup(pgid); n != 0 {
+		t.Fatalf("%d R processes left after cancelling", n)
+	}
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel2()
+	if rep, err := p.call(ctx2, &callRequest{ID: "after", Fn: "ps_nca", Req: ncaRequest(0)}); err != nil || !rep.OK {
+		t.Fatalf("after cancel: %v %+v", err, rep)
+	}
+	if _, live, err := p.status(); live != 1 || err != nil {
+		t.Fatalf("status after replacement: %d %v", live, err)
+	}
+}
+
+// countGroup counts the processes of a process group (ps; unix).
+func countGroup(pgid int) int {
+	out, _ := exec.Command("ps", "-A", "-o", "pgid=").Output()
+	n := 0
+	for _, f := range strings.Fields(string(out)) {
+		if f == strconv.Itoa(pgid) {
+			n++
+		}
+	}
+	return n
+}
+
+// multicoreRequest: a two-construct cSEM bootstrap (300 samples) on `cores` cores.
+func multicoreRequest(cores int) string {
 	items := func(pre string) []string { return []string{pre + "1", pre + "2", pre + "3"} }
 	cols := map[string][]float64{}
 	names := []string{}
@@ -266,29 +350,11 @@ func TestRPool_CSEMMulticoreBootstrapIsIdentical(t *testing.T) {
 	for _, n := range names {
 		data = append(data, cols[n])
 	}
-	req := func(cores int) string {
-		b, _ := json.Marshal(map[string]any{"kind": "pls", "package": "cSEM", "missing": "casewise",
-			"options": map[string]any{"scheme": "path", "consistent": false, "tolerance": 1e-7, "maxIter": 300, "approach": "PLS-PM"},
-			"data":    map[string]any{"names": names, "cols": data},
-			"model": map[string]any{"constructs": []map[string]any{{"name": "X", "type": "factor", "mode": "A", "indicators": items("x")}, {"name": "Y", "type": "factor", "mode": "A", "indicators": items("y")}},
-				"paths": []map[string]any{{"from": "X", "to": "Y"}}, "moderations": []any{}},
-			"boot": map[string]any{"samples": 300, "seed": 5, "confidence": 0.95}, "cores": cores})
-		return string(b)
-	}
-	ctx := context.Background()
-	one, err := p.call(ctx, &callRequest{ID: "c1", Fn: "ps_pls_boot", Req: req(1)})
-	if err != nil || !one.OK {
-		t.Fatalf("1 core: %v %+v", err, one)
-	}
-	four, err := p.call(ctx, &callRequest{ID: "c4", Fn: "ps_pls_boot", Req: req(4)})
-	if err != nil || !four.OK {
-		t.Fatalf("4 cores: %v %+v", err, four)
-	}
-	if one.Result != four.Result {
-		t.Fatalf("results differ:\n1: %.300s\n4: %.300s", one.Result, four.Result)
-	}
-	script, err := p.call(ctx, &callRequest{ID: "c4x", Fn: "ps_pls_boot", Req: req(4), Export: true})
-	if err != nil || !strings.Contains(script.Result, "cores <- 4") {
-		t.Fatalf("script: %v", err)
-	}
+	b, _ := json.Marshal(map[string]any{"kind": "pls", "package": "cSEM", "missing": "casewise",
+		"options": map[string]any{"scheme": "path", "consistent": false, "tolerance": 1e-7, "maxIter": 300, "approach": "PLS-PM"},
+		"data":    map[string]any{"names": names, "cols": data},
+		"model": map[string]any{"constructs": []map[string]any{{"name": "X", "type": "factor", "mode": "A", "indicators": items("x")}, {"name": "Y", "type": "factor", "mode": "A", "indicators": items("y")}},
+			"paths": []map[string]any{{"from": "X", "to": "Y"}}, "moderations": []any{}},
+		"boot": map[string]any{"samples": 300, "seed": 5, "confidence": 0.95}, "cores": cores})
+	return string(b)
 }

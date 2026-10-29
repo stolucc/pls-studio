@@ -19,7 +19,7 @@ import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import segmentR from './R/segment.R?raw';
 import { useCompute } from './compute';
-import { helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
+import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
 export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR };
@@ -52,7 +52,7 @@ export const R_PACKAGES = {
 export type RPackage = keyof typeof R_PACKAGES;
 
 /** Every R package the bridge uses (what the helper's `setup` installs). */
-export const ALL_R_PACKAGES = [...new Set(Object.values(R_PACKAGES).flat())].sort();
+const ALL_R_PACKAGES = [...new Set(Object.values(R_PACKAGES).flat())].sort();
 
 let probed: { at: number; p: Promise<unknown> } | null = null;
 /** Probe the helper (again after 30 s when it was not ready). */
@@ -75,6 +75,9 @@ export async function parallelism(): Promise<{ where: 'desktop' | 'browser'; ses
   }
   return { where: 'browser', sessions: useCompute.getState().workers };
 }
+
+/** A request as JSON (non-finite numbers as null, as the browser's R gets them). */
+const toJson = (req: unknown) => JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
 
 /** Bridge functions whose cSEM / seminr resampling runs on several cores of one desktop R process (results identical). */
 const MULTICORE = new Set(['ps_pls_boot', 'ps_cca', 'ps_pls_groups']);
@@ -99,7 +102,7 @@ async function viaHelper(fn: string, req: unknown, pkg: RPackage, exportScript: 
   // cSEM / seminr resampling: all the helper's cores in this one R process (not when drawing chunks).
   const r = req as { boot?: { chunkR?: unknown } };
   const cores = MULTICORE.has(fn) && !r.boot?.chunkR ? Math.max(1, h.info?.workers ?? 1) : undefined;
-  const json = JSON.stringify(cores ? { ...(req as object), cores } : req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
+  const json = toJson(cores ? { ...(req as object), cores } : req);
   try {
     return await helperCall(fn, json, [...R_PACKAGES[pkg]], exportScript);
   } catch (e) {
@@ -130,13 +133,25 @@ export async function rCallOn<T>(session: number, fn: string, req: unknown, pkg:
 }
 
 /**
- * One call per request, spread over the R sessions in effect (parallelism():
- * the helper's processes, or the browser's Parallel setting); results in
- * request order.
+ * One call per request, results in request order. Desktop R: one streamed
+ * batch over all the helper's processes. The browser (also when the helper
+ * cannot be used): spread over the R sessions of the Parallel setting.
  */
 export async function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackage, onDone?: (done: number) => void): Promise<T[]> {
-  const { sessions } = await parallelism();
-  return parallelMap(reqs, sessions, (req, session) => rCallOn<T>(session, fn, req, pkg), onDone);
+  const p = await parallelism();
+  if (p.where === 'desktop') {
+    try {
+      const out = await helperBatch(fn, reqs.map(toJson), [...R_PACKAGES[pkg]], onDone);
+      return out.map((r) => fromDesktop<T>(r));
+    } catch (e) {
+      if (e instanceof HelperMissingPackages) fallbackNotice(`${e.message} Install them from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.`);
+      else if (e instanceof HelperUnavailable) fallbackNotice(e.message);
+      else throw e;
+    }
+  }
+  // (the browser's own setting, not the helper's process count)
+  return parallelMap(reqs, useCompute.getState().workers, (req, session) =>
+    withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `${fn}(req)`, req)) as Promise<T>, onDone);
 }
 
 export async function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string> {

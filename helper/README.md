@@ -60,8 +60,15 @@ A PLS Studio deployment on its own address must be trusted first:
 ## 3 · What runs where
 
 - Every calculation (estimation, bootstrap, the R script export, …) goes to
-  desktop R when the helper is chosen and ready. With **Parallel bootstrap**
-  on, bootstrap chunks run on several R processes at once.
+  desktop R when the helper is chosen and ready.
+- Desktop R uses all cores but one, by itself (the app's Parallel setting is
+  for the browser only): cSEM and seminr bootstraps, CCA and multigroup tests
+  run on all of them inside one R process (cSEM's own parallel plan: the
+  results equal a single-core run); lavaan bootstraps are drawn in chunks of
+  100 samples spread over the helper's R processes (the same results on any
+  computer, and in the exported script); simulations spread over the
+  processes. Many calls travel in one streamed request (/batch), since
+  browsers open at most six connections to a host.
 - If a package is missing in desktop R, or the helper stops, that
   calculation runs in the browser instead (PLS Studio says so).
 - Desktop R uses the package versions you installed; the browser uses pinned

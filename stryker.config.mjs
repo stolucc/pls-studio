@@ -2,7 +2,8 @@
 // test (flips operators, drops statements, alters constants) and checks that
 // some test fails for each change. Surviving mutants mark untested behaviour.
 // Scope: the pure logic (engines, model, figure, formatting); UI components
-// and the webR bridges (needing R) are covered by other means.
+// and the webR bridges (needing R) are covered by other means; the R-free
+// parts of the R layer (parallel planning, the desktop helper client) are in.
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
   testRunner: 'vitest',
@@ -25,6 +26,11 @@ export default {
     'src/engine/dataset.ts',
     'src/engine/vech.ts',
     'src/engine/mcci.ts',
+    // Desktop helper client and parallel planning (fetch is mocked in the tests).
+    'src/rengine/compute.ts',
+    'src/rengine/helper.ts',
+    'src/data/recode.ts',
+    'src/data/summary.ts',
     '!src/**/*.test.ts',
     '!src/figure/export.ts',
   ],

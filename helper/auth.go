@@ -52,7 +52,7 @@ func portString(p int) string {
 // withAuth wraps a handler with origin + Host + bearer enforcement.
 // Pass requireBearer=false for the /health probe and /pair handshake.
 func withAuth(cfg *config, requireBearer bool, h http.HandlerFunc) http.HandlerFunc {
-	hosts := allowedHosts(cfg.Port)
+	hosts := allowedHosts(cfg.listenPort())
 	hostAllowed := func(h string) bool {
 		for _, a := range hosts {
 			if strings.EqualFold(h, a) {

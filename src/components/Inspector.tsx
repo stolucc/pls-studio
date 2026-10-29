@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ComputeSettings } from './ComputeSettings';
+import { useCompute } from '../rengine/compute';
 import { fmt, fmtP } from '../format';
 import { endogenousIds, validateModel, type Construct, type Settings } from '../model/project';
 import { useFreshResults, useStore } from '../store';
@@ -475,6 +476,8 @@ function ModelInspector() {
   const deleteItems = useStore((s) => s.deleteItems);
   const data = useStore((s) => s.data);
   const settings = useStore((s) => s.settings);
+  // Where the R packages run: the browser's R (webR) or desktop R through the helper.
+  const where = useCompute((s) => s.backend) === 'helper' ? 'in desktop R (through the helper)' : 'in your browser (webR)';
   const setSettings = useStore((s) => s.setSettings);
   const select = useStore((s) => s.select);
   const issues = validateModel(model, data, settings);
@@ -542,7 +545,7 @@ function ModelInspector() {
         <div className="section">
           <div className="section-title">Calculated by</div>
           <div className="hint">
-            manymome (Cheung &amp; Cheung, 2024), running in your browser (webR): OLS regressions (lm), the percentile bootstrap of indirect effects and conditional effects at moderator values.
+            manymome (Cheung &amp; Cheung, 2024), running {where}: OLS regressions (lm), the percentile bootstrap of indirect effects and conditional effects at moderator values.
             Every numbered model was checked against PROCESS for R on the same data. Your data never leave this computer.
           </div>
           <button className="btn sm" style={{ marginTop: 8 }} onClick={() => void exportRScript()}
@@ -579,12 +582,12 @@ function ModelInspector() {
             ? 'PLS Studio’s own implementation, validated against the R packages. Instant, no download.'
             : pls
               ? settings.plsPackage === 'cSEM'
-                ? 'cSEM (Rademaker & Schuberth), running in your browser (webR): PLS, PLSc, composites, bootstrapping, the model fit test and IPMA. Interactions use cSEM’s products of construct scores.'
-                : 'seminr (Ray, Danks & Calero Valdez), running in your browser (webR): PLS, PLSc for reflective constructs, two-stage interactions. No model-fit statistics; path and factor schemes only. seminr’s bootstrap needs worker processes, so bootstrap with cSEM here (or export the script). The fit test and IPMA use cSEM.'
+                ? `cSEM (Rademaker & Schuberth), running ${where}: PLS, PLSc, composites, bootstrapping, the model fit test and IPMA. Interactions use cSEM’s products of construct scores.`
+                : `seminr (Ray, Danks & Calero Valdez), running ${where}: PLS, PLSc for reflective constructs, two-stage interactions. No model-fit statistics; path and factor schemes only. ${where.startsWith('in desktop') ? 'seminr bootstraps on all cores.' : 'seminr’s bootstrap needs worker processes, so bootstrap with cSEM here (or export the script).'} The fit test and IPMA use cSEM.`
               : settings.estimator === '2SLS'
-                ? 'MIIVsem (Fisher, Bollen, Gates & Rönkkö), running in your browser (webR).'
-                : 'lavaan (Rosseel), running in your browser (webR), including bootstrapping (bootstrapLavaan).'}
-          {settings.engine === 'r' && ' The first calculation loads R and the packages; your data never leave this computer. Monte Carlo simulation also runs in R (lavaan::simulateData, cSEM, lavaan).'}
+                ? `MIIVsem (Fisher, Bollen, Gates & Rönkkö), running ${where}.`
+                : `lavaan (Rosseel), running ${where}, including bootstrapping (bootstrapLavaan).`}
+          {settings.engine === 'r' && ' The first calculation loads the packages; your data never leave this computer. Monte Carlo simulation also runs in R (lavaan::simulateData, cSEM, lavaan).'}
         </div>
         {settings.engine === 'r' && <ComputeSettings />}
         <button className="btn sm" style={{ marginTop: 8 }} onClick={() => void exportRScript()}

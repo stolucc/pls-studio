@@ -27,10 +27,6 @@ export function matMul(a: Mat, b: Mat): Mat {
   return out;
 }
 
-export function matAdd(a: Mat, b: Mat): Mat {
-  return a.map((row, i) => row.map((v, j) => v + b[i][j]));
-}
-
 /** Inverse via Gauss-Jordan elimination with partial pivoting. Throws on singular input. */
 export function invert(m: Mat): Mat {
   const n = m.length;

@@ -3,7 +3,7 @@
 // the bounding box so the React Flow node can be positioned around it.
 
 import type { ConstructType } from './engine/types';
-import type { Construct, Side } from './model/project';
+import type { Construct } from './model/project';
 
 export interface Box { x: number; y: number; w: number; h: number }
 export interface IndicatorGeom extends Box {
@@ -120,7 +120,6 @@ export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'si
   return { rx, ry, indicators, bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY } };
 }
 
-export const SIDES: Side[] = ['left', 'top', 'right', 'bottom'];
 
 type Placed = Pick<Construct, 'name' | 'indicators' | 'side' | 'x' | 'y'> & { type?: ConstructType; covariate?: boolean };
 

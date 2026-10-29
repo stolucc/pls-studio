@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -150,5 +151,56 @@ func TestCall_EndToEndWithR(t *testing.T) {
 	pk := do(t, s, cfg, http.MethodPost, "/packages", `{"packages":["jsonlite"]}`)
 	if !strings.Contains(pk.Body.String(), `"jsonlite":"`) {
 		t.Fatalf("packages: %s", pk.Body.String())
+	}
+}
+
+func TestBatch_RejectsInvalidBatches(t *testing.T) {
+	s, cfg := newTestServer(t, nil)
+	for _, body := range []string{
+		`{"calls":[]}`,
+		`{"calls":[{"id":"a","fn":"ps_nca","req":"{}"},{"id":"a","fn":"ps_nca","req":"{}"}]}`,
+		`{"calls":[{"id":"a","fn":"ps_helper_packages","req":"{}"}]}`,
+		`{"calls":[{"id":"a","fn":"system","req":"{}"}]}`,
+		`{"calls":[{"id":"a","fn":"ps_nca","req":"{}"}],"extra":1}`,
+	} {
+		if w := do(t, s, cfg, http.MethodPost, "/batch", body); w.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d", body, w.Code)
+		}
+	}
+}
+
+// A batch streams one reply per call (NDJSON) and uses all workers.
+func TestBatch_StreamsRepliesFromAllWorkers(t *testing.T) {
+	pool := testPool(t, 3)
+	s, cfg := newTestServer(t, pool)
+	calls := []callRequest{}
+	for i := 0; i < 6; i++ {
+		calls = append(calls, callRequest{ID: "b" + strconv.Itoa(i), Fn: "ps_nca", Req: ncaRequest(100)})
+	}
+	calls = append(calls, callRequest{ID: "bad", Fn: "ps_nca", Req: `{"x":["y"],"y":"y"}`})
+	body, _ := json.Marshal(map[string]any{"calls": calls})
+	w := do(t, s, cfg, http.MethodPost, "/batch", string(body))
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "application/x-ndjson" {
+		t.Fatalf("status %d %s", w.Code, w.Body.String())
+	}
+	lines := strings.Split(strings.TrimSpace(w.Body.String()), "\n")
+	if len(lines) != 7 {
+		t.Fatalf("%d replies: %s", len(lines), w.Body.String())
+	}
+	ok, rErr := 0, 0
+	for _, l := range lines {
+		var rep callReply
+		if err := json.Unmarshal([]byte(l), &rep); err != nil {
+			t.Fatal(err)
+		}
+		if rep.OK && strings.HasPrefix(rep.ID, "b") {
+			ok++
+		}
+		if rep.ID == "bad" && rep.Kind == "r_error" {
+			rErr++
+		}
+	}
+	if ok != 6 || rErr != 1 {
+		t.Fatalf("ok %d, R errors %d", ok, rErr)
 	}
 }

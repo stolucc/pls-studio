@@ -145,7 +145,8 @@ export async function parallelMap<I, O>(items: I[], workers: number, run: (item:
     while (!failed && next < items.length) {
       const i = next++;
       try { out[i] = await run(items[i], session); } catch (e) { failed = true; throw e; }
-      onDone?.(++done);
+      done++;
+      onDone?.(done);
     }
   };
   await Promise.all(Array.from({ length: Math.max(1, Math.min(workers, items.length)) }, (_, k) => lane(k)));

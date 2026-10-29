@@ -133,8 +133,9 @@ type rPool struct {
 
 	mu       sync.Mutex
 	running  map[string]*rWorker // call id -> worker
+	live     int                 // workers alive (free or busy)
 	rVersion string
-	startErr error
+	startErr error // the last start failure; reported only while no worker is alive
 	closed   bool
 }
 
@@ -201,6 +202,7 @@ func newRPool(cfg *config, logger *log.Logger) (*rPool, error) {
 			p.startErr = err
 			return p, nil
 		}
+		p.live++
 		p.free <- w
 	}
 	return p, nil
@@ -212,6 +214,7 @@ func (p *rPool) spawn() (*rWorker, error) {
 	cmd := exec.Command(p.rscript, "--vanilla", filepath.Join(p.dir, "worker.R.txt"), p.dir)
 	cmd.Dir = p.dir
 	cmd.Env = append(os.Environ(), "PS_HELPER_LIBRARY="+p.library)
+	setProcessGroup(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -246,6 +249,9 @@ func (p *rPool) spawn() (*rWorker, error) {
 		for {
 			line, err := readLine(r, maxReplyBytes)
 			if err != nil {
+				// EOF (R ended), or a line over the limit: end the worker either
+				// way (R would otherwise block writing to a pipe nobody reads).
+				killTree(cmd)
 				break
 			}
 			if strings.HasPrefix(line, replyMark) {
@@ -301,30 +307,36 @@ func readLine(r *bufio.Reader, max int) (string, error) {
 
 func (p *rPool) kill(w *rWorker) {
 	_ = w.stdin.Close()
-	if w.cmd.Process != nil {
-		_ = w.cmd.Process.Kill()
-	}
+	killTree(w.cmd)
 }
 
-// replace puts a fresh worker in place of a killed or crashed one.
+// replace puts a fresh worker in place of a killed or crashed one. The slot
+// counts as alive while it restarts (callers wait for it); only when every
+// attempt fails does the pool shrink (it keeps serving with the rest).
 func (p *rPool) replace() {
-	p.mu.Lock()
-	closed := p.closed
-	p.mu.Unlock()
-	if closed {
-		return
-	}
-	w, err := p.spawn()
-	if err != nil {
+	for attempt := 0; attempt < 3; attempt++ {
+		p.mu.Lock()
+		closed := p.closed
+		p.mu.Unlock()
+		if closed {
+			return
+		}
+		w, err := p.spawn()
+		if err == nil {
+			p.free <- w
+			return
+		}
 		p.mu.Lock()
 		p.startErr = err
 		p.mu.Unlock()
 		if p.logger != nil {
 			p.logger.Printf("restart R worker: %v", err)
 		}
-		return
+		time.Sleep(time.Duration(attempt+1) * 2 * time.Second)
 	}
-	p.free <- w
+	p.mu.Lock()
+	p.live--
+	p.mu.Unlock()
 }
 
 var errCancelled = errors.New("cancelled")
@@ -334,9 +346,12 @@ var errBusy = errors.New("too many waiting calculations")
 // /cancel) kills the worker's process.
 func (p *rPool) call(ctx context.Context, req *callRequest) (*callReply, error) {
 	p.mu.Lock()
-	err := p.startErr
+	err, live := p.startErr, p.live
 	p.mu.Unlock()
-	if err != nil && len(p.free) == 0 && p.idle() {
+	if live == 0 {
+		if err == nil {
+			err = errors.New("no R worker is running")
+		}
 		return nil, err
 	}
 	select {
@@ -390,17 +405,17 @@ func (p *rPool) call(ctx context.Context, req *callRequest) (*callReply, error) 
 	}
 }
 
-// idle reports whether no worker is busy (used to tell "no R at all" apart).
-func (p *rPool) idle() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return len(p.running) == 0
-}
-
+// status: R's version, the workers alive, and an error only when none is.
 func (p *rPool) status() (rVersion string, workers int, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.rVersion, p.size, p.startErr
+	if p.live == 0 {
+		err = p.startErr
+		if err == nil {
+			err = errors.New("no R worker is running")
+		}
+	}
+	return p.rVersion, p.live, err
 }
 
 func (p *rPool) close() {

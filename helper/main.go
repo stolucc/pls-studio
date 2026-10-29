@@ -93,11 +93,12 @@ func main() {
 	if err != nil {
 		logger.Fatalf("load config: %v", err)
 	}
-	if *portFlag > 0 && *portFlag <= 65535 {
-		cfg.Port = *portFlag
-	}
-	if err := saveConfig(cfg); err != nil {
+	if err := saveConfig(cfg); err != nil { // (writes the defaults on first run)
 		logger.Fatalf("save config: %v", err)
+	}
+	// A --port override is for this run only (the app connects to the configured port).
+	if *portFlag > 0 && *portFlag <= 65535 {
+		cfg.PortOverride = *portFlag
 	}
 	pool, err := newRPool(cfg, logger)
 	if err != nil {

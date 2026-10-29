@@ -31,16 +31,6 @@ export function corStd(a: Float64Array, b: Float64Array): number {
   return s / (a.length - 1);
 }
 
-export function cor(a: ArrayLike<number>, b: ArrayLike<number>): number {
-  const ma = mean(a), mb = mean(b);
-  let sab = 0, saa = 0, sbb = 0;
-  for (let i = 0; i < a.length; i++) {
-    const da = a[i] - ma, db = b[i] - mb;
-    sab += da * db; saa += da * da; sbb += db * db;
-  }
-  return sab / Math.sqrt(saa * sbb);
-}
-
 /** Percentile with linear interpolation (R type 7). `sorted` must be ascending. */
 export function quantileSorted(sorted: ArrayLike<number>, p: number): number {
   const n = sorted.length;

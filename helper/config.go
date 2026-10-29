@@ -35,6 +35,16 @@ type config struct {
 
 	// File path derived from the config location. Not persisted.
 	Path string `json:"-"`
+	// PortOverride (--port) applies to this run only. Not persisted.
+	PortOverride int `json:"-"`
+}
+
+// listenPort is the port this run listens on.
+func (c *config) listenPort() int {
+	if c.PortOverride > 0 {
+		return c.PortOverride
+	}
+	return c.Port
 }
 
 const defaultPort = 9878

@@ -47,10 +47,11 @@ func newServer(cfg *config, logger *log.Logger, pool *rPool) *server {
 	mux.HandleFunc("/version", withAuth(cfg, true, s.handleVersion))
 	mux.HandleFunc("/packages", withAuth(cfg, true, s.handlePackages))
 	mux.HandleFunc("/call", withAuth(cfg, true, s.handleCall))
+	mux.HandleFunc("/batch", withAuth(cfg, true, s.handleBatch))
 	mux.HandleFunc("/cancel/", withAuth(cfg, true, s.handleCancel))
 	// Bind to 127.0.0.1 ONLY (see main.go: the listener is created there).
 	s.HTTP = &http.Server{
-		Addr:              net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.Port)),
+		Addr:              net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.listenPort())),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       5 * time.Minute, // large data sets
@@ -237,6 +238,113 @@ func (s *server) handleCall(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, callReply{ID: req.ID, OK: false, Kind: "helper_error", Message: err.Error()})
 	default:
 		writeJSON(w, rep)
+	}
+}
+
+// maxBatchCalls bounds one /batch request (a 20,000-sample bootstrap is 200 chunks).
+const maxBatchCalls = 4096
+
+// batchMaxBodyBytes caps a /batch request: every call carries the data set,
+// so a long chunked bootstrap of a large data set is many times its size.
+const batchMaxBodyBytes = 1 << 30
+
+// /batch — POST {"calls": [callRequest, ...]}: runs the calls on the R pool
+// (as many at once as there are workers) and streams one reply per line
+// (NDJSON) as each finishes. One HTTP request for many calls: browsers open
+// at most six connections to a host, which would leave workers idle.
+// POST /cancel/<id> stops a single call; closing the request stops all.
+func (s *server) handleBatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if wait, ok := s.limiter.allow(); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int((wait+time.Second-1)/time.Second))))
+		http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, batchMaxBodyBytes)
+	var body struct {
+		Calls []callRequest `json:"calls"`
+	}
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err != nil || len(body.Calls) == 0 || len(body.Calls) > maxBatchCalls {
+		http.Error(w, "bad request body", http.StatusBadRequest)
+		return
+	}
+	seen := map[string]bool{}
+	for i := range body.Calls {
+		c := &body.Calls[i]
+		if err := c.validate(); err != nil || strings.HasPrefix(c.Fn, "ps_helper") || seen[c.ID] {
+			http.Error(w, "invalid call in the batch", http.StatusBadRequest)
+			return
+		}
+		seen[c.ID] = true
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	cancels := make([]context.CancelFunc, len(body.Calls))
+	ctxs := make([]context.Context, len(body.Calls))
+	for i := range body.Calls {
+		ctxs[i], cancels[i] = context.WithCancel(r.Context())
+		if !s.jobs.register(body.Calls[i].ID, cancels[i]) {
+			for j := 0; j <= i; j++ {
+				cancels[j]()
+				if j < i {
+					s.jobs.deregister(body.Calls[j].ID)
+				}
+			}
+			http.Error(w, "duplicate id", http.StatusConflict)
+			return
+		}
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, max(1, s.pool.size)) // at most one waiting call per worker
+	enc := json.NewEncoder(w)
+	for i := range body.Calls {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			defer s.jobs.deregister(body.Calls[i].ID)
+			defer cancels[i]()
+			c := &body.Calls[i]
+			var rep *callReply
+			select {
+			case slots <- struct{}{}:
+				var err error
+				rep, err = s.pool.call(ctxs[i], c)
+				<-slots
+				if err != nil {
+					rep = errorReply(c.ID, err)
+				}
+			case <-ctxs[i].Done():
+				rep = errorReply(c.ID, errCancelled)
+			}
+			mu.Lock()
+			_ = enc.Encode(rep)
+			flusher.Flush()
+			mu.Unlock()
+		}(i)
+	}
+	wg.Wait()
+}
+
+// errorReply turns a pool error into the reply the browser understands.
+func errorReply(id string, err error) *callReply {
+	switch {
+	case errors.Is(err, errCancelled):
+		return &callReply{ID: id, Kind: "cancelled", Message: "Cancelled."}
+	default:
+		return &callReply{ID: id, Kind: "helper_error", Message: err.Error()}
 	}
 }
 

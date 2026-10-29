@@ -31,14 +31,21 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
 
 const f64 = (v: unknown) => Float64Array.from((v as (number | null)[]).map((x) => (typeof x === 'number' ? x : NaN)));
 
+/** The request for replications start..end-1 at sample size n. */
+export const mcChunkRequest = (design: McDesign, n: number, start: number, end: number) =>
+  mcRequest(design, Array.from({ length: end - start }, (_, k) => ({ n, rep: start + k })));
+
 /**
  * Replications start..end-1 at sample size n, as an McPart for summariseMc, in
  * R session `session` (every replication has its own seeds, so the results do
  * not depend on which session runs it).
  */
 export async function runMcChunkR(design: McDesign, n: number, start: number, end: number, session = 0): Promise<McPart> {
-  const reps = Array.from({ length: end - start }, (_, k) => ({ n, rep: start + k }));
-  const raw = await rCallOn<Record<string, any>>(session, 'ps_mc', mcRequest(design, reps), 'simulation');
+  return parseMcChunk(design, n, start, await rCallOn<Record<string, any>>(session, 'ps_mc', mcChunkRequest(design, n, start, end), 'simulation'));
+}
+
+/** ps_mc's answer for a chunk as an McPart. */
+export function parseMcChunk(design: McDesign, n: number, start: number, raw: Record<string, unknown>): McPart {
   const pop = buildPopulation(design.population);
   const params = mcParameters(pop, design.estimators.some((e) => e.method === 'cb'));
   const ci = (name: string) => pop.constructs.indexOf(name);
