@@ -11,7 +11,7 @@ export function processInput(model: ModelState, settings: Settings): CpaInput | 
   return {
     graph, covariates, model: recognised?.model,
     order: recognised ? [recognised.roles.w, recognised.roles.z].filter((v): v is string => !!v) : [],
-    variables: model.constructs.map((c) => ({ name: c.name, indicators: c.indicators })),
+    variables: model.constructs.map((c) => ({ name: c.name, indicators: c.indicators, ...(c.latent && !c.covariate && c.indicators.length > 1 ? { latent: true } : {}) })),
     // Listwise deletion, as PROCESS (mean replacement would bias regression estimates).
     missing: 'casewise',
     probe: settings.probe,

@@ -150,3 +150,22 @@ describe('implied covariances can be fixed at zero', () => {
     expect(validateModel(s().model, data, s().settings).some((i) => /fixed as uncorrelated/.test(i.message))).toBe(false);
   });
 });
+
+describe('latent variables in process analysis', () => {
+  it('needs two or more items, excludes three-way terms, and reaches the request', async () => {
+    const { processInput } = await import('./input');
+    s().applyTemplate(3, 0);
+    s().assignIndicators(named('X').id, ['r1', 'r2']);
+    s().updateConstruct(named('X').id, { latent: true });
+    expect(validateModel(s().model, data, s().settings).some((i) => /three-way interaction\) is not available with latent/.test(i.message))).toBe(true);
+    s().applyTemplate(1, 0);
+    s().assignIndicators(named('X').id, ['r1']);
+    s().updateConstruct(named('r1').id, { latent: true });
+    expect(validateModel(s().model, data, s().settings).some((i) => /needs at least two/.test(i.message))).toBe(true);
+    s().assignIndicators(named('r1').id, ['r2']);
+    expect(validateModel(s().model, data, s().settings).some((i) => /two items; it is identified only/.test(i.message))).toBe(true);
+    expect(processInput(s().model, s().settings)!.variables.find((v) => v.name === 'r1')).toMatchObject({ latent: true, indicators: ['r1', 'r2'] });
+    // Round trip through a project file.
+    expect(parseProject(serializeProject(s().model, s().settings, null, null)).model.constructs.find((c) => c.name === 'r1')!.latent).toBe(true);
+  });
+});

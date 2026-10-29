@@ -26,6 +26,8 @@ export interface Construct {
   components?: string[];
   /** CB-SEM observed covariate (single indicator): lavaan fixed.x semantics. */
   covariate?: boolean;
+  /** Conditional process analysis: model this scale as a latent variable (lavaan::sam) instead of its mean score. */
+  latent?: boolean;
 }
 
 export interface Path {
@@ -325,7 +327,17 @@ export function validateModel(
   if (model.threeWay?.length && method.method !== 'process') {
     err('Moderated moderation (a moderator acting on a moderation) is available in conditional process analysis only.');
   }
-  if (method.method === 'process') for (const e of processGraph(model).errors) err(e.message, e.constructId);
+  if (method.method === 'process') {
+    for (const e of processGraph(model).errors) err(e.message, e.constructId);
+    const latent = model.constructs.filter((c) => c.latent && !c.covariate);
+    for (const c of latent) {
+      if (c.indicators.length < 2) err(`"${c.name}" is set as a latent variable but has ${c.indicators.length} item${c.indicators.length === 1 ? '' : 's'}; a latent variable needs at least two (three for a stable measurement model).`, c.id);
+      else if (c.indicators.length === 2) warn(`"${c.name}" is a latent variable with two items; it is identified only through its relations with other latent variables.`, c.id);
+    }
+    if (latent.length && model.threeWay?.length) {
+      err('Moderated moderation (three-way interaction) is not available with latent variables (lavaan’s SAM syntax has no three-way products). Use mean scores, or remove the three-way term.', latent[0].id);
+    }
+  }
 
   const corrs = model.correlations ?? [];
   if (corrs.length && method.method !== 'cbsem') {
@@ -493,6 +505,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       side: sides.includes(c.side as Side) ? (c.side as Side) : 'left',
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
       ...(c.covariate === true ? { covariate: true } : {}),
+      ...(c.latent === true ? { latent: true } : {}),
     };
   });
   const ids = new Set(constructs.map((c) => c.id));

@@ -6,6 +6,12 @@
 # moderated mediation are differences of conditional indirect effects, with
 # confidence intervals from the same bootstrap samples.
 #
+# Latent variables: when scales are modelled as latent variables, the
+# equations are estimated together by structural-after-measurement
+# (lavaan::sam, two-step standard errors; Rosseel & Loh, 2024; Rosseel et al.,
+# 2025), and confidence intervals come from manymome's Monte Carlo draws
+# (do_mc): SAM's own bootstrap is too slow to run in the browser.
+#
 # The request carries the equations and indirect paths (built by
 # src/process/templates.ts), so this file only runs them.
 
@@ -18,6 +24,34 @@ ps_cpa_probe_code <- function(how) c(
   "  u <- sort(unique(v))",
   "  if (length(u) == 2) return(u)",
   if (how == "meansd") "  mean(v) + c(-1, 0, 1) * sd(v)" else "  unname(quantile(v, c(0.16, 0.5, 0.84), type = 6))",
+  "}")
+
+#' Script lines: helpers for the latent-variable (SAM) model, with Monte Carlo intervals.
+ps_cpa_sam_helper_code <- function() c(
+  "# Conditional effect of `from` on `to` at moderator values `at`, with its Monte Carlo",
+  "# standard error, p value and confidence interval (manymome).",
+  "slope <- function(from, to, at = numeric(0)) {",
+  "  e <- cond_indirect(x = from, y = to, fit = fit, wvalues = if (length(at)) at else NULL,",
+  "    mc_ci = TRUE, mc_out = mc_out, level = level)",
+  "  ci <- confint(e, level = level)",
+  "  c(est = unname(e$indirect), se = unname(e$mc_se), t = NA, p = unname(e$mc_p), lo = unname(ci[1]), hi = unname(ci[2]))",
+  "}",
+  "# (Conditional) indirect effect along `path` (x, mediators..., y), with Monte Carlo draws.",
+  "ind <- function(path, at = NULL) {",
+  "  k <- length(path)",
+  "  cond_indirect(x = path[1], y = path[k], m = if (k > 2) path[2:(k - 1)] else NULL, fit = fit,",
+  "    wvalues = at, mc_ci = TRUE, mc_out = mc_out, level = level)",
+  "}",
+  ps_cpa_combine_code("mc_indirect", "Monte Carlo draws"))
+
+#' Script lines: a linear combination of effects with a percentile interval from the same draws.
+ps_cpa_combine_code <- function(field, what) c(
+  sprintf("# A linear combination of indirect effects (an index), with the percentile interval from the same %s.", what),
+  "combine <- function(effects, weights) {",
+  "  est <- sum(weights * vapply(effects, function(e) e$indirect, 0))",
+  sprintf("  draws <- drop(vapply(effects, function(e) e$%s, numeric(length(effects[[1]]$%s))) %%*%% weights)", field, field),
+  "  ci <- unname(quantile(draws, c((1 - level) / 2, 1 - (1 - level) / 2), type = 6))",
+  "  c(est = est, se = sd(draws), lo = ci[1], hi = ci[2])",
   "}")
 
 #' Script lines: helpers that turn the fitted equations into effects.
@@ -40,14 +74,7 @@ ps_cpa_helper_code <- function() c(
   "  cond_indirect(x = path[1], y = path[k], m = if (k > 2) path[2:(k - 1)] else NULL, fit = fits,",
   "    wvalues = at, boot_ci = TRUE, boot_out = boot_out, level = level)",
   "}",
-  "# A linear combination of indirect effects (an index), with the percentile bootstrap interval",
-  "# from the same bootstrap samples.",
-  "combine <- function(effects, weights) {",
-  "  est <- sum(weights * vapply(effects, function(e) e$indirect, 0))",
-  "  boot <- drop(vapply(effects, function(e) e$boot_indirect, numeric(length(effects[[1]]$boot_indirect))) %*% weights)",
-  "  ci <- unname(quantile(boot, c((1 - level) / 2, 1 - (1 - level) / 2), type = 6))",
-  "  c(est = est, se = sd(boot), lo = ci[1], hi = ci[2])",
-  "}")
+  ps_cpa_combine_code("boot_indirect", "bootstrap samples"))
 
 ps_cpa_build <- function(req) {
   vars <- req$variables
@@ -60,9 +87,12 @@ ps_cpa_build <- function(req) {
   names(rn) <- n$cname
   id <- function(x) unname(rn[unlist(x)])
   inputs <- list(data = ps_frame(req, n))
+  latent <- id(req$latent)
+  sam <- length(latent) > 0
   scoring <- unlist(lapply(seq_along(vars), function(j) {
     it <- unname(n$iv[n$inds[[j]]])
-    if (length(it) == 1 && it == rn[[j]]) NULL
+    if (rn[[j]] %in% latent) NULL
+    else if (length(it) == 1 && it == rn[[j]]) NULL
     else if (length(it) == 1) sprintf("data$%s <- data$%s", rn[[j]], it)
     else sprintf("data$%s <- rowMeans(data[, %s])", rn[[j]], ps_q(it))
   }))
@@ -72,7 +102,31 @@ ps_cpa_build <- function(req) {
     paste(vapply(e$terms, term, ""), collapse = " + ")), "")
   mods <- id(req$moderators)
   B <- as.integer(req$boot$samples %||% 0)
+  seed <- as.integer(req$boot$seed %||% 1)
   has_ind <- length(req$indirect) > 0
+  if (sam) {
+    measurement <- unlist(lapply(seq_along(vars), function(j) if (rn[[j]] %in% latent)
+      sprintf("%s =~ %s", rn[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + "))))
+    structural <- vapply(req$equations, function(e) sprintf("%s ~ %s", id(e$outcome), paste(vapply(e$terms, term, ""), collapse = " + ")), "")
+    observed_mods <- setdiff(mods, latent)
+    body <- c("suppressPackageStartupMessages({ library(manymome); library(lavaan) })",
+      ps_missing_code(req$missing),
+      if (length(scoring)) c("# Scale scores: the mean of each scale's items", scoring),
+      sprintf("level <- %s", format(req$confidence %||% 0.95)),
+      "# Latent variables (measurement) and one equation per outcome (structure)",
+      "model <- '", paste0("  ", c(measurement, structural)), "'",
+      "# Structural-after-measurement estimation with two-step standard errors",
+      "fit <- sam(model, data = data, se = \"twostep\")",
+      "# Monte Carlo draws of the parameters for the confidence intervals of all effects",
+      sprintf("mc_out <- do_mc(fit, R = %d, seed = %d, progress = FALSE)", B, seed),
+      if (length(observed_mods)) ps_cpa_probe_code(req$probe %||% "percentiles"),
+      if (length(mods)) c(
+        if (length(intersect(mods, latent))) "# A latent moderator is probed at its mean and one SD below and above it (manymome::mod_levels).",
+        sprintf("probe_values <- list(%s)", paste(sprintf("%s = %s", mods,
+          ifelse(mods %in% latent, sprintf("rev(mod_levels(\"%s\", fit = fit)[[1]])", mods), sprintf("probe(data$%s)", mods))), collapse = ", "))),
+      ps_cpa_sam_helper_code())
+    return(list(body = body, inputs = inputs, id = id, rn = rn, mods = mods, has_ind = has_ind, sam = TRUE, latent = latent))
+  }
   body <- c("suppressPackageStartupMessages(library(manymome))",
     ps_missing_code(req$missing),
     if (length(scoring)) c("# Scale scores: the mean of each scale's items", scoring),
@@ -86,7 +140,7 @@ ps_cpa_build <- function(req) {
     if (length(mods)) c(ps_cpa_probe_code(req$probe %||% "percentiles"),
       sprintf("probe_values <- list(%s)", paste(sprintf("%s = probe(data$%s)", mods, mods), collapse = ", "))),
     ps_cpa_helper_code())
-  list(body = body, inputs = inputs, id = id, rn = rn, mods = mods, has_ind = has_ind)
+  list(body = body, inputs = inputs, id = id, rn = rn, mods = mods, has_ind = has_ind, sam = FALSE, latent = character(0))
 }
 
 #' Rows over every combination of the probe values of `mods` (first moderator varying slowest, as PROCESS).
@@ -102,28 +156,41 @@ ps_cpa <- function(req_json, export = FALSE) {
   id <- b$id
   back <- setNames(names(b$rn), unname(b$rn))
   nm <- function(x) unname(back[x])
-  title <- sprintf("Conditional process analysis%s (manymome)", if (is.null(req$model)) "" else sprintf(", PROCESS model %d", as.integer(req$model)))
+  title <- sprintf("Conditional process analysis%s (%s)", if (is.null(req$model)) "" else sprintf(", PROCESS model %d", as.integer(req$model)),
+    if (b$sam) "lavaan::sam and manymome" else "manymome")
+  fit_name <- if (b$sam) "fit" else "fits"
+  ci_args <- if (b$sam) "mc_ci = TRUE, mc_out = mc_out" else "boot_ci = TRUE, boot_out = boot_out"
   if (export) {
     levels_code <- function(ms) {
-      one <- sprintf("mod_levels(\"%s\", fit = fits, values = probe_values$%s)", ms, ms)
+      one <- sprintf("mod_levels(\"%s\", fit = %s, values = probe_values$%s)", ms, fit_name, ms)
       if (length(one) == 1) one else sprintf("merge_mod_levels(%s)", paste(one, collapse = ", "))
     }
-    report <- c("lapply(fits, summary)",
+    report <- c(if (b$sam) "summary(fit)" else "lapply(fits, summary)",
       if (length(b$mods)) "probe_values",
       unlist(lapply(req$indirect, function(p) {
         path <- id(p$vars); k <- length(path)
         m <- if (k > 2) ps_q(path[2:(k - 1)]) else "NULL"
-        if (length(p$moderators)) sprintf("cond_indirect_effects(wlevels = %s, x = \"%s\", y = \"%s\", m = %s, fit = fits, boot_ci = TRUE, boot_out = boot_out, level = level)",
-          levels_code(id(p$moderators)), path[1], path[k], m)
+        if (length(p$moderators)) sprintf("cond_indirect_effects(wlevels = %s, x = \"%s\", y = \"%s\", m = %s, fit = %s, %s, level = level)",
+          levels_code(id(p$moderators)), path[1], path[k], m, fit_name, ci_args)
         else sprintf("ind(%s)", ps_q(path))
       })))
-    return(paste(ps_script(title, "manymome", b$inputs, b$body, report), collapse = "\n"))
+    return(paste(ps_script(title, if (b$sam) c("manymome", "lavaan") else "manymome", b$inputs, b$body, report), collapse = "\n"))
   }
   env <- ps_run(b$body, b$inputs)
   pv <- if (length(b$mods)) env$probe_values else list()
   at_list <- function(at) as.list(setNames(unname(at), nm(names(at))))
 
-  equations <- lapply(req$equations, function(e) {
+  level <- req$confidence %||% 0.95
+  equations <- if (b$sam) {
+    pe <- lavaan::parameterEstimates(env$fit, level = level)
+    r2 <- lavaan::lavInspect(env$fit, "r2")
+    lapply(req$equations, function(e) {
+      o <- id(e$outcome); rows <- pe[pe$op == "~" & pe$lhs == o, ]
+      list(outcome = e$outcome, n = nrow(env$data), r2 = unname(r2[o]), mse = NULL, f = NULL, df1 = NULL, df2 = NULL, p = NULL,
+        coefficients = lapply(seq_len(nrow(rows)), function(i) list(term = nm(strsplit(rows$rhs[i], ":", fixed = TRUE)[[1]]),
+          est = rows$est[i], se = rows$se[i], t = rows$z[i], p = rows$pvalue[i], lo = rows$ci.lower[i], hi = rows$ci.upper[i])))
+    })
+  } else lapply(req$equations, function(e) {
     f <- env$eqs[[id(e$outcome)]]
     s <- summary(f); ct <- s$coefficients
     ci <- confint(f, level = req$confidence %||% 0.95)
@@ -143,16 +210,35 @@ ps_cpa <- function(req_json, export = FALSE) {
   }
 
   # Johnson-Neyman: values of the single moderator of an edge where the conditional effect is just significant.
+  # (Inside, `b` is the coefficient vector.)
+  is_sam <- b$sam; b_latent <- b$latent
   jn <- lapply(req$jn %||% list(), function(j) {
     from <- id(j$from); to <- id(j$to); w <- id(j$moderator)
-    f <- env$eqs[[to]]; b <- coef(f); V <- vcov(f)
+    if (is_sam) {
+      # lavaan names regressions "to~from"; z critical value.
+      cf <- coef(env$fit); V0 <- vcov(env$fit)
+      keep <- grepl(paste0("^", to, "~"), names(cf)) & !grepl("~~", names(cf), fixed = TRUE)
+      b <- setNames(cf[keep], sub(paste0("^", to, "~"), "", names(cf)[keep]))
+      V <- V0[names(cf)[keep], names(cf)[keep], drop = FALSE]; dimnames(V) <- list(names(b), names(b))
+      q <- qnorm(1 - (1 - level) / 2)
+    } else {
+      f <- env$eqs[[to]]; b <- coef(f); V <- vcov(f)
+      q <- qt(1 - (1 - level) / 2, df.residual(f))
+    }
     xw <- names(b)[vapply(strsplit(names(b), ":", fixed = TRUE), function(p) setequal(p, c(from, w)), TRUE)]
-    q <- qt(1 - (1 - (req$confidence %||% 0.95)) / 2, df.residual(f))
     # (b1 + b3 w)^2 = q^2 (V11 + 2 w V13 + w^2 V33): a quadratic in w.
     A <- b[xw]^2 - q^2 * V[xw, xw]; B2 <- 2 * (b[from] * b[xw] - q^2 * V[from, xw]); C <- b[from]^2 - q^2 * V[from, from]
     disc <- B2^2 - 4 * A * C
-    wv <- f$model[[w]]
     roots <- if (disc < 0 || A == 0) numeric(0) else sort((-B2 + c(-1, 1) * sqrt(disc)) / (2 * A))
+    if (w %in% b_latent) {
+      # A latent moderator has no observed values: its range is taken as the mean ± 3 SD.
+      sdw <- diff(range(pv[[w]])) / 2
+      roots <- roots[abs(roots) <= 3 * sdw]
+      return(list(from = j$from, to = j$to, moderator = j$moderator, range = c(-3 * sdw, 3 * sdw), mean = 0, sd = sdw, latent = TRUE,
+        b = unname(b[from]), bint = unname(b[xw]), v = unname(c(V[from, from], V[from, xw], V[xw, xw])), crit = unname(q),
+        bounds = lapply(roots, function(r) list(value = unname(r), below = NULL, above = NULL))))
+    }
+    wv <- env$data[[w]]
     roots <- roots[roots >= min(wv) & roots <= max(wv)]
     list(from = j$from, to = j$to, moderator = j$moderator, range = c(min(wv), max(wv)), mean = mean(wv), sd = sd(wv),
       b = unname(b[from]), bint = unname(b[xw]), v = unname(c(V[from, from], V[from, xw], V[xw, xw])), crit = unname(q),
@@ -160,10 +246,11 @@ ps_cpa <- function(req_json, export = FALSE) {
   })
 
   indirect <- list(); indices <- list(); total <- NULL
+  draws_of <- function(e) if (b$sam) e$mc_indirect else e$boot_indirect
   if (b$has_ind) {
     eff_row <- function(e) {
       ci <- confint(e, level = req$confidence %||% 0.95)
-      list(est = unname(e$indirect), se = sd(e$boot_indirect), lo = unname(ci[1]), hi = unname(ci[2]))
+      list(est = unname(e$indirect), se = sd(draws_of(e)), lo = unname(ci[1]), hi = unname(ci[2]))
     }
     unmoderated <- list()
     for (p in req$indirect) {
@@ -203,7 +290,9 @@ ps_cpa <- function(req_json, export = FALSE) {
   ps_json(list(n = nrow(env$data), equations = equations,
     moderators = lapply(b$mods, function(m) list(name = nm(m), values = pv[[m]])),
     direct = direct, indirect = indirect, total = total, indices = indices, jn = jn,
-    boot = list(samples = if (b$has_ind) as.integer(req$boot$samples) else 0L),
+    boot = list(samples = if (b$has_ind || b$sam) as.integer(req$boot$samples) else 0L),
+    inference = if (b$sam) "montecarlo" else "bootstrap", latent = lapply(b$latent, nm),
     warnings = env$.warnings,
-    engine = list(package = "manymome", version = as.character(utils::packageVersion("manymome")))))
+    engine = list(package = if (b$sam) "lavaan::sam + manymome" else "manymome",
+      version = if (b$sam) sprintf("%s / %s", utils::packageVersion("lavaan"), utils::packageVersion("manymome")) else as.character(utils::packageVersion("manymome")))))
 }

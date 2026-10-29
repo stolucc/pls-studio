@@ -85,7 +85,7 @@ interface State {
   checkpoint: () => void;
 
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
-  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components'>>) => void;
+  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent'>>) => void;
   moveConstruct: (id: string, x: number, y: number) => void;
   removeConstructs: (ids: string[]) => void;
   assignIndicators: (id: string, names: string[]) => void;

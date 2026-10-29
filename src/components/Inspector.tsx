@@ -71,8 +71,19 @@ function ConstructInspector({ c }: { c: Construct }) {
           <div className="hint" style={{ marginBottom: 8 }}>
             {c.indicators.length === 0 ? 'Drop a data column on this variable, or several items of a scale.'
               : c.indicators.length === 1 ? `Observed variable ${c.indicators[0]}.`
-                : `Scale score: the mean of its ${c.indicators.length} items (computed per case before the regressions).`}
+                : c.latent ? `Latent variable measured by its ${c.indicators.length} items, corrected for measurement error.`
+                  : `Scale score: the mean of its ${c.indicators.length} items (computed per case before the regressions).`}
           </div>
+          {c.indicators.length > 1 && !c.covariate && (
+            <div className="field">
+              <label>Scale</label>
+              <div className="segmented">
+                <button className={!c.latent ? 'on' : ''} onClick={() => update(c.id, { latent: false })} title="Mean of the items, then OLS regression (as PROCESS)">Mean score</button>
+                <button className={c.latent ? 'on' : ''} onClick={() => update(c.id, { latent: true })}
+                  title="Latent variable: structural-after-measurement estimation (lavaan::sam), free of the attenuation that measurement error causes in mean scores. Confidence intervals by Monte Carlo.">Latent variable</button>
+              </div>
+            </div>
+          )}
           <label className="check">
             <input type="checkbox" checked={!!c.covariate} onChange={(e) => update(c.id, { covariate: e.target.checked })} />
             <span><b>Covariate</b><br /><span className="hint">Enters every equation (mediators and outcome) as a control variable, as PROCESS’s cov option. A covariate has no paths of its own.</span></span>

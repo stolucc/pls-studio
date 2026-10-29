@@ -10,7 +10,7 @@ import { rCall, rScript } from './bridge';
 import type { REngineInfo } from './lavaan';
 
 /** A variable of the model: one observed column, or the mean score of a scale's items. */
-export interface CpaVariable { name: string; indicators: string[] }
+export interface CpaVariable { name: string; indicators: string[]; /** Model as a latent variable (SAM) instead of the mean score. */ latent?: boolean }
 
 export interface CpaInput {
   graph: ProcessGraph;
@@ -38,7 +38,8 @@ export function cpaRequest(data: Dataset, input: CpaInput) {
     confidence: input.confidence,
     boot: input.boot,
     data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
-    variables: input.variables,
+    variables: input.variables.map(({ name, indicators }) => ({ name, indicators })),
+    latent: input.variables.filter((v) => v.latent && v.indicators.length > 1).map((v) => v.name),
     x: input.graph.x,
     y: input.graph.y,
     equations: plan.equations.map((e) => ({ outcome: e.outcome, terms: e.terms.map((vars) => ({ vars })) })),
@@ -56,7 +57,8 @@ export type At = Record<string, number>;
 export interface CpaResult {
   n: number;
   equations: {
-    outcome: string; n: number; r2: number; mse: number; f: number; df1: number; df2: number; p: number;
+    /** mse, F and its p are OLS quantities (null for latent-variable models). */
+    outcome: string; n: number; r2: number; mse: number | null; f: number | null; df1: number | null; df2: number | null; p: number | null;
     /** term: [] for the constant, [v] for a variable, [a, b(, c)] for a product. */
     coefficients: ({ term: string[] } & CpaTest)[];
   }[];
@@ -67,12 +69,18 @@ export interface CpaResult {
   indices: ({ kind: 'mm' | 'partial' | 'mmm' | 'cmm'; path: string[]; moderator?: string; at?: At } & CpaEffect)[];
   jn: {
     from: string; to: string; moderator: string; range: [number, number]; mean: number; sd: number;
+    /** A latent moderator: range is the mean ± 3 SD, and there are no observed cases to count. */
+    latent?: boolean;
     /** Conditional effect b + bint·w, with variances [var(b), cov(b, bint), var(bint)] and the critical t. */
     b: number; bint: number; v: [number, number, number]; crit: number;
     /** Boundaries of significance within the observed range, with the % of cases below and above. */
-    bounds: { value: number; below: number; above: number }[];
+    bounds: { value: number; below: number | null; above: number | null }[];
   }[];
   boot: { samples: number };
+  /** Bootstrap (regression) or Monte Carlo (latent variables, lavaan::sam) intervals for indirect effects. */
+  inference: 'bootstrap' | 'montecarlo';
+  /** Variables modelled as latent. */
+  latent: string[];
   warnings: string[];
   engine: REngineInfo;
 }
@@ -91,15 +99,17 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
     indices: arr<any>(raw.indices).map((i) => ({ ...i, path: arr<string>(i.path), at: i.at ? at(i.at) : undefined })),
     jn: arr<any>(raw.jn).map((j) => ({ ...j, range: arr<number>(j.range), v: arr<number>(j.v), bounds: arr<any>(j.bounds) })),
     warnings: arr<string>(raw.warnings),
+    inference: raw.inference === 'montecarlo' ? 'montecarlo' : 'bootstrap',
+    latent: arr<string>(raw.latent),
   };
 }
 
 export async function estimateCpaR(data: Dataset, input: CpaInput): Promise<CpaResult> {
-  return parseCpaOutput(await rCall<Record<string, any>>('ps_cpa', cpaRequest(data, input), 'manymome'));
+  return parseCpaOutput(await rCall<Record<string, any>>('ps_cpa', cpaRequest(data, input), input.variables.some((v) => v.latent) ? 'manymomeSam' : 'manymome'));
 }
 
 export function cpaScriptR(data: Dataset, input: CpaInput): Promise<string> {
-  return rScript('ps_cpa', cpaRequest(data, input), 'manymome');
+  return rScript('ps_cpa', cpaRequest(data, input), input.variables.some((v) => v.latent) ? 'manymomeSam' : 'manymome');
 }
 
 /** A Johnson–Neyman curve of a process result, in the moderator's own units (for JohnsonNeymanPlot). */
