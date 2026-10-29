@@ -1,6 +1,6 @@
 import type React from 'react';
 import {
-  Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useReactFlow,
+  Background, BackgroundVariant, ControlButton, Controls, MiniMap, ReactFlow, useReactFlow,
   type Connection, type ConnectionLineComponentProps, type EdgeChange, type FinalConnectionState, type NodeChange, type OnDelete,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
@@ -12,6 +12,7 @@ import { numberDialog, textDialog } from './Overlays';
 import { nameError } from '../model/expr';
 import { ProcessGallery } from './ProcessGallery';
 import { ProcessBar } from './ProcessBar';
+import { fitPadding, overlayBottom } from '../canvasFit';
 import { ContextMenu } from './ContextMenu';
 import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
 import { correlationEndError, correlationPairError, endogenousIds, impliedMainEffects, newId, validateModel, type Correlation } from '../model/project';
@@ -22,7 +23,7 @@ import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from
 import { ConstructNode, type ConstructFlowNode } from './ConstructNode';
 import { indicatorLabels } from '../diagramLabels';
 import { readDraggedVars, VARS_MIME } from './dnd';
-import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconLayout, IconPlay, IconPointer, IconSparkle, IconUpload } from './icons';
+import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconFitView, IconLayout, IconPlay, IconPointer, IconSparkle, IconUpload } from './icons';
 import { CovarianceLayer, covarianceLayout, type CorrelationLabel, type CorrelationPick } from './CovarianceLayer';
 import { currentSession } from '../cloud/collab';
 import { PresenceLayer } from './cloud/Presence';
@@ -81,13 +82,17 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   const st = useStore.getState;
   const rf = useReactFlow();
   const fitRequest = useStore((s) => s.fitRequest);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // Fit the diagram into view below the floating toolbars. fitView frames nodes only;
+  // CB-SEM's correlation arcs and error terms reach beyond them (more padding).
+  const fitOptions = useCallback(() => ({
+    padding: fitPadding(st().settings.method === 'cbsem' ? 0.35 : 0.2, overlayBottom(wrapRef.current)), maxZoom: 1.1,
+  }), [st]);
   useEffect(() => {
     if (fitRequest === 0) return;
-    // fitView frames nodes only; correlation arcs and error terms reach beyond them.
-    const extra = st().settings.method === 'cbsem' ? 0.15 : 0;
-    const t = setTimeout(() => void rf.fitView({ padding: 0.2 + extra, maxZoom: 1.1, duration: 250 }), 40);
+    const t = setTimeout(() => void rf.fitView({ ...fitOptions(), duration: 250 }), 40);
     return () => clearTimeout(t);
-  }, [fitRequest, rf, st]);
+  }, [fitRequest, rf, fitOptions]);
 
   const settings = useStore((s) => s.settings);
   const readOnly = useStore((s) => s.cloud?.role === 'viewer');
@@ -651,6 +656,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
 
   return (
     <div
+      ref={wrapRef}
       className="canvas-wrap"
       style={figureCssVars(settings.figure) as React.CSSProperties}
       onDragOver={onDragOver}
@@ -753,7 +759,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         minZoom={0.2}
         maxZoom={2.5}
         fitView
-        fitViewOptions={{ padding: method === 'cbsem' ? 0.4 : 0.25, maxZoom: 1.1 }}
+        // (first fit, before the bars can be measured: the tool dock's usual extent)
+        fitViewOptions={{ padding: fitPadding(method === 'cbsem' ? 0.35 : 0.2, method === 'process' ? 140 : 60), maxZoom: 1.1 }}
         attributionPosition="top-right"
         style={{ cursor: tool === 'construct' ? 'copy' : undefined }}
       >
@@ -763,7 +770,9 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
           onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} onMenu={openMenu} />
         <PresenceLayer />
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} color="#c9ceda" />
-        <Controls showInteractive={false} position="bottom-left" fitViewOptions={{ padding: method === 'cbsem' ? 0.4 : 0.25, maxZoom: 1.1 }} />
+        <Controls showInteractive={false} position="bottom-left" showFitView={false}>
+          <ControlButton onClick={() => void rf.fitView({ ...fitOptions(), duration: 250 })} title="Fit view" aria-label="Fit view"><IconFitView /></ControlButton>
+        </Controls>
         {!empty && <MiniMap pannable zoomable position="bottom-right" style={{ width: 150, height: 96 }} nodeColor="#c7cbff" maskColor="rgba(244,245,248,0.7)" />}
       </ReactFlow>
 

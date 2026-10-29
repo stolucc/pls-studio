@@ -50,3 +50,5 @@ export function IconSide({ side, size = 16 }: { side: 'left' | 'top' | 'right' |
     </svg>
   );
 }
+/** Fit view: the four corners of a frame. */
+export const IconFitView = make(<path d="M4 9V5a1 1 0 011-1h4M15 4h4a1 1 0 011 1v4M20 15v4a1 1 0 01-1 1h-4M9 20H5a1 1 0 01-1-1v-4" />);
