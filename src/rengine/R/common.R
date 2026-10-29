@@ -131,7 +131,12 @@ ps_run <- function(lines, inputs) {
   warn <- character(0)
   withCallingHandlers(eval(parse(text = paste(lines, collapse = "\n")), envir = env),
     # Multi-line messages ("lavaan WARNING:\n  could not ...") become one line.
-    warning = function(w) { warn <<- c(warn, gsub("\\s+", " ", trimws(conditionMessage(w)))); invokeRestart("muffleWarning") })
+    warning = function(w) {
+      m <- gsub("\\s+", " ", trimws(conditionMessage(w)))
+      # R's note that a package was built under a newer R (desktop R) says nothing about the results.
+      if (!grepl("^package .* was built under R version", m)) warn <<- c(warn, m)
+      invokeRestart("muffleWarning")
+    })
   env$.warnings <- unique(warn)
   env
 }
