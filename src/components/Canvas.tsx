@@ -675,11 +675,6 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         <button className="btn ghost" onClick={() => setFigureOpen(true)} disabled={empty} title="Figure style and export (PDF, PNG, SVG)">
           <IconDownload /> Figure
         </button>
-        {method === 'process' && (
-          <button className="btn ghost" onClick={() => setTemplatesOpen(true)} disabled={readOnly} title="Start from one of Hayes's numbered PROCESS models">
-            <IconSparkle size={14} /> Templates
-          </button>
-        )}
         {method === 'cbsem' && (
           <div className="segmented dock-seg" role="radiogroup" aria-label="Estimates on the diagram">
             <button role="radio" aria-checked={!unstd} className={!unstd ? 'on' : ''} onClick={() => st().setEstimateScale('std')} title="Standardised estimates (std.all)">Std</button>
