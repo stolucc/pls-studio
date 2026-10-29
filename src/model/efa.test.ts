@@ -1,14 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, toggleVariables } from './efa';
+import { constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, switchAnalysis, toggleVariables } from './efa';
 
 describe('EFA design from a project file', () => {
   it('keeps valid values and replaces invalid ones', () => {
     expect(parseEfaDesign({ vars: ['a', 'b', 3], method: 'ml', nfactors: 4.4, rotation: 'promax', missing: 'listwise', parallel: 50, threshold: 0.4 }))
-      .toEqual({ vars: ['a', 'b'], method: 'ml', nfactors: 4, rotation: 'promax', missing: 'listwise', parallel: 50, threshold: 0.4 });
+      .toEqual({ vars: ['a', 'b'], method: 'ml', criterion: 'fixed', nfactors: 4, rotation: 'promax', missing: 'listwise', parallel: 50, threshold: 0.4 });
     expect(parseEfaDesign({ method: 'system("x")', rotation: 'evil', nfactors: 1e9, parallel: -5, threshold: 7 }))
-      .toEqual({ ...DEFAULT_EFA, nfactors: 100, parallel: 0 });
+      .toEqual({ ...DEFAULT_EFA, criterion: 'fixed', nfactors: 100, parallel: 0 });
+    expect(parseEfaDesign({ criterion: 'kaiser' })!.criterion).toBe('kaiser');
+    expect(parseEfaDesign({ criterion: 'k <- 99' })!.criterion).toBe('fixed');
     expect(parseEfaDesign('nope')).toBeUndefined();
     expect(parseEfaDesign(null)).toBeUndefined();
+  });
+});
+
+describe('switching between factor analysis and PCA', () => {
+  const fa = { ...DEFAULT_EFA, method: 'ml' as const };
+  it('PCA gets varimax, factor analysis oblimin, unless the user chose another rotation', () => {
+    expect(DEFAULT_EFA.criterion).toBe('parallel');
+    const pca = switchAnalysis(fa, true);
+    expect(pca).toMatchObject({ method: 'pca', rotation: 'varimax' });
+    expect(switchAnalysis(pca, false, 'ml')).toMatchObject({ method: 'ml', rotation: 'oblimin' });
+    expect(switchAnalysis({ ...fa, rotation: 'promax' }, true).rotation).toBe('promax');
+    expect(switchAnalysis({ ...pca, rotation: 'quartimax' }, false).rotation).toBe('quartimax');
+  });
+  it('leaves the design alone when the analysis does not change', () => {
+    expect(switchAnalysis(fa, false)).toBe(fa);
   });
 });
 

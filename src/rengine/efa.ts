@@ -7,7 +7,7 @@ import { rCall, rScript, rStrings } from './bridge';
 import type { REngineInfo } from './lavaan';
 
 export interface EfaResult {
-  method: EfaDesign['method']; rotation: EfaDesign['rotation']; oblique: boolean; n: number; k: number;
+  method: EfaDesign['method']; rotation: EfaDesign['rotation']; oblique: boolean; n: number; k: number; criterion: EfaDesign['criterion'];
   variables: string[]; factors: string[];
   loadings: number[][]; structure: number[][] | null;
   communality: number[]; uniqueness: number[]; complexity: number[];
@@ -34,7 +34,7 @@ export function efaRequest(data: Dataset, d: EfaDesign, seed: number) {
   if (data.moments && data.cols.length === 0) throw new Error('Exploratory factor analysis here needs raw data; this dataset is a covariance matrix.');
   const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => d.vars.includes(n));
   return {
-    vars: d.vars, method: d.method, nfactors: d.nfactors, rotation: d.rotation, deletion: d.missing, parallel: d.parallel, seed,
+    vars: d.vars, method: d.method, criterion: d.criterion, nfactors: d.nfactors, rotation: d.rotation, deletion: d.missing, parallel: d.parallel, seed,
     data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
   };
 }
@@ -44,6 +44,7 @@ export function parseEfa(raw: Record<string, any>): EfaResult {
   const parallel = raw.parallel ? { observed: nums(raw.parallel.observed), simulated: nums(raw.parallel.simulated), suggested: typeof raw.parallel.suggested === 'number' ? raw.parallel.suggested : null, iterations: raw.parallel.iterations } : null;
   return {
     method: raw.method, rotation: raw.rotation, oblique: !!raw.oblique, n: raw.n, k,
+    criterion: (['parallel', 'kaiser', 'map'] as const).find((x) => x === raw.criterion) ?? 'fixed',
     variables: rStrings(raw.variables), factors: rStrings(raw.factors),
     loadings: mat(raw.loadings, k), structure: raw.structure ? mat(raw.structure, k) : null,
     communality: nums(raw.communality), uniqueness: nums(raw.uniqueness), complexity: nums(raw.complexity),

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
 import { downloadText, fmt, safeFileName } from '../format';
-import { constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, toggleVariables, type EfaDesign } from '../model/efa';
+import { constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_CRITERIA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, switchAnalysis, toggleVariables, type EfaDesign } from '../model/efa';
 import type { EfaResult } from '../rengine/efa';
 import { useStore } from '../store';
 import { ChartFrame } from './ChartFrame';
@@ -62,7 +62,8 @@ function VariablePicker({ columns, value, onChange }: { columns: string[]; value
 export function openEfa(pca: boolean) {
   const st = useStore.getState();
   const d = st.settings.efa ?? DEFAULT_EFA;
-  if (pca !== (d.method === 'pca')) st.setSettings({ efa: { ...d, method: pca ? 'pca' : 'minres' } });
+  const next = switchAnalysis(d, pca);
+  if (next !== d) st.setSettings({ efa: next });
   useEfa.getState().setOpen(true);
 }
 
@@ -229,7 +230,7 @@ export function EfaPanel() {
   const close = () => useEfa.getState().setOpen(false);
   const vars = design.vars.filter((v) => columns.includes(v));
   const maxK = Math.max(1, vars.length - 1);
-  const ready = !!data && vars.length >= 3 && design.nfactors < vars.length;
+  const ready = !!data && vars.length >= 3 && (design.criterion === 'fixed' ? design.nfactors < vars.length : design.criterion !== 'parallel' || design.parallel > 0);
   const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `psych: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
@@ -270,8 +271,8 @@ export function EfaPanel() {
                 <div className="field">
                   <label>Analysis</label>
                   <div className="segmented" role="radiogroup" aria-label="Analysis">
-                    <button role="radio" aria-checked={design.method !== 'pca'} className={design.method !== 'pca' ? 'on' : ''} onClick={() => setDesign({ method: lastExtraction })}>Factor analysis</button>
-                    <button role="radio" aria-checked={design.method === 'pca'} className={design.method === 'pca' ? 'on' : ''} onClick={() => setDesign({ method: 'pca' })}>Principal components</button>
+                    <button role="radio" aria-checked={design.method !== 'pca'} className={design.method !== 'pca' ? 'on' : ''} onClick={() => setDesign(switchAnalysis(design, false, lastExtraction))}>Factor analysis</button>
+                    <button role="radio" aria-checked={design.method === 'pca'} className={design.method === 'pca' ? 'on' : ''} onClick={() => setDesign(switchAnalysis(design, true))}>Principal components</button>
                   </div>
                 </div>
                 {design.method !== 'pca' && (
@@ -283,16 +284,25 @@ export function EfaPanel() {
                   </div>
                 )}
                 <div className="row2">
-                  <div className="field"><label>{design.method === 'pca' ? 'Components' : 'Factors'}</label>
-                    <input className="input num" type="number" min={1} max={maxK} value={design.nfactors} onChange={(e) => setDesign({ nfactors: Math.max(1, Math.min(maxK, Math.round(Number(e.target.value)) || 1)) })} /></div>
+                  <div className="field"><label>Number of {design.method === 'pca' ? 'components' : 'factors'}</label>
+                    <select className="select" value={design.criterion} onChange={(e) => setDesign({ criterion: e.target.value as EfaDesign['criterion'] })}>
+                      {EFA_CRITERIA.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    </select></div>
+                  {design.criterion === 'fixed'
+                    ? <div className="field"><label>{design.method === 'pca' ? 'Components' : 'Factors'}</label>
+                      <input className="input num" type="number" min={1} max={maxK} value={design.nfactors} onChange={(e) => setDesign({ nfactors: Math.max(1, Math.min(maxK, Math.round(Number(e.target.value)) || 1)) })} /></div>
+                    : <div className="field"><label>&nbsp;</label><div className="hint" style={{ margin: 0 }}>{saved && saved.criterion === design.criterion && saved.method === design.method ? `${saved.k} retained.` : 'Set when you press Calculate.'}</div></div>}
+                </div>
+                {design.criterion === 'parallel' && design.parallel === 0 && <div className="hint" style={{ color: 'var(--bad)' }}>Parallel analysis needs samples (below).</div>}
+                <div className="row2">
                   <div className="field"><label>Rotation</label>
                     <select className="select" value={design.rotation} onChange={(e) => setDesign({ rotation: e.target.value as EfaDesign['rotation'] })}>
                       {EFA_ROTATIONS.map((m) => <option key={m.id} value={m.id}>{m.label}{m.id === 'none' ? '' : m.oblique ? ' (oblique)' : ' (orthogonal)'}</option>)}
                     </select></div>
-                </div>
-                <div className="row2">
                   <div className="field"><label>Parallel analysis samples</label>
                     <input className="input num" type="number" min={0} max={2000} value={design.parallel} onChange={(e) => setDesign({ parallel: Math.max(0, Math.min(2000, Math.round(Number(e.target.value)) || 0)) })} /></div>
+                </div>
+                <div className="row2">
                   <div className="field"><label>Hide loadings below</label>
                     <input className="input num" type="number" min={0} max={0.95} step={0.05} value={design.threshold} onChange={(e) => setDesign({ threshold: Math.max(0, Math.min(0.95, Number(e.target.value) || 0)) })} /></div>
                 </div>

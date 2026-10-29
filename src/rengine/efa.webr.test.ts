@@ -33,7 +33,7 @@ describe('exploratory factor analysis (psych)', () => {
   it('bfi: suitability, number of factors, minres + oblimin and ML + varimax equal desktop psych', async () => {
     const d = await load('bfi');
     const vars = d.names.slice(0, 25);
-    const r = await efaR(d, { ...DEFAULT_EFA, vars, nfactors: 5, method: 'minres', rotation: 'oblimin', parallel: 10 }, 1);
+    const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars, nfactors: 5, method: 'minres', rotation: 'oblimin', parallel: 10 }, 1);
     expect(r.n).toBe(ref.bfi.n);
     expect(r.kmo.overall).toBeCloseTo(ref.bfi.kmo, 8);
     expect(r.bartlett.chisq).toBeCloseTo(ref.bfi.bartlett, 4);
@@ -53,20 +53,43 @@ describe('exploratory factor analysis (psych)', () => {
       expect(r.residuals[i][j], `${i},${j}`).toBeCloseTo(r.correlations[i][j] - implied, 10);
     }
     expect(r.residuals[4][4]).toBe(0);
-    const ml = await efaR(d, { ...DEFAULT_EFA, vars, nfactors: 5, method: 'ml', rotation: 'varimax', parallel: 0 }, 1);
+    const ml = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars, nfactors: 5, method: 'ml', rotation: 'varimax', parallel: 0 }, 1);
     sameLoadings(ml.loadings, ref.bfi.ml.loadings, 4);
     expect(ml.fit.chisq).toBeCloseTo(ref.bfi.ml.chisq, 2);
     expect(ml.fit.df).toBe(ref.bfi.ml.df);
     expect(ml.fit.tli).toBeCloseTo(ref.bfi.ml.tli, 6);
     expect(ml.phi).toBeNull();
-    expect(await efaScriptR(d, { ...DEFAULT_EFA, vars, nfactors: 5 }, 1)).toContain('fit <- fa(X, nfactors = 5, fm = "minres", rotate = "oblimin")');
+    expect(await efaScriptR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars, nfactors: 5 }, 1)).toContain('fit <- fa(X, nfactors = k, fm = "minres", rotate = "oblimin")');
   }, 900_000);
 
   it('Harman.5: principal components with varimax equal desktop psych', async () => {
     const d = await load('Harman.5');
-    const r = await efaR(d, { ...DEFAULT_EFA, vars: d.names, nfactors: 2, method: 'pca', rotation: 'varimax', parallel: 0 }, 1);
+    const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: d.names, nfactors: 2, method: 'pca', rotation: 'varimax', parallel: 0 }, 1);
     sameLoadings(r.loadings, ref.harman5.loadings, 8);
     r.cumulative.forEach((c, i) => expect(c).toBeCloseTo(ref.harman5.cumulative[i], 8));
     expect(r.factors).toEqual(['RC1', 'RC2']);
+  }, 900_000);
+
+  it('retention criteria set the number of components in R (Kaiser, MAP, parallel analysis)', async () => {
+    const d = await load('bfi');
+    const vars = d.names.slice(0, 25);
+    const base = { ...DEFAULT_EFA, vars, method: 'pca' as const, rotation: 'varimax' as const, parallel: 10 };
+    const kaiser = await efaR(d, { ...base, criterion: 'kaiser' }, 1);
+    expect(kaiser.criterion).toBe('kaiser');
+    expect(kaiser.k).toBe(kaiser.eigenvalues.filter((e) => e > 1).length);
+    expect(kaiser.k).toBe(ref.bfi.kaiser);
+    expect(kaiser.factors).toHaveLength(kaiser.k);
+    const map = await efaR(d, { ...base, criterion: 'map' }, 1);
+    expect(map.k).toBe(map.map.suggested);
+    expect(map.k).toBe(ref.bfi.mapK);
+    const par = await efaR(d, { ...base, criterion: 'parallel' }, 1);
+    expect(par.k).toBe(par.parallel!.suggested);
+    expect(par.k).toBe(ref.bfi.parallelPc);  // same seed and samples as native psych
+    expect(par.loadings[0]).toHaveLength(par.k);
+    const script = await efaScriptR(d, { ...base, criterion: 'parallel' }, 1);
+    expect(script).toContain('k <- parallel$ncomp  # retained by parallel analysis');
+    expect(script).toContain('principal(X, nfactors = k, rotate = "varimax")');
+    await expect(efaR(d, { ...base, criterion: 'parallel', parallel: 0 }, 1)).rejects.toThrow(/Parallel analysis needs samples/);
+    await expect(efaR(d, { ...base, criterion: 'evil' as never }, 1)).rejects.toThrow(/Invalid criterion/);
   }, 900_000);
 });

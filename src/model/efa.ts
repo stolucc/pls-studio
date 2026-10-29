@@ -12,9 +12,18 @@ export const EFA_ROTATIONS: { id: EfaRotation; label: string; oblique: boolean }
   { id: 'varimax', label: 'Varimax', oblique: false }, { id: 'quartimax', label: 'Quartimax', oblique: false }, { id: 'none', label: 'None', oblique: false },
 ];
 
+/** How many factors / components: given (nfactors), or as many as a retention criterion keeps. */
+export type EfaCriterion = 'parallel' | 'kaiser' | 'map' | 'fixed';
+export const EFA_CRITERIA: { id: EfaCriterion; label: string }[] = [
+  { id: 'parallel', label: 'Parallel analysis' }, { id: 'kaiser', label: 'Eigenvalues > 1 (Kaiser)' },
+  { id: 'map', label: 'Velicer’s MAP' }, { id: 'fixed', label: 'Fixed number' },
+];
+
 export interface EfaDesign {
   vars: string[];
   method: EfaMethod;
+  criterion: EfaCriterion;
+  /** Used when criterion is 'fixed'. */
   nfactors: number;
   rotation: EfaRotation;
   missing: 'pairwise' | 'listwise';
@@ -24,7 +33,7 @@ export interface EfaDesign {
   threshold: number;
 }
 
-export const DEFAULT_EFA: EfaDesign = { vars: [], method: 'minres', nfactors: 1, rotation: 'oblimin', missing: 'pairwise', parallel: 100, threshold: 0.3 };
+export const DEFAULT_EFA: EfaDesign = { vars: [], method: 'minres', criterion: 'parallel', nfactors: 1, rotation: 'oblimin', missing: 'pairwise', parallel: 100, threshold: 0.3 };
 
 /** A design from an (untrusted) project file. */
 export function parseEfaDesign(v: unknown): EfaDesign | undefined {
@@ -34,6 +43,8 @@ export function parseEfaDesign(v: unknown): EfaDesign | undefined {
   return {
     vars: (Array.isArray(r.vars) ? r.vars : []).filter((x): x is string => typeof x === 'string').slice(0, 2000).map((x) => x.slice(0, 200)),
     method: EFA_METHODS.find((m) => m.id === r.method)?.id ?? DEFAULT_EFA.method,
+    // Designs saved before the criterion existed gave the number.
+    criterion: EFA_CRITERIA.find((m) => m.id === r.criterion)?.id ?? 'fixed',
     nfactors: int(r.nfactors, 1, 100, DEFAULT_EFA.nfactors),
     rotation: EFA_ROTATIONS.find((m) => m.id === r.rotation)?.id ?? DEFAULT_EFA.rotation,
     missing: r.missing === 'listwise' ? 'listwise' : 'pairwise',
@@ -132,4 +143,17 @@ export function crossLoadings(loadings: number[][], threshold: number, weak = 0.
     if (g !== null && g < gap) flags.push('close');
     return { variable, primary: p, primaryLoading: pl, secondary: s, secondaryLoading: sl, gap: g, flags };
   });
+}
+
+/** The conventional rotation of each analysis: varimax for PCA, oblimin for factor analysis. */
+const conventionalRotation = (pca: boolean): EfaRotation => (pca ? 'varimax' : 'oblimin');
+
+/**
+ * Switch between factor analysis and PCA. Factor analysis comes back with
+ * `extraction` (the method used before); a rotation still at the other
+ * analysis's convention follows to this one's, a rotation the user chose stays.
+ */
+export function switchAnalysis(d: EfaDesign, pca: boolean, extraction: Exclude<EfaMethod, 'pca'> = 'minres'): EfaDesign {
+  if (pca === (d.method === 'pca')) return d;
+  return { ...d, method: pca ? 'pca' : extraction, rotation: d.rotation === conventionalRotation(!pca) ? conventionalRotation(pca) : d.rotation };
 }

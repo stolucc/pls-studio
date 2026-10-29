@@ -238,14 +238,14 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: '25 self-report items of the Big Five (agreeableness, conscientiousness, extraversion, neuroticism, openness) from 2800 people. Parallel analysis, MAP and a five-factor minimum-residual solution with oblimin rotation; Build model turns it into five correlated factors for a CFA. Opens Exploratory factor analysis.',
     data: { package: 'psych', name: 'bfi' }, constructs: [], paths: [],
     panel: { kind: 'efa', vars: ['A1', 'A2', 'A3', 'A4', 'A5', 'C1', 'C2', 'C3', 'C4', 'C5', 'E1', 'E2', 'E3', 'E4', 'E5', 'N1', 'N2', 'N3', 'N4', 'N5', 'O1', 'O2', 'O3', 'O4', 'O5'],
-      method: 'minres', nfactors: 5, rotation: 'oblimin', parallel: 20 }, settings: CB('ML'),
+      method: 'minres', criterion: 'fixed', nfactors: 5, rotation: 'oblimin', parallel: 20 }, settings: CB('ML'),
   },
   {
     id: 'psych-harman5', package: 'psych', title: 'Socio-economic variables: principal components', source: 'psych, ?principal (Harman.5)',
     links: [{ label: '?principal', url: 'https://rdrr.io/cran/psych/man/principal.html' }, { label: '?Harman.5', url: 'https://rdrr.io/cran/psych/man/Harman.html' }],
     description: 'Harman’s five socio-economic variables for 12 census tracts (population, schooling, employment, professional services, house value): two principal components with varimax rotation, as on the help page. Opens Exploratory factor analysis.',
     data: { package: 'psych', name: 'Harman.5' }, constructs: [], paths: [],
-    panel: { kind: 'efa', vars: ['population', 'schooling', 'employment', 'professional', 'housevalue'], method: 'pca', nfactors: 2, rotation: 'varimax', parallel: 0 }, settings: CB('ML'),
+    panel: { kind: 'efa', vars: ['population', 'schooling', 'employment', 'professional', 'housevalue'], method: 'pca', criterion: 'fixed', nfactors: 2, rotation: 'varimax', parallel: 0 }, settings: CB('ML'),
   },
   {
     id: 'nca-example', package: 'NCA', title: 'Necessary conditions for innovation', source: 'NCA, ?nca_analysis (nca.example)',

@@ -26,6 +26,6 @@ describe('openEfa (Analyses menu: factor analysis vs principal components)', () 
   it('switches PCA back to minres for factor analysis', () => {
     openEfa(true);
     openEfa(false);
-    expect(useStore.getState().settings.efa!.method).toBe('minres');
+    expect(useStore.getState().settings.efa!).toMatchObject({ method: 'minres', rotation: 'oblimin' });
   });
 });
