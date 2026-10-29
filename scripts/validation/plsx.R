@@ -5,7 +5,8 @@
 # differences between women and men, and the per-group path coefficients.
 # These do not depend on random draws, so they can be compared across cSEM
 # versions (native 0.6.1, webR 0.7.1). Blindfolding Q2 is checked against
-# semPLS 1.0-10 (CRAN archive) on the same data, and on its ?qSquared example.
+# semPLS 1.0-10 (CRAN archive) on the same data, and on its ?qSquared example;
+# confirmatory composite analysis against cSEM's ?ITFlex example (Henseler 2021).
 #   R_LIBS=/path/to/lib Rscript scripts/validation/plsx.R
 
 suppressPackageStartupMessages({ library(jsonlite); library(cSEM) })
@@ -67,3 +68,26 @@ keep <- function(q) as.list(setNames(q[, 1], rownames(q))[!is.na(q[, 1])])
 out4 <- list(semPLS = as.character(packageVersion("semPLS")), q2 = keep(q), mobi = keep(qm))
 write(toJSON(out4, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference4.json")
 cat("written 4\n")
+
+# ---- Confirmatory composite analysis: cSEM's ?ITFlex example (Henseler 2021), verbatim ----
+model_IT_Fex <- "
+# Composite models
+ITComp  <~ ITCOMP1 + ITCOMP2 + ITCOMP3 + ITCOMP4
+Modul   <~ MOD1 + MOD2 + MOD3 + MOD4
+ITConn  <~ ITCONN1 + ITCONN2 + ITCONN3 + ITCONN4
+ITPers  <~ ITPSF1 + ITPSF2 + ITPSF3 + ITPSF4
+
+# Saturated structural model
+ITPers ~ ITComp + Modul + ITConn
+Modul  ~ ITComp + ITConn
+ITConn ~ ITComp
+"
+it_out <- csem(.data = ITFlex, .model = model_IT_Fex, .PLS_weight_scheme_inner = "factorial", .tolerance = 1e-06, .PLS_ignore_structural_model = TRUE)
+set.seed(1); it_omf <- testOMF(it_out, .R = 20, .seed = 1)  # the test statistics do not depend on the draws
+W <- it_out$Estimates$Weight_estimates; V <- calculateVIFModeB(it_out)
+out5 <- list(statistic = as.list(it_omf$Test_statistic),
+  weights = lapply(setNames(rownames(W), rownames(W)), function(k) as.list(W[k, W[k, ] != 0])),
+  vif = lapply(setNames(rownames(V), rownames(V)), function(k) as.list(V[k, V[k, ] != 0])),
+  correlations = as.list(as.data.frame(it_out$Estimates$Construct_VCV)))
+write(toJSON(out5, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference5.json")
+cat("written 5\n")

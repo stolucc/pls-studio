@@ -240,3 +240,49 @@ ps_blindfold <- function(req_json, export = FALSE) {
     constructs = lapply(rownames(q), function(k) list(construct = unname(back[k]), sse = q[k, "SSE"], sso = q[k, "SSO"], q2 = q[k, "Q2"])),
     warnings = env$.warnings, engine = list(package = "cSEM (blindfolding as semPLS)", version = as.character(utils::packageVersion("cSEM")))))
 }
+
+#' Confirmatory composite analysis (CCA; Schuberth, Henseler & Dijkstra 2018;
+#' Henseler 2021): every construct as a composite (emergent variable) of its
+#' indicators, weights estimated with the structural model ignored (all
+#' composites freely correlated), the bootstrap test of overall fit of the
+#' saturated model (Beran & Srivastava 1985; cSEM's testOMF), and the weights,
+#' loadings, Mode B VIFs and composite correlations to assess the composites.
+ps_cca <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  B <- as.integer(req$samples %||% 499); seed <- as.integer(req$seed %||% 1); alpha <- as.numeric(req$alpha %||% 0.05)
+  if (B < 20 || B > 5000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) stop("Invalid CCA settings.")
+  req$model$constructs <- lapply(req$model$constructs, function(c) { c$type <- "composite"; c })
+  req$options$consistent <- FALSE
+  b <- ps_plsx_build(req)
+  fit_line <- grep("^fit <- csem\\(data,", b$body, value = TRUE)[1]
+  if (identical(req$options$approach %||% "PLS-PM", "PLS-PM")) fit_line <- sub("\\)$", ", .PLS_ignore_structural_model = TRUE)", fit_line)
+  body <- c(setdiff(b$body, grep("^fit <- csem\\(data,", b$body, value = TRUE)),
+    "# Confirmatory composite analysis: all constructs are composites; the weights ignore the structural model (saturated).",
+    fit_line,
+    "# Overall model fit of the saturated composite model: bootstrap test (Beran & Srivastava 1985).",
+    sprintf("set.seed(%d)", seed),
+    sprintf("omf <- testOMF(fit, .R = %d, .seed = %d, .alpha = c(0.05, 0.01), .saturated = TRUE)", B, seed),
+    "# The composites: weights and loadings with bootstrap percentile intervals, VIFs of the Mode B weights.",
+    sprintf("boot <- %s", sub("\\)$", sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = %d)", B, seed), sub("^fit <- ", "", fit_line))),
+    sprintf("est <- summarize(boot, .alpha = %s, .ci = \"CI_percentile\")$Estimates", format(alpha)),
+    "vif <- calculateVIFModeB(fit)",
+    "cor_composites <- fit$Estimates$Construct_VCV")
+  if (export) return(paste(ps_script("Confirmatory composite analysis (cSEM)", "cSEM", b$inputs, body,
+    c("omf", "est$Weight_estimates", "est$Loading_estimates", "vif", "cor_composites")), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  back <- ps_plsx_back(b)
+  omf <- env$omf
+  tab <- function(d) lapply(seq_len(nrow(d)), function(i) { p <- strsplit(d$Name[i], " (<~|=~) ")[[1]]
+    list(construct = unname(back[p[1]]), indicator = unname(back[p[2]]), est = d$Estimate[i], se = d$Std_err[i], p = d$p_value[i],
+      low = d[[grep("L$", names(d))[1]]][i], high = d[[grep("U$", names(d))[1]]][i]) })
+  vif <- env$vif
+  vifs <- if (is.null(vif) || !length(vif)) list() else unlist(lapply(rownames(vif), function(k) { v <- vif[k, ]; v <- v[is.finite(v) & v != 0]
+    lapply(names(v), function(i) list(construct = unname(back[k]), indicator = unname(back[i]), vif = unname(v[i]))) }), recursive = FALSE)
+  R <- env$cor_composites
+  ps_json(list(samples = B, alpha = alpha, admissible = omf$Information$Number_admissibles,
+    fit = lapply(names(omf$Test_statistic), function(k) list(measure = k, statistic = unname(omf$Test_statistic[k]),
+      q95 = unname(omf$Critical_value[k, "95%"]), q99 = unname(omf$Critical_value[k, "99%"]))),
+    weights = tab(env$est$Weight_estimates), loadings = tab(env$est$Loading_estimates), vif = vifs,
+    composites = unname(back[rownames(R)]), correlations = unname(R),
+    warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
+}

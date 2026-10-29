@@ -65,7 +65,7 @@ export interface PackageExample {
   /** Opens the segmentation panel on the example's diagram: REBUS (numbers of classes) or PATHMOX (segmentation variables; ordered ones with their categories in order). */
   segmentation?: { method?: 'rebus' | 'pathmox' | 'fimix' | 'pos'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
   /** Opens the PLS assessment panel on the example's diagram (tab, and the grouping column). */
-  assessment?: { tab: 'predict' | 'blindfold' | 'compare' | 'groups'; group?: string; distance?: number };
+  assessment?: { tab: 'predict' | 'blindfold' | 'compare' | 'groups' | 'cca'; group?: string; distance?: number };
   settings: Partial<Settings>;
 }
 
@@ -319,6 +319,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: [c('IMAG', items('imag', 3)), c('EXPE', items('expe', 3)), c('QUAL', items('qual', 5)), c('VAL', items('val', 3)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['QUAL', 'VAL'], ['IMAG', 'SAT'], ['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
     assessment: { tab: 'groups', group: 'gender' }, settings: PLS('cSEM', false),
+  },
+  {
+    id: 'csem-itflex', package: 'cSEM', title: 'IT infrastructure flexibility: confirmatory composite analysis', source: 'cSEM, ?ITFlex (Henseler 2021)',
+    links: [{ label: '?ITFlex', url: 'https://rdrr.io/cran/cSEM/man/ITFlex.html' }, { label: '?testOMF', url: 'https://rdrr.io/cran/cSEM/man/testOMF.html' }],
+    description: 'Benitez, Ray & Henseler (2018): IT compatibility, connectivity, modularity and personnel skills as composites (100 firms), with the saturated structural model and the factorial scheme, as on the help page. Is the composite model supported? Opens PLS-SEM assessment.',
+    data: { package: 'cSEM', name: 'ITFlex' },
+    constructs: [c('ITComp', items('ITCOMP', 4)), c('Modul', items('MOD', 4)), c('ITConn', items('ITCONN', 4)), c('ITPers', items('ITPSF', 4))],
+    paths: [['ITComp', 'ITPers'], ['Modul', 'ITPers'], ['ITConn', 'ITPers'], ['ITComp', 'Modul'], ['ITConn', 'Modul'], ['ITComp', 'ITConn']],
+    assessment: { tab: 'cca' }, settings: { ...PLS('cSEM', false, 'factor'), stopExp: 6 },
   },
   {
     id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',

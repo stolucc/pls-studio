@@ -3,22 +3,22 @@ import { create } from 'zustand';
 import { downloadText, safeFileName } from '../format';
 import type { ModelSpec, PlsOptions } from '../engine/types';
 import { toSpec, validateModel } from '../model/project';
-import { blindfoldTargets, type BlindfoldResult, type CompareResult, type CtaResult, type GroupsResult, type MgaApproach, type PredictResult } from '../rengine/plsx';
+import { blindfoldTargets, type BlindfoldResult, type CcaEstimate, type CcaResult, type CompareResult, type CtaResult, type GroupsResult, type MgaApproach, type PredictResult } from '../rengine/plsx';
 import { useStore } from '../store';
 import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
 
-type Tab = 'predict' | 'blindfold' | 'compare' | 'groups' | 'cta';
+type Tab = 'predict' | 'blindfold' | 'compare' | 'groups' | 'cta' | 'cca';
 interface State {
   open: boolean; tab: Tab;
-  predict: PredictResult | null; blindfold: BlindfoldResult | null; compare: CompareResult | null; groups: GroupsResult | null; cta: CtaResult | null;
+  predict: PredictResult | null; blindfold: BlindfoldResult | null; compare: CompareResult | null; groups: GroupsResult | null; cta: CtaResult | null; cca: CcaResult | null;
   /** The alternative model for the comparison: a snapshot of an earlier diagram. */
   alternative: { spec: ModelSpec; paths: number; savedAt: number } | null;
   /** Filled in by an example (applied when it changes). */
   preset: { tab: Tab; group?: string; distance?: number } | null;
   setOpen: (v: boolean) => void;
 }
-export const usePlsAssessment = create<State>((set) => ({ open: false, tab: 'predict', predict: null, blindfold: null, compare: null, groups: null, cta: null, alternative: null, preset: null, setOpen: (open) => set({ open }) }));
+export const usePlsAssessment = create<State>((set) => ({ open: false, tab: 'predict', predict: null, blindfold: null, compare: null, groups: null, cta: null, cca: null, alternative: null, preset: null, setOpen: (open) => set({ open }) }));
 
 const APPROACHES: { id: MgaApproach; label: string }[] = [
   { id: 'Henseler', label: 'Henseler (bootstrap)' }, { id: 'Chin', label: 'Chin & Dibbern (permutation)' }, { id: 'Klesel', label: 'Klesel et al. (overall, dG / dL)' },
@@ -118,6 +118,31 @@ function BlindfoldView({ r }: { r: BlindfoldResult }) {
   );
 }
 
+const ciCell = (k: CcaEstimate) => ({ ...c(k.est), bold: k.low > 0 || k.high < 0 });
+function CcaView({ r }: { r: CcaResult }) {
+  const conf = `${Math.round((1 - r.alpha) * 100)}%`;
+  const rejected = r.fit.filter((f) => ['SRMR', 'dL', 'dG'].includes(f.measure) && f.statistic > f.q95).map((f) => f.measure);
+  return (
+    <div className="tables">
+      <Table title={`Overall fit of the composite model: ${rejected.length ? `rejected by ${rejected.join(', ')}` : 'not rejected'}`} file="cca-fit"
+        columns={['Discrepancy', 'Value', 'HI95 (95% quantile)', 'HI99 (99% quantile)', 'Decision (5%)']}
+        rows={r.fit.map((f) => [c(f.measure === 'dL' ? 'dULS (dL)' : f.measure), { ...c(f.statistic), bold: f.statistic > f.q95 }, c(f.q95), c(f.q99), c(f.statistic > f.q99 ? 'reject (also at 1%)' : f.statistic > f.q95 ? 'reject' : 'do not reject')])}
+        note={`Bootstrap test of the saturated composite model (Beran & Srivastava 1985; ${r.admissible} of ${r.samples} samples admissible): the model fits when each discrepancy stays below its bootstrap quantile (Henseler 2021 reports SRMR, dULS and dG). H0: the model-implied indicator covariances equal the population's.`} />
+      <Table title="Weights" file="cca-weights" columns={['Composite', 'Indicator', 'Weight', 'Std. error', 'p', `${conf} CI low`, `${conf} CI high`]}
+        rows={r.weights.map((k) => [c(k.construct), c(k.indicator), ciCell(k), c(k.se), pCell(k.p), c(k.low), c(k.high)])}
+        note="Bootstrap percentile intervals; bold: the interval excludes 0. Check the sign and size of each weight against theory (Schuberth et al. 2018)." />
+      <Table title="Loadings" file="cca-loadings" columns={['Composite', 'Indicator', 'Loading', 'Std. error', 'p', `${conf} CI low`, `${conf} CI high`]}
+        rows={r.loadings.map((k) => [c(k.construct), c(k.indicator), ciCell(k), c(k.se), pCell(k.p), c(k.low), c(k.high)])} />
+      {r.vif.length > 0 && <Table title="Collinearity of the Mode B weights" file="cca-vif" columns={['Composite', 'Indicator', 'VIF']}
+        rows={r.vif.map((k) => [c(k.construct), c(k.indicator), { ...c(k.vif, undefined, 2), bold: k.vif > 5 }])} note="VIF above 5 (bold) or 3 suggests collinearity that makes the weights unstable." />}
+      <Table title="Composite correlations" file="cca-correlations" columns={['', ...r.composites]}
+        rows={r.composites.map((k, i) => [c(k), ...r.correlations[i].map((v, j) => (j <= i ? c(v) : c('')))])}
+        note="The saturated structural model: all composites freely correlated. Correlations close to 1 question discriminant validity." />
+      <div className="hint">Confirmatory composite analysis (Schuberth, Henseler &amp; Dijkstra 2018; Henseler 2021): are the constructs emergent variables — composites of their indicators? Every construct is treated as a composite (Mode A or B as drawn), the weights ignore the structural paths, and the fit of the saturated model is tested. cSEM, as its ?ITFlex example.</div>
+    </div>
+  );
+}
+
 /** PLS-SEM assessment beyond the basic results: prediction, model comparison, group comparison (cSEM). */
 export function PlsAssessmentPanel() {
   const s = usePlsAssessment();
@@ -156,6 +181,10 @@ export function PlsAssessmentPanel() {
       } else if (what === 'blindfold') {
         if (script) downloadText(`${safeFileName(project)}-blindfolding.R`, await m.blindfoldScriptR(data!, spec, options, distance), 'text/x-r-source');
         else usePlsAssessment.setState({ blindfold: await m.blindfoldR(data!, spec, options, distance) });
+      } else if (what === 'cca') {
+        const cfg = { samples: Math.max(20, Math.min(5000, Math.floor(settings.bootSamples))), seed, alpha: 1 - settings.confidence };
+        if (script) downloadText(`${safeFileName(project)}-cca.R`, await m.ccaScriptR(data!, spec, options, cfg), 'text/x-r-source');
+        else usePlsAssessment.setState({ cca: await m.ccaR(data!, spec, options, cfg) });
       } else if (what === 'compare') {
         const alt = s.alternative!.spec;
         if (script) downloadText(`${safeFileName(project)}-model-comparison.R`, await m.compareScriptR(data!, spec, alt, options, seed), 'text/x-r-source');
@@ -179,7 +208,7 @@ export function PlsAssessmentPanel() {
     === JSON.stringify(spec.constructs.map((k) => [k.name, [...k.indicators].sort()]).sort());
   const ctaBlocks = model.constructs.filter((k) => k.indicators.length >= 4).length;
   const bfTargets = blindfoldTargets(spec);
-  const ready = s.tab === 'predict' ? true : s.tab === 'blindfold' ? bfTargets.length > 0 : s.tab === 'compare' ? sameMeasurement : s.tab === 'cta' ? ctaBlocks > 0 : !!group && approaches.length > 0;
+  const ready = s.tab === 'predict' ? true : s.tab === 'blindfold' ? bfTargets.length > 0 : s.tab === 'cca' ? true : s.tab === 'compare' ? sameMeasurement : s.tab === 'cta' ? ctaBlocks > 0 : !!group && approaches.length > 0;
   return (
     <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="PLS assessment">
       <div className="sim">
@@ -191,7 +220,7 @@ export function PlsAssessmentPanel() {
           <div className="sim-body long-body">
             <section className="sim-col">
               <div className="segmented" style={{ marginBottom: 12 }}>
-                {([['predict', 'Prediction'], ['blindfold', 'Blindfolding'], ['compare', 'Model comparison'], ['groups', 'Groups'], ['cta', 'Measurement (CTA)']] as const).map(([id, l]) => (
+                {([['predict', 'Prediction'], ['blindfold', 'Blindfolding'], ['compare', 'Model comparison'], ['groups', 'Groups'], ['cta', 'Measurement (CTA)'], ['cca', 'Composites (CCA)']] as const).map(([id, l]) => (
                   <button key={id} className={s.tab === id ? 'on' : ''} onClick={() => usePlsAssessment.setState({ tab: id })}>{l}</button>
                 ))}
               </div>
@@ -222,6 +251,9 @@ export function PlsAssessmentPanel() {
               )}
               {s.tab === 'cta' && (
                 <p className="hint" style={{ marginTop: 0 }}>Confirmatory tetrad analysis (CTA-PLS; Gudergan et al. 2008): is a block reflective (indicators caused by one common factor) or better treated as formative? For constructs with at least four indicators ({ctaBlocks} here). Bootstrap samples {Math.floor(settings.bootSamples)} and α = {fmtAlpha(1 - settings.confidence)} from the Model settings.</p>
+              )}
+              {s.tab === 'cca' && (
+                <p className="hint" style={{ marginTop: 0 }}>Confirmatory composite analysis (Schuberth, Henseler &amp; Dijkstra 2018): do the composites — every construct formed from its indicators, Mode A or B as drawn — fit the data? Bootstrap test of overall fit (SRMR, dULS, dG) and the weights, loadings and VIFs. Bootstrap samples {Math.max(20, Math.min(5000, Math.floor(settings.bootSamples)))} and {Math.round(settings.confidence * 100)}% intervals from the Model settings.</p>
               )}
               {s.tab === 'groups' && (
                 <>
@@ -254,6 +286,7 @@ export function PlsAssessmentPanel() {
               {s.tab === 'blindfold' && (s.blindfold ? <BlindfoldView r={s.blindfold} /> : <div className="empty-results">{bfTargets.length ? 'Press Calculate.' : 'No endogenous construct with reflective (Mode A) indicators.'}</div>)}
               {s.tab === 'compare' && (s.compare ? <CompareView r={s.compare} /> : <div className="empty-results">Save an alternative, change the paths, and press Calculate.</div>)}
               {s.tab === 'groups' && (s.groups ? <GroupsView r={s.groups} /> : <div className="empty-results">Choose the grouping column and press Calculate.</div>)}
+              {s.tab === 'cca' && (s.cca ? <CcaView r={s.cca} /> : <div className="empty-results">Press Calculate.</div>)}
               {s.tab === 'cta' && (s.cta ? <CtaView r={s.cta} /> : <div className="empty-results">{ctaBlocks ? 'Press Calculate.' : 'No construct has four or more indicators.'}</div>)}
             </section>
           </div>

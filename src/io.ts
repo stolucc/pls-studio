@@ -347,7 +347,7 @@ export async function loadPackageExample(id: string) {
     }
     if (ex.assessment) {
       const { usePlsAssessment } = await import('./components/PlsAssessmentPanel');
-      usePlsAssessment.setState({ open: true, tab: ex.assessment.tab, predict: null, blindfold: null, compare: null, groups: null, cta: null, preset: { ...ex.assessment } });
+      usePlsAssessment.setState({ open: true, tab: ex.assessment.tab, predict: null, blindfold: null, compare: null, groups: null, cta: null, cca: null, preset: { ...ex.assessment } });
       useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate in the panel.`);
       return;
     }

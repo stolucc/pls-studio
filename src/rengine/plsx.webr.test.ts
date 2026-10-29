@@ -11,7 +11,7 @@ import type { Dataset, ModelSpec } from '../engine/types';
 import { categoriesOf } from '../io';
 import commonR from './R/common.R?raw';
 import { rCall } from './bridge';
-import { blindfoldR, blindfoldScriptR, compareR, groupsR, predictR, predictScriptR } from './plsx';
+import { blindfoldR, blindfoldScriptR, ccaR, ccaScriptR, compareR, groupsR, predictR, predictScriptR } from './plsx';
 import { estimatePlsR } from './pls';
 import { callJson, withR } from './runtime';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
@@ -22,6 +22,7 @@ afterAll(stopTestRuntime);
 const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference.json'), 'utf8'));
 const ref2 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference2.json'), 'utf8'));
 const ref4 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference4.json'), 'utf8'));
+const ref5 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference5.json'), 'utf8'));
 const ref3 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference3.json'), 'utf8'));
 const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
 const comp = (name: string, ind: string[]) => ({ name, type: 'composite' as const, mode: 'B' as const, indicators: ind });
@@ -126,5 +127,32 @@ describe('PLS assessment (cSEM)', () => {
     for (const k of m.constructs) expect(k.q2, k.construct).toBeCloseTo(ref4.mobi[k.construct], 6);
     expect(m.distance).toBe(4);
     expect(await blindfoldScriptR(await load('satisfaction'), reflective, tight, 7)).toContain('blindfold <- function(data, block, endo, D)');
+  }, 900_000);
+
+  it('confirmatory composite analysis: ?ITFlex equals native cSEM; quantiles and intervals equal cSEM in-session', async () => {
+    const d = await load('ITFlex');
+    const cmp = (name: string, p: string) => comp(name, items(p, 4));
+    // Paths not saturated on purpose: CCA ignores them (saturated model, structural model ignored in the weights).
+    const it: ModelSpec = { constructs: [cmp('ITComp', 'ITCOMP'), cmp('Modul', 'MOD'), cmp('ITConn', 'ITCONN'), cmp('ITPers', 'ITPSF')], paths: [P('ITComp', 'ITPers'), P('Modul', 'ITPers'), P('ITConn', 'ITPers')] };
+    const r = await ccaR(d, it, { ...options, scheme: 'factor', tolerance: 1e-6, maxIter: 100 }, { samples: 40, seed: 7, alpha: 0.05 });
+    for (const f of r.fit) expect(f.statistic, f.measure).toBeCloseTo(ref5.statistic[f.measure], 6);
+    for (const w of r.weights) expect(w.est, w.indicator).toBeCloseTo(ref5.weights[w.construct][w.indicator], 6);
+    expect(r.weights).toHaveLength(16);
+    for (const v of r.vif) expect(v.vif, v.indicator).toBeCloseTo(ref5.vif[v.construct][v.indicator], 6);
+    const order = Object.keys(ref5.correlations);  // (rows in the same order as the columns)
+    r.composites.forEach((a, i) => r.composites.forEach((b, j) => expect(r.correlations[i][j], `${a}, ${b}`).toBeCloseTo(ref5.correlations[b][order.indexOf(a)], 6)));
+    const own = await withR(['jsonlite', 'cSEM'], { common: commonR }, (webR) => callJson(webR, `suppressPackageStartupMessages(library(cSEM))
+      m <- "ITComp <~ ITCOMP1 + ITCOMP2 + ITCOMP3 + ITCOMP4\nModul <~ MOD1 + MOD2 + MOD3 + MOD4\nITConn <~ ITCONN1 + ITCONN2 + ITCONN3 + ITCONN4\nITPers <~ ITPSF1 + ITPSF2 + ITPSF3 + ITPSF4\nITPers ~ ITComp + Modul + ITConn\nModul ~ ITComp + ITConn\nITConn ~ ITComp"
+      f <- csem(ITFlex, m, .PLS_weight_scheme_inner = "factorial", .tolerance = 1e-6, .PLS_ignore_structural_model = TRUE)
+      set.seed(7); t <- testOMF(f, .R = 40, .seed = 7, .alpha = c(0.05, 0.01))
+      b <- csem(ITFlex, m, .PLS_weight_scheme_inner = "factorial", .tolerance = 1e-6, .PLS_ignore_structural_model = TRUE, .resample_method = "bootstrap", .R = 40, .seed = 7)
+      w <- summarize(b, .alpha = 0.05, .ci = "CI_percentile")$Estimates$Weight_estimates
+      ps_json(list(q95 = as.list(t$Critical_value[, "95%"]), low = as.list(setNames(w[[7]], w$Name)), high = as.list(setNames(w[[8]], w$Name))))`, null)) as { q95: Record<string, number>; low: Record<string, number>; high: Record<string, number> };
+    for (const f of r.fit) expect(f.q95, f.measure).toBeCloseTo(own.q95[f.measure], 10);
+    for (const w of r.weights) {
+      expect(w.low, w.indicator).toBeCloseTo(own.low[`${w.construct} <~ ${w.indicator}`], 10);
+      expect(w.high, w.indicator).toBeCloseTo(own.high[`${w.construct} <~ ${w.indicator}`], 10);
+    }
+    expect(await ccaScriptR(d, it, options, { samples: 40, seed: 7, alpha: 0.05 })).toContain('.saturated = TRUE');
   }, 900_000);
 });

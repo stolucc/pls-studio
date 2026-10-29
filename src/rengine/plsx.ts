@@ -94,3 +94,22 @@ export async function blindfoldR(data: Dataset, spec: ModelSpec, options: PlsOpt
 }
 export const blindfoldScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, distance: number) =>
   rScript('ps_blindfold', { ...base(data, spec, options), distance }, 'cSEM');
+
+export interface CcaEstimate { construct: string; indicator: string; est: number; se: number; p: number; low: number; high: number }
+export interface CcaResult {
+  samples: number; alpha: number; admissible: number;
+  fit: { measure: string; statistic: number; q95: number; q99: number }[];
+  weights: CcaEstimate[]; loadings: CcaEstimate[]; vif: { construct: string; indicator: string; vif: number }[];
+  composites: string[]; correlations: number[][];
+  warnings: string[]; engine: REngineInfo;
+}
+const ccaRequest = (data: Dataset, spec: ModelSpec, options: PlsOptions, cfg: { samples: number; seed: number; alpha: number }) =>
+  ({ ...plsRequest(data, spec, { ...options, consistent: false }, 'cSEM'), ...cfg });
+/** Confirmatory composite analysis (Schuberth, Henseler & Dijkstra 2018) with cSEM. */
+export async function ccaR(data: Dataset, spec: ModelSpec, options: PlsOptions, cfg: { samples: number; seed: number; alpha: number }): Promise<CcaResult> {
+  const raw = await rCall<Record<string, any>>('ps_cca', ccaRequest(data, spec, options, cfg), 'cSEM');
+  return { ...raw, fit: arr(raw.fit), weights: arr(raw.weights), loadings: arr(raw.loadings), vif: arr(raw.vif),
+    composites: rStrings(raw.composites), correlations: arr<unknown>(raw.correlations).map((r) => arr<number>(r)), warnings: rStrings(raw.warnings) } as CcaResult;
+}
+export const ccaScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, cfg: { samples: number; seed: number; alpha: number }) =>
+  rScript('ps_cca', ccaRequest(data, spec, options, cfg), 'cSEM');
