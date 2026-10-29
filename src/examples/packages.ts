@@ -1,15 +1,31 @@
 // Examples from the R packages' own documentation: the dataset ships with the
 // package (loaded in the browser's R at open time) and the model follows the
 // package's help page, demo or tutorial. Models the editor cannot represent
-// faithfully (equality labels, PLS higher-order composites, ignored structural
-// models) are left out or noted.
+// faithfully (PLS higher-order composites, ignored structural models) are left
+// out or noted. Every R package the app calculates with has examples here.
 
+import type { EsemRotation, MultigroupSpec } from '../engine/types';
 import type { Correlation, ModelState, Settings } from '../model/project';
 import { newId } from '../model/project';
+import type { GrowthInput } from '../rengine/longitudinal';
+import type { IrtModel } from '../rengine/items';
 
-export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'cSEM' | 'seminr';
+export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'ltm', 'poLCA'];
 
-interface ExConstruct { name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[] }
+interface ExConstruct {
+  name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
+  /** Observed covariate (CB-SEM fixed.x; conditional process analysis: enters every equation). */
+  covariate?: boolean;
+  /** Loading labels by indicator: loadings with the same label are equal. */
+  labels?: Record<string, string>;
+}
+
+/** Analyses opened in their own panel, preset with the example's columns. */
+export type ExamplePanel =
+  | { kind: 'growth'; measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[] }
+  | { kind: 'irt'; items: string[]; model: IrtModel }
+  | { kind: 'lca'; items: string[]; from: number; to: number };
 
 export interface PackageExample {
   id: string;
@@ -25,10 +41,21 @@ export interface PackageExample {
   paths: [string, string][];
   correlations?: [string, string, Correlation['kind']][];
   moderations?: [string, string, string][];
+  /** CB-SEM: multiple groups (construct names in `free` are not used). */
+  multigroup?: MultigroupSpec;
+  multilevel?: { column: string; between: 'same' | 'saturated' };
+  /** CB-SEM: exploratory SEM blocks of construct names. */
+  esem?: { blocks: string[][]; rotation: EsemRotation };
+  /** Conditional process analysis: the PROCESS model number the diagram is recognised as. */
+  processModel?: number;
+  /** Opens this analysis panel instead of a diagram (constructs and paths are empty). */
+  panel?: ExamplePanel;
   settings: Partial<Settings>;
 }
 
-const f = (name: string, indicators: string[]): ExConstruct => ({ name, type: 'factor', mode: 'A', indicators });
+const f = (name: string, indicators: string[], labels?: Record<string, string>): ExConstruct => ({ name, type: 'factor', mode: 'A', indicators, ...(labels ? { labels } : {}) });
+/** A single observed variable (conditional process analysis), optionally a covariate. */
+const v = (name: string, covariate = false): ExConstruct => ({ name, type: 'factor', mode: 'A', indicators: [name], ...(covariate ? { covariate } : {}) });
 const c = (name: string, indicators: string[], mode: 'A' | 'B' = 'B'): ExConstruct => ({ name, type: 'composite', mode, indicators });
 const items = (p: string, k: number, from = 1) => Array.from({ length: k }, (_, i) => `${p}${i + from}`);
 const fan = (from: string[], to: string[]) => from.flatMap((a) => to.map((b): [string, string] => [a, b]));
@@ -42,6 +69,7 @@ const HS = [f('visual', items('x', 3)), f('textual', items('x', 3, 4)), f('speed
 const MOBI = [c('Image', items('IMAG', 5), 'A'), c('Expectation', items('CUEX', 3), 'A'), c('Quality', items('PERQ', 7), 'A'), c('Value', items('PERV', 2), 'A'),
   c('Satisfaction', items('CUSA', 3), 'A'), c('Complaints', ['CUSCO'], 'A'), c('Loyalty', items('CUSL', 3), 'A')];
 const CB = (estimator: Settings['estimator']): Partial<Settings> => ({ method: 'cbsem', estimator, missing: 'casewise' });
+const CPA: Partial<Settings> = { method: 'process', missing: 'casewise', probe: 'percentiles', hc: 'none' };
 const PLS = (plsPackage: 'cSEM' | 'seminr', consistent: boolean, scheme: Settings['scheme'] = 'path'): Partial<Settings> => ({ method: 'pls', plsPackage, consistent, scheme, missing: 'mean' });
 
 export const PACKAGE_EXAMPLES: PackageExample[] = [
@@ -54,8 +82,38 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'lavaan-poldem', package: 'lavaan', title: 'Industrialisation and political democracy', source: 'lavaan, ?sem (Bollen 1989)',
     links: [{ label: '?sem', url: 'https://rdrr.io/cran/lavaan/man/sem.html' }, { label: 'lavaan tutorial: SEM', url: 'https://lavaan.ugent.be/tutorial/sem.html' }, { label: '?PoliticalDemocracy', url: 'https://rdrr.io/cran/lavaan/man/PoliticalDemocracy.html' }],
-    description: 'Bollen’s SEM with six correlated measurement errors. lavaan’s help page also holds loadings equal across 1960 and 1965 (labels a, b, c); equality constraints are not available in the editor, so this version estimates them freely (χ²(35) = 38.13).',
-    data: { package: 'lavaan', name: 'PoliticalDemocracy' }, ...BOLLEN, settings: CB('ML'),
+    description: 'Bollen’s SEM with six correlated measurement errors and, as on lavaan’s help page, the loadings of democracy held equal across 1960 and 1965 (labels a, b, c; χ²(38) = 40.18). Right-click a loading to change its label.',
+    data: { package: 'lavaan', name: 'PoliticalDemocracy' }, ...BOLLEN,
+    constructs: [BOLLEN.constructs[0], f('dem60', items('y', 4), { y2: 'a', y3: 'b', y4: 'c' }), f('dem65', items('y', 4, 5), { y6: 'a', y7: 'b', y8: 'c' })], settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-hs-groups', package: 'lavaan', title: 'Measurement invariance across two schools', source: 'lavaan tutorial: multiple groups',
+    links: [{ label: 'lavaan tutorial: multiple groups', url: 'https://lavaan.ugent.be/tutorial/groups.html' }, { label: '?HolzingerSwineford1939', url: 'https://rdrr.io/cran/lavaan/man/HolzingerSwineford1939.html' }],
+    description: 'The three-factor CFA in the Grant-White (1) and Pasteur (2) schools with equal loadings and intercepts (scalar invariance, χ²(60) = 164.10). Compare the invariance levels under Groups.',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [],
+    multigroup: { column: 'school', invariance: 'scalar', free: [] }, settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-hs-esem', package: 'lavaan', title: 'Exploratory SEM: three rotated factors', source: 'lavaan tutorial: EFA (efa blocks)',
+    links: [{ label: 'lavaan tutorial: EFA', url: 'https://lavaan.ugent.be/tutorial/efa.html' }, { label: '?efa', url: 'https://rdrr.io/cran/lavaan/man/efa.html' }],
+    description: 'The Holzinger & Swineford factors in one efa block: every test loads on all three factors, geomin-rotated. Cross-loadings show where the CFA’s simple structure is too strict (x9 on visual).',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [],
+    esem: { blocks: [['visual', 'textual', 'speed']], rotation: 'geomin' }, settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-twolevel', package: 'lavaan', title: 'Two-level factor model', source: 'lavaan tutorial: multilevel SEM, ?Demo.twolevel',
+    links: [{ label: 'lavaan tutorial: multilevel SEM', url: 'https://lavaan.ugent.be/tutorial/multilevel.html' }, { label: '?Demo.twolevel', url: 'https://rdrr.io/cran/lavaan/man/Demo.twolevel.html' }],
+    description: 'Simulated data, 2500 people in 200 clusters: a factor of y1–y3 regressed on x1–x3 within clusters, as in the tutorial. Here the between level is saturated (the tutorial also models it, with cluster-level predictors w1, w2).',
+    data: { package: 'lavaan', name: 'Demo.twolevel' },
+    constructs: [f('fw', items('y', 3)), v('x1', true), v('x2', true), v('x3', true)], paths: [['x1', 'fw'], ['x2', 'fw'], ['x3', 'fw']],
+    multilevel: { column: 'cluster', between: 'saturated' }, settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-growth', package: 'lavaan', title: 'Linear latent growth curve', source: 'lavaan, ?growth',
+    links: [{ label: '?growth', url: 'https://rdrr.io/cran/lavaan/man/growth.html' }, { label: 'lavaan tutorial: growth curves', url: 'https://lavaan.ugent.be/tutorial/growth.html' }, { label: '?Demo.growth', url: 'https://rdrr.io/cran/lavaan/man/Demo.growth.html' }],
+    description: 'Four repeated measures t1–t4 (N = 400): random intercept and linear slope with time scores 0, 1, 2, 3. Opens Longitudinal models.',
+    data: { package: 'lavaan', name: 'Demo.growth' }, constructs: [], paths: [],
+    panel: { kind: 'growth', measures: items('t', 4), times: [0, 1, 2, 3], shape: 'linear', covariates: [] }, settings: CB('ML'),
   },
   {
     id: 'miivsem-bollen', package: 'MIIVsem', title: 'Political democracy by MIIV-2SLS', source: 'MIIVsem, bollen1989a',
@@ -68,6 +126,64 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     links: [{ label: '?miive', url: 'https://rdrr.io/cran/MIIVsem/man/miive.html' }, { label: '?HolzingerSwineford1939', url: 'https://rdrr.io/cran/lavaan/man/HolzingerSwineford1939.html' }],
     description: 'Each loading estimated by its own 2SLS regression on the marker indicator, with Sargan tests per equation. Compare with the ML CFA.',
     data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [], settings: CB('2SLS'),
+  },
+  {
+    id: 'modsem-oneint', package: 'modsem', title: 'Latent interaction by LMS', source: 'modsem, ?modsem (oneInt)',
+    links: [{ label: '?modsem', url: 'https://rdrr.io/cran/modsem/man/modsem.html' }, { label: 'modsem: LMS and QML', url: 'https://modsem.org/articles/lms_qml.html' }, { label: '?oneInt', url: 'https://rdrr.io/cran/modsem/man/oneInt.html' }],
+    description: 'Simulated data (N = 2000) with one latent interaction: Y on X, Z and X × Z, estimated by the latent moderated structural equations method (Klein & Moosbrugger 2000).',
+    data: { package: 'modsem', name: 'oneInt' },
+    constructs: [f('X', items('x', 3)), f('Z', items('z', 3)), f('Y', items('y', 3))],
+    paths: [['X', 'Y'], ['Z', 'Y']], moderations: [['X', 'Z', 'Y']], settings: { ...CB('ML'), interaction: 'lms' },
+  },
+  {
+    id: 'manymome-med', package: 'manymome', title: 'Simple mediation with covariates', source: 'manymome, ?data_med (PROCESS model 4)',
+    links: [{ label: '?data_med', url: 'https://rdrr.io/cran/manymome/man/data_med.html' }, { label: 'manymome: mediation with lm()', url: 'https://sfcheung.github.io/manymome/articles/med_lm.html' }],
+    description: 'x → m → y with control variables c1 and c2 (N = 100): the indirect effect with a nonparametric bootstrap interval.',
+    data: { package: 'manymome', name: 'data_med' },
+    constructs: [v('x'), v('m'), v('y'), v('c1', true), v('c2', true)], paths: [['x', 'm'], ['m', 'y'], ['x', 'y']], processModel: 4, settings: CPA,
+  },
+  {
+    id: 'manymome-modmed', package: 'manymome', title: 'First-stage moderated mediation', source: 'manymome, ?data_med_mod_a (PROCESS model 7)',
+    links: [{ label: '?data_med_mod_a', url: 'https://rdrr.io/cran/manymome/man/data_med_mod_a.html' }, { label: 'manymome: moderated mediation', url: 'https://sfcheung.github.io/manymome/articles/mome_lm.html' }],
+    description: 'w moderates the x → m path: conditional indirect effects at values of w and the index of moderated mediation.',
+    data: { package: 'manymome', name: 'data_med_mod_a' },
+    constructs: [v('x'), v('w'), v('m'), v('y'), v('c1', true), v('c2', true)], paths: [['x', 'm'], ['m', 'y'], ['x', 'y']], moderations: [['x', 'w', 'm']], processModel: 7, settings: CPA,
+  },
+  {
+    id: 'manymome-serial', package: 'manymome', title: 'Serial mediation', source: 'manymome, ?data_serial (PROCESS model 6)',
+    links: [{ label: '?data_serial', url: 'https://rdrr.io/cran/manymome/man/data_serial.html' }],
+    description: 'x → m1 → m2 → y with covariates c1 and c2: three indirect paths and their total.',
+    data: { package: 'manymome', name: 'data_serial' },
+    constructs: [v('x'), v('m1'), v('m2'), v('y'), v('c1', true), v('c2', true)],
+    paths: [['x', 'm1'], ['x', 'm2'], ['m1', 'm2'], ['x', 'y'], ['m1', 'y'], ['m2', 'y']], processModel: 6, settings: CPA,
+  },
+  {
+    id: 'ltm-lsat', package: 'ltm', title: 'LSAT: Rasch model', source: 'ltm, ?rasch',
+    links: [{ label: '?rasch', url: 'https://rdrr.io/cran/ltm/man/rasch.html' }, { label: '?LSAT', url: 'https://rdrr.io/cran/ltm/man/LSAT.html' }],
+    description: 'Five binary items of the Law School Admission Test (N = 1000), Bock & Lieberman (1970): item difficulties and a common discrimination. Opens Item analysis.',
+    data: { package: 'ltm', name: 'LSAT' }, constructs: [], paths: [],
+    panel: { kind: 'irt', items: items('Item ', 5), model: 'rasch' }, settings: CB('ML'),
+  },
+  {
+    id: 'ltm-science', package: 'ltm', title: 'Attitudes to science: graded response', source: 'ltm, ?grm',
+    links: [{ label: '?grm', url: 'https://rdrr.io/cran/ltm/man/grm.html' }, { label: '?Science', url: 'https://rdrr.io/cran/ltm/man/Science.html' }],
+    description: 'Four four-category Likert items from the 1992 Eurobarometer (N = 392), coded 1 = strongly disagree to 4 = strongly agree: thresholds and discriminations (Samejima). Opens Item analysis.',
+    data: { package: 'ltm', name: 'Science' }, constructs: [], paths: [],
+    panel: { kind: 'irt', items: ['Comfort', 'Work', 'Future', 'Benefit'], model: 'grm' }, settings: CB('ML'),
+  },
+  {
+    id: 'polca-carcinoma', package: 'poLCA', title: 'Pathologists’ ratings: latent classes', source: 'poLCA, ?carcinoma',
+    links: [{ label: '?carcinoma', url: 'https://rdrr.io/cran/poLCA/man/carcinoma.html' }, { label: '?poLCA', url: 'https://rdrr.io/cran/poLCA/man/poLCA.html' }],
+    description: 'Seven pathologists rating 118 slides for carcinoma (Agresti 2002): two to four latent classes compared by BIC and entropy. Opens Item analysis.',
+    data: { package: 'poLCA', name: 'carcinoma' }, constructs: [], paths: [],
+    panel: { kind: 'lca', items: ['A', 'B', 'C', 'D', 'E', 'F', 'G'], from: 2, to: 4 }, settings: CB('ML'),
+  },
+  {
+    id: 'polca-values', package: 'poLCA', title: 'Universalistic and particularistic values', source: 'poLCA, ?values',
+    links: [{ label: '?values', url: 'https://rdrr.io/cran/poLCA/man/values.html' }],
+    description: 'Four dilemmas answered by 216 respondents (Stouffer & Toby 1951): the classic one- to three-class comparison. Opens Item analysis.',
+    data: { package: 'poLCA', name: 'values' }, constructs: [], paths: [],
+    panel: { kind: 'lca', items: ['A', 'B', 'C', 'D'], from: 1, to: 3 }, settings: CB('ML'),
   },
   {
     id: 'csem-threecf', package: 'cSEM', title: 'Three common factors (PLSc)', source: 'cSEM, ?threecommonfactors',
@@ -173,9 +289,14 @@ export function exampleModel(ex: PackageExample): ModelState {
       id: id(k.name), name: k.name, type: k.type ?? 'factor', mode: k.mode ?? 'A', indicators: k.indicators ?? [],
       x: (i % 4) * 320, y: Math.floor(i / 4) * 260, side: 'left' as const,
       ...(k.components ? { components: k.components.map(id) } : {}),
+      ...(k.covariate ? { covariate: true } : {}),
+      ...(k.labels ? { loadingLabels: k.labels } : {}),
     })),
     paths,
     moderations: (ex.moderations ?? []).map(([from, moderator, to]) => ({ id: newId('m'), moderator: id(moderator), path: paths.find((p) => p.from === id(from) && p.to === id(to))!.id })),
     ...(ex.correlations?.length ? { correlations: ex.correlations.map(([a, b, kind]) => ({ id: newId('k'), kind, a: kind === 'construct' ? id(a) : a, b: kind === 'construct' ? id(b) : b })) } : {}),
+    ...(ex.multigroup ? { multigroup: ex.multigroup } : {}),
+    ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),
+    ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })) } } : {}),
   };
 }

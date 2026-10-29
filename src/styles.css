@@ -118,6 +118,8 @@ button, input, select { font: inherit; color: inherit; }
   font-size: 12px; font-weight: 500; color: var(--text-2);
 }
 .segmented button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.segmented.wrap { flex-wrap: wrap; max-width: 100%; }
+.segmented.wrap button { flex: 0 0 auto; padding-left: 10px; padding-right: 10px; }
 
 /* data panel */
 .dropzone {

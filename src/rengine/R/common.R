@@ -164,7 +164,13 @@ ps_dataset <- function(req_json) {
   e <- new.env()
   utils::data(list = req$name, package = req$package, envir = e)
   d <- as.data.frame(e[[req$name]])
+  # Factors (e.g. groups, ordered items) become their codes 1, 2, ... in level order.
+  levels <- list()
+  for (v in names(d)) if (is.factor(d[[v]]) || is.logical(d[[v]])) {
+    if (is.factor(d[[v]])) levels[[v]] <- levels(d[[v]])
+    d[[v]] <- as.integer(d[[v]])
+  }
   d <- d[vapply(d, is.numeric, TRUE)]
   for (v in names(d)) d[[v]][d[[v]] %in% unlist(req$na)] <- NA
-  ps_json(list(names = names(d), cols = unname(lapply(d, function(x) unname(as.numeric(x)))), n = nrow(d)))
+  ps_json(list(names = names(d), cols = unname(lapply(d, function(x) unname(as.numeric(x)))), n = nrow(d), levels = levels))
 }

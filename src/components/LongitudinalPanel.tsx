@@ -11,9 +11,11 @@ interface LongState {
   open: boolean;
   growth: { input: GrowthInput; result: GrowthResult } | null;
   riclpm: { input: RiclpmInput; result: RiclpmResult } | null;
+  /** Inputs filled in by an example (applied when it changes). */
+  preset: { growth: Pick<GrowthInput, 'measures' | 'times' | 'shape' | 'covariates'> } | null;
   setOpen: (v: boolean) => void;
 }
-export const useLong = create<LongState>((set) => ({ open: false, growth: null, riclpm: null, setOpen: (open) => set({ open }) }));
+export const useLong = create<LongState>((set) => ({ open: false, growth: null, riclpm: null, preset: null, setOpen: (open) => set({ open }) }));
 
 /** Columns in the order clicked: the measurement occasions. */
 export function OrderedPicker({ label, columns, value, onChange }: { label: string; columns: string[]; value: string[]; onChange: (v: string[]) => void }) {
@@ -132,6 +134,12 @@ export function LongitudinalPanel() {
   const [ys, setYs] = useState<string[]>(riclpm?.input.y ?? []);
   const [equal, setEqual] = useState(riclpm?.input.equal ?? false);
   const [busy, setBusy] = useState(false);
+  const preset = useLong((s) => s.preset);
+  useEffect(() => {
+    if (!preset) return;
+    const g = preset.growth;
+    setKind('growth'); setMeasures(g.measures); setTimes(g.times.join(', ')); setShape(g.shape); setCovariates(g.covariates);
+  }, [preset]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') useLong.getState().setOpen(false); };

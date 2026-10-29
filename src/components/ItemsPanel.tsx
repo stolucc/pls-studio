@@ -8,8 +8,10 @@ import { IconX } from './icons';
 import { OrderedPicker } from './LongitudinalPanel';
 import { c, pCell, Table } from './results/Table';
 
-interface ItemsState { open: boolean; irt: IrtResult | null; lca: LcaResult | null; setOpen: (v: boolean) => void }
-export const useItems = create<ItemsState>((set) => ({ open: false, irt: null, lca: null, setOpen: (open) => set({ open }) }));
+/** Inputs filled in by an example (applied when it changes). */
+export type ItemsPreset = { kind: 'irt'; items: string[]; model: IrtModel } | { kind: 'lca'; items: string[]; from: number; to: number };
+interface ItemsState { open: boolean; irt: IrtResult | null; lca: LcaResult | null; preset: ItemsPreset | null; setOpen: (v: boolean) => void }
+export const useItems = create<ItemsState>((set) => ({ open: false, irt: null, lca: null, preset: null, setOpen: (open) => set({ open }) }));
 
 const MODELS: { id: IrtModel; label: string; hint: string }[] = [
   { id: 'rasch', label: 'Rasch (1PL)', hint: 'Binary items; one common discrimination, item difficulties.' },
@@ -99,6 +101,12 @@ export function ItemsPanel() {
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(4);
   const [busy, setBusy] = useState(false);
+  const preset = useItems((s) => s.preset);
+  useEffect(() => {
+    if (!preset) return;
+    setKind(preset.kind); setItems(preset.items);
+    if (preset.kind === 'irt') setModel(preset.model); else { setFrom(preset.from); setTo(preset.to); }
+  }, [preset]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') useItems.getState().setOpen(false); };

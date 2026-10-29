@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { loadPackageExample, loadSample, newProject, newProjectFromData, openProject, openRecent } from '../io';
-import { PACKAGE_EXAMPLES, type ExamplePackage } from '../examples/packages';
+import { EXAMPLE_PACKAGES, PACKAGE_EXAMPLES, type ExamplePackage } from '../examples/packages';
 import { listRecent, recentPersistent, relativeTime, removeRecent, type RecentMeta } from '../recent';
 import { useStore } from '../store';
 import { confirmDialog } from './Overlays';
@@ -96,8 +96,6 @@ function SourceLinks({ links }: { links: { label: string; url: string }[] }) {
   );
 }
 
-const PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'cSEM', 'seminr'];
-
 /** Examples from the R packages' documentation, filterable by package. */
 function PackageExamples() {
   const [pkg, setPkg] = useState<ExamplePackage | 'all'>('all');
@@ -106,8 +104,8 @@ function PackageExamples() {
     <section className="home-examples">
       <div className="section-head">
         <h2>From R packages</h2>
-        <div className="segmented" role="radiogroup" aria-label="Package" style={{ width: 380 }}>
-          {(['all', ...PACKAGES] as const).map((p) => (
+        <div className="segmented wrap" role="radiogroup" aria-label="Package">
+          {(['all', ...EXAMPLE_PACKAGES] as const).map((p) => (
             <button key={p} role="radio" aria-checked={pkg === p} className={pkg === p ? 'on' : ''} onClick={() => setPkg(p)}>{p === 'all' ? 'All' : p}</button>
           ))}
         </div>

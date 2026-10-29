@@ -254,6 +254,20 @@ export async function loadSample(which: ExampleId = 'customer') {
 }
 
 /**
+ * R factors arrive as their codes 1, 2, ... (in level order): which code is
+ * which, columns with the same levels listed together. Empty when none.
+ */
+export function factorCodes(levels: Record<string, string[] | string> | unknown[] | undefined): string {
+  if (!levels || Array.isArray(levels)) return '';
+  const byLevels = new Map<string, string[]>();
+  for (const [col, l] of Object.entries(levels)) {
+    const key = (Array.isArray(l) ? l : [l]).map((x, i) => `${i + 1} = ${x}`).join(', ');
+    byLevels.set(key, [...(byLevels.get(key) ?? []), col]);
+  }
+  return byLevels.size ? ` Coded ${[...byLevels].map(([key, cols]) => `${cols.join(', ')}: ${key}`).join('; ')}.` : '';
+}
+
+/**
  * Open an example from an R package's documentation: its dataset is loaded
  * from the package (in the browser's R) and the model laid out automatically.
  */
@@ -266,7 +280,7 @@ export async function loadPackageExample(id: string) {
   s.toast('info', `Loading ${ex.data.package}::${ex.data.name} in R…`);
   try {
     const { rCall, rMessage } = await import('./rengine/bridge');
-    const raw = await rCall<{ names: string[]; cols: (number | null)[][]; n: number }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package).catch((e) => { throw new Error(rMessage(e)); });
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: Record<string, string[] | string> | unknown[] }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package).catch((e) => { throw new Error(rMessage(e)); });
     const cols = raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN)));
     const missingCells = cols.reduce((n, c) => n + c.filter(Number.isNaN).length, 0);
     const model = exampleModel(ex);
@@ -276,7 +290,20 @@ export async function loadPackageExample(id: string) {
       data: { names: raw.names, cols }, info: { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
     });
     useSim.getState().setDesign(null);
-    useStore.getState().toast('success', `${ex.title} (${ex.source}). Press Calculate.`);
+    const coded = factorCodes(raw.levels);
+    if (ex.panel) {
+      const p = ex.panel;
+      if (p.kind === 'growth') {
+        const { useLong } = await import('./components/LongitudinalPanel');
+        useLong.setState({ open: true, growth: null, preset: { growth: { measures: p.measures, times: p.times, shape: p.shape, covariates: p.covariates } } });
+      } else {
+        const { useItems } = await import('./components/ItemsPanel');
+        useItems.setState({ open: true, irt: null, lca: null, preset: { ...p } });
+      }
+      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Estimate.`);
+      return;
+    }
+    useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate.`);
   } catch (e) {
     useStore.getState().toast('error', `Could not load the example: ${(e as Error).message}`);
   }
