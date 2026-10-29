@@ -231,6 +231,11 @@ ps_cpa <- function(req_json, export = FALSE) {
     list(moderators = req$direct$moderators %||% list(),
       rows = lapply(ps_cpa_grid(dm, pv), function(at) slope_row(id(req$x), id(req$y), at)))
   }
+  # A multicategorical X: one relative direct effect per code.
+  directs <- lapply(req$directs %||% list(), function(dd) {
+    dm <- id(dd$moderators)
+    list(x = dd$x, moderators = dd$moderators %||% list(), rows = lapply(ps_cpa_grid(dm, pv), function(at) slope_row(id(dd$x), id(req$y), at)))
+  })
 
   # Johnson-Neyman: values of the single moderator of an edge where the conditional effect is just significant.
   # (Inside, `b` is the coefficient vector.)
@@ -312,7 +317,7 @@ ps_cpa <- function(req_json, export = FALSE) {
 
   ps_json(list(n = nrow(env$data), equations = equations,
     moderators = lapply(b$mods, function(m) list(name = nm(m), values = pv[[m]])),
-    direct = direct, indirect = indirect, total = total, indices = indices, jn = jn,
+    direct = direct, directs = directs, indirect = indirect, total = total, indices = indices, jn = jn,
     boot = list(samples = if (b$has_ind || b$sam) as.integer(req$boot$samples) else 0L),
     inference = if (b$sam) "montecarlo" else "bootstrap", hc = if (b$sam) "none" else req$hc %||% "none", latent = lapply(b$latent, nm),
     warnings = env$.warnings,

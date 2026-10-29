@@ -93,7 +93,7 @@ interface State {
   checkpoint: () => void;
 
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
-  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent'>>) => void;
+  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical'>>) => void;
   /** CB-SEM: label a path coefficient, loading or drawn covariance (null removes it); equal labels = equal values. */
   setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
   setDefined: (defined: DefinedParameter[]) => void;

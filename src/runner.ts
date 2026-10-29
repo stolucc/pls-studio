@@ -121,7 +121,7 @@ function runR(kind: JobKind, key: string) {
  */
 function runProcess(key: string) {
   const s = useStore.getState();
-  const input = processInput(s.model, s.settings);
+  const input = processInput(s.model, s.settings, s.data);
   const recognised = processGraph(s.model).recognised;
   if (!input || !s.data) return;
   const token = ++rToken;

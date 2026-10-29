@@ -77,6 +77,19 @@ function ConstructInspector({ c }: { c: Construct }) {
                 : c.latent ? `Latent variable measured by its ${c.indicators.length} items, corrected for measurement error.`
                   : `Scale score: the mean of its ${c.indicators.length} items (computed per case before the regressions).`}
           </div>
+          {c.indicators.length === 1 && !c.covariate && (
+            <div className="field">
+              <label>Measurement level</label>
+              <select className="select" value={c.categorical ?? ''} onChange={(e) => update(c.id, { categorical: (e.target.value || undefined) as Construct['categorical'] })}>
+                <option value="">Continuous (or dichotomous)</option>
+                <option value="indicator">Categorical X: indicator coding</option>
+                <option value="sequential">Categorical X: sequential coding</option>
+                <option value="helmert">Categorical X: Helmert coding</option>
+                <option value="effect">Categorical X: effect coding</option>
+              </select>
+              {c.categorical && <div className="hint" style={{ marginTop: 6 }}>X with k groups becomes k − 1 codes; every effect of X is reported per code as a relative effect (Hayes &amp; Preacher, 2014), with the codes as PROCESS’s mcx option.</div>}
+            </div>
+          )}
           {c.indicators.length > 1 && !c.covariate && (
             <div className="field">
               <label>Scale</label>

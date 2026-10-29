@@ -52,6 +52,16 @@ function Effects({ res, level }: { res: CpaResult; level: number }) {
   const indexName = { mm: 'Index of moderated mediation', partial: 'Index of partial moderated mediation', mmm: 'Index of moderated moderated mediation', cmm: 'Conditional index of moderated mediation' } as const;
   return (
     <div className="tables">
+      {res.coding && (
+        <Table title={`Coding of ${res.coding.x} (${res.coding.coding})`} file="process-coding" columns={[res.coding.x, ...res.coding.names]}
+          rows={res.coding.table.map((row, g) => [c(String(res.coding!.levels[g])), ...row.map((v) => c(v))])}
+          note="Each code is a relative effect: indicator coding compares each group with the first; sequential with the previous group; Helmert with the mean of the later groups; effect coding with the unweighted mean of all groups." />
+      )}
+      {res.directs.map((dd) => (
+        <Table key={dd.x} title={`Relative ${dd.moderators.length ? 'conditional ' : ''}direct effect of ${dd.x} on Y`} file={`process-direct-${dd.x}`}
+          columns={[...dd.moderators, 'Effect', 'Std. error', 't', 'p', ...ciCols(level)]}
+          rows={dd.rows.map((r) => [...atCells(dd.moderators, r.at), c(r.est), c(r.se), c(r.t), pCell(r.p), c(r.lo), c(r.hi)])} />
+      ))}
       {d && (
         <Table title={d.moderators.length ? 'Conditional direct effect of X on Y' : 'Direct effect of X on Y'} file="process-direct"
           columns={[...d.moderators, 'Effect', res.inference === 'montecarlo' ? 'MC SE' : 'Std. error', ...(res.inference === 'montecarlo' ? [] : ['t']), 'p', ...ciCols(level)]}

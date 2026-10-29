@@ -33,6 +33,8 @@ export interface Construct {
   fixedLoadings?: Record<string, number>;
   /** CB-SEM: labels of loadings (by indicator name); equal labels = equal loadings. */
   loadingLabels?: Record<string, string>;
+  /** Conditional process analysis: X is multicategorical, coded this way (PROCESS mcx). */
+  categorical?: 'indicator' | 'sequential' | 'helmert' | 'effect';
 }
 
 export interface Path {
@@ -583,6 +585,16 @@ export function validateModel(
       if (c.indicators.length < 2) err(`"${c.name}" is set as a latent variable but has ${c.indicators.length} item${c.indicators.length === 1 ? '' : 's'}; a latent variable needs at least two (three for a stable measurement model).`, c.id);
       else if (c.indicators.length === 2) warn(`"${c.name}" is a latent variable with two items; it is identified only through its relations with other latent variables.`, c.id);
     }
+    const g = processGraph(model).graph;
+    for (const c of model.constructs.filter((k) => k.categorical)) {
+      if (!g || c.name !== g.x) err(`"${c.name}" is marked as categorical, which applies to X only.`, c.id);
+      else if (c.indicators.length !== 1 || c.latent) err(`The categorical X "${c.name}" must be a single observed column.`, c.id);
+      else if (data && !data.moments) {
+        const col = data.cols[data.names.indexOf(c.indicators[0])];
+        const k = col ? new Set([...col].filter((v) => !Number.isNaN(v))).size : 0;
+        if (k < 2 || k > 10) err(`The categorical X "${c.name}" needs 2 to 10 groups (it has ${k}).`, c.id);
+      }
+    }
     if (latent.length && model.threeWay?.length) {
       err('Moderated moderation (three-way interaction) is not available with latent variables (lavaan’s SAM syntax has no three-way products). Use mean scores, or remove the three-way term.', latent[0].id);
     }
@@ -781,6 +793,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
       ...(c.covariate === true ? { covariate: true } : {}),
       ...(c.latent === true ? { latent: true } : {}),
+      ...((['indicator', 'sequential', 'helmert', 'effect'] as const).includes(c.categorical as 'indicator') ? { categorical: c.categorical as 'indicator' } : {}),
       ...(fixedLoadingsOf(c.fixedLoadings, c.indicators as unknown[])),
       ...(loadingLabelsOf(c.loadingLabels, c.indicators as unknown[])),
     };

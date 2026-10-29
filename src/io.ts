@@ -129,7 +129,7 @@ export async function exportRScript(what: ScriptTarget = 'model') {
   const errors = validateModel(s.model, s.data, s.settings).filter((i) => i.level === 'error');
   if (errors.length || !s.data) { s.toast('error', errors[0]?.message ?? 'Import a dataset first.'); return; }
   if (s.settings.method === 'process') {
-    const input = processInput(s.model, s.settings);
+    const input = processInput(s.model, s.settings, s.data);
     if (!input) return;
     try {
       s.toast('info', 'Preparing the manymome script…');

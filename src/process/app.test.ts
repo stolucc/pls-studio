@@ -194,3 +194,22 @@ describe('latent variables in process analysis', () => {
     expect(parseProject(serializeProject(s().model, s().settings, null, null)).model.constructs.find((c) => c.name === 'r1')!.latent).toBe(true);
   });
 });
+
+describe('categorical X in the app', () => {
+  it('codes X from the data, refuses categorical non-X variables, and survives files', async () => {
+    const { processInput } = await import('./input');
+    const groups = { names: ['g', 'm', 'y'], cols: [Float64Array.from([1, 2, 3, 1, 2]), Float64Array.from([1, 2, 3, 4, 5]), Float64Array.from([2, 3, 4, 5, 6])] };
+    useStore.setState({ data: groups });
+    s().applyTemplate(4, 1);
+    s().assignIndicators(named('X').id, ['g']);
+    s().assignIndicators(named('M').id, ['m']);
+    s().assignIndicators(named('Y').id, ['y']);
+    s().updateConstruct(named('g').id, { categorical: 'helmert' });
+    expect(validateModel(s().model, groups, s().settings).filter((i) => i.level === 'error')).toEqual([]);
+    const input = processInput(s().model, s().settings, groups)!;
+    expect(input.categorical).toMatchObject({ x: 'g', coding: 'helmert', levels: [1, 2, 3], names: ['g D1', 'g D2'] });
+    s().updateConstruct(named('m').id, { categorical: 'indicator' });
+    expect(validateModel(s().model, groups, s().settings).some((i) => /applies to X only/.test(i.message))).toBe(true);
+    expect(parseProject(serializeProject(s().model, s().settings, null, null)).model.constructs.find((c) => c.name === 'g')!.categorical).toBe('helmert');
+  });
+});

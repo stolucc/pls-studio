@@ -4,6 +4,7 @@
 
 import type { JohnsonNeyman } from '../engine/jn';
 import type { Dataset, MissingTreatment } from '../engine/types';
+import { codeValue, expandPlan, type Dummies } from '../process/categorical';
 import { planFor } from '../process/plan';
 import type { ProcessGraph } from '../process/templates';
 import { rCall, rScript, rStrings } from './bridge';
@@ -22,6 +23,8 @@ export interface CpaInput {
   order?: string[];
   missing: MissingTreatment;
   probe: 'percentiles' | 'meansd';
+  /** A multicategorical X: its codes (relative effects per code). */
+  categorical?: Dummies;
   /** Heteroskedasticity-consistent standard errors for the regressions (not used with latent variables). */
   hc?: 'none' | 'HC0' | 'HC1' | 'HC2' | 'HC3' | 'HC4';
   boot: { samples: number; seed: number };
@@ -29,9 +32,14 @@ export interface CpaInput {
 }
 
 export function cpaRequest(data: Dataset, input: CpaInput) {
-  const plan = planFor(input.graph, input.covariates, input.order);
-  const used = new Set(input.variables.flatMap((v) => v.indicators));
+  const cat = input.categorical;
+  const base = planFor(input.graph, input.covariates, input.order);
+  const plan = cat ? expandPlan(base, input.graph.x, cat.names) : base;
+  // The codes of a categorical X travel as extra data columns, each its own variable.
+  const variables = cat ? [...input.variables.filter((v) => v.name !== cat.x), ...cat.names.map((n) => ({ name: n, indicators: [n] }))] : input.variables;
+  const used = new Set(variables.flatMap((v) => v.indicators));
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
+  const extraCols = cat ? cat.names.map((n, j) => ({ name: n, col: cat.codes[j] })) : [];
   return {
     kind: 'cpa',
     model: input.model ?? null,
@@ -40,14 +48,18 @@ export function cpaRequest(data: Dataset, input: CpaInput) {
     hc: input.hc ?? 'none',
     confidence: input.confidence,
     boot: input.boot,
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
-    variables: input.variables.map(({ name, indicators }) => ({ name, indicators })),
+    data: {
+      names: [...keep.map(([n]) => n), ...extraCols.map((e) => e.name)],
+      cols: [...keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))), ...extraCols.map((e) => Array.from(e.col, (v) => (Number.isNaN(v) ? null : v)))],
+    },
+    variables: variables.map(({ name, indicators }) => ({ name, indicators })),
     latent: input.variables.filter((v) => v.latent && v.indicators.length > 1).map((v) => v.name),
     x: input.graph.x,
     y: input.graph.y,
     equations: plan.equations.map((e) => ({ outcome: e.outcome, terms: e.terms.map((vars) => ({ vars })) })),
     moderators: plan.moderators,
     direct: plan.direct,
+    ...('directs' in plan && plan.directs ? { directs: plan.directs } : {}),
     indirect: plan.indirect,
     jn: plan.jn,
     interactions: plan.interactions.map((i) => ({ outcome: i.outcome, focal: i.focal, terms: i.terms.map((vars) => ({ vars })) })),
@@ -70,6 +82,10 @@ export interface CpaResult {
   }[];
   moderators: { name: string; values: number[] }[];
   direct: { moderators: string[]; rows: ({ at: At } & CpaTest)[] } | null;
+  /** Multicategorical X: relative direct effects, one per code. */
+  directs: { x: string; moderators: string[]; rows: ({ at: At } & CpaTest)[] }[];
+  /** Multicategorical X: the codes used. */
+  coding?: { x: string; coding: string; levels: number[]; names: string[]; table: number[][] };
   indirect: { path: string[]; moderators: string[]; rows: ({ at: At } & CpaEffect)[] }[];
   total: CpaEffect | null;
   indices: ({ kind: 'mm' | 'partial' | 'mmm' | 'cmm'; path: string[]; moderator?: string; at?: At } & CpaEffect)[];
@@ -107,6 +123,7 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
     })),
     moderators: arr<any>(raw.moderators).map((m) => ({ name: m.name, values: arr<number>(m.values) })),
     direct: raw.direct ? { moderators: arr<string>(raw.direct.moderators), rows: arr<any>(raw.direct.rows).map((r) => ({ ...r, at: at(r.at) })) } : null,
+    directs: arr<any>(raw.directs).map((d) => ({ x: d.x, moderators: arr<string>(d.moderators), rows: arr<any>(d.rows).map((r) => ({ ...r, at: at(r.at) })) })),
     indirect: arr<any>(raw.indirect).map((p) => ({ path: arr<string>(p.path), moderators: arr<string>(p.moderators), rows: arr<any>(p.rows).map((r) => ({ ...r, at: at(r.at) })) })),
     indices: arr<any>(raw.indices).map((i) => ({ ...i, path: arr<string>(i.path), at: i.at ? at(i.at) : undefined })),
     jn: arr<any>(raw.jn).map((j) => ({ ...j, range: arr<number>(j.range), v: arr<number>(j.v), bounds: arr<any>(j.bounds) })),
@@ -118,7 +135,10 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
 }
 
 export async function estimateCpaR(data: Dataset, input: CpaInput): Promise<CpaResult> {
-  return parseCpaOutput(await rCall<Record<string, any>>('ps_cpa', cpaRequest(data, input), input.variables.some((v) => v.latent) ? 'manymomeSam' : 'manymome'));
+  const r = parseCpaOutput(await rCall<Record<string, any>>('ps_cpa', cpaRequest(data, input), input.variables.some((v) => v.latent) ? 'manymomeSam' : 'manymome'));
+  const cat = input.categorical;
+  if (cat) r.coding = { x: cat.x, coding: cat.coding, levels: cat.levels, names: cat.names, table: cat.levels.map((_, g) => cat.names.map((_, j) => codeValue(cat.coding, cat.levels.length, g, j))) };
+  return r;
 }
 
 export function cpaScriptR(data: Dataset, input: CpaInput): Promise<string> {
