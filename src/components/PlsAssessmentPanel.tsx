@@ -150,7 +150,7 @@ function CcaDiagramView({ r }: { r: CcaResult }) {
     </g>
   );
   return (
-    <>
+    <div>
       <div className="segmented" role="radiogroup" aria-label="Values on the indicator arrows" style={{ width: 220, marginBottom: 6 }}>
         {(['weights', 'loadings'] as const).map((k) => <button key={k} role="radio" aria-checked={show === k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{k === 'weights' ? 'Weights' : 'Loadings'}</button>)}
       </div>
@@ -180,7 +180,7 @@ function CcaDiagramView({ r }: { r: CcaResult }) {
           </svg>
         )}
       </ChartFrame>
-    </>
+    </div>
   );
 }
 function CcaView({ r }: { r: CcaResult }) {
@@ -190,12 +190,13 @@ function CcaView({ r }: { r: CcaResult }) {
   const chosen = usePlsAssessment((st) => st.ccaTab);
   const tab = tabs.some(([id]) => id === chosen) ? chosen : 'fit';
   return (
-    <div className="tables">
+    <>
       <div className="segmented efa-tabs" role="tablist" aria-label="CCA results">
         {tabs.map(([id, label]) => (
           <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => usePlsAssessment.setState({ ccaTab: id })}>{label}</button>
         ))}
       </div>
+      <div className="tables">
       {tab === 'diagram' && <CcaDiagramView r={r} />}
       {tab === 'fit' && <Table title={`Overall fit of the composite model: ${rejected.length ? `rejected by ${rejected.join(', ')}` : 'not rejected'}`} file="cca-fit"
         columns={['Discrepancy', 'Value', 'HI95 (95% quantile)', 'HI99 (99% quantile)', 'Decision (5%)']}
@@ -213,6 +214,7 @@ function CcaView({ r }: { r: CcaResult }) {
         note="The saturated structural model: all composites freely correlated. Correlations close to 1 question discriminant validity." />}
       <div className="hint">Confirmatory composite analysis (Schuberth, Henseler &amp; Dijkstra 2018; Henseler 2021): are the constructs emergent variables — composites of their indicators? Every construct is treated as a composite (Mode A or B as drawn), the weights ignore the structural paths, and the fit of the saturated model is tested. cSEM, as its ?ITFlex example.</div>
     </div>
+    </>
   );
 }
 
