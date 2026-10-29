@@ -4,7 +4,7 @@ import {
   type Connection, type ConnectionLineComponentProps, type EdgeChange, type FinalConnectionState, type NodeChange, type OnDelete,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment, quadraticSegment } from '../geometry';
+import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment, quadraticLoop } from '../geometry';
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { FigurePanel } from './FigurePanel';
@@ -28,7 +28,7 @@ import { CovarianceLayer, covarianceLayout, type CorrelationLabel, type Correlat
 import { currentSession } from '../cloud/collab';
 import { PresenceLayer } from './cloud/Presence';
 import { HigherOrderLayer, type HoLabel } from './HigherOrderLayer';
-import { badgeWidth, ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
+import { ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
 import { PathEdge, type PathFlowEdge } from './PathEdge';
 
 const nodeTypes = { construct: ConstructNode };
@@ -470,9 +470,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       if (!seg || !mod) return [];
       const l = moderationLabel(mo.id);
       if (mod.id === p!.from) {
-        const q = quadraticSegment(seg);
-        const text = `${mod.name}²`;
-        return [{ x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: lbl(l?.beta, l?.p ?? null), badge: { x: q.bx, y: q.by, text, w: badgeWidth(text) } }];
+        const q = quadraticLoop(mod, seg);
+        return [{ x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: lbl(l?.beta, l?.p ?? null), loop: { ...q, tag: `${mod.name}²` } }];
       }
       return [{ ...moderatorSegment(mod, seg), label: lbl(l?.beta, l?.p ?? null) }];
     });

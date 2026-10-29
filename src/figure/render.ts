@@ -3,7 +3,7 @@
 // figure style. Only plain SVG primitives and standard font families, so
 // svg2pdf.js can turn it into vector PDF without embedded fonts.
 
-import { arrowHead, ERR_R, hexagonVertices, type ConstructGeom, type ErrorTerm } from '../geometry';
+import { arrowHead, ERR_R, hexagonVertices, QUAD_RISE, type ConstructGeom, type ErrorTerm, type QuadraticLoop } from '../geometry';
 import type { Construct } from '../model/project';
 import { estimateText, FONT_FAMILY, pathStrokeWidth, type FigureStyle } from './style';
 
@@ -14,8 +14,8 @@ export interface FigureInput {
   constructs: { c: Construct; geom: ConstructGeom; r2: number | null; indicators: (FigureLabel | null)[]; observed?: boolean }[];
   /** `implied`: a moderator's main effect implied by its moderation (dashed). */
   paths: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; moderated: boolean; implied?: boolean }[];
-  /** `badge`: a quadratic term (X²), drawn as a labelled pill the arrow starts from. */
-  moderations: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; badge?: { x: number; y: number; text: string; w: number } }[];
+  /** `loop`: a quadratic effect (Henseler 2021), X's own arrow curving onto its path, tagged X². */
+  moderations: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; loop?: QuadraticLoop & { tag: string } }[];
   higherOrder: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
   errors: { term: ErrorTerm; kind: 'indicator' | 'disturbance'; value: number | null }[];
   correlations: { d: string; heads: string[]; lx: number; ly: number; nx: number; ny: number; points: [number, number][]; label: FigureLabel | null }[];
@@ -59,14 +59,16 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
     for (const h of k.heads) out.push(`<path d="${h}" fill="${style.correlationColor}"/>`);
   }
   for (const m of f.moderations) {
-    line(m.x1, m.y1, m.x2, m.y2, style.moderationColor, style.pathWidth, true, '6 4');
+    const q = m.loop;
+    if (q) {
+      // The loop's apex is ¾ of the rise out; its tag sits just beyond.
+      const tx = q.lx + q.nx * (small + 6), ty = q.ly + q.ny * (small + 6);
+      extend(q.x1, q.y1); extend(q.x2, q.y2); extend(q.lx, q.ly); extend(tx - textWidth(q.tag, small) / 2, ty - small); extend(tx + textWidth(q.tag, small) / 2, ty + small);
+      out.push(`<path d="${q.d}" fill="none" stroke="${style.moderationColor}" stroke-width="${n(style.pathWidth)}" stroke-dasharray="6 4"/>`);
+      out.push(`<path d="${arrowHead(q.x2, q.y2, -q.nx * QUAD_RISE, -q.ny * QUAD_RISE, 6 + style.pathWidth * 2, 2.5 + style.pathWidth)}" fill="${style.moderationColor}"/>`);
+      out.push(`<text x="${n(tx)}" y="${n(ty + small * 0.35)}" font-size="${n(small)}" font-style="italic" font-weight="bold" text-anchor="middle" fill="${style.moderationColor}">${esc(q.tag)}</text>`);
+    } else line(m.x1, m.y1, m.x2, m.y2, style.moderationColor, style.pathWidth, true, '6 4');
     out.push(`<circle cx="${n(m.x2)}" cy="${n(m.y2)}" r="3" fill="${style.moderationColor}"/>`);
-    if (m.badge) {
-      const b = m.badge, w = Math.max(b.w, textWidth(b.text, fs) + 16), h = fs + 10;
-      extend(b.x - w / 2, b.y - h / 2); extend(b.x + w / 2, b.y + h / 2);
-      out.push(`<rect x="${n(b.x - w / 2)}" y="${n(b.y - h / 2)}" width="${n(w)}" height="${n(h)}" rx="${n(h / 2)}" fill="${style.constructFill}" stroke="${style.moderationColor}" stroke-width="${n(style.constructStrokeWidth)}" stroke-dasharray="4 3"/>`);
-      out.push(`<text x="${n(b.x)}" y="${n(b.y + fs * 0.35)}" font-size="${fs}" font-weight="bold" text-anchor="middle" fill="#1f2430">${esc(b.text)}</text>`);
-    }
   }
   for (const p of f.paths) line(p.x1, p.y1, p.x2, p.y2, style.pathColor, pathStrokeWidth(style, p.label?.value ?? null), true, p.implied ? '5 4' : '');
   for (const h of f.higherOrder) line(h.x1, h.y1, h.x2, h.y2, style.pathColor, style.pathWidth * 0.9, true);
@@ -117,7 +119,7 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
       label(p.x1 + t * (p.x2 - p.x1), p.y1 + t * (p.y2 - p.y1), p.label, tone(p.label.p));
     }
     for (const m of f.moderations) if (m.label) {
-      if (m.badge) label(m.badge.x + Math.max(m.badge.w, textWidth(m.badge.text, fs) + 16) / 2 + 4, m.badge.y, m.label, tone(m.label.p), 'start');
+      if (m.loop) label(m.loop.lx, m.loop.ly, m.label, tone(m.label.p));
       else label((m.x1 + m.x2) / 2, (m.y1 + m.y2) / 2, m.label, tone(m.label.p));
     }
     for (const h of f.higherOrder) if (h.label) label((h.x1 + h.x2) / 2, (h.y1 + h.y2) / 2, h.label, '#333333');

@@ -346,16 +346,14 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 /* moderation arrows */
 .mod-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .mod-line { stroke: var(--mod, #8b5cf6); stroke-width: 1.6; stroke-dasharray: 6 4; fill: none; }
-.mod-hit { stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
+.mod-hit { stroke: transparent; stroke-width: 16; fill: none; pointer-events: stroke; cursor: pointer; }
 .mod-dot { fill: var(--mod, #8b5cf6); }
 .mod.on .mod-line { stroke: var(--accent); stroke-width: 2.4; }
 .mod.on .mod-dot { fill: var(--accent); }
 .mod:hover .mod-line { stroke-width: 2.4; }
 .elabel.mod-label { position: absolute; cursor: pointer; border-color: #ddd6fe; }
-.quad-badge { pointer-events: all; cursor: pointer; }
-.quad-badge rect { fill: var(--construct-fill, #eef0ff); stroke: var(--mod, #8b5cf6); stroke-width: 1.4; stroke-dasharray: 4 3; }
-.quad-badge text { font-size: 12px; font-weight: 600; fill: var(--text, #1f2430); font-family: var(--figure-font, inherit); }
-.mod.on .quad-badge rect { stroke: var(--accent); stroke-width: 2; }
+.quad-tag { font-size: 11px; font-style: italic; font-weight: 600; fill: var(--mod, #8b5cf6); font-family: var(--figure-font, inherit); pointer-events: all; cursor: pointer; }
+.mod.on .quad-tag { fill: var(--accent); }
 .slopes { display: block; }
 .slopes .axis { stroke: var(--border-strong); }
 .slopes text { font-size: 10.5px; fill: var(--text-2); }

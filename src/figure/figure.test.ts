@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { constructGeometry, pathSegment, quadraticSegment } from '../geometry';
+import { constructGeometry, pathSegment, quadraticLoop } from '../geometry';
 import type { Construct } from '../model/project';
 import { renderFigureSvg, type FigureInput } from './render';
 import { DEFAULT_FIGURE_STYLE, estimateText, FIGURE_PRESETS, parseFigureStyle, pathStrokeWidth } from './style';
@@ -71,19 +71,21 @@ describe('figure SVG', () => {
     expect(svg).toContain('>1<');
   });
 
-  it('draws a quadratic term as a labelled badge beside the path, with its estimate next to it', () => {
+  it('draws a quadratic effect as a dashed loop from X onto its path, tagged X², estimate at the apex', () => {
     const f = input();
-    const seg = f.paths[0];
-    const q = quadraticSegment(seg);
+    const a = f.constructs[0].c;
+    const q = quadraticLoop(a, f.paths[0]);
     f.paths[0].moderated = true;
-    f.moderations = [{ x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: { value: 0.1234, p: 0.03 }, badge: { x: q.bx, y: q.by, text: 'Trust & <Risk>²', w: 120 } }];
+    f.moderations = [{ x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: { value: 0.1234, p: 0.03 }, loop: { ...q, tag: 'Trust & <Risk>²' } }];
     const { svg } = renderFigureSvg(f, { ...DEFAULT_FIGURE_STYLE, pFormat: 'stars' });
+    expect(svg).toContain(`<path d="${q.d}" fill="none"`);
+    expect(svg).toMatch(/<path d="M [^"]+ C [^"]+" fill="none" stroke="[^"]+" stroke-width="[\d.]+" stroke-dasharray="6 4"\/>/);
+    expect(svg).toContain('font-style="italic" font-weight="bold" text-anchor="middle"');
     expect(svg).toContain('>Trust &amp; &lt;Risk&gt;²</text>');
-    expect(svg).toMatch(/<rect [^>]*stroke-dasharray="4 3"\/>/);
-    expect(svg).toContain('>0.123*</text>');
-    // The estimate is placed to the right of the badge, not on the arrow.
-    const x = Number(/<text x="([\d.-]+)"[^>]*>0\.123\*<\/text>/.exec(svg)![1]);
-    expect(x).toBeGreaterThan(q.bx + 60);
+    // The estimate sits on the loop's apex.
+    const m = /<text x="([\d.-]+)" y="([\d.-]+)"[^>]*>0\.123\*<\/text>/.exec(svg)!;
+    expect(Number(m[1])).toBeCloseTo(q.lx, 0);
+    expect(Math.abs(Number(m[2]) - q.ly)).toBeLessThan(6);
   });
 });
 

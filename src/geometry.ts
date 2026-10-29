@@ -149,22 +149,48 @@ export function moderatorSegment(m: Placed, path: { x1: number; y1: number; x2: 
   return { x1: m.x + bx, y1: m.y + by, x2: mx, y2: my };
 }
 
-/** Distance of a quadratic-term badge (X²) from the path it modifies. */
-export const QUAD_OFFSET = 46;
+/** How far a quadratic effect's loop rises beside the path it modifies. */
+export const QUAD_RISE = 56;
+
+/** A quadratic effect drawn as Henseler (2021) does: X's own arrow onto its path X → Y. */
+export interface QuadraticLoop {
+  /** SVG path (cubic Bézier) from X's boundary to the path midpoint. */
+  d: string;
+  x1: number; y1: number; x2: number; y2: number;
+  /** Apex of the loop (where the estimate goes) and the outward normal there. */
+  lx: number; ly: number; nx: number; ny: number;
+}
+
+const SIDE_VEC: Record<string, [number, number]> = { top: [0, -1], bottom: [0, 1], left: [-1, 0], right: [1, 0] };
 
 /**
- * A quadratic effect (the predictor moderating its own path) has no separate
- * moderator to draw from: its badge sits beside the path midpoint, above it
- * (or left of a vertical path), with a short arrow onto the midpoint.
+ * A quadratic effect is X moderating its own effect (the slope of X depends on
+ * X): an arrow leaves X, loops out beside the path and lands on the midpoint
+ * of X → Y, as a moderator's arrow does. The loop goes above the path (left of
+ * a vertical one), or to the other side when X's indicators are there.
  */
-export function quadraticSegment(path: { x1: number; y1: number; x2: number; y2: number }, badgeHalfHeight = 11) {
+export function quadraticLoop(c: Placed, path: { x1: number; y1: number; x2: number; y2: number }): QuadraticLoop {
   const mx = (path.x1 + path.x2) / 2, my = (path.y1 + path.y2) / 2;
   const dx = path.x2 - path.x1, dy = path.y2 - path.y1;
   const len = Math.hypot(dx, dy) || 1;
-  let nx = -dy / len, ny = dx / len;
+  const ux = dx / len, uy = dy / len;
+  let nx = -uy, ny = ux;
   if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) { nx = -nx; ny = -ny; }
-  const bx = mx + nx * QUAD_OFFSET, by = my + ny * QUAD_OFFSET;
-  return { bx, by, x1: bx - nx * badgeHalfHeight, y1: by - ny * badgeHalfHeight, x2: mx, y2: my };
+  const [sx0, sy0] = SIDE_VEC[c.side ?? 'bottom'] ?? SIDE_VEC.bottom;
+  if (nx * sx0 + ny * sy0 > 0.5) { nx = -nx; ny = -ny; }
+  // Leave X just beside where the path leaves it (clear of the label above X), on that side.
+  const ox = ux + 0.6 * nx, oy = uy + 0.6 * ny, lean = Math.hypot(ox, oy);
+  const g = constructGeometry(c);
+  const [bx, by] = shapePoint(shapeOf(c), g.rx, g.ry, ox / lean, oy / lean);
+  const x1 = c.x + bx, y1 = c.y + by;
+  const h = QUAD_RISE;
+  const c1x = x1 + nx * h, c1y = y1 + ny * h, c2x = mx + nx * h, c2y = my + ny * h;
+  const r = (v: number) => Number(v.toFixed(2));
+  return {
+    d: `M ${r(x1)} ${r(y1)} C ${r(c1x)} ${r(c1y)} ${r(c2x)} ${r(c2y)} ${r(mx)} ${r(my)}`,
+    x1, y1, x2: mx, y2: my,
+    lx: (x1 + 3 * c1x + 3 * c2x + mx) / 8, ly: (y1 + 3 * c1y + 3 * c2y + my) / 8, nx, ny,
+  };
 }
 
 // ---------- CB-SEM error terms and correlations ----------

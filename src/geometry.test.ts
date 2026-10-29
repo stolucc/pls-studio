@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, moderatorSegment, QUAD_OFFSET, quadraticSegment, pathSegment,
+  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, moderatorSegment, QUAD_RISE, quadraticLoop, pathSegment,
 } from './geometry';
 
 describe('construct shapes', () => {
@@ -48,22 +48,35 @@ describe('path and moderator geometry', () => {
     expect(mod.y1).toBeCloseTo(-200 + constructGeometry(m).ry, 9);
   });
 
-  it('puts a quadratic badge beside the path midpoint, above it or left of a vertical path', () => {
-    const q = quadraticSegment({ x1: 0, y1: 0, x2: 200, y2: 0 });
-    expect([q.x2, q.y2]).toEqual([100, 0]);
-    expect(q.bx).toBeCloseTo(100, 9);
-    expect(q.by).toBeCloseTo(-QUAD_OFFSET, 9);
-    expect(q.y1).toBeCloseTo(-QUAD_OFFSET + 11, 9);
-    // Either direction of the path gives the same side.
-    expect(quadraticSegment({ x1: 200, y1: 0, x2: 0, y2: 0 }).by).toBeCloseTo(-QUAD_OFFSET, 9);
-    const v = quadraticSegment({ x1: 0, y1: 0, x2: 0, y2: 100 });
-    expect(v.bx).toBeCloseTo(-QUAD_OFFSET, 9);
-    expect(quadraticSegment({ x1: 0, y1: 100, x2: 0, y2: 0 }).bx).toBeCloseTo(-QUAD_OFFSET, 9);
-    // Diagonal: the badge is QUAD_OFFSET from the midpoint, perpendicular to the path.
-    const d = quadraticSegment({ x1: 0, y1: 0, x2: 100, y2: 100 });
-    expect(Math.hypot(d.bx - 50, d.by - 50)).toBeCloseTo(QUAD_OFFSET, 9);
-    expect((d.bx - 50) * 100 + (d.by - 50) * 100).toBeCloseTo(0, 9);
-    expect(d.by).toBeLessThan(50);
+  it('draws a quadratic effect as X’s own arrow looping onto the middle of X → Y (Henseler 2021)', () => {
+    const x = { name: 'X', indicators: ['x1', 'x2'], side: 'left' as const, x: 0, y: 0 };
+    const y = { name: 'Y', indicators: ['y1'], side: 'right' as const, x: 400, y: 0 };
+    const seg = pathSegment(x, y)!;
+    const q = quadraticLoop(x, seg);
+    // Lands on the path midpoint, coming straight down onto it (the loop rises above a horizontal path).
+    expect([q.x2, q.y2]).toEqual([(seg.x1 + seg.x2) / 2, (seg.y1 + seg.y2) / 2]);
+    expect(q.nx).toBeCloseTo(0, 9); expect(q.ny).toBeCloseTo(-1, 9);
+    expect(q.d).toMatch(/^M [\d.-]+ [\d.-]+ C .* 200 0$/);
+    // Leaves from X's boundary, on the upper side, leaning towards Y.
+    const g = constructGeometry(x);
+    expect(((q.x1 / g.rx) ** 2 + (q.y1 / g.ry) ** 2)).toBeCloseTo(1, 6);
+    expect(q.y1).toBeLessThan(0); expect(q.x1).toBeGreaterThan(0);
+    // The apex (estimate) is ¾ of the rise above the path.
+    expect(q.ly).toBeCloseTo((q.y1 + seg.y1) / 2 - 0.75 * QUAD_RISE, 6);
+    expect(q.lx).toBeGreaterThan(q.x1); expect(q.lx).toBeLessThan(q.x2);
+  });
+
+  it('puts the loop on the side away from X’s indicators', () => {
+    const top = { name: 'X', indicators: ['x1'], side: 'top' as const, x: 0, y: 0 };
+    const y = { name: 'Y', indicators: ['y1'], side: 'right' as const, x: 400, y: 0 };
+    const q = quadraticLoop(top, pathSegment(top, y)!);
+    expect(q.ny).toBeCloseTo(1, 9);
+    expect(q.ly).toBeGreaterThan(0);
+    // Vertical path: left of it, unless X's indicators are on the left.
+    const up = { name: 'X', indicators: ['x1'], side: 'right' as const, x: 0, y: 0 };
+    const below = { name: 'Y', indicators: ['y1'], side: 'right' as const, x: 0, y: 300 };
+    expect(quadraticLoop(up, pathSegment(up, below)!).nx).toBeCloseTo(-1, 9);
+    expect(quadraticLoop({ ...up, side: 'left' }, pathSegment({ ...up, side: 'left' }, below)!).nx).toBeCloseTo(1, 9);
   });
 });
 
