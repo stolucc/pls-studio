@@ -18,6 +18,8 @@ export function TopBar() {
   const name = useStore((s) => s.projectName);
   const setName = useStore((s) => s.setProjectName);
   const dirty = useStore((s) => s.dirty);
+  const example = useStore((s) => s.example);
+  const keepExample = useStore((s) => s.keepExample);
   const canUndo = useStore((s) => (s.history ? s.historyCounts.undo > 0 : s.past.length > 0));
   const canRedo = useStore((s) => (s.history ? s.historyCounts.redo > 0 : s.future.length > 0));
   const undo = useStore((s) => s.undo);
@@ -37,7 +39,13 @@ export function TopBar() {
         <span className="brand-mark"><IconLogo size={17} /></span>PLS Studio
       </button>
       <input className="project-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Project name" maxLength={100} />
-      {dirty && <span className="dirty-dot" title="Unsaved changes" />}
+      {example ? (
+        <span className="example-badge" title="An example: try anything; your changes are not kept, so it opens as the original next time.">
+          Example
+          <button className="btn sm ghost" onClick={() => { keepExample(); useStore.getState().toast('success', 'Now your own project: changes are kept in Recent projects.'); }}
+            title="Keep this model, with your changes, as your own project">Keep as my project</button>
+        </span>
+      ) : dirty && <span className="dirty-dot" title="Unsaved changes" />}
       <div className="sep" />
       <FileMenu />
       <div className="sep" />

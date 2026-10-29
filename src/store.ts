@@ -58,6 +58,11 @@ interface State {
   projectId: string;
   /** Set while the open project is a shared (server) project. */
   cloud: CloudState | null;
+  /**
+   * Set while the open project is an example: changes are allowed but never
+   * kept (not autosaved), so reopening it gives the original.
+   */
+  example: string | null;
   history: HistoryOverride | null;
   /** Undo/redo availability when `history` is set. */
   historyCounts: { undo: number; redo: number };
@@ -137,7 +142,9 @@ interface State {
   setTool: (t: Tool) => void;
   setSettings: (p: Partial<Settings>) => void;
   setData: (data: Dataset, info: DataInfo) => void;
-  loadProject: (p: { name: string; model: ModelState; settings: Settings; data: Dataset | null; info: DataInfo | null; id?: string }) => void;
+  loadProject: (p: { name: string; model: ModelState; settings: Settings; data: Dataset | null; info: DataInfo | null; id?: string; example?: string }) => void;
+  /** Turn the open example into an ordinary project of one's own (kept from now on). */
+  keepExample: () => void;
   setView: (v: View) => void;
   newProject: () => void;
   setProjectName: (name: string) => void;
@@ -206,6 +213,7 @@ export function resultsKey(s: Pick<State, 'model' | 'settings' | 'dataVersion'>)
 export const useStore = create<State>((set, get) => ({
   projectId: newId('proj'),
   cloud: null,
+  example: null,
   history: null,
   historyCounts: { undo: 0, redo: 0 },
   view: 'home',
@@ -505,22 +513,23 @@ export const useStore = create<State>((set, get) => ({
   setSettings: (p) => { if (!readOnly(get())) set((s) => ({ settings: { ...s.settings, ...p }, dirty: true })); },
   setData: (data, dataInfo) => set((s) => ({ data, dataInfo, dataVersion: s.dataVersion + 1, dirty: true, selectedVars: [] })),
   setView: (view) => set({ view }),
-  loadProject: ({ name, model, settings, data, info, id }) =>
+  loadProject: ({ name, model, settings, data, info, id, example }) =>
     set((s) => ({
-      projectId: id ?? newId('proj'), view: 'editor', cloud: null, history: null, historyCounts: { undo: 0, redo: 0 },
+      projectId: id ?? newId('proj'), view: 'editor', cloud: null, example: example ?? null, history: null, historyCounts: { undo: 0, redo: 0 },
       projectName: name, model, settings, data, dataInfo: info, dataVersion: s.dataVersion + 1,
       past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null, dirty: false, resultsOpen: false,
       fitRequest: s.fitRequest + 1, messages: [],
     })),
   newProject: () =>
     set((s) => ({
-      projectId: newId('proj'), view: 'editor', cloud: null, history: null, historyCounts: { undo: 0, redo: 0 },
+      projectId: newId('proj'), view: 'editor', cloud: null, example: null, history: null, historyCounts: { undo: 0, redo: 0 },
       projectName: 'Untitled model', model: emptyModel(), settings: DEFAULT_SETTINGS, data: null, dataInfo: null,
       dataVersion: s.dataVersion + 1, past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null,
       dirty: false, resultsOpen: false, messages: [],
     })),
   setProjectName: (projectName) => { if (!readOnly(get())) set({ projectName: projectName.slice(0, 100), dirty: true }); },
   markSaved: () => set({ dirty: false }),
+  keepExample: () => set((s) => (s.example ? { example: null, projectId: newId('proj'), projectName: s.projectName.replace(/^Example: /, ''), dirty: true } : {})),
 
   setJob: (job) => set({ job }),
   setResults: (r, key) =>

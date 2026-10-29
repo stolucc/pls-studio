@@ -234,7 +234,7 @@ export async function loadSample(which: ExampleId = 'customer') {
   if (which === 'emse') {
     const { makeEmseExample } = await import('./examples/emse');
     const ex = makeEmseExample(s.settings);
-    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info });
+    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'emse' });
     useSim.getState().setDesign(null);
     s.toast('info', 'Stol, Schaarschmidt & Goldblit (2022), EMSE 27:35. Covariance + NACOV matrices (N = 155), estimated with MLM as in the paper. Press Calculate.');
     return;
@@ -242,13 +242,13 @@ export async function loadSample(which: ExampleId = 'customer') {
   if (which === 'poldem') {
     const { makePoldemExample } = await import('./examples/poldem');
     const ex = makePoldemExample(s.settings);
-    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info });
+    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'poldem' });
     useSim.getState().setDesign(null);
     s.toast('info', 'Bollen (1989): industrialisation and political democracy, N = 75, with six correlated measurement errors. Press Calculate.');
     return;
   }
   const { data, info, model } = makeSample();
-  s.loadProject({ name: 'Customer experience example', model, settings: { ...s.settings, method: 'pls' }, data, info });
+  s.loadProject({ name: 'Customer experience example', model, settings: { ...s.settings, method: 'pls' }, data, info, example: 'customer' });
   useSim.getState().setDesign(null);
   s.toast('info', 'Example loaded. Press Calculate to estimate the model.');
 }
@@ -288,6 +288,7 @@ export async function loadPackageExample(id: string) {
     s.loadProject({
       name: ex.title, model, settings: { ...useStore.getState().settings, ...ex.settings, engine: 'r' },
       data: { names: raw.names, cols }, info: { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
+      example: ex.id,
     });
     useSim.getState().setDesign(null);
     const coded = factorCodes(raw.levels);
@@ -322,6 +323,8 @@ export function currentEntry(): RecentEntry | null {
   // Shared projects live on the server; keeping a local copy would store their
   // (server-side encrypted) data unencrypted in the browser.
   if (s.cloud || s.projectId.startsWith('cloud:')) return null;
+  // Examples are not kept: reopening one gives the original ("Keep as my project" makes a copy).
+  if (s.example) return null;
   if (s.model.constructs.length === 0 && !s.data) return null;
   return {
     id: s.projectId, name: s.projectName, method: s.settings.method, updated: Date.now(),

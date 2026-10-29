@@ -151,3 +151,20 @@ describe('messages belong to a project', () => {
     expect(s().messages).toEqual([]);
   });
 });
+
+describe('examples', () => {
+  it('are never kept: not in Recent projects, until kept as one’s own project', async () => {
+    const { currentEntry } = await import('./io');
+    s().loadProject({ name: 'Example model', model: { constructs: [{ id: 'c', name: 'A', type: 'factor', mode: 'A', indicators: ['a1'], x: 0, y: 0, side: 'left' }], paths: [], moderations: [] }, settings: s().settings, data: null, info: null, example: 'lavaan-hs' });
+    expect(s().example).toBe('lavaan-hs');
+    s().addConstruct(10, 10, []);
+    expect(currentEntry()).toBeNull();
+    const id = s().projectId;
+    s().keepExample();
+    expect(s().example).toBeNull();
+    expect(s().projectId).not.toBe(id);
+    expect(currentEntry()?.id).toBe(s().projectId);
+    s().loadProject({ name: 'x', model: emptyModel(), settings: s().settings, data: null, info: null });
+    expect(s().example).toBeNull();
+  });
+});
