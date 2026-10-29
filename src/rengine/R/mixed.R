@@ -111,6 +111,12 @@ ps_gmm <- function(req_json, export = FALSE) {
     if (k > 1) sprintf(" mixture = ~ %s,", traj) else "", ran, k)
   body <- c("suppressPackageStartupMessages(library(lcmm))", prep,
     "long <- long[complete.cases(long), ]",
+    "# The id must identify persons: one row per person and time, and enough persons for classes.",
+    # (The column name is written as an escaped R string literal.)
+    sprintf("if (anyDuplicated(long[, c(\"id\", \"time\")])) stop(%s)", encodeString(ps_comment(if (long) sprintf(
+      "Some persons have two rows at the same time: the person column %s does not identify persons. Choose the column with one value per person.", req$subject)
+      else "Two occasions have the same time score."), quote = '"')),
+    "if (length(unique(long$id)) < 10) stop(sprintf(\"Only %d persons: a growth mixture model needs many persons (the person column must identify them).\", length(unique(long$id))))",
     "fits <- list()",
     sprintf("fits[[\"1\"]] <- %s", call(1)),
     if (any(ks > 1)) c(sprintf("# More classes: %d random starts from the one-class solution (lcmm::gridsearch), the best kept.", nrep),

@@ -94,10 +94,26 @@ export function withR<T>(packages: string[], sources: Record<string, string>, fn
       await webR.evalRVoid(code);
       sourced.add(name);
     }
-    return fn(webR);
+    try {
+      return await fn(webR);
+    } catch (e) {
+      if (!isWasmCrash(e)) throw e;
+      // Compiled package code crashed the WebAssembly runtime: the R session is no longer
+      // usable. Discard it; the next calculation starts a fresh one.
+      session = null; installed.clear(); sourced.clear();
+      try { webR.close(); } catch { /* already gone */ }
+      useR.setState({ status: 'idle', message: '' });
+      throw new Error(`${(e as Error).message}: the package's compiled code crashed in the browser's R (WebAssembly). R has been restarted for the next calculation. Check the inputs (for example that the id column identifies persons); if they are right, run the R script in desktop R.`, { cause: e });
+    }
   });
   queue = task.catch(() => undefined);
   return task;
+}
+
+/** A WebAssembly trap (not an R error): the R session cannot continue after it. */
+export function isWasmCrash(e: unknown): boolean {
+  const m = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  return /memory access out of bounds|unreachable executed|^RuntimeError|Aborted\(|call stack size exceeded|out of memory/i.test(m);
 }
 
 /** Packages (from `packages`) that R cannot load. Names are package names, never user input. */

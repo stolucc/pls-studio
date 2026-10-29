@@ -103,4 +103,25 @@ describe('growth mixture models (lcmm)', () => {
     expect(script).toContain('Wide to long');
     expect(script).toContain('gridsearch(rep = 5');
   }, 1_800_000);
+
+  it('refuses a person column that does not identify persons', async () => {
+    // X2 is 0/1: two "persons" with many rows at the same times would crash lcmm's compiled code.
+    const base = { format: 'long' as const, time: 'Time', outcome: 'Y', covariates: [], shape: 'linear' as const, random: 'slope' as const, classes: [1, 2], nrep: 5, seed: 1 };
+    await expect(gmmR(hlme, { ...base, subject: 'X2' })).rejects.toThrow(/does not identify persons|Only 2 persons/);
+    // A column name with quotes stays inside the R string.
+    const odd = { ...hlme, names: hlme.names.map((n) => (n === 'X2' ? 'X2"); stop("injected' : n)) };
+    await expect(gmmR(odd, { ...base, subject: 'X2"); stop("injected' })).rejects.toThrow(/does not identify persons|Only 2 persons/);
+    // The session still works afterwards.
+    const ok = await gmmR(hlme, { ...base, subject: 'ID', classes: [1] });
+    expect(ok.n).toBe(100);
+  }, 900_000);
+
+  it('after a crash of compiled code, R is restarted for the next calculation', async () => {
+    // lcmm's Fortran code fails in WebAssembly for two "persons" with 160+ rows each (native R copes).
+    const crash = withR(['jsonlite', 'lcmm'], { common: commonR }, (webR) => callJson(webR, `
+      suppressPackageStartupMessages(library(lcmm)); m <- hlme(Y ~ Time, random = ~ Time, subject = "X2", ng = 1, data = data_hlme); ps_json(m$conv)`, null));
+    await expect(crash).rejects.toThrow(/R has been restarted/);
+    const ok = await gmmR(hlme, { format: 'long', subject: 'ID', time: 'Time', outcome: 'Y', covariates: [], shape: 'linear', random: 'slope', classes: [1, 2], nrep: 5, seed: 1 });
+    expect(ok.models[1].logLik).toBeLessThan(0);
+  }, 900_000);
 });

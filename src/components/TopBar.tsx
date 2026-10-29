@@ -68,13 +68,12 @@ export function TopBar() {
       </button>
       <div className="sep" />
       <AnalysesMenu />
-      {method !== 'process' && (
-        <>
-          <button className="btn" onClick={() => run('boot')} disabled={!!job || !hasModel} title="Bootstrap standard errors, p-values and confidence intervals">
-            <IconRepeat /> Bootstrap
-          </button>
-        </>
-      )}
+      {/* CPA bootstraps within Calculate. The button keeps its place (hidden) so the controls
+          to its left, the method switch among them, do not move when the method changes. */}
+      <button className="btn" onClick={() => run('boot')} disabled={!!job || !hasModel || method === 'process'} title="Bootstrap standard errors, p-values and confidence intervals"
+        style={method === 'process' ? { visibility: 'hidden' } : undefined} aria-hidden={method === 'process'} tabIndex={method === 'process' ? -1 : undefined}>
+        <IconRepeat /> Bootstrap
+      </button>
       <button className="btn primary" onClick={() => run('estimate')} disabled={!!job || !hasModel}
         title={`${method === 'pls' ? 'Run the PLS algorithm' : method === 'process' ? 'OLS regressions and bootstrap of the indirect effects (manymome)' : 'Maximum-likelihood estimation'} (${mod}↵)`}>
         <IconPlay size={14} /> Calculate
