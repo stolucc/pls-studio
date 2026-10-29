@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { factorCodes } from '../io';
-import { DEFAULT_SETTINGS, validateModel } from '../model/project';
+import { DEFAULT_SETTINGS, validateModel, unconfirmedUncorrelated } from '../model/project';
 import { processGraph } from '../process/fromModel';
 import { R_PACKAGES } from '../rengine/bridge';
 import { EXAMPLE_PACKAGES, exampleModel, PACKAGE_EXAMPLES, panelColumns } from './packages';
@@ -15,7 +15,9 @@ describe.each(diagrams.map((e) => [e.id, e] as const))('package example %s', (_i
     const errors = validateModel(model, data, { ...DEFAULT_SETTINGS, ...ex.settings }).filter((i) => i.level === 'error');
     expect(errors.map((e) => e.message)).toEqual([]);
     expect(model.moderations.length).toBe(ex.moderations?.length ?? 0);
-    expect(model.correlations?.length ?? 0).toBe(ex.correlations?.length ?? 0);
+    // The authored correlations, plus the exogenous ones the package example estimates (drawn).
+    expect((model.correlations ?? []).filter((k) => k.kind === 'indicator').length).toBe((ex.correlations ?? []).filter(([, , kind]) => kind === 'indicator').length);
+    expect(unconfirmedUncorrelated(model)).toEqual([]);
   });
 });
 

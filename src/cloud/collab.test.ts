@@ -109,3 +109,22 @@ describe('correlations in the shared document', () => {
     expect(readDoc(d1).model.correlations ?? []).toEqual([]);
   });
 });
+
+describe('shared projects from before explicit correlations', () => {
+  it('are migrated once (undrawn exogenous pairs drawn), then stay as written', () => {
+    const C2 = (id: string, name: string) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators: [`${id}1`, `${id}2`], x: 0, y: 0, side: 'left' as const });
+    const m: ModelState = { constructs: [C2('a', 'A'), C2('b', 'B'), C2('y', 'Y')], paths: [{ id: 'p', from: 'a', to: 'y' }, { id: 'q', from: 'b', to: 'y' }], moderations: [] };
+    const d = new Y.Doc();
+    writeDoc(d, m, DEFAULT_SETTINGS, 'Shared', null);
+    // A document written before format 2: no format in its metadata.
+    d.getMap('meta').delete('format');
+    const migrated = readDoc(d).model;
+    expect(migrated.correlations?.map((k) => [k.a, k.b, k.zero ?? false])).toEqual([['a', 'b', false]]);
+    writeDoc(d, migrated, DEFAULT_SETTINGS, 'Shared', null);
+    expect(d.getMap('meta').get('format')).toBe(2);
+    expect(readDoc(d).model.correlations).toEqual(migrated.correlations);
+    // Removed later by a user: stays removed (no second migration).
+    writeDoc(d, { ...migrated, correlations: [] }, DEFAULT_SETTINGS, 'Shared', null);
+    expect(readDoc(d).model.correlations ?? []).toEqual([]);
+  });
+});

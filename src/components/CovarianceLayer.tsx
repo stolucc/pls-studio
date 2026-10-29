@@ -139,9 +139,9 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
         {curves.map(({ k, curve, on, auto }) => (
           <g key={k.id} className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}`}>
             {auto
-              // Right-click: fix the default covariance at zero (uncorrelated).
+              // Implied, not a choice: covariates (fixed.x) and factors of one ESEM block (rotation).
               ? <path className="cor-hit" d={curve.d} onContextMenu={(e) => onMenu(e, { kind: 'implied', a: k.a, b: k.b })}>
-                <title>Estimated by default: exogenous constructs covary freely in CB-SEM (covariates: fixed at their sample covariance). Right-click to remove it (fix the covariance at zero).</title>
+                <title>Implied: observed covariates keep their sample covariance (fixed.x); factors of one ESEM block are correlated by the rotation.</title>
               </path>
               : <path className="cor-hit" d={curve.d} onClick={(e) => select(e, k.id)} onContextMenu={(e) => { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); }} />}
             <path className="cor-line" d={curve.d} />

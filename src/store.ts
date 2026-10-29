@@ -10,7 +10,7 @@ import { graphToModel, isSlotName, templateModel, templatePositions } from './pr
 import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
 import {
-  createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec,
+  createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec, unconfirmedUncorrelated,
   type Construct, type Correlation, type DataInfo, type DefinedParameter, type ModelState, type Settings, type Side, type WaldTest,
 } from './model/project';
 
@@ -131,6 +131,8 @@ interface State {
   addQuadratic: (pathId: string) => boolean;
   /** `zero`: fix two exogenous constructs as uncorrelated instead of adding a free covariance. */
   addCorrelation: (kind: Correlation['kind'], a: string, b: string, zero?: boolean) => boolean;
+  /** Exogenous constructs without a drawn correlation: draw them all (`correlate`), or confirm them as uncorrelated. */
+  resolveExogenousCorrelations: (correlate: boolean) => void;
   reversePath: (id: string) => void;
   /** Replace the model by PROCESS model `model` with `k` mediators (empty slots; covariates kept). */
   applyTemplate: (model: number, k: number) => boolean;
@@ -440,12 +442,14 @@ export const useStore = create<State>((set, get) => ({
   addCorrelation: (kind, a, b, zero = false) => {
     const { model, toast } = get();
     if (a === b) return false;
-    // Drawing a correlation between two constructs fixed at zero frees their covariance again.
+    // Drawing a correlation between two constructs fixed at zero replaces the zero: now estimated.
     const fixed = !zero && (model.correlations ?? []).find((k) => k.zero && k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)));
     if (fixed) {
-      get().commit((m) => ({ ...m, correlations: (m.correlations ?? []).filter((k) => k.id !== fixed.id) }));
+      const id = newId('k');
+      get().commit((m) => ({ ...m, correlations: [...(m.correlations ?? []).filter((k) => k.id !== fixed.id), { id, kind, a, b }] }));
+      set({ selection: { nodes: [], edges: [], moderations: [], correlations: [id] } });
       const name = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
-      toast('info', `${name(a)} and ${name(b)} covary freely again (no longer fixed at zero).`);
+      toast('info', `${name(a)} and ${name(b)} are correlated now (no longer fixed at zero).`);
       return true;
     }
     if ((model.correlations ?? []).some((k) => k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)))) {
@@ -463,6 +467,14 @@ export const useStore = create<State>((set, get) => ({
     get().commit((m) => ({ ...m, correlations: [...(m.correlations ?? []), { id, kind, a, b, ...(zero ? { zero: true } : {}) }] }));
     set({ selection: { nodes: [], edges: [], moderations: [], correlations: [id] } });
     return true;
+  },
+  resolveExogenousCorrelations: (correlate) => {
+    const pairs = unconfirmedUncorrelated(get().model);
+    if (!pairs.length) return;
+    get().commit((m) => ({ ...m, correlations: [...(m.correlations ?? []), ...pairs.map(([a, b]) => ({ id: newId('k'), kind: 'construct' as const, a: a.id, b: b.id, ...(correlate ? {} : { zero: true }) }))] }));
+    get().toast('info', correlate
+      ? `Drew ${pairs.length} correlation${pairs.length > 1 ? 's' : ''} between exogenous constructs.`
+      : `Kept ${pairs.length} pair${pairs.length > 1 ? 's' : ''} of exogenous constructs uncorrelated (fixed at zero; right-click a construct pair’s correlation to change it).`);
   },
   reversePath: (id) => {
     const { model, toast } = get();

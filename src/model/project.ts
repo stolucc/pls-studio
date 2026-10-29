@@ -181,19 +181,60 @@ export function pruneCorrelations(model: ModelState): ModelState {
 }
 
 /**
- * Covariances CB-SEM estimates without being drawn: every pair of exogenous
- * latent constructs, and every pair of observed covariates (fixed.x). Pairs
- * the user already drew are left out. Ids are stable: `auto:<a>:<b>`.
+ * Pairs of exogenous constructs whose correlation is a modelling choice: two
+ * latent constructs (not covariates), except factors of one ESEM block, which
+ * the rotation correlates. Undrawn, such a pair is uncorrelated (CB-SEM: the
+ * diagram is the model, as in AMOS).
+ */
+export function exogenousPairs(model: ModelState): [Construct, Construct][] {
+  const endo = endogenousIds(model);
+  const exo = model.constructs.filter((c) => !endo.has(c.id) && !c.covariate && (c.indicators.length > 0 || (c.components?.length ?? 0) > 0));
+  const block = new Map((model.esem?.blocks ?? []).flatMap((b) => b.constructs.map((id) => [id, b.id] as const)));
+  const out: [Construct, Construct][] = [];
+  for (let i = 0; i < exo.length; i++) for (let j = i + 1; j < exo.length; j++) {
+    const a = exo[i], b = exo[j];
+    if (block.has(a.id) && block.get(a.id) === block.get(b.id)) continue;
+    out.push([a, b]);
+  }
+  return out;
+}
+
+const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+/** Construct pairs with a correlation record (drawn, or fixed at zero = confirmed uncorrelated). */
+const recorded = (model: ModelState) => new Set((model.correlations ?? []).filter((k) => k.kind === 'construct').map((k) => pairKey(k.a, k.b)));
+
+/** Exogenous pairs with no correlation drawn and not confirmed as uncorrelated. */
+export function unconfirmedUncorrelated(model: ModelState): [Construct, Construct][] {
+  const has = recorded(model);
+  return exogenousPairs(model).filter(([a, b]) => !has.has(pairKey(a.id, b.id)));
+}
+
+/**
+ * Projects from before correlations were explicit (file format 1): CB-SEM
+ * estimated every undrawn exogenous pair, so draw them, keeping the results.
+ */
+export function makeCovariancesExplicit(model: ModelState): ModelState {
+  const missing = unconfirmedUncorrelated(model);
+  if (!missing.length) return model;
+  return { ...model, correlations: [...(model.correlations ?? []), ...missing.map(([a, b]): Correlation => ({ id: newId('k'), kind: 'construct', a: a.id, b: b.id }))] };
+}
+
+/**
+ * Covariances CB-SEM estimates or fixes without them being a choice: pairs of
+ * observed covariates (fixed at their sample covariance, fixed.x) and factors
+ * of one ESEM block (correlated by the rotation). Ids: `auto:<a>:<b>`.
  */
 export function impliedCorrelations(model: ModelState): Correlation[] {
   const endo = endogenousIds(model);
   const exo = model.constructs.filter((c) => !endo.has(c.id) && (c.indicators.length > 0 || (c.components?.length ?? 0) > 0));
-  const drawn = new Set((model.correlations ?? []).filter((k) => k.kind === 'construct').flatMap((k) => [`${k.a}|${k.b}`, `${k.b}|${k.a}`]));
+  const has = recorded(model);
+  const block = new Map((model.esem?.blocks ?? []).flatMap((b) => b.constructs.map((id) => [id, b.id] as const)));
   const out: Correlation[] = [];
   for (let i = 0; i < exo.length; i++) for (let j = i + 1; j < exo.length; j++) {
     const a = exo[i], b = exo[j];
-    if (!!a.covariate !== !!b.covariate || drawn.has(`${a.id}|${b.id}`)) continue;
-    out.push({ id: `auto:${a.id}:${b.id}`, kind: 'construct', a: a.id, b: b.id });
+    const covariates = !!a.covariate && !!b.covariate;
+    const rotated = !a.covariate && !b.covariate && block.has(a.id) && block.get(a.id) === block.get(b.id);
+    if ((covariates || rotated) && !has.has(pairKey(a.id, b.id))) out.push({ id: `auto:${a.id}:${b.id}`, kind: 'construct', a: a.id, b: b.id });
   }
   return out;
 }
@@ -273,6 +314,20 @@ export function impliedMainEffects(model: ModelState): { from: string; to: strin
   return out;
 }
 
+/**
+ * The covariances to estimate (drawn correlations) or fix: confirmed and
+ * undrawn pairs of exogenous latent constructs are uncorrelated (fixed at 0;
+ * the diagram is the model).
+ */
+function covarianceSpec(model: ModelState, name: Map<string, string>): Pick<ModelSpec, 'covariances'> {
+  const drawn = (model.correlations?.length ? pruneCorrelations(model).correlations! : []).map((k) => (k.kind === 'construct'
+      ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}), ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}) }
+      : { a: k.a, b: k.b, kind: 'indicator' as const, ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}) }));
+  const zeros = unconfirmedUncorrelated(model).map(([a, b]) => ({ a: name.get(a.id)!, b: name.get(b.id)!, kind: 'construct' as const, zero: true }));
+  const all = [...drawn, ...zeros];
+  return all.length ? { covariances: all } : {};
+}
+
 export function toSpec(model: ModelState): ModelSpec {
   const name = new Map(model.constructs.map((c) => [c.id, c.name]));
   return {
@@ -303,11 +358,7 @@ export function toSpec(model: ModelState): ModelSpec {
       return p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, to: name.get(p.to)! }] : [];
     }),
     ...(model.ordered?.length ? { ordered: model.ordered.filter((i) => model.constructs.some((c) => c.indicators.includes(i))) } : {}),
-    ...(model.correlations?.length ? {
-      covariances: pruneCorrelations(model).correlations!.map((k) => (k.kind === 'construct'
-        ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}), ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}) }
-        : { a: k.a, b: k.b, kind: 'indicator' as const, ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}) })),
-    } : {}),
+    ...covarianceSpec(model, name),
   };
 }
 
@@ -379,6 +430,8 @@ export interface Issue {
   level: 'error' | 'warning';
   message: string;
   constructId?: string;
+  /** Exogenous constructs left uncorrelated (no correlation drawn): offer to correlate them or confirm. */
+  action?: 'exogenous-correlations';
 }
 
 /** Does adding from→to create a cycle? (PLS-SEM requires a recursive model.) */
@@ -484,6 +537,17 @@ export function validateModel(
     // The moderator's main effect on the outcome is implied (toSpec); undrawn, it must not close a cycle.
     if (!quadratic && !model.paths.some((q) => q.from === mo.moderator && q.to === p.to) && createsCycle(model.paths, mo.moderator, p.to)) {
       err(`${cap(label)}: ${cname.get(mo.moderator)} lies downstream of ${cname.get(p.to)}, so its implied effect on ${cname.get(p.to)} would create a cycle.`, mo.moderator);
+    }
+  }
+
+  // CB-SEM: the diagram is the model, so exogenous constructs without a drawn correlation are
+  // uncorrelated. Usually an oversight (a CFA with orthogonal factors): ask, until confirmed.
+  if (method.method === 'cbsem' && method.estimator !== '2SLS') {
+    const pairs = unconfirmedUncorrelated(model);
+    if (pairs.length) {
+      const shown = pairs.slice(0, 4).map(([a, b]) => `${a.name} ↔ ${b.name}`).join(', ');
+      issues.push({ level: 'warning', action: 'exogenous-correlations',
+        message: `No correlation is drawn between ${shown}${pairs.length > 4 ? ` and ${pairs.length - 4} more pair${pairs.length - 4 > 1 ? 's' : ''}` : ''}: as exogenous constructs they are estimated as uncorrelated. Intended?` });
     }
   }
 
@@ -795,9 +859,15 @@ export function parseMoments(raw: unknown, p: number): { S: number[][]; n: numbe
   return { S, n, ...(nacov ? { nacov } : {}) };
 }
 
+/**
+ * Project file format. 2: a correlation between exogenous constructs is
+ * estimated only when drawn (1: CB-SEM estimated undrawn pairs too).
+ */
+export const FORMAT_VERSION = 2;
+
 export interface ProjectFile {
   format: 'pls-studio';
-  version: 1;
+  version: typeof FORMAT_VERSION;
   model: ModelState;
   settings: Settings;
   data: { info: DataInfo; names: string[]; columns: (number | null)[][]; moments?: { S: number[][]; n: number; nacov?: number[][] } } | null;
@@ -807,7 +877,7 @@ export interface ProjectFile {
 export function serializeProject(model: ModelState, settings: Settings, data: Dataset | null, info: DataInfo | null, simulation: McDesign | null = null): string {
   const file: ProjectFile = {
     format: 'pls-studio',
-    version: 1,
+    version: FORMAT_VERSION,
     model,
     settings,
     data: data && info ? serializeDataSection(data, info) : null,
@@ -854,7 +924,7 @@ const num = (v: unknown, lo: number, hi: number, dflt: number): number =>
 export function parseProject(text: string): { model: ModelState; settings: Settings; data: Dataset | null; info: DataInfo | null; simulation: McDesign | null } {
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { throw new Error('The file is not valid JSON.'); }
-  if (!isObj(raw) || raw.format !== 'pls-studio' || raw.version !== 1) throw new Error('Not a PLS Studio project file (or an unsupported version).');
+  if (!isObj(raw) || raw.format !== 'pls-studio' || (raw.version !== 1 && raw.version !== FORMAT_VERSION)) throw new Error('Not a PLS Studio project file (or an unsupported version).');
   const m = raw.model;
   if (!isObj(m) || !Array.isArray(m.constructs) || !Array.isArray(m.paths)) throw new Error('Invalid project file: model missing.');
   if (m.constructs.length > 500 || m.paths.length > 5000) throw new Error('Project is too large.');
@@ -939,8 +1009,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     if (!known.has(out.a) || !known.has(out.b) || out.a === out.b) throw new Error('Invalid project file: correlation references an unknown construct or indicator.');
     return out;
   });
-  return {
-    model: {
+  const model: ModelState = {
       constructs, paths, moderations, ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}),
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
@@ -951,7 +1020,10 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
         blocks: m.esem.blocks.slice(0, 50).filter(isObj).map((b: Record<string, unknown>) => ({ id: str(b.id, 64), constructs: (Array.isArray(b.constructs) ? b.constructs : []).map((x: unknown) => str(x, 64)).filter((x: string) => ids.has(x)) })),
       } } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
-    },
+  };
+  return {
+    // Format 1 estimated every undrawn exogenous pair in CB-SEM: draw those correlations (same results).
+    model: raw.version === 1 ? makeCovariancesExplicit(model) : model,
     settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,
   };
 }

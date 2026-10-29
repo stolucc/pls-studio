@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, impliedCorrelations, parseProject, pruneCorrelations, serializeProject, toSpec, validateModel, type ModelState } from './project';
+import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, type ModelState, parseProject, pruneCorrelations, serializeProject, toSpec, validateModel } from './project';
 
 const data = { names: ['a1', 'a2', 'b1', 'c1'], cols: [1, 2, 3, 4].map(() => Float64Array.from({ length: 100 }, (_, i) => i % 7)) };
 const C = (id: string, name: string, indicators: string[]) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators, x: 0, y: 0, side: 'left' as const });
@@ -177,18 +177,50 @@ describe('correlations (double-headed arrows)', () => {
   });
 });
 
-describe('implied correlations (drawn automatically in CB-SEM)', () => {
+describe('exogenous correlations are explicit (the diagram is the model)', () => {
   const m: ModelState = {
     constructs: [C('A', 'Alpha', ['a1', 'a2']), C('B', 'Beta', ['b1', 'b2']), C('G', 'Gamma', ['c1', 'c2']),
       { ...C('X', 'Age', ['x1']), covariate: true }, { ...C('Y', 'Sex', ['y1']), covariate: true }, C('E', 'Empty', [])],
     paths: [{ id: 'p1', from: 'A', to: 'G' }, { id: 'p2', from: 'B', to: 'G' }, { id: 'p3', from: 'X', to: 'G' }],
     moderations: [],
   };
-  it('pairs exogenous latent constructs, and covariates with covariates only', () => {
-    expect(impliedCorrelations(m).map((k) => [k.a, k.b])).toEqual([['A', 'B'], ['X', 'Y']]);
+  const data = { names: ['a1', 'a2', 'b1', 'b2', 'c1', 'c2', 'x1', 'y1'], cols: Array.from({ length: 8 }, (_, k) => Float64Array.from({ length: 80 }, (_, i) => Math.sin(i * (k + 1.7)) + (i % (k + 3)))) };
+  const cb = { method: 'cbsem' as const, consistent: false };
+  const asked = (model: ModelState) => validateModel(model, data, cb).filter((i) => i.action === 'exogenous-correlations');
+  it('choices are exogenous latent pairs; implied arcs only for covariates (fixed.x)', () => {
+    expect(exogenousPairs(m).map(([a, b]) => [a.id, b.id])).toEqual([['A', 'B']]);
+    expect(impliedCorrelations(m).map((k) => [k.a, k.b])).toEqual([['X', 'Y']]);
   });
-  it('skips pairs the user drew, in either order', () => {
-    expect(impliedCorrelations({ ...m, correlations: [{ id: 'k', kind: 'construct', a: 'B', b: 'A' }] }).map((k) => k.id)).toEqual(['auto:X:Y']);
+  it('an undrawn pair is fixed at zero and asked about; drawn, it is estimated', () => {
+    expect(toSpec(m).covariances).toEqual([{ a: 'Alpha', b: 'Beta', kind: 'construct', zero: true }]);
+    expect(asked(m)).toEqual([expect.objectContaining({ level: 'warning', message: expect.stringMatching(/^No correlation is drawn between Alpha ↔ Beta: .* uncorrelated\. Intended\?$/) })]);
+    const drawn: ModelState = { ...m, correlations: [{ id: 'k', kind: 'construct', a: 'B', b: 'A' }] };
+    expect(toSpec(drawn).covariances).toEqual([{ a: 'Beta', b: 'Alpha', kind: 'construct' }]);
+    expect(asked(drawn)).toEqual([]);
+    // Confirmed as uncorrelated: fixed at zero once, no question.
+    const confirmed: ModelState = { ...m, correlations: [{ id: 'k', kind: 'construct', a: 'A', b: 'B', zero: true }] };
+    expect(toSpec(confirmed).covariances).toEqual([{ a: 'Alpha', b: 'Beta', kind: 'construct', zero: true }]);
+    expect(asked(confirmed)).toEqual([]);
+    // Not asked outside CB-SEM, nor for MIIV-2SLS (which estimates the covariances anyway).
+    expect(validateModel(m, data, { method: 'pls', consistent: false }).some((i) => i.action)).toBe(false);
+    expect(validateModel(m, data, { ...cb, estimator: '2SLS' }).some((i) => i.action)).toBe(false);
+  });
+  it('factors of one ESEM block are correlated by the rotation, not asked about', () => {
+    const e: ModelState = { ...m, paths: [], esem: { rotation: 'geomin', blocks: [{ id: 'b', constructs: ['A', 'B'] }] } };
+    expect(exogenousPairs(e).some(([a, b]) => a.id === 'A' && b.id === 'B')).toBe(false);
+    expect(impliedCorrelations(e).map((k) => [k.a, k.b])).toContainEqual(['A', 'B']);
+    expect(toSpec(e).covariances?.some((k) => k.a === 'Alpha' && k.b === 'Beta')).toBeFalsy();
+  });
+  it('format-1 projects (CB-SEM correlated undrawn pairs) are migrated to drawn correlations', () => {
+    const file = (version: number) => JSON.stringify({ format: 'pls-studio', version, model: m, settings: DEFAULT_SETTINGS, data: null });
+    const old = parseProject(file(1)).model;
+    expect(old.correlations?.map((k) => [k.a, k.b, k.zero ?? false])).toEqual([['A', 'B', false]]);
+    expect(toSpec(old).covariances).toEqual([{ a: 'Alpha', b: 'Beta', kind: 'construct' }]);
+    expect(parseProject(file(2)).model.correlations ?? []).toEqual([]);
+    expect(JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null)).version).toBe(2);
+    // An old fixed zero stays a fixed zero (now: confirmed uncorrelated).
+    const zeroed = parseProject(JSON.stringify({ format: 'pls-studio', version: 1, model: { ...m, correlations: [{ id: 'z', kind: 'construct', a: 'A', b: 'B', zero: true }] }, settings: DEFAULT_SETTINGS, data: null })).model;
+    expect(zeroed.correlations).toEqual([{ id: 'z', kind: 'construct', a: 'A', b: 'B', zero: true }]);
   });
 });
 

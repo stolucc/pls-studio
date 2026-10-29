@@ -16,7 +16,7 @@ import { fitPadding, overlayBottom } from '../canvasFit';
 import { ContextMenu } from './ContextMenu';
 import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
 import { correlationEndError, correlationPairError, endogenousIds, impliedMainEffects, newId, validateModel, type Correlation } from '../model/project';
-import { covaryByDefault, endAt } from './correlationEnds';
+import { endAt } from './correlationEnds';
 import type { ExampleId } from '../io';
 import { run } from '../runner';
 import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from '../store';
@@ -120,16 +120,11 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     if (!st().showErrorTerms) st().setShowErrorTerms(true);
     return false;
   }, [st]);
-  /** Correlate two ends, saying so when the pair already covaried by default (two exogenous constructs). */
+  /** Correlate two ends (a correlation is estimated only when drawn). */
   const link = useCallback((a: CorrelationPick, b: CorrelationPick) => {
     const pairError = correlationPairError(st().model, a, b);
     if (pairError) { st().toast('error', pairError); return; }
-    const m = st().model;
-    const implied = covaryByDefault(m, a, b);
-    if (st().addCorrelation(a.kind, a.id, b.id) && implied) {
-      const name = (id: string) => m.constructs.find((c) => c.id === id)?.name ?? id;
-      st().toast('info', `${name(a.id)} ↔ ${name(b.id)} is now drawn explicitly. Exogenous constructs already covary by default (the lighter arcs); right-click an arc to remove or fix it.`);
-    }
+    st().addCorrelation(a.kind, a.id, b.id);
   }, [st]);
   const pick = useCallback((p: CorrelationPick) => {
     if (!endOk(p)) return;

@@ -132,9 +132,10 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
     }
     case 'implied': {
       const a = model.constructs.find((c) => c.id === target.a), b = model.constructs.find((c) => c.id === target.b);
-      // Covariates' covariances are fixed at their sample values (fixed.x), not free parameters.
-      if (!a || !b || !cb || a.covariate || b.covariate) return null;
-      return out(`${a.name} ↔ ${b.name} (estimated by default)`, [edit && { action: 'fix-zero', label: 'Remove (fix the covariance at zero)', danger: true }]);
+      // Only implied pairs remain undrawn-but-shown: covariates (fixed at their sample values,
+      // fixed.x) and factors of one ESEM block (correlated by the rotation). Nothing to change.
+      if (!a || !b || !cb) return null;
+      return out(`${a.name} ↔ ${b.name} (${a.covariate ? 'fixed at the sample covariance' : 'correlated by the ESEM rotation'})`, []);
     }
     case 'pane': {
       const any = model.constructs.length > 0;

@@ -16,7 +16,7 @@ import { WebsocketProvider } from 'y-websocket';
 import * as Y from 'yjs';
 import { create } from 'zustand';
 import type { McDesign } from '../engine/montecarlo';
-import { DEFAULT_SETTINGS, parseDataSection, parseProject, serializeDataSection, type ModelState, type Settings } from '../model/project';
+import { DEFAULT_SETTINGS, FORMAT_VERSION, parseDataSection, parseProject, serializeDataSection, type ModelState, type Settings } from '../model/project';
 import { useSim } from '../simStore';
 import { useStore } from '../store';
 import { api } from './api';
@@ -59,6 +59,7 @@ export function writeDoc(doc: Y.Doc, model: ModelState, settings: Settings, name
     if (meta.get('name') !== name) meta.set('name', name);
     if (!same(meta.get('settings'), settings)) meta.set('settings', settings);
     if (!same(meta.get('simulation') ?? null, simulation)) meta.set('simulation', simulation);
+    if (meta.get('format') !== FORMAT_VERSION) meta.set('format', FORMAT_VERSION);
   }, LOCAL);
 }
 
@@ -84,7 +85,8 @@ export function readDoc(doc: Y.Doc): { model: ModelState; settings: Settings; na
     if (Array.isArray(c.components)) c.components = (c.components as unknown[]).filter((x) => typeof x === 'string' && ids.has(x) && x !== c.id);
   }
   const file = {
-    format: 'pls-studio', version: 1,
+    // (shared projects from before format 2 are migrated once, then written back as format 2)
+    format: 'pls-studio', version: meta.get('format') === FORMAT_VERSION ? FORMAT_VERSION : 1,
     model: { constructs, paths, moderations, correlations },
     settings: meta.get('settings') ?? DEFAULT_SETTINGS,
     data: null,

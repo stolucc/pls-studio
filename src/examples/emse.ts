@@ -7,7 +7,7 @@
 import nacovCsv from './emse-sem-nacov.csv?raw';
 import sCsv from './emse-sem-s.csv?raw';
 import type { Dataset } from '../engine/types';
-import { newId, type DataInfo, type ModelState, type Settings } from '../model/project';
+import { makeCovariancesExplicit, newId, type DataInfo, type ModelState, type Settings } from '../model/project';
 import { parseCovMatrixCsv, parseNacovCsv } from './matrix';
 
 export function makeEmseExample(settings: Settings): { name: string; data: Dataset; info: DataInfo; model: ModelState; settings: Settings } {
@@ -38,7 +38,8 @@ export function makeEmseExample(settings: Settings): { name: string; data: Datas
     name: 'Gamification in SE (Stol et al. 2022)',
     data: { names: m.names, cols: [], moments: { S: m.S, n: 155, nacov } },
     info: { fileName: 'Stol et al. 2022 replication matrices (CC BY 4.0)', rows: 155, missingCells: 0, excluded: [], kind: 'matrix', hasNacov: true },
-    model,
+    // (the published model correlates its exogenous constructs, lavaan's default: drawn)
+    model: makeCovariancesExplicit(model),
     settings: { ...settings, method: 'cbsem', estimator: 'MLM', consistent: false },
   };
 }

@@ -20,6 +20,8 @@ const model: ModelState = {
   constructs: [C('visual', ['x1', 'x2', 'x3'], { loadingLabels: { x2: 'b', x3: 'b' } }), C('textual', ['x4', 'x5', 'x6']), C('speed', ['x7', 'x8', 'x9'])],
   paths: [{ id: 'p1', from: 'visual', to: 'speed', label: 'a' }, { id: 'p2', from: 'textual', to: 'speed', label: 'a' }],
   moderations: [],
+  // The reference (lavaan's default) correlates the exogenous factors: drawn, as in the app.
+  correlations: [{ id: 'k', kind: 'construct', a: 'visual', b: 'textual' }],
   defined: [{ id: 'd', name: 'ab', expr: 'a * b' }],
   waldTests: [{ id: 'w', name: 'b is 1, a is 0.2', constraints: 'b == 1\na == 0.2' }],
 };

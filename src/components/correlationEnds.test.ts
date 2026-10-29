@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
-import type { ModelState } from '../model/project';
-import { covaryByDefault, endAt } from './correlationEnds';
+import { endAt } from './correlationEnds';
 
 describe('correlation ends under the pointer', () => {
   it('finds error terms, disturbances, indicators and constructs', () => {
@@ -19,11 +18,4 @@ describe('correlation ends under the pointer', () => {
     expect(endAt(null)).toBeNull();
   });
 
-  it('knows which pairs already covary by default', () => {
-    const C = (id: string) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: [id.toLowerCase()], x: 0, y: 0, side: 'left' as const });
-    const m: ModelState = { constructs: [C('A'), C('B'), C('Y')], paths: [{ id: 'p', from: 'A', to: 'Y' }, { id: 'q', from: 'B', to: 'Y' }], moderations: [] };
-    expect(covaryByDefault(m, { kind: 'construct', id: 'A' }, { kind: 'construct', id: 'B' })).toBe(true);
-    expect(covaryByDefault(m, { kind: 'construct', id: 'A' }, { kind: 'construct', id: 'Y', via: 'disturbance' })).toBe(false);
-    expect(covaryByDefault({ ...m, correlations: [{ id: 'k', kind: 'construct', a: 'B', b: 'A' }] }, { kind: 'construct', id: 'A' }, { kind: 'construct', id: 'B' })).toBe(false);
-  });
 });

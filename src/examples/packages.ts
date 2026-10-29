@@ -6,7 +6,7 @@
 
 import type { EsemRotation, MultigroupSpec } from '../engine/types';
 import type { Correlation, ModelState, Settings } from '../model/project';
-import { newId } from '../model/project';
+import { makeCovariancesExplicit, newId } from '../model/project';
 import type { GrowthInput } from '../rengine/longitudinal';
 import type { IrtModel } from '../rengine/items';
 import type { GmmInput, LmmInput } from '../rengine/mixed';
@@ -440,8 +440,16 @@ export function panelColumns(p: ExamplePanel): string[] {
   }
 }
 
-/** The example as an editable model (positions are set by the automatic layout). */
+/**
+ * The example as an editable model (positions are set by the automatic layout).
+ * Exogenous constructs are correlated as in the package examples (lavaan's
+ * default): those correlations are drawn (makeCovariancesExplicit).
+ */
 export function exampleModel(ex: PackageExample): ModelState {
+  return makeCovariancesExplicit(exampleModelAsWritten(ex));
+}
+
+function exampleModelAsWritten(ex: PackageExample): ModelState {
   const ids = new Map(ex.constructs.map((k) => [k.name, newId('c')]));
   const id = (n: string) => { const v = ids.get(n); if (!v) throw new Error(`Example ${ex.id}: unknown construct ${n}`); return v; };
   const paths = ex.paths.map(([a, b]) => ({ id: newId('p'), from: id(a), to: id(b) }));

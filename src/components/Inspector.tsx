@@ -481,6 +481,7 @@ function ModelInspector() {
   const setSettings = useStore((s) => s.setSettings);
   const select = useStore((s) => s.select);
   const issues = validateModel(model, data, settings);
+  const readOnlyChecks = useStore((s) => s.cloud?.role === 'viewer');
   const pls = settings.method === 'pls';
   const proc = settings.method === 'process';
   const numField = (label: string, key: keyof Settings, min: number, max: number, step = 1) => (
@@ -504,6 +505,12 @@ function ModelInspector() {
             <div key={k} className={`issue ${iss.level}${iss.constructId ? ' clickable' : ''}`}
               onClick={() => iss.constructId && select('construct', iss.constructId)}>
               <IconAlert size={14} /> <span>{iss.message}</span>
+              {iss.action === 'exogenous-correlations' && !readOnlyChecks && (
+                <span className="issue-actions">
+                  <button className="btn sm" onClick={(e) => { e.stopPropagation(); useStore.getState().resolveExogenousCorrelations(true); }}>Correlate them</button>
+                  <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); useStore.getState().resolveExogenousCorrelations(false); }}>Keep uncorrelated</button>
+                </span>
+              )}
             </div>
           ))}
       </div>

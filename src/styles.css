@@ -243,6 +243,8 @@ button, input, select { font: inherit; color: inherit; }
 .ind:hover .btn { opacity: 1; }
 .issue { display: flex; gap: 8px; padding: 7px 9px; border-radius: 7px; font-size: 12px; line-height: 1.45; cursor: default; margin-bottom: 5px; }
 .issue.error { background: var(--bad-soft); color: #a3261c; }
+.issue:has(.issue-actions) { flex-wrap: wrap; }
+.issue .issue-actions { display: flex; gap: 6px; margin-top: 2px; flex-basis: 100%; padding-left: 22px; }
 .issue.warning { background: var(--warn-soft); color: #8a5300; }
 .issue.clickable { cursor: pointer; }
 .issue svg { flex: none; margin-top: 1px; }

@@ -133,29 +133,35 @@ describe('context menus in process analysis', () => {
   });
 });
 
-describe('implied covariances can be fixed at zero', () => {
-  it('right-click on an implied arc fixes it; the fixed zero can be removed again', () => {
+describe('exogenous correlations are drawn, or confirmed as uncorrelated', () => {
+  it('asks about undrawn pairs until they are correlated or confirmed; drawing replaces a confirmed zero', () => {
     useStore.setState({ settings: { ...DEFAULT_SETTINGS, method: 'cbsem' } });
     s().applyTemplate(1, 0);
     const [x, w] = [named('X').id, named('W').id];
     s().assignIndicators(x, ['r1', 'r2']);
     s().assignIndicators(w, ['sup', 'age']);
-    expect(covarianceLayout(s().model, true, false).curves).toHaveLength(1);
-    const ctx = { method: 'cbsem' as const, readOnly: false };
-    expect(menuFor({ kind: 'implied', a: x, b: w }, s().model, ctx)?.items.map((i) => i.action)).toEqual(['fix-zero']);
-    expect(menuFor({ kind: 'implied', a: x, b: w }, s().model, { ...ctx, method: 'pls' })).toBeNull();
-    expect(s().addCorrelation('construct', x, w, true)).toBe(true);
-    const k = s().model.correlations![0];
-    expect(k).toMatchObject({ a: x, b: w, zero: true });
-    // Not drawn (no arrow means zero), and drawing the correlation frees it again.
+    const asked = () => validateModel(s().model, data, s().settings).filter((i) => i.action === 'exogenous-correlations');
+    // Nothing drawn: no arc, fixed at zero, and the check asks.
     expect(covarianceLayout(s().model, true, false).curves).toEqual([]);
-    // Survives a project file, and reaches the engines as a fixed zero.
+    expect(asked()).toHaveLength(1);
+    // Keep uncorrelated: a confirmed zero (not drawn: no arrow means zero), and no more question.
+    s().resolveExogenousCorrelations(false);
+    expect(s().model.correlations).toEqual([expect.objectContaining({ a: expect.any(String), b: expect.any(String), zero: true })]);
+    expect(covarianceLayout(s().model, true, false).curves).toEqual([]);
+    expect(asked()).toEqual([]);
     const p = parseProject(serializeProject(s().model, s().settings, null, null));
     expect(p.model.correlations![0].zero).toBe(true);
-    expect(validateModel(s().model, data, s().settings).some((i) => /fixed as uncorrelated/.test(i.message))).toBe(false);
+    // Drawing the correlation replaces the zero: now estimated, and drawn.
     expect(s().addCorrelation('construct', w, x)).toBe(true);
-    expect(s().model.correlations).toEqual([]);
-    expect(covarianceLayout(s().model, true, false).curves.map((c) => c.k.id)).toEqual([expect.stringMatching(/^auto:/)]);
+    expect(s().model.correlations).toEqual([expect.objectContaining({ a: w, b: x })]);
+    expect(s().model.correlations![0].zero).toBeUndefined();
+    expect(covarianceLayout(s().model, true, false).curves).toHaveLength(1);
+    // Undo, then Correlate them: drawn as well.
+    s().undo();
+    useStore.setState({ model: { ...s().model, correlations: [] } });
+    s().resolveExogenousCorrelations(true);
+    expect(s().model.correlations).toEqual([expect.not.objectContaining({ zero: true })]);
+    expect(asked()).toEqual([]);
   });
 });
 
