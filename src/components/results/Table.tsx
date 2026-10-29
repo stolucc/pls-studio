@@ -5,7 +5,7 @@ import type { BootstrapResult, BootstrapStat } from '../../engine/types';
 import { useStore } from '../../store';
 import { IconCopy, IconDownload } from '../icons';
 
-export type Cell = { v: number | string | null; cls?: string; d?: number; bold?: boolean };
+export type Cell = { v: number | string | null; cls?: string; d?: number; bold?: boolean; /** background (shading, e.g. a correlation's size) */ bg?: string };
 export type Row = Cell[];
 export const c = (v: number | string | null, cls?: string, d?: number): Cell => ({ v, cls, d });
 
@@ -42,7 +42,7 @@ export function Table({ title, columns, rows, note, file }: { title: string; col
           {rows.map((r, i) => (
             <tr key={i}>
               {r.map((cell, k) => (
-                <td key={k} className={`${typeof cell.v === 'number' ? 'num ' : ''}${cell.cls ?? ''}`} style={cell.bold ? { fontWeight: 600 } : undefined}>
+                <td key={k} className={`${typeof cell.v === 'number' ? 'num ' : ''}${cell.cls ?? ''}`} style={cell.bold || cell.bg ? { ...(cell.bold ? { fontWeight: 600 } : {}), ...(cell.bg ? { background: cell.bg } : {}) } : undefined}>
                   {typeof cell.v === 'number' ? fmt(cell.v, cell.d ?? 3) : cell.v ?? '—'}
                 </td>
               ))}

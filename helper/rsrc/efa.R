@@ -70,6 +70,10 @@ ps_efa <- function(req_json, export = FALSE) {
     complexity = unname(fit$complexity[rownames(L)]),
     ssLoadings = row("SS loadings"), proportion = row("Proportion Var"), cumulative = row("Cumulative Var"),
     phi = if (is.null(fit$Phi)) NULL else unname(fit$Phi),
+    # Item x item: the observed correlations, and the residuals the solution leaves (off-diagonal;
+    # psych's residual matrix, whose diagonal holds the uniquenesses).
+    correlations = unname(env$R[rownames(L), rownames(L)]),
+    residuals = local({ E <- fit$residual[rownames(L), rownames(L)]; diag(E) <- 0; unname(E) }),
     kmo = list(overall = unname(env$kmo$MSA), items = unname(env$kmo$MSAi[rownames(L)])),
     bartlett = list(chisq = env$bartlett$chisq, df = env$bartlett$df, p = env$bartlett$p.value),
     eigenvalues = env$eigenvalues,

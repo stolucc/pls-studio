@@ -13,6 +13,8 @@ export interface EfaResult {
   communality: number[]; uniqueness: number[]; complexity: number[];
   ssLoadings: number[]; proportion: number[]; cumulative: number[];
   phi: number[][] | null;
+  /** Item x item: observed correlations, and residual correlations (diagonal 0). */
+  correlations: number[][]; residuals: number[][];
   kmo: { overall: number; items: number[] };
   bartlett: { chisq: number; df: number; p: number };
   eigenvalues: number[];
@@ -47,6 +49,7 @@ export function parseEfa(raw: Record<string, any>): EfaResult {
     communality: nums(raw.communality), uniqueness: nums(raw.uniqueness), complexity: nums(raw.complexity),
     ssLoadings: nums(raw.ssLoadings), proportion: nums(raw.proportion), cumulative: nums(raw.cumulative),
     phi: raw.phi ? mat(raw.phi, k) : null,
+    correlations: mat(raw.correlations, 2), residuals: mat(raw.residuals, 2),
     kmo: { overall: Number(raw.kmo?.overall), items: nums(raw.kmo?.items) },
     bartlett: { chisq: Number(raw.bartlett?.chisq), df: Number(raw.bartlett?.df), p: Number(raw.bartlett?.p) },
     eigenvalues: nums(raw.eigenvalues), parallel,

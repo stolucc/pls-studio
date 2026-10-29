@@ -9,9 +9,9 @@ import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
 
 export type EfaPreset = Partial<EfaDesign>;
-type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'variance' | 'fit';
-interface EfaState { open: boolean; result: EfaResult | null; preset: EfaPreset | null; tab: EfaTab; setOpen: (v: boolean) => void }
-export const useEfa = create<EfaState>((set) => ({ open: false, result: null, preset: null, tab: 'loadings', setOpen: (open) => set({ open }) }));
+type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'correlations' | 'variance' | 'fit';
+interface EfaState { open: boolean; result: EfaResult | null; preset: EfaPreset | null; tab: EfaTab; residual: boolean; setOpen: (v: boolean) => void }
+export const useEfa = create<EfaState>((set) => ({ open: false, result: null, preset: null, tab: 'loadings', residual: false, setOpen: (open) => set({ open }) }));
 
 /**
  * Many variables at once: a checkbox list with a filter, all / none (of the
@@ -85,6 +85,7 @@ function Scree({ r }: { r: EfaResult }) {
 
 function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
   const tab = useEfa((s) => s.tab);
+  const residual = useEfa((s) => s.residual);
   const pca = r.method === 'pca';
   const unit = pca ? 'component' : 'factor';
   const order = loadingOrder(r.loadings);
@@ -92,7 +93,7 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
   const rows = (m: number[][], blank = true): Row[] => order.map((i) => [c(r.variables[i]), ...m[i].map((v) => (blank ? cell(v) : c(v))), c(r.communality[i]), c(r.uniqueness[i]), c(r.complexity[i], undefined, 2)]);
   const cross = crossLoadings(r.loadings, threshold);
   const clean = cross.filter((x) => x.flags.length === 0).length;
-  const tabs: [EfaTab, string][] = [['suitability', 'Suitability'], ['number', `Number of ${unit}s`], ['loadings', 'Loadings'], ['cross', 'Cross-loadings'], ['variance', r.phi ? 'Variance & correlations' : 'Variance'], ...(pca ? [] : [['fit', 'Fit'] as [EfaTab, string]])];
+  const tabs: [EfaTab, string][] = [['suitability', 'Suitability'], ['number', `Number of ${unit}s`], ['loadings', 'Loadings'], ['cross', 'Cross-loadings'], ['correlations', 'Correlations'], ['variance', pca ? 'Components' : 'Factors'], ...(pca ? [] : [['fit', 'Fit'] as [EfaTab, string]])];
   const shown = tabs.some(([id]) => id === tab) ? tab : 'loadings';
   const flagText = { 'cross-loads': `cross-loads (≥ ${threshold})`, weak: 'weak (< .40)', close: 'close (gap < .20)' };
   return (
@@ -144,6 +145,28 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
             <Table title="All loadings (none hidden)" file="efa-loadings-all" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.loadings, false)} />
           </>
         )}
+        {shown === 'correlations' && (() => {
+          const m = residual ? r.residuals : r.correlations;
+          const big = order.reduce((n, i, a) => n + order.slice(0, a).filter((j) => Math.abs(r.residuals[i][j]) > 0.1).length, 0);
+          const pairs = (order.length * (order.length - 1)) / 2;
+          // Shading by size: observed correlations in the accent colour; residuals above .10 flagged.
+          const shade = (v: number) => `rgba(109, 40, 217, ${Math.min(1, Math.abs(v)) * 0.45})`;
+          return (
+            <>
+              <div className="segmented" style={{ marginBottom: 10, maxWidth: 360 }}>
+                <button className={residual ? '' : 'on'} onClick={() => useEfa.setState({ residual: false })}>Observed</button>
+                <button className={residual ? 'on' : ''} onClick={() => useEfa.setState({ residual: true })}>Residual{big ? ` (${big} > .10)` : ''}</button>
+              </div>
+              <Table title={residual ? `Residual correlations: ${big} of ${pairs} pairs above .10` : 'Correlations between the variables'} file={residual ? 'efa-residual-correlations' : 'efa-correlations'}
+                columns={['', ...order.map((i) => r.variables[i])]}
+                rows={order.map((i, a) => [c(r.variables[i]), ...order.map((j, b) => (b > a ? c('') : b === a ? c(residual ? '' : '1', 'dim')
+                  : residual ? (Math.abs(m[i][j]) > 0.1 ? { ...c(m[i][j], 'bad'), bold: true } : c(m[i][j], 'dim')) : { ...c(m[i][j]), bg: shade(m[i][j]) }))])}
+                note={residual
+                  ? `What the ${r.k}-${unit} solution leaves unexplained: observed minus model-implied correlation (ΛΦΛᵀ). Residuals above .10 (bold) point to a missing ${unit}, locally dependent items (similar wording) or a misplaced item.`
+                  : `Pairwise correlations the analysis starts from, ordered as the loadings table so its blocks show; shading by size. Very high correlations (above about .8) suggest redundant items; variables correlating with nothing will not load.`} />
+            </>
+          );
+        })()}
         {shown === 'variance' && (
           <>
             <Table title="Variance explained" file="efa-variance" columns={['', ...r.factors]}

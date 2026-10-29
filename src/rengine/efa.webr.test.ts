@@ -45,6 +45,14 @@ describe('exploratory factor analysis (psych)', () => {
     expect(r.oblique).toBe(true);
     expect(r.phi).toHaveLength(5);
     expect(r.parallel?.observed).toHaveLength(25);
+    // Item x item: residuals = observed - Λ Φ Λᵀ (off-diagonal), with the solution's own Λ and Φ.
+    expect(r.correlations).toHaveLength(25);
+    for (const [i, j] of [[0, 1], [3, 17], [24, 10]]) {
+      let implied = 0;
+      for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) implied += r.loadings[i][a] * r.phi![a][b] * r.loadings[j][b];
+      expect(r.residuals[i][j], `${i},${j}`).toBeCloseTo(r.correlations[i][j] - implied, 10);
+    }
+    expect(r.residuals[4][4]).toBe(0);
     const ml = await efaR(d, { ...DEFAULT_EFA, vars, nfactors: 5, method: 'ml', rotation: 'varimax', parallel: 0 }, 1);
     sameLoadings(ml.loadings, ref.bfi.ml.loadings, 4);
     expect(ml.fit.chisq).toBeCloseTo(ref.bfi.ml.chisq, 2);
