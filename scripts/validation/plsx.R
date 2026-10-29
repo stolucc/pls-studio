@@ -24,3 +24,13 @@ out <- list(version = as.character(packageVersion("cSEM")), msc = msc(fit), mscA
   groups = lapply(g, function(x) { P <- x$Estimates$Path_estimates; list(SAT_VAL = P["SAT", "VAL"], LOY_SAT = P["LOY", "SAT"]) }))
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference.json")
 cat("written\n")
+
+# ---- GSCA, nonlinear PLSc and redundancy analysis ----
+gsca <- csem(satisfaction, m, .approach_weights = "GSCA", .PLS_weight_scheme_inner = "path", .disattenuate = FALSE, .tolerance = 1e-7, .iter_max = 300)
+sw <- "INT ~ INV + SAT + INV.SAT\nINV =~ INV1 + INV2 + INV3 + INV4\nSAT =~ SAT1 + SAT2 + SAT3\nINT =~ INT1 + INT2"
+plsc <- csem(Switching, sw, .PLS_weight_scheme_inner = "factorial", .disattenuate = TRUE, .tolerance = 1e-7, .iter_max = 300)
+out2 <- list(gsca = list(SAT_VAL = gsca$Estimates$Path_estimates["SAT", "VAL"], LOY_SAT = gsca$Estimates$Path_estimates["LOY", "SAT"]),
+  plsc = as.list(plsc$Estimates$Path_estimates["INT", c("INV", "SAT", "INV.SAT")]),
+  redundancy = as.list(doRedundancyAnalysis(fit)))
+write(toJSON(out2, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference2.json")
+cat("written 2\n")

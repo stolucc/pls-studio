@@ -563,6 +563,14 @@ function ModelInspector() {
             ))}
           </div>
         )}
+        {settings.engine === 'r' && pls && settings.plsPackage === 'cSEM' && (
+          <div className="segmented" role="radiogroup" aria-label="Weighting approach" style={{ marginTop: 8 }}>
+            {([['PLS-PM', 'PLS path modeling'], ['GSCA', 'GSCA']] as const).map(([id, l]) => (
+              <button key={id} role="radio" aria-checked={settings.plsApproach === id} className={settings.plsApproach === id ? 'on' : ''} onClick={() => setSettings({ plsApproach: id })}
+                title={id === 'GSCA' ? 'Generalized structured component analysis (Hwang & Takane 2004): weights from one global least-squares criterion; with PLSc on, GSCAm for common factors' : 'Partial least squares path modeling'}>{l}</button>
+            ))}
+          </div>
+        )}
         <div className="hint" style={{ marginTop: 8 }}>
           {settings.engine === 'builtin'
             ? 'PLS Studio’s own implementation, validated against the R packages. Instant, no download.'

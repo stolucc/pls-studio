@@ -58,6 +58,8 @@ export interface Settings {
   engine: Engine;
   /** R package for PLS-SEM when engine is 'r'. */
   plsPackage: 'cSEM' | 'seminr';
+  /** Weighting approach with cSEM: PLS path modeling or GSCA. */
+  plsApproach: 'PLS-PM' | 'GSCA';
   /** Look of the diagram and exported figures. */
   figure: FigureStyle;
   /** Text style and axis titles of the result charts. */
@@ -236,6 +238,7 @@ export const DEFAULT_SETTINGS: Settings = {
   estimator: 'ML',
   engine: 'r',
   plsPackage: 'cSEM',
+  plsApproach: 'PLS-PM',
   figure: DEFAULT_FIGURE_STYLE,
   charts: DEFAULT_CHART_STYLE,
   scheme: 'path',
@@ -377,7 +380,7 @@ export function createsCycle(paths: Path[], from: string, to: string): boolean {
 export function validateModel(
   model: ModelState,
   data: Dataset | null,
-  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc'>> = DEFAULT_SETTINGS,
+  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc' | 'plsPackage' | 'plsApproach'>> = DEFAULT_SETTINGS,
 ): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string, constructId?: string) => issues.push({ level: 'error', message, constructId });
@@ -451,7 +454,10 @@ export function validateModel(
       for (const id of new Set([p.from, mo.moderator])) {
         if (model.paths.some((q) => q.to === id)) err(`${cap(label)}: in CB-SEM ${quadratic ? "the predictor" : "the predictor and moderator"} must be exogenous, but ${cname.get(id)} has incoming paths.`, id);
       }
-    } else if (method.consistent) err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) ${quadratic ? 'are' : 'is'} not yet supported with PLSc. Switch consistent PLS off.`, mo.moderator);
+    } else if (method.consistent && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'cSEM')) {
+      // cSEM estimates nonlinear models with PLSc (Dijkstra & Schermelleh-Engel 2014); seminr and the built-in engine do not.
+      err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) with PLSc ${quadratic ? 'need' : 'needs'} cSEM: choose R packages → cSEM, or switch consistent PLS off.`, mo.moderator);
+    }
     if (!model.paths.some((q) => q.from === mo.moderator && q.to === p.to)) {
       err(`${cap(label)}: the moderator also needs a direct path to ${cname.get(p.to)}.`, mo.moderator);
     }
@@ -482,6 +488,10 @@ export function validateModel(
   } else {
     if (missingChoice === 'fiml' && method.method === 'pls') err('FIML is a CB-SEM option; PLS-SEM uses mean replacement or casewise deletion.');
     if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
+  }
+
+  if (method.method === 'pls' && method.plsApproach === 'GSCA' && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'cSEM')) {
+    err('GSCA is estimated with cSEM: choose R packages → cSEM, or PLS path modeling.');
   }
 
   // Text columns coded 1, 2, ... (alphabetical): fine for groups and clusters, rarely as indicators.
@@ -863,6 +873,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV', '2SLS'] as const).find((e) => e === s.estimator) ?? 'ML',
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
+    plsApproach: s.plsApproach === 'GSCA' ? 'GSCA' : 'PLS-PM',
     figure: parseFigureStyle(s.figure),
     charts: parseChartStyle(s.charts),
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',

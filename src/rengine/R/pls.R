@@ -21,6 +21,9 @@ ps_pls_build <- function(req) {
   inputs <- list(data = ps_frame(req, n))
   body <- character(0)
 
+  gsca <- identical(o$approach, "GSCA")
+  if (!is.null(o$approach) && !o$approach %in% c("PLS-PM", "GSCA")) stop("Invalid weighting approach in the request.")
+  if (gsca && pkg != "cSEM") stop("GSCA is estimated with cSEM; choose cSEM.")
   if (pkg == "cSEM") {
     sep <- "."
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], ".", n$cv[[m$moderator]]), "")
@@ -34,8 +37,9 @@ ps_pls_build <- function(req) {
     body <- c("suppressPackageStartupMessages(library(cSEM))", ps_missing_code(req$missing),
       if (length(mods)) "# Interaction terms (X.M): products of the construct scores (cSEM's nonlinear PLS)",
       "model <- '", paste0("  ", lines), "'",
-      sprintf("fit <- csem(data, model, .PLS_modes = %s, .PLS_weight_scheme_inner = \"%s\", .disattenuate = %s, .tolerance = %s, .iter_max = %d)",
-        modes, scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(o$tolerance, scientific = TRUE), as.integer(o$maxIter)))
+      if (gsca) "# Generalized structured component analysis (GSCA; Hwang & Takane 2004) instead of PLS path modeling.",
+      sprintf("fit <- csem(data, model, %s.PLS_weight_scheme_inner = \"%s\", .disattenuate = %s, .tolerance = %s, .iter_max = %d)",
+        if (gsca) ".approach_weights = \"GSCA\", " else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(o$tolerance, scientific = TRUE), as.integer(o$maxIter)))
   } else if (pkg == "seminr") {
     if (o$scheme == "centroid") stop("seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.")
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], "*", n$cv[[m$moderator]]), "")
@@ -169,6 +173,8 @@ ps_pls <- function(req_json, export = FALSE) {
     indicators = lapply(seq_along(item_l), function(i) list(name = n$all_inds[i], construct = owner[i] - 1L)),
     weights = weights, loadings = loadings, pathCoef = B, hasPath = has, totalEffects = total, indirectEffects = total - B,
     rSquared = r2v, adjRSquared = r2av, constructCor = unname(ccor),
+    # Redundancy analysis (cSEM): each Mode B composite correlated with a Mode A version of the same indicators.
+    redundancy = if (b$pkg == "cSEM") { ra <- safe(suppressWarnings(cSEM::doRedundancyAnalysis(fit))); if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) as.list(setNames(unname(ra), n$cname[match(names(ra), cv)])) else NULL } else NULL,
     quality = lapply(seq_len(K), function(j) list(alpha = q4(alpha)[j], rhoC = q4(rhoC)[j], rhoA = q4(rhoA)[j], ave = q4(ave)[j])),
     htmt = htmt("htmt"), htmt2 = htmt("htmt2"),
     fit = list(estimated = fitm(FALSE), saturated = fitm(TRUE)),

@@ -12,6 +12,7 @@ import { categoriesOf } from '../io';
 import commonR from './R/common.R?raw';
 import { rCall } from './bridge';
 import { compareR, groupsR, predictR, predictScriptR } from './plsx';
+import { estimatePlsR } from './pls';
 import { callJson, withR } from './runtime';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
@@ -19,6 +20,7 @@ beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
 const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference.json'), 'utf8'));
+const ref2 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference2.json'), 'utf8'));
 const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
 const comp = (name: string, ind: string[]) => ({ name, type: 'composite' as const, mode: 'B' as const, indicators: ind });
 const fac = (name: string, ind: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: ind });
@@ -83,4 +85,21 @@ describe('PLS assessment (cSEM)', () => {
     expect(hen.paths).toHaveLength(10);
     expect(hen.paths.every((p) => p.p >= 0 && p.p <= 1)).toBe(true);
   }, 1_800_000);
+
+  it('GSCA, redundancy analysis and nonlinear PLSc equal native cSEM', async () => {
+    const d = await load('satisfaction');
+    const path = (r: Awaited<ReturnType<typeof estimatePlsR>>, a: string, b: string) => r.pathCoef[r.constructs.indexOf(a)][r.constructs.indexOf(b)];
+    const g = await estimatePlsR(d, spec, { ...options, approach: 'GSCA' }, 'cSEM');
+    expect(path(g, 'VAL', 'SAT')).toBeCloseTo(ref2.gsca.SAT_VAL, 6);
+    expect(path(g, 'SAT', 'LOY')).toBeCloseTo(ref2.gsca.LOY_SAT, 6);
+    const pm = await estimatePlsR(d, spec, options, 'cSEM');
+    for (const [k, v] of Object.entries(ref2.redundancy as Record<string, number>)) expect(pm.redundancy![k], k).toBeCloseTo(v, 6);
+    const sw = await load('Switching');
+    const f = (name: string, ind: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: ind });
+    const swSpec: ModelSpec = { constructs: [f('INV', items('INV', 4)), f('SAT', items('SAT', 3)), f('INT', items('INT', 2))], paths: [P('INV', 'INT'), P('SAT', 'INT')], moderations: [{ from: 'INV', moderator: 'SAT', to: 'INT' }] };
+    const pc = await estimatePlsR(sw, swSpec, { scheme: 'factor', consistent: true, tolerance: 1e-7, maxIter: 300, missing: 'casewise' }, 'cSEM');
+    expect(path(pc, 'INV', 'INT')).toBeCloseTo(ref2.plsc.INV, 6);
+    expect(path(pc, 'SAT', 'INT')).toBeCloseTo(ref2.plsc.SAT, 6);
+    expect(path(pc, 'INV × SAT', 'INT')).toBeCloseTo(ref2.plsc['INV.SAT'], 6);
+  }, 900_000);
 });

@@ -136,9 +136,16 @@ function Reliability({ pls }: { pls: PlsResult }) {
     }
     return [c(name), c('common factor', 'dim'), c(q.alpha, relCls(q.alpha)), c(q.rhoA, relCls(q.rhoA)), c(q.rhoC, relCls(q.rhoC)), c(q.ave, q.ave >= 0.5 ? 'good' : 'bad')];
   });
+  const ra = Object.entries(pls.redundancy ?? {});
   return (
-    <Table title="Construct reliability and validity" file="reliability" columns={['Construct', 'Type', 'Cronbach’s α', 'ρA', 'ρC', 'AVE']} rows={rows}
-      note="ρA (Dijkstra & Henseler) is the consistent reliability of a common factor. 0.70–0.95 is satisfactory. AVE ≥ 0.50 indicates convergent validity. Reliability does not apply to composites, which are defined by their weights." />
+    <div className="tables">
+      <Table title="Construct reliability and validity" file="reliability" columns={['Construct', 'Type', 'Cronbach’s α', 'ρA', 'ρC', 'AVE']} rows={rows}
+        note="ρA (Dijkstra & Henseler) is the consistent reliability of a common factor. 0.70–0.95 is satisfactory. AVE ≥ 0.50 indicates convergent validity. Reliability does not apply to composites, which are defined by their weights." />
+      {ra.length > 0 && (
+        <Table title="Redundancy analysis" file="redundancy" columns={['Composite (Mode B)', 'Correlation']} rows={ra.map(([k, v]) => [c(k), c(v, v >= 0.7 ? 'good' : 'bad')])}
+          note="cSEM: each Mode B composite correlated with a Mode A composite of the same indicators (Chin 1998; Hair et al. 2016); 0.70 or more is the usual threshold. With a global single item, draw a path from the composite to a single-item construct instead: its coefficient is the classic redundancy test. cSEM’s authors discourage its use for validity." />
+      )}
+    </div>
   );
 }
 

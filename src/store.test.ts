@@ -49,7 +49,9 @@ describe('moderation in the store', () => {
     const errors = (st: Parameters<typeof validateModel>[2]) => validateModel(s().model, data, st).filter((i) => i.level === 'error' && !i.message.includes('not connected')).map((i) => i.message);
     expect(errors({ method: 'pls', consistent: false })).toEqual([]);
     expect(errors({ method: 'cbsem', consistent: false })).toEqual([]);
-    expect(errors({ method: 'pls', consistent: true })).toEqual([expect.stringMatching(/Quadratic effects \(the quadratic effect of .* on .*\) are not yet supported with PLSc/)]);
+    // PLSc with a quadratic term: cSEM estimates it; seminr and the built-in engine do not.
+    expect(errors({ method: 'pls', consistent: true })).toEqual([]);
+    expect(errors({ method: 'pls', consistent: true, plsPackage: 'seminr' })).toEqual([expect.stringMatching(/Quadratic effects \(the quadratic effect of .* on .*\) with PLSc need cSEM/)]);
     expect(errors({ method: 'cbsem', consistent: false, estimator: '2SLS' })).toEqual([expect.stringMatching(/Quadratic effects .* not available with MIIV-2SLS/)]);
     // CB-SEM: the predictor must be exogenous (reported once, not twice).
     const { m } = { m: s().model.constructs[2].id };
@@ -69,7 +71,7 @@ describe('moderation in the store', () => {
     expect(s().model.paths.every((p) => p.from !== m)).toBe(true);
   });
 
-  it('validates moderation per method (CB-SEM needs exogenous terms, PLSc unsupported)', () => {
+  it('validates moderation per method (CB-SEM needs exogenous terms, PLSc only with cSEM)', () => {
     const { m, path } = setup();
     s().addModeration(m, path);
     const data = { names: ['x1', 'y1', 'm1'], cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)) };
@@ -80,7 +82,8 @@ describe('moderation in the store', () => {
     const x = s().model.paths[0].from;
     s().addPath(m, x);
     expect(validateModel(s().model, data, { method: 'cbsem', consistent: false }).some((i) => i.message.includes('exogenous'))).toBe(true);
-    expect(validateModel(s().model, data, { method: 'pls', consistent: true }).some((i) => i.message.includes('PLSc'))).toBe(true);
+    expect(validateModel(s().model, data, { method: 'pls', consistent: true }).some((i) => i.message.includes('PLSc'))).toBe(false);
+    expect(validateModel(s().model, data, { method: 'pls', consistent: true, engine: 'builtin' }).some((i) => i.message.includes('PLSc need'))).toBe(true);
   });
 });
 
@@ -136,6 +139,17 @@ describe('correlations in the store', () => {
     const cb = keyOf();
     s().addCorrelation('indicator', 'a1', 'a2');
     expect(keyOf()).not.toBe(cb);
+  });
+});
+
+describe('GSCA', () => {
+  it('needs cSEM in R', () => {
+    const m = { constructs: [{ id: 'a', name: 'A', type: 'composite' as const, mode: 'B' as const, indicators: ['a1', 'a2'], x: 0, y: 0, side: 'left' as const }, { id: 'b', name: 'B', type: 'composite' as const, mode: 'B' as const, indicators: ['b1', 'b2'], x: 0, y: 0, side: 'left' as const }], paths: [{ id: 'p', from: 'a', to: 'b' }], moderations: [] };
+    const d = { names: ['a1', 'a2', 'b1', 'b2'], cols: Array.from({ length: 4 }, (_, k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 2)))) };
+    const errs = (o: object) => validateModel(m, d, { ...s().settings, method: 'pls', plsApproach: 'GSCA', ...o }).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(errs({ engine: 'r', plsPackage: 'cSEM' })).toEqual([]);
+    expect(errs({ engine: 'r', plsPackage: 'seminr' }).some((x) => /GSCA is estimated with cSEM/.test(x))).toBe(true);
+    expect(errs({ engine: 'builtin' }).some((x) => /GSCA is estimated with cSEM/.test(x))).toBe(true);
   });
 });
 

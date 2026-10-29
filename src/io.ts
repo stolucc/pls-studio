@@ -161,7 +161,7 @@ export async function buildRScript(what: ScriptTarget = 'model'): Promise<{ text
       const { invarianceScriptR } = await import('./rengine/lavaan');
       return { text: await invarianceScriptR(s.data, spec, st.missing, st.estimator as CbEstimator), file: `${name}-lavaan-invariance.R`, pkg: 'lavaan' };
     }
-    const options = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent };
+    const options = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent, approach: st.plsApproach };
     const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence };
     const pkg = what === 'fittest' || (typeof what === 'object') ? 'cSEM' : cb ? (st.estimator === '2SLS' ? 'MIIVsem' : 'lavaan') : st.plsPackage;
     const suffix = typeof what === 'object' ? 'ipma' : what === 'model' ? '' : what;

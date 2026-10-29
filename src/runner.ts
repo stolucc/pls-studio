@@ -57,7 +57,7 @@ function runR(kind: JobKind, key: string) {
   const cb = st.method === 'cbsem';
   const data = s.data!;
   const spec = toSpec(s.model);
-  const options: PlsOptions = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent };
+  const options: PlsOptions = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent, approach: st.plsApproach };
   const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence };
   const token = ++rToken;
   const modsem = cb && st.interaction !== 'product' && s.model.moderations.length > 0;
@@ -189,6 +189,7 @@ export function run(kind: JobKind) {
     tolerance: 10 ** -s.settings.stopExp,
     missing: s.settings.missing,
     consistent: s.settings.consistent,
+    approach: s.settings.plsApproach,
   };
   const spec = toSpec(s.model);
   const data = s.data;

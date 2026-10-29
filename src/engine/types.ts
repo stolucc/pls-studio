@@ -108,6 +108,8 @@ export interface PlsOptions {
   missing: MissingTreatment;
   /** Consistent PLS (PLSc): correct common factors for attenuation. */
   consistent: boolean;
+  /** Weighting approach (cSEM): PLS path modeling, or generalized structured component analysis (GSCA; Hwang & Takane 2004). */
+  approach?: 'PLS-PM' | 'GSCA';
 }
 
 export const DEFAULT_OPTIONS: PlsOptions = {
@@ -158,6 +160,8 @@ export interface PlsResult {
   adjRSquared: (number | null)[];
   constructCor: number[][];
   quality: ConstructQuality[];
+  /** cSEM's redundancy analysis: Mode B composite correlated with a Mode A version of its indicators (by construct name). */
+  redundancy?: Record<string, number>;
   /** htmt[i][j] for i > j; null elsewhere. */
   htmt: (number | null)[][];
   htmt2: (number | null)[][];

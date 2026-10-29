@@ -12,7 +12,7 @@ export interface PlsRequest {
   kind: 'pls';
   package: PlsPackage;
   missing: MissingTreatment;
-  options: { scheme: PlsOptions['scheme']; consistent: boolean; tolerance: number; maxIter: number };
+  options: { scheme: PlsOptions['scheme']; consistent: boolean; tolerance: number; maxIter: number; approach: 'PLS-PM' | 'GSCA' };
   data: { names: string[]; cols: (number | null)[][] };
   model: ModelSpec;
 }
@@ -23,7 +23,7 @@ export function plsRequest(data: Dataset, spec: ModelSpec, options: PlsOptions, 
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'pls', package: pkg, missing: options.missing,
-    options: { scheme: options.scheme, consistent: !!options.consistent, tolerance: options.tolerance, maxIter: options.maxIter },
+    options: { scheme: options.scheme, consistent: !!options.consistent, tolerance: options.tolerance, maxIter: options.maxIter, approach: options.approach ?? 'PLS-PM' },
     data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
     model: spec,
   };
@@ -48,6 +48,7 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     adjRSquared: (raw.adjRSquared as unknown[]).map((v) => (typeof v === 'number' ? v : null)),
     constructCor: mat(raw.constructCor),
     quality: (raw.quality as any[]).map((q) => ({ alpha: num(q.alpha), rhoC: num(q.rhoC), rhoA: num(q.rhoA), ave: num(q.ave) })),
+    ...(raw.redundancy && !Array.isArray(raw.redundancy) ? { redundancy: raw.redundancy as Record<string, number> } : {}),
     htmt: nmat(raw.htmt), htmt2: nmat(raw.htmt2),
     fit: { estimated: disc(raw.fit?.estimated), saturated: disc(raw.fit?.saturated) },
     consistent: !!raw.consistent, types: raw.types, moderations: raw.moderations,
