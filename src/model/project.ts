@@ -140,6 +140,8 @@ export interface ModelState {
   waldTests?: WaldTest[];
   /** CB-SEM: multiple groups by a data column, with measurement invariance (constructs by id in `free`). */
   multigroup?: MultigroupSpec;
+  /** CB-SEM: two-level model by a cluster column. */
+  multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
   esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation };
 }
@@ -256,6 +258,7 @@ export function toSpec(model: ModelState): ModelSpec {
     })),
     paths: model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })),
     ...constraintSpec(model),
+    ...(model.multilevel ? { multilevel: model.multilevel } : {}),
     ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)) } } : {}),
     ...(model.multigroup ? {
       multigroup: {
@@ -471,6 +474,29 @@ export function validateModel(
   } else {
     if (missingChoice === 'fiml' && method.method === 'pls') err('FIML is a CB-SEM option; PLS-SEM uses mean replacement or casewise deletion.');
     if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
+  }
+
+  const ml = model.multilevel;
+  if (ml) {
+    if (method.method !== 'cbsem') warn(`The two-level model (clusters by ${ml.column}) is estimated in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores the clustering.`);
+    else {
+      if (engine === 'builtin') err('Two-level models are estimated by lavaan: choose “R packages” under Calculated by.');
+      if (method.estimator !== 'ML' && method.estimator !== 'MLR') err('Two-level models use the ML or MLR estimator.');
+      if (model.multigroup || model.esem?.blocks.length || ordered.length || model.moderations.length || usesConstraints(model)) {
+        err('Two-level models cannot (yet) be combined with groups, ESEM blocks, ordinal indicators, latent interactions or parameter labels.');
+      }
+      if (data?.moments) err('Two-level models need raw data with a cluster column.');
+      else if (data) {
+        const col = data.cols[data.names.indexOf(ml.column)];
+        if (!col) err(`The cluster column “${ml.column}” is not in the dataset.`);
+        else {
+          if (assignedSet.has(ml.column)) err(`“${ml.column}” is an indicator and cannot also define the clusters.`);
+          const k = new Set([...col].filter((v) => !Number.isNaN(v))).size;
+          if (k < 2) err(`The cluster column “${ml.column}” has fewer than two clusters.`);
+          else if (k < 30) warn(`Only ${k} clusters: between-level estimates and standard errors are unreliable with fewer than about 30–50 clusters (Maas & Hox, 2005).`);
+        }
+      }
+    }
   }
 
   const mg = model.multigroup;
@@ -822,6 +848,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
       ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
+      ...(isObj(m.multilevel) && typeof m.multilevel.column === 'string' ? { multilevel: { column: str(m.multilevel.column), between: m.multilevel.between === 'same' ? 'same' as const : 'saturated' as const } } : {}),
       ...(isObj(m.esem) && Array.isArray(m.esem.blocks) ? { esem: {
         rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',
         blocks: m.esem.blocks.slice(0, 50).filter(isObj).map((b: Record<string, unknown>) => ({ id: str(b.id, 64), constructs: (Array.isArray(b.constructs) ? b.constructs : []).map((x: unknown) => str(x, 64)).filter((x: string) => ids.has(x)) })),

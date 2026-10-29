@@ -183,8 +183,8 @@ export function run(kind: JobKind) {
     s.toast('error', 'Bootstrapping LMS / QML models is not available yet; their standard errors come from modsem.');
     return;
   }
-  if (cb && kind === 'boot' && s.model.multigroup) {
-    s.toast('error', 'Bootstrapping multiple-group models is not available yet. Standard errors come from lavaan; choose MLR for robust ones.');
+  if (cb && kind === 'boot' && (s.model.multigroup || s.model.multilevel)) {
+    s.toast('error', 'Bootstrapping multiple-group and two-level models is not available yet. Standard errors come from lavaan; choose MLR for robust ones.');
     return;
   }
   const options: PlsOptions = {

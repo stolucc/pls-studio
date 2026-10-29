@@ -77,6 +77,8 @@ export interface ModelSpec {
   waldTests?: { name: string; constraints: string[] }[];
   /** CB-SEM (lavaan): multiple-group analysis by a grouping column, with a level of measurement invariance. */
   multigroup?: MultigroupSpec;
+  /** CB-SEM (lavaan): two-level model by a cluster column; between level saturated or with the same structure. */
+  multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
   esem?: { blocks: string[][]; rotation: EsemRotation };
 }

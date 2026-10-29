@@ -21,7 +21,7 @@ export interface CbRequest {
 
 export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): CbRequest {
   // Only the columns the model uses travel to R.
-  const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : [])]);
+  const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.multilevel ? [spec.multilevel.column] : [])]);
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'cb', estimator, missing, ...(interaction !== 'product' && spec.moderations?.length ? { interaction } : {}),
@@ -85,6 +85,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
         labels: rStrings(raw.groups.labels),
         results: (raw.groups.results as Record<string, any>[]).map((g) => parseCbOutput(g)),
         score: (Array.isArray(raw.groups.score) ? raw.groups.score : []).map((t: any) => ({ param: String(t.param), groups: rStrings(t.groups), x2: num(t.x2), df: num(t.df), p: num(t.p) })),
+        ...(raw.groups.levels ? { levels: true, icc: raw.groups.icc && !Array.isArray(raw.groups.icc) ? raw.groups.icc : {} } : {}),
       },
       groupIndex: 0,
     } : {}),

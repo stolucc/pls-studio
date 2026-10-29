@@ -187,3 +187,19 @@ describe('LMS / QML latent interactions', () => {
     expect(parseProject(serializeProject(s().model, { ...s().settings, interaction: 'qml' }, null, null)).settings.interaction).toBe('qml');
   });
 });
+
+describe('two-level models', () => {
+  it('need lavaan, ML/MLR, a cluster column that is not an indicator, and warn with few clusters', () => {
+    const withCl = { names: [...data.names, 'school'], cols: [...data.cols, Float64Array.from({ length: 200 }, (_, i) => i % 10)] };
+    s().setMultilevel({ column: 'school', between: 'saturated' });
+    const issues = (over = {}, d = withCl) => validateModel(s().model, d, { ...s().settings, ...over }).map((i) => `${i.level}: ${i.message}`);
+    expect(issues().filter((m) => m.startsWith('error'))).toEqual([]);
+    expect(issues().some((m) => /warning: Only 10 clusters/.test(m))).toBe(true);
+    expect(issues({ estimator: 'GLS' }).some((m) => /ML or MLR estimator/.test(m))).toBe(true);
+    expect(issues({ engine: 'builtin' }).some((m) => /Two-level models are estimated by lavaan/.test(m))).toBe(true);
+    expect(toSpec(s().model).multilevel).toEqual({ column: 'school', between: 'saturated' });
+    expect(parseProject(serializeProject(s().model, s().settings, null, null)).model.multilevel).toEqual({ column: 'school', between: 'saturated' });
+    s().setMultilevel(null);
+    expect(s().model.multilevel).toBeUndefined();
+  });
+});

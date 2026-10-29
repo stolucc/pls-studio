@@ -82,6 +82,11 @@ function Fit({ cb }: { cb: CbResult }) {
       <div className="tables">
         <Table title="Fit statistics" file="cb-fit" columns={['Statistic', 'Standard', robust ? 'Robust / scaled' : '']} rows={rows}
           note={<>Hu &amp; Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08.{robust && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'} Validated against lavaan.</>} />
+        {cb.groups?.levels && cb.groups.icc && (
+          <Table title="Intraclass correlations" file="cb-icc" columns={['Variable', 'ICC']}
+            rows={Object.entries(cb.groups.icc).map(([k, v]) => [c(k), c(v)])}
+            note="Share of each variable’s variance that lies between clusters. Values above about .05 make a two-level model worthwhile." />
+        )}
         {cb.warnings.length > 0 && (
           <div>{cb.warnings.map((w, i) => <div key={i} className="issue warning">{w}</div>)}</div>
         )}

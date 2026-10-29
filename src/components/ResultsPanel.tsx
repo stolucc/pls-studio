@@ -116,7 +116,7 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
             {cb.groups.labels.map((l, i) => (
               <button key={l} role="radio" aria-checked={cb.groupIndex === i} className={cb.groupIndex === i ? 'on' : ''}
                 onClick={() => useStore.getState().showGroup(i)} title={`Show the results of group ${l} (diagram and tables)`}>
-                {cb.groups!.labels.length <= 4 ? `Group ${l}` : l}
+                {cb.groups!.levels || cb.groups!.labels.length > 4 ? l : `Group ${l}`}
               </button>
             ))}
           </div>

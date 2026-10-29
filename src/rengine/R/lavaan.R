@@ -28,8 +28,9 @@ ps_cb_build <- function(req) {
 
   body <- "suppressPackageStartupMessages(library(lavaan))"
   inputs <- list()
-  group_var <- NULL
+  group_var <- NULL; cluster_var <- NULL
   mg <- req$model$multigroup
+  ml <- req$model$multilevel
   if (matrix_input && !is.null(mg)) stop("Multiple-group analysis needs raw data with a grouping column.")
   if (matrix_input) {
     mo <- req$data$moments
@@ -59,6 +60,15 @@ ps_cb_build <- function(req) {
       gcol <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
       group_var <- ps_ident(c(unname(n$iv), mg$column))[length(n$iv) + 1]
       inputs$data[[group_var]] <- gcol
+    }
+    # Two-level models: the cluster column, likewise.
+    if (!is.null(ml)) {
+      at <- match(ml$column, req$data$names)
+      if (is.na(at)) stop("The cluster column is not in the dataset.")
+      cols <- req$data$cols
+      ccol <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      cluster_var <- ps_ident(c(unname(n$iv), ml$column))[length(n$iv) + 1]
+      inputs$data[[cluster_var]] <- ccol
     }
     body <- c(body, ps_missing_code(req$missing))
   }
@@ -155,10 +165,24 @@ ps_cb_build <- function(req) {
   }
   # Defined parameters (functions of labelled parameters, with delta-method standard errors).
   for (d in req$model$defined) lines <- c(lines, paste(ps_label(d$name), ":=", ps_expr(d$expr)))
+  # Two-level: the model within clusters; between clusters the same structure (factors named *_b)
+  # or a saturated model (all variances and covariances of the observed variables free).
+  if (!is.null(cluster_var)) {
+    if (!(ml$between %||% "saturated") %in% c("same", "saturated")) stop("Invalid between-level model in the request.")
+    if (identical(ml$between, "same")) {
+      between <- lines
+      for (lv in unname(lname[n$cname[!is_cov]])) between <- gsub(sprintf("\\b%s\\b", lv), paste0(lv, "_b"), between, perl = TRUE)
+    } else {
+      ov <- unique(c(unname(n$iv[n$all_inds])))
+      between <- vapply(seq_along(ov), function(i) paste(ov[i], "~~", paste(ov[i:length(ov)], collapse = " + ")), "")
+    }
+    lines <- c("level: 1", paste0("  ", lines), "level: 2", paste0("  ", between))
+  }
   # Ordered categorical indicators (thresholds, polychoric correlations) and FIML.
   ordered <- unname(n$iv[intersect(unlist(req$model$ordered), n$all_inds)])
   extra <- paste0(if (length(ordered)) sprintf(", ordered = %s", ps_q(ordered)) else "",
     if (identical(req$missing, "fiml")) ", missing = \"ml\"" else "")
+  if (!is.null(cluster_var)) extra <- paste0(extra, sprintf(", cluster = \"%s\"", cluster_var))
   if (!is.null(group_var)) {
     # Measurement invariance: what is held equal across groups, and what is freed (partial invariance).
     lev <- mg$invariance %||% "configural"
@@ -191,7 +215,7 @@ ps_cb_build <- function(req) {
         if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var)
+    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
@@ -215,18 +239,21 @@ ps_cb <- function(req_json, export = FALSE) {
   # Product indicators belong to their interaction factor, in moderation order.
   counts <- vapply(mods, function(m) min(length(n$inds[[match(m$from, n$cname)]]), length(n$inds[[match(m$moderator, n$cname)]])), 1L)
   ind_con <- c(unname(vapply(n$all_inds, owner, 1L)) - 1L, rep(k0 - 1L + seq_along(mods), counts))
-  back <- c(setNames(constructs, lv_lname), setNames(indicators, ind_v))
-  is_lv <- function(x) x %in% lv_lname
+  # Between-level factors of a two-level model carry the suffix _b.
+  back <- c(setNames(constructs, lv_lname), setNames(constructs, paste0(lv_lname, "_b")), setNames(indicators, ind_v))
+  is_lv <- function(x) x %in% c(lv_lname, paste0(lv_lname, "_b"))
   nm <- function(x) unname(back[x])
 
-  groups <- lavaan::lavInspect(fit, "group.label")
+  levels2 <- !is.null(b$cluster_var)
+  groups <- if (levels2) c("Within", "Between") else lavaan::lavInspect(fit, "group.label")
   map_group <- function(g) {
     pt <- lavaan::parTable(fit)
     pe <- lavaan::parameterEstimates(fit, standardized = TRUE, remove.nonfree = FALSE)
-    multi <- "group" %in% names(pe)
-    key <- function(t) paste(t$lhs, t$op, t$rhs, if (multi) t$group else 1)
+    multi <- "block" %in% names(pe) || "group" %in% names(pe)
+    blk <- function(t) if ("block" %in% names(t)) t$block else if ("group" %in% names(t)) t$group else 1
+    key <- function(t) paste(t$lhs, t$op, t$rhs, if (multi) blk(t) else 1)
     pe$free <- pt$free[match(key(pe), key(pt))]
-    if (!is.null(g)) pe <- pe[pe$group == g, ]
+    if (!is.null(g)) pe <- pe[blk(pe) == g, ]
     # Latent means (estimated in groups after the first under scalar invariance).
     pe <- pe[pe$op %in% c("=~", "~", "~~", "|", ":=") | (pe$op == "~1" & pe$lhs %in% lv_lname & !is.na(pe$free) & pe$free > 0), ]
     est <- lapply(seq_len(nrow(pe)), function(i) {
@@ -258,9 +285,13 @@ ps_cb <- function(req_json, export = FALSE) {
     r2 <- lavaan::lavInspect(fit, "r2"); if (!is.null(g)) r2 <- r2[[g]]
     r2_ind <- vapply(ind_v, function(v) if (v %in% names(r2)) unname(r2[[v]]) else 1, 0)
     endo <- vapply(seq_len(K), function(j) any(has[, j]) || any(vapply(comps, function(cc) constructs[j] %in% cc, TRUE)), TRUE)
-    r2_con <- lapply(seq_len(K), function(j) if (endo[j] && lv_lname[j] %in% names(r2)) unname(r2[[lv_lname[j]]]) else NULL)
+    # Between clusters the factors are *_b (or absent in a saturated between model).
+    lvn <- if (levels2 && identical(g, 2L)) paste0(lv_lname, "_b") else lv_lname
+    r2_con <- lapply(seq_len(K), function(j) if (endo[j] && lvn[j] %in% names(r2)) unname(r2[[lvn[j]]]) else NULL)
     call <- lavaan::lavInspect(fit, "cor.all"); if (!is.null(g)) call <- call[[g]]
-    lvcor <- call[lv_lname, lv_lname, drop = FALSE]
+    lvcor <- matrix(NA_real_, K, K, dimnames = list(lvn, lvn))
+    have <- intersect(lvn, rownames(call))
+    lvcor[have, have] <- call[have, have]
     rel <- lapply(seq_len(K), function(j) {
       l <- std_load[ind_con == j - 1]
       if (!length(l) || (j <= k0 && length(comps[[j]]))) return(list(cr = NULL, ave = NULL))
@@ -268,7 +299,7 @@ ps_cb <- function(req_json, export = FALSE) {
     })
     rr <- lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
     res <- (if (is.null(g)) rr$cov else rr[[g]]$cov)[ind_v, ind_v]
-    gdata <- if (is.null(g) || b$matrix_input) env$data else env$data[as.character(env$data[[b$group_var]]) == groups[g], , drop = FALSE]
+    gdata <- if (is.null(g) || b$matrix_input || levels2) env$data else env$data[as.character(env$data[[b$group_var]]) == groups[g], , drop = FALSE]
     # HTMT on the measurement blocks (semTools), classic and HTMT2.
     htmt <- function(two) {
       out <- matrix(NA_real_, K, K)
@@ -290,7 +321,9 @@ ps_cb <- function(req_json, export = FALSE) {
     n_in <- if (b$matrix_input) b$inputs$N else nrow(b$inputs$data)
 
     list(
-      estimator = req$estimator, n = if (is.null(g)) lavaan::lavInspect(fit, "nobs") else lavaan::lavInspect(fit, "nobs")[g],
+      estimator = req$estimator,
+      # Between clusters, n is the number of clusters.
+      n = if (is.null(g)) lavaan::lavInspect(fit, "nobs") else if (levels2) { if (g == 1) lavaan::lavInspect(fit, "nobs") else lavaan::lavInspect(fit, "nclusters") } else lavaan::lavInspect(fit, "nobs")[g],
       iterations = lavaan::lavInspect(fit, "iterations"), converged = lavaan::lavInspect(fit, "converged"),
       constructs = constructs,
       indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
@@ -308,7 +341,8 @@ ps_cb <- function(req_json, export = FALSE) {
   }
   out <- if (length(groups) > 1) {
     per <- lapply(seq_along(groups), map_group)
-    c(per[[1]], list(groups = list(labels = as.character(groups), results = per, score = ps_cb_score(fit, nm))))
+    c(per[[1]], list(groups = list(labels = as.character(groups), results = per, score = if (levels2) list() else ps_cb_score(fit, nm), levels = levels2,
+      icc = if (levels2) as.list(setNames(as.numeric(lavaan::lavInspect(fit, "icc")), nm(names(lavaan::lavInspect(fit, "icc"))))) else NULL)))
   } else map_group(NULL)
   out$modindices <- ps_cb_modindices(fit, nm, groups)
   ps_json(out)

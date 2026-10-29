@@ -108,3 +108,46 @@ export function EsemEditor() {
     </div>
   );
 }
+
+/** CB-SEM two-level model: the cluster column and the between-level model. */
+export function ClustersEditor() {
+  const model = useStore((s) => s.model);
+  const data = useStore((s) => s.data);
+  const readOnly = useStore((s) => s.cloud?.role === 'viewer');
+  const setMultilevel = useStore((s) => s.setMultilevel);
+  const ml = model.multilevel;
+  const assigned = useMemo(() => new Set(model.constructs.flatMap((c) => c.indicators)), [model.constructs]);
+  // Candidate cluster columns: not indicators, at least two distinct values.
+  const candidates = useMemo(() => (data && !data.moments ? data.names.filter((n, i) => {
+    if (assigned.has(n)) return false;
+    const vals = new Set<number>();
+    for (const v of data.cols[i]) { if (!Number.isNaN(v)) vals.add(v); if (vals.size > 1) return true; }
+    return false;
+  }) : []), [data, assigned]);
+  if (!data || data.moments) return null;
+  return (
+    <div className="section">
+      <div className="section-title">Clusters (two-level)</div>
+      <select className="select" value={ml?.column ?? ''} disabled={readOnly}
+        onChange={(e) => setMultilevel(e.target.value ? { column: e.target.value, between: ml?.between ?? 'saturated' } : null)}>
+        <option value="">No clustering (one level)</option>
+        {candidates.map((c) => <option key={c} value={c}>Clusters by {c}</option>)}
+      </select>
+      {ml && (
+        <div className="field" style={{ marginTop: 10 }}>
+          <label>Between clusters</label>
+          <div className="segmented">
+            <button className={ml.between === 'saturated' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'saturated' })}>Saturated</button>
+            <button className={ml.between === 'same' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'same' })}>Same model</button>
+          </div>
+          <div className="hint" style={{ marginTop: 6 }}>
+            {ml.between === 'saturated'
+              ? 'The model is fitted to the within-cluster (co)variances; between clusters every variance and covariance is free. For clustered data when the interest is within.'
+              : 'The same factors and paths also between clusters (on the cluster means; factors suffixed “(between)” in lavaan as *_b).'}
+            {' '}Results: switch Within / Between in the results header (lavaan, ML or MLR).
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -102,6 +102,8 @@ interface State {
   showGroup: (index: number) => void;
   /** CB-SEM: exploratory SEM blocks and rotation (null removes them all). */
   setEsem: (esem: ModelState['esem'] | null) => void;
+  /** CB-SEM: set or clear the two-level model. */
+  setMultilevel: (ml: ModelState['multilevel'] | null) => void;
   /** CB-SEM: set or clear the multiple-group analysis. */
   setMultigroup: (mg: ModelState['multigroup'] | null) => void;
   /** CB-SEM: treat these indicators as ordered categorical (WLSMV), or as continuous again. */
@@ -293,6 +295,7 @@ export const useStore = create<State>((set, get) => ({
     const blocks = esem?.blocks.filter((b) => b.constructs.length >= 2) ?? [];
     return esem && blocks.length ? { ...rest, esem: { ...esem, blocks } } : rest;
   }),
+  setMultilevel: (ml) => get().commit((m) => { const { multilevel: _l, ...rest } = m; return ml ? { ...rest, multilevel: ml } : rest; }),
   setMultigroup: (mg) => get().commit((m) => { const { multigroup: _g, ...rest } = m; return mg ? { ...rest, multigroup: mg } : rest; }),
   setOrdered: (names, ordinal) => get().commit((m) => {
     const now = new Set(m.ordered ?? []);
