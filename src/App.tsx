@@ -1,3 +1,5 @@
+import { MatchingPanel } from './components/MatchingPanel';
+import { EndogeneityPanel } from './components/EndogeneityPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
 import { MultilevelPanel } from './components/MultilevelPanel';
 import { DataViewer } from './components/DataViewer';
@@ -107,6 +109,8 @@ export default function App() {
       <DataViewer />
       <MultilevelPanel />
       <SegmentationPanel />
+      <EndogeneityPanel />
+      <MatchingPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

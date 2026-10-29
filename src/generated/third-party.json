@@ -208,6 +208,12 @@
    "url": "https://cran.r-project.org/package=Amelia"
   },
   {
+   "name": "arg",
+   "version": "0.2.1",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=arg"
+  },
+  {
    "name": "askpass",
    "version": "1.2.1",
    "license": "MIT + file LICENSE",
@@ -284,6 +290,12 @@
    "version": "0.8.1",
    "license": "GPL-3",
    "url": "https://cran.r-project.org/package=clipr"
+  },
+  {
+   "name": "cobalt",
+   "version": "5.0.0",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=cobalt"
   },
   {
    "name": "codetools",
@@ -514,6 +526,12 @@
    "url": "https://cran.r-project.org/package=GPArotation"
   },
   {
+   "name": "gridExtra",
+   "version": "2.3.1",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=gridExtra"
+  },
+  {
    "name": "gtable",
    "version": "0.3.6",
    "license": "MIT + file LICENSE",
@@ -566,6 +584,12 @@
    "version": "1.0.14",
    "license": "Apache License (== 2.0)",
    "url": "https://cran.r-project.org/package=iterators"
+  },
+  {
+   "name": "ivreg",
+   "version": "0.6-8",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=ivreg"
   },
   {
    "name": "jquerylib",
@@ -688,6 +712,12 @@
    "url": "https://cran.r-project.org/package=MASS"
   },
   {
+   "name": "MatchIt",
+   "version": "4.8.1",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=MatchIt"
+  },
+  {
    "name": "Matrix",
    "version": "1.7-6",
    "license": "GPL (>= 2) | file LICENCE",
@@ -704,6 +734,12 @@
    "version": "1.5.0",
    "license": "Artistic-2.0",
    "url": "https://cran.r-project.org/package=matrixStats"
+  },
+  {
+   "name": "maxLik",
+   "version": "1.6-10",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=maxLik"
   },
   {
    "name": "memoise",
@@ -734,6 +770,12 @@
    "version": "1.2.8",
    "license": "GPL-2",
    "url": "https://cran.r-project.org/package=minqa"
+  },
+  {
+   "name": "miscTools",
+   "version": "0.6-30",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=miscTools"
   },
   {
    "name": "mnormt",
@@ -818,6 +860,12 @@
    "version": "2.4.2",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=openssl"
+  },
+  {
+   "name": "optmatch",
+   "version": "0.10.8",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=optmatch"
   },
   {
    "name": "orthopolynom",
@@ -1012,6 +1060,12 @@
    "url": "https://cran.r-project.org/package=rlang"
   },
   {
+   "name": "rlemon",
+   "version": "0.2.1",
+   "license": "BSL-1.0",
+   "url": "https://cran.r-project.org/package=rlemon"
+  },
+  {
    "name": "rmarkdown",
    "version": "2.32",
    "license": "MIT + file LICENSE",
@@ -1028,6 +1082,12 @@
    "version": "0.2.2",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=S7"
+  },
+  {
+   "name": "sampleSelection",
+   "version": "1.2-16",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=sampleSelection"
   },
   {
    "name": "sandwich",
@@ -1120,6 +1180,12 @@
    "url": "https://cran.r-project.org/package=sys"
   },
   {
+   "name": "systemfit",
+   "version": "1.1-30",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=systemfit"
+  },
+  {
    "name": "tester",
    "version": "0.3.0",
    "license": "GPL-3",
@@ -1196,6 +1262,12 @@
    "version": "0.7.3",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=vctrs"
+  },
+  {
+   "name": "VGAM",
+   "version": "1.1-14",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=VGAM"
   },
   {
    "name": "viridisLite",
@@ -1299,8 +1371,15 @@
    "name": "Examples from R packages",
    "where": "loaded at run time from the packages in the browser (not stored here)",
    "license": "per package",
-   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, lme4 and lcmm datasets; each example links to its documentation.",
+   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, lme4, lcmm, ivreg, sampleSelection and MatchIt datasets; each example links to its documentation.",
    "url": ""
+  },
+  {
+   "name": "REndo example data (dataCopCont2, dataHetIV, dataHigherMoments)",
+   "where": "public/examples/rendo, validation fixtures",
+   "license": "GPL-3, from the REndo package",
+   "credit": "Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser.",
+   "url": "https://cran.r-project.org/package=REndo"
   }
  ]
 }

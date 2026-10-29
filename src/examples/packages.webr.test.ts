@@ -8,7 +8,13 @@ import type { Dataset } from '../engine/types';
 import { DEFAULT_SETTINGS, toSpec } from '../model/project';
 import { processInput } from '../process/input';
 import { miivR } from '../rengine/analyses';
-import { rCall } from '../rengine/bridge';
+import { rCall, type RPackage } from '../rengine/bridge';
+import { endoR } from '../rengine/endo';
+import { matchR } from '../rengine/match';
+import { categoriesOf } from '../io';
+import { parseCsv } from '../engine/dataset';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { estimateCpaR } from '../rengine/cpa';
 import { irtR, lcaR } from '../rengine/items';
 import { estimateCbLavaan } from '../rengine/lavaan';
@@ -26,8 +32,10 @@ afterAll(stopTestRuntime);
 const CHISQ: Record<string, number> = { 'lavaan-poldem': 40.179, 'lavaan-hs': 85.306, 'lavaan-hs-groups': 164.103 };
 
 async function load(ex: PackageExample): Promise<Dataset & { levels?: unknown }> {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: unknown }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package);
-  return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), levels: raw.levels };
+  // Data shipped with the app (packages that cannot run in the browser's R).
+  if (ex.data.file) return parseCsv(readFileSync(join(__dirname, '..', '..', 'public', ex.data.file), 'utf8')).dataset;
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: Record<string, string[]> }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package as RPackage);
+  return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), levels: raw.levels, ...categoriesOf(raw.levels) };
 }
 
 describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example %s in webR', (_id, ex) => {
@@ -37,7 +45,17 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     if (ex.panel) {
       const p = ex.panel;
       for (const c of panelColumns(p)) expect(data.names, `${ex.id}: ${c}`).toContain(c);
-      if (p.kind === 'lmm') {
+      if (p.kind === 'endo') {
+        const { kind: _k, ...pre } = p;
+        const r = await endoR(data, { method: 'iv', outcome: '', exogenous: [], endogenous: [], instruments: [], hetRegressors: [], hmTypes: [], selection: { outcome: '', regressors: [] },
+          heckmanMethod: 'ml', boot: { samples: 50, seed: 1, confidence: 0.95 }, ...pre });
+        expect(r.coefficients.length).toBeGreaterThan(0);
+        if (ex.id === 'ivreg-kmenta') expect(r.coefficients.find((x) => x.term === 'P')!.est).toBeCloseTo(-0.2436, 4);  // ?ivreg
+      } else if (p.kind === 'match') {
+        const { kind: _k, ...pre } = p;
+        const r = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre });
+        expect(r.counts[1].treated).toBe(185);
+      } else if (p.kind === 'lmm') {
         const { kind: _k, ...input } = p;
         const r = await lmmR(data, input);
         expect(r.fixed.find((f) => f.term === 'Days')!.est).toBeCloseTo(10.4673, 3);  // ?lmer: fixef(fm1)

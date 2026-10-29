@@ -1,3 +1,4 @@
+import type { RPackage } from './rengine/bridge';
 import { MAX_FILE_BYTES, parseCsv } from './engine/dataset';
 import { confirmDialog, numberDialog } from './components/Overlays';
 import { parseCovMatrixCsv, parseNacovCsv } from './examples/matrix';
@@ -267,6 +268,15 @@ export function factorCodes(levels: Record<string, string[] | string> | unknown[
   return byLevels.size ? ` Coded ${[...byLevels].map(([key, cols]) => `${cols.join(', ')}: ${key}`).join('; ')}.` : '';
 }
 
+/** A dataset shipped with the app (public/), for packages that cannot run in the browser's R. */
+async function bundledDataset(file: string): Promise<{ names: string[]; cols: (number | null)[][]; n: number; levels?: undefined }> {
+  const res = await fetch(new URL(`${import.meta.env.BASE_URL}${file}`, window.location.href));
+  if (!res.ok) throw new Error(`Could not load ${file} (${res.status}).`);
+  const { parseCsv } = await import('./engine/dataset');
+  const d = parseCsv(await res.text()).dataset;
+  return { names: d.names, cols: d.cols.map((c) => Array.from(c, (v) => (Number.isNaN(v) ? null : v))), n: d.cols[0]?.length ?? 0 };
+}
+
 /** R factor levels as the dataset's category labels (codes 1, 2, ... in level order). */
 export function categoriesOf(levels: Record<string, string[] | string> | unknown[] | undefined): { categories?: Record<string, string[]> } {
   if (!levels || Array.isArray(levels) || !Object.keys(levels).length) return {};
@@ -286,7 +296,8 @@ export async function loadPackageExample(id: string) {
   s.toast('info', `Loading ${ex.data.package}::${ex.data.name} in R…`);
   try {
     const { rCall, rMessage } = await import('./rengine/bridge');
-    const raw = await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: Record<string, string[] | string> | unknown[] }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package).catch((e) => { throw new Error(rMessage(e)); });
+    const raw = ex.data.file ? await bundledDataset(ex.data.file)
+      : await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: Record<string, string[] | string> | unknown[] }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package as RPackage).catch((e) => { throw new Error(rMessage(e)); });
     const cols = raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN)));
     const missingCells = cols.reduce((n, c) => n + c.filter(Number.isNaN).length, 0);
     const model = exampleModel(ex);
@@ -307,6 +318,14 @@ export async function loadPackageExample(id: string) {
         const { useLong } = await import('./components/LongitudinalPanel');
         const { kind: _k, ...gmm } = p;
         useLong.setState({ open: true, gmm: null, preset: { gmm } });
+      } else if (p.kind === 'endo') {
+        const { useEndogeneity } = await import('./components/EndogeneityPanel');
+        const { kind: _k, ...preset } = p;
+        useEndogeneity.setState({ open: true, result: null, preset: { ...preset, source: 'data' } });
+      } else if (p.kind === 'match') {
+        const { useMatching } = await import('./components/MatchingPanel');
+        const { kind: _k, ...preset } = p;
+        useMatching.setState({ open: true, result: null, preset });
       } else if (p.kind === 'lmm') {
         const { useMultilevel } = await import('./components/MultilevelPanel');
         const { kind: _k, ...lmm } = p;

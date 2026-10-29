@@ -6,7 +6,9 @@ import analysesR from './R/analyses.R?raw';
 import bootR from './R/boot.R?raw';
 import commonR from './R/common.R?raw';
 import cpaR from './R/cpa.R?raw';
+import endoR from './R/endo.R?raw';
 import lavaanR from './R/lavaan.R?raw';
+import matchR from './R/match.R?raw';
 import itemsR from './R/items.R?raw';
 import longitudinalR from './R/longitudinal.R?raw';
 import mcR from './R/mc.R?raw';
@@ -15,7 +17,7 @@ import plsR from './R/pls.R?raw';
 import segmentR from './R/segment.R?raw';
 import { callJson, callString, withR } from './runtime';
 
-const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR };
+const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -32,6 +34,9 @@ export const R_PACKAGES = {
   lme4: ['jsonlite', 'lme4', 'lmerTest'],
   lcmm: ['jsonlite', 'lcmm'],
   plspm: ['jsonlite', 'plspm'],
+  ivreg: ['jsonlite', 'ivreg', 'lmtest'],
+  sampleSelection: ['jsonlite', 'sampleSelection'],
+  MatchIt: ['jsonlite', 'MatchIt', 'optmatch', 'cobalt', 'sandwich', 'lmtest'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 
