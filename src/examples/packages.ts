@@ -13,10 +13,11 @@ import type { GmmInput, LmmInput } from '../rengine/mixed';
 import type { EndoPreset } from '../components/EndogeneityPanel';
 import type { MatchPreset } from '../components/MatchingPanel';
 import type { RsaPreset } from '../components/PolynomialPanel';
+import type { EfaPreset } from '../components/EfaPanel';
 import type { NcaPreset } from '../components/NcaPanel';
 
-export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
+export type ExamplePackage = 'lavaan' | 'psych' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -36,7 +37,8 @@ export type ExamplePanel =
   | ({ kind: 'endo' } & EndoPreset)
   | ({ kind: 'match' } & MatchPreset)
   | ({ kind: 'rsa' } & RsaPreset)
-  | ({ kind: 'nca' } & NcaPreset);
+  | ({ kind: 'nca' } & NcaPreset)
+  | ({ kind: 'efa' } & EfaPreset);
 
 export interface PackageExample {
   id: string;
@@ -229,6 +231,21 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Does it matter whether explicit and implicit power motives match (N = 84)? Polynomial regression of positive affect on both motives, read along the lines of congruence and incongruence — the analysis of Schaarschmidt, Stol & Fitzgerald (EJIS 2025) on identification imbalance. RSA’s data, shipped with the app. Opens Polynomial regression.',
     data: { package: 'RSA', name: 'motcon', file: 'examples/rsa/motcon.csv' }, constructs: [], paths: [],
     panel: { kind: 'rsa', outcome: 'postVA', x: 'ePow', y: 'iPow', controls: [], estimation: 'OLS', center: 'none' }, settings: CB('ML'),
+  },
+  {
+    id: 'psych-bfi', package: 'psych', title: 'Big Five personality items: exploratory factor analysis', source: 'psych, ?bfi and ?fa (Revelle)',
+    links: [{ label: '?fa', url: 'https://rdrr.io/cran/psych/man/fa.html' }, { label: '?fa.parallel', url: 'https://rdrr.io/cran/psych/man/fa.parallel.html' }, { label: '?bfi', url: 'https://rdrr.io/cran/psych/man/bfi.html' }],
+    description: '25 self-report items of the Big Five (agreeableness, conscientiousness, extraversion, neuroticism, openness) from 2800 people. Parallel analysis, MAP and a five-factor minimum-residual solution with oblimin rotation; Build model turns it into five correlated factors for a CFA. Opens Exploratory factor analysis.',
+    data: { package: 'psych', name: 'bfi' }, constructs: [], paths: [],
+    panel: { kind: 'efa', vars: ['A1', 'A2', 'A3', 'A4', 'A5', 'C1', 'C2', 'C3', 'C4', 'C5', 'E1', 'E2', 'E3', 'E4', 'E5', 'N1', 'N2', 'N3', 'N4', 'N5', 'O1', 'O2', 'O3', 'O4', 'O5'],
+      method: 'minres', nfactors: 5, rotation: 'oblimin', parallel: 20 }, settings: CB('ML'),
+  },
+  {
+    id: 'psych-harman5', package: 'psych', title: 'Socio-economic variables: principal components', source: 'psych, ?principal (Harman.5)',
+    links: [{ label: '?principal', url: 'https://rdrr.io/cran/psych/man/principal.html' }, { label: '?Harman.5', url: 'https://rdrr.io/cran/psych/man/Harman.html' }],
+    description: 'Harman’s five socio-economic variables for 12 census tracts (population, schooling, employment, professional services, house value): two principal components with varimax rotation, as on the help page. Opens Exploratory factor analysis.',
+    data: { package: 'psych', name: 'Harman.5' }, constructs: [], paths: [],
+    panel: { kind: 'efa', vars: ['population', 'schooling', 'employment', 'professional', 'housevalue'], method: 'pca', nfactors: 2, rotation: 'varimax', parallel: 0 }, settings: CB('ML'),
   },
   {
     id: 'nca-example', package: 'NCA', title: 'Necessary conditions for innovation', source: 'NCA, ?nca_analysis (nca.example)',
@@ -437,6 +454,7 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'match': return [p.treatment ?? '', ...(p.covariates ?? []), p.outcome ?? ''].filter(Boolean);
     case 'rsa': return [p.outcome ?? '', p.x ?? '', p.y ?? '', ...(p.controls ?? [])].filter(Boolean);
     case 'nca': return [...p.x, p.y];
+    case 'efa': return p.vars ?? [];
   }
 }
 

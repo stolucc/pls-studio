@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { factorName } from './model/efa';
 import type { FitTestResult } from './engine/bootstrap';
 import type { CbResult } from './engine/cbsem';
 import type { MiivResult } from './engine/miiv';
@@ -100,6 +101,8 @@ interface State {
   checkpoint: () => void;
 
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
+  /** Factors from an exploratory factor analysis, as common factors (one undo step); `correlate`: draw their correlations. */
+  addFactors: (groups: string[][], correlate: boolean, names?: string[]) => string[];
   updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical'>>) => void;
   /** CB-SEM: label a path coefficient, loading or drawn covariance (null removes it); equal labels = equal values. */
   setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
@@ -278,6 +281,23 @@ export const useStore = create<State>((set, get) => ({
     });
     set({ selection: { nodes: [id], edges: [] }, tool: 'select' });
     return id;
+  },
+  addFactors: (groups, correlate, names) => {
+    const ids = groups.map(() => newId('c'));
+    get().commit((m) => {
+      const all = groups.flat();
+      let constructs = m.constructs.map((c) => ({ ...c, indicators: c.indicators.filter((i) => !all.includes(i)) }));
+      const top = constructs.length ? Math.max(...constructs.map((c) => c.y)) + 300 : 0;
+      groups.forEach((indicators, k) => {
+        const taken = constructs.map((c) => c.name);
+        const name = names?.[k] ? factorName(indicators, names[k], taken) : suggestName(indicators, taken, constructs.length + 1);
+        constructs = [...constructs, { id: ids[k], name, type: 'factor', mode: 'A', indicators, x: (k % 4) * 320, y: top + Math.floor(k / 4) * 260, side: 'left' as Side }];
+      });
+      const pairs = correlate ? ids.flatMap((a, i) => ids.slice(i + 1).map((b) => ({ id: newId('k'), kind: 'construct' as const, a, b }))) : [];
+      return { ...m, constructs, correlations: [...(m.correlations ?? []), ...pairs] };
+    });
+    set({ selection: { nodes: ids, edges: [] }, tool: 'select' });
+    return ids;
   },
   updateConstruct: (id, patch) =>
     get().commit((m) => ({ ...m, constructs: m.constructs.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),

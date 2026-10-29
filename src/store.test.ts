@@ -229,3 +229,19 @@ describe('showing implied main effects', () => {
     s().setShowImpliedEffects(true);
   });
 });
+
+describe('factors from an exploratory factor analysis', () => {
+  it('adds common factors in one step, taking the variables from other constructs, correlated when oblique', () => {
+    useStore.setState({ model: emptyModel(), past: [], future: [], toasts: [] });
+    const old = s().addConstruct(0, 0, ['a1', 'q']);
+    const before = s().past.length;
+    const ids = s().addFactors([['a1', 'a2'], ['b1', 'b2']], true);
+    expect(s().past.length).toBe(before + 1);
+    const made = s().model.constructs.filter((c) => ids.includes(c.id));
+    expect(made.map((c) => [c.type, c.mode, c.indicators])).toEqual([['factor', 'A', ['a1', 'a2']], ['factor', 'A', ['b1', 'b2']]]);
+    expect(s().model.constructs.find((c) => c.id === old)!.indicators).toEqual(['q']);
+    expect(s().model.correlations).toEqual([expect.objectContaining({ kind: 'construct', a: ids[0], b: ids[1] })]);
+    s().addFactors([['c1', 'c2']], false);
+    expect(s().model.correlations).toHaveLength(1);
+  });
+});

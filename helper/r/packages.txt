@@ -1,3 +1,4 @@
+GPArotation
 MIIVsem
 MatchIt
 cSEM
@@ -20,6 +21,7 @@ optimx
 optmatch
 plspm
 poLCA
+psych
 sampleSelection
 sandwich
 semTools

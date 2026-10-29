@@ -1,4 +1,5 @@
 import { DEFAULT_FIGURE_STYLE, parseFigureStyle, type FigureStyle } from '../figure/style';
+import { parseEfaDesign, type EfaDesign } from './efa';
 import { DEFAULT_CHART_STYLE, parseChartStyle, type ChartStyle } from '../figure/chartStyle';
 import type { CbEstimator } from '../engine/cbsem';
 import type { McDesign } from '../engine/montecarlo';
@@ -62,6 +63,8 @@ export interface Settings {
   plsApproach: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
   /** Look of the diagram and exported figures. */
   figure: FigureStyle;
+  /** The exploratory factor analysis panel's design, kept with the project. */
+  efa?: EfaDesign;
   /** Text style and axis titles of the result charts. */
   charts: ChartStyle;
   scheme: WeightingScheme;
@@ -969,6 +972,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
     plsApproach: (['GSCA', 'PCA', 'unit'] as const).find((x) => x === s.plsApproach) ?? 'PLS-PM',
     figure: parseFigureStyle(s.figure),
+    ...(parseEfaDesign(s.efa) ? { efa: parseEfaDesign(s.efa) } : {}),
     charts: parseChartStyle(s.charts),
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
     maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),

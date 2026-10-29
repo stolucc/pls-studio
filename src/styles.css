@@ -655,3 +655,8 @@ td.text-left { text-align: left; }
 /* Desktop R helper download links (Inspector → Calculated by). */
 .helper-downloads { display: contents; }
 a.btn { text-decoration: none; }
+
+/* Exploratory factor analysis: choosing many variables. */
+.var-check-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 2px 8px; max-height: 210px; overflow: auto;
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--surface); }
+.var-check { user-select: none; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
