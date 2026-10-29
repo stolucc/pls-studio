@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { constructsFromSolution, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, toggleVariables } from './efa';
+import { constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, toggleVariables } from './efa';
 
 describe('EFA design from a project file', () => {
   it('keeps valid values and replaces invalid ones', () => {
@@ -48,5 +48,19 @@ describe('choosing variables', () => {
     expect(toggleVariables(all, ['A1', 'A2', 'A3', 'B1'], 'A1', 'A3', true)).toEqual(['B1']);
     // Without an anchor, a shift-click is a single toggle.
     expect(toggleVariables(all, [], 'A3', null, true)).toEqual(['A3']);
+  });
+});
+
+describe('cross-loadings', () => {
+  it('finds each variable’s primary and secondary loading and flags problems', () => {
+    const r = crossLoadings([[0.8, 0.1, 0.05], [0.45, -0.38, 0.1], [0.35, 0.3, 0.0], [0.1, 0.62, -0.5]], 0.3);
+    expect(r[0]).toEqual({ variable: 0, primary: 0, primaryLoading: 0.8, secondary: 1, secondaryLoading: 0.1, gap: expect.closeTo(0.7, 10), flags: [] });
+    expect(r[1]).toMatchObject({ primary: 0, secondary: 1, secondaryLoading: -0.38, flags: ['cross-loads', 'close'] });
+    expect(r[2].flags).toEqual(['cross-loads', 'weak', 'close']);
+    expect(r[3]).toMatchObject({ primary: 1, secondary: 2, flags: ['cross-loads', 'close'] });
+    expect(crossLoadings([[0.7], [0.2]], 0.3)).toEqual([
+      { variable: 0, primary: 0, primaryLoading: 0.7, secondary: null, secondaryLoading: null, gap: null, flags: [] },
+      { variable: 1, primary: 0, primaryLoading: 0.2, secondary: null, secondaryLoading: null, gap: null, flags: ['weak'] },
+    ]);
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
 import { downloadText, fmt, safeFileName } from '../format';
-import { constructsFromSolution, DEFAULT_EFA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, toggleVariables, type EfaDesign } from '../model/efa';
+import { constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, toggleVariables, type EfaDesign } from '../model/efa';
 import type { EfaResult } from '../rengine/efa';
 import { useStore } from '../store';
 import { ChartFrame } from './ChartFrame';
@@ -9,8 +9,9 @@ import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
 
 export type EfaPreset = Partial<EfaDesign>;
-interface EfaState { open: boolean; result: EfaResult | null; preset: EfaPreset | null; setOpen: (v: boolean) => void }
-export const useEfa = create<EfaState>((set) => ({ open: false, result: null, preset: null, setOpen: (open) => set({ open }) }));
+type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'variance' | 'fit';
+interface EfaState { open: boolean; result: EfaResult | null; preset: EfaPreset | null; tab: EfaTab; setOpen: (v: boolean) => void }
+export const useEfa = create<EfaState>((set) => ({ open: false, result: null, preset: null, tab: 'loadings', setOpen: (open) => set({ open }) }));
 
 /**
  * Many variables at once: a checkbox list with a filter, all / none (of the
@@ -83,38 +84,83 @@ function Scree({ r }: { r: EfaResult }) {
 }
 
 function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
+  const tab = useEfa((s) => s.tab);
   const pca = r.method === 'pca';
+  const unit = pca ? 'component' : 'factor';
   const order = loadingOrder(r.loadings);
   const cell = (v: number) => (Math.abs(v) < threshold ? c('', 'dim') : { ...c(v), bold: Math.abs(v) >= 0.5 });
-  const rows = (m: number[][]): Row[] => order.map((i) => [c(r.variables[i]), ...m[i].map(cell), c(r.communality[i]), c(r.uniqueness[i]), c(r.complexity[i], undefined, 2)]);
-  const thing = pca ? 'components' : 'factors';
+  const rows = (m: number[][], blank = true): Row[] => order.map((i) => [c(r.variables[i]), ...m[i].map((v) => (blank ? cell(v) : c(v))), c(r.communality[i]), c(r.uniqueness[i]), c(r.complexity[i], undefined, 2)]);
+  const cross = crossLoadings(r.loadings, threshold);
+  const clean = cross.filter((x) => x.flags.length === 0).length;
+  const tabs: [EfaTab, string][] = [['suitability', 'Suitability'], ['number', `Number of ${unit}s`], ['loadings', 'Loadings'], ['cross', 'Cross-loadings'], ['variance', r.phi ? 'Variance & correlations' : 'Variance'], ...(pca ? [] : [['fit', 'Fit'] as [EfaTab, string]])];
+  const shown = tabs.some(([id]) => id === tab) ? tab : 'loadings';
+  const flagText = { 'cross-loads': `cross-loads (≥ ${threshold})`, weak: 'weak (< .40)', close: 'close (gap < .20)' };
   return (
-    <div className="tables">
-      <Table title={`Suitability: KMO ${fmt(r.kmo.overall)} (${kmoLabel(r.kmo.overall)})`} file="efa-suitability" columns={['Measure', 'Value', 'df', 'p']}
-        rows={[[c('Kaiser–Meyer–Olkin (overall)'), c(r.kmo.overall), c(''), c('')], [c('Bartlett’s test of sphericity, χ²'), c(r.bartlett.chisq, undefined, 2), c(r.bartlett.df, undefined, 0), pCell(r.bartlett.p)]]}
-        note={`KMO ≥ .6 is usually wanted (Kaiser 1974: .9 marvelous, .8 meritorious, .7 middling, .6 mediocre, .5 miserable). Bartlett’s test should reject (the correlations are not all zero).${r.kmo.items.some((v) => v < 0.5) ? ` Items below .5: ${r.variables.filter((_, i) => r.kmo.items[i] < 0.5).join(', ')} — consider dropping them.` : ''}`} />
-      <div className="mc-grid"><Scree r={r} /></div>
-      <Table title={`How many ${thing}`} file="efa-number" columns={['Criterion', 'Suggests']}
-        rows={[
-          ...(r.parallel ? [[c(`Parallel analysis (Horn 1965; ${r.parallel.iterations} samples)`), c(r.parallel.suggested ?? '–', undefined, 0)]] : []),
-          [c('Velicer’s MAP (minimum average partial)'), c(r.map.suggested, undefined, 0)],
-          [c('Eigenvalues > 1 (Kaiser; tends to overestimate)'), c(r.kaiser, undefined, 0)],
-        ]}
-        note={`Purple: eigenvalues of the ${pca ? 'correlation matrix' : 'reduced correlation matrix (factor analysis)'}${r.parallel ? '; dashed amber: the mean eigenvalues of random data of the same size (parallel analysis: keep those above it)' : ''}. Parallel analysis and MAP are the more reliable guides; then judge the solution’s interpretability.`} />
-      <Table title={`${r.oblique ? 'Pattern' : ''}${r.oblique ? ' matrix' : 'Loadings'}: ${r.k} ${thing}, ${EFA_METHODS.find((m) => m.id === r.method)?.label.toLowerCase()}, ${r.rotation === 'none' ? 'unrotated' : `${EFA_ROTATIONS.find((x) => x.id === r.rotation)?.label.toLowerCase()} rotation`}`}
-        file="efa-loadings" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.loadings)}
-        note={`Sorted by the ${pca ? 'component' : 'factor'} each variable loads most on; loadings below ${threshold} are blank, ≥ .5 bold. h²: communality; u²: uniqueness; complexity: Hofmann’s index (1: one ${pca ? 'component' : 'factor'}).`} />
-      {r.structure && <Table title="Structure matrix (correlations of variables and factors)" file="efa-structure" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.structure)} />}
-      <Table title="Variance explained" file="efa-variance" columns={['', ...r.factors]}
-        rows={[[c('Sum of squared loadings'), ...r.ssLoadings.map((v) => c(v))], [c('Proportion'), ...r.proportion.map((v) => c(v))], [c('Cumulative'), ...r.cumulative.map((v) => c(v))]]} />
-      {r.phi && <Table title={`${pca ? 'Component' : 'Factor'} correlations`} file="efa-phi" columns={['', ...r.factors]}
-        rows={r.factors.map((f, i) => [c(f), ...r.phi![i].map((v, j) => (j <= i ? c(v) : c('')))])} />}
-      {!pca && <Table title="Fit of the factor model" file="efa-fit" columns={['χ²', 'df', 'p', 'RMSEA', '90% CI', 'TLI', 'BIC']}
-        rows={[[c(r.fit.chisq ?? null, undefined, 2), c(r.fit.df ?? null, undefined, 0), pCell(r.fit.p ?? null), c(r.fit.rmsea ?? null),
-          c(r.fit.rmseaLow != null && r.fit.rmseaHigh != null ? `${fmt(r.fit.rmseaLow)}–${fmt(r.fit.rmseaHigh)}` : '–'), c(r.fit.tli ?? null), c(r.fit.bic ?? null, undefined, 1)]]}
-        note={`Likelihood-ratio test of the ${r.k}-factor model against the saturated one (psych; n = ${r.n}). RMSEA ≤ .06 and TLI ≥ .95 suggest good fit (Hu & Bentler 1999). χ² rejects easily in large samples.`} />}
-      <div className="hint">Calculated by psych {r.engine.version} (Revelle){r.rotation !== 'none' && r.oblique ? ' with GPArotation' : ''}.</div>
-    </div>
+    <>
+      <div className="segmented efa-tabs" role="tablist" aria-label="Results">
+        {tabs.map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={shown === id} className={shown === id ? 'on' : ''} onClick={() => useEfa.setState({ tab: id })}>
+            {label}{id === 'cross' && cross.length - clean > 0 ? ` (${cross.length - clean})` : ''}
+          </button>
+        ))}
+      </div>
+      <div className="tables">
+        {shown === 'suitability' && (
+          <Table title={`Suitability: KMO ${fmt(r.kmo.overall)} (${kmoLabel(r.kmo.overall)})`} file="efa-suitability" columns={['Measure', 'Value', 'df', 'p']}
+            rows={[[c('Kaiser–Meyer–Olkin (overall)'), c(r.kmo.overall), c(''), c('')], [c('Bartlett’s test of sphericity, χ²'), c(r.bartlett.chisq, undefined, 2), c(r.bartlett.df, undefined, 0), pCell(r.bartlett.p)],
+              ...r.variables.map((v, i) => [c(`MSA ${v}`), { ...c(r.kmo.items[i]), cls: r.kmo.items[i] < 0.5 ? 'bad' : undefined }, c(''), c('')])]}
+            note={`KMO ≥ .6 is usually wanted (Kaiser 1974: .9 marvelous, .8 meritorious, .7 middling, .6 mediocre, .5 miserable); per item (MSA), below .5 suggests dropping it. Bartlett’s test should reject (the correlations are not all zero).`} />
+        )}
+        {shown === 'number' && (
+          <>
+            <div className="mc-grid"><Scree r={r} /></div>
+            <Table title={`How many ${unit}s`} file="efa-number" columns={['Criterion', 'Suggests']}
+              rows={[
+                ...(r.parallel ? [[c(`Parallel analysis (Horn 1965; ${r.parallel.iterations} samples)`), c(r.parallel.suggested ?? '–', undefined, 0)]] : []),
+                [c('Velicer’s MAP (minimum average partial)'), c(r.map.suggested, undefined, 0)],
+                [c('Eigenvalues > 1 (Kaiser; tends to overestimate)'), c(r.kaiser, undefined, 0)],
+              ]}
+              note={`Purple: eigenvalues of the ${pca ? 'correlation matrix' : 'reduced correlation matrix (factor analysis)'}${r.parallel ? '; dashed amber: the mean eigenvalues of random data of the same size (parallel analysis: keep those above it)' : ''}. Parallel analysis and MAP are the more reliable guides; then judge the solution’s interpretability.`} />
+          </>
+        )}
+        {shown === 'loadings' && (
+          <>
+            <Table title={`${r.oblique ? 'Pattern matrix' : 'Loadings'}: ${r.k} ${unit}s, ${EFA_METHODS.find((m) => m.id === r.method)?.label.toLowerCase()}, ${r.rotation === 'none' ? 'unrotated' : `${EFA_ROTATIONS.find((x) => x.id === r.rotation)?.label.toLowerCase()} rotation`}`}
+              file="efa-loadings" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.loadings)}
+              note={`Sorted by the ${unit} each variable loads most on; loadings below ${threshold} are blank, ≥ .5 bold. h²: communality; u²: uniqueness; complexity: Hofmann’s index (1: one ${unit}). The Cross-loadings tab lists every loading.`} />
+            {r.structure && <Table title={`Structure matrix (correlations of variables and ${unit}s)`} file="efa-structure" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.structure)} />}
+          </>
+        )}
+        {shown === 'cross' && (
+          <>
+            <Table title={`Cross-loadings: ${clean} of ${cross.length} variables load cleanly on one ${unit}`} file="efa-cross-loadings"
+              columns={['Variable', `Primary ${unit}`, 'Loading', `Second ${unit}`, 'Loading', 'Difference', 'Check']}
+              rows={order.map((i) => cross[i]).map((x) => [
+                c(r.variables[x.variable]), c(r.factors[x.primary]), { ...c(x.primaryLoading), bold: Math.abs(x.primaryLoading) >= 0.5 },
+                c(x.secondary === null ? '–' : r.factors[x.secondary]), x.secondaryLoading === null ? c('–') : { ...c(x.secondaryLoading), bold: Math.abs(x.secondaryLoading) >= threshold },
+                x.gap === null ? c('–') : c(x.gap), x.flags.length ? c(x.flags.map((f) => flagText[f]).join('; '), 'bad') : c('clean', 'good'),
+              ])}
+              note={`Rules of thumb (e.g. Howard 2016): a variable should load at least .40 on its ${unit}, below ${threshold} on every other, and at least .20 more on its own than on the next. Variables flagged here are candidates for removal or rewording; drop one at a time and recalculate.`} />
+            <Table title="All loadings (none hidden)" file="efa-loadings-all" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.loadings, false)} />
+          </>
+        )}
+        {shown === 'variance' && (
+          <>
+            <Table title="Variance explained" file="efa-variance" columns={['', ...r.factors]}
+              rows={[[c('Sum of squared loadings'), ...r.ssLoadings.map((v) => c(v))], [c('Proportion'), ...r.proportion.map((v) => c(v))], [c('Cumulative'), ...r.cumulative.map((v) => c(v))]]} />
+            {r.phi && <Table title={`${pca ? 'Component' : 'Factor'} correlations`} file="efa-phi" columns={['', ...r.factors]}
+              rows={r.factors.map((f, i) => [c(f), ...r.phi![i].map((v, j) => (j <= i ? c(v) : c('')))])} />}
+          </>
+        )}
+        {shown === 'fit' && !pca && (
+          <Table title="Fit of the factor model" file="efa-fit" columns={['χ²', 'df', 'p', 'RMSEA', '90% CI', 'TLI', 'BIC']}
+            rows={[[c(r.fit.chisq ?? null, undefined, 2), c(r.fit.df ?? null, undefined, 0), pCell(r.fit.p ?? null), c(r.fit.rmsea ?? null),
+              c(r.fit.rmseaLow != null && r.fit.rmseaHigh != null ? `${fmt(r.fit.rmseaLow)}–${fmt(r.fit.rmseaHigh)}` : '–'), c(r.fit.tli ?? null), c(r.fit.bic ?? null, undefined, 1)]]}
+            note={`Likelihood-ratio test of the ${r.k}-factor model against the saturated one (psych; n = ${r.n}). RMSEA ≤ .06 and TLI ≥ .95 suggest good fit (Hu & Bentler 1999). χ² rejects easily in large samples.`} />
+        )}
+        <div className="hint">Calculated by psych {r.engine.version} (Revelle){r.rotation !== 'none' && r.oblique ? ' with GPArotation' : ''}.</div>
+      </div>
+    </>
   );
 }
 

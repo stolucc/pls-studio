@@ -104,3 +104,32 @@ export function toggleVariables(all: string[], chosen: string[], clicked: string
   for (const v of span) if (on) set.add(v); else set.delete(v);
   return all.filter((v) => set.has(v));
 }
+
+export interface CrossLoading {
+  variable: number;
+  primary: number; primaryLoading: number;
+  /** The strongest other factor (null with one factor). */
+  secondary: number | null; secondaryLoading: number | null;
+  gap: number | null;
+  /** cross-loads: a second loading reaches the threshold; weak: the primary loading is below `weak`; close: primary and second differ by less than `gap`. */
+  flags: ('cross-loads' | 'weak' | 'close')[];
+}
+
+/**
+ * Each variable's primary and strongest secondary loading, and the usual
+ * warnings (e.g. Howard 2016): a cross-loading at or above the threshold, a
+ * primary loading below .40, or less than .20 between the two.
+ */
+export function crossLoadings(loadings: number[][], threshold: number, weak = 0.4, gap = 0.2): CrossLoading[] {
+  return loadings.map((row, variable) => {
+    const order = row.map((_, j) => j).sort((a, b) => Math.abs(row[b]) - Math.abs(row[a]));
+    const p = order[0], s = order.length > 1 ? order[1] : null;
+    const pl = row[p], sl = s === null ? null : row[s];
+    const g = sl === null ? null : Math.abs(pl) - Math.abs(sl);
+    const flags: CrossLoading['flags'] = [];
+    if (sl !== null && Math.abs(sl) >= threshold) flags.push('cross-loads');
+    if (Math.abs(pl) < weak) flags.push('weak');
+    if (g !== null && g < gap) flags.push('close');
+    return { variable, primary: p, primaryLoading: pl, secondary: s, secondaryLoading: sl, gap: g, flags };
+  });
+}
