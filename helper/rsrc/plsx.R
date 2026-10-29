@@ -94,7 +94,8 @@ ps_pls_groups <- function(req_json, export = FALSE) {
     sprintf("set.seed(%d)  # (testMICOM needs an initialised random number generator)", seed),
     sprintf("micom <- testMICOM(fit, .R = %d, .seed = %d, .verbose = FALSE)", R, seed),
     "# Multigroup analysis: differences between the groups' parameters.",
-    sprintf("mga <- testMGD(fit, .approach_mgd = %s, .R_permutation = %d, .R_bootstrap = %d, .seed = %d, .verbose = FALSE)", ps_q(approaches), R, R, seed))
+    ps_cores_csem(req),
+    sprintf("mga <- testMGD(fit, .approach_mgd = %s, .R_permutation = %d, .R_bootstrap = %d, .seed = %d, .eval_plan = plan, .verbose = FALSE)", ps_q(approaches), R, R, seed))
   if (export) return(paste(ps_script("Group comparison: MICOM and multigroup analysis (cSEM)", "cSEM", b$inputs, body, c("micom", "mga")), collapse = "\n"))
   env <- ps_run(body, b$inputs)
   back <- ps_plsx_back(b)
@@ -263,7 +264,8 @@ ps_cca <- function(req_json, export = FALSE) {
     sprintf("set.seed(%d)", seed),
     sprintf("omf <- testOMF(fit, .R = %d, .seed = %d, .alpha = c(0.05, 0.01), .saturated = TRUE)", B, seed),
     "# The composites: weights and loadings with bootstrap percentile intervals, VIFs of the Mode B weights.",
-    sprintf("boot <- %s", sub("\\)$", sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = %d)", B, seed), sub("^fit <- ", "", fit_line))),
+    ps_cores_csem(req),
+    sprintf("boot <- %s", sub("\\)$", sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = %d, .eval_plan = plan)", B, seed), sub("^fit <- ", "", fit_line))),
     sprintf("est <- summarize(boot, .alpha = %s, .ci = \"CI_percentile\")$Estimates", format(alpha)),
     "vif <- calculateVIFModeB(fit)",
     "cor_composites <- fit$Estimates$Construct_VCV")

@@ -63,6 +63,22 @@ export function checkHelper(force = false): Promise<unknown> {
   return probed.p;
 }
 
+/**
+ * The parallelism in effect. Desktop R (helper ready): automatic, its R
+ * processes (cores - 1); the browser: the Parallel setting (1 = off).
+ */
+export async function parallelism(): Promise<{ where: 'desktop' | 'browser'; sessions: number }> {
+  if (useCompute.getState().backend === 'helper') {
+    await checkHelper();
+    const h = useHelper.getState();
+    if (h.state === 'ready' && h.info) return { where: 'desktop', sessions: Math.max(1, h.info.workers) };
+  }
+  return { where: 'browser', sessions: useCompute.getState().workers };
+}
+
+/** Bridge functions whose cSEM / seminr resampling runs on several cores of one desktop R process (results identical). */
+const MULTICORE = new Set(['ps_pls_boot', 'ps_cca', 'ps_pls_groups']);
+
 const told = new Set<string>();
 /** Tell the user once per reason that a calculation ran in the browser's R instead of desktop R. */
 function fallbackNotice(reason: string) {
@@ -80,7 +96,10 @@ async function viaHelper(fn: string, req: unknown, pkg: RPackage, exportScript: 
   await checkHelper();
   const h = useHelper.getState();
   if (h.state !== 'ready') { fallbackNotice(`Desktop R is not available (${h.message || h.state}).`); return null; }
-  const json = JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
+  // cSEM / seminr resampling: all the helper's cores in this one R process (not when drawing chunks).
+  const r = req as { boot?: { chunkR?: unknown } };
+  const cores = MULTICORE.has(fn) && !r.boot?.chunkR ? Math.max(1, h.info?.workers ?? 1) : undefined;
+  const json = JSON.stringify(cores ? { ...(req as object), cores } : req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
   try {
     return await helperCall(fn, json, [...R_PACKAGES[pkg]], exportScript);
   } catch (e) {
@@ -111,11 +130,13 @@ export async function rCallOn<T>(session: number, fn: string, req: unknown, pkg:
 }
 
 /**
- * One call per request, spread over the R sessions of the parallel option
- * (useCompute.workers); results in request order.
+ * One call per request, spread over the R sessions in effect (parallelism():
+ * the helper's processes, or the browser's Parallel setting); results in
+ * request order.
  */
-export function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackage, onDone?: (done: number) => void): Promise<T[]> {
-  return parallelMap(reqs, useCompute.getState().workers, (req, session) => rCallOn<T>(session, fn, req, pkg), onDone);
+export async function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackage, onDone?: (done: number) => void): Promise<T[]> {
+  const { sessions } = await parallelism();
+  return parallelMap(reqs, sessions, (req, session) => rCallOn<T>(session, fn, req, pkg), onDone);
 }
 
 export async function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string> {

@@ -103,7 +103,7 @@ A PLS Studio deployment on its own address must be trusted first:
 | `allowed_origins` | PLS Studio origins that may call the helper |
 | `rscript` | Absolute path of `Rscript` (default: found on PATH and in the usual install locations) |
 | `r_library` | Package library searched first (set by `setup`) |
-| `r_workers` | R processes (default: cores − 1, at most 8) |
+| `r_workers` | R processes (default: cores − 1); also the cores one cSEM bootstrap uses |
 
 Linux has no tray: run it as a systemd user service, e.g.
 `~/.config/systemd/user/pls-studio-helper.service` with

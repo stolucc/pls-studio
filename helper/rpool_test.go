@@ -237,3 +237,58 @@ func TestSetupRCode(t *testing.T) {
 		t.Fatalf("setup code does not parse: %v %s", err, out)
 	}
 }
+
+// A cSEM bootstrap through the helper on several cores of one R process
+// (cSEM's multicore plan) gives exactly the single-core results.
+func TestRPool_CSEMMulticoreBootstrapIsIdentical(t *testing.T) {
+	p := testPool(t, 1)
+	if exec.Command("Rscript", "-e", "stopifnot(requireNamespace('cSEM', quietly = TRUE))").Run() != nil {
+		t.Skip("cSEM not installed")
+	}
+	items := func(pre string) []string { return []string{pre + "1", pre + "2", pre + "3"} }
+	cols := map[string][]float64{}
+	names := []string{}
+	for _, pre := range []string{"x", "y"} {
+		for _, n := range items(pre) {
+			names = append(names, n)
+			v := make([]float64, 120)
+			for i := range v {
+				f := float64((i*7919+len(n)*31)%97) / 97
+				if pre == "y" {
+					f = 0.6*float64((i*7919+31)%97)/97 + 0.4*float64((i*104729+len(n)*17)%89)/89
+				}
+				v[i] = f
+			}
+			cols[n] = v
+		}
+	}
+	data := [][]float64{}
+	for _, n := range names {
+		data = append(data, cols[n])
+	}
+	req := func(cores int) string {
+		b, _ := json.Marshal(map[string]any{"kind": "pls", "package": "cSEM", "missing": "casewise",
+			"options": map[string]any{"scheme": "path", "consistent": false, "tolerance": 1e-7, "maxIter": 300, "approach": "PLS-PM"},
+			"data":    map[string]any{"names": names, "cols": data},
+			"model": map[string]any{"constructs": []map[string]any{{"name": "X", "type": "factor", "mode": "A", "indicators": items("x")}, {"name": "Y", "type": "factor", "mode": "A", "indicators": items("y")}},
+				"paths": []map[string]any{{"from": "X", "to": "Y"}}, "moderations": []any{}},
+			"boot": map[string]any{"samples": 300, "seed": 5, "confidence": 0.95}, "cores": cores})
+		return string(b)
+	}
+	ctx := context.Background()
+	one, err := p.call(ctx, &callRequest{ID: "c1", Fn: "ps_pls_boot", Req: req(1)})
+	if err != nil || !one.OK {
+		t.Fatalf("1 core: %v %+v", err, one)
+	}
+	four, err := p.call(ctx, &callRequest{ID: "c4", Fn: "ps_pls_boot", Req: req(4)})
+	if err != nil || !four.OK {
+		t.Fatalf("4 cores: %v %+v", err, four)
+	}
+	if one.Result != four.Result {
+		t.Fatalf("results differ:\n1: %.300s\n4: %.300s", one.Result, four.Result)
+	}
+	script, err := p.call(ctx, &callRequest{ID: "c4x", Fn: "ps_pls_boot", Req: req(4), Export: true})
+	if err != nil || !strings.Contains(script.Result, "cores <- 4") {
+		t.Fatalf("script: %v", err)
+	}
+}

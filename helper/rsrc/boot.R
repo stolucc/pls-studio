@@ -16,15 +16,24 @@ PS_BOOT_SUMMARY <- c(
   "  data.frame(parameter = colnames(draws), out, row.names = NULL, check.names = FALSE)",
   "}")
 
-# Cores for bootstrapping in desktop R. PLS Studio runs in the browser's R,
-# which has one core, so these scripts run there with cores <- 1.
-PS_CORES_CSEM <- c(
-  "# Parallel bootstrapping in desktop R: set cores > 1. cSEM's results are identical for any number of cores.",
-  "cores <- 1",
-  "plan <- if (cores == 1) \"sequential\" else if (.Platform$OS.type == \"windows\") \"multisession\" else \"multicore\"")
-PS_CORES_SEMINR <- c(
-  "# Parallel bootstrapping in desktop R: set cores > 1 (seminr's results are identical for any number of cores).",
-  "cores <- 1")
+# Cores for bootstrapping in desktop R. The browser's R has one core (cores
+# <- 1); through the desktop helper the request asks for the helper's cores.
+#' cSEM's parallel plan with req$cores processes (1 to 64; 1 = sequential).
+#' cSEM draws every sample from its own seed, so the results are identical
+#' for any number of cores.
+ps_cores_csem <- function(req) {
+  n <- suppressWarnings(as.integer(req$cores %||% 1L))
+  if (length(n) != 1 || is.na(n) || n < 1) n <- 1L
+  n <- min(n, 64L)
+  c("# Parallel resampling in desktop R: cores > 1. cSEM's results are identical for any number of cores.",
+    sprintf("cores <- %d", n),
+    "plan <- if (cores == 1) \"sequential\" else if (.Platform$OS.type == \"windows\") \"multisession\" else \"multicore\"",
+    "options(mc.cores = cores)  # (the number of processes of cSEM's parallel plan)")
+}
+#' seminr's bootstrap with req$cores processes (its results are identical for any number of cores).
+ps_cores_seminr <- function(req) c(
+  "# Parallel bootstrapping in desktop R: cores > 1 (seminr's results are identical for any number of cores).",
+  ps_cores_csem(req)[2])
 PS_CORES_LAVAAN <- c(
   "# Parallel bootstrapping in desktop R (macOS / Linux): cores > 1 is much faster, but lavaan's draws then",
   "# depend on the number of cores, so the results differ from PLS Studio's (which uses cores <- 1).",
@@ -80,11 +89,13 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   }
   if (b$pkg == "cSEM") {
     # Same call with cSEM's resampling; R² per draw via a user function.
-    body <- c(PS_CORES_CSEM, body)
+    body <- c(ps_cores_csem(req), body)
     extract <- c(
       "res <- fit$Estimates$Estimates_resample$Estimates1",
       "groups <- c(path = \"Path_estimates\", total = \"Total_effect\", indirect = \"Indirect_effect\", loading = \"Loading_estimates\", weight = \"Weight_estimates\", r2 = \"R2\")",
-      "draws <- do.call(cbind, lapply(names(groups), function(g) { x <- res[[groups[[g]]]]$Resampled; colnames(x) <- paste0(g, \": \", colnames(x)); x }))",
+      "# (a model without indirect effects has none to resample)",
+      "groups <- groups[vapply(groups, function(k) length(res[[k]]$Original) > 0, TRUE)]",
+      "draws <- do.call(cbind, lapply(names(groups), function(g) { x <- as.matrix(res[[groups[[g]]]]$Resampled); colnames(x) <- paste0(g, \": \", names(res[[groups[[g]]]]$Original)); x }))",
       "original <- unlist(lapply(names(groups), function(g) setNames(res[[groups[[g]]]]$Original, paste0(g, \": \", names(res[[groups[[g]]]]$Original)))))")
     resample <- ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) .object$Estimates$R2))"
     if (ps_boot_chunked(req)) {
@@ -97,7 +108,7 @@ ps_pls_boot <- function(req_json, export = FALSE) {
     }
   } else {
     body <- c(body,
-      PS_CORES_SEMINR,
+      ps_cores_seminr(req),
       sprintf("boot <- bootstrap_model(fit, nboot = %d, seed = %d, cores = cores)", B, seed),
       "# Draws as columns \"group: row -> column\" (paths: from -> to; loadings/weights: indicator -> construct).",
       "flat <- function(a, g, keep) { d <- dim(a); out <- t(matrix(a, nrow = d[1] * d[2])); colnames(out) <- paste0(g, \": \", as.vector(outer(dimnames(a)[[1]], dimnames(a)[[2]], paste, sep = \" -> \"))); out[, as.vector(keep), drop = FALSE] }",

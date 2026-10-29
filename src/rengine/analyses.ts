@@ -7,8 +7,8 @@ import type { CbEstimator } from '../engine/cbsem';
 import type { IpmaOptions, IpmaResult } from '../engine/ipma';
 import type { MiivResult } from '../engine/miiv';
 import type { BootstrapOptions, BootstrapResult, BootstrapStat, Dataset, MissingTreatment, ModelSpec, PlsOptions } from '../engine/types';
-import { rCall, rCallParallel, rScript, type RPackage, rStrings } from './bridge';
-import { bootChunks, useCompute } from './compute';
+import { parallelism, rCall, rCallParallel, rScript, type RPackage, rStrings } from './bridge';
+import { bootChunks } from './compute';
 import { cbRequest, type LatentInteraction } from './lavaan';
 import { plsRequest, type PlsPackage } from './pls';
 import type { REngineInfo } from './lavaan';
@@ -44,7 +44,9 @@ function request(data: Dataset, spec: ModelSpec, a: Analysis): { req: unknown; p
 
 /** The self-contained R script for an analysis (data embedded). */
 export function analysisScript(data: Dataset, spec: ModelSpec, a: Analysis): Promise<string> {
-  if ((a.kind === 'plsBoot' || a.kind === 'cbBoot') && bootParallel(a)) { const { req, pkg } = chunked(data, spec, a); return rScript(FN[a.kind], req, pkg); }
+  if (a.kind === 'plsBoot' || a.kind === 'cbBoot') {
+    return bootParallel(a).then((par) => { const { req, pkg } = par ? chunked(data, spec, a) : request(data, spec, a); return rScript(FN[a.kind], req, pkg); });
+  }
   const { req, pkg } = request(data, spec, a);
   return rScript(FN[a.kind], req, pkg);
 }
@@ -102,8 +104,17 @@ export function parseMiiv(raw: Raw): MiivResultR {
 
 // ---------- runners ----------
 
-/** Whether a bootstrap runs in chunks on several R sessions (the parallel option; seminr bootstraps on its own). */
-export const bootParallel = (a: Analysis) => useCompute.getState().workers > 1 && (a.kind === 'cbBoot' || (a.kind === 'plsBoot' && a.pkg === 'cSEM'));
+/**
+ * Whether a bootstrap runs in chunks on several R sessions. Desktop R:
+ * lavaan / modsem bootstraps always (cSEM and seminr use the cores of one R
+ * process, with identical results). The browser: cSEM and lavaan with the
+ * Parallel setting on (seminr cannot bootstrap there).
+ */
+export async function bootParallel(a: Analysis): Promise<boolean> {
+  const p = await parallelism();
+  if (p.where === 'desktop') return a.kind === 'cbBoot' && p.sessions > 1;
+  return p.sessions > 1 && (a.kind === 'cbBoot' || (a.kind === 'plsBoot' && a.pkg === 'cSEM'));
+}
 
 /** The request with the chunk plan of the parallel option (see bootChunks). */
 function chunked(data: Dataset, spec: ModelSpec, a: Extract<Analysis, { kind: 'plsBoot' | 'cbBoot' }>) {
@@ -124,7 +135,7 @@ export async function bootstrapR(data: Dataset, spec: ModelSpec, a: Extract<Anal
   onProgress?: (done: number, total: number) => void): Promise<BootstrapResultR> {
   let raw: Raw;
   const { pkg } = request(data, spec, a);
-  if (bootParallel(a)) {
+  if (await bootParallel(a)) {
     const { req, chunks } = chunked(data, spec, a);
     const parts = await rCallParallel<Raw>(FN[a.kind], Array.from({ length: chunks }, (_, k) => ({ ...req, boot: { ...req.boot, part: k + 1 } })), pkg,
       (done) => onProgress?.(done, chunks));

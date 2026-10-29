@@ -100,7 +100,7 @@ func TestGenerateToken_DistinctEachCall(t *testing.T) {
 func TestLoadConfig_DropsRelativePathsAndBadWorkerCounts(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
-	raw := `{"version":1,"port":70000,"bearer_token":"x","allowed_origins":["http://localhost:5175"],"rscript":"bin/Rscript","r_library":"../lib","r_workers":99}`
+	raw := `{"version":1,"port":70000,"bearer_token":"x","allowed_origins":["http://localhost:5175"],"rscript":"bin/Rscript","r_library":"../lib","r_workers":999}`
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestLoadConfig_DropsRelativePathsAndBadWorkerCounts(t *testing.T) {
 	if cfg.Rscript != "" || cfg.RLibrary != "" {
 		t.Errorf("relative paths kept: %q %q", cfg.Rscript, cfg.RLibrary)
 	}
-	if cfg.RWorkers != 0 || cfg.workers() < 1 || cfg.workers() > 8 {
+	if cfg.RWorkers != 0 || cfg.workers() != max(1, runtime.NumCPU()-1) {
 		t.Errorf("worker count not reset: %d / %d", cfg.RWorkers, cfg.workers())
 	}
 	if cfg.Port != defaultPort {

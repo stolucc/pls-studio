@@ -191,3 +191,52 @@ describe('helperDownloads', () => {
     for (const d of ['Mac', 'Windows', 'Linux'].flatMap((p) => helperDownloads(p))) expect(wf).toContain(`dist/${d.url.split('/').pop()}`);
   });
 });
+
+describe('parallelism with desktop R', () => {
+  const readyHelper = async (workers: number, seen: Record<string, unknown>[]) => {
+    const { bridgeHash } = await import('./helper');
+    const { SOURCES } = await import('./bridge');
+    const hash = await bridgeHash(SOURCES);
+    store.set('pls-studio.helper.token', TOKEN);
+    handler = (p, init) => {
+      if (p === '/health') return { body: { ok: true } };
+      if (p === '/version') return { body: { bridge: hash, r: 'R version 4.3.1', workers } };
+      if (p === '/packages') return { body: { versions: { cSEM: '0.7.1', lavaan: '0.7-3' } } };
+      const b = JSON.parse(String(init.body));
+      seen.push({ fn: b.fn, req: JSON.parse(b.req) });
+      return { body: { ok: true, result: '{"ok":1}' } };
+    };
+  };
+  it('is automatic: the helper’s processes, whatever the browser setting', async () => {
+    await readyHelper(13, []);
+    const { useCompute } = await import('./compute');
+    useCompute.getState().set({ backend: 'helper', workers: 1 });
+    const { parallelism } = await import('./bridge');
+    expect(await parallelism()).toEqual({ where: 'desktop', sessions: 13 });
+    useCompute.getState().set({ backend: 'browser', workers: 4 });
+    expect(await parallelism()).toEqual({ where: 'browser', sessions: 4 });
+  });
+  it('cSEM bootstraps use the cores in one process; lavaan bootstraps are chunked', async () => {
+    const seen: Record<string, any>[] = [];
+    await readyHelper(13, seen);
+    const { useCompute } = await import('./compute');
+    useCompute.getState().set({ backend: 'helper', workers: 1 });
+    const { bootParallel } = await import('./analyses');
+    const boot = { samples: 500, seed: 1, confidence: 0.95 };
+    const options = { scheme: 'path' as const, consistent: false, tolerance: 1e-7, maxIter: 300, missing: 'casewise' as const };
+    expect(await bootParallel({ kind: 'plsBoot', pkg: 'cSEM', options, boot })).toBe(false);
+    expect(await bootParallel({ kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot })).toBe(true);
+    const { rCall } = await import('./bridge');
+    await rCall('ps_pls_boot', { boot }, 'cSEM');
+    await rCall('ps_cca', { samples: 99 }, 'cSEM');
+    await rCall('ps_pls_boot', { boot: { ...boot, chunkR: [100], chunkSeed: [1], part: 1 } }, 'cSEM');
+    await rCall('ps_pls', {}, 'cSEM');
+    expect(seen.map((s) => [s.fn, s.req.cores])).toEqual([['ps_pls_boot', 13], ['ps_cca', 13], ['ps_pls_boot', undefined], ['ps_pls', undefined]]);
+    // In the browser, the setting decides.
+    useCompute.getState().set({ backend: 'browser', workers: 1 });
+    expect(await bootParallel({ kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot })).toBe(false);
+    useCompute.getState().set({ workers: 4 });
+    expect(await bootParallel({ kind: 'plsBoot', pkg: 'cSEM', options, boot })).toBe(true);
+    expect(await bootParallel({ kind: 'plsBoot', pkg: 'seminr', options, boot })).toBe(false);
+  });
+});

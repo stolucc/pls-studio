@@ -30,7 +30,7 @@ type config struct {
 	// ~/.pls-studio-helper/library and sets it).
 	RLibrary string `json:"r_library,omitempty"`
 	// RWorkers is the number of R processes kept running (each one
-	// calculation at a time). 0 = automatic (cores - 1, at most 8).
+	// calculation at a time). 0 = automatic (cores - 1).
 	RWorkers int `json:"r_workers,omitempty"`
 
 	// File path derived from the config location. Not persisted.
@@ -39,7 +39,7 @@ type config struct {
 
 const defaultPort = 9878
 const configFileName = "config.json"
-const maxRWorkers = 16
+const maxRWorkers = 256
 
 func defaultAllowedOrigins() []string {
 	// PLS Studio in development (Vite :5175), preview (:4175) and the
@@ -131,12 +131,11 @@ func (c *config) workers() int {
 	if c.RWorkers > 0 {
 		return c.RWorkers
 	}
+	// All cores but one (left for the browser and the system). The same
+	// number is the cores a cSEM bootstrap uses in one of these processes.
 	n := runtime.NumCPU() - 1
 	if n < 1 {
 		n = 1
-	}
-	if n > 8 {
-		n = 8
 	}
 	return n
 }

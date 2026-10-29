@@ -91,6 +91,19 @@ function HelperStatus() {
   );
 }
 
+/** Desktop R parallelises by itself: what it does with the helper's cores. */
+function ParallelDesktop() {
+  const info = useHelper((s) => s.info);
+  const n = info?.workers ?? 0;
+  return (
+    <>
+      Automatic in desktop R{n ? `, on ${n} cores` : ''}: cSEM and seminr bootstraps run on all of them (results identical to a single run with your seed);
+      lavaan bootstraps are drawn in chunks of 100 samples (seeds seed, seed + 1, …) over the helper’s R processes, with the same results on any computer and in the exported script;
+      simulations spread over the processes with unchanged results.
+    </>
+  );
+}
+
 /** Where R runs (browser or desktop helper) and parallel R sessions: preferences of this browser. */
 export function ComputeSettings() {
   const workers = useCompute((s) => s.workers);
@@ -115,19 +128,24 @@ export function ComputeSettings() {
         )}
       </div>
       <div className="field" style={{ marginTop: 10 }}>
-        <label id="parallel-workers">Parallel bootstrap and simulation</label>
-        <div className="segmented" role="radiogroup" aria-labelledby="parallel-workers">
+        <label id="parallel-workers">Parallel bootstrap and simulation{backend === 'helper' ? ' (this browser only)' : ''}</label>
+        <div className="segmented" role="radiogroup" aria-labelledby="parallel-workers" aria-disabled={backend === 'helper'}>
           {choices.map((n) => (
-            <button key={n} role="radio" aria-checked={workers === n} className={workers === n ? 'on' : ''} onClick={() => useCompute.getState().set({ workers: n })}>
+            <button key={n} role="radio" aria-checked={backend === 'browser' && workers === n} className={backend === 'browser' && workers === n ? 'on' : ''} disabled={backend === 'helper'}
+              onClick={() => useCompute.getState().set({ workers: n })}>
               {n === 1 ? 'Off' : `${n} sessions`}
             </button>
           ))}
         </div>
         <div className="hint" style={{ marginTop: 6 }}>
-          {workers === 1
-            ? 'One R session: bootstrap results are exactly those of a single run of the package with your seed.'
-            : `${workers} R sessions share the work${backend === 'browser' ? ' (each needs about 300 MB of memory and loads the packages once)' : ''}. Bootstrap samples are drawn in chunks of 100 with seeds seed, seed + 1, …: the results are the same for any number of sessions and equal the exported script, but differ slightly from a single run of the package. Simulation results are unchanged.`}
-          {' '}Applies to cSEM and lavaan bootstraps and Monte Carlo simulation; remembered in this browser.
+          {backend === 'helper'
+            ? <ParallelDesktop />
+            : <>
+              {workers === 1
+                ? 'One R session: bootstrap results are exactly those of a single run of the package with your seed.'
+                : `${workers} R sessions share the work (each needs about 300 MB of memory and loads the packages once). Bootstrap samples are drawn in chunks of 100 with seeds seed, seed + 1, …: the results are the same for any number of sessions and equal the exported script, but differ slightly from a single run of the package. Simulation results are unchanged.`}
+              {' '}Applies to cSEM and lavaan bootstraps and Monte Carlo simulation in this browser; remembered here.
+            </>}
         </div>
       </div>
     </>

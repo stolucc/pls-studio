@@ -113,8 +113,11 @@ function runR(kind: JobKind, key: string) {
   // Parallel option: progress per chunk of samples, over the R sessions.
   const progress = (d: number, total: number) => {
     if (token !== rToken) return;
-    import('./rengine/compute').then(({ useCompute }) => useStore.getState().setJob({ kind, done: d, total, workers: Math.min(useCompute.getState().workers, total),
-      label: `${what} with ${pkg} in ${Math.min(useCompute.getState().workers, total)} parallel R sessions (${d} of ${total} chunks)…` }));
+    import('./rengine/bridge').then(async ({ parallelism }) => {
+      const p = await parallelism();
+      const n = Math.min(p.sessions, total);
+      if (token === rToken) useStore.getState().setJob({ kind, done: d, total, workers: n, label: `${what} with ${pkg} in ${n} parallel ${p.where === 'desktop' ? 'desktop R processes' : 'R sessions'} (${d} of ${total} chunks)…` });
+    });
   };
   Promise.all([import('./rengine/analyses'), version()]).then(([{ bootstrapR }, v]) => bootstrapR(data, spec,
     cb ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot, interaction: st.interaction } : { kind: 'plsBoot', pkg: st.plsPackage, options, boot }, () => v, progress))
@@ -324,15 +327,15 @@ let rSimToken = 0;
  */
 async function runSimulationR(design: McDesign) {
   const { useSim } = await import('./simStore');
-  const [{ summariseMc }, { runMcChunkR }, { rMessage }, { parallelMap }, { useCompute }] = await Promise.all([import('./engine/montecarlo'), import('./rengine/mc'), import('./rengine/bridge'),
-    import('./rengine/runtime'), import('./rengine/compute')]);
+  const [{ summariseMc }, { runMcChunkR }, { rMessage, parallelism }, { parallelMap }] = await Promise.all([import('./engine/montecarlo'), import('./rengine/mc'), import('./rengine/bridge'),
+    import('./rengine/runtime')]);
   const total = design.replications * design.sampleSizes.length;
   const token = ++rSimToken;
   simR = true;
   const CHUNK = 10;
   const tasks = design.sampleSizes.flatMap((n) => Array.from({ length: Math.ceil(design.replications / CHUNK) }, (_, k) => ({ n, start: k * CHUNK, end: Math.min(design.replications, (k + 1) * CHUNK) })));
-  // The parallel option spreads the chunks over several R sessions; each replication has its own seeds.
-  const workers = Math.min(useCompute.getState().workers, tasks.length);
+  // Several R sessions (desktop R: the helper's processes; the browser: the Parallel setting); each replication has its own seeds.
+  const workers = Math.min((await parallelism()).sessions, tasks.length);
   useSim.getState().setJob({ done: 0, total, workers });
   const parts: McPart[] = [];
   try {

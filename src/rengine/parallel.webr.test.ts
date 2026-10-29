@@ -68,6 +68,14 @@ describe('parallel bootstrap', () => {
   }, 900_000);
 });
 
+it('cSEM bootstraps a model without indirect effects', async () => {
+  const d = await load('cSEM', 'satisfaction');
+  const spec: ModelSpec = { constructs: [fac('SAT', items('sat', 4)), fac('LOY', items('loy', 4))], paths: [{ from: 'SAT', to: 'LOY' }] };
+  const r = await bootstrapR(d, spec, { kind: 'plsBoot', pkg: 'cSEM', options, boot: { ...boot, samples: 100 } }, () => '');
+  expect(r.stats.find((s) => s.key === 'path:SAT:LOY')!.sd).toBeGreaterThan(0);
+  expect(r.stats.some((s) => s.group === 'indirect')).toBe(false);
+}, 900_000);
+
 it('simulation chunks give the same results in any R session', async () => {
   const f = (name: string, p: string) => ({ name, type: 'factor' as const, indicators: [1, 2, 3].map((i) => `${p}${i}`), loadings: [0.8, 0.7, 0.75] });
   const design: McDesign = {
