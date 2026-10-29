@@ -67,6 +67,7 @@ export function ChartFrame({ id, name, defaults, width, height, children, captio
         {!readOnly && <button className={`btn sm ghost${open ? ' on' : ''}`} onClick={() => setOpen(!open)} aria-expanded={open} title="Font, size, colour and axis titles">Style</button>}
         <button className="btn sm ghost" onClick={() => save('pdf')} title="Vector PDF of this chart"><IconDownload size={13} /> PDF</button>
         <button className="btn sm ghost" onClick={() => save('png')} title="PNG at 3× resolution"><IconDownload size={13} /> PNG</button>
+        <button className="btn sm ghost" onClick={() => save('svg')} title="SVG (vector, editable in Illustrator or Inkscape)"><IconDownload size={13} /> SVG</button>
       </div>
       {open && (
         <div className="chart-style" role="dialog" aria-label="Chart style">

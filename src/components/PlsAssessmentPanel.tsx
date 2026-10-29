@@ -12,16 +12,17 @@ import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
 
 type Tab = 'predict' | 'blindfold' | 'compare' | 'groups' | 'cta' | 'cca';
+type CcaTab = 'fit' | 'diagram' | 'weights' | 'loadings' | 'vif' | 'correlations';
 interface State {
   open: boolean; tab: Tab;
-  predict: PredictResult | null; blindfold: BlindfoldResult | null; compare: CompareResult | null; groups: GroupsResult | null; cta: CtaResult | null; cca: CcaResult | null;
+  predict: PredictResult | null; blindfold: BlindfoldResult | null; compare: CompareResult | null; groups: GroupsResult | null; cta: CtaResult | null; cca: CcaResult | null; ccaTab: CcaTab;
   /** The alternative model for the comparison: a snapshot of an earlier diagram. */
   alternative: { spec: ModelSpec; paths: number; savedAt: number } | null;
   /** Filled in by an example (applied when it changes). */
   preset: { tab: Tab; group?: string; distance?: number } | null;
   setOpen: (v: boolean) => void;
 }
-export const usePlsAssessment = create<State>((set) => ({ open: false, tab: 'predict', predict: null, blindfold: null, compare: null, groups: null, cta: null, cca: null, alternative: null, preset: null, setOpen: (open) => set({ open }) }));
+export const usePlsAssessment = create<State>((set) => ({ open: false, tab: 'predict', predict: null, blindfold: null, compare: null, groups: null, cta: null, cca: null, ccaTab: 'fit', alternative: null, preset: null, setOpen: (open) => set({ open }) }));
 
 const APPROACHES: { id: MgaApproach; label: string }[] = [
   { id: 'Henseler', label: 'Henseler (bootstrap)' }, { id: 'Chin', label: 'Chin & Dibbern (permutation)' }, { id: 'Klesel', label: 'Klesel et al. (overall, dG / dL)' },
@@ -154,7 +155,7 @@ function CcaDiagramView({ r }: { r: CcaResult }) {
         {(['weights', 'loadings'] as const).map((k) => <button key={k} role="radio" aria-checked={show === k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{k === 'weights' ? 'Weights' : 'Loadings'}</button>)}
       </div>
       <ChartFrame id="cca:diagram" name="cca-diagram" width={d.width} height={d.height} defaults={{ x: '', y: '' }} axes={false}
-        caption={<figcaption className="hint">{srmr ? `SRMR ${fmt(srmr.statistic)} (HI95 ${fmt(srmr.q95)}): ${srmr.statistic > srmr.q95 ? 'the composite model is rejected' : 'the composite model fits'}. ` : ''}Hexagons: composites formed by their indicators ({show}; bold: the {Math.round((1 - r.alpha) * 100)}% interval excludes 0). Arcs: composite correlations — the saturated structural model, all composites free to correlate.</figcaption>}>
+        caption={<figcaption className="hint">{srmr ? `SRMR ${fmt(srmr.statistic)} (HI95 ${fmt(srmr.q95)}): ${srmr.statistic > srmr.q95 ? 'the composite model is rejected' : 'the composite model fits'}. ` : ''}Hexagons: composites formed by their indicators ({show}; bold: the {Math.round((1 - r.alpha) * 100)}% interval excludes 0). Arcs: composite correlations — the saturated structural model, all composites free to correlate. Order: top to bottom as on the canvas (left to right, then top to bottom).</figcaption>}>
         {() => (
           <svg className="mc-chart" width={d.width} height={d.height} viewBox={`0 0 ${d.width} ${d.height}`} style={{ maxWidth: '100%', height: 'auto' }} role="img" aria-label="Confirmatory composite analysis diagram">
             <defs>
@@ -185,23 +186,31 @@ function CcaDiagramView({ r }: { r: CcaResult }) {
 function CcaView({ r }: { r: CcaResult }) {
   const conf = `${Math.round((1 - r.alpha) * 100)}%`;
   const rejected = r.fit.filter((f) => ['SRMR', 'dL', 'dG'].includes(f.measure) && f.statistic > f.q95).map((f) => f.measure);
+  const tabs: [CcaTab, string][] = [['fit', 'Overall fit'], ['diagram', 'Diagram'], ['weights', 'Weights'], ['loadings', 'Loadings'], ...(r.vif.length ? [['vif', 'Collinearity (VIF)'] as [CcaTab, string]] : []), ['correlations', 'Correlations']];
+  const chosen = usePlsAssessment((st) => st.ccaTab);
+  const tab = tabs.some(([id]) => id === chosen) ? chosen : 'fit';
   return (
     <div className="tables">
-      <CcaDiagramView r={r} />
-      <Table title={`Overall fit of the composite model: ${rejected.length ? `rejected by ${rejected.join(', ')}` : 'not rejected'}`} file="cca-fit"
+      <div className="segmented efa-tabs" role="tablist" aria-label="CCA results">
+        {tabs.map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => usePlsAssessment.setState({ ccaTab: id })}>{label}</button>
+        ))}
+      </div>
+      {tab === 'diagram' && <CcaDiagramView r={r} />}
+      {tab === 'fit' && <Table title={`Overall fit of the composite model: ${rejected.length ? `rejected by ${rejected.join(', ')}` : 'not rejected'}`} file="cca-fit"
         columns={['Discrepancy', 'Value', 'HI95 (95% quantile)', 'HI99 (99% quantile)', 'Decision (5%)']}
         rows={r.fit.map((f) => [c(f.measure === 'dL' ? 'dULS (dL)' : f.measure), { ...c(f.statistic), bold: f.statistic > f.q95 }, c(f.q95), c(f.q99), c(f.statistic > f.q99 ? 'reject (also at 1%)' : f.statistic > f.q95 ? 'reject' : 'do not reject')])}
-        note={`Bootstrap test of the saturated composite model (Beran & Srivastava 1985; ${r.admissible} of ${r.samples} samples admissible): the model fits when each discrepancy stays below its bootstrap quantile (Henseler 2021 reports SRMR, dULS and dG). H0: the model-implied indicator covariances equal the population's.`} />
-      <Table title="Weights" file="cca-weights" columns={['Composite', 'Indicator', 'Weight', 'Std. error', 'p', `${conf} CI low`, `${conf} CI high`]}
+        note={`Bootstrap test of the saturated composite model (Beran & Srivastava 1985; ${r.admissible} of ${r.samples} samples admissible): the model fits when each discrepancy stays below its bootstrap quantile (Henseler 2021 reports SRMR, dULS and dG). H0: the model-implied indicator covariances equal the population's.`} />}
+      {tab === 'weights' && <Table title="Weights" file="cca-weights" columns={['Composite', 'Indicator', 'Weight', 'Std. error', 'p', `${conf} CI low`, `${conf} CI high`]}
         rows={r.weights.map((k) => [c(k.construct), c(k.indicator), ciCell(k), c(k.se), pCell(k.p), c(k.low), c(k.high)])}
-        note="Bootstrap percentile intervals; bold: the interval excludes 0. Check the sign and size of each weight against theory (Schuberth et al. 2018)." />
-      <Table title="Loadings" file="cca-loadings" columns={['Composite', 'Indicator', 'Loading', 'Std. error', 'p', `${conf} CI low`, `${conf} CI high`]}
-        rows={r.loadings.map((k) => [c(k.construct), c(k.indicator), ciCell(k), c(k.se), pCell(k.p), c(k.low), c(k.high)])} />
-      {r.vif.length > 0 && <Table title="Collinearity of the Mode B weights" file="cca-vif" columns={['Composite', 'Indicator', 'VIF']}
+        note="Bootstrap percentile intervals; bold: the interval excludes 0. Check the sign and size of each weight against theory (Schuberth et al. 2018)." />}
+      {tab === 'loadings' && <Table title="Loadings" file="cca-loadings" columns={['Composite', 'Indicator', 'Loading', 'Std. error', 'p', `${conf} CI low`, `${conf} CI high`]}
+        rows={r.loadings.map((k) => [c(k.construct), c(k.indicator), ciCell(k), c(k.se), pCell(k.p), c(k.low), c(k.high)])} note="Loadings: correlations of each indicator with its composite." />}
+      {tab === 'vif' && <Table title="Collinearity of the Mode B weights" file="cca-vif" columns={['Composite', 'Indicator', 'VIF']}
         rows={r.vif.map((k) => [c(k.construct), c(k.indicator), { ...c(k.vif, undefined, 2), bold: k.vif > 5 }])} note="VIF above 5 (bold) or 3 suggests collinearity that makes the weights unstable." />}
-      <Table title="Composite correlations" file="cca-correlations" columns={['', ...r.composites]}
+      {tab === 'correlations' && <Table title="Composite correlations" file="cca-correlations" columns={['', ...r.composites]}
         rows={r.composites.map((k, i) => [c(k), ...r.correlations[i].map((v, j) => (j <= i ? c(v) : c('')))])}
-        note="The saturated structural model: all composites freely correlated. Correlations close to 1 question discriminant validity." />
+        note="The saturated structural model: all composites freely correlated. Correlations close to 1 question discriminant validity." />}
       <div className="hint">Confirmatory composite analysis (Schuberth, Henseler &amp; Dijkstra 2018; Henseler 2021): are the constructs emergent variables — composites of their indicators? Every construct is treated as a composite (Mode A or B as drawn), the weights ignore the structural paths, and the fit of the saturated model is tested. cSEM, as its ?ITFlex example.</div>
     </div>
   );

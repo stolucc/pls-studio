@@ -15,21 +15,27 @@ describe('layoutCcaDiagram (Henseler-style composite model)', () => {
     expect(d.arcs.find((a) => a.a === 'C1' && a.b === 'C3')!.value).toBe(0.13);
   });
 
-  it('places composites left to right without overlap, inside the canvas', () => {
+  it('stacks composites top to bottom on one axis without overlap, inside the canvas', () => {
     const d = layoutCcaDiagram(input(4));
-    const boxes = d.composites.map((k) => [k.cx + k.geom.bounds.x, k.cx + k.geom.bounds.x + k.geom.bounds.w]);
-    for (let i = 1; i < boxes.length; i++) expect(boxes[i][0]).toBeGreaterThan(boxes[i - 1][1]);
-    expect(boxes[0][0]).toBeGreaterThanOrEqual(0);
-    expect(boxes.at(-1)![1]).toBeLessThanOrEqual(d.width);
-    for (const k of d.composites) expect(k.cy + k.geom.bounds.y + k.geom.bounds.h).toBeLessThanOrEqual(d.height);
+    const boxes = d.composites.map((k) => [k.cy + k.geom.bounds.y, k.cy + k.geom.bounds.y + k.geom.bounds.h]);
+    for (let i = 1; i < boxes.length; i++) expect(boxes[i][0]).toBeGreaterThan(boxes[i - 1][1] - 16);
+    expect(new Set(d.composites.map((k) => k.cx)).size).toBe(1);
+    for (const k of d.composites) {
+      expect(k.cx + k.geom.bounds.x).toBeGreaterThanOrEqual(0);
+      expect(k.cy - k.geom.ry).toBeGreaterThanOrEqual(0);
+    }
+    expect(boxes.at(-1)![1]).toBeLessThanOrEqual(d.height);
   });
 
-  it('raises farther arcs higher (distinct label heights) and keeps them below the top', () => {
+  it('bulges farther arcs farther right (distinct label positions), all inside the canvas', () => {
     const d = layoutCcaDiagram(input(4));
-    const ly = (a: string, b: string) => d.arcs.find((x) => x.a === a && x.b === b)!.ly;
-    expect(ly('C0', 'C3')).toBeLessThan(ly('C0', 'C2'));
-    expect(ly('C0', 'C2')).toBeLessThan(ly('C0', 'C1'));
-    expect(Math.min(...d.arcs.map((a) => a.ly))).toBeGreaterThan(8);
+    const lx = (a: string, b: string) => d.arcs.find((x) => x.a === a && x.b === b)!.lx;
+    expect(lx('C0', 'C3')).toBeGreaterThan(lx('C0', 'C2'));
+    expect(lx('C0', 'C2')).toBeGreaterThan(lx('C0', 'C1'));
+    const right = d.composites[0].cx + d.composites[0].geom.rx;
+    for (const a of d.arcs) { expect(a.lx).toBeGreaterThan(right); expect(a.lx + 20).toBeLessThanOrEqual(d.width); }
+    const at = new Set(d.arcs.map((a) => `${Math.round(a.lx)},${Math.round(a.ly)}`));
+    expect(at.size).toBe(d.arcs.length);
   });
 
   it('puts each indicator value on its arrow, in indicator order; one composite has no arcs', () => {
