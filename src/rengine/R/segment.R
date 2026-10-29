@@ -40,7 +40,7 @@ ps_rebus <- function(req_json, export = FALSE) {
     "path <- matrix(0, length(lvs), length(lvs), dimnames = list(lvs, lvs))", edges,
     sprintf("blocks <- list(%s)", paste(blocks, collapse = ", ")),
     sprintf("global <- plspm(data, path, blocks, modes = rep(\"A\", %d), scheme = \"%s\", tol = %s, maxiter = %d)",
-      K, scheme, format(req$options$tolerance %||% 1e-6, scientific = TRUE), as.integer(req$options$maxIter %||% 100)),
+      K, scheme, format(ps_number(req$options$tolerance %||% 1e-6, "tolerance"), scientific = TRUE), as.integer(req$options$maxIter %||% 100)),
     "# Step 1: Ward clustering of the global model's residuals: outer (standardised indicators minus",
     "# score x loading) and inner (endogenous scores minus their fitted values). This is plspm::res.clus,",
     "# whose amap::hcluster(nbproc = 2) needs threads; base R's hclust Ward (ward.D) gives the same tree.",

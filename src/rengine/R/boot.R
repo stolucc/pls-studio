@@ -71,7 +71,7 @@ ps_boot_part_json <- function(env) {
 ps_pls_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_pls_build(req)
-  B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- req$boot$confidence
+  B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")
   body <- b$body
   # seminr's bootstrap always starts a PSOCK cluster (worker processes), which
   # R in the browser (webR) cannot do. The exported script runs in desktop R.
@@ -159,7 +159,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
-  B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- req$boot$confidence
+  B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")
   if (!is.null(b$modsem)) return(ps_cb_boot_modsem(b, B, seed, conf, export, req))
   body <- c(b$body,
     "# Standardised paths, total and indirect effects, loadings and R² of one fitted model;",

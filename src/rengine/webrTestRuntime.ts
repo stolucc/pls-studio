@@ -1,10 +1,10 @@
 // Test helper: point the R runtime at the self-hosted webR in public/webr,
 // served over HTTP from a local server (webR in Node fetches packages by URL).
 
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { appendFileSync, createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { join, normalize, sep } from 'node:path';
-import { configureR } from './runtime';
+import { configureR, observeCalls } from './runtime';
 
 const ROOT = join(__dirname, '..', '..');
 const PUBLIC = join(ROOT, 'public', 'webr');
@@ -22,6 +22,9 @@ export async function startTestRuntime() {
   await new Promise<void>((r) => server!.listen(0, '127.0.0.1', r));
   const port = (server.address() as { port: number }).port;
   configureR({ baseUrl: join(ROOT, 'node_modules', 'webr', 'dist') + '/', repoUrl: `http://127.0.0.1:${port}/repo/` });
+  // PS_RECORD_REQUESTS=<file>: record every bridge call (scripts/security/replay-injection.R replays them).
+  const record = process.env.PS_RECORD_REQUESTS;
+  if (record) observeCalls((call, req) => { if (/^ps_[a-z0-9_]+\(req[,)]/.test(call)) appendFileSync(record, `${JSON.stringify({ call, req })}\n`); });
 }
 
 export function stopTestRuntime(): Promise<void> {

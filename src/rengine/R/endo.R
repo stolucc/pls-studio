@@ -8,10 +8,10 @@
 # line as in REndo, and checked against REndo in desktop R.
 
 ps_endo_frame <- function(req) {
-  cols <- unique(c(req$outcome, unlist(req$exogenous), unlist(req$endogenous), unlist(req$instruments), req$selection$outcome, unlist(req$selection$regressors)))
+  cols <- unique(c(req$outcome, unlist(req$exogenous), unlist(req$endogenous), unlist(req$instruments), if (isTRUE(req$method %in% c("het", "hm"))) unlist(req$hetRegressors), req$selection$outcome, unlist(req$selection$regressors)))
   cols <- cols[nzchar(cols)]
   fr <- ps_long_frame(req, cols)
-  v <- function(x) unname(fr$v[unlist(x)])
+  v <- function(x) ps_lookup(fr$v, x)
   list(fr = fr, y = v(req$outcome), x = v(req$exogenous), p = v(req$endogenous), z = v(req$instruments), v = v)
 }
 

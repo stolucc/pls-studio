@@ -88,7 +88,7 @@ ps_cpa_build <- function(req) {
     if (length(it) == 1 && identical(it, n$cname[j])) unname(n$iv[[it]]) else unname(n$cv[[j]])
   }, "")
   names(rn) <- n$cname
-  id <- function(x) unname(rn[unlist(x)])
+  id <- function(x) ps_lookup(rn, x)
   inputs <- list(data = ps_frame(req, n))
   latent <- id(req$latent)
   sam <- length(latent) > 0
@@ -115,7 +115,7 @@ ps_cpa_build <- function(req) {
     body <- c("suppressPackageStartupMessages({ library(manymome); library(lavaan) })",
       ps_missing_code(req$missing),
       if (length(scoring)) c("# Scale scores: the mean of each scale's items", scoring),
-      sprintf("level <- %s", format(req$confidence %||% 0.95)),
+      sprintf("level <- %s", format(ps_number(req$confidence %||% 0.95, "confidence level"))),
       "# Latent variables (measurement) and one equation per outcome (structure)",
       "model <- '", paste0("  ", c(measurement, structural)), "'",
       "# Structural-after-measurement estimation with two-step standard errors",
@@ -133,7 +133,7 @@ ps_cpa_build <- function(req) {
   body <- c("suppressPackageStartupMessages(library(manymome))",
     ps_missing_code(req$missing),
     if (length(scoring)) c("# Scale scores: the mean of each scale's items", scoring),
-    sprintf("level <- %s", format(req$confidence %||% 0.95)),
+    sprintf("level <- %s", format(ps_number(req$confidence %||% 0.95, "confidence level"))),
     "# One OLS regression per outcome",
     fit_lines,
     sprintf("eqs <- list(%s)", paste(sprintf("%s = fit_%s", outcomes, outcomes), collapse = ", ")),

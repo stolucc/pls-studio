@@ -36,7 +36,7 @@ ps_mc_body <- function(req) {
     sprintf("skew <- %s; kurt <- %s", paste(deparse(as.numeric(req$population$skew)), collapse = ""), paste(deparse(as.numeric(req$population$kurtosis)), collapse = "")),
     "pls_model <- '", paste0("  ", plsm), "'",
     "cb_model <- '", paste0("  ", cbm), "'",
-    sprintf("alpha <- %s; mc_draws <- %d", format(req$alpha), as.integer(req$mcDraws)),
+    sprintf("alpha <- %s; mc_draws <- %d", format(ps_number(req$alpha, "significance level")), as.integer(req$mcDraws)),
     "# Parameters to evaluate: standardised paths and indirect effects between constructs.",
     "params <- data.frame(kind = ", ps_q(vapply(req$params, `[[`, "", "kind")), ", from = ", ps_q(vapply(req$params, `[[`, "", "from")),
     ", to = ", ps_q(vapply(req$params, `[[`, "", "to")), ")",
@@ -115,7 +115,7 @@ ps_mc <- function(req_json, export = FALSE) {
     est_ids <- vapply(req$estimators, `[[`, "", "id")
     report <- c(
       sprintf("estimators <- %s", ps_q(est_ids)),
-      "truth <- c(", paste0("  ", vapply(req$params, function(p) format(p$value, digits = 15), ""), c(rep(",", length(req$params) - 1), "")), ")",
+      "truth <- c(", paste0("  ", vapply(req$params, function(p) ps_num(p$value), ""), c(rep(",", length(req$params) - 1), "")), ")",
       "# Summary: mean, bias, SD, RMSE (standardised); coverage and rejection rate (power, or Type I error when the truth is 0).",
       "summary_rows <- do.call(rbind, lapply(sort(unique(seeds$n)), function(n) do.call(rbind, lapply(seq_along(estimators), function(e) do.call(rbind, lapply(seq_len(nrow(params)), function(k) {",
       "  vals <- do.call(rbind, lapply(results[seeds$n == n], function(r) if (is.null(r[[e]])) c(NA, NA, NA, NA) else r[[e]]$values[k, ]))",

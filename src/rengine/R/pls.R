@@ -11,6 +11,7 @@ ps_pls_build <- function(req) {
   k0 <- length(cons)
   type <- vapply(cons, function(c) c$type %||% if (identical(c$mode, "B")) "composite" else "factor", "")
   mode <- vapply(cons, function(c) c$mode %||% "A", "")
+  if (!all(mode %in% c("A", "B")) || !all(type %in% c("factor", "composite"))) stop("Invalid measurement mode or construct type in the request.")
   if (any(lengths(lapply(cons, function(c) unlist(c$components))) > 0)) stop("Higher-order constructs are supported in CB-SEM only.")
   o <- req$options
   paths <- req$model$paths
@@ -42,7 +43,7 @@ ps_pls_build <- function(req) {
         PCA = "# Weights: the first principal component of each block (PCA) instead of PLS path modeling.",
         unit = "# Unit weights: each construct is the (standardised) sum of its indicators (sum scores) instead of PLS path modeling.")[[approach]],
       sprintf("fit <- csem(data, model, %s.PLS_weight_scheme_inner = \"%s\", .disattenuate = %s, .tolerance = %s, .iter_max = %d)",
-        if (gsca) sprintf(".approach_weights = \"%s\", ", approach) else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(o$tolerance, scientific = TRUE), as.integer(o$maxIter)))
+        if (gsca) sprintf(".approach_weights = \"%s\", ", approach) else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(ps_number(o$tolerance, "tolerance"), scientific = TRUE), as.integer(o$maxIter)))
   } else if (pkg == "seminr") {
     if (o$scheme == "centroid") stop("seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.")
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], "*", n$cv[[m$moderator]]), "")

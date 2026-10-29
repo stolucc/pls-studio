@@ -103,6 +103,22 @@ ps_expr <- function(x) {
 #' Quote a character vector as R code (backslashes, quotes and control characters escaped).
 ps_q <- function(x) paste0("c(", paste(encodeString(as.character(x), quote = '"'), collapse = ", "), ")")
 
+#' Syntactic names of the requested variables (`map`: request name -> R name);
+#' a name that is not in the map is an error (it would otherwise become NA in the code).
+ps_lookup <- function(map, x, what = "variable") {
+  x <- unlist(x)
+  if (!length(x)) return(character(0))
+  if (!is.character(x) || anyNA(match(x, names(map)))) stop(sprintf("Unknown %s in the request.", what))
+  unname(map[x])
+}
+
+#' A number from the request that is written into R code (format(), %s): one
+#' finite number, or an error (a string would otherwise become code).
+ps_number <- function(x, what = "number") {
+  if (!is.numeric(x) || length(x) != 1 || !is.finite(x)) stop(sprintf("Invalid %s in the request.", what))
+  x
+}
+
 #' Text for a "# ..." comment line: no line breaks or other control characters.
 ps_comment <- function(x) gsub("[[:cntrl:]]+", " ", x)
 

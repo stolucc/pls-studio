@@ -36,7 +36,7 @@ ps_ipma <- function(req_json, export = FALSE) {
   vars <- unname(b$n$iv[b$n$all_inds])
   resc <- if (isTRUE(io$rescale)) c(
     "# Rescale every indicator to 0-100 (Ringle & Sarstedt 2016) before estimating.",
-    sprintf("lo <- %s; hi <- %s", if (is.null(io$min)) "NULL" else format(io$min), if (is.null(io$max)) "NULL" else format(io$max)),
+    sprintf("lo <- %s; hi <- %s", if (is.null(io$min)) "NULL" else format(ps_number(io$min, "scale minimum")), if (is.null(io$max)) "NULL" else format(ps_number(io$max, "scale maximum"))),
     sprintf("for (v in %s) { a <- if (is.null(lo)) min(data[[v]]) else lo; z <- if (is.null(hi)) max(data[[v]]) else hi; data[[v]] <- (data[[v]] - a) / (z - a) * 100 }", ps_q(vars)))
   fitline <- length(b$body)
   body <- c(b$body[-fitline], resc, b$body[fitline], "ipma <- doIPMA(fit)")

@@ -170,9 +170,15 @@ export function packageDownloadError(packages: string[], repoUrl: string): strin
 
 const encode = (req: unknown) => JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
 
+let observer: ((call: string, req: string) => void) | null = null;
+/** Tests: see every bridge call (the injection tests replay them in desktop R). */
+export function observeCalls(f: ((call: string, req: string) => void) | null) { observer = f; }
+
 /** Evaluate `call` with the request (as JSON) bound to `req`; R returns a string. */
 export function callString(webR: WebR, call: string, req: unknown): Promise<string> {
-  return webR.evalRString(call, { env: { req: encode(req) } });
+  const json = encode(req);
+  observer?.(call, json);
+  return webR.evalRString(call, { env: { req: json } });
 }
 
 /** As callString, for R functions that return JSON. */
