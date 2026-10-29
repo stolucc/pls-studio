@@ -9,16 +9,17 @@
 suppressPackageStartupMessages({ library(jsonlite); library(MatchIt); library(cobalt); library(marginaleffects) })
 data("lalonde", package = "MatchIt")
 f <- treat ~ age + educ + race + married + nodegree + re74 + re75
-one <- function(m, vc) {
+one <- function(m, vc, att = TRUE) {
   md <- match.data(m)
   fit <- lm(re78 ~ treat, data = md, weights = weights)
-  ac <- avg_comparisons(fit, variables = "treat", vcov = vc, newdata = subset(md, treat == 1), wts = "weights")
+  ac <- avg_comparisons(fit, variables = "treat", vcov = vc, newdata = if (att) subset(md, treat == 1) else md, wts = "weights")
   b <- bal.tab(m, un = TRUE, stats = c("mean.diffs", "variance.ratios"), binary = "std", continuous = "std")$Balance
   list(nn = unname(summary(m)$nn[, 2]), diffAfter = setNames(as.list(b$Diff.Adj), rownames(b)), effect = list(est = ac$estimate, se = ac$std.error))
 }
 set.seed(1)
 out <- list(versions = c(MatchIt = as.character(packageVersion("MatchIt")), cobalt = as.character(packageVersion("cobalt"))),
   nearest = one(matchit(f, data = lalonde, method = "nearest", distance = "glm"), ~subclass),
-  full = one(matchit(f, data = lalonde, method = "full", distance = "glm", estimand = "ATT"), ~subclass))
+  full = one(matchit(f, data = lalonde, method = "full", distance = "glm", estimand = "ATT"), ~subclass),
+  fullATE = one(matchit(f, data = lalonde, method = "full", distance = "glm", estimand = "ATE"), ~subclass, att = FALSE))
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/match/reference.json")
 cat(toJSON(out[c("nearest")], auto_unbox = TRUE, digits = 6), "\n")

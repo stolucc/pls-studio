@@ -23,12 +23,12 @@ describe('MatchIt on lalonde', () => {
     const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: 'MatchIt', name: 'lalonde', na: [] }, 'MatchIt');
     return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), ...categoriesOf(raw.levels) };
   };
-  it.each(['nearest', 'full'] as const)('%s matching: sample sizes, balance and the effect equal native R', async (method) => {
+  it.each([['nearest', 'ATT', 'nearest'], ['full', 'ATT', 'full'], ['full', 'ATE', 'fullATE']] as const)('%s matching (%s): sample sizes, balance and the effect equal native R', async (method, estimand, key) => {
     const data = await load();
     expect(data.categories?.race).toEqual(['black', 'hispan', 'white']);
-    const r = await matchR(data, { ...base, method });
-    const n = ref[method];
-    expect(r.counts.map((x) => x.treated)).toEqual(n.nn);
+    const r = await matchR(data, { ...base, method, estimand });
+    const n = ref[key];
+    r.counts.forEach((x, i) => expect(x.treated).toBeCloseTo(n.nn[i], 8));
     for (const [k, v] of Object.entries(n.diffAfter as Record<string, number>)) {
       const name = k === 'distance' ? 'Propensity score' : k;
       expect(r.balance.find((b) => b.variable === name)!.diffAfter, k).toBeCloseTo(v, 6);

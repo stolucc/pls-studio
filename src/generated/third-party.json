@@ -316,6 +316,12 @@
    "url": "https://cran.r-project.org/package=combinat"
   },
   {
+   "name": "corpcor",
+   "version": "1.6.10",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=corpcor"
+  },
+  {
    "name": "cowplot",
    "version": "1.2.0",
    "license": "GPL-2",
@@ -862,6 +868,12 @@
    "url": "https://cran.r-project.org/package=openssl"
   },
   {
+   "name": "optimx",
+   "version": "2025-4.9",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=optimx"
+  },
+  {
    "name": "optmatch",
    "version": "0.10.8",
    "license": "MIT + file LICENSE",
@@ -956,6 +968,12 @@
    "version": "1.4-1",
    "license": "GPL-2",
    "url": "https://cran.r-project.org/package=polynom"
+  },
+  {
+   "name": "pracma",
+   "version": "2.4.6",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=pracma"
   },
   {
    "name": "progressr",
@@ -1375,7 +1393,7 @@
    "url": ""
   },
   {
-   "name": "REndo example data (dataCopCont2, dataHetIV, dataHigherMoments)",
+   "name": "REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV)",
    "where": "public/examples/rendo, validation fixtures",
    "license": "GPL-3, from the REndo package",
    "credit": "Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser.",

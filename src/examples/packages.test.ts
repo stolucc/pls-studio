@@ -50,8 +50,8 @@ it('ids are unique and every R package the app calculates with has an example', 
   expect(new Set(PACKAGE_EXAMPLES.map((e) => e.id)).size).toBe(PACKAGE_EXAMPLES.length);
   expect(new Set(PACKAGE_EXAMPLES.map((e) => e.package))).toEqual(new Set(EXAMPLE_PACKAGES));
   // Bridge packages without their own example: variants of another package's runtime
-  // (lavaan + cSEM for simulation, manymome's latent and glm routes) or helpers.
-  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam']);
+  // (lavaan + cSEM for simulation, manymome's latent and glm routes, optimx for REndo's latent IV) or helpers.
+  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx']);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });
 

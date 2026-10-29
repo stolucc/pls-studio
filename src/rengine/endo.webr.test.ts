@@ -59,6 +59,20 @@ it('higher-moment instruments equal REndo::higherMomentsIV (gp with g = x², and
   }
 }, 900_000);
 
+it('latent instrumental variables equal REndo::latentIV (dataLatentIV)', async () => {
+  const r = await endoR(rendo('dataLatentIV'), { ...base, method: 'liv', exogenous: [] });
+  expect(r.engine.package).toBe('optimx');
+  const names: Record<string, string> = { '(Intercept)': 'Intercept', P: 'P', pi1: 'Mean of P, group 1 (pi1)', pi2: 'Mean of P, group 2 (pi2)',
+    theta5: 'Probability of group 1 (theta5)', theta6: 'Outcome error variance (theta6)', theta7: 'Error covariance (theta7)', theta8: 'Regressor error variance (theta8)' };
+  for (const c of ref.liv.coef) {
+    const m = r.coefficients.find((x) => x.term === names[c.term])!;
+    expect(m, c.term).toBeDefined();
+    expect(m.est).toBeCloseTo(c.est, 6);
+    expect(m.se!).toBeCloseTo(c.se, 4);
+  }
+  await expect(endoR(rendo('dataLatentIV'), { ...base, method: 'liv', exogenous: ['Z'] })).rejects.toThrow(/no other regressors/);
+}, 900_000);
+
 it('instrumental variables on Kmenta equal ivreg, with its diagnostics', async () => {
   const d = await pkgData('ivreg', 'Kmenta');
   const r = await endoR(d, { ...base, outcome: 'Q', exogenous: ['D'], endogenous: ['P'], instruments: ['F', 'A'] });

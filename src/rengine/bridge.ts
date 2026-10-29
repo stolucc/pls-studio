@@ -36,6 +36,7 @@ export const R_PACKAGES = {
   plspm: ['jsonlite', 'plspm'],
   ivreg: ['jsonlite', 'ivreg', 'lmtest'],
   sampleSelection: ['jsonlite', 'sampleSelection'],
+  optimx: ['jsonlite', 'ivreg', 'lmtest', 'optimx', 'mvtnorm', 'corpcor'],
   MatchIt: ['jsonlite', 'MatchIt', 'optmatch', 'cobalt', 'sandwich', 'lmtest'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;

@@ -355,6 +355,21 @@
         "File": "combinat_0.0-9.tgz"
       }
     },
+    "corpcor": {
+      "version": "1.6.10",
+      "md5": "98b04a28ffaba00cafe89a3b08e10662",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "corpcor",
+        "Version": "1.6.10",
+        "Depends": "R (>= 3.0.2)",
+        "Imports": "stats",
+        "License": "GPL (>= 3)",
+        "MD5sum": "98b04a28ffaba00cafe89a3b08e10662",
+        "Built": "R 4.6.0; ; 2026-05-12 21:27:07 UTC; unix",
+        "File": "corpcor_1.6.10.tgz"
+      }
+    },
     "cowplot": {
       "version": "1.2.0",
       "md5": "19e12ad9953489eb9697426b6ed20ff5",
@@ -1780,6 +1795,21 @@
         "File": "openssl_2.4.2.tgz"
       }
     },
+    "optimx": {
+      "version": "2025-4.9",
+      "md5": "a6fa8283376891915c40b982e5967a32",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "optimx",
+        "Version": "2025-4.9",
+        "Imports": "numDeriv, nloptr, pracma",
+        "Suggests": "knitr, rmarkdown, setRNG, BB, ucminf, minqa, dfoptim, lbfgsb3c, lbfgs, subplex, marqLevAlg, testthat (>= 3.0.0), R.rsp",
+        "License": "GPL-2",
+        "MD5sum": "a6fa8283376891915c40b982e5967a32",
+        "Built": "R 4.6.0; ; 2026-05-13 17:50:02 UTC; unix",
+        "File": "optimx_2025-4.9.tgz"
+      }
+    },
     "optmatch": {
       "version": "0.10.8",
       "md5": "027a67912e683726b98d9e0f6654f85b",
@@ -2027,6 +2057,22 @@
         "MD5sum": "7531134187fb25a8184ae8eb0e31e40d",
         "Built": "R 4.6.0; ; 2026-05-13 20:02:26 UTC; unix",
         "File": "polynom_1.4-1.tgz"
+      }
+    },
+    "pracma": {
+      "version": "2.4.6",
+      "md5": "6b9df862c987cf392f251016b7cc8722",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "pracma",
+        "Version": "2.4.6",
+        "Depends": "R (>= 3.1.0)",
+        "Imports": "graphics, grDevices, stats, utils",
+        "Suggests": "NlcOptim, quadprog",
+        "License": "GPL (>= 3)",
+        "MD5sum": "6b9df862c987cf392f251016b7cc8722",
+        "Built": "R 4.6.0; ; 2026-05-13 20:24:48 UTC; unix",
+        "File": "pracma_2.4.6.tgz"
       }
     },
     "progressr": {

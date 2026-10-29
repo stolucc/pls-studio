@@ -204,6 +204,13 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     panel: { kind: 'endo', method: 'hm', outcome: 'y', endogenous: ['P'], exogenous: ['X1', 'X2'], hetRegressors: ['X1', 'X2'], hmTypes: ['gp', 'yp'] }, settings: CB('ML'),
   },
   {
+    id: 'rendo-liv', package: 'REndo', title: 'Latent instrumental variables', source: 'REndo, ?latentIV (dataLatentIV)',
+    links: [{ label: '?latentIV', url: 'https://rdrr.io/cran/REndo/man/latentIV.html' }, { label: '?dataLatentIV', url: 'https://rdrr.io/cran/REndo/man/dataLatentIV.html' }],
+    description: 'Simulated data (N = 2500): y on an endogenous P without any instrument. The latent IV model splits P into a hidden two-group instrument and an endogenous part (true slope −1). REndo’s data, shipped with the app. Opens Endogeneity.',
+    data: { package: 'REndo', name: 'dataLatentIV', file: 'examples/rendo/dataLatentIV.csv' }, constructs: [], paths: [],
+    panel: { kind: 'endo', method: 'liv', outcome: 'y', endogenous: ['P'], exogenous: [] }, settings: CB('ML'),
+  },
+  {
     id: 'sampleselection-mroz', package: 'sampleSelection', title: 'Women’s wages: Heckman selection', source: 'sampleSelection, ?selection (Mroz87)',
     links: [{ label: '?selection', url: 'https://rdrr.io/cran/sampleSelection/man/selection.html' }, { label: '?Mroz87', url: 'https://rdrr.io/cran/sampleSelection/man/Mroz87.html' }],
     description: 'Mroz (1987): wages are observed only for the 428 of 753 women in the labour force. A probit for participation (age, family income, young children, education) corrects the wage equation. Two-step estimates; the help page also adds squared age and experience. Opens Endogeneity.',

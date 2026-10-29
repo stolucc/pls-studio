@@ -5,7 +5,7 @@ import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
 import type { REngineInfo } from './lavaan';
 
-export type EndoMethod = 'iv' | 'copula' | 'het' | 'hm' | 'heckman';
+export type EndoMethod = 'iv' | 'copula' | 'het' | 'hm' | 'liv' | 'heckman';
 export type HmType = 'g' | 'gp' | 'gy' | 'yp' | 'p2' | 'y2';
 export interface EndoInput {
   method: EndoMethod;
@@ -45,7 +45,7 @@ export const endoRequest = (data: Dataset, i: EndoInput) => {
   if (data.moments && data.cols.length === 0) throw new Error('These methods need raw data; this dataset is a covariance matrix.');
   return { ...i, data: columns(data, used(i).filter(Boolean)) };
 };
-const pkg = (i: EndoInput) => (i.method === 'heckman' ? 'sampleSelection' : 'ivreg');
+const pkg = (i: EndoInput) => (i.method === 'heckman' ? 'sampleSelection' : i.method === 'liv' ? 'optimx' : 'ivreg');
 
 export async function endoR(data: Dataset, input: EndoInput): Promise<EndoResult> {
   const raw = await rCall<Record<string, any>>('ps_endo', endoRequest(data, input), pkg(input));

@@ -17,6 +17,7 @@ const METHODS: { id: EndoMethod; label: string; hint: string }[] = [
   { id: 'copula', label: 'Gaussian copula', hint: 'No instruments needed (Park & Gupta 2012): the copula term P* models the correlation between the regressor and the error. A significant P* indicates endogeneity. Requires a non-normal, continuous endogenous regressor; bootstrap standard errors.' },
   { id: 'het', label: 'Heteroskedasticity-based instruments', hint: 'No external instruments (Lewbel 2012): instruments built from exogenous regressors and the heteroskedastic residuals of the endogenous one. Requires heteroskedasticity (Breusch–Pagan tests below).' },
   { id: 'hm', label: 'Higher-moment instruments', hint: 'No external instruments (Lewbel 1997): instruments from products of de-meaned variables (g(x) = x²). Requires non-normal, skewed variables.' },
+  { id: 'liv', label: 'Latent instrumental variables', hint: 'No instruments (Ebbes et al. 2005): the regressor is split into a latent two-group instrument and an endogenous part; maximum likelihood. For y ~ P only (no other regressors); needs a non-normal regressor.' },
   { id: 'heckman', label: 'Heckman selection model', hint: 'When the outcome is observed only for a selected group (e.g. wages only for people who work): a probit for selection and the outcome equation corrected for it (inverse Mills ratio).' },
 ];
 const HM: { id: HmType; label: string }[] = [
@@ -45,7 +46,9 @@ function EndoView({ r, input }: { r: EndoResult; input: EndoInput }) {
       ) : (
         <>
           <Table title={METHODS.find((m) => m.id === r.method)!.label} file={`endogeneity-${r.method}`} columns={cols} rows={r.coefficients.map(coefRow)}
-            note={r.method === 'copula'
+            note={r.method === 'liv'
+              ? 'Maximum likelihood (Nelder–Mead, optimx); standard errors from the numerical Hessian (delta method for theta5), as REndo::latentIV. The P coefficient is corrected for endogeneity; theta7 ≠ 0 indicates it.'
+              : r.method === 'copula'
               ? `Standard errors and percentile intervals from ${r.boot?.samples} bootstrap samples. P* terms: their significance tests whether the regressor is endogenous; the other coefficients are corrected for it.`
               : `${r.n} observations.`} />
           {focus.length > 0 && (
@@ -123,13 +126,13 @@ export function EndogeneityPanel() {
   const ds = source === 'scores' ? scores : data && !data.moments ? data : null;
   const columns = ds?.names ?? [];
   const input: EndoInput = {
-    method, outcome, exogenous, endogenous, instruments, hetRegressors: hetRegressors.length ? hetRegressors : exogenous, hmTypes,
+    method, outcome, exogenous: method === 'liv' ? [] : exogenous, endogenous, instruments, hetRegressors: hetRegressors.length ? hetRegressors : exogenous, hmTypes,
     selection: { outcome: selOutcome, regressors: selRegs }, heckmanMethod,
     boot: { samples: Math.max(10, Math.floor(settings.bootSamples)), seed: settings.seed, confidence: settings.confidence },
   };
   const ready = method === 'heckman' ? !!outcome && !!selOutcome && selRegs.length > 0
     : !!outcome && endogenous.length > 0 && (method !== 'iv' || instruments.length >= endogenous.length) && (method !== 'hm' || hmTypes.length > 0)
-      && ((method !== 'het' && method !== 'hm') || endogenous.length === 1);
+      && ((method !== 'het' && method !== 'hm' && method !== 'liv') || endogenous.length === 1);
   const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', rMessage(e)));
   const run = async () => {
     setBusy(true);
@@ -161,7 +164,7 @@ export function EndogeneityPanel() {
     <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="Endogeneity">
       <div className="sim">
         <header className="sim-head">
-          <div><b>Endogeneity</b><span className="muted">{method === 'heckman' ? 'sampleSelection' : method === 'iv' ? 'ivreg' : method === 'copula' ? 'Gaussian copula (as REndo), bootstrap' : 'Lewbel instruments (as REndo) with ivreg'}</span></div>
+          <div><b>Endogeneity</b><span className="muted">{method === 'heckman' ? 'sampleSelection' : method === 'iv' ? 'ivreg' : method === 'copula' ? 'Gaussian copula (as REndo), bootstrap' : method === 'liv' ? 'latent IV (as REndo), optimx' : 'Lewbel instruments (as REndo) with ivreg'}</span></div>
           <button className="btn icon ghost" onClick={close} aria-label="Close"><IconX /></button>
         </header>
         <div className="sim-body long-body">
@@ -200,7 +203,7 @@ export function EndogeneityPanel() {
               <>
                 {pick('Outcome', outcome, setOutcome, [...exogenous, ...endogenous, ...instruments])}
                 <OrderedPicker label="Endogenous regressor(s)" columns={others(exogenous, instruments)} value={endogenous} onChange={setEndogenous} />
-                <OrderedPicker label="Exogenous regressors (controls)" columns={others(endogenous, instruments)} value={exogenous} onChange={setExogenous} />
+                {method !== 'liv' && <OrderedPicker label="Exogenous regressors (controls)" columns={others(endogenous, instruments)} value={exogenous} onChange={setExogenous} />}
                 {method === 'iv' && <OrderedPicker label="Instruments (not in the outcome equation)" columns={others(endogenous, exogenous)} value={instruments} onChange={setInstruments} />}
                 {(method === 'het' || method === 'hm') && (
                   <OrderedPicker label="Exogenous regressors that build the instruments (default: all)" columns={exogenous} value={hetRegressors} onChange={setHetRegressors} />
@@ -216,7 +219,7 @@ export function EndogeneityPanel() {
                     ))}
                   </div>
                 )}
-                {(method === 'het' || method === 'hm') && endogenous.length > 1 && <div className="issue warning">This method handles one endogenous regressor.</div>}
+                {(method === 'het' || method === 'hm' || method === 'liv') && endogenous.length > 1 && <div className="issue warning">This method handles one endogenous regressor.</div>}
                 {method === 'copula' && <div className="hint">{input.boot.samples} bootstrap samples, seed {input.boot.seed} (from the Model settings).</div>}
               </>
             )}
