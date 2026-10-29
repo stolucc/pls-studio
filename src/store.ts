@@ -91,6 +91,8 @@ interface State {
 
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
   updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent'>>) => void;
+  /** CB-SEM: treat these indicators as ordered categorical (WLSMV), or as continuous again. */
+  setOrdered: (names: string[], ordinal: boolean) => void;
   /** CB-SEM: hold a path coefficient, loading or drawn covariance at `value`, or free it (null). */
   fixParameter: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, value: number | null) => void;
   moveConstruct: (id: string, x: number, y: number) => void;
@@ -250,6 +252,12 @@ export const useStore = create<State>((set, get) => ({
   },
   updateConstruct: (id, patch) =>
     get().commit((m) => ({ ...m, constructs: m.constructs.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+  setOrdered: (names, ordinal) => get().commit((m) => {
+    const now = new Set(m.ordered ?? []);
+    for (const n of names) { if (ordinal) now.add(n); else now.delete(n); }
+    const { ordered: _o, ...rest } = m;
+    return now.size ? { ...rest, ordered: [...now] } : rest;
+  }),
   fixParameter: (target, value) => get().commit((m) => {
     const set = <T extends { fixed?: number }>(x: T): T => { const { fixed: _f, ...rest } = x; return (value === null ? rest : { ...rest, fixed: value }) as T; };
     if (target.kind === 'path') return { ...m, paths: m.paths.map((p) => (p.id === target.id ? set(p) : p)) };

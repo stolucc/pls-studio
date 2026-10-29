@@ -18,7 +18,8 @@ export type CbParamKind = 'loading' | 'regression' | 'hoLoading' | 'lvcov' | 're
  * scaled χ². MLMV: ML + robust SEs + mean-and-variance adjusted χ². MLR: ML +
  * Huber–White SEs + Yuan–Bentler scaled χ². GLS / ULS: least-squares fitting.
  */
-export type CbEstimator = 'ML' | 'MLM' | 'MLMV' | 'MLR' | 'GLS' | 'ULS';
+/** WLSMV (ordinal indicators) is estimated by lavaan only. */
+export type CbEstimator = 'ML' | 'MLM' | 'MLMV' | 'MLR' | 'GLS' | 'ULS' | 'WLSMV';
 
 interface ParamDef {
   kind: CbParamKind;
@@ -28,7 +29,7 @@ interface ParamDef {
 }
 
 export interface CbEstimate {
-  kind: CbParamKind | 'fixed-loading' | 'fixed';
+  kind: CbParamKind | 'fixed-loading' | 'fixed' | 'threshold';
   /** lavaan-style labels: lhs op rhs. */
   lhs: string;
   op: '=~' | '~' | '~~';
@@ -932,6 +933,7 @@ export function standardized(cm: CbModel, X: Matrices) {
 }
 
 export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreatment = 'casewise', estimator: CbEstimator = 'ML'): CbResult {
+  if (estimator === 'WLSMV' || spec.ordered?.length || missing === 'fiml') throw new Error('Ordinal indicators, WLSMV and FIML are estimated by lavaan: choose the R engine.');
   const input = prepareCb(data, spec, missing);
   const { dropped, moderations, n } = input;
   if (n < 3) throw new Error('Not enough complete observations to estimate the model.');
@@ -992,7 +994,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
     else push({ kind: d.kind, lhs: name(d.i), op: '~~', rhs: name(d.i), est, se: se(a), std: est / X.Sigma[d.i][d.i], index: a });
   });
   // Order like lavaan: loadings, regressions, then variances/covariances.
-  const order = { 'fixed-loading': 0, loading: 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3 } as const;
+  const order = { 'fixed-loading': 0, loading: 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3, threshold: 4 } as const;
   // Fixed values sort with their kind of parameter (op).
   const rank = (e: CbEstimate) => (e.kind === 'fixed' ? (e.op === '~' ? 1 : 3) : order[e.kind]);
   estimates.sort((x, y) => rank(x) - rank(y));

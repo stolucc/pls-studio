@@ -17,7 +17,7 @@ export type MenuTarget =
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
-  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value';
+  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
@@ -61,6 +61,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && cb && !owner2?.covariate && { action: 'fix-value', label: held !== undefined ? `Change fixed loading (${held})…` : isMarker ? 'Fix loading at another value than 1…' : 'Fix loading at a value…' },
         edit && cb && held !== undefined && { action: 'free-value', label: isMarker ? 'Back to the marker’s 1' : 'Free loading (estimate it)' },
         edit && cb && { action: 'correlate', label: 'Correlate error (ε) with…' },
+        edit && cb && !owner2?.covariate && { action: 'toggle-ordinal', label: model.ordered?.includes(target.name) ? 'Treat as continuous' : 'Treat as ordinal (categorical)' },
         edit && { action: 'remove-indicator', label: `Remove from ${owner}`, danger: true },
       ]);
     }

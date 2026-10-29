@@ -101,8 +101,13 @@ ps_cb_build <- function(req) {
     # A fixed zero makes two exogenous factors uncorrelated (lavaan frees them by default).
     lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else if (!is.null(cv$fixed)) paste0(ps_num(cv$fixed), "*", b) else b))
   }
+  # Ordered categorical indicators (thresholds, polychoric correlations) and FIML.
+  ordered <- unname(n$iv[intersect(unlist(req$model$ordered), n$all_inds)])
+  extra <- paste0(if (length(ordered)) sprintf(", ordered = %s", ps_q(ordered)) else "",
+    if (identical(req$missing, "fiml")) ", missing = \"ml\"" else "")
+  if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
-    else sprintf("fit <- sem(model, data = data, estimator = \"%s\")", req$estimator)
+    else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
   body <- c(body, "model <- '", paste0("  ", lines), "'", call)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
     inputs = inputs, body = body, matrix_input = matrix_input)
@@ -135,16 +140,16 @@ ps_cb <- function(req_json, export = FALSE) {
   pt <- lavaan::parTable(fit)
   pe <- lavaan::parameterEstimates(fit, standardized = TRUE, remove.nonfree = FALSE)
   pe$free <- pt$free[match(paste(pe$lhs, pe$op, pe$rhs), paste(pt$lhs, pt$op, pt$rhs))]
-  pe <- pe[pe$op %in% c("=~", "~", "~~"), ]
+  pe <- pe[pe$op %in% c("=~", "~", "~~", "|"), ]
   est <- lapply(seq_len(nrow(pe)), function(i) {
     r <- pe[i, ]; free <- r$free > 0
-    kind <- if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
+    kind <- if (r$op == "|") "threshold" else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
       else if (r$op == "~") "regression"
       else if (is_lv(r$lhs) && is_lv(r$rhs)) { if (free) "lvcov" else "fixed" }
       else if (!free) NA_character_
       else if (r$lhs == r$rhs) "residual" else "rescov"
     if (is.na(kind)) return(NULL)
-    list(kind = kind, lhs = nm(r$lhs), op = r$op, rhs = nm(r$rhs), est = r$est,
+    list(kind = kind, lhs = nm(r$lhs), op = r$op, rhs = if (r$op == "|") r$rhs else nm(r$rhs), est = r$est,
       se = if (!free || is.na(r$se)) NULL else r$se, z = if (!free || is.na(r$z)) NULL else r$z,
       p = if (!free || is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all,
       index = if (free) r$free - 1L else NULL)

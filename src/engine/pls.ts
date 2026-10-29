@@ -477,6 +477,7 @@ export function preparePls(data: Dataset, spec: ModelSpec, opts: PlsOptions) {
 
 export function estimatePls(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions> = {}): PlsResult {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+  if (opts.missing === 'fiml') throw new Error('FIML is a CB-SEM (lavaan) option; PLS uses mean replacement or casewise deletion.');
   const prep = preparePls(data, spec, opts);
   const dropped = prep.dropped;
   const n = prep.cols[0]?.length ?? 0;

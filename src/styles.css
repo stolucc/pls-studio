@@ -585,3 +585,4 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 
 .rubber { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; overflow: visible; }
 .rubber path { fill: none; stroke: var(--cor); stroke-width: 2; stroke-dasharray: 5 4; }
+.iord { font-size: 8px; font-weight: 700; fill: var(--accent); letter-spacing: 0.02em; }

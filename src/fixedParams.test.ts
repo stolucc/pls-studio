@@ -70,3 +70,28 @@ describe('fixing parameters at values', () => {
     expect(validateModel(s().model, data, { ...s().settings, estimator: '2SLS' }).some((i) => /not available with MIIV-2SLS/.test(i.message))).toBe(true);
   });
 });
+
+describe('ordinal indicators, WLSMV and FIML', () => {
+  const few = { names: ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'], cols: Array.from({ length: 6 }, (_, k) => Float64Array.from({ length: 200 }, (_, i) => (k < 3 ? (i % 4) + 1 : Math.random()))) };
+  const issues = (over: Partial<typeof DEFAULT_SETTINGS> = {}, d = few) => validateModel(s().model, d, { ...s().settings, ...over }).map((i) => i.message);
+  it('suggests, requires WLSMV, refuses the built-in engine and mean replacement', () => {
+    expect(issues().some((m) => /a1, a2, a3 have four or fewer categories/.test(m))).toBe(true);
+    s().setOrdered(['a1', 'a2', 'a3'], true);
+    expect(issues().some((m) => /a1, a2, a3 are ordinal: choose the WLSMV estimator/.test(m))).toBe(true);
+    expect(issues().some((m) => /Mean replacement would put/.test(m))).toBe(true);
+    expect(issues({ estimator: 'WLSMV', missing: 'casewise' }).filter((m) => /ordinal|WLSMV|Mean/.test(m))).toEqual([]);
+    expect(issues({ estimator: 'WLSMV', missing: 'casewise', engine: 'builtin' }).some((m) => /estimated by lavaan/.test(m))).toBe(true);
+    expect(toSpec(s().model).ordered).toEqual(['a1', 'a2', 'a3']);
+    expect(menuFor({ kind: 'indicator', construct: 'A', name: 'a1' }, s().model, cb)!.items.map((i) => i.label)).toContain('Treat as continuous');
+    s().setOrdered(['a1', 'a2', 'a3'], false);
+    expect(s().model.ordered).toBeUndefined();
+  });
+  it('FIML needs ML or MLR, and is CB-SEM only', () => {
+    expect(issues({ missing: 'fiml', estimator: 'GLS' }).some((m) => /FIML needs the ML or MLR/.test(m))).toBe(true);
+    expect(issues({ missing: 'fiml', estimator: 'MLR' }).some((m) => /FIML/.test(m))).toBe(false);
+    expect(issues({ missing: 'fiml', method: 'pls' }).some((m) => /FIML is a CB-SEM option/.test(m))).toBe(true);
+    const p = parseProject(serializeProject({ ...s().model, ordered: ['a1'] }, { ...s().settings, missing: 'fiml', estimator: 'WLSMV' }, null, null));
+    expect(p.settings).toMatchObject({ missing: 'fiml', estimator: 'WLSMV' });
+    expect(p.model.ordered).toEqual(['a1']);
+  });
+});

@@ -2,7 +2,8 @@ export type Mode = 'A' | 'B';
 /** Common factor (latent variable, reflective) or composite (emergent variable). */
 export type ConstructType = 'factor' | 'composite';
 export type WeightingScheme = 'path' | 'factor' | 'centroid';
-export type MissingTreatment = 'mean' | 'casewise';
+/** 'fiml': full-information maximum likelihood (CB-SEM through lavaan only). */
+export type MissingTreatment = 'mean' | 'casewise' | 'fiml';
 
 export interface ConstructSpec {
   name: string;
@@ -56,6 +57,8 @@ export interface ModelSpec {
   paths: PathSpec[];
   moderations?: ModerationSpec[];
   covariances?: CovarianceSpec[];
+  /** CB-SEM (lavaan): indicators treated as ordered categorical (thresholds, polychoric correlations, WLSMV). */
+  ordered?: string[];
 }
 
 /** Column-oriented numeric data; NaN marks a missing value. */

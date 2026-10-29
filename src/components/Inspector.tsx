@@ -448,6 +448,7 @@ const ESTIMATORS: { id: Settings['estimator']; label: string; hint: string }[] =
   { id: 'MLMV', label: 'robust, mean- and variance-adjusted', hint: 'ML estimates, robust standard errors and a scaled-and-shifted χ²; better small-sample behaviour than MLM.' },
   { id: 'MLR', label: 'robust, Huber–White / Yuan–Bentler', hint: 'ML estimates, observed-information sandwich standard errors and the Yuan–Bentler scaled χ² (Mplus variant).' },
   { id: 'GLS', label: 'generalised least squares', hint: 'Weights residuals by S⁻¹. Uses the unbiased covariance matrix.' },
+  { id: 'WLSMV', label: 'robust weighted least squares (ordinal)', hint: 'Diagonally weighted least squares on polychoric correlations, with robust standard errors and a mean- and variance-adjusted χ² (Muthén; lavaan). The estimator for ordinal indicators (mark them with right-click → Treat as ordinal). Needs the R engine.' },
   { id: 'ULS', label: 'unweighted least squares', hint: 'Unweighted residuals; no χ² p-value. Standard errors are not robust: prefer bootstrapping.' },
   { id: '2SLS', label: 'MIIV two-stage least squares', hint: 'Bollen’s model-implied instrumental variables: each equation estimated separately by 2SLS, robust to misspecification in other equations, with a Sargan test per equation. Variances and covariances are estimated afterwards with the coefficients held fixed (as MIIVsem’s var.cov), which gives standardised values; there is no global fit test.' },
 ];
@@ -617,7 +618,12 @@ function ModelInspector() {
           <div className="segmented">
             <button className={settings.missing === 'mean' ? 'on' : ''} onClick={() => setSettings({ missing: 'mean' })}>Mean replacement</button>
             <button className={settings.missing === 'casewise' ? 'on' : ''} onClick={() => setSettings({ missing: 'casewise' })}>Casewise deletion</button>
+            {settings.method === 'cbsem' && (
+              <button className={settings.missing === 'fiml' ? 'on' : ''} onClick={() => setSettings({ missing: 'fiml' })}
+                title="Full-information maximum likelihood (lavaan missing = &quot;ml&quot;): uses every observed value, unbiased when data are missing at random. ML or MLR, R engine.">FIML</button>
+            )}
           </div>
+          {settings.method === 'cbsem' && settings.missing === 'fiml' && <div className="hint" style={{ marginTop: 6 }}>Full-information maximum likelihood uses all observed values of every case (missing at random); with MLR the standard errors and test are robust.</div>}
         </div>
       </div>}
       <div className="section">

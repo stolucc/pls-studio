@@ -551,6 +551,13 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'process-template': setTemplatesOpen(true); break;
       case 'fix-zero': if (target.kind === 'implied') s.addCorrelation('construct', target.a, target.b, true); break;
       case 'fix-value': void fixValue(target); break;
+      case 'toggle-ordinal':
+        if (target.kind === 'indicator') {
+          const on = !(st().model.ordered ?? []).includes(target.name);
+          s.setOrdered([target.name], on);
+          if (on && st().settings.estimator !== 'WLSMV') s.toast('info', `${target.name} is ordinal now. Ordinal indicators are estimated with WLSMV: choose it under Estimator (Model inspector).`);
+        }
+        break;
       case 'free-value': {
         const t = paramOf(target);
         if (t) s.fixParameter(t, null);

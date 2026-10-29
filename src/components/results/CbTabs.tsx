@@ -122,6 +122,11 @@ function Variances({ cb }: { cb: CbResult }) {
       <Table title="Indicator error variances and covariances" file="cb-residuals" columns={['Indicator', ...estCols(cb)]}
         rows={vv.filter((e) => e.kind === 'residual' || e.kind === 'rescov').map((e) => estRow(e, e.lhs === e.rhs ? e.lhs : `${e.lhs} ↔ ${e.rhs}`))}
         note="Standardised error variance = 1 − indicator R²; standardised error covariance = error correlation. Single-indicator factors have their error variance fixed to 0." />
+      {cb.estimates.some((e) => e.kind === 'threshold') && (
+        <Table title="Thresholds of the ordinal indicators" file="cb-thresholds" columns={['Indicator', 'Threshold', ...estCols(cb)]}
+          rows={cb.estimates.filter((e) => e.kind === 'threshold').map((e) => [c(e.lhs), c(e.rhs, 'dim'), ...estRow(e, '').slice(1)])}
+          note="Each threshold is the point on the underlying continuous (latent response) variable, in standard-normal units, above which the next category is observed. An item with k categories has k − 1 thresholds." />
+      )}
     </div>
   );
 }

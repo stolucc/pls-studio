@@ -15,13 +15,13 @@ ps_validate <- function(req) {
     if (!is.null(x) && !(length(x) == 1 && is.character(x) && x %in% allowed)) stop(sprintf("Invalid %s in the request.", what))
   }
   get <- function(x, ...) { for (k in c(...)) { if (!is.list(x)) return(NULL); x <- x[[k, exact = TRUE]] }; x }
-  cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "2SLS")
+  cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "WLSMV", "2SLS")
   one_of(get(req, "estimator"), cb_est, "estimator")
-  one_of(get(req, "missing"), c("mean", "casewise"), "missing-value treatment")
+  one_of(get(req, "missing"), c("mean", "casewise", "fiml"), "missing-value treatment")
   one_of(get(req, "probe"), c("percentiles", "meansd"), "probing method")
   one_of(get(req, "hc"), c("none", "HC0", "HC1", "HC2", "HC3", "HC4"), "standard error type")
   one_of(get(req, "options", "scheme"), c("path", "centroid", "factor"), "weighting scheme")
-  one_of(get(req, "options", "missing"), c("mean", "casewise"), "missing-value treatment")
+  one_of(get(req, "options", "missing"), c("mean", "casewise", "fiml"), "missing-value treatment")
   for (e in get(req, "estimators")) { one_of(get(e, "method"), c("pls", "cb"), "estimator"); one_of(get(e, "estimator"), cb_est, "estimator") }
   for (c in c(get(req, "model", "constructs"), get(req, "spec", "constructs"))) {
     one_of(get(c, "mode"), c("A", "B"), "construct mode")
@@ -73,7 +73,8 @@ ps_frame <- function(req, n) {
 
 #' Script lines for missing values (applied to the model's indicators).
 ps_missing_code <- function(missing) {
-  if (identical(missing, "mean")) c("# Missing values: replaced by the indicator mean",
+  if (identical(missing, "fiml")) c("# Missing values: full-information maximum likelihood (lavaan missing = \"ml\"); no rows dropped")
+  else if (identical(missing, "mean")) c("# Missing values: replaced by the indicator mean",
     "for (v in names(data)) data[[v]][is.na(data[[v]])] <- mean(data[[v]], na.rm = TRUE)")
   else c("# Missing values: casewise (listwise) deletion", "data <- data[complete.cases(data), , drop = FALSE]")
 }

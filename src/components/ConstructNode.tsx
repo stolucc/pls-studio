@@ -6,6 +6,9 @@ import { useStore, type Tool } from '../store';
 import { readDraggedVars, VARS_MIME } from './dnd';
 
 /** fixed: the marker loading, fixed to 1 for identification (CB-SEM). */
+// Stable fallback: a selector returning a fresh [] would re-render forever.
+const NO_ORDERED: string[] = [];
+
 export interface IndicatorLabel { text: string; level: 'ok' | 'mid' | 'low'; fixed?: boolean }
 
 export type ConstructNodeData = {
@@ -57,6 +60,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
 
   const cover = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
   // Factors emit arrows to their indicators; composites are formed by them.
+  const ordinal = new Set(useStore((st) => (st.settings.method === 'cbsem' ? st.model.ordered : undefined)) ?? NO_ORDERED);
   const composite = c.type === 'composite';
   const nonDefaultMode = method === 'pls' && (composite ? c.mode === 'A' : c.mode === 'B');
   const onDouble = () => { setDraft(c.name); setEditing(true); };
@@ -86,6 +90,11 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
                 />
                 <rect className="ibox" x={ind.x} y={ind.y} width={ind.w} height={ind.h} rx={5} />
                 <text className="itext" x={ind.x + ind.w / 2} y={ind.y + ind.h / 2 + 4} textAnchor="middle">{ind.name}</text>
+                {ordinal.has(ind.name) && (
+                  <text className="iord" x={ind.x + ind.w - 3} y={ind.y + 8} textAnchor="end">
+                    ord<title>Ordinal (ordered categorical): thresholds and polychoric correlations, WLSMV</title>
+                  </text>
+                )}
                 {label && (
                   <g className={label.fixed ? 'fixed' : undefined}>
                     {label.fixed && <title>Fixed loading: held at its value, not estimated (the first indicator’s 1 sets the factor’s scale). Right-click to change it. A standardised value is shown when it differs.</title>}

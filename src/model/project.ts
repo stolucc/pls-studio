@@ -120,6 +120,8 @@ export interface ModelState {
   moderations: Moderation[];
   correlations?: Correlation[];
   threeWay?: ThreeWay[];
+  /** Indicators (data columns) treated as ordered categorical in CB-SEM (WLSMV). */
+  ordered?: string[];
 }
 
 /** Drop fixed loadings of indicators that left their construct. */
@@ -234,6 +236,7 @@ export function toSpec(model: ModelState): ModelSpec {
       const p = model.paths.find((q) => q.id === mo.path);
       return p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, to: name.get(p.to)! }] : [];
     }),
+    ...(model.ordered?.length ? { ordered: model.ordered.filter((i) => model.constructs.some((c) => c.indicators.includes(i))) } : {}),
     ...(model.correlations?.length ? {
       covariances: pruneCorrelations(model).correlations!.map((k) => (k.kind === 'construct'
         ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}), ...(k.fixed !== undefined ? { fixed: k.fixed } : {}) }
@@ -268,7 +271,7 @@ export function createsCycle(paths: Path[], from: string, to: string): boolean {
 export function validateModel(
   model: ModelState,
   data: Dataset | null,
-  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator'>> = DEFAULT_SETTINGS,
+  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing'>> = DEFAULT_SETTINGS,
 ): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string, constructId?: string) => issues.push({ level: 'error', message, constructId });
@@ -346,6 +349,33 @@ export function validateModel(
     if (!model.paths.some((q) => q.from === mo.moderator && q.to === p.to)) {
       err(`${cap(label)}: the moderator also needs a direct path to ${cname.get(p.to)}.`, mo.moderator);
     }
+  }
+
+  // Ordinal indicators, WLSMV and FIML: lavaan only, raw data, compatible estimator and missing-data choice.
+  const assignedSet = new Set(model.constructs.flatMap((c) => c.indicators));
+  const ordered = (model.ordered ?? []).filter((i) => assignedSet.has(i));
+  const engine = method.engine ?? 'r';
+  const missingChoice = method.missing ?? 'mean';
+  if (method.method === 'cbsem') {
+    const lavaanOnly = [ordered.length && 'ordinal indicators', method.estimator === 'WLSMV' && 'WLSMV', missingChoice === 'fiml' && 'FIML'].filter(Boolean);
+    if (lavaanOnly.length && engine === 'builtin') err(`${lavaanOnly.join(', ')} ${lavaanOnly.length === 1 ? 'is' : 'are'} estimated by lavaan: choose “R packages” under Calculated by.`);
+    if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
+    if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
+    if (missingChoice === 'fiml' && method.estimator !== 'ML' && method.estimator !== 'MLR') err('FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).');
+    if ((ordered.length || missingChoice === 'fiml') && data?.moments) err('Ordinal indicators and FIML need raw data, not a covariance matrix.');
+    if (data && !data.moments && !ordered.length) {
+      const few = [...assignedSet].filter((name) => {
+        const col = data.cols[data.names.indexOf(name)];
+        if (!col) return false;
+        const vals = new Set<number>();
+        for (const v of col) { if (Number.isNaN(v)) continue; if (!Number.isInteger(v)) return false; vals.add(v); if (vals.size > 4) return false; }
+        return vals.size >= 2;
+      });
+      if (few.length) warn(`${few.join(', ')} ${few.length === 1 ? 'has' : 'have'} four or fewer categories; consider treating ${few.length === 1 ? 'it' : 'them'} as ordinal (right-click an indicator) with WLSMV (Rhemtulla, Brosseau-Liard & Savalei, 2012).`);
+    }
+  } else {
+    if (missingChoice === 'fiml' && method.method === 'pls') err('FIML is a CB-SEM option; PLS-SEM uses mean replacement or casewise deletion.');
+    if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
   }
 
   const nFixed = model.paths.filter((p) => p.fixed !== undefined).length + (model.correlations ?? []).filter((k) => k.fixed !== undefined).length
@@ -559,7 +589,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   const settings: Settings = {
     method: s.method === 'cbsem' || s.method === 'process' ? s.method : 'pls',
     consistent: s.consistent === true,
-    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', '2SLS'] as const).find((e) => e === s.estimator) ?? 'ML',
+    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV', '2SLS'] as const).find((e) => e === s.estimator) ?? 'ML',
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
     figure: parseFigureStyle(s.figure),
@@ -567,7 +597,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
     maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
     stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
-    missing: s.missing === 'casewise' ? 'casewise' : 'mean',
+    missing: s.missing === 'casewise' || s.missing === 'fiml' ? s.missing : 'mean',
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
     seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
     confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
@@ -602,7 +632,10 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     return out;
   });
   return {
-    model: { constructs, paths, moderations, ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}) },
+    model: {
+      constructs, paths, moderations, ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}),
+      ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
+    },
     settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,
   };
 }
