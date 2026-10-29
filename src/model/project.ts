@@ -6,6 +6,7 @@ import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
 import { exprToR, nameError, namesIn, parseConstraint, parseExpr } from './expr';
 import type { ConstructType, Dataset, EsemRotation, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MultigroupSpec, WeightingScheme } from '../engine/types';
+import { MAX_CATEGORIES } from '../engine/dataset';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
 export type Method = 'pls' | 'cbsem' | 'process';
@@ -481,6 +482,12 @@ export function validateModel(
     if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
   }
 
+  // Text columns coded 1, 2, ... (alphabetical): fine for groups and clusters, rarely as indicators.
+  const textInds = data?.categories ? [...assignedSet].filter((i) => data.categories![i]) : [];
+  if (textInds.length) {
+    warn(`${textInds.join(', ')} ${textInds.length > 1 ? 'are text columns' : 'is a text column'}, used through ${textInds.length > 1 ? 'their' : 'its'} codes 1, 2, … in alphabetical order (${data!.categories![textInds[0]].slice(0, 3).join(', ')}${data!.categories![textInds[0]].length > 3 ? ', …' : ''}). Recode it as numbers if the categories have another order.`);
+  }
+
   const ml = model.multilevel;
   if (ml) {
     if (method.method !== 'cbsem') warn(`The two-level model (clusters by ${ml.column}) is estimated in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores the clustering.`);
@@ -674,7 +681,19 @@ export function serializeDataSection(data: Dataset, info: DataInfo) {
   return {
     info, names: data.names, columns: data.cols.map((c) => Array.from(c, (v) => (Number.isNaN(v) ? null : v))),
     ...(data.moments ? { moments: data.moments } : {}),
+    ...(data.categories ? { categories: data.categories } : {}),
   };
+}
+
+/** Category labels of coded text columns, for columns that exist (labels are plain text). */
+function parseCategories(raw: unknown, names: string[]): { categories?: Record<string, string[]> } {
+  if (!isObj(raw)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (!names.includes(k) || !Array.isArray(v) || v.length > MAX_CATEGORIES) continue;
+    out[k] = v.map((x: unknown) => str(x, 200));
+  }
+  return Object.keys(out).length ? { categories: out } : {};
 }
 
 /** Validate the data section of a project file (also used for datasets stored on the server). */
@@ -691,7 +710,7 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
     return Float64Array.from(col, (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN));
   });
   if (cols.some((c: Float64Array) => c.length !== cols[0].length)) throw new Error('Invalid project file: columns differ in length.');
-  data = { names, cols };
+  data = { names, cols, ...parseCategories(d.categories, names) };
   info = {
     fileName: str(d.info.fileName ?? 'data.csv'),
     rows: cols[0]?.length ?? 0,

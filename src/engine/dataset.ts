@@ -1,6 +1,7 @@
 // CSV import. Handles quoted fields, embedded delimiters/newlines, a BOM,
-// and auto-detects comma / semicolon / tab delimiters. Non-numeric columns
-// are reported and excluded; missing tokens become NaN.
+// and auto-detects comma / semicolon / tab delimiters. Text columns with few
+// different values become categories coded 1, 2, ...; free-text columns are
+// reported and excluded; missing tokens become NaN.
 
 import type { Dataset } from './types';
 
@@ -78,6 +79,7 @@ export function parseCsv(text: string, opts: ParseOptions = {}): ParsedData {
   const cols: Float64Array[] = [];
   let missingCells = 0;
 
+  const categories: Record<string, string[]> = {};
   names.forEach((name, c) => {
     const col = new Float64Array(body.length);
     let bad: string | null = null;
@@ -89,10 +91,33 @@ export function parseCsv(text: string, opts: ParseOptions = {}): ParsedData {
       if (!Number.isFinite(v)) { bad = rawCell; break; }
       col[r] = v;
     }
-    if (bad !== null) excludedColumns.push({ name, reason: `non-numeric value "${bad.slice(0, 20)}"` });
-    else if (colMissing === body.length) excludedColumns.push({ name, reason: 'all values missing' });
+    if (bad !== null) {
+      // A text column with few different values (groups, cluster ids, labels) is kept as
+      // categories coded 1, 2, ... in natural sort order; free text is left out.
+      const coded = codeText(body.map((row) => (row[c] ?? '').trim()), missing);
+      if (!coded) excludedColumns.push({ name, reason: `text with many different values ("${bad.slice(0, 20)}")` });
+      else { keptNames.push(name); cols.push(coded.col); missingCells += coded.missing; categories[name] = coded.labels; }
+    } else if (colMissing === body.length) excludedColumns.push({ name, reason: 'all values missing' });
     else { keptNames.push(name); cols.push(col); missingCells += colMissing; }
   });
 
-  return { dataset: { names: keptNames, cols }, rows: body.length, missingCells, excludedColumns };
+  const dataset: Dataset = { names: keptNames, cols, ...(Object.keys(categories).length ? { categories } : {}) };
+  return { dataset, rows: body.length, missingCells, excludedColumns };
+}
+
+/** Most categories a text column may have (beyond that it is treated as free text). */
+export const MAX_CATEGORIES = 1000;
+
+/**
+ * Code a text column as categories 1, 2, ... (natural order: "2" before "10",
+ * case-insensitive). Null when it looks like free text: more than
+ * MAX_CATEGORIES values, or more than half the rows distinct (when over 50).
+ */
+export function codeText(cells: string[], missing: Set<string>): { col: Float64Array; labels: string[]; missing: number } | null {
+  const present = cells.filter((x) => !missing.has(x.toUpperCase()));
+  const labels = [...new Set(present)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }) || (a < b ? -1 : a > b ? 1 : 0));
+  if (labels.length > MAX_CATEGORIES || (labels.length > 50 && labels.length > present.length / 2)) return null;
+  const code = new Map(labels.map((l, i) => [l, i + 1]));
+  const col = Float64Array.from(cells, (x) => code.get(x) ?? NaN);
+  return { col, labels, missing: cells.length - present.length };
 }

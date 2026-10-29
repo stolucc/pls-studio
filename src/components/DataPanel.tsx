@@ -95,7 +95,7 @@ export function DataPanel() {
               <button className="btn ghost sm" onClick={() => void loadSample('customer')}>Customer survey (PLS, raw data)</button>
               <button className="btn ghost sm" onClick={() => void loadSample('emse')}>Gamification in SE · Stol et al. 2022 (CB-SEM, matrix)</button>
             </div>
-            <div className="hint">Comma, semicolon or tab separated, with a header row. Empty cells, NA and “.” count as missing. Data stays in your browser.</div>
+            <div className="hint">Comma, semicolon or tab separated, with a header row. Empty cells, NA and “.” count as missing; text columns with few values (groups, cluster ids) become categories. Data stays in your browser.</div>
           </div>
         ) : (
           <>
@@ -109,7 +109,7 @@ export function DataPanel() {
               </div>
               {info.excluded.length > 0 && (
                 <div className="hint" style={{ marginTop: 8 }}>
-                  Skipped: {info.excluded.map((e) => e.name).join(', ')} (non-numeric)
+                  Skipped: {info.excluded.map((e) => `${e.name} (${e.reason})`).join(', ')}
                 </div>
               )}
             </div>
@@ -135,7 +135,9 @@ export function DataPanel() {
                     <span className="vname">{v.name}</span>
                     {owner.has(v.name)
                       ? <span className="chip accent">{owner.get(v.name)}</span>
-                      : <span className="vstat">{Number.isNaN(v.mean) ? `sd ${v.sd.toFixed(2)}` : v.mean.toFixed(2)}</span>}
+                      : data.categories?.[v.name]
+                        ? <span className="chip" title={data.categories[v.name].map((l, k) => `${k + 1} = ${l}`).join('\n')}>text · {data.categories[v.name].length}</span>
+                        : <span className="vstat">{Number.isNaN(v.mean) ? `sd ${v.sd.toFixed(2)}` : v.mean.toFixed(2)}</span>}
                   </div>
                 ))}
                 {visible.length === 0 && <div className="hint">No matching variables.</div>}

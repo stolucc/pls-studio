@@ -267,6 +267,12 @@ export function factorCodes(levels: Record<string, string[] | string> | unknown[
   return byLevels.size ? ` Coded ${[...byLevels].map(([key, cols]) => `${cols.join(', ')}: ${key}`).join('; ')}.` : '';
 }
 
+/** R factor levels as the dataset's category labels (codes 1, 2, ... in level order). */
+export function categoriesOf(levels: Record<string, string[] | string> | unknown[] | undefined): { categories?: Record<string, string[]> } {
+  if (!levels || Array.isArray(levels) || !Object.keys(levels).length) return {};
+  return { categories: Object.fromEntries(Object.entries(levels).map(([k, l]) => [k, (Array.isArray(l) ? l : [l]).map(String)])) };
+}
+
 /**
  * Open an example from an R package's documentation: its dataset is loaded
  * from the package (in the browser's R) and the model laid out automatically.
@@ -287,7 +293,7 @@ export async function loadPackageExample(id: string) {
     model.constructs = autoLayout(model);
     s.loadProject({
       name: ex.title, model, settings: { ...useStore.getState().settings, ...ex.settings, engine: 'r' },
-      data: { names: raw.names, cols }, info: { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
+      data: { names: raw.names, cols, ...categoriesOf(raw.levels) }, info: { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
       example: ex.id,
     });
     useSim.getState().setDesign(null);

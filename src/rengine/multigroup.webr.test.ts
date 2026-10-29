@@ -63,3 +63,20 @@ describe('multiple groups (lavaan)', () => {
     expect(r.levels[2].cfiChange!).toBeCloseTo(ref.levels.scalar.cfi - ref.levels.metric.cfi, 6);
   }, 600_000);
 });
+
+it('a text grouping column: the same model, groups named by their text', async () => {
+  const csv = readFileSync(join(DIR, 'hs_school.csv'), 'utf8').replace(/,1$/gm, ',Pasteur').replace(/,2$/gm, ',"Grant-White"');
+  const text = parseCsv(csv).dataset;
+  expect(text.categories?.school).toEqual(['Grant-White', 'Pasteur']);
+  const spec: ModelSpec = {
+    constructs: [['visual', 'x1', 'x2', 'x3'], ['textual', 'x4', 'x5', 'x6'], ['speed', 'x7', 'x8', 'x9']].map(([name, ...indicators]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators })),
+    paths: [], multigroup: { column: 'school', invariance: 'metric', free: [] },
+  };
+  const [byText, byCode] = await Promise.all([estimateCbLavaan(text, spec, 'casewise', 'ML'), estimateCbLavaan(data, spec, 'casewise', 'ML')]);
+  expect(byText.fit.chisq).toBeCloseTo(byCode.fit.chisq, 8);
+  expect([...byText.groups!.labels].sort()).toEqual(['Grant-White', 'Pasteur']);
+  // Pasteur is 1 in the coded file and 2 in the text file: same group, same estimates.
+  const at = (r: typeof byText, label: string) => r.groups!.results[r.groups!.labels.indexOf(label)];
+  const x2 = (r: typeof byText, label: string) => at(r, label).estimates.find((e) => e.op === '=~' && e.rhs === 'x2')!.est;
+  expect(x2(byText, 'Pasteur')).toBeCloseTo(x2(byCode, '1'), 8);
+}, 600_000);

@@ -100,7 +100,23 @@ const usesModsem = (spec: ModelSpec, interaction: LatentInteraction) => interact
 
 /** Estimate a CB-SEM model with lavaan (latent interactions by LMS / QML: modsem). */
 export async function estimateCbLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): Promise<CbResultR> {
-  return parseCbOutput(await rCall<Record<string, any>>('ps_cb', cbRequest(data, spec, missing, estimator, interaction), usesModsem(spec, interaction) ? 'modsem' : 'lavaan'));
+  const r = parseCbOutput(await rCall<Record<string, any>>('ps_cb', cbRequest(data, spec, missing, estimator, interaction), usesModsem(spec, interaction) ? 'modsem' : 'lavaan'));
+  const cats = spec.multigroup ? data.categories?.[spec.multigroup.column] : undefined;
+  return cats ? withGroupNames(r, cats) : r;
+}
+
+/**
+ * Groups from a text column arrive as their codes ("1", or "1 · Within" with
+ * two levels): show the category names instead.
+ */
+export function withGroupNames(r: CbResultR, categories: string[]): CbResultR {
+  if (!r.groups) return r;
+  const name = (l: string) => l.replace(/^(\d+)(?=$| · )/, (code) => categories[Number(code) - 1] ?? code);
+  return {
+    ...r,
+    groups: { ...r.groups, labels: r.groups.labels.map(name), score: r.groups.score.map((t) => ({ ...t, groups: t.groups.map(name) })) },
+    modindices: r.modindices?.map((m) => (m.group ? { ...m, group: name(m.group) } : m)),
+  };
 }
 
 /** The self-contained R script (data embedded) that estimateCbLavaan runs. */

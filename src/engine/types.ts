@@ -96,6 +96,8 @@ export interface Dataset {
   /** Raw data columns; empty when the dataset is a covariance matrix. */
   cols: Float64Array[];
   moments?: MomentData;
+  /** Text (categorical) columns, coded 1, 2, ...: the category of each code (code k = labels[k - 1]). */
+  categories?: Record<string, string[]>;
 }
 
 export interface PlsOptions {

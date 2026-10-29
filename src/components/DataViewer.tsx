@@ -74,7 +74,10 @@ export function DataViewer() {
                   <thead><tr><th className="rownum">#</th>{shown.map(([n]) => <th key={n} title={assigned.has(n) ? `${n} → ${assigned.get(n)}` : n}>{n}</th>)}</tr></thead>
                   <tbody>
                     {Array.from({ length: Math.min(PAGE, rows - page * PAGE) }, (_, k) => page * PAGE + k).map((r) => (
-                      <tr key={r}><td className="rownum">{r + 1}</td>{shown.map(([n, i]) => <td key={n}>{cell(data.cols[i][r])}</td>)}</tr>
+                      <tr key={r}><td className="rownum">{r + 1}</td>{shown.map(([n, i]) => {
+                        const v = data.cols[i][r], cats = data.categories?.[n];
+                        return <td key={n} className={cats ? 'text' : undefined}>{cats && !Number.isNaN(v) ? cats[v - 1] ?? cell(v) : cell(v)}</td>;
+                      })}</tr>
                     ))}
                   </tbody>
                 </table>
@@ -82,8 +85,13 @@ export function DataViewer() {
             ) : (
               <Table title="Descriptive statistics" file="descriptives"
                 columns={['Variable', 'Construct', 'n', 'Missing', 'Mean', 'SD', 'Min', 'Q1', 'Median', 'Q3', 'Max', 'Distinct', 'Skewness', 'Excess kurtosis']}
-                rows={shown.map(([n, i]) => { const s = summaries[i]; return [c(n), c(assigned.get(n) ?? ''), num(s.n, 0), num(s.missing, 0), num(s.mean), num(s.sd), num(s.min), num(s.q1), num(s.median), num(s.q3), num(s.max), num(s.distinct, 0), num(s.skew), num(s.kurtosis)]; })}
-                note="Quartiles as R's quantile() (type 7). Skewness and excess kurtosis are moment estimators (type 1, as e1071 and psych::describe). Few distinct values hint at categorical or Likert items." />
+                rows={shown.map(([n, i]) => {
+                  const s = summaries[i];
+                  // Text columns: their codes have no mean; count the categories only.
+                  if (data.categories?.[n]) return [c(`${n} (text)`), c(assigned.get(n) ?? ''), num(s.n, 0), num(s.missing, 0), ...Array.from({ length: 7 }, () => c(null)), num(s.distinct, 0), c(null), c(null)];
+                  return [c(n), c(assigned.get(n) ?? ''), num(s.n, 0), num(s.missing, 0), num(s.mean), num(s.sd), num(s.min), num(s.q1), num(s.median), num(s.q3), num(s.max), num(s.distinct, 0), num(s.skew), num(s.kurtosis)];
+                })}
+                note="Text columns are categories coded 1, 2, … (hover the variable in the Data panel for the codes). Quartiles as R's quantile() (type 7). Skewness and excess kurtosis are moment estimators (type 1, as e1071 and psych::describe). Few distinct values hint at categorical or Likert items." />
             )}
           </div>
         )}
