@@ -111,6 +111,16 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
           Messages{messageCount > 0 ? ` (${messageCount})` : ''}
         </button>
         <div className="spacer" />
+        {cb?.groups && (
+          <div className="segmented group-switch" role="radiogroup" aria-label="Group shown">
+            {cb.groups.labels.map((l, i) => (
+              <button key={l} role="radio" aria-checked={cb.groupIndex === i} className={cb.groupIndex === i ? 'on' : ''}
+                onClick={() => useStore.getState().showGroup(i)} title={`Show the results of group ${l} (diagram and tables)`}>
+                {cb.groups!.labels.length <= 4 ? `Group ${l}` : l}
+              </button>
+            ))}
+          </div>
+        )}
         {!job && <EngineBadge label={engineLabel} />}
         {progress}
         <button className="btn icon ghost" onClick={() => setOpen(false)} aria-label="Collapse results"><IconChevronDown /></button>

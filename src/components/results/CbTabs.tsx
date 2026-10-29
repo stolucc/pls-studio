@@ -1,12 +1,15 @@
 import type { CbEstimate, CbResult } from '../../engine/cbsem';
 import type { BootstrapResult } from '../../engine/types';
-import { fmt } from '../../format';
+import { fmt, fmtP, stars } from '../../format';
 import { useState } from 'react';
 import { johnsonNeyman } from '../../engine/jn';
 import { mcIndirect, type McIndirect } from '../../engine/mcci';
 import { JohnsonNeymanPlot } from '../JohnsonNeymanPlot';
 import { BootstrapTab } from './PlsTabs';
 import { bootCells, bootCols, c, htmtCls, matrixRows, pCell, Table, type Row } from './Table';
+import { runInvariance } from '../../runner';
+import { useFreshResults, useStore } from '../../store';
+import { RScriptButton } from './RScriptButton';
 
 export const CB_TABS = [
   { id: 'fit', label: 'Model fit' },
@@ -19,6 +22,8 @@ export const CB_TABS = [
   { id: 'reliability', label: 'Reliability' },
   { id: 'discriminant', label: 'Discriminant validity' },
   { id: 'residuals', label: 'Residuals' },
+  { id: 'modindices', label: 'Modification indices' },
+  { id: 'invariance', label: 'Measurement invariance' },
   { id: 'bootstrap', label: 'Bootstrapping' },
 ] as const;
 export type CbTabId = (typeof CB_TABS)[number]['id'];
@@ -123,10 +128,58 @@ function Variances({ cb }: { cb: CbResult }) {
       <Table title="Indicator error variances and covariances" file="cb-residuals" columns={['Indicator', ...estCols(cb)]}
         rows={vv.filter((e) => e.kind === 'residual' || e.kind === 'rescov').map((e) => estRow(e, e.lhs === e.rhs ? e.lhs : `${e.lhs} ↔ ${e.rhs}`))}
         note="Standardised error variance = 1 − indicator R²; standardised error covariance = error correlation. Single-indicator factors have their error variance fixed to 0." />
+      {cb.estimates.some((e) => e.kind === 'mean') && (
+        <Table title="Latent means" file="cb-latent-means" columns={['Factor', ...estCols(cb)]}
+          rows={cb.estimates.filter((e) => e.kind === 'mean').map((e) => estRow(e, e.lhs))}
+          note="Under scalar invariance the latent means of the first group are fixed to 0; in the other groups they are the differences from it, in the factors’ units." />
+      )}
       {cb.estimates.some((e) => e.kind === 'threshold') && (
         <Table title="Thresholds of the ordinal indicators" file="cb-thresholds" columns={['Indicator', 'Threshold', ...estCols(cb)]}
           rows={cb.estimates.filter((e) => e.kind === 'threshold').map((e) => [c(e.lhs), c(e.rhs, 'dim'), ...estRow(e, '').slice(1)])}
           note="Each threshold is the point on the underlying continuous (latent response) variable, in standard-normal units, above which the next category is observed. An item with k categories has k − 1 thresholds." />
+      )}
+    </div>
+  );
+}
+
+function ModIndices({ cb }: { cb: CbResult }) {
+  const mi = cb.modindices ?? [];
+  if (!mi.length) return <div className="empty-results">No modification index reaches 3.84 (χ²(1) at α = .05): no single added parameter would improve fit significantly.</div>;
+  const groups = mi.some((m) => m.group);
+  return (
+    <Table title="Modification indices" file="cb-modindices" columns={['Parameter', ...(groups ? ['Group'] : []), 'MI', 'EPC', 'Standardised EPC']}
+      rows={mi.map((m) => [c(`${m.lhs} ${m.op} ${m.rhs}`), ...(groups ? [c(m.group ?? '')] : []), c(m.mi, m.mi > 10 ? 'warn' : ''), c(m.epc), c(m.sepc)])}
+      note="Expected drop in χ² if the parameter were freed (MI, 1 df; ≥ 3.84 shown, largest first), with the expected parameter change (EPC). =~ cross-loading, ~ path, ~~ (error) covariance. Free a parameter only when theory supports it: changes driven by modification indices capitalise on chance (MacCallum, Roznowski & Necowitz, 1992)." />
+  );
+}
+
+function Invariance({ cb }: { cb: CbResult }) {
+  const multigroup = useStore((s) => s.model.multigroup);
+  const results = useFreshResults();
+  const job = useStore((s) => s.job);
+  const inv = results?.invariance ?? null;
+  const score = cb.groups?.score ?? [];
+  if (!multigroup) return <div className="empty-results">Choose a grouping column under Groups (Model inspector) to compare the model across groups.</div>;
+  const d = (v: number | undefined, digits = 3) => (v === undefined ? c(null) : c(v, '', digits));
+  return (
+    <div className="tables">
+      <div className="table-tools">
+        <button className="btn sm primary" disabled={!!job} onClick={() => runInvariance()}>{inv ? 'Run again' : 'Compare configural, metric, scalar and strict'}</button>
+        <div className="spacer" />
+        <RScriptButton what="invariance" />
+      </div>
+      {inv && (
+        <Table title={`Measurement invariance across ${multigroup.column}`} file="cb-invariance"
+          columns={['Model', 'χ²', 'df', 'CFI', 'RMSEA', 'SRMR', 'Δχ²', 'Δdf', 'p', 'ΔCFI', 'ΔRMSEA']}
+          rows={inv.levels.map((l) => [c(l.level), c(l.chisq), c(l.df, '', 0), c(l.cfi), c(l.rmsea), c(l.srmr), d(l.chisqDiff), d(l.dfDiff, 0),
+            // A significant difference means the added equalities do not hold: a warning, not a success.
+            l.p === undefined ? c(null) : { v: `${fmtP(l.p)} ${stars(l.p)}`, cls: l.p < 0.05 ? 'bad' : 'dim' }, l.cfiChange === undefined ? c(null) : c(l.cfiChange, l.cfiChange < -0.01 ? 'bad' : 'good'), d(l.rmseaChange)])}
+          note={<>Each model adds equality constraints to the one before (loadings; intercepts or thresholds; residual variances); partial invariance as set under Groups applies throughout. Δχ²: difference test{inv.robust ? ' (scaled, for the robust estimator)' : ''} against the previous model. A drop in CFI of more than .01 (red) suggests non-invariance (Cheung &amp; Rensvold, 2002; Chen, 2007).</>} />
+      )}
+      {score.length > 0 && (
+        <Table title={`Score tests of the equality constraints (${multigroup.invariance} model)`} file="cb-score-tests" columns={['Parameter', 'Groups', 'χ²', 'df', 'p']}
+          rows={[...score].sort((a, b) => b.x2 - a.x2).map((t) => [c(t.param), c(t.groups.join(' = ')), c(t.x2, t.p < 0.05 ? 'warn' : ''), c(t.df, '', 0), pCell(t.p)])}
+          note="How much χ² would drop if this single equality across groups were released (lavaan::lavTestScore). The largest significant one is the first candidate for partial invariance (right-click the indicator → Free across groups)." />
       )}
     </div>
   );
@@ -285,6 +338,8 @@ export function CbTab({ tab, cb, boot }: { tab: CbTabId; cb: CbResult; boot: Boo
     case 'reliability': return <Reliability cb={cb} />;
     case 'discriminant': return <Discriminant cb={cb} />;
     case 'residuals': return <Residuals cb={cb} />;
+    case 'modindices': return <ModIndices cb={cb} />;
+    case 'invariance': return <Invariance cb={cb} />;
     case 'bootstrap': return <BootstrapTab boot={boot} std />;
   }
 }

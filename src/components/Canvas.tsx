@@ -570,6 +570,15 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'fix-zero': if (target.kind === 'implied') s.addCorrelation('construct', target.a, target.b, true); break;
       case 'fix-value': void fixValue(target); break;
       case 'set-label': void setLabel(target); break;
+      case 'toggle-free-loading':
+      case 'toggle-free-intercept': {
+        const mg = st().model.multigroup;
+        if (target.kind !== 'indicator' || !mg) break;
+        const kind = a === 'toggle-free-loading' ? 'loading' : 'intercept';
+        const same = (f: (typeof mg.free)[number]) => f.kind === kind && f.indicator === target.name && (f.kind === 'intercept' || f.construct === target.construct);
+        s.setMultigroup({ ...mg, free: mg.free.some(same) ? mg.free.filter((f) => !same(f)) : [...mg.free, kind === 'loading' ? { kind, construct: target.construct, indicator: target.name } : { kind, indicator: target.name }] });
+        break;
+      }
       case 'toggle-ordinal':
         if (target.kind === 'indicator') {
           const on = !(st().model.ordered ?? []).includes(target.name);

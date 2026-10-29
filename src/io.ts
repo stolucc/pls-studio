@@ -117,7 +117,7 @@ export async function openProject() {
   }
 }
 
-export type ScriptTarget = 'model' | 'bootstrap' | 'fittest' | { ipma: IpmaOptions };
+export type ScriptTarget = 'model' | 'bootstrap' | 'fittest' | 'invariance' | { ipma: IpmaOptions };
 
 /**
  * Download the self-contained R script for the current model: exactly the code
@@ -145,6 +145,17 @@ export async function exportRScript(what: ScriptTarget = 'model') {
   const spec = toSpec(s.model);
   const st = s.settings;
   const cb = st.method === 'cbsem';
+  if (what === 'invariance') {
+    try {
+      const { invarianceScriptR } = await import('./rengine/lavaan');
+      downloadText(`${safeFileName(s.projectName)}-lavaan-invariance.R`, await invarianceScriptR(s.data, spec, st.missing, st.estimator as CbEstimator), 'text/x-r-source');
+      s.toast('success', 'R script saved: it fits the four invariance models and compares them with lavTestLRT.');
+    } catch (e) {
+      const { rMessage } = await import('./rengine/bridge');
+      s.toast('error', `Could not create the R script: ${rMessage(e)}`);
+    }
+    return;
+  }
   const options = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent };
   const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence };
   const pkg = what === 'fittest' || (typeof what === 'object') ? 'cSEM' : cb ? (st.estimator === '2SLS' ? 'MIIVsem' : 'lavaan') : st.plsPackage;

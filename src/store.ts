@@ -4,6 +4,7 @@ import type { CbResult } from './engine/cbsem';
 import type { MiivResult } from './engine/miiv';
 import type { BootstrapResult, Dataset, PlsResult } from './engine/types';
 import type { CpaResult } from './rengine/cpa';
+import type { InvarianceResult } from './rengine/lavaan';
 import { autoLayout, suggestName } from './model/layout';
 import { graphToModel, isSlotName, templateModel, templatePositions } from './process/canvas';
 import { processGraph } from './process/fromModel';
@@ -32,6 +33,8 @@ export interface Results {
   fitTest: FitTestResult | null;
   /** Conditional process analysis (estimates and bootstrap in one run). */
   process?: CpaResult | null;
+  /** CB-SEM measurement invariance across groups (lavaan). */
+  invariance?: InvarianceResult | null;
   /** Fingerprint of the model/settings/data the results were computed for. */
   key: string;
 }
@@ -95,6 +98,10 @@ interface State {
   setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
   setDefined: (defined: DefinedParameter[]) => void;
   setWaldTests: (tests: WaldTest[]) => void;
+  /** Multiple-group CB-SEM results: show group `index` (diagram and tables). */
+  showGroup: (index: number) => void;
+  /** CB-SEM: set or clear the multiple-group analysis. */
+  setMultigroup: (mg: ModelState['multigroup'] | null) => void;
   /** CB-SEM: treat these indicators as ordered categorical (WLSMV), or as continuous again. */
   setOrdered: (names: string[], ordinal: boolean) => void;
   /** CB-SEM: hold a path coefficient, loading or drawn covariance at `value`, or free it (null). */
@@ -273,6 +280,13 @@ export const useStore = create<State>((set, get) => ({
   }),
   setDefined: (defined) => get().commit((m) => { const { defined: _d, ...rest } = m; return defined.length ? { ...rest, defined } : rest; }),
   setWaldTests: (tests) => get().commit((m) => { const { waldTests: _w, ...rest } = m; return tests.length ? { ...rest, waldTests: tests } : rest; }),
+  showGroup: (index) => set((s) => {
+    const cb = s.results?.cb;
+    const g = cb?.groups;
+    if (!s.results || !cb || !g || !g.results[index]) return s;
+    return { results: { ...s.results, cb: { ...g.results[index], groups: g, groupIndex: index, modindices: cb.modindices, wald: cb.wald } } };
+  }),
+  setMultigroup: (mg) => get().commit((m) => { const { multigroup: _g, ...rest } = m; return mg ? { ...rest, multigroup: mg } : rest; }),
   setOrdered: (names, ordinal) => get().commit((m) => {
     const now = new Set(m.ordered ?? []);
     for (const n of names) { if (ordinal) now.add(n); else now.delete(n); }

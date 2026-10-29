@@ -5,7 +5,7 @@ import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
 import { exprToR, nameError, namesIn, parseConstraint, parseExpr } from './expr';
-import type { ConstructType, Dataset, MissingTreatment, Mode, ModelSpec, WeightingScheme } from '../engine/types';
+import type { ConstructType, Dataset, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MultigroupSpec, WeightingScheme } from '../engine/types';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
 export type Method = 'pls' | 'cbsem' | 'process';
@@ -136,6 +136,8 @@ export interface ModelState {
   ordered?: string[];
   defined?: DefinedParameter[];
   waldTests?: WaldTest[];
+  /** CB-SEM: multiple groups by a data column, with measurement invariance (constructs by id in `free`). */
+  multigroup?: MultigroupSpec;
 }
 
 /** Drop fixed loadings and loading labels of indicators that left their construct. */
@@ -249,6 +251,12 @@ export function toSpec(model: ModelState): ModelSpec {
     })),
     paths: model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })),
     ...constraintSpec(model),
+    ...(model.multigroup ? {
+      multigroup: {
+        ...model.multigroup,
+        free: model.multigroup.free.map((f) => (f.kind === 'loading' ? { ...f, construct: name.get(f.construct) ?? f.construct } : f)),
+      },
+    } : {}),
     moderations: (model.moderations ?? []).flatMap((mo) => {
       const p = model.paths.find((q) => q.id === mo.path);
       return p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, to: name.get(p.to)! }] : [];
@@ -459,6 +467,33 @@ export function validateModel(
     if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
   }
 
+  const mg = model.multigroup;
+  if (mg) {
+    if (method.method !== 'cbsem') warn(`Multiple groups (${mg.column}) are analysed in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} pools the groups.`);
+    else {
+      if (engine === 'builtin') err('Multiple-group analysis is estimated by lavaan: choose “R packages” under Calculated by.');
+      if (method.estimator === '2SLS') err('Multiple-group analysis is not available with MIIV-2SLS.');
+      if (data?.moments) err('Multiple-group analysis needs raw data with a grouping column.');
+      else if (data) {
+        const col = data.cols[data.names.indexOf(mg.column)];
+        if (!col) err(`The grouping column “${mg.column}” is not in the dataset.`);
+        else {
+          if (assignedSet.has(mg.column)) err(`“${mg.column}” is an indicator and cannot also define the groups.`);
+          const counts = new Map<number, number>();
+          for (const v of col) if (!Number.isNaN(v)) counts.set(v, (counts.get(v) ?? 0) + 1);
+          if (counts.size < 2) err(`The grouping column “${mg.column}” has fewer than two groups.`);
+          else if (counts.size > 20) err(`The grouping column “${mg.column}” has ${counts.size} distinct values; choose a column with a few groups (at most 20).`);
+          else {
+            const small = [...counts].filter(([, k]) => k < 30).map(([v]) => v);
+            if (small.length) warn(`Group${small.length === 1 ? '' : 's'} ${small.join(', ')} of “${mg.column}” ${small.length === 1 ? 'has' : 'have'} fewer than 30 cases; estimates may be unstable.`);
+          }
+        }
+      }
+      const ids = new Set(model.constructs.map((c) => c.id));
+      for (const f of mg.free) if (f.kind === 'loading' && !ids.has(f.construct)) err('A loading freed across groups refers to a removed construct.');
+    }
+  }
+
   if (usesConstraints(model)) {
     if (method.method !== 'cbsem') warn(`Parameter labels, defined parameters and Wald tests are used by CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them.`);
     else {
@@ -628,6 +663,16 @@ const str = (v: unknown, max = 200): string => {
 };
 /** A fixed parameter value from a file: a finite number of sensible size. */
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1e6;
+const LEVELS: InvarianceLevel[] = ['configural', 'metric', 'scalar', 'strict'];
+function parseMultigroup(r: Record<string, unknown>, ids: Set<string>): MultigroupSpec {
+  const free = (Array.isArray(r.free) ? r.free.slice(0, 1000) : []).filter(isObj).flatMap((f: Record<string, unknown>): FreedParameter[] => {
+    if (f.kind === 'loading' && typeof f.construct === 'string' && ids.has(f.construct) && typeof f.indicator === 'string') return [{ kind: 'loading' as const, construct: f.construct, indicator: str(f.indicator) }];
+    if (f.kind === 'intercept' && typeof f.indicator === 'string') return [{ kind: 'intercept' as const, indicator: str(f.indicator) }];
+    return [];
+  });
+  return { column: str(r.column), invariance: LEVELS.find((l) => l === r.invariance) ?? 'configural', free };
+}
+
 /** A parameter label from a file (validated again before use). */
 const labelOf = (v: unknown): { label?: string } => (typeof v === 'string' && v.trim() ? { label: v.trim().slice(0, 31) } : {});
 function loadingLabelsOf(raw: unknown, indicators: unknown[]): { loadingLabels?: Record<string, string> } {
@@ -735,6 +780,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       constructs, paths, moderations, ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}),
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
+      ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
     },
     settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,

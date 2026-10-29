@@ -121,3 +121,38 @@ describe('labels, defined parameters and Wald tests', () => {
     expect(menuFor({ kind: 'path', id: 'p' }, s().model, cb)!.items.map((i) => i.label)).toContain('Label (A)…');
   });
 });
+
+describe('multiple groups and measurement invariance', () => {
+  const withGroup = { names: [...data.names, 'school'], cols: [...data.cols, Float64Array.from({ length: 200 }, (_, i) => (i % 2) + 1)] };
+  it('validates the grouping column and maps freed parameters to construct names', () => {
+    s().setMultigroup({ column: 'school', invariance: 'scalar', free: [{ kind: 'loading', construct: 'A', indicator: 'a2' }, { kind: 'intercept', indicator: 'b1' }] });
+    const errs = (d = withGroup, over = {}) => validateModel(s().model, d, { ...s().settings, ...over }).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(errs()).toEqual([]);
+    expect(errs(data).some((m) => /not in the dataset/.test(m))).toBe(true);
+    expect(errs(withGroup, { engine: 'builtin' }).some((m) => /estimated by lavaan/.test(m))).toBe(true);
+    expect(toSpec(s().model).multigroup).toEqual({ column: 'school', invariance: 'scalar', free: [{ kind: 'loading', construct: 'A', indicator: 'a2' }, { kind: 'intercept', indicator: 'b1' }] });
+    const p = parseProject(serializeProject(s().model, s().settings, null, null));
+    expect(p.model.multigroup).toEqual(s().model.multigroup);
+    s().setMultigroup({ column: 'a1', invariance: 'configural', free: [] });
+    expect(errs().some((m) => /is an indicator and cannot also define the groups/.test(m))).toBe(true);
+    s().setMultigroup(null);
+    expect(s().model.multigroup).toBeUndefined();
+  });
+
+  it('offers partial invariance on indicators when loadings or intercepts are held equal', () => {
+    const labels = () => menuFor({ kind: 'indicator', construct: 'A', name: 'a2' }, s().model, cb)!.items.map((i) => i.label);
+    s().setMultigroup({ column: 'school', invariance: 'configural', free: [] });
+    expect(labels().some((l) => /across groups/.test(l))).toBe(false);
+    s().setMultigroup({ column: 'school', invariance: 'scalar', free: [] });
+    expect(labels()).toEqual(expect.arrayContaining(['Free loading across groups (partial invariance)', 'Free intercept across groups (partial invariance)']));
+    // The marker's loading is fixed to 1 in every group: nothing to free.
+    expect(menuFor({ kind: 'indicator', construct: 'A', name: 'a1' }, s().model, cb)!.items.map((i) => i.label)).not.toContain('Free loading across groups (partial invariance)');
+  });
+
+  it('switches the group shown', () => {
+    const g = (n: number) => ({ estimates: [], n } as unknown as import('./engine/cbsem').CbResult);
+    useStore.setState({ results: { pls: null, cb: { ...g(100), groups: { labels: ['1', '2'], results: [g(100), g(80)], score: [] }, groupIndex: 0, modindices: [] }, miiv: null, boot: null, fitTest: null, key: 'k' } });
+    s().showGroup(1);
+    expect(s().results!.cb).toMatchObject({ n: 80, groupIndex: 1, groups: { labels: ['1', '2'] } });
+  });
+});

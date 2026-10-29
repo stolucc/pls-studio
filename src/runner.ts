@@ -142,6 +142,29 @@ function runProcess(key: string) {
   });
 }
 
+/** Measurement invariance across groups: the model at each level, with difference tests (lavaan). */
+export function runInvariance() {
+  const s = useStore.getState();
+  if (s.job || !s.data || !s.model.multigroup) return;
+  const errors = validateModel(s.model, s.data, s.settings).filter((i) => i.level === 'error');
+  if (errors.length) { s.toast('error', errors[0].message); return; }
+  const key = resultsKey(s);
+  const token = ++rToken;
+  const st = s.settings;
+  s.setJob({ kind: 'estimate', done: 0, total: 1, workers: 1, label: 'Measurement invariance: four models with lavaan…' });
+  const data = s.data, spec = toSpec(s.model);
+  import('./rengine/lavaan').then(({ invarianceR }) => invarianceR(data, spec, st.missing, st.estimator as CbEstimator)).then((r) => {
+    if (token !== rToken) return;
+    const t = useStore.getState();
+    t.setJob(null);
+    t.setResults({ invariance: r }, key);
+    t.toast('success', 'Measurement invariance: configural, metric, scalar and strict models compared.');
+  }).catch((e) => {
+    if (token !== rToken) return;
+    import('./rengine/bridge').then(({ rMessage }) => { useStore.getState().setJob(null); useStore.getState().toast('error', `lavaan: ${rMessage(e)}`); });
+  });
+}
+
 /** Run an estimation job for the current method: point estimates, bootstrap, or the PLS fit test. */
 export function run(kind: JobKind) {
   const s = useStore.getState();
@@ -156,6 +179,10 @@ export function run(kind: JobKind) {
   }
   const key = resultsKey(s);
   if (s.settings.method === 'process') { if (kind === 'estimate') runProcess(key); return; }
+  if (cb && kind === 'boot' && s.model.multigroup) {
+    s.toast('error', 'Bootstrapping multiple-group models is not available yet. Standard errors come from lavaan; choose MLR for robust ones.');
+    return;
+  }
   const options: PlsOptions = {
     scheme: s.settings.scheme,
     maxIter: s.settings.maxIter,

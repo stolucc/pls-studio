@@ -29,7 +29,7 @@ interface ParamDef {
 }
 
 export interface CbEstimate {
-  kind: CbParamKind | 'fixed-loading' | 'fixed' | 'threshold' | 'defined';
+  kind: CbParamKind | 'fixed-loading' | 'fixed' | 'threshold' | 'defined' | 'mean';
   /** lavaan parameter label (equal labels = equality constraint). */
   label?: string;
   /** lavaan-style labels: lhs op rhs. */
@@ -60,6 +60,11 @@ export interface CbFit {
 }
 
 export interface CbResult {
+  /** Multiple groups (lavaan): every group's results; this object is group `groupIndex`'s. */
+  groups?: { labels: string[]; results: CbResult[]; score: { param: string; groups: string[]; x2: number; df: number; p: number }[] };
+  groupIndex?: number;
+  /** Modification indices ≥ 3.84 (lavaan), largest first. */
+  modindices?: { lhs: string; op: string; rhs: string; mi: number; epc: number; sepc: number; group?: string }[];
   /** Wald tests of user hypotheses (lavaan). */
   wald?: { name: string; stat: number; df: number; p: number }[];
   estimator: CbEstimator;
@@ -938,6 +943,7 @@ export function standardized(cm: CbModel, X: Matrices) {
 
 export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreatment = 'casewise', estimator: CbEstimator = 'ML'): CbResult {
   if (estimator === 'WLSMV' || spec.ordered?.length || missing === 'fiml') throw new Error('Ordinal indicators, WLSMV and FIML are estimated by lavaan: choose the R engine.');
+  if (spec.multigroup) throw new Error('Multiple-group analysis is estimated by lavaan: choose the R engine.');
   if (spec.paths.some((p) => p.label) || spec.constructs.some((c) => c.loadingLabels && Object.keys(c.loadingLabels).length) || spec.covariances?.some((k) => k.label) || spec.defined?.length || spec.waldTests?.length) {
     throw new Error('Parameter labels, equality constraints, defined parameters and Wald tests are estimated by lavaan: choose the R engine.');
   }
@@ -1001,7 +1007,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
     else push({ kind: d.kind, lhs: name(d.i), op: '~~', rhs: name(d.i), est, se: se(a), std: est / X.Sigma[d.i][d.i], index: a });
   });
   // Order like lavaan: loadings, regressions, then variances/covariances.
-  const order = { 'fixed-loading': 0, loading: 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3, threshold: 4, defined: 5 } as const;
+  const order = { 'fixed-loading': 0, loading: 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3, threshold: 4, defined: 5, mean: 4 } as const;
   // Fixed values sort with their kind of parameter (op).
   const rank = (e: CbEstimate) => (e.kind === 'fixed' ? (e.op === '~' ? 1 : 3) : order[e.kind]);
   estimates.sort((x, y) => rank(x) - rank(y));

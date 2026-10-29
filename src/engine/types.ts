@@ -58,6 +58,11 @@ export interface CovarianceSpec {
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */
 export const interactionName = (from: string, moderator: string) => (from === moderator ? `${from}²` : `${from} × ${moderator}`);
 
+export type InvarianceLevel = 'configural' | 'metric' | 'scalar' | 'strict';
+/** Parameters freed across groups despite the invariance level (partial invariance). */
+export type FreedParameter = { kind: 'loading'; construct: string; indicator: string } | { kind: 'intercept'; indicator: string };
+export interface MultigroupSpec { column: string; invariance: InvarianceLevel; free: FreedParameter[] }
+
 export interface ModelSpec {
   constructs: ConstructSpec[];
   paths: PathSpec[];
@@ -69,6 +74,8 @@ export interface ModelSpec {
   defined?: { name: string; expr: string }[];
   /** CB-SEM (lavaan): Wald tests, each a set of hypotheses "left == right" (R syntax printed from parsed expressions). */
   waldTests?: { name: string; constraints: string[] }[];
+  /** CB-SEM (lavaan): multiple-group analysis by a grouping column, with a level of measurement invariance. */
+  multigroup?: MultigroupSpec;
 }
 
 /** Column-oriented numeric data; NaN marks a missing value. */

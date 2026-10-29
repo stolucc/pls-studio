@@ -17,7 +17,7 @@ export interface CbRequest {
 
 export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): CbRequest {
   // Only the columns the model uses travel to R.
-  const used = new Set(spec.constructs.flatMap((c) => c.indicators));
+  const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : [])]);
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'cb', estimator, missing,
@@ -76,6 +76,15 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     htmt2: (raw.htmt2 as (number | null)[][]),
     vcov: raw.vcov ? mat(raw.vcov) : null,
     moderations: raw.moderations, warnings: rStrings(raw.warnings), droppedRows: raw.droppedRows ?? 0,
+    ...(raw.groups ? {
+      groups: {
+        labels: rStrings(raw.groups.labels),
+        results: (raw.groups.results as Record<string, any>[]).map((g) => parseCbOutput(g)),
+        score: (Array.isArray(raw.groups.score) ? raw.groups.score : []).map((t: any) => ({ param: String(t.param), groups: rStrings(t.groups), x2: num(t.x2), df: num(t.df), p: num(t.p) })),
+      },
+      groupIndex: 0,
+    } : {}),
+    modindices: (Array.isArray(raw.modindices) ? raw.modindices : []).map((m: any) => ({ lhs: m.lhs, op: m.op, rhs: m.rhs, mi: num(m.mi), epc: num(m.epc), sepc: num(m.sepc), ...(m.group ? { group: String(m.group) } : {}) })),
     wald: (Array.isArray(raw.wald) ? raw.wald : raw.wald ? [raw.wald] : []).map((w: any) => ({ name: String(w.name), stat: num(w.stat), df: num(w.df), p: num(w.p) })),
     engine: raw.engine,
   };
@@ -89,4 +98,25 @@ export async function estimateCbLavaan(data: Dataset, spec: ModelSpec, missing: 
 /** The self-contained R script (data embedded) that estimateCbLavaan runs. */
 export function cbScriptLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): Promise<string> {
   return rScript('ps_cb', cbRequest(data, spec, missing, estimator), 'lavaan');
+}
+
+/** Fit and difference tests at each level of measurement invariance (lavaan). */
+export interface InvarianceResult {
+  /** Robust (scaled) statistics, as the estimator provides. */
+  robust: boolean;
+  levels: {
+    level: 'configural' | 'metric' | 'scalar' | 'strict';
+    chisq: number; df: number; cfi: number; rmsea: number; srmr: number;
+    chisqDiff?: number; dfDiff?: number; p?: number; cfiChange?: number; rmseaChange?: number;
+  }[];
+  warnings: string[];
+}
+
+export async function invarianceR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): Promise<InvarianceResult> {
+  const raw = await rCall<Record<string, any>>('ps_invariance', cbRequest(data, spec, missing, estimator), 'lavaan');
+  return { robust: !!raw.robust, levels: raw.levels, warnings: rStrings(raw.warnings) };
+}
+
+export function invarianceScriptR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): Promise<string> {
+  return rScript('ps_invariance', cbRequest(data, spec, missing, estimator), 'lavaan');
 }

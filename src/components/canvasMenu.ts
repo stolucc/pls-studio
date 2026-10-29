@@ -17,11 +17,23 @@ export type MenuTarget =
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
-  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label';
+  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
 export interface MenuContext { method: Method; readOnly: boolean }
+
+/** Partial invariance: free (or hold equal again) an indicator's loading or intercept across groups. */
+function groupItems(model: ModelState, edit: boolean, construct: string, indicator: string, isMarker: boolean): (MenuItem | false)[] {
+  const mg = model.multigroup;
+  if (!edit || !mg || mg.invariance === 'configural') return [];
+  const loadingFree = mg.free.some((f) => f.kind === 'loading' && f.construct === construct && f.indicator === indicator);
+  const interceptFree = mg.free.some((f) => f.kind === 'intercept' && f.indicator === indicator);
+  return [
+    !isMarker && { action: 'toggle-free-loading', label: loadingFree ? 'Hold loading equal across groups' : 'Free loading across groups (partial invariance)' },
+    (mg.invariance === 'scalar' || mg.invariance === 'strict') && { action: 'toggle-free-intercept', label: interceptFree ? 'Hold intercept equal across groups' : 'Free intercept across groups (partial invariance)' },
+  ];
+}
 
 /** The heading and items of the menu for `target`; null when there is nothing to offer. */
 export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext): { title: string; items: MenuItem[] } | null {
@@ -62,6 +74,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && cb && held !== undefined && { action: 'free-value', label: isMarker ? 'Back to the marker’s 1' : 'Free loading (estimate it)' },
         edit && cb && held === undefined && !isMarker && { action: 'set-label', label: owner2?.loadingLabels?.[target.name] ? `Label (${owner2.loadingLabels[target.name]})…` : 'Label (for equality constraints)…' },
         edit && cb && { action: 'correlate', label: 'Correlate error (ε) with…' },
+        ...groupItems(model, edit && cb, target.construct, target.name, isMarker),
         edit && cb && !owner2?.covariate && { action: 'toggle-ordinal', label: model.ordered?.includes(target.name) ? 'Treat as continuous' : 'Treat as ordinal (categorical)' },
         edit && { action: 'remove-indicator', label: `Remove from ${owner}`, danger: true },
       ]);

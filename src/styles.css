@@ -594,3 +594,5 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .wald-row .def-row { grid-template-columns: 1fr auto; }
 .wald-row textarea { width: 100%; margin-bottom: 8px; resize: vertical; }
 .input.mono { font-family: var(--mono); }
+.group-switch { width: auto; }
+.group-switch button { padding: 0 10px; white-space: nowrap; }
