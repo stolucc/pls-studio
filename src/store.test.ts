@@ -150,6 +150,8 @@ describe('GSCA', () => {
     expect(errs({ engine: 'r', plsPackage: 'cSEM' })).toEqual([]);
     expect(errs({ engine: 'r', plsPackage: 'seminr' }).some((x) => /GSCA is estimated with cSEM/.test(x))).toBe(true);
     expect(errs({ engine: 'builtin' }).some((x) => /GSCA is estimated with cSEM/.test(x))).toBe(true);
+    expect(errs({ engine: 'builtin', plsApproach: 'unit' }).some((x) => /Sum scores are estimated with cSEM/.test(x))).toBe(true);
+    expect(errs({ engine: 'r', plsPackage: 'cSEM', plsApproach: 'PCA' })).toEqual([]);
   });
 });
 

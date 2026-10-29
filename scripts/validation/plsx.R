@@ -34,3 +34,10 @@ out2 <- list(gsca = list(SAT_VAL = gsca$Estimates$Path_estimates["SAT", "VAL"], 
   redundancy = as.list(doRedundancyAnalysis(fit)))
 write(toJSON(out2, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference2.json")
 cat("written 2\n")
+
+# ---- PCA and unit (sum score) weights ----
+out3 <- lapply(c("PCA", "unit"), function(a) { f <- csem(satisfaction, m, .approach_weights = a, .PLS_weight_scheme_inner = "path", .disattenuate = FALSE, .tolerance = 1e-7, .iter_max = 300)
+  list(SAT_VAL = f$Estimates$Path_estimates["SAT", "VAL"], LOY_SAT = f$Estimates$Path_estimates["LOY", "SAT"]) })
+names(out3) <- c("PCA", "unit")
+write(toJSON(out3, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference3.json")
+cat("written 3\n")

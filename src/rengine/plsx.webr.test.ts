@@ -21,6 +21,7 @@ afterAll(stopTestRuntime);
 
 const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference.json'), 'utf8'));
 const ref2 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference2.json'), 'utf8'));
+const ref3 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference3.json'), 'utf8'));
 const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
 const comp = (name: string, ind: string[]) => ({ name, type: 'composite' as const, mode: 'B' as const, indicators: ind });
 const fac = (name: string, ind: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: ind });
@@ -86,12 +87,17 @@ describe('PLS assessment (cSEM)', () => {
     expect(hen.paths.every((p) => p.p >= 0 && p.p <= 1)).toBe(true);
   }, 1_800_000);
 
-  it('GSCA, redundancy analysis and nonlinear PLSc equal native cSEM', async () => {
+  it('GSCA, PCA, sum scores, redundancy analysis and nonlinear PLSc equal native cSEM', async () => {
     const d = await load('satisfaction');
     const path = (r: Awaited<ReturnType<typeof estimatePlsR>>, a: string, b: string) => r.pathCoef[r.constructs.indexOf(a)][r.constructs.indexOf(b)];
     const g = await estimatePlsR(d, spec, { ...options, approach: 'GSCA' }, 'cSEM');
     expect(path(g, 'VAL', 'SAT')).toBeCloseTo(ref2.gsca.SAT_VAL, 6);
     expect(path(g, 'SAT', 'LOY')).toBeCloseTo(ref2.gsca.LOY_SAT, 6);
+    for (const a of ['PCA', 'unit'] as const) {
+      const w = await estimatePlsR(d, spec, { ...options, approach: a }, 'cSEM');
+      expect(path(w, 'VAL', 'SAT'), a).toBeCloseTo(ref3[a].SAT_VAL, 6);
+      expect(path(w, 'SAT', 'LOY'), a).toBeCloseTo(ref3[a].LOY_SAT, 6);
+    }
     const pm = await estimatePlsR(d, spec, options, 'cSEM');
     for (const [k, v] of Object.entries(ref2.redundancy as Record<string, number>)) expect(pm.redundancy![k], k).toBeCloseTo(v, 6);
     const sw = await load('Switching');

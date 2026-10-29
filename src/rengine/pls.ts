@@ -12,7 +12,7 @@ export interface PlsRequest {
   kind: 'pls';
   package: PlsPackage;
   missing: MissingTreatment;
-  options: { scheme: PlsOptions['scheme']; consistent: boolean; tolerance: number; maxIter: number; approach: 'PLS-PM' | 'GSCA' };
+  options: { scheme: PlsOptions['scheme']; consistent: boolean; tolerance: number; maxIter: number; approach: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit' };
   data: { names: string[]; cols: (number | null)[][] };
   model: ModelSpec;
 }

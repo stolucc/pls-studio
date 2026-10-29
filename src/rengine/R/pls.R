@@ -21,9 +21,10 @@ ps_pls_build <- function(req) {
   inputs <- list(data = ps_frame(req, n))
   body <- character(0)
 
-  gsca <- identical(o$approach, "GSCA")
-  if (!is.null(o$approach) && !o$approach %in% c("PLS-PM", "GSCA")) stop("Invalid weighting approach in the request.")
-  if (gsca && pkg != "cSEM") stop("GSCA is estimated with cSEM; choose cSEM.")
+  approach <- o$approach %||% "PLS-PM"
+  if (!approach %in% c("PLS-PM", "GSCA", "PCA", "unit")) stop("Invalid weighting approach in the request.")
+  gsca <- approach != "PLS-PM"  # (any approach other than PLS path modeling: cSEM's .approach_weights)
+  if (gsca && pkg != "cSEM") stop("This weighting approach is estimated with cSEM; choose cSEM.")
   if (pkg == "cSEM") {
     sep <- "."
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], ".", n$cv[[m$moderator]]), "")
@@ -37,9 +38,11 @@ ps_pls_build <- function(req) {
     body <- c("suppressPackageStartupMessages(library(cSEM))", ps_missing_code(req$missing),
       if (length(mods)) "# Interaction terms (X.M): products of the construct scores (cSEM's nonlinear PLS)",
       "model <- '", paste0("  ", lines), "'",
-      if (gsca) "# Generalized structured component analysis (GSCA; Hwang & Takane 2004) instead of PLS path modeling.",
+      if (gsca) c(GSCA = "# Generalized structured component analysis (GSCA; Hwang & Takane 2004) instead of PLS path modeling.",
+        PCA = "# Weights: the first principal component of each block (PCA) instead of PLS path modeling.",
+        unit = "# Unit weights: each construct is the (standardised) sum of its indicators (sum scores) instead of PLS path modeling.")[[approach]],
       sprintf("fit <- csem(data, model, %s.PLS_weight_scheme_inner = \"%s\", .disattenuate = %s, .tolerance = %s, .iter_max = %d)",
-        if (gsca) ".approach_weights = \"GSCA\", " else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(o$tolerance, scientific = TRUE), as.integer(o$maxIter)))
+        if (gsca) sprintf(".approach_weights = \"%s\", ", approach) else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(o$tolerance, scientific = TRUE), as.integer(o$maxIter)))
   } else if (pkg == "seminr") {
     if (o$scheme == "centroid") stop("seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.")
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], "*", n$cv[[m$moderator]]), "")

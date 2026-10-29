@@ -565,9 +565,11 @@ function ModelInspector() {
         )}
         {settings.engine === 'r' && pls && settings.plsPackage === 'cSEM' && (
           <div className="segmented" role="radiogroup" aria-label="Weighting approach" style={{ marginTop: 8 }}>
-            {([['PLS-PM', 'PLS path modeling'], ['GSCA', 'GSCA']] as const).map(([id, l]) => (
-              <button key={id} role="radio" aria-checked={settings.plsApproach === id} className={settings.plsApproach === id ? 'on' : ''} onClick={() => setSettings({ plsApproach: id })}
-                title={id === 'GSCA' ? 'Generalized structured component analysis (Hwang & Takane 2004): weights from one global least-squares criterion; with PLSc on, GSCAm for common factors' : 'Partial least squares path modeling'}>{l}</button>
+            {([['PLS-PM', 'PLS-PM', 'Partial least squares path modeling'],
+              ['GSCA', 'GSCA', 'Generalized structured component analysis (Hwang & Takane 2004): weights from one global least-squares criterion; with PLSc on, GSCAm for common factors'],
+              ['PCA', 'PCA', 'Principal component analysis: each construct is the first principal component of its indicators'],
+              ['unit', 'Sum scores', 'Sum-score regression: each construct is the (standardised) sum of its indicators, then regressions among them']] as const).map(([id, l, tip]) => (
+              <button key={id} role="radio" aria-checked={settings.plsApproach === id} className={settings.plsApproach === id ? 'on' : ''} onClick={() => setSettings({ plsApproach: id })} title={tip}>{l}</button>
             ))}
           </div>
         )}

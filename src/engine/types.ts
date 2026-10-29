@@ -109,7 +109,7 @@ export interface PlsOptions {
   /** Consistent PLS (PLSc): correct common factors for attenuation. */
   consistent: boolean;
   /** Weighting approach (cSEM): PLS path modeling, or generalized structured component analysis (GSCA; Hwang & Takane 2004). */
-  approach?: 'PLS-PM' | 'GSCA';
+  approach?: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
 }
 
 export const DEFAULT_OPTIONS: PlsOptions = {

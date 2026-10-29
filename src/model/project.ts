@@ -59,7 +59,7 @@ export interface Settings {
   /** R package for PLS-SEM when engine is 'r'. */
   plsPackage: 'cSEM' | 'seminr';
   /** Weighting approach with cSEM: PLS path modeling or GSCA. */
-  plsApproach: 'PLS-PM' | 'GSCA';
+  plsApproach: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
   /** Look of the diagram and exported figures. */
   figure: FigureStyle;
   /** Text style and axis titles of the result charts. */
@@ -490,8 +490,8 @@ export function validateModel(
     if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
   }
 
-  if (method.method === 'pls' && method.plsApproach === 'GSCA' && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'cSEM')) {
-    err('GSCA is estimated with cSEM: choose R packages → cSEM, or PLS path modeling.');
+  if (method.method === 'pls' && method.plsApproach && method.plsApproach !== 'PLS-PM' && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'cSEM')) {
+    err(`${method.plsApproach === 'unit' ? 'Sum scores' : method.plsApproach} ${method.plsApproach === 'unit' ? 'are' : 'is'} estimated with cSEM: choose R packages → cSEM, or PLS path modeling.`);
   }
 
   // Text columns coded 1, 2, ... (alphabetical): fine for groups and clusters, rarely as indicators.
@@ -873,7 +873,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV', '2SLS'] as const).find((e) => e === s.estimator) ?? 'ML',
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
-    plsApproach: s.plsApproach === 'GSCA' ? 'GSCA' : 'PLS-PM',
+    plsApproach: (['GSCA', 'PCA', 'unit'] as const).find((x) => x === s.plsApproach) ?? 'PLS-PM',
     figure: parseFigureStyle(s.figure),
     charts: parseChartStyle(s.charts),
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
