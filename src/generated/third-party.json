@@ -370,6 +370,12 @@
    "url": "https://cran.r-project.org/package=doBy"
   },
   {
+   "name": "doParallel",
+   "version": "1.0.17",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=doParallel"
+  },
+  {
    "name": "dplyr",
    "version": "1.2.1",
    "license": "MIT + file LICENSE",
@@ -410,6 +416,12 @@
    "version": "0.5.3",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=fontawesome"
+  },
+  {
+   "name": "foreach",
+   "version": "1.5.2",
+   "license": "Apache License (== 2.0)",
+   "url": "https://cran.r-project.org/package=foreach"
   },
   {
    "name": "forecast",
@@ -538,6 +550,12 @@
    "url": "https://cran.r-project.org/package=isoband"
   },
   {
+   "name": "iterators",
+   "version": "1.0.14",
+   "license": "Apache License (== 2.0)",
+   "url": "https://cran.r-project.org/package=iterators"
+  },
+  {
    "name": "jquerylib",
    "version": "0.1.4",
    "license": "MIT + file LICENSE",
@@ -586,6 +604,12 @@
    "url": "https://cran.r-project.org/package=lazyeval"
   },
   {
+   "name": "lcmm",
+   "version": "2.2.2",
+   "license": "GPL (>= 2.0)",
+   "url": "https://cran.r-project.org/package=lcmm"
+  },
+  {
    "name": "lifecycle",
    "version": "1.0.5",
    "license": "MIT + file LICENSE",
@@ -602,6 +626,12 @@
    "version": "2.0-6",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=lme4"
+  },
+  {
+   "name": "lmerTest",
+   "version": "3.2-1",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=lmerTest"
   },
   {
    "name": "lmhelprs",
@@ -632,6 +662,12 @@
    "version": "0.3.7",
    "license": "GPL (>= 3)",
    "url": "https://cran.r-project.org/package=manymome"
+  },
+  {
+   "name": "marqLevAlg",
+   "version": "2.0.8",
+   "license": "GPL (>= 2.0)",
+   "url": "https://cran.r-project.org/package=marqLevAlg"
   },
   {
    "name": "MASS",
@@ -1227,7 +1263,7 @@
    "name": "Examples from R packages",
    "where": "loaded at run time from the packages in the browser (not stored here)",
    "license": "per package",
-   "credit": "lavaan, MIIVsem, cSEM and seminr datasets; each example links to its documentation.",
+   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, ltm, poLCA, lme4 and lcmm datasets; each example links to its documentation.",
    "url": ""
   }
  ]

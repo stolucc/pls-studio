@@ -1,3 +1,4 @@
+import { MultilevelPanel } from './components/MultilevelPanel';
 import { DataViewer } from './components/DataViewer';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
@@ -103,6 +104,7 @@ export default function App() {
       <LongitudinalPanel />
       <ItemsPanel />
       <DataViewer />
+      <MultilevelPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

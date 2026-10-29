@@ -9,9 +9,10 @@ import type { Correlation, ModelState, Settings } from '../model/project';
 import { newId } from '../model/project';
 import type { GrowthInput } from '../rengine/longitudinal';
 import type { IrtModel } from '../rengine/items';
+import type { GmmInput, LmmInput } from '../rengine/mixed';
 
-export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'ltm', 'poLCA'];
+export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'ltm', 'poLCA', 'lme4', 'lcmm'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -25,7 +26,9 @@ interface ExConstruct {
 export type ExamplePanel =
   | { kind: 'growth'; measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[] }
   | { kind: 'irt'; items: string[]; model: IrtModel }
-  | { kind: 'lca'; items: string[]; from: number; to: number };
+  | { kind: 'lca'; items: string[]; from: number; to: number }
+  | ({ kind: 'lmm' } & LmmInput)
+  | ({ kind: 'gmm' } & GmmInput);
 
 export interface PackageExample {
   id: string;
@@ -186,6 +189,20 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     panel: { kind: 'lca', items: ['A', 'B', 'C', 'D'], from: 1, to: 3 }, settings: CB('ML'),
   },
   {
+    id: 'lme4-sleepstudy', package: 'lme4', title: 'Sleep deprivation: random slopes', source: 'lme4, ?lmer (sleepstudy)',
+    links: [{ label: '?lmer', url: 'https://rdrr.io/cran/lme4/man/lmer.html' }, { label: '?sleepstudy', url: 'https://rdrr.io/cran/lme4/man/sleepstudy.html' }, { label: 'lmerTest', url: 'https://rdrr.io/cran/lmerTest/man/lmer.html' }],
+    description: 'Reaction times of 18 people over ten days of sleep deprivation (Belenky et al. 2003): each person has their own baseline and their own slowing per day, Reaction ~ Days + (Days | Subject). Opens Multilevel regression.',
+    data: { package: 'lme4', name: 'sleepstudy' }, constructs: [], paths: [],
+    panel: { kind: 'lmm', outcome: 'Reaction', predictors: ['Days'], cluster: 'Subject', slopes: ['Days'], center: 'none', estimation: 'REML' }, settings: CB('ML'),
+  },
+  {
+    id: 'lcmm-hlme', package: 'lcmm', title: 'Growth mixture: latent trajectory classes', source: 'lcmm, ?hlme (data_hlme)',
+    links: [{ label: '?hlme', url: 'https://rdrr.io/cran/lcmm/man/hlme.html' }, { label: '?gridsearch', url: 'https://rdrr.io/cran/lcmm/man/gridsearch.html' }, { label: '?data_hlme', url: 'https://rdrr.io/cran/lcmm/man/data_hlme.html' }],
+    description: 'Simulated repeated measures of 100 people (long format): one to three classes of linear change with random intercepts and slopes, X1 as a covariate. The help page also lets X1 change the slope and predicts class membership from X2 and X3. Opens Longitudinal models.',
+    data: { package: 'lcmm', name: 'data_hlme' }, constructs: [], paths: [],
+    panel: { kind: 'gmm', format: 'long', subject: 'ID', time: 'Time', outcome: 'Y', covariates: ['X1'], shape: 'linear', random: 'slope', classes: [1, 2, 3], nrep: 30, seed: 1 }, settings: CB('ML'),
+  },
+  {
     id: 'csem-threecf', package: 'cSEM', title: 'Three common factors (PLSc)', source: 'cSEM, ?threecommonfactors',
     links: [{ label: '?threecommonfactors', url: 'https://rdrr.io/cran/cSEM/man/threecommonfactors.html' }],
     description: 'Simulated data from a known three-factor model (N = 500). Consistent PLS recovers the population values; the help page runs the bootstrap test of overall fit (testOMF).',
@@ -278,6 +295,16 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     moderations: [['PQ', 'PIC', 'PI']], settings: PLS('seminr', false),
   },
 ];
+
+/** The data columns a panel example uses. */
+export function panelColumns(p: ExamplePanel): string[] {
+  switch (p.kind) {
+    case 'growth': return [...p.measures, ...p.covariates];
+    case 'irt': case 'lca': return p.items;
+    case 'lmm': return [p.outcome, ...p.predictors, p.cluster];
+    case 'gmm': return [...(p.format === 'wide' ? p.measures : [p.subject, p.time, p.outcome]), ...p.covariates];
+  }
+}
 
 /** The example as an editable model (positions are set by the automatic layout). */
 export function exampleModel(ex: PackageExample): ModelState {

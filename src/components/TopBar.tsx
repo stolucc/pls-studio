@@ -1,4 +1,5 @@
 import { autosave } from '../io';
+import { AnalysesMenu } from './AnalysesMenu';
 import { FileMenu } from './FileMenu';
 import { run } from '../runner';
 import { useStore } from '../store';
@@ -7,10 +8,7 @@ import { switchMethod } from '../methodSwitch';
 import { AccountMenu } from './cloud/AccountMenu';
 import { PresenceBar } from './cloud/Presence';
 import { ShareDialog } from './cloud/ShareDialog';
-import { useSim } from '../simStore';
-import { IconEye, IconLayout, IconShare, IconLogo, IconSparkle, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
-import { useLong } from './LongitudinalPanel';
-import { useItems } from './ItemsPanel';
+import { IconEye, IconShare, IconLogo, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
 
 const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
@@ -69,20 +67,9 @@ export function TopBar() {
         <IconEye />
       </button>
       <div className="sep" />
+      <AnalysesMenu />
       {method !== 'process' && (
         <>
-
-          <button className="btn ghost" aria-label="Items" onClick={() => useItems.getState().setOpen(true)} title="Item response theory (ltm) and latent class analysis (poLCA)">
-            <IconLayout size={15} /><span className="lbl">Items</span>
-          </button>
-          {method === 'cbsem' && (
-            <button className="btn ghost" aria-label="Longitudinal" onClick={() => useLong.getState().setOpen(true)} title="Latent growth curves and RI-CLPM (lavaan)">
-              <IconRepeat size={15} /><span className="lbl">Longitudinal</span>
-            </button>
-          )}
-          <button className="btn ghost" aria-label="Simulate" onClick={() => useSim.getState().setOpen(true)} disabled={!hasModel} title="Monte Carlo simulation: power, sample size, estimator comparison">
-            <IconSparkle size={15} /><span className="lbl">Simulate</span>
-          </button>
           <button className="btn" onClick={() => run('boot')} disabled={!!job || !hasModel} title="Bootstrap standard errors, p-values and confidence intervals">
             <IconRepeat /> Bootstrap
           </button>

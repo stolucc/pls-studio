@@ -303,6 +303,14 @@ export async function loadPackageExample(id: string) {
       if (p.kind === 'growth') {
         const { useLong } = await import('./components/LongitudinalPanel');
         useLong.setState({ open: true, growth: null, preset: { growth: { measures: p.measures, times: p.times, shape: p.shape, covariates: p.covariates } } });
+      } else if (p.kind === 'gmm') {
+        const { useLong } = await import('./components/LongitudinalPanel');
+        const { kind: _k, ...gmm } = p;
+        useLong.setState({ open: true, gmm: null, preset: { gmm } });
+      } else if (p.kind === 'lmm') {
+        const { useMultilevel } = await import('./components/MultilevelPanel');
+        const { kind: _k, ...lmm } = p;
+        useMultilevel.setState({ open: true, lmm: null, preset: lmm });
       } else {
         const { useItems } = await import('./components/ItemsPanel');
         useItems.setState({ open: true, irt: null, lca: null, preset: { ...p } });

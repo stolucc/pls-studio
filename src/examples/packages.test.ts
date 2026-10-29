@@ -3,7 +3,7 @@ import { factorCodes } from '../io';
 import { DEFAULT_SETTINGS, validateModel } from '../model/project';
 import { processGraph } from '../process/fromModel';
 import { R_PACKAGES } from '../rengine/bridge';
-import { EXAMPLE_PACKAGES, exampleModel, PACKAGE_EXAMPLES } from './packages';
+import { EXAMPLE_PACKAGES, exampleModel, PACKAGE_EXAMPLES, panelColumns } from './packages';
 
 const diagrams = PACKAGE_EXAMPLES.filter((e) => !e.panel);
 
@@ -42,8 +42,7 @@ it('ESEM blocks refer to the example’s constructs by id', () => {
 it('panel examples carry no diagram and name their columns', () => {
   for (const e of PACKAGE_EXAMPLES.filter((x) => x.panel)) {
     expect(e.constructs, e.id).toEqual([]);
-    const cols = e.panel!.kind === 'growth' ? e.panel!.measures : e.panel!.items;
-    expect(cols.length, e.id).toBeGreaterThanOrEqual(2);
+    expect(panelColumns(e.panel!).length, e.id).toBeGreaterThanOrEqual(2);
   }
 });
 

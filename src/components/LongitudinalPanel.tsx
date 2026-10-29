@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { downloadText, fmt, safeFileName } from '../format';
 import type { GrowthInput, GrowthResult, LongEstimate, RiclpmInput, RiclpmResult } from '../rengine/longitudinal';
+import type { GmmInput, GmmResult } from '../rengine/mixed';
+import { GrowthMixture } from './GrowthMixture';
 import { useStore } from '../store';
 import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
@@ -11,11 +13,12 @@ interface LongState {
   open: boolean;
   growth: { input: GrowthInput; result: GrowthResult } | null;
   riclpm: { input: RiclpmInput; result: RiclpmResult } | null;
+  gmm: { input: GmmInput; result: GmmResult } | null;
   /** Inputs filled in by an example (applied when it changes). */
-  preset: { growth: Pick<GrowthInput, 'measures' | 'times' | 'shape' | 'covariates'> } | null;
+  preset: { growth?: Pick<GrowthInput, 'measures' | 'times' | 'shape' | 'covariates'>; gmm?: GmmInput } | null;
   setOpen: (v: boolean) => void;
 }
-export const useLong = create<LongState>((set) => ({ open: false, growth: null, riclpm: null, preset: null, setOpen: (open) => set({ open }) }));
+export const useLong = create<LongState>((set) => ({ open: false, growth: null, riclpm: null, gmm: null, preset: null, setOpen: (open) => set({ open }) }));
 
 /** Columns in the order clicked: the measurement occasions. */
 export function OrderedPicker({ label, columns, value, onChange }: { label: string; columns: string[]; value: string[]; onChange: (v: string[]) => void }) {
@@ -125,7 +128,7 @@ export function LongitudinalPanel() {
   const data = useStore((s) => s.data);
   const settings = useStore((s) => s.settings);
   const project = useStore((s) => s.projectName);
-  const [kind, setKind] = useState<'growth' | 'riclpm'>('growth');
+  const [kind, setKind] = useState<'growth' | 'riclpm' | 'gmm'>('growth');
   const [measures, setMeasures] = useState<string[]>(growth?.input.measures ?? []);
   const [times, setTimes] = useState<string>((growth?.input.times ?? []).join(', '));
   const [shape, setShape] = useState<GrowthInput['shape']>(growth?.input.shape ?? 'linear');
@@ -137,7 +140,9 @@ export function LongitudinalPanel() {
   const preset = useLong((s) => s.preset);
   useEffect(() => {
     if (!preset) return;
+    if (preset.gmm) { setKind('gmm'); return; }
     const g = preset.growth;
+    if (!g) return;
     setKind('growth'); setMeasures(g.measures); setTimes(g.times.join(', ')); setShape(g.shape); setCovariates(g.covariates);
   }, [preset]);
   useEffect(() => {
@@ -178,20 +183,26 @@ export function LongitudinalPanel() {
     } catch (e) { await fail(e); }
   };
   const ready = kind === 'growth' ? measures.length >= 3 && timeScores.length === measures.length && timeScores.every(Number.isFinite) : xs.length >= 3 && xs.length === ys.length;
+  const tabs = (
+    <div className="segmented" style={{ marginBottom: 12 }}>
+      <button className={kind === 'growth' ? 'on' : ''} onClick={() => setKind('growth')}>Latent growth curve</button>
+      <button className={kind === 'riclpm' ? 'on' : ''} onClick={() => setKind('riclpm')}>RI-CLPM</button>
+      <button className={kind === 'gmm' ? 'on' : ''} onClick={() => setKind('gmm')}>Growth mixture</button>
+    </div>
+  );
   return (
     <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="Longitudinal models">
       <div className="sim">
         <header className="sim-head">
-          <div><b>Longitudinal models</b><span className="muted">lavaan · {estimator}{missing === 'fiml' ? ', FIML' : ''} (from the Model settings)</span></div>
+          <div><b>Longitudinal models</b><span className="muted">{kind === 'gmm' ? 'lcmm · latent class linear mixed models' : `lavaan · ${estimator}${missing === 'fiml' ? ', FIML' : ''} (from the Model settings)`}</span></div>
           <button className="btn icon ghost" onClick={() => useLong.getState().setOpen(false)} aria-label="Close"><IconX /></button>
         </header>
-        {!columns.length ? <div className="empty-results">Import raw data with repeated measures first.</div> : (
+        {!columns.length ? <div className="empty-results">Import raw data with repeated measures first.</div> : kind === 'gmm' ? (
+          <div className="sim-body long-body"><GrowthMixture columns={columns} tabs={tabs} /></div>
+        ) : (
           <div className="sim-body long-body">
             <section className="sim-col">
-              <div className="segmented" style={{ marginBottom: 12 }}>
-                <button className={kind === 'growth' ? 'on' : ''} onClick={() => setKind('growth')}>Latent growth curve</button>
-                <button className={kind === 'riclpm' ? 'on' : ''} onClick={() => setKind('riclpm')}>RI-CLPM</button>
-              </div>
+              {tabs}
               {kind === 'growth' ? (
                 <>
                   <OrderedPicker label="Repeated measures (in time order)" columns={columns.filter((n) => !covariates.includes(n))} value={measures} onChange={setMeasures} />

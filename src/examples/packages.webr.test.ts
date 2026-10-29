@@ -13,9 +13,10 @@ import { estimateCpaR } from '../rengine/cpa';
 import { irtR, lcaR } from '../rengine/items';
 import { estimateCbLavaan } from '../rengine/lavaan';
 import { growthR } from '../rengine/longitudinal';
+import { gmmR, lmmR } from '../rengine/mixed';
 import { estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
-import { exampleModel, PACKAGE_EXAMPLES, type PackageExample } from './packages';
+import { exampleModel, PACKAGE_EXAMPLES, panelColumns, type PackageExample } from './packages';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -34,16 +35,25 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     const st = { ...DEFAULT_SETTINGS, ...ex.settings };
     if (ex.panel) {
       const p = ex.panel;
-      const cols = p.kind === 'growth' ? [...p.measures, ...p.covariates] : p.items;
-      for (const c of cols) expect(data.names, `${ex.id}: ${c}`).toContain(c);
-      if (p.kind === 'growth') {
+      for (const c of panelColumns(p)) expect(data.names, `${ex.id}: ${c}`).toContain(c);
+      if (p.kind === 'lmm') {
+        const { kind: _k, ...input } = p;
+        const r = await lmmR(data, input);
+        expect(r.fixed.find((f) => f.term === 'Days')!.est).toBeCloseTo(10.4673, 3);  // ?lmer: fixef(fm1)
+        expect(r.clusters).toBe(18);
+      } else if (p.kind === 'gmm') {
+        const { kind: _k, ...input } = p;
+        const r = await gmmR(data, input);
+        expect(r.models.map((m) => m.k)).toEqual(input.classes);
+        expect(r.n).toBe(100);
+      } else if (p.kind === 'growth') {
         const r = await growthR(data, { ...p, estimator: 'ML', missing: st.missing });
         expect(r.fit.df).toBe(5);  // ?growth: linear growth on four occasions
       } else if (p.kind === 'irt') {
         const r = await irtR(data, p.items, p.model);
         expect(r.params.length).toBe(p.items.length);
         if (ex.id === 'ltm-lsat') expect(r.logLik).toBeCloseTo(-2466.9376, 3);  // rasch(LSAT) in native R (ltm 1.2-0)
-      } else {
+      } else if (p.kind === 'lca') {
         const r = await lcaR(data, p.items, Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i), 10, 1);
         expect(r.models.map((m) => m.k)).toEqual(Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i));
       }

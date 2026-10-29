@@ -496,6 +496,22 @@
         "File": "doBy_4.7.2.tgz"
       }
     },
+    "doParallel": {
+      "version": "1.0.17",
+      "md5": "b953dabf75b8c0300f4fe6de94bde554",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "doParallel",
+        "Version": "1.0.17",
+        "Depends": "R (>= 2.14.0), foreach (>= 1.2.0), iterators (>= 1.0.0), parallel, utils",
+        "Suggests": "caret, mlbench, rpart, RUnit",
+        "Enhances": "compiler",
+        "License": "GPL-2",
+        "MD5sum": "b953dabf75b8c0300f4fe6de94bde554",
+        "Built": "R 4.6.0; ; 2026-05-12 23:56:19 UTC; unix",
+        "File": "doParallel_1.0.17.tgz"
+      }
+    },
     "dplyr": {
       "version": "1.2.1",
       "md5": "743bd7ab74a190fe3a5c63b8b054fade",
@@ -600,6 +616,22 @@
         "MD5sum": "a493310db58199378ddc337d19a9dabd",
         "Built": "R 4.6.0; ; 2026-05-13 03:44:39 UTC; unix",
         "File": "fontawesome_0.5.3.tgz"
+      }
+    },
+    "foreach": {
+      "version": "1.5.2",
+      "md5": "52d67d82353b2a669f077afea57646e8",
+      "license": "Apache License (== 2.0)",
+      "stanza": {
+        "Package": "foreach",
+        "Version": "1.5.2",
+        "Depends": "R (>= 2.5.0)",
+        "Imports": "codetools, utils, iterators",
+        "Suggests": "randomForest, doMC, doParallel, testthat, knitr, rmarkdown",
+        "License": "Apache License (== 2.0)",
+        "MD5sum": "52d67d82353b2a669f077afea57646e8",
+        "Built": "R 4.6.0; ; 2026-05-13 03:46:19 UTC; unix",
+        "File": "foreach_1.5.2.tgz"
       }
     },
     "forecast": {
@@ -938,6 +970,21 @@
         "File": "isoband_0.3.0.tgz"
       }
     },
+    "iterators": {
+      "version": "1.0.14",
+      "md5": "f6d521ac4d73ca702be7cc0518d6290f",
+      "license": "Apache License (== 2.0)",
+      "stanza": {
+        "Package": "iterators",
+        "Version": "1.0.14",
+        "Depends": "R (>= 2.5.0), utils",
+        "Suggests": "RUnit, foreach",
+        "License": "Apache License (== 2.0)",
+        "MD5sum": "f6d521ac4d73ca702be7cc0518d6290f",
+        "Built": "R 4.6.0; ; 2026-05-13 09:24:17 UTC; unix",
+        "File": "iterators_1.0.14.tgz"
+      }
+    },
     "jquerylib": {
       "version": "0.1.4",
       "md5": "62e6d390bc44e7a5eb0ec6bdcef02c29",
@@ -1063,6 +1110,22 @@
         "File": "lazyeval_0.2.3.tgz"
       }
     },
+    "lcmm": {
+      "version": "2.2.2",
+      "md5": "21dddce233aab1daf16bd85f111586fe",
+      "license": "GPL (>= 2.0)",
+      "stanza": {
+        "Package": "lcmm",
+        "Version": "2.2.2",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "nlme, survival (>= 2.37-2), parallel, mvtnorm, spacefillr, marqLevAlg (> 2.0), doParallel, numDeriv",
+        "Suggests": "knitr,rmarkdown,lattice,NormPsy",
+        "License": "GPL (>= 2.0)",
+        "MD5sum": "21dddce233aab1daf16bd85f111586fe",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 10:34:47 UTC; unix",
+        "File": "lcmm_2.2.2.tgz"
+      }
+    },
     "lifecycle": {
       "version": "1.0.5",
       "md5": "56e8354c9d8473374c6139f2ed97be80",
@@ -1109,6 +1172,22 @@
         "MD5sum": "afc1ea9855ba8a887a57e9d244efebb9",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 08:17:10 UTC; unix",
         "File": "lme4_2.0-6.tgz"
+      }
+    },
+    "lmerTest": {
+      "version": "3.2-1",
+      "md5": "5333482422e83bb4016b419ff08526dc",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "lmerTest",
+        "Version": "3.2-1",
+        "Depends": "R (>= 3.2.5), lme4 (>= 1.1-10), stats, methods",
+        "Imports": "numDeriv, MASS, ggplot2, reformulas",
+        "Suggests": "pbkrtest (>= 0.4-3), tools",
+        "License": "GPL (>= 2)",
+        "MD5sum": "5333482422e83bb4016b419ff08526dc",
+        "Built": "R 4.6.0; ; 2026-05-13 11:19:59 UTC; unix",
+        "File": "lmerTest_3.2-1.tgz"
       }
     },
     "lmhelprs": {
@@ -1186,6 +1265,22 @@
         "MD5sum": "1b81c52ec19e1d2b204e5ebbbfb759af",
         "Built": "R 4.6.0; ; 2026-10-10 09:46:31 UTC; unix",
         "File": "manymome_0.3.7.tgz"
+      }
+    },
+    "marqLevAlg": {
+      "version": "2.0.8",
+      "md5": "31d1523a0b3b020f1af49a37d64dcd4f",
+      "license": "GPL (>= 2.0)",
+      "stanza": {
+        "Package": "marqLevAlg",
+        "Version": "2.0.8",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "doParallel, foreach",
+        "Suggests": " microbenchmark,knitr,rmarkdown,ggplot2,viridis,patchwork,xtable",
+        "License": "GPL (>= 2.0)",
+        "MD5sum": "31d1523a0b3b020f1af49a37d64dcd4f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 12:15:49 UTC; unix",
+        "File": "marqLevAlg_2.0.8.tgz"
       }
     },
     "MASS": {

@@ -55,8 +55,8 @@ structural equation is estimated separately by 2SLS on scaling indicators, with 
 instruments and a Sargan overidentification test per equation; works from raw data or a covariance
 matrix. Misspecification in one equation does not propagate to others.
 
-**Examples**: 27 examples from the R packages' own documentation (lavaan, MIIVsem, modsem, manymome,
-cSEM, seminr, ltm, poLCA; data loaded from the packages, each linked to its source), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
+**Examples**: 29 examples from the R packages' own documentation (lavaan, MIIVsem, modsem, manymome,
+cSEM, seminr, ltm, poLCA, lme4, lcmm; data loaded from the packages, each linked to its source), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
 Schaarschmidt & Goldblit (2022), *Gamification in software engineering*, Empirical Software
 Engineering 27:35 (CB-SEM, MLM, from the covariance and NACOV matrices of the replication
 package, doi:10.5281/zenodo.6322761, CC BY 4.0). The example reproduces the paper's results.
