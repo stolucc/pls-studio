@@ -1,6 +1,7 @@
 // HTTP application: security middleware, sessions, CSRF and the JSON API.
 
 import crypto from 'node:crypto';
+import path from 'node:path';
 import connectPg from 'connect-pg-simple';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -68,6 +69,13 @@ export function createApp(deps: AppDeps) {
     crossOriginEmbedderPolicy: { policy: 'require-corp' },
   }));
 
+  // Liveness + database check for the deploy scripts and monitoring. Registered
+  // before the session middleware so probes never create session rows.
+  app.get('/api/health', h(async (_req, res) => {
+    await deps.db.query('SELECT 1');
+    res.set('Cache-Control', 'no-store').json({ ok: true });
+  }));
+
   const PgStore = connectPg(session);
   const sessionMiddleware = session({
     name: SESSION_COOKIE,
@@ -107,8 +115,18 @@ export function createApp(deps: AppDeps) {
 
   if (config.STATIC_DIR) {
     // The single-page app, same origin as the API (cookies, CSRF and CSP all line up).
-    app.use(express.static(config.STATIC_DIR, { index: 'index.html', maxAge: '1h' }));
-    app.get('/', (_req, res) => res.sendFile('index.html', { root: config.STATIC_DIR }));
+    // index.html is revalidated on every load so a deploy takes effect at once;
+    // Vite's content-hashed bundles under /assets/ never change, so they are
+    // cached for good. Everything else (the pinned R runtime) for an hour.
+    app.use(express.static(config.STATIC_DIR, {
+      index: 'index.html',
+      maxAge: '1h',
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache');
+        else if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      },
+    }));
+    app.get('/', (_req, res) => res.set('Cache-Control', 'no-cache').sendFile('index.html', { root: config.STATIC_DIR }));
   }
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
