@@ -65,3 +65,15 @@ export async function groupsR(data: Dataset, spec: ModelSpec, options: PlsOption
 }
 export const groupsScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, g: { group: string; approaches: MgaApproach[]; samples: number; seed: number }) =>
   rScript('ps_pls_groups', groupsRequest(data, spec, options, g), 'cSEM');
+
+export interface CtaResult {
+  samples: number; alpha: number;
+  blocks: { construct: string; tetrads: { tetrad: string; est: number; se: number; t: number; p: number; low: number; high: number; differs: boolean }[] }[];
+  warnings: string[]; engine: REngineInfo;
+}
+export async function ctaR(data: Dataset, spec: ModelSpec, missing: PlsOptions['missing'], cfg: { samples: number; seed: number; alpha: number }): Promise<CtaResult> {
+  const raw = await rCall<Record<string, any>>('ps_cta', { ...plsRequest(data, spec, { scheme: 'path', consistent: false, tolerance: 1e-7, maxIter: 300, missing }, 'cSEM'), ...cfg }, 'cta');
+  return { samples: raw.samples, alpha: raw.alpha, warnings: rStrings(raw.warnings), engine: raw.engine, blocks: arr<any>(raw.blocks).map((b) => ({ construct: b.construct, tetrads: arr(b.tetrads) })) };
+}
+export const ctaScriptR = (data: Dataset, spec: ModelSpec, missing: PlsOptions['missing'], cfg: { samples: number; seed: number; alpha: number }) =>
+  rScript('ps_cta', { ...plsRequest(data, spec, { scheme: 'path', consistent: false, tolerance: 1e-7, maxIter: 300, missing }, 'cSEM'), ...cfg }, 'cta');

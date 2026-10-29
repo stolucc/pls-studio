@@ -126,3 +126,64 @@ ps_pls_groups <- function(req_json, export = FALSE) {
     mga = mga, samples = R,
     warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
 }
+
+#' CTA-PLS (Gudergan, Ringle, Wende & Will 2008): confirmatory tetrad
+#' analysis. In a reflective (common factor) block, every tetrad
+#' t = s_gh s_ij - s_gi s_hj of the indicator covariances vanishes; a
+#' tetrad that differs from zero speaks against the reflective model. Per
+#' block with at least four indicators: a set of p(p-3)/2 non-redundant
+#' tetrads (added one by one while the Jacobian's rank under a one-factor
+#' model grows; Bollen & Ting 1993), bootstrap standard errors and
+#' bias-corrected intervals, Bonferroni-adjusted within the block. No R
+#' package implements it; written out here.
+PS_CTA_FUNCTIONS <- c(
+  "# All tetrads of p indicators (three per set of four): t = s[g,h] s[i,j] - s[g,i] s[h,j].",
+  "cta_all <- function(p) { q <- utils::combn(p, 4); do.call(rbind, lapply(seq_len(ncol(q)), function(k) { a <- q[, k]",
+  "  rbind(a[c(1, 2, 3, 4)], a[c(1, 3, 4, 2)], a[c(1, 4, 2, 3)]) })) }",
+  "cta_value <- function(S, t) S[t[1], t[2]] * S[t[3], t[4]] - S[t[1], t[3]] * S[t[2], t[4]]",
+  "# Non-redundant set: keep a tetrad if it raises the rank of the Jacobian (derivatives by the covariances) under a one-factor model.",
+  "cta_nonredundant <- function(p) {",
+  "  all <- cta_all(p); pairs <- utils::combn(p, 2); idx <- function(a, b) which(pairs[1, ] == min(a, b) & pairs[2, ] == max(a, b))",
+  "  lam <- seq(0.55, 0.95, length.out = p); S <- outer(lam, lam)",
+  "  grad <- function(t) { g <- numeric(ncol(pairs)); g[idx(t[1], t[2])] <- g[idx(t[1], t[2])] + S[t[3], t[4]]; g[idx(t[3], t[4])] <- g[idx(t[3], t[4])] + S[t[1], t[2]]",
+  "    g[idx(t[1], t[3])] <- g[idx(t[1], t[3])] - S[t[2], t[4]]; g[idx(t[2], t[4])] <- g[idx(t[2], t[4])] - S[t[1], t[3]]; g }",
+  "  keep <- integer(0); J <- NULL",
+  "  for (k in seq_len(nrow(all))) { J2 <- rbind(J, grad(all[k, ])); if (qr(J2)$rank > length(keep)) { keep <- c(keep, k); J <- J2 }; if (length(keep) == p * (p - 3) / 2) break }",
+  "  all[keep, , drop = FALSE]",
+  "}",
+  "# Bias-corrected bootstrap interval (Efron 1987) at level 1 - alpha.",
+  "cta_bc <- function(boot, est, alpha) { z0 <- stats::qnorm(mean(boot < est)); q <- stats::pnorm(2 * z0 + stats::qnorm(c(alpha / 2, 1 - alpha / 2))); unname(stats::quantile(boot, q, na.rm = TRUE)) }")
+
+ps_cta <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  B <- as.integer(req$samples %||% 1000); seed <- as.integer(req$seed %||% 1); alpha <- as.numeric(req$alpha %||% 0.05)
+  if (B < 50 || B > 20000 || !is.finite(alpha) || alpha <= 0 || alpha >= 0.5) stop("Invalid CTA settings.")
+  n <- ps_names(req$model$constructs)
+  blocks <- Filter(function(j) length(n$inds[[j]]) >= 4, seq_along(n$inds))
+  if (!length(blocks)) stop("CTA-PLS needs constructs with at least four indicators.")
+  frame <- ps_frame(req, n)
+  body <- c(PS_CTA_FUNCTIONS, ps_missing_code(req$missing),
+    sprintf("blocks <- list(%s)", paste(vapply(blocks, function(j) sprintf("%s = %s", n$cv[[n$cname[j]]], ps_q(unname(n$iv[n$inds[[j]]]))), ""), collapse = ", ")),
+    sprintf("set.seed(%d)", seed),
+    sprintf("boot_rows <- replicate(%d, sample.int(nrow(data), replace = TRUE), simplify = FALSE)", B),
+    "cta <- lapply(blocks, function(items) {",
+    "  X <- as.matrix(data[, items]); tet <- cta_nonredundant(length(items)); S <- stats::cov(X)",
+    "  est <- apply(tet, 1, function(t) cta_value(S, t))",
+    "  boot <- t(sapply(boot_rows, function(r) { Sb <- stats::cov(X[r, , drop = FALSE]); apply(tet, 1, function(t) cta_value(Sb, t)) }))",
+    "  if (nrow(tet) == 1) boot <- t(boot)",
+    "  se <- apply(boot, 2, stats::sd); m <- nrow(tet)",
+    sprintf("  ci <- t(sapply(seq_len(m), function(k) cta_bc(boot[, k], est[k], %s / m)))  # Bonferroni within the block", format(alpha)),
+    "  data.frame(tetrad = apply(tet, 1, function(t) paste(items[t], collapse = \",\")), est = est, se = se, t = est / se,",
+    "    p = 2 * stats::pnorm(-abs(est / se)), low = ci[, 1], high = ci[, 2], differs = ci[, 1] > 0 | ci[, 2] < 0)",
+    "})")
+  inputs <- list(data = frame)
+  if (export) return(paste(ps_script("Confirmatory tetrad analysis (CTA-PLS)", "stats", inputs, body, "cta"), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  back_i <- setNames(n$all_inds, unname(n$iv[n$all_inds]))
+  back_c <- setNames(n$cname, unname(n$cv))
+  ps_json(list(samples = B, alpha = alpha, blocks = lapply(names(env$cta), function(k) { d <- env$cta[[k]]
+    list(construct = unname(back_c[k]), tetrads = lapply(seq_len(nrow(d)), function(i) list(
+      tetrad = paste(unname(back_i[strsplit(d$tetrad[i], ",", fixed = TRUE)[[1]]]), collapse = ", "),
+      est = d$est[i], se = d$se[i], t = d$t[i], p = d$p[i], low = d$low[i], high = d$high[i], differs = isTRUE(d$differs[i])))) }),
+    warnings = env$.warnings, engine = list(package = "R (CTA-PLS as Gudergan et al. 2008)", version = as.character(getRversion()))))
+}

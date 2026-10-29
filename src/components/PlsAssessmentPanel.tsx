@@ -3,27 +3,29 @@ import { create } from 'zustand';
 import { downloadText, safeFileName } from '../format';
 import type { ModelSpec, PlsOptions } from '../engine/types';
 import { toSpec, validateModel } from '../model/project';
-import type { CompareResult, GroupsResult, MgaApproach, PredictResult } from '../rengine/plsx';
+import type { CompareResult, CtaResult, GroupsResult, MgaApproach, PredictResult } from '../rengine/plsx';
 import { useStore } from '../store';
 import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
 
-type Tab = 'predict' | 'compare' | 'groups';
+type Tab = 'predict' | 'compare' | 'groups' | 'cta';
 interface State {
   open: boolean; tab: Tab;
-  predict: PredictResult | null; compare: CompareResult | null; groups: GroupsResult | null;
+  predict: PredictResult | null; compare: CompareResult | null; groups: GroupsResult | null; cta: CtaResult | null;
   /** The alternative model for the comparison: a snapshot of an earlier diagram. */
   alternative: { spec: ModelSpec; paths: number; savedAt: number } | null;
   /** Filled in by an example (applied when it changes). */
   preset: { tab: Tab; group?: string } | null;
   setOpen: (v: boolean) => void;
 }
-export const usePlsAssessment = create<State>((set) => ({ open: false, tab: 'predict', predict: null, compare: null, groups: null, alternative: null, preset: null, setOpen: (open) => set({ open }) }));
+export const usePlsAssessment = create<State>((set) => ({ open: false, tab: 'predict', predict: null, compare: null, groups: null, cta: null, alternative: null, preset: null, setOpen: (open) => set({ open }) }));
 
 const APPROACHES: { id: MgaApproach; label: string }[] = [
   { id: 'Henseler', label: 'Henseler (bootstrap)' }, { id: 'Chin', label: 'Chin & Dibbern (permutation)' }, { id: 'Klesel', label: 'Klesel et al. (overall, dG / dL)' },
   { id: 'Sarstedt', label: 'Sarstedt et al. (bootstrap F)' }, { id: 'Keil', label: 'Keil et al. (parametric t)' }, { id: 'Nitzl', label: 'Nitzl (Welch–Satterthwaite t)' },
 ];
+
+const fmtAlpha = (a: number) => Number(a.toFixed(3)).toString();
 
 /** Shmueli et al. (2019): predictive power from the share of indicators where PLS beats the LM benchmark. */
 export function predictivePower(rows: PredictResult['indicators']): string {
@@ -91,6 +93,20 @@ function GroupsView({ r }: { r: GroupsResult }) {
   );
 }
 
+function CtaView({ r }: { r: CtaResult }) {
+  return (
+    <div className="tables">
+      {r.blocks.map((b) => (
+        <Table key={b.construct} title={`${b.construct}: ${b.tetrads.some((t) => t.differs) ? 'evidence against a reflective model' : 'consistent with a reflective model'}`} file={`cta-${b.construct}`}
+          columns={['Tetrad (indicators g, h, i, j)', 'Value', 'Std. error', 't', 'p', 'CI low (adj.)', 'CI high (adj.)']}
+          rows={b.tetrads.map((t) => [c(t.tetrad), { ...c(t.est), bold: t.differs }, c(t.se), c(t.t, undefined, 2), pCell(t.p), c(t.low), c(t.high)])}
+          note={`τ = σgh·σij − σgi·σhj vanishes in a reflective block. ${b.tetrads.length} non-redundant tetrads; bias-corrected bootstrap intervals (${r.samples} samples), Bonferroni-adjusted (α = ${r.alpha} / ${b.tetrads.length}). Bold: the interval excludes 0.`} />
+      ))}
+      <div className="hint">Gudergan, Ringle, Wende &amp; Will (2008): if any non-redundant tetrad differs from zero, a reflective (common factor) model is not supported — consider a composite (formative) measurement model. PLS Studio’s implementation; no R package offers CTA-PLS.</div>
+    </div>
+  );
+}
+
 /** PLS-SEM assessment beyond the basic results: prediction, model comparison, group comparison (cSEM). */
 export function PlsAssessmentPanel() {
   const s = usePlsAssessment();
@@ -130,6 +146,10 @@ export function PlsAssessmentPanel() {
         const alt = s.alternative!.spec;
         if (script) downloadText(`${safeFileName(project)}-model-comparison.R`, await m.compareScriptR(data!, spec, alt, options, seed), 'text/x-r-source');
         else usePlsAssessment.setState({ compare: await m.compareR(data!, spec, alt, options, seed) });
+      } else if (what === 'cta') {
+        const cfg = { samples: Math.max(50, Math.min(20000, Math.floor(settings.bootSamples))), seed, alpha: 1 - settings.confidence };
+        if (script) downloadText(`${safeFileName(project)}-cta-pls.R`, await m.ctaScriptR(data!, spec, options.missing, cfg), 'text/x-r-source');
+        else usePlsAssessment.setState({ cta: await m.ctaR(data!, spec, options.missing, cfg) });
       } else {
         const g = { group, approaches, samples: Math.max(20, Math.min(5000, Math.floor(settings.bootSamples))), seed };
         if (script) downloadText(`${safeFileName(project)}-micom-mga.R`, await m.groupsScriptR(data!, spec, options, g), 'text/x-r-source');
@@ -143,7 +163,8 @@ export function PlsAssessmentPanel() {
   };
   const sameMeasurement = !!s.alternative && JSON.stringify(s.alternative.spec.constructs.map((k) => [k.name, [...k.indicators].sort()]).sort())
     === JSON.stringify(spec.constructs.map((k) => [k.name, [...k.indicators].sort()]).sort());
-  const ready = s.tab === 'predict' ? true : s.tab === 'compare' ? sameMeasurement : !!group && approaches.length > 0;
+  const ctaBlocks = model.constructs.filter((k) => k.indicators.length >= 4).length;
+  const ready = s.tab === 'predict' ? true : s.tab === 'compare' ? sameMeasurement : s.tab === 'cta' ? ctaBlocks > 0 : !!group && approaches.length > 0;
   return (
     <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="PLS assessment">
       <div className="sim">
@@ -155,7 +176,7 @@ export function PlsAssessmentPanel() {
           <div className="sim-body long-body">
             <section className="sim-col">
               <div className="segmented" style={{ marginBottom: 12 }}>
-                {([['predict', 'Prediction'], ['compare', 'Model comparison'], ['groups', 'Groups']] as const).map(([id, l]) => (
+                {([['predict', 'Prediction'], ['compare', 'Model comparison'], ['groups', 'Groups'], ['cta', 'Measurement (CTA)']] as const).map(([id, l]) => (
                   <button key={id} className={s.tab === id ? 'on' : ''} onClick={() => usePlsAssessment.setState({ tab: id })}>{l}</button>
                 ))}
               </div>
@@ -176,6 +197,9 @@ export function PlsAssessmentPanel() {
                     {s.alternative ? `Alternative saved (${s.alternative.paths} paths, ${new Date(s.alternative.savedAt).toLocaleTimeString()}).${sameMeasurement ? '' : ' Its constructs or indicators differ from the diagram’s: save it again.'}` : 'No alternative saved yet: save the model, change its paths, then compare.'}
                   </div>
                 </>
+              )}
+              {s.tab === 'cta' && (
+                <p className="hint" style={{ marginTop: 0 }}>Confirmatory tetrad analysis (CTA-PLS; Gudergan et al. 2008): is a block reflective (indicators caused by one common factor) or better treated as formative? For constructs with at least four indicators ({ctaBlocks} here). Bootstrap samples {Math.floor(settings.bootSamples)} and α = {fmtAlpha(1 - settings.confidence)} from the Model settings.</p>
               )}
               {s.tab === 'groups' && (
                 <>
@@ -207,6 +231,7 @@ export function PlsAssessmentPanel() {
               {s.tab === 'predict' && (s.predict ? <PredictView r={s.predict} /> : <div className="empty-results">Press Calculate.</div>)}
               {s.tab === 'compare' && (s.compare ? <CompareView r={s.compare} /> : <div className="empty-results">Save an alternative, change the paths, and press Calculate.</div>)}
               {s.tab === 'groups' && (s.groups ? <GroupsView r={s.groups} /> : <div className="empty-results">Choose the grouping column and press Calculate.</div>)}
+              {s.tab === 'cta' && (s.cta ? <CtaView r={s.cta} /> : <div className="empty-results">{ctaBlocks ? 'Press Calculate.' : 'No construct has four or more indicators.'}</div>)}
             </section>
           </div>
         )}
