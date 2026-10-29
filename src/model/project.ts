@@ -446,7 +446,8 @@ export function validateModel(
       warn(`"${c.name}" has two indicators; it is only identified through its relations with other factors.`, c.id);
     }
     if (method.method === 'pls' && method.consistent && c.type === 'factor' && c.mode === 'B') {
-      warn(`"${c.name}" is a common factor estimated with Mode B; PLSc corrects Mode A factors only.`, c.id);
+      // PLSc's correction (ρA, loadings from the weights) is derived for Mode A weights (Dijkstra & Henseler 2015).
+      warn(`"${c.name}" is a common factor estimated with Mode B: PLSc’s correction (ρA) assumes Mode A weights, so its corrected estimates are not known to be consistent. Use Mode A, or model "${c.name}" as a composite.`, c.id);
     }
     for (const ind of c.indicators) {
       const o = owner.get(ind);

@@ -243,3 +243,21 @@ describe('engine settings', () => {
     expect(p.settings.plsPackage).toBe('cSEM');
   });
 });
+
+describe('PLSc and Mode B common factors', () => {
+  const model = (type: 'factor' | 'composite', mode: 'A' | 'B'): ModelState => ({
+    constructs: [
+      { id: 'a', name: 'A', type, mode, indicators: ['a1', 'a2', 'a3'], x: 0, y: 0, side: 'left' },
+      { id: 'b', name: 'B', type: 'factor', mode: 'A', indicators: ['b1', 'b2', 'b3'], x: 300, y: 0, side: 'right' },
+    ],
+    paths: [{ id: 'p', from: 'a', to: 'b' }], moderations: [],
+  });
+  const data = { names: ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'], cols: Array.from({ length: 6 }, (_, k) => Float64Array.from({ length: 60 }, (_, i) => ((i * (k + 3)) % 11) / 10)) };
+  const warns = (m: ModelState, consistent: boolean) => validateModel(m, data, { method: 'pls', consistent }).filter((i) => i.level === 'warning' && /PLSc/.test(i.message)).map((i) => i.message);
+  it('warns about a common factor in Mode B only when PLSc is on', () => {
+    expect(warns(model('factor', 'B'), true)).toEqual([expect.stringMatching(/^"A" is a common factor estimated with Mode B: PLSc’s correction \(ρA\) assumes Mode A weights.*Use Mode A, or model "A" as a composite\.$/)]);
+    expect(warns(model('factor', 'B'), false)).toEqual([]);
+    expect(warns(model('factor', 'A'), true)).toEqual([]);
+    expect(warns(model('composite', 'B'), true)).toEqual([]);
+  });
+});
