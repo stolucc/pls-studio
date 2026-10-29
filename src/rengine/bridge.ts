@@ -14,11 +14,12 @@ import longitudinalR from './R/longitudinal.R?raw';
 import mcR from './R/mc.R?raw';
 import mixedR from './R/mixed.R?raw';
 import plsR from './R/pls.R?raw';
+import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import segmentR from './R/segment.R?raw';
 import { callJson, callString, withR } from './runtime';
 
-const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR };
+const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],

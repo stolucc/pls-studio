@@ -341,6 +341,12 @@ export async function loadPackageExample(id: string) {
       useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Estimate.`);
       return;
     }
+    if (ex.assessment) {
+      const { usePlsAssessment } = await import('./components/PlsAssessmentPanel');
+      usePlsAssessment.setState({ open: true, tab: ex.assessment.tab, predict: null, compare: null, groups: null, preset: { ...ex.assessment } });
+      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate in the panel.`);
+      return;
+    }
     if (ex.segmentation) {
       const { useSegmentation } = await import('./components/SegmentationPanel');
       useSegmentation.setState({ open: true, rebus: null, preset: { ...ex.segmentation } });

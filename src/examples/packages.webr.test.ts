@@ -12,6 +12,7 @@ import { rCall, type RPackage } from '../rengine/bridge';
 import { endoR } from '../rengine/endo';
 import { matchR } from '../rengine/match';
 import { rsaR } from '../rengine/rsa';
+import { groupsR } from '../rengine/plsx';
 import { categoriesOf } from '../io';
 import { parseCsv } from '../engine/dataset';
 import { readFileSync } from 'node:fs';
@@ -101,6 +102,10 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     } else {
       const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, st.plsPackage);
       expect(r.converged).toBe(true);
+    }
+    if (ex.assessment?.group) {
+      const g = await groupsR(data, spec, { scheme: st.scheme, consistent: false, missing: 'casewise', tolerance: 1e-7, maxIter: 300 }, { group: ex.assessment.group, approaches: ['Klesel'], samples: 20, seed: 1 });
+      expect(g.groups).toHaveLength(2);
     }
     if (ex.segmentation) {
       const seg = await rebusR(data, spec, { scheme: st.scheme, consistent: false, missing: 'casewise', tolerance: 1e-6, maxIter: 100 },

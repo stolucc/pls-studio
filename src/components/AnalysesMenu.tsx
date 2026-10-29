@@ -6,6 +6,7 @@ import { useItems } from './ItemsPanel';
 import { useLong } from './LongitudinalPanel';
 import { useMultilevel } from './MultilevelPanel';
 import { useSegmentation } from './SegmentationPanel';
+import { usePlsAssessment } from './PlsAssessmentPanel';
 import { useEndogeneity } from './EndogeneityPanel';
 import { useMatching } from './MatchingPanel';
 import { usePolynomial } from './PolynomialPanel';
@@ -45,6 +46,7 @@ export function AnalysesMenu() {
           {item('Item analysis', 'IRT (ltm), latent classes (poLCA)', () => useItems.getState().setOpen(true))}
           {item('Longitudinal models', 'growth curves, RI-CLPM (lavaan), growth mixtures (lcmm)', () => useLong.getState().setOpen(true))}
           {item('Multilevel regression', 'random intercepts and slopes (lme4)', () => useMultilevel.getState().setOpen(true))}
+          {item('PLS-SEM assessment', method === 'pls' ? 'PLSpredict, model comparison (BIC, CVPAT), MICOM, multigroup' : 'for PLS-SEM models', () => usePlsAssessment.getState().setOpen(true), !hasModel || method !== 'pls')}
           {item('Segmentation (REBUS-PLS)', method === 'pls' ? 'classes of observations with different models (plspm)' : 'for PLS-SEM models', () => useSegmentation.getState().setOpen(true), !hasModel || method !== 'pls')}
           {item('Endogeneity', 'instruments (2SLS), Gaussian copula, Lewbel, Heckman', () => useEndogeneity.getState().setOpen(true))}
           {item('Polynomial regression (RSA)', 'congruence / imbalance of two predictors, response surface', () => usePolynomial.getState().setOpen(true))}

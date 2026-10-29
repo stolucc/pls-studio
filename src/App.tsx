@@ -1,3 +1,4 @@
+import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
 import { PolynomialPanel } from './components/PolynomialPanel';
 import { MatchingPanel } from './components/MatchingPanel';
 import { EndogeneityPanel } from './components/EndogeneityPanel';
@@ -110,6 +111,7 @@ export default function App() {
       <DataViewer />
       <MultilevelPanel />
       <SegmentationPanel />
+      <PlsAssessmentPanel />
       <EndogeneityPanel />
       <MatchingPanel />
       <PolynomialPanel />

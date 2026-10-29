@@ -62,6 +62,8 @@ export interface PackageExample {
   panel?: ExamplePanel;
   /** Opens the segmentation panel on the example's diagram, comparing these numbers of classes. */
   segmentation?: { from: number; to: number };
+  /** Opens the PLS assessment panel on the example's diagram (tab, and the grouping column). */
+  assessment?: { tab: 'predict' | 'compare' | 'groups'; group?: string };
   settings: Partial<Settings>;
 }
 
@@ -291,6 +293,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: [f('IMAG', items('imag', 5)), f('EXPE', items('expe', 5)), f('QUAL', items('qual', 5)), f('VAL', items('val', 4)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['IMAG', 'SAT'], ['IMAG', 'LOY'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['EXPE', 'SAT'], ['QUAL', 'VAL'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['SAT', 'LOY']],
     settings: PLS('cSEM', true),
+  },
+  {
+    id: 'csem-gender', package: 'cSEM', title: 'Customer satisfaction: women and men (MICOM, MGA)', source: 'cSEM, ?testMICOM, ?testMGD (satisfaction_gender)',
+    links: [{ label: '?testMICOM', url: 'https://rdrr.io/cran/cSEM/man/testMICOM.html' }, { label: '?testMGD', url: 'https://rdrr.io/cran/cSEM/man/testMGD.html' }, { label: '?satisfaction_gender', url: 'https://rdrr.io/cran/cSEM/man/satisfaction_gender.html' }],
+    description: 'The ECSI model (composites for image, expectations, quality and value; common factors for satisfaction and loyalty) for 148 women and 102 men. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? Opens PLS-SEM assessment.',
+    data: { package: 'cSEM', name: 'satisfaction_gender' },
+    constructs: [c('IMAG', items('imag', 3)), c('EXPE', items('expe', 3)), c('QUAL', items('qual', 5)), c('VAL', items('val', 3)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
+    paths: [['IMAG', 'EXPE'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['QUAL', 'VAL'], ['IMAG', 'SAT'], ['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
+    assessment: { tab: 'groups', group: 'gender' }, settings: PLS('cSEM', false),
   },
   {
     id: 'csem-bergami', package: 'cSEM', title: 'Organisational identification', source: 'cSEM, ?BergamiBagozzi2000 (Henseler 2021)',
