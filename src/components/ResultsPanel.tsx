@@ -9,6 +9,8 @@ import { MIIV_TABS, MiivTab, type MiivTabId } from './results/MiivTabs';
 import { PLS_TABS, PlsTab, type PlsTabId } from './results/PlsTabs';
 import { PROCESS_TABS, ProcessTab, type ProcessTabId } from './results/ProcessTabs';
 import { processGraph } from '../process/fromModel';
+import { MessagesView } from './results/Messages';
+import { IconAlert } from './icons';
 
 export function ResultsPanel({ height, onResize }: { height: number; onResize: (h: number) => void }) {
   const open = useStore((s) => s.resultsOpen);
@@ -21,6 +23,9 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
   const [cbTab, setCbTab] = useState<CbTabId>('fit');
   const [miivTab, setMiivTab] = useState<MiivTabId>('equations');
   const [processTab, setProcessTab] = useState<ProcessTabId>('effects');
+  const [showMessages, setShowMessages] = useState(false);
+  const messageCount = useStore((s) => s.messages.length);
+  const warned = useStore((s) => s.messages.length > 0 && s.messages[s.messages.length - 1].level === 'error' ? 'error' : 'warning');
   const confidence = useStore((s) => s.settings.confidence);
   const model = useStore((s) => s.model);
   const estimator = useStore((s) => s.settings.estimator);
@@ -37,9 +42,16 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
 
   const tabs = method === 'process' ? PROCESS_TABS : method === 'pls' ? PLS_TABS : isMiiv ? MIIV_TABS : CB_TABS;
   const active = method === 'process' ? processTab : method === 'pls' ? plsTab : isMiiv ? miivTab : cbTab;
-  const setTab = (id: string) => (method === 'process' ? setProcessTab(id as ProcessTabId) : method === 'pls' ? setPlsTab(id as PlsTabId) : isMiiv ? setMiivTab(id as MiivTabId) : setCbTab(id as CbTabId));
+  const setTab = (id: string) => {
+    setShowMessages(false);
+    if (method === 'process') setProcessTab(id as ProcessTabId);
+    else if (method === 'pls') setPlsTab(id as PlsTabId);
+    else if (isMiiv) setMiivTab(id as MiivTabId);
+    else setCbTab(id as CbTabId);
+  };
 
-  const body = proc ? <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />
+  const body = showMessages ? <MessagesView />
+    : proc ? <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />
     : pls ? <PlsTab tab={plsTab} pls={pls} boot={boot} fitTest={results?.fitTest ?? null} />
     : miiv ? <MiivTab tab={miivTab} miiv={miiv} />
     : cb && !isMiiv ? <CbTab tab={cbTab} cb={cb} boot={boot} />
@@ -77,6 +89,11 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
         {cb && !isMiiv && <span className="muted">Last run: {cb.estimator}, χ²({cb.fit.df}) = {cb.fit.chisq.toFixed(2)}, CFI {cb.fit.cfi.toFixed(3)}, RMSEA {cb.fit.rmsea.toFixed(3)}</span>}
         <div className="spacer" />
         {progress}
+        {messageCount > 0 && (
+          <button className={`btn sm ghost msg-badge ${warned}`} onClick={() => { setShowMessages(true); setOpen(true); }} title="Warnings and errors of this session">
+            <IconAlert size={13} /> {messageCount}
+          </button>
+        )}
         {/* Same corner as the collapse button of the open panel. */}
         <button className="btn sm ghost" onClick={() => setOpen(true)} aria-label="Expand results">Results <IconChevronUp size={14} /></button>
       </div>
@@ -88,8 +105,11 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
       <div className="results-resize" onPointerDown={startResize} />
       <div className="results-head" role="tablist">
         {tabs.map((t) => (
-          <button key={t.id} role="tab" aria-selected={active === t.id} className={`tab${active === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
+          <button key={t.id} role="tab" aria-selected={!showMessages && active === t.id} className={`tab${!showMessages && active === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
         ))}
+        <button role="tab" aria-selected={showMessages} className={`tab${showMessages ? ' on' : ''}`} onClick={() => setShowMessages(true)}>
+          Messages{messageCount > 0 ? ` (${messageCount})` : ''}
+        </button>
         <div className="spacer" />
         {!job && <EngineBadge label={engineLabel} />}
         {progress}

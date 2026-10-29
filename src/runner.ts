@@ -41,7 +41,7 @@ export function cancelJob() {
 function cbToast(r: CbResult, by: string) {
   const st = useStore.getState();
   const f = r.fit;
-  if (r.warnings.length) st.toast('error', r.warnings[0]);
+  if (r.warnings.length) st.toast('error', `${by}: ${r.warnings.length === 1 ? r.warnings[0] : `${r.warnings.length} warnings`} (see Messages in the results panel).`, { log: false });
   else if (!r.converged) st.toast('error', `${by}: ${r.estimator} did not converge in ${r.iterations} iterations. Interpret results with care.`);
   else st.toast('success', `${by}: ${r.estimator} converged in ${r.iterations} iterations. χ²(${f.df}) = ${(f.chisqScaled ?? f.chisq).toFixed(2)}${f.chisqScaled !== undefined ? ' (scaled)' : ''}.`);
 }
@@ -91,7 +91,7 @@ function runR(kind: JobKind, key: string) {
         t.setResults({ pls: r }, key);
         const by = `${r.engine.package} ${r.engine.version}`;
         if (!r.converged) t.toast('error', `${by}: did not converge in ${r.iterations} iterations. Interpret results with care.`);
-        else if (r.warnings.length) t.toast('error', `${by}: ${r.warnings[0]}`);
+        else if (r.warnings.length) t.toast('error', `${by}: ${r.warnings.length === 1 ? r.warnings[0] : `${r.warnings.length} warnings`} (see Messages in the results panel).`, { log: false });
         else t.toast('success', `${by}: ${r.consistent ? 'PLSc' : 'PLS'} converged in ${r.iterations} iterations.`);
       }).catch(failed);
     }
@@ -134,7 +134,7 @@ function runProcess(key: string) {
     t.setJob(null);
     t.setResults({ process: r }, key);
     const name = recognised ? `PROCESS model ${recognised.model}` : 'Custom model';
-    if (r.warnings.length) t.toast('error', `manymome: ${r.warnings[0]}`);
+    if (r.warnings.length) t.toast('error', `${r.engine.package}: ${r.warnings.length === 1 ? r.warnings[0] : `${r.warnings.length} warnings`} (see Messages in the results panel).`, { log: false });
     else t.toast('success', `manymome ${r.engine.version}: ${name} estimated (n = ${r.n}).`);
   }).catch((e) => {
     if (token !== rToken) return;

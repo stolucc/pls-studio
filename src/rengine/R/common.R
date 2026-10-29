@@ -19,6 +19,7 @@ ps_validate <- function(req) {
   one_of(get(req, "estimator"), cb_est, "estimator")
   one_of(get(req, "missing"), c("mean", "casewise"), "missing-value treatment")
   one_of(get(req, "probe"), c("percentiles", "meansd"), "probing method")
+  one_of(get(req, "hc"), c("none", "HC0", "HC1", "HC2", "HC3", "HC4"), "standard error type")
   one_of(get(req, "options", "scheme"), c("path", "centroid", "factor"), "weighting scheme")
   one_of(get(req, "options", "missing"), c("mean", "casewise"), "missing-value treatment")
   for (e in get(req, "estimators")) { one_of(get(e, "method"), c("pls", "cb"), "estimator"); one_of(get(e, "estimator"), cb_est, "estimator") }
@@ -75,6 +76,12 @@ ps_missing_code <- function(missing) {
   if (identical(missing, "mean")) c("# Missing values: replaced by the indicator mean",
     "for (v in names(data)) data[[v]][is.na(data[[v]])] <- mean(data[[v]], na.rm = TRUE)")
   else c("# Missing values: casewise (listwise) deletion", "data <- data[complete.cases(data), , drop = FALSE]")
+}
+
+#' A single finite number as R code; anything else is refused (values come from project files).
+ps_num <- function(x) {
+  if (!(is.numeric(x) && length(x) == 1 && is.finite(x))) stop("Invalid fixed value in the request.")
+  format(x, digits = 15)
 }
 
 #' Quote a character vector as R code (backslashes, quotes and control characters escaped).

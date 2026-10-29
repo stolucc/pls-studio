@@ -1,0 +1,72 @@
+// Fixing parameters at values from the canvas: store, menus, labels, files.
+
+import { beforeEach, describe, expect, it } from 'vitest';
+import { menuFor } from './components/canvasMenu';
+import { indicatorLabels } from './diagramLabels';
+import { DEFAULT_SETTINGS, parseProject, serializeProject, toSpec, validateModel, type ModelState } from './model/project';
+import { useStore } from './store';
+
+const C = (id: string, indicators: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators, x: 0, y: 0, side: 'left' as const });
+const model: ModelState = {
+  constructs: [C('A', ['a1', 'a2', 'a3']), C('B', ['b1', 'b2', 'b3'])],
+  paths: [{ id: 'p', from: 'A', to: 'B' }], moderations: [],
+  correlations: [{ id: 'k', kind: 'indicator', a: 'a1', b: 'b1' }],
+};
+const s = () => useStore.getState();
+const cb = { method: 'cbsem' as const, readOnly: false };
+const data = { names: ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'], cols: Array.from({ length: 6 }, () => new Float64Array(200).map(Math.random)) };
+
+beforeEach(() => useStore.setState({ model, settings: { ...DEFAULT_SETTINGS, method: 'cbsem' }, past: [], future: [], toasts: [], cloud: null }));
+
+describe('fixing parameters at values', () => {
+  it('fixes and frees paths, loadings and covariances, undoably', () => {
+    s().fixParameter({ kind: 'path', id: 'p' }, 0.5);
+    s().fixParameter({ kind: 'loading', construct: 'A', indicator: 'a2' }, 0.8);
+    s().fixParameter({ kind: 'correlation', id: 'k' }, 0.1);
+    const spec = toSpec(s().model);
+    expect(spec.paths[0].fixed).toBe(0.5);
+    expect(spec.constructs[0].fixedLoadings).toEqual({ a2: 0.8 });
+    expect(spec.covariances![0].fixed).toBe(0.1);
+    s().fixParameter({ kind: 'loading', construct: 'A', indicator: 'a2' }, null);
+    expect(s().model.constructs[0].fixedLoadings).toBeUndefined();
+    s().undo();
+    expect(s().model.constructs[0].fixedLoadings).toEqual({ a2: 0.8 });
+    // An indicator that leaves its construct takes its fixed loading with it.
+    s().removeIndicator('A', 'a2');
+    expect(s().model.constructs[0].fixedLoadings).toBeUndefined();
+  });
+
+  it('offers fix / free in CB-SEM context menus only', () => {
+    const acts = (t: Parameters<typeof menuFor>[0], m = s().model, ctx: Parameters<typeof menuFor>[2] = cb) => menuFor(t, m, ctx)?.items.map((i) => i.action) ?? [];
+    expect(acts({ kind: 'path', id: 'p' })).toContain('fix-value');
+    expect(acts({ kind: 'path', id: 'p' })).not.toContain('free-value');
+    expect(acts({ kind: 'path', id: 'p' }, model, { ...cb, method: 'pls' })).not.toContain('fix-value');
+    s().fixParameter({ kind: 'path', id: 'p' }, 0.5);
+    expect(menuFor({ kind: 'path', id: 'p' }, s().model, cb)!.items.slice(0, 2).map((i) => i.label)).toEqual(['Change fixed value (0.5)…', 'Free coefficient (estimate it)']);
+    expect(menuFor({ kind: 'indicator', construct: 'A', name: 'a1' }, s().model, cb)!.items[0].label).toBe('Fix loading at another value than 1…');
+    expect(acts({ kind: 'correlation', id: 'k' })).toContain('fix-value');
+  });
+
+  it('labels fixed loadings on the diagram, results or not', () => {
+    const c = { ...C('A', ['a1', 'a2', 'a3']), fixedLoadings: { a1: 0.9, a3: 0.75 } };
+    expect(indicatorLabels(c, 'cbsem', null)!.map((l) => l?.text ?? null)).toEqual(['0.9', null, '0.75']);
+    const src = { indicator: (n: string) => ({ a1: 0.9, a2: 1.1, a3: 0.75 })[n] ?? null, reflectiveThresholds: () => false };
+    expect(indicatorLabels(c, 'cbsem', src)!.map((l) => [l?.text, l?.fixed])).toEqual([['0.9', true], ['1.100', false], ['0.75', true]]);
+  });
+
+  it('round-trips through project files and validates per method', () => {
+    s().fixParameter({ kind: 'path', id: 'p' }, -0.25);
+    s().fixParameter({ kind: 'loading', construct: 'B', indicator: 'b1' }, 2);
+    const p = parseProject(serializeProject(s().model, s().settings, null, null));
+    expect(p.model.paths[0].fixed).toBe(-0.25);
+    expect(p.model.constructs[1].fixedLoadings).toEqual({ b1: 2 });
+    const bad = JSON.parse(serializeProject(s().model, s().settings, null, null));
+    bad.model.paths[0].fixed = '1); stop(';
+    bad.model.constructs[1].fixedLoadings = { b1: 'x', nope: 1 };
+    const q = parseProject(JSON.stringify(bad));
+    expect(q.model.paths[0].fixed).toBeUndefined();
+    expect(q.model.constructs[1].fixedLoadings).toBeUndefined();
+    expect(validateModel(s().model, data, { ...s().settings, method: 'pls' }).some((i) => /only CB-SEM uses fixed values/.test(i.message))).toBe(true);
+    expect(validateModel(s().model, data, { ...s().settings, estimator: '2SLS' }).some((i) => /not available with MIIV-2SLS/.test(i.message))).toBe(true);
+  });
+});

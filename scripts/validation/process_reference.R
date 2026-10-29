@@ -70,13 +70,17 @@ table_after <- function(lines, start) {
 }
 
 parse_output <- function(out) {
-  res <- list(equations = list(), direct = NULL, indirect = list(), indices = list())
+  res <- list(equations = list(), se = list(), summary = list(), interactions = list(), direct = NULL, indirect = list(), indices = list())
   starts <- grep("^Outcome Variable:", out)
   for (s in starts) {
     outcome <- trimws(sub("^Outcome Variable:", "", out[s]))
     m <- grep("^Model:", out); m <- m[m > s][1]
     tab <- table_after(out, m)
     coef <- setNames(lapply(tab$rows, function(r) as.numeric(r[2])), vapply(tab$rows, `[`, "", 1))
+    se <- setNames(lapply(tab$rows, function(r) as.numeric(r[3])), names(coef))
+    # Model summary: R, R-sq, MSE, F (robust with HC), df1, df2 on the first row.
+    ms <- grep("^Model Summary:", out); ms <- ms[ms > s][1]
+    summary_row <- num(out[ms + 2])
     # "int_1  :  x  x  w" -> int_1 = x*w
     next_start <- c(starts[starts > s], length(out))[1]
     key <- grep("^Product terms key:", out); key <- key[key > s & key < next_start]
@@ -87,17 +91,27 @@ parse_output <- function(out) {
         # PROCESS writes products as "a  x  b"; a variable called x appears as the first factor.
         f <- words(parts[2]); vars <- f[seq(1, length(f), by = 2)]
         names(coef)[names(coef) == trimws(parts[1])] <- paste(vars, collapse = "*")
+        names(se) <- names(coef)
         i <- i + 1
       }
     }
     res$equations[[outcome]] <- coef
+    res$se[[outcome]] <- se
+    # Tests of the highest-order unconditional interactions: "X*W  R2-chng F df1 df2 p".
+    hi <- grep("^Test\\(s\\) of highest order unconditional interaction", out); hi <- hi[hi > s & hi < next_start]
+    if (length(hi)) {
+      tab <- table_after(out, hi[1])
+      res$interactions[[outcome]] <- lapply(tab$rows, function(r) list(label = r[1], r2change = as.numeric(r[2]), f = as.numeric(r[3]),
+        df1 = as.numeric(r[4]), df2 = as.numeric(r[5]), p = as.numeric(r[6])))
+    }
+    res$summary[[outcome]] <- list(r2 = summary_row[2], f = summary_row[4], df1 = summary_row[5], df2 = summary_row[6])
   }
   # Conditional direct effect(s): one row per moderator value combination.
   cd <- grep("^Conditional direct effect\\(s\\) of X on Y:", out)
   if (length(cd)) {
     tab <- table_after(out, cd[1])
     nm <- which(tab$header == "effect") - 1
-    res$direct <- lapply(tab$rows, function(r) list(at = as.list(setNames(as.numeric(r[seq_len(nm)]), tab$header[seq_len(nm)])), effect = as.numeric(r[nm + 1])))
+    res$direct <- lapply(tab$rows, function(r) list(at = as.list(setNames(as.numeric(r[seq_len(nm)]), tab$header[seq_len(nm)])), effect = as.numeric(r[nm + 1]), se = as.numeric(r[nm + 2])))
   }
   dd <- grep("^Direct effect of X on Y:", out)
   if (length(dd)) res$direct <- list(list(at = setNames(list(), character()), effect = num(out[dd[1] + 2])[1]))
@@ -150,8 +164,7 @@ parse_output <- function(out) {
 
 # ---------- run ----------
 
-for (model in c(moderation, parallel, 80:82, serial)) {
-  if (!grepl(only, as.character(model))) next
+run_model <- function(model, hc = 5) {
   ms <- mediators(model)
   number <- if (model == 74) 4 else model
   uses_w <- !(model %in% c(4, 6, 74, 80:82))
@@ -160,10 +173,24 @@ for (model in c(moderation, parallel, 80:82, serial)) {
     data = d, y = "y", x = "x", m = if (length(ms)) ms else "xxxxx",
     w = if (uses_w) "w" else "xxxxx", z = if (uses_z) "z" else "xxxxx",
     cov = "c1", model = number, xmint = as.numeric(model == 74), xrefval = if (model == 74) c(0, 1) else 999,
-    boot = 1000, seed = 1, decimals = 12.8, progress = 0))
+    hc = hc, boot = 1000, seed = 1, decimals = 12.8, progress = 0))
   if (any(grepl("^ERROR", out))) stop(sprintf("model %d: %s", model, paste(grep("^ERROR", out, value = TRUE), collapse = "; ")))
-  res <- c(list(model = model, mediators = ms, w = uses_w, z = uses_z,
-                conditioning = "percentiles 16/50/84"), parse_output(out))
-  write(toJSON(res, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"), file.path(root, sprintf("model%02d.json", model)))
+  c(list(model = model, mediators = ms, w = uses_w, z = uses_z, hc = if (hc == 5) "none" else paste0("HC", hc),
+         conditioning = "percentiles 16/50/84"), parse_output(out))
+}
+put <- function(res, file) write(toJSON(res, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"), file)
+
+for (model in c(moderation, parallel, 80:82, serial)) {
+  if (!grepl(only, as.character(model))) next
+  res <- run_model(model)
+  put(res, file.path(root, sprintf("model%02d.json", model)))
   cat(sprintf("model %d: %d equations, %d indirect, %d indices\n", model, length(res$equations), length(res$indirect), length(res$indices)))
 }
+
+# Heteroskedasticity-consistent standard errors (PROCESS's hc option).
+dir.create(file.path(root, "hc"), showWarnings = FALSE)
+for (model in c(1, 3, 7, 14)) for (hc in 0:4) {
+  if (!grepl(only, as.character(model))) next
+  put(run_model(model, hc), file.path(root, "hc", sprintf("model%02d_hc%d.json", model, hc)))
+}
+cat("HC references written\n")

@@ -568,5 +568,20 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .chart-style label { display: grid; gap: 4px; color: var(--text-2); }
 .chart-style input[type=color] { width: 100%; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; }
 
-.cor.zero .cor-line { stroke-dasharray: 2 4; opacity: 0.7; }
-.cor.zero .cor-head { opacity: 0.7; }
+
+/* session messages */
+.messages { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.message { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; }
+.message.warning { background: var(--warn-soft); }
+.message.error { background: var(--bad-soft, #fdecec); }
+.message svg { flex: none; margin-top: 2px; }
+.message .when { flex: none; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.message .chip { flex: none; max-width: none; }
+.message .text { white-space: pre-wrap; }
+.msg-badge.warning { color: #8a5300; }
+.msg-badge.error { color: var(--bad, #b91c1c); }
+.ind .btn.always { opacity: 1; }
+.elabel.fixed { border-style: dashed; }
+
+.rubber { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; overflow: visible; }
+.rubber path { fill: none; stroke: var(--cor); stroke-width: 2; stroke-dasharray: 5 4; }

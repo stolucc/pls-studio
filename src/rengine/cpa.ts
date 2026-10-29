@@ -22,6 +22,8 @@ export interface CpaInput {
   order?: string[];
   missing: MissingTreatment;
   probe: 'percentiles' | 'meansd';
+  /** Heteroskedasticity-consistent standard errors for the regressions (not used with latent variables). */
+  hc?: 'none' | 'HC0' | 'HC1' | 'HC2' | 'HC3' | 'HC4';
   boot: { samples: number; seed: number };
   confidence: number;
 }
@@ -35,6 +37,7 @@ export function cpaRequest(data: Dataset, input: CpaInput) {
     model: input.model ?? null,
     missing: input.missing,
     probe: input.probe,
+    hc: input.hc ?? 'none',
     confidence: input.confidence,
     boot: input.boot,
     data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
@@ -47,6 +50,7 @@ export function cpaRequest(data: Dataset, input: CpaInput) {
     direct: plan.direct,
     indirect: plan.indirect,
     jn: plan.jn,
+    interactions: plan.interactions.map((i) => ({ outcome: i.outcome, focal: i.focal, terms: i.terms.map((vars) => ({ vars })) })),
   };
 }
 
@@ -61,6 +65,8 @@ export interface CpaResult {
     outcome: string; n: number; r2: number; mse: number | null; f: number | null; df1: number | null; df2: number | null; p: number | null;
     /** term: [] for the constant, [v] for a variable, [a, b(, c)] for a product. */
     coefficients: ({ term: string[] } & CpaTest)[];
+    /** Tests of the highest-order interactions (one row per product, plus a joint row for two or more). */
+    interactions: { focal: string; terms: string[][]; r2change: number; f: number; df1: number; df2: number; p: number }[];
   }[];
   moderators: { name: string; values: number[] }[];
   direct: { moderators: string[]; rows: ({ at: At } & CpaTest)[] } | null;
@@ -79,6 +85,8 @@ export interface CpaResult {
   boot: { samples: number };
   /** Bootstrap (regression) or Monte Carlo (latent variables, lavaan::sam) intervals for indirect effects. */
   inference: 'bootstrap' | 'montecarlo';
+  /** Standard errors of the regressions: OLS ('none') or a heteroskedasticity-consistent type. */
+  hc: 'none' | 'HC0' | 'HC1' | 'HC2' | 'HC3' | 'HC4';
   /** Variables modelled as latent. */
   latent: string[];
   warnings: string[];
@@ -92,7 +100,11 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
   const at = (v: unknown): At => (v && !Array.isArray(v) ? (v as At) : {});
   return {
     ...(raw as CpaResult),
-    equations: arr<any>(raw.equations).map((e) => ({ ...e, coefficients: arr<any>(e.coefficients).map((c) => ({ ...c, term: arr<string>(c.term) })) })),
+    equations: arr<any>(raw.equations).map((e) => ({
+      ...e,
+      coefficients: arr<any>(e.coefficients).map((c) => ({ ...c, term: arr<string>(c.term) })),
+      interactions: arr<any>(e.interactions).map((t) => ({ ...t, terms: arr<unknown>(t.terms).map((x) => arr<string>(x)) })),
+    })),
     moderators: arr<any>(raw.moderators).map((m) => ({ name: m.name, values: arr<number>(m.values) })),
     direct: raw.direct ? { moderators: arr<string>(raw.direct.moderators), rows: arr<any>(raw.direct.rows).map((r) => ({ ...r, at: at(r.at) })) } : null,
     indirect: arr<any>(raw.indirect).map((p) => ({ path: arr<string>(p.path), moderators: arr<string>(p.moderators), rows: arr<any>(p.rows).map((r) => ({ ...r, at: at(r.at) })) })),
@@ -100,6 +112,7 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
     jn: arr<any>(raw.jn).map((j) => ({ ...j, range: arr<number>(j.range), v: arr<number>(j.v), bounds: arr<any>(j.bounds) })),
     warnings: arr<string>(raw.warnings),
     inference: raw.inference === 'montecarlo' ? 'montecarlo' : 'bootstrap',
+    hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === raw.hc) ?? 'none',
     latent: arr<string>(raw.latent),
   };
 }

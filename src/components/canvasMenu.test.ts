@@ -17,9 +17,9 @@ describe('canvas context menus', () => {
   it('offers delete on every kind of element', () => {
     expect(actions({ kind: 'construct', id: 'a' })).toContain('delete-construct');
     expect(actions({ kind: 'indicator', construct: 'a', name: 'a1' })).toContain('remove-indicator');
-    expect(actions({ kind: 'path', id: 'p1' })).toEqual(['add-quadratic', 'reverse-path', 'delete-path']);
+    expect(actions({ kind: 'path', id: 'p1' })).toEqual(['fix-value', 'add-quadratic', 'reverse-path', 'delete-path']);
     expect(actions({ kind: 'moderation', id: 'mo1' })).toEqual(['delete-moderation']);
-    expect(actions({ kind: 'correlation', id: 'k1' })).toEqual(['delete-correlation']);
+    expect(actions({ kind: 'correlation', id: 'k1' })).toEqual(['fix-value', 'delete-correlation']);
   });
 
   it('titles the menu with what was clicked', () => {

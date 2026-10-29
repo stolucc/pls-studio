@@ -104,8 +104,10 @@ interface CbModel {
   covariates: number[];
   /** Ψ entries fixed at sample values (covariates), set per sample by bindSample(). */
   fixedPsi: { i: number; j: number; value: number }[];
-  /** Loadings / regressions held at given values instead of estimated (MIIV-2SLS variance step). */
+  /** Loadings / regressions held at given values instead of estimated (user-fixed values; MIIV-2SLS variance step). */
   fixedCoef?: (ParamDef & { value: number })[];
+  /** Measurement-error covariances held at given values. */
+  fixedThetaCov?: { i: number; j: number; value: number }[];
 }
 
 function buildCbModel(spec: ModelSpec): CbModel {
@@ -153,7 +155,49 @@ function buildCbModel(spec: ModelSpec): CbModel {
     if (!singleIndicator[m.indicatorConstruct[i]]) params.push({ kind: 'residual', i, j: i });
   });
   addCovariances(spec, m, params, new Set(exoLatent), isCov, singleIndicator);
-  return { m, params, p: m.indicatorNames.length, k, singleIndicator, exo, ho, covariates, fixedPsi: [] };
+  return fixValues(spec, { m, params, p: m.indicatorNames.length, k, singleIndicator, exo, ho, covariates, fixedPsi: [] });
+}
+
+/**
+ * Parameters the user fixed at a value (lavaan's `a*x`): removed from the
+ * free parameters and held in the model matrices instead.
+ */
+function fixValues(spec: ModelSpec, cm: CbModel): CbModel {
+  const { m } = cm;
+  let params = cm.params;
+  const fixedCoef: NonNullable<CbModel['fixedCoef']> = [];
+  const fixedPsi: CbModel['fixedPsi'] = [];
+  const fixedThetaCov: NonNullable<CbModel['fixedThetaCov']> = [];
+  const take = (match: (d: ParamDef) => boolean) => { const d = params.find(match); params = params.filter((x) => x !== d); return d; };
+  for (const p of spec.paths) {
+    if (p.fixed === undefined) continue;
+    const i = m.constructs.indexOf(p.to), j = m.constructs.indexOf(p.from);
+    const d = take((x) => x.kind === 'regression' && x.i === i && x.j === j);
+    if (!d) throw new Error(`The path ${p.from} → ${p.to} cannot be fixed.`);
+    fixedCoef.push({ ...d, value: p.fixed });
+  }
+  spec.constructs.forEach((c, j) => {
+    for (const [ind, value] of Object.entries(c.fixedLoadings ?? {})) {
+      const i = m.indicatorNames.indexOf(ind);
+      if (i < 0 || !m.blocks[j].includes(i)) throw new Error(`"${ind}" is not an indicator of ${c.name}; its loading cannot be fixed.`);
+      // The marker has no free loading: its value replaces the 1.
+      take((x) => x.kind === 'loading' && x.i === i && x.j === j);
+      fixedCoef.push({ kind: 'loading', i, j, value });
+    }
+  });
+  for (const cv of spec.covariances ?? []) {
+    if (cv.fixed === undefined || cv.zero) continue;
+    if (cv.kind === 'construct') {
+      const [i, j] = [m.constructs.indexOf(cv.a), m.constructs.indexOf(cv.b)].sort((x, y) => x - y);
+      if (!take((x) => x.kind === 'lvcov' && x.i === i && x.j === j)) throw new Error(`The covariance ${cv.a} ↔ ${cv.b} cannot be fixed.`);
+      fixedPsi.push({ i, j, value: cv.fixed });
+    } else {
+      const [i, j] = [m.indicatorNames.indexOf(cv.a), m.indicatorNames.indexOf(cv.b)].sort((x, y) => x - y);
+      if (!take((x) => x.kind === 'rescov' && x.i === i && x.j === j)) throw new Error(`The error covariance ${cv.a} ↔ ${cv.b} cannot be fixed.`);
+      fixedThetaCov.push({ i, j, value: cv.fixed });
+    }
+  }
+  return { ...cm, params, fixedPsi, ...(fixedCoef.length ? { fixedCoef } : {}), ...(fixedThetaCov.length ? { fixedThetaCov } : {}) };
 }
 
 /**
@@ -198,7 +242,8 @@ function addCovariances(spec: ModelSpec, m: CompiledModel, params: ParamDef[], e
 /** Fix covariate (co)variances at the values of this sample covariance matrix. */
 export function bindSample(cm: CbModel, S: Mat): CbModel {
   if (cm.covariates.length === 0) return cm;
-  const fixedPsi: CbModel['fixedPsi'] = [];
+  // User-fixed covariances stay; covariate (co)variances take this sample's values.
+  const fixedPsi: CbModel['fixedPsi'] = cm.fixedPsi.filter((f) => !(cm.covariates.includes(f.i) && cm.covariates.includes(f.j)));
   for (const a of cm.covariates) for (const b of cm.covariates) {
     if (b < a) continue;
     fixedPsi.push({ i: a, j: b, value: S[cm.m.blocks[a][0]][cm.m.blocks[b][0]] });
@@ -219,6 +264,7 @@ function matrices(cm: CbModel, th: number[]): Matrices {
   for (const h of cm.ho) if (h.marker) B[h.child][h.parent] = 1;
   for (const f of cm.fixedPsi) { Psi[f.i][f.j] = f.value; Psi[f.j][f.i] = f.value; }
   for (const f of cm.fixedCoef ?? []) { if (f.kind === 'loading') L[f.i][f.j] = f.value; else B[f.i][f.j] = f.value; }
+  for (const f of cm.fixedThetaCov ?? []) thetaCov.push({ i: f.i, j: f.j, v: f.value });
   cm.params.forEach((d, a) => {
     const v = th[a];
     if (d.kind === 'loading') L[d.i][d.j] = v;
@@ -923,7 +969,15 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
     estimates.push({ ...e, z, p: z === null ? null : normalP(z) });
   };
 
-  m.blocks.forEach((b, j) => { if (b.length) push({ kind: 'fixed-loading', lhs: lv(j), op: '=~', rhs: name(b[0]), est: 1, se: null, std: st.stdLoadings[b[0]] }); });
+  const userFixed = cm.fixedCoef ?? [];
+  m.blocks.forEach((b, j) => {
+    if (b.length && !userFixed.some((f) => f.kind === 'loading' && f.i === b[0] && f.j === j)) push({ kind: 'fixed-loading', lhs: lv(j), op: '=~', rhs: name(b[0]), est: 1, se: null, std: st.stdLoadings[b[0]] });
+  });
+  for (const f of userFixed) {
+    if (f.kind === 'loading') push({ kind: 'fixed-loading', lhs: lv(f.j), op: '=~', rhs: name(f.i), est: f.value, se: null, std: st.stdLoadings[f.i] });
+    else if (f.kind === 'regression') push({ kind: 'fixed', lhs: lv(f.i), op: '~', rhs: lv(f.j), est: f.value, se: null, std: st.stdPaths[f.j][f.i] });
+  }
+  for (const f of cm.fixedThetaCov ?? []) push({ kind: 'fixed', lhs: name(f.i), op: '~~', rhs: name(f.j), est: f.value, se: null, std: f.value / Math.sqrt(X.theta[f.i] * X.theta[f.j]) });
   const stdHo = (child: number, parent: number) => (X.B[child][parent] * st.sdEta[parent]) / st.sdEta[child];
   for (const h of cm.ho) if (h.marker) push({ kind: 'fixed-loading', lhs: lv(h.parent), op: '=~', rhs: lv(h.child), est: 1, se: null, std: stdHo(h.child, h.parent) });
   for (const f of cm.fixedPsi) push({ kind: 'fixed', lhs: lv(f.i), op: '~~', rhs: lv(f.j), est: f.value, se: null, std: f.value / (st.sdEta[f.i] * st.sdEta[f.j]) });
@@ -939,7 +993,9 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
   });
   // Order like lavaan: loadings, regressions, then variances/covariances.
   const order = { 'fixed-loading': 0, loading: 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3 } as const;
-  estimates.sort((x, y) => order[x.kind] - order[y.kind]);
+  // Fixed values sort with their kind of parameter (op).
+  const rank = (e: CbEstimate) => (e.kind === 'fixed' ? (e.op === '~' ? 1 : 3) : order[e.kind]);
+  estimates.sort((x, y) => rank(x) - rank(y));
 
   for (const e of estimates) {
     if (e.op === '~~' && e.lhs === e.rhs && e.est < 0) warnings.push(`Negative variance for ${e.lhs} (Heywood case).`);

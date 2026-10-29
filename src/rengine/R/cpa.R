@@ -55,13 +55,16 @@ ps_cpa_combine_code <- function(field, what) c(
   "}")
 
 #' Script lines: helpers that turn the fitted equations into effects.
-ps_cpa_helper_code <- function() c(
-  "# Conditional effect of `from` on `to` at moderator values `at` (a named vector), with its OLS",
+ps_cpa_helper_code <- function(hc) c(
+  if (hc == "none") "# Covariance matrix of the coefficients: OLS."
+  else sprintf("# Covariance matrix of the coefficients: heteroskedasticity-consistent (sandwich::vcovHC, type %s).", hc),
+  if (hc == "none") "vc <- function(fit) vcov(fit)" else sprintf("vc <- function(fit) sandwich::vcovHC(fit, type = \"%s\")", hc),
+  "# Conditional effect of `from` on `to` at moderator values `at` (a named vector), with its",
   "# standard error, t test and confidence interval: the sum of the coefficients of every term of",
   "# `to`'s equation that contains `from`, each times the product of the other variables in the term.",
   "slope <- function(from, to, at = numeric(0)) {",
   "  fit <- eqs[[to]]",
-  "  b <- coef(fit); V <- vcov(fit)",
+  "  b <- coef(fit); V <- vc(fit)",
   "  parts <- strsplit(names(b), \":\", fixed = TRUE)",
   "  g <- vapply(parts, function(p) if (from %in% p) prod(at[setdiff(p, from)]) else 0, 0)",
   "  est <- sum(g * b); se <- sqrt(drop(t(g) %*% V %*% g)); df <- df.residual(fit)",
@@ -139,7 +142,7 @@ ps_cpa_build <- function(req) {
       sprintf("boot_out <- do_boot(fits, R = %d, seed = %d, parallel = FALSE, progress = FALSE)", B, as.integer(req$boot$seed %||% 1))),
     if (length(mods)) c(ps_cpa_probe_code(req$probe %||% "percentiles"),
       sprintf("probe_values <- list(%s)", paste(sprintf("%s = probe(data$%s)", mods, mods), collapse = ", "))),
-    ps_cpa_helper_code())
+    ps_cpa_helper_code(req$hc %||% "none"))
   list(body = body, inputs = inputs, id = id, rn = rn, mods = mods, has_ind = has_ind, sam = FALSE, latent = character(0))
 }
 
@@ -186,20 +189,40 @@ ps_cpa <- function(req_json, export = FALSE) {
     r2 <- lavaan::lavInspect(env$fit, "r2")
     lapply(req$equations, function(e) {
       o <- id(e$outcome); rows <- pe[pe$op == "~" & pe$lhs == o, ]
-      list(outcome = e$outcome, n = nrow(env$data), r2 = unname(r2[o]), mse = NULL, f = NULL, df1 = NULL, df2 = NULL, p = NULL,
+      list(outcome = e$outcome, n = nrow(env$data), r2 = unname(r2[o]), mse = NULL, f = NULL, df1 = NULL, df2 = NULL, p = NULL, interactions = list(),
         coefficients = lapply(seq_len(nrow(rows)), function(i) list(term = nm(strsplit(rows$rhs[i], ":", fixed = TRUE)[[1]]),
           est = rows$est[i], se = rows$se[i], t = rows$z[i], p = rows$pvalue[i], lo = rows$ci.lower[i], hi = rows$ci.upper[i])))
     })
   } else lapply(req$equations, function(e) {
     f <- env$eqs[[id(e$outcome)]]
-    s <- summary(f); ct <- s$coefficients
-    ci <- confint(f, level = req$confidence %||% 0.95)
-    fs <- s$fstatistic
+    s <- summary(f)
+    b <- coef(f); V <- env$vc(f); se <- sqrt(diag(V)); df <- df.residual(f)
+    tv <- b / se; q <- qt(1 - (1 - level) / 2, df)
+    # F test of all predictors: the usual one, or the Wald test with the robust covariance matrix (as PROCESS).
+    k <- names(b) != "(Intercept)"
+    fval <- drop(t(b[k]) %*% solve(V[k, k, drop = FALSE]) %*% b[k]) / sum(k)
+    # Highest-order interactions of this outcome: R² change on dropping the product(s), Wald F with V.
+    labels <- attr(terms(f), "term.labels")
+    find <- function(vars) names(b)[vapply(strsplit(names(b), ":", fixed = TRUE), function(p) setequal(p, id(vars)), TRUE)]
+    test <- function(focal, vs) {
+      nms <- vapply(vs, function(v) find(v$vars), "")
+      keep <- labels[!vapply(strsplit(labels, ":", fixed = TRUE), function(p) any(vapply(vs, function(v) setequal(p, id(v$vars)), TRUE)), TRUE)]
+      reduced <- lm(reformulate(keep, response = id(e$outcome)), data = f$model)
+      fq <- drop(t(b[nms]) %*% solve(V[nms, nms, drop = FALSE]) %*% b[nms]) / length(nms)
+      list(focal = focal, terms = lapply(vs, function(v) nm(id(v$vars))), r2change = s$r.squared - summary(reduced)$r.squared,
+        f = fq, df1 = length(nms), df2 = df, p = pf(fq, length(nms), df, lower.tail = FALSE))
+    }
+    tests <- unlist(lapply(Filter(function(i) id(i$outcome) == id(e$outcome), req$interactions %||% list()), function(i) {
+      rows <- lapply(i$terms, function(v) test(i$focal, list(v)))
+      if (length(i$terms) > 1) rows <- c(rows, list(test(i$focal, i$terms)))
+      rows
+    }), recursive = FALSE)
     list(outcome = e$outcome, n = length(f$residuals), r2 = s$r.squared, mse = s$sigma^2,
-      f = unname(fs[1]), df1 = unname(fs[2]), df2 = unname(fs[3]), p = unname(pf(fs[1], fs[2], fs[3], lower.tail = FALSE)),
-      coefficients = lapply(seq_len(nrow(ct)), function(i) list(
-        term = if (rownames(ct)[i] == "(Intercept)") list() else nm(strsplit(rownames(ct)[i], ":", fixed = TRUE)[[1]]),
-        est = ct[i, 1], se = ct[i, 2], t = ct[i, 3], p = ct[i, 4], lo = ci[i, 1], hi = ci[i, 2])))
+      f = fval, df1 = sum(k), df2 = df, p = pf(fval, sum(k), df, lower.tail = FALSE), interactions = tests %||% list(),
+      coefficients = lapply(seq_along(b), function(i) list(
+        term = if (names(b)[i] == "(Intercept)") list() else nm(strsplit(names(b)[i], ":", fixed = TRUE)[[1]]),
+        est = unname(b[i]), se = unname(se[i]), t = unname(tv[i]), p = unname(2 * pt(-abs(tv[i]), df)),
+        lo = unname(b[i] - q * se[i]), hi = unname(b[i] + q * se[i]))))
   })
 
   slope_row <- function(from, to, at) { s <- env$slope(from, to, at); c(list(at = at_list(at)), as.list(s)) }
@@ -222,7 +245,7 @@ ps_cpa <- function(req_json, export = FALSE) {
       V <- V0[names(cf)[keep], names(cf)[keep], drop = FALSE]; dimnames(V) <- list(names(b), names(b))
       q <- qnorm(1 - (1 - level) / 2)
     } else {
-      f <- env$eqs[[to]]; b <- coef(f); V <- vcov(f)
+      f <- env$eqs[[to]]; b <- coef(f); V <- env$vc(f)
       q <- qt(1 - (1 - level) / 2, df.residual(f))
     }
     xw <- names(b)[vapply(strsplit(names(b), ":", fixed = TRUE), function(p) setequal(p, c(from, w)), TRUE)]
@@ -291,7 +314,7 @@ ps_cpa <- function(req_json, export = FALSE) {
     moderators = lapply(b$mods, function(m) list(name = nm(m), values = pv[[m]])),
     direct = direct, indirect = indirect, total = total, indices = indices, jn = jn,
     boot = list(samples = if (b$has_ind || b$sam) as.integer(req$boot$samples) else 0L),
-    inference = if (b$sam) "montecarlo" else "bootstrap", latent = lapply(b$latent, nm),
+    inference = if (b$sam) "montecarlo" else "bootstrap", hc = if (b$sam) "none" else req$hc %||% "none", latent = lapply(b$latent, nm),
     warnings = env$.warnings,
     engine = list(package = if (b$sam) "lavaan::sam + manymome" else "manymome",
       version = if (b$sam) sprintf("%s / %s", utils::packageVersion("lavaan"), utils::packageVersion("manymome")) else as.character(utils::packageVersion("manymome")))))

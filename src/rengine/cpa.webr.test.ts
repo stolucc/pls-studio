@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseCsv } from '../engine/dataset';
 import { materialise, template } from '../process/templates';
-import { cpaScriptR, estimateCpaR, type At, type CpaInput } from './cpa';
+import { cpaScriptR, estimateCpaR, type At, type CpaInput, type CpaResult } from './cpa';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
@@ -18,9 +18,12 @@ afterAll(stopTestRuntime);
 
 interface Effect { at: Record<string, number>; effect: number }
 interface Reference {
-  model: number; mediators: string[]; w: boolean; z: boolean;
+  model: number; mediators: string[]; w: boolean; z: boolean; hc: 'none' | 'HC0' | 'HC1' | 'HC2' | 'HC3' | 'HC4';
   equations: Record<string, Record<string, number>>;
-  direct: Effect[] | null;
+  se: Record<string, Record<string, number>>;
+  summary: Record<string, { r2: number; f: number; df1: number; df2: number }>;
+  interactions?: Record<string, { label: string; r2change: number; f: number; df1: number; p: number }[]>;
+  direct: (Effect & { se?: number })[] | null;
   indirect: { path: string[]; effects: Effect[] }[];
   indices: { kind: string; path: string[]; moderator?: string; at?: Record<string, number>; index: number }[];
 }
@@ -30,7 +33,8 @@ const data = parseCsv(readFileSync(join(DIR, 'data.csv'), 'utf8')).dataset;
 const fixtures = import.meta.glob<Reference>('../process/__fixtures__/reference/model*.json', { eager: true, import: 'default' });
 const references = Object.values(fixtures).sort((a, b) => a.model - b.model);
 
-const input = (r: Reference, boot = 50): CpaInput => {
+const input = (r: Reference, boot = 50): CpaInput => ({ ...baseInput(r, boot), hc: r.hc ?? 'none' });
+const baseInput = (r: Reference, boot: number): CpaInput => {
   const roles = { x: 'x', y: 'y', m: r.mediators, w: r.w ? 'w' : undefined, z: r.z ? 'z' : undefined };
   const names = ['x', 'y', ...r.mediators, ...(r.w ? ['w'] : []), ...(r.z ? ['z'] : []), 'c1'];
   return {
@@ -48,6 +52,21 @@ const KIND: Record<string, string> = {
   'Index of moderated moderated mediation': 'mmm', 'Indices of conditional moderated mediation by W': 'cmm',
 };
 
+/** PROCESS labels rows by role ("X*W", "BOTH(M1)"); the reference data names variables by role in lower case. */
+function checkInteractions(mine: CpaResult['equations'][number]['interactions'], theirs: NonNullable<Reference['interactions']>[string]) {
+  expect(mine.length, 'number of interaction tests').toBe(theirs.length);
+  for (const t of theirs) {
+    const both = /^BOTH/.exec(t.label);
+    const focal = both ? (/\((\w+)\)/.exec(t.label)?.[1] ?? 'x').toLowerCase() : '';
+    const key = t.label.toLowerCase().split('*').sort().join('*');
+    const row = both ? mine.find((x) => x.terms.length > 1 && x.focal === focal) : mine.find((x) => x.terms.length === 1 && [...x.terms[0]].sort().join('*') === key);
+    expect(row, t.label).toBeTruthy();
+    expect(row!.r2change, `${t.label} R² change`).toBeCloseTo(t.r2change, 6);
+    expect(row!.f, `${t.label} F`).toBeCloseTo(t.f, 4);
+    expect(row!.df1).toBe(t.df1);
+  }
+}
+
 describe.each(references.map((r) => [r.model, r] as const))('PROCESS model %i in webR (manymome)', (_, r) => {
   it('reproduces PROCESS', async () => {
     const res = await estimateCpaR(data, input(r));
@@ -60,7 +79,11 @@ describe.each(references.map((r) => [r.model, r] as const))('PROCESS model %i in
         const vars = term === 'constant' ? '' : term.split('*').sort().join('*');
         const mine = eq.coefficients.find((c) => [...c.term].sort().join('*') === vars);
         expect(mine?.est, `${outcome}: ${term}`).toBeCloseTo(b, 6);
+        expect(mine?.se, `${outcome}: se of ${term}`).toBeCloseTo(r.se[outcome][term], 6);
       }
+      expect(eq.r2).toBeCloseTo(r.summary[outcome].r2, 6);
+      expect(eq.f!).toBeCloseTo(r.summary[outcome].f, 4);
+      checkInteractions(eq.interactions, r.interactions?.[outcome] ?? []);
     }
     if (r.direct) {
       expect(res.direct!.rows.length).toBe(r.direct.length);
@@ -79,6 +102,25 @@ describe.each(references.map((r) => [r.model, r] as const))('PROCESS model %i in
       expect(mine?.est, `${i.kind} ${key(i.path)}`).toBeCloseTo(i.index, 6);
       expect(mine!.lo).toBeLessThanOrEqual(mine!.hi);
     }
+  }, 600_000);
+});
+
+const hcFixtures = import.meta.glob<Reference>('../process/__fixtures__/reference/hc/model*.json', { eager: true, import: 'default' });
+
+describe.each(Object.entries(hcFixtures).map(([f, r]) => [f.split('/').pop()!, r] as const))('heteroskedasticity-consistent SEs: %s', (_, r) => {
+  it('match PROCESS’s hc option', async () => {
+    const res = await estimateCpaR(data, input(r, 2));
+    expect(res.hc).toBe(r.hc);
+    for (const [outcome, se] of Object.entries(r.se)) {
+      const eq = res.equations.find((e) => e.outcome === outcome)!;
+      for (const [term, v] of Object.entries(se)) {
+        const vars = term === 'constant' ? '' : term.split('*').sort().join('*');
+        expect(eq.coefficients.find((c) => [...c.term].sort().join('*') === vars)?.se, `${outcome}: ${term}`).toBeCloseTo(v, 6);
+      }
+      expect(eq.f!, `${outcome}: robust F`).toBeCloseTo(r.summary[outcome].f, 4);
+      checkInteractions(eq.interactions, r.interactions?.[outcome] ?? []);
+    }
+    for (const d of r.direct ?? []) if (d.se !== undefined) expect(res.direct!.rows.find((x) => sameAt(x.at, d.at))?.se).toBeCloseTo(d.se, 6);
   }, 600_000);
 });
 

@@ -3,6 +3,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { menuFor } from '../components/canvasMenu';
+import { covarianceLayout } from '../components/CovarianceLayer';
 import { switchMethod } from '../methodSwitch';
 import { DEFAULT_SETTINGS, parseProject, serializeProject, validateModel, type ModelState } from '../model/project';
 import { emptyModel, resultsKey, useStore } from '../store';
@@ -137,17 +138,41 @@ describe('implied covariances can be fixed at zero', () => {
     useStore.setState({ settings: { ...DEFAULT_SETTINGS, method: 'cbsem' } });
     s().applyTemplate(1, 0);
     const [x, w] = [named('X').id, named('W').id];
+    s().assignIndicators(x, ['r1', 'r2']);
+    s().assignIndicators(w, ['sup', 'age']);
+    expect(covarianceLayout(s().model, true, false).curves).toHaveLength(1);
     const ctx = { method: 'cbsem' as const, readOnly: false };
     expect(menuFor({ kind: 'implied', a: x, b: w }, s().model, ctx)?.items.map((i) => i.action)).toEqual(['fix-zero']);
     expect(menuFor({ kind: 'implied', a: x, b: w }, s().model, { ...ctx, method: 'pls' })).toBeNull();
     expect(s().addCorrelation('construct', x, w, true)).toBe(true);
     const k = s().model.correlations![0];
     expect(k).toMatchObject({ a: x, b: w, zero: true });
-    expect(menuFor({ kind: 'correlation', id: k.id }, s().model, ctx)?.items[0]).toMatchObject({ action: 'delete-correlation', label: 'Let them covary again' });
+    // Not drawn (no arrow means zero), and drawing the correlation frees it again.
+    expect(covarianceLayout(s().model, true, false).curves).toEqual([]);
     // Survives a project file, and reaches the engines as a fixed zero.
     const p = parseProject(serializeProject(s().model, s().settings, null, null));
     expect(p.model.correlations![0].zero).toBe(true);
     expect(validateModel(s().model, data, s().settings).some((i) => /fixed as uncorrelated/.test(i.message))).toBe(false);
+    expect(s().addCorrelation('construct', w, x)).toBe(true);
+    expect(s().model.correlations).toEqual([]);
+    expect(covarianceLayout(s().model, true, false).curves.map((c) => c.k.id)).toEqual([expect.stringMatching(/^auto:/)]);
+  });
+});
+
+describe('session messages', () => {
+  it('keeps every engine warning and error toast; not toasts logged elsewhere', () => {
+    useStore.setState({ messages: [] });
+    s().toast('error', 'Import a dataset first.');
+    s().toast('error', 'lavaan: 2 warnings (see Messages).', { log: false });
+    s().toast('info', 'Saved.');
+    s().setResults({ cb: { warnings: ['lavaan WARNING: the optimizer warns that a solution has NOT been found!', 'second'], engine: { package: 'lavaan', version: '0.7-3' } } as never }, 'k');
+    expect(s().messages.map((m) => [m.level, m.text, m.source])).toEqual([
+      ['error', 'Import a dataset first.', undefined],
+      ['warning', 'lavaan WARNING: the optimizer warns that a solution has NOT been found!', 'lavaan 0.7-3'],
+      ['warning', 'second', 'lavaan 0.7-3'],
+    ]);
+    s().clearMessages();
+    expect(s().messages).toEqual([]);
   });
 });
 

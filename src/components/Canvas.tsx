@@ -8,11 +8,13 @@ import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment, qu
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { FigurePanel } from './FigurePanel';
+import { numberDialog } from './Overlays';
 import { ProcessGallery } from './ProcessGallery';
 import { ProcessBar } from './ProcessBar';
 import { ContextMenu } from './ContextMenu';
 import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
 import { correlationEndError, correlationPairError, endogenousIds, validateModel, type Correlation } from '../model/project';
+import { covaryByDefault, endAt } from './correlationEnds';
 import type { ExampleId } from '../io';
 import { run } from '../runner';
 import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from '../store';
@@ -100,24 +102,63 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   const pendingPick = useRef<CorrelationPick | null>(null);
   useEffect(() => { setPicked(pendingPick.current); pendingPick.current = null; }, [tool]);
   useEffect(() => { if (method !== 'cbsem' && tool === 'correlate') st().setTool('select'); }, [method, tool, st]);
-  const pick = useCallback((p: CorrelationPick) => {
+  /** Is this end allowed at all? Explains why not. */
+  const endOk = useCallback((p: CorrelationPick) => {
     const endError = correlationEndError(st().model, p);
-    if (endError) {
-      st().toast('info', endError);
-      if (!st().showErrorTerms) st().setShowErrorTerms(true);
-      return;
+    if (!endError) return true;
+    st().toast('info', endError);
+    if (!st().showErrorTerms) st().setShowErrorTerms(true);
+    return false;
+  }, [st]);
+  /** Correlate two ends, saying so when the pair already covaried by default (two exogenous constructs). */
+  const link = useCallback((a: CorrelationPick, b: CorrelationPick) => {
+    const pairError = correlationPairError(st().model, a, b);
+    if (pairError) { st().toast('error', pairError); return; }
+    const m = st().model;
+    const implied = covaryByDefault(m, a, b);
+    if (st().addCorrelation(a.kind, a.id, b.id) && implied) {
+      const name = (id: string) => m.constructs.find((c) => c.id === id)?.name ?? id;
+      st().toast('info', `${name(a.id)} ↔ ${name(b.id)} is now drawn explicitly. Exogenous constructs already covary by default (the lighter arcs); right-click an arc to remove or fix it.`);
     }
+  }, [st]);
+  const pick = useCallback((p: CorrelationPick) => {
+    if (!endOk(p)) return;
     if (!picked) { setPicked(p); return; }
     if (picked.kind === p.kind && picked.id === p.id) { setPicked(null); return; }
-    const pairError = correlationPairError(st().model, picked, p);
-    if (pairError) {
-      st().toast('error', pairError);
-      setPicked(null);
-      return;
-    }
-    st().addCorrelation(p.kind, picked.id, p.id);
+    link(picked, p);
     setPicked(null);
-  }, [picked, st]);
+  }, [picked, endOk, link]);
+
+  // Drawing a correlation by dragging from one end (construct, indicator error, disturbance) to another.
+  const [rubber, setRubber] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const onCorrelateDown = (e: React.PointerEvent) => {
+    if (tool !== 'correlate' || readOnly || e.button !== 0) return;
+    const start = endAt(e.target as Element);
+    if (!start) return;
+    // Keep React Flow from panning the canvas along with the pointer (clicks still reach the node).
+    e.stopPropagation();
+    const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x0 = e.clientX, y0 = e.clientY;
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+      moved = true;
+      setRubber({ x1: x0 - box.left, y1: y0 - box.top, x2: ev.clientX - box.left, y2: ev.clientY - box.top });
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      setRubber(null);
+      if (!moved) return; // a click: handled by the click-to-pick flow
+      const end = endAt(document.elementFromPoint(ev.clientX, ev.clientY));
+      if (!end || (end.kind === start.kind && end.id === start.id && end.via === start.via)) return;
+      if (endOk(start) && endOk(end)) link(start, end);
+      setPicked(null);
+    };
+    // Capture phase: React Flow stops pointer events from bubbling up from nodes.
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+  };
   const errorIds = useMemo(
     () => new Set(validateModel(model, data, settings).filter((i) => i.level === 'error' && i.constructId).map((i) => i.constructId!)),
     [model, data, settings],
@@ -286,9 +327,10 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       data: {
         ...(display ? display.path(name.get(p.from)!, name.get(p.to)!) : { beta: null, p: null }),
         moderated: model.moderations.some((mo) => mo.path === p.id),
+        ...(method === 'cbsem' && p.fixed !== undefined ? { fixed: p.fixed } : {}),
       },
     }));
-  }, [model.paths, model.constructs, model.moderations, selection.edges, display]);
+  }, [model.paths, model.constructs, model.moderations, selection.edges, display, method]);
 
   const onNodesChange = useCallback((changes: NodeChange<ConstructFlowNode>[]) => {
     let sel: Selection | null = null;
@@ -432,7 +474,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     ];
     const correlations = cov.curves.map(({ k, curve }) => {
       const l = correlationLabel(k);
-      return { zero: !!k.zero, d: curve.d, heads: curve.heads, lx: curve.lx, ly: curve.ly, nx: curve.nx, ny: curve.ny,
+      return { d: curve.d, heads: curve.heads, lx: curve.lx, ly: curve.ly, nx: curve.nx, ny: curve.ny,
         points: [[curve.x1, curve.y1], [curve.x2, curve.y2], [curve.lx, curve.ly]] as [number, number][], label: lbl(l?.value, l?.p ?? null) };
     });
     return { constructs, paths, moderations, higherOrder, errors, correlations };
@@ -457,6 +499,27 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     if (tool === 'correlate') { setPicked(p); return; }
     pendingPick.current = p;
     st().setTool('correlate');
+  };
+  /** The parameter a menu target stands for: a path coefficient, a loading or a drawn covariance. */
+  const paramOf = (target: MenuTarget): Parameters<ReturnType<typeof st>['fixParameter']>[0] | null =>
+    target.kind === 'path' ? { kind: 'path', id: target.id }
+      : target.kind === 'indicator' ? { kind: 'loading', construct: target.construct, indicator: target.name }
+        : target.kind === 'correlation' ? { kind: 'correlation', id: target.id } : null;
+  const fixValue = async (target: MenuTarget) => {
+    const t = paramOf(target);
+    if (!t) return;
+    const m = st().model;
+    const current = t.kind === 'path' ? m.paths.find((p) => p.id === t.id)?.fixed
+      : t.kind === 'correlation' ? m.correlations?.find((k) => k.id === t.id)?.fixed
+        : m.constructs.find((c) => c.id === t.construct)?.fixedLoadings?.[t.indicator];
+    const what = t.kind === 'path' ? 'coefficient' : t.kind === 'loading' ? 'loading' : 'covariance';
+    const v = await numberDialog({
+      title: `Fix the ${what} at a value`,
+      body: `CB-SEM holds it at this unstandardised value instead of estimating it (lavaan: value*name), one fewer free parameter. Use it to test a hypothesised value or to set a scale.`,
+      confirmLabel: 'Fix',
+      field: { label: 'Value', min: -1e6, max: 1e6, initial: current !== undefined ? String(current) : '' },
+    });
+    if (v !== null) st().fixParameter(t, v);
   };
   const onMenuAction = (target: MenuTarget, a: MenuAction) => {
     const s = st();
@@ -487,6 +550,12 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'unmake-covariate': if (target.kind === 'construct') s.updateConstruct(target.id, { covariate: false }); break;
       case 'process-template': setTemplatesOpen(true); break;
       case 'fix-zero': if (target.kind === 'implied') s.addCorrelation('construct', target.a, target.b, true); break;
+      case 'fix-value': void fixValue(target); break;
+      case 'free-value': {
+        const t = paramOf(target);
+        if (t) s.fixParameter(t, null);
+        break;
+      }
     }
   };
   const menuContent = menu ? menuFor(menu.target, model, { method, readOnly }) : null;
@@ -525,6 +594,9 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       style={figureCssVars(settings.figure) as React.CSSProperties}
       onDragOver={onDragOver}
       onDrop={onDrop}
+      onPointerDownCapture={onCorrelateDown}
+      // React Flow pans on mousedown (d3-zoom): not when a correlation drag starts on an end.
+      onMouseDownCapture={(e) => { if (tool === 'correlate' && !readOnly && e.button === 0 && endAt(e.target as Element)) e.stopPropagation(); }}
       // Collaborators see your pointer anywhere on the canvas (over nodes too).
       onMouseMove={(e) => { const s = currentSession(); if (s) s.setCursor(rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}
       onMouseLeave={() => currentSession()?.setCursor(null)}
@@ -565,8 +637,13 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         <div className="tool-hint" role="status">
           {picked
             ? <>Now click the second {picked.kind === 'indicator' ? 'indicator' : picked.via === 'disturbance' ? 'disturbance (ζ)' : 'exogenous construct'}. Esc cancels.</>
-            : <>Click two exogenous constructs, two disturbances (ζ) of endogenous constructs, or two indicators (correlated errors).</>}
+            : <>Drag from one end to the other, or click both: two exogenous constructs, two disturbances (ζ) of endogenous constructs, or two indicators (correlated errors).</>}
         </div>
+      )}
+      {rubber && (
+        <svg className="rubber" aria-hidden="true">
+          <path d={`M ${rubber.x1} ${rubber.y1} Q ${(rubber.x1 + rubber.x2) / 2 - (rubber.y2 - rubber.y1) * 0.25} ${(rubber.y1 + rubber.y2) / 2 + (rubber.x2 - rubber.x1) * 0.25} ${rubber.x2} ${rubber.y2}`} />
+        </svg>
       )}
 
       <ReactFlow<ConstructFlowNode, PathFlowEdge>

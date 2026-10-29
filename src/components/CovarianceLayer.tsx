@@ -32,7 +32,8 @@ function indicatorPlaces(model: ModelState): Map<string, IndicatorPlace> {
  * on-screen layer and figure export.
  */
 export function covarianceLayout(model: ModelState, active: boolean, showErrors: boolean) {
-  const drawn = model.correlations ?? [];
+  // A covariance fixed at zero is not drawn: in path diagrams, no arrow means zero (RAM convention).
+  const drawn = (model.correlations ?? []).filter((k) => !k.zero);
   // CB-SEM also estimates covariances nobody drew (exogenous constructs, covariates): show those too.
   const implied = active ? impliedCorrelations(model) : [];
   const corrs = [...drawn, ...implied];
@@ -66,7 +67,7 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
     const pa = k.kind === 'indicator' ? places.get(k.a) : undefined, pb = k.kind === 'indicator' ? places.get(k.b) : undefined;
     // Indicators of one construct: bow outwards, away from the construct.
     const normal = pa && pb && pa.owner.id === pb.owner.id ? [pa.term.nx, pa.term.ny] as [number, number] : undefined;
-    return [{ k, curve: correlationCurve(a, b, { normal, away: centre }), auto: k.id.startsWith('auto:'), zero: !!k.zero }];
+    return [{ k, curve: correlationCurve(a, b, { normal, away: centre }), auto: k.id.startsWith('auto:') }];
   });
   return { places: errors ? places : new Map<string, IndicatorPlace>(), disturbances, curves, errors };
 }
@@ -119,6 +120,7 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
       <svg className={`cov-layer${onPick ? ' picking' : ''}`} width={1} height={1}>
         {errors && [...places.entries()].map(([name, { owner, term: t }]) => (
           <g key={`e:${name}`} className={`err${isPicked('indicator', name) ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'indicator', id: name })}
+            data-cor-kind="indicator" data-cor-id={name}
             onContextMenu={(e) => onMenu(e, { kind: 'indicator', construct: owner.id, name })}>
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Measurement error ε of {name}{errorFor('indicator', name) !== null ? ` (standardised variance ${errorFor('indicator', name)!.toFixed(3)})` : ''}</title></circle>
@@ -127,22 +129,21 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
         ))}
         {disturbances.map(({ c, term: t }) => (
           <g key={`z:${c.id}`} className={`err${picked?.via === 'disturbance' && picked.id === c.id ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'construct', id: c.id, via: 'disturbance' })}
+            data-cor-kind="construct" data-cor-id={c.id} data-cor-via="disturbance"
             onContextMenu={(e) => onMenu(e, { kind: 'disturbance', id: c.id })}>
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Disturbance ζ of {c.name}{errorFor('construct', c.name) !== null ? ` (standardised variance ${errorFor('construct', c.name)!.toFixed(3)})` : ''}</title></circle>
             {errContent(t, 'ζ', errorFor('construct', c.name))}
           </g>
         ))}
-        {curves.map(({ k, curve, on, auto, zero }) => (
-          <g key={k.id} className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}${zero ? ' zero' : ''}`}>
+        {curves.map(({ k, curve, on, auto }) => (
+          <g key={k.id} className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}`}>
             {auto
               // Right-click: fix the default covariance at zero (uncorrelated).
               ? <path className="cor-hit" d={curve.d} onContextMenu={(e) => onMenu(e, { kind: 'implied', a: k.a, b: k.b })}>
-                <title>Estimated by default: exogenous constructs covary freely in CB-SEM (covariates: fixed at their sample covariance). Right-click to fix it at zero.</title>
+                <title>Estimated by default: exogenous constructs covary freely in CB-SEM (covariates: fixed at their sample covariance). Right-click to remove it (fix the covariance at zero).</title>
               </path>
-              : <path className="cor-hit" d={curve.d} onClick={(e) => select(e, k.id)} onContextMenu={(e) => { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); }}>
-                {zero && <title>Fixed at zero: these constructs are uncorrelated. Right-click to let them covary again.</title>}
-              </path>}
+              : <path className="cor-hit" d={curve.d} onClick={(e) => select(e, k.id)} onContextMenu={(e) => { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); }} />}
             <path className="cor-line" d={curve.d} />
             {curve.heads.map((h, i) => <path key={i} className="cor-head" d={h} />)}
           </g>

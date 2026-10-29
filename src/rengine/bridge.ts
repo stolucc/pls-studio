@@ -19,7 +19,7 @@ export const R_PACKAGES = {
   seminr: ['jsonlite', 'seminr'],
   MIIVsem: ['jsonlite', 'lavaan', 'MIIVsem'],
   simulation: ['jsonlite', 'lavaan', 'cSEM'],
-  manymome: ['jsonlite', 'manymome'],
+  manymome: ['jsonlite', 'manymome', 'sandwich'],
   manymomeSam: ['jsonlite', 'manymome', 'lavaan'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;

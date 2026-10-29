@@ -15,6 +15,7 @@ export function processInput(model: ModelState, settings: Settings): CpaInput | 
     // Listwise deletion, as PROCESS (mean replacement would bias regression estimates).
     missing: 'casewise',
     probe: settings.probe,
+    hc: settings.hc,
     boot: { samples: Math.max(100, Math.floor(settings.bootSamples)), seed: settings.seed },
     confidence: settings.confidence,
   };

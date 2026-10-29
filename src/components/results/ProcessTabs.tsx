@@ -28,12 +28,20 @@ function Equations({ res, title, level }: { res: CpaResult; title: string; level
         {res.moderators.length > 0 && <> Moderators probed at {res.moderators.map((m) => `${m.name} = ${m.values.map((v) => fmt(v, 3)).join(', ')}`).join('; ')}.</>}
       </div>
       {res.equations.map((e) => (
-        <Table key={e.outcome} title={`Outcome: ${e.outcome}`} file={`process-${e.outcome}`}
-          columns={['Term', 'Coefficient', 'Std. error', res.inference === 'montecarlo' ? 'z' : 't', 'p', ...ciCols(level)]}
+        <div key={e.outcome} className="tables">
+        <Table title={`Outcome: ${e.outcome}`} file={`process-${e.outcome}`}
+          columns={['Term', 'Coefficient', res.hc === 'none' ? 'Std. error' : `Std. error (${res.hc})`, res.inference === 'montecarlo' ? 'z' : 't', 'p', ...ciCols(level)]}
           rows={e.coefficients.map((k): Row => [c(term(k.term)), c(k.est), c(k.se), c(k.t), pCell(k.p), c(k.lo), c(k.hi)])}
           note={e.f === null || e.p === null
             ? <>R² = {fmt(e.r2, 3)}. Unstandardised coefficients in the latent variables’ metric (first item’s loading fixed to 1); a product of latent variables is SAM’s latent interaction.</>
-            : <>R² = {fmt(e.r2, 3)}, MSE = {fmt(e.mse, 3)}, F({fmt(e.df1 ?? NaN, 0)}, {fmt(e.df2 ?? NaN, 0)}) = {fmt(e.f, 2)}, p {e.p < 0.001 ? '< .001' : `= ${fmt(e.p, 3)}`}. Unstandardised OLS coefficients; products are of the variables as entered (not mean-centred, as PROCESS by default).</>} />
+            : <>R² = {fmt(e.r2, 3)}, MSE = {fmt(e.mse, 3)}, F{res.hc === 'none' ? '' : ` (${res.hc})`}({fmt(e.df1 ?? NaN, 0)}, {fmt(e.df2 ?? NaN, 0)}) = {fmt(e.f, 2)}, p {e.p < 0.001 ? '< .001' : `= ${fmt(e.p, 3)}`}. Unstandardised OLS coefficients; products are of the variables as entered (not mean-centred, as PROCESS by default).</>} />
+        {e.interactions.length > 0 && (
+          <Table title={`Highest-order interaction${e.interactions.length > 1 ? 's' : ''} in ${e.outcome}`} file={`process-interactions-${e.outcome}`}
+            columns={['Interaction', 'R² change', res.hc === 'none' ? 'F' : `F (${res.hc})`, 'df1', 'df2', 'p']}
+            rows={e.interactions.map((t) => [c(t.terms.length > 1 ? `Jointly: ${t.terms.map(term).join(', ')}` : term(t.terms[0])), c(t.r2change, '', 4), c(t.f), c(t.df1, '', 0), c(t.df2, '', 0), pCell(t.p)])}
+            note="Unconditional tests: how much R² rises when the product term(s) enter the equation, with the F test of their coefficients (as PROCESS). Lower-order terms stay in both models." />
+        )}
+        </div>
       ))}
     </div>
   );
@@ -48,7 +56,8 @@ function Effects({ res, level }: { res: CpaResult; level: number }) {
         <Table title={d.moderators.length ? 'Conditional direct effect of X on Y' : 'Direct effect of X on Y'} file="process-direct"
           columns={[...d.moderators, 'Effect', res.inference === 'montecarlo' ? 'MC SE' : 'Std. error', ...(res.inference === 'montecarlo' ? [] : ['t']), 'p', ...ciCols(level)]}
           rows={d.rows.map((r) => [...atCells(d.moderators, r.at), c(r.est), c(r.se), ...(res.inference === 'montecarlo' ? [] : [c(r.t)]), pCell(r.p), c(r.lo), c(r.hi)])}
-          note={res.inference === 'montecarlo' ? 'Monte Carlo standard errors, p values and percentile intervals (manymome::do_mc).' : 'OLS standard errors and t tests, as PROCESS.'} />
+          note={res.inference === 'montecarlo' ? 'Monte Carlo standard errors, p values and percentile intervals (manymome::do_mc).'
+            : res.hc === 'none' ? 'OLS standard errors and t tests, as PROCESS.' : `${res.hc} heteroskedasticity-consistent standard errors and t tests, as PROCESS’s hc option.`} />
       )}
       {res.indirect.map((p) => (
         <Table key={pathLabel(p.path)} title={`${p.moderators.length ? 'Conditional indirect effect' : 'Indirect effect'}: ${pathLabel(p.path)}`} file={`process-indirect-${p.path.join('-')}`}

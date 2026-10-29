@@ -28,12 +28,16 @@ export interface Construct {
   covariate?: boolean;
   /** Conditional process analysis: model this scale as a latent variable (lavaan::sam) instead of its mean score. */
   latent?: boolean;
+  /** CB-SEM: loadings held at a value (by indicator name); a value for the first indicator replaces the marker's 1. */
+  fixedLoadings?: Record<string, number>;
 }
 
 export interface Path {
   id: string;
   from: string;
   to: string;
+  /** CB-SEM: coefficient held at this value instead of estimated. */
+  fixed?: number;
 }
 
 export interface Settings {
@@ -60,6 +64,8 @@ export interface Settings {
   confidence: number;
   /** Conditional process analysis: moderator values at which effects are probed. */
   probe: 'percentiles' | 'meansd';
+  /** Conditional process analysis: heteroskedasticity-consistent standard errors (PROCESS's hc option). */
+  hc: 'none' | 'HC0' | 'HC1' | 'HC2' | 'HC3' | 'HC4';
 }
 
 export interface DataInfo {
@@ -91,6 +97,8 @@ export interface Correlation {
   b: string;
   /** Two exogenous constructs fixed as uncorrelated (covariance 0) instead of the default free covariance. */
   zero?: boolean;
+  /** CB-SEM: a drawn covariance held at this value instead of estimated. */
+  fixed?: number;
 }
 
 /**
@@ -112,6 +120,20 @@ export interface ModelState {
   moderations: Moderation[];
   correlations?: Correlation[];
   threeWay?: ThreeWay[];
+}
+
+/** Drop fixed loadings of indicators that left their construct. */
+export function pruneFixedLoadings(model: ModelState): ModelState {
+  if (!model.constructs.some((c) => c.fixedLoadings && Object.keys(c.fixedLoadings).some((i) => !c.indicators.includes(i)))) return model;
+  return {
+    ...model,
+    constructs: model.constructs.map((c) => {
+      if (!c.fixedLoadings) return c;
+      const kept = Object.fromEntries(Object.entries(c.fixedLoadings).filter(([i]) => c.indicators.includes(i)));
+      const { fixedLoadings: _f, ...rest } = c;
+      return Object.keys(kept).length ? { ...rest, fixedLoadings: kept } : rest;
+    }),
+  };
 }
 
 /** Drop correlations whose constructs were deleted or whose indicators are no longer assigned. */
@@ -192,6 +214,7 @@ export const DEFAULT_SETTINGS: Settings = {
   seed: 1234,
   confidence: 0.95,
   probe: 'percentiles',
+  hc: 'none',
 };
 
 let counter = 0;
@@ -204,16 +227,17 @@ export function toSpec(model: ModelState): ModelSpec {
       name: c.name, type: c.type, mode: c.mode, indicators: c.indicators,
       ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
       ...(c.covariate ? { covariate: true } : {}),
+      ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
     })),
-    paths: model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)! })),
+    paths: model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : {}) })),
     moderations: (model.moderations ?? []).flatMap((mo) => {
       const p = model.paths.find((q) => q.id === mo.path);
       return p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, to: name.get(p.to)! }] : [];
     }),
     ...(model.correlations?.length ? {
       covariances: pruneCorrelations(model).correlations!.map((k) => (k.kind === 'construct'
-        ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}) }
-        : { a: k.a, b: k.b, kind: 'indicator' as const })),
+        ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}), ...(k.fixed !== undefined ? { fixed: k.fixed } : {}) }
+        : { a: k.a, b: k.b, kind: 'indicator' as const, ...(k.fixed !== undefined ? { fixed: k.fixed } : {}) })),
     } : {}),
   };
 }
@@ -324,6 +348,10 @@ export function validateModel(
     }
   }
 
+  const nFixed = model.paths.filter((p) => p.fixed !== undefined).length + (model.correlations ?? []).filter((k) => k.fixed !== undefined).length
+    + model.constructs.reduce((s, c) => s + Object.keys(c.fixedLoadings ?? {}).length, 0);
+  if (nFixed && method.method !== 'cbsem') warn(`${nFixed} parameter${nFixed === 1 ? ' is' : 's are'} fixed at a value; only CB-SEM uses fixed values, ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} estimates ${nFixed === 1 ? 'it' : 'them'} freely.`);
+  else if (nFixed && method.estimator === '2SLS') err('Fixed parameter values are not available with MIIV-2SLS; choose a maximum-likelihood estimator or free them.');
   if (model.threeWay?.length && method.method !== 'process') {
     err('Moderated moderation (a moderator acting on a moderation) is available in conditional process analysis only.');
   }
@@ -478,6 +506,14 @@ const str = (v: unknown, max = 200): string => {
   if (typeof v !== 'string') throw new Error('Invalid project file.');
   return v.slice(0, max);
 };
+/** A fixed parameter value from a file: a finite number of sensible size. */
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1e6;
+function fixedLoadingsOf(raw: unknown, indicators: unknown[]): { fixedLoadings?: Record<string, number> } {
+  if (!isObj(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw)) if (indicators.includes(k) && finite(v)) out[k] = v;
+  return Object.keys(out).length ? { fixedLoadings: out } : {};
+}
 const num = (v: unknown, lo: number, hi: number, dflt: number): number =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
 
@@ -506,6 +542,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
       ...(c.covariate === true ? { covariate: true } : {}),
       ...(c.latent === true ? { latent: true } : {}),
+      ...(fixedLoadingsOf(c.fixedLoadings, c.indicators as unknown[])),
     };
   });
   const ids = new Set(constructs.map((c) => c.id));
@@ -513,7 +550,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   for (const c of constructs) if (c.components?.some((x) => !ids.has(x) || x === c.id)) throw new Error('Invalid project file: higher-order construct refers to an unknown component.');
   const paths: Path[] = m.paths.map((p: unknown) => {
     if (!isObj(p)) throw new Error('Invalid path in project file.');
-    const path = { id: str(p.id, 64), from: str(p.from, 64), to: str(p.to, 64) };
+    const path = { id: str(p.id, 64), from: str(p.from, 64), to: str(p.to, 64), ...(finite(p.fixed) ? { fixed: p.fixed } : {}) };
     if (!ids.has(path.from) || !ids.has(path.to)) throw new Error('Invalid project file: path references unknown construct.');
     return path;
   });
@@ -535,6 +572,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
     confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
     probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',
+    hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === s.hc) ?? 'none',
   };
 
   const { data, info } = isObj(raw.data) ? parseDataSection(raw.data) : { data: null, info: null };
@@ -558,7 +596,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   const rawCorrs = Array.isArray(m.correlations) ? m.correlations.slice(0, 5000) : [];
   const correlations: Correlation[] = rawCorrs.map((k: unknown) => {
     if (!isObj(k) || (k.kind !== 'construct' && k.kind !== 'indicator')) throw new Error('Invalid correlation in project file.');
-    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}) };
+    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}), ...(finite(k.fixed) ? { fixed: k.fixed } : {}) };
     const known = out.kind === 'construct' ? ids : indicatorNames;
     if (!known.has(out.a) || !known.has(out.b) || out.a === out.b) throw new Error('Invalid project file: correlation references an unknown construct or indicator.');
     return out;

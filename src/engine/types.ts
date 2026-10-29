@@ -13,6 +13,8 @@ export interface ConstructSpec {
   indicators: string[];
   /** Higher-order construct (CB-SEM): measured by these first-order constructs instead of indicators. */
   components?: string[];
+  /** CB-SEM: loadings held at given values (by indicator name) instead of estimated; the marker's 1 can be replaced too. */
+  fixedLoadings?: Record<string, number>;
   /** Observed exogenous covariate (single indicator, CB-SEM): variances/covariances fixed at sample values (lavaan fixed.x). */
   covariate?: boolean;
 }
@@ -20,6 +22,8 @@ export interface ConstructSpec {
 export interface PathSpec {
   from: string;
   to: string;
+  /** CB-SEM: the coefficient is held at this value instead of estimated. */
+  fixed?: number;
 }
 
 /** A moderator acting on the path from → to (two-stage interaction term). */
@@ -40,6 +44,8 @@ export interface CovarianceSpec {
   kind: 'construct' | 'indicator';
   /** Fixed at zero: two exogenous constructs that do not covary (otherwise they covary freely). */
   zero?: boolean;
+  /** CB-SEM: a drawn covariance held at this value instead of estimated. */
+  fixed?: number;
 }
 
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */

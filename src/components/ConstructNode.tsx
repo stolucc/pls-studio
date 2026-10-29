@@ -88,7 +88,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
                 <text className="itext" x={ind.x + ind.w / 2} y={ind.y + ind.h / 2 + 4} textAnchor="middle">{ind.name}</text>
                 {label && (
                   <g className={label.fixed ? 'fixed' : undefined}>
-                    {label.fixed && <title>Marker indicator: unstandardised loading fixed to 1, which sets the factor’s scale.{label.text === '1' ? '' : ' Standardised value shown.'}</title>}
+                    {label.fixed && <title>Fixed loading: held at its value, not estimated (the first indicator’s 1 sets the factor’s scale). Right-click to change it. A standardised value is shown when it differs.</title>}
                     <rect className="ilabel-bg" x={mx - 19} y={my - 8} width={38} height={15} rx={7.5} />
                     <text className={`ilabel ${label.level}`} x={mx} y={my + 3.5} textAnchor="middle">{label.text}</text>
                   </g>

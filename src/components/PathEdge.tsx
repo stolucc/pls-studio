@@ -3,8 +3,9 @@ import { memo, useMemo } from 'react';
 import { pathSegment } from '../geometry';
 import { useStore } from '../store';
 import { pathStrokeWidth } from '../figure/style';
+import { fixedText } from '../diagramLabels';
 
-export type PathEdgeData = { beta: number | null; p: number | null; moderated?: boolean };
+export type PathEdgeData = { beta: number | null; p: number | null; moderated?: boolean; /** CB-SEM: coefficient held at this value. */ fixed?: number };
 export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
 
 function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlowEdge>) {
@@ -21,7 +22,9 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
   const figure = useStore((st) => st.settings.figure);
   if (!geo) return null;
 
-  const beta = data?.beta ?? null;
+  const fixed = data?.fixed;
+  // A fixed coefficient is labelled with its value until there are results.
+  const beta = data?.beta ?? fixed ?? null;
   const p = data?.p ?? null;
   const width = pathStrokeWidth(figure, beta) * 1.4;
   const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
@@ -38,8 +41,9 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
       />
       {beta !== null && (
         <EdgeLabelRenderer>
-          <div className={`elabel${cls}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}>
-            {beta.toFixed(3)}
+          <div className={`elabel${cls}${fixed !== undefined ? ' fixed' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
+            title={fixed !== undefined ? `Fixed at ${fixedText(fixed)}: not estimated` : undefined}>
+            {fixed !== undefined && data?.beta == null ? fixedText(fixed) : beta.toFixed(3)}
             {p !== null && <span className="p">{p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`}</span>}
           </div>
         </EdgeLabelRenderer>

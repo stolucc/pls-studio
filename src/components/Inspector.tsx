@@ -8,6 +8,7 @@ import { exportRScript } from '../io';
 import { QuadraticCurve, SimpleSlopes } from './SimpleSlopes';
 import { JohnsonNeymanPlot } from './JohnsonNeymanPlot';
 import { johnsonNeyman } from '../engine/jn';
+import { fixedText } from '../diagramLabels';
 
 function NameField({ c }: { c: Construct }) {
   const update = useStore((s) => s.updateConstruct);
@@ -300,7 +301,7 @@ function CorrelationInspector({ id }: { id: string }) {
   const a = nameOf(k.a), b = nameOf(k.b);
   const endo = endogenousIds(model);
   const disturbances = k.kind === 'construct' && endo.has(k.a) && endo.has(k.b);
-  const what = k.zero ? 'Fixed at zero: uncorrelated' : k.kind === 'indicator' ? 'Correlated measurement errors (ε)' : disturbances ? 'Correlated disturbances (ζ): what both constructs share beyond their predictors' : 'Covariance of exogenous constructs';
+  const what = k.kind === 'indicator' ? 'Correlated measurement errors (ε)' : disturbances ? 'Correlated disturbances (ζ): what both constructs share beyond their predictors' : 'Covariance of exogenous constructs';
   const est = settings.method === 'cbsem' && settings.estimator !== '2SLS'
     ? results?.cb?.estimates.find((e) => e.op === '~~' && e.lhs !== e.rhs && ((e.lhs === a && e.rhs === b) || (e.lhs === b && e.rhs === a))
       && (k.kind === 'indicator' ? e.kind === 'rescov' : e.kind !== 'rescov'))
@@ -324,8 +325,7 @@ function CorrelationInspector({ id }: { id: string }) {
         </div>
       ) : (
         <div className="section hint">
-          {k.zero ? `${a} and ${b} would covary freely by default; this fixes their covariance at zero (lavaan: ${a} ~~ 0*${b}), so the model assumes they are uncorrelated and gains one degree of freedom.`
-            : settings.method === 'pls' ? 'Correlations are estimated in CB-SEM only; PLS-SEM ignores them.'
+          {settings.method === 'pls' ? 'Correlations are estimated in CB-SEM only; PLS-SEM ignores them.'
             : settings.estimator === '2SLS' ? 'MIIV-2SLS drops the instruments that correlated errors make invalid; the covariance itself is estimated afterwards, with the 2SLS coefficients held fixed.'
               : k.kind === 'indicator' ? 'Frees the covariance of the two measurement errors (lavaan: a ~~ b). Calculate to estimate it.'
                 : disturbances ? 'Frees the covariance of the two disturbances: what both constructs share beyond their predictors. Calculate to estimate it.'
@@ -333,7 +333,7 @@ function CorrelationInspector({ id }: { id: string }) {
         </div>
       )}
       <div className="section">
-        <button className="btn danger" onClick={() => del([], [], [], [k.id])}><IconTrash size={14} /> {k.zero ? 'Let them covary again' : 'Remove correlation'}</button>
+        <button className="btn danger" onClick={() => del([], [], [], [k.id])}><IconTrash size={14} /> Remove correlation</button>
       </div>
     </>
   );
@@ -345,6 +345,7 @@ function PathInspector({ id }: { id: string }) {
   const del = useStore((s) => s.deleteItems);
   const addModeration = useStore((s) => s.addModeration);
   const addQuadratic = useStore((s) => s.addQuadratic);
+  const fixParameter = useStore((s) => s.fixParameter);
   const results = useFreshResults();
   const method = useStore((s) => s.settings.method);
   const p = model.paths.find((q) => q.id === id);
@@ -385,6 +386,15 @@ function PathInspector({ id }: { id: string }) {
             <span>p value</span><span className="num">{cbEst.p === null ? '—' : fmtP(cbEst.p)}</span>
             <span>Standardised β</span><span className="num">{fmt(cbEst.std)}</span>
           </div>
+        </div>
+      )}
+      {method === 'cbsem' && (
+        <div className="section">
+          <div className="section-title">Coefficient</div>
+          {p.fixed !== undefined ? (
+            <div className="ind"><span>Fixed at {fixedText(p.fixed)} (not estimated)</span><span />
+              <button className="btn sm ghost always" onClick={() => fixParameter({ kind: 'path', id: p.id }, null)}>Free</button></div>
+          ) : <div className="hint">Estimated. Right-click the arrow to fix it at a value (lavaan: value*{from.name}).</div>}
         </div>
       )}
       {procEst && (
@@ -444,6 +454,7 @@ const ESTIMATORS: { id: Settings['estimator']; label: string; hint: string }[] =
 
 function ModelInspector() {
   const model = useStore((s) => s.model);
+  const deleteItems = useStore((s) => s.deleteItems);
   const data = useStore((s) => s.data);
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
@@ -475,6 +486,21 @@ function ModelInspector() {
             </div>
           ))}
       </div>
+      {settings.method === 'cbsem' && model.correlations?.some((k) => k.zero) && (
+        <div className="section">
+          <div className="section-title">Covariances fixed at zero</div>
+          <div className="hint" style={{ marginBottom: 6 }}>Not drawn: in a path diagram, no arrow means zero. Exogenous constructs otherwise covary freely.</div>
+          {model.correlations.filter((k) => k.zero).map((k) => {
+            const nm = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
+            return (
+              <div className="ind" key={k.id}>
+                <span>{nm(k.a)} ↔ {nm(k.b)}</span><span />
+                <button className="btn sm ghost always" onClick={() => deleteItems([], [], [], [k.id])} title="Let them covary freely again">Free</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div className="section">
         <div className="section-title">Method</div>
         <div className="segmented">
@@ -571,6 +597,18 @@ function ModelInspector() {
             </div>
           </div>
           <div className="hint">Percentiles are PROCESS’s default. A moderator with two values is probed at both. Missing values: listwise deletion, as PROCESS.</div>
+          <div className="field" style={{ marginTop: 10 }}>
+            <label>Standard errors of the regressions</label>
+            <select className="select" value={settings.hc} onChange={(e) => setSettings({ hc: e.target.value as Settings['hc'] })}>
+              <option value="none">OLS (assumes constant error variance)</option>
+              <option value="HC0">HC0 (White)</option>
+              <option value="HC1">HC1</option>
+              <option value="HC2">HC2</option>
+              <option value="HC3">HC3 (recommended; Long &amp; Ervin, 2000)</option>
+              <option value="HC4">HC4 (Cribari-Neto)</option>
+            </select>
+          </div>
+          <div className="hint">Heteroskedasticity-consistent standard errors (PROCESS’s hc option) for coefficients, conditional effects, F tests and Johnson–Neyman; bootstrap intervals of indirect effects do not use them. Latent-variable models use SAM’s standard errors instead.</div>
         </div>
       )}
       {!proc && <div className="section">

@@ -9,7 +9,7 @@ import { graphToModel, isSlotName, templateModel, templatePositions } from './pr
 import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
 import {
-  createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, toSpec,
+  createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec,
   type Construct, type Correlation, type DataInfo, type ModelState, type Settings, type Side,
 } from './model/project';
 
@@ -18,6 +18,10 @@ export interface Selection { nodes: string[]; edges: string[]; moderations?: str
 export const NO_SELECTION: Selection = { nodes: [], edges: [], moderations: [], correlations: [] };
 
 export interface Toast { id: number; kind: 'error' | 'info' | 'success'; text: string }
+
+/** A warning or error kept for the session (Messages tab): package warnings, failed runs, refused actions. */
+export interface Message { id: number; at: number; level: 'error' | 'warning'; text: string; source?: string }
+const MAX_MESSAGES = 300;
 
 export interface Results {
   pls: PlsResult | null;
@@ -69,6 +73,7 @@ interface State {
   results: Results | null;
   job: Job | null;
   toasts: Toast[];
+  messages: Message[];
   dirty: boolean;
   showResultsOnDiagram: boolean;
   /** CB-SEM diagrams: draw error terms (ε) and disturbances (ζ). */
@@ -86,6 +91,8 @@ interface State {
 
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
   updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent'>>) => void;
+  /** CB-SEM: hold a path coefficient, loading or drawn covariance at `value`, or free it (null). */
+  fixParameter: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, value: number | null) => void;
   moveConstruct: (id: string, x: number, y: number) => void;
   removeConstructs: (ids: string[]) => void;
   assignIndicators: (id: string, names: string[]) => void;
@@ -121,7 +128,10 @@ interface State {
 
   setJob: (j: Job | null) => void;
   setResults: (r: Partial<Omit<Results, 'key'>>, key: string) => void;
-  toast: (kind: Toast['kind'], text: string) => void;
+  /** Errors are also kept in Messages, unless `log` is false (the message is logged elsewhere). */
+  toast: (kind: Toast['kind'], text: string, opts?: { log?: boolean }) => void;
+  logMessage: (level: Message['level'], text: string, source?: string) => void;
+  clearMessages: () => void;
   dismissToast: (id: number) => void;
   setShowResultsOnDiagram: (v: boolean) => void;
   setShowErrorTerms: (v: boolean) => void;
@@ -142,6 +152,19 @@ function readOnly(s: State): boolean {
   return true;
 }
 let toastId = 0;
+let messageId = 0;
+
+/** Every warning a new result carries (R packages or the built-in engine), added to the session's messages. */
+function withWarnings(messages: Message[], r: Partial<Omit<Results, 'key'>>): Message[] {
+  const added: Message[] = [];
+  for (const v of Object.values(r)) {
+    const res = v as { warnings?: unknown; engine?: { package?: string; version?: string } } | null;
+    if (!res || !Array.isArray(res.warnings)) continue;
+    const source = res.engine?.package ? `${res.engine.package}${res.engine.version ? ` ${res.engine.version}` : ''}` : 'built-in engine';
+    for (const w of res.warnings) if (typeof w === 'string' && w.trim()) added.push({ id: ++messageId, at: Date.now(), level: 'warning', text: w, source });
+  }
+  return added.length ? [...messages, ...added].slice(-MAX_MESSAGES) : messages;
+}
 
 export const emptyModel = (): ModelState => ({ constructs: [], paths: [], moderations: [] });
 
@@ -182,6 +205,7 @@ export const useStore = create<State>((set, get) => ({
   results: null,
   job: null,
   toasts: [],
+  messages: [],
   dirty: false,
   showResultsOnDiagram: true,
   showErrorTerms: true,
@@ -192,8 +216,8 @@ export const useStore = create<State>((set, get) => ({
   commit: (fn) => {
     if (readOnly(get())) return;
     set((s) => s.history
-      ? { model: pruneCorrelations(fn(s.model)), dirty: true }
-      : { model: pruneCorrelations(fn(s.model)), past: [...s.past.slice(-HISTORY + 1), s.model], future: [], dirty: true });
+      ? { model: pruneCorrelations(pruneFixedLoadings(fn(s.model))), dirty: true }
+      : { model: pruneCorrelations(pruneFixedLoadings(fn(s.model))), past: [...s.past.slice(-HISTORY + 1), s.model], future: [], dirty: true });
   },
   checkpoint: () => set((s) => ({ past: [...s.past.slice(-HISTORY + 1), s.model], future: [] })),
   undo: () => {
@@ -225,6 +249,21 @@ export const useStore = create<State>((set, get) => ({
   },
   updateConstruct: (id, patch) =>
     get().commit((m) => ({ ...m, constructs: m.constructs.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+  fixParameter: (target, value) => get().commit((m) => {
+    const set = <T extends { fixed?: number }>(x: T): T => { const { fixed: _f, ...rest } = x; return (value === null ? rest : { ...rest, fixed: value }) as T; };
+    if (target.kind === 'path') return { ...m, paths: m.paths.map((p) => (p.id === target.id ? set(p) : p)) };
+    if (target.kind === 'correlation') return { ...m, correlations: (m.correlations ?? []).map((k) => (k.id === target.id ? set(k) : k)) };
+    return {
+      ...m,
+      constructs: m.constructs.map((c) => {
+        if (c.id !== target.construct) return c;
+        const { [target.indicator]: _old, ...rest } = c.fixedLoadings ?? {};
+        const fixedLoadings = value === null ? rest : { ...rest, [target.indicator]: value };
+        const { fixedLoadings: _x, ...base } = c;
+        return Object.keys(fixedLoadings).length ? { ...base, fixedLoadings } : base;
+      }),
+    };
+  }),
   moveConstruct: (id, x, y) =>
     readOnly(get()) ? undefined : set((s) => ({
       dirty: true,
@@ -338,6 +377,14 @@ export const useStore = create<State>((set, get) => ({
   addCorrelation: (kind, a, b, zero = false) => {
     const { model, toast } = get();
     if (a === b) return false;
+    // Drawing a correlation between two constructs fixed at zero frees their covariance again.
+    const fixed = !zero && (model.correlations ?? []).find((k) => k.zero && k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)));
+    if (fixed) {
+      get().commit((m) => ({ ...m, correlations: (m.correlations ?? []).filter((k) => k.id !== fixed.id) }));
+      const name = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
+      toast('info', `${name(a)} and ${name(b)} covary freely again (no longer fixed at zero).`);
+      return true;
+    }
     if ((model.correlations ?? []).some((k) => k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)))) {
       toast('info', 'These two are already correlated.');
       return false;
@@ -423,13 +470,16 @@ export const useStore = create<State>((set, get) => ({
   setResults: (r, key) =>
     set((s) => {
       const base = s.results && s.results.key === key ? s.results : { pls: null, cb: null, miiv: null, boot: null, fitTest: null, process: null, key };
-      return { results: { ...base, ...r, key }, resultsOpen: true, fitRequest: s.resultsOpen ? s.fitRequest : s.fitRequest + 1 };
+      return { results: { ...base, ...r, key }, resultsOpen: true, fitRequest: s.resultsOpen ? s.fitRequest : s.fitRequest + 1, messages: withWarnings(s.messages, r) };
     }),
-  toast: (kind, text) => {
+  toast: (kind, text, opts) => {
+    if (kind === 'error' && opts?.log !== false) get().logMessage('error', text);
     const id = ++toastId;
     set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, text }] }));
     setTimeout(() => get().dismissToast(id), kind === 'error' ? 7000 : 3500);
   },
+  logMessage: (level, text, source) => set((s) => ({ messages: [...s.messages, { id: ++messageId, at: Date.now(), level, text, ...(source ? { source } : {}) }].slice(-MAX_MESSAGES) })),
+  clearMessages: () => set({ messages: [] }),
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setShowErrorTerms: (showErrorTerms) => set({ showErrorTerms }),
   setEstimateScale: (estimateScale) => set({ estimateScale }),

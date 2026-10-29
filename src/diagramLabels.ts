@@ -1,6 +1,7 @@
 // Labels on indicator arrows. CB-SEM identifies each factor by fixing its first
-// loading to 1 (marker indicator); that constraint is always shown, with or
-// without results, so the diagram states the model completely.
+// loading to 1 (marker indicator); that constraint, and any loading the user
+// fixed at a value, is always shown, with or without results, so the diagram
+// states the model completely.
 
 import type { IndicatorLabel } from './components/ConstructNode';
 import type { Construct, Method } from './model/project';
@@ -13,15 +14,22 @@ export interface LabelSource {
   reflectiveThresholds: (type: string) => boolean;
 }
 
-export function indicatorLabels(c: Pick<Construct, 'indicators' | 'type' | 'covariate'>, method: Method, src: LabelSource | null): (IndicatorLabel | null)[] | null {
-  const marker = method === 'cbsem' && !c.covariate && c.indicators.length > 0 ? c.indicators[0] : null;
-  const markerLabel: IndicatorLabel = { text: '1', level: 'ok', fixed: true };
-  if (!src) return marker ? c.indicators.map((name) => (name === marker ? markerLabel : null)) : null;
+/** A fixed value as written by the user (no trailing zeros). */
+export const fixedText = (v: number) => String(Number(v.toPrecision(6)));
+
+export function indicatorLabels(c: Pick<Construct, 'indicators' | 'type' | 'covariate' | 'fixedLoadings'>, method: Method, src: LabelSource | null): (IndicatorLabel | null)[] | null {
+  const cb = method === 'cbsem' && !c.covariate && c.indicators.length > 0;
+  const marker = cb ? c.indicators[0] : null;
+  // The value a loading is held at: the user's, or 1 for the marker.
+  const held = (name: string) => (!cb ? undefined : c.fixedLoadings?.[name] ?? (name === marker ? 1 : undefined));
+  const heldLabel = (name: string): IndicatorLabel | null => { const h = held(name); return h === undefined ? null : { text: fixedText(h), level: 'ok', fixed: true }; };
+  if (!src) return cb ? c.indicators.map(heldLabel) : null;
   return c.indicators.map((name): IndicatorLabel | null => {
     const v = src.indicator(name);
-    const fixed = !!src.fixed?.(name);
-    if (v === null) return fixed || name === marker ? markerLabel : null;
+    const h = held(name);
+    const fixed = h !== undefined || !!src.fixed?.(name);
+    if (v === null) return heldLabel(name);
     const level = fixed || !src.reflectiveThresholds(c.type) ? 'ok' : Math.abs(v) < 0.4 ? 'low' : Math.abs(v) < 0.708 ? 'mid' : 'ok';
-    return { text: fixed && Math.abs(v - 1) < 1e-12 ? '1' : v.toFixed(3), level, fixed };
+    return { text: h !== undefined && Math.abs(v - h) < 1e-9 ? fixedText(h) : v.toFixed(3), level, fixed };
   });
 }

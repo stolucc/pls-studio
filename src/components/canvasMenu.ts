@@ -17,7 +17,7 @@ export type MenuTarget =
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
-  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero';
+  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
@@ -54,7 +54,12 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
     case 'indicator': {
       const owner = nameOf(target.construct);
       if (!owner) return null;
+      const owner2 = model.constructs.find((c) => c.id === target.construct);
+      const held = owner2?.fixedLoadings?.[target.name];
+      const isMarker = owner2?.indicators[0] === target.name;
       return out(target.name, [
+        edit && cb && !owner2?.covariate && { action: 'fix-value', label: held !== undefined ? `Change fixed loading (${held})…` : isMarker ? 'Fix loading at another value than 1…' : 'Fix loading at a value…' },
+        edit && cb && held !== undefined && { action: 'free-value', label: isMarker ? 'Back to the marker’s 1' : 'Free loading (estimate it)' },
         edit && cb && { action: 'correlate', label: 'Correlate error (ε) with…' },
         edit && { action: 'remove-indicator', label: `Remove from ${owner}`, danger: true },
       ]);
@@ -68,6 +73,8 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       if (!p) return null;
       const hasQuadratic = model.moderations.some((mo) => mo.path === p.id && mo.moderator === p.from);
       return out(`${nameOf(p.from)} → ${nameOf(p.to)}`, [
+        edit && cb && { action: 'fix-value', label: p.fixed !== undefined ? `Change fixed value (${p.fixed})…` : 'Fix coefficient at a value…' },
+        edit && cb && p.fixed !== undefined && { action: 'free-value', label: 'Free coefficient (estimate it)' },
         edit && !hasQuadratic && !proc && { action: 'add-quadratic', label: `Add quadratic effect (${nameOf(p.from)}²)` },
         edit && { action: 'reverse-path', label: 'Reverse direction' },
         edit && { action: 'delete-path', label: 'Delete path', danger: true },
@@ -88,14 +95,17 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       const k = model.correlations?.find((x) => x.id === target.id);
       if (!k) return null;
       const end = (id: string) => (k.kind === 'construct' ? nameOf(id) : id);
-      if (k.zero) return out(`${end(k.a)} ↔ ${end(k.b)} fixed at 0`, [edit && { action: 'delete-correlation', label: 'Let them covary again' }]);
-      return out(`${end(k.a)} ↔ ${end(k.b)}`, [edit && { action: 'delete-correlation', label: 'Delete correlation', danger: true }]);
+      return out(`${end(k.a)} ↔ ${end(k.b)}`, [
+        edit && cb && { action: 'fix-value', label: k.fixed !== undefined ? `Change fixed value (${k.fixed})…` : 'Fix covariance at a value…' },
+        edit && cb && k.fixed !== undefined && { action: 'free-value', label: 'Free covariance (estimate it)' },
+        edit && { action: 'delete-correlation', label: 'Delete correlation', danger: true },
+      ]);
     }
     case 'implied': {
       const a = model.constructs.find((c) => c.id === target.a), b = model.constructs.find((c) => c.id === target.b);
       // Covariates' covariances are fixed at their sample values (fixed.x), not free parameters.
       if (!a || !b || !cb || a.covariate || b.covariate) return null;
-      return out(`${a.name} ↔ ${b.name} (estimated by default)`, [edit && { action: 'fix-zero', label: 'Fix at zero (uncorrelated)' }]);
+      return out(`${a.name} ↔ ${b.name} (estimated by default)`, [edit && { action: 'fix-zero', label: 'Remove (fix the covariance at zero)', danger: true }]);
     }
     case 'pane': {
       const any = model.constructs.length > 0;

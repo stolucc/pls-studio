@@ -4,7 +4,12 @@
 # All estimation is lavaan's; this file only writes code and shapes output.
 
 #' "1*a + b + c": the marker loading fixed to 1, made explicit.
-ps_marked <- function(v) paste(c(paste0("1*", v[1]), v[-1]), collapse = " + ")
+#' Loadings of a factor: the marker fixed to 1 (or to the user's value), other user-fixed loadings as value*name.
+ps_marked <- function(v, fixed = list()) {
+  pre <- vapply(v, function(x) if (!is.null(fixed[[x]])) paste0(ps_num(fixed[[x]]), "*") else "", "")
+  pre[1] <- if (nzchar(pre[1])) pre[1] else "1*"
+  paste(paste0(pre, v), collapse = " + ")
+}
 
 ps_cb_build <- function(req) {
   cons <- req$model$constructs
@@ -53,7 +58,9 @@ ps_cb_build <- function(req) {
     if (length(comps[[j]])) lines <- c(lines, paste(lname[[j]], "=~", ps_marked(lname[comps[[j]]])))
     else {
       v <- unname(n$iv[n$inds[[j]]])
-      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v)))
+      fl <- cons[[j]]$fixedLoadings %||% list()
+      fixed <- setNames(fl, unname(n$iv[names(fl)]))
+      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed)))
       if (length(v) == 1) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
     }
   }
@@ -78,7 +85,12 @@ ps_cb_build <- function(req) {
     int_names <- c(int_names, nm); int_l <- c(int_l, il)
   }
   to <- unique(vapply(paths, `[[`, "", "to"))
-  for (t in to) lines <- c(lines, paste(lname[[t]], "~", paste(lname[vapply(Filter(function(p) p$to == t, paths), `[[`, "", "from")], collapse = " + ")))
+  # A fixed coefficient is written as value*predictor (lavaan holds it at that value).
+  for (t in to) {
+    ps <- Filter(function(p) p$to == t, paths)
+    rhs <- vapply(ps, function(p) paste0(if (is.null(p$fixed)) "" else paste0(ps_num(p$fixed), "*"), lname[[p$from]]), "")
+    lines <- c(lines, paste(lname[[t]], "~", paste(rhs, collapse = " + ")))
+  }
   seen <- character(0)
   for (cv in req$model$covariances) {
     a <- if (cv$kind == "construct") lname[[cv$a]] else n$iv[[cv$a]]
@@ -87,7 +99,7 @@ ps_cb_build <- function(req) {
     if (key %in% seen) next  # lavaan rejects a covariance listed twice (in either order)
     seen <- c(seen, key)
     # A fixed zero makes two exogenous factors uncorrelated (lavaan frees them by default).
-    lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else b))
+    lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else if (!is.null(cv$fixed)) paste0(ps_num(cv$fixed), "*", b) else b))
   }
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\")", req$estimator)

@@ -23,6 +23,11 @@ export interface ProcessPlan {
   direct: { moderators: string[] } | null;
   indirect: IndirectSpec[];
   jn: { from: string; to: string; moderator: string }[];
+  /**
+   * Tests of the highest-order unconditional interactions, per moderated path:
+   * each product term alone and, with two or more, jointly (PROCESS's R²-change tests).
+   */
+  interactions: { outcome: string; focal: string; terms: Term[] }[];
 }
 
 const same = (a: Edge, b: Edge) => a[0] === b[0] && a[1] === b[1];
@@ -86,7 +91,15 @@ export function planFor(g: ProcessGraph, covariates: string[] = [], order: strin
     const { by, threeWay } = edgeModerators(g, [from, to]);
     return by.size === 1 && !threeWay && !by.has(from) ? [{ from, to, moderator: [...by][0] }] : [];
   });
+  const interactions = g.paths.flatMap(([from, to]) => {
+    const three = g.threeWay.filter((t) => same(t.path, [from, to])).map((t) => [from, ...t.by].sort());
+    const covered = new Set(g.threeWay.filter((t) => same(t.path, [from, to])).flatMap((t) => t.by));
+    const two = g.moderations.filter((m) => same(m.path, [from, to]) && m.by !== from && !covered.has(m.by)).map((m) => [from, m.by].sort());
+    const terms = [...two, ...three];
+    return terms.length ? [{ outcome: to, focal: from, terms }] : [];
+  });
   return {
+    interactions,
     equations: [...equations(g, covariates)].map(([outcome, terms]) => ({ outcome, terms })),
     moderators: sortMods(allMods),
     direct: hasDirect ? { moderators: sortMods(edgeModerators(g, xy).by) } : null,
