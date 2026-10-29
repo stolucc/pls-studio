@@ -23,6 +23,10 @@ export interface CpaInput {
   order?: string[];
   missing: MissingTreatment;
   probe: 'percentiles' | 'meansd';
+  /** Y has two values: logistic regression for Y (log-odds metric), as PROCESS. */
+  binaryY?: boolean;
+  /** X moderates its own M → Y paths (model 74): counterfactual effects of moving X from xref to xcf. */
+  counterfactual?: { xref: number; xcf: number };
   /** A multicategorical X: its codes (relative effects per code). */
   categorical?: Dummies;
   /** Heteroskedasticity-consistent standard errors for the regressions (not used with latent variables). */
@@ -46,6 +50,8 @@ export function cpaRequest(data: Dataset, input: CpaInput) {
     missing: input.missing,
     probe: input.probe,
     hc: input.hc ?? 'none',
+    ...(input.binaryY ? { binaryY: true } : {}),
+    ...(input.counterfactual ? { counterfactual: input.counterfactual, mediators: input.graph.mediators, covariates: input.covariates } : {}),
     confidence: input.confidence,
     boot: input.boot,
     data: {
@@ -75,12 +81,18 @@ export interface CpaResult {
   equations: {
     /** mse, F and its p are OLS quantities (null for latent-variable models). */
     outcome: string; n: number; r2: number; mse: number | null; f: number | null; df1: number | null; df2: number | null; p: number | null;
+    /** Logistic regression (dichotomous Y): deviance (−2LL), model χ², pseudo-R² values. */
+    logistic?: boolean; deviance?: number; chisq?: number; mcfadden?: number; coxsnell?: number; nagelkerke?: number;
     /** term: [] for the constant, [v] for a variable, [a, b(, c)] for a product. */
     coefficients: ({ term: string[] } & CpaTest)[];
     /** Tests of the highest-order interactions (one row per product, plus a joint row for two or more). */
     interactions: { focal: string; terms: string[][]; r2change: number; f: number; df1: number; df2: number; p: number }[];
   }[];
   moderators: { name: string; values: number[] }[];
+  /** Y dichotomous: its equation is a logistic regression (deviance, pseudo-R², χ² instead of OLS statistics). */
+  binaryY?: boolean;
+  /** Model 74: counterfactual direct and indirect effects. */
+  counterfactual?: { xref: number; xcf: number; effects: ({ name: string; label: string } & CpaEffect)[] } | null;
   direct: { moderators: string[]; rows: ({ at: At } & CpaTest)[] } | null;
   /** Multicategorical X: relative direct effects, one per code. */
   directs: { x: string; moderators: string[]; rows: ({ at: At } & CpaTest)[] }[];
@@ -128,6 +140,7 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
     indices: arr<any>(raw.indices).map((i) => ({ ...i, path: arr<string>(i.path), at: i.at ? at(i.at) : undefined })),
     jn: arr<any>(raw.jn).map((j) => ({ ...j, range: arr<number>(j.range), v: arr<number>(j.v), bounds: arr<any>(j.bounds) })),
     warnings: rStrings(raw.warnings),
+    counterfactual: raw.counterfactual ? { ...raw.counterfactual, effects: arr<any>(raw.counterfactual.effects) } : null,
     inference: raw.inference === 'montecarlo' ? 'montecarlo' : 'bootstrap',
     hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === raw.hc) ?? 'none',
     latent: arr<string>(raw.latent),
@@ -135,14 +148,15 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
 }
 
 export async function estimateCpaR(data: Dataset, input: CpaInput): Promise<CpaResult> {
-  const r = parseCpaOutput(await rCall<Record<string, any>>('ps_cpa', cpaRequest(data, input), input.variables.some((v) => v.latent) ? 'manymomeSam' : 'manymome'));
+  const pkg = input.binaryY || input.counterfactual ? 'processGlm' : input.variables.some((v) => v.latent) ? 'manymomeSam' : 'manymome';
+  const r = parseCpaOutput(await rCall<Record<string, any>>('ps_cpa', cpaRequest(data, input), pkg));
   const cat = input.categorical;
   if (cat) r.coding = { x: cat.x, coding: cat.coding, levels: cat.levels, names: cat.names, table: cat.levels.map((_, g) => cat.names.map((_, j) => codeValue(cat.coding, cat.levels.length, g, j))) };
   return r;
 }
 
 export function cpaScriptR(data: Dataset, input: CpaInput): Promise<string> {
-  return rScript('ps_cpa', cpaRequest(data, input), input.variables.some((v) => v.latent) ? 'manymomeSam' : 'manymome');
+  return rScript('ps_cpa', cpaRequest(data, input), input.binaryY || input.counterfactual ? 'processGlm' : input.variables.some((v) => v.latent) ? 'manymomeSam' : 'manymome');
 }
 
 /** A Johnson–Neyman curve of a process result, in the moderator's own units (for JohnsonNeymanPlot). */

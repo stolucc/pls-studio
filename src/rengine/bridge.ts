@@ -22,6 +22,7 @@ export const R_PACKAGES = {
   MIIVsem: ['jsonlite', 'lavaan', 'MIIVsem'],
   simulation: ['jsonlite', 'lavaan', 'cSEM'],
   manymome: ['jsonlite', 'manymome', 'sandwich'],
+  processGlm: ['jsonlite'],
   manymomeSam: ['jsonlite', 'manymome', 'lavaan'],
   modsem: ['jsonlite', 'lavaan', 'semTools', 'modsem'],
   ltm: ['jsonlite', 'ltm'],

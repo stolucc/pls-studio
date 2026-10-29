@@ -213,3 +213,21 @@ describe('categorical X in the app', () => {
     expect(parseProject(serializeProject(s().model, s().settings, null, null)).model.constructs.find((c) => c.name === 'g')!.categorical).toBe('helmert');
   });
 });
+
+describe('dichotomous Y and counterfactual effects', () => {
+  it('detects a two-valued Y, derives the compared X values, and checks combinations', async () => {
+    const { processInput, defaultCounterfactual } = await import('./input');
+    const d = { names: ['x', 'm', 'y'], cols: [Float64Array.from([0, 1, 0, 1, 1]), Float64Array.from([1, 2, 3, 4, 5]), Float64Array.from([0, 1, 1, 0, 1])] };
+    useStore.setState({ data: d });
+    s().applyTemplate(74, 1);
+    s().assignIndicators(named('X').id, ['x']);
+    s().assignIndicators(named('M').id, ['m']);
+    s().assignIndicators(named('Y').id, ['y']);
+    expect(validateModel(s().model, d, s().settings).some((i) => /model 74\) needs a continuous Y/.test(i.message))).toBe(true);
+    const inp = processInput(s().model, s().settings, d)!;
+    expect(inp.binaryY).toBe(true);
+    expect(inp.counterfactual).toEqual({ xref: 0, xcf: 1 });
+    expect(defaultCounterfactual(Float64Array.from([1, 2, 3]))).toEqual({ xref: 2, xcf: 3 });
+    expect(processInput(s().model, { ...s().settings, counterfactual: { xref: 2, xcf: 5 } }, d)!.counterfactual).toEqual({ xref: 2, xcf: 5 });
+  });
+});

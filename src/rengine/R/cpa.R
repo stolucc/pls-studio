@@ -155,6 +155,8 @@ ps_cpa_grid <- function(mods, probe_values) {
 
 ps_cpa <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
+  # A dichotomous Y or counterfactual (X by M) effects: our own bootstrap of lm / glm.
+  if (isTRUE(req$binaryY) || !is.null(req$counterfactual)) return(ps_cpa_glm(req, export))
   b <- ps_cpa_build(req)
   id <- b$id
   back <- setNames(names(b$rn), unname(b$rn))
@@ -323,4 +325,142 @@ ps_cpa <- function(req_json, export = FALSE) {
     warnings = env$.warnings,
     engine = list(package = if (b$sam) "lavaan::sam + manymome" else "manymome",
       version = if (b$sam) sprintf("%s / %s", utils::packageVersion("lavaan"), utils::packageVersion("manymome")) else as.character(utils::packageVersion("manymome")))))
+}
+
+#' Conditional process analysis without manymome: a dichotomous Y (logistic
+#' regression, as PROCESS) and/or X moderating its own M -> Y paths with
+#' counterfactual effects (model 74; VanderWeele 2015). Effects are products of
+#' conditional slopes along each path (log-odds metric for a dichotomous Y),
+#' with a percentile bootstrap that resamples cases and refits every equation.
+ps_cpa_glm <- function(req, export = FALSE) {
+  b <- ps_cpa_build(req)
+  id <- b$id
+  binary <- isTRUE(req$binaryY)
+  yv <- id(req$y)
+  term <- function(t) paste(id(t$vars), collapse = ":")
+  fit_lines <- vapply(req$equations, function(e) {
+    o <- id(e$outcome); rhs <- paste(vapply(e$terms, term, ""), collapse = " + ")
+    if (binary && o == yv) sprintf("fit_%s <- glm(%s ~ %s, family = binomial, data = data)", o, o, rhs)
+    else sprintf("fit_%s <- lm(%s ~ %s, data = data)", o, o, rhs)
+  }, "")
+  outcomes <- vapply(req$equations, function(e) id(e$outcome), "")
+  B <- as.integer(req$boot$samples %||% 1000); seed <- as.integer(req$boot$seed %||% 1)
+  cf <- req$counterfactual
+  body <- c(b$body[seq_len(match("# One OLS regression per outcome", b$body) - 1)][-1],
+    if (binary) sprintf("# Mediators by OLS; the dichotomous %s by logistic regression (coefficients in log-odds)", yv) else "# One OLS regression per outcome",
+    fit_lines,
+    sprintf("eqs <- list(%s)", paste(sprintf("%s = fit_%s", outcomes, outcomes), collapse = ", ")),
+    if (length(b$mods)) c(ps_cpa_probe_code(req$probe %||% "percentiles"),
+      sprintf("probe_values <- list(%s)", paste(sprintf("%s = probe(data$%s)", b$mods, b$mods), collapse = ", "))),
+    "# Conditional slope of `from` on `to` at moderator values `at`, from a coefficient list",
+    "slope_c <- function(cf, from, to, at = numeric(0)) {",
+    "  b <- cf[[to]]; parts <- strsplit(names(b), \":\", fixed = TRUE)",
+    "  sum(vapply(seq_along(b), function(i) if (from %in% parts[[i]]) b[i] * prod(at[setdiff(parts[[i]], from)]) else 0, 0))",
+    "}",
+    "# (Conditional) indirect effect: the product of the slopes along the path",
+    "ind_c <- function(cf, path, at = numeric(0)) prod(vapply(seq_len(length(path) - 1), function(i) slope_c(cf, path[i], path[i + 1], at), 0))",
+    "# Percentile bootstrap: resample cases, refit every equation, keep the coefficients",
+    "refit <- function(d) lapply(eqs, function(f) coef(update(f, data = d)))",
+    sprintf("set.seed(%d)", seed),
+    sprintf("boots <- lapply(seq_len(%d), function(r) tryCatch(refit(data[sample(nrow(data), replace = TRUE), , drop = FALSE]), error = function(e) NULL))", B),
+    "boots <- Filter(function(x) !is.null(x) && !anyNA(unlist(x)), boots)",
+    "cf0 <- lapply(eqs, coef)")
+  if (export) {
+    report <- c("lapply(eqs, summary)", if (length(b$mods)) "probe_values",
+      unlist(lapply(req$indirect, function(p) sprintf("ind_c(cf0, %s%s)  # point estimate; bootstrap: sapply(boots, ind_c, path = ...)", ps_q(id(p$vars)),
+        if (length(p$moderators)) sprintf(", at = c(%s)", paste(sprintf("%s = probe_values$%s[2]", id(p$moderators), id(p$moderators)), collapse = ", ")) else ""))))
+    return(paste(ps_script(sprintf("Conditional process analysis%s", if (binary) " with a dichotomous outcome (logistic regression)" else " with counterfactual effects (X by M interaction)"),
+      "stats", b$inputs, body, report), collapse = "\n"))
+  }
+  env <- ps_run(body, b$inputs)
+  level <- req$confidence %||% 0.95
+  back <- setNames(names(b$rn), unname(b$rn)); nm <- function(x) unname(back[x])
+  at_list <- function(at) as.list(setNames(unname(at), nm(names(at))))
+  pv <- if (length(b$mods)) env$probe_values else list()
+  cf0 <- env$cf0; boots <- env$boots
+  ci <- function(draws) unname(quantile(draws, c((1 - level) / 2, 1 - (1 - level) / 2), type = 6))
+  boot_eff <- function(f) { d <- vapply(boots, f, 0); est <- f(cf0); q <- ci(d); list(est = est, se = sd(d), lo = q[1], hi = q[2]) }
+  combine <- function(fs, w) boot_eff(function(cf) sum(w * vapply(fs, function(f) f(cf), 0)))
+  eq_out <- lapply(req$equations, function(e) {
+    f <- env$eqs[[id(e$outcome)]]; s <- summary(f); ct <- s$coefficients
+    glm <- inherits(f, "glm")
+    q <- if (glm) qnorm(1 - (1 - level) / 2) else qt(1 - (1 - level) / 2, f$df.residual)
+    common <- list(outcome = e$outcome, n = length(f$residuals), interactions = list(),
+      coefficients = lapply(seq_len(nrow(ct)), function(i) list(term = if (rownames(ct)[i] == "(Intercept)") list() else nm(strsplit(rownames(ct)[i], ":", fixed = TRUE)[[1]]),
+        est = ct[i, 1], se = ct[i, 2], t = ct[i, 3], p = ct[i, 4], lo = ct[i, 1] - q * ct[i, 2], hi = ct[i, 1] + q * ct[i, 2])))
+    if (glm) {
+      n <- length(f$residuals); dev <- f$deviance; nd <- f$null.deviance; cs <- 1 - exp((dev - nd) / n)
+      c(common, list(logistic = TRUE, r2 = 1 - dev / nd, mse = NULL, f = NULL, df1 = f$df.null - f$df.residual, df2 = NULL,
+        p = pchisq(nd - dev, f$df.null - f$df.residual, lower.tail = FALSE),
+        deviance = dev, chisq = nd - dev, mcfadden = 1 - dev / nd, coxsnell = cs, nagelkerke = cs / (1 - exp(-nd / n))))
+    } else {
+      fs <- s$fstatistic
+      c(common, list(r2 = s$r.squared, mse = s$sigma^2, f = unname(fs[1]), df1 = unname(fs[2]), df2 = unname(fs[3]), p = unname(pf(fs[1], fs[2], fs[3], lower.tail = FALSE))))
+    }
+  })
+  # Direct (conditional) effects with their ML / OLS standard errors.
+  slope_row <- function(from, to, at) {
+    f <- env$eqs[[to]]; bb <- coef(f); V <- vcov(f); parts <- strsplit(names(bb), ":", fixed = TRUE)
+    g <- vapply(parts, function(p) if (from %in% p) prod(at[setdiff(p, from)]) else 0, 0)
+    est <- sum(g * bb); se <- sqrt(drop(t(g) %*% V %*% g)); glm <- inherits(f, "glm")
+    q <- if (glm) qnorm(1 - (1 - level) / 2) else qt(1 - (1 - level) / 2, f$df.residual)
+    p <- if (glm) 2 * pnorm(-abs(est / se)) else 2 * pt(-abs(est / se), f$df.residual)
+    c(list(at = at_list(at)), list(est = est, se = se, t = est / se, p = p, lo = est - q * se, hi = est + q * se))
+  }
+  direct <- if (!is.null(req$direct)) list(moderators = req$direct$moderators %||% list(),
+    rows = lapply(ps_cpa_grid(id(req$direct$moderators), pv), function(at) slope_row(id(req$x), yv, at)))
+  directs <- lapply(req$directs %||% list(), function(dd) list(x = dd$x, moderators = dd$moderators %||% list(),
+    rows = lapply(ps_cpa_grid(id(dd$moderators), pv), function(at) slope_row(id(dd$x), yv, at))))
+  indirect <- list(); indices <- list()
+  for (p in req$indirect) {
+    path <- id(p$vars); pm <- id(p$moderators)
+    rows <- lapply(ps_cpa_grid(pm, pv), function(at) c(list(at = at_list(at)), boot_eff(function(cf) env$ind_c(cf, path, at))))
+    indirect[[length(indirect) + 1]] <- list(path = p$vars, moderators = p$moderators %||% list(), rows = rows)
+    ix <- p$index
+    if (!is.null(ix)) {
+      f_at <- function(v) function(cf) env$ind_c(cf, path, v)
+      put <- function(kind, r, extra = list()) indices[[length(indices) + 1]] <<- c(list(kind = kind, path = p$vars), extra, r)
+      w <- id(ix$w)
+      if (ix$kind == "mm") put("mm", combine(list(f_at(setNames(1, w)), f_at(setNames(0, w))), c(1, -1)), list(moderator = ix$w))
+      else {
+        z <- id(ix$z); pt <- function(a, c) setNames(c(a, c), c(w, z))
+        if (ix$kind == "partial") {
+          put("partial", combine(list(f_at(pt(1, 0)), f_at(pt(0, 0))), c(1, -1)), list(moderator = ix$w))
+          put("partial", combine(list(f_at(pt(0, 1)), f_at(pt(0, 0))), c(1, -1)), list(moderator = ix$z))
+        } else {
+          put("mmm", combine(list(f_at(pt(1, 1)), f_at(pt(1, 0)), f_at(pt(0, 1)), f_at(pt(0, 0))), c(1, -1, -1, 1)))
+          for (zv in pv[[z]]) put("cmm", combine(list(f_at(pt(1, zv)), f_at(pt(0, zv))), c(1, -1)), list(moderator = ix$w, at = setNames(list(zv), ix$z)))
+        }
+      }
+    }
+  }
+  # Counterfactual effects of moving X from x_ref to x_cf, with X moderating M -> Y (VanderWeele 2015).
+  counterfactual <- if (!is.null(cf)) {
+    x <- id(req$x); ms <- id(req$mediators); xr <- as.numeric(cf$xref); xc <- as.numeric(cf$xcf); dx <- xc - xr
+    covs <- id(req$covariates)
+    cmeans <- if (length(covs)) colMeans(env$data[, covs, drop = FALSE]) else numeric(0)
+    mmeans <- colMeans(env$data[, ms, drop = FALSE])
+    # E[M | x] with the covariates at their means.
+    mhat <- function(bm, xv) { v <- c("(Intercept)" = 1, setNames(xv, x), cmeans); sum(bm[names(bm)] * v[names(bm)], na.rm = TRUE) }
+    coef_of <- function(by, a, bvar) { k <- names(by)[vapply(strsplit(names(by), ":", fixed = TRUE), function(p) setequal(p, c(a, bvar)), TRUE)]; if (length(k)) by[[k]] else 0 }
+    direct_at <- function(cf, mv) { by <- cf[[yv]]; (by[[x]] + sum(vapply(ms, function(m) coef_of(by, m, x) * mv[[m]], 0))) * dx }
+    tnie <- function(cf, m, xv) { by <- cf[[yv]]; cf[[m]][[x]] * (by[[m]] + coef_of(by, m, x) * xv) * dx }
+    ref_m <- function(cf, xv) setNames(vapply(ms, function(m) mhat(cf[[m]], xv), 0), ms)
+    eff <- list(
+      list(name = "pnde", label = "Pure natural direct effect", f = function(cf) direct_at(cf, ref_m(cf, xr))),
+      list(name = "tnde", label = "Total natural direct effect", f = function(cf) direct_at(cf, ref_m(cf, xc))),
+      list(name = "cde", label = "Controlled direct effect (mediators at their means)", f = function(cf) direct_at(cf, as.list(mmeans))))
+    for (m in ms) eff <- c(eff, list(
+      list(name = paste0("tnie:", nm(m)), label = sprintf("Total natural indirect effect through %s", nm(m)), f = local({ mm <- m; function(cf) tnie(cf, mm, xc) })),
+      list(name = paste0("pnie:", nm(m)), label = sprintf("Pure natural indirect effect through %s", nm(m)), f = local({ mm <- m; function(cf) tnie(cf, mm, xr) }))))
+    eff <- c(eff, list(list(name = "total", label = "Total effect (pure natural direct + total natural indirect)",
+      f = function(cf) direct_at(cf, ref_m(cf, xr)) + sum(vapply(ms, function(m) tnie(cf, m, xc), 0)))))
+    list(xref = xr, xcf = xc, effects = lapply(eff, function(e) c(list(name = e$name, label = e$label), boot_eff(e$f))))
+  }
+  ps_json(list(n = nrow(env$data), equations = eq_out, moderators = lapply(b$mods, function(m) list(name = nm(m), values = pv[[m]])),
+    direct = direct, directs = directs, indirect = indirect, total = NULL, indices = indices, jn = list(),
+    counterfactual = counterfactual, binaryY = binary,
+    boot = list(samples = length(boots)), inference = "bootstrap", hc = "none", latent = list(),
+    warnings = c(env$.warnings, if (length(boots) < B) sprintf("%d of %d bootstrap samples failed (e.g. separation in the logistic regression) and were left out.", B - length(boots), B)),
+    engine = list(package = "stats (lm, glm)", version = paste(R.version$major, R.version$minor, sep = "."))))
 }

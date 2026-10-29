@@ -11,6 +11,7 @@ import { johnsonNeyman } from '../engine/jn';
 import { fixedText } from '../diagramLabels';
 import { ConstraintsEditor } from './ConstraintsEditor';
 import { ClustersEditor, EsemEditor, GroupsEditor } from './GroupsEditor';
+import { processGraph } from '../process/fromModel';
 
 function NameField({ c }: { c: Construct }) {
   const update = useStore((s) => s.updateConstruct);
@@ -634,6 +635,24 @@ function ModelInspector() {
             </div>
           </div>
           <div className="hint">Percentiles are PROCESS’s default. A moderator with two values is probed at both. Missing values: listwise deletion, as PROCESS.</div>
+          {processGraph(model).graph?.moderations.some((m) => m.by === processGraph(model).graph!.x) && (
+            <div className="field" style={{ marginTop: 10 }}>
+              <label>Counterfactual effects: X from … to …</label>
+              <div className="row2">
+                {(['xref', 'xcf'] as const).map((k) => (
+                  <input key={k} className="input num" type="number" step="any" placeholder={k === 'xref' ? 'reference (auto)' : 'counterfactual (auto)'}
+                    value={settings.counterfactual?.[k] ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value === '' ? null : Number(e.target.value);
+                      const cur = settings.counterfactual;
+                      if (v === null || !Number.isFinite(v)) setSettings({ counterfactual: null });
+                      else setSettings({ counterfactual: { xref: k === 'xref' ? v : cur?.xref ?? 0, xcf: k === 'xcf' ? v : cur?.xcf ?? 1 } });
+                    }} />
+                ))}
+              </div>
+              <div className="hint">X moderates its own M → Y paths: direct and indirect effects compare these two values of X. Empty: a binary X’s two values, otherwise its mean and one SD above.</div>
+            </div>
+          )}
           <div className="field" style={{ marginTop: 10 }}>
             <label>Standard errors of the regressions</label>
             <select className="select" value={settings.hc} onChange={(e) => setSettings({ hc: e.target.value as Settings['hc'] })}>

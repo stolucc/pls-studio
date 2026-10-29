@@ -32,7 +32,9 @@ function Equations({ res, title, level }: { res: CpaResult; title: string; level
         <Table title={`Outcome: ${e.outcome}`} file={`process-${e.outcome}`}
           columns={['Term', 'Coefficient', res.hc === 'none' ? 'Std. error' : `Std. error (${res.hc})`, res.inference === 'montecarlo' ? 'z' : 't', 'p', ...ciCols(level)]}
           rows={e.coefficients.map((k): Row => [c(term(k.term)), c(k.est), c(k.se), c(k.t), pCell(k.p), c(k.lo), c(k.hi)])}
-          note={e.f === null || e.p === null
+          note={e.logistic
+            ? <>Logistic regression (Y has two values; coefficients in log-odds). −2LL = {fmt(e.deviance ?? NaN, 2)}, model χ²({fmt(e.df1 ?? NaN, 0)}) = {fmt(e.chisq ?? NaN, 2)}, p {(e.p ?? 1) < 0.001 ? '< .001' : `= ${fmt(e.p ?? NaN, 3)}`}; McFadden R² = {fmt(e.mcfadden ?? NaN, 3)}, Cox &amp; Snell {fmt(e.coxsnell ?? NaN, 3)}, Nagelkerke {fmt(e.nagelkerke ?? NaN, 3)}. Tests are z tests.</>
+            : e.f === null || e.p === null
             ? <>R² = {fmt(e.r2, 3)}. Unstandardised coefficients in the latent variables’ metric (first item’s loading fixed to 1); a product of latent variables is SAM’s latent interaction.</>
             : <>R² = {fmt(e.r2, 3)}, MSE = {fmt(e.mse, 3)}, F{res.hc === 'none' ? '' : ` (${res.hc})`}({fmt(e.df1 ?? NaN, 0)}, {fmt(e.df2 ?? NaN, 0)}) = {fmt(e.f, 2)}, p {e.p < 0.001 ? '< .001' : `= ${fmt(e.p, 3)}`}. Unstandardised OLS coefficients; products are of the variables as entered (not mean-centred, as PROCESS by default).</>} />
         {e.interactions.length > 0 && (
@@ -52,6 +54,12 @@ function Effects({ res, level }: { res: CpaResult; level: number }) {
   const indexName = { mm: 'Index of moderated mediation', partial: 'Index of partial moderated mediation', mmm: 'Index of moderated moderated mediation', cmm: 'Conditional index of moderated mediation' } as const;
   return (
     <div className="tables">
+      {res.counterfactual && (
+        <Table title={`Counterfactual effects of moving X from ${fmt(res.counterfactual.xref, 3)} to ${fmt(res.counterfactual.xcf, 3)}`} file="process-counterfactual"
+          columns={['Effect', 'Estimate', 'Boot SE', ...ciCols(level)]}
+          rows={res.counterfactual.effects.map((e) => [c(e.label), { v: e.est, cls: sig(e.lo, e.hi) }, c(e.se), c(e.lo), c(e.hi)])}
+          note="X moderates its own M → Y paths, so direct and indirect effects are defined counterfactually (VanderWeele, 2015; PROCESS’s xmint): the pure natural direct effect holds the mediators at the values they take at the reference value of X, the controlled direct effect at their means, and the total natural indirect effect evaluates M → Y at the counterfactual value. Percentile bootstrap intervals." />
+      )}
       {res.coding && (
         <Table title={`Coding of ${res.coding.x} (${res.coding.coding})`} file="process-coding" columns={[res.coding.x, ...res.coding.names]}
           rows={res.coding.table.map((row, g) => [c(String(res.coding!.levels[g])), ...row.map((v) => c(v))])}
@@ -64,9 +72,10 @@ function Effects({ res, level }: { res: CpaResult; level: number }) {
       ))}
       {d && (
         <Table title={d.moderators.length ? 'Conditional direct effect of X on Y' : 'Direct effect of X on Y'} file="process-direct"
-          columns={[...d.moderators, 'Effect', res.inference === 'montecarlo' ? 'MC SE' : 'Std. error', ...(res.inference === 'montecarlo' ? [] : ['t']), 'p', ...ciCols(level)]}
+          columns={[...d.moderators, 'Effect', res.inference === 'montecarlo' ? 'MC SE' : 'Std. error', ...(res.inference === 'montecarlo' ? [] : [res.binaryY ? 'z' : 't']), 'p', ...ciCols(level)]}
           rows={d.rows.map((r) => [...atCells(d.moderators, r.at), c(r.est), c(r.se), ...(res.inference === 'montecarlo' ? [] : [c(r.t)]), pCell(r.p), c(r.lo), c(r.hi)])}
           note={res.inference === 'montecarlo' ? 'Monte Carlo standard errors, p values and percentile intervals (manymome::do_mc).'
+            : res.binaryY ? 'In log-odds (logistic regression for the dichotomous Y): maximum-likelihood standard errors and z tests, as PROCESS.'
             : res.hc === 'none' ? 'OLS standard errors and t tests, as PROCESS.' : `${res.hc} heteroskedasticity-consistent standard errors and t tests, as PROCESS’s hc option.`} />
       )}
       {res.indirect.map((p) => (

@@ -71,6 +71,8 @@ export interface Settings {
   confidence: number;
   /** Conditional process analysis: moderator values at which effects are probed. */
   probe: 'percentiles' | 'meansd';
+  /** Conditional process analysis with X moderating M → Y (model 74): values of X compared (null: automatic). */
+  counterfactual: { xref: number; xcf: number } | null;
   /** CB-SEM latent interactions: product indicators (lavaan), LMS or QML (modsem). */
   interaction: 'product' | 'lms' | 'qml';
   /** Conditional process analysis: heteroskedasticity-consistent standard errors (PROCESS's hc option). */
@@ -243,6 +245,7 @@ export const DEFAULT_SETTINGS: Settings = {
   probe: 'percentiles',
   hc: 'none',
   interaction: 'product',
+  counterfactual: null,
 };
 
 let counter = 0;
@@ -371,7 +374,7 @@ export function createsCycle(paths: Path[], from: string, to: string): boolean {
 export function validateModel(
   model: ModelState,
   data: Dataset | null,
-  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction'>> = DEFAULT_SETTINGS,
+  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc'>> = DEFAULT_SETTINGS,
 ): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string, constructId?: string) => issues.push({ level: 'error', message, constructId });
@@ -594,6 +597,17 @@ export function validateModel(
         const k = col ? new Set([...col].filter((v) => !Number.isNaN(v))).size : 0;
         if (k < 2 || k > 10) err(`The categorical X "${c.name}" needs 2 to 10 groups (it has ${k}).`, c.id);
       }
+    }
+    // Dichotomous Y (logistic) and counterfactual (X by M) effects use the lm / glm bootstrap engine.
+    const gy = g && model.constructs.find((c) => c.name === g.y);
+    const ycol = gy && gy.indicators.length === 1 && data && !data.moments ? data.cols[data.names.indexOf(gy.indicators[0])] : undefined;
+    const binaryY = !!ycol && new Set([...ycol].filter((v) => !Number.isNaN(v))).size === 2;
+    const xmint = !!g && g.moderations.some((m) => m.by === g.x && m.path[1] === g.y);
+    if (binaryY && (latent.length || (method.hc ?? 'none') !== 'none')) {
+      err('A dichotomous Y is analysed by logistic regression, which is not combined with latent variables or HC standard errors here.');
+    }
+    if (xmint && (binaryY || latent.length || model.constructs.some((c) => c.categorical))) {
+      err('X moderating its own M → Y paths (counterfactual effects, model 74) needs a continuous Y, observed variables and a non-categorical X (as PROCESS).');
     }
     if (latent.length && model.threeWay?.length) {
       err('Moderated moderation (three-way interaction) is not available with latent variables (lavaan’s SAM syntax has no three-way products). Use mean scores, or remove the three-way term.', latent[0].id);
@@ -827,6 +841,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',
     hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === s.hc) ?? 'none',
     interaction: s.interaction === 'lms' || s.interaction === 'qml' ? s.interaction : 'product',
+    counterfactual: isObj(s.counterfactual) && finite(s.counterfactual.xref) && finite(s.counterfactual.xcf) ? { xref: s.counterfactual.xref, xcf: s.counterfactual.xcf } : null,
   };
 
   const { data, info } = isObj(raw.data) ? parseDataSection(raw.data) : { data: null, info: null };
