@@ -39,6 +39,16 @@ export interface AppDeps {
 
 export const SESSION_COOKIE = 'pls.sid';
 
+/** CSP for the webR worker script only (see the static-files section). */
+export const WEBR_WORKER_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'",
+  "connect-src 'self'",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'none'",
+].join('; ');
+
 export function createApp(deps: AppDeps) {
   const { config } = deps;
   const app = express();
@@ -114,6 +124,15 @@ export function createApp(deps: AppDeps) {
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found.' }));
 
   if (config.STATIC_DIR) {
+    // webR's worker (where R runs) needs eval: when R loads its shared libraries
+    // (libRblas.so, package .so files), Emscripten builds their EM_ASM functions
+    // with eval. Without it R dies on start-up ("ASM_CONSTS[code] is not a
+    // function"). A worker's CSP comes from its own script response, so only this
+    // one file gets 'unsafe-eval'; the page keeps the strict policy above.
+    app.get('/webr/webr-worker.js', (_req, res, next) => {
+      res.setHeader('Content-Security-Policy', WEBR_WORKER_CSP);
+      next();
+    });
     // The single-page app, same origin as the API (cookies, CSRF and CSP all line up).
     // index.html is revalidated on every load so a deploy takes effect at once;
     // Vite's content-hashed bundles under /assets/ never change, so they are

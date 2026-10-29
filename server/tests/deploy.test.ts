@@ -23,6 +23,7 @@ beforeAll(async () => {
   writeFileSync(join(staticDir, 'index.html'), '<!doctype html><title>PLS Studio</title>');
   writeFileSync(join(staticDir, 'assets', 'index-abc123.js'), 'export {};');
   writeFileSync(join(staticDir, 'webr', 'R.wasm'), Buffer.from([0, 97, 115, 109]));
+  writeFileSync(join(staticDir, 'webr', 'webr-worker.js'), 'self.onmessage = () => {};');
   const config = loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB, APP_ORIGIN: ORIGIN, STATIC_DIR: staticDir });
   app = createApp({ config, db, mailer: createMailer(undefined, config.MAIL_FROM, false) });
 });
@@ -73,5 +74,24 @@ describe('static client caching', () => {
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toBe('public, max-age=3600');
     expect(res.headers['cross-origin-embedder-policy']).toBe('require-corp');
+  });
+});
+
+describe('webR worker content security policy', () => {
+  const scriptSrc = (csp: string) => csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('script-src'));
+
+  it('lets the R worker eval (Emscripten builds shared-library EM_ASM code with it)', async () => {
+    const res = await request(app).get('/webr/webr-worker.js');
+    expect(res.status).toBe(200);
+    expect(scriptSrc(res.headers['content-security-policy'])).toBe("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'");
+    expect(res.headers['content-security-policy']).toContain("object-src 'none'");
+    expect(res.headers['cross-origin-embedder-policy']).toBe('require-corp');
+  });
+
+  it('keeps eval blocked everywhere else, including the page', async () => {
+    for (const url of ['/', '/webr/R.wasm', '/assets/index-abc123.js', '/api/health']) {
+      const csp = (await request(app).get(url)).headers['content-security-policy'] as string;
+      expect(csp, url).not.toContain("'unsafe-eval'");
+    }
   });
 });
