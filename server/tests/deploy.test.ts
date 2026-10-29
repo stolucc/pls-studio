@@ -86,6 +86,8 @@ describe('webR worker content security policy', () => {
     expect(scriptSrc(res.headers['content-security-policy'])).toBe("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'");
     expect(res.headers['content-security-policy']).toContain("object-src 'none'");
     expect(res.headers['cross-origin-embedder-policy']).toBe('require-corp');
+    // Revalidated on every load, so a policy change reaches browsers at once.
+    expect(res.headers['cache-control']).toBe('no-cache');
   });
 
   it('keeps eval blocked everywhere else, including the page', async () => {

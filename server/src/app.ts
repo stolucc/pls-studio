@@ -141,7 +141,9 @@ export function createApp(deps: AppDeps) {
       index: 'index.html',
       maxAge: '1h',
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache');
+        // The worker script too: browsers keep a cached copy's headers, so a
+        // CSP change for the worker would otherwise wait out the max-age.
+        if (filePath.endsWith('index.html') || filePath.endsWith('webr-worker.js')) res.setHeader('Cache-Control', 'no-cache');
         else if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       },
     }));
