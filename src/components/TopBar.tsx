@@ -8,6 +8,7 @@ import { PresenceBar } from './cloud/Presence';
 import { ShareDialog } from './cloud/ShareDialog';
 import { useSim } from '../simStore';
 import { IconEye, IconHome, IconShare, IconLogo, IconSparkle, IconNew, IconOpen, IconPlay, IconRedo, IconRepeat, IconSave, IconUndo, IconUpload } from './icons';
+import { useLong } from './LongitudinalPanel';
 
 const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
@@ -64,6 +65,11 @@ export function TopBar() {
       <div className="sep" />
       {method !== 'process' && (
         <>
+ {method === 'cbsem' && (
+            <button className="btn ghost" aria-label="Longitudinal" onClick={() => useLong.getState().setOpen(true)} title="Latent growth curves and RI-CLPM (lavaan)">
+              <IconRepeat size={15} /><span className="lbl">Longitudinal</span>
+            </button>
+          )}
           <button className="btn ghost" aria-label="Simulate" onClick={() => useSim.getState().setOpen(true)} disabled={!hasModel} title="Monte Carlo simulation: power, sample size, estimator comparison">
             <IconSparkle size={15} /><span className="lbl">Simulate</span>
           </button>

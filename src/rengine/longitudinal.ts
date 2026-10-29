@@ -1,0 +1,50 @@
+// Longitudinal models with lavaan (R/longitudinal.R): latent growth curves and
+// the random-intercept cross-lagged panel model (RI-CLPM).
+
+import type { CbFit } from '../engine/cbsem';
+import type { Dataset, MissingTreatment } from '../engine/types';
+import { rCall, rScript, rStrings } from './bridge';
+import { LAVAAN_FIT, type REngineInfo } from './lavaan';
+
+export interface LongEstimate { lhs: string; op: string; rhs: string; est: number; se: number | null; z: number | null; p: number | null; std: number }
+
+export interface GrowthInput { measures: string[]; times: number[]; shape: 'linear' | 'quadratic' | 'basis'; covariates: string[]; estimator: 'ML' | 'MLR'; missing: MissingTreatment }
+export interface GrowthResult {
+  n: number; fit: Partial<CbFit>; estimates: LongEstimate[]; r2: Record<string, number>;
+  impliedMeans: number[]; observedMeans: number[]; measures: string[]; times: number[]; warnings: string[]; engine: REngineInfo;
+}
+
+export interface RiclpmInput { x: string[]; y: string[]; equal: boolean; estimator: 'ML' | 'MLR'; missing: MissingTreatment }
+export interface RiclpmResult {
+  n: number; waves: number; equal: boolean; fit: Partial<CbFit>; clpmFit: Partial<CbFit>; estimates: LongEstimate[];
+  comparison: { chisqDiff: number; dfDiff: number; p: number }; warnings: string[]; engine: REngineInfo;
+}
+
+const columns = (data: Dataset, names: string[]) => {
+  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
+  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
+};
+const fitOf = (raw: Record<string, unknown>): Partial<CbFit> => {
+  const out: Partial<CbFit> = {};
+  for (const [name, key] of Object.entries(LAVAAN_FIT)) if (typeof raw[name] === 'number') (out as Record<string, number>)[key] = raw[name] as number;
+  return out;
+};
+const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
+const estimates = (v: unknown) => arr<any>(v).map((e) => ({ lhs: e.lhs, op: e.op, rhs: e.rhs, est: e.est, se: e.se ?? null, z: e.z ?? null, p: e.p ?? null, std: e.std })) as LongEstimate[];
+
+export const growthRequest = (data: Dataset, i: GrowthInput) => ({ kind: 'growth', ...i, data: columns(data, [...i.measures, ...i.covariates]) });
+export const riclpmRequest = (data: Dataset, i: RiclpmInput) => ({ kind: 'riclpm', ...i, data: columns(data, [...i.x, ...i.y]) });
+
+export async function growthR(data: Dataset, input: GrowthInput): Promise<GrowthResult> {
+  const raw = await rCall<Record<string, any>>('ps_growth', growthRequest(data, input), 'lavaan');
+  return { ...raw, fit: fitOf(raw.fit ?? {}), estimates: estimates(raw.estimates), r2: raw.r2 && !Array.isArray(raw.r2) ? raw.r2 : {},
+    impliedMeans: arr<number>(raw.impliedMeans), observedMeans: arr<number>(raw.observedMeans), measures: arr<string>(raw.measures), times: arr<number>(raw.times),
+    warnings: rStrings(raw.warnings) } as GrowthResult;
+}
+export const growthScriptR = (data: Dataset, input: GrowthInput) => rScript('ps_growth', growthRequest(data, input), 'lavaan');
+
+export async function riclpmR(data: Dataset, input: RiclpmInput): Promise<RiclpmResult> {
+  const raw = await rCall<Record<string, any>>('ps_riclpm', riclpmRequest(data, input), 'lavaan');
+  return { ...raw, fit: fitOf(raw.fit ?? {}), clpmFit: fitOf(raw.clpmFit ?? {}), estimates: estimates(raw.estimates), warnings: rStrings(raw.warnings) } as RiclpmResult;
+}
+export const riclpmScriptR = (data: Dataset, input: RiclpmInput) => rScript('ps_riclpm', riclpmRequest(data, input), 'lavaan');
