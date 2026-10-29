@@ -8,7 +8,7 @@ import type { IpmaOptions, IpmaResult } from '../engine/ipma';
 import type { MiivResult } from '../engine/miiv';
 import type { BootstrapOptions, BootstrapResult, BootstrapStat, Dataset, MissingTreatment, ModelSpec, PlsOptions } from '../engine/types';
 import { rCall, rScript, type RPackage, rStrings } from './bridge';
-import { cbRequest } from './lavaan';
+import { cbRequest, type LatentInteraction } from './lavaan';
 import { plsRequest, type PlsPackage } from './pls';
 import type { REngineInfo } from './lavaan';
 
@@ -19,7 +19,7 @@ type Raw = Record<string, any>;
 
 export type Analysis =
   | { kind: 'plsBoot'; pkg: PlsPackage; options: PlsOptions; boot: BootstrapOptions }
-  | { kind: 'cbBoot'; estimator: CbEstimator; missing: MissingTreatment; boot: BootstrapOptions }
+  | { kind: 'cbBoot'; estimator: CbEstimator; missing: MissingTreatment; boot: BootstrapOptions; interaction?: LatentInteraction }
   | { kind: 'fitTest'; options: PlsOptions; boot: BootstrapOptions }
   | { kind: 'ipma'; options: PlsOptions; ipma: IpmaOptions }
   | { kind: 'miiv'; missing: MissingTreatment };
@@ -29,7 +29,11 @@ const FN: Record<Analysis['kind'], string> = { plsBoot: 'ps_pls_boot', cbBoot: '
 function request(data: Dataset, spec: ModelSpec, a: Analysis): { req: unknown; pkg: RPackage } {
   switch (a.kind) {
     case 'plsBoot': return { req: { ...plsRequest(data, spec, a.options, a.pkg), boot: a.boot }, pkg: a.pkg };
-    case 'cbBoot': return { req: { ...cbRequest(data, spec, a.missing, a.estimator), boot: a.boot }, pkg: 'lavaan' };
+    case 'cbBoot': {
+      // LMS / QML latent interactions are modsem models: resampled and refitted with modsem.
+      const modsem = (a.interaction ?? 'product') !== 'product' && !!spec.moderations?.length;
+      return { req: { ...cbRequest(data, spec, a.missing, a.estimator, a.interaction), boot: a.boot }, pkg: modsem ? 'modsem' : 'lavaan' };
+    }
     // The fit test and IPMA are cSEM analyses.
     case 'fitTest': return { req: { ...plsRequest(data, spec, a.options, 'cSEM'), boot: a.boot }, pkg: 'cSEM' };
     case 'ipma': return { req: { ...plsRequest(data, spec, { ...a.options, consistent: false }, 'cSEM'), ipma: { ...a.ipma, min: a.ipma.min ?? null, max: a.ipma.max ?? null } }, pkg: 'cSEM' };
@@ -99,7 +103,7 @@ export function parseMiiv(raw: Raw): MiivResultR {
 export async function bootstrapR(data: Dataset, spec: ModelSpec, a: Extract<Analysis, { kind: 'plsBoot' | 'cbBoot' }>, version: () => string): Promise<BootstrapResultR> {
   const { req, pkg } = request(data, spec, a);
   const raw = await rCall<Raw>(FN[a.kind], req, pkg);
-  return parseBoot(raw, { package: a.kind === 'cbBoot' ? 'lavaan' : a.pkg, version: version() });
+  return parseBoot(raw, { package: a.kind === 'cbBoot' ? (pkg === 'modsem' ? 'modsem' : 'lavaan') : a.pkg, version: version() });
 }
 
 export async function fitTestR(data: Dataset, spec: ModelSpec, options: PlsOptions, boot: BootstrapOptions) {

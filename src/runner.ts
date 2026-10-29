@@ -60,7 +60,8 @@ function runR(kind: JobKind, key: string) {
   const options: PlsOptions = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent };
   const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence };
   const token = ++rToken;
-  const pkg = cb ? (st.estimator === '2SLS' ? 'MIIVsem' : 'lavaan') : kind === 'fittest' ? 'cSEM' : st.plsPackage;
+  const modsem = cb && st.interaction !== 'product' && s.model.moderations.length > 0;
+  const pkg = cb ? (st.estimator === '2SLS' ? 'MIIVsem' : modsem ? 'modsem' : 'lavaan') : kind === 'fittest' ? 'cSEM' : st.plsPackage;
   const what = kind === 'estimate' ? 'Estimating' : kind === 'fittest' ? `Fit test (${boot.samples} samples)` : `Bootstrapping ${boot.samples} samples`;
   s.setJob({ kind, done: 0, total: 1, workers: 1, label: `${what} with ${pkg}…` });
   const done = () => { if (token !== rToken) return null; const t = useStore.getState(); t.setJob(null); return t; };
@@ -107,7 +108,7 @@ function runR(kind: JobKind, key: string) {
     return;
   }
   Promise.all([import('./rengine/analyses'), version()]).then(([{ bootstrapR }, v]) => bootstrapR(data, spec,
-    cb ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot } : { kind: 'plsBoot', pkg: st.plsPackage, options, boot }, () => v))
+    cb ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot, interaction: st.interaction } : { kind: 'plsBoot', pkg: st.plsPackage, options, boot }, () => v))
     .then((r) => {
       const t = done(); if (!t) return;
       t.setResults({ boot: r }, key);
@@ -182,10 +183,6 @@ export function run(kind: JobKind) {
   }
   const key = resultsKey(s);
   if (s.settings.method === 'process') { if (kind === 'estimate') runProcess(key); return; }
-  if (cb && kind === 'boot' && s.settings.interaction !== 'product' && s.model.moderations.length) {
-    s.toast('error', 'Bootstrapping LMS / QML models is not available yet; their standard errors come from modsem.');
-    return;
-  }
   const options: PlsOptions = {
     scheme: s.settings.scheme,
     maxIter: s.settings.maxIter,

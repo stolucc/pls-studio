@@ -594,6 +594,7 @@ function ModelInspector() {
               : settings.interaction === 'lms'
                 ? 'Latent moderated structural equations (Klein & Moosbrugger, 2000; modsem): maximum likelihood for the latent product itself, without product indicators; usually the most efficient. Fit statistics are for the model without the interaction.'
                 : 'Quasi-maximum likelihood (Klein & Muthén, 2007; modsem): close to LMS, more robust to non-normal indicators. Fit statistics are for the model without the interaction.'}
+            {settings.interaction !== 'product' && ' Bootstrap: cases are resampled and the model refitted with modsem, which is slow (LMS: seconds per sample); try 200 samples first.'}
           </div>
         </div>
       )}

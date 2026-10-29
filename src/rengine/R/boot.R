@@ -104,6 +104,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- req$boot$confidence
+  if (!is.null(b$modsem)) return(ps_cb_boot_modsem(b, B, seed, conf, export))
   body <- c(b$body,
     "# Standardised paths, total and indirect effects, loadings and R² of one fitted model;",
     "# with several groups or levels (blocks) each statistic is named \"... @block\".",
@@ -176,4 +177,69 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     c(k, list(group = g, block = block, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
   })
   ps_json(list(stats = stats, samples = B, blocks = blocks, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, warnings = env$.warnings))
+}
+
+#' Bootstrap of a latent-interaction model estimated by LMS or QML (modsem).
+#' modsem has no bootstrap of its own, so cases are resampled with replacement
+#' and the model refitted; the statistics are modsem's standardised estimates.
+ps_cb_boot_modsem <- function(b, B, seed, conf, export) {
+  fit_line <- b$body[length(b$body)]
+  body <- c(b$body,
+    "# Standardised paths (the interaction X:Z included), total and indirect effects, loadings",
+    "# and R\u00b2 of one fitted model, from modsem's standardized_estimates().",
+    "std_stats <- function(f, keep = NULL) {",
+    "  ss <- standardized_estimates(f)",
+    "  reg <- ss[ss$op == \"~\", ]; ld <- ss[ss$op == \"=~\", ]",
+    "  vars <- unique(c(ld$lhs, reg$lhs, reg$rhs))",
+    "  Bm <- matrix(0, length(vars), length(vars), dimnames = list(vars, vars))  # [from, to]",
+    "  for (i in seq_len(nrow(reg))) Bm[reg$rhs[i], reg$lhs[i]] <- reg$est[i]",
+    "  Tm <- solve(diag(length(vars)) - Bm) - diag(length(vars)); dimnames(Tm) <- dimnames(Bm)",
+    "  tot <- which(abs(Tm) > 1e-12, arr.ind = TRUE); ind <- which(abs(Tm - Bm) > 1e-12, arr.ind = TRUE)",
+    "  # R\u00b2: one minus the standardised residual variance of each outcome.",
+    "  en <- unique(reg$lhs)",
+    "  r2 <- vapply(en, function(v) { r <- ss[ss$op == \"~~\" & ss$lhs == v & ss$rhs == v, ]; if (nrow(r)) 1 - r$est[1] else NA_real_ }, 0)",
+    "  lab <- function(g, a, b = NULL) if (length(a)) paste0(g, \": \", a, if (!is.null(b)) paste0(\" -> \", b)) else character(0)",
+    "  v <- c(setNames(reg$est, lab(\"path\", reg$rhs, reg$lhs)),",
+    "    setNames(Tm[tot], lab(\"total\", vars[tot[, 1]], vars[tot[, 2]])),",
+    "    setNames((Tm - Bm)[ind], lab(\"indirect\", vars[ind[, 1]], vars[ind[, 2]])),",
+    "    setNames(ld$est, lab(\"loading\", ld$lhs, ld$rhs)),",
+    "    setNames(unname(r2), lab(\"r2\", en)))",
+    "  if (is.null(keep)) v else setNames(v[keep], keep)",
+    "}",
+    "original <- std_stats(fit)",
+    "# modsem has no bootstrap of its own: cases are resampled with replacement and the model refitted.",
+    "# (LMS refits are slow: expect seconds per sample.)",
+    sprintf("set.seed(%d)", seed),
+    sprintf("refit <- function(d) %s", sub("data = data", "data = d", sub("^fit <- ", "", fit_line), fixed = TRUE)),
+    "boot_errors <- character(0); boot_warnings <- character(0)",
+    sprintf("draws <- t(vapply(seq_len(%d), function(r) {", B),
+    "  d <- data[sample.int(nrow(data), replace = TRUE), , drop = FALSE]",
+    "  # Warnings of single refits are counted, not repeated for every sample.",
+    "  withCallingHandlers(tryCatch(std_stats(refit(d), names(original)),",
+    "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) }),",
+    "    warning = function(w) { boot_warnings <<- c(boot_warnings, conditionMessage(w)); invokeRestart(\"muffleWarning\") })",
+    "}, numeric(length(original))))",
+    sprintf("if (length(boot_errors)) warning(sprintf(\"%%d of %d bootstrap refits failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))", B),
+    "if (length(boot_warnings)) warning(sprintf(\"%d warnings in the bootstrap refits, e.g.: %s\", length(boot_warnings), boot_warnings[1]))",
+    "colnames(draws) <- names(original)",
+    PS_BOOT_SUMMARY,
+    sprintf("result <- boot_summary(draws, original, confidence = %s)", format(conf)))
+  title <- sprintf("Bootstrap, %d samples (%s, modsem)", B, toupper(b$modsem))
+  if (export) return(paste(ps_script(title, c("modsem", "lavaan"), b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  constructs <- c(b$n$cname, b$int_names)
+  back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
+  r <- env$result
+  stats <- lapply(seq_len(nrow(r)), function(i) {
+    par <- r$parameter[i]
+    g <- sub(":.*", "", par); parts <- strsplit(sub("^[a-z0-9]+: ", "", par), " -> ")[[1]]
+    a <- unname(back[parts[1]]); z <- if (length(parts) > 1) unname(back[parts[2]]) else NA
+    if (is.na(a) || (length(parts) > 1 && is.na(z))) return(NULL)
+    k <- switch(g, path = , total = , indirect = list(key = sprintf("%s:%s:%s", g, a, z), label = sprintf("%s → %s", a, z)),
+      loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
+      r2 = list(key = sprintf("r2:%s", a), label = a))
+    c(k, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+  })
+  ps_json(list(stats = Filter(Negate(is.null), stats), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0),
+    confidence = conf, warnings = env$.warnings))
 }
