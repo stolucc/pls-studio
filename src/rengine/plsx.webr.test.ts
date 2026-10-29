@@ -11,7 +11,7 @@ import type { Dataset, ModelSpec } from '../engine/types';
 import { categoriesOf } from '../io';
 import commonR from './R/common.R?raw';
 import { rCall } from './bridge';
-import { compareR, groupsR, predictR, predictScriptR } from './plsx';
+import { blindfoldR, blindfoldScriptR, compareR, groupsR, predictR, predictScriptR } from './plsx';
 import { estimatePlsR } from './pls';
 import { callJson, withR } from './runtime';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
@@ -21,6 +21,7 @@ afterAll(stopTestRuntime);
 
 const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference.json'), 'utf8'));
 const ref2 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference2.json'), 'utf8'));
+const ref4 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference4.json'), 'utf8'));
 const ref3 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference3.json'), 'utf8'));
 const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
 const comp = (name: string, ind: string[]) => ({ name, type: 'composite' as const, mode: 'B' as const, indicators: ind });
@@ -32,8 +33,8 @@ const spec: ModelSpec = {
 };
 const alt: ModelSpec = { ...spec, paths: spec.paths.filter((p) => !(p.from === 'IMAG' && p.to === 'LOY')) };
 const options = { scheme: 'path' as const, consistent: false, tolerance: 1e-7, maxIter: 300, missing: 'casewise' as const };
-const load = async (name: string): Promise<Dataset> => {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: 'cSEM', name, na: [] }, 'cSEM');
+const load = async (name: string, pkg: 'cSEM' | 'seminr' = 'cSEM'): Promise<Dataset> => {
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: pkg, name, na: [] }, pkg);
   return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), ...categoriesOf(raw.levels) };
 };
 const MODEL = `EXPE ~ IMAG\\nQUAL ~ EXPE\\nVAL ~ EXPE + QUAL\\nSAT ~ IMAG + EXPE + QUAL + VAL\\nLOY ~ IMAG + SAT\\nIMAG <~ imag1 + imag2 + imag3\\nEXPE <~ expe1 + expe2 + expe3\\nQUAL <~ qual1 + qual2 + qual3 + qual4 + qual5\\nVAL <~ val1 + val2 + val3\\nSAT =~ sat1 + sat2 + sat3 + sat4\\nLOY =~ loy1 + loy2 + loy3 + loy4`;
@@ -107,5 +108,23 @@ describe('PLS assessment (cSEM)', () => {
     expect(path(pc, 'INV', 'INT')).toBeCloseTo(ref2.plsc.INV, 6);
     expect(path(pc, 'SAT', 'INT')).toBeCloseTo(ref2.plsc.SAT, 6);
     expect(path(pc, 'INV × SAT', 'INT')).toBeCloseTo(ref2.plsc['INV.SAT'], 6);
+  }, 900_000);
+
+  it('blindfolding Q² equals semPLS qSquared (mean replacement, D = 7; its ?qSquared example, D = 4)', async () => {
+    const tight = { ...options, tolerance: 1e-10, maxIter: 1000 };
+    const reflective: ModelSpec = { ...spec, constructs: spec.constructs.map((k) => fac(k.name, k.indicators)) };
+    const r = await blindfoldR(await load('satisfaction'), reflective, tight, 7);
+    expect(r.constructs.map((k) => k.construct)).toEqual(Object.keys(ref4.q2));
+    for (const k of r.constructs) expect(k.q2, k.construct).toBeCloseTo(ref4.q2[k.construct], 6);
+    const M = (name: string, p: string, k: number) => fac(name, k === 1 ? [p] : items(p, k));
+    const mobi: ModelSpec = {
+      constructs: [M('Image', 'IMAG', 5), M('Expectation', 'CUEX', 3), M('Quality', 'PERQ', 7), M('Value', 'PERV', 2), M('Satisfaction', 'CUSA', 3), M('Complaints', 'CUSCO', 1), M('Loyalty', 'CUSL', 3)],
+      paths: [P('Image', 'Expectation'), P('Image', 'Satisfaction'), P('Image', 'Loyalty'), P('Expectation', 'Quality'), P('Expectation', 'Value'), P('Expectation', 'Satisfaction'),
+        P('Quality', 'Value'), P('Quality', 'Satisfaction'), P('Value', 'Satisfaction'), P('Satisfaction', 'Complaints'), P('Satisfaction', 'Loyalty'), P('Complaints', 'Loyalty')],
+    };
+    const m = await blindfoldR(await load('mobi', 'seminr'), mobi, { ...tight, scheme: 'centroid' }, 4);
+    for (const k of m.constructs) expect(k.q2, k.construct).toBeCloseTo(ref4.mobi[k.construct], 6);
+    expect(m.distance).toBe(4);
+    expect(await blindfoldScriptR(await load('satisfaction'), reflective, tight, 7)).toContain('blindfold <- function(data, block, endo, D)');
   }, 900_000);
 });

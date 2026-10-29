@@ -187,3 +187,56 @@ ps_cta <- function(req_json, export = FALSE) {
       est = d$est[i], se = d$se[i], t = d$t[i], p = d$p[i], low = d$low[i], high = d$high[i], differs = isTRUE(d$differs[i])))) }),
     warnings = env$.warnings, engine = list(package = "R (CTA-PLS as Gudergan et al. 2008)", version = as.character(getRversion()))))
 }
+
+#' Blindfolding (Stone 1974; Geisser 1974; Chin 1998): Q-squared, the
+#' cross-validated redundancy of each endogenous reflective construct. Every
+#' D-th data point of its block is omitted in turn (cell-wise, column by
+#' column), replaced by the column mean, the model re-estimated, and the
+#' omitted values predicted from the predecessor constructs' scores (loading
+#' x predicted score). On standardised indicators, as semPLS. Q2 = 1 - SSE / SSO.
+#' As semPLS's qSquared (Monecke & Leisch 2012) with mean imputation.
+PS_BLINDFOLD_FUNCTIONS <- c(
+  "blindfold <- function(data, block, endo, D) {",
+  "  data <- as.data.frame(scale(data))  # standardised indicators",
+  "  X <- as.matrix(data[, block, drop = FALSE]); SSE <- 0; SSO <- 0",
+  "  for (j in seq_len(D)) {",
+  "    blind <- matrix(FALSE, nrow(X), ncol(X)); blind[seq(j, length(X), by = D)] <- TRUE",
+  "    Xb <- X; Xb[blind] <- NA",
+  "    d <- data; d[, block] <- Xb",
+  "    m <- colMeans(d, na.rm = TRUE); for (v in names(d)) d[[v]][is.na(d[[v]])] <- m[[v]]  # mean replacement",
+  "    f <- blind_estimate(d); e <- f$Estimates",
+  "    S <- e$Construct_scores; pred <- S[, setdiff(colnames(S), endo), drop = FALSE] %*% e$Path_estimates[endo, setdiff(colnames(S), endo)]",
+  "    for (l in seq_along(block)) {",
+  "      rows <- which(blind[, l]); if (!length(rows)) next",
+  "      xhat <- pred[rows] * e$Loading_estimates[endo, block[l]] * stats::sd(d[[block[l]]]) + mean(d[[block[l]]])",
+  "      SSE <- SSE + sum((X[rows, l] - xhat)^2, na.rm = TRUE)",
+  "      SSO <- SSO + sum((X[rows, l] - mean(Xb[, l], na.rm = TRUE))^2, na.rm = TRUE)",
+  "    }",
+  "  }",
+  "  c(SSE = SSE, SSO = SSO, Q2 = 1 - SSE / SSO)",
+  "}")
+
+ps_blindfold <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  D <- as.integer(req$distance %||% 7)
+  if (D < 2 || D > 50) stop("Invalid omission distance.")
+  b <- ps_plsx_build(req)
+  cons <- req$model$constructs
+  ends <- unique(vapply(req$model$paths, function(p) p$to, ""))
+  refl <- vapply(cons, function(c) c$name %in% ends && !identical(c$mode, "B") && length(unlist(c$indicators)) > 0, TRUE)
+  if (!any(refl)) stop("Blindfolding needs endogenous constructs with reflective (Mode A) indicators.")
+  fit_line <- grep("^fit <- csem\\(data,", b$body, value = TRUE)[1]
+  body <- c(b$body,
+    sprintf("blind_estimate <- function(d) %s", sub("^fit <- ", "", sub("csem(data,", "csem(d,", fit_line, fixed = TRUE))),
+    PS_BLINDFOLD_FUNCTIONS,
+    sprintf("# Omission distance D = %d; every D-th cell of the block (column by column) is omitted in round j.", D),
+    sprintf("targets <- list(%s)", paste(vapply(which(refl), function(j) sprintf("%s = %s", b$n$cv[[cons[[j]]$name]], ps_q(unname(b$n$iv[unlist(cons[[j]]$indicators)]))), ""), collapse = ", ")),
+    sprintf("q2 <- t(sapply(names(targets), function(k) blindfold(data, targets[[k]], k, %d)))", D))
+  if (export) return(paste(ps_script(sprintf("Blindfolding, D = %d (cSEM)", D), "cSEM", b$inputs, body, "q2"), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  back <- setNames(names(b$n$cv), unname(b$n$cv))
+  q <- env$q2
+  ps_json(list(distance = D, n = nrow(b$inputs$data), divisible = nrow(b$inputs$data) %% D == 0,
+    constructs = lapply(rownames(q), function(k) list(construct = unname(back[k]), sse = q[k, "SSE"], sso = q[k, "SSO"], q2 = q[k, "Q2"])),
+    warnings = env$.warnings, engine = list(package = "cSEM (blindfolding as semPLS)", version = as.character(utils::packageVersion("cSEM")))))
+}

@@ -77,3 +77,20 @@ export async function ctaR(data: Dataset, spec: ModelSpec, missing: PlsOptions['
 }
 export const ctaScriptR = (data: Dataset, spec: ModelSpec, missing: PlsOptions['missing'], cfg: { samples: number; seed: number; alpha: number }) =>
   rScript('ps_cta', { ...plsRequest(data, spec, { scheme: 'path', consistent: false, tolerance: 1e-7, maxIter: 300, missing }, 'cSEM'), ...cfg }, 'cta');
+
+export interface BlindfoldResult {
+  distance: number; n: number; divisible: boolean;
+  constructs: { construct: string; sse: number; sso: number; q2: number }[];
+  warnings: string[]; engine: REngineInfo;
+}
+/** The constructs blindfolding reports: endogenous, with reflective (Mode A) indicators, as semPLS. */
+export const blindfoldTargets = (spec: ModelSpec) => {
+  const endo = new Set(spec.paths.map((p) => p.to));
+  return spec.constructs.filter((k) => endo.has(k.name) && k.mode !== 'B' && k.indicators.length > 0).map((k) => k.name);
+};
+export async function blindfoldR(data: Dataset, spec: ModelSpec, options: PlsOptions, distance: number): Promise<BlindfoldResult> {
+  const raw = await rCall<Record<string, any>>('ps_blindfold', { ...base(data, spec, options), distance }, 'cSEM');
+  return { ...raw, constructs: arr(raw.constructs), warnings: rStrings(raw.warnings) } as BlindfoldResult;
+}
+export const blindfoldScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, distance: number) =>
+  rScript('ps_blindfold', { ...base(data, spec, options), distance }, 'cSEM');

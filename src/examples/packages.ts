@@ -65,7 +65,7 @@ export interface PackageExample {
   /** Opens the segmentation panel on the example's diagram: REBUS (numbers of classes) or PATHMOX (segmentation variables; ordered ones with their categories in order). */
   segmentation?: { method?: 'rebus' | 'pathmox' | 'fimix' | 'pos'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
   /** Opens the PLS assessment panel on the example's diagram (tab, and the grouping column). */
-  assessment?: { tab: 'predict' | 'compare' | 'groups'; group?: string };
+  assessment?: { tab: 'predict' | 'blindfold' | 'compare' | 'groups'; group?: string; distance?: number };
   settings: Partial<Settings>;
 }
 
@@ -379,6 +379,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     paths: [...fan(['Image'], ['Expectation', 'Satisfaction', 'Loyalty']), ...fan(['Expectation'], ['Quality', 'Value', 'Satisfaction']), ...fan(['Quality'], ['Value', 'Satisfaction']),
       ['Value', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty'], ['Complaints', 'Loyalty']],
     settings: PLS('seminr', false),
+  },
+  {
+    id: 'sempls-qsquared', package: 'cSEM', title: 'Mobile phone satisfaction: blindfolding Q²', source: 'semPLS, ?qSquared (ECSImobi on mobi)',
+    links: [{ label: '?qSquared', url: 'https://rdrr.io/cran/semPLS/man/semplsGOF.html' }, { label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }],
+    description: 'semPLS’s help example: the ECSI model with the centroid scheme, and Stone–Geisser Q² from blindfolding with omission distance 4. Estimated with cSEM; semPLS (not available in the browser) is the reference. Opens PLS-SEM assessment.',
+    data: { package: 'seminr', name: 'mobi' }, constructs: MOBI,
+    paths: [...fan(['Image'], ['Expectation', 'Satisfaction', 'Loyalty']), ...fan(['Expectation'], ['Quality', 'Value', 'Satisfaction']), ...fan(['Quality'], ['Value', 'Satisfaction']),
+      ['Value', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty'], ['Complaints', 'Loyalty']],
+    assessment: { tab: 'blindfold', distance: 4 }, settings: PLS('cSEM', false, 'centroid'),
   },
   {
     id: 'seminr-interaction', package: 'seminr', title: 'Moderated satisfaction', source: 'seminr, demo("seminr-pls-interaction")',

@@ -3,22 +3,22 @@ import { create } from 'zustand';
 import { downloadText, safeFileName } from '../format';
 import type { ModelSpec, PlsOptions } from '../engine/types';
 import { toSpec, validateModel } from '../model/project';
-import type { CompareResult, CtaResult, GroupsResult, MgaApproach, PredictResult } from '../rengine/plsx';
+import { blindfoldTargets, type BlindfoldResult, type CompareResult, type CtaResult, type GroupsResult, type MgaApproach, type PredictResult } from '../rengine/plsx';
 import { useStore } from '../store';
 import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
 
-type Tab = 'predict' | 'compare' | 'groups' | 'cta';
+type Tab = 'predict' | 'blindfold' | 'compare' | 'groups' | 'cta';
 interface State {
   open: boolean; tab: Tab;
-  predict: PredictResult | null; compare: CompareResult | null; groups: GroupsResult | null; cta: CtaResult | null;
+  predict: PredictResult | null; blindfold: BlindfoldResult | null; compare: CompareResult | null; groups: GroupsResult | null; cta: CtaResult | null;
   /** The alternative model for the comparison: a snapshot of an earlier diagram. */
   alternative: { spec: ModelSpec; paths: number; savedAt: number } | null;
   /** Filled in by an example (applied when it changes). */
-  preset: { tab: Tab; group?: string } | null;
+  preset: { tab: Tab; group?: string; distance?: number } | null;
   setOpen: (v: boolean) => void;
 }
-export const usePlsAssessment = create<State>((set) => ({ open: false, tab: 'predict', predict: null, compare: null, groups: null, cta: null, alternative: null, preset: null, setOpen: (open) => set({ open }) }));
+export const usePlsAssessment = create<State>((set) => ({ open: false, tab: 'predict', predict: null, blindfold: null, compare: null, groups: null, cta: null, alternative: null, preset: null, setOpen: (open) => set({ open }) }));
 
 const APPROACHES: { id: MgaApproach; label: string }[] = [
   { id: 'Henseler', label: 'Henseler (bootstrap)' }, { id: 'Chin', label: 'Chin & Dibbern (permutation)' }, { id: 'Klesel', label: 'Klesel et al. (overall, dG / dL)' },
@@ -107,6 +107,17 @@ function CtaView({ r }: { r: CtaResult }) {
   );
 }
 
+function BlindfoldView({ r }: { r: BlindfoldResult }) {
+  return (
+    <div className="tables">
+      <Table title="Blindfolding: Q² (cross-validated redundancy)" file="blindfolding-q2" columns={['Construct', 'SSO', 'SSE', 'Q² (= 1 − SSE/SSO)', 'Predictive relevance']}
+        rows={r.constructs.map((k) => [c(k.construct), c(k.sso, undefined, 2), c(k.sse, undefined, 2), { ...c(k.q2), bold: k.q2 > 0 }, c(k.q2 > 0.5 ? 'large' : k.q2 > 0.25 ? 'medium' : k.q2 > 0 ? 'small' : 'none')])}
+        note={`Omission distance D = ${r.distance}, n = ${r.n}. Every D-th data point of a construct's (standardised) indicators is omitted in turn, replaced by the mean, and predicted from the predecessor constructs (Stone 1974; Geisser 1974; Chin 1998). Q² > 0: predictive relevance; 0.02 / 0.15 / 0.35 are sometimes used for q² effect sizes, 0 / 0.25 / 0.5 for small / medium / large Q² (Hair et al. 2019).${r.divisible ? ` n is a multiple of D; Hair et al. advise a D that does not divide n.` : ''}`} />
+      <div className="hint">As semPLS’s qSquared (Monecke &amp; Leisch 2012) with mean replacement; checked against it. SmartPLS 4 dropped blindfolding: Q² mixes in-sample explanation and prediction (Shmueli et al. 2016); for out-of-sample prediction use the Prediction tab (PLSpredict) and CVPAT.</div>
+    </div>
+  );
+}
+
 /** PLS-SEM assessment beyond the basic results: prediction, model comparison, group comparison (cSEM). */
 export function PlsAssessmentPanel() {
   const s = usePlsAssessment();
@@ -114,11 +125,11 @@ export function PlsAssessmentPanel() {
   const model = useStore((st) => st.model);
   const settings = useStore((st) => st.settings);
   const project = useStore((st) => st.projectName);
-  const [folds, setFolds] = useState(10), [reps, setReps] = useState(10);
+  const [folds, setFolds] = useState(10), [reps, setReps] = useState(10), [distance, setDistance] = useState(7);
   const [group, setGroup] = useState(''), [approaches, setApproaches] = useState<MgaApproach[]>(['Henseler', 'Chin', 'Klesel']);
   const [busy, setBusy] = useState(false);
   const preset = s.preset;
-  useEffect(() => { if (preset?.group) setGroup(preset.group); }, [preset]);
+  useEffect(() => { if (preset?.group) setGroup(preset.group); if (preset?.distance) setDistance(preset.distance); }, [preset]);
   useEffect(() => {
     if (!s.open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') usePlsAssessment.getState().setOpen(false); };
@@ -142,6 +153,9 @@ export function PlsAssessmentPanel() {
       if (what === 'predict') {
         if (script) downloadText(`${safeFileName(project)}-plspredict.R`, await m.predictScriptR(data!, spec, options, { folds, repetitions: reps, seed }), 'text/x-r-source');
         else usePlsAssessment.setState({ predict: await m.predictR(data!, spec, options, { folds, repetitions: reps, seed }) });
+      } else if (what === 'blindfold') {
+        if (script) downloadText(`${safeFileName(project)}-blindfolding.R`, await m.blindfoldScriptR(data!, spec, options, distance), 'text/x-r-source');
+        else usePlsAssessment.setState({ blindfold: await m.blindfoldR(data!, spec, options, distance) });
       } else if (what === 'compare') {
         const alt = s.alternative!.spec;
         if (script) downloadText(`${safeFileName(project)}-model-comparison.R`, await m.compareScriptR(data!, spec, alt, options, seed), 'text/x-r-source');
@@ -164,7 +178,8 @@ export function PlsAssessmentPanel() {
   const sameMeasurement = !!s.alternative && JSON.stringify(s.alternative.spec.constructs.map((k) => [k.name, [...k.indicators].sort()]).sort())
     === JSON.stringify(spec.constructs.map((k) => [k.name, [...k.indicators].sort()]).sort());
   const ctaBlocks = model.constructs.filter((k) => k.indicators.length >= 4).length;
-  const ready = s.tab === 'predict' ? true : s.tab === 'compare' ? sameMeasurement : s.tab === 'cta' ? ctaBlocks > 0 : !!group && approaches.length > 0;
+  const bfTargets = blindfoldTargets(spec);
+  const ready = s.tab === 'predict' ? true : s.tab === 'blindfold' ? bfTargets.length > 0 : s.tab === 'compare' ? sameMeasurement : s.tab === 'cta' ? ctaBlocks > 0 : !!group && approaches.length > 0;
   return (
     <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="PLS assessment">
       <div className="sim">
@@ -176,7 +191,7 @@ export function PlsAssessmentPanel() {
           <div className="sim-body long-body">
             <section className="sim-col">
               <div className="segmented" style={{ marginBottom: 12 }}>
-                {([['predict', 'Prediction'], ['compare', 'Model comparison'], ['groups', 'Groups'], ['cta', 'Measurement (CTA)']] as const).map(([id, l]) => (
+                {([['predict', 'Prediction'], ['blindfold', 'Blindfolding'], ['compare', 'Model comparison'], ['groups', 'Groups'], ['cta', 'Measurement (CTA)']] as const).map(([id, l]) => (
                   <button key={id} className={s.tab === id ? 'on' : ''} onClick={() => usePlsAssessment.setState({ tab: id })}>{l}</button>
                 ))}
               </div>
@@ -187,6 +202,13 @@ export function PlsAssessmentPanel() {
                     <div className="field"><label>Folds</label><input className="input num" type="number" min={2} max={50} value={folds} onChange={(e) => setFolds(Math.max(2, Math.min(50, Math.round(Number(e.target.value)) || 10)))} /></div>
                     <div className="field"><label>Repetitions</label><input className="input num" type="number" min={1} max={100} value={reps} onChange={(e) => setReps(Math.max(1, Math.min(100, Math.round(Number(e.target.value)) || 10)))} /></div>
                   </div>
+                </>
+              )}
+              {s.tab === 'blindfold' && (
+                <>
+                  <p className="hint" style={{ marginTop: 0 }}>Blindfolding: Stone–Geisser Q² (cross-validated redundancy) for the endogenous constructs with reflective indicators ({bfTargets.length ? bfTargets.join(', ') : 'none here'}).</p>
+                  <div className="field"><label>Omission distance D (5–12 is usual)</label><input className="input num" type="number" min={2} max={50} value={distance} onChange={(e) => setDistance(Math.max(2, Math.min(50, Math.round(Number(e.target.value)) || 7)))} /></div>
+                  <div className="hint">Superseded by PLSpredict and CVPAT for out-of-sample prediction; still asked for by some reviewers.</div>
                 </>
               )}
               {s.tab === 'compare' && (
@@ -229,6 +251,7 @@ export function PlsAssessmentPanel() {
             </section>
             <section className="sim-col wide">
               {s.tab === 'predict' && (s.predict ? <PredictView r={s.predict} /> : <div className="empty-results">Press Calculate.</div>)}
+              {s.tab === 'blindfold' && (s.blindfold ? <BlindfoldView r={s.blindfold} /> : <div className="empty-results">{bfTargets.length ? 'Press Calculate.' : 'No endogenous construct with reflective (Mode A) indicators.'}</div>)}
               {s.tab === 'compare' && (s.compare ? <CompareView r={s.compare} /> : <div className="empty-results">Save an alternative, change the paths, and press Calculate.</div>)}
               {s.tab === 'groups' && (s.groups ? <GroupsView r={s.groups} /> : <div className="empty-results">Choose the grouping column and press Calculate.</div>)}
               {s.tab === 'cta' && (s.cta ? <CtaView r={s.cta} /> : <div className="empty-results">{ctaBlocks ? 'Press Calculate.' : 'No construct has four or more indicators.'}</div>)}

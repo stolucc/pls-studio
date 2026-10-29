@@ -4,7 +4,8 @@
 # MICOM's compositional invariance c, Klesel's dG / dL and Chin's path
 # differences between women and men, and the per-group path coefficients.
 # These do not depend on random draws, so they can be compared across cSEM
-# versions (native 0.6.1, webR 0.7.1).
+# versions (native 0.6.1, webR 0.7.1). Blindfolding Q2 is checked against
+# semPLS 1.0-10 (CRAN archive) on the same data, and on its ?qSquared example.
 #   R_LIBS=/path/to/lib Rscript scripts/validation/plsx.R
 
 suppressPackageStartupMessages({ library(jsonlite); library(cSEM) })
@@ -41,3 +42,28 @@ out3 <- lapply(c("PCA", "unit"), function(a) { f <- csem(satisfaction, m, .appro
 names(out3) <- c("PCA", "unit")
 write(toJSON(out3, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference3.json")
 cat("written 3\n")
+
+# ---- Blindfolding: Q2 as semPLS's qSquared (mean replacement, cell-wise omission, D = 7) ----
+# semPLS 1.0-10 (CRAN archive) is needed here only, as the reference.
+library(semPLS)
+sm <- rbind(c("IMAG", "EXPE"), c("EXPE", "QUAL"), c("EXPE", "VAL"), c("QUAL", "VAL"), c("IMAG", "SAT"), c("EXPE", "SAT"),
+  c("QUAL", "SAT"), c("VAL", "SAT"), c("IMAG", "LOY"), c("SAT", "LOY"))
+blocks <- list(IMAG = paste0("imag", 1:3), EXPE = paste0("expe", 1:3), QUAL = paste0("qual", 1:5), VAL = paste0("val", 1:3), SAT = paste0("sat", 1:4), LOY = paste0("loy", 1:4))
+mm <- do.call(rbind, lapply(names(blocks), function(k) cbind(k, blocks[[k]])))
+sd_ <- as.data.frame(satisfaction)[, unlist(blocks)]
+colnames(sm) <- colnames(mm) <- c("source", "target"); dimnames(mm) <- list(NULL, c("source", "target"))
+# (semPLS's plsm tests class(m) != "matrix", which fails since R 4.0, where a matrix is also an "array".)
+plsm4 <- semPLS::plsm
+body(plsm4) <- parse(text = gsub('class\\((strucmod|measuremod)\\) != "matrix"', '!is.matrix(\\1)', paste(deparse(body(plsm4)), collapse = "\n")))[[1]]
+pm <- plsm4(sd_, strucmod = sm, measuremod = mm)
+sp <- sempls(pm, sd_, wscheme = "pathWeighting", maxit = 1000, tol = 1e-10, verbose = FALSE)
+meanimp <- function(d) { for (v in seq_len(ncol(d))) d[is.na(d[, v]), v] <- mean(d[, v], na.rm = TRUE); d }
+q <- qSquared(sp, d = 7, impfun = meanimp, dlines = FALSE, wscheme = "pathWeighting", maxit = 1000, tol = 1e-10)
+# The homescreen example: semPLS's ?qSquared (ECSImobi on mobi, centroid scheme, d = 4), with mean replacement.
+data(mobi); data(ECSImobi)
+ecsi <- sempls(model = ECSImobi, data = mobi, wscheme = "centroid", maxit = 1000, tol = 1e-10, verbose = FALSE)
+qm <- qSquared(ecsi, d = 4, impfun = meanimp, dlines = FALSE, wscheme = "centroid", maxit = 1000, tol = 1e-10)
+keep <- function(q) as.list(setNames(q[, 1], rownames(q))[!is.na(q[, 1])])
+out4 <- list(semPLS = as.character(packageVersion("semPLS")), q2 = keep(q), mobi = keep(qm))
+write(toJSON(out4, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference4.json")
+cat("written 4\n")
