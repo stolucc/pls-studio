@@ -65,6 +65,11 @@ function Fit({ cb }: { cb: CbResult }) {
   ];
   return (
     <>
+      {cb.interaction && (
+        <div className="issue warning" style={{ marginBottom: 10 }}>
+          Latent interactions estimated by {cb.interaction.toUpperCase()} (modsem): there is no χ² test for a model with latent interactions. The fit statistics below are those of the same model without the interaction terms; judge the interaction by its estimate, standard error and the change in log-likelihood (Klein &amp; Moosbrugger, 2000).
+        </div>
+      )}
       <div className="stat-cards">
         {card(robust ? 'χ² (scaled)' : 'χ²', `${fmt(robust ? f.chisqScaled : f.chisq, 2)}`)}
         {card('df', String(f.df))}

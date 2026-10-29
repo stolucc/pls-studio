@@ -19,6 +19,7 @@ ps_validate <- function(req) {
   one_of(get(req, "estimator"), cb_est, "estimator")
   one_of(get(req, "missing"), c("mean", "casewise", "fiml"), "missing-value treatment")
   one_of(get(req, "probe"), c("percentiles", "meansd"), "probing method")
+  one_of(get(req, "interaction"), c("product", "lms", "qml"), "latent interaction method")
   one_of(get(req, "hc"), c("none", "HC0", "HC1", "HC2", "HC3", "HC4"), "standard error type")
   one_of(get(req, "options", "scheme"), c("path", "centroid", "factor"), "weighting scheme")
   one_of(get(req, "options", "missing"), c("mean", "casewise", "fiml"), "missing-value treatment")

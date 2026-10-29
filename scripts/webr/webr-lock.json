@@ -31,6 +31,38 @@
         "File": "alabama_2025.1.0.tgz"
       }
     },
+    "Amelia": {
+      "version": "1.8.3",
+      "md5": "cf9bd03ccd5976cfab3fe9dcc886eea6",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "Amelia",
+        "Version": "1.8.3",
+        "Depends": "R (>= 3.0.2), Rcpp (>= 0.11)",
+        "Imports": "foreign, utils, grDevices, graphics, methods, stats, rlang",
+        "LinkingTo": "Rcpp (>= 0.11), RcppArmadillo",
+        "Suggests": "tcltk, broom, rmarkdown, knitr",
+        "License": "GPL (>= 2)",
+        "MD5sum": "cf9bd03ccd5976cfab3fe9dcc886eea6",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 15:28:56 UTC; unix",
+        "File": "Amelia_1.8.3.tgz"
+      }
+    },
+    "askpass": {
+      "version": "1.2.1",
+      "md5": "7c769a60b06c6306a1feadc3712ebbe8",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "askpass",
+        "Version": "1.2.1",
+        "Imports": "sys (>= 2.1)",
+        "Suggests": "testthat",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "7c769a60b06c6306a1feadc3712ebbe8",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 16:05:30 UTC; unix",
+        "File": "askpass_1.2.1.tgz"
+      }
+    },
     "backports": {
       "version": "1.5.1",
       "md5": "a42352c3977e6158b09a56d982874c82",
@@ -291,6 +323,21 @@
         "File": "crayon_1.5.3.tgz"
       }
     },
+    "crosstalk": {
+      "version": "1.2.2",
+      "md5": "6d66af8d1a07b6c7a9d376d39f028732",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "crosstalk",
+        "Version": "1.2.2",
+        "Imports": "htmltools (>= 0.3.6), jsonlite, lazyeval, R6",
+        "Suggests": "bslib, ggplot2, sass, shiny, testthat (>= 2.1.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "6d66af8d1a07b6c7a9d376d39f028732",
+        "Built": "R 4.6.0; ; 2026-05-12 21:55:57 UTC; unix",
+        "File": "crosstalk_1.2.2.tgz"
+      }
+    },
     "cSEM": {
       "version": "0.7.1",
       "md5": "26676cfd799c3cba6302b56e76f38a45",
@@ -336,6 +383,22 @@
         "MD5sum": "6d7a1050c3f147426ad2845b12a814c8",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 15:53:40 UTC; unix",
         "File": "curl_8.0.0.tgz"
+      }
+    },
+    "data.table": {
+      "version": "1.18.6.1",
+      "md5": "721dcdc909555a9697efa874013cbbd9",
+      "license": "MPL-2.0 | file LICENSE",
+      "stanza": {
+        "Package": "data.table",
+        "Version": "1.18.6.1",
+        "Depends": "R (>= 3.4.0)",
+        "Imports": "methods",
+        "Suggests": "bit64 (>= 4.0.0), bit (>= 4.0.4), R.utils (>= 2.13.0), xts, zoo (>= 1.8-1), yaml, knitr, markdown",
+        "License": "MPL-2.0 | file LICENSE",
+        "MD5sum": "721dcdc909555a9697efa874013cbbd9",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 15:59:41 UTC; unix",
+        "File": "data.table_1.18.6.1.tgz"
       }
     },
     "Deriv": {
@@ -478,6 +541,21 @@
         "File": "farver_2.1.2.tgz"
       }
     },
+    "fastGHQuad": {
+      "version": "1.0.1",
+      "md5": "5db77d6c73b334c9377e0913b855e00b",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "fastGHQuad",
+        "Version": "1.0.1",
+        "Depends": "Rcpp (>= 0.11.0)",
+        "LinkingTo": "Rcpp",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "5db77d6c73b334c9377e0913b855e00b",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 02:40:00 UTC; unix",
+        "File": "fastGHQuad_1.0.1.tgz"
+      }
+    },
     "fastmap": {
       "version": "1.2.0",
       "md5": "c82b9058e1ff5341c0b08275e3d4946f",
@@ -523,6 +601,22 @@
         "MD5sum": "9ab9f9666985ad4121d52591ce4d278c",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 03:46:28 UTC; unix",
         "File": "forecast_9.0.2.tgz"
+      }
+    },
+    "foreign": {
+      "version": "0.8-91",
+      "md5": "298f551fbc7d3d9618b5b022f847cd93",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "foreign",
+        "Version": "0.8-91",
+        "Priority": "recommended",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "methods, utils, stats",
+        "License": "GPL (>= 2)",
+        "MD5sum": "298f551fbc7d3d9618b5b022f847cd93",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 03:48:02 UTC; unix",
+        "File": "foreign_0.8-91.tgz"
       }
     },
     "Formula": {
@@ -778,6 +872,22 @@
         "File": "htmlwidgets_1.6.4.tgz"
       }
     },
+    "httr": {
+      "version": "1.4.9",
+      "md5": "3d29e5d044f2533173851f594e069ca7",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "httr",
+        "Version": "1.4.9",
+        "Depends": "R (>= 3.6)",
+        "Imports": "curl (>= 5.1.0), jsonlite, mime, openssl (>= 0.8), R6",
+        "Suggests": "covr, httpuv, jpeg, knitr, png, readr, rmarkdown, testthat (>= 0.8.0), xml2",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "3d29e5d044f2533173851f594e069ca7",
+        "Built": "R 4.6.0; ; 2026-10-10 03:46:07 UTC; unix",
+        "File": "httr_1.4.9.tgz"
+      }
+    },
     "igraph": {
       "version": "2.3.1",
       "md5": "e98d0d09473a17d5902a065df738097f",
@@ -872,6 +982,22 @@
         "File": "labeling_0.4.3.tgz"
       }
     },
+    "later": {
+      "version": "1.4.2.9000",
+      "md5": "c5b504f00c3db1042724188f84de365f",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "later",
+        "Version": "1.4.2.9000",
+        "Imports": "Rcpp (>= 0.12.9), rlang",
+        "LinkingTo": "Rcpp",
+        "Suggests": "knitr, nanonext, rmarkdown, testthat (>= 3.0.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "c5b504f00c3db1042724188f84de365f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 10:59:27 UTC; unix",
+        "File": "later_1.4.2.9000.tgz"
+      }
+    },
     "lattice": {
       "version": "0.23-1",
       "md5": "650009c18932375176db0afc690ae06c",
@@ -903,6 +1029,22 @@
         "MD5sum": "20a8ebd1d435f7a7805d8a9841ffacd5",
         "Built": "R 4.6.0; ; 2026-10-10 05:37:13 UTC; unix",
         "File": "lavaan_0.7-3.tgz"
+      }
+    },
+    "lazyeval": {
+      "version": "0.2.3",
+      "md5": "7af745aba412e045e66ccca69c48f199",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "lazyeval",
+        "Version": "0.2.3",
+        "Depends": "R (>= 3.1.0)",
+        "Imports": "rlang",
+        "Suggests": "knitr, rmarkdown (>= 0.2.65), testthat, covr",
+        "License": "GPL-3",
+        "MD5sum": "7af745aba412e045e66ccca69c48f199",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 10:32:28 UTC; unix",
+        "File": "lazyeval_0.2.3.tgz"
       }
     },
     "lifecycle": {
@@ -1187,6 +1329,23 @@
         "File": "modelr_0.1.11.tgz"
       }
     },
+    "modsem": {
+      "version": "1.0.23",
+      "md5": "2ed96fbdc000e2c598e117b82dce9484",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "modsem",
+        "Version": "1.0.23",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "Rcpp, purrr, stringr, lavaan, rlang, nlme, dplyr, mvnfast, stats, fastGHQuad, mvtnorm, ggplot2, parallel, plotly, Deriv, MASS, Amelia, grDevices, cli, RhpcBLASctl, memoise",
+        "LinkingTo": "Rcpp, RcppArmadillo",
+        "Suggests": "knitr, rmarkdown, ggpubr, RColorBrewer, MplusAutomation",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "2ed96fbdc000e2c598e117b82dce9484",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 12:55:13 UTC; unix",
+        "File": "modsem_1.0.23.tgz"
+      }
+    },
     "mpoly": {
       "version": "1.1.2",
       "md5": "9d8b3628f05067781d189f0ca7cf2404",
@@ -1215,6 +1374,22 @@
         "MD5sum": "b8989372b214aac8c146290591190cb5",
         "Built": "R 4.6.0; ; 2026-05-13 15:39:57 UTC; unix",
         "File": "multipol_1.0-9.tgz"
+      }
+    },
+    "mvnfast": {
+      "version": "0.2.8",
+      "md5": "f4c1a14fa80d7c40b9fdf185c6058e4f",
+      "license": "GPL (>= 2.0)",
+      "stanza": {
+        "Package": "mvnfast",
+        "Version": "0.2.8",
+        "Imports": "Rcpp",
+        "LinkingTo": "Rcpp, RcppArmadillo, BH",
+        "Suggests": "knitr, rmarkdown, testthat, mvtnorm, microbenchmark, MASS, plyr, RhpcBLASctl",
+        "License": "GPL (>= 2.0)",
+        "MD5sum": "f4c1a14fa80d7c40b9fdf185c6058e4f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 15:52:02 UTC; unix",
+        "File": "mvnfast_0.2.8.tgz"
       }
     },
     "mvtnorm": {
@@ -1308,6 +1483,21 @@
         "File": "numDeriv_2016.8-1.1.tgz"
       }
     },
+    "openssl": {
+      "version": "2.4.2",
+      "md5": "2e6de846d450dea43aa59c7d961953d7",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "openssl",
+        "Version": "2.4.2",
+        "Imports": "askpass",
+        "Suggests": "curl, testthat (>= 2.1.0), digest, knitr, rmarkdown, jsonlite, jose, sodium",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "2e6de846d450dea43aa59c7d961953d7",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 20:49:35 UTC; unix",
+        "File": "openssl_2.4.2.tgz"
+      }
+    },
     "orthopolynom": {
       "version": "1.0-6.1",
       "md5": "77e818ca6aa9363296e7a05fc6ef62ca",
@@ -1321,6 +1511,21 @@
         "MD5sum": "77e818ca6aa9363296e7a05fc6ef62ca",
         "Built": "R 4.6.0; ; 2026-05-13 17:59:54 UTC; unix",
         "File": "orthopolynom_1.0-6.1.tgz"
+      }
+    },
+    "otel": {
+      "version": "0.2.0",
+      "md5": "fc79e1fb4687a4a5447d543f3233abee",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "otel",
+        "Version": "0.2.0",
+        "Depends": "R (>= 3.6.0)",
+        "Suggests": "callr, cli, glue, jsonlite, otelsdk, processx, shiny, spelling, testthat (>= 3.0.0), utils, withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "fc79e1fb4687a4a5447d543f3233abee",
+        "Built": "R 4.6.0; ; 2026-05-13 18:03:24 UTC; unix",
+        "File": "otel_0.2.0.tgz"
       }
     },
     "parallelly": {
@@ -1429,6 +1634,22 @@
         "File": "pkgconfig_2.0.3.tgz"
       }
     },
+    "plotly": {
+      "version": "4.12.1",
+      "md5": "5a4a65de6fb0759c0f0ca21f0df5fd4f",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "plotly",
+        "Version": "4.12.1",
+        "Depends": "R (>= 3.5.0), ggplot2 (>= 3.0.0)",
+        "Imports": "tools, scales, httr (>= 1.3.0), jsonlite (>= 1.6), magrittr, digest, viridisLite, base64enc, htmltools (>= 0.3.6), htmlwidgets (>= 1.5.2.9001), tidyr (>= 1.0.0), RColorBrewer, dplyr, vctrs, tibble, rlang (>= 1.0.0), crosstalk, purrr, data.table, promises",
+        "Suggests": "MASS, maps, hexbin, ggthemes, GGally, ggalluvial, testthat, knitr, shiny (>= 1.1.0), shinytest2, curl, rmarkdown, Cairo, broom, webshot, listviewer, dendextend, sf, png, IRdisplay, processx, plotlyGeoAssets, forcats, withr, palmerpenguins, rversions, reticulate, rsvg, ggridges",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "5a4a65de6fb0759c0f0ca21f0df5fd4f",
+        "Built": "R 4.6.0; ; 2026-10-11 02:32:13 UTC; unix",
+        "File": "plotly_4.12.1.tgz"
+      }
+    },
     "plyr": {
       "version": "1.8.9",
       "md5": "24bbd0174625ad1546a3ffa989c478fc",
@@ -1475,6 +1696,22 @@
         "MD5sum": "052ceffbf806fcc254a57cdb1db2787d",
         "Built": "R 4.6.0; ; 2026-10-11 03:03:28 UTC; unix",
         "File": "progressr_1.0.0.tgz"
+      }
+    },
+    "promises": {
+      "version": "1.5.0",
+      "md5": "25a4d2ee9100b1c04f44403cea8d3fd1",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "promises",
+        "Version": "1.5.0",
+        "Depends": "R (>= 4.1.0)",
+        "Imports": "fastmap (>= 1.1.0), later, lifecycle, magrittr (>= 1.5), otel (>= 0.2.0), R6, rlang",
+        "Suggests": "future (>= 1.21.0), knitr, mirai, otelsdk (>= 0.2.0), purrr, Rcpp, rmarkdown, spelling, testthat (>= 3.0.0), vembedr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "25a4d2ee9100b1c04f44403cea8d3fd1",
+        "Built": "R 4.6.0; ; 2026-05-13 20:49:57 UTC; unix",
+        "File": "promises_1.5.0.tgz"
       }
     },
     "psych": {
@@ -1677,6 +1914,19 @@
         "MD5sum": "d119ca16b1912ea936b42b442196a211",
         "Built": "R 4.6.0; ; 2026-05-13 23:35:46 UTC; unix",
         "File": "reformulas_0.4.4.tgz"
+      }
+    },
+    "RhpcBLASctl": {
+      "version": "0.23-42",
+      "md5": "092f363e70d0d16dd50e445e8f0b4eb7",
+      "license": "AGPL-3",
+      "stanza": {
+        "Package": "RhpcBLASctl",
+        "Version": "0.23-42",
+        "License": "AGPL-3",
+        "MD5sum": "092f363e70d0d16dd50e445e8f0b4eb7",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 00:19:32 UTC; unix",
+        "File": "RhpcBLASctl_0.23-42.tgz"
       }
     },
     "rlang": {
@@ -1930,6 +2180,20 @@
         "MD5sum": "65b3d44b27d3cd570a654e6bc84e5989",
         "Built": "R 4.6.0; ; 2026-05-28 12:19:05 UTC; unix",
         "File": "symmoments_1.2.2.tgz"
+      }
+    },
+    "sys": {
+      "version": "3.4.3",
+      "md5": "49c5edcf49ee2f75c3b25e6dfb620f62",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "sys",
+        "Version": "3.4.3",
+        "Suggests": "unix (>= 1.4), spelling, testthat",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "49c5edcf49ee2f75c3b25e6dfb620f62",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 07:54:12 UTC; unix",
+        "File": "sys_3.4.3.tgz"
       }
     },
     "tibble": {

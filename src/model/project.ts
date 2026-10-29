@@ -69,6 +69,8 @@ export interface Settings {
   confidence: number;
   /** Conditional process analysis: moderator values at which effects are probed. */
   probe: 'percentiles' | 'meansd';
+  /** CB-SEM latent interactions: product indicators (lavaan), LMS or QML (modsem). */
+  interaction: 'product' | 'lms' | 'qml';
   /** Conditional process analysis: heteroskedasticity-consistent standard errors (PROCESS's hc option). */
   hc: 'none' | 'HC0' | 'HC1' | 'HC2' | 'HC3' | 'HC4';
 }
@@ -236,6 +238,7 @@ export const DEFAULT_SETTINGS: Settings = {
   confidence: 0.95,
   probe: 'percentiles',
   hc: 'none',
+  interaction: 'product',
 };
 
 let counter = 0;
@@ -363,7 +366,7 @@ export function createsCycle(paths: Path[], from: string, to: string): boolean {
 export function validateModel(
   model: ModelState,
   data: Dataset | null,
-  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing'>> = DEFAULT_SETTINGS,
+  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction'>> = DEFAULT_SETTINGS,
 ): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string, constructId?: string) => issues.push({ level: 'error', message, constructId });
@@ -495,6 +498,16 @@ export function validateModel(
       const ids = new Set(model.constructs.map((c) => c.id));
       for (const f of mg.free) if (f.kind === 'loading' && !ids.has(f.construct)) err('A loading freed across groups refers to a removed construct.');
     }
+  }
+
+  // Latent interactions by LMS / QML (modsem).
+  const lms = method.method === 'cbsem' && (method.interaction ?? 'product') !== 'product' && model.moderations.length > 0;
+  if (lms) {
+    const what = method.interaction === 'lms' ? 'LMS' : 'QML';
+    if (engine === 'builtin') err(`${what} latent interactions are estimated by modsem: choose “R packages” under Calculated by.`);
+    if (method.estimator !== 'ML') err(`${what} is a maximum-likelihood method: choose the ML estimator.`);
+    if (missingChoice === 'fiml') err(`${what} needs complete data here: choose casewise deletion or mean replacement.`);
+    if (model.multigroup || model.esem?.blocks.length || ordered.length || data?.moments) err(`${what} needs raw data and a single-group model without ESEM blocks or ordinal indicators.`);
   }
 
   const blocks = model.esem?.blocks ?? [];
@@ -774,6 +787,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
     probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',
     hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === s.hc) ?? 'none',
+    interaction: s.interaction === 'lms' || s.interaction === 'qml' ? s.interaction : 'product',
   };
 
   const { data, info } = isObj(raw.data) ? parseDataSection(raw.data) : { data: null, info: null };

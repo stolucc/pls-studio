@@ -7,20 +7,24 @@ import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
 
 
+/** How latent interactions are estimated: product indicators (lavaan) or LMS / QML (modsem). */
+export type LatentInteraction = 'product' | 'lms' | 'qml';
+
 export interface CbRequest {
   kind: 'cb';
   estimator: CbEstimator;
+  interaction?: LatentInteraction;
   missing: MissingTreatment;
   data: { names: string[]; cols?: (number | null)[][]; moments?: { S: number[][]; n: number; nacov?: number[][] } };
   model: ModelSpec;
 }
 
-export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): CbRequest {
+export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): CbRequest {
   // Only the columns the model uses travel to R.
   const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : [])]);
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
-    kind: 'cb', estimator, missing,
+    kind: 'cb', estimator, missing, ...(interaction !== 'product' && spec.moderations?.length ? { interaction } : {}),
     data: data.moments && data.cols.length === 0
       ? { names: data.names, moments: data.moments }
       : { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
@@ -86,18 +90,21 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     } : {}),
     modindices: (Array.isArray(raw.modindices) ? raw.modindices : []).map((m: any) => ({ lhs: m.lhs, op: m.op, rhs: m.rhs, mi: num(m.mi), epc: num(m.epc), sepc: num(m.sepc), ...(m.group ? { group: String(m.group) } : {}) })),
     wald: (Array.isArray(raw.wald) ? raw.wald : raw.wald ? [raw.wald] : []).map((w: any) => ({ name: String(w.name), stat: num(w.stat), df: num(w.df), p: num(w.p) })),
+    ...(raw.interaction === 'lms' || raw.interaction === 'qml' ? { interaction: raw.interaction } : {}),
     engine: raw.engine,
   };
 }
 
-/** Estimate a CB-SEM model with lavaan. */
-export async function estimateCbLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): Promise<CbResultR> {
-  return parseCbOutput(await rCall<Record<string, any>>('ps_cb', cbRequest(data, spec, missing, estimator), 'lavaan'));
+const usesModsem = (spec: ModelSpec, interaction: LatentInteraction) => interaction !== 'product' && !!spec.moderations?.length;
+
+/** Estimate a CB-SEM model with lavaan (latent interactions by LMS / QML: modsem). */
+export async function estimateCbLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): Promise<CbResultR> {
+  return parseCbOutput(await rCall<Record<string, any>>('ps_cb', cbRequest(data, spec, missing, estimator, interaction), usesModsem(spec, interaction) ? 'modsem' : 'lavaan'));
 }
 
 /** The self-contained R script (data embedded) that estimateCbLavaan runs. */
-export function cbScriptLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): Promise<string> {
-  return rScript('ps_cb', cbRequest(data, spec, missing, estimator), 'lavaan');
+export function cbScriptLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): Promise<string> {
+  return rScript('ps_cb', cbRequest(data, spec, missing, estimator, interaction), usesModsem(spec, interaction) ? 'modsem' : 'lavaan');
 }
 
 /** Fit and difference tests at each level of measurement invariance (lavaan). */

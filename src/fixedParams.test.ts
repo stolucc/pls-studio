@@ -174,3 +174,16 @@ describe('ESEM blocks', () => {
     expect(menuFor({ kind: 'construct', id: 'A' }, s().model, { ...cb, selected: ['A', 'B'] })!.items.map((i) => i.label)).toContain('Make ESEM block of the 2 selected factors');
   });
 });
+
+describe('LMS / QML latent interactions', () => {
+  it('need ML, the R engine, complete data and a single-group model', () => {
+    useStore.setState({ model: { ...model, constructs: [...model.constructs, C('M', ['b2'])].map((c) => (c.id === 'B' ? { ...c, indicators: ['b1', 'b3'] } : c)),
+      paths: [...model.paths, { id: 'q', from: 'M', to: 'B' }], moderations: [{ id: 'mo', moderator: 'M', path: 'p' }] } });
+    const errs = (over: Partial<typeof DEFAULT_SETTINGS>) => validateModel(s().model, data, { ...s().settings, ...over }).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(errs({ interaction: 'lms' }).filter((m) => /LMS/.test(m))).toEqual([]);
+    expect(errs({ interaction: 'lms', engine: 'builtin' }).some((m) => /LMS latent interactions are estimated by modsem/.test(m))).toBe(true);
+    expect(errs({ interaction: 'qml', estimator: 'MLR' }).some((m) => /QML is a maximum-likelihood method/.test(m))).toBe(true);
+    expect(errs({ interaction: 'lms', missing: 'fiml' }).some((m) => /LMS needs complete data/.test(m))).toBe(true);
+    expect(parseProject(serializeProject(s().model, { ...s().settings, interaction: 'qml' }, null, null)).settings.interaction).toBe('qml');
+  });
+});

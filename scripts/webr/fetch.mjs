@@ -27,11 +27,11 @@ const OUT_DIR = join(ROOT, 'public', 'webr');
 const SRC_CACHE = join(ROOT, '.webr-cache', 'src');
 const CRAN = 'https://cran.r-project.org/src/contrib';
 /** webR ships development builds (x.y.z.9000) of a few packages; their source is the upstream repository. */
-const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://github.com/rstudio/sass', vroom: 'https://github.com/tidyverse/vroom' };
+const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://github.com/rstudio/sass', vroom: 'https://github.com/tidyverse/vroom', later: 'https://github.com/r-lib/later' };
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
 /** Packages the app calls directly. */
-const ROOTS = ['lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'jsonlite'];
+const ROOTS = ['lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'jsonlite'];
 /** Shipped inside webR itself. */
 const BASE = new Set(['R', 'base', 'compiler', 'datasets', 'graphics', 'grDevices', 'grid', 'methods', 'parallel', 'splines', 'stats', 'stats4', 'tcltk', 'tools', 'translations', 'utils', 'webr']);
 /** webR runtime files needed next to the page (the JS API itself is bundled from the npm package). */

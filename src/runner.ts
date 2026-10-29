@@ -80,7 +80,7 @@ function runR(kind: JobKind, key: string) {
         t.toast('success', `MIIVsem ${r.engine.version}: ${r.equations.length} equations estimated${rejected ? `; ${rejected} Sargan test${rejected > 1 ? 's' : ''} significant at .05` : ''}.`);
       }).catch(failed);
     } else if (cb) {
-      import('./rengine/lavaan').then(({ estimateCbLavaan }) => estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator)).then((r) => {
+      import('./rengine/lavaan').then(({ estimateCbLavaan }) => estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction)).then((r) => {
         const t = done(); if (!t) return;
         t.setResults({ cb: r }, key);
         cbToast(r, `lavaan ${r.engine.version}`);
@@ -179,6 +179,10 @@ export function run(kind: JobKind) {
   }
   const key = resultsKey(s);
   if (s.settings.method === 'process') { if (kind === 'estimate') runProcess(key); return; }
+  if (cb && kind === 'boot' && s.settings.interaction !== 'product' && s.model.moderations.length) {
+    s.toast('error', 'Bootstrapping LMS / QML models is not available yet; their standard errors come from modsem.');
+    return;
+  }
   if (cb && kind === 'boot' && s.model.multigroup) {
     s.toast('error', 'Bootstrapping multiple-group models is not available yet. Standard errors come from lavaan; choose MLR for robust ones.');
     return;

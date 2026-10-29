@@ -173,7 +173,7 @@ export async function exportRScript(what: ScriptTarget = 'model') {
       script = await analysisScript(s.data, spec, cb
         ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot }
         : { kind: 'plsBoot', pkg: st.plsPackage, options, boot });
-    } else script = cb ? await cbScriptLavaan(s.data, spec, st.missing, st.estimator as CbEstimator) : await plsScriptR(s.data, spec, options, st.plsPackage);
+    } else script = cb ? await cbScriptLavaan(s.data, spec, st.missing, st.estimator as CbEstimator, st.interaction) : await plsScriptR(s.data, spec, options, st.plsPackage);
     downloadText(`${safeFileName(s.projectName)}-${pkg}${suffix ? `-${suffix}` : ''}.R`, script, 'text/x-r-source');
     s.toast('success', `R script saved: open it in R or RStudio to reproduce the calculation with ${pkg}.`);
   } catch (e) {

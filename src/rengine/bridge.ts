@@ -21,6 +21,7 @@ export const R_PACKAGES = {
   simulation: ['jsonlite', 'lavaan', 'cSEM'],
   manymome: ['jsonlite', 'manymome', 'sandwich'],
   manymomeSam: ['jsonlite', 'manymome', 'lavaan'],
+  modsem: ['jsonlite', 'lavaan', 'semTools', 'modsem'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

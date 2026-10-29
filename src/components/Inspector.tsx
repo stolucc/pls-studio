@@ -565,6 +565,23 @@ function ModelInspector() {
           Export R script
         </button>
       </div>}
+      {settings.method === 'cbsem' && model.moderations.length > 0 && (
+        <div className="section">
+          <div className="section-title">Latent interactions</div>
+          <div className="segmented">
+            {([['product', 'Product indicators'], ['lms', 'LMS'], ['qml', 'QML']] as const).map(([id, label]) => (
+              <button key={id} className={settings.interaction === id ? 'on' : ''} onClick={() => setSettings({ interaction: id })}>{label}</button>
+            ))}
+          </div>
+          <div className="hint" style={{ marginTop: 8 }}>
+            {settings.interaction === 'product'
+              ? 'Products of mean-centred indicators (Marsh, Wen & Hau, 2004), estimated by lavaan with the usual fit statistics.'
+              : settings.interaction === 'lms'
+                ? 'Latent moderated structural equations (Klein & Moosbrugger, 2000; modsem): maximum likelihood for the latent product itself, without product indicators; usually the most efficient. Fit statistics are for the model without the interaction.'
+                : 'Quasi-maximum likelihood (Klein & Muthén, 2007; modsem): close to LMS, more robust to non-normal indicators. Fit statistics are for the model without the interaction.'}
+          </div>
+        </div>
+      )}
       {settings.method === 'cbsem' && (
         <div className="section">
           <div className="section-title">Estimator</div>

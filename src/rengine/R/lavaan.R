@@ -106,9 +106,20 @@ ps_cb_build <- function(req) {
   }
   paths <- req$model$paths
   int_names <- character(0); int_l <- character(0); prod <- list()
-  if (length(mods)) body <- c(body, "# Latent interactions: matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004)")
+  # Latent interactions: product indicators (lavaan), or LMS / QML (modsem), which model X:Z directly.
+  method <- req$interaction %||% "product"
+  use_modsem <- length(mods) > 0 && method %in% c("lms", "qml")
+  if (use_modsem && (matrix_input || !is.null(mg) || length(esem$blocks))) stop("LMS and QML need raw data and a single-group model without ESEM blocks.")
+  if (length(mods) && !use_modsem) body <- c(body, "# Latent interactions: matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004)")
   for (q in seq_along(mods)) {
     m <- mods[[q]]
+    if (use_modsem) {
+      nm <- ps_int_name(m$from, m$moderator)
+      lname[[nm]] <- paste0(lname[[m$from]], ":", lname[[m$moderator]])
+      paths <- c(paths, list(list(from = nm, to = m$to)))
+      int_names <- c(int_names, nm); int_l <- c(int_l, lname[[nm]])
+      next
+    }
     xi <- unname(n$iv[n$inds[[match(m$from, n$cname)]]]); mi <- unname(n$iv[n$inds[[match(m$moderator, n$cname)]]])
     pn <- character(0)
     for (i in seq_len(min(length(xi), length(mi)))) {
@@ -164,6 +175,13 @@ ps_cb_build <- function(req) {
   }
   if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
   if (length(esem$blocks)) extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (!is.null(target)) ", rotation.args = list(target = TARGET)" else "")
+  if (use_modsem) {
+    body[1] <- "suppressPackageStartupMessages({ library(lavaan); library(modsem) })"
+    body <- c(body, sprintf("# Latent interaction by %s (modsem; Klein & Moosbrugger 2000 / Klein & Muthen 2007)", toupper(method)),
+      "model <- '", paste0("  ", lines), "'", sprintf("fit <- modsem(model, data = data, method = \"%s\")", method))
+    return(list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
+      inputs = inputs, body = body, matrix_input = matrix_input, group_var = NULL, modsem = method))
+  }
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
   tests <- req$model$waldTests
@@ -179,6 +197,7 @@ ps_cb_build <- function(req) {
 ps_cb <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
+  if (!is.null(b$modsem)) { r <- ps_cb_modsem(req, b, export); return(if (export) r else ps_json(r)) }
   if (export) {
     return(paste(ps_script("CB-SEM (lavaan)", "lavaan", b$inputs, b$body,
       c("summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)")), collapse = "\n"))
@@ -353,4 +372,81 @@ ps_invariance <- function(req_json, export = FALSE) {
     if (i > 1) list(chisqDiff = unname(lrt[["Chisq diff"]][i]), dfDiff = unname(lrt[["Df diff"]][i]), p = unname(lrt[["Pr(>Chisq)"]][i]),
       cfiChange = fm[[i]]$cfi - fm[[i - 1]]$cfi, rmseaChange = fm[[i]]$rmsea - fm[[i - 1]]$rmsea))),
     warnings = env$.warnings))
+}
+
+#' CB-SEM with latent interactions estimated by LMS or QML (modsem): the same
+#' result shape as ps_cb. LMS / QML have no chi-square for the full model; the
+#' fit statistics reported are those of the model without interaction terms.
+ps_cb_modsem <- function(req, b, export) {
+  title <- sprintf("CB-SEM with latent interactions by %s (modsem)", toupper(b$modsem))
+  if (export) return(paste(ps_script(title, c("modsem", "lavaan"), b$inputs, b$body,
+    c("summary(fit, standardized = TRUE)", "standardized_estimates(fit)")), collapse = "\n"))
+  env <- ps_run(b$body, b$inputs)
+  fit <- env$fit
+  n <- b$n; k0 <- b$k0; mods <- b$mods
+  constructs <- c(n$cname, b$int_names)
+  lv_lname <- unname(b$lname[constructs])
+  indicators <- n$all_inds
+  ind_v <- unname(n$iv[n$all_inds])
+  owner <- function(i) which(vapply(n$inds, function(x) i %in% x, TRUE))[1]
+  ind_con <- unname(vapply(n$all_inds, owner, 1L)) - 1L
+  back <- c(setNames(constructs, lv_lname), setNames(indicators, ind_v))
+  nm <- function(x) unname(back[x])
+  is_lv <- function(x) x %in% lv_lname
+  pe <- modsem::parameter_estimates(fit)
+  st <- modsem::standardized_estimates(fit)
+  key <- function(t) paste(t$lhs, t$op, t$rhs)
+  pe$std <- st$est[match(key(pe), key(st))]
+  V <- tryCatch(vcov(fit), error = function(e) NULL)
+  vn <- if (is.null(V)) character(0) else colnames(V)
+  pe <- pe[pe$op %in% c("=~", "~", "~~"), ]
+  est <- lapply(seq_len(nrow(pe)), function(i) {
+    r <- pe[i, ]
+    free <- !is.na(r$std.error) && r$std.error > 0
+    kind <- if (r$op == "=~") { if (free) "loading" else "fixed-loading" } else if (r$op == "~") "regression"
+      else if (is_lv(r$lhs) && is_lv(r$rhs)) "lvcov" else if (r$lhs == r$rhs) "residual" else "rescov"
+    if (r$op == "~~" && !free) return(NULL)
+    at <- match(paste0(r$lhs, r$op, r$rhs), vn)
+    list(kind = kind, lhs = nm(r$lhs), op = r$op, rhs = nm(r$rhs), est = r$est,
+      se = if (free) r$std.error else NULL, z = if (free) r$z.value else NULL, p = if (free) r$p.value else NULL,
+      std = r$std, index = if (free && !is.na(at)) at - 1L else NULL)
+  })
+  est <- Filter(Negate(is.null), est)
+  K <- length(constructs)
+  stdB <- matrix(0, K, K); has <- matrix(FALSE, K, K)
+  for (e in est) if (e$kind == "regression") { f <- match(e$rhs, constructs); t <- match(e$lhs, constructs); stdB[f, t] <- e$std; has[f, t] <- TRUE }
+  total <- solve(diag(K) - stdB) - diag(K)
+  std_load <- vapply(seq_along(indicators), function(i) {
+    e <- Filter(function(x) x$op == "=~" && x$rhs == indicators[i] && x$lhs == constructs[ind_con[i] + 1], est)
+    if (length(e)) e[[1]]$std else 1
+  }, 0)
+  # R-squared: one minus the standardised residual variance.
+  std_res <- function(v) { r <- st[st$op == "~~" & st$lhs == v & st$rhs == v, ]; if (nrow(r)) 1 - r$est[1] else NA_real_ }
+  r2_ind <- vapply(ind_v, std_res, 0)
+  endo <- vapply(seq_len(K), function(j) any(has[, j]), TRUE)
+  r2_con <- lapply(seq_len(K), function(j) if (endo[j]) std_res(lv_lname[j]) else NULL)
+  lvcor <- diag(K)
+  for (a in seq_len(K)) for (c in seq_len(K)) if (a != c) {
+    r <- st[st$op == "~~" & ((st$lhs == lv_lname[a] & st$rhs == lv_lname[c]) | (st$lhs == lv_lname[c] & st$rhs == lv_lname[a])), ]
+    lvcor[a, c] <- if (nrow(r)) r$est[1] else NA_real_
+  }
+  rel <- lapply(seq_len(K), function(j) {
+    l <- std_load[ind_con == j - 1]
+    if (!length(l)) return(list(cr = NULL, ave = NULL))
+    list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2))
+  })
+  fm <- tryCatch(modsem::fit_modsem_da(fit), error = function(e) NULL)
+  num1 <- function(x) if (is.null(x) || !length(x)) NULL else as.numeric(x[1])
+  fitv <- if (is.null(fm)) list() else list(npar = num1(fm$npar), chisq = num1(fm$chisq.value), df = num1(fm$chisq.df), pvalue = num1(fm$chisq.pvalue),
+    rmsea = num1(fm$RMSEA), rmsea.ci.lower = num1(fm$RMSEA.lower), rmsea.ci.upper = num1(fm$RMSEA.upper), srmr = num1(fm$SRMR), aic = num1(fm$AIC), bic = num1(fm$BIC))
+  NAmat <- matrix(NA_real_, K, K)
+  list(estimator = "ML", interaction = b$modsem, n = nrow(env$data), iterations = 0L, converged = TRUE,
+    constructs = constructs, indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
+    estimates = est, fit = fitv, r2Indicators = unname(r2_ind), r2Constructs = r2_con, stdLoadings = std_load,
+    stdPaths = stdB, hasPath = has, stdTotal = total, stdIndirect = total - stdB, lvCor = unname(lvcor), reliability = rel,
+    residualCor = matrix(NA_real_, length(ind_v), length(ind_v)), htmt = NAmat, htmt2 = NAmat, vcov = if (is.null(V)) NULL else unname(V),
+    moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
+    wald = list(), modindices = list(),
+    warnings = env$.warnings, droppedRows = 0L,
+    engine = list(package = "modsem", version = as.character(utils::packageVersion("modsem"))))
 }

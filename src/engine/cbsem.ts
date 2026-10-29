@@ -65,6 +65,8 @@ export interface CbResult {
   groupIndex?: number;
   /** Modification indices ≥ 3.84 (lavaan), largest first. */
   modindices?: { lhs: string; op: string; rhs: string; mi: number; epc: number; sepc: number; group?: string }[];
+  /** Latent interactions estimated by LMS or QML (modsem); absent for product indicators. */
+  interaction?: 'lms' | 'qml';
   /** Wald tests of user hypotheses (lavaan). */
   wald?: { name: string; stat: number; df: number; p: number }[];
   estimator: CbEstimator;
