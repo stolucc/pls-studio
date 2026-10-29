@@ -1,4 +1,5 @@
-import { autosave, importCsv, newProject, openProject, saveProject } from '../io';
+import { autosave } from '../io';
+import { FileMenu } from './FileMenu';
 import { run } from '../runner';
 import { useStore } from '../store';
 import { useState } from 'react';
@@ -7,7 +8,7 @@ import { AccountMenu } from './cloud/AccountMenu';
 import { PresenceBar } from './cloud/Presence';
 import { ShareDialog } from './cloud/ShareDialog';
 import { useSim } from '../simStore';
-import { IconEye, IconHome, IconLayout, IconShare, IconLogo, IconSparkle, IconNew, IconOpen, IconPlay, IconRedo, IconRepeat, IconSave, IconUndo, IconUpload } from './icons';
+import { IconEye, IconLayout, IconShare, IconLogo, IconSparkle, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
 import { useLong } from './LongitudinalPanel';
 import { useItems } from './ItemsPanel';
 
@@ -35,14 +36,10 @@ export function TopBar() {
       <button className="brand brand-btn" onClick={() => { void autosave(); setView('home'); }} title="Home: recent projects and examples">
         <span className="brand-mark"><IconLogo size={17} /></span>PLS Studio
       </button>
-      <button className="btn ghost" aria-label="Home" onClick={() => { void autosave(); setView('home'); }} title="Home: recent projects, examples"><IconHome /><span className="lbl">Home</span></button>
       <input className="project-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Project name" maxLength={100} />
       {dirty && <span className="dirty-dot" title="Unsaved changes" />}
       <div className="sep" />
-      <button className="btn ghost" aria-label="New" onClick={() => void newProject()} title="New project"><IconNew /><span className="lbl">New</span></button>
-      <button className="btn ghost" aria-label="Open" onClick={() => void openProject()} title={`Open project (${mod}O)`}><IconOpen /><span className="lbl">Open</span></button>
-      <button className="btn ghost" onClick={saveProject} title={`Save project (${mod}S)`} aria-label="Save"><IconSave /><span className="lbl">Save</span></button>
-      <button className="btn ghost" aria-label="Import data" onClick={() => void importCsv()} title="Import a CSV dataset"><IconUpload /><span className="lbl">Import data</span></button>
+      <FileMenu />
       <div className="sep" />
       <button className="btn icon ghost" onClick={undo} disabled={!canUndo} title={`Undo (${mod}Z)`} aria-label="Undo"><IconUndo /></button>
       <button className="btn icon ghost" onClick={redo} disabled={!canRedo} title={`Redo (${mod}⇧Z)`} aria-label="Redo"><IconRedo /></button>

@@ -1,3 +1,4 @@
+import { DataViewer } from './components/DataViewer';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
 import { Canvas } from './components/Canvas';
@@ -101,6 +102,7 @@ export default function App() {
       <SimulationPanel />
       <LongitudinalPanel />
       <ItemsPanel />
+      <DataViewer />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

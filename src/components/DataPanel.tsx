@@ -3,7 +3,8 @@ import { mean, sd } from '../engine/stats';
 import { importCsv, loadSample } from '../io';
 import { useStore } from '../store';
 import { VARS_MIME } from './dnd';
-import { IconUpload } from './icons';
+import { useDataView } from './DataViewer';
+import { IconEye, IconUpload } from './icons';
 
 export function DataPanel() {
   const data = useStore((s) => s.data);
@@ -71,7 +72,12 @@ export function DataPanel() {
     <aside className="panel left" aria-label="Data">
       <div className="panel-head">
         <span>Data</span>
-        {data && <button className="btn sm ghost" onClick={() => void importCsv()} title="Replace dataset"><IconUpload size={13} /> Replace</button>}
+        {data && (
+          <span style={{ display: 'flex', gap: 4 }}>
+            <button className="btn sm ghost" onClick={() => useDataView.getState().setOpen(true)} title="See the rows and descriptive statistics of the dataset"><IconEye size={13} /> Inspect</button>
+            <button className="btn sm ghost" onClick={() => void importCsv()} title="Replace dataset"><IconUpload size={13} /> Replace</button>
+          </span>
+        )}
       </div>
       <div className="panel-body">
         {!data || !info ? (

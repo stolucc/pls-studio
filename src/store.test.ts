@@ -138,3 +138,16 @@ describe('correlations in the store', () => {
     expect(keyOf()).not.toBe(cb);
   });
 });
+
+describe('messages belong to a project', () => {
+  it('opening or starting a project clears the previous project’s messages', () => {
+    s().clearMessages();
+    s().logMessage('warning', 'lavaan WARNING: not converged', 'lavaan');
+    expect(s().messages.length).toBe(1);
+    s().loadProject({ name: 'Other', model: emptyModel(), settings: s().settings, data: null, info: null });
+    expect(s().messages).toEqual([]);
+    s().logMessage('error', 'failed');
+    s().newProject();
+    expect(s().messages).toEqual([]);
+  });
+});

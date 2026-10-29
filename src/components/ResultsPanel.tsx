@@ -10,6 +10,7 @@ import { PLS_TABS, PlsTab, type PlsTabId } from './results/PlsTabs';
 import { PROCESS_TABS, ProcessTab, type ProcessTabId } from './results/ProcessTabs';
 import { processGraph } from '../process/fromModel';
 import { MessagesView } from './results/Messages';
+import { ScriptView } from './results/ScriptView';
 import { IconAlert } from './icons';
 
 export function ResultsPanel({ height, onResize }: { height: number; onResize: (h: number) => void }) {
@@ -23,7 +24,8 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
   const [cbTab, setCbTab] = useState<CbTabId>('fit');
   const [miivTab, setMiivTab] = useState<MiivTabId>('equations');
   const [processTab, setProcessTab] = useState<ProcessTabId>('effects');
-  const [showMessages, setShowMessages] = useState(false);
+  /** A session tab shown instead of the method's results. */
+  const [extra, setExtra] = useState<'messages' | 'script' | null>(null);
   const messageCount = useStore((s) => s.messages.length);
   const warned = useStore((s) => s.messages.length > 0 && s.messages[s.messages.length - 1].level === 'error' ? 'error' : 'warning');
   const confidence = useStore((s) => s.settings.confidence);
@@ -43,14 +45,15 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
   const tabs = method === 'process' ? PROCESS_TABS : method === 'pls' ? PLS_TABS : isMiiv ? MIIV_TABS : CB_TABS;
   const active = method === 'process' ? processTab : method === 'pls' ? plsTab : isMiiv ? miivTab : cbTab;
   const setTab = (id: string) => {
-    setShowMessages(false);
+    setExtra(null);
     if (method === 'process') setProcessTab(id as ProcessTabId);
     else if (method === 'pls') setPlsTab(id as PlsTabId);
     else if (isMiiv) setMiivTab(id as MiivTabId);
     else setCbTab(id as CbTabId);
   };
 
-  const body = showMessages ? <MessagesView />
+  const body = extra === 'messages' ? <MessagesView />
+    : extra === 'script' ? <ScriptView />
     : proc ? <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />
     : pls ? <PlsTab tab={plsTab} pls={pls} boot={boot} fitTest={results?.fitTest ?? null} />
     : miiv ? <MiivTab tab={miivTab} miiv={miiv} />
@@ -90,7 +93,7 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
         <div className="spacer" />
         {progress}
         {messageCount > 0 && (
-          <button className={`btn sm ghost msg-badge ${warned}`} onClick={() => { setShowMessages(true); setOpen(true); }} title="Warnings and errors of this session">
+          <button className={`btn sm ghost msg-badge ${warned}`} onClick={() => { setExtra('messages'); setOpen(true); }} title="Warnings and errors of this session">
             <IconAlert size={13} /> {messageCount}
           </button>
         )}
@@ -105,9 +108,11 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
       <div className="results-resize" onPointerDown={startResize} />
       <div className="results-head" role="tablist">
         {tabs.map((t) => (
-          <button key={t.id} role="tab" aria-selected={!showMessages && active === t.id} className={`tab${!showMessages && active === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
+          <button key={t.id} role="tab" aria-selected={!extra && active === t.id} className={`tab${!extra && active === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>
         ))}
-        <button role="tab" aria-selected={showMessages} className={`tab${showMessages ? ' on' : ''}`} onClick={() => setShowMessages(true)}>
+        <button role="tab" aria-selected={extra === 'script'} className={`tab${extra === 'script' ? ' on' : ''}`} onClick={() => setExtra('script')}
+          title="The R script that calculates this model, to read, copy or download">R script</button>
+        <button role="tab" aria-selected={extra === 'messages'} className={`tab${extra === 'messages' ? ' on' : ''}`} onClick={() => setExtra('messages')}>
           Messages{messageCount > 0 ? ` (${messageCount})` : ''}
         </button>
         <div className="spacer" />

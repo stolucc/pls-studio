@@ -510,14 +510,14 @@ export const useStore = create<State>((set, get) => ({
       projectId: id ?? newId('proj'), view: 'editor', cloud: null, history: null, historyCounts: { undo: 0, redo: 0 },
       projectName: name, model, settings, data, dataInfo: info, dataVersion: s.dataVersion + 1,
       past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null, dirty: false, resultsOpen: false,
-      fitRequest: s.fitRequest + 1,
+      fitRequest: s.fitRequest + 1, messages: [],
     })),
   newProject: () =>
     set((s) => ({
       projectId: newId('proj'), view: 'editor', cloud: null, history: null, historyCounts: { undo: 0, redo: 0 },
       projectName: 'Untitled model', model: emptyModel(), settings: DEFAULT_SETTINGS, data: null, dataInfo: null,
       dataVersion: s.dataVersion + 1, past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null,
-      dirty: false, resultsOpen: false,
+      dirty: false, resultsOpen: false, messages: [],
     })),
   setProjectName: (projectName) => { if (!readOnly(get())) set({ projectName: projectName.slice(0, 100), dirty: true }); },
   markSaved: () => set({ dirty: false }),

@@ -126,59 +126,59 @@ export type ScriptTarget = 'model' | 'bootstrap' | 'fittest' | 'invariance' | { 
  */
 export async function exportRScript(what: ScriptTarget = 'model') {
   const s = useStore.getState();
-  const errors = validateModel(s.model, s.data, s.settings).filter((i) => i.level === 'error');
-  if (errors.length || !s.data) { s.toast('error', errors[0]?.message ?? 'Import a dataset first.'); return; }
-  if (s.settings.method === 'process') {
-    const input = processInput(s.model, s.settings, s.data);
-    if (!input) return;
-    try {
-      s.toast('info', 'Preparing the manymome script…');
-      const { cpaScriptR } = await import('./rengine/cpa');
-      downloadText(`${safeFileName(s.projectName)}-manymome.R`, await cpaScriptR(s.data, input), 'text/x-r-source');
-      s.toast('success', 'R script saved: open it in R or RStudio to reproduce the analysis with manymome.');
-    } catch (e) {
-      const { rMessage } = await import('./rengine/bridge');
-      s.toast('error', `Could not create the R script: ${rMessage(e)}`);
-    }
-    return;
-  }
-  const spec = toSpec(s.model);
-  const st = s.settings;
-  const cb = st.method === 'cbsem';
-  if (what === 'invariance') {
-    try {
-      const { invarianceScriptR } = await import('./rengine/lavaan');
-      downloadText(`${safeFileName(s.projectName)}-lavaan-invariance.R`, await invarianceScriptR(s.data, spec, st.missing, st.estimator as CbEstimator), 'text/x-r-source');
-      s.toast('success', 'R script saved: it fits the four invariance models and compares them with lavTestLRT.');
-    } catch (e) {
-      const { rMessage } = await import('./rengine/bridge');
-      s.toast('error', `Could not create the R script: ${rMessage(e)}`);
-    }
-    return;
-  }
-  const options = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent };
-  const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence };
-  const pkg = what === 'fittest' || (typeof what === 'object') ? 'cSEM' : cb ? (st.estimator === '2SLS' ? 'MIIVsem' : 'lavaan') : st.plsPackage;
-  const suffix = typeof what === 'object' ? 'ipma' : what === 'model' ? '' : what;
   try {
-    s.toast('info', `Preparing the ${pkg} script…`);
+    s.toast('info', 'Preparing the R script…');
+    const r = await buildRScript(what);
+    downloadText(r.file, r.text, 'text/x-r-source');
+    s.toast('success', `R script saved: open it in R or RStudio to reproduce the calculation with ${r.pkg}.`);
+  } catch (e) {
+    s.toast('error', `Could not create the R script: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * The R script for the current model and settings, as text: exactly what the R
+ * engine runs for that analysis, data embedded. Throws with a readable message.
+ */
+export async function buildRScript(what: ScriptTarget = 'model'): Promise<{ text: string; file: string; pkg: string }> {
+  const s = useStore.getState();
+  const errors = validateModel(s.model, s.data, s.settings).filter((i) => i.level === 'error');
+  if (errors.length || !s.data) throw new Error(errors[0]?.message ?? 'Import a dataset first.');
+  const { rMessage } = await import('./rengine/bridge');
+  const name = safeFileName(s.projectName);
+  try {
+    if (s.settings.method === 'process') {
+      const input = processInput(s.model, s.settings, s.data);
+      if (!input) throw new Error('The diagram is not a conditional process model yet.');
+      const { cpaScriptR } = await import('./rengine/cpa');
+      return { text: await cpaScriptR(s.data, input), file: `${name}-manymome.R`, pkg: 'manymome' };
+    }
+    const spec = toSpec(s.model);
+    const st = s.settings;
+    const cb = st.method === 'cbsem';
+    if (what === 'invariance') {
+      const { invarianceScriptR } = await import('./rengine/lavaan');
+      return { text: await invarianceScriptR(s.data, spec, st.missing, st.estimator as CbEstimator), file: `${name}-lavaan-invariance.R`, pkg: 'lavaan' };
+    }
+    const options = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent };
+    const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence };
+    const pkg = what === 'fittest' || (typeof what === 'object') ? 'cSEM' : cb ? (st.estimator === '2SLS' ? 'MIIVsem' : 'lavaan') : st.plsPackage;
+    const suffix = typeof what === 'object' ? 'ipma' : what === 'model' ? '' : what;
     const [{ analysisScript }, { cbScriptLavaan }, { plsScriptR }] = await Promise.all([import('./rengine/analyses'), import('./rengine/lavaan'), import('./rengine/pls')]);
-    let script: string;
-    if (typeof what === 'object') script = await analysisScript(s.data, spec, { kind: 'ipma', options, ipma: what.ipma });
-    else if (what === 'fittest') script = await analysisScript(s.data, spec, { kind: 'fitTest', options, boot });
+    let text: string;
+    if (typeof what === 'object') text = await analysisScript(s.data, spec, { kind: 'ipma', options, ipma: what.ipma });
+    else if (what === 'fittest') text = await analysisScript(s.data, spec, { kind: 'fitTest', options, boot });
     else if (cb && st.estimator === '2SLS') {
-      if (what === 'bootstrap') { s.toast('error', 'MIIV-2SLS has no bootstrap; its standard errors are analytic.'); return; }
-      script = await analysisScript(s.data, spec, { kind: 'miiv', missing: st.missing });
+      if (what === 'bootstrap') throw new Error('MIIV-2SLS has no bootstrap; its standard errors are analytic.');
+      text = await analysisScript(s.data, spec, { kind: 'miiv', missing: st.missing });
     } else if (what === 'bootstrap') {
-      script = await analysisScript(s.data, spec, cb
+      text = await analysisScript(s.data, spec, cb
         ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot }
         : { kind: 'plsBoot', pkg: st.plsPackage, options, boot });
-    } else script = cb ? await cbScriptLavaan(s.data, spec, st.missing, st.estimator as CbEstimator, st.interaction) : await plsScriptR(s.data, spec, options, st.plsPackage);
-    downloadText(`${safeFileName(s.projectName)}-${pkg}${suffix ? `-${suffix}` : ''}.R`, script, 'text/x-r-source');
-    s.toast('success', `R script saved: open it in R or RStudio to reproduce the calculation with ${pkg}.`);
+    } else text = cb ? await cbScriptLavaan(s.data, spec, st.missing, st.estimator as CbEstimator, st.interaction) : await plsScriptR(s.data, spec, options, st.plsPackage);
+    return { text, file: `${name}-${pkg}${suffix ? `-${suffix}` : ''}.R`, pkg };
   } catch (e) {
-    const { rMessage } = await import('./rengine/bridge');
-    s.toast('error', `Could not create the R script: ${rMessage(e)}`);
+    throw new Error(rMessage(e), { cause: e });
   }
 }
 

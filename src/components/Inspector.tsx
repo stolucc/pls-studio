@@ -527,7 +527,7 @@ function ModelInspector() {
         <div className="segmented">
           <button className={pls ? 'on' : ''} onClick={() => void switchMethod('pls')}>PLS-SEM</button>
           <button className={settings.method === 'cbsem' ? 'on' : ''} onClick={() => void switchMethod('cbsem')}>CB-SEM</button>
-          <button className={proc ? 'on' : ''} onClick={() => void switchMethod('process')}>Process</button>
+          <button className={proc ? 'on' : ''} onClick={() => void switchMethod('process')}>CPA</button>
         </div>
         <div className="hint" style={{ marginTop: 8 }}>
           {pls

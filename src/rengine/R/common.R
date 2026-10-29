@@ -157,7 +157,7 @@ ps_script <- function(title, packages, inputs, body, report) {
     report)
 }
 
-#' A dataset shipped with an R package, as numeric columns (factors and text are left out).
+#' A dataset shipped with an R package, as numeric columns (factors as their codes, text left out).
 #' `na`: codes that mean "missing" in this dataset (e.g. -99).
 ps_dataset <- function(req_json) {
   req <- ps_parse(req_json)
