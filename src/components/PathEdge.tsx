@@ -2,6 +2,7 @@ import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/
 import { memo, useMemo } from 'react';
 import { pathSegment } from '../geometry';
 import { useStore } from '../store';
+import { pathStrokeWidth } from '../figure/style';
 
 export type PathEdgeData = { beta: number | null; p: number | null; moderated?: boolean };
 export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
@@ -21,7 +22,8 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
 
   const beta = data?.beta ?? null;
   const p = data?.p ?? null;
-  const width = beta === null ? 1.6 : 1.2 + Math.min(1, Math.abs(beta)) * 3.2;
+  const figure = useStore((st) => st.settings.figure);
+  const width = pathStrokeWidth(figure, beta) * 1.4;
   const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
 
   return (

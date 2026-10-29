@@ -1,9 +1,13 @@
+import type React from 'react';
 import {
   Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useReactFlow,
   type Connection, type ConnectionLineComponentProps, type EdgeChange, type FinalConnectionState, type NodeChange, type OnDelete,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useState, type DragEvent, type MouseEvent } from 'react';
-import { constructGeometry, distanceToSegment, pathSegment } from '../geometry';
+import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment } from '../geometry';
+import { figureCssVars } from '../figure/style';
+import type { FigureInput, FigureLabel } from '../figure/render';
+import { FigurePanel } from './FigurePanel';
 import { correlationEndError, correlationPairError, validateModel, type Correlation } from '../model/project';
 import type { ExampleId } from '../io';
 import { run } from '../runner';
@@ -11,8 +15,8 @@ import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from
 import { ConstructNode, type ConstructFlowNode } from './ConstructNode';
 import { indicatorLabels } from '../diagramLabels';
 import { readDraggedVars, VARS_MIME } from './dnd';
-import { IconArrow, IconCorrelate, IconEllipse, IconErrorTerm, IconLayout, IconPlay, IconPointer, IconSparkle, IconUpload } from './icons';
-import { CovarianceLayer, type CorrelationLabel, type CorrelationPick } from './CovarianceLayer';
+import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconLayout, IconPlay, IconPointer, IconSparkle, IconUpload } from './icons';
+import { CovarianceLayer, covarianceLayout, type CorrelationLabel, type CorrelationPick } from './CovarianceLayer';
 import { currentSession } from '../cloud/collab';
 import { PresenceLayer } from './cloud/Presence';
 import { HigherOrderLayer, type HoLabel } from './HigherOrderLayer';
@@ -31,7 +35,7 @@ function Markers() {
     <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden="true">
       <defs>
         <marker id="arrow-ind" viewBox="0 0 10 10" refX={9.5} refY={5} markerWidth={7} markerHeight={7} orient="auto-start-reverse">
-          <path d="M0,1 L10,5 L0,9 z" fill="#9aa3b5" />
+          <path d="M0,1 L10,5 L0,9 z" fill="var(--indicator-arrow, #9aa3b5)" />
         </marker>
         <marker id="arrow-path" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={5} markerHeight={5} orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--path)" />
@@ -40,7 +44,7 @@ function Markers() {
           <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)" />
         </marker>
         <marker id="arrow-mod" viewBox="0 0 10 10" refX={10} refY={5} markerWidth={6} markerHeight={6} orient="auto-start-reverse">
-          <path d="M0,1 L10,5 L0,9 z" fill="#8b5cf6" />
+          <path d="M0,1 L10,5 L0,9 z" fill="var(--mod, #8b5cf6)" />
         </marker>
         <marker id="arrow-mod-sel" viewBox="0 0 10 10" refX={10} refY={5} markerWidth={6} markerHeight={6} orient="auto-start-reverse">
           <path d="M0,1 L10,5 L0,9 z" fill="var(--accent)" />
@@ -336,6 +340,57 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     return e ? { value: unstd ? e.est : e.std, fixed: e.kind === 'fixed-loading' } : marker;
   }, [showResults, method, results, settings.estimator, model.constructs, unstd]);
 
+  // Everything the figure export draws, with the same values as the diagram.
+  const [figureOpen, setFigureOpen] = useState(false);
+  const figureInput = useCallback((): FigureInput => {
+    const m = st().model;
+    const byId = new Map(m.constructs.map((c) => [c.id, c]));
+    const nameOf = (id: string) => byId.get(id)?.name ?? '';
+    const lbl = (v: number | null | undefined, p: number | null = null, fixed = false): FigureLabel | null => (v === null || v === undefined ? null : { value: v, p, fixed });
+    const constructs = m.constructs.map((c) => {
+      const marker = method === 'cbsem' && !c.covariate && c.indicators.length > 0 ? c.indicators[0] : null;
+      const indicators = c.indicators.map((name) => {
+        const v = display?.indicator(name) ?? null;
+        const fixed = (display && 'fixed' in display && !!display.fixed?.(name)) || name === marker;
+        return v === null ? (fixed ? { value: 1, p: null, fixed: true } : null) : { value: v, p: null, fixed };
+      });
+      return { c, geom: constructGeometry(c), r2: display?.r2(c.name) ?? null, indicators };
+    });
+    const paths = m.paths.flatMap((p) => {
+      const s = byId.get(p.from), t = byId.get(p.to);
+      const seg = s && t ? pathSegment(s, t) : null;
+      if (!seg) return [];
+      const l = display?.path(nameOf(p.from), nameOf(p.to));
+      return [{ ...seg, label: lbl(l?.beta, l?.p ?? null), moderated: m.moderations.some((mo) => mo.path === p.id) }];
+    });
+    const moderations = m.moderations.flatMap((mo) => {
+      const p = m.paths.find((q) => q.id === mo.path);
+      const s = p && byId.get(p.from), t = p && byId.get(p.to), mod = byId.get(mo.moderator);
+      const seg = s && t ? pathSegment(s, t) : null;
+      if (!seg || !mod) return [];
+      const l = moderationLabel(mo.id);
+      return [{ ...moderatorSegment(mod, seg), label: lbl(l?.beta, l?.p ?? null) }];
+    });
+    const higherOrder = m.constructs.flatMap((parent) => (parent.components ?? []).flatMap((cid) => {
+      const child = byId.get(cid);
+      const seg = child ? pathSegment(parent, child) : null;
+      if (!seg || !child) return [];
+      const l = hoLoading(parent.name, child.name);
+      return [{ ...seg, label: l ? { value: l.value, p: null, fixed: l.fixed } : null }];
+    }));
+    const cov = covarianceLayout(m, method === 'cbsem', showErrors);
+    const errors = [
+      ...[...cov.places.entries()].map(([name, { term }]) => ({ term, kind: 'indicator' as const, value: errorValue('indicator', name) })),
+      ...cov.disturbances.map(({ c, term }) => ({ term, kind: 'disturbance' as const, value: errorValue('construct', c.name) })),
+    ];
+    const correlations = cov.curves.map(({ k, curve }) => {
+      const l = correlationLabel(k);
+      return { d: curve.d, heads: curve.heads, lx: curve.lx, ly: curve.ly, nx: curve.nx, ny: curve.ny,
+        points: [[curve.x1, curve.y1], [curve.x2, curve.y2], [curve.lx, curve.ly]] as [number, number][], label: lbl(l?.value, l?.p ?? null) };
+    });
+    return { constructs, paths, moderations, higherOrder, errors, correlations };
+  }, [st, method, display, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel]);
+
   const isValidConnection = useCallback((c: Connection | PathFlowEdge) => c.source !== c.target, []);
 
   const addAt = (e: MouseEvent) => {
@@ -367,6 +422,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   return (
     <div
       className="canvas-wrap"
+      style={figureCssVars(settings.figure) as React.CSSProperties}
       onDragOver={onDragOver}
       onDrop={onDrop}
       // Collaborators see your pointer anywhere on the canvas (over nodes too).
@@ -383,6 +439,9 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         <div className="sep" />
         <button className="btn ghost" onClick={() => st().layout()} disabled={empty} title="Arrange constructs automatically">
           <IconLayout /> Arrange
+        </button>
+        <button className="btn ghost" onClick={() => setFigureOpen(true)} disabled={empty} title="Figure style and export (PDF, PNG, SVG)">
+          <IconDownload /> Figure
         </button>
         {method === 'cbsem' && (
           <div className="segmented dock-seg" role="radiogroup" aria-label="Estimates on the diagram">
@@ -478,6 +537,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         </div>
       )}
 
+      {figureOpen && <FigurePanel input={figureInput} onClose={() => setFigureOpen(false)} />}
       {hasStaleResults && !empty && (
         <div className="stale-banner">
           Model changed since the last calculation.

@@ -26,6 +26,50 @@ function indicatorPlaces(model: ModelState): Map<string, IndicatorPlace> {
   return out;
 }
 
+/**
+ * Geometry of the error terms (ε, ζ) and correlation arcs, shared by the
+ * on-screen layer and figure export.
+ */
+export function covarianceLayout(model: ModelState, active: boolean, showErrors: boolean) {
+  const drawn = model.correlations ?? [];
+  // CB-SEM also estimates covariances nobody drew (exogenous constructs, covariates): show those too.
+  const implied = active ? impliedCorrelations(model) : [];
+  const corrs = [...drawn, ...implied];
+  const errors = active && showErrors;
+  const places = indicatorPlaces(model);
+  const byId = new Map(model.constructs.map((c) => [c.id, c]));
+  const endo = endogenousIds(model);
+  // Disturbances that carry a correlation are drawn even with error terms hidden: the arrow links ζs, not constructs.
+  const correlated = new Set(active ? drawn.filter((k) => k.kind === 'construct').flatMap((k) => [k.a, k.b]) : []);
+  const disturbances = active
+    ? model.constructs.filter((c) => endo.has(c.id) && (errors || correlated.has(c.id))).map((c) => ({ c, term: disturbanceTerm(c) }))
+    : [];
+  const centre = model.constructs.length
+    ? { x: model.constructs.reduce((s, c) => s + c.x, 0) / model.constructs.length, y: model.constructs.reduce((s, c) => s + c.y, 0) / model.constructs.length }
+    : { x: 0, y: 0 };
+  const anchorOf = (k: Correlation, end: string): Anchor | null => {
+    if (k.kind === 'construct') {
+      const c = byId.get(end);
+      if (!c) return null;
+      // Endogenous constructs correlate through their disturbances when those are drawn.
+      const z = active && endo.has(c.id) ? disturbanceTerm(c) : null;
+      return z ? { kind: 'circle', x: z.cx, y: z.cy, r: ERR_R } : { kind: 'construct', c };
+    }
+    const pl = places.get(end);
+    if (!pl) return null;
+    return errors ? { kind: 'circle', x: pl.term.cx, y: pl.term.cy, r: ERR_R } : { kind: 'point', x: pl.term.ax, y: pl.term.ay };
+  };
+  const curves = corrs.flatMap((k) => {
+    const a = anchorOf(k, k.a), b = anchorOf(k, k.b);
+    if (!a || !b) return [];
+    const pa = k.kind === 'indicator' ? places.get(k.a) : undefined, pb = k.kind === 'indicator' ? places.get(k.b) : undefined;
+    // Indicators of one construct: bow outwards, away from the construct.
+    const normal = pa && pb && pa.owner.id === pb.owner.id ? [pa.term.nx, pa.term.ny] as [number, number] : undefined;
+    return [{ k, curve: correlationCurve(a, b, { normal, away: centre }), auto: k.id.startsWith('auto:') }];
+  });
+  return { places: errors ? places : new Map<string, IndicatorPlace>(), disturbances, curves, errors };
+}
+
 const fmtP = (p: number) => (p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`);
 
 /**
@@ -46,46 +90,9 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
   const model = useStore((s) => s.model);
   const selected = useStore((s) => s.selection.correlations ?? NONE);
   const setSelection = useStore((s) => s.setSelection);
-  const drawn = model.correlations ?? [];
-  // CB-SEM also estimates covariances nobody drew (exogenous constructs, covariates): show those too.
-  const implied = active ? impliedCorrelations(model) : [];
-  const corrs = [...drawn, ...implied];
-  const errors = active && showErrors;
-  if (corrs.length === 0 && !errors) return null;
-
-  const places = indicatorPlaces(model);
-  const byId = new Map(model.constructs.map((c) => [c.id, c]));
-  const endo = endogenousIds(model);
-  // Disturbances that carry a correlation are drawn even with error terms hidden: the arrow links ζs, not constructs.
-  const correlated = new Set(active ? drawn.filter((k) => k.kind === 'construct').flatMap((k) => [k.a, k.b]) : []);
-  const disturbances = active
-    ? model.constructs.filter((c) => endo.has(c.id) && (errors || correlated.has(c.id))).map((c) => ({ c, term: disturbanceTerm(c) }))
-    : [];
-  const centre = model.constructs.length
-    ? { x: model.constructs.reduce((s, c) => s + c.x, 0) / model.constructs.length, y: model.constructs.reduce((s, c) => s + c.y, 0) / model.constructs.length }
-    : { x: 0, y: 0 };
-
-  const anchorOf = (k: Correlation, end: string): Anchor | null => {
-    if (k.kind === 'construct') {
-      const c = byId.get(end);
-      if (!c) return null;
-      // Endogenous constructs correlate through their disturbances when those are drawn.
-      const z = active && endo.has(c.id) ? disturbanceTerm(c) : null;
-      return z ? { kind: 'circle', x: z.cx, y: z.cy, r: ERR_R } : { kind: 'construct', c };
-    }
-    const pl = places.get(end);
-    if (!pl) return null;
-    return errors ? { kind: 'circle', x: pl.term.cx, y: pl.term.cy, r: ERR_R } : { kind: 'point', x: pl.term.ax, y: pl.term.ay };
-  };
-
-  const curves = corrs.flatMap((k) => {
-    const a = anchorOf(k, k.a), b = anchorOf(k, k.b);
-    if (!a || !b) return [];
-    const pa = k.kind === 'indicator' ? places.get(k.a) : undefined, pb = k.kind === 'indicator' ? places.get(k.b) : undefined;
-    // Indicators of one construct: bow outwards, away from the construct.
-    const normal = pa && pb && pa.owner.id === pb.owner.id ? [pa.term.nx, pa.term.ny] as [number, number] : undefined;
-    return [{ k, curve: correlationCurve(a, b, { normal, away: centre }), on: selected.includes(k.id), auto: k.id.startsWith('auto:') }];
-  });
+  const { places, disturbances, curves: raw, errors } = covarianceLayout(model, active, showErrors);
+  if (raw.length === 0 && !errors && disturbances.length === 0) return null;
+  const curves = raw.map((r) => ({ ...r, on: selected.includes(r.k.id) }));
 
   const select = (e: MouseEvent, id: string) => {
     e.stopPropagation();

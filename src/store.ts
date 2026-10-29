@@ -132,7 +132,8 @@ export const emptyModel = (): ModelState => ({ constructs: [], paths: [], modera
 
 /** Fingerprint used to tell whether results still describe the current model. */
 export function resultsKey(s: Pick<State, 'model' | 'settings' | 'dataVersion'>): string {
-  const { bootSamples: _b, seed: _s, confidence: _c, ...plsSettings } = s.settings;
+  // Inference options and the figure style do not change the estimates.
+  const { bootSamples: _b, seed: _s, confidence: _c, figure: _f, ...plsSettings } = s.settings;
   // Correlations only enter CB-SEM, so drawing one does not make PLS results stale.
   const { covariances: _k, ...plsSpec } = toSpec(s.model);
   return JSON.stringify([s.settings.method === 'pls' ? plsSpec : toSpec(s.model), plsSettings, s.dataVersion]);

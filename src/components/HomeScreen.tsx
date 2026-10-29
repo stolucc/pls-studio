@@ -8,6 +8,7 @@ import { useAuth } from '../cloud/auth';
 import { api } from '../cloud/api';
 import { openCloudProject } from '../cloud/collab';
 import { AccountMenu } from './cloud/AccountMenu';
+import { AboutDialog } from './AboutDialog';
 import { IconLogo, IconNew, IconOpen, IconTrash, IconUpload } from './icons';
 
 const EXAMPLES = [
@@ -134,6 +135,7 @@ export function HomeScreen() {
   const setView = useStore((s) => s.setView);
   const [recent, setRecent] = useState<RecentMeta[] | null>(null);
   const [persistent, setPersistent] = useState(true);
+  const [about, setAbout] = useState(false);
 
   const refresh = () => { void listRecent().then(setRecent); };
   useEffect(() => {
@@ -158,6 +160,7 @@ export function HomeScreen() {
       <header className="home-head">
         <div className="brand"><span className="brand-mark"><IconLogo size={17} /></span>PLS Studio</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="btn ghost" onClick={() => setAbout(true)}>About &amp; licences</button>
           {hasCurrent && <button className="btn primary" onClick={() => setView('editor')}>Back to “{currentName}”</button>}
           <AccountMenu />
         </div>
@@ -228,6 +231,7 @@ export function HomeScreen() {
 
         <PackageExamples />
       </main>
+      {about && <AboutDialog onClose={() => setAbout(false)} />}
     </div>
   );
 }

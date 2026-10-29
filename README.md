@@ -1,16 +1,38 @@
 # PLS Studio
 
-Browser-based editor for partial least squares structural equation modelling (PLS-SEM).
-All computation runs locally in the browser (Web Worker); data never leaves the machine.
+Browser-based editor for structural equation modelling: PLS-SEM, consistent PLS and composites,
+and covariance-based SEM. Calculations are done by the reference R packages (lavaan, cSEM,
+seminr, MIIVsem, semTools) running in the browser via [webR](https://docs.r-wasm.org/webr/),
+or by a built-in engine validated against them. Data never leave the computer, and every
+analysis can be exported as the R script that produced it.
 
 ## Run
 
 ```bash
 npm install
+npm run webr:fetch # webR + pinned R packages (and their sources) into public/webr (~300 MB, once)
 npm run dev        # http://localhost:5175
-npm test           # engine + model tests (validated against R seminr 2.3.2)
-npm run build      # production build in dist/ (strict CSP injected)
+npm test           # client tests; npm run test:webr runs the R packages in webR; npm run test:server
+npm run build      # production build in dist/ (fetches public/webr if missing; strict CSP injected)
 ```
+
+The R packages are pinned in `scripts/webr/webr-lock.json` (versions and checksums) and served from
+the app's own origin; nothing is loaded from third parties at run time. The page must be served
+cross-origin isolated (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy:
+require-corp`) and allow WebAssembly (`script-src 'wasm-unsafe-eval'`); the dev/preview servers and
+`server/` do this.
+
+## Licence
+
+PLS Studio is free software: GNU General Public License, version 2 or (at your option) any later
+version ([LICENSE](LICENSE)). It serves webR and R packages that keep their own licences (many GPL);
+the source of every served version is published with the app (`public/webr/src`) and listed in the
+app's **About & licences** dialog. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for all
+components, fonts and datasets (`npm run notices` regenerates it).
+
+Data credits: the gamification example uses the replication package of Stol, Schaarschmidt &
+Goldblit (2022), *Empirical Software Engineering* 27:35 (doi:10.5281/zenodo.6322761, CC BY 4.0);
+the other example and test datasets come from the R packages lavaan, seminr and cSEM.
 
 ## Methods
 
@@ -33,7 +55,8 @@ structural equation is estimated separately by 2SLS on scaling indicators, with 
 instruments and a Sargan overidentification test per equation; works from raw data or a covariance
 matrix. Misspecification in one equation does not propagate to others.
 
-**Examples**: a synthetic customer survey (PLS, raw data) and the published model of Stol,
+**Examples**: 15 examples from the R packages' own documentation (lavaan, MIIVsem, cSEM, seminr;
+data loaded from the packages, each linked to its source), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
 Schaarschmidt & Goldblit (2022), *Gamification in software engineering*, Empirical Software
 Engineering 27:35 (CB-SEM, MLM, from the covariance and NACOV matrices of the replication
 package, doi:10.5281/zenodo.6322761, CC BY 4.0). The example reproduces the paper's results.
@@ -87,7 +110,7 @@ V select · C add construct · P draw path · Del delete · ⌘Z / ⌘⇧Z undo/
 
 ## Validation
 
-`npm test` runs ~220 client tests (`npm run test:server` runs the server's integration tests), including a reference corpus in `src/engine/__fixtures__/validation`
+`npm test` runs ~320 client tests (`npm run test:server` runs the server's integration tests), including a reference corpus in `src/engine/__fixtures__/validation`
 (54 cases) produced by `npm run validate:generate` (`scripts/validation/generate.R`):
 
 | Reference | Cases |

@@ -179,7 +179,7 @@ button, input, select { font: inherit; color: inherit; }
 /* construct node */
 .cnode { position: relative; }
 .cnode svg { overflow: visible; display: block; }
-.cnode .ellipse { fill: var(--construct-fill); stroke: var(--construct-stroke); stroke-width: 1.5; transition: stroke-width 0.1s; }
+.cnode .ellipse { fill: var(--construct-fill); stroke: var(--construct-stroke); stroke-width: var(--construct-stroke-width, 1.5); transition: stroke-width 0.1s; }
 .cnode.selected .ellipse { stroke-width: 2.5; filter: drop-shadow(0 0 0 transparent) drop-shadow(0 4px 10px rgba(79, 70, 229, 0.25)); }
 .cnode.error .ellipse { stroke: var(--bad); stroke-dasharray: 5 3; }
 .cnode.drop .ellipse { fill: #dfe3ff; stroke-width: 2.5; }
@@ -326,9 +326,9 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 
 /* moderation arrows */
 .mod-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
-.mod-line { stroke: #8b5cf6; stroke-width: 1.6; stroke-dasharray: 6 4; fill: none; }
+.mod-line { stroke: var(--mod, #8b5cf6); stroke-width: 1.6; stroke-dasharray: 6 4; fill: none; }
 .mod-hit { stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
-.mod-dot { fill: #8b5cf6; }
+.mod-dot { fill: var(--mod, #8b5cf6); }
 .mod.on .mod-line { stroke: var(--accent); stroke-width: 2.4; }
 .mod.on .mod-dot { fill: var(--accent); }
 .mod:hover .mod-line { stroke-width: 2.4; }
@@ -486,3 +486,25 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .source-links a:hover { text-decoration: underline; }
 
 .example-top .chip { flex-shrink: 0; max-width: none; }
+.modal.about { width: min(860px, 94vw); max-height: 88vh; overflow: auto; }
+.modal.about h4 { margin: 16px 0 6px; font-size: 13px; }
+.about-table { max-height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.about-table table { width: 100%; }
+.about-list { padding-left: 18px; margin: 0; }
+.about-list li { margin-bottom: 4px; }
+
+/* Figure style (Figure panel) applied on screen */
+.canvas-wrap .cnode text, .canvas-wrap .elabel { font-family: var(--figure-font, inherit); }
+.canvas-wrap .cnode .iline { stroke: var(--indicator-arrow, #9aa3b5); stroke-width: var(--indicator-arrow-width, 1.2); }
+.canvas-wrap .elabel.sig { color: var(--label-sig); }
+.canvas-wrap .elabel.ns { color: var(--label-ns); }
+.modal.figure-panel { width: min(1100px, 96vw); max-height: 92vh; overflow: auto; }
+.figure-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; }
+.figure-preview { border: 1px solid var(--border); border-radius: 8px; background: #fff; display: grid; place-items: center; min-height: 360px; padding: 8px; }
+.figure-preview img { max-width: 100%; max-height: 70vh; }
+.figure-controls .field { display: grid; gap: 4px; font-size: 12px; margin-bottom: 8px; }
+.figure-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 6px 0 10px; font-size: 12px; }
+.color-field { display: flex; align-items: center; gap: 6px; }
+.color-field input[type=color] { width: 26px; height: 22px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: none; }
+.figure-export { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+@media (max-width: 800px) { .figure-body { grid-template-columns: 1fr; } }

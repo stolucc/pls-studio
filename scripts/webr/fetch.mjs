@@ -7,18 +7,26 @@
 //   node scripts/webr/fetch.mjs --update   re-resolve the closure from the live repository, rewrite the lock
 //   node scripts/webr/fetch.mjs --if-missing   only when public/webr does not match the lock (prebuild)
 //
-// The packages are GPL-licensed; public/webr/LICENSES.md lists each with its
-// licence and the CRAN source archive of the exact version shipped.
+// Many of the packages and webR itself are GPL-licensed. Serving them is
+// distribution, so the source of every shipped version is served alongside
+// (public/webr/src: CRAN source tarballs and the webR release source), and
+// public/webr/licenses.json lists each component for the app's About dialog.
+//   --no-sources   skip the source tarballs (development only; never deploy without them)
 
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const LOCK = join(ROOT, 'scripts', 'webr', 'webr-lock.json');
-const OUT = join(ROOT, 'public', 'webr');
+const OUT_DIR = join(ROOT, 'public', 'webr');
+/** Source tarballs are cached between runs (they never change for a pinned version). */
+const SRC_CACHE = join(ROOT, '.webr-cache', 'src');
+const CRAN = 'https://cran.r-project.org/src/contrib';
+/** webR ships development builds (x.y.z.9000) of a few packages; their source is the upstream repository. */
+const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://github.com/rstudio/sass', vroom: 'https://github.com/tidyverse/vroom' };
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
 /** Packages the app calls directly. */
@@ -82,14 +90,20 @@ async function main() {
     console.log(`Locked ${stanzas.length} packages.`);
   } else lock = JSON.parse(readFileSync(LOCK, 'utf8'));
   if (lock.webr !== webrPkg.version) throw new Error(`webr-lock.json is for webR ${lock.webr} but ${webrPkg.version} is installed; run with --update.`);
-  const stamp = join(OUT, '.lock-stamp');
-  if (process.argv.includes('--if-missing') && existsSync(stamp) && readFileSync(stamp, 'utf8') === JSON.stringify(lock)) {
+  const withSources = !process.argv.includes('--no-sources');
+  const stamp = join(OUT_DIR, '.lock-stamp');
+  const stampText = JSON.stringify({ lock, withSources });
+  if (process.argv.includes('--if-missing') && existsSync(stamp) && readFileSync(stamp, 'utf8') === stampText) {
     console.log('public/webr is up to date.');
     return;
   }
 
-  rmSync(OUT, { recursive: true, force: true });
-  mkdirSync(OUT, { recursive: true });
+  // Build into a sibling folder and swap it in at the end, so a running app never sees a half-built runtime.
+  const FINAL = OUT_DIR;
+  const OUT_NEXT = `${FINAL}.next`;
+  rmSync(OUT_NEXT, { recursive: true, force: true });
+  mkdirSync(OUT_NEXT, { recursive: true });
+  const OUT = OUT_NEXT;
   const dist = join(ROOT, 'node_modules', 'webr', 'dist');
   for (const f of RUNTIME) cpSync(join(dist, f), join(OUT, f), { recursive: true });
   cpSync(join(ROOT, 'node_modules', 'webr', 'LICENSE.md'), join(OUT, 'WEBR-LICENSE.md'));
@@ -117,10 +131,44 @@ async function main() {
     '',
     '| Package | Version | Licence | Source |',
     '|---|---|---|---|',
-    ...entries.map(([n, p]) => `| ${n} | ${p.version} | ${p.license} | https://cran.r-project.org/src/contrib/Archive/${n}/ (or src/contrib/${n}_${p.version}.tar.gz) |`),
+    ...entries.map(([n, p]) => `| ${n} | ${p.version} | ${p.license} | src/${n}_${p.version}.tar.gz (from CRAN) |`),
     '',
   ].join('\n'));
-  writeFileSync(stamp, JSON.stringify(lock));
+  // Sources for GPL compliance: CRAN tarballs of the exact versions, and webR's release source.
+  const sources = {};
+  if (withSources) {
+    mkdirSync(SRC_CACHE, { recursive: true });
+    const srcOut = join(OUT, 'src');
+    mkdirSync(srcOut, { recursive: true });
+    const fetchSrc = async (file, urls) => {
+      const cached = join(SRC_CACHE, file);
+      if (!existsSync(cached)) {
+        let buf = null;
+        for (const u of urls) { buf = await get(u).catch(() => null); if (buf) break; }
+        if (!buf) return null;
+        writeFileSync(cached, buf);
+      }
+      cpSync(cached, join(srcOut, file));
+      return `src/${file}`;
+    };
+    for (const [name, p] of entries) {
+      const file = `${name}_${p.version}.tar.gz`;
+      sources[name] = await fetchSrc(file, [`${CRAN}/${file}`, `${CRAN}/Archive/${name}/${file}`]);
+      if (!sources[name]) console.warn(`warning: no CRAN source found for ${name} ${p.version}`);
+    }
+    sources.webr = await fetchSrc(`webr-${lock.webr}.tar.gz`, [`https://github.com/r-wasm/webr/archive/refs/tags/v${lock.webr}.tar.gz`]);
+    if (!sources.webr) console.warn(`warning: webR ${lock.webr} source not found`);
+  }
+  writeFileSync(join(OUT, 'licenses.json'), JSON.stringify({
+    webr: { version: lock.webr, r: lock.r, license: 'GPL-3 (webR binaries, including R); MIT (webR JavaScript API)', source: sources.webr ?? null, url: `https://github.com/r-wasm/webr/releases/tag/v${lock.webr}` },
+    packages: entries.map(([name, p]) => ({ name, version: p.version, license: p.license, source: sources[name] ?? null, url: UPSTREAM[name] ?? `https://cran.r-project.org/package=${name}`, ...(UPSTREAM[name] ? { note: 'development build by webR; source: upstream repository' } : {}) })),
+  }, null, 1));
+  writeFileSync(join(OUT, '.lock-stamp'), stampText);
+  const OLD = `${FINAL}.old`;
+  rmSync(OLD, { recursive: true, force: true });
+  if (existsSync(FINAL)) renameSync(FINAL, OLD);
+  renameSync(OUT, FINAL);
+  rmSync(OLD, { recursive: true, force: true });
   console.log(`\nDone: webR ${lock.webr} runtime + ${entries.length} packages (${(bytes / 1e6).toFixed(1)} MB) in public/webr.`);
 }
 

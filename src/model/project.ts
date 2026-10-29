@@ -1,3 +1,4 @@
+import { DEFAULT_FIGURE_STYLE, parseFigureStyle, type FigureStyle } from '../figure/style';
 import type { CbEstimator } from '../engine/cbsem';
 import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
@@ -40,6 +41,8 @@ export interface Settings {
   engine: Engine;
   /** R package for PLS-SEM when engine is 'r'. */
   plsPackage: 'cSEM' | 'seminr';
+  /** Look of the diagram and exported figures. */
+  figure: FigureStyle;
   scheme: WeightingScheme;
   maxIter: number;
   /** Stop criterion exponent: tolerance = 10^-stopExp. */
@@ -154,6 +157,7 @@ export const DEFAULT_SETTINGS: Settings = {
   estimator: 'ML',
   engine: 'r',
   plsPackage: 'cSEM',
+  figure: DEFAULT_FIGURE_STYLE,
   scheme: 'path',
   maxIter: 300,
   stopExp: 7,
@@ -465,6 +469,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', '2SLS'] as const).find((e) => e === s.estimator) ?? 'ML',
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
+    figure: parseFigureStyle(s.figure),
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
     maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
     stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),

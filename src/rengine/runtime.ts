@@ -69,11 +69,15 @@ function start(): Promise<WebR> {
 export function withR<T>(packages: string[], sources: Record<string, string>, fn: (webR: WebR) => Promise<T>): Promise<T> {
   const task = queue.then(async () => {
     const webR = await start();
+    const o = options ?? browserOptions();
     const missing = packages.filter((p) => !installed.has(p));
     if (missing.length) {
       useR.setState({ status: 'loading', message: `Loading R packages: ${missing.join(', ')}…` });
       try {
         await webR.installPackages(missing, { quiet: true });
+        // installPackages only warns when a download fails; check before use.
+        const absent = await notInstalled(webR, missing);
+        if (absent.length) throw new Error(packageDownloadError(absent, o.repoUrl));
         const versions: Record<string, string> = {};
         for (const p of missing) {
           versions[p] = await webR.evalRString(`as.character(utils::packageVersion("${p}"))`);
@@ -94,6 +98,18 @@ export function withR<T>(packages: string[], sources: Record<string, string>, fn
   });
   queue = task.catch(() => undefined);
   return task;
+}
+
+/** Packages (from `packages`) that R cannot load. Names are package names, never user input. */
+async function notInstalled(webR: WebR, packages: string[]): Promise<string[]> {
+  const ok = await webR.evalRRaw(`vapply(c(${packages.map((p) => JSON.stringify(p)).join(', ')}), requireNamespace, TRUE, quietly = TRUE)`, 'boolean[]');
+  return packages.filter((_p, i) => !ok[i]);
+}
+
+/** The message when R packages could not be downloaded from the app's own server. */
+export function packageDownloadError(packages: string[], repoUrl: string): string {
+  return `Could not download the R package${packages.length > 1 ? 's' : ''} ${packages.join(', ')} from ${repoUrl}. `
+    + 'The app server may have stopped or been restarted: check that it is running and reload the page.';
 }
 
 const encode = (req: unknown) => JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
