@@ -631,3 +631,5 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .example-badge { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px 0 8px; height: 26px; border-radius: 99px; background: var(--surface-3); color: var(--text-2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .example-badge .btn { height: 22px; font-weight: 500; }
 .data-grid td.text { text-align: left; }
+.selection-bar { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 12px; }
+.rev-mark { color: var(--accent); font-weight: 600; font-size: 11px; }

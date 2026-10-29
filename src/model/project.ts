@@ -88,6 +88,8 @@ export interface DataInfo {
   /** 'matrix' for covariance-matrix (summary statistics) datasets. */
   kind?: 'raw' | 'matrix';
   hasNacov?: boolean;
+  /** Columns reverse-coded in the app (x -> min + max - x), with their scale. */
+  reversed?: { name: string; min: number; max: number }[];
 }
 
 /** A construct moderating a structural path (drawn as an arrow onto that arrow). */
@@ -696,6 +698,14 @@ function parseCategories(raw: unknown, names: string[]): { categories?: Record<s
   return Object.keys(out).length ? { categories: out } : {};
 }
 
+/** Reverse-coded columns of a project file (columns that exist, finite scales). */
+function parseReversed(raw: unknown, names: string[]): { reversed?: { name: string; min: number; max: number }[] } {
+  if (!Array.isArray(raw)) return {};
+  const out = raw.filter((r): r is Record<string, unknown> => isObj(r)).map((r) => ({ name: str(r.name), min: Number(r.min), max: Number(r.max) }))
+    .filter((r) => names.includes(r.name) && Number.isFinite(r.min) && Number.isFinite(r.max) && r.min < r.max);
+  return out.length ? { reversed: out } : {};
+}
+
 /** Validate the data section of a project file (also used for datasets stored on the server). */
 export function parseDataSection(d: Record<string, unknown>): { data: Dataset; info: DataInfo } {
   let data: Dataset;
@@ -716,6 +726,7 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
     rows: cols[0]?.length ?? 0,
     missingCells: cols.reduce((s: number, c: Float64Array) => s + c.filter(Number.isNaN).length, 0),
     excluded: [],
+    ...parseReversed(d.info.reversed, names),
   };
   if (d.moments !== undefined) {
     const moments = parseMoments(d.moments, names.length);

@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { mean, sd } from '../engine/stats';
+import { observedRange, reverseCode } from '../data/recode';
 import { importCsv, loadSample } from '../io';
+import { textDialog } from './Overlays';
 import { useStore } from '../store';
 import { VARS_MIME } from './dnd';
 import { useDataView } from './DataViewer';
@@ -58,6 +60,33 @@ export function DataPanel() {
     e.dataTransfer.setData(VARS_MIME, JSON.stringify(names));
     e.dataTransfer.setData('text/plain', names.join(', '));
     e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const reversed = new Map((info?.reversed ?? []).map((r) => [r.name, r]));
+  /** Reverse-code the selected items on a scale the user confirms (defaults to the observed range). */
+  const reverseSelected = async () => {
+    if (!data || !info) return;
+    const names = visible.map((v) => v.name).filter((n) => selected.includes(n));
+    const done = names.filter((n) => reversed.has(n));
+    const known = done.length === names.length && new Set(done.map((n) => `${reversed.get(n)!.min},${reversed.get(n)!.max}`)).size === 1 ? reversed.get(done[0]) : undefined;
+    const range = known ? [known.min, known.max] : observedRange(data, names);
+    const parse = (t: string) => { const m = t.split(/[\s,;–-]+/).filter(Boolean).map(Number); return m.length === 2 && m.every(Number.isFinite) && m[0] < m[1] ? m : null; };
+    const text = await textDialog({
+      title: done.length === names.length ? `Undo the reverse-coding of ${names.length === 1 ? names[0] : `${names.length} items`}?` : `Reverse-code ${names.length === 1 ? names[0] : `${names.length} items`}?`,
+      body: `Each value x becomes lowest + highest − x on the answer scale (on 1–5: 1 ↔ 5, 2 ↔ 4), for negatively worded items. Doing it again on the same scale undoes it.${names.length > 1 ? ` Items: ${names.join(', ')}.` : ''}`,
+      confirmLabel: done.length === names.length ? 'Undo' : 'Reverse-code',
+      text: { label: 'Answer scale: lowest, highest', initial: range ? `${range[0]}, ${range[1]}` : '1, 5', check: (t) => (parse(t) ? null : 'Enter the lowest and highest value of the scale, e.g. 1, 5.') },
+    });
+    if (text === null) return;
+    const [min, max] = parse(text)!;
+    try {
+      const r = reverseCode(data, info, names, min, max);
+      useStore.getState().setData(r.data, r.info);
+      const changed = names.filter((n) => !r.undone.includes(n));
+      useStore.getState().toast('success', [changed.length ? `Reverse-coded ${changed.join(', ')} (${min}–${max}).` : '', r.undone.length ? `Back to the original coding: ${r.undone.join(', ')}.` : ''].filter(Boolean).join(' '));
+    } catch (e) {
+      useStore.getState().toast('error', (e as Error).message);
+    }
   };
 
   const onFileDrop = (e: DragEvent) => {
@@ -120,6 +149,12 @@ export function DataPanel() {
                 <button className={filter === 'free' ? 'on' : ''} onClick={() => setFilter('free')}>Unassigned ({stats.filter((v) => !owner.has(v.name)).length})</button>
               </div>
               <div className="hint" style={{ margin: '8px 0 2px' }}>Shift/⌘-click to select several, then drag onto the canvas or a construct.</div>
+              {selected.length > 0 && info.kind !== 'matrix' && (
+                <div className="selection-bar">
+                  <span className="muted">{selected.length} selected</span>
+                  <button className="btn sm ghost" onClick={() => void reverseSelected()} title="For negatively worded items: x becomes lowest + highest − x on the answer scale">Reverse-code…</button>
+                </div>
+              )}
               <div className="var-list" role="listbox" aria-multiselectable="true">
                 {visible.map((v) => (
                   <div
@@ -132,7 +167,7 @@ export function DataPanel() {
                     onClick={(e) => onClick(e, v.name)}
                     title={Number.isNaN(v.mean) ? `sd ${v.sd.toFixed(2)}` : `mean ${v.mean.toFixed(2)} · sd ${v.sd.toFixed(2)} · missing ${v.missing}`}
                   >
-                    <span className="vname">{v.name}</span>
+                    <span className="vname">{v.name}{reversed.has(v.name) && <span className="rev-mark" title={`Reverse-coded on ${reversed.get(v.name)!.min}–${reversed.get(v.name)!.max}`}> (R)</span>}</span>
                     {owner.has(v.name)
                       ? <span className="chip accent">{owner.get(v.name)}</span>
                       : data.categories?.[v.name]
