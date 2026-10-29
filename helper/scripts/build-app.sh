@@ -50,7 +50,7 @@ cat >"$APP/Contents/Info.plist" <<EOF
   <key>CFBundleSignature</key>
   <string>????</string>
   <key>LSMinimumSystemVersion</key>
-  <string>11.0</string>
+  <string>13.0</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSHighResolutionCapable</key>

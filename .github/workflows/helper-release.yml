@@ -54,6 +54,14 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: ${{ matrix.goos == 'linux' && '0' || '1' }}
+          # The tray links against Cocoa (CGO): without a deployment target the
+          # binary requires the runner's macOS (26), and older Macs refuse to
+          # open it (kLSIncompatibleSystemVersionErr). Same as Info.plist.
+          MACOSX_DEPLOYMENT_TARGET: '13.0'
+          # (also as compiler flags: they are part of Go's build cache key, so
+          # cgo objects cached from an earlier build cannot carry another target)
+          CGO_CFLAGS: ${{ matrix.goos == 'darwin' && '-O2 -g -mmacosx-version-min=13.0' || '' }}
+          CGO_LDFLAGS: ${{ matrix.goos == 'darwin' && '-O2 -g -mmacosx-version-min=13.0' || '' }}
         run: |
           VERSION="${GITHUB_REF_NAME#helper-v}"
           if [ "$VERSION" = "$GITHUB_REF_NAME" ]; then VERSION="dev-$(git rev-parse --short HEAD)"; fi
@@ -82,6 +90,10 @@ jobs:
         if: matrix.goos == 'darwin'
         run: |
           BIN="dist/pls-studio-helper-${{ matrix.goos }}-${{ matrix.goarch }}"
+          # Fail if the binary needs a newer macOS than the app declares (13.0; Go's runtime needs 13).
+          MINOS=$(otool -l "$BIN" | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print $2; exit}')
+          echo "minimum macOS: $MINOS"
+          [ "$MINOS" = "13.0" ] || { echo "::error::binary requires macOS $MINOS, expected 13.0"; exit 1; }
           codesign --force --sign - "$BIN"
           codesign --verify --verbose=2 "$BIN"
           helper/scripts/build-app.sh "$BIN" "dist/PLS Studio Helper.app" "${{ matrix.goarch }}"

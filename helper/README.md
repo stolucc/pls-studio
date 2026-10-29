@@ -11,7 +11,7 @@ and it falls back to the browser whenever the helper is not available.
 
 ## 1 · Install
 
-You need [R](https://cran.r-project.org) (4.1 or later).
+You need [R](https://cran.r-project.org) (4.1 or later); on macOS, version 13 (Ventura) or later.
 
 Build the helper (requires [Go](https://go.dev) 1.27):
 

@@ -9,6 +9,14 @@ BUILD_TIME := $(shell date -u +%FT%TZ)
 LDFLAGS := -s -w -X main.helperVersion=$(VERSION) -X main.helperBuildSHA=$(BUILD_SHA) -X main.helperBuildTime=$(BUILD_TIME)
 GOFLAGS := -trimpath -ldflags "$(LDFLAGS)"
 APP_NAME := PLS Studio Helper
+# macOS: the oldest macOS the binary runs on (Go needs 13; as LSMinimumSystemVersion in
+# scripts/build-app.sh); otherwise it requires the build machine's version.
+export MACOSX_DEPLOYMENT_TARGET ?= 13.0
+ifeq ($(shell uname -s),Darwin)
+# (as compiler flags too: they are part of Go's build cache key)
+export CGO_CFLAGS ?= -O2 -g -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+export CGO_LDFLAGS ?= -O2 -g -mmacosx-version-min=$(MACOSX_DEPLOYMENT_TARGET)
+endif
 
 .PHONY: all build sync-r test security clean dist app-mac-arm64 dmg-mac-arm64
 
