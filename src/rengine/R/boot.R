@@ -73,7 +73,7 @@ ps_pls_boot <- function(req_json, export = FALSE) {
 #' Map package parameter names to the app's bootstrap keys (path:from:to, loading:indicator, …).
 ps_boot_keys <- function(r, b, req) {
   n <- b$n
-  lv <- c(setNames(n$cname, b$cv), setNames(vapply(b$mods, function(m) paste(m$from, "×", m$moderator), ""), b$int_l))
+  lv <- c(setNames(n$cname, b$cv), setNames(vapply(b$mods, function(m) ps_int_name(m$from, m$moderator), ""), b$int_l))
   ind <- setNames(n$all_inds, unname(n$iv[n$all_inds]))
   out <- list()
   for (i in seq_len(nrow(r))) {

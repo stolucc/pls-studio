@@ -40,6 +40,9 @@ export interface CovarianceSpec {
   kind: 'construct' | 'indicator';
 }
 
+/** Name of an interaction term; a construct times itself is its quadratic term (X²). */
+export const interactionName = (from: string, moderator: string) => (from === moderator ? `${from}²` : `${from} × ${moderator}`);
+
 export interface ModelSpec {
   constructs: ConstructSpec[];
   paths: PathSpec[];

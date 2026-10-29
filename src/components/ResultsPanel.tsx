@@ -7,6 +7,8 @@ import { EngineBadge, engineOf } from './EngineBadge';
 import { CB_TABS, CbTab, type CbTabId } from './results/CbTabs';
 import { MIIV_TABS, MiivTab, type MiivTabId } from './results/MiivTabs';
 import { PLS_TABS, PlsTab, type PlsTabId } from './results/PlsTabs';
+import { PROCESS_TABS, ProcessTab, type ProcessTabId } from './results/ProcessTabs';
+import { processGraph } from '../process/fromModel';
 
 export function ResultsPanel({ height, onResize }: { height: number; onResize: (h: number) => void }) {
   const open = useStore((s) => s.resultsOpen);
@@ -18,20 +20,27 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
   const [plsTab, setPlsTab] = useState<PlsTabId>('overview');
   const [cbTab, setCbTab] = useState<CbTabId>('fit');
   const [miivTab, setMiivTab] = useState<MiivTabId>('equations');
+  const [processTab, setProcessTab] = useState<ProcessTabId>('effects');
+  const confidence = useStore((s) => s.settings.confidence);
+  const model = useStore((s) => s.model);
   const estimator = useStore((s) => s.settings.estimator);
   const isMiiv = method === 'cbsem' && estimator === '2SLS';
   const miiv = isMiiv ? results?.miiv ?? null : null;
   const pls = method === 'pls' ? results?.pls ?? null : null;
   const cb = method === 'cbsem' ? results?.cb ?? null : null;
+  const proc = method === 'process' ? results?.process ?? null : null;
+  const recognised = proc ? processGraph(model).recognised : null;
+  const procTitle = recognised ? `PROCESS model ${recognised.model}` : 'Custom conditional process model';
   const boot = results?.boot ?? null;
   const rMessage = useR((s) => (s.status === 'loading' ? s.message : ''));
   const engineLabel = engineOf(results, method, isMiiv);
 
-  const tabs = method === 'pls' ? PLS_TABS : isMiiv ? MIIV_TABS : CB_TABS;
-  const active = method === 'pls' ? plsTab : isMiiv ? miivTab : cbTab;
-  const setTab = (id: string) => (method === 'pls' ? setPlsTab(id as PlsTabId) : isMiiv ? setMiivTab(id as MiivTabId) : setCbTab(id as CbTabId));
+  const tabs = method === 'process' ? PROCESS_TABS : method === 'pls' ? PLS_TABS : isMiiv ? MIIV_TABS : CB_TABS;
+  const active = method === 'process' ? processTab : method === 'pls' ? plsTab : isMiiv ? miivTab : cbTab;
+  const setTab = (id: string) => (method === 'process' ? setProcessTab(id as ProcessTabId) : method === 'pls' ? setPlsTab(id as PlsTabId) : isMiiv ? setMiivTab(id as MiivTabId) : setCbTab(id as CbTabId));
 
-  const body = pls ? <PlsTab tab={plsTab} pls={pls} boot={boot} fitTest={results?.fitTest ?? null} />
+  const body = proc ? <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />
+    : pls ? <PlsTab tab={plsTab} pls={pls} boot={boot} fitTest={results?.fitTest ?? null} />
     : miiv ? <MiivTab tab={miivTab} miiv={miiv} />
     : cb && !isMiiv ? <CbTab tab={cbTab} cb={cb} boot={boot} />
       : (
@@ -62,12 +71,14 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
   if (!open) {
     return (
       <div className="results-collapsed">
-        <button className="btn sm ghost" onClick={() => setOpen(true)}><IconChevronUp size={14} /> Results</button>
         {pls && <span className="muted">Last run: {pls.consistent ? 'PLSc' : 'PLS'}, {pls.n} observations, {pls.iterations} iterations{boot ? `, ${boot.samples} bootstrap samples` : ''}</span>}
         {miiv && <span className="muted">Last run: MIIV-2SLS, {miiv.equations.length} equations, N = {miiv.n}</span>}
+        {proc && <span className="muted">Last run: {procTitle}, n = {proc.n}{proc.boot.samples ? `, ${proc.boot.samples} bootstrap samples` : ''}</span>}
         {cb && !isMiiv && <span className="muted">Last run: {cb.estimator}, χ²({cb.fit.df}) = {cb.fit.chisq.toFixed(2)}, CFI {cb.fit.cfi.toFixed(3)}, RMSEA {cb.fit.rmsea.toFixed(3)}</span>}
         <div className="spacer" />
         {progress}
+        {/* Same corner as the collapse button of the open panel. */}
+        <button className="btn sm ghost" onClick={() => setOpen(true)} aria-label="Expand results">Results <IconChevronUp size={14} /></button>
       </div>
     );
   }

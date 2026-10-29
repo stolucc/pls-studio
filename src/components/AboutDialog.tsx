@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import thirdParty from '../generated/third-party.json';
+import { safeUrl } from '../format';
 import { IconX } from './icons';
 
 interface RLicences {
@@ -19,7 +20,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
-  const link = (url: string, label: string) => (url ? <a href={url} target="_blank" rel="noopener noreferrer">{label}</a> : label);
+  const link = (url: string, label: string) => (safeUrl(url) ? <a href={url} target="_blank" rel="noopener noreferrer">{label}</a> : label);
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className="modal about" role="dialog" aria-modal="true" aria-labelledby="about-title" onMouseDown={(e) => e.stopPropagation()}>

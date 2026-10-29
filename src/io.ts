@@ -10,6 +10,7 @@ import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
 import type { IpmaOptions } from './engine/ipma';
 import type { McDesign } from './engine/montecarlo';
+import { processInput } from './process/input';
 
 
 function pickFile(accept: string): Promise<File | null> {
@@ -127,6 +128,20 @@ export async function exportRScript(what: ScriptTarget = 'model') {
   const s = useStore.getState();
   const errors = validateModel(s.model, s.data, s.settings).filter((i) => i.level === 'error');
   if (errors.length || !s.data) { s.toast('error', errors[0]?.message ?? 'Import a dataset first.'); return; }
+  if (s.settings.method === 'process') {
+    const input = processInput(s.model, s.settings);
+    if (!input) return;
+    try {
+      s.toast('info', 'Preparing the manymome script…');
+      const { cpaScriptR } = await import('./rengine/cpa');
+      downloadText(`${safeFileName(s.projectName)}-manymome.R`, await cpaScriptR(s.data, input), 'text/x-r-source');
+      s.toast('success', 'R script saved: open it in R or RStudio to reproduce the analysis with manymome.');
+    } catch (e) {
+      const { rMessage } = await import('./rengine/bridge');
+      s.toast('error', `Could not create the R script: ${rMessage(e)}`);
+    }
+    return;
+  }
   const spec = toSpec(s.model);
   const st = s.settings;
   const cb = st.method === 'cbsem';

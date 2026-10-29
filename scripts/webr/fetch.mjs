@@ -5,6 +5,7 @@
 //
 //   node scripts/webr/fetch.mjs            download exactly what webr-lock.json pins (MD5-verified)
 //   node scripts/webr/fetch.mjs --update   re-resolve the closure from the live repository, rewrite the lock
+//   node scripts/webr/fetch.mjs --add      keep every pinned package as it is; lock only packages new to the closure
 //   node scripts/webr/fetch.mjs --if-missing   only when public/webr does not match the lock (prebuild)
 //
 // Many of the packages and webR itself are GPL-licensed. Serving them is
@@ -30,7 +31,7 @@ const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://gi
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
 /** Packages the app calls directly. */
-const ROOTS = ['lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'jsonlite'];
+const ROOTS = ['lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'jsonlite'];
 /** Shipped inside webR itself. */
 const BASE = new Set(['R', 'base', 'compiler', 'datasets', 'graphics', 'grDevices', 'grid', 'methods', 'parallel', 'splines', 'stats', 'stats4', 'tcltk', 'tools', 'translations', 'utils', 'webr']);
 /** webR runtime files needed next to the page (the JS API itself is bundled from the npm package). */
@@ -58,14 +59,15 @@ async function get(url) {
   return Buffer.from(await r.arrayBuffer());
 }
 
-async function resolve() {
+/** The dependency closure of ROOTS. Packages in `pinned` keep their locked stanza (and so their dependencies). */
+async function resolve(pinned = {}) {
   const index = new Map(parsePackages((await get(`${REPO}/PACKAGES`)).toString('utf8')).map((s) => [s.Package, s]));
   const want = new Map();
   const stack = [...ROOTS];
   while (stack.length) {
     const name = stack.pop();
     if (want.has(name)) continue;
-    const s = index.get(name);
+    const s = pinned[name]?.stanza ?? index.get(name);
     if (!s) throw new Error(`Package ${name} is not in the webR repository for R ${R_VERSION}.`);
     want.set(name, s);
     stack.push(...deps(s));
@@ -76,11 +78,15 @@ async function resolve() {
 async function main() {
   const webrPkg = JSON.parse(readFileSync(join(ROOT, 'node_modules', 'webr', 'package.json'), 'utf8'));
   let lock;
-  if (process.argv.includes('--update') || !existsSync(LOCK)) {
-    const stanzas = await resolve();
+  const adding = process.argv.includes('--add') && existsSync(LOCK);
+  if (adding || process.argv.includes('--update') || !existsSync(LOCK)) {
+    const pinned = adding ? JSON.parse(readFileSync(LOCK, 'utf8')).packages : {};
+    const stanzas = await resolve(pinned);
     // Pin the checksum of the file actually served: the repository index can lag behind rebuilt binaries.
     const packages = {};
     for (const s of stanzas) {
+      if (pinned[s.Package]) { packages[s.Package] = pinned[s.Package]; continue; }
+      if (adding) console.log(`adding ${s.Package} ${s.Version}`);
       const sum = md5(await get(`${REPO}/${s.Package}_${s.Version}.tgz`));
       if (sum !== s.MD5sum) console.warn(`note: ${s.Package} ${s.Version}: index MD5 ${s.MD5sum} is stale, pinning the served file ${sum}`);
       packages[s.Package] = { version: s.Version, md5: sum, license: s.License, stanza: { ...s, MD5sum: sum } };

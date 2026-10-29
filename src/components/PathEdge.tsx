@@ -18,11 +18,11 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
     const f = data?.moderated ? 0.3 : 0.5;
     return { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: seg.x1 + f * (seg.x2 - seg.x1), my: seg.y1 + f * (seg.y2 - seg.y1) };
   }, [s, t, data?.moderated]);
+  const figure = useStore((st) => st.settings.figure);
   if (!geo) return null;
 
   const beta = data?.beta ?? null;
   const p = data?.p ?? null;
-  const figure = useStore((st) => st.settings.figure);
   const width = pathStrokeWidth(figure, beta) * 1.4;
   const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
 

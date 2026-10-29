@@ -71,7 +71,7 @@ ps_pls <- function(req_json, export = FALSE) {
   env <- ps_run(b$body, b$inputs)
   fit <- env$fit
   n <- b$n; cv <- b$cv; k0 <- b$k0; mods <- b$mods
-  int_names <- vapply(mods, function(m) paste(m$from, "×", m$moderator), "")
+  int_names <- vapply(mods, function(m) ps_int_name(m$from, m$moderator), "")
   constructs <- c(n$cname, int_names)
   all_l <- c(cv, b$int_l)
   K <- length(all_l)

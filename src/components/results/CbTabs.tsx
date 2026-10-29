@@ -216,12 +216,12 @@ function Moderation({ cb }: { cb: CbResult }) {
         const rows: Row[] = [estRow(est, `${name} → ${mo.to}`)];
         return (
           <div key={mo.construct} style={{ display: 'grid', gap: 12 }}>
-            <Table title={`${mo.moderator} moderating ${mo.from} → ${mo.to}`} file={`cb-interaction-${mo.construct}`} columns={['Interaction', ...estCols(cb)]} rows={rows} />
+            <Table title={mo.from === mo.moderator ? `Quadratic effect of ${mo.from} on ${mo.to}` : `${mo.moderator} moderating ${mo.from} → ${mo.to}`} file={`cb-interaction-${mo.construct}`} columns={[mo.from === mo.moderator ? 'Quadratic term' : 'Interaction', ...estCols(cb)]} rows={rows} />
             {error && <div className="issue error">{error}</div>}
             {jn && (
               <>
-                <JohnsonNeymanPlot jn={jn} from={mo.from} moderator={mo.moderator} width={420} height={230} />
-                <Table title="Johnson–Neyman" file={`cb-jn-${mo.construct}`} columns={['Moderator (SD)', 'Moderator (latent units)', 'Effect', 'Std. error', 'Significant']}
+                <JohnsonNeymanPlot jn={jn} from={mo.from} moderator={mo.moderator} to={mo.to} width={420} height={230} />
+                <Table title="Johnson–Neyman" file={`cb-jn-${mo.construct}`} columns={jn.quadratic ? [`${mo.from} (SD)`, `${mo.from} (latent units)`, 'Slope', 'Std. error', 'Significant'] : ['Moderator (SD)', 'Moderator (latent units)', 'Effect', 'Std. error', 'Significant']}
                   rows={[
                     ...jn.boundaries.map((b) => [c(`boundary ${(b / jn!.sdM).toFixed(3)}`), c(b), c(jn!.effect(b)), c(jn!.se(b)), c('edge')]),
                     ...[-1, 0, 1].map((k) => {
@@ -229,7 +229,7 @@ function Moderation({ cb }: { cb: CbResult }) {
                       return [c(k === 0 ? 'mean' : `${k > 0 ? '+' : ''}${k} SD`), c(m), c(jn!.effect(m)), c(jn!.se(m)), c(jn!.significantAt(m) ? 'yes' : 'no', jn!.significantAt(m) ? 'good' : 'dim')];
                     }),
                   ]}
-                  note={`Latent interaction from matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004). Conditional effect θ(m) = ${fmt(jn.bx)} + ${fmt(jn.bint)}·m with delta-method SEs from the ${cb.estimator} parameter covariance; boundaries solve |θ(m)|/SE(m) = ${jn.crit.toFixed(3)}. Validated against lavaan.`} />
+                  note={`${jn.quadratic ? `Latent quadratic term from squared mean-centred indicators (Marsh, Wen & Hau 2004). Slope of ${mo.from} at x: θ(x) = ${fmt(jn.bx)} + 2·${fmt(jn.bint)}·x` : `Latent interaction from matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004). Conditional effect θ(m) = ${fmt(jn.bx)} + ${fmt(jn.bint)}·m`} with delta-method SEs from the ${cb.estimator} parameter covariance; boundaries solve |θ(m)|/SE(m) = ${jn.crit.toFixed(3)}. Validated against lavaan.`} />
               </>
             )}
           </div>

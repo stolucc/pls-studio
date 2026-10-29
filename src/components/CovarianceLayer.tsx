@@ -6,6 +6,7 @@ import {
 } from '../geometry';
 import { endogenousIds, impliedCorrelations, type Construct, type Correlation, type CorrelationEnd as CorrelationPick, type ModelState } from '../model/project';
 import { useStore } from '../store';
+import type { MenuTarget } from './canvasMenu';
 
 export interface CorrelationLabel { value: number | null; p: number | null }
 /** What the user clicked while drawing a correlation. */
@@ -76,7 +77,7 @@ const fmtP = (p: number) => (p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`
  * CB-SEM error terms (ε on indicators, ζ on endogenous constructs) and
  * double-headed arrows for free covariances. Rendered in flow coordinates.
  */
-export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, errorFor }: {
+export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, errorFor, onMenu }: {
   /** CB-SEM: correlations are estimated (drawn faded otherwise). */
   active: boolean;
   showErrors: boolean;
@@ -86,6 +87,8 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
   labelFor: (k: Correlation) => CorrelationLabel | null;
   /** Standardised error / disturbance variance to print beside a circle. */
   errorFor: (kind: Correlation['kind'], name: string) => number | null;
+  /** Right-click: open the canvas context menu. */
+  onMenu: (e: MouseEvent, t: MenuTarget) => void;
 }) {
   const model = useStore((s) => s.model);
   const selected = useStore((s) => s.selection.correlations ?? NONE);
@@ -114,15 +117,17 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
   return (
     <ViewportPortal>
       <svg className={`cov-layer${onPick ? ' picking' : ''}`} width={1} height={1}>
-        {errors && [...places.entries()].map(([name, { term: t }]) => (
-          <g key={`e:${name}`} className={`err${isPicked('indicator', name) ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'indicator', id: name })}>
+        {errors && [...places.entries()].map(([name, { owner, term: t }]) => (
+          <g key={`e:${name}`} className={`err${isPicked('indicator', name) ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'indicator', id: name })}
+            onContextMenu={(e) => onMenu(e, { kind: 'indicator', construct: owner.id, name })}>
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Measurement error ε of {name}{errorFor('indicator', name) !== null ? ` (standardised variance ${errorFor('indicator', name)!.toFixed(3)})` : ''}</title></circle>
             {errContent(t, 'ε', errorFor('indicator', name))}
           </g>
         ))}
         {disturbances.map(({ c, term: t }) => (
-          <g key={`z:${c.id}`} className={`err${picked?.via === 'disturbance' && picked.id === c.id ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'construct', id: c.id, via: 'disturbance' })}>
+          <g key={`z:${c.id}`} className={`err${picked?.via === 'disturbance' && picked.id === c.id ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'construct', id: c.id, via: 'disturbance' })}
+            onContextMenu={(e) => onMenu(e, { kind: 'disturbance', id: c.id })}>
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Disturbance ζ of {c.name}{errorFor('construct', c.name) !== null ? ` (standardised variance ${errorFor('construct', c.name)!.toFixed(3)})` : ''}</title></circle>
             {errContent(t, 'ζ', errorFor('construct', c.name))}
@@ -132,7 +137,7 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
           <g key={k.id} className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}`}>
             {auto
               ? <path className="cor-hit" d={curve.d}><title>Estimated by default: exogenous constructs covary freely in CB-SEM (covariates: fixed at their sample covariance).</title></path>
-              : <path className="cor-hit" d={curve.d} onClick={(e) => select(e, k.id)} />}
+              : <path className="cor-hit" d={curve.d} onClick={(e) => select(e, k.id)} onContextMenu={(e) => { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); }} />}
             <path className="cor-line" d={curve.d} />
             {curve.heads.map((h, i) => <path key={i} className="cor-head" d={h} />)}
           </g>
@@ -144,6 +149,7 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
         const cls = l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns';
         return (
           <div key={k.id} className={`elabel cor-label${cls}`} onClick={(e) => { if (!k.id.startsWith('auto:')) select(e, k.id); }}
+            onContextMenu={(e) => { if (!k.id.startsWith('auto:')) { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); } }}
             // Hang the label off the outer side of the arc so it never covers the error circles.
             style={{ transform: `translate(${curve.lx}px, ${curve.ly}px) translate(${-50 + 50 * curve.nx}%, ${-50 + 50 * curve.ny}%)` }}>
             {l.value.toFixed(3)}

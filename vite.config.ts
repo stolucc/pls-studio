@@ -59,6 +59,7 @@ export default defineConfig({
   // Development: the collaboration server (server/) runs on :8787; same-origin via proxy.
   server: {
     port: 5175,
+    strictPort: true,
     headers: ISOLATION_HEADERS,
     proxy: {
       '/api': { target: 'http://localhost:8787', changeOrigin: false },
@@ -76,5 +77,6 @@ export default defineConfig({
   worker: { format: 'es' },
   // The server package has its own (database-backed) test run: `cd server && npm test`.
   // *.webr.test.ts start R (webR) and need public/webr (npm run webr:fetch): run them with npm run test:webr.
-  test: { environment: 'node', exclude: ['server/**', 'node_modules/**', 'dist/**', ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts'])] },
+  // Statistical tests (Monte Carlo, bootstrap) run long under mutation-testing instrumentation.
+  test: { environment: 'node', testTimeout: process.env.STRYKER_SLOW ? 1_800_000 : 60_000, exclude: ['server/**', 'node_modules/**', 'dist/**', '.stryker-tmp/**', 'reports/**', ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts'])] },
 } as never);

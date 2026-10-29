@@ -12,7 +12,8 @@ export interface FigureLabel { value: number; p: number | null; fixed?: boolean 
 export interface FigureInput {
   constructs: { c: Construct; geom: ConstructGeom; r2: number | null; indicators: (FigureLabel | null)[] }[];
   paths: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; moderated: boolean }[];
-  moderations: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
+  /** `badge`: a quadratic term (X²), drawn as a labelled pill the arrow starts from. */
+  moderations: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; badge?: { x: number; y: number; text: string; w: number } }[];
   higherOrder: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
   errors: { term: ErrorTerm; kind: 'indicator' | 'disturbance'; value: number | null }[];
   correlations: { d: string; heads: string[]; lx: number; ly: number; nx: number; ny: number; points: [number, number][]; label: FigureLabel | null }[];
@@ -58,6 +59,12 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
   for (const m of f.moderations) {
     line(m.x1, m.y1, m.x2, m.y2, style.moderationColor, style.pathWidth, true, '6 4');
     out.push(`<circle cx="${n(m.x2)}" cy="${n(m.y2)}" r="3" fill="${style.moderationColor}"/>`);
+    if (m.badge) {
+      const b = m.badge, w = Math.max(b.w, textWidth(b.text, fs) + 16), h = fs + 10;
+      extend(b.x - w / 2, b.y - h / 2); extend(b.x + w / 2, b.y + h / 2);
+      out.push(`<rect x="${n(b.x - w / 2)}" y="${n(b.y - h / 2)}" width="${n(w)}" height="${n(h)}" rx="${n(h / 2)}" fill="${style.constructFill}" stroke="${style.moderationColor}" stroke-width="${n(style.constructStrokeWidth)}" stroke-dasharray="4 3"/>`);
+      out.push(`<text x="${n(b.x)}" y="${n(b.y + fs * 0.35)}" font-size="${fs}" font-weight="bold" text-anchor="middle" fill="#1f2430">${esc(b.text)}</text>`);
+    }
   }
   for (const p of f.paths) line(p.x1, p.y1, p.x2, p.y2, style.pathColor, pathStrokeWidth(style, p.label?.value ?? null), true);
   for (const h of f.higherOrder) line(h.x1, h.y1, h.x2, h.y2, style.pathColor, style.pathWidth * 0.9, true);
@@ -106,7 +113,10 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
       const t = p.moderated ? 0.3 : 0.5;
       label(p.x1 + t * (p.x2 - p.x1), p.y1 + t * (p.y2 - p.y1), p.label, tone(p.label.p));
     }
-    for (const m of f.moderations) if (m.label) label((m.x1 + m.x2) / 2, (m.y1 + m.y2) / 2, m.label, tone(m.label.p));
+    for (const m of f.moderations) if (m.label) {
+      if (m.badge) label(m.badge.x + Math.max(m.badge.w, textWidth(m.badge.text, fs) + 16) / 2 + 4, m.badge.y, m.label, tone(m.label.p), 'start');
+      else label((m.x1 + m.x2) / 2, (m.y1 + m.y2) / 2, m.label, tone(m.label.p));
+    }
     for (const h of f.higherOrder) if (h.label) label((h.x1 + h.x2) / 2, (h.y1 + h.y2) / 2, h.label, '#333333');
     for (const k of f.correlations) if (k.label) {
       // Hang the label off the outer side of the arc.

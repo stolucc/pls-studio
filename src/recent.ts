@@ -3,10 +3,12 @@
 // files (Save) remain the durable copy. Falls back to memory when IndexedDB is
 // unavailable (private windows, blocked storage).
 
+import type { Method } from './model/project';
+
 export interface RecentEntry {
   id: string;
   name: string;
-  method: 'pls' | 'cbsem';
+  method: Method;
   updated: number;
   constructs: number;
   /** Short description of the data ("example.csv · 300 rows", "covariance matrix · N = 155"). */

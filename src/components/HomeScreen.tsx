@@ -200,7 +200,7 @@ export function HomeScreen() {
                   <button className="recent-open" onClick={() => void openRecent(r.id)} title={`Open ${r.name}`}>
                     <span className="recent-name">{r.name}</span>
                     <span className="recent-meta">
-                      <span className="chip accent">{r.method === 'cbsem' ? 'CB-SEM' : 'PLS-SEM'}</span>
+                      <span className="chip accent">{r.method === 'cbsem' ? 'CB-SEM' : r.method === 'process' ? 'Process' : 'PLS-SEM'}</span>
                       {r.constructs} construct{r.constructs === 1 ? '' : 's'} · {r.dataLabel}
                     </span>
                     <span className="recent-time">{r.id === projectId && hasCurrent ? 'open now · ' : ''}edited {relativeTime(r.updated)}</span>

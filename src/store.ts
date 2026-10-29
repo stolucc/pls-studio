@@ -3,7 +3,11 @@ import type { FitTestResult } from './engine/bootstrap';
 import type { CbResult } from './engine/cbsem';
 import type { MiivResult } from './engine/miiv';
 import type { BootstrapResult, Dataset, PlsResult } from './engine/types';
+import type { CpaResult } from './rengine/cpa';
 import { autoLayout, suggestName } from './model/layout';
+import { graphToModel, isSlotName, templateModel, templatePositions } from './process/canvas';
+import { processGraph } from './process/fromModel';
+import { materialise, mediatorRange, template } from './process/templates';
 import {
   createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, toSpec,
   type Construct, type Correlation, type DataInfo, type ModelState, type Settings, type Side,
@@ -22,6 +26,8 @@ export interface Results {
   /** Bootstrap for whichever method the key describes. */
   boot: BootstrapResult | null;
   fitTest: FitTestResult | null;
+  /** Conditional process analysis (estimates and bootstrap in one run). */
+  process?: CpaResult | null;
   /** Fingerprint of the model/settings/data the results were computed for. */
   key: string;
 }
@@ -88,8 +94,16 @@ interface State {
   removePaths: (ids: string[]) => void;
   deleteItems: (constructIds: string[], pathIds: string[], moderationIds?: string[], correlationIds?: string[]) => void;
   addModeration: (moderatorId: string, pathId: string) => boolean;
+  /** Moderated moderation (conditional process analysis): `moderatorId` moderates the moderation `moderationId`. */
+  addThreeWay: (moderatorId: string, moderationId: string) => boolean;
+  /** Quadratic effect of a path's predictor (X² → Y). */
+  addQuadratic: (pathId: string) => boolean;
   addCorrelation: (kind: Correlation['kind'], a: string, b: string) => boolean;
   reversePath: (id: string) => void;
+  /** Replace the model by PROCESS model `model` with `k` mediators (empty slots; covariates kept). */
+  applyTemplate: (model: number, k: number) => boolean;
+  /** Change the number of mediators of the recognised PROCESS model, keeping its variables. */
+  setMediatorCount: (k: number) => boolean;
   layout: () => void;
 
   setSelection: (s: Selection) => void;
@@ -133,7 +147,15 @@ export const emptyModel = (): ModelState => ({ constructs: [], paths: [], modera
 /** Fingerprint used to tell whether results still describe the current model. */
 export function resultsKey(s: Pick<State, 'model' | 'settings' | 'dataVersion'>): string {
   // Inference options and the figure style do not change the estimates.
-  const { bootSamples: _b, seed: _s, confidence: _c, figure: _f, ...plsSettings } = s.settings;
+  const { bootSamples: _b, seed: _s, confidence: _c, figure: _f, charts: _h, ...plsSettings } = s.settings;
+  // Conditional process analysis bootstraps as part of estimation; it also depends on
+  // moderated moderations and covariate flags, and nothing in it reads correlations.
+  if (s.settings.method === 'process') {
+    const { figure: _g, charts: _i, ...settings } = s.settings;
+    const { covariances: _k, ...spec } = toSpec(s.model);
+    const three = (s.model.threeWay ?? []).map((t) => [t.moderation, t.moderator]);
+    return JSON.stringify([spec, three, settings, s.dataVersion]);
+  }
   // Correlations only enter CB-SEM, so drawing one does not make PLS results stale.
   const { covariances: _k, ...plsSpec } = toSpec(s.model);
   return JSON.stringify([s.settings.method === 'pls' ? plsSpec : toSpec(s.model), plsSettings, s.dataVersion]);
@@ -210,14 +232,20 @@ export const useStore = create<State>((set, get) => ({
   // Delegates to deleteItems so dangling paths and moderations go too.
   removeConstructs: (ids) => get().deleteItems(ids, []),
   assignIndicators: (id, names) =>
-    get().commit((m) => ({
-      ...m,
-      constructs: m.constructs.map((c) =>
-        c.id === id
-          ? { ...c, indicators: [...c.indicators, ...names.filter((n) => !c.indicators.includes(n))] }
-          : { ...c, indicators: c.indicators.filter((i) => !names.includes(i)) },
-      ),
-    })),
+    get().commit((m) => {
+      // Conditional process slots (X, M1, W, …) take the name of the single variable dropped on them.
+      const slot = m.constructs.find((c) => c.id === id);
+      const rename = get().settings.method === 'process' && slot && slot.indicators.length === 0 && isSlotName(slot.name)
+        && names.length === 1 && !m.constructs.some((c) => c.name === names[0]);
+      return {
+        ...m,
+        constructs: m.constructs.map((c) =>
+          c.id === id
+            ? { ...c, ...(rename ? { name: names[0] } : {}), indicators: [...c.indicators, ...names.filter((n) => !c.indicators.includes(n))] }
+            : { ...c, indicators: c.indicators.filter((i) => !names.includes(i)) },
+        ),
+      };
+    }),
   removeIndicator: (id, name) =>
     get().commit((m) => ({
       ...m,
@@ -244,26 +272,35 @@ export const useStore = create<State>((set, get) => ({
     get().commit((m) => {
       const paths = m.paths.filter((p) => !pathIds.includes(p.id) && !constructIds.includes(p.from) && !constructIds.includes(p.to));
       const keep = new Set(paths.map((p) => p.id));
+      const moderations = m.moderations.filter((mo) => !moderationIds.includes(mo.id) && keep.has(mo.path) && !constructIds.includes(mo.moderator));
+      const keptMods = new Set(moderations.map((mo) => mo.id));
       return {
         constructs: m.constructs.filter((c) => !constructIds.includes(c.id)).map((c) =>
           c.components?.some((x) => constructIds.includes(x)) ? { ...c, components: c.components.filter((x) => !constructIds.includes(x)) } : c),
         paths,
-        moderations: m.moderations.filter((mo) => !moderationIds.includes(mo.id) && keep.has(mo.path) && !constructIds.includes(mo.moderator)),
+        moderations,
         ...(m.correlations ? { correlations: m.correlations.filter((k) => !correlationIds.includes(k.id)) } : {}),
+        ...(m.threeWay ? { threeWay: m.threeWay.filter((t) => !moderationIds.includes(t.id) && keptMods.has(t.moderation) && !constructIds.includes(t.moderator)) } : {}),
       };
     });
     set({ selection: NO_SELECTION });
+  },
+  addQuadratic: (pathId) => {
+    const p = get().model.paths.find((q) => q.id === pathId);
+    return p ? get().addModeration(p.from, pathId) : false;
   },
   addModeration: (moderatorId, pathId) => {
     const { model, toast } = get();
     const p = model.paths.find((q) => q.id === pathId);
     if (!p) return false;
-    if (moderatorId === p.from || moderatorId === p.to) {
-      toast('error', 'A construct cannot moderate a path it is part of.');
+    // The predictor "moderating" its own path is its quadratic effect (X²).
+    if (moderatorId === p.to) {
+      toast('error', 'The outcome of a path cannot moderate it.');
       return false;
     }
     if (model.moderations.some((mo) => mo.moderator === moderatorId && mo.path === pathId)) return false;
-    const needsMain = !model.paths.some((q) => q.from === moderatorId && q.to === p.to);
+    // Conditional process models imply the moderator's main effect; SEM models draw it.
+    const needsMain = get().settings.method !== 'process' && !model.paths.some((q) => q.from === moderatorId && q.to === p.to);
     if (needsMain && createsCycle(model.paths, moderatorId, p.to)) {
       toast('error', 'This moderator lies downstream of the outcome; moderating would create a cycle.');
       return false;
@@ -276,6 +313,24 @@ export const useStore = create<State>((set, get) => ({
       moderations: [...m.moderations, { id, moderator: moderatorId, path: pathId }],
     }));
     if (needsMain) toast('info', 'Added the moderator’s direct path to the outcome, which moderation requires.');
+    set({ selection: { nodes: [], edges: [], moderations: [id] } });
+    return true;
+  },
+  addThreeWay: (moderatorId, moderationId) => {
+    const { model, toast } = get();
+    const mo = model.moderations.find((x) => x.id === moderationId);
+    const p = mo && model.paths.find((q) => q.id === mo.path);
+    if (!mo || !p) return false;
+    if ([p.from, p.to, mo.moderator].includes(moderatorId)) {
+      toast('error', 'A moderated moderation needs a third variable: not the predictor, outcome or first moderator.');
+      return false;
+    }
+    if ((model.threeWay ?? []).some((t) => t.moderation === moderationId)) {
+      toast('error', 'This moderation is already moderated; PROCESS models have at most a three-way interaction.');
+      return false;
+    }
+    const id = newId('t');
+    get().commit((m) => ({ ...m, threeWay: [...(m.threeWay ?? []), { id, moderation: moderationId, moderator: moderatorId }] }));
     set({ selection: { nodes: [], edges: [], moderations: [id] } });
     return true;
   },
@@ -309,6 +364,31 @@ export const useStore = create<State>((set, get) => ({
     }
     get().commit((m) => ({ ...m, paths: m.paths.map((q) => (q.id === id ? { ...q, from: q.to, to: q.from } : q)) }));
   },
+  applyTemplate: (number, k) => {
+    const tp = template(number);
+    if (!tp) return false;
+    get().commit((m) => templateModel(tp, k, m));
+    set((s) => ({ selection: NO_SELECTION, fitRequest: s.fitRequest + 1 }));
+    return true;
+  },
+  setMediatorCount: (k) => {
+    const { model, toast } = get();
+    const found = processGraph(model).recognised;
+    const tp = found && template(found.model);
+    if (!found || !tp) return false;
+    const [lo, hi] = mediatorRange(tp);
+    if (k < lo || k > hi) {
+      toast('error', `PROCESS model ${tp.model} takes ${lo === hi ? lo : `${lo} to ${hi}`} mediators.`);
+      return false;
+    }
+    const taken = new Set(model.constructs.map((c) => c.name));
+    const m = found.roles.m.slice(0, k);
+    for (let i = 1; m.length < k; i++) if (!taken.has(`M${i}`) && !m.includes(`M${i}`)) m.push(`M${i}`);
+    const roles = { ...found.roles, m };
+    get().commit((prev) => graphToModel(materialise(tp, roles), prev, templatePositions(tp, roles)));
+    set((s) => ({ selection: NO_SELECTION, fitRequest: s.fitRequest + 1 }));
+    return true;
+  },
   layout: () => {
     get().commit((m) => ({ ...m, constructs: autoLayout(m) }));
     set((s) => ({ fitRequest: s.fitRequest + 1 }));
@@ -341,7 +421,7 @@ export const useStore = create<State>((set, get) => ({
   setJob: (job) => set({ job }),
   setResults: (r, key) =>
     set((s) => {
-      const base = s.results && s.results.key === key ? s.results : { pls: null, cb: null, miiv: null, boot: null, fitTest: null, key };
+      const base = s.results && s.results.key === key ? s.results : { pls: null, cb: null, miiv: null, boot: null, fitTest: null, process: null, key };
       return { results: { ...base, ...r, key }, resultsOpen: true, fitRequest: s.resultsOpen ? s.fitRequest : s.fitRequest + 1 };
     }),
   toast: (kind, text) => {

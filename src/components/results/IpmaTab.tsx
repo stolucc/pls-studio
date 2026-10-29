@@ -5,6 +5,7 @@ import { toSpec } from '../../model/project';
 import { useStore } from '../../store';
 import { c, Table } from './Table';
 import { RScriptButton } from './RScriptButton';
+import { ChartFrame } from '../ChartFrame';
 
 /** Greedy vertical de-overlap of point labels (labels sit right of their point). */
 export function placeLabels<T extends { name: string; x: number; y: number }>(pts: T[], lineH = 13): (T & { ly: number })[] {
@@ -19,8 +20,8 @@ export function placeLabels<T extends { name: string; x: number; y: number }>(pt
 }
 
 /** Importance (x) vs performance (y) scatter with dashed mean lines splitting the quadrants. */
-function IpmaChart({ points, xLabel, yMax }: { points: IpmaPoint[]; xLabel: string; yMax: number }) {
-  const W = 520, H = 320, pad = { l: 46, r: 16, t: 14, b: 40 };
+function IpmaChart({ id, points, xLabel, yMax }: { id: string; points: IpmaPoint[]; xLabel: string; yMax: number }) {
+  const W = 520, H = 320, pad = { l: 50, r: 16, t: 14, b: 40 };
   const xs = points.map((p) => p.importance);
   const xMin = Math.min(0, ...xs), xMax = Math.max(...xs, 0.01) * 1.12;
   const ys = points.map((p) => p.performance);
@@ -30,6 +31,8 @@ function IpmaChart({ points, xLabel, yMax }: { points: IpmaPoint[]; xLabel: stri
   const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
   const ticks = (lo: number, hi: number, k: number) => Array.from({ length: k + 1 }, (_, i) => lo + ((hi - lo) * i) / k);
   return (
+    <ChartFrame id={id} name="ipma" width={W} height={H} defaults={{ x: xLabel, y: 'Performance' }}>
+    {(labels) => (
     <svg className="ipma" width={W} height={H} role="img" aria-label="Importance-performance map">
       {ticks(yLo, yHi, 4).map((v) => (
         <g key={`y${v}`}>
@@ -51,9 +54,11 @@ function IpmaChart({ points, xLabel, yMax }: { points: IpmaPoint[]; xLabel: stri
           <text x={p.x + 9} y={p.ly + 4} className="dot-label">{p.name}</text>
         </g>
       ))}
-      <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">{xLabel}</text>
-      <text transform={`translate(12 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`} textAnchor="middle" className="axis-title">Performance</text>
+      <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">{labels.x}</text>
+      <text transform={`translate(12 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`} textAnchor="middle" className="axis-title">{labels.y}</text>
     </svg>
+    )}
+    </ChartFrame>
   );
 }
 
@@ -135,7 +140,7 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
             <div className="issue warning">Negative weights for {result.negativeWeights.join(', ')}: performance values are hard to interpret.</div>
           )}
           <div className="tables">
-            <IpmaChart points={relevant} xLabel={`Importance (total effect on ${target})`} yMax={rescale ? 100 : Infinity} />
+            <IpmaChart id={`ipma:${target}:${level}`} points={relevant} xLabel={`Importance (total effect on ${target})`} yMax={rescale ? 100 : Infinity} />
             <Table title={`IPMA for ${target}`} file={`ipma-${level}`}
               columns={level === 'constructs' ? ['Construct', 'Importance', 'Performance'] : ['Indicator', 'Construct', 'Weight', 'Importance', 'Performance']}
               rows={level === 'constructs'

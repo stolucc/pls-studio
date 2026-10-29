@@ -1,0 +1,201 @@
+{
+  "name": "pls_seminr_quadratic_mobi",
+  "source": "seminr",
+  "kind": "pls",
+  "dataset": "mobi",
+  "missingTokens": null,
+  "options": {
+    "scheme": "path",
+    "consistent": false,
+    "missing": "mean"
+  },
+  "model": {
+    "constructs": [
+      {
+        "name": "Image",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["IMAG1", "IMAG2", "IMAG3", "IMAG4", "IMAG5"]
+      },
+      {
+        "name": "Expectation",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUEX1", "CUEX2", "CUEX3"]
+      },
+      {
+        "name": "Satisfaction",
+        "type": "factor",
+        "mode": "A",
+        "indicators": ["CUSA1", "CUSA2", "CUSA3"]
+      }
+    ],
+    "paths": [
+      {
+        "from": "Image",
+        "to": "Satisfaction"
+      },
+      {
+        "from": "Expectation",
+        "to": "Satisfaction"
+      }
+    ],
+    "moderations": [
+      {
+        "from": "Image",
+        "moderator": "Image",
+        "to": "Satisfaction"
+      }
+    ],
+    "covariances": []
+  },
+  "expected": {
+    "paths": [
+      {
+        "from": "Image",
+        "to": "Satisfaction",
+        "est": 0.594327895705084
+      },
+      {
+        "from": "Expectation",
+        "to": "Satisfaction",
+        "est": 0.214089923404855
+      },
+      {
+        "from": "Image²",
+        "to": "Satisfaction",
+        "est": 0.016360978792128
+      }
+    ],
+    "loadings": [
+      {
+        "construct": "Image",
+        "indicator": "IMAG1",
+        "est": 0.763207488700486
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG2",
+        "est": 0.599953150927265
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG3",
+        "est": 0.560270560469992
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG4",
+        "est": 0.768808283872146
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG5",
+        "est": 0.736415568164956
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX1",
+        "est": 0.760205591996429
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX2",
+        "est": 0.710606329603729
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX3",
+        "est": 0.598736374973256
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA1",
+        "est": 0.818427391969869
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA2",
+        "est": 0.838242237030099
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA3",
+        "est": 0.84095385300973
+      }
+    ],
+    "weights": [
+      {
+        "construct": "Image",
+        "indicator": "IMAG1",
+        "est": 0.33133954146383
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG2",
+        "est": 0.254733993313623
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG3",
+        "est": 0.198353758446127
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG4",
+        "est": 0.330647299671222
+      },
+      {
+        "construct": "Image",
+        "indicator": "IMAG5",
+        "est": 0.310904025077604
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX1",
+        "est": 0.503941024696066
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX2",
+        "est": 0.499532052447415
+      },
+      {
+        "construct": "Expectation",
+        "indicator": "CUEX3",
+        "est": 0.437472296037241
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA1",
+        "est": 0.415309077460092
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA2",
+        "est": 0.364645352352778
+      },
+      {
+        "construct": "Satisfaction",
+        "indicator": "CUSA3",
+        "est": 0.421472043591436
+      }
+    ],
+    "r2": {
+      "Satisfaction": 0.520305137755053
+    },
+    "alpha": null,
+    "rhoC": null,
+    "ave": null,
+    "rhoA": null,
+    "htmt": null
+  },
+  "tolerance": 1e-05,
+  "versions": {
+    "lavaan": "0.6.16",
+    "seminr": "2.3.4",
+    "cSEM": "0.5.0",
+    "plspm": "0.5.1",
+    "R": "4.3.1"
+  }
+}

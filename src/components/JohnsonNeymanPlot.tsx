@@ -1,15 +1,19 @@
 import type { JohnsonNeyman } from '../engine/jn';
+import { ChartFrame } from './ChartFrame';
 
 /**
  * Johnson–Neyman plot: conditional effect of the predictor across moderator
- * values (±3 SD of the latent moderator) with its confidence band; shaded
+ * values (±3 SD of the moderator) with its confidence band; shaded
  * where the effect is significant, dashed lines at the region boundaries.
  */
-export function JohnsonNeymanPlot({ jn, from, moderator, width = 320, height = 200 }: {
-  jn: JohnsonNeyman; from: string; moderator: string; width?: number; height?: number;
+export function JohnsonNeymanPlot({ jn, from, moderator, to, width = 320, height = 200, center = 0, level = 0.95 }: {
+  jn: JohnsonNeyman; from: string; moderator: string; to?: string; width?: number; height?: number;
+  /** Mean of an observed moderator (latent moderators are centred at 0). */
+  center?: number;
+  level?: number;
 }) {
-  const pad = { l: 40, r: 10, t: 10, b: 34 };
-  const lo = -3 * jn.sdM, hi = 3 * jn.sdM;
+  const pad = { l: 52, r: 10, t: 10, b: 34 };
+  const lo = center - 3 * jn.sdM, hi = center + 3 * jn.sdM;
   const N = 120;
   const pts = Array.from({ length: N + 1 }, (_, i) => {
     const m = lo + ((hi - lo) * i) / N;
@@ -31,8 +35,16 @@ export function JohnsonNeymanPlot({ jn, from, moderator, width = 320, height = 2
     else regions.push([p.m, p.m]);
   });
   const sdTicks = [-3, -2, -1, 0, 1, 2, 3];
+  const caption = (
+    <figcaption className="hint" style={{ marginTop: 4 }}>
+      Effect of {from} (unstandardised) with {Math.round(level * 100)}% band; shaded where significant (α = {+(1 - level).toFixed(3)}).
+      {jn.boundaries.length === 0 ? ' No boundary: significance does not change with the moderator.' : ''}
+    </figcaption>
+  );
   return (
-    <figure style={{ margin: 0 }}>
+    <ChartFrame id={`jn:${from}:${moderator}${to ? `:${to}` : ''}`} name={`jn-${from}-${moderator}`} width={width} height={height} caption={caption}
+      defaults={{ x: `${moderator} (${center ? 'SD from the mean' : 'SD'})`, y: to ? `Effect of ${from} on ${to}` : `Effect of ${from}` }}>
+      {(labels) => (
       <svg className="jn" width={width} height={height} role="img"
         aria-label={`Johnson-Neyman plot of the effect of ${from} across ${moderator}`}>
         {regions.map(([a, b], i) => (
@@ -45,19 +57,17 @@ export function JohnsonNeymanPlot({ jn, from, moderator, width = 320, height = 2
         {jn.boundaries.filter((b) => b > lo && b < hi).map((b) => (
           <g key={b}>
             <line className="jn-bound" x1={sx(b)} x2={sx(b)} y1={pad.t} y2={pad.t + H} />
-            <text x={sx(b) + 3} y={pad.t + 10}>{(b / jn.sdM).toFixed(2)} SD</text>
+            <text x={sx(b) + 3} y={pad.t + 10}>{((b - center) / jn.sdM).toFixed(2)} SD</text>
           </g>
         ))}
-        {sdTicks.map((k) => <text key={k} x={sx(k * jn.sdM)} y={pad.t + H + 14} textAnchor="middle">{k}</text>)}
-        <text x={pad.l + W / 2} y={height - 4} textAnchor="middle">{moderator} (SD)</text>
+        {sdTicks.map((k) => <text key={k} x={sx(center + k * jn.sdM)} y={pad.t + H + 14} textAnchor="middle">{k}</text>)}
+        <text className="axis-title" x={pad.l + W / 2} y={height - 4} textAnchor="middle">{labels.x}</text>
+        <text className="axis-title" transform={`translate(12 ${pad.t + H / 2}) rotate(-90)`} textAnchor="middle">{labels.y}</text>
         <text x={pad.l - 6} y={sy(yMax) + 4} textAnchor="end">{yMax.toFixed(2)}</text>
         <text x={pad.l - 6} y={sy(0) + 4} textAnchor="end">0</text>
         <text x={pad.l - 6} y={sy(yMin) + 4} textAnchor="end">{yMin.toFixed(2)}</text>
       </svg>
-      <figcaption className="hint" style={{ marginTop: 4 }}>
-        Effect of {from} (unstandardised) with 95% band; shaded where significant (α = .05).
-        {jn.boundaries.length === 0 ? ' No boundary: significance does not change with the moderator.' : ''}
-      </figcaption>
-    </figure>
+      )}
+    </ChartFrame>
   );
 }

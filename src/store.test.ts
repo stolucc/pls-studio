@@ -25,9 +25,9 @@ describe('moderation in the store', () => {
     expect(s().selection.moderations).toHaveLength(1);
   });
 
-  it('rejects self-moderation, duplicates and cycles', () => {
-    const { x, y, m, path } = setup();
-    expect(s().addModeration(x, path)).toBe(false);
+  it('rejects the outcome as moderator, duplicates and cycles', () => {
+    const { y, m, path } = setup();
+    expect(s().addModeration(y, path)).toBe(false);
     expect(s().addModeration(m, path)).toBe(true);
     expect(s().addModeration(m, path)).toBe(false);
     // A construct downstream of the outcome cannot moderate (its main effect would be a cycle).
@@ -35,7 +35,26 @@ describe('moderation in the store', () => {
     s().addPath(y, z);
     expect(s().addModeration(z, path)).toBe(false);
     expect(s().model.moderations).toHaveLength(1);
-    void x;
+  });
+
+  it('adds a quadratic effect: the predictor moderating its own path, without extra paths', () => {
+    const { x, y, path } = setup();
+    expect(s().addQuadratic(path)).toBe(true);
+    expect(s().model.moderations).toEqual([expect.objectContaining({ moderator: x, path })]);
+    expect(s().model.paths).toHaveLength(1);
+    expect(s().addQuadratic(path)).toBe(false);
+    const names = Object.fromEntries(s().model.constructs.map((c) => [c.id, c.name]));
+    expect(toSpec(s().model).moderations).toEqual([{ from: names[x], moderator: names[x], to: names[y] }]);
+    const data = { names: ['x1', 'y1', 'm1'], cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)) };
+    const errors = (st: Parameters<typeof validateModel>[2]) => validateModel(s().model, data, st).filter((i) => i.level === 'error' && !i.message.includes('not connected')).map((i) => i.message);
+    expect(errors({ method: 'pls', consistent: false })).toEqual([]);
+    expect(errors({ method: 'cbsem', consistent: false })).toEqual([]);
+    expect(errors({ method: 'pls', consistent: true })).toEqual([expect.stringMatching(/Quadratic effects \(the quadratic effect of .* on .*\) are not yet supported with PLSc/)]);
+    expect(errors({ method: 'cbsem', consistent: false, estimator: '2SLS' })).toEqual([expect.stringMatching(/Quadratic effects .* not available with MIIV-2SLS/)]);
+    // CB-SEM: the predictor must be exogenous (reported once, not twice).
+    const { m } = { m: s().model.constructs[2].id };
+    s().addPath(m, x);
+    expect(errors({ method: 'cbsem', consistent: false })).toEqual([expect.stringMatching(/^The quadratic effect of .*: in CB-SEM the predictor must be exogenous/)]);
   });
 
   it('deleting the path or the moderator removes the moderation; undo restores it', () => {

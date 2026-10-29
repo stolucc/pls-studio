@@ -3,12 +3,16 @@ import {
   Background, BackgroundVariant, Controls, MiniMap, ReactFlow, useReactFlow,
   type Connection, type ConnectionLineComponentProps, type EdgeChange, type FinalConnectionState, type NodeChange, type OnDelete,
 } from '@xyflow/react';
-import { useCallback, useEffect, useMemo, useState, type DragEvent, type MouseEvent } from 'react';
-import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment } from '../geometry';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
+import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment, quadraticSegment } from '../geometry';
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { FigurePanel } from './FigurePanel';
-import { correlationEndError, correlationPairError, validateModel, type Correlation } from '../model/project';
+import { ProcessGallery } from './ProcessGallery';
+import { ProcessBar } from './ProcessBar';
+import { ContextMenu } from './ContextMenu';
+import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
+import { correlationEndError, correlationPairError, endogenousIds, validateModel, type Correlation } from '../model/project';
 import type { ExampleId } from '../io';
 import { run } from '../runner';
 import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from '../store';
@@ -20,7 +24,7 @@ import { CovarianceLayer, covarianceLayout, type CorrelationLabel, type Correlat
 import { currentSession } from '../cloud/collab';
 import { PresenceLayer } from './cloud/Presence';
 import { HigherOrderLayer, type HoLabel } from './HigherOrderLayer';
-import { ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
+import { badgeWidth, ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
 import { PathEdge, type PathFlowEdge } from './PathEdge';
 
 const nodeTypes = { construct: ConstructNode };
@@ -92,7 +96,9 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
 
   // Correlation tool: the first end picked, waiting for the second.
   const [picked, setPicked] = useState<CorrelationPick | null>(null);
-  useEffect(() => { setPicked(null); }, [tool]);
+  // "Correlate with…" from a context menu switches to the tool with its first end picked.
+  const pendingPick = useRef<CorrelationPick | null>(null);
+  useEffect(() => { setPicked(pendingPick.current); pendingPick.current = null; }, [tool]);
   useEffect(() => { if (method !== 'cbsem' && tool === 'correlate') st().setTool('select'); }, [method, tool, st]);
   const pick = useCallback((p: CorrelationPick) => {
     const endError = correlationEndError(st().model, p);
@@ -171,6 +177,29 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
           const boot = results.boot?.stats.find((s) => s.key === `path:${from}:${to}`)?.p;
           const e = cb.estimates.find((x) => x.op === '~' && x.lhs === to && x.rhs === from);
           return { beta: unstd ? e?.est ?? null : cb.stdPaths[i][j], p: boot ?? e?.p ?? null };
+        },
+      };
+    }
+    if (method === 'process' && results.process) {
+      // Unstandardised OLS coefficients: a path shows the coefficient of its predictor in the
+      // outcome's equation (the effect where the moderators are 0), a moderation its product term.
+      const eqs = results.process.equations;
+      const coef = (to: string, vars: string[]) => {
+        const k = [...vars].sort().join('*');
+        return eqs.find((e) => e.outcome === to)?.coefficients.find((c) => [...c.term].sort().join('*') === k);
+      };
+      return {
+        r2: (name: string) => eqs.find((e) => e.outcome === name)?.r2 ?? null,
+        indicator: () => null,
+        reflectiveThresholds: () => false,
+        path: (from: string, to: string) => { const c = coef(to, [from]); return { beta: c?.est ?? null, p: c?.p ?? null }; },
+        moderation: (from: string, moderator: string, to: string): ModerationLabel | null => {
+          const c = coef(to, [from, moderator]);
+          return c ? { beta: c.est, p: c.p } : null;
+        },
+        threeWay: (from: string, w: string, z: string, to: string): ModerationLabel | null => {
+          const c = coef(to, [from, w, z]);
+          return c ? { beta: c.est, p: c.p } : null;
         },
       };
     }
@@ -304,23 +333,35 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     const pos = rf.screenToFlowPosition({ x: pt.clientX, y: pt.clientY });
     const { model: m } = st();
     const byId = new Map(m.constructs.map((c) => [c.id, c]));
-    let best: { id: string; d: number } | null = null;
+    let best: { id: string; d: number; moderation?: boolean } | null = null;
     for (const p of m.paths) {
       const seg = pathSegment(byId.get(p.from)!, byId.get(p.to)!);
       if (!seg) continue;
       const d = distanceToSegment(pos.x, pos.y, seg);
       if (!best || d < best.d) best = { id: p.id, d };
+      // Conditional process models: dropping onto a moderation's arrow moderates that moderation.
+      if (st().settings.method !== 'process') continue;
+      for (const mo of m.moderations) {
+        const w = byId.get(mo.moderator);
+        if (mo.path !== p.id || !w || w.id === p.from) continue;
+        const dm = distanceToSegment(pos.x, pos.y, moderatorSegment(w, seg));
+        if (dm < best.d) best = { id: mo.id, d: dm, moderation: true };
+      }
     }
-    if (best && best.d <= 16 / rf.getViewport().zoom) st().addModeration(state.fromNode.id, best.id);
+    if (!best || best.d > 16 / rf.getViewport().zoom) return;
+    if (best.moderation) st().addThreeWay(state.fromNode.id, best.id);
+    else st().addModeration(state.fromNode.id, best.id);
   }, [rf, st]);
 
   const moderationLabel = useCallback((id: string): ModerationLabel | null => {
     if (!display) return null;
     const m = st().model;
-    const mo = m.moderations.find((x) => x.id === id);
+    const three = m.threeWay?.find((t) => t.id === id);
+    const mo = m.moderations.find((x) => x.id === (three ? three.moderation : id));
     const p = mo && m.paths.find((q) => q.id === mo.path);
     if (!mo || !p) return null;
     const name = (cid: string) => m.constructs.find((c) => c.id === cid)?.name ?? '';
+    if (three) return display.threeWay?.(name(p.from), name(mo.moderator), name(three.moderator), name(p.to)) ?? null;
     return display.moderation(name(p.from), name(mo.moderator), name(p.to));
   }, [display, st]);
 
@@ -342,6 +383,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
 
   // Everything the figure export draws, with the same values as the diagram.
   const [figureOpen, setFigureOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const figureInput = useCallback((): FigureInput => {
     const m = st().model;
     const byId = new Map(m.constructs.map((c) => [c.id, c]));
@@ -369,6 +411,11 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const seg = s && t ? pathSegment(s, t) : null;
       if (!seg || !mod) return [];
       const l = moderationLabel(mo.id);
+      if (mod.id === p!.from) {
+        const q = quadraticSegment(seg);
+        const text = `${mod.name}²`;
+        return [{ x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: lbl(l?.beta, l?.p ?? null), badge: { x: q.bx, y: q.by, text, w: badgeWidth(text) } }];
+      }
       return [{ ...moderatorSegment(mod, seg), label: lbl(l?.beta, l?.p ?? null) }];
     });
     const higherOrder = m.constructs.flatMap((parent) => (parent.components ?? []).flatMap((cid) => {
@@ -390,6 +437,58 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     });
     return { constructs, paths, moderations, higherOrder, errors, correlations };
   }, [st, method, display, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel]);
+
+  // Right-click menus (canvasMenu.ts decides what each one offers).
+  const [menu, setMenu] = useState<{ x: number; y: number; target: MenuTarget } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const openMenu = useCallback((e: MouseEvent | globalThis.MouseEvent, target: MenuTarget) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, target });
+  }, []);
+  const startCorrelate = (p: CorrelationPick) => {
+    const endError = correlationEndError(st().model, p);
+    if (endError) {
+      st().toast('info', endError);
+      if (!st().showErrorTerms) st().setShowErrorTerms(true);
+      return;
+    }
+    if (p.kind === 'indicator' && !st().showErrorTerms) st().setShowErrorTerms(true);
+    if (tool === 'correlate') { setPicked(p); return; }
+    pendingPick.current = p;
+    st().setTool('correlate');
+  };
+  const onMenuAction = (target: MenuTarget, a: MenuAction) => {
+    const s = st();
+    switch (a) {
+      case 'edit': if (target.kind === 'construct') s.select('construct', target.id); break;
+      case 'make-composite': if (target.kind === 'construct') s.updateConstruct(target.id, { type: 'composite' }); break;
+      case 'make-factor': if (target.kind === 'construct') s.updateConstruct(target.id, { type: 'factor' }); break;
+      case 'correlate':
+        if (target.kind === 'indicator') startCorrelate({ kind: 'indicator', id: target.name });
+        else if (target.kind === 'disturbance') startCorrelate({ kind: 'construct', id: target.id, via: 'disturbance' });
+        else if (target.kind === 'construct') {
+          // Endogenous constructs correlate through their disturbance.
+          const via = endogenousIds(s.model).has(target.id) ? 'disturbance' as const : undefined;
+          startCorrelate({ kind: 'construct', id: target.id, ...(via ? { via } : {}) });
+        }
+        break;
+      case 'delete-construct': if (target.kind === 'construct') s.deleteItems([target.id], []); break;
+      case 'remove-indicator': if (target.kind === 'indicator') s.removeIndicator(target.construct, target.name); break;
+      case 'reverse-path': if (target.kind === 'path') s.reversePath(target.id); break;
+      case 'add-quadratic': if (target.kind === 'path') s.addQuadratic(target.id); break;
+      case 'delete-path': if (target.kind === 'path') s.deleteItems([], [target.id]); break;
+      case 'delete-moderation': if (target.kind === 'moderation') s.deleteItems([], [], [target.id]); break;
+      case 'delete-correlation': if (target.kind === 'correlation') s.deleteItems([], [], [], [target.id]); break;
+      case 'add-construct': if (target.kind === 'pane') s.addConstruct(Math.round(target.x), Math.round(target.y)); break;
+      case 'arrange': s.layout(); break;
+      case 'figure': setFigureOpen(true); break;
+      case 'make-covariate': if (target.kind === 'construct') s.updateConstruct(target.id, { covariate: true }); break;
+      case 'unmake-covariate': if (target.kind === 'construct') s.updateConstruct(target.id, { covariate: false }); break;
+      case 'process-template': setTemplatesOpen(true); break;
+    }
+  };
+  const menuContent = menu ? menuFor(menu.target, model, { method, readOnly }) : null;
 
   const isValidConnection = useCallback((c: Connection | PathFlowEdge) => c.source !== c.target, []);
 
@@ -443,6 +542,11 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         <button className="btn ghost" onClick={() => setFigureOpen(true)} disabled={empty} title="Figure style and export (PDF, PNG, SVG)">
           <IconDownload /> Figure
         </button>
+        {method === 'process' && (
+          <button className="btn ghost" onClick={() => setTemplatesOpen(true)} disabled={readOnly} title="Start from one of Hayes's numbered PROCESS models">
+            <IconSparkle size={14} /> Templates
+          </button>
+        )}
         {method === 'cbsem' && (
           <div className="segmented dock-seg" role="radiogroup" aria-label="Estimates on the diagram">
             <button role="radio" aria-checked={!unstd} className={!unstd ? 'on' : ''} onClick={() => st().setEstimateScale('std')} title="Standardised estimates (std.all)">Std</button>
@@ -477,6 +581,18 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
           const ind = (e.target as Element).closest('[data-ind]')?.getAttribute('data-ind');
           pick(ind ? { kind: 'indicator', id: ind } : { kind: 'construct', id: node.id });
         }}
+        onNodeContextMenu={(e, node) => {
+          const ind = (e.target as Element).closest('[data-ind]')?.getAttribute('data-ind');
+          if (!ind && !st().selection.nodes.includes(node.id)) st().select('construct', node.id);
+          openMenu(e, ind ? { kind: 'indicator', construct: node.id, name: ind } : { kind: 'construct', id: node.id });
+        }}
+        onEdgeContextMenu={(e, edge) => { st().select('path', edge.id); openMenu(e, { kind: 'path', id: edge.id }); }}
+        onPaneContextMenu={(e) => {
+          // Layers drawn over the pane (correlations, moderators, error terms) open their own menus.
+          if (!(e.target as Element).classList.contains('react-flow__pane')) return;
+          const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+          openMenu(e, { kind: 'pane', x: pos.x, y: pos.y });
+        }}
         elementsSelectable={tool !== 'correlate'}
         onDelete={onDelete}
         onConnect={onConnect}
@@ -501,10 +617,10 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         attributionPosition="top-right"
         style={{ cursor: tool === 'construct' ? 'copy' : undefined }}
       >
-        <ModeratorLayer labelFor={moderationLabel} />
+        <ModeratorLayer labelFor={moderationLabel} onMenu={openMenu} />
         <HigherOrderLayer loadingFor={hoLoading} />
         <CovarianceLayer active={method === 'cbsem'} showErrors={showErrors} picked={picked}
-          onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} />
+          onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} onMenu={openMenu} />
         <PresenceLayer />
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} color="#c9ceda" />
         <Controls showInteractive={false} position="bottom-left" fitViewOptions={{ padding: method === 'cbsem' ? 0.4 : 0.25, maxZoom: 1.1 }} />
@@ -515,8 +631,16 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         <div className="canvas-empty">
           <div className="card">
             <IconSparkle size={22} style={{ color: 'var(--accent)' }} />
-            <h2>Build a PLS path model</h2>
-            {data ? (
+            <h2>{method === 'process' ? 'Build a conditional process model' : method === 'cbsem' ? 'Build a structural equation model' : 'Build a PLS path model'}</h2>
+            {method === 'process' ? (
+              <>
+                <p>Pick one of Hayes’s PROCESS models (mediation, moderation, moderated mediation) and drag your variables onto its slots, or draw your own model: one X, one Y, mediators between them, and moderators pointing at paths.</p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn primary" onClick={() => setTemplatesOpen(true)} disabled={readOnly}><IconSparkle size={14} /> Choose a PROCESS model</button>
+                  {!data && <button className="btn" onClick={onImport}><IconUpload /> Import CSV</button>}
+                </div>
+              </>
+            ) : data ? (
               <ol className="steps">
                 <li>Drag variables from the left panel onto the canvas to create a construct.</li>
                 <li>Drop more variables on a construct to add indicators.</li>
@@ -537,7 +661,13 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         </div>
       )}
 
+      {menu && menuContent && (
+        <ContextMenu x={menu.x} y={menu.y} title={menuContent.title} items={menuContent.items}
+          onAction={(a) => onMenuAction(menu.target, a)} onClose={closeMenu} />
+      )}
       {figureOpen && <FigurePanel input={figureInput} onClose={() => setFigureOpen(false)} />}
+      {templatesOpen && <ProcessGallery onClose={() => setTemplatesOpen(false)} />}
+      {method === 'process' && !empty && <ProcessBar onTemplates={() => setTemplatesOpen(true)} />}
       {hasStaleResults && !empty && (
         <div className="stale-banner">
           Model changed since the last calculation.

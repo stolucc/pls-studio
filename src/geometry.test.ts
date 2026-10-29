@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, moderatorSegment, pathSegment,
+  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, moderatorSegment, QUAD_OFFSET, quadraticSegment, pathSegment,
 } from './geometry';
 
 describe('construct shapes', () => {
@@ -46,6 +46,24 @@ describe('path and moderator geometry', () => {
     const seg = pathSegment(a, b)!;
     expect(mod.x2).toBeCloseTo((seg.x1 + seg.x2) / 2, 9);
     expect(mod.y1).toBeCloseTo(-200 + constructGeometry(m).ry, 9);
+  });
+
+  it('puts a quadratic badge beside the path midpoint, above it or left of a vertical path', () => {
+    const q = quadraticSegment({ x1: 0, y1: 0, x2: 200, y2: 0 });
+    expect([q.x2, q.y2]).toEqual([100, 0]);
+    expect(q.bx).toBeCloseTo(100, 9);
+    expect(q.by).toBeCloseTo(-QUAD_OFFSET, 9);
+    expect(q.y1).toBeCloseTo(-QUAD_OFFSET + 11, 9);
+    // Either direction of the path gives the same side.
+    expect(quadraticSegment({ x1: 200, y1: 0, x2: 0, y2: 0 }).by).toBeCloseTo(-QUAD_OFFSET, 9);
+    const v = quadraticSegment({ x1: 0, y1: 0, x2: 0, y2: 100 });
+    expect(v.bx).toBeCloseTo(-QUAD_OFFSET, 9);
+    expect(quadraticSegment({ x1: 0, y1: 100, x2: 0, y2: 0 }).bx).toBeCloseTo(-QUAD_OFFSET, 9);
+    // Diagonal: the badge is QUAD_OFFSET from the midpoint, perpendicular to the path.
+    const d = quadraticSegment({ x1: 0, y1: 0, x2: 100, y2: 100 });
+    expect(Math.hypot(d.bx - 50, d.by - 50)).toBeCloseTo(QUAD_OFFSET, 9);
+    expect((d.bx - 50) * 100 + (d.by - 50) * 100).toBeCloseTo(0, 9);
+    expect(d.by).toBeLessThan(50);
   });
 });
 

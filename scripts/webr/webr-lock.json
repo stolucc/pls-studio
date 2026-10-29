@@ -953,6 +953,22 @@
         "File": "lme4_2.0-6.tgz"
       }
     },
+    "lmhelprs": {
+      "version": "0.4.5",
+      "md5": "4f2e847599f2e0240242eef5e989b025",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "lmhelprs",
+        "Version": "0.4.5",
+        "Depends": "R (>= 2.10)",
+        "Imports": "stats",
+        "Suggests": "knitr, rmarkdown, tinytest, semPlot",
+        "License": "GPL (>= 3)",
+        "MD5sum": "4f2e847599f2e0240242eef5e989b025",
+        "Built": "R 4.6.0; ; 2026-10-10 08:17:39 UTC; unix",
+        "File": "lmhelprs_0.4.5.tgz"
+      }
+    },
     "lmtest": {
       "version": "0.9-40",
       "md5": "1986857597832a731f21c68772c2456e",
@@ -982,6 +998,22 @@
         "MD5sum": "b8de5e142ae82a1e9ebdcc8cc60bc885",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 11:55:50 UTC; unix",
         "File": "magrittr_2.0.5.tgz"
+      }
+    },
+    "manymome": {
+      "version": "0.3.7",
+      "md5": "1b81c52ec19e1d2b204e5ebbbfb759af",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "manymome",
+        "Version": "0.3.7",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "lavaan, boot, parallel, pbapply, stats, ggplot2, igraph, MASS, methods, lmhelprs, psych, semTools (>= 0.5-8)",
+        "Suggests": "knitr, rmarkdown, lavaan.mi, Amelia, mice, semPlot, semptools (>= 0.3.2), testthat (>= 3.0.0)",
+        "License": "GPL (>= 3)",
+        "MD5sum": "1b81c52ec19e1d2b204e5ebbbfb759af",
+        "Built": "R 4.6.0; ; 2026-10-10 09:46:31 UTC; unix",
+        "File": "manymome_0.3.7.tgz"
       }
     },
     "MASS": {
@@ -1320,6 +1352,22 @@
         "MD5sum": "f3f3d5d48ecda0d03ed7d353b419e9fa",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 22:21:36 UTC; unix",
         "File": "partitions_1.11-1.tgz"
+      }
+    },
+    "pbapply": {
+      "version": "1.7-5",
+      "md5": "8aa3f51645ad3181e545f59c0cbbd318",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "pbapply",
+        "Version": "1.7-5",
+        "Depends": "R (>= 3.2.0)",
+        "Imports": "parallel",
+        "Suggests": "shiny, future, future.apply",
+        "License": "GPL (>= 2)",
+        "MD5sum": "8aa3f51645ad3181e545f59c0cbbd318",
+        "Built": "R 4.6.0; ; 2026-10-10 23:50:01 UTC; unix",
+        "File": "pbapply_1.7-5.tgz"
       }
     },
     "pbivnorm": {
@@ -1692,6 +1740,22 @@
         "MD5sum": "d5ae73c0b21af2b5fba3fd0be60007a7",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 02:35:52 UTC; unix",
         "File": "S7_0.2.2.tgz"
+      }
+    },
+    "sandwich": {
+      "version": "3.1-3",
+      "md5": "f4fb29d8c92023678bf91d62ff82ff8a",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "sandwich",
+        "Version": "3.1-3",
+        "Depends": "R (>= 3.0.0)",
+        "Imports": "stats, utils, zoo",
+        "Suggests": "AER, car, geepack, lattice, lme4, lmtest, MASS, multiwayvcov, parallel, pcse, plm, pscl, scatterplot3d, stats4, strucchange, survival",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "f4fb29d8c92023678bf91d62ff82ff8a",
+        "Built": "R 4.6.0; ; 2026-10-11 09:48:43 UTC; unix",
+        "File": "sandwich_3.1-3.tgz"
       }
     },
     "sass": {

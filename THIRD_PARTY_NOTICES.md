@@ -72,8 +72,10 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | lifecycle | 1.0.5 | MIT + file LICENSE | https://cran.r-project.org/package=lifecycle |
 | listenv | 1.1.0 | Apache License (>= 2) | https://cran.r-project.org/package=listenv |
 | lme4 | 2.0-6 | GPL (>= 2) | https://cran.r-project.org/package=lme4 |
+| lmhelprs | 0.4.5 | GPL (>= 3) | https://cran.r-project.org/package=lmhelprs |
 | lmtest | 0.9-40 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=lmtest |
 | magrittr | 2.0.5 | MIT + file LICENSE | https://cran.r-project.org/package=magrittr |
+| manymome | 0.3.7 | GPL (>= 3) | https://cran.r-project.org/package=manymome |
 | MASS | 7.3-66 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=MASS |
 | Matrix | 1.7-6 | GPL (>= 2) \| file LICENCE | https://cran.r-project.org/package=Matrix |
 | MatrixModels | 0.5-4 | GPL (>= 2) | https://cran.r-project.org/package=MatrixModels |
@@ -96,6 +98,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | orthopolynom | 1.0-6.1 | GPL (>= 2) | https://cran.r-project.org/package=orthopolynom |
 | parallelly | 1.48.0 | LGPL (>= 2.1) | https://cran.r-project.org/package=parallelly |
 | partitions | 1.11-1 | GPL | https://cran.r-project.org/package=partitions |
+| pbapply | 1.7-5 | GPL (>= 2) | https://cran.r-project.org/package=pbapply |
 | pbivnorm | 0.6.0 | GPL (>= 2) | https://cran.r-project.org/package=pbivnorm |
 | pbkrtest | 0.5.5 | GPL (>= 2) | https://cran.r-project.org/package=pbkrtest |
 | pillar | 1.11.1 | MIT + file LICENSE | https://cran.r-project.org/package=pillar |
@@ -120,6 +123,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | rmarkdown | 2.32 | MIT + file LICENSE | https://cran.r-project.org/package=rmarkdown |
 | rstudioapi | 0.19.0 | MIT + file LICENSE | https://cran.r-project.org/package=rstudioapi |
 | S7 | 0.2.2 | MIT + file LICENSE | https://cran.r-project.org/package=S7 |
+| sandwich | 3.1-3 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=sandwich |
 | sass | 0.4.10.9000 | MIT + file LICENSE | https://github.com/rstudio/sass |
 | scales | 1.4.0 | MIT + file LICENSE | https://cran.r-project.org/package=scales |
 | seminr | 2.5.0 | GPL-3 | https://cran.r-project.org/package=seminr |

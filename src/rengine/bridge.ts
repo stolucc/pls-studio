@@ -5,12 +5,13 @@
 import analysesR from './R/analyses.R?raw';
 import bootR from './R/boot.R?raw';
 import commonR from './R/common.R?raw';
+import cpaR from './R/cpa.R?raw';
 import lavaanR from './R/lavaan.R?raw';
 import mcR from './R/mc.R?raw';
 import plsR from './R/pls.R?raw';
 import { callJson, callString, withR } from './runtime';
 
-const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR };
+const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -18,6 +19,7 @@ export const R_PACKAGES = {
   seminr: ['jsonlite', 'seminr'],
   MIIVsem: ['jsonlite', 'lavaan', 'MIIVsem'],
   simulation: ['jsonlite', 'lavaan', 'cSEM'],
+  manymome: ['jsonlite', 'manymome'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

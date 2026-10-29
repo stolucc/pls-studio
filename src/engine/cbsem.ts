@@ -9,6 +9,7 @@ import { compileModel, extractColumns, htmt2Of, htmtOf, type CompiledModel } fro
 import { bisect, chisqCdf, mean, ncChisqCdf, normalP } from './stats';
 import { deltaMatrix, gammaADF, mm, quad, t as tp, tr, trProd, vech, vechPairs, weightNT, type Pairs } from './vech';
 import type { Dataset, MissingTreatment, ModelSpec } from './types';
+import { interactionName } from './types';
 
 export type CbParamKind = 'loading' | 'regression' | 'hoLoading' | 'lvcov' | 'residual' | 'rescov';
 
@@ -580,13 +581,13 @@ export function prepareCb(data: Dataset, spec: ModelSpec, missing: MissingTreatm
       all.push(Float64Array.from(a, (v, r) => (v - ma) * (b[r] - mb)));
       prodNames.push(name);
     }
-    const factor = `${mo.from} × ${mo.moderator}`;
+    const factor = interactionName(mo.from, mo.moderator);
     extraConstructs.push({ name: factor, mode: 'A', type: 'factor', indicators: prodNames });
     extraPaths.push({ from: factor, to: mo.to });
   }
   const cm = buildCbModel({ constructs: [...spec.constructs, ...extraConstructs], paths: [...spec.paths, ...extraPaths], covariances: spec.covariances });
   const ext = extractColumns({ names, cols: all }, cm.m, 'casewise');
-  return rawInput(cm, ext.cols, dropped, mods.map((mo) => ({ ...mo, construct: cm.m.constructs.indexOf(`${mo.from} × ${mo.moderator}`) })));
+  return rawInput(cm, ext.cols, dropped, mods.map((mo) => ({ ...mo, construct: cm.m.constructs.indexOf(interactionName(mo.from, mo.moderator)) })));
 }
 
 export interface CbInput {
@@ -891,7 +892,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
   } catch (e) {
     // A singular system at this stage means parameters the data cannot separate.
     if (/singular/i.test((e as Error).message)) {
-      throw new Error('The model is not identified: some parameters cannot be estimated separately. Typical causes: a correlation between the disturbances of two constructs where one predicts the other, or between the only two components of a higher-order factor; or a factor with too few indicators.');
+      throw new Error('The model is not identified: some parameters cannot be estimated separately. Typical causes: a correlation between the disturbances of two constructs where one predicts the other, or between the only two components of a higher-order factor; or a factor with too few indicators.', { cause: e });
     }
     throw e;
   }

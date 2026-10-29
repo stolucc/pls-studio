@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { constructGeometry, pathSegment } from '../geometry';
+import { constructGeometry, pathSegment, quadraticSegment } from '../geometry';
 import type { Construct } from '../model/project';
 import { renderFigureSvg, type FigureInput } from './render';
 import { DEFAULT_FIGURE_STYLE, estimateText, FIGURE_PRESETS, parseFigureStyle, pathStrokeWidth } from './style';
@@ -62,5 +62,20 @@ describe('figure SVG', () => {
     expect(svg).not.toContain('0.812');
     expect(svg).not.toContain('R²');
     expect(svg).toContain('>1<');
+  });
+
+  it('draws a quadratic term as a labelled badge beside the path, with its estimate next to it', () => {
+    const f = input();
+    const seg = f.paths[0];
+    const q = quadraticSegment(seg);
+    f.paths[0].moderated = true;
+    f.moderations = [{ x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: { value: 0.1234, p: 0.03 }, badge: { x: q.bx, y: q.by, text: 'Trust & <Risk>²', w: 120 } }];
+    const { svg } = renderFigureSvg(f, { ...DEFAULT_FIGURE_STYLE, pFormat: 'stars' });
+    expect(svg).toContain('>Trust &amp; &lt;Risk&gt;²</text>');
+    expect(svg).toMatch(/<rect [^>]*stroke-dasharray="4 3"\/>/);
+    expect(svg).toContain('>0.123*</text>');
+    // The estimate is placed to the right of the badge, not on the arrow.
+    const x = Number(/<text x="([\d.-]+)"[^>]*>0\.123\*<\/text>/.exec(svg)![1]);
+    expect(x).toBeGreaterThan(q.bx + 60);
   });
 });

@@ -9,6 +9,7 @@ import { useSim } from '../simStore';
 import { useFreshResults, useStore } from '../store';
 import { IconPlay, IconRepeat, IconX } from './icons';
 import { c, Table, type Row } from './results/Table';
+import { ChartFrame } from './ChartFrame';
 
 /** Number input that keeps the typed text until blur (so "-0." can be typed). */
 function Num({ value, onChange, step = 0.05, min, max, width = 64 }: {
@@ -32,7 +33,7 @@ function Num({ value, onChange, step = 0.05, min, max, width = 64 }: {
 const COLORS = ['#4f46e5', '#0f9d63', '#d97706', '#db2777', '#0891b2', '#7c3aed', '#64748b', '#b91c1c'];
 
 function PowerChart({ rows, paramKey, estimators, metric }: { rows: McSummaryRow[]; paramKey: string; estimators: string[]; metric: 'rejection' | 'relBias' | 'coverage' }) {
-  const W = 460, H = 240, pad = { l: 44, r: 12, t: 12, b: 36 };
+  const W = 460, H = 240, pad = { l: 54, r: 12, t: 12, b: 36 };
   const sel = rows.filter((r) => r.param.key === paramKey);
   const ns = [...new Set(sel.map((r) => r.n))].sort((a, b) => a - b);
   if (ns.length === 0) return null;
@@ -45,14 +46,18 @@ function PowerChart({ rows, paramKey, estimators, metric }: { rows: McSummaryRow
   const sy = (v: number) => pad.t + ((hi - v) / (hi - lo)) * (H - pad.t - pad.b);
   const ref = metric === 'rejection' ? 0.8 : metric === 'coverage' ? 0.95 : 0;
   const ticks = Array.from({ length: 5 }, (_, i) => lo + ((hi - lo) * i) / 4);
+  const yTitle = metric === 'rejection' ? 'Power (rejection rate)' : metric === 'coverage' ? 'CI coverage' : 'Relative bias';
   return (
+    <ChartFrame id={`mc:${metric}`} name={`simulation-${metric}`} width={W} height={H} defaults={{ x: 'Sample size', y: yTitle }}>
+    {(labels) => (
     <svg className="mc-chart" width={W} height={H} role="img" aria-label={`${metric} by sample size`}>
       {ticks.map((v) => (
         <g key={v}><line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} /><text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">{metric === 'relBias' ? `${(v * 100).toFixed(0)}%` : v.toFixed(2)}</text></g>
       ))}
       <line className="ref-line" x1={pad.l} x2={W - pad.r} y1={sy(ref)} y2={sy(ref)} />
       {ns.map((n) => <text key={n} x={sx(n)} y={H - pad.b + 16} textAnchor="middle">{n}</text>)}
-      <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">Sample size</text>
+      <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">{labels.x}</text>
+      <text transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`} textAnchor="middle" className="axis-title">{labels.y}</text>
       {estimators.map((e, k) => {
         const pts = ns.map((n) => sel.find((r) => r.n === n && r.estimator === e)).filter((r): r is McSummaryRow => !!r && val(r) !== null);
         if (!pts.length) return null;
@@ -64,6 +69,8 @@ function PowerChart({ rows, paramKey, estimators, metric }: { rows: McSummaryRow
         );
       })}
     </svg>
+    )}
+    </ChartFrame>
   );
 }
 

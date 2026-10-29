@@ -5,7 +5,7 @@ import { csvCell, downloadText, fmt, safeFileName } from '../../format';
 import { run } from '../../runner';
 import { useStore } from '../../store';
 import { IconDownload, IconRepeat } from '../icons';
-import { SimpleSlopes } from '../SimpleSlopes';
+import { QuadraticCurve, SimpleSlopes } from '../SimpleSlopes';
 import { IpmaTab } from './IpmaTab';
 import { RScriptButton } from './RScriptButton';
 import { bootCells, bootCols, c, htmtCls, matrixRows, relCls, Table, type Cell, type Row } from './Table';
@@ -252,20 +252,22 @@ function Moderation({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | nul
   const rows: Row[] = pls.moderations.map((mo) => {
     const j = C.indexOf(mo.to);
     const b = boot?.stats.find((s) => s.key === `path:${C[mo.construct]}:${mo.to}`);
-    return [c(`${mo.from} × ${mo.moderator} → ${mo.to}`), c(pls.pathCoef[mo.construct][j]), c(pls.fSquare[mo.construct][j]), ...(boot ? bootCells(b) : [])];
+    return [c(`${C[mo.construct]} → ${mo.to}`), c(pls.pathCoef[mo.construct][j]), c(pls.fSquare[mo.construct][j]), ...(boot ? bootCells(b) : [])];
   });
   return (
     <>
-      <Table title="Interaction effects" file="interactions" columns={['Moderation', 'β', 'f²', ...(boot ? bootCols(boot) : [])]} rows={rows}
-        note={<>Two-stage approach (Henseler &amp; Chin 2010). β is per unit of the product of standardised scores, so the slope of the predictor at moderator level m (in SD) is β_x + β_int·m. f²: 0.005 small, 0.01 medium, 0.025 large for interactions (Kenny 2018).{!boot && ' Run bootstrapping for significance.'}</>} />
+      <Table title="Interaction and quadratic effects" file="interactions" columns={['Term', 'β', 'f²', ...(boot ? bootCols(boot) : [])]} rows={rows}
+        note={<>Two-stage approach (Henseler &amp; Chin 2010). β is per unit of the product of standardised scores, so the slope of the predictor at moderator level m (in SD) is β_x + β_int·m; for a quadratic term X², the slope of X at x (in SD) is β_x + 2β_q·x. f²: 0.005 small, 0.01 medium, 0.025 large for interactions (Kenny 2018).{!boot && ' Run bootstrapping for significance.'}</>} />
       <div className="tables" style={{ marginTop: 20 }}>
         {pls.moderations.map((mo) => {
           const j = C.indexOf(mo.to);
           return (
             <div key={mo.construct}>
-              <div className="table-tools"><h3>{mo.moderator} moderating {mo.from} → {mo.to}</h3></div>
-              <SimpleSlopes bx={pls.pathCoef[C.indexOf(mo.from)][j]} bm={pls.pathCoef[C.indexOf(mo.moderator)][j]} bint={pls.pathCoef[mo.construct][j]}
-                from={mo.from} moderator={mo.moderator} to={mo.to} width={320} height={190} />
+              <div className="table-tools"><h3>{mo.from === mo.moderator ? `Quadratic effect of ${mo.from} on ${mo.to}` : `${mo.moderator} moderating ${mo.from} → ${mo.to}`}</h3></div>
+              {mo.from === mo.moderator
+                ? <QuadraticCurve b={pls.pathCoef[C.indexOf(mo.from)][j]} bq={pls.pathCoef[mo.construct][j]} from={mo.from} to={mo.to} width={320} height={190} />
+                : <SimpleSlopes bx={pls.pathCoef[C.indexOf(mo.from)][j]} bm={pls.pathCoef[C.indexOf(mo.moderator)][j]} bint={pls.pathCoef[mo.construct][j]}
+                  from={mo.from} moderator={mo.moderator} to={mo.to} width={320} height={190} />}
             </div>
           );
         })}

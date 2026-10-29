@@ -54,19 +54,26 @@ export function TopBar() {
           {consistent ? 'PLSc' : 'PLS-SEM'}
         </button>
         <button role="radio" aria-checked={method === 'cbsem'} className={method === 'cbsem' ? 'on' : ''} onClick={() => void switchMethod('cbsem')}>CB-SEM</button>
+        <button role="radio" aria-checked={method === 'process'} className={method === 'process' ? 'on' : ''} onClick={() => void switchMethod('process')}
+          title="CPA: conditional process analysis, Hayes's PROCESS models (mediation, moderation, moderated mediation) by OLS regression, with manymome">CPA</button>
       </div>
       <button className={`btn icon ghost${showResults ? '' : ' muted'}`} onClick={() => setShowResults(!showResults)}
         title={showResults ? 'Hide estimates on the diagram' : 'Show estimates on the diagram'} aria-pressed={showResults}>
         <IconEye />
       </button>
       <div className="sep" />
-      <button className="btn ghost" aria-label="Simulate" onClick={() => useSim.getState().setOpen(true)} disabled={!hasModel} title="Monte Carlo simulation: power, sample size, estimator comparison">
-        <IconSparkle size={15} /><span className="lbl">Simulate</span>
-      </button>
-      <button className="btn" onClick={() => run('boot')} disabled={!!job || !hasModel} title="Bootstrap standard errors, p-values and confidence intervals">
-        <IconRepeat /> Bootstrap
-      </button>
-      <button className="btn primary" onClick={() => run('estimate')} disabled={!!job || !hasModel} title={`${method === 'pls' ? 'Run the PLS algorithm' : 'Maximum-likelihood estimation'} (${mod}↵)`}>
+      {method !== 'process' && (
+        <>
+          <button className="btn ghost" aria-label="Simulate" onClick={() => useSim.getState().setOpen(true)} disabled={!hasModel} title="Monte Carlo simulation: power, sample size, estimator comparison">
+            <IconSparkle size={15} /><span className="lbl">Simulate</span>
+          </button>
+          <button className="btn" onClick={() => run('boot')} disabled={!!job || !hasModel} title="Bootstrap standard errors, p-values and confidence intervals">
+            <IconRepeat /> Bootstrap
+          </button>
+        </>
+      )}
+      <button className="btn primary" onClick={() => run('estimate')} disabled={!!job || !hasModel}
+        title={`${method === 'pls' ? 'Run the PLS algorithm' : method === 'process' ? 'OLS regressions and bootstrap of the indirect effects (manymome)' : 'Maximum-likelihood estimation'} (${mod}↵)`}>
         <IconPlay size={14} /> Calculate
       </button>
       {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}

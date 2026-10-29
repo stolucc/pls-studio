@@ -38,3 +38,6 @@ export function csvCell(v: string | number): string {
 }
 
 export const safeFileName = (s: string) => s.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'model';
+
+/** Only web links from metadata become clickable (never javascript: or data: URLs). */
+export const safeUrl = (url: string | null | undefined): boolean => typeof url === 'string' && /^https?:\/\//i.test(url);

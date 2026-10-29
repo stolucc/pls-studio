@@ -42,3 +42,13 @@ export const IconSparkle = make(<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" />)
 export const IconLogo = make(<><ellipse cx="7" cy="12" rx="4" ry="3" /><ellipse cx="17" cy="7" rx="4" ry="3" /><ellipse cx="17" cy="17" rx="4" ry="3" /><path d="M10.5 10.8l3-2M10.5 13.2l3 2" /></>);
 export const IconHome = make(<><path d="M3 11l9-7 9 7" /><path d="M5 10v10h5v-6h4v6h5V10" /></>);
 export const IconShare = make(<><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></>);
+/** Indicator side of a construct: the box (construct) with a bold bar on that side. */
+export function IconSide({ side, size = 16 }: { side: 'left' | 'top' | 'right' | 'bottom'; size?: number }) {
+  const bar = { left: 'M3 6v12', right: 'M21 6v12', top: 'M6 3h12', bottom: 'M6 21h12' }[side];
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
+      <rect x="7" y="7" width="10" height="10" rx="2.5" />
+      <path d={bar} strokeWidth={3} />
+    </svg>
+  );
+}

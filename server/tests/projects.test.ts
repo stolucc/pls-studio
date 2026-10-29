@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { INVITES_PER_HOUR } from '../src/routes/projects.ts';
 import { signedUp, startEnv, type Agent, type TestEnv } from './helpers.ts';
 
 let env: TestEnv;
@@ -151,5 +152,22 @@ describe('datasets are encrypted at rest', () => {
     expect((await viewer.del(`/api/projects/${projectId}`)).status).toBe(403);
     expect((await owner.del(`/api/projects/${projectId}`)).status).toBe(200);
     expect((await env.db.query('SELECT count(*)::int AS n FROM datasets WHERE project_id = $1', [projectId])).rows[0].n).toBe(0);
+  });
+});
+
+describe('invitation rate limit', () => {
+  it(`caps invitation emails at ${INVITES_PER_HOUR} per user and hour`, async () => {
+    const sender = await signedUp(env, 'sender@example.org');
+    const pid = (await sender.post('/api/projects', { name: 'Mailer' })).body.id;
+    const before = env.deps.mailer.outbox.length;
+    const statuses: number[] = [];
+    for (let i = 0; i <= INVITES_PER_HOUR; i++) statuses.push((await sender.post(`/api/projects/${pid}/invitations`, { email: `x${i}@example.org`, role: 'viewer' })).status);
+    expect(statuses.slice(0, INVITES_PER_HOUR).every((s) => s === 201)).toBe(true);
+    expect(statuses.at(-1)).toBe(429);
+    expect(env.deps.mailer.outbox.length - before).toBe(INVITES_PER_HOUR);
+    // Other users are not affected.
+    const other = await signedUp(env, 'other-sender@example.org');
+    const pid2 = (await other.post('/api/projects', { name: 'Other' })).body.id;
+    expect((await other.post(`/api/projects/${pid2}/invitations`, { email: 'y@example.org', role: 'viewer' })).status).toBe(201);
   });
 });

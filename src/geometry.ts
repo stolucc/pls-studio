@@ -150,6 +150,24 @@ export function moderatorSegment(m: Placed, path: { x1: number; y1: number; x2: 
   return { x1: m.x + bx, y1: m.y + by, x2: mx, y2: my };
 }
 
+/** Distance of a quadratic-term badge (X²) from the path it modifies. */
+export const QUAD_OFFSET = 46;
+
+/**
+ * A quadratic effect (the predictor moderating its own path) has no separate
+ * moderator to draw from: its badge sits beside the path midpoint, above it
+ * (or left of a vertical path), with a short arrow onto the midpoint.
+ */
+export function quadraticSegment(path: { x1: number; y1: number; x2: number; y2: number }, badgeHalfHeight = 11) {
+  const mx = (path.x1 + path.x2) / 2, my = (path.y1 + path.y2) / 2;
+  const dx = path.x2 - path.x1, dy = path.y2 - path.y1;
+  const len = Math.hypot(dx, dy) || 1;
+  let nx = -dy / len, ny = dx / len;
+  if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) { nx = -nx; ny = -ny; }
+  const bx = mx + nx * QUAD_OFFSET, by = my + ny * QUAD_OFFSET;
+  return { bx, by, x1: bx - nx * badgeHalfHeight, y1: by - ny * badgeHalfHeight, x2: mx, y2: my };
+}
+
 // ---------- CB-SEM error terms and correlations ----------
 
 export const ERR_R = 12;

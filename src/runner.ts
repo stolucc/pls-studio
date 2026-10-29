@@ -3,6 +3,9 @@ import type { CbEstimator, CbResult } from './engine/cbsem';
 import type { McDesign, McPart } from './engine/montecarlo';
 import type { PlsOptions } from './engine/types';
 import { toSpec, validateModel } from './model/project';
+import { processGraph } from './process/fromModel';
+import { indirectPaths as processPlanPaths } from './process/plan';
+import { processInput } from './process/input';
 import { resultsKey, useStore, type JobKind } from './store';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
@@ -112,6 +115,33 @@ function runR(kind: JobKind, key: string) {
     }).catch(failed);
 }
 
+/**
+ * Conditional process analysis: always manymome in R (no built-in engine). One
+ * job fits the regressions and bootstraps the indirect effects.
+ */
+function runProcess(key: string) {
+  const s = useStore.getState();
+  const input = processInput(s.model, s.settings);
+  const recognised = processGraph(s.model).recognised;
+  if (!input || !s.data) return;
+  const token = ++rToken;
+  const paths = processPlanPaths(input.graph).length;
+  s.setJob({ kind: 'estimate', done: 0, total: 1, workers: 1, label: paths ? `Regressions and ${input.boot.samples} bootstrap samples with manymome…` : 'Regressions with manymome…' });
+  const data = s.data;
+  import('./rengine/cpa').then(({ estimateCpaR }) => estimateCpaR(data, input)).then((r) => {
+    if (token !== rToken) return;
+    const t = useStore.getState();
+    t.setJob(null);
+    t.setResults({ process: r }, key);
+    const name = recognised ? `PROCESS model ${recognised.model}` : 'Custom model';
+    if (r.warnings.length) t.toast('error', `manymome: ${r.warnings[0]}`);
+    else t.toast('success', `manymome ${r.engine.version}: ${name} estimated (n = ${r.n}).`);
+  }).catch((e) => {
+    if (token !== rToken) return;
+    import('./rengine/bridge').then(({ rMessage }) => { useStore.getState().setJob(null); useStore.getState().toast('error', `manymome: ${rMessage(e)}`); });
+  });
+}
+
 /** Run an estimation job for the current method: point estimates, bootstrap, or the PLS fit test. */
 export function run(kind: JobKind) {
   const s = useStore.getState();
@@ -125,6 +155,7 @@ export function run(kind: JobKind) {
     return;
   }
   const key = resultsKey(s);
+  if (s.settings.method === 'process') { if (kind === 'estimate') runProcess(key); return; }
   const options: PlsOptions = {
     scheme: s.settings.scheme,
     maxIter: s.settings.maxIter,

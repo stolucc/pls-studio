@@ -5,7 +5,7 @@
 import { cholesky, invert, invertPD, matMul, solve, symEigen, transpose, zeros, type Mat } from './linalg';
 import { corStd, mean, sd, standardize } from './stats';
 import type { ConstructQuality, ConstructType, Dataset, ModelFit, ModelSpec, PlsOptions, PlsResult } from './types';
-import { DEFAULT_OPTIONS } from './types';
+import { DEFAULT_OPTIONS, interactionName } from './types';
 
 export interface CompiledModel {
   constructs: string[];
@@ -410,7 +410,7 @@ export function standardizeColumns(cols: Float64Array[], names: string[]): Float
   return cols.map((c, i) => standardize(c, names[i]));
 }
 
-export const interactionName = (from: string, moderator: string) => `${from} × ${moderator}`;
+export { interactionName };
 
 export interface PlsEstimate {
   m: CompiledModel;

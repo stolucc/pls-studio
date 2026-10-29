@@ -1,10 +1,13 @@
 import { DEFAULT_FIGURE_STYLE, parseFigureStyle, type FigureStyle } from '../figure/style';
+import { DEFAULT_CHART_STYLE, parseChartStyle, type ChartStyle } from '../figure/chartStyle';
 import type { CbEstimator } from '../engine/cbsem';
 import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
+import { processGraph } from '../process/fromModel';
 import type { ConstructType, Dataset, MissingTreatment, Mode, ModelSpec, WeightingScheme } from '../engine/types';
 
-export type Method = 'pls' | 'cbsem';
+/** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
+export type Method = 'pls' | 'cbsem' | 'process';
 
 export type Side = 'left' | 'right' | 'top' | 'bottom';
 
@@ -43,6 +46,8 @@ export interface Settings {
   plsPackage: 'cSEM' | 'seminr';
   /** Look of the diagram and exported figures. */
   figure: FigureStyle;
+  /** Text style and axis titles of the result charts. */
+  charts: ChartStyle;
   scheme: WeightingScheme;
   maxIter: number;
   /** Stop criterion exponent: tolerance = 10^-stopExp. */
@@ -51,6 +56,8 @@ export interface Settings {
   bootSamples: number;
   seed: number;
   confidence: number;
+  /** Conditional process analysis: moderator values at which effects are probed. */
+  probe: 'percentiles' | 'meansd';
 }
 
 export interface DataInfo {
@@ -82,11 +89,25 @@ export interface Correlation {
   b: string;
 }
 
+/**
+ * Moderated moderation (conditional process analysis): a construct moderating
+ * a moderation, i.e. the three-way interaction path × W × Z. Drawn as an arrow
+ * onto the moderation's arrow; the two-way terms below it are implied.
+ */
+export interface ThreeWay {
+  id: string;
+  /** The moderation (path × W) being moderated. */
+  moderation: string;
+  /** Z. */
+  moderator: string;
+}
+
 export interface ModelState {
   constructs: Construct[];
   paths: Path[];
   moderations: Moderation[];
   correlations?: Correlation[];
+  threeWay?: ThreeWay[];
 }
 
 /** Drop correlations whose constructs were deleted or whose indicators are no longer assigned. */
@@ -158,6 +179,7 @@ export const DEFAULT_SETTINGS: Settings = {
   engine: 'r',
   plsPackage: 'cSEM',
   figure: DEFAULT_FIGURE_STYLE,
+  charts: DEFAULT_CHART_STYLE,
   scheme: 'path',
   maxIter: 300,
   stopExp: 7,
@@ -165,6 +187,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bootSamples: 1000,
   seed: 1234,
   confidence: 0.95,
+  probe: 'percentiles',
 };
 
 let counter = 0;
@@ -225,6 +248,7 @@ export function validateModel(
 
   if (!data) err('Import a dataset first.');
   if (data?.moments && method.method === 'pls') err('This dataset is a covariance matrix: PLS needs raw data. Switch to CB-SEM.');
+  if (data?.moments && method.method === 'process') err('This dataset is a covariance matrix: conditional process analysis needs raw data.');
   if (model.constructs.length < (method.method === 'pls' ? 2 : 1)) err(method.method === 'pls' ? 'Add at least two constructs and connect them with a path.' : 'Add at least one factor.');
 
   const names = new Map<string, number>();
@@ -245,7 +269,10 @@ export function validateModel(
         if (!comp) err(`"${c.name}" refers to a removed component.`, c.id);
         else if (model.paths.some((q) => q.to === id)) err(`"${comp.name}" is a component of "${c.name}" and cannot also have incoming paths.`, comp.id);
       }
-    } else if (c.indicators.length === 0) err(`"${c.name}" has no indicators. Drag variables from the data panel onto it.`, c.id);
+    } else if (c.indicators.length === 0) err(method.method === 'process'
+      ? `"${c.name}" has no variable yet. Drag a column (or a scale's items) from the data panel onto it.`
+      : `"${c.name}" has no indicators. Drag variables from the data panel onto it.`, c.id);
+    if (higher && method.method === 'process') err(`"${c.name}" is a higher-order construct; these are supported in CB-SEM only.`, c.id);
     if (c.covariate && method.method === 'cbsem') {
       if (c.indicators.length !== 1) err(`Covariate "${c.name}" must have exactly one indicator.`, c.id);
       if (model.paths.some((q) => q.to === c.id)) err(`Covariate "${c.name}" cannot have incoming paths.`, c.id);
@@ -272,26 +299,35 @@ export function validateModel(
   }
 
   const cname = new Map(model.constructs.map((c) => [c.id, c.name]));
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   for (const mo of model.moderations ?? []) {
     const p = model.paths.find((q) => q.id === mo.path);
     if (!p) { err('A moderation refers to a path that no longer exists.'); continue; }
-    const label = `${cname.get(mo.moderator)} moderating ${cname.get(p.from)} → ${cname.get(p.to)}`;
+    // Conditional process models imply each moderator's main effect (src/process/fromModel.ts).
+    if (method.method === 'process') continue;
+    const quadratic = mo.moderator === p.from;
+    const label = quadratic ? `the quadratic effect of ${cname.get(p.from)} on ${cname.get(p.to)}` : `${cname.get(mo.moderator)} moderating ${cname.get(p.from)} → ${cname.get(p.to)}`;
     if (method.method === 'cbsem' && method.estimator === '2SLS') {
-      err(`Moderation (${label}) is not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, mo.moderator);
+      err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) ${quadratic ? 'are' : 'is'} not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, mo.moderator);
     } else if (method.method === 'cbsem') {
       // Latent interaction via product indicators needs exogenous predictor and moderator.
-      for (const id of [p.from, mo.moderator]) {
-        if (model.paths.some((q) => q.to === id)) err(`${label}: in CB-SEM the predictor and moderator must be exogenous, but ${cname.get(id)} has incoming paths.`, id);
+      for (const id of new Set([p.from, mo.moderator])) {
+        if (model.paths.some((q) => q.to === id)) err(`${cap(label)}: in CB-SEM ${quadratic ? "the predictor" : "the predictor and moderator"} must be exogenous, but ${cname.get(id)} has incoming paths.`, id);
       }
-    } else if (method.consistent) err(`Moderation (${label}) is not yet supported with PLSc. Switch consistent PLS off.`, mo.moderator);
+    } else if (method.consistent) err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) ${quadratic ? 'are' : 'is'} not yet supported with PLSc. Switch consistent PLS off.`, mo.moderator);
     if (!model.paths.some((q) => q.from === mo.moderator && q.to === p.to)) {
-      err(`${label}: the moderator also needs a direct path to ${cname.get(p.to)}.`, mo.moderator);
+      err(`${cap(label)}: the moderator also needs a direct path to ${cname.get(p.to)}.`, mo.moderator);
     }
   }
 
+  if (model.threeWay?.length && method.method !== 'process') {
+    err('Moderated moderation (a moderator acting on a moderation) is available in conditional process analysis only.');
+  }
+  if (method.method === 'process') for (const e of processGraph(model).errors) err(e.message, e.constructId);
+
   const corrs = model.correlations ?? [];
-  if (corrs.length && method.method === 'pls') {
-    warn(`The model has ${corrs.length} correlation${corrs.length === 1 ? '' : 's'} (double-headed arrows); PLS-SEM ignores them. They are estimated in CB-SEM.`);
+  if (corrs.length && method.method !== 'cbsem') {
+    warn(`The model has ${corrs.length} correlation${corrs.length === 1 ? '' : 's'} (double-headed arrows); ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them. They are estimated in CB-SEM.`);
   } else if (corrs.length) {
     const endo = endogenousIds(model);
     const byId = new Map(model.constructs.map((c) => [c.id, c]));
@@ -324,7 +360,7 @@ export function validateModel(
     seen.push(p);
   }
 
-  if (data && model.constructs.length > 0) {
+  if (data && model.constructs.length > 0 && method.method !== 'process') {
     const n = data.moments ? data.moments.n : data.cols[0]?.length ?? 0;
     const maxArrows = Math.max(
       ...model.constructs.map((c) => Math.max(c.mode === 'B' ? c.indicators.length : 0, model.paths.filter((p) => p.to === c.id).length)),
@@ -464,12 +500,13 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
 
   const s = isObj(raw.settings) ? raw.settings : {};
   const settings: Settings = {
-    method: s.method === 'cbsem' ? 'cbsem' : 'pls',
+    method: s.method === 'cbsem' || s.method === 'process' ? s.method : 'pls',
     consistent: s.consistent === true,
     estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', '2SLS'] as const).find((e) => e === s.estimator) ?? 'ML',
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
     figure: parseFigureStyle(s.figure),
+    charts: parseChartStyle(s.charts),
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
     maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
     stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
@@ -477,6 +514,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
     seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
     confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
+    probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',
   };
 
   const { data, info } = isObj(raw.data) ? parseDataSection(raw.data) : { data: null, info: null };
@@ -486,6 +524,14 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     if (!isObj(mo)) throw new Error('Invalid moderation in project file.');
     const out = { id: str(mo.id, 64), moderator: str(mo.moderator, 64), path: str(mo.path, 64) };
     if (!ids.has(out.moderator) || !pathIds.has(out.path)) throw new Error('Invalid project file: moderation references unknown construct or path.');
+    return out;
+  });
+  const modIds = new Set(moderations.map((mo) => mo.id));
+  const rawThree = Array.isArray(m.threeWay) ? m.threeWay.slice(0, 1000) : [];
+  const threeWay: ThreeWay[] = rawThree.map((t: unknown) => {
+    if (!isObj(t)) throw new Error('Invalid moderated moderation in project file.');
+    const out = { id: str(t.id, 64), moderation: str(t.moderation, 64), moderator: str(t.moderator, 64) };
+    if (!ids.has(out.moderator) || !modIds.has(out.moderation)) throw new Error('Invalid project file: moderated moderation references an unknown construct or moderation.');
     return out;
   });
   const indicatorNames = new Set(constructs.flatMap((c) => c.indicators));
@@ -498,7 +544,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     return out;
   });
   return {
-    model: { constructs, paths, moderations, ...(correlations.length ? { correlations } : {}) },
+    model: { constructs, paths, moderations, ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}) },
     settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,
   };
 }

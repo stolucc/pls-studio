@@ -78,8 +78,11 @@ seminr_models <- function(s) {
   sm <- do.call(relationships, lapply(all_paths, function(p) paths(from = p[1], to = p[2])))
   list(mm = do.call(constructs, mm), sm = sm)
 }
-# Our engine names interaction constructs "iv × moderator".
-intxn_name <- function(x) gsub("*", " \u00d7 ", x, fixed = TRUE)
+# Our engine names interaction constructs "iv × moderator", and "iv²" for a quadratic term.
+intxn_name <- function(x) vapply(x, function(v) {
+  p <- strsplit(v, "*", fixed = TRUE)[[1]]
+  if (length(p) == 2 && p[1] == p[2]) paste0(p[1], "\u00b2") else gsub("*", " \u00d7 ", v, fixed = TRUE)
+}, "", USE.NAMES = FALSE)
 
 # ---------- normalisers ----------
 
@@ -102,7 +105,10 @@ lower_long <- function(M) {
   out
 }
 
+# CASES="regex" (environment) writes only the matching cases, leaving the others as recorded.
 write_case <- function(case) {
+  only <- Sys.getenv("CASES")
+  if (nzchar(only) && !grepl(only, case$name)) return(invisible())
   case$versions <- versions
   write_json(case, file.path(root, paste0(case$name, ".json")), digits = NA, auto_unbox = TRUE, pretty = TRUE, null = "null", na = "null")
   cat(sprintf("%-34s ok\n", case$name))
@@ -114,14 +120,16 @@ seminr_case <- function(name, dataset, s, missing_token = NULL) {
   df <- read.csv(file.path(root, "data", paste0(dataset, ".csv")))
   mod <- seminr_models(s)
   est <- suppressMessages(estimate_pls(df, mod$mm, mod$sm, missing_value = if (is.null(missing_token)) NA else missing_token))
-  sm <- summary(est)
+  # seminr 2.3.x's summary() fails for quadratic terms; such cases then record no reliability.
+  sm <- tryCatch(summary(est), error = function(e) NULL)
   ld <- est$outer_loadings; wt <- est$outer_weights
   per_item <- function(M) {
     out <- list()
     for (c in s$constructs) for (i in c$indicators) out[[length(out) + 1]] <- list(construct = c$name, indicator = i, est = M[i, c$name])
     out
   }
-  rel <- sm$reliability[vapply(s$constructs, `[[`, "", "name"), , drop = FALSE]
+  rel <- if (is.null(sm)) NULL else sm$reliability[vapply(s$constructs, `[[`, "", "name"), , drop = FALSE]
+  relc <- function(k) if (is.null(rel)) NULL else as.list(rel[, k])
   pc <- est$path_coef
   rownames(pc) <- intxn_name(rownames(pc)); colnames(pc) <- intxn_name(colnames(pc))
   r2 <- est$rSquared["Rsq", , drop = FALSE]
@@ -134,8 +142,8 @@ seminr_case <- function(name, dataset, s, missing_token = NULL) {
       paths = mat_long(pc, "from"),
       loadings = per_item(ld), weights = per_item(wt),
       r2 = as.list(r2),
-      alpha = as.list(rel[, "alpha"]), rhoC = as.list(rel[, "rhoC"]), ave = as.list(rel[, "AVE"]), rhoA = as.list(rel[, "rhoA"]),
-      htmt = if (length(s$moderations)) NULL else lower_long(sm$validity$htmt)),
+      alpha = relc("alpha"), rhoC = relc("rhoC"), ave = relc("AVE"), rhoA = relc("rhoA"),
+      htmt = if (length(s$moderations) || is.null(sm)) NULL else lower_long(sm$validity$htmt)),
     tolerance = 1e-5))
 }
 
@@ -297,6 +305,11 @@ seminr_case("pls_seminr_moderation_mobi", DATA$mobi, spec(
   list(cons("Image", items("IMAG", 5)), cons("Expectation", items("CUEX", 3)), cons("Value", items("PERV", 2)), cons("Satisfaction", items("CUSA", 3))),
   list(c("Image", "Satisfaction"), c("Expectation", "Satisfaction"), c("Value", "Satisfaction")),
   list(c("Image", "Expectation", "Satisfaction"))))
+# Quadratic effect: Image² on Satisfaction (seminr two-stage, as interaction_term(Image, Image)).
+seminr_case("pls_seminr_quadratic_mobi", DATA$mobi, spec(
+  list(cons("Image", items("IMAG", 5)), cons("Expectation", items("CUEX", 3)), cons("Satisfaction", items("CUSA", 3))),
+  list(c("Image", "Satisfaction"), c("Expectation", "Satisfaction")),
+  list(c("Image", "Image", "Satisfaction"))))
 corp_rep_mod <- corp_rep_spec
 corp_rep_mod$constructs[[length(corp_rep_mod$constructs) + 1]] <- cons("SC", items("switch_", 4))
 corp_rep_mod$paths[[length(corp_rep_mod$paths) + 1]] <- list(from = "SC", to = "CUSL")
@@ -320,7 +333,7 @@ csem_case("pls_csem_threecommonfactors", DATA$threecf, threecf_spec, FALSE)
 # Marsh, Wen & Hau (2004) matched-pair product indicators of mean-centred items,
 # estimated by ML. Our engine names products "a×b" and the factor "X × M";
 # lavaan needs syntactic names, which are mapped back when writing the case.
-cb_moderation_case <- function(name, dataset, s, estimator = "ML", at = c(-1, 0, 0.5, 1)) {
+cb_moderation_case <- function(name, dataset, s, estimator = "ML", at = c(-1, 0, 0.5, 1), tolerance = 1e-5) {
   df <- read.csv(file.path(root, "data", paste0(dataset, ".csv")))
   used <- unlist(lapply(s$constructs, `[[`, "indicators"))
   df <- df[complete.cases(df[, used]), ]
@@ -340,10 +353,11 @@ cb_moderation_case <- function(name, dataset, s, estimator = "ML", at = c(-1, 0,
   syntax <- paste(base,
     paste(fac, "=~", paste(prods, collapse = " + ")),
     paste(mo$to, "~", paste(c(paste0(vapply(preds, lab, ""), preds), paste0("bint*", fac)), collapse = " + ")),
-    paste(sprintf("ce%d := bx + bint*(%s)", seq_along(at), format(at)), collapse = "\n"), sep = "\n")
+    # Slope of the predictor at moderator value m; for a quadratic term (X²) it is bx + 2·bint·m.
+    paste(sprintf("ce%d := bx + %sbint*(%s)", seq_along(at), if (mo$from == mo$moderator) "2*" else "", format(at)), collapse = "\n"), sep = "\n")
   fit <- sem(syntax, data = df, estimator = estimator)
   if (!lavInspect(fit, "converged")) stop(name, ": lavaan did not converge")
-  rn <- function(x) { x <- gsub(".X.", "\u00d7", x, fixed = TRUE); x[x == fac] <- paste(mo$from, "\u00d7", mo$moderator); x }
+  rn <- function(x) { x <- gsub(".X.", "\u00d7", x, fixed = TRUE); x[x == fac] <- if (mo$from == mo$moderator) paste0(mo$from, "\u00b2") else paste(mo$from, "\u00d7", mo$moderator); x }
   pe <- parameterEstimates(fit, standardized = TRUE)
   cond <- pe[pe$op == ":=", ]
   pe <- pe[pe$op %in% c("=~", "~", "~~"), ]
@@ -359,7 +373,7 @@ cb_moderation_case <- function(name, dataset, s, estimator = "ML", at = c(-1, 0,
     expected = list(params = params, fit = lapply(fm, as.numeric), r2 = setNames(as.list(inspect(fit, "r2")), rn(names(inspect(fit, "r2")))),
       n = lavInspect(fit, "nobs"),
       conditional = lapply(seq_along(at), function(i) list(m = at[i], est = cond$est[i], se = cond$se[i]))),
-    tolerance = 1e-5))
+    tolerance = tolerance))
 }
 
 cat("--- CB-SEM moderation (lavaan)\n")
@@ -369,6 +383,11 @@ for (est in c("ML", "MLR")) cb_moderation_case(paste0("cbmod_lavaan_hs_", tolowe
 # (A mobi Image x Expectation model was tried and dropped: its global ML optimum
 # is improper (negative interaction-factor variance) and lavaan stops in a
 # proper local optimum, so it is not a sound reference.)
+# Quadratic effect: visual² (squared centred indicators) on speed.
+cb_moderation_case("cbquad_lavaan_hs_ml", DATA$hs, spec(list(cons("visual", c("x1", "x2", "x3")), cons("textual", c("x4", "x5", "x6")), cons("speed", c("x7", "x8", "x9"))),
+  list(c("visual", "speed"), c("textual", "speed")), list(c("visual", "visual", "speed"))), "ML", at = c(-1, 0, 1),
+  # Squared indicators are strongly kurtotic: SEs at the optimum agree to ~3e-5 (estimates to 1e-6).
+  tolerance = 1e-4)
 cb_moderation_case("cbmod_lavaan_threecf_ml", DATA$threecf, spec(
   list(cons("eta1", items("y1", 3)), cons("eta2", items("y2", 3)), cons("eta3", items("y3", 3))),
   list(c("eta1", "eta3"), c("eta2", "eta3")), list(c("eta1", "eta2", "eta3"))))

@@ -6,3 +6,5 @@ public/webr/
 .webr-cache/
 public/webr.next/
 public/webr.old/
+reports/
+.stryker-tmp/

@@ -70,7 +70,7 @@ ps_cb_build <- function(req) {
       pn <- c(pn, v)
       prod[[v]] <- paste0(n$inds[[match(m$from, n$cname)]][i], "×", n$inds[[match(m$moderator, n$cname)]][i])
     }
-    nm <- paste(m$from, "×", m$moderator)
+    nm <- ps_int_name(m$from, m$moderator)
     il <- paste0(lname[[m$from]], "_x_", lname[[m$moderator]])
     lines <- c(lines, paste(il, "=~", ps_marked(pn)))
     paths <- c(paths, list(list(from = nm, to = m$to)))

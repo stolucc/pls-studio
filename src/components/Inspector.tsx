@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { fmt, fmtP } from '../format';
 import { endogenousIds, validateModel, type Construct, type Settings } from '../model/project';
 import { useFreshResults, useStore } from '../store';
-import { IconAlert, IconSwap, IconTrash, IconX } from './icons';
+import { IconAlert, IconSwap, IconTrash, IconX, IconSide } from './icons';
 import { switchMethod } from '../methodSwitch';
 import { exportRScript } from '../io';
-import { SimpleSlopes } from './SimpleSlopes';
+import { QuadraticCurve, SimpleSlopes } from './SimpleSlopes';
 import { JohnsonNeymanPlot } from './JohnsonNeymanPlot';
 import { johnsonNeyman } from '../engine/jn';
 
@@ -39,14 +39,14 @@ function ConstructInspector({ c }: { c: Construct }) {
     <>
       <div className="section">
         <div className="field"><label>Name</label><NameField c={c} /></div>
-        <div className="field">
+        {method !== 'process' && <div className="field">
           <label>Construct type</label>
           <div className="segmented">
             <button className={c.type === 'factor' ? 'on' : ''} onClick={() => update(c.id, { type: 'factor', mode: 'A' })} title="Latent variable: indicators reflect the construct (ellipse)">Common factor</button>
             <button className={c.type === 'composite' ? 'on' : ''} disabled={method === 'cbsem'} onClick={() => update(c.id, { type: 'composite', mode: 'B' })}
               title={method === 'cbsem' ? 'Composites are estimated with PLS only. Switch to PLS-SEM to use them.' : 'Emergent variable: a weighted combination of its indicators (hexagon)'}>Composite</button>
           </div>
-        </div>
+        </div>}
         {method === 'pls' && (
           <div className="field">
             <label>Weighting (PLS)</label>
@@ -60,11 +60,25 @@ function ConstructInspector({ c }: { c: Construct }) {
           <label>Indicator side</label>
           <div className="segmented">
             {(['left', 'top', 'right', 'bottom'] as const).map((s) => (
-              <button key={s} className={c.side === s ? 'on' : ''} onClick={() => update(c.id, { side: s })}>{s[0].toUpperCase() + s.slice(1)}</button>
+              <button key={s} className={c.side === s ? 'on' : ''} onClick={() => update(c.id, { side: s })} title={`Indicators on the ${s}`} aria-label={`Indicators on the ${s}`} aria-pressed={c.side === s}><IconSide side={s} size={20} /></button>
             ))}
           </div>
         </div>
       </div>
+      {method === 'process' && (
+        <div className="section">
+          <div className="section-title">Conditional process analysis</div>
+          <div className="hint" style={{ marginBottom: 8 }}>
+            {c.indicators.length === 0 ? 'Drop a data column on this variable, or several items of a scale.'
+              : c.indicators.length === 1 ? `Observed variable ${c.indicators[0]}.`
+                : `Scale score: the mean of its ${c.indicators.length} items (computed per case before the regressions).`}
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={!!c.covariate} onChange={(e) => update(c.id, { covariate: e.target.checked })} />
+            <span><b>Covariate</b><br /><span className="hint">Enters every equation (mediators and outcome) as a control variable, as PROCESS’s cov option. A covariate has no paths of its own.</span></span>
+          </label>
+        </div>
+      )}
       {method === 'cbsem' && (c.indicators.length === 1 || c.indicators.length === 0) && (
         <div className="section">
           <div className="section-title">CB-SEM</div>
@@ -162,6 +176,45 @@ function useModerationEstimate(fromName: string, modName: string, toName: string
   };
 }
 
+/** A moderated moderation (conditional process analysis): Z moderating W's moderation of X → Y. */
+function ThreeWayInspector({ id }: { id: string }) {
+  const model = useStore((s) => s.model);
+  const del = useStore((s) => s.deleteItems);
+  const results = useFreshResults();
+  const t = model.threeWay?.find((x) => x.id === id);
+  const mo = t && model.moderations.find((x) => x.id === t.moderation);
+  const p = mo && model.paths.find((q) => q.id === mo.path);
+  if (!t || !mo || !p) return null;
+  const nameOf = (cid: string) => model.constructs.find((c) => c.id === cid)?.name ?? '?';
+  const [x, w, z, y] = [nameOf(p.from), nameOf(mo.moderator), nameOf(t.moderator), nameOf(p.to)];
+  const key = [x, w, z].sort().join('*');
+  const est = results?.process?.equations.find((e) => e.outcome === y)?.coefficients.find((k) => [...k.term].sort().join('*') === key);
+  return (
+    <>
+      <div className="section">
+        <div className="path-title">{z} <span className="muted">moderates the moderation by</span> {w}</div>
+        <div className="hint" style={{ marginTop: 4 }}>
+          Three-way interaction {x} × {w} × {z} in the equation of {y}: how strongly {w} moderates {x} → {y} depends on {z}.
+          The lower-order terms ({w}, {z}, {x} × {w}, {x} × {z}, {w} × {z}) are included automatically.
+        </div>
+      </div>
+      {est && (
+        <div className="section">
+          <div className="section-title">OLS estimate</div>
+          <div className="kv">
+            <span>{x} × {w} × {z}</span><span className="num">{fmt(est.est)}</span>
+            <span>Std. error</span><span className="num">{fmt(est.se)}</span>
+            <span>p value</span><span className="num">{fmtP(est.p)}</span>
+          </div>
+        </div>
+      )}
+      <div className="section">
+        <button className="btn danger" onClick={() => del([], [], [t.id])}><IconTrash size={14} /> Remove moderated moderation</button>
+      </div>
+    </>
+  );
+}
+
 function ModerationInspector({ id }: { id: string }) {
   const model = useStore((s) => s.model);
   const del = useStore((s) => s.deleteItems);
@@ -177,41 +230,49 @@ function ModerationInspector({ id }: { id: string }) {
   let jn: ReturnType<typeof johnsonNeyman> | null = null;
   try { jn = cb && cbMo ? johnsonNeyman(cb, cbMo) : null; } catch { jn = null; }
   if (!mo || !p) return null;
+  const quadratic = mo.moderator === p.from;
+  const term = quadratic ? `${fromName}²` : `${fromName} × ${modName}`;
   return (
     <>
       <div className="section">
-        <div className="path-title">{modName} <span className="muted">moderates</span></div>
-        <div className="hint" style={{ marginTop: 4 }}>{fromName} → {toName}</div>
+        {quadratic
+          ? <div className="path-title">Quadratic effect <span className="muted">of</span> {fromName}</div>
+          : <div className="path-title">{modName} <span className="muted">moderates</span></div>}
+        <div className="hint" style={{ marginTop: 4 }}>{quadratic ? `${term} → ${toName}: the effect of ${fromName} changes with its own level.` : `${fromName} → ${toName}`}</div>
       </div>
       {jn && (
         <div className="section">
-          <div className="section-title">Latent interaction (CB-SEM)</div>
+          <div className="section-title">{quadratic ? 'Latent quadratic effect (CB-SEM)' : 'Latent interaction (CB-SEM)'}</div>
           <div className="kv">
-            <span>γ {fromName} × {modName}</span><span className="num">{fmt(jn.bint)}</span>
+            <span>γ {term}</span><span className="num">{fmt(jn.bint)}</span>
             <span>J–N boundaries</span><span className="num">{jn.boundaries.length ? jn.boundaries.map((b) => `${(b / jn!.sdM).toFixed(2)} SD`).join(', ') : 'none'}</span>
           </div>
-          <div style={{ marginTop: 12 }}><JohnsonNeymanPlot jn={jn} from={fromName} moderator={modName} width={260} height={180} /></div>
+          <div style={{ marginTop: 12 }}><JohnsonNeymanPlot jn={jn} from={fromName} moderator={modName} to={toName} width={260} height={180} /></div>
         </div>
       )}
       {jn ? null : est ? (
         <div className="section">
-          <div className="section-title">Interaction effect</div>
+          <div className="section-title">{quadratic ? 'Quadratic effect' : 'Interaction effect'}</div>
           <div className="kv">
-            <span>{fromName} × {modName}</span><span className="num">{fmt(est.bint)}</span>
+            <span>{term}</span><span className="num">{fmt(est.bint)}</span>
             <span>f² effect size</span><span className="num">{fmt(est.f2)}</span>
             {est.boot && <><span>p value</span><span className="num">{fmtP(est.boot.p)}</span></>}
             {est.boot && <><span>{Math.round((est.confidence ?? 0.95) * 100)}% CI</span><span className="num">[{fmt(est.boot.ciLow)}, {fmt(est.boot.ciHigh)}]</span></>}
           </div>
-          {!est.boot && <div className="hint" style={{ marginTop: 8 }}>Run bootstrapping to test the interaction.</div>}
+          {!est.boot && <div className="hint" style={{ marginTop: 8 }}>Run bootstrapping to test the {quadratic ? 'quadratic effect' : 'interaction'}.</div>}
           <div style={{ marginTop: 12 }}>
-            <SimpleSlopes bx={est.bx} bm={est.bm} bint={est.bint} from={fromName} moderator={modName} to={toName} />
+            {quadratic
+              ? <QuadraticCurve b={est.bx} bq={est.bint} from={fromName} to={toName} />
+              : <SimpleSlopes bx={est.bx} bm={est.bm} bint={est.bint} from={fromName} moderator={modName} to={toName} />}
           </div>
         </div>
       ) : (
-        <div className="section hint">Two-stage approach: the product of the standardised scores of {fromName} and {modName} predicts {toName}. Calculate to see the interaction effect and simple slopes.</div>
+        <div className="section hint">{quadratic
+          ? <>The squared standardised score of {fromName} predicts {toName} (two-stage approach; in CB-SEM, squared mean-centred indicators). Calculate to see the curve.</>
+          : <>Two-stage approach: the product of the standardised scores of {fromName} and {modName} predicts {toName}. Calculate to see the interaction effect and simple slopes.</>}</div>
       )}
       <div className="section">
-        <button className="btn danger" onClick={() => del([], [], [mo.id])}><IconTrash size={14} /> Remove moderation</button>
+        <button className="btn danger" onClick={() => del([], [], [mo.id])}><IconTrash size={14} /> {quadratic ? 'Remove quadratic effect' : 'Remove moderation'}</button>
       </div>
     </>
   );
@@ -271,13 +332,15 @@ function PathInspector({ id }: { id: string }) {
   const reverse = useStore((s) => s.reversePath);
   const del = useStore((s) => s.deleteItems);
   const addModeration = useStore((s) => s.addModeration);
+  const addQuadratic = useStore((s) => s.addQuadratic);
   const results = useFreshResults();
+  const method = useStore((s) => s.settings.method);
   const p = model.paths.find((q) => q.id === id);
   if (!p) return null;
   const from = model.constructs.find((c) => c.id === p.from)!, to = model.constructs.find((c) => c.id === p.to)!;
-  const method = useStore((s) => s.settings.method);
   const pls = method === 'pls' ? results?.pls : null;
   const cbEst = method === 'cbsem' ? results?.cb?.estimates.find((e) => e.op === '~' && e.lhs === to.name && e.rhs === from.name) : undefined;
+  const procEst = method === 'process' ? results?.process?.equations.find((e) => e.outcome === to.name)?.coefficients.find((k) => k.term.length === 1 && k.term[0] === from.name) : undefined;
   const i = pls?.constructs.indexOf(from.name) ?? -1, j = pls?.constructs.indexOf(to.name) ?? -1;
   const b = results?.boot?.stats.find((s) => s.key === `path:${from.name}:${to.name}`);
   return (
@@ -312,11 +375,23 @@ function PathInspector({ id }: { id: string }) {
           </div>
         </div>
       )}
+      {procEst && (
+        <div className="section">
+          <div className="section-title">OLS estimate</div>
+          <div className="kv">
+            <span>Coefficient</span><span className="num">{fmt(procEst.est)}</span>
+            <span>Std. error</span><span className="num">{fmt(procEst.se)}</span>
+            <span>t</span><span className="num">{fmt(procEst.t)}</span>
+            <span>p value</span><span className="num">{fmtP(procEst.p)}</span>
+          </div>
+          {model.moderations.some((mo) => mo.path === p.id) && <div className="hint" style={{ marginTop: 8 }}>The effect of {from.name} where its moderators are 0; see the results’ conditional effects.</div>}
+        </div>
+      )}
       <div className="section">
         <div className="section-title">Moderators</div>
         {model.moderations.filter((mo) => mo.path === p.id).map((mo) => (
           <div className="ind" key={mo.id}>
-            <span>{model.constructs.find((c) => c.id === mo.moderator)?.name}</span>
+            <span>{mo.moderator === p.from ? `${from.name}² (quadratic)` : model.constructs.find((c) => c.id === mo.moderator)?.name}</span>
             <span />
             <button className="btn icon ghost sm" style={{ width: 24, height: 24 }} onClick={() => del([], [], [mo.id])} aria-label="Remove moderator"><IconX size={13} /></button>
           </div>
@@ -327,6 +402,15 @@ function PathInspector({ id }: { id: string }) {
             .map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <div className="hint" style={{ marginTop: 6 }}>Or drag from a construct’s dot onto this arrow.</div>
+        {method === 'process' && model.moderations.some((mo) => mo.path === p.id) && (
+          <div className="hint" style={{ marginTop: 6 }}>For a moderated moderation (three-way interaction), drag from a third variable onto a moderator’s arrow.</div>
+        )}
+        {method !== 'process' && !model.moderations.some((mo) => mo.path === p.id && mo.moderator === p.from) && (
+          <button className="btn sm" style={{ marginTop: 8 }} onClick={() => addQuadratic(p.id)}
+            title={`Adds ${from.name}² as a predictor of ${to.name}: a curvilinear (U-shaped or inverted-U) effect`}>
+            Add quadratic effect ({from.name}²)
+          </button>
+        )}
       </div>
       <div className="section" style={{ display: 'flex', gap: 8 }}>
         <button className="btn" onClick={() => reverse(p.id)}><IconSwap size={14} /> Reverse</button>
@@ -354,6 +438,7 @@ function ModelInspector() {
   const select = useStore((s) => s.select);
   const issues = validateModel(model, data, settings);
   const pls = settings.method === 'pls';
+  const proc = settings.method === 'process';
   const numField = (label: string, key: keyof Settings, min: number, max: number, step = 1) => (
     <div className="field">
       <label>{label}</label>
@@ -382,15 +467,31 @@ function ModelInspector() {
         <div className="section-title">Method</div>
         <div className="segmented">
           <button className={pls ? 'on' : ''} onClick={() => void switchMethod('pls')}>PLS-SEM</button>
-          <button className={!pls ? 'on' : ''} onClick={() => void switchMethod('cbsem')}>CB-SEM</button>
+          <button className={settings.method === 'cbsem' ? 'on' : ''} onClick={() => void switchMethod('cbsem')}>CB-SEM</button>
+          <button className={proc ? 'on' : ''} onClick={() => void switchMethod('process')}>Process</button>
         </div>
         <div className="hint" style={{ marginTop: 8 }}>
           {pls
             ? 'Variance-based: common factors and composites. Turn on PLSc for consistent estimates of common-factor models.'
-            : 'Covariance-based SEM. Common factors only; first loading of each factor fixed to 1.'}
+            : proc
+              ? 'Conditional process analysis (Hayes): mediation, moderation and moderated mediation with observed variables or scale means, one OLS regression per outcome, bootstrap confidence intervals for indirect effects.'
+              : 'Covariance-based SEM. Common factors only; first loading of each factor fixed to 1.'}
         </div>
       </div>
-      <div className="section">
+      {proc && (
+        <div className="section">
+          <div className="section-title">Calculated by</div>
+          <div className="hint">
+            manymome (Cheung &amp; Cheung, 2024), running in your browser (webR): OLS regressions (lm), the percentile bootstrap of indirect effects and conditional effects at moderator values.
+            Every numbered model was checked against PROCESS for R on the same data. Your data never leave this computer.
+          </div>
+          <button className="btn sm" style={{ marginTop: 8 }} onClick={() => void exportRScript()}
+            title="Download the R script for this analysis (data embedded): exactly what runs here. Open it in R or RStudio to reproduce the results.">
+            Export R script
+          </button>
+        </div>
+      )}
+      {!proc && <div className="section">
         <div className="section-title">Calculated by</div>
         <div className="segmented" role="radiogroup" aria-label="Calculation engine">
           <button role="radio" aria-checked={settings.engine === 'r'} className={settings.engine === 'r' ? 'on' : ''} onClick={() => setSettings({ engine: 'r' })}>R packages</button>
@@ -419,8 +520,8 @@ function ModelInspector() {
           title="Download the R script for this model (data embedded): exactly what the R engine runs. Open it in R or RStudio to reproduce the results.">
           Export R script
         </button>
-      </div>
-      {!pls && (
+      </div>}
+      {settings.method === 'cbsem' && (
         <div className="section">
           <div className="section-title">Estimator</div>
           <select className="select" value={settings.estimator} onChange={(e) => setSettings({ estimator: e.target.value as Settings['estimator'] })}>
@@ -448,7 +549,19 @@ function ModelInspector() {
           {numField('Stop criterion 10^−x', 'stopExp', 3, 12)}
         </div>
       </div>}
-      <div className="section">
+      {proc && (
+        <div className="section">
+          <div className="field">
+            <label>Probe moderators at</label>
+            <div className="segmented">
+              <button className={settings.probe === 'percentiles' ? 'on' : ''} onClick={() => setSettings({ probe: 'percentiles' })}>16th / 50th / 84th pct.</button>
+              <button className={settings.probe === 'meansd' ? 'on' : ''} onClick={() => setSettings({ probe: 'meansd' })}>Mean ± 1 SD</button>
+            </div>
+          </div>
+          <div className="hint">Percentiles are PROCESS’s default. A moderator with two values is probed at both. Missing values: listwise deletion, as PROCESS.</div>
+        </div>
+      )}
+      {!proc && <div className="section">
         <div className="field">
           <label>Missing values</label>
           <div className="segmented">
@@ -456,7 +569,7 @@ function ModelInspector() {
             <button className={settings.missing === 'casewise' ? 'on' : ''} onClick={() => setSettings({ missing: 'casewise' })}>Casewise deletion</button>
           </div>
         </div>
-      </div>
+      </div>}
       <div className="section">
         <div className="section-title">Bootstrapping</div>
         <div className="row2">
@@ -473,7 +586,7 @@ function ModelInspector() {
         </div>
         <div className="hint">
           Percentile intervals; p-values from two-tailed t tests.
-          {pls ? ' The same subsample count is used for the fit test (HI95/HI99).' : ' CB-SEM bootstraps standardised paths and indirect effects.'}
+          {pls ? ' The same subsample count is used for the fit test (HI95/HI99).' : proc ? ' Indirect effects and indices of moderated mediation; direct and conditional effects use OLS standard errors, as PROCESS. At least 100 samples (5000 recommended for reporting).' : ' CB-SEM bootstraps standardised paths and indirect effects.'}
         </div>
       </div>
     </>
@@ -483,6 +596,7 @@ function ModelInspector() {
 export function Inspector() {
   const selection = useStore((s) => s.selection);
   const constructs = useStore((s) => s.model.constructs);
+  const model = useStore((s) => s.model);
   const single = selection.nodes.length + selection.edges.length === 1;
   const c = single && selection.nodes.length === 1 ? constructs.find((k) => k.id === selection.nodes[0]) : undefined;
   const pathId = single && selection.edges.length === 1 ? selection.edges[0] : undefined;
@@ -495,7 +609,7 @@ export function Inspector() {
       <div className="panel-body">
         {c ? <ConstructInspector key={c.id} c={c} />
           : pathId ? <PathInspector id={pathId} />
-          : modId ? <ModerationInspector id={modId} />
+          : modId ? (model.threeWay?.some((t) => t.id === modId) ? <ThreeWayInspector id={modId} /> : <ModerationInspector id={modId} />)
           : corId ? <CorrelationInspector id={corId} />
             : title === 'Selection' ? <div className="hint">{selection.nodes.length} construct(s), {selection.edges.length} path(s) selected. Press Delete to remove them.</div>
               : <ModelInspector />}

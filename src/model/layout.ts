@@ -57,6 +57,26 @@ export function autoLayout(model: ModelState): Construct[] {
     order.forEach((o, i) => y.set(o.c.id, Math.round(placed[i] + shift)));
   }
 
+  // A path that skips a layer must not run through a construct in between
+  // (e.g. ind60 → dem65 through dem60): move that construct off the line,
+  // pushing its column neighbours to keep the gap.
+  for (let l = 1; l < maxLayer; l++) {
+    const col = model.constructs.filter((c) => layer.get(c.id) === l);
+    for (const p of model.paths) {
+      const lf = layer.get(p.from), lt = layer.get(p.to);
+      if (lf === undefined || lt === undefined || !(lf < l && l < lt)) continue;
+      const yf = y.get(p.from)!, yt = y.get(p.to)!;
+      const yLine = yf + ((yt - yf) * (l - lf)) / (lt - lf);
+      const hit = col.find((c) => Math.abs(y.get(c.id)! - yLine) < Y_GAP * 0.45);
+      if (!hit) continue;
+      y.set(hit.id, Math.round(yLine - Y_GAP * 0.6));
+      const sorted = [...col].sort((a, b) => y.get(a.id)! - y.get(b.id)!);
+      const at = sorted.indexOf(hit);
+      for (let i = at - 1; i >= 0; i--) y.set(sorted[i].id, Math.min(y.get(sorted[i].id)!, y.get(sorted[i + 1].id)! - Y_GAP));
+      for (let i = at + 1; i < sorted.length; i++) y.set(sorted[i].id, Math.max(y.get(sorted[i].id)!, y.get(sorted[i - 1].id)! + Y_GAP));
+    }
+  }
+
   const neighbours = (id: string) => [
     ...(preds.get(id) ?? []),
     ...model.paths.filter((p) => p.from === id).map((p) => p.to),

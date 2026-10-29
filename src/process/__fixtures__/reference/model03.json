@@ -1,0 +1,23 @@
+{
+  "model": 3,
+  "mediators": [],
+  "w": true,
+  "z": true,
+  "conditioning": "percentiles 16/50/84",
+  "equations": {
+    "y": {
+      "constant": 0.07109472,
+      "x": 0.6554411,
+      "w": 0.11682174,
+      "x*w": 0.38090619,
+      "z": -0.01325688,
+      "x*z": 0.02022555,
+      "w*z": -0.00812315,
+      "x*w*z": 0.2050865,
+      "c1": 0.10544309
+    }
+  },
+  "direct": null,
+  "indirect": [],
+  "indices": []
+}

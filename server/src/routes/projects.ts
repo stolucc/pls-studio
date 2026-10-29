@@ -1,4 +1,5 @@
 import express, { Router } from 'express';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { z } from 'zod';
 import { h, requireUser, type AppDeps } from '../app.ts';
 import * as P from '../services/projects.ts';
@@ -13,12 +14,19 @@ const pid = (raw: unknown) => {
 const projectName = z.string().trim().min(1).max(100);
 /** Single line, no control characters (names end up in email subjects). */
 const oneLine = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+/** Invitation emails per user and hour: anyone can create a project, so this caps mail to arbitrary addresses. */
+export const INVITES_PER_HOUR = 20;
 
 export function projectRoutes(deps: AppDeps) {
   const { db, config, mailer } = deps;
   const master = Buffer.from(config.DATA_MASTER_KEY, 'base64');
   const r = Router();
   const json = express.json({ limit: '2mb' });
+  const inviteLimit = rateLimit({
+    windowMs: 60 * 60_000, limit: INVITES_PER_HOUR, standardHeaders: 'draft-8', legacyHeaders: false,
+    keyGenerator: (req) => req.session.userId ?? ipKeyGenerator(req.ip ?? ''),
+    message: { error: 'Too many invitations sent in the last hour. Try again later.' },
+  });
 
   r.get('/', h(async (req, res) => res.json({ projects: await P.listProjects(db, requireUser(req)) })));
 
@@ -68,7 +76,7 @@ export function projectRoutes(deps: AppDeps) {
   // ---- invitations ----
   r.get('/:id/invitations', h(async (req, res) => res.json({ invitations: await P.listInvitations(db, pid(req.params.id), requireUser(req)) })));
 
-  r.post('/:id/invitations', json, h(async (req, res) => {
+  r.post('/:id/invitations', inviteLimit, json, h(async (req, res) => {
     const id = pid(req.params.id);
     const userId = requireUser(req);
     const body = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.enum(['editor', 'viewer']) }).parse(req.body);
