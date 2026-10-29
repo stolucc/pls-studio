@@ -7,6 +7,8 @@ import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { OrderedPicker } from './LongitudinalPanel';
 import { c, pCell, Table } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 /** Inputs filled in by an example (applied when it changes). */
 export type ItemsPreset = { kind: 'irt'; items: string[]; model: IrtModel } | { kind: 'lca'; items: string[]; from: number; to: number };
@@ -100,7 +102,7 @@ export function ItemsPanel() {
   const [model, setModel] = useState<IrtModel>(irt?.model ?? 'grm');
   const [from, setFrom] = useState(1);
   const [to, setTo] = useState(4);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   const preset = useItems((s) => s.preset);
   useEffect(() => {
     if (!preset) return;
@@ -116,17 +118,17 @@ export function ItemsPanel() {
   if (!open) return null;
   const columns = data && !data.moments ? data.names : [];
   const classes = Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
-  const fail = (e: unknown, pkg: string) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `${pkg}: ${rMessage(e)}`));
+  const fail = (e: unknown, pkg: string) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `${pkg}: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
     try {
       const m = await import('../rengine/items');
       if (kind === 'irt') {
-        const r = await m.irtR(data!, items, model);
+        const r = await guard(m.irtR(data!, items, model));
         r.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `ltm ${r.engine.version}`));
         useItems.setState({ irt: r });
       } else {
-        const r = await m.lcaR(data!, items, classes, 10, seed);
+        const r = await guard(m.lcaR(data!, items, classes, 10, seed));
         r.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `poLCA ${r.engine.version}`));
         useItems.setState({ lca: r });
       }
@@ -175,6 +177,7 @@ export function ItemsPanel() {
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
+                {busy && <button className="btn" onClick={cancel}>Cancel</button>}
                 <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
               </div>
             </section>

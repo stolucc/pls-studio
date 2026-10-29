@@ -8,6 +8,8 @@ import { useStore } from '../store';
 import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 interface LongState {
   open: boolean;
@@ -136,7 +138,7 @@ export function LongitudinalPanel() {
   const [xs, setXs] = useState<string[]>(riclpm?.input.x ?? []);
   const [ys, setYs] = useState<string[]>(riclpm?.input.y ?? []);
   const [equal, setEqual] = useState(riclpm?.input.equal ?? false);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   const preset = useLong((s) => s.preset);
   useEffect(() => {
     if (!preset) return;
@@ -158,18 +160,18 @@ export function LongitudinalPanel() {
   const timeScores = times.trim() ? times.split(/[,\s]+/).filter(Boolean).map(Number) : measures.map((_, i) => i);
   const growthInput: GrowthInput = { measures, times: timeScores, shape, covariates, estimator, missing };
   const riInput: RiclpmInput = { x: xs, y: ys, equal, estimator, missing };
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `lavaan: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `lavaan: ${rMessage(e)}`));
   const logWarnings = (w: string[]) => w.forEach((x) => useStore.getState().logMessage('warning', x, 'lavaan (longitudinal)'));
   const run = async () => {
     setBusy(true);
     try {
       const m = await import('../rengine/longitudinal');
       if (kind === 'growth') {
-        const result = await m.growthR(data!, growthInput);
+        const result = await guard(m.growthR(data!, growthInput));
         logWarnings(result.warnings);
         useLong.setState({ growth: { input: growthInput, result } });
       } else {
-        const result = await m.riclpmR(data!, riInput);
+        const result = await guard(m.riclpmR(data!, riInput));
         logWarnings(result.warnings);
         useLong.setState({ riclpm: { input: riInput, result } });
       }
@@ -232,6 +234,7 @@ export function LongitudinalPanel() {
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
+                {busy && <button className="btn" onClick={cancel}>Cancel</button>}
                 <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
               </div>
             </section>

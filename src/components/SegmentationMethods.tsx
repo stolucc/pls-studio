@@ -8,6 +8,8 @@ import { freeColumnName } from './SegmentationPanel';
 import { useStore } from '../store';
 import { c, pCell, Table } from './results/Table';
 import { SegmentationTabs, type SegMethod } from './SegmentationPanel';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 interface ExtraState {
   pathmox: PathmoxResult | null;
@@ -71,7 +73,7 @@ function PathmoxSection() {
   const result = useSegExtra((s) => s.pathmox);
   const segments = useSegExtra((s) => s.segments);
   const [alpha, setAlpha] = useState(0.05), [depth, setDepth] = useState(2), [size, setSize] = useState(0.1);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   const errors = data ? validateModel(model, data, { ...settings, method: 'pls' }).filter((i) => i.level === 'error') : [];
   const problem = !data || data.moments ? 'Import raw data first.' : !model.paths.length ? 'Draw a PLS path model (with paths) first.'
     : model.moderations.length ? 'PATHMOX works on models without interaction terms.' : errors[0]?.message ?? null;
@@ -82,13 +84,13 @@ function PathmoxSection() {
   const toggle = (col: string, on: boolean) => set(on ? [...segments, { column: col, labels: labelsOf(col), ordered: false }] : segments.filter((s) => s.column !== col));
   const options: PlsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: 'casewise', consistent: settings.consistent };
   const input = { segments, alpha, depth, size };
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `genpathmox: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `genpathmox: ${rMessage(e)}`));
   const run = async (script = false) => {
     setBusy(true);
     try {
       const m = await import('../rengine/segment');
       if (script) downloadText(`${safeFileName(project)}-pathmox.R`, await m.pathmoxScriptR(data!, toSpec(model), options, input), 'text/x-r-source');
-      else { const r = await m.pathmoxR(data!, toSpec(model), options, input); r.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `genpathmox ${r.engine.version}`)); useSegExtra.setState({ pathmox: r }); }
+      else { const r = await guard(m.pathmoxR(data!, toSpec(model), options, input)); r.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `genpathmox ${r.engine.version}`)); useSegExtra.setState({ pathmox: r }); }
     } catch (e) { await fail(e); } finally { setBusy(false); }
   };
   return (
@@ -136,6 +138,7 @@ function PathmoxSection() {
             <div className="field"><label>Smallest node (share of the sample)</label><input className="input num" type="number" step={0.01} min={0.02} max={0.4} value={size} onChange={(e) => setSize(Math.max(0.02, Math.min(0.4, Number(e.target.value) || 0.1)))} /></div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button className="btn primary" disabled={busy || !segments.length} onClick={() => void run()}>{busy ? 'Growing the tree…' : 'Estimate'}</button>
+              {busy && <button className="btn" onClick={cancel}>Cancel</button>}
               <button className="btn" disabled={busy || !segments.length} onClick={() => void run(true)}>R script</button>
             </div>
           </>
@@ -192,19 +195,19 @@ function FimixSection() {
   const project = useStore((s) => s.projectName);
   const result = useSegExtra((s) => s.fimix);
   const [to, setTo] = useState(4), [nrep, setNrep] = useState(10), [intercepts, setIntercepts] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   const errors = data ? validateModel(model, data, { ...settings, method: 'pls' }).filter((i) => i.level === 'error') : [];
   const problem = !data || data.moments ? 'Import raw data first.' : !model.paths.length ? 'Draw a PLS path model (with paths) first.'
     : model.moderations.length ? 'FIMIX-PLS works on models without interaction terms.' : errors[0]?.message ?? null;
   const options: PlsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: 'casewise', consistent: false };
   const input = { classes: Array.from({ length: to }, (_, i) => i + 1), nrep, seed: settings.seed, intercepts };
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `flexmix: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `flexmix: ${rMessage(e)}`));
   const run = async (script = false) => {
     setBusy(true);
     try {
       const m = await import('../rengine/segment');
       if (script) downloadText(`${safeFileName(project)}-fimix.R`, await m.fimixScriptR(data!, toSpec(model), options, input), 'text/x-r-source');
-      else { const r = await m.fimixR(data!, toSpec(model), options, input); r.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `flexmix ${r.engine.version}`)); useSegExtra.setState({ fimix: r }); }
+      else { const r = await guard(m.fimixR(data!, toSpec(model), options, input)); r.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `flexmix ${r.engine.version}`)); useSegExtra.setState({ fimix: r }); }
     } catch (e) { await fail(e); } finally { setBusy(false); }
   };
   return (
@@ -223,6 +226,7 @@ function FimixSection() {
             <div className="hint">Seed {settings.seed} (Model settings); flexmix, best of the starts per number of segments.</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button className="btn primary" disabled={busy} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
+              {busy && <button className="btn" onClick={cancel}>Cancel</button>}
               <button className="btn" disabled={busy} onClick={() => void run(true)}>R script</button>
             </div>
           </>
@@ -255,19 +259,19 @@ function PosSection() {
   const project = useStore((s) => s.projectName);
   const result = useSegExtra((s) => s.pos);
   const [k, setK] = useState(2), [nrep, setNrep] = useState(3);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   const errors = data ? validateModel(model, data, { ...settings, method: 'pls' }).filter((i) => i.level === 'error') : [];
   const problem = !data || data.moments ? 'Import raw data first.' : !model.paths.length ? 'Draw a PLS path model (with paths) first.'
     : model.moderations.length ? 'PLS-POS works on models without interaction terms.' : errors[0]?.message ?? null;
   const options: PlsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: 'casewise', consistent: false };
   const input = { segments: k, nrep, seed: settings.seed };
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `PLS-POS: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `PLS-POS: ${rMessage(e)}`));
   const run = async (script = false) => {
     setBusy(true);
     try {
       const m = await import('../rengine/segment');
       if (script) downloadText(`${safeFileName(project)}-pls-pos.R`, await m.posScriptR(data!, toSpec(model), options, input), 'text/x-r-source');
-      else useSegExtra.setState({ pos: await m.posR(data!, toSpec(model), options, input) });
+      else useSegExtra.setState({ pos: await guard(m.posR(data!, toSpec(model), options, input)) });
     } catch (e) { await fail(e); } finally { setBusy(false); }
   };
   return (
@@ -284,6 +288,7 @@ function PosSection() {
             <div className="hint">Each move re-estimates two local models, so this takes a while (about half a minute for 400 observations and two segments). Seed {settings.seed} (Model settings). Choose the number of segments with FIMIX-PLS first, as Becker et al. suggest.</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button className="btn primary" disabled={busy} onClick={() => void run()}>{busy ? 'Segmenting…' : 'Estimate'}</button>
+              {busy && <button className="btn" onClick={cancel}>Cancel</button>}
               <button className="btn" disabled={busy} onClick={() => void run(true)}>R script</button>
             </div>
           </>

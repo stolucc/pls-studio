@@ -8,6 +8,8 @@ import { IconX } from './icons';
 import { OrderedPicker } from './LongitudinalPanel';
 import { c, pCell, Table } from './results/Table';
 import { freeColumnName } from './SegmentationPanel';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 export type RsaPreset = Partial<RsaInput>;
 interface RsaState { open: boolean; result: { input: RsaInput; result: RsaResult } | null; preset: RsaPreset | null; setOpen: (v: boolean) => void }
@@ -145,7 +147,7 @@ export function PolynomialPanel() {
   const [estimation, setEstimation] = useState<RsaInput['estimation']>(saved?.input.estimation ?? 'OLS');
   const [center, setCenter] = useState<RsaInput['center']>(saved?.input.center ?? 'mean');
   const [midpoint, setMidpoint] = useState(String(saved?.input.midpoint ?? 3));
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   useEffect(() => {
     if (!preset) return;
     if (preset.outcome !== undefined) setOutcome(preset.outcome);
@@ -166,12 +168,12 @@ export function PolynomialPanel() {
   const columns = data && !data.moments ? data.names : [];
   const input: RsaInput = { outcome, x, y, controls, estimation, center, midpoint: Number(midpoint), confidence: settings.confidence };
   const ready = !!outcome && !!x && !!y && new Set([outcome, x, y]).size === 3 && (center !== 'midpoint' || Number.isFinite(Number(midpoint)));
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', rMessage(e)));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', rMessage(e)));
   const run = async () => {
     setBusy(true);
     try {
       const { rsaR } = await import('../rengine/rsa');
-      const result = await rsaR(data!, input);
+      const result = await guard(rsaR(data!, input));
       result.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `${result.engine.package} ${result.engine.version}`));
       usePolynomial.setState({ result: { input, result } });
     } catch (e) { await fail(e); } finally { setBusy(false); }
@@ -226,6 +228,7 @@ export function PolynomialPanel() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
+                {busy && <button className="btn" onClick={cancel}>Cancel</button>}
                 <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
               </div>
             </section>

@@ -7,6 +7,8 @@ import { useFreshResults, useStore } from '../store';
 import { IconX } from './icons';
 import { OrderedPicker } from './LongitudinalPanel';
 import { c, pCell, Table, type Row } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 export type EndoPreset = Partial<EndoInput> & { source?: 'data' | 'scores' };
 interface EndoState { open: boolean; result: { input: EndoInput; result: EndoResult; source: 'data' | 'scores' } | null; preset: EndoPreset | null; setOpen: (v: boolean) => void }
@@ -99,7 +101,7 @@ export function EndogeneityPanel() {
   const [selOutcome, setSelOutcome] = useState(saved?.input.selection.outcome ?? '');
   const [selRegs, setSelRegs] = useState<string[]>(saved?.input.selection.regressors ?? []);
   const [heckmanMethod, setHeckmanMethod] = useState<EndoInput['heckmanMethod']>(saved?.input.heckmanMethod ?? 'ml');
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   useEffect(() => {
     if (!preset) return;
     if (preset.source) setSource(preset.source);
@@ -133,12 +135,12 @@ export function EndogeneityPanel() {
   const ready = method === 'heckman' ? !!outcome && !!selOutcome && selRegs.length > 0
     : !!outcome && endogenous.length > 0 && (method !== 'iv' || instruments.length >= endogenous.length) && (method !== 'hm' || hmTypes.length > 0)
       && ((method !== 'het' && method !== 'hm' && method !== 'liv') || endogenous.length === 1);
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', rMessage(e)));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', rMessage(e)));
   const run = async () => {
     setBusy(true);
     try {
       const { endoR } = await import('../rengine/endo');
-      const result = await endoR(ds!, input);
+      const result = await guard(endoR(ds!, input));
       result.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `${result.engine.package} ${result.engine.version}`));
       useEndogeneity.setState({ result: { input, result, source } });
     } catch (e) { await fail(e); } finally { setBusy(false); }
@@ -225,6 +227,7 @@ export function EndogeneityPanel() {
             )}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button className="btn primary" disabled={!ready || busy || !ds} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
+              {busy && <button className="btn" onClick={cancel}>Cancel</button>}
               <button className="btn" disabled={!ready || !ds} onClick={() => void script()}>R script</button>
             </div>
           </section>

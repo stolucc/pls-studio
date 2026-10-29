@@ -10,6 +10,8 @@ import { useStore } from '../store';
 import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 type Tab = 'predict' | 'blindfold' | 'compare' | 'groups' | 'cta' | 'cca';
 type CcaTab = 'fit' | 'diagram' | 'weights' | 'loadings' | 'vif' | 'correlations';
@@ -227,7 +229,7 @@ export function PlsAssessmentPanel() {
   const project = useStore((st) => st.projectName);
   const [folds, setFolds] = useState(10), [reps, setReps] = useState(10), [distance, setDistance] = useState(7);
   const [group, setGroup] = useState(''), [approaches, setApproaches] = useState<MgaApproach[]>(['Henseler', 'Chin', 'Klesel']);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   const preset = s.preset;
   useEffect(() => { if (preset?.group) setGroup(preset.group); if (preset?.distance) setDistance(preset.distance); }, [preset]);
   useEffect(() => {
@@ -244,7 +246,7 @@ export function PlsAssessmentPanel() {
   const options: PlsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: settings.missing === 'fiml' ? 'casewise' : settings.missing, consistent: settings.consistent };
   const assigned = new Set(model.constructs.flatMap((k) => k.indicators));
   const groupCols = (data?.names ?? []).filter((n) => !assigned.has(n) && new Set(Array.from(data!.cols[data!.names.indexOf(n)]).filter((v) => !Number.isNaN(v))).size <= 10);
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `cSEM: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `cSEM: ${rMessage(e)}`));
   const go = async (what: Tab, script = false) => {
     setBusy(true);
     try {
@@ -252,26 +254,26 @@ export function PlsAssessmentPanel() {
       const seed = settings.seed;
       if (what === 'predict') {
         if (script) downloadText(`${safeFileName(project)}-plspredict.R`, await m.predictScriptR(data!, spec, options, { folds, repetitions: reps, seed }), 'text/x-r-source');
-        else usePlsAssessment.setState({ predict: await m.predictR(data!, spec, options, { folds, repetitions: reps, seed }) });
+        else usePlsAssessment.setState({ predict: await guard(m.predictR(data!, spec, options, { folds, repetitions: reps, seed })) });
       } else if (what === 'blindfold') {
         if (script) downloadText(`${safeFileName(project)}-blindfolding.R`, await m.blindfoldScriptR(data!, spec, options, distance), 'text/x-r-source');
-        else usePlsAssessment.setState({ blindfold: await m.blindfoldR(data!, spec, options, distance) });
+        else usePlsAssessment.setState({ blindfold: await guard(m.blindfoldR(data!, spec, options, distance)) });
       } else if (what === 'cca') {
         const cfg = { samples: Math.max(20, Math.min(5000, Math.floor(settings.bootSamples))), seed, alpha: 1 - settings.confidence };
         if (script) downloadText(`${safeFileName(project)}-cca.R`, await m.ccaScriptR(data!, spec, options, cfg), 'text/x-r-source');
-        else usePlsAssessment.setState({ cca: await m.ccaR(data!, spec, options, cfg) });
+        else usePlsAssessment.setState({ cca: await guard(m.ccaR(data!, spec, options, cfg)) });
       } else if (what === 'compare') {
         const alt = s.alternative!.spec;
         if (script) downloadText(`${safeFileName(project)}-model-comparison.R`, await m.compareScriptR(data!, spec, alt, options, seed), 'text/x-r-source');
-        else usePlsAssessment.setState({ compare: await m.compareR(data!, spec, alt, options, seed) });
+        else usePlsAssessment.setState({ compare: await guard(m.compareR(data!, spec, alt, options, seed)) });
       } else if (what === 'cta') {
         const cfg = { samples: Math.max(50, Math.min(20000, Math.floor(settings.bootSamples))), seed, alpha: 1 - settings.confidence };
         if (script) downloadText(`${safeFileName(project)}-cta-pls.R`, await m.ctaScriptR(data!, spec, options.missing, cfg), 'text/x-r-source');
-        else usePlsAssessment.setState({ cta: await m.ctaR(data!, spec, options.missing, cfg) });
+        else usePlsAssessment.setState({ cta: await guard(m.ctaR(data!, spec, options.missing, cfg)) });
       } else {
         const g = { group, approaches, samples: Math.max(20, Math.min(5000, Math.floor(settings.bootSamples))), seed };
         if (script) downloadText(`${safeFileName(project)}-micom-mga.R`, await m.groupsScriptR(data!, spec, options, g), 'text/x-r-source');
-        else usePlsAssessment.setState({ groups: await m.groupsR(data!, spec, options, g) });
+        else usePlsAssessment.setState({ groups: await guard(m.groupsR(data!, spec, options, g)) });
       }
     } catch (e) { await fail(e); } finally { setBusy(false); }
   };
@@ -353,6 +355,7 @@ export function PlsAssessmentPanel() {
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button className="btn primary" disabled={!ready || busy} onClick={() => void go(s.tab)}>{busy ? 'Calculating…' : 'Calculate'}</button>
+                {busy && <button className="btn" onClick={cancel}>Cancel</button>}
                 <button className="btn" disabled={!ready || busy} onClick={() => void go(s.tab, true)}>R script</button>
               </div>
             </section>

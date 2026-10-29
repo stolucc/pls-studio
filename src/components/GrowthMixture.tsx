@@ -5,6 +5,8 @@ import { useStore } from '../store';
 import { ChartFrame } from './ChartFrame';
 import { OrderedPicker, useLong } from './LongitudinalPanel';
 import { c, pCell, Table } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 const COLORS = ['#6d28d9', '#0f9d63', '#d97706', '#2563eb', '#db2777', '#0891b2'];
 
@@ -82,7 +84,7 @@ export function GrowthMixture({ columns, tabs }: { columns: string[]; tabs: Reac
   const [random, setRandom] = useState<GmmInput['random']>(result?.input.random ?? 'intercept');
   const [to, setTo] = useState(Math.max(...(result?.input.classes ?? [3])));
   const [nrep, setNrep] = useState(result?.input.nrep ?? 30);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   useEffect(() => {
     const g = preset?.gmm;
     if (!g) return;
@@ -96,12 +98,12 @@ export function GrowthMixture({ columns, tabs }: { columns: string[]; tabs: Reac
   const input: GmmInput = format === 'wide' ? { ...common, format, measures, times: timeScores } : { ...common, format, subject, time, outcome };
   const ready = format === 'wide' ? measures.length >= 3 && timeScores.length === measures.length && timeScores.every(Number.isFinite)
     : !!subject && !!time && !!outcome && new Set([subject, time, outcome]).size === 3;
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `lcmm: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `lcmm: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
     try {
       const { gmmR } = await import('../rengine/mixed');
-      const r = await gmmR(data!, input);
+      const r = await guard(gmmR(data!, input));
       r.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `lcmm ${r.engine.version}`));
       useLong.setState({ gmm: { input, result: r } });
     } catch (e) { await fail(e); } finally { setBusy(false); }
@@ -174,6 +176,7 @@ export function GrowthMixture({ columns, tabs }: { columns: string[]; tabs: Reac
         <div className="hint">Mixture models have local optima: each solution starts from {nrep} random starting values (seed from the Model settings; lcmm::gridsearch). This takes a while.</div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
+          {busy && <button className="btn" onClick={cancel}>Cancel</button>}
           <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
         </div>
       </section>

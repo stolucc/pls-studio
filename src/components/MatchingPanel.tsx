@@ -7,6 +7,8 @@ import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { OrderedPicker } from './LongitudinalPanel';
 import { c, pCell, Table } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 export type MatchPreset = Partial<MatchInput>;
 interface MatchState { open: boolean; result: { input: MatchInput; result: MatchResult } | null; preset: MatchPreset | null; setOpen: (v: boolean) => void }
@@ -92,7 +94,7 @@ export function MatchingPanel() {
   const [ratio, setRatio] = useState(saved?.input.ratio ?? 1);
   const [caliper, setCaliper] = useState(saved?.input.caliper != null ? String(saved.input.caliper) : '');
   const [replace, setReplace] = useState(saved?.input.replace ?? false);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   useEffect(() => {
     if (!preset) return;
     if (preset.treatment !== undefined) setTreatment(preset.treatment);
@@ -117,12 +119,12 @@ export function MatchingPanel() {
   const input: MatchInput = { treatment, covariates, outcome, method, distance, estimand: est, ratio: pairs ? ratio : 1,
     caliper: method === 'nearest' ? cal : null, replace: method === 'nearest' && replace, seed: settings.seed, confidence: settings.confidence };
   const ready = !!treatment && covariates.length > 0 && (cal === null || (Number.isFinite(cal) && cal > 0));
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `MatchIt: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `MatchIt: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
     try {
       const { matchR } = await import('../rengine/match');
-      const result = await matchR(data!, input);
+      const result = await guard(matchR(data!, input));
       result.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `MatchIt ${result.engine.version}`));
       useMatching.setState({ result: { input, result } });
     } catch (e) { await fail(e); } finally { setBusy(false); }
@@ -195,6 +197,7 @@ export function MatchingPanel() {
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Matching…' : 'Match'}</button>
+                {busy && <button className="btn" onClick={cancel}>Cancel</button>}
                 <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
               </div>
             </section>

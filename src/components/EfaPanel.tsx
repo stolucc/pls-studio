@@ -7,6 +7,8 @@ import { useStore } from '../store';
 import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 export type EfaPreset = Partial<EfaDesign>;
 type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'correlations' | 'variance' | 'fit';
@@ -210,7 +212,7 @@ export function EfaPanel() {
   const readOnly = useStore((s) => s.cloud?.role === 'viewer');
   const design: EfaDesign = settings.efa ?? DEFAULT_EFA;
   const setDesign = (p: Partial<EfaDesign>) => useStore.getState().setSettings({ efa: { ...design, ...p } });
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   // Switching back from PCA to factor analysis restores the extraction chosen before.
   const [lastExtraction, setLastExtraction] = useState<Exclude<EfaDesign['method'], 'pca'>>('minres');
   useEffect(() => { if (design.method !== 'pca') setLastExtraction(design.method); }, [design.method]);
@@ -228,12 +230,12 @@ export function EfaPanel() {
   const vars = design.vars.filter((v) => columns.includes(v));
   const maxK = Math.max(1, vars.length - 1);
   const ready = !!data && vars.length >= 3 && design.nfactors < vars.length;
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `psych: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `psych: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
     try {
       const { efaR } = await import('../rengine/efa');
-      useEfa.setState({ result: await efaR(data!, { ...design, vars }, settings.seed) });
+      useEfa.setState({ result: await guard(efaR(data!, { ...design, vars }, settings.seed)) });
     } catch (e) { await fail(e); } finally { setBusy(false); }
   };
   const script = async () => {
@@ -309,6 +311,7 @@ export function EfaPanel() {
             )}
             <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Calculating…' : 'Calculate'}</button>
+              {busy && <button className="btn" onClick={cancel}>Cancel</button>}
               <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
               <button className="btn" disabled={!saved || readOnly} onClick={build} title="Add one construct per factor, with the variables loading most on it, to the diagram">Build model</button>
             </div>

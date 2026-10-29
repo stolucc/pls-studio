@@ -8,6 +8,8 @@ import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { c, pCell, Table } from './results/Table';
 import { OtherSegmentation } from './SegmentationMethods';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 export type SegMethod = 'rebus' | 'pathmox' | 'fimix' | 'pos';
 interface SegState {
@@ -104,7 +106,7 @@ export function SegmentationPanel() {
   const [from, setFrom] = useState(rebus ? Math.min(...rebus.input.classes) : 2);
   const [to, setTo] = useState(rebus ? Math.max(...rebus.input.classes) : 4);
   const [k, setK] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   const preset = useSegmentation((s) => s.preset);
   useEffect(() => { if (preset) { setFrom(preset.from); setTo(preset.to); setK(null); } }, [preset]);
   useEffect(() => {
@@ -138,12 +140,12 @@ export function SegmentationPanel() {
   const classes = Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
   const input: RebusInput = { classes, stopCrit: 0.005, iterMax: 100, seed: settings.seed };
   const options = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: settings.missing === 'mean' ? 'mean' as const : 'casewise' as const, consistent: false };
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `plspm: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `plspm: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
     try {
       const { rebusR } = await import('../rengine/segment');
-      const result = await rebusR(data!, toSpec(model), options, input);
+      const result = await guard(rebusR(data!, toSpec(model), options, input));
       result.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `plspm ${result.engine.version}`));
       useSegmentation.setState({ rebus: { input, result, modelKey } });
       // GQI tends to grow with more classes: show the smallest solution first, not the highest GQI.
@@ -192,6 +194,7 @@ export function SegmentationPanel() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button className="btn primary" disabled={busy || !classes.length} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
+                {busy && <button className="btn" onClick={cancel}>Cancel</button>}
                 <button className="btn" disabled={!classes.length} onClick={() => void script()}>R script</button>
               </div>
             </section>

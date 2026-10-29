@@ -8,6 +8,8 @@ import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { OrderedPicker } from './LongitudinalPanel';
 import { c, pCell, Table } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 export type NcaPreset = { x: string[]; y: string; source?: 'data' | 'scores' };
 interface NcaState { open: boolean; result: NcaResult | null; preset: NcaPreset | null; setOpen: (v: boolean) => void }
@@ -79,7 +81,7 @@ export function NcaPanel() {
   const [xs, setXs] = useState<string[]>([]);
   const [y, setY] = useState('');
   const [perm, setPerm] = useState(1000);
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   useEffect(() => { if (preset) { setXs(preset.x); setY(preset.y); setSource(preset.source ?? 'data'); } }, [preset]);
   useEffect(() => {
     if (!open) return;
@@ -94,12 +96,12 @@ export function NcaPanel() {
   const ds = source === 'scores' ? scores : data && !data.moments ? data : null;
   const columns = ds?.names ?? [];
   const ready = !!ds && !!y && xs.length > 0 && !xs.includes(y);
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `NCA: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `NCA: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
     try {
       const { ncaR } = await import('../rengine/nca');
-      useNca.setState({ result: await ncaR(ds!, xs, y, perm) });
+      useNca.setState({ result: await guard(ncaR(ds!, xs, y, perm)) });
     } catch (e) { await fail(e); } finally { setBusy(false); }
   };
   const script = async () => {
@@ -143,6 +145,7 @@ export function NcaPanel() {
             )}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Calculating…' : 'Calculate'}</button>
+              {busy && <button className="btn" onClick={cancel}>Cancel</button>}
               <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
             </div>
           </section>

@@ -7,6 +7,8 @@ import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { OrderedPicker } from './LongitudinalPanel';
 import { c, pCell, Table } from './results/Table';
+import { isCancelled } from '../cancellable';
+import { useCancellable } from './useCancellable';
 
 interface MultilevelState {
   open: boolean;
@@ -87,7 +89,7 @@ export function MultilevelPanel() {
   const [slopes, setSlopes] = useState<string[]>(lmm?.input.slopes ?? []);
   const [center, setCenter] = useState<LmmInput['center']>(lmm?.input.center ?? 'none');
   const [estimation, setEstimation] = useState<LmmInput['estimation']>(lmm?.input.estimation ?? 'REML');
-  const [busy, setBusy] = useState(false);
+  const { busy, setBusy, guard, cancel } = useCancellable();
   useEffect(() => {
     if (!preset) return;
     setOutcome(preset.outcome); setPredictors(preset.predictors); setCluster(preset.cluster); setSlopes(preset.slopes); setCenter(preset.center); setEstimation(preset.estimation);
@@ -102,12 +104,12 @@ export function MultilevelPanel() {
   const columns = data && !data.moments ? data.names : [];
   const input: LmmInput = { outcome, predictors, cluster, slopes: slopes.filter((x) => predictors.includes(x)), center, estimation };
   const ready = !!outcome && !!cluster && outcome !== cluster && !predictors.includes(outcome) && !predictors.includes(cluster);
-  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `lme4: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `lme4: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
     try {
       const { lmmR } = await import('../rengine/mixed');
-      const r = await lmmR(data!, input);
+      const r = await guard(lmmR(data!, input));
       r.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `lme4 ${r.engine.version}`));
       useMultilevel.setState({ lmm: { input, result: r } });
     } catch (e) { await fail(e); } finally { setBusy(false); }
@@ -168,6 +170,7 @@ export function MultilevelPanel() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
+                {busy && <button className="btn" onClick={cancel}>Cancel</button>}
                 <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
               </div>
             </section>
