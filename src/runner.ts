@@ -107,8 +107,14 @@ function runR(kind: JobKind, key: string) {
     }).catch(failed);
     return;
   }
+  // Parallel option: progress per chunk of samples, over the R sessions.
+  const progress = (d: number, total: number) => {
+    if (token !== rToken) return;
+    import('./rengine/compute').then(({ useCompute }) => useStore.getState().setJob({ kind, done: d, total, workers: Math.min(useCompute.getState().workers, total),
+      label: `${what} with ${pkg} in ${Math.min(useCompute.getState().workers, total)} parallel R sessions (${d} of ${total} chunks)…` }));
+  };
   Promise.all([import('./rengine/analyses'), version()]).then(([{ bootstrapR }, v]) => bootstrapR(data, spec,
-    cb ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot, interaction: st.interaction } : { kind: 'plsBoot', pkg: st.plsPackage, options, boot }, () => v))
+    cb ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot, interaction: st.interaction } : { kind: 'plsBoot', pkg: st.plsPackage, options, boot }, () => v, progress))
     .then((r) => {
       const t = done(); if (!t) return;
       t.setResults({ boot: r }, key);
@@ -315,22 +321,27 @@ let rSimToken = 0;
  */
 async function runSimulationR(design: McDesign) {
   const { useSim } = await import('./simStore');
-  const [{ summariseMc }, { runMcChunkR }, { rMessage }] = await Promise.all([import('./engine/montecarlo'), import('./rengine/mc'), import('./rengine/bridge')]);
+  const [{ summariseMc }, { runMcChunkR }, { rMessage }, { parallelMap }, { useCompute }] = await Promise.all([import('./engine/montecarlo'), import('./rengine/mc'), import('./rengine/bridge'),
+    import('./rengine/runtime'), import('./rengine/compute')]);
   const total = design.replications * design.sampleSizes.length;
   const token = ++rSimToken;
   simR = true;
-  useSim.getState().setJob({ done: 0, total, workers: 1 });
-  const parts: McPart[] = [];
   const CHUNK = 10;
+  const tasks = design.sampleSizes.flatMap((n) => Array.from({ length: Math.ceil(design.replications / CHUNK) }, (_, k) => ({ n, start: k * CHUNK, end: Math.min(design.replications, (k + 1) * CHUNK) })));
+  // The parallel option spreads the chunks over several R sessions; each replication has its own seeds.
+  const workers = Math.min(useCompute.getState().workers, tasks.length);
+  useSim.getState().setJob({ done: 0, total, workers });
+  const parts: McPart[] = [];
   try {
-    for (const n of design.sampleSizes) {
-      for (let start = 0; start < design.replications; start += CHUNK) {
-        const part = await runMcChunkR(design, n, start, Math.min(design.replications, start + CHUNK));
-        if (token !== rSimToken) return;
-        parts.push(part);
-        useSim.getState().setJob({ done: parts.reduce((s, p) => s + p.est[0][0].length, 0), total, workers: 1 });
-      }
-    }
+    await parallelMap(tasks, workers, async (t, session) => {
+      if (token !== rSimToken) throw new Error('cancelled');
+      const part = await runMcChunkR(design, t.n, t.start, t.end, session);
+      if (token !== rSimToken) throw new Error('cancelled');
+      parts.push(part);
+      useSim.getState().setJob({ done: parts.reduce((s, p) => s + p.est[0][0].length, 0), total, workers });
+      return part;
+    });
+    if (token !== rSimToken) return;
     useSim.getState().setRows(summariseMc(design, parts), JSON.stringify(design));
     useStore.getState().toast('success', `Simulation finished: ${total} replications with lavaan and cSEM (R).`);
   } catch (e) {

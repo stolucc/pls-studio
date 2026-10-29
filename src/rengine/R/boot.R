@@ -30,6 +30,44 @@ PS_CORES_LAVAAN <- c(
   "# depend on the number of cores, so the results differ from PLS Studio's (which uses cores <- 1).",
   "cores <- 1")
 
+#' Parallel bootstrap (PLS Studio's "parallel workers" option): the samples are
+#' drawn in chunks (req$boot$chunkR samples with seed req$boot$chunkSeed each),
+#' so the draws do not depend on how many R sessions share the work. `chunk_fn`
+#' is the R code of `draw_chunk(R, seed)`, which returns list(draws, original).
+#' In the app, one call draws one chunk (req$boot$part = k, returning its draws)
+#' and a last call summarises all of them (req$boot$draws); the exported script
+#' draws every chunk in turn.
+ps_boot_chunked <- function(req) !is.null(req$boot$chunkR)
+ps_boot_draw_lines <- function(req, chunk_fn) {
+  R <- as.integer(req$boot$chunkR); seeds <- as.integer(req$boot$chunkSeed)
+  if (!length(R) || length(R) != length(seeds) || anyNA(R) || anyNA(seeds) || any(R < 1)) stop("Invalid bootstrap chunks in the request.")
+  part <- req$boot$part
+  if (!is.null(req$boot$draws)) return(c("# The draws of all chunks (computed in parallel R sessions).",
+    "draws <- boot_draws; original <- boot_original"))
+  if (!is.null(part)) { part <- as.integer(part); if (is.na(part) || part < 1 || part > length(R)) stop("Invalid bootstrap chunk."); R <- R[part]; seeds <- seeds[part] }
+  c(chunk_fn,
+    sprintf("# Parallel bootstrap: the samples in %d chunk%s, chunk k drawn with its own seed, so the draws", length(R), if (length(R) > 1) "s" else ""),
+    "# do not depend on the number of R sessions; the chunks can run in parallel (e.g. parallel::mclapply).",
+    sprintf("chunks <- data.frame(R = c(%s), seed = c(%s))", paste(R, collapse = ", "), paste(seeds, collapse = ", ")),
+    "parts <- lapply(seq_len(nrow(chunks)), function(k) draw_chunk(chunks$R[k], chunks$seed[k]))",
+    "draws <- do.call(rbind, lapply(parts, `[[`, \"draws\")); original <- parts[[1]]$original")
+}
+#' Inputs of the summarising call: the draws of all chunks (req$boot$draws: {names, rows}) and the originals.
+ps_boot_inputs <- function(req, inputs) {
+  d <- req$boot$draws
+  if (is.null(d)) return(inputs)
+  v <- d$values
+  # (a JSON array of rows arrives as a matrix, or as a list of rows when they contain nulls)
+  m <- if (is.matrix(v)) v else do.call(rbind, lapply(v, function(r) as.numeric(vapply(r, function(x) if (is.null(x)) NA_real_ else as.numeric(x), 0))))
+  m <- matrix(as.numeric(m), nrow = nrow(m), dimnames = list(NULL, d$names))
+  c(inputs, list(boot_draws = m, boot_original = setNames(as.numeric(unlist(d$original)), d$names)))
+}
+#' The draws of one chunk as JSON (in-app parallel calls).
+ps_boot_part_json <- function(env) {
+  D <- env$draws
+  ps_json(list(names = colnames(D), values = unname(lapply(seq_len(nrow(D)), function(i) unname(D[i, ]))), original = unname(env$original[colnames(D)]), warnings = env$.warnings))
+}
+
 ps_pls_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_pls_build(req)
@@ -43,12 +81,20 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   if (b$pkg == "cSEM") {
     # Same call with cSEM's resampling; R² per draw via a user function.
     body <- c(PS_CORES_CSEM, body)
-    body[length(body)] <- sub(")$", sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = %d, .eval_plan = plan, .user_funs = list(R2 = function(.object) .object$Estimates$R2))", B, seed), body[length(body)])
-    body <- c(body,
+    extract <- c(
       "res <- fit$Estimates$Estimates_resample$Estimates1",
       "groups <- c(path = \"Path_estimates\", total = \"Total_effect\", indirect = \"Indirect_effect\", loading = \"Loading_estimates\", weight = \"Weight_estimates\", r2 = \"R2\")",
       "draws <- do.call(cbind, lapply(names(groups), function(g) { x <- res[[groups[[g]]]]$Resampled; colnames(x) <- paste0(g, \": \", colnames(x)); x }))",
       "original <- unlist(lapply(names(groups), function(g) setNames(res[[groups[[g]]]]$Original, paste0(g, \": \", names(res[[groups[[g]]]]$Original)))))")
+    resample <- ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) .object$Estimates$R2))"
+    if (ps_boot_chunked(req)) {
+      body <- c(body, ps_boot_draw_lines(req, c("draw_chunk <- function(R, seed) {",
+        sprintf("  fit <- %s", sub(")$", sprintf(resample, "R", "seed"), sub("^fit <- ", "", body[length(body)]))),
+        paste0("  ", extract), "  list(draws = draws, original = original)", "}")))
+    } else {
+      body[length(body)] <- sub(")$", sprintf(resample, B, seed), body[length(body)])
+      body <- c(body, extract)
+    }
   } else {
     body <- c(body,
       PS_CORES_SEMINR,
@@ -65,7 +111,8 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   body <- c(body, PS_BOOT_SUMMARY, sprintf("result <- boot_summary(draws, original[colnames(draws)], confidence = %s)", format(conf)))
   title <- sprintf("Bootstrap, %d samples (%s)", B, b$pkg)
   if (export) return(paste(ps_script(title, b$pkg, b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
-  env <- ps_run(body, b$inputs)
+  if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
+  env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   ps_json(list(stats = ps_boot_keys(env$result, b, req), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0),
     confidence = conf, warnings = env$.warnings))
 }
@@ -99,12 +146,21 @@ ps_boot_keys <- function(r, b, req) {
   out
 }
 
+#' The draws of a lavaan / modsem bootstrap: `draw` is the R code of one run of
+#' R samples from seed `seed` (a matrix, a row per sample); all B at once, or in
+#' chunks (parallel option).
+ps_cb_draws <- function(req, setup, expr, B, seed) {
+  if (ps_boot_chunked(req)) return(ps_boot_draw_lines(req, c("draw_chunk <- function(R, seed) {", paste0("  ", setup),
+    paste0(c("  draws <- ", rep("  ", length(expr) - 1)), expr), "  list(draws = draws, original = original)", "}")))
+  c(sprintf("R <- %d; seed <- %d", B, seed), setup, paste0(c("draws <- ", rep("", length(expr) - 1)), expr))
+}
+
 ps_cb_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- req$boot$confidence
-  if (!is.null(b$modsem)) return(ps_cb_boot_modsem(b, B, seed, conf, export))
+  if (!is.null(b$modsem)) return(ps_cb_boot_modsem(b, B, seed, conf, export, req))
   body <- c(b$body,
     "# Standardised paths, total and indirect effects, loadings and R² of one fitted model;",
     "# with several groups or levels (blocks) each statistic is named \"... @block\".",
@@ -141,27 +197,29 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     if (!is.null(b$cluster_var)) c(
       "# Two-level model: lavaan does not bootstrap multilevel models, so whole clusters are resampled",
       "# with replacement (each drawn cluster gets a new id) and the model is refitted.",
-      sprintf("set.seed(%d)", seed),
       sprintf("refit <- function(d) %s", sub("data = data", "data = d", sub("^fit <- ", "", b$call), fixed = TRUE)),
       sprintf("cl <- data[[\"%s\"]]; boot_errors <- character(0)", b$cluster_var),
       if (!is.null(b$group_var)) c("# With groups, clusters are resampled within their group (so every group keeps its number of clusters).",
         sprintf("strata <- split(unique(cl), data[[\"%s\"]][match(unique(cl), cl)])", b$group_var))
       else "strata <- list(unique(cl))",
-      sprintf("draws <- t(vapply(seq_len(%d), function(r) {", B),
-      "  s <- unlist(lapply(strata, function(ids) ids[sample.int(length(ids), replace = TRUE)]), use.names = FALSE)",
-      sprintf("  d <- do.call(rbind, lapply(seq_along(s), function(k) { x <- data[cl == s[k], , drop = FALSE]; x[[\"%s\"]] <- k; x }))", b$cluster_var),
-      "  tryCatch(std_stats(refit(d), names(original)),",
-      "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) })",
-      "}, numeric(length(original))))",
+      ps_cb_draws(req, "set.seed(seed)", c(
+        "t(vapply(seq_len(R), function(r) {",
+        "  s <- unlist(lapply(strata, function(ids) ids[sample.int(length(ids), replace = TRUE)]), use.names = FALSE)",
+        sprintf("  d <- do.call(rbind, lapply(seq_along(s), function(k) { x <- data[cl == s[k], , drop = FALSE]; x[[\"%s\"]] <- k; x }))", b$cluster_var),
+        "  tryCatch(std_stats(refit(d), names(original)),",
+        "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) })",
+        "}, numeric(length(original))))"), B, seed),
       sprintf("if (length(boot_errors)) warning(sprintf(\"%%d of %d cluster resamples failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))", B))
     else c(PS_CORES_LAVAAN,
-      sprintf("draws <- bootstrapLavaan(fit, R = %d, FUN = function(f) std_stats(f, names(original)), iseed = %d,", B, seed),
-      "  parallel = if (cores > 1) \"multicore\" else \"no\", ncpus = cores)"),
+      ps_cb_draws(req, NULL, c(
+        "bootstrapLavaan(fit, R = R, FUN = function(f) std_stats(f, names(original)), iseed = seed,",
+        "  parallel = if (cores > 1) \"multicore\" else \"no\", ncpus = cores)"), B, seed)),
     "colnames(draws) <- names(original)",
     PS_BOOT_SUMMARY,
     sprintf("result <- boot_summary(draws, original, confidence = %s)", format(conf)))
   if (export) return(paste(ps_script(sprintf("Bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
-  env <- ps_run(body, b$inputs)
+  if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
+  env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   constructs <- c(b$n$cname, b$int_names)
   back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
   r <- env$result
@@ -185,7 +243,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
 #' Bootstrap of a latent-interaction model estimated by LMS or QML (modsem).
 #' modsem has no bootstrap of its own, so cases are resampled with replacement
 #' and the model refitted; the statistics are modsem's standardised estimates.
-ps_cb_boot_modsem <- function(b, B, seed, conf, export) {
+ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
   fit_line <- b$body[length(b$body)]
   body <- c(b$body,
     "# Standardised paths (the interaction X:Z included), total and indirect effects, loadings",
@@ -212,16 +270,16 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export) {
     "original <- std_stats(fit)",
     "# modsem has no bootstrap of its own: cases are resampled with replacement and the model refitted.",
     "# (LMS refits are slow: expect seconds per sample.)",
-    sprintf("set.seed(%d)", seed),
     sprintf("refit <- function(d) %s", sub("data = data", "data = d", sub("^fit <- ", "", fit_line), fixed = TRUE)),
     "boot_errors <- character(0); boot_warnings <- character(0)",
-    sprintf("draws <- t(vapply(seq_len(%d), function(r) {", B),
-    "  d <- data[sample.int(nrow(data), replace = TRUE), , drop = FALSE]",
-    "  # Warnings of single refits are counted, not repeated for every sample.",
-    "  withCallingHandlers(tryCatch(std_stats(refit(d), names(original)),",
-    "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) }),",
-    "    warning = function(w) { boot_warnings <<- c(boot_warnings, conditionMessage(w)); invokeRestart(\"muffleWarning\") })",
-    "}, numeric(length(original))))",
+    ps_cb_draws(req, "set.seed(seed)", c(
+      "t(vapply(seq_len(R), function(r) {",
+      "  d <- data[sample.int(nrow(data), replace = TRUE), , drop = FALSE]",
+      "  # Warnings of single refits are counted, not repeated for every sample.",
+      "  withCallingHandlers(tryCatch(std_stats(refit(d), names(original)),",
+      "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) }),",
+      "    warning = function(w) { boot_warnings <<- c(boot_warnings, conditionMessage(w)); invokeRestart(\"muffleWarning\") })",
+      "}, numeric(length(original))))"), B, seed),
     sprintf("if (length(boot_errors)) warning(sprintf(\"%%d of %d bootstrap refits failed, e.g.: %%s\", length(boot_errors), boot_errors[1]))", B),
     "if (length(boot_warnings)) warning(sprintf(\"%d warnings in the bootstrap refits, e.g.: %s\", length(boot_warnings), boot_warnings[1]))",
     "colnames(draws) <- names(original)",
@@ -229,7 +287,8 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export) {
     sprintf("result <- boot_summary(draws, original, confidence = %s)", format(conf)))
   title <- sprintf("Bootstrap, %d samples (%s, modsem)", B, toupper(b$modsem))
   if (export) return(paste(ps_script(title, c("modsem", "lavaan"), b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
-  env <- ps_run(body, b$inputs)
+  if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
+  env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   constructs <- c(b$n$cname, b$int_names)
   back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
   r <- env$result

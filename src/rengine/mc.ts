@@ -5,7 +5,7 @@
 
 import { buildPopulation, specFromPopulation } from '../engine/population';
 import { mcParameters, replicationSeed, type McDesign, type McPart } from '../engine/montecarlo';
-import { rCall, rScript } from './bridge';
+import { rCallOn, rScript } from './bridge';
 
 const rSeed = (s: number) => s % 2147483647;
 
@@ -31,10 +31,14 @@ export function mcRequest(design: McDesign, reps: { n: number; rep: number }[]) 
 
 const f64 = (v: unknown) => Float64Array.from((v as (number | null)[]).map((x) => (typeof x === 'number' ? x : NaN)));
 
-/** Replications start..end-1 at sample size n, as an McPart for summariseMc. */
-export async function runMcChunkR(design: McDesign, n: number, start: number, end: number): Promise<McPart> {
+/**
+ * Replications start..end-1 at sample size n, as an McPart for summariseMc, in
+ * R session `session` (every replication has its own seeds, so the results do
+ * not depend on which session runs it).
+ */
+export async function runMcChunkR(design: McDesign, n: number, start: number, end: number, session = 0): Promise<McPart> {
   const reps = Array.from({ length: end - start }, (_, k) => ({ n, rep: start + k }));
-  const raw = await rCall<Record<string, any>>('ps_mc', mcRequest(design, reps), 'simulation');
+  const raw = await rCallOn<Record<string, any>>(session, 'ps_mc', mcRequest(design, reps), 'simulation');
   const pop = buildPopulation(design.population);
   const params = mcParameters(pop, design.estimators.some((e) => e.method === 'cb'));
   const ci = (name: string) => pop.constructs.indexOf(name);

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ComputeSettings } from './ComputeSettings';
 import { fmt, fmtP } from '../format';
 import { endogenousIds, validateModel, type Construct, type Settings } from '../model/project';
 import { useFreshResults, useStore } from '../store';
@@ -585,6 +586,7 @@ function ModelInspector() {
                 : 'lavaan (Rosseel), running in your browser (webR), including bootstrapping (bootstrapLavaan).'}
           {settings.engine === 'r' && ' The first calculation loads R and the packages; your data never leave this computer. Monte Carlo simulation also runs in R (lavaan::simulateData, cSEM, lavaan).'}
         </div>
+        {settings.engine === 'r' && <ComputeSettings />}
         <button className="btn sm" style={{ marginTop: 8 }} onClick={() => void exportRScript()}
           title="Download the R script for this model (data embedded): exactly what the R engine runs. Open it in R or RStudio to reproduce the results.">
           Export R script

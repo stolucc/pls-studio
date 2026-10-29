@@ -18,7 +18,8 @@ import plsR from './R/pls.R?raw';
 import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import segmentR from './R/segment.R?raw';
-import { callJson, callString, withR } from './runtime';
+import { useCompute } from './compute';
+import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
 const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR };
 
@@ -51,6 +52,19 @@ export type RPackage = keyof typeof R_PACKAGES;
 
 export function rCall<T>(fn: string, req: unknown, pkg: RPackage): Promise<T> {
   return withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `${fn}(req)`, req)) as Promise<T>;
+}
+
+/** As rCall, in R session `session` (parallel work; 0 is the main session). */
+export function rCallOn<T>(session: number, fn: string, req: unknown, pkg: RPackage): Promise<T> {
+  return withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `${fn}(req)`, req)) as Promise<T>;
+}
+
+/**
+ * One call per request, spread over the R sessions of the parallel option
+ * (useCompute.workers); results in request order.
+ */
+export function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackage, onDone?: (done: number) => void): Promise<T[]> {
+  return parallelMap(reqs, useCompute.getState().workers, (req, session) => rCallOn<T>(session, fn, req, pkg), onDone);
 }
 
 export function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string> {
