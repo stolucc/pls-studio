@@ -253,6 +253,18 @@ func runSetup(logger *log.Logger) {
 	fmt.Println("Done. Restart the helper to use the library.")
 }
 
+// setupRCode installs the missing packages into the library given as the
+// first argument. CRAN's binaries for this R are used even when a newer
+// source version exists (compiling needs compilers most users lack); every
+// package that still does not load is reported with R's reason.
+const setupRCode = `a <- commandArgs(trailingOnly = TRUE); lib <- a[1]; pk <- a[-1]; .libPaths(c(lib, .libPaths()))
+options(install.packages.compile.from.source = "never")
+loads <- function(p) tryCatch({ loadNamespace(p); TRUE }, error = function(e) FALSE)
+need <- pk[!vapply(pk, loads, TRUE)]
+if (length(need)) install.packages(need, lib = lib, repos = "https://cloud.r-project.org") else cat("All packages are installed.\n")
+why <- vapply(pk, function(p) tryCatch({ loadNamespace(p); "" }, error = function(e) conditionMessage(e)), "")
+if (any(nzchar(why))) { for (p in pk[nzchar(why)]) cat("Could not load ", p, ": ", why[[p]], "\n", sep = ""); quit(status = 1) }`
+
 // installPackages installs the R packages into the helper's own library
 // (so the user's library is left alone) and records it in the config.
 // Package names come from the embedded list and the library path is passed
@@ -270,12 +282,7 @@ func installPackages(cfg *config, out io.Writer) error {
 	if err := os.MkdirAll(lib, 0o700); err != nil {
 		return err
 	}
-	code := `a <- commandArgs(trailingOnly = TRUE); lib <- a[1]; pk <- a[-1]; .libPaths(c(lib, .libPaths()))
-need <- pk[!vapply(pk, requireNamespace, TRUE, quietly = TRUE)]
-if (length(need)) install.packages(need, lib = lib, repos = "https://cloud.r-project.org") else cat("All packages are installed.\n")
-miss <- pk[!vapply(pk, requireNamespace, TRUE, quietly = TRUE)]
-if (length(miss)) { cat("Could not install:", miss, "\n"); quit(status = 1) }`
-	cmd := exec.Command(rscript, append([]string{"--vanilla", "-e", code, lib}, requiredPackages()...)...)
+	cmd := exec.Command(rscript, append([]string{"--vanilla", "-e", setupRCode, lib}, requiredPackages()...)...)
 	cmd.Stdout, cmd.Stderr = out, out
 	if err := cmd.Run(); err != nil {
 		return err

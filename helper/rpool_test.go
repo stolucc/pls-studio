@@ -220,3 +220,20 @@ func TestRPool_ParallelCallsUseAllWorkers(t *testing.T) {
 		}
 	}
 }
+
+// setup uses CRAN's binaries for the installed R (no compiling) and names
+// the packages that still fail, with R's reason.
+func TestSetupRCode(t *testing.T) {
+	for _, want := range []string{`install.packages.compile.from.source = "never"`, `lib = lib`, `Could not load `, `quit(status = 1)`} {
+		if !strings.Contains(setupRCode, want) {
+			t.Errorf("setup R code lacks %q", want)
+		}
+	}
+	if _, err := exec.LookPath("Rscript"); err != nil {
+		t.Skip("Rscript not available")
+	}
+	// The code parses as R.
+	if out, err := exec.Command("Rscript", "--vanilla", "-e", "invisible(parse(text = commandArgs(TRUE)[1]))", setupRCode).CombinedOutput(); err != nil {
+		t.Fatalf("setup code does not parse: %v %s", err, out)
+	}
+}
