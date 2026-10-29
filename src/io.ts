@@ -353,7 +353,15 @@ export async function loadPackageExample(id: string) {
     }
     if (ex.segmentation) {
       const { useSegmentation } = await import('./components/SegmentationPanel');
-      useSegmentation.setState({ open: true, rebus: null, preset: { ...ex.segmentation } });
+      const seg = ex.segmentation;
+      if (seg.method === 'pathmox') {
+        // Segmentation variables with their category names; ordered ones in the example's order.
+        const cats = categoriesOf(raw.levels).categories ?? {};
+        const { useSegExtra } = await import('./components/SegmentationMethods');
+        useSegExtra.setState({ pathmox: null, segments: (seg.segments ?? []).map((s) => ({ column: s.column, labels: cats[s.column] ?? [], ordered: !!s.order,
+          ...(s.order ? { order: s.order.map((l) => (cats[s.column] ?? []).indexOf(l) + 1) } : {}) })) });
+        useSegmentation.setState({ open: true, method: 'pathmox', rebus: null });
+      } else useSegmentation.setState({ open: true, method: 'rebus', rebus: null, preset: { from: seg.from ?? 2, to: seg.to ?? 4 } });
       useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Estimate.`);
       return;
     }

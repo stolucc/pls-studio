@@ -7,14 +7,29 @@ import { useStore } from '../store';
 import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { c, pCell, Table } from './results/Table';
+import { OtherSegmentation } from './SegmentationMethods';
 
+export type SegMethod = 'rebus' | 'pathmox' | 'fimix' | 'pos';
 interface SegState {
-  open: boolean; rebus: { input: RebusInput; result: RebusResult; modelKey: string } | null;
+  open: boolean; method: SegMethod; rebus: { input: RebusInput; result: RebusResult; modelKey: string } | null;
   /** Numbers of classes filled in by an example (applied when it changes). */
   preset: { from: number; to: number } | null;
   setOpen: (v: boolean) => void;
 }
-export const useSegmentation = create<SegState>((set) => ({ open: false, rebus: null, preset: null, setOpen: (open) => set({ open }) }));
+export const useSegmentation = create<SegState>((set) => ({ open: false, method: 'rebus', rebus: null, preset: null, setOpen: (open) => set({ open }) }));
+
+const METHOD_LABEL: Record<SegMethod, string> = { rebus: 'REBUS-PLS', pathmox: 'PATHMOX', fimix: 'FIMIX-PLS', pos: 'PLS-POS' };
+/** The method switch at the top of the panel's form. */
+export function SegmentationTabs() {
+  const method = useSegmentation((s) => s.method);
+  return (
+    <div className="segmented wrap" role="radiogroup" aria-label="Segmentation method" style={{ marginBottom: 12 }}>
+      {(Object.keys(METHOD_LABEL) as SegMethod[]).map((m) => (
+        <button key={m} role="radio" aria-checked={method === m} className={method === m ? 'on' : ''} onClick={() => useSegmentation.setState({ method: m })}>{METHOD_LABEL[m]}</button>
+      ))}
+    </div>
+  );
+}
 
 /** A data column name not yet in use: rebus_k, rebus_k_2, ... */
 export function freeColumnName(names: string[], base: string): string {
@@ -79,6 +94,7 @@ function Solution({ r, m }: { r: RebusResult; m: RebusModel }) {
 /** REBUS-PLS segmentation of the current PLS model (plspm). */
 export function SegmentationPanel() {
   const open = useSegmentation((s) => s.open);
+  const method = useSegmentation((s) => s.method);
   const rebus = useSegmentation((s) => s.rebus);
   const data = useStore((s) => s.data);
   const info = useStore((s) => s.dataInfo);
@@ -99,6 +115,19 @@ export function SegmentationPanel() {
   }, [open]);
   if (!open) return null;
   const close = () => useSegmentation.getState().setOpen(false);
+  if (method !== 'rebus') {
+    return (
+      <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="Segmentation">
+        <div className="sim">
+          <header className="sim-head">
+            <div><b>Segmentation: {METHOD_LABEL[method]}</b><span className="muted">{method === 'pathmox' ? 'genpathmox' : method === 'fimix' ? 'finite mixture of the structural regressions (flexmix)' : 'prediction-oriented segmentation'} · {settings.scheme} weighting{settings.consistent ? ', PLSc' : ''} (Model settings)</span></div>
+            <button className="btn icon ghost" onClick={close} aria-label="Close"><IconX /></button>
+          </header>
+          <div className="sim-body long-body"><OtherSegmentation method={method} /></div>
+        </div>
+      </div>
+    );
+  }
   const modelKey = JSON.stringify([model.constructs.map((x) => [x.name, x.indicators, x.mode]), model.paths.map((p) => [p.from, p.to])]);
   const errors = data ? validateModel(model, data, { ...settings, method: 'pls' }).filter((i) => i.level === 'error') : [];
   const problem = !data || data.moments ? 'Import raw data first.'
@@ -145,9 +174,10 @@ export function SegmentationPanel() {
           <div><b>Segmentation: REBUS-PLS</b><span className="muted">plspm · {settings.scheme} weighting (from the Model settings)</span></div>
           <button className="btn icon ghost" onClick={close} aria-label="Close"><IconX /></button>
         </header>
-        {problem ? <div className="empty-results">{problem}</div> : (
+        {problem ? <div className="sim-body long-body"><section className="sim-col"><SegmentationTabs /><div className="empty-results">{problem}</div></section></div> : (
           <div className="sim-body long-body">
             <section className="sim-col">
+              <SegmentationTabs />
               <p className="hint" style={{ marginTop: 0 }}>
                 Response-based unit segmentation (Esposito Vinzi et al. 2008) looks for groups of observations whose models differ (unobserved heterogeneity).
                 It starts from a Ward clustering of the global model’s residuals, then moves each observation to the class whose local model fits it best, until the classes are stable.

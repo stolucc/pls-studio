@@ -51,3 +51,31 @@ export async function rebusR(data: Dataset, spec: ModelSpec, options: PlsOptions
 }
 export const rebusScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: RebusInput) =>
   rScript('ps_rebus', rebusRequest(data, spec, options, input), 'plspm');
+
+/** A categorical segmentation variable for PATHMOX: its category names, nominal or ordered (with their order, 1-based codes). */
+export interface PathmoxSegment { column: string; labels: string[]; ordered: boolean; order?: number[] }
+export interface PathmoxInput { segments: PathmoxSegment[]; alpha: number; depth: number; size: number }
+export interface PathmoxResult {
+  nodes: { node: number; parent: number; depth: number; terminal: boolean; size: number; percent: number; variable?: string; category?: string }[];
+  splits: { node: number; f: number; p: number; variable: string; left: string; right: string; paths: { path: string; f: number; p: number }[] }[];
+  terminal: { nodes: string[]; rows: { name: string; values: number[] }[] };
+  importance: { variable: string; ranking: number }[];
+  warnings: string[]; engine: REngineInfo;
+}
+
+export function pathmoxRequest(data: Dataset, spec: ModelSpec, options: PlsOptions, input: PathmoxInput) {
+  const req = plsRequest(data, spec, options, 'cSEM');
+  const extra = input.segments.map((s) => s.column).filter((c) => !req.data.names.includes(c));
+  const cols = extra.map((c) => { const j = data.names.indexOf(c); if (j < 0) throw new Error(`“${c}” is not in the dataset.`); return Array.from(data.cols[j], (v) => (Number.isNaN(v) ? null : v)); });
+  return { ...req, ...input, data: { names: [...req.data.names, ...extra], cols: [...req.data.cols, ...cols] } };
+}
+export async function pathmoxR(data: Dataset, spec: ModelSpec, options: PlsOptions, input: PathmoxInput): Promise<PathmoxResult> {
+  const raw = await rCall<Record<string, any>>('ps_pathmox', pathmoxRequest(data, spec, options, input), 'genpathmox');
+  return {
+    nodes: arr(raw.nodes), importance: arr(raw.importance), warnings: rStrings(raw.warnings), engine: raw.engine,
+    splits: arr<any>(raw.splits).map((s) => ({ ...s, paths: arr(s.paths) })),
+    terminal: { nodes: rStrings(raw.terminal?.nodes), rows: arr<any>(raw.terminal?.rows).map((r) => ({ name: r.name, values: nums(r.values) })) },
+  };
+}
+export const pathmoxScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: PathmoxInput) =>
+  rScript('ps_pathmox', pathmoxRequest(data, spec, options, input), 'genpathmox');

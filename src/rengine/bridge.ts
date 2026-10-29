@@ -43,6 +43,7 @@ export const R_PACKAGES = {
   MatchIt: ['jsonlite', 'MatchIt', 'optmatch', 'cobalt', 'sandwich', 'lmtest'],
   polynomial: ['jsonlite', 'lavaan'],
   nca: ['jsonlite'],
+  genpathmox: ['jsonlite', 'cSEM', 'genpathmox'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

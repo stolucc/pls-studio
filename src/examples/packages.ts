@@ -15,8 +15,8 @@ import type { MatchPreset } from '../components/MatchingPanel';
 import type { RsaPreset } from '../components/PolynomialPanel';
 import type { NcaPreset } from '../components/NcaPanel';
 
-export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA'];
+export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -62,8 +62,8 @@ export interface PackageExample {
   processModel?: number;
   /** Opens this analysis panel instead of a diagram (constructs and paths are empty). */
   panel?: ExamplePanel;
-  /** Opens the segmentation panel on the example's diagram, comparing these numbers of classes. */
-  segmentation?: { from: number; to: number };
+  /** Opens the segmentation panel on the example's diagram: REBUS (numbers of classes) or PATHMOX (segmentation variables; ordered ones with their categories in order). */
+  segmentation?: { method?: 'rebus' | 'pathmox'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
   /** Opens the PLS assessment panel on the example's diagram (tab, and the grouping column). */
   assessment?: { tab: 'predict' | 'compare' | 'groups'; group?: string };
   settings: Partial<Settings>;
@@ -311,6 +311,17 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: [c('IMAG', items('imag', 3)), c('EXPE', items('expe', 3)), c('QUAL', items('qual', 5)), c('VAL', items('val', 3)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['QUAL', 'VAL'], ['IMAG', 'SAT'], ['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
     assessment: { tab: 'groups', group: 'gender' }, settings: PLS('cSEM', false),
+  },
+  {
+    id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',
+    links: [{ label: '?pls.pathmox', url: 'https://rdrr.io/cran/genpathmox/man/pls.pathmox.html' }, { label: '?csibank', url: 'https://rdrr.io/cran/genpathmox/man/csibank.html' }],
+    description: 'Satisfaction and loyalty of 1707 customers of a Spanish bank: does the model differ by gender, age, education, occupation or region? PATHMOX splits by age and then education and region. Consistent PLS, as on the help page. Opens Segmentation.',
+    data: { package: 'genpathmox', name: 'csibank' },
+    constructs: [c('QUAL', items('qual', 7)), f('IMAG', items('imag', 6)), f('VAL', items('val', 4)), f('SAT', items('sat', 3)), f('LOY', items('loy', 3))],
+    paths: [['QUAL', 'VAL'], ['IMAG', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
+    segmentation: { method: 'pathmox', segments: [{ column: 'Gender' }, { column: 'Age', order: ['<=25', '26-35', '36-45', '46-55', '56-65', '>=66'] },
+      { column: 'Education', order: ['Unfinished', 'Elementary', 'Highschool', 'Undergrad', 'Graduated'] }, { column: 'Occupation' }, { column: 'Region' }] },
+    settings: PLS('cSEM', true),
   },
   {
     id: 'csem-bergami', package: 'cSEM', title: 'Organisational identification', source: 'cSEM, ?BergamiBagozzi2000 (Henseler 2021)',
