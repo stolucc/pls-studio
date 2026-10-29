@@ -164,7 +164,7 @@ ps_cb <- function(req_json, export = FALSE) {
     if (r$op == ":=") return(list(kind = kind, lhs = r$lhs, op = r$op, rhs = r$rhs, est = r$est, se = if (is.na(r$se)) NULL else r$se,
       z = if (is.na(r$z)) NULL else r$z, p = if (is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all))
     list(kind = kind, lhs = nm(r$lhs), op = r$op, rhs = if (r$op == "|") r$rhs else nm(r$rhs), est = r$est,
-      label = if (nzchar(r$label)) r$label else NULL,
+      label = if (isTRUE(nzchar(r$label)) && !startsWith(r$label, ".")) r$label else NULL,
       se = if (!free || is.na(r$se)) NULL else r$se, z = if (!free || is.na(r$z)) NULL else r$z,
       p = if (!free || is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all,
       index = if (free) r$free - 1L else NULL)
