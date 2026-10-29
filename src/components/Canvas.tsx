@@ -14,7 +14,7 @@ import { ProcessGallery } from './ProcessGallery';
 import { ProcessBar } from './ProcessBar';
 import { ContextMenu } from './ContextMenu';
 import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
-import { correlationEndError, correlationPairError, endogenousIds, validateModel, type Correlation } from '../model/project';
+import { correlationEndError, correlationPairError, endogenousIds, newId, validateModel, type Correlation } from '../model/project';
 import { covaryByDefault, endAt } from './correlationEnds';
 import type { ExampleId } from '../io';
 import { run } from '../runner';
@@ -305,7 +305,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
 
   const nodes: ConstructFlowNode[] = useMemo(() => model.constructs.map((c) => {
     const geom = constructGeometry(c);
-    const labels = indicatorLabels(c, method, display);
+    const labels = indicatorLabels(c, method, display, model.esem?.blocks.some((b) => b.constructs.includes(c.id)));
     const w = geom.bounds.w, h = geom.bounds.h;
     return {
       id: c.id,
@@ -570,6 +570,18 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'fix-zero': if (target.kind === 'implied') s.addCorrelation('construct', target.a, target.b, true); break;
       case 'fix-value': void fixValue(target); break;
       case 'set-label': void setLabel(target); break;
+      case 'make-esem': {
+        const m = st().model;
+        const free = st().selection.nodes.filter((x) => !m.esem?.blocks.some((b) => b.constructs.includes(x)) && m.constructs.some((c) => c.id === x && !c.covariate && !c.components?.length && c.indicators.length));
+        s.setEsem({ rotation: m.esem?.rotation ?? 'geomin', blocks: [...(m.esem?.blocks ?? []), { id: newId('e'), constructs: free }] });
+        s.toast('info', 'ESEM block: each of its factors now loads on all the block’s indicators (rotated, geomin). Rotation and blocks are listed in the Model inspector.');
+        break;
+      }
+      case 'leave-esem': {
+        const m = st().model;
+        if (target.kind === 'construct' && m.esem) s.setEsem({ ...m.esem, blocks: m.esem.blocks.map((b) => ({ ...b, constructs: b.constructs.filter((x) => x !== target.id) })) });
+        break;
+      }
       case 'toggle-free-loading':
       case 'toggle-free-intercept': {
         const mg = st().model.multigroup;
@@ -593,7 +605,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       }
     }
   };
-  const menuContent = menu ? menuFor(menu.target, model, { method, readOnly }) : null;
+  const menuContent = menu ? menuFor(menu.target, model, { method, readOnly, selected: selection.nodes }) : null;
 
   const isValidConnection = useCallback((c: Connection | PathFlowEdge) => c.source !== c.target, []);
 

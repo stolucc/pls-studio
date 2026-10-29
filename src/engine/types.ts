@@ -58,6 +58,7 @@ export interface CovarianceSpec {
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */
 export const interactionName = (from: string, moderator: string) => (from === moderator ? `${from}²` : `${from} × ${moderator}`);
 
+export type EsemRotation = 'geomin' | 'oblimin' | 'quartimin' | 'varimax' | 'target';
 export type InvarianceLevel = 'configural' | 'metric' | 'scalar' | 'strict';
 /** Parameters freed across groups despite the invariance level (partial invariance). */
 export type FreedParameter = { kind: 'loading'; construct: string; indicator: string } | { kind: 'intercept'; indicator: string };
@@ -76,6 +77,8 @@ export interface ModelSpec {
   waldTests?: { name: string; constraints: string[] }[];
   /** CB-SEM (lavaan): multiple-group analysis by a grouping column, with a level of measurement invariance. */
   multigroup?: MultigroupSpec;
+  /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
+  esem?: { blocks: string[][]; rotation: EsemRotation };
 }
 
 /** Column-oriented numeric data; NaN marks a missing value. */

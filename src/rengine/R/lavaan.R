@@ -64,8 +64,32 @@ ps_cb_build <- function(req) {
   }
 
   lines <- character(0)
+  # ESEM blocks: every factor of a block loads on all the block's indicators (lavaan efa()), rotated.
+  esem <- req$model$esem
+  # jsonlite turns equal-length blocks into a matrix (one row per block).
+  if (is.matrix(esem$blocks)) esem$blocks <- lapply(seq_len(nrow(esem$blocks)), function(i) esem$blocks[i, ])
+  in_block <- character(0)
+  target <- NULL
+  for (bi in seq_along(esem$blocks)) {
+    fs <- unlist(esem$blocks[[bi]])
+    if (length(fs) < 2 || any(!fs %in% n$cname)) stop("Invalid ESEM block in the request.")
+    js <- match(fs, n$cname)
+    inds <- unique(unname(n$iv[unlist(n$inds[js])]))
+    lines <- c(lines, sprintf("%s =~ %s", paste(sprintf("efa(\"b%d\")*%s", bi, lname[js]), collapse = " + "), paste(inds, collapse = " + ")))
+    in_block <- c(in_block, fs)
+    if (identical(esem$rotation, "target")) {
+      # Target: each factor's own indicators free (NA), the others towards 0.
+      target <- matrix(0, length(inds), length(js), dimnames = list(inds, unname(lname[js])))
+      for (k in seq_along(js)) target[unname(n$iv[n$inds[[js[k]]]]), k] <- NA
+    }
+  }
+  if (length(esem$blocks)) {
+    rot <- esem$rotation %||% "geomin"
+    if (!rot %in% c("geomin", "oblimin", "quartimin", "varimax", "target")) stop("Invalid rotation in the request.")
+    if (!is.null(target)) inputs$TARGET <- target
+  }
   for (j in seq_len(k0)) {
-    if (is_cov[j]) next
+    if (is_cov[j] || n$cname[j] %in% in_block) next
     # The first loading of each factor is fixed to 1 (marker / scaling indicator); written explicitly.
     if (length(comps[[j]])) lines <- c(lines, paste(lname[[j]], "=~", ps_marked(lname[comps[[j]]])))
     else {
@@ -139,6 +163,7 @@ ps_cb_build <- function(req) {
       if (length(partial)) sprintf(", group.partial = %s", ps_q(partial)) else "")
   }
   if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
+  if (length(esem$blocks)) extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (!is.null(target)) ", rotation.args = list(target = TARGET)" else "")
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
   tests <- req$model$waldTests

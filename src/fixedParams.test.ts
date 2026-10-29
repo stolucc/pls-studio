@@ -156,3 +156,21 @@ describe('multiple groups and measurement invariance', () => {
     expect(s().results!.cb).toMatchObject({ n: 80, groupIndex: 1, groups: { labels: ['1', '2'] } });
   });
 });
+
+describe('ESEM blocks', () => {
+  it('are made from selected factors, validated, and drawn without markers', () => {
+    s().setEsem({ rotation: 'geomin', blocks: [{ id: 'e', constructs: ['A', 'B'] }] });
+    const errs = (over = {}) => validateModel(s().model, data, { ...s().settings, ...over }).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(errs()).toEqual([]);
+    expect(toSpec(s().model).esem).toEqual({ rotation: 'geomin', blocks: [['A', 'B']] });
+    expect(errs({ engine: 'builtin' }).some((m) => /ESEM\) is estimated by lavaan/.test(m))).toBe(true);
+    s().fixParameter({ kind: 'loading', construct: 'A', indicator: 'a2' }, 0.5);
+    expect(errs().some((m) => /loadings are rotated/.test(m))).toBe(true);
+    s().fixParameter({ kind: 'loading', construct: 'A', indicator: 'a2' }, null);
+    expect(indicatorLabels(C('A', ['a1', 'a2']), 'cbsem', null, true)).toEqual([null, null]);
+    expect(menuFor({ kind: 'construct', id: 'A' }, s().model, cb)!.items.map((i) => i.action)).toContain('leave-esem');
+    expect(parseProject(serializeProject(s().model, s().settings, null, null)).model.esem).toEqual(s().model.esem);
+    s().setEsem(null);
+    expect(menuFor({ kind: 'construct', id: 'A' }, s().model, { ...cb, selected: ['A', 'B'] })!.items.map((i) => i.label)).toContain('Make ESEM block of the 2 selected factors');
+  });
+});

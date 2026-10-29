@@ -10,7 +10,7 @@ import { JohnsonNeymanPlot } from './JohnsonNeymanPlot';
 import { johnsonNeyman } from '../engine/jn';
 import { fixedText } from '../diagramLabels';
 import { ConstraintsEditor } from './ConstraintsEditor';
-import { GroupsEditor } from './GroupsEditor';
+import { EsemEditor, GroupsEditor } from './GroupsEditor';
 
 function NameField({ c }: { c: Construct }) {
   const update = useStore((s) => s.updateConstruct);
@@ -489,6 +489,7 @@ function ModelInspector() {
             </div>
           ))}
       </div>
+      {settings.method === 'cbsem' && <EsemEditor />}
       {settings.method === 'cbsem' && <GroupsEditor />}
       {settings.method === 'cbsem' && <ConstraintsEditor />}
       {settings.method === 'cbsem' && model.correlations?.some((k) => k.zero) && (

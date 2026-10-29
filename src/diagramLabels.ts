@@ -17,9 +17,10 @@ export interface LabelSource {
 /** A fixed value as written by the user (no trailing zeros). */
 export const fixedText = (v: number) => String(Number(v.toPrecision(6)));
 
-export function indicatorLabels(c: Pick<Construct, 'indicators' | 'type' | 'covariate' | 'fixedLoadings'>, method: Method, src: LabelSource | null): (IndicatorLabel | null)[] | null {
+export function indicatorLabels(c: Pick<Construct, 'indicators' | 'type' | 'covariate' | 'fixedLoadings'>, method: Method, src: LabelSource | null, esem = false): (IndicatorLabel | null)[] | null {
   const cb = method === 'cbsem' && !c.covariate && c.indicators.length > 0;
-  const marker = cb ? c.indicators[0] : null;
+  // ESEM factors are identified by their variance (and rotation), not a marker.
+  const marker = cb && !esem ? c.indicators[0] : null;
   // The value a loading is held at: the user's, or 1 for the marker.
   const held = (name: string) => (!cb ? undefined : c.fixedLoadings?.[name] ?? (name === marker ? 1 : undefined));
   const heldLabel = (name: string): IndicatorLabel | null => { const h = held(name); return h === undefined ? null : { text: fixedText(h), level: 'ok', fixed: true }; };

@@ -944,6 +944,7 @@ export function standardized(cm: CbModel, X: Matrices) {
 export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreatment = 'casewise', estimator: CbEstimator = 'ML'): CbResult {
   if (estimator === 'WLSMV' || spec.ordered?.length || missing === 'fiml') throw new Error('Ordinal indicators, WLSMV and FIML are estimated by lavaan: choose the R engine.');
   if (spec.multigroup) throw new Error('Multiple-group analysis is estimated by lavaan: choose the R engine.');
+  if (spec.esem?.blocks.length) throw new Error('Exploratory SEM (ESEM) is estimated by lavaan: choose the R engine.');
   if (spec.paths.some((p) => p.label) || spec.constructs.some((c) => c.loadingLabels && Object.keys(c.loadingLabels).length) || spec.covariances?.some((k) => k.label) || spec.defined?.length || spec.waldTests?.length) {
     throw new Error('Parameter labels, equality constraints, defined parameters and Wald tests are estimated by lavaan: choose the R engine.');
   }

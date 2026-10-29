@@ -17,11 +17,22 @@ export type MenuTarget =
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
-  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept';
+  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'make-esem' | 'leave-esem';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
-export interface MenuContext { method: Method; readOnly: boolean }
+export interface MenuContext { method: Method; readOnly: boolean; /** Constructs selected on the canvas. */ selected?: string[] }
+
+/** Exploratory SEM: make a block of the selected factors, or take this one out of its block. */
+function esemItems(model: ModelState, edit: boolean, id: string, selected: string[]): (MenuItem | false)[] {
+  if (!edit) return [];
+  const inBlock = (x: string) => !!model.esem?.blocks.some((b) => b.constructs.includes(x));
+  const candidates = selected.filter((x) => !inBlock(x) && model.constructs.some((c) => c.id === x && !c.covariate && !c.components?.length && c.indicators.length));
+  return [
+    inBlock(id) && { action: 'leave-esem', label: 'Take out of the ESEM block' },
+    !inBlock(id) && selected.includes(id) && candidates.length >= 2 && { action: 'make-esem', label: `Make ESEM block of the ${candidates.length} selected factors` },
+  ];
+}
 
 /** Partial invariance: free (or hold equal again) an indicator's loading or intercept across groups. */
 function groupItems(model: ModelState, edit: boolean, construct: string, indicator: string, isMarker: boolean): (MenuItem | false)[] {
@@ -60,6 +71,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && proc && !c.covariate && !model.paths.some((p) => p.from === c.id || p.to === c.id) && !model.moderations.some((m) => m.moderator === c.id) && { action: 'make-covariate', label: 'Use as covariate' },
         edit && proc && !!c.covariate && { action: 'unmake-covariate', label: 'Stop using as covariate' },
         edit && cb && { action: 'correlate', label: endogenous ? 'Correlate disturbance (ζ) with…' : 'Correlate with…' },
+        ...esemItems(model, edit && cb, c.id, ctx.selected ?? []),
         edit && { action: 'delete-construct', label: 'Delete construct', danger: true },
       ]);
     }

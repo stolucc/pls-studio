@@ -71,3 +71,40 @@ export function GroupsEditor() {
     </div>
   );
 }
+
+const ROTATIONS: { id: import('../engine/types').EsemRotation; label: string }[] = [
+  { id: 'geomin', label: 'Geomin (oblique; Mplus default)' },
+  { id: 'oblimin', label: 'Oblimin (oblique)' },
+  { id: 'quartimin', label: 'Quartimin (oblique)' },
+  { id: 'varimax', label: 'Varimax (orthogonal)' },
+  { id: 'target', label: 'Target (towards the drawn loadings)' },
+];
+
+/** CB-SEM exploratory SEM blocks: their factors, and the rotation. */
+export function EsemEditor() {
+  const model = useStore((s) => s.model);
+  const readOnly = useStore((s) => s.cloud?.role === 'viewer');
+  const setEsem = useStore((s) => s.setEsem);
+  const esem = model.esem;
+  if (!esem?.blocks.length) return null;
+  const name = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
+  return (
+    <div className="section">
+      <div className="section-title">Exploratory SEM</div>
+      {esem.blocks.map((b, i) => (
+        <div className="ind" key={b.id}>
+          <span>Block {i + 1}: {b.constructs.map(name).join(', ')}</span><span />
+          {!readOnly && <button className="btn sm ghost always" title="Make these ordinary factors again"
+            onClick={() => setEsem({ ...esem, blocks: esem.blocks.filter((_, k) => k !== i) })}>Dissolve</button>}
+        </div>
+      ))}
+      <div className="field" style={{ marginTop: 8 }}>
+        <label>Rotation</label>
+        <select className="select" value={esem.rotation} disabled={readOnly} onChange={(e) => setEsem({ ...esem, rotation: e.target.value as typeof esem.rotation })}>
+          {ROTATIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+        </select>
+      </div>
+      <div className="hint">Each factor of a block loads on every indicator of the block; the factors are identified by rotation (variances 1), not by a marker (Asparouhov &amp; Muthén, 2009; lavaan efa()). Cross-loadings are in the Loadings table; the diagram draws each factor’s own indicators.</div>
+    </div>
+  );
+}

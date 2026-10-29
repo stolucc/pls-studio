@@ -5,7 +5,7 @@ import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
 import { exprToR, nameError, namesIn, parseConstraint, parseExpr } from './expr';
-import type { ConstructType, Dataset, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MultigroupSpec, WeightingScheme } from '../engine/types';
+import type { ConstructType, Dataset, EsemRotation, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MultigroupSpec, WeightingScheme } from '../engine/types';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
 export type Method = 'pls' | 'cbsem' | 'process';
@@ -138,6 +138,8 @@ export interface ModelState {
   waldTests?: WaldTest[];
   /** CB-SEM: multiple groups by a data column, with measurement invariance (constructs by id in `free`). */
   multigroup?: MultigroupSpec;
+  /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
+  esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation };
 }
 
 /** Drop fixed loadings and loading labels of indicators that left their construct. */
@@ -251,6 +253,7 @@ export function toSpec(model: ModelState): ModelSpec {
     })),
     paths: model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })),
     ...constraintSpec(model),
+    ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)) } } : {}),
     ...(model.multigroup ? {
       multigroup: {
         ...model.multigroup,
@@ -491,6 +494,30 @@ export function validateModel(
       }
       const ids = new Set(model.constructs.map((c) => c.id));
       for (const f of mg.free) if (f.kind === 'loading' && !ids.has(f.construct)) err('A loading freed across groups refers to a removed construct.');
+    }
+  }
+
+  const blocks = model.esem?.blocks ?? [];
+  if (blocks.length) {
+    if (method.method !== 'cbsem') warn(`ESEM blocks are estimated in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} treats their constructs as ordinary ones.`);
+    else {
+      if (engine === 'builtin') err('Exploratory SEM (ESEM) is estimated by lavaan: choose “R packages” under Calculated by.');
+      if (method.estimator === '2SLS') err('ESEM blocks are not available with MIIV-2SLS.');
+      const seen = new Set<string>();
+      const byId = new Map(model.constructs.map((c) => [c.id, c]));
+      for (const b of blocks) {
+        if (b.constructs.length < 2) err('An ESEM block needs at least two factors.');
+        for (const id of b.constructs) {
+          const c = byId.get(id);
+          if (!c) continue;
+          if (seen.has(id)) err(`"${c.name}" is in two ESEM blocks.`, id);
+          seen.add(id);
+          if (c.covariate || c.components?.length) err(`"${c.name}" is a covariate or higher-order factor and cannot be in an ESEM block.`, id);
+          if (Object.keys(c.fixedLoadings ?? {}).length || Object.keys(c.loadingLabels ?? {}).length) err(`"${c.name}" is in an ESEM block, whose loadings are rotated: remove its fixed loadings and loading labels.`, id);
+          if (model.moderations.some((mo) => mo.moderator === id || model.paths.find((p) => p.id === mo.path)?.from === id)) err(`"${c.name}" is in an ESEM block and cannot take part in a latent interaction.`, id);
+        }
+      }
+      if (model.esem!.rotation === 'target' && blocks.length > 1) err('Target rotation is available for a single ESEM block.');
     }
   }
 
@@ -781,6 +808,10 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
       ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
+      ...(isObj(m.esem) && Array.isArray(m.esem.blocks) ? { esem: {
+        rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',
+        blocks: m.esem.blocks.slice(0, 50).filter(isObj).map((b: Record<string, unknown>) => ({ id: str(b.id, 64), constructs: (Array.isArray(b.constructs) ? b.constructs : []).map((x: unknown) => str(x, 64)).filter((x: string) => ids.has(x)) })),
+      } } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
     },
     settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,

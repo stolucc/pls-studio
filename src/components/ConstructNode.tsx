@@ -61,6 +61,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
   const cover = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
   // Factors emit arrows to their indicators; composites are formed by them.
   const ordinal = new Set(useStore((st) => (st.settings.method === 'cbsem' ? st.model.ordered : undefined)) ?? NO_ORDERED);
+  const esem = useStore((st) => st.settings.method === 'cbsem' && !!st.model.esem?.blocks.some((b) => b.constructs.includes(c.id)));
   const composite = c.type === 'composite';
   const nonDefaultMode = method === 'pls' && (composite ? c.mode === 'A' : c.mode === 'B');
   const onDouble = () => { setDraft(c.name); setEditing(true); };
@@ -111,6 +112,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
               ? <polygon className="ellipse" points={hexagonVertices(rx, ry).map((v) => v.join(',')).join(' ')} onDoubleClick={onDouble} />
               : <ellipse className="ellipse" cx={0} cy={0} rx={rx} ry={ry} onDoubleClick={onDouble} />}
           {nonDefaultMode && <text className="cmode" x={0} y={-ry - 8} textAnchor="middle">MODE {c.mode}</text>}
+          {esem && <text className="cmode" x={0} y={-ry - 8} textAnchor="middle">ESEM<title>Exploratory SEM block: this factor loads on all the block’s indicators (rotated); only its main loadings are drawn.</title></text>}
           {!editing && (
             <text className="cname" x={0} y={nameY} textAnchor="middle" pointerEvents="none">{c.name}</text>
           )}
