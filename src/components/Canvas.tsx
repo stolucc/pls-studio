@@ -97,7 +97,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   const unstd = scale === 'unstd';
   const method = settings.method;
   // Moderators' main effects on the outcome that the diagram does not draw (estimated anyway).
-  const implied = useMemo(() => (method === 'process' ? [] : impliedMainEffects(model)), [model, method]);
+  // (CPA too: Hayes's statistical diagrams draw them; PROCESS estimates them.)
+  const implied = useMemo(() => impliedMainEffects(model), [model]);
   const tools = method === 'cbsem' ? TOOLS : TOOLS.filter((t) => t.id !== 'correlate');
 
   // Correlation tool: the first end picked, waiting for the second.
@@ -454,7 +455,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       return { c, geom: constructGeometry(c), r2: display?.r2(c.name) ?? null, indicators, ...(observed ? { observed } : {}) };
     });
     // The moderators' implied main effects (dashed), when shown on the canvas.
-    const impliedPaths = st().showImpliedEffects && method !== 'process' ? impliedMainEffects(m).map((e) => ({ id: '', from: e.from, to: e.to, implied: true })) : [];
+    const impliedPaths = st().showImpliedEffects ? impliedMainEffects(m).map((e) => ({ id: '', from: e.from, to: e.to, implied: true })) : [];
     const paths = [...m.paths, ...impliedPaths].flatMap((p) => {
       const s = byId.get(p.from), t = byId.get(p.to);
       const seg = s && t ? pathSegment(s, t) : null;
