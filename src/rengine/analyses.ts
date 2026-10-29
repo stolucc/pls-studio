@@ -7,7 +7,7 @@ import type { CbEstimator } from '../engine/cbsem';
 import type { IpmaOptions, IpmaResult } from '../engine/ipma';
 import type { MiivResult } from '../engine/miiv';
 import type { BootstrapOptions, BootstrapResult, BootstrapStat, Dataset, MissingTreatment, ModelSpec, PlsOptions } from '../engine/types';
-import { rCall, rScript, type RPackage } from './bridge';
+import { rCall, rScript, type RPackage, rStrings } from './bridge';
 import { cbRequest } from './lavaan';
 import { plsRequest, type PlsPackage } from './pls';
 import type { REngineInfo } from './lavaan';
@@ -52,13 +52,13 @@ export function parseBoot(raw: Raw, engine: REngineInfo): BootstrapResultR {
     key: s.key, group: s.group, label: s.label, original: num(s.original), mean: num(s.mean), sd: num(s.sd),
     t: num(s.t), p: num(s.p), ciLow: num(s.ciLow), ciHigh: num(s.ciHigh),
   }));
-  return { samples: raw.samples, failed: raw.failed, confidence: raw.confidence, stats, engine, warnings: raw.warnings ?? [] };
+  return { samples: raw.samples, failed: raw.failed, confidence: raw.confidence, stats, engine, warnings: rStrings(raw.warnings) };
 }
 
 export function parseFitTest(raw: Raw): FitTestResult & { warnings: string[] } {
   const d = (x: Raw) => ({ srmr: num(x?.srmr), dULS: num(x?.dULS), dG: num(x?.dG) });
   const f = (x: Raw) => ({ saturated: d(x.saturated), estimated: d(x.estimated) });
-  return { samples: raw.samples, failed: raw.failed, observed: f(raw.observed), hi95: f(raw.hi95), hi99: f(raw.hi99), warnings: raw.warnings ?? [] };
+  return { samples: raw.samples, failed: raw.failed, observed: f(raw.observed), hi95: f(raw.hi95), hi99: f(raw.hi99), warnings: rStrings(raw.warnings) };
 }
 
 export function parseIpma(raw: Raw): IpmaResult {
@@ -66,7 +66,7 @@ export function parseIpma(raw: Raw): IpmaResult {
     target: raw.target, targetPerformance: num(raw.targetPerformance),
     constructs: (raw.constructs as Raw[]).map((k) => ({ name: k.name, importance: num(k.importance), performance: num(k.performance) })),
     indicators: (raw.indicators as Raw[]).map((k) => ({ name: k.name, construct: k.construct, weight: num(k.weight), importance: num(k.importance), performance: num(k.performance) })),
-    negativeWeights: raw.negativeWeights ?? [],
+    negativeWeights: rStrings(raw.negativeWeights),
   };
 }
 
@@ -85,7 +85,7 @@ export function parseMiiv(raw: Raw): MiivResultR {
     variances: ((raw.variances ?? []) as Raw[]).map((v) => ({ lhs: v.lhs, rhs: v.rhs, latent: !!v.latent, est: num(v.est), std: num(v.std) })),
     fixedStd: Object.fromEntries(Object.entries((raw.fixedStd ?? {}) as Record<string, unknown>).filter(([, v]) => typeof v === 'number')) as Record<string, number>,
     r2: Object.fromEntries(Object.entries((raw.r2 ?? {}) as Record<string, unknown>).filter(([, v]) => typeof v === 'number')) as Record<string, number>,
-    engine: raw.engine, warnings: raw.warnings ?? [],
+    engine: raw.engine, warnings: rStrings(raw.warnings),
   };
 }
 

@@ -34,3 +34,9 @@ export function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string
 
 /** An R error message without R's call prefix. */
 export const rMessage = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error in [^:]*: /, '').replace(/^Error: /, '');
+
+/**
+ * R's JSON (auto_unbox) writes a one-element vector as a scalar: one warning
+ * arrives as a string, not a list. Always a list of strings.
+ */
+export const rStrings = (v: unknown): string[] => (Array.isArray(v) ? v : v == null ? [] : [v]).filter((x): x is string => typeof x === 'string');

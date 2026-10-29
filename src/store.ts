@@ -159,9 +159,10 @@ function withWarnings(messages: Message[], r: Partial<Omit<Results, 'key'>>): Me
   const added: Message[] = [];
   for (const v of Object.values(r)) {
     const res = v as { warnings?: unknown; engine?: { package?: string; version?: string } } | null;
-    if (!res || !Array.isArray(res.warnings)) continue;
+    if (!res || res.warnings == null) continue;
+    const list = Array.isArray(res.warnings) ? res.warnings : [res.warnings];
     const source = res.engine?.package ? `${res.engine.package}${res.engine.version ? ` ${res.engine.version}` : ''}` : 'built-in engine';
-    for (const w of res.warnings) if (typeof w === 'string' && w.trim()) added.push({ id: ++messageId, at: Date.now(), level: 'warning', text: w, source });
+    for (const w of list) if (typeof w === 'string' && w.trim()) added.push({ id: ++messageId, at: Date.now(), level: 'warning', text: w, source });
   }
   return added.length ? [...messages, ...added].slice(-MAX_MESSAGES) : messages;
 }

@@ -6,7 +6,7 @@ import type { JohnsonNeyman } from '../engine/jn';
 import type { Dataset, MissingTreatment } from '../engine/types';
 import { planFor } from '../process/plan';
 import type { ProcessGraph } from '../process/templates';
-import { rCall, rScript } from './bridge';
+import { rCall, rScript, rStrings } from './bridge';
 import type { REngineInfo } from './lavaan';
 
 /** A variable of the model: one observed column, or the mean score of a scale's items. */
@@ -110,7 +110,7 @@ export function parseCpaOutput(raw: Record<string, any>): CpaResult {
     indirect: arr<any>(raw.indirect).map((p) => ({ path: arr<string>(p.path), moderators: arr<string>(p.moderators), rows: arr<any>(p.rows).map((r) => ({ ...r, at: at(r.at) })) })),
     indices: arr<any>(raw.indices).map((i) => ({ ...i, path: arr<string>(i.path), at: i.at ? at(i.at) : undefined })),
     jn: arr<any>(raw.jn).map((j) => ({ ...j, range: arr<number>(j.range), v: arr<number>(j.v), bounds: arr<any>(j.bounds) })),
-    warnings: arr<string>(raw.warnings),
+    warnings: rStrings(raw.warnings),
     inference: raw.inference === 'montecarlo' ? 'montecarlo' : 'bootstrap',
     hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === raw.hc) ?? 'none',
     latent: arr<string>(raw.latent),

@@ -4,7 +4,7 @@
 
 import type { CbEstimate, CbEstimator, CbFit, CbResult } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
-import { rCall, rScript } from './bridge';
+import { rCall, rScript, rStrings } from './bridge';
 
 
 export interface CbRequest {
@@ -74,7 +74,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     htmt: (raw.htmt as (number | null)[][]),
     htmt2: (raw.htmt2 as (number | null)[][]),
     vcov: raw.vcov ? mat(raw.vcov) : null,
-    moderations: raw.moderations, warnings: raw.warnings ?? [], droppedRows: raw.droppedRows ?? 0,
+    moderations: raw.moderations, warnings: rStrings(raw.warnings), droppedRows: raw.droppedRows ?? 0,
     engine: raw.engine,
   };
 }

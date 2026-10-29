@@ -4,7 +4,7 @@
 
 import type { Dataset, MissingTreatment, ModelSpec, PlsOptions, PlsResult } from '../engine/types';
 import type { REngineInfo } from './lavaan';
-import { rCall, rScript } from './bridge';
+import { rCall, rScript, rStrings } from './bridge';
 
 export type PlsPackage = 'cSEM' | 'seminr';
 
@@ -53,7 +53,7 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     consistent: !!raw.consistent, types: raw.types, moderations: raw.moderations,
     fSquare: nmat(raw.fSquare), vifInner: nmat(raw.vifInner), vifOuter: nums(raw.vifOuter),
     scores: (raw.scores as unknown[]).map((c) => Float64Array.from(nums(c))),
-    droppedRows: raw.droppedRows ?? 0, warnings: raw.warnings ?? [], engine: raw.engine,
+    droppedRows: raw.droppedRows ?? 0, warnings: rStrings(raw.warnings), engine: raw.engine,
   };
 }
 
