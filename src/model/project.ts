@@ -487,8 +487,12 @@ export function validateModel(
     else {
       if (engine === 'builtin') err('Two-level models are estimated by lavaan: choose “R packages” under Calculated by.');
       if (method.estimator !== 'ML' && method.estimator !== 'MLR') err('Two-level models use the ML or MLR estimator.');
-      if (model.multigroup || model.esem?.blocks.length || ordered.length || model.moderations.length || usesConstraints(model)) {
-        err('Two-level models cannot (yet) be combined with groups, ESEM blocks, ordinal indicators, latent interactions or parameter labels.');
+      if (model.esem?.blocks.length || ordered.length || model.moderations.length) {
+        err('Two-level models cannot be combined with ESEM blocks, ordinal indicators or latent interactions (lavaan estimates two-level models by ML only).');
+      }
+      if (model.multigroup?.column === ml.column) err(`“${ml.column}” cannot define both the groups and the clusters.`);
+      if (ml.between === 'same' && labelUses(model).size > 0) {
+        warn('Labels apply at both levels: parameters with the same label are equal within and between clusters (cross-level invariance).');
       }
       if (data?.moments) err('Two-level models need raw data with a cluster column.');
       else if (data) {

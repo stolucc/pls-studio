@@ -61,4 +61,19 @@ describe('two levels', () => {
     const script = await analysisScript(data, spec, { kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot });
     expect(script).toContain('whole clusters are resampled');
   }, 900_000);
+
+  it('with groups: four blocks, clusters resampled within their group', async () => {
+    const cl = data.cols[data.names.indexOf('cluster')];
+    const grouped = { names: [...data.names, 'g'], cols: [...data.cols, cl.map((v) => (v <= 100 ? 1 : 2))] };
+    const s = { ...spec, multigroup: { column: 'g', invariance: 'metric' as const, free: [] } };
+    const r = await bootstrapR(grouped, s, { kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot: { ...boot, samples: 6 } }, () => '');
+    expect(r.byBlock).toHaveLength(4);
+    for (const b of [0, 1, 2, 3]) {
+      const st = r.byBlock![b].find((x) => x.key === 'path:x1:fac')!;
+      expect(Number.isFinite(st.original) && Number.isFinite(st.sd) && st.sd > 0, `block ${b + 1}`).toBe(true);
+    }
+    const script = await analysisScript(grouped, s, { kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot });
+    expect(script).toContain('clusters are resampled within their group');
+    expect(script).toContain('group: 1');
+  }, 900_000);
 });

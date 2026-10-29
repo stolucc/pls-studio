@@ -202,4 +202,23 @@ describe('two-level models', () => {
     s().setMultilevel(null);
     expect(s().model.multilevel).toBeUndefined();
   });
+
+  it('combine with groups and labels, not with ordinal indicators or the same column twice', () => {
+    const d = { names: [...data.names, 'school', 'g'], cols: [...data.cols, Float64Array.from({ length: 200 }, (_, i) => i % 40), Float64Array.from({ length: 200 }, (_, i) => (i % 40 < 20 ? 1 : 2))] };
+    const errors = () => validateModel(s().model, d, s().settings).filter((i) => i.level === 'error').map((i) => i.message);
+    const warnings = () => validateModel(s().model, d, s().settings).filter((i) => i.level === 'warning').map((i) => i.message);
+    s().setMultilevel({ column: 'school', between: 'same' });
+    s().setMultigroup({ column: 'g', invariance: 'metric', free: [] });
+    s().setLabel({ kind: 'loading', construct: 'A', indicator: 'a2' }, 'a');
+    s().setLabel({ kind: 'loading', construct: 'B', indicator: 'b2' }, 'a');
+    expect(errors()).toEqual([]);
+    expect(warnings().some((m) => /equal within and between clusters/.test(m))).toBe(true);
+    s().setMultilevel({ column: 'school', between: 'saturated' });
+    expect(warnings().some((m) => /equal within and between clusters/.test(m))).toBe(false);
+    s().setMultigroup({ column: 'school', invariance: 'metric', free: [] });
+    expect(errors().some((m) => /both the groups and the clusters/.test(m))).toBe(true);
+    s().setMultigroup(null);
+    s().setOrdered(['a1'], true);
+    expect(errors().some((m) => /cannot be combined with ESEM blocks, ordinal indicators/.test(m))).toBe(true);
+  });
 });

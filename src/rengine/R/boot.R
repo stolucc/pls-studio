@@ -143,9 +143,12 @@ ps_cb_boot <- function(req_json, export = FALSE) {
       "# with replacement (each drawn cluster gets a new id) and the model is refitted.",
       sprintf("set.seed(%d)", seed),
       sprintf("refit <- function(d) %s", sub("data = data", "data = d", sub("^fit <- ", "", b$call), fixed = TRUE)),
-      sprintf("cl <- data[[\"%s\"]]; ids <- unique(cl); boot_errors <- character(0)", b$cluster_var),
+      sprintf("cl <- data[[\"%s\"]]; boot_errors <- character(0)", b$cluster_var),
+      if (!is.null(b$group_var)) c("# With groups, clusters are resampled within their group (so every group keeps its number of clusters).",
+        sprintf("strata <- split(unique(cl), data[[\"%s\"]][match(unique(cl), cl)])", b$group_var))
+      else "strata <- list(unique(cl))",
       sprintf("draws <- t(vapply(seq_len(%d), function(r) {", B),
-      "  s <- sample(ids, replace = TRUE)",
+      "  s <- unlist(lapply(strata, function(ids) ids[sample.int(length(ids), replace = TRUE)]), use.names = FALSE)",
       sprintf("  d <- do.call(rbind, lapply(seq_along(s), function(k) { x <- data[cl == s[k], , drop = FALSE]; x[[\"%s\"]] <- k; x }))", b$cluster_var),
       "  tryCatch(std_stats(refit(d), names(original)),",
       "    error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); rep(NA_real_, length(original)) })",
@@ -164,7 +167,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   r <- env$result
   # Several groups or levels: statistics per block ("... @2"), between-level factors named *_b.
   back <- c(back, setNames(constructs, paste0(unname(b$lname[constructs]), "_b")))
-  blocks <- if (!is.null(b$cluster_var)) c("Within", "Between") else NULL
+  blocks <- if (!is.null(b$cluster_var) && is.null(b$group_var)) c("Within", "Between") else NULL
   stats <- lapply(seq_len(nrow(r)), function(i) {
     par <- r$parameter[i]
     block <- if (grepl(" @[0-9]+$", par)) as.integer(sub(".* @", "", par)) else NULL
