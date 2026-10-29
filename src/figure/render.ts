@@ -10,7 +10,8 @@ import { estimateText, FONT_FAMILY, pathStrokeWidth, type FigureStyle } from './
 export interface FigureLabel { value: number; p: number | null; fixed?: boolean }
 
 export interface FigureInput {
-  constructs: { c: Construct; geom: ConstructGeom; r2: number | null; indicators: (FigureLabel | null)[] }[];
+  /** `observed`: drawn as a rectangle (an observed variable) whatever the construct type. */
+  constructs: { c: Construct; geom: ConstructGeom; r2: number | null; indicators: (FigureLabel | null)[]; observed?: boolean }[];
   paths: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; moderated: boolean }[];
   /** `badge`: a quadratic term (X²), drawn as a labelled pill the arrow starts from. */
   moderations: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; badge?: { x: number; y: number; text: string; w: number } }[];
@@ -79,10 +80,11 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
     out.push(`<text x="${n(t.cx)}" y="${n(t.cy + small * 0.35)}" font-size="${n(small * 0.85)}" text-anchor="middle" fill="${style.pathColor}"${e.value === null ? ' font-style="italic"' : ''}>${esc(text)}</text>`);
   }
 
-  for (const { c, geom, r2, indicators } of f.constructs) {
+  for (const { c, geom, r2, indicators, observed } of f.constructs) {
     const { rx, ry } = geom;
     const composite = c.type === 'composite';
-    geom.indicators.forEach((ind) => {
+    // An observed single-item variable is its own column: no separate indicator box.
+    if (!(observed && c.indicators.length === 1)) geom.indicators.forEach((ind) => {
       const [x1, y1, x2, y2] = composite ? [ind.ax, ind.ay, ind.ex, ind.ey] : [ind.ex, ind.ey, ind.ax, ind.ay];
       line(c.x + x1, c.y + y1, c.x + x2, c.y + y2, style.indicatorArrow, style.indicatorArrowWidth, true);
       const bx = c.x + ind.x, by = c.y + ind.y;
@@ -90,7 +92,7 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
       out.push(`<rect x="${n(bx)}" y="${n(by)}" width="${n(ind.w)}" height="${n(ind.h)}" rx="4" fill="${style.indicatorFill}" stroke="${style.indicatorStroke}" stroke-width="${n(style.indicatorArrowWidth)}"/>`);
       out.push(`<text x="${n(bx + ind.w / 2)}" y="${n(by + ind.h / 2 + small * 0.35)}" font-size="${n(small)}" text-anchor="middle" fill="#333333">${esc(ind.name)}</text>`);
     });
-    const shape = c.covariate
+    const shape = c.covariate || observed
       ? `<rect x="${n(c.x - rx)}" y="${n(c.y - ry)}" width="${n(2 * rx)}" height="${n(2 * ry)}" rx="4"`
       : composite
         ? `<polygon points="${hexagonVertices(rx, ry).map(([x, y]) => `${n(c.x + x)},${n(c.y + y)}`).join(' ')}"`

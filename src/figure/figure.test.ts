@@ -57,6 +57,13 @@ describe('figure SVG', () => {
     expect(svg).toContain(`font-family='"Times New Roman", Times, serif'`);
     expect(svg).not.toContain('#6366f1');                     // default colours replaced
   });
+  it('draws observed variables (conditional process analysis) as rectangles', () => {
+    const f = input();
+    f.constructs = f.constructs.map((x) => ({ ...x, observed: true }));
+    const { svg } = renderFigureSvg(f, DEFAULT_FIGURE_STYLE);
+    expect(svg).not.toContain('<ellipse');
+    expect(svg).not.toContain('<polygon');
+  });
   it('hides estimates but keeps the fixed marker when asked', () => {
     const { svg } = renderFigureSvg(input(), { ...DEFAULT_FIGURE_STYLE, showEstimates: false, showR2: false });
     expect(svg).not.toContain('0.812');

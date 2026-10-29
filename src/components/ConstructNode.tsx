@@ -63,6 +63,9 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
   const ordinal = new Set(useStore((st) => (st.settings.method === 'cbsem' ? st.model.ordered : undefined)) ?? NO_ORDERED);
   const esem = useStore((st) => st.settings.method === 'cbsem' && !!st.model.esem?.blocks.some((b) => b.constructs.includes(c.id)));
   const composite = c.type === 'composite';
+  // Conditional process analysis: variables are observed (a single item, or the mean of several items)
+  // unless modelled as latent; draw them as rectangles, as in PROCESS diagrams.
+  const observedInCpa = useStore((st) => st.settings.method === 'process') && !(c.latent && c.indicators.length > 1);
   const nonDefaultMode = method === 'pls' && (composite ? c.mode === 'A' : c.mode === 'B');
   const onDouble = () => { setDraft(c.name); setEditing(true); };
   const higher = (c.components?.length ?? 0) > 0;
@@ -78,7 +81,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
     >
       <svg width={bounds.w} height={bounds.h}>
         <g transform={`translate(${cx} ${cy})`}>
-          {geom.indicators.map((ind, i) => {
+          {!(observedInCpa && c.indicators.length === 1) && geom.indicators.map((ind, i) => {
             const label = labels?.[i];
             const mx = (ind.ex + ind.ax) / 2, my = (ind.ey + ind.ay) / 2;
             return (
@@ -106,7 +109,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
               </g>
             );
           })}
-          {c.covariate
+          {c.covariate || observedInCpa
             ? <rect className="ellipse observed" x={-rx} y={-ry} width={rx * 2} height={ry * 2} rx={4} onDoubleClick={onDouble} />
             : composite
               ? <polygon className="ellipse" points={hexagonVertices(rx, ry).map((v) => v.join(',')).join(' ')} onDoubleClick={onDouble} />

@@ -440,7 +440,9 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         const fixed = (display && 'fixed' in display && !!display.fixed?.(name)) || name === marker;
         return v === null ? (fixed ? { value: 1, p: null, fixed: true } : null) : { value: v, p: null, fixed };
       });
-      return { c, geom: constructGeometry(c), r2: display?.r2(c.name) ?? null, indicators };
+      // CPA: observed variables (single items, mean scores) are drawn as rectangles, latent ones as ellipses.
+      const observed = method === 'process' && !(c.latent && c.indicators.length > 1);
+      return { c, geom: constructGeometry(c), r2: display?.r2(c.name) ?? null, indicators, ...(observed ? { observed } : {}) };
     });
     const paths = m.paths.flatMap((p) => {
       const s = byId.get(p.from), t = byId.get(p.to);

@@ -55,7 +55,7 @@ button, input, select { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 6px; padding: 0 12px;
   background: var(--surface); border-bottom: 1px solid var(--border);
 }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.01em; margin-right: 8px; }
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -0.01em; margin-right: 8px; white-space: nowrap; flex: none; }
 .brand-mark {
   width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
   background: linear-gradient(135deg, #6366f1, #4338ca); color: white; box-shadow: var(--shadow-sm);
