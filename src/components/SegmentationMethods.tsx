@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { downloadText, fmt, safeFileName } from '../format';
 import type { PlsOptions } from '../engine/types';
 import { toSpec, validateModel } from '../model/project';
-import type { FimixResult, PathmoxResult, PathmoxSegment } from '../rengine/segment';
+import type { FimixResult, PathmoxResult, PathmoxSegment, PosResult } from '../rengine/segment';
 import { freeColumnName } from './SegmentationPanel';
 import { useStore } from '../store';
 import { c, pCell, Table } from './results/Table';
@@ -12,10 +12,11 @@ import { SegmentationTabs, type SegMethod } from './SegmentationPanel';
 interface ExtraState {
   pathmox: PathmoxResult | null;
   fimix: FimixResult | null;
+  pos: PosResult | null;
   /** Segmentation variables chosen for PATHMOX (kept while the panel is closed). */
   segments: PathmoxSegment[];
 }
-export const useSegExtra = create<ExtraState>(() => ({ pathmox: null, fimix: null, segments: [] }));
+export const useSegExtra = create<ExtraState>(() => ({ pathmox: null, fimix: null, pos: null, segments: [] }));
 
 /** Move one category up or down in an ordered segmentation variable. */
 export function moveCategory(order: number[], i: number, delta: -1 | 1): number[] {
@@ -232,8 +233,69 @@ function FimixSection() {
   );
 }
 
+function PosView({ r }: { r: PosResult }) {
+  const ends = Object.keys(r.globalR2);
+  const paths = r.segments[0]?.paths ?? [];
+  return (
+    <div className="tables">
+      <Table title="PLS-POS solution" file="pos-summary" columns={['', 'Global model', ...r.segments.map((g) => `Segment ${g.segment} (n = ${g.size})`)]}
+        rows={[...paths.map((p, i) => [c(`${p.from} → ${p.to}`), c(null), ...r.segments.map((g) => c(g.paths[i]?.est ?? null))]),
+          ...ends.map((e) => [c(`R² ${e}`), c(r.globalR2[e]), ...r.segments.map((g) => c(g.r2[e] ?? null))])]}
+        note={`Becker et al. (2013): segments chosen to maximise the R² of the endogenous constructs (sum over segments ${fmt(r.objective, 3)}; global model ${fmt(r.globalObjective, 3)}). ${r.moves} observations moved in the best of ${r.starts.length} starts (objectives ${r.starts.map((x) => fmt(x, 3)).join(', ')}). Similar objectives across starts suggest a stable solution.`} />
+      <div><SaveSegments assignment={r.assignment} base={`pos_${r.k}`} /></div>
+      {r.warnings.length > 0 && <div>{r.warnings.map((w, i) => <div key={i} className="issue warning">{w}</div>)}</div>}
+    </div>
+  );
+}
+
+function PosSection() {
+  const data = useStore((s) => s.data);
+  const model = useStore((s) => s.model);
+  const settings = useStore((s) => s.settings);
+  const project = useStore((s) => s.projectName);
+  const result = useSegExtra((s) => s.pos);
+  const [k, setK] = useState(2), [nrep, setNrep] = useState(3);
+  const [busy, setBusy] = useState(false);
+  const errors = data ? validateModel(model, data, { ...settings, method: 'pls' }).filter((i) => i.level === 'error') : [];
+  const problem = !data || data.moments ? 'Import raw data first.' : !model.paths.length ? 'Draw a PLS path model (with paths) first.'
+    : model.moderations.length ? 'PLS-POS works on models without interaction terms.' : errors[0]?.message ?? null;
+  const options: PlsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: 'casewise', consistent: false };
+  const input = { segments: k, nrep, seed: settings.seed };
+  const fail = (e: unknown) => import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `PLS-POS: ${rMessage(e)}`));
+  const run = async (script = false) => {
+    setBusy(true);
+    try {
+      const m = await import('../rengine/segment');
+      if (script) downloadText(`${safeFileName(project)}-pls-pos.R`, await m.posScriptR(data!, toSpec(model), options, input), 'text/x-r-source');
+      else useSegExtra.setState({ pos: await m.posR(data!, toSpec(model), options, input) });
+    } catch (e) { await fail(e); } finally { setBusy(false); }
+  };
+  return (
+    <>
+      <section className="sim-col">
+        <SegmentationTabs />
+        {problem ? <div className="empty-results">{problem}</div> : (
+          <>
+            <p className="hint" style={{ marginTop: 0 }}>PLS-POS (Becker, Rai, Ringle & Völckner 2013) moves observations between segments as long as the explained variance of the endogenous constructs grows. It works with composites and formative constructs, and needs no distributional assumption. No R package implements it: PLS Studio’s implementation (in the R script) re-estimates the local models with cSEM.</p>
+            <div className="row2">
+              <div className="field"><label>Segments</label><input className="input num" type="number" min={2} max={6} value={k} onChange={(e) => setK(Math.max(2, Math.min(6, Math.round(Number(e.target.value)) || 2)))} /></div>
+              <div className="field"><label>Random starts</label><input className="input num" type="number" min={1} max={50} value={nrep} onChange={(e) => setNrep(Math.max(1, Math.min(50, Math.round(Number(e.target.value)) || 3)))} /></div>
+            </div>
+            <div className="hint">Each move re-estimates two local models, so this takes a while (about half a minute for 400 observations and two segments). Seed {settings.seed} (Model settings). Choose the number of segments with FIMIX-PLS first, as Becker et al. suggest.</div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button className="btn primary" disabled={busy} onClick={() => void run()}>{busy ? 'Segmenting…' : 'Estimate'}</button>
+              <button className="btn" disabled={busy} onClick={() => void run(true)}>R script</button>
+            </div>
+          </>
+        )}
+      </section>
+      <section className="sim-col wide">{result ? <PosView r={result} /> : <div className="empty-results">Press Estimate.</div>}</section>
+    </>
+  );
+}
+
 export function OtherSegmentation({ method }: { method: Exclude<SegMethod, 'rebus'> }) {
   if (method === 'pathmox') return <PathmoxSection />;
   if (method === 'fimix') return <FimixSection />;
-  return <section className="sim-col"><SegmentationTabs /><div className="empty-results">Coming next.</div></section>;
+  return <PosSection />;
 }

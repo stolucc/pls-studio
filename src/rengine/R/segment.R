@@ -213,3 +213,78 @@ ps_fimix <- function(req_json, export = FALSE) {
   ps_json(list(n = nrow(env$scores), models = models,
     warnings = env$.warnings, engine = list(package = "flexmix", version = as.character(utils::packageVersion("flexmix")))))
 }
+
+#' PLS-POS (Becker, Rai, Ringle & Voelckner 2013): prediction-oriented
+#' segmentation. Starting from random partitions, observations are moved to
+#' the segment whose local PLS model predicts their endogenous construct
+#' scores best, and a move is kept only if it raises the objective, the sum
+#' of the R-squared values of all endogenous constructs over the segments.
+#' Written out here (no R package implements it); checked by recovering
+#' known segments.
+PS_POS_FUNCTIONS <- c(
+  "# A local PLS model: weights, paths, standardisation and R-squared of one segment.",
+  "pos_fit <- function(d) {",
+  "  f <- pos_estimate(d); e <- f$Estimates",
+  "  list(W = e$Weight_estimates, B = e$Path_estimates, m = colMeans(d), s = apply(d, 2, stats::sd), r2 = e$R2)",
+  "}",
+  "# Squared structural residuals of every observation under a segment's model (its weights, standardisation and paths).",
+  "pos_distance <- function(g, X) {",
+  "  Z <- sweep(sweep(X[, colnames(g$W), drop = FALSE], 2, g$m[colnames(g$W)]), 2, g$s[colnames(g$W)], \"/\")",
+  "  S <- Z %*% t(g$W); endo <- names(g$r2)",
+  "  rowSums((S[, endo, drop = FALSE] - S %*% t(g$B[endo, , drop = FALSE]))^2)",
+  "}",
+  "pos_objective <- function(fits) sum(unlist(lapply(fits, `[[`, \"r2\")))",
+  "pos_run <- function(X, K, min_size, max_moves, candidates) {",
+  "  n <- nrow(X); a <- sample(rep(seq_len(K), length.out = n))",
+  "  fits <- lapply(seq_len(K), function(k) pos_fit(X[a == k, , drop = FALSE])); obj <- pos_objective(fits); moves <- 0",
+  "  repeat {",
+  "    D <- sapply(fits, function(g) pos_distance(g, X))",
+  "    gain <- D[cbind(seq_len(n), a)] - apply(D, 1, min)",
+  "    cand <- utils::head(order(-gain)[sort(-gain) < 0], candidates)",
+  "    moved <- FALSE",
+  "    for (i in cand) {",
+  "      to <- which.min(D[i, ]); from <- a[i]",
+  "      if (sum(a == from) - 1 < min_size) next",
+  "      b <- a; b[i] <- to",
+  "      trial <- fits; ok <- TRUE",
+  "      for (k in c(from, to)) { f <- tryCatch(pos_fit(X[b == k, , drop = FALSE]), error = function(e) NULL); if (is.null(f)) { ok <- FALSE; break }; trial[[k]] <- f }",
+  "      if (ok && pos_objective(trial) > obj + 1e-12) { a <- b; fits <- trial; obj <- pos_objective(trial); moved <- TRUE; moves <- moves + 1; break }",
+  "    }",
+  "    if (!moved || moves >= max_moves) break",
+  "  }",
+  "  list(assignment = a, fits = fits, objective = obj, moves = moves)",
+  "}")
+
+ps_pos <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  if (length(req$model$moderations)) stop("PLS-POS works on models without interaction terms.")
+  if (!length(req$model$paths)) stop("PLS-POS needs a structural model (paths).")
+  K <- as.integer(req$segments %||% 2); nrep <- as.integer(req$nrep %||% 5); seed <- as.integer(req$seed %||% 1)
+  max_moves <- as.integer(req$maxMoves %||% 1000); cands <- as.integer(req$candidates %||% 10)
+  if (K < 2 || K > 6 || nrep < 1 || nrep > 50 || max_moves < 1 || max_moves > 100000 || cands < 1 || cands > 100) stop("Invalid PLS-POS settings.")
+  req$package <- "cSEM"
+  b <- ps_pls_build(req)
+  fit_line <- b$body[length(b$body)]
+  body <- c(b$body[-length(b$body)],
+    "# The global model (for comparison).", fit_line,
+    sprintf("pos_estimate <- function(d) %s", sub("^fit <- ", "", sub("csem(data,", "csem(d,", fit_line, fixed = TRUE))),
+    PS_POS_FUNCTIONS,
+    "X <- as.matrix(data)",
+    sprintf("min_size <- max(%d, ceiling(0.05 * nrow(X)))  # smallest segment: 5%% of the sample (at least the number of indicators)", ncol(b$inputs$data) + 1),
+    sprintf("set.seed(%d)", seed),
+    sprintf("runs <- lapply(seq_len(%d), function(r) pos_run(X, %d, min_size, %d, %d))", nrep, K, max_moves, cands),
+    "best <- runs[[which.max(sapply(runs, `[[`, \"objective\"))]]")
+  inputs <- b$inputs
+  if (export) return(paste(ps_script(sprintf("PLS-POS, %d segments (cSEM)", K), "cSEM", inputs, body, c("table(best$assignment)", "lapply(best$fits, function(g) g$B)", "sapply(best$fits, function(g) g$r2)")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  cv <- b$n$cv; back <- setNames(names(cv), unname(cv))
+  best <- env$best
+  global_r2 <- env$fit$Estimates$R2
+  ps_json(list(k = K, n = nrow(env$X), objective = best$objective, globalObjective = sum(global_r2), moves = best$moves, starts = sapply(env$runs, `[[`, "objective"),
+    assignment = best$assignment, globalR2 = as.list(setNames(unname(global_r2), unname(back[names(global_r2)]))),
+    segments = lapply(seq_len(K), function(k) { g <- best$fits[[k]]
+      list(segment = k, size = sum(best$assignment == k),
+        paths = lapply(req$model$paths, function(p) list(from = p$from, to = p$to, est = g$B[cv[[p$to]], cv[[p$from]]])),
+        r2 = as.list(setNames(unname(g$r2), unname(back[names(g$r2)])))) }),
+    warnings = env$.warnings, engine = list(package = "cSEM (PLS-POS as Becker et al. 2013)", version = as.character(utils::packageVersion("cSEM")))))
+}

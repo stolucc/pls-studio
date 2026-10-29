@@ -100,3 +100,19 @@ export async function fimixR(data: Dataset, spec: ModelSpec, options: PlsOptions
   };
 }
 export const fimixScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: FimixInput) => rScript('ps_fimix', fimixRequest(data, spec, options, input), 'flexmix');
+
+export interface PosInput { segments: number; nrep: number; seed: number }
+export interface PosResult {
+  k: number; n: number; objective: number; globalObjective: number; moves: number; starts: number[];
+  assignment: number[]; globalR2: Record<string, number>;
+  segments: { segment: number; size: number; paths: { from: string; to: string; est: number }[]; r2: Record<string, number> }[];
+  warnings: string[]; engine: REngineInfo;
+}
+export const posRequest = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: PosInput) => ({ ...plsRequest(data, spec, options, 'cSEM'), ...input });
+export async function posR(data: Dataset, spec: ModelSpec, options: PlsOptions, input: PosInput): Promise<PosResult> {
+  const raw = await rCall<Record<string, any>>('ps_pos', posRequest(data, spec, options, input), 'cSEM');
+  const rec = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, number> : {});
+  return { ...raw, starts: nums(raw.starts), assignment: nums(raw.assignment), globalR2: rec(raw.globalR2), warnings: rStrings(raw.warnings),
+    segments: arr<any>(raw.segments).map((g) => ({ segment: g.segment, size: g.size, paths: arr(g.paths), r2: rec(g.r2) })) } as PosResult;
+}
+export const posScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: PosInput) => rScript('ps_pos', posRequest(data, spec, options, input), 'cSEM');
