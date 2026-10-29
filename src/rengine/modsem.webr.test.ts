@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseCsv } from '../engine/dataset';
+import { johnsonNeyman } from '../engine/jn';
 import type { ModelSpec } from '../engine/types';
 import commonR from './R/common.R?raw';
 import { cbScriptLavaan, estimateCbLavaan } from './lavaan';
@@ -59,3 +60,12 @@ it('exports the modsem script', async () => {
   expect(script).toContain('Y ~ X + Z + X:Z');
   expect(script).toContain('fit <- modsem(model, data = data, method = "lms")');
 }, 900_000);
+
+describe.each(['lms', 'qml'] as const)('%s Johnson–Neyman', (method) => {
+  it('has the parameter covariances the Johnson–Neyman plot needs', async () => {
+    const r = await estimateCbLavaan(data, spec, 'casewise', 'ML', method);
+    const jn = johnsonNeyman(r, r.moderations[0]);
+    expect(jn.bint).toBeCloseTo(r.estimates.find((e) => e.op === '~' && e.rhs === 'X × Z')!.est, 12);
+    expect(jn.se(0)).toBeGreaterThan(0);
+  }, 900_000);
+});

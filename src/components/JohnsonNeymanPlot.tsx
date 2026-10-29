@@ -6,6 +6,15 @@ import { ChartFrame } from './ChartFrame';
  * values (±3 SD of the moderator) with its confidence band; shaded
  * where the effect is significant, dashed lines at the region boundaries.
  */
+/**
+ * Where to put the labels of the boundary lines (x in pixels, ascending):
+ * right of the line, except a line whose right neighbour is too close for
+ * a label, whose label goes to its left (the two cannot overlap).
+ */
+export function boundaryLabels(xs: number[], room = 64): { x: number; anchor: 'start' | 'end' }[] {
+  return xs.map((x, i) => (i + 1 < xs.length && xs[i + 1] - x < room ? { x: x - 3, anchor: 'end' } : { x: x + 3, anchor: 'start' }));
+}
+
 export function JohnsonNeymanPlot({ jn, from, moderator, to, width = 320, height = 200, center = 0, level = 0.95 }: {
   jn: JohnsonNeyman; from: string; moderator: string; to?: string; width?: number; height?: number;
   /** Mean of an observed moderator (latent moderators are centred at 0). */
@@ -54,12 +63,16 @@ export function JohnsonNeymanPlot({ jn, from, moderator, to, width = 320, height
         <line className="axis" x1={pad.l} x2={pad.l} y1={pad.t} y2={pad.t + H} />
         <path className="jn-band" d={band} />
         <path className="jn-line" d={line('e')} />
-        {jn.boundaries.filter((b) => b > lo && b < hi).map((b) => (
-          <g key={b}>
-            <line className="jn-bound" x1={sx(b)} x2={sx(b)} y1={pad.t} y2={pad.t + H} />
-            <text x={sx(b) + 3} y={pad.t + 10}>{((b - center) / jn.sdM).toFixed(2)} SD</text>
-          </g>
-        ))}
+        {(() => {
+          const shown = jn.boundaries.filter((b) => b > lo && b < hi);
+          const at = boundaryLabels(shown.map(sx));
+          return shown.map((b, i) => (
+            <g key={b}>
+              <line className="jn-bound" x1={sx(b)} x2={sx(b)} y1={pad.t} y2={pad.t + H} />
+              <text x={at[i].x} y={pad.t + 10} textAnchor={at[i].anchor}>{((b - center) / jn.sdM).toFixed(2)} SD</text>
+            </g>
+          ));
+        })()}
         {sdTicks.map((k) => <text key={k} x={sx(center + k * jn.sdM)} y={pad.t + H + 14} textAnchor="middle">{k}</text>)}
         <text className="axis-title" x={pad.l + W / 2} y={height - 4} textAnchor="middle">{labels.x}</text>
         <text className="axis-title" transform={`translate(12 ${pad.t + H / 2}) rotate(-90)`} textAnchor="middle">{labels.y}</text>

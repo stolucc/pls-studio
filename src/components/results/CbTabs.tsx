@@ -300,6 +300,16 @@ function Residuals({ cb }: { cb: CbResult }) {
   );
 }
 
+/** How the interaction was estimated, and the conditional effect the Johnson–Neyman analysis uses. */
+export function jnNote(cb: CbResult, mo: CbResult['moderations'][number], jn: { quadratic: boolean; bx: number; bint: number; crit: number }): string {
+  const lms = cb.interaction === 'lms' || cb.interaction === 'qml';
+  const how = lms
+    ? `Latent ${jn.quadratic ? 'quadratic term' : 'interaction'} estimated by ${cb.interaction!.toUpperCase()} (modsem; ${cb.interaction === 'lms' ? 'Klein & Moosbrugger 2000' : 'Klein & Muthén 2007'}), without product indicators.`
+    : jn.quadratic ? 'Latent quadratic term from squared mean-centred indicators (Marsh, Wen & Hau 2004).' : 'Latent interaction from matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004).';
+  const effect = jn.quadratic ? `Slope of ${mo.from} at x: θ(x) = ${fmt(jn.bx)} + 2·${fmt(jn.bint)}·x` : `Conditional effect θ(m) = ${fmt(jn.bx)} + ${fmt(jn.bint)}·m`;
+  return `${how} ${effect} with delta-method SEs from the ${lms ? `${cb.interaction!.toUpperCase()} (modsem)` : cb.estimator} parameter covariance; boundaries solve |θ(m)|/SE(m) = ${jn.crit.toFixed(3)}.${lms ? '' : ' Validated against lavaan.'}`;
+}
+
 function Moderation({ cb }: { cb: CbResult }) {
   if (cb.moderations.length === 0) {
     return <div className="empty-results">No moderators. Drag from an exogenous factor’s dot onto a path arrow to add a latent interaction.</div>;
@@ -328,7 +338,7 @@ function Moderation({ cb }: { cb: CbResult }) {
                       return [c(k === 0 ? 'mean' : `${k > 0 ? '+' : ''}${k} SD`), c(m), c(jn!.effect(m)), c(jn!.se(m)), c(jn!.significantAt(m) ? 'yes' : 'no', jn!.significantAt(m) ? 'good' : 'dim')];
                     }),
                   ]}
-                  note={`${jn.quadratic ? `Latent quadratic term from squared mean-centred indicators (Marsh, Wen & Hau 2004). Slope of ${mo.from} at x: θ(x) = ${fmt(jn.bx)} + 2·${fmt(jn.bint)}·x` : `Latent interaction from matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004). Conditional effect θ(m) = ${fmt(jn.bx)} + ${fmt(jn.bint)}·m`} with delta-method SEs from the ${cb.estimator} parameter covariance; boundaries solve |θ(m)|/SE(m) = ${jn.crit.toFixed(3)}. Validated against lavaan.`} />
+                  note={jnNote(cb, mo, jn)} />
               </>
             )}
           </div>
