@@ -316,3 +316,149 @@ describe('helperBatch', () => {
     expect(vi.mocked(parallelMap).mock.calls.at(-1)![1]).toBe(2);
   });
 });
+
+describe('helper client edge cases', () => {
+  it('helperCall: 401 un-pairs, other statuses and kinds map to the right errors', async () => {
+    const { helperCall, useHelper, HelperUnavailable, HelperMissingPackages } = await import('./helper');
+    store.set('pls-studio.helper.token', TOKEN);
+    handler = () => ({ status: 401 });
+    await expect(helperCall('ps_pls', '{}', [])).rejects.toBeInstanceOf(HelperUnavailable);
+    expect(store.has('pls-studio.helper.token')).toBe(false);
+    expect(useHelper.getState().state).toBe('unpaired');
+    store.set('pls-studio.helper.token', TOKEN);
+    handler = () => ({ status: 500 });
+    await expect(helperCall('ps_pls', '{}', [])).rejects.toThrow('The helper answered 500.');
+    handler = () => ({ body: { ok: false, kind: 'cancelled' } });
+    const c = await helperCall('ps_pls', '{}', []).catch((e) => e);
+    expect(c).not.toBeInstanceOf(HelperUnavailable);
+    expect(c.message).toBe('Cancelled.');
+    handler = () => ({ body: { ok: false, kind: 'helper_error' } });
+    await expect(helperCall('ps_pls', '{}', [])).rejects.toThrow('The helper could not run R.');
+    handler = () => ({ body: { ok: false, kind: 'r_error' } });
+    await expect(helperCall('ps_pls', '{}', [])).rejects.toThrow('R error');
+    handler = () => ({ body: { ok: false, kind: 'missing_packages' } });
+    const m = await helperCall('ps_pls', '{}', []).catch((e) => e);
+    expect(m).toBeInstanceOf(HelperMissingPackages);
+    expect(m.packages).toEqual([]);
+    expect(new HelperMissingPackages(['a']).message).toBe('Desktop R lacks the R package a.');
+    expect(new HelperMissingPackages(['a', 'b']).message).toBe('Desktop R lacks the R packages a, b.');
+    handler = () => ({ body: { ok: true } });
+    expect(await helperCall('ps_pls', '{}', [])).toBe('');
+  });
+  it('sends the call with the token and gives every call its own id', async () => {
+    const { helperCall } = await import('./helper');
+    store.set('pls-studio.helper.token', TOKEN);
+    const ids: string[] = [];
+    handler = (p, init) => {
+      expect(p).toBe('/call');
+      expect(init.method).toBe('POST');
+      expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`);
+      expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+      const b = JSON.parse(String(init.body));
+      ids.push(b.id);
+      expect(b).toMatchObject({ fn: 'ps_x', req: '{"a":1}', export: false, packages: ['cSEM'] });
+      return { body: { ok: true, result: 'r' } };
+    };
+    await helperCall('ps_x', '{"a":1}', ['cSEM']);
+    await helperCall('ps_x', '{"a":1}', ['cSEM']);
+    expect(new Set(ids).size).toBe(2);
+  });
+  it('cancelHelperCalls cancels the calls that are still running, and only those', async () => {
+    const { helperCall, cancelHelperCalls } = await import('./helper');
+    store.set('pls-studio.helper.token', TOKEN);
+    const cancelled: string[] = [];
+    let release!: () => void;
+    let callId = '';
+    handler = (p, init) => {
+      if (p.startsWith('/cancel/')) { cancelled.push(p.slice('/cancel/'.length)); expect(init.method).toBe('POST'); return { status: 204 }; }
+      callId = JSON.parse(String(init.body)).id;
+      return { body: { ok: true, result: 'x' } };
+    };
+    const fetchMock = vi.mocked(fetch);
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementationOnce((url, init) => new Promise((res) => { release = () => res(original(url as string, init)); }));
+    const p = helperCall('ps_slow', '{}', []);
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    cancelHelperCalls();
+    await vi.waitFor(() => expect(cancelled).toHaveLength(1));
+    release();
+    await p;
+    expect(cancelled[0]).toMatch(/^c[0-9a-z]+-[0-9a-z]+$/);
+    expect(callId).toBe(cancelled[0]);
+    cancelHelperCalls();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(cancelled).toHaveLength(1);
+  });
+  it('unpairHelper forgets the token', async () => {
+    const { unpairHelper, useHelper } = await import('./helper');
+    store.set('pls-studio.helper.token', TOKEN);
+    useHelper.setState({ state: 'ready', packages: { cSEM: '0.7.1' } });
+    unpairHelper();
+    expect(store.has('pls-studio.helper.token')).toBe(false);
+    expect(useHelper.getState()).toMatchObject({ state: 'unpaired', message: 'Not paired.', packages: {} });
+  });
+  it('probe: helper errors, version details, and an unanswered package query', async () => {
+    const { probeHelper, useHelper, bridgeHash } = await import('./helper');
+    const sources = { common: 'x' };
+    handler = () => ({ status: 503 });
+    expect(await probeHelper(sources, [])).toBe('absent');
+    expect(useHelper.getState().message).toBe('The helper is not running.');
+    store.set('pls-studio.helper.token', TOKEN);
+    handler = (p) => (p === '/health' ? { body: { ok: true } } : { status: 500 });
+    expect(await probeHelper(sources, [])).toBe('absent');
+    expect(useHelper.getState().message).toBe('The helper answered 500.');
+    handler = (p) => (p === '/health' ? { body: { ok: true } } : 'down');
+    expect(await probeHelper(sources, [])).toBe('absent');
+    const hash = await bridgeHash(sources);
+    handler = (p, init) => {
+      if (p === '/health') return { body: { ok: true } };
+      if (p === '/version') return { body: { bridge: hash } };
+      expect(p).toBe('/packages');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(String(init.body))).toEqual({ packages: ['cSEM'] });
+      return { status: 500 };
+    };
+    expect(await probeHelper(sources, ['cSEM'])).toBe('ready');
+    expect(useHelper.getState()).toMatchObject({ message: '', packages: { cSEM: null }, info: { helperVersion: '', r: '', workers: 0 } });
+    expect(useHelper.getState().info).not.toHaveProperty('rError');
+    handler = (p) => (p === '/health' ? { body: { ok: true } } : { body: { bridge: 'other', helper_version: '0.1.3', r: 'R 4.5', workers: 3 } });
+    expect(await probeHelper(sources, [])).toBe('mismatch');
+    expect(useHelper.getState().info).toEqual({ helperVersion: '0.1.3', r: 'R 4.5', workers: 3 });
+    expect(useHelper.getState().message).toMatch(/another version of PLS Studio/);
+    handler = (p) => (p === '/health' ? { body: { ok: true } } : { body: { bridge: hash, r_error: 'no R' } });
+    expect(await probeHelper(sources, [])).toBe('no-r');
+    expect(useHelper.getState().info).toMatchObject({ rError: 'no R' });
+  });
+  it('pairing: strict code and token formats, and helper errors', async () => {
+    const { pairHelper } = await import('./helper');
+    await expect(pairHelper('1234567')).rejects.toThrow('6 digits');
+    await expect(pairHelper('x123456')).rejects.toThrow('6 digits');
+    handler = () => ({ body: { token: `x${TOKEN}` } });
+    await expect(pairHelper('123456')).rejects.toThrow('no valid token');
+    handler = () => ({ body: { token: `${TOKEN}x` } });
+    await expect(pairHelper('123456')).rejects.toThrow('no valid token');
+    handler = () => ({ status: 500 });
+    await expect(pairHelper('123456')).rejects.toThrow('The helper answered 500.');
+    handler = () => 'down';
+    await expect(pairHelper('123456')).rejects.toThrow('The helper is not running.');
+    handler = (_p, init) => { expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json'); return { body: { token: TOKEN } }; };
+    await pairHelper('123456');
+  });
+  it('asks for Local Network Access once, and marks requests as loopback', async () => {
+    const request = vi.fn(async () => ({}));
+    vi.stubGlobal('navigator', { permissions: { request } });
+    const { pairHelper } = await import('./helper');
+    handler = () => ({ body: { token: TOKEN } });
+    await pairHelper('123456');
+    await pairHelper('123456');
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith({ name: 'local-network-access' });
+    expect(vi.mocked(fetch).mock.calls.at(-1)![1]).toMatchObject({ targetAddressSpace: 'loopback' });
+  });
+  it('downloads name each system', async () => {
+    const { helperDownloads } = await import('./helper');
+    expect(helperDownloads('Win32')).toEqual([{ label: 'Windows', url: expect.stringMatching(/windows-amd64\.exe$/) }]);
+    expect(helperDownloads('Linux')).toEqual([{ label: 'Linux', url: expect.stringMatching(/linux-amd64$/) }]);
+    expect(helperDownloads('Mac')[1]).toEqual({ label: 'macOS (Intel)', url: expect.stringMatching(/amd64\.dmg$/) });
+  });
+});
