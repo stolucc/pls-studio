@@ -16,13 +16,31 @@ function setup() {
 describe('moderation in the store', () => {
   beforeEach(() => useStore.setState({ toasts: [] }));
 
-  it('adds the moderator main effect automatically and maps to the engine spec', () => {
-    const { m, y, path } = setup();
+  it('implies the moderator main effect (not drawn, but estimated) and maps to the engine spec', () => {
+    const { x, m, y, path } = setup();
     expect(s().addModeration(m, path)).toBe(true);
-    expect(s().model.paths.some((p) => p.from === m && p.to === y)).toBe(true);
+    expect(s().model.paths).toHaveLength(1);
+    expect(s().toasts).toEqual([]);
     const names = Object.fromEntries(s().model.constructs.map((c) => [c.id, c.name]));
-    expect(toSpec(s().model).moderations).toEqual([{ from: names[s().model.paths[0].from], moderator: names[m], to: names[y] }]);
+    const spec = toSpec(s().model);
+    expect(spec.moderations).toEqual([{ from: names[x], moderator: names[m], to: names[y] }]);
+    expect(spec.paths).toEqual([{ from: names[x], to: names[y] }, { from: names[m], to: names[y] }]);
     expect(s().selection.moderations).toHaveLength(1);
+    // Drawn by the user: estimated once, not twice.
+    s().addPath(m, y);
+    expect(toSpec(s().model).paths.filter((p) => p.from === names[m])).toHaveLength(1);
+  });
+
+  it('one implied main effect per moderator and outcome; none for a quadratic term', () => {
+    const { x, m, y, path } = setup();
+    const w = s().addConstruct(0, 200, ['w1']);
+    s().addPath(w, y);
+    const path2 = s().model.paths[1].id;
+    s().addModeration(m, path);
+    s().addModeration(m, path2);
+    s().addQuadratic(path);
+    const names = Object.fromEntries(s().model.constructs.map((c) => [c.id, c.name]));
+    expect(toSpec(s().model).paths).toEqual([{ from: names[x], to: names[y] }, { from: names[w], to: names[y] }, { from: names[m], to: names[y] }]);
   });
 
   it('rejects the outcome as moderator, duplicates and cycles', () => {
@@ -182,5 +200,19 @@ describe('examples', () => {
     expect(currentEntry()?.id).toBe(s().projectId);
     s().loadProject({ name: 'x', model: emptyModel(), settings: s().settings, data: null, info: null });
     expect(s().example).toBeNull();
+  });
+});
+
+describe('implied main effects and cycles', () => {
+  it('refuses a moderator downstream of the outcome, also in a loaded project', () => {
+    const { x, y, m, path } = setup();
+    s().addPath(y, m);
+    expect(s().addModeration(m, path)).toBe(false);
+    // A project file can still contain one: validation reports the cycle.
+    useStore.setState({ model: { ...s().model, moderations: [{ id: 'mo1', moderator: m, path }] } });
+    const data = { names: ['x1', 'y1', 'm1'], cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)) };
+    const errs = validateModel(s().model, data, { method: 'pls', consistent: false }).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(errs).toContainEqual(expect.stringMatching(/implied effect on .* would create a cycle/));
+    void x;
   });
 });

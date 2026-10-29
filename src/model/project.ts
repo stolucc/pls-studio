@@ -257,6 +257,22 @@ export const DEFAULT_SETTINGS: Settings = {
 let counter = 0;
 export const newId = (prefix: string) => `${prefix}${Date.now().toString(36)}${(counter++).toString(36)}`;
 
+/**
+ * The moderators' main effects on their outcomes that the diagram does not
+ * draw (one per moderator and outcome); a quadratic term's main effect is the
+ * moderated path itself.
+ */
+export function impliedMainEffects(model: ModelState): { from: string; to: string }[] {
+  const out: { from: string; to: string }[] = [];
+  for (const mo of model.moderations ?? []) {
+    const p = model.paths.find((q) => q.id === mo.path);
+    if (!p || mo.moderator === p.from) continue;
+    if (model.paths.some((q) => q.from === mo.moderator && q.to === p.to) || out.some((e) => e.from === mo.moderator && e.to === p.to)) continue;
+    out.push({ from: mo.moderator, to: p.to });
+  }
+  return out;
+}
+
 export function toSpec(model: ModelState): ModelSpec {
   const name = new Map(model.constructs.map((c) => [c.id, c.name]));
   return {
@@ -267,7 +283,12 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
       ...(c.loadingLabels && Object.keys(c.loadingLabels).length ? { loadingLabels: c.loadingLabels } : {}),
     })),
-    paths: model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })),
+    paths: [
+      ...model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })),
+      // A moderation implies the moderator's main effect on the outcome (the convention, as in PROCESS):
+      // estimated with the model even when it is not drawn.
+      ...impliedMainEffects(model).map((e) => ({ from: name.get(e.from)!, to: name.get(e.to)! })),
+    ],
     ...constraintSpec(model),
     ...(model.multilevel ? { multilevel: model.multilevel } : {}),
     ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)) } } : {}),
@@ -435,7 +456,8 @@ export function validateModel(
     }
     // PLS needs every construct in the structural model; CB-SEM also handles pure CFA.
     const isComponent = model.constructs.some((k) => k.components?.includes(c.id));
-    if (method.method === 'pls' && !isComponent && !model.paths.some((p) => p.from === c.id || p.to === c.id)) err(`"${c.name}" is not connected to any other construct.`, c.id);
+    // (a moderator is connected through its moderation, which implies its effect on the outcome)
+    if (method.method === 'pls' && !isComponent && !model.paths.some((p) => p.from === c.id || p.to === c.id) && !(model.moderations ?? []).some((mo) => mo.moderator === c.id)) err(`"${c.name}" is not connected to any other construct.`, c.id);
   }
 
   const cname = new Map(model.constructs.map((c) => [c.id, c.name]));
@@ -458,8 +480,9 @@ export function validateModel(
       // cSEM estimates nonlinear models with PLSc (Dijkstra & Schermelleh-Engel 2014); seminr and the built-in engine do not.
       err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) with PLSc ${quadratic ? 'need' : 'needs'} cSEM: choose R packages → cSEM, or switch consistent PLS off.`, mo.moderator);
     }
-    if (!model.paths.some((q) => q.from === mo.moderator && q.to === p.to)) {
-      err(`${cap(label)}: the moderator also needs a direct path to ${cname.get(p.to)}.`, mo.moderator);
+    // The moderator's main effect on the outcome is implied (toSpec); undrawn, it must not close a cycle.
+    if (!quadratic && !model.paths.some((q) => q.from === mo.moderator && q.to === p.to) && createsCycle(model.paths, mo.moderator, p.to)) {
+      err(`${cap(label)}: ${cname.get(mo.moderator)} lies downstream of ${cname.get(p.to)}, so its implied effect on ${cname.get(p.to)} would create a cycle.`, mo.moderator);
     }
   }
 

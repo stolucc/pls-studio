@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CbResult } from '../engine/types';
+import type { CbResult } from '../engine/cbsem';
 import { boundaryLabels } from './JohnsonNeymanPlot';
 import { jnNote } from './results/CbTabs';
 

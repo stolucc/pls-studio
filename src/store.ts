@@ -403,20 +403,15 @@ export const useStore = create<State>((set, get) => ({
       return false;
     }
     if (model.moderations.some((mo) => mo.moderator === moderatorId && mo.path === pathId)) return false;
-    // Conditional process models imply the moderator's main effect; SEM models draw it.
-    const needsMain = get().settings.method !== 'process' && !model.paths.some((q) => q.from === moderatorId && q.to === p.to);
-    if (needsMain && createsCycle(model.paths, moderatorId, p.to)) {
+    // The moderation implies the moderator's main effect on the outcome (as in PROCESS): it is
+    // estimated without being drawn (toSpec), so it must not close a cycle.
+    const drawn = model.paths.some((q) => q.from === moderatorId && q.to === p.to);
+    if (!drawn && createsCycle(model.paths, moderatorId, p.to)) {
       toast('error', 'This moderator lies downstream of the outcome; moderating would create a cycle.');
       return false;
     }
     const id = newId('m');
-    get().commit((m) => ({
-      ...m,
-      // Moderation always needs the moderator's main effect on the outcome.
-      paths: needsMain ? [...m.paths, { id: newId('p'), from: moderatorId, to: p.to }] : m.paths,
-      moderations: [...m.moderations, { id, moderator: moderatorId, path: pathId }],
-    }));
-    if (needsMain) toast('info', 'Added the moderator’s direct path to the outcome, which moderation requires.');
+    get().commit((m) => ({ ...m, moderations: [...m.moderations, { id, moderator: moderatorId, path: pathId }] }));
     set({ selection: { nodes: [], edges: [], moderations: [id] } });
     return true;
   },
