@@ -107,10 +107,14 @@ describe('growth mixture models (lcmm)', () => {
   it('refuses a person column that does not identify persons', async () => {
     // X2 is 0/1: two "persons" with many rows at the same times would crash lcmm's compiled code.
     const base = { format: 'long' as const, time: 'Time', outcome: 'Y', covariates: [], shape: 'linear' as const, random: 'slope' as const, classes: [1, 2], nrep: 5, seed: 1 };
-    await expect(gmmR(hlme, { ...base, subject: 'X2' })).rejects.toThrow(/does not identify persons|Only 2 persons/);
+    await expect(gmmR(hlme, { ...base, subject: 'X2' })).rejects.toThrow(/Only 2 persons/);
     // A column name with quotes stays inside the R string.
     const odd = { ...hlme, names: hlme.names.map((n) => (n === 'X2' ? 'X2"); stop("injected' : n)) };
-    await expect(gmmR(odd, { ...base, subject: 'X2"); stop("injected' })).rejects.toThrow(/does not identify persons|Only 2 persons/);
+    await expect(gmmR(odd, { ...base, subject: 'X2"); stop("injected' })).rejects.toThrow(/Only 2 persons/);
+    // Two rows of one person at the same time: a warning, not an error.
+    const dup = { names: [...hlme.names], cols: hlme.cols.map((c, j) => Float64Array.from([...c, c[0]], (v, i) => (i === c.length && hlme.names[j] === 'Y' ? v + 1 : v))) };
+    const w = await gmmR(dup, { ...base, subject: 'ID', classes: [1] });
+    expect(w.warnings.some((x) => /two rows at the same time/.test(x))).toBe(true);
     // The session still works afterwards.
     const ok = await gmmR(hlme, { ...base, subject: 'ID', classes: [1] });
     expect(ok.n).toBe(100);
