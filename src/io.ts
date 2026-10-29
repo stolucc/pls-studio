@@ -322,6 +322,10 @@ export async function loadPackageExample(id: string) {
         const { useEndogeneity } = await import('./components/EndogeneityPanel');
         const { kind: _k, ...preset } = p;
         useEndogeneity.setState({ open: true, result: null, preset: { ...preset, source: 'data' } });
+      } else if (p.kind === 'rsa') {
+        const { usePolynomial } = await import('./components/PolynomialPanel');
+        const { kind: _k, ...preset } = p;
+        usePolynomial.setState({ open: true, result: null, preset });
       } else if (p.kind === 'match') {
         const { useMatching } = await import('./components/MatchingPanel');
         const { kind: _k, ...preset } = p;

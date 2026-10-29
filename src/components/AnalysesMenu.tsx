@@ -8,6 +8,7 @@ import { useMultilevel } from './MultilevelPanel';
 import { useSegmentation } from './SegmentationPanel';
 import { useEndogeneity } from './EndogeneityPanel';
 import { useMatching } from './MatchingPanel';
+import { usePolynomial } from './PolynomialPanel';
 
 /** Analyses of the dataset beside the diagram's model, each in its own panel. */
 export function AnalysesMenu() {
@@ -46,6 +47,7 @@ export function AnalysesMenu() {
           {item('Multilevel regression', 'random intercepts and slopes (lme4)', () => useMultilevel.getState().setOpen(true))}
           {item('Segmentation (REBUS-PLS)', method === 'pls' ? 'classes of observations with different models (plspm)' : 'for PLS-SEM models', () => useSegmentation.getState().setOpen(true), !hasModel || method !== 'pls')}
           {item('Endogeneity', 'instruments (2SLS), Gaussian copula, Lewbel, Heckman', () => useEndogeneity.getState().setOpen(true))}
+          {item('Polynomial regression (RSA)', 'congruence / imbalance of two predictors, response surface', () => usePolynomial.getState().setOpen(true))}
           {item('Propensity score matching', 'matching, balance, treatment effect (MatchIt)', () => useMatching.getState().setOpen(true))}
           <div className="menu-sep" role="separator" />
           {item('Monte Carlo simulation', method === 'process' ? 'for PLS-SEM and CB-SEM models' : 'power, sample size, estimators', () => useSim.getState().setOpen(true), !hasModel || method === 'process')}

@@ -12,9 +12,10 @@ import type { IrtModel } from '../rengine/items';
 import type { GmmInput, LmmInput } from '../rengine/mixed';
 import type { EndoPreset } from '../components/EndogeneityPanel';
 import type { MatchPreset } from '../components/MatchingPanel';
+import type { RsaPreset } from '../components/PolynomialPanel';
 
-export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt'];
+export type ExamplePackage = 'lavaan' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -32,7 +33,8 @@ export type ExamplePanel =
   | ({ kind: 'lmm' } & LmmInput)
   | ({ kind: 'gmm' } & GmmInput)
   | ({ kind: 'endo' } & EndoPreset)
-  | ({ kind: 'match' } & MatchPreset);
+  | ({ kind: 'match' } & MatchPreset)
+  | ({ kind: 'rsa' } & RsaPreset);
 
 export interface PackageExample {
   id: string;
@@ -218,6 +220,13 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     panel: { kind: 'endo', method: 'heckman', outcome: 'wage', exogenous: ['exper', 'educ', 'city'], selection: { outcome: 'lfp', regressors: ['age', 'faminc', 'kids5', 'educ'] }, heckmanMethod: '2step' }, settings: CB('ML'),
   },
   {
+    id: 'rsa-motcon', package: 'RSA', title: 'Motive congruence: response surface', source: 'RSA, ?RSA (motcon)',
+    links: [{ label: '?RSA', url: 'https://rdrr.io/cran/RSA/man/RSA.html' }, { label: '?motcon', url: 'https://rdrr.io/cran/RSA/man/motcon.html' }, { label: 'Shanock et al. (2010)', url: 'https://doi.org/10.1007/s10869-010-9183-4' }],
+    description: 'Does it matter whether explicit and implicit power motives match (N = 84)? Polynomial regression of positive affect on both motives, read along the lines of congruence and incongruence — the analysis of Schaarschmidt, Stol & Fitzgerald (EJIS 2025) on identification imbalance. RSA’s data, shipped with the app. Opens Polynomial regression.',
+    data: { package: 'RSA', name: 'motcon', file: 'examples/rsa/motcon.csv' }, constructs: [], paths: [],
+    panel: { kind: 'rsa', outcome: 'postVA', x: 'ePow', y: 'iPow', controls: [], estimation: 'OLS', center: 'none' }, settings: CB('ML'),
+  },
+  {
     id: 'matchit-lalonde', package: 'MatchIt', title: 'Job training: propensity score matching', source: 'MatchIt, ?matchit (lalonde)',
     links: [{ label: '?matchit', url: 'https://rdrr.io/cran/MatchIt/man/matchit.html' }, { label: 'MatchIt: estimating effects', url: 'https://kosukeimai.github.io/MatchIt/articles/estimating-effects.html' }, { label: '?lalonde', url: 'https://rdrr.io/cran/MatchIt/man/lalonde.html' }],
     description: 'Lalonde (1986): did a job-training programme raise 1978 earnings? 185 trainees matched 1:1 to non-participants on age, education, race, marital status, degree and earlier earnings. As in MatchIt’s vignette, plain nearest-neighbour matching leaves race imbalanced; try full matching. Opens Propensity score matching.',
@@ -369,6 +378,7 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'gmm': return [...(p.format === 'wide' ? p.measures : [p.subject, p.time, p.outcome]), ...p.covariates];
     case 'endo': return [p.outcome ?? '', ...(p.exogenous ?? []), ...(p.endogenous ?? []), ...(p.instruments ?? []), ...(p.selection ? [p.selection.outcome, ...p.selection.regressors] : [])].filter(Boolean);
     case 'match': return [p.treatment ?? '', ...(p.covariates ?? []), p.outcome ?? ''].filter(Boolean);
+    case 'rsa': return [p.outcome ?? '', p.x ?? '', p.y ?? '', ...(p.controls ?? [])].filter(Boolean);
   }
 }
 

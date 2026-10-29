@@ -1,3 +1,4 @@
+import { PolynomialPanel } from './components/PolynomialPanel';
 import { MatchingPanel } from './components/MatchingPanel';
 import { EndogeneityPanel } from './components/EndogeneityPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
@@ -111,6 +112,7 @@ export default function App() {
       <SegmentationPanel />
       <EndogeneityPanel />
       <MatchingPanel />
+      <PolynomialPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

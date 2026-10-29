@@ -11,6 +11,7 @@ import { miivR } from '../rengine/analyses';
 import { rCall, type RPackage } from '../rengine/bridge';
 import { endoR } from '../rengine/endo';
 import { matchR } from '../rengine/match';
+import { rsaR } from '../rengine/rsa';
 import { categoriesOf } from '../io';
 import { parseCsv } from '../engine/dataset';
 import { readFileSync } from 'node:fs';
@@ -51,6 +52,10 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
           heckmanMethod: 'ml', boot: { samples: 50, seed: 1, confidence: 0.95 }, ...pre });
         expect(r.coefficients.length).toBeGreaterThan(0);
         if (ex.id === 'ivreg-kmenta') expect(r.coefficients.find((x) => x.term === 'P')!.est).toBeCloseTo(-0.2436, 4);  // ?ivreg
+      } else if (p.kind === 'rsa') {
+        const { kind: _k, ...pre } = p;
+        const r = await rsaR(data, { outcome: '', x: '', y: '', controls: [], estimation: 'OLS', center: 'none', midpoint: 0, confidence: 0.95, ...pre });
+        expect(r.surface.find((s) => s.name === 'a1')!.est).toBeCloseTo(0.5553, 3);  // RSA: a1 on motcon
       } else if (p.kind === 'match') {
         const { kind: _k, ...pre } = p;
         const r = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre });

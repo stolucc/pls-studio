@@ -1393,6 +1393,13 @@
    "url": ""
   },
   {
+   "name": "RSA example data (motcon)",
+   "where": "public/examples/rsa, validation fixtures",
+   "license": "GPL (>= 2), from the RSA package",
+   "credit": "Distributed with RSA (Schönbrodt & Humberg); shipped with the app because RSA cannot run in the browser.",
+   "url": "https://cran.r-project.org/package=RSA"
+  },
+  {
    "name": "REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV)",
    "where": "public/examples/rendo, validation fixtures",
    "license": "GPL-3, from the REndo package",
