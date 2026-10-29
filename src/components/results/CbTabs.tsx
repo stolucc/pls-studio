@@ -14,6 +14,7 @@ export const CB_TABS = [
   { id: 'loadings', label: 'Loadings' },
   { id: 'variances', label: 'Variances & covariances' },
   { id: 'effects', label: 'Indirect & total effects' },
+  { id: 'defined', label: 'Defined & Wald tests' },
   { id: 'moderation', label: 'Moderation' },
   { id: 'reliability', label: 'Reliability' },
   { id: 'discriminant', label: 'Discriminant validity' },
@@ -126,6 +127,34 @@ function Variances({ cb }: { cb: CbResult }) {
         <Table title="Thresholds of the ordinal indicators" file="cb-thresholds" columns={['Indicator', 'Threshold', ...estCols(cb)]}
           rows={cb.estimates.filter((e) => e.kind === 'threshold').map((e) => [c(e.lhs), c(e.rhs, 'dim'), ...estRow(e, '').slice(1)])}
           note="Each threshold is the point on the underlying continuous (latent response) variable, in standard-normal units, above which the next category is observed. An item with k categories has k − 1 thresholds." />
+      )}
+    </div>
+  );
+}
+
+function Defined({ cb }: { cb: CbResult }) {
+  const defs = cb.estimates.filter((e) => e.kind === 'defined');
+  const wald = cb.wald ?? [];
+  const labelled = cb.estimates.filter((e) => e.label);
+  if (!defs.length && !wald.length && !labelled.length) {
+    return <div className="empty-results">No labels, defined parameters or Wald tests. Label parameters with right-click → Label…, then define functions of them or test hypotheses in the Model inspector (lavaan).</div>;
+  }
+  return (
+    <div className="tables">
+      {defs.length > 0 && (
+        <Table title="Defined parameters" file="cb-defined" columns={['Parameter', 'Definition', ...estCols(cb)]}
+          rows={defs.map((e) => [c(e.lhs), c(e.rhs, 'dim'), ...estRow(e, '').slice(1)])}
+          note="Functions of labelled parameters (lavaan :=), with delta-method standard errors and z tests. For indirect effects, prefer bootstrap confidence intervals (Bootstrapping)." />
+      )}
+      {wald.length > 0 && (
+        <Table title="Wald tests" file="cb-wald" columns={['Test', 'χ²', 'df', 'p']}
+          rows={wald.map((w) => [c(w.name), c(w.stat), c(w.df, '', 0), pCell(w.p)])}
+          note="Joint Wald test of each set of hypotheses (lavaan::lavTestWald): a small p is evidence against the hypotheses." />
+      )}
+      {labelled.length > 0 && (
+        <Table title="Labelled parameters" file="cb-labels" columns={['Label', 'Parameter', ...estCols(cb)]}
+          rows={labelled.map((e) => [c(e.label!), ...estRow(e, `${e.lhs} ${e.op} ${e.rhs}`)])}
+          note="Parameters sharing a label are estimated as equal." />
       )}
     </div>
   );
@@ -251,6 +280,7 @@ export function CbTab({ tab, cb, boot }: { tab: CbTabId; cb: CbResult; boot: Boo
     case 'loadings': return <Loadings cb={cb} />;
     case 'variances': return <Variances cb={cb} />;
     case 'effects': return <Effects cb={cb} boot={boot} />;
+    case 'defined': return <Defined cb={cb} />;
     case 'moderation': return <Moderation cb={cb} />;
     case 'reliability': return <Reliability cb={cb} />;
     case 'discriminant': return <Discriminant cb={cb} />;

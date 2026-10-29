@@ -16,6 +16,8 @@ export interface ConstructSpec {
   components?: string[];
   /** CB-SEM: loadings held at given values (by indicator name) instead of estimated; the marker's 1 can be replaced too. */
   fixedLoadings?: Record<string, number>;
+  /** CB-SEM (lavaan): parameter labels of loadings (by indicator name); equal labels = equal values. */
+  loadingLabels?: Record<string, string>;
   /** Observed exogenous covariate (single indicator, CB-SEM): variances/covariances fixed at sample values (lavaan fixed.x). */
   covariate?: boolean;
 }
@@ -25,6 +27,8 @@ export interface PathSpec {
   to: string;
   /** CB-SEM: the coefficient is held at this value instead of estimated. */
   fixed?: number;
+  /** CB-SEM (lavaan): parameter label; equal labels = equal values. */
+  label?: string;
 }
 
 /** A moderator acting on the path from → to (two-stage interaction term). */
@@ -47,6 +51,8 @@ export interface CovarianceSpec {
   zero?: boolean;
   /** CB-SEM: a drawn covariance held at this value instead of estimated. */
   fixed?: number;
+  /** CB-SEM (lavaan): parameter label; equal labels = equal values. */
+  label?: string;
 }
 
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */
@@ -59,6 +65,10 @@ export interface ModelSpec {
   covariances?: CovarianceSpec[];
   /** CB-SEM (lavaan): indicators treated as ordered categorical (thresholds, polychoric correlations, WLSMV). */
   ordered?: string[];
+  /** CB-SEM (lavaan): defined parameters, name := expression (R syntax printed from a parsed expression). */
+  defined?: { name: string; expr: string }[];
+  /** CB-SEM (lavaan): Wald tests, each a set of hypotheses "left == right" (R syntax printed from parsed expressions). */
+  waldTests?: { name: string; constraints: string[] }[];
 }
 
 /** Column-oriented numeric data; NaN marks a missing value. */

@@ -95,3 +95,29 @@ describe('ordinal indicators, WLSMV and FIML', () => {
     expect(p.model.ordered).toEqual(['a1']);
   });
 });
+
+describe('labels, defined parameters and Wald tests', () => {
+  it('validate names, expressions and the engine, and print R from the parsed form', () => {
+    s().setLabel({ kind: 'path', id: 'p' }, 'a');
+    s().setLabel({ kind: 'loading', construct: 'A', indicator: 'a2' }, 'b');
+    s().setDefined([{ id: 'd', name: 'ab', expr: 'a*b' }]);
+    s().setWaldTests([{ id: 'w', name: 'T', constraints: 'a == b' }]);
+    const msgs = () => validateModel(s().model, data, s().settings).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(msgs()).toEqual([]);
+    expect(toSpec(s().model)).toMatchObject({ defined: [{ name: 'ab', expr: '(a * b)' }], waldTests: [{ name: 'T', constraints: ['a == b'] }] });
+    expect(toSpec(s().model).paths[0].label).toBe('a');
+    expect(validateModel(s().model, data, { ...s().settings, engine: 'builtin' }).some((i) => /estimated by lavaan/.test(i.message))).toBe(true);
+    s().setDefined([{ id: 'd', name: 'ab', expr: 'a*zz' }]);
+    expect(msgs().some((m) => /zz is not a parameter label/.test(m))).toBe(true);
+    expect(toSpec(s().model).defined).toBeUndefined();
+    s().setLabel({ kind: 'path', id: 'p' }, 'A');
+    expect(msgs().some((m) => /also the name of a construct/.test(m))).toBe(true);
+    // Labels go with the indicator.
+    s().removeIndicator('A', 'a2');
+    expect(s().model.constructs[0].loadingLabels).toBeUndefined();
+    const p = parseProject(serializeProject(s().model, s().settings, null, null));
+    expect(p.model.defined).toEqual(s().model.defined);
+    expect(p.model.waldTests).toEqual(s().model.waldTests);
+    expect(menuFor({ kind: 'path', id: 'p' }, s().model, cb)!.items.map((i) => i.label)).toContain('Label (A)…');
+  });
+});

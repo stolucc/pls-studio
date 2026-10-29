@@ -60,6 +60,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     kind: e.kind, lhs: e.lhs, op: e.op, rhs: e.rhs, est: num(e.est),
     se: e.se ?? null, z: e.z ?? null, p: e.p ?? null, std: num(e.std),
     ...(typeof e.index === 'number' ? { index: e.index } : {}),
+    ...(typeof e.label === 'string' ? { label: e.label } : {}),
   }));
   return {
     estimator: raw.estimator, n: raw.n, iterations: raw.iterations, converged: !!raw.converged,
@@ -75,6 +76,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     htmt2: (raw.htmt2 as (number | null)[][]),
     vcov: raw.vcov ? mat(raw.vcov) : null,
     moderations: raw.moderations, warnings: rStrings(raw.warnings), droppedRows: raw.droppedRows ?? 0,
+    wald: (Array.isArray(raw.wald) ? raw.wald : raw.wald ? [raw.wald] : []).map((w: any) => ({ name: String(w.name), stat: num(w.stat), df: num(w.df), p: num(w.p) })),
     engine: raw.engine,
   };
 }

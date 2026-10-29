@@ -8,7 +8,8 @@ import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment, qu
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { FigurePanel } from './FigurePanel';
-import { numberDialog } from './Overlays';
+import { numberDialog, textDialog } from './Overlays';
+import { nameError } from '../model/expr';
 import { ProcessGallery } from './ProcessGallery';
 import { ProcessBar } from './ProcessBar';
 import { ContextMenu } from './ContextMenu';
@@ -328,6 +329,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         ...(display ? display.path(name.get(p.from)!, name.get(p.to)!) : { beta: null, p: null }),
         moderated: model.moderations.some((mo) => mo.path === p.id),
         ...(method === 'cbsem' && p.fixed !== undefined ? { fixed: p.fixed } : {}),
+        ...(method === 'cbsem' && p.fixed === undefined && p.label ? { label: p.label } : {}),
       },
     }));
   }, [model.paths, model.constructs, model.moderations, selection.edges, display, method]);
@@ -521,6 +523,22 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     });
     if (v !== null) st().fixParameter(t, v);
   };
+  const setLabel = async (target: MenuTarget) => {
+    const t = paramOf(target);
+    if (!t) return;
+    const m = st().model;
+    const current = t.kind === 'path' ? m.paths.find((p) => p.id === t.id)?.label
+      : t.kind === 'correlation' ? m.correlations?.find((k) => k.id === t.id)?.label
+        : m.constructs.find((c) => c.id === t.construct)?.loadingLabels?.[t.indicator];
+    const variables = new Set([...m.constructs.map((c) => c.name), ...m.constructs.flatMap((c) => c.indicators)]);
+    const label = await textDialog({
+      title: 'Label this parameter',
+      body: 'Parameters with the same label are constrained to be equal. Labels can be used in defined parameters (e.g. ind := a*b) and Wald tests (Model inspector). Leave empty to remove the label.',
+      confirmLabel: 'Apply',
+      text: { label: 'Label', initial: current ?? '', allowEmpty: true, check: (x) => nameError(x) ?? (variables.has(x) ? 'A label must differ from construct and variable names.' : null) },
+    });
+    if (label !== null) st().setLabel(t, label || null);
+  };
   const onMenuAction = (target: MenuTarget, a: MenuAction) => {
     const s = st();
     switch (a) {
@@ -551,6 +569,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'process-template': setTemplatesOpen(true); break;
       case 'fix-zero': if (target.kind === 'implied') s.addCorrelation('construct', target.a, target.b, true); break;
       case 'fix-value': void fixValue(target); break;
+      case 'set-label': void setLabel(target); break;
       case 'toggle-ordinal':
         if (target.kind === 'indicator') {
           const on = !(st().model.ordered ?? []).includes(target.name);

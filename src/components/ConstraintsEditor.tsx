@@ -1,0 +1,77 @@
+import { useState } from 'react';
+import { labelUses, newId, type DefinedParameter, type WaldTest } from '../model/project';
+import { useStore } from '../store';
+import { IconX } from './icons';
+
+/** A text input that commits on blur or Enter (one undo step per edit, not per keystroke). */
+function Field({ value, onCommit, placeholder, mono, multiline }: { value: string; onCommit: (v: string) => void; placeholder?: string; mono?: boolean; multiline?: boolean }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => { if (draft !== null && draft !== value) onCommit(draft); setDraft(null); };
+  const props = {
+    className: `input${mono ? ' mono' : ''}`, value: draft ?? value, placeholder, spellCheck: false,
+    onChange: (e: { target: { value: string } }) => setDraft(e.target.value), onBlur: commit,
+  };
+  return multiline
+    ? <textarea {...props} rows={2} />
+    : <input {...props} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />;
+}
+
+/**
+ * CB-SEM (lavaan): labels in use (equal labels = equality constraints),
+ * defined parameters (name := expression) and Wald tests (left == right).
+ */
+export function ConstraintsEditor() {
+  const model = useStore((s) => s.model);
+  const readOnly = useStore((s) => s.cloud?.role === 'viewer');
+  const setDefined = useStore((s) => s.setDefined);
+  const setWaldTests = useStore((s) => s.setWaldTests);
+  const labels = [...labelUses(model)];
+  const defined = model.defined ?? [];
+  const tests = model.waldTests ?? [];
+  const patchDefined = (i: number, p: Partial<DefinedParameter>) => setDefined(defined.map((d, k) => (k === i ? { ...d, ...p } : d)));
+  const patchTest = (i: number, p: Partial<WaldTest>) => setWaldTests(tests.map((t, k) => (k === i ? { ...t, ...p } : t)));
+  return (
+    <div className="section">
+      <div className="section-title">Labels, defined parameters, tests</div>
+      {labels.length === 0
+        ? <div className="hint">Right-click a path, loading or covariance → Label… Parameters with the same label are equal; labels can be used below.</div>
+        : (
+          <div className="label-list">
+            {labels.map(([l, uses]) => (
+              <div key={l} className="label-row">
+                <span className="plabel-name">{l}</span>
+                <span className="hint">{uses.join(', ')}{uses.length > 1 ? ' (constrained equal)' : ''}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      <div className="field" style={{ marginTop: 10 }}>
+        <label>Defined parameters</label>
+        {defined.map((d, i) => (
+          <div className="def-row" key={d.id}>
+            <Field value={d.name} placeholder="ind" mono onCommit={(v) => patchDefined(i, { name: v.trim() })} />
+            <span className="muted">:=</span>
+            <Field value={d.expr} placeholder="a*b" mono onCommit={(v) => patchDefined(i, { expr: v })} />
+            {!readOnly && <button className="btn icon ghost sm" aria-label="Remove defined parameter" onClick={() => setDefined(defined.filter((_, k) => k !== i))}><IconX size={13} /></button>}
+          </div>
+        ))}
+        {!readOnly && <button className="btn sm" onClick={() => setDefined([...defined, { id: newId('d'), name: `def${defined.length + 1}`, expr: '' }])}>Add defined parameter</button>}
+        <div className="hint">Functions of labelled parameters, e.g. an indirect effect a*b or a difference a - b, with delta-method standard errors (lavaan :=).</div>
+      </div>
+      <div className="field">
+        <label>Wald tests</label>
+        {tests.map((t, i) => (
+          <div className="wald-row" key={t.id}>
+            <div className="def-row">
+              <Field value={t.name} placeholder="Test name" onCommit={(v) => patchTest(i, { name: v.trim() || `Test ${i + 1}` })} />
+              {!readOnly && <button className="btn icon ghost sm" aria-label="Remove test" onClick={() => setWaldTests(tests.filter((_, k) => k !== i))}><IconX size={13} /></button>}
+            </div>
+            <Field value={t.constraints} placeholder={'a == b\nc == 0'} mono multiline onCommit={(v) => patchTest(i, { constraints: v })} />
+          </div>
+        ))}
+        {!readOnly && <button className="btn sm" onClick={() => setWaldTests([...tests, { id: newId('w'), name: `Test ${tests.length + 1}`, constraints: '' }])}>Add Wald test</button>}
+        <div className="hint">One hypothesis per line (left == right); all lines are tested jointly (lavaan::lavTestWald).</div>
+      </div>
+    </div>
+  );
+}

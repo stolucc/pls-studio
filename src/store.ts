@@ -10,7 +10,7 @@ import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
 import {
   createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec,
-  type Construct, type Correlation, type DataInfo, type ModelState, type Settings, type Side,
+  type Construct, type Correlation, type DataInfo, type DefinedParameter, type ModelState, type Settings, type Side, type WaldTest,
 } from './model/project';
 
 export type Tool = 'select' | 'construct' | 'connect' | 'correlate';
@@ -91,6 +91,10 @@ interface State {
 
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
   updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent'>>) => void;
+  /** CB-SEM: label a path coefficient, loading or drawn covariance (null removes it); equal labels = equal values. */
+  setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
+  setDefined: (defined: DefinedParameter[]) => void;
+  setWaldTests: (tests: WaldTest[]) => void;
   /** CB-SEM: treat these indicators as ordered categorical (WLSMV), or as continuous again. */
   setOrdered: (names: string[], ordinal: boolean) => void;
   /** CB-SEM: hold a path coefficient, loading or drawn covariance at `value`, or free it (null). */
@@ -252,6 +256,23 @@ export const useStore = create<State>((set, get) => ({
   },
   updateConstruct: (id, patch) =>
     get().commit((m) => ({ ...m, constructs: m.constructs.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+  setLabel: (target, label) => get().commit((m) => {
+    const set = <T extends { label?: string }>(x: T): T => { const { label: _l, ...rest } = x; return (label ? { ...rest, label } : rest) as T; };
+    if (target.kind === 'path') return { ...m, paths: m.paths.map((p) => (p.id === target.id ? set(p) : p)) };
+    if (target.kind === 'correlation') return { ...m, correlations: (m.correlations ?? []).map((k) => (k.id === target.id ? set(k) : k)) };
+    return {
+      ...m,
+      constructs: m.constructs.map((c) => {
+        if (c.id !== target.construct) return c;
+        const { [target.indicator]: _old, ...rest } = c.loadingLabels ?? {};
+        const loadingLabels = label ? { ...rest, [target.indicator]: label } : rest;
+        const { loadingLabels: _x, ...base } = c;
+        return Object.keys(loadingLabels).length ? { ...base, loadingLabels } : base;
+      }),
+    };
+  }),
+  setDefined: (defined) => get().commit((m) => { const { defined: _d, ...rest } = m; return defined.length ? { ...rest, defined } : rest; }),
+  setWaldTests: (tests) => get().commit((m) => { const { waldTests: _w, ...rest } = m; return tests.length ? { ...rest, waldTests: tests } : rest; }),
   setOrdered: (names, ordinal) => get().commit((m) => {
     const now = new Set(m.ordered ?? []);
     for (const n of names) { if (ordinal) now.add(n); else now.delete(n); }

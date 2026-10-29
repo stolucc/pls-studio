@@ -586,3 +586,11 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .rubber { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; overflow: visible; }
 .rubber path { fill: none; stroke: var(--cor); stroke-width: 2; stroke-dasharray: 5 4; }
 .iord { font-size: 8px; font-weight: 700; fill: var(--accent); letter-spacing: 0.02em; }
+.elabel.plabel, .plabel-name { font-style: italic; color: var(--accent); }
+.plabel-name { margin-right: 2px; }
+.label-list { display: grid; gap: 4px; }
+.label-row { display: flex; gap: 8px; align-items: baseline; font-size: 12px; }
+.def-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 2fr) auto; gap: 6px; align-items: center; margin-bottom: 6px; }
+.wald-row .def-row { grid-template-columns: 1fr auto; }
+.wald-row textarea { width: 100%; margin-bottom: 8px; resize: vertical; }
+.input.mono { font-family: var(--mono); }

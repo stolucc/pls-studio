@@ -5,8 +5,8 @@
 
 #' "1*a + b + c": the marker loading fixed to 1, made explicit.
 #' Loadings of a factor: the marker fixed to 1 (or to the user's value), other user-fixed loadings as value*name.
-ps_marked <- function(v, fixed = list()) {
-  pre <- vapply(v, function(x) if (!is.null(fixed[[x]])) paste0(ps_num(fixed[[x]]), "*") else "", "")
+ps_marked <- function(v, fixed = list(), labels = list()) {
+  pre <- vapply(v, function(x) if (!is.null(fixed[[x]])) paste0(ps_num(fixed[[x]]), "*") else if (!is.null(labels[[x]])) paste0(ps_label(labels[[x]]), "*") else "", "")
   pre[1] <- if (nzchar(pre[1])) pre[1] else "1*"
   paste(paste0(pre, v), collapse = " + ")
 }
@@ -60,7 +60,11 @@ ps_cb_build <- function(req) {
       v <- unname(n$iv[n$inds[[j]]])
       fl <- cons[[j]]$fixedLoadings %||% list()
       fixed <- setNames(fl, unname(n$iv[names(fl)]))
-      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed)))
+      ll <- cons[[j]]$loadingLabels %||% list()
+      # The marker's 1 is fixed: a label on it would have no effect.
+      ll <- ll[names(ll) != n$inds[[j]][1]]
+      labels <- setNames(ll, unname(n$iv[names(ll)]))
+      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels)))
       if (length(v) == 1) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
     }
   }
@@ -88,7 +92,7 @@ ps_cb_build <- function(req) {
   # A fixed coefficient is written as value*predictor (lavaan holds it at that value).
   for (t in to) {
     ps <- Filter(function(p) p$to == t, paths)
-    rhs <- vapply(ps, function(p) paste0(if (is.null(p$fixed)) "" else paste0(ps_num(p$fixed), "*"), lname[[p$from]]), "")
+    rhs <- vapply(ps, function(p) paste0(if (!is.null(p$fixed)) paste0(ps_num(p$fixed), "*") else if (!is.null(p$label)) paste0(ps_label(p$label), "*") else "", lname[[p$from]]), "")
     lines <- c(lines, paste(lname[[t]], "~", paste(rhs, collapse = " + ")))
   }
   seen <- character(0)
@@ -99,8 +103,11 @@ ps_cb_build <- function(req) {
     if (key %in% seen) next  # lavaan rejects a covariance listed twice (in either order)
     seen <- c(seen, key)
     # A fixed zero makes two exogenous factors uncorrelated (lavaan frees them by default).
-    lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else if (!is.null(cv$fixed)) paste0(ps_num(cv$fixed), "*", b) else b))
+    lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else if (!is.null(cv$fixed)) paste0(ps_num(cv$fixed), "*", b)
+      else if (!is.null(cv$label)) paste0(ps_label(cv$label), "*", b) else b))
   }
+  # Defined parameters (functions of labelled parameters, with delta-method standard errors).
+  for (d in req$model$defined) lines <- c(lines, paste(ps_label(d$name), ":=", ps_expr(d$expr)))
   # Ordered categorical indicators (thresholds, polychoric correlations) and FIML.
   ordered <- unname(n$iv[intersect(unlist(req$model$ordered), n$all_inds)])
   extra <- paste0(if (length(ordered)) sprintf(", ordered = %s", ps_q(ordered)) else "",
@@ -108,7 +115,12 @@ ps_cb_build <- function(req) {
   if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
-  body <- c(body, "model <- '", paste0("  ", lines), "'", call)
+  tests <- req$model$waldTests
+  wald <- if (length(tests)) c("# Wald tests of the hypotheses (lavaan::lavTestWald)",
+    sprintf("wald <- list(%s)", paste(vapply(seq_along(tests), function(i) sprintf("lavTestWald(fit, constraints = '%s')",
+      paste(vapply(unlist(tests[[i]]$constraints), function(h) { parts <- strsplit(h, "==", fixed = TRUE)[[1]]
+        if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
+  body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
     inputs = inputs, body = body, matrix_input = matrix_input)
 }
@@ -140,16 +152,19 @@ ps_cb <- function(req_json, export = FALSE) {
   pt <- lavaan::parTable(fit)
   pe <- lavaan::parameterEstimates(fit, standardized = TRUE, remove.nonfree = FALSE)
   pe$free <- pt$free[match(paste(pe$lhs, pe$op, pe$rhs), paste(pt$lhs, pt$op, pt$rhs))]
-  pe <- pe[pe$op %in% c("=~", "~", "~~", "|"), ]
+  pe <- pe[pe$op %in% c("=~", "~", "~~", "|", ":="), ]
   est <- lapply(seq_len(nrow(pe)), function(i) {
     r <- pe[i, ]; free <- r$free > 0
-    kind <- if (r$op == "|") "threshold" else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
+    kind <- if (r$op == ":=") "defined" else if (r$op == "|") "threshold" else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
       else if (r$op == "~") "regression"
       else if (is_lv(r$lhs) && is_lv(r$rhs)) { if (free) "lvcov" else "fixed" }
       else if (!free) NA_character_
       else if (r$lhs == r$rhs) "residual" else "rescov"
     if (is.na(kind)) return(NULL)
+    if (r$op == ":=") return(list(kind = kind, lhs = r$lhs, op = r$op, rhs = r$rhs, est = r$est, se = if (is.na(r$se)) NULL else r$se,
+      z = if (is.na(r$z)) NULL else r$z, p = if (is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all))
     list(kind = kind, lhs = nm(r$lhs), op = r$op, rhs = if (r$op == "|") r$rhs else nm(r$rhs), est = r$est,
+      label = if (nzchar(r$label)) r$label else NULL,
       se = if (!free || is.na(r$se)) NULL else r$se, z = if (!free || is.na(r$z)) NULL else r$z,
       p = if (!free || is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all,
       index = if (free) r$free - 1L else NULL)
@@ -207,6 +222,8 @@ ps_cb <- function(req_json, export = FALSE) {
     lvCor = unname(lvcor), reliability = rel, residualCor = unname(res),
     htmt = htmt(FALSE), htmt2 = htmt(TRUE), vcov = if (is.null(vc)) NULL else unname(vc),
     moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
+    wald = lapply(seq_along(env$wald), function(i) list(name = req$model$waldTests[[i]]$name, stat = unname(env$wald[[i]]$stat),
+      df = unname(env$wald[[i]]$df), p = unname(env$wald[[i]]$p.value))),
     warnings = env$.warnings, droppedRows = n_in - lavaan::lavInspect(fit, "nobs"),
     engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))
   ))

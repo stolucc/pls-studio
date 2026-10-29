@@ -31,3 +31,16 @@ write(toJSON(list(lavaan = as.character(packageVersion("lavaan")), model = model
   loadings = pick("=~"), regressions = pick("~")), auto_unbox = TRUE, digits = NA, pretty = TRUE),
   file.path(root, "hs_fiml.json"))
 cat("written\n")
+
+# Labels, equality constraints, a defined parameter and a Wald test (ML).
+lab <- "visual =~ x1 + b*x2 + b*x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9\nspeed ~ a*visual + a*textual\nab := (a * b)"
+h <- sem(lab, hs)
+pe <- parameterEstimates(h, standardized = TRUE)
+w <- lavTestWald(h, constraints = "b == 1\na == 0.2")
+write(toJSON(list(lavaan = as.character(packageVersion("lavaan")), model = lab,
+  fit = as.list(fitMeasures(h, c("chisq", "df"))),
+  labelled = lapply(which(nzchar(pe$label) & pe$op != ":="), function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], label = pe$label[i], est = pe$est[i], se = pe$se[i])),
+  defined = list(name = "ab", est = pe$est[pe$op == ":="], se = pe$se[pe$op == ":="], std = pe$std.all[pe$op == ":="]),
+  wald = list(stat = unname(w$stat), df = unname(w$df), p = unname(w$p.value))), auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  file.path(root, "hs_constraints.json"))
+cat("constraints written\n")

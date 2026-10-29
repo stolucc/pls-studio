@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import { pathStrokeWidth } from '../figure/style';
 import { fixedText } from '../diagramLabels';
 
-export type PathEdgeData = { beta: number | null; p: number | null; moderated?: boolean; /** CB-SEM: coefficient held at this value. */ fixed?: number };
+export type PathEdgeData = { beta: number | null; p: number | null; moderated?: boolean; /** CB-SEM: coefficient held at this value. */ fixed?: number; /** CB-SEM: parameter label. */ label?: string };
 export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
 
 function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlowEdge>) {
@@ -26,6 +26,7 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
   // A fixed coefficient is labelled with its value until there are results.
   const beta = data?.beta ?? fixed ?? null;
   const p = data?.p ?? null;
+  const label = data?.label;
   const width = pathStrokeWidth(figure, beta) * 1.4;
   const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
 
@@ -39,10 +40,16 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
         markerEnd={selected ? 'url(#arrow-path-sel)' : 'url(#arrow-path)'}
         interactionWidth={18}
       />
+      {beta === null && label && (
+        <EdgeLabelRenderer>
+          <div className="elabel plabel" style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }} title="Parameter label">{label}</div>
+        </EdgeLabelRenderer>
+      )}
       {beta !== null && (
         <EdgeLabelRenderer>
           <div className={`elabel${cls}${fixed !== undefined ? ' fixed' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
             title={fixed !== undefined ? `Fixed at ${fixedText(fixed)}: not estimated` : undefined}>
+            {label && <span className="plabel-name">{label} </span>}
             {fixed !== undefined && data?.beta == null ? fixedText(fixed) : beta.toFixed(3)}
             {p !== null && <span className="p">{p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`}</span>}
           </div>

@@ -5,8 +5,10 @@ import { IconAlert, IconCheck, IconInfo, IconX } from './icons';
 
 interface ConfirmOpts { title: string; body: string; confirmLabel?: string; danger?: boolean }
 interface NumberField { label: string; min: number; max: number; integer?: boolean; initial?: string }
+/** A text field: `check` returns why the text is not acceptable (null when it is). Empty text is allowed when `allowEmpty`. */
+interface TextField { label: string; initial?: string; check: (text: string) => string | null; allowEmpty?: boolean }
 interface DialogState {
-  current: (ConfirmOpts & { field?: NumberField; resolve: (ok: boolean, value?: number) => void }) | null;
+  current: (ConfirmOpts & { field?: NumberField; text?: TextField; resolve: (ok: boolean, value?: number, text?: string) => void }) | null;
 }
 const useDialog = create<DialogState>(() => ({ current: null }));
 
@@ -20,23 +22,31 @@ export function numberDialog(opts: ConfirmOpts & { field: NumberField }): Promis
   return new Promise((resolve) => useDialog.setState({ current: { ...opts, resolve: (ok, v) => resolve(ok && v !== undefined ? v : null) } }));
 }
 
+/** On-theme replacement for window.prompt, for validated text. Resolves null on cancel. */
+export function textDialog(opts: ConfirmOpts & { text: TextField }): Promise<string | null> {
+  return new Promise((resolve) => useDialog.setState({ current: { ...opts, resolve: (ok, _v, t) => resolve(ok && t !== undefined ? t : null) } }));
+}
+
 export function ConfirmModal() {
   const current = useDialog((s) => s.current);
   const okRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
   const field = current?.field;
+  const textField = current?.text;
   const value = Number(text);
-  const valid = !field || (text.trim() !== '' && Number.isFinite(value) && value >= field.min && value <= field.max && (!field.integer || Number.isInteger(value)));
+  const textError = textField && (text.trim() === '' ? (textField.allowEmpty ? null : '') : textField.check(text.trim()));
+  const valid = textField ? textError === null
+    : !field || (text.trim() !== '' && Number.isFinite(value) && value >= field.min && value <= field.max && (!field.integer || Number.isInteger(value)));
   const close = (ok: boolean) => {
     if (ok && !valid) return;
-    current?.resolve(ok, field ? value : undefined);
+    current?.resolve(ok, field ? value : undefined, textField ? text.trim() : undefined);
     useDialog.setState({ current: null });
   };
-  useEffect(() => { setText(current?.field?.initial ?? ''); }, [current]);
+  useEffect(() => { setText(current?.field?.initial ?? current?.text?.initial ?? ''); }, [current]);
   useEffect(() => {
     if (!current) return;
-    (current.field ? inputRef.current : okRef.current)?.focus();
+    (current.field || current.text ? inputRef.current : okRef.current)?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
@@ -53,6 +63,14 @@ export function ConfirmModal() {
             <input id="dlg-num" ref={inputRef} className="input num" type="number" min={field.min} max={field.max} value={text}
               onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />
             {!valid && text !== '' && <span className="hint" style={{ color: 'var(--bad)' }}>Enter {field.integer ? 'a whole number' : 'a number'} between {field.min} and {field.max}.</span>}
+          </div>
+        )}
+        {textField && (
+          <div className="field">
+            <label htmlFor="dlg-text">{textField.label}</label>
+            <input id="dlg-text" ref={inputRef} className="input" value={text} autoComplete="off" spellCheck={false}
+              onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />
+            {textError && <span className="hint" style={{ color: 'var(--bad)' }}>{textError}</span>}
           </div>
         )}
         <div className="actions">

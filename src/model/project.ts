@@ -4,6 +4,7 @@ import type { CbEstimator } from '../engine/cbsem';
 import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
+import { exprToR, nameError, namesIn, parseConstraint, parseExpr } from './expr';
 import type { ConstructType, Dataset, MissingTreatment, Mode, ModelSpec, WeightingScheme } from '../engine/types';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
@@ -30,6 +31,8 @@ export interface Construct {
   latent?: boolean;
   /** CB-SEM: loadings held at a value (by indicator name); a value for the first indicator replaces the marker's 1. */
   fixedLoadings?: Record<string, number>;
+  /** CB-SEM: labels of loadings (by indicator name); equal labels = equal loadings. */
+  loadingLabels?: Record<string, string>;
 }
 
 export interface Path {
@@ -38,6 +41,8 @@ export interface Path {
   to: string;
   /** CB-SEM: coefficient held at this value instead of estimated. */
   fixed?: number;
+  /** CB-SEM: parameter label; parameters with the same label are equal. */
+  label?: string;
 }
 
 export interface Settings {
@@ -99,7 +104,14 @@ export interface Correlation {
   zero?: boolean;
   /** CB-SEM: a drawn covariance held at this value instead of estimated. */
   fixed?: number;
+  /** CB-SEM: parameter label; parameters with the same label are equal. */
+  label?: string;
 }
+
+/** CB-SEM: a defined parameter, name := expression over labels (e.g. an indirect effect a*b). */
+export interface DefinedParameter { id: string; name: string; expr: string }
+/** CB-SEM: a Wald test of one or more hypotheses "left == right" (one per line). */
+export interface WaldTest { id: string; name: string; constraints: string }
 
 /**
  * Moderated moderation (conditional process analysis): a construct moderating
@@ -122,18 +134,21 @@ export interface ModelState {
   threeWay?: ThreeWay[];
   /** Indicators (data columns) treated as ordered categorical in CB-SEM (WLSMV). */
   ordered?: string[];
+  defined?: DefinedParameter[];
+  waldTests?: WaldTest[];
 }
 
-/** Drop fixed loadings of indicators that left their construct. */
+/** Drop fixed loadings and loading labels of indicators that left their construct. */
 export function pruneFixedLoadings(model: ModelState): ModelState {
-  if (!model.constructs.some((c) => c.fixedLoadings && Object.keys(c.fixedLoadings).some((i) => !c.indicators.includes(i)))) return model;
+  const stale = (r: Record<string, unknown> | undefined, c: Construct) => !!r && Object.keys(r).some((i) => !c.indicators.includes(i));
+  if (!model.constructs.some((c) => stale(c.fixedLoadings, c) || stale(c.loadingLabels, c))) return model;
+  const keep = <T,>(r: Record<string, T> | undefined, c: Construct) => (r ? Object.fromEntries(Object.entries(r).filter(([i]) => c.indicators.includes(i))) : {});
   return {
     ...model,
     constructs: model.constructs.map((c) => {
-      if (!c.fixedLoadings) return c;
-      const kept = Object.fromEntries(Object.entries(c.fixedLoadings).filter(([i]) => c.indicators.includes(i)));
-      const { fixedLoadings: _f, ...rest } = c;
-      return Object.keys(kept).length ? { ...rest, fixedLoadings: kept } : rest;
+      const fixedLoadings = keep(c.fixedLoadings, c), loadingLabels = keep(c.loadingLabels, c);
+      const { fixedLoadings: _f, loadingLabels: _l, ...rest } = c;
+      return { ...rest, ...(Object.keys(fixedLoadings).length ? { fixedLoadings } : {}), ...(Object.keys(loadingLabels).length ? { loadingLabels } : {}) };
     }),
   };
 }
@@ -230,8 +245,10 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
       ...(c.covariate ? { covariate: true } : {}),
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
+      ...(c.loadingLabels && Object.keys(c.loadingLabels).length ? { loadingLabels: c.loadingLabels } : {}),
     })),
-    paths: model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : {}) })),
+    paths: model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })),
+    ...constraintSpec(model),
     moderations: (model.moderations ?? []).flatMap((mo) => {
       const p = model.paths.find((q) => q.id === mo.path);
       return p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, to: name.get(p.to)! }] : [];
@@ -239,11 +256,75 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.ordered?.length ? { ordered: model.ordered.filter((i) => model.constructs.some((c) => c.indicators.includes(i))) } : {}),
     ...(model.correlations?.length ? {
       covariances: pruneCorrelations(model).correlations!.map((k) => (k.kind === 'construct'
-        ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}), ...(k.fixed !== undefined ? { fixed: k.fixed } : {}) }
-        : { a: k.a, b: k.b, kind: 'indicator' as const, ...(k.fixed !== undefined ? { fixed: k.fixed } : {}) })),
+        ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}), ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}) }
+        : { a: k.a, b: k.b, kind: 'indicator' as const, ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}) })),
     } : {}),
   };
 }
+
+/** Every label in use, with the parameters carrying it. */
+export function labelUses(model: ModelState): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const add = (l: string | undefined, what: string) => { if (l) out.set(l, [...(out.get(l) ?? []), what]); };
+  const name = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
+  for (const p of model.paths) if (p.fixed === undefined) add(p.label, `${name(p.from)} → ${name(p.to)}`);
+  for (const c of model.constructs) for (const [ind, l] of Object.entries(c.loadingLabels ?? {})) if (c.fixedLoadings?.[ind] === undefined) add(l, `${c.name} → ${ind}`);
+  for (const k of model.correlations ?? []) if (k.fixed === undefined && !k.zero) add(k.label, `${k.kind === 'construct' ? name(k.a) : k.a} ↔ ${k.kind === 'construct' ? name(k.b) : k.b}`);
+  return out;
+}
+
+const hypotheses = (t: WaldTest) => t.constraints.split('\n').map((x) => x.trim()).filter(Boolean);
+
+/** Problems with labels, defined parameters and Wald tests. */
+export function constraintErrors(model: ModelState): string[] {
+  const errs: string[] = [];
+  const labels = labelUses(model);
+  const variables = new Set([...model.constructs.map((c) => c.name), ...model.constructs.flatMap((c) => c.indicators)]);
+  for (const l of labels.keys()) {
+    const e = nameError(l);
+    if (e) errs.push(`Label ${e}`);
+    else if (variables.has(l)) errs.push(`The label “${l}” is also the name of a construct or variable; lavaan needs labels that differ from variable names.`);
+  }
+  const known = new Set(labels.keys());
+  for (const d of model.defined ?? []) {
+    const e = nameError(d.name);
+    if (e) { errs.push(`Defined parameter: ${e}`); continue; }
+    if (known.has(d.name) || variables.has(d.name)) { errs.push(`The defined parameter “${d.name}” has the name of a label, construct or variable; choose another.`); continue; }
+    try {
+      const unknown = namesIn(parseExpr(d.expr)).filter((n) => !known.has(n));
+      if (unknown.length) errs.push(`${d.name} := ${d.expr}: ${unknown.join(', ')} ${unknown.length === 1 ? 'is' : 'are'} not a parameter label (right-click a path, loading or covariance → Label…).`);
+    } catch (x) { errs.push(`${d.name} := ${d.expr}: ${(x as Error).message}`); }
+    known.add(d.name);
+  }
+  for (const t of model.waldTests ?? []) {
+    if (!hypotheses(t).length) errs.push(`Wald test “${t.name}” has no hypothesis.`);
+    for (const line of hypotheses(t)) {
+      try {
+        const c = parseConstraint(line);
+        const unknown = [...namesIn(c.left), ...namesIn(c.right)].filter((n) => !known.has(n));
+        if (unknown.length) errs.push(`Wald test “${t.name}”: ${unknown.join(', ')} ${unknown.length === 1 ? 'is' : 'are'} not a label or defined parameter.`);
+      } catch (x) { errs.push(`Wald test “${t.name}”, “${line}”: ${(x as Error).message}`); }
+    }
+  }
+  return errs;
+}
+
+/** Defined parameters and Wald tests for the request, printed from their parsed form (only when all are valid). */
+function constraintSpec(model: ModelState): Pick<ModelSpec, 'defined' | 'waldTests'> {
+  if (!(model.defined?.length || model.waldTests?.length) || constraintErrors(model).length) return {};
+  return {
+    ...(model.defined?.length ? { defined: model.defined.map((d) => ({ name: d.name, expr: exprToR(parseExpr(d.expr)) })) } : {}),
+    ...(model.waldTests?.length ? {
+      waldTests: model.waldTests.map((t) => ({
+        name: t.name,
+        constraints: hypotheses(t).map((line) => { const c = parseConstraint(line); return `${exprToR(c.left)} == ${exprToR(c.right)}`; }),
+      })),
+    } : {}),
+  };
+}
+
+/** Does the model use labels, defined parameters or Wald tests (lavaan only)? */
+export const usesConstraints = (model: ModelState) => labelUses(model).size > 0 || !!model.defined?.length || !!model.waldTests?.length;
 
 export interface Issue {
   level: 'error' | 'warning';
@@ -376,6 +457,15 @@ export function validateModel(
   } else {
     if (missingChoice === 'fiml' && method.method === 'pls') err('FIML is a CB-SEM option; PLS-SEM uses mean replacement or casewise deletion.');
     if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
+  }
+
+  if (usesConstraints(model)) {
+    if (method.method !== 'cbsem') warn(`Parameter labels, defined parameters and Wald tests are used by CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them.`);
+    else {
+      for (const e of constraintErrors(model)) err(e);
+      if (engine === 'builtin') err('Parameter labels (equality constraints), defined parameters and Wald tests are estimated by lavaan: choose “R packages” under Calculated by.');
+      if (method.estimator === '2SLS') err('Parameter labels, defined parameters and Wald tests are not available with MIIV-2SLS.');
+    }
   }
 
   const nFixed = model.paths.filter((p) => p.fixed !== undefined).length + (model.correlations ?? []).filter((k) => k.fixed !== undefined).length
@@ -538,6 +628,14 @@ const str = (v: unknown, max = 200): string => {
 };
 /** A fixed parameter value from a file: a finite number of sensible size. */
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1e6;
+/** A parameter label from a file (validated again before use). */
+const labelOf = (v: unknown): { label?: string } => (typeof v === 'string' && v.trim() ? { label: v.trim().slice(0, 31) } : {});
+function loadingLabelsOf(raw: unknown, indicators: unknown[]): { loadingLabels?: Record<string, string> } {
+  if (!isObj(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) if (indicators.includes(k) && typeof v === 'string' && v.trim()) out[k] = v.trim().slice(0, 31);
+  return Object.keys(out).length ? { loadingLabels: out } : {};
+}
 function fixedLoadingsOf(raw: unknown, indicators: unknown[]): { fixedLoadings?: Record<string, number> } {
   if (!isObj(raw)) return {};
   const out: Record<string, number> = {};
@@ -573,6 +671,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       ...(c.covariate === true ? { covariate: true } : {}),
       ...(c.latent === true ? { latent: true } : {}),
       ...(fixedLoadingsOf(c.fixedLoadings, c.indicators as unknown[])),
+      ...(loadingLabelsOf(c.loadingLabels, c.indicators as unknown[])),
     };
   });
   const ids = new Set(constructs.map((c) => c.id));
@@ -580,7 +679,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   for (const c of constructs) if (c.components?.some((x) => !ids.has(x) || x === c.id)) throw new Error('Invalid project file: higher-order construct refers to an unknown component.');
   const paths: Path[] = m.paths.map((p: unknown) => {
     if (!isObj(p)) throw new Error('Invalid path in project file.');
-    const path = { id: str(p.id, 64), from: str(p.from, 64), to: str(p.to, 64), ...(finite(p.fixed) ? { fixed: p.fixed } : {}) };
+    const path = { id: str(p.id, 64), from: str(p.from, 64), to: str(p.to, 64), ...(finite(p.fixed) ? { fixed: p.fixed } : {}), ...(labelOf(p.label)) };
     if (!ids.has(path.from) || !ids.has(path.to)) throw new Error('Invalid project file: path references unknown construct.');
     return path;
   });
@@ -626,7 +725,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   const rawCorrs = Array.isArray(m.correlations) ? m.correlations.slice(0, 5000) : [];
   const correlations: Correlation[] = rawCorrs.map((k: unknown) => {
     if (!isObj(k) || (k.kind !== 'construct' && k.kind !== 'indicator')) throw new Error('Invalid correlation in project file.');
-    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}), ...(finite(k.fixed) ? { fixed: k.fixed } : {}) };
+    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}), ...(finite(k.fixed) ? { fixed: k.fixed } : {}), ...(labelOf(k.label)) };
     const known = out.kind === 'construct' ? ids : indicatorNames;
     if (!known.has(out.a) || !known.has(out.b) || out.a === out.b) throw new Error('Invalid project file: correlation references an unknown construct or indicator.');
     return out;
@@ -635,6 +734,8 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     model: {
       constructs, paths, moderations, ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}),
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
+      ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
+      ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
     },
     settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,
   };

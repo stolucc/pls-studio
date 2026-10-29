@@ -85,6 +85,20 @@ ps_num <- function(x) {
   format(x, digits = 15)
 }
 
+#' A parameter label or defined-parameter name as R code; anything else is refused.
+ps_label <- function(x) {
+  if (!(is.character(x) && length(x) == 1 && grepl("^[A-Za-z][A-Za-z0-9_]{0,30}$", x))) stop("Invalid parameter label in the request.")
+  x
+}
+
+#' Arithmetic over labels (as printed by the app's parser): letters, digits, _ . + - * / ^ ( ) and spaces,
+#' and no name or number directly followed by "(" (no function calls).
+ps_expr <- function(x) {
+  ok <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 && grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) && !grepl("[A-Za-z0-9_.][[:space:]]*\\(", x)
+  if (!ok) stop("Invalid expression in the request.")
+  x
+}
+
 #' Quote a character vector as R code (backslashes, quotes and control characters escaped).
 ps_q <- function(x) paste0("c(", paste(encodeString(as.character(x), quote = '"'), collapse = ", "), ")")
 

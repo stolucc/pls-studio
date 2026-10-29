@@ -9,6 +9,7 @@ import { QuadraticCurve, SimpleSlopes } from './SimpleSlopes';
 import { JohnsonNeymanPlot } from './JohnsonNeymanPlot';
 import { johnsonNeyman } from '../engine/jn';
 import { fixedText } from '../diagramLabels';
+import { ConstraintsEditor } from './ConstraintsEditor';
 
 function NameField({ c }: { c: Construct }) {
   const update = useStore((s) => s.updateConstruct);
@@ -487,6 +488,7 @@ function ModelInspector() {
             </div>
           ))}
       </div>
+      {settings.method === 'cbsem' && <ConstraintsEditor />}
       {settings.method === 'cbsem' && model.correlations?.some((k) => k.zero) && (
         <div className="section">
           <div className="section-title">Covariances fixed at zero</div>

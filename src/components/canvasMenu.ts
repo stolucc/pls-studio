@@ -17,7 +17,7 @@ export type MenuTarget =
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
-  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal';
+  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
@@ -60,6 +60,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       return out(target.name, [
         edit && cb && !owner2?.covariate && { action: 'fix-value', label: held !== undefined ? `Change fixed loading (${held})…` : isMarker ? 'Fix loading at another value than 1…' : 'Fix loading at a value…' },
         edit && cb && held !== undefined && { action: 'free-value', label: isMarker ? 'Back to the marker’s 1' : 'Free loading (estimate it)' },
+        edit && cb && held === undefined && !isMarker && { action: 'set-label', label: owner2?.loadingLabels?.[target.name] ? `Label (${owner2.loadingLabels[target.name]})…` : 'Label (for equality constraints)…' },
         edit && cb && { action: 'correlate', label: 'Correlate error (ε) with…' },
         edit && cb && !owner2?.covariate && { action: 'toggle-ordinal', label: model.ordered?.includes(target.name) ? 'Treat as continuous' : 'Treat as ordinal (categorical)' },
         edit && { action: 'remove-indicator', label: `Remove from ${owner}`, danger: true },
@@ -76,6 +77,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       return out(`${nameOf(p.from)} → ${nameOf(p.to)}`, [
         edit && cb && { action: 'fix-value', label: p.fixed !== undefined ? `Change fixed value (${p.fixed})…` : 'Fix coefficient at a value…' },
         edit && cb && p.fixed !== undefined && { action: 'free-value', label: 'Free coefficient (estimate it)' },
+        edit && cb && p.fixed === undefined && { action: 'set-label', label: p.label ? `Label (${p.label})…` : 'Label (for constraints and defined parameters)…' },
         edit && !hasQuadratic && !proc && { action: 'add-quadratic', label: `Add quadratic effect (${nameOf(p.from)}²)` },
         edit && { action: 'reverse-path', label: 'Reverse direction' },
         edit && { action: 'delete-path', label: 'Delete path', danger: true },
@@ -99,6 +101,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       return out(`${end(k.a)} ↔ ${end(k.b)}`, [
         edit && cb && { action: 'fix-value', label: k.fixed !== undefined ? `Change fixed value (${k.fixed})…` : 'Fix covariance at a value…' },
         edit && cb && k.fixed !== undefined && { action: 'free-value', label: 'Free covariance (estimate it)' },
+        edit && cb && k.fixed === undefined && { action: 'set-label', label: k.label ? `Label (${k.label})…` : 'Label…' },
         edit && { action: 'delete-correlation', label: 'Delete correlation', danger: true },
       ]);
     }
