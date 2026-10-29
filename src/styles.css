@@ -657,6 +657,10 @@ td.text-left { text-align: left; }
 a.btn { text-decoration: none; }
 
 /* Exploratory factor analysis: choosing many variables. */
-.var-check-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 2px 8px; max-height: 210px; overflow: auto;
-  border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--surface); }
-.var-check { user-select: none; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* (fixed row height: rows of items that clip their overflow would otherwise shrink to fit the
+   height-limited list instead of scrolling, and overlap) */
+.var-check-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); grid-auto-rows: 24px; gap: 0 10px;
+  max-height: 216px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; background: var(--surface); }
+.var-check { display: flex; align-items: center; gap: 6px; margin: 0; min-width: 0; user-select: none; cursor: pointer; font-size: 12px; line-height: 24px; }
+.var-check input { margin: 0; flex: none; }
+.var-check span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
