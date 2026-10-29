@@ -17,6 +17,22 @@
         "File": "abind_1.4-8.tgz"
       }
     },
+    "admisc": {
+      "version": "0.41",
+      "md5": "6027570bdb61aae0dc14134ccc82ef9c",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "admisc",
+        "Version": "0.41",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "methods",
+        "Suggests": "QCA (>= 3.7)",
+        "License": "GPL (>= 3)",
+        "MD5sum": "6027570bdb61aae0dc14134ccc82ef9c",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 12:35:40 UTC; unix",
+        "File": "admisc_0.41.tgz"
+      }
+    },
     "alabama": {
       "version": "2025.1.0",
       "md5": "2070692fc5039ca0abd381fb3dbb4da5",
@@ -1127,6 +1143,20 @@
         "File": "lmtest_0.9-40.tgz"
       }
     },
+    "ltm": {
+      "version": "1.2-0",
+      "md5": "afb5196efb67ae1d0512c167b6a2df27",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "ltm",
+        "Version": "1.2-0",
+        "Depends": "R (>= 3.0.0), MASS, msm, polycor",
+        "License": "GPL (>= 2)",
+        "MD5sum": "afb5196efb67ae1d0512c167b6a2df27",
+        "Built": "R 4.6.0; ; 2026-05-13 11:45:17 UTC; unix",
+        "File": "ltm_1.2-0.tgz"
+      }
+    },
     "magrittr": {
       "version": "2.0.5",
       "md5": "b8de5e142ae82a1e9ebdcc8cc60bc885",
@@ -1359,6 +1389,21 @@
         "MD5sum": "9d8b3628f05067781d189f0ca7cf2404",
         "Built": "R 4.6.0; ; 2026-05-13 15:06:54 UTC; unix",
         "File": "mpoly_1.1.2.tgz"
+      }
+    },
+    "msm": {
+      "version": "1.8.2",
+      "md5": "dd1dd2fc6a19e0536d1d4b22b41b8a3c",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "msm",
+        "Version": "1.8.2",
+        "Imports": "survival, mvtnorm, expm, generics, tibble",
+        "Suggests": "mstate, minqa, doParallel, foreach, numDeriv, testthat, flexsurv, covr",
+        "License": "GPL (>= 2)",
+        "MD5sum": "dd1dd2fc6a19e0536d1d4b22b41b8a3c",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 15:20:19 UTC; unix",
+        "File": "msm_1.8.2.tgz"
       }
     },
     "multipol": {
@@ -1665,6 +1710,35 @@
         "MD5sum": "24bbd0174625ad1546a3ffa989c478fc",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 19:49:21 UTC; unix",
         "File": "plyr_1.8.9.tgz"
+      }
+    },
+    "poLCA": {
+      "version": "1.6.0.2",
+      "md5": "bbd8ac778fb4758fdfe0a67fd9e217f9",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "poLCA",
+        "Version": "1.6.0.2",
+        "Depends": "scatterplot3d, MASS",
+        "License": "GPL (>= 2)",
+        "MD5sum": "bbd8ac778fb4758fdfe0a67fd9e217f9",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 19:57:58 UTC; unix",
+        "File": "poLCA_1.6.0.2.tgz"
+      }
+    },
+    "polycor": {
+      "version": "0.8-2",
+      "md5": "24642ee5a709bc482f5eb3b09d752968",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "polycor",
+        "Version": "0.8-2",
+        "Depends": "R (>= 3.3.0)",
+        "Imports": "stats, mvtnorm, Matrix, parallel, admisc (>= 0.22)",
+        "License": "GPL (>= 2)",
+        "MD5sum": "24642ee5a709bc482f5eb3b09d752968",
+        "Built": "R 4.6.0; ; 2026-05-13 20:01:27 UTC; unix",
+        "File": "polycor_0.8-2.tgz"
       }
     },
     "polynom": {
@@ -2037,6 +2111,21 @@
         "MD5sum": "c6a768d2e66ef32d1933e7f2541240a2",
         "Built": "R 4.6.0; ; 2026-05-14 02:57:52 UTC; unix",
         "File": "scales_1.4.0.tgz"
+      }
+    },
+    "scatterplot3d": {
+      "version": "0.3-45",
+      "md5": "345522af06154c4e1edb6b30a51add5e",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "scatterplot3d",
+        "Version": "0.3-45",
+        "Depends": "R (>= 2.7.0)",
+        "Imports": "grDevices, graphics, stats",
+        "License": "GPL-2",
+        "MD5sum": "345522af06154c4e1edb6b30a51add5e",
+        "Built": "R 4.6.0; ; 2026-05-14 03:00:44 UTC; unix",
+        "File": "scatterplot3d_0.3-45.tgz"
       }
     },
     "seminr": {

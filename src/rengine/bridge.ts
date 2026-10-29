@@ -7,12 +7,13 @@ import bootR from './R/boot.R?raw';
 import commonR from './R/common.R?raw';
 import cpaR from './R/cpa.R?raw';
 import lavaanR from './R/lavaan.R?raw';
+import itemsR from './R/items.R?raw';
 import longitudinalR from './R/longitudinal.R?raw';
 import mcR from './R/mc.R?raw';
 import plsR from './R/pls.R?raw';
 import { callJson, callString, withR } from './runtime';
 
-const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR };
+const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -23,6 +24,8 @@ export const R_PACKAGES = {
   manymome: ['jsonlite', 'manymome', 'sandwich'],
   manymomeSam: ['jsonlite', 'manymome', 'lavaan'],
   modsem: ['jsonlite', 'lavaan', 'semTools', 'modsem'],
+  ltm: ['jsonlite', 'ltm'],
+  poLCA: ['jsonlite', 'poLCA'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

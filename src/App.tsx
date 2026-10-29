@@ -7,6 +7,7 @@ import { ConfirmModal, Toasts } from './components/Overlays';
 import { ResultsPanel } from './components/ResultsPanel';
 import { SimulationPanel } from './components/SimulationPanel';
 import { LongitudinalPanel } from './components/LongitudinalPanel';
+import { ItemsPanel } from './components/ItemsPanel';
 import { useSim } from './simStore';
 import { TopBar } from './components/TopBar';
 import { HomeScreen } from './components/HomeScreen';
@@ -99,6 +100,7 @@ export default function App() {
       </div>
       <SimulationPanel />
       <LongitudinalPanel />
+      <ItemsPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

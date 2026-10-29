@@ -184,6 +184,12 @@
    "url": "https://cran.r-project.org/package=abind"
   },
   {
+   "name": "admisc",
+   "version": "0.41",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=admisc"
+  },
+  {
    "name": "alabama",
    "version": "2025.1.0",
    "license": "GPL (>= 2)",
@@ -610,6 +616,12 @@
    "url": "https://cran.r-project.org/package=lmtest"
   },
   {
+   "name": "ltm",
+   "version": "1.2-0",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=ltm"
+  },
+  {
    "name": "magrittr",
    "version": "2.0.5",
    "license": "MIT + file LICENSE",
@@ -698,6 +710,12 @@
    "version": "1.1.2",
    "license": "GPL-2",
    "url": "https://cran.r-project.org/package=mpoly"
+  },
+  {
+   "name": "msm",
+   "version": "1.8.2",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=msm"
   },
   {
    "name": "multipol",
@@ -818,6 +836,18 @@
    "version": "1.8.9",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=plyr"
+  },
+  {
+   "name": "poLCA",
+   "version": "1.6.0.2",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=poLCA"
+  },
+  {
+   "name": "polycor",
+   "version": "0.8-2",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=polycor"
   },
   {
    "name": "polynom",
@@ -962,6 +992,12 @@
    "version": "1.4.0",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=scales"
+  },
+  {
+   "name": "scatterplot3d",
+   "version": "0.3-45",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=scatterplot3d"
   },
   {
    "name": "seminr",

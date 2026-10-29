@@ -12,6 +12,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | Package | Version | Licence | Source |
 |---|---|---|---|
 | abind | 1.4-8 | MIT + file LICENSE | https://cran.r-project.org/package=abind |
+| admisc | 0.41 | GPL (>= 3) | https://cran.r-project.org/package=admisc |
 | alabama | 2025.1.0 | GPL (>= 2) | https://cran.r-project.org/package=alabama |
 | Amelia | 1.8.3 | GPL (>= 2) | https://cran.r-project.org/package=Amelia |
 | askpass | 1.2.1 | MIT + file LICENSE | https://cran.r-project.org/package=askpass |
@@ -83,6 +84,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | lme4 | 2.0-6 | GPL (>= 2) | https://cran.r-project.org/package=lme4 |
 | lmhelprs | 0.4.5 | GPL (>= 3) | https://cran.r-project.org/package=lmhelprs |
 | lmtest | 0.9-40 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=lmtest |
+| ltm | 1.2-0 | GPL (>= 2) | https://cran.r-project.org/package=ltm |
 | magrittr | 2.0.5 | MIT + file LICENSE | https://cran.r-project.org/package=magrittr |
 | manymome | 0.3.7 | GPL (>= 3) | https://cran.r-project.org/package=manymome |
 | MASS | 7.3-66 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=MASS |
@@ -98,6 +100,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | modelr | 0.1.11 | GPL-3 | https://cran.r-project.org/package=modelr |
 | modsem | 1.0.23 | MIT + file LICENSE | https://cran.r-project.org/package=modsem |
 | mpoly | 1.1.2 | GPL-2 | https://cran.r-project.org/package=mpoly |
+| msm | 1.8.2 | GPL (>= 2) | https://cran.r-project.org/package=msm |
 | multipol | 1.0-9 | GPL | https://cran.r-project.org/package=multipol |
 | mvnfast | 0.2.8 | GPL (>= 2.0) | https://cran.r-project.org/package=mvnfast |
 | mvtnorm | 1.2-4 | GPL-2 | https://cran.r-project.org/package=mvtnorm |
@@ -118,6 +121,8 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | pkgconfig | 2.0.3 | MIT + file LICENSE | https://cran.r-project.org/package=pkgconfig |
 | plotly | 4.12.1 | MIT + file LICENSE | https://cran.r-project.org/package=plotly |
 | plyr | 1.8.9 | MIT + file LICENSE | https://cran.r-project.org/package=plyr |
+| poLCA | 1.6.0.2 | GPL (>= 2) | https://cran.r-project.org/package=poLCA |
+| polycor | 0.8-2 | GPL (>= 2) | https://cran.r-project.org/package=polycor |
 | polynom | 1.4-1 | GPL-2 | https://cran.r-project.org/package=polynom |
 | progressr | 1.0.0 | Apache License (>= 2) | https://cran.r-project.org/package=progressr |
 | promises | 1.5.0 | MIT + file LICENSE | https://cran.r-project.org/package=promises |
@@ -142,6 +147,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | sandwich | 3.1-3 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=sandwich |
 | sass | 0.4.10.9000 | MIT + file LICENSE | https://github.com/rstudio/sass |
 | scales | 1.4.0 | MIT + file LICENSE | https://cran.r-project.org/package=scales |
+| scatterplot3d | 0.3-45 | GPL-2 | https://cran.r-project.org/package=scatterplot3d |
 | seminr | 2.5.0 | GPL-3 | https://cran.r-project.org/package=seminr |
 | semTools | 0.5-10 | GPL (>= 2) | https://cran.r-project.org/package=semTools |
 | sets | 1.0-25 | GPL-2 | https://cran.r-project.org/package=sets |

@@ -7,8 +7,9 @@ import { AccountMenu } from './cloud/AccountMenu';
 import { PresenceBar } from './cloud/Presence';
 import { ShareDialog } from './cloud/ShareDialog';
 import { useSim } from '../simStore';
-import { IconEye, IconHome, IconShare, IconLogo, IconSparkle, IconNew, IconOpen, IconPlay, IconRedo, IconRepeat, IconSave, IconUndo, IconUpload } from './icons';
+import { IconEye, IconHome, IconLayout, IconShare, IconLogo, IconSparkle, IconNew, IconOpen, IconPlay, IconRedo, IconRepeat, IconSave, IconUndo, IconUpload } from './icons';
 import { useLong } from './LongitudinalPanel';
+import { useItems } from './ItemsPanel';
 
 const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
@@ -65,7 +66,11 @@ export function TopBar() {
       <div className="sep" />
       {method !== 'process' && (
         <>
- {method === 'cbsem' && (
+
+          <button className="btn ghost" aria-label="Items" onClick={() => useItems.getState().setOpen(true)} title="Item response theory (ltm) and latent class analysis (poLCA)">
+            <IconLayout size={15} /><span className="lbl">Items</span>
+          </button>
+          {method === 'cbsem' && (
             <button className="btn ghost" aria-label="Longitudinal" onClick={() => useLong.getState().setOpen(true)} title="Latent growth curves and RI-CLPM (lavaan)">
               <IconRepeat size={15} /><span className="lbl">Longitudinal</span>
             </button>

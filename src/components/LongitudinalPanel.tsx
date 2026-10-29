@@ -16,7 +16,7 @@ interface LongState {
 export const useLong = create<LongState>((set) => ({ open: false, growth: null, riclpm: null, setOpen: (open) => set({ open }) }));
 
 /** Columns in the order clicked: the measurement occasions. */
-function OrderedPicker({ label, columns, value, onChange }: { label: string; columns: string[]; value: string[]; onChange: (v: string[]) => void }) {
+export function OrderedPicker({ label, columns, value, onChange }: { label: string; columns: string[]; value: string[]; onChange: (v: string[]) => void }) {
   return (
     <div className="field">
       <label>{label}</label>
