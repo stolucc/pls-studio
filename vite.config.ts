@@ -4,8 +4,9 @@ import { defineConfig, type Connect, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // Strict CSP for production builds only: dev mode needs inline scripts for
-// React Fast Refresh. All analysis runs in the browser, so no external
-// connections are allowed apart from the font stylesheet.
+// React Fast Refresh. All analysis runs in the browser (or in the optional
+// desktop helper on 127.0.0.1), so no other external connections are allowed
+// apart from the font stylesheet.
 const CSP = [
   "default-src 'self'",
   // WebAssembly compilation for the in-browser R runtime (webR); JS eval stays blocked.
@@ -14,7 +15,8 @@ const CSP = [
   'font-src https://fonts.gstatic.com',
   "img-src 'self' data: blob:",
   "worker-src 'self' blob:",
-  "connect-src 'self'",
+  // The optional desktop R helper (helper/) listens on the loopback interface only.
+  "connect-src 'self' http://127.0.0.1:9878",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",

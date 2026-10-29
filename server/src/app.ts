@@ -54,7 +54,8 @@ export function createApp(deps: AppDeps) {
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc: ['https://fonts.gstatic.com'],
         imgSrc: ["'self'", 'data:', 'blob:'],
-        connectSrc: ["'self'"],
+        // The optional desktop R helper (helper/) on the loopback interface.
+        connectSrc: ["'self'", 'http://127.0.0.1:9878'],
         workerSrc: ["'self'", 'blob:'],
         objectSrc: ["'none'"],
         baseUri: ["'none'"],

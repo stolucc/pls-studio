@@ -1,0 +1,141 @@
+name: helper-release
+
+# Builds pls-studio-helper (helper/) for macOS (arm64, amd64; .dmg with a
+# menu-bar .app), Windows (amd64; tray .exe) and Linux (amd64; headless)
+# when a tag helper-v* is pushed (e.g. helper-v0.1.0), and publishes them
+# as a GitHub Release with SHA256SUMS. Asset names carry no version, so the
+# app links to releases/latest/download/<asset>.
+#
+# The binaries are not signed with a Developer ID: macOS shows a Gatekeeper
+# warning on first launch (right-click → Open), Windows SmartScreen asks
+# once (More info → Run anyway). The macOS binary is ad-hoc signed so Apple
+# Silicon runs it at all.
+
+on:
+  push:
+    tags:
+      - 'helper-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write  # to create the release
+
+jobs:
+  build:
+    name: build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        include:
+          - { goos: darwin, goarch: arm64, runs-on: macos-latest }
+          - { goos: darwin, goarch: amd64, runs-on: macos-latest }
+          - { goos: linux, goarch: amd64, runs-on: ubuntu-latest }
+          # The tray (systray) needs CGO and the Windows shell APIs: build on Windows.
+          - { goos: windows, goarch: amd64, runs-on: windows-latest }
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27'
+          cache-dependency-path: helper/go.sum
+
+      # Includes the check that the embedded R bridge (helper/rsrc) is
+      # identical to the app's (src/rengine/R). The R worker tests skip
+      # on runners without R.
+      - name: Test
+        working-directory: helper
+        run: go test ./...
+
+      - name: Build (unix)
+        if: matrix.goos != 'windows'
+        working-directory: helper
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.goos == 'linux' && '0' || '1' }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#helper-v}"
+          if [ "$VERSION" = "$GITHUB_REF_NAME" ]; then VERSION="dev-$(git rev-parse --short HEAD)"; fi
+          mkdir -p ../dist
+          go build -trimpath \
+            -ldflags "-s -w -X main.helperVersion=$VERSION -X main.helperBuildSHA=$(git rev-parse --short HEAD) -X main.helperBuildTime=$(date -u +%FT%TZ)" \
+            -o "../dist/pls-studio-helper-${{ matrix.goos }}-${{ matrix.goarch }}" .
+
+      - name: Build (windows)
+        if: matrix.goos == 'windows'
+        working-directory: helper
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: '1'
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^helper-v',''
+          if ($version -eq $env:GITHUB_REF_NAME) { $version = "dev-$(git rev-parse --short HEAD)" }
+          $buildSha = git rev-parse --short HEAD
+          $buildTime = (Get-Date -AsUTC).ToString('yyyy-MM-ddTHH:mm:ssZ')
+          New-Item -ItemType Directory -Force -Path ../dist | Out-Null
+          go build -trimpath -ldflags "-s -w -X main.helperVersion=$version -X main.helperBuildSHA=$buildSha -X main.helperBuildTime=$buildTime -H=windowsgui" -o "../dist/pls-studio-helper-windows-amd64.exe" .
+
+      - name: Ad-hoc codesign, .app and .dmg (macOS)
+        if: matrix.goos == 'darwin'
+        run: |
+          BIN="dist/pls-studio-helper-${{ matrix.goos }}-${{ matrix.goarch }}"
+          codesign --force --sign - "$BIN"
+          codesign --verify --verbose=2 "$BIN"
+          helper/scripts/build-app.sh "$BIN" "dist/PLS Studio Helper.app" "${{ matrix.goarch }}"
+          hdiutil create -volname "PLS Studio Helper" -srcfolder "dist/PLS Studio Helper.app" -ov -format UDZO \
+            "dist/PLS-Studio-Helper-${{ matrix.goarch }}.dmg"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: helper-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/pls-studio-helper-${{ matrix.goos }}-${{ matrix.goarch }}
+            dist/pls-studio-helper-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+            dist/PLS-Studio-Helper-${{ matrix.goarch }}.dmg
+          retention-days: 7
+          if-no-files-found: ignore
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/helper-v')
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          chmod +x pls-studio-helper-* || true
+          sha256sum pls-studio-helper-* PLS-Studio-Helper-*.dmg > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#helper-v}"
+          gh release create "$GITHUB_REF_NAME" --latest \
+            --title "PLS Studio Helper v$VERSION" \
+            --notes "Runs PLS Studio's calculations in the R installed on your computer (desktop R) instead of the browser. Needs R 4.1 or later (https://cran.r-project.org). See helper/README.md.
+
+          **macOS**: open the .dmg (Apple Silicon: arm64; Intel: amd64), drag PLS Studio Helper to Applications, right-click → Open the first time (the app is not notarized). A \"PLS\" icon appears in the menu bar.
+
+          **Windows**: run pls-studio-helper-windows-amd64.exe; SmartScreen warns once (More info → Run anyway). The icon appears in the system tray.
+
+          **Linux**: chmod +x pls-studio-helper-linux-amd64 and run it with --no-tray --allow-first-connection.
+
+          Then in PLS Studio: Inspector → Calculated by → Desktop R (helper) → Connect, and click Allow. Install the R packages once with: pls-studio-helper setup
+
+          Verify downloads against SHA256SUMS." \
+            dist/pls-studio-helper-darwin-arm64 dist/pls-studio-helper-darwin-amd64 \
+            dist/pls-studio-helper-linux-amd64 dist/pls-studio-helper-windows-amd64.exe \
+            dist/PLS-Studio-Helper-arm64.dmg dist/PLS-Studio-Helper-amd64.dmg \
+            dist/SHA256SUMS

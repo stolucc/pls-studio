@@ -70,7 +70,10 @@ function runR(kind: JobKind, key: string) {
     import('./rengine/bridge').then(({ rMessage }) => fail(`${pkg}: ${rMessage(e)}`));
   };
   const fail = (m: string) => { useStore.getState().setJob(null); useStore.getState().toast('error', m); };
-  const version = () => import('./rengine/status').then(({ useR }) => useR.getState().versions[pkg] ?? '');
+  const version = () => Promise.all([import('./rengine/status'), import('./rengine/bridge')]).then(([{ useR }, { computeLocation }]) => {
+    const at = computeLocation(pkg);
+    return at.where === 'desktop' ? at.version : useR.getState().versions[pkg] ?? '';
+  });
 
   if (kind === 'estimate') {
     if (cb && st.estimator === '2SLS') {

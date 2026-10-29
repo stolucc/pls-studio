@@ -645,3 +645,7 @@ td.text-left { text-align: left; }
 .seg-var-detail { margin-left: 22px; }
 .cat-order { margin: 2px 0 6px 22px; padding: 0; font-size: 12px; }
 .cat-order li { display: flex; align-items: center; gap: 4px; }
+
+/* Desktop R helper download links (Inspector → Calculated by). */
+.helper-downloads { display: contents; }
+a.btn { text-decoration: none; }

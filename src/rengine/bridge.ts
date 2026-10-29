@@ -19,9 +19,10 @@ import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import segmentR from './R/segment.R?raw';
 import { useCompute } from './compute';
+import { helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR };
+export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -50,12 +51,62 @@ export const R_PACKAGES = {
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 
-export function rCall<T>(fn: string, req: unknown, pkg: RPackage): Promise<T> {
+/** Every R package the bridge uses (what the helper's `setup` installs). */
+export const ALL_R_PACKAGES = [...new Set(Object.values(R_PACKAGES).flat())].sort();
+
+let probed: { at: number; p: Promise<unknown> } | null = null;
+/** Probe the helper (again after 30 s when it was not ready). */
+export function checkHelper(force = false): Promise<unknown> {
+  if (force || !probed || (useHelper.getState().state !== 'ready' && Date.now() - probed.at > 30_000)) {
+    probed = { at: Date.now(), p: probeHelper(SOURCES, ALL_R_PACKAGES) };
+  }
+  return probed.p;
+}
+
+const told = new Set<string>();
+/** Tell the user once per reason that a calculation ran in the browser's R instead of desktop R. */
+function fallbackNotice(reason: string) {
+  if (told.has(reason)) return;
+  told.add(reason);
+  void import('../store').then(({ useStore }) => useStore.getState().toast('info', `${reason} Calculating in the browser's R instead.`));
+}
+
+/**
+ * With "Desktop R (helper)" chosen and the helper ready: the call's result
+ * from the helper (JSON text or script). null: use the browser's R.
+ */
+async function viaHelper(fn: string, req: unknown, pkg: RPackage, exportScript: boolean): Promise<string | null> {
+  if (useCompute.getState().backend !== 'helper') return null;
+  await checkHelper();
+  const h = useHelper.getState();
+  if (h.state !== 'ready') { fallbackNotice(`Desktop R is not available (${h.message || h.state}).`); return null; }
+  const json = JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
+  try {
+    return await helperCall(fn, json, [...R_PACKAGES[pkg]], exportScript);
+  } catch (e) {
+    if (e instanceof HelperMissingPackages) { fallbackNotice(`${e.message} Install them from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.`); return null; }
+    if (e instanceof HelperUnavailable) { fallbackNotice(e.message); return null; }
+    throw e;
+  }
+}
+
+/** A helper result, marked as calculated in desktop R (engine.desktop: its R version). */
+function fromDesktop<T>(json: string): T {
+  const v = JSON.parse(json) as { engine?: unknown };
+  if (v && typeof v === 'object' && v.engine && typeof v.engine === 'object') (v.engine as Record<string, unknown>).desktop = useHelper.getState().info?.r ?? 'R';
+  return v as T;
+}
+
+export async function rCall<T>(fn: string, req: unknown, pkg: RPackage): Promise<T> {
+  const h = await viaHelper(fn, req, pkg, false);
+  if (h !== null) return fromDesktop<T>(h);
   return withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `${fn}(req)`, req)) as Promise<T>;
 }
 
-/** As rCall, in R session `session` (parallel work; 0 is the main session). */
-export function rCallOn<T>(session: number, fn: string, req: unknown, pkg: RPackage): Promise<T> {
+/** As rCall, in R session `session` (parallel work; 0 is the main session). The helper has its own pool. */
+export async function rCallOn<T>(session: number, fn: string, req: unknown, pkg: RPackage): Promise<T> {
+  const h = await viaHelper(fn, req, pkg, false);
+  if (h !== null) return fromDesktop<T>(h);
   return withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `${fn}(req)`, req)) as Promise<T>;
 }
 
@@ -67,8 +118,17 @@ export function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackage, onD
   return parallelMap(reqs, useCompute.getState().workers, (req, session) => rCallOn<T>(session, fn, req, pkg), onDone);
 }
 
-export function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string> {
+export async function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string> {
+  const h = await viaHelper(fn, req, pkg, true);
+  if (h !== null) return h;
   return withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callString(webR, `${fn}(req, export = TRUE)`, req));
+}
+
+/** Where the next calculation with `pkg` runs and that package's version there. */
+export function computeLocation(pkg: string): { where: 'desktop' | 'browser'; version: string } {
+  const h = useHelper.getState();
+  if (useCompute.getState().backend === 'helper' && h.state === 'ready' && h.packages[pkg]) return { where: 'desktop', version: h.packages[pkg]! };
+  return { where: 'browser', version: '' };
 }
 
 /** An R error message without R's call prefix. */

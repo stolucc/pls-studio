@@ -5,6 +5,7 @@
 // work (bootstrap chunks) can use further sessions, each a webR in its own Worker.
 
 import type { WebR } from 'webr';
+import { cancelHelperCalls } from './helper';
 import { useR } from './status';
 
 export { useR };
@@ -28,9 +29,10 @@ const newSession = (): Session => ({ webR: null, installed: new Set(), sourced: 
 const sessions: Session[] = [newSession()];
 let options: RRuntimeOptions | null = null;
 
-/** Interrupt the running R computations (pending calls then reject). */
+/** Interrupt the running R computations, in the browser and in the desktop helper (pending calls then reject). */
 export function interruptR() {
   for (const s of sessions) void s.webR?.then((w) => w.interrupt()).catch(() => undefined);
+  cancelHelperCalls();
 }
 
 /** Use a non-default runtime location (tests in Node). Must precede the first call. */
