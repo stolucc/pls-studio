@@ -13,7 +13,7 @@ export interface AxisLabels { x: string; y: string }
  * charts of the project), this chart's axis titles, and export as vector PDF
  * or PNG. `children` draws the SVG with the axis titles it is given.
  */
-export function ChartFrame({ id, name, defaults, width, height, children, caption }: {
+export function ChartFrame({ id, name, defaults, width, height, children, caption, axes = true }: {
   /** Stable key for this chart's axis titles. */
   id: string;
   /** File name stem for exports. */
@@ -23,6 +23,8 @@ export function ChartFrame({ id, name, defaults, width, height, children, captio
   height: number;
   children: (labels: AxisLabels) => ReactNode;
   caption?: ReactNode;
+  /** false: a diagram without axes (no axis-title fields in Style). */
+  axes?: boolean;
 }) {
   const style = useStore((s) => s.settings.charts);
   const project = useStore((s) => s.projectName);
@@ -82,13 +84,15 @@ export function ChartFrame({ id, name, defaults, width, height, children, captio
               <input type="color" value={style.color} onChange={(e) => set({ color: e.target.value })} />
             </label>
           </div>
+          {axes && <>
           <label>Horizontal axis title
             <input className="input" value={own.x ?? ''} placeholder={defaults.x} onChange={(e) => setLabel('x', e.target.value)} />
           </label>
           <label>Vertical axis title
             <input className="input" value={own.y ?? ''} placeholder={defaults.y} onChange={(e) => setLabel('y', e.target.value)} />
           </label>
-          <div className="hint">Font, size and colour apply to every chart in this project; axis titles to this chart.</div>
+          </>}
+          <div className="hint">Font, size and colour apply to every chart in this project{axes ? '; axis titles to this chart' : ''}.</div>
           {(own.x || own.y) && <button className="btn sm" onClick={resetLabels}>Default axis titles</button>}
         </div>
       )}

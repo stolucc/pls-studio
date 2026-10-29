@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
-import { downloadText, safeFileName } from '../format';
+import { downloadText, fmt, safeFileName } from '../format';
 import type { ModelSpec, PlsOptions } from '../engine/types';
+import { layoutCcaDiagram } from '../model/ccaDiagram';
 import { toSpec, validateModel } from '../model/project';
+import { hexagonVertices } from '../geometry';
 import { blindfoldTargets, type BlindfoldResult, type CcaEstimate, type CcaResult, type CompareResult, type CtaResult, type GroupsResult, type MgaApproach, type PredictResult } from '../rengine/plsx';
 import { useStore } from '../store';
+import { ChartFrame } from './ChartFrame';
 import { IconX } from './icons';
 import { c, pCell, Table, type Row } from './results/Table';
 
@@ -119,11 +122,72 @@ function BlindfoldView({ r }: { r: BlindfoldResult }) {
 }
 
 const ciCell = (k: CcaEstimate) => ({ ...c(k.est), bold: k.low > 0 || k.high < 0 });
+const excludesZero = (k: CcaEstimate) => k.low > 0 || k.high < 0;
+
+/**
+ * The composite model as estimated, drawn like Henseler (2021): hexagons formed
+ * by their indicators (weights or loadings on the arrows), every pair of
+ * composites correlated, no directed paths; the overall fit test below.
+ */
+function CcaDiagramView({ r }: { r: CcaResult }) {
+  const [show, setShow] = useState<'weights' | 'loadings'>('weights');
+  const constructs = useStore((s) => s.model.constructs);
+  const at = new Map(constructs.map((k) => [k.name, k]));
+  // Left to right as drawn on the canvas.
+  const order = [...r.composites].sort((a, b) => (at.get(a)?.x ?? 0) - (at.get(b)?.x ?? 0) || (at.get(a)?.y ?? 0) - (at.get(b)?.y ?? 0));
+  const list = show === 'weights' ? r.weights : r.loadings;
+  const d = layoutCcaDiagram({
+    composites: order.map((name) => ({ name, indicators: r.weights.filter((w) => w.construct === name).map((w) => w.indicator) })),
+    value: (comp, ind) => { const k = list.find((x) => x.construct === comp && x.indicator === ind); return k ? { est: k.est, significant: excludesZero(k) } : null; },
+    correlation: (a, b) => r.correlations[r.composites.indexOf(a)]?.[r.composites.indexOf(b)] ?? null,
+  });
+  const srmr = r.fit.find((f) => f.measure === 'SRMR');
+  const label = (x: number, y: number, text: string, bold: boolean, key: string) => (
+    <g key={key}>
+      <rect x={x - 20} y={y - 8} width={40} height={15} rx={7.5} fill="#fff" stroke="#cbd5e1" />
+      <text x={x} y={y + 3.5} textAnchor="middle" fontSize={9.5} fontWeight={bold ? 700 : 400} fill="#334155">{text}</text>
+    </g>
+  );
+  return (
+    <>
+      <div className="segmented" role="radiogroup" aria-label="Values on the indicator arrows" style={{ width: 220, marginBottom: 6 }}>
+        {(['weights', 'loadings'] as const).map((k) => <button key={k} role="radio" aria-checked={show === k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{k === 'weights' ? 'Weights' : 'Loadings'}</button>)}
+      </div>
+      <ChartFrame id="cca:diagram" name="cca-diagram" width={d.width} height={d.height} defaults={{ x: '', y: '' }} axes={false}
+        caption={<figcaption className="hint">{srmr ? `SRMR ${fmt(srmr.statistic)} (HI95 ${fmt(srmr.q95)}): ${srmr.statistic > srmr.q95 ? 'the composite model is rejected' : 'the composite model fits'}. ` : ''}Hexagons: composites formed by their indicators ({show}; bold: the {Math.round((1 - r.alpha) * 100)}% interval excludes 0). Arcs: composite correlations — the saturated structural model, all composites free to correlate.</figcaption>}>
+        {() => (
+          <svg className="mc-chart" width={d.width} height={d.height} viewBox={`0 0 ${d.width} ${d.height}`} style={{ maxWidth: '100%', height: 'auto' }} role="img" aria-label="Confirmatory composite analysis diagram">
+            <defs>
+              <marker id="cca-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b" /></marker>
+            </defs>
+            {d.arcs.map((a) => <path key={`${a.a}|${a.b}`} d={a.d} fill="none" stroke="#94a3b8" strokeWidth={1.1} markerStart="url(#cca-arrow)" markerEnd="url(#cca-arrow)" />)}
+            {d.composites.map((k) => (
+              <g key={k.name} transform={`translate(${k.cx} ${k.cy})`}>
+                {k.geom.indicators.map((ind) => (
+                  <g key={ind.name}>
+                    <line x1={ind.ax} y1={ind.ay} x2={ind.ex} y2={ind.ey} stroke="#64748b" strokeWidth={1.1} markerEnd="url(#cca-arrow)" />
+                    <rect x={ind.x} y={ind.y} width={ind.w} height={ind.h} rx={5} fill="#f8fafc" stroke="#94a3b8" />
+                    <text x={ind.x + ind.w / 2} y={ind.y + ind.h / 2 + 4} textAnchor="middle" fontSize={11} fill="#334155">{ind.name}</text>
+                  </g>
+                ))}
+                <polygon points={hexagonVertices(k.geom.rx, k.geom.ry).map((v) => v.join(',')).join(' ')} fill="#ede9fe" stroke="#6d28d9" strokeWidth={1.4} />
+                <text x={0} y={4} textAnchor="middle" fontSize={12} fontWeight={600} fill="#1e1b4b">{k.name}</text>
+                {k.geom.indicators.map((ind, i) => k.values[i] && label((ind.ex + ind.ax) / 2, (ind.ey + ind.ay) / 2, fmt(k.values[i]!.est), k.values[i]!.significant, ind.name))}
+              </g>
+            ))}
+            {d.arcs.map((a) => a.value !== null && label(a.lx, a.ly, fmt(a.value), false, `${a.a}|${a.b}`))}
+          </svg>
+        )}
+      </ChartFrame>
+    </>
+  );
+}
 function CcaView({ r }: { r: CcaResult }) {
   const conf = `${Math.round((1 - r.alpha) * 100)}%`;
   const rejected = r.fit.filter((f) => ['SRMR', 'dL', 'dG'].includes(f.measure) && f.statistic > f.q95).map((f) => f.measure);
   return (
     <div className="tables">
+      <CcaDiagramView r={r} />
       <Table title={`Overall fit of the composite model: ${rejected.length ? `rejected by ${rejected.join(', ')}` : 'not rejected'}`} file="cca-fit"
         columns={['Discrepancy', 'Value', 'HI95 (95% quantile)', 'HI99 (99% quantile)', 'Decision (5%)']}
         rows={r.fit.map((f) => [c(f.measure === 'dL' ? 'dULS (dL)' : f.measure), { ...c(f.statistic), bold: f.statistic > f.q95 }, c(f.q95), c(f.q99), c(f.statistic > f.q99 ? 'reject (also at 1%)' : f.statistic > f.q95 ? 'reject' : 'do not reject')])}
