@@ -128,3 +128,17 @@ it('data screening (psych) and influential cases (semfindr)', async () => {
   expect(top.map((x) => x.row)).toEqual(ref.influence.rows);
   expect(inf.html).toContain('Most influential cases');
 }, 900_000);
+
+it('item response theory (ltm) and latent classes (poLCA)', async () => {
+  const dir = join(__dirname, '..', 'engine', '__fixtures__', 'items');
+  const ref = JSON.parse(readFileSync(join(dir, 'items.json'), 'utf8'));
+  const load = (f: string) => parseCsv(readFileSync(join(dir, f), 'utf8')).dataset;
+  const lsat = load('lsat.csv');
+  const irt = await runAsCard<{ logLik: number }>('irt', lsat, { items: lsat.names, model: 'twopl' });
+  expect(irt.result.logLik).toBeCloseTo(ref.irt.twopl.logLik, 4);
+  expect(irt.html).toContain('Discrimination');
+  const lca = await runAsCard<{ models: { k: number; bic: number }[] }>('lca', load('values.csv'), { items: ['A', 'B', 'C', 'D'], from: 2, to: 3 },
+    () => useStore.getState().setSettings({ seed: 20261029 }));
+  lca.result.models.forEach((m, i) => expect(m.bic).toBeCloseTo(ref.lca[i].bic, 3));
+  expect(lca.html).toContain('Number of classes');
+}, 900_000);

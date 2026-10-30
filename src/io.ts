@@ -334,11 +334,8 @@ export async function loadPackageExample(id: string) {
         const { useLong } = await import('./components/LongitudinalPanel');
         const { kind: _k, ...gmm } = p;
         useLong.setState({ open: true, gmm: null, preset: { gmm } });
-      } else if (p.kind === 'irt' || p.kind === 'lca') {
-        const { useItems } = await import('./components/ItemsPanel');
-        useItems.setState({ open: true, irt: null, lca: null, preset: { ...p } });
       }
-      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Estimate.`);
+      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} ${analysisType(p.kind) ? 'Press Run on the card.' : 'Press Estimate.'}`);
       return;
     }
     if (ex.assessment) {
