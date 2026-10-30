@@ -11,7 +11,6 @@ import { Inspector } from './components/Inspector';
 import { ConfirmModal, Toasts } from './components/Overlays';
 import { ResultsPanel } from './components/ResultsPanel';
 import { SimulationPanel } from './components/SimulationPanel';
-import { LongitudinalPanel } from './components/LongitudinalPanel';
 import { useSim } from './simStore';
 import { TopBar } from './components/TopBar';
 import { HomeScreen } from './components/HomeScreen';
@@ -116,7 +115,6 @@ export default function App() {
         </div>
       </div>
       <SimulationPanel />
-      <LongitudinalPanel />
       <SegmentationPanel />
       <PlsAssessmentPanel />
       <AuthDialog />

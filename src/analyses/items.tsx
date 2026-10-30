@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { fmt } from '../format';
 import type { IrtModel, IrtResult, LcaResult } from '../rengine/items';
 import { ChartFrame } from '../components/ChartFrame';
-import { OrderedPicker } from '../components/LongitudinalPanel';
+import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
 import { clampNum, columnsFingerprint, isObj, missingColumns, names, oneOf, rawData } from './common';
 import type { AnalysisType, OptionsProps } from './types';

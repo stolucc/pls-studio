@@ -9,7 +9,8 @@ import type { Correlation, ModelState, Settings } from '../model/project';
 import { makeCovariancesExplicit, newId } from '../model/project';
 import type { GrowthInput } from '../rengine/longitudinal';
 import type { IrtModel } from '../rengine/items';
-import type { GmmInput, LmmInput } from '../rengine/mixed';
+import type { LmmInput } from '../rengine/mixed';
+import type { GmmOptions } from '../analyses/longitudinal';
 import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
 import type { RsaPreset } from '../analyses/rsa';
@@ -33,7 +34,7 @@ export type ExamplePanel =
   | { kind: 'irt'; items: string[]; model: IrtModel }
   | { kind: 'lca'; items: string[]; from: number; to: number }
   | ({ kind: 'lmm' } & LmmInput)
-  | ({ kind: 'gmm' } & GmmInput)
+  | ({ kind: 'gmm' } & GmmOptions)
   | ({ kind: 'endo' } & EndoPreset)
   | ({ kind: 'match' } & MatchPreset)
   | ({ kind: 'rsa' } & RsaPreset)
@@ -311,7 +312,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     links: [{ label: '?hlme', url: 'https://rdrr.io/cran/lcmm/man/hlme.html' }, { label: '?gridsearch', url: 'https://rdrr.io/cran/lcmm/man/gridsearch.html' }, { label: '?data_hlme', url: 'https://rdrr.io/cran/lcmm/man/data_hlme.html' }],
     description: 'Simulated repeated measures of 100 people (long format): one to three classes of linear change with random intercepts and slopes, X1 as a covariate. The help page also lets X1 change the slope and predicts class membership from X2 and X3. Opens Longitudinal models.',
     data: { package: 'lcmm', name: 'data_hlme' }, constructs: [], paths: [],
-    panel: { kind: 'gmm', format: 'long', subject: 'ID', time: 'Time', outcome: 'Y', covariates: ['X1'], shape: 'linear', random: 'slope', classes: [1, 2, 3], nrep: 30, seed: 1 }, settings: CB('ML'),
+    panel: { kind: 'gmm', format: 'long', measures: [], times: [], subject: 'ID', time: 'Time', outcome: 'Y', covariates: ['X1'], shape: 'linear', random: 'slope', to: 3, nrep: 30 }, settings: CB('ML'),
   },
   {
     id: 'csem-threecf', package: 'cSEM', title: 'Three common factors (PLSc)', source: 'cSEM, ?threecommonfactors',

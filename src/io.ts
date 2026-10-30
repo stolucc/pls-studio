@@ -327,13 +327,6 @@ export async function loadPackageExample(id: string) {
         const { kind, ...preset } = p;
         addAnalysis(kind, preset);
         useStore.getState().setWorkspace('analyses');
-      } else if (p.kind === 'growth') {
-        const { useLong } = await import('./components/LongitudinalPanel');
-        useLong.setState({ open: true, growth: null, preset: { growth: { measures: p.measures, times: p.times, shape: p.shape, covariates: p.covariates } } });
-      } else if (p.kind === 'gmm') {
-        const { useLong } = await import('./components/LongitudinalPanel');
-        const { kind: _k, ...gmm } = p;
-        useLong.setState({ open: true, gmm: null, preset: { gmm } });
       }
       useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} ${analysisType(p.kind) ? 'Press Run on the card.' : 'Press Estimate.'}`);
       return;

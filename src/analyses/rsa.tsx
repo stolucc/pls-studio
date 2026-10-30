@@ -6,7 +6,7 @@ import { fmt } from '../format';
 import type { RsaInput, RsaResult } from '../rengine/rsa';
 import { useStore } from '../store';
 import { ChartFrame } from '../components/ChartFrame';
-import { OrderedPicker } from '../components/LongitudinalPanel';
+import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
 import { freeColumnName } from '../components/SegmentationPanel';
 import { Choice, clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { fmt } from '../format';
 import type { MatchInput, MatchMethod, MatchResult } from '../rengine/match';
 import { ChartFrame } from '../components/ChartFrame';
-import { OrderedPicker } from '../components/LongitudinalPanel';
+import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
 import { clampNum, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisType, OptionsProps } from './types';

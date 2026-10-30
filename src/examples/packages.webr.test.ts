@@ -23,6 +23,7 @@ import { irtR, lcaR } from '../rengine/items';
 import { estimateCbLavaan } from '../rengine/lavaan';
 import { growthR } from '../rengine/longitudinal';
 import { gmmR, lmmR } from '../rengine/mixed';
+import { gmmInput } from '../analyses/longitudinal';
 import { fimixR, pathmoxR, rebusR } from '../rengine/segment';
 import { estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
@@ -112,9 +113,9 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         expect(r.fixed.find((f) => f.term === 'Days')!.est).toBeCloseTo(10.4673, 3);  // ?lmer: fixef(fm1)
         expect(r.clusters).toBe(18);
       } else if (p.kind === 'gmm') {
-        const { kind: _k, ...input } = p;
-        const r = await gmmR(data, input);
-        expect(r.models.map((m) => m.k)).toEqual(input.classes);
+        const { kind: _k, ...options } = p;
+        const r = await gmmR(data, gmmInput(options, 1));
+        expect(r.models.map((m) => m.k)).toEqual([1, 2, 3]);
         expect(r.n).toBe(100);
       } else if (p.kind === 'growth') {
         const r = await growthR(data, { ...p, estimator: 'ML', missing: st.missing });

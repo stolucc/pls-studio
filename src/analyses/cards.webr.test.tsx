@@ -142,3 +142,26 @@ it('item response theory (ltm) and latent classes (poLCA)', async () => {
   lca.result.models.forEach((m, i) => expect(m.bic).toBeCloseTo(ref.lca[i].bic, 3));
   expect(lca.html).toContain('Number of classes');
 }, 900_000);
+
+it('latent growth curve and RI-CLPM (lavaan), growth mixture (lcmm)', async () => {
+  const dir = join(__dirname, '..', 'engine', '__fixtures__', 'longitudinal');
+  const ref = JSON.parse(readFileSync(join(dir, 'longitudinal.json'), 'utf8'));
+  const load = (f: string) => parseCsv(readFileSync(join(dir, f), 'utf8')).dataset;
+  const cb = () => useStore.getState().setSettings({ estimator: 'ML', missing: 'casewise' });
+  const growth = await runAsCard<{ impliedMeans: number[]; input: { estimator: string } }>('growth', load('demo_growth.csv'), { measures: ['t1', 't2', 't3', 't4'], shape: 'linear' }, cb);
+  growth.result.impliedMeans.forEach((m, i) => expect(m).toBeCloseTo(ref.impliedMeansLinear[i], 5));
+  expect(growth.result.input.estimator).toBe('ML');
+  expect(growth.html).toContain('Growth factors');
+  const ri = await runAsCard<{ comparison: { chisqDiff: number } }>('riclpm', load('panel.csv'), { x: ['x1', 'x2', 'x3', 'x4'], y: ['y1', 'y2', 'y3', 'y4'] }, cb);
+  expect(ri.result.comparison.chisqDiff).toBeCloseTo(ref.clpmVsRiclpm.chisqDiff, 3);
+  expect(ri.html).toContain('Within-person lagged effects');
+
+  const mdir = join(__dirname, '..', 'engine', '__fixtures__', 'mixed');
+  const mref = JSON.parse(readFileSync(join(mdir, 'reference.json'), 'utf8'));
+  const hlme = parseCsv(readFileSync(join(mdir, 'data_hlme.csv'), 'utf8')).dataset;
+  const gmm = await runAsCard<{ models: { k: number; logLik: number }[] }>('gmm', hlme,
+    { format: 'long', subject: 'ID', time: 'Time', outcome: 'Y', covariates: ['X1'], shape: 'linear', random: 'slope', to: 2, nrep: 50 },
+    () => useStore.getState().setSettings({ seed: 1 }));
+  for (const m of gmm.result.models) expect(m.logLik, `k = ${m.k}`).toBeCloseTo(mref.gmm.models[String(m.k)].logLik, 2);
+  expect(gmm.html).toContain('Number of classes');
+}, 1_800_000);

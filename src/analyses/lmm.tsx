@@ -4,7 +4,7 @@
 import { fmt } from '../format';
 import type { LmmInput, LmmResult } from '../rengine/mixed';
 import { ChartFrame } from '../components/ChartFrame';
-import { OrderedPicker } from '../components/LongitudinalPanel';
+import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
 import { Choice, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisType, OptionsProps } from './types';

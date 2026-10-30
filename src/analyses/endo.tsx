@@ -3,7 +3,7 @@
 // on PLS construct scores (Hult et al. 2018).
 
 import type { EndoCoef, EndoInput, EndoMethod, EndoResult, HmType } from '../rengine/endo';
-import { OrderedPicker } from '../components/LongitudinalPanel';
+import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { ColumnSelect, isObj, name, names, oneOf, sourceData, sourceFingerprint } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';

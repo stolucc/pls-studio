@@ -5,7 +5,7 @@ import type { Dataset } from '../engine/types';
 import { fmt } from '../format';
 import { bottleneckText, type NcaCondition, type NcaResult } from '../rengine/nca';
 import { ChartFrame } from '../components/ChartFrame';
-import { OrderedPicker } from '../components/LongitudinalPanel';
+import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
 import { fingerprint } from './codec';
 import type { AnalysisCtx, AnalysisType } from './types';
