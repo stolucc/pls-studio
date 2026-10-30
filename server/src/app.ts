@@ -79,8 +79,11 @@ export function createApp(deps: AppDeps) {
     crossOriginEmbedderPolicy: { policy: 'require-corp' },
   }));
 
+  app.use('/api', rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
+
   // Liveness + database check for the deploy scripts and monitoring. Registered
-  // before the session middleware so probes never create session rows.
+  // before the session middleware so probes never create session rows (but
+  // after the rate limiter: it is unauthenticated and queries the database).
   app.get('/api/health', h(async (_req, res) => {
     await deps.db.query('SELECT 1');
     res.set('Cache-Control', 'no-store').json({ ok: true });
@@ -98,8 +101,6 @@ export function createApp(deps: AppDeps) {
   });
   app.use(sessionMiddleware);
   (app as unknown as { sessionMiddleware: typeof sessionMiddleware }).sessionMiddleware = sessionMiddleware;
-
-  app.use('/api', rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
 
   // CSRF: a per-session token, delivered by GET /api/auth/session (and the csrf-token
   // cookie), required in X-CSRF-Token on every state-changing request — login included.

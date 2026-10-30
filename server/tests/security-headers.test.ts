@@ -23,3 +23,11 @@ describe('cross-origin isolation', () => {
     expect(res.headers['cross-origin-embedder-policy']).toBe('require-corp');
   });
 });
+
+describe('rate limiting', () => {
+  it('covers the unauthenticated health probe too', async () => {
+    const res = await (await agent(env)).get('/api/health');
+    expect(res.status).toBe(200);
+    expect(res.headers['ratelimit']).toBeDefined();
+  });
+});

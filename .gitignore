@@ -8,3 +8,8 @@ public/webr.next/
 public/webr.old/
 reports/
 .stryker-tmp/
+# local secrets and release artefacts (never committed)
+.env
+.env.*
+*.dmg
+SHA256SUMS
