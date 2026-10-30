@@ -262,6 +262,12 @@
    "url": "https://cran.r-project.org/package=boot"
   },
   {
+   "name": "bootnet",
+   "version": "1.9.1",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=bootnet"
+  },
+  {
    "name": "broom",
    "version": "1.0.13",
    "license": "MIT + file LICENSE",
@@ -310,6 +316,12 @@
    "url": "https://cran.r-project.org/package=checkmate"
   },
   {
+   "name": "class",
+   "version": "7.3-24",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=class"
+  },
+  {
    "name": "cli",
    "version": "3.6.6",
    "license": "MIT + file LICENSE",
@@ -322,10 +334,34 @@
    "url": "https://cran.r-project.org/package=clipr"
   },
   {
+   "name": "clue",
+   "version": "0.3-68",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=clue"
+  },
+  {
+   "name": "cluster",
+   "version": "2.1.8.3",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=cluster"
+  },
+  {
    "name": "cobalt",
    "version": "5.0.0",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=cobalt"
+  },
+  {
+   "name": "cocor",
+   "version": "1.1-4",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=cocor"
+  },
+  {
+   "name": "coda",
+   "version": "0.19-4.1",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=coda"
   },
   {
    "name": "codetools",
@@ -350,6 +386,12 @@
    "version": "1.6.10",
    "license": "GPL (>= 3)",
    "url": "https://cran.r-project.org/package=corpcor"
+  },
+  {
+   "name": "corrplot",
+   "version": "0.95",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=corrplot"
   },
   {
    "name": "cowplot",
@@ -400,6 +442,12 @@
    "url": "https://cran.r-project.org/package=DBI"
   },
   {
+   "name": "dendextend",
+   "version": "1.19.1",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=dendextend"
+  },
+  {
    "name": "Deriv",
    "version": "4.3.5",
    "license": "GPL (>= 3)",
@@ -448,6 +496,30 @@
    "url": "https://cran.r-project.org/package=dplyr"
   },
   {
+   "name": "e1071",
+   "version": "1.7-17",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=e1071"
+  },
+  {
+   "name": "EGAnet",
+   "version": "2.4.1",
+   "license": "AGPL (>= 3.0)",
+   "url": "https://cran.r-project.org/package=EGAnet"
+  },
+  {
+   "name": "eigenmodel",
+   "version": "1.12",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=eigenmodel"
+  },
+  {
+   "name": "ellipse",
+   "version": "0.5.0",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=ellipse"
+  },
+  {
    "name": "evaluate",
    "version": "1.0.5",
    "license": "MIT + file LICENSE",
@@ -476,6 +548,12 @@
    "version": "1.2.0",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=fastmap"
+  },
+  {
+   "name": "fdrtool",
+   "version": "1.2.18",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=fdrtool"
   },
   {
    "name": "flexmix",
@@ -544,6 +622,12 @@
    "url": "https://cran.r-project.org/package=future.apply"
   },
   {
+   "name": "gdata",
+   "version": "3.0.1",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=gdata"
+  },
+  {
    "name": "generics",
    "version": "0.1.4",
    "license": "MIT + file LICENSE",
@@ -556,16 +640,56 @@
    "url": "https://cran.r-project.org/package=genpathmox"
   },
   {
+   "name": "GGally",
+   "version": "2.4.0",
+   "license": "GPL (>= 2.0)",
+   "url": "https://cran.r-project.org/package=GGally"
+  },
+  {
    "name": "ggplot2",
    "version": "4.0.3",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=ggplot2"
   },
   {
+   "name": "ggpubr",
+   "version": "1.0.0",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=ggpubr"
+  },
+  {
    "name": "ggrepel",
    "version": "0.9.8",
    "license": "GPL-3 | file LICENSE",
    "url": "https://cran.r-project.org/package=ggrepel"
+  },
+  {
+   "name": "ggsci",
+   "version": "5.2.0",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=ggsci"
+  },
+  {
+   "name": "ggsignif",
+   "version": "0.6.4",
+   "license": "GPL-3 | file LICENSE",
+   "url": "https://cran.r-project.org/package=ggsignif"
+  },
+  {
+   "name": "ggstats",
+   "version": "0.14.0",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=ggstats"
+  },
+  {
+   "name": "glasso",
+   "version": "1.11",
+   "url": "https://cran.r-project.org/package=glasso"
+  },
+  {
+   "name": "glassoFast",
+   "version": "1.0.1",
+   "url": "https://cran.r-project.org/package=glassoFast"
   },
   {
    "name": "glmnet",
@@ -634,10 +758,22 @@
    "url": "https://cran.r-project.org/package=highr"
   },
   {
+   "name": "Hmisc",
+   "version": "5.3-0",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=Hmisc"
+  },
+  {
    "name": "hms",
    "version": "1.1.4",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=hms"
+  },
+  {
+   "name": "htmlTable",
+   "version": "2.5.0",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=htmlTable"
   },
   {
    "name": "htmltools",
@@ -670,6 +806,18 @@
    "url": "https://cran.r-project.org/package=insight"
   },
   {
+   "name": "IsingFit",
+   "version": "0.4",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=IsingFit"
+  },
+  {
+   "name": "IsingSampler",
+   "version": "0.5.0",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=IsingSampler"
+  },
+  {
    "name": "isoband",
    "version": "0.3.0",
    "license": "MIT + file LICENSE",
@@ -692,6 +840,12 @@
    "version": "2.7-6",
    "license": "GPL-2",
    "url": "https://cran.r-project.org/package=jomo"
+  },
+  {
+   "name": "jpeg",
+   "version": "0.1-11",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=jpeg"
   },
   {
    "name": "jquerylib",
@@ -814,6 +968,12 @@
    "url": "https://cran.r-project.org/package=magrittr"
   },
   {
+   "name": "mantar",
+   "version": "0.3.1",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=mantar"
+  },
+  {
    "name": "manymome",
    "version": "0.3.7",
    "license": "GPL (>= 3)",
@@ -842,6 +1002,12 @@
    "version": "4.8.1",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=MatchIt"
+  },
+  {
+   "name": "mathjaxr",
+   "version": "2.0-0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=mathjaxr"
   },
   {
    "name": "Matrix",
@@ -884,6 +1050,12 @@
    "version": "1.9-4",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=mgcv"
+  },
+  {
+   "name": "mgm",
+   "version": "1.2-15",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=mgm"
   },
   {
    "name": "mice",
@@ -982,6 +1154,24 @@
    "url": "https://cran.r-project.org/package=NCA"
   },
   {
+   "name": "network",
+   "version": "1.20.0",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=network"
+  },
+  {
+   "name": "NetworkToolbox",
+   "version": "1.4.4",
+   "license": "GPL (>= 3.0)",
+   "url": "https://cran.r-project.org/package=NetworkToolbox"
+  },
+  {
+   "name": "networktools",
+   "version": "1.6.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=networktools"
+  },
+  {
    "name": "nleqslv",
    "version": "3.3.7",
    "license": "GPL (>= 2)",
@@ -1004,6 +1194,12 @@
    "version": "7.3-21",
    "license": "GPL-2 | GPL-3",
    "url": "https://cran.r-project.org/package=nnet"
+  },
+  {
+   "name": "nnls",
+   "version": "1.6",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=nnls"
   },
   {
    "name": "numDeriv",
@@ -1066,6 +1262,12 @@
    "url": "https://cran.r-project.org/package=partitions"
   },
   {
+   "name": "patchwork",
+   "version": "1.3.2",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=patchwork"
+  },
+  {
    "name": "pbapply",
    "version": "1.7-5",
    "license": "GPL (>= 2)",
@@ -1102,6 +1304,12 @@
    "url": "https://cran.r-project.org/package=plotly"
   },
   {
+   "name": "plotrix",
+   "version": "3.8-14",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=plotrix"
+  },
+  {
    "name": "plspm",
    "version": "0.6.0",
    "license": "GPL-3",
@@ -1112,6 +1320,12 @@
    "version": "1.8.9",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=plyr"
+  },
+  {
+   "name": "png",
+   "version": "0.1-8",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=png"
   },
   {
    "name": "poLCA",
@@ -1132,10 +1346,28 @@
    "url": "https://cran.r-project.org/package=polynom"
   },
   {
+   "name": "ppcor",
+   "version": "1.1",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=ppcor"
+  },
+  {
    "name": "pracma",
    "version": "2.4.6",
    "license": "GPL (>= 3)",
    "url": "https://cran.r-project.org/package=pracma"
+  },
+  {
+   "name": "prettyunits",
+   "version": "1.2.0",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=prettyunits"
+  },
+  {
+   "name": "progress",
+   "version": "1.2.3",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=progress"
   },
   {
    "name": "progressr",
@@ -1150,6 +1382,12 @@
    "url": "https://cran.r-project.org/package=promises"
   },
   {
+   "name": "proxy",
+   "version": "0.4-29",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=proxy"
+  },
+  {
    "name": "psych",
    "version": "2.6.9",
    "license": "GPL (>= 2)",
@@ -1160,6 +1398,18 @@
    "version": "1.2.2",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=purrr"
+  },
+  {
+   "name": "pwr",
+   "version": "1.3-0",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=pwr"
+  },
+  {
+   "name": "qgraph",
+   "version": "1.10.1",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=qgraph"
   },
   {
    "name": "qrng",
@@ -1178,6 +1428,30 @@
    "version": "6.1",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=quantreg"
+  },
+  {
+   "name": "R.matlab",
+   "version": "3.8.1",
+   "license": "LGPL (>= 2.1)",
+   "url": "https://cran.r-project.org/package=R.matlab"
+  },
+  {
+   "name": "R.methodsS3",
+   "version": "1.8.2",
+   "license": "LGPL (>= 2.1)",
+   "url": "https://cran.r-project.org/package=R.methodsS3"
+  },
+  {
+   "name": "R.oo",
+   "version": "1.27.1",
+   "license": "LGPL (>= 2.1)",
+   "url": "https://cran.r-project.org/package=R.oo"
+  },
+  {
+   "name": "R.utils",
+   "version": "2.13.0",
+   "license": "LGPL (>= 2.1)",
+   "url": "https://cran.r-project.org/package=R.utils"
   },
   {
    "name": "R6",
@@ -1240,6 +1514,12 @@
    "url": "https://cran.r-project.org/package=rematch"
   },
   {
+   "name": "reshape2",
+   "version": "1.4.5",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=reshape2"
+  },
+  {
    "name": "RhpcBLASctl",
    "version": "0.23-42",
    "license": "AGPL-3",
@@ -1280,6 +1560,12 @@
    "version": "3.53.3",
    "license": "LGPL (>= 2.1)",
    "url": "https://cran.r-project.org/package=RSQLite"
+  },
+  {
+   "name": "rstatix",
+   "version": "1.1.0",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=rstatix"
   },
   {
    "name": "rstudioapi",
@@ -1336,6 +1622,12 @@
    "url": "https://cran.r-project.org/package=seminr"
   },
   {
+   "name": "semPlot",
+   "version": "1.2.0",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=semPlot"
+  },
+  {
    "name": "semTools",
    "version": "0.5-10",
    "license": "GPL (>= 2)",
@@ -1354,6 +1646,24 @@
    "url": "https://cran.r-project.org/package=shape"
   },
   {
+   "name": "smacof",
+   "version": "2.1-7",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=smacof"
+  },
+  {
+   "name": "sna",
+   "version": "2.8",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=sna"
+  },
+  {
+   "name": "snow",
+   "version": "0.4-4",
+   "license": "GPL",
+   "url": "https://cran.r-project.org/package=snow"
+  },
+  {
    "name": "spacefillr",
    "version": "0.4.0",
    "license": "MIT + file LICENSE",
@@ -1364,6 +1674,12 @@
    "version": "1.84-2",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=SparseM"
+  },
+  {
+   "name": "statnet.common",
+   "version": "4.13.0",
+   "license": "GPL-3 + file LICENSE",
+   "url": "https://cran.r-project.org/package=statnet.common"
   },
   {
    "name": "stringi",
@@ -1498,6 +1814,12 @@
    "url": "https://cran.r-project.org/package=VGAM"
   },
   {
+   "name": "viridis",
+   "version": "0.6.5",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=viridis"
+  },
+  {
    "name": "viridisLite",
    "version": "0.4.3",
    "license": "MIT + file LICENSE",
@@ -1522,10 +1844,22 @@
    "url": "https://cran.r-project.org/package=WeightIt"
   },
   {
+   "name": "weights",
+   "version": "1.1.2",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=weights"
+  },
+  {
    "name": "withr",
    "version": "3.0.3",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=withr"
+  },
+  {
+   "name": "wordcloud",
+   "version": "2.6",
+   "license": "LGPL-2.1",
+   "url": "https://cran.r-project.org/package=wordcloud"
   },
   {
    "name": "xfun",

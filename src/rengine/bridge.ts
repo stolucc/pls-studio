@@ -19,13 +19,14 @@ import plsR from './R/pls.R?raw';
 import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import screenR from './R/screen.R?raw';
+import networkR from './R/network.R?raw';
 import segmentR from './R/segment.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR };
+export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -62,6 +63,8 @@ export const R_PACKAGES = {
   semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],
   // Reading SPSS, Stata and Excel files.
   readData: ['jsonlite', 'haven', 'readxl'],
+  bootnet: ['jsonlite', 'bootnet', 'qgraph'],
+  EGAnet: ['jsonlite', 'EGAnet'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

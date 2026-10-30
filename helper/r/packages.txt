@@ -1,7 +1,9 @@
+EGAnet
 GPArotation
 MIIVsem
 MatchIt
 WeightIt
+bootnet
 cSEM
 cobalt
 corpcor
@@ -27,6 +29,7 @@ optmatch
 plspm
 poLCA
 psych
+qgraph
 readxl
 rsem
 sampleSelection

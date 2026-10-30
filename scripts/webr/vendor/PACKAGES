@@ -1,0 +1,17 @@
+Package: glasso
+Version: 1.11
+NeedsCompilation: yes
+Built: R 4.6.0; emscripten; 2026-10-28 07:44:17 UTC; unix
+Filesize: 127299
+SHA256: 0d01dee6ecb098ed24fd684cb51cd5e2ad84fc1540a17c9d4cc991c01fb0b033
+Path: glasso_1.11.tgz?sha256=0d01dee6ecb098ed24fd684cb51cd5e2ad84fc1540a17c9d4cc991c01fb0b033&file=
+
+Package: glassoFast
+Version: 1.0.1
+NeedsCompilation: yes
+Built: R 4.6.0; emscripten; 2026-10-28 08:32:16 UTC; unix
+Filesize: 118771
+SHA256: 6f8d56a92e59e6a5f88fc6859b369edddf2ed4651eb3bc441ff72ae134b5f19e
+Suggests: glasso, rbenchmark
+Path: glassoFast_1.0.1.tgz?sha256=6f8d56a92e59e6a5f88fc6859b369edddf2ed4651eb3bc441ff72ae134b5f19e&file=
+

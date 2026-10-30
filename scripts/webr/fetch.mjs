@@ -31,7 +31,18 @@ const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://gi
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
 /** Packages the app calls directly. */
-const ROOTS = ['lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl'];
+const ROOTS = ['lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet'];
+/**
+ * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES
+ * stanzas) instead of downloaded from repo.r-wasm.org. glasso and glassoFast
+ * there were built (2026-05-13) before webR 0.6.0's Fortran compiler fix: glasso
+ * crashes and glassoFast returns wrong results (r-wasm/webr#633). These are
+ * r-universe's rebuilds of the same versions (2026-10-28), checked against
+ * native R; vendored because r-universe keeps only its latest build.
+ */
+const VENDOR = join(ROOT, 'scripts', 'webr', 'vendor');
+const vendored = () => new Map(parsePackages(readFileSync(join(VENDOR, 'PACKAGES'), 'utf8')).map((s) => [s.Package, s]));
+
 /** Shipped inside webR itself. */
 const BASE = new Set(['R', 'base', 'compiler', 'datasets', 'graphics', 'grDevices', 'grid', 'methods', 'parallel', 'splines', 'stats', 'stats4', 'tcltk', 'tools', 'translations', 'utils', 'webr']);
 /** webR runtime files needed next to the page (the JS API itself is bundled from the npm package). */
@@ -62,12 +73,13 @@ async function get(url) {
 /** The dependency closure of ROOTS. Packages in `pinned` keep their locked stanza (and so their dependencies). */
 async function resolve(pinned = {}) {
   const index = new Map(parsePackages((await get(`${REPO}/PACKAGES`)).toString('utf8')).map((s) => [s.Package, s]));
+  const own = vendored();
   const want = new Map();
   const stack = [...ROOTS];
   while (stack.length) {
     const name = stack.pop();
     if (want.has(name)) continue;
-    const s = pinned[name]?.stanza ?? index.get(name);
+    const s = pinned[name]?.stanza ?? own.get(name) ?? index.get(name);
     if (!s) throw new Error(`Package ${name} is not in the webR repository for R ${R_VERSION}.`);
     want.set(name, s);
     stack.push(...deps(s));
@@ -87,9 +99,10 @@ async function main() {
     for (const s of stanzas) {
       if (pinned[s.Package]) { packages[s.Package] = pinned[s.Package]; continue; }
       if (adding) console.log(`adding ${s.Package} ${s.Version}`);
-      const sum = md5(await get(`${REPO}/${s.Package}_${s.Version}.tgz`));
-      if (sum !== s.MD5sum) console.warn(`note: ${s.Package} ${s.Version}: index MD5 ${s.MD5sum} is stale, pinning the served file ${sum}`);
-      packages[s.Package] = { version: s.Version, md5: sum, license: s.License, stanza: { ...s, MD5sum: sum } };
+      const isVendored = vendored().has(s.Package);
+      const sum = md5(isVendored ? readFileSync(join(VENDOR, `${s.Package}_${s.Version}.tgz`)) : await get(`${REPO}/${s.Package}_${s.Version}.tgz`));
+      if (!isVendored && sum !== s.MD5sum) console.warn(`note: ${s.Package} ${s.Version}: index MD5 ${s.MD5sum} is stale, pinning the served file ${sum}`);
+      packages[s.Package] = { version: s.Version, md5: sum, license: s.License, ...(isVendored ? { vendored: true } : {}), stanza: { ...s, MD5sum: sum } };
     }
     lock = { webr: webrPkg.version, r: R_VERSION, packages };
     writeFileSync(LOCK, JSON.stringify(lock, null, 2) + '\n');
@@ -120,7 +133,8 @@ async function main() {
   let bytes = 0;
   for (const [name, p] of entries) {
     const file = `${name}_${p.version}.tgz`;
-    const buf = await get(`${REPO}/${file}`).catch((e) => { throw new Error(`${e.message}\nThe pinned version may have left the repository; run with --update.`); });
+    const buf = p.vendored ? readFileSync(join(VENDOR, file))
+      : await get(`${REPO}/${file}`).catch((e) => { throw new Error(`${e.message}\nThe pinned version may have left the repository; run with --update.`); });
     if (md5(buf) !== p.md5) throw new Error(`${file}: MD5 mismatch (expected ${p.md5}, got ${md5(buf)}).`);
     writeFileSync(join(contrib, file), buf);
     bytes += buf.length;
@@ -133,7 +147,7 @@ async function main() {
   writeFileSync(join(OUT, 'LICENSES.md'), [
     '# R packages shipped with PLS Studio',
     '',
-    `Binaries built for webR ${lock.webr} (R ${lock.r}) by the webR project (repo.r-wasm.org). Source code of each exact version is on CRAN.`,
+    `Binaries built for webR ${lock.webr} (R ${lock.r}) by the webR project (repo.r-wasm.org); ${entries.filter(([, p]) => p.vendored).map(([n]) => n).join(', ') || 'none'} built by r-universe (cran.r-universe.dev; see scripts/webr/fetch.mjs). Source code of each exact version is on CRAN.`,
     '',
     '| Package | Version | Licence | Source |',
     '|---|---|---|---|',

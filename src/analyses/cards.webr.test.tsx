@@ -240,3 +240,17 @@ it('CB-SEM extras on the model on the canvas: parameter comparisons and factor s
   expect(w.result.factors).toEqual(['visual', 'textual', 'speed']);
   expect(w.html).toContain('Factor score weights (regression)');
 }, 900_000);
+
+it('network analysis (bootnet) and EGA (EGAnet) as cards', async () => {
+  const { rCall } = await import('../rengine/bridge');
+  const load = async (pkg: 'psych' | 'EGAnet', name: string) => {
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: pkg, name, na: [] }, pkg);
+    return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  };
+  const net = await runAsCard<{ names: string[] }>('network', await load('psych', 'bfi'), { vars: ['A1', 'A2', 'A3', 'C1', 'C2', 'C3'], corMethod: 'cor' });
+  expect(net.result.names).toHaveLength(6);
+  expect(net.html).toContain('Centrality');
+  const ega = await runAsCard<{ dims: number }>('ega', await load('EGAnet', 'wmt2'), { vars: Array.from({ length: 18 }, (_, i) => `wmt${i + 1}`) });
+  expect(ega.result.dims).toBe(2);
+  expect(ega.html).toContain('Dimensions: 2');
+}, 900_000);

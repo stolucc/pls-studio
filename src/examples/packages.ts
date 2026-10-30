@@ -16,11 +16,12 @@ import type { MatchPreset } from '../analyses/match';
 import type { RsaPreset } from '../analyses/rsa';
 import type { EfaPreset } from '../analyses/efa';
 import type { DataFileFormat } from '../data/readFile';
+import type { EgaOptions, NetworkOptions } from '../analyses/network';
 import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 
-export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl'];
+export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -42,7 +43,9 @@ export type ExamplePanel =
   | ({ kind: 'rsa' } & RsaPreset)
   | ({ kind: 'nca' } & NcaPreset)
   | ({ kind: 'efa' } & EfaPreset)
-  | { kind: 'screen'; vars: string[] };
+  | { kind: 'screen'; vars: string[] }
+  | ({ kind: 'network' } & Partial<NetworkOptions>)
+  | ({ kind: 'ega' } & Partial<EgaOptions>);
 
 export interface PackageExample {
   id: string;
@@ -535,6 +538,20 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'readxl', name: 'datasets.xlsx', packageFile: { path: 'extdata/datasets.xlsx', format: 'xlsx', sheet: 'mtcars' } }, constructs: [], paths: [],
     panel: { kind: 'screen', vars: ['mpg', 'disp', 'hp', 'drat', 'wt', 'qsec'] }, settings: CB('ML'),
   },
+  {
+    id: 'bootnet-bfi', package: 'bootnet', title: 'Big Five items as a network', source: 'bootnet, ?estimateNetwork (psych::bfi)',
+    links: [{ label: '?estimateNetwork', url: 'https://rdrr.io/cran/bootnet/man/estimateNetwork.html' }, { label: 'Epskamp, Borsboom & Fried (2018)', url: 'https://doi.org/10.3758/s13428-017-0862-1' }],
+    description: 'The 25 Big Five items of psych’s bfi (2800 people) as a regularised partial-correlation network (EBICglasso), as on bootnet’s help page: the five traits appear as clusters of items; centrality shows which items are most connected. Opens its card on the Analyses tab.',
+    data: { package: 'psych', name: 'bfi' }, constructs: [], paths: [],
+    panel: { kind: 'network', vars: ['A1', 'A2', 'A3', 'A4', 'A5', 'C1', 'C2', 'C3', 'C4', 'C5', 'E1', 'E2', 'E3', 'E4', 'E5', 'N1', 'N2', 'N3', 'N4', 'N5', 'O1', 'O2', 'O3', 'O4', 'O5'], estimator: 'EBICglasso', corMethod: 'cor_auto', missing: 'pairwise' }, settings: CB('ML'),
+  },
+  {
+    id: 'eganet-wmt2', package: 'EGAnet', title: 'Wiener Matrizen-Test: how many dimensions?', source: 'EGAnet, ?EGA (wmt2)',
+    links: [{ label: '?EGA', url: 'https://r-ega.net/reference/EGA.html' }, { label: 'Golino & Epskamp (2017)', url: 'https://doi.org/10.1371/journal.pone.0174035' }],
+    description: 'Eighteen items of the Wiener Matrizen-Test 2 (1019 people), as in EGAnet’s help example: exploratory graph analysis finds the dimensions as communities of the item network, with network loadings. Opens its card on the Analyses tab.',
+    data: { package: 'EGAnet', name: 'wmt2' }, constructs: [], paths: [],
+    panel: { kind: 'ega', vars: ['wmt1', 'wmt2', 'wmt3', 'wmt4', 'wmt5', 'wmt6', 'wmt7', 'wmt8', 'wmt9', 'wmt10', 'wmt11', 'wmt12', 'wmt13', 'wmt14', 'wmt15', 'wmt16', 'wmt17', 'wmt18'], model: 'glasso', algorithm: 'walktrap', corr: 'auto' }, settings: CB('ML'),
+  },
 ];
 
 /** The data columns a panel example uses. */
@@ -550,6 +567,7 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'nca': return [...p.x, p.y];
     case 'efa': return p.vars ?? [];
     case 'screen': return p.vars;
+    case 'network': case 'ega': return p.vars ?? [];
   }
 }
 
