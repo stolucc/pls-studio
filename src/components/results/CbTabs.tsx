@@ -263,10 +263,17 @@ function Effects({ cb, boot }: { cb: CbResult; boot: BootstrapResult | null }) {
 }
 
 function Reliability({ cb }: { cb: CbResult }) {
+  // semTools' omega and alpha come with the R engine.
+  const model = cb.reliability.some((r) => r.omega !== undefined || r.alpha !== undefined);
   return (
-    <Table title="Reliability and convergent validity" file="cb-reliability" columns={['Factor', 'Composite reliability', 'AVE']}
-      rows={cb.constructs.map((n, j) => [c(n), c(cb.reliability[j].cr, cb.reliability[j].cr >= 0.7 ? 'good' : 'warn'), c(cb.reliability[j].ave, cb.reliability[j].ave >= 0.5 ? 'good' : 'bad')])}
-      note="From standardised loadings: CR = (Σλ)² / ((Σλ)² + Σ(1−λ²)), AVE = mean λ²." />
+    <Table title="Reliability and convergent validity" file="cb-reliability"
+      columns={['Factor', 'Composite reliability', 'AVE', ...(model ? ['ω (semTools)', 'α'] : [])]}
+      rows={cb.constructs.map((n, j) => {
+        const r = cb.reliability[j];
+        return [c(n), c(r.cr, r.cr >= 0.7 ? 'good' : 'warn'), c(r.ave, r.ave >= 0.5 ? 'good' : 'bad'),
+          ...(model ? [c(r.omega ?? null, r.omega === undefined ? '' : r.omega >= 0.7 ? 'good' : 'warn'), c(r.alpha ?? null, r.alpha === undefined ? '' : r.alpha >= 0.7 ? 'good' : 'warn')] : [])];
+      })}
+      note={`From standardised loadings: CR = (Σλ)² / ((Σλ)² + Σ(1−λ²)), AVE = mean λ².${model ? ' ω: the model-based reliability of each factor’s indicator sum (semTools::compRelSEM; residual covariances and ordinal indicators taken into account, total variance from the unrestricted model); α: coefficient alpha of the same sum.' : ''}`} />
   );
 }
 

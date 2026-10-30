@@ -74,7 +74,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     stdLoadings: (raw.stdLoadings as unknown[]).map(num),
     stdPaths: mat(raw.stdPaths), hasPath: raw.hasPath, stdTotal: mat(raw.stdTotal), stdIndirect: mat(raw.stdIndirect),
     lvCor: mat(raw.lvCor),
-    reliability: (raw.reliability as any[]).map((r) => ({ cr: num(r.cr), ave: num(r.ave) })),
+    reliability: (raw.reliability as any[]).map((r) => ({ cr: num(r.cr), ave: num(r.ave), ...(typeof r.omega === 'number' ? { omega: r.omega } : {}), ...(typeof r.alpha === 'number' ? { alpha: r.alpha } : {}) })),
     residualCor: mat(raw.residualCor),
     htmt: (raw.htmt as (number | null)[][]),
     htmt2: (raw.htmt2 as (number | null)[][]),

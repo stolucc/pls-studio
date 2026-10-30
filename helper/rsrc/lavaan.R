@@ -324,10 +324,21 @@ ps_cb <- function(req_json, export = FALSE) {
     lvcor <- matrix(NA_real_, K, K, dimnames = list(lvn, lvn))
     have <- intersect(lvn, rownames(call))
     lvcor[have, have] <- call[have, have]
+    # semTools::compRelSEM: model-based omega (correlated errors and ordinal indicators accounted for)
+    # and coefficient alpha, of each first-order factor's indicator sum; one value per group.
+    # (Not for two-level models, whose reliability is level-specific.)
+    omega <- if (levels2) NULL else tryCatch(semTools::compRelSEM(fit), error = function(e) NULL)
+    alpha <- if (levels2) NULL else tryCatch(semTools::compRelSEM(fit, tau.eq = TRUE), error = function(e) NULL)
+    per_group <- function(x, name) {
+      v <- if (is.list(x)) x[[name]] else NULL
+      if (is.null(v)) return(NULL)
+      v <- as.numeric(unclass(v))
+      if (length(v) > 1) v[if (is.null(g)) 1 else group_of(g)] else v
+    }
     rel <- lapply(seq_len(K), function(j) {
       l <- std_load[ind_con == j - 1]
       if (!length(l) || (j <= k0 && length(comps[[j]]))) return(list(cr = NULL, ave = NULL))
-      list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2))
+      list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2), omega = per_group(omega, lv_lname[j]), alpha = per_group(alpha, lv_lname[j]))
     })
     rr <- lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
     res <- (if (is.null(g)) rr$cov else rr[[g]]$cov)[ind_v, ind_v]

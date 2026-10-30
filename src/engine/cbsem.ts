@@ -93,7 +93,8 @@ export interface CbResult {
   stdIndirect: number[][];
   /** Model-implied factor correlations. */
   lvCor: number[][];
-  reliability: { cr: number; ave: number }[];
+  /** cr, ave from the standardised loadings; omega, alpha: semTools::compRelSEM (R engine only). */
+  reliability: { cr: number; ave: number; omega?: number; alpha?: number }[];
   /** Standardised residual correlations (observed − implied). */
   residualCor: number[][];
   htmt: (number | null)[][];
