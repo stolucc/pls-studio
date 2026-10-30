@@ -11,7 +11,7 @@ import type { GrowthInput } from '../rengine/longitudinal';
 import type { IrtModel } from '../rengine/items';
 import type { GmmInput, LmmInput } from '../rengine/mixed';
 import type { EndoPreset } from '../components/EndogeneityPanel';
-import type { MatchPreset } from '../components/MatchingPanel';
+import type { MatchPreset } from '../analyses/match';
 import type { RsaPreset } from '../analyses/rsa';
 import type { EfaPreset } from '../components/EfaPanel';
 import type { NcaPreset } from '../analyses/nca';

@@ -8,6 +8,7 @@ import { makeSample } from './sample';
 import { useSim } from './simStore';
 import { addAnalysis, loadCards, useAnalyses } from './analyses/store';
 import { parseCards } from './analyses/persist';
+import { analysisType } from './analyses/registry';
 import { getRecent, migrateLegacyAutosave, recentPersistent, saveRecent, type RecentEntry } from './recent';
 import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
@@ -321,7 +322,12 @@ export async function loadPackageExample(id: string) {
     const coded = factorCodes(raw.levels);
     if (ex.panel) {
       const p = ex.panel;
-      if (p.kind === 'growth') {
+      if (analysisType(p.kind)) {
+        // Analyses that live as cards: the example adds its card, set up.
+        const { kind, ...preset } = p;
+        addAnalysis(kind, preset);
+        useStore.getState().setWorkspace('analyses');
+      } else if (p.kind === 'growth') {
         const { useLong } = await import('./components/LongitudinalPanel');
         useLong.setState({ open: true, growth: null, preset: { growth: { measures: p.measures, times: p.times, shape: p.shape, covariates: p.covariates } } });
       } else if (p.kind === 'gmm') {
@@ -336,22 +342,11 @@ export async function loadPackageExample(id: string) {
         const { useEfa } = await import('./components/EfaPanel');
         const { kind: _k, ...preset } = p;
         useEfa.setState({ open: true, result: null, preset });
-      } else if (p.kind === 'nca') {
-        addAnalysis('nca', { source: p.source ?? 'data', x: p.x, y: p.y, permutations: 1000 });
-        useStore.getState().setWorkspace('analyses');
-      } else if (p.kind === 'rsa') {
-        const { kind: _k, ...preset } = p;
-        addAnalysis('rsa', preset);
-        useStore.getState().setWorkspace('analyses');
-      } else if (p.kind === 'match') {
-        const { useMatching } = await import('./components/MatchingPanel');
-        const { kind: _k, ...preset } = p;
-        useMatching.setState({ open: true, result: null, preset });
       } else if (p.kind === 'lmm') {
         const { useMultilevel } = await import('./components/MultilevelPanel');
         const { kind: _k, ...lmm } = p;
         useMultilevel.setState({ open: true, lmm: null, preset: lmm });
-      } else {
+      } else if (p.kind === 'irt' || p.kind === 'lca') {
         const { useItems } = await import('./components/ItemsPanel');
         useItems.setState({ open: true, irt: null, lca: null, preset: { ...p } });
       }

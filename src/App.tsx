@@ -3,7 +3,6 @@ import { useAnalyses } from './analyses/store';
 import { DataScreeningPanel } from './components/DataScreeningPanel';
 import { EfaPanel } from './components/EfaPanel';
 import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
-import { MatchingPanel } from './components/MatchingPanel';
 import { EndogeneityPanel } from './components/EndogeneityPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
 import { MultilevelPanel } from './components/MultilevelPanel';
@@ -130,7 +129,6 @@ export default function App() {
       <EfaPanel />
       <DataScreeningPanel />
       <EndogeneityPanel />
-      <MatchingPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

@@ -58,3 +58,16 @@ it('polynomial regression (RSA)', async () => {
   expect(result.confidence).toBe(0.95);
   expect(html).toContain('Response surface');
 }, 900_000);
+
+it('propensity score matching (MatchIt) and weighting (WeightIt)', async () => {
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'match', 'reference.json'), 'utf8'));
+  const { rCall } = await import('../rengine/bridge');
+  const { categoriesOf } = await import('../io');
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: 'MatchIt', name: 'lalonde', na: [] }, 'MatchIt');
+  const data = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), ...categoriesOf(raw.levels) };
+  const preset = { treatment: 'treat', covariates: ['age', 'educ', 'race', 'married', 'nodegree', 're74', 're75'], outcome: 're78' };
+  const { result, html } = await runAsCard<{ effect: { est: number }; input: { seed: number } }>('match', data, { ...preset, method: 'full', estimand: 'ATT' });
+  expect(result.effect.est).toBeCloseTo(ref.full.effect.est, 4);
+  expect(result.input.seed).toBe(useStore.getState().settings.seed);
+  expect(html).toContain('Covariate balance');
+}, 900_000);
