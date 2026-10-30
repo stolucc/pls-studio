@@ -154,6 +154,32 @@ describe('higher-order constructs and covariates', () => {
   });
 });
 
+describe('sampling weights (CB-SEM)', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3'])], paths: [], moderations: [], weights: 'w' };
+  const col = (f: (i: number) => number) => Float64Array.from({ length: 100 }, (_, i) => f(i));
+  const d = { names: ['a1', 'a2', 'a3', 'w'], cols: [col((i) => i % 5), col((i) => i % 7), col((i) => i % 3), col((i) => 1 + (i % 4))] };
+  const errs = (model: ModelState, o: object = {}, data = d) => validateModel(model, data, { method: 'cbsem', consistent: false, estimator: 'ML', ...o }).filter((i) => i.level === 'error').map((i) => i.message);
+  it('accepts a complete non-negative column with ML / MLR / MLM, and carries it in the spec', () => {
+    expect(errs(m)).toEqual([]);
+    expect(errs(m, { estimator: 'MLR' })).toEqual([]);
+    expect(toSpec(m).weights).toBe('w');
+  });
+  it('rejects other estimators, the built-in engine, bad weights and clashes', () => {
+    expect(errs(m, { estimator: 'GLS' })[0]).toMatch(/ML, MLR or MLM/);
+    expect(errs(m, { engine: 'builtin' })[0]).toMatch(/R packages/);
+    const neg = { ...d, cols: d.cols.map((c, k) => (k === 3 ? Float64Array.from(c, (v, i) => (i === 5 ? -1 : v)) : c)) };
+    expect(errs(m, {}, neg)[0]).toMatch(/non-negative numbers without missing values/);
+    expect(errs({ ...m, weights: 'a1' })[0]).toMatch(/cannot be both the sampling weights and an indicator/);
+    expect(errs({ ...m, multilevel: { column: 'w', between: 'saturated' } }).some((x) => /two-level/.test(x))).toBe(true);
+  });
+  it('warns that PLS-SEM ignores them, and survives a save and load', () => {
+    expect(validateModel(m, d, { method: 'pls', consistent: false }).some((i) => i.level === 'warning' && /PLS-SEM ignores them/.test(i.message))).toBe(true);
+    const file = JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null));
+    expect(parseProject(JSON.stringify(file)).model.weights).toBe('w');
+  });
+});
+
 describe('correlations (double-headed arrows)', () => {
   const cbs = { method: 'cbsem' as const, consistent: false };
   const d = { names: ['a1', 'a2', 'b1', 'b2', 'c1', 'c2', 'x1'], cols: Array.from({ length: 7 }, (_, k) => Float64Array.from({ length: 100 }, (_, i) => (i * (k + 2)) % 7)) };

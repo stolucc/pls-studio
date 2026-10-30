@@ -21,7 +21,7 @@ export interface CbRequest {
 
 export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): CbRequest {
   // Only the columns the model uses travel to R.
-  const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.multilevel ? [spec.multilevel.column] : [])]);
+  const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.multilevel ? [spec.multilevel.column] : []), ...(spec.weights ? [spec.weights] : [])]);
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'cb', estimator, missing, ...(interaction !== 'product' && spec.moderations?.length ? { interaction } : {}),

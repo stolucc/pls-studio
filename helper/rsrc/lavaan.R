@@ -28,7 +28,7 @@ ps_cb_build <- function(req) {
 
   body <- "suppressPackageStartupMessages(library(lavaan))"
   inputs <- list()
-  group_var <- NULL; cluster_var <- NULL
+  group_var <- NULL; cluster_var <- NULL; weight_var <- NULL
   mg <- req$model$multigroup
   ml <- req$model$multilevel
   if (matrix_input && !is.null(mg)) stop("Multiple-group analysis needs raw data with a grouping column.")
@@ -69,6 +69,17 @@ ps_cb_build <- function(req) {
       ccol <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
       cluster_var <- ps_ident(c(unname(n$iv), ml$column))[length(n$iv) + 1]
       inputs$data[[cluster_var]] <- ccol
+    }
+    # Sampling (survey) weights: the column, likewise (lavaan's sampling.weights).
+    wcol <- req$model$weights
+    if (!is.null(wcol)) {
+      at <- match(wcol, req$data$names)
+      if (is.na(at)) stop("The sampling-weights column is not in the dataset.")
+      cols <- req$data$cols
+      wv <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      if (any(!is.finite(wv) | wv < 0)) stop("Sampling weights must be non-negative numbers without missing values.")
+      weight_var <- ps_ident(c(unname(n$iv), wcol))[length(n$iv) + 1]
+      inputs$data[[weight_var]] <- wv
     }
     body <- c(body, ps_missing_code(req$missing))
   }
@@ -191,6 +202,12 @@ ps_cb_build <- function(req) {
   extra <- paste0(if (length(ordered)) sprintf(", ordered = %s", ps_q(ordered)) else "",
     if (identical(req$missing, "fiml")) ", missing = \"ml\"" else "")
   if (!is.null(cluster_var)) extra <- paste0(extra, sprintf(", cluster = \"%s\"", cluster_var))
+  if (!is.null(weight_var)) {
+    if (!is.null(cluster_var)) stop("Sampling weights cannot be combined with a two-level model here.")
+    if (!req$estimator %in% c("ML", "MLR", "MLM", "WLSMV")) stop("With sampling weights choose ML, MLR or MLM (or WLSMV for ordinal indicators).")
+    # (lavaan then reports robust, design-based standard errors)
+    extra <- paste0(extra, sprintf(", sampling.weights = \"%s\"", weight_var))
+  }
   if (!is.null(group_var)) {
     # Measurement invariance: what is held equal across groups, and what is freed (partial invariance).
     lev <- mg$invariance %||% "configural"
@@ -208,6 +225,7 @@ ps_cb_build <- function(req) {
   if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
   if (length(esem$blocks)) extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (!is.null(target)) ", rotation.args = list(target = TARGET)" else "")
   if (use_modsem) {
+    if (!is.null(weight_var)) stop("Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.")
     body[1] <- "suppressPackageStartupMessages({ library(lavaan); library(modsem) })"
     body <- c(body, sprintf("# Latent interaction by %s (modsem; Klein & Moosbrugger 2000 / Klein & Muthen 2007)", toupper(method)),
       "model <- '", paste0("  ", lines), "'", sprintf("fit <- modsem(model, data = data, method = \"%s\")", method))

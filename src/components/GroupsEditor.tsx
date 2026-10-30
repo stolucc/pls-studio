@@ -151,3 +151,27 @@ export function ClustersEditor() {
     </div>
   );
 }
+
+/** CB-SEM sampling (survey) weights: a non-negative numeric column (lavaan's sampling.weights). */
+export function WeightsEditor() {
+  const model = useStore((s) => s.model);
+  const data = useStore((s) => s.data);
+  const readOnly = useStore((s) => s.cloud?.role === 'viewer');
+  const setWeights = useStore((s) => s.setWeights);
+  const assigned = useMemo(() => new Set(model.constructs.flatMap((c) => c.indicators)), [model.constructs]);
+  // Candidates: not indicators, numeric, non-negative and complete.
+  const candidates = useMemo(() => (data && !data.moments ? data.names.filter((n, i) => !assigned.has(n) && !data.categories?.[n]
+    && data.cols[i].length > 0 && Array.from(data.cols[i]).every((v) => Number.isFinite(v) && v >= 0)) : []), [data, assigned]);
+  if (!data || data.moments) return null;
+  return (
+    <div className="section">
+      <div className="section-title">Sampling weights</div>
+      <select className="select" value={model.weights ?? ''} disabled={readOnly} onChange={(e) => setWeights(e.target.value || null)}>
+        <option value="">No weights</option>
+        {model.weights && !candidates.includes(model.weights) && <option value={model.weights}>{model.weights} (not usable)</option>}
+        {candidates.map((c) => <option key={c} value={c}>Weighted by {c}</option>)}
+      </select>
+      {model.weights && <div className="hint" style={{ marginTop: 6 }}>Survey or design weights (lavaan’s sampling.weights): the estimates are weighted and the standard errors robust (design-based). ML, MLR or MLM.</div>}
+    </div>
+  );
+}

@@ -154,6 +154,8 @@ export interface ModelState {
   multigroup?: MultigroupSpec;
   /** CB-SEM: two-level model by a cluster column. */
   multilevel?: { column: string; between: 'same' | 'saturated' };
+  /** CB-SEM: sampling (survey) weights column. */
+  weights?: string;
   /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
   esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation };
 }
@@ -349,6 +351,7 @@ export function toSpec(model: ModelState): ModelSpec {
     ],
     ...constraintSpec(model),
     ...(model.multilevel ? { multilevel: model.multilevel } : {}),
+    ...(model.weights ? { weights: model.weights } : {}),
     ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)) } } : {}),
     ...(model.multigroup ? {
       multigroup: {
@@ -601,6 +604,24 @@ export function validateModel(
   const textInds = data?.categories ? [...assignedSet].filter((i) => data.categories![i]) : [];
   if (textInds.length) {
     warn(`${textInds.join(', ')} ${textInds.length > 1 ? 'are text columns' : 'is a text column'}, used through ${textInds.length > 1 ? 'their' : 'its'} codes 1, 2, … in alphabetical order (${data!.categories![textInds[0]].slice(0, 3).join(', ')}${data!.categories![textInds[0]].length > 3 ? ', …' : ''}). Recode it as numbers if the categories have another order.`);
+  }
+
+  // Sampling (survey) weights: lavaan's sampling.weights, CB-SEM only.
+  const wcol = model.weights;
+  if (wcol) {
+    if (method.method !== 'cbsem') warn(`The sampling weights (${wcol}) are used in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them.`);
+    else {
+      if (engine === 'builtin') err('Sampling weights are estimated by lavaan: choose “R packages” under Calculated by.');
+      const est = method.estimator ?? 'ML';
+      if (!['ML', 'MLR', 'MLM'].includes(est) && !(est === 'WLSMV' && ordered.length)) err('With sampling weights choose ML, MLR or MLM (or WLSMV for ordinal indicators): lavaan weights these estimators only.');
+      if (model.multilevel) err('Sampling weights cannot be combined with a two-level model here.');
+      if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.');
+      if (assignedSet.has(wcol) || model.multigroup?.column === wcol) err(`“${wcol}” cannot be both the sampling weights and an indicator or the grouping column.`);
+      const k = data?.names.indexOf(wcol) ?? -1;
+      if (data && !data.moments && k < 0) err(`The sampling-weights column “${wcol}” is not in the current dataset.`);
+      else if (data && k >= 0 && Array.from(data.cols[k]).some((v) => !Number.isFinite(v) || v < 0)) err(`The sampling weights (${wcol}) must be non-negative numbers without missing values.`);
+      if (data?.moments && data.cols.length === 0) err('Sampling weights need raw data; this dataset is a covariance matrix.');
+    }
   }
 
   const ml = model.multilevel;
@@ -1030,6 +1051,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
       ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
+      ...(typeof m.weights === 'string' && m.weights ? { weights: str(m.weights) } : {}),
       ...(isObj(m.multilevel) && typeof m.multilevel.column === 'string' ? { multilevel: { column: str(m.multilevel.column), between: m.multilevel.between === 'same' ? 'same' as const : 'saturated' as const } } : {}),
       ...(isObj(m.esem) && Array.isArray(m.esem.blocks) ? { esem: {
         rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',

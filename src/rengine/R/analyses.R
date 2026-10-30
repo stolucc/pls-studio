@@ -60,6 +60,7 @@ ps_ipma <- function(req_json, export = FALSE) {
 ps_miiv <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   if (length(req$model$moderations)) stop("MIIV-2SLS does not support latent interactions.")
+  if (!is.null(req$model$weights)) stop("MIIV-2SLS does not use sampling weights; choose ML, MLR or MLM.")
   req$estimator <- "ML"
   b <- ps_cb_build(req)
   # Same model syntax; single-indicator error variances are implied by MIIVsem's scaling.
