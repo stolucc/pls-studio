@@ -218,7 +218,7 @@ export const emptyModel = (): ModelState => ({ constructs: [], paths: [], modera
 /** Fingerprint used to tell whether results still describe the current model. */
 export function resultsKey(s: Pick<State, 'model' | 'settings' | 'dataVersion'>): string {
   // Inference options and the figure style do not change the estimates.
-  const { bootSamples: _b, seed: _s, confidence: _c, figure: _f, charts: _h, ...plsSettings } = s.settings;
+  const { bootSamples: _b, seed: _s, confidence: _c, bootTails: _t, bootInterval: _v, figure: _f, charts: _h, ...plsSettings } = s.settings;
   // Conditional process analysis bootstraps as part of estimation; it also depends on
   // moderated moderations and covariate flags, and nothing in it reads correlations.
   if (s.settings.method === 'process') {

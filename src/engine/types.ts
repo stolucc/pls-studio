@@ -202,8 +202,12 @@ export interface PlsResult {
 export interface BootstrapOptions {
   samples: number;
   seed: number;
-  /** Two-sided confidence level for percentile intervals, e.g. 0.95. */
+  /** Confidence level of the intervals, e.g. 0.95. */
   confidence: number;
+  /** One-tailed tests: p for the direction of the estimate, intervals [α, 1 − α] (default two-tailed). */
+  tails?: 1 | 2;
+  /** Percentile intervals (default) or bias-corrected and accelerated (BCa: needs a jackknife). */
+  interval?: 'percentile' | 'bca';
 }
 
 export interface BootstrapStat {
@@ -224,6 +228,10 @@ export interface BootstrapResult {
   failed: number;
   confidence: number;
   stats: BootstrapStat[];
+  /** One-tailed tests (absent: two-tailed). */
+  tails?: 1 | 2;
+  /** BCa intervals (absent: percentile). */
+  interval?: 'percentile' | 'bca';
   /** Several groups or levels: every block's statistics (stats holds the block shown). */
   byBlock?: BootstrapStat[][];
   /** Multiple imputation: bootstraps in this many imputed data sets, pooled by Rubin's rules. */

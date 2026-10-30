@@ -781,8 +781,22 @@ function ModelInspector() {
             ))}
           </div>
         </div>
+        <div className="field">
+          <label>Tests</label>
+          <div className="segmented">
+            <button className={settings.bootTails !== 'one' ? 'on' : ''} onClick={() => setSettings({ bootTails: 'two' })}>Two-tailed</button>
+            <button className={settings.bootTails === 'one' ? 'on' : ''} onClick={() => setSettings({ bootTails: 'one' })} title="For directional hypotheses: p for the direction of the estimate (half the two-tailed p), intervals from α to 1 − α">One-tailed</button>
+          </div>
+        </div>
+        <div className="field">
+          <label>Intervals</label>
+          <div className="segmented">
+            <button className={settings.bootInterval !== 'bca' ? 'on' : ''} onClick={() => setSettings({ bootInterval: 'percentile' })}>Percentile</button>
+            <button className={settings.bootInterval === 'bca' ? 'on' : ''} onClick={() => setSettings({ bootInterval: 'bca' })} title="Bias-corrected and accelerated (Efron 1987): adds a jackknife, one refit per observation">BCa</button>
+          </div>
+        </div>
         <div className="hint">
-          Percentile intervals; p-values from two-tailed t tests.
+          {settings.bootInterval === 'bca' ? 'BCa intervals (bias-corrected and accelerated; the jackknife adds one refit per observation)' : 'Percentile intervals'}; p-values from {settings.bootTails === 'one' ? 'one-tailed' : 'two-tailed'} t tests.
           {pls ? ' The same subsample count is used for the fit test (HI95/HI99).' : proc ? ' Indirect effects and indices of moderated mediation; direct and conditional effects use OLS standard errors, as PROCESS. At least 100 samples (5000 recommended for reporting).' : ' CB-SEM bootstraps standardised paths and indirect effects.'}
         </div>
       </div>

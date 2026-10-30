@@ -80,6 +80,10 @@ export interface Settings {
   /** Multiple imputation: number of imputed data sets. */
   miImputations: number;
   bootSamples: number;
+  /** Bootstrap tests one-tailed (p in the direction of the estimate, intervals [α, 1 − α]) or two-tailed. */
+  bootTails: 'two' | 'one';
+  /** Bootstrap intervals: percentile, or bias-corrected and accelerated (BCa; adds a jackknife). */
+  bootInterval: 'percentile' | 'bca';
   seed: number;
   confidence: number;
   /** Conditional process analysis: moderator values at which effects are probed. */
@@ -306,6 +310,8 @@ export const DEFAULT_SETTINGS: Settings = {
   missing: 'mean',
   miImputations: 20,
   bootSamples: 1000,
+  bootTails: 'two',
+  bootInterval: 'percentile',
   seed: 1234,
   confidence: 0.95,
   probe: 'percentiles',
@@ -1100,6 +1106,8 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     missing: s.missing === 'casewise' || s.missing === 'fiml' || s.missing === 'mi' ? s.missing : 'mean',
     miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
+    bootTails: s.bootTails === 'one' ? 'one' : 'two',
+    bootInterval: s.bootInterval === 'bca' ? 'bca' : 'percentile',
     seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
     confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
     probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',

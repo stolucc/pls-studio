@@ -10,7 +10,7 @@
 import { fitEstimator, prepareCb, sampleCov, standardized, type CbEstimator } from './cbsem';
 import { matMul, symEigen, symMatFn } from './linalg';
 import { compileModel, extractColumns, impliedConstructCor, impliedIndicatorCor, modelFit, plsCore, preparePls, standardizeColumns, structural, type CompiledModel } from './pls';
-import { corStd, mulberry32, quantileSorted, tTestP } from './stats';
+import { corStd, mulberry32, pnorm, qnorm, quantileSorted, tTestP } from './stats';
 import type { BootstrapOptions, BootstrapResult, BootstrapStat, Dataset, ModelFit, ModelSpec, PlsOptions } from './types';
 import { DEFAULT_OPTIONS } from './types';
 
@@ -37,6 +37,8 @@ export interface RangeRequest {
   /** Sample indices [start, end). */
   start: number;
   end: number;
+  /** Also the jackknife (each case left out once), for BCa intervals. */
+  jackknife?: boolean;
 }
 
 export interface RangePart {
@@ -46,6 +48,8 @@ export interface RangePart {
   /** One array per parameter, length end − start; NaN marks a failed sample. */
   draws: Float64Array[];
   observed?: ModelFit;
+  /** Jackknife estimates, one array per parameter (one value per case left out; NaN: failed). */
+  jack?: Float64Array[];
 }
 
 /** Deterministic per-sample seed (integer hash of seed and sample index). */
@@ -252,7 +256,52 @@ export function runRange(req: RangeRequest, hooks: BootstrapHooks = {}): RangePa
     }
     if (hooks.onProgress && (k % 10 === 9 || k === count - 1)) hooks.onProgress(k + 1, count);
   }
-  return { start: req.start, params: job.params.map(({ key, group, label }) => ({ key, group, label })), originals: job.originals, draws, observed: job.observed };
+  let jack: Float64Array[] | undefined;
+  if (req.jackknife) {
+    jack = job.params.map(() => new Float64Array(job.n).fill(NaN));
+    const loo = new Uint32Array(job.n - 1);
+    for (let i = 0; i < job.n; i++) {
+      if (hooks.shouldCancel?.()) throw new Error('Bootstrapping cancelled.');
+      for (let k = 0, w = 0; k < job.n; k++) if (k !== i) loo[w++] = k;
+      try {
+        const vals = job.sample(loo);
+        vals.forEach((v, p) => (jack![p][i] = v));
+      } catch {
+        // failed jackknife fit stays NaN
+      }
+    }
+  }
+  return { start: req.start, params: job.params.map(({ key, group, label }) => ({ key, group, label })), originals: job.originals, draws, observed: job.observed, ...(jack ? { jack } : {}) };
+}
+
+/**
+ * One bootstrapped parameter: mean, standard error, t, p and the interval.
+ * Two-tailed p from t (df = draws − 1); one-tailed p is half of it (the test in
+ * the direction of the estimate). Percentile interval [α/2, 1 − α/2] (one-tailed:
+ * [α, 1 − α]); BCa (Efron 1987) shifts the levels by the bias correction z0 (from
+ * the draws) and the acceleration a (from the jackknife). As R/boot.R boot_summary.
+ */
+export function summarise(v: number[], original: number, confidence: number, tails: 1 | 2 = 2, jack?: number[]) {
+  const n = v.length;
+  const mean = v.reduce((s, x) => s + x, 0) / n;
+  const sd = Math.sqrt(v.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1));
+  const t = sd > 0 ? Math.abs(original / sd) : Infinity;
+  const sorted = Float64Array.from(v).sort();
+  const alpha = tails === 1 ? 1 - confidence : (1 - confidence) / 2;
+  let lo = alpha, hi = 1 - alpha;
+  if (jack) {
+    const j = jack.filter(Number.isFinite);
+    const below = v.filter((x) => x < original).length;
+    // (the proportion is kept inside (0, 1), so z0 stays finite)
+    const z0 = qnorm(Math.min(n / (n + 1), Math.max(1 / (n + 1), below / n)));
+    const jm = j.reduce((s, x) => s + x, 0) / j.length;
+    const d2 = j.reduce((s, x) => s + (jm - x) ** 2, 0), d3 = j.reduce((s, x) => s + (jm - x) ** 3, 0);
+    const a = d2 > 0 ? d3 / (6 * d2 ** 1.5) : 0;
+    const adj = (z: number) => pnorm(z0 + (z0 + z) / (1 - a * (z0 + z)));
+    lo = adj(qnorm(alpha)); hi = adj(qnorm(1 - alpha));
+  }
+  const p2 = tTestP(t, n - 1);
+  return { mean, sd, t, p: tails === 1 ? p2 / 2 : p2, ciLow: quantileSorted(sorted, lo), ciHigh: quantileSorted(sorted, hi) };
 }
 
 /** Concatenate ranges in sample order and keep the samples that succeeded. */
@@ -274,24 +323,15 @@ function collect(parts: RangePart[]) {
   return { ordered, kept, ok, failed: total - ok };
 }
 
-export function mergeBootstrap(parts: RangePart[], confidence: number): BootstrapResult {
+export function mergeBootstrap(parts: RangePart[], confidence: number, opts: { tails?: 1 | 2 } = {}): BootstrapResult {
   const { ordered, kept, ok, failed } = collect(parts);
-  const alpha = (1 - confidence) / 2;
+  const tails = opts.tails ?? 2;
+  const jack = parts.find((p) => p.jack)?.jack;
   const stats: BootstrapStat[] = ordered[0].params.map((p, i) => {
-    const v = kept[i];
-    const mean = v.reduce((s, x) => s + x, 0) / ok;
-    const sd = Math.sqrt(v.reduce((s, x) => s + (x - mean) ** 2, 0) / (ok - 1));
     const original = ordered[0].originals[i];
-    const t = sd > 0 ? Math.abs(original / sd) : Infinity;
-    const sorted = Float64Array.from(v).sort();
-    return {
-      ...p, original, mean, sd, t,
-      p: tTestP(t, ok - 1),
-      ciLow: quantileSorted(sorted, alpha),
-      ciHigh: quantileSorted(sorted, 1 - alpha),
-    };
+    return { ...p, original, ...summarise(kept[i], original, confidence, tails, jack ? Array.from(jack[i]) : undefined) };
   });
-  return { samples: ok, failed, confidence, stats };
+  return { samples: ok, failed, confidence, stats, ...(tails === 1 ? { tails } : {}), ...(jack ? { interval: 'bca' as const } : {}) };
 }
 
 export function mergeFitTest(parts: RangePart[]): FitTestResult {

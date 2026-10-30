@@ -58,7 +58,7 @@ function runR(kind: JobKind, key: string) {
   const data = s.data!;
   const spec = toSpec(s.model);
   const options: PlsOptions = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent, approach: st.plsApproach, mi: { m: st.miImputations, seed: st.seed } };
-  const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence };
+  const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence, tails: st.bootTails === 'one' ? 1 as const : 2 as const, interval: st.bootInterval };
   const token = ++rToken;
   const modsem = cb && st.interaction !== 'product' && s.model.moderations.length > 0;
   const pkg = cb ? (st.estimator === '2SLS' ? 'MIIVsem' : modsem ? 'modsem' : 'lavaan') : kind === 'fittest' ? 'cSEM' : st.plsPackage;
@@ -282,7 +282,7 @@ export function run(kind: JobKind) {
           st.toast('success', `Fit test finished: ${result.samples} bootstrap samples on ${ranges.length} core${ranges.length > 1 ? 's' : ''}.`);
           if (!useStore.getState().results?.pls) run('estimate');
         } else {
-          const result = mergeBootstrap(parts, s.settings.confidence);
+          const result = mergeBootstrap(parts, s.settings.confidence, { tails: s.settings.bootTails === 'one' ? 1 : 2 });
           st.setResults({ boot: result }, key);
           const failed = result.failed ? ` (${result.failed} samples failed and were skipped)` : '';
           st.toast('success', `Bootstrapping finished: ${result.samples} samples on ${ranges.length} core${ranges.length > 1 ? 's' : ''}${failed}.`);
@@ -296,7 +296,8 @@ export function run(kind: JobKind) {
     w.onerror = (e) => fail(`Calculation failed: ${e.message}`);
     const req: WorkerRequest = {
       kind: 'range',
-      range: { job, data, spec, options, estimator: s.settings.estimator as CbEstimator, seed: s.settings.seed, start, end },
+      // BCa: the first worker also runs the jackknife (the fit test has no intervals).
+      range: { job, data, spec, options, estimator: s.settings.estimator as CbEstimator, seed: s.settings.seed, start, end, ...(i === 0 && job !== 'fittest' && s.settings.bootInterval === 'bca' ? { jackknife: true } : {}) },
     };
     w.postMessage(req);
   });

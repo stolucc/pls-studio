@@ -76,7 +76,8 @@ export function bootCells(s: BootstrapStat | undefined): Row {
   if (!s) return [c(null), c(null), c(null), c(null), c(null), c(null)];
   return [c(s.mean), c(s.sd), c(s.t), pCell(s.p), c(s.ciLow), c(s.ciHigh)];
 }
-export const bootCols = (b: BootstrapResult) => ['Sample mean', 'Std. error', 't', 'p', `${Math.round(b.confidence * 100)}% CI low`, 'CI high'];
+export const bootCols = (b: BootstrapResult) => ['Sample mean', 'Std. error', 't', b.tails === 1 ? 'p (one-tailed)' : 'p',
+  `${Math.round(b.confidence * 100)}% CI low${b.interval === 'bca' ? ' (BCa)' : ''}${b.tails === 1 ? ' (one-sided)' : ''}`, 'CI high'];
 
 /** Lower-triangular matrix table (HTMT, correlations). */
 export function matrixRows(names: string[], get: (i: number, j: number) => number | null, cls?: (v: number, i: number, j: number) => string): Row[] {

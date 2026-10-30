@@ -7,14 +7,29 @@
 #' Lines of R that define it, so exported scripts carry the same summary.
 PS_BOOT_SUMMARY <- c(
   "# Each parameter over the draws where it is defined (e.g. an R\u00b2 can be undefined in an improper draw).",
-  "boot_summary <- function(draws, original, confidence) {",
-  "  a <- (1 - confidence) / 2",
-  "  one <- function(x, o) { x <- x[is.finite(x)]; s <- stats::sd(x); t <- o / s",
-  "    c(original = o, mean = mean(x), sd = s, t = t, p = 2 * stats::pt(-abs(t), df = length(x) - 1),",
-  "      ci_low = unname(stats::quantile(x, a)), ci_high = unname(stats::quantile(x, 1 - a)), draws = length(x)) }",
-  "  out <- t(vapply(seq_len(ncol(draws)), function(j) one(draws[, j], original[[j]]), numeric(8)))",
+  "# tails = 1: one-tailed p (half the two-tailed one: the test in the direction of the estimate) and",
+  "# intervals [alpha, 1 - alpha]. jack (jackknife estimates, one row per case left out): BCa intervals",
+  "# (Efron 1987): the percentile levels shifted by the bias correction z0 and the acceleration a.",
+  "boot_summary <- function(draws, original, confidence, tails = 2, jack = NULL) {",
+  "  a <- if (tails == 1) 1 - confidence else (1 - confidence) / 2",
+  "  one <- function(x, o, j) { x <- x[is.finite(x)]; s <- stats::sd(x); t <- o / s; B <- length(x)",
+  "    lv <- c(a, 1 - a)",
+  "    if (!is.null(j)) {",
+  "      j <- j[is.finite(j)]",
+  "      z0 <- stats::qnorm(min(B / (B + 1), max(1 / (B + 1), sum(x < o) / B)))",
+  "      d <- mean(j) - j; acc <- if (sum(d^2) > 0) sum(d^3) / (6 * sum(d^2)^1.5) else 0",
+  "      z <- stats::qnorm(lv); lv <- stats::pnorm(z0 + (z0 + z) / (1 - acc * (z0 + z)))",
+  "    }",
+  "    p <- 2 * stats::pt(-abs(t), df = B - 1); if (tails == 1) p <- p / 2",
+  "    c(original = o, mean = mean(x), sd = s, t = t, p = p,",
+  "      ci_low = unname(stats::quantile(x, lv[1])), ci_high = unname(stats::quantile(x, lv[2])), draws = B) }",
+  "  out <- t(vapply(seq_len(ncol(draws)), function(j) one(draws[, j], original[[j]], if (is.null(jack)) NULL else jack[, j]), numeric(8)))",
   "  data.frame(parameter = colnames(draws), out, row.names = NULL, check.names = FALSE)",
   "}")
+
+#' The summary's options from the request: tails (1 or 2) and the jackknife for BCa.
+ps_boot_tails <- function(req) if (identical(as.integer(req$boot$tails %||% 2L), 1L)) 1L else 2L
+ps_boot_bca <- function(req) identical(req$boot$interval, "bca")
 
 # Cores for bootstrapping in desktop R. The browser's R has one core (cores
 # <- 1); through the desktop helper the request asks for the helper's cores.
@@ -89,6 +104,8 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   if (b$pkg == "seminr" && !export && grepl("emscripten", R.version$platform)) {
     stop("seminr's bootstrap needs worker processes, which R in the browser cannot start. Bootstrap with cSEM, or export the seminr bootstrap script and run it in R.")
   }
+  bca <- ps_boot_bca(req)
+  if (bca && (mi || b$pkg != "cSEM")) stop("BCa intervals need a jackknife, available here with cSEM (not with seminr or multiple imputation); choose percentile intervals.")
   if (b$pkg == "cSEM") {
     # Same call with cSEM's resampling; R² per draw via a user function.
     body <- c(ps_cores_csem(req), body)
@@ -107,8 +124,17 @@ ps_pls_boot <- function(req_json, export = FALSE) {
         sprintf("  fit <- %s", sub(")$", sprintf(resample, "R", "seed"), sub("^fit <- ", "", body[length(body)]))),
         paste0("  ", extract), "  list(draws = draws, original = original)", "}")))
     } else {
-      body[length(body)] <- sub(")$", sprintf(resample, B, seed), body[length(body)])
+      call <- body[length(body)]
+      body[length(body)] <- sub(")$", sprintf(resample, B, seed), call)
       body <- c(body, extract)
+      if (bca) {
+        # BCa: cSEM's jackknife (each observation left out once) gives the acceleration.
+        jk <- sub(", .R = %s, .seed = %s", "", sub("\"bootstrap\"", "\"jackknife\"", resample, fixed = TRUE), fixed = TRUE)
+        jx <- gsub("fit$", "fit_jack$", extract, fixed = TRUE)
+        jx <- sub("^draws <- ", "jack <- ", jx[!grepl("^original <- ", jx)])
+        body <- c(body, "# Jackknife for the BCa intervals' acceleration (cSEM, .resample_method = \"jackknife\").",
+          sub("^fit <- ", "fit_jack <- ", sub(")$", jk, call)), jx, "jack <- jack[, colnames(draws), drop = FALSE]")
+      }
     }
   } else {
     body <- c(body,
@@ -123,7 +149,7 @@ ps_pls_boot <- function(req_json, export = FALSE) {
       "  flat(boot$boot_loadings, \"loading\", kl), flat(boot$boot_weights, \"weight\", kw))",
       "original <- c(orig(P, \"path\", kp), orig(TE, \"total\", kt), orig(TE - P, \"indirect\", ki), orig(fit$outer_loadings, \"loading\", kl), orig(fit$outer_weights, \"weight\", kw))")
   }
-  body <- c(body, PS_BOOT_SUMMARY, sprintf("result <- boot_summary(draws, original[colnames(draws)], confidence = %s)", format(conf)))
+  body <- c(body, PS_BOOT_SUMMARY, sprintf("result <- boot_summary(draws, original[colnames(draws)], confidence = %s, tails = %d%s)", format(conf), ps_boot_tails(req), if (bca) ", jack = jack" else ""))
   title <- sprintf("Bootstrap, %d samples (%s)", B, b$pkg)
   if (mi) {
     # Multiple imputation: the bootstrap in every imputed data set (same seed), pooled by Rubin's rules.
@@ -138,7 +164,7 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script(title, b$pkg, b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
-  ps_json(list(stats = ps_boot_keys(env$result, b, req), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0),
+  ps_json(list(stats = ps_boot_keys(env$result, b, req), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), tails = ps_boot_tails(req), interval = if (bca) "bca" else "percentile",
     confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)))
 }
 
@@ -194,6 +220,8 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   if (isTRUE(b$mi)) stop("With multiple imputation the standard errors are pooled by Rubin's rules; the bootstrap is not combined with it.")
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")
+  bca <- ps_boot_bca(req)
+  if (bca && (!is.null(b$modsem) || !is.null(b$cluster_var))) stop("BCa intervals need a jackknife, which is not available here for LMS / QML or two-level models; choose percentile intervals.")
   if (!is.null(b$modsem)) return(ps_cb_boot_modsem(b, B, seed, conf, export, req))
   body <- c(b$body,
     "# Standardised paths, total and indirect effects, loadings and R² of one fitted model;",
@@ -250,8 +278,14 @@ ps_cb_boot <- function(req_json, export = FALSE) {
         "bootstrapLavaan(fit, R = R, FUN = function(f) std_stats(f, names(original)), iseed = seed,",
         "  parallel = if (cores > 1) \"multicore\" else \"no\", ncpus = cores)"), B, seed)),
     "colnames(draws) <- names(original)",
+    if (bca) c(
+      "# Jackknife for the BCa intervals' acceleration: the model refitted with each case left out.",
+      sprintf("refit <- function(d) %s", sub("data = data", "data = d", sub("^fit <- ", "", b$call), fixed = TRUE)),
+      "jack <- t(vapply(seq_len(nrow(data)), function(i) tryCatch(std_stats(refit(data[-i, , drop = FALSE]), names(original)),",
+      "  error = function(e) rep(NA_real_, length(original))), numeric(length(original))))",
+      "colnames(jack) <- names(original)"),
     PS_BOOT_SUMMARY,
-    sprintf("result <- boot_summary(draws, original, confidence = %s)", format(conf)))
+    sprintf("result <- boot_summary(draws, original, confidence = %s, tails = %d%s)", format(conf), ps_boot_tails(req), if (bca) ", jack = jack" else ""))
   if (export) return(paste(ps_script(sprintf("Bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
@@ -273,7 +307,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
       r2 = list(key = sprintf("r2:%s", a), label = a))
     c(k, list(group = g, block = block, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
   })
-  ps_json(list(stats = stats, samples = B, blocks = blocks, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)))
+  ps_json(list(stats = stats, samples = B, blocks = blocks, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, tails = ps_boot_tails(req), interval = if (bca) "bca" else "percentile", warnings = ps_quiet_2ndorder(env$.warnings)))
 }
 
 #' Bootstrap of a latent-interaction model estimated by LMS or QML (modsem).
@@ -320,7 +354,7 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
     "if (length(boot_warnings)) warning(sprintf(\"%d warnings in the bootstrap refits, e.g.: %s\", length(boot_warnings), boot_warnings[1]))",
     "colnames(draws) <- names(original)",
     PS_BOOT_SUMMARY,
-    sprintf("result <- boot_summary(draws, original, confidence = %s)", format(conf)))
+    sprintf("result <- boot_summary(draws, original, confidence = %s, tails = %d)", format(conf), ps_boot_tails(req)))
   title <- sprintf("Bootstrap, %d samples (%s, modsem)", B, toupper(b$modsem))
   if (export) return(paste(ps_script(title, c("modsem", "lavaan"), b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
@@ -338,7 +372,7 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
       r2 = list(key = sprintf("r2:%s", a), label = a))
     c(k, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
   })
-  ps_json(list(stats = Filter(Negate(is.null), stats), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0),
+  ps_json(list(stats = Filter(Negate(is.null), stats), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), tails = ps_boot_tails(req), interval = "percentile",
     confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)))
 }
 
