@@ -7,7 +7,6 @@ import { useSegmentation } from './SegmentationPanel';
 import { usePlsAssessment } from './PlsAssessmentPanel';
 import { useScreen } from './DataScreeningPanel';
 import { openEfa } from './EfaPanel';
-import { useEndogeneity } from './EndogeneityPanel';
 
 export interface WindowAnalysis { label: string; sub: string; open: () => void; disabled: boolean }
 
@@ -28,7 +27,6 @@ export function useWindowAnalyses(): WindowAnalysis[] {
     item('Multilevel regression', 'random intercepts and slopes (lme4)', () => useMultilevel.getState().setOpen(true)),
     item('PLS-SEM assessment', method === 'pls' ? 'PLSpredict, blindfolding (Q²), model comparison, MICOM / multigroup, CTA, CCA' : 'for PLS-SEM models', () => usePlsAssessment.getState().setOpen(true), !hasModel || method !== 'pls'),
     item('Segmentation (REBUS-PLS)', method === 'pls' ? 'classes of observations with different models (plspm)' : 'for PLS-SEM models', () => useSegmentation.getState().setOpen(true), !hasModel || method !== 'pls'),
-    item('Endogeneity', 'instruments (2SLS), Gaussian copula, Lewbel, Heckman', () => useEndogeneity.getState().setOpen(true)),
     item('Monte Carlo simulation', method === 'process' ? 'for PLS-SEM and CB-SEM models' : 'power, sample size, estimators', () => useSim.getState().setOpen(true), !hasModel || method === 'process'),
   ];
 }

@@ -334,10 +334,6 @@ export async function loadPackageExample(id: string) {
         const { useLong } = await import('./components/LongitudinalPanel');
         const { kind: _k, ...gmm } = p;
         useLong.setState({ open: true, gmm: null, preset: { gmm } });
-      } else if (p.kind === 'endo') {
-        const { useEndogeneity } = await import('./components/EndogeneityPanel');
-        const { kind: _k, ...preset } = p;
-        useEndogeneity.setState({ open: true, result: null, preset: { ...preset, source: 'data' } });
       } else if (p.kind === 'efa') {
         const { useEfa } = await import('./components/EfaPanel');
         const { kind: _k, ...preset } = p;

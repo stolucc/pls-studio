@@ -10,7 +10,7 @@ import { makeCovariancesExplicit, newId } from '../model/project';
 import type { GrowthInput } from '../rengine/longitudinal';
 import type { IrtModel } from '../rengine/items';
 import type { GmmInput, LmmInput } from '../rengine/mixed';
-import type { EndoPreset } from '../components/EndogeneityPanel';
+import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
 import type { RsaPreset } from '../analyses/rsa';
 import type { EfaPreset } from '../components/EfaPanel';

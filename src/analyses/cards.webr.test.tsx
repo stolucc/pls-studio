@@ -71,3 +71,12 @@ it('propensity score matching (MatchIt) and weighting (WeightIt)', async () => {
   expect(result.input.seed).toBe(useStore.getState().settings.seed);
   expect(html).toContain('Covariate balance');
 }, 900_000);
+
+it('endogeneity (higher-moment instruments, as REndo)', async () => {
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'endo', 'reference.json'), 'utf8'));
+  const { result, html } = await runAsCard<{ coefficients: { term: string; est: number }[] }>('endo', example('rendo/dataHigherMoments.csv'),
+    { method: 'hm', outcome: 'y', endogenous: ['P'], exogenous: ['X1', 'X2'], hetRegressors: ['X1', 'X2'], hmTypes: ['gp', 'yp'] });
+  const c = ref.hm.coef.find((x: { term: string }) => x.term === 'P');
+  expect(result.coefficients.find((x) => x.term === 'P')!.est).toBeCloseTo(c.est, 10);
+  expect(html).toContain('OLS');
+}, 900_000);

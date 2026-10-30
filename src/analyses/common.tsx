@@ -20,6 +20,19 @@ export const flag = (v: unknown) => v === true;
 /** The raw data, or null for none or a covariance matrix. */
 export const rawData = (ctx: AnalysisCtx): Dataset | null => (ctx.data && !(ctx.data.moments && ctx.data.cols.length === 0) ? ctx.data : null);
 
+/** Data columns, or the construct scores of the current PLS-SEM results. */
+export const sourceData = (source: 'data' | 'scores', ctx: AnalysisCtx): Dataset | null =>
+  source === 'scores' ? (ctx.pls ? { names: ctx.pls.constructs, cols: ctx.pls.scores } : null) : rawData(ctx);
+
+/** Fingerprint of the columns read from data or construct scores. */
+export function sourceFingerprint(source: 'data' | 'scores', ctx: AnalysisCtx, cols: string[], extra: (string | number | null)[] = []): string | null {
+  const ds = sourceData(source, ctx);
+  if (!ds) return null;
+  const ks = [...new Set(cols.filter(Boolean))].map((c) => ds.names.indexOf(c));
+  if (ks.some((k) => k < 0)) return null;
+  return fingerprint([source, ...extra, ...ks.flatMap((k) => [ds.names[k], ds.cols[k]])]);
+}
+
 /** Why raw-data columns cannot be used (null when they can). */
 export function missingColumns(ctx: AnalysisCtx, cols: string[], what: string): string | null {
   const ds = rawData(ctx);

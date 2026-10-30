@@ -3,7 +3,6 @@ import { useAnalyses } from './analyses/store';
 import { DataScreeningPanel } from './components/DataScreeningPanel';
 import { EfaPanel } from './components/EfaPanel';
 import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
-import { EndogeneityPanel } from './components/EndogeneityPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
 import { MultilevelPanel } from './components/MultilevelPanel';
 import { DataWorkspace } from './components/DataViewer';
@@ -128,7 +127,6 @@ export default function App() {
       <PlsAssessmentPanel />
       <EfaPanel />
       <DataScreeningPanel />
-      <EndogeneityPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />
