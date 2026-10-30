@@ -4,7 +4,6 @@ import { DataScreeningPanel } from './components/DataScreeningPanel';
 import { EfaPanel } from './components/EfaPanel';
 import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
-import { MultilevelPanel } from './components/MultilevelPanel';
 import { DataWorkspace } from './components/DataViewer';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
@@ -122,7 +121,6 @@ export default function App() {
       <SimulationPanel />
       <LongitudinalPanel />
       <ItemsPanel />
-      <MultilevelPanel />
       <SegmentationPanel />
       <PlsAssessmentPanel />
       <EfaPanel />

@@ -2,7 +2,6 @@ import { useSim } from '../simStore';
 import { useStore } from '../store';
 import { useItems } from './ItemsPanel';
 import { useLong } from './LongitudinalPanel';
-import { useMultilevel } from './MultilevelPanel';
 import { useSegmentation } from './SegmentationPanel';
 import { usePlsAssessment } from './PlsAssessmentPanel';
 import { useScreen } from './DataScreeningPanel';
@@ -24,7 +23,6 @@ export function useWindowAnalyses(): WindowAnalysis[] {
     item('Principal component analysis', 'PCA: components, rotations (psych)', () => openEfa(true)),
     item('Item analysis', 'IRT (ltm), latent classes (poLCA)', () => useItems.getState().setOpen(true)),
     item('Longitudinal models', 'growth curves, RI-CLPM (lavaan), growth mixtures (lcmm)', () => useLong.getState().setOpen(true)),
-    item('Multilevel regression', 'random intercepts and slopes (lme4)', () => useMultilevel.getState().setOpen(true)),
     item('PLS-SEM assessment', method === 'pls' ? 'PLSpredict, blindfolding (Q²), model comparison, MICOM / multigroup, CTA, CCA' : 'for PLS-SEM models', () => usePlsAssessment.getState().setOpen(true), !hasModel || method !== 'pls'),
     item('Segmentation (REBUS-PLS)', method === 'pls' ? 'classes of observations with different models (plspm)' : 'for PLS-SEM models', () => useSegmentation.getState().setOpen(true), !hasModel || method !== 'pls'),
     item('Monte Carlo simulation', method === 'process' ? 'for PLS-SEM and CB-SEM models' : 'power, sample size, estimators', () => useSim.getState().setOpen(true), !hasModel || method === 'process'),

@@ -338,10 +338,6 @@ export async function loadPackageExample(id: string) {
         const { useEfa } = await import('./components/EfaPanel');
         const { kind: _k, ...preset } = p;
         useEfa.setState({ open: true, result: null, preset });
-      } else if (p.kind === 'lmm') {
-        const { useMultilevel } = await import('./components/MultilevelPanel');
-        const { kind: _k, ...lmm } = p;
-        useMultilevel.setState({ open: true, lmm: null, preset: lmm });
       } else if (p.kind === 'irt' || p.kind === 'lca') {
         const { useItems } = await import('./components/ItemsPanel');
         useItems.setState({ open: true, irt: null, lca: null, preset: { ...p } });

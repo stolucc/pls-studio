@@ -4,8 +4,9 @@ import { matchAnalysis } from './match';
 import { ncaAnalysis } from './nca';
 import { rsaAnalysis } from './rsa';
 import { endoAnalysis } from './endo';
+import { lmmAnalysis } from './lmm';
 import type { AnalysisType } from './types';
 
-export const ANALYSIS_TYPES: AnalysisType[] = [rsaAnalysis, matchAnalysis, ncaAnalysis, endoAnalysis];
+export const ANALYSIS_TYPES: AnalysisType[] = [rsaAnalysis, matchAnalysis, ncaAnalysis, endoAnalysis, lmmAnalysis];
 
 export const analysisType = (id: string): AnalysisType | undefined => ANALYSIS_TYPES.find((t) => t.id === id);

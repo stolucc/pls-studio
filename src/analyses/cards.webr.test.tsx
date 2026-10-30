@@ -80,3 +80,13 @@ it('endogeneity (higher-moment instruments, as REndo)', async () => {
   expect(result.coefficients.find((x) => x.term === 'P')!.est).toBeCloseTo(c.est, 10);
   expect(html).toContain('OLS');
 }, 900_000);
+
+it('multilevel regression (lme4 on sleepstudy)', async () => {
+  const dir = join(__dirname, '..', 'engine', '__fixtures__', 'mixed');
+  const ref = JSON.parse(readFileSync(join(dir, 'reference.json'), 'utf8'));
+  const sleep = parseCsv(readFileSync(join(dir, 'sleepstudy.csv'), 'utf8')).dataset;
+  const { result, html } = await runAsCard<{ fixed: { term: string; est: number }[] }>('lmm', sleep,
+    { outcome: 'Reaction', predictors: ['Days'], cluster: 'Subject', slopes: ['Days'], center: 'none', estimation: 'REML' });
+  expect(result.fixed.find((x) => x.term === 'Days')!.est).toBeCloseTo(ref.lmm.fixed.find((f: { term: string }) => f.term === 'Days').est, 5);
+  expect(html).toContain('Days');
+}, 900_000);
