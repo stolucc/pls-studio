@@ -7,7 +7,7 @@ import { MatchingPanel } from './components/MatchingPanel';
 import { EndogeneityPanel } from './components/EndogeneityPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
 import { MultilevelPanel } from './components/MultilevelPanel';
-import { DataViewer } from './components/DataViewer';
+import { DataWorkspace } from './components/DataViewer';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
 import { Canvas } from './components/Canvas';
@@ -36,6 +36,7 @@ function isTyping(e: KeyboardEvent) {
 export default function App() {
   const [resultsHeight, setResultsHeight] = useState(320);
   const view = useStore((s) => s.view);
+  const workspace = useStore((s) => s.workspace);
 
   useEffect(() => {
     void migrateAutosave();
@@ -67,6 +68,8 @@ export default function App() {
       if (isTyping(e)) return;
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) s.redo(); else s.undo(); return; }
       if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); s.redo(); return; }
+      // The rest act on the diagram.
+      if (s.workspace !== 'model') return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && (s.selection.moderations?.length || s.selection.correlations?.length)) {
         e.preventDefault();
         s.deleteItems([], [], s.selection.moderations ?? [], s.selection.correlations ?? []);
@@ -101,17 +104,18 @@ export default function App() {
         <TopBar />
         <div className="workspace">
           <DataPanel />
-          <main className="center">
+          {/* The diagram stays mounted (and laid out) behind the Data tab, so switching back keeps its viewport. */}
+          <main className="center" inert={workspace !== 'model'}>
             <Canvas onImport={() => void importCsv()} onSample={(w) => void loadSample(w)} />
             <ResultsPanel height={resultsHeight} onResize={setResultsHeight} />
           </main>
-          <Inspector />
+          <div className="inspector-col" inert={workspace !== 'model'}><Inspector /></div>
+          {workspace === 'data' && <DataWorkspace />}
         </div>
       </div>
       <SimulationPanel />
       <LongitudinalPanel />
       <ItemsPanel />
-      <DataViewer />
       <MultilevelPanel />
       <SegmentationPanel />
       <PlsAssessmentPanel />

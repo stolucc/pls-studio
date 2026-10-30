@@ -96,6 +96,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
 
   const settings = useStore((s) => s.settings);
   const readOnly = useStore((s) => s.cloud?.role === 'viewer');
+  // The canvas stays mounted behind the Data tab; keys must not delete its selection there.
+  const workspace = useStore((s) => s.workspace);
   const showErrors = useStore((s) => s.showErrorTerms);
   const showImplied = useStore((s) => s.showImpliedEffects);
   const scale = useStore((s) => s.estimateScale);
@@ -753,7 +755,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
           if ((e.target as HTMLElement).classList.contains('react-flow__pane')) addAt(e);
         }}
         zoomOnDoubleClick={false}
-        deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
+        deleteKeyCode={readOnly || workspace !== 'model' ? null : ['Backspace', 'Delete']}
         nodesConnectable={!readOnly}
         multiSelectionKeyCode={['Meta', 'Shift', 'Control']}
         selectionOnDrag={tool === 'select'}

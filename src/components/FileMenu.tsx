@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { exportRScript, importCsv, newProject, openProject, saveProject } from '../io';
 import { useStore } from '../store';
-import { useDataView } from './DataViewer';
 import { IconChevronDown } from './icons';
 
 const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
@@ -42,7 +41,7 @@ export function FileMenu() {
           {item('Save project', saveProject, { kbd: `${mod}S` })}
           <div className="menu-sep" role="separator" />
           {item(hasData ? 'Replace data…' : 'Import data…', () => void importCsv())}
-          {item('Inspect data', () => useDataView.getState().setOpen(true), { disabled: !hasData })}
+          {item('Inspect data', () => useStore.getState().setWorkspace('data'), { disabled: !hasData })}
           <div className="menu-sep" role="separator" />
           {item('Download R script', () => void exportRScript(), { disabled: !hasData })}
         </div>

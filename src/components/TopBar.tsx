@@ -2,7 +2,7 @@ import { autosave } from '../io';
 import { AnalysesMenu } from './AnalysesMenu';
 import { FileMenu } from './FileMenu';
 import { run } from '../runner';
-import { useStore } from '../store';
+import { useStore, type Workspace } from '../store';
 import { useState } from 'react';
 import { switchMethod } from '../methodSwitch';
 import { AccountMenu } from './cloud/AccountMenu';
@@ -11,6 +11,21 @@ import { ShareDialog } from './cloud/ShareDialog';
 import { IconEye, IconShare, IconLogo, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
 
 const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+
+/** Switches the editor between the dataset and the diagram. */
+export function WorkspaceTabs() {
+  const workspace = useStore((s) => s.workspace);
+  const setWorkspace = useStore((s) => s.setWorkspace);
+  const tabs: [Workspace, string][] = [['data', 'Data'], ['model', 'Model']];
+  return (
+    <div className="segmented workspace-tabs" role="tablist" aria-label="Workspace">
+      {tabs.map(([id, label]) => (
+        <button key={id} role="tab" id={`ws-tab-${id}`} aria-selected={workspace === id} aria-controls={id === 'data' ? 'ws-data' : undefined}
+          className={workspace === id ? 'on' : ''} onClick={() => setWorkspace(id)}>{label}</button>
+      ))}
+    </div>
+  );
+}
 
 export function TopBar() {
   const name = useStore((s) => s.projectName);
@@ -41,7 +56,7 @@ export function TopBar() {
         <span className="example-badge" title="An example: try anything; your changes are not kept, so it opens as the original next time.">
           Example
           <button className="btn sm ghost" onClick={() => { keepExample(); useStore.getState().toast('success', 'Now your own project: changes are kept in Recent projects.'); }}
-            title="Keep this model, with your changes, as your own project">Keep as my project</button>
+            title="Keep this model, with your changes, as your own project">Keep<span className="lbl-wide"> as my project</span></button>
         </span>
       ) : dirty && <span className="dirty-dot" title="Unsaved changes" />}
       <div className="sep" />
@@ -49,6 +64,8 @@ export function TopBar() {
       <div className="sep" />
       <button className="btn icon ghost" onClick={undo} disabled={!canUndo} title={`Undo (${mod}Z)`} aria-label="Undo"><IconUndo /></button>
       <button className="btn icon ghost" onClick={redo} disabled={!canRedo} title={`Redo (${mod}⇧Z)`} aria-label="Redo"><IconRedo /></button>
+      <div className="sep" />
+      <WorkspaceTabs />
       <div className="spacer" />
       <PresenceBar />
       <button className="btn ghost" aria-label="Share" onClick={() => setShareOpen(true)} title="Invite people to work on this project"><IconShare /><span className="lbl">Share</span></button>
@@ -70,9 +87,9 @@ export function TopBar() {
       <AnalysesMenu />
       {/* CPA bootstraps within Calculate. The button keeps its place (hidden) so the controls
           to its left, the method switch among them, do not move when the method changes. */}
-      <button className="btn" onClick={() => run('boot')} disabled={!!job || !hasModel || method === 'process'} title="Bootstrap standard errors, p-values and confidence intervals"
+      <button className="btn" aria-label="Bootstrap" onClick={() => run('boot')} disabled={!!job || !hasModel || method === 'process'} title="Bootstrap standard errors, p-values and confidence intervals"
         style={method === 'process' ? { visibility: 'hidden' } : undefined} aria-hidden={method === 'process'} tabIndex={method === 'process' ? -1 : undefined}>
-        <IconRepeat /> Bootstrap
+        <IconRepeat /><span className="lbl-wide">Bootstrap</span>
       </button>
       <button className="btn primary" onClick={() => run('estimate')} disabled={!!job || !hasModel}
         title={`${method === 'pls' ? 'Run the PLS algorithm' : method === 'process' ? 'OLS regressions and bootstrap of the indirect effects (manymome)' : 'Maximum-likelihood estimation'} (${mod}↵)`}>

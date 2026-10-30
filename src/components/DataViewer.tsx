@@ -1,20 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { create } from 'zustand';
 import { columnSummary } from '../data/summary';
 import { fmt } from '../format';
 import { useStore } from '../store';
-import { IconX } from './icons';
 import { c, Table } from './results/Table';
-
-export const useDataView = create<{ open: boolean; setOpen: (v: boolean) => void }>((set) => ({ open: false, setOpen: (open) => set({ open }) }));
 
 const PAGE = 100;
 const num = (v: number, d?: number) => c(Number.isFinite(v) ? v : null, undefined, d);
 const cell = (v: number) => (Number.isNaN(v) ? <span className="na">NA</span> : Number.isInteger(v) ? String(v) : fmt(v, 4));
 
-/** The dataset itself: its rows (paged) and descriptive statistics per variable. */
-export function DataViewer() {
-  const open = useDataView((s) => s.open);
+/** The Data tab: the dataset itself, its rows (paged) and descriptive statistics per variable. */
+export function DataWorkspace() {
   const data = useStore((s) => s.data);
   const info = useStore((s) => s.dataInfo);
   const owner = useStore((s) => s.model.constructs);
@@ -22,15 +17,7 @@ export function DataViewer() {
   const [page, setPage] = useState(0);
   const [query, setQuery] = useState('');
   useEffect(() => { setPage(0); }, [data]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') useDataView.getState().setOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-  const summaries = useMemo(() => (open && data && data.cols.length ? data.cols.map(columnSummary) : []), [open, data]);
-  if (!open) return null;
-  const close = () => useDataView.getState().setOpen(false);
+  const summaries = useMemo(() => (tab === 'summary' && data && data.cols.length ? data.cols.map(columnSummary) : []), [tab, data]);
   const matrix = !!data?.moments && data.cols.length === 0;
   const rows = data && !matrix ? data.cols[0]?.length ?? 0 : 0;
   const pages = Math.max(1, Math.ceil(rows / PAGE));
@@ -38,13 +25,11 @@ export function DataViewer() {
   const shown = data ? data.names.map((n, i) => [n, i] as const).filter(([n]) => n.toLowerCase().includes(q)) : [];
   const assigned = new Map(owner.flatMap((k) => k.indicators.map((i) => [i, k.name] as const)));
   return (
-    <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="Inspect data" onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
-      <div className="sim">
+    <section className="data-workspace" role="tabpanel" id="ws-data" aria-labelledby="ws-tab-data">
         <header className="sim-head">
           <div><b>Data</b><span className="muted">{info ? `${info.fileName} · ${matrix ? `covariance matrix, N = ${info.rows}` : `${info.rows} rows`} · ${data?.names.length ?? 0} variables` : 'no dataset'}</span></div>
-          <button className="btn icon ghost" onClick={close} aria-label="Close"><IconX /></button>
         </header>
-        {!data ? <div className="empty-results">Import a dataset first.</div> : (
+        {!data ? <div className="empty-results">No dataset yet: import a CSV file or load an example from the Data panel on the left.</div> : (
           <div className="data-view">
             <div className="table-tools">
               {!matrix && (
@@ -95,7 +80,6 @@ export function DataViewer() {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </section>
   );
 }

@@ -5,7 +5,6 @@ import { importCsv, loadSample } from '../io';
 import { textDialog } from './Overlays';
 import { useStore } from '../store';
 import { VARS_MIME } from './dnd';
-import { useDataView } from './DataViewer';
 import { IconEye, IconUpload } from './icons';
 
 export function DataPanel() {
@@ -103,7 +102,7 @@ export function DataPanel() {
         <span>Data</span>
         {data && (
           <span style={{ display: 'flex', gap: 4 }}>
-            <button className="btn sm ghost" onClick={() => useDataView.getState().setOpen(true)} title="See the rows and descriptive statistics of the dataset"><IconEye size={13} /> Inspect</button>
+            <button className="btn sm ghost" onClick={() => useStore.getState().setWorkspace('data')} title="See the rows and descriptive statistics of the dataset"><IconEye size={13} /> Inspect</button>
             <button className="btn sm ghost" onClick={() => void importCsv()} title="Replace dataset"><IconUpload size={13} /> Replace</button>
           </span>
         )}

@@ -45,6 +45,8 @@ export type JobKind = 'estimate' | 'boot' | 'fittest';
 export interface Job { kind: JobKind; done: number; total: number; workers?: number; /** Set for R calculations (no step count): what is running. */ label?: string }
 
 export type View = 'home' | 'editor';
+/** The editor's workspace tabs: the dataset itself, or the diagram with its results. */
+export type Workspace = 'data' | 'model';
 
 export interface CloudState {
   projectId: string;
@@ -69,6 +71,7 @@ interface State {
   /** Undo/redo availability when `history` is set. */
   historyCounts: { undo: number; redo: number };
   view: View;
+  workspace: Workspace;
   projectName: string;
   model: ModelState;
   past: ModelState[];
@@ -158,6 +161,7 @@ interface State {
   /** Turn the open example into an ordinary project of one's own (kept from now on). */
   keepExample: () => void;
   setView: (v: View) => void;
+  setWorkspace: (w: Workspace) => void;
   newProject: () => void;
   setProjectName: (name: string) => void;
   markSaved: () => void;
@@ -235,6 +239,7 @@ export const useStore = create<State>((set, get) => ({
   history: null,
   historyCounts: { undo: 0, redo: 0 },
   view: 'home',
+  workspace: 'model',
   projectName: 'Untitled model',
   model: emptyModel(),
   past: [],
@@ -557,16 +562,17 @@ export const useStore = create<State>((set, get) => ({
   setSettings: (p) => { if (!readOnly(get())) set((s) => ({ settings: { ...s.settings, ...p }, dirty: true })); },
   setData: (data, dataInfo) => set((s) => ({ data, dataInfo, dataVersion: s.dataVersion + 1, dirty: true, selectedVars: [] })),
   setView: (view) => set({ view }),
+  setWorkspace: (workspace) => set({ workspace }),
   loadProject: ({ name, model, settings, data, info, id, example }) =>
     set((s) => ({
-      projectId: id ?? newId('proj'), view: 'editor', cloud: null, example: example ?? null, history: null, historyCounts: { undo: 0, redo: 0 },
+      projectId: id ?? newId('proj'), view: 'editor', workspace: 'model', cloud: null, example: example ?? null, history: null, historyCounts: { undo: 0, redo: 0 },
       projectName: name, model, settings, data, dataInfo: info, dataVersion: s.dataVersion + 1,
       past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null, dirty: false, resultsOpen: false,
       fitRequest: s.fitRequest + 1, messages: [],
     })),
   newProject: () =>
     set((s) => ({
-      projectId: newId('proj'), view: 'editor', cloud: null, example: null, history: null, historyCounts: { undo: 0, redo: 0 },
+      projectId: newId('proj'), view: 'editor', workspace: 'model', cloud: null, example: null, history: null, historyCounts: { undo: 0, redo: 0 },
       projectName: 'Untitled model', model: emptyModel(), settings: DEFAULT_SETTINGS, data: null, dataInfo: null,
       dataVersion: s.dataVersion + 1, past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null,
       dirty: false, resultsOpen: false, messages: [],
