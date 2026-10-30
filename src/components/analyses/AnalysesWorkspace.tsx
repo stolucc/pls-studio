@@ -74,7 +74,9 @@ function AddMenu({ disabled }: { disabled: boolean }) {
     ref.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
     return () => { window.removeEventListener('mousedown', away); window.removeEventListener('keydown', key); };
   }, [open]);
-  const groups = [...new Set(ANALYSIS_TYPES.map((t) => t.group))] as AnalysisGroup[];
+  // (snapshots are taken from the Model tab, not added here)
+  const addable = ANALYSIS_TYPES.filter((t) => !t.frozen);
+  const groups = [...new Set(addable.map((t) => t.group))] as AnalysisGroup[];
   const onMenuKey = (e: KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
@@ -91,7 +93,7 @@ function AddMenu({ disabled }: { disabled: boolean }) {
           {groups.map((g) => (
             <div key={g}>
               <div className="menu-group">{g}</div>
-              {ANALYSIS_TYPES.filter((t) => t.group === g).flatMap((t) => (t.entries ?? [{ title: t.title, sub: t.sub, options: undefined }]).map((e) => (
+              {addable.filter((t) => t.group === g).flatMap((t) => (t.entries ?? [{ title: t.title, sub: t.sub, options: undefined }]).map((e) => (
                 <button key={`${t.id}:${e.title}`} role="menuitem" className="menu-item" onClick={() => pick(() => addAnalysis(t.id, e.options?.(t.defaults(currentCtx()))))}>
                   <span>{e.title}<br /><span className="sub">{e.sub}</span></span>
                 </button>
@@ -158,18 +160,18 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
       </article>
     );
   }
-  const [label, tone] = PILL[status!.state];
+  const [label, tone] = t?.frozen && status!.state === 'current' ? ['snapshot', 'run'] : PILL[status!.state];
   return (
     <article id={card.id} className={cls} {...drop} onClick={() => selectCard(card.id)}>
       <div className="card-head" tabIndex={0} {...drag} onKeyDown={onKey} aria-label={`${titleOf(card)} (Alt+↑/↓ to move)`}>
         {!readOnly && <span className="grip" aria-hidden>⋮⋮</span>}
         <h3>{titleOf(card)}</h3>
         <span className={`pill ${tone}`}>{label}</span>
-        <span className="muted card-meta">{t?.summary(card.options as never)}{card.run ? ` · ${when(card.run.at)}` : ''}</span>
+        <span className="muted card-meta">{t?.frozen ? 'snapshot' : t?.summary(card.options as never)}{card.run ? ` · ${when(card.run.at)}` : ''}</span>
         {!readOnly && (
           <span className="card-acts">
-            <button className="btn icon ghost sm" title={card.run ? 'Run again' : 'Run'} aria-label={card.run ? 'Run again' : 'Run'} disabled={running} onClick={(e) => { e.stopPropagation(); void runCard(card.id); }}>{card.run ? <IconRepeat size={13} /> : <IconPlay size={13} />}</button>
-            <button className="btn icon ghost sm" title="Duplicate" aria-label="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateCard(card.id); }}><IconCopy size={13} /></button>
+            {!t?.frozen && <button className="btn icon ghost sm" title={card.run ? 'Run again' : 'Run'} aria-label={card.run ? 'Run again' : 'Run'} disabled={running} onClick={(e) => { e.stopPropagation(); void runCard(card.id); }}>{card.run ? <IconRepeat size={13} /> : <IconPlay size={13} />}</button>}
+            {!t?.frozen && <button className="btn icon ghost sm" title="Duplicate" aria-label="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateCard(card.id); }}><IconCopy size={13} /></button>}
             <button className="btn icon ghost sm" title="Remove" aria-label="Remove" onClick={(e) => { e.stopPropagation(); void confirmRemove(card); }}><IconTrash size={13} /></button>
           </span>
         )}
@@ -221,8 +223,8 @@ function OptionsPane({ ctx, readOnly }: { ctx: AnalysisCtx; readOnly: boolean })
     <div className="pane-inner">
       <h2>{titleOf(c)}</h2>
       <t.Options options={c.options} set={(o) => setOptions(c.id, o)} ctx={ctx} disabled={readOnly || running} />
-      {blocked && <div className="hint">{blocked}</div>}
-      {!readOnly && (
+      {blocked && !t.frozen && <div className="hint">{blocked}</div>}
+      {!readOnly && !t.frozen && (
         <div className="pane-actions">
           <button className="btn primary" disabled={!!blocked || running} onClick={() => void runCard(c.id)}>{running ? 'Calculating…' : c.run ? <><IconRepeat size={13} /> Run again</> : <><IconPlay size={13} /> Run</>}</button>
           {running && <button className="btn" onClick={() => cancelCard(c.id)}>Cancel</button>}
@@ -287,6 +289,8 @@ export function AnalysesWorkspace() {
       <main className="card-log" aria-label="Analysis log">
         <div className="log-bar">
           <AddMenu disabled={readOnly} />
+          <button className="btn" disabled={!cards.length} onClick={() => void import('../../analyses/report').then((m) => m.exportReport())}
+            title="The log as one HTML file: headings, notes and every result as shown here, in APA-like style">Export report</button>
           <span className="hint">{readOnly ? 'View only.' : 'Reorder by dragging in the outline (or a card’s ⋮⋮, or Alt+↑/↓). The log is saved with the project.'}</span>
         </div>
         {cards.length === 0 && (

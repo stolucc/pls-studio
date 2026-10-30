@@ -45,6 +45,18 @@ function edit(fn: (cards: Card[]) => Card[]) {
 }
 const without = <T,>(o: Record<string, T>, id: string) => { const { [id]: _drop, ...rest } = o; return rest; };
 
+/** Add a frozen card (a model snapshot) with its result, after the selected card or at the end; selects it. */
+export async function addFrozenCard(type: string, options: unknown, result: unknown): Promise<string | null> {
+  const t = analysisType(type);
+  if (!t?.frozen || readOnly() || useAnalyses.getState().cards.length >= MAX_CARDS) return null;
+  const packed = await packResult(result);
+  if (packed === null) useStore.getState().toast('info', 'The snapshot is too large to save with the project; it is kept until you close it.');
+  const id = newCardId();
+  const card: Card = { id, kind: 'analysis', type, options, run: { at: Date.now(), fingerprint: t.fingerprint(options, currentCtx()) ?? '', options: JSON.stringify(options), ...(packed ? { packed } : {}) } };
+  useAnalyses.setState((s) => ({ cards: [...s.cards, card], results: { ...s.results, [id]: result }, selected: id }));
+  return id;
+}
+
 /** Add an analysis card (options: all or some of its options) and select it. */
 export function addAnalysis(type: string, options?: unknown): string | null {
   const t = analysisType(type);
@@ -234,6 +246,7 @@ export function cardStatus(card: AnalysisCard, ctx: AnalysisCtx, running: boolea
   if (!card.run) return { state: 'empty' };
   const t = analysisType(card.type);
   if (!t) return { state: 'stale', why: 'This kind of analysis is not available in this version.' };
+  if (t.frozen) return card.run.packed || hasResult ? { state: 'current' } : { state: 'missing', why: 'The snapshot’s results are not stored here (shared projects keep results on each computer).' };
   if (!hasResult && !card.run.packed) return { state: 'missing', why: 'The result is not stored here (shared projects keep results on each computer, and very large results are not saved). Run it again to see it.' };
   if (!sameOptions(t, card.options, card.run.options)) return { state: 'stale', why: 'The options changed since this ran.' };
   const fp = t.fingerprint(card.options, ctx);

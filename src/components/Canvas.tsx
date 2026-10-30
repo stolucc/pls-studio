@@ -8,6 +8,7 @@ import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment, qu
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { FigurePanel } from './FigurePanel';
+import { setFigureSource } from '../figure/source';
 import { numberDialog, textDialog } from './Overlays';
 import { nameError } from '../model/expr';
 import { ProcessGallery } from './ProcessGallery';
@@ -505,6 +506,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     });
     return { constructs, paths, moderations, higherOrder, errors, correlations };
   }, [st, method, display, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel]);
+  // Model snapshots on the Analyses tab draw the diagram from the canvas.
+  useEffect(() => { setFigureSource(figureInput); return () => setFigureSource(null); }, [figureInput]);
 
   // Right-click menus (canvasMenu.ts decides what each one offers).
   const [menu, setMenu] = useState<{ x: number; y: number; target: MenuTarget } | null>(null);

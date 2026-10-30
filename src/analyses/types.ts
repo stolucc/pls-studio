@@ -33,7 +33,7 @@ export type Card =
   | { id: string; kind: 'heading' | 'note'; text: string };
 export type AnalysisCard = Extract<Card, { kind: 'analysis' }>;
 
-export type AnalysisGroup = 'Data' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions';
+export type AnalysisGroup = 'Model snapshots' | 'Data' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions';
 
 export interface OptionsProps<O> { options: O; set: (o: O) => void; ctx: AnalysisCtx; disabled: boolean }
 
@@ -49,6 +49,8 @@ export interface AnalysisType<O = any, R = any> {
   entries?: { title: string; sub: string; options: (defaults: O) => O }[];
   /** The card's title when it depends on the options. */
   cardTitle?: (o: O) => string;
+  /** A frozen card (a snapshot): created with its result, never run, never stale. */
+  frozen?: boolean;
   /** Options that only change how the result is shown: changing them does not make it stale. */
   display?: (keyof O & string)[];
   group: AnalysisGroup;
