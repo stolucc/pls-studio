@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
-import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
+import { type Construct, DEFAULT_SETTINGS, type ModelState, parseProject, serializeProject } from '../model/project';
 import { LOCAL, readDoc, writeDoc } from './collab';
 
 const C = (id: string, name: string, x = 0) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators: [`${id}1`, `${id}2`], x, y: 0, side: 'left' as const });
@@ -126,5 +126,70 @@ describe('shared projects from before explicit correlations', () => {
     // Removed later by a user: stays removed (no second migration).
     writeDoc(d, { ...migrated, correlations: [] }, DEFAULT_SETTINGS, 'Shared', null);
     expect(readDoc(d).model.correlations ?? []).toEqual([]);
+  });
+});
+
+// Every model and construct field, set. Typed Required<…>: a field added to the
+// model later fails typechecking here until it is added, and then must survive
+// both a project file and the shared document.
+const full: Construct & Required<Omit<Construct, 'categorical' | 'components'>> = {
+  id: 'f', name: 'Full', type: 'factor', mode: 'unit', indicators: ['f1', 'f2', 'f3'], x: 10, y: 20, side: 'top',
+  covariate: true, reliability: 0.8, latent: true, fixedLoadings: { f2: 0.5 }, dominant: 'f2', loadingLabels: { f3: 'lf' },
+};
+const kitchenSink: Required<ModelState> = {
+  constructs: [
+    full,
+    { ...C('a', 'Alpha'), categorical: 'helmert' },
+    C('b', 'Beta'),
+    { id: 'h', name: 'High', type: 'factor', mode: 'A', indicators: [], x: 0, y: 0, side: 'left', components: ['a', 'b'] },
+  ],
+  paths: [{ id: 'p', from: 'a', to: 'b', label: 'pa' }, { id: 'p2', from: 'f', to: 'b', fixed: 0.3 }],
+  moderations: [{ id: 'mo', moderator: 'f', path: 'p' }],
+  correlations: [{ id: 'k1', kind: 'construct', a: 'a', b: 'f', zero: true }, { id: 'k2', kind: 'indicator', a: 'a1', b: 'b2', label: 'e1' }, { id: 'k3', kind: 'construct', a: 'h', b: 'f', fixed: 0.2 }],
+  threeWay: [{ id: 't', moderation: 'mo', moderator: 'h' }],
+  ordered: ['a1', 'b1'],
+  defined: [{ id: 'd', name: 'ind', expr: 'pa*2' }],
+  waldTests: [{ id: 'w', name: 'Equal', constraints: 'pa == lf' }],
+  inequalities: 'pa > 0',
+  positiveVariances: true,
+  multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'a', indicator: 'a2' }, { kind: 'intercept', indicator: 'b1' }] },
+  multilevel: { column: 'school', between: 'same' },
+  weights: 'w',
+  esem: { blocks: [{ id: 'e', constructs: ['a', 'b'] }], rotation: 'target' },
+};
+
+describe('every model field survives', () => {
+  it('a project file', () => {
+    expect(parseProject(serializeProject(kitchenSink, DEFAULT_SETTINGS, null, null)).model).toEqual(kitchenSink);
+  });
+  it('the shared document, between two peers, and removal of a field', () => {
+    const [d1, d2] = pair();
+    writeDoc(d1, kitchenSink, DEFAULT_SETTINGS, 'Shared', null);
+    expect(readDoc(d2).model).toEqual(kitchenSink);
+    const { multigroup: _g, weights: _w, ...fewer } = kitchenSink;
+    writeDoc(d2, fewer, DEFAULT_SETTINGS, 'Shared', null);
+    expect(readDoc(d1).model).toEqual(fewer);
+  });
+  it('drops a moderated moderation whose moderation a peer removed concurrently', () => {
+    const base = new Y.Doc();
+    writeDoc(base, kitchenSink, DEFAULT_SETTINGS, 'Shared', null);
+    const u1 = new Y.Doc(), u2 = new Y.Doc();
+    Y.applyUpdate(u1, Y.encodeStateAsUpdate(base));
+    Y.applyUpdate(u2, Y.encodeStateAsUpdate(base));
+    writeDoc(u1, { ...kitchenSink, moderations: [], threeWay: [] }, DEFAULT_SETTINGS, 'Shared', null);
+    writeDoc(u2, { ...kitchenSink, threeWay: [...kitchenSink.threeWay, { id: 't2', moderation: 'mo', moderator: 'a' }] }, DEFAULT_SETTINGS, 'Shared', null);
+    Y.applyUpdate(u1, Y.encodeStateAsUpdate(u2));
+    const r = readDoc(u1);
+    expect(r.model.moderations).toEqual([]);
+    expect(r.model.threeWay ?? []).toEqual([]);
+  });
+  it('undo reverts a local change to a model-level field', () => {
+    const d = new Y.Doc();
+    writeDoc(d, model, DEFAULT_SETTINGS, 'Shared', null);
+    const undo = new Y.UndoManager([d.getMap('model')], { trackedOrigins: new Set([LOCAL]) });
+    writeDoc(d, { ...model, weights: 'w' }, DEFAULT_SETTINGS, 'Shared', null);
+    expect(readDoc(d).model.weights).toBe('w');
+    undo.undo();
+    expect(readDoc(d).model.weights).toBeUndefined();
   });
 });

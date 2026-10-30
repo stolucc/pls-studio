@@ -5,6 +5,10 @@
 //   constructs:  Y.Map<id, Y.Map<field, value>>   (one map per construct, so
 //                concurrent edits to different fields or constructs merge)
 //   paths, moderations, correlations: Y.Map<id, plain object>
+//   model:       every other model field (multigroup, ESEM, ordinal indicators,
+//                defined parameters, Wald tests, weights, inequalities, …), one
+//                key per field with a plain value, so new fields sync without
+//                changes here
 //   meta:        name, settings, simulation       (undoable)
 //   sys:         dataRevision                     (not undoable)
 //
@@ -55,6 +59,10 @@ export function writeDoc(doc: Y.Doc, model: ModelState, settings: Settings, name
     syncFlat(doc.getMap('paths'), model.paths);
     syncFlat(doc.getMap('moderations'), model.moderations);
     syncFlat(doc.getMap('correlations'), model.correlations ?? []);
+    const { constructs: _c, paths: _p, moderations: _m, correlations: _k, ...rest } = model;
+    const extra = doc.getMap('model');
+    for (const k of [...extra.keys()]) if ((rest as Record<string, unknown>)[k] === undefined) extra.delete(k);
+    for (const [k, v] of Object.entries(rest)) if (v !== undefined && !same(extra.get(k), v)) extra.set(k, v);
     const meta = doc.getMap('meta');
     if (meta.get('name') !== name) meta.set('name', name);
     if (!same(meta.get('settings'), settings)) meta.set('settings', settings);
@@ -81,13 +89,19 @@ export function readDoc(doc: Y.Doc): { model: ModelState; settings: Settings; na
   const indicators = new Set(constructs.flatMap((c) => (Array.isArray(c.indicators) ? c.indicators as unknown[] : [])));
   const correlations = flat(doc.getMap('correlations'))
     .filter((k) => k.a !== k.b && (k.kind === 'construct' ? ids.has(k.a as string) && ids.has(k.b as string) : indicators.has(k.a) && indicators.has(k.b)));
+  // Moderated moderations whose moderation or moderator someone else removed.
+  const extra = doc.getMap('model').toJSON() as Record<string, unknown>;
+  const modIds = new Set(moderations.map((m) => m.id));
+  if (Array.isArray(extra.threeWay)) {
+    extra.threeWay = (extra.threeWay as unknown[]).filter((t) => !!t && typeof t === 'object' && modIds.has((t as Record<string, unknown>).moderation as string) && ids.has((t as Record<string, unknown>).moderator as string));
+  }
   for (const c of constructs) {
     if (Array.isArray(c.components)) c.components = (c.components as unknown[]).filter((x) => typeof x === 'string' && ids.has(x) && x !== c.id);
   }
   const file = {
     // (shared projects from before format 2 are migrated once, then written back as format 2)
     format: 'pls-studio', version: meta.get('format') === FORMAT_VERSION ? FORMAT_VERSION : 1,
-    model: { constructs, paths, moderations, correlations },
+    model: { ...extra, constructs, paths, moderations, correlations },
     settings: meta.get('settings') ?? DEFAULT_SETTINGS,
     data: null,
     simulation: meta.get('simulation') ?? null,
@@ -153,7 +167,7 @@ export class CollabSession {
     });
 
     this.undo = new Y.UndoManager(
-      [this.doc.getMap('constructs'), this.doc.getMap('paths'), this.doc.getMap('moderations'), this.doc.getMap('correlations'), this.doc.getMap('meta')],
+      [this.doc.getMap('constructs'), this.doc.getMap('paths'), this.doc.getMap('moderations'), this.doc.getMap('correlations'), this.doc.getMap('model'), this.doc.getMap('meta')],
       { trackedOrigins: new Set([LOCAL]), captureTimeout: 400 },
     );
     const counts = () => useStore.setState({ historyCounts: { undo: this.undo.undoStack.length, redo: this.undo.redoStack.length } });
