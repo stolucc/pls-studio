@@ -65,6 +65,8 @@ export const R_PACKAGES = {
   readData: ['jsonlite', 'haven', 'readxl'],
   bootnet: ['jsonlite', 'bootnet', 'qgraph'],
   EGAnet: ['jsonlite', 'EGAnet'],
+  // R and package versions (replication packages).
+  versions: ['jsonlite'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 

@@ -380,6 +380,8 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(16, 24, 40, 0.35); display: grid; place-items: center; z-index: 100; animation: fade 0.12s; }
 .modal { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg); width: min(420px, calc(100vw - 32px)); padding: 20px; animation: pop 0.14s; }
 .modal h3 { margin: 0 0 6px; font-size: 15px; }
+.modal.replication { width: min(560px, calc(100vw - 32px)); }
+.rep-list { max-height: 45vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
 .modal p { margin: 0 0 18px; color: var(--text-2); line-height: 1.55; }
 .modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
 .toasts { position: fixed; bottom: 16px; right: 16px; display: grid; gap: 8px; z-index: 120; }

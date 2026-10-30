@@ -9,6 +9,7 @@ import { downloadText, safeFileName } from '../../format';
 import { useFreshResults, useStore } from '../../store';
 import { IconCopy, IconPlay, IconRepeat, IconTrash } from '../icons';
 import { confirmDialog } from '../Overlays';
+import { openReplication, ReplicationDialog } from './ReplicationDialog';
 
 /** The project as the analyses see it, re-rendering when it changes. */
 export function useAnalysisCtx(): AnalysisCtx {
@@ -291,6 +292,7 @@ export function AnalysesWorkspace() {
           <AddMenu disabled={readOnly} />
           <button className="btn" disabled={!cards.length} onClick={() => void import('../../analyses/report').then((m) => m.exportReport())}
             title="The log as one HTML file: headings, notes and every result as shown here, in APA-like style">Export report</button>
+          <button className="btn" onClick={openReplication} title="A zip with the data, an R script per chosen analysis, the project and a README">Replication package</button>
           <span className="hint">{readOnly ? 'View only.' : 'Reorder by dragging in the outline (or a card’s ⋮⋮, or Alt+↑/↓). The log is saved with the project.'}</span>
         </div>
         {cards.length === 0 && (
@@ -305,6 +307,7 @@ export function AnalysesWorkspace() {
         )}
       </main>
       <Outline cards={cards} ctx={ctx} results={results} readOnly={readOnly} />
+      <ReplicationDialog />
     </section>
   );
 }

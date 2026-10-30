@@ -1,3 +1,4 @@
+import { openReplication } from './analyses/ReplicationDialog';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { exportRScript, importCsv, newProject, openProject, saveProject } from '../io';
 import { useStore } from '../store';
@@ -42,6 +43,7 @@ export function FileMenu() {
           <div className="menu-sep" role="separator" />
           {item(hasData ? 'Replace data…' : 'Import data…', () => void importCsv())}
           {item('Inspect data', () => useStore.getState().setWorkspace('data'), { disabled: !hasData })}
+          {item('Create replication package…', () => openReplication())}
           <div className="menu-sep" role="separator" />
           {item('Download R script', () => void exportRScript(), { disabled: !hasData })}
         </div>

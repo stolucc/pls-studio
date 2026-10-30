@@ -315,3 +315,12 @@ ps_mi_settings <- function(req) {
   if (is.na(m) || m < 2L || m > 200L) stop("The number of imputations must be between 2 and 200.")
   list(m = m, seed = seed)
 }
+
+#' Versions of R and of the requested packages (NA when not installed), for a replication package's README.
+ps_versions <- function(req_json) {
+  req <- ps_parse(req_json)
+  pkgs <- unique(unlist(req$packages))
+  pkgs <- pkgs[grepl("^[A-Za-z][A-Za-z0-9.]*$", pkgs)]
+  v <- vapply(pkgs, function(p) tryCatch(as.character(utils::packageVersion(p)), error = function(e) NA_character_), "")
+  ps_json(list(r = R.version.string, platform = R.version$platform, packages = lapply(seq_along(pkgs), function(i) list(name = pkgs[i], version = unname(v[i])))))
+}
