@@ -13,8 +13,9 @@ import { blindfoldAnalysis, ccaAnalysis, compareAnalysis, ctaAnalysis, groupsAna
 import { fimixAnalysis, pathmoxAnalysis, posAnalysis, rebusAnalysis } from './segmentation';
 import { mcAnalysis } from './simulation';
 import { bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis } from './cbModel';
+import { sampleSizeAnalysis } from './sampleSize';
 import type { AnalysisType } from './types';
 
-export const ANALYSIS_TYPES: AnalysisType[] = [screenAnalysis, influenceAnalysis, efaAnalysis, irtAnalysis, lcaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, endoAnalysis, lmmAnalysis, growthAnalysis, riclpmAnalysis, gmmAnalysis];
+export const ANALYSIS_TYPES: AnalysisType[] = [screenAnalysis, influenceAnalysis, efaAnalysis, irtAnalysis, lcaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, endoAnalysis, lmmAnalysis, growthAnalysis, riclpmAnalysis, gmmAnalysis];
 
 export const analysisType = (id: string): AnalysisType | undefined => ANALYSIS_TYPES.find((t) => t.id === id);
