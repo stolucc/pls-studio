@@ -24,7 +24,12 @@ export async function startTestRuntime() {
   configureR({ baseUrl: join(ROOT, 'node_modules', 'webr', 'dist') + '/', repoUrl: `http://127.0.0.1:${port}/repo/` });
   // PS_RECORD_REQUESTS=<file>: record every bridge call (scripts/security/replay-injection.R replays them).
   const record = process.env.PS_RECORD_REQUESTS;
-  if (record) observeCalls((call, req) => { if (/^ps_[a-z0-9_]+\(req[,)]/.test(call)) appendFileSync(record, `${JSON.stringify({ call, req })}\n`); });
+  // (calls arrive either as `ps_x(req)` or, through rCall, as `ps_call("ps_x", req)`; both are kept as `ps_x(req)`)
+  if (record) observeCalls((call, req) => {
+    const viaCall = /^ps_call\("(ps_[a-z0-9_]+)", req[,)]/.exec(call);
+    const fn = viaCall ? `${viaCall[1]}(req)` : /^ps_[a-z0-9_]+\(req[,)]/.test(call) ? call : null;
+    if (fn) appendFileSync(record, `${JSON.stringify({ call: fn, req })}\n`);
+  });
 }
 
 export function stopTestRuntime(): Promise<void> {
