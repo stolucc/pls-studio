@@ -170,12 +170,37 @@ ps_pls_out <- function(req, b, env) {
     rhoC <- pick(if (!is.null(a)) a$Reliability$Joereskogs_rho else if (!linear) NULL else safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE), "Composite reliability (cSEM::calculateRhoC)"), a2$Reliability$Joereskogs_rho)
     rhoA <- pick(if (!is.null(a)) a$Reliability$`Dijkstra-Henselers_rho_A` else NULL, a2$Reliability$`Dijkstra-Henselers_rho_A`)
     ave <- pick(if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)"), a2$AVE)
+    # cSEM warns, without naming them, when item correlations break the HTMT's sign
+    # assumption, and leaves HTMT2 NaN where a geometric mean of mixed-sign correlations
+    # does not exist. The notes below name the constructs instead.
+    sign_warned <- FALSE
     htmt <- function(type) {
-      h <- safe(cSEM::calculateHTMT(fit1, .type_htmt = type), if (type == "htmt2") "HTMT2 (cSEM::calculateHTMT)" else "HTMT (cSEM::calculateHTMT)")  # (first-order constructs)
+      h <- safe(withCallingHandlers(cSEM::calculateHTMT(fit1, .type_htmt = type), warning = function(w) {
+        m <- conditionMessage(w)
+        if (grepl("all-positive or all-negative", m, fixed = TRUE)) { sign_warned <<- TRUE; invokeRestart("muffleWarning") }
+        if (type == "htmt2" && grepl("HTMT2 cannot be calculated", m, fixed = TRUE)) invokeRestart("muffleWarning")
+      }), if (type == "htmt2") "HTMT2 (cSEM::calculateHTMT)" else "HTMT (cSEM::calculateHTMT)")  # (first-order constructs)
       if (is.list(h) && !is.null(h$htmts)) h <- h$htmts
       out <- matrix(NA_real_, K, K)
       if (is.matrix(h)) { m <- mat(h, all_l, all_l); out[lower.tri(out)] <- m[lower.tri(m)] }
       out
+    }
+    htmt1 <- htmt("htmt"); htmt2 <- htmt("htmt2")
+    undefined <- which(is.nan(htmt2) & lower.tri(htmt2), arr.ind = TRUE)
+    htmt2[is.nan(htmt2)] <- NA_real_
+    pair <- function(i, j) sprintf("%s \u2013 %s", constructs[j], constructs[i])
+    if (sign_warned || nrow(undefined)) {
+      S <- fit1$Estimates$Indicator_VCV
+      blk <- lapply(n$inds, function(x) intersect(unname(n$iv[x]), rownames(S)))
+      within <- character(0); mixed <- character(0)
+      for (i in seq_along(blk)) {
+        v <- S[blk[[i]], blk[[i]], drop = FALSE]
+        if (any(v[upper.tri(v)] < 0)) within <- c(within, n$cname[i])
+        for (j in seq_len(i - 1)) { v <- S[blk[[i]], blk[[j]]]; if (any(v > 0) && any(v < 0)) mixed <- c(mixed, sprintf("%s and %s", n$cname[j], n$cname[i])) }
+      }
+      if (length(within)) ps_note(sprintf("Some items of %s correlate negatively with the others: is an item reverse-coded? Recode it (Data tab) before interpreting loadings, reliability and HTMT.", paste(within, collapse = ", ")))
+      if (length(mixed)) ps_note(sprintf("Items correlate with mixed signs between %s: these constructs are nearly uncorrelated, so their HTMT is close to zero.", paste(mixed, collapse = "; between ")))
+      if (nrow(undefined)) ps_note(sprintf("HTMT2 is not defined for %s: it takes geometric means, which do not exist for correlations of mixed signs (Roemer, Schuberth & Henseler, 2021). The HTMT is still reported.", paste(pair(undefined[, 1], undefined[, 2]), collapse = "; ")))
     }
     fitm <- function(sat) {
       # (Not reported for two-stage models: cSEM's discrepancies refer to one stage only.)
@@ -219,6 +244,7 @@ ps_pls_out <- function(req, b, env) {
       }
       out
     }
+    htmt1 <- htmt("htmt"); htmt2 <- htmt("htmt2")
     fitm <- function(sat) list(srmr = NA_real_, dULS = NA_real_, dG = NA_real_)
     fsq <- mat(unclass(s$fSquare), all_l, all_l)
     vif <- matrix(NA_real_, K, K)
@@ -255,7 +281,7 @@ ps_pls_out <- function(req, b, env) {
     })), recursive = FALSE) else NULL,
     redundancy = if (b$pkg == "cSEM" && !two) { ra <- safe(cSEM::doRedundancyAnalysis(fit), "Redundancy analysis (cSEM::doRedundancyAnalysis)"); if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) as.list(setNames(unname(ra), n$cname[match(names(ra), cv)])) else NULL } else NULL,
     quality = lapply(seq_len(K), function(j) list(alpha = q4(alpha)[j], rhoC = q4(rhoC)[j], rhoA = q4(rhoA)[j], ave = q4(ave)[j])),
-    htmt = htmt("htmt"), htmt2 = htmt("htmt2"),
+    htmt = htmt1, htmt2 = htmt2,
     fit = list(estimated = fitm(FALSE), saturated = fitm(TRUE)),
     consistent = isTRUE(b$o$consistent), types = c(b$type, rep("composite", length(mods))),
     moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
