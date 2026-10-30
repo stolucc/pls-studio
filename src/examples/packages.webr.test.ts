@@ -93,6 +93,19 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const { kind: _k, ...pre } = p;
         const r = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre });
         expect(r.counts[1].treated).toBe(185);
+        if (ex.id === 'weightit-lalonde') {
+          // WeightIt's vignette, against WeightIt + marginaleffects run natively (scripts/validation/weightit.R).
+          const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'match', 'weightit.json'), 'utf8'));
+          expect(r.effect!.est).toBeCloseTo(ref.dr.est, 4);
+          // (marginaleffects differentiates numerically: SEs agree to about 6 significant digits across builds)
+          expect(Math.abs(r.effect!.se / ref.dr.se - 1)).toBeLessThan(1e-5);
+          expect(Math.abs(r.effect!.ciLow / ref.dr.low - 1)).toBeLessThan(1e-4);
+          expect(r.counts[1].control).toBeCloseTo(ref.essControl, 6);
+          expect(r.balance.find((b) => b.variable === 'age')!.diffAfter).toBeCloseTo(ref.ageAfter, 8);
+          const ipw = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre, effectModel: 'ipw' });
+          expect(ipw.effect!.est).toBeCloseTo(ref.ipw.est, 4);
+          expect(ipw.effect!.se).toBeCloseTo(ref.ipw.se, 4);
+        }
       } else if (p.kind === 'lmm') {
         const { kind: _k, ...input } = p;
         const r = await lmmR(data, input);

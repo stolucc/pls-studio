@@ -10,7 +10,8 @@ ps_match <- function(req_json, export = FALSE) {
   treat <- req$treatment; covs <- unlist(req$covariates); outcome <- req$outcome %||% ""
   if (!length(treat) || !length(covs)) stop("Choose the treatment and at least one covariate.")
   method <- req$method %||% "nearest"
-  if (!method %in% c("nearest", "optimal", "full", "exact", "cem", "subclass")) stop("Invalid matching method in the request.")
+  if (!method %in% c("nearest", "optimal", "full", "exact", "cem", "subclass", "weighting")) stop("Invalid matching method in the request.")
+  if (method == "weighting") return(ps_weight(req, export))
   distance <- req$distance %||% "glm"
   if (!distance %in% c("glm", "mahalanobis")) stop("Invalid distance in the request.")
   estimand <- req$estimand %||% "ATT"
@@ -62,4 +63,63 @@ ps_match <- function(req_json, export = FALSE) {
     effect = if (is.null(Y)) NULL else list(est = env$effect[2, 1], se = env$effect[2, 2], t = env$effect[2, 3], p = env$effect[2, 4],
       ciLow = env$effect_ci[2, 1], ciHigh = env$effect_ci[2, 2], n = nrow(env$md)),
     warnings = env$.warnings, engine = list(package = "MatchIt", version = as.character(utils::packageVersion("MatchIt")))))
+}
+
+#' Inverse probability weighting with WeightIt (Greifer): propensity scores by
+#' logistic regression, weights for the estimand, balance by cobalt, and the
+#' effect as in WeightIt's vignette "Estimating effects after weighting":
+#' lm_weightit (standard errors that account for estimating the weights), either
+#' the outcome on treatment (IPW) or with the covariates and their interactions
+#' with treatment, averaged by g-computation (marginaleffects::avg_comparisons):
+#' doubly robust, consistent if either the propensity or the outcome model is right.
+ps_weight <- function(req, export = FALSE) {
+  treat <- req$treatment; covs <- unlist(req$covariates); outcome <- req$outcome %||% ""
+  estimand <- req$estimand %||% "ATT"
+  if (!estimand %in% c("ATT", "ATE", "ATC")) stop("Invalid estimand in the request.")
+  effect_model <- req$effectModel %||% "dr"
+  if (!effect_model %in% c("ipw", "dr")) stop("Invalid effect model in the request.")
+  conf <- as.numeric(req$confidence %||% 0.95)
+  cols <- unique(c(treat, covs, if (nzchar(outcome)) outcome))
+  fr <- ps_long_frame(req, cols)
+  v <- fr$v; T <- v[[treat]]; X <- unname(v[covs]); Y <- if (nzchar(outcome)) v[[outcome]] else NULL
+  cats <- req$categories %||% list()
+  fac <- unlist(lapply(covs, function(cv) { l <- cats[[cv]]; if (is.null(l)) NULL else
+    sprintf("data$%s <- factor(data$%s, levels = seq_len(%d), labels = %s)", v[[cv]], v[[cv]], length(unlist(l)), ps_q(unlist(l))) }))
+  focal <- c(ATT = "data[data$%s == 1, ]", ATC = "data[data$%s == 0, ]", ATE = "data")[[estimand]]
+  body <- c("suppressPackageStartupMessages({ library(WeightIt); library(cobalt); library(marginaleffects) })",
+    sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(T, X, Y))),
+    sprintf("# Treatment: the higher of the two values of %s is \"treated\".", ps_comment(treat)),
+    sprintf("vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment must have exactly two values.\")", T),
+    sprintf("data$%s <- as.integer(data$%s == vals[2])", T, T),
+    if (length(fac)) c("# Text (categorical) covariates as factors.", fac),
+    sprintf("# Propensity scores by logistic regression; weights for the %s.", estimand),
+    sprintf("W <- weightit(%s ~ %s, data = data, method = \"glm\", estimand = \"%s\")", T, paste(X, collapse = " + "), estimand),
+    "ess <- summary(W)$effective.sample.size",
+    "# Balance before and after weighting: standardised mean differences (|d| < .1) and variance ratios.",
+    "bal <- bal.tab(W, un = TRUE, stats = c(\"mean.diffs\", \"variance.ratios\"), binary = \"std\", continuous = \"std\")",
+    if (!is.null(Y)) c(
+      if (effect_model == "ipw") c("# Effect (IPW): the weighted regression of the outcome on treatment; SEs account for the estimated weights.",
+        sprintf("fit <- lm_weightit(%s ~ %s, data = data, weightit = W)", Y, T),
+        sprintf("est <- avg_comparisons(fit, variables = \"%s\", conf_level = %s)", T, format(conf)))
+      else c("# Effect (doubly robust): the weighted outcome model with the covariates and their interactions with",
+        "# treatment, averaged over the target population by g-computation; SEs account for the estimated weights.",
+        sprintf("fit <- lm_weightit(%s ~ %s * (%s), data = data, weightit = W)", Y, T, paste(X, collapse = " + ")),
+        sprintf("est <- avg_comparisons(fit, variables = \"%s\", newdata = %s, conf_level = %s)", T, sprintf(focal, T), format(conf))),
+      "effect <- as.data.frame(est)"))
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script(sprintf("Inverse probability weighting (WeightIt, %s)", if (effect_model == "dr") "doubly robust" else "IPW"),
+    c("WeightIt", "cobalt", "marginaleffects"), inputs, body, c("summary(W)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (!is.null(Y)) "est")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  b <- env$bal$Balance
+  nm <- function(x) { for (k in names(fr$back)) x <- sub(paste0("^", k), fr$back[[k]], x); x }
+  ess <- env$ess
+  e <- env$effect
+  ps_json(list(method = "weighting", estimand = estimand, effectModel = effect_model,
+    counts = lapply(seq_len(nrow(ess)), function(i) list(row = if (rownames(ess)[i] == "Weighted") "Effective sample size" else rownames(ess)[i], control = ess[i, "Control"], treated = ess[i, "Treated"])),
+    balance = lapply(seq_len(nrow(b)), function(i) list(variable = if (rownames(b)[i] == "prop.score") "Propensity score" else nm(rownames(b)[i]), type = b$Type[i],
+      diffBefore = b$Diff.Un[i], diffAfter = b$Diff.Adj[i], ratioBefore = if (is.null(b$V.Ratio.Un)) NULL else b$V.Ratio.Un[i], ratioAfter = if (is.null(b$V.Ratio.Adj)) NULL else b$V.Ratio.Adj[i])),
+    weights = list(max = max(env$W$weights), treatedRange = range(env$W$weights[env$data[[T]] == 1]), controlRange = range(env$W$weights[env$data[[T]] == 0])),
+    effect = if (is.null(Y)) NULL else list(est = e$estimate[1], se = e$std.error[1], t = e$statistic[1], p = e$p.value[1],
+      ciLow = e$conf.low[1], ciHigh = e$conf.high[1], n = nrow(env$data)),
+    warnings = env$.warnings, engine = list(package = "WeightIt", version = as.character(utils::packageVersion("WeightIt")))))
 }

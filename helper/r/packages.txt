@@ -1,6 +1,7 @@
 GPArotation
 MIIVsem
 MatchIt
+WeightIt
 cSEM
 cobalt
 corpcor
@@ -16,6 +17,7 @@ lmerTest
 lmtest
 ltm
 manymome
+marginaleffects
 mice
 modsem
 mvtnorm

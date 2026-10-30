@@ -5,17 +5,23 @@ import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
 import type { REngineInfo } from './lavaan';
 
-export type MatchMethod = 'nearest' | 'optimal' | 'full' | 'exact' | 'cem' | 'subclass';
+/** 'weighting': inverse probability weighting (WeightIt) instead of matching. */
+export type MatchMethod = 'nearest' | 'optimal' | 'full' | 'exact' | 'cem' | 'subclass' | 'weighting';
 export interface MatchInput {
   treatment: string; covariates: string[]; outcome: string;
   method: MatchMethod; distance: 'glm' | 'mahalanobis'; estimand: 'ATT' | 'ATE' | 'ATC';
   ratio: number; caliper: number | null; replace: boolean; seed: number; confidence: number;
+  /** Weighting: the effect from the weighted outcome on treatment (IPW), or doubly robust (outcome model with covariates, g-computation). */
+  effectModel?: 'ipw' | 'dr';
 }
 export interface MatchResult {
   method: MatchMethod; estimand: string;
   counts: { row: string; control: number; treated: number }[];
   balance: { variable: string; type: string; diffBefore: number; diffAfter: number; ratioBefore: number | null; ratioAfter: number | null }[];
   effect: { est: number; se: number; t: number; p: number; ciLow: number; ciHigh: number; n: number } | null;
+  /** Weighting: the largest weight and the ranges among treated and controls. */
+  weights?: { max: number; treatedRange: number[]; controlRange: number[] };
+  effectModel?: 'ipw' | 'dr';
   warnings: string[]; engine: REngineInfo;
 }
 
@@ -35,11 +41,13 @@ export function matchRequest(data: Dataset, i: MatchInput) {
 }
 
 export async function matchR(data: Dataset, input: MatchInput): Promise<MatchResult> {
-  const raw = await rCall<Record<string, any>>('ps_match', matchRequest(data, input), 'MatchIt');
+  const raw = await rCall<Record<string, any>>('ps_match', matchRequest(data, input), input.method === 'weighting' ? 'WeightIt' : 'MatchIt');
   return {
     method: raw.method, estimand: raw.estimand, counts: arr(raw.counts),
+    ...(raw.weights ? { weights: { max: Number(raw.weights.max), treatedRange: arr<number>(raw.weights.treatedRange), controlRange: arr<number>(raw.weights.controlRange) } } : {}),
+    ...(raw.effectModel ? { effectModel: raw.effectModel } : {}),
     balance: arr<any>(raw.balance).map((b) => ({ ...b, ratioBefore: n0(b.ratioBefore), ratioAfter: n0(b.ratioAfter) })),
     effect: raw.effect ?? null, warnings: rStrings(raw.warnings), engine: raw.engine,
   };
 }
-export const matchScriptR = (data: Dataset, input: MatchInput) => rScript('ps_match', matchRequest(data, input), 'MatchIt');
+export const matchScriptR = (data: Dataset, input: MatchInput) => rScript('ps_match', matchRequest(data, input), input.method === 'weighting' ? 'WeightIt' : 'MatchIt');

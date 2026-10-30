@@ -16,8 +16,8 @@ import type { RsaPreset } from '../components/PolynomialPanel';
 import type { EfaPreset } from '../components/EfaPanel';
 import type { NcaPreset } from '../components/NcaPanel';
 
-export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
+export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -413,6 +413,13 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'lavaan.mi', name: 'HSMiss', file: 'examples/mi/HSMiss.csv' },
     constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6']), f('speed', ['x7', 'x8', 'x9'])],
     paths: [], settings: { ...CB('ML'), missing: 'mi', miImputations: 20, seed: 123 },
+  },
+  {
+    id: 'weightit-lalonde', package: 'WeightIt', title: 'Job training: inverse probability weighting', source: 'WeightIt, vignette "Estimating effects after weighting"',
+    links: [{ label: 'vignette', url: 'https://ngreifer.github.io/WeightIt/articles/estimating-effects.html' }, { label: '?weightit', url: 'https://rdrr.io/cran/WeightIt/man/weightit.html' }],
+    description: 'Lalonde (1986), as in WeightIt’s vignette: the effect of job training on 1978 earnings for the trainees (ATT), with propensity-score weights instead of matching, and the doubly robust estimate (outcome model with the covariates, averaged by g-computation). Opens Propensity score matching and weighting.',
+    data: { package: 'MatchIt', name: 'lalonde' }, constructs: [], paths: [],
+    panel: { kind: 'match', treatment: 'treat', covariates: ['age', 'educ', 'race', 'married', 'nodegree', 're74', 're75'], outcome: 're78', method: 'weighting', estimand: 'ATT', effectModel: 'dr' }, settings: CB('ML'),
   },
   {
     id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',

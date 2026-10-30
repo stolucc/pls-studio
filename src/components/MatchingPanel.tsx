@@ -21,6 +21,7 @@ const METHODS: { id: MatchMethod; label: string; hint: string }[] = [
   { id: 'subclass', label: 'Subclassification', hint: 'Strata of the propensity score; cases weighted within strata. ATT or ATE.' },
   { id: 'cem', label: 'Coarsened exact', hint: 'Exact matching on coarsened covariates (bins); unmatched cases are dropped.' },
   { id: 'exact', label: 'Exact', hint: 'Only cases with identical covariate values are matched: for few, categorical covariates.' },
+  { id: 'weighting', label: 'Weighting (IPW, WeightIt)', hint: 'No matching: every case is weighted by its inverse probability of the treatment it got (propensity score by logistic regression), so the weighted groups resemble each other. ATT, ATE or ATC; nothing discarded.' },
 ];
 
 /** Love plot: absolute standardised mean differences before and after matching. */
@@ -58,19 +59,25 @@ function LovePlot({ b }: { b: MatchResult['balance'] }) {
 
 function MatchView({ r, input }: { r: MatchResult; input: MatchInput }) {
   const level = Math.round(100 * input.confidence);
+  const weighting = r.method === 'weighting';
   return (
     <div className="tables">
       <Table title="Sample sizes" file="matching-counts" columns={['', 'Control', 'Treated']} rows={r.counts.map((x) => [c(x.row), c(x.control, undefined, Number.isInteger(x.control) ? 0 : 2), c(x.treated, undefined, Number.isInteger(x.treated) ? 0 : 2)])}
-        note="Matched (ESS): the effective sample size after weighting. Unmatched cases are not used." />
+        note={weighting ? `Effective sample size: how many unweighted cases the weighted group is worth (Kish). Weights from ${fmt(r.weights!.controlRange[0], 3)} to ${fmt(r.weights!.controlRange[1], 3)} among controls; the largest ${fmt(r.weights!.max, 2)}. Very large weights make the estimate unstable.` : 'Matched (ESS): the effective sample size after weighting. Unmatched cases are not used.'} />
       <LovePlot b={r.balance} />
-      <div className="hint">Open circles: before matching; filled: after. Differences under 0.1 (dashed) are usually considered balanced.</div>
+      <div className="hint">Open circles: before {weighting ? 'weighting' : 'matching'}; filled: after. Differences under 0.1 (dashed) are usually considered balanced.</div>
       <Table title="Covariate balance" file="matching-balance" columns={['Covariate', 'Type', 'Std. diff. before', 'Std. diff. after', 'Variance ratio before', 'Variance ratio after']}
         rows={r.balance.map((x) => [c(x.variable), c(x.type), c(x.diffBefore), { ...c(x.diffAfter), bold: Math.abs(x.diffAfter) >= 0.1 }, c(x.ratioBefore), c(x.ratioAfter)])}
         note="cobalt: standardised mean differences (bold: still 0.1 or more) and variance ratios (close to 1 is good) for each covariate, factor levels separately." />
       {r.effect && (
-        <Table title={`Treatment effect (${r.estimand})`} file="matching-effect" columns={['Estimate', 'Std. error', 't', 'p', `${level}% CI low`, `${level}% CI high`, 'n (matched)']}
+        <Table title={`Treatment effect (${r.estimand}${weighting ? `, ${r.effectModel === 'ipw' ? 'IPW' : 'doubly robust'}` : ''})`} file="matching-effect"
+          columns={['Estimate', 'Std. error', weighting ? 'z' : 't', 'p', `${level}% CI low`, `${level}% CI high`, weighting ? 'n' : 'n (matched)']}
           rows={[[c(r.effect.est), c(r.effect.se), c(r.effect.t, undefined, 2), pCell(r.effect.p), c(r.effect.ciLow), c(r.effect.ciHigh), c(r.effect.n, undefined, 0)]]}
-          note={`Difference in the outcome between treated and controls in the matched sample, weighted by the matching weights; ${input.replace ? 'HC3 robust standard errors (matching with replacement)' : 'standard errors clustered by matched set'} (MatchIt’s recommended approach).`} />
+          note={weighting
+            ? (r.effectModel === 'ipw'
+              ? 'IPW: the weighted difference in the outcome between treated and controls (lm_weightit), with standard errors that account for estimating the weights (M-estimation; WeightIt).'
+              : `Doubly robust: the weighted outcome model with the covariates and their interactions with treatment, averaged over the ${r.estimand === 'ATT' ? 'treated' : r.estimand === 'ATC' ? 'controls' : 'whole sample'} by g-computation (marginaleffects); consistent if either the propensity or the outcome model is right. Standard errors account for estimating the weights (WeightIt’s recommended approach).`)
+            : `Difference in the outcome between treated and controls in the matched sample, weighted by the matching weights; ${input.replace ? 'HC3 robust standard errors (matching with replacement)' : 'standard errors clustered by matched set'} (MatchIt’s recommended approach).`} />
       )}
       {r.warnings.length > 0 && <div>{r.warnings.map((w, i) => <div key={i} className="issue warning">{w}</div>)}</div>}
     </div>
@@ -94,6 +101,7 @@ export function MatchingPanel() {
   const [ratio, setRatio] = useState(saved?.input.ratio ?? 1);
   const [caliper, setCaliper] = useState(saved?.input.caliper != null ? String(saved.input.caliper) : '');
   const [replace, setReplace] = useState(saved?.input.replace ?? false);
+  const [effectModel, setEffectModel] = useState<NonNullable<MatchInput['effectModel']>>(saved?.input.effectModel ?? 'dr');
   const { busy, setBusy, guard, cancel } = useCancellable();
   useEffect(() => {
     if (!preset) return;
@@ -103,6 +111,7 @@ export function MatchingPanel() {
     if (preset.method) setMethod(preset.method);
     if (preset.distance) setDistance(preset.distance);
     if (preset.estimand) setEstimand(preset.estimand);
+    if (preset.effectModel) setEffectModel(preset.effectModel);
   }, [preset]);
   useEffect(() => {
     if (!open) return;
@@ -117,22 +126,23 @@ export function MatchingPanel() {
   const pairs = method === 'nearest' || method === 'optimal';
   const est = pairs && estimand === 'ATE' ? 'ATT' : estimand;
   const input: MatchInput = { treatment, covariates, outcome, method, distance, estimand: est, ratio: pairs ? ratio : 1,
-    caliper: method === 'nearest' ? cal : null, replace: method === 'nearest' && replace, seed: settings.seed, confidence: settings.confidence };
+    caliper: method === 'nearest' ? cal : null, replace: method === 'nearest' && replace, seed: settings.seed, confidence: settings.confidence,
+    ...(method === 'weighting' ? { effectModel } : {}) };
   const ready = !!treatment && covariates.length > 0 && (cal === null || (Number.isFinite(cal) && cal > 0));
-  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `MatchIt: ${rMessage(e)}`));
+  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `${method === 'weighting' ? 'WeightIt' : 'MatchIt'}: ${rMessage(e)}`));
   const run = async () => {
     setBusy(true);
     try {
       const { matchR } = await import('../rengine/match');
       const result = await guard(matchR(data!, input));
-      result.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `MatchIt ${result.engine.version}`));
+      result.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `${result.engine.package} ${result.engine.version}`));
       useMatching.setState({ result: { input, result } });
     } catch (e) { await fail(e); } finally { setBusy(false); }
   };
   const script = async () => {
     try {
       const { matchScriptR } = await import('../rengine/match');
-      downloadText(`${safeFileName(project)}-matchit.R`, await matchScriptR(data!, input), 'text/x-r-source');
+      downloadText(`${safeFileName(project)}-${method === 'weighting' ? 'weightit' : 'matchit'}.R`, await matchScriptR(data!, input), 'text/x-r-source');
     } catch (e) { await fail(e); }
   };
   const m = METHODS.find((x) => x.id === method)!;
@@ -140,7 +150,7 @@ export function MatchingPanel() {
     <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="Matching">
       <div className="sim">
         <header className="sim-head">
-          <div><b>Propensity score matching</b><span className="muted">MatchIt · balance by cobalt</span></div>
+          <div><b>Propensity score matching and weighting</b><span className="muted">MatchIt / WeightIt · balance by cobalt</span></div>
           <button className="btn icon ghost" onClick={close} aria-label="Close"><IconX /></button>
         </header>
         {!columns.length ? <div className="empty-results">Import raw data first.</div> : (
@@ -168,7 +178,16 @@ export function MatchingPanel() {
                 </select>
                 <div className="hint">{m.hint}</div>
               </div>
-              {method !== 'exact' && method !== 'cem' && (
+              {method === 'weighting' && (
+                <div className="field">
+                  <label>Effect</label>
+                  <div className="segmented">
+                    <button className={effectModel === 'dr' ? 'on' : ''} onClick={() => setEffectModel('dr')} title="Weighted outcome model with the covariates, averaged by g-computation">Doubly robust</button>
+                    <button className={effectModel === 'ipw' ? 'on' : ''} onClick={() => setEffectModel('ipw')} title="Weighted difference between treated and controls">IPW</button>
+                  </div>
+                </div>
+              )}
+              {method !== 'exact' && method !== 'cem' && method !== 'weighting' && (
                 <div className="field">
                   <label>Distance</label>
                   <div className="segmented">
@@ -196,7 +215,7 @@ export function MatchingPanel() {
                 <label className="check"><input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} /><span>Match with replacement (a control can be used more than once)</span></label>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Matching…' : 'Match'}</button>
+                <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? (method === 'weighting' ? 'Weighting…' : 'Matching…') : method === 'weighting' ? 'Weight' : 'Match'}</button>
                 {busy && <button className="btn" onClick={cancel}>Cancel</button>}
                 <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
               </div>
