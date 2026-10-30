@@ -95,6 +95,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     } : {}),
     ...(raw.caseWeights ? { caseWeights: { rows: (raw.caseWeights.rows as unknown[]).map(Number), weights: (raw.caseWeights.weights as unknown[]).map(Number) } } : {}),
     ...(typeof raw.imputations === 'number' ? { imputations: raw.imputations } : {}),
+    ...(typeof raw.modindicesError === 'string' ? { modindicesError: raw.modindicesError } : {}),
     modindices: (Array.isArray(raw.modindices) ? raw.modindices : []).map((m: any) => ({ lhs: m.lhs, op: m.op, rhs: m.rhs, mi: num(m.mi), epc: num(m.epc), sepc: num(m.sepc), ...(m.group ? { group: String(m.group) } : {}) })),
     wald: (Array.isArray(raw.wald) ? raw.wald : raw.wald ? [raw.wald] : []).map((w: any) => ({ name: String(w.name), stat: num(w.stat), df: num(w.df), p: num(w.p) })),
     ...(raw.interaction === 'lms' || raw.interaction === 'qml' ? { interaction: raw.interaction } : {}),

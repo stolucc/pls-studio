@@ -35,13 +35,10 @@ describe('canvas context menus', () => {
     expect(actions({ kind: 'indicator', construct: 'a', name: 'a1' }, 'pls')).toEqual(['remove-indicator']);
   });
 
-  it('toggles between factor and composite in PLS only (CB-SEM has common factors only)', () => {
-    expect(actions({ kind: 'construct', id: 'a' }, 'pls')).toContain('make-composite');
-    expect(actions({ kind: 'construct', id: 'b' }, 'pls')).toContain('make-factor');
-    for (const id of ['a', 'b']) {
-      const cb = actions({ kind: 'construct', id }, 'cbsem');
-      expect(cb).not.toContain('make-composite');
-      expect(cb).not.toContain('make-factor');
+  it('toggles between factor and composite in PLS and CB-SEM (lavaan composites)', () => {
+    for (const m of ['pls', 'cbsem'] as const) {
+      expect(actions({ kind: 'construct', id: 'a' }, m)).toContain('make-composite');
+      expect(actions({ kind: 'construct', id: 'b' }, m)).toContain('make-factor');
     }
   });
 

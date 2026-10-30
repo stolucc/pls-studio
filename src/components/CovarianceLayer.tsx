@@ -17,11 +17,14 @@ const NONE: string[] = [];
 
 interface IndicatorPlace { owner: Construct; term: ErrorTerm }
 
-/** Error-term circle of every indicator that has a measurement error (multi-indicator factors). */
+/**
+ * Error-term circle of every indicator that has a measurement error: multi-indicator
+ * factors, and single indicators with a known reliability (composite indicators have none).
+ */
 function indicatorPlaces(model: ModelState): Map<string, IndicatorPlace> {
   const out = new Map<string, IndicatorPlace>();
   for (const c of model.constructs) {
-    if (c.covariate || c.indicators.length < 2) continue;
+    if (c.covariate || c.type === 'composite' || (c.indicators.length < 2 && c.reliability === undefined)) continue;
     for (const ind of constructGeometry(c).indicators) out.set(ind.name, { owner: c, term: errorTerm(c, ind) });
   }
   return out;

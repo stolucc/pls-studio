@@ -50,8 +50,8 @@ function ConstructInspector({ c }: { c: Construct }) {
           <label>Construct type</label>
           <div className="segmented">
             <button className={c.type === 'factor' ? 'on' : ''} onClick={() => update(c.id, { type: 'factor', mode: 'A' })} title="Latent variable: indicators reflect the construct (ellipse)">Common factor</button>
-            <button className={c.type === 'composite' ? 'on' : ''} disabled={method === 'cbsem'} onClick={() => update(c.id, { type: 'composite', mode: 'B' })}
-              title={method === 'cbsem' ? 'Composites are estimated with PLS only. Switch to PLS-SEM to use them.' : 'Emergent variable: a weighted combination of its indicators (hexagon)'}>Composite</button>
+            <button className={c.type === 'composite' ? 'on' : ''} onClick={() => update(c.id, { type: 'composite', mode: 'B' })}
+              title={method === 'cbsem' ? 'Emergent variable: an exact weighted sum of its indicators, which covary freely (lavaan’s composites; hexagon)' : 'Emergent variable: a weighted combination of its indicators (hexagon)'}>Composite</button>
           </div>
         </div>}
         {method === 'pls' && (!c.components?.length || plsPackage === 'seminr') && (

@@ -212,7 +212,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     "  for (i in seq_len(nrow(reg))) Bm[reg$rhs[i], reg$lhs[i]] <- reg$est.std[i]",
     "  Tm <- solve(diag(length(vars)) - Bm) - diag(length(vars)); dimnames(Tm) <- dimnames(Bm)",
     "  tot <- which(abs(Tm) > 1e-12, arr.ind = TRUE); ind <- which(abs(Tm - Bm) > 1e-12, arr.ind = TRUE)",
-    "  ld <- ss[ss$op == \"=~\" & !(ss$rhs %in% lv), ]",
+    "  ld <- ss[ss$op == \"=~\" & !(ss$rhs %in% lv), ]; wt <- ss[ss$op == \"<~\", ]  # loadings; composite weights",
     "  r2 <- if (nb > 1) r2_all[[bk]] else r2_all; r2 <- r2[names(r2) %in% unique(reg$lhs)]",
     "  # (paste0 turns an empty vector into one empty string: name only non-empty groups)",
     "  lab <- function(g, a, b = NULL) if (length(a)) paste0(g, \": \", a, if (!is.null(b)) paste0(\" -> \", b)) else character(0)",
@@ -220,6 +220,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     "    setNames(Tm[tot], lab(\"total\", vars[tot[, 1]], vars[tot[, 2]])),",
     "    setNames((Tm - Bm)[ind], lab(\"indirect\", vars[ind[, 1]], vars[ind[, 2]])),",
     "    setNames(ld$est.std, lab(\"loading\", ld$lhs, ld$rhs)),",
+    "    setNames(wt$est.std, lab(\"weight\", wt$lhs, wt$rhs)),",
     "    setNames(unname(r2), lab(\"r2\", names(r2))))",
     "  if (nb > 1 && length(v)) names(v) <- paste0(names(v), \" @\", bk)",
     "  v",
@@ -268,6 +269,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     a <- unname(back[parts[1]]); z <- if (length(parts) > 1) unname(back[parts[2]]) else NA
     k <- switch(g, path = , total = , indirect = list(key = sprintf("%s:%s:%s", g, a, z), label = sprintf("%s → %s", a, z)),
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
+      weight = list(key = sprintf("weight:%s", z), label = sprintf("%s → %s", z, a)),
       r2 = list(key = sprintf("r2:%s", a), label = a))
     c(k, list(group = g, block = block, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
   })

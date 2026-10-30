@@ -30,12 +30,13 @@ interface ParamDef {
 }
 
 export interface CbEstimate {
-  kind: CbParamKind | 'fixed-loading' | 'fixed' | 'threshold' | 'defined' | 'mean';
+  /** weight / fixed-weight: a composite's weights (lavaan <~). */
+  kind: CbParamKind | 'fixed-loading' | 'fixed' | 'threshold' | 'defined' | 'mean' | 'weight' | 'fixed-weight';
   /** lavaan parameter label (equal labels = equality constraint). */
   label?: string;
   /** lavaan-style labels: lhs op rhs. */
   lhs: string;
-  op: '=~' | '~' | '~~';
+  op: '=~' | '<~' | '~' | '~~';
   rhs: string;
   est: number;
   se: number | null;
@@ -70,6 +71,8 @@ export interface CbResult {
   groupIndex?: number;
   /** Modification indices ≥ 3.84 (lavaan), largest first. */
   modindices?: { lhs: string; op: string; rhs: string; mi: number; epc: number; sepc: number; group?: string }[];
+  /** Why lavaan could not compute modification indices (distinct from none reaching 3.84). */
+  modindicesError?: string;
   /** Robust ML (rsem): each analysed case's weight, by data row (1-based); below 1 = down-weighted. */
   caseWeights?: { rows: number[]; weights: number[] };
   /** Multiple imputation: the number of imputed data sets pooled. */
@@ -958,6 +961,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
   if (spec.multigroup) throw new Error('Multiple-group analysis is estimated by lavaan: choose the R engine.');
   if (spec.multilevel) throw new Error('Two-level models are estimated by lavaan: choose the R engine.');
   if (spec.esem?.blocks.length) throw new Error('Exploratory SEM (ESEM) is estimated by lavaan: choose the R engine.');
+  if (spec.constructs.some((c) => c.type === 'composite')) throw new Error('Composites in CB-SEM are estimated by lavaan: choose the R engine.');
   if (spec.constructs.some((c) => c.reliability !== undefined)) throw new Error('Single indicators with a known reliability are estimated by lavaan: choose the R engine.');
   if (spec.paths.some((p) => p.label) || spec.constructs.some((c) => c.loadingLabels && Object.keys(c.loadingLabels).length) || spec.covariances?.some((k) => k.label) || spec.defined?.length || spec.waldTests?.length) {
     throw new Error('Parameter labels, equality constraints, defined parameters and Wald tests are estimated by lavaan: choose the R engine.');
@@ -1022,7 +1026,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
     else push({ kind: d.kind, lhs: name(d.i), op: '~~', rhs: name(d.i), est, se: se(a), std: est / X.Sigma[d.i][d.i], index: a });
   });
   // Order like lavaan: loadings, regressions, then variances/covariances.
-  const order = { 'fixed-loading': 0, loading: 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3, threshold: 4, defined: 5, mean: 4 } as const;
+  const order = { 'fixed-loading': 0, loading: 0, weight: 0, 'fixed-weight': 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3, threshold: 4, defined: 5, mean: 4 } as const;
   // Fixed values sort with their kind of parameter (op).
   const rank = (e: CbEstimate) => (e.kind === 'fixed' ? (e.op === '~' ? 1 : 3) : order[e.kind]);
   estimates.sort((x, y) => rank(x) - rank(y));

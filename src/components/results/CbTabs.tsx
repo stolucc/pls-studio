@@ -136,9 +136,21 @@ function Loadings({ cb }: { cb: CbResult }) {
     row[5] = c(e.std, Math.abs(e.std) >= 0.708 ? 'good' : Math.abs(e.std) >= 0.4 ? 'warn' : 'bad');
     return [...row, c(cb.r2Indicators[k])];
   });
+  const weights = cb.estimates.filter((e) => e.op === '<~').map((e) => {
+    const k = cb.indicators.findIndex((i) => i.name === e.rhs);
+    return [...estRow(e, `${e.rhs} → ${e.lhs}`), c(cb.stdLoadings[k])];
+  });
   return (
-    <Table title="Factor loadings" file="cb-loadings" columns={['Loading', ...estCols(cb), 'Indicator R²']} rows={rows}
-      note="The first indicator of each factor is the marker (loading fixed to 1, no standard error)." />
+    <div className="tables">
+      {rows.length > 0 && (
+        <Table title="Factor loadings" file="cb-loadings" columns={['Loading', ...estCols(cb), 'Indicator R²']} rows={rows}
+          note="The first indicator of each factor is the marker (loading fixed to 1, no standard error)." />
+      )}
+      {weights.length > 0 && (
+        <Table title="Composite weights" file="cb-weights" columns={['Weight', ...estCols(cb), 'Loading']} rows={weights}
+          note="Composites (emergent variables) are exact weighted sums of their indicators, whose variances and covariances are fixed at the sample values (lavaan’s composites). The first weight of each composite is fixed to 1; the standardised weights are those of the standardised composite. Loading: the indicator’s correlation with the composite." />
+      )}
+    </div>
   );
 }
 
@@ -170,7 +182,10 @@ function Variances({ cb }: { cb: CbResult }) {
 }
 
 function ModIndices({ cb }: { cb: CbResult }) {
-  const mi = cb.modindices ?? [];
+  // undefined: not computed (the built-in engine); an error: lavaan could not compute them.
+  if (cb.modindices === undefined) return <div className="empty-results">Modification indices are computed by lavaan. Choose “R packages” under Calculated by.</div>;
+  if (cb.modindicesError) return <div className="empty-results">Modification indices are not available for this model. lavaan: {cb.modindicesError}</div>;
+  const mi = cb.modindices;
   if (!mi.length) return <div className="empty-results">No modification index reaches 3.84 (χ²(1) at α = .05): no single added parameter would improve fit significantly.</div>;
   const groups = mi.some((m) => m.group);
   return (

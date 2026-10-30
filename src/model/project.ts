@@ -537,10 +537,26 @@ export function validateModel(
       if (!(c.reliability > 0 && c.reliability <= 1)) err(`The reliability of "${c.name}" must be above 0 and at most 1.`, c.id);
       else if (c.indicators.length !== 1 || c.covariate) err(`"${c.name}": a known reliability applies to a single-indicator factor only.`, c.id);
       else if (method.estimator === '2SLS') err(`"${c.name}": a known reliability is not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
+      else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": a known reliability is estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
     }
     if (c.mode !== 'A' && c.indicators.length === 1 && method.method === 'pls') warn(`"${c.name}" uses ${c.mode === 'B' ? 'Mode B' : 'sum scores'} with a single indicator; the weighting has no effect.`, c.id);
     if (method.method === 'cbsem' && c.type === 'composite') {
-      err(`"${c.name}" is a composite. CB-SEM here estimates common factors only; switch it to a common factor or use PLS-SEM.`, c.id);
+      // lavaan's composites (<~, lavaan >= 0.6-20): an exact weighted sum of indicators that covary freely.
+      const inBlock = (model.esem?.blocks ?? []).some((b) => b.constructs.includes(c.id));
+      const isComponent = model.constructs.some((k) => k.components?.includes(c.id));
+      if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}" is a composite: in CB-SEM these are estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
+      else if (method.estimator === '2SLS') err(`"${c.name}" is a composite: not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
+      else if (c.components?.length || isComponent) err(`"${c.name}" is a composite: in CB-SEM composites cannot be higher-order constructs or their components.`, c.id);
+      else if (c.indicators.length > 0 && c.indicators.length < 2) err(`Composite "${c.name}" needs at least two indicators.`, c.id);
+      else if (inBlock) err(`"${c.name}" is a composite and cannot be in an ESEM block.`, c.id);
+      else if (model.multigroup || model.multilevel) err(`"${c.name}" is a composite: composites are not available in multiple-group or two-level models.`, c.id);
+      else if (method.missing === 'mi' || method.estimator === 'RML') err(`"${c.name}" is a composite: not available with multiple imputation or robust ML (rsem).`, c.id);
+      else if ((model.moderations ?? []).some((mo) => mo.moderator === c.id || model.paths.find((q) => q.id === mo.path)?.from === c.id))
+        err(`"${c.name}" is a composite: latent interactions in CB-SEM need common factors.`, c.id);
+      else if (c.indicators.some((i) => model.ordered?.includes(i))) err(`Composite "${c.name}" has ordinal indicators; composites need continuous indicators.`, c.id);
+      else if (Object.keys(c.fixedLoadings ?? {}).length || Object.keys(c.loadingLabels ?? {}).length) err(`"${c.name}" is a composite: its weights cannot be fixed or labelled.`, c.id);
+      else if ((model.correlations ?? []).some((k) => k.kind === 'indicator' && (c.indicators.includes(k.a) || c.indicators.includes(k.b))))
+        err(`"${c.name}" is a composite: its indicators covary freely already, and have no error terms to correlate.`, c.id);
     }
     if (method.method === 'cbsem' && c.type === 'factor' && c.indicators.length === 2) {
       warn(`"${c.name}" has two indicators; it is only identified through its relations with other factors.`, c.id);

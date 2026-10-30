@@ -109,7 +109,7 @@ ps_cb_build <- function(req) {
     if (!rot %in% c("geomin", "oblimin", "quartimin", "varimax", "target")) stop("Invalid rotation in the request.")
     if (!is.null(target)) inputs$TARGET <- target
   }
-  rel_inds <- character(0)
+  rel_inds <- character(0); composites <- character(0)
   for (j in seq_len(k0)) {
     if (is_cov[j] || n$cname[j] %in% in_block) next
     # The first loading of each factor is fixed to 1 (marker / scaling indicator); written explicitly.
@@ -122,6 +122,15 @@ ps_cb_build <- function(req) {
       # The marker's 1 is fixed: a label on it would have no effect.
       ll <- ll[names(ll) != n$inds[[j]][1]]
       labels <- setNames(ll, unname(n$iv[names(ll)]))
+      if (identical(cons[[j]]$type, "composite")) {
+        # A composite (emergent variable): an exact weighted sum of its indicators, which covary freely
+        # (lavaan >= 0.6-20 composites; the first weight fixed to 1, the composite has no disturbance).
+        if (length(v) < 2) stop("A composite needs at least two indicators.")
+        if (length(fl) || length(ll)) stop("Composite weights cannot be fixed or labelled.")
+        lines <- c(lines, paste(lname[[j]], "<~", ps_marked(v)))
+        composites <- c(composites, n$cname[j])
+        next
+      }
       lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels)))
       if (length(v) == 1) {
         rel <- cons[[j]]$reliability
@@ -138,6 +147,15 @@ ps_cb_build <- function(req) {
         }
       }
     }
+  }
+  if (any(vapply(seq_len(k0), function(j) identical(cons[[j]]$type, "composite") && length(comps[[j]]) > 0, TRUE)) ||
+      any(unlist(comps) %in% composites)) stop("Composites cannot be higher-order constructs or their components in CB-SEM.")
+  if (any(vapply(cons, function(c) identical(c$type, "composite"), TRUE) & n$cname %in% in_block)) stop("Composites cannot be in an ESEM block.")
+  if (length(composites)) {
+    if (!is.null(mg) || !is.null(ml)) stop("Composites are not available in multiple-group or two-level models.")
+    if (length(mods)) stop("Composites are not available with latent interactions.")
+    if (identical(req$missing, "mi") || identical(req$estimator, "RML")) stop("Composites are not available with multiple imputation or robust ML (rsem).")
+    if (any(unlist(req$model$ordered) %in% unlist(n$inds[match(composites, n$cname)]))) stop("Composite indicators cannot be ordinal.")
   }
   paths <- req$model$paths
   int_names <- character(0); int_l <- character(0); prod <- list()
@@ -319,7 +337,7 @@ ps_cb_build <- function(req) {
         if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds)
+    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
@@ -380,10 +398,12 @@ ps_cb <- function(req_json, export = FALSE) {
     # Defined parameters (block 0) belong to the whole model: shown with every group or level.
     if (!is.null(g)) pe <- pe[blk(pe) == g | pe$op == ":=", ]
     # Latent means (estimated in groups after the first under scalar invariance).
-    pe <- pe[pe$op %in% c("=~", "~", "~~", "|", ":=") | (pe$op == "~1" & pe$lhs %in% lv_lname & !is.na(pe$free) & pe$free > 0), ]
+    pe <- pe[pe$op %in% c("=~", "<~", "~", "~~", "|", ":=") | (pe$op == "~1" & pe$lhs %in% lv_lname & !is.na(pe$free) & pe$free > 0), ]
     est <- lapply(seq_len(nrow(pe)), function(i) {
       r <- pe[i, ]; free <- r$free > 0
-      kind <- if (r$op == "~1") "mean" else if (r$op == ":=") "defined" else if (r$op == "|") "threshold" else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
+      kind <- if (r$op == "~1") "mean" else if (r$op == ":=") "defined" else if (r$op == "|") "threshold"
+        else if (r$op == "<~") { if (free) "weight" else "fixed-weight" }
+        else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
         else if (r$op == "~") "regression"
         else if (is_lv(r$lhs) && is_lv(r$rhs)) { if (free) "lvcov" else "fixed" }
         # Fixed error variances are reported for single indicators with a known reliability only (others are 0).
@@ -408,10 +428,23 @@ ps_cb <- function(req_json, export = FALSE) {
       e <- Filter(function(x) x$op == "=~" && x$rhs == indicators[i] && x$lhs == constructs[ind_con[i] + 1], est)
       if (length(e)) e[[1]]$std else 1
     }, 0)
+    # Composites: the loading of an indicator is its correlation with the composite, from the implied
+    # covariance matrix (lavaan's cor.all leaves these out): (Sigma w)_i / sqrt(Sigma_ii w'Sigma w).
+    if (length(b$composites)) {
+      sig <- lavaan::lavInspect(fit, "cov.ov"); if (!is.null(g) && is.list(sig)) sig <- sig[[g]]
+      for (cn in b$composites) {
+        j <- match(cn, constructs); at <- which(ind_con == j - 1)
+        w <- vapply(at, function(i) { e <- Filter(function(x) x$op == "<~" && x$lhs == cn && x$rhs == indicators[i], est); e[[1]]$est }, 0)
+        S <- sig[ind_v[at], ind_v[at], drop = FALSE]
+        std_load[at] <- as.vector(S %*% w) / sqrt(diag(S) * as.numeric(t(w) %*% S %*% w))
+      }
+    }
     r2 <- lavaan::lavInspect(fit, "r2"); if (!is.null(g)) r2 <- r2[[g]]
     # Multiple imputation: R² = 1 - the pooled standardised residual variance.
     if (isTRUE(b$mi)) { rv <- pe[pe$op == "~~" & pe$lhs == pe$rhs & pe$lhs %in% names(r2), ]; r2[rv$lhs] <- 1 - rv$std.all }
-    r2_ind <- vapply(ind_v, function(v) if (v %in% names(r2)) unname(r2[[v]]) else 1, 0)
+    comp_ind <- ind_con %in% (match(b$composites, constructs) - 1L)
+    # Composite indicators have no error term (their R² is undefined).
+    r2_ind <- vapply(seq_along(ind_v), function(i) if (comp_ind[i]) NA_real_ else if (ind_v[i] %in% names(r2)) unname(r2[[ind_v[i]]]) else 1, 0)
     endo <- vapply(seq_len(K), function(j) any(has[, j]) || any(vapply(comps, function(cc) constructs[j] %in% cc, TRUE)), TRUE)
     # Between clusters the factors are *_b (or absent in a saturated between model).
     lvn <- if (between_block(g)) paste0(lv_lname, "_b") else lv_lname
@@ -430,8 +463,10 @@ ps_cb <- function(req_json, export = FALSE) {
     # (Not for two-level models, whose reliability is level-specific.)
     # (Multiple imputation: semTools pools them over the imputed data sets.)
     rfit <- if (isTRUE(b$mi)) env$fit_mi else fit
-    omega <- if (levels2) NULL else tryCatch(semTools::compRelSEM(rfit), error = function(e) NULL)
-    alpha <- if (levels2) NULL else tryCatch(semTools::compRelSEM(rfit, tau.eq = TRUE), error = function(e) NULL)
+    # (Not with composites in the model: compRelSEM then misreads the factors' true-score variance.)
+    no_rel <- levels2 || length(b$composites) > 0
+    omega <- if (no_rel) NULL else tryCatch(semTools::compRelSEM(rfit), error = function(e) NULL)
+    alpha <- if (no_rel) NULL else tryCatch(semTools::compRelSEM(rfit, tau.eq = TRUE), error = function(e) NULL)
     per_group <- function(x, name) {
       v <- if (is.list(x)) x[[name]] else NULL
       if (is.null(v)) return(NULL)
@@ -440,7 +475,7 @@ ps_cb <- function(req_json, export = FALSE) {
     }
     rel <- lapply(seq_len(K), function(j) {
       l <- std_load[ind_con == j - 1]
-      if (!length(l) || (j <= k0 && length(comps[[j]]))) return(list(cr = NULL, ave = NULL))
+      if (!length(l) || (j <= k0 && length(comps[[j]])) || constructs[j] %in% b$composites) return(list(cr = NULL, ave = NULL))
       list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2), omega = per_group(omega, lv_lname[j]), alpha = per_group(alpha, lv_lname[j]))
     })
     rr <- if (isTRUE(b$mi)) lavaan.mi::lavResiduals.mi(env$fit_mi, type = "cor.bollen") else lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
@@ -449,7 +484,7 @@ ps_cb <- function(req_json, export = FALSE) {
     # HTMT on the measurement blocks (semTools), classic and HTMT2.
     htmt <- function(two) {
       out <- matrix(NA_real_, K, K)
-      blocks <- which(vapply(seq_len(K), function(j) sum(ind_con == j - 1) >= 2 && !(j <= k0 && b$is_cov[j]), TRUE))
+      blocks <- which(vapply(seq_len(K), function(j) sum(ind_con == j - 1) >= 2 && !(j <= k0 && b$is_cov[j]) && !constructs[j] %in% b$composites, TRUE))
       if (length(blocks) < 2 || !requireNamespace("semTools", quietly = TRUE)) return(out)
       hm <- paste(vapply(blocks, function(j) paste(lv_lname[j], "=~", paste(ind_v[ind_con == j - 1], collapse = " + ")), ""), collapse = "\n")
       h <- tryCatch(suppressWarnings(if (b$matrix_input) semTools::htmt(hm, sample.cov = b$inputs$S, htmt2 = two)
@@ -500,7 +535,9 @@ ps_cb <- function(req_json, export = FALSE) {
     c(per[[1]], list(groups = list(labels = as.character(groups), results = per, score = if (levels2 || isTRUE(b$mi)) list() else ps_cb_score(fit, nm), levels = levels2,
       icc = if (levels2) as.list(setNames(as.numeric(icc), nm(names(icc)))) else NULL)))
   } else map_group(NULL)
-  out$modindices <- ps_cb_modindices(if (isTRUE(b$mi)) env$fit_mi else fit, nm, groups)
+  mi <- ps_cb_modindices(if (isTRUE(b$mi)) env$fit_mi else fit, nm, groups)
+  out$modindices <- mi$items
+  out$modindicesError <- mi$error
   if (isTRUE(b$mi)) out$imputations <- env$imp$m
   # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)
@@ -510,17 +547,21 @@ ps_cb <- function(req_json, export = FALSE) {
 #' One group's value of a per-group lavInspect result (a plain number with one group).
 ps_per_group <- function(x, g) if (is.list(x)) x[[g]] else if (length(x) >= g) x[[g]] else x[[1]]
 
-#' Modification indices (lavaan::modindices) at or above 3.84, largest first, in the app's names.
+#' Modification indices (lavaan::modindices) at or above 3.84, largest first, in the app's names:
+#' list(items, error), where error says why lavaan could not compute them (not the same as none reaching 3.84).
 ps_cb_modindices <- function(fit, nm, groups) {
+  err <- NULL
   # (lavaan.mi's pooled modification indices for multiply imputed data)
   mi <- tryCatch(if (inherits(fit, "lavaan.mi")) { x <- lavaan.mi::modindices.mi(fit); x <- x[x$mi >= 3.84, ]; head(x[order(-x$mi), ], 100) }
-    else lavaan::modindices(fit, sort. = TRUE, minimum.value = 3.84, maximum.number = 100), error = function(e) NULL)
-  if (is.null(mi) || !nrow(mi)) return(list())
+    else lavaan::modindices(fit, sort. = TRUE, minimum.value = 3.84, maximum.number = 100),
+    error = function(e) { err <<- ps_comment(trimws(gsub("\\s+", " ", sub("^lavaan->modindices\\(\\):", "", conditionMessage(e))))); NULL })
+  if (!is.null(err)) return(list(items = list(), error = err))
+  if (is.null(mi) || !nrow(mi)) return(list(items = list(), error = NULL))
   mi <- mi[mi$op %in% c("=~", "~", "~~"), ]
   back <- function(x) { y <- nm(x); ifelse(is.na(y), x, y) }
-  lapply(seq_len(nrow(mi)), function(i) list(lhs = back(mi$lhs[i]), op = mi$op[i], rhs = back(mi$rhs[i]), mi = mi$mi[i], epc = mi$epc[i],
+  list(items = lapply(seq_len(nrow(mi)), function(i) list(lhs = back(mi$lhs[i]), op = mi$op[i], rhs = back(mi$rhs[i]), mi = mi$mi[i], epc = mi$epc[i],
     sepc = mi$sepc.all[i], group = if (length(groups) > 1 && "block" %in% names(mi)) as.character(groups[mi$block[i]])
-      else if (length(groups) > 1 && "group" %in% names(mi)) as.character(groups[mi$group[i]]) else NULL))
+      else if (length(groups) > 1 && "group" %in% names(mi)) as.character(groups[mi$group[i]]) else NULL)), error = NULL)
 }
 
 #' Score tests of releasing each equality constraint (lavaan::lavTestScore): which across-group
@@ -646,7 +687,7 @@ ps_cb_modsem <- function(req, b, export) {
     stdPaths = stdB, hasPath = has, stdTotal = total, stdIndirect = total - stdB, lvCor = unname(lvcor), reliability = rel,
     residualCor = matrix(NA_real_, length(ind_v), length(ind_v)), htmt = NAmat, htmt2 = NAmat, vcov = if (is.null(V)) NULL else unname(V),
     moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
-    wald = list(), modindices = list(),
+    wald = list(), modindices = list(), modindicesError = "lavaan's modification indices are not available for LMS / QML (modsem) models.",
     warnings = env$.warnings, droppedRows = 0L,
     engine = list(package = "modsem", version = as.character(utils::packageVersion("modsem"))))
 }

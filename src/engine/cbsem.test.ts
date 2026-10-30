@@ -133,3 +133,11 @@ describe('built-in engine refuses lavaan-only single-indicator reliability', () 
     expect(() => estimateCb(data, spec)).toThrow(/known reliability are estimated by lavaan/);
   });
 });
+
+describe('built-in engine refuses composites', () => {
+  it('points to the R engine', () => {
+    const data = { names: ['a', 'b', 'c', 'y1', 'y2', 'y3'], cols: [0, 1, 2, 3, 4, 5].map((k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1)))) };
+    const spec: ModelSpec = { constructs: [{ name: 'K', mode: 'B', type: 'composite', indicators: ['a', 'b', 'c'] }, { name: 'Y', mode: 'A', indicators: ['y1', 'y2', 'y3'] }], paths: [{ from: 'K', to: 'Y' }] };
+    expect(() => estimateCb(data, spec)).toThrow(/Composites in CB-SEM are estimated by lavaan/);
+  });
+});

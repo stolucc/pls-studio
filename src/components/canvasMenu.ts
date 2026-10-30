@@ -64,9 +64,9 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       const endogenous = endogenousIds(model).has(c.id);
       return out(c.name, [
         { action: 'edit', label: edit ? 'Edit in inspector' : 'Show in inspector' },
-        // CB-SEM models common factors only; the factor / composite choice is PLS's.
-        edit && pls && !c.covariate && c.type === 'factor' && { action: 'make-composite', label: 'Make composite' },
-        edit && pls && !c.covariate && c.type === 'composite' && { action: 'make-factor', label: 'Make common factor' },
+        // PLS and CB-SEM (lavaan's composites) both model common factors and composites.
+        edit && (pls || cb) && !c.covariate && c.type === 'factor' && { action: 'make-composite', label: 'Make composite' },
+        edit && (pls || cb) && !c.covariate && c.type === 'composite' && { action: 'make-factor', label: 'Make common factor' },
         // Covariates enter every equation of a conditional process model.
         edit && proc && !c.covariate && !model.paths.some((p) => p.from === c.id || p.to === c.id) && !model.moderations.some((m) => m.moderator === c.id) && { action: 'make-covariate', label: 'Use as covariate' },
         edit && proc && !!c.covariate && { action: 'unmake-covariate', label: 'Stop using as covariate' },

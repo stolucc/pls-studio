@@ -199,16 +199,18 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const ind = new Map(cb.indicators.map((x, k) => [x.name, k]));
       const loading = (name: string) => {
         const k = ind.get(name);
-        return k === undefined ? undefined : cb.estimates.find((e) => e.op === '=~' && e.rhs === name && e.lhs === cb.constructs[cb.indicators[k].construct]);
+        return k === undefined ? undefined : cb.estimates.find((e) => (e.op === '=~' || e.op === '<~') && e.rhs === name && e.lhs === cb.constructs[cb.indicators[k].construct]);
       };
       return {
         r2: (name: string) => { const j = cb.constructs.indexOf(name); return j >= 0 ? cb.r2Constructs[j] : null; },
         indicator: (name: string) => {
           const k = ind.get(name);
           if (k === undefined) return null;
-          return unstd ? loading(name)?.est ?? null : cb.stdLoadings[k];
+          // Composites show their weights (as in PLS), common factors their loadings.
+          const e = loading(name);
+          return unstd ? e?.est ?? null : e?.op === '<~' ? e.std : cb.stdLoadings[k];
         },
-        fixed: (name: string) => loading(name)?.kind === 'fixed-loading',
+        fixed: (name: string) => loading(name)?.kind === 'fixed-loading' || loading(name)?.kind === 'fixed-weight',
         reflectiveThresholds: () => !unstd,
         moderation: (from: string, moderator: string, to: string): ModerationLabel | null => {
           const mo = cb.moderations.find((x) => x.from === from && x.moderator === moderator && x.to === to);

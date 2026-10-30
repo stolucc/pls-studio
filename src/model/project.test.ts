@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { covarianceLayout } from '../components/CovarianceLayer';
 import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, type ModelState, parseProject, pruneCorrelations, serializeProject, toSpec, validateModel } from './project';
 
 const data = { names: ['a1', 'a2', 'b1', 'c1'], cols: [1, 2, 3, 4].map(() => Float64Array.from({ length: 100 }, (_, i) => i % 7)) };
@@ -84,10 +85,11 @@ describe('method-specific validation', () => {
     ...base,
     constructs: base.constructs.map((c, i) => (i === 0 ? { ...c, type: 'composite' as const, mode: 'B' as const } : c)),
   };
-  it('CB-SEM rejects composites; PLS accepts them', () => {
+  it('CB-SEM rejects composites with the built-in engine only; PLS accepts them', () => {
     expect(errors(composite)).toEqual([]);
-    const cb = validateModel(composite, data, { method: 'cbsem', consistent: false }).filter((i) => i.level === 'error');
-    expect(cb.some((i) => i.message.includes('composite') && i.message.includes('CB-SEM'))).toBe(true);
+    const cb = (engine: 'r' | 'builtin') => validateModel(composite, data, { method: 'cbsem', consistent: false, engine }).filter((i) => i.level === 'error' && i.message.includes('composite'));
+    expect(cb('builtin').some((i) => i.message.includes('estimated by lavaan'))).toBe(true);
+    expect(cb('r')).toEqual([]);
   });
   it('warns about Mode B common factors under PLSc', () => {
     const m: ModelState = { ...base, constructs: base.constructs.map((c, i) => (i === 0 ? { ...c, mode: 'B' as const } : c)) };
@@ -194,6 +196,34 @@ describe('single indicator with known reliability', () => {
     expect(validateModel(m(0.8), null, { ...cbs, estimator: '2SLS' }).some((i) => i.level === 'error' && /MIIV-2SLS/.test(i.message))).toBe(true);
     expect(parseProject(serializeProject(m(0.75), DEFAULT_SETTINGS, null, null)).model.constructs[1].reliability).toBe(0.75);
     expect(parseProject(serializeProject(m(7), DEFAULT_SETTINGS, null, null)).model.constructs[1].reliability).toBeUndefined();
+  });
+});
+
+describe('composites in CB-SEM', () => {
+  const C = (id: string, inds: string[], type: 'factor' | 'composite' = 'factor') => ({ id, name: id, type, mode: type === 'composite' ? 'B' as const : 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [C('K', ['k1', 'k2', 'k3'], 'composite'), C('F', ['a1', 'a2', 'a3'])], paths: [{ id: 'p', from: 'K', to: 'F' }], moderations: [] };
+  const cbs = { method: 'cbsem' as const, consistent: false, estimator: 'ML' as const };
+  const errs = (x: ModelState, extra = {}) => validateModel(x, null, { ...cbs, ...extra }).filter((i) => i.level === 'error' && i.message.includes('"K"') || i.message.includes('Composite "K"')).map((i) => i.message);
+  it('are estimated by lavaan (R engine) and keep their type in the spec', () => {
+    expect(errs(m)).toEqual([]);
+    expect(toSpec(m).constructs[0].type).toBe('composite');
+  });
+  it('are refused where lavaan’s composites do not apply', () => {
+    expect(errs(m, { engine: 'builtin' })[0]).toMatch(/estimated by lavaan/);
+    expect(errs(m, { estimator: '2SLS' })[0]).toMatch(/MIIV-2SLS/);
+    expect(errs(m, { estimator: 'RML' })[0]).toMatch(/robust ML/);
+    expect(errs(m, { missing: 'mi' })[0]).toMatch(/multiple imputation/);
+    expect(errs({ ...m, constructs: [C('K', ['k1'], 'composite'), m.constructs[1]] })[0]).toMatch(/at least two indicators/);
+    expect(errs({ ...m, multigroup: { column: 'g', invariance: 'configural', free: [] } })[0]).toMatch(/multiple-group/);
+    expect(errs({ ...m, correlations: [{ id: 'e', kind: 'indicator', a: 'k1', b: 'k2' }] })[0]).toMatch(/covary freely/);
+    expect(errs({ ...m, constructs: [{ ...m.constructs[0], loadingLabels: { k2: 'w' } }, m.constructs[1]] })[0]).toMatch(/cannot be fixed or labelled/);
+    expect(errs({ ...m, constructs: [...m.constructs, { ...C('H', []), components: ['K', 'F'] }] })[0]).toMatch(/higher-order/);
+    expect(errs({ ...m, constructs: [...m.constructs, C('Z', ['z1', 'z2'])], moderations: [{ id: 'mo', moderator: 'Z', path: 'p' }] })[0]).toMatch(/latent interactions/);
+  });
+  it('draw no error terms on composite indicators; a single indicator with a known reliability gets one', () => {
+    const withRel: ModelState = { ...m, constructs: [...m.constructs, { ...C('S', ['s1']), reliability: 0.8 }, C('T', ['t1'])] };
+    const places = covarianceLayout(withRel, true, true).places;
+    expect([...places.keys()].sort()).toEqual(['a1', 'a2', 'a3', 's1']);
   });
 });
 
