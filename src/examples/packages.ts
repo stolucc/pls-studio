@@ -491,11 +491,13 @@ export function panelColumns(p: ExamplePanel): string[] {
 
 /**
  * The example as an editable model (positions are set by the automatic layout).
- * Exogenous constructs are correlated as in the package examples (lavaan's
- * default): those correlations are drawn (makeCovariancesExplicit).
+ * CB-SEM: exogenous constructs are correlated as in the package examples
+ * (lavaan's default), and those correlations are drawn (makeCovariancesExplicit).
+ * PLS-SEM and CPA have no such parameters, so nothing is added.
  */
 export function exampleModel(ex: PackageExample): ModelState {
-  return makeCovariancesExplicit(exampleModelAsWritten(ex));
+  const m = exampleModelAsWritten(ex);
+  return ex.settings.method === 'cbsem' ? makeCovariancesExplicit(m) : m;
 }
 
 function exampleModelAsWritten(ex: PackageExample): ModelState {

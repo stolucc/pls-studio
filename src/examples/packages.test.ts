@@ -17,7 +17,11 @@ describe.each(diagrams.map((e) => [e.id, e] as const))('package example %s', (_i
     expect(model.moderations.length).toBe(ex.moderations?.length ?? 0);
     // The authored correlations, plus the exogenous ones the package example estimates (drawn).
     expect((model.correlations ?? []).filter((k) => k.kind === 'indicator').length).toBe((ex.correlations ?? []).filter(([, , kind]) => kind === 'indicator').length);
-    expect(unconfirmedUncorrelated(model)).toEqual([]);
+    if (ex.settings.method === 'cbsem') expect(unconfirmedUncorrelated(model)).toEqual([]);
+    // PLS-SEM and CPA estimate no construct correlations: none are drawn unless authored.
+    else expect((model.correlations ?? []).filter((k) => k.kind === 'construct').length).toBe((ex.correlations ?? []).filter(([, , kind]) => kind === 'construct').length);
+    // Nothing for PLS-SEM to ignore: no "correlations are ignored" warning.
+    if (ex.settings.method === 'pls') expect(validateModel(model, data, { ...DEFAULT_SETTINGS, ...ex.settings }).some((i) => /correlation.*ignores/.test(i.message))).toBe(false);
   });
 });
 
