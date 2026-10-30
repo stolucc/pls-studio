@@ -165,3 +165,24 @@ it('latent growth curve and RI-CLPM (lavaan), growth mixture (lcmm)', async () =
   for (const m of gmm.result.models) expect(m.logLik, `k = ${m.k}`).toBeCloseTo(mref.gmm.models[String(m.k)].logLik, 2);
   expect(gmm.html).toContain('Number of classes');
 }, 1_800_000);
+
+it('PLS-SEM model comparison against a saved alternative (cSEM)', async () => {
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference.json'), 'utf8'));
+  const { rCall } = await import('../rengine/bridge');
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'cSEM', name: 'satisfaction', na: [] }, 'cSEM');
+  const data = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
+  const K = (name: string, ind: string[], composite: boolean) => ({ id: name, name, type: composite ? 'composite' as const : 'factor' as const, mode: composite ? 'B' as const : 'A' as const, indicators: ind, x: 0, y: 0, side: 'left' as const });
+  const paths: [string, string][] = [['IMAG', 'EXPE'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['QUAL', 'VAL'], ['IMAG', 'SAT'], ['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']];
+  const alternative = { paths: paths.filter(([f, t]) => !(f === 'IMAG' && t === 'LOY')), savedAt: 1 };
+  const { result, html } = await runAsCard<{ criteria: { criterion: string; byConstruct: Record<string, number> }[]; criteriaAlt: { criterion: string; byConstruct: Record<string, number> }[] }>(
+    'compare', data, { alternative }, () => {
+      useStore.setState({ model: {
+        constructs: [K('IMAG', items('imag', 3), true), K('EXPE', items('expe', 3), true), K('QUAL', items('qual', 5), true), K('VAL', items('val', 3), true), K('SAT', items('sat', 4), false), K('LOY', items('loy', 4), false)],
+        paths: paths.map(([from, to]) => ({ id: `${from}-${to}`, from, to })), moderations: [] } });
+      useStore.getState().setSettings({ method: 'pls', engine: 'r', scheme: 'path', consistent: false, stopExp: 7, maxIter: 300, missing: 'casewise', seed: 1 });
+    });
+  const bic = result.criteria.find((c) => c.criterion === 'BIC')!.byConstruct, bicAlt = result.criteriaAlt.find((c) => c.criterion === 'BIC')!.byConstruct;
+  for (const k of Object.keys(ref.msc.BIC)) { expect(bic[k], k).toBeCloseTo(ref.msc.BIC[k], 6); expect(bicAlt[k]).toBeCloseTo(ref.mscAlt.BIC[k], 6); }
+  expect(html).toContain('CVPAT');
+}, 900_000);

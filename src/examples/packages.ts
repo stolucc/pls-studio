@@ -15,6 +15,7 @@ import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
 import type { RsaPreset } from '../analyses/rsa';
 import type { EfaPreset } from '../analyses/efa';
+import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 
 export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
@@ -67,8 +68,8 @@ export interface PackageExample {
   panel?: ExamplePanel;
   /** Opens the segmentation panel on the example's diagram: REBUS (numbers of classes) or PATHMOX (segmentation variables; ordered ones with their categories in order). */
   segmentation?: { method?: 'rebus' | 'pathmox' | 'fimix' | 'pos'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
-  /** Opens the PLS assessment panel on the example's diagram (tab, and the grouping column). */
-  assessment?: { tab: 'predict' | 'blindfold' | 'compare' | 'groups' | 'cca'; group?: string; distance?: number };
+  /** Adds the PLS-SEM assessment card for the example's diagram (which one, and the grouping column or omission distance). */
+  assessment?: AssessmentPreset;
   /** Adds a Data screening card on the example's indicators, or (influence) an Influential cases card. */
   screening?: { tab: 'univariate' | 'normality' | 'outliers' | 'influence' };
   settings: Partial<Settings>;
@@ -334,7 +335,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'csem-gender', package: 'cSEM', title: 'Customer satisfaction: women and men (MICOM, MGA)', source: 'cSEM, ?testMICOM, ?testMGD (satisfaction_gender)',
     links: [{ label: '?testMICOM', url: 'https://rdrr.io/cran/cSEM/man/testMICOM.html' }, { label: '?testMGD', url: 'https://rdrr.io/cran/cSEM/man/testMGD.html' }, { label: '?satisfaction_gender', url: 'https://rdrr.io/cran/cSEM/man/satisfaction_gender.html' }],
-    description: 'The ECSI model (composites for image, expectations, quality and value; common factors for satisfaction and loyalty) for 148 women and 102 men. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? Opens PLS-SEM assessment.',
+    description: 'The ECSI model (composites for image, expectations, quality and value; common factors for satisfaction and loyalty) for 148 women and 102 men. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? Opens the assessment card on the Analyses tab.',
     data: { package: 'cSEM', name: 'satisfaction_gender' },
     constructs: [c('IMAG', items('imag', 3)), c('EXPE', items('expe', 3)), c('QUAL', items('qual', 5)), c('VAL', items('val', 3)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['QUAL', 'VAL'], ['IMAG', 'SAT'], ['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
@@ -343,7 +344,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'csem-itflex', package: 'cSEM', title: 'IT infrastructure flexibility: confirmatory composite analysis', source: 'cSEM, ?ITFlex (Henseler 2021)',
     links: [{ label: '?ITFlex', url: 'https://rdrr.io/cran/cSEM/man/ITFlex.html' }, { label: '?testOMF', url: 'https://rdrr.io/cran/cSEM/man/testOMF.html' }],
-    description: 'Benitez, Ray & Henseler (2018): IT compatibility, connectivity, modularity and personnel skills as composites (100 firms), with the saturated structural model and the factorial scheme, as on the help page. Is the composite model supported? Opens PLS-SEM assessment.',
+    description: 'Benitez, Ray & Henseler (2018): IT compatibility, connectivity, modularity and personnel skills as composites (100 firms), with the saturated structural model and the factorial scheme, as on the help page. Is the composite model supported? Opens the assessment card on the Analyses tab.',
     data: { package: 'cSEM', name: 'ITFlex' },
     constructs: [c('ITComp', items('ITCOMP', 4)), c('Modul', items('MOD', 4)), c('ITConn', items('ITCONN', 4)), c('ITPers', items('ITPSF', 4))],
     paths: [['ITComp', 'ITPers'], ['Modul', 'ITPers'], ['ITConn', 'ITPers'], ['ITComp', 'Modul'], ['ITConn', 'Modul'], ['ITComp', 'ITConn']],
@@ -485,7 +486,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'sempls-qsquared', package: 'cSEM', title: 'Mobile phone satisfaction: blindfolding Q²', source: 'semPLS, ?qSquared (ECSImobi on mobi)',
     links: [{ label: '?qSquared', url: 'https://rdrr.io/cran/semPLS/man/semplsGOF.html' }, { label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }],
-    description: 'semPLS’s help example: the ECSI model with the centroid scheme, and Stone–Geisser Q² from blindfolding with omission distance 4. Estimated with cSEM; semPLS (not available in the browser) is the reference. Opens PLS-SEM assessment.',
+    description: 'semPLS’s help example: the ECSI model with the centroid scheme, and Stone–Geisser Q² from blindfolding with omission distance 4. Estimated with cSEM; semPLS (not available in the browser) is the reference. Opens the assessment card on the Analyses tab.',
     data: { package: 'seminr', name: 'mobi' }, constructs: MOBI,
     paths: [...fan(['Image'], ['Expectation', 'Satisfaction', 'Loyalty']), ...fan(['Expectation'], ['Quality', 'Value', 'Satisfaction']), ...fan(['Quality'], ['Value', 'Satisfaction']),
       ['Value', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty'], ['Complaints', 'Loyalty']],

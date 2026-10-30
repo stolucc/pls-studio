@@ -1,6 +1,5 @@
 import { AnalysesWorkspace } from './components/analyses/AnalysesWorkspace';
 import { useAnalyses } from './analyses/store';
-import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
 import { DataWorkspace } from './components/DataViewer';
 import { ReactFlowProvider } from '@xyflow/react';
@@ -116,7 +115,6 @@ export default function App() {
       </div>
       <SimulationPanel />
       <SegmentationPanel />
-      <PlsAssessmentPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

@@ -332,9 +332,10 @@ export async function loadPackageExample(id: string) {
       return;
     }
     if (ex.assessment) {
-      const { usePlsAssessment } = await import('./components/PlsAssessmentPanel');
-      usePlsAssessment.setState({ open: true, tab: ex.assessment.tab, predict: null, blindfold: null, compare: null, groups: null, cta: null, cca: null, preset: { ...ex.assessment } });
-      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate in the panel.`);
+      const { assessmentCard } = await import('./analyses/plsAssessment');
+      addAnalysis(...assessmentCard(ex.assessment));
+      useStore.getState().setWorkspace('analyses');
+      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Run on the card.`);
       return;
     }
     if (ex.screening) {
