@@ -176,6 +176,13 @@ ps_cb_build <- function(req) {
   }
   # Defined parameters (functions of labelled parameters, with delta-method standard errors).
   defs <- vapply(req$model$defined, function(d) paste(ps_label(d$name), ":=", ps_expr(d$expr)), "")
+  # Inequality constraints on labelled parameters (each side checked as an expression).
+  defs <- c(defs, vapply(unlist(req$model$inequalities), function(h) {
+    op <- regmatches(h, regexpr("[<>]", h))
+    parts <- strsplit(h, "[<>]")[[1]]
+    if (length(op) != 1 || length(parts) != 2 || grepl("=", h, fixed = TRUE)) stop("Invalid inequality in the request.")
+    paste(ps_expr(trimws(parts[1])), op, ps_expr(trimws(parts[2])))
+  }, ""))
   # (In a two-level model they follow the level blocks: defined once, not per level.)
   if (is.null(cluster_var)) lines <- c(lines, defs)
   # Two-level: the model within clusters; between clusters the same structure (factors named *_b)
@@ -202,6 +209,8 @@ ps_cb_build <- function(req) {
   extra <- paste0(if (length(ordered)) sprintf(", ordered = %s", ps_q(ordered)) else "",
     if (identical(req$missing, "fiml")) ", missing = \"ml\"" else "")
   if (!is.null(cluster_var)) extra <- paste0(extra, sprintf(", cluster = \"%s\"", cluster_var))
+  # Variances kept non-negative (lavaan's bounds; a guard against Heywood cases).
+  bounds <- if (isTRUE(req$model$positiveVariances)) ", bounds = \"pos.var\"" else ""
   if (!is.null(weight_var)) {
     if (!is.null(cluster_var)) stop("Sampling weights cannot be combined with a two-level model here.")
     if (!req$estimator %in% c("ML", "MLR", "MLM", "WLSMV")) stop("With sampling weights choose ML, MLR or MLM (or WLSMV for ordinal indicators).")
@@ -223,6 +232,7 @@ ps_cb_build <- function(req) {
       if (length(partial)) sprintf(", group.partial = %s", ps_q(partial)) else "")
   }
   if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
+  extra <- paste0(extra, bounds)
   if (length(esem$blocks)) extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (!is.null(target)) ", rotation.args = list(target = TARGET)" else "")
   if (use_modsem) {
     if (!is.null(weight_var)) stop("Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.")
@@ -232,7 +242,7 @@ ps_cb_build <- function(req) {
     return(list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
       inputs = inputs, body = body, matrix_input = matrix_input, group_var = NULL, modsem = method))
   }
-  call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
+  call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\"%s)", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator, bounds)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
   # Multiple imputation (mice, then lavaan.mi's Rubin pooling); a lavaan fit to the first imputed data set
   # serves as the template for the model's structure, every reported number is pooled.

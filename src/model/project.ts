@@ -6,7 +6,7 @@ import type { CbEstimator } from '../engine/cbsem';
 import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
-import { exprToR, nameError, namesIn, parseConstraint, parseExpr } from './expr';
+import { exprToR, nameError, namesIn, parseConstraint, parseExpr, parseInequality } from './expr';
 import type { ConstructType, Dataset, EsemRotation, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MultigroupSpec, WeightingScheme } from '../engine/types';
 import { MAX_CATEGORIES } from '../engine/dataset';
 
@@ -157,6 +157,10 @@ export interface ModelState {
   ordered?: string[];
   defined?: DefinedParameter[];
   waldTests?: WaldTest[];
+  /** CB-SEM (lavaan): inequality constraints on labelled parameters, one per line ("a > 0", "a < b"). */
+  inequalities?: string;
+  /** CB-SEM (lavaan): keep (residual) variances non-negative (bounds = "pos.var"). */
+  positiveVariances?: boolean;
   /** CB-SEM: multiple groups by a data column, with measurement invariance (constructs by id in `free`). */
   multigroup?: MultigroupSpec;
   /** CB-SEM: two-level model by a cluster column. */
@@ -390,6 +394,7 @@ export function labelUses(model: ModelState): Map<string, string[]> {
 }
 
 const hypotheses = (t: WaldTest) => t.constraints.split('\n').map((x) => x.trim()).filter(Boolean);
+const inequalityLines = (model: ModelState) => (model.inequalities ?? '').split('\n').map((x) => x.trim()).filter(Boolean);
 
 /** Problems with labels, defined parameters and Wald tests. */
 export function constraintErrors(model: ModelState): string[] {
@@ -412,6 +417,13 @@ export function constraintErrors(model: ModelState): string[] {
     } catch (x) { errs.push(`${d.name} := ${d.expr}: ${(x as Error).message}`); }
     known.add(d.name);
   }
+  for (const line of inequalityLines(model)) {
+    try {
+      const c = parseInequality(line);
+      const unknown = [...namesIn(c.left), ...namesIn(c.right)].filter((n) => !known.has(n));
+      if (unknown.length) errs.push(`Inequality “${line}”: ${unknown.join(', ')} ${unknown.length === 1 ? 'is' : 'are'} not a label or defined parameter.`);
+    } catch (x) { errs.push(`Inequality “${line}”: ${(x as Error).message}`); }
+  }
   for (const t of model.waldTests ?? []) {
     if (!hypotheses(t).length) errs.push(`Wald test “${t.name}” has no hypothesis.`);
     for (const line of hypotheses(t)) {
@@ -426,9 +438,12 @@ export function constraintErrors(model: ModelState): string[] {
 }
 
 /** Defined parameters and Wald tests for the request, printed from their parsed form (only when all are valid). */
-function constraintSpec(model: ModelState): Pick<ModelSpec, 'defined' | 'waldTests'> {
-  if (!(model.defined?.length || model.waldTests?.length) || constraintErrors(model).length) return {};
+function constraintSpec(model: ModelState): Pick<ModelSpec, 'defined' | 'waldTests' | 'inequalities' | 'positiveVariances'> {
+  const bounds = model.positiveVariances ? { positiveVariances: true } : {};
+  if (!(model.defined?.length || model.waldTests?.length || inequalityLines(model).length) || constraintErrors(model).length) return bounds;
   return {
+    ...bounds,
+    ...(inequalityLines(model).length ? { inequalities: inequalityLines(model).map((line) => { const c = parseInequality(line); return `${exprToR(c.left)} ${c.op} ${exprToR(c.right)}`; }) } : {}),
     ...(model.defined?.length ? { defined: model.defined.map((d) => ({ name: d.name, expr: exprToR(parseExpr(d.expr)) })) } : {}),
     ...(model.waldTests?.length ? {
       waldTests: model.waldTests.map((t) => ({
@@ -440,7 +455,7 @@ function constraintSpec(model: ModelState): Pick<ModelSpec, 'defined' | 'waldTes
 }
 
 /** Does the model use labels, defined parameters or Wald tests (lavaan only)? */
-export const usesConstraints = (model: ModelState) => labelUses(model).size > 0 || !!model.defined?.length || !!model.waldTests?.length;
+export const usesConstraints = (model: ModelState) => labelUses(model).size > 0 || !!model.defined?.length || !!model.waldTests?.length || inequalityLines(model).length > 0 || !!model.positiveVariances;
 
 export interface Issue {
   level: 'error' | 'warning';
@@ -1102,6 +1117,8 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
         rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',
         blocks: m.esem.blocks.slice(0, 50).filter(isObj).map((b: Record<string, unknown>) => ({ id: str(b.id, 64), constructs: (Array.isArray(b.constructs) ? b.constructs : []).map((x: unknown) => str(x, 64)).filter((x: string) => ids.has(x)) })),
       } } : {}),
+      ...(typeof m.inequalities === 'string' && m.inequalities.trim() ? { inequalities: str(m.inequalities, 2000) } : {}),
+      ...(m.positiveVariances === true ? { positiveVariances: true } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
   };
   return {

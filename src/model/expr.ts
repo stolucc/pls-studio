@@ -106,6 +106,15 @@ export function exprToR(e: Expr): string {
 }
 
 /** A Wald-test hypothesis "left == right". */
+/** An inequality constraint "left < right" or "left > right" (lavaan's < and >). */
+export function parseInequality(src: string): { left: Expr; op: '<' | '>'; right: Expr } {
+  const ops = [...src].filter((ch) => ch === '<' || ch === '>');
+  if (ops.length !== 1 || src.includes('=')) throw new Error('Write an inequality as “expression > expression” or “expression < expression”, for example a > 0 or a < b.');
+  const op = ops[0] as '<' | '>';
+  const [l, r] = src.split(op);
+  return { left: parseExpr(l), op, right: parseExpr(r) };
+}
+
 export function parseConstraint(src: string): { left: Expr; right: Expr } {
   const parts = src.split('==');
   if (parts.length !== 2) throw new Error('Write a hypothesis as “expression == expression”, for example a == b or a*b == 0.');

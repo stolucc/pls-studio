@@ -25,6 +25,8 @@ export function ConstraintsEditor() {
   const readOnly = useStore((s) => s.cloud?.role === 'viewer');
   const setDefined = useStore((s) => s.setDefined);
   const setWaldTests = useStore((s) => s.setWaldTests);
+  const setInequalities = useStore((s) => s.setInequalities);
+  const setPositiveVariances = useStore((s) => s.setPositiveVariances);
   const labels = [...labelUses(model)];
   const defined = model.defined ?? [];
   const tests = model.waldTests ?? [];
@@ -71,6 +73,15 @@ export function ConstraintsEditor() {
         ))}
         {!readOnly && <button className="btn sm" onClick={() => setWaldTests([...tests, { id: newId('w'), name: `Test ${tests.length + 1}`, constraints: '' }])}>Add Wald test</button>}
         <div className="hint">One hypothesis per line (left == right); all lines are tested jointly (lavaan::lavTestWald).</div>
+      </div>
+      <div className="field">
+        <label>Inequality constraints</label>
+        <Field value={model.inequalities ?? ''} placeholder={'a > 0\na < b'} mono multiline onCommit={(v) => setInequalities(v)} />
+        <div className="hint">One per line (left &gt; right or left &lt; right), on labels and defined parameters; lavaan estimates under them. A parameter on its bound has no standard error, and χ² tests that involve active bounds are not standard.</div>
+        <label className="check" style={{ marginTop: 8 }}>
+          <input type="checkbox" checked={!!model.positiveVariances} disabled={readOnly} onChange={(e) => setPositiveVariances(e.target.checked)} />
+          <span>Keep variances non-negative<br /><span className="hint">Bounds every variance at 0 (lavaan bounds = “pos.var”): instead of a negative variance (a Heywood case) the estimate stays at 0. Consider why it would be negative first: a misspecified model or too few cases.</span></span>
+        </label>
       </div>
     </div>
   );

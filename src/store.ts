@@ -108,6 +108,8 @@ interface State {
   setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
   setDefined: (defined: DefinedParameter[]) => void;
   setWaldTests: (tests: WaldTest[]) => void;
+  setInequalities: (text: string) => void;
+  setPositiveVariances: (on: boolean) => void;
   /** Multiple-group CB-SEM results: show group `index` (diagram and tables). */
   showGroup: (index: number) => void;
   /** CB-SEM: exploratory SEM blocks and rotation (null removes them all). */
@@ -320,6 +322,8 @@ export const useStore = create<State>((set, get) => ({
   }),
   setDefined: (defined) => get().commit((m) => { const { defined: _d, ...rest } = m; return defined.length ? { ...rest, defined } : rest; }),
   setWaldTests: (tests) => get().commit((m) => { const { waldTests: _w, ...rest } = m; return tests.length ? { ...rest, waldTests: tests } : rest; }),
+  setInequalities: (text) => get().commit((m) => { const { inequalities: _i, ...rest } = m; return text.trim() ? { ...rest, inequalities: text } : rest; }),
+  setPositiveVariances: (on) => get().commit((m) => { const { positiveVariances: _p, ...rest } = m; return on ? { ...rest, positiveVariances: true } : rest; }),
   showGroup: (index) => set((s) => {
     const cb = s.results?.cb;
     const g = cb?.groups;

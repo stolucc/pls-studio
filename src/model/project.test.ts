@@ -154,6 +154,26 @@ describe('higher-order constructs and covariates', () => {
   });
 });
 
+describe('inequality constraints', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [{ ...C('F', ['a1', 'a2', 'a3']), loadingLabels: { a2: 'b' } }], paths: [], moderations: [] };
+  it('parses one per line on labels, prints them for lavaan, and keeps the variance bound', () => {
+    const spec = toSpec({ ...m, inequalities: 'b > 0.5\n\nb < 2', positiveVariances: true });
+    expect(spec.inequalities).toEqual(['b > 0.5', 'b < 2']);
+    expect(spec.positiveVariances).toBe(true);
+  });
+  it('reports unknown names and malformed lines, and keeps them in project files', () => {
+    const errs = (text: string) => validateModel({ ...m, inequalities: text }, null, { method: 'cbsem', consistent: false, estimator: 'ML' }).filter((i) => i.level === 'error' && i.message.startsWith('Inequality')).map((i) => i.message);
+    expect(errs('c > 0')[0]).toMatch(/c is not a label/);
+    expect(errs('b >= 0')[0]).toMatch(/Write an inequality/);
+    expect(errs('b > 0 > 1')[0]).toMatch(/Write an inequality/);
+    expect(errs('b > 0', ).length).toBe(0);
+    expect(validateModel({ ...m, positiveVariances: true }, null, { method: 'cbsem', consistent: false, estimator: '2SLS' }).some((i) => i.level === 'error' && /MIIV-2SLS/.test(i.message))).toBe(true);
+    const file = parseProject(serializeProject({ ...m, inequalities: 'b > 0', positiveVariances: true }, DEFAULT_SETTINGS, null, null));
+    expect(file.model).toMatchObject({ inequalities: 'b > 0', positiveVariances: true });
+  });
+});
+
 describe('multiple imputation', () => {
   const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
   const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3']), C('G', ['b1', 'b2'])], paths: [{ id: 'p', from: 'F', to: 'G' }], moderations: [] };

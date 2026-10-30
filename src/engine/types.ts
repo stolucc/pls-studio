@@ -80,6 +80,10 @@ export interface ModelSpec {
   defined?: { name: string; expr: string }[];
   /** CB-SEM (lavaan): Wald tests, each a set of hypotheses "left == right" (R syntax printed from parsed expressions). */
   waldTests?: { name: string; constraints: string[] }[];
+  /** CB-SEM (lavaan): inequality constraints "left < right" / "left > right" (R syntax printed from parsed expressions). */
+  inequalities?: string[];
+  /** CB-SEM (lavaan): keep variances non-negative (bounds = "pos.var"). */
+  positiveVariances?: boolean;
   /** CB-SEM (lavaan): multiple-group analysis by a grouping column, with a level of measurement invariance. */
   multigroup?: MultigroupSpec;
   /** CB-SEM (lavaan): sampling (survey) weights from this column (lavaan's sampling.weights; robust standard errors). */
