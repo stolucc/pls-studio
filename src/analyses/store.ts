@@ -106,6 +106,15 @@ export function moveCard(id: string, before: string | null) {
   });
 }
 
+/** Move a card next to another: before it, or after it (dropping on its lower half). */
+export function moveCardNextTo(id: string, target: string, after: boolean) {
+  if (id === target) return;
+  const ids = useAnalyses.getState().cards.map((c) => c.id).filter((x) => x !== id);
+  const at = ids.indexOf(target);
+  if (at < 0) return;
+  moveCard(id, after ? ids[at + 1] ?? null : target);
+}
+
 /** Move a card one place up or down (keyboard). */
 export function nudgeCard(id: string, delta: -1 | 1) {
   edit((cs) => {

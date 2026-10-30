@@ -88,6 +88,9 @@ describe('Analyses tab', () => {
     expect(html).toContain('not run');
     expect(html).toContain('x1 → x2 · 100 permutations');
     expect(html).toContain(`id="${id}"`);
+    // The outline lists both, draggable, the selected one marked.
+    expect(html).toMatch(new RegExp(`<a href="#${id}" class="sel" draggable="true"`));
+    expect(html).toContain('Drag the entries to reorder the cards.');
     // Selected (just added): its options are in the pane, blocked without data.
     expect(html).toContain('Import raw data first.');
     expect(html).toMatch(/NCA needs raw data/);

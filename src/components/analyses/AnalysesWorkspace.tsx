@@ -1,7 +1,7 @@
 import { Component, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { analysisType, ANALYSIS_TYPES } from '../../analyses/registry';
 import {
-  addAnalysis, currentCtx, addText, cancelCard, cardStatus, duplicateCard, moveCard, nudgeCard, removeCard, runCard, selectCard,
+  addAnalysis, currentCtx, addText, cancelCard, cardStatus, duplicateCard, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, selectCard,
   setOptions, setText, unpackCard, useAnalyses, type CardStatus,
 } from '../../analyses/store';
 import type { AnalysisCard, AnalysisCtx, AnalysisGroup, Card } from '../../analyses/types';
@@ -233,6 +233,46 @@ function OptionsPane({ ctx, readOnly }: { ctx: AnalysisCtx; readOnly: boolean })
   );
 }
 
+/** The outline: jump to a card, and reorder the log by dragging (or Alt+↑/↓). */
+function Outline({ cards, ctx, results, readOnly }: { cards: Card[]; ctx: AnalysisCtx; results: Record<string, unknown>; readOnly: boolean }) {
+  const selected = useAnalyses((s) => s.selected);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
+  const jump = (id: string) => { selectCard(id); document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+  const lowerHalf = (e: DragEvent) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); return e.clientY > r.top + r.height / 2; };
+  const end = () => { setDragging(null); setOver(null); };
+  return (
+    <nav className="card-outline" aria-label="Outline">
+      <div className="outline-title">Outline</div>
+      {cards.map((c) => {
+        const st = c.kind === 'analysis' ? cardStatus(c, ctx, false, c.id in results).state : null;
+        const cls = [c.kind === 'heading' ? 'h' : '', c.id === selected ? 'sel' : '', c.id === dragging ? 'dragging' : '',
+          over?.id === c.id ? (over.after ? 'drop-after' : 'drop-before') : ''].filter(Boolean).join(' ');
+        return (
+          <a key={c.id} href={`#${c.id}`} className={cls} draggable={!readOnly}
+            title={readOnly ? undefined : 'Drag to reorder (or Alt+↑/↓)'}
+            onClick={(e) => { e.preventDefault(); jump(c.id); }}
+            onKeyDown={(e) => {
+              if (readOnly || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+              e.preventDefault();
+              nudgeCard(c.id, e.key === 'ArrowUp' ? -1 : 1);
+              requestAnimationFrame(() => document.querySelector<HTMLElement>(`.card-outline a[href="#${c.id}"]`)?.focus());
+            }}
+            onDragStart={(e) => { e.dataTransfer.setData('text/x-pls-card', c.id); e.dataTransfer.effectAllowed = 'move'; setDragging(c.id); }}
+            onDragEnd={end}
+            onDragOver={(e) => { if (!dragging || dragging === c.id) return; e.preventDefault(); setOver({ id: c.id, after: lowerHalf(e) }); }}
+            onDragLeave={() => setOver((o) => (o?.id === c.id ? null : o))}
+            onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/x-pls-card'); if (id) moveCardNextTo(id, c.id, lowerHalf(e)); end(); }}>
+            {!readOnly && <span className="grip" aria-hidden>⋮⋮</span>}
+            {c.kind !== 'heading' && <span className={`dot ${st ?? 'note'}`} aria-hidden />}{titleOf(c)}
+          </a>
+        );
+      })}
+      {!readOnly && cards.length > 1 && <div className="hint outline-hint">Drag the entries to reorder the cards.</div>}
+    </nav>
+  );
+}
+
 /** The Analyses tab: the options of the selected card, the log of cards, and an outline. */
 export function AnalysesWorkspace() {
   const cards = useAnalyses((s) => s.cards);
@@ -247,7 +287,7 @@ export function AnalysesWorkspace() {
       <main className="card-log" aria-label="Analysis log">
         <div className="log-bar">
           <AddMenu disabled={readOnly} />
-          <span className="hint">{readOnly ? 'View only.' : 'Drag ⋮⋮ (or Alt+↑/↓) to reorder. The log is saved with the project.'}</span>
+          <span className="hint">{readOnly ? 'View only.' : 'Reorder by dragging in the outline (or a card’s ⋮⋮, or Alt+↑/↓). The log is saved with the project.'}</span>
         </div>
         {cards.length === 0 && (
           <div className="empty-results log-empty">
@@ -260,18 +300,7 @@ export function AnalysesWorkspace() {
             onDrop={(e) => { e.preventDefault(); setEndOver(false); const id = e.dataTransfer.getData('text/x-pls-card'); if (id) moveCard(id, null); }}>Move to the end</div>
         )}
       </main>
-      <nav className="card-outline" aria-label="Outline">
-        <div className="outline-title">Outline</div>
-        {cards.map((c) => {
-          const st = c.kind === 'analysis' ? cardStatus(c, ctx, false, c.id in results).state : null;
-          return (
-            <a key={c.id} href={`#${c.id}`} className={c.kind === 'heading' ? 'h' : ''}
-              onClick={(e) => { e.preventDefault(); selectCard(c.id); document.getElementById(c.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }}>
-              {c.kind !== 'heading' && <span className={`dot ${st ?? 'note'}`} aria-hidden />}{titleOf(c)}
-            </a>
-          );
-        })}
-      </nav>
+      <Outline cards={cards} ctx={ctx} results={results} readOnly={readOnly} />
     </section>
   );
 }

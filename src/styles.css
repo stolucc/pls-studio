@@ -109,6 +109,14 @@ button, input, select { font: inherit; color: inherit; }
 .card-outline a { color: var(--text-2); text-decoration: none; padding: 4px 7px; border-radius: 5px; font-size: 12px; display: flex; gap: 6px; align-items: center; overflow-wrap: anywhere; }
 .card-outline a:hover { background: var(--surface-3); color: var(--text); }
 .card-outline a.h { font-weight: 600; color: var(--text); margin-top: 6px; }
+.card-outline a[draggable="true"] { cursor: grab; }
+.card-outline a.sel { background: var(--accent-soft); color: var(--accent-strong); }
+.card-outline a.dragging { opacity: 0.45; }
+.card-outline a.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.card-outline a.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.card-outline .grip { color: var(--text-3); letter-spacing: -2px; font-size: 10px; opacity: 0; }
+.card-outline a:hover .grip, .card-outline a:focus-visible .grip { opacity: 1; }
+.outline-hint { padding: 8px 7px 0; }
 .card-outline .dot { width: 6px; height: 6px; border-radius: 3px; flex: none; background: var(--text-3); }
 .card-outline .dot.current { background: var(--good); }
 .card-outline .dot.stale, .card-outline .dot.missing { background: var(--warn); }

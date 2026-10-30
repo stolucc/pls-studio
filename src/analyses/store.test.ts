@@ -5,7 +5,7 @@ import { fingerprint } from './codec';
 import { parseCards, shareableCards } from './persist';
 import { ANALYSIS_TYPES } from './registry';
 import {
-  addAnalysis, addText, cardStatus, currentCtx, duplicateCard, loadCards, moveCard, nudgeCard, removeCard, runCard, setOptions, setText, unpackCard, useAnalyses,
+  addAnalysis, addText, cardStatus, currentCtx, duplicateCard, loadCards, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, setOptions, setText, unpackCard, useAnalyses,
 } from './store';
 import type { AnalysisCard, AnalysisType } from './types';
 
@@ -65,6 +65,20 @@ describe('analysis log', () => {
     removeCard(h);
     expect(a().cards.map((c) => c.id)).toEqual([m, d, n]);
     expect(addAnalysis('no-such-analysis')).toBeNull();
+  });
+
+  it('moves a card before or after another (dropping in the outline)', () => {
+    const [a, b, c] = [addText('note', 'a')!, addText('note', 'b')!, addText('note', 'c')!];
+    const order = () => useAnalyses.getState().cards.map((x) => x.id);
+    moveCardNextTo(a, c, true);
+    expect(order()).toEqual([b, c, a]);
+    moveCardNextTo(a, b, false);
+    expect(order()).toEqual([a, b, c]);
+    moveCardNextTo(c, a, true);
+    expect(order()).toEqual([a, c, b]);
+    moveCardNextTo(b, b, true);
+    moveCardNextTo(b, 'card-gone', false);
+    expect(order()).toEqual([a, c, b]);
   });
 
   it('lets viewers of a shared project change nothing', () => {
