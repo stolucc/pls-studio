@@ -186,3 +186,18 @@ it('PLS-SEM model comparison against a saved alternative (cSEM)', async () => {
   for (const k of Object.keys(ref.msc.BIC)) { expect(bic[k], k).toBeCloseTo(ref.msc.BIC[k], 6); expect(bicAlt[k]).toBeCloseTo(ref.mscAlt.BIC[k], 6); }
   expect(html).toContain('CVPAT');
 }, 900_000);
+
+it('REBUS-PLS (plspm) on the model on the canvas', async () => {
+  const dir = join(__dirname, '..', 'engine', '__fixtures__', 'rebus');
+  const ref = JSON.parse(readFileSync(join(dir, 'reference.json'), 'utf8'));
+  const mv = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => `mv${a + i}`);
+  const K = (name: string, ind: string[]) => ({ id: name, name, type: 'factor' as const, mode: 'A' as const, indicators: ind, x: 0, y: 0, side: 'left' as const });
+  const { result, html } = await runAsCard<{ globalGof: number; models: { k: number; gqi: number }[] }>('rebus', parseCsv(readFileSync(join(dir, 'simdata.csv'), 'utf8')).dataset, { from: 2, to: 3 }, () => {
+    useStore.setState({ model: { constructs: [K('Price', mv(1, 5)), K('Quality', mv(6, 10)), K('Satisfaction', mv(11, 13))],
+      paths: [{ id: 'p1', from: 'Price', to: 'Satisfaction' }, { id: 'p2', from: 'Quality', to: 'Satisfaction' }], moderations: [] } });
+    useStore.getState().setSettings({ method: 'pls', engine: 'r', scheme: 'centroid', stopExp: 6, maxIter: 100, missing: 'casewise', seed: 1 });
+  });
+  expect(result.globalGof).toBeCloseTo(ref.gof, 8);
+  expect(result.models.find((m) => m.k === 2)!.gqi).toBeCloseTo(ref.k2.gqi, 8);
+  expect(html).toContain('Save classes as a data column');
+}, 900_000);

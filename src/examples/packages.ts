@@ -29,7 +29,7 @@ interface ExConstruct {
   labels?: Record<string, string>;
 }
 
-/** Analyses opened in their own panel, preset with the example's columns. */
+/** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
 export type ExamplePanel =
   | { kind: 'growth'; measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[] }
   | { kind: 'irt'; items: string[]; model: IrtModel }
@@ -64,9 +64,9 @@ export interface PackageExample {
   esem?: { blocks: string[][]; rotation: EsemRotation };
   /** Conditional process analysis: the PROCESS model number the diagram is recognised as. */
   processModel?: number;
-  /** Opens this analysis panel instead of a diagram (constructs and paths are empty). */
+  /** Adds this analysis card instead of a diagram (constructs and paths are empty). */
   panel?: ExamplePanel;
-  /** Opens the segmentation panel on the example's diagram: REBUS (numbers of classes) or PATHMOX (segmentation variables; ordered ones with their categories in order). */
+  /** Adds a segmentation card for the example's diagram: REBUS (numbers of classes) or PATHMOX (segmentation variables; ordered ones with their categories in order). */
   segmentation?: { method?: 'rebus' | 'pathmox' | 'fimix' | 'pos'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
   /** Adds the PLS-SEM assessment card for the example's diagram (which one, and the grouping column or omission distance). */
   assessment?: AssessmentPreset;
@@ -133,7 +133,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'lavaan-growth', package: 'lavaan', title: 'Linear latent growth curve', source: 'lavaan, ?growth',
     links: [{ label: '?growth', url: 'https://rdrr.io/cran/lavaan/man/growth.html' }, { label: 'lavaan tutorial: growth curves', url: 'https://lavaan.ugent.be/tutorial/growth.html' }, { label: '?Demo.growth', url: 'https://rdrr.io/cran/lavaan/man/Demo.growth.html' }],
-    description: 'Four repeated measures t1–t4 (N = 400): random intercept and linear slope with time scores 0, 1, 2, 3. Opens Longitudinal models.',
+    description: 'Four repeated measures t1–t4 (N = 400): random intercept and linear slope with time scores 0, 1, 2, 3. Opens its card on the Analyses tab.',
     data: { package: 'lavaan', name: 'Demo.growth' }, constructs: [], paths: [],
     panel: { kind: 'growth', measures: items('t', 4), times: [0, 1, 2, 3], shape: 'linear', covariates: [] }, settings: CB('ML'),
   },
@@ -182,7 +182,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'plspm-rebus', package: 'plspm', title: 'REBUS-PLS: two hidden segments', source: 'plspm, ?it.reb (simdata)',
     links: [{ label: '?it.reb', url: 'https://rdrr.io/cran/plspm/man/it.reb.html' }, { label: '?rebus.test', url: 'https://rdrr.io/cran/plspm/man/rebus.test.html' }, { label: '?simdata', url: 'https://rdrr.io/cran/plspm/man/simdata.html' }],
-    description: 'Simulated customers (N = 400) in two segments: for one, satisfaction follows price; for the other, quality. The global model blurs them (GoF .49); REBUS-PLS recovers the segments (GQI .83). Opens Segmentation.',
+    description: 'Simulated customers (N = 400) in two segments: for one, satisfaction follows price; for the other, quality. The global model blurs them (GoF .49); REBUS-PLS recovers the segments (GQI .83). Opens its card on the Analyses tab.',
     data: { package: 'plspm', name: 'simdata' },
     constructs: [f('Price', items('mv', 5)), f('Quality', items('mv', 5, 6)), f('Satisfaction', items('mv', 3, 11))],
     paths: [['Price', 'Satisfaction'], ['Quality', 'Satisfaction']], segmentation: { from: 2, to: 3 }, settings: { ...PLS('cSEM', false, 'centroid'), missing: 'casewise' },
@@ -190,56 +190,56 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'ivreg-kmenta', package: 'ivreg', title: 'Supply and demand: two-stage least squares', source: 'ivreg, ?ivreg (Kmenta)',
     links: [{ label: '?ivreg', url: 'https://rdrr.io/cran/ivreg/man/ivreg.html' }, { label: '?Kmenta', url: 'https://rdrr.io/cran/ivreg/man/Kmenta.html' }],
-    description: 'Kmenta’s food market (20 years): demand Q on price P, which is endogenous (set by supply and demand together), with income D; farm price F and time A instrument the price. Weak-instrument, Wu–Hausman and Sargan tests. Opens Endogeneity.',
+    description: 'Kmenta’s food market (20 years): demand Q on price P, which is endogenous (set by supply and demand together), with income D; farm price F and time A instrument the price. Weak-instrument, Wu–Hausman and Sargan tests. Opens its card on the Analyses tab.',
     data: { package: 'ivreg', name: 'Kmenta' }, constructs: [], paths: [],
     panel: { kind: 'endo', method: 'iv', outcome: 'Q', endogenous: ['P'], exogenous: ['D'], instruments: ['F', 'A'] }, settings: CB('ML'),
   },
   {
     id: 'rendo-copula', package: 'REndo', title: 'Gaussian copula: two endogenous regressors', source: 'REndo, ?copulaCorrection (dataCopCont2)',
     links: [{ label: '?copulaCorrection', url: 'https://rdrr.io/cran/REndo/man/copulaCorrection.html' }, { label: '?dataCopCont2', url: 'https://rdrr.io/cran/REndo/man/dataCopCont2.html' }],
-    description: 'Simulated data (N = 2500) where P1 and P2 correlate with the error. The copula terms P* reveal the endogeneity without instruments and correct the coefficients (true values: P1 −1, P2 0.8). REndo’s data, shipped with the app. Opens Endogeneity.',
+    description: 'Simulated data (N = 2500) where P1 and P2 correlate with the error. The copula terms P* reveal the endogeneity without instruments and correct the coefficients (true values: P1 −1, P2 0.8). REndo’s data, shipped with the app. Opens its card on the Analyses tab.',
     data: { package: 'REndo', name: 'dataCopCont2', file: 'examples/rendo/dataCopCont2.csv' }, constructs: [], paths: [],
     panel: { kind: 'endo', method: 'copula', outcome: 'y', endogenous: ['P1', 'P2'], exogenous: ['X1', 'X2'] }, settings: CB('ML'),
   },
   {
     id: 'rendo-het', package: 'REndo', title: 'Instruments from heteroskedasticity (Lewbel)', source: 'REndo, ?hetErrorsIV (dataHetIV)',
     links: [{ label: '?hetErrorsIV', url: 'https://rdrr.io/cran/REndo/man/hetErrorsIV.html' }, { label: '?dataHetIV', url: 'https://rdrr.io/cran/REndo/man/dataHetIV.html' }],
-    description: 'Simulated data (N = 2500): P is endogenous and no external instrument exists; the heteroskedastic errors of P on X1 and X2 build internal instruments (Lewbel 2012). REndo’s data, shipped with the app. Opens Endogeneity.',
+    description: 'Simulated data (N = 2500): P is endogenous and no external instrument exists; the heteroskedastic errors of P on X1 and X2 build internal instruments (Lewbel 2012). REndo’s data, shipped with the app. Opens its card on the Analyses tab.',
     data: { package: 'REndo', name: 'dataHetIV', file: 'examples/rendo/dataHetIV.csv' }, constructs: [], paths: [],
     panel: { kind: 'endo', method: 'het', outcome: 'y', endogenous: ['P'], exogenous: ['X1', 'X2'], hetRegressors: ['X1', 'X2'] }, settings: CB('ML'),
   },
   {
     id: 'rendo-hm', package: 'REndo', title: 'Higher-moment instruments (Lewbel)', source: 'REndo, ?higherMomentsIV (dataHigherMoments)',
     links: [{ label: '?higherMomentsIV', url: 'https://rdrr.io/cran/REndo/man/higherMomentsIV.html' }, { label: '?dataHigherMoments', url: 'https://rdrr.io/cran/REndo/man/dataHigherMoments.html' }],
-    description: 'Simulated data (N = 2500): instruments from products of de-meaned variables, as on the help page (gp with g = x², and yp). REndo’s data, shipped with the app. Opens Endogeneity.',
+    description: 'Simulated data (N = 2500): instruments from products of de-meaned variables, as on the help page (gp with g = x², and yp). REndo’s data, shipped with the app. Opens its card on the Analyses tab.',
     data: { package: 'REndo', name: 'dataHigherMoments', file: 'examples/rendo/dataHigherMoments.csv' }, constructs: [], paths: [],
     panel: { kind: 'endo', method: 'hm', outcome: 'y', endogenous: ['P'], exogenous: ['X1', 'X2'], hetRegressors: ['X1', 'X2'], hmTypes: ['gp', 'yp'] }, settings: CB('ML'),
   },
   {
     id: 'rendo-liv', package: 'REndo', title: 'Latent instrumental variables', source: 'REndo, ?latentIV (dataLatentIV)',
     links: [{ label: '?latentIV', url: 'https://rdrr.io/cran/REndo/man/latentIV.html' }, { label: '?dataLatentIV', url: 'https://rdrr.io/cran/REndo/man/dataLatentIV.html' }],
-    description: 'Simulated data (N = 2500): y on an endogenous P without any instrument. The latent IV model splits P into a hidden two-group instrument and an endogenous part (true slope −1). REndo’s data, shipped with the app. Opens Endogeneity.',
+    description: 'Simulated data (N = 2500): y on an endogenous P without any instrument. The latent IV model splits P into a hidden two-group instrument and an endogenous part (true slope −1). REndo’s data, shipped with the app. Opens its card on the Analyses tab.',
     data: { package: 'REndo', name: 'dataLatentIV', file: 'examples/rendo/dataLatentIV.csv' }, constructs: [], paths: [],
     panel: { kind: 'endo', method: 'liv', outcome: 'y', endogenous: ['P'], exogenous: [] }, settings: CB('ML'),
   },
   {
     id: 'sampleselection-mroz', package: 'sampleSelection', title: 'Women’s wages: Heckman selection', source: 'sampleSelection, ?selection (Mroz87)',
     links: [{ label: '?selection', url: 'https://rdrr.io/cran/sampleSelection/man/selection.html' }, { label: '?Mroz87', url: 'https://rdrr.io/cran/sampleSelection/man/Mroz87.html' }],
-    description: 'Mroz (1987): wages are observed only for the 428 of 753 women in the labour force. A probit for participation (age, family income, young children, education) corrects the wage equation. Two-step estimates; the help page also adds squared age and experience. Opens Endogeneity.',
+    description: 'Mroz (1987): wages are observed only for the 428 of 753 women in the labour force. A probit for participation (age, family income, young children, education) corrects the wage equation. Two-step estimates; the help page also adds squared age and experience. Opens its card on the Analyses tab.',
     data: { package: 'sampleSelection', name: 'Mroz87' }, constructs: [], paths: [],
     panel: { kind: 'endo', method: 'heckman', outcome: 'wage', exogenous: ['exper', 'educ', 'city'], selection: { outcome: 'lfp', regressors: ['age', 'faminc', 'kids5', 'educ'] }, heckmanMethod: '2step' }, settings: CB('ML'),
   },
   {
     id: 'rsa-motcon', package: 'RSA', title: 'Motive congruence: response surface', source: 'RSA, ?RSA (motcon)',
     links: [{ label: '?RSA', url: 'https://rdrr.io/cran/RSA/man/RSA.html' }, { label: '?motcon', url: 'https://rdrr.io/cran/RSA/man/motcon.html' }, { label: 'Shanock et al. (2010)', url: 'https://doi.org/10.1007/s10869-010-9183-4' }],
-    description: 'Does it matter whether explicit and implicit power motives match (N = 84)? Polynomial regression of positive affect on both motives, read along the lines of congruence and incongruence — the analysis of Schaarschmidt, Stol & Fitzgerald (EJIS 2025) on identification imbalance. RSA’s data, shipped with the app. Opens Polynomial regression.',
+    description: 'Does it matter whether explicit and implicit power motives match (N = 84)? Polynomial regression of positive affect on both motives, read along the lines of congruence and incongruence — the analysis of Schaarschmidt, Stol & Fitzgerald (EJIS 2025) on identification imbalance. RSA’s data, shipped with the app. Opens its card on the Analyses tab.',
     data: { package: 'RSA', name: 'motcon', file: 'examples/rsa/motcon.csv' }, constructs: [], paths: [],
     panel: { kind: 'rsa', outcome: 'postVA', x: 'ePow', y: 'iPow', controls: [], estimation: 'OLS', center: 'none' }, settings: CB('ML'),
   },
   {
     id: 'psych-bfi', package: 'psych', title: 'Big Five personality items: exploratory factor analysis', source: 'psych, ?bfi and ?fa (Revelle)',
     links: [{ label: '?fa', url: 'https://rdrr.io/cran/psych/man/fa.html' }, { label: '?fa.parallel', url: 'https://rdrr.io/cran/psych/man/fa.parallel.html' }, { label: '?bfi', url: 'https://rdrr.io/cran/psych/man/bfi.html' }],
-    description: '25 self-report items of the Big Five (agreeableness, conscientiousness, extraversion, neuroticism, openness) from 2800 people. Parallel analysis, MAP and a five-factor minimum-residual solution with oblimin rotation; Build model turns it into five correlated factors for a CFA. Opens Exploratory factor analysis.',
+    description: '25 self-report items of the Big Five (agreeableness, conscientiousness, extraversion, neuroticism, openness) from 2800 people. Parallel analysis, MAP and a five-factor minimum-residual solution with oblimin rotation; Build model turns it into five correlated factors for a CFA. Opens its card on the Analyses tab.',
     data: { package: 'psych', name: 'bfi' }, constructs: [], paths: [],
     panel: { kind: 'efa', vars: ['A1', 'A2', 'A3', 'A4', 'A5', 'C1', 'C2', 'C3', 'C4', 'C5', 'E1', 'E2', 'E3', 'E4', 'E5', 'N1', 'N2', 'N3', 'N4', 'N5', 'O1', 'O2', 'O3', 'O4', 'O5'],
       method: 'minres', criterion: 'fixed', nfactors: 5, rotation: 'oblimin', parallel: 20 }, settings: CB('ML'),
@@ -247,28 +247,28 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'psych-harman5', package: 'psych', title: 'Socio-economic variables: principal components', source: 'psych, ?principal (Harman.5)',
     links: [{ label: '?principal', url: 'https://rdrr.io/cran/psych/man/principal.html' }, { label: '?Harman.5', url: 'https://rdrr.io/cran/psych/man/Harman.html' }],
-    description: 'Harman’s five socio-economic variables for 12 census tracts (population, schooling, employment, professional services, house value): two principal components with varimax rotation, as on the help page. Opens Exploratory factor analysis.',
+    description: 'Harman’s five socio-economic variables for 12 census tracts (population, schooling, employment, professional services, house value): two principal components with varimax rotation, as on the help page. Opens its card on the Analyses tab.',
     data: { package: 'psych', name: 'Harman.5' }, constructs: [], paths: [],
     panel: { kind: 'efa', vars: ['population', 'schooling', 'employment', 'professional', 'housevalue'], method: 'pca', criterion: 'fixed', nfactors: 2, rotation: 'varimax', parallel: 0 }, settings: CB('ML'),
   },
   {
     id: 'nca-example', package: 'NCA', title: 'Necessary conditions for innovation', source: 'NCA, ?nca_analysis (nca.example)',
     links: [{ label: '?nca_analysis', url: 'https://rdrr.io/cran/NCA/man/nca_analysis.html' }, { label: '?nca.example', url: 'https://rdrr.io/cran/NCA/man/nca.example.html' }, { label: 'Dul (2016)', url: 'https://doi.org/10.1177/1094428115584005' }],
-    description: 'Are individualism and risk taking necessary for innovation performance (28 countries)? Ceiling lines, effect sizes with a permutation test, and bottleneck tables. NCA’s data, shipped with the app. Opens Necessary condition analysis.',
+    description: 'Are individualism and risk taking necessary for innovation performance (28 countries)? Ceiling lines, effect sizes with a permutation test, and bottleneck tables. NCA’s data, shipped with the app. Opens its card on the Analyses tab.',
     data: { package: 'NCA', name: 'nca.example', file: 'examples/nca/nca_example.csv' }, constructs: [], paths: [],
     panel: { kind: 'nca', x: ['Individualism', 'Risk taking'], y: 'Innovation performance' }, settings: CB('ML'),
   },
   {
     id: 'matchit-lalonde', package: 'MatchIt', title: 'Job training: propensity score matching', source: 'MatchIt, ?matchit (lalonde)',
     links: [{ label: '?matchit', url: 'https://rdrr.io/cran/MatchIt/man/matchit.html' }, { label: 'MatchIt: estimating effects', url: 'https://kosukeimai.github.io/MatchIt/articles/estimating-effects.html' }, { label: '?lalonde', url: 'https://rdrr.io/cran/MatchIt/man/lalonde.html' }],
-    description: 'Lalonde (1986): did a job-training programme raise 1978 earnings? 185 trainees matched 1:1 to non-participants on age, education, race, marital status, degree and earlier earnings. As in MatchIt’s vignette, plain nearest-neighbour matching leaves race imbalanced; try full matching. Opens Propensity score matching.',
+    description: 'Lalonde (1986): did a job-training programme raise 1978 earnings? 185 trainees matched 1:1 to non-participants on age, education, race, marital status, degree and earlier earnings. As in MatchIt’s vignette, plain nearest-neighbour matching leaves race imbalanced; try full matching. Opens its card on the Analyses tab.',
     data: { package: 'MatchIt', name: 'lalonde' }, constructs: [], paths: [],
     panel: { kind: 'match', treatment: 'treat', covariates: ['age', 'educ', 'race', 'married', 'nodegree', 're74', 're75'], outcome: 're78', method: 'nearest', distance: 'glm', estimand: 'ATT' }, settings: CB('ML'),
   },
   {
     id: 'plspm-fimix', package: 'plspm', title: 'FIMIX-PLS: the same hidden segments', source: 'plspm simdata; FIMIX-PLS with flexmix (Sarstedt et al. 2011)',
     links: [{ label: '?simdata', url: 'https://rdrr.io/cran/plspm/man/simdata.html' }, { label: 'flexmix', url: 'https://rdrr.io/cran/flexmix/man/flexmix.html' }, { label: 'Sarstedt et al. (2011)', url: 'https://doi.org/10.1007/BF03396856' }],
-    description: 'The two simulated customer segments again, found by a finite mixture of the structural model (FIMIX-PLS): AIC3, CAIC and BIC point to two segments with price-driven and quality-driven satisfaction. Opens Segmentation.',
+    description: 'The two simulated customer segments again, found by a finite mixture of the structural model (FIMIX-PLS): AIC3, CAIC and BIC point to two segments with price-driven and quality-driven satisfaction. Opens its card on the Analyses tab.',
     data: { package: 'plspm', name: 'simdata' },
     constructs: [f('Price', items('mv', 5)), f('Quality', items('mv', 5, 6)), f('Satisfaction', items('mv', 3, 11))],
     paths: [['Price', 'Satisfaction'], ['Quality', 'Satisfaction']], segmentation: { method: 'fimix' }, settings: { ...PLS('cSEM', false, 'path'), missing: 'casewise' },
@@ -276,42 +276,42 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'ltm-lsat', package: 'ltm', title: 'LSAT: Rasch model', source: 'ltm, ?rasch',
     links: [{ label: '?rasch', url: 'https://rdrr.io/cran/ltm/man/rasch.html' }, { label: '?LSAT', url: 'https://rdrr.io/cran/ltm/man/LSAT.html' }],
-    description: 'Five binary items of the Law School Admission Test (N = 1000), Bock & Lieberman (1970): item difficulties and a common discrimination. Opens Item analysis.',
+    description: 'Five binary items of the Law School Admission Test (N = 1000), Bock & Lieberman (1970): item difficulties and a common discrimination. Opens its card on the Analyses tab.',
     data: { package: 'ltm', name: 'LSAT' }, constructs: [], paths: [],
     panel: { kind: 'irt', items: items('Item ', 5), model: 'rasch' }, settings: CB('ML'),
   },
   {
     id: 'ltm-science', package: 'ltm', title: 'Attitudes to science: graded response', source: 'ltm, ?grm',
     links: [{ label: '?grm', url: 'https://rdrr.io/cran/ltm/man/grm.html' }, { label: '?Science', url: 'https://rdrr.io/cran/ltm/man/Science.html' }],
-    description: 'Four four-category Likert items from the 1992 Eurobarometer (N = 392), coded 1 = strongly disagree to 4 = strongly agree: thresholds and discriminations (Samejima). Opens Item analysis.',
+    description: 'Four four-category Likert items from the 1992 Eurobarometer (N = 392), coded 1 = strongly disagree to 4 = strongly agree: thresholds and discriminations (Samejima). Opens its card on the Analyses tab.',
     data: { package: 'ltm', name: 'Science' }, constructs: [], paths: [],
     panel: { kind: 'irt', items: ['Comfort', 'Work', 'Future', 'Benefit'], model: 'grm' }, settings: CB('ML'),
   },
   {
     id: 'polca-carcinoma', package: 'poLCA', title: 'Pathologists’ ratings: latent classes', source: 'poLCA, ?carcinoma',
     links: [{ label: '?carcinoma', url: 'https://rdrr.io/cran/poLCA/man/carcinoma.html' }, { label: '?poLCA', url: 'https://rdrr.io/cran/poLCA/man/poLCA.html' }],
-    description: 'Seven pathologists rating 118 slides for carcinoma (Agresti 2002): two to four latent classes compared by BIC and entropy. Opens Item analysis.',
+    description: 'Seven pathologists rating 118 slides for carcinoma (Agresti 2002): two to four latent classes compared by BIC and entropy. Opens its card on the Analyses tab.',
     data: { package: 'poLCA', name: 'carcinoma' }, constructs: [], paths: [],
     panel: { kind: 'lca', items: ['A', 'B', 'C', 'D', 'E', 'F', 'G'], from: 2, to: 4 }, settings: CB('ML'),
   },
   {
     id: 'polca-values', package: 'poLCA', title: 'Universalistic and particularistic values', source: 'poLCA, ?values',
     links: [{ label: '?values', url: 'https://rdrr.io/cran/poLCA/man/values.html' }],
-    description: 'Four dilemmas answered by 216 respondents (Stouffer & Toby 1951): the classic one- to three-class comparison. Opens Item analysis.',
+    description: 'Four dilemmas answered by 216 respondents (Stouffer & Toby 1951): the classic one- to three-class comparison. Opens its card on the Analyses tab.',
     data: { package: 'poLCA', name: 'values' }, constructs: [], paths: [],
     panel: { kind: 'lca', items: ['A', 'B', 'C', 'D'], from: 1, to: 3 }, settings: CB('ML'),
   },
   {
     id: 'lme4-sleepstudy', package: 'lme4', title: 'Sleep deprivation: random slopes', source: 'lme4, ?lmer (sleepstudy)',
     links: [{ label: '?lmer', url: 'https://rdrr.io/cran/lme4/man/lmer.html' }, { label: '?sleepstudy', url: 'https://rdrr.io/cran/lme4/man/sleepstudy.html' }, { label: 'lmerTest', url: 'https://rdrr.io/cran/lmerTest/man/lmer.html' }],
-    description: 'Reaction times of 18 people over ten days of sleep deprivation (Belenky et al. 2003): each person has their own baseline and their own slowing per day, Reaction ~ Days + (Days | Subject). Opens Multilevel regression.',
+    description: 'Reaction times of 18 people over ten days of sleep deprivation (Belenky et al. 2003): each person has their own baseline and their own slowing per day, Reaction ~ Days + (Days | Subject). Opens its card on the Analyses tab.',
     data: { package: 'lme4', name: 'sleepstudy' }, constructs: [], paths: [],
     panel: { kind: 'lmm', outcome: 'Reaction', predictors: ['Days'], cluster: 'Subject', slopes: ['Days'], center: 'none', estimation: 'REML' }, settings: CB('ML'),
   },
   {
     id: 'lcmm-hlme', package: 'lcmm', title: 'Growth mixture: latent trajectory classes', source: 'lcmm, ?hlme (data_hlme)',
     links: [{ label: '?hlme', url: 'https://rdrr.io/cran/lcmm/man/hlme.html' }, { label: '?gridsearch', url: 'https://rdrr.io/cran/lcmm/man/gridsearch.html' }, { label: '?data_hlme', url: 'https://rdrr.io/cran/lcmm/man/data_hlme.html' }],
-    description: 'Simulated repeated measures of 100 people (long format): one to three classes of linear change with random intercepts and slopes, X1 as a covariate. The help page also lets X1 change the slope and predicts class membership from X2 and X3. Opens Longitudinal models.',
+    description: 'Simulated repeated measures of 100 people (long format): one to three classes of linear change with random intercepts and slopes, X1 as a covariate. The help page also lets X1 change the slope and predicts class membership from X2 and X3. Opens its card on the Analyses tab.',
     data: { package: 'lcmm', name: 'data_hlme' }, constructs: [], paths: [],
     panel: { kind: 'gmm', format: 'long', measures: [], times: [], subject: 'ID', time: 'Time', outcome: 'Y', covariates: ['X1'], shape: 'linear', random: 'slope', to: 3, nrep: 30 }, settings: CB('ML'),
   },
@@ -335,7 +335,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'csem-gender', package: 'cSEM', title: 'Customer satisfaction: women and men (MICOM, MGA)', source: 'cSEM, ?testMICOM, ?testMGD (satisfaction_gender)',
     links: [{ label: '?testMICOM', url: 'https://rdrr.io/cran/cSEM/man/testMICOM.html' }, { label: '?testMGD', url: 'https://rdrr.io/cran/cSEM/man/testMGD.html' }, { label: '?satisfaction_gender', url: 'https://rdrr.io/cran/cSEM/man/satisfaction_gender.html' }],
-    description: 'The ECSI model (composites for image, expectations, quality and value; common factors for satisfaction and loyalty) for 148 women and 102 men. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? Opens the assessment card on the Analyses tab.',
+    description: 'The ECSI model (composites for image, expectations, quality and value; common factors for satisfaction and loyalty) for 148 women and 102 men. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? Opens its card on the Analyses tab.',
     data: { package: 'cSEM', name: 'satisfaction_gender' },
     constructs: [c('IMAG', items('imag', 3)), c('EXPE', items('expe', 3)), c('QUAL', items('qual', 5)), c('VAL', items('val', 3)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['QUAL', 'VAL'], ['IMAG', 'SAT'], ['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
@@ -344,7 +344,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'csem-itflex', package: 'cSEM', title: 'IT infrastructure flexibility: confirmatory composite analysis', source: 'cSEM, ?ITFlex (Henseler 2021)',
     links: [{ label: '?ITFlex', url: 'https://rdrr.io/cran/cSEM/man/ITFlex.html' }, { label: '?testOMF', url: 'https://rdrr.io/cran/cSEM/man/testOMF.html' }],
-    description: 'Benitez, Ray & Henseler (2018): IT compatibility, connectivity, modularity and personnel skills as composites (100 firms), with the saturated structural model and the factorial scheme, as on the help page. Is the composite model supported? Opens the assessment card on the Analyses tab.',
+    description: 'Benitez, Ray & Henseler (2018): IT compatibility, connectivity, modularity and personnel skills as composites (100 firms), with the saturated structural model and the factorial scheme, as on the help page. Is the composite model supported? Opens its card on the Analyses tab.',
     data: { package: 'cSEM', name: 'ITFlex' },
     constructs: [c('ITComp', items('ITCOMP', 4)), c('Modul', items('MOD', 4)), c('ITConn', items('ITCONN', 4)), c('ITPers', items('ITPSF', 4))],
     paths: [['ITComp', 'ITPers'], ['Modul', 'ITPers'], ['ITConn', 'ITPers'], ['ITComp', 'Modul'], ['ITConn', 'Modul'], ['ITComp', 'ITConn']],
@@ -384,7 +384,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'semfindr-cfa', package: 'semfindr', title: 'Influential cases in a CFA', source: 'semfindr, ?cfa_dat2',
     links: [{ label: '?cfa_dat2', url: 'https://rdrr.io/cran/semfindr/man/cfa_dat2.html' }, { label: '?influence_stat', url: 'https://rdrr.io/cran/semfindr/man/influence_stat.html' }],
-    description: 'semfindr’s two-factor CFA on simulated data (N = 100) with influential cases: the model is refitted without each case, and generalized Cook’s distance shows which cases move the estimates. Opens an Influential cases card on the Analyses tab.',
+    description: 'semfindr’s two-factor CFA on simulated data (N = 100) with influential cases: the model is refitted without each case, and generalized Cook’s distance shows which cases move the estimates. Opens its card on the Analyses tab.',
     data: { package: 'semfindr', name: 'cfa_dat2' },
     constructs: [f('f1', ['x1', 'x2', 'x3']), f('f2', ['x4', 'x5', 'x6'])],
     paths: [], correlations: [['f1', 'f2', 'construct']],
@@ -419,14 +419,14 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'weightit-lalonde', package: 'WeightIt', title: 'Job training: inverse probability weighting', source: 'WeightIt, vignette "Estimating effects after weighting"',
     links: [{ label: 'vignette', url: 'https://ngreifer.github.io/WeightIt/articles/estimating-effects.html' }, { label: '?weightit', url: 'https://rdrr.io/cran/WeightIt/man/weightit.html' }],
-    description: 'Lalonde (1986), as in WeightIt’s vignette: the effect of job training on 1978 earnings for the trainees (ATT), with propensity-score weights instead of matching, and the doubly robust estimate (outcome model with the covariates, averaged by g-computation). Opens Propensity score matching and weighting.',
+    description: 'Lalonde (1986), as in WeightIt’s vignette: the effect of job training on 1978 earnings for the trainees (ATT), with propensity-score weights instead of matching, and the doubly robust estimate (outcome model with the covariates, averaged by g-computation). Opens its card on the Analyses tab.',
     data: { package: 'MatchIt', name: 'lalonde' }, constructs: [], paths: [],
     panel: { kind: 'match', treatment: 'treat', covariates: ['age', 'educ', 'race', 'married', 'nodegree', 're74', 're75'], outcome: 're78', method: 'weighting', estimand: 'ATT', effectModel: 'dr' }, settings: CB('ML'),
   },
   {
     id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',
     links: [{ label: '?pls.pathmox', url: 'https://rdrr.io/cran/genpathmox/man/pls.pathmox.html' }, { label: '?csibank', url: 'https://rdrr.io/cran/genpathmox/man/csibank.html' }],
-    description: 'Satisfaction and loyalty of 1707 customers of a Spanish bank: does the model differ by gender, age, education, occupation or region? PATHMOX splits by age and then education and region. Consistent PLS, as on the help page. Opens Segmentation.',
+    description: 'Satisfaction and loyalty of 1707 customers of a Spanish bank: does the model differ by gender, age, education, occupation or region? PATHMOX splits by age and then education and region. Consistent PLS, as on the help page. Opens its card on the Analyses tab.',
     data: { package: 'genpathmox', name: 'csibank' },
     constructs: [c('QUAL', items('qual', 7)), f('IMAG', items('imag', 6)), f('VAL', items('val', 4)), f('SAT', items('sat', 3)), f('LOY', items('loy', 3))],
     paths: [['QUAL', 'VAL'], ['IMAG', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
@@ -486,7 +486,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'sempls-qsquared', package: 'cSEM', title: 'Mobile phone satisfaction: blindfolding Q²', source: 'semPLS, ?qSquared (ECSImobi on mobi)',
     links: [{ label: '?qSquared', url: 'https://rdrr.io/cran/semPLS/man/semplsGOF.html' }, { label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }],
-    description: 'semPLS’s help example: the ECSI model with the centroid scheme, and Stone–Geisser Q² from blindfolding with omission distance 4. Estimated with cSEM; semPLS (not available in the browser) is the reference. Opens the assessment card on the Analyses tab.',
+    description: 'semPLS’s help example: the ECSI model with the centroid scheme, and Stone–Geisser Q² from blindfolding with omission distance 4. Estimated with cSEM; semPLS (not available in the browser) is the reference. Opens its card on the Analyses tab.',
     data: { package: 'seminr', name: 'mobi' }, constructs: MOBI,
     paths: [...fan(['Image'], ['Expectation', 'Satisfaction', 'Loyalty']), ...fan(['Expectation'], ['Quality', 'Value', 'Satisfaction']), ...fan(['Quality'], ['Value', 'Satisfaction']),
       ['Value', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty'], ['Complaints', 'Loyalty']],

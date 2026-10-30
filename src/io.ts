@@ -346,21 +346,15 @@ export async function loadPackageExample(id: string) {
       return;
     }
     if (ex.segmentation) {
-      const { useSegmentation } = await import('./components/SegmentationPanel');
       const seg = ex.segmentation;
-      if (seg.method === 'pathmox') {
-        // Segmentation variables with their category names; ordered ones in the example's order.
-        const cats = categoriesOf(raw.levels).categories ?? {};
-        const { useSegExtra } = await import('./components/SegmentationMethods');
-        useSegExtra.setState({ pathmox: null, segments: (seg.segments ?? []).map((s) => ({ column: s.column, labels: cats[s.column] ?? [], ordered: !!s.order,
-          ...(s.order ? { order: s.order.map((l) => (cats[s.column] ?? []).indexOf(l) + 1) } : {}) })) });
-        useSegmentation.setState({ open: true, method: 'pathmox', rebus: null });
-      } else if (seg.method === 'fimix' || seg.method === 'pos') {
-        const { useSegExtra } = await import('./components/SegmentationMethods');
-        useSegExtra.setState({ fimix: null });
-        useSegmentation.setState({ open: true, method: seg.method, rebus: null });
-      } else useSegmentation.setState({ open: true, method: 'rebus', rebus: null, preset: { from: seg.from ?? 2, to: seg.to ?? 4 } });
-      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Estimate.`);
+      // PATHMOX: segmentation variables with their category names; ordered ones in the example's order.
+      const cats = categoriesOf(raw.levels).categories ?? {};
+      const segments = (seg.segments ?? []).map((s) => ({ column: s.column, labels: cats[s.column] ?? [], ordered: !!s.order,
+        ...(s.order ? { order: s.order.map((l) => (cats[s.column] ?? []).indexOf(l) + 1) } : {}) }));
+      const { segmentationCard } = await import('./analyses/segmentation');
+      addAnalysis(...segmentationCard(seg, segments));
+      useStore.getState().setWorkspace('analyses');
+      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Run on the card.`);
       return;
     }
     useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate.`);

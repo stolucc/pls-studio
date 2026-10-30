@@ -235,13 +235,13 @@ export function plsModelBlocked(ctx: AnalysisCtx): string | null {
 }
 
 /** Fingerprint of the model, its PLS options and indicator columns, plus what else an assessment reads. */
-function modelFingerprint(ctx: AnalysisCtx, extraCols: string[] = [], extra: (string | number | null)[] = []): string | null {
+export function modelFingerprint(ctx: AnalysisCtx, extraCols: string[] = [], extra: (string | number | null)[] = [], options: PlsOptions = plsOptions(ctx.settings)): string | null {
   if (ctx.settings.method !== 'pls' || !ctx.model) return null;
   const cols = columnsFingerprint(ctx, [...new Set(ctx.model.constructs.flatMap((k) => k.indicators)), ...extraCols]);
-  return cols && fingerprint([cols, JSON.stringify(toSpec(ctx.model)), JSON.stringify(plsOptions(ctx.settings)), ...extra]);
+  return cols && fingerprint([cols, JSON.stringify(toSpec(ctx.model)), JSON.stringify(options), ...extra]);
 }
 
-const specOf = (ctx: AnalysisCtx) => toSpec(ctx.model!);
+export const specOf = (ctx: AnalysisCtx) => toSpec(ctx.model!);
 const Hint = ({ children }: { children: ReactNode }) => <p className="hint" style={{ marginTop: 0 }}>{children}</p>;
 const modelNote = (ctx: AnalysisCtx) => `The PLS-SEM model on the canvas, ${ctx.settings.scheme} weighting${ctx.settings.consistent ? ', PLSc' : ''} (Model settings).`;
 const PLS_GROUP = 'PLS-SEM model' as const;

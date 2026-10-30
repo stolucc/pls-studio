@@ -50,6 +50,13 @@ export function columnsFingerprint(ctx: AnalysisCtx, cols: string[], extra: (str
   return fingerprint([...extra, ...ks.flatMap((k) => [ds.names[k], ds.cols[k]])]);
 }
 
+/** A data column name not yet in use: base, base_2, base_3, … */
+export function freeColumnName(names: string[], base: string): string {
+  let name = base, i = 2;
+  while (names.includes(name)) name = `${base}_${i++}`;
+  return name;
+}
+
 /** A column chooser; columns in `exclude` are left out (except the current value). */
 export function ColumnSelect({ id, label, value, columns, exclude = [], onChange, optional }: {
   id: string; label: string; value: string; columns: string[]; exclude?: string[]; onChange: (v: string) => void; optional?: string;

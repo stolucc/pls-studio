@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { freeColumnName } from './SegmentationPanel';
+import { freeColumnName } from './common';
 
 it('saves classes under a column name not yet in use', () => {
   expect(freeColumnName(['a', 'b'], 'rebus_2')).toBe('rebus_2');
