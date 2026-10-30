@@ -368,6 +368,16 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: { ...PLS('cSEM', true, 'factor'), stopExp: 6 },
   },
   {
+    id: 'seminr-hoc', package: 'seminr', title: 'Satisfaction as a higher-order composite (two-stage)', source: 'seminr, demo(seminr-pls-higher_order)',
+    links: [{ label: 'demo source', url: 'https://github.com/sem-in-r/seminr/blob/master/demo/seminr-pls-higher_order.R' }, { label: '?higher_composite', url: 'https://rdrr.io/cran/seminr/man/higher_composite.html' }],
+    description: 'seminr’s higher-order demo on the mobi data: satisfaction is a higher-order composite of image and value (two-stage, Mode A), driven by expectation and quality and driving complaints and loyalty. Try Mode B for image and value: the demo’s second variant.',
+    data: { package: 'seminr', name: 'mobi' },
+    constructs: [c('Image', items('IMAG', 5), 'A'), c('Expectation', items('CUEX', 3), 'A'), c('Quality', items('PERQ', 7), 'A'), c('Value', items('PERV', 2), 'A'),
+      { name: 'Satisfaction', type: 'composite', mode: 'A', components: ['Image', 'Value'] }, c('Complaints', ['CUSCO'], 'A'), c('Loyalty', items('CUSL', 3), 'A')],
+    paths: [['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty']],
+    settings: PLS('seminr', false),
+  },
+  {
     id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',
     links: [{ label: '?pls.pathmox', url: 'https://rdrr.io/cran/genpathmox/man/pls.pathmox.html' }, { label: '?csibank', url: 'https://rdrr.io/cran/genpathmox/man/csibank.html' }],
     description: 'Satisfaction and loyalty of 1707 customers of a Spanish bank: does the model differ by gender, age, education, occupation or region? PATHMOX splits by age and then education and region. Consistent PLS, as on the help page. Opens Segmentation.',

@@ -135,6 +135,17 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, st.plsPackage);
       expect(r.converged).toBe(true);
       if (ex.id === 'csem-2ndorder') await checkSecondOrder(data, spec, r, st);
+      if (ex.id === 'seminr-hoc') {
+        // seminr's demo, both variants, against seminr 2.5.0 run natively.
+        const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'secondorder', 'seminr.json'), 'utf8'));
+        const check = (res: typeof r, v: any) => {
+          sameSecondOrder(res, v, 'Satisfaction', 5);
+          for (const [ind, w] of Object.entries(v.firstOrderWeights as Record<string, number>)) expect(res.weights[res.indicators.findIndex((x) => x.name === ind)], ind).toBeCloseTo(w, 5);
+        };
+        check(r, ref.modeA);
+        const modeB = { ...spec, constructs: spec.constructs.map((k) => (k.name === 'Image' || k.name === 'Value' ? { ...k, mode: 'B' as const } : k)) };
+        check(await estimatePlsR(data, modeB, { scheme: st.scheme, consistent: false, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, 'seminr'), ref.modeB);
+      }
       if (ex.id === 'csem-yoo') {
         const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'secondorder', 'yoo.json'), 'utf8'));
         sameSecondOrder(r, ref, 'BR', 4);

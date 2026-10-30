@@ -1,0 +1,63 @@
+{
+  "seminr": "2.5.0",
+  "modeA": {
+    "paths": {
+      "Expectation -> Satisfaction": 0.103641382040823,
+      "Quality -> Satisfaction": 0.720064333276669,
+      "Satisfaction -> Complaints": 0.486257317953653,
+      "Satisfaction -> Loyalty": 0.627602841720655
+    },
+    "r2": {
+      "Satisfaction": 0.612308347837422,
+      "Complaints": 0.23644617926348,
+      "Loyalty": 0.393885326935842
+    },
+    "secondOrder": {
+      "loadings": {
+        "Image": 0.895650876207813,
+        "Value": 0.839452525936478
+      },
+      "weights": {
+        "Image": 0.631840584153024,
+        "Value": 0.51711253914618
+      }
+    },
+    "firstOrderWeights": {
+      "IMAG1": 0.311498902514752,
+      "IMAG2": 0.241024263165947,
+      "IMAG3": 0.210053553126402,
+      "IMAG4": 0.340428414848061,
+      "IMAG5": 0.323018225340666
+    }
+  },
+  "modeB": {
+    "paths": {
+      "Expectation -> Satisfaction": 0.0911432727550532,
+      "Quality -> Satisfaction": 0.729762756803463,
+      "Satisfaction -> Complaints": 0.493946440877642,
+      "Satisfaction -> Loyalty": 0.6339400723315
+    },
+    "r2": {
+      "Satisfaction": 0.614858985267101,
+      "Complaints": 0.24398308645569,
+      "Loyalty": 0.401880015307666
+    },
+    "secondOrder": {
+      "loadings": {
+        "Image": 0.897432166028439,
+        "Value": 0.847355697065684
+      },
+      "weights": {
+        "Image": 0.624462390570617,
+        "Value": 0.518775486786912
+      }
+    },
+    "firstOrderWeights": {
+      "IMAG1": 0.285760404260462,
+      "IMAG2": 0.212715375211859,
+      "IMAG3": 0.0963194971420185,
+      "IMAG4": 0.418225783335269,
+      "IMAG5": 0.369163359971111
+    }
+  }
+}

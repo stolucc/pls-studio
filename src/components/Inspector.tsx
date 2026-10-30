@@ -31,6 +31,7 @@ function ConstructInspector({ c }: { c: Construct }) {
   const removeIndicator = useStore((s) => s.removeIndicator);
   const del = useStore((s) => s.deleteItems);
   const method = useStore((s) => s.settings.method);
+  const plsPackage = useStore((s) => s.settings.plsPackage);
   const constructs = useStore((s) => s.model.constructs);
   const results = useFreshResults();
   const pls = method === 'pls' ? results?.pls : null;
@@ -53,7 +54,7 @@ function ConstructInspector({ c }: { c: Construct }) {
               title={method === 'cbsem' ? 'Composites are estimated with PLS only. Switch to PLS-SEM to use them.' : 'Emergent variable: a weighted combination of its indicators (hexagon)'}>Composite</button>
           </div>
         </div>}
-        {method === 'pls' && !c.components?.length && (
+        {method === 'pls' && (!c.components?.length || plsPackage === 'seminr') && (
           <div className="field">
             <label>Weighting (PLS)</label>
             <div className="segmented">
@@ -137,7 +138,9 @@ function ConstructInspector({ c }: { c: Construct }) {
         <div className="section">
           <div className="section-title">Second-order construct</div>
           <div className="hint" style={{ marginBottom: 6 }}>
-            Measured by first-order constructs (cSEM’s two-stage approach): {c.type === 'composite' ? 'a composite of composites, weighted by Mode B' : 'a common factor of its components, weighted by Mode A and corrected for attenuation'} in stage 2. The components stay out of the structural model; connect this construct instead.
+            Measured by first-order constructs (two-stage approach): their scores are its indicators in stage 2. {plsPackage === 'seminr'
+              ? 'seminr weights it as chosen under Weighting.'
+              : c.type === 'composite' ? 'cSEM weights a composite by Mode B.' : 'cSEM weights a common factor by Mode A and corrects it for attenuation.'} The components stay out of the structural model; connect this construct instead.
           </div>
           {constructs.filter((k) => k.id !== c.id && k.indicators.length > 0).map((k) => (
             <label key={k.id} className="check" style={{ marginBottom: 4 }}>

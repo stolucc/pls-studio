@@ -130,12 +130,13 @@ describe('higher-order constructs and covariates', () => {
     expect(spec.constructs[2].components).toEqual(['Alpha', 'Beta']);
     expect(spec.constructs[3].covariate).toBe(true);
   });
-  it('accepts them in CB-SEM, and in PLS only through cSEM with PLS path modeling', () => {
+  it('accepts them in CB-SEM, and in PLS through cSEM or seminr with PLS path modeling', () => {
     expect(validateModel(m, d4, cbs).filter((i) => i.level === 'error')).toEqual([]);
     const pls = (o: object) => validateModel(m, d4, { method: 'pls', consistent: false, ...o }).filter((i) => i.level === 'error' && i.constructId === 'H').map((i) => i.message);
     expect(pls({})).toEqual([]);
-    expect(pls({ engine: 'builtin' })[0]).toMatch(/second-order construct: in PLS these are estimated by cSEM. Choose “R packages”/);
-    expect(pls({ plsPackage: 'seminr' })[0]).toMatch(/Choose cSEM/);
+    expect(pls({ engine: 'builtin' })[0]).toMatch(/second-order construct: in PLS these are estimated by cSEM or seminr. Choose “R packages”/);
+    expect(pls({ plsPackage: 'seminr' })).toEqual([]);
+    expect(validateModel(m, d4, { method: 'pls', consistent: true, plsPackage: 'seminr' }).some((i) => i.constructId === 'H' && i.level === 'error' && /Choose cSEM, or turn off PLSc for seminr/.test(i.message))).toBe(true);
     expect(pls({ plsApproach: 'GSCA' })[0]).toMatch(/PLS-PM/);
   });
   it('PLS: components are first-order constructs outside the structural model', () => {

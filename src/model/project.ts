@@ -480,8 +480,8 @@ export function validateModel(
     if (higher) {
       if (method.method === 'pls') {
         // PLS: cSEM's two-stage approach (stage 1 the components, stage 2 the second-order construct from their scores).
-        if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}" is a second-order construct: in PLS these are estimated by cSEM. Choose “R packages” under Calculated by.`, c.id);
-        else if ((method.plsPackage ?? 'cSEM') !== 'cSEM') err(`"${c.name}" is a second-order construct: in PLS these are estimated by cSEM (two-stage approach). Choose cSEM.`, c.id);
+        if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}" is a second-order construct: in PLS these are estimated by cSEM or seminr. Choose “R packages” under Calculated by.`, c.id);
+        else if ((method.plsPackage ?? 'cSEM') === 'seminr' && method.consistent) err(`"${c.name}" is a second-order construct: with consistent PLS these are estimated by cSEM. Choose cSEM, or turn off PLSc for seminr.`, c.id);
         else if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`"${c.name}" is a second-order construct: these are estimated with PLS path modeling. Choose PLS-PM as the weighting approach.`, c.id);
       }
       if (c.indicators.length) err(`"${c.name}" has both indicators and component constructs; remove one.`, c.id);

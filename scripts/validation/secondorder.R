@@ -59,3 +59,33 @@ out_yoo <- list(
   firstOrderLoadings = as.list(yoo$First_stage$Estimates$Loading_estimates["QL", paste0("QL", 1:6)]))
 write(toJSON(out_yoo, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/secondorder/yoo.json")
 cat("written yoo\n")
+
+# seminr's demo seminr-pls-higher_order (mobi): Satisfaction a higher-order
+# composite of Image and Value (two_stage, mode_A), Expectation + Quality ->
+# Satisfaction -> Complaints, Loyalty. Once as in the demo (all Mode A), once
+# with Image and Value in Mode B (the demo's second variant). seminr 2.5.0, the
+# version in the app's webR repository.
+suppressPackageStartupMessages(library(seminr))
+stopifnot(as.character(packageVersion("seminr")) == "2.5.0")
+seminr_hoc <- function(dim_weights) {
+  mm <- constructs(
+    composite("Image", multi_items("IMAG", 1:5), weights = dim_weights),
+    composite("Expectation", multi_items("CUEX", 1:3)),
+    composite("Quality", multi_items("PERQ", 1:7)),
+    composite("Value", multi_items("PERV", 1:2), weights = dim_weights),
+    higher_composite("Satisfaction", dimensions = c("Image", "Value"), method = two_stage, weights = mode_A),
+    composite("Complaints", single_item("CUSCO")),
+    composite("Loyalty", multi_items("CUSL", 1:3)))
+  sm <- relationships(paths(from = c("Expectation", "Quality"), to = "Satisfaction"), paths(from = "Satisfaction", to = c("Complaints", "Loyalty")))
+  fit <- estimate_pls(data = mobi, measurement_model = mm, structural_model = sm)
+  P <- fit$path_coef
+  list(
+    paths = list(`Expectation -> Satisfaction` = P["Expectation", "Satisfaction"], `Quality -> Satisfaction` = P["Quality", "Satisfaction"],
+      `Satisfaction -> Complaints` = P["Satisfaction", "Complaints"], `Satisfaction -> Loyalty` = P["Satisfaction", "Loyalty"]),
+    r2 = as.list(fit$rSquared["Rsq", ]),
+    secondOrder = list(loadings = as.list(fit$outer_loadings[c("Image", "Value"), "Satisfaction"]), weights = as.list(fit$outer_weights[c("Image", "Value"), "Satisfaction"])),
+    firstOrderWeights = as.list(fit$outer_weights[paste0("IMAG", 1:5), "Image"]))
+}
+write(toJSON(list(seminr = as.character(packageVersion("seminr")), modeA = seminr_hoc(mode_A), modeB = seminr_hoc(mode_B)), auto_unbox = TRUE, digits = NA, pretty = TRUE),
+  "src/engine/__fixtures__/secondorder/seminr.json")
+cat("written seminr\n")

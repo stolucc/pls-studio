@@ -30,14 +30,14 @@ ps_pls_build <- function(req, allow_hoc = FALSE) {
   gsca <- approach != "PLS-PM"  # (any approach other than PLS path modeling: cSEM's .approach_weights)
   if (any(hoc)) {
     if (!allow_hoc) stop("This analysis is not available for models with second-order constructs (estimate and bootstrap them with cSEM).")
-    if (pkg != "cSEM") stop("Second-order constructs are estimated with cSEM (two-stage approach); choose cSEM.")
+    if (pkg == "seminr" && isTRUE(o$consistent)) stop("Second-order constructs with consistent PLS are estimated with cSEM; choose cSEM, or turn off PLSc for seminr.")
     if (gsca) stop("Second-order constructs are estimated with PLS path modeling; choose PLS-PM as the weighting approach.")
     first <- unique(unlist(comps))
     if (!all(first %in% n$cname)) stop("A second-order construct refers to an unknown component.")
     if (any(hoc[match(first, n$cname)]) || any(lengths(n$inds[match(first, n$cname)]) == 0)) stop("The components of a second-order construct must be first-order constructs with indicators.")
     if (any(lengths(n$inds[hoc]) > 0)) stop("A second-order construct is measured by its components only, not by indicators of its own.")
     lvs <- unlist(lapply(c(paths, mods), function(p) c(p$from, p$to, p$moderator)))
-    if (any(first %in% lvs)) stop("The components of a second-order construct cannot take part in the structural model (cSEM's two-stage approach); connect the second-order construct instead.")
+    if (any(first %in% lvs)) stop("The components of a second-order construct cannot take part in the structural model (two-stage approach); connect the second-order construct instead.")
     if (length(mods) && any(n$cname[hoc] %in% unlist(lapply(mods, function(m) c(m$from, m$moderator))))) stop("Interactions with a second-order construct are not supported.")
   }
   if (gsca && pkg != "cSEM") stop("This weighting approach is estimated with cSEM; choose cSEM.")
@@ -69,13 +69,17 @@ ps_pls_build <- function(req, allow_hoc = FALSE) {
   } else if (pkg == "seminr") {
     if (o$scheme == "centroid") stop("seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.")
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], "*", n$cv[[m$moderator]]), "")
-    mm <- vapply(seq_len(k0), function(j) {
+    weights_of <- function(j) if (mode[j] == "unit") "unit_weights" else paste0("mode_", mode[j])
+    mm <- vapply(which(!hoc), function(j) {
       items <- ivs(j)
       it <- if (length(items) == 1) sprintf("single_item(\"%s\")", items) else ps_q(items)
       if (isTRUE(o$consistent) && type[j] == "factor" && length(items) > 1) sprintf("reflective(\"%s\", %s)", cv[j], it)
       else if (length(items) == 1) sprintf("composite(\"%s\", %s)", cv[j], it)
-      else sprintf("composite(\"%s\", %s, weights = %s)", cv[j], it, if (mode[j] == "unit") "unit_weights" else paste0("mode_", mode[j]))
+      else sprintf("composite(\"%s\", %s, weights = %s)", cv[j], it, weights_of(j))
     }, "")
+    # Second-order constructs (after their dimensions): seminr's two-stage approach, weighted by the construct's mode.
+    mm <- c(mm, vapply(which(hoc), function(j) sprintf("higher_composite(\"%s\", dimensions = %s, method = two_stage, weights = %s)",
+      cv[j], ps_q(cv[match(comps[[j]], n$cname)]), weights_of(j)), ""))
     mm <- c(mm, vapply(mods, function(m) sprintf("interaction_term(iv = \"%s\", moderator = \"%s\", method = two_stage)", n$cv[[m$from]], n$cv[[m$moderator]]), ""))
     sm <- vapply(ends, function(t) {
       extra <- int_l[vapply(mods, function(m) m$to == t, TRUE)]
@@ -177,7 +181,10 @@ ps_pls <- function(req_json, export = FALSE) {
     loadings <- vapply(seq_along(item_l), function(i) fit$outer_loadings[item_l[i], cv[owner[i]]], 0)
     rs <- fit$rSquared  # one column per endogenous construct; keep names when there is only one
     r2 <- setNames(as.numeric(rs["Rsq", ]), colnames(rs)); r2a <- setNames(as.numeric(rs["AdjRsq", ]), colnames(rs))
-    scores <- fit$construct_scores[, all_l, drop = FALSE]
+    # (Second-order models: the dimensions' scores are the first stage's.)
+    sc <- fit$construct_scores
+    if (two) sc <- cbind(sc, fit$first_stage_model$construct_scores[, setdiff(colnames(fit$first_stage_model$construct_scores), colnames(sc)), drop = FALSE])
+    scores <- sc[, all_l, drop = FALSE]
     ccor <- stats::cor(scores)
     rel <- s$reliability
     alpha <- unname(rel[cv, "alpha"]); rhoC <- unname(rel[cv, "rhoC"]); rhoA <- unname(rel[cv, "rhoA"]); ave <- unname(rel[cv, "AVE"])
@@ -219,7 +226,9 @@ ps_pls <- function(req_json, export = FALSE) {
     # Second-order constructs: loadings and weights of their components (cSEM's stage 2).
     higherOrder = if (two) unlist(lapply(which(b$hoc), function(j) lapply(b$comps[[j]], function(k) {
       ck <- cv[match(k, n$cname)]
-      list(construct = j - 1L, component = match(k, n$cname) - 1L, loading = e$Loading_estimates[cv[j], ck], weight = e$Weight_estimates[cv[j], ck])
+      if (b$pkg == "cSEM") list(construct = j - 1L, component = match(k, n$cname) - 1L, loading = e$Loading_estimates[cv[j], ck], weight = e$Weight_estimates[cv[j], ck])
+      # seminr: the dimensions are the second-order construct's items.
+      else list(construct = j - 1L, component = match(k, n$cname) - 1L, loading = fit$outer_loadings[ck, cv[j]], weight = fit$outer_weights[ck, cv[j]])
     })), recursive = FALSE) else NULL,
     redundancy = if (b$pkg == "cSEM" && !two) { ra <- safe(suppressWarnings(cSEM::doRedundancyAnalysis(fit))); if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) as.list(setNames(unname(ra), n$cname[match(names(ra), cv)])) else NULL } else NULL,
     quality = lapply(seq_len(K), function(j) list(alpha = q4(alpha)[j], rhoC = q4(rhoC)[j], rhoA = q4(rhoA)[j], ave = q4(ave)[j])),
