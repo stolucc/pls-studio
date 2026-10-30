@@ -114,7 +114,7 @@ ps_miiv <- function(req_json, export = FALSE) {
     lapply(seq_len(nrow(pe)), function(i) list(lhs = nm(pe$lhs[i]), rhs = nm(pe$rhs[i]), latent = pe$lhs[i] %in% unname(b$lname),
       est = pe$est[i], std = env$std$est.std[env$std$op == "~~" & env$std$lhs == pe$lhs[i] & env$std$rhs == pe$rhs[i]][1]))
   } else list()
-  r2 <- tryCatch(env$fit$v$rsquare, error = function(e) NULL)
+  r2 <- ps_try(env$fit$v$rsquare, "R² (MIIVsem)")
   r2 <- if (is.null(r2)) list() else as.list(setNames(as.numeric(r2), nm(names(r2))))
   ps_json(list(n = n, equations = eqs, estimates = unlist(lapply(eqs, `[[`, "coefficients"), recursive = FALSE), r2 = r2, fixedStd = fixed_std, variances = variances,
     warnings = env$.warnings, engine = list(package = "MIIVsem", version = as.character(utils::packageVersion("MIIVsem")))))

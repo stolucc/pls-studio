@@ -48,10 +48,11 @@ ps_irt <- function(req_json, export = FALSE) {
     params <- lapply(seq_len(nrow(pars)), function(i) list(item = unname(fr$back[rownames(pars)[i]]), values = as.list(pars[i, ])))
   }
   info <- env$info
-  ifit <- tryCatch(ltm::item.fit(fit), error = function(e) NULL)
+  # (ltm's item fit is defined for dichotomous models: Rasch and 2PL.)
+  ifit <- if (model %in% c("rasch", "twopl")) ps_try(ltm::item.fit(fit), "Item fit (ltm::item.fit)") else NULL
   sd <- env$scores
   # Marginal reliability: 1 - mean posterior variance / variance of the EAP scores (+ posterior variance).
-  rel <- tryCatch({ v <- mean(sd$se.z1^2); 1 - v / (stats::var(sd$z1) + v) }, error = function(e) NULL)
+  rel <- ps_try({ v <- mean(sd$se.z1^2); 1 - v / (stats::var(sd$z1) + v) }, "Marginal reliability")
   ps_json(list(model = model, n = nrow(env$items), items = unname(fr$back[fr$items]),
     params = params, logLik = as.numeric(logLik(fit)), aic = AIC(fit), bic = BIC(fit), reliability = rel,
     theta = unname(info[, 1]), information = lapply(seq_len(ncol(info) - 1), function(j) unname(info[, j + 1])),

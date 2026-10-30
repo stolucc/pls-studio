@@ -22,6 +22,7 @@ import screenR from './R/screen.R?raw';
 import segmentR from './R/segment.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
+import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
 export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR };
@@ -130,17 +131,20 @@ function fromDesktop<T>(json: string): T {
   return v as T;
 }
 
+/** Every R result passes here: its warnings go to Messages (notices.ts). */
+function reported<T>(r: T, pkg: RPackage): T { reportRWarnings(r, pkg); return r; }
+
 export async function rCall<T>(fn: string, req: unknown, pkg: RPackage): Promise<T> {
   const h = await viaHelper(fn, req, pkg, false);
-  if (h !== null) return fromDesktop<T>(h);
-  return withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `${fn}(req)`, req)) as Promise<T>;
+  if (h !== null) return reported(fromDesktop<T>(h), pkg);
+  return reported(await withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `ps_call("${fn}", req)`, req)) as T, pkg);
 }
 
 /** As rCall, in R session `session` (parallel work; 0 is the main session). The helper has its own pool. */
 export async function rCallOn<T>(session: number, fn: string, req: unknown, pkg: RPackage): Promise<T> {
   const h = await viaHelper(fn, req, pkg, false);
-  if (h !== null) return fromDesktop<T>(h);
-  return withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `${fn}(req)`, req)) as Promise<T>;
+  if (h !== null) return reported(fromDesktop<T>(h), pkg);
+  return reported(await withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `ps_call("${fn}", req)`, req)) as T, pkg);
 }
 
 /**
@@ -153,7 +157,7 @@ export async function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackag
   if (p.where === 'desktop') {
     try {
       const out = await helperBatch(fn, reqs.map(toJson), [...R_PACKAGES[pkg]], onDone);
-      return out.map((r) => fromDesktop<T>(r));
+      return out.map((r) => reported(fromDesktop<T>(r), pkg));
     } catch (e) {
       if (e instanceof HelperMissingPackages) fallbackNotice(`${e.message} Install them from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.`);
       else if (e instanceof HelperUnavailable) fallbackNotice(e.message);
@@ -162,13 +166,13 @@ export async function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackag
   }
   // (the browser's own setting, not the helper's process count)
   return parallelMap(reqs, useCompute.getState().workers, (req, session) =>
-    withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `${fn}(req)`, req)) as Promise<T>, onDone);
+    withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `ps_call("${fn}", req)`, req)).then((r) => reported(r as T, pkg)), onDone);
 }
 
 export async function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string> {
   const h = await viaHelper(fn, req, pkg, true);
   if (h !== null) return h;
-  return withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callString(webR, `${fn}(req, export = TRUE)`, req));
+  return withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callString(webR, `ps_call("${fn}", req, export = TRUE)`, req));
 }
 
 /** Where the next calculation with `pkg` runs and that package's version there. */

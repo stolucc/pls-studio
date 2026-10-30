@@ -26,9 +26,9 @@ ps_mc_body <- function(req) {
     e <- req$estimators[[ei]]
     if (e$method == "pls") {
       boot <- if (req$bootSamples > 0) sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed", as.integer(req$bootSamples)) else ""
-      sprintf("  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"path\"%s)), error = function(e) NULL)",
+      sprintf("  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"path\"%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
         ei, if (isTRUE(e$consistent)) "TRUE" else "FALSE", boot)
-    } else sprintf("  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) NULL)", ei, e$estimator)
+    } else sprintf("  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })", ei, e$estimator)
   }))
   c("suppressPackageStartupMessages({ library(lavaan); library(cSEM) })",
     sprintf("vars <- %s", ps_q(vars)),
@@ -108,7 +108,10 @@ ps_mc <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   body <- ps_mc_body(req)
   seeds <- req$seeds  # list of {n, rep, data, boot, mc}
-  run <- c("results <- lapply(seq_len(nrow(seeds)), function(i) one_replication(seeds$n[i], seeds$data[i], seeds$boot[i], seeds$mc[i]))")
+  run <- c("mc_errors <- character(0)",
+    "results <- lapply(seq_len(nrow(seeds)), function(i) one_replication(seeds$n[i], seeds$data[i], seeds$boot[i], seeds$mc[i]))",
+    "# Estimations that failed count as not converged; how many, and why, is reported.",
+    "if (length(mc_errors)) warning(sprintf(\"%d estimations failed or did not converge (counted as not converged); most common: %s\", length(mc_errors), names(sort(table(mc_errors), decreasing = TRUE))[1]))")
   sd <- data.frame(n = vapply(seeds, `[[`, 0, "n"), rep = vapply(seeds, `[[`, 0, "rep"), data = vapply(seeds, `[[`, 0, "data"),
     boot = vapply(seeds, `[[`, 0, "boot"), mc = vapply(seeds, `[[`, 0, "mc"))
   if (export) {

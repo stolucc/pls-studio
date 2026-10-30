@@ -137,7 +137,8 @@ ps_pls_out <- function(req, b, env) {
     for (i in seq_along(rows)) for (j in seq_along(cols)) if (rows[i] %in% rownames(M) && cols[j] %in% colnames(M)) out[i, j] <- M[rows[i], cols[j]]
     out
   }
-  safe <- function(expr) tryCatch(expr, error = function(e) NULL)
+  # Optional statistics: a failure is reported (Messages), and the statistic left empty.
+  safe <- function(expr, what) ps_try(expr, what)
   nas <- function(k) rep(NA_real_, k)
 
   two <- any(b$hoc)
@@ -159,16 +160,17 @@ ps_pls_out <- function(req, b, env) {
     ccor <- if (two) stats::cor(scores) else e$Construct_VCV[cv, cv, drop = FALSE]
     if (length(mods)) { full <- stats::cor(scores); full[seq_len(k0), seq_len(k0)] <- ccor; ccor <- full }
     linear <- !length(mods)
-    a <- if (linear) safe(cSEM::assess(fit1, .quality_criterion = c("reliability", "ave"))) else NULL
+    a <- if (linear) safe(cSEM::assess(fit1, .quality_criterion = c("reliability", "ave")), "Reliability and AVE (cSEM::assess; computed one by one instead)") else NULL
     # Second-order constructs: their reliability and AVE from stage 2 (components as indicators).
-    a2 <- if (two && linear) safe(cSEM::assess(fit2, .quality_criterion = c("reliability", "ave"))) else NULL
+    a2 <- if (two && linear) safe(cSEM::assess(fit2, .quality_criterion = c("reliability", "ave")), "Reliability and AVE of the second-order constructs (cSEM::assess)") else NULL
     pick <- function(v, v2 = NULL) { out <- if (is.null(v)) nas(k0) else unname(v[cv]); if (two && !is.null(v2)) out[b$hoc] <- unname(v2[cv[b$hoc]]); out }
-    alpha <- pick(if (!is.null(a)) a$Reliability$Cronbachs_alpha else safe(cSEM::calculateRhoT(fit1, .only_common_factors = FALSE)), a2$Reliability$Cronbachs_alpha)
-    rhoC <- pick(if (!is.null(a)) a$Reliability$Joereskogs_rho else safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE)), a2$Reliability$Joereskogs_rho)
+    alpha <- pick(if (!is.null(a)) a$Reliability$Cronbachs_alpha else safe(cSEM::calculateRhoT(fit1, .only_common_factors = FALSE), "Cronbach's alpha (cSEM::calculateRhoT)"), a2$Reliability$Cronbachs_alpha)
+    # (cSEM's composite reliability and overall fit need the model-implied correlations, which nonlinear models do not have.)
+    rhoC <- pick(if (!is.null(a)) a$Reliability$Joereskogs_rho else if (!linear) NULL else safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE), "Composite reliability (cSEM::calculateRhoC)"), a2$Reliability$Joereskogs_rho)
     rhoA <- pick(if (!is.null(a)) a$Reliability$`Dijkstra-Henselers_rho_A` else NULL, a2$Reliability$`Dijkstra-Henselers_rho_A`)
-    ave <- pick(if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE)), a2$AVE)
+    ave <- pick(if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)"), a2$AVE)
     htmt <- function(type) {
-      h <- safe(cSEM::calculateHTMT(fit1, .type_htmt = type))  # (first-order constructs)
+      h <- safe(cSEM::calculateHTMT(fit1, .type_htmt = type), if (type == "htmt2") "HTMT2 (cSEM::calculateHTMT)" else "HTMT (cSEM::calculateHTMT)")  # (first-order constructs)
       if (is.list(h) && !is.null(h$htmts)) h <- h$htmts
       out <- matrix(NA_real_, K, K)
       if (is.matrix(h)) { m <- mat(h, all_l, all_l); out[lower.tri(out)] <- m[lower.tri(m)] }
@@ -176,13 +178,13 @@ ps_pls_out <- function(req, b, env) {
     }
     fitm <- function(sat) {
       # (Not reported for two-stage models: cSEM's discrepancies refer to one stage only.)
-      g <- function(f, ...) { v <- if (two) NULL else safe(f(fit, .saturated = sat, ...)); if (is.null(v)) NA_real_ else as.numeric(v) }
+      g <- function(f, ...) { v <- if (two || !linear) NULL else safe(f(fit, .saturated = sat, ...), sprintf("Overall fit (%s model, cSEM)", if (sat) "saturated" else "estimated")); if (is.null(v)) NA_real_ else as.numeric(v) }
       list(srmr = g(cSEM::calculateSRMR), dULS = g(cSEM::calculateDL), dG = g(cSEM::calculateDG) * log(10)^2)
     }
-    f2 <- untemp(safe(cSEM::calculatef2(fit2)))
+    f2 <- untemp(safe(cSEM::calculatef2(fit2), "Effect sizes f² (cSEM::calculatef2)"))
     fsq <- if (is.matrix(f2)) t(mat(f2, all_l, all_l)) else matrix(NA_real_, K, K)
     vif <- if (is.matrix(e$VIF)) t(mat(e$VIF, all_l, all_l)) else matrix(NA_real_, K, K)
-    vb <- safe(cSEM::calculateVIFModeB(fit1))
+    vb <- safe(cSEM::calculateVIFModeB(fit1), "Indicator VIFs (cSEM::calculateVIFModeB)")
     # (cSEM returns a construct x indicator matrix, zero off the block; older versions a list per construct.)
     vif_outer <- vapply(seq_along(item_l), function(i) {
       k <- cv[owner[i]]; it <- item_l[i]
@@ -250,7 +252,7 @@ ps_pls_out <- function(req, b, env) {
       # seminr: the dimensions are the second-order construct's items.
       else list(construct = j - 1L, component = match(k, n$cname) - 1L, loading = fit$outer_loadings[ck, cv[j]], weight = fit$outer_weights[ck, cv[j]])
     })), recursive = FALSE) else NULL,
-    redundancy = if (b$pkg == "cSEM" && !two) { ra <- safe(suppressWarnings(cSEM::doRedundancyAnalysis(fit))); if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) as.list(setNames(unname(ra), n$cname[match(names(ra), cv)])) else NULL } else NULL,
+    redundancy = if (b$pkg == "cSEM" && !two) { ra <- safe(cSEM::doRedundancyAnalysis(fit), "Redundancy analysis (cSEM::doRedundancyAnalysis)"); if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) as.list(setNames(unname(ra), n$cname[match(names(ra), cv)])) else NULL } else NULL,
     quality = lapply(seq_len(K), function(j) list(alpha = q4(alpha)[j], rhoC = q4(rhoC)[j], rhoA = q4(rhoA)[j], ave = q4(ave)[j])),
     htmt = htmt("htmt"), htmt2 = htmt("htmt2"),
     fit = list(estimated = fitm(FALSE), saturated = fitm(TRUE)),

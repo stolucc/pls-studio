@@ -31,7 +31,58 @@ ps_validate <- function(req) {
   req
 }
 
-ps_json <- function(x) jsonlite::toJSON(x, auto_unbox = TRUE, digits = NA, na = "null", null = "null", matrix = "rowmajor")
+# ---- Nothing is swallowed: notes of the current call ----
+# Every bridge call runs through ps_call(), which collects the warnings raised
+# outside ps_run() (post-processing of a fit) and the failures of optional
+# computations (ps_try); ps_json() adds them to the result's warnings, which
+# the app shows in Messages.
+.ps_state <- new.env()
+.ps_state$notes <- character(0)
+
+#' One line for Messages: multi-line package messages joined, control characters removed.
+ps_flat <- function(x) gsub("[[:cntrl:]]+", " ", gsub("\\s+", " ", trimws(x)))
+
+ps_note <- function(x) .ps_state$notes <- unique(c(.ps_state$notes, ps_flat(x)))
+
+#' Notes that say nothing about the results.
+ps_irrelevant <- function(m) grepl("^package .* was built under R version", m)
+
+#' An optional computation (a statistic that is reported when available): if it
+#' fails, `otherwise` is used and the failure is reported, with what was lost;
+#' its warnings are reported too.
+ps_try <- function(expr, what, otherwise = NULL) {
+  withCallingHandlers(
+    tryCatch(expr, error = function(e) { ps_note(sprintf("%s could not be computed: %s", what, conditionMessage(e))); otherwise }),
+    warning = function(w) {
+      m <- conditionMessage(w)
+      if (!ps_irrelevant(m)) ps_note(sprintf("%s: %s", what, m))
+      invokeRestart("muffleWarning")
+    })
+}
+
+#' The entry point of every bridge call (browser and desktop helper): runs the
+#' ps_* function with the request; warnings raised anywhere in it are kept.
+#' Errors propagate (the app reports them).
+ps_call <- function(fn, req, export = FALSE) {
+  if (!(is.character(fn) && length(fn) == 1 && grepl("^ps_[a-z0-9_]+$", fn))) stop("Invalid bridge function.")
+  f <- get(fn, envir = globalenv(), mode = "function")
+  if (!identical(names(formals(f))[1], "req_json")) stop("Invalid bridge function.")
+  .ps_state$notes <- character(0)
+  withCallingHandlers(if (isTRUE(export)) f(req, export = TRUE) else f(req),
+    warning = function(w) {
+      m <- conditionMessage(w)
+      if (!ps_irrelevant(m)) ps_note(m)
+      invokeRestart("muffleWarning")
+    })
+}
+
+ps_json <- function(x) {
+  if (is.list(x) && !is.data.frame(x) && length(.ps_state$notes)) {
+    x$warnings <- I(unique(c(as.character(unlist(x$warnings)), .ps_state$notes)))
+    .ps_state$notes <- character(0)
+  }
+  jsonlite::toJSON(x, auto_unbox = TRUE, digits = NA, na = "null", null = "null", matrix = "rowmajor")
+}
 
 #' A syntactic name with underscores only: "Service quality" -> Service_quality.
 #' (Dots are avoided because cSEM reads "A.B" as an interaction term.)
@@ -133,9 +184,9 @@ ps_run <- function(lines, inputs) {
   withCallingHandlers(eval(parse(text = paste(lines, collapse = "\n")), envir = env),
     # Multi-line messages ("lavaan WARNING:\n  could not ...") become one line.
     warning = function(w) {
-      m <- gsub("\\s+", " ", trimws(conditionMessage(w)))
+      m <- ps_flat(conditionMessage(w))
       # R's note that a package was built under a newer R (desktop R) says nothing about the results.
-      if (!grepl("^package .* was built under R version", m)) warn <<- c(warn, m)
+      if (!ps_irrelevant(m)) warn <<- c(warn, m)
       invokeRestart("muffleWarning")
     })
   env$.warnings <- unique(warn)

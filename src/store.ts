@@ -6,6 +6,7 @@ import type { MiivResult } from './engine/miiv';
 import type { BootstrapResult, Dataset, PlsResult } from './engine/types';
 import type { CpaResult } from './rengine/cpa';
 import type { InvarianceResult } from './rengine/lavaan';
+import { setWarningSink } from './rengine/notices';
 import { autoLayout, suggestName } from './model/layout';
 import { graphToModel, isSlotName, templateModel, templatePositions } from './process/canvas';
 import { processGraph } from './process/fromModel';
@@ -190,15 +191,20 @@ function readOnly(s: State): boolean {
 let toastId = 0;
 let messageId = 0;
 
+/** A warning already logged in the last few seconds (the bridge logs R warnings as they arrive; results log them again). */
+const RECENT_MS = 10_000;
+const loggedRecently = (messages: Message[], text: string, now: number) => messages.some((m) => m.text === text && now - m.at < RECENT_MS);
+
 /** Every warning a new result carries (R packages or the built-in engine), added to the session's messages. */
 function withWarnings(messages: Message[], r: Partial<Omit<Results, 'key'>>): Message[] {
   const added: Message[] = [];
+  const now = Date.now();
   for (const v of Object.values(r)) {
     const res = v as { warnings?: unknown; engine?: { package?: string; version?: string } } | null;
     if (!res || res.warnings == null) continue;
     const list = Array.isArray(res.warnings) ? res.warnings : [res.warnings];
     const source = res.engine?.package ? `${res.engine.package}${res.engine.version ? ` ${res.engine.version}` : ''}` : 'built-in engine';
-    for (const w of list) if (typeof w === 'string' && w.trim()) added.push({ id: ++messageId, at: Date.now(), level: 'warning', text: w, source });
+    for (const w of list) if (typeof w === 'string' && w.trim() && !loggedRecently(messages, w, now)) added.push({ id: ++messageId, at: now, level: 'warning', text: w, source });
   }
   return added.length ? [...messages, ...added].slice(-MAX_MESSAGES) : messages;
 }
@@ -595,3 +601,11 @@ export const useStore = create<State>((set, get) => ({
 export function useFreshResults(): Results | null {
   return useStore((s) => (s.results && s.results.key === resultsKey(s) ? s.results : null));
 }
+
+// Warnings of every R call (also panels that keep their results to themselves) go to Messages.
+setWarningSink((warnings, source) => useStore.setState((s) => {
+  const now = Date.now();
+  const added = [...new Set(warnings)].filter((w) => !loggedRecently(s.messages, w, now))
+    .map((text): Message => ({ id: ++messageId, at: now, level: 'warning', text, source }));
+  return added.length ? { messages: [...s.messages, ...added].slice(-MAX_MESSAGES) } : {};
+}));

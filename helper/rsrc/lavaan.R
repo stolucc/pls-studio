@@ -465,8 +465,10 @@ ps_cb <- function(req_json, export = FALSE) {
     rfit <- if (isTRUE(b$mi)) env$fit_mi else fit
     # (Not with composites in the model: compRelSEM then misreads the factors' true-score variance.)
     no_rel <- levels2 || length(b$composites) > 0
-    omega <- if (no_rel) NULL else tryCatch(semTools::compRelSEM(rfit), error = function(e) NULL)
-    alpha <- if (no_rel) NULL else tryCatch(semTools::compRelSEM(rfit, tau.eq = TRUE), error = function(e) NULL)
+    # (semTools 0.5.10's compRelSEM fails on models with observed covariates: said once, plainly.)
+    if (!no_rel && any(b$is_cov)) { no_rel <- TRUE; ps_note("Model-based reliability (omega) and coefficient alpha are not reported for models with observed covariates (semTools::compRelSEM cannot handle them); CR and AVE are.") }
+    omega <- if (no_rel) NULL else ps_try(semTools::compRelSEM(rfit), "Model-based reliability (omega, semTools::compRelSEM)")
+    alpha <- if (no_rel) NULL else ps_try(semTools::compRelSEM(rfit, tau.eq = TRUE), "Coefficient alpha (semTools::compRelSEM)")
     per_group <- function(x, name) {
       v <- if (is.list(x)) x[[name]] else NULL
       if (is.null(v)) return(NULL)
@@ -485,14 +487,15 @@ ps_cb <- function(req_json, export = FALSE) {
     htmt <- function(two) {
       out <- matrix(NA_real_, K, K)
       blocks <- which(vapply(seq_len(K), function(j) sum(ind_con == j - 1) >= 2 && !(j <= k0 && b$is_cov[j]) && !constructs[j] %in% b$composites, TRUE))
-      if (length(blocks) < 2 || !requireNamespace("semTools", quietly = TRUE)) return(out)
+      if (length(blocks) < 2) return(out)
+      if (!requireNamespace("semTools", quietly = TRUE)) { ps_note("HTMT could not be computed: the R package semTools is not installed."); return(out) }
       hm <- paste(vapply(blocks, function(j) paste(lv_lname[j], "=~", paste(ind_v[ind_con == j - 1], collapse = " + ")), ""), collapse = "\n")
-      h <- tryCatch(suppressWarnings(if (b$matrix_input) semTools::htmt(hm, sample.cov = b$inputs$S, htmt2 = two)
+      h <- ps_try((if (b$matrix_input) semTools::htmt(hm, sample.cov = b$inputs$S, htmt2 = two)
         # Multiple imputation: the average over the imputed data sets.
         else if (isTRUE(b$mi)) Reduce(`+`, lapply(seq_len(env$imp$m), function(k) { dk <- mice::complete(env$imp, k)
           if (!is.null(g) && !is.null(b$group_var)) dk <- dk[as.character(dk[[b$group_var]]) == glab[group_of(g)], , drop = FALSE]
           semTools::htmt(hm, data = dk, htmt2 = two) })) / env$imp$m
-        else semTools::htmt(hm, data = gdata, htmt2 = two)), error = function(e) NULL)
+        else semTools::htmt(hm, data = gdata, htmt2 = two)), if (two) "HTMT2 (semTools::htmt)" else "HTMT (semTools::htmt)")
       if (is.null(h)) return(out)
       for (a in seq_along(blocks)) for (c in seq_along(blocks)) out[blocks[a], blocks[c]] <- h[lv_lname[blocks[a]], lv_lname[blocks[c]]]
       out
@@ -505,7 +508,7 @@ ps_cb <- function(req_json, export = FALSE) {
       "cfi.robust", "tli.robust", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "rmsea.scaled", "rmsea.robust",
       "srmr", "logl", "aic", "bic"), names(fm))])
     vc <- if (isTRUE(b$robust)) unname(env$robust_se$vcov[[1]]) else if (isTRUE(b$mi)) { if (is.null(env$vcov_mi)) NULL else unname(unclass(env$vcov_mi)) }
-      else tryCatch(unclass(lavaan::lavInspect(fit, "vcov")), error = function(e) NULL)
+      else ps_try(unclass(lavaan::lavInspect(fit, "vcov")), "The covariance matrix of the estimates (lavInspect vcov; used for Monte Carlo intervals)")
     n_in <- if (b$matrix_input) b$inputs$N else nrow(b$inputs$data)
 
     list(
@@ -567,7 +570,9 @@ ps_cb_modindices <- function(fit, nm, groups) {
 #' Score tests of releasing each equality constraint (lavaan::lavTestScore): which across-group
 #' equality is worst (partial invariance).
 ps_cb_score <- function(fit, nm) {
-  st <- tryCatch(lavaan::lavTestScore(fit)$uni, error = function(e) NULL)
+  # (Only with equality constraints across groups: without them there is nothing to release.)
+  if (!any(lavaan::parTable(fit)$op == "==")) return(list())
+  st <- ps_try(lavaan::lavTestScore(fit)$uni, "Score tests of the equality constraints (lavaan::lavTestScore)")
   if (is.null(st) || !nrow(st)) return(list())
   pt <- lavaan::parTable(fit)
   groups <- lavaan::lavInspect(fit, "group.label")
@@ -638,7 +643,7 @@ ps_cb_modsem <- function(req, b, export) {
   st <- modsem::standardized_estimates(fit)
   key <- function(t) paste(t$lhs, t$op, t$rhs)
   pe$std <- st$est[match(key(pe), key(st))]
-  V <- tryCatch(vcov(fit), error = function(e) NULL)
+  V <- ps_try(vcov(fit), "The covariance matrix of the estimates (modsem vcov)")
   vn <- if (is.null(V)) character(0) else colnames(V)
   pe <- pe[pe$op %in% c("=~", "~", "~~"), ]
   est <- lapply(seq_len(nrow(pe)), function(i) {
@@ -676,7 +681,7 @@ ps_cb_modsem <- function(req, b, export) {
     if (!length(l)) return(list(cr = NULL, ave = NULL))
     list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2))
   })
-  fm <- tryCatch(modsem::fit_modsem_da(fit), error = function(e) NULL)
+  fm <- ps_try(modsem::fit_modsem_da(fit), "Fit measures (modsem::fit_modsem_da)")
   num1 <- function(x) if (is.null(x) || !length(x)) NULL else as.numeric(x[1])
   fitv <- if (is.null(fm)) list() else list(npar = num1(fm$npar), chisq = num1(fm$chisq.value), df = num1(fm$chisq.df), pvalue = num1(fm$chisq.pvalue),
     rmsea = num1(fm$RMSEA), rmsea.ci.lower = num1(fm$RMSEA.lower), rmsea.ci.upper = num1(fm$RMSEA.upper), srmr = num1(fm$SRMR), aic = num1(fm$AIC), bic = num1(fm$BIC))

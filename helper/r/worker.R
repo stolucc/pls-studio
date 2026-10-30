@@ -55,10 +55,10 @@ repeat {
   }
   if (!is.character(msg$req) || length(msg$req) != 1) { reply(list(id = id, ok = FALSE, kind = "bad_request", message = "Malformed request.")); next }
   res <- tryCatch({
-    f <- get(msg$fn, envir = globalenv(), mode = "function")
     # Package output on stdout (print, cat) is captured and dropped: stdout carries the replies.
+    # ps_call (common.R) keeps every warning the call raises, for the result's warnings.
     v <- NULL
-    utils::capture.output(v <- if (isTRUE(msg$export)) f(msg$req, export = TRUE) else f(msg$req))
+    utils::capture.output(v <- ps_call(msg$fn, msg$req, export = isTRUE(msg$export)))
     list(id = id, ok = TRUE, result = paste(as.character(v), collapse = "\n"))
   }, error = function(e) list(id = id, ok = FALSE, kind = "r_error", message = conditionMessage(e)))
   reply(res)

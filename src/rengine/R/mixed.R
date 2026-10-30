@@ -141,7 +141,7 @@ ps_gmm <- function(req_json, export = FALSE) {
     m <- env$fits[[k]]; g <- m$ng
     cls <- m$pprob$class
     pr <- lcmm::predictY(m, newdata = nd, var.time = "time")$pred
-    se <- tryCatch(sqrt(diag(lcmm::VarCov(m))), error = function(e) rep(NA_real_, length(m$best)))
+    se <- ps_try(sqrt(diag(lcmm::VarCov(m))), sprintf("Standard errors of the %d-class model (lcmm::VarCov)", g), otherwise = rep(NA_real_, length(m$best)))
     est <- m$best; z <- est / se[seq_along(est)]
     # The first ng - 1 parameters are class membership (multinomial logit, last class the reference); lcmm names them like trajectory intercepts.
     pn <- names(est); if (g > 1) pn[seq_len(g - 1)] <- sprintf("membership: class %d vs %d", seq_len(g - 1), g)

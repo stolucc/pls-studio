@@ -362,8 +362,13 @@ ps_cpa_glm <- function(req, export = FALSE) {
     "# Percentile bootstrap: resample cases, refit every equation, keep the coefficients",
     "refit <- function(d) lapply(eqs, function(f) coef(update(f, data = d)))",
     sprintf("set.seed(%d)", seed),
-    sprintf("boots <- lapply(seq_len(%d), function(r) tryCatch(refit(data[sample(nrow(data), replace = TRUE), , drop = FALSE]), error = function(e) NULL))", B),
+    "boot_errors <- character(0)",
+    sprintf("boots <- lapply(seq_len(%d), function(r) tryCatch(refit(data[sample(nrow(data), replace = TRUE), , drop = FALSE]),", B),
+    "  error = function(e) { boot_errors <<- c(boot_errors, conditionMessage(e)); NULL }))",
     "boots <- Filter(function(x) !is.null(x) && !anyNA(unlist(x)), boots)",
+    "# Samples that failed or gave missing coefficients are dropped, and reported.",
+    sprintf("if (length(boots) < %d) warning(sprintf(\"%%d of %d bootstrap samples failed or gave missing coefficients and were dropped%%s\", %d - length(boots),", B, B, B),
+    "  if (length(boot_errors)) paste0(\", e.g.: \", boot_errors[1]) else \"\"))",
     "cf0 <- lapply(eqs, coef)")
   if (export) {
     report <- c("lapply(eqs, summary)", if (length(b$mods)) "probe_values",
