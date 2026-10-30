@@ -47,10 +47,11 @@ async function load(ex: PackageExample): Promise<Dataset & { levels?: unknown }>
 
 /** cSEM's two-stage second-order example against cSEM run natively (scripts/validation/secondorder.R). */
 /** Paths, R² and the second-order loadings and weights against a native reference. */
-function sameSecondOrder(r: Awaited<ReturnType<typeof estimatePlsR>>, ref: any, hoc: string, digits = 5) {
+type SecondOrderRef = { paths: Record<string, number>; r2: Record<string, number>; secondOrder: { loadings: Record<string, number>; weights: Record<string, number> }; firstOrderWeights?: Record<string, number> };
+function sameSecondOrder(r: Awaited<ReturnType<typeof estimatePlsR>>, ref: SecondOrderRef, hoc: string, digits = 5) {
   const C = r.constructs, at = (n: string) => C.indexOf(n);
-  for (const [k, b] of Object.entries(ref.paths as Record<string, number>)) { const [f, t] = k.split(' -> '); expect(r.pathCoef[at(f)][at(t)], k).toBeCloseTo(b, digits); }
-  for (const [k, v] of Object.entries(ref.r2 as Record<string, number>)) expect(r.rSquared[at(k)], k).toBeCloseTo(v, digits);
+  for (const [k, b] of Object.entries(ref.paths)) { const [f, t] = k.split(' -> '); expect(r.pathCoef[at(f)][at(t)], k).toBeCloseTo(b, digits); }
+  for (const [k, v] of Object.entries(ref.r2)) expect(r.rSquared[at(k)], k).toBeCloseTo(v, digits);
   for (const comp of Object.keys(ref.secondOrder.loadings)) {
     const h = r.higherOrder!.find((x) => C[x.construct] === hoc && C[x.component] === comp)!;
     expect(h.loading, comp).toBeCloseTo(ref.secondOrder.loadings[comp], digits);
@@ -155,7 +156,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       if (ex.id === 'seminr-hoc') {
         // seminr's demo, both variants, against seminr 2.5.0 run natively.
         const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'secondorder', 'seminr.json'), 'utf8'));
-        const check = (res: typeof r, v: any) => {
+        const check = (res: typeof r, v: SecondOrderRef) => {
           sameSecondOrder(res, v, 'Satisfaction', 5);
           for (const [ind, w] of Object.entries(v.firstOrderWeights as Record<string, number>)) expect(res.weights[res.indicators.findIndex((x) => x.name === ind)], ind).toBeCloseTo(w, 5);
         };

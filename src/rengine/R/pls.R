@@ -170,15 +170,14 @@ ps_pls_out <- function(req, b, env) {
     rhoC <- pick(if (!is.null(a)) a$Reliability$Joereskogs_rho else if (!linear) NULL else safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE), "Composite reliability (cSEM::calculateRhoC)"), a2$Reliability$Joereskogs_rho)
     rhoA <- pick(if (!is.null(a)) a$Reliability$`Dijkstra-Henselers_rho_A` else NULL, a2$Reliability$`Dijkstra-Henselers_rho_A`)
     ave <- pick(if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)"), a2$AVE)
-    # cSEM warns, without naming them, when item correlations break the HTMT's sign
-    # assumption, and leaves HTMT2 NaN where a geometric mean of mixed-sign correlations
-    # does not exist. The notes below name the constructs instead.
-    sign_warned <- FALSE
+    # The HTMT assumes that the items of a construct correlate positively with each other
+    # and that the items of two constructs correlate all with the same sign. cSEM warns
+    # about violations without naming the constructs and, for mixed-sign blocks, returns
+    # NaN or an arbitrary signed root; the checks below (on the common-factor blocks that
+    # the HTMT covers) name the constructs and blank the undefined values.
     htmt <- function(type) {
       h <- safe(withCallingHandlers(cSEM::calculateHTMT(fit1, .type_htmt = type), warning = function(w) {
-        m <- conditionMessage(w)
-        if (grepl("all-positive or all-negative", m, fixed = TRUE)) { sign_warned <<- TRUE; invokeRestart("muffleWarning") }
-        if (type == "htmt2" && grepl("HTMT2 cannot be calculated", m, fixed = TRUE)) invokeRestart("muffleWarning")
+        if (grepl("all-positive or all-negative|show different signs|could not be computed|NaNs produced", conditionMessage(w))) invokeRestart("muffleWarning")
       }), if (type == "htmt2") "HTMT2 (cSEM::calculateHTMT)" else "HTMT (cSEM::calculateHTMT)")  # (first-order constructs)
       if (is.list(h) && !is.null(h$htmts)) h <- h$htmts
       out <- matrix(NA_real_, K, K)
@@ -186,21 +185,23 @@ ps_pls_out <- function(req, b, env) {
       out
     }
     htmt1 <- htmt("htmt"); htmt2 <- htmt("htmt2")
-    undefined <- which(is.nan(htmt2) & lower.tri(htmt2), arr.ind = TRUE)
-    htmt2[is.nan(htmt2)] <- NA_real_
-    pair <- function(i, j) sprintf("%s \u2013 %s", constructs[j], constructs[i])
-    if (sign_warned || nrow(undefined)) {
-      S <- fit1$Estimates$Indicator_VCV
+    S <- fit1$Estimates$Indicator_VCV
+    if (is.matrix(S)) {
+      fac <- which(b$type[seq_len(k0)] == "factor" & !b$hoc[seq_len(k0)])
       blk <- lapply(n$inds, function(x) intersect(unname(n$iv[x]), rownames(S)))
-      within <- character(0); mixed <- character(0)
-      for (i in seq_along(blk)) {
-        v <- S[blk[[i]], blk[[i]], drop = FALSE]
-        if (any(v[upper.tri(v)] < 0)) within <- c(within, n$cname[i])
-        for (j in seq_len(i - 1)) { v <- S[blk[[i]], blk[[j]]]; if (any(v > 0) && any(v < 0)) mixed <- c(mixed, sprintf("%s and %s", n$cname[j], n$cname[i])) }
+      within <- integer(0)
+      for (i in fac) { v <- S[blk[[i]], blk[[i]], drop = FALSE]; if (any(v[upper.tri(v)] < 0)) within <- c(within, i) }
+      mixed <- character(0); undefined <- character(0)
+      for (i in fac) for (j in fac[fac < i]) {
+        v <- S[blk[[i]], blk[[j]]]
+        if (!(any(v > 0) && any(v < 0))) next
+        htmt2[i, j] <- NA_real_
+        if (i %in% within || j %in% within) { undefined <- c(undefined, sprintf("%s \u2013 %s", n$cname[j], n$cname[i])); htmt1[i, j] <- NA_real_ }
+        else mixed <- c(mixed, sprintf("%s and %s", n$cname[j], n$cname[i]))
       }
-      if (length(within)) ps_note(sprintf("Some items of %s correlate negatively with the others: is an item reverse-coded? Recode it (Data tab) before interpreting loadings, reliability and HTMT.", paste(within, collapse = ", ")))
-      if (length(mixed)) ps_note(sprintf("Items correlate with mixed signs between %s: these constructs are nearly uncorrelated, so their HTMT is close to zero.", paste(mixed, collapse = "; between ")))
-      if (nrow(undefined)) ps_note(sprintf("HTMT2 is not defined for %s: it takes geometric means, which do not exist for correlations of mixed signs (Roemer, Schuberth & Henseler, 2021). The HTMT is still reported.", paste(pair(undefined[, 1], undefined[, 2]), collapse = "; ")))
+      if (length(within)) ps_note(sprintf("Some items of %s correlate negatively with the others: is an item reverse-coded? Recode it (Data tab) before interpreting loadings, reliability and HTMT.", paste(n$cname[within], collapse = ", ")))
+      if (length(undefined)) ps_note(sprintf("The HTMT of %s is not reported: it assumes same-sign item correlations, which a reverse-coded item breaks.", paste(undefined, collapse = "; ")))
+      if (length(mixed)) ps_note(sprintf("The items of %s correlate with mixed signs: these constructs are nearly uncorrelated, so their HTMT is close to zero and their HTMT2, a geometric mean, is not defined (Roemer, Schuberth & Henseler, 2021).", paste(mixed, collapse = "; of ")))
     }
     fitm <- function(sat) {
       # (Not reported for two-stage models: cSEM's discrepancies refer to one stage only.)

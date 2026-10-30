@@ -327,7 +327,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         picked: picked?.kind === 'construct' && picked.via !== 'disturbance' && picked.id === c.id ? true : picked?.kind === 'indicator' && c.indicators.includes(picked.id) ? picked.id : false,
       },
     };
-  }), [model.constructs, selection.nodes, display, errorIds, tool, method, picked]);
+  }), [model.constructs, model.esem?.blocks, selection.nodes, display, errorIds, tool, method, picked]);
 
   const edges: PathFlowEdge[] = useMemo(() => {
     const name = new Map(model.constructs.map((c) => [c.id, c.name]));
