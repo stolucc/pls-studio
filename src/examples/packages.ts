@@ -16,8 +16,8 @@ import type { RsaPreset } from '../components/PolynomialPanel';
 import type { EfaPreset } from '../components/EfaPanel';
 import type { NcaPreset } from '../components/NcaPanel';
 
-export type ExamplePackage = 'lavaan' | 'psych' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
+export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -68,6 +68,8 @@ export interface PackageExample {
   segmentation?: { method?: 'rebus' | 'pathmox' | 'fimix' | 'pos'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
   /** Opens the PLS assessment panel on the example's diagram (tab, and the grouping column). */
   assessment?: { tab: 'predict' | 'blindfold' | 'compare' | 'groups' | 'cca'; group?: string; distance?: number };
+  /** Opens Data screening on the example's diagram (its indicators chosen), at this tab. */
+  screening?: { tab: 'univariate' | 'normality' | 'outliers' | 'influence' };
   settings: Partial<Settings>;
 }
 
@@ -376,6 +378,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
       { name: 'Satisfaction', type: 'composite', mode: 'A', components: ['Image', 'Value'] }, c('Complaints', ['CUSCO'], 'A'), c('Loyalty', items('CUSL', 3), 'A')],
     paths: [['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty']],
     settings: PLS('seminr', false),
+  },
+  {
+    id: 'semfindr-cfa', package: 'semfindr', title: 'Influential cases in a CFA', source: 'semfindr, ?cfa_dat2',
+    links: [{ label: '?cfa_dat2', url: 'https://rdrr.io/cran/semfindr/man/cfa_dat2.html' }, { label: '?influence_stat', url: 'https://rdrr.io/cran/semfindr/man/influence_stat.html' }],
+    description: 'semfindr’s two-factor CFA on simulated data (N = 100) with influential cases: the model is refitted without each case, and generalized Cook’s distance shows which cases move the estimates. Opens Data screening.',
+    data: { package: 'semfindr', name: 'cfa_dat2' },
+    constructs: [f('f1', ['x1', 'x2', 'x3']), f('f2', ['x4', 'x5', 'x6'])],
+    paths: [], correlations: [['f1', 'f2', 'construct']],
+    screening: { tab: 'influence' }, settings: CB('ML'),
   },
   {
     id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',

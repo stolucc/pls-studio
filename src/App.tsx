@@ -1,4 +1,5 @@
 import { NcaPanel } from './components/NcaPanel';
+import { DataScreeningPanel } from './components/DataScreeningPanel';
 import { EfaPanel } from './components/EfaPanel';
 import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
 import { PolynomialPanel } from './components/PolynomialPanel';
@@ -116,6 +117,7 @@ export default function App() {
       <PlsAssessmentPanel />
       <NcaPanel />
       <EfaPanel />
+      <DataScreeningPanel />
       <EndogeneityPanel />
       <MatchingPanel />
       <PolynomialPanel />

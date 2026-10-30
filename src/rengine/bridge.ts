@@ -18,12 +18,13 @@ import ncaR from './R/nca.R?raw';
 import plsR from './R/pls.R?raw';
 import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
+import screenR from './R/screen.R?raw';
 import segmentR from './R/segment.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR };
+export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -50,6 +51,7 @@ export const R_PACKAGES = {
   genpathmox: ['jsonlite', 'cSEM', 'genpathmox'],
   flexmix: ['jsonlite', 'cSEM', 'flexmix'],
   psych: ['jsonlite', 'psych', 'GPArotation'],
+  semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 
@@ -82,7 +84,7 @@ export async function parallelism(): Promise<{ where: 'desktop' | 'browser'; ses
 const toJson = (req: unknown) => JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
 
 /** Bridge functions whose cSEM / seminr resampling runs on several cores of one desktop R process (results identical). */
-const MULTICORE = new Set(['ps_pls_boot', 'ps_cca', 'ps_pls_groups']);
+const MULTICORE = new Set(['ps_pls_boot', 'ps_cca', 'ps_pls_groups', 'ps_influence']);
 
 const told = new Set<string>();
 /** Tell the user once per reason that a calculation ran in the browser's R instead of desktop R. */

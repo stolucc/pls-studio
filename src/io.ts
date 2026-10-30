@@ -355,6 +355,12 @@ export async function loadPackageExample(id: string) {
       useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate in the panel.`);
       return;
     }
+    if (ex.screening) {
+      const { useScreen } = await import('./components/DataScreeningPanel');
+      useScreen.setState({ open: true, tab: ex.screening.tab, vars: [...new Set(ex.constructs.flatMap((k) => k.indicators ?? []))], result: null, influence: null });
+      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate in the panel.`);
+      return;
+    }
     if (ex.segmentation) {
       const { useSegmentation } = await import('./components/SegmentationPanel');
       const seg = ex.segmentation;

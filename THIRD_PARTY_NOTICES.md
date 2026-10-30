@@ -31,6 +31,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | car | 3.1-5 | GPL (>= 2) | https://cran.r-project.org/package=car |
 | carData | 3.0-6 | GPL (>= 2) | https://cran.r-project.org/package=carData |
 | caTools | 1.18.4 | GPL-3 | https://cran.r-project.org/package=caTools |
+| checkmate | 2.3.4 | BSD_3_clause + file LICENSE | https://cran.r-project.org/package=checkmate |
 | cli | 3.6.6 | MIT + file LICENSE | https://cran.r-project.org/package=cli |
 | clipr | 0.8.1 | GPL-3 | https://cran.r-project.org/package=clipr |
 | cobalt | 5.0.0 | GPL (>= 2) | https://cran.r-project.org/package=cobalt |
@@ -61,6 +62,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | fastmap | 1.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=fastmap |
 | flexmix | 2.3-21 | GPL (>= 2) | https://cran.r-project.org/package=flexmix |
 | fontawesome | 0.5.3 | MIT + file LICENSE | https://cran.r-project.org/package=fontawesome |
+| forcats | 1.0.1 | MIT + file LICENSE | https://cran.r-project.org/package=forcats |
 | foreach | 1.5.2 | Apache License (== 2.0) | https://cran.r-project.org/package=foreach |
 | forecast | 9.0.2 | GPL-3 | https://cran.r-project.org/package=forecast |
 | foreign | 0.8-91 | GPL (>= 2) | https://cran.r-project.org/package=foreign |
@@ -72,6 +74,8 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | generics | 0.1.4 | MIT + file LICENSE | https://cran.r-project.org/package=generics |
 | genpathmox | 1.1 | GPL-3 | https://cran.r-project.org/package=genpathmox |
 | ggplot2 | 4.0.3 | MIT + file LICENSE | https://cran.r-project.org/package=ggplot2 |
+| ggrepel | 0.9.8 | GPL-3 \| file LICENSE | https://cran.r-project.org/package=ggrepel |
+| glmnet | 5.1 | GPL-2 | https://cran.r-project.org/package=glmnet |
 | globals | 0.20.0 | LGPL (>= 2.1) | https://cran.r-project.org/package=globals |
 | glue | 1.8.1 | MIT + file LICENSE | https://cran.r-project.org/package=glue |
 | gmp | 0.7-5.1 | GPL (>= 2) | https://cran.r-project.org/package=gmp |
@@ -80,15 +84,18 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | gridExtra | 2.3.1 | GPL (>= 2) | https://cran.r-project.org/package=gridExtra |
 | gtable | 0.3.6 | MIT + file LICENSE | https://cran.r-project.org/package=gtable |
 | gtools | 3.9.5 | GPL-2 | https://cran.r-project.org/package=gtools |
+| haven | 2.5.5 | MIT + file LICENSE | https://cran.r-project.org/package=haven |
 | highr | 0.12 | GPL | https://cran.r-project.org/package=highr |
 | hms | 1.1.4 | MIT + file LICENSE | https://cran.r-project.org/package=hms |
 | htmltools | 0.5.9 | GPL (>= 2) | https://cran.r-project.org/package=htmltools |
 | htmlwidgets | 1.6.4 | MIT + file LICENSE | https://cran.r-project.org/package=htmlwidgets |
 | httr | 1.4.9 | MIT + file LICENSE | https://cran.r-project.org/package=httr |
 | igraph | 2.3.1 | GPL (>= 2) | https://cran.r-project.org/package=igraph |
+| insight | 1.5.4 | GPL-3 | https://cran.r-project.org/package=insight |
 | isoband | 0.3.0 | MIT + file LICENSE | https://cran.r-project.org/package=isoband |
 | iterators | 1.0.14 | Apache License (== 2.0) | https://cran.r-project.org/package=iterators |
 | ivreg | 0.6-8 | GPL (>= 2) | https://cran.r-project.org/package=ivreg |
+| jomo | 2.7-6 | GPL-2 | https://cran.r-project.org/package=jomo |
 | jquerylib | 0.1.4 | MIT + file LICENSE | https://cran.r-project.org/package=jquerylib |
 | jsonlite | 2.0.0 | MIT + file LICENSE | https://cran.r-project.org/package=jsonlite |
 | KernSmooth | 2.23-27 | Unlimited | https://cran.r-project.org/package=KernSmooth |
@@ -97,6 +104,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | later | 1.4.2.9000 | MIT + file LICENSE | https://cran.r-project.org/package=later |
 | lattice | 0.23-1 | GPL (>= 2) | https://cran.r-project.org/package=lattice |
 | lavaan | 0.7-3 | GPL (>= 2) | https://cran.r-project.org/package=lavaan |
+| lavaan.mi | 0.1-1 | GPL (>= 2) | https://cran.r-project.org/package=lavaan.mi |
 | lazyeval | 0.2.3 | GPL-3 | https://cran.r-project.org/package=lazyeval |
 | lcmm | 2.2.2 | GPL (>= 2.0) | https://cran.r-project.org/package=lcmm |
 | lifecycle | 1.0.5 | MIT + file LICENSE | https://cran.r-project.org/package=lifecycle |
@@ -109,6 +117,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | ltm | 1.2-0 | GPL (>= 2) | https://cran.r-project.org/package=ltm |
 | magrittr | 2.0.5 | MIT + file LICENSE | https://cran.r-project.org/package=magrittr |
 | manymome | 0.3.7 | GPL (>= 3) | https://cran.r-project.org/package=manymome |
+| marginaleffects | 1.0.0 | GPL (>= 3) | https://cran.r-project.org/package=marginaleffects |
 | marqLevAlg | 2.0.8 | GPL (>= 2.0) | https://cran.r-project.org/package=marqLevAlg |
 | MASS | 7.3-66 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=MASS |
 | MatchIt | 4.8.1 | GPL (>= 2) | https://cran.r-project.org/package=MatchIt |
@@ -119,10 +128,12 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | maxLik | 1.6-10 | GPL (>= 2) | https://cran.r-project.org/package=maxLik |
 | memoise | 2.0.1 | MIT + file LICENSE | https://cran.r-project.org/package=memoise |
 | mgcv | 1.9-4 | GPL (>= 2) | https://cran.r-project.org/package=mgcv |
+| mice | 3.19.0 | GPL (>= 2) | https://cran.r-project.org/package=mice |
 | MIIVsem | 0.5.8 | GPL-2 | https://cran.r-project.org/package=MIIVsem |
 | mime | 0.13 | GPL | https://cran.r-project.org/package=mime |
 | minqa | 1.2.8 | GPL-2 | https://cran.r-project.org/package=minqa |
 | miscTools | 0.6-30 | GPL (>= 2) | https://cran.r-project.org/package=miscTools |
+| mitml | 0.4-5 | GPL (>= 2) | https://cran.r-project.org/package=mitml |
 | mnormt | 2.1.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=mnormt |
 | modelr | 0.1.11 | GPL-3 | https://cran.r-project.org/package=modelr |
 | modeltools | 0.2-25 | GPL-2 | https://cran.r-project.org/package=modeltools |
@@ -141,8 +152,10 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | openssl | 2.4.2 | MIT + file LICENSE | https://cran.r-project.org/package=openssl |
 | optimx | 2025-4.9 | GPL-2 | https://cran.r-project.org/package=optimx |
 | optmatch | 0.10.8 | MIT + file LICENSE | https://cran.r-project.org/package=optmatch |
+| ordinal | 2026.7-26 | GPL (>= 2) | https://cran.r-project.org/package=ordinal |
 | orthopolynom | 1.0-6.1 | GPL (>= 2) | https://cran.r-project.org/package=orthopolynom |
 | otel | 0.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=otel |
+| pan | 2.0 | GPL-3 | https://cran.r-project.org/package=pan |
 | parallelly | 1.48.0 | LGPL (>= 2.1) | https://cran.r-project.org/package=parallelly |
 | partitions | 1.11-1 | GPL | https://cran.r-project.org/package=partitions |
 | pbapply | 1.7-5 | GPL (>= 2) | https://cran.r-project.org/package=pbapply |
@@ -176,6 +189,8 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | rlang | 1.3.0 | MIT + file LICENSE | https://cran.r-project.org/package=rlang |
 | rlemon | 0.2.1 | BSL-1.0 | https://cran.r-project.org/package=rlemon |
 | rmarkdown | 2.32 | MIT + file LICENSE | https://cran.r-project.org/package=rmarkdown |
+| rpart | 4.1.27 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=rpart |
+| rsem | 0.5.1 | GPL-2 | https://cran.r-project.org/package=rsem |
 | RSQLite | 3.53.3 | LGPL (>= 2.1) | https://cran.r-project.org/package=RSQLite |
 | rstudioapi | 0.19.0 | MIT + file LICENSE | https://cran.r-project.org/package=rstudioapi |
 | S7 | 0.2.2 | MIT + file LICENSE | https://cran.r-project.org/package=S7 |
@@ -184,6 +199,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | sass | 0.4.10.9000 | MIT + file LICENSE | https://github.com/rstudio/sass |
 | scales | 1.4.0 | MIT + file LICENSE | https://cran.r-project.org/package=scales |
 | scatterplot3d | 0.3-45 | GPL-2 | https://cran.r-project.org/package=scatterplot3d |
+| semfindr | 0.2.1 | GPL-3 | https://cran.r-project.org/package=semfindr |
 | seminr | 2.5.0 | GPL-3 | https://cran.r-project.org/package=seminr |
 | semTools | 0.5-10 | GPL (>= 2) | https://cran.r-project.org/package=semTools |
 | sets | 1.0-25 | GPL-2 | https://cran.r-project.org/package=sets |
@@ -206,6 +222,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | truncnorm | 1.0-9 | GPL (>= 2) | https://cran.r-project.org/package=truncnorm |
 | turner | 0.2.0 | GPL-3 | https://cran.r-project.org/package=turner |
 | tzdb | 0.5.0 | MIT + file LICENSE | https://cran.r-project.org/package=tzdb |
+| ucminf | 1.2.3 | GPL (>= 2) | https://cran.r-project.org/package=ucminf |
 | urca | 1.3-4 | GPL (>= 2) | https://cran.r-project.org/package=urca |
 | utf8 | 1.2.6 | Apache License (== 2.0) \| file LICENSE | https://cran.r-project.org/package=utf8 |
 | V8 | 8.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=V8 |
@@ -214,6 +231,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | viridisLite | 0.4.3 | MIT + file LICENSE | https://cran.r-project.org/package=viridisLite |
 | visNetwork | 2.1.4 | MIT + file LICENSE | https://cran.r-project.org/package=visNetwork |
 | vroom | 1.7.1.9000 | MIT + file LICENSE | https://github.com/tidyverse/vroom |
+| WeightIt | 2.1.0 | GPL (>= 2) | https://cran.r-project.org/package=WeightIt |
 | withr | 3.0.3 | MIT + file LICENSE | https://cran.r-project.org/package=withr |
 | xfun | 0.61 | MIT + file LICENSE | https://cran.r-project.org/package=xfun |
 | yaml | 2.3.12 | BSD_3_clause + file LICENSE | https://cran.r-project.org/package=yaml |

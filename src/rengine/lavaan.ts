@@ -158,11 +158,11 @@ export async function cbScoresR(data: Dataset, spec: ModelSpec, missing: Missing
  * Score columns for the dataset: one per construct, named "<construct>_score"
  * (or _score_2, ...), NaN in rows without a score.
  */
-export function scoreColumns(data: Dataset, names: string[], rows: number[], scores: number[][]): Dataset {
+export function scoreColumns(data: Dataset, names: string[], rows: number[], scores: number[][], suffix = '_score'): Dataset {
   const n = data.cols[0]?.length ?? 0;
   const out = { ...data, names: [...data.names], cols: [...data.cols] };
   names.forEach((name, j) => {
-    let col = `${name.replace(/[^A-Za-z0-9_.]+/g, '_')}_score`, k = 2;
+    let col = `${name.replace(/[^A-Za-z0-9_.]+/g, '_')}${suffix}`, k = 2;
     const base = col;
     while (out.names.includes(col)) col = `${base}_${k++}`;
     const v = new Float64Array(n).fill(NaN);

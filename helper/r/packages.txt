@@ -25,4 +25,5 @@ psych
 sampleSelection
 sandwich
 semTools
+semfindr
 seminr

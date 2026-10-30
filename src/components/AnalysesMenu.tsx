@@ -8,6 +8,7 @@ import { useMultilevel } from './MultilevelPanel';
 import { useSegmentation } from './SegmentationPanel';
 import { usePlsAssessment } from './PlsAssessmentPanel';
 import { useNca } from './NcaPanel';
+import { useScreen } from './DataScreeningPanel';
 import { openEfa } from './EfaPanel';
 import { useEndogeneity } from './EndogeneityPanel';
 import { useMatching } from './MatchingPanel';
@@ -45,6 +46,7 @@ export function AnalysesMenu() {
       <button className="btn ghost" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>Analyses <IconChevronDown size={13} /></button>
       {open && (
         <div className="menu-pop" role="menu" aria-label="Analyses">
+          {item('Data screening', 'Distributions, Mardia’s test, outliers, influential cases', () => useScreen.getState().setOpen(true))}
           {item('Exploratory factor analysis', 'EFA: parallel analysis, rotations, cross-loadings (psych)', () => openEfa(false))}
           {item('Principal component analysis', 'PCA: components, rotations (psych)', () => openEfa(true))}
           {item('Item analysis', 'IRT (ltm), latent classes (poLCA)', () => useItems.getState().setOpen(true))}
