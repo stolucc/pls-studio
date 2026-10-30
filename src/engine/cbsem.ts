@@ -958,6 +958,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
   if (spec.multigroup) throw new Error('Multiple-group analysis is estimated by lavaan: choose the R engine.');
   if (spec.multilevel) throw new Error('Two-level models are estimated by lavaan: choose the R engine.');
   if (spec.esem?.blocks.length) throw new Error('Exploratory SEM (ESEM) is estimated by lavaan: choose the R engine.');
+  if (spec.constructs.some((c) => c.reliability !== undefined)) throw new Error('Single indicators with a known reliability are estimated by lavaan: choose the R engine.');
   if (spec.paths.some((p) => p.label) || spec.constructs.some((c) => c.loadingLabels && Object.keys(c.loadingLabels).length) || spec.covariances?.some((k) => k.label) || spec.defined?.length || spec.waldTests?.length) {
     throw new Error('Parameter labels, equality constraints, defined parameters and Wald tests are estimated by lavaan: choose the R engine.');
   }

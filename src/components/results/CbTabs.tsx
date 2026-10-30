@@ -154,7 +154,7 @@ function Variances({ cb }: { cb: CbResult }) {
         note="For endogenous factors the variance is the disturbance (residual) variance, and a covariance between two endogenous factors is the covariance of their disturbances (standardised: their correlation)." />
       <Table title="Indicator error variances and covariances" file="cb-residuals" columns={['Indicator', ...estCols(cb)]}
         rows={vv.filter((e) => e.kind === 'residual' || e.kind === 'rescov').map((e) => estRow(e, e.lhs === e.rhs ? e.lhs : `${e.lhs} ↔ ${e.rhs}`))}
-        note="Standardised error variance = 1 − indicator R²; standardised error covariance = error correlation. Single-indicator factors have their error variance fixed to 0." />
+        note="Standardised error variance = 1 − indicator R²; standardised error covariance = error correlation. Single-indicator factors have their error variance fixed to 0, or, with a known reliability, at (1 − reliability) × the indicator’s variance (shown without a standard error)." />
       {cb.estimates.some((e) => e.kind === 'mean') && (
         <Table title="Latent means" file="cb-latent-means" columns={['Factor', ...estCols(cb)]}
           rows={cb.estimates.filter((e) => e.kind === 'mean').map((e) => estRow(e, e.lhs))}

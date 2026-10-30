@@ -125,3 +125,11 @@ describe('estimateCb discriminant validity', () => {
     expect(cb.htmt2[3][1]).toBeCloseTo(pls.htmt2[3][1]!, 10);
   });
 });
+
+describe('built-in engine refuses lavaan-only single-indicator reliability', () => {
+  it('points to the R engine', () => {
+    const data = { names: ['a', 'b', 'c', 'y'], cols: [0, 1, 2, 3].map((k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1)))) };
+    const spec: ModelSpec = { constructs: [{ name: 'F', mode: 'A', indicators: ['a', 'b', 'c'] }, { name: 'Y', mode: 'A', indicators: ['y'], reliability: 0.8 }], paths: [{ from: 'F', to: 'Y' }] };
+    expect(() => estimateCb(data, spec)).toThrow(/known reliability are estimated by lavaan/);
+  });
+});

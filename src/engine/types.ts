@@ -25,6 +25,8 @@ export interface ConstructSpec {
   dominant?: string;
   /** Observed exogenous covariate (single indicator, CB-SEM): variances/covariances fixed at sample values (lavaan fixed.x). */
   covariate?: boolean;
+  /** CB-SEM (lavaan): a single indicator's known reliability; its error variance is fixed at (1 − reliability) × its variance. */
+  reliability?: number;
 }
 
 export interface PathSpec {

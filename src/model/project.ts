@@ -30,6 +30,8 @@ export interface Construct {
   components?: string[];
   /** CB-SEM observed covariate (single indicator): lavaan fixed.x semantics. */
   covariate?: boolean;
+  /** CB-SEM single indicator: known reliability (error variance fixed at (1 − r) × variance; otherwise 0). */
+  reliability?: number;
   /** Conditional process analysis: model this scale as a latent variable (lavaan::sam) instead of its mean score. */
   latent?: boolean;
   /** CB-SEM: loadings held at a value (by indicator name); a value for the first indicator replaces the marker's 1. */
@@ -352,6 +354,7 @@ export function toSpec(model: ModelState): ModelSpec {
       name: c.name, type: c.type, mode: c.mode, indicators: c.indicators,
       ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
       ...(c.covariate ? { covariate: true } : {}),
+      ...(c.reliability !== undefined && c.indicators.length === 1 && !c.covariate ? { reliability: c.reliability } : {}),
       ...(c.dominant && c.indicators.includes(c.dominant) ? { dominant: c.dominant } : {}),
       ...(c.categorical && c.indicators.length === 1 ? { categorical: true } : {}),
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
@@ -529,6 +532,11 @@ export function validateModel(
     if (c.covariate && method.method === 'cbsem') {
       if (c.indicators.length !== 1) err(`Covariate "${c.name}" must have exactly one indicator.`, c.id);
       if (model.paths.some((q) => q.to === c.id)) err(`Covariate "${c.name}" cannot have incoming paths.`, c.id);
+    }
+    if (c.reliability !== undefined && method.method === 'cbsem') {
+      if (!(c.reliability > 0 && c.reliability <= 1)) err(`The reliability of "${c.name}" must be above 0 and at most 1.`, c.id);
+      else if (c.indicators.length !== 1 || c.covariate) err(`"${c.name}": a known reliability applies to a single-indicator factor only.`, c.id);
+      else if (method.estimator === '2SLS') err(`"${c.name}": a known reliability is not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
     }
     if (c.mode !== 'A' && c.indicators.length === 1 && method.method === 'pls') warn(`"${c.name}" uses ${c.mode === 'B' ? 'Mode B' : 'sum scores'} with a single indicator; the weighting has no effect.`, c.id);
     if (method.method === 'cbsem' && c.type === 'composite') {
@@ -1038,6 +1046,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       side: sides.includes(c.side as Side) ? (c.side as Side) : 'left',
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
       ...(c.covariate === true ? { covariate: true } : {}),
+      ...(typeof c.reliability === 'number' && c.reliability > 0 && c.reliability <= 1 ? { reliability: c.reliability } : {}),
       ...(typeof c.dominant === 'string' && (c.indicators as unknown[]).includes(c.dominant) ? { dominant: c.dominant } : {}),
       ...(c.latent === true ? { latent: true } : {}),
       ...((['indicator', 'sequential', 'helmert', 'effect'] as const).includes(c.categorical as 'indicator') ? { categorical: c.categorical as 'indicator' } : {}),

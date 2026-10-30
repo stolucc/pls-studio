@@ -109,6 +109,7 @@ ps_cb_build <- function(req) {
     if (!rot %in% c("geomin", "oblimin", "quartimin", "varimax", "target")) stop("Invalid rotation in the request.")
     if (!is.null(target)) inputs$TARGET <- target
   }
+  rel_inds <- character(0)
   for (j in seq_len(k0)) {
     if (is_cov[j] || n$cname[j] %in% in_block) next
     # The first loading of each factor is fixed to 1 (marker / scaling indicator); written explicitly.
@@ -122,7 +123,20 @@ ps_cb_build <- function(req) {
       ll <- ll[names(ll) != n$inds[[j]][1]]
       labels <- setNames(ll, unname(n$iv[names(ll)]))
       lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels)))
-      if (length(v) == 1) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
+      if (length(v) == 1) {
+        rel <- cons[[j]]$reliability
+        if (is.null(rel)) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
+        else {
+          # Known reliability (Bollen 1989; Hayduk 1987): error variance fixed at (1 - reliability) x the indicator's variance.
+          rel <- ps_number(rel, "reliability")
+          if (rel <= 0 || rel > 1) stop("A reliability must be above 0 and at most 1.")
+          s2 <- if (matrix_input) inputs$S[v, v] else stats::var(inputs$data[[v]], na.rm = TRUE)
+          if (!is.finite(s2)) stop("The variance of ", n$inds[[j]], " cannot be computed.")
+          rel_inds <- c(rel_inds, v)
+          lines <- c(lines, sprintf("%s ~~ %s*%s   # single indicator, reliability %s: (1 - %s) x variance %s", v, ps_num((1 - rel) * s2), v,
+            format(rel), format(rel), format(signif(s2, 6))))
+        }
+      }
     }
   }
   paths <- req$model$paths
@@ -305,7 +319,7 @@ ps_cb_build <- function(req) {
         if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi)
+    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
@@ -372,7 +386,8 @@ ps_cb <- function(req_json, export = FALSE) {
       kind <- if (r$op == "~1") "mean" else if (r$op == ":=") "defined" else if (r$op == "|") "threshold" else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
         else if (r$op == "~") "regression"
         else if (is_lv(r$lhs) && is_lv(r$rhs)) { if (free) "lvcov" else "fixed" }
-        else if (!free) NA_character_
+        # Fixed error variances are reported for single indicators with a known reliability only (others are 0).
+        else if (!free) { if (r$op == "~~" && r$lhs == r$rhs && r$lhs %in% b$rel_inds) "residual" else NA_character_ }
         else if (r$lhs == r$rhs) "residual" else "rescov"
       if (is.na(kind)) return(NULL)
       if (r$op == ":=") return(list(kind = kind, lhs = r$lhs, op = r$op, rhs = r$rhs, est = r$est, se = if (is.na(r$se)) NULL else r$se,

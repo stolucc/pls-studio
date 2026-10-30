@@ -136,6 +136,18 @@ function ConstructInspector({ c }: { c: Construct }) {
               <span><b>Observed covariate</b><br /><span className="hint">Treat {c.indicators[0]} as an observed exogenous variable: its (co)variances are fixed at the sample values and it is not correlated with latent variables (lavaan’s fixed.x). Drawn as a rectangle.</span></span>
             </label>
           )}
+          {c.indicators.length === 1 && !c.covariate && (
+            <div className="field" style={{ marginTop: 8 }}>
+              <label>Reliability of {c.indicators[0]}</label>
+              <input className="input num" type="number" min={0.01} max={1} step={0.01} placeholder="1 (no measurement error)"
+                value={c.reliability ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value === '' ? undefined : Number(e.target.value);
+                  update(c.id, { reliability: v !== undefined && Number.isFinite(v) ? v : undefined });
+                }} />
+              <div className="hint">A known reliability (e.g. a published α) fixes the error variance at (1 − reliability) × the indicator’s variance (Bollen 1989). Empty: the error variance is 0. R engine (lavaan).</div>
+            </div>
+          )}
           {c.indicators.length === 0 && (
             <>
               <div className="hint" style={{ marginBottom: 6 }}>Higher-order factor: measured by other constructs (the first is the marker).</div>

@@ -174,6 +174,29 @@ describe('inequality constraints', () => {
   });
 });
 
+describe('single indicator with known reliability', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m = (reliability: number, extra = {}): ModelState => ({ constructs: [C('F', ['a1', 'a2', 'a3']), { ...C('G', ['b1']), reliability, ...extra }], paths: [{ id: 'p', from: 'F', to: 'G' }], moderations: [] });
+  const cbs = { method: 'cbsem' as const, consistent: false, estimator: 'ML' as const };
+  const errs = (x: ModelState) => validateModel(x, null, cbs).filter((i) => i.level === 'error' && /reliability/.test(i.message)).map((i) => i.message);
+  it('passes the reliability to the spec for a single-indicator factor only', () => {
+    expect(toSpec(m(0.8)).constructs[1].reliability).toBe(0.8);
+    expect(toSpec(m(0.8, { covariate: true })).constructs[1].reliability).toBeUndefined();
+    expect(toSpec(m(0.8, { indicators: ['b1', 'b2'] })).constructs[1].reliability).toBeUndefined();
+  });
+  it('requires 0 < r <= 1 on a single indicator, and keeps it in project files', () => {
+    expect(errs(m(0.8))).toEqual([]);
+    expect(errs(m(1))).toEqual([]);
+    expect(errs(m(0))[0]).toMatch(/above 0 and at most 1/);
+    expect(errs(m(1.2))[0]).toMatch(/above 0 and at most 1/);
+    expect(errs(m(0.8, { covariate: true }))[0]).toMatch(/single-indicator factor only/);
+    expect(errs(m(0.8, { indicators: ['b1', 'b2'] }))[0]).toMatch(/single-indicator factor only/);
+    expect(validateModel(m(0.8), null, { ...cbs, estimator: '2SLS' }).some((i) => i.level === 'error' && /MIIV-2SLS/.test(i.message))).toBe(true);
+    expect(parseProject(serializeProject(m(0.75), DEFAULT_SETTINGS, null, null)).model.constructs[1].reliability).toBe(0.75);
+    expect(parseProject(serializeProject(m(7), DEFAULT_SETTINGS, null, null)).model.constructs[1].reliability).toBeUndefined();
+  });
+});
+
 describe('multiple imputation', () => {
   const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
   const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3']), C('G', ['b1', 'b2'])], paths: [{ id: 'p', from: 'F', to: 'G' }], moderations: [] };
