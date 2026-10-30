@@ -103,7 +103,7 @@ interface State {
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
   /** Factors from an exploratory factor analysis, as common factors (one undo step); `correlate`: draw their correlations. */
   addFactors: (groups: string[][], correlate: boolean, names?: string[]) => string[];
-  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical'>>) => void;
+  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical' | 'dominant'>>) => void;
   /** CB-SEM: label a path coefficient, loading or drawn covariance (null removes it); equal labels = equal values. */
   setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
   setDefined: (defined: DefinedParameter[]) => void;

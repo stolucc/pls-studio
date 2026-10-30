@@ -57,6 +57,9 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
     # (A second-order construct is weighted in cSEM's second stage by its type: Mode A for a common factor, Mode B for a composite.)
     modes <- paste0("list(", paste(sprintf("%s = \"%s\"", cv[!hoc], ifelse(mode == "unit", "unit", paste0("mode", mode))[!hoc]), collapse = ", "), ")")
     scheme <- c(path = "path", centroid = "centroid", factor = "factorial")[[o$scheme]]
+    # Dominant indicators: each such construct's sign is set so that this indicator loads positively.
+    dom <- unlist(lapply(seq_len(k0), function(j) { d <- cons[[j]]$dominant; if (is.character(d) && length(d) == 1 && d %in% n$inds[[j]] && !hoc[j]) setNames(unname(n$iv[d]), cv[j]) }))
+    dom_arg <- if (length(dom)) sprintf(", .dominant_indicators = c(%s)", paste(sprintf("%s = \"%s\"", names(dom), dom), collapse = ", ")) else ""
     body <- c("suppressPackageStartupMessages(library(cSEM))", ps_missing_code(req$missing),
       if (length(mods)) "# Interaction terms (X.M): products of the construct scores (cSEM's nonlinear PLS)",
       "model <- '", paste0("  ", lines), "'",
@@ -67,7 +70,7 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
         "# uses their scores as the indicators of the second-order construct (cSEM corrects a second-order common factor for attenuation in stage 2)."),
       sprintf("fit <- csem(data, model, %s.PLS_weight_scheme_inner = \"%s\", .disattenuate = %s, .tolerance = %s, .iter_max = %d%s)",
         if (gsca) sprintf(".approach_weights = \"%s\", ", approach) else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(ps_number(o$tolerance, "tolerance"), scientific = TRUE), as.integer(o$maxIter),
-        if (any(hoc)) ", .approach_2ndorder = \"2stage\"" else ""))
+        paste0(if (any(hoc)) ", .approach_2ndorder = \"2stage\"" else "", dom_arg)))
   } else if (pkg == "seminr") {
     if (o$scheme == "centroid") stop("seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.")
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], "*", n$cv[[m$moderator]]), "")

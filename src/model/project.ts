@@ -33,6 +33,8 @@ export interface Construct {
   latent?: boolean;
   /** CB-SEM: loadings held at a value (by indicator name); a value for the first indicator replaces the marker's 1. */
   fixedLoadings?: Record<string, number>;
+  /** PLS: dominant indicator (fixes the construct's sign). */
+  dominant?: string;
   /** CB-SEM: labels of loadings (by indicator name); equal labels = equal loadings. */
   loadingLabels?: Record<string, string>;
   /** Conditional process analysis: X is multicategorical, coded this way (PROCESS mcx). */
@@ -343,6 +345,7 @@ export function toSpec(model: ModelState): ModelSpec {
       name: c.name, type: c.type, mode: c.mode, indicators: c.indicators,
       ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
       ...(c.covariate ? { covariate: true } : {}),
+      ...(c.dominant && c.indicators.includes(c.dominant) ? { dominant: c.dominant } : {}),
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
       ...(c.loadingLabels && Object.keys(c.loadingLabels).length ? { loadingLabels: c.loadingLabels } : {}),
     })),
@@ -612,6 +615,8 @@ export function validateModel(
   } else {
     if (missingChoice === 'fiml' && method.method === 'pls') err('FIML is a CB-SEM option; PLS-SEM uses mean replacement or casewise deletion.');
     if (missingChoice === 'mi' && method.method === 'pls' && engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
+    const dominants = model.constructs.filter((c) => c.dominant && c.indicators.includes(c.dominant));
+    if (method.method === 'pls' && dominants.length && engine === 'r' && (method.plsPackage ?? 'cSEM') === 'seminr') warn(`seminr has no dominant indicators: the signs of ${dominants.map((c) => c.name).join(', ')} are as estimated. Choose cSEM to fix them.`);
     if (missingChoice === 'mi' && method.method === 'process') err('Multiple imputation is available in PLS-SEM and CB-SEM; conditional process analysis uses casewise deletion.');
     if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
   }
@@ -1000,6 +1005,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       side: sides.includes(c.side as Side) ? (c.side as Side) : 'left',
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
       ...(c.covariate === true ? { covariate: true } : {}),
+      ...(typeof c.dominant === 'string' && (c.indicators as unknown[]).includes(c.dominant) ? { dominant: c.dominant } : {}),
       ...(c.latent === true ? { latent: true } : {}),
       ...((['indicator', 'sequential', 'helmert', 'effect'] as const).includes(c.categorical as 'indicator') ? { categorical: c.categorical as 'indicator' } : {}),
       ...(fixedLoadingsOf(c.fixedLoadings, c.indicators as unknown[])),

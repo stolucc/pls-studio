@@ -136,6 +136,26 @@ describe('sum scores per construct (unit weights) vs cSEM', () => {
   });
 });
 
+describe('dominant indicators (sign of a construct) vs cSEM', () => {
+  const ref = JSON.parse(readFileSync(fx('dominant.json'), 'utf8')) as Record<'plain' | 'dominant', { weights: Record<string, number>; expToQual: number; qualToSat: number }>;
+  // mobi with PERQ1 reversed: Quality (Mode B) then comes out with PERQ1 negative unless PERQ1 is dominant.
+  const k = data.names.indexOf('PERQ1');
+  const rev = { ...data, cols: data.cols.map((c, i) => (i === k ? Float64Array.from(c, (v) => 11 - v) : c)) };
+  const spec = (dominant?: string) => { const s = mobiModel('B'); s.constructs = s.constructs.map((c) => (c.name === 'Quality' ? { ...c, type: 'composite' as const, ...(dominant ? { dominant } : {}) } : c)); return s; };
+  const check = (r: PlsResult, want: (typeof ref)['plain']) => {
+    r.indicators.forEach((ind, j) => { if (ind.name.startsWith('PERQ')) expect(r.weights[j], ind.name).toBeCloseTo(want.weights[ind.name], 5); });
+    const at = (n: string) => r.constructs.indexOf(n);
+    expect(r.pathCoef[at('Expectation')][at('Quality')]).toBeCloseTo(want.expToQual, 5);
+    expect(r.pathCoef[at('Quality')][at('Satisfaction')]).toBeCloseTo(want.qualToSat, 5);
+  };
+  it('without one the sign is as estimated; with PERQ1 dominant the block flips so PERQ1 loads positively', () => {
+    check(estimatePls(rev, spec(), { ...DEFAULT_OPTIONS, tolerance: 1e-10 }), ref.plain);
+    const r = estimatePls(rev, spec('PERQ1'), { ...DEFAULT_OPTIONS, tolerance: 1e-10 });
+    check(r, ref.dominant);
+    expect(r.loadings[r.indicators.findIndex((x) => x.name === 'PERQ1')]).toBeGreaterThan(0);
+  });
+});
+
 describe('estimatePls edge cases', () => {
   it('reports a missing indicator by name', () => {
     const spec = mobiModel('A');

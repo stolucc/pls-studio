@@ -19,6 +19,8 @@ export interface ConstructSpec {
   fixedLoadings?: Record<string, number>;
   /** CB-SEM (lavaan): parameter labels of loadings (by indicator name); equal labels = equal values. */
   loadingLabels?: Record<string, string>;
+  /** PLS: the dominant indicator, which fixes the sign of the construct (its loading made positive; cSEM's .dominant_indicators). */
+  dominant?: string;
   /** Observed exogenous covariate (single indicator, CB-SEM): variances/covariances fixed at sample values (lavaan fixed.x). */
   covariate?: boolean;
 }

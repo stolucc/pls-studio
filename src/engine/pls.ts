@@ -16,6 +16,8 @@ export interface CompiledModel {
   indicatorConstruct: number[];
   /** Indicator indices (into indicatorNames) for each construct. */
   blocks: number[][];
+  /** Dominant indicator of each construct (index into indicatorNames), or -1. */
+  dominant: number[];
   preds: number[][];
   succs: number[][];
   hasPath: boolean[][];
@@ -46,7 +48,8 @@ export function compileModel(spec: ModelSpec): CompiledModel {
     succs[f].push(t);
   }
   const types = spec.constructs.map((c) => c.type ?? (c.mode === 'B' ? 'composite' : 'factor'));
-  return { constructs, modes: spec.constructs.map((c) => c.mode), types, indicatorNames, indicatorConstruct, blocks, preds, succs, hasPath };
+  const dominant = spec.constructs.map((c, j) => (c.dominant ? blocks[j].find((k) => indicatorNames[k] === c.dominant) ?? -1 : -1));
+  return { constructs, modes: spec.constructs.map((c) => c.mode), types, indicatorNames, indicatorConstruct, blocks, preds, succs, hasPath, dominant };
 }
 
 /**
@@ -168,6 +171,13 @@ export function plsCore(
       }
     });
     Y = computeScores();
+    // Dominant indicators: each block's sign such that its dominant indicator loads positively (cSEM's setDominantIndicator).
+    m.dominant.forEach((k, j) => {
+      if (k < 0 || corStd(X[k], Y[j]) >= 0) return;
+      for (const i of m.blocks[j]) w[i] = -w[i];
+      const y = Y[j];
+      for (let r = 0; r < n; r++) y[r] = -y[r];
+    });
 
     let diff = 0;
     for (let k = 0; k < w.length; k++) diff += Math.abs(w[k] - last[k]);

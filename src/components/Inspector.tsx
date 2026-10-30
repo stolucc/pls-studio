@@ -64,6 +64,16 @@ function ConstructInspector({ c }: { c: Construct }) {
             </div>
           </div>
         )}
+        {method === 'pls' && c.indicators.length >= 2 && (
+          <div className="field">
+            <label>Dominant indicator</label>
+            <select className="select" value={c.dominant ?? ''} onChange={(e) => update(c.id, { dominant: e.target.value || undefined })}>
+              <option value="">None (sign as estimated)</option>
+              {c.indicators.map((i) => <option key={i} value={i}>{i}</option>)}
+            </select>
+            <div className="hint" style={{ marginTop: 4 }}>Fixes the construct’s sign: its scores point the way this indicator does (loading positive), in the estimate and every bootstrap draw. cSEM and the built-in engine.</div>
+          </div>
+        )}
         <div className="field">
           <label>Indicator side</label>
           <div className="segmented">
