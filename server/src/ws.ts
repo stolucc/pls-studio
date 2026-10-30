@@ -20,6 +20,9 @@ const COMPACT_AFTER = 200;
 const MAX_PAYLOAD = 2 * 1024 * 1024;
 /** Messages per second per connection (token bucket). */
 const RATE = 200;
+/** Presence (awareness) states are a name, a colour and a selection: anything bigger is refused. */
+export const MAX_AWARENESS_BYTES = 8 * 1024;
+export class TooBig extends Error {}
 
 interface Conn { ws: WebSocket; userId: string; role: Role; clientIds: Set<number>; tokens: number; last: number }
 
@@ -134,7 +137,9 @@ class Room {
       }
       if (encoding.length(enc) > 1) conn.ws.send(encoding.toUint8Array(enc));
     } else if (type === MSG_AWARENESS) {
-      awarenessProtocol.applyAwarenessUpdate(this.awareness, decoding.readVarUint8Array(dec), conn);
+      const update = decoding.readVarUint8Array(dec);
+      if (update.length > MAX_AWARENESS_BYTES) throw new TooBig('presence state too big');
+      awarenessProtocol.applyAwarenessUpdate(this.awareness, update, conn);
     }
   }
 
@@ -209,8 +214,8 @@ export function attachCollab(server: Server, db: Db, sessionMw: SessionMw, appOr
             conn.tokens -= 1;
             try {
               room.message(conn, new Uint8Array(data as Buffer));
-            } catch {
-              ws.close(1007, 'Malformed message');
+            } catch (err) {
+              ws.close(err instanceof TooBig ? 1009 : 1007, err instanceof TooBig ? 'Presence state too big' : 'Malformed message');
             }
           });
           ws.on('close', () => room.remove(conn));

@@ -1,4 +1,7 @@
+import * as encoding from 'lib0/encoding';
 import { WebSocket } from 'ws';
+import * as awarenessProtocol from 'y-protocols/awareness';
+import { MAX_AWARENESS_BYTES } from '../src/ws.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebsocketProvider } from 'y-websocket';
 import * as Y from 'yjs';
@@ -91,6 +94,22 @@ describe('collaboration socket', () => {
     v.p.awareness.setLocalStateField('user', { name: 'Viewer' });
     await until(() => [...e.p.awareness.getStates().values()].some((s) => s.user?.name === 'Viewer'));
     v.p.destroy(); e.p.destroy();
+  });
+
+  it('closes a connection that sends an oversized presence state', async () => {
+    const closed = new Promise<number>((resolve) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, { headers: { origin: ORIGIN, cookie: cookieOf(editor) } });
+      ws.on('close', (code) => resolve(code));
+      ws.on('open', () => {
+        const aw = new awarenessProtocol.Awareness(new Y.Doc());
+        aw.setLocalState({ user: { name: 'x'.repeat(MAX_AWARENESS_BYTES) } });
+        const enc = encoding.createEncoder();
+        encoding.writeVarUint(enc, 1);
+        encoding.writeVarUint8Array(enc, awarenessProtocol.encodeAwarenessUpdate(aw, [aw.clientID]));
+        ws.send(encoding.toUint8Array(enc));
+      });
+    });
+    expect(await closed).toBe(1009);
   });
 
   it('restores the document from the database after compaction', async () => {

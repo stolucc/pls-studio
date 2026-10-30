@@ -119,7 +119,18 @@ ps_pls <- function(req_json, export = FALSE) {
     return(paste(ps_script(title, b$pkg, b$inputs, b$body, report), collapse = "\n"))
   }
   if (identical(req$missing, "mi")) return(ps_json(ps_pls_mi(req, b)))
-  ps_json(ps_pls_out(req, b, ps_run(b$body, b$inputs)))
+  ps_json(ps_htmt_notes(ps_pls_out(req, b, ps_run(b$body, b$inputs))))
+}
+
+#' The HTMT sign diagnostics of a PLS result as notes, once (ps_pls_out keeps them as
+#' flags so that a multiply-imputed result reports the union over its imputations).
+ps_htmt_notes <- function(res) {
+  f <- res$htmtFlags
+  res$htmtFlags <- NULL
+  if (length(f$within)) ps_note(sprintf("Some items of %s correlate negatively with the others: is an item reverse-coded? Recode it (Data tab) before interpreting loadings, reliability and HTMT.", paste(f$within, collapse = ", ")))
+  if (length(f$undefined)) ps_note(sprintf("The HTMT of %s is not reported: it assumes same-sign item correlations, which a reverse-coded item breaks.", paste(f$undefined, collapse = "; ")))
+  if (length(f$mixed)) ps_note(sprintf("The items of %s correlate with mixed signs: these constructs are nearly uncorrelated, so their HTMT is close to zero and their HTMT2, a geometric mean, is not defined (Roemer, Schuberth & Henseler, 2021).", paste(f$mixed, collapse = "; of ")))
+  res
 }
 
 #' The app's PLS result from one estimation (env: the script's environment).
@@ -185,6 +196,7 @@ ps_pls_out <- function(req, b, env) {
       out
     }
     htmt1 <- htmt("htmt"); htmt2 <- htmt("htmt2")
+    htmt_flags <- NULL
     S <- fit1$Estimates$Indicator_VCV
     if (is.matrix(S)) {
       fac <- which(b$type[seq_len(k0)] == "factor" & !b$hoc[seq_len(k0)])
@@ -199,9 +211,7 @@ ps_pls_out <- function(req, b, env) {
         if (i %in% within || j %in% within) { undefined <- c(undefined, sprintf("%s \u2013 %s", n$cname[j], n$cname[i])); htmt1[i, j] <- NA_real_ }
         else mixed <- c(mixed, sprintf("%s and %s", n$cname[j], n$cname[i]))
       }
-      if (length(within)) ps_note(sprintf("Some items of %s correlate negatively with the others: is an item reverse-coded? Recode it (Data tab) before interpreting loadings, reliability and HTMT.", paste(n$cname[within], collapse = ", ")))
-      if (length(undefined)) ps_note(sprintf("The HTMT of %s is not reported: it assumes same-sign item correlations, which a reverse-coded item breaks.", paste(undefined, collapse = "; ")))
-      if (length(mixed)) ps_note(sprintf("The items of %s correlate with mixed signs: these constructs are nearly uncorrelated, so their HTMT is close to zero and their HTMT2, a geometric mean, is not defined (Roemer, Schuberth & Henseler, 2021).", paste(mixed, collapse = "; of ")))
+      htmt_flags <- list(within = n$cname[within], undefined = undefined, mixed = mixed)
     }
     fitm <- function(sat) {
       # (Not reported for two-stage models: cSEM's discrepancies refer to one stage only.)
@@ -245,7 +255,7 @@ ps_pls_out <- function(req, b, env) {
       }
       out
     }
-    htmt1 <- htmt("htmt"); htmt2 <- htmt("htmt2")
+    htmt1 <- htmt("htmt"); htmt2 <- htmt("htmt2"); htmt_flags <- NULL
     fitm <- function(sat) list(srmr = NA_real_, dULS = NA_real_, dG = NA_real_)
     fsq <- mat(unclass(s$fSquare), all_l, all_l)
     vif <- matrix(NA_real_, K, K)
@@ -282,7 +292,7 @@ ps_pls_out <- function(req, b, env) {
     })), recursive = FALSE) else NULL,
     redundancy = if (b$pkg == "cSEM" && !two) { ra <- safe(cSEM::doRedundancyAnalysis(fit), "Redundancy analysis (cSEM::doRedundancyAnalysis)"); if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) as.list(setNames(unname(ra), n$cname[match(names(ra), cv)])) else NULL } else NULL,
     quality = lapply(seq_len(K), function(j) list(alpha = q4(alpha)[j], rhoC = q4(rhoC)[j], rhoA = q4(rhoA)[j], ave = q4(ave)[j])),
-    htmt = htmt1, htmt2 = htmt2,
+    htmt = htmt1, htmt2 = htmt2, htmtFlags = htmt_flags,
     fit = list(estimated = fitm(FALSE), saturated = fitm(TRUE)),
     consistent = isTRUE(b$o$consistent), types = c(b$type, rep("composite", length(mods))),
     moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
@@ -324,5 +334,8 @@ ps_pls_mi <- function(req, b) {
   res$n <- outs[[1]]$n; res$droppedRows <- 0L
   res$warnings <- unique(unlist(lapply(outs, function(o) unlist(o$warnings))))
   res$imputations <- imp$m
-  res
+  # (the sign diagnostics over all imputations, reported once; a pair undefined in any is NA in the average)
+  flags <- lapply(outs, `[[`, "htmtFlags")
+  res$htmtFlags <- list(within = unique(unlist(lapply(flags, `[[`, "within"))), undefined = unique(unlist(lapply(flags, `[[`, "undefined"))), mixed = unique(unlist(lapply(flags, `[[`, "mixed"))))
+  ps_htmt_notes(res)
 }

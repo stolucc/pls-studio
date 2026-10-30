@@ -13,7 +13,7 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const options = (missing: 'mean' | 'casewise') => ({ scheme: 'path' as const, consistent: false, missing, tolerance: 1e-7, maxIter: 300 });
+const options = (missing: 'mean' | 'casewise' | 'mi') => ({ scheme: 'path' as const, consistent: false, missing, tolerance: 1e-7, maxIter: 300, ...(missing === 'mi' ? { mi: { m: 3, seed: 7 } } : {}) });
 const at = (m: (number | null)[][], i: number, j: number) => m[Math.max(i, j)][Math.min(i, j)];
 
 describe('HTMT notes', () => {
@@ -40,6 +40,16 @@ describe('HTMT notes', () => {
     expect(w).not.toContain('all-positive or all-negative');
     expect(w).not.toContain('NaNs produced');
   }, 120_000);
+
+  it('reports the diagnostics once for a multiply-imputed result', async () => {
+    const { data, model } = makeSample();
+    const r = await estimatePlsR(data, toSpec(model), options('mi'), 'cSEM');
+    const notes = r.warnings.filter((w) => w.includes('mixed signs') || w.includes('HTMT'));
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain('Service Quality and Price Fairness');
+    const sq = r.constructs.indexOf('Service Quality'), pf = r.constructs.indexOf('Price Fairness');
+    expect(at(r.htmt2, sq, pf)).toBeNull();
+  }, 180_000);
 
   it('points to a reverse-coded item within a construct', async () => {
     const { data, model } = makeSample();
