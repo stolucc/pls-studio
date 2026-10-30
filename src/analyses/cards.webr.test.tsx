@@ -90,3 +90,15 @@ it('multilevel regression (lme4 on sleepstudy)', async () => {
   expect(result.fixed.find((x) => x.term === 'Days')!.est).toBeCloseTo(ref.lmm.fixed.find((f: { term: string }) => f.term === 'Days').est, 5);
   expect(html).toContain('Days');
 }, 900_000);
+
+it('exploratory factor analysis (psych on bfi)', async () => {
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'reference.json'), 'utf8'));
+  const { rCall } = await import('../rengine/bridge');
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'psych', name: 'bfi', na: [] }, 'psych');
+  const data = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const { result, html } = await runAsCard<{ kmo: { overall: number }; k: number }>('efa', data,
+    { vars: data.names.slice(0, 25), criterion: 'fixed', nfactors: 5, method: 'minres', rotation: 'oblimin', parallel: 10 });
+  expect(result.k).toBe(5);
+  expect(result.kmo.overall).toBeCloseTo(ref.bfi.kmo, 6);
+  expect(html).toContain('Build model from this solution');
+}, 900_000);

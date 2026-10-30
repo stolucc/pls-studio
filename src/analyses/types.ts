@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Dataset, PlsResult } from '../engine/types';
-import type { DataInfo, Settings } from '../model/project';
+import type { DataInfo, ModelState, Settings } from '../model/project';
 
 /** What an analysis can read from the open project. */
 export interface AnalysisCtx {
@@ -10,6 +10,8 @@ export interface AnalysisCtx {
   /** The PLS-SEM results, when they are current for the model and data. */
   pls: PlsResult | null;
   projectName: string;
+  /** The diagram (for analyses that offer its indicators, or build constructs). */
+  model?: ModelState;
 }
 
 /** The last completed run of an analysis card. */
@@ -40,6 +42,12 @@ export interface AnalysisType<O = any, R = any> {
   title: string;
   /** One line for the Add menu. */
   sub: string;
+  /** Several Add-menu entries for one analysis, each with its starting options (e.g. factor analysis and PCA). */
+  entries?: { title: string; sub: string; options: (defaults: O) => O }[];
+  /** The card's title when it depends on the options. */
+  cardTitle?: (o: O) => string;
+  /** Options that only change how the result is shown: changing them does not make it stale. */
+  display?: (keyof O & string)[];
   group: AnalysisGroup;
   defaults: (ctx: AnalysisCtx) => O;
   /** Validate options from a project file or a collaborator; null when unusable. */

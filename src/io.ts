@@ -334,10 +334,6 @@ export async function loadPackageExample(id: string) {
         const { useLong } = await import('./components/LongitudinalPanel');
         const { kind: _k, ...gmm } = p;
         useLong.setState({ open: true, gmm: null, preset: { gmm } });
-      } else if (p.kind === 'efa') {
-        const { useEfa } = await import('./components/EfaPanel');
-        const { kind: _k, ...preset } = p;
-        useEfa.setState({ open: true, result: null, preset });
       } else if (p.kind === 'irt' || p.kind === 'lca') {
         const { useItems } = await import('./components/ItemsPanel');
         useItems.setState({ open: true, irt: null, lca: null, preset: { ...p } });

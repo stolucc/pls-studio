@@ -1,7 +1,6 @@
 import { AnalysesWorkspace } from './components/analyses/AnalysesWorkspace';
 import { useAnalyses } from './analyses/store';
 import { DataScreeningPanel } from './components/DataScreeningPanel';
-import { EfaPanel } from './components/EfaPanel';
 import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
 import { DataWorkspace } from './components/DataViewer';
@@ -123,7 +122,6 @@ export default function App() {
       <ItemsPanel />
       <SegmentationPanel />
       <PlsAssessmentPanel />
-      <EfaPanel />
       <DataScreeningPanel />
       <AuthDialog />
       <ConfirmModal />

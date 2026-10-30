@@ -13,7 +13,7 @@ import type { GmmInput, LmmInput } from '../rengine/mixed';
 import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
 import type { RsaPreset } from '../analyses/rsa';
-import type { EfaPreset } from '../components/EfaPanel';
+import type { EfaPreset } from '../analyses/efa';
 import type { NcaPreset } from '../analyses/nca';
 
 export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';

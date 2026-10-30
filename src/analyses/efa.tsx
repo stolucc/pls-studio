@@ -1,0 +1,275 @@
+// Exploratory factor analysis and principal component analysis (psych) as an
+// analysis card: suitability, number of factors, the rotated solution, and
+// constructs built from it.
+
+import { useState } from 'react';
+import { fmt } from '../format';
+import { constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_CRITERIA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, parseEfaDesign, switchAnalysis, type EfaDesign } from '../model/efa';
+import type { EfaResult } from '../rengine/efa';
+import { useStore } from '../store';
+import { ChartFrame } from '../components/ChartFrame';
+import { VariablePicker } from '../components/VariablePicker';
+import { c, pCell, Table, type Row } from '../components/results/Table';
+import { columnsFingerprint, missingColumns, rawData } from './common';
+import type { AnalysisType, OptionsProps } from './types';
+
+export type EfaPreset = Partial<EfaDesign>;
+type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'correlations' | 'variance' | 'fit';
+
+/** Scree plot: eigenvalues, with parallel analysis's simulated ones and the eigenvalue-1 line. */
+function Scree({ r }: { r: EfaResult }) {
+  const W = 380, H = 230, pad = { l: 44, r: 12, t: 12, b: 36 };
+  const obs = r.parallel?.observed.length ? r.parallel.observed : r.eigenvalues;
+  const sim = r.parallel?.simulated ?? [];
+  const n = obs.length, top = Math.max(1, ...obs, ...sim) * 1.05, bottom = Math.min(0, ...obs, ...sim);
+  const sx = (i: number) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
+  const sy = (v: number) => pad.t + ((top - v) / (top - bottom || 1)) * (H - pad.t - pad.b);
+  const line = (v: number[]) => v.map((y, i) => `${i ? 'L' : 'M'} ${sx(i)} ${sy(y)}`).join(' ');
+  const pca = r.method === 'pca';
+  return (
+    <ChartFrame id="efa:scree" name="scree" width={W} height={H} defaults={{ x: pca ? 'Component' : 'Factor', y: 'Eigenvalue' }}>
+      {(labels) => (
+        <svg className="mc-chart" width={W} height={H} role="img" aria-label="Scree plot">
+          <line x1={pad.l} x2={W - pad.r} y1={sy(1)} y2={sy(1)} stroke="#cbd5e1" strokeDasharray="4 3" />
+          {bottom < 0 && <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} stroke="#e2e8f0" />}
+          {sim.length > 0 && <path d={line(sim)} stroke="#d97706" strokeWidth={1.6} strokeDasharray="5 3" fill="none" />}
+          <path d={line(obs)} stroke="#6d28d9" strokeWidth={1.8} fill="none" />
+          {obs.map((y, i) => <circle key={i} cx={sx(i)} cy={sy(y)} r={2.8} fill="#6d28d9" />)}
+          {obs.map((_, i) => (n <= 15 || i % 2 === 0) && <text key={i} x={sx(i)} y={H - pad.b + 14} textAnchor="middle">{i + 1}</text>)}
+          <text x={pad.l - 6} y={sy(top / 1.05) + 4} textAnchor="end">{fmt(top / 1.05, 1)}</text>
+          <text x={pad.l - 6} y={sy(1) + 4} textAnchor="end">1</text>
+          <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">{labels.x}</text>
+          <text transform={`translate(11 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`} textAnchor="middle" className="axis-title">{labels.y}</text>
+        </svg>
+      )}
+    </ChartFrame>
+  );
+}
+
+function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
+  const [tab, setTab] = useState<EfaTab>('loadings');
+  const [residual, setResidual] = useState(false);
+  const pca = r.method === 'pca';
+  const unit = pca ? 'component' : 'factor';
+  const order = loadingOrder(r.loadings);
+  const cell = (v: number) => (Math.abs(v) < threshold ? c('', 'dim') : { ...c(v), bold: Math.abs(v) >= 0.5 });
+  const rows = (m: number[][], blank = true): Row[] => order.map((i) => [c(r.variables[i]), ...m[i].map((v) => (blank ? cell(v) : c(v))), c(r.communality[i]), c(r.uniqueness[i]), c(r.complexity[i], undefined, 2)]);
+  const cross = crossLoadings(r.loadings, threshold);
+  const clean = cross.filter((x) => x.flags.length === 0).length;
+  const tabs: [EfaTab, string][] = [['suitability', 'Suitability'], ['number', `Number of ${unit}s`], ['loadings', 'Loadings'], ['cross', 'Cross-loadings'], ['correlations', 'Correlations'], ['variance', pca ? 'Components' : 'Factors'], ...(pca ? [] : [['fit', 'Fit'] as [EfaTab, string]])];
+  const shown = tabs.some(([id]) => id === tab) ? tab : 'loadings';
+  const flagText = { 'cross-loads': `cross-loads (≥ ${threshold})`, weak: 'weak (< .40)', close: 'close (gap < .20)' };
+  return (
+    <>
+      <div className="segmented efa-tabs" role="tablist" aria-label="Results">
+        {tabs.map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={shown === id} className={shown === id ? 'on' : ''} onClick={() => setTab(id)}>
+            {label}{id === 'cross' && cross.length - clean > 0 ? ` (${cross.length - clean})` : ''}
+          </button>
+        ))}
+      </div>
+      <div className="tables">
+        {shown === 'suitability' && (
+          <Table title={`Suitability: KMO ${fmt(r.kmo.overall)} (${kmoLabel(r.kmo.overall)})`} file="efa-suitability" columns={['Measure', 'Value', 'df', 'p']}
+            rows={[[c('Kaiser–Meyer–Olkin (overall)'), c(r.kmo.overall), c(''), c('')], [c('Bartlett’s test of sphericity, χ²'), c(r.bartlett.chisq, undefined, 2), c(r.bartlett.df, undefined, 0), pCell(r.bartlett.p)],
+              ...r.variables.map((v, i) => [c(`MSA ${v}`), { ...c(r.kmo.items[i]), cls: r.kmo.items[i] < 0.5 ? 'bad' : undefined }, c(''), c('')])]}
+            note={`KMO ≥ .6 is usually wanted (Kaiser 1974: .9 marvelous, .8 meritorious, .7 middling, .6 mediocre, .5 miserable); per item (MSA), below .5 suggests dropping it. Bartlett’s test should reject (the correlations are not all zero).`} />
+        )}
+        {shown === 'number' && (
+          <>
+            <div className="mc-grid"><Scree r={r} /></div>
+            <Table title={`How many ${unit}s`} file="efa-number" columns={['Criterion', 'Suggests']}
+              rows={[
+                ...(r.parallel ? [[c(`Parallel analysis (Horn 1965; ${r.parallel.iterations} samples)`), c(r.parallel.suggested ?? '–', undefined, 0)]] : []),
+                [c('Velicer’s MAP (minimum average partial)'), c(r.map.suggested, undefined, 0)],
+                [c('Eigenvalues > 1 (Kaiser; tends to overestimate)'), c(r.kaiser, undefined, 0)],
+              ]}
+              note={`Purple: eigenvalues of the ${pca ? 'correlation matrix' : 'reduced correlation matrix (factor analysis)'}${r.parallel ? '; dashed amber: the mean eigenvalues of random data of the same size (parallel analysis: keep those above it)' : ''}. Parallel analysis and MAP are the more reliable guides; then judge the solution’s interpretability.`} />
+          </>
+        )}
+        {shown === 'loadings' && (
+          <>
+            <Table title={`${r.oblique ? 'Pattern matrix' : 'Loadings'}: ${r.k} ${unit}s, ${EFA_METHODS.find((m) => m.id === r.method)?.label.toLowerCase()}, ${r.rotation === 'none' ? 'unrotated' : `${EFA_ROTATIONS.find((x) => x.id === r.rotation)?.label.toLowerCase()} rotation`}`}
+              file="efa-loadings" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.loadings)}
+              note={`Sorted by the ${unit} each variable loads most on; loadings below ${threshold} are blank, ≥ .5 bold. h²: communality; u²: uniqueness; complexity: Hofmann’s index (1: one ${unit}). The Cross-loadings tab lists every loading.`} />
+            {r.structure && <Table title={`Structure matrix (correlations of variables and ${unit}s)`} file="efa-structure" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.structure)} />}
+          </>
+        )}
+        {shown === 'cross' && (
+          <>
+            <Table title={`Cross-loadings: ${clean} of ${cross.length} variables load cleanly on one ${unit}`} file="efa-cross-loadings"
+              columns={['Variable', `Primary ${unit}`, 'Loading', `Second ${unit}`, 'Loading', 'Difference', 'Check']}
+              rows={order.map((i) => cross[i]).map((x) => [
+                c(r.variables[x.variable]), c(r.factors[x.primary]), { ...c(x.primaryLoading), bold: Math.abs(x.primaryLoading) >= 0.5 },
+                c(x.secondary === null ? '–' : r.factors[x.secondary]), x.secondaryLoading === null ? c('–') : { ...c(x.secondaryLoading), bold: Math.abs(x.secondaryLoading) >= threshold },
+                x.gap === null ? c('–') : c(x.gap), x.flags.length ? c(x.flags.map((f) => flagText[f]).join('; '), 'bad') : c('clean', 'good'),
+              ])}
+              note={`Rules of thumb (e.g. Howard 2016): a variable should load at least .40 on its ${unit}, below ${threshold} on every other, and at least .20 more on its own than on the next. Variables flagged here are candidates for removal or rewording; drop one at a time and recalculate.`} />
+            <Table title="All loadings (none hidden)" file="efa-loadings-all" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.loadings, false)} />
+          </>
+        )}
+        {shown === 'correlations' && (() => {
+          const m = residual ? r.residuals : r.correlations;
+          const big = order.reduce((n, i, a) => n + order.slice(0, a).filter((j) => Math.abs(r.residuals[i][j]) > 0.1).length, 0);
+          const pairs = (order.length * (order.length - 1)) / 2;
+          // Shading by size: observed correlations in the accent colour; residuals above .10 flagged.
+          const shade = (v: number) => `rgba(109, 40, 217, ${Math.min(1, Math.abs(v)) * 0.45})`;
+          return (
+            <>
+              <div className="segmented" style={{ marginBottom: 10, maxWidth: 360 }}>
+                <button className={residual ? '' : 'on'} onClick={() => setResidual(false)}>Observed</button>
+                <button className={residual ? 'on' : ''} onClick={() => setResidual(true)}>Residual{big ? ` (${big} > .10)` : ''}</button>
+              </div>
+              <Table title={residual ? `Residual correlations: ${big} of ${pairs} pairs above .10` : 'Correlations between the variables'} file={residual ? 'efa-residual-correlations' : 'efa-correlations'}
+                columns={['', ...order.map((i) => r.variables[i])]}
+                rows={order.map((i, a) => [c(r.variables[i]), ...order.map((j, b) => (b > a ? c('') : b === a ? c(residual ? '' : '1', 'dim')
+                  : residual ? (Math.abs(m[i][j]) > 0.1 ? { ...c(m[i][j], 'bad'), bold: true } : c(m[i][j], 'dim')) : { ...c(m[i][j]), bg: shade(m[i][j]) }))])}
+                note={residual
+                  ? `What the ${r.k}-${unit} solution leaves unexplained: observed minus model-implied correlation (ΛΦΛᵀ). Residuals above .10 (bold) point to a missing ${unit}, locally dependent items (similar wording) or a misplaced item.`
+                  : `Pairwise correlations the analysis starts from, ordered as the loadings table so its blocks show; shading by size. Very high correlations (above about .8) suggest redundant items; variables correlating with nothing will not load.`} />
+            </>
+          );
+        })()}
+        {shown === 'variance' && (
+          <>
+            <Table title="Variance explained" file="efa-variance" columns={['', ...r.factors]}
+              rows={[[c('Sum of squared loadings'), ...r.ssLoadings.map((v) => c(v))], [c('Proportion'), ...r.proportion.map((v) => c(v))], [c('Cumulative'), ...r.cumulative.map((v) => c(v))]]} />
+            {r.phi && <Table title={`${pca ? 'Component' : 'Factor'} correlations`} file="efa-phi" columns={['', ...r.factors]}
+              rows={r.factors.map((f, i) => [c(f), ...r.phi![i].map((v, j) => (j <= i ? c(v) : c('')))])} />}
+          </>
+        )}
+        {shown === 'fit' && !pca && (
+          <Table title="Fit of the factor model" file="efa-fit" columns={['χ²', 'df', 'p', 'RMSEA', '90% CI', 'TLI', 'BIC']}
+            rows={[[c(r.fit.chisq ?? null, undefined, 2), c(r.fit.df ?? null, undefined, 0), pCell(r.fit.p ?? null), c(r.fit.rmsea ?? null),
+              c(r.fit.rmseaLow != null && r.fit.rmseaHigh != null ? `${fmt(r.fit.rmseaLow)}–${fmt(r.fit.rmseaHigh)}` : '–'), c(r.fit.tli ?? null), c(r.fit.bic ?? null, undefined, 1)]]}
+            note={`Likelihood-ratio test of the ${r.k}-factor model against the saturated one (psych; n = ${r.n}). RMSEA ≤ .06 and TLI ≥ .95 suggest good fit (Hu & Bentler 1999). χ² rejects easily in large samples.`} />
+        )}
+        <div className="hint">Calculated by psych {r.engine.version} (Revelle){r.rotation !== 'none' && r.oblique ? ' with GPArotation' : ''}.</div>
+      </div>
+    </>
+  );
+}
+
+
+/** Add one construct per factor, with the variables loading most on it, to the diagram. */
+function BuildModel({ r, threshold }: { r: EfaResult; threshold: number }) {
+  const readOnly = useStore((s) => s.cloud?.role === 'viewer');
+  const build = () => {
+    const s = constructsFromSolution(r, threshold);
+    const st = useStore.getState();
+    if (!s.constructs.length) { st.toast('error', `No loading reaches ${threshold}: lower the threshold.`); return; }
+    st.addFactors(s.constructs.map((k) => k.indicators), s.correlated, s.constructs.map((k) => k.name));
+    st.layout();
+    st.toast('success', `Added ${s.constructs.length} construct${s.constructs.length > 1 ? 's' : ''} to the diagram (Model tab), each with the variables loading most on it (≥ ${threshold})${s.correlated ? ', correlated (oblique solution)' : ''}.${s.left.length ? ` Left out: ${s.left.join(', ')}.` : ''} For a confirmatory factor analysis, choose CB-SEM.`);
+  };
+  return <button className="btn sm" disabled={readOnly} onClick={build} title="Add one construct per factor, with the variables loading most on it, to the diagram">Build model from this solution</button>;
+}
+
+function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesign>) {
+  // Switching back from PCA to factor analysis restores the extraction chosen before.
+  const [lastExtraction, setLastExtraction] = useState<Exclude<EfaDesign['method'], 'pca'>>(d.method === 'pca' ? 'minres' : d.method);
+  const ds = rawData(ctx);
+  if (!ds) return <div className="empty-results">Import raw data first.</div>;
+  const columns = ds.names;
+  const indicators = (ctx.model?.constructs ?? []).flatMap((k) => k.indicators).filter((v) => columns.includes(v));
+  const setDesign = (p: Partial<EfaDesign>) => { if (p.method && p.method !== 'pca') setLastExtraction(p.method); set({ ...d, ...p }); };
+  const vars = d.vars.filter((v) => columns.includes(v));
+  const maxK = Math.max(1, vars.length - 1);
+  const oblique = EFA_ROTATIONS.find((x) => x.id === d.rotation)?.oblique;
+  const unit = d.method === 'pca' ? 'components' : 'factors';
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <VariablePicker columns={columns} value={vars} onChange={(v) => setDesign({ vars: columns.filter((x) => v.includes(x)), nfactors: Math.min(d.nfactors, Math.max(1, v.length - 1)) })} />
+      {indicators.length >= 3 && <button className="btn sm ghost" onClick={() => setDesign({ vars: indicators })}>Use the model’s indicators ({indicators.length})</button>}
+      <div className="field">
+        <label>Analysis</label>
+        <div className="segmented" role="radiogroup" aria-label="Analysis">
+          <button role="radio" aria-checked={d.method !== 'pca'} className={d.method !== 'pca' ? 'on' : ''} onClick={() => set(switchAnalysis(d, false, lastExtraction))}>Factor analysis</button>
+          <button role="radio" aria-checked={d.method === 'pca'} className={d.method === 'pca' ? 'on' : ''} onClick={() => set(switchAnalysis(d, true))}>Principal components</button>
+        </div>
+      </div>
+      {d.method !== 'pca' && (
+        <div className="field">
+          <label htmlFor="efa-ext">Extraction</label>
+          <select id="efa-ext" className="select" value={d.method} onChange={(e) => setDesign({ method: e.target.value as EfaDesign['method'] })}>
+            {EFA_METHODS.filter((m) => m.id !== 'pca').map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
+        </div>
+      )}
+      <div className="row2">
+        <div className="field"><label htmlFor="efa-crit">Number of {unit}</label>
+          <select id="efa-crit" className="select" value={d.criterion} onChange={(e) => setDesign({ criterion: e.target.value as EfaDesign['criterion'] })}>
+            {EFA_CRITERIA.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select></div>
+        {d.criterion === 'fixed' && (
+          <div className="field"><label htmlFor="efa-k">{d.method === 'pca' ? 'Components' : 'Factors'}</label>
+            <input id="efa-k" className="input num" type="number" min={1} max={maxK} value={d.nfactors} onChange={(e) => setDesign({ nfactors: Math.max(1, Math.min(maxK, Math.round(Number(e.target.value)) || 1)) })} /></div>
+        )}
+      </div>
+      <div className="row2">
+        <div className="field"><label htmlFor="efa-rot">Rotation</label>
+          <select id="efa-rot" className="select" value={d.rotation} onChange={(e) => setDesign({ rotation: e.target.value as EfaDesign['rotation'] })}>
+            {EFA_ROTATIONS.map((m) => <option key={m.id} value={m.id}>{m.label}{m.id === 'none' ? '' : m.oblique ? ' (oblique)' : ' (orthogonal)'}</option>)}
+          </select></div>
+        <div className="field"><label htmlFor="efa-par">Parallel analysis samples</label>
+          <input id="efa-par" className="input num" type="number" min={0} max={2000} value={d.parallel} onChange={(e) => setDesign({ parallel: Math.max(0, Math.min(2000, Math.round(Number(e.target.value)) || 0)) })} /></div>
+      </div>
+      <div className="field"><label htmlFor="efa-thr">Hide loadings below</label>
+        <input id="efa-thr" className="input num" type="number" min={0} max={0.95} step={0.05} value={d.threshold} onChange={(e) => setDesign({ threshold: Math.max(0, Math.min(0.95, Number(e.target.value) || 0)) })} />
+        <div className="hint">Changes the tables and Build model only; no need to run again.</div></div>
+      <div className="field">
+        <label>Missing values</label>
+        <div className="segmented">
+          <button className={d.missing === 'pairwise' ? 'on' : ''} onClick={() => setDesign({ missing: 'pairwise' })}>Pairwise</button>
+          <button className={d.missing === 'listwise' ? 'on' : ''} onClick={() => setDesign({ missing: 'listwise' })}>Listwise</button>
+        </div>
+      </div>
+      <p className="hint">{d.method === 'pca'
+        ? 'PCA summarises the variables in components that explain as much of their variance as possible; it is a data reduction, not a model of latent factors.'
+        : 'Factor analysis models common factors behind the variables (shared variance only); use it to explore a measurement structure before a CFA.'}
+        {oblique ? ` An oblique rotation lets the ${unit} correlate, which is usual for psychological constructs.` : ''}</p>
+    </fieldset>
+  );
+}
+
+/** The variables the design uses that are in the data. */
+const usedVars = (d: EfaDesign, names: string[]) => d.vars.filter((v) => names.includes(v));
+
+export const efaAnalysis: AnalysisType<EfaDesign, EfaResult> = {
+  id: 'efa',
+  title: 'Exploratory factor analysis',
+  sub: 'EFA: parallel analysis, rotations, cross-loadings (psych)',
+  entries: [
+    { title: 'Exploratory factor analysis', sub: 'EFA: parallel analysis, rotations, cross-loadings (psych)', options: (d) => switchAnalysis(d, false) },
+    { title: 'Principal component analysis', sub: 'PCA: components, rotations (psych)', options: (d) => switchAnalysis(d, true) },
+  ],
+  cardTitle: (d) => (d.method === 'pca' ? 'Principal component analysis' : 'Exploratory factor analysis'),
+  group: 'Measurement',
+  display: ['threshold'],
+  // Projects from before the Analyses tab kept the design in their settings: start from it.
+  defaults: (ctx) => ({ ...(ctx.settings.efa ?? DEFAULT_EFA) }),
+  parseOptions: (raw) => parseEfaDesign(raw) ?? null,
+  Options: EfaOptionsForm,
+  View: ({ result, options }) => (
+    <>
+      <EfaView r={result} threshold={options.threshold} />
+      <div><BuildModel r={result} threshold={options.threshold} /></div>
+    </>
+  ),
+  blocked: (d, ctx) => {
+    const ds = rawData(ctx);
+    if (!ds) return missingColumns(ctx, [], d.method === 'pca' ? 'PCA' : 'Factor analysis');
+    const vars = usedVars(d, ds.names);
+    if (vars.length < 3) return 'Choose at least three variables.';
+    if (d.criterion === 'fixed' && d.nfactors >= vars.length) return `Choose fewer ${d.method === 'pca' ? 'components' : 'factors'} than variables.`;
+    if (d.criterion === 'parallel' && d.parallel <= 0) return 'Parallel analysis needs samples.';
+    return null;
+  },
+  fingerprint: (d, ctx) => {
+    const ds = rawData(ctx);
+    return ds ? columnsFingerprint(ctx, usedVars(d, ds.names), [ctx.settings.seed]) : null;
+  },
+  run: async (d, ctx) => (await import('../rengine/efa')).efaR(rawData(ctx)!, { ...d, vars: usedVars(d, rawData(ctx)!.names) }, ctx.settings.seed),
+  script: async (d, ctx) => (await import('../rengine/efa')).efaScriptR(rawData(ctx)!, { ...d, vars: usedVars(d, rawData(ctx)!.names) }, ctx.settings.seed),
+  summary: (d) => `${d.vars.length} variables · ${d.criterion === 'fixed' ? `${d.nfactors} ${d.method === 'pca' ? 'components' : 'factors'}` : EFA_CRITERIA.find((x) => x.id === d.criterion)?.label.toLowerCase()} · ${EFA_ROTATIONS.find((x) => x.id === d.rotation)?.label.toLowerCase()}`,
+};

@@ -34,7 +34,7 @@ const readOnly = () => useStore.getState().cloud?.role === 'viewer';
 export function currentCtx(): AnalysisCtx {
   const s = useStore.getState();
   const fresh = s.results && s.results.key === resultsKey(s) ? s.results : null;
-  return { data: s.data, info: s.dataInfo, settings: s.settings, pls: s.settings.method === 'pls' ? fresh?.pls ?? null : null, projectName: s.projectName };
+  return { data: s.data, info: s.dataInfo, settings: s.settings, pls: s.settings.method === 'pls' ? fresh?.pls ?? null : null, projectName: s.projectName, model: s.model };
 }
 
 function edit(fn: (cards: Card[]) => Card[]) {
@@ -199,6 +199,15 @@ export function loadCards(cards: Card[]) {
   });
 }
 
+/** Whether options equal those of a run, ignoring options that only change the display. */
+function sameOptions(t: { display?: string[] }, options: unknown, ran: string): boolean {
+  if (!t.display?.length) return JSON.stringify(options) === ran;
+  try {
+    const strip = (o: unknown) => JSON.stringify(Object.fromEntries(Object.entries(o as object).filter(([k]) => !t.display!.includes(k))));
+    return strip(options) === strip(JSON.parse(ran));
+  } catch { return false; }
+}
+
 export type CardStatus =
   | { state: 'empty' }
   | { state: 'running' }
@@ -213,7 +222,7 @@ export function cardStatus(card: AnalysisCard, ctx: AnalysisCtx, running: boolea
   const t = analysisType(card.type);
   if (!t) return { state: 'stale', why: 'This kind of analysis is not available in this version.' };
   if (!hasResult && !card.run.packed) return { state: 'missing', why: 'The result is not stored here (shared projects keep results on each computer, and very large results are not saved). Run it again to see it.' };
-  if (JSON.stringify(card.options) !== card.run.options) return { state: 'stale', why: 'The options changed since this ran.' };
+  if (!sameOptions(t, card.options, card.run.options)) return { state: 'stale', why: 'The options changed since this ran.' };
   const fp = t.fingerprint(card.options, ctx);
   if (fp === null) return { state: 'stale', why: t.blocked(card.options, ctx) ?? 'Its inputs are not available now.' };
   if (fp !== card.run.fingerprint) return { state: 'stale', why: 'The data it used changed since this ran.' };

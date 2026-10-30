@@ -1,7 +1,7 @@
 import { Component, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { analysisType, ANALYSIS_TYPES } from '../../analyses/registry';
 import {
-  addAnalysis, addText, cancelCard, cardStatus, duplicateCard, moveCard, nudgeCard, removeCard, runCard, selectCard,
+  addAnalysis, currentCtx, addText, cancelCard, cardStatus, duplicateCard, moveCard, nudgeCard, removeCard, runCard, selectCard,
   setOptions, setText, unpackCard, useAnalyses, type CardStatus,
 } from '../../analyses/store';
 import type { AnalysisCard, AnalysisCtx, AnalysisGroup, Card } from '../../analyses/types';
@@ -19,7 +19,8 @@ export function useAnalysisCtx(): AnalysisCtx {
   const projectName = useStore((s) => s.projectName);
   const fresh = useFreshResults();
   const pls = settings.method === 'pls' ? fresh?.pls ?? null : null;
-  return useMemo(() => ({ data, info, settings, pls, projectName }), [data, info, settings, pls, projectName]);
+  const model = useStore((s) => s.model);
+  return useMemo(() => ({ data, info, settings, pls, projectName, model }), [data, info, settings, pls, projectName, model]);
 }
 
 /** How many analysis cards no longer match their options or inputs (for the tab badge). */
@@ -32,7 +33,7 @@ export function useStaleCount(): number {
 
 const readOnlySel = (s: ReturnType<typeof useStore.getState>) => s.cloud?.role === 'viewer';
 const when = (at: number) => new Date(at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const titleOf = (c: Card) => (c.kind === 'analysis' ? analysisType(c.type)?.title ?? c.type : c.text.split('\n')[0].slice(0, 80) || (c.kind === 'heading' ? 'Heading' : 'Note'));
+const titleOf = (c: Card) => (c.kind === 'analysis' ? (() => { const t = analysisType(c.type); return t ? t.cardTitle?.(c.options) ?? t.title : c.type; })() : c.text.split('\n')[0].slice(0, 80) || (c.kind === 'heading' ? 'Heading' : 'Note'));
 
 class ResultBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -48,7 +49,13 @@ class ResultBoundary extends Component<{ children: ReactNode }, { error: string 
 function ranWith(card: AnalysisCard): unknown {
   const t = analysisType(card.type);
   if (!t || !card.run) return card.options;
-  try { return t.parseOptions(JSON.parse(card.run.options)) ?? card.options; } catch { return card.options; }
+  try {
+    const ran = t.parseOptions(JSON.parse(card.run.options));
+    if (!ran) return card.options;
+    // Display-only options follow the card as it is now.
+    const now = card.options as Record<string, unknown>;
+    return { ...ran, ...Object.fromEntries((t.display ?? []).map((k) => [k, now[k]])) };
+  } catch { return card.options; }
 }
 
 const PILL: Record<CardStatus['state'], [string, string]> = {
@@ -85,11 +92,11 @@ function AddMenu({ disabled }: { disabled: boolean }) {
           {groups.map((g) => (
             <div key={g}>
               <div className="menu-group">{g}</div>
-              {ANALYSIS_TYPES.filter((t) => t.group === g).map((t) => (
-                <button key={t.id} role="menuitem" className="menu-item" onClick={() => pick(() => addAnalysis(t.id))}>
-                  <span>{t.title}<br /><span className="sub">{t.sub}</span></span>
+              {ANALYSIS_TYPES.filter((t) => t.group === g).flatMap((t) => (t.entries ?? [{ title: t.title, sub: t.sub, options: undefined }]).map((e) => (
+                <button key={`${t.id}:${e.title}`} role="menuitem" className="menu-item" onClick={() => pick(() => addAnalysis(t.id, e.options?.(t.defaults(currentCtx()))))}>
+                  <span>{e.title}<br /><span className="sub">{e.sub}</span></span>
                 </button>
-              ))}
+              )))}
             </div>
           ))}
           <div className="menu-group">Opens in its own window (moving here soon)</div>
@@ -215,7 +222,7 @@ function OptionsPane({ ctx, readOnly }: { ctx: AnalysisCtx; readOnly: boolean })
   };
   return (
     <div className="pane-inner">
-      <h2>{t.title}</h2>
+      <h2>{titleOf(c)}</h2>
       <t.Options options={c.options} set={(o) => setOptions(c.id, o)} ctx={ctx} disabled={readOnly || running} />
       {blocked && <div className="hint">{blocked}</div>}
       {!readOnly && (
