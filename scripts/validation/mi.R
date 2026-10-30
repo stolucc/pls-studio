@@ -18,7 +18,7 @@ m <- "EXPE =~ expe1 + expe2 + expe3\nQUAL <~ qual1 + qual2 + qual3\nSAT =~ sat1 
 P <- Reduce(`+`, lapply(1:5, function(k) csem(complete(simp, k), m, .PLS_modes = list(EXPE = "modeA", QUAL = "modeB", SAT = "modeA"), .disattenuate = FALSE, .tolerance = 1e-7)$Estimates$Path_estimates)) / 5
 out <- list(mice = as.character(packageVersion("mice")), lavaan.mi = as.character(packageVersion("lavaan.mi")),
   cb = list(loadings = setNames(as.list(ld$est), paste(ld$lhs, ld$rhs)), se = setNames(as.list(ld$se), paste(ld$lhs, ld$rhs)),
-    chisq = unname(fitMeasures(f)["chisq"]), cfi = unname(fitMeasures(f)["cfi"]),
+    chisq = unname(fitMeasures(f)["chisq"]), cfi = unname(fitMeasures(f)["cfi"]), vcovDiag = as.list(diag(unclass(vcov(f)))),
     hsMissing = list(x1 = which(is.na(d$x1)), x5 = which(is.na(d$x5))), firstImputedX1 = complete(imp, 1)$x1[which(is.na(d$x1))[1:5]]),
   pls = list(paths = list(`EXPE -> QUAL` = P["QUAL", "EXPE"], `EXPE -> SAT` = P["SAT", "EXPE"], `QUAL -> SAT` = P["SAT", "QUAL"]),
     satMissing = list(expe1 = which(is.na(s$expe1)), qual2 = which(is.na(s$qual2)))))

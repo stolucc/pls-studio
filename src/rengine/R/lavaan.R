@@ -249,7 +249,15 @@ ps_cb_build <- function(req) {
       sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)", ms$m, ms$seed),
       "# The model in every imputed data set, pooled by Rubin's rules (lavaan.mi).",
       sprintf("fit_mi <- sem.mi(model, data = imp, estimator = \"%s\")", req$estimator),
-      "vcov_mi <- tryCatch(vcov(fit_mi), error = function(e) NULL)  # pooled covariance matrix of the estimates",
+      "# Pooled covariance matrix of the estimates (lavaan.mi: (1 + ARIV) times the mean within-imputation matrix, which its SEs use).",
+      "# Where lavaan.mi's S4 vcov method is not dispatched (R in the browser), the same matrix from the per-imputation fits.",
+      "vcov_mi <- tryCatch(vcov(fit_mi), error = function(e) {",
+      sprintf("  fits <- lapply(seq_len(imp$m), function(k) sem(model, data = complete(imp, k), estimator = \"%s\"))", req$estimator),
+      "  Q <- sapply(fits, function(x) { pt <- lavaan::parTable(x); pt$est[pt$free > 0][order(pt$free[pt$free > 0])] })",
+      "  U <- Reduce(`+`, lapply(fits, function(x) unclass(lavaan::lavInspect(x, \"vcov\")))) / imp$m",
+      "  ariv <- (1 + 1 / imp$m) * sum(diag(stats::cov(t(Q)) %*% solve(U))) / nrow(U)",
+      "  (1 + ariv) * U",
+      "})",
       "# (The model fitted to the first imputed data set: only its structure is used.)",
       sprintf("fit <- sem(model, data = complete(imp, 1), estimator = \"%s\")", req$estimator))
   }

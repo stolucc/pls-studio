@@ -45,6 +45,13 @@ describe('multiple imputation', () => {
     }
     expect(r.fit.chisq).toBeCloseTo(ref.cb.chisq, 4);
     expect(r.fit.cfi).toBeCloseTo(ref.cb.cfi, 6);
+    // The pooled covariance matrix (lavaan.mi's, rebuilt from the per-imputation fits where its S4 method is not dispatched).
+    expect(r.vcov).not.toBeNull();
+    // (by parameter: lavaan names them "lhs=~rhs"; the app's syntax orders them differently)
+    for (const e of r.estimates.filter((x) => x.index !== undefined && x.lhs !== x.rhs)) {
+      const want = (ref.cb.vcovDiag as Record<string, number>)[`${e.lhs}${e.op}${e.rhs}`] ?? (ref.cb.vcovDiag as Record<string, number>)[`${e.rhs}${e.op}${e.lhs}`];
+      if (want !== undefined) expect(r.vcov![e.index!][e.index!], `${e.lhs}${e.op}${e.rhs}`).toBeCloseTo(want, 8);
+    }
   }, 900_000);
 
   it('PLS: estimates averaged over the imputed data sets equal cSEM', async () => {
