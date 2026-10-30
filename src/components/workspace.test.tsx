@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { emptyModel, useStore } from '../store';
 import { DataWorkspace } from './DataViewer';
 import { WorkspaceTabs } from './TopBar';
+import { AnalysesWorkspace } from './analyses/AnalysesWorkspace';
+import { addAnalysis, addText, loadCards, useAnalyses } from '../analyses/store';
 
 const s = () => useStore.getState();
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -41,6 +43,7 @@ describe('workspace tabs', () => {
     const html = () => render(<WorkspaceTabs />);
     expect(html()).toMatch(/id="ws-tab-model" aria-selected="true"/);
     expect(html()).toMatch(/id="ws-tab-data" aria-selected="false"/);
+    expect(html()).toMatch(/id="ws-tab-analyses" aria-selected="false"[^>]*aria-controls="ws-analyses"/);
     s().setWorkspace('data');
     expect(html()).toMatch(/id="ws-tab-data" aria-selected="true"[^>]*aria-controls="ws-data"/);
   });
@@ -68,6 +71,42 @@ describe('Data tab', () => {
   });
 });
 
+describe('Analyses tab', () => {
+  beforeEach(() => { s().newProject(); loadCards([]); useAnalyses.setState({ results: {}, errors: {} }); });
+
+  it('explains itself when empty', () => {
+    const html = render(<AnalysesWorkspace />);
+    expect(html).toContain('No analyses yet');
+    expect(html).toContain('+ Add analysis');
+  });
+
+  it('shows the cards in order, with the selected card’s options', () => {
+    addText('heading', 'Necessary conditions');
+    const id = addAnalysis('nca', { source: 'data', x: ['x1'], y: 'x2', permutations: 100 })!;
+    const html = render(<AnalysesWorkspace />);
+    expect(html.indexOf('Necessary conditions</h2>')).toBeLessThan(html.indexOf('Necessary condition analysis</h3>'));
+    expect(html).toContain('not run');
+    expect(html).toContain('x1 → x2 · 100 permutations');
+    expect(html).toContain(`id="${id}"`);
+    // Selected (just added): its options are in the pane, blocked without data.
+    expect(html).toContain('Import raw data first.');
+    expect(html).toMatch(/NCA needs raw data/);
+  });
+
+  it('marks a result whose data changed as stale, with a way to rerun it', () => {
+    s().setData({ names: ['x1', 'x2'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([1, 3, 2])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
+    const opts = { source: 'data', x: ['x1'], y: 'x2', permutations: 0 };
+    const id = addAnalysis('nca', opts)!;
+    const options = JSON.stringify(opts);
+    useAnalyses.setState((st) => ({ cards: st.cards.map((c) => (c.kind === 'analysis' ? { ...c, run: { at: 1, fingerprint: 'old', options } } : c)), results: { [id]: { y: 'x2', permutations: 0, conditions: [{ x: 'x1', n: 3, scope: [1, 3, 1, 3], ceFdh: 0.25, crFdh: 0.2, intercept: null, slope: null, accuracy: null, p: null, peers: { x: [1], y: [1] }, points: { x: [1], y: [1] }, bottleneck: [{ y: 0, ceFdh: null, crFdh: null }] }], warnings: [] } } }));
+    const html = render(<AnalysesWorkspace />);
+    expect(html).toContain('The data it used changed since this ran.');
+    expect(html).toContain('Run again');
+    s().setWorkspace('model');
+    expect(render(<WorkspaceTabs />)).toMatch(/Analyses<span class="badge"[^>]*>1</);
+  });
+});
+
 describe('workspace layout', () => {
   it('keeps the Inspector between 250 and 300 px wide', () => {
     expect(css).toMatch(/--inspector-w:\s*clamp\(250px,\s*[\d.]+vw,\s*300px\)/);
@@ -82,7 +121,8 @@ describe('workspace layout', () => {
 
   it('lays the Data tab over the diagram and Inspector, which stay in their own columns', () => {
     expect(rule('.data-workspace')).toMatch(/grid-column:\s*2 \/ 4/);
-    expect(rule('.workspace > .panel.left')).toMatch(/grid-area:\s*1 \/ 1/);
+    expect(rule('.workspace > .data-col')).toMatch(/grid-area:\s*1 \/ 1/);
+    expect(rule('.analyses-workspace')).toMatch(/grid-column:\s*1 \/ 4/);
     expect(rule('.workspace > .center')).toMatch(/grid-area:\s*1 \/ 2/);
     expect(rule('.workspace > .inspector-col')).toMatch(/grid-area:\s*1 \/ 3/);
   });

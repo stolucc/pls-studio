@@ -6,6 +6,8 @@ import { safeFileName, downloadText } from './format';
 import { parseProject, serializeProject, toSpec, validateModel } from './model/project';
 import { makeSample } from './sample';
 import { useSim } from './simStore';
+import { addAnalysis, loadCards, useAnalyses } from './analyses/store';
+import { parseCards } from './analyses/persist';
 import { getRecent, migrateLegacyAutosave, recentPersistent, saveRecent, type RecentEntry } from './recent';
 import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
@@ -50,6 +52,7 @@ export async function newProjectFromData() {
   if (!(await confirmDiscard('Starting a new project'))) return;
   useStore.getState().newProject();
   useSim.getState().setDesign(null);
+  loadCards([]);
   useSim.getState().setRows(null, null);
   await importCsv(f);
 }
@@ -110,6 +113,7 @@ export async function openProject() {
     const p = parseProject(await f.text());
     s.loadProject({ name: f.name.replace(/\.(plsproj\.)?json$|\.plsproj$/i, '').slice(0, 100) || 'Untitled model', ...p });
     useSim.getState().setDesign(p.simulation);
+    loadCards(parseCards(p.analyses));
     useSim.getState().setRows(null, null);
     void autosave();
     s.toast('success', `Opened ${f.name}.`);
@@ -199,7 +203,7 @@ export async function exportSimulationScript(design: McDesign) {
 
 export function saveProject() {
   const s = useStore.getState();
-  downloadText(`${safeFileName(s.projectName)}.plsproj.json`, serializeProject(s.model, s.settings, s.data, s.dataInfo, useSim.getState().design), 'application/json');
+  downloadText(`${safeFileName(s.projectName)}.plsproj.json`, serializeProject(s.model, s.settings, s.data, s.dataInfo, useSim.getState().design, useAnalyses.getState().cards), 'application/json');
   s.markSaved();
 }
 
@@ -207,6 +211,7 @@ export async function newProject() {
   if (!(await confirmDiscard('Starting a new project'))) return;
   useStore.getState().newProject();
   useSim.getState().setDesign(null);
+  loadCards([]);
   useSim.getState().setRows(null, null);
 }
 
@@ -221,6 +226,7 @@ export async function openRecent(id: string) {
     const p = parseProject(entry.text);
     s.loadProject({ name: entry.name, ...p, id: entry.id });
     useSim.getState().setDesign(p.simulation);
+    loadCards(parseCards(p.analyses));
     useSim.getState().setRows(null, null);
   } catch (err) {
     s.toast('error', `Could not open “${entry.name}”: ${err instanceof Error ? err.message : String(err)}`);
@@ -237,6 +243,7 @@ export async function loadSample(which: ExampleId = 'customer') {
     const ex = makeEmseExample(s.settings);
     s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'emse' });
     useSim.getState().setDesign(null);
+    loadCards([]);
     s.toast('info', 'Stol, Schaarschmidt & Goldblit (2022), EMSE 27:35. Covariance + NACOV matrices (N = 155), estimated with MLM as in the paper. Press Calculate.');
     return;
   }
@@ -245,12 +252,14 @@ export async function loadSample(which: ExampleId = 'customer') {
     const ex = makePoldemExample(s.settings);
     s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'poldem' });
     useSim.getState().setDesign(null);
+    loadCards([]);
     s.toast('info', 'Bollen (1989): industrialisation and political democracy, N = 75, with six correlated measurement errors. Press Calculate.');
     return;
   }
   const { data, info, model } = makeSample();
   s.loadProject({ name: 'Customer experience example', model, settings: { ...s.settings, method: 'pls' }, data, info, example: 'customer' });
   useSim.getState().setDesign(null);
+  loadCards([]);
   s.toast('info', 'Example loaded. Press Calculate to estimate the model.');
 }
 
@@ -308,6 +317,7 @@ export async function loadPackageExample(id: string) {
       example: ex.id,
     });
     useSim.getState().setDesign(null);
+    loadCards([]);
     const coded = factorCodes(raw.levels);
     if (ex.panel) {
       const p = ex.panel;
@@ -327,9 +337,8 @@ export async function loadPackageExample(id: string) {
         const { kind: _k, ...preset } = p;
         useEfa.setState({ open: true, result: null, preset });
       } else if (p.kind === 'nca') {
-        const { useNca } = await import('./components/NcaPanel');
-        const { kind: _k, ...preset } = p;
-        useNca.setState({ open: true, result: null, preset });
+        addAnalysis('nca', { source: p.source ?? 'data', x: p.x, y: p.y, permutations: 1000 });
+        useStore.getState().setWorkspace('analyses');
       } else if (p.kind === 'rsa') {
         const { usePolynomial } = await import('./components/PolynomialPanel');
         const { kind: _k, ...preset } = p;
@@ -404,7 +413,7 @@ export function currentEntry(): RecentEntry | null {
   return {
     id: s.projectId, name: s.projectName, method: s.settings.method, updated: Date.now(),
     constructs: s.model.constructs.length, dataLabel: dataLabel(s),
-    text: serializeProject(s.model, s.settings, s.data, s.dataInfo, useSim.getState().design),
+    text: serializeProject(s.model, s.settings, s.data, s.dataInfo, useSim.getState().design, useAnalyses.getState().cards),
   };
 }
 

@@ -990,9 +990,11 @@ export interface ProjectFile {
   settings: Settings;
   data: { info: DataInfo; names: string[]; columns: (number | null)[][]; moments?: { S: number[][]; n: number; nacov?: number[][] } } | null;
   simulation?: McDesign | null;
+  /** The Analyses tab: cards in order (validated by analyses/persist.ts). */
+  analyses?: unknown[];
 }
 
-export function serializeProject(model: ModelState, settings: Settings, data: Dataset | null, info: DataInfo | null, simulation: McDesign | null = null): string {
+export function serializeProject(model: ModelState, settings: Settings, data: Dataset | null, info: DataInfo | null, simulation: McDesign | null = null, analyses: unknown[] = []): string {
   const file: ProjectFile = {
     format: 'pls-studio',
     version: FORMAT_VERSION,
@@ -1000,6 +1002,7 @@ export function serializeProject(model: ModelState, settings: Settings, data: Da
     settings,
     data: data && info ? serializeDataSection(data, info) : null,
     simulation,
+    ...(analyses.length ? { analyses } : {}),
   };
   return JSON.stringify(file);
 }
@@ -1039,7 +1042,7 @@ const num = (v: unknown, lo: number, hi: number, dflt: number): number =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
 
 /** Parse and strictly validate an untrusted project file. */
-export function parseProject(text: string): { model: ModelState; settings: Settings; data: Dataset | null; info: DataInfo | null; simulation: McDesign | null } {
+export function parseProject(text: string): { model: ModelState; settings: Settings; data: Dataset | null; info: DataInfo | null; simulation: McDesign | null; analyses: unknown[] } {
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { throw new Error('The file is not valid JSON.'); }
   if (!isObj(raw) || raw.format !== 'pls-studio' || (raw.version !== 1 && raw.version !== FORMAT_VERSION)) throw new Error('Not a PLS Studio project file (or an unsupported version).');
@@ -1150,5 +1153,6 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     // Format 1 estimated every undrawn exogenous pair in CB-SEM: draw those correlations (same results).
     model: raw.version === 1 ? makeCovariancesExplicit(model) : model,
     settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,
+    analyses: Array.isArray(raw.analyses) ? raw.analyses.slice(0, 200) : [],
   };
 }

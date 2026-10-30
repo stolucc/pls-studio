@@ -21,7 +21,7 @@ export function SavePlsScores({ pls }: { pls: PlsResult }) {
   };
   return (
     <button className="btn" disabled={!ok} onClick={save}
-      title={ok ? 'Add the standardised construct scores as data columns (e.g. for the analyses in the Analyses menu)' : 'Rows were left out (missing values), so the scores cannot be matched to rows; use mean replacement'}>
+      title={ok ? 'Add the standardised construct scores as data columns (e.g. for the analyses on the Analyses tab)' : 'Rows were left out (missing values), so the scores cannot be matched to rows; use mean replacement'}>
       Save scores as data columns
     </button>
   );

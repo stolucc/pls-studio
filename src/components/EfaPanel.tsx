@@ -17,7 +17,7 @@ interface EfaState { open: boolean; result: EfaResult | null; preset: EfaPreset 
 export const useEfa = create<EfaState>((set) => ({ open: false, result: null, preset: null, tab: 'loadings', residual: false, setOpen: (open) => set({ open }) }));
 
 /**
- * Open the panel as factor analysis or as PCA (the Analyses menu's two
+ * Open the panel as factor analysis or as PCA (the Add menu's two
  * entries); keeps the rest of the project's design.
  */
 export function openEfa(pca: boolean) {

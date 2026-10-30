@@ -14,7 +14,7 @@ import type { EndoPreset } from '../components/EndogeneityPanel';
 import type { MatchPreset } from '../components/MatchingPanel';
 import type { RsaPreset } from '../components/PolynomialPanel';
 import type { EfaPreset } from '../components/EfaPanel';
-import type { NcaPreset } from '../components/NcaPanel';
+import type { NcaPreset } from '../analyses/nca';
 
 export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 import { type Construct, DEFAULT_SETTINGS, type ModelState, parseProject, serializeProject } from '../model/project';
-import { LOCAL, readDoc, writeDoc } from './collab';
+import type { Card } from '../analyses/types';
+import { LOCAL, readCards, readDoc, writeCards, writeDoc } from './collab';
 
 const C = (id: string, name: string, x = 0) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators: [`${id}1`, `${id}2`], x, y: 0, side: 'left' as const });
 const model: ModelState = {
@@ -191,5 +192,40 @@ describe('every model field survives', () => {
     expect(readDoc(d).model.weights).toBe('w');
     undo.undo();
     expect(readDoc(d).model.weights).toBeUndefined();
+  });
+});
+
+describe('the analysis log in a shared project', () => {
+  const nca = (id: string, at?: number): Card => ({ id, kind: 'analysis', type: 'nca', options: { source: 'data', x: ['a1'], y: 'b1', permutations: 100 },
+    ...(at ? { run: { at, fingerprint: 'f', options: '{}', packed: 'SECRETRESULT' } } : {}) });
+
+  it('syncs cards and their order between peers, never the results', () => {
+    const [d1, d2] = pair();
+    writeCards(d1, [{ id: 'card-h', kind: 'heading', text: 'Checks' }, nca('card-n', 5)]);
+    expect(readCards(d2).map((c) => c.id)).toEqual(['card-h', 'card-n']);
+    expect((readCards(d2)[1] as Extract<Card, { kind: 'analysis' }>).run).toEqual({ at: 5, fingerprint: 'f', options: '{}' });
+    expect(JSON.stringify(d2.getMap('analyses').toJSON())).not.toContain('SECRETRESULT');
+    writeCards(d2, [nca('card-n', 5), { id: 'card-h', kind: 'heading', text: 'Checks' }]);
+    expect(readCards(d1).map((c) => c.id)).toEqual(['card-n', 'card-h']);
+    writeCards(d1, [nca('card-n', 5)]);
+    expect(readCards(d2).map((c) => c.id)).toEqual(['card-n']);
+  });
+
+  it('keeps cards two peers add at the same time', () => {
+    const d1 = new Y.Doc(), d2 = new Y.Doc();
+    writeCards(d1, [{ id: 'card-a', kind: 'note', text: 'one' }]);
+    writeCards(d2, [{ id: 'card-b', kind: 'note', text: 'two' }]);
+    Y.applyUpdate(d1, Y.encodeStateAsUpdate(d2));
+    Y.applyUpdate(d2, Y.encodeStateAsUpdate(d1));
+    expect(readCards(d1).map((c) => c.id).sort()).toEqual(['card-a', 'card-b']);
+    expect(readCards(d1)).toEqual(readCards(d2));
+  });
+
+  it('validates what it reads', () => {
+    const d = new Y.Doc();
+    d.getMap('analyses').set('card-x', { id: 'card-x', kind: 'analysis', type: 'nope', options: {} });
+    d.getMap('analyses').set('card-y', { id: 'card-y', kind: 'note', text: 7 });
+    d.getMap('analyses').set('order', 'not a list');
+    expect(readCards(d)).toEqual([{ id: 'card-y', kind: 'note', text: '' }]);
   });
 });

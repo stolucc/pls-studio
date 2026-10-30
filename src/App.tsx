@@ -1,4 +1,5 @@
-import { NcaPanel } from './components/NcaPanel';
+import { AnalysesWorkspace } from './components/analyses/AnalysesWorkspace';
+import { useAnalyses } from './analyses/store';
 import { DataScreeningPanel } from './components/DataScreeningPanel';
 import { EfaPanel } from './components/EfaPanel';
 import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
@@ -53,7 +54,14 @@ export default function App() {
       clearTimeout(timer);
       timer = setTimeout(() => void autosave(), 800);
     });
-    return () => { unsub(); unsubSim(); clearTimeout(timer); };
+    // So is the analysis log (a change to it is an unsaved change).
+    const unsubCards = useAnalyses.subscribe((s, prev) => {
+      if (s.cards === prev.cards) return;
+      useStore.setState({ dirty: true });
+      clearTimeout(timer);
+      timer = setTimeout(() => void autosave(), 800);
+    });
+    return () => { unsub(); unsubSim(); unsubCards(); clearTimeout(timer); };
   }, []);
 
   useEffect(() => {
@@ -103,7 +111,7 @@ export default function App() {
       <div className="app">
         <TopBar />
         <div className="workspace">
-          <DataPanel />
+          <div className="data-col" inert={workspace === 'analyses'}><DataPanel /></div>
           {/* The diagram stays mounted (and laid out) behind the Data tab, so switching back keeps its viewport. */}
           <main className="center" inert={workspace !== 'model'}>
             <Canvas onImport={() => void importCsv()} onSample={(w) => void loadSample(w)} />
@@ -111,6 +119,7 @@ export default function App() {
           </main>
           <div className="inspector-col" inert={workspace !== 'model'}><Inspector /></div>
           {workspace === 'data' && <DataWorkspace />}
+          {workspace === 'analyses' && <AnalysesWorkspace />}
         </div>
       </div>
       <SimulationPanel />
@@ -119,7 +128,6 @@ export default function App() {
       <MultilevelPanel />
       <SegmentationPanel />
       <PlsAssessmentPanel />
-      <NcaPanel />
       <EfaPanel />
       <DataScreeningPanel />
       <EndogeneityPanel />

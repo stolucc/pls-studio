@@ -33,3 +33,33 @@ it('equals the NCA package (CE-FDH, CR-FDH, permutation test, bottlenecks)', asy
   });
   expect(await ncaScriptR(data, ['Individualism'], 'Innovation performance', 100)).toContain('nca_peers <- function(x, y)');
 }, 900_000);
+
+it('runs as an analysis card: same result, saved with the project, stale when the data change', async () => {
+  const { useStore } = await import('../store');
+  const { addAnalysis, cardStatus, currentCtx, loadCards, runCard, unpackCard, useAnalyses } = await import('../analyses/store');
+  const { parseCards } = await import('../analyses/persist');
+  const { parseProject, serializeProject } = await import('../model/project');
+  const s = () => useStore.getState();
+  s().newProject();
+  s().setData(data, { fileName: 'nca_example.csv', rows: data.cols[0].length, missingCells: 0, excluded: [] });
+  loadCards([]);
+  const id = addAnalysis('nca', { source: 'data', x: ['Individualism', 'Risk taking'], y: 'Innovation performance', permutations: 100 })!;
+  await runCard(id);
+  expect(useAnalyses.getState().errors[id]).toBeUndefined();
+  const r = useAnalyses.getState().results[id] as Awaited<ReturnType<typeof ncaR>>;
+  expect(r.conditions[0].ceFdh).toBeCloseTo(ref.conditions[0].ce, 6);
+  expect(r.conditions[1].p!.cr_fdh).toBeCloseTo(ref.conditions[1].pcr, 10);
+
+  const text = serializeProject(s().model, s().settings, s().data, s().dataInfo, null, useAnalyses.getState().cards);
+  useAnalyses.setState({ results: {} });
+  loadCards(parseCards(parseProject(text).analyses));
+  await unpackCard(id);
+  const back = useAnalyses.getState().results[id] as typeof r;
+  expect(back.conditions[0].bottleneck).toEqual(r.conditions[0].bottleneck);
+  const card = useAnalyses.getState().cards[0] as Extract<ReturnType<typeof useAnalyses.getState>['cards'][number], { kind: 'analysis' }>;
+  expect(cardStatus(card, currentCtx(), false, true).state).toBe('current');
+
+  const k = data.names.indexOf('Individualism');
+  s().setData({ ...data, cols: data.cols.map((c, j) => (j === k ? c.map((v, i) => (i === 0 ? v + 1 : v)) : c)) }, s().dataInfo!);
+  expect(cardStatus(card, currentCtx(), false, true).state).toBe('stale');
+}, 900_000);

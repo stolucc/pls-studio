@@ -1,5 +1,5 @@
 import { autosave } from '../io';
-import { AnalysesMenu } from './AnalysesMenu';
+import { useStaleCount } from './analyses/AnalysesWorkspace';
 import { FileMenu } from './FileMenu';
 import { run } from '../runner';
 import { useStore, type Workspace } from '../store';
@@ -16,12 +16,15 @@ const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator
 export function WorkspaceTabs() {
   const workspace = useStore((s) => s.workspace);
   const setWorkspace = useStore((s) => s.setWorkspace);
-  const tabs: [Workspace, string][] = [['data', 'Data'], ['model', 'Model']];
+  const stale = useStaleCount();
+  const tabs: [Workspace, string][] = [['data', 'Data'], ['model', 'Model'], ['analyses', 'Analyses']];
   return (
     <div className="segmented workspace-tabs" role="tablist" aria-label="Workspace">
       {tabs.map(([id, label]) => (
-        <button key={id} role="tab" id={`ws-tab-${id}`} aria-selected={workspace === id} aria-controls={id === 'data' ? 'ws-data' : undefined}
-          className={workspace === id ? 'on' : ''} onClick={() => setWorkspace(id)}>{label}</button>
+        <button key={id} role="tab" id={`ws-tab-${id}`} aria-selected={workspace === id} aria-controls={id === 'model' ? undefined : `ws-${id}`}
+          className={workspace === id ? 'on' : ''} onClick={() => setWorkspace(id)}>
+          {label}{id === 'analyses' && stale > 0 && <span className="badge" title={`${stale} result(s) out of date: rerun them on the Analyses tab`}>{stale}</span>}
+        </button>
       ))}
     </div>
   );
@@ -84,7 +87,6 @@ export function TopBar() {
         <IconEye />
       </button>
       <div className="sep" />
-      <AnalysesMenu />
       {/* CPA bootstraps within Calculate. The button keeps its place (hidden) so the controls
           to its left, the method switch among them, do not move when the method changes. */}
       <button className="btn" aria-label="Bootstrap" onClick={() => run('boot')} disabled={!!job || !hasModel || method === 'process'} title="Bootstrap standard errors, p-values and confidence intervals"

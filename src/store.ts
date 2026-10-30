@@ -45,8 +45,8 @@ export type JobKind = 'estimate' | 'boot' | 'fittest';
 export interface Job { kind: JobKind; done: number; total: number; workers?: number; /** Set for R calculations (no step count): what is running. */ label?: string }
 
 export type View = 'home' | 'editor';
-/** The editor's workspace tabs: the dataset itself, or the diagram with its results. */
-export type Workspace = 'data' | 'model';
+/** The editor's workspace tabs: the dataset itself, the diagram with its results, or the analysis log. */
+export type Workspace = 'data' | 'model' | 'analyses';
 
 export interface CloudState {
   projectId: string;

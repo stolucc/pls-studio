@@ -10,6 +10,9 @@
 //                key per field with a plain value, so new fields sync without
 //                changes here
 //   meta:        name, settings, simulation       (undoable)
+//   analyses:    Y.Map<card id, card>, plus key 'order' (card ids): the
+//                Analyses tab, without results (not undoable; each computer
+//                keeps its own results, as the document is not encrypted at rest)
 //   sys:         dataRevision                     (not undoable)
 //
 // Local edits are written as minimal diffs with origin LOCAL; Y.UndoManager
@@ -22,6 +25,9 @@ import { create } from 'zustand';
 import type { McDesign } from '../engine/montecarlo';
 import { DEFAULT_SETTINGS, FORMAT_VERSION, parseDataSection, parseProject, serializeDataSection, type ModelState, type Settings } from '../model/project';
 import { useSim } from '../simStore';
+import { parseCards, shareableCards } from '../analyses/persist';
+import { loadCards, useAnalyses } from '../analyses/store';
+import type { Card } from '../analyses/types';
 import { useStore } from '../store';
 import { api } from './api';
 
@@ -111,6 +117,27 @@ export function readDoc(doc: Y.Doc): { model: ModelState; settings: Settings; na
   return { model: p.model, settings: p.settings, name, simulation: p.simulation };
 }
 
+/** Write the analysis log (without results) as minimal changes. */
+export function writeCards(doc: Y.Doc, cards: Card[]) {
+  doc.transact(() => {
+    const map = doc.getMap<unknown>('analyses');
+    const shared = shareableCards(cards);
+    const ids = new Set(shared.map((c) => c.id));
+    for (const k of [...map.keys()]) if (k !== 'order' && !ids.has(k)) map.delete(k);
+    for (const c of shared) if (!same(map.get(c.id), c)) map.set(c.id, c);
+    const order = shared.map((c) => c.id);
+    if (!same(map.get('order'), order)) map.set('order', order);
+  }, LOCAL);
+}
+
+/** Read and validate the shared analysis log. Cards missing from the order (concurrent adds) go last. */
+export function readCards(doc: Y.Doc): Card[] {
+  const map = doc.getMap<unknown>('analyses');
+  const order = Array.isArray(map.get('order')) ? (map.get('order') as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+  const ids = [...new Set([...order.filter((id) => map.has(id)), ...[...map.keys()].filter((k) => k !== 'order' && !order.includes(k))])];
+  return parseCards(ids.map((id) => map.get(id)));
+}
+
 // ---------- presence ----------
 
 export interface Peer { clientId: number; userId: string; name: string; color: string; cursor: { x: number; y: number } | null; selection: string[] }
@@ -145,7 +172,7 @@ export class CollabSession {
     this.provider.on('sync', (synced: boolean) => {
       if (!synced || this.initialised) return;
       this.initialised = true;
-      if (opts.seed && this.doc.getMap('constructs').size === 0) this.push();
+      if (opts.seed && this.doc.getMap('constructs').size === 0) { this.push(); writeCards(this.doc, useAnalyses.getState().cards); }
       else this.pull();
       void this.fetchData();
     });
@@ -185,6 +212,9 @@ export class CollabSession {
     this.unsubs.push(useSim.subscribe((s, prev) => {
       if (!this.applying && this.initialised && s.design !== prev.design) this.push();
     }));
+    this.unsubs.push(useAnalyses.subscribe((s, prev) => {
+      if (!this.applying && this.initialised && s.cards !== prev.cards && useStore.getState().cloud?.role !== 'viewer') writeCards(this.doc, s.cards);
+    }));
 
     const onAwareness = () => {
       const peers: Peer[] = [];
@@ -221,6 +251,8 @@ export class CollabSession {
         selection: { ...s.selection, nodes: s.selection.nodes.filter((id) => ids.has(id)), edges: s.selection.edges.filter((id) => next.model.paths.some((p) => p.id === id)) },
       });
       if (!same(useSim.getState().design, next.simulation)) useSim.getState().setDesign(next.simulation);
+      const cards = readCards(this.doc);
+      if (!same(shareableCards(useAnalyses.getState().cards), cards)) loadCards(cards);
     } finally {
       this.applying = false;
     }
@@ -292,6 +324,7 @@ export async function openCloudProject(projectId: string, user: { id: string; di
   useStore.getState().loadProject({ name: meta.name, model: { constructs: [], paths: [], moderations: [] }, settings: DEFAULT_SETTINGS, data: null, info: null, id: `cloud:${projectId}` });
   useSim.getState().setDesign(null);
   useSim.getState().setRows(null, null);
+  loadCards([]);
   startSession(projectId, meta.role, user, false);
 }
 
