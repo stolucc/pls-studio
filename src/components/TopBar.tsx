@@ -1,3 +1,4 @@
+import { confirmDialog } from './Overlays';
 import { autosave } from '../io';
 import { useStaleCount } from './analyses/AnalysesWorkspace';
 import { FileMenu } from './FileMenu';
@@ -52,25 +53,31 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <button className="brand brand-btn" onClick={() => { void autosave(); setView('home'); }} title="Home: recent projects and examples">
-        <span className="brand-mark"><IconLogo size={17} /></span>PLS Studio
-      </button>
-      <input className="project-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Project name" maxLength={100} />
-      {example ? (
-        <span className="example-badge" title="An example: try anything; your changes are not kept, so it opens as the original next time.">
-          Example
-          <button className="btn sm ghost" onClick={() => { keepExample(); useStore.getState().toast('success', 'Now your own project: changes are kept in Recent projects.'); }}
-            title="Keep this model, with your changes, as your own project">Keep<span className="lbl-wide"> as my project</span></button>
-        </span>
-      ) : dirty && <span className="dirty-dot" title="Unsaved changes" />}
-      <div className="sep" />
-      <FileMenu />
-      <div className="sep" />
-      <button className="btn icon ghost" onClick={undo} disabled={!canUndo} title={`Undo (${mod}Z)`} aria-label="Undo"><IconUndo /></button>
-      <button className="btn icon ghost" onClick={redo} disabled={!canRedo} title={`Redo (${mod}⇧Z)`} aria-label="Redo"><IconRedo /></button>
-      <div className="sep" />
-      <WorkspaceTabs />
-      <div className="spacer" />
+      {/* Left: home, File, the workspace tabs, undo / redo. */}
+      <div className="tb-group tb-left">
+        <button className="brand brand-btn" onClick={() => { void autosave(); setView('home'); }} title="Home: recent projects and examples">
+          <span className="brand-mark"><IconLogo size={17} /></span>PLS Studio
+        </button>
+        <FileMenu />
+        <div className="sep" />
+        <WorkspaceTabs />
+        <div className="sep" />
+        <button className="btn icon ghost" onClick={undo} disabled={!canUndo} title={`Undo (${mod}Z)`} aria-label="Undo"><IconUndo /></button>
+        <button className="btn icon ghost" onClick={redo} disabled={!canRedo} title={`Redo (${mod}⇧Z)`} aria-label="Redo"><IconRedo /></button>
+      </div>
+      {/* Centre: the project's name. */}
+      <div className={`tb-group tb-center${example ? ' has-example' : dirty ? ' has-dirty' : ''}`}>
+        {/* (sized to the name; a mark on either side keeps it centred) */}
+        <input className="project-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Project name" title={name} maxLength={100}
+          style={{ width: `${Math.min(26, Math.max(12, name.length + 2))}ch` }} />
+        {example ? (
+          <button className="example-pill" title="An example: try anything; your changes are not kept, so it opens as the original next time. Click to keep it, with your changes, as your own project."
+            onClick={() => void confirmDialog({ title: 'Keep as my project?', body: 'This example, with your changes, becomes your own project and is kept in Recent projects.', confirmLabel: 'Keep as my project' })
+              .then((ok) => { if (ok) { keepExample(); useStore.getState().toast('success', 'Now your own project: changes are kept in Recent projects.'); } })}>Example</button>
+        ) : dirty && <span className="dirty-dot" title="Unsaved changes" />}
+      </div>
+      {/* Right: people, sharing, the method and calculation. */}
+      <div className="tb-group tb-right">
       <PresenceBar />
       <button className="btn ghost" aria-label="Share" onClick={() => setShareOpen(true)} title="Invite people to work on this project"><IconShare /><span className="lbl">Share</span></button>
       <AccountMenu />
@@ -103,6 +110,7 @@ export function TopBar() {
         title={`${method === 'pls' ? 'Run the PLS algorithm' : method === 'process' ? 'OLS regressions and bootstrap of the indirect effects (manymome)' : 'Maximum-likelihood estimation'} (${mod}↵)`}>
         <IconPlay size={14} /> Calculate
       </button>
+      </div>
       {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}
     </header>
   );

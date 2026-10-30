@@ -128,9 +128,24 @@ describe('workspace layout', () => {
   });
 
   it('keeps top-bar controls at their size, letting the project name give way', () => {
-    expect(rule('.topbar > .btn, .topbar > .sep, .topbar > .menu, .topbar > .segmented, .topbar > .example-badge')).toMatch(/flex:\s*none/);
+    expect(rule('.tb-group > .btn, .tb-group > .sep, .tb-group > .menu, .tb-group > .segmented')).toMatch(/flex:\s*none/);
+    expect(rule('.topbar')).toMatch(/grid-template-columns:\s*minmax\(max-content, 1fr\) auto minmax\(max-content, 1fr\)/);
     expect(rule('.segmented.workspace-tabs')).toMatch(/flex-wrap:\s*nowrap/);
     expect(rule('.topbar .project-name')).toMatch(/flex:\s*0 1 auto/);
+  });
+
+  it('puts File, the tabs and undo/redo on the left, and the project name in the centre', () => {
+    const html = render(<TopBar />);
+    const left = html.slice(html.indexOf('tb-left'), html.indexOf('tb-center'));
+    const at = (s: string) => left.indexOf(s);
+    expect(at('file-menu')).toBeGreaterThan(0);
+    expect(at('workspace-tabs')).toBeGreaterThan(at('file-menu'));
+    expect(at('aria-label="Undo"')).toBeGreaterThan(at('workspace-tabs'));
+    expect(at('aria-label="Redo"')).toBeGreaterThan(at('aria-label="Undo"'));
+    expect(html.slice(html.indexOf('tb-center'), html.indexOf('tb-right'))).toContain('aria-label="Project name"');
+    // the Example chip or unsaved dot sits over symmetric padding, so it never shifts the name
+    expect(rule('.tb-center .example-pill, .tb-center .dirty-dot')).toMatch(/position:\s*absolute/);
+    expect(rule('.tb-center.has-example')).toMatch(/padding:\s*0 64px/);
   });
 
   it('lays the Data tab over the diagram and Inspector, which stay in their own columns', () => {
