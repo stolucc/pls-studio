@@ -3,8 +3,14 @@ export type Mode = 'A' | 'B' | 'unit';
 /** Common factor (latent variable, reflective) or composite (emergent variable). */
 export type ConstructType = 'factor' | 'composite';
 export type WeightingScheme = 'path' | 'factor' | 'centroid';
-/** 'fiml': full-information maximum likelihood (CB-SEM through lavaan only); 'mi': multiple imputation (mice), pooled. */
-export type MissingTreatment = 'mean' | 'casewise' | 'fiml' | 'mi';
+/**
+ * 'fiml': full-information maximum likelihood; 'pairwise': pairwise deletion;
+ * 'twostage' / 'robusttwostage': the two-stage approach (Savalei & Bentler 2009)
+ * — CB-SEM through lavaan only. 'mi': multiple imputation (mice), pooled.
+ */
+export type MissingTreatment = 'mean' | 'casewise' | 'fiml' | 'mi' | 'pairwise' | 'twostage' | 'robusttwostage';
+/** Missing-value treatments that lavaan applies itself (CB-SEM, R engine). */
+export const LAVAAN_MISSING: readonly MissingTreatment[] = ['fiml', 'pairwise', 'twostage', 'robusttwostage'];
 
 export interface ConstructSpec {
   name: string;

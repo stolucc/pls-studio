@@ -6,7 +6,7 @@
 import { cholesky, invert, invertPD, matMul, solve, symEigen, transpose, zeros, type Mat } from './linalg';
 import { corStd, mean, sd, standardize } from './stats';
 import type { ConstructQuality, ConstructType, Dataset, Mode, ModelFit, ModelSpec, PlsOptions, PlsResult } from './types';
-import { DEFAULT_OPTIONS, interactionName } from './types';
+import { DEFAULT_OPTIONS, interactionName, LAVAAN_MISSING } from './types';
 import { expandCategorical } from './categorical';
 
 export interface CompiledModel {
@@ -492,7 +492,7 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
 
 export function estimatePls(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions> = {}): PlsResult {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  if (opts.missing === 'fiml') throw new Error('FIML is a CB-SEM (lavaan) option; PLS uses mean replacement or casewise deletion.');
+  if (LAVAAN_MISSING.includes(opts.missing)) throw new Error('FIML, pairwise deletion and the two-stage approach are CB-SEM (lavaan) options; PLS uses mean replacement or casewise deletion.');
   const prep = preparePls(data, spec, opts);
   const dropped = prep.dropped;
   const n = prep.cols[0]?.length ?? 0;

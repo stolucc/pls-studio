@@ -8,6 +8,7 @@ import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
 import { exprToR, nameError, namesIn, parseConstraint, parseExpr, parseInequality } from './expr';
 import type { ConstructType, Dataset, EsemRotation, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MultigroupSpec, WeightingScheme } from '../engine/types';
+import { LAVAAN_MISSING } from '../engine/types';
 import { MAX_CATEGORIES } from '../engine/dataset';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
@@ -630,11 +631,26 @@ export function validateModel(
   const engine = method.engine ?? 'r';
   const missingChoice = method.missing ?? 'mean';
   if (method.method === 'cbsem') {
-    const lavaanOnly = [ordered.length && 'ordinal indicators', method.estimator === 'WLSMV' && 'WLSMV', missingChoice === 'fiml' && 'FIML'].filter(Boolean);
+    const lavaanOnly = [ordered.length && 'ordinal indicators', method.estimator === 'WLSMV' && 'WLSMV', missingChoice === 'fiml' && 'FIML', missingChoice === 'pairwise' && 'pairwise deletion', (missingChoice === 'twostage' || missingChoice === 'robusttwostage') && 'the two-stage approach'].filter(Boolean);
     if (lavaanOnly.length && engine === 'builtin') err(`${lavaanOnly.join(', ')} ${lavaanOnly.length === 1 ? 'is' : 'are'} estimated by lavaan: choose “R packages” under Calculated by.`);
     if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
     if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
     if (missingChoice === 'fiml' && method.estimator !== 'ML' && method.estimator !== 'MLR' && method.estimator !== 'RML') err('FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).');
+    if (missingChoice === 'pairwise') {
+      // lavaan: pairwise deletion of the sample statistics; standard errors and test as if the data were complete.
+      if (method.estimator !== 'ML' && method.estimator !== 'ULS') err('Pairwise deletion works with the ML or ULS estimator (lavaan has no robust standard errors with it); for robust results use the two-stage approach or FIML.');
+      else warn('Pairwise deletion: the standard errors and the χ² test treat the data as complete, so they are too optimistic; the two-stage approach or FIML give correct ones.');
+    }
+    if (missingChoice === 'twostage' || missingChoice === 'robusttwostage') {
+      if (!['ML', 'MLR', 'GLS', 'ULS'].includes(method.estimator ?? 'ML')) err('The two-stage approach works with the ML, MLR, GLS or ULS estimator.');
+    }
+    if (missingChoice === 'pairwise' || missingChoice === 'twostage' || missingChoice === 'robusttwostage') {
+      const what = missingChoice === 'pairwise' ? 'Pairwise deletion' : 'The two-stage approach';
+      if (data?.moments) err(`${what} needs raw data, not a covariance matrix.`);
+      if (ordered.length) err(`${what} is for continuous indicators; with ordinal indicators (WLSMV) lavaan already uses pairwise information.`);
+      if (model.multilevel) err(`${what} is not available for two-level models; use FIML.`);
+      if (method.estimator === 'RML') err(`${what} cannot be combined with robust ML (rsem).`);
+    }
     if (missingChoice === 'mi') {
       // Multiple imputation (mice) pooled by lavaan.mi: one group of continuous indicators, ML or MLR.
       if (engine === 'builtin') err('Multiple imputation uses mice and lavaan.mi: choose “R packages” under Calculated by.');
@@ -662,7 +678,7 @@ export function validateModel(
       if (few.length) warn(`${few.join(', ')} ${few.length === 1 ? 'has' : 'have'} four or fewer categories; consider treating ${few.length === 1 ? 'it' : 'them'} as ordinal (right-click an indicator) with WLSMV (Rhemtulla, Brosseau-Liard & Savalei, 2012).`);
     }
   } else {
-    if (missingChoice === 'fiml' && method.method === 'pls') err('FIML is a CB-SEM option; PLS-SEM uses mean replacement or casewise deletion.');
+    if (LAVAAN_MISSING.includes(missingChoice) && method.method === 'pls') err(`${missingChoice === 'fiml' ? 'FIML' : missingChoice === 'pairwise' ? 'Pairwise deletion' : 'The two-stage approach'} is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.`);
     if (missingChoice === 'mi' && method.method === 'pls' && engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
     // Categorical exogenous constructs (PLS): one column, 2 to 20 categories, no predictors.
     if (method.method === 'pls') for (const c of model.constructs.filter((k) => k.categorical)) {
@@ -771,7 +787,7 @@ export function validateModel(
     const what = method.interaction === 'lms' ? 'LMS' : 'QML';
     if (engine === 'builtin') err(`${what} latent interactions are estimated by modsem: choose “R packages” under Calculated by.`);
     if (method.estimator !== 'ML') err(`${what} is a maximum-likelihood method: choose the ML estimator.`);
-    if (missingChoice === 'fiml') err(`${what} needs complete data here: choose casewise deletion or mean replacement.`);
+    if (LAVAAN_MISSING.includes(missingChoice)) err(`${what} needs complete data here: choose casewise deletion or mean replacement.`);
     if (model.multigroup || model.esem?.blocks.length || ordered.length || data?.moments) err(`${what} needs raw data and a single-group model without ESEM blocks or ordinal indicators.`);
   }
 
@@ -1103,7 +1119,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
     maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
     stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
-    missing: s.missing === 'casewise' || s.missing === 'fiml' || s.missing === 'mi' ? s.missing : 'mean',
+    missing: (['casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const).find((m) => m === s.missing) ?? 'mean',
     miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
     bootTails: s.bootTails === 'one' ? 'one' : 'two',

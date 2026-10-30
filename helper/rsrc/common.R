@@ -17,7 +17,7 @@ ps_validate <- function(req) {
   get <- function(x, ...) { for (k in c(...)) { if (!is.list(x)) return(NULL); x <- x[[k, exact = TRUE]] }; x }
   cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "WLSMV", "2SLS", "RML")
   one_of(get(req, "estimator"), cb_est, "estimator")
-  one_of(get(req, "missing"), c("mean", "casewise", "fiml", "mi"), "missing-value treatment")
+  one_of(get(req, "missing"), c("mean", "casewise", "fiml", "mi", "pairwise", "twostage", "robusttwostage"), "missing-value treatment")
   one_of(get(req, "probe"), c("percentiles", "meansd"), "probing method")
   one_of(get(req, "interaction"), c("product", "lms", "qml"), "latent interaction method")
   one_of(get(req, "hc"), c("none", "HC0", "HC1", "HC2", "HC3", "HC4"), "standard error type")
@@ -126,10 +126,20 @@ ps_frame <- function(req, n) {
 #' Script lines for missing values (applied to the model's indicators).
 ps_missing_code <- function(missing) {
   if (identical(missing, "fiml")) c("# Missing values: full-information maximum likelihood (lavaan missing = \"ml\"); no rows dropped")
+  else if (!is.null(PS_LAVAAN_MISSING[[missing %||% ""]])) sprintf("# Missing values: lavaan missing = \"%s\"; no rows dropped", PS_LAVAAN_MISSING[[missing]])
   else if (identical(missing, "mi")) c("# Missing values: multiple imputation (mice), below; no rows dropped")
   else if (identical(missing, "mean")) c("# Missing values: replaced by the indicator mean",
     "for (v in names(data)) data[[v]][is.na(data[[v]])] <- mean(data[[v]], na.rm = TRUE)")
   else c("# Missing values: casewise (listwise) deletion", "data <- data[complete.cases(data), , drop = FALSE]")
+}
+
+#' lavaan's missing-data options for the app's choices (CB-SEM): FIML, pairwise
+#' deletion, and the two-stage approach (Savalei & Bentler 2009), plain or robust.
+PS_LAVAAN_MISSING <- list(fiml = "ml", pairwise = "pairwise", twostage = "two.stage", robusttwostage = "robust.two.stage")
+#' The lavaan argument for the choice ("" for deletion or mean replacement done beforehand).
+ps_lavaan_missing <- function(missing) {
+  m <- PS_LAVAAN_MISSING[[missing %||% ""]]
+  if (is.null(m)) "" else sprintf(", missing = \"%s\"", m)
 }
 
 #' A single finite number as R code; anything else is refused (values come from project files).

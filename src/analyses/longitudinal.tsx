@@ -161,6 +161,7 @@ export function GmmView({ r }: { r: GmmResult }) {
 
 
 const IN_TIME_ORDER = 'Click columns below in time order.';
+const MISSING_NOTE: Partial<Record<string, string>> = { fiml: ', FIML', pairwise: ', pairwise deletion', twostage: ', two-stage', robusttwostage: ', robust two-stage' };
 /** lavaan settings from the project: ML or MLR, and its missing-data treatment. */
 const lavaanOf = (ctx: Pick<AnalysisCtx, 'settings'>) => ({ estimator: ctx.settings.estimator === 'MLR' ? 'MLR' as const : 'ML' as const, missing: ctx.settings.missing });
 /** Time scores 0, 1, 2, … unless given. */
@@ -196,7 +197,7 @@ function GrowthOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Grow
       <Choice label="Shape" value={o.shape} onChange={(shape) => set({ ...o, shape })} options={[['linear', 'Linear'], ['quadratic', 'Quadratic'], ['basis', 'Latent basis']]}
         hint="Latent basis: the first two time scores fixed (0, 1), the others estimated, so the shape of change is free." />
       <OrderedPicker label="Covariates predicting the growth factors (optional)" columns={columns.filter((n) => !o.measures.includes(n))} value={o.covariates} onChange={(covariates) => set({ ...o, covariates })} />
-      <div className="hint">lavaan {l.estimator}{l.missing === 'fiml' ? ', FIML' : ''} (from the Model settings).</div>
+      <div className="hint">lavaan {l.estimator}{MISSING_NOTE[l.missing] ?? ''} (from the Model settings).</div>
     </fieldset>
   );
 }
@@ -211,7 +212,7 @@ function RiclpmOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Ricl
       <OrderedPicker label="Variable Y at the same waves" hint={IN_TIME_ORDER} columns={columns.filter((n) => !o.x.includes(n))} value={o.y} onChange={(y) => set({ ...o, y })} />
       <label className="check"><input type="checkbox" checked={o.equal} onChange={(e) => set({ ...o, equal: e.target.checked })} />
         <span>Hold the lagged effects equal over time<br /><span className="hint">For equally spaced waves; test it against the free model by comparing fit.</span></span></label>
-      <div className="hint">lavaan {l.estimator}{l.missing === 'fiml' ? ', FIML' : ''} (from the Model settings).</div>
+      <div className="hint">lavaan {l.estimator}{MISSING_NOTE[l.missing] ?? ''} (from the Model settings).</div>
     </fieldset>
   );
 }

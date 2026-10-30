@@ -742,17 +742,19 @@ function ModelInspector() {
       {!proc && <div className="section">
         <div className="field">
           <label>Missing values</label>
-          <div className="segmented">
-            <button className={settings.missing === 'mean' ? 'on' : ''} onClick={() => setSettings({ missing: 'mean' })}>Mean replacement</button>
-            <button className={settings.missing === 'casewise' ? 'on' : ''} onClick={() => setSettings({ missing: 'casewise' })}>Casewise deletion</button>
-            {settings.method === 'cbsem' && (
-              <button className={settings.missing === 'fiml' ? 'on' : ''} onClick={() => setSettings({ missing: 'fiml' })}
-                title="Full-information maximum likelihood (lavaan missing = &quot;ml&quot;): uses every observed value, unbiased when data are missing at random. ML or MLR, R engine.">FIML</button>
-            )}
-            <button className={settings.missing === 'mi' ? 'on' : ''} onClick={() => setSettings({ missing: 'mi' })}
-              title="Multiple imputation by chained equations (mice), the model in every imputed data set, pooled by Rubin’s rules. R engine.">Multiple imputation</button>
-          </div>
+          <select className="select" aria-label="Missing values" value={settings.missing} onChange={(e) => setSettings({ missing: e.target.value as typeof settings.missing })}>
+            <option value="mean">Mean replacement</option>
+            <option value="casewise">Casewise (listwise) deletion</option>
+            {settings.method === 'cbsem' && <option value="fiml">FIML (full-information maximum likelihood)</option>}
+            {settings.method === 'cbsem' && <option value="twostage">Two-stage (Savalei &amp; Bentler)</option>}
+            {settings.method === 'cbsem' && <option value="robusttwostage">Robust two-stage</option>}
+            {settings.method === 'cbsem' && <option value="pairwise">Pairwise deletion</option>}
+            <option value="mi">Multiple imputation (mice)</option>
+            {settings.method !== 'cbsem' && ['fiml', 'twostage', 'robusttwostage', 'pairwise'].includes(settings.missing) && <option value={settings.missing} disabled>{settings.missing} (CB-SEM only)</option>}
+          </select>
           {settings.method === 'cbsem' && settings.missing === 'fiml' && <div className="hint" style={{ marginTop: 6 }}>Full-information maximum likelihood uses all observed values of every case (missing at random); with MLR the standard errors and test are robust.</div>}
+          {settings.method === 'cbsem' && (settings.missing === 'twostage' || settings.missing === 'robusttwostage') && <div className="hint" style={{ marginTop: 6 }}>Two-stage (Savalei &amp; Bentler 2009; lavaan missing = &quot;{settings.missing === 'twostage' ? 'two.stage' : 'robust.two.stage'}&quot;): the saturated means and covariances are estimated from all observed values (EM), then the model is fitted to them, with standard errors and a χ² corrected for the first stage{settings.missing === 'robusttwostage' ? ' and robust to non-normality' : ''}. ML, MLR, GLS or ULS.</div>}
+          {settings.method === 'cbsem' && settings.missing === 'pairwise' && <div className="hint" style={{ marginTop: 6 }}>Pairwise deletion (lavaan missing = &quot;pairwise&quot;): each covariance from the cases observed on both variables. The standard errors and χ² treat the data as complete; prefer the two-stage approach or FIML. ML or ULS.</div>}
           {settings.missing === 'mi' && (
             <div className="field" style={{ marginTop: 8 }}>
               <label>Imputed data sets</label>

@@ -9,7 +9,7 @@ import { compileModel, extractColumns, htmt2Of, htmtOf, type CompiledModel } fro
 import { bisect, chisqCdf, mean, ncChisqCdf, normalP } from './stats';
 import { deltaMatrix, gammaADF, mm, quad, t as tp, tr, trProd, vech, vechPairs, weightNT, type Pairs } from './vech';
 import type { Dataset, MissingTreatment, ModelSpec } from './types';
-import { interactionName } from './types';
+import { interactionName, LAVAAN_MISSING } from './types';
 
 export type CbParamKind = 'loading' | 'regression' | 'hoLoading' | 'lvcov' | 'residual' | 'rescov';
 
@@ -957,7 +957,7 @@ export function standardized(cm: CbModel, X: Matrices) {
 }
 
 export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreatment = 'casewise', estimator: CbEstimator = 'ML'): CbResult {
-  if (estimator === 'WLSMV' || spec.ordered?.length || missing === 'fiml') throw new Error('Ordinal indicators, WLSMV and FIML are estimated by lavaan: choose the R engine.');
+  if (estimator === 'WLSMV' || spec.ordered?.length || LAVAAN_MISSING.includes(missing)) throw new Error('Ordinal indicators, WLSMV, FIML, pairwise deletion and the two-stage approach are estimated by lavaan: choose the R engine.');
   if (spec.multigroup) throw new Error('Multiple-group analysis is estimated by lavaan: choose the R engine.');
   if (spec.multilevel) throw new Error('Two-level models are estimated by lavaan: choose the R engine.');
   if (spec.esem?.blocks.length) throw new Error('Exploratory SEM (ESEM) is estimated by lavaan: choose the R engine.');

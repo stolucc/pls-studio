@@ -19,7 +19,8 @@ ps_long_frame <- function(req, cols) {
 ps_long_options <- function(req) {
   est <- req$estimator %||% "ML"
   if (!est %in% c("ML", "MLR")) stop("Longitudinal models use the ML or MLR estimator.")
-  list(est = est, fiml = identical(req$missing, "fiml"))
+  # (fiml: lavaan handles the missing values (FIML, pairwise, two-stage), so no rows are dropped beforehand)
+  list(est = est, fiml = !is.null(PS_LAVAAN_MISSING[[req$missing %||% ""]]))
 }
 
 ps_long_fit <- function(fit) {
@@ -58,7 +59,7 @@ ps_growth <- function(req_json, export = FALSE) {
     if (!o$fiml) ps_missing_code(req$missing),
     sprintf("# Latent growth curve (%s), time scores %s", shape, paste(format(times), collapse = ", ")),
     "model <- '", paste0("  ", lines), "'",
-    sprintf("fit <- growth(model, data = data, estimator = \"%s\"%s)", o$est, if (o$fiml) ", missing = \"ml\"" else ""))
+    sprintf("fit <- growth(model, data = data, estimator = \"%s\"%s)", o$est, ps_lavaan_missing(req$missing)))
   inputs <- list(data = fr$data)
   if (export) return(paste(ps_script("Latent growth curve (lavaan)", "lavaan", inputs, body,
     "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"), collapse = "\n"))
@@ -91,7 +92,7 @@ ps_riclpm <- function(req_json, export = FALSE) {
     if (random) c("RIx ~~ RIx", "RIy ~~ RIy", "RIx ~~ RIy", "RIx ~~ 0*wx1", "RIx ~~ 0*wy1", "RIy ~~ 0*wx1", "RIy ~~ 0*wy1"),
     sprintf("%s ~~ 0*%s", c(x, y), c(x, y)))
   call <- function(name, model) sprintf("%s <- lavaan(%s, data = data, meanstructure = TRUE, int.ov.free = TRUE, estimator = \"%s\"%s)",
-    name, model, o$est, if (o$fiml) ", missing = \"ml\"" else "")
+    name, model, o$est, ps_lavaan_missing(req$missing))
   body <- c("suppressPackageStartupMessages(library(lavaan))",
     if (!o$fiml) ps_missing_code(req$missing),
     "# RI-CLPM: stable between-person differences (random intercepts RIx, RIy) separated from",

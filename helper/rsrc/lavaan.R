@@ -239,7 +239,7 @@ ps_cb_build <- function(req) {
   # Ordered categorical indicators (thresholds, polychoric correlations) and FIML.
   ordered <- unname(n$iv[intersect(unlist(req$model$ordered), n$all_inds)])
   extra <- paste0(if (length(ordered)) sprintf(", ordered = %s", ps_q(ordered)) else "",
-    if (identical(req$missing, "fiml")) ", missing = \"ml\"" else "")
+    ps_lavaan_missing(req$missing))
   if (!is.null(cluster_var)) extra <- paste0(extra, sprintf(", cluster = \"%s\"", cluster_var))
   # Variances kept non-negative (lavaan's bounds; a guard against Heywood cases).
   bounds <- if (isTRUE(req$model$positiveVariances)) ", bounds = \"pos.var\"" else ""
@@ -480,7 +480,9 @@ ps_cb <- function(req_json, export = FALSE) {
       if (!length(l) || (j <= k0 && length(comps[[j]])) || constructs[j] %in% b$composites) return(list(cr = NULL, ave = NULL))
       list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2), omega = per_group(omega, lv_lname[j]), alpha = per_group(alpha, lv_lname[j]))
     })
-    rr <- if (isTRUE(b$mi)) lavaan.mi::lavResiduals.mi(env$fit_mi, type = "cor.bollen") else lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
+    rr <- if (isTRUE(b$mi)) lavaan.mi::lavResiduals.mi(env$fit_mi, type = "cor.bollen")
+      else if (isTRUE(req$missing %in% c("twostage", "robusttwostage"))) ps_cor_residuals(fit)
+      else lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
     res <- (if (is.null(g)) rr$cov else rr[[g]]$cov)[ind_v, ind_v]
     gdata <- if (is.null(g) || b$matrix_input || is.null(b$group_var)) env$data else env$data[as.character(env$data[[b$group_var]]) == glab[group_of(g)], , drop = FALSE]
     # HTMT on the measurement blocks (semTools), classic and HTMT2.
@@ -726,6 +728,15 @@ ps_cb_scores <- function(req_json, export = FALSE) {
   ps_json(list(method = method, names = unname(back[colnames(sc)]), rows = env$rows,
     scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j])),
     warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}
+
+#' Correlation residuals (lavaan's "cor.bollen": each matrix standardised by its own
+#' variances) from the saturated and the model-implied moments, per group. For the
+#' two-stage approach, where lavResiduals needs an h1 ACOV that lavaan does not have.
+ps_cor_residuals <- function(fit) {
+  S <- lavaan::lavInspect(fit, "sampstat"); I <- lavaan::lavInspect(fit, "implied")
+  one <- function(s, i) list(cov = stats::cov2cor(s$cov) - stats::cov2cor(i$cov[rownames(s$cov), colnames(s$cov)]))
+  if (!is.null(S$cov)) one(S, I) else Map(one, S, I)
 }
 
 # ---------- CB-SEM extras: Bollen-Stine p, pairwise parameter comparisons, factor score weights ----------

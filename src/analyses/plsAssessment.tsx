@@ -220,7 +220,7 @@ function CcaView({ r }: { r: CcaResult }) {
 /** The PLS options from the Model settings (FIML and MI fall back to casewise deletion here). */
 export const plsOptions = (s: Settings): PlsOptions => ({
   scheme: s.scheme, maxIter: s.maxIter, tolerance: 10 ** -s.stopExp,
-  missing: s.missing === 'fiml' || s.missing === 'mi' ? 'casewise' : s.missing, consistent: s.consistent,
+  missing: s.missing === 'mean' ? 'mean' : 'casewise', consistent: s.consistent,
 });
 const samplesOf = (s: Settings, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.floor(s.bootSamples)));
 

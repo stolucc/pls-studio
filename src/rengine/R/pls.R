@@ -7,6 +7,7 @@
 #' multiple imputation are accepted only by the estimation and the bootstrap;
 #' other analyses refuse them.
 ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
+  if (isTRUE(req$missing %in% c("fiml", "pairwise", "twostage", "robusttwostage"))) stop("FIML, pairwise deletion and the two-stage approach are CB-SEM (lavaan) options; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.")
   if (identical(req$missing, "mi") && !allow_mi) stop("This analysis is not available with multiple imputation; choose mean replacement or casewise deletion for it.")
   pkg <- req$package
   cons <- req$model$constructs
