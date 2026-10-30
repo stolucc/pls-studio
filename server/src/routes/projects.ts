@@ -83,7 +83,7 @@ export function projectRoutes(deps: AppDeps) {
     const inv = await P.createInvitation(db, id, userId, body.email, body.role);
     const [inviter, project] = await Promise.all([getUser(db, userId), P.getProject(db, id, userId)]);
     const link = `${config.APP_ORIGIN}/?invite=${encodeURIComponent(inv.token)}`;
-    await mailer.send({
+    const mail = {
       to: body.email,
       subject: oneLine(`${inviter!.display_name} invited you to “${project.name}” on PLS Studio`).slice(0, 200),
       text: [
@@ -94,8 +94,17 @@ export function projectRoutes(deps: AppDeps) {
         '',
         `Sign in or create an account with ${body.email} to accept. If you did not expect this, you can ignore it.`,
       ].join('\n'),
-    });
-    res.status(201).json({ id: inv.id, expiresAt: inv.expiresAt });
+    };
+    // The owner also gets the link, to pass on when email is not set up or fails.
+    // Only an account with the invited address can use it, as with the email.
+    let emailed = mailer.configured;
+    try {
+      await mailer.send(mail);
+    } catch (err) {
+      console.error(`Invitation email to ${body.email} failed: ${(err as Error).message}`);
+      emailed = false;
+    }
+    res.status(201).json({ id: inv.id, expiresAt: inv.expiresAt, link, emailed });
   }));
 
   r.delete('/:id/invitations/:invId', h(async (req, res) => {

@@ -9,6 +9,23 @@ import { Avatar } from './AccountMenu';
 
 interface Member { id: string; email: string; display_name: string; role: 'owner' | 'editor' | 'viewer' }
 interface Invitation { id: string; email: string; role: 'editor' | 'viewer'; expires_at: string }
+export interface SentInvite { email: string; link: string; emailed: boolean }
+
+/** After inviting: the link to pass on, and whether the server emailed it. */
+export function InviteSent({ sent, onCopy }: { sent: SentInvite; onCopy: () => void }) {
+  return (
+    <div className={`issue ${sent.emailed ? 'info' : 'warning'} invite-sent`}>
+      {sent.emailed
+        ? <>Invitation emailed to <b>{sent.email}</b>. You can also send them this link:</>
+        : <>No email was sent: this server has no email set up (or sending failed). Send <b>{sent.email}</b> this link yourself:</>}
+      <div className="invite-link">
+        <input className="input" readOnly value={sent.link} aria-label="Invitation link" onFocus={(e) => e.currentTarget.select()} />
+        <button type="button" className="btn sm" onClick={onCopy}>Copy link</button>
+      </div>
+      <span className="sub">Only an account with {sent.email} can accept it. It works for 7 days.</span>
+    </div>
+  );
+}
 
 export function ShareDialog({ onClose }: { onClose: () => void }) {
   const user = useAuth((s) => s.user);
@@ -22,6 +39,7 @@ export function ShareDialog({ onClose }: { onClose: () => void }) {
   const [role, setRole] = useState<'editor' | 'viewer'>('editor');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState<SentInvite | null>(null);
   const owner = cloud?.role === 'owner';
 
   const load = useCallback(async () => {
@@ -51,9 +69,11 @@ export function ShareDialog({ onClose }: { onClose: () => void }) {
   const invite = (e: FormEvent) => {
     e.preventDefault();
     void act(async () => {
-      await api.post(`/api/projects/${cloud!.projectId}/invitations`, { email, role });
+      const to = email;
+      const r = await api.post<{ link: string; emailed: boolean }>(`/api/projects/${cloud!.projectId}/invitations`, { email: to, role });
+      setSent({ email: to, link: r.link, emailed: r.emailed });
       setEmail('');
-    }, `Invitation sent to ${email}.`);
+    });
   };
 
   const leave = async () => {
@@ -101,6 +121,7 @@ export function ShareDialog({ onClose }: { onClose: () => void }) {
               </form>
             )}
             {error && <div className="issue error">{error}</div>}
+            {owner && sent && <InviteSent sent={sent} onCopy={() => void navigator.clipboard.writeText(sent.link).then(() => toast('success', 'Link copied.'), () => toast('error', 'Could not copy; select the link and copy it.'))} />}
             <div className="section-title" style={{ marginTop: 12 }}>People with access</div>
             <div className="member-list">
               {members.map((m) => (

@@ -79,6 +79,28 @@ describe('invitations', () => {
     expect(preview.body).toMatchObject({ projectName: 'Renamed', inviterName: 'Olivia Owner', role: 'viewer', email: 'new@example.org' });
   });
 
+  it('gives the owner the link and says whether it was emailed', async () => {
+    const r = await owner.post(`/api/projects/${projectId}/invitations`, { email: 'erin@example.org', role: 'viewer' });
+    expect(r.status).toBe(201);
+    expect(r.body.emailed).toBe(false); // no SMTP_URL in tests: mail only goes to the log
+    expect(r.body.link).toBe(/(\S*invite=\S+)/.exec(env.deps.mailer.outbox.at(-1)!.text)![1]);
+    // the link is no shortcut: a different account still cannot accept it
+    const token = decodeURIComponent(new URL(r.body.link).searchParams.get('invite')!);
+    expect((await stranger.post(`/api/auth/invitations/${encodeURIComponent(token)}/accept`)).status).toBe(403);
+  });
+
+  it('still creates the invitation when sending the email fails', async () => {
+    const mailer = env.deps.mailer;
+    const { send, configured } = mailer;
+    mailer.configured = true;
+    mailer.send = async () => { throw new Error('SMTP down'); };
+    try {
+      const r = await owner.post(`/api/projects/${projectId}/invitations`, { email: 'frank@example.org', role: 'editor' });
+      expect(r.status).toBe(201);
+      expect(r.body).toMatchObject({ emailed: false, link: expect.stringContaining('invite=') });
+    } finally { mailer.send = send; mailer.configured = configured; }
+  });
+
   it('only the invited address can accept, and only once', async () => {
     await owner.post(`/api/projects/${projectId}/invitations`, { email: 'carol@example.org', role: 'editor' });
     const token = decodeURIComponent(/invite=([^\s]+)/.exec(env.deps.mailer.outbox.at(-1)!.text)![1]);
