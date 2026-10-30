@@ -170,7 +170,7 @@ export const influenceAnalysis: AnalysisType<Record<string, never>, InfluenceRes
   Options: () => <p className="hint" style={{ marginTop: 0 }}>Influence of each case on the CB-SEM model on the canvas: the model is refitted without each case in turn (semfindr; n refits, so this takes a while). It uses the model, estimator and missing-data setting as they are when you run it.</p>,
   View: ({ result, current }) => <InfluenceView inf={result} current={current} />,
   blocked: (_o, ctx) => {
-    if (ctx.settings.method !== 'cbsem') return 'Influential cases are computed for CB-SEM models: switch the model to CB-SEM.';
+    if (ctx.settings.method !== 'cbsem') return 'Influential cases are computed for CB-SEM models: switch the model to CB-SEM (Model tab).';
     if ((ctx.settings.engine ?? 'r') !== 'r') return 'Influential cases need the R engine (Model settings).';
     if (!rawData(ctx)) return 'Influential cases need raw data: import a dataset (not a covariance matrix).';
     if (!ctx.model?.constructs.length) return 'Draw a CB-SEM model first (Model tab).';

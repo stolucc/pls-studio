@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { emptyModel, useStore } from '../store';
 import { DataWorkspace } from './DataViewer';
-import { WorkspaceTabs } from './TopBar';
+import { TopBar, WorkspaceTabs } from './TopBar';
 import { AnalysesWorkspace } from './analyses/AnalysesWorkspace';
 import { addAnalysis, addText, loadCards, useAnalyses } from '../analyses/store';
 
@@ -37,6 +37,17 @@ describe('workspace tabs', () => {
     s().setWorkspace('data');
     s().newProject();
     expect(s().workspace).toBe('model');
+  });
+
+  it('show the estimation method and the diagram-estimates toggle on the Model tab only', () => {
+    expect(render(<TopBar />)).toContain('aria-label="Estimation method"');
+    for (const w of ['data', 'analyses'] as const) {
+      s().setWorkspace(w);
+      const html = render(<TopBar />);
+      expect(html).not.toContain('aria-label="Estimation method"');
+      expect(html).not.toContain('estimates on the diagram');
+      expect(html).toContain('Calculate');
+    }
   });
 
   it('mark the current tab as selected', () => {

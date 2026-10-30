@@ -48,6 +48,7 @@ export function TopBar() {
   const [shareOpen, setShareOpen] = useState(false);
   const method = useStore((s) => s.settings.method);
   const consistent = useStore((s) => s.settings.consistent);
+  const workspace = useStore((s) => s.workspace);
 
   return (
     <header className="topbar">
@@ -73,19 +74,24 @@ export function TopBar() {
       <PresenceBar />
       <button className="btn ghost" aria-label="Share" onClick={() => setShareOpen(true)} title="Invite people to work on this project"><IconShare /><span className="lbl">Share</span></button>
       <AccountMenu />
-      <div className="sep" />
-      <div className="segmented method-switch" role="radiogroup" aria-label="Estimation method">
-        <button role="radio" aria-checked={method === 'pls'} className={method === 'pls' ? 'on' : ''} onClick={() => void switchMethod('pls')}>
-          {consistent ? 'PLSc' : 'PLS-SEM'}
-        </button>
-        <button role="radio" aria-checked={method === 'cbsem'} className={method === 'cbsem' ? 'on' : ''} onClick={() => void switchMethod('cbsem')}>CB-SEM</button>
-        <button role="radio" aria-checked={method === 'process'} className={method === 'process' ? 'on' : ''} onClick={() => void switchMethod('process')}
-          title="CPA: conditional process analysis, Hayes's PROCESS models (mediation, moderation, moderated mediation) by OLS regression, with manymome">CPA</button>
-      </div>
-      <button className={`btn icon ghost${showResults ? '' : ' muted'}`} onClick={() => setShowResults(!showResults)}
-        title={showResults ? 'Hide estimates on the diagram' : 'Show estimates on the diagram'} aria-pressed={showResults}>
-        <IconEye />
-      </button>
+      {/* The method and the diagram's estimates belong to the Model tab. */}
+      {workspace === 'model' && (
+        <>
+          <div className="sep" />
+          <div className="segmented method-switch" role="radiogroup" aria-label="Estimation method">
+            <button role="radio" aria-checked={method === 'pls'} className={method === 'pls' ? 'on' : ''} onClick={() => void switchMethod('pls')}>
+              {consistent ? 'PLSc' : 'PLS-SEM'}
+            </button>
+            <button role="radio" aria-checked={method === 'cbsem'} className={method === 'cbsem' ? 'on' : ''} onClick={() => void switchMethod('cbsem')}>CB-SEM</button>
+            <button role="radio" aria-checked={method === 'process'} className={method === 'process' ? 'on' : ''} onClick={() => void switchMethod('process')}
+              title="CPA: conditional process analysis, Hayes's PROCESS models (mediation, moderation, moderated mediation) by OLS regression, with manymome">CPA</button>
+          </div>
+          <button className={`btn icon ghost${showResults ? '' : ' muted'}`} onClick={() => setShowResults(!showResults)}
+            title={showResults ? 'Hide estimates on the diagram' : 'Show estimates on the diagram'} aria-pressed={showResults}>
+            <IconEye />
+          </button>
+        </>
+      )}
       <div className="sep" />
       {/* CPA bootstraps within Calculate. The button keeps its place (hidden) so the controls
           to its left, the method switch among them, do not move when the method changes. */}

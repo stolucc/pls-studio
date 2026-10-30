@@ -226,7 +226,7 @@ const samplesOf = (s: Settings, lo: number, hi: number) => Math.max(lo, Math.min
 
 /** Why the model on the canvas cannot be assessed (null when it can). */
 export function plsModelBlocked(ctx: AnalysisCtx): string | null {
-  if (ctx.settings.method !== 'pls') return 'PLS-SEM assessments are for PLS-SEM models: switch the model to PLS-SEM.';
+  if (ctx.settings.method !== 'pls') return 'PLS-SEM assessments are for PLS-SEM models: switch the model to PLS-SEM (Model tab).';
   const ds = rawData(ctx);
   if (!ds) return 'Import raw data first (not a covariance matrix).';
   if (!ctx.model?.paths.length) return 'Draw a PLS path model first (Model tab).';
