@@ -201,3 +201,24 @@ it('REBUS-PLS (plspm) on the model on the canvas', async () => {
   expect(result.models.find((m) => m.k === 2)!.gqi).toBeCloseTo(ref.k2.gqi, 8);
   expect(html).toContain('Save classes as a data column');
 }, 900_000);
+
+it('Monte Carlo simulation (R engine), with progress, equal to the same chunks run directly', async () => {
+  const { runMcChunkR } = await import('../rengine/mc');
+  const { summariseMc } = await import('../engine/montecarlo');
+  const f = (name: string, p: string) => ({ name, type: 'factor' as const, indicators: [1, 2, 3].map((i) => `${p}${i}`), loadings: [0.8, 0.7, 0.75] });
+  const design = {
+    population: { constructs: [f('Price fairness', 'a'), f('Trust', 'b'), f('Loyalty', 'c')],
+      paths: [{ from: 'Price fairness', to: 'Trust', value: 0.4 }, { from: 'Trust', to: 'Loyalty', value: 0.5 }, { from: 'Price fairness', to: 'Loyalty', value: 0 }], exoCor: [] },
+    estimators: [{ id: 'PLSc', method: 'pls' as const, consistent: true }, { id: 'CB-ML', method: 'cb' as const, estimator: 'ML' as const }],
+    sampleSizes: [300], replications: 20, seed: 5, alpha: 0.05, bootSamples: 0, mcDraws: 500,
+  };
+  const seen: number[] = [];
+  const unsub = useAnalyses.subscribe((s) => { for (const p of Object.values(s.progress)) seen.push(p.done); });
+  const { result, html } = await runAsCard<{ estimator: string; param: { key: string }; mean: number }[]>('mc', { names: ['x'], cols: [Float64Array.from([1])] }, design,
+    () => useStore.getState().setSettings({ engine: 'r', method: 'pls' }));
+  unsub();
+  const direct = summariseMc(design, [await runMcChunkR(design, 300, 0, 10), await runMcChunkR(design, 300, 10, 20)]);
+  for (const row of result) expect(row.mean, `${row.estimator} ${row.param.key}`).toBeCloseTo(direct.find((x) => x.estimator === row.estimator && x.param.key === row.param.key)!.mean, 10);
+  expect(seen.length).toBeGreaterThan(0);
+  expect(html).toContain('Power');
+}, 900_000);

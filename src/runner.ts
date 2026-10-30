@@ -1,6 +1,6 @@
 import { mergeBootstrap, mergeFitTest, splitRanges, type BootJobKind, type RangePart } from './engine/bootstrap';
 import type { CbEstimator, CbResult } from './engine/cbsem';
-import type { McDesign, McPart } from './engine/montecarlo';
+import type { McDesign, McPart, McSummaryRow } from './engine/montecarlo';
 import type { PlsOptions } from './engine/types';
 import { toSpec, validateModel } from './model/project';
 import { processGraph } from './process/fromModel';
@@ -304,102 +304,94 @@ export function run(kind: JobKind) {
 
 // ---------- Monte Carlo simulation ----------
 
-let simPool: Worker[] = [];
+/** Progress of a simulation: replications done of the total, on how many workers. */
+export type SimProgress = (done: number, total: number, workers: number) => void;
 
+let simPool: Worker[] = [];
+let simStop: ((e: Error) => void) | null = null;
+
+/** Stop the running simulation (workers terminated, R interrupted); its promise rejects with Cancelled. */
 export function cancelSimulation() {
   simPool.forEach((w) => w.terminate());
   simPool = [];
-  if (simR) { simR = false; rSimToken++; void import('./rengine/runtime').then((m) => m.interruptR()); }
-  void import('./simStore').then(({ useSim }) => useSim.getState().setJob(null));
-  useStore.getState().toast('info', 'Simulation cancelled.');
+  rSimToken++;
+  void import('./rengine/runtime').then((m) => m.interruptR());
+  const stop = simStop;
+  simStop = null;
+  void import('./cancellable').then(({ Cancelled }) => stop?.(new Cancelled()));
 }
 
-/**
- * Run a simulation on a pool of workers. Tasks (sample size × replication
- * range) are queued so every core stays busy; results merge deterministically.
- */
-let simR = false;
 let rSimToken = 0;
 
 /**
  * Simulation by the R packages: replications in chunks (for progress and
  * cancelling), one R call per chunk; summarised like the built-in engine.
  */
-async function runSimulationR(design: McDesign) {
-  const { useSim } = await import('./simStore');
-  const [{ summariseMc }, { mcChunkRequest, parseMcChunk }, { rMessage, parallelism, rCallParallel }] = await Promise.all([import('./engine/montecarlo'), import('./rengine/mc'), import('./rengine/bridge')]);
+async function simulateR(design: McDesign, progress: SimProgress): Promise<McSummaryRow[]> {
+  const [{ summariseMc }, { mcChunkRequest, parseMcChunk }, { parallelism, rCallParallel }] = await Promise.all([import('./engine/montecarlo'), import('./rengine/mc'), import('./rengine/bridge')]);
   const total = design.replications * design.sampleSizes.length;
   const token = ++rSimToken;
-  simR = true;
   const CHUNK = 10;
   const tasks = design.sampleSizes.flatMap((n) => Array.from({ length: Math.ceil(design.replications / CHUNK) }, (_, k) => ({ n, start: k * CHUNK, end: Math.min(design.replications, (k + 1) * CHUNK) })));
   // Several R sessions at once (desktop R: all the helper's processes; the browser: the Parallel
   // setting). Each replication has its own seeds, so the results do not depend on how they are spread.
   const workers = Math.min((await parallelism()).sessions, tasks.length);
-  useSim.getState().setJob({ done: 0, total, workers });
-  try {
-    const raws = await rCallParallel<Record<string, unknown>>('ps_mc', tasks.map((t) => mcChunkRequest(design, t.n, t.start, t.end)), 'simulation', (done) => {
-      if (token === rSimToken) useSim.getState().setJob({ done: Math.round(total * done / tasks.length), total, workers });
-    });
-    if (token !== rSimToken) return;
-    const parts: McPart[] = raws.map((raw, i) => parseMcChunk(design, tasks[i].n, tasks[i].start, raw));
-    useSim.getState().setRows(summariseMc(design, parts), JSON.stringify(design));
-    useStore.getState().toast('success', `Simulation finished: ${total} replications with lavaan and cSEM (R).`);
-  } catch (e) {
-    if (token === rSimToken) useStore.getState().toast('error', `Simulation failed: ${rMessage(e)}`);
-  } finally {
-    if (token === rSimToken) { simR = false; useSim.getState().setJob(null); }
-  }
+  progress(0, total, workers);
+  const raws = await rCallParallel<Record<string, unknown>>('ps_mc', tasks.map((t) => mcChunkRequest(design, t.n, t.start, t.end)), 'simulation', (done) => {
+    if (token === rSimToken) progress(Math.round(total * done / tasks.length), total, workers);
+  });
+  if (token !== rSimToken) throw new (await import('./cancellable')).Cancelled();
+  const parts: McPart[] = raws.map((raw, i) => parseMcChunk(design, tasks[i].n, tasks[i].start, raw));
+  return summariseMc(design, parts);
 }
 
-export async function runSimulation(design: McDesign) {
-  const { useSim } = await import('./simStore');
+/** Simulation by the built-in engine on a pool of workers; results merge deterministically. */
+async function simulateBuiltIn(design: McDesign, progress: SimProgress): Promise<McSummaryRow[]> {
   const { mcTasks, summariseMc } = await import('./engine/montecarlo');
-  const sim = useSim.getState();
-  if (sim.job) return;
-  if (useStore.getState().settings.engine === 'r') { void runSimulationR(design); return; }
   const workers = workerCount();
   const tasks = mcTasks(design, workers * 2);
   const total = design.replications * design.sampleSizes.length;
   const doneBy = new Map<number, number>();
   const parts: McPart[] = [];
   let next = 0;
-  sim.setJob({ done: 0, total, workers });
-  const key = JSON.stringify(design);
-  const finishAll = () => { simPool.forEach((w) => w.terminate()); simPool = []; };
-
-  const feed = (w: Worker) => {
-    if (next >= tasks.length) return;
-    const ti = next++;
-    w.onmessage = (e: MessageEvent<WorkerResponse>) => {
-      const msg = e.data;
-      if (msg.kind === 'progress') {
-        doneBy.set(ti, msg.done);
-        useSim.getState().setJob({ done: [...doneBy.values()].reduce((a, b) => a + b, 0), total, workers });
-        return;
-      }
-      if (msg.kind === 'error') {
-        finishAll();
-        useSim.getState().setJob(null);
-        useStore.getState().toast('error', `Simulation failed: ${msg.message}`);
-        return;
-      }
-      if (msg.kind !== 'mc') return;
-      parts.push(msg.part);
-      if (parts.length === tasks.length) {
-        finishAll();
-        useSim.getState().setRows(summariseMc(design, parts), key);
-        useSim.getState().setJob(null);
-        useStore.getState().toast('success', `Simulation finished: ${total} replications on ${workers} core${workers > 1 ? 's' : ''}.`);
-      } else feed(w);
+  progress(0, total, workers);
+  return new Promise<McSummaryRow[]>((resolve, reject) => {
+    const finishAll = () => { simPool.forEach((w) => w.terminate()); simPool = []; simStop = null; };
+    simStop = reject;
+    const fail = (message: string) => { finishAll(); reject(new Error(message)); };
+    const feed = (w: Worker) => {
+      if (next >= tasks.length) return;
+      const ti = next++;
+      w.onmessage = (e: MessageEvent<WorkerResponse>) => {
+        const msg = e.data;
+        if (msg.kind === 'progress') {
+          doneBy.set(ti, msg.done);
+          progress([...doneBy.values()].reduce((a, b) => a + b, 0), total, workers);
+          return;
+        }
+        if (msg.kind === 'error') { fail(msg.message); return; }
+        if (msg.kind !== 'mc') return;
+        parts.push(msg.part);
+        if (parts.length === tasks.length) { finishAll(); resolve(summariseMc(design, parts)); } else feed(w);
+      };
+      const req: WorkerRequest = { kind: 'mc', task: tasks[ti] };
+      w.postMessage(req);
     };
-    const req: WorkerRequest = { kind: 'mc', task: tasks[ti] };
-    w.postMessage(req);
-  };
-  simPool = Array.from({ length: Math.min(workers, tasks.length) }, () => {
-    const w = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-    w.onerror = (e) => { finishAll(); useSim.getState().setJob(null); useStore.getState().toast('error', `Simulation failed: ${e.message}`); };
-    return w;
+    simPool = Array.from({ length: Math.min(workers, tasks.length) }, () => {
+      const w = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+      w.onerror = (e) => fail(e.message);
+      return w;
+    });
+    simPool.forEach(feed);
   });
-  simPool.forEach(feed);
+}
+
+/** Run a Monte Carlo study with the R packages or the built-in engine. One at a time. */
+export async function simulate(design: McDesign, engine: 'r' | 'builtin', progress: SimProgress): Promise<McSummaryRow[]> {
+  if (simPool.length || simStop) throw new Error('A simulation is already running.');
+  if (engine !== 'r') return simulateBuiltIn(design, progress);
+  return new Promise<McSummaryRow[]>((resolve, reject) => {
+    simStop = reject;
+    simulateR(design, progress).then(resolve, reject).finally(() => { if (simStop === reject) simStop = null; });
+  });
 }

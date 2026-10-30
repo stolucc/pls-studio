@@ -8,8 +8,6 @@ import { DataPanel } from './components/DataPanel';
 import { Inspector } from './components/Inspector';
 import { ConfirmModal, Toasts } from './components/Overlays';
 import { ResultsPanel } from './components/ResultsPanel';
-import { SimulationPanel } from './components/SimulationPanel';
-import { useSim } from './simStore';
 import { TopBar } from './components/TopBar';
 import { HomeScreen } from './components/HomeScreen';
 import { AuthDialog } from './components/cloud/AuthDialog';
@@ -38,12 +36,6 @@ export default function App() {
       clearTimeout(timer);
       timer = setTimeout(() => void autosave(), 800);
     });
-    // The simulation design is saved with the project too.
-    const unsubSim = useSim.subscribe((s, prev) => {
-      if (s.design === prev.design) return;
-      clearTimeout(timer);
-      timer = setTimeout(() => void autosave(), 800);
-    });
     // So is the analysis log (a change to it is an unsaved change).
     const unsubCards = useAnalyses.subscribe((s, prev) => {
       if (s.cards === prev.cards) return;
@@ -51,7 +43,7 @@ export default function App() {
       clearTimeout(timer);
       timer = setTimeout(() => void autosave(), 800);
     });
-    return () => { unsub(); unsubSim(); unsubCards(); clearTimeout(timer); };
+    return () => { unsub(); unsubCards(); clearTimeout(timer); };
   }, []);
 
   useEffect(() => {
@@ -112,7 +104,6 @@ export default function App() {
           {workspace === 'analyses' && <AnalysesWorkspace />}
         </div>
       </div>
-      <SimulationPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />

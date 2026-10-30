@@ -5,15 +5,13 @@ import { parseCovMatrixCsv, parseNacovCsv } from './examples/matrix';
 import { safeFileName, downloadText } from './format';
 import { parseProject, serializeProject, toSpec, validateModel } from './model/project';
 import { makeSample } from './sample';
-import { useSim } from './simStore';
 import { addAnalysis, loadCards, useAnalyses } from './analyses/store';
-import { parseCards } from './analyses/persist';
+import { parseCards, withLegacySimulation } from './analyses/persist';
 import { analysisType } from './analyses/registry';
 import { getRecent, migrateLegacyAutosave, recentPersistent, saveRecent, type RecentEntry } from './recent';
 import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
 import type { IpmaOptions } from './engine/ipma';
-import type { McDesign } from './engine/montecarlo';
 import { processInput } from './process/input';
 
 
@@ -52,9 +50,7 @@ export async function newProjectFromData() {
   if (!f) return;
   if (!(await confirmDiscard('Starting a new project'))) return;
   useStore.getState().newProject();
-  useSim.getState().setDesign(null);
   loadCards([]);
-  useSim.getState().setRows(null, null);
   await importCsv(f);
 }
 
@@ -113,9 +109,7 @@ export async function openProject() {
   try {
     const p = parseProject(await f.text());
     s.loadProject({ name: f.name.replace(/\.(plsproj\.)?json$|\.plsproj$/i, '').slice(0, 100) || 'Untitled model', ...p });
-    useSim.getState().setDesign(p.simulation);
-    loadCards(parseCards(p.analyses));
-    useSim.getState().setRows(null, null);
+    loadCards(withLegacySimulation(parseCards(p.analyses), p.simulation));
     void autosave();
     s.toast('success', `Opened ${f.name}.`);
   } catch (err) {
@@ -188,32 +182,16 @@ export async function buildRScript(what: ScriptTarget = 'model'): Promise<{ text
   }
 }
 
-/** The R script for a whole Monte Carlo study (lavaan::simulateData, cSEM, lavaan). */
-export async function exportSimulationScript(design: McDesign) {
-  const s = useStore.getState();
-  try {
-    s.toast('info', 'Preparing the simulation script…');
-    const { mcScriptR } = await import('./rengine/mc');
-    downloadText(`${safeFileName(s.projectName)}-simulation.R`, await mcScriptR(design), 'text/x-r-source');
-    s.toast('success', 'Simulation script saved: open it in R or RStudio to run the study.');
-  } catch (e) {
-    const { rMessage } = await import('./rengine/bridge');
-    s.toast('error', `Could not create the R script: ${rMessage(e)}`);
-  }
-}
-
 export function saveProject() {
   const s = useStore.getState();
-  downloadText(`${safeFileName(s.projectName)}.plsproj.json`, serializeProject(s.model, s.settings, s.data, s.dataInfo, useSim.getState().design, useAnalyses.getState().cards), 'application/json');
+  downloadText(`${safeFileName(s.projectName)}.plsproj.json`, serializeProject(s.model, s.settings, s.data, s.dataInfo, null, useAnalyses.getState().cards), 'application/json');
   s.markSaved();
 }
 
 export async function newProject() {
   if (!(await confirmDiscard('Starting a new project'))) return;
   useStore.getState().newProject();
-  useSim.getState().setDesign(null);
   loadCards([]);
-  useSim.getState().setRows(null, null);
 }
 
 /** Reopen a project from Recent projects. */
@@ -226,9 +204,7 @@ export async function openRecent(id: string) {
   try {
     const p = parseProject(entry.text);
     s.loadProject({ name: entry.name, ...p, id: entry.id });
-    useSim.getState().setDesign(p.simulation);
-    loadCards(parseCards(p.analyses));
-    useSim.getState().setRows(null, null);
+    loadCards(withLegacySimulation(parseCards(p.analyses), p.simulation));
   } catch (err) {
     s.toast('error', `Could not open “${entry.name}”: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -243,7 +219,6 @@ export async function loadSample(which: ExampleId = 'customer') {
     const { makeEmseExample } = await import('./examples/emse');
     const ex = makeEmseExample(s.settings);
     s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'emse' });
-    useSim.getState().setDesign(null);
     loadCards([]);
     s.toast('info', 'Stol, Schaarschmidt & Goldblit (2022), EMSE 27:35. Covariance + NACOV matrices (N = 155), estimated with MLM as in the paper. Press Calculate.');
     return;
@@ -252,14 +227,12 @@ export async function loadSample(which: ExampleId = 'customer') {
     const { makePoldemExample } = await import('./examples/poldem');
     const ex = makePoldemExample(s.settings);
     s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'poldem' });
-    useSim.getState().setDesign(null);
     loadCards([]);
     s.toast('info', 'Bollen (1989): industrialisation and political democracy, N = 75, with six correlated measurement errors. Press Calculate.');
     return;
   }
   const { data, info, model } = makeSample();
   s.loadProject({ name: 'Customer experience example', model, settings: { ...s.settings, method: 'pls' }, data, info, example: 'customer' });
-  useSim.getState().setDesign(null);
   loadCards([]);
   s.toast('info', 'Example loaded. Press Calculate to estimate the model.');
 }
@@ -317,7 +290,6 @@ export async function loadPackageExample(id: string) {
       data: { names: raw.names, cols, ...categoriesOf(raw.levels) }, info: { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
       example: ex.id,
     });
-    useSim.getState().setDesign(null);
     loadCards([]);
     const coded = factorCodes(raw.levels);
     if (ex.panel) {
@@ -382,7 +354,7 @@ export function currentEntry(): RecentEntry | null {
   return {
     id: s.projectId, name: s.projectName, method: s.settings.method, updated: Date.now(),
     constructs: s.model.constructs.length, dataLabel: dataLabel(s),
-    text: serializeProject(s.model, s.settings, s.data, s.dataInfo, useSim.getState().design, useAnalyses.getState().cards),
+    text: serializeProject(s.model, s.settings, s.data, s.dataInfo, null, useAnalyses.getState().cards),
   };
 }
 

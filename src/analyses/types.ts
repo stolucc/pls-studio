@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { CbResult } from '../engine/cbsem';
 import type { Dataset, PlsResult } from '../engine/types';
 import type { DataInfo, ModelState, Settings } from '../model/project';
 
@@ -9,6 +10,8 @@ export interface AnalysisCtx {
   settings: Settings;
   /** The PLS-SEM results, when they are current for the model and data. */
   pls: PlsResult | null;
+  /** The CB-SEM results, when they are current for the model and data. */
+  cb?: CbResult | null;
   projectName: string;
   /** The diagram (for analyses that offer its indicators, or build constructs). */
   model?: ModelState;
@@ -59,7 +62,10 @@ export interface AnalysisType<O = any, R = any> {
   blocked: (o: O, ctx: AnalysisCtx) => string | null;
   /** Fingerprint of the inputs it reads (null when they are not available). */
   fingerprint: (o: O, ctx: AnalysisCtx) => string | null;
-  run: (o: O, ctx: AnalysisCtx) => Promise<R>;
+  /** Run it; long runs may report progress (done of total). */
+  run: (o: O, ctx: AnalysisCtx, progress: (done: number, total: number) => void) => Promise<R>;
+  /** Stop a run beyond interrupting R (e.g. terminate worker threads). */
+  cancel?: () => void;
   /** The R script for this run, when there is one. */
   script?: (o: O, ctx: AnalysisCtx) => Promise<string>;
   /** Short description of the options for the card header. */

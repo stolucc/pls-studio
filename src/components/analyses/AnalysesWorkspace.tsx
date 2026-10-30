@@ -9,7 +9,6 @@ import { downloadText, safeFileName } from '../../format';
 import { useFreshResults, useStore } from '../../store';
 import { IconCopy, IconPlay, IconRepeat, IconTrash } from '../icons';
 import { confirmDialog } from '../Overlays';
-import { useWindowAnalyses } from '../AnalysesMenu';
 
 /** The project as the analyses see it, re-rendering when it changes. */
 export function useAnalysisCtx(): AnalysisCtx {
@@ -19,8 +18,9 @@ export function useAnalysisCtx(): AnalysisCtx {
   const projectName = useStore((s) => s.projectName);
   const fresh = useFreshResults();
   const pls = settings.method === 'pls' ? fresh?.pls ?? null : null;
+  const cb = settings.method === 'cbsem' ? fresh?.cb ?? null : null;
   const model = useStore((s) => s.model);
-  return useMemo(() => ({ data, info, settings, pls, projectName, model }), [data, info, settings, pls, projectName, model]);
+  return useMemo(() => ({ data, info, settings, pls, cb, projectName, model }), [data, info, settings, pls, cb, projectName, model]);
 }
 
 /** How many analysis cards no longer match their options or inputs (for the tab badge). */
@@ -75,7 +75,6 @@ function AddMenu({ disabled }: { disabled: boolean }) {
     return () => { window.removeEventListener('mousedown', away); window.removeEventListener('keydown', key); };
   }, [open]);
   const groups = [...new Set(ANALYSIS_TYPES.map((t) => t.group))] as AnalysisGroup[];
-  const windows = useWindowAnalyses();
   const onMenuKey = (e: KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
@@ -98,12 +97,6 @@ function AddMenu({ disabled }: { disabled: boolean }) {
                 </button>
               )))}
             </div>
-          ))}
-          <div className="menu-group">Opens in its own window (moving here soon)</div>
-          {windows.map((w) => (
-            <button key={w.label} role="menuitem" className="menu-item" disabled={w.disabled} onClick={() => { setOpen(false); w.open(); }}>
-              <span>{w.label}<br /><span className="sub">{w.sub}</span></span>
-            </button>
           ))}
           <div className="menu-sep" role="separator" />
           <button role="menuitem" className="menu-item" onClick={() => pick(() => addText('heading'))}><span>Heading<br /><span className="sub">a section title for the cards below it</span></span></button>
@@ -129,6 +122,7 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
   const hasResult = useAnalyses((s) => card.id in s.results);
   const error = useAnalyses((s) => s.errors[card.id]);
   const unpacking = useAnalyses((s) => !!s.unpacking[card.id]);
+  const progress = useAnalyses((s) => s.progress[card.id]);
   const [over, setOver] = useState(false);
   const packed = card.kind === 'analysis' ? card.run?.packed : undefined;
   useEffect(() => { if (packed && !hasResult) void unpackCard(card.id); }, [card.id, packed, hasResult]);
@@ -181,7 +175,10 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
         )}
       </div>
       <div className="card-body">
-        {running && <div className="card-bar run">Calculating… <button className="btn sm" onClick={(e) => { e.stopPropagation(); cancelCard(card.id); }}>Cancel</button></div>}
+        {running && <div className="card-bar run">{progress ? <>
+            <span className="num">{progress.done}/{progress.total}</span>
+            <span className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done}><span className="fill" style={{ width: `${(100 * progress.done) / Math.max(1, progress.total)}%` }} /></span>
+          </> : 'Calculating…'} <button className="btn sm" onClick={(e) => { e.stopPropagation(); cancelCard(card.id); }}>Cancel</button></div>}
         {error && <div className="card-bar bad" role="alert">{error}</div>}
         {(status!.state === 'stale' || status!.state === 'missing') && (
           <div className="card-bar stale">{status!.why}
@@ -254,8 +251,7 @@ export function AnalysesWorkspace() {
         </div>
         {cards.length === 0 && (
           <div className="empty-results log-empty">
-            No analyses yet. Add one with <b>+ Add analysis</b>: each becomes a card here, kept with the project, which you can rerun when the data change.
-            Analyses marked “opens in its own window” move here one by one.
+            No analyses yet. Add one with <b>+ Add analysis</b>: each becomes a card here, kept with the project, which you can rerun when the data or the model change.
           </div>
         )}
         {cards.map((c) => <CardView key={c.id} card={c} ctx={ctx} readOnly={readOnly} dragging={dragging} setDragging={setDragging} />)}

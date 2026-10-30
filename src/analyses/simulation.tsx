@@ -1,15 +1,18 @@
+// Monte Carlo simulation as an analysis card: power, sample size and
+// estimator comparison for a population built from the model (lavaan's
+// simulateData with cSEM and lavaan, or the built-in engine).
+
 import { useEffect, useMemo, useState } from 'react';
 import type { McDesign, McSummaryRow } from '../engine/montecarlo';
 import { buildPopulation, type PopulationSpec } from '../engine/population';
 import { fmt } from '../format';
-import { defaultDesign, ESTIMATOR_CHOICES, populationFromModel } from '../model/simulation';
-import { cancelSimulation, runSimulation, workerCount } from '../runner';
-import { exportSimulationScript } from '../io';
-import { useSim } from '../simStore';
-import { useFreshResults, useStore } from '../store';
-import { IconPlay, IconRepeat, IconX } from './icons';
-import { c, Table, type Row } from './results/Table';
-import { ChartFrame } from './ChartFrame';
+import { defaultDesign, ESTIMATOR_CHOICES, parseDesign, populationFromModel } from '../model/simulation';
+import { cancelSimulation, workerCount } from '../runner';
+import { ChartFrame } from '../components/ChartFrame';
+import { c, Table, type Row } from '../components/results/Table';
+import { emptyModel } from '../store';
+import { fingerprint } from './codec';
+import type { AnalysisType, OptionsProps } from './types';
 
 /** Number input that keeps the typed text until blur (so "-0." can be typed). */
 function Num({ value, onChange, step = 0.05, min, max, width = 64 }: {
@@ -74,60 +77,23 @@ function PowerChart({ rows, paramKey, estimators, metric }: { rows: McSummaryRow
   );
 }
 
-export function SimulationPanel() {
-  const engine = useStore((st) => st.settings.engine);
-  const sim = useSim();
-  const model = useStore((s) => s.model);
-  const method = useStore((s) => s.settings.method);
-  const results = useFreshResults();
-  const design = sim.design;
-  const [paramKey, setParamKey] = useState('');
-  const [metric, setMetric] = useState<'rejection' | 'relBias' | 'coverage'>('rejection');
-  const [sizesText, setSizesText] = useState('');
 
-  useEffect(() => {
-    if (sim.open && !design && model.constructs.length) {
-      sim.setDesign(defaultDesign(populationFromModel(model, method === 'pls' ? results?.pls ?? null : null, method === 'cbsem' ? results?.cb ?? null : null)));
-    }
-  }, [sim.open]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (design) setSizesText(design.sampleSizes.join(', ')); }, [design?.sampleSizes]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!sim.open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); sim.setOpen(false); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [sim.open]); // eslint-disable-line react-hooks/exhaustive-deps
-
+function McOptionsForm({ options: design, set: setDesign, ctx, disabled }: OptionsProps<McDesign>) {
+  const model = ctx.model ?? emptyModel();
+  const method = ctx.settings.method;
+  const engine = ctx.settings.engine;
+  const results = ctx.pls || ctx.cb ? { pls: ctx.pls, cb: ctx.cb ?? null } : null;
+  const [sizesText, setSizesText] = useState(design.sampleSizes.join(', '));
   const check = useMemo(() => {
-    if (!design) return null;
     try { return { pop: buildPopulation(design.population), error: null as string | null }; } catch (e) { return { pop: null, error: e instanceof Error ? e.message : String(e) }; }
   }, [design]);
-
-  if (!sim.open) return null;
-  const close = () => sim.setOpen(false);
-  const set = (patch: Partial<McDesign>) => design && sim.setDesign({ ...design, ...patch });
-  const setPop = (fn: (p: PopulationSpec) => PopulationSpec) => design && set({ population: fn(design.population) });
-  const fromEstimates = () => sim.setDesign({
-    ...(design ?? defaultDesign(populationFromModel(model, null, null))),
-    population: populationFromModel(model, method === 'pls' ? results?.pls ?? null : null, method === 'cbsem' ? results?.cb ?? null : null),
-  });
-  const stale = sim.rows && design && sim.rowsFor !== JSON.stringify(design);
-  const params = sim.rows ? [...new Map(sim.rows.map((r) => [r.param.key, r.param])).values()] : [];
-  const activeParam = params.find((p) => p.key === paramKey) ?? params[0];
-  const workUnits = design ? design.replications * design.sampleSizes.length * design.estimators.reduce((s, e) => s + (e.method === 'pls' ? Math.max(1, design.bootSamples) : 1), 0) : 0;
-
+  const set = (patch: Partial<McDesign>) => setDesign({ ...design, ...patch });
+  const setPop = (fn: (p: PopulationSpec) => PopulationSpec) => set({ population: fn(design.population) });
+  const fromEstimates = () => setDesign({ ...design, population: populationFromModel(model, ctx.pls, ctx.cb ?? null) });
+  const workUnits = workUnitsOf(design);
   return (
-    <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="Monte Carlo simulation">
-      <div className="sim">
-        <header className="sim-head">
-          <div><b>Monte Carlo simulation</b> <span className="muted">power, sample size and estimator comparison</span></div>
-          <button className="btn icon ghost" onClick={close} aria-label="Close"><IconX /></button>
-        </header>
-        {!design ? <div className="empty-results" style={{ padding: 24 }}>Build a model first: the population uses its constructs, indicators and paths.</div> : (
-          <div className="sim-body">
-            <section className="sim-col">
-              <div className="table-tools">
+    <fieldset className="card-options sim-options" disabled={disabled}>
+      <div className="table-tools">
                 <h3>Population model</h3>
                 <button className="btn sm" onClick={fromEstimates} title="Use the current estimates as population values">{results ? 'Use current estimates' : 'Reset to defaults'}</button>
               </div>
@@ -173,10 +139,7 @@ export function SimulationPanel() {
                   ))}
                 </div>
               </div>
-            </section>
-
-            <section className="sim-col narrow">
-              <h3>Design</h3>
+              <h3 style={{ marginTop: 14 }}>Design</h3>
               <div className="field"><label>Sample sizes</label>
                 <input className="input" value={sizesText} onChange={(e) => setSizesText(e.target.value)}
                   onBlur={() => {
@@ -225,33 +188,20 @@ export function SimulationPanel() {
                   ? <> Data: lavaan::simulateData; estimation: cSEM (PLS) and lavaan (CB-SEM), in your browser. About {workUnits.toLocaleString()} model estimations, one at a time.</>
                   : <> About {workUnits.toLocaleString()} model estimations on {workerCount()} cores (built-in engine).</>}
               </div>
-              {sim.job ? (
-                <div className="progress" style={{ minWidth: 0 }}>
-                  <span className="muted">{sim.job.done}/{sim.job.total}</span>
-                  <div className="bar"><div className="fill" style={{ width: `${(100 * sim.job.done) / sim.job.total}%` }} /></div>
-                  <button className="btn sm" onClick={cancelSimulation}>Cancel</button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn primary" disabled={!check?.pop || design.estimators.length === 0} onClick={() => void runSimulation(design)}>
-                    {sim.rows ? <IconRepeat size={14} /> : <IconPlay size={14} />} Run simulation
-                  </button>
-                  {engine === 'r' && (
-                    <button className="btn" disabled={!check?.pop || design.estimators.length === 0} onClick={() => void exportSimulationScript(design)}
-                      title="Download the R script for the whole simulation (lavaan::simulateData, cSEM, lavaan), to run it in R or RStudio.">
-                      R script
-                    </button>
-                  )}
-                </div>
-              )}
-            </section>
+    </fieldset>
+  );
+}
 
-            <section className="sim-col wide">
-              <div className="table-tools">
-                <h3>Results</h3>
-                {stale && <span className="verdict bad">design changed since this run</span>}
-              </div>
-              {!sim.rows ? <div className="empty-results">Run the simulation to see power curves and bias.</div> : activeParam && (
+const workUnitsOf = (d: McDesign) => d.replications * d.sampleSizes.length * d.estimators.reduce((s, e) => s + (e.method === 'pls' ? Math.max(1, d.bootSamples) : 1), 0);
+
+function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
+  const [paramKey, setParamKey] = useState('');
+  const [metric, setMetric] = useState<'rejection' | 'relBias' | 'coverage'>('rejection');
+  const params = [...new Map(rows.map((r) => [r.param.key, r.param])).values()];
+  const activeParam = params.find((p) => p.key === paramKey) ?? params[0];
+  return (
+    <div className="tables">
+      {!rows ? <div className="empty-results">Run the simulation to see power curves and bias.</div> : activeParam && (
                 <>
                   <div className="ipma-controls">
                     <label>Parameter
@@ -269,13 +219,13 @@ export function SimulationPanel() {
                       <button className={metric === 'coverage' ? 'on' : ''} onClick={() => setMetric('coverage')}>Coverage</button>
                     </div>
                   </div>
-                  <PowerChart rows={sim.rows} paramKey={activeParam.key} estimators={(design.estimators ?? []).map((e) => e.id)} metric={metric} />
+                  <PowerChart rows={rows} paramKey={activeParam.key} estimators={(design.estimators ?? []).map((e) => e.id)} metric={metric} />
                   <div className="legend">
                     {design.estimators.map((e, k) => <span key={e.id}><i style={{ background: COLORS[k % COLORS.length] }} />{e.id}</span>)}
                   </div>
                   <Table title={activeParam.kind === 'fit' ? 'Model χ² test' : `${activeParam.from} → ${activeParam.to}${activeParam.kind === 'indirect' ? ' (indirect)' : ''}`} file="simulation"
                     columns={['Estimator', 'N', 'Reps', 'Mean', 'Bias', 'Rel. bias', 'SD', 'RMSE', 'Coverage', Math.abs(activeParam.value) < 1e-12 ? 'Type I' : 'Power']}
-                    rows={sim.rows.filter((r) => r.param.key === activeParam.key).map((r): Row => [
+                    rows={rows.filter((r) => r.param.key === activeParam.key).map((r): Row => [
                       c(r.estimator), c(String(r.n)), c(`${r.reps}${r.failed ? ` (−${r.failed})` : ''}`), c(r.mean), c(r.bias),
                       c(r.relBias === null ? null : `${(r.relBias * 100).toFixed(1)}%`, r.relBias !== null && Math.abs(r.relBias) > 0.1 ? 'bad' : ''),
                       c(r.sd), c(r.rmse),
@@ -285,10 +235,26 @@ export function SimulationPanel() {
                     note={activeParam.kind === 'fit' ? <>Mean: average (scaled) χ². Type I: share of replications rejecting the correct model at α = {design.alpha}; it should be close to α. Robust estimators use their scaled statistic.</> : <>Bias and RMSE against the true standardised value. Coverage: share of {Math.round((1 - design.alpha) * 100)}% intervals containing the true value (PLS: bootstrap percentile; CB: Wald for paths, Monte Carlo for indirect effects). Power: share of replications rejecting H₀ at α = {design.alpha}; 0.80 is the usual target. Failed replications (non-convergence) are excluded and counted.</>} />
                 </>
               )}
-            </section>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
+
+function populationError(d: McDesign): string | null {
+  try { buildPopulation(d.population); return null; } catch (e) { return e instanceof Error ? e.message : String(e); }
+}
+
+export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
+  id: 'mc', title: 'Monte Carlo simulation', sub: 'power, sample size, estimators: from a population built on the model', group: 'PLS-SEM model',
+  defaults: (ctx) => defaultDesign(populationFromModel(ctx.model ?? emptyModel(), ctx.pls, ctx.cb ?? null)),
+  parseOptions: (raw) => parseDesign(raw),
+  Options: McOptionsForm,
+  View: ({ result, options }) => <McView rows={result} design={options} />,
+  blocked: (d, ctx) => (ctx.settings.method === 'process' ? 'Monte Carlo simulation is for PLS-SEM and CB-SEM models.' : !d.population.constructs.length ? 'Build a model first (Model tab), then press Reset to defaults: the population uses its constructs, indicators and paths.'
+    : !d.estimators.length ? 'Choose at least one estimator.' : populationError(d)),
+  // The study depends on its design (the options) and the engine only, not on the data.
+  fingerprint: (_d, ctx) => fingerprint(['mc', ctx.settings.engine]),
+  run: async (d, ctx, progress) => (await import('../runner')).simulate(d, ctx.settings.engine, (done, total) => progress(done, total)),
+  cancel: cancelSimulation,
+  script: async (d) => (await import('../rengine/mc')).mcScriptR(d),
+  summary: (d) => `${d.estimators.map((e) => e.id).join(', ') || 'no estimator'} · N = ${d.sampleSizes.join(', ')} · ${d.replications} replications`,
+};

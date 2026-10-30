@@ -100,6 +100,8 @@ button, input, select { font: inherit; color: inherit; }
 .card-bar.stale { background: var(--warn-soft); color: var(--warn); }
 .card-bar.bad { background: var(--bad-soft); color: var(--bad); }
 .card-bar.run { background: var(--accent-soft); color: var(--accent-strong); }
+.card-bar .bar { flex: 1; min-width: 80px; height: 6px; border-radius: 99px; background: var(--surface); overflow: hidden; }
+.card-bar .fill { display: block; height: 100%; background: var(--accent); transition: width 0.15s; }
 .log-end { border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: 10px; text-align: center; color: var(--text-3); }
 .log-end.over { border-color: var(--accent); color: var(--accent-strong); }
 .card-outline { border-left: 1px solid var(--border); background: var(--surface-2); padding: 14px 10px; overflow: auto; display: flex; flex-direction: column; gap: 1px; min-height: 0; }

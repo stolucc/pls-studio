@@ -1,6 +1,7 @@
 // Cards in project files and shared projects: written as they are, read back
 // through the same validation as any untrusted input.
 
+import type { McDesign } from '../engine/montecarlo';
 import { MAX_PACKED } from './codec';
 import { analysisType } from './registry';
 import { MAX_CARDS, MAX_TEXT } from './store';
@@ -38,5 +39,15 @@ export function parseCards(raw: unknown): Card[] {
 }
 
 /** Cards for a shared project: results stay on each computer (the shared document is not encrypted at rest, results can hold raw data). */
+/**
+ * Projects from before the Analyses tab kept one simulation design beside the
+ * model: it becomes a Monte Carlo card (a fixed id, so two collaborators
+ * converting the same project make the same card).
+ */
+export function withLegacySimulation(cards: Card[], design: McDesign | null): Card[] {
+  if (!design || cards.some((c) => c.kind === 'analysis' && c.type === 'mc') || cards.length >= MAX_CARDS) return cards;
+  return [...cards, { id: 'card-legacy-simulation', kind: 'analysis', type: 'mc', options: design }];
+}
+
 export const shareableCards = (cards: Card[]): Card[] =>
   cards.map((c) => (c.kind === 'analysis' && c.run?.packed ? { ...c, run: { at: c.run.at, fingerprint: c.run.fingerprint, options: c.run.options } } : c));

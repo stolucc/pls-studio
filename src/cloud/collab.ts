@@ -24,8 +24,7 @@ import * as Y from 'yjs';
 import { create } from 'zustand';
 import type { McDesign } from '../engine/montecarlo';
 import { DEFAULT_SETTINGS, FORMAT_VERSION, parseDataSection, parseProject, serializeDataSection, type ModelState, type Settings } from '../model/project';
-import { useSim } from '../simStore';
-import { parseCards, shareableCards } from '../analyses/persist';
+import { parseCards, shareableCards, withLegacySimulation } from '../analyses/persist';
 import { loadCards, useAnalyses } from '../analyses/store';
 import type { Card } from '../analyses/types';
 import { useStore } from '../store';
@@ -209,9 +208,6 @@ export class CollabSession {
       if (s.data !== prev.data && !this.fetchingData && s.data && s.dataInfo && s.cloud.role !== 'viewer') void this.uploadData();
       if (s.selection !== prev.selection) this.provider.awareness.setLocalStateField('selection', s.selection.nodes);
     }));
-    this.unsubs.push(useSim.subscribe((s, prev) => {
-      if (!this.applying && this.initialised && s.design !== prev.design) this.push();
-    }));
     this.unsubs.push(useAnalyses.subscribe((s, prev) => {
       if (!this.applying && this.initialised && s.cards !== prev.cards && useStore.getState().cloud?.role !== 'viewer') writeCards(this.doc, s.cards);
     }));
@@ -229,7 +225,7 @@ export class CollabSession {
 
   private push() {
     const s = useStore.getState();
-    writeDoc(this.doc, s.model, s.settings, s.projectName, useSim.getState().design);
+    writeDoc(this.doc, s.model, s.settings, s.projectName, null);
   }
 
   private pull() {
@@ -250,8 +246,8 @@ export class CollabSession {
         projectName: next.name,
         selection: { ...s.selection, nodes: s.selection.nodes.filter((id) => ids.has(id)), edges: s.selection.edges.filter((id) => next.model.paths.some((p) => p.id === id)) },
       });
-      if (!same(useSim.getState().design, next.simulation)) useSim.getState().setDesign(next.simulation);
-      const cards = readCards(this.doc);
+      // A simulation design from before the Analyses tab becomes a card.
+      const cards = withLegacySimulation(readCards(this.doc), next.simulation);
       if (!same(shareableCards(useAnalyses.getState().cards), cards)) loadCards(cards);
     } finally {
       this.applying = false;
@@ -322,8 +318,6 @@ export async function openCloudProject(projectId: string, user: { id: string; di
   const meta = await api.get<{ id: string; name: string; role: 'owner' | 'editor' | 'viewer' }>(`/api/projects/${projectId}`);
   closeSession();
   useStore.getState().loadProject({ name: meta.name, model: { constructs: [], paths: [], moderations: [] }, settings: DEFAULT_SETTINGS, data: null, info: null, id: `cloud:${projectId}` });
-  useSim.getState().setDesign(null);
-  useSim.getState().setRows(null, null);
   loadCards([]);
   startSession(projectId, meta.role, user, false);
 }

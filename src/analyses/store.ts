@@ -22,9 +22,11 @@ interface AnalysesState {
   errors: Record<string, string>;
   /** Cards whose stored result is being unpacked. */
   unpacking: Record<string, true>;
+  /** Progress of running cards that report it. */
+  progress: Record<string, { done: number; total: number }>;
 }
 
-export const useAnalyses = create<AnalysesState>(() => ({ cards: [], selected: null, results: {}, running: {}, errors: {}, unpacking: {} }));
+export const useAnalyses = create<AnalysesState>(() => ({ cards: [], selected: null, results: {}, running: {}, errors: {}, unpacking: {}, progress: {} }));
 
 const groups = new Map<string, CancelGroup>();
 const newCardId = () => `card-${crypto.randomUUID()}`;
@@ -34,7 +36,7 @@ const readOnly = () => useStore.getState().cloud?.role === 'viewer';
 export function currentCtx(): AnalysisCtx {
   const s = useStore.getState();
   const fresh = s.results && s.results.key === resultsKey(s) ? s.results : null;
-  return { data: s.data, info: s.dataInfo, settings: s.settings, pls: s.settings.method === 'pls' ? fresh?.pls ?? null : null, projectName: s.projectName, model: s.model };
+  return { data: s.data, info: s.dataInfo, settings: s.settings, pls: s.settings.method === 'pls' ? fresh?.pls ?? null : null, cb: s.settings.method === 'cbsem' ? fresh?.cb ?? null : null, projectName: s.projectName, model: s.model };
 }
 
 function edit(fn: (cards: Card[]) => Card[]) {
@@ -131,7 +133,7 @@ export async function runCard(id: string) {
   groups.set(id, group);
   useAnalyses.setState((s) => ({ running: { ...s.running, [id]: true }, errors: without(s.errors, id) }));
   try {
-    const result = await group.guard(t.run(options, ctx));
+    const result = await group.guard(t.run(options, ctx, (done, total) => useAnalyses.setState((s) => ({ progress: { ...s.progress, [id]: { done, total } } }))));
     const packed = await packResult(result);
     if (packed === null) useStore.getState().toast('info', `${t.title}: the result is too large to save with the project; it is kept until you close it.`);
     useAnalyses.setState((s) => ({
@@ -145,12 +147,14 @@ export async function runCard(id: string) {
     }
   } finally {
     groups.delete(id);
-    useAnalyses.setState((s) => ({ running: without(s.running, id) }));
+    useAnalyses.setState((s) => ({ running: without(s.running, id), progress: without(s.progress, id) }));
   }
 }
 
 export function cancelCard(id: string) {
+  const card = useAnalyses.getState().cards.find((c) => c.id === id);
   if (!groups.get(id)?.cancel()) return;
+  if (card?.kind === 'analysis') analysisType(card.type)?.cancel?.();
   void import('../rengine/runtime').then((m) => m.interruptR());
   useStore.getState().toast('info', 'Calculation cancelled.');
 }
