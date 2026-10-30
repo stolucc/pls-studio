@@ -239,27 +239,31 @@ ps_cb_build <- function(req) {
   mi <- identical(req$missing, "mi")
   if (mi) {
     if (matrix_input) stop("Multiple imputation needs raw data.")
-    if (!is.null(group_var) || !is.null(cluster_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
-      stop("Multiple imputation is available for one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.")
+    if (!is.null(cluster_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
+      stop("Multiple imputation is available for continuous indicators: no clusters, sampling weights, ordinal indicators or ESEM blocks.")
     if (!req$estimator %in% c("ML", "MLR")) stop("With multiple imputation choose the ML or MLR estimator.")
     ms <- ps_mi_settings(req)
     body[1] <- "suppressPackageStartupMessages({ library(lavaan); library(mice); library(lavaan.mi) })"
     call <- c(
+      if (!is.null(group_var)) c("# The grouping column is categorical: mice uses it as a factor.", sprintf("data$%s <- factor(data$%s)", group_var, group_var)),
       sprintf("# Multiple imputation by chained equations (mice, predictive mean matching), %d imputed data sets.", ms$m),
       sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)", ms$m, ms$seed),
       "# The model in every imputed data set, pooled by Rubin's rules (lavaan.mi).",
-      sprintf("fit_mi <- sem.mi(model, data = imp, estimator = \"%s\")", req$estimator),
+      sprintf("fit_mi <- sem.mi(model, data = imp, estimator = \"%s\"%s)", req$estimator, extra),
       "# Pooled covariance matrix of the estimates (lavaan.mi: (1 + ARIV) times the mean within-imputation matrix, which its SEs use).",
       "# Where lavaan.mi's S4 vcov method is not dispatched (R in the browser), the same matrix from the per-imputation fits.",
       "vcov_mi <- tryCatch(vcov(fit_mi), error = function(e) {",
-      sprintf("  fits <- lapply(seq_len(imp$m), function(k) sem(model, data = complete(imp, k), estimator = \"%s\"))", req$estimator),
-      "  Q <- sapply(fits, function(x) { pt <- lavaan::parTable(x); pt$est[pt$free > 0][order(pt$free[pt$free > 0])] })",
-      "  U <- Reduce(`+`, lapply(fits, function(x) unclass(lavaan::lavInspect(x, \"vcov\")))) / imp$m",
-      "  ariv <- (1 + 1 / imp$m) * sum(diag(stats::cov(t(Q)) %*% solve(U))) / nrow(U)",
-      "  (1 + ariv) * U",
+      sprintf("  fits <- lapply(seq_len(imp$m), function(k) sem(model, data = complete(imp, k), estimator = \"%s\"%s))", req$estimator, extra),
+      "  # (as lavaan.mi's vcov: equality constraints counted out, a generalised inverse when there are any)",
+      "  pt <- lavaan::parTable(fits[[1]]); ncon <- sum(pt$op == \"==\"); npar <- max(pt$free) - ncon",
+      "  keep <- pt$free > 0L & !duplicated(pt$free)",
+      "  B <- stats::cov(do.call(rbind, lapply(fits, function(x) lavaan::parTable(x)$est[keep])))",
+      "  W <- Reduce(`+`, lapply(fits, function(x) unclass(lavaan::lavInspect(x, \"vcov\")))) / imp$m",
+      "  inv <- if (ncon == 0) tryCatch(solve(W), error = function(e) MASS::ginv(W)) else MASS::ginv(W)",
+      "  (1 + (1 + 1 / imp$m) / npar * sum(diag(B %*% inv))) * W",
       "})",
       "# (The model fitted to the first imputed data set: only its structure is used.)",
-      sprintf("fit <- sem(model, data = complete(imp, 1), estimator = \"%s\")", req$estimator))
+      sprintf("fit <- sem(model, data = complete(imp, 1), estimator = \"%s\"%s)", req$estimator, extra))
   }
   robust <- identical(req$estimator, "RML")
   if (robust) {
@@ -339,7 +343,7 @@ ps_cb <- function(req_json, export = FALSE) {
     if (isTRUE(b$mi)) {
       pp <- lavaan.mi::parameterEstimates.mi(env$fit_mi)
       ps <- lavaan.mi::standardizedSolution.mi(env$fit_mi)
-      k3 <- function(t) paste(t$lhs, t$op, t$rhs)
+      k3 <- function(t) paste(t$lhs, t$op, t$rhs, if ("group" %in% names(t)) t$group else 1)
       i <- match(k3(pe), k3(pp)); j <- match(k3(pe), k3(ps))
       pe$est <- pp$est[i]; pe$se <- pp$se[i]; pe$z <- pp$t[i]; pe$pvalue <- pp$pvalue[i]; pe$std.all <- ps$est.std[j]
     }
@@ -425,7 +429,9 @@ ps_cb <- function(req_json, export = FALSE) {
       hm <- paste(vapply(blocks, function(j) paste(lv_lname[j], "=~", paste(ind_v[ind_con == j - 1], collapse = " + ")), ""), collapse = "\n")
       h <- tryCatch(suppressWarnings(if (b$matrix_input) semTools::htmt(hm, sample.cov = b$inputs$S, htmt2 = two)
         # Multiple imputation: the average over the imputed data sets.
-        else if (isTRUE(b$mi)) Reduce(`+`, lapply(seq_len(env$imp$m), function(k) semTools::htmt(hm, data = mice::complete(env$imp, k), htmt2 = two))) / env$imp$m
+        else if (isTRUE(b$mi)) Reduce(`+`, lapply(seq_len(env$imp$m), function(k) { dk <- mice::complete(env$imp, k)
+          if (!is.null(g) && !is.null(b$group_var)) dk <- dk[as.character(dk[[b$group_var]]) == glab[group_of(g)], , drop = FALSE]
+          semTools::htmt(hm, data = dk, htmt2 = two) })) / env$imp$m
         else semTools::htmt(hm, data = gdata, htmt2 = two)), error = function(e) NULL)
       if (is.null(h)) return(out)
       for (a in seq_along(blocks)) for (c in seq_along(blocks)) out[blocks[a], blocks[c]] <- h[lv_lname[blocks[a]], lv_lname[blocks[c]]]
@@ -466,7 +472,7 @@ ps_cb <- function(req_json, export = FALSE) {
     per <- lapply(seq_along(groups), map_group)
     # ICCs: of the (first) group's data when there are groups as well.
     icc <- if (levels2) { x <- lavaan::lavInspect(fit, "icc"); if (is.list(x)) x[[1]] else x } else NULL
-    c(per[[1]], list(groups = list(labels = as.character(groups), results = per, score = if (levels2) list() else ps_cb_score(fit, nm), levels = levels2,
+    c(per[[1]], list(groups = list(labels = as.character(groups), results = per, score = if (levels2 || isTRUE(b$mi)) list() else ps_cb_score(fit, nm), levels = levels2,
       icc = if (levels2) as.list(setNames(as.numeric(icc), nm(names(icc)))) else NULL)))
   } else map_group(NULL)
   out$modindices <- ps_cb_modindices(if (isTRUE(b$mi)) env$fit_mi else fit, nm, groups)
@@ -516,6 +522,7 @@ ps_cb_score <- function(fit, nm) {
 ps_invariance <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   if (is.null(req$model$multigroup)) stop("Choose a grouping column first.")
+  if (identical(req$missing, "mi")) stop("The comparison of invariance levels is not available with multiple imputation; estimate each level in turn, or use FIML.")
   levels <- c("configural", "metric", "scalar", "strict")
   builds <- lapply(levels, function(l) { r <- req; r$model$multigroup$invariance <- l; r$model$waldTests <- NULL; ps_cb_build(r) })
   b <- builds[[1]]

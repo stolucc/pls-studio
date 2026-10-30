@@ -592,7 +592,7 @@ export function validateModel(
       if (engine === 'builtin') err('Multiple imputation uses mice and lavaan.mi: choose “R packages” under Calculated by.');
       if (method.estimator !== 'ML' && method.estimator !== 'MLR') err('With multiple imputation choose the ML or MLR estimator.');
       if (data?.moments && data.cols.length === 0) err('Multiple imputation needs raw data; this dataset is a covariance matrix.');
-      if (model.multigroup || model.multilevel || model.weights || ordered.length || model.esem?.blocks.length) err('Multiple imputation is available for one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.');
+      if (model.multilevel || model.weights || ordered.length || model.esem?.blocks.length) err('Multiple imputation is available for continuous indicators: no clusters, sampling weights, ordinal indicators or ESEM blocks.');
       if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Multiple imputation cannot be combined with LMS / QML latent interactions; use product indicators.');
     }
     if (method.estimator === 'RML') {

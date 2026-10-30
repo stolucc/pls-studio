@@ -160,8 +160,10 @@ describe('multiple imputation', () => {
   const col = (f: (i: number) => number) => Float64Array.from({ length: 100 }, (_, i) => f(i));
   const d = { names: ['a1', 'a2', 'a3', 'b1', 'b2'], cols: [col((i) => (i % 9 ? i % 5 : NaN)), col((i) => i % 7), col((i) => i % 3), col((i) => i % 4), col((i) => i % 6)] };
   const errs = (o: object) => validateModel(m, d, { method: 'cbsem', consistent: false, estimator: 'ML', missing: 'mi', ...o }).filter((i) => i.level === 'error').map((i) => i.message);
-  it('CB-SEM: ML or MLR with the R engine', () => {
+  it('CB-SEM: ML or MLR with the R engine, also with groups', () => {
     expect(errs({})).toEqual([]);
+    expect(validateModel({ ...m, multigroup: { column: 'b1', invariance: 'metric', free: [] } }, d, { method: 'cbsem', consistent: false, estimator: 'ML', missing: 'mi' })
+      .filter((i) => i.level === 'error' && /Multiple imputation/.test(i.message))).toEqual([]);
     expect(errs({ estimator: 'MLR' })).toEqual([]);
     expect(errs({ estimator: 'GLS' })[0]).toMatch(/ML or MLR estimator/);
     expect(errs({ engine: 'builtin' })[0]).toMatch(/mice and lavaan.mi/);

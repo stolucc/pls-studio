@@ -54,6 +54,27 @@ describe('multiple imputation', () => {
     }
   }, 900_000);
 
+  it('CB-SEM with groups (metric invariance): pooled per-group loadings and SEs equal lavaan.mi', async () => {
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
+    const hs: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+    const vars = [...Array.from({ length: 9 }, (_, i) => `x${i + 1}`), 'school'];
+    const data: Dataset = { ...withMissing(hs, vars, ref.cb.hsMissing), categories: { school: raw.levels!.school } };
+    const model: ModelState = { constructs: [C('visual', ['x1', 'x2', 'x3']), C('textual', ['x4', 'x5', 'x6']), C('speed', ['x7', 'x8', 'x9'])], paths: [], moderations: [],
+      correlations: [{ id: 'a', kind: 'construct', a: 'visual', b: 'textual' }, { id: 'b', kind: 'construct', a: 'visual', b: 'speed' }, { id: 'c', kind: 'construct', a: 'textual', b: 'speed' }],
+      multigroup: { column: 'school', invariance: 'metric', free: [] } };
+    const r = await estimateCbLavaan(data, toSpec(model), 'mi', 'ML', 'product', { m: 5, seed: 1 });
+    expect(r.groups!.labels).toEqual(ref.groups.labels);
+    expect(r.fit.chisq).toBeCloseTo(ref.groups.chisq, 3);
+    r.groups!.results.forEach((g, k) => {
+      for (const [key, v] of Object.entries(ref.groups.loadings[String(k + 1)] as Record<string, number>)) {
+        const [l, i] = key.split(' ');
+        const e = g.estimates.find((x) => x.op === '=~' && x.lhs === l && x.rhs === i)!;
+        expect(e.est, `group ${k + 1} ${key}`).toBeCloseTo(v, 5);
+        expect(e.se!, `group ${k + 1} ${key} se`).toBeCloseTo(ref.groups.se[String(k + 1)][key], 5);
+      }
+    });
+  }, 900_000);
+
   it('PLS: estimates averaged over the imputed data sets equal cSEM', async () => {
     const sat = await load('cSEM', 'satisfaction');
     const vars = [...['expe1', 'expe2', 'expe3'], ...['qual1', 'qual2', 'qual3'], ...['sat1', 'sat2', 'sat3']];
