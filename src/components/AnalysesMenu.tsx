@@ -9,7 +9,6 @@ import { useScreen } from './DataScreeningPanel';
 import { openEfa } from './EfaPanel';
 import { useEndogeneity } from './EndogeneityPanel';
 import { useMatching } from './MatchingPanel';
-import { usePolynomial } from './PolynomialPanel';
 
 export interface WindowAnalysis { label: string; sub: string; open: () => void; disabled: boolean }
 
@@ -31,7 +30,6 @@ export function useWindowAnalyses(): WindowAnalysis[] {
     item('PLS-SEM assessment', method === 'pls' ? 'PLSpredict, blindfolding (Q²), model comparison, MICOM / multigroup, CTA, CCA' : 'for PLS-SEM models', () => usePlsAssessment.getState().setOpen(true), !hasModel || method !== 'pls'),
     item('Segmentation (REBUS-PLS)', method === 'pls' ? 'classes of observations with different models (plspm)' : 'for PLS-SEM models', () => useSegmentation.getState().setOpen(true), !hasModel || method !== 'pls'),
     item('Endogeneity', 'instruments (2SLS), Gaussian copula, Lewbel, Heckman', () => useEndogeneity.getState().setOpen(true)),
-    item('Polynomial regression (RSA)', 'congruence / imbalance of two predictors, response surface', () => usePolynomial.getState().setOpen(true)),
     item('Propensity score matching', 'matching, balance, treatment effect (MatchIt)', () => useMatching.getState().setOpen(true)),
     item('Monte Carlo simulation', method === 'process' ? 'for PLS-SEM and CB-SEM models' : 'power, sample size, estimators', () => useSim.getState().setOpen(true), !hasModel || method === 'process'),
   ];

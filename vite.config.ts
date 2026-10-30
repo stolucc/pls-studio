@@ -80,5 +80,5 @@ export default defineConfig({
   // The server package has its own (database-backed) test run: `cd server && npm test`.
   // *.webr.test.ts start R (webR) and need public/webr (npm run webr:fetch): run them with npm run test:webr.
   // Statistical tests (Monte Carlo, bootstrap) run long under mutation-testing instrumentation.
-  test: { environment: 'node', testTimeout: process.env.STRYKER_SLOW ? 1_800_000 : 60_000, exclude: ['server/**', 'node_modules/**', 'dist/**', '.stryker-tmp/**', 'reports/**', ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts'])] },
+  test: { environment: 'node', testTimeout: process.env.STRYKER_SLOW ? 1_800_000 : 60_000, exclude: ['server/**', 'node_modules/**', 'dist/**', '.stryker-tmp/**', 'reports/**', ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts', '**/*.webr.test.tsx'])] },
 } as never);

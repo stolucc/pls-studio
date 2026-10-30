@@ -340,9 +340,9 @@ export async function loadPackageExample(id: string) {
         addAnalysis('nca', { source: p.source ?? 'data', x: p.x, y: p.y, permutations: 1000 });
         useStore.getState().setWorkspace('analyses');
       } else if (p.kind === 'rsa') {
-        const { usePolynomial } = await import('./components/PolynomialPanel');
         const { kind: _k, ...preset } = p;
-        usePolynomial.setState({ open: true, result: null, preset });
+        addAnalysis('rsa', preset);
+        useStore.getState().setWorkspace('analyses');
       } else if (p.kind === 'match') {
         const { useMatching } = await import('./components/MatchingPanel');
         const { kind: _k, ...preset } = p;

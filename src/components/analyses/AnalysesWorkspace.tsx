@@ -44,6 +44,13 @@ class ResultBoundary extends Component<{ children: ReactNode }, { error: string 
   }
 }
 
+/** The options a card's result was computed with (the result is shown with them, even after the options change). */
+function ranWith(card: AnalysisCard): unknown {
+  const t = analysisType(card.type);
+  if (!t || !card.run) return card.options;
+  try { return t.parseOptions(JSON.parse(card.run.options)) ?? card.options; } catch { return card.options; }
+}
+
 const PILL: Record<CardStatus['state'], [string, string]> = {
   empty: ['not run', 'muted'], running: ['running…', 'run'], current: ['current', 'ok'], stale: ['stale', 'stale'], missing: ['no result here', 'stale'],
 };
@@ -174,7 +181,7 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
             {!readOnly && <button className="btn sm" onClick={(e) => { e.stopPropagation(); void runCard(card.id); }}><IconRepeat size={12} /> Run again</button>}
           </div>
         )}
-        {t && hasResult ? <div className="card-result"><ResultBoundary><t.View result={result} options={card.options} /></ResultBoundary></div>
+        {t && hasResult ? <div className="card-result"><ResultBoundary><t.View result={result} options={ranWith(card)} current={status!.state === 'current'} /></ResultBoundary></div>
           : unpacking ? <div className="muted">Loading the stored result…</div>
           : !card.run && !running && !error && <div className="muted">{readOnly ? 'Not run yet.' : 'Set the options in the pane on the left, then run it.'}</div>}
       </div>

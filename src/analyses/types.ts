@@ -45,7 +45,8 @@ export interface AnalysisType<O = any, R = any> {
   /** Validate options from a project file or a collaborator; null when unusable. */
   parseOptions: (raw: unknown) => O | null;
   Options: ComponentType<OptionsProps<O>>;
-  View: ComponentType<{ result: R; options: O }>;
+  /** `current`: the result still matches the options and data (actions that write into the data need it). */
+  View: ComponentType<{ result: R; options: O; current: boolean }>;
   /** Why the analysis cannot run with these options and inputs; null when it can. */
   blocked: (o: O, ctx: AnalysisCtx) => string | null;
   /** Fingerprint of the inputs it reads (null when they are not available). */

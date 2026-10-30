@@ -43,11 +43,15 @@ function edit(fn: (cards: Card[]) => Card[]) {
 }
 const without = <T,>(o: Record<string, T>, id: string) => { const { [id]: _drop, ...rest } = o; return rest; };
 
+/** Add an analysis card (options: all or some of its options) and select it. */
 export function addAnalysis(type: string, options?: unknown): string | null {
   const t = analysisType(type);
   if (!t || readOnly() || useAnalyses.getState().cards.length >= MAX_CARDS) return null;
   const id = newCardId();
-  edit((cs) => [...cs, { id, kind: 'analysis', type, options: options ?? t.defaults(currentCtx()) }]);
+  // Given options (an example's preset) may be partial: fill in the defaults, and validate.
+  const defaults = t.defaults(currentCtx());
+  const opts = options === undefined ? defaults : t.parseOptions({ ...defaults, ...(options as object) }) ?? defaults;
+  edit((cs) => [...cs, { id, kind: 'analysis', type, options: opts }]);
   useAnalyses.setState({ selected: id });
   return id;
 }

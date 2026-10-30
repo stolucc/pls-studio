@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react';
-import { create } from 'zustand';
-import { downloadText, fmt, safeFileName } from '../format';
+// Polynomial regression with response surface analysis as an analysis card
+// (Edwards & Parry 1993; Shanock et al. 2010; as the RSA package with lavaan).
+
+import { useState } from 'react';
+import { fmt } from '../format';
 import type { RsaInput, RsaResult } from '../rengine/rsa';
 import { useStore } from '../store';
-import { ChartFrame } from './ChartFrame';
-import { IconX } from './icons';
-import { OrderedPicker } from './LongitudinalPanel';
-import { c, pCell, Table } from './results/Table';
-import { freeColumnName } from './SegmentationPanel';
-import { isCancelled } from '../cancellable';
-import { useCancellable } from './useCancellable';
+import { ChartFrame } from '../components/ChartFrame';
+import { OrderedPicker } from '../components/LongitudinalPanel';
+import { c, pCell, Table } from '../components/results/Table';
+import { freeColumnName } from '../components/SegmentationPanel';
+import { Choice, clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
+import type { AnalysisType, OptionsProps } from './types';
 
 export type RsaPreset = Partial<RsaInput>;
-interface RsaState { open: boolean; result: { input: RsaInput; result: RsaResult } | null; preset: RsaPreset | null; setOpen: (v: boolean) => void }
-export const usePolynomial = create<RsaState>((set) => ({ open: false, result: null, preset: null, setOpen: (open) => set({ open }) }));
+export type RsaOptions = Omit<RsaInput, 'confidence'>;
 
 const MEANING: Record<string, string> = {
   a1: 'slope, X = Y', a2: 'curvature, X = Y', a3: 'slope, X = −Y', a4: 'curvature, X = −Y', a5: 'asymmetry (b3 − b5)',
@@ -95,12 +95,12 @@ function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
   );
 }
 
-function RsaView({ r, input }: { r: RsaResult; input: RsaInput }) {
+function RsaView({ r, input, current }: { r: RsaResult; input: RsaInput; current: boolean }) {
   const stat = r.estimation === 'OLS' ? 't' : 'z';
   const level = Math.round(100 * input.confidence);
   const data = useStore((s) => s.data), info = useStore((s) => s.dataInfo);
   const save = () => {
-    if (!data || !info || r.nTotal !== data.cols[0]?.length) return;
+    if (!current || !data || !info || r.nTotal !== data.cols[0]?.length) return;
     const col = new Float64Array(r.nTotal).fill(NaN);
     r.rows.forEach((row, k) => { col[row - 1] = r.block[k]; });
     const name = freeColumnName(data.names, `block_${input.x}_${input.y}`.replace(/[^A-Za-z0-9_]/g, '_'));
@@ -124,7 +124,7 @@ function RsaView({ r, input }: { r: RsaResult; input: RsaInput }) {
           a2: curvature along X = Y; a5: asymmetry (Humberg et al. 2019). Edwards &amp; Parry (1993); Shanock et al. (2010).</>} />
       <Surface r={r} input={input} />
       <div>
-        <button className="btn sm" disabled={!data || r.nTotal !== data.cols[0]?.length} onClick={save}
+        <button className="btn sm" disabled={!current || !data || r.nTotal !== data.cols[0]?.length} onClick={save}
           title="The polynomial's combined prediction (Edwards & Cable 2009), as one predictor for mediation and moderation models">Save the block variable as a data column</button>
       </div>
       {r.warnings.length > 0 && <div>{r.warnings.map((w, i) => <div key={i} className="issue warning">{w}</div>)}</div>}
@@ -132,112 +132,63 @@ function RsaView({ r, input }: { r: RsaResult; input: RsaInput }) {
   );
 }
 
-/** Polynomial regression with response surface analysis on the current dataset. */
-export function PolynomialPanel() {
-  const open = usePolynomial((s) => s.open);
-  const saved = usePolynomial((s) => s.result);
-  const preset = usePolynomial((s) => s.preset);
-  const data = useStore((s) => s.data);
-  const settings = useStore((s) => s.settings);
-  const project = useStore((s) => s.projectName);
-  const [outcome, setOutcome] = useState(saved?.input.outcome ?? '');
-  const [x, setX] = useState(saved?.input.x ?? '');
-  const [y, setY] = useState(saved?.input.y ?? '');
-  const [controls, setControls] = useState<string[]>(saved?.input.controls ?? []);
-  const [estimation, setEstimation] = useState<RsaInput['estimation']>(saved?.input.estimation ?? 'OLS');
-  const [center, setCenter] = useState<RsaInput['center']>(saved?.input.center ?? 'mean');
-  const [midpoint, setMidpoint] = useState(String(saved?.input.midpoint ?? 3));
-  const { busy, setBusy, guard, cancel } = useCancellable();
-  useEffect(() => {
-    if (!preset) return;
-    if (preset.outcome !== undefined) setOutcome(preset.outcome);
-    if (preset.x !== undefined) setX(preset.x);
-    if (preset.y !== undefined) setY(preset.y);
-    if (preset.controls) setControls(preset.controls);
-    if (preset.estimation) setEstimation(preset.estimation);
-    if (preset.center) setCenter(preset.center);
-  }, [preset]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') usePolynomial.getState().setOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-  if (!open) return null;
-  const close = () => usePolynomial.getState().setOpen(false);
-  const columns = data && !data.moments ? data.names : [];
-  const input: RsaInput = { outcome, x, y, controls, estimation, center, midpoint: Number(midpoint), confidence: settings.confidence };
-  const ready = !!outcome && !!x && !!y && new Set([outcome, x, y]).size === 3 && (center !== 'midpoint' || Number.isFinite(Number(midpoint)));
-  const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', rMessage(e)));
-  const run = async () => {
-    setBusy(true);
-    try {
-      const { rsaR } = await import('../rengine/rsa');
-      const result = await guard(rsaR(data!, input));
-      result.warnings.forEach((w) => useStore.getState().logMessage('warning', w, `${result.engine.package} ${result.engine.version}`));
-      usePolynomial.setState({ result: { input, result } });
-    } catch (e) { await fail(e); } finally { setBusy(false); }
-  };
-  const script = async () => {
-    try {
-      const { rsaScriptR } = await import('../rengine/rsa');
-      downloadText(`${safeFileName(project)}-response-surface.R`, await rsaScriptR(data!, input), 'text/x-r-source');
-    } catch (e) { await fail(e); }
-  };
-  const pick = (label: string, value: string, set: (v: string) => void, exclude: string[]) => (
-    <div className="field">
-      <label>{label}</label>
-      <select className="select" value={value} onChange={(e) => set(e.target.value)}>
-        <option value="">Choose…</option>
-        {columns.filter((n) => n === value || !exclude.includes(n)).map((n) => <option key={n} value={n}>{n}</option>)}
-      </select>
-    </div>
-  );
+
+function RsaOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<RsaOptions>) {
+  const columns = rawData(ctx)?.names ?? [];
+  const [midpoint, setMidpoint] = useState(String(o.midpoint));
   return (
-    <div className="sim-backdrop" role="dialog" aria-modal="true" aria-label="Polynomial regression">
-      <div className="sim">
-        <header className="sim-head">
-          <div><b>Polynomial regression and response surface analysis</b><span className="muted">{estimation === 'OLS' ? 'OLS (Shanock et al. 2010)' : `lavaan ${estimation} (as the RSA package)`}</span></div>
-          <button className="btn icon ghost" onClick={close} aria-label="Close"><IconX /></button>
-        </header>
-        {!columns.length ? <div className="empty-results">Import raw data first.</div> : (
-          <div className="sim-body long-body">
-            <section className="sim-col">
-              <p className="hint" style={{ marginTop: 0 }}>
-                Does it matter whether two predictors match (e.g. identification with the company and with the community)? Instead of a difference score,
-                the outcome is regressed on X, Y, X², X·Y and Y²; the resulting surface is read along the lines of congruence (X = Y) and incongruence (X = −Y).
-              </p>
-              {pick('Outcome (Z)', outcome, setOutcome, [x, y, ...controls])}
-              {pick('Predictor X', x, setX, [outcome, y, ...controls])}
-              {pick('Predictor Y (same scale as X)', y, setY, [outcome, x, ...controls])}
-              <OrderedPicker label="Controls (optional)" columns={columns.filter((n) => ![outcome, x, y].includes(n))} value={controls} onChange={setControls} />
-              <div className="field">
-                <label>Centring of X and Y (the same for both)</label>
-                <div className="segmented">
-                  {([['mean', 'Pooled mean'], ['midpoint', 'Scale midpoint'], ['none', 'None']] as const).map(([id, l]) => <button key={id} className={center === id ? 'on' : ''} onClick={() => setCenter(id)}>{l}</button>)}
-                </div>
-                {center === 'midpoint' && <input className="input num" style={{ marginTop: 6 }} value={midpoint} onChange={(e) => setMidpoint(e.target.value)} aria-label="Scale midpoint" />}
-                <div className="hint">Both predictors are shifted by the same amount, so the line X = Y keeps its meaning.</div>
-              </div>
-              <div className="field">
-                <label>Estimation</label>
-                <div className="segmented">
-                  {([['OLS', 'OLS'], ['ML', 'ML (lavaan)'], ['MLR', 'MLR (robust)']] as const).map(([id, l]) => <button key={id} className={estimation === id ? 'on' : ''} onClick={() => setEstimation(id)}>{l}</button>)}
-                </div>
-                <div className="hint">OLS gives the stepwise R² changes; ML/MLR (as the RSA package) adds the stationary point and principal axes with standard errors.</div>
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button className="btn primary" disabled={!ready || busy} onClick={() => void run()}>{busy ? 'Estimating…' : 'Estimate'}</button>
-                {busy && <button className="btn" onClick={cancel}>Cancel</button>}
-                <button className="btn" disabled={!ready} onClick={() => void script()}>R script</button>
-              </div>
-            </section>
-            <section className="sim-col wide">
-              {saved ? <RsaView r={saved.result} input={saved.input} /> : <div className="empty-results">Choose the outcome and the two predictors, and press Estimate.</div>}
-            </section>
-          </div>
-        )}
-      </div>
-    </div>
+    <fieldset className="card-options" disabled={disabled}>
+      <p className="hint" style={{ marginTop: 0 }}>
+        Does it matter whether two predictors match (e.g. identification with the company and with the community)? Instead of a difference score,
+        the outcome is regressed on X, Y, X², X·Y and Y²; the resulting surface is read along the lines of congruence (X = Y) and incongruence (X = −Y).
+      </p>
+      {!columns.length ? <div className="empty-results">Import raw data first.</div> : (
+        <>
+          <ColumnSelect id="rsa-z" label="Outcome (Z)" value={o.outcome} columns={columns} exclude={[o.x, o.y, ...o.controls]} onChange={(outcome) => set({ ...o, outcome })} />
+          <ColumnSelect id="rsa-x" label="Predictor X" value={o.x} columns={columns} exclude={[o.outcome, o.y, ...o.controls]} onChange={(x) => set({ ...o, x })} />
+          <ColumnSelect id="rsa-y" label="Predictor Y (same scale as X)" value={o.y} columns={columns} exclude={[o.outcome, o.x, ...o.controls]} onChange={(y) => set({ ...o, y })} />
+          <OrderedPicker label="Controls (optional)" columns={columns.filter((n) => ![o.outcome, o.x, o.y].includes(n))} value={o.controls} onChange={(controls) => set({ ...o, controls })} />
+          <Choice label="Centring of X and Y (the same for both)" value={o.center} onChange={(center) => set({ ...o, center })}
+            options={[['mean', 'Pooled mean'], ['midpoint', 'Scale midpoint'], ['none', 'None']]}
+            hint="Both predictors are shifted by the same amount, so the line X = Y keeps its meaning." />
+          {o.center === 'midpoint' && (
+            <input className="input num" value={midpoint} aria-label="Scale midpoint"
+              onChange={(e) => { setMidpoint(e.target.value); const v = Number(e.target.value); if (e.target.value.trim() && Number.isFinite(v)) set({ ...o, midpoint: v }); }} />
+          )}
+          <Choice label="Estimation" value={o.estimation} onChange={(estimation) => set({ ...o, estimation })}
+            options={[['OLS', 'OLS'], ['ML', 'ML (lavaan)'], ['MLR', 'MLR (robust)']]}
+            hint="OLS gives the stepwise R² changes; ML/MLR (as the RSA package) adds the stationary point and principal axes with standard errors." />
+        </>
+      )}
+    </fieldset>
   );
 }
+
+const input = (o: RsaOptions, confidence: number): RsaInput => ({ ...o, confidence });
+
+/** The result, with the confidence level it was computed at. */
+type RsaCardResult = RsaResult & { confidence: number };
+
+export const rsaAnalysis: AnalysisType<RsaOptions, RsaCardResult> = {
+  id: 'rsa',
+  title: 'Polynomial regression (RSA)',
+  sub: 'congruence / imbalance of two predictors, response surface',
+  group: 'Regression and causal inference',
+  defaults: () => ({ outcome: '', x: '', y: '', controls: [], estimation: 'OLS', center: 'mean', midpoint: 3 }),
+  parseOptions: (raw) => (isObj(raw) ? {
+    outcome: name(raw.outcome), x: name(raw.x), y: name(raw.y), controls: names(raw.controls),
+    estimation: oneOf(raw.estimation, ['OLS', 'ML', 'MLR'] as const, 'OLS'), center: oneOf(raw.center, ['none', 'mean', 'midpoint'] as const, 'mean'),
+    midpoint: clampNum(raw.midpoint, -1e6, 1e6, 3),
+  } : null),
+  Options: RsaOptionsForm,
+  View: ({ result, options, current }) => <RsaView r={result} input={input(options, result.confidence ?? 0.95)} current={current} />,
+  blocked: (o, ctx) => {
+    if (!o.outcome || !o.x || !o.y) return 'Choose the outcome and the two predictors.';
+    if (new Set([o.outcome, o.x, o.y]).size < 3) return 'The outcome and the two predictors must be different columns.';
+    return missingColumns(ctx, [o.outcome, o.x, o.y, ...o.controls], 'Polynomial regression');
+  },
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, [o.outcome, o.x, o.y, ...o.controls], [ctx.settings.confidence]),
+  run: async (o, ctx) => ({ ...(await (await import('../rengine/rsa')).rsaR(rawData(ctx)!, input(o, ctx.settings.confidence))), confidence: ctx.settings.confidence }),
+  script: async (o, ctx) => (await import('../rengine/rsa')).rsaScriptR(rawData(ctx)!, input(o, ctx.settings.confidence)),
+  summary: (o) => (o.outcome ? `${o.x} × ${o.y} → ${o.outcome}${o.controls.length ? ` (${o.controls.length} controls)` : ''} · ${o.estimation}` : 'not set up yet'),
+};
