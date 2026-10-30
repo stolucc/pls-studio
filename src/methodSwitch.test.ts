@@ -25,12 +25,13 @@ describe('switchMethod', () => {
     expect(s().model.constructs[0].type).toBe('composite');
   });
 
-  it('refuses PLS for covariance-matrix data and higher-order constructs', async () => {
+  it('refuses PLS for covariance-matrix data, and keeps second-order constructs (estimated by cSEM)', async () => {
     useStore.setState({ settings: { ...DEFAULT_SETTINGS, method: 'cbsem' }, data: { names: ['A1'], cols: [], moments: { S: [[1]], n: 50 } } });
     expect(await switchMethod('pls', yes)).toBe(false);
     expect(s().toasts.at(-1)?.text).toMatch(/covariance matrix/);
     useStore.setState({ data: null, model: { ...model, constructs: [...model.constructs, { ...C('H', 'factor'), indicators: [], components: ['B'] }] } });
-    expect(await switchMethod('pls', yes)).toBe(false);
-    expect(s().settings.method).toBe('cbsem');
+    expect(await switchMethod('pls', yes)).toBe(true);
+    expect(s().settings.method).toBe('pls');
+    expect(s().model.constructs.find((k) => k.id === 'H')?.components).toEqual(['B']);
   });
 });

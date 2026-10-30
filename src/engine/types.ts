@@ -179,6 +179,8 @@ export interface PlsResult {
   /** Standardised construct scores, one column per construct. */
   scores: Float64Array[];
   droppedRows: number;
+  /** Second-order constructs (cSEM two-stage): loading and weight of each component, by index in `constructs`. */
+  higherOrder?: { construct: number; component: number; loading: number; weight: number }[];
 }
 
 export interface BootstrapOptions {

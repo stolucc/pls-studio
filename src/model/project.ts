@@ -478,13 +478,21 @@ export function validateModel(
     else if ((names.get(c.name.trim().toLowerCase()) ?? 0) > 1) err(`Construct name "${c.name}" is used more than once.`, c.id);
     const higher = (c.components?.length ?? 0) > 0;
     if (higher) {
-      if (method.method === 'pls') err(`"${c.name}" is a higher-order construct; these are supported in CB-SEM only.`, c.id);
+      if (method.method === 'pls') {
+        // PLS: cSEM's two-stage approach (stage 1 the components, stage 2 the second-order construct from their scores).
+        if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}" is a second-order construct: in PLS these are estimated by cSEM. Choose “R packages” under Calculated by.`, c.id);
+        else if ((method.plsPackage ?? 'cSEM') !== 'cSEM') err(`"${c.name}" is a second-order construct: in PLS these are estimated by cSEM (two-stage approach). Choose cSEM.`, c.id);
+        else if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`"${c.name}" is a second-order construct: these are estimated with PLS path modeling. Choose PLS-PM as the weighting approach.`, c.id);
+      }
       if (c.indicators.length) err(`"${c.name}" has both indicators and component constructs; remove one.`, c.id);
       if (c.components!.length < 2) warn(`"${c.name}" has a single component; a higher-order factor needs at least two (three for local identification).`, c.id);
       for (const id of c.components!) {
         const comp = model.constructs.find((k) => k.id === id);
         if (!comp) err(`"${c.name}" refers to a removed component.`, c.id);
         else if (model.paths.some((q) => q.to === id)) err(`"${comp.name}" is a component of "${c.name}" and cannot also have incoming paths.`, comp.id);
+        else if (method.method === 'pls' && (comp.components?.length || !comp.indicators.length)) err(`"${comp.name}" is a component of "${c.name}": in PLS, components are first-order constructs with indicators.`, comp.id);
+        else if (method.method === 'pls' && (model.paths.some((q) => q.from === id) || (model.moderations ?? []).some((mo) => mo.moderator === id || model.paths.find((q) => q.id === mo.path)?.from === id)))
+          err(`"${comp.name}" is a component of "${c.name}" and cannot also be in the structural model (cSEM’s two-stage approach); connect "${c.name}" instead.`, comp.id);
       }
     } else if (c.indicators.length === 0) err(method.method === 'process'
       ? `"${c.name}" has no variable yet. Drag a column (or a scale's items) from the data panel onto it.`

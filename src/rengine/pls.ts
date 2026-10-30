@@ -55,6 +55,9 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     fSquare: nmat(raw.fSquare), vifInner: nmat(raw.vifInner), vifOuter: nums(raw.vifOuter),
     scores: (raw.scores as unknown[]).map((c) => Float64Array.from(nums(c))),
     droppedRows: raw.droppedRows ?? 0, warnings: rStrings(raw.warnings), engine: raw.engine,
+    ...(Array.isArray(raw.higherOrder) && raw.higherOrder.length ? {
+      higherOrder: (raw.higherOrder as any[]).map((h) => ({ construct: Number(h.construct), component: Number(h.component), loading: num(h.loading), weight: num(h.weight) })),
+    } : {}),
   };
 }
 

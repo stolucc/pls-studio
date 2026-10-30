@@ -74,12 +74,12 @@ ps_boot_inputs <- function(req, inputs) {
 #' The draws of one chunk as JSON (in-app parallel calls).
 ps_boot_part_json <- function(env) {
   D <- env$draws
-  ps_json(list(names = colnames(D), values = unname(lapply(seq_len(nrow(D)), function(i) unname(D[i, ]))), original = unname(env$original[colnames(D)]), warnings = env$.warnings))
+  ps_json(list(names = colnames(D), values = unname(lapply(seq_len(nrow(D)), function(i) unname(D[i, ]))), original = unname(env$original[colnames(D)]), warnings = ps_quiet_2ndorder(env$.warnings)))
 }
 
 ps_pls_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_pls_build(req)
+  b <- ps_pls_build(req, allow_hoc = TRUE)
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")
   body <- b$body
   # seminr's bootstrap always starts a PSOCK cluster (worker processes), which
@@ -91,13 +91,15 @@ ps_pls_boot <- function(req_json, export = FALSE) {
     # Same call with cSEM's resampling; R² per draw via a user function.
     body <- c(ps_cores_csem(req), body)
     extract <- c(
-      "res <- fit$Estimates$Estimates_resample$Estimates1",
+      if (any(b$hoc)) "res <- fit$Second_stage$Information$Resamples$Estimates$Estimates1  # (two-stage: both stages are resampled together)"
+      else "res <- fit$Estimates$Estimates_resample$Estimates1",
       "groups <- c(path = \"Path_estimates\", total = \"Total_effect\", indirect = \"Indirect_effect\", loading = \"Loading_estimates\", weight = \"Weight_estimates\", r2 = \"R2\")",
       "# (a model without indirect effects has none to resample)",
       "groups <- groups[vapply(groups, function(k) length(res[[k]]$Original) > 0, TRUE)]",
       "draws <- do.call(cbind, lapply(names(groups), function(g) { x <- as.matrix(res[[groups[[g]]]]$Resampled); colnames(x) <- paste0(g, \": \", names(res[[groups[[g]]]]$Original)); x }))",
       "original <- unlist(lapply(names(groups), function(g) setNames(res[[groups[[g]]]]$Original, paste0(g, \": \", names(res[[groups[[g]]]]$Original)))))")
-    resample <- ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) .object$Estimates$R2))"
+    resample <- if (any(b$hoc)) ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) { r <- .object$Second_stage$Estimates$R2; setNames(r, sub(\"_temp$\", \"\", names(r))) }))"
+      else ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) .object$Estimates$R2))"
     if (ps_boot_chunked(req)) {
       body <- c(body, ps_boot_draw_lines(req, c("draw_chunk <- function(R, seed) {",
         sprintf("  fit <- %s", sub(")$", sprintf(resample, "R", "seed"), sub("^fit <- ", "", body[length(body)]))),
@@ -125,7 +127,7 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   ps_json(list(stats = ps_boot_keys(env$result, b, req), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0),
-    confidence = conf, warnings = env$.warnings))
+    confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)))
 }
 
 #' Map package parameter names to the app's bootstrap keys (path:from:to, loading:indicator, …).
@@ -147,6 +149,13 @@ ps_boot_keys <- function(r, b, req) {
     }
     # Skip package-internal entries (e.g. seminr's "X*M_intxn" pseudo-indicator).
     if (!(lhs %in% names(lv)) || (!is.na(rhs) && !(rhs %in% c(names(lv), names(ind))))) next
+    # A second-order construct's loading / weight on a component (cSEM: "H =~ C", "H <~ C").
+    if (g %in% c("loading", "weight") && !is.na(rhs) && rhs %in% names(lv)) {
+      out[[length(out) + 1]] <- c(list(key = sprintf("%s:%s:%s", if (g == "loading") "hoLoading" else "hoWeight", lv[[lhs]], lv[[rhs]]),
+        label = if (g == "loading") sprintf("%s → %s", lv[[lhs]], lv[[rhs]]) else sprintf("%s → %s", lv[[rhs]], lv[[lhs]])),
+        list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
+      next
+    }
     key <- switch(g,
       path = , total = , indirect = { f <- lv[[rhs]]; t <- lv[[lhs]]; list(key = sprintf("%s:%s:%s", g, f, t), label = sprintf("%s → %s", f, t)) },
       loading = list(key = sprintf("loading:%s", ind[[rhs]]), label = sprintf("%s → %s", lv[[lhs]], ind[[rhs]])),
@@ -248,7 +257,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
       r2 = list(key = sprintf("r2:%s", a), label = a))
     c(k, list(group = g, block = block, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
   })
-  ps_json(list(stats = stats, samples = B, blocks = blocks, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, warnings = env$.warnings))
+  ps_json(list(stats = stats, samples = B, blocks = blocks, failed = B - sum(rowSums(is.finite(env$draws)) > 0), confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)))
 }
 
 #' Bootstrap of a latent-interaction model estimated by LMS or QML (modsem).
@@ -314,5 +323,9 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
     c(k, list(group = g, original = r$original[i], mean = r$mean[i], sd = r$sd[i], t = r$t[i], p = r$p[i], ciLow = r$ci_low[i], ciHigh = r$ci_high[i]))
   })
   ps_json(list(stats = Filter(Negate(is.null), stats), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0),
-    confidence = conf, warnings = env$.warnings))
+    confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)))
 }
+
+#' cSEM's two-stage approach always corrects a second-order common factor in stage 2
+#' and warns that it set .disattenuate; the script says so, the app does not repeat it.
+ps_quiet_2ndorder <- function(w) grep("`.disattenuate = FALSE` is set to `TRUE`", w, value = TRUE, invert = TRUE, fixed = TRUE)

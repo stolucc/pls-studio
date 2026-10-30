@@ -420,6 +420,13 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   }, [display, st]);
 
   const hoLoading = useCallback((parent: string, child: string): HoLabel | null => {
+    if (method === 'pls') {
+      // Second-order PLS construct: weights into a composite, loadings of a common factor (as for indicators).
+      const pls = showResults ? results?.pls : null;
+      const h = pls?.higherOrder?.find((x) => pls.constructs[x.construct] === parent && pls.constructs[x.component] === child);
+      if (!h) return null;
+      return { value: model.constructs.find((k) => k.name === parent)?.type === 'composite' ? h.weight : h.loading, fixed: false };
+    }
     if (method !== 'cbsem') return null;
     const isMarker = model.constructs.find((k) => k.name === parent)?.components?.[0] === model.constructs.find((k) => k.name === child)?.id;
     const marker = isMarker ? { value: 1, fixed: true } : null;
@@ -477,7 +484,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     });
     const higherOrder = m.constructs.flatMap((parent) => (parent.components ?? []).flatMap((cid) => {
       const child = byId.get(cid);
-      const seg = child ? pathSegment(parent, child) : null;
+      const seg = child ? (parent.type === 'composite' ? pathSegment(child, parent) : pathSegment(parent, child)) : null;
       if (!seg || !child) return [];
       const l = hoLoading(parent.name, child.name);
       return [{ ...seg, label: l ? { value: l.value, p: null, fixed: l.fixed } : null }];

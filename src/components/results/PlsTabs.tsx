@@ -119,10 +119,26 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
       ...(boot ? [pc(bl), pc(bw), bw ? c(`[${fmt(bw.ciLow)}, ${fmt(bw.ciHigh)}]`) : c(null)] : []),
     ];
   });
+  // Second-order constructs (cSEM two-stage): their components play the indicators' part.
+  const ho = pls.higherOrder ?? [];
+  const hoRows: Row[] = ho.map((h) => {
+    const hn = pls.constructs[h.construct], cn = pls.constructs[h.component];
+    const factor = types.get(hn) !== 'composite';
+    const bl = boot?.stats.find((s) => s.key === `hoLoading:${hn}:${cn}`);
+    const bw = boot?.stats.find((s) => s.key === `hoWeight:${hn}:${cn}`);
+    const pc = (s: BootstrapStat | undefined) => (s ? c(s.p < 0.001 ? '<0.001' : s.p.toFixed(3), s.p < 0.05 ? 'good' : 'dim') : c(null));
+    return [c(cn), c(hn), c(factor ? 'factor' : 'composite', 'dim'), c(h.loading, factor ? (Math.abs(h.loading) >= 0.708 ? 'good' : Math.abs(h.loading) >= 0.4 ? 'warn' : 'bad') : ''), c(h.weight),
+      ...(boot ? [pc(bl), pc(bw), bw ? c(`[${fmt(bw.ciLow)}, ${fmt(bw.ciHigh)}]`) : c(null)] : [])];
+  });
   return (
-    <Table title="Measurement model" file="outer-model"
-      columns={['Indicator', 'Construct', 'Type', 'Loading', 'Weight', 'VIF', ...(boot ? ['p (loading)', 'p (weight)', 'Weight CI'] : [])]} rows={rows}
-      note={<>Common factors: loadings should be ≥ 0.708{pls.consistent ? ' (PLSc-corrected loadings λ = ĉŵ)' : ''}. Composites: interpret weights, their significance and VIF (&lt; 3 ideal, &gt; 5 problematic).</>} />
+    <div className="tables">
+      <Table title="Measurement model" file="outer-model"
+        columns={['Indicator', 'Construct', 'Type', 'Loading', 'Weight', 'VIF', ...(boot ? ['p (loading)', 'p (weight)', 'Weight CI'] : [])]} rows={rows}
+        note={<>Common factors: loadings should be ≥ 0.708{pls.consistent ? ' (PLSc-corrected loadings λ = ĉŵ)' : ''}. Composites: interpret weights, their significance and VIF (&lt; 3 ideal, &gt; 5 problematic).</>} />
+      {ho.length > 0 && <Table title="Second-order constructs" file="second-order"
+        columns={['Component', 'Second-order construct', 'Type', 'Loading', 'Weight', ...(boot ? ['p (loading)', 'p (weight)', 'Weight CI'] : [])]} rows={hoRows}
+        note="cSEM’s two-stage approach: stage 1 estimates the first-order constructs; their scores are the indicators of the second-order construct in stage 2, which cSEM corrects for attenuation when it is a common factor. Its paths and R² are stage 2’s." />}
+    </div>
   );
 }
 

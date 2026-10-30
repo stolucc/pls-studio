@@ -21,7 +21,7 @@ function addMainEffects() {
 /**
  * Change the estimation method, keeping the model valid for it. CB-SEM has no
  * composites: they are converted to common factors after confirmation (undoable).
- * PLS cannot use covariance-matrix data or higher-order constructs: the switch is refused.
+ * PLS cannot use covariance-matrix data: the switch is refused.
  */
 export async function switchMethod(target: Method, confirm: typeof confirmDialog = confirmDialog): Promise<boolean> {
   const s = useStore.getState();
@@ -62,11 +62,6 @@ export async function switchMethod(target: Method, confirm: typeof confirmDialog
   } else {
     if (s.data?.moments && s.data.cols.length === 0) {
       s.toast('error', 'PLS needs raw data; the current dataset is a covariance matrix. Import raw data to use PLS-SEM.');
-      return false;
-    }
-    const higher = s.model.constructs.filter((c) => c.components?.length);
-    if (higher.length) {
-      s.toast('error', `Higher-order constructs (${higher.map((c) => c.name).join(', ')}) are CB-SEM only. Remove their components to use PLS-SEM.`);
       return false;
     }
   }

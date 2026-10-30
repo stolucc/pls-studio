@@ -41,6 +41,29 @@ async function load(ex: PackageExample): Promise<Dataset & { levels?: unknown }>
   return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), levels: raw.levels, ...categoriesOf(raw.levels) };
 }
 
+/** cSEM's two-stage second-order example against cSEM run natively (scripts/validation/secondorder.R). */
+async function checkSecondOrder(data: Dataset, spec: ReturnType<typeof toSpec>, r: Awaited<ReturnType<typeof estimatePlsR>>, st: typeof DEFAULT_SETTINGS) {
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'secondorder', 'reference.json'), 'utf8'));
+  const C = r.constructs, at = (n: string) => C.indexOf(n);
+  for (const [k, b] of Object.entries(ref.paths as Record<string, number>)) { const [f, t] = k.split(' -> '); expect(r.pathCoef[at(f)][at(t)], k).toBeCloseTo(b, 5); }
+  for (const [k, v] of Object.entries(ref.r2 as Record<string, number>)) expect(r.rSquared[at(k)], k).toBeCloseTo(v, 5);
+  for (const comp of ['c1', 'c2', 'c3']) {
+    const h = r.higherOrder!.find((x) => C[x.construct] === 'c4' && C[x.component] === comp)!;
+    expect(h.loading, comp).toBeCloseTo(ref.secondOrder.loadings[comp], 5);
+    expect(h.weight, comp).toBeCloseTo(ref.secondOrder.weights[comp], 5);
+  }
+  for (const [ind, w] of Object.entries(ref.firstOrderWeights as Record<string, number>)) expect(r.weights[r.indicators.findIndex((x) => x.name === ind)], ind).toBeCloseTo(w, 5);
+  for (const [ind, v] of Object.entries(ref.vifModeB as Record<string, number>)) expect(r.vifOuter[r.indicators.findIndex((x) => x.name === ind)], `VIF ${ind}`).toBeCloseTo(v, 5);
+  // The bootstrap (one call, cSEM's own resampling, same seed) reproduces cSEM's standard errors.
+  const { bootstrapR } = await import('../rengine/analyses');
+  const b = await bootstrapR(data, spec, { kind: 'plsBoot', pkg: 'cSEM', boot: { samples: 100, seed: 1, confidence: 0.95 },
+    options: { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 } }, () => '');
+  const sd = (key: string) => b.stats.find((x) => x.key === key)!.sd;
+  expect(sd('path:eta1:c4')).toBeCloseTo(ref.bootSE['eta1 -> c4'], 4);
+  expect(sd('path:c4:eta2')).toBeCloseTo(ref.bootSE['c4 -> eta2'], 4);
+  expect(sd('hoLoading:c4:c1')).toBeCloseTo(ref.bootSE['c4 =~ c1'], 4);
+}
+
 describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example %s in webR', (_id, ex) => {
   it('loads its data from the package and estimates', async () => {
     const data = await load(ex);
@@ -106,6 +129,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     } else {
       const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, st.plsPackage);
       expect(r.converged).toBe(true);
+      if (ex.id === 'csem-2ndorder') await checkSecondOrder(data, spec, r, st);
     }
     if (ex.assessment?.group) {
       const g = await groupsR(data, spec, { scheme: st.scheme, consistent: false, missing: 'casewise', tolerance: 1e-7, maxIter: 300 }, { group: ex.assessment.group, approaches: ['Klesel'], samples: 20, seed: 1 });

@@ -347,6 +347,16 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     assessment: { tab: 'cca' }, settings: { ...PLS('cSEM', false, 'factor'), stopExp: 6 },
   },
   {
+    id: 'csem-2ndorder', package: 'cSEM', title: 'Second-order construct: a common factor of composites', source: 'cSEM, ?csem (dgp_2ndorder_cf_of_c)',
+    links: [{ label: '?csem', url: 'https://rdrr.io/cran/cSEM/man/csem.html' }, { label: '?dgp_2ndorder_cf_of_c', url: 'https://rdrr.io/cran/cSEM/man/dgp_2ndorder_cf_of_c.html' }],
+    description: 'cSEM’s help example (simulated, N = 500): c4 is a second-order common factor of the composites c1–c3, predicted by eta1 and predicting eta2. Two-stage approach: the first-order constructs first, then c4 from their scores. Consistent PLS, as on the help page.',
+    data: { package: 'cSEM', name: 'dgp_2ndorder_cf_of_c' },
+    constructs: [c('c1', ['y11', 'y12']), c('c2', items('y2', 4)), c('c3', items('y3', 8)), f('eta1', items('y4', 3)), f('eta2', items('y5', 3)),
+      { name: 'c4', type: 'factor', mode: 'A', components: ['c1', 'c2', 'c3'] }],
+    paths: [['eta1', 'c4'], ['eta1', 'eta2'], ['c4', 'eta2']],
+    settings: PLS('cSEM', true),
+  },
+  {
     id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',
     links: [{ label: '?pls.pathmox', url: 'https://rdrr.io/cran/genpathmox/man/pls.pathmox.html' }, { label: '?csibank', url: 'https://rdrr.io/cran/genpathmox/man/csibank.html' }],
     description: 'Satisfaction and loyalty of 1707 customers of a Spanish bank: does the model differ by gender, age, education, occupation or region? PATHMOX splits by age and then education and region. Consistent PLS, as on the help page. Opens Segmentation.',

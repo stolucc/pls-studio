@@ -53,7 +53,7 @@ function ConstructInspector({ c }: { c: Construct }) {
               title={method === 'cbsem' ? 'Composites are estimated with PLS only. Switch to PLS-SEM to use them.' : 'Emergent variable: a weighted combination of its indicators (hexagon)'}>Composite</button>
           </div>
         </div>}
-        {method === 'pls' && (
+        {method === 'pls' && !c.components?.length && (
           <div className="field">
             <label>Weighting (PLS)</label>
             <div className="segmented">
@@ -133,9 +133,24 @@ function ConstructInspector({ c }: { c: Construct }) {
           )}
         </div>
       )}
+      {method === 'pls' && c.indicators.length === 0 && (
+        <div className="section">
+          <div className="section-title">Second-order construct</div>
+          <div className="hint" style={{ marginBottom: 6 }}>
+            Measured by first-order constructs (cSEM’s two-stage approach): {c.type === 'composite' ? 'a composite of composites, weighted by Mode B' : 'a common factor of its components, weighted by Mode A and corrected for attenuation'} in stage 2. The components stay out of the structural model; connect this construct instead.
+          </div>
+          {constructs.filter((k) => k.id !== c.id && k.indicators.length > 0).map((k) => (
+            <label key={k.id} className="check" style={{ marginBottom: 4 }}>
+              <input type="checkbox" checked={c.components?.includes(k.id) ?? false}
+                onChange={(e) => update(c.id, { components: e.target.checked ? [...(c.components ?? []), k.id] : (c.components ?? []).filter((x) => x !== k.id) })} />
+              {k.name}
+            </label>
+          ))}
+        </div>
+      )}
       <div className="section">
         <div className="section-title">{c.components?.length ? `Components (${c.components.length})` : `Indicators (${c.indicators.length})`}</div>
-        {c.indicators.length === 0 && !c.components?.length && <div className="hint">Drag variables from the data panel onto this construct{method === 'cbsem' ? ', or tick components above to make it a higher-order factor' : ''}.</div>}
+        {c.indicators.length === 0 && !c.components?.length && <div className="hint">Drag variables from the data panel onto this construct{method === 'cbsem' ? ', or tick components above to make it a higher-order factor' : method === 'pls' ? ', or tick components above to make it a second-order construct' : ''}.</div>}
         {c.components?.map((id) => <div key={id} className="ind"><span>{constructs.find((k) => k.id === id)?.name}</span></div>)}
         <div className="ind-list">
           {c.indicators.map((name) => {

@@ -2,7 +2,11 @@ import { ViewportPortal } from '@xyflow/react';
 import { pathSegment } from '../geometry';
 import { useStore } from '../store';
 
-/** Arrows from a higher-order construct to its first-order components (CB-SEM second-order factors). */
+/**
+ * Arrows between a higher-order construct and its first-order components: from
+ * a second-order common factor to its components, or from the components into a
+ * second-order composite (PLS, a composite of composites).
+ */
 export interface HoLabel { value: number; fixed: boolean }
 
 export function HigherOrderLayer({ loadingFor }: { loadingFor: (parent: string, child: string) => HoLabel | null }) {
@@ -10,7 +14,7 @@ export function HigherOrderLayer({ loadingFor }: { loadingFor: (parent: string, 
   const byId = new Map(constructs.map((c) => [c.id, c]));
   const items = constructs.flatMap((parent) => (parent.components ?? []).flatMap((cid) => {
     const child = byId.get(cid);
-    const seg = child && pathSegment(parent, child);
+    const seg = child && (parent.type === 'composite' ? pathSegment(child, parent) : pathSegment(parent, child));
     return seg ? [{ key: `${parent.id}-${cid}`, seg, label: loadingFor(parent.name, child.name) }] : [];
   }));
   if (items.length === 0) return null;

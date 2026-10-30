@@ -130,9 +130,20 @@ describe('higher-order constructs and covariates', () => {
     expect(spec.constructs[2].components).toEqual(['Alpha', 'Beta']);
     expect(spec.constructs[3].covariate).toBe(true);
   });
-  it('accepts them in CB-SEM and rejects higher-order constructs in PLS', () => {
+  it('accepts them in CB-SEM, and in PLS only through cSEM with PLS path modeling', () => {
     expect(validateModel(m, d4, cbs).filter((i) => i.level === 'error')).toEqual([]);
-    expect(validateModel(m, d4, { method: 'pls', consistent: false }).some((i) => i.message.includes('higher-order'))).toBe(true);
+    const pls = (o: object) => validateModel(m, d4, { method: 'pls', consistent: false, ...o }).filter((i) => i.level === 'error' && i.constructId === 'H').map((i) => i.message);
+    expect(pls({})).toEqual([]);
+    expect(pls({ engine: 'builtin' })[0]).toMatch(/second-order construct: in PLS these are estimated by cSEM. Choose “R packages”/);
+    expect(pls({ plsPackage: 'seminr' })[0]).toMatch(/Choose cSEM/);
+    expect(pls({ plsApproach: 'GSCA' })[0]).toMatch(/PLS-PM/);
+  });
+  it('PLS: components are first-order constructs outside the structural model', () => {
+    const inModel: ModelState = { ...m, paths: [...m.paths, { id: 'p2', from: 'A', to: 'X' }] };
+    const e = validateModel(inModel, d4, { method: 'pls', consistent: false }).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(e.some((x) => x.includes('"Alpha" is a component of "High" and cannot also be in the structural model'))).toBe(true);
+    const nested: ModelState = { ...m, constructs: [...m.constructs, { ...C('T', 'Top', []), components: ['H', 'A'] }], paths: [{ id: 'p3', from: 'T', to: 'X' }] };
+    expect(validateModel(nested, d4, { method: 'pls', consistent: false }).some((i) => i.message.includes('"High" is a component of "Top": in PLS, components are first-order constructs with indicators'))).toBe(true);
   });
   it('rejects components with incoming paths and covariates with predictors', () => {
     const bad: ModelState = { ...m, paths: [...m.paths, { id: 'p2', from: 'X', to: 'A' }, { id: 'p3', from: 'A', to: 'X' }] };
