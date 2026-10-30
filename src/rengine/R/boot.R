@@ -79,7 +79,9 @@ ps_boot_part_json <- function(env) {
 
 ps_pls_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_pls_build(req, allow_hoc = TRUE)
+  b <- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE)
+  mi <- identical(req$missing, "mi")
+  if (mi && ps_boot_chunked(req)) stop("With multiple imputation the bootstrap runs in one piece per imputed data set.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")
   body <- b$body
   # seminr's bootstrap always starts a PSOCK cluster (worker processes), which
@@ -123,6 +125,16 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   }
   body <- c(body, PS_BOOT_SUMMARY, sprintf("result <- boot_summary(draws, original[colnames(draws)], confidence = %s)", format(conf)))
   title <- sprintf("Bootstrap, %d samples (%s)", B, b$pkg)
+  if (mi) {
+    # Multiple imputation: the bootstrap in every imputed data set (same seed), pooled by Rubin's rules.
+    if (export) stop("The bootstrap with multiple imputation runs per imputed data set and is not exported as one script; export the estimation script.")
+    imp <- ps_impute(req, b$inputs)
+    envs <- lapply(seq_len(imp$m), function(k) ps_run(body, list(data = mice::complete(imp, k))))
+    pooled <- ps_rubin(lapply(envs, function(e) e$result), conf)
+    return(ps_json(list(stats = ps_boot_keys(pooled, b, req), samples = B, imputations = imp$m,
+      failed = max(vapply(envs, function(e) B - sum(rowSums(is.finite(e$draws)) > 0), 0)),
+      confidence = conf, warnings = unique(unlist(lapply(envs, function(e) ps_quiet_2ndorder(e$.warnings)))))))
+  }
   if (export) return(paste(ps_script(title, b$pkg, b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
@@ -179,6 +191,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   if (isTRUE(b$robust)) stop("Robust ML (rsem) has its own robust standard errors; the bootstrap resamples the raw data with ML or MLR.")
+  if (isTRUE(b$mi)) stop("With multiple imputation the standard errors are pooled by Rubin's rules; the bootstrap is not combined with it.")
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")
   if (!is.null(b$modsem)) return(ps_cb_boot_modsem(b, B, seed, conf, export, req))
@@ -330,3 +343,23 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
 #' cSEM's two-stage approach always corrects a second-order common factor in stage 2
 #' and warns that it set .disattenuate; the script says so, the app does not repeat it.
 ps_quiet_2ndorder <- function(w) grep("`.disattenuate = FALSE` is set to `TRUE`", w, value = TRUE, invert = TRUE, fixed = TRUE)
+
+#' Rubin's rules for bootstrap results from m imputed data sets (one boot_summary table each):
+#' the estimate is the mean of the m estimates; its variance T = W + (1 + 1/m) B, with W the mean
+#' bootstrap variance and B the variance of the estimates between imputations; t with Rubin's (1987)
+#' degrees of freedom, and the interval estimate +- t quantile * sqrt(T).
+ps_rubin <- function(rs, confidence) {
+  m <- length(rs)
+  params <- Reduce(intersect, lapply(rs, function(r) r$parameter))
+  rows <- lapply(params, function(p) {
+    q <- vapply(rs, function(r) r$original[r$parameter == p][1], 0)
+    u <- vapply(rs, function(r) r$sd[r$parameter == p][1]^2, 0)
+    bm <- vapply(rs, function(r) r$mean[r$parameter == p][1], 0)
+    qbar <- mean(q); W <- mean(u); Bv <- stats::var(q); Tv <- W + (1 + 1 / m) * Bv
+    rr <- (1 + 1 / m) * Bv / W
+    df <- if (!is.finite(rr) || rr <= 0) Inf else (m - 1) * (1 + 1 / rr)^2
+    t <- qbar / sqrt(Tv); h <- stats::qt((1 + confidence) / 2, df) * sqrt(Tv)
+    data.frame(parameter = p, original = qbar, mean = mean(bm), sd = sqrt(Tv), t = t, p = 2 * stats::pt(-abs(t), df), ci_low = qbar - h, ci_high = qbar + h)
+  })
+  do.call(rbind, rows)
+}

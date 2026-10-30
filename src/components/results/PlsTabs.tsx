@@ -44,6 +44,7 @@ function Overview({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null 
       <div className="stat-cards">
         <div className="stat-card"><div className="k">Algorithm</div><div className="v">{pls.consistent ? 'PLSc' : 'PLS'}</div></div>
         <div className="stat-card"><div className="k">Observations</div><div className="v">{pls.n}</div></div>
+        {pls.imputations && <div className="stat-card" title="Estimates averaged over the imputed data sets (Rubin's point estimate)"><div className="k">Imputed data sets</div><div className="v">{pls.imputations}</div></div>}
         <div className="stat-card"><div className="k">Iterations</div><div className="v">{pls.iterations}</div></div>
         <div className="stat-card"><div className="k">Converged</div><div className="v" style={{ color: pls.converged ? 'var(--good)' : 'var(--bad)' }}>{pls.converged ? 'Yes' : 'No'}</div></div>
         <div className="stat-card"><div className="k">SRMR</div><div className="v">{fmt(pls.fit.estimated.srmr)}</div></div>
@@ -264,7 +265,9 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
       <Table title={`Bootstrap: ${GROUPS.find((g) => g.id === group)!.label.toLowerCase()}${std ? ' (standardised)' : ''}`} file={`bootstrap-${group}`}
         columns={['Parameter', 'Original', ...bootCols(boot)]}
         rows={stats.map((s) => [c(s.label), c(s.original), ...bootCells(s)])}
-        note={`${boot.samples} subsamples${boot.failed ? ` (${boot.failed} failed or not admissible, excluded)` : ''}. Two-tailed t test with df = usable samples − 1; percentile confidence intervals.${boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : ''}`} />
+        note={boot.imputations
+          ? `${boot.samples} subsamples in each of ${boot.imputations} imputed data sets, pooled by Rubin’s rules: estimate = mean over the imputations; SE² = mean bootstrap variance + (1 + 1/m) × variance between imputations; t test with Rubin’s degrees of freedom and t-based intervals.${boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : ''}`
+          : `${boot.samples} subsamples${boot.failed ? ` (${boot.failed} failed or not admissible, excluded)` : ''}. Two-tailed t test with df = usable samples − 1; percentile confidence intervals.${boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : ''}`} />
     </>
   );
 }

@@ -243,7 +243,7 @@ export function PlsAssessmentPanel() {
   const errors = data ? validateModel(model, data, { ...settings, method: 'pls' }).filter((i) => i.level === 'error') : [];
   const problem = !data || data.moments ? 'Import raw data first.' : !model.paths.length ? 'Draw a PLS path model first.' : errors[0]?.message ?? null;
   const spec = toSpec(model);
-  const options: PlsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: settings.missing === 'fiml' ? 'casewise' : settings.missing, consistent: settings.consistent };
+  const options: PlsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: settings.missing === 'fiml' || settings.missing === 'mi' ? 'casewise' : settings.missing, consistent: settings.consistent };
   const assigned = new Set(model.constructs.flatMap((k) => k.indicators));
   const groupCols = (data?.names ?? []).filter((n) => !assigned.has(n) && new Set(Array.from(data!.cols[data!.names.indexOf(n)]).filter((v) => !Number.isNaN(v))).size <= 10);
   const fail = (e: unknown) => isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `cSEM: ${rMessage(e)}`));

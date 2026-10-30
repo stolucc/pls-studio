@@ -176,7 +176,7 @@ export async function buildRScript(what: ScriptTarget = 'model'): Promise<{ text
       text = await analysisScript(s.data, spec, cb
         ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot, interaction: st.interaction }
         : { kind: 'plsBoot', pkg: st.plsPackage, options, boot });
-    } else text = cb ? await cbScriptLavaan(s.data, spec, st.missing, st.estimator as CbEstimator, st.interaction) : await plsScriptR(s.data, spec, options, st.plsPackage);
+    } else text = cb ? await cbScriptLavaan(s.data, spec, st.missing, st.estimator as CbEstimator, st.interaction, { m: st.miImputations, seed: st.seed }) : await plsScriptR(s.data, spec, options, st.plsPackage);
     return { text, file: `${name}-${pkg}${suffix ? `-${suffix}` : ''}.R`, pkg };
   } catch (e) {
     throw new Error(rMessage(e), { cause: e });

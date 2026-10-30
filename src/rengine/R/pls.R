@@ -3,9 +3,11 @@
 # restored. ps_pls(req, export = TRUE) returns the script instead.
 # Estimation is the package's; this file only writes code and shapes output.
 
-#' allow_hoc: second-order constructs (cSEM's two-stage approach) are accepted
-#' only by the estimation and the bootstrap; other analyses refuse them.
-ps_pls_build <- function(req, allow_hoc = FALSE) {
+#' allow_hoc / allow_mi: second-order constructs (cSEM's two-stage approach) and
+#' multiple imputation are accepted only by the estimation and the bootstrap;
+#' other analyses refuse them.
+ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
+  if (identical(req$missing, "mi") && !allow_mi) stop("This analysis is not available with multiple imputation; choose mean replacement or casewise deletion for it.")
   pkg <- req$package
   cons <- req$model$constructs
   n <- ps_names(cons)
@@ -96,13 +98,28 @@ ps_pls_build <- function(req, allow_hoc = FALSE) {
 
 ps_pls <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_pls_build(req, allow_hoc = TRUE)
+  b <- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE)
   if (export) {
     report <- if (b$pkg == "cSEM") c("summarize(fit)", "assess(fit)") else c("summary(fit)")
     title <- if (isTRUE(b$o$consistent)) sprintf("Consistent PLS (%s)", b$pkg) else sprintf("PLS-SEM (%s)", b$pkg)
+    if (identical(req$missing, "mi")) {
+      # Multiple imputation: the model in every imputed data set; PLS Studio averages the estimates.
+      ms <- ps_mi_settings(req)
+      body <- c("suppressPackageStartupMessages(library(mice))",
+        sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)  # multiple imputation (predictive mean matching)", ms$m, ms$seed),
+        "fits <- lapply(seq_len(imp$m), function(k) {", "  data <- complete(imp, k)", paste0("  ", b$body), "  fit", "})",
+        "# Estimates averaged over the imputed data sets (Rubin's point estimate), e.g. the path coefficients:")
+      report <- if (b$pkg == "cSEM") "Reduce(`+`, lapply(fits, function(f) f$Estimates$Path_estimates)) / length(fits)" else "Reduce(`+`, lapply(fits, function(f) f$path_coef)) / length(fits)"
+      return(paste(ps_script(paste(title, "with multiple imputation"), c(b$pkg, "mice"), b$inputs, body, report), collapse = "\n"))
+    }
     return(paste(ps_script(title, b$pkg, b$inputs, b$body, report), collapse = "\n"))
   }
-  env <- ps_run(b$body, b$inputs)
+  if (identical(req$missing, "mi")) return(ps_json(ps_pls_mi(req, b)))
+  ps_json(ps_pls_out(req, b, ps_run(b$body, b$inputs)))
+}
+
+#' The app's PLS result from one estimation (env: the script's environment).
+ps_pls_out <- function(req, b, env) {
   fit <- env$fit
   n <- b$n; cv <- b$cv; k0 <- b$k0; mods <- b$mods
   int_names <- vapply(mods, function(m) ps_int_name(m$from, m$moderator), "")
@@ -216,7 +233,7 @@ ps_pls <- function(req_json, export = FALSE) {
   # Interaction terms: reliabilities are not defined.
   q4 <- function(v) c(v, nas(length(mods)))
 
-  ps_json(list(
+  list(
     n = nrow(env$data), iterations = iterations, converged = converged,
     constructs = constructs,
     indicators = lapply(seq_along(item_l), function(i) list(name = n$all_inds[i], construct = owner[i] - 1L)),
@@ -241,5 +258,38 @@ ps_pls <- function(req_json, export = FALSE) {
     # (cSEM's two-stage approach always corrects a second-order common factor in stage 2 and says so; the script explains it.)
     droppedRows = nrow(b$inputs$data) - nrow(env$data), warnings = ps_quiet_2ndorder(env$.warnings),
     engine = list(package = b$pkg, version = version)
-  ))
+  )
+}
+
+#' Multiple imputation: the imputed data sets (mice, predictive mean matching).
+ps_impute <- function(req, inputs) {
+  ms <- ps_mi_settings(req)
+  env <- ps_run(c("suppressPackageStartupMessages(library(mice))",
+    sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)", ms$m, ms$seed)), inputs)
+  env$imp
+}
+
+#' Average results over imputed data sets, element by element (Rubin's point estimate): numbers and
+#' matrices averaged, logicals all true, anything else as in the first.
+ps_avg <- function(xs) {
+  x1 <- xs[[1]]
+  if (is.list(x1) && !is.data.frame(x1)) {
+    out <- lapply(seq_along(x1), function(i) ps_avg(lapply(xs, function(x) x[[i]])))
+    names(out) <- names(x1)
+    return(out)
+  }
+  if (is.logical(x1)) return(all(unlist(xs)))
+  if (is.numeric(x1) && all(vapply(xs, function(x) is.numeric(x) && length(x) == length(x1), TRUE))) return(Reduce(`+`, xs) / length(xs))
+  x1
+}
+
+#' PLS with multiple imputation: the model in every imputed data set, the estimates averaged.
+ps_pls_mi <- function(req, b) {
+  imp <- ps_impute(req, b$inputs)
+  outs <- lapply(seq_len(imp$m), function(k) ps_pls_out(req, b, ps_run(b$body, list(data = mice::complete(imp, k)))))
+  res <- ps_avg(outs)
+  res$n <- outs[[1]]$n; res$droppedRows <- 0L
+  res$warnings <- unique(unlist(lapply(outs, function(o) unlist(o$warnings))))
+  res$imputations <- imp$m
+  res
 }

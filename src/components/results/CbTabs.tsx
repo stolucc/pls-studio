@@ -59,6 +59,7 @@ function Fit({ cb }: { cb: CbResult }) {
   const rows: Row[] = [
     [c('Estimator'), c(cb.estimator), c(null)],
     [c('Observations'), c(String(cb.n)), c(null)],
+    ...(cb.imputations ? [[c('Imputed data sets'), c(String(cb.imputations)), c('pooled (Rubin)')]] : []),
     [c('Free parameters'), c(String(f.npar)), c(null)],
     [c('Iterations'), c(String(cb.iterations)), c(null)],
     [c('χ²'), c(f.chisq), c(f.chisqScaled ?? null)],
@@ -93,7 +94,7 @@ function Fit({ cb }: { cb: CbResult }) {
         {card(robustIdx ? 'RMSEA (robust)' : 'RMSEA', fmt(rmsea), ok(rmsea <= 0.06))}
         {card('SRMR', fmt(f.srmr), ok(f.srmr <= 0.08))}
       </div>
-      {!rml && <SaveFactorScores />}
+      {!rml && !cb.imputations && <SaveFactorScores />}
       <div className="tables">
         <Table title="Fit statistics" file="cb-fit" columns={['Statistic', 'Standard', robust ? 'Robust / scaled' : '']} rows={rows}
           note={<>Hu &amp; Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08.{robustIdx && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'}{rml && ' Robust ML (rsem; Yuan & Zhang 2012): the model is fitted to Huber-weighted means and covariances; χ² (scaled) is the rescaled statistic TRML; CFI, TLI and RMSEA are those of the fit to the robust moments.'} Validated against lavaan.</>} />

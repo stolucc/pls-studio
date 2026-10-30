@@ -9,12 +9,14 @@ genpathmox
 ivreg
 jsonlite
 lavaan
+lavaan.mi
 lcmm
 lme4
 lmerTest
 lmtest
 ltm
 manymome
+mice
 modsem
 mvtnorm
 optimx

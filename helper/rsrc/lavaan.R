@@ -234,8 +234,28 @@ ps_cb_build <- function(req) {
   }
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
+  # Multiple imputation (mice, then lavaan.mi's Rubin pooling); a lavaan fit to the first imputed data set
+  # serves as the template for the model's structure, every reported number is pooled.
+  mi <- identical(req$missing, "mi")
+  if (mi) {
+    if (matrix_input) stop("Multiple imputation needs raw data.")
+    if (!is.null(group_var) || !is.null(cluster_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
+      stop("Multiple imputation is available for one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.")
+    if (!req$estimator %in% c("ML", "MLR")) stop("With multiple imputation choose the ML or MLR estimator.")
+    ms <- ps_mi_settings(req)
+    body[1] <- "suppressPackageStartupMessages({ library(lavaan); library(mice); library(lavaan.mi) })"
+    call <- c(
+      sprintf("# Multiple imputation by chained equations (mice, predictive mean matching), %d imputed data sets.", ms$m),
+      sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)", ms$m, ms$seed),
+      "# The model in every imputed data set, pooled by Rubin's rules (lavaan.mi).",
+      sprintf("fit_mi <- sem.mi(model, data = imp, estimator = \"%s\")", req$estimator),
+      "vcov_mi <- tryCatch(vcov(fit_mi), error = function(e) NULL)  # pooled covariance matrix of the estimates",
+      "# (The model fitted to the first imputed data set: only its structure is used.)",
+      sprintf("fit <- sem(model, data = complete(imp, 1), estimator = \"%s\")", req$estimator))
+  }
   robust <- identical(req$estimator, "RML")
   if (robust) {
+    if (mi) stop("Robust ML (rsem) uses the missing values itself (EM); choose FIML or casewise instead of multiple imputation.")
     if (matrix_input) stop("Robust ML (rsem) needs raw data.")
     if (!is.null(group_var) || !is.null(cluster_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
       stop("Robust ML (rsem) handles one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.")
@@ -263,7 +283,7 @@ ps_cb_build <- function(req) {
         if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust)
+    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
@@ -306,6 +326,15 @@ ps_cb <- function(req_json, export = FALSE) {
     blk <- function(t) if ("block" %in% names(t)) t$block else if ("group" %in% names(t)) t$group else 1
     key <- function(t) paste(t$lhs, t$op, t$rhs, if (multi) blk(t) else 1)
     pe$free <- pt$free[match(key(pe), key(pt))]
+    # Multiple imputation: pooled estimates, SEs and tests (Rubin; t with Barnard-Rubin df) and the pooled
+    # standardised solution replace those of the template fit.
+    if (isTRUE(b$mi)) {
+      pp <- lavaan.mi::parameterEstimates.mi(env$fit_mi)
+      ps <- lavaan.mi::standardizedSolution.mi(env$fit_mi)
+      k3 <- function(t) paste(t$lhs, t$op, t$rhs)
+      i <- match(k3(pe), k3(pp)); j <- match(k3(pe), k3(ps))
+      pe$est <- pp$est[i]; pe$se <- pp$se[i]; pe$z <- pp$t[i]; pe$pvalue <- pp$pvalue[i]; pe$std.all <- ps$est.std[j]
+    }
     # Robust ML (rsem): its robust standard errors (one per free parameter, in lavaan's order) replace ML's.
     if (isTRUE(b$robust)) {
       rse <- env$robust_se$se[[1]]
@@ -343,6 +372,8 @@ ps_cb <- function(req_json, export = FALSE) {
       if (length(e)) e[[1]]$std else 1
     }, 0)
     r2 <- lavaan::lavInspect(fit, "r2"); if (!is.null(g)) r2 <- r2[[g]]
+    # Multiple imputation: R² = 1 - the pooled standardised residual variance.
+    if (isTRUE(b$mi)) { rv <- pe[pe$op == "~~" & pe$lhs == pe$rhs & pe$lhs %in% names(r2), ]; r2[rv$lhs] <- 1 - rv$std.all }
     r2_ind <- vapply(ind_v, function(v) if (v %in% names(r2)) unname(r2[[v]]) else 1, 0)
     endo <- vapply(seq_len(K), function(j) any(has[, j]) || any(vapply(comps, function(cc) constructs[j] %in% cc, TRUE)), TRUE)
     # Between clusters the factors are *_b (or absent in a saturated between model).
@@ -352,11 +383,18 @@ ps_cb <- function(req_json, export = FALSE) {
     lvcor <- matrix(NA_real_, K, K, dimnames = list(lvn, lvn))
     have <- intersect(lvn, rownames(call))
     lvcor[have, have] <- call[have, have]
+    if (isTRUE(b$mi)) {
+      # The pooled standardised factor covariances (correlations).
+      cv <- pe[pe$op == "~~" & pe$lhs != pe$rhs & pe$lhs %in% have & pe$rhs %in% have, ]
+      for (r in seq_len(nrow(cv))) lvcor[cv$lhs[r], cv$rhs[r]] <- lvcor[cv$rhs[r], cv$lhs[r]] <- cv$std.all[r]
+    }
     # semTools::compRelSEM: model-based omega (correlated errors and ordinal indicators accounted for)
     # and coefficient alpha, of each first-order factor's indicator sum; one value per group.
     # (Not for two-level models, whose reliability is level-specific.)
-    omega <- if (levels2) NULL else tryCatch(semTools::compRelSEM(fit), error = function(e) NULL)
-    alpha <- if (levels2) NULL else tryCatch(semTools::compRelSEM(fit, tau.eq = TRUE), error = function(e) NULL)
+    # (Multiple imputation: semTools pools them over the imputed data sets.)
+    rfit <- if (isTRUE(b$mi)) env$fit_mi else fit
+    omega <- if (levels2) NULL else tryCatch(semTools::compRelSEM(rfit), error = function(e) NULL)
+    alpha <- if (levels2) NULL else tryCatch(semTools::compRelSEM(rfit, tau.eq = TRUE), error = function(e) NULL)
     per_group <- function(x, name) {
       v <- if (is.list(x)) x[[name]] else NULL
       if (is.null(v)) return(NULL)
@@ -368,7 +406,7 @@ ps_cb <- function(req_json, export = FALSE) {
       if (!length(l) || (j <= k0 && length(comps[[j]]))) return(list(cr = NULL, ave = NULL))
       list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2), omega = per_group(omega, lv_lname[j]), alpha = per_group(alpha, lv_lname[j]))
     })
-    rr <- lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
+    rr <- if (isTRUE(b$mi)) lavaan.mi::lavResiduals.mi(env$fit_mi, type = "cor.bollen") else lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
     res <- (if (is.null(g)) rr$cov else rr[[g]]$cov)[ind_v, ind_v]
     gdata <- if (is.null(g) || b$matrix_input || is.null(b$group_var)) env$data else env$data[as.character(env$data[[b$group_var]]) == glab[group_of(g)], , drop = FALSE]
     # HTMT on the measurement blocks (semTools), classic and HTMT2.
@@ -378,19 +416,22 @@ ps_cb <- function(req_json, export = FALSE) {
       if (length(blocks) < 2 || !requireNamespace("semTools", quietly = TRUE)) return(out)
       hm <- paste(vapply(blocks, function(j) paste(lv_lname[j], "=~", paste(ind_v[ind_con == j - 1], collapse = " + ")), ""), collapse = "\n")
       h <- tryCatch(suppressWarnings(if (b$matrix_input) semTools::htmt(hm, sample.cov = b$inputs$S, htmt2 = two)
+        # Multiple imputation: the average over the imputed data sets.
+        else if (isTRUE(b$mi)) Reduce(`+`, lapply(seq_len(env$imp$m), function(k) semTools::htmt(hm, data = mice::complete(env$imp, k), htmt2 = two))) / env$imp$m
         else semTools::htmt(hm, data = gdata, htmt2 = two)), error = function(e) NULL)
       if (is.null(h)) return(out)
       for (a in seq_along(blocks)) for (c in seq_along(blocks)) out[blocks[a], blocks[c]] <- h[lv_lname[blocks[a]], lv_lname[blocks[c]]]
       out
     }
-    fm <- lavaan::fitMeasures(fit)
+    fm <- if (isTRUE(b$mi)) lavaan::fitMeasures(env$fit_mi) else lavaan::fitMeasures(fit)
     # Robust ML (rsem): the rescaled statistic TRML takes the place of the scaled chi-square.
     if (isTRUE(b$robust)) { t <- env$robust_fit$TRML[[1]]; fm[c("chisq.scaled", "df.scaled", "pvalue.scaled")] <- c(t[["Statistic"]], t[["df"]], t[["p-value"]]) }
     fmv <- as.list(fm[intersect(c("npar", "chisq", "df", "pvalue", "chisq.scaled", "df.scaled", "pvalue.scaled", "chisq.scaling.factor",
       "chisq.shift.parameter", "baseline.chisq", "baseline.df", "baseline.chisq.scaled", "cfi", "tli", "cfi.scaled", "tli.scaled",
       "cfi.robust", "tli.robust", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "rmsea.scaled", "rmsea.robust",
       "srmr", "logl", "aic", "bic"), names(fm))])
-    vc <- if (isTRUE(b$robust)) unname(env$robust_se$vcov[[1]]) else tryCatch(unclass(lavaan::lavInspect(fit, "vcov")), error = function(e) NULL)
+    vc <- if (isTRUE(b$robust)) unname(env$robust_se$vcov[[1]]) else if (isTRUE(b$mi)) { if (is.null(env$vcov_mi)) NULL else unname(unclass(env$vcov_mi)) }
+      else tryCatch(unclass(lavaan::lavInspect(fit, "vcov")), error = function(e) NULL)
     n_in <- if (b$matrix_input) b$inputs$N else nrow(b$inputs$data)
 
     list(
@@ -420,7 +461,8 @@ ps_cb <- function(req_json, export = FALSE) {
     c(per[[1]], list(groups = list(labels = as.character(groups), results = per, score = if (levels2) list() else ps_cb_score(fit, nm), levels = levels2,
       icc = if (levels2) as.list(setNames(as.numeric(icc), nm(names(icc)))) else NULL)))
   } else map_group(NULL)
-  out$modindices <- ps_cb_modindices(fit, nm, groups)
+  out$modindices <- ps_cb_modindices(if (isTRUE(b$mi)) env$fit_mi else fit, nm, groups)
+  if (isTRUE(b$mi)) out$imputations <- env$imp$m
   # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)
   ps_json(out)
@@ -431,7 +473,9 @@ ps_per_group <- function(x, g) if (is.list(x)) x[[g]] else if (length(x) >= g) x
 
 #' Modification indices (lavaan::modindices) at or above 3.84, largest first, in the app's names.
 ps_cb_modindices <- function(fit, nm, groups) {
-  mi <- tryCatch(lavaan::modindices(fit, sort. = TRUE, minimum.value = 3.84, maximum.number = 100), error = function(e) NULL)
+  # (lavaan.mi's pooled modification indices for multiply imputed data)
+  mi <- tryCatch(if (inherits(fit, "lavaan.mi")) { x <- lavaan.mi::modindices.mi(fit); x <- x[x$mi >= 3.84, ]; head(x[order(-x$mi), ], 100) }
+    else lavaan::modindices(fit, sort. = TRUE, minimum.value = 3.84, maximum.number = 100), error = function(e) NULL)
   if (is.null(mi) || !nrow(mi)) return(list())
   mi <- mi[mi$op %in% c("=~", "~", "~~"), ]
   back <- function(x) { y <- nm(x); ifelse(is.na(y), x, y) }
@@ -577,6 +621,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Factor scores need raw data; this dataset is a covariance matrix.")
   if (isTRUE(b$robust)) stop("Factor scores are not available with robust ML (rsem), which fits robust moments; use ML or MLR.")
+  if (isTRUE(b$mi)) stop("Factor scores are not available with multiple imputation (they would differ per imputed data set); use FIML.")
   if (!is.null(b$modsem)) stop("Factor scores are not available for LMS / QML models; use product indicators.")
   if (!is.null(b$cluster_var)) stop("Factor scores are not available for two-level models.")
   body <- c(b$body,

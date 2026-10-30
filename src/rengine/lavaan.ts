@@ -19,12 +19,16 @@ export interface CbRequest {
   model: ModelSpec;
 }
 
-export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): CbRequest {
+/** Multiple imputation: number of imputed data sets and the seed (only with missing = 'mi'). */
+export interface MiSettings { m: number; seed: number }
+
+export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): CbRequest {
   // Only the columns the model uses travel to R.
   const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.multilevel ? [spec.multilevel.column] : []), ...(spec.weights ? [spec.weights] : [])]);
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'cb', estimator, missing, ...(interaction !== 'product' && spec.moderations?.length ? { interaction } : {}),
+    ...(missing === 'mi' && mi ? { mi } : {}),
     data: data.moments && data.cols.length === 0
       ? { names: data.names, moments: data.moments }
       : { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
@@ -90,6 +94,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
       groupIndex: 0,
     } : {}),
     ...(raw.caseWeights ? { caseWeights: { rows: (raw.caseWeights.rows as unknown[]).map(Number), weights: (raw.caseWeights.weights as unknown[]).map(Number) } } : {}),
+    ...(typeof raw.imputations === 'number' ? { imputations: raw.imputations } : {}),
     modindices: (Array.isArray(raw.modindices) ? raw.modindices : []).map((m: any) => ({ lhs: m.lhs, op: m.op, rhs: m.rhs, mi: num(m.mi), epc: num(m.epc), sepc: num(m.sepc), ...(m.group ? { group: String(m.group) } : {}) })),
     wald: (Array.isArray(raw.wald) ? raw.wald : raw.wald ? [raw.wald] : []).map((w: any) => ({ name: String(w.name), stat: num(w.stat), df: num(w.df), p: num(w.p) })),
     ...(raw.interaction === 'lms' || raw.interaction === 'qml' ? { interaction: raw.interaction } : {}),
@@ -98,10 +103,13 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
 }
 
 const usesModsem = (spec: ModelSpec, interaction: LatentInteraction) => interaction !== 'product' && !!spec.moderations?.length;
+/** The R packages of a CB-SEM estimation: modsem for LMS / QML, mice and lavaan.mi for multiple imputation, rsem for robust ML. */
+const cbPackage = (spec: ModelSpec, interaction: LatentInteraction, missing: MissingTreatment, estimator: CbEstimator) =>
+  (usesModsem(spec, interaction) ? 'modsem' : missing === 'mi' ? 'lavaan.mi' : estimator === 'RML' ? 'rsem' : 'lavaan');
 
 /** Estimate a CB-SEM model with lavaan (latent interactions by LMS / QML: modsem). */
-export async function estimateCbLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): Promise<CbResultR> {
-  const r = parseCbOutput(await rCall<Record<string, any>>('ps_cb', cbRequest(data, spec, missing, estimator, interaction), usesModsem(spec, interaction) ? 'modsem' : 'lavaan'));
+export async function estimateCbLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): Promise<CbResultR> {
+  const r = parseCbOutput(await rCall<Record<string, any>>('ps_cb', cbRequest(data, spec, missing, estimator, interaction, mi), cbPackage(spec, interaction, missing, estimator)));
   const cats = spec.multigroup ? data.categories?.[spec.multigroup.column] : undefined;
   return cats ? withGroupNames(r, cats) : r;
 }
@@ -121,8 +129,8 @@ export function withGroupNames(r: CbResultR, categories: string[]): CbResultR {
 }
 
 /** The self-contained R script (data embedded) that estimateCbLavaan runs. */
-export function cbScriptLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product'): Promise<string> {
-  return rScript('ps_cb', cbRequest(data, spec, missing, estimator, interaction), usesModsem(spec, interaction) ? 'modsem' : 'lavaan');
+export function cbScriptLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): Promise<string> {
+  return rScript('ps_cb', cbRequest(data, spec, missing, estimator, interaction, mi), cbPackage(spec, interaction, missing, estimator));
 }
 
 /** Fit and difference tests at each level of measurement invariance (lavaan). */

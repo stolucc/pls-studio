@@ -721,8 +721,22 @@ function ModelInspector() {
               <button className={settings.missing === 'fiml' ? 'on' : ''} onClick={() => setSettings({ missing: 'fiml' })}
                 title="Full-information maximum likelihood (lavaan missing = &quot;ml&quot;): uses every observed value, unbiased when data are missing at random. ML or MLR, R engine.">FIML</button>
             )}
+            <button className={settings.missing === 'mi' ? 'on' : ''} onClick={() => setSettings({ missing: 'mi' })}
+              title="Multiple imputation by chained equations (mice), the model in every imputed data set, pooled by Rubin’s rules. R engine.">Multiple imputation</button>
           </div>
           {settings.method === 'cbsem' && settings.missing === 'fiml' && <div className="hint" style={{ marginTop: 6 }}>Full-information maximum likelihood uses all observed values of every case (missing at random); with MLR the standard errors and test are robust.</div>}
+          {settings.missing === 'mi' && (
+            <div className="field" style={{ marginTop: 8 }}>
+              <label>Imputed data sets</label>
+              <input className="input num" type="number" min={2} max={200} value={settings.miImputations}
+                onChange={(e) => setSettings({ miImputations: Math.max(2, Math.min(200, Math.round(Number(e.target.value)) || 20)) })} />
+              <div className="hint" style={{ marginTop: 6 }}>
+                mice imputes the missing values {settings.miImputations} times (predictive mean matching, missing at random; seed as for bootstrapping); {settings.method === 'cbsem'
+                  ? 'the model is estimated in every imputed data set and pooled by Rubin’s rules (lavaan.mi), with pooled standard errors, tests and fit.'
+                  : 'the model is estimated in every imputed data set and the estimates are averaged; bootstrapping pools the bootstrap standard errors by Rubin’s rules.'}
+              </div>
+            </div>
+          )}
         </div>
       </div>}
       <div className="section">

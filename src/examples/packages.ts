@@ -16,8 +16,8 @@ import type { RsaPreset } from '../components/PolynomialPanel';
 import type { EfaPreset } from '../components/EfaPanel';
 import type { NcaPreset } from '../components/NcaPanel';
 
-export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
+export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -387,6 +387,32 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: [f('f1', ['x1', 'x2', 'x3']), f('f2', ['x4', 'x5', 'x6'])],
     paths: [], correlations: [['f1', 'f2', 'construct']],
     screening: { tab: 'influence' }, settings: CB('ML'),
+  },
+  {
+    id: 'rsem-mardia', package: 'rsem', title: 'Robust ML with missing data: exam scores', source: 'rsem, ?rsem.lavaan (mardiamv25)',
+    links: [{ label: '?rsem.lavaan', url: 'https://rdrr.io/cran/rsem/man/rsem.lavaan.html' }, { label: '?mardiamv25', url: 'https://rdrr.io/cran/rsem/man/mardiamv25.html' }],
+    description: 'Mardia, Kent & Bibby’s exam scores of 88 students, with 31 missing values in Vectors and in Statistics: two correlated factors, each of two scores, as on the help page (without its mean structure). Robust ML (Yuan & Zhang): atypical students are down-weighted, and the missing values are used through EM.',
+    data: { package: 'rsem', name: 'mardiamv25' },
+    constructs: [f('f1', ['Mechanics', 'Vectors']), f('f2', ['Analysis', 'Statistics'])],
+    paths: [], correlations: [['f1', 'f2', 'construct']],
+    settings: { ...CB('RML'), missing: 'fiml' },
+  },
+  {
+    id: 'mice-nhanes', package: 'mice', title: 'Multiple imputation: cholesterol by age and BMI', source: 'mice, ?mice (nhanes)',
+    links: [{ label: '?mice', url: 'https://rdrr.io/cran/mice/man/mice.html' }, { label: '?nhanes', url: 'https://rdrr.io/cran/mice/man/nhanes.html' }],
+    description: 'The NHANES excerpt of mice’s help page (25 people, a third of the values missing): cholesterol regressed on age and BMI, with mice’s five imputations (seed 55152) pooled by Rubin’s rules. As a path model of observed variables in CB-SEM; the help page also uses hyp to impute.',
+    data: { package: 'mice', name: 'nhanes' },
+    constructs: [v('age'), v('bmi'), v('chl')],
+    paths: [['age', 'chl'], ['bmi', 'chl']], correlations: [['age', 'bmi', 'construct']],
+    settings: { ...CB('ML'), missing: 'mi', miImputations: 5, seed: 55152 },
+  },
+  {
+    id: 'lavaanmi-hs', package: 'lavaan.mi', title: 'CFA with multiply imputed data', source: 'lavaan.mi, ?lavaan.mi (HS20imps)',
+    links: [{ label: '?lavaan.mi', url: 'https://rdrr.io/cran/lavaan.mi/man/lavaan.mi.html' }, { label: '?HS20imps', url: 'https://rdrr.io/cran/lavaan.mi/man/HS20imps.html' }],
+    description: 'The three-factor CFA of lavaan’s ?cfa on Holzinger & Swineford’s tests with the help page’s missing values (x5: the lowest 30% deleted; x9: the youngest 30%). Twenty imputations, pooled by Rubin’s rules (lavaan.mi). The help page imputes with Amelia; here mice imputes.',
+    data: { package: 'lavaan.mi', name: 'HSMiss', file: 'examples/mi/HSMiss.csv' },
+    constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6']), f('speed', ['x7', 'x8', 'x9'])],
+    paths: [], settings: { ...CB('ML'), missing: 'mi', miImputations: 20, seed: 123 },
   },
   {
     id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',

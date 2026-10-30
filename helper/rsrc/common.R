@@ -17,12 +17,12 @@ ps_validate <- function(req) {
   get <- function(x, ...) { for (k in c(...)) { if (!is.list(x)) return(NULL); x <- x[[k, exact = TRUE]] }; x }
   cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "WLSMV", "2SLS", "RML")
   one_of(get(req, "estimator"), cb_est, "estimator")
-  one_of(get(req, "missing"), c("mean", "casewise", "fiml"), "missing-value treatment")
+  one_of(get(req, "missing"), c("mean", "casewise", "fiml", "mi"), "missing-value treatment")
   one_of(get(req, "probe"), c("percentiles", "meansd"), "probing method")
   one_of(get(req, "interaction"), c("product", "lms", "qml"), "latent interaction method")
   one_of(get(req, "hc"), c("none", "HC0", "HC1", "HC2", "HC3", "HC4"), "standard error type")
   one_of(get(req, "options", "scheme"), c("path", "centroid", "factor"), "weighting scheme")
-  one_of(get(req, "options", "missing"), c("mean", "casewise", "fiml"), "missing-value treatment")
+  one_of(get(req, "options", "missing"), c("mean", "casewise", "fiml", "mi"), "missing-value treatment")
   for (e in get(req, "estimators")) { one_of(get(e, "method"), c("pls", "cb"), "estimator"); one_of(get(e, "estimator"), cb_est, "estimator") }
   for (c in c(get(req, "model", "constructs"), get(req, "spec", "constructs"))) {
     one_of(get(c, "mode"), c("A", "B", "unit"), "construct mode")
@@ -75,6 +75,7 @@ ps_frame <- function(req, n) {
 #' Script lines for missing values (applied to the model's indicators).
 ps_missing_code <- function(missing) {
   if (identical(missing, "fiml")) c("# Missing values: full-information maximum likelihood (lavaan missing = \"ml\"); no rows dropped")
+  else if (identical(missing, "mi")) c("# Missing values: multiple imputation (mice), below; no rows dropped")
   else if (identical(missing, "mean")) c("# Missing values: replaced by the indicator mean",
     "for (v in names(data)) data[[v]][is.na(data[[v]])] <- mean(data[[v]], na.rm = TRUE)")
   else c("# Missing values: casewise (listwise) deletion", "data <- data[complete.cases(data), , drop = FALSE]")
@@ -194,4 +195,13 @@ ps_dataset <- function(req_json) {
   d <- d[vapply(d, is.numeric, TRUE)]
   for (v in names(d)) d[[v]][d[[v]] %in% unlist(req$na)] <- NA
   ps_json(list(names = names(d), cols = unname(lapply(d, function(x) unname(as.numeric(x)))), n = nrow(d), levels = levels))
+}
+
+#' Multiple imputation settings from the request: number of imputations and seed.
+ps_mi_settings <- function(req) {
+  mi <- req[["mi", exact = TRUE]]  # ([[ ]]: req$mi would partially match req$missing)
+  m <- as.integer(ps_number(mi[["m", exact = TRUE]] %||% 20, "number of imputations"))
+  seed <- as.integer(ps_number(mi[["seed", exact = TRUE]] %||% 1, "imputation seed"))
+  if (is.na(m) || m < 2L || m > 200L) stop("The number of imputations must be between 2 and 200.")
+  list(m = m, seed = seed)
 }

@@ -57,7 +57,7 @@ function runR(kind: JobKind, key: string) {
   const cb = st.method === 'cbsem';
   const data = s.data!;
   const spec = toSpec(s.model);
-  const options: PlsOptions = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent, approach: st.plsApproach };
+  const options: PlsOptions = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent, approach: st.plsApproach, mi: { m: st.miImputations, seed: st.seed } };
   const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence };
   const token = ++rToken;
   const modsem = cb && st.interaction !== 'product' && s.model.moderations.length > 0;
@@ -84,7 +84,7 @@ function runR(kind: JobKind, key: string) {
         t.toast('success', `MIIVsem ${r.engine.version}: ${r.equations.length} equations estimated${rejected ? `; ${rejected} Sargan test${rejected > 1 ? 's' : ''} significant at .05` : ''}.`);
       }).catch(failed);
     } else if (cb) {
-      import('./rengine/lavaan').then(({ estimateCbLavaan }) => estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction)).then((r) => {
+      import('./rengine/lavaan').then(({ estimateCbLavaan }) => estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction, { m: st.miImputations, seed: st.seed })).then((r) => {
         const t = done(); if (!t) return;
         t.setResults({ cb: r }, key);
         cbToast(r, `lavaan ${r.engine.version}`);

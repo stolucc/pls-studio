@@ -48,6 +48,7 @@ ps_influence <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Case influence needs raw data; this dataset is a covariance matrix.")
+  if (isTRUE(b$mi)) stop("Case influence is not available with multiple imputation; use FIML or casewise deletion.")
   if (isTRUE(b$robust)) stop("Case influence refits the model by ML; choose ML or MLR (robust ML already down-weights influential cases).")
   if (!is.null(b$modsem)) stop("Case influence is not available for LMS / QML models.")
   if (!is.null(b$cluster_var)) stop("Case influence is not available for two-level models.")

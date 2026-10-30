@@ -72,6 +72,8 @@ export interface Settings {
   /** Stop criterion exponent: tolerance = 10^-stopExp. */
   stopExp: number;
   missing: MissingTreatment;
+  /** Multiple imputation: number of imputed data sets. */
+  miImputations: number;
   bootSamples: number;
   seed: number;
   confidence: number;
@@ -291,6 +293,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxIter: 300,
   stopExp: 7,
   missing: 'mean',
+  miImputations: 20,
   bootSamples: 1000,
   seed: 1234,
   confidence: 0.95,
@@ -580,6 +583,14 @@ export function validateModel(
     if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
     if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
     if (missingChoice === 'fiml' && method.estimator !== 'ML' && method.estimator !== 'MLR' && method.estimator !== 'RML') err('FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).');
+    if (missingChoice === 'mi') {
+      // Multiple imputation (mice) pooled by lavaan.mi: one group of continuous indicators, ML or MLR.
+      if (engine === 'builtin') err('Multiple imputation uses mice and lavaan.mi: choose “R packages” under Calculated by.');
+      if (method.estimator !== 'ML' && method.estimator !== 'MLR') err('With multiple imputation choose the ML or MLR estimator.');
+      if (data?.moments && data.cols.length === 0) err('Multiple imputation needs raw data; this dataset is a covariance matrix.');
+      if (model.multigroup || model.multilevel || model.weights || ordered.length || model.esem?.blocks.length) err('Multiple imputation is available for one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.');
+      if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Multiple imputation cannot be combined with LMS / QML latent interactions; use product indicators.');
+    }
     if (method.estimator === 'RML') {
       // Robust ML (rsem): one group of continuous indicators, raw data, lavaan through R.
       if (engine === 'builtin') err('Robust ML is estimated by rsem with lavaan: choose “R packages” under Calculated by.');
@@ -600,6 +611,8 @@ export function validateModel(
     }
   } else {
     if (missingChoice === 'fiml' && method.method === 'pls') err('FIML is a CB-SEM option; PLS-SEM uses mean replacement or casewise deletion.');
+    if (missingChoice === 'mi' && method.method === 'pls' && engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
+    if (missingChoice === 'mi' && method.method === 'process') err('Multiple imputation is available in PLS-SEM and CB-SEM; conditional process analysis uses casewise deletion.');
     if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
   }
 
@@ -1017,7 +1030,8 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
     maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
     stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
-    missing: s.missing === 'casewise' || s.missing === 'fiml' ? s.missing : 'mean',
+    missing: s.missing === 'casewise' || s.missing === 'fiml' || s.missing === 'mi' ? s.missing : 'mean',
+    miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
     seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
     confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),

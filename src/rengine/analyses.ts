@@ -10,7 +10,7 @@ import type { BootstrapOptions, BootstrapResult, BootstrapStat, Dataset, Missing
 import { parallelism, rCall, rCallParallel, rScript, type RPackage, rStrings } from './bridge';
 import { bootChunks } from './compute';
 import { cbRequest, type LatentInteraction } from './lavaan';
-import { plsRequest, type PlsPackage } from './pls';
+import { plsPackages, plsRequest, type PlsPackage } from './pls';
 import type { REngineInfo } from './lavaan';
 
 const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
@@ -29,7 +29,7 @@ const FN: Record<Analysis['kind'], string> = { plsBoot: 'ps_pls_boot', cbBoot: '
 
 function request(data: Dataset, spec: ModelSpec, a: Analysis): { req: unknown; pkg: RPackage } {
   switch (a.kind) {
-    case 'plsBoot': return { req: { ...plsRequest(data, spec, a.options, a.pkg), boot: a.boot }, pkg: a.pkg };
+    case 'plsBoot': return { req: { ...plsRequest(data, spec, a.options, a.pkg), boot: a.boot }, pkg: plsPackages(a.pkg, a.options) };
     case 'cbBoot': {
       // LMS / QML latent interactions are modsem models: resampled and refitted with modsem.
       const modsem = (a.interaction ?? 'product') !== 'product' && !!spec.moderations?.length;
@@ -65,7 +65,7 @@ export function parseBoot(raw: Raw, engine: REngineInfo): BootstrapResultR {
   }));
   const nb = Math.max(1, ...all.map((x) => x.block));
   const byBlock = Array.from({ length: nb }, (_, b) => all.filter((x) => x.block === b + 1).map((x) => x.stat));
-  return { samples: raw.samples, failed: raw.failed, confidence: raw.confidence, stats: byBlock[0], ...(nb > 1 ? { byBlock } : {}), engine, warnings: rStrings(raw.warnings) };
+  return { samples: raw.samples, failed: raw.failed, confidence: raw.confidence, stats: byBlock[0], ...(nb > 1 ? { byBlock } : {}), ...(typeof raw.imputations === 'number' ? { imputations: raw.imputations } : {}), engine, warnings: rStrings(raw.warnings) };
 }
 
 export function parseFitTest(raw: Raw): FitTestResult & { warnings: string[] } {
@@ -111,6 +111,8 @@ export function parseMiiv(raw: Raw): MiivResultR {
  * Parallel setting on (seminr cannot bootstrap there).
  */
 export async function bootParallel(a: Analysis): Promise<boolean> {
+  // Multiple imputation: one bootstrap per imputed data set, in one call (pooled by Rubin's rules in R).
+  if (a.kind === 'plsBoot' && a.options.missing === 'mi') return false;
   const p = await parallelism();
   if (p.where === 'desktop') return a.kind === 'cbBoot' && p.sessions > 1;
   return p.sessions > 1 && (a.kind === 'cbBoot' || (a.kind === 'plsBoot' && a.pkg === 'cSEM'));

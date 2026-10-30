@@ -22,7 +22,7 @@ export function plsRequest(data: Dataset, spec: ModelSpec, options: PlsOptions, 
   const used = new Set(spec.constructs.flatMap((c) => c.indicators));
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
-    kind: 'pls', package: pkg, missing: options.missing,
+    kind: 'pls', package: pkg, missing: options.missing, ...(options.missing === 'mi' && options.mi ? { mi: options.mi } : {}),
     options: { scheme: options.scheme, consistent: !!options.consistent, tolerance: options.tolerance, maxIter: options.maxIter, approach: options.approach ?? 'PLS-PM' },
     data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
     model: spec,
@@ -55,17 +55,21 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     fSquare: nmat(raw.fSquare), vifInner: nmat(raw.vifInner), vifOuter: nums(raw.vifOuter),
     scores: (raw.scores as unknown[]).map((c) => Float64Array.from(nums(c))),
     droppedRows: raw.droppedRows ?? 0, warnings: rStrings(raw.warnings), engine: raw.engine,
+    ...(typeof raw.imputations === 'number' ? { imputations: raw.imputations } : {}),
     ...(Array.isArray(raw.higherOrder) && raw.higherOrder.length ? {
       higherOrder: (raw.higherOrder as any[]).map((h) => ({ construct: Number(h.construct), component: Number(h.component), loading: num(h.loading), weight: num(h.weight) })),
     } : {}),
   };
 }
 
+/** The R packages: the PLS package, with mice for multiple imputation. */
+export const plsPackages = (pkg: PlsPackage, options: Pick<PlsOptions, 'missing'>) => (options.missing === 'mi' ? (pkg === 'cSEM' ? 'cSEMMi' : 'seminrMi') : pkg);
+
 export async function estimatePlsR(data: Dataset, spec: ModelSpec, options: PlsOptions, pkg: PlsPackage): Promise<PlsResultR> {
-  return parsePlsOutput(await rCall<Record<string, any>>('ps_pls', plsRequest(data, spec, options, pkg), pkg));
+  return parsePlsOutput(await rCall<Record<string, any>>('ps_pls', plsRequest(data, spec, options, pkg), plsPackages(pkg, options)));
 }
 
 /** The self-contained R script (data embedded) that estimatePlsR runs. */
 export function plsScriptR(data: Dataset, spec: ModelSpec, options: PlsOptions, pkg: PlsPackage): Promise<string> {
-  return rScript('ps_pls', plsRequest(data, spec, options, pkg), pkg);
+  return rScript('ps_pls', plsRequest(data, spec, options, pkg), plsPackages(pkg, options));
 }

@@ -3,8 +3,8 @@ export type Mode = 'A' | 'B' | 'unit';
 /** Common factor (latent variable, reflective) or composite (emergent variable). */
 export type ConstructType = 'factor' | 'composite';
 export type WeightingScheme = 'path' | 'factor' | 'centroid';
-/** 'fiml': full-information maximum likelihood (CB-SEM through lavaan only). */
-export type MissingTreatment = 'mean' | 'casewise' | 'fiml';
+/** 'fiml': full-information maximum likelihood (CB-SEM through lavaan only); 'mi': multiple imputation (mice), pooled. */
+export type MissingTreatment = 'mean' | 'casewise' | 'fiml' | 'mi';
 
 export interface ConstructSpec {
   name: string;
@@ -111,6 +111,8 @@ export interface PlsOptions {
   missing: MissingTreatment;
   /** Consistent PLS (PLSc): correct common factors for attenuation. */
   consistent: boolean;
+  /** Multiple imputation (missing = 'mi', R engine): number of imputed data sets and seed. */
+  mi?: { m: number; seed: number };
   /** Weighting approach (cSEM): PLS path modeling, or generalized structured component analysis (GSCA; Hwang & Takane 2004). */
   approach?: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
 }
@@ -181,6 +183,8 @@ export interface PlsResult {
   /** Standardised construct scores, one column per construct. */
   scores: Float64Array[];
   droppedRows: number;
+  /** Multiple imputation: the number of imputed data sets the estimates are averaged over. */
+  imputations?: number;
   /** Second-order constructs (cSEM two-stage): loading and weight of each component, by index in `constructs`. */
   higherOrder?: { construct: number; component: number; loading: number; weight: number }[];
 }
@@ -212,6 +216,8 @@ export interface BootstrapResult {
   stats: BootstrapStat[];
   /** Several groups or levels: every block's statistics (stats holds the block shown). */
   byBlock?: BootstrapStat[][];
+  /** Multiple imputation: bootstraps in this many imputed data sets, pooled by Rubin's rules. */
+  imputations?: number;
   /** The R package that resampled (absent for the built-in engine). */
   engine?: { package: string; version: string };
 }

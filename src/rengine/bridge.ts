@@ -27,9 +27,15 @@ import { callJson, callString, parallelMap, withR, withSession } from './runtime
 export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR };
 
 export const R_PACKAGES = {
-  lavaan: ['jsonlite', 'lavaan', 'semTools', 'rsem'],
+  lavaan: ['jsonlite', 'lavaan', 'semTools'],
+  rsem: ['jsonlite', 'lavaan', 'semTools', 'rsem'],
   cSEM: ['jsonlite', 'cSEM'],
   seminr: ['jsonlite', 'seminr'],
+  // Multiple imputation: mice (and lavaan.mi) only when it is chosen.
+  mice: ['jsonlite', 'mice'],
+  'lavaan.mi': ['jsonlite', 'lavaan', 'semTools', 'mice', 'lavaan.mi'],
+  cSEMMi: ['jsonlite', 'cSEM', 'mice'],
+  seminrMi: ['jsonlite', 'seminr', 'mice'],
   MIIVsem: ['jsonlite', 'lavaan', 'MIIVsem'],
   simulation: ['jsonlite', 'lavaan', 'cSEM'],
   manymome: ['jsonlite', 'manymome', 'sandwich'],

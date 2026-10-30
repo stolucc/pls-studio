@@ -72,6 +72,8 @@ export interface CbResult {
   modindices?: { lhs: string; op: string; rhs: string; mi: number; epc: number; sepc: number; group?: string }[];
   /** Robust ML (rsem): each analysed case's weight, by data row (1-based); below 1 = down-weighted. */
   caseWeights?: { rows: number[]; weights: number[] };
+  /** Multiple imputation: the number of imputed data sets pooled. */
+  imputations?: number;
   /** Latent interactions estimated by LMS or QML (modsem); absent for product indicators. */
   interaction?: 'lms' | 'qml';
   /** Wald tests of user hypotheses (lavaan). */
