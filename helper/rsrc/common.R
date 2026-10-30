@@ -248,6 +248,55 @@ ps_dataset <- function(req_json) {
   ps_json(list(names = names(d), cols = unname(lapply(d, function(x) unname(as.numeric(x)))), n = nrow(d), levels = levels))
 }
 
+#' Read an SPSS (.sav, .zsav), Stata (.dta) or Excel (.xlsx, .xls) file:
+#' the file's bytes (base64) from the browser, or an example file shipped in a
+#' package (req$package_file = list(package, path): plain path segments only).
+#' Numeric columns stay numeric (value labels dropped, so Likert items keep
+#' their numbers; SPSS user-missing values become NA); factors become codes with their levels; text columns are returned
+#' as text (coded like CSV text columns in the app); other types are listed as
+#' excluded. Excel: the sheet by name or the first one; every sheet name is returned.
+ps_read_data <- function(req_json) {
+  req <- ps_parse(req_json)
+  format <- req[["format", exact = TRUE]]
+  if (!is.character(format) || length(format) != 1L || !format %in% c("sav", "zsav", "dta", "xlsx", "xls")) stop("Unsupported file type.")
+  pf <- req[["package_file", exact = TRUE]]
+  if (!is.null(pf)) {
+    parts <- strsplit(as.character(pf$path), "/", fixed = TRUE)[[1]]
+    if (!is.character(pf$package) || !grepl("^[A-Za-z][A-Za-z0-9.]*$", pf$package) ||
+        !length(parts) || any(!grepl("^[A-Za-z0-9_][A-Za-z0-9._-]*$", parts))) stop("Invalid example file.")
+    path <- do.call(system.file, c(as.list(parts), package = pf$package))
+    if (!nzchar(path)) stop("The example file is not in the package.")
+  } else {
+    bytes <- jsonlite::base64_dec(as.character(req[["data", exact = TRUE]]))
+    if (length(bytes) > 50 * 1024^2) stop("The file is larger than 50 MB.")
+    path <- tempfile(fileext = paste0(".", format))
+    on.exit(unlink(path), add = TRUE)
+    writeBin(bytes, path)
+  }
+  sheets <- character(0)
+  if (format %in% c("xlsx", "xls")) {
+    sheets <- readxl::excel_sheets(path)
+    sheet <- req[["sheet", exact = TRUE]]
+    if (is.null(sheet) || !(sheet %in% sheets)) sheet <- sheets[1]
+    d <- readxl::read_excel(path, sheet = sheet, guess_max = 10000)
+  } else {
+    # Value-labelled variables (Likert items, group codes) keep their numbers (labels dropped below).
+    d <- if (format == "dta") haven::read_dta(path) else haven::read_sav(path)
+  }
+  d <- as.data.frame(d)
+  cols <- list(); excluded <- list()
+  for (v in names(d)) {
+    x <- d[[v]]
+    if (inherits(x, "haven_labelled")) x <- as.numeric(haven::zap_labels(x))
+    if (is.logical(x)) x <- as.numeric(x)
+    if (is.factor(x)) cols[[v]] <- list(kind = "factor", codes = as.integer(x), levels = levels(x))
+    else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt", "difftime"))) cols[[v]] <- list(kind = "number", values = unname(as.numeric(x)))
+    else if (is.character(x)) cols[[v]] <- list(kind = "text", values = unname(x))
+    else excluded[[length(excluded) + 1L]] <- list(name = v, reason = paste("unsupported column type", class(x)[1]))
+  }
+  ps_json(list(names = names(cols), cols = unname(cols), n = nrow(d), sheets = I(sheets), excluded = excluded))
+}
+
 #' Multiple imputation settings from the request: number of imputations and seed.
 ps_mi_settings <- function(req) {
   mi <- req[["mi", exact = TRUE]]  # ([[ ]]: req$mi would partially match req$missing)

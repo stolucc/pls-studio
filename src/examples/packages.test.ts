@@ -58,7 +58,8 @@ it('ids are unique and every R package the app calculates with has an example', 
   // Bridge packages without their own example: variants of another package's runtime
   // (lavaan + cSEM for simulation, manymome's latent and glm routes, optimx for REndo's latent IV, lavaan for the RSA package's model, flexmix for FIMIX-PLS on plspm's simdata) or helpers.
   // cSEMMi / seminrMi: cSEM and seminr with mice (multiple imputation), shown by the mice and lavaan.mi examples.
-  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi']);
+  // readData: haven + readxl (SPSS, Stata, Excel import), shown by the haven and readxl examples.
+  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData']);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });
 

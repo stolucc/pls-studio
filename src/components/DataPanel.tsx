@@ -116,14 +116,14 @@ export function DataPanel() {
             onDrop={onFileDrop}
           >
             <IconUpload size={20} />
-            <div>Drop a CSV file here</div>
+            <div>Drop a data file here</div>
             <button className="btn primary" onClick={() => void importCsv()}>Choose file</button>
             <div style={{ display: 'grid', gap: 4, justifyItems: 'center' }}>
               <span className="hint">or load an example</span>
               <button className="btn ghost sm" onClick={() => void loadSample('customer')}>Customer survey (PLS, raw data)</button>
               <button className="btn ghost sm" onClick={() => void loadSample('emse')}>Gamification in SE · Stol et al. 2022 (CB-SEM, matrix)</button>
             </div>
-            <div className="hint">Comma, semicolon or tab separated, with a header row. Empty cells, NA and “.” count as missing; text columns with few values (groups, cluster ids) become categories. Data stays in your browser.</div>
+            <div className="hint">CSV (comma, semicolon or tab separated, with a header row), SPSS (.sav), Stata (.dta) or Excel (.xlsx, .xls; first row = names). Empty cells, NA and “.” count as missing; text columns with few values (groups, cluster ids) become categories. Data stays in your browser.</div>
           </div>
         ) : (
           <>

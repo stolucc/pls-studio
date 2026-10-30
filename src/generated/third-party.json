@@ -298,6 +298,12 @@
    "url": "https://cran.r-project.org/package=caTools"
   },
   {
+   "name": "cellranger",
+   "version": "1.1.0",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=cellranger"
+  },
+  {
    "name": "checkmate",
    "version": "2.3.4",
    "license": "BSD_3_clause + file LICENSE",
@@ -1216,10 +1222,22 @@
    "url": "https://cran.r-project.org/package=readr"
   },
   {
+   "name": "readxl",
+   "version": "1.5.0.1",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=readxl"
+  },
+  {
    "name": "reformulas",
    "version": "0.4.4",
    "license": "GPL-3",
    "url": "https://cran.r-project.org/package=reformulas"
+  },
+  {
+   "name": "rematch",
+   "version": "2.0.0",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=rematch"
   },
   {
    "name": "RhpcBLASctl",

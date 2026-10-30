@@ -308,6 +308,22 @@
         "File": "caTools_1.18.4.tgz"
       }
     },
+    "cellranger": {
+      "version": "1.1.0",
+      "md5": "12bf54b9cf642368f102082b41fa086d",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "cellranger",
+        "Version": "1.1.0",
+        "Depends": "R (>= 3.0.0)",
+        "Imports": "rematch, tibble",
+        "Suggests": "covr, testthat (>= 1.0.0), knitr, rmarkdown",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "12bf54b9cf642368f102082b41fa086d",
+        "Built": "R 4.6.0; ; 2026-05-12 19:37:47 UTC; unix",
+        "File": "cellranger_1.1.0.tgz"
+      }
+    },
     "checkmate": {
       "version": "2.3.4",
       "md5": "cb958bf76cc22b3e6c23b7f07213bc78",
@@ -2696,6 +2712,23 @@
         "File": "readr_2.2.0.tgz"
       }
     },
+    "readxl": {
+      "version": "1.5.0.1",
+      "md5": "f3e3ed8f0d6b58c1b15e090435da75d6",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "readxl",
+        "Version": "1.5.0.1",
+        "Depends": "R (>= 4.1)",
+        "Imports": "cellranger, tibble (>= 2.0.1), utils",
+        "LinkingTo": "cpp11 (>= 0.5.5), progress",
+        "Suggests": "covr, knitr, rmarkdown, testthat (>= 3.1.6), withr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "f3e3ed8f0d6b58c1b15e090435da75d6",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-11 03:58:08 UTC; unix",
+        "File": "readxl_1.5.0.1.tgz"
+      }
+    },
     "reformulas": {
       "version": "0.4.4",
       "md5": "d119ca16b1912ea936b42b442196a211",
@@ -2709,6 +2742,20 @@
         "MD5sum": "d119ca16b1912ea936b42b442196a211",
         "Built": "R 4.6.0; ; 2026-05-13 23:35:46 UTC; unix",
         "File": "reformulas_0.4.4.tgz"
+      }
+    },
+    "rematch": {
+      "version": "2.0.0",
+      "md5": "27a0471c253afb0c150399f831982eff",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "rematch",
+        "Version": "2.0.0",
+        "Suggests": "covr, testthat",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "27a0471c253afb0c150399f831982eff",
+        "Built": "R 4.6.0; ; 2026-05-13 23:45:36 UTC; unix",
+        "File": "rematch_2.0.0.tgz"
       }
     },
     "RhpcBLASctl": {

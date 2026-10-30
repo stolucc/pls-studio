@@ -15,11 +15,12 @@ import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
 import type { RsaPreset } from '../analyses/rsa';
 import type { EfaPreset } from '../analyses/efa';
+import type { DataFileFormat } from '../data/readFile';
 import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 
-export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox'];
+export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -40,7 +41,8 @@ export type ExamplePanel =
   | ({ kind: 'match' } & MatchPreset)
   | ({ kind: 'rsa' } & RsaPreset)
   | ({ kind: 'nca' } & NcaPreset)
-  | ({ kind: 'efa' } & EfaPreset);
+  | ({ kind: 'efa' } & EfaPreset)
+  | { kind: 'screen'; vars: string[] };
 
 export interface PackageExample {
   id: string;
@@ -52,7 +54,8 @@ export interface PackageExample {
   links: { label: string; url: string }[];
   description: string;
   /** The dataset in the package; `file`: shipped with the app instead (packages that cannot run in the browser's R). */
-  data: { package: ExamplePackage; name: string; na?: number[]; file?: string };
+  /** file: a CSV shipped with the app; packageFile: an SPSS, Stata or Excel file shipped in the R package, read by R. */
+  data: { package: ExamplePackage; name: string; na?: number[]; file?: string; packageFile?: { path: string; format: DataFileFormat; sheet?: string } };
   constructs: ExConstruct[];
   paths: [string, string][];
   correlations?: [string, string, Correlation['kind']][];
@@ -518,6 +521,20 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     paths: [...fan(['SIC'], ['PL', 'PQ', 'PI']), ...fan(['PL', 'PQ', 'PIC'], ['PI']), ['PI', 'WTP']],
     moderations: [['PQ', 'PIC', 'PI']], settings: PLS('seminr', false),
   },
+  {
+    id: 'haven-iris', package: 'haven', title: 'An SPSS file: Fisher’s iris measurements', source: 'haven, ?read_sav (iris.sav)',
+    links: [{ label: '?read_sav', url: 'https://haven.tidyverse.org/reference/read_spss.html' }, { label: 'haven', url: 'https://haven.tidyverse.org/' }],
+    description: 'haven’s example SPSS file (.sav): the four flower measurements of Fisher’s iris data, read as you would read your own SPSS file (value labels dropped, numbers kept), with two principal components of the measurements. Opens its card on the Analyses tab.',
+    data: { package: 'haven', name: 'iris.sav', packageFile: { path: 'examples/iris.sav', format: 'sav' } }, constructs: [], paths: [],
+    panel: { kind: 'efa', vars: ['Sepal.Length', 'Sepal.Width', 'Petal.Length', 'Petal.Width'], method: 'pca', criterion: 'fixed', nfactors: 2, rotation: 'varimax', parallel: 0 }, settings: CB('ML'),
+  },
+  {
+    id: 'readxl-mtcars', package: 'readxl', title: 'An Excel file: car road tests', source: 'readxl, ?read_excel (datasets.xlsx)',
+    links: [{ label: '?read_excel', url: 'https://readxl.tidyverse.org/reference/read_excel.html' }, { label: 'readxl', url: 'https://readxl.tidyverse.org/' }],
+    description: 'readxl’s example workbook (.xlsx), first sheet: the 1974 Motor Trend road tests of 32 cars (mtcars), read as you would read your own Excel file, with data screening of six measures (distributions, multivariate normality, outliers). Opens its card on the Analyses tab.',
+    data: { package: 'readxl', name: 'datasets.xlsx', packageFile: { path: 'extdata/datasets.xlsx', format: 'xlsx', sheet: 'mtcars' } }, constructs: [], paths: [],
+    panel: { kind: 'screen', vars: ['mpg', 'disp', 'hp', 'drat', 'wt', 'qsec'] }, settings: CB('ML'),
+  },
 ];
 
 /** The data columns a panel example uses. */
@@ -532,6 +549,7 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'rsa': return [p.outcome ?? '', p.x ?? '', p.y ?? '', ...(p.controls ?? [])].filter(Boolean);
     case 'nca': return [...p.x, p.y];
     case 'efa': return p.vars ?? [];
+    case 'screen': return p.vars;
   }
 }
 

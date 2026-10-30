@@ -7,6 +7,7 @@ cobalt
 corpcor
 flexmix
 genpathmox
+haven
 ivreg
 jsonlite
 lavaan
@@ -26,6 +27,7 @@ optmatch
 plspm
 poLCA
 psych
+readxl
 rsem
 sampleSelection
 sandwich

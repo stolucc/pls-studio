@@ -31,6 +31,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | car | 3.1-5 | GPL (>= 2) | https://cran.r-project.org/package=car |
 | carData | 3.0-6 | GPL (>= 2) | https://cran.r-project.org/package=carData |
 | caTools | 1.18.4 | GPL-3 | https://cran.r-project.org/package=caTools |
+| cellranger | 1.1.0 | MIT + file LICENSE | https://cran.r-project.org/package=cellranger |
 | checkmate | 2.3.4 | BSD_3_clause + file LICENSE | https://cran.r-project.org/package=checkmate |
 | cli | 3.6.6 | MIT + file LICENSE | https://cran.r-project.org/package=cli |
 | clipr | 0.8.1 | GPL-3 | https://cran.r-project.org/package=clipr |
@@ -184,7 +185,9 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | Rcpp | 1.1.2 | GPL (>= 2) | https://cran.r-project.org/package=Rcpp |
 | Rdpack | 2.6.6 | GPL (>= 2) | https://cran.r-project.org/package=Rdpack |
 | readr | 2.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=readr |
+| readxl | 1.5.0.1 | MIT + file LICENSE | https://cran.r-project.org/package=readxl |
 | reformulas | 0.4.4 | GPL-3 | https://cran.r-project.org/package=reformulas |
+| rematch | 2.0.0 | MIT + file LICENSE | https://cran.r-project.org/package=rematch |
 | RhpcBLASctl | 0.23-42 | AGPL-3 | https://cran.r-project.org/package=RhpcBLASctl |
 | rlang | 1.3.0 | MIT + file LICENSE | https://cran.r-project.org/package=rlang |
 | rlemon | 0.2.1 | BSL-1.0 | https://cran.r-project.org/package=rlemon |

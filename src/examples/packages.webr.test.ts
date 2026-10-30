@@ -24,6 +24,7 @@ import { estimateCbLavaan } from '../rengine/lavaan';
 import { growthR } from '../rengine/longitudinal';
 import { gmmR, lmmR } from '../rengine/mixed';
 import { gmmInput } from '../analyses/longitudinal';
+import { readPackageFile } from '../data/readFile';
 import { fimixR, pathmoxR, rebusR } from '../rengine/segment';
 import { estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
@@ -38,6 +39,8 @@ const CHISQ: Record<string, number> = { 'lavaan-poldem': 40.179, 'lavaan-hs': 85
 async function load(ex: PackageExample): Promise<Dataset & { levels?: unknown }> {
   // Data shipped with the app (packages that cannot run in the browser's R).
   if (ex.data.file) return parseCsv(readFileSync(join(__dirname, '..', '..', 'public', ex.data.file), 'utf8')).dataset;
+  const pf = ex.data.packageFile;
+  if (pf) return (await readPackageFile(ex.data.package, pf.path, pf.format, pf.sheet)).data;
   const raw = await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: Record<string, string[]> }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package as RPackage);
   return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), levels: raw.levels, ...categoriesOf(raw.levels) };
 }

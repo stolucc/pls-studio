@@ -2,6 +2,7 @@ import type { RPackage } from './rengine/bridge';
 import { MAX_FILE_BYTES, parseCsv } from './engine/dataset';
 import { confirmDialog, numberDialog } from './components/Overlays';
 import { parseCovMatrixCsv, parseNacovCsv } from './examples/matrix';
+import { dataFileFormat, readDataFile, readPackageFile } from './data/readFile';
 import { safeFileName, downloadText } from './format';
 import { parseProject, serializeProject, toSpec, validateModel } from './model/project';
 import { makeSample } from './sample';
@@ -46,7 +47,7 @@ async function confirmDiscard(action: string): Promise<boolean> {
 
 /** Start a fresh project and import a data file into it (from the home screen). */
 export async function newProjectFromData() {
-  const f = await pickFile('.csv,.tsv,.txt,text/csv');
+  const f = await pickFile(DATA_FILES);
   if (!f) return;
   if (!(await confirmDiscard('Starting a new project'))) return;
   useStore.getState().newProject();
@@ -54,11 +55,43 @@ export async function newProjectFromData() {
   await importCsv(f);
 }
 
+/** The data files the import accepts: delimited text, SPSS, Stata and Excel. */
+const DATA_FILES = '.csv,.tsv,.txt,text/csv,.sav,.zsav,.dta,.xlsx,.xls';
+
+/** SPSS, Stata and Excel files, read by R; Excel asks for the sheet when there are several. */
+async function importDataFile(f: File) {
+  const s = useStore.getState();
+  s.toast('info', `Reading ${f.name} in R…`);
+  try {
+    let r = await readDataFile(f);
+    if (r.sheets.length > 1) {
+      const k = await numberDialog({
+        title: 'Which sheet?',
+        body: `${f.name} has ${r.sheets.length} sheets: ${r.sheets.map((x, i) => `${i + 1}. ${x}`).join(', ')}. The data must be one table with the variable names in the first row.`,
+        confirmLabel: 'Import',
+        field: { label: 'Sheet number', min: 1, max: r.sheets.length, integer: true, initial: '1' },
+      });
+      if (k === null) return;
+      if (k > 1) r = await readDataFile(f, r.sheets[k - 1]);
+    }
+    s.setData(r.data, r.info);
+    const missingInds = s.model.constructs.flatMap((c) => c.indicators).filter((i) => !r.data.names.includes(i));
+    const skipped = r.info.excluded.length ? ` ${r.info.excluded.length} column(s) skipped (${r.info.excluded.slice(0, 3).map((x) => x.name).join(', ')}${r.info.excluded.length > 3 ? ', …' : ''}).` : '';
+    s.toast(missingInds.length ? 'error' : 'success', missingInds.length
+      ? `Loaded ${f.name}, but ${missingInds.length} indicator(s) in the model are not in this file.`
+      : `Loaded ${r.info.rows} rows × ${r.data.names.length} variables.${skipped}`);
+  } catch (err) {
+    const { rMessage } = await import('./rengine/bridge');
+    s.toast('error', `Could not read ${f.name}: ${rMessage(err)}`);
+  }
+}
+
 export async function importCsv(file?: File | null) {
-  const f = file ?? (await pickFile('.csv,.tsv,.txt,text/csv'));
+  const f = file ?? (await pickFile(DATA_FILES));
   if (!f) return;
   const s = useStore.getState();
   if (f.size > MAX_FILE_BYTES) { s.toast('error', 'File is larger than 50 MB.'); return; }
+  if (dataFileFormat(f.name)) { await importDataFile(f); return; }
   try {
     const text = await f.text();
     const matrix = parseCovMatrixCsv(text);
@@ -279,15 +312,20 @@ export async function loadPackageExample(id: string) {
   s.toast('info', `Loading ${ex.data.package}::${ex.data.name} in R…`);
   try {
     const { rCall, rMessage } = await import('./rengine/bridge');
-    const raw = ex.data.file ? await bundledDataset(ex.data.file)
+    const pf = ex.data.packageFile;
+    // An SPSS / Stata / Excel file shipped in the package: read as a user's file would be.
+    const fromFile = pf ? await readPackageFile(ex.data.package, pf.path, pf.format, pf.sheet).catch((e) => { throw new Error(rMessage(e)); }) : null;
+    const raw = fromFile ? { names: fromFile.data.names, cols: [] as (number | null)[][], n: fromFile.info.rows, levels: undefined }
+      : ex.data.file ? await bundledDataset(ex.data.file)
       : await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: Record<string, string[] | string> | unknown[] }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package as RPackage).catch((e) => { throw new Error(rMessage(e)); });
-    const cols = raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN)));
+    const cols = fromFile ? fromFile.data.cols : raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN)));
     const missingCells = cols.reduce((n, c) => n + c.filter(Number.isNaN).length, 0);
     const model = exampleModel(ex);
     model.constructs = autoLayout(model);
     s.loadProject({
       name: ex.title, model, settings: { ...useStore.getState().settings, ...ex.settings, engine: 'r' },
-      data: { names: raw.names, cols, ...categoriesOf(raw.levels) }, info: { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
+      data: fromFile ? fromFile.data : { names: raw.names, cols, ...categoriesOf(raw.levels) },
+      info: fromFile ? fromFile.info : { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
       example: ex.id,
     });
     loadCards([]);

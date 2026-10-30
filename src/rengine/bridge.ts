@@ -60,6 +60,8 @@ export const R_PACKAGES = {
   flexmix: ['jsonlite', 'cSEM', 'flexmix'],
   psych: ['jsonlite', 'psych', 'GPArotation'],
   semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],
+  // Reading SPSS, Stata and Excel files.
+  readData: ['jsonlite', 'haven', 'readxl'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 
