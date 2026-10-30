@@ -222,3 +222,21 @@ it('Monte Carlo simulation (R engine), with progress, equal to the same chunks r
   expect(seen.length).toBeGreaterThan(0);
   expect(html).toContain('Power');
 }, 900_000);
+
+it('CB-SEM extras on the model on the canvas: parameter comparisons and factor score weights', async () => {
+  const { rCall } = await import('../rengine/bridge');
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
+  const hs = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const K = (name: string, ind: string[]) => ({ id: name, name, type: 'factor' as const, mode: 'A' as const, indicators: ind, x: 0, y: 0, side: 'left' as const });
+  const setup = () => {
+    useStore.setState({ model: { constructs: [K('visual', ['x1', 'x2', 'x3']), K('textual', ['x4', 'x5', 'x6']), K('speed', ['x7', 'x8', 'x9'])],
+      paths: [{ id: 'p1', from: 'visual', to: 'textual' }, { id: 'p2', from: 'visual', to: 'speed' }, { id: 'p3', from: 'textual', to: 'speed' }], moderations: [] } });
+    useStore.getState().setSettings({ method: 'cbsem', engine: 'r', estimator: 'ML', missing: 'casewise' });
+  };
+  const cmp = await runAsCard<{ params: { label: string }[] }>('cbcompare', hs, { kinds: ['paths'] }, setup);
+  expect(cmp.result.params.map((p) => p.label)).toEqual(['visual → textual', 'visual → speed', 'textual → speed']);
+  expect(cmp.html).toContain('Critical ratios for differences');
+  const w = await runAsCard<{ factors: string[] }>('scoreweights', hs, { method: 'regression' }, setup);
+  expect(w.result.factors).toEqual(['visual', 'textual', 'speed']);
+  expect(w.html).toContain('Factor score weights (regression)');
+}, 900_000);

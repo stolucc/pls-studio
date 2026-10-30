@@ -727,3 +727,117 @@ ps_cb_scores <- function(req_json, export = FALSE) {
     scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j])),
     warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }
+
+# ---------- CB-SEM extras: Bollen-Stine p, pairwise parameter comparisons, factor score weights ----------
+
+#' lavaan names back to the app's (constructs, interaction terms, indicators).
+ps_cb_back <- function(b) {
+  constructs <- c(b$n$cname, b$int_names)
+  c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
+}
+
+#' Models these analyses cannot use (each says why).
+ps_cb_plain <- function(b, what, raw = TRUE) {
+  if (raw && b$matrix_input) stop(sprintf("%s needs raw data; this dataset is a covariance matrix.", what))
+  if (isTRUE(b$mi)) stop(sprintf("%s is not available with multiple imputation; use FIML or casewise deletion.", what))
+  if (isTRUE(b$robust)) stop(sprintf("%s is not available with robust ML (rsem); choose ML or MLR.", what))
+  if (!is.null(b$modsem)) stop(sprintf("%s is not available for LMS / QML models.", what))
+  if (!is.null(b$cluster_var)) stop(sprintf("%s is not available for two-level models.", what))
+}
+
+#' Bollen-Stine bootstrap p-value of the chi-square test (lavaan, test = "bollen.stine"):
+#' the data are transformed so that the model holds exactly, resampled, and the model
+#' refitted to each sample; p is the share of bootstrap chi-squares at least as large as the observed.
+ps_cb_bollen_stine <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "The Bollen-Stine bootstrap")
+  if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("The Bollen-Stine bootstrap is not available for this model.")
+  if (length(unlist(req$model$ordered))) stop("The Bollen-Stine bootstrap is for continuous indicators; with ordinal indicators (WLSMV) use the robust chi-square test.")
+  B <- as.integer(ps_number(req$boot$samples, "bootstrap samples")); seed <- as.integer(ps_number(req$boot$seed, "seed"))
+  if (is.na(B) || B < 10L || B > 100000L) stop("The number of bootstrap samples must be between 10 and 100000.")
+  body <- c(b$body,
+    "# Bollen-Stine bootstrap of the chi-square test (Bollen & Stine 1992): the data are transformed so",
+    "# that the model fits exactly, resampled, and the model refitted to each sample.",
+    sprintf("set.seed(%d)", seed),
+    sprintf("fit_bs <- %s", sub("\\)$", sprintf(", test = \"bollen.stine\", bootstrap = %d)", B), sub("^fit <- ", "", b$call))),
+    "bs <- lavInspect(fit_bs, \"test\")$bollen.stine",
+    "boot_chisq <- attr(bs, \"boot.T\") %||% bs$boot.T")
+  if (export) return(paste(ps_script(sprintf("Bollen-Stine bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(bs[c(\"stat\", \"df\", \"pvalue\")])"), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  bs <- env$bs; boot <- env$boot_chisq
+  ps_json(list(chisq = bs$stat, df = bs$df, p = bs$pvalue, samples = B,
+    valid = if (is.null(boot)) NULL else sum(is.finite(boot)), boot = if (is.null(boot)) NULL else I(unname(as.numeric(boot))),
+    mlChisq = unname(fitMeasures(env$fit, "chisq")), warnings = env$.warnings,
+    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}
+
+#' Pairwise comparisons of free parameters (AMOS's critical ratios for differences):
+#' z = (a - b) / sqrt(var(a) + var(b) - 2 cov(a, b)) from the covariance matrix of the estimates.
+ps_cb_compare_params <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "Comparing parameters", raw = FALSE)
+  kinds <- intersect(unlist(req$kinds), c("paths", "loadings", "variances", "covariances"))
+  if (!length(kinds)) stop("Choose which parameters to compare.")
+  ops <- c(paths = "~", loadings = "=~")
+  body <- c(b$body,
+    "# Free parameters of the chosen kinds and the covariance matrix of their estimates.",
+    "pt <- parTable(fit)",
+    sprintf("kinds <- %s", ps_q(kinds)),
+    "keep <- pt$free > 0 & ((\"paths\" %in% kinds & pt$op == \"~\") | (\"loadings\" %in% kinds & pt$op == \"=~\") |",
+    "  (\"variances\" %in% kinds & pt$op == \"~~\" & pt$lhs == pt$rhs) | (\"covariances\" %in% kinds & pt$op == \"~~\" & pt$lhs != pt$rhs))",
+    "sel <- pt[keep, ]",
+    "# Parameters held equal share one free parameter: keep the first.",
+    "sel <- sel[!duplicated(sel$free), ]",
+    "V <- vcov(fit)[sel$free, sel$free, drop = FALSE]",
+    "d <- outer(sel$est, sel$est, \"-\")",
+    "se <- sqrt(pmax(outer(diag(V), diag(V), \"+\") - 2 * V, 0))",
+    "z <- d / se; diag(z) <- NA",
+    "rownames(z) <- colnames(z) <- paste(sel$lhs, sel$op, sel$rhs, if (max(sel$group) > 1) paste0(\"@\", sel$group) else \"\")")
+  if (export) return(paste(ps_script("Pairwise parameter comparisons (critical ratios for differences)", "lavaan", b$inputs, body, "print(round(z, 3))"), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  sel <- env$sel; back <- ps_cb_back(b)
+  nm <- function(x) ifelse(x %in% names(back), unname(back[x]), x)
+  label <- ifelse(sel$op == "~", paste(nm(sel$rhs), "→", nm(sel$lhs)),
+    ifelse(sel$op == "=~", paste(nm(sel$lhs), "→", nm(sel$rhs)),
+      ifelse(sel$lhs == sel$rhs, paste("Variance of", nm(sel$lhs)), paste(nm(sel$lhs), "↔", nm(sel$rhs)))))
+  if (max(sel$group) > 1) label <- paste0(label, " (group ", sel$group, ")")
+  z <- env$z
+  ps_json(list(params = lapply(seq_len(nrow(sel)), function(i) list(label = label[i], est = sel$est[i], kind = switch(sel$op[i], "~" = "path", "=~" = "loading", if (sel$lhs[i] == sel$rhs[i]) "variance" else "covariance"))),
+    z = if (length(z)) lapply(seq_len(nrow(z)), function(i) I(unname(z[i, ]))) else list(), warnings = env$.warnings,
+    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}
+
+#' Factor score weights: how each latent variable's score is computed from the observed
+#' variables. Regression (Thurstone; AMOS's factor score weights): Phi Lambda' Sigma^-1;
+#' Bartlett: (Lambda' Theta^-1 Lambda)^-1 Lambda' Theta^-1. Model-implied matrices.
+ps_cb_score_weights <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "Factor score weights", raw = FALSE)
+  if (!is.null(b$group_var)) stop("Factor score weights are shown for one group: remove the grouping (or analyse each group's data).")
+  if (length(unlist(req$model$ordered))) stop("Factor score weights are for continuous indicators.")
+  if (length(b$composites)) stop("Factor score weights are for common factors; the model has composites (<~).")
+  method <- req[["method", exact = TRUE]]
+  if (!identical(method, "Bartlett")) method <- "regression"
+  body <- c(b$body,
+    "L <- lavInspect(fit, \"est\")$lambda          # loadings (observed x latent)",
+    "Sigma <- lavInspect(fit, \"cov.ov\")[rownames(L), rownames(L)]  # model-implied covariances",
+    if (method == "regression") c(
+      "# Regression (Thurstone) weights: latent covariances x loadings' x inverse implied covariances.",
+      "Phi <- lavInspect(fit, \"cov.lv\")[colnames(L), colnames(L)]",
+      "W <- Phi %*% t(L) %*% solve(Sigma)")
+    else c(
+      "# Bartlett weights: (L' Theta^-1 L)^-1 L' Theta^-1.",
+      "Ti <- solve(lavInspect(fit, \"est\")$theta[rownames(L), rownames(L)])",
+      "W <- solve(t(L) %*% Ti %*% L) %*% t(L) %*% Ti"),
+    "dimnames(W) <- list(colnames(L), rownames(L))")
+  if (export) return(paste(ps_script(sprintf("Factor score weights (%s)", method), "lavaan", b$inputs, body, "print(round(W, 4))"), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  W <- env$W; back <- ps_cb_back(b)
+  nm <- function(x) ifelse(x %in% names(back), unname(back[x]), x)
+  ps_json(list(method = method, factors = I(nm(rownames(W))), variables = I(nm(colnames(W))),
+    weights = lapply(seq_len(nrow(W)), function(i) I(unname(W[i, ]))), warnings = env$.warnings,
+    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}
