@@ -348,9 +348,10 @@ export async function loadPackageExample(id: string) {
       return;
     }
     if (ex.screening) {
-      const { useScreen } = await import('./components/DataScreeningPanel');
-      useScreen.setState({ open: true, tab: ex.screening.tab, vars: [...new Set(ex.constructs.flatMap((k) => k.indicators ?? []))], result: null, influence: null });
-      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate in the panel.`);
+      if (ex.screening.tab === 'influence') addAnalysis('influence');
+      else addAnalysis('screen', { vars: [...new Set(ex.constructs.flatMap((k) => k.indicators ?? []))] });
+      useStore.getState().setWorkspace('analyses');
+      useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Run on the card.`);
       return;
     }
     if (ex.segmentation) {

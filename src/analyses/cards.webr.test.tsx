@@ -21,10 +21,11 @@ afterAll(stopTestRuntime);
 const example = (file: string) => parseCsv(readFileSync(join(__dirname, '..', '..', 'public', 'examples', file), 'utf8')).dataset;
 
 /** Run a card on a dataset; returns its result after a save and reopen, and the rendered card body. */
-async function runAsCard<R>(type: string, data: Dataset, options: object): Promise<{ result: R; html: string }> {
+async function runAsCard<R>(type: string, data: Dataset, options: object, setup?: () => void): Promise<{ result: R; html: string }> {
   const s = useStore.getState();
   s.newProject();
   s.setData(data, { fileName: 'example.csv', rows: data.cols[0].length, missingCells: 0, excluded: [] });
+  setup?.();
   loadCards([]);
   const id = addAnalysis(type, options)!;
   await runCard(id);
@@ -101,4 +102,29 @@ it('exploratory factor analysis (psych on bfi)', async () => {
   expect(result.k).toBe(5);
   expect(result.kmo.overall).toBeCloseTo(ref.bfi.kmo, 6);
   expect(html).toContain('Build model from this solution');
+}, 900_000);
+
+it('data screening (psych) and influential cases (semfindr)', async () => {
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'screen', 'reference.json'), 'utf8'));
+  const { rCall } = await import('../rengine/bridge');
+  const load = async (pkg: 'lavaan' | 'semfindr', name: string) => {
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: pkg, name, na: [] }, pkg);
+    return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  };
+  const hs = await load('lavaan', 'HolzingerSwineford1939');
+  const vars = Array.from({ length: 9 }, (_, i) => `x${i + 1}`);
+  const screen = await runAsCard<{ mardia: { b2p: number } }>('screen', hs, { vars, alpha: 0.001 });
+  // (the reference screens a copy with a value removed; the card must equal the engine on the same data)
+  const { screenR } = await import('../rengine/screen');
+  expect(screen.result.mardia.b2p).toBeCloseTo((await screenR(hs, vars, 0.001)).mardia.b2p, 10);
+  expect(screen.html).toContain('Distributions');
+
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const inf = await runAsCard<{ rows: number[]; gcd: number[] }>('influence', await load('semfindr', 'cfa_dat2'), {}, () => {
+    useStore.setState({ model: { constructs: [C('f1', ['x1', 'x2', 'x3']), C('f2', ['x4', 'x5', 'x6'])], paths: [], moderations: [], correlations: [{ id: 'k', kind: 'construct', a: 'f1', b: 'f2' }] } });
+    useStore.getState().setSettings({ method: 'cbsem', engine: 'r', missing: 'casewise', estimator: 'ML' });
+  });
+  const top = inf.result.rows.map((row, i) => ({ row, i })).sort((a, b) => inf.result.gcd[b.i] - inf.result.gcd[a.i]).slice(0, 5);
+  expect(top.map((x) => x.row)).toEqual(ref.influence.rows);
+  expect(inf.html).toContain('Most influential cases');
 }, 900_000);

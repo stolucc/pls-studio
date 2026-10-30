@@ -4,7 +4,6 @@ import { useItems } from './ItemsPanel';
 import { useLong } from './LongitudinalPanel';
 import { useSegmentation } from './SegmentationPanel';
 import { usePlsAssessment } from './PlsAssessmentPanel';
-import { useScreen } from './DataScreeningPanel';
 
 export interface WindowAnalysis { label: string; sub: string; open: () => void; disabled: boolean }
 
@@ -17,7 +16,6 @@ export function useWindowAnalyses(): WindowAnalysis[] {
   const hasModel = useStore((s) => s.model.constructs.length > 0);
   const item = (label: string, sub: string, open: () => void, disabled = false): WindowAnalysis => ({ label, sub, open, disabled });
   return [
-    item('Data screening', 'Distributions, Mardia’s test, outliers, influential cases', () => useScreen.getState().setOpen(true)),
     item('Item analysis', 'IRT (ltm), latent classes (poLCA)', () => useItems.getState().setOpen(true)),
     item('Longitudinal models', 'growth curves, RI-CLPM (lavaan), growth mixtures (lcmm)', () => useLong.getState().setOpen(true)),
     item('PLS-SEM assessment', method === 'pls' ? 'PLSpredict, blindfolding (Q²), model comparison, MICOM / multigroup, CTA, CCA' : 'for PLS-SEM models', () => usePlsAssessment.getState().setOpen(true), !hasModel || method !== 'pls'),

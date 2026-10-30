@@ -1,6 +1,5 @@
 import { AnalysesWorkspace } from './components/analyses/AnalysesWorkspace';
 import { useAnalyses } from './analyses/store';
-import { DataScreeningPanel } from './components/DataScreeningPanel';
 import { PlsAssessmentPanel } from './components/PlsAssessmentPanel';
 import { SegmentationPanel } from './components/SegmentationPanel';
 import { DataWorkspace } from './components/DataViewer';
@@ -122,7 +121,6 @@ export default function App() {
       <ItemsPanel />
       <SegmentationPanel />
       <PlsAssessmentPanel />
-      <DataScreeningPanel />
       <AuthDialog />
       <ConfirmModal />
       <Toasts />
