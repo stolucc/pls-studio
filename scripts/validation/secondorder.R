@@ -32,3 +32,30 @@ out <- list(
   bootSE = list(`eta1 -> c4` = se(s$Path_estimates, "c4 ~ eta1"), `c4 -> eta2` = se(s$Path_estimates, "eta2 ~ c4"), `c4 =~ c1` = se(s$Loading_estimates, "c4 =~ c1")))
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/secondorder/reference.json")
 cat("written\n")
+
+# Henseler (2021), cSEM ?Yooetal2000: brand equity (BR) a composite of the
+# common factors QL, LO, AA; BR ~ PR + IM + DI + AD + DL. Factorial scheme,
+# tolerance 1e-6, cSEM's defaults otherwise (consistent PLS), as on the help page.
+model_yoo <- "
+PR =~ PR1 + PR2 + PR3
+IM =~ IM1 + IM2 + IM3
+DI =~ DI1 + DI2 + DI3
+AD =~ AD1 + AD2 + AD3
+DL =~ DL1 + DL2 + DL3
+AA =~ AA1 + AA2 + AA3 + AA4 + AA5 + AA6
+LO =~ LO1 + LO3
+QL =~ QL1 + QL2 + QL3 + QL4 + QL5 + QL6
+BR <~ QL + LO + AA
+BR ~ PR + IM + DI + AD + DL
+"
+yoo <- csem(Yooetal2000, model_yoo, .PLS_weight_scheme_inner = "factorial", .tolerance = 1e-06)
+y2 <- yoo$Second_stage$Estimates
+Py <- y2$Path_estimates["BR", ]; names(Py) <- sub("_temp$", "", names(Py))
+out_yoo <- list(
+  cSEM = as.character(packageVersion("cSEM")),
+  paths = setNames(as.list(Py[c("PR", "IM", "DI", "AD", "DL")]), paste(c("PR", "IM", "DI", "AD", "DL"), "-> BR")),
+  r2 = list(BR = unname(y2$R2["BR"])),
+  secondOrder = list(loadings = as.list(y2$Loading_estimates["BR", c("QL", "LO", "AA")]), weights = as.list(y2$Weight_estimates["BR", c("QL", "LO", "AA")])),
+  firstOrderLoadings = as.list(yoo$First_stage$Estimates$Loading_estimates["QL", paste0("QL", 1:6)]))
+write(toJSON(out_yoo, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/secondorder/yoo.json")
+cat("written yoo\n")

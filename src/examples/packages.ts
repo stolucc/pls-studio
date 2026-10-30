@@ -357,6 +357,17 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: PLS('cSEM', true),
   },
   {
+    id: 'csem-yoo', package: 'cSEM', title: 'Brand equity: a composite of common factors (second order)', source: 'cSEM, ?Yooetal2000 (Henseler 2021)',
+    links: [{ label: '?Yooetal2000', url: 'https://rdrr.io/cran/cSEM/man/Yooetal2000.html' }],
+    description: 'Yoo, Donthu & Lee (2000), the example of Henseler’s book (569 consumers): brand equity is a composite of perceived quality, brand loyalty and brand awareness/associations (common factors), driven by price, store image, distribution intensity, advertising spending and deal frequency. Two-stage approach, factorial scheme, consistent PLS, as on the help page.',
+    data: { package: 'cSEM', name: 'Yooetal2000' },
+    constructs: [f('PR', items('PR', 3)), f('IM', items('IM', 3)), f('DI', items('DI', 3)), f('AD', items('AD', 3)), f('DL', items('DL', 3)),
+      f('QL', items('QL', 6)), f('LO', ['LO1', 'LO3']), f('AA', items('AA', 6)),
+      { name: 'BR', type: 'composite', mode: 'B', components: ['QL', 'LO', 'AA'] }],
+    paths: [['PR', 'BR'], ['IM', 'BR'], ['DI', 'BR'], ['AD', 'BR'], ['DL', 'BR']],
+    settings: { ...PLS('cSEM', true, 'factor'), stopExp: 6 },
+  },
+  {
     id: 'genpathmox-csibank', package: 'genpathmox', title: 'Bank customers: PATHMOX segmentation tree', source: 'genpathmox, ?pls.pathmox (csibank)',
     links: [{ label: '?pls.pathmox', url: 'https://rdrr.io/cran/genpathmox/man/pls.pathmox.html' }, { label: '?csibank', url: 'https://rdrr.io/cran/genpathmox/man/csibank.html' }],
     description: 'Satisfaction and loyalty of 1707 customers of a Spanish bank: does the model differ by gender, age, education, occupation or region? PATHMOX splits by age and then education and region. Consistent PLS, as on the help page. Opens Segmentation.',

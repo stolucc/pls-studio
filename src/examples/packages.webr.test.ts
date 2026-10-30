@@ -42,16 +42,21 @@ async function load(ex: PackageExample): Promise<Dataset & { levels?: unknown }>
 }
 
 /** cSEM's two-stage second-order example against cSEM run natively (scripts/validation/secondorder.R). */
+/** Paths, R² and the second-order loadings and weights against a native reference. */
+function sameSecondOrder(r: Awaited<ReturnType<typeof estimatePlsR>>, ref: any, hoc: string, digits = 5) {
+  const C = r.constructs, at = (n: string) => C.indexOf(n);
+  for (const [k, b] of Object.entries(ref.paths as Record<string, number>)) { const [f, t] = k.split(' -> '); expect(r.pathCoef[at(f)][at(t)], k).toBeCloseTo(b, digits); }
+  for (const [k, v] of Object.entries(ref.r2 as Record<string, number>)) expect(r.rSquared[at(k)], k).toBeCloseTo(v, digits);
+  for (const comp of Object.keys(ref.secondOrder.loadings)) {
+    const h = r.higherOrder!.find((x) => C[x.construct] === hoc && C[x.component] === comp)!;
+    expect(h.loading, comp).toBeCloseTo(ref.secondOrder.loadings[comp], digits);
+    expect(h.weight, comp).toBeCloseTo(ref.secondOrder.weights[comp], digits);
+  }
+}
+
 async function checkSecondOrder(data: Dataset, spec: ReturnType<typeof toSpec>, r: Awaited<ReturnType<typeof estimatePlsR>>, st: typeof DEFAULT_SETTINGS) {
   const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'secondorder', 'reference.json'), 'utf8'));
-  const C = r.constructs, at = (n: string) => C.indexOf(n);
-  for (const [k, b] of Object.entries(ref.paths as Record<string, number>)) { const [f, t] = k.split(' -> '); expect(r.pathCoef[at(f)][at(t)], k).toBeCloseTo(b, 5); }
-  for (const [k, v] of Object.entries(ref.r2 as Record<string, number>)) expect(r.rSquared[at(k)], k).toBeCloseTo(v, 5);
-  for (const comp of ['c1', 'c2', 'c3']) {
-    const h = r.higherOrder!.find((x) => C[x.construct] === 'c4' && C[x.component] === comp)!;
-    expect(h.loading, comp).toBeCloseTo(ref.secondOrder.loadings[comp], 5);
-    expect(h.weight, comp).toBeCloseTo(ref.secondOrder.weights[comp], 5);
-  }
+  sameSecondOrder(r, ref, 'c4');
   for (const [ind, w] of Object.entries(ref.firstOrderWeights as Record<string, number>)) expect(r.weights[r.indicators.findIndex((x) => x.name === ind)], ind).toBeCloseTo(w, 5);
   for (const [ind, v] of Object.entries(ref.vifModeB as Record<string, number>)) expect(r.vifOuter[r.indicators.findIndex((x) => x.name === ind)], `VIF ${ind}`).toBeCloseTo(v, 5);
   // The bootstrap (one call, cSEM's own resampling, same seed) reproduces cSEM's standard errors.
@@ -130,6 +135,11 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, st.plsPackage);
       expect(r.converged).toBe(true);
       if (ex.id === 'csem-2ndorder') await checkSecondOrder(data, spec, r, st);
+      if (ex.id === 'csem-yoo') {
+        const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'secondorder', 'yoo.json'), 'utf8'));
+        sameSecondOrder(r, ref, 'BR', 4);
+        for (const [ind, l] of Object.entries(ref.firstOrderLoadings as Record<string, number>)) expect(r.loadings[r.indicators.findIndex((x) => x.name === ind)], ind).toBeCloseTo(l, 4);
+      }
     }
     if (ex.assessment?.group) {
       const g = await groupsR(data, spec, { scheme: st.scheme, consistent: false, missing: 'casewise', tolerance: 1e-7, maxIter: 300 }, { group: ex.assessment.group, approaches: ['Klesel'], samples: 20, seed: 1 });
