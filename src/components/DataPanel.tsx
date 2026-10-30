@@ -136,6 +136,18 @@ export function DataPanel() {
                 <span>Variables</span><b>{data.names.length}</b>
                 {info.kind !== 'matrix' && <><span>Missing values</span><b>{info.missingCells}</b></>}
               </div>
+              {info.droppedRows?.length ? (
+                <div className="hint" style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span>Excluded: {info.droppedRows.reduce((n, d) => n + d.at.length, 0)} cases ({[...new Set(info.droppedRows.map((d) => d.reason))].join('; ')})</span>
+                  <button className="btn sm" onClick={() => void import('../model/rows').then(({ restoreRows }) => {
+                    const s = useStore.getState();
+                    if (!s.data || !s.dataInfo) return;
+                    const r = restoreRows(s.data, s.dataInfo);
+                    s.setData(r.data, r.info);
+                    s.toast('success', 'The excluded cases are back in the dataset.');
+                  })}>Restore</button>
+                </div>
+              ) : null}
               {info.excluded.length > 0 && (
                 <div className="hint" style={{ marginTop: 8 }}>
                   Skipped: {info.excluded.map((e) => `${e.name} (${e.reason})`).join(', ')}

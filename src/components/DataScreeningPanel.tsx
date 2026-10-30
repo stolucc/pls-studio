@@ -10,6 +10,7 @@ import { isCancelled } from '../cancellable';
 import { IconX } from './icons';
 import { c, pCell, Table } from './results/Table';
 import { useCancellable } from './useCancellable';
+import { confirmDialog } from './Overlays';
 import { VariablePicker } from './VariablePicker';
 
 type Tab = 'univariate' | 'normality' | 'outliers' | 'influence';
@@ -17,6 +18,23 @@ interface ScreenState { open: boolean; vars: string[]; alpha: number; result: Sc
 export const useScreen = create<ScreenState>((set) => ({ open: false, vars: [], alpha: 0.001, result: null, influence: null, tab: 'univariate', setOpen: (open) => set({ open }) }));
 
 const ALPHAS = [0.001, 0.01, 0.05];
+/** Remove cases from the dataset after confirmation (restorable from the data panel). */
+async function exclude(rows: number[], reason: string) {
+  const ok = await confirmDialog({
+    title: `Exclude ${rows.length} case${rows.length === 1 ? '' : 's'}?`,
+    body: `Rows ${rows.slice(0, 12).join(', ')}${rows.length > 12 ? ', …' : ''} are removed from the dataset for every analysis (${reason}). The data panel can restore them; they are kept with the project. Rows are renumbered afterwards.`,
+    confirmLabel: 'Exclude', danger: true,
+  });
+  if (!ok) return;
+  const s = useStore.getState();
+  if (!s.data || !s.dataInfo) return;
+  const { excludeRows } = await import('../model/rows');
+  const r = excludeRows(s.data, s.dataInfo, rows, reason);
+  s.setData(r.data, r.info);
+  useScreen.setState({ result: null, influence: null });
+  s.toast('success', `Excluded ${rows.length} case${rows.length === 1 ? '' : 's'}; recalculate to see the effect.`);
+}
+
 const fail = (pkg: string) => (e: unknown) => (isCancelled(e) ? Promise.resolve() : import('../rengine/bridge').then(({ rMessage }) => useStore.getState().toast('error', `${pkg}: ${rMessage(e)}`)));
 
 function Univariate({ r }: { r: ScreenResult }) {
@@ -62,7 +80,10 @@ function Outliers({ r }: { r: ScreenResult }) {
       <Table title={`Multivariate outliers: ${flagged.length} of ${r.cases.rows.length} cases`} file="screening-outliers" columns={['Row', 'Mahalanobis D²', 'p']}
         rows={flagged.map((x) => [c(x.row, undefined, 0), c(x.d2, 'bad', 2), pCell(x.p)])}
         note={`Cases whose Mahalanobis distance from the centroid is significant at p < ${alpha} (χ², df = ${r.df}; Tabachnick & Fidell). Inspect them before deciding: a data-entry error, a case outside the population, or a legitimate extreme response.`} />
-      <div><button className="btn" onClick={() => void save()} title="Add D² and its p for every complete case as data columns (to filter or inspect them)">Save D² and p as data columns</button></div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="btn" onClick={() => void save()} title="Add D² and its p for every complete case as data columns (to filter or inspect them)">Save D² and p as data columns</button>
+        {flagged.length > 0 && <button className="btn danger" onClick={() => void exclude(flagged.map((x) => x.row), `Mahalanobis outliers, p < ${alpha}`)}>Exclude these {flagged.length} cases…</button>}
+      </div>
     </div>
   );
 }
@@ -95,6 +116,10 @@ function Influence() {
         <button className="btn primary" disabled={!ready || busy} onClick={() => void go()}>{busy ? 'Refitting…' : 'Compute case influence'}</button>
         {busy && <button className="btn" onClick={cancel}>Cancel</button>}
       </div>
+      {inf && top.some((x) => x.flagged) && (
+        <div><button className="btn danger" onClick={() => void exclude(top.filter((x) => x.flagged).map((x) => x.row), 'influential cases, generalized Cook’s distance far out')}>
+          Exclude the {top.filter((x) => x.flagged).length} far-out case{top.filter((x) => x.flagged).length === 1 ? '' : 's'}…</button></div>
+      )}
       {inf && <Table title="Most influential cases" file="screening-influence" columns={['Row', 'Generalized Cook’s distance', 'Mahalanobis', 'Δχ²', 'ΔCFI', 'ΔRMSEA']}
         rows={top.map((x) => [c(x.row, undefined, 0), c(x.gcd, x.flagged ? 'bad' : ''), c(inf.md[at(x.row)], undefined, 2), c(inf.chisq[at(x.row)]), c(inf.cfi[at(x.row)]), c(inf.rmsea[at(x.row)])])}
         note={`Generalized Cook’s distance (Pek & MacCallum 2011): how far the parameter estimates move without the case. It has no conventional cutoff; red: far out from the other cases (above Q3 + 3 IQR = ${fmt(farOut(inf.gcd))}). Δ: fit with the case minus without it. ${inf.engine.package} ${inf.engine.version}.`} />}

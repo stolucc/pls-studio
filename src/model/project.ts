@@ -1,3 +1,4 @@
+import { parseDroppedRows, type RowExclusion } from './rows';
 import { DEFAULT_FIGURE_STYLE, parseFigureStyle, type FigureStyle } from '../figure/style';
 import { parseEfaDesign, type EfaDesign } from './efa';
 import { DEFAULT_CHART_STYLE, parseChartStyle, type ChartStyle } from '../figure/chartStyle';
@@ -99,6 +100,8 @@ export interface DataInfo {
   hasNacov?: boolean;
   /** Columns reverse-coded in the app (x -> min + max - x), with their scale. */
   reversed?: { name: string; min: number; max: number }[];
+  /** Cases excluded in the app (e.g. outliers), kept so they can be restored (model/rows.ts). */
+  droppedRows?: RowExclusion[];
 }
 
 /** A construct moderating a structural path (drawn as an arrow onto that arrow). */
@@ -900,6 +903,7 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
     missingCells: cols.reduce((s: number, c: Float64Array) => s + c.filter(Number.isNaN).length, 0),
     excluded: [],
     ...parseReversed(d.info.reversed, names),
+    ...(parseDroppedRows(d.info.droppedRows, names) ? { droppedRows: parseDroppedRows(d.info.droppedRows, names) } : {}),
   };
   if (d.moments !== undefined) {
     const moments = parseMoments(d.moments, names.length);
