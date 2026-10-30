@@ -31,7 +31,17 @@ export type CbTabId = (typeof CB_TABS)[number]['id'];
 
 const estRow = (e: CbEstimate, label: string): Row =>
   [c(label), c(e.est), c(e.se), c(e.z), pCell(e.p), c(e.std)];
-const estCols = (cb: CbResult) => ['Estimate', cb.estimator === 'MLM' || cb.estimator === 'MLMV' || cb.estimator === 'MLR' ? 'Robust SE' : 'Std. error', 'z', 'p', 'Standardised'];
+const estCols = (cb: CbResult) => ['Estimate', cb.estimator === 'MLM' || cb.estimator === 'MLMV' || cb.estimator === 'MLR' || cb.estimator === 'RML' ? 'Robust SE' : 'Std. error', 'z', 'p', 'Standardised'];
+
+/** Robust ML (rsem): the cases it down-weights most. */
+function CaseWeights({ w }: { w: NonNullable<CbResult['caseWeights']> }) {
+  const low = w.rows.map((row, i) => ({ row, w: w.weights[i] })).filter((x) => x.w < 1).sort((a, b) => a.w - b.w);
+  return (
+    <Table title={`Down-weighted cases: ${low.length} of ${w.rows.length}`} file="cb-case-weights" columns={['Row', 'Weight']}
+      rows={low.slice(0, 20).map((x) => [c(x.row, undefined, 0), c(x.w, x.w < 0.5 ? 'bad' : x.w < 0.8 ? 'warn' : '')])}
+      note={`Huber-type case weights (rsem, varphi = 0.1): 1 = full weight; the lower, the more atypical the case.${low.length > 20 ? ' The 20 lowest are shown.' : ''}`} />
+  );
+}
 
 function Fit({ cb }: { cb: CbResult }) {
   const f = cb.fit;
@@ -40,8 +50,11 @@ function Fit({ cb }: { cb: CbResult }) {
   );
   const ok = (good: boolean) => (good ? 'good' : 'warn');
   const robust = f.chisqScaled !== undefined;
+  // Robust ML (rsem) rescales χ² (TRML) but has no robust CFI / TLI / RMSEA: those are ML's on the robust moments.
+  const robustIdx = robust && f.cfiRobust !== undefined;
   const pv = robust ? f.pvalueScaled : f.pvalue;
-  const cfi = robust ? f.cfiRobust! : f.cfi, tli = robust ? f.tliRobust! : f.tli, rmsea = robust ? f.rmseaRobust! : f.rmsea;
+  const cfi = robustIdx ? f.cfiRobust! : f.cfi, tli = robustIdx ? f.tliRobust! : f.tli, rmsea = robustIdx ? f.rmseaRobust! : f.rmsea;
+  const rml = cb.estimator === 'RML';
   const ml = cb.estimator !== 'GLS' && cb.estimator !== 'ULS';
   const rows: Row[] = [
     [c('Estimator'), c(cb.estimator), c(null)],
@@ -60,7 +73,7 @@ function Fit({ cb }: { cb: CbResult }) {
     [c('RMSEA'), c(f.rmsea), c(f.rmseaRobust ?? null)],
     [c('RMSEA 90% CI'), c(`[${fmt(f.rmseaLow)}, ${fmt(f.rmseaHigh)}]`), c(null)],
     [c('p (RMSEA ≤ .05)'), c(f.rmseaP), c(null)],
-    ...(robust ? [[c('CFI / TLI (scaled)'), c(null), c(`${fmt(f.cfiScaled)} / ${fmt(f.tliScaled)}`)], [c('RMSEA (scaled)'), c(null), c(f.rmseaScaled ?? null)]] : []),
+    ...(robustIdx ? [[c('CFI / TLI (scaled)'), c(null), c(`${fmt(f.cfiScaled)} / ${fmt(f.tliScaled)}`)], [c('RMSEA (scaled)'), c(null), c(f.rmseaScaled ?? null)]] : []),
     [c('SRMR'), c(f.srmr), c(null)],
     ...(ml ? [[c('Log-likelihood'), c(f.logl, '', 2), c(null)], [c('AIC'), c(f.aic, '', 2), c(null)], [c('BIC'), c(f.bic, '', 2), c(null)]] : []),
   ];
@@ -72,18 +85,19 @@ function Fit({ cb }: { cb: CbResult }) {
         </div>
       )}
       <div className="stat-cards">
-        {card(robust ? 'χ² (scaled)' : 'χ²', `${fmt(robust ? f.chisqScaled : f.chisq, 2)}`)}
+        {card(rml ? 'χ² (TRML)' : robust ? 'χ² (scaled)' : 'χ²', `${fmt(robust ? f.chisqScaled : f.chisq, 2)}`)}
         {card('df', String(f.df))}
         {card('p', pv === undefined || Number.isNaN(pv) ? '—' : pv < 0.001 ? '<0.001' : fmt(pv))}
-        {card(robust ? 'CFI (robust)' : 'CFI', fmt(cfi), ok(cfi >= 0.95))}
-        {card(robust ? 'TLI (robust)' : 'TLI', fmt(tli), ok(tli >= 0.95))}
-        {card(robust ? 'RMSEA (robust)' : 'RMSEA', fmt(rmsea), ok(rmsea <= 0.06))}
+        {card(robustIdx ? 'CFI (robust)' : 'CFI', fmt(cfi), ok(cfi >= 0.95))}
+        {card(robustIdx ? 'TLI (robust)' : 'TLI', fmt(tli), ok(tli >= 0.95))}
+        {card(robustIdx ? 'RMSEA (robust)' : 'RMSEA', fmt(rmsea), ok(rmsea <= 0.06))}
         {card('SRMR', fmt(f.srmr), ok(f.srmr <= 0.08))}
       </div>
-      <SaveFactorScores />
+      {!rml && <SaveFactorScores />}
       <div className="tables">
         <Table title="Fit statistics" file="cb-fit" columns={['Statistic', 'Standard', robust ? 'Robust / scaled' : '']} rows={rows}
-          note={<>Hu &amp; Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08.{robust && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'} Validated against lavaan.</>} />
+          note={<>Hu &amp; Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08.{robustIdx && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'}{rml && ' Robust ML (rsem; Yuan & Zhang 2012): the model is fitted to Huber-weighted means and covariances; χ² (scaled) is the rescaled statistic TRML; CFI, TLI and RMSEA are those of the fit to the robust moments.'} Validated against lavaan.</>} />
+        {cb.caseWeights && <CaseWeights w={cb.caseWeights} />}
         {cb.groups?.levels && cb.groups.icc && (
           <Table title="Intraclass correlations" file="cb-icc" columns={['Variable', 'ICC']}
             rows={Object.entries(cb.groups.icc).map(([k, v]) => [c(k), c(v)])}

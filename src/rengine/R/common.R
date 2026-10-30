@@ -15,7 +15,7 @@ ps_validate <- function(req) {
     if (!is.null(x) && !(length(x) == 1 && is.character(x) && x %in% allowed)) stop(sprintf("Invalid %s in the request.", what))
   }
   get <- function(x, ...) { for (k in c(...)) { if (!is.list(x)) return(NULL); x <- x[[k, exact = TRUE]] }; x }
-  cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "WLSMV", "2SLS")
+  cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "WLSMV", "2SLS", "RML")
   one_of(get(req, "estimator"), cb_est, "estimator")
   one_of(get(req, "missing"), c("mean", "casewise", "fiml"), "missing-value treatment")
   one_of(get(req, "probe"), c("percentiles", "meansd"), "probing method")

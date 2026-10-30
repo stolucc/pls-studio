@@ -22,6 +22,7 @@ optmatch
 plspm
 poLCA
 psych
+rsem
 sampleSelection
 sandwich
 semTools

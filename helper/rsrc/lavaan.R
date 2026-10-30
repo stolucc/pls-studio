@@ -234,6 +234,28 @@ ps_cb_build <- function(req) {
   }
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\")", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
+  robust <- identical(req$estimator, "RML")
+  if (robust) {
+    if (matrix_input) stop("Robust ML (rsem) needs raw data.")
+    if (!is.null(group_var) || !is.null(cluster_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
+      stop("Robust ML (rsem) handles one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.")
+    body[1] <- "suppressPackageStartupMessages({ library(lavaan); library(rsem) })"
+    vars <- unname(n$iv[n$all_inds])
+    call <- c(
+      "# Robust ML (Yuan & Zhang 2012; rsem): Huber-type case weights (varphi = 0.1) give robust means and",
+      "# covariances (by EM, so missing values are used); the model is fitted to them by ML (EQS conventions),",
+      "# with robust standard errors and the rescaled test statistic TRML.",
+      sprintf("X <- data.matrix(data[, %s])", ps_q(vars)),
+      "pattern <- rsem.pattern(X)",
+      "musig <- rsem.emmusig(pattern, varphi = 0.1)",
+      "fit <- sem(model, sample.cov = musig$sigma, sample.mean = musig$mu, sample.nobs = nrow(X), mimic = \"EQS\")",
+      "ascov <- rsem.Ascov(pattern, musig, varphi = 0.1)",
+      "robust_se <- rsem.se(fit, ascov$Gamma)",
+      "robust_fit <- rsem.fit(fit, ascov$Gamma, musig)",
+      "# Each case's weight (1 = full weight; rsem sorts the cases by missing-data pattern, so they are put back in order)",
+      "case_weight <- numeric(nrow(X)); case_weight[order(as.vector(is.na(X) %*% 2^(seq_len(ncol(X)) - 1)))] <- musig$weight$w1",
+      "case_row <- as.integer(rownames(data))")
+  }
   tests <- req$model$waldTests
   wald <- if (length(tests)) c("# Wald tests of the hypotheses (lavaan::lavTestWald)",
     sprintf("wald <- list(%s)", paste(vapply(seq_along(tests), function(i) sprintf("lavTestWald(fit, constraints = '%s')",
@@ -241,7 +263,7 @@ ps_cb_build <- function(req) {
         if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call)
+    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
@@ -284,6 +306,12 @@ ps_cb <- function(req_json, export = FALSE) {
     blk <- function(t) if ("block" %in% names(t)) t$block else if ("group" %in% names(t)) t$group else 1
     key <- function(t) paste(t$lhs, t$op, t$rhs, if (multi) blk(t) else 1)
     pe$free <- pt$free[match(key(pe), key(pt))]
+    # Robust ML (rsem): its robust standard errors (one per free parameter, in lavaan's order) replace ML's.
+    if (isTRUE(b$robust)) {
+      rse <- env$robust_se$se[[1]]
+      on <- !is.na(pe$free) & pe$free > 0
+      pe$se[on] <- rse[pe$free[on]]; pe$z[on] <- pe$est[on] / pe$se[on]; pe$pvalue[on] <- 2 * stats::pnorm(-abs(pe$z[on]))
+    }
     # Defined parameters (block 0) belong to the whole model: shown with every group or level.
     if (!is.null(g)) pe <- pe[blk(pe) == g | pe$op == ":=", ]
     # Latent means (estimated in groups after the first under scalar invariance).
@@ -356,11 +384,13 @@ ps_cb <- function(req_json, export = FALSE) {
       out
     }
     fm <- lavaan::fitMeasures(fit)
+    # Robust ML (rsem): the rescaled statistic TRML takes the place of the scaled chi-square.
+    if (isTRUE(b$robust)) { t <- env$robust_fit$TRML[[1]]; fm[c("chisq.scaled", "df.scaled", "pvalue.scaled")] <- c(t[["Statistic"]], t[["df"]], t[["p-value"]]) }
     fmv <- as.list(fm[intersect(c("npar", "chisq", "df", "pvalue", "chisq.scaled", "df.scaled", "pvalue.scaled", "chisq.scaling.factor",
       "chisq.shift.parameter", "baseline.chisq", "baseline.df", "baseline.chisq.scaled", "cfi", "tli", "cfi.scaled", "tli.scaled",
       "cfi.robust", "tli.robust", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "rmsea.scaled", "rmsea.robust",
       "srmr", "logl", "aic", "bic"), names(fm))])
-    vc <- tryCatch(unclass(lavaan::lavInspect(fit, "vcov")), error = function(e) NULL)
+    vc <- if (isTRUE(b$robust)) unname(env$robust_se$vcov[[1]]) else tryCatch(unclass(lavaan::lavInspect(fit, "vcov")), error = function(e) NULL)
     n_in <- if (b$matrix_input) b$inputs$N else nrow(b$inputs$data)
 
     list(
@@ -391,6 +421,8 @@ ps_cb <- function(req_json, export = FALSE) {
       icc = if (levels2) as.list(setNames(as.numeric(icc), nm(names(icc)))) else NULL)))
   } else map_group(NULL)
   out$modindices <- ps_cb_modindices(fit, nm, groups)
+  # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
+  if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)
   ps_json(out)
 }
 
@@ -544,6 +576,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
   if (!method %in% c("regression", "Bartlett")) stop("Invalid factor score method in the request.")
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Factor scores need raw data; this dataset is a covariance matrix.")
+  if (isTRUE(b$robust)) stop("Factor scores are not available with robust ML (rsem), which fits robust moments; use ML or MLR.")
   if (!is.null(b$modsem)) stop("Factor scores are not available for LMS / QML models; use product indicators.")
   if (!is.null(b$cluster_var)) stop("Factor scores are not available for two-level models.")
   body <- c(b$body,

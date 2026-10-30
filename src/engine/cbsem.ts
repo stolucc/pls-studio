@@ -19,7 +19,8 @@ export type CbParamKind = 'loading' | 'regression' | 'hoLoading' | 'lvcov' | 're
  * Huber–White SEs + Yuan–Bentler scaled χ². GLS / ULS: least-squares fitting.
  */
 /** WLSMV (ordinal indicators) is estimated by lavaan only. */
-export type CbEstimator = 'ML' | 'MLM' | 'MLMV' | 'MLR' | 'GLS' | 'ULS' | 'WLSMV';
+/** RML: robust ML with Huber-type case weights (Yuan & Zhang 2012; rsem, R engine only). */
+export type CbEstimator = 'ML' | 'MLM' | 'MLMV' | 'MLR' | 'GLS' | 'ULS' | 'WLSMV' | 'RML';
 
 interface ParamDef {
   kind: CbParamKind;
@@ -69,6 +70,8 @@ export interface CbResult {
   groupIndex?: number;
   /** Modification indices ≥ 3.84 (lavaan), largest first. */
   modindices?: { lhs: string; op: string; rhs: string; mi: number; epc: number; sepc: number; group?: string }[];
+  /** Robust ML (rsem): each analysed case's weight, by data row (1-based); below 1 = down-weighted. */
+  caseWeights?: { rows: number[]; weights: number[] };
   /** Latent interactions estimated by LMS or QML (modsem); absent for product indicators. */
   interaction?: 'lms' | 'qml';
   /** Wald tests of user hypotheses (lavaan). */

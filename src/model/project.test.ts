@@ -154,6 +154,25 @@ describe('higher-order constructs and covariates', () => {
   });
 });
 
+describe('robust ML (rsem)', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3'])], paths: [], moderations: [] };
+  const col = (f: (i: number) => number) => Float64Array.from({ length: 100 }, (_, i) => f(i));
+  const d = { names: ['a1', 'a2', 'a3', 'g'], cols: [col((i) => i % 5), col((i) => i % 7), col((i) => i % 3), col((i) => 1 + (i % 2))] };
+  const errs = (model: ModelState, o: object = {}) => validateModel(model, d, { method: 'cbsem', consistent: false, estimator: 'RML', ...o }).filter((i) => i.level === 'error').map((i) => i.message);
+  it('needs R and one group of continuous indicators; FIML (EM) is fine', () => {
+    expect(errs(m)).toEqual([]);
+    expect(errs(m, { missing: 'fiml' })).toEqual([]);
+    expect(errs(m, { engine: 'builtin' })[0]).toMatch(/rsem with lavaan/);
+    expect(errs({ ...m, multigroup: { column: 'g', invariance: 'configural', free: [] } }).some((x) => /one group of continuous indicators/.test(x))).toBe(true);
+    expect(errs({ ...m, ordered: ['a1'] }).some((x) => /one group of continuous indicators/.test(x))).toBe(true);
+  });
+  it('is kept when a project is saved and loaded', () => {
+    const file = JSON.parse(serializeProject(m, { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'RML' }, null, null));
+    expect(parseProject(JSON.stringify(file)).settings.estimator).toBe('RML');
+  });
+});
+
 describe('sampling weights (CB-SEM)', () => {
   const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
   const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3'])], paths: [], moderations: [], weights: 'w' };

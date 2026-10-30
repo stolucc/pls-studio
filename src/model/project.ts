@@ -579,7 +579,14 @@ export function validateModel(
     if (lavaanOnly.length && engine === 'builtin') err(`${lavaanOnly.join(', ')} ${lavaanOnly.length === 1 ? 'is' : 'are'} estimated by lavaan: choose “R packages” under Calculated by.`);
     if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
     if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
-    if (missingChoice === 'fiml' && method.estimator !== 'ML' && method.estimator !== 'MLR') err('FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).');
+    if (missingChoice === 'fiml' && method.estimator !== 'ML' && method.estimator !== 'MLR' && method.estimator !== 'RML') err('FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).');
+    if (method.estimator === 'RML') {
+      // Robust ML (rsem): one group of continuous indicators, raw data, lavaan through R.
+      if (engine === 'builtin') err('Robust ML is estimated by rsem with lavaan: choose “R packages” under Calculated by.');
+      if (data?.moments && data.cols.length === 0) err('Robust ML down-weights cases, so it needs raw data; this dataset is a covariance matrix.');
+      if (model.multigroup || model.multilevel || model.weights || ordered.length || model.esem?.blocks.length) err('Robust ML (rsem) handles one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.');
+      if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Robust ML cannot be combined with LMS / QML latent interactions; use product indicators.');
+    }
     if ((ordered.length || missingChoice === 'fiml') && data?.moments) err('Ordinal indicators and FIML need raw data, not a covariance matrix.');
     if (data && !data.moments && !ordered.length) {
       const few = [...assignedSet].filter((name) => {
@@ -1000,7 +1007,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   const settings: Settings = {
     method: s.method === 'cbsem' || s.method === 'process' ? s.method : 'pls',
     consistent: s.consistent === true,
-    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV', '2SLS'] as const).find((e) => e === s.estimator) ?? 'ML',
+    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV', '2SLS', 'RML'] as const).find((e) => e === s.estimator) ?? 'ML',
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
     plsApproach: (['GSCA', 'PCA', 'unit'] as const).find((x) => x === s.plsApproach) ?? 'PLS-PM',

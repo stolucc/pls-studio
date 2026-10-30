@@ -27,7 +27,7 @@ import { callJson, callString, parallelMap, withR, withSession } from './runtime
 export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR };
 
 export const R_PACKAGES = {
-  lavaan: ['jsonlite', 'lavaan', 'semTools'],
+  lavaan: ['jsonlite', 'lavaan', 'semTools', 'rsem'],
   cSEM: ['jsonlite', 'cSEM'],
   seminr: ['jsonlite', 'seminr'],
   MIIVsem: ['jsonlite', 'lavaan', 'MIIVsem'],

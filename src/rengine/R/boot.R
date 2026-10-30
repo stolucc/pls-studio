@@ -178,6 +178,7 @@ ps_cb_draws <- function(req, setup, expr, B, seed) {
 ps_cb_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
+  if (isTRUE(b$robust)) stop("Robust ML (rsem) has its own robust standard errors; the bootstrap resamples the raw data with ML or MLR.")
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")
   if (!is.null(b$modsem)) return(ps_cb_boot_modsem(b, B, seed, conf, export, req))
