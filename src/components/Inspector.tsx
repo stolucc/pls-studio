@@ -64,6 +64,12 @@ function ConstructInspector({ c }: { c: Construct }) {
             </div>
           </div>
         )}
+        {method === 'pls' && c.indicators.length === 1 && !c.components?.length && (
+          <label className="check">
+            <input type="checkbox" checked={!!c.categorical} onChange={(e) => update(c.id, { categorical: e.target.checked ? 'indicator' : undefined })} />
+            <span><b>Categorical</b><br /><span className="hint">{c.indicators[0]}’s k categories become k − 1 dummy variables (the first category is the reference) forming a composite (Mode B): the effect of group membership (Henseler 2021). Exogenous only.</span></span>
+          </label>
+        )}
         {method === 'pls' && c.indicators.length >= 2 && (
           <div className="field">
             <label>Dominant indicator</label>

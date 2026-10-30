@@ -4,6 +4,7 @@
 
 import type { Dataset, MissingTreatment, ModelSpec, PlsOptions, PlsResult } from '../engine/types';
 import type { REngineInfo } from './lavaan';
+import { expandCategorical } from '../engine/categorical';
 import { rCall, rScript, rStrings } from './bridge';
 
 export type PlsPackage = 'cSEM' | 'seminr';
@@ -17,8 +18,10 @@ export interface PlsRequest {
   model: ModelSpec;
 }
 
-export function plsRequest(data: Dataset, spec: ModelSpec, options: PlsOptions, pkg: PlsPackage): PlsRequest {
-  if (data.moments && data.cols.length === 0) throw new Error('PLS needs raw data; this dataset is a covariance matrix.');
+export function plsRequest(data0: Dataset, spec0: ModelSpec, options: PlsOptions, pkg: PlsPackage): PlsRequest {
+  if (data0.moments && data0.cols.length === 0) throw new Error('PLS needs raw data; this dataset is a covariance matrix.');
+  // Categorical exogenous constructs travel as their dummy columns, a Mode B composite.
+  const { data, spec } = expandCategorical(data0, spec0);
   const used = new Set(spec.constructs.flatMap((c) => c.indicators));
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {

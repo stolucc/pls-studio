@@ -15,8 +15,9 @@ const NO_ORDERED: string[] = [];
  * indicators; `unusual` (a common factor in Mode B, a composite in Mode A)
  * is drawn a touch stronger. Other methods: none.
  */
-export function modeLabel(method: string, c: Pick<Construct, 'type' | 'mode' | 'indicators'>): { text: string; title: string; unusual: boolean } | null {
+export function modeLabel(method: string, c: Pick<Construct, 'type' | 'mode' | 'indicators'> & { categorical?: Construct['categorical'] }): { text: string; title: string; unusual: boolean } | null {
   if (method !== 'pls' || c.indicators.length === 0) return null;
+  if (c.categorical && c.indicators.length === 1) return { text: 'Categorical', title: 'Categorical: k − 1 dummy variables forming a composite (Mode B)', unusual: false };
   return {
     text: c.mode === 'unit' ? 'Sum scores' : `Mode ${c.mode}`,
     // Mode A / B are PLS weighting algorithms, not measurement models (Henseler 2021): either can

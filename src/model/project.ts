@@ -346,6 +346,7 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
       ...(c.covariate ? { covariate: true } : {}),
       ...(c.dominant && c.indicators.includes(c.dominant) ? { dominant: c.dominant } : {}),
+      ...(c.categorical && c.indicators.length === 1 ? { categorical: true } : {}),
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
       ...(c.loadingLabels && Object.keys(c.loadingLabels).length ? { loadingLabels: c.loadingLabels } : {}),
     })),
@@ -615,6 +616,16 @@ export function validateModel(
   } else {
     if (missingChoice === 'fiml' && method.method === 'pls') err('FIML is a CB-SEM option; PLS-SEM uses mean replacement or casewise deletion.');
     if (missingChoice === 'mi' && method.method === 'pls' && engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
+    // Categorical exogenous constructs (PLS): one column, 2 to 20 categories, no predictors.
+    if (method.method === 'pls') for (const c of model.constructs.filter((k) => k.categorical)) {
+      if (c.indicators.length !== 1) err(`The categorical variable "${c.name}" must be a single column (its categories become dummy variables).`, c.id);
+      else if (model.paths.some((q) => q.to === c.id)) err(`"${c.name}" is categorical: it can only predict (an exogenous variable), not be predicted.`, c.id);
+      else if (data && !data.moments) {
+        const col = data.cols[data.names.indexOf(c.indicators[0])];
+        const k = col ? new Set([...col].filter((v) => !Number.isNaN(v))).size : 0;
+        if (k < 2 || k > 20) err(`The categorical variable "${c.name}" needs 2 to 20 categories (it has ${k}).`, c.id);
+      }
+    }
     const dominants = model.constructs.filter((c) => c.dominant && c.indicators.includes(c.dominant));
     if (method.method === 'pls' && dominants.length && engine === 'r' && (method.plsPackage ?? 'cSEM') === 'seminr') warn(`seminr has no dominant indicators: the signs of ${dominants.map((c) => c.name).join(', ')} are as estimated. Choose cSEM to fix them.`);
     if (missingChoice === 'mi' && method.method === 'process') err('Multiple imputation is available in PLS-SEM and CB-SEM; conditional process analysis uses casewise deletion.');
@@ -648,6 +659,9 @@ export function validateModel(
       if (data?.moments && data.cols.length === 0) err('Sampling weights need raw data; this dataset is a covariance matrix.');
     }
   }
+
+  const cats = model.constructs.filter((c) => c.categorical);
+  if (cats.length && method.method === 'cbsem') warn(`${cats.map((c) => c.name).join(', ')} ${cats.length === 1 ? 'is' : 'are'} marked categorical, which PLS-SEM and CPA use; CB-SEM treats ${cats.length === 1 ? 'it' : 'them'} as continuous.`);
 
   const ml = model.multilevel;
   if (ml) {

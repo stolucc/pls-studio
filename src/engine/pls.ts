@@ -7,6 +7,7 @@ import { cholesky, invert, invertPD, matMul, solve, symEigen, transpose, zeros, 
 import { corStd, mean, sd, standardize } from './stats';
 import type { ConstructQuality, ConstructType, Dataset, Mode, ModelFit, ModelSpec, PlsOptions, PlsResult } from './types';
 import { DEFAULT_OPTIONS, interactionName } from './types';
+import { expandCategorical } from './categorical';
 
 export interface CompiledModel {
   constructs: string[];
@@ -441,7 +442,9 @@ export interface PlsEstimate {
  * predictor and the moderator becomes a single-indicator construct, and stage 2
  * estimates the full model.
  */
-export function preparePls(data: Dataset, spec: ModelSpec, opts: PlsOptions) {
+export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
+  // Categorical exogenous constructs: their dummy columns and Mode B composites.
+  const { data, spec } = expandCategorical(data0, spec0);
   const mods = spec.moderations ?? [];
   if (spec.constructs.some((c) => c.components?.length)) throw new Error('Higher-order constructs are supported in CB-SEM only.');
   if (mods.length && opts.consistent) throw new Error('Moderation is not yet supported with PLSc; switch consistent PLS off.');
