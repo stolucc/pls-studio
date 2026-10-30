@@ -33,3 +33,30 @@ it('exports the cSEM script it runs', async () => {
   expect(script).toContain('Quality <~ PERQ1 + PERQ2');
   expect(script).toContain('.disattenuate = TRUE');
 }, 600_000);
+
+describe('sum scores per construct (unit weights) through the bridges', () => {
+  it('cSEM and seminr estimate the sum-score constructs as cSEM does natively', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { parseCsv } = await import('../engine/dataset');
+    const fx = (f: string) => join(__dirname, '..', 'engine', '__fixtures__', f);
+    const ref = JSON.parse(readFileSync(fx('mobi_unit.json'), 'utf8')) as { weights: Record<string, number>; pathCoef: Record<string, Record<string, number>> };
+    const data = parseCsv(readFileSync(fx('mobi.csv'), 'utf8')).dataset;
+    const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
+    const blocks: [string, string[], 'A' | 'unit'][] = [['Image', items('IMAG', 5), 'A'], ['Expectation', items('CUEX', 3), 'A'], ['Quality', items('PERQ', 7), 'unit'],
+      ['Value', items('PERV', 2), 'A'], ['Satisfaction', items('CUSA', 3), 'A'], ['Complaints', ['CUSCO'], 'A'], ['Loyalty', items('CUSL', 3), 'unit']];
+    const spec = {
+      constructs: blocks.map(([name, indicators, mode]) => ({ name, indicators, mode, type: 'composite' as const })),
+      paths: Object.entries(ref.pathCoef).flatMap(([to, row]) => Object.keys(row).map((from) => ({ from, to }))),
+    };
+    for (const pkg of ['cSEM', 'seminr'] as const) {
+      const res = await estimatePlsR(data, spec, { scheme: 'path', consistent: false, missing: 'mean', tolerance: 1e-10, maxIter: 1000 }, pkg);
+      res.indicators.forEach((ind, k) => expect(Math.abs(res.weights[k]), `${pkg} ${ind.name}`).toBeCloseTo(ref.weights[ind.name], 4));
+      for (const [to, row] of Object.entries(ref.pathCoef)) for (const [from, b] of Object.entries(row))
+        expect(res.pathCoef[res.constructs.indexOf(from)][res.constructs.indexOf(to)], `${pkg} ${from} → ${to}`).toBeCloseTo(b, 4);
+    }
+    const script = await plsScriptR(data, spec, { scheme: 'path', consistent: false, missing: 'mean', tolerance: 1e-7, maxIter: 300 }, 'seminr');
+    expect(script).toContain('composite("Quality", c("PERQ1"');
+    expect(script).toMatch(/composite\("Quality", .*weights = unit_weights\)/);
+  }, 900_000);
+});

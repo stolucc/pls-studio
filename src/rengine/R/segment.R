@@ -101,6 +101,7 @@ ps_pathmox <- function(req_json, export = FALSE) {
   cons <- req$model$constructs
   if (length(req$model$moderations)) stop("PATHMOX works on models without interaction terms.")
   if (!length(req$model$paths)) stop("PATHMOX needs a structural model (paths).")
+  if (any(vapply(cons, function(c) identical(c$mode, "unit"), TRUE))) stop("PATHMOX (genpathmox) offers Mode A and Mode B only; set the sum-score constructs to Mode A or Mode B.")
   segs <- req$segments
   if (!length(segs)) stop("Choose at least one segmentation variable.")
   alpha <- as.numeric(req$alpha %||% 0.05); deep <- as.integer(req$depth %||% 2); size <- as.numeric(req$size %||% 0.1)

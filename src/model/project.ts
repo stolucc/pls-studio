@@ -494,7 +494,7 @@ export function validateModel(
       if (c.indicators.length !== 1) err(`Covariate "${c.name}" must have exactly one indicator.`, c.id);
       if (model.paths.some((q) => q.to === c.id)) err(`Covariate "${c.name}" cannot have incoming paths.`, c.id);
     }
-    if (c.mode === 'B' && c.indicators.length === 1 && method.method === 'pls') warn(`"${c.name}" uses Mode B with a single indicator; the weighting mode has no effect.`, c.id);
+    if (c.mode !== 'A' && c.indicators.length === 1 && method.method === 'pls') warn(`"${c.name}" uses ${c.mode === 'B' ? 'Mode B' : 'sum scores'} with a single indicator; the weighting has no effect.`, c.id);
     if (method.method === 'cbsem' && c.type === 'composite') {
       err(`"${c.name}" is a composite. CB-SEM here estimates common factors only; switch it to a common factor or use PLS-SEM.`, c.id);
     }
@@ -504,6 +504,10 @@ export function validateModel(
     if (method.method === 'pls' && method.consistent && c.type === 'factor' && c.mode === 'B') {
       // PLSc's correction (ρA, loadings from the weights) is derived for Mode A weights (Dijkstra & Henseler 2015).
       warn(`"${c.name}" is a common factor estimated with Mode B: PLSc’s correction (ρA) assumes Mode A weights, so its corrected estimates are not known to be consistent. Use Mode A, or model "${c.name}" as a composite.`, c.id);
+    }
+    if (method.method === 'pls' && method.consistent && c.type === 'factor' && c.mode === 'unit' && c.indicators.length > 1) {
+      // As cSEM: PLSc corrects Mode A common factors; sum scores count as error-free (reliability 1).
+      warn(`"${c.name}" is a common factor with sum scores: PLSc corrects Mode A common factors only, so "${c.name}" is treated as error-free (reliability 1) and its relations stay attenuated. Use Mode A for "${c.name}" to correct it, or model it as a composite.`, c.id);
     }
     for (const ind of c.indicators) {
       const o = owner.get(ind);
@@ -934,7 +938,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   const sides: Side[] = ['left', 'right', 'top', 'bottom'];
   const constructs: Construct[] = m.constructs.map((c: unknown) => {
     if (!isObj(c) || !Array.isArray(c.indicators)) throw new Error('Invalid construct in project file.');
-    const mode: Mode = c.mode === 'B' ? 'B' : 'A';
+    const mode: Mode = c.mode === 'B' || c.mode === 'unit' ? c.mode : 'A';
     return {
       id: str(c.id, 64),
       name: str(c.name, 100),

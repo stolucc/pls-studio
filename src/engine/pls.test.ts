@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseCsv } from './dataset';
 import { estimatePls } from './pls';
-import type { ModelSpec, PlsResult } from './types';
+import { DEFAULT_OPTIONS, type ModelSpec, type PlsResult } from './types';
 
 const fx = (f: string) => join(__dirname, '__fixtures__', f);
 const data = parseCsv(readFileSync(fx('mobi.csv'), 'utf8')).dataset;
@@ -108,6 +108,31 @@ describe('estimatePls vs seminr 2.3.2 (mobi data)', () => {
     const i = r.constructs.indexOf('Image'), j = r.constructs.indexOf('Loyalty');
     expect(r.indirectEffects[i][j]).toBeCloseTo(r.totalEffects[i][j] - r.pathCoef[i][j], 12);
     expect(r.indirectEffects[i][j]).toBeGreaterThan(0);
+  });
+});
+
+describe('sum scores per construct (unit weights) vs cSEM', () => {
+  const ref = JSON.parse(readFileSync(fx('mobi_unit.json'), 'utf8')) as {
+    weights: Record<string, number>; pathCoef: Record<string, Record<string, number>>; r2: Record<string, number>;
+    plsc: { pathCoef: Record<string, Record<string, number>>; reliability: Record<string, number> };
+  };
+  const spec = mobiModel('A');
+  spec.constructs = spec.constructs.map((k) => (k.name === 'Quality' || k.name === 'Loyalty' ? { ...k, mode: 'unit' as const } : k));
+  const res = estimatePls(data, spec, { ...DEFAULT_OPTIONS, tolerance: 1e-10 });
+  it('gives sum-score constructs equal weights and matches cSEM’s weights, paths and R²', () => {
+    res.indicators.forEach((ind, k) => expect(res.weights[k], ind.name).toBeCloseTo(ref.weights[ind.name], 5));
+    const q = res.indicators.flatMap((ind, k) => (res.constructs[ind.construct] === 'Quality' ? [res.weights[k]] : []));
+    expect(new Set(q.map((w) => w.toFixed(12))).size).toBe(1);
+    for (const [to, row] of Object.entries(ref.pathCoef)) for (const [from, b] of Object.entries(row))
+      expect(res.pathCoef[res.constructs.indexOf(from)][res.constructs.indexOf(to)], `${from} → ${to}`).toBeCloseTo(b, 5);
+    for (const [k, r2] of Object.entries(ref.r2)) expect(res.rSquared[res.constructs.indexOf(k)], k).toBeCloseTo(r2, 5);
+  });
+  it('PLSc corrects the Mode A common factors and leaves sum scores as they are, as cSEM', () => {
+    const plsc = estimatePls(data, spec, { ...DEFAULT_OPTIONS, consistent: true, tolerance: 1e-10 });
+    for (const [to, row] of Object.entries(ref.plsc.pathCoef)) for (const [from, b] of Object.entries(row))
+      expect(plsc.pathCoef[plsc.constructs.indexOf(from)][plsc.constructs.indexOf(to)], `${from} → ${to}`).toBeCloseTo(b, 4);
+    expect(ref.plsc.reliability.Quality).toBe(1);
+    expect(ref.plsc.reliability.Image).toBeLessThan(1);
   });
 });
 

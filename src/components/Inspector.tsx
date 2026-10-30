@@ -59,6 +59,7 @@ function ConstructInspector({ c }: { c: Construct }) {
             <div className="segmented">
               <button className={c.mode === 'A' ? 'on' : ''} onClick={() => update(c.id, { mode: 'A' })}>Mode A (correlation)</button>
               <button className={c.mode === 'B' ? 'on' : ''} onClick={() => update(c.id, { mode: 'B' })}>Mode B (regression)</button>
+              <button className={c.mode === 'unit' ? 'on' : ''} onClick={() => update(c.id, { mode: 'unit' })} title="Equal weights on the standardised indicators (unit weights)">Sum scores</button>
             </div>
           </div>
         )}

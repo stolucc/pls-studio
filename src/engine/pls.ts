@@ -5,12 +5,12 @@
 
 import { cholesky, invert, invertPD, matMul, solve, symEigen, transpose, zeros, type Mat } from './linalg';
 import { corStd, mean, sd, standardize } from './stats';
-import type { ConstructQuality, ConstructType, Dataset, ModelFit, ModelSpec, PlsOptions, PlsResult } from './types';
+import type { ConstructQuality, ConstructType, Dataset, Mode, ModelFit, ModelSpec, PlsOptions, PlsResult } from './types';
 import { DEFAULT_OPTIONS, interactionName } from './types';
 
 export interface CompiledModel {
   constructs: string[];
-  modes: ('A' | 'B')[];
+  modes: Mode[];
   types: ConstructType[];
   indicatorNames: string[];
   indicatorConstruct: number[];
@@ -159,7 +159,9 @@ export function plsCore(
     m.blocks.forEach((b, j) => {
       const r = b.map((k) => corStd(X[k], Z[j]));
       const inv = blockInv[j];
-      if (inv) {
+      // Sum scores: equal (unit) weights on the standardised indicators, rescaled below.
+      if (m.modes[j] === 'unit') b.forEach((k) => (w[k] = 1));
+      else if (inv) {
         b.forEach((k, a) => (w[k] = inv[a].reduce((s, v, c) => s + v * r[c], 0)));
       } else {
         b.forEach((k, a) => (w[k] = r[a]));

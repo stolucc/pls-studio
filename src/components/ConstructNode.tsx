@@ -18,10 +18,12 @@ const NO_ORDERED: string[] = [];
 export function modeLabel(method: string, c: Pick<Construct, 'type' | 'mode' | 'indicators'>): { text: string; title: string; unusual: boolean } | null {
   if (method !== 'pls' || c.indicators.length === 0) return null;
   return {
-    text: `Mode ${c.mode}`,
+    text: c.mode === 'unit' ? 'Sum scores' : `Mode ${c.mode}`,
     // Mode A / B are PLS weighting algorithms, not measurement models (Henseler 2021): either can
     // estimate a composite; a common factor is estimated consistently with PLSc.
-    title: c.mode === 'A' ? 'Mode A: PLS weights from correlations (an estimation choice, not a measurement model)' : 'Mode B: PLS weights from a multiple regression (an estimation choice, not a measurement model)',
+    title: c.mode === 'A' ? 'Mode A: PLS weights from correlations (an estimation choice, not a measurement model)'
+      : c.mode === 'B' ? 'Mode B: PLS weights from a multiple regression (an estimation choice, not a measurement model)'
+        : 'Sum scores: equal weights on the standardised indicators (an estimation choice, not a measurement model)',
     unusual: c.type === 'composite' ? c.mode === 'A' : c.mode === 'B',
   };
 }

@@ -25,7 +25,7 @@ ps_validate <- function(req) {
   one_of(get(req, "options", "missing"), c("mean", "casewise", "fiml"), "missing-value treatment")
   for (e in get(req, "estimators")) { one_of(get(e, "method"), c("pls", "cb"), "estimator"); one_of(get(e, "estimator"), cb_est, "estimator") }
   for (c in c(get(req, "model", "constructs"), get(req, "spec", "constructs"))) {
-    one_of(get(c, "mode"), c("A", "B"), "construct mode")
+    one_of(get(c, "mode"), c("A", "B", "unit"), "construct mode")
     one_of(get(c, "type"), c("factor", "composite"), "construct type")
   }
   req

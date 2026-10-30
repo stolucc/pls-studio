@@ -86,7 +86,7 @@ export interface BlindfoldResult {
 /** The constructs blindfolding reports: endogenous, with reflective (Mode A) indicators, as semPLS. */
 export const blindfoldTargets = (spec: ModelSpec) => {
   const endo = new Set(spec.paths.map((p) => p.to));
-  return spec.constructs.filter((k) => endo.has(k.name) && k.mode !== 'B' && k.indicators.length > 0).map((k) => k.name);
+  return spec.constructs.filter((k) => endo.has(k.name) && k.mode === 'A' && k.indicators.length > 0).map((k) => k.name);
 };
 export async function blindfoldR(data: Dataset, spec: ModelSpec, options: PlsOptions, distance: number): Promise<BlindfoldResult> {
   const raw = await rCall<Record<string, any>>('ps_blindfold', { ...base(data, spec, options), distance }, 'cSEM');

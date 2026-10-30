@@ -1,4 +1,5 @@
-export type Mode = 'A' | 'B';
+/** PLS outer weighting: Mode A (correlation), Mode B (regression), or sum scores (unit weights; Henseler 2021, ADANCO). */
+export type Mode = 'A' | 'B' | 'unit';
 /** Common factor (latent variable, reflective) or composite (emergent variable). */
 export type ConstructType = 'factor' | 'composite';
 export type WeightingScheme = 'path' | 'factor' | 'centroid';

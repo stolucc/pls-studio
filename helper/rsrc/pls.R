@@ -11,7 +11,7 @@ ps_pls_build <- function(req) {
   k0 <- length(cons)
   type <- vapply(cons, function(c) c$type %||% if (identical(c$mode, "B")) "composite" else "factor", "")
   mode <- vapply(cons, function(c) c$mode %||% "A", "")
-  if (!all(mode %in% c("A", "B")) || !all(type %in% c("factor", "composite"))) stop("Invalid measurement mode or construct type in the request.")
+  if (!all(mode %in% c("A", "B", "unit")) || !all(type %in% c("factor", "composite"))) stop("Invalid measurement mode or construct type in the request.")
   if (any(lengths(lapply(cons, function(c) unlist(c$components))) > 0)) stop("Higher-order constructs are supported in CB-SEM only.")
   o <- req$options
   paths <- req$model$paths
@@ -34,7 +34,8 @@ ps_pls_build <- function(req) {
       extra <- int_l[vapply(mods, function(m) m$to == t, TRUE)]
       lines <- c(lines, paste(n$cv[[t]], "~", paste(c(from_to(t), extra), collapse = " + ")))
     }
-    modes <- paste0("list(", paste(sprintf("%s = \"mode%s\"", cv, mode), collapse = ", "), ")")
+    # Mode A, Mode B, or sum scores ("unit": equal weights on the standardised indicators).
+    modes <- paste0("list(", paste(sprintf("%s = \"%s\"", cv, ifelse(mode == "unit", "unit", paste0("mode", mode))), collapse = ", "), ")")
     scheme <- c(path = "path", centroid = "centroid", factor = "factorial")[[o$scheme]]
     body <- c("suppressPackageStartupMessages(library(cSEM))", ps_missing_code(req$missing),
       if (length(mods)) "# Interaction terms (X.M): products of the construct scores (cSEM's nonlinear PLS)",
@@ -52,7 +53,7 @@ ps_pls_build <- function(req) {
       it <- if (length(items) == 1) sprintf("single_item(\"%s\")", items) else ps_q(items)
       if (isTRUE(o$consistent) && type[j] == "factor" && length(items) > 1) sprintf("reflective(\"%s\", %s)", cv[j], it)
       else if (length(items) == 1) sprintf("composite(\"%s\", %s)", cv[j], it)
-      else sprintf("composite(\"%s\", %s, weights = mode_%s)", cv[j], it, mode[j])
+      else sprintf("composite(\"%s\", %s, weights = %s)", cv[j], it, if (mode[j] == "unit") "unit_weights" else paste0("mode_", mode[j]))
     }, "")
     mm <- c(mm, vapply(mods, function(m) sprintf("interaction_term(iv = \"%s\", moderator = \"%s\", method = two_stage)", n$cv[[m$from]], n$cv[[m$moderator]]), ""))
     sm <- vapply(ends, function(t) {

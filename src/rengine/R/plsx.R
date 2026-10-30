@@ -224,7 +224,7 @@ ps_blindfold <- function(req_json, export = FALSE) {
   b <- ps_plsx_build(req)
   cons <- req$model$constructs
   ends <- unique(vapply(req$model$paths, function(p) p$to, ""))
-  refl <- vapply(cons, function(c) c$name %in% ends && !identical(c$mode, "B") && length(unlist(c$indicators)) > 0, TRUE)
+  refl <- vapply(cons, function(c) c$name %in% ends && identical(c$mode %||% "A", "A") && length(unlist(c$indicators)) > 0, TRUE)
   if (!any(refl)) stop("Blindfolding needs endogenous constructs with reflective (Mode A) indicators.")
   fit_line <- grep("^fit <- csem\\(data,", b$body, value = TRUE)[1]
   body <- c(b$body,
