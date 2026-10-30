@@ -10,12 +10,18 @@ export async function handleUrlParams() {
   const url = new URL(location.href);
   const invite = url.searchParams.get('invite');
   const auth = url.searchParams.get('auth');
-  if (invite || auth) {
-    url.searchParams.delete('invite');
-    url.searchParams.delete('auth');
+  const verify = url.searchParams.get('verify');
+  const reset = url.searchParams.get('reset');
+  if (invite || auth || verify || reset) {
+    for (const k of ['invite', 'auth', 'verify', 'reset']) url.searchParams.delete(k);
     history.replaceState(null, '', url.pathname + url.search + url.hash);
   }
   const toast = useStore.getState().toast;
+  if (verify) {
+    try { toast('success', `${await useAuth.getState().verifyEmail(verify)} is verified. You can share projects and accept invitations.`); }
+    catch (e) { toast('error', (e as Error).message); }
+  }
+  if (reset) useAuth.getState().openDialog('reset', undefined, reset);
   if (auth === 'google-failed') toast('error', 'Google sign-in did not complete. Please try again.');
   if (auth === 'google-unverified') toast('error', 'Your Google account’s email address is not verified.');
   if (invite) pendingInvite = invite;

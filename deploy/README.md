@@ -91,7 +91,9 @@ How an update runs:
 
 Edit `/etc/pls-studio/pls-studio.env`, then run `sudo systemctl restart pls-studio`.
 
-- **Email:** set `SMTP_URL`. Without it, invitation emails are written to the log
+- **Email:** set `SMTP_URL`. New accounts must verify their address by email before
+  they can share projects, so a public deployment needs it. Without it, verification,
+  password-reset and invitation emails are written to the log
   (`journalctl -u pls-studio`).
 - **Google sign-in:** create a separate OAuth client for PLS Studio rather than
   reusing FlowTex's. Use the redirect URI

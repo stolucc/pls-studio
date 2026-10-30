@@ -67,10 +67,23 @@ export async function agent(env: TestEnv) {
 
 export type Agent = Awaited<ReturnType<typeof agent>>;
 
-export async function signedUp(env: TestEnv, email: string, name = email.split('@')[0]): Promise<Agent> {
+/** A registered account; verified (as any account that can share projects must be) unless `verify` is false. */
+export async function signedUp(env: TestEnv, email: string, name = email.split('@')[0], verify = true): Promise<Agent> {
   const a = await agent(env);
   const r = await a.post('/api/auth/register', { email, password: 'correct horse battery', name });
   if (r.status !== 201) throw new Error(`register failed: ${r.status} ${JSON.stringify(r.body)}`);
   await a.refresh();
+  if (verify) {
+    const v = await a.post('/api/auth/verify-email', { token: lastToken(env, 'verify') });
+    if (v.status !== 200) throw new Error(`verify failed: ${v.status} ${JSON.stringify(v.body)}`);
+  }
   return a;
+}
+
+/** The token in the last email the server sent (`?verify=` or `?reset=` link). */
+export function lastToken(env: TestEnv, kind: 'verify' | 'reset' | 'invite'): string {
+  const mail = env.deps.mailer.outbox.at(-1)!;
+  const m = new RegExp(`[?&]${kind}=([^\\s&]+)`).exec(mail.text);
+  if (!m) throw new Error(`no ${kind} link in the last email: ${mail.subject}`);
+  return decodeURIComponent(m[1]);
 }

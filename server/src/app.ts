@@ -15,7 +15,7 @@ import { authRoutes } from './routes/auth.ts';
 import { projectRoutes } from './routes/projects.ts';
 import type { Mailer } from './services/mailer.ts';
 import { AccessError } from './services/projects.ts';
-import { AuthError } from './services/users.ts';
+import { AuthError, getUser } from './services/users.ts';
 
 declare module 'express-session' {
   interface SessionData {
@@ -152,7 +152,7 @@ export function createApp(deps: AppDeps) {
   }
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    if (err instanceof AccessError) return res.status(err.status).json({ error: err.message });
+    if (err instanceof AccessError) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
     if (err instanceof ZodError) return res.status(400).json({ error: err.issues[0]?.message ?? 'Invalid input.' });
     if (err instanceof AuthError) return res.status(err.code === 'locked' ? 429 : err.code === 'exists' ? 409 : 400).json({ error: err.message, code: err.code });
     const status = (err as { status?: number; statusCode?: number }).status ?? (err as { statusCode?: number }).statusCode;
@@ -171,6 +171,15 @@ export const h = (fn: (req: Request, res: Response) => Promise<unknown>) =>
 export function requireUser(req: Request): string {
   const id = req.session.userId;
   if (!id) throw new AccessError('Please sign in.', 401);
+  return id;
+}
+
+/** The signed-in user, who must have verified their email address (creating and joining projects). */
+export async function requireVerified(db: Db, req: Request): Promise<string> {
+  const id = requireUser(req);
+  const user = await getUser(db, id);
+  if (!user) throw new AccessError('Please sign in.', 401);
+  if (!user.email_verified) throw new AccessError('Verify your email address first: open the link in the email we sent you (the account menu can send it again).', 403, 'unverified');
   return id;
 }
 

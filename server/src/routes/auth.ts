@@ -2,7 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import QRCode from 'qrcode';
 import { z } from 'zod';
-import { establishSession, h, requireUser, type AppDeps } from '../app.ts';
+import { establishSession, h, requireUser, requireVerified, type AppDeps } from '../app.ts';
 import { acceptInvitation, previewInvitation } from '../services/projects.ts';
 import * as users from '../services/users.ts';
 import { googleRoutes } from './google.ts';
@@ -13,7 +13,7 @@ const name = z.string().trim().min(1).max(80);
 const code = z.string().trim().regex(/^\d{6}$/);
 
 export function authRoutes(deps: AppDeps) {
-  const { db, config } = deps;
+  const { db, config, mailer } = deps;
   const r = Router();
   const totpKey = Buffer.from(config.TOTP_KEY, 'base64');
   const secure = config.NODE_ENV === 'production';
@@ -31,11 +31,87 @@ export function authRoutes(deps: AppDeps) {
     });
   }));
 
+  // Emails carry a single-use link; a failed send is logged, the user can ask again.
+  const sendVerification = async (user: users.User) => {
+    const token = await users.issueToken(db, user.id, 'verify');
+    try {
+      await mailer.send({
+        to: user.email,
+        subject: 'Verify your email address for PLS Studio',
+        text: [
+          `Hello ${user.display_name},`,
+          '',
+          `Open this link to verify ${user.email} for your PLS Studio account (valid for ${users.TOKEN_HOURS.verify} hours):`,
+          `${config.APP_ORIGIN}/?verify=${encodeURIComponent(token)}`,
+          '',
+          'If you did not create this account, ignore this email: the address stays unverified and anyone can register it.',
+        ].join('\n'),
+      });
+    } catch (err) { console.error(`Verification email to ${user.email} failed: ${(err as Error).message}`); }
+  };
+  const sendReset = async (user: users.User) => {
+    const token = await users.issueToken(db, user.id, 'reset');
+    try {
+      await mailer.send({
+        to: user.email,
+        subject: `${user.has_password ? 'Reset' : 'Set'} your PLS Studio password`,
+        text: [
+          `Hello ${user.display_name},`,
+          '',
+          `Open this link to ${user.has_password ? 'choose a new' : 'set a'} password for your PLS Studio account (valid for ${users.TOKEN_HOURS.reset} hour):`,
+          `${config.APP_ORIGIN}/?reset=${encodeURIComponent(token)}`,
+          '',
+          'If you did not ask for this, ignore this email: nothing changes.',
+        ].join('\n'),
+      });
+    } catch (err) { console.error(`Password email to ${user.email} failed: ${(err as Error).message}`); }
+  };
+
   r.post('/register', strict, h(async (req, res) => {
     const body = z.object({ email, password, name }).parse(req.body);
     const user = await users.register(db, body.email, body.password, body.name);
+    await sendVerification(user);
     await establishSession(req, res, user.id, secure);
     res.status(201).json({ user });
+  }));
+
+  // ---- email verification ----
+  r.post('/verify-email', strict, h(async (req, res) => {
+    const body = z.object({ token: z.string().min(1).max(200) }).parse(req.body);
+    const user = await users.verifyEmail(db, body.token);
+    res.json({ ok: true, email: user.email });
+  }));
+
+  r.post('/verify-email/resend', strict, h(async (req, res) => {
+    const user = await users.getUser(db, requireUser(req));
+    if (!user) return res.status(401).json({ error: 'Please sign in.' });
+    if (user.email_verified) return res.status(409).json({ error: 'This address is already verified.' });
+    await sendVerification(user);
+    res.json({ ok: true });
+  }));
+
+  // ---- password reset (also how a Google-only account sets a password) ----
+  // The answer never says whether the address has an account.
+  const perEmail = rateLimit({ windowMs: 60 * 60_000, limit: config.NODE_ENV === 'test' ? 1000 : 3, standardHeaders: 'draft-8', legacyHeaders: false,
+    keyGenerator: (req) => String((req.body as { email?: unknown })?.email ?? '').trim().toLowerCase(), message: { error: 'Too many emails requested for this address. Try again later.' } });
+  r.post('/password/forgot', strict, perEmail, h(async (req, res) => {
+    const body = z.object({ email }).parse(req.body);
+    const user = await users.findByEmail(db, body.email);
+    if (user) await sendReset(user);
+    res.json({ ok: true });
+  }));
+
+  r.post('/password/reset', strict, h(async (req, res) => {
+    const body = z.object({ token: z.string().min(1).max(200), password }).parse(req.body);
+    await users.resetPassword(db, body.token, body.password);
+    res.json({ ok: true });
+  }));
+
+  r.post('/password/change', strict, h(async (req, res) => {
+    const userId = requireUser(req);
+    const body = z.object({ current: password, password }).parse(req.body);
+    await users.changePassword(db, userId, body.current, body.password, req.sessionID);
+    res.json({ ok: true });
   }));
 
   r.post('/login', strict, h(async (req, res) => {
@@ -92,7 +168,7 @@ export function authRoutes(deps: AppDeps) {
   }));
 
   r.post('/invitations/:token/accept', h(async (req, res) => {
-    const userId = requireUser(req);
+    const userId = await requireVerified(db, req);
     const user = await users.getUser(db, userId);
     const projectId = await acceptInvitation(db, String(req.params.token), userId, user!.email);
     deps.onMembershipChange?.(projectId, userId);

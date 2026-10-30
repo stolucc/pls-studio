@@ -70,6 +70,11 @@ export function googleRoutes(deps: AppDeps, strict: RequestHandler) {
     const linked = await users.findByGoogle(db, id.sub);
     if (linked) return finish(linked);
     const existing = await users.findByEmail(db, email);
+    if (existing && !existing.email_verified) {
+      // An account that never verified this address is a squat, not its owner.
+      const claimed = await users.claimUnverified(db, existing.id, id.sub, id.name.slice(0, 80));
+      if (claimed) return finish(claimed);
+    }
     if (existing) {
       // Never link silently: ask for the existing account's password first.
       req.session.pendingGoogle = { sub: id.sub, email, name: id.name };

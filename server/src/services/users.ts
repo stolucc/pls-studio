@@ -2,8 +2,8 @@
 
 import argon2 from 'argon2';
 import * as OTPAuth from 'otpauth';
-import { open, seal } from '../crypto.ts';
-import type { Db } from '../db.ts';
+import { hashToken, newToken, open, seal } from '../crypto.ts';
+import { tx, type Db } from '../db.ts';
 
 export interface User {
   id: string;
@@ -12,6 +12,7 @@ export interface User {
   totp_enabled: boolean;
   has_password: boolean;
   google_linked: boolean;
+  email_verified: boolean;
 }
 
 const ARGON = { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
@@ -36,6 +37,7 @@ const toUser = (r: Record<string, unknown>): User => ({
   totp_enabled: r.totp_enabled as boolean,
   has_password: r.password_hash !== null,
   google_linked: r.google_sub !== null,
+  email_verified: r.email_verified === true,
 });
 
 export async function getUser(db: Db, id: string): Promise<User | null> {
@@ -49,14 +51,33 @@ export async function findByEmail(db: Db, email: string): Promise<User | null> {
 }
 
 export class AuthError extends Error {
-  readonly code: 'invalid' | 'locked' | 'totp_required' | 'exists' | 'weak';
+  readonly code: 'invalid' | 'locked' | 'totp_required' | 'exists' | 'weak' | 'token';
   constructor(message: string, code: AuthError['code']) { super(message); this.code = code; }
 }
 
+/**
+ * Register. An address that only an unverified account holds is not taken:
+ * that account never proved it owns the address, so it is replaced (its
+ * password, second factor and sessions go), and the new owner must verify.
+ */
 export async function register(db: Db, email: string, password: string, displayName: string): Promise<User> {
   const weak = validatePassword(password);
   if (weak) throw new AuthError(weak, 'weak');
   const hash = await argon2.hash(password, ARGON);
+  const squat = await db.query('SELECT id FROM users WHERE email = $1 AND email_verified = false AND google_sub IS NULL', [email]);
+  if (squat.rows[0]) {
+    const id = squat.rows[0].id as string;
+    const r = await tx(db, async (c) => {
+      const u = await c.query(
+        `UPDATE users SET display_name = $2, password_hash = $3, totp_enabled = false, totp_secret = NULL, failed_logins = 0, locked_until = NULL
+          WHERE id = $1 AND email_verified = false RETURNING *`, [id, displayName, hash]);
+      if (!u.rowCount) return null;
+      await c.query('UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [id]);
+      await endSessions(c, id);
+      return u.rows[0];
+    });
+    if (r) return toUser(r);
+  }
   try {
     const r = await db.query('INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, $3) RETURNING *', [email, displayName, hash]);
     return toUser(r.rows[0]);
@@ -110,6 +131,70 @@ export async function verifyPassword(db: Db, id: string, password: string): Prom
   return h ? argon2.verify(h, password) : false;
 }
 
+/** End every session of a user (all devices), or all but `keep`. */
+export async function endSessions(db: Db | import('pg').PoolClient, userId: string, keep?: string) {
+  await db.query("DELETE FROM session WHERE sess->>'userId' = $1 AND ($2::text IS NULL OR sid <> $2)", [userId, keep ?? null]);
+}
+
+// ---------- emailed tokens (verification, password reset) ----------
+
+export type TokenKind = 'verify' | 'reset';
+export const TOKEN_HOURS: Record<TokenKind, number> = { verify: 24, reset: 1 };
+
+/** A fresh token of this kind for the user; earlier open ones stop working. */
+export async function issueToken(db: Db, userId: string, kind: TokenKind): Promise<string> {
+  const { token, hash } = newToken();
+  await tx(db, async (c) => {
+    await c.query('UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND kind = $2 AND used_at IS NULL', [userId, kind]);
+    await c.query(`INSERT INTO auth_tokens (user_id, kind, token_hash, expires_at) VALUES ($1, $2, $3, now() + make_interval(hours => ${TOKEN_HOURS[kind]}))`, [userId, kind, hash]);
+  });
+  return token;
+}
+
+/** Use a token once; returns the user id. */
+async function consumeToken(c: import('pg').PoolClient, token: string, kind: TokenKind): Promise<string> {
+  const r = await c.query('SELECT * FROM auth_tokens WHERE token_hash = $1 AND kind = $2 FOR UPDATE', [hashToken(token), kind]);
+  const row = r.rows[0];
+  if (!row || row.used_at || new Date(row.expires_at) < new Date()) throw new AuthError('This link is not valid any more. Request a new one.', 'token');
+  await c.query('UPDATE auth_tokens SET used_at = now() WHERE id = $1', [row.id]);
+  return row.user_id as string;
+}
+
+export async function verifyEmail(db: Db, token: string): Promise<User> {
+  return tx(db, async (c) => {
+    const id = await consumeToken(c, token, 'verify');
+    const r = await c.query('UPDATE users SET email_verified = true WHERE id = $1 RETURNING *', [id]);
+    return toUser(r.rows[0]);
+  });
+}
+
+/**
+ * Set a new password from an emailed link. Proves the address, so the account
+ * counts as verified; the lockout clears; every session ends (the link may have
+ * been requested because the password leaked). TOTP stays as it was.
+ */
+export async function resetPassword(db: Db, token: string, password: string): Promise<User> {
+  const weak = validatePassword(password);
+  if (weak) throw new AuthError(weak, 'weak');
+  const hash = await argon2.hash(password, ARGON);
+  return tx(db, async (c) => {
+    const id = await consumeToken(c, token, 'reset');
+    const r = await c.query('UPDATE users SET password_hash = $2, email_verified = true, failed_logins = 0, locked_until = NULL WHERE id = $1 RETURNING *', [id, hash]);
+    await endSessions(c, id);
+    return toUser(r.rows[0]);
+  });
+}
+
+/** Change the password of a signed-in account; other sessions end. */
+export async function changePassword(db: Db, userId: string, current: string, next: string, keepSession: string): Promise<void> {
+  if (!(await verifyPassword(db, userId, current))) throw new AuthError('Incorrect password.', 'invalid');
+  const weak = validatePassword(next);
+  if (weak) throw new AuthError(weak, 'weak');
+  const hash = await argon2.hash(next, ARGON);
+  await db.query('UPDATE users SET password_hash = $2 WHERE id = $1', [userId, hash]);
+  await endSessions(db, userId, keepSession);
+}
+
 // ---------- TOTP ----------
 
 const totpFor = (secret: string, label = 'PLS Studio') =>
@@ -148,8 +233,25 @@ export async function findByGoogle(db: Db, sub: string): Promise<User | null> {
 }
 
 export async function createGoogleUser(db: Db, sub: string, email: string, name: string): Promise<User> {
-  const r = await db.query('INSERT INTO users (email, display_name, google_sub) VALUES ($1, $2, $3) RETURNING *', [email, name, sub]);
+  const r = await db.query('INSERT INTO users (email, display_name, google_sub, email_verified) VALUES ($1, $2, $3, true) RETURNING *', [email, name, sub]);
   return toUser(r.rows[0]);
+}
+
+/**
+ * Google asserts the address; an unverified password account holding it never
+ * proved ownership, so it becomes this Google user's: password, second factor,
+ * sessions and tokens of the old account go. Null when the account is verified.
+ */
+export async function claimUnverified(db: Db, userId: string, sub: string, name: string): Promise<User | null> {
+  return tx(db, async (c) => {
+    const r = await c.query(
+      `UPDATE users SET google_sub = $2, display_name = $3, email_verified = true, password_hash = NULL, totp_enabled = false, totp_secret = NULL, failed_logins = 0, locked_until = NULL
+        WHERE id = $1 AND email_verified = false RETURNING *`, [userId, sub, name]);
+    if (!r.rowCount) return null;
+    await c.query('UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [userId]);
+    await endSessions(c, userId);
+    return toUser(r.rows[0]);
+  });
 }
 
 export async function linkGoogle(db: Db, userId: string, sub: string) {

@@ -10,7 +10,9 @@ const RANK: Record<Role, number> = { viewer: 1, editor: 2, owner: 3 };
 
 export class AccessError extends Error {
   readonly status: 400 | 401 | 403 | 404 | 409 | 410;
-  constructor(message: string, status: 400 | 401 | 403 | 404 | 409 | 410 = 403) { super(message); this.status = status; }
+  /** Machine-readable reason the client can act on (e.g. 'unverified': offer to resend the email). */
+  readonly code?: string;
+  constructor(message: string, status: 400 | 401 | 403 | 404 | 409 | 410 = 403, code?: string) { super(message); this.status = status; this.code = code; }
 }
 
 export async function roleOf(db: Db, projectId: string, userId: string): Promise<Role | null> {

@@ -772,3 +772,4 @@ a.btn { text-decoration: none; }
 .invite-sent { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .invite-link { display: flex; gap: 6px; }
 .invite-link .input { flex: 1; min-width: 0; font-family: var(--mono, monospace); font-size: 11.5px; }
+.menu-item.unverified { color: #8a5300; }

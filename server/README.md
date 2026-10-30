@@ -13,7 +13,9 @@ cd .. && npm run dev   # client on http://localhost:5175, proxies /api and /ws
 npm test               # integration tests against pls_studio_test (real PostgreSQL)
 ```
 
-Without `SMTP_URL`, invitation emails are printed to the server console.
+Without `SMTP_URL`, verification, password-reset and invitation emails are printed to the
+server console (fine for development; a deployment needs SMTP, since new accounts verify
+their address by email).
 
 ## Configuration (environment)
 
@@ -37,6 +39,16 @@ safe: without it, stored datasets cannot be decrypted.
 
 - **Passwords**: argon2id; ≥ 12 characters; generic login errors with equal timing for
   unknown emails; per-account lockout (5 failures → 15 min) plus per-IP rate limits.
+- **Email verification**: registering sends a single-use link (24 h; only its SHA-256 is
+  stored). Until it is used the account cannot create projects, invite or accept
+  invitations. An unverified account does not reserve its address: the next registration
+  with that address replaces it, and a Google sign-in with that address claims it.
+  Accounts from before verification existed count as verified.
+- **Password reset**: `POST /api/auth/password/forgot` always answers 200 and emails a
+  1-hour single-use link when the address has an account (3 per address per hour).
+  Using it sets the password, marks the address verified, clears the lockout and ends
+  every session; TOTP stays on. Google-only accounts set a password the same way.
+  `POST /api/auth/password/change` (current + new) ends the other sessions.
 - **Sessions**: PostgreSQL-backed, `HttpOnly`, `SameSite=Lax`, `Secure` in production,
   24 h rolling; id regenerated at sign-in (no fixation).
 - **CSRF**: per-session token required in `X-CSRF-Token` on every state-changing request

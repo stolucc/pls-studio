@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { z } from 'zod';
-import { h, requireUser, type AppDeps } from '../app.ts';
+import { h, requireUser, requireVerified, type AppDeps } from '../app.ts';
 import * as P from '../services/projects.ts';
 import { getUser } from '../services/users.ts';
 
@@ -31,7 +31,7 @@ export function projectRoutes(deps: AppDeps) {
   r.get('/', h(async (req, res) => res.json({ projects: await P.listProjects(db, requireUser(req)) })));
 
   r.post('/', json, h(async (req, res) => {
-    const userId = requireUser(req);
+    const userId = await requireVerified(db, req);
     const body = z.object({ name: projectName, yjsState: z.string().max(2_000_000).optional() }).parse(req.body);
     const state = body.yjsState ? Buffer.from(body.yjsState, 'base64') : null;
     const id = await P.createProject(db, userId, oneLine(body.name), state);
@@ -78,7 +78,7 @@ export function projectRoutes(deps: AppDeps) {
 
   r.post('/:id/invitations', inviteLimit, json, h(async (req, res) => {
     const id = pid(req.params.id);
-    const userId = requireUser(req);
+    const userId = await requireVerified(db, req);
     const body = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.enum(['editor', 'viewer']) }).parse(req.body);
     const inv = await P.createInvitation(db, id, userId, body.email, body.role);
     const [inviter, project] = await Promise.all([getUser(db, userId), P.getProject(db, id, userId)]);
