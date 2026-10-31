@@ -159,6 +159,7 @@ export function HomeScreen() {
         <div className="brand"><span className="brand-mark"><IconLogo size={17} /></span>PLS Studio</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <a className="btn ghost" href="guide.html" target="_blank" rel="noopener">User guide</a>
+          <a className="btn ghost" href="architecture.html" target="_blank" rel="noopener" title="For developers: how PLS Studio is designed and how it talks to R">How it works</a>
           <button className="btn ghost" onClick={() => setAbout(true)}>About &amp; licences</button>
           {hasCurrent && <button className="btn primary" onClick={() => setView('editor')}>Back to “{currentName}”</button>}
           <AccountMenu />

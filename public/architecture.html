@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PLS Studio: how it is built</title>
+<meta name="description" content="How PLS Studio is designed: the stores, the built-in engine, how the front end talks to R (webR and the desktop helper), the Analyses log, collaboration, build and deploy.">
+<style>
+:root { --bg: #ffffff; --text: #1f2430; --text-2: #4b5160; --text-3: #7a8090; --surface: #f6f7f9; --border: #e3e5ea; --accent: #3b5bdb; --accent-soft: #eef1fb; --warn-soft: #fff4e0; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+@media (prefers-color-scheme: dark) { :root { --bg: #15171c; --text: #e8eaf0; --text-2: #b4b9c6; --text-3: #868c9b; --surface: #1d2027; --border: #2d313b; --accent: #8ea2ff; --accent-soft: #232a40; --warn-soft: #3a2d12; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.wrap { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 32px; max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+nav { position: sticky; top: 16px; align-self: start; font-size: 13.5px; max-height: calc(100vh - 32px); overflow: auto; }
+nav ol { list-style: none; padding: 0; margin: 0; }
+nav li { margin: 2px 0; }
+nav a { color: var(--text-2); text-decoration: none; display: block; padding: 2px 8px; border-radius: 6px; }
+nav a:hover { background: var(--surface); color: var(--text); }
+nav .brand { font-weight: 700; font-size: 15px; color: var(--text); padding: 2px 8px 8px; }
+main { min-width: 0; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+.lede { color: var(--text-2); margin: 0 0 28px; }
+h2 { font-size: 20px; margin: 40px 0 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 16px; margin: 22px 0 6px; }
+p, li { color: var(--text); }
+li { margin: 3px 0; }
+kbd { font: 12px var(--mono); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface); }
+code { font: 13px var(--mono); background: var(--surface); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow: auto; font: 13px var(--mono); }
+.ui { font-weight: 600; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0 14px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-2); font-weight: 600; }
+.note { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+.warn { background: var(--warn-soft); border-left: 3px solid #c77700; padding: 8px 12px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 24px; }
+footer { margin-top: 48px; color: var(--text-3); font-size: 13px; border-top: 1px solid var(--border); padding-top: 12px; }
+a { color: var(--accent); }
+@media (max-width: 760px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav { position: static; max-height: none; } table { display: block; overflow-x: auto; } }
+@media print { nav { display: none; } .wrap { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Contents">
+  <div class="brand">PLS Studio design</div>
+  <ol>
+    <li><a href="#1-the-shape-of-the-system">1. The shape of the system</a></li>
+    <li><a href="#2-repository-map">2. Repository map</a></li>
+    <li><a href="#3-state-and-data-flow-in-the-browser">3. State and data flow in the browser</a></li>
+    <li><a href="#4-the-built-in-engine">4. The built-in engine</a></li>
+    <li><a href="#5-the-r-engine-how-the-front-end-talks-to-r">5. The R engine: how the front end talks to R</a></li>
+    <li><a href="#6-the-analyses-log">6. The Analyses log</a></li>
+    <li><a href="#7-collaboration">7. Collaboration</a></li>
+    <li><a href="#8-examples-and-validation">8. Examples and validation</a></li>
+    <li><a href="#9-build-and-deploy">9. Build and deploy</a></li>
+    <li><a href="guide.html">User guide →</a></li>
+  </ol>
+</nav>
+<main>
+<h1>PLS Studio: how it is built</h1>
+<p>For developers working on the code. The user guide is <code>public/guide.html</code>; validation and conventions are in <code>README.md</code>; the server and the desktop helper have their own READMEs.</p>
+<h2 id="1-the-shape-of-the-system">1. The shape of the system</h2>
+<pre>┌──────────────────────────── browser ────────────────────────────────┐
+│  React UI (src/components)   zustand stores (src/store.ts,          │
+│  Model · Data · Analyses     src/analyses/store.ts)                 │
+│            │                          │                              │
+│      runner.ts  ──────────────── analyses/store.runCard             │
+│            │                          │                              │
+│   ┌────────┴─────────┐     ┌──────────┴──────────┐                  │
+│   │ built-in engine  │     │ R bridge (rengine)  │                  │
+│   │ src/engine (TS)  │     │ rCall(fn, req, pkg) │                  │
+│   │ Web Workers      │     └───┬─────────────┬───┘                  │
+│   └──────────────────┘         │             │                      │
+│                      webR (WASM R)     HTTP 127.0.0.1:9878          │
+│                      in Web Workers    (desktop helper, optional)    │
+└────────────────────────────────────────┼─────────────────────────────┘
+                                         │
+     ┌──────────────────────┐   ┌────────┴─────────────────────┐
+     │ collaboration server │   │ pls-studio-helper (Go)       │
+     │ server/ (Express,    │   │ pool of native R processes;  │
+     │ Postgres, Y.js WS)   │   │ runs the same R bridge code  │
+     └──────────────────────┘   └──────────────────────────────┘</pre>
+<p>Three facts organise everything:</p>
+<ol><li><strong>Calculations run on the user's machine</strong>, never on the server. The server only stores projects, syncs edits between collaborators and handles accounts. A project with no collaboration never contacts a server at all (the app also runs from a static host).</li><li><strong>The estimators are the reference R packages themselves</strong> (lavaan, cSEM, seminr, MIIVsem, semTools, modsem, manymome, mice, psych, ltm, lme4, …), compiled to WebAssembly by the webR project and served from the app's own origin. The app writes a small R <em>script</em> per calculation, runs exactly that script, and reads a JSON result back. The script is what the user downloads under &quot;R script&quot;, so what runs and what is exported are the same text.</li><li><strong>One working model.</strong> The Model tab holds the project's model; every other view reads it. The Analyses tab holds a log of cards (analyses, headings, notes, and model runs) saved with the project.</li></ol>
+<h2 id="2-repository-map">2. Repository map</h2>
+<table>
+<tr><th>Path</th><th>What lives there</th></tr>
+<tr><td><code>src/store.ts</code></td><td>The project store: model, settings, data, results, undo history, workspace, cloud state, messages. <code>resultsKey()</code> fingerprints model + estimation settings + data so results are known to be current or stale.</td></tr>
+<tr><td><code>src/model/project.ts</code></td><td>Model and settings types, defaults, <code>toSpec()</code> (canvas model → engine specification), strict parsers for untrusted input (<code>parseProject</code>, <code>parseModelState</code>, <code>parseSettings</code>), validation.</td></tr>
+<tr><td><code>src/components/</code></td><td>React UI. <code>Canvas.tsx</code> (React Flow diagram), <code>Inspector.tsx</code> (settings), <code>ResultsPanel.tsx</code> + <code>results/</code> (tables per method), <code>analyses/</code> (the log), <code>cloud/</code> (accounts, sharing), <code>TopBar.tsx</code>.</td></tr>
+<tr><td><code>src/runner.ts</code></td><td>Calculate / Bootstrap / Fit test: validates the model, picks the engine, dispatches, stores results, logs the run.</td></tr>
+<tr><td><code>src/engine/</code></td><td>The built-in TypeScript engines: PLS/PLSc (<code>pls.ts</code>), CB-SEM ML-family (<code>cbsem.ts</code>), MIIV-2SLS, bootstrap, simulation. Run inside Web Workers (<code>src/worker.ts</code>). Validated against the R packages.</td></tr>
+<tr><td><code>src/rengine/</code></td><td>The R side: <code>runtime.ts</code> (webR sessions), <code>bridge.ts</code> (<code>rCall</code>, package lists, R sources), <code>helper.ts</code> (desktop helper client), one TS module per R bridge file (<code>pls.ts</code>, <code>lavaan.ts</code>, <code>analyses.ts</code>, …) that builds requests and parses results, and <code>R/</code> (the bridge code in R).</td></tr>
+<tr><td><code>src/analyses/</code></td><td>The Analyses log: <code>types.ts</code> (card and analysis-type contracts), <code>registry.ts</code> (all analysis types), <code>store.ts</code> (cards, running, results), <code>persist.ts</code> (validated load/save), <code>codec.ts</code> (gzip + base64 packing of results), <code>runs.tsx</code> / <code>runHash.ts</code> / <code>runCard.tsx</code> (model runs and versions), <code>report.ts</code>, one file per analysis.</td></tr>
+<tr><td><code>src/process/</code></td><td>Conditional process analysis (PROCESS models): recognising the diagram, building the regression plan.</td></tr>
+<tr><td><code>src/cloud/</code></td><td>Collaboration client: <code>api.ts</code> (fetch with CSRF), <code>auth.ts</code> (accounts), <code>collab.ts</code> (Y.js document ⇄ store), <code>invites.ts</code> (emailed links).</td></tr>
+<tr><td><code>src/examples/</code></td><td>Home-screen examples (<code>packages.ts</code>: 58 package examples with their sources and documented settings; built-in examples).</td></tr>
+<tr><td><code>src/figure/</code>, <code>src/replication/</code></td><td>Diagram rendering for export (SVG/PDF/LaTeX); replication package (zip of data, scripts, project, README).</td></tr>
+<tr><td><code>public/webr/</code></td><td>The self-hosted R runtime and package repository (not in git; <code>scripts/webr/fetch.mjs</code> builds it from <code>scripts/webr/webr-lock.json</code>, with every package's source tarball for GPL compliance).</td></tr>
+<tr><td><code>server/</code></td><td>Express + Postgres: accounts (argon2id, TOTP, Google OIDC, email verification, reset), projects, invitations, encrypted datasets, Y.js WebSocket rooms, audit log, migrations.</td></tr>
+<tr><td><code>helper/</code></td><td><code>pls-studio-helper</code>: a Go program with a menu-bar/tray icon that runs a pool of native R processes and serves the same bridge over loopback HTTP. <code>helper/rsrc</code> is a verbatim copy of <code>src/rengine/R</code> (checked by its tests; <code>make -C helper sync-r</code>).</td></tr>
+<tr><td><code>deploy/</code></td><td>Provisioning, update and backup scripts for a single VPS behind Caddy.</td></tr>
+<tr><td><code>scripts/validation/</code></td><td>Native-R scripts that produce the reference fixtures in <code>src/engine/__fixtures__</code>.</td></tr>
+</table>
+<h2 id="3-state-and-data-flow-in-the-browser">3. State and data flow in the browser</h2>
+<p><strong>Stores.</strong> <code>useStore</code> (src/store.ts) is the project: <code>model</code> (constructs, paths, moderations, correlations, model-level fields), <code>settings</code> (method, estimator, engine, PLS options, missing values, bootstrap options, figure and chart styles), <code>data</code> (column-oriented <code>Float64Array</code>s, <code>NaN</code> = missing; or a covariance matrix with N and optional NACOV), <code>results</code> with its <code>key</code>, <code>past</code>/<code>future</code> for undo, <code>workspace</code> (data / model / analyses), <code>messages</code>, <code>cloud</code>. <code>useAnalyses</code> (src/analyses/store.ts) holds the cards of the log, which card is selected, unpacked results per card, running state, errors.</p>
+<p><strong>Edits.</strong> Every model change goes through <code>commit(fn)</code>, which prunes dangling correlations and fixed loadings, pushes the previous model onto the undo stack, and marks the project dirty. In a shared project the Y.js <code>UndoManager</code> replaces the local stack (see §7).</p>
+<p><strong>Freshness.</strong> <code>resultsKey(state)</code> is a JSON fingerprint of the engine specification (<code>toSpec(model)</code>), the settings that change estimates, and a data version counter. Results carry the key they were computed for; <code>useFreshResults()</code> returns them only while the key matches, so a stale diagram shows no estimates and the canvas offers Recalculate. The same idea, made stable across sessions (a hash of spec + estimation settings + a fingerprint of the data values), identifies a <em>model run</em> in the log (§6).</p>
+<p><strong>Calculate.</strong> <code>runner.run(kind)</code> (<code>estimate</code> | <code>boot</code> | <code>fittest</code>): validates the model (<code>validateModel</code>), refuses without data, computes the key, then either posts a request to a Web Worker (built-in engine) or calls the R bridge (R engine). On completion it <code>setResults</code> and calls <code>logCurrentRun()</code> so the Analyses log records the version. On the Analyses tab, Calculate acts on the selected card instead (<code>src/analyses/calculate.ts</code>).</p>
+<h2 id="4-the-built-in-engine">4. The built-in engine</h2>
+<p><code>src/engine</code> reimplements PLS (Mode A/B, path/centroid/factor schemes, PLSc, HTMT, fit discrepancies, IPMA), CB-SEM by ML/GLS/ULS/MLM/MLMV/MLR, MIIV-2SLS and the bootstrap, in TypeScript with its own linear algebra. It exists so the app works before R has loaded, on devices that cannot run webR, and as a second implementation to check the bridge against. It runs in Web Workers (<code>src/worker.ts</code>); the bootstrap splits its samples into ranges across one worker per core (<code>workerCount()</code>), and the parts are merged (<code>engine/bootstrap.ts</code>). Its numbers are tested against the packages' fixtures to 1e-5 (README, &quot;Validation&quot;).</p>
+<h2 id="5-the-r-engine-how-the-front-end-talks-to-r">5. The R engine: how the front end talks to R</h2>
+<h3 id="5-1-loading-r">5.1 Loading R</h3>
+<p><code>src/rengine/runtime.ts</code> starts webR lazily, in a Web Worker, with the SharedArrayBuffer channel (so R can be interrupted; this needs a cross-origin isolated page, which the server's COOP/COEP headers provide). <code>baseUrl</code> and <code>repoUrl</code> point at the app's own <code>/webr/</code> directory: runtime files and a pinned CRAN-like repository. Packages are installed into the WASM file system on first use per session (<code>withSession</code> tracks <code>installed</code>); the bridge's R source files are <code>source()</code>d once per session (<code>sourced</code>). Session 0 serves all ordinary calculations; sessions 1… are started only for parallel work (bootstrap and permutation chunks) and each is another webR instance in its own Worker. <code>parallelMap()</code> schedules items over sessions.</p>
+<h3 id="5-2-requests-and-results">5.2 Requests and results</h3>
+<p>Every call is <code>rCall(fn, req, pkg)</code> in <code>src/rengine/bridge.ts</code>:</p>
+<ul><li><code>fn</code> is a bridge function in R, always named <code>ps_*</code> (<code>ps_pls</code>, <code>ps_cb</code>, <code>ps_boot</code>, <code>ps_endo</code>, …), defined in <code>src/rengine/R/*.R</code>; those files are imported as raw strings and sent to R as <code>SOURCES</code>.</li><li><code>req</code> is a plain JSON object: the data (<code>names</code>, <code>cols</code>), the model specification from <code>toSpec()</code>, and options. The TS module for the analysis (<code>src/rengine/pls.ts</code>, <code>lavaan.ts</code>, …) builds it; nothing user-typed goes in as R code.</li><li><code>pkg</code> names the package set to install first (<code>R_PACKAGES</code>).</li></ul>
+<p>In R, <code>ps_call(fn, req)</code> (src/rengine/R/common.R) is the single entry point: it checks that <code>fn</code> is a <code>ps_*</code> function taking <code>req_json</code>, parses and validates the request (<code>ps_validate</code>: every enumerated option against its allowed values, every number finite), and calls the function with a warning handler. The function:</p>
+<ol><li><strong>Builds a script</strong> as a character vector: data preparation, the model in the package's syntax (lavaan model syntax, cSEM/seminr syntax), the package call, and the post-processing it needs. Names are made safe first: <code>ps_ident()</code> turns construct and indicator names into identifiers (<code>&quot;Service quality&quot;</code> → <code>Service_quality</code>) and keeps a map back to the user's names; strings inside the script go through <code>ps_sq()</code>; user expressions that must reach the package as code (<code>:=</code> definitions, inequality constraints, Wald constraints) go through <code>ps_expr()</code>, a parser that admits arithmetic over parameter labels and nothing else (the client has the same grammar in <code>src/model/expr.ts</code>).</li><li><strong>Runs that script</strong> with <code>ps_run(lines, inputs)</code> in a fresh environment holding the inputs (<code>data</code>, <code>S</code>, <code>N</code>, <code>NACOV</code>, …), collecting warnings.</li><li><strong>Reads the results</strong> back from the fitted object into a list with the user's names restored, and returns <code>ps_json(list)</code>.</li></ol>
+<p><code>ps_call(fn, req, export = TRUE)</code> returns the script text instead of running it: with the data embedded (<code>ps_script()</code> adds a header naming the package versions and <code>install.packages(...)</code>, the data as CSV text, the calculation, and a report section). That is the &quot;R script&quot; button, the replication package's scripts, and a guarantee: the exported script is the calculation.</p>
+<p>Results arrive as JSON with two side channels: <code>warnings</code> (the packages' warnings and anything optional that could not be computed; the app flags them after a calculation) and <code>notes</code> (explanations of a result or a package's advice; listed as information, shown under the table they concern). <code>rengine/notices.ts</code> routes both into Messages.</p>
+<p>Optional statistics are wrapped in <code>ps_try(expr, &quot;what&quot;)</code>: a failure becomes a warning that names what was lost, and the rest of the result stands.</p>
+<h3 id="5-3-parallel-work">5.3 Parallel work</h3>
+<p>The R bootstrap and permutation tests run as chunks of samples (<code>rCallParallel</code>), each a full call on its own R session, merged on the TS side (<code>engine/bootstrap.ts</code> merges draws; cSEM's own resampling is used within a chunk). Progress is reported per chunk. The number of sessions comes from <code>parallelism()</code>: all cores but one in the browser (capped), or the desktop helper's pool.</p>
+<h3 id="5-4-interrupting">5.4 Interrupting</h3>
+<p><code>interruptR()</code> interrupts every webR session (possible because of the SharedArrayBuffer channel) and cancels helper calls; the runner discards results whose token no longer matches.</p>
+<h3 id="5-5-the-desktop-helper">5.5 The desktop helper</h3>
+<p><code>pls-studio-helper</code> (helper/) is optional. It binds <code>127.0.0.1:9878</code>, keeps a pool of native R processes (all cores but one by default, <code>r_workers</code> in its config), and serves: <code>/health</code>, <code>/pair</code>, <code>/connect</code>, <code>/version</code>, <code>/packages</code>, <code>/call</code>, <code>/batch</code>, <code>/cancel/:id</code>. <code>/call</code> takes the same <code>{fn, req}</code> and runs the same <code>ps_call</code> in native R, with the bridge sources it embeds (<code>helper/rsrc</code>). The client (<code>src/rengine/helper.ts</code>) probes it, compares the SHA-256 of the bridge sources it has with the helper's (<code>/version</code> → <code>bridge</code>), and uses it only when they match (&quot;built for another version&quot; otherwise). When the person has chosen Desktop R under &quot;Calculated by&quot;, every <code>rCall</code> goes to the helper first (<code>viaHelper</code>) and falls back to webR if it is not available. Security: an Origin allow list (dev origins by default; a deployment is added with <code>pls-studio-helper allow-origin &lt;url&gt;</code>), a Host check against DNS rebinding, a bearer token issued once per browser after the person clicks Allow in the helper's dialog (or types a pairing code), per-origin rate limits, and its own injection test that replays the recorded request corpus (<code>scripts/security/corpus.jsonl</code>) through the R bridge.</p>
+<h3 id="5-6-what-keeps-r-code-injection-out">5.6 What keeps R code injection out</h3>
+<p>The bridge composes R code from identifiers it sanitised and literals it quoted; the only user-written text evaluated as code is what <code>ps_expr</code> accepts. lavaan itself evaluates arbitrary R inside <code>:=</code> definitions and <code>lavTestWald</code> constraints, so that parser is load-bearing. The recorded corpus (<code>PS_RECORD_REQUESTS=… npm run test:webr</code> records every request the tests make; <code>scripts/security/replay-injection.R</code> replays them with payloads) checks that no field reaches <code>eval</code>. Requests from collaborators and project files pass the same validation as everything else.</p>
+<h2 id="6-the-analyses-log">6. The Analyses log</h2>
+<p>A card is <code>{ id, kind: 'analysis', type, options, run?, title? }</code> or a heading / note. An <em>analysis type</em> (<code>src/analyses/types.ts</code>) declares its options, defaults, a strict <code>parseOptions</code> for options from files and collaborators, <code>blocked()</code> (why it cannot run now), <code>fingerprint()</code> (the inputs a run used, so a card goes stale when its data or scores change), <code>run()</code> (usually an <code>rCall</code>), an <code>Options</code> form and a <code>View</code>. <code>registry.ts</code> lists the 31 types. Results are stored packed (<code>codec.ts</code>, gzip + base64, size-capped) in <code>card.run.packed</code> and saved with the project; shared projects sync the cards without results (each computer runs them itself). <code>report.ts</code> builds a self-contained HTML report from the rendered cards; the replication package writes one R script per card.</p>
+<p><strong>Model runs</strong> are frozen cards added by Calculate (<code>runs.tsx</code>): the model, settings, data identity, diagram and results of one version. <code>runHash()</code> identifies a version; calculating the same version again updates its card, a change starts a new one with a plain-language diff (<code>describeChanges</code>). Opening a run puts that model back on the Model tab through the undo stack; the canvas badge (<code>ModelVersionBadge</code>) says which version is on the canvas.</p>
+<h2 id="7-collaboration">7. Collaboration</h2>
+<p>A shared project lives in a Y.js document: maps <code>constructs</code>, <code>paths</code>, <code>moderations</code>, <code>correlations</code>, <code>model</code> (the other model fields), <code>meta</code> (name, settings), and the cards. <code>src/cloud/collab.ts</code> writes store changes into the document and applies remote changes to the store (<code>readDoc</code> validates through the same parsers as a project file); <code>Y.UndoManager</code> (own changes only) replaces the local undo stack while connected. The server (<code>server/src/ws.ts</code>) keeps one room per project: handshake checks Origin, session and membership; viewers' document updates are dropped; awareness (presence) is capped; the document is persisted as a compacted state plus updates, with a cap on its stored size and on sockets per user. Datasets are not in the document: they are uploaded encrypted (gzip + AES-256-GCM under a per-project key wrapped by a master key, project id as associated data) and downloaded by members. Results never leave a computer.</p>
+<p>Accounts: express-session in Postgres, CSRF token + Origin check on every state change, argon2id passwords with lockout, TOTP, Google OIDC with PKCE, email verification and password reset by single-use hashed tokens carried in the URL fragment. <code>server/README.md</code> has the full list.</p>
+<h2 id="8-examples-and-validation">8. Examples and validation</h2>
+<p><code>src/examples/packages.ts</code> describes each example: its data (loaded from the package in R, or shipped), model, analysis card, and the settings its source documents (<code>CSEM()</code>/<code>SEMINR()</code> helpers hold the packages' defaults). Opening an example resets the estimation settings to those (<code>exampleSettings</code>). Tests run every example in webR and require it to raise no warning.</p>
+<p>Correctness rests on three layers (README, &quot;Validation&quot;): the estimators are the packages themselves; fixtures from native R check the bridge and the built-in engine at 1e-5; printed results from the literature check the whole chain. <code>npm test</code> (unit, ~930), <code>npm run test:webr</code> (R in webR, ~370), <code>npm run test:server</code> (Postgres, 53), <code>go test ./...</code> in helper/; CI runs all four.</p>
+<h2 id="9-build-and-deploy">9. Build and deploy</h2>
+<p>Vite builds the app (<code>npm run build</code>; <code>prebuild</code> fetches the pinned R runtime if missing). The server serves <code>dist/</code> and <code>public/webr/</code> with the headers webR needs (COOP/COEP) and a strict CSP (no inline scripts; the worker script alone gets <code>wasm-unsafe-eval</code> and <code>unsafe-eval</code>, which webR's loader needs). <code>deploy/pls-provision.sh</code> sets up a VPS (Node, Postgres, Caddy, a systemd unit with <code>ProtectSystem=strict</code>); <code>pls-update.sh</code> pulls, builds, migrates and restarts. The helper is released by tagging <code>helper-vX.Y.Z</code> (GitHub Actions builds macOS, Windows and Linux binaries); every change to <code>src/rengine/R</code> needs a new helper release, because the helper refuses to serve a bridge version other than its own.</p>
+
+<footer>Generated from ARCHITECTURE.md in the PLS Studio repository (npm run docs:architecture).</footer>
+</main>
+</div>
+</body>
+</html>

@@ -14,7 +14,8 @@
     "server": "cd server && npm run dev",
     "test:webr": "WEBR_TESTS=1 vitest run webr.test",
     "webr:fetch": "node scripts/webr/fetch.mjs",
-    "prebuild": "node scripts/webr/fetch.mjs --if-missing",
+    "prebuild": "node scripts/webr/fetch.mjs --if-missing && node scripts/architecture.mjs",
+    "docs:architecture": "node scripts/architecture.mjs",
     "notices": "node scripts/notices.mjs",
     "test:mutation": "stryker run",
     "test:mutation:engine": "stryker run stryker.engine.config.mjs"
