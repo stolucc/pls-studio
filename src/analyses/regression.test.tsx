@@ -40,3 +40,21 @@ describe('regression card', () => {
     expect(() => regressionRequest({ names: ['a'], cols: [], moments: { S: [[1]], n: 5 } }, regressionInput(o({}), ctx()))).toThrow(/covariance matrix/);
   });
 });
+
+describe('regression view', () => {
+  it('renders a result stored by the previous version (one curve) and by this one (curves)', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const base = {
+      family: 'gaussian' as const, link: 'logit', formula: 'y ~ a', se: 'model',
+      coefficients: [{ term: '(Intercept)', est: 1, se: 0.1, stat: 10, p: 0, ciLow: 0.8, ciHigh: 1.2 }, { term: 'a', est: 2, se: 0.2, stat: 10, p: 0, ciLow: 1.6, ciHigh: 2.4 }],
+      thresholds: [], levels: null, fit: { n: 10, logLik: -5, aic: 14, bic: 15, npar: 3, r2: 0.5, adjR2: 0.4 }, lrt: { stat: 3, df: 1, p: 0.08 }, diagnostics: {}, warnings: [], engine: { package: 'stats', version: '4.6' },
+      input: regressionInput(o({ outcome: 'y', predictors: ['a'] }), ctx()),
+    };
+    const curve = { x: 'a', grid: [0, 1], y: [1, 3], points: { x: [0, 1], y: [1, 3] } };
+    const html = (r: unknown) => renderToStaticMarkup(<regressionAnalysis.View result={r as never} options={o({ outcome: 'y', predictors: ['a'] })} current />);
+    expect(html({ ...base, curves: [curve] })).toContain('Partial effect of a');
+    expect(html({ ...base, curve })).toContain('Partial effect of a');   // the previous shape
+    expect(html({ ...base, curve: null })).not.toContain('Partial effect');
+    expect(html(base)).toContain('Coefficients');
+  });
+});

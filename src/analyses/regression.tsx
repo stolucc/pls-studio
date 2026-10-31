@@ -123,10 +123,14 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
   );
 }
 
+/** A result as stored by this version, or by the one before it (one `curve`, no `curves`). */
+const curvesOf = (r: Result): RegressionCurve[] => Array.isArray(r.curves) ? r.curves : (r as unknown as { curve?: RegressionCurve | null }).curve ? [(r as unknown as { curve: RegressionCurve }).curve] : [];
+
 function RegressionView({ r, plot }: { r: Result; plot: string }) {
-  const cv = r.curves.find((k) => k.x === plot) ?? r.curves[0];
+  const curves = curvesOf(r);
+  const cv = curves.find((k) => k.x === plot) ?? curves[0];
   const f = r.fit, pct = Math.round(r.input.confidence * 100);
-  const ratio = r.coefficients.some((e) => e.ratio !== undefined && e.ratio !== null);
+  const ratio = (r.coefficients ?? []).some((e) => e.ratio !== undefined && e.ratio !== null);
   const ratioName = r.family === 'binomial' || r.family === 'ordinal' || r.family === 'multinomial' ? 'Odds ratio' : 'Rate ratio';
   const cols = ['Term', 'Estimate', 'Std. error', r.family === 'gaussian' || r.family === 'gamma' ? 't' : 'z', 'p', `${pct}% CI`, ...(ratio ? [ratioName] : [])];
   const cards: [string, string][] = [['n', String(f.n)],
@@ -158,7 +162,7 @@ function RegressionView({ r, plot }: { r: Result; plot: string }) {
           ...(dg.hosmerLemeshow ? [[c(`Hosmer–Lemeshow χ²(${dg.hosmerLemeshow.df})`), c(`${fmt(dg.hosmerLemeshow.stat, 2)}, p ${fmtP(dg.hosmerLemeshow.p)}`)] as Row] : []),
         ]} note="VIF above 5 (or 10) signals collinear predictors. Hosmer–Lemeshow: a small p means the fitted probabilities do not match the observed rates." />
       ) : null}
-      {cv && <Curve r={r} cv={cv} />}
+      {cv && <Curve r={{ ...r, curves }} cv={cv} />}
     </div>
   );
 }
