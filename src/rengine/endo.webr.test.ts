@@ -38,6 +38,8 @@ it('Gaussian copula (two continuous endogenous regressors) equals REndo::copulaC
   expect(r.normality.map((x) => x.variable)).toEqual(['P1', 'P2']);
   expect(r.ols.length).toBe(5);
   expect(await endoScriptR(rendo('dataCopCont2'), { ...base, method: 'copula', endogenous: ['P1', 'P2'] })).toContain('pstar <- function(v)');
+  // Out-of-range bootstrap settings are named, not just refused.
+  await expect(endoR(rendo('dataCopCont2'), { ...base, method: 'copula', endogenous: ['P1', 'P2'], boot: { samples: 50_000, seed: 1, confidence: 0.95 } })).rejects.toThrow('between 10 and 20,000 (got 50000)');
 }, 900_000);
 
 it('heteroskedasticity-based instruments equal REndo::hetErrorsIV', async () => {
