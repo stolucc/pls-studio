@@ -82,6 +82,51 @@ it('an example opens with its documented settings, not the previous project’s;
     figure: { ...DEFAULT_SETTINGS.figure, fontSize: 19 }, charts: { ...DEFAULT_SETTINGS.charts, size: 19 } };
   const s = exampleSettings(current, { method: 'cbsem', estimator: 'MLM' });
   expect(s).toEqual({ ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'MLM', engine: 'r', figure: current.figure, charts: current.charts });
-  // Every package example's own settings are partial: the rest are the defaults.
-  for (const e of PACKAGE_EXAMPLES) expect(exampleSettings(current, e.settings).bootSamples, e.id).toBe(DEFAULT_SETTINGS.bootSamples);
+  // Every package example's own settings are partial: what it does not set is the default, never the previous project's.
+  for (const e of PACKAGE_EXAMPLES) {
+    const got = exampleSettings(current, e.settings);
+    expect(got.bootSamples, e.id).toBe(e.settings.bootSamples ?? DEFAULT_SETTINGS.bootSamples);
+    expect(got.seed, e.id).toBe(e.settings.seed ?? DEFAULT_SETTINGS.seed);
+    expect(got.missing, e.id).toBe(e.settings.missing ?? DEFAULT_SETTINGS.missing);
+  }
+});
+
+// Each example opens with the settings of its source (help page, demo, book):
+// the estimator's defaults where the source relies on them, its explicit
+// arguments otherwise. Sources: the R help pages (tools::Rd_db), the seminr
+// demo scripts and Hair et al. (2021); seminr's bootstrap_model() default is 500.
+describe('documented settings', () => {
+  const ex = (id: string) => PACKAGE_EXAMPLES.find((e) => e.id === id)!.settings;
+  it('cSEM examples use csem()’s defaults (PLSc, path scheme, 1e-05, 100 iterations, 499 resamples)', () => {
+    for (const id of ['csem-threecf', 'csem-satisfaction', 'csem-gender', 'csem-2ndorder', 'genpathmox-csibank']) {
+      expect(ex(id), id).toMatchObject({ plsPackage: 'cSEM', consistent: true, scheme: 'path', stopExp: 5, maxIter: 100, bootSamples: 499 });
+    }
+  });
+  it('the Henseler (2020, 2021) and Benitez examples set the factorial scheme and .tolerance = 1e-06', () => {
+    for (const id of ['csem-itflex', 'csem-yoo', 'csem-bergami', 'csem-switching', 'csem-russett', 'csem-lancelot', 'csem-benitez']) {
+      expect(ex(id), id).toMatchObject({ plsPackage: 'cSEM', consistent: true, scheme: 'factor', stopExp: 6, maxIter: 100, bootSamples: 499 });
+    }
+  });
+  it('seminr examples bootstrap as their demos do (ECSI and higher-order 1000; interaction 500; influencer the default 500; the book 1000 with seed 123)', () => {
+    for (const id of ['seminr-mobi', 'seminr-hoc', 'seminr-interaction', 'seminr-influencer', 'seminr-corprep']) {
+      expect(ex(id), id).toMatchObject({ plsPackage: 'seminr', consistent: false, scheme: 'path', missing: 'mean' });
+      expect(ex(id).stopExp, id).toBeUndefined();  // estimate_pls(): maxIt = 300, stopCriterion = 7 = the app's defaults
+    }
+    expect(ex('seminr-mobi').bootSamples).toBe(1000);
+    expect(ex('seminr-hoc').bootSamples).toBe(1000);
+    expect(ex('seminr-interaction').bootSamples).toBe(500);
+    expect(ex('seminr-influencer').bootSamples).toBe(500);
+    expect(ex('seminr-corprep')).toMatchObject({ bootSamples: 1000, seed: 123 });
+  });
+  it('plspm (centroid, 1e-06, 100) and semPLS (centroid, 1e-07, 20) examples use those packages’ defaults', () => {
+    expect(ex('plspm-rebus')).toMatchObject({ scheme: 'centroid', consistent: false, stopExp: 6, maxIter: 100 });
+    expect(ex('sempls-qsquared')).toMatchObject({ scheme: 'centroid', consistent: false, stopExp: 7, maxIter: 20 });
+  });
+  it('panel examples carry their help pages’ arguments: RSA() estimates by MLR, nca_analysis() runs no permutation test, mice() sets no seed', () => {
+    const panel = (id: string) => PACKAGE_EXAMPLES.find((e) => e.id === id)!.panel as Record<string, unknown>;
+    expect(panel('rsa-motcon')).toMatchObject({ estimation: 'MLR', center: 'none' });
+    expect(panel('nca-example')).toMatchObject({ permutations: 0 });
+    expect(ex('mice-nhanes')).toMatchObject({ missing: 'mi', miImputations: 5 });
+    expect(ex('mice-nhanes').seed).toBeUndefined();
+  });
 });

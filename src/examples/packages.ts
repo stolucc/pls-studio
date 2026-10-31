@@ -99,6 +99,14 @@ const MOBI = [c('Image', items('IMAG', 5), 'A'), c('Expectation', items('CUEX', 
 const CB = (estimator: Settings['estimator']): Partial<Settings> => ({ method: 'cbsem', estimator, missing: 'casewise' });
 const CPA: Partial<Settings> = { method: 'process', missing: 'casewise', probe: 'percentiles', hc: 'none' };
 const PLS = (plsPackage: 'cSEM' | 'seminr', consistent: boolean, scheme: Settings['scheme'] = 'path'): Partial<Settings> => ({ method: 'pls', plsPackage, consistent, scheme, missing: 'mean' });
+/**
+ * A cSEM help-page example: csem()'s defaults are consistent PLS, the path
+ * scheme, .tolerance = 1e-05, .iter_max = 100 and .R = 499 resamples; the
+ * Henseler (2020, 2021) examples set the factorial scheme and 1e-06.
+ */
+const CSEM = (consistent = true, scheme: Settings['scheme'] = 'path', stopExp = 5): Partial<Settings> => ({ ...PLS('cSEM', consistent, scheme), stopExp, maxIter: 100, bootSamples: 499 });
+/** A seminr example: estimate_pls()'s defaults match the app's (path weighting, mean replacement, 300 iterations, 1e-07); bootstrap_model() resamples as the demo does. */
+const SEMINR = (nboot: number, more: Partial<Settings> = {}): Partial<Settings> => ({ ...PLS('seminr', false), bootSamples: nboot, ...more });
 
 export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
@@ -191,7 +199,9 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Simulated customers (N = 400) in two segments: for one, satisfaction follows price; for the other, quality. The global model blurs them (GoF .49); REBUS-PLS recovers the segments (GQI .83). Opens its card on the Analyses tab.',
     data: { package: 'plspm', name: 'simdata' },
     constructs: [f('Price', items('mv', 5)), f('Quality', items('mv', 5, 6)), f('Satisfaction', items('mv', 3, 11))],
-    paths: [['Price', 'Satisfaction'], ['Quality', 'Satisfaction']], segmentation: { from: 2, to: 3 }, settings: { ...PLS('cSEM', false, 'centroid'), missing: 'casewise' },
+    paths: [['Price', 'Satisfaction'], ['Quality', 'Satisfaction']], segmentation: { from: 2, to: 3 },
+    // plspm()'s defaults: centroid scheme, tol = 1e-06, maxiter = 100 (no missing-value handling; simdata is complete).
+    settings: { ...PLS('cSEM', false, 'centroid'), missing: 'casewise', stopExp: 6, maxIter: 100 },
   },
   {
     id: 'ivreg-kmenta', package: 'ivreg', title: 'Supply and demand: two-stage least squares', source: 'ivreg, ?ivreg (Kmenta)',
@@ -240,7 +250,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     links: [{ label: '?RSA', url: 'https://rdrr.io/cran/RSA/man/RSA.html' }, { label: '?motcon', url: 'https://rdrr.io/cran/RSA/man/motcon.html' }, { label: 'Shanock et al. (2010)', url: 'https://doi.org/10.1007/s10869-010-9183-4' }],
     description: 'Does it matter whether explicit and implicit power motives match (N = 84)? Polynomial regression of positive affect on both motives, read along the lines of congruence and incongruence — the analysis of Schaarschmidt, Stol & Fitzgerald (EJIS 2025) on identification imbalance. RSA’s data, shipped with the app. Opens its card on the Analyses tab.',
     data: { package: 'RSA', name: 'motcon', file: 'examples/rsa/motcon.csv' }, constructs: [], paths: [],
-    panel: { kind: 'rsa', outcome: 'postVA', x: 'ePow', y: 'iPow', controls: [], estimation: 'OLS', center: 'none' }, settings: CB('ML'),
+    panel: { kind: 'rsa', outcome: 'postVA', x: 'ePow', y: 'iPow', controls: [], estimation: 'MLR', center: 'none' }, settings: CB('ML'),
   },
   {
     id: 'psych-bfi', package: 'psych', title: 'Big Five personality items: exploratory factor analysis', source: 'psych, ?bfi and ?fa (Revelle)',
@@ -260,9 +270,9 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'nca-example', package: 'NCA', title: 'Necessary conditions for innovation', source: 'NCA, ?nca_analysis (nca.example)',
     links: [{ label: '?nca_analysis', url: 'https://rdrr.io/cran/NCA/man/nca_analysis.html' }, { label: '?nca.example', url: 'https://rdrr.io/cran/NCA/man/nca.example.html' }, { label: 'Dul (2016)', url: 'https://doi.org/10.1177/1094428115584005' }],
-    description: 'Are individualism and risk taking necessary for innovation performance (28 countries)? Ceiling lines, effect sizes with a permutation test, and bottleneck tables. NCA’s data, shipped with the app. Opens its card on the Analyses tab.',
+    description: 'Are individualism and risk taking necessary for innovation performance (28 countries)? Ceiling lines, effect sizes and bottleneck tables, as nca_analysis(data, c(1, 2), 3) on the help page (no permutation test; set permutations on the card for one). NCA’s data, shipped with the app. Opens its card on the Analyses tab.',
     data: { package: 'NCA', name: 'nca.example', file: 'examples/nca/nca_example.csv' }, constructs: [], paths: [],
-    panel: { kind: 'nca', x: ['Individualism', 'Risk taking'], y: 'Innovation performance' }, settings: CB('ML'),
+    panel: { kind: 'nca', x: ['Individualism', 'Risk taking'], y: 'Innovation performance', permutations: 0 }, settings: CB('ML'),
   },
   {
     id: 'matchit-lalonde', package: 'MatchIt', title: 'Job training: propensity score matching', source: 'MatchIt, ?matchit (lalonde)',
@@ -327,7 +337,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Simulated data from a known three-factor model (N = 500). Consistent PLS recovers the population values; the help page runs the bootstrap test of overall fit (testOMF).',
     data: { package: 'cSEM', name: 'threecommonfactors' },
     constructs: [f('eta1', items('y1', 3, 1)), f('eta2', items('y2', 3, 1)), f('eta3', items('y3', 3, 1))],
-    paths: [['eta1', 'eta2'], ['eta1', 'eta3'], ['eta2', 'eta3']], settings: PLS('cSEM', true),
+    paths: [['eta1', 'eta2'], ['eta1', 'eta3'], ['eta2', 'eta3']], settings: CSEM(),
   },
   {
     id: 'csem-satisfaction', package: 'cSEM', title: 'Customer satisfaction (ECSI)', source: 'cSEM, satisfaction data; Tenenhaus et al. (2005) model',
@@ -336,16 +346,16 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'cSEM', name: 'satisfaction' },
     constructs: [f('IMAG', items('imag', 5)), f('EXPE', items('expe', 5)), f('QUAL', items('qual', 5)), f('VAL', items('val', 4)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['IMAG', 'SAT'], ['IMAG', 'LOY'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['EXPE', 'SAT'], ['QUAL', 'VAL'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['SAT', 'LOY']],
-    settings: PLS('cSEM', true),
+    settings: CSEM(),
   },
   {
     id: 'csem-gender', package: 'cSEM', title: 'Customer satisfaction: women and men (MICOM, MGA)', source: 'cSEM, ?testMICOM, ?testMGD (satisfaction_gender)',
     links: [{ label: '?testMICOM', url: 'https://rdrr.io/cran/cSEM/man/testMICOM.html' }, { label: '?testMGD', url: 'https://rdrr.io/cran/cSEM/man/testMGD.html' }, { label: '?satisfaction_gender', url: 'https://rdrr.io/cran/cSEM/man/satisfaction_gender.html' }],
-    description: 'The ECSI model (composites for image, expectations, quality and value; common factors for satisfaction and loyalty) for 148 women and 102 men. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? Opens its card on the Analyses tab.',
+    description: 'The ECSI model as on cSEM’s ?testMGD help page (composites for expectations, image, satisfaction and value; common factors for quality and loyalty, consistent PLS) for 148 women and 102 men. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? Opens its card on the Analyses tab.',
     data: { package: 'cSEM', name: 'satisfaction_gender' },
-    constructs: [c('IMAG', items('imag', 3)), c('EXPE', items('expe', 3)), c('QUAL', items('qual', 5)), c('VAL', items('val', 3)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
+    constructs: [c('IMAG', items('imag', 5)), c('EXPE', items('expe', 5)), f('QUAL', items('qual', 5)), c('VAL', items('val', 4)), c('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['QUAL', 'VAL'], ['IMAG', 'SAT'], ['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
-    assessment: { tab: 'groups', group: 'gender' }, settings: PLS('cSEM', false),
+    assessment: { tab: 'groups', group: 'gender' }, settings: CSEM(),
   },
   {
     id: 'csem-itflex', package: 'cSEM', title: 'IT infrastructure flexibility: confirmatory composite analysis', source: 'cSEM, ?ITFlex (Henseler 2021)',
@@ -354,7 +364,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'cSEM', name: 'ITFlex' },
     constructs: [c('ITComp', items('ITCOMP', 4)), c('Modul', items('MOD', 4)), c('ITConn', items('ITCONN', 4)), c('ITPers', items('ITPSF', 4))],
     paths: [['ITComp', 'ITPers'], ['Modul', 'ITPers'], ['ITConn', 'ITPers'], ['ITComp', 'Modul'], ['ITConn', 'Modul'], ['ITComp', 'ITConn']],
-    assessment: { tab: 'cca' }, settings: { ...PLS('cSEM', false, 'factor'), stopExp: 6 },
+    assessment: { tab: 'cca' }, settings: CSEM(true, 'factor', 6),
   },
   {
     id: 'csem-2ndorder', package: 'cSEM', title: 'Second-order construct: a common factor of composites', source: 'cSEM, ?csem (dgp_2ndorder_cf_of_c)',
@@ -364,7 +374,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: [c('c1', ['y11', 'y12']), c('c2', items('y2', 4)), c('c3', items('y3', 8)), f('eta1', items('y4', 3)), f('eta2', items('y5', 3)),
       { name: 'c4', type: 'factor', mode: 'A', components: ['c1', 'c2', 'c3'] }],
     paths: [['eta1', 'c4'], ['eta1', 'eta2'], ['c4', 'eta2']],
-    settings: PLS('cSEM', true),
+    settings: CSEM(),
   },
   {
     id: 'csem-yoo', package: 'cSEM', title: 'Brand equity: a composite of common factors (second order)', source: 'cSEM, ?Yooetal2000 (Henseler 2021)',
@@ -375,7 +385,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
       f('QL', items('QL', 6)), f('LO', ['LO1', 'LO3']), f('AA', items('AA', 6)),
       { name: 'BR', type: 'composite', mode: 'B', components: ['QL', 'LO', 'AA'] }],
     paths: [['PR', 'BR'], ['IM', 'BR'], ['DI', 'BR'], ['AD', 'BR'], ['DL', 'BR']],
-    settings: { ...PLS('cSEM', true, 'factor'), stopExp: 6 },
+    settings: CSEM(true, 'factor', 6),
   },
   {
     id: 'seminr-hoc', package: 'seminr', title: 'Satisfaction as a higher-order composite (two-stage)', source: 'seminr, demo(seminr-pls-higher_order)',
@@ -385,7 +395,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: [c('Image', items('IMAG', 5), 'A'), c('Expectation', items('CUEX', 3), 'A'), c('Quality', items('PERQ', 7), 'A'), c('Value', items('PERV', 2), 'A'),
       { name: 'Satisfaction', type: 'composite', mode: 'A', components: ['Image', 'Value'] }, c('Complaints', ['CUSCO'], 'A'), c('Loyalty', items('CUSL', 3), 'A')],
     paths: [['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty']],
-    settings: PLS('seminr', false),
+    settings: SEMINR(1000),
   },
   {
     id: 'semfindr-cfa', package: 'semfindr', title: 'Influential cases in a CFA', source: 'semfindr, ?cfa_dat2',
@@ -408,11 +418,11 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'mice-nhanes', package: 'mice', title: 'Multiple imputation: cholesterol by age and BMI', source: 'mice, ?mice (nhanes)',
     links: [{ label: '?mice', url: 'https://rdrr.io/cran/mice/man/mice.html' }, { label: '?nhanes', url: 'https://rdrr.io/cran/mice/man/nhanes.html' }],
-    description: 'The NHANES excerpt of mice’s help page (25 people, a third of the values missing): cholesterol regressed on age and BMI, with mice’s five imputations (seed 55152) pooled by Rubin’s rules. As a path model of observed variables in CB-SEM; the help page also uses hyp to impute.',
+    description: 'The NHANES excerpt of mice’s help page (25 people, a third of the values missing): cholesterol regressed on age and BMI, with mice’s five imputations (its default; the help page sets no seed) pooled by Rubin’s rules. As a path model of observed variables in CB-SEM; the help page also uses hyp to impute.',
     data: { package: 'mice', name: 'nhanes' },
     constructs: [v('age'), v('bmi'), v('chl')],
     paths: [['age', 'chl'], ['bmi', 'chl']], correlations: [['age', 'bmi', 'construct']],
-    settings: { ...CB('ML'), missing: 'mi', miImputations: 5, seed: 55152 },
+    settings: { ...CB('ML'), missing: 'mi', miImputations: 5 },
   },
   {
     id: 'lavaanmi-hs', package: 'lavaan.mi', title: 'CFA with multiply imputed data', source: 'lavaan.mi, ?lavaan.mi (HS20imps)',
@@ -438,7 +448,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     paths: [['QUAL', 'VAL'], ['IMAG', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
     segmentation: { method: 'pathmox', segments: [{ column: 'Gender' }, { column: 'Age', order: ['<=25', '26-35', '36-45', '46-55', '56-65', '>=66'] },
       { column: 'Education', order: ['Unfinished', 'Elementary', 'Highschool', 'Undergrad', 'Graduated'] }, { column: 'Occupation' }, { column: 'Region' }] },
-    settings: PLS('cSEM', true),
+    settings: CSEM(),
   },
   {
     id: 'csem-bergami', package: 'cSEM', title: 'Organisational identification', source: 'cSEM, ?BergamiBagozzi2000 (Henseler 2021)',
@@ -446,15 +456,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Bergami & Bagozzi (2000): organisational prestige and identification predicting affective commitment (love and joy), with gender as a single-indicator composite. Factorial scheme, PLSc.',
     data: { package: 'cSEM', name: 'BergamiBagozzi2000' },
     constructs: [f('OrgPres', items('cei', 8)), f('OrgIden', items('ma', 6)), f('AffLove', ['orgcmt1', 'orgcmt2', 'orgcmt3', 'orgcmt7']), f('AffJoy', ['orgcmt5', 'orgcmt8']), c('Gender', ['gender'])],
-    paths: [['OrgPres', 'OrgIden'], ...fan(['OrgPres', 'OrgIden', 'Gender'], ['AffLove', 'AffJoy'])], settings: PLS('cSEM', true, 'factor'),
+    paths: [['OrgPres', 'OrgIden'], ...fan(['OrgPres', 'OrgIden', 'Gender'], ['AffLove', 'AffJoy'])], settings: CSEM(true, 'factor', 6),
   },
   {
     id: 'csem-switching', package: 'cSEM', title: 'Switching intention: an interaction', source: 'cSEM, ?Switching (Henseler 2021)',
     links: [{ label: '?Switching', url: 'https://rdrr.io/cran/cSEM/man/Switching.html' }],
-    description: 'Does investment in a relationship moderate the effect of satisfaction on the intention to switch? cSEM models the interaction term INV.SAT as the product of the construct scores.',
+    description: 'Does investment in a relationship moderate the effect of satisfaction on the intention to switch? cSEM models the interaction term INV.SAT as the product of the construct scores. Factorial scheme, consistent PLS, as on the help page.',
     data: { package: 'cSEM', name: 'Switching' },
     constructs: [f('INV', items('INV', 4)), f('SAT', items('SAT', 3)), f('INT', items('INT', 2))],
-    paths: [['INV', 'INT'], ['SAT', 'INT']], moderations: [['INV', 'SAT', 'INT']], settings: PLS('cSEM', false, 'factor'),
+    paths: [['INV', 'INT'], ['SAT', 'INT']], moderations: [['INV', 'SAT', 'INT']], settings: CSEM(true, 'factor', 6),
   },
   {
     id: 'csem-russett', package: 'cSEM', title: 'Agricultural inequality and political instability', source: 'cSEM, ?Russett (Henseler 2020)',
@@ -462,7 +472,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Russett’s (1964) data on 47 countries: composites of agricultural inequality and industrial development predicting political instability.',
     data: { package: 'cSEM', name: 'Russett' },
     constructs: [c('AgrIneq', ['gini', 'farm', 'rent']), c('IndDev', ['gnpr', 'labo']), c('PolInst', ['inst', 'ecks', 'deat', 'stab', 'dict'])],
-    paths: [['AgrIneq', 'PolInst'], ['IndDev', 'PolInst']], settings: PLS('cSEM', false, 'factor'),
+    paths: [['AgrIneq', 'PolInst'], ['IndDev', 'PolInst']], settings: CSEM(true, 'factor', 6),
   },
   {
     id: 'csem-lancelot', package: 'cSEM', title: 'Privacy, trust and risk: mediation', source: 'cSEM, ?LancelotMiltgenetal2016 (Henseler 2020)',
@@ -470,7 +480,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Privacy concerns affect the intention to provide data directly and through trust and perceived risk (N = 1090). Bootstrap the indirect effects.',
     data: { package: 'cSEM', name: 'LancelotMiltgenetal2016' },
     constructs: [f('Trust', ['trust1', 'trust2']), f('PrCon', items('privcon', 4)), f('Risk', items('risk', 3)), f('Int', ['intent1', 'intent2'])],
-    paths: [['Trust', 'Int'], ['PrCon', 'Int'], ['Risk', 'Int'], ['Trust', 'Risk'], ['PrCon', 'Risk'], ['PrCon', 'Trust']], settings: PLS('cSEM', true, 'factor'),
+    paths: [['Trust', 'Int'], ['PrCon', 'Int'], ['Risk', 'Int'], ['Trust', 'Risk'], ['PrCon', 'Risk'], ['PrCon', 'Trust']], settings: CSEM(true, 'factor', 6),
   },
   {
     id: 'csem-benitez', package: 'cSEM', title: 'Social media capability and performance', source: 'cSEM, ?Benitezetal2020',
@@ -478,7 +488,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Benitez et al. (2020): firms’ social media capability (a composite) between external and internal social media use and business process performance, with firm size and industry as control composites.',
     data: { package: 'cSEM', name: 'Benitezetal2020' },
     constructs: [f('SEXB', items('SEXB', 4)), f('SEMB', items('SEMB', 4)), c('SMC', items('SMC', 4)), c('BPP', items('BPP', 5)), c('FS', ['FirmSize']), c('Ind', items('Industry', 3))],
-    paths: [['SEXB', 'SMC'], ['SEMB', 'SMC'], ['SMC', 'BPP'], ['Ind', 'BPP'], ['FS', 'BPP']], settings: PLS('cSEM', true, 'factor'),
+    paths: [['SEXB', 'SMC'], ['SEMB', 'SMC'], ['SMC', 'BPP'], ['Ind', 'BPP'], ['FS', 'BPP']], settings: CSEM(true, 'factor', 6),
   },
   {
     id: 'seminr-mobi', package: 'seminr', title: 'Mobile phone satisfaction (ECSI)', source: 'seminr, demo("seminr-pls-ecsi")',
@@ -487,7 +497,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'seminr', name: 'mobi' }, constructs: MOBI,
     paths: [...fan(['Image'], ['Expectation', 'Satisfaction', 'Loyalty']), ...fan(['Expectation'], ['Quality', 'Value', 'Satisfaction']), ...fan(['Quality'], ['Value', 'Satisfaction']),
       ['Value', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty'], ['Complaints', 'Loyalty']],
-    settings: PLS('seminr', false),
+    settings: SEMINR(1000),
   },
   {
     id: 'sempls-qsquared', package: 'cSEM', title: 'Mobile phone satisfaction: blindfolding Q²', source: 'semPLS, ?qSquared (ECSImobi on mobi)',
@@ -496,7 +506,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'seminr', name: 'mobi' }, constructs: MOBI,
     paths: [...fan(['Image'], ['Expectation', 'Satisfaction', 'Loyalty']), ...fan(['Expectation'], ['Quality', 'Value', 'Satisfaction']), ...fan(['Quality'], ['Value', 'Satisfaction']),
       ['Value', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty'], ['Complaints', 'Loyalty']],
-    assessment: { tab: 'blindfold', distance: 4 }, settings: PLS('cSEM', false, 'centroid'),
+    assessment: { tab: 'blindfold', distance: 4 }, settings: { ...PLS('cSEM', false, 'centroid'), stopExp: 7, maxIter: 20 },
   },
   {
     id: 'seminr-interaction', package: 'seminr', title: 'Moderated satisfaction', source: 'seminr, demo("seminr-pls-interaction")',
@@ -504,16 +514,16 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Do expectations and value moderate the effect of image on satisfaction? Two-stage interaction terms (the demo also shows the orthogonalising and product-indicator approaches).',
     data: { package: 'seminr', name: 'mobi' }, constructs: [MOBI[0], MOBI[1], MOBI[3], MOBI[4]],
     paths: [['Image', 'Satisfaction'], ['Expectation', 'Satisfaction'], ['Value', 'Satisfaction']],
-    moderations: [['Image', 'Expectation', 'Satisfaction'], ['Image', 'Value', 'Satisfaction']], settings: PLS('seminr', false),
+    moderations: [['Image', 'Expectation', 'Satisfaction'], ['Image', 'Value', 'Satisfaction']], settings: SEMINR(500),
   },
   {
     id: 'seminr-corprep', package: 'seminr', title: 'Corporate reputation (PLS-SEM primer)', source: 'seminr, corp_rep_data; Hair et al. (2021), chapter 5',
     links: [{ label: '?corp_rep_data', url: 'https://rdrr.io/cran/seminr/man/corp_rep_data.html' }, { label: 'Hair et al. (2021), PLS-SEM using R (open access)', url: 'https://doi.org/10.1007/978-3-030-80519-7' }],
-    description: 'The extended corporate reputation model: quality, performance, CSR and attractiveness (Mode B) driving competence and likeability, satisfaction and loyalty. Missing values (-99) are replaced by indicator means.',
+    description: 'The extended corporate reputation model: quality, performance, CSR and attractiveness (Mode B) driving competence and likeability, satisfaction and loyalty. Missing values (-99) are replaced by indicator means; 1,000 bootstrap subsamples with seed 123, as in the book.',
     data: { package: 'seminr', name: 'corp_rep_data', na: [-99] },
     constructs: [c('QUAL', items('qual_', 8)), c('PERF', items('perf_', 5)), c('CSOR', items('csor_', 5)), c('ATTR', items('attr_', 3)),
       c('COMP', items('comp_', 3), 'A'), c('LIKE', items('like_', 3), 'A'), c('CUSA', ['cusa'], 'A'), c('CUSL', items('cusl_', 3), 'A')],
-    paths: [...fan(['QUAL', 'PERF', 'CSOR', 'ATTR'], ['COMP', 'LIKE']), ...fan(['COMP', 'LIKE'], ['CUSA', 'CUSL']), ['CUSA', 'CUSL']], settings: PLS('seminr', false),
+    paths: [...fan(['QUAL', 'PERF', 'CSOR', 'ATTR'], ['COMP', 'LIKE']), ...fan(['COMP', 'LIKE'], ['CUSA', 'CUSL']), ['CUSA', 'CUSL']], settings: SEMINR(1000, { seed: 123 }),
   },
   {
     id: 'seminr-influencer', package: 'seminr', title: 'Influencer marketing', source: 'seminr, demo("seminr-pls-influencer") (Hair et al. 2021)',
@@ -522,7 +532,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'seminr', name: 'influencer_data' },
     constructs: [c('SIC', items('sic_', 7)), c('PL', items('pl_', 4), 'A'), c('PQ', items('pq_', 4), 'A'), c('PI', items('pi_', 5), 'A'), c('WTP', ['wtp'], 'A'), c('PIC', items('pic_', 5), 'A')],
     paths: [...fan(['SIC'], ['PL', 'PQ', 'PI']), ...fan(['PL', 'PQ', 'PIC'], ['PI']), ['PI', 'WTP']],
-    moderations: [['PQ', 'PIC', 'PI']], settings: PLS('seminr', false),
+    moderations: [['PQ', 'PIC', 'PI']], settings: SEMINR(500),
   },
   {
     id: 'haven-iris', package: 'haven', title: 'An SPSS file: Fisher’s iris measurements', source: 'haven, ?read_sav (iris.sav)',

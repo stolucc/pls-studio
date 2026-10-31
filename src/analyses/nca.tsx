@@ -10,7 +10,7 @@ import { c, pCell, Table } from '../components/results/Table';
 import { fingerprint } from './codec';
 import type { AnalysisCtx, AnalysisType } from './types';
 
-export type NcaPreset = { x: string[]; y: string; source?: 'data' | 'scores' };
+export type NcaPreset = { x: string[]; y: string; source?: 'data' | 'scores'; permutations?: number };
 export interface NcaOptions { source: 'data' | 'scores'; x: string[]; y: string; permutations: number }
 
 /** Effect size labels (Dul 2016): 0–0.1 small, 0.1–0.3 medium, 0.3–0.5 large, ≥ 0.5 very large. */
