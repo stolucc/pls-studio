@@ -1,11 +1,15 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const interruptR = vi.fn();
+vi.mock('../rengine/runtime', () => ({ interruptR: () => interruptR() }));
 import { serializeProject, parseProject } from '../model/project';
 import { useStore } from '../store';
-import { fingerprint } from './codec';
+import { fingerprint, packResult } from './codec';
+import { runHash } from './runHash';
 import { parseCards, shareableCards } from './persist';
 import { ANALYSIS_TYPES } from './registry';
 import {
-  addAnalysis, addFrozenCard, addText, cardStatus, currentCtx, duplicateCard, loadCards, MAX_CARDS, MAX_TEXT, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, setOptions, setText, setTitle, unpackCard, updateFrozenCard, useAnalyses,
+  addAnalysis, addFrozenCard, addText, cancelCard, cardStatus, currentCtx, duplicateCard, loadCards, MAX_CARDS, MAX_TEXT, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, setOptions, setText, setTitle, unpackCard, updateFrozenCard, useAnalyses,
 } from './store';
 import type { AnalysisCard, AnalysisType } from './types';
 
@@ -289,5 +293,109 @@ describe('frozen cards (model snapshots)', () => {
   it('caps text cards at MAX_TEXT characters', () => {
     const id = addText('note', 'x'.repeat(MAX_TEXT + 10))!;
     expect((a().cards.find((c) => c.id === id) as { text: string }).text).toHaveLength(MAX_TEXT);
+  });
+});
+
+describe('cancelling, corrupt stored results, replacing the log and display-only options', () => {
+  let release: ((v: { mean: number; values: Float64Array }) => void) | null = null;
+  const cancelled = vi.fn();
+  const slowType: AnalysisType<{ show: boolean; col: string }, { mean: number; values: Float64Array }> = {
+    id: 'test-slow', title: 'Slow mean', sub: 'test', group: 'Data', display: ['show'], cancel: cancelled,
+    defaults: () => ({ show: true, col: 'x' }), parseOptions: (raw) => raw as { show: boolean; col: string }, Options: () => null, View: () => null,
+    blocked: meanType.blocked, fingerprint: meanType.fingerprint, summary: (o) => o.col,
+    run: () => new Promise((r) => { release = r; }),
+  };
+  beforeEach(() => { if (!ANALYSIS_TYPES.includes(slowType)) ANALYSIS_TYPES.push(slowType); release = null; cancelled.mockClear(); interruptR.mockClear(); });
+  afterAll(() => { ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(slowType), 1); });
+
+  it('cancels a running card: no result, no error, R interrupted, a toast; nothing when it is not running', async () => {
+    setData([1, 2, 3]);
+    const id = addAnalysis('test-slow')!;
+    cancelCard(id);
+    expect(useStore.getState().toasts).toHaveLength(0);
+    const p = runCard(id);
+    expect(status(id)).toEqual({ state: 'running' });
+    cancelCard(id);
+    await p;
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(interruptR).toHaveBeenCalledTimes(1));
+    expect(useStore.getState().toasts.map((t) => t.text)).toEqual(['Calculation cancelled.']);
+    expect(status(id)).toEqual({ state: 'empty' });
+    expect(a().errors[id]).toBeUndefined();
+    expect(a().running[id]).toBeUndefined();
+    // A result that R still delivers afterwards goes nowhere.
+    release!({ mean: 1, values: Float64Array.from([1]) });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(a().results[id]).toBeUndefined();
+  });
+
+  it('reports a stored result it cannot read, once, and unpacks only what is still on the card', async () => {
+    setData([1, 2, 3]);
+    const id = addAnalysis('test-mean')!;
+    await runCard(id);
+    const good = card(id).run!;
+    useAnalyses.setState((s) => ({ results: {}, cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...good, packed: 'AAAA' } } : c)) }));
+    await unpackCard(id);
+    expect(a().errors[id]).toMatch(/^The stored result could not be read \(.+\)\. Run it again\.$/);
+    expect(a().results[id]).toBeUndefined();
+    expect(a().unpacking).toEqual({});
+    // Already unpacking, or no packed result: nothing happens.
+    useAnalyses.setState((s) => ({ errors: {}, unpacking: { [id]: true }, cards: s.cards.map((c) => (c.id === id ? { ...c, run: good } : c)) }));
+    await unpackCard(id);
+    expect(a().results[id]).toBeUndefined();
+    useAnalyses.setState({ unpacking: {} });
+    // The card changes while its result is being unpacked: the stale result is dropped.
+    const other = await packResult({ mean: 99, values: Float64Array.from([99]) });
+    const p = unpackCard(id);
+    useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...good, packed: other! } } : c)) }));
+    await p;
+    expect(a().results[id]).toBeUndefined();
+    await unpackCard(id);
+    expect((a().results[id] as { mean: number }).mean).toBe(99);
+  });
+
+  it('replacing the log cancels runs of cards that are gone and prunes their errors, running flags and selection', async () => {
+    setData([1, 2, 3]);
+    const slow = addAnalysis('test-slow')!, keep = addAnalysis('test-mean')!;
+    const p = runCard(slow);
+    useAnalyses.setState((s) => ({ errors: { ...s.errors, [slow]: 'e1', [keep]: 'e2' }, selected: slow }));
+    loadCards([card(keep)]);
+    await p;
+    expect(a().cards.map((c) => c.id)).toEqual([keep]);
+    expect(a().errors).toEqual({ [keep]: 'e2' });
+    expect(a().running).toEqual({});
+    expect(a().selected).toBeNull();
+    expect(a().results).toEqual({});
+    // The selection survives when its card does.
+    useAnalyses.setState({ selected: keep });
+    loadCards([card(keep)]);
+    expect(a().selected).toBe(keep);
+  });
+
+  it('ignores display-only options when deciding whether a result is current', async () => {
+    setData([1, 2, 3]);
+    const id = addAnalysis('test-slow')!;
+    const p = runCard(id);
+    release!({ mean: 2, values: Float64Array.from([1, 2, 3]) });
+    await p;
+    expect(status(id)).toEqual({ state: 'current' });
+    setOptions(id, { show: false, col: 'x' });
+    expect(status(id)).toEqual({ state: 'current' });
+    setOptions(id, { show: false, col: 'y' });
+    expect(status(id)).toEqual({ state: 'stale', why: 'The options changed since this ran.' });
+    // A run record whose options cannot be parsed: stale rather than a crash.
+    useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...card(id).run!, options: '{bad' } } : c)) }));
+    setOptions(id, { show: true, col: 'x' });
+    expect(status(id).state).toBe('stale');
+  });
+
+  it('marks a model run of another version as earlier', () => {
+    const st = useStore.getState();
+    const ctx = currentCtx();
+    const run = { at: 1, fingerprint: 'f', options: '{}', packed: 'AAAA' };
+    const mk = (hash: string): AnalysisCard => ({ id: 'r', kind: 'analysis', type: 'run', options: { hash }, run });
+    expect(cardStatus(mk('not-this'), ctx, false, true)).toEqual({ state: 'earlier' });
+    expect(cardStatus(mk(runHash(st.model, st.settings, st.data)), ctx, false, true)).toEqual({ state: 'current' });
+    expect(cardStatus({ ...mk('x'), run: { ...run, packed: undefined } }, ctx, false, false).state).toBe('missing');
   });
 });

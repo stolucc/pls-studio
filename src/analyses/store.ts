@@ -220,7 +220,8 @@ export async function unpackCard(id: string) {
     const now = useAnalyses.getState().cards.find((c) => c.id === id);
     if (now?.kind === 'analysis' && now.run?.packed === packed) useAnalyses.setState((st) => ({ results: { ...st.results, [id]: result } }));
   } catch (e) {
-    useAnalyses.setState((st) => ({ errors: { ...st.errors, [id]: `The stored result could not be read (${e instanceof Error ? e.message : String(e)}). Run it again.` } }));
+    const why = (e instanceof Error ? e.message : String(e)) || 'the stored data are corrupt';
+    useAnalyses.setState((st) => ({ errors: { ...st.errors, [id]: `The stored result could not be read (${why}). Run it again.` } }));
   } finally {
     useAnalyses.setState((st) => ({ unpacking: without(st.unpacking, id) }));
   }
