@@ -37,7 +37,7 @@ th { color: var(--text-2); font-weight: 600; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 24px; }
 footer { margin-top: 48px; color: var(--text-3); font-size: 13px; border-top: 1px solid var(--border); padding-top: 12px; }
 a { color: var(--accent); }
-@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } nav { position: static; max-height: none; } }
+@media (max-width: 760px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav { position: static; max-height: none; } table { display: block; overflow-x: auto; } }
 @media print { nav { display: none; } .wrap { grid-template-columns: 1fr; } }
 </style>
 </head>
