@@ -47,6 +47,7 @@ a { color: var(--accent); }
   <div class="brand">PLS Studio design</div>
   <ol>
     <li><a href="#1-the-shape-of-the-system">1. The shape of the system</a></li>
+    <li><a href="#1b-a-walk-through-a-session-what-happens-in-order">1b. A walk through a session (what happens, in order)</a></li>
     <li><a href="#2-repository-map">2. Repository map</a></li>
     <li><a href="#3-state-and-data-flow-in-the-browser">3. State and data flow in the browser</a></li>
     <li><a href="#4-the-built-in-engine">4. The built-in engine</a></li>
@@ -84,6 +85,9 @@ a { color: var(--accent); }
      └──────────────────────┘   └──────────────────────────────┘</pre>
 <p>Three facts organise everything:</p>
 <ol><li><strong>Calculations run on the user's machine</strong>, never on the server. The server only stores projects, syncs edits between collaborators and handles accounts. A project with no collaboration never contacts a server at all (the app also runs from a static host).</li><li><strong>The estimators are the reference R packages themselves</strong> (lavaan, cSEM, seminr, MIIVsem, semTools, modsem, manymome, mice, psych, ltm, lme4, …), compiled to WebAssembly by the webR project and served from the app's own origin. The app writes a small R <em>script</em> per calculation, runs exactly that script, and reads a JSON result back. The script is what the user downloads under &quot;R script&quot;, so what runs and what is exported are the same text.</li><li><strong>One working model.</strong> The Model tab holds the project's model; every other view reads it. The Analyses tab holds a log of cards (analyses, headings, notes, and model runs) saved with the project.</li></ol>
+<h2 id="1b-a-walk-through-a-session-what-happens-in-order">1b. A walk through a session (what happens, in order)</h2>
+<p>Reading this first makes the rest concrete. Nothing here needs a server except the two collaboration steps marked as such.</p>
+<ol><li><strong>The page loads.</strong> The browser fetches <code>index.html</code> and one JavaScript bundle (Vite, React). That is the whole app: the diagram editor, the tables, the built-in engine, and the code that knows how to talk to R. No R has been downloaded yet; the home screen appears in well under a second. (The bundle also carries the R <em>bridge</em> files, <code>src/rengine/R/*.R</code>, as plain text: they are sent to R later.)</li><li><strong>The person opens an example or imports a file.</strong> A CSV/SPSS/Stata/Excel file is parsed in the browser into columns of numbers (<code>src/engine/dataset.ts</code>, or R for SPSS/Stata/Excel). A package example's data come from the package itself: that is the first moment R is needed.</li><li><strong>R starts, in the browser.</strong> webR (§5.0) is downloaded from the app's own site: an 18 MB WebAssembly binary plus a small loader, started inside a Web Worker (a background thread), so the page stays responsive. This takes a few seconds once; the browser caches it.</li><li><strong>Packages load on demand.</strong> The first PLS calculation installs <code>cSEM</code> (or <code>seminr</code>) and what they depend on, downloaded as compiled <code>.tgz</code> bundles from the app's own package repository (<code>/webr/repo</code>, 286 packages pinned by version). A CB-SEM calculation installs <code>lavaan</code>; an analysis card installs its package. Each package is fetched once per session.</li><li><strong>Calculate.</strong> The app writes a short R script for the drawn model (§5.2), hands it to R with the data, R runs the package, and the app reads the numbers back as JSON. Results appear on the diagram and in the results panel, and a <em>model run</em> card is added to the Analyses log.</li><li><strong>Bootstrap.</strong> The samples are split into chunks; extra R sessions (more Workers) are started so chunks run in parallel; the draws are merged.</li><li><strong>Analyses.</strong> Each card on the Analyses tab is one more script: another package, the same data (or the construct scores), results stored with the card.</li><li><strong>Save.</strong> A project file (<code>.plsproj.json</code>) holds the model, settings, data and the log with its packed results. Autosave keeps recent projects in the browser's storage. &quot;R script&quot; and the replication package export the exact scripts that ran.</li><li><strong>Share</strong> (server). Signing in and inviting someone puts the project in a Y.js document that the server relays between browsers; the dataset is uploaded encrypted; calculations still run on each person's own machine.</li><li><strong>Desktop R</strong> (optional, local). With the helper installed, the same scripts run in the R installed on the computer, several times faster, on all cores; the browser falls back to webR whenever the helper is not there.</li></ol>
 <h2 id="2-repository-map">2. Repository map</h2>
 <table>
 <tr><th>Path</th><th>What lives there</th></tr>
@@ -111,30 +115,327 @@ a { color: var(--accent); }
 <p><strong>Calculate.</strong> <code>runner.run(kind)</code> (<code>estimate</code> | <code>boot</code> | <code>fittest</code>): validates the model (<code>validateModel</code>), refuses without data, computes the key, then either posts a request to a Web Worker (built-in engine) or calls the R bridge (R engine). On completion it <code>setResults</code> and calls <code>logCurrentRun()</code> so the Analyses log records the version. On the Analyses tab, Calculate acts on the selected card instead (<code>src/analyses/calculate.ts</code>).</p>
 <h2 id="4-the-built-in-engine">4. The built-in engine</h2>
 <p><code>src/engine</code> reimplements PLS (Mode A/B, path/centroid/factor schemes, PLSc, HTMT, fit discrepancies, IPMA), CB-SEM by ML/GLS/ULS/MLM/MLMV/MLR, MIIV-2SLS and the bootstrap, in TypeScript with its own linear algebra. It exists so the app works before R has loaded, on devices that cannot run webR, and as a second implementation to check the bridge against. It runs in Web Workers (<code>src/worker.ts</code>); the bootstrap splits its samples into ranges across one worker per core (<code>workerCount()</code>), and the parts are merged (<code>engine/bootstrap.ts</code>). Its numbers are tested against the packages' fixtures to 1e-5 (README, &quot;Validation&quot;).</p>
+<pre>// src/worker.ts — the messages between the page and an engine worker
+export type WorkerRequest =
+  | { kind: 'pls'; data: Dataset; spec: ModelSpec; options: PlsOptions }
+  | { kind: 'cb'; data: Dataset; spec: ModelSpec; options: PlsOptions; estimator: CbEstimator }
+  | { kind: 'miiv'; data: Dataset; spec: ModelSpec; options: PlsOptions }
+  | { kind: 'range'; range: RangeRequest }     // a range of bootstrap samples
+  | { kind: 'mc'; task: McTask };              // a slice of a Monte Carlo design
+export type WorkerResponse =
+  | { kind: 'progress'; done: number; total: number }
+  | { kind: 'pls'; result: PlsResult } | { kind: 'cb'; result: CbResult } | { kind: 'miiv'; result: MiivResult }
+  | { kind: 'range'; part: RangePart } | { kind: 'mc'; part: McPart }
+  | { kind: 'error'; message: string };</pre>
 <h2 id="5-the-r-engine-how-the-front-end-talks-to-r">5. The R engine: how the front end talks to R</h2>
+<h3 id="5-0-what-webr-is-for-readers-who-have-not-met-it">5.0 What webR is, for readers who have not met it</h3>
+<p>R is a C/Fortran program. <strong>WebAssembly</strong> (WASM) is a binary format that every modern browser can execute at near-native speed, in a sandbox: it cannot read files, open sockets or touch the page except through functions the host JavaScript gives it. <strong>webR</strong> (the r-wasm project) is R itself compiled to WebAssembly, with a JavaScript API around it. Concretely, for PLS Studio:</p>
+<ul><li><code>public/webr/R.wasm</code> (18 MB) is the R interpreter; <code>R.js</code> and <code>webr-worker.js</code> load it; <code>vfs/</code> holds R's base library as a snapshot of a file system. The same files on every visit, from the app's own origin, cached by the browser (an hour, then revalidated).</li><li>R runs inside a <strong>Web Worker</strong>: a thread separate from the page. The page sends it R code and receives results; a long calculation never freezes the UI. The Worker has an in-memory <strong>virtual file system</strong>: when a package is &quot;installed&quot;, its compiled files are written there, and when data is handed to R it lives in that memory. Nothing is written to the computer's disk and nothing is sent anywhere.</li><li>An <strong>R package</strong> for webR is the same package source compiled for WebAssembly. CRAN does not ship these; the r-wasm project builds them (<code>repo.r-wasm.org</code>). PLS Studio does not fetch from there at run time: <code>scripts/webr/fetch.mjs</code> downloads the pinned versions once, with their source tarballs (GPL), into <code>public/webr/repo</code>, and the app installs from its own copy. So the package versions a user gets are exactly those the tests ran against, and they cannot change under the app.</li><li>The page must be <strong>cross-origin isolated</strong> (<code>Cross-Origin-Opener-Policy: same-origin</code> and <code>Cross-Origin-Embedder-Policy: require-corp</code> headers). Browsers only allow <code>SharedArrayBuffer</code> on such pages, and webR uses it as the channel between page and Worker; it is what makes <strong>interrupting</strong> a running R computation possible (Cancel). The server sets these headers; a static host must too.</li><li>The <strong>Content Security Policy</strong> forbids inline scripts and <code>eval</code> on the page. WebAssembly compilation needs <code>wasm-unsafe-eval</code>; webR's Worker script additionally needs <code>unsafe-eval</code> (Emscripten builds some package code with it), so that one script response gets a policy of its own (<code>WEBR_WORKER_CSP</code> in <code>server/src/app.ts</code>); the page keeps the strict one.</li><li>Limits: one R session is single-threaded (parallel work uses several sessions); it is some 2–5× slower than native R; a crash in a package's compiled code takes the session down, which the runtime detects (<code>isWasmCrash</code>) and restarts for the next calculation; and the browser tab's memory is the ceiling, which is why results are size-capped before they are stored.</li></ul>
 <h3 id="5-1-loading-r">5.1 Loading R</h3>
-<p><code>src/rengine/runtime.ts</code> starts webR lazily, in a Web Worker, with the SharedArrayBuffer channel (so R can be interrupted; this needs a cross-origin isolated page, which the server's COOP/COEP headers provide). <code>baseUrl</code> and <code>repoUrl</code> point at the app's own <code>/webr/</code> directory: runtime files and a pinned CRAN-like repository. Packages are installed into the WASM file system on first use per session (<code>withSession</code> tracks <code>installed</code>); the bridge's R source files are <code>source()</code>d once per session (<code>sourced</code>). Session 0 serves all ordinary calculations; sessions 1… are started only for parallel work (bootstrap and permutation chunks) and each is another webR instance in its own Worker. <code>parallelMap()</code> schedules items over sessions.</p>
-<h3 id="5-2-requests-and-results">5.2 Requests and results</h3>
+<p><code>src/rengine/runtime.ts</code> starts webR lazily: the first call that needs R triggers it. Every call goes through <code>withSession(index, packages, sources, fn)</code>, which queues work per session and does, in order, whatever is still missing:</p>
+<pre>withSession(0, ['cSEM'], SOURCES, fn)
+  │
+  ├─ start(session 0)        new WebR({ baseUrl: '/webr/', repoUrl: '/webr/repo/', channelType: SharedArrayBuffer })
+  │                          await webR.init()               ← downloads R.wasm once; &quot;Starting R…&quot; in the status bar
+  │                          options(expressions = 5e5)      ← cSEM's resampling recurses deeper than webR's default
+  ├─ installPackages(missing) cSEM and its dependencies from /webr/repo → the Worker's virtual file system
+  │                          then: packageVersion() of each, shown in About and with every result
+  ├─ evalRVoid(source files)  the bridge (common.R, pls.R, …) defined in R's global environment, once per session
+  └─ fn(webR)                 the actual call, e.g. evalRString('ps_call(&quot;ps_pls&quot;, req)', { env: { req: json } })</pre>
+<p><code>baseUrl</code> and <code>repoUrl</code> point at the app's own <code>/webr/</code> directory. Session 0 serves all ordinary calculations; sessions 1… are started only for parallel work (bootstrap and permutation chunks), each another webR instance in its own Worker with its own packages and sources. <code>parallelMap()</code> schedules items over sessions. A session that crashed (compiled code hitting a WASM trap) is discarded and the next call starts a fresh one. The status of session 0 is a small store (<code>useR</code>: idle / loading / ready / error, with package versions) that the UI shows.</p>
+<h3 id="5-2-requests-and-results-the-bridge">5.2 Requests and results: the bridge</h3>
+<p>&quot;Bridge&quot; means the pair of layers that let TypeScript and R talk without either embedding the other's code: on the TypeScript side a module per analysis that turns app objects into a JSON request and a JSON result back into typed objects; on the R side a function per analysis that turns that request into an R script, runs it and returns JSON. Both sides are plain data at the boundary, which is what makes the boundary safe (§5.6) and testable (the recorded corpus).</p>
 <p>Every call is <code>rCall(fn, req, pkg)</code> in <code>src/rengine/bridge.ts</code>:</p>
 <ul><li><code>fn</code> is a bridge function in R, always named <code>ps_*</code> (<code>ps_pls</code>, <code>ps_cb</code>, <code>ps_boot</code>, <code>ps_endo</code>, …), defined in <code>src/rengine/R/*.R</code>; those files are imported as raw strings and sent to R as <code>SOURCES</code>.</li><li><code>req</code> is a plain JSON object: the data (<code>names</code>, <code>cols</code>), the model specification from <code>toSpec()</code>, and options. The TS module for the analysis (<code>src/rengine/pls.ts</code>, <code>lavaan.ts</code>, …) builds it; nothing user-typed goes in as R code.</li><li><code>pkg</code> names the package set to install first (<code>R_PACKAGES</code>).</li></ul>
 <p>In R, <code>ps_call(fn, req)</code> (src/rengine/R/common.R) is the single entry point: it checks that <code>fn</code> is a <code>ps_*</code> function taking <code>req_json</code>, parses and validates the request (<code>ps_validate</code>: every enumerated option against its allowed values, every number finite), and calls the function with a warning handler. The function:</p>
 <ol><li><strong>Builds a script</strong> as a character vector: data preparation, the model in the package's syntax (lavaan model syntax, cSEM/seminr syntax), the package call, and the post-processing it needs. Names are made safe first: <code>ps_ident()</code> turns construct and indicator names into identifiers (<code>&quot;Service quality&quot;</code> → <code>Service_quality</code>) and keeps a map back to the user's names; strings inside the script go through <code>ps_sq()</code>; user expressions that must reach the package as code (<code>:=</code> definitions, inequality constraints, Wald constraints) go through <code>ps_expr()</code>, a parser that admits arithmetic over parameter labels and nothing else (the client has the same grammar in <code>src/model/expr.ts</code>).</li><li><strong>Runs that script</strong> with <code>ps_run(lines, inputs)</code> in a fresh environment holding the inputs (<code>data</code>, <code>S</code>, <code>N</code>, <code>NACOV</code>, …), collecting warnings.</li><li><strong>Reads the results</strong> back from the fitted object into a list with the user's names restored, and returns <code>ps_json(list)</code>.</li></ol>
+<p>In code, the whole chain for a PLS calculation:</p>
+<pre>// src/rengine/pls.ts — the request is plain data: no R code, no user text as code
+export function plsRequest(data0: Dataset, spec0: ModelSpec, options: PlsOptions, pkg: PlsPackage): PlsRequest {
+  const { data, spec } = expandCategorical(data0, spec0);          // dummies for categorical exogenous constructs
+  const used = new Set(spec.constructs.flatMap((c) =&gt; c.indicators));
+  const keep = data.names.map((n, i) =&gt; [n, i] as const).filter(([n]) =&gt; used.has(n));
+  return {
+    kind: 'pls', package: pkg, missing: options.missing,
+    options: { scheme: options.scheme, consistent: !!options.consistent, tolerance: options.tolerance, maxIter: options.maxIter, approach: options.approach ?? 'PLS-PM' },
+    data: { names: keep.map(([n]) =&gt; n), cols: keep.map(([, i]) =&gt; Array.from(data.cols[i], (v) =&gt; (Number.isNaN(v) ? null : v))) },
+    model: spec,                                                    // toSpec(model): names, types, modes, indicators, paths
+  };
+}
+export async function estimatePlsR(data, spec, options, pkg) {
+  return parsePlsOutput(await rCall('ps_pls', plsRequest(data, spec, options, pkg), plsPackages(pkg, options)));
+}</pre>
+<pre>// src/rengine/bridge.ts — one entry point for every R call
+export async function rCall&lt;T&gt;(fn: string, req: unknown, pkg: RPackage): Promise&lt;T&gt; {
+  const h = await viaHelper(fn, req, pkg, false);                   // desktop R chosen and ready? its answer
+  if (h !== null) return reported(fromDesktop&lt;T&gt;(h), pkg);
+  return reported(await withR([...R_PACKAGES[pkg]], SOURCES, (webR) =&gt; callJson(webR, `ps_call(&quot;${fn}&quot;, req)`, req)) as T, pkg);
+}</pre>
+<pre>// src/rengine/runtime.ts — the request reaches R as a string bound to `req`; R answers a string
+export function callString(webR: WebR, call: string, req: unknown): Promise&lt;string&gt; {
+  const json = encode(req);
+  return webR.evalRString(call, { env: { req: json } });
+}</pre>
+<pre># src/rengine/R/common.R — the only door into the bridge
+ps_call &lt;- function(fn, req, export = FALSE) {
+  if (!(is.character(fn) &amp;&amp; length(fn) == 1 &amp;&amp; grepl(&quot;^ps_[a-z0-9_]+$&quot;, fn))) stop(&quot;Invalid bridge function.&quot;)
+  f &lt;- get(fn, envir = globalenv(), mode = &quot;function&quot;)
+  if (!identical(names(formals(f))[1], &quot;req_json&quot;)) stop(&quot;Invalid bridge function.&quot;)
+  .ps_state$warnings &lt;- character(0); .ps_state$notes &lt;- character(0)
+  withCallingHandlers(if (isTRUE(export)) f(req, export = TRUE) else f(req),
+    warning = function(w) {
+      m &lt;- conditionMessage(w)
+      if (ps_irrelevant(m)) NULL else if (ps_advisory(m)) ps_note(m) else ps_warning(m)
+      invokeRestart(&quot;muffleWarning&quot;)
+    })
+}</pre>
+<pre># src/rengine/R/pls.R — build the script, run it, read the fit; or return the script
+ps_pls &lt;- function(req_json, export = FALSE) {
+  req &lt;- ps_parse(req_json)                                  # JSON -&gt; list, validated (ps_validate)
+  b &lt;- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE)  # b$body: the script lines; b$inputs: data
+  if (export) return(paste(ps_script(title, b$pkg, b$inputs, b$body, report), collapse = &quot;\n&quot;))
+  ps_json(ps_htmt_notes(ps_pls_out(req, b, ps_run(b$body, b$inputs))))
+}
+# ... inside ps_pls_build, the cSEM call is composed from sanitised pieces only:
+body &lt;- c(&quot;suppressPackageStartupMessages(library(cSEM))&quot;, ps_missing_code(req$missing),
+  &quot;model &lt;- '&quot;, paste0(&quot;  &quot;, lines), &quot;'&quot;,                     # lines: &quot;Trust =~ TR1 + TR2 + TR3&quot;, built from ps_ident() names
+  sprintf(&quot;fit &lt;- csem(data, model, .PLS_modes = %s, .PLS_weight_scheme_inner = \&quot;%s\&quot;, .disattenuate = %s, .tolerance = %s, .iter_max = %d)&quot;,
+    modes, scheme, if (isTRUE(o$consistent)) &quot;TRUE&quot; else &quot;FALSE&quot;, format(tolerance, scientific = TRUE), as.integer(o$maxIter)))</pre>
+<pre># src/rengine/R/common.R — the script runs in its own environment; warnings are collected, not lost
+ps_run &lt;- function(lines, inputs) {
+  env &lt;- list2env(inputs, envir = new.env(parent = globalenv()))
+  warn &lt;- character(0)
+  withCallingHandlers(eval(parse(text = paste(lines, collapse = &quot;\n&quot;)), envir = env),
+    warning = function(w) { m &lt;- ps_flat(conditionMessage(w)); if (!ps_irrelevant(m)) { if (ps_advisory(m)) ps_note(m) else warn &lt;&lt;- c(warn, m) }; invokeRestart(&quot;muffleWarning&quot;) })
+  env$.warnings &lt;- unique(warn)
+  env
+}</pre>
+<p>The sequence, for Calculate with the R packages in the browser:</p>
+<pre>UI (TopBar)      runner.ts            rengine/pls.ts        bridge.ts           runtime.ts (webR)         R (ps_* in a Worker)
+   │ Calculate      │                      │                    │                    │                          │
+   ├───────────────▶│ validateModel()      │                    │                    │                          │
+   │                │ key = resultsKey()   │                    │                    │                          │
+   │                ├─ estimatePlsR ──────▶│ plsRequest()       │                    │                          │
+   │                │                      ├─ rCall('ps_pls') ─▶│ viaHelper → null   │                          │
+   │                │                      │                    ├─ withR(pkgs, SOURCES, fn) ───────────────────▶│
+   │                │                      │                    │                    │ start webR if needed     │
+   │                │                      │                    │                    │ installPackages(missing) │
+   │                │                      │                    │                    │ evalRVoid(source files)  │
+   │                │                      │                    │                    ├─ evalRString('ps_call(&quot;ps_pls&quot;, req)', {env:{req}})
+   │                │                      │                    │                    │        ps_parse → build → ps_run → ps_json
+   │                │                      │                    │                    │◀──────── JSON ───────────┤
+   │                │                      │                    │◀── parsed object ──┤                          │
+   │                │                      │◀─ parsePlsOutput ──┤ reported(): warnings/notes → Messages        │
+   │                │◀─ PlsResult ─────────┤                    │                    │                          │
+   │                │ setResults({pls}, key); logCurrentRun()   │                    │                          │
+   │◀── re-render ──┤ (diagram estimates, results panel, run card in the Analyses log)                          │</pre>
 <p><code>ps_call(fn, req, export = TRUE)</code> returns the script text instead of running it: with the data embedded (<code>ps_script()</code> adds a header naming the package versions and <code>install.packages(...)</code>, the data as CSV text, the calculation, and a report section). That is the &quot;R script&quot; button, the replication package's scripts, and a guarantee: the exported script is the calculation.</p>
 <p>Results arrive as JSON with two side channels: <code>warnings</code> (the packages' warnings and anything optional that could not be computed; the app flags them after a calculation) and <code>notes</code> (explanations of a result or a package's advice; listed as information, shown under the table they concern). <code>rengine/notices.ts</code> routes both into Messages.</p>
 <p>Optional statistics are wrapped in <code>ps_try(expr, &quot;what&quot;)</code>: a failure becomes a warning that names what was lost, and the rest of the result stands.</p>
 <h3 id="5-3-parallel-work">5.3 Parallel work</h3>
 <p>The R bootstrap and permutation tests run as chunks of samples (<code>rCallParallel</code>), each a full call on its own R session, merged on the TS side (<code>engine/bootstrap.ts</code> merges draws; cSEM's own resampling is used within a chunk). Progress is reported per chunk. The number of sessions comes from <code>parallelism()</code>: all cores but one in the browser (capped), or the desktop helper's pool.</p>
+<pre>// src/rengine/bridge.ts — the same chunks go to the helper's pool as one streamed batch, or to webR sessions
+export async function rCallParallel&lt;T&gt;(fn: string, reqs: unknown[], pkg: RPackage, onDone?: (done: number) =&gt; void): Promise&lt;T[]&gt; {
+  const p = await parallelism();
+  if (p.where === 'desktop') {
+    try { return (await helperBatch(fn, reqs.map(toJson), [...R_PACKAGES[pkg]], onDone)).map((r) =&gt; reported(fromDesktop&lt;T&gt;(r), pkg)); }
+    catch (e) { if (e instanceof HelperUnavailable) fallbackNotice(e.message); else throw e; }
+  }
+  return parallelMap(reqs, useCompute.getState().workers, (req, session) =&gt;
+    withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) =&gt; callJson(webR, `ps_call(&quot;${fn}&quot;, req)`, req)).then((r) =&gt; reported(r as T, pkg)), onDone);
+}</pre>
+<pre>bootstrap of 1,000 samples, 4 sessions in the browser:
+
+ analyses.ts        bridge.rCallParallel          runtime.parallelMap            webR sessions
+     │ splitRanges(1000, 4) → 4 requests {boot:{chunkR, seed+k}}                       │
+     ├──────────────────────▶│                           │                            │
+     │                       ├─ parallelMap(reqs, 4) ───▶│ session 0 ◀── req 1 ──────▶│ (main session, already warm)
+     │                       │                           │ session 1 ◀── req 2 ──────▶│ (started now: webR + packages + sources)
+     │                       │                           │ session 2 ◀── req 3 ──────▶│
+     │                       │                           │ session 3 ◀── req 4 ──────▶│
+     │                       │                           │ onDone(k) as each finishes │
+     │◀── 4 results ─────────┤◀──────────────────────────┤                            │
+     │ mergeBootstrap(parts) → one BootstrapResult (means, SDs, percentiles)           │</pre>
 <h3 id="5-4-interrupting">5.4 Interrupting</h3>
 <p><code>interruptR()</code> interrupts every webR session (possible because of the SharedArrayBuffer channel) and cancels helper calls; the runner discards results whose token no longer matches.</p>
 <h3 id="5-5-the-desktop-helper">5.5 The desktop helper</h3>
-<p><code>pls-studio-helper</code> (helper/) is optional. It binds <code>127.0.0.1:9878</code>, keeps a pool of native R processes (all cores but one by default, <code>r_workers</code> in its config), and serves: <code>/health</code>, <code>/pair</code>, <code>/connect</code>, <code>/version</code>, <code>/packages</code>, <code>/call</code>, <code>/batch</code>, <code>/cancel/:id</code>. <code>/call</code> takes the same <code>{fn, req}</code> and runs the same <code>ps_call</code> in native R, with the bridge sources it embeds (<code>helper/rsrc</code>). The client (<code>src/rengine/helper.ts</code>) probes it, compares the SHA-256 of the bridge sources it has with the helper's (<code>/version</code> → <code>bridge</code>), and uses it only when they match (&quot;built for another version&quot; otherwise). When the person has chosen Desktop R under &quot;Calculated by&quot;, every <code>rCall</code> goes to the helper first (<code>viaHelper</code>) and falls back to webR if it is not available. Security: an Origin allow list (dev origins by default; a deployment is added with <code>pls-studio-helper allow-origin &lt;url&gt;</code>), a Host check against DNS rebinding, a bearer token issued once per browser after the person clicks Allow in the helper's dialog (or types a pairing code), per-origin rate limits, and its own injection test that replays the recorded request corpus (<code>scripts/security/corpus.jsonl</code>) through the R bridge.</p>
+<p><code>pls-studio-helper</code> (helper/) is optional. It binds <code>127.0.0.1:9878</code>, keeps a pool of native R processes (all cores but one by default, <code>r_workers</code> in its config), and serves:</p>
+<table>
+<tr><th>Route</th><th>Auth</th><th>Purpose</th></tr>
+<tr><td><code>GET /health</code></td><td>origin</td><td>Is a helper running?</td></tr>
+<tr><td><code>POST /connect</code></td><td>origin</td><td>Ask the person, in the helper's own dialog, to allow this browser; answers a bearer token</td></tr>
+<tr><td><code>POST /pair</code></td><td>origin</td><td>The same with a 6-digit code shown by the helper (no tray)</td></tr>
+<tr><td><code>GET /version</code></td><td>token</td><td>Helper version, R version, worker count, and the SHA-256 of its R bridge</td></tr>
+<tr><td><code>POST /packages</code></td><td>token</td><td>Which of the named R packages its R has, with versions</td></tr>
+<tr><td><code>POST /call</code></td><td>token</td><td><code>{id, fn, req, export, packages}</code> → <code>{id, ok, result}</code>: one bridge call</td></tr>
+<tr><td><code>POST /batch</code></td><td>token</td><td>Many calls of one <code>fn</code>, run on all R processes, replies streamed as they finish</td></tr>
+<tr><td><code>POST /cancel/:id</code></td><td>token</td><td>Interrupt a running call (its R process is killed and replaced)</td></tr>
+</table>
+<p><strong>Same bridge, same check.</strong> The helper embeds <code>helper/rsrc</code>, a verbatim copy of <code>src/rengine/R</code> (a Go test fails if they differ), and the two sides compare hashes before any call. The browser hashes the sources it was built with; the helper hashes the files it embeds:</p>
+<pre>// src/rengine/helper.ts
+export async function bridgeHash(sources: Record&lt;string, string&gt;): Promise&lt;string&gt; {
+  const names = Object.keys(sources).sort((a, b) =&gt; (`${a}.R` &lt; `${b}.R` ? -1 : 1));
+  const text = names.map((n) =&gt; `${n}\n${sources[n]}\n`).join('');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), (b) =&gt; b.toString(16).padStart(2, '0')).join('');
+}
+// probeHelper(): /health → token? → /version → hash equal? → /packages → 'ready'
+if (raw.bridge !== await bridgeHash(sources)) return set('mismatch', `This site’s R code is newer than the helper installed here (helper ${info.helperVersion}) …`);</pre>
+<p><strong>Routing a call.</strong> With Desktop R chosen under &quot;Calculated by&quot;, <code>rCall</code> asks the helper first and falls back to webR when the helper is absent, unpaired, lacks a package, or stopped:</p>
+<pre>// src/rengine/bridge.ts
+async function viaHelper(fn: string, req: unknown, pkg: RPackage, exportScript: boolean): Promise&lt;string | null&gt; {
+  if (useCompute.getState().backend !== 'helper') return null;
+  await checkHelper();
+  const h = useHelper.getState();
+  if (h.state !== 'ready') { fallbackNotice(`Desktop R is not available (${h.message || h.state}).`); return null; }
+  // cSEM / seminr resampling: all the helper's cores in this one R process (not when drawing chunks).
+  const cores = MULTICORE.has(fn) &amp;&amp; !(req as { boot?: { chunkR?: unknown } }).boot?.chunkR ? Math.max(1, h.info?.workers ?? 1) : undefined;
+  try { return await helperCall(fn, toJson(cores ? { ...(req as object), cores } : req), [...R_PACKAGES[pkg]], exportScript); }
+  catch (e) {
+    if (e instanceof HelperMissingPackages) { fallbackNotice(`${e.message} Install them … pls-studio-helper setup.`); return null; }
+    if (e instanceof HelperUnavailable) { fallbackNotice(e.message); return null; }
+    throw e;                                                   // an R error is an R error, wherever R ran
+  }
+}</pre>
+<pre>// src/rengine/helper.ts — one call over HTTP; 429 is waited out (the helper rate-limits per origin)
+export async function helperCall(fn: string, req: string, packages: string[], exportScript = false): Promise&lt;string&gt; {
+  const id = newId();
+  running.add(id);                                                // cancelHelperCalls() posts /cancel/&lt;id&gt; for these
+  let r: Response;
+  try { r = await postRetrying('/call', JSON.stringify({ id, fn, req, export: exportScript, packages })); }
+  catch { useHelper.setState({ state: 'absent', message: 'The helper stopped.' }); throw new HelperUnavailable('The desktop R helper is not reachable.'); }
+  finally { running.delete(id); }
+  if (r.status === 401) { setToken(''); useHelper.setState({ state: 'unpaired', message: 'Pair again.' }); throw new HelperUnavailable('…pair again.'); }
+  if (!r.ok) throw new HelperUnavailable(`The helper answered ${r.status}.`);
+  return resultOf(await r.json() as Reply);                      // ok → result; missing_packages / helper_error → HelperUnavailable; R error → Error
+}</pre>
+<p>On the Go side, <code>/call</code> validates the body strictly (unknown fields refused, <code>fn</code> must be a <code>ps_*</code> name, size-capped), registers the job so <code>/cancel</code> can find it, and hands it to the pool:</p>
+<pre>// helper/server.go
+func (s *server) handleCall(w http.ResponseWriter, r *http.Request) {
+	if wait, ok := s.limiter.allow(); !ok { w.Header().Set(&quot;Retry-After&quot;, …); http.Error(w, &quot;rate limit exceeded&quot;, 429); return }
+	r.Body = http.MaxBytesReader(w, r.Body, callMaxBodyBytes)
+	dec := json.NewDecoder(r.Body); dec.DisallowUnknownFields()
+	if err := dec.Decode(&amp;req); err != nil { http.Error(w, &quot;bad request body&quot;, 400); return }
+	if err := req.validate(); err != nil || strings.HasPrefix(req.Fn, &quot;ps_helper&quot;) { http.Error(w, &quot;invalid request&quot;, 400); return }
+	ctx, cancel := context.WithCancel(r.Context()); defer cancel()
+	if !s.jobs.register(req.ID, cancel) { http.Error(w, &quot;duplicate id&quot;, 409); return }
+	defer s.jobs.deregister(req.ID)
+	rep, err := s.pool.call(ctx, &amp;req)
+	…
+}</pre>
+<pre>// helper/rpool.go — a pool of `Rscript --vanilla worker.R.txt` processes; one JSON line in, one JSON line out
+func (p *rPool) call(ctx context.Context, req *callRequest) (*callReply, error) {
+	select { case w = &lt;-p.free: case &lt;-ctx.Done(): return nil, errCancelled }   // wait for a free R process
+	line, _ := json.Marshal(req)
+	if _, err := w.stdin.Write(append(line, '\n')); err != nil { p.kill(w); go p.replace(); return nil, errors.New(&quot;R stopped&quot;) }
+	select {
+	case out := &lt;-w.lines:                       // the worker's reply line (marked, so stray output is ignored)
+		var rep callReply
+		if err := json.Unmarshal([]byte(out), &amp;rep); err != nil || rep.ID != req.ID { p.kill(w); go p.replace(); return nil, errors.New(&quot;unreadable reply from R&quot;) }
+		p.free &lt;- w
+		return &amp;rep, nil
+	case &lt;-w.exited:  go p.replace(); return nil, errors.New(&quot;R stopped during the calculation (it may have run out of memory)&quot;)
+	case &lt;-ctx.Done(): p.kill(w); go p.replace(); return nil, errCancelled
+	}
+}</pre>
+<pre># helper/r/worker.R — the R side of that line protocol: the bridge sourced once, only ps_* entry points callable
+for (f in sort(list.files(commandArgs(trailingOnly = TRUE)[1], &quot;\\.R$&quot;, full.names = TRUE))) sys.source(f, envir = globalenv())
+PS_HELPER_CALLABLE &lt;- Filter(function(n) { f &lt;- get(n, envir = globalenv()); is.function(f) &amp;&amp; identical(names(formals(f))[1], &quot;req_json&quot;) },
+  grep(&quot;^ps_[a-z0-9_]+$&quot;, ls(globalenv()), value = TRUE))
+lockBinding(&quot;PS_HELPER_CALLABLE&quot;, globalenv())
+reply(list(ready = TRUE, r = R.version.string, pid = Sys.getpid()))
+con &lt;- file(&quot;stdin&quot;, open = &quot;r&quot;)
+repeat {
+  line &lt;- readLines(con, n = 1, warn = FALSE); if (!length(line)) break
+  msg &lt;- jsonlite::fromJSON(line, simplifyVector = FALSE)
+  # … msg$fn checked against PS_HELPER_CALLABLE, then: result &lt;- ps_call(msg$fn, msg$req, export = isTRUE(msg$export))
+  reply(list(id = msg$id, ok = TRUE, result = result))        # one line on stdout, prefixed with a marker the Go side looks for
+}</pre>
+<p>The sequences, first pairing (once per browser), then a calculation:</p>
+<pre>Browser (ComputeSettings)         helper.ts                 pls-studio-helper (Go)              menu bar / tray
+   │ Desktop R → Connect              │                              │                                │
+   ├─────────────────────────────────▶│ GET /health (Origin: site)   │                                │
+   │                                  ├─────────────────────────────▶│ origin on allow list? Host ok? │
+   │                                  │◀─ 200 ──────────────────────┤                                │
+   │                                  │ POST /connect                │                                │
+   │                                  ├─────────────────────────────▶│ ─ &quot;Allow pls.example.edu?&quot; ──▶│
+   │  &quot;Click Allow in the helper&quot;     │        (waits up to 2 min)   │◀────────── Allow ─────────────┤
+   │                                  │◀─ {token} ──────────────────┤ token stored, mode 0600        │
+   │                                  │ keepToken(): localStorage    │                                │
+   │                                  │ GET /version (Bearer token)  │                                │
+   │                                  ├─────────────────────────────▶│ {helper_version, r, workers, bridge: sha256(rsrc)}
+   │                                  │◀────────────────────────────┤                                │
+   │                                  │ bridge == bridgeHash(SOURCES)? else 'mismatch'                │
+   │                                  │ POST /packages {packages}    │                                │
+   │                                  │◀─ {versions} ───────────────┤                                │
+   │◀─ &quot;Paired: R 4.5 … 13 R processes&quot;│ state 'ready'               │                                │
+
+Calculate with Desktop R:
+
+ runner.ts     rengine/pls.ts    bridge.viaHelper      helper.ts             Go server / rpool          R worker process
+   │ run('estimate')  │                 │                   │                        │                        │
+   ├─ estimatePlsR ──▶│ plsRequest()    │                   │                        │                        │
+   │                  ├─ rCall ────────▶│ checkHelper()     │                        │                        │
+   │                  │                 │ state 'ready'     │                        │                        │
+   │                  │                 ├─ helperCall ─────▶│ POST /call {id, fn:&quot;ps_pls&quot;, req, packages}     │
+   │                  │                 │                   ├───────────────────────▶│ validate; jobs.register │
+   │                  │                 │                   │                        ├─ pool.call: stdin line ▶│ ps_call(&quot;ps_pls&quot;, req)
+   │                  │                 │                   │                        │◀─ stdout line {id,ok,result}┤
+   │                  │                 │                   │◀─ {id, ok, result} ────┤                        │
+   │                  │                 │◀─ JSON text ──────┤                        │                        │
+   │                  │◀─ fromDesktop() ┤ engine.desktop = R version (shown with the results)                 │
+   │◀─ PlsResult ─────┤ reported(): warnings/notes → Messages                                                 │
+   │ setResults(); logCurrentRun()                                                                             │
+
+If anything on the helper side fails (not running, unpaired, package missing, R crashed), viaHelper
+returns null after one toast, and the same request runs in webR: the result is identical apart
+from `engine.desktop`.</pre>
+<p>Security: an Origin allow list (dev origins by default; a deployment is added with <code>pls-studio-helper allow-origin &lt;url&gt;</code>, and the app shows that command when it cannot reach the helper from a deployed site), a Host check against DNS rebinding, a bearer token issued once per browser after the person clicks Allow in the helper's dialog (or types a pairing code), per-origin rate limits, a size cap on requests, a killed-and-replaced R process on cancel or crash, and the helper's own injection test that replays the recorded request corpus (<code>scripts/security/corpus.jsonl</code>) through the R bridge.</p>
 <h3 id="5-6-what-keeps-r-code-injection-out">5.6 What keeps R code injection out</h3>
 <p>The bridge composes R code from identifiers it sanitised and literals it quoted; the only user-written text evaluated as code is what <code>ps_expr</code> accepts. lavaan itself evaluates arbitrary R inside <code>:=</code> definitions and <code>lavTestWald</code> constraints, so that parser is load-bearing. The recorded corpus (<code>PS_RECORD_REQUESTS=… npm run test:webr</code> records every request the tests make; <code>scripts/security/replay-injection.R</code> replays them with payloads) checks that no field reaches <code>eval</code>. Requests from collaborators and project files pass the same validation as everything else.</p>
 <h2 id="6-the-analyses-log">6. The Analyses log</h2>
-<p>A card is <code>{ id, kind: 'analysis', type, options, run?, title? }</code> or a heading / note. An <em>analysis type</em> (<code>src/analyses/types.ts</code>) declares its options, defaults, a strict <code>parseOptions</code> for options from files and collaborators, <code>blocked()</code> (why it cannot run now), <code>fingerprint()</code> (the inputs a run used, so a card goes stale when its data or scores change), <code>run()</code> (usually an <code>rCall</code>), an <code>Options</code> form and a <code>View</code>. <code>registry.ts</code> lists the 31 types. Results are stored packed (<code>codec.ts</code>, gzip + base64, size-capped) in <code>card.run.packed</code> and saved with the project; shared projects sync the cards without results (each computer runs them itself). <code>report.ts</code> builds a self-contained HTML report from the rendered cards; the replication package writes one R script per card.</p>
+<p>A card is <code>{ id, kind: 'analysis', type, options, run?, title? }</code> or a heading / note. An <em>analysis type</em> (<code>src/analyses/types.ts</code>) declares its options, defaults, a strict <code>parseOptions</code> for options from files and collaborators, <code>blocked()</code> (why it cannot run now), <code>fingerprint()</code> (the inputs a run used, so a card goes stale when its data or scores change), <code>run()</code> (usually an <code>rCall</code>), an <code>Options</code> form and a <code>View</code>. <code>registry.ts</code> lists the 31 types. Results are stored packed (<code>codec.ts</code>, gzip + base64, size-capped) in <code>card.run.packed</code> and saved with the project; shared projects sync the cards without results (each computer runs them itself).</p>
+<pre>Run on a card (Analyses tab):
+
+ AnalysesWorkspace     analyses/store.runCard        the analysis type (e.g. nca.tsx)      rengine/nca.ts → bridge.rCall
+   │ Run                    │                                  │                                   │
+   ├───────────────────────▶│ t.blocked(options, ctx)? → error on the card, stop                    │
+   │                        │ fp = t.fingerprint(options, ctx)    (the data columns / scores it reads)│
+   │                        │ running[id] = true; cancelGroup   │                                   │
+   │                        ├─ t.run(options, ctx, progress) ──▶│ ncaR(data, x, y, permutations) ──▶│ rCall('ps_nca', req, 'NCA')
+   │                        │                                  │◀── result ────────────────────────┤
+   │                        │◀── result ───────────────────────┤                                   │
+   │                        │ packResult(result) → card.run = { at, fingerprint: fp, options: JSON, packed }
+   │                        │ results[id] = result              │                                   │
+   │◀── card shows t.View ──┤ (later: cardStatus() compares fp with the inputs now → &quot;stale&quot; when they changed)</pre>
+<p>replication package writes one R script per card.</p>
 <p><strong>Model runs</strong> are frozen cards added by Calculate (<code>runs.tsx</code>): the model, settings, data identity, diagram and results of one version. <code>runHash()</code> identifies a version; calculating the same version again updates its card, a change starts a new one with a plain-language diff (<code>describeChanges</code>). Opening a run puts that model back on the Model tab through the undo stack; the canvas badge (<code>ModelVersionBadge</code>) says which version is on the canvas.</p>
 <h2 id="7-collaboration">7. Collaboration</h2>
 <p>A shared project lives in a Y.js document: maps <code>constructs</code>, <code>paths</code>, <code>moderations</code>, <code>correlations</code>, <code>model</code> (the other model fields), <code>meta</code> (name, settings), and the cards. <code>src/cloud/collab.ts</code> writes store changes into the document and applies remote changes to the store (<code>readDoc</code> validates through the same parsers as a project file); <code>Y.UndoManager</code> (own changes only) replaces the local undo stack while connected. The server (<code>server/src/ws.ts</code>) keeps one room per project: handshake checks Origin, session and membership; viewers' document updates are dropped; awareness (presence) is capped; the document is persisted as a compacted state plus updates, with a cap on its stored size and on sockets per user. Datasets are not in the document: they are uploaded encrypted (gzip + AES-256-GCM under a per-project key wrapped by a master key, project id as associated data) and downloaded by members. Results never leave a computer.</p>
+<pre>// src/cloud/collab.ts — the store and the Y.js document are kept equal in both directions
+this.unsubs.push(useStore.subscribe((s, prev) =&gt; {
+  if (this.applying || !this.initialised || s.cloud?.projectId !== projectId) return;
+  if (s.model !== prev.model || s.settings !== prev.settings || s.projectName !== prev.projectName) this.push();   // writeDoc(): minimal diffs
+  if (s.data !== prev.data &amp;&amp; !this.fetchingData &amp;&amp; s.data &amp;&amp; s.dataInfo &amp;&amp; s.cloud.role !== 'viewer') void this.uploadData();
+  if (s.selection !== prev.selection) this.provider.awareness.setLocalStateField('selection', s.selection.nodes);
+}));
+this.unsubs.push(useAnalyses.subscribe((s, prev) =&gt; {
+  if (!this.applying &amp;&amp; this.initialised &amp;&amp; s.cards !== prev.cards &amp;&amp; useStore.getState().cloud?.role !== 'viewer') writeCards(this.doc, s.cards);
+}));</pre>
+<pre>An edit by one collaborator reaches the other:
+
+ Alice: Canvas → store.commit     collab.ts (Alice)        server ws.ts (room)          collab.ts (Bob)          Bob: store
+   │ add path                       │                          │                            │                       │
+   ├───────────────────────────────▶│ subscribe: model changed │                            │                       │
+   │                                │ writeDoc(): paths map += │                            │                       │
+   │                                │ Y update (binary) ──────▶│ role editor? size cap ok?  │                       │
+   │                                │                          │ persist(update) → Postgres │                       │
+   │                                │                          │ broadcast ────────────────▶│ doc.on('update')      │
+   │                                │                          │                            │ readDoc() → parseModelState
+   │                                │                          │                            ├─ applying = true ────▶│ model replaced
+   │                                │                          │                            │ loadCards(readCards())│ (selection kept
+   │                                │                          │                            │                       │  where ids remain)
+ Undo on either side goes through Y.UndoManager, scoped to that person's own changes.</pre>
 <p>Accounts: express-session in Postgres, CSRF token + Origin check on every state change, argon2id passwords with lockout, TOTP, Google OIDC with PKCE, email verification and password reset by single-use hashed tokens carried in the URL fragment. <code>server/README.md</code> has the full list.</p>
 <h2 id="8-examples-and-validation">8. Examples and validation</h2>
 <p><code>src/examples/packages.ts</code> describes each example: its data (loaded from the package in R, or shipped), model, analysis card, and the settings its source documents (<code>CSEM()</code>/<code>SEMINR()</code> helpers hold the packages' defaults). Opening an example resets the estimation settings to those (<code>exampleSettings</code>). Tests run every example in webR and require it to raise no warning.</p>
