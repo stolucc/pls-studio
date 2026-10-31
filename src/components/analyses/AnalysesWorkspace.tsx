@@ -38,16 +38,31 @@ const when = (at: number) => new Date(at).toLocaleString(undefined, { day: 'nume
 const defaultTitle = (c: AnalysisCard) => { const t = analysisType(c.type); return t ? t.cardTitle?.(c.options) ?? t.title : c.type; };
 const titleOf = (c: Card) => (c.kind === 'analysis' ? c.title || defaultTitle(c) : c.text.split('\n')[0].slice(0, 80) || (c.kind === 'heading' ? 'Heading' : 'Note'));
 
-/** The card's title, editable in place (the pencil, or a double-click): Enter or leaving the field saves, Escape cancels, empty restores the analysis name. */
+/**
+ * A field for a card's title: every keystroke renames the card (the card, the
+ * outline and the pane follow as you type); the field keeps the raw text so
+ * spaces can be typed, and shows the tidied title when left.
+ */
+function TitleField({ card, className, autoFocus, disabled, id, onDone }: { card: AnalysisCard; className: string; autoFocus?: boolean; disabled?: boolean; id?: string; onDone?: (cancelled: boolean) => void }) {
+  const [text, setText] = useState(card.title ?? '');
+  const before = useRef(card.title ?? '');
+  return (
+    <input id={id} className={className} aria-label="Card title" value={text} placeholder={defaultTitle(card)} maxLength={MAX_TITLE} autoFocus={autoFocus} disabled={disabled}
+      onChange={(e) => { setText(e.target.value); setTitle(card.id, e.target.value); }}
+      onClick={(e) => e.stopPropagation()} onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.currentTarget.blur(); onDone?.(false); }
+        else if (e.key === 'Escape') { setTitle(card.id, before.current); setText(before.current); onDone?.(true); }
+      }}
+      onBlur={() => { setTitle(card.id, text); setText(useAnalyses.getState().cards.find((c): c is AnalysisCard => c.id === card.id && c.kind === 'analysis')?.title ?? ''); onDone?.(false); }} />
+  );
+}
+
+/** The card's title, editable in place (the pencil, or a double-click): Enter or leaving the field keeps it, Escape restores the previous one, empty restores the analysis name. */
 function CardTitle({ card, editing, setEditing }: { card: AnalysisCard; editing: boolean; setEditing: (on: boolean) => void }) {
   if (!editing) return <h3 onDoubleClick={() => setEditing(true)}>{titleOf(card)}</h3>;
-  const commit = (el: HTMLInputElement) => { setTitle(card.id, el.value); setEditing(false); };
-  return (
-    <input className="input title-edit" aria-label="Card title" defaultValue={card.title ?? ''} placeholder={defaultTitle(card)} maxLength={MAX_TITLE} autoFocus
-      onClick={(e) => e.stopPropagation()} onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
-      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commit(e.currentTarget); else if (e.key === 'Escape') setEditing(false); }}
-      onBlur={(e) => commit(e.currentTarget)} />
-  );
+  return <TitleField card={card} className="input title-edit" autoFocus onDone={() => setEditing(false)} />;
 }
 
 class ResultBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
@@ -241,8 +256,7 @@ function OptionsPane({ ctx, readOnly }: { ctx: AnalysisCtx; readOnly: boolean })
       <h2>{titleOf(c)}</h2>
       <div className="field">
         <label htmlFor={`title-${c.id}`}>Title</label>
-        <input id={`title-${c.id}`} className="input" key={c.id} defaultValue={c.title ?? ''} placeholder={defaultTitle(c)} maxLength={MAX_TITLE} disabled={readOnly}
-          onBlur={(e) => setTitle(c.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setTitle(c.id, e.currentTarget.value); }} />
+        <TitleField key={c.id} id={`title-${c.id}`} card={c} className="input" disabled={readOnly} />
       </div>
       <t.Options options={c.options} set={(o) => setOptions(c.id, o)} ctx={ctx} disabled={readOnly || running} />
       {blocked && !t.frozen && <div className="hint">{blocked}</div>}

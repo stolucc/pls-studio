@@ -112,7 +112,10 @@ describe('Analyses tab', () => {
     let html = render(<AnalysesWorkspace />);
     // Before renaming: the analysis name, an empty Title field with it as placeholder, a Rename button.
     expect(html).toContain('Necessary condition analysis</h3>');
-    expect(html).toMatch(/<input id="title-card-[^"]+" class="input" placeholder="Necessary condition analysis" maxlength="80" value="">/);
+    const field = html.match(/<input id="title-card-[^"]+"[^>]*>/)?.[0] ?? '';
+    expect(field).toContain('placeholder="Necessary condition analysis"');
+    expect(field).toContain('value=""');
+    expect(field).toContain('maxlength="80"');
     expect(html).toContain('aria-label="Rename"');
     setTitle(id, 'Ceiling check, wave 1');
     html = render(<AnalysesWorkspace />);
@@ -120,7 +123,31 @@ describe('Analyses tab', () => {
     expect(html).not.toContain('Necessary condition analysis</h3>');
     expect(html).toMatch(new RegExp(`<a href="#${id}"[^>]*>(<span[^>]*>[^<]*</span>)*Ceiling check, wave 1</a>`));
     expect(html).toContain('<h2>Ceiling check, wave 1</h2>');
-    expect(html).toMatch(/placeholder="Necessary condition analysis" maxlength="80" value="Ceiling check, wave 1"/);
+    expect(html.match(/<input id="title-card-[^"]+"[^>]*>/)?.[0]).toContain('value="Ceiling check, wave 1"');
+  });
+
+  it('renames as you type: the card and the outline follow each keystroke, before the field is left', () => {
+    const id = addAnalysis('nca', { source: 'data', x: ['x1'], y: 'x2', permutations: 100 })!;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    act(() => root.render(<AnalysesWorkspace />));
+    const input = host.querySelector<HTMLInputElement>(`#title-${id}`)!;
+    const type = (text: string) => act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    type('Ceiling ');
+    // The field keeps the trailing space (so the next word can be typed); the store holds the tidied title.
+    expect(input.value).toBe('Ceiling ');
+    expect((useAnalyses.getState().cards[0] as { title?: string }).title).toBe('Ceiling');
+    type('Ceiling check');
+    expect(host.innerHTML).toContain('Ceiling check</h3>');
+    expect(host.innerHTML).toMatch(new RegExp(`<a href="#${id}"[^>]*>(<span[^>]*>[^<]*</span>)*Ceiling check</a>`));
+    type('');
+    expect(host.innerHTML).toContain('Necessary condition analysis</h3>');
+    act(() => root.unmount());
+    host.remove();
   });
 
   it('marks a result whose data changed as stale, with a way to rerun it', () => {
