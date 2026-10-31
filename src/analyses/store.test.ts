@@ -207,3 +207,32 @@ describe('cards from files and collaborators', () => {
     expect(status(m).state).toBe('missing');
   });
 });
+
+describe('card status, every state', () => {
+  it('reports running, empty, unknown kind, missing result, changed options and changed inputs', async () => {
+    setData([1, 2, 3]);
+    const id = addAnalysis('test-mean')!;
+    expect(status(id)).toEqual({ state: 'empty' });
+    useAnalyses.setState((s) => ({ running: { ...s.running, [id]: true } }));
+    expect(status(id)).toEqual({ state: 'running' });
+    useAnalyses.setState({ running: {} });
+    await runCard(id);
+    expect(status(id)).toEqual({ state: 'current' });
+    // The result gone (as on another computer of a shared project) and nothing packed: missing.
+    const run = card(id).run!;
+    useAnalyses.setState((s) => ({ results: {}, cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...run, packed: undefined } } : c)) }));
+    expect(status(id).state).toBe('missing');
+    useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, run } : c)) }));
+    await unpackCard(id);
+    setOptions(id, { col: 'y' });
+    expect(status(id)).toEqual({ state: 'stale', why: 'The options changed since this ran.' });
+    setOptions(id, { col: 'x' });
+    setData([4, 5, 6]);
+    expect(status(id).state).toBe('stale');
+    useStore.getState().setData({ names: ['q'], cols: [Float64Array.from([1, 2, 3])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
+    expect(status(id)).toEqual({ state: 'stale', why: 'No column x.' });
+    // A card of a kind this version does not have.
+    useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, type: 'gone' } : c)) }));
+    expect(status(id)).toEqual({ state: 'stale', why: 'This kind of analysis is not available in this version.' });
+  });
+});

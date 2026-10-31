@@ -218,3 +218,46 @@ describe('the mean structure in run descriptions', () => {
     expect(describeChanges({ model: s().model, settings: s().settings, data }, before)).toEqual(['− mean structure (the constant)']);
   });
 });
+
+describe('describeChanges, line by line', () => {
+  const data = { fingerprint: 'x', name: 'a.csv', rows: 10 };
+  const at = () => ({ model: structuredClone(s().model), settings: s().settings, data });
+  it('names construct, indicator, type, mode, covariate, path, moderation, correlation and field changes', () => {
+    const a = s().addConstruct(0, 0, ['a1', 'a2']), b = s().addConstruct(1, 0, ['b1']), c = s().addConstruct(2, 0, ['c1']);
+    s().addPath(a, b);
+    const v1 = at();
+    s().removeIndicator(a, 'a2');
+    s().updateConstruct(b, { type: 'composite', mode: 'B' });
+    s().updateConstruct(c, { covariate: true });
+    s().addPath(c, b);
+    const v2 = at();
+    const names = Object.fromEntries(s().model.constructs.map((k) => [k.id, k.name]));
+    expect(describeChanges(v1, v2)).toEqual([
+      `− ${names[a]}: a2`, `${names[b]}: factor → composite`, `${names[b]}: Mode A → Mode B`, `${names[c]}: now a covariate`, `+ path ${names[c]} → ${names[b]}`,
+    ]);
+    s().updateConstruct(c, { covariate: false });
+    const v3 = at();
+    expect(describeChanges(v2, v3)).toEqual([`${names[c]}: no longer a covariate`]);
+    // Moderation, correlation, ordered indicators, groups.
+    const p = s().model.paths.find((x) => x.from === a)!.id;
+    s().addModeration(c, p);
+    useStore.setState((st) => ({ model: { ...st.model, correlations: [{ id: 'k', kind: 'indicator', a: 'a1', b: 'b1' }], ordered: ['b1'], multigroup: { column: 'g', invariance: 'metric', free: [] } } }));
+    const v4 = at();
+    const d = describeChanges(v3, v4);
+    expect(d).toContain(`+ moderation ${names[c]} on ${names[a]} → ${names[b]}`);
+    expect(d).toContain('+ correlation a1 ↔ b1');
+    expect(d).toContain('ordered indicators changed');
+    expect(d).toContain('groups changed');
+    // Nothing else changed than a fixed path value: caught through the specification.
+    const v5 = { ...v4, model: { ...v4.model, paths: v4.model.paths.map((x) => (x.id === p ? { ...x, fixed: 0.5 } : x)) } };
+    expect(describeChanges(v4, v5)).toEqual(['model parameters changed']);
+    // Data.
+    expect(describeChanges(v5, { ...v5, data: { fingerprint: 'y', name: 'b.csv', rows: 12 } })).toEqual(['data: a.csv (10 rows) → b.csv (12 rows)']);
+    expect(describeChanges(v5, { ...v5, data: { fingerprint: 'y', name: '', rows: 0 } })).toEqual(['data: a.csv (10 rows) → none']);
+  });
+  it('writes settings values readably', () => {
+    const a = s().settings;
+    expect(settingChanges(a, { ...a, method: 'cbsem', consistent: true, counterfactual: { xref: 1, xcf: 2 } })).toEqual(['method PLS-SEM → CB-SEM', 'PLSc off → on', 'counterfactual none → {"xref":1,"xcf":2}']);
+    expect(settingChanges(a, { ...a, seed: 12345 })).toEqual(['seed 1,234 → 12,345']);
+  });
+});
