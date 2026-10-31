@@ -50,8 +50,8 @@ describe('endogeneity card', () => {
     expect(toInput({ ...o, method: 'liv' }, ctx()).exogenous).toEqual([]);
     expect(toInput({ ...o, method: 'het', hetRegressors: [] }, ctx()).hetRegressors).toEqual(['X1', 'X2']);
     expect(toInput(o, ctx()).boot).toEqual({ samples: DEFAULT_SETTINGS.bootSamples, seed: DEFAULT_SETTINGS.seed, confidence: DEFAULT_SETTINGS.confidence });
-    // The Inspector allows up to 100,000 subsamples; the copula bootstrap (one R core) takes at most 20,000.
-    expect(toInput(o, ctx({ settings: { ...DEFAULT_SETTINGS, bootSamples: 100_000 } })).boot.samples).toBe(20_000);
+    // The project's subsamples go to R as they are (the Inspector allows up to 100,000).
+    expect(toInput(o, ctx({ settings: { ...DEFAULT_SETTINGS, bootSamples: 100_000 } })).boot.samples).toBe(100_000);
     expect(toInput(o, ctx({ settings: { ...DEFAULT_SETTINGS, bootSamples: 3 } })).boot.samples).toBe(10);
     expect('source' in toInput(o, ctx())).toBe(false);
   });

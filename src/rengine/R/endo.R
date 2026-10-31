@@ -40,8 +40,9 @@ ps_endo <- function(req_json, export = FALSE) {
   rhs <- function(...) { t <- c(...); if (length(t)) paste(t, collapse = " + ") else "1" }
   conf <- as.numeric(req$boot$confidence %||% 0.95)
   B <- as.integer(req$boot$samples %||% 1000); seed <- as.integer(req$boot$seed %||% 1)
-  if (!is.finite(B) || B < 10 || B > 20000) stop(sprintf("Bootstrap samples must be between 10 and 20,000 (got %s).", req$boot$samples %||% "none"))
-  if (!is.finite(conf) || conf <= 0.5 || conf >= 1) stop(sprintf("The confidence level must lie between 0.5 and 1 (got %s).", req$boot$confidence %||% "none"))
+  # (the same ranges as the project settings allow)
+  if (!is.finite(B) || B < 10 || B > 100000) stop(sprintf("Bootstrap samples must be between 10 and 100,000 (got %s).", req$boot$samples %||% "none"))
+  if (!is.finite(conf) || conf < 0.5 || conf >= 1) stop(sprintf("The confidence level must lie between 0.5 and 1 (got %s).", req$boot$confidence %||% "none"))
   ols <- sprintf("ols <- lm(%s ~ %s, data = data)", y, rhs(x, p))
   # Only the instrument methods need packages: the copula correction is base R, so its script runs anywhere.
   needs_ivreg <- method %in% c("iv", "het", "hm")

@@ -78,15 +78,12 @@ function EndoView({ r, input }: { r: EndoResult; input: EndoInput }) {
   );
 }
 
-/** The copula bootstrap runs in R on one core: the project's subsamples (up to 100,000 for PLS) are capped here. */
-export const MAX_BOOT = 20_000;
-
 /** What R gets: settings that do not apply to the method left out; bootstrap settings from the project. */
 export function toInput(o: EndoOptions, ctx: Pick<AnalysisCtx, 'settings'>): EndoInput {
   const { source: _s, ...rest } = o;
   return {
     ...rest, exogenous: o.method === 'liv' ? [] : o.exogenous, hetRegressors: o.hetRegressors.length ? o.hetRegressors : o.exogenous,
-    boot: { samples: Math.max(10, Math.min(MAX_BOOT, Math.floor(ctx.settings.bootSamples))), seed: ctx.settings.seed, confidence: ctx.settings.confidence },
+    boot: { samples: Math.max(10, Math.floor(ctx.settings.bootSamples)), seed: ctx.settings.seed, confidence: ctx.settings.confidence },
   };
 }
 
@@ -153,7 +150,7 @@ function EndoOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<EndoOp
               ))}
             </div>
           )}
-          {o.method === 'copula' && <div className="hint">{boot.samples} bootstrap samples, seed {boot.seed} (from the Model settings{ctx.settings.bootSamples > MAX_BOOT ? `; capped at ${MAX_BOOT.toLocaleString()} here` : ''}).</div>}
+          {o.method === 'copula' && <div className="hint">{boot.samples} bootstrap samples, seed {boot.seed} (from the Model settings).</div>}
         </>
       )}
     </fieldset>
