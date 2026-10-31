@@ -46,6 +46,8 @@ export function FileMenu() {
           {item('Create replication package…', () => openReplication())}
           <div className="menu-sep" role="separator" />
           {item('Download R script', () => void exportRScript(), { disabled: !hasData })}
+          <div className="menu-sep" />
+          <a role="menuitem" className="menu-item" href="guide.html" target="_blank" rel="noopener">User guide</a>
         </div>
       )}
     </div>

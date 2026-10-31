@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PLS Studio user guide</title>
+<meta name="description" content="How to use PLS Studio: data, model drawing, PLS-SEM, CB-SEM and conditional process analysis, the analyses log, reports, sharing and desktop R.">
+<style>
+:root { --bg: #ffffff; --text: #1f2430; --text-2: #4b5160; --text-3: #7a8090; --surface: #f6f7f9; --border: #e3e5ea; --accent: #3b5bdb; --accent-soft: #eef1fb; --warn-soft: #fff4e0; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+@media (prefers-color-scheme: dark) { :root { --bg: #15171c; --text: #e8eaf0; --text-2: #b4b9c6; --text-3: #868c9b; --surface: #1d2027; --border: #2d313b; --accent: #8ea2ff; --accent-soft: #232a40; --warn-soft: #3a2d12; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.wrap { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 32px; max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+nav { position: sticky; top: 16px; align-self: start; font-size: 13.5px; max-height: calc(100vh - 32px); overflow: auto; }
+nav ol { list-style: none; padding: 0; margin: 0; }
+nav li { margin: 2px 0; }
+nav a { color: var(--text-2); text-decoration: none; display: block; padding: 2px 8px; border-radius: 6px; }
+nav a:hover { background: var(--surface); color: var(--text); }
+nav .brand { font-weight: 700; font-size: 15px; color: var(--text); padding: 2px 8px 8px; }
+main { min-width: 0; }
+h1 { font-size: 26px; margin: 0 0 4px; }
+.lede { color: var(--text-2); margin: 0 0 28px; }
+h2 { font-size: 20px; margin: 40px 0 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 16px; margin: 22px 0 6px; }
+p, li { color: var(--text); }
+li { margin: 3px 0; }
+kbd { font: 12px var(--mono); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface); }
+code { font: 13px var(--mono); background: var(--surface); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow: auto; font: 13px var(--mono); }
+.ui { font-weight: 600; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 8px 0 14px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-2); font-weight: 600; }
+.note { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+.warn { background: var(--warn-soft); border-left: 3px solid #c77700; padding: 8px 12px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 24px; }
+footer { margin-top: 48px; color: var(--text-3); font-size: 13px; border-top: 1px solid var(--border); padding-top: 12px; }
+a { color: var(--accent); }
+@media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } nav { position: static; max-height: none; } }
+@media print { nav { display: none; } .wrap { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav aria-label="Contents">
+  <div class="brand">PLS Studio guide</div>
+  <ol>
+    <li><a href="#start">Getting started</a></li>
+    <li><a href="#data">Data</a></li>
+    <li><a href="#model">Drawing the model</a></li>
+    <li><a href="#methods">Estimation methods</a></li>
+    <li><a href="#calculate">Calculate and read results</a></li>
+    <li><a href="#analyses">The Analyses tab</a></li>
+    <li><a href="#tools">Model tools</a></li>
+    <li><a href="#export">Reports, scripts and replication</a></li>
+    <li><a href="#sharing">Accounts and sharing</a></li>
+    <li><a href="#desktop">Desktop R (helper)</a></li>
+    <li><a href="#examples">Examples</a></li>
+    <li><a href="#shortcuts">Keyboard shortcuts</a></li>
+    <li><a href="#privacy">Where your data go</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+  </ol>
+</nav>
+<main>
+<h1>PLS Studio user guide</h1>
+<p class="lede">PLS Studio is a browser editor for structural equation models: PLS-SEM and consistent PLS, covariance-based SEM, and conditional process analysis, with a log of further analyses. The numbers come from the reference R packages (cSEM, seminr, lavaan, manymome and others) running inside your browser, or in R on your own computer. Every result can be exported as the R script that produced it.</p>
+
+<h2 id="start">Getting started</h2>
+<p>The app opens on the <span class="ui">home screen</span>. From there you can start a new project (empty, or from a data file), open a saved project file, reopen a recent project, or open one of the examples. Projects you work on are kept automatically under <span class="ui">Recent projects</span> in this browser; <span class="ui">File → Save project</span> writes a portable <code>.plsproj.json</code> file that includes the data.</p>
+<p>The editor has three tabs in the top bar:</p>
+<ul>
+  <li><span class="ui">Data</span>: the dataset's rows, descriptive statistics and covariances.</li>
+  <li><span class="ui">Model</span>: the diagram, with the variable list on the left and the <span class="ui">Inspector</span> on the right. The method switch (PLS-SEM / CB-SEM / CPA), <span class="ui">Bootstrap</span> and <span class="ui">Calculate</span> live here.</li>
+  <li><span class="ui">Analyses</span>: a log of analysis cards (screening, factor analysis, prediction, segmentation, simulations and more), kept with the project.</li>
+</ul>
+<p>The project name sits in the middle of the top bar; click it to rename. Undo and redo are next to the tabs (<kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd>, <kbd>Ctrl</kbd> on Windows and Linux).</p>
+<h3>The File menu</h3>
+<ul>
+  <li><span class="ui">New project</span>, <span class="ui">Open project…</span> (<kbd>⌘O</kbd>) and <span class="ui">Save project</span> (<kbd>⌘S</kbd>): project files are <code>.plsproj.json</code> and include the data, the model, the settings and the analysis log.</li>
+  <li><span class="ui">Inspect data</span> opens the Data tab.</li>
+  <li><span class="ui">Create replication package…</span> and <span class="ui">Download R script</span>: see <a href="#export">Reports, scripts and replication</a>.</li>
+  <li><span class="ui">User guide</span>: this page.</li>
+</ul>
+<div class="note">The first calculation downloads the R runtime (a few hundred megabytes, cached by the browser). Later calculations start at once.</div>
+
+<h2 id="data">Data</h2>
+<h3>Importing</h3>
+<p>Drop a file on the <span class="ui">Data</span> panel of the Model tab or choose one from the home screen. Supported: CSV (comma, semicolon or tab separated, with a header row), SPSS <code>.sav</code>, Stata <code>.dta</code> and Excel <code>.xlsx</code> / <code>.xls</code> (first row = variable names; you choose the sheet). Empty cells, <code>NA</code> and “.” count as missing. Text columns with few distinct values (groups, cluster ids) become categories.</p>
+<p>For CB-SEM you can also import a <em>covariance matrix</em> instead of raw data (a labelled CSV as written by R's <code>write.csv(cov(x))</code>), give the sample size, and optionally an asymptotic covariance (NACOV) matrix for robust estimation.</p>
+<h3>The variable list</h3>
+<p>Filter variables by name; shift- or ⌘-click to select several. Drag variables onto the canvas to create a construct, or onto an existing construct to add them as indicators. <span class="ui">Reverse-code…</span> recodes negatively worded items (<code>x</code> becomes lowest + highest − <code>x</code> on the answer scale). Cases can be excluded from the analysis without editing the file; <span class="ui">Restore</span> brings them back.</p>
+<h3>Missing values</h3>
+<p>The Inspector's <span class="ui">Missing values</span> setting applies to the model estimation: mean replacement, casewise deletion, multiple imputation (mice, with the number of imputed data sets), and for CB-SEM full-information maximum likelihood (FIML), pairwise deletion and two-stage (robust) estimation.</p>
+
+<h2 id="model">Drawing the model</h2>
+<p>The toolbar on the canvas has four tools: <span class="ui">Select</span> (<kbd>V</kbd>), <span class="ui">Construct</span> (<kbd>C</kbd>), <span class="ui">Path</span> (<kbd>P</kbd>) and <span class="ui">Correlation</span> (<kbd>R</kbd>).</p>
+<ul>
+  <li>Drag variables from the list onto the canvas to create a construct with those indicators, or onto a construct to add them.</li>
+  <li>Drag from a construct's connector dot to another construct to draw a path; drop a path on another path to make it a moderation (interaction).</li>
+  <li>Right-click a construct, indicator, path or empty space for the context menu: construct type, covariate, correlations, quadratic terms, labels and fixed values for parameters, ESEM blocks, free loadings and intercepts across groups, ordinal measurement, deleting, auto-arrange, and the <span class="ui">Figure</span> export.</li>
+  <li>The <span class="ui">Inspector</span> edits whatever is selected: name, construct type and weighting, dominant indicator, indicator side, measurement level, reliability of single-indicator constructs; and, with nothing selected, the estimation settings.</li>
+</ul>
+<h3>Construct types</h3>
+<table>
+  <tr><th>Shape</th><th>Type</th><th>Meaning</th></tr>
+  <tr><td>Ellipse</td><td>Common factor</td><td>Reflective measurement; in PLS, Mode A weights (or Mode B).</td></tr>
+  <tr><td>Hexagon</td><td>Composite</td><td>Formed from its indicators; Mode B weights in PLS, an emergent variable in CB-SEM.</td></tr>
+  <tr><td>Rectangle</td><td>Covariate / observed variable</td><td>A single observed variable in the structural model (CB-SEM: lavaan's <code>fixed.x</code> semantics).</td></tr>
+</table>
+<p>Higher-order constructs are built from other constructs (two-stage approach in PLS; second-order factors in CB-SEM). Moderation draws a dashed arrow onto a path; CB-SEM estimates latent interactions by product indicators, LMS or QML, with simple slopes and Johnson–Neyman plots.</p>
+
+<h2 id="methods">Estimation methods</h2>
+<p>Switch with the segmented control on the Model tab. The diagram and data stay; results are recalculated.</p>
+<table>
+  <tr><th></th><th>PLS-SEM / PLSc</th><th>CB-SEM</th><th>CPA</th></tr>
+  <tr><td>Estimation</td><td>Partial least squares (cSEM or seminr), path / factor / centroid weighting; PLSc corrects common factors for attenuation</td><td>lavaan: ML, MLM, MLMV, MLR, GLS, ULS, WLSMV; MIIV-2SLS (Bollen's instrumental variables); RML</td><td>Conditional process analysis (Hayes's PROCESS models) by OLS regression with manymome</td></tr>
+  <tr><td>Inference</td><td>Bootstrap: percentile or BCa intervals, one- or two-tailed tests, jackknife</td><td>Standard errors (robust where chosen), bootstrap for indirect effects, Monte Carlo CIs</td><td>Bootstrap within Calculate</td></tr>
+  <tr><td>Fit</td><td>SRMR, d<sub>ULS</sub>, d<sub>G</sub>, bootstrap test of exact fit</td><td>χ² (scaled/shifted), CFI, TLI, RMSEA, SRMR, AIC/BIC, residual correlations, modification indices</td><td>R² per equation</td></tr>
+  <tr><td>Groups</td><td>MICOM and multigroup analysis (Analyses tab)</td><td>Multigroup models with invariance levels, score tests</td><td>—</td></tr>
+</table>
+<p>In the Inspector, <span class="ui">Calculated by</span> chooses the engine: the R packages in this browser, R on this computer through the helper (<a href="#desktop">below</a>), or the built-in PLS engine, which is validated against the packages.</p>
+
+<h2 id="calculate">Calculate and read results</h2>
+<p><span class="ui">Calculate</span> (<kbd>⌘↵</kbd>) estimates the model; <span class="ui">Bootstrap</span> (<kbd>⌘⇧↵</kbd>) adds standard errors, t and p values and confidence intervals. Bootstrapping runs on all processor cores, each sample with its own seed, so results are the same whatever the computer. The eye button shows or hides the estimates on the diagram (path coefficients, R², loadings or weights).</p>
+<p>The results panel below the diagram has tabs that depend on the method, for example <span class="ui">Overview</span>, <span class="ui">Path coefficients</span>, <span class="ui">Indirect &amp; total effects</span>, <span class="ui">Loadings</span>, <span class="ui">Model fit</span>, <span class="ui">Direct &amp; indirect effects</span> and <span class="ui">Johnson–Neyman</span>. Measurement tables include reliability (Cronbach's α, ρ<sub>A</sub>, ρ<sub>C</sub>), AVE, HTMT and HTMT2, Fornell–Larcker, cross-loadings, VIFs and f².</p>
+<p>Every table can be copied as tab-separated text or downloaded as CSV (the buttons above it), and <span class="ui">Snapshot to Analyses</span> freezes the current results as a card on the Analyses tab, so you can keep several versions side by side.</p>
+<p><span class="ui">Messages</span> lists what the packages reported: warnings, what could not be computed, and diagnostics such as items that correlate negatively with the rest of their construct.</p>
+
+<h2 id="analyses">The Analyses tab</h2>
+<p>Analyses are <em>cards</em> in a log: each has its options, a <span class="ui">Run</span> button and its result, and stays with the project. Headings and notes can be added between cards. The outline on the right lists the cards; drag entries there to reorder. When the data or the model change after a card was run, the card is marked <span class="ui">out of date</span> with a button to rerun it. Results are stored compressed in the project; in a shared project the cards are shared and each person runs them on their own computer.</p>
+<p>Available analyses, by group:</p>
+<div class="cols">
+  <div>
+    <h3>Data</h3>
+    <ul><li>Data screening</li><li>Influential cases</li></ul>
+    <h3>Measurement</h3>
+    <ul><li>Exploratory factor analysis</li><li>Item response theory</li><li>Latent class analysis</li></ul>
+    <h3>Networks</h3>
+    <ul><li>Network analysis</li><li>Exploratory graph analysis</li></ul>
+    <h3>PLS-SEM model</h3>
+    <ul><li>PLSpredict</li><li>Blindfolding (Q²)</li><li>Model comparison</li><li>MICOM and multigroup analysis</li><li>Confirmatory tetrad analysis</li><li>Confirmatory composite analysis</li><li>Minimum sample size</li><li>Monte Carlo simulation</li></ul>
+  </div>
+  <div>
+    <h3>CB-SEM model</h3>
+    <ul><li>Bollen–Stine bootstrap</li><li>Parameter comparisons</li><li>Factor score weights</li></ul>
+    <h3>Segmentation</h3>
+    <ul><li>REBUS-PLS</li><li>PATHMOX</li><li>FIMIX-PLS</li><li>PLS-POS</li></ul>
+    <h3>Regression and causal inference</h3>
+    <ul><li>Endogeneity</li><li>Multilevel regression</li><li>Propensity score matching</li><li>Polynomial regression (RSA)</li></ul>
+    <h3>Necessary conditions</h3>
+    <ul><li>Necessary condition analysis</li></ul>
+    <h3>Longitudinal</h3>
+    <ul><li>Latent growth curve</li><li>Random-intercept cross-lagged panel model</li><li>Growth mixture model</li></ul>
+    <h3>Model snapshots</h3>
+    <ul><li>Model snapshot</li></ul>
+  </div>
+</div>
+<p>Each card names the R package that computed it, and its R script is one click away.</p>
+
+<h2 id="tools">Model tools</h2>
+<ul>
+  <li><span class="ui">Monte Carlo simulation</span>: define a population from the model (loadings, weights, standardised paths, or the current estimates), then run replications at several sample sizes with any mix of PLS, PLSc and CB-SEM estimators. Reports bias, RMSE, coverage and power, with power curves; data can be non-normal (Vale–Maurelli).</li>
+  <li><span class="ui">Figure</span>: the diagram as a publication figure (SVG or PNG), with styling options.</li>
+  <li><span class="ui">Process templates</span>: Hayes's PROCESS models as ready-made diagrams for CPA.</li>
+  <li><span class="ui">Constraints</span> (CB-SEM): labels, equality constraints, user-defined parameters (<code>:=</code>) and Wald tests of hypotheses, written as arithmetic over labels.</li>
+  <li><span class="ui">Groups</span>: a grouping variable for multigroup models and invariance testing.</li>
+</ul>
+
+<h2 id="export">Reports, scripts and replication</h2>
+<ul>
+  <li><span class="ui">Report</span> (Analyses tab): the whole log as one self-contained HTML file, tables in APA-like style and charts as images; print it to PDF from the browser or paste tables into Word.</li>
+  <li><span class="ui">File → Download R script</span>: the R code for the current model and settings, with the data embedded, runnable in R as it is.</li>
+  <li><span class="ui">File → Create replication package…</span>: a zip with the data as CSV, one R script per selected analysis, a <code>run-all.R</code> and a README that lists the package versions. Choose which analyses to include.</li>
+  <li>Any table: copy as TSV or download as CSV.</li>
+</ul>
+
+<h2 id="sharing">Accounts and sharing</h2>
+<p>Sharing is optional: without an account everything stays in this browser. To work together, sign in (email and password, or Google) and use <span class="ui">Share</span> in the top bar.</p>
+<h3>Your account</h3>
+<ul>
+  <li>After registering, open the link in the verification email. Until the address is verified you can sign in but not share projects, invite people or accept invitations; the account menu can send the email again.</li>
+  <li><span class="ui">Forgot your password?</span> on the sign-in dialog emails a link to choose a new one (valid for one hour). Accounts that use Google sign-in can set a password the same way (<span class="ui">Set a password</span> in the account menu).</li>
+  <li>Two-factor authentication (an authenticator app) can be turned on in the account menu; it also applies after Google sign-in.</li>
+  <li><span class="ui">Change password</span> signs out your other devices.</li>
+</ul>
+<h3>Sharing a project</h3>
+<ul>
+  <li><span class="ui">Share → Upload and share</span> puts the project on the server. Your local copy stays in Recent projects; the shared version is listed under <span class="ui">Shared projects</span> on the home screen.</li>
+  <li>Invite people by email as <span class="ui">editors</span> (can change the model) or <span class="ui">viewers</span>. They receive an email with a link; the dialog also shows the link so you can send it yourself. Only an account with the invited address can accept, within 7 days.</li>
+  <li>Everyone with access edits the same model live, with cursors and presence; undo only reverts your own changes. Calculations run on each person's computer, and analysis cards are shared without their results.</li>
+  <li>The owner can change roles, remove people and withdraw invitations; members can leave.</li>
+</ul>
+<p>Shared datasets are stored encrypted on the server (AES-256-GCM, a key per project).</p>
+
+<h2 id="desktop">Desktop R (helper)</h2>
+<p>The optional <span class="ui">PLS Studio Helper</span> runs the calculations in the R installed on your own computer: several times faster, on all cores, with every package available. Your data travel only between the browser and the helper, both on your computer.</p>
+<ol>
+  <li>Install R (4.1 or later) and the helper, then run <code>pls-studio-helper setup</code> once to install the R packages into the helper's own library (your own R library is left alone).</li>
+  <li>Start the helper (a PLS icon appears in the menu bar or tray).</li>
+  <li>In PLS Studio: <span class="ui">Inspector → Calculated by → R runs in → Desktop R (helper)</span>, then <span class="ui">Connect</span> and allow the page in the helper's dialog. Without a tray, use a pairing code (<code>pls-studio-helper pair</code>).</li>
+</ol>
+<p>PLS Studio falls back to the browser whenever the helper is not available. <span class="ui">Disconnect</span> forgets the connection in this browser.</p>
+
+<h2 id="examples">Examples</h2>
+<p>The home screen offers a synthetic customer survey (PLS-SEM, raw data with a few missing values), the published model of Stol, Schaarschmidt &amp; Goldblit (2022) on gamification in software engineering (CB-SEM from the covariance matrices of its replication package), Bollen's industrialisation and political democracy model, and the documented examples of the R packages themselves (lavaan, cSEM, seminr, modsem, manymome, plspm, genpathmox, MatchIt, NCA, bootnet, EGAnet and others), each loading its data from the package and linking to its source. Examples open as the original each time; <span class="ui">Keep as my project</span> turns one, with your changes, into your own project.</p>
+
+<h2 id="shortcuts">Keyboard shortcuts</h2>
+<table>
+  <tr><th>Keys</th><th>Action</th></tr>
+  <tr><td><kbd>V</kbd> <kbd>C</kbd> <kbd>P</kbd> <kbd>R</kbd></td><td>Select, construct, path and correlation tools</td></tr>
+  <tr><td><kbd>Del</kbd> / <kbd>⌫</kbd></td><td>Delete the selection</td></tr>
+  <tr><td><kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd></td><td>Undo / redo</td></tr>
+  <tr><td><kbd>⌘S</kbd> / <kbd>⌘O</kbd></td><td>Save / open a project file</td></tr>
+  <tr><td><kbd>⌘↵</kbd> / <kbd>⌘⇧↵</kbd></td><td>Calculate / bootstrap</td></tr>
+  <tr><td><kbd>Esc</kbd></td><td>Close a dialog</td></tr>
+</table>
+<p>On Windows and Linux, <kbd>Ctrl</kbd> replaces <kbd>⌘</kbd>.</p>
+
+<h2 id="privacy">Where your data go</h2>
+<ul>
+  <li>By default, nowhere: data, models and results stay in this browser (and in project files you save). The R packages run inside the page; nothing is loaded from third parties while you work.</li>
+  <li>With the desktop helper, data go to R on your own computer only.</li>
+  <li>When you share a project, its model and dataset are stored on the PLS Studio server, the dataset encrypted; only the people you invite can open it.</li>
+</ul>
+<p>The <span class="ui">About &amp; licences</span> dialog on the home screen lists every component and dataset with its licence. PLS Studio is free software (GPL-2.0-or-later).</p>
+
+<h2 id="trouble">Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>What to do</th></tr>
+  <tr><td>The first calculation takes long</td><td>The R runtime is being downloaded (once per browser). Keep the tab open.</td></tr>
+  <tr><td>“Could not be computed” in Messages</td><td>The package refused that statistic for this model or data; the message says why. The rest of the results are unaffected.</td></tr>
+  <tr><td>A card is marked out of date</td><td>The data or model changed since it ran. Rerun it from the card.</td></tr>
+  <tr><td>Cannot share or invite: “Verify your email address first”</td><td>Open the link in the verification email, or send it again from the account menu.</td></tr>
+  <tr><td>No invitation email arrives</td><td>Check spam; the Share dialog shows the link, which you can send any other way.</td></tr>
+  <tr><td>The helper will not connect</td><td>Check that it is running, that this browser was allowed in its dialog or paired by code, and for a deployment on its own address that the origin was allowed (<code>pls-studio-helper allow-origin</code>).</td></tr>
+  <tr><td>Something looks stale after an update</td><td>Reload the page; the app revalidates on every load, but an open tab keeps the old version until then.</td></tr>
+</table>
+
+<footer>PLS Studio user guide. The app's version and the versions of the R packages are listed under About &amp; licences on the home screen.</footer>
+</main>
+</div>
+</body>
+</html>

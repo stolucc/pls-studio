@@ -143,6 +143,7 @@ describe('workspace layout', () => {
     expect(at('aria-label="Undo"')).toBeGreaterThan(at('workspace-tabs'));
     expect(at('aria-label="Redo"')).toBeGreaterThan(at('aria-label="Undo"'));
     expect(html.slice(html.indexOf('tb-center'), html.indexOf('tb-right'))).toContain('aria-label="Project name"');
+    expect(html.slice(html.indexOf('tb-right'))).toContain('href="guide.html" target="_blank" rel="noopener"');
     // the Example chip or unsaved dot sits over symmetric padding, so it never shifts the name
     expect(rule('.tb-center .example-pill, .tb-center .dirty-dot')).toMatch(/position:\s*absolute/);
     expect(rule('.tb-center.has-example')).toMatch(/padding:\s*0 64px/);

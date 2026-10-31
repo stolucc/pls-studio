@@ -9,7 +9,7 @@ import { switchMethod } from '../methodSwitch';
 import { AccountMenu } from './cloud/AccountMenu';
 import { PresenceBar } from './cloud/Presence';
 import { ShareDialog } from './cloud/ShareDialog';
-import { IconEye, IconShare, IconLogo, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
+import { IconEye, IconHelp, IconShare, IconLogo, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
 
 const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
@@ -78,6 +78,7 @@ export function TopBar() {
       </div>
       {/* Right: people, sharing, the method and calculation. */}
       <div className="tb-group tb-right">
+      <a className="btn icon ghost" href="guide.html" target="_blank" rel="noopener" title="User guide (opens in a new tab)" aria-label="User guide"><IconHelp /></a>
       <PresenceBar />
       <button className="btn ghost" aria-label="Share" onClick={() => setShareOpen(true)} title="Invite people to work on this project"><IconShare /><span className="lbl">Share</span></button>
       <AccountMenu />
