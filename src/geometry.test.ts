@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, moderatorSegment, QUAD_RISE, quadraticLoop, pathSegment,
+  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, interceptSegment, moderatorSegment, QUAD_RISE, quadraticLoop, pathSegment,
 } from './geometry';
 
 describe('construct shapes', () => {
@@ -131,5 +131,31 @@ describe('double-headed correlation arrows', () => {
     expect(Math.hypot((base1[0] + base1[2]) / 2, (base1[1] + base1[3]) / 2)).toBeGreaterThan(ERR_R);
     const [t2x, t2y] = pts(c.heads[1]);
     expect([t2x, t2y]).toEqual([c.x2, c.y2]);
+  });
+});
+
+describe('intercept arrows from the constant', () => {
+  const t = { name: 'T', indicators: ['t1', 't2'], side: 'left' as const, x: 300, y: 0, type: 'factor' as const };
+  it('run from the triangle to the boundary of the indicator box', () => {
+    const k = { x: 0, y: 0 };
+    const box = constructGeometry(t).indicators[0];
+    const seg = interceptSegment(k, t, box)!;
+    expect(Math.hypot(seg.x1, seg.y1)).toBeCloseTo(16, 9); // 0.8 × CONSTANT_R, towards the box
+    const cx = t.x + box.x + box.w / 2, cy = t.y + box.y + box.h / 2;
+    // The end lies on the box's edge: one coordinate at the edge, the other within the box.
+    const onEdge = Math.abs(Math.abs(seg.x2 - cx) - box.w / 2) < 1e-9 || Math.abs(Math.abs(seg.y2 - cy) - box.h / 2) < 1e-9;
+    expect(onEdge).toBe(true);
+    expect(Math.abs(seg.x2 - cx)).toBeLessThanOrEqual(box.w / 2 + 1e-9);
+    expect(Math.abs(seg.y2 - cy)).toBeLessThanOrEqual(box.h / 2 + 1e-9);
+    // Collinear with the triangle and the box centre.
+    expect((seg.x2 - k.x) * (cy - k.y) - (seg.y2 - k.y) * (cx - k.x)).toBeCloseTo(0, 6);
+    expect(interceptSegment({ x: cx, y: cy }, t, box)).toBeNull();
+  });
+  it('is straight down when the box is right below, and straight across when level', () => {
+    const box = { x: -20, y: 100, w: 40, h: 26 };
+    const down = interceptSegment({ x: 0, y: 0 }, { ...t, x: 0, y: 0 }, box)!;
+    expect(down.x2).toBeCloseTo(0, 9); expect(down.y2).toBeCloseTo(100, 9);
+    const across = interceptSegment({ x: 0, y: 113 }, { ...t, x: 0, y: 0 }, { x: 100, y: 100, w: 40, h: 26 })!;
+    expect(across.y2).toBeCloseTo(113, 9); expect(across.x2).toBeCloseTo(100, 9);
   });
 });

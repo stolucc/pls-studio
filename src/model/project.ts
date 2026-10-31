@@ -361,6 +361,24 @@ export function impliedMainEffects(model: ModelState): { from: string; to: strin
 }
 
 /**
+ * The intercepts the constant implies (estimated, not drawn): every indicator's,
+ * except the marker of a construct whose latent mean is drawn free (its
+ * intercept is fixed at 0 to identify the mean), as lavaan.R writes the model.
+ * Observed covariates have no indicator boxes (their intercept is the sample
+ * mean unless an arrow is drawn).
+ */
+export function impliedIntercepts(model: ModelState): { construct: string; indicator: string }[] {
+  if (!model.constant) return [];
+  const out: { construct: string; indicator: string }[] = [];
+  for (const c of model.constructs) {
+    if (c.covariate || c.components?.length) continue;
+    const freeMean = (model.means ?? []).some((t) => t.target === c.id && t.fixed === undefined);
+    c.indicators.forEach((indicator, i) => { if (!(freeMean && i === 0)) out.push({ construct: c.id, indicator }); });
+  }
+  return out;
+}
+
+/**
  * The covariances to estimate (drawn correlations) or fix: confirmed and
  * undrawn pairs of exogenous latent constructs are uncorrelated (fixed at 0;
  * the diagram is the model).

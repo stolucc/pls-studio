@@ -22,6 +22,8 @@ export interface FigureInput {
   /** The constant (triangle, "1") and its arrows: latent means and intercepts. */
   constant?: { x: number; y: number };
   means?: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
+  /** The intercepts the constant implies (dashed arrows to the indicator boxes). */
+  intercepts?: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -81,6 +83,7 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
     out.push(`<path d="M ${n(x)} ${n(y - r)} L ${n(x + r * 0.95)} ${n(y + r * 0.7)} L ${n(x - r * 0.95)} ${n(y + r * 0.7)} Z" fill="${style.indicatorFill}" stroke="${style.constructStroke}" stroke-width="${n(style.constructStrokeWidth)}"/>`);
     out.push(`<text x="${n(x)}" y="${n(y + r * 0.35)}" font-size="${n(style.fontSize)}" font-weight="bold" text-anchor="middle" fill="#333333">1</text>`);
     for (const t of f.means ?? []) line(t.x1, t.y1, t.x2, t.y2, style.pathColor, style.pathWidth * 0.9, true);
+    for (const t of f.intercepts ?? []) line(t.x1, t.y1, t.x2, t.y2, style.pathColor, style.pathWidth * 0.7, true, '5 4');
   }
 
   // Error terms: circles with their (standardised) variance, or e / d.
@@ -134,6 +137,7 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
     }
     for (const h of f.higherOrder) if (h.label) label((h.x1 + h.x2) / 2, (h.y1 + h.y2) / 2, h.label, '#333333');
     for (const t of f.means ?? []) if (t.label) label((t.x1 + t.x2) / 2, (t.y1 + t.y2) / 2, t.label, tone(t.label.p));
+    for (const t of f.intercepts ?? []) if (t.label) label((t.x1 + t.x2) / 2, (t.y1 + t.y2) / 2, t.label, tone(t.label.p));
     for (const k of f.correlations) if (k.label) {
       // Hang the label off the outer side of the arc.
       const text = estimateText(style, k.label.value, k.label.p);

@@ -216,7 +216,7 @@ describe('workspace layout', () => {
     expect(html.slice(html.indexOf('tb-right'))).toContain('href="guide.html" target="_blank" rel="noopener"');
     // the Example chip or unsaved dot sits over symmetric padding, so it never shifts the name
     expect(rule('.tb-center .example-pill, .tb-center .dirty-dot')).toMatch(/position:\s*absolute/);
-    expect(rule('.tb-center.has-example')).toMatch(/padding:\s*0 64px/);
+    expect(rule('.tb-center.has-example')).toMatch(/padding:\s*0 150px/);
   });
 
   it('lays the Data tab over the diagram and Inspector, which stay in their own columns', () => {
@@ -255,5 +255,15 @@ describe('weighting controls', () => {
     expect(html).toContain('Weighting approach (all constructs, cSEM)');
     s().setSettings({ plsPackage: 'seminr' });
     expect(render(<Inspector />)).not.toContain('Weighting approach (all constructs');
+  });
+});
+
+describe('the example pill', () => {
+  it('says what clicking it does', () => {
+    useStore.setState({ example: 'lavaan-hs' });
+    const html = render(<TopBar />);
+    expect(html).toContain('>Save example as project</button>');
+    useStore.setState({ example: null });
+    expect(render(<TopBar />)).not.toContain('example-pill');
   });
 });

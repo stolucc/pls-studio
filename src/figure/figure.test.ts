@@ -98,6 +98,19 @@ describe('implied main effects in the figure', () => {
     const dashed = renderFigureSvg({ ...base, paths: [{ ...base.paths[0], implied: true }] }, DEFAULT_FIGURE_STYLE).svg;
     expect(line(dashed).some((l) => l.includes('stroke-dasharray="5 4"'))).toBe(true);
   });
+  it('draws the constant’s implied intercepts dashed and thinner than its mean arrows, with their labels', () => {
+    const base = input();
+    const svg = renderFigureSvg({ ...base, constant: { x: -200, y: 0 }, means: [{ x1: -180, y1: 0, x2: -60, y2: 0, label: { value: 0.5, p: 0.01 } }],
+      intercepts: [{ x1: -180, y1: 10, x2: -40, y2: 80, label: { value: 4.936, p: 0 } }, { x1: -180, y1: -10, x2: -40, y2: -80, label: null }] }, DEFAULT_FIGURE_STYLE).svg;
+    const lines = svg.match(/<line [^>]*\/>/g) ?? [];
+    const dashed = lines.filter((l) => l.includes('stroke-dasharray="5 4"'));
+    expect(dashed).toHaveLength(2);
+    const width = (l: string) => Number(l.match(/stroke-width="([\d.]+)"/)![1]);
+    const mean = lines.find((l) => l.includes('x2="-60"'))!;
+    expect(width(dashed[0])).toBeLessThan(width(mean));
+    expect(svg).toContain('4.936');
+    expect(svg).toContain('0.500');
+  });
 });
 
 describe('the constant in figures', () => {

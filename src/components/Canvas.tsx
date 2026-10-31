@@ -4,7 +4,7 @@ import {
   type Connection, type ConnectionLineComponentProps, type EdgeChange, type FinalConnectionState, type NodeChange, type OnDelete,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { CONSTANT_R, constructGeometry, distanceToSegment, meanSegment, moderatorSegment, pathSegment, quadraticLoop } from '../geometry';
+import { CONSTANT_R, constructGeometry, distanceToSegment, interceptSegment, meanSegment, moderatorSegment, pathSegment, quadraticLoop } from '../geometry';
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { FigurePanel } from './FigurePanel';
@@ -17,13 +17,14 @@ import { ModelVersionBadge } from './ModelVersionBadge';
 import { fitPadding, overlayBottom } from '../canvasFit';
 import { ContextMenu } from './ContextMenu';
 import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
-import { correlationEndError, correlationPairError, endogenousIds, impliedMainEffects, newId, validateModel, type Correlation } from '../model/project';
+import { correlationEndError, correlationPairError, endogenousIds, impliedIntercepts, impliedMainEffects, newId, validateModel, type Correlation } from '../model/project';
 import { endAt } from './correlationEnds';
 import type { ExampleId } from '../io';
 import { run } from '../runner';
 import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from '../store';
 import { ConstructNode, type ConstructFlowNode } from './ConstructNode';
 import { ConstantNode, type ConstantFlowNode } from './ConstantNode';
+import { InterceptEdge, type InterceptFlowEdge } from './InterceptEdge';
 import { MeanEdge, type MeanFlowEdge } from './MeanEdge';
 import { indicatorLabels } from '../diagramLabels';
 import { readDraggedVars, VARS_MIME } from './dnd';
@@ -36,9 +37,9 @@ import { ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
 import { PathEdge, type PathFlowEdge } from './PathEdge';
 
 const nodeTypes = { construct: ConstructNode, constant: ConstantNode };
-const edgeTypes = { path: PathEdge, mean: MeanEdge };
+const edgeTypes = { path: PathEdge, mean: MeanEdge, intercept: InterceptEdge };
 type FlowNode = ConstructFlowNode | ConstantFlowNode;
-type FlowEdge = PathFlowEdge | MeanFlowEdge;
+type FlowEdge = PathFlowEdge | MeanFlowEdge | InterceptFlowEdge;
 
 function ConnectionLine({ fromX, fromY, toX, toY }: ConnectionLineComponentProps) {
   return <path d={`M ${fromX} ${fromY} L ${toX} ${toY}`} stroke="var(--accent)" strokeWidth={1.8} strokeDasharray="5 4" fill="none" markerEnd="url(#arrow-path-sel)" />;
@@ -369,12 +370,18 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     }));
     drawn.push(...means);
     if (!showImplied) return drawn;
-    return [...drawn, ...implied.map((e): PathFlowEdge => ({
+    // The intercepts the constant implies (every indicator's, bar a drawn mean's marker): dashed, not editable.
+    const intercepts = impliedIntercepts(model).map((e): InterceptFlowEdge => {
+      const l = meanOf(e.indicator);
+      return { id: `intercept:${e.construct}:${e.indicator}`, source: 'constant', target: e.construct, sourceHandle: 's', targetHandle: 't', type: 'intercept',
+        selectable: false, deletable: false, focusable: false, data: { indicator: e.indicator, value: l?.value ?? null, p: l?.p ?? null } };
+    });
+    return [...drawn, ...intercepts, ...implied.map((e): PathFlowEdge => ({
       id: `implied:${e.from}:${e.to}`, source: e.from, target: e.to, sourceHandle: 's', targetHandle: 't', type: 'path',
       selectable: false, deletable: false, focusable: false,
       data: { ...(display ? display.path(name.get(e.from)!, name.get(e.to)!) : { beta: null, p: null }), implied: true },
     }))];
-  }, [model.paths, model.constructs, model.moderations, model.constant, model.means, selection.edges, display, meanOf, method, implied, showImplied]);
+  }, [model, selection.edges, display, meanOf, method, implied, showImplied]);
 
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
     let sel: Selection | null = null;
@@ -543,7 +550,15 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const l = meanOf(c.name);
       return [{ ...seg, label: lbl(l?.value ?? (t.fixed !== undefined ? t.fixed : null), l?.p ?? null, t.fixed !== undefined && l == null) }];
     }) : [];
-    return { constructs, paths, moderations, higherOrder, errors, correlations, ...(constant ? { constant, means } : {}) };
+    const intercepts = constant && st().showImpliedEffects ? impliedIntercepts(m).flatMap((e) => {
+      const c = byId.get(e.construct);
+      const box = c && constructGeometry(c).indicators.find((b) => b.name === e.indicator);
+      const seg = c && box && interceptSegment(constant, c, box);
+      if (!seg) return [];
+      const l = meanOf(e.indicator);
+      return [{ ...seg, label: lbl(l?.value ?? null, l?.p ?? null) }];
+    }) : [];
+    return { constructs, paths, moderations, higherOrder, errors, correlations, ...(constant ? { constant, means, intercepts } : {}) };
   }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel]);
   // Model snapshots on the Analyses tab draw the diagram from the canvas.
   useEffect(() => { setFigureSource(figureInput); return () => setFigureSource(null); }, [figureInput]);
@@ -740,9 +755,9 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
             <button role="radio" aria-checked={unstd} className={unstd ? 'on' : ''} onClick={() => st().setEstimateScale('unstd')} title="Unstandardised estimates (marker loadings are 1)">Unstd</button>
           </div>
         )}
-        {implied.length > 0 && (
+        {(implied.length > 0 || (model.constant && impliedIntercepts(model).length > 0)) && (
           <button className={`btn ghost${showImplied ? ' on' : ''}`} onClick={() => st().setShowImpliedEffects(!showImplied)} aria-pressed={showImplied}
-            title={showImplied ? 'Hide the moderators’ implied main effects (dashed; they are estimated either way)' : 'Show the moderators’ implied main effects as dashed arrows (they are estimated either way)'}>
+            title={showImplied ? 'Hide what the model implies (dashed: the moderators’ main effects, the constant’s intercepts; they are estimated either way)' : 'Show what the model implies as dashed arrows (the moderators’ main effects, the constant’s intercepts; they are estimated either way)'}>
             Implied
           </button>
         )}

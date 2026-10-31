@@ -146,7 +146,7 @@ button, input, select { font: inherit; color: inherit; }
 .tb-right { justify-content: flex-end; }
 .tb-center { justify-content: center; position: relative; }
 .tb-center.has-dirty { padding: 0 16px; }
-.tb-center.has-example { padding: 0 64px; }
+.tb-center.has-example { padding: 0 150px; }
 .tb-center .example-pill, .tb-center .dirty-dot { position: absolute; top: 50%; transform: translateY(-50%); }
 .tb-center .example-pill { right: 0; }
 .tb-center .dirty-dot { right: 4px; }
@@ -299,6 +299,8 @@ button, input, select { font: inherit; color: inherit; }
 .cnode.constant.selected .constant-shape { stroke: var(--accent); stroke-width: 2; }
 .cnode.constant .constant-label { font-size: 15px; font-weight: 700; fill: var(--text); font-family: var(--figure-font, inherit); }
 .pedge.mean { stroke-dasharray: none; }
+/* An intercept the constant implies: dashed, thin, not editable. */
+.pedge.intercept { stroke-dasharray: 5 4; stroke-width: 1.2; opacity: 0.45; }
 .cnode svg { overflow: visible; display: block; }
 .cnode .ellipse { fill: var(--construct-fill); stroke: var(--construct-stroke); stroke-width: var(--construct-stroke-width, 1.5); transition: stroke-width 0.1s; }
 .cnode.selected .ellipse { stroke-width: 2.5; filter: drop-shadow(0 0 0 transparent) drop-shadow(0 4px 10px rgba(79, 70, 229, 0.25)); }

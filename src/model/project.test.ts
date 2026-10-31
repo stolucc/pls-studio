@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { covarianceLayout } from '../components/CovarianceLayer';
-import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, type Construct, type ModelState, parseProject, pruneCorrelations, pruneMeans, serializeProject, toSpec, validateModel } from './project';
+import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, impliedIntercepts, type Construct, type ModelState, parseProject, pruneCorrelations, pruneMeans, serializeProject, toSpec, validateModel } from './project';
 
 const data = { names: ['a1', 'a2', 'b1', 'c1'], cols: [1, 2, 3, 4].map(() => Float64Array.from({ length: 100 }, (_, i) => i % 7)) };
 const C = (id: string, name: string, indicators: string[]) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators, x: 0, y: 0, side: 'left' as const });
@@ -525,5 +525,22 @@ describe('the mean structure (the constant)', () => {
     expect(errs(cbs, m, { names: raw.names, cols: [], moments: { S: raw.names.map((_, i) => raw.names.map((_, j) => (i === j ? 1 : 0.2))), n: 50 } })).toContainEqual(expect.stringContaining('carries no means'));
     expect(errs(cbs, { ...m, multigroup: { column: 'g', invariance: 'scalar', free: [] } })).toContainEqual(expect.stringContaining('come from the invariance level'));
     expect(errs(cbs, { ...m, constructs: [...m.constructs, K('H', 'Higher', [], { components: ['A', 'B'] })], means: [{ id: 'm9', target: 'H' }] })).toContainEqual(expect.stringContaining('second-order construct'));
+  });
+});
+
+describe('intercepts the constant implies', () => {
+  const c = (id: string, indicators: string[], extra: Partial<Construct> = {}): Construct => ({ id, name: id, type: 'factor', mode: 'A', indicators, x: 0, y: 0, side: 'left', ...extra });
+  const base: ModelState = { constructs: [c('A', ['a1', 'a2']), c('B', ['b1']), c('Z', ['z'], { covariate: true }), c('H', [], { components: ['A', 'B'] })], paths: [], moderations: [] };
+  it('are none without the constant, and every indicator intercept with it (not covariates or higher-order constructs)', () => {
+    expect(impliedIntercepts(base)).toEqual([]);
+    expect(impliedIntercepts({ ...base, constant: { x: 0, y: 0 } })).toEqual([
+      { construct: 'A', indicator: 'a1' }, { construct: 'A', indicator: 'a2' }, { construct: 'B', indicator: 'b1' },
+    ]);
+  });
+  it('leave out the marker of a construct whose latent mean is drawn free, but not one fixed at a value', () => {
+    const k = { ...base, constant: { x: 0, y: 0 } };
+    expect(impliedIntercepts({ ...k, means: [{ id: 'm', target: 'A' }] })).toEqual([{ construct: 'A', indicator: 'a2' }, { construct: 'B', indicator: 'b1' }]);
+    expect(impliedIntercepts({ ...k, means: [{ id: 'm', target: 'A', fixed: 0 }] })).toHaveLength(3);
+    expect(impliedIntercepts({ ...k, means: [{ id: 'm', target: 'Z' }] })).toHaveLength(3);
   });
 });

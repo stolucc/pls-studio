@@ -77,9 +77,9 @@ export function TopBar() {
         <input className="project-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Project name" title={name} maxLength={100}
           style={{ width: `${Math.min(26, Math.max(12, name.length + 2))}ch` }} />
         {example ? (
-          <button className="example-pill" title="An example: try anything; your changes are not kept, so it opens as the original next time. Click to keep it, with your changes, as your own project."
-            onClick={() => void confirmDialog({ title: 'Keep as my project?', body: 'This example, with your changes, becomes your own project and is kept in Recent projects.', confirmLabel: 'Keep as my project' })
-              .then((ok) => { if (ok) { keepExample(); useStore.getState().toast('success', 'Now your own project: changes are kept in Recent projects.'); } })}>Example</button>
+          <button className="example-pill" title="An example: try anything; your changes are not kept, so it opens as the original next time. Click to save it, with your changes, as your own project."
+            onClick={() => void confirmDialog({ title: 'Save example as project?', body: 'This example, with your changes, becomes your own project and is kept with your projects.', confirmLabel: 'Save as my project' })
+              .then((ok) => { if (ok) { keepExample(); useStore.getState().toast('success', 'Now your own project: changes are kept with your projects.'); } })}>Save example as project</button>
         ) : dirty && <span className="dirty-dot" title="Unsaved changes" />}
       </div>
       {/* Right: people, sharing, the method and calculation. */}

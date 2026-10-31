@@ -155,6 +155,16 @@ export function meanSegment(k: { x: number; y: number }, t: Placed): { x1: numbe
   return { x1: k.x + (dx / l) * CONSTANT_R * 0.8, y1: k.y + (dy / l) * CONSTANT_R * 0.8, x2: t.x + bx, y2: t.y + by };
 }
 
+/** The implied arrow from the constant (centre k) to an indicator box of construct t (box boundary). */
+export function interceptSegment(k: { x: number; y: number }, t: Placed, box: Pick<IndicatorGeom, 'x' | 'y' | 'w' | 'h'>): { x1: number; y1: number; x2: number; y2: number } | null {
+  const cx = t.x + box.x + box.w / 2, cy = t.y + box.y + box.h / 2;
+  const dx = cx - k.x, dy = cy - k.y;
+  const l = Math.hypot(dx, dy);
+  if (l === 0) return null;
+  const s = Math.min(dx === 0 ? Infinity : box.w / 2 / Math.abs(dx), dy === 0 ? Infinity : box.h / 2 / Math.abs(dy));
+  return { x1: k.x + (dx / l) * CONSTANT_R * 0.8, y1: k.y + (dy / l) * CONSTANT_R * 0.8, x2: cx - dx * s, y2: cy - dy * s };
+}
+
 export function moderatorSegment(m: Placed, path: { x1: number; y1: number; x2: number; y2: number }) {
   const mx = (path.x1 + path.x2) / 2, my = (path.y1 + path.y2) / 2;
   const g = constructGeometry(m);

@@ -862,7 +862,7 @@ function ConstantInspector() {
   return (
     <div className="section">
       <div className="section-title">The constant (1)</div>
-      <div className="hint">lavaan’s mean structure is on: every indicator intercept is estimated. Drag from the triangle’s handle to a construct to estimate its latent mean (or an observed variable’s intercept); {n ? `${n} arrow${n > 1 ? 's' : ''} drawn.` : 'no arrows yet.'}</div>
+      <div className="hint">lavaan’s mean structure is on: every indicator intercept is estimated (the dashed arrows; hide them with Implied). Drag from the triangle’s handle to a construct to estimate its latent mean (or an observed variable’s intercept); {n ? `${n} arrow${n > 1 ? 's' : ''} drawn.` : 'no arrows yet.'}</div>
       <button className="btn sm danger" style={{ marginTop: 8 }} onClick={() => del(['constant'], [])}>Remove the constant{n ? ' and its arrows' : ''}</button>
     </div>
   );
