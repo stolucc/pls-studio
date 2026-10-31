@@ -1,6 +1,7 @@
-// Model snapshots: the results of the model on the canvas (and its diagram),
-// frozen as a card on the Analyses tab, to compare versions of a model in the
-// log and the report. A snapshot is never re-run and never goes stale.
+// Model snapshots (projects from before model runs): the results of the model
+// on the canvas (and its diagram), frozen as a card on the Analyses tab. A
+// snapshot is never re-run and never goes stale. New ones are no longer taken:
+// Calculate logs a model run (runs.tsx), which shows its results the same way.
 
 import { useState } from 'react';
 import type { FitTestResult } from '../engine/bootstrap';
@@ -35,7 +36,7 @@ const tabsOf = (m: SnapshotResult['method']) => ({ pls: PLS_TABS.filter((t) => t
 /** The diagram, as an image: the SVG is never inserted into the page as markup. */
 export const diagramSrc = (svg: string) => `data:image/svg+xml;base64,${btoa(String.fromCharCode(...new TextEncoder().encode(svg)))}`;
 
-function SnapshotView({ r }: { r: SnapshotResult }) {
+export function SnapshotView({ r }: { r: SnapshotResult }) {
   const tabs = tabsOf(r.method) as readonly { id: string; label: string }[];
   const [tab, setTab] = useState(tabs[0].id);
   const body = r.method === 'pls' && r.pls ? <PlsTab tab={tab as PlsTabId} pls={r.pls} boot={r.boot ?? null} fitTest={r.fitTest ?? null} />
@@ -56,7 +57,7 @@ function SnapshotView({ r }: { r: SnapshotResult }) {
 }
 
 export const snapshotAnalysis: AnalysisType<SnapshotOptions, SnapshotResult> = {
-  id: 'snapshot', title: 'Model snapshot', sub: 'the model’s results, frozen (take one from the Model tab)', group: 'Model snapshots',
+  id: 'snapshot', title: 'Model snapshot', sub: 'the model’s results, frozen (take one from the Model tab)', group: 'Model runs',
   frozen: true,
   cardTitle: (o) => o.label || 'Model snapshot',
   display: ['label'],

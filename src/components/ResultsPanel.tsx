@@ -1,7 +1,3 @@
-import { addFrozenCard, useAnalyses } from '../analyses/store';
-import type { SnapshotResult } from '../analyses/snapshot';
-import { figureSource } from '../figure/source';
-import { renderFigureSvg } from '../figure/render';
 import { useState } from 'react';
 import { cancelJob, run } from '../runner';
 import { useFreshResults, useStore } from '../store';
@@ -16,19 +12,6 @@ import { processGraph } from '../process/fromModel';
 import { MessagesView } from './results/Messages';
 import { ScriptView } from './results/ScriptView';
 import { IconAlert } from './icons';
-
-/** Freeze the current results and diagram as a card on the Analyses tab. */
-async function takeSnapshot(r: Omit<SnapshotResult, 'diagram' | 'description'> & { description: string }) {
-  const st = useStore.getState();
-  const source = figureSource();
-  let diagram: string | null;
-  try { diagram = source ? renderFigureSvg(source(), st.settings.figure).svg : null; } catch { diagram = null; }
-  const n = useAnalyses.getState().cards.filter((c) => c.kind === 'analysis' && c.type === 'snapshot').length + 1;
-  const what = r.method === 'pls' ? 'PLS-SEM' : r.method === 'cbsem' ? 'CB-SEM' : r.method === 'miiv' ? 'MIIV-2SLS' : 'CPA';
-  const id = await addFrozenCard('snapshot', { label: `${what} model, snapshot ${n}` }, { ...r, description: `${r.description} · ${new Date().toLocaleString()}`, diagram });
-  if (!id) return;
-  st.toast('success', `Snapshot ${n} added to the Analyses tab.`);
-}
 
 export function ResultsPanel({ height, onResize }: { height: number; onResize: (h: number) => void }) {
   const open = useStore((s) => s.resultsOpen);
@@ -142,10 +125,6 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
               </button>
             ))}
           </div>
-        )}
-        {!job && (pls || cb || miiv || proc) && (
-          <button className="btn sm ghost" onClick={() => void takeSnapshot({ method: isMiiv ? 'miiv' : method === 'cbsem' ? 'cbsem' : method, pls, cb, miiv, process: proc, boot, fitTest: results?.fitTest ?? null, processTitle: procTitle, level: confidence, description: engineLabel ?? (method === 'pls' ? 'PLS-SEM' : method === 'cbsem' ? 'CB-SEM' : 'CPA') })}
-            title="Freeze these results (and the diagram) as a card on the Analyses tab, to compare versions of the model">Snapshot to Analyses</button>
         )}
         {!job && <EngineBadge label={engineLabel} />}
         {progress}

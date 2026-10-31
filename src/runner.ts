@@ -10,6 +10,8 @@ import { resultsKey, useStore, type JobKind } from './store';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
 let pool: Worker[] = [];
+/** Every result on screen is logged as a model run on the Analyses tab (a new version, or the current one's card). */
+const logged = () => { void import('./analyses/runs').then((m) => m.logCurrentRun()); };
 /** Incremented to discard the result of an R calculation that was cancelled or superseded. */
 let rToken = 0;
 
@@ -79,20 +81,20 @@ function runR(kind: JobKind, key: string) {
     if (cb && st.estimator === '2SLS') {
       import('./rengine/analyses').then(({ miivR }) => miivR(data, spec, st.missing)).then((r) => {
         const t = done(); if (!t) return;
-        t.setResults({ miiv: r }, key);
+        t.setResults({ miiv: r }, key); logged();
         const rejected = r.equations.filter((e) => e.sarganP !== null && e.sarganP < 0.05).length;
         t.toast('success', `MIIVsem ${r.engine.version}: ${r.equations.length} equations estimated${rejected ? `; ${rejected} Sargan test${rejected > 1 ? 's' : ''} significant at .05` : ''}.`);
       }).catch(failed);
     } else if (cb) {
       import('./rengine/lavaan').then(({ estimateCbLavaan }) => estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction, { m: st.miImputations, seed: st.seed })).then((r) => {
         const t = done(); if (!t) return;
-        t.setResults({ cb: r }, key);
+        t.setResults({ cb: r }, key); logged();
         cbToast(r, `lavaan ${r.engine.version}`);
       }).catch(failed);
     } else {
       import('./rengine/pls').then(({ estimatePlsR }) => estimatePlsR(data, spec, options, st.plsPackage)).then((r) => {
         const t = done(); if (!t) return;
-        t.setResults({ pls: r }, key);
+        t.setResults({ pls: r }, key); logged();
         const by = `${r.engine.package} ${r.engine.version}`;
         if (!r.converged) t.toast('error', `${by}: did not converge in ${r.iterations} iterations. Interpret results with care.`);
         else if (r.warnings.length) t.toast('error', `${by}: ${r.warnings.length === 1 ? r.warnings[0] : `${r.warnings.length} warnings`} (see Messages in the results panel).`, { log: false });
@@ -105,7 +107,7 @@ function runR(kind: JobKind, key: string) {
   if (kind === 'fittest') {
     import('./rengine/analyses').then(({ fitTestR }) => fitTestR(data, spec, options, boot)).then((r) => {
       const t = done(); if (!t) return;
-      t.setResults({ fitTest: r }, key);
+      t.setResults({ fitTest: r }, key); logged();
       t.toast('success', `cSEM fit test: ${r.samples - r.failed} of ${r.samples} bootstrap samples admissible.`);
     }).catch(failed);
     return;
@@ -123,7 +125,7 @@ function runR(kind: JobKind, key: string) {
     cb ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot, interaction: st.interaction } : { kind: 'plsBoot', pkg: st.plsPackage, options, boot }, () => v, progress))
     .then((r) => {
       const t = done(); if (!t) return;
-      t.setResults({ boot: r }, key);
+      t.setResults({ boot: r }, key); logged();
       // Multiple groups / levels: show the bootstrap of the group on screen.
       const gi = useStore.getState().results?.cb?.groupIndex;
       if (gi) useStore.getState().showGroup(gi);
@@ -148,7 +150,7 @@ function runProcess(key: string) {
     if (token !== rToken) return;
     const t = useStore.getState();
     t.setJob(null);
-    t.setResults({ process: r }, key);
+    t.setResults({ process: r }, key); logged();
     const name = recognised ? `PROCESS model ${recognised.model}` : 'Custom model';
     if (r.warnings.length) t.toast('error', `${r.engine.package}: ${r.warnings.length === 1 ? r.warnings[0] : `${r.warnings.length} warnings`} (see Messages in the results panel).`, { log: false });
     else t.toast('success', `manymome ${r.engine.version}: ${name} estimated (n = ${r.n}).`);
@@ -173,7 +175,7 @@ export function runInvariance() {
     if (token !== rToken) return;
     const t = useStore.getState();
     t.setJob(null);
-    t.setResults({ invariance: r }, key);
+    t.setResults({ invariance: r }, key); logged();
     t.toast('success', 'Measurement invariance: configural, metric, scalar and strict models compared.');
   }).catch((e) => {
     if (token !== rToken) return;
@@ -226,15 +228,15 @@ export function run(kind: JobKind) {
       st.setJob(null);
       if (msg.kind === 'error') st.toast('error', msg.message);
       else if (msg.kind === 'pls') {
-        st.setResults({ pls: msg.result }, key);
+        st.setResults({ pls: msg.result }, key); logged();
         if (!msg.result.converged) st.toast('error', `Did not converge in ${msg.result.iterations} iterations. Interpret results with care.`);
         else st.toast('success', `${msg.result.consistent ? 'PLSc' : 'PLS'} algorithm converged in ${msg.result.iterations} iterations.`);
       } else if (msg.kind === 'miiv') {
-        st.setResults({ miiv: msg.result }, key);
+        st.setResults({ miiv: msg.result }, key); logged();
         const rejected = msg.result.equations.filter((e) => e.sarganP !== null && e.sarganP < 0.05).length;
         st.toast('success', `MIIV-2SLS: ${msg.result.equations.length} equations estimated${rejected ? `; ${rejected} Sargan test${rejected > 1 ? 's' : ''} significant at .05` : ''}.`);
       } else if (msg.kind === 'cb') {
-        st.setResults({ cb: msg.result }, key);
+        st.setResults({ cb: msg.result }, key); logged();
         cbToast(msg.result, 'Built-in engine');
       }
     };
@@ -278,12 +280,12 @@ export function run(kind: JobKind) {
       try {
         if (kind === 'fittest') {
           const result = mergeFitTest(parts);
-          st.setResults({ fitTest: result }, key);
+          st.setResults({ fitTest: result }, key); logged();
           st.toast('success', `Fit test finished: ${result.samples} bootstrap samples on ${ranges.length} core${ranges.length > 1 ? 's' : ''}.`);
           if (!useStore.getState().results?.pls) run('estimate');
         } else {
           const result = mergeBootstrap(parts, s.settings.confidence, { tails: s.settings.bootTails === 'one' ? 1 : 2 });
-          st.setResults({ boot: result }, key);
+          st.setResults({ boot: result }, key); logged();
           const failed = result.failed ? ` (${result.failed} samples failed and were skipped)` : '';
           st.toast('success', `Bootstrapping finished: ${result.samples} samples on ${ranges.length} core${ranges.length > 1 ? 's' : ''}${failed}.`);
           const r = useStore.getState().results;

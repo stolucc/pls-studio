@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { emptyModel, useStore } from '../store';
+import { emptyModel, resultsKey, useStore } from '../store';
 import { DataWorkspace } from './DataViewer';
 import { TopBar, WorkspaceTabs } from './TopBar';
 import { AnalysesWorkspace } from './analyses/AnalysesWorkspace';
@@ -148,6 +148,25 @@ describe('Analyses tab', () => {
     expect(host.innerHTML).toContain('Necessary condition analysis</h3>');
     act(() => root.unmount());
     host.remove();
+  });
+
+  it('shows a model run as the current model, then as an earlier version with a way to open it once the model changes', async () => {
+    const st = s();
+    st.setData({ names: ['a1', 'a2', 'b1'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([2, 3, 5]), Float64Array.from([1, 3, 2])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
+    const a = st.addConstruct(0, 0, ['a1', 'a2']), b = st.addConstruct(200, 0, ['b1']);
+    st.addPath(a, b);
+    useStore.setState((x) => ({ results: { pls: { n: 3, converged: true, iterations: 2 } as never, cb: null, miiv: null, boot: null, fitTest: null, key: resultsKey(x) } }));
+    const { logCurrentRun } = await import('../analyses/runs');
+    expect(await logCurrentRun()).toBeTruthy();
+    let html = render(<AnalysesWorkspace />);
+    expect(html).toContain('Model v1</h3>');
+    expect(html).toContain('current model</span>');
+    expect(html).not.toContain('Open model');
+    s().removePaths([s().model.paths[0].id]);
+    html = render(<AnalysesWorkspace />);
+    expect(html).toContain('earlier version</span>');
+    expect(html).toContain('>Open model</button>');
+    expect(html).toMatch(/<span class="dot earlier"/);
   });
 
   it('marks a result whose data changed as stale, with a way to rerun it', () => {

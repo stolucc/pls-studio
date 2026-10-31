@@ -33,7 +33,7 @@ export type Card =
   | { id: string; kind: 'heading' | 'note'; text: string };
 export type AnalysisCard = Extract<Card, { kind: 'analysis' }>;
 
-export type AnalysisGroup = 'Model snapshots' | 'Data' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions';
+export type AnalysisGroup = 'Model runs' | 'Data' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions';
 
 export interface OptionsProps<O> { options: O; set: (o: O) => void; ctx: AnalysisCtx; disabled: boolean }
 

@@ -4,11 +4,13 @@ import { useStore } from '../store';
 import { IconAlert, IconCheck, IconInfo, IconX } from './icons';
 
 interface ConfirmOpts { title: string; body: string; confirmLabel?: string; danger?: boolean }
+/** Several ways to continue (besides Cancel), e.g. keep / discard. */
+interface Choice { id: string; label: string; danger?: boolean; primary?: boolean }
 interface NumberField { label: string; min: number; max: number; integer?: boolean; initial?: string }
 /** A text field: `check` returns why the text is not acceptable (null when it is). Empty text is allowed when `allowEmpty`. */
 interface TextField { label: string; initial?: string; check: (text: string) => string | null; allowEmpty?: boolean }
 interface DialogState {
-  current: (ConfirmOpts & { field?: NumberField; text?: TextField; resolve: (ok: boolean, value?: number, text?: string) => void }) | null;
+  current: (ConfirmOpts & { field?: NumberField; text?: TextField; choices?: Choice[]; resolve: (ok: boolean, value?: number, text?: string, choice?: string) => void }) | null;
 }
 const useDialog = create<DialogState>(() => ({ current: null }));
 
@@ -27,6 +29,11 @@ export function textDialog(opts: ConfirmOpts & { text: TextField }): Promise<str
   return new Promise((resolve) => useDialog.setState({ current: { ...opts, resolve: (ok, _v, t) => resolve(ok && t !== undefined ? t : null) } }));
 }
 
+/** A question with several answers; resolves the chosen id, or null on cancel. */
+export function choiceDialog(opts: ConfirmOpts & { choices: Choice[] }): Promise<string | null> {
+  return new Promise((resolve) => useDialog.setState({ current: { ...opts, resolve: (ok, _v, _t, choice) => resolve(ok && choice ? choice : null) } }));
+}
+
 export function ConfirmModal() {
   const current = useDialog((s) => s.current);
   const okRef = useRef<HTMLButtonElement>(null);
@@ -38,9 +45,9 @@ export function ConfirmModal() {
   const textError = textField && (text.trim() === '' ? (textField.allowEmpty ? null : '') : textField.check(text.trim()));
   const valid = textField ? textError === null
     : !field || (text.trim() !== '' && Number.isFinite(value) && value >= field.min && value <= field.max && (!field.integer || Number.isInteger(value)));
-  const close = (ok: boolean) => {
+  const close = (ok: boolean, choice?: string) => {
     if (ok && !valid) return;
-    current?.resolve(ok, field ? value : undefined, textField ? text.trim() : undefined);
+    current?.resolve(ok, field ? value : undefined, textField ? text.trim() : undefined, choice);
     useDialog.setState({ current: null });
   };
   useEffect(() => { setText(current?.field?.initial ?? current?.text?.initial ?? ''); }, [current]);
@@ -75,9 +82,12 @@ export function ConfirmModal() {
         )}
         <div className="actions">
           <button className="btn" onClick={() => close(false)}>Cancel</button>
-          <button ref={okRef} className="btn primary" disabled={!valid} onClick={() => close(true)}>
-            {current.confirmLabel ?? 'Continue'}
-          </button>
+          {current.choices
+            ? current.choices.map((c, i) => (
+              <button key={c.id} ref={c.primary || (i === current.choices!.length - 1 && !current.choices!.some((x) => x.primary)) ? okRef : undefined}
+                className={`btn${c.primary ? ' primary' : ''}${c.danger ? ' danger' : ''}`} onClick={() => close(true, c.id)}>{c.label}</button>
+            ))
+            : <button ref={okRef} className="btn primary" disabled={!valid} onClick={() => close(true)}>{current.confirmLabel ?? 'Continue'}</button>}
         </div>
       </div>
     </div>

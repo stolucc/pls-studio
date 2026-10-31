@@ -1068,7 +1068,19 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { throw new Error('The file is not valid JSON.'); }
   if (!isObj(raw) || raw.format !== 'pls-studio' || (raw.version !== 1 && raw.version !== FORMAT_VERSION)) throw new Error('Not a PLS Studio project file (or an unsupported version).');
-  const m = raw.model;
+  const model = parseModelState(raw.model);
+  const settings = parseSettings(raw.settings);
+  const { data, info } = isObj(raw.data) ? parseDataSection(raw.data) : { data: null, info: null };
+  return {
+    // Format 1 estimated every undrawn exogenous pair in CB-SEM: draw those correlations (same results).
+    model: raw.version === 1 ? makeCovariancesExplicit(model) : model,
+    settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,
+    analyses: Array.isArray(raw.analyses) ? raw.analyses.slice(0, 200) : [],
+  };
+}
+
+/** Parse and strictly validate an untrusted model (a project file's, or one kept in a model-run card). */
+export function parseModelState(m: unknown): ModelState {
   if (!isObj(m) || !Array.isArray(m.constructs) || !Array.isArray(m.paths)) throw new Error('Invalid project file: model missing.');
   if (m.constructs.length > 500 || m.paths.length > 5000) throw new Error('Project is too large.');
   const sides: Side[] = ['left', 'right', 'top', 'bottom'];
@@ -1105,34 +1117,6 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     return path;
   });
 
-  const s = isObj(raw.settings) ? raw.settings : {};
-  const settings: Settings = {
-    method: s.method === 'cbsem' || s.method === 'process' ? s.method : 'pls',
-    consistent: s.consistent === true,
-    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV', '2SLS', 'RML'] as const).find((e) => e === s.estimator) ?? 'ML',
-    engine: s.engine === 'builtin' ? 'builtin' : 'r',
-    plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
-    plsApproach: (['GSCA', 'PCA', 'unit'] as const).find((x) => x === s.plsApproach) ?? 'PLS-PM',
-    figure: parseFigureStyle(s.figure),
-    ...(parseEfaDesign(s.efa) ? { efa: parseEfaDesign(s.efa) } : {}),
-    charts: parseChartStyle(s.charts),
-    scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
-    maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
-    stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
-    missing: (['casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const).find((m) => m === s.missing) ?? 'mean',
-    miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
-    bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
-    bootTails: s.bootTails === 'one' ? 'one' : 'two',
-    bootInterval: s.bootInterval === 'bca' ? 'bca' : 'percentile',
-    seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
-    confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
-    probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',
-    hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === s.hc) ?? 'none',
-    interaction: s.interaction === 'lms' || s.interaction === 'qml' ? s.interaction : 'product',
-    counterfactual: isObj(s.counterfactual) && finite(s.counterfactual.xref) && finite(s.counterfactual.xcf) ? { xref: s.counterfactual.xref, xcf: s.counterfactual.xcf } : null,
-  };
-
-  const { data, info } = isObj(raw.data) ? parseDataSection(raw.data) : { data: null, info: null };
   const pathIds = new Set(paths.map((p) => p.id));
   const rawMods = Array.isArray(m.moderations) ? m.moderations.slice(0, 1000) : [];
   const moderations: Moderation[] = rawMods.map((mo: unknown) => {
@@ -1158,7 +1142,7 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
     if (!known.has(out.a) || !known.has(out.b) || out.a === out.b) throw new Error('Invalid project file: correlation references an unknown construct or indicator.');
     return out;
   });
-  const model: ModelState = {
+  return {
       constructs, paths, moderations, ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}),
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
@@ -1173,10 +1157,34 @@ export function parseProject(text: string): { model: ModelState; settings: Setti
       ...(m.positiveVariances === true ? { positiveVariances: true } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
   };
+}
+
+/** Parse and strictly validate untrusted settings (a project file's, or those kept in a model-run card); anything missing takes its default. */
+export function parseSettings(raw: unknown): Settings {
+  const s = isObj(raw) ? raw : {};
   return {
-    // Format 1 estimated every undrawn exogenous pair in CB-SEM: draw those correlations (same results).
-    model: raw.version === 1 ? makeCovariancesExplicit(model) : model,
-    settings, data, info, simulation: raw.simulation ? parseDesign(raw.simulation) : null,
-    analyses: Array.isArray(raw.analyses) ? raw.analyses.slice(0, 200) : [],
+    method: s.method === 'cbsem' || s.method === 'process' ? s.method : 'pls',
+    consistent: s.consistent === true,
+    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV', '2SLS', 'RML'] as const).find((e) => e === s.estimator) ?? 'ML',
+    engine: s.engine === 'builtin' ? 'builtin' : 'r',
+    plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
+    plsApproach: (['GSCA', 'PCA', 'unit'] as const).find((x) => x === s.plsApproach) ?? 'PLS-PM',
+    figure: parseFigureStyle(s.figure),
+    ...(parseEfaDesign(s.efa) ? { efa: parseEfaDesign(s.efa) } : {}),
+    charts: parseChartStyle(s.charts),
+    scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
+    maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
+    stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
+    missing: (['casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const).find((m) => m === s.missing) ?? 'mean',
+    miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
+    bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
+    bootTails: s.bootTails === 'one' ? 'one' : 'two',
+    bootInterval: s.bootInterval === 'bca' ? 'bca' : 'percentile',
+    seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
+    confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
+    probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',
+    hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === s.hc) ?? 'none',
+    interaction: s.interaction === 'lms' || s.interaction === 'qml' ? s.interaction : 'product',
+    counterfactual: isObj(s.counterfactual) && finite(s.counterfactual.xref) && finite(s.counterfactual.xcf) ? { xref: s.counterfactual.xref, xcf: s.counterfactual.xcf } : null,
   };
 }

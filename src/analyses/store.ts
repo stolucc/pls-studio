@@ -7,6 +7,7 @@ import { cancelGroup, isCancelled, type CancelGroup } from '../cancellable';
 import { resultsKey, useStore } from '../store';
 import { packResult, unpackResult } from './codec';
 import { analysisType } from './registry';
+import { runHash } from './runHash';
 import type { AnalysisCard, AnalysisCtx, Card } from './types';
 
 export const MAX_CARDS = 200;
@@ -56,6 +57,21 @@ export async function addFrozenCard(type: string, options: unknown, result: unkn
   const card: Card = { id, kind: 'analysis', type, options, run: { at: Date.now(), fingerprint: t.fingerprint(options, currentCtx()) ?? '', options: JSON.stringify(options), ...(packed ? { packed } : {}) } };
   useAnalyses.setState((s) => ({ cards: [...s.cards, card], results: { ...s.results, [id]: result }, selected: id }));
   return id;
+}
+
+/** Replace a frozen card's result (a model run that gained a bootstrap, or was calculated again). */
+export async function updateFrozenCard(id: string, result: unknown): Promise<boolean> {
+  const card = useAnalyses.getState().cards.find((c): c is AnalysisCard => c.id === id && c.kind === 'analysis');
+  const t = card && analysisType(card.type);
+  if (!card || !t?.frozen || readOnly()) return false;
+  const packed = await packResult(result);
+  const now = useAnalyses.getState().cards.find((c) => c.id === id);
+  if (!now) return false;
+  useAnalyses.setState((s) => ({
+    cards: s.cards.map((c) => (c.id === id && c.kind === 'analysis' ? { ...c, run: { at: Date.now(), fingerprint: t.fingerprint(c.options, currentCtx()) ?? '', options: JSON.stringify(c.options), ...(packed ? { packed } : {}) } } : c)),
+    results: { ...s.results, [id]: result }, errors: without(s.errors, id),
+  }));
+  return true;
 }
 
 /** Add an analysis card (options: all or some of its options) and select it. */
@@ -248,6 +264,8 @@ export type CardStatus =
   | { state: 'empty' }
   | { state: 'running' }
   | { state: 'current' }
+  /** A model run of a version that is not the model on the Model tab now. */
+  | { state: 'earlier' }
   | { state: 'stale'; why: string }
   | { state: 'missing'; why: string };
 
@@ -257,7 +275,12 @@ export function cardStatus(card: AnalysisCard, ctx: AnalysisCtx, running: boolea
   if (!card.run) return { state: 'empty' };
   const t = analysisType(card.type);
   if (!t) return { state: 'stale', why: 'This kind of analysis is not available in this version.' };
-  if (t.frozen) return card.run.packed || hasResult ? { state: 'current' } : { state: 'missing', why: 'The snapshot’s results are not stored here (shared projects keep results on each computer).' };
+  if (t.frozen) {
+    if (!card.run.packed && !hasResult) return { state: 'missing', why: 'The results are not stored here (shared projects keep results on each computer).' };
+    const o = card.options as { hash?: string; model?: unknown };
+    if (t.id === 'run' && typeof o.hash === 'string' && ctx.model && o.hash !== runHash(ctx.model, ctx.settings, ctx.data)) return { state: 'earlier' };
+    return { state: 'current' };
+  }
   if (!hasResult && !card.run.packed) return { state: 'missing', why: 'The result is not stored here (shared projects keep results on each computer, and very large results are not saved). Run it again to see it.' };
   if (!sameOptions(t, card.options, card.run.options)) return { state: 'stale', why: 'The options changed since this ran.' };
   const fp = t.fingerprint(card.options, ctx);

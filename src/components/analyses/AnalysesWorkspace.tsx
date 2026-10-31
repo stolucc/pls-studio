@@ -89,7 +89,7 @@ function ranWith(card: AnalysisCard): unknown {
 }
 
 const PILL: Record<CardStatus['state'], [string, string]> = {
-  empty: ['not run', 'muted'], running: ['running…', 'run'], current: ['current', 'ok'], stale: ['stale', 'stale'], missing: ['no result here', 'stale'],
+  empty: ['not run', 'muted'], running: ['running…', 'run'], current: ['current', 'ok'], earlier: ['earlier version', 'muted'], stale: ['stale', 'stale'], missing: ['no result here', 'stale'],
 };
 
 function AddMenu({ disabled }: { disabled: boolean }) {
@@ -191,7 +191,7 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
       </article>
     );
   }
-  const [label, tone] = t?.frozen && status!.state === 'current' ? ['snapshot', 'run'] : PILL[status!.state];
+  const [label, tone] = t?.frozen && status!.state === 'current' ? [t.id === 'run' ? 'current model' : 'snapshot', 'run'] : PILL[status!.state];
   return (
     <article id={card.id} className={cls} {...drop} onClick={() => selectCard(card.id)}>
       <div className="card-head" tabIndex={0} {...drag} onKeyDown={onKey} aria-label={`${titleOf(card)} (Alt+↑/↓ to move)`}>
@@ -202,6 +202,7 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
         {!readOnly && (
           <span className="card-acts">
             {!t?.frozen && <button className="btn icon ghost sm" title={card.run ? 'Run again' : 'Run'} aria-label={card.run ? 'Run again' : 'Run'} disabled={running} onClick={(e) => { e.stopPropagation(); void runCard(card.id); }}>{card.run ? <IconRepeat size={13} /> : <IconPlay size={13} />}</button>}
+            {t?.id === 'run' && status!.state !== 'current' && <button className="btn sm" title="Open this version of the model on the Model tab (undo returns)" onClick={(e) => { e.stopPropagation(); void import('../../analyses/runs').then((m) => m.openRun(card.id)); }}>Open model</button>}
             <button className="btn icon ghost sm" title="Rename" aria-label="Rename" onClick={(e) => { e.stopPropagation(); setRenaming(true); }}><IconPencil size={13} /></button>
             {!t?.frozen && <button className="btn icon ghost sm" title="Duplicate" aria-label="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateCard(card.id); }}><IconCopy size={13} /></button>}
             <button className="btn icon ghost sm" title="Remove" aria-label="Remove" onClick={(e) => { e.stopPropagation(); void confirmRemove(card); }}><IconTrash size={13} /></button>
