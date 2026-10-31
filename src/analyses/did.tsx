@@ -4,6 +4,7 @@
 import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
+import { pnorm } from '../engine/stats';
 import { fmt, fmtP } from '../format';
 import type { DidInput, DidResult } from '../rengine/did';
 import { Choice, clampNum, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, oneOf, rawData } from './common';
@@ -94,14 +95,12 @@ function DidView({ r }: { r: Result }) {
       {r.event.length > 0 && <Table title="Event study" file="did-event" columns={[r.design === 'twfe' ? 'Period' : 'Periods since treatment', 'Effect', 'Std. error', `${pct}% CI`]}
         rows={r.event.map((e) => [c(r.design === 'twfe' ? `${e.time} (${e.rel >= 0 ? '+' : ''}${e.rel})` : String(e.rel)), c(e.est), c(e.se), c(`[${fmt(e.ciLow)}, ${fmt(e.ciHigh)}]`)])} />}
       {r.groupTime && r.groupTime.length > 0 && <Table title="Group-time effects ATT(g, t)" file="did-group-time" columns={['Treated in', 'Period', 'ATT', 'Std. error', 'p']}
-        rows={r.groupTime.map((g) => [c(String(g.group)), c(String(g.time)), c(g.est), c(g.se), pCell(2 * (1 - normalCdf(Math.abs(g.est / g.se))))])}
+        rows={r.groupTime.map((g) => [c(String(g.group)), c(String(g.time)), c(g.est), c(g.se), pCell(2 * (1 - pnorm(Math.abs(g.est / g.se))))])}
         note="Each cell: the effect for the units first treated in that year, in that period, against the control group. Pre-treatment cells (period before the group’s treatment) test parallel trends." />}
     </div>
   );
 }
 
-const normalCdf = (x: number) => 0.5 * (1 + erf(x / Math.SQRT2));
-function erf(x: number) { const t = 1 / (1 + 0.3275911 * Math.abs(x)); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; }
 
 export const didInput = (o: DidOptions, ctx: Pick<AnalysisCtx, 'settings'>): DidInput => ({ ...o, seed: ctx.settings.seed, confidence: ctx.settings.confidence });
 const didColumns = (o: DidOptions) => [o.outcome, o.unit, o.time, o.treated, ...(o.design === 'twfe' && o.post ? [o.post] : []), ...o.covariates].filter(Boolean);

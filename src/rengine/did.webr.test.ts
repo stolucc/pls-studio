@@ -59,6 +59,12 @@ it('two-way fixed effects with an event study (fixest) reproduces the help-page 
   const script = await didScriptR(d, input);
   expect(script).toContain('feols(y ~ treat:post + x1 | id + period, data = data, cluster = ~id)');
   expect(script).toContain('i(period, treat, ref)');
+  // A post column under any name, without the first treated period: the reference period comes from that column.
+  const renamed = { ...d, names: d.names.map((n) => (n === 'post' ? 'after' : n)) };
+  const r3 = await didR(renamed, { ...input, post: 'after', firstPeriod: null });
+  expect(r3.event.find((x) => x.time === 5)).toMatchObject({ rel: -1, est: 0 });
+  expect(r3.event.length).toBe(10);
+  expect(r3.warnings).toEqual([]);
   // Without a post column the first treated period defines it.
   const r2 = await didR(d, { ...input, post: '', eventStudy: false });
   expect(r2.att.est).toBeCloseTo(ref.base_did.att, 6);

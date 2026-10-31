@@ -76,8 +76,8 @@ describe('Mplus input out', () => {
     expect(inp).toContain('MISSING = ALL (-999);');
     expect(inp).toContain('ANALYSIS: ESTIMATOR = MLR; LISTWISE = ON;');
     expect(inp).toContain('visual BY x1 x2* x3*;');
-    expect(inp).toContain('textual BY x4 x5* (a) x6*;');
-    expect(inp).toContain('textual ON visual (b) ageyr;');
+    expect(inp).toContain('textual BY\n    x4\n    x5* (a)\n    x6*;');  // a label applies to its whole Mplus line: one term per line
+    expect(inp).toContain('textual ON\n    visual (b)\n    ageyr;');
     expect(inp).toContain('x1 WITH x4;');
     expect(inp).toContain('visual WITH textual;');
     expect(inp).toContain('[textual];'); expect(inp).toContain('[x4@0];'); expect(inp).toContain('[visual];'); expect(inp).toContain('[x1@0];');
@@ -95,6 +95,10 @@ describe('Mplus input out', () => {
     expect(inp).toContain('TYPE = COMPLEX;'); expect(inp).toContain('TYPE = RANDOM; ALGORITHM = INTEGRATION;');
     expect(inp).toContain('USEVARIABLES = y1 y2 x1 x2 Z school w;');
     expect(warnings).toEqual(expect.arrayContaining([expect.stringMatching(/Two-level/), expect.stringMatching(/no 2SLS/)]));
+    // Without data the NAMES line lists observed variables only, never the factors.
+    const noData = toMplus(m, { ...DEFAULT_SETTINGS, method: 'cbsem' }, null, null, 'p').inp;
+    expect(noData).toContain('VARIABLE: NAMES = y1 y2 x1 x2 Z;');
+    expect(noData).not.toMatch(/NAMES = .*\bY\b/);
     const taken = new Map<string, string>();
     expect([mplusName('my var', taken), mplusName('1st', taken), mplusName('my_var', taken), mplusName('my var', taken)]).toEqual(['my_var', 'v1st', 'my_var_2', 'my_var']);
   });

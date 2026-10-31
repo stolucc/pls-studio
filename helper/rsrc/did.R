@@ -35,7 +35,7 @@ ps_did <- function(req_json, export = FALSE) {
       sprintf("est <- feols(%s ~ %s:%s%s | %s + %s, data = data, cluster = ~%s)", Y, TR, P, if (!is.null(xs)) paste0(" + ", xs) else "", ID, TM, ID),
       if (event) c(
         "# Event study: the treated group's deviation in each period, relative to the last pre-treatment period.",
-        sprintf("ref <- %s", if (!is.null(first) && is.finite(first)) ps_num(first - 1) else sprintf("max(data$%s[data$post == 0])", TM)),
+        sprintf("ref <- %s", if (!is.null(first) && is.finite(first)) ps_num(first - 1) else sprintf("max(data$%s[data$%s == 0])", TM, P)),
         sprintf("es <- feols(%s ~ i(%s, %s, ref)%s | %s + %s, data = data, cluster = ~%s)", Y, TM, TR, if (!is.null(xs)) paste0(" + ", xs) else "", ID, TM, ID),
         "# Pre-trends: are the pre-treatment deviations jointly zero?",
         sprintf("evn <- grep(\"^%s::\", names(coef(es)), value = TRUE)", TM),

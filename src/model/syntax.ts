@@ -192,6 +192,12 @@ export function mplusName(name: string, taken: Map<string, string>): string {
   return out;
 }
 
+/** A BY / ON statement: a parenthesised label applies to every parameter on its line in Mplus, so labelled terms get a line each. */
+function statement(head: string, terms: string[]): string {
+  if (!terms.some((t) => t.includes('('))) return `${head} ${terms.join(' ')};`;
+  return `${head}\n    ${terms.join('\n    ')};`;
+}
+
 export interface MplusExport { inp: string; dat: string; warnings: string[] }
 
 /**
@@ -222,7 +228,7 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
       const f = c.fixedLoadings?.[i], l = c.loadingLabels?.[i];
       return `${nm(i)}${f !== undefined ? `@${f}` : k === 0 ? '' : '*'}${l ? ` (${l})` : ''}`;
     });
-    lines.push(`${nm(c.name)} BY ${terms.join(' ')};`);
+    lines.push(statement(`${nm(c.name)} BY`, terms));
   }
   for (const c of model.constructs) if (c.covariate || c.indicators.length === 1) mark(nm(c.indicators[0]));
   // Structural: one ON line per outcome, with XWITH terms for moderations.
@@ -241,7 +247,7 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
       xwith.push(`${name} | ${a} XWITH ${b};`);
       terms.push(name);
     }
-    lines.push(`${lvName(t)} ON ${terms.join(' ')};`);
+    lines.push(statement(`${lvName(t)} ON`, terms));
   }
   // Covariances.
   for (const k of model.correlations ?? []) {
@@ -257,7 +263,9 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
   }
   for (const c of model.constructs) if (c.components?.length) for (const id of c.components) { const k = byId.get(id); if (k) for (const i of k.indicators) mark(nm(i)); }
   const ordered = (model.ordered ?? []).map(nm).filter((n) => used.includes(n));
-  const dataNames = data ? data.names : [...names.keys()];
+  // Without data: the observed variables only (indicators, covariates, design columns), never the factors.
+  const observedNames = [...new Set([...model.constructs.flatMap((c) => c.indicators), ...[model.multigroup?.column, model.cluster, model.weights].filter((x): x is string => !!x)])];
+  const dataNames = data ? data.names : observedNames;
   const allNames = dataNames.map(nm);
   const file = `${project.replace(/[^A-Za-z0-9_-]+/g, '_') || 'data'}.dat`;
   const inp: string[] = [

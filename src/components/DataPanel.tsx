@@ -106,7 +106,9 @@ export function DataPanel() {
     });
     if (!values) return;
     try {
-      const r = computeColumn(data, info, values[0], values[1]);
+      const r0 = computeColumn(data, info, values[0], values[1]);
+      // An edited formula changes the columns computed from this one too.
+      const r = current ? recomputeAll(r0.data, r0.info) : r0;
       useStore.getState().setData(r.data, r.info);
       const col = r.data.cols[r.data.names.indexOf(values[0])];
       const miss = col.filter(Number.isNaN).length;

@@ -61,6 +61,9 @@ it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   expect(r.lrt).toBeTruthy();
   if (key === 'infert') { expect(r.diagnostics.auc).toBeGreaterThan(0.5); expect(r.diagnostics.hosmerLemeshow).toBeTruthy(); expect(r.coefficients[1].ratio).toBeCloseTo(Math.exp(r.coefficients[1].est), 10); }
   if (key === 'quine') expect(r.formula).toMatch(/Days ~ Sex \+ Sex:Age \+ Sex:Eth \+ Sex:Lrn \+ Sex:Eth:Lrn/);
+  expect(r.fit.n).toBe(data.cols[0].length);  // every row, for every family (polr has no residuals component)
+  if (key === 'clotting') expect(r.lrt!.df).toBe(1);  // Gamma: the dispersion parameter is not a tested coefficient
+  if (key === 'menarche') { expect(r.curve?.points?.y.length).toBe(data.cols[0].length); expect(Math.max(...r.curve!.points!.y)).toBeLessThanOrEqual(1); }
   if (key === 'housing') expect(r.thresholds.map((t) => t.term)).toEqual(['Low|Medium', 'Medium|High']);
   if (key === 'multinom') expect(r.levels).toEqual({ reference: '0', others: ['1'] });
   const script = await regressionScriptR(data, input);
@@ -78,4 +81,5 @@ it('robust and cluster-robust standard errors come from sandwich', async () => {
   expect(h.coefficients[1].se).not.toBeCloseTo(m.coefficients[1].se, 4);
   expect(k.coefficients[1].se).not.toBeCloseTo(m.coefficients[1].se, 4);
   expect(await regressionScriptR(data, { ...base, se: 'cluster', cluster: 'stratum' })).toContain('vcovCL(fit, cluster = ~stratum)');
+  await expect(regressionR(data, { ...base, family: 'multinomial', se: 'HC3' })).rejects.toThrow(/Robust standard errors are available for lm and glm/);
 }, 900_000);

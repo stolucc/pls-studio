@@ -18,6 +18,7 @@ describe('regression card', () => {
     expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], se: 'cluster' }), ctx())).toMatch(/cluster column/);
     expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], interactions: [['a', 'nope']] }), ctx())).toMatch(/nope/);
     expect(regressionAnalysis.blocked(o({ outcome: 'y', interactions: [['a', 'b']] }), ctx())).toBeNull();
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'ordinal', se: 'HC3' }), ctx())).toMatch(/model-based errors/);
     expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a', 'g'], family: 'binomial', trials: 'n', weights: 'w', se: 'cluster', cluster: 'k' }), ctx())).toBeNull();
     expect(regressionAnalysis.parseOptions({ family: 'logit', predictors: ['a', 'a'], interactions: [['a'], ['a', 'b'], 'x'], se: 'HC2', link: 'probit' }))
       .toEqual({ outcome: '', predictors: ['a'], categorical: [], interactions: [['a', 'b']], family: 'gaussian', link: 'probit', trials: '', weights: '', se: 'model', cluster: '' });

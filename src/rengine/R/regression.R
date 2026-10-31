@@ -16,6 +16,7 @@ ps_regression <- function(req_json, export = FALSE) {
   se <- req$se %||% "model"
   if (!se %in% c("model", "HC3", "cluster")) stop("Invalid standard-error choice in the request.")
   if (se == "cluster" && !nzchar(cluster)) stop("Choose the cluster column for cluster-robust standard errors.")
+  if (se != "model" && family %in% c("ordinal", "multinomial")) stop("Robust standard errors are available for lm and glm models; ordinal and multinomial models report their own.")
   conf <- ps_number(req$confidence %||% 0.95, "confidence level")
   ints <- lapply(req$interactions, function(t) as.character(unlist(t)))
   if (!nzchar(y) || (!length(preds) && !length(ints))) stop("Choose the outcome and at least one predictor.")
@@ -94,7 +95,7 @@ ps_regression <- function(req_json, export = FALSE) {
       ciLow = ct[i, 1] - q * ct[i, 2], ciHigh = ct[i, 1] + q * ct[i, 2], ratio = if (ratio && rownames(ct)[i] != "(Intercept)") exp(ct[i, 1]) else NULL)
   }
   ll <- as.numeric(logLik(fit)); npar <- attr(logLik(fit), "df")
-  n <- if (family == "multinomial") nrow(env$data) else if (family == "binomial" && nzchar(trials)) nrow(env$data) else length(residuals(fit))
+  n <- nrow(env$data)
   # The null model (intercept only) for the likelihood-ratio test and McFadden's pseudo R2.
   null_ll <- ps_try({
     nf <- switch(family,
@@ -105,7 +106,7 @@ ps_regression <- function(req_json, export = FALSE) {
       glm(as.formula(sprintf("%s ~ 1", lhs)), family = fit$family, data = env$data, weights = if (nzchar(wcol)) env$data[[v[[wcol]]]]))
     as.numeric(logLik(nf))
   }, "The intercept-only model (for the likelihood-ratio test)")
-  lrt <- if (!is.null(null_ll)) { st <- 2 * (ll - null_ll); df <- npar - (if (family == "ordinal") length(fit$zeta) else if (family == "multinomial") length(fit$lev) - 1 else if (family %in% c("gaussian", "negbin")) 2 else 1)
+  lrt <- if (!is.null(null_ll)) { st <- 2 * (ll - null_ll); df <- npar - (if (family == "ordinal") length(fit$zeta) else if (family == "multinomial") length(fit$lev) - 1 else if (family %in% c("gaussian", "negbin", "gamma")) 2 else 1)  # (lm, glm.nb and Gamma count a dispersion parameter)
     list(stat = st, df = df, p = pchisq(st, df, lower.tail = FALSE), pseudoR2 = if (family == "gaussian") NULL else 1 - ll / null_ll) } else NULL
   fitv <- list(n = n, logLik = ll, aic = AIC(fit), bic = BIC(fit), npar = npar,
     r2 = if (family == "gaussian") summary(fit)$r.squared else NULL, adjR2 = if (family == "gaussian") summary(fit)$adj.r.squared else NULL,
@@ -146,8 +147,9 @@ ps_regression <- function(req_json, export = FALSE) {
       else if (family == "ordinal") { p <- predict(fit, nd, type = "probs"); list(levels = levels(d[[v[[y]]]]), probs = lapply(seq_len(ncol(p)), function(j) unname(p[, j]))) }
       else list(y = unname(predict(fit, nd, type = "response")))
     }, "The fitted curve")
+    # The observed values: proportions for binomial counts, level codes for ordinal and multinomial outcomes.
     if (!is.null(pred)) curve <- c(list(x = xn, grid = grid), pred,
-      if (!family %in% c("ordinal", "multinomial", "binomial") || !nzchar(trials)) list(points = list(x = unname(d[[xv]]), y = unname(if (family == "binomial" && nzchar(trials)) d[[v[[y]]]] / d[[v[[trials]]]] else if (family %in% c("ordinal", "multinomial")) as.numeric(d[[v[[y]]]]) else d[[v[[y]]]]))))
+      list(points = list(x = unname(d[[xv]]), y = unname(if (family == "binomial" && nzchar(trials)) d[[v[[y]]]] / d[[v[[trials]]]] else if (family %in% c("ordinal", "multinomial")) as.numeric(d[[v[[y]]]]) else d[[v[[y]]]]))))
   }
   ps_json(list(family = family, link = link, formula = nm(fml), se = se, coefficients = coefs, thresholds = thresholds, levels = levels_out, fit = fitv, lrt = lrt, diagnostics = diag, curve = curve,
     warnings = env$.warnings, engine = list(package = if (family %in% c("negbin", "ordinal")) "MASS" else if (family == "multinomial") "nnet" else "stats",

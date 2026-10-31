@@ -38,7 +38,7 @@ function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<
     <fieldset className="card-options" disabled={disabled}>
       <div className="field">
         <label htmlFor="reg-family">Model</label>
-        <select id="reg-family" className="select" value={o.family} onChange={(e) => { const family = e.target.value as Family; set({ ...o, family, link: family === 'ordinal' ? 'logistic' : 'logit', trials: family === 'binomial' ? o.trials : '' }); }}>
+        <select id="reg-family" className="select" value={o.family} onChange={(e) => { const family = e.target.value as Family; const own = family === 'ordinal' || family === 'multinomial'; set({ ...o, family, link: family === 'ordinal' ? 'logistic' : 'logit', trials: family === 'binomial' ? o.trials : '', ...(own ? { se: 'model', cluster: '' } : {}) }); }}>
           {FAMILIES.map(([id, l]) => <option key={id} value={id}>{l}</option>)}
         </select>
         <div className="hint">{FAMILIES.find(([id]) => id === o.family)![2]}</div>
@@ -189,6 +189,7 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     if (!o.predictors.length && !o.interactions.length) return 'Choose at least one predictor.';
     if (o.predictors.includes(o.outcome) || o.interactions.some((t) => t.includes(o.outcome))) return 'The outcome cannot be a predictor.';
     if (o.se === 'cluster' && !o.cluster) return 'Choose the cluster column.';
+    if (o.se !== 'model' && (o.family === 'ordinal' || o.family === 'multinomial')) return 'Robust standard errors apply to linear and generalised linear models; choose model-based errors for ordinal and multinomial models.';
     return missingColumns(ctx, regressionColumns(o), 'Regression');
   },
   fingerprint: (o, ctx) => columnsFingerprint(ctx, regressionColumns(o), [o.family, o.link, o.se, ...o.categorical, ...o.interactions.map((t) => t.join(':')), ctx.settings.confidence]),

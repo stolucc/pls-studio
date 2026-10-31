@@ -24,6 +24,11 @@ describe('chart statistics', () => {
     expect(h.mean).toBe(5);
     expect(histogram(data.cols[0], 3).bins.every((b) => Number.isFinite(b.count))).toBe(true);
     expect(histogram(Float64Array.from([4, 4, 4]))).toMatchObject({ bins: [{ from: 4, to: 4, count: 3 }], n: 3, mean: 4, sd: 0 });
+    // A maximum on a bin edge falls into the last bin (closed): no lone trailing bar.
+    const edge = histogram(Float64Array.from({ length: 11 }, (_, i) => i));
+    expect(edge.bins.map((b) => b.count).reduce((a, b) => a + b, 0)).toBe(11);
+    expect(edge.bins[edge.bins.length - 1].count).toBeGreaterThan(1);
+    expect(edge.bins[edge.bins.length - 1].to).toBe(10);
     expect(histogram(Float64Array.from([NaN]))).toMatchObject({ bins: [], n: 0 });
     expect([0.3, 1.2, 2.2, 4, 7, 23].map(niceStep)).toEqual([0.5, 2, 2.5, 5, 10, 25]);
   });

@@ -21,7 +21,7 @@ export function histogram(col: ArrayLike<number>, bins = 0): { bins: HistogramBi
   if (hi === lo) return { bins: [{ from: lo, to: hi, count: n }], n, mean, sd };
   const step = niceStep((hi - lo) / k);
   const start = Math.floor(lo / step) * step;
-  const count = Math.max(1, Math.ceil((hi - start) / step + 1e-9));
+  const count = Math.max(1, Math.ceil((hi - start) / step - 1e-9));  // (a maximum on an edge falls into the last bin, which is closed)
   const out: HistogramBin[] = Array.from({ length: count }, (_, i) => ({ from: start + i * step, to: start + (i + 1) * step, count: 0 }));
   for (const x of v) { let i = Math.floor((x - start) / step); if (i >= count) i = count - 1; out[i].count++; }
   return { bins: out, n, mean, sd };
