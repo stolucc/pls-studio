@@ -49,6 +49,19 @@ export const useHelper = create<HelperStore>(() => ({ state: 'unknown', info: nu
 
 /** The helper cannot be used for this call: the caller falls back to the browser's R. */
 export class HelperUnavailable extends Error {}
+
+/** The origins the helper trusts out of the box (helper/config.go): development, preview and the local server. */
+const DEFAULT_HELPER_ORIGINS = ['http://localhost:5175', 'http://127.0.0.1:5175', 'http://localhost:4175', 'http://127.0.0.1:4175', 'http://localhost:8787', 'http://127.0.0.1:8787'];
+
+/**
+ * The helper answers only pages from origins on its allow list, and a
+ * deployment is not on it until added: the command to run once, for this
+ * origin (null for the origins it trusts by default).
+ */
+export function helperAllowCommand(origin: string): string | null {
+  if (DEFAULT_HELPER_ORIGINS.includes(origin) || !/^https?:\/\//.test(origin)) return null;
+  return `pls-studio-helper allow-origin ${origin}`;
+}
 /** R packages the helper's R lacks (the call falls back to the browser's R). */
 export class HelperMissingPackages extends HelperUnavailable {
   constructor(public packages: string[]) { super(`Desktop R lacks the R package${packages.length > 1 ? 's' : ''} ${packages.join(', ')}.`); }

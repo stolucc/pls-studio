@@ -198,7 +198,7 @@ a { color: var(--accent); }
 <p>The optional <span class="ui">PLS Studio Helper</span> runs the calculations in the R installed on your own computer: several times faster, on all cores, with every package available. Your data travel only between the browser and the helper, both on your computer.</p>
 <ol>
   <li>Install R (4.1 or later) and the helper, then run <code>pls-studio-helper setup</code> once to install the R packages into the helper's own library (your own R library is left alone).</li>
-  <li>Start the helper (a PLS icon appears in the menu bar or tray).</li>
+  <li>Start the helper (a PLS icon appears in the menu bar or tray). The helper answers only sites it trusts: for a deployment, allow its address once in a terminal, <code>pls-studio-helper allow-origin https://your.site</code> (on macOS the command sits inside the app: <code>PLS Studio Helper.app/Contents/MacOS/pls-studio-helper</code>), then restart the helper. PLS Studio shows the exact command when it cannot find the helper.</li>
   <li>In PLS Studio: <span class="ui">Inspector → Calculated by → R runs in → Desktop R (helper)</span>, then <span class="ui">Connect</span> and allow the page in the helper's dialog. Without a tray, use a pairing code (<code>pls-studio-helper pair</code>).</li>
 </ol>
 <p>PLS Studio falls back to the browser whenever the helper is not available. <span class="ui">Disconnect</span> forgets the connection in this browser.</p>

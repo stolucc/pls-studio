@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MAX_WORKERS, useCompute } from '../rengine/compute';
-import { browserPlatform, HELPER_RELEASES, helperDownloads, useHelper } from '../rengine/helper';
+import { browserPlatform, HELPER_RELEASES, helperAllowCommand, helperDownloads, useHelper } from '../rengine/helper';
 
 /** Choices of the parallel option: off, and up to the computer's cores (at most MAX_WORKERS). */
 export function workerChoices(cores: number): number[] {
@@ -45,6 +45,7 @@ function HelperStatus() {
     } finally { setBusy(false); }
   };
   const missing = Object.entries(packages).filter(([, v]) => !v).map(([k]) => k);
+  const allow = helperAllowCommand(typeof location !== 'undefined' ? location.origin : '');
   return (
     <div className="hint" style={{ marginTop: 6 }} aria-live="polite">
       {state === 'checking' && 'Looking for the helper…'}
@@ -56,6 +57,13 @@ function HelperStatus() {
             <button className="btn sm" onClick={() => void check()}>Check again</button>
           </div>
           <div style={{ marginTop: 6 }}>First launch: macOS asks to confirm (right-click the app → Open); Windows SmartScreen: More info → Run anyway. Then install the R packages once from the helper’s menu (Install R packages…).</div>
+          {allow && (
+            <div style={{ marginTop: 6 }}>
+              Helper running but still not found? It answers only sites it trusts, and this one must be allowed once, in a terminal on this computer:
+              <code className="block">{allow}</code>
+              (the menu-bar app holds the command at <code>PLS Studio Helper.app/Contents/MacOS/pls-studio-helper</code>), then restart the helper and check again.
+            </div>
+          )}
         </>
       )}
       {state === 'unpaired' && (

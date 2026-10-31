@@ -462,3 +462,13 @@ describe('helper client edge cases', () => {
     expect(helperDownloads('Mac')[1]).toEqual({ label: 'macOS (Intel)', url: expect.stringMatching(/amd64\.dmg$/) });
   });
 });
+
+describe('helperAllowCommand', () => {
+  it('names the command that lets the helper answer this deployment, and nothing for the origins it trusts by default', async () => {
+    const { helperAllowCommand } = await import('./helper');
+    expect(helperAllowCommand('https://pls.flowtex.click')).toBe('pls-studio-helper allow-origin https://pls.flowtex.click');
+    expect(helperAllowCommand('http://localhost:5175')).toBeNull();
+    expect(helperAllowCommand('http://127.0.0.1:8787')).toBeNull();
+    expect(helperAllowCommand('')).toBeNull();
+  });
+});

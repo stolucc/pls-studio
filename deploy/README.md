@@ -129,3 +129,14 @@ sudo -u plsstudio mv dist dist.bad && sudo -u plsstudio mv dist.prev dist
 sudo -u plsstudio git checkout <previous-sha>
 sudo systemctl start pls-studio
 ```
+
+## Desktop R helper and a deployment
+
+The helper (helper/) trusts only the development origins out of the box. Every person who uses it with
+this deployment allows the site once on their own computer, then restarts the helper:
+
+```
+pls-studio-helper allow-origin https://pls.example.edu
+```
+
+The app shows this command (with the right address) under Calculated by when it cannot reach the helper.
