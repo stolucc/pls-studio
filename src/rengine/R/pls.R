@@ -339,7 +339,10 @@ ps_pls_out <- function(req, b, env) {
     htmt = htmt1, htmt2 = htmt2, htmtFlags = htmt_flags,
     fit = list(estimated = fitm(FALSE), saturated = fitm(TRUE)),
     consistent = isTRUE(b$o$consistent), types = c(b$type, rep("composite", length(mods))),
-    moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
+    moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L,
+      method = if (b$pkg == "seminr") mods[[q]]$method %||% "two_stage" else "two_stage")),
+    # How the constructs were weighted (PLS-PM with each construct's mode, or GSCA / PCA / sum scores for all) and second-order constructs estimated.
+    approach = b$o$approach %||% "PLS-PM", hocApproach = if (any(b$hoc)) b$hoc_approach else NULL,
     fSquare = fsq, vifInner = vif, vifOuter = vif_outer,
     scores = lapply(seq_len(K), function(j) unname(scores[, j])),
     # (cSEM's two-stage approach always corrects a second-order common factor in stage 2 and says so; the script explains it.)

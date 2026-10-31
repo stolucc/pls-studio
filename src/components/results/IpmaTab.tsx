@@ -74,7 +74,7 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
 
   const useR = settings.engine === 'r';
   const num = (v: string) => (v.trim() === '' || !Number.isFinite(Number(v)) ? undefined : Number(v));
-  const plsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: settings.missing, consistent: settings.consistent };
+  const plsOptions = { scheme: settings.scheme, maxIter: settings.maxIter, tolerance: 10 ** -settings.stopExp, missing: settings.missing, consistent: settings.consistent, approach: settings.plsApproach, hocApproach: settings.hocApproach };
   const builtin = useMemo(() => {
     if (useR || !data || !target) return null;
     try {

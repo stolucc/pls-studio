@@ -48,6 +48,7 @@ it.each(['ML', 'MLR'] as const)('%s with sampling clusters reproduces lavaan’s
   expect(r.fit.df).toBe(want.df);
   if (est === 'MLR') expect(r.fit.chisqScaled).toBeCloseTo(want.chisqScaled!, 4);
   expect(r.notes?.some((n) => /robust to the clustering of cases by cluster/.test(n))).toBe(true);
+  expect(r.seType).toMatch(/^robust\.cluster/);
   const script = await cbScriptLavaan(d, spec, 'casewise', est, 'product');
   expect(script).toContain('cluster = "cluster"');
   expect(script).toContain('TYPE = COMPLEX');

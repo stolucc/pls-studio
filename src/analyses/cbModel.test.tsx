@@ -42,3 +42,17 @@ describe('CB-SEM model cards', () => {
     expect(quantile([3, 1, 2], 0.95)).toBeCloseTo(2.9, 12);
   });
 });
+
+describe('the CB extras fingerprint', () => {
+  it('changes when the sampling-cluster column changes', async () => {
+    const { cbFingerprint } = await import('./cbModel');
+    const { DEFAULT_SETTINGS } = await import('../model/project');
+    const model = { constructs: [{ id: 'F', name: 'F', type: 'factor' as const, mode: 'A' as const, indicators: ['a1', 'a2', 'a3'], x: 0, y: 0, side: 'left' as const }], paths: [], moderations: [], cluster: 'k' };
+    const col = (f: (i: number) => number) => Float64Array.from({ length: 30 }, (_, i) => f(i));
+    const d1 = { names: ['a1', 'a2', 'a3', 'k'], cols: [col((i) => i % 5), col((i) => i % 7), col((i) => i % 3), col((i) => i % 3)] };
+    const d2 = { ...d1, cols: [...d1.cols.slice(0, 3), col((i) => i % 4)] };
+    const ctx = (data: typeof d1) => ({ data, info: null, settings: { ...DEFAULT_SETTINGS, method: 'cbsem' as const }, pls: null, projectName: 'p', model });
+    expect(cbFingerprint(ctx(d1))).not.toBe(cbFingerprint(ctx(d2)));
+    expect(cbFingerprint(ctx(d1))).toBe(cbFingerprint(ctx({ ...d1 })));
+  });
+});

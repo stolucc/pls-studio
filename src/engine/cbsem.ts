@@ -85,6 +85,8 @@ export interface CbResult {
   /** Wald tests of user hypotheses (lavaan). */
   wald?: { name: string; stat: number; df: number; p: number }[];
   estimator: CbEstimator;
+  /** lavaan's se option: standard, robust.sem, robust.huber.white, robust.cluster, robust.cluster.sem, bootstrap… (absent: the built-in engine's standard errors). */
+  seType?: string;
   n: number;
   iterations: number;
   converged: boolean;

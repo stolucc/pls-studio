@@ -54,3 +54,11 @@ describe('the likelihood-ratio test of a latent interaction (modsem)', () => {
     expect(parseCbOutput({ ...raw, lrt: null }).lrt).toBeUndefined();
   });
 });
+
+describe('the standard-error type of a lavaan fit', () => {
+  it('is kept from the bridge and absent for the built-in engine', () => {
+    const raw = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'cbmod_lavaan_hs_ml.lavaan.json'), 'utf8'));
+    expect(parseCbOutput({ ...raw, seType: 'robust.cluster' }).seType).toBe('robust.cluster');
+    expect(parseCbOutput(raw).seType).toBeUndefined();
+  });
+});

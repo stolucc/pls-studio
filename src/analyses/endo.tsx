@@ -29,7 +29,7 @@ const coefRow = (x: EndoCoef): Row => [c(x.term), c(x.est), c(x.se), c(x.stat, u
 
 function EndoView({ r, input }: { r: EndoResult; input: EndoInput }) {
   const level = Math.round(100 * input.boot.confidence);
-  const cols = ['Term', 'Estimate', 'Std. error', r.method === 'copula' ? 'z' : 't', 'p', `${level}% CI low`, `${level}% CI high`];
+  const cols = ['Term', 'Estimate', 'Std. error', r.method === 'copula' || r.method === 'liv' ? 'z' : 't', 'p', `${level}% CI low`, `${level}% CI high`];
   const ols = (t: string) => r.ols.find((x) => x.term === t);
   const focus = r.method === 'heckman' ? [] : r.coefficients.filter((x) => input.endogenous.includes(x.term));
   return (

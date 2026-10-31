@@ -202,7 +202,12 @@ function RebusView({ r, current }: { r: RebusResult; current: boolean }) {
 const SEG_GROUP = 'PLS-SEM model' as const;
 /** PLS options for segmentation: no FIML or MI, no PLSc unless stated. */
 const segOptions = (ctx: AnalysisCtx, missing: PlsOptions['missing'] = 'casewise', consistent = false): PlsOptions =>
-  ({ scheme: ctx.settings.scheme, maxIter: ctx.settings.maxIter, tolerance: 10 ** -ctx.settings.stopExp, missing, consistent });
+  ({ scheme: ctx.settings.scheme, maxIter: ctx.settings.maxIter, tolerance: 10 ** -ctx.settings.stopExp, missing, consistent, approach: ctx.settings.plsApproach, hocApproach: ctx.settings.hocApproach });
+/** What a segmentation holds fixed although the Model settings say otherwise. */
+const heldNote = (ctx: AnalysisCtx, consistentKept: boolean) => [
+  ...(!consistentKept && ctx.settings.consistent ? ['standard PLS (PLSc off: the local models are composites)'] : []),
+  ...(ctx.settings.missing !== 'mean' && ctx.settings.missing !== 'casewise' ? ['casewise deletion of missing values'] : []),
+].join(', ');
 const rebusOptions = (ctx: AnalysisCtx) => segOptions(ctx, ctx.settings.missing === 'mean' ? 'mean' : 'casewise');
 const noInteractions = (ctx: AnalysisCtx, method: string) => (ctx.model?.moderations.length ? `${method} works on models without interaction terms.` : null);
 const range = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
@@ -215,7 +220,7 @@ export const rebusAnalysis: AnalysisType<RebusOptions, RebusResult> = {
   id: 'rebus', title: 'REBUS-PLS', sub: 'classes of observations with different models (plspm)', group: SEG_GROUP,
   defaults: () => ({ from: 2, to: 4 }),
   parseOptions: (raw) => (isObj(raw) ? { from: clampNum(raw.from, 2, 6, 2, true), to: clampNum(raw.to, 2, 6, 4, true) } : null),
-  Options: ({ options: o, set, disabled }) => (
+  Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
       <Hint text="Response-based unit segmentation (Esposito Vinzi et al. 2008) looks for groups of observations whose models differ (unobserved heterogeneity). It starts from a Ward clustering of the global model’s residuals, then moves each observation to the class whose local model fits it best, until the classes are stable." />
       <div className="field">
@@ -224,12 +229,13 @@ export const rebusAnalysis: AnalysisType<RebusOptions, RebusResult> = {
           <input className="input num" type="number" min={2} max={6} aria-label="From" value={o.from} onChange={(e) => set({ ...o, from: clampNum(e.target.value, 2, 6, 2, true) })} />
           <input className="input num" type="number" min={2} max={6} aria-label="To" value={o.to} onChange={(e) => set({ ...o, to: clampNum(e.target.value, 2, 6, 2, true) })} />
         </div>
-        <div className="hint">The model on the canvas, reflective constructs only. Stop when under 0.5% of observations change class (at most 100 iterations); permutation tests use the seed from the Model settings.</div>
+        <div className="hint">The model on the canvas, reflective constructs only, estimated by plspm{heldNote(ctx, false) ? ` with ${heldNote(ctx, false)}` : ''}. Stop when under 0.5% of observations change class (at most 100 iterations); permutation tests use the seed from the Model settings.</div>
       </div>
     </fieldset>
   ),
   View: ({ result, current }) => <RebusView key={result.models.map((m) => m.k).join()} r={result} current={current} />,
   blocked: (o, ctx) => plsModelBlocked(ctx)
+    ?? (ctx.settings.plsApproach !== 'PLS-PM' ? 'REBUS-PLS (plspm) estimates by PLS path modeling: choose PLS-PM as the weighting approach.' : null)
     ?? (ctx.model!.constructs.some((x) => x.mode === 'B' || x.type === 'composite') ? 'REBUS-PLS needs reflective constructs (Mode A, common factors) only.' : null)
     ?? noInteractions(ctx, 'REBUS-PLS') ?? (o.from > o.to ? 'The smallest number of classes must not exceed the largest.' : null),
   fingerprint: (_o, ctx) => modelFingerprint(ctx, [], [ctx.settings.seed], rebusOptions(ctx)),
@@ -314,7 +320,7 @@ export const pathmoxAnalysis: AnalysisType<PathmoxOptions, PathmoxResult> = {
   } : null),
   Options: PathmoxOptionsForm,
   View: ({ result }) => <PathmoxView r={result} />,
-  blocked: (o, ctx) => plsModelBlocked(ctx) ?? noInteractions(ctx, 'PATHMOX') ?? (!o.segments.length ? 'Choose at least one segmentation variable.'
+  blocked: (o, ctx) => plsModelBlocked(ctx) ?? (ctx.settings.plsApproach !== 'PLS-PM' ? 'PATHMOX (genpathmox) estimates by PLS path modeling: choose PLS-PM as the weighting approach.' : null) ?? noInteractions(ctx, 'PATHMOX') ?? (!o.segments.length ? 'Choose at least one segmentation variable.'
     : o.segments.some((s) => !segmentCandidates(ctx).includes(s.column)) ? 'A segmentation variable is no longer usable (not in the data, in the model, or more than 20 values).' : null),
   fingerprint: (o, ctx) => modelFingerprint(ctx, o.segments.map((s) => s.column), [], segOptions(ctx, 'casewise', ctx.settings.consistent)),
   run: async (o, ctx) => (await import('../rengine/segment')).pathmoxR(rawData(ctx)!, specOf(ctx), segOptions(ctx, 'casewise', ctx.settings.consistent), o),
@@ -338,7 +344,7 @@ export const fimixAnalysis: AnalysisType<FimixOptions, FimixResult> = {
       </div>
       <label className="check"><input type="checkbox" checked={o.intercepts} onChange={(e) => set({ ...o, intercepts: e.target.checked })} />
         <span>Segment-specific intercepts<br /><span className="hint">Segments may also differ in their levels. Hahn et al.’s original model has none (on standardised scores); without them, segments that differ in level are hard to find.</span></span></label>
-      <div className="hint">Seed {ctx.settings.seed} (Model settings); flexmix, best of the starts per number of segments.</div>
+      <div className="hint">Seed {ctx.settings.seed} (Model settings); flexmix, best of the starts per number of segments. Global model: cSEM{heldNote(ctx, false) ? ` with ${heldNote(ctx, false)}` : ''}.</div>
     </fieldset>
   ),
   View: ({ result, current }) => <FimixView key={result.models.length} r={result} current={current} />,
@@ -362,7 +368,7 @@ export const posAnalysis: AnalysisType<PosOptions, PosResult> = {
         <div className="field"><label htmlFor="pos-k">Segments</label><input id="pos-k" className="input num" type="number" min={2} max={6} value={o.segments} onChange={(e) => set({ ...o, segments: clampNum(e.target.value, 2, 6, 2, true) })} /></div>
         <div className="field"><label htmlFor="pos-nrep">Random starts</label><input id="pos-nrep" className="input num" type="number" min={1} max={50} value={o.nrep} onChange={(e) => set({ ...o, nrep: clampNum(e.target.value, 1, 50, 3, true) })} /></div>
       </div>
-      <div className="hint">Each move re-estimates two local models, so this takes a while (about half a minute for 400 observations and two segments). Seed {ctx.settings.seed} (Model settings). Choose the number of segments with FIMIX-PLS first, as Becker et al. suggest.</div>
+      <div className="hint">Each move re-estimates two local models{heldNote(ctx, false) ? ` (${heldNote(ctx, false)})` : ''}, so this takes a while (about half a minute for 400 observations and two segments). Seed {ctx.settings.seed} (Model settings). Choose the number of segments with FIMIX-PLS first, as Becker et al. suggest.</div>
     </fieldset>
   ),
   View: ({ result, current }) => <PosView r={result} current={current} />,

@@ -45,12 +45,13 @@ function Overview({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null 
   return (
     <>
       <div className="stat-cards">
-        <div className="stat-card"><div className="k">Algorithm</div><div className="v">{pls.consistent ? 'PLSc' : 'PLS'}</div></div>
+        <div className="stat-card" title={pls.approach && pls.approach !== 'PLS-PM' ? 'cSEM’s weighting approach for every construct (Weighting approach, under Calculated by)' : undefined}>
+          <div className="k">Algorithm</div><div className="v">{pls.approach === 'GSCA' ? 'GSCA' : pls.approach === 'PCA' ? 'PCA' : pls.approach === 'unit' ? 'Sum scores' : pls.consistent ? 'PLSc' : 'PLS'}</div></div>
         <div className="stat-card"><div className="k">Observations</div><div className="v">{pls.n}</div></div>
         {pls.imputations && <div className="stat-card" title="Estimates averaged over the imputed data sets (Rubin's point estimate)"><div className="k">Imputed data sets</div><div className="v">{pls.imputations}</div></div>}
         <div className="stat-card"><div className="k">Iterations</div><div className="v">{pls.iterations}</div></div>
         <div className="stat-card"><div className="k">Converged</div><div className="v" style={{ color: pls.converged ? 'var(--good)' : 'var(--bad)' }}>{pls.converged ? 'Yes' : 'No'}</div></div>
-        <div className="stat-card"><div className="k">SRMR</div><div className="v">{fmt(pls.fit.estimated.srmr)}</div></div>
+        <div className="stat-card" title={Number.isFinite(pls.fit.estimated.srmr) ? 'SRMR of the estimated model (Model fit)' : 'Not reported for this model (Model fit says why)'}><div className="k">SRMR</div><div className="v">{fmt(pls.fit.estimated.srmr)}</div></div>
         <div className="stat-card"><div className="k">Bootstrap</div><div className="v">{boot ? boot.samples : '—'}</div></div>
         {pls.droppedRows > 0 && <div className="stat-card"><div className="k">Rows dropped</div><div className="v">{pls.droppedRows}</div></div>}
       </div>
@@ -141,7 +142,11 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
         note={<>Common factors: loadings should be ≥ 0.708{pls.consistent ? ' (PLSc-corrected loadings λ = ĉŵ)' : ''}. Composites: interpret weights, their significance and VIF (&lt; 3 ideal, &gt; 5 problematic).</>} />
       {ho.length > 0 && <Table title="Second-order constructs" file="second-order"
         columns={['Component', 'Second-order construct', 'Type', 'Loading', 'Weight', ...(boot ? ['p (loading)', 'p (weight)', 'Weight CI'] : [])]} rows={hoRows}
-        note="cSEM’s two-stage approach: stage 1 estimates the first-order constructs; their scores are the indicators of the second-order construct in stage 2, which cSEM corrects for attenuation when it is a common factor. Its paths and R² are stage 2’s." />}
+        note={pls.hocApproach === 'repeated'
+          ? 'Repeated indicators: the dimensions’ indicators measure the second-order construct too, and the dimensions predict it. Loading: a dimension’s correlation with the second-order construct’s scores; weight: its path coefficient. Overall fit is not reported (the copied indicators make the model-implied matrix singular).'
+          : pls.hocApproach === 'embedded'
+            ? 'cSEM’s embedded two-stage approach (.approach_2ndorder = "mixed"): stage 1 uses the repeated indicators, so the second-order construct is in the model from the start; stage 2 measures it by its dimensions’ scores (corrected for attenuation when it is a common factor). Its paths and R² are stage 2’s.'
+            : 'Two-stage approach (disjoint): stage 1 estimates the first-order constructs; their scores are the indicators of the second-order construct in stage 2, which cSEM corrects for attenuation when it is a common factor. Its paths and R² are stage 2’s.'} />}
     </div>
   );
 }
@@ -210,6 +215,14 @@ function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
       verdict(obs[k], test?.hi95[which][k], test?.hi99[which][k]),
     ]);
   };
+  const unavailable = !Number.isFinite(pls.fit.estimated.srmr) && !Number.isFinite(pls.fit.saturated.srmr);
+  if (unavailable) {
+    return <div className="empty-results">{pls.hocApproach === 'repeated'
+      ? 'Overall fit is not reported with repeated indicators: the copied indicators make the model-implied correlation matrix singular.'
+      : pls.hocApproach ? 'Overall fit is not reported for two-stage second-order models: cSEM’s discrepancies refer to one stage only.'
+        : pls.moderations.length ? 'Overall fit is not reported for models with interaction terms: the model-implied correlations of a nonlinear model are not defined.'
+          : 'Overall fit is not available for this model (the package did not report it; see Messages).'}</div>;
+  }
   return (
     <>
       <div className="table-tools">
@@ -270,7 +283,7 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
         rows={stats.map((s) => [c(s.label), c(s.original), ...bootCells(s)])}
         note={boot.imputations
           ? `${boot.samples} subsamples in each of ${boot.imputations} imputed data sets, pooled by Rubin’s rules: estimate = mean over the imputations; SE² = mean bootstrap variance + (1 + 1/m) × variance between imputations; t test with Rubin’s degrees of freedom and t-based intervals.${boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : ''}`
-          : `${boot.samples} subsamples${boot.failed ? ` (${boot.failed} failed or not admissible, excluded)` : ''}. Two-tailed t test with df = usable samples − 1; percentile confidence intervals.${boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : ''}`} />
+          : `${boot.samples} subsamples${boot.failed ? ` (${boot.failed} failed or not admissible, excluded)` : ''}. ${boot.tails === 1 ? 'One-tailed t test (in the direction of the estimate)' : 'Two-tailed t test'} with df = usable samples − 1; ${boot.interval === 'bca' ? 'bias-corrected and accelerated (BCa) intervals, from a jackknife' : 'percentile confidence intervals'}${boot.tails === 1 ? ', one-sided' : ''}.${boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : ''}`} />
     </>
   );
 }
@@ -280,15 +293,17 @@ function Moderation({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | nul
     return <div className="empty-results">No moderators in the model. Drag from a construct’s dot onto a path arrow to add one.</div>;
   }
   const C = pls.constructs;
+  const METHOD: Record<string, string> = { two_stage: 'two-stage', orthogonal: 'orthogonalising', product_indicator: 'product indicators' };
+  const methods = new Set(pls.moderations.map((mo) => mo.method ?? 'two_stage'));
   const rows: Row[] = pls.moderations.map((mo) => {
     const j = C.indexOf(mo.to);
     const b = boot?.stats.find((s) => s.key === `path:${C[mo.construct]}:${mo.to}`);
-    return [c(`${C[mo.construct]} → ${mo.to}`), c(pls.pathCoef[mo.construct][j]), c(pls.fSquare[mo.construct][j]), ...(boot ? bootCells(b) : [])];
+    return [c(`${C[mo.construct]} → ${mo.to}`), c(METHOD[mo.method ?? 'two_stage'] ?? mo.method!, 'dim'), c(pls.pathCoef[mo.construct][j]), c(pls.fSquare[mo.construct][j]), ...(boot ? bootCells(b) : [])];
   });
   return (
     <>
-      <Table title="Interaction and quadratic effects" file="interactions" columns={['Term', 'β', 'f²', ...(boot ? bootCols(boot) : [])]} rows={rows}
-        note={<>Two-stage approach (Henseler &amp; Chin 2010). β is per unit of the product of standardised scores, so the slope of the predictor at moderator level m (in SD) is β_x + β_int·m; for a quadratic term X², the slope of X at x (in SD) is β_x + 2β_q·x. f²: 0.005 small, 0.01 medium, 0.025 large for interactions (Kenny 2018).{!boot && ' Run bootstrapping for significance.'}</>} />
+      <Table title="Interaction and quadratic effects" file="interactions" columns={['Term', 'Approach', 'β', 'f²', ...(boot ? bootCols(boot) : [])]} rows={rows}
+        note={<>{methods.size === 1 && methods.has('two_stage') ? 'Two-stage approach (Henseler & Chin 2010): the product of the standardised construct scores of the first stage.' : 'Orthogonalising: products of indicators residualised on the main-effect indicators (Little, Bovaird & Widaman 2006); product indicators: every product of a predictor and a moderator indicator as the term’s indicators (Chin, Marcolin & Newsted 2003); two-stage: the product of the standardised scores (Henseler & Chin 2010).'} β is per unit of the (standardised) interaction term, so the slope of the predictor at moderator level m (in SD) is β_x + β_int·m; for a quadratic term X², the slope of X at x (in SD) is β_x + 2β_q·x. f²: 0.005 small, 0.01 medium, 0.025 large for interactions (Kenny 2018).{!boot && ' Run bootstrapping for significance.'}</>} />
       <div className="tables" style={{ marginTop: 20 }}>
         {pls.moderations.map((mo) => {
           const j = C.indexOf(mo.to);

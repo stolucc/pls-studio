@@ -60,3 +60,11 @@ describe('PLS-SEM assessment cards', () => {
     expect(assessmentCard({ tab: 'cca' })).toEqual(['cca', {}]);
   });
 });
+
+describe('the PLS options every assessment sends', () => {
+  it('carry the weighting and second-order approaches from the settings', async () => {
+    const { plsOptions } = await import('./plsAssessment');
+    const { DEFAULT_SETTINGS } = await import('../model/project');
+    expect(plsOptions({ ...DEFAULT_SETTINGS, plsApproach: 'GSCA', hocApproach: 'repeated', missing: 'fiml' })).toMatchObject({ approach: 'GSCA', hocApproach: 'repeated', missing: 'casewise' });
+  });
+});

@@ -31,7 +31,16 @@ export type CbTabId = (typeof CB_TABS)[number]['id'];
 
 const estRow = (e: CbEstimate, label: string): Row =>
   [c(label), c(e.est), c(e.se), c(e.z), pCell(e.p), c(e.std)];
-const estCols = (cb: CbResult) => ['Estimate', cb.estimator === 'MLM' || cb.estimator === 'MLMV' || cb.estimator === 'MLR' || cb.estimator === 'RML' ? 'Robust SE' : 'Std. error', 'z', 'p', 'Standardised'];
+/** The standard-error column, by how lavaan computed them (seType) or, for the built-in engine, by the estimator. */
+export function seLabel(cb: Pick<CbResult, 'estimator' | 'seType'>): string {
+  const t = cb.seType;
+  if (t?.startsWith('robust.cluster')) return 'Cluster-robust SE';
+  if (t === 'bootstrap') return 'Bootstrap SE';
+  if (t === 'robust.huber.white' || t === 'robust.sem' || t === 'robust.mlr' || t === 'robust.mlm' || t === 'robust') return 'Robust SE';
+  if (t === 'standard' || t === 'default') return 'Std. error';
+  return cb.estimator === 'MLM' || cb.estimator === 'MLMV' || cb.estimator === 'MLR' || cb.estimator === 'RML' ? 'Robust SE' : 'Std. error';
+}
+const estCols = (cb: CbResult) => ['Estimate', seLabel(cb), 'z', 'p', 'Standardised'];
 
 /** Robust ML (rsem): the cases it down-weights most. */
 function CaseWeights({ w }: { w: NonNullable<CbResult['caseWeights']> }) {

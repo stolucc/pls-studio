@@ -49,8 +49,8 @@ export interface ModerationSpec {
   from: string;
   moderator: string;
   to: string;
-  /** PLS-SEM, seminr: interaction_term(method = …); absent = two_stage. */
-  method?: 'orthogonal' | 'product_indicator';
+  /** PLS-SEM, seminr: interaction_term(method = …); absent = two_stage (results report two_stage explicitly). */
+  method?: 'two_stage' | 'orthogonal' | 'product_indicator';
 }
 
 /**
@@ -200,7 +200,12 @@ export interface PlsResult {
   consistent: boolean;
   types: ConstructType[];
   /** Moderations with the index of their interaction construct in `constructs`. */
+  /** `method`: how the interaction term was built (seminr: two_stage, orthogonal, product_indicator; cSEM: two_stage). */
   moderations: (ModerationSpec & { construct: number })[];
+  /** cSEM's weighting approach: PLS-PM (each construct's mode) or GSCA, PCA, unit (sum scores) for every construct. */
+  approach?: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
+  /** With second-order constructs: how they were estimated. */
+  hocApproach?: 'two_stage' | 'embedded' | 'repeated';
   /** fSquare[from][to]; null where no path. */
   fSquare: (number | null)[][];
   /** vifInner[from][to]; null where no path. */

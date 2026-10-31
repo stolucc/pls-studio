@@ -34,6 +34,7 @@ it('estimates a latent mean and intercepts as lavaan does (meanstructure = TRUE)
   const data = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
   const r = await estimateCbLavaan(data, spec, 'casewise', 'ML', 'product');
   expect(r.converged).toBe(true);
+  expect(r.seType).toBe('standard');
   expect(r.fit.chisq).toBeCloseTo(ref.chisq, 4);
   expect(r.fit.df).toBe(ref.df);
   const means = r.estimates.filter((e) => e.kind === 'mean' || e.kind === 'intercept');

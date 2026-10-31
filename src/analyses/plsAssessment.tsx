@@ -221,6 +221,7 @@ function CcaView({ r }: { r: CcaResult }) {
 export const plsOptions = (s: Settings): PlsOptions => ({
   scheme: s.scheme, maxIter: s.maxIter, tolerance: 10 ** -s.stopExp,
   missing: s.missing === 'mean' ? 'mean' : 'casewise', consistent: s.consistent,
+  approach: s.plsApproach, hocApproach: s.hocApproach,
 });
 const samplesOf = (s: Settings, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.floor(s.bootSamples)));
 
@@ -243,7 +244,8 @@ export function modelFingerprint(ctx: AnalysisCtx, extraCols: string[] = [], ext
 
 export const specOf = (ctx: AnalysisCtx) => toSpec(ctx.model!);
 const Hint = ({ children }: { children: ReactNode }) => <p className="hint" style={{ marginTop: 0 }}>{children}</p>;
-const modelNote = (ctx: AnalysisCtx) => `The PLS-SEM model on the canvas, ${ctx.settings.scheme} weighting${ctx.settings.consistent ? ', PLSc' : ''} (Model settings).`;
+const APPROACH_NAME: Record<string, string> = { GSCA: 'GSCA', PCA: 'PCA weights', unit: 'sum scores' };
+const modelNote = (ctx: AnalysisCtx) => `The PLS-SEM model on the canvas, ${ctx.settings.plsApproach !== 'PLS-PM' ? `${APPROACH_NAME[ctx.settings.plsApproach]} for every construct` : `${ctx.settings.scheme} weighting`}${ctx.settings.consistent ? ', PLSc' : ''}${ctx.settings.missing === 'mean' ? ', mean replacement' : ', casewise deletion'} (Model settings).`;
 const PLS_GROUP = 'PLS-SEM model' as const;
 
 // ---------- PLSpredict ----------

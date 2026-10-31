@@ -55,6 +55,8 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
     htmt: nmat(raw.htmt), htmt2: nmat(raw.htmt2),
     fit: { estimated: disc(raw.fit?.estimated), saturated: disc(raw.fit?.saturated) },
     consistent: !!raw.consistent, types: raw.types, moderations: raw.moderations,
+    ...(['PLS-PM', 'GSCA', 'PCA', 'unit'].includes(raw.approach) ? { approach: raw.approach } : {}),
+    ...(['two_stage', 'embedded', 'repeated'].includes(raw.hocApproach) ? { hocApproach: raw.hocApproach } : {}),
     fSquare: nmat(raw.fSquare), vifInner: nmat(raw.vifInner), vifOuter: nums(raw.vifOuter),
     scores: (raw.scores as unknown[]).map((c) => Float64Array.from(nums(c))),
     droppedRows: raw.droppedRows ?? 0, warnings: rStrings(raw.warnings), notes: rStrings(raw.notes), engine: raw.engine,

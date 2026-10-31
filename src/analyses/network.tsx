@@ -63,18 +63,19 @@ function VarsField({ value, set, ctx }: { value: string[]; set: (v: string[]) =>
 
 export type NetworkOptions = Omit<NetworkInput, 'boot'> & { stability: number };
 
-function NetworkView({ r }: { r: NetworkResult }) {
+function NetworkView({ r, estimator }: { r: NetworkResult; estimator: NetworkOptions['estimator'] }) {
+  const kind = estimator === 'cor' ? 'correlations' : 'partial correlations';
   const ce = r.centrality;
   const edges = r.weights.reduce((s, row, i) => s + row.filter((w, j) => j > i && Math.abs(w) > 1e-12).length, 0);
   const possible = (r.names.length * (r.names.length - 1)) / 2;
   return (
     <div className="tables">
       <NetworkPlot id="network:graph" names={r.names} weights={r.weights} layout={r.layout} />
-      <div className="hint">Edges: partial correlations (blue positive, red dashed negative; thicker = stronger), {edges} of {possible} possible. Layout: qgraph’s spring layout (Fruchterman–Reingold).</div>
+      <div className="hint">Edges: {kind}{estimator === 'EBICglasso' ? ', regularised (EBICglasso)' : ''} (blue positive, red dashed negative; thicker = stronger), {edges} of {possible} possible. Layout: qgraph’s spring layout (Fruchterman–Reingold).</div>
       <Table title="Centrality" file="network-centrality" columns={['Variable', 'Strength', 'Expected influence', 'Closeness', 'Betweenness']}
         rows={r.names.map((n, i) => [c(n), c(ce.strength[i]), c(ce.expectedInfluence[i]), c(ce.closeness[i], undefined, 4), c(ce.betweenness[i], undefined, 0)])}
         note="Strength: the sum of a node’s absolute edge weights; expected influence: the signed sum (Robinaugh et al. 2016). Closeness and betweenness are often unstable in psychological networks (Epskamp et al. 2018); check the stability before interpreting them. qgraph::centrality_auto." />
-      <Table title="Edge weights (partial correlations)" file="network-weights" columns={['', ...r.names]}
+      <Table title={`Edge weights (${kind})`} file="network-weights" columns={['', ...r.names]}
         rows={r.names.map((n, i) => [c(n), ...r.weights[i].map((w, j) => (j >= i ? c('') : Math.abs(w) < 1e-12 ? c('·', 'dim') : c(w)))])} />
       {r.cs && (
         <Table title="Centrality stability (case-dropping bootstrap)" file="network-stability" columns={['Index', 'CS coefficient', 'Interpretation']}
@@ -131,7 +132,7 @@ export const networkAnalysis: AnalysisType<NetworkOptions, NetworkResult> = {
     gamma: clampNum(raw.gamma, 0, 1, 0.5), stability: clampNum(raw.stability, 0, 5000, 0, true),
   } : null),
   Options: NetworkOptionsForm,
-  View: ({ result }) => <NetworkView r={result} />,
+  View: ({ result, options }) => <NetworkView r={result} estimator={options.estimator} />,
   blocked: (o, ctx) => (o.vars.length < 3 ? 'Choose at least three variables.' : missingColumns(ctx, o.vars, 'Network analysis')),
   fingerprint: (o, ctx) => columnsFingerprint(ctx, o.vars, o.stability ? [ctx.settings.seed] : []),
   run: async (o, ctx) => (await import('../rengine/network')).networkR(rawData(ctx)!, netInput(o, ctx)),

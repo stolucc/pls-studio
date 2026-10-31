@@ -30,7 +30,8 @@ const fitCards = (f: Partial<Record<'chisq' | 'df' | 'cfi' | 'rmsea' | 'srmr', n
 const estRow = (e: LongEstimate, label: string): Row => [c(label), c(e.est), c(e.se), c(e.z), pCell(e.p), c(e.std)];
 const estCols = ['Parameter', 'Estimate', 'Std. error', 'z', 'p', 'Standardised'];
 
-function GrowthView({ r }: { r: GrowthResult }) {
+function GrowthView({ r }: { r: GrowthResult & { input?: { estimator?: string } } }) {
+  const estCols = ['Parameter', 'Estimate', r.input?.estimator === 'MLR' ? 'Robust SE' : 'Std. error', 'z', 'p', 'Standardised'];
   const name: Record<string, string> = { i: 'Intercept', s: 'Slope', q: 'Quadratic' };
   const f = (x: string) => name[x] ?? x;
   const means = r.estimates.filter((e) => e.op === '~1');

@@ -580,6 +580,8 @@ ps_cb <- function(req_json, export = FALSE) {
 
     list(
       estimator = req$estimator,
+      # How the standard errors were computed (lavaan's se option): standard, robust, cluster-robust, bootstrap.
+      seType = as.character(fit@Options$se %||% "standard"),
       # Between clusters, n is the number of clusters.
       n = if (is.null(g)) lavaan::lavInspect(fit, "nobs") else if (between_block(g)) ps_per_group(lavaan::lavInspect(fit, "nclusters"), group_of(g))
         else lavaan::lavInspect(fit, "nobs")[group_of(g)],

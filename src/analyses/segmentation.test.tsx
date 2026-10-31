@@ -42,3 +42,20 @@ describe('segmentation cards', () => {
     expect(segmentationCard({ method: 'pathmox' }, [{ column: 'x', labels: [], ordered: false }])).toEqual(['pathmox', { segments: [{ column: 'x', labels: [], ordered: false }] }]);
   });
 });
+
+describe('segmentation hints', () => {
+  it('say when PLSc is switched off and refuse other weighting approaches for plspm and genpathmox', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const names = ['a1', 'a2', 'b1', 'b2', 'g'];
+    const data = { names, cols: names.map((_, k) => Float64Array.from({ length: 40 }, (_, i) => (k === 4 ? i % 2 : Math.sin(i * (k + 1.3)) + (i % (k + 2))))) };
+    const model: ModelState = { constructs: [{ id: 'A', name: 'A', type: 'factor', mode: 'A', indicators: ['a1', 'a2'], x: 0, y: 0, side: 'left' }, { id: 'B', name: 'B', type: 'factor', mode: 'A', indicators: ['b1', 'b2'], x: 300, y: 0, side: 'left' }], paths: [{ id: 'p', from: 'A', to: 'B' }], moderations: [] };
+    const ctx = (over: Partial<typeof DEFAULT_SETTINGS>): AnalysisCtx => ({ data, info: null, settings: { ...DEFAULT_SETTINGS, method: 'pls', ...over }, pls: null, projectName: 'p', model });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const form = (A: { Options: any; defaults: (c: AnalysisCtx) => unknown }, c: AnalysisCtx) => renderToStaticMarkup(<A.Options options={A.defaults(c)} set={() => {}} ctx={c} disabled={false} />);
+    expect(form(fimixAnalysis, ctx({ consistent: true }))).toContain('PLSc off');
+    expect(form(fimixAnalysis, ctx({}))).not.toContain('PLSc off');
+    expect(form(rebusAnalysis, ctx({ missing: 'fiml' }))).toContain('casewise deletion');
+    expect(rebusAnalysis.blocked(rebusAnalysis.defaults(ctx({})), ctx({ plsApproach: 'GSCA' }))).toMatch(/PLS-PM/);
+    expect(pathmoxAnalysis.blocked(pathmoxAnalysis.defaults(ctx({})), ctx({ plsApproach: 'unit' }))).toMatch(/PLS-PM/);
+  });
+});
