@@ -97,7 +97,7 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
       sprintf("fit <- estimate_pls(data, measurement, structure, inner_weights = %s, maxIt = %d, stopCriterion = %d)",
         if (o$scheme == "factor") "path_factorial" else "path_weighting", as.integer(o$maxIter), as.integer(round(-log10(o$tolerance)))))
   } else stop("Unknown PLS package: ", pkg)
-  list(pkg = pkg, n = n, cv = cv, k0 = k0, type = type, mods = mods, int_l = int_l, inputs = inputs, body = body, o = o, hoc = hoc, comps = comps)
+  list(pkg = pkg, n = n, cv = cv, k0 = k0, type = type, mode = mode, mods = mods, int_l = int_l, inputs = inputs, body = body, o = o, hoc = hoc, comps = comps)
 }
 
 ps_pls <- function(req_json, export = FALSE) {
@@ -180,6 +180,19 @@ ps_pls_out <- function(req, b, env) {
     # (cSEM's composite reliability and overall fit need the model-implied correlations, which nonlinear models do not have.)
     rhoC <- pick(if (!is.null(a)) a$Reliability$Joereskogs_rho else if (!linear) NULL else safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE), "Composite reliability (cSEM::calculateRhoC)"), a2$Reliability$Joereskogs_rho)
     rhoA <- pick(if (!is.null(a)) a$Reliability$`Dijkstra-Henselers_rho_A` else NULL, a2$Reliability$`Dijkstra-Henselers_rho_A`)
+    # Without disattenuation cSEM treats every construct as a composite and reports
+    # rho_A = 1 for all of them. seminr, SmartPLS and the built-in engine report
+    # Dijkstra & Henseler's (2015) rho_A for Mode A blocks regardless (it depends on
+    # the weights and the indicator correlations only), so it is computed here too.
+    S0 <- fit1$Estimates$Indicator_VCV
+    if (!isTRUE(b$o$consistent) && is.matrix(S0) && is.matrix(W)) {
+      for (j in which(b$type[seq_len(k0)] == "factor" & b$mode[seq_len(k0)] == "A" & !b$hoc[seq_len(k0)])) {
+        it <- intersect(unname(n$iv[n$inds[[j]]]), rownames(S0))
+        if (length(it) < 2 || !(cv[j] %in% rownames(W))) next
+        w <- W[cv[j], it]; Sj <- S0[it, it]; ww <- tcrossprod(w)
+        rhoA[j] <- as.numeric(sum(w^2)^2 * (t(w) %*% (Sj - diag(diag(Sj))) %*% w) / (t(w) %*% (ww - diag(diag(ww))) %*% w))
+      }
+    }
     ave <- pick(if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)"), a2$AVE)
     # The HTMT assumes that the items of a construct correlate positively with each other
     # and that the items of two constructs correlate all with the same sign. cSEM warns

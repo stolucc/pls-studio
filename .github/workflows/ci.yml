@@ -1,0 +1,107 @@
+name: ci
+
+# Every push and pull request: type check, lint, the client unit tests, the
+# server's integration tests (real PostgreSQL), the helper's Go tests (which
+# include the check that helper/rsrc equals src/rengine/R), and the webR tests
+# that re-run the R packages in the browser's R against the native-R fixtures
+# and the published results.
+#
+# The webR runtime (public/webr, ~250 MB without sources) is cached by the
+# lock file, so only a lock change downloads it again.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client:
+    name: client (typecheck, lint, unit tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx eslint .
+      - run: npx vitest run
+
+  server:
+    name: server (integration tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: pls
+          POSTGRES_PASSWORD: pls
+          POSTGRES_DB: pls_studio_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pls"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+        working-directory: server
+      - run: npx tsc -p .
+        working-directory: server
+      - run: npx vitest run
+        working-directory: server
+        env:
+          TEST_DATABASE_URL: postgres://pls:pls@localhost:5432/pls_studio_test
+
+  helper:
+    name: helper (Go tests, R bridge in sync)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27'
+          cache-dependency-path: helper/go.sum
+      - run: go test ./...
+        working-directory: helper
+
+  webr:
+    name: webR (R packages against native R and published results)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Cache the R runtime
+        id: webr-cache
+        uses: actions/cache@v4
+        with:
+          path: public/webr
+          key: webr-${{ hashFiles('scripts/webr/webr-lock.json', 'scripts/webr/vendor/**') }}-no-sources
+      - name: Fetch the R runtime
+        if: steps.webr-cache.outputs.cache-hit != 'true'
+        run: node scripts/webr/fetch.mjs --no-sources
+      - run: npm run test:webr

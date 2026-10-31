@@ -110,8 +110,29 @@ V select · C add construct · P draw path · Del delete · ⌘Z / ⌘⇧Z undo/
 
 ## Validation
 
-`npm test` runs ~320 client tests (`npm run test:server` runs the server's integration tests), including a reference corpus in `src/engine/__fixtures__/validation`
-(54 cases) produced by `npm run validate:generate` (`scripts/validation/generate.R`):
+Three layers, run by `.github/workflows/ci.yml` on every push:
+
+1. **The estimators are the R packages themselves.** lavaan, cSEM, seminr, MIIVsem, semTools, modsem, mice and
+   the rest run unchanged in webR (versions pinned in `scripts/webr/webr-lock.json`). Only the built-in PLS
+   engine (`src/engine`) and the simulation engine are reimplementations.
+2. **Native R references.** `npm test` runs ~900 client tests, among them a reference corpus in
+   `src/engine/__fixtures__/validation` (54 cases) produced by `npm run validate:generate`
+   (`scripts/validation/generate.R`) and further fixtures from the 37 scripts in `scripts/validation/`, all
+   written by native R. `npm run test:webr` (~370 tests) re-runs the packages in webR, through the same bridge
+   code the app uses, and compares with those fixtures. `npm run test:server` runs the server's 51
+   integration tests against a real PostgreSQL database.
+3. **Published results.** `src/rengine/published.webr.test.ts` reproduces, to the printed three decimals and
+   with every engine (seminr, cSEM, built-in), values printed by other people with other software: the
+   corporate reputation models of Hair et al. (2021), *PLS-SEM Using R*, chapters 4 and 6 (reliabilities,
+   √AVE, correlations, loadings, paths, R², total effects, f²; the SmartPLS case study of the authors' Primer),
+   and the ECSI model of Monecke & Leisch (2012, *J. Stat. Software* 48(3)) on mobi (12 paths, 24 loadings,
+   centroid scheme). Tenenhaus et al. (2005, Fig. 2) fitted ECSI to unstandardised indicators, which the app
+   does not do (plspm with `scaled = FALSE` reproduces that figure).
+
+Independently of all this, **File → Download R script** gives the exact lavaan/cSEM/seminr syntax a project
+runs, and a replication package bundles it with the data: run it in native R and compare.
+
+The reference corpus:
 
 | Reference | Cases |
 |---|---|
@@ -137,4 +158,6 @@ Type I error and PLS attenuation behave as theory predicts.
 Conventions matched (documented in code): lavaan fits GLS/ULS to the unbiased covariance
 matrix and uses N − 1 for their χ², SEs and RMSEA; SRMR is Bentler's (observed SDs); d_G
 uses the natural log (cSEM uses log10); f² re-estimates the model without the path; two-stage
-interaction effects are per unit of the product of standardised scores (as seminr).
+interaction effects are per unit of the product of standardised scores (as seminr); ρA is reported for
+Mode A constructs under every engine (cSEM itself reports 1 for every construct when not disattenuating,
+as all are composites then; the bridge computes Dijkstra & Henseler's ρA from the weights, as seminr does).
