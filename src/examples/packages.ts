@@ -6,7 +6,7 @@
 
 import type { EsemRotation, MultigroupSpec } from '../engine/types';
 import type { Correlation, ModelState, Settings } from '../model/project';
-import { makeCovariancesExplicit, newId } from '../model/project';
+import { DEFAULT_SETTINGS, makeCovariancesExplicit, newId } from '../model/project';
 import type { GrowthInput } from '../rengine/longitudinal';
 import type { IrtModel } from '../rengine/items';
 import type { LmmInput } from '../rengine/mixed';
@@ -577,6 +577,16 @@ export function panelColumns(p: ExamplePanel): string[] {
  * (lavaan's default), and those correlations are drawn (makeCovariancesExplicit).
  * PLS-SEM and CPA have no such parameters, so nothing is added.
  */
+/**
+ * The settings an example opens with: its documented settings over the
+ * defaults, so it runs as its source describes whatever the previous project
+ * used (bootstrap count, missing-value treatment, seed, PLSc, ...). Only the
+ * look of the diagram and the charts carries over from the current project.
+ */
+export function exampleSettings(current: Settings, overrides: Partial<Settings> = {}): Settings {
+  return { ...DEFAULT_SETTINGS, figure: current.figure, charts: current.charts, ...overrides, engine: 'r' };
+}
+
 export function exampleModel(ex: PackageExample): ModelState {
   const m = exampleModelAsWritten(ex);
   return ex.settings.method === 'cbsem' ? makeCovariancesExplicit(m) : m;

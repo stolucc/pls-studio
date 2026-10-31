@@ -3,7 +3,7 @@ import { factorCodes } from '../io';
 import { DEFAULT_SETTINGS, validateModel, unconfirmedUncorrelated } from '../model/project';
 import { processGraph } from '../process/fromModel';
 import { R_PACKAGES } from '../rengine/bridge';
-import { EXAMPLE_PACKAGES, exampleModel, PACKAGE_EXAMPLES, panelColumns } from './packages';
+import { EXAMPLE_PACKAGES, exampleModel, exampleSettings, PACKAGE_EXAMPLES, panelColumns } from './packages';
 
 const diagrams = PACKAGE_EXAMPLES.filter((e) => !e.panel);
 
@@ -75,4 +75,13 @@ it('factor codes are listed per level set', () => {
   expect(factorCodes([])).toBe('');
   expect(factorCodes({ school: ['Grant-White', 'Pasteur'] })).toBe(' Coded school: 1 = Grant-White, 2 = Pasteur.');
   expect(factorCodes({ a: ['no', 'yes'], b: ['no', 'yes'], g: 'only' })).toBe(' Coded a, b: 1 = no, 2 = yes; g: 1 = only.');
+});
+
+it('an example opens with its documented settings, not the previous project’s; the diagram and chart styles carry over', () => {
+  const current = { ...DEFAULT_SETTINGS, bootSamples: 50_000, seed: 7, confidence: 0.9, missing: 'mi' as const, consistent: true, engine: 'builtin' as const, estimator: 'MLR' as const,
+    figure: { ...DEFAULT_SETTINGS.figure, fontSize: 19 }, charts: { ...DEFAULT_SETTINGS.charts, size: 19 } };
+  const s = exampleSettings(current, { method: 'cbsem', estimator: 'MLM' });
+  expect(s).toEqual({ ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'MLM', engine: 'r', figure: current.figure, charts: current.charts });
+  // Every package example's own settings are partial: the rest are the defaults.
+  for (const e of PACKAGE_EXAMPLES) expect(exampleSettings(current, e.settings).bootSamples, e.id).toBe(DEFAULT_SETTINGS.bootSamples);
 });

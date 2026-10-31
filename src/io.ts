@@ -248,9 +248,12 @@ export type ExampleId = 'customer' | 'emse' | 'poldem';
 export async function loadSample(which: ExampleId = 'customer') {
   if (!(await confirmDiscard('Loading the example'))) return;
   const s = useStore.getState();
+  // The built-in examples open with their documented settings too (see exampleSettings).
+  const { exampleSettings } = await import('./examples/packages');
+  const fresh = exampleSettings(s.settings);
   if (which === 'emse') {
     const { makeEmseExample } = await import('./examples/emse');
-    const ex = makeEmseExample(s.settings);
+    const ex = makeEmseExample(fresh);
     s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'emse' });
     loadCards([]);
     s.toast('info', 'Stol, Schaarschmidt & Goldblit (2022), EMSE 27:35. Covariance + NACOV matrices (N = 155), estimated with MLM as in the paper. Press Calculate.');
@@ -258,14 +261,14 @@ export async function loadSample(which: ExampleId = 'customer') {
   }
   if (which === 'poldem') {
     const { makePoldemExample } = await import('./examples/poldem');
-    const ex = makePoldemExample(s.settings);
+    const ex = makePoldemExample(fresh);
     s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'poldem' });
     loadCards([]);
     s.toast('info', 'Bollen (1989): industrialisation and political democracy, N = 75, with six correlated measurement errors. Press Calculate.');
     return;
   }
   const { data, info, model } = makeSample();
-  s.loadProject({ name: 'Customer experience example', model, settings: { ...s.settings, method: 'pls' }, data, info, example: 'customer' });
+  s.loadProject({ name: 'Customer experience example', model, settings: { ...fresh, method: 'pls' }, data, info, example: 'customer' });
   loadCards([]);
   s.toast('info', 'Example loaded. Press Calculate to estimate the model.');
 }
@@ -304,7 +307,7 @@ export function categoriesOf(levels: Record<string, string[] | string> | unknown
  * from the package (in the browser's R) and the model laid out automatically.
  */
 export async function loadPackageExample(id: string) {
-  const [{ PACKAGE_EXAMPLES, exampleModel }, { autoLayout }] = await Promise.all([import('./examples/packages'), import('./model/layout')]);
+  const [{ PACKAGE_EXAMPLES, exampleModel, exampleSettings }, { autoLayout }] = await Promise.all([import('./examples/packages'), import('./model/layout')]);
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === id);
   if (!ex) return;
   if (!(await confirmDiscard('Loading the example'))) return;
@@ -323,7 +326,7 @@ export async function loadPackageExample(id: string) {
     const model = exampleModel(ex);
     model.constructs = autoLayout(model);
     s.loadProject({
-      name: ex.title, model, settings: { ...useStore.getState().settings, ...ex.settings, engine: 'r' },
+      name: ex.title, model, settings: exampleSettings(useStore.getState().settings, ex.settings),
       data: fromFile ? fromFile.data : { names: raw.names, cols, ...categoriesOf(raw.levels) },
       info: fromFile ? fromFile.info : { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
       example: ex.id,
