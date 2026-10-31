@@ -25,14 +25,22 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
   from_to <- function(t) cv[match(vapply(Filter(function(p) p$to == t, paths), `[[`, "", "from"), n$cname)]
   ends <- unique(vapply(paths, `[[`, "", "to"))
   ivs <- function(j) unname(n$iv[n$inds[[j]]])
+  # Repeated indicators: a second-order construct is measured by copies of its dimensions' indicators.
+  rep_items <- function(j) unlist(lapply(match(comps[[j]], n$cname), ivs))
+  comp_cv <- function(j) cv[match(comps[[j]], n$cname)]
   inputs <- list(data = ps_frame(req, n))
   body <- character(0)
 
   approach <- o$approach %||% "PLS-PM"
   if (!approach %in% c("PLS-PM", "GSCA", "PCA", "unit")) stop("Invalid weighting approach in the request.")
   gsca <- approach != "PLS-PM"  # (any approach other than PLS path modeling: cSEM's .approach_weights)
+  hoc_approach <- o$hocApproach %||% "two_stage"
+  if (!hoc_approach %in% c("two_stage", "embedded", "repeated")) stop("Invalid second-order approach in the request.")
+  repeated <- any(hoc) && hoc_approach == "repeated"
+  two <- any(hoc) && !repeated  # (a two-stage approach: the package estimates in two stages)
   if (any(hoc)) {
     if (!allow_hoc) stop("This analysis is not available for models with second-order constructs (estimate and bootstrap them with cSEM).")
+    if (hoc_approach == "embedded" && pkg != "cSEM") stop("The embedded two-stage approach is cSEM's (.approach_2ndorder = \"mixed\"); choose cSEM, or the two-stage or repeated-indicators approach.")
     if (pkg == "seminr" && isTRUE(o$consistent)) stop("Second-order constructs with consistent PLS are estimated with cSEM; choose cSEM, or turn off PLSc for seminr.")
     if (gsca) stop("Second-order constructs are estimated with PLS path modeling; choose PLS-PM as the weighting approach.")
     first <- unique(unlist(comps))
@@ -53,14 +61,17 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], ".", n$cv[[m$moderator]]), "")
     # A second-order construct is measured by its first-order constructs.
     lines <- vapply(seq_len(k0), function(j) paste(cv[j], if (type[j] == "composite") "<~" else "=~",
-      paste(if (hoc[j]) cv[match(comps[[j]], n$cname)] else ivs(j), collapse = " + ")), "")
-    for (t in ends) {
+      paste(if (hoc[j] && repeated) paste0(rep_items(j), "_rep") else if (hoc[j]) comp_cv(j) else ivs(j), collapse = " + ")), "")
+    # (Repeated indicators: the dimensions predict the second-order construct, as on cSEM's help page.)
+    for (t in if (repeated) union(ends, n$cname[hoc]) else ends) {
       extra <- int_l[vapply(mods, function(m) m$to == t, TRUE)]
-      lines <- c(lines, paste(n$cv[[t]], "~", paste(c(from_to(t), extra), collapse = " + ")))
+      dims <- if (repeated && hoc[match(t, n$cname)]) comp_cv(match(t, n$cname)) else character(0)
+      lines <- c(lines, paste(n$cv[[t]], "~", paste(c(from_to(t), dims, extra), collapse = " + ")))
     }
     # Mode A, Mode B, or sum scores ("unit": equal weights on the standardised indicators).
     # (A second-order construct is weighted in cSEM's second stage by its type: Mode A for a common factor, Mode B for a composite.)
-    modes <- paste0("list(", paste(sprintf("%s = \"%s\"", cv[!hoc], ifelse(mode == "unit", "unit", paste0("mode", mode))[!hoc]), collapse = ", "), ")")
+    keep <- if (repeated) rep(TRUE, k0) else !hoc
+    modes <- paste0("list(", paste(sprintf("%s = \"%s\"", cv[keep], ifelse(mode == "unit", "unit", paste0("mode", mode))[keep]), collapse = ", "), ")")
     scheme <- c(path = "path", centroid = "centroid", factor = "factorial")[[o$scheme]]
     # Dominant indicators: each such construct's sign is set so that this indicator loads positively.
     dom <- unlist(lapply(seq_len(k0), function(j) { d <- cons[[j]]$dominant; if (is.character(d) && length(d) == 1 && d %in% n$inds[[j]] && !hoc[j]) setNames(unname(n$iv[d]), cv[j]) }))
@@ -71,11 +82,17 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
       if (gsca) c(GSCA = "# Generalized structured component analysis (GSCA; Hwang & Takane 2004) instead of PLS path modeling.",
         PCA = "# Weights: the first principal component of each block (PCA) instead of PLS path modeling.",
         unit = "# Unit weights: each construct is the (standardised) sum of its indicators (sum scores) instead of PLS path modeling.")[[approach]],
-      if (any(hoc)) c("# Second-order constructs: cSEM's two-stage approach. Stage 1 estimates the first-order constructs; stage 2",
+      if (two && hoc_approach == "two_stage") c("# Second-order constructs: cSEM's (disjoint) two-stage approach. Stage 1 estimates the first-order constructs; stage 2",
         "# uses their scores as the indicators of the second-order construct (cSEM corrects a second-order common factor for attenuation in stage 2)."),
+      if (two && hoc_approach == "embedded") c("# Second-order constructs: cSEM's embedded two-stage approach (.approach_2ndorder = \"mixed\"; Ringle, Sarstedt & Straub 2012).",
+        "# Stage 1 uses the repeated indicators, so the second-order construct is in the model; stage 2 uses the dimensions' scores as its indicators."),
+      if (repeated) c("# Second-order constructs: the repeated indicators approach, written out as on cSEM's help page (?csem):",
+        "# the dimensions' indicators are copied (*_rep) to measure the second-order construct, and the dimensions predict it.",
+        sprintf("rep_items <- c(%s)", paste(ps_q(unique(unlist(lapply(which(hoc), rep_items)))), collapse = ", ")),
+        "data <- cbind(data, setNames(data[rep_items], paste0(rep_items, \"_rep\")))"),
       sprintf("fit <- csem(data, model, %s.PLS_weight_scheme_inner = \"%s\", .disattenuate = %s, .tolerance = %s, .iter_max = %d%s)",
         if (gsca) sprintf(".approach_weights = \"%s\", ", approach) else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(ps_number(o$tolerance, "tolerance"), scientific = TRUE), as.integer(o$maxIter),
-        paste0(if (any(hoc)) ", .approach_2ndorder = \"2stage\"" else "", dom_arg)))
+        paste0(if (two) sprintf(", .approach_2ndorder = \"%s\"", if (hoc_approach == "embedded") "mixed" else "2stage") else "", dom_arg)))
   } else if (pkg == "seminr") {
     if (o$scheme == "centroid") stop("seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.")
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], "*", n$cv[[m$moderator]]), "")
@@ -87,21 +104,25 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
       else if (length(items) == 1) sprintf("composite(\"%s\", %s)", cv[j], it)
       else sprintf("composite(\"%s\", %s, weights = %s)", cv[j], it, weights_of(j))
     }, "")
-    # Second-order constructs (after their dimensions): seminr's two-stage approach, weighted by the construct's mode.
-    mm <- c(mm, vapply(which(hoc), function(j) sprintf("higher_composite(\"%s\", dimensions = %s, method = two_stage, weights = %s)",
-      cv[j], ps_q(cv[match(comps[[j]], n$cname)]), weights_of(j)), ""))
+    # Second-order constructs (after their dimensions): seminr's two-stage approach, weighted by the construct's mode,
+    # or, with repeated indicators, a composite of the dimensions' items (seminr has no helper for that approach).
+    mm <- c(mm, vapply(which(hoc), function(j) if (repeated) sprintf("composite(\"%s\", %s, weights = %s)", cv[j], ps_q(rep_items(j)), weights_of(j))
+      else sprintf("higher_composite(\"%s\", dimensions = %s, method = two_stage, weights = %s)", cv[j], ps_q(comp_cv(j)), weights_of(j)), ""))
     mm <- c(mm, vapply(seq_along(mods), function(q) sprintf("interaction_term(iv = \"%s\", moderator = \"%s\", method = %s)", n$cv[[mods[[q]]$from]], n$cv[[mods[[q]]$moderator]], int_method[q]), ""))
-    sm <- vapply(ends, function(t) {
+    sm <- vapply(if (repeated) union(ends, n$cname[hoc]) else ends, function(t) {
       extra <- int_l[vapply(mods, function(m) m$to == t, TRUE)]
-      sprintf("paths(from = %s, to = \"%s\")", ps_q(c(from_to(t), extra)), n$cv[[t]])
+      dims <- if (repeated && hoc[match(t, n$cname)]) comp_cv(match(t, n$cname)) else character(0)  # (repeated indicators: the dimensions predict the construct)
+      sprintf("paths(from = %s, to = \"%s\")", ps_q(c(from_to(t), dims, extra)), n$cv[[t]])
     }, "")
     body <- c("suppressPackageStartupMessages(library(seminr))", ps_missing_code(req$missing),
+      if (repeated) c("# Second-order constructs: the repeated indicators approach (Lohmoeller 1989; Becker, Klein & Wetzels 2012): the dimensions'",
+        "# items measure the second-order construct too, and the dimensions predict it (seminr allows an item in several constructs)."),
       "measurement <- constructs(", paste0("  ", mm, c(rep(",", length(mm) - 1), "")), ")",
       "structure <- relationships(", paste0("  ", sm, c(rep(",", length(sm) - 1), "")), ")",
       sprintf("fit <- estimate_pls(data, measurement, structure, inner_weights = %s, maxIt = %d, stopCriterion = %d)",
         if (o$scheme == "factor") "path_factorial" else "path_weighting", as.integer(o$maxIter), as.integer(round(-log10(o$tolerance)))))
   } else stop("Unknown PLS package: ", pkg)
-  list(pkg = pkg, n = n, cv = cv, k0 = k0, type = type, mode = mode, mods = mods, int_l = int_l, inputs = inputs, body = body, o = o, hoc = hoc, comps = comps)
+  list(pkg = pkg, n = n, cv = cv, k0 = k0, type = type, mode = mode, mods = mods, int_l = int_l, inputs = inputs, body = body, o = o, hoc = hoc, comps = comps, two = two, repeated = repeated, hoc_approach = hoc_approach)
 }
 
 ps_pls <- function(req_json, export = FALSE) {
@@ -157,7 +178,7 @@ ps_pls_out <- function(req, b, env) {
   safe <- function(expr, what) ps_try(expr, what)
   nas <- function(k) rep(NA_real_, k)
 
-  two <- any(b$hoc)
+  two <- isTRUE(b$two)
   if (b$pkg == "cSEM") {
     # Two-stage (second-order constructs): the first-order measurement from stage 1, the
     # rest from stage 2, whose constructs other than the second-order ones are named "X_temp".
@@ -231,8 +252,9 @@ ps_pls_out <- function(req, b, env) {
       htmt_flags <- list(within = n$cname[within], undefined = undefined, mixed = mixed)
     }
     fitm <- function(sat) {
-      # (Not reported for two-stage models: cSEM's discrepancies refer to one stage only.)
-      g <- function(f, ...) { v <- if (two || !linear) NULL else safe(f(fit, .saturated = sat, ...), sprintf("Overall fit (%s model, cSEM)", if (sat) "saturated" else "estimated")); if (is.null(v)) NA_real_ else as.numeric(v) }
+      # (Not reported for two-stage models, cSEM's discrepancies refer to one stage only, nor with repeated
+      # indicators: the copied indicators make the model-implied correlation matrix singular.)
+      g <- function(f, ...) { v <- if (two || !linear || isTRUE(b$repeated)) NULL else safe(f(fit, .saturated = sat, ...), sprintf("Overall fit (%s model, cSEM)", if (sat) "saturated" else "estimated")); if (is.null(v)) NA_real_ else as.numeric(v) }
       list(srmr = g(cSEM::calculateSRMR), dULS = g(cSEM::calculateDL), dG = g(cSEM::calculateDG) * log(10)^2)
     }
     f2 <- untemp(safe(cSEM::calculatef2(fit2), "Effect sizes f² (cSEM::calculatef2)"))
@@ -284,6 +306,8 @@ ps_pls_out <- function(req, b, env) {
 
   has <- matrix(FALSE, K, K)
   for (p in req$model$paths) has[match(p$from, constructs), match(p$to, constructs)] <- TRUE
+  # Repeated indicators: the dimensions' paths to their second-order construct are part of the model.
+  if (isTRUE(b$repeated)) for (j in which(b$hoc)) for (k in match(b$comps[[j]], n$cname)) has[k, j] <- TRUE
   for (q in seq_along(mods)) has[k0 + q, match(mods[[q]]$to, constructs)] <- TRUE
   total <- solve(diag(K) - B) - diag(K)
   endo <- vapply(seq_len(K), function(j) any(has[, j]), TRUE)
@@ -306,7 +330,10 @@ ps_pls_out <- function(req, b, env) {
       if (b$pkg == "cSEM") list(construct = j - 1L, component = match(k, n$cname) - 1L, loading = e$Loading_estimates[cv[j], ck], weight = e$Weight_estimates[cv[j], ck])
       # seminr: the dimensions are the second-order construct's items.
       else list(construct = j - 1L, component = match(k, n$cname) - 1L, loading = fit$outer_loadings[ck, cv[j]], weight = fit$outer_weights[ck, cv[j]])
-    })), recursive = FALSE) else NULL,
+    })), recursive = FALSE)
+    # Repeated indicators: a dimension's loading is its correlation with the second-order construct's scores, its weight the path coefficient.
+    else if (isTRUE(b$repeated)) unlist(lapply(which(b$hoc), function(j) lapply(match(b$comps[[j]], n$cname), function(k)
+      list(construct = j - 1L, component = k - 1L, loading = unname(stats::cor(scores[, k], scores[, j])), weight = B[k, j]))), recursive = FALSE) else NULL,
     redundancy = if (b$pkg == "cSEM" && !two) { ra <- safe(cSEM::doRedundancyAnalysis(fit), "Redundancy analysis (cSEM::doRedundancyAnalysis)"); if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) as.list(setNames(unname(ra), n$cname[match(names(ra), cv)])) else NULL } else NULL,
     quality = lapply(seq_len(K), function(j) list(alpha = q4(alpha)[j], rhoC = q4(rhoC)[j], rhoA = q4(rhoA)[j], ave = q4(ave)[j])),
     htmt = htmt1, htmt2 = htmt2, htmtFlags = htmt_flags,

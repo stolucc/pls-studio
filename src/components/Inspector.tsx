@@ -543,6 +543,7 @@ const ESTIMATORS: { id: Settings['estimator']; label: string; hint: string }[] =
 ];
 
 function ModelInspector() {
+  const hasHoc = useStore((s) => s.model.constructs.some((c) => !!c.components?.length));
   const model = useStore((s) => s.model);
   const deleteItems = useStore((s) => s.deleteItems);
   const data = useStore((s) => s.data);
@@ -631,6 +632,25 @@ function ModelInspector() {
             title="Download the R script for this analysis (data embedded): exactly what runs here. Open it in R or RStudio to reproduce the results.">
             Export R script
           </button>
+        </div>
+      )}
+      {settings.method === 'pls' && hasHoc && (
+        <div className="section">
+          <div className="section-title">Second-order constructs</div>
+          <div className="segmented" role="radiogroup" aria-label="Second-order approach">
+            {(['two_stage', 'embedded', 'repeated'] as const).map((id) => (
+              <button key={id} role="radio" aria-checked={settings.hocApproach === id} className={settings.hocApproach === id ? 'on' : ''} onClick={() => setSettings({ hocApproach: id })}>
+                {id === 'two_stage' ? 'Two-stage' : id === 'embedded' ? 'Embedded two-stage' : 'Repeated indicators'}
+              </button>
+            ))}
+          </div>
+          <div className="hint" style={{ marginTop: 6 }}>
+            {settings.hocApproach === 'two_stage'
+              ? 'Disjoint two-stage (Sarstedt et al., 2019): the first-order constructs are estimated without the second-order construct; their scores are then its indicators. cSEM’s .approach_2ndorder = "2stage", seminr’s two_stage.'
+              : settings.hocApproach === 'embedded'
+                ? 'Embedded two-stage (Ringle, Sarstedt & Straub, 2012): the first stage uses the repeated indicators, so the second-order construct is in the model from the start; its dimensions’ scores are then its indicators. cSEM’s .approach_2ndorder = "mixed"; not in seminr.'
+                : 'Repeated indicators (Lohmöller, 1989; Becker, Klein & Wetzels, 2012): the dimensions’ indicators also measure the second-order construct, and the dimensions predict it. Written out as on cSEM’s help page (indicators copied) and as a seminr composite of the repeated items. Antecedents of the second-order construct are absorbed by its dimensions (R² near 1): with antecedents, use a two-stage approach.'}
+          </div>
         </div>
       )}
       {!proc && <div className="section">

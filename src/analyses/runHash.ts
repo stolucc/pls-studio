@@ -5,7 +5,7 @@
 // Also the plain-language list of what changed between two versions.
 
 import type { Dataset } from '../engine/types';
-import { toSpec, type DataInfo, type ModelState, type Settings } from '../model/project';
+import { HOC_APPROACH_NAMES, toSpec, type DataInfo, type ModelState, type Settings } from '../model/project';
 import { fingerprint } from './codec';
 import type { AnalysisCard, Card } from './types';
 
@@ -32,7 +32,7 @@ export const openedFromVersion = () => openedFrom;
 export const setOpenedFrom = (v: number | null) => { openedFrom = v; };
 
 /** Settings that change the estimates (as resultsKey in the store): inference options and styles are left out. */
-export const ESTIMATION_KEYS = ['method', 'estimator', 'engine', 'plsPackage', 'plsApproach', 'consistent', 'scheme', 'maxIter', 'stopExp', 'missing', 'miImputations', 'interaction', 'probe', 'hc', 'counterfactual'] as const satisfies readonly (keyof Settings)[];
+export const ESTIMATION_KEYS = ['method', 'estimator', 'engine', 'plsPackage', 'plsApproach', 'hocApproach', 'consistent', 'scheme', 'maxIter', 'stopExp', 'missing', 'miImputations', 'interaction', 'probe', 'hc', 'counterfactual'] as const satisfies readonly (keyof Settings)[];
 /** Inference options: kept with a run and listed when they change, but not part of its identity (a bootstrap is added to the run). */
 export const INFERENCE_KEYS = ['bootSamples', 'seed', 'confidence', 'bootTails', 'bootInterval'] as const satisfies readonly (keyof Settings)[];
 
@@ -54,7 +54,7 @@ export function runHash(model: ModelState, settings: Settings, data: RunData | D
 }
 
 const SETTING_NAMES: Partial<Record<keyof Settings, string>> = {
-  method: 'method', estimator: 'estimator', engine: 'engine', plsPackage: 'PLS package', plsApproach: 'weighting approach', consistent: 'PLSc', scheme: 'weighting scheme',
+  method: 'method', estimator: 'estimator', engine: 'engine', plsPackage: 'PLS package', plsApproach: 'weighting approach', hocApproach: 'second-order approach', consistent: 'PLSc', scheme: 'weighting scheme',
   maxIter: 'max. iterations', stopExp: 'stop criterion (10^-k)', missing: 'missing values', miImputations: 'imputations', interaction: 'latent interactions', probe: 'probing', hc: 'robust SEs',
   counterfactual: 'counterfactual', bootSamples: 'bootstrap subsamples', seed: 'seed', confidence: 'confidence level', bootTails: 'tests', bootInterval: 'bootstrap intervals',
 };
@@ -62,6 +62,7 @@ const METHOD_NAMES: Record<string, string> = { pls: 'PLS-SEM', cbsem: 'CB-SEM', 
 const show = (k: keyof Settings, v: unknown): string => {
   if (k === 'method') return METHOD_NAMES[String(v)] ?? String(v);
   if (k === 'consistent') return v ? 'on' : 'off';
+  if (k === 'hocApproach') return HOC_APPROACH_NAMES[String(v) as keyof typeof HOC_APPROACH_NAMES] ?? String(v);
   if (k === 'confidence') return `${Math.round(Number(v) * 100)}%`;
   if (k === 'bootSamples' || k === 'seed') return Number(v).toLocaleString();
   if (v === null) return 'none';

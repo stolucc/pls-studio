@@ -110,14 +110,14 @@ ps_pls_boot <- function(req_json, export = FALSE) {
     # Same call with cSEM's resampling; R² per draw via a user function.
     body <- c(ps_cores_csem(req), body)
     extract <- c(
-      if (any(b$hoc)) "res <- fit$Second_stage$Information$Resamples$Estimates$Estimates1  # (two-stage: both stages are resampled together)"
+      if (isTRUE(b$two)) "res <- fit$Second_stage$Information$Resamples$Estimates$Estimates1  # (two-stage: both stages are resampled together)"
       else "res <- fit$Estimates$Estimates_resample$Estimates1",
       "groups <- c(path = \"Path_estimates\", total = \"Total_effect\", indirect = \"Indirect_effect\", loading = \"Loading_estimates\", weight = \"Weight_estimates\", r2 = \"R2\")",
       "# (a model without indirect effects has none to resample)",
       "groups <- groups[vapply(groups, function(k) length(res[[k]]$Original) > 0, TRUE)]",
       "draws <- do.call(cbind, lapply(names(groups), function(g) { x <- as.matrix(res[[groups[[g]]]]$Resampled); colnames(x) <- paste0(g, \": \", names(res[[groups[[g]]]]$Original)); x }))",
       "original <- unlist(lapply(names(groups), function(g) setNames(res[[groups[[g]]]]$Original, paste0(g, \": \", names(res[[groups[[g]]]]$Original)))))")
-    resample <- if (any(b$hoc)) ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) { r <- .object$Second_stage$Estimates$R2; setNames(r, sub(\"_temp$\", \"\", names(r))) }))"
+    resample <- if (isTRUE(b$two)) ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) { r <- .object$Second_stage$Estimates$R2; setNames(r, sub(\"_temp$\", \"\", names(r))) }))"
       else ", .resample_method = \"bootstrap\", .R = %s, .seed = %s, .eval_plan = plan, .user_funs = list(R2 = function(.object) .object$Estimates$R2))"
     if (ps_boot_chunked(req)) {
       body <- c(body, ps_boot_draw_lines(req, c("draw_chunk <- function(R, seed) {",

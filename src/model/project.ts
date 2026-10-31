@@ -67,6 +67,13 @@ export interface Settings {
   plsPackage: 'cSEM' | 'seminr';
   /** Weighting approach with cSEM: PLS path modeling or GSCA. */
   plsApproach: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
+  /**
+   * PLS-SEM second-order constructs: the (disjoint) two-stage approach (cSEM "2stage", seminr two_stage),
+   * the embedded two-stage approach (cSEM "mixed": repeated indicators in stage 1), or repeated
+   * indicators (the dimensions' indicators measure the construct too; Becker et al. 2012; written out for
+   * cSEM as its help page does, and for seminr as a composite of the repeated items).
+   */
+  hocApproach: HocApproach;
   /** Look of the diagram and exported figures. */
   figure: FigureStyle;
   /** The exploratory factor analysis panel's design, kept with the project. */
@@ -321,6 +328,8 @@ export function endogenousIds(model: ModelState): Set<string> {
 }
 
 export type Engine = 'r' | 'builtin';
+export type HocApproach = 'two_stage' | 'embedded' | 'repeated';
+export const HOC_APPROACH_NAMES: Record<HocApproach, string> = { two_stage: 'two-stage (disjoint)', embedded: 'embedded two-stage', repeated: 'repeated indicators' };
 
 export const DEFAULT_SETTINGS: Settings = {
   method: 'pls',
@@ -329,6 +338,7 @@ export const DEFAULT_SETTINGS: Settings = {
   engine: 'r',
   plsPackage: 'cSEM',
   plsApproach: 'PLS-PM',
+  hocApproach: 'two_stage',
   figure: DEFAULT_FIGURE_STYLE,
   charts: DEFAULT_CHART_STYLE,
   scheme: 'path',
@@ -543,7 +553,7 @@ export function createsCycle(paths: Path[], from: string, to: string): boolean {
 export function validateModel(
   model: ModelState,
   data: Dataset | null,
-  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc' | 'plsPackage' | 'plsApproach' | 'scheme'>> = DEFAULT_SETTINGS,
+  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc' | 'plsPackage' | 'plsApproach' | 'scheme' | 'hocApproach'>> = DEFAULT_SETTINGS,
 ): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string, constructId?: string) => issues.push({ level: 'error', message, constructId });
@@ -568,6 +578,7 @@ export function validateModel(
         // PLS: cSEM's two-stage approach (stage 1 the components, stage 2 the second-order construct from their scores).
         if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}" is a second-order construct: in PLS these are estimated by cSEM or seminr. Choose “R packages” under Calculated by.`, c.id);
         else if ((method.plsPackage ?? 'cSEM') === 'seminr' && method.consistent) err(`"${c.name}" is a second-order construct: with consistent PLS these are estimated by cSEM. Choose cSEM, or turn off PLSc for seminr.`, c.id);
+        else if ((method.hocApproach ?? 'two_stage') === 'embedded' && (method.plsPackage ?? 'cSEM') !== 'cSEM') err(`"${c.name}" is a second-order construct: the embedded two-stage approach is cSEM’s (.approach_2ndorder = "mixed"). Choose cSEM, or the two-stage or repeated-indicators approach.`, c.id);
         else if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`"${c.name}" is a second-order construct: these are estimated with PLS path modeling. Choose PLS-PM as the weighting approach.`, c.id);
       }
       if (c.indicators.length) err(`"${c.name}" has both indicators and component constructs; remove one.`, c.id);
@@ -1294,6 +1305,7 @@ export function parseSettings(raw: unknown): Settings {
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
     plsApproach: (['GSCA', 'PCA', 'unit'] as const).find((x) => x === s.plsApproach) ?? 'PLS-PM',
+    hocApproach: (['embedded', 'repeated'] as const).find((x) => x === s.hocApproach) ?? 'two_stage',
     figure: parseFigureStyle(s.figure),
     ...(parseEfaDesign(s.efa) ? { efa: parseEfaDesign(s.efa) } : {}),
     charts: parseChartStyle(s.charts),

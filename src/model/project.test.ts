@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { covarianceLayout } from '../components/CovarianceLayer';
-import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, impliedIntercepts, type Construct, type ModelState, parseProject, pruneCorrelations, pruneMeans, serializeProject, type Settings, toSpec, validateModel } from './project';
+import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, impliedIntercepts, type Construct, type ModelState, parseProject, parseSettings, pruneCorrelations, pruneMeans, serializeProject, type Settings, toSpec, validateModel } from './project';
 
 const data = { names: ['a1', 'a2', 'b1', 'c1'], cols: [1, 2, 3, 4].map(() => Float64Array.from({ length: 100 }, (_, i) => i % 7)) };
 const C = (id: string, name: string, indicators: string[]) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators, x: 0, y: 0, side: 'left' as const });
@@ -569,5 +569,25 @@ describe('interaction terms (seminr’s method per moderation)', () => {
     const plain = { ...model, moderations: [{ id: 'mo', moderator: 'M', path: 'p' }] };
     expect(validateModel(plain, data, { ...DEFAULT_SETTINGS, method: 'pls', engine: 'r', plsPackage: 'cSEM' }).filter((i) => i.level === 'error')).toEqual([]);
     expect(validateModel({ ...model, constructs: model.constructs.map((k) => ({ ...k, type: 'factor' as const })) }, data, { ...DEFAULT_SETTINGS, method: 'cbsem' }).filter((i) => /seminr/.test(i.message))).toEqual([]);
+  });
+});
+
+describe('the second-order approach setting', () => {
+  it('is parsed strictly and defaults to two-stage', () => {
+    expect(parseSettings({ hocApproach: 'embedded' }).hocApproach).toBe('embedded');
+    expect(parseSettings({ hocApproach: 'repeated' }).hocApproach).toBe('repeated');
+    expect(parseSettings({ hocApproach: 'mixed' }).hocApproach).toBe('two_stage');
+    expect(parseSettings({}).hocApproach).toBe('two_stage');
+  });
+  it('allows the embedded approach with cSEM only', () => {
+    const c = (id: string, indicators: string[], extra: Partial<Construct> = {}): Construct => ({ id, name: id, type: 'composite', mode: 'A', indicators, x: 0, y: 0, side: 'left', ...extra });
+    const model: ModelState = { constructs: [c('A', ['a1', 'a2']), c('B', ['b1', 'b2']), c('H', [], { components: ['A', 'B'] }), c('Y', ['y1', 'y2'])], paths: [{ id: 'p', from: 'H', to: 'Y' }], moderations: [] };
+    const names = ['a1', 'a2', 'b1', 'b2', 'y1', 'y2'];
+    const data = { names, cols: names.map((_, k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1.1)) + (i % (k + 2)))) };
+    const errors = (s: Partial<Settings>) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'pls', engine: 'r', ...s }).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(errors({ plsPackage: 'cSEM', hocApproach: 'embedded' })).toEqual([]);
+    expect(errors({ plsPackage: 'seminr', hocApproach: 'embedded' })).toEqual([expect.stringMatching(/embedded two-stage approach is cSEM’s/)]);
+    expect(errors({ plsPackage: 'seminr', hocApproach: 'repeated' })).toEqual([]);
+    expect(errors({ plsPackage: 'cSEM', hocApproach: 'repeated' })).toEqual([]);
   });
 });

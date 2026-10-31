@@ -13,7 +13,7 @@ export interface PlsRequest {
   kind: 'pls';
   package: PlsPackage;
   missing: MissingTreatment;
-  options: { scheme: PlsOptions['scheme']; consistent: boolean; tolerance: number; maxIter: number; approach: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit' };
+  options: { scheme: PlsOptions['scheme']; consistent: boolean; tolerance: number; maxIter: number; approach: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit'; hocApproach: 'two_stage' | 'embedded' | 'repeated' };
   data: { names: string[]; cols: (number | null)[][] };
   model: ModelSpec;
 }
@@ -26,7 +26,7 @@ export function plsRequest(data0: Dataset, spec0: ModelSpec, options: PlsOptions
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'pls', package: pkg, missing: options.missing, ...(options.missing === 'mi' && options.mi ? { mi: options.mi } : {}),
-    options: { scheme: options.scheme, consistent: !!options.consistent, tolerance: options.tolerance, maxIter: options.maxIter, approach: options.approach ?? 'PLS-PM' },
+    options: { scheme: options.scheme, consistent: !!options.consistent, tolerance: options.tolerance, maxIter: options.maxIter, approach: options.approach ?? 'PLS-PM', hocApproach: options.hocApproach ?? 'two_stage' },
     data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
     model: spec,
   };

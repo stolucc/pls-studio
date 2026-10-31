@@ -259,6 +259,7 @@ describe('describeChanges, line by line', () => {
     const a = s().settings;
     expect(settingChanges(a, { ...a, method: 'cbsem', consistent: true, counterfactual: { xref: 1, xcf: 2 } })).toEqual(['method PLS-SEM → CB-SEM', 'PLSc off → on', 'counterfactual none → {"xref":1,"xcf":2}']);
     expect(settingChanges(a, { ...a, seed: 12345 })).toEqual(['seed 1,234 → 12,345']);
+    expect(settingChanges(a, { ...a, hocApproach: 'embedded' })).toEqual(['second-order approach two-stage (disjoint) → embedded two-stage']);
   });
 });
 

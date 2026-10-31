@@ -189,9 +189,17 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         for (const e of r.estimates.filter((e) => e.kind === 'mean')) expect(e.est, e.lhs).toBe(0);  // latent means stay fixed at zero: no arrows drawn
       }
     } else {
-      const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, st.plsPackage);
+      const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300, hocApproach: st.hocApproach }, st.plsPackage);
       expect(r.converged).toBe(true);
       if (ex.id === 'csem-2ndorder') await checkSecondOrder(data, spec, r, st);
+      if (ex.id === 'csem-2ndorder-embedded' || ex.id === 'csem-2ndorder-repeated') {
+        // cSEM's help page run natively: res_mixed and res_RI (scripts/validation/hoc-approaches.R).
+        const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'secondorder', 'approaches.json'), 'utf8'));
+        sameSecondOrder(r, ex.id === 'csem-2ndorder-embedded' ? ref.csemEmbedded : ref.csemRepeated, 'c4');
+        const script = await plsScriptR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-5, maxIter: 100, hocApproach: st.hocApproach }, 'cSEM');
+        if (ex.id === 'csem-2ndorder-embedded') expect(script).toContain('.approach_2ndorder = "mixed"');
+        else { expect(script).toContain('data <- cbind(data, setNames(data[rep_items], paste0(rep_items, "_rep")))'); expect(script).toContain('c4 ~ eta1 + c1 + c2 + c3'); expect(script).not.toContain('.approach_2ndorder'); }
+      }
       if (ex.id === 'seminr-interaction-methods') {
         // ?interaction_term run natively (seminr 2.5.0): the path coefficients on Satisfaction.
         const path = (from: string) => r.pathCoef[r.constructs.indexOf(from)][r.constructs.indexOf('Satisfaction')];

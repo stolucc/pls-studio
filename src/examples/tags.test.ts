@@ -15,6 +15,7 @@ describe('example topics', () => {
     expect(tagsOf('modsem-oneint')).toEqual(['CB-SEM', 'Moderation']);
     expect(tagsOf('manymome-modmed')).toEqual(['CPA', 'Mediation', 'Moderation', 'Covariates']);
     expect(tagsOf('csem-2ndorder')).toEqual(['PLSc', 'Mediation', 'Second-order', 'Composites']);
+    expect(tagsOf('csem-2ndorder-repeated')).toEqual(['PLSc', 'Mediation', 'Second-order', 'Composites']);
     expect(tagsOf('seminr-corprep')).toEqual(['PLS-SEM', 'Mediation', 'Composites', 'Bootstrap'].filter((t) => t !== 'Bootstrap'));
     expect(tagsOf('csem-gender')).toEqual(['PLSc', 'Mediation', 'Composites', 'Multigroup']);
     expect(tagsOf('miivsem-bollen')).toEqual(['MIIV-2SLS', 'Mediation', 'Correlated errors']);

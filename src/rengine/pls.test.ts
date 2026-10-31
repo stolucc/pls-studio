@@ -27,7 +27,7 @@ describe('PLS request', () => {
     const c = cases.find((k) => k.name === 'pls_csem_threecommonfactors')!;
     const opts = { scheme: 'path' as const, consistent: true, missing: 'mean' as const, tolerance: 1e-7, maxIter: 300 };
     const req = plsRequest(loadData(c), toSpec(c), opts, 'cSEM');
-    expect(req.options).toEqual({ scheme: 'path', consistent: true, tolerance: 1e-7, maxIter: 300, approach: 'PLS-PM' });
+    expect(req.options).toEqual({ scheme: 'path', consistent: true, tolerance: 1e-7, maxIter: 300, approach: 'PLS-PM', hocApproach: 'two_stage' });
     expect(() => plsRequest({ names: ['a'], cols: [], moments: { S: [[1]], n: 10 } }, toSpec(c), opts, 'cSEM')).toThrow(/raw data/);
   });
 });

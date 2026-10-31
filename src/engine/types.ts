@@ -137,6 +137,8 @@ export interface PlsOptions {
   mi?: { m: number; seed: number };
   /** Weighting approach (cSEM): PLS path modeling, or generalized structured component analysis (GSCA; Hwang & Takane 2004). */
   approach?: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
+  /** Second-order constructs: (disjoint) two-stage, embedded two-stage (cSEM "mixed") or repeated indicators. */
+  hocApproach?: 'two_stage' | 'embedded' | 'repeated';
 }
 
 export const DEFAULT_OPTIONS: PlsOptions = {
