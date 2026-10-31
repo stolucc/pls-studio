@@ -9,6 +9,7 @@ import { DEFAULT_SETTINGS, toSpec } from '../model/project';
 import { processInput } from '../process/input';
 import { miivR } from '../rengine/analyses';
 import { rCall, type RPackage } from '../rengine/bridge';
+import { setWarningSink } from '../rengine/notices';
 import { endoR } from '../rengine/endo';
 import { matchR } from '../rengine/match';
 import { rsaR } from '../rengine/rsa';
@@ -16,7 +17,7 @@ import { groupsR } from '../rengine/plsx';
 import { ncaR } from '../rengine/nca';
 import { categoriesOf } from '../io';
 import { parseCsv } from '../engine/dataset';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { estimateCpaR } from '../rengine/cpa';
 import { irtR, lcaR } from '../rengine/items';
@@ -32,6 +33,33 @@ import { exampleModel, PACKAGE_EXAMPLES, panelColumns, type PackageExample } fro
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
+
+// Every warning and note R raises while an example runs, by example. A
+// documented example runs without a warning; the notes it may carry are
+// listed here with their reason (they explain a result, nothing is wrong).
+const raised: Record<string, { warnings: string[]; notes: string[] }> = {};
+let currentExample = '';
+beforeAll(() => setWarningSink((lines, _source, level) => { if (currentExample) (raised[currentExample] ??= { warnings: [], notes: [] })[level === 'info' ? 'notes' : 'warnings'].push(...lines); }));
+afterAll(() => {
+  setWarningSink(null);
+  if (process.env.PS_EXAMPLE_WARNINGS) writeFileSync(process.env.PS_EXAMPLE_WARNINGS, JSON.stringify(raised, null, 2));
+});
+/** Notes an example is expected to carry, and why. */
+const EXPECTED_NOTES: Record<string, RegExp[]> = {
+  // plspm's simdata: Price and Quality are simulated as independent, so their items' correlations have mixed signs.
+  'plspm-rebus': [/items of Price and Quality correlate with mixed signs/],
+  'plspm-fimix': [/items of Price and Quality correlate with mixed signs/],
+  // Yoo et al. (2000): several driver constructs are nearly uncorrelated in the data.
+  'csem-yoo': [/correlate with mixed signs/],
+  // mice's nhanes: cholesterol (mg/dL) has a variance a thousand times that of age (coded 1-3); lavaan's advice on scaling.
+  'mice-nhanes': [/observed variances are \(at least\) a factor/],
+};
+const checkClean = (id: string) => {
+  const r = raised[id] ?? { warnings: [], notes: [] };
+  expect(r.warnings, `${id} warned`).toEqual([]);
+  const unexpected = [...new Set(r.notes)].filter((n) => !(EXPECTED_NOTES[id] ?? []).some((re) => re.test(n)));
+  expect(unexpected, `${id} carries an unexpected note`).toEqual([]);
+};
 
 /** Documented values the estimate must reproduce. */
 const CHISQ: Record<string, number> = { 'lavaan-poldem': 40.179, 'lavaan-hs': 85.306, 'lavaan-hs-groups': 164.103 };
@@ -76,6 +104,7 @@ async function checkSecondOrder(data: Dataset, spec: ReturnType<typeof toSpec>, 
 
 describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example %s in webR', (_id, ex) => {
   it('loads its data from the package and estimates', async () => {
+    currentExample = ex.id;
     const data = await load(ex);
     const st = { ...DEFAULT_SETTINGS, ...ex.settings };
     if (ex.panel) {
@@ -132,6 +161,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const r = await lcaR(data, p.items, Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i), 10, 1);
         expect(r.models.map((m) => m.k)).toEqual(Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i));
       }
+      checkClean(ex.id);
       return;
     }
     const model = exampleModel(ex);
@@ -187,6 +217,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         { classes: [ex.segmentation.from ?? 2], stopCrit: 0.005, iterMax: 100, seed: 1 });
       if (ex.id === 'plspm-rebus') expect(seg.models[0].gqi).toBeCloseTo(0.8341, 3);  // ?it.reb, nk = 2
     }
+    checkClean(ex.id);
   }, 600_000);
 });
 

@@ -198,6 +198,8 @@ export interface PlsResult {
   vifOuter: number[];
   /** Standardised construct scores, one column per construct. */
   scores: Float64Array[];
+  /** The R bridge's explanations of the result (blank cells, conventions), shown with the tables they concern. */
+  notes?: string[];
   droppedRows: number;
   /** Multiple imputation: the number of imputed data sets the estimates are averaged over. */
   imputations?: number;

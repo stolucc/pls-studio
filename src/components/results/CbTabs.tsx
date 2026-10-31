@@ -97,7 +97,7 @@ function Fit({ cb }: { cb: CbResult }) {
       {!rml && !cb.imputations && <SaveFactorScores />}
       <div className="tables">
         <Table title="Fit statistics" file="cb-fit" columns={['Statistic', 'Standard', robust ? 'Robust / scaled' : '']} rows={rows}
-          note={<>Hu &amp; Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08.{robustIdx && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'}{rml && ' Robust ML (rsem; Yuan & Zhang 2012): the model is fitted to Huber-weighted means and covariances; χ² (scaled) is the rescaled statistic TRML; CFI, TLI and RMSEA are those of the fit to the robust moments.'} Validated against lavaan.</>} />
+          note={<>Hu &amp; Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08.{robustIdx && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'}{rml && ' Robust ML (rsem; Yuan & Zhang 2012): the model is fitted to Huber-weighted means and covariances; χ² (scaled) is the rescaled statistic TRML; CFI, TLI and RMSEA are those of the fit to the robust moments.'} Validated against lavaan.{cb.fitNote && ` ${cb.fitNote}`}</>} />
         {cb.caseWeights && <CaseWeights w={cb.caseWeights} />}
         {cb.groups?.levels && cb.groups.icc && (
           <Table title="Intraclass correlations" file="cb-icc" columns={['Variable', 'ICC']}
@@ -191,7 +191,7 @@ function ModIndices({ cb }: { cb: CbResult }) {
   return (
     <Table title="Modification indices" file="cb-modindices" columns={['Parameter', ...(groups ? ['Group'] : []), 'MI', 'EPC', 'Standardised EPC']}
       rows={mi.map((m) => [c(`${m.lhs} ${m.op} ${m.rhs}`), ...(groups ? [c(m.group ?? '')] : []), c(m.mi, m.mi > 10 ? 'warn' : ''), c(m.epc), c(m.sepc)])}
-      note="Expected drop in χ² if the parameter were freed (MI, 1 df; ≥ 3.84 shown, largest first), with the expected parameter change (EPC). =~ cross-loading, ~ path, ~~ (error) covariance. Free a parameter only when theory supports it: changes driven by modification indices capitalise on chance (MacCallum, Roznowski & Necowitz, 1992)." />
+      note={`Expected drop in χ² if the parameter were freed (MI, 1 df; ≥ 3.84 shown, largest first), with the expected parameter change (EPC). =~ cross-loading, ~ path, ~~ (error) covariance. Free a parameter only when theory supports it: changes driven by modification indices capitalise on chance (MacCallum, Roznowski & Necowitz, 1992).${cb.modindicesNote ? ` ${cb.modindicesNote}` : ''}`} />
   );
 }
 

@@ -704,6 +704,7 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .messages { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .message { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; }
 .message.warning { background: var(--warn-soft); }
+.message.info { background: var(--surface-2); color: var(--text-2); }
 .message.error { background: var(--bad-soft, #fdecec); }
 .message svg { flex: none; margin-top: 2px; }
 .message .when { flex: none; color: var(--text-3); font-variant-numeric: tabular-nums; }

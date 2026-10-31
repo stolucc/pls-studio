@@ -16,11 +16,14 @@ ps_irt <- function(req_json, export = FALSE) {
   if (!model %in% c("rasch", "twopl", "grm", "gpcm")) stop("Invalid IRT model in the request.")
   fr <- ps_items_frame(req)
   binary <- model %in% c("rasch", "twopl")
+  # (ltm's optimisers warn "NaNs produced" while searching, also on the package's own help-page
+  #  examples; the fit is unaffected, so those warnings are not kept.)
+  quiet <- function(x) sprintf("fit <- withCallingHandlers(%s, warning = function(w) if (grepl(\"NaNs produced\", conditionMessage(w))) invokeRestart(\"muffleWarning\"))", x)
   call <- switch(model,
-    rasch = "fit <- rasch(items)",
-    twopl = "fit <- ltm(items ~ z1)",
-    grm = "fit <- grm(items)",
-    gpcm = "fit <- gpcm(items)")
+    rasch = quiet("rasch(items)"),
+    twopl = quiet("ltm(items ~ z1)"),
+    grm = quiet("grm(items)"),
+    gpcm = quiet("gpcm(items)"))
   body <- c("suppressPackageStartupMessages(library(ltm))",
     sprintf("items <- data[, %s]", ps_q(fr$items)),
     if (binary) c("# Binary items: the two observed values become 0 and 1 (lower = 0).",

@@ -29,7 +29,7 @@ describe('item response theory (ltm)', () => {
     expect(r.information).toHaveLength(d.names.length);
     expect(r.theta[0]).toBe(-4);
     expect(r.reliability!).toBeGreaterThan(0);
-    if (model === 'twopl') expect(await irtScriptR(d, d.names, 'twopl')).toContain('fit <- ltm(items ~ z1)');
+    if (model === 'twopl') expect(await irtScriptR(d, d.names, 'twopl')).toContain('ltm(items ~ z1)');
   }, 600_000);
 });
 

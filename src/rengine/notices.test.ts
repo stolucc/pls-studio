@@ -17,4 +17,12 @@ describe('R warnings reach Messages from every call', () => {
     useStore.getState().setResults({ cb: { warnings: ['one warning'] } as never }, 'k');
     expect(useStore.getState().messages).toHaveLength(2);
   });
+
+  it('logs a result’s notes as information, apart from its warnings', () => {
+    reportRWarnings({ warnings: [], notes: ['The HTMT of A – B is not reported: …'], engine: { package: 'cSEM', version: '0.6' } }, 'cSEM');
+    useStore.getState().setResults({ pls: { warnings: ['did not converge'], notes: ['a convention'] } as never }, 'k');
+    expect(useStore.getState().messages.map((x) => [x.level, x.text])).toEqual([
+      ['info', 'The HTMT of A – B is not reported: …'], ['warning', 'did not converge'], ['info', 'a convention'],
+    ]);
+  });
 });

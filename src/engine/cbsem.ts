@@ -111,6 +111,12 @@ export interface CbResult {
   vcov: number[][] | null;
   moderations: CbModeration[];
   warnings: string[];
+  /** The R bridge's explanations of the result (blank cells, conventions), shown with the tables they concern. */
+  notes?: string[];
+  /** How the fit measures were obtained when not from the model itself (LMS / QML: the baseline model). */
+  fitNote?: string;
+  /** A caveat on the modification indices (lavaan computes them ignoring equality constraints). */
+  modindicesNote?: string;
   droppedRows: number;
 }
 

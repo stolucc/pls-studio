@@ -83,7 +83,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     htmt: (raw.htmt as (number | null)[][]),
     htmt2: (raw.htmt2 as (number | null)[][]),
     vcov: raw.vcov ? mat(raw.vcov) : null,
-    moderations: raw.moderations, warnings: rStrings(raw.warnings), droppedRows: raw.droppedRows ?? 0,
+    moderations: raw.moderations, warnings: rStrings(raw.warnings), notes: rStrings(raw.notes), ...(typeof raw.fitNote === 'string' ? { fitNote: raw.fitNote } : {}), ...(typeof raw.modindicesNote === 'string' ? { modindicesNote: raw.modindicesNote } : {}), droppedRows: raw.droppedRows ?? 0,
     ...(raw.groups ? {
       groups: {
         labels: rStrings(raw.groups.labels),

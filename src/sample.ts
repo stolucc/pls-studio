@@ -25,6 +25,13 @@ const EXAMPLE_LAYOUT: { x: number; y: number; side: Side }[] = [
 const PATHS: [number, number, number][] = [
   [0, 2, 0.5], [0, 3, 0.4], [1, 3, 0.25], [2, 3, 0.2], [3, 4, 0.55], [2, 4, 0.2],
 ];
+/**
+ * Correlated exogenous constructs [a, b, rho]: as in a real survey, a provider
+ * seen as delivering quality is also seen as pricing fairly. (Independent
+ * exogenous constructs make item correlations of mixed sign between them,
+ * which leaves the HTMT2 undefined and the example with a note to explain.)
+ */
+const EXOGENOUS_COR: [number, number, number][] = [[0, 1, 0.4]];
 
 export function makeSample(n = 300, seed = 2026): { data: Dataset; info: DataInfo; model: ModelState } {
   const rand = mulberry32(seed);
@@ -36,10 +43,11 @@ export function makeSample(n = 300, seed = 2026): { data: Dataset; info: DataInf
   // Constructs are listed in causal order, so one pass generates them.
   for (let j = 0; j < BLOCKS.length; j++) {
     const incoming = PATHS.filter(([, t]) => t === j);
+    const cor = EXOGENOUS_COR.find(([, b]) => b === j);
     for (let r = 0; r < n; r++) {
       let v = 0;
       for (const [f, , b] of incoming) v += b * eta[f][r];
-      eta[j][r] = v + normal() * (incoming.length ? 0.75 : 1);
+      eta[j][r] = incoming.length ? v + normal() * 0.75 : cor ? cor[2] * eta[cor[0]][r] + Math.sqrt(1 - cor[2] ** 2) * normal() : normal();
     }
   }
   const names: string[] = [];

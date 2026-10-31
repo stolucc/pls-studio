@@ -23,7 +23,7 @@ export const NO_SELECTION: Selection = { nodes: [], edges: [], moderations: [], 
 export interface Toast { id: number; kind: 'error' | 'info' | 'success'; text: string }
 
 /** A warning or error kept for the session (Messages tab): package warnings, failed runs, refused actions. */
-export interface Message { id: number; at: number; level: 'error' | 'warning'; text: string; source?: string }
+export interface Message { id: number; at: number; level: 'error' | 'warning' | 'info'; text: string; source?: string }
 const MAX_MESSAGES = 300;
 
 export interface Results {
@@ -204,11 +204,13 @@ function withWarnings(messages: Message[], r: Partial<Omit<Results, 'key'>>): Me
   const added: Message[] = [];
   const now = Date.now();
   for (const v of Object.values(r)) {
-    const res = v as { warnings?: unknown; engine?: { package?: string; version?: string } } | null;
-    if (!res || res.warnings == null) continue;
-    const list = Array.isArray(res.warnings) ? res.warnings : [res.warnings];
+    const res = v as { warnings?: unknown; notes?: unknown; engine?: { package?: string; version?: string } } | null;
+    if (!res) continue;
     const source = res.engine?.package ? `${res.engine.package}${res.engine.version ? ` ${res.engine.version}` : ''}` : 'built-in engine';
-    for (const w of list) if (typeof w === 'string' && w.trim() && !loggedRecently(messages, w, now)) added.push({ id: ++messageId, at: now, level: 'warning', text: w, source });
+    for (const [level, raw] of [['warning', res.warnings], ['info', res.notes]] as const) {
+      const list = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
+      for (const w of list) if (typeof w === 'string' && w.trim() && !loggedRecently(messages, w, now)) added.push({ id: ++messageId, at: now, level, text: w, source });
+    }
   }
   return added.length ? [...messages, ...added].slice(-MAX_MESSAGES) : messages;
 }
@@ -609,9 +611,9 @@ export function useFreshResults(): Results | null {
 }
 
 // Warnings of every R call (also panels that keep their results to themselves) go to Messages.
-setWarningSink((warnings, source) => useStore.setState((s) => {
+setWarningSink((warnings, source, level = 'warning') => useStore.setState((s) => {
   const now = Date.now();
   const added = [...new Set(warnings)].filter((w) => !loggedRecently(s.messages, w, now))
-    .map((text): Message => ({ id: ++messageId, at: now, level: 'warning', text, source }));
+    .map((text): Message => ({ id: ++messageId, at: now, level, text, source }));
   return added.length ? { messages: [...s.messages, ...added].slice(-MAX_MESSAGES) } : {};
 }));

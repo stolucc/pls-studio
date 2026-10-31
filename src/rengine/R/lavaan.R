@@ -465,8 +465,27 @@ ps_cb <- function(req_json, export = FALSE) {
     rfit <- if (isTRUE(b$mi)) env$fit_mi else fit
     # (Not with composites in the model: compRelSEM then misreads the factors' true-score variance.)
     no_rel <- levels2 || length(b$composites) > 0
-    # (semTools 0.5.10's compRelSEM fails on models with observed covariates: said once, plainly.)
-    if (!no_rel && any(b$is_cov)) { no_rel <- TRUE; ps_note("Model-based reliability (omega) and coefficient alpha are not reported for models with observed covariates (semTools::compRelSEM cannot handle them); CR and AVE are.") }
+    # semTools's compRelSEM fails on models with observed covariates (lavaan's fixed.x): omega and alpha
+    # then come from the factors' measurement model alone (their CFA on the same data, estimator and
+    # options, through update()), which is where reliability is assessed anyway.
+    if (!no_rel && any(b$is_cov) && !isTRUE(b$mi)) {
+      rfit <- ps_try({
+        pt <- lavaan::parTable(fit)
+        if ("group" %in% names(pt)) pt <- pt[pt$group <= 1, ]
+        facs <- unique(pt$lhs[pt$op == "=~" & pt$lhs %in% unname(b$lname[!b$is_cov])])
+        term <- function(r) if (r$free == 0 && !is.na(r$ustart)) sprintf("%s*%s", format(r$ustart), r$rhs) else r$rhs
+        lines <- vapply(facs, function(f) { rows <- pt[pt$op == "=~" & pt$lhs == f, ]; paste(f, "=~", paste(vapply(seq_len(nrow(rows)), function(i) term(rows[i, ]), ""), collapse = " + ")) }, "")
+        inds <- pt$rhs[pt$op == "=~" & pt$lhs %in% facs]
+        fixed <- pt[pt$op == "~~" & pt$lhs == pt$rhs & pt$free == 0 & !is.na(pt$ustart) & pt$lhs %in% inds, ]
+        if (nrow(fixed)) lines <- c(lines, sprintf("%s ~~ %s*%s", fixed$lhs, format(fixed$ustart), fixed$rhs))
+        # (the original call with the measurement model only, evaluated where its data live; a NACOV
+        #  matrix covers the full model's variables, and omega needs point estimates only: plain ML then)
+        cl <- fit@call; cl$model <- paste(lines, collapse = "\n")
+        if (!is.null(cl$NACOV)) { cl$NACOV <- NULL; cl$estimator <- "ML" }
+        eval(cl, envir = env)
+      }, "The factors' measurement model, for omega and alpha (lavaan)")
+      if (is.null(rfit)) no_rel <- TRUE
+    }
     omega <- if (no_rel) NULL else ps_try(semTools::compRelSEM(rfit), "Model-based reliability (omega, semTools::compRelSEM)")
     alpha <- if (no_rel) NULL else ps_try(semTools::compRelSEM(rfit, tau.eq = TRUE), "Coefficient alpha (semTools::compRelSEM)")
     per_group <- function(x, name) {
@@ -543,6 +562,7 @@ ps_cb <- function(req_json, export = FALSE) {
   mi <- ps_cb_modindices(if (isTRUE(b$mi)) env$fit_mi else fit, nm, groups)
   out$modindices <- mi$items
   out$modindicesError <- mi$error
+  out$modindicesNote <- mi$note
   if (isTRUE(b$mi)) out$imputations <- env$imp$m
   # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)
@@ -556,17 +576,22 @@ ps_per_group <- function(x, g) if (is.list(x)) x[[g]] else if (length(x) >= g) x
 #' list(items, error), where error says why lavaan could not compute them (not the same as none reaching 3.84).
 ps_cb_modindices <- function(fit, nm, groups) {
   err <- NULL
+  # lavaan's modindices() ignores equality constraints and warns about it on every call: the table's
+  # footnote says so instead (the score test under Groups covers the constraints themselves).
+  constrained <- !inherits(fit, "lavaan.mi") && any(lavaan::parTable(fit)$op == "==")
+  note <- if (constrained) "lavaan computes these ignoring the model's equality constraints (equal labels or invariance): read them with that in mind; the score test under Groups assesses releasing a constraint." else NULL
   # (lavaan.mi's pooled modification indices for multiply imputed data)
   mi <- tryCatch(if (inherits(fit, "lavaan.mi")) { x <- lavaan.mi::modindices.mi(fit); x <- x[x$mi >= 3.84, ]; head(x[order(-x$mi), ], 100) }
-    else lavaan::modindices(fit, sort. = TRUE, minimum.value = 3.84, maximum.number = 100),
+    else withCallingHandlers(lavaan::modindices(fit, sort. = TRUE, minimum.value = 3.84, maximum.number = 100),
+      warning = function(w) if (grepl("ignores equality constraints", conditionMessage(w))) invokeRestart("muffleWarning")),
     error = function(e) { err <<- ps_comment(trimws(gsub("\\s+", " ", sub("^lavaan->modindices\\(\\):", "", conditionMessage(e))))); NULL })
   if (!is.null(err)) return(list(items = list(), error = err))
-  if (is.null(mi) || !nrow(mi)) return(list(items = list(), error = NULL))
+  if (is.null(mi) || !nrow(mi)) return(list(items = list(), error = NULL, note = note))
   mi <- mi[mi$op %in% c("=~", "~", "~~"), ]
   back <- function(x) { y <- nm(x); ifelse(is.na(y), x, y) }
   list(items = lapply(seq_len(nrow(mi)), function(i) list(lhs = back(mi$lhs[i]), op = mi$op[i], rhs = back(mi$rhs[i]), mi = mi$mi[i], epc = mi$epc[i],
     sepc = mi$sepc.all[i], group = if (length(groups) > 1 && "block" %in% names(mi)) as.character(groups[mi$block[i]])
-      else if (length(groups) > 1 && "group" %in% names(mi)) as.character(groups[mi$group[i]]) else NULL)), error = NULL)
+      else if (length(groups) > 1 && "group" %in% names(mi)) as.character(groups[mi$group[i]]) else NULL)), error = NULL, note = note)
 }
 
 #' Score tests of releasing each equality constraint (lavaan::lavTestScore): which across-group
@@ -683,10 +708,15 @@ ps_cb_modsem <- function(req, b, export) {
     if (!length(l)) return(list(cr = NULL, ave = NULL))
     list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2))
   })
-  fm <- ps_try(modsem::fit_modsem_da(fit), "Fit measures (modsem::fit_modsem_da)")
-  num1 <- function(x) if (is.null(x) || !length(x)) NULL else as.numeric(x[1])
-  fitv <- if (is.null(fm)) list() else list(npar = num1(fm$npar), chisq = num1(fm$chisq.value), df = num1(fm$chisq.df), pvalue = num1(fm$chisq.pvalue),
-    rmsea = num1(fm$RMSEA), rmsea.ci.lower = num1(fm$RMSEA.lower), rmsea.ci.upper = num1(fm$RMSEA.upper), srmr = num1(fm$SRMR), aic = num1(fm$AIC), bic = num1(fm$BIC))
+  # modsem's chi-square-based fit measures of an LMS / QML model are not meaningful (the package warns
+  # so on every call): as it advises, they are those of the baseline model without the interaction,
+  # refitted with lavaan; AIC and BIC are the interaction model's own.
+  fm <- ps_try(modsem::fit_modsem_da(fit, chisq = FALSE), "Fit measures (modsem::fit_modsem_da)")
+  base <- ps_try(lavaan::fitMeasures(lavaan::sem(gsub("\\s*\\+\\s*[A-Za-z0-9_.]+:[A-Za-z0-9_.]+", "", env$model), data = env$data)), "Fit of the baseline model without the interaction (lavaan)")
+  num1 <- function(x) if (is.null(x) || !length(x) || is.na(x[1])) NULL else as.numeric(x[1])
+  fitv <- c(if (is.null(base)) list() else list(npar = num1(base["npar"]), chisq = num1(base["chisq"]), df = num1(base["df"]), pvalue = num1(base["pvalue"]),
+      cfi = num1(base["cfi"]), tli = num1(base["tli"]), rmsea = num1(base["rmsea"]), rmsea.ci.lower = num1(base["rmsea.ci.lower"]), rmsea.ci.upper = num1(base["rmsea.ci.upper"]), srmr = num1(base["srmr"])),
+    if (is.null(fm)) list() else list(aic = num1(fm$AIC), bic = num1(fm$BIC)))
   NAmat <- matrix(NA_real_, K, K)
   list(estimator = "ML", interaction = b$modsem, n = nrow(env$data), iterations = 0L, converged = TRUE,
     constructs = constructs, indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
@@ -695,6 +725,7 @@ ps_cb_modsem <- function(req, b, export) {
     residualCor = matrix(NA_real_, length(ind_v), length(ind_v)), htmt = NAmat, htmt2 = NAmat, vcov = if (is.null(V)) NULL else unname(V),
     moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
     wald = list(), modindices = list(), modindicesError = "lavaan's modification indices are not available for LMS / QML (modsem) models.",
+    fitNote = "Chi-square-based fit measures (chi-square, CFI, TLI, RMSEA, SRMR) are those of the baseline model without the interaction term, refitted with lavaan, as modsem advises; AIC and BIC are the interaction model's.",
     warnings = env$.warnings, droppedRows = 0L,
     engine = list(package = "modsem", version = as.character(utils::packageVersion("modsem"))))
 }

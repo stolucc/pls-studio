@@ -11,6 +11,9 @@ import { RScriptButton } from './RScriptButton';
 import { SavePlsScores } from './SaveScores';
 import { bootCells, bootCols, c, htmtCls, matrixRows, relCls, Table, type Cell, type Row } from './Table';
 
+/** The bridge's notes about blank HTMT cells (mixed-sign or reverse-coded items), under the tables they concern. */
+const htmtNotes = (pls: PlsResult) => (pls.notes ?? []).filter((n) => /HTMT|reverse-coded/.test(n)).map((n) => ` ${n}`).join('');
+
 export const PLS_TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'paths', label: 'Path coefficients' },
@@ -180,9 +183,9 @@ function Discriminant({ pls }: { pls: PlsResult }) {
   return (
     <div className="tables">
       <Table title="HTMT" file="htmt" columns={['', ...C]} rows={matrixRows(C, (i, j) => pls.htmt[i][j], htmtCls)}
-        note="Heterotrait–monotrait ratio (Henseler, Ringle & Sarstedt 2015). Above 0.90 (0.85 for distinct concepts) indicates a problem." />
+        note={`Heterotrait–monotrait ratio (Henseler, Ringle & Sarstedt 2015). Above 0.90 (0.85 for distinct concepts) indicates a problem.${htmtNotes(pls)}`} />
       <Table title="HTMT2" file="htmt2" columns={['', ...C]} rows={matrixRows(C, (i, j) => pls.htmt2[i][j], htmtCls)}
-        note="Geometric-mean HTMT (Roemer, Schuberth & Henseler 2021); consistent for congeneric measures." />
+        note={`Geometric-mean HTMT (Roemer, Schuberth & Henseler 2021); consistent for congeneric measures.${htmtNotes(pls)}`} />
       <Table title="Fornell–Larcker criterion" file="fornell-larcker" columns={['', ...C]} rows={flRows}
         note="Diagonal: √AVE. Each should exceed the construct's correlations with others." />
     </div>
