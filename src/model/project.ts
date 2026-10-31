@@ -187,6 +187,11 @@ export interface ModelState {
   multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM: sampling (survey) weights column. */
   weights?: string;
+  /**
+   * CB-SEM: sampling clusters of a complex design (lavaan's cluster = in a single-level model: cluster-robust
+   * standard errors and, with MLR, a Yuan-Bentler scaled test, as Mplus TYPE = COMPLEX). Not a two-level model.
+   */
+  cluster?: string;
   /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
   esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation };
   /**
@@ -430,6 +435,7 @@ export function toSpec(model: ModelState): ModelSpec {
     ...constraintSpec(model),
     ...(model.multilevel ? { multilevel: model.multilevel } : {}),
     ...(model.weights ? { weights: model.weights } : {}),
+    ...(model.cluster ? { cluster: model.cluster } : {}),
     ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)) } } : {}),
     ...(model.multigroup ? {
       multigroup: {
@@ -847,6 +853,27 @@ export function validateModel(
       if (data && !data.moments && k < 0) err(`The sampling-weights column “${wcol}” is not in the current dataset.`);
       else if (data && k >= 0 && Array.from(data.cols[k]).some((v) => !Number.isFinite(v) || v < 0)) err(`The sampling weights (${wcol}) must be non-negative numbers without missing values.`);
       if (data?.moments && data.cols.length === 0) err('Sampling weights need raw data; this dataset is a covariance matrix.');
+    }
+  }
+
+  // Sampling clusters (complex design): lavaan's cluster = in a single-level model, CB-SEM only.
+  const ccol = model.cluster;
+  if (ccol) {
+    if (method.method !== 'cbsem') warn(`The sampling clusters (${ccol}) give cluster-robust standard errors in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them.`);
+    else {
+      if (engine === 'builtin') err('Cluster-robust standard errors are computed by lavaan: choose “R packages” under Calculated by.');
+      const est = method.estimator ?? 'ML';
+      if (['2SLS', 'RML'].includes(est)) err(`Cluster-robust standard errors are not available with ${est === '2SLS' ? 'MIIV-2SLS' : 'robust ML (rsem)'}; choose ML or MLR.`);
+      if (model.multilevel) err('Sampling clusters (cluster-robust standard errors) and a two-level model are alternatives: the two-level model already models the clustering.');
+      if (method.missing === 'mi') err('Cluster-robust standard errors cannot be combined with multiple imputation; use FIML.');
+      if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Cluster-robust standard errors are not available with LMS / QML latent interactions; use product indicators.');
+      if (assignedSet.has(ccol) || model.multigroup?.column === ccol || model.weights === ccol) err(`“${ccol}” cannot be both the sampling clusters and an indicator, the grouping column or the sampling weights.`);
+      if (data?.moments) err('Sampling clusters need raw data; this dataset is a covariance matrix.');
+      else if (data) {
+        const k = data.names.indexOf(ccol);
+        if (k < 0) err(`The cluster column “${ccol}” is not in the current dataset.`);
+        else if (new Set(Array.from(data.cols[k]).filter((v) => Number.isFinite(v))).size < 2) err(`The cluster column “${ccol}” needs at least two clusters.`);
+      }
     }
   }
 
@@ -1274,6 +1301,7 @@ export function parseModelState(m: unknown): ModelState {
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
       ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
       ...(typeof m.weights === 'string' && m.weights ? { weights: str(m.weights) } : {}),
+      ...(typeof m.cluster === 'string' && m.cluster ? { cluster: str(m.cluster) } : {}),
       ...(isObj(m.multilevel) && typeof m.multilevel.column === 'string' ? { multilevel: { column: str(m.multilevel.column), between: m.multilevel.between === 'same' ? 'same' as const : 'saturated' as const } } : {}),
       ...(isObj(m.esem) && Array.isArray(m.esem.blocks) ? { esem: {
         rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',

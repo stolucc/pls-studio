@@ -591,3 +591,31 @@ describe('the second-order approach setting', () => {
     expect(errors({ plsPackage: 'cSEM', hocApproach: 'repeated' })).toEqual([]);
   });
 });
+
+describe('sampling clusters (cluster-robust standard errors, CB-SEM)', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3'])], paths: [], moderations: [], cluster: 'school' };
+  const col = (f: (i: number) => number) => Float64Array.from({ length: 100 }, (_, i) => f(i));
+  const d = { names: ['a1', 'a2', 'a3', 'school', 'w'], cols: [col((i) => i % 5), col((i) => i % 7), col((i) => i % 3), col((i) => i % 10), col((i) => 1 + (i % 4))] };
+  const errs = (model: ModelState, o: object = {}, data = d) => validateModel(model, data, { method: 'cbsem', consistent: false, estimator: 'ML', ...o }).filter((i) => i.level === 'error').map((i) => i.message);
+  it('is accepted with ML and MLR, survives the file and reaches the spec', () => {
+    expect(errs(m)).toEqual([]);
+    expect(errs(m, { estimator: 'MLR' })).toEqual([]);
+    expect(toSpec(m).cluster).toBe('school');
+    expect(parseProject(serializeProject(m, DEFAULT_SETTINGS, null, null)).model.cluster).toBe('school');
+    expect(toSpec({ ...m, cluster: undefined })).not.toHaveProperty('cluster');
+  });
+  it('rejects the built-in engine, 2SLS and rsem, two-level models, imputation, LMS, clashes and missing or constant columns', () => {
+    expect(errs(m, { engine: 'builtin' })[0]).toMatch(/R packages/);
+    expect(errs(m, { estimator: '2SLS' })[0]).toMatch(/MIIV-2SLS/);
+    expect(errs(m, { estimator: 'RML' })[0]).toMatch(/robust ML/);
+    expect(errs({ ...m, multilevel: { column: 'school', between: 'saturated' } }).some((e) => /alternatives/.test(e))).toBe(true);
+    expect(errs(m, { missing: 'mi' })[0]).toMatch(/multiple imputation/);
+    expect(errs({ ...m, cluster: 'a1' })[0]).toMatch(/cannot be both the sampling clusters and an indicator/);
+    expect(errs({ ...m, cluster: 'w', weights: 'w' }).some((e) => /sampling weights/.test(e))).toBe(true);
+    expect(errs({ ...m, cluster: 'nope' })[0]).toMatch(/not in the current dataset/);
+    const one = { ...d, cols: d.cols.map((c, k) => (k === 3 ? Float64Array.from(c, () => 1) : c)) };
+    expect(errs(m, {}, one)[0]).toMatch(/at least two clusters/);
+    expect(validateModel(m, d, { method: 'pls', consistent: false }).some((i) => i.level === 'warning' && /PLS-SEM ignores them/.test(i.message))).toBe(true);
+  });
+});

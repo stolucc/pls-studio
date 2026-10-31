@@ -175,3 +175,34 @@ export function WeightsEditor() {
     </div>
   );
 }
+
+/** CB-SEM sampling clusters of a complex design: cluster-robust standard errors (lavaan's cluster = in a single-level model). */
+export function SamplingClustersEditor() {
+  const model = useStore((s) => s.model);
+  const data = useStore((s) => s.data);
+  const readOnly = useStore((s) => s.cloud?.role === 'viewer');
+  const setCluster = useStore((s) => s.setCluster);
+  const assigned = useMemo(() => new Set(model.constructs.flatMap((c) => c.indicators)), [model.constructs]);
+  // Candidates: not indicators, at least two distinct values, fewer clusters than cases.
+  const candidates = useMemo(() => (data && !data.moments ? data.names.filter((n, i) => {
+    if (assigned.has(n) || n === model.weights || n === model.multigroup?.column) return false;
+    const k = new Set(Array.from(data.cols[i]).filter((v) => Number.isFinite(v))).size;
+    return k >= 2 && k < data.cols[i].length;
+  }) : []), [data, assigned, model.weights, model.multigroup?.column]);
+  if (!data || data.moments || model.multilevel) return null;
+  return (
+    <div className="section">
+      <div className="section-title">Sampling clusters</div>
+      <select className="select" value={model.cluster ?? ''} disabled={readOnly} onChange={(e) => setCluster(e.target.value || null)} aria-label="Sampling clusters">
+        <option value="">No clustering</option>
+        {model.cluster && !candidates.includes(model.cluster) && <option value={model.cluster}>{model.cluster} (not usable)</option>}
+        {candidates.map((c) => <option key={c} value={c}>Clustered by {c}</option>)}
+      </select>
+      <div className="hint" style={{ marginTop: 6 }}>
+        {model.cluster
+          ? 'Cases sampled in clusters (schools, firms, countries): the estimates are the usual ones, the standard errors robust to the clustering (lavaan’s cluster = in a single-level model, sandwich estimator), and with MLR the χ² test is scaled too. Mplus’s TYPE = COMPLEX. To model the clusters themselves, use a two-level model instead.'
+          : 'For cases sampled in clusters (schools, firms, countries) without modelling the levels: cluster-robust standard errors, as Mplus’s TYPE = COMPLEX.'}
+      </div>
+    </div>
+  );
+}

@@ -80,6 +80,8 @@ export interface CbResult {
   imputations?: number;
   /** Latent interactions estimated by LMS or QML (modsem); absent for product indicators. */
   interaction?: 'lms' | 'qml';
+  /** LMS / QML: the likelihood-ratio test of the interaction terms against the model without them (modsem::compare_fit). */
+  lrt?: { D: number; df: number; p: number; llChange: number };
   /** Wald tests of user hypotheses (lavaan). */
   wald?: { name: string; stat: number; df: number; p: number }[];
   estimator: CbEstimator;

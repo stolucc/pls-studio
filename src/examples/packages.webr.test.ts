@@ -181,6 +181,13 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       const r = await estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction);
       expect(r.converged).toBe(true);
       if (CHISQ[ex.id] !== undefined) expect(r.fit.chisq).toBeCloseTo(CHISQ[ex.id], 2);
+      if (ex.id === 'modsem-oneint') {
+        // ?compare_fit run natively (modsem 1.0.x): LMS on oneInt, D = 6288.39 on 1 df.
+        expect(r.interaction).toBe('lms');
+        expect(r.lrt?.df).toBe(1);
+        expect(r.lrt?.D).toBeCloseTo(6288.39, 0);
+        expect(r.lrt?.p).toBeLessThan(0.001);
+      }
       if (ex.id === 'lavaan-hs-means') {
         expect(spec.meanStructure).toBe(true);
         const intercepts = r.estimates.filter((e) => e.kind === 'intercept');

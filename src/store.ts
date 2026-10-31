@@ -122,6 +122,8 @@ interface State {
   setMultilevel: (ml: ModelState['multilevel'] | null) => void;
   /** CB-SEM sampling weights column (null: none). */
   setWeights: (column: string | null) => void;
+  /** CB-SEM: the sampling clusters of a complex design (cluster-robust standard errors); null removes them. */
+  setCluster: (column: string | null) => void;
   /** CB-SEM: set or clear the multiple-group analysis. */
   setMultigroup: (mg: ModelState['multigroup'] | null) => void;
   /** CB-SEM: treat these indicators as ordered categorical (WLSMV), or as continuous again. */
@@ -362,6 +364,7 @@ export const useStore = create<State>((set, get) => ({
   }),
   setMultilevel: (ml) => get().commit((m) => { const { multilevel: _l, ...rest } = m; return ml ? { ...rest, multilevel: ml } : rest; }),
   setWeights: (column) => get().commit((m) => { const { weights: _w, ...rest } = m; return column ? { ...rest, weights: column } : rest; }),
+  setCluster: (column) => get().commit((m) => { const { cluster: _c, ...rest } = m; return column ? { ...rest, cluster: column } : rest; }),
   setMultigroup: (mg) => get().commit((m) => { const { multigroup: _g, ...rest } = m; return mg ? { ...rest, multigroup: mg } : rest; }),
   setOrdered: (names, ordinal) => get().commit((m) => {
     const now = new Set(m.ordered ?? []);

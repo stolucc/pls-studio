@@ -12,7 +12,7 @@ import { JohnsonNeymanPlot } from './JohnsonNeymanPlot';
 import { johnsonNeyman } from '../engine/jn';
 import { fixedText } from '../diagramLabels';
 import { ConstraintsEditor } from './ConstraintsEditor';
-import { ClustersEditor, EsemEditor, GroupsEditor, WeightsEditor } from './GroupsEditor';
+import { ClustersEditor, EsemEditor, GroupsEditor, SamplingClustersEditor, WeightsEditor } from './GroupsEditor';
 import { processGraph } from '../process/fromModel';
 
 function NameField({ c }: { c: Construct }) {
@@ -590,6 +590,7 @@ function ModelInspector() {
       {settings.method === 'cbsem' && <GroupsEditor />}
       {settings.method === 'cbsem' && <ClustersEditor />}
       {settings.method === 'cbsem' && <WeightsEditor />}
+      {settings.method === 'cbsem' && <SamplingClustersEditor />}
       {settings.method === 'cbsem' && <ConstraintsEditor />}
       {settings.method === 'cbsem' && model.correlations?.some((k) => k.zero) && (
         <div className="section">

@@ -44,3 +44,13 @@ describe('lavaan request', () => {
     expect(() => johnsonNeyman(res, res.moderations[0])).not.toThrow();
   });
 });
+
+describe('the likelihood-ratio test of a latent interaction (modsem)', () => {
+  it('is kept when the bridge reports it, and absent otherwise', () => {
+    const raw = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'cbmod_lavaan_hs_ml.lavaan.json'), 'utf8'));
+    expect(parseCbOutput(raw).lrt).toBeUndefined();
+    const withLrt = parseCbOutput({ ...raw, interaction: 'lms', lrt: { D: 6288.394, df: 1, p: 0, llChange: 3144.197 } });
+    expect(withLrt.lrt).toEqual({ D: 6288.394, df: 1, p: 0, llChange: 3144.197 });
+    expect(parseCbOutput({ ...raw, lrt: null }).lrt).toBeUndefined();
+  });
+});

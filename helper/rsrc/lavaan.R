@@ -28,7 +28,7 @@ ps_cb_build <- function(req) {
 
   body <- "suppressPackageStartupMessages(library(lavaan))"
   inputs <- list()
-  group_var <- NULL; cluster_var <- NULL; weight_var <- NULL
+  group_var <- NULL; cluster_var <- NULL; weight_var <- NULL; complex_var <- NULL
   mg <- req$model$multigroup
   ml <- req$model$multilevel
   if (matrix_input && !is.null(mg)) stop("Multiple-group analysis needs raw data with a grouping column.")
@@ -69,6 +69,18 @@ ps_cb_build <- function(req) {
       ccol <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
       cluster_var <- ps_ident(c(unname(n$iv), ml$column))[length(n$iv) + 1]
       inputs$data[[cluster_var]] <- ccol
+    }
+    # Sampling clusters of a complex design (lavaan's cluster = in a single-level model): likewise.
+    kcol <- req$model$cluster
+    if (!is.null(kcol)) {
+      if (!is.null(ml)) stop("Sampling clusters (cluster-robust standard errors) and a two-level model are alternatives.")
+      at <- match(kcol, req$data$names)
+      if (is.na(at)) stop("The cluster column is not in the dataset.")
+      cols <- req$data$cols
+      kv <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      if (length(unique(kv[is.finite(kv)])) < 2) stop("The cluster column needs at least two clusters.")
+      complex_var <- ps_ident(c(unname(n$iv), kcol))[length(n$iv) + 1]
+      inputs$data[[complex_var]] <- kv
     }
     # Sampling (survey) weights: the column, likewise (lavaan's sampling.weights).
     wcol <- req$model$weights
@@ -163,6 +175,7 @@ ps_cb_build <- function(req) {
   method <- req$interaction %||% "product"
   use_modsem <- length(mods) > 0 && method %in% c("lms", "qml")
   if (use_modsem && (matrix_input || !is.null(mg) || length(esem$blocks))) stop("LMS and QML need raw data and a single-group model without ESEM blocks.")
+  if (use_modsem && !is.null(complex_var)) stop("Cluster-robust standard errors are not available with LMS / QML; use product indicators.")
   if (length(mods) && !use_modsem) body <- c(body, "# Latent interactions: matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004)")
   for (q in seq_along(mods)) {
     m <- mods[[q]]
@@ -261,6 +274,14 @@ ps_cb_build <- function(req) {
   extra <- paste0(if (length(ordered)) sprintf(", ordered = %s", ps_q(ordered)) else "",
     ps_lavaan_missing(req$missing))
   if (!is.null(cluster_var)) extra <- paste0(extra, sprintf(", cluster = \"%s\"", cluster_var))
+  # Sampling clusters: lavaan then reports cluster-robust (sandwich) standard errors and, with MLR, a scaled test (Mplus TYPE = COMPLEX).
+  if (!is.null(complex_var)) {
+    if (!req$estimator %in% c("ML", "MLR", "MLM", "MLMV", "WLSMV", "ULS", "GLS")) stop("Cluster-robust standard errors: choose ML or MLR.")
+    extra <- paste0(extra, sprintf(", cluster = \"%s\"", complex_var))
+    body <- c(body, sprintf("# Sampling clusters (%s): cluster-robust standard errors (lavaan cluster = in a single-level model; Mplus TYPE = COMPLEX).", ps_comment(kcol)))
+    ps_note(sprintf("Standard errors are robust to the clustering of cases by %s (lavaan cluster =, se = \"robust.cluster\"; as Mplus TYPE = COMPLEX).%s", kcol,
+      if (identical(req$estimator, "MLR")) " The scaled chi-square and the robust fit measures account for it too." else " With MLR the chi-square test would be adjusted as well."))
+  }
   # Variances kept non-negative (lavaan's bounds; a guard against Heywood cases).
   bounds <- if (isTRUE(req$model$positiveVariances)) ", bounds = \"pos.var\"" else ""
   if (!is.null(weight_var)) {
@@ -303,7 +324,7 @@ ps_cb_build <- function(req) {
   mi <- identical(req$missing, "mi")
   if (mi) {
     if (matrix_input) stop("Multiple imputation needs raw data.")
-    if (!is.null(cluster_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
+    if (!is.null(cluster_var) || !is.null(complex_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
       stop("Multiple imputation is available for continuous indicators: no clusters, sampling weights, ordinal indicators or ESEM blocks.")
     if (!req$estimator %in% c("ML", "MLR")) stop("With multiple imputation choose the ML or MLR estimator.")
     ms <- ps_mi_settings(req)
@@ -333,7 +354,7 @@ ps_cb_build <- function(req) {
   if (robust) {
     if (mi) stop("Robust ML (rsem) uses the missing values itself (EM); choose FIML or casewise instead of multiple imputation.")
     if (matrix_input) stop("Robust ML (rsem) needs raw data.")
-    if (!is.null(group_var) || !is.null(cluster_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
+    if (!is.null(group_var) || !is.null(cluster_var) || !is.null(complex_var) || !is.null(weight_var) || length(ordered) || length(esem$blocks))
       stop("Robust ML (rsem) handles one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.")
     body[1] <- "suppressPackageStartupMessages({ library(lavaan); library(rsem) })"
     vars <- unname(n$iv[n$all_inds])
@@ -678,7 +699,9 @@ ps_invariance <- function(req_json, export = FALSE) {
 ps_cb_modsem <- function(req, b, export) {
   title <- sprintf("CB-SEM with latent interactions by %s (modsem)", toupper(b$modsem))
   if (export) return(paste(ps_script(title, c("modsem", "lavaan"), b$inputs, b$body,
-    c("summary(fit, standardized = TRUE)", "standardized_estimates(fit)")), collapse = "\n"))
+    c("summary(fit, standardized = TRUE)", "standardized_estimates(fit)",
+      "# Likelihood-ratio test of the interaction terms: the model against the same model without them",
+      "h0 <- estimate_h0(fit, calc.se = FALSE)", "compare_fit(est_h1 = fit, est_h0 = h0)")), collapse = "\n"))
   env <- ps_run(b$body, b$inputs)
   fit <- env$fit
   n <- b$n; k0 <- b$k0; mods <- b$mods
@@ -737,6 +760,9 @@ ps_cb_modsem <- function(req, b, export) {
   # so on every call): as it advises, they are those of the baseline model without the interaction,
   # refitted with lavaan; AIC and BIC are the interaction model's own.
   fm <- ps_try(modsem::fit_modsem_da(fit, chisq = FALSE), "Fit measures (modsem::fit_modsem_da)")
+  # The likelihood-ratio test of the interaction terms (modsem::compare_fit): the model against the
+  # same model without them, refitted by the same method (modsem::estimate_h0).
+  lrt <- ps_try({ h0 <- modsem::estimate_h0(fit, calc.se = FALSE); modsem::compare_fit(est_h1 = fit, est_h0 = h0) }, "Likelihood-ratio test of the interaction (modsem::compare_fit)")
   base <- ps_try(lavaan::fitMeasures(lavaan::sem(gsub("\\s*\\+\\s*[A-Za-z0-9_.]+:[A-Za-z0-9_.]+", "", env$model), data = env$data)), "Fit of the baseline model without the interaction (lavaan)")
   num1 <- function(x) if (is.null(x) || !length(x) || is.na(x[1])) NULL else as.numeric(x[1])
   fitv <- c(if (is.null(base)) list() else list(npar = num1(base["npar"]), chisq = num1(base["chisq"]), df = num1(base["df"]), pvalue = num1(base["pvalue"]),
@@ -750,6 +776,7 @@ ps_cb_modsem <- function(req, b, export) {
     residualCor = matrix(NA_real_, length(ind_v), length(ind_v)), htmt = NAmat, htmt2 = NAmat, vcov = if (is.null(V)) NULL else unname(V),
     moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
     wald = list(), modindices = list(), modindicesError = "lavaan's modification indices are not available for LMS / QML (modsem) models.",
+    lrt = if (is.list(lrt) && !is.null(lrt$D)) list(D = num1(lrt$D), df = num1(lrt$df), p = num1(lrt$p), llChange = num1(lrt$llChange)) else NULL,
     fitNote = "Chi-square-based fit measures (chi-square, CFI, TLI, RMSEA, SRMR) are those of the baseline model without the interaction term, refitted with lavaan, as modsem advises; AIC and BIC are the interaction model's.",
     warnings = env$.warnings, droppedRows = 0L,
     engine = list(package = "modsem", version = as.character(utils::packageVersion("modsem"))))
