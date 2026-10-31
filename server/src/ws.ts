@@ -22,6 +22,14 @@ const MAX_PAYLOAD = 2 * 1024 * 1024;
 const RATE = 200;
 /** Presence (awareness) states are a name, a colour and a selection: anything bigger is refused. */
 export const MAX_AWARENESS_BYTES = 8 * 1024;
+/**
+ * A project document (model, settings, cards without results) is kilobytes;
+ * past this size an editor's changes are refused, so one member cannot fill
+ * the database. Counted as the compacted state plus the updates since.
+ */
+export const MAX_DOC_BYTES = Number(process.env.PLS_MAX_DOC_BYTES) || 16 * 1024 * 1024;
+/** Open sockets per user over all projects (a few tabs and devices; not a thousand). */
+export const MAX_CONNS_PER_USER = 10;
 export class TooBig extends Error {}
 
 interface Conn { ws: WebSocket; userId: string; role: Role; clientIds: Set<number>; tokens: number; last: number }
@@ -30,6 +38,8 @@ class Room {
   readonly doc = new Y.Doc();
   readonly awareness: awarenessProtocol.Awareness;
   readonly conns = new Set<Conn>();
+  /** Bytes the document takes as stored (an upper bound: state + updates since compaction). */
+  bytes = 0;
   private pending = 0;
   private closeTimer: NodeJS.Timeout | null = null;
   private readonly projectId: string;
@@ -44,6 +54,7 @@ class Room {
     this.awareness.setLocalState(null);
     this.doc.on('update', (update: Uint8Array, origin: unknown) => {
       if (origin === 'load') return;
+      this.bytes += update.length;
       this.broadcast(this.syncUpdate(update), origin as Conn | undefined);
       void this.persist(update);
     });
@@ -64,6 +75,7 @@ class Room {
     const u = await this.db.query('SELECT update FROM project_updates WHERE project_id = $1 ORDER BY id', [this.projectId]);
     for (const row of u.rows) Y.applyUpdate(this.doc, row.update, 'load');
     this.pending = u.rowCount ?? 0;
+    this.bytes = Y.encodeStateAsUpdate(this.doc).length;
   }
 
   private syncUpdate(update: Uint8Array) {
@@ -93,10 +105,12 @@ class Room {
     try {
       await client.query('BEGIN');
       const maxId = (await client.query('SELECT max(id) AS m FROM project_updates WHERE project_id = $1', [this.projectId])).rows[0].m;
-      await client.query('UPDATE projects SET yjs_state = $2 WHERE id = $1', [this.projectId, Buffer.from(Y.encodeStateAsUpdate(this.doc))]);
+      const state = Y.encodeStateAsUpdate(this.doc);
+      await client.query('UPDATE projects SET yjs_state = $2 WHERE id = $1', [this.projectId, Buffer.from(state)]);
       if (maxId) await client.query('DELETE FROM project_updates WHERE project_id = $1 AND id <= $2', [this.projectId, maxId]);
       await client.query('COMMIT');
       this.pending = 0;
+      this.bytes = state.length;
     } catch (err) {
       await client.query('ROLLBACK');
       console.error('compaction failed', err);
@@ -133,6 +147,8 @@ class Room {
         const sub = decoding.readVarUint(dec);
         if (sub === syncProtocol.messageYjsSyncStep1) syncProtocol.readSyncStep1(dec, enc, this.doc);
       } else {
+        // (the message is at most the update it carries plus a few bytes: an upper bound on the growth)
+        if (this.bytes + data.length > MAX_DOC_BYTES) throw new TooBig('document too big');
         syncProtocol.readSyncMessage(dec, enc, this.doc, conn);
       }
       if (encoding.length(enc) > 1) conn.ws.send(encoding.toUint8Array(enc));
@@ -171,6 +187,7 @@ type SessionMw = (req: IncomingMessage, res: unknown, next: (err?: unknown) => v
 export function attachCollab(server: Server, db: Db, sessionMw: SessionMw, appOrigin: string): Collab {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD });
   const rooms = new Map<string, Promise<Room>>();
+  const perUser = new Map<string, number>();
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const getRoom = (id: string) => {
@@ -201,9 +218,11 @@ export function attachCollab(server: Server, db: Db, sessionMw: SessionMw, appOr
         if (!userId) return reject(socket, 401, 'Unauthorized');
         const role = await roleOf(db, projectId, userId);
         if (!role) return reject(socket, 403, 'Forbidden');
+        if ((perUser.get(userId) ?? 0) >= MAX_CONNS_PER_USER) return reject(socket, 429, 'Too Many Connections');
         const room = await getRoom(projectId);
         wss.handleUpgrade(req, socket, head, (ws) => {
           const conn: Conn = { ws, userId, role, clientIds: new Set(), tokens: RATE, last: Date.now() };
+          perUser.set(userId, (perUser.get(userId) ?? 0) + 1);
           room.add(conn);
           ws.on('message', (data, isBinary) => {
             if (!isBinary) return;
@@ -215,10 +234,10 @@ export function attachCollab(server: Server, db: Db, sessionMw: SessionMw, appOr
             try {
               room.message(conn, new Uint8Array(data as Buffer));
             } catch (err) {
-              ws.close(err instanceof TooBig ? 1009 : 1007, err instanceof TooBig ? 'Presence state too big' : 'Malformed message');
+              ws.close(err instanceof TooBig ? 1009 : 1007, err instanceof TooBig ? (err.message === 'document too big' ? 'Document too big' : 'Presence state too big') : 'Malformed message');
             }
           });
-          ws.on('close', () => room.remove(conn));
+          ws.on('close', () => { room.remove(conn); const n = (perUser.get(userId) ?? 1) - 1; if (n > 0) perUser.set(userId, n); else perUser.delete(userId); });
         });
       } catch (err) {
         console.error('ws upgrade failed', err);

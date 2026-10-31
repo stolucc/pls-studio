@@ -82,7 +82,8 @@ export function projectRoutes(deps: AppDeps) {
     const body = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.enum(['editor', 'viewer']) }).parse(req.body);
     const inv = await P.createInvitation(db, id, userId, body.email, body.role);
     const [inviter, project] = await Promise.all([getUser(db, userId), P.getProject(db, id, userId)]);
-    const link = `${config.APP_ORIGIN}/?invite=${encodeURIComponent(inv.token)}`;
+    // The token travels in the fragment: browsers never send it to the server, so it is in no access log or Referer.
+    const link = `${config.APP_ORIGIN}/#invite=${encodeURIComponent(inv.token)}`;
     const mail = {
       to: body.email,
       subject: oneLine(`${inviter!.display_name} invited you to “${project.name}” on PLS Studio`).slice(0, 200),

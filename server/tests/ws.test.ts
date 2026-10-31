@@ -1,7 +1,8 @@
 import * as encoding from 'lib0/encoding';
 import { WebSocket } from 'ws';
 import * as awarenessProtocol from 'y-protocols/awareness';
-import { MAX_AWARENESS_BYTES } from '../src/ws.ts';
+import * as syncProtocol from 'y-protocols/sync';
+import { MAX_AWARENESS_BYTES, MAX_CONNS_PER_USER, MAX_DOC_BYTES } from '../src/ws.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebsocketProvider } from 'y-websocket';
 import * as Y from 'yjs';
@@ -110,6 +111,42 @@ describe('collaboration socket', () => {
       });
     });
     expect(await closed).toBe(1009);
+  });
+
+  it('refuses an editor’s change that would grow the document past its cap', async () => {
+    const closed = new Promise<{ code: number; reason: string }>((resolve) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, { headers: { origin: ORIGIN, cookie: cookieOf(editor) } });
+      ws.on('close', (code, reason) => resolve({ code, reason: reason.toString() }));
+      ws.on('open', () => {
+        const d = new Y.Doc();
+        d.getText('junk').insert(0, 'x'.repeat(MAX_DOC_BYTES + 1));
+        const enc = encoding.createEncoder();
+        encoding.writeVarUint(enc, 0);
+        syncProtocol.writeUpdate(enc, Y.encodeStateAsUpdate(d));
+        ws.send(encoding.toUint8Array(enc));
+      });
+    });
+    expect(await closed).toEqual({ code: 1009, reason: 'Document too big' });
+    // The document is as it was: the next editor sees no junk.
+    const { doc, p } = connect(editor);
+    await until(() => p.synced);
+    expect(doc.getText('junk').length).toBe(0);
+    p.destroy();
+  });
+
+  it('caps the open sockets of one user', async () => {
+    const sockets: WebSocket[] = [];
+    for (let i = 0; i < MAX_CONNS_PER_USER; i++) {
+      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, { headers: { origin: ORIGIN, cookie: cookieOf(viewer) } });
+      await new Promise<void>((r) => ws.on('open', () => r()));
+      sockets.push(ws);
+    }
+    expect(await handshake(viewer)).toBe(429);
+    sockets[0].close();
+    await until(() => sockets[0].readyState === WebSocket.CLOSED);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(await handshake(viewer)).toBe(101);
+    sockets.forEach((ws) => ws.close());
   });
 
   it('restores the document from the database after compaction', async () => {

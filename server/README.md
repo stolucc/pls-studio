@@ -64,6 +64,9 @@ safe: without it, stored datasets cannot be decrypted.
   wrapped with `DATA_MASTER_KEY`; the project id is bound as associated data.
 - **Real time**: the WebSocket handshake checks Origin, session and membership; viewers'
   document updates are dropped server-side; membership changes disconnect immediately;
-  message size and rate limits per connection.
+  message size and rate limits per connection, a cap on the document's stored size
+  (16 MB; one member cannot fill the database) and on open sockets per user (10).
+- **Emailed links** (verification, password reset, invitations) carry their token in
+  the URL fragment, which browsers never send: it reaches no access log or Referer.
 - **Headers**: helmet with a strict CSP (no inline scripts), `frame-ancestors 'none'`.
 - **Audit log**: project creation/deletion, invitations, membership and dataset changes.

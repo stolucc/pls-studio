@@ -85,7 +85,8 @@ describe('invitations', () => {
     expect(r.body.emailed).toBe(false); // no SMTP_URL in tests: mail only goes to the log
     expect(r.body.link).toBe(/(\S*invite=\S+)/.exec(env.deps.mailer.outbox.at(-1)!.text)![1]);
     // the link is no shortcut: a different account still cannot accept it
-    const token = decodeURIComponent(new URL(r.body.link).searchParams.get('invite')!);
+    // (the token is in the fragment, which browsers never send to the server)
+    const token = new URLSearchParams(new URL(r.body.link).hash.slice(1)).get('invite')!;
     expect((await stranger.post(`/api/auth/invitations/${encodeURIComponent(token)}/accept`)).status).toBe(403);
   });
 

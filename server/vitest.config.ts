@@ -9,6 +9,7 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 20000,
     hookTimeout: 20000,
-    env: { NODE_ENV: 'test' },
+    // (a small document cap so the oversize test needs no 16 MB)
+    env: { NODE_ENV: 'test', PLS_MAX_DOC_BYTES: '300000' },
   },
 });

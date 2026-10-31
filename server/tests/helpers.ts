@@ -83,7 +83,7 @@ export async function signedUp(env: TestEnv, email: string, name = email.split('
 /** The token in the last email the server sent (`?verify=` or `?reset=` link). */
 export function lastToken(env: TestEnv, kind: 'verify' | 'reset' | 'invite'): string {
   const mail = env.deps.mailer.outbox.at(-1)!;
-  const m = new RegExp(`[?&]${kind}=([^\\s&]+)`).exec(mail.text);
+  const m = new RegExp(`[?&#]${kind}=([^\\s&]+)`).exec(mail.text);
   if (!m) throw new Error(`no ${kind} link in the last email: ${mail.subject}`);
   return decodeURIComponent(m[1]);
 }

@@ -5,17 +5,30 @@ import { useStore } from '../store';
 
 let pendingInvite: string | null = null;
 
-/** Handle ?invite=… and ?auth=… after load (and after signing in). */
-export async function handleUrlParams() {
-  const url = new URL(location.href);
-  const invite = url.searchParams.get('invite');
-  const auth = url.searchParams.get('auth');
-  const verify = url.searchParams.get('verify');
-  const reset = url.searchParams.get('reset');
-  if (invite || auth || verify || reset) {
-    for (const k of ['invite', 'auth', 'verify', 'reset']) url.searchParams.delete(k);
-    history.replaceState(null, '', url.pathname + url.search + url.hash);
+const LINK_KEYS = ['invite', 'auth', 'verify', 'reset'] as const;
+/**
+ * The link's parameters: emailed tokens travel in the fragment (#verify=…),
+ * which the browser never sends to the server; ?verify=… from older emails
+ * still works. Returns the values and the address with them removed.
+ */
+export function linkParams(href: string): { params: Partial<Record<(typeof LINK_KEYS)[number], string>>; cleaned: string } {
+  const url = new URL(href);
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const params: Partial<Record<(typeof LINK_KEYS)[number], string>> = {};
+  for (const k of LINK_KEYS) {
+    const v = hash.get(k) ?? url.searchParams.get(k);
+    if (v) params[k] = v;
+    hash.delete(k);
+    url.searchParams.delete(k);
   }
+  const rest = hash.toString();
+  return { params, cleaned: url.pathname + url.search + (rest ? `#${rest}` : '') };
+}
+
+/** Handle #invite=…, #verify=…, #reset=… and ?auth=… after load (and after signing in). */
+export async function handleUrlParams() {
+  const { params: { invite, auth, verify, reset }, cleaned } = linkParams(location.href);
+  if (invite || auth || verify || reset) history.replaceState(null, '', cleaned);
   const toast = useStore.getState().toast;
   if (verify) {
     try { toast('success', `${await useAuth.getState().verifyEmail(verify)} is verified. You can share projects and accept invitations.`); }
