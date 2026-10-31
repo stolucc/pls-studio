@@ -108,6 +108,11 @@ button (or the logo) in the editor returns to it.
 V select · C add construct · P draw path · Del delete · ⌘Z / ⌘⇧Z undo/redo ·
 ⌘S save · ⌘O open · ⌘↵ calculate · ⌘⇧↵ bootstrap
 
+## Design
+
+`ARCHITECTURE.md` describes how the app is put together: the stores, the built-in engine, how the
+front end talks to R (webR and the desktop helper), the Analyses log, collaboration and deployment.
+
 ## Validation
 
 Three layers, run by `.github/workflows/ci.yml` on every push:
