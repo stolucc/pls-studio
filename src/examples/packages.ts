@@ -13,6 +13,7 @@ import type { LmmInput } from '../rengine/mixed';
 import type { GmmOptions } from '../analyses/longitudinal';
 import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
+import type { DidOptions } from '../analyses/did';
 import type { RsaPreset } from '../analyses/rsa';
 import type { EfaPreset } from '../analyses/efa';
 import type { DataFileFormat } from '../data/readFile';
@@ -20,8 +21,8 @@ import type { EgaOptions, NetworkOptions } from '../analyses/network';
 import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 
-export type ExamplePackage = 'lavaan' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -43,6 +44,7 @@ export type ExamplePanel =
   | ({ kind: 'rsa' } & RsaPreset)
   | ({ kind: 'nca' } & NcaPreset)
   | ({ kind: 'efa' } & EfaPreset)
+  | ({ kind: 'did' } & DidOptions)
   | { kind: 'screen'; vars: string[] }
   | ({ kind: 'network' } & Partial<NetworkOptions>)
   | ({ kind: 'ega' } & Partial<EgaOptions>);
@@ -170,6 +172,20 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'The tutorial’s second model: intercept and linear slope over t1–t4 regressed on x1 and x2, and each occasion on its own time-varying covariate c1–c4 (Bollen & Curran’s conditional latent curve model). Opens its card on the Analyses tab.',
     data: { package: 'lavaan', name: 'Demo.growth' }, constructs: [], paths: [],
     panel: { kind: 'growth', measures: items('t', 4), times: [0, 1, 2, 3], shape: 'linear', covariates: ['x1', 'x2'], timeVarying: items('c', 4) }, settings: CB('ML'),
+  },
+  {
+    id: 'did-mpdta', package: 'did', title: 'Minimum wages and teen employment: staggered difference-in-differences', source: 'did, ?att_gt and ?aggte (mpdta)',
+    links: [{ label: '?att_gt', url: 'https://rdrr.io/cran/did/man/att_gt.html' }, { label: '?aggte', url: 'https://rdrr.io/cran/did/man/aggte.html' }, { label: '?mpdta', url: 'https://rdrr.io/cran/did/man/mpdta.html' }],
+    description: 'Callaway & Sant’Anna (2021): log teen employment in 500 US counties, 2004–2007, with states raising the minimum wage in 2004, 2006 or 2007 (first.treat; 0 = never). Group-time effects against never-treated counties, aggregated overall (ATT −0.04) and by length of exposure. Opens its card on the Analyses tab.',
+    data: { package: 'did', name: 'mpdta' }, constructs: [], paths: [],
+    panel: { kind: 'did', design: 'staggered', outcome: 'lemp', unit: 'countyreal', time: 'year', treated: 'first.treat', post: '', firstPeriod: null, covariates: [], control: 'nevertreated', eventStudy: true }, settings: CB('ML'),
+  },
+  {
+    id: 'fixest-base-did', package: 'fixest', title: 'Two-way fixed effects with an event study', source: 'fixest, ?i and ?base_did',
+    links: [{ label: '?i', url: 'https://rdrr.io/cran/fixest/man/i.html' }, { label: '?base_did', url: 'https://rdrr.io/cran/fixest/man/base_did.html' }, { label: 'fixest: difference-in-differences', url: 'https://lrberge.github.io/fixest/articles/fixest_walkthrough.html' }],
+    description: 'fixest’s simulated panel: 104 individuals over 10 periods, about half treated from period 6 with a gradual effect on y. The help page’s model, y ~ x1 + i(period, treat, 5) | id + period: the treated group’s deviation in each period relative to period 5, with the overall before–after effect. Opens its card on the Analyses tab.',
+    data: { package: 'fixest', name: 'base_did' }, constructs: [], paths: [],
+    panel: { kind: 'did', design: 'twfe', outcome: 'y', unit: 'id', time: 'period', treated: 'treat', post: 'post', firstPeriod: 6, covariates: ['x1'], control: 'nevertreated', eventStudy: true }, settings: CB('ML'),
   },
   {
     id: 'miivsem-bollen', package: 'MIIVsem', title: 'Political democracy by MIIV-2SLS', source: 'MIIVsem, bollen1989a',
@@ -615,7 +631,8 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
 /** The data columns a panel example uses. */
 export function panelColumns(p: ExamplePanel): string[] {
   switch (p.kind) {
-    case 'growth': return [...p.measures, ...p.covariates];
+    case 'growth': return [...p.measures, ...p.covariates, ...(p.timeVarying ?? [])];
+    case 'did': return [p.outcome, p.unit, p.time, p.treated, ...(p.post ? [p.post] : []), ...p.covariates];
     case 'irt': case 'lca': return p.items;
     case 'lmm': return [p.outcome, ...p.predictors, p.cluster];
     case 'gmm': return [...(p.format === 'wide' ? p.measures : [p.subject, p.time, p.outcome]), ...p.covariates];

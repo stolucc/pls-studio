@@ -6,6 +6,7 @@ import analysesR from './R/analyses.R?raw';
 import bootR from './R/boot.R?raw';
 import commonR from './R/common.R?raw';
 import cpaR from './R/cpa.R?raw';
+import didR from './R/did.R?raw';
 import efaR from './R/efa.R?raw';
 import endoR from './R/endo.R?raw';
 import lavaanR from './R/lavaan.R?raw';
@@ -26,7 +27,7 @@ import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, prob
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR };
+export const SOURCES = { did: didR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -64,6 +65,9 @@ export const R_PACKAGES = {
   // Reading SPSS, Stata and Excel files.
   readData: ['jsonlite', 'haven', 'readxl'],
   bootnet: ['jsonlite', 'bootnet', 'qgraph'],
+  // Difference-in-differences: fixest (two-way fixed effects, event studies) and did (Callaway & Sant'Anna).
+  did: ['jsonlite', 'fixest', 'did', 'sandwich', 'lmtest'],
+  fixest: ['jsonlite', 'fixest'],
   EGAnet: ['jsonlite', 'EGAnet'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],

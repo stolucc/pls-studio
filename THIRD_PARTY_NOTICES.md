@@ -20,10 +20,13 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | askpass | 1.2.1 | MIT + file LICENSE | https://cran.r-project.org/package=askpass |
 | backports | 1.5.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=backports |
 | base64enc | 0.1-6 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=base64enc |
+| bigmemory | 4.6.6 | LGPL-3 \| Apache License 2.0 | https://cran.r-project.org/package=bigmemory |
+| bigmemory.sri | 0.1.8 | LGPL-3 \| Apache License 2.0 | https://cran.r-project.org/package=bigmemory.sri |
 | bit | 4.6.0 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=bit |
 | bit64 | 4.8.6 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=bit64 |
 | bitops | 1.1-0 | GPL (>= 2) | https://cran.r-project.org/package=bitops |
 | blob | 1.3.0 | MIT + file LICENSE | https://cran.r-project.org/package=blob |
+| BMisc | 1.4.10 | GPL-3 | https://cran.r-project.org/package=BMisc |
 | boot | 1.3-32 | Unlimited | https://cran.r-project.org/package=boot |
 | bootnet | 1.9.1 | GPL-2 | https://cran.r-project.org/package=bootnet |
 | broom | 1.0.13 | MIT + file LICENSE | https://cran.r-project.org/package=broom |
@@ -60,10 +63,13 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | diagram | 1.6.5 | GPL (>= 2) | https://cran.r-project.org/package=diagram |
 | DiagrammeR | 1.0.12 | MIT + file LICENSE | https://cran.r-project.org/package=DiagrammeR |
 | DiagrammeRsvg | 0.1 | MIT + file LICENSE | https://cran.r-project.org/package=DiagrammeRsvg |
+| did | 2.5.1 | GPL-3 | https://cran.r-project.org/package=did |
 | digest | 0.6.39 | GPL (>= 2) | https://cran.r-project.org/package=digest |
 | doBy | 4.7.2 | GPL (>= 2) | https://cran.r-project.org/package=doBy |
 | doParallel | 1.0.17 | GPL-2 | https://cran.r-project.org/package=doParallel |
 | dplyr | 1.2.1 | MIT + file LICENSE | https://cran.r-project.org/package=dplyr |
+| DRDID | 1.3.0 | GPL-3 | https://cran.r-project.org/package=DRDID |
+| dreamerr | 1.5.0 | GPL-3 | https://cran.r-project.org/package=dreamerr |
 | e1071 | 1.7-17 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=e1071 |
 | EGAnet | 2.4.1 | AGPL (>= 3.0) | https://cran.r-project.org/package=EGAnet |
 | eigenmodel | 1.12 | GPL-2 | https://cran.r-project.org/package=eigenmodel |
@@ -72,8 +78,10 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | expm | 1.0-1 | GPL (>= 2) | https://cran.r-project.org/package=expm |
 | farver | 2.1.2 | MIT + file LICENSE | https://cran.r-project.org/package=farver |
 | fastGHQuad | 1.0.1 | MIT + file LICENSE | https://cran.r-project.org/package=fastGHQuad |
+| fastglm | 0.1.2 | GPL (>= 2) | https://cran.r-project.org/package=fastglm |
 | fastmap | 1.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=fastmap |
 | fdrtool | 1.2.18 | GPL (>= 3) | https://cran.r-project.org/package=fdrtool |
+| fixest | 0.14.2 | GPL-3 | https://cran.r-project.org/package=fixest |
 | flexmix | 2.3-21 | GPL (>= 2) | https://cran.r-project.org/package=flexmix |
 | fontawesome | 0.5.3 | MIT + file LICENSE | https://cran.r-project.org/package=fontawesome |
 | forcats | 1.0.1 | MIT + file LICENSE | https://cran.r-project.org/package=forcats |
@@ -263,6 +271,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | SparseM | 1.84-2 | GPL (>= 2) | https://cran.r-project.org/package=SparseM |
 | statnet.common | 4.13.0 | GPL-3 + file LICENSE | https://cran.r-project.org/package=statnet.common |
 | stringi | 1.8.9 | file LICENSE | https://cran.r-project.org/package=stringi |
+| stringmagic | 1.3.0 | GPL (>= 2) | https://cran.r-project.org/package=stringmagic |
 | stringr | 1.6.0 | MIT + file LICENSE | https://cran.r-project.org/package=stringr |
 | survival | 3.8-12 | LGPL (>= 2) | https://cran.r-project.org/package=survival |
 | symmoments | 1.2.2 | GPL | https://cran.r-project.org/package=symmoments |
@@ -276,11 +285,13 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | tinytex | 0.61 | MIT + file LICENSE | https://cran.r-project.org/package=tinytex |
 | TruncatedNormal | 2.3 | GPL-3 | https://cran.r-project.org/package=TruncatedNormal |
 | truncnorm | 1.0-9 | GPL (>= 2) | https://cran.r-project.org/package=truncnorm |
+| trust | 0.1-9 | MIT + file LICENSE | https://cran.r-project.org/package=trust |
 | turner | 0.2.0 | GPL-3 | https://cran.r-project.org/package=turner |
 | tzdb | 0.5.0 | MIT + file LICENSE | https://cran.r-project.org/package=tzdb |
 | ucminf | 1.2.3 | GPL (>= 2) | https://cran.r-project.org/package=ucminf |
 | urca | 1.3-4 | GPL (>= 2) | https://cran.r-project.org/package=urca |
 | utf8 | 1.2.6 | Apache License (== 2.0) \| file LICENSE | https://cran.r-project.org/package=utf8 |
+| uuid | 1.2-2 | MIT + file LICENSE | https://cran.r-project.org/package=uuid |
 | V8 | 8.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=V8 |
 | vctrs | 0.7.3 | MIT + file LICENSE | https://cran.r-project.org/package=vctrs |
 | VGAM | 1.1-14 | GPL-3 | https://cran.r-project.org/package=VGAM |

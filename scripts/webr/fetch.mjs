@@ -31,7 +31,7 @@ const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://gi
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
 /** Packages the app calls directly. */
-const ROOTS = ['lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet'];
+const ROOTS = ['fixest', 'did', 'lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet'];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES
  * stanzas) instead of downloaded from repo.r-wasm.org. glasso and glassoFast

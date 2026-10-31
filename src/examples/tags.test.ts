@@ -8,6 +8,7 @@ describe('example topics', () => {
   it('are derived from what the example contains', () => {
     expect(tagsOf('lavaan-hs')).toEqual(['CB-SEM', 'CFA']);
     expect(tagsOf('lavaan-hs-means')).toEqual(['CB-SEM', 'CFA', 'Mean structure']);
+    expect(tagsOf('did-mpdta')).toEqual(['CB-SEM', 'Causal inference', 'Difference-in-differences', 'Panel data']);
     expect(tagsOf('seminr-interaction-methods')).toEqual(['PLS-SEM', 'Moderation', 'Composites']);
     expect(tagsOf('lavaan-poldem')).toEqual(['CB-SEM', 'Mediation', 'Correlated errors']);
     expect(tagsOf('lavaan-hs-groups')).toEqual(['CB-SEM', 'CFA', 'Multigroup']);

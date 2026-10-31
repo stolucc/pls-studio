@@ -152,6 +152,12 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const r = await gmmR(data, gmmInput(options, 1));
         expect(r.models.map((m) => m.k)).toEqual([1, 2, 3]);
         expect(r.n).toBe(100);
+      } else if (p.kind === 'did') {
+        const { didR } = await import('../rengine/did');
+        const { kind: _k, ...opts } = p;
+        const r = await didR(data, { ...opts, seed: 1, confidence: 0.95 });
+        if (ex.id === 'did-mpdta') { expect(r.att.est).toBeCloseTo(-0.04, 2); expect(r.att.se).toBeCloseTo(0.013, 2); expect(r.groupTime!.length).toBeGreaterThanOrEqual(12); }  // ?aggte: ATT -0.04 (0.013)
+        else { expect(r.units).toBe(new Set(data.cols[data.names.indexOf('id')]).size); expect(r.periods).toBe(10); expect(r.event.length).toBe(10); expect(r.att.est).toBeGreaterThan(0); }
       } else if (p.kind === 'growth') {
         const r = await growthR(data, { ...p, estimator: 'ML', missing: st.missing });
         if (ex.id === 'lavaan-growth-conditional') { expect(r.fit.df).toBe(21); expect(r.fit.chisq).toBeCloseTo(26.059, 2); }  // the tutorial's model, run natively

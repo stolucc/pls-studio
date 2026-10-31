@@ -1,6 +1,7 @@
 // The analyses that live as cards on the Analyses tab.
 
 import { matchAnalysis } from './match';
+import { didAnalysis } from './did';
 import { ncaAnalysis } from './nca';
 import { rsaAnalysis } from './rsa';
 import { endoAnalysis } from './endo';
@@ -20,6 +21,6 @@ import { runAnalysis } from './runCard';
 import { snapshotAnalysis } from './snapshot';
 import type { AnalysisType } from './types';
 
-export const ANALYSIS_TYPES: AnalysisType[] = [runAnalysis, snapshotAnalysis, screenAnalysis, chartAnalysis, influenceAnalysis, efaAnalysis, irtAnalysis, lcaAnalysis, networkAnalysis, egaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, endoAnalysis, lmmAnalysis, growthAnalysis, riclpmAnalysis, gmmAnalysis];
+export const ANALYSIS_TYPES: AnalysisType[] = [runAnalysis, snapshotAnalysis, screenAnalysis, chartAnalysis, influenceAnalysis, didAnalysis, efaAnalysis, irtAnalysis, lcaAnalysis, networkAnalysis, egaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, endoAnalysis, lmmAnalysis, growthAnalysis, riclpmAnalysis, gmmAnalysis];
 
 export const analysisType = (id: string): AnalysisType | undefined => ANALYSIS_TYPES.find((t) => t.id === id);
