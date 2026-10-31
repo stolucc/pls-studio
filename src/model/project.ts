@@ -495,7 +495,7 @@ export function createsCycle(paths: Path[], from: string, to: string): boolean {
 export function validateModel(
   model: ModelState,
   data: Dataset | null,
-  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc' | 'plsPackage' | 'plsApproach'>> = DEFAULT_SETTINGS,
+  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc' | 'plsPackage' | 'plsApproach' | 'scheme'>> = DEFAULT_SETTINGS,
 ): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string, constructId?: string) => issues.push({ level: 'error', message, constructId });
@@ -622,6 +622,54 @@ export function validateModel(
       const shown = pairs.slice(0, 4).map(([a, b]) => `${a.name} ↔ ${b.name}`).join(', ');
       issues.push({ level: 'warning', action: 'exogenous-correlations',
         message: `No correlation is drawn between ${shown}${pairs.length > 4 ? ` and ${pairs.length - 4} more pair${pairs.length - 4 > 1 ? 's' : ''}` : ''}: as exogenous constructs they are estimated as uncorrelated. Intended?` });
+    }
+  }
+
+  // Combinations the engines refuse: said here, before anything runs (and before R is even loaded).
+  const matrix = !!data?.moments;
+  if (method.method === 'pls') {
+    if ((method.plsPackage ?? 'cSEM') === 'seminr' && (method.engine ?? 'r') === 'r') {
+      if (method.scheme === 'centroid') err('seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.');
+      if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`The ${method.plsApproach} weighting approach is estimated with cSEM; choose cSEM.`);
+    }
+    if ((method.engine ?? 'r') === 'builtin' && (method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`The ${method.plsApproach} weighting approach is estimated with cSEM: choose “R packages” under Calculated by.`);
+  }
+  if (method.method === 'cbsem') {
+    const mods = model.moderations.length > 0;
+    if (matrix) {
+      if (mods) err('Latent interactions need raw data (product indicators); this dataset is a covariance matrix.');
+      if (method.estimator === 'MLR') err('MLR needs raw data; with a covariance matrix use MLM or MLMV (with NACOV), ML, GLS or ULS.');
+      if (method.estimator === 'RML') err('Robust ML (rsem) needs raw data.');
+      if (model.multigroup) err('Multiple-group analysis needs raw data with a grouping column.');
+      if (model.multilevel) err('A two-level model needs raw data with a cluster column.');
+      if (model.weights) err('Sampling weights need raw data.');
+      if ((method.missing ?? 'mean') === 'mi') err('Multiple imputation needs raw data.');
+      if ((method.missing ?? 'mean') === 'fiml') err('FIML needs raw data; a covariance matrix has no missing values.');
+    }
+    if ((method.missing ?? 'mean') === 'mi') {
+      if (method.estimator && !['ML', 'MLR'].includes(method.estimator)) err('With multiple imputation choose the ML or MLR estimator.');
+      if (method.estimator === 'RML') err('Robust ML (rsem) uses the missing values itself (EM); choose FIML or casewise instead of multiple imputation.');
+    }
+    if (mods && (method.interaction ?? 'product') !== 'product') {
+      if (model.multigroup) err('LMS and QML (modsem) need a single-group model; use product indicators with groups.');
+      if (model.esem?.blocks.length) err('LMS and QML (modsem) cannot be combined with ESEM blocks; use product indicators.');
+      if (model.weights) err('Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.');
+    }
+    if (model.weights) {
+      if (model.multilevel) err('Sampling weights cannot be combined with a two-level model.');
+      if (method.estimator && !['ML', 'MLR', 'MLM', 'WLSMV'].includes(method.estimator)) err('With sampling weights choose ML, MLR or MLM (or WLSMV for ordinal indicators).');
+    }
+  }
+  // Data that no estimator can use: an indicator with no variance, or with no values at all.
+  if (data && !matrix) {
+    for (const c of model.constructs) for (const ind of c.indicators) {
+      const k = data.names.indexOf(ind);
+      if (k < 0) continue;
+      const col = data.cols[k];
+      let n = 0, first = NaN, constant = true;
+      for (let i = 0; i < col.length; i++) { const v = col[i]; if (Number.isNaN(v)) continue; if (n === 0) first = v; else if (v !== first) constant = false; n++; }
+      if (n === 0) err(`Indicator "${ind}" (in "${c.name}") has no values.`, c.id);
+      else if (constant && n > 0) err(`Indicator "${ind}" (in "${c.name}") is constant (${first} in every row): it carries no information.`, c.id);
     }
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { covarianceLayout } from '../components/CovarianceLayer';
-import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, type ModelState, parseProject, pruneCorrelations, serializeProject, toSpec, validateModel } from './project';
+import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, type Construct, type ModelState, parseProject, pruneCorrelations, serializeProject, toSpec, validateModel } from './project';
 
 const data = { names: ['a1', 'a2', 'b1', 'c1'], cols: [1, 2, 3, 4].map(() => Float64Array.from({ length: 100 }, (_, i) => i % 7)) };
 const C = (id: string, name: string, indicators: string[]) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators, x: 0, y: 0, side: 'left' as const });
@@ -301,7 +301,7 @@ describe('sampling weights (CB-SEM)', () => {
 
 describe('correlations (double-headed arrows)', () => {
   const cbs = { method: 'cbsem' as const, consistent: false };
-  const d = { names: ['a1', 'a2', 'b1', 'b2', 'c1', 'c2', 'x1'], cols: Array.from({ length: 7 }, (_, k) => Float64Array.from({ length: 100 }, (_, i) => (i * (k + 2)) % 7)) };
+  const d = { names: ['a1', 'a2', 'b1', 'b2', 'c1', 'c2', 'x1'], cols: Array.from({ length: 7 }, (_, k) => Float64Array.from({ length: 100 }, (_, i) => (i * (k + 2)) % 11)) };
   const m: ModelState = {
     constructs: [C('A', 'Alpha', ['a1', 'a2']), C('B', 'Beta', ['b1', 'b2']), C('G', 'Gamma', ['c1', 'c2']), C('X', 'Solo', ['x1'])],
     paths: [{ id: 'p1', from: 'A', to: 'B' }, { id: 'p2', from: 'A', to: 'G' }, { id: 'p3', from: 'X', to: 'B' }],
@@ -404,7 +404,7 @@ describe('correlation drawing rules', () => {
 
 describe('disturbance covariance with a direct path', () => {
   it('warns that the model is non-recursive', () => {
-    const d = { names: ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'], cols: Array.from({ length: 6 }, (_, k) => Float64Array.from({ length: 100 }, (_, i) => (i * (k + 2)) % 7)) };
+    const d = { names: ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'], cols: Array.from({ length: 6 }, (_, k) => Float64Array.from({ length: 100 }, (_, i) => (i * (k + 2)) % 11)) };
     const m: ModelState = {
       constructs: [C('A', 'Alpha', ['a1', 'a2']), C('B', 'Beta', ['b1', 'b2']), C('G', 'Gamma', ['c1', 'c2'])],
       paths: [{ id: 'p1', from: 'A', to: 'B' }, { id: 'p2', from: 'A', to: 'G' }, { id: 'p3', from: 'B', to: 'G' }],
@@ -448,5 +448,42 @@ describe('PLSc and Mode B common factors', () => {
     expect(warns(model('factor', 'B'), false)).toEqual([]);
     expect(warns(model('factor', 'A'), true)).toEqual([]);
     expect(warns(model('composite', 'B'), true)).toEqual([]);
+  });
+});
+
+describe('validateModel: combinations the engines refuse, caught before anything runs', () => {
+  const C2 = (id: string, name: string, ind: string[]): Construct => ({ id, name, type: 'factor', mode: 'A', indicators: ind, x: 0, y: 0, side: 'left' });
+  const m: ModelState = { constructs: [C2('A', 'Alpha', ['a1', 'a2']), C2('B', 'Beta', ['b1', 'b2'])], paths: [{ id: 'p', from: 'A', to: 'B' }], moderations: [] };
+  const raw = { names: ['a1', 'a2', 'b1', 'b2'], cols: [Float64Array.from([1, 2, 3, 4, 5]), Float64Array.from([2, 1, 4, 3, 5]), Float64Array.from([1, 3, 2, 5, 4]), Float64Array.from([5, 4, 3, 2, 1])] };
+  const matrix = { names: raw.names, cols: [], moments: { S: [[1, .3, .2, .1], [.3, 1, .2, .1], [.2, .2, 1, .4], [.1, .1, .4, 1]], n: 100 } };
+  const errs = (settings: Parameters<typeof validateModel>[2], model = m, data: Parameters<typeof validateModel>[1] = raw) => validateModel(model, data, settings).filter((i) => i.level === 'error').map((i) => i.message);
+
+  it('PLS: seminr has no centroid scheme; GSCA, PCA and sum scores are cSEM only', () => {
+    expect(errs({ method: 'pls', consistent: false, plsPackage: 'seminr', scheme: 'centroid' })).toContainEqual(expect.stringContaining('seminr offers the path and factor weighting schemes only'));
+    expect(errs({ method: 'pls', consistent: false, plsPackage: 'seminr', plsApproach: 'GSCA' })).toContainEqual(expect.stringContaining('estimated with cSEM; choose cSEM'));
+    expect(errs({ method: 'pls', consistent: false, engine: 'builtin', plsApproach: 'PCA' })).toContainEqual(expect.stringContaining('choose “R packages”'));
+    expect(errs({ method: 'pls', consistent: false, plsPackage: 'seminr', scheme: 'path' })).toEqual([]);
+  });
+
+  it('CB-SEM with a covariance matrix: no interactions, MLR, robust ML, groups, levels, weights, imputation or FIML', () => {
+    const e = errs({ method: 'cbsem', consistent: false, estimator: 'MLR', missing: 'mi' }, { ...m, moderations: [{ id: 'mo', moderator: 'B', path: 'p' }], multigroup: { column: 'g', invariance: 'metric', free: [] }, weights: 'w' } as ModelState, matrix);
+    for (const part of ['Latent interactions need raw data', 'MLR needs raw data', 'Multiple-group analysis needs raw data', 'Sampling weights need raw data', 'Multiple imputation needs raw data']) expect(e).toContainEqual(expect.stringContaining(part));
+    expect(errs({ method: 'cbsem', consistent: false, estimator: 'ML' }, m, matrix)).toEqual([]);
+  });
+
+  it('CB-SEM: imputation with ML or MLR only; LMS / QML single-group without ESEM or weights; weights with ML, MLR, MLM or WLSMV', () => {
+    expect(errs({ method: 'cbsem', consistent: false, estimator: 'MLM', missing: 'mi' })).toContainEqual(expect.stringContaining('choose the ML or MLR estimator'));
+    expect(errs({ method: 'cbsem', consistent: false, estimator: 'RML', missing: 'mi' })).toContainEqual(expect.stringContaining('Robust ML (rsem) uses the missing values itself'));
+    const lms = errs({ method: 'cbsem', consistent: false, estimator: 'ML', interaction: 'lms' }, { ...m, moderations: [{ id: 'mo', moderator: 'B', path: 'p' }], multigroup: { column: 'g', invariance: 'configural', free: [] }, weights: 'w' } as ModelState);
+    expect(lms).toContainEqual(expect.stringContaining('need a single-group model'));
+    expect(lms).toContainEqual(expect.stringContaining('cannot be combined with LMS / QML'));
+    expect(errs({ method: 'cbsem', consistent: false, estimator: 'GLS' }, { ...m, weights: 'w' })).toContainEqual(expect.stringContaining('With sampling weights choose ML, MLR or MLM'));
+  });
+
+  it('flags indicators that are constant or have no values', () => {
+    const d = { names: raw.names, cols: [raw.cols[0], Float64Array.from([3, 3, 3, 3, NaN]), Float64Array.from([NaN, NaN, NaN, NaN, NaN]), raw.cols[3]] };
+    const e = errs({ method: 'pls', consistent: false }, m, d);
+    expect(e).toContainEqual('Indicator "a2" (in "Alpha") is constant (3 in every row): it carries no information.');
+    expect(e).toContainEqual('Indicator "b1" (in "Beta") has no values.');
   });
 });

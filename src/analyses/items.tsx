@@ -11,7 +11,6 @@ import { clampNum, columnsFingerprint, isObj, missingColumns, names, oneOf, rawD
 import type { AnalysisType, OptionsProps } from './types';
 
 /** Inputs filled in by an example. */
-export type ItemsPreset = { kind: 'irt'; items: string[]; model: IrtModel } | { kind: 'lca'; items: string[]; from: number; to: number };
 export interface IrtOptions { items: string[]; model: IrtModel }
 export interface LcaOptions { items: string[]; from: number; to: number }
 
