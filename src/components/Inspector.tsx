@@ -32,6 +32,8 @@ function ConstructInspector({ c }: { c: Construct }) {
   const del = useStore((s) => s.deleteItems);
   const method = useStore((s) => s.settings.method);
   const plsPackage = useStore((s) => s.settings.plsPackage);
+  // cSEM's GSCA / PCA / sum-score approaches weight every construct their own way: a construct's mode then has no effect.
+  const globalWeights = useStore((s) => s.settings.engine === 'r' && s.settings.plsPackage === 'cSEM' && s.settings.plsApproach !== 'PLS-PM');
   const constructs = useStore((s) => s.model.constructs);
   const results = useFreshResults();
   const pls = method === 'pls' ? results?.pls : null;
@@ -54,9 +56,9 @@ function ConstructInspector({ c }: { c: Construct }) {
               title={method === 'cbsem' ? 'Emergent variable: an exact weighted sum of its indicators, which covary freely (lavaan’s composites; hexagon)' : 'Emergent variable: a weighted combination of its indicators (hexagon)'}>Composite</button>
           </div>
         </div>}
-        {method === 'pls' && (!c.components?.length || plsPackage === 'seminr') && (
+        {method === 'pls' && (!c.components?.length || plsPackage === 'seminr') && !globalWeights && (
           <div className="field">
-            <label>Weighting (PLS)</label>
+            <label title="How this construct's indicator weights are estimated (each construct has its own mode)">Outer weights (this construct)</label>
             <div className="segmented">
               <button className={c.mode === 'A' ? 'on' : ''} onClick={() => update(c.id, { mode: 'A' })}>Mode A (correlation)</button>
               <button className={c.mode === 'B' ? 'on' : ''} onClick={() => update(c.id, { mode: 'B' })}>Mode B (regression)</button>
@@ -623,8 +625,9 @@ function ModelInspector() {
             ))}
           </div>
         )}
-        {settings.engine === 'r' && pls && settings.plsPackage === 'cSEM' && (
-          <div className="segmented" role="radiogroup" aria-label="Weighting approach" style={{ marginTop: 8 }}>
+        {settings.engine === 'r' && pls && settings.plsPackage === 'cSEM' && (<>
+          <div className="hint" style={{ marginTop: 8 }} title="cSEM's .approach_weights: PLS path modeling uses each construct's own mode (Inspector, Outer weights); the others weight every construct the same way">Weighting approach (all constructs, cSEM)</div>
+          <div className="segmented" role="radiogroup" aria-label="Weighting approach (all constructs, cSEM)" style={{ marginTop: 4 }}>
             {([['PLS-PM', 'PLS-PM', 'Partial least squares path modeling'],
               ['GSCA', 'GSCA', 'Generalized structured component analysis (Hwang & Takane 2004): weights from one global least-squares criterion; with PLSc on, GSCAm for common factors'],
               ['PCA', 'PCA', 'Principal component analysis: each construct is the first principal component of its indicators'],
@@ -632,7 +635,7 @@ function ModelInspector() {
               <button key={id} role="radio" aria-checked={settings.plsApproach === id} className={settings.plsApproach === id ? 'on' : ''} onClick={() => setSettings({ plsApproach: id })} title={tip}>{l}</button>
             ))}
           </div>
-        )}
+        </>)}
         <div className="hint" style={{ marginTop: 8 }}>
           {settings.engine === 'builtin'
             ? 'PLS Studio’s own implementation, validated against the R packages. Instant, no download.'

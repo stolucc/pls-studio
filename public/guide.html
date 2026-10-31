@@ -104,7 +104,7 @@ a { color: var(--accent); }
 <h3>Construct types</h3>
 <table>
   <tr><th>Shape</th><th>Type</th><th>Meaning</th></tr>
-  <tr><td>Ellipse</td><td>Common factor</td><td>Reflective measurement; in PLS, Mode A weights (or Mode B).</td></tr>
+  <tr><td>Ellipse</td><td>Common factor</td><td>Reflective measurement; in PLS, Mode A weights (or Mode B, or sum scores: <span class="ui">Outer weights</span> in the Inspector, per construct). With cSEM, <span class="ui">Weighting approach</span> under Calculated by can replace every construct&rsquo;s mode by GSCA, PCA or sum scores.</td></tr>
   <tr><td>Hexagon</td><td>Composite</td><td>Formed from its indicators; Mode B weights in PLS, an emergent variable in CB-SEM.</td></tr>
   <tr><td>Rectangle</td><td>Covariate / observed variable</td><td>A single observed variable in the structural model (CB-SEM: lavaan's <code>fixed.x</code> semantics).</td></tr>
 </table>

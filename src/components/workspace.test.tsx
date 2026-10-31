@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { emptyModel, resultsKey, useStore } from '../store';
 import { DataWorkspace } from './DataViewer';
 import { TopBar, WorkspaceTabs } from './TopBar';
+import { Inspector } from './Inspector';
 import { AnalysesWorkspace } from './analyses/AnalysesWorkspace';
 import { addAnalysis, addText, loadCards, setTitle, useAnalyses } from '../analyses/store';
 
@@ -224,5 +225,27 @@ describe('workspace layout', () => {
     expect(rule('.analyses-workspace')).toMatch(/grid-column:\s*1 \/ 4/);
     expect(rule('.workspace > .center')).toMatch(/grid-area:\s*1 \/ 2/);
     expect(rule('.workspace > .inspector-col')).toMatch(/grid-area:\s*1 \/ 3/);
+  });
+});
+
+describe('weighting controls', () => {
+  it('the per-construct outer weights are named as such and hidden when cSEM weights every construct globally; the global control says it applies to all', () => {
+    s().newProject();
+    const id = s().addConstruct(0, 0, ['x1', 'x2']);
+    s().select('construct', id);
+    s().setSettings({ method: 'pls', engine: 'r', plsPackage: 'cSEM', plsApproach: 'PLS-PM' });
+    let html = render(<Inspector />);
+    expect(html).toContain('Outer weights (this construct)');
+    s().setSettings({ plsApproach: 'GSCA' });
+    expect(render(<Inspector />)).not.toContain('Outer weights (this construct)');
+    s().setSettings({ plsPackage: 'seminr' });
+    expect(render(<Inspector />)).toContain('Outer weights (this construct)');
+    // The global control sits with the model's settings (nothing selected), cSEM only.
+    useStore.setState({ selection: { nodes: [], edges: [] } });
+    s().setSettings({ plsPackage: 'cSEM' });
+    html = render(<Inspector />);
+    expect(html).toContain('Weighting approach (all constructs, cSEM)');
+    s().setSettings({ plsPackage: 'seminr' });
+    expect(render(<Inspector />)).not.toContain('Weighting approach (all constructs');
   });
 });
