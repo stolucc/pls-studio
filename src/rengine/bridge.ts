@@ -17,6 +17,7 @@ import mcR from './R/mc.R?raw';
 import mixedR from './R/mixed.R?raw';
 import ncaR from './R/nca.R?raw';
 import plsR from './R/pls.R?raw';
+import regressionR from './R/regression.R?raw';
 import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import screenR from './R/screen.R?raw';
@@ -27,7 +28,7 @@ import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, prob
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { did: didR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR };
+export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -68,6 +69,12 @@ export const R_PACKAGES = {
   // Difference-in-differences: fixest (two-way fixed effects, event studies) and did (Callaway & Sant'Anna).
   did: ['jsonlite', 'fixest', 'did', 'sandwich', 'lmtest'],
   fixest: ['jsonlite', 'fixest'],
+  // Regression: base R plus MASS (negative binomial, ordinal), nnet (multinomial) and sandwich / lmtest for robust standard errors.
+  regression: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest'],
+  MASS: ['jsonlite', 'MASS'],
+  nnet: ['jsonlite', 'nnet', 'MASS'],
+  datasets: ['jsonlite'],
+  stats: ['jsonlite'],
   EGAnet: ['jsonlite', 'EGAnet'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],

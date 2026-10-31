@@ -333,10 +333,17 @@ export async function loadPackageExample(id: string) {
     const missingCells = cols.reduce((n, c) => n + c.filter(Number.isNaN).length, 0);
     const model = exampleModel(ex);
     model.constructs = autoLayout(model);
+    let exData = fromFile ? fromFile.data : { names: raw.names, cols, ...categoriesOf(raw.levels) };
+    let exInfo = fromFile ? fromFile.info : { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] };
+    // The help page's recodes: computed columns, then category labels for coded columns.
+    if (ex.computed?.length) {
+      const { computeColumn } = await import('./data/compute');
+      for (const k of ex.computed) ({ data: exData, info: exInfo } = computeColumn(exData, exInfo, k.name, k.expr));
+    }
+    if (ex.labels) exData = { ...exData, categories: { ...(exData.categories ?? {}), ...ex.labels } };
     s.loadProject({
       name: ex.title, model, settings: exampleSettings(useStore.getState().settings, ex.settings),
-      data: fromFile ? fromFile.data : { names: raw.names, cols, ...categoriesOf(raw.levels) },
-      info: fromFile ? fromFile.info : { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] },
+      data: exData, info: exInfo,
       example: ex.id,
     });
     loadCards([]);

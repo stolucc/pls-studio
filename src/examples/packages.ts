@@ -14,6 +14,7 @@ import type { GmmOptions } from '../analyses/longitudinal';
 import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
 import type { DidOptions } from '../analyses/did';
+import type { RegressionOptions } from '../analyses/regression';
 import type { RsaPreset } from '../analyses/rsa';
 import type { EfaPreset } from '../analyses/efa';
 import type { DataFileFormat } from '../data/readFile';
@@ -21,8 +22,8 @@ import type { EgaOptions, NetworkOptions } from '../analyses/network';
 import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -45,6 +46,7 @@ export type ExamplePanel =
   | ({ kind: 'nca' } & NcaPreset)
   | ({ kind: 'efa' } & EfaPreset)
   | ({ kind: 'did' } & DidOptions)
+  | ({ kind: 'regression' } & RegressionOptions)
   | { kind: 'screen'; vars: string[] }
   | ({ kind: 'network' } & Partial<NetworkOptions>)
   | ({ kind: 'ega' } & Partial<EgaOptions>);
@@ -71,6 +73,9 @@ export interface PackageExample {
   multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM: exploratory SEM blocks of construct names. */
   esem?: { blocks: string[][]; rotation: EsemRotation };
+  /** Columns computed from the loaded data before anything else (as a help page recodes its data), and category labels for coded columns. */
+  computed?: { name: string; expr: string }[];
+  labels?: Record<string, string[]>;
   /** CB-SEM: the constant (triangle) on the canvas: meanstructure = TRUE, every indicator intercept free. */
   constant?: boolean;
   /** CB-SEM: arrows from the constant: latent means (or an observed variable's intercept), free, fixed or labelled. Implies `constant`. */
@@ -186,6 +191,64 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'fixest’s simulated panel: 104 individuals over 10 periods, about half treated from period 6 with a gradual effect on y. The help page’s model, y ~ x1 + i(period, treat, 5) | id + period: the treated group’s deviation in each period relative to period 5, with the overall before–after effect. Opens its card on the Analyses tab.',
     data: { package: 'fixest', name: 'base_did' }, constructs: [], paths: [],
     panel: { kind: 'did', design: 'twfe', outcome: 'y', unit: 'id', time: 'period', treated: 'treat', post: 'post', firstPeriod: 6, covariates: ['x1'], control: 'nevertreated', eventStudy: true }, settings: CB('ML'),
+  },
+  {
+    id: 'stats-dobson', package: 'stats', title: 'Poisson regression: Dobson’s randomised trial', source: 'stats, ?glm (Dobson 1990, p. 93)',
+    links: [{ label: '?glm', url: 'https://rdrr.io/r/stats/glm.html' }],
+    description: 'The help page’s first example: counts in a 3 × 3 randomised controlled trial, counts ~ outcome + treatment with a Poisson log link. Opens its card on the Analyses tab.',
+    data: { package: 'stats', name: 'Dobson (1990)', file: 'examples/regression/dobson.csv' }, constructs: [], paths: [], tags: ['Count data'],
+    panel: { kind: 'regression', family: 'poisson', link: 'logit', outcome: 'counts', predictors: ['outcome', 'treatment'], categorical: ['outcome', 'treatment'], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'stats-clotting', package: 'stats', title: 'Gamma regression: blood clotting times', source: 'stats, ?glm (McCullagh & Nelder 1989, pp. 300–302)',
+    links: [{ label: '?glm', url: 'https://rdrr.io/r/stats/glm.html' }],
+    description: 'Clotting time of lot 1 against log(plasma concentration), a Gamma model with the inverse link, as on the help page (log(u) is a computed column). Opens its card on the Analyses tab.',
+    data: { package: 'stats', name: 'clotting (McCullagh & Nelder)', file: 'examples/regression/clotting.csv' }, constructs: [], paths: [], computed: [{ name: 'log_u', expr: 'log(u)' }],
+    panel: { kind: 'regression', family: 'gamma', link: 'logit', outcome: 'lot1', predictors: ['log_u'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'datasets-infert', package: 'datasets', title: 'Logistic regression: infertility after abortion', source: 'datasets, ?infert (model1)',
+    links: [{ label: '?infert', url: 'https://rdrr.io/r/datasets/infert.html' }],
+    description: 'Trichopoulos et al. (1976): 248 women, infertility (case) on the numbers of spontaneous and induced abortions, logistic regression as on the help page. Odds ratios, classification accuracy and the Hosmer–Lemeshow test. Opens its card on the Analyses tab.',
+    data: { package: 'datasets', name: 'infert' }, constructs: [], paths: [], tags: ['Logistic regression'],
+    panel: { kind: 'regression', family: 'binomial', link: 'logit', outcome: 'case', predictors: ['spontaneous', 'induced'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'mass-menarche', package: 'MASS', title: 'Probit regression with binomial counts: age of menarche', source: 'MASS, ?menarche',
+    links: [{ label: '?menarche', url: 'https://rdrr.io/cran/MASS/man/menarche.html' }],
+    description: 'Milicer & Szczotka (1966): in each age group, how many of the girls had reached menarche. Successes (Menarche) out of trials (Total) on Age, probit link, exactly the help page’s model. Opens its card on the Analyses tab.',
+    data: { package: 'MASS', name: 'menarche' }, constructs: [], paths: [], tags: ['Binomial counts'],
+    panel: { kind: 'regression', family: 'binomial', link: 'probit', outcome: 'Menarche', predictors: ['Age'], categorical: [], interactions: [], trials: 'Total', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'mass-quine', package: 'MASS', title: 'Negative binomial regression: days absent from school', source: 'MASS, ?glm.nb (quine.nb1)',
+    links: [{ label: '?glm.nb', url: 'https://rdrr.io/cran/MASS/man/glm.nb.html' }, { label: '?quine', url: 'https://rdrr.io/cran/MASS/man/quine.html' }],
+    description: 'Quine’s 146 Australian schoolchildren: days absent on sex, age group, ethnicity and learner status, over-dispersed counts. The help page’s nested model Days ~ Sex/(Age + Eth*Lrn): sex, and within each sex the effects of age, ethnicity, learner and ethnicity × learner (interaction terms without those main effects). Opens its card on the Analyses tab.',
+    data: { package: 'MASS', name: 'quine' }, constructs: [], paths: [], tags: ['Count data'],
+    panel: { kind: 'regression', family: 'negbin', link: 'logit', outcome: 'Days', predictors: ['Sex'], categorical: [], interactions: [['Sex', 'Age'], ['Sex', 'Eth'], ['Sex', 'Lrn'], ['Sex', 'Eth', 'Lrn']], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'mass-housing', package: 'MASS', title: 'Ordinal regression: satisfaction with housing', source: 'MASS, ?polr (house.plr)',
+    links: [{ label: '?polr', url: 'https://rdrr.io/cran/MASS/man/polr.html' }, { label: '?housing', url: 'https://rdrr.io/cran/MASS/man/housing.html' }],
+    description: 'Madsen (1976): satisfaction (low, medium, high) of Copenhagen residents on perceived influence, housing type and contact with neighbours, a proportional-odds model weighted by the frequency of each combination, as on the help page. Opens its card on the Analyses tab.',
+    data: { package: 'MASS', name: 'housing' }, constructs: [], paths: [], tags: ['Ordinal outcome'],
+    panel: { kind: 'regression', family: 'ordinal', link: 'logistic', outcome: 'Sat', predictors: ['Infl', 'Type', 'Cont'], categorical: [], interactions: [], trials: '', weights: 'Freq', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'mass-birthwt', package: 'MASS', title: 'Logistic regression: risk factors for low birth weight', source: 'MASS, ?birthwt',
+    links: [{ label: '?birthwt', url: 'https://rdrr.io/cran/MASS/man/birthwt.html' }],
+    description: 'Hosmer & Lemeshow’s 189 births at Baystate Medical Center: low birth weight on age, weight, race, smoking, previous premature labours (ptd), hypertension, uterine irritability and physician visits (0, 1, 2+), with the help page’s recodes as computed columns. Opens its card on the Analyses tab.',
+    data: { package: 'MASS', name: 'birthwt' }, constructs: [], paths: [], tags: ['Logistic regression'],
+    computed: [{ name: 'ptd', expr: 'ptl > 0' }, { name: 'ftv2', expr: 'min(ftv, 2)' }], labels: { race: ['white', 'black', 'other'], ftv2: ['0', '1', '2+'] },
+    panel: { kind: 'regression', family: 'binomial', link: 'logit', outcome: 'low', predictors: ['age', 'lwt', 'race', 'smoke', 'ptd', 'ht', 'ui', 'ftv2'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'nnet-birthwt', package: 'nnet', title: 'Multinomial logistic regression: low birth weight', source: 'nnet, ?multinom (bwt.mu)',
+    links: [{ label: '?multinom', url: 'https://rdrr.io/cran/nnet/man/multinom.html' }, { label: '?birthwt', url: 'https://rdrr.io/cran/MASS/man/birthwt.html' }],
+    description: 'The help page fits multinom(low ~ ., bwt) on the same recoded birth-weight data: with two outcome levels one equation, equal to the logistic fit. Replace the outcome by a variable with more levels for one equation per level. Opens its card on the Analyses tab.',
+    data: { package: 'MASS', name: 'birthwt' }, constructs: [], paths: [], tags: ['Multinomial outcome'],
+    computed: [{ name: 'ptd', expr: 'ptl > 0' }, { name: 'ftv2', expr: 'min(ftv, 2)' }], labels: { race: ['white', 'black', 'other'], ftv2: ['0', '1', '2+'] },
+    panel: { kind: 'regression', family: 'multinomial', link: 'logit', outcome: 'low', predictors: ['age', 'lwt', 'race', 'smoke', 'ptd', 'ht', 'ui', 'ftv2'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
   },
   {
     id: 'miivsem-bollen', package: 'MIIVsem', title: 'Political democracy by MIIV-2SLS', source: 'MIIVsem, bollen1989a',
@@ -633,6 +696,7 @@ export function panelColumns(p: ExamplePanel): string[] {
   switch (p.kind) {
     case 'growth': return [...p.measures, ...p.covariates, ...(p.timeVarying ?? [])];
     case 'did': return [p.outcome, p.unit, p.time, p.treated, ...(p.post ? [p.post] : []), ...p.covariates];
+    case 'regression': return [...new Set([p.outcome, ...p.predictors, ...p.interactions.flat(), p.trials, p.weights, p.cluster].filter(Boolean))];
     case 'irt': case 'lca': return p.items;
     case 'lmm': return [p.outcome, ...p.predictors, p.cluster];
     case 'gmm': return [...(p.format === 'wide' ? p.measures : [p.subject, p.time, p.outcome]), ...p.covariates];

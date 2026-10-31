@@ -1,5 +1,6 @@
 EGAnet
 GPArotation
+MASS
 MIIVsem
 MatchIt
 WeightIt
@@ -26,6 +27,7 @@ marginaleffects
 mice
 modsem
 mvtnorm
+nnet
 optimx
 optmatch
 plspm

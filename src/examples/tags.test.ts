@@ -9,6 +9,8 @@ describe('example topics', () => {
     expect(tagsOf('lavaan-hs')).toEqual(['CB-SEM', 'CFA']);
     expect(tagsOf('lavaan-hs-means')).toEqual(['CB-SEM', 'CFA', 'Mean structure']);
     expect(tagsOf('did-mpdta')).toEqual(['CB-SEM', 'Causal inference', 'Difference-in-differences', 'Panel data']);
+    expect(tagsOf('mass-quine')).toEqual(['CB-SEM', 'Regression', 'Count data']);
+    expect(tagsOf('mass-birthwt')).toEqual(['CB-SEM', 'Regression', 'Logistic regression']);
     expect(tagsOf('seminr-interaction-methods')).toEqual(['PLS-SEM', 'Moderation', 'Composites']);
     expect(tagsOf('lavaan-poldem')).toEqual(['CB-SEM', 'Mediation', 'Correlated errors']);
     expect(tagsOf('lavaan-hs-groups')).toEqual(['CB-SEM', 'CFA', 'Multigroup']);

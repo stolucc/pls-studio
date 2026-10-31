@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset } from '../engine/types';
-import { DEFAULT_SETTINGS, toSpec } from '../model/project';
+import { type DataInfo, DEFAULT_SETTINGS, toSpec } from '../model/project';
 import { processInput } from '../process/input';
 import { miivR } from '../rengine/analyses';
 import { rCall, type RPackage } from '../rengine/bridge';
@@ -107,7 +107,14 @@ async function checkSecondOrder(data: Dataset, spec: ReturnType<typeof toSpec>, 
 describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example %s in webR', (_id, ex) => {
   it('loads its data from the package and estimates', async () => {
     currentExample = ex.id;
-    const data = await load(ex);
+    let data = await load(ex);
+    // The help page's recodes (computed columns, category labels), as the example loader applies them.
+    if (ex.computed?.length || ex.labels) {
+      const { computeColumn } = await import('../data/compute');
+      let inf0: DataInfo = { fileName: 'x', rows: data.cols[0].length, missingCells: 0, excluded: [] };
+      for (const k of ex.computed ?? []) ({ data, info: inf0 } = computeColumn(data, inf0, k.name, k.expr));
+      if (ex.labels) data = { ...data, categories: { ...(data.categories ?? {}), ...ex.labels } };
+    }
     const st = { ...DEFAULT_SETTINGS, ...ex.settings };
     if (ex.panel) {
       const p = ex.panel;
@@ -152,6 +159,13 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const r = await gmmR(data, gmmInput(options, 1));
         expect(r.models.map((m) => m.k)).toEqual([1, 2, 3]);
         expect(r.n).toBe(100);
+      } else if (p.kind === 'regression') {
+        // (each of these is checked coefficient by coefficient in src/rengine/regression.webr.test.ts)
+        const { regressionR } = await import('../rengine/regression');
+        const { kind: _k, ...opts } = p;
+        const r = await regressionR(data, { ...opts, confidence: 0.95 });
+        expect(r.coefficients.length).toBeGreaterThan(0);
+        expect(r.lrt).toBeTruthy();
       } else if (p.kind === 'did') {
         const { didR } = await import('../rengine/did');
         const { kind: _k, ...opts } = p;
