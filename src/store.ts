@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { constructGeometry } from './geometry';
 import { factorName } from './model/efa';
 import type { FitTestResult } from './engine/bootstrap';
 import type { CbResult } from './engine/cbsem';
@@ -13,8 +14,7 @@ import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
 import {
   createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec, unconfirmedUncorrelated,
-  type Construct, type Correlation, type DataInfo, type DefinedParameter, type ModelState, type Settings, type Side, type WaldTest,
-} from './model/project';
+  type Construct, type Correlation, type DataInfo, type DefinedParameter, type ModelState, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
 
 export type Tool = 'select' | 'construct' | 'connect' | 'correlate';
 export interface Selection { nodes: string[]; edges: string[]; moderations?: string[]; correlations?: string[] }
@@ -134,6 +134,11 @@ interface State {
   removeIndicator: (id: string, name: string) => void;
   addPath: (from: string, to: string) => boolean;
   removePaths: (ids: string[]) => void;
+  /** The constant (triangle) for means and intercepts, placed left of the model; `addMean` draws its arrow to a construct. */
+  addConstant: () => void;
+  moveConstant: (x: number, y: number) => void;
+  addMean: (constructId: string) => boolean;
+  setMean: (id: string, patch: { fixed?: number | null; label?: string | null }) => void;
   deleteItems: (constructIds: string[], pathIds: string[], moderationIds?: string[], correlationIds?: string[]) => void;
   addModeration: (moderatorId: string, pathId: string) => boolean;
   /** Moderated moderation (conditional process analysis): `moderatorId` moderates the moderation `moderationId`. */
@@ -268,8 +273,8 @@ export const useStore = create<State>((set, get) => ({
   commit: (fn) => {
     if (readOnly(get())) return;
     set((s) => s.history
-      ? { model: pruneCorrelations(pruneFixedLoadings(fn(s.model))), dirty: true }
-      : { model: pruneCorrelations(pruneFixedLoadings(fn(s.model))), past: [...s.past.slice(-HISTORY + 1), s.model], future: [], dirty: true });
+      ? { model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))), dirty: true }
+      : { model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))), past: [...s.past.slice(-HISTORY + 1), s.model], future: [], dirty: true });
   },
   checkpoint: () => set((s) => ({ past: [...s.past.slice(-HISTORY + 1), s.model], future: [] })),
   undo: () => {
@@ -401,6 +406,29 @@ export const useStore = create<State>((set, get) => ({
       ...m,
       constructs: m.constructs.map((c) => (c.id === id ? { ...c, indicators: c.indicators.filter((i) => i !== name) } : c)),
     })),
+  addConstant: () => {
+    const { model } = get();
+    if (model.constant) return;
+    const left = Math.min(0, ...model.constructs.map((c) => c.x - constructGeometry(c).rx)), top = model.constructs.length ? model.constructs.reduce((a, c) => a + c.y, 0) / model.constructs.length : 0;
+    get().commit((m) => ({ ...m, constant: { x: left - 160, y: top } }));
+  },
+  moveConstant: (x, y) => readOnly(get()) ? undefined : set((s) => (s.model.constant ? { dirty: true, model: { ...s.model, constant: { x, y } } } : {})),
+  addMean: (constructId) => {
+    const { model, toast } = get();
+    if (!model.constant || !model.constructs.some((c) => c.id === constructId)) return false;
+    if (model.means?.some((t) => t.target === constructId)) { toast('info', 'That construct already has a mean arrow.'); return false; }
+    const id = newId('m');
+    get().commit((m) => ({ ...m, means: [...(m.means ?? []), { id, target: constructId }] }));
+    return true;
+  },
+  setMean: (id, patch) => get().commit((m) => ({ ...m, means: (m.means ?? []).map((t) => {
+    if (t.id !== id) return t;
+    const { fixed: _f, label: _l, ...rest } = t;
+    const fixed = patch.fixed === undefined ? t.fixed : patch.fixed ?? undefined;
+    const label = patch.label === undefined ? t.label : patch.label ?? undefined;
+    return { ...rest, ...(fixed !== undefined ? { fixed } : {}), ...(label && fixed === undefined ? { label } : {}) };
+  }) })),
+
   addPath: (from, to) => {
     const { model, toast } = get();
     if (model.paths.some((p) => p.from === from && p.to === to)) return false;
@@ -424,7 +452,13 @@ export const useStore = create<State>((set, get) => ({
       const keep = new Set(paths.map((p) => p.id));
       const moderations = m.moderations.filter((mo) => !moderationIds.includes(mo.id) && keep.has(mo.path) && !constructIds.includes(mo.moderator));
       const keptMods = new Set(moderations.map((mo) => mo.id));
+      // The constant travels with the nodes ('constant'), its arrows with the edges (their ids); pruneMeans drops the rest.
+      const { constant, means, ...others } = m;
+      const dropConstant = constructIds.includes('constant');
       return {
+        ...others,
+        ...(constant && !dropConstant ? { constant } : {}),
+        ...(means && !dropConstant ? { means: means.filter((t) => !pathIds.includes(t.id)) } : {}),
         constructs: m.constructs.filter((c) => !constructIds.includes(c.id)).map((c) =>
           c.components?.some((x) => constructIds.includes(x)) ? { ...c, components: c.components.filter((x) => !constructIds.includes(x)) } : c),
         paths,

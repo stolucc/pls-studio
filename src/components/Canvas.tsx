@@ -4,7 +4,7 @@ import {
   type Connection, type ConnectionLineComponentProps, type EdgeChange, type FinalConnectionState, type NodeChange, type OnDelete,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { constructGeometry, distanceToSegment, moderatorSegment, pathSegment, quadraticLoop } from '../geometry';
+import { CONSTANT_R, constructGeometry, distanceToSegment, meanSegment, moderatorSegment, pathSegment, quadraticLoop } from '../geometry';
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { FigurePanel } from './FigurePanel';
@@ -23,9 +23,11 @@ import type { ExampleId } from '../io';
 import { run } from '../runner';
 import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from '../store';
 import { ConstructNode, type ConstructFlowNode } from './ConstructNode';
+import { ConstantNode, type ConstantFlowNode } from './ConstantNode';
+import { MeanEdge, type MeanFlowEdge } from './MeanEdge';
 import { indicatorLabels } from '../diagramLabels';
 import { readDraggedVars, VARS_MIME } from './dnd';
-import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconFitView, IconLayout, IconPlay, IconPointer, IconSparkle, IconUpload } from './icons';
+import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconFitView, IconLayout, IconPlay, IconPointer, IconSparkle, IconTriangle, IconUpload } from './icons';
 import { CovarianceLayer, covarianceLayout, type CorrelationLabel, type CorrelationPick } from './CovarianceLayer';
 import { currentSession } from '../cloud/collab';
 import { PresenceLayer } from './cloud/Presence';
@@ -33,8 +35,10 @@ import { HigherOrderLayer, type HoLabel } from './HigherOrderLayer';
 import { ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
 import { PathEdge, type PathFlowEdge } from './PathEdge';
 
-const nodeTypes = { construct: ConstructNode };
-const edgeTypes = { path: PathEdge };
+const nodeTypes = { construct: ConstructNode, constant: ConstantNode };
+const edgeTypes = { path: PathEdge, mean: MeanEdge };
+type FlowNode = ConstructFlowNode | ConstantFlowNode;
+type FlowEdge = PathFlowEdge | MeanFlowEdge;
 
 function ConnectionLine({ fromX, fromY, toX, toY }: ConnectionLineComponentProps) {
   return <path d={`M ${fromX} ${fromY} L ${toX} ${toY}`} stroke="var(--accent)" strokeWidth={1.8} strokeDasharray="5 4" fill="none" markerEnd="url(#arrow-path-sel)" />;
@@ -230,6 +234,11 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
           const e = cb.estimates.find((x) => x.op === '~' && x.lhs === to && x.rhs === from);
           return { beta: unstd ? e?.est ?? null : cb.stdPaths[i][j], p: boot ?? e?.p ?? null };
         },
+        // A mean is in the variable's units; the standardised form (mean / SD) is what lavaan's std.all gives.
+        mean: (name: string) => {
+          const e = cb.estimates.find((x) => (x.kind === 'mean' || x.kind === 'intercept') && x.lhs === name);
+          return e ? { value: unstd ? e.est : e.std, p: e.p } : null;
+        },
       };
     }
     if (method === 'process' && results.process) {
@@ -313,7 +322,16 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     return e ? (unstd ? e.est : e.std) : null;
   }, [cbEst, miivVar, unstd]);
 
-  const nodes: ConstructFlowNode[] = useMemo(() => model.constructs.map((c) => {
+  // The estimate of a mean arrow (CB-SEM results only).
+  const meanOf = useCallback((name: string): { value: number | null; p: number | null } | null => (display && 'mean' in display && typeof display.mean === 'function' ? display.mean(name) : null), [display]);
+
+  const nodes: FlowNode[] = useMemo(() => [...(model.constant ? [{
+    id: 'constant', type: 'constant' as const,
+    position: { x: model.constant.x - CONSTANT_R - 4, y: model.constant.y - CONSTANT_R - 2 },
+    width: CONSTANT_R * 2 + 8, height: CONSTANT_R * 2 + 4, measured: { width: CONSTANT_R * 2 + 8, height: CONSTANT_R * 2 + 4 },
+    selected: selection.nodes.includes('constant'),
+    data: { tool, hasError: errorIds.has('constant') },
+  } satisfies ConstantFlowNode] : []), ...model.constructs.map((c): ConstructFlowNode => {
     const geom = constructGeometry(c);
     const labels = indicatorLabels(c, method, display, model.esem?.blocks.some((b) => b.constructs.includes(c.id)));
     const w = geom.bounds.w, h = geom.bounds.h;
@@ -328,11 +346,18 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         picked: picked?.kind === 'construct' && picked.via !== 'disturbance' && picked.id === c.id ? true : picked?.kind === 'indicator' && c.indicators.includes(picked.id) ? picked.id : false,
       },
     };
-  }), [model.constructs, model.esem?.blocks, selection.nodes, display, errorIds, tool, method, picked]);
+  })], [model.constructs, model.constant, model.esem?.blocks, selection.nodes, display, errorIds, tool, method, picked]);
 
-  const edges: PathFlowEdge[] = useMemo(() => {
+  const edges: FlowEdge[] = useMemo(() => {
     const name = new Map(model.constructs.map((c) => [c.id, c.name]));
-    const drawn: PathFlowEdge[] = model.paths.map((p) => ({
+    const means: MeanFlowEdge[] = model.constant ? (model.means ?? []).flatMap((t): MeanFlowEdge[] => {
+      const nm = name.get(t.target);
+      if (!nm) return [];
+      const l = meanOf(nm);
+      return [{ id: t.id, source: 'constant', target: t.target, sourceHandle: 's', targetHandle: 't', type: 'mean', selected: selection.edges.includes(t.id),
+        data: { value: l?.value ?? null, p: l?.p ?? null, ...(t.fixed !== undefined ? { fixed: t.fixed } : {}), ...(t.fixed === undefined && t.label ? { label: t.label } : {}) } }];
+    }) : [];
+    const drawn: FlowEdge[] = model.paths.map((p): PathFlowEdge => ({
       id: p.id, source: p.from, target: p.to, sourceHandle: 's', targetHandle: 't', type: 'path',
       selected: selection.edges.includes(p.id),
       data: {
@@ -342,18 +367,20 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         ...(method === 'cbsem' && p.fixed === undefined && p.label ? { label: p.label } : {}),
       },
     }));
+    drawn.push(...means);
     if (!showImplied) return drawn;
     return [...drawn, ...implied.map((e): PathFlowEdge => ({
       id: `implied:${e.from}:${e.to}`, source: e.from, target: e.to, sourceHandle: 's', targetHandle: 't', type: 'path',
       selectable: false, deletable: false, focusable: false,
       data: { ...(display ? display.path(name.get(e.from)!, name.get(e.to)!) : { beta: null, p: null }), implied: true },
     }))];
-  }, [model.paths, model.constructs, model.moderations, selection.edges, display, method, implied, showImplied]);
+  }, [model.paths, model.constructs, model.moderations, model.constant, model.means, selection.edges, display, meanOf, method, implied, showImplied]);
 
-  const onNodesChange = useCallback((changes: NodeChange<ConstructFlowNode>[]) => {
+  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
     let sel: Selection | null = null;
     for (const ch of changes) {
       if (ch.type === 'position' && ch.position) {
+        if (ch.id === 'constant') { st().moveConstant(ch.position.x + CONSTANT_R + 4, ch.position.y + CONSTANT_R + 2); continue; }
         const c = st().model.constructs.find((k) => k.id === ch.id);
         if (!c) continue;
         const b = constructGeometry(c).bounds;
@@ -366,7 +393,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     if (sel) st().setSelection(sel);
   }, [st]);
 
-  const onEdgesChange = useCallback((changes: EdgeChange<PathFlowEdge>[]) => {
+  const onEdgesChange = useCallback((changes: EdgeChange<FlowEdge>[]) => {
     let sel: Selection | null = null;
     for (const ch of changes) {
       if (ch.type === 'select') {
@@ -377,12 +404,14 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     if (sel) st().setSelection(sel);
   }, [st]);
 
-  const onDelete: OnDelete<ConstructFlowNode, PathFlowEdge> = useCallback(({ nodes: ns, edges: es }) => {
+  const onDelete: OnDelete<FlowNode, FlowEdge> = useCallback(({ nodes: ns, edges: es }) => {
     st().deleteItems(ns.map((n) => n.id), es.map((e) => e.id));
   }, [st]);
 
   const onConnect = useCallback((c: Connection) => {
-    if (c.source && c.target && c.source !== c.target) st().addPath(c.source, c.target);
+    if (!c.source || !c.target || c.source === c.target || c.target === 'constant') return;
+    if (c.source === 'constant') { st().addMean(c.target); return; }
+    st().addPath(c.source, c.target);
   }, [st]);
 
   // Dropping a connection onto a path (rather than a construct) makes the
@@ -505,8 +534,17 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       return { d: curve.d, heads: curve.heads, lx: curve.lx, ly: curve.ly, nx: curve.nx, ny: curve.ny,
         points: [[curve.x1, curve.y1], [curve.x2, curve.y2], [curve.lx, curve.ly]] as [number, number][], label: lbl(l?.value, l?.p ?? null) };
     });
-    return { constructs, paths, moderations, higherOrder, errors, correlations };
-  }, [st, method, display, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel]);
+    // The constant and its arrows (means and intercepts).
+    const constant = m.constant;
+    const means = constant ? (m.means ?? []).flatMap((t) => {
+      const c = byId.get(t.target);
+      const seg = c && meanSegment(constant, c);
+      if (!seg) return [];
+      const l = meanOf(c.name);
+      return [{ ...seg, label: lbl(l?.value ?? (t.fixed !== undefined ? t.fixed : null), l?.p ?? null, t.fixed !== undefined && l == null) }];
+    }) : [];
+    return { constructs, paths, moderations, higherOrder, errors, correlations, ...(constant ? { constant, means } : {}) };
+  }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel]);
   // Model snapshots on the Analyses tab draw the diagram from the canvas.
   useEffect(() => { setFigureSource(figureInput); return () => setFigureSource(null); }, [figureInput]);
 
@@ -635,7 +673,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   };
   const menuContent = menu ? menuFor(menu.target, model, { method, readOnly, selected: selection.nodes }) : null;
 
-  const isValidConnection = useCallback((c: Connection | PathFlowEdge) => c.source !== c.target, []);
+  const isValidConnection = useCallback((c: Connection | FlowEdge) => c.source !== c.target && c.target !== 'constant', []);
 
   const addAt = (e: MouseEvent) => {
     const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
@@ -688,6 +726,11 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         <button className="btn ghost" onClick={() => st().layout()} disabled={empty} title="Arrange constructs automatically">
           <IconLayout /> Arrange
         </button>
+        {method === 'cbsem' && !readOnly && !model.constant && (
+          <button className="btn sm ghost" onClick={() => st().addConstant()} title="Add the constant (a triangle, 1): lavaan’s mean structure. Its arrows are latent means and intercepts.">
+            <IconTriangle /> Constant
+          </button>
+        )}
         <button className="btn ghost" onClick={() => setFigureOpen(true)} disabled={empty} title="Figure style and export (PDF, PNG, SVG)">
           <IconDownload /> Figure
         </button>
@@ -723,7 +766,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         </svg>
       )}
 
-      <ReactFlow<ConstructFlowNode, PathFlowEdge>
+      <ReactFlow<FlowNode, FlowEdge>
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}

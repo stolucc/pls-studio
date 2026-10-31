@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { covarianceLayout } from '../components/CovarianceLayer';
-import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, type Construct, type ModelState, parseProject, pruneCorrelations, serializeProject, toSpec, validateModel } from './project';
+import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, type Construct, type ModelState, parseProject, pruneCorrelations, pruneMeans, serializeProject, toSpec, validateModel } from './project';
 
 const data = { names: ['a1', 'a2', 'b1', 'c1'], cols: [1, 2, 3, 4].map(() => Float64Array.from({ length: 100 }, (_, i) => i % 7)) };
 const C = (id: string, name: string, indicators: string[]) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators, x: 0, y: 0, side: 'left' as const });
@@ -485,5 +485,45 @@ describe('validateModel: combinations the engines refuse, caught before anything
     const e = errs({ method: 'pls', consistent: false }, m, d);
     expect(e).toContainEqual('Indicator "a2" (in "Alpha") is constant (3 in every row): it carries no information.');
     expect(e).toContainEqual('Indicator "b1" (in "Beta") has no values.');
+  });
+});
+
+describe('the mean structure (the constant)', () => {
+  const K = (id: string, name: string, ind: string[], extra: Partial<Construct> = {}): Construct => ({ id, name, type: 'factor', mode: 'A', indicators: ind, x: 0, y: 0, side: 'left', ...extra });
+  const m: ModelState = {
+    constructs: [K('A', 'Alpha', ['a1', 'a2']), K('B', 'Beta', ['b1', 'b2']), K('X', 'Age', ['age'], { covariate: true })],
+    paths: [{ id: 'p', from: 'A', to: 'B' }, { id: 'q', from: 'X', to: 'B' }], moderations: [],
+    constant: { x: -200, y: 0 }, means: [{ id: 'm1', target: 'A' }, { id: 'm2', target: 'X', fixed: 12 }, { id: 'm3', target: 'B', label: 'mb' }],
+  };
+  const raw = { names: ['a1', 'a2', 'b1', 'b2', 'age'], cols: [[1, 2, 3, 4, 5], [2, 1, 4, 3, 5], [1, 3, 2, 5, 4], [5, 4, 3, 2, 1], [20, 21, 19, 22, 23]].map((c) => Float64Array.from(c)) };
+  const cbs = { method: 'cbsem' as const, consistent: false, estimator: 'ML' as const };
+
+  it('reaches the engine specification by name, with fixed values and labels', () => {
+    const spec = toSpec(m);
+    expect(spec.meanStructure).toBe(true);
+    expect(spec.means).toEqual([{ construct: 'Alpha' }, { construct: 'Age', fixed: 12 }, { construct: 'Beta', label: 'mb' }]);
+    expect(toSpec({ ...m, constant: undefined }).meanStructure).toBeUndefined();
+  });
+
+  it('survives a project file; arrows to unknown constructs, duplicates and arrows without the constant are dropped', () => {
+    const back = parseProject(serializeProject(m, DEFAULT_SETTINGS, null, null)).model;
+    expect(back.constant).toEqual({ x: -200, y: 0 });
+    expect(back.means).toEqual(m.means);
+    const text = serializeProject({ ...m, means: [...m.means!, { id: 'm4', target: 'ZZ' }, { id: 'm5', target: 'A' }] }, DEFAULT_SETTINGS, null, null);
+    expect(parseProject(text).model.means).toEqual(m.means);
+    expect(parseProject(serializeProject({ ...m, constant: undefined }, DEFAULT_SETTINGS, null, null)).model.means).toBeUndefined();
+    expect(pruneMeans({ ...m, constant: undefined }).means).toBeUndefined();
+    expect(pruneMeans({ ...m, constructs: m.constructs.slice(0, 2) }).means).toEqual([m.means![0], m.means![2]]);
+  });
+
+  it('is a lavaan feature: not in PLS, the built-in engine, MIIV, covariance-matrix input, groups or two-level models', () => {
+    const errs = (settings: Parameters<typeof validateModel>[2], model = m, data: Parameters<typeof validateModel>[1] = raw) => validateModel(model, data, settings).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(errs(cbs)).toEqual([]);
+    expect(errs({ method: 'pls', consistent: false })).toContainEqual(expect.stringContaining('is a CB-SEM feature'));
+    expect(errs({ ...cbs, engine: 'builtin' })).toContainEqual(expect.stringContaining('estimated by lavaan'));
+    expect(errs({ ...cbs, estimator: '2SLS' })).toContainEqual(expect.stringContaining('not available with MIIV-2SLS'));
+    expect(errs(cbs, m, { names: raw.names, cols: [], moments: { S: raw.names.map((_, i) => raw.names.map((_, j) => (i === j ? 1 : 0.2))), n: 50 } })).toContainEqual(expect.stringContaining('carries no means'));
+    expect(errs(cbs, { ...m, multigroup: { column: 'g', invariance: 'scalar', free: [] } })).toContainEqual(expect.stringContaining('come from the invariance level'));
+    expect(errs(cbs, { ...m, constructs: [...m.constructs, K('H', 'Higher', [], { components: ['A', 'B'] })], means: [{ id: 'm9', target: 'H' }] })).toContainEqual(expect.stringContaining('second-order construct'));
   });
 });

@@ -206,6 +206,26 @@ ps_cb_build <- function(req) {
     lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else if (!is.null(cv$fixed)) paste0(ps_num(cv$fixed), "*", b)
       else if (!is.null(cv$label)) paste0(ps_label(cv$label), "*", b) else b))
   }
+  # The mean structure (the constant on the canvas): every indicator intercept is free (lavaan's default
+  # under meanstructure = TRUE). A drawn arrow is a latent mean, identified by fixing the marker
+  # indicator's intercept at 0 (the latent mean is then in the marker's units), or an observed
+  # variable's intercept; fixed at a value or labelled when asked.
+  means_on <- isTRUE(req$model$meanStructure)
+  if (means_on) {
+    if (matrix_input) stop("Means and intercepts need raw data: a covariance matrix carries no means.")
+    if (!is.null(mg)) stop("With groups, latent means come from the invariance level (scalar): remove the constant, or the groups.")
+    if (!is.null(ml)) stop("Means and intercepts are not available in a two-level model here.")
+    for (mt in req$model$means) {
+      j <- match(mt$construct, n$cname)
+      if (is.na(j)) stop("Unknown construct in a mean term.")
+      lv <- lname[[mt$construct]]
+      term <- if (!is.null(mt$fixed)) paste0(ps_num(mt$fixed), "*1") else if (!is.null(mt$label)) paste0(ps_label(mt$label), "*1") else "1"
+      lines <- c(lines, paste(lv, "~", term))
+      if (is.null(mt$fixed) && !is_cov[j] && length(n$inds[[j]]) && !length(comps[[j]])) {
+        lines <- c(lines, paste0(n$iv[[n$inds[[j]][1]]], " ~ 0*1   # marker intercept fixed at 0: identifies the latent mean of ", lv))
+      }
+    }
+  }
   # Defined parameters (functions of labelled parameters, with delta-method standard errors).
   defs <- vapply(req$model$defined, function(d) paste(ps_label(d$name), ":=", ps_expr(d$expr)), "")
   # Inequality constraints on labelled parameters (each side checked as an expression).
@@ -264,10 +284,12 @@ ps_cb_build <- function(req) {
       if (length(partial)) sprintf(", group.partial = %s", ps_q(partial)) else "")
   }
   if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
+  if (means_on) extra <- paste0(extra, ", meanstructure = TRUE")
   extra <- paste0(extra, bounds)
   if (length(esem$blocks)) extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (!is.null(target)) ", rotation.args = list(target = TARGET)" else "")
   if (use_modsem) {
     if (!is.null(weight_var)) stop("Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.")
+    if (means_on) stop("Means and intercepts are not available with LMS / QML; use product indicators.")
     body[1] <- "suppressPackageStartupMessages({ library(lavaan); library(modsem) })"
     body <- c(body, sprintf("# Latent interaction by %s (modsem; Klein & Moosbrugger 2000 / Klein & Muthen 2007)", toupper(method)),
       "model <- '", paste0("  ", lines), "'", sprintf("fit <- modsem(model, data = data, method = \"%s\")", method))
@@ -336,7 +358,7 @@ ps_cb_build <- function(req) {
       paste(vapply(unlist(tests[[i]]$constraints), function(h) { parts <- strsplit(h, "==", fixed = TRUE)[[1]]
         if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
-  list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
+  list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
     inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites)
 }
 
@@ -364,6 +386,8 @@ ps_cb <- function(req_json, export = FALSE) {
   # Between-level factors of a two-level model carry the suffix _b.
   back <- c(setNames(constructs, lv_lname), setNames(constructs, paste0(lv_lname, "_b")), setNames(indicators, ind_v))
   is_lv <- function(x) x %in% c(lv_lname, paste0(lv_lname, "_b"))
+  # (an observed covariate is its own lavaan name: its "~1" is an intercept, not a latent mean)
+  latent_names <- { lv <- unname(b$lname[!b$is_cov]); c(lv, paste0(lv, "_b")) }
   nm <- function(x) unname(back[x])
 
   levels2 <- !is.null(b$cluster_var)
@@ -397,11 +421,12 @@ ps_cb <- function(req_json, export = FALSE) {
     }
     # Defined parameters (block 0) belong to the whole model: shown with every group or level.
     if (!is.null(g)) pe <- pe[blk(pe) == g | pe$op == ":=", ]
-    # Latent means (estimated in groups after the first under scalar invariance).
-    pe <- pe[pe$op %in% c("=~", "<~", "~", "~~", "|", ":=") | (pe$op == "~1" & pe$lhs %in% lv_lname & !is.na(pe$free) & pe$free > 0), ]
+    # Means and intercepts: all of them with the mean structure on (a fixed marker intercept
+    # included); otherwise the latent means estimated in groups after the first under scalar invariance.
+    pe <- pe[pe$op %in% c("=~", "<~", "~", "~~", "|", ":=") | (pe$op == "~1" & (isTRUE(b$means) | (pe$lhs %in% lv_lname & !is.na(pe$free) & pe$free > 0))), ]
     est <- lapply(seq_len(nrow(pe)), function(i) {
       r <- pe[i, ]; free <- r$free > 0
-      kind <- if (r$op == "~1") "mean" else if (r$op == ":=") "defined" else if (r$op == "|") "threshold"
+      kind <- if (r$op == "~1") { if (r$lhs %in% latent_names) "mean" else "intercept" } else if (r$op == ":=") "defined" else if (r$op == "|") "threshold"
         else if (r$op == "<~") { if (free) "weight" else "fixed-weight" }
         else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
         else if (r$op == "~") "regression"

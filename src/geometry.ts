@@ -142,6 +142,19 @@ export function distanceToSegment(px: number, py: number, seg: { x1: number; y1:
 }
 
 /** Moderator arrow: from the moderator's boundary to the midpoint of the moderated path. */
+/** Half-size of the constant's triangle (ConstantNode). */
+export const CONSTANT_R = 20;
+
+/** The arrow from the constant (centre k) to construct t's boundary. */
+export function meanSegment(k: { x: number; y: number }, t: Placed): { x1: number; y1: number; x2: number; y2: number } | null {
+  const g = constructGeometry(t);
+  const dx = t.x - k.x, dy = t.y - k.y;
+  const l = Math.hypot(dx, dy);
+  if (l === 0) return null;
+  const [bx, by] = shapePoint(shapeOf(t), g.rx, g.ry, -dx, -dy);
+  return { x1: k.x + (dx / l) * CONSTANT_R * 0.8, y1: k.y + (dy / l) * CONSTANT_R * 0.8, x2: t.x + bx, y2: t.y + by };
+}
+
 export function moderatorSegment(m: Placed, path: { x1: number; y1: number; x2: number; y2: number }) {
   const mx = (path.x1 + path.x2) / 2, my = (path.y1 + path.y2) / 2;
   const g = constructGeometry(m);

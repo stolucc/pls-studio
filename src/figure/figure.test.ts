@@ -99,3 +99,14 @@ describe('implied main effects in the figure', () => {
     expect(line(dashed).some((l) => l.includes('stroke-dasharray="5 4"'))).toBe(true);
   });
 });
+
+describe('the constant in figures', () => {
+  it('draws the triangle, its "1", its arrows and their labels', () => {
+    const f = input();
+    const svg = renderFigureSvg({ ...f, constant: { x: -150, y: 0 }, means: [{ x1: -134, y1: 0, x2: -60, y2: 0, label: { value: 4.936, p: 0.001, fixed: false } }] }, { ...DEFAULT_FIGURE_STYLE, showEstimates: true }).svg;
+    expect(svg).toMatch(/<path d="M -150 -20 L -131 14 L -169 14 Z"/);
+    expect(svg).toContain('>1</text>');
+    expect(svg).toContain('4.936');
+    expect(renderFigureSvg(f, DEFAULT_FIGURE_STYLE).svg).not.toMatch(/<path d="M -150 -20/);
+  });
+});

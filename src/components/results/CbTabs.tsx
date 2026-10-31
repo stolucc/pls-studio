@@ -167,10 +167,10 @@ function Variances({ cb }: { cb: CbResult }) {
       <Table title="Indicator error variances and covariances" file="cb-residuals" columns={['Indicator', ...estCols(cb)]}
         rows={vv.filter((e) => e.kind === 'residual' || e.kind === 'rescov').map((e) => estRow(e, e.lhs === e.rhs ? e.lhs : `${e.lhs} ↔ ${e.rhs}`))}
         note="Standardised error variance = 1 − indicator R²; standardised error covariance = error correlation. Single-indicator factors have their error variance fixed to 0, or, with a known reliability, at (1 − reliability) × the indicator’s variance (shown without a standard error)." />
-      {cb.estimates.some((e) => e.kind === 'mean') && (
-        <Table title="Latent means" file="cb-latent-means" columns={['Factor', ...estCols(cb)]}
-          rows={cb.estimates.filter((e) => e.kind === 'mean').map((e) => estRow(e, e.lhs))}
-          note="Under scalar invariance the latent means of the first group are fixed to 0; in the other groups they are the differences from it, in the factors’ units." />
+      {cb.estimates.some((e) => e.kind === 'mean' || e.kind === 'intercept') && (
+        <Table title="Means and intercepts" file="cb-means" columns={['Variable', ...estCols(cb)]}
+          rows={cb.estimates.filter((e) => e.kind === 'mean' || e.kind === 'intercept').map((e) => estRow(e, e.kind === 'mean' ? `${e.lhs} (latent mean)` : e.lhs))}
+          note="With the constant on the canvas every indicator intercept is estimated (lavaan’s mean structure); an arrow from the constant is a latent mean, identified by fixing its marker indicator’s intercept at 0 (shown without a standard error), or an observed variable’s intercept. Under scalar invariance across groups the latent means of the first group are fixed to 0; in the other groups they are the differences from it, in the factors’ units." />
       )}
       {cb.estimates.some((e) => e.kind === 'threshold') && (
         <Table title="Thresholds of the ordinal indicators" file="cb-thresholds" columns={['Indicator', 'Threshold', ...estCols(cb)]}

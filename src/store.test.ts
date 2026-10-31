@@ -245,3 +245,49 @@ describe('factors from an exploratory factor analysis', () => {
     expect(s().model.correlations).toHaveLength(1);
   });
 });
+
+describe('the constant in the store', () => {
+  beforeEach(() => { useStore.getState().newProject(); useStore.setState({ toasts: [], cloud: null }); });
+  const build = () => {
+    const st = useStore.getState();
+    st.setSettings({ method: 'cbsem' });
+    const a = st.addConstruct(300, 100, ['a1', 'a2']), b = st.addConstruct(600, 100, ['b1', 'b2']);
+    st.addPath(a, b);
+    useStore.setState((x) => ({ model: { ...x.model, ordered: ['a1'] } }));
+    return { a, b };
+  };
+
+  it('is added left of the model, takes one mean arrow per construct, and goes with its arrows; deletions keep the other model fields', () => {
+    const { a, b } = build();
+    const st = () => useStore.getState();
+    st().addConstant();
+    expect(st().model.constant!.x).toBeLessThan(300);
+    st().addConstant();  // once
+    expect(st().addMean(a)).toBe(true);
+    expect(st().addMean(a)).toBe(false);
+    expect(st().addMean(b)).toBe(true);
+    expect(st().model.means).toHaveLength(2);
+    const id = st().model.means![0].id;
+    st().setMean(id, { fixed: 3 });
+    expect(st().model.means![0]).toMatchObject({ target: a, fixed: 3 });
+    st().setMean(id, { fixed: null, label: 'ma' });
+    expect(st().model.means![0]).toEqual({ id, target: a, label: 'ma' });
+    // Removing the arrow's construct removes the arrow; the other fields of the model stay.
+    st().deleteItems([b], []);
+    expect(st().model.means!.map((t) => t.target)).toEqual([a]);
+    expect(st().model.ordered).toEqual(['a1']);
+    expect(st().model.constant).toBeTruthy();
+    // Deleting an arrow by its id; deleting the constant drops every arrow.
+    st().deleteItems([], [id]);
+    expect(st().model.means).toEqual([]);
+    st().addMean(a);
+    st().deleteItems(['constant'], []);
+    expect(st().model.constant).toBeUndefined();
+    expect(st().model.means).toBeUndefined();
+    st().undo();
+    expect(st().model.constant).toBeTruthy();
+    expect(st().model.means).toHaveLength(1);
+    st().moveConstant(-50, 40);
+    expect(st().model.constant).toEqual({ x: -50, y: 40 });
+  });
+});

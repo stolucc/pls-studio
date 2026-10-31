@@ -176,6 +176,26 @@ export interface ModelState {
   weights?: string;
   /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
   esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation };
+  /**
+   * CB-SEM (lavaan): the mean structure. `constant` is the triangle ("1") on the canvas; its
+   * presence turns the mean structure on (every indicator intercept is estimated, lavaan's
+   * default). `means` are its arrows: the latent mean of a construct, or the intercept of an
+   * observed variable; free, fixed at a value, or labelled.
+   */
+  constant?: { x: number; y: number };
+  means?: MeanTerm[];
+}
+
+/** An arrow from the constant: a latent mean (or an observed variable's intercept) of construct `target`. */
+export interface MeanTerm { id: string; target: string; fixed?: number; label?: string }
+
+/** Drop mean arrows whose construct is gone, and all of them without the constant. */
+export function pruneMeans(model: ModelState): ModelState {
+  if (!model.means?.length) return model;
+  if (!model.constant) { const { means: _m, ...rest } = model; return rest; }
+  const ids = new Set(model.constructs.map((c) => c.id));
+  const means = model.means.filter((t) => ids.has(t.target));
+  return means.length === model.means.length ? model : { ...model, means };
 }
 
 /** Drop fixed loadings and loading labels of indicators that left their construct. */
@@ -382,6 +402,10 @@ export function toSpec(model: ModelState): ModelSpec {
         ...model.multigroup,
         free: model.multigroup.free.map((f) => (f.kind === 'loading' ? { ...f, construct: name.get(f.construct) ?? f.construct } : f)),
       },
+    } : {}),
+    ...(model.constant ? {
+      meanStructure: true,
+      means: (model.means ?? []).flatMap((t) => (name.has(t.target) ? [{ construct: name.get(t.target)!, ...(t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : {}) }] : [])),
     } : {}),
     moderations: (model.moderations ?? []).flatMap((mo) => {
       const p = model.paths.find((q) => q.id === mo.path);
@@ -658,6 +682,23 @@ export function validateModel(
     if (model.weights) {
       if (model.multilevel) err('Sampling weights cannot be combined with a two-level model.');
       if (method.estimator && !['ML', 'MLR', 'MLM', 'WLSMV'].includes(method.estimator)) err('With sampling weights choose ML, MLR or MLM (or WLSMV for ordinal indicators).');
+    }
+  }
+  // The mean structure (the constant on the canvas): lavaan, raw data, no groups.
+  if (model.constant) {
+    if (method.method !== 'cbsem') err('The constant (means and intercepts) is a CB-SEM feature: switch to CB-SEM, or remove the triangle.');
+    else {
+      if ((method.engine ?? 'r') === 'builtin') err('Means and intercepts are estimated by lavaan: choose “R packages” under Calculated by.');
+      if (method.estimator === '2SLS') err('Means and intercepts are not available with MIIV-2SLS; choose a maximum-likelihood estimator.');
+      if (matrix) err('Means and intercepts need raw data: a covariance matrix carries no means.');
+      if (model.multigroup) err('With groups, latent means come from the invariance level (scalar): remove the constant, or the groups.');
+      if (model.multilevel) err('Means and intercepts are not available in a two-level model here.');
+      if ((method.interaction ?? 'product') !== 'product' && model.moderations.length) err('Means and intercepts are not available with LMS / QML; use product indicators.');
+      for (const t of model.means ?? []) {
+        const c = model.constructs.find((k) => k.id === t.target);
+        if (!c) err('A mean arrow points to a removed construct.');
+        else if (c.components?.length) err(`The mean of "${c.name}" (a second-order construct) is not available.`, c.id);
+      }
     }
   }
   // Data that no estimator can use: an indicator with no variance, or with no values at all.
@@ -1204,6 +1245,16 @@ export function parseModelState(m: unknown): ModelState {
       ...(typeof m.inequalities === 'string' && m.inequalities.trim() ? { inequalities: str(m.inequalities, 2000) } : {}),
       ...(m.positiveVariances === true ? { positiveVariances: true } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
+      ...(isObj(m.constant) ? { constant: { x: num(m.constant.x, -1e6, 1e6, 0), y: num(m.constant.y, -1e6, 1e6, 0) } } : {}),
+      ...(isObj(m.constant) && Array.isArray(m.means) && m.means.length ? { means: (() => {
+        const seen = new Set<string>();
+        return m.means!.slice(0, 500).filter(isObj).flatMap((t: Record<string, unknown>): MeanTerm[] => {
+          const target = str(t.target, 64);
+          if (!ids.has(target) || seen.has(target)) return [];
+          seen.add(target);
+          return [{ id: str(t.id, 64), target, ...(finite(t.fixed) ? { fixed: t.fixed } : {}), ...(labelOf(t.label)) }];
+        });
+      })() } : {}),
   };
 }
 

@@ -201,3 +201,20 @@ describe('versions and changes', () => {
     expect(describeChanges(null, { model: s().model, settings: a, data: { fingerprint: 'x', name: '', rows: 0 } })).toEqual([]);
   });
 });
+
+describe('the mean structure in run descriptions', () => {
+  it('names the constant coming or going, and each mean arrow', () => {
+    const a = s().addConstruct(0, 0, ['a1']), b = s().addConstruct(1, 0, ['b1']);
+    s().addPath(a, b);
+    const data = { fingerprint: 'x', name: '', rows: 0 };
+    const before = { model: s().model, settings: s().settings, data };
+    s().addConstant();
+    s().addMean(a);
+    const withArrow = { model: s().model, settings: s().settings, data };
+    expect(describeChanges(before, withArrow)).toEqual(['+ mean structure (the constant)']);
+    s().addMean(b);
+    s().setMean(s().model.means![1].id, { fixed: 0 });
+    expect(describeChanges(withArrow, { model: s().model, settings: s().settings, data })).toEqual([`+ mean ${s().model.constructs[1].name} = 0`]);
+    expect(describeChanges({ model: s().model, settings: s().settings, data }, before)).toEqual(['− mean structure (the constant)']);
+  });
+});

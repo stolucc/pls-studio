@@ -156,6 +156,8 @@ const kitchenSink: Required<ModelState> = {
   multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'a', indicator: 'a2' }, { kind: 'intercept', indicator: 'b1' }] },
   multilevel: { column: 'school', between: 'same' },
   weights: 'w',
+  constant: { x: 5, y: 6 },
+  means: [{ id: 'm1', target: 'f', fixed: 2 }, { id: 'm2', target: 'b', label: 'mu' }],
   esem: { blocks: [{ id: 'e', constructs: ['a', 'b'] }], rotation: 'target' },
 };
 

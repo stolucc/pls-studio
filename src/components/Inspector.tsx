@@ -809,21 +809,85 @@ function ModelInspector() {
   );
 }
 
+/** An arrow from the constant: the construct's latent mean (or an observed variable's intercept). */
+function MeanInspector({ id }: { id: string }) {
+  const model = useStore((s) => s.model);
+  const setMean = useStore((s) => s.setMean);
+  const del = useStore((s) => s.deleteItems);
+  const results = useFreshResults();
+  const t = model.means?.find((x) => x.id === id);
+  const c = t && model.constructs.find((k) => k.id === t.target);
+  if (!t || !c) return null;
+  const observed = c.covariate || (c.indicators.length === 1 && c.type !== 'factor');
+  const est = results?.cb?.estimates.find((e) => (e.kind === 'mean' || e.kind === 'intercept') && e.lhs === c.name);
+  return (
+    <>
+      <div className="section">
+        <div className="path-title">1 <span className="muted">→</span> {c.name}</div>
+        <div className="hint">{observed ? `The intercept (mean) of ${c.name}.` : `The latent mean of ${c.name}: identified by fixing the intercept of its first indicator (${c.indicators[0] ?? '—'}) at 0, so it is in that indicator’s units.`}</div>
+      </div>
+      {est && (
+        <div className="section">
+          <div className="section-title">ML estimate</div>
+          <div className="kv">
+            <span>Estimate</span><span className="num">{fmt(est.est)}</span>
+            <span>Std. error</span><span className="num">{est.se === null ? '—' : fmt(est.se)}</span>
+            <span>z</span><span className="num">{est.z === null ? '—' : fmt(est.z)}</span>
+            <span>p value</span><span className="num">{est.p === null ? '—' : fmtP(est.p)}</span>
+          </div>
+        </div>
+      )}
+      <div className="section">
+        <div className="section-title">Parameter</div>
+        <div className="field">
+          <label htmlFor="mean-fixed">Fixed value (empty: estimated)</label>
+          <input id="mean-fixed" className="input num" type="number" step="any" value={t.fixed ?? ''} placeholder="free"
+            onChange={(e) => setMean(id, { fixed: e.target.value.trim() === '' ? null : Number(e.target.value) })} />
+        </div>
+        <div className="field">
+          <label htmlFor="mean-label">Label (equal labels = equal values; usable in defined parameters)</label>
+          <input id="mean-label" className="input" value={t.label ?? ''} maxLength={31} disabled={t.fixed !== undefined} onChange={(e) => setMean(id, { label: e.target.value.trim() || null })} />
+        </div>
+        <button className="btn sm danger" onClick={() => del([], [id])}>Remove this arrow</button>
+      </div>
+    </>
+  );
+}
+
+/** The constant itself. */
+function ConstantInspector() {
+  const model = useStore((s) => s.model);
+  const del = useStore((s) => s.deleteItems);
+  const n = model.means?.length ?? 0;
+  return (
+    <div className="section">
+      <div className="section-title">The constant (1)</div>
+      <div className="hint">lavaan’s mean structure is on: every indicator intercept is estimated. Drag from the triangle’s handle to a construct to estimate its latent mean (or an observed variable’s intercept); {n ? `${n} arrow${n > 1 ? 's' : ''} drawn.` : 'no arrows yet.'}</div>
+      <button className="btn sm danger" style={{ marginTop: 8 }} onClick={() => del(['constant'], [])}>Remove the constant{n ? ' and its arrows' : ''}</button>
+    </div>
+  );
+}
+
 export function Inspector() {
   const selection = useStore((s) => s.selection);
   const constructs = useStore((s) => s.model.constructs);
   const model = useStore((s) => s.model);
   const single = selection.nodes.length + selection.edges.length === 1;
   const c = single && selection.nodes.length === 1 ? constructs.find((k) => k.id === selection.nodes[0]) : undefined;
-  const pathId = single && selection.edges.length === 1 ? selection.edges[0] : undefined;
+  const constant = single && selection.nodes.length === 1 && selection.nodes[0] === 'constant' && !!model.constant;
+  const edgeId = single && selection.edges.length === 1 ? selection.edges[0] : undefined;
+  const meanId = edgeId && model.means?.some((t) => t.id === edgeId) ? edgeId : undefined;
+  const pathId = edgeId && !meanId ? edgeId : undefined;
   const modId = selection.moderations?.length === 1 && !c && !pathId ? selection.moderations[0] : undefined;
   const corId = selection.correlations?.length === 1 && !c && !pathId && !modId ? selection.correlations[0] : undefined;
-  const title = c ? 'Construct' : pathId ? 'Path' : modId ? 'Moderation' : corId ? 'Correlation' : selection.nodes.length + selection.edges.length > 1 ? 'Selection' : 'Model';
+  const title = c ? 'Construct' : constant ? 'Constant' : meanId ? 'Mean' : pathId ? 'Path' : modId ? 'Moderation' : corId ? 'Correlation' : selection.nodes.length + selection.edges.length > 1 ? 'Selection' : 'Model';
   return (
     <aside className="panel right" aria-label="Inspector">
       <div className="panel-head"><span>{title}</span></div>
       <div className="panel-body">
         {c ? <ConstructInspector key={c.id} c={c} />
+          : constant ? <ConstantInspector />
+          : meanId ? <MeanInspector id={meanId} />
           : pathId ? <PathInspector id={pathId} />
           : modId ? (model.threeWay?.some((t) => t.id === modId) ? <ThreeWayInspector id={modId} /> : <ModerationInspector id={modId} />)
           : corId ? <CorrelationInspector id={corId} />

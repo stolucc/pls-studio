@@ -100,6 +100,10 @@ export interface ModelSpec {
   multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
   esem?: { blocks: string[][]; rotation: EsemRotation };
+  /** CB-SEM (lavaan): estimate the mean structure (meanstructure = TRUE: every indicator intercept free). */
+  meanStructure?: boolean;
+  /** CB-SEM (lavaan): latent means (or observed variables' intercepts) to estimate, fix or label. */
+  means?: { construct: string; fixed?: number; label?: string }[];
 }
 
 /** Column-oriented numeric data; NaN marks a missing value. */

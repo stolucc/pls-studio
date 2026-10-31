@@ -294,6 +294,10 @@ button, input, select { font: inherit; color: inherit; }
 
 /* construct node */
 .cnode { position: relative; }
+.cnode.constant .constant-shape { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1.4; }
+.cnode.constant.selected .constant-shape { stroke: var(--accent); stroke-width: 2; }
+.cnode.constant .constant-label { font-size: 15px; font-weight: 700; fill: var(--text); font-family: var(--figure-font, inherit); }
+.pedge.mean { stroke-dasharray: none; }
 .cnode svg { overflow: visible; display: block; }
 .cnode .ellipse { fill: var(--construct-fill); stroke: var(--construct-stroke); stroke-width: var(--construct-stroke-width, 1.5); transition: stroke-width 0.1s; }
 .cnode.selected .ellipse { stroke-width: 2.5; filter: drop-shadow(0 0 0 transparent) drop-shadow(0 4px 10px rgba(79, 70, 229, 0.25)); }

@@ -105,6 +105,7 @@ a { color: var(--accent); }
 <h3>Construct types</h3>
 <table>
   <tr><th>Shape</th><th>Type</th><th>Meaning</th></tr>
+  <tr><td>Triangle (1)</td><td>The constant</td><td>CB-SEM: lavaan&rsquo;s mean structure. Add it with <span class="ui">Constant</span> on the toolbar; every indicator intercept is then estimated. Drag from its handle to a construct for that construct&rsquo;s latent mean (identified by fixing its first indicator&rsquo;s intercept at 0) or an observed variable&rsquo;s intercept; the arrow can be fixed at a value or labelled in the Inspector. Results: the <span class="ui">Means and intercepts</span> table. Not with groups (latent means come from the invariance level there), covariance-matrix input, or two-level models.</td></tr>
   <tr><td>Ellipse</td><td>Common factor</td><td>Reflective measurement; in PLS, Mode A weights (or Mode B, or sum scores: <span class="ui">Outer weights</span> in the Inspector, per construct). With cSEM, <span class="ui">Weighting approach</span> under Calculated by can replace every construct&rsquo;s mode by GSCA, PCA or sum scores.</td></tr>
   <tr><td>Hexagon</td><td>Composite</td><td>Formed from its indicators; Mode B weights in PLS, an emergent variable in CB-SEM.</td></tr>
   <tr><td>Rectangle</td><td>Covariate / observed variable</td><td>A single observed variable in the structural model (CB-SEM: lavaan's <code>fixed.x</code> semantics).</td></tr>

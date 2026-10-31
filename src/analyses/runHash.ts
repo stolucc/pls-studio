@@ -112,6 +112,11 @@ export function describeChanges(prev: { model: ModelState; settings: Settings; d
   for (const k of ['ordered', 'defined', 'waldTests', 'inequalities', 'positiveVariances', 'multigroup', 'multilevel', 'esem', 'weights', 'threeWay'] as const) {
     if (JSON.stringify(pm[k] ?? null) !== JSON.stringify(nm[k] ?? null)) out.push(`${k === 'ordered' ? 'ordered indicators' : k === 'defined' ? 'defined parameters' : k === 'waldTests' ? 'Wald tests' : k === 'threeWay' ? 'moderated moderations' : k === 'positiveVariances' ? 'variance bounds' : k === 'esem' ? 'ESEM blocks' : k === 'multigroup' ? 'groups' : k === 'multilevel' ? 'levels' : k} changed`);
   }
+  if (!!pm.constant !== !!nm.constant) out.push(nm.constant ? '+ mean structure (the constant)' : '− mean structure (the constant)');
+  else if (nm.constant) {
+    const label = (m: ModelState, t: { target: string; fixed?: number; label?: string }) => `${nameOf(m).get(t.target) ?? t.target}${t.fixed !== undefined ? ` = ${t.fixed}` : t.label ? ` (${t.label})` : ''}`;
+    out.push(...diffList((pm.means ?? []).map((t) => label(pm, t)), (nm.means ?? []).map((t) => label(nm, t)), 'mean'));
+  }
   // Paths with fixed values or labels, and the like, count as model changes through the spec even when nothing above caught them.
   if (!out.length && JSON.stringify(toSpec(pm)) !== JSON.stringify(toSpec(nm))) out.push('model parameters changed');
   out.push(...settingChanges(prev.settings, next.settings));
