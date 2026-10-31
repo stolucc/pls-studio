@@ -62,7 +62,9 @@ const checkClean = (id: string) => {
 };
 
 /** Documented values the estimate must reproduce. */
-const CHISQ: Record<string, number> = { 'lavaan-poldem': 40.179, 'lavaan-hs': 85.306, 'lavaan-hs-groups': 164.103 };
+const CHISQ: Record<string, number> = { 'lavaan-poldem': 40.179, 'lavaan-hs': 85.306, 'lavaan-hs-means': 85.306, 'lavaan-hs-groups': 164.103 };
+/** lavaan tutorial, mean structures: cfa(HS.model, data = HolzingerSwineford1939, meanstructure = TRUE), the intercepts (native lavaan, 3 decimals). */
+const HS_INTERCEPTS: Record<string, number> = { x1: 4.936, x2: 6.088, x3: 2.250, x4: 3.061, x5: 4.341, x6: 2.186, x7: 4.186, x8: 5.527, x9: 5.374 };
 
 async function load(ex: PackageExample): Promise<Dataset & { levels?: unknown }> {
   // Data shipped with the app (packages that cannot run in the browser's R).
@@ -179,6 +181,13 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       const r = await estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction);
       expect(r.converged).toBe(true);
       if (CHISQ[ex.id] !== undefined) expect(r.fit.chisq).toBeCloseTo(CHISQ[ex.id], 2);
+      if (ex.id === 'lavaan-hs-means') {
+        expect(spec.meanStructure).toBe(true);
+        const intercepts = r.estimates.filter((e) => e.kind === 'intercept');
+        expect(intercepts.map((e) => e.lhs).sort()).toEqual(Object.keys(HS_INTERCEPTS));
+        for (const e of intercepts) expect(e.est, e.lhs).toBeCloseTo(HS_INTERCEPTS[e.lhs], 3);
+        for (const e of r.estimates.filter((e) => e.kind === 'mean')) expect(e.est, e.lhs).toBe(0);  // latent means stay fixed at zero: no arrows drawn
+      }
     } else {
       const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, st.plsPackage);
       expect(r.converged).toBe(true);

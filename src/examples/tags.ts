@@ -35,6 +35,7 @@ export function exampleTags(ex: PackageExample): string[] {
   if (ex.esem) out.push('ESEM');
   if (ex.correlations?.some((k) => k[2] === 'indicator')) out.push('Correlated errors');
   if (ex.constructs.some((c) => c.covariate)) out.push('Covariates');
+  if (ex.constant || ex.means?.length) out.push('Mean structure');
   if (ex.panel) out.push(...(PANEL_TAGS[ex.panel.kind] ?? []));
   if (ex.panel?.kind === 'endo' && ex.panel.method === 'iv') out.push('Instrumental variables');
   if (ex.panel?.kind === 'endo' && ex.panel.method === 'heckman') out.push('Sample selection');

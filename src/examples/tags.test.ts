@@ -7,6 +7,7 @@ const tagsOf = (id: string) => exampleTags(PACKAGE_EXAMPLES.find((e) => e.id ===
 describe('example topics', () => {
   it('are derived from what the example contains', () => {
     expect(tagsOf('lavaan-hs')).toEqual(['CB-SEM', 'CFA']);
+    expect(tagsOf('lavaan-hs-means')).toEqual(['CB-SEM', 'CFA', 'Mean structure']);
     expect(tagsOf('lavaan-poldem')).toEqual(['CB-SEM', 'Mediation', 'Correlated errors']);
     expect(tagsOf('lavaan-hs-groups')).toEqual(['CB-SEM', 'CFA', 'Multigroup']);
     expect(tagsOf('lavaan-twolevel')).toEqual(['CB-SEM', 'Multilevel', 'Covariates']);

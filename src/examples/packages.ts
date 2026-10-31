@@ -68,6 +68,10 @@ export interface PackageExample {
   multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM: exploratory SEM blocks of construct names. */
   esem?: { blocks: string[][]; rotation: EsemRotation };
+  /** CB-SEM: the constant (triangle) on the canvas: meanstructure = TRUE, every indicator intercept free. */
+  constant?: boolean;
+  /** CB-SEM: arrows from the constant: latent means (or an observed variable's intercept), free, fixed or labelled. Implies `constant`. */
+  means?: { construct: string; fixed?: number; label?: string }[];
   /** Conditional process analysis: the PROCESS model number the diagram is recognised as. */
   processModel?: number;
   /** Adds this analysis card instead of a diagram (constructs and paths are empty). */
@@ -116,6 +120,12 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     links: [{ label: '?cfa', url: 'https://rdrr.io/cran/lavaan/man/cfa.html' }, { label: 'lavaan tutorial: CFA', url: 'https://lavaan.ugent.be/tutorial/cfa.html' }, { label: '?HolzingerSwineford1939', url: 'https://rdrr.io/cran/lavaan/man/HolzingerSwineford1939.html' }],
     description: 'Mental ability tests of 301 seventh- and eighth-grade children: visual, textual and speed factors, three tests each. The standard CFA example.',
     data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [], settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-hs-means', package: 'lavaan', title: 'Holzinger & Swineford with a mean structure', source: 'lavaan tutorial: mean structures; ?lavTestLRT',
+    links: [{ label: 'lavaan tutorial: mean structures', url: 'https://lavaan.ugent.be/tutorial/means.html' }, { label: '?lavTestLRT', url: 'https://rdrr.io/cran/lavaan/man/lavTestLRT.html' }, { label: '?HolzingerSwineford1939', url: 'https://rdrr.io/cran/lavaan/man/HolzingerSwineford1939.html' }],
+    description: 'The three-factor CFA fitted with meanstructure = TRUE: the constant (triangle) on the canvas frees the intercept of every test; the latent means stay at zero, so the fit is unchanged (χ² = 85.306, df = 24). Draw an arrow from the constant to a factor to estimate its mean instead.',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [], constant: true, settings: CB('ML'),
   },
   {
     id: 'lavaan-poldem', package: 'lavaan', title: 'Industrialisation and political democracy', source: 'lavaan, ?sem (Bollen 1989)',
@@ -622,5 +632,8 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
     ...(ex.multigroup ? { multigroup: ex.multigroup } : {}),
     ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),
     ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })) } } : {}),
+    // The constant sits left of the first column (autoLayout moves only the constructs).
+    ...(ex.constant || ex.means?.length ? { constant: { x: -220, y: 120 } } : {}),
+    ...(ex.means?.length ? { means: ex.means.map((t) => ({ id: newId('mt'), target: id(t.construct), ...(t.fixed !== undefined ? { fixed: t.fixed } : {}), ...(t.label ? { label: t.label } : {}) })) } : {}),
   };
 }

@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { factorCodes } from '../io';
-import { DEFAULT_SETTINGS, validateModel, unconfirmedUncorrelated } from '../model/project';
+import { DEFAULT_SETTINGS, toSpec, validateModel, unconfirmedUncorrelated } from '../model/project';
 import { processGraph } from '../process/fromModel';
 import { R_PACKAGES } from '../rengine/bridge';
 import { EXAMPLE_PACKAGES, exampleModel, exampleSettings, PACKAGE_EXAMPLES, panelColumns } from './packages';
@@ -129,4 +131,27 @@ describe('documented settings', () => {
     expect(ex('mice-nhanes')).toMatchObject({ missing: 'mi', miImputations: 5 });
     expect(ex('mice-nhanes').seed).toBeUndefined();
   });
+});
+
+it('puts the constant on the canvas of mean-structure examples, with its arrows', () => {
+  const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'lavaan-hs-means')!;
+  const m = exampleModel(ex);
+  expect(m.constant).toEqual({ x: -220, y: 120 });
+  expect(m.means ?? []).toEqual([]);
+  expect(toSpec(m)).toMatchObject({ meanStructure: true, means: [] });
+  expect(exampleModel(PACKAGE_EXAMPLES.find((e) => e.id === 'lavaan-hs')!).constant).toBeUndefined();
+  // Arrows name constructs; fixed values and labels carry over.
+  const withArrows = exampleModel({ ...ex, means: [{ construct: 'visual' }, { construct: 'speed', fixed: 0 }, { construct: 'textual', label: 'mt' }] });
+  const name = new Map(withArrows.constructs.map((c) => [c.id, c.name]));
+  expect(withArrows.constant).toBeTruthy();
+  expect(withArrows.means!.map((t) => [name.get(t.target), t.fixed, t.label])).toEqual([['visual', undefined, undefined], ['speed', 0, undefined], ['textual', undefined, 'mt']]);
+  expect(toSpec(withArrows).means).toEqual([{ construct: 'visual' }, { construct: 'speed', fixed: 0 }, { construct: 'textual', label: 'mt' }]);
+  expect(() => exampleModel({ ...ex, means: [{ construct: 'nope' }] })).toThrow(/unknown construct nope/);
+});
+
+it('README and ARCHITECTURE state the current number of package examples', () => {
+  const readme = readFileSync(join(__dirname, '..', '..', 'README.md'), 'utf8').match(/\*\*Examples\*\*: (\d+) examples from the R packages/);
+  const arch = readFileSync(join(__dirname, '..', '..', 'ARCHITECTURE.md'), 'utf8').match(/(\d+) package examples/);
+  expect(Number(readme?.[1])).toBe(PACKAGE_EXAMPLES.length);
+  expect(Number(arch?.[1])).toBe(PACKAGE_EXAMPLES.length);
 });
