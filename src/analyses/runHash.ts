@@ -7,6 +7,29 @@
 import type { Dataset } from '../engine/types';
 import { toSpec, type DataInfo, type ModelState, type Settings } from '../model/project';
 import { fingerprint } from './codec';
+import type { AnalysisCard, Card } from './types';
+
+export interface RunOptions {
+  label: string;
+  version: number;
+  /** runHash of model, estimation settings and data: the version's identity. */
+  hash: string;
+  model: ModelState;
+  settings: Settings;
+  data: RunData;
+  /** The version this one was edited from, when not the one before it (opened from the log). */
+  from?: number;
+  /** What changed from the previous version, in words. */
+  changes: string[];
+}
+export type RunCard = AnalysisCard & { options: RunOptions };
+export const runCards = (cards: Card[]): RunCard[] => cards.filter((c): c is RunCard => c.kind === 'analysis' && c.type === 'run');
+export const latestRun = (runs: RunCard[]) => runs.reduce<RunCard | null>((a, c) => (!a || c.options.version > a.options.version ? c : a), null);
+
+/** The version last opened from the log (runs.tsx sets it): the next new version notes it came from there. */
+let openedFrom: number | null = null;
+export const openedFromVersion = () => openedFrom;
+export const setOpenedFrom = (v: number | null) => { openedFrom = v; };
 
 /** Settings that change the estimates (as resultsKey in the store): inference options and styles are left out. */
 export const ESTIMATION_KEYS = ['method', 'estimator', 'engine', 'plsPackage', 'plsApproach', 'consistent', 'scheme', 'maxIter', 'stopExp', 'missing', 'miImputations', 'interaction', 'probe', 'hc', 'counterfactual'] as const satisfies readonly (keyof Settings)[];

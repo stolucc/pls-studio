@@ -271,6 +271,18 @@ button, input, select { font: inherit; color: inherit; }
 .canvas-empty h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
 .canvas-empty p { margin: 0; color: var(--text-2); line-height: 1.55; }
 .steps { text-align: left; color: var(--text-2); line-height: 1.7; margin: 0; padding-left: 18px; }
+/* Which version of the model is on the canvas (ModelVersionBadge). */
+.version-badge {
+  position: absolute; top: 12px; left: 12px; z-index: 5; display: flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-2); border-radius: 99px;
+  padding: 4px 10px 4px 8px; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; box-shadow: var(--shadow-sm);
+}
+.version-badge:disabled { cursor: default; }
+.version-badge:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.version-badge .dot { width: 7px; height: 7px; border-radius: 4px; background: var(--border-strong); }
+.version-badge.current { color: var(--good); border-color: var(--good-soft); }
+.version-badge.current .dot { background: var(--good); }
+.version-badge.edited .dot { background: var(--warn); }
 .stale-banner {
   position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
   background: var(--warn-soft); border: 1px solid #f3d29a; color: #8a5300; border-radius: 99px;

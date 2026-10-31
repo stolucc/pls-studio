@@ -13,6 +13,7 @@ import { numberDialog, textDialog } from './Overlays';
 import { nameError } from '../model/expr';
 import { ProcessGallery } from './ProcessGallery';
 import { ProcessBar } from './ProcessBar';
+import { ModelVersionBadge } from './ModelVersionBadge';
 import { fitPadding, overlayBottom } from '../canvasFit';
 import { ContextMenu } from './ContextMenu';
 import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
@@ -825,6 +826,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       {figureOpen && <FigurePanel input={figureInput} onClose={() => setFigureOpen(false)} />}
       {templatesOpen && <ProcessGallery onClose={() => setTemplatesOpen(false)} />}
       {method === 'process' && !empty && <ProcessBar onTemplates={() => setTemplatesOpen(true)} />}
+      <ModelVersionBadge />
       {hasStaleResults && !empty && (
         <div className="stale-banner">
           Model changed since the last calculation.

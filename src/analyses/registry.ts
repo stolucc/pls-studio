@@ -15,7 +15,7 @@ import { mcAnalysis } from './simulation';
 import { bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis } from './cbModel';
 import { sampleSizeAnalysis } from './sampleSize';
 import { egaAnalysis, networkAnalysis } from './network';
-import { runAnalysis } from './runs';
+import { runAnalysis } from './runCard';
 import { snapshotAnalysis } from './snapshot';
 import type { AnalysisType } from './types';
 
