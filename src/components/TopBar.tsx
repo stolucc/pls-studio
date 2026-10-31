@@ -2,7 +2,8 @@ import { confirmDialog } from './Overlays';
 import { autosave } from '../io';
 import { useStaleCount } from './analyses/AnalysesWorkspace';
 import { FileMenu } from './FileMenu';
-import { run } from '../runner';
+import { calculateHere, calculateTarget } from '../analyses/calculate';
+import { useAnalyses } from '../analyses/store';
 import { useStore, type Workspace } from '../store';
 import { useState } from 'react';
 import { switchMethod } from '../methodSwitch';
@@ -50,6 +51,11 @@ export function TopBar() {
   const method = useStore((s) => s.settings.method);
   const consistent = useStore((s) => s.settings.consistent);
   const workspace = useStore((s) => s.workspace);
+  // On the Analyses tab, Calculate acts on the selected card (see analyses/calculate.ts).
+  const selectedCard = useAnalyses((s) => s.selected);
+  const cards = useAnalyses((s) => s.cards);
+  const cardRunning = useAnalyses((s) => !!(s.selected && s.running[s.selected]));
+  const target = calculateTarget(workspace, cards, selectedCard);
 
   return (
     <header className="topbar">
@@ -103,13 +109,14 @@ export function TopBar() {
       <div className="sep" />
       {/* CPA bootstraps within Calculate. The button keeps its place (hidden) so the controls
           to its left, the method switch among them, do not move when the method changes. */}
-      <button className="btn" aria-label="Bootstrap" onClick={() => run('boot')} disabled={!!job || !hasModel || method === 'process'} title="Bootstrap standard errors, p-values and confidence intervals"
+      <button className="btn" aria-label="Bootstrap" onClick={() => void calculateHere('boot')} disabled={!!job || !hasModel || method === 'process' || cardRunning} title={target.kind === 'run' ? `Open ${target.title} on the Model tab and bootstrap it` : 'Bootstrap standard errors, p-values and confidence intervals'}
         style={method === 'process' ? { visibility: 'hidden' } : undefined} aria-hidden={method === 'process'} tabIndex={method === 'process' ? -1 : undefined}>
         <IconRepeat /><span className="lbl-wide">Bootstrap</span>
       </button>
-      <button className="btn primary" onClick={() => run('estimate')} disabled={!!job || !hasModel}
-        title={`${method === 'pls' ? 'Run the PLS algorithm' : method === 'process' ? 'OLS regressions and bootstrap of the indirect effects (manymome)' : 'Maximum-likelihood estimation'} (${mod}↵)`}>
-        <IconPlay size={14} /> Calculate
+      <button className="btn primary" onClick={() => void calculateHere('estimate')} disabled={(target.kind === 'card' ? cardRunning : !!job || !hasModel)}
+        title={target.kind === 'card' ? `Run the selected card: ${target.title} (${mod}↵)` : target.kind === 'run' ? `Open ${target.title} on the Model tab and calculate it (${mod}↵)`
+          : `${method === 'pls' ? 'Run the PLS algorithm' : method === 'process' ? 'OLS regressions and bootstrap of the indirect effects (manymome)' : 'Maximum-likelihood estimation'} (${mod}↵)`}>
+        <IconPlay size={14} /> {target.kind === 'card' ? 'Run' : 'Calculate'}
       </button>
       </div>
       {shareOpen && <ShareDialog onClose={() => setShareOpen(false)} />}

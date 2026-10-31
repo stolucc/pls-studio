@@ -14,7 +14,6 @@ import { AuthDialog } from './components/cloud/AuthDialog';
 import { useAuth } from './cloud/auth';
 import { handleUrlParams } from './cloud/invites';
 import { autosave, importCsv, loadSample, migrateAutosave, openProject, saveProject } from './io';
-import { run } from './runner';
 import { useStore } from './store';
 
 function isTyping(e: KeyboardEvent) {
@@ -54,7 +53,7 @@ export default function App() {
       // Everything else is an editor shortcut.
       if (s.view === 'home') return;
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveProject(); return; }
-      if (mod && e.key === 'Enter') { e.preventDefault(); run(e.shiftKey ? 'boot' : 'estimate'); return; }
+      if (mod && e.key === 'Enter') { e.preventDefault(); void import('./analyses/calculate').then((m) => m.calculateHere(e.shiftKey ? 'boot' : 'estimate')); return; }
       if (isTyping(e)) return;
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) s.redo(); else s.undo(); return; }
       if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); s.redo(); return; }

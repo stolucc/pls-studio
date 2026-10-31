@@ -202,7 +202,7 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
         {!readOnly && (
           <span className="card-acts">
             {!t?.frozen && <button className="btn icon ghost sm" title={card.run ? 'Run again' : 'Run'} aria-label={card.run ? 'Run again' : 'Run'} disabled={running} onClick={(e) => { e.stopPropagation(); void runCard(card.id); }}>{card.run ? <IconRepeat size={13} /> : <IconPlay size={13} />}</button>}
-            {t?.id === 'run' && status!.state !== 'current' && <button className="btn sm" title="Open this version of the model on the Model tab (undo returns)" onClick={(e) => { e.stopPropagation(); void import('../../analyses/runs').then((m) => m.openRun(card.id)); }}>Open model</button>}
+            {t?.id === 'run' && <button className="btn sm" title={status!.state === 'current' ? 'This is the model on the Model tab: go there' : 'Open this version of the model on the Model tab (undo returns)'} onClick={(e) => { e.stopPropagation(); void import('../../analyses/runs').then((m) => m.openRun(card.id)); }}>Open model</button>}
             <button className="btn icon ghost sm" title="Rename" aria-label="Rename" onClick={(e) => { e.stopPropagation(); setRenaming(true); }}><IconPencil size={13} /></button>
             {!t?.frozen && <button className="btn icon ghost sm" title="Duplicate" aria-label="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateCard(card.id); }}><IconCopy size={13} /></button>}
             <button className="btn icon ghost sm" title="Remove" aria-label="Remove" onClick={(e) => { e.stopPropagation(); void confirmRemove(card); }}><IconTrash size={13} /></button>
@@ -304,6 +304,10 @@ function Outline({ cards, ctx, results, readOnly }: { cards: Card[]; ctx: Analys
             onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/x-pls-card'); if (id) moveCardNextTo(id, c.id, lowerHalf(e)); end(); }}>
             {!readOnly && <span className="grip" aria-hidden>⋮⋮</span>}
             {c.kind !== 'heading' && <span className={`dot ${st ?? 'note'}`} aria-hidden />}{titleOf(c)}
+            {!readOnly && c.kind === 'analysis' && c.type === 'run' && (
+              <button className="outline-open" title="Open this version of the model on the Model tab" aria-label={`Open ${titleOf(c)} on the Model tab`}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); void import('../../analyses/runs').then((m) => m.openRun(c.id)); }}>↗</button>
+            )}
           </a>
         );
       })}

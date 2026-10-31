@@ -161,12 +161,19 @@ describe('Analyses tab', () => {
     let html = render(<AnalysesWorkspace />);
     expect(html).toContain('Model v1</h3>');
     expect(html).toContain('current model</span>');
-    expect(html).not.toContain('Open model');
+    expect(html).toContain('>Open model</button>');  // every run has it: for the current one it just goes to the Model tab
+    expect(html).toMatch(/<button class="outline-open" title="Open this version of the model on the Model tab" aria-label="Open Model v1 on the Model tab">↗<\/button>/);
+    // The top bar's Calculate on the Analyses tab with the run selected: opens it and calculates.
+    s().setWorkspace('analyses');
+    expect(render(<TopBar />)).toContain('title="Open Model v1 on the Model tab and calculate it');
     s().removePaths([s().model.paths[0].id]);
     html = render(<AnalysesWorkspace />);
     expect(html).toContain('earlier version</span>');
     expect(html).toContain('>Open model</button>');
     expect(html).toMatch(/<span class="dot earlier"/);
+    // With an analysis card selected, the button runs that card.
+    addAnalysis('nca', { source: 'data', x: ['a1'], y: 'b1', permutations: 0 });
+    expect(render(<TopBar />)).toMatch(/title="Run the selected card: Necessary condition analysis \([^"]+\)">[^]*?Run<\/button>/);
   });
 
   it('marks a result whose data changed as stale, with a way to rerun it', () => {
