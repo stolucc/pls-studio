@@ -83,8 +83,9 @@ function getBackend(): Promise<Backend> {
   return ready;
 }
 
-/** For tests: start from a clean in-memory store. */
-export function resetRecentForTests() {
+/** For tests: start from a clean in-memory store, or (probe) from scratch so the next call probes IndexedDB again. */
+export function resetRecentForTests(probe = false) {
+  if (probe) { backend = null; ready = null; return; }
   backend = memoryBackend();
   ready = Promise.resolve(backend);
 }

@@ -5,7 +5,7 @@ import { fingerprint } from './codec';
 import { parseCards, shareableCards } from './persist';
 import { ANALYSIS_TYPES } from './registry';
 import {
-  addAnalysis, addText, cardStatus, currentCtx, duplicateCard, loadCards, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, setOptions, setText, setTitle, unpackCard, useAnalyses,
+  addAnalysis, addFrozenCard, addText, cardStatus, currentCtx, duplicateCard, loadCards, MAX_CARDS, MAX_TEXT, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, setOptions, setText, setTitle, unpackCard, updateFrozenCard, useAnalyses,
 } from './store';
 import type { AnalysisCard, AnalysisType } from './types';
 
@@ -234,5 +234,60 @@ describe('card status, every state', () => {
     // A card of a kind this version does not have.
     useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, type: 'gone' } : c)) }));
     expect(status(id)).toEqual({ state: 'stale', why: 'This kind of analysis is not available in this version.' });
+  });
+});
+
+describe('frozen cards (model snapshots)', () => {
+  const frozenType: AnalysisType<{ n: number }, { ok: boolean }> = {
+    id: 'test-frozen', title: 'Snapshot', sub: 'test', group: 'Data', frozen: true,
+    defaults: () => ({ n: 1 }), parseOptions: (raw) => raw as { n: number }, Options: () => null, View: () => null, blocked: () => null,
+    fingerprint: (o) => `fz-${o.n}`, run: async () => ({ ok: true }), summary: (o) => `n=${o.n}`,
+  };
+  beforeEach(() => { if (!ANALYSIS_TYPES.includes(frozenType)) ANALYSIS_TYPES.push(frozenType); });
+  afterAll(() => { ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(frozenType), 1); });
+
+  it('adds a snapshot with its packed result, and refuses ordinary types, viewers and a full workspace', async () => {
+    expect(await addFrozenCard('test-mean', { col: 'x' }, { mean: 1 })).toBeNull();
+    expect(await addFrozenCard('nope', {}, {})).toBeNull();
+    const id = (await addFrozenCard('test-frozen', { n: 2 }, { ok: true }))!;
+    expect(id).toBeTruthy();
+    expect(a().selected).toBe(id);
+    expect(card(id).run).toMatchObject({ fingerprint: 'fz-2', options: '{"n":2}' });
+    expect(typeof card(id).run!.packed).toBe('string');
+    expect(a().results[id]).toEqual({ ok: true });
+    useStore.setState({ cloud: { projectId: 'p', role: 'viewer', status: 'online' } });
+    expect(await addFrozenCard('test-frozen', { n: 3 }, { ok: true })).toBeNull();
+    useStore.setState({ cloud: null });
+    loadCards(Array.from({ length: MAX_CARDS }, (_, i) => ({ id: `t${i}`, kind: 'note' as const, text: '' })));
+    expect(await addFrozenCard('test-frozen', { n: 3 }, { ok: true })).toBeNull();
+  });
+  it('replaces a snapshot result in place, clearing its error, and refuses the rest', async () => {
+    const id = (await addFrozenCard('test-frozen', { n: 2 }, { ok: true }))!;
+    const before = card(id).run!;
+    useAnalyses.setState({ errors: { [id]: 'old error' } });
+    await new Promise((r) => setTimeout(r, 2));
+    expect(await updateFrozenCard(id, { ok: false })).toBe(true);
+    expect(a().results[id]).toEqual({ ok: false });
+    expect(a().errors[id]).toBeUndefined();
+    expect(card(id).run!.at).toBeGreaterThan(before.at);
+    expect(card(id).run!.packed).not.toBe(before.packed);
+    expect(await updateFrozenCard('missing', {})).toBe(false);
+    const plain = addAnalysis('test-mean')!;
+    expect(await updateFrozenCard(plain, {})).toBe(false);
+    useStore.setState({ cloud: { projectId: 'p', role: 'viewer', status: 'online' } });
+    expect(await updateFrozenCard(id, { ok: true })).toBe(false);
+    expect(a().results[id]).toEqual({ ok: false });
+  });
+  it('gives the context stale results as none', () => {
+    setData([1, 2, 3]);
+    const ctx = currentCtx();
+    expect(ctx.pls).toBeNull();
+    expect(ctx.cb).toBeNull();
+    expect(ctx.data?.names).toEqual(['x', 'y']);
+    expect(ctx.projectName).toBe(useStore.getState().projectName);
+  });
+  it('caps text cards at MAX_TEXT characters', () => {
+    const id = addText('note', 'x'.repeat(MAX_TEXT + 10))!;
+    expect((a().cards.find((c) => c.id === id) as { text: string }).text).toHaveLength(MAX_TEXT);
   });
 });

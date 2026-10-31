@@ -3,14 +3,14 @@
 // opened on the Model tab again.
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { PlsResult } from '../engine/types';
-import { parseProject, serializeProject } from '../model/project';
+import type { Dataset, PlsResult } from '../engine/types';
+import { parseProject, serializeProject, type Settings } from '../model/project';
 import { resultsKey, useStore } from '../store';
 import { parseCards } from './persist';
-import { describeChanges, runHash, settingChanges } from './runHash';
+import { dataFingerprint, describeChanges, latestRun, runData, runHash, settingChanges, type RunCard } from './runHash';
 import { currentRunHash, logCurrentRun, openRun, runCards, type RunOptions } from './runs';
 import { cardStatus, currentCtx, loadCards, useAnalyses } from './store';
-import type { AnalysisCard } from './types';
+import type { AnalysisCard, Card } from './types';
 
 const s = () => useStore.getState();
 const col = (...v: number[]) => Float64Array.from(v);
@@ -259,5 +259,82 @@ describe('describeChanges, line by line', () => {
     const a = s().settings;
     expect(settingChanges(a, { ...a, method: 'cbsem', consistent: true, counterfactual: { xref: 1, xcf: 2 } })).toEqual(['method PLS-SEM → CB-SEM', 'PLSc off → on', 'counterfactual none → {"xref":1,"xcf":2}']);
     expect(settingChanges(a, { ...a, seed: 12345 })).toEqual(['seed 1,234 → 12,345']);
+  });
+});
+
+describe('describeChanges, the remaining branches', () => {
+  const data = { fingerprint: 'x', name: 'a.csv', rows: 10 };
+  const at = () => ({ model: structuredClone(s().model), settings: s().settings, data });
+  it('counts one new construct in the singular, matches renamed ids by name, and notes components, construct correlations and means', () => {
+    const a = s().addConstruct(0, 0, ['a1']);
+    const v1 = at();
+    const b = s().addConstruct(1, 0, ['b1']);
+    const v2 = at();
+    const names = Object.fromEntries(s().model.constructs.map((k) => [k.id, k.name]));
+    expect(describeChanges(v1, v2)).toEqual([`+ construct ${names[b]}`]);
+    const c = s().addConstruct(2, 0, ['c1']);
+    expect(describeChanges(v2, at())).toEqual([`+ construct ${names[c] ?? s().model.constructs[2].name}`]);
+    expect(describeChanges(v1, at())).toEqual([`+ constructs ${names[b]}, ${s().model.constructs[2].name}`]);
+    // The same construct under a new id (a project reloaded from another source): matched by name.
+    const renamed = { ...v2, model: { ...v2.model, constructs: v2.model.constructs.map((k) => (k.id === a ? { ...k, id: 'other-id', type: 'composite' as const } : k)) } };
+    expect(describeChanges(v2, renamed)).toEqual([`${names[a]}: factor → composite`]);
+    const hoc = { ...v2, model: { ...v2.model, constructs: v2.model.constructs.map((k) => (k.id === a ? { ...k, components: [b] } : k)) } };
+    expect(describeChanges(v2, hoc)).toEqual([`${names[a]}: components changed`]);
+    const corr = { ...v2, model: { ...v2.model, correlations: [{ id: 'k', kind: 'construct' as const, a, b }] } };
+    expect(describeChanges(v2, corr)).toEqual([`+ correlation ${names[a]} ↔ ${names[b]}`]);
+    expect(describeChanges(corr, v2)).toEqual([`− correlation ${names[a]} ↔ ${names[b]}`]);
+    const withK = { ...v2, model: { ...v2.model, constant: { x: 0, y: 0 } } };
+    expect(describeChanges(v2, withK)).toEqual(['+ mean structure (the constant)']);
+    expect(describeChanges(withK, v2)).toEqual(['− mean structure (the constant)']);
+    const means = (ms: { id: string; target: string; fixed?: number; label?: string }[]) => ({ ...withK, model: { ...withK.model, means: ms } });
+    expect(describeChanges(withK, means([{ id: 'm1', target: a }]))).toEqual([`+ mean ${names[a]}`]);
+    expect(describeChanges(means([{ id: 'm1', target: a }]), means([{ id: 'm1', target: a, fixed: 0 }]))).toEqual([`+ mean ${names[a]} = 0`, `− mean ${names[a]}`]);
+    expect(describeChanges(withK, means([{ id: 'm1', target: b, label: 'mb' }]))).toEqual([`+ mean ${names[b]} (mb)`]);
+    expect(describeChanges(withK, means([{ id: 'm1', target: 'gone' }]))).toEqual(['+ mean gone']);
+    expect(describeChanges(null, v2)).toEqual([]);
+  });
+  it('names every other model field that changed', () => {
+    s().addConstruct(0, 0, ['a1']);
+    const v = at();
+    const fields: [string, unknown, string][] = [
+      ['ordered', ['a1'], 'ordered indicators'], ['defined', [{ id: 'd', name: 'ind', expr: 'a*b' }], 'defined parameters'], ['waldTests', [{ id: 'w', name: 'w', constraints: 'a == 0' }], 'Wald tests'],
+      ['inequalities', 'a > 0', 'inequalities'], ['positiveVariances', true, 'variance bounds'], ['multigroup', { column: 'g', invariance: 'metric', free: [] }, 'groups'],
+      ['multilevel', { column: 'school', between: 'same' }, 'levels'], ['esem', { blocks: [], rotation: 'geomin' }, 'ESEM blocks'], ['weights', 'w', 'weights'], ['threeWay', [{ id: 't' }], 'moderated moderations'],
+    ];
+    for (const [k, value, label] of fields) {
+      const next = { ...v, model: { ...v.model, [k]: value } };
+      expect(describeChanges(v, next), k).toEqual([`${label} changed`]);
+      expect(describeChanges(next, v), k).toEqual([`${label} changed`]);
+    }
+  });
+  it('shows every setting it tracks by its name and formatted value', () => {
+    const base = s().settings;
+    const cases: [keyof Settings, unknown, string][] = [
+      ['method', 'process', 'method PLS-SEM → conditional process analysis'], ['estimator', 'MLR', `estimator ${base.estimator} → MLR`], ['engine', base.engine === 'r' ? 'js' : 'r', `engine ${base.engine} → ${base.engine === 'r' ? 'js' : 'r'}`],
+      ['plsPackage', 'zzz', `PLS package ${base.plsPackage} → zzz`], ['plsApproach', 'zzz', `weighting approach ${base.plsApproach} → zzz`], ['scheme', 'centroid', `weighting scheme ${base.scheme} → centroid`],
+      ['maxIter', 7, `max. iterations ${base.maxIter} → 7`], ['stopExp', 3, `stop criterion (10^-k) ${base.stopExp} → 3`], ['missing', 'zzz', `missing values ${base.missing} → zzz`],
+      ['miImputations', 99, `imputations ${base.miImputations} → 99`], ['interaction', 'zzz', `latent interactions ${base.interaction} → zzz`], ['probe', 'zzz', `probing ${base.probe} → zzz`],
+      ['hc', 'zzz', `robust SEs ${base.hc} → zzz`], ['bootSamples', 12345, `bootstrap subsamples ${base.bootSamples.toLocaleString()} → 12,345`], ['confidence', 0.9, `confidence level ${Math.round(base.confidence * 100)}% → 90%`],
+      ['bootTails', 'zzz', `tests ${base.bootTails} → zzz`], ['bootInterval', 'zzz', `bootstrap intervals ${base.bootInterval} → zzz`],
+    ];
+    for (const [k, value, text] of cases) expect(settingChanges(base, { ...base, [k]: value } as Settings), k).toEqual([text]);
+    expect(settingChanges(base, base)).toEqual([]);
+    expect(settingChanges(base, { ...base, estimator: 'MLR' }, ['seed'])).toEqual([]);
+  });
+  it('fingerprints data by values and keeps run cards in version order', () => {
+    expect(dataFingerprint(null)).toBe('none');
+    const cols = { names: ['x'], cols: [Float64Array.from([1, 2])] };
+    expect(dataFingerprint(cols)).toBe(dataFingerprint({ names: ['x'], cols: [Float64Array.from([1, 2])] }));
+    expect(dataFingerprint(cols)).not.toBe(dataFingerprint({ names: ['x'], cols: [Float64Array.from([1, 3])] }));
+    expect(dataFingerprint(cols)).not.toBe(dataFingerprint({ names: ['y'], cols: [Float64Array.from([1, 2])] }));
+    const mom = { names: ['x'], cols: [Float64Array.from([1, 2])], moments: { n: 2, cov: [[1]] } } as unknown as Dataset;
+    expect(dataFingerprint(mom)).not.toBe(dataFingerprint(cols));
+    expect(runData(null, null)).toEqual({ fingerprint: 'none', name: '', rows: 0 });
+    expect(runData(cols, { fileName: 'f.csv', rows: 2, missingCells: 0, excluded: [] })).toMatchObject({ name: 'f.csv', rows: 2 });
+    const run = (version: number): RunCard => ({ id: `r${version}`, kind: 'analysis', type: 'run', options: { version } as RunCard['options'] });
+    const cards: Card[] = [run(2), { id: 'n', kind: 'note', text: '' }, { id: 'o', kind: 'analysis', type: 'test-mean', options: {} }, run(3), run(1)];
+    expect(runCards(cards).map((c) => c.id)).toEqual(['r2', 'r3', 'r1']);
+    expect(latestRun(runCards(cards))?.id).toBe('r3');
+    expect(latestRun([])).toBeNull();
   });
 });
