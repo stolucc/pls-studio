@@ -63,7 +63,11 @@ it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   if (key === 'quine') expect(r.formula).toMatch(/Days ~ Sex \+ Sex:Age \+ Sex:Eth \+ Sex:Lrn \+ Sex:Eth:Lrn/);
   expect(r.fit.n).toBe(data.cols[0].length);  // every row, for every family (polr has no residuals component)
   if (key === 'clotting') expect(r.lrt!.df).toBe(1);  // Gamma: the dispersion parameter is not a tested coefficient
-  if (key === 'menarche') { expect(r.curve?.points?.y.length).toBe(data.cols[0].length); expect(Math.max(...r.curve!.points!.y)).toBeLessThanOrEqual(1); }
+  if (key === 'menarche') { expect(r.curves[0].points?.y.length).toBe(data.cols[0].length); expect(Math.max(...r.curves[0].points!.y)).toBeLessThanOrEqual(1); }
+  if (key === 'birthwt') expect(r.curves.map((k) => k.x)).toEqual(['age', 'lwt', 'smoke', 'ptd', 'ht', 'ui']);  // one partial-effect curve per non-categorical predictor
+  if (key === 'housing') expect(r.curves).toEqual([]);
+  if (key === 'multinom') expect(r.curves.every((k) => k.probs && !k.points)).toBe(true);
+  if (key === 'clotting') { expect(r.lrt!.df).toBe(1); const b = r.coefficients[1]; expect(b.ciLow).toBeLessThan(b.est); expect(b.p).toBeGreaterThan(0); }
   if (key === 'housing') expect(r.thresholds.map((t) => t.term)).toEqual(['Low|Medium', 'Medium|High']);
   if (key === 'multinom') expect(r.levels).toEqual({ reference: '0', others: ['1'] });
   const script = await regressionScriptR(data, input);
@@ -82,4 +86,12 @@ it('robust and cluster-robust standard errors come from sandwich', async () => {
   expect(k.coefficients[1].se).not.toBeCloseTo(m.coefficients[1].se, 4);
   expect(await regressionScriptR(data, { ...base, se: 'cluster', cluster: 'stratum' })).toContain('vcovCL(fit, cluster = ~stratum)');
   await expect(regressionR(data, { ...base, family: 'multinomial', se: 'HC3' })).rejects.toThrow(/Robust standard errors are available for lm and glm/);
+  // Term names map back to the columns' names piece by piece, even when one name is a prefix of another.
+  const renamed = { ...data, names: data.names.map((n) => (n === 'spontaneous' ? 'Price (EUR)' : n === 'induced' ? 'Price index' : n)) };
+  const t = await regressionR(renamed, { ...base, predictors: ['Price (EUR)', 'Price index'], interactions: [['Price (EUR)', 'Price index']] });
+  expect(t.coefficients.map((e) => e.term)).toEqual(['(Intercept)', 'Price (EUR)', 'Price index', 'Price (EUR):Price index']);
+  // A text outcome with two categories in a logistic model: its second level is the event.
+  const txt = { ...data, categories: { ...(data.categories ?? {}), case: ['control', 'case'] } };
+  const g = await regressionR(txt, base);
+  expect(g.coefficients[1].est).toBeCloseTo(m.coefficients[1].est, 10);
 }, 900_000);

@@ -7,11 +7,12 @@ import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt, fmtP } from '../format';
-import type { Coefficient, Family, RegressionInput, RegressionResult } from '../rengine/regression';
+import type { Coefficient, Family, RegressionCurve, RegressionInput, RegressionResult } from '../rengine/regression';
 import { Choice, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
-export interface RegressionOptions { outcome: string; predictors: string[]; categorical: string[]; interactions: string[][]; family: Family; link: string; trials: string; weights: string; se: RegressionInput['se']; cluster: string }
+/** `plot`: which predictor's partial-effect curve to show (display only). */
+export interface RegressionOptions { outcome: string; predictors: string[]; categorical: string[]; interactions: string[][]; family: Family; link: string; trials: string; weights: string; se: RegressionInput['se']; cluster: string; plot: string }
 type Result = RegressionResult & { input: RegressionInput };
 
 export const FAMILIES: readonly (readonly [Family, string, string])[] = [
@@ -78,23 +79,26 @@ function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<
         <ColumnSelect id="reg-w" label="Frequency weights (optional)" optional="None" value={o.weights} columns={columns} exclude={[o.outcome, ...o.predictors, o.trials, o.cluster]} onChange={(weights) => set({ ...o, weights })} />
         <div className="field">
           <label htmlFor="reg-se">Standard errors</label>
-          <select id="reg-se" className="select" value={o.se} disabled={o.family === 'ordinal' || o.family === 'multinomial'} onChange={(e) => set({ ...o, se: e.target.value as RegressionInput['se'] })}>
+          <select id="reg-se" className="select" value={o.se} disabled={o.family === 'ordinal' || o.family === 'multinomial'} onChange={(e) => { const se = e.target.value as RegressionInput['se']; set({ ...o, se, cluster: se === 'cluster' ? o.cluster : '' }); }}>
             <option value="model">Model-based</option><option value="HC3">Robust (HC3)</option><option value="cluster">Cluster-robust</option>
           </select>
         </div>
       </div>
       {o.se === 'cluster' && <ColumnSelect id="reg-cl" label="Cluster" value={o.cluster} columns={columns} exclude={[o.outcome, ...o.predictors, o.trials, o.weights]} onChange={(cluster) => set({ ...o, cluster })} />}
+      {o.predictors.filter((n) => !text(n) && !o.categorical.includes(n)).length > 1 && (
+        <ColumnSelect id="reg-plot" label="Curve over (display)" optional="The first numeric predictor" value={o.plot} columns={o.predictors.filter((n) => !text(n) && !o.categorical.includes(n))} onChange={(plot) => set({ ...o, plot })} />
+      )}
+      <div className="hint">The curve is a partial-effect plot: the fitted response over one predictor, the other predictors at their means (categorical ones at their reference level). For the raw relation between two columns use a Chart card.</div>
     </fieldset>
   );
 }
 
 const coefRow = (e: Coefficient, ratio: boolean): Row => [c(e.term), c(e.est), c(e.se), c(e.stat), pCell(e.p), c(`[${fmt(e.ciLow)}, ${fmt(e.ciHigh)}]`), ...(ratio ? [c(e.ratio ?? null)] : [])];
 
-function Curve({ r }: { r: RegressionResult }) {
-  const cv = r.curve!;
+function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
   const W = 520, H = 300, pad = { l: 56, r: 16, t: 14, b: 44 };
   const probs = cv.probs;
-  const ys = probs ? [0, 1] : (() => { const all = [...(cv.y ?? []), ...(cv.points?.y ?? [])]; const lo = Math.min(...all), hi = Math.max(...all), m = (hi - lo || 1) * 0.05; return [lo - m, hi + m]; })();
+  const ys = probs ? [0, 1] : (() => { let lo = Infinity, hi = -Infinity; for (const v of [...(cv.y ?? []), ...(cv.points?.y ?? [])]) { if (v < lo) lo = v; if (v > hi) hi = v; } const m = (hi - lo || 1) * 0.05; return [lo - m, hi + m]; })();
   const x0 = cv.grid[0], x1 = cv.grid[cv.grid.length - 1];
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
@@ -102,7 +106,7 @@ function Curve({ r }: { r: RegressionResult }) {
   const COLORS = ['var(--accent)', '#d97706', '#059669', '#dc2626', '#7c3aed', '#0891b2'];
   return (
     <ChartFrame id={`regression:${cv.x}`} name={`regression-${cv.x}`} width={W} height={H} defaults={{ x: cv.x, y: probs ? 'Probability' : r.family === 'binomial' ? 'Probability' : 'Predicted outcome' }}
-      caption={<span className="hint">The fitted {probs ? 'probability of each level' : 'response'} over {cv.x}, other predictors at their means (categorical ones at their reference level).{cv.points ? ' Dots: the data.' : ''}</span>}>
+      caption={<span className="hint">Partial effect of {cv.x}: the fitted {probs ? 'probability of each level' : 'response'} over it, the other predictors at their means (categorical ones at their reference level).{cv.points ? ' Dots: the observed values.' : ''}{r.curves.length > 1 ? ' Another predictor: Curve over, in the options.' : ''}</span>}>
       {(labels) => (
         <svg className="mc-chart data-chart" width={W} height={H} role="img" aria-label="Fitted curve">
           {ticks(ys[0], ys[1]).map((v) => <g key={v}><line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} /><text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">{fmt(v, 2)}</text></g>)}
@@ -119,11 +123,12 @@ function Curve({ r }: { r: RegressionResult }) {
   );
 }
 
-function RegressionView({ r }: { r: Result }) {
+function RegressionView({ r, plot }: { r: Result; plot: string }) {
+  const cv = r.curves.find((k) => k.x === plot) ?? r.curves[0];
   const f = r.fit, pct = Math.round(r.input.confidence * 100);
   const ratio = r.coefficients.some((e) => e.ratio !== undefined && e.ratio !== null);
   const ratioName = r.family === 'binomial' || r.family === 'ordinal' || r.family === 'multinomial' ? 'Odds ratio' : 'Rate ratio';
-  const cols = ['Term', 'Estimate', 'Std. error', r.family === 'gaussian' && r.se === 'model' ? 't' : 'z', 'p', `${pct}% CI`, ...(ratio ? [ratioName] : [])];
+  const cols = ['Term', 'Estimate', 'Std. error', r.family === 'gaussian' || r.family === 'gamma' ? 't' : 'z', 'p', `${pct}% CI`, ...(ratio ? [ratioName] : [])];
   const cards: [string, string][] = [['n', String(f.n)],
     ...(f.r2 !== undefined && f.r2 !== null ? [['R²', fmt(f.r2)], ['Adj. R²', fmt(f.adjR2!)]] as [string, string][] : []),
     ...(r.lrt?.pseudoR2 !== undefined && r.lrt?.pseudoR2 !== null ? [['Pseudo R² (McFadden)', fmt(r.lrt.pseudoR2)]] as [string, string][] : []),
@@ -153,7 +158,7 @@ function RegressionView({ r }: { r: Result }) {
           ...(dg.hosmerLemeshow ? [[c(`Hosmer–Lemeshow χ²(${dg.hosmerLemeshow.df})`), c(`${fmt(dg.hosmerLemeshow.stat, 2)}, p ${fmtP(dg.hosmerLemeshow.p)}`)] as Row] : []),
         ]} note="VIF above 5 (or 10) signals collinear predictors. Hosmer–Lemeshow: a small p means the fitted probabilities do not match the observed rates." />
       ) : null}
-      {r.curve && <Curve r={r} />}
+      {cv && <Curve r={r} cv={cv} />}
     </div>
   );
 }
@@ -175,19 +180,22 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     { title: 'Multinomial regression', sub: 'an unordered categorical outcome (nnet)', options: (o) => ({ ...o, family: 'multinomial' }) },
   ],
   cardTitle: (o) => `${FAMILY_NAME[o.family]}${o.outcome ? `: ${o.outcome}` : ''}`,
-  defaults: () => ({ outcome: '', predictors: [], categorical: [], interactions: [], family: 'gaussian', link: 'logit', trials: '', weights: '', se: 'model', cluster: '' }),
+  defaults: () => ({ outcome: '', predictors: [], categorical: [], interactions: [], family: 'gaussian', link: 'logit', trials: '', weights: '', se: 'model', cluster: '', plot: '' }),
   parseOptions: (raw) => (isObj(raw) ? {
     outcome: name(raw.outcome), predictors: names(raw.predictors), categorical: names(raw.categorical),
     interactions: (Array.isArray(raw.interactions) ? raw.interactions.slice(0, 50) : []).map((t) => names(t)).filter((t) => t.length >= 2),
     family: oneOf(raw.family, FAMILY_IDS, 'gaussian'), link: name(raw.link, 20) || 'logit', trials: name(raw.trials), weights: name(raw.weights),
-    se: oneOf(raw.se, ['model', 'HC3', 'cluster'] as const, 'model'), cluster: name(raw.cluster),
+    se: oneOf(raw.se, ['model', 'HC3', 'cluster'] as const, 'model'), cluster: name(raw.cluster), plot: name(raw.plot),
   } : null),
   Options: RegressionOptionsForm,
-  View: ({ result }) => <RegressionView r={result} />,
+  View: ({ result, options }) => <RegressionView r={result} plot={options.plot} />,
+  display: ['plot'],
   blocked: (o, ctx) => {
     if (!o.outcome) return 'Choose the outcome.';
     if (!o.predictors.length && !o.interactions.length) return 'Choose at least one predictor.';
     if (o.predictors.includes(o.outcome) || o.interactions.some((t) => t.includes(o.outcome))) return 'The outcome cannot be a predictor.';
+    const levels = rawData(ctx)?.categories?.[o.outcome];
+    if (levels && !['ordinal', 'multinomial'].includes(o.family) && !(o.family === 'binomial' && levels.length === 2 && !o.trials)) return `“${o.outcome}” is a text column: choose ordinal or multinomial regression${levels.length === 2 ? ', or logistic regression (its second level counts as the event)' : ''}.`;
     if (o.se === 'cluster' && !o.cluster) return 'Choose the cluster column.';
     if (o.se !== 'model' && (o.family === 'ordinal' || o.family === 'multinomial')) return 'Robust standard errors apply to linear and generalised linear models; choose model-based errors for ordinal and multinomial models.';
     return missingColumns(ctx, regressionColumns(o), 'Regression');

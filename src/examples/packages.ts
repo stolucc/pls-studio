@@ -46,7 +46,7 @@ export type ExamplePanel =
   | ({ kind: 'nca' } & NcaPreset)
   | ({ kind: 'efa' } & EfaPreset)
   | ({ kind: 'did' } & DidOptions)
-  | ({ kind: 'regression' } & RegressionOptions)
+  | ({ kind: 'regression' } & Omit<RegressionOptions, 'plot'> & { plot?: string })
   | { kind: 'screen'; vars: string[] }
   | ({ kind: 'network' } & Partial<NetworkOptions>)
   | ({ kind: 'ega' } & Partial<EgaOptions>);

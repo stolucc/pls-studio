@@ -3,6 +3,7 @@
 // dataset's columns; missing values are left out.
 
 import type { Dataset } from '../engine/types';
+import { quantileSorted } from '../engine/stats';
 
 export interface HistogramBin { from: number; to: number; count: number }
 export interface BoxStats { label: string; n: number; lo: number; q1: number; median: number; q3: number; hi: number; outliers: number[] }
@@ -16,7 +17,8 @@ export function histogram(col: ArrayLike<number>, bins = 0): { bins: HistogramBi
   if (n === 0) return { bins: [], n: 0, mean: NaN, sd: NaN };
   const mean = v.reduce((s, x) => s + x, 0) / n;
   const sd = n > 1 ? Math.sqrt(v.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1)) : 0;
-  const lo = Math.min(...v), hi = Math.max(...v);
+  let lo = Infinity, hi = -Infinity;
+  for (const x of v) { if (x < lo) lo = x; if (x > hi) hi = x; }
   const k = bins > 0 ? Math.min(200, Math.round(bins)) : Math.max(1, Math.ceil(Math.log2(n) + 1));
   if (hi === lo) return { bins: [{ from: lo, to: hi, count: n }], n, mean, sd };
   const step = niceStep((hi - lo) / k);
@@ -35,12 +37,8 @@ export function niceStep(raw: number): number {
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
 }
 
-/** Quantile by linear interpolation (R's type 7) of sorted values. */
-export function quantile(sorted: number[], q: number): number {
-  if (!sorted.length) return NaN;
-  const h = (sorted.length - 1) * q, i = Math.floor(h);
-  return sorted[i] + (h - i) * ((sorted[i + 1] ?? sorted[i]) - sorted[i]);
-}
+/** Quantile by linear interpolation (R's type 7) of sorted values: the engine's. */
+export const quantile = (sorted: number[], q: number): number => quantileSorted(sorted, q);
 
 /** Tukey box: quartiles, whiskers to the last value within 1.5 IQR, the rest outliers. */
 export function boxStats(col: ArrayLike<number>, label: string): BoxStats | null {

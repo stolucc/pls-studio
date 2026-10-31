@@ -29,6 +29,8 @@ describe('difference-in-differences card', () => {
     expect(r.data.names).toEqual(['y', 'id', 't', 'd', 'post', 'x']);
     expect(r.data.cols[5]).toEqual([5, 6, null]);
     expect(r.firstPeriod).toBeUndefined();
+    const st = didRequest(data, didInput(o({ design: 'staggered', outcome: 'y', unit: 'id', time: 't', treated: 'g', post: 'post' }), ctx()));
+    expect(st.post).toBe(''); expect(st.data.names).not.toContain('post');
     expect(() => didRequest({ names: ['a'], cols: [], moments: { S: [[1]], n: 5 } }, didInput(o({}), ctx()))).toThrow(/covariance matrix/);
   });
 });

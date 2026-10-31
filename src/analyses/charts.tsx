@@ -28,9 +28,9 @@ const groupable = (d: Dataset, n: string) => isText(d, n) || (groupsOf(d, n, 12)
 function ChartOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<ChartOptions>) {
   const d = rawData(ctx);
   const columns = d?.names ?? [];
+  // (scanning every column for distinct values once per dataset, not per keystroke)
+  const { numeric, groups } = useMemo(() => (d ? { numeric: d.names.filter((n) => !isText(d, n)), groups: d.names.filter((n) => groupable(d, n)) } : { numeric: [], groups: [] }), [d]);
   if (!d || !columns.length) return <div className="empty-results">Import raw data first.</div>;
-  const numeric = columns.filter((n) => !isText(d, n));
-  const groups = columns.filter((n) => groupable(d, n));
   return (
     <fieldset className="card-options" disabled={disabled}>
       <Choice label="Chart" value={o.kind} onChange={(kind) => set({ ...o, kind })} options={KINDS} />
@@ -118,7 +118,8 @@ function ChartView({ r }: { r: ChartResult }) {
   if (r.kind === 'box') {
     if (!r.boxes.length) return <div className="empty-results">No values to chart.</div>;
     const all = r.boxes.flatMap((b) => [b.lo, b.hi, ...b.outliers]);
-    const lo = Math.min(...all), hi = Math.max(...all), m = (hi - lo || 1) * 0.05;
+    let lo = Infinity, hi = -Infinity; for (const v of all) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    const m = (hi - lo || 1) * 0.05;
     const ys: [number, number] = [lo - m, hi + m];
     const bw = (W - pad.l - pad.r) / r.boxes.length;
     const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
@@ -153,9 +154,10 @@ function ChartView({ r }: { r: ChartResult }) {
 
 function Scatter({ r, id }: { r: Extract<ChartResult, { kind: 'scatter' }>; id: string }) {
   const { xs, ys } = useMemo(() => {
-    const px = r.points.map((p) => p.x), py = r.points.map((p) => p.y);
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of r.points) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; }
     const pad5 = (lo: number, hi: number): [number, number] => { const m = (hi - lo || 1) * 0.05; return [lo - m, hi + m]; };
-    return { xs: pad5(Math.min(...px), Math.max(...px)), ys: pad5(Math.min(...py), Math.max(...py)) };
+    return { xs: pad5(x0, x1), ys: pad5(y0, y1) };
   }, [r.points]);
   if (!r.points.length) return <div className="empty-results">No complete pairs to chart.</div>;
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);

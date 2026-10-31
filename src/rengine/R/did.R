@@ -35,7 +35,7 @@ ps_did <- function(req_json, export = FALSE) {
       sprintf("est <- feols(%s ~ %s:%s%s | %s + %s, data = data, cluster = ~%s)", Y, TR, P, if (!is.null(xs)) paste0(" + ", xs) else "", ID, TM, ID),
       if (event) c(
         "# Event study: the treated group's deviation in each period, relative to the last pre-treatment period.",
-        sprintf("ref <- %s", if (!is.null(first) && is.finite(first)) ps_num(first - 1) else sprintf("max(data$%s[data$%s == 0])", TM, P)),
+        sprintf("ref <- %s  # the last period before treatment", if (!is.null(first) && is.finite(first)) sprintf("max(data$%s[data$%s < %s])", TM, TM, ps_num(first)) else sprintf("max(data$%s[data$%s == 0])", TM, P)),
         sprintf("es <- feols(%s ~ i(%s, %s, ref)%s | %s + %s, data = data, cluster = ~%s)", Y, TM, TR, if (!is.null(xs)) paste0(" + ", xs) else "", ID, TM, ID),
         "# Pre-trends: are the pre-treatment deviations jointly zero?",
         sprintf("evn <- grep(\"^%s::\", names(coef(es)), value = TRUE)", TM),
@@ -47,13 +47,17 @@ ps_did <- function(req_json, export = FALSE) {
     ct <- fixest::coeftable(env$est)
     k <- grep(sprintf("^%s:%s$|^%s:%s$", TR, P, P, TR), rownames(ct))
     if (!length(k)) stop("The treatment-by-post term could not be estimated (is the treatment constant within periods?).")
-    att <- list(est = ct[k, 1], se = ct[k, 2], t = ct[k, 3], p = ct[k, 4], ciLow = ct[k, 1] - z * ct[k, 2], ciHigh = ct[k, 1] + z * ct[k, 2])
+    ci <- stats::confint(env$est, level = conf)  # (fixest: t with the cluster degrees of freedom, as its p values)
+    att <- list(est = ct[k, 1], se = ct[k, 2], t = ct[k, 3], p = ct[k, 4], ciLow = ci[rownames(ct)[k], 1], ciHigh = ci[rownames(ct)[k], 2])
     ev <- NULL; pt <- NULL
     if (event) {
       ce <- fixest::coeftable(env$es)
       rows <- grep(sprintf("^%s::", TM), rownames(ce))
       times <- as.numeric(sub(sprintf("^%s::([^:]+):.*$", TM), "\\1", rownames(ce)[rows]))
-      ev <- lapply(seq_along(rows), function(i) list(time = times[i], rel = times[i] - env$ref - 1, est = ce[rows[i], 1], se = ce[rows[i], 2], ciLow = ce[rows[i], 1] - z * ce[rows[i], 2], ciHigh = ce[rows[i], 1] + z * ce[rows[i], 2]))
+      cie <- stats::confint(env$es, level = conf)
+      # Relative time counts observed periods (periods need not be consecutive integers): the reference is -1.
+      periods <- sort(unique(env$data[[TM]])); relt <- function(t) match(t, periods) - match(env$ref, periods) - 1
+      ev <- lapply(seq_along(rows), function(i) list(time = times[i], rel = relt(times[i]), est = ce[rows[i], 1], se = ce[rows[i], 2], ciLow = cie[rownames(ce)[rows[i]], 1], ciHigh = cie[rownames(ce)[rows[i]], 2]))
       ev <- c(ev, list(list(time = env$ref, rel = -1, est = 0, se = 0, ciLow = 0, ciHigh = 0)))
       ev <- ev[order(vapply(ev, function(e) e$time, 0))]
       if (!is.null(env$pretrend)) pt <- list(stat = unname(env$pretrend$stat), df1 = unname(env$pretrend$df1), df2 = unname(env$pretrend$df2), p = unname(env$pretrend$p))

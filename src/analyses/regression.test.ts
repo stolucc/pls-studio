@@ -21,14 +21,18 @@ describe('regression card', () => {
     expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'ordinal', se: 'HC3' }), ctx())).toMatch(/model-based errors/);
     expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a', 'g'], family: 'binomial', trials: 'n', weights: 'w', se: 'cluster', cluster: 'k' }), ctx())).toBeNull();
     expect(regressionAnalysis.parseOptions({ family: 'logit', predictors: ['a', 'a'], interactions: [['a'], ['a', 'b'], 'x'], se: 'HC2', link: 'probit' }))
-      .toEqual({ outcome: '', predictors: ['a'], categorical: [], interactions: [['a', 'b']], family: 'gaussian', link: 'probit', trials: '', weights: '', se: 'model', cluster: '' });
+      .toEqual({ outcome: '', predictors: ['a'], categorical: [], interactions: [['a', 'b']], family: 'gaussian', link: 'probit', trials: '', weights: '', se: 'model', cluster: '', plot: '' });
+    expect(regressionAnalysis.display).toEqual(['plot']);
+    expect(regressionAnalysis.blocked(o({ outcome: 'g', predictors: ['a'] }), ctx())).toMatch(/text column/);
+    expect(regressionAnalysis.blocked(o({ outcome: 'g', predictors: ['a'], family: 'multinomial' }), ctx())).toBeNull();
     expect(regressionColumns(o({ outcome: 'y', predictors: ['a'], interactions: [['a', 'b']], trials: 'n', weights: 'w', se: 'model', cluster: 'k' }))).toEqual(['y', 'a', 'b', 'n', 'w']);
     expect(regressionAnalysis.cardTitle!(o({ family: 'negbin', outcome: 'y' }))).toBe('Negative binomial: y');
     expect(regressionAnalysis.summary(o({ family: 'binomial', outcome: 'y', predictors: ['a', 'b'], se: 'HC3' }))).toBe('logistic / probit · y on a, b · HC3 SEs');
     expect(regressionAnalysis.fingerprint(o({ outcome: 'y', predictors: ['a'] }), ctx())).not.toBe(regressionAnalysis.fingerprint(o({ outcome: 'y', predictors: ['a'], categorical: ['a'] }), ctx()));
   });
   it('sends the chosen columns with the categories of text columns, missing values as null', () => {
-    const r = regressionRequest(data, regressionInput(o({ outcome: 'y', predictors: ['a', 'g'], interactions: [['a', 'b']], trials: 'n' }), ctx()));
+    const r = regressionRequest(data, regressionInput(o({ outcome: 'y', predictors: ['a', 'g'], interactions: [['a', 'b']], trials: 'n', cluster: 'k' }), ctx()));
+    expect(r.cluster).toBe('');  // (a cluster column counts only with cluster-robust errors)
     expect(r.data.names).toEqual(['y', 'a', 'b', 'g', 'n']);
     expect(r.data.cols[2]).toEqual([2, 3, null]);
     expect(r.categories).toEqual({ g: ['x', 'y', 'z'] });

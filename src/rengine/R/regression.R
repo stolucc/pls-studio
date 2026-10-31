@@ -18,7 +18,9 @@ ps_regression <- function(req_json, export = FALSE) {
   if (se == "cluster" && !nzchar(cluster)) stop("Choose the cluster column for cluster-robust standard errors.")
   if (se != "model" && family %in% c("ordinal", "multinomial")) stop("Robust standard errors are available for lm and glm models; ordinal and multinomial models report their own.")
   conf <- ps_number(req$confidence %||% 0.95, "confidence level")
-  ints <- lapply(req$interactions, function(t) as.character(unlist(t)))
+  # (terms of equal length arrive from JSON as a matrix, one row per term; otherwise as a list)
+  ints <- req$interactions
+  ints <- if (is.matrix(ints)) lapply(seq_len(nrow(ints)), function(i) as.character(ints[i, ])) else lapply(ints, function(t) as.character(unlist(t)))
   if (!nzchar(y) || (!length(preds) && !length(ints))) stop("Choose the outcome and at least one predictor.")
   for (t in ints) if (length(t) < 2) stop("An interaction term must combine two or more variables.")
   vars <- unique(c(preds, unlist(ints)))  # (a variable may enter through an interaction only: nested effects)
@@ -34,6 +36,11 @@ ps_regression <- function(req_json, export = FALSE) {
     # (labels for codes 1..k, as R factors arrive; a recoded column may be 0-based or sparse: its sorted values then)
     if (!is.null(l)) fac_lines <- c(fac_lines, sprintf("data$%s <- ps_labelled(data$%s, %s)", v[[n]], v[[n]], ps_q(unlist(l))))
     else if (n %in% cats || (n == y && family %in% c("ordinal", "multinomial"))) fac_lines <- c(fac_lines, sprintf("data$%s <- factor(data$%s%s)", v[[n]], v[[n]], if (n == y && family == "ordinal") ", ordered = TRUE" else ""))
+  }
+  # A text outcome with two categories in a logistic model: a factor, whose second level is the event (glm's convention).
+  if (family == "binomial" && !nzchar(trials) && !is.null(levels_of[[y]])) {
+    if (length(unlist(levels_of[[y]])) != 2) stop("A logistic model needs a 0/1 outcome, or a text column with exactly two categories.")
+    fac_lines <- c(fac_lines, sprintf("data$%s <- ps_labelled(data$%s, %s)", v[[y]], v[[y]], ps_q(unlist(levels_of[[y]]))))
   }
   if (family == "ordinal" && !is.null(levels_of[[y]])) fac_lines <- c(fac_lines, sprintf("data$%s <- factor(data$%s, ordered = TRUE)", v[[y]], v[[y]]))
   term <- function(t) paste(vapply(t, function(n) v[[n]], ""), collapse = ":")
@@ -66,7 +73,11 @@ ps_regression <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script(title, c("stats", libs), inputs, body, report), collapse = "\n"))
   env <- ps_run(body, inputs)
   fit <- env$fit
-  nm <- function(x) { for (k in names(fr$back)) x <- gsub(paste0("\\b", k, "\\b"), fr$back[[k]], x, perl = TRUE); x }
+  # Term names back to the columns' names: each piece of a term (a:b) starts with one identifier (longest first), the rest is its level.
+  keys <- names(fr$back)[order(-nchar(names(fr$back)))]
+  nm <- function(x) vapply(x, function(t) paste(vapply(strsplit(t, ":", fixed = TRUE)[[1]], function(piece) {
+    k <- keys[startsWith(piece, keys)][1]
+    if (is.na(k)) piece else paste0(fr$back[[k]], substring(piece, nchar(k) + 1)) }, ""), collapse = ":"), "", USE.NAMES = FALSE)
   z <- qnorm(1 - (1 - conf) / 2)
   ratio <- family %in% c("binomial", "poisson", "negbin", "ordinal", "multinomial") && link %in% c("logit", "logistic")
   coefs <- list(); thresholds <- list(); levels_out <- NULL
@@ -89,7 +100,8 @@ ps_regression <- function(req_json, export = FALSE) {
     }
   } else {
     ct <- if (se == "model") lmtest_free(fit) else env$ct
-    tdist <- family == "gaussian" && se == "model"
+    # (lm and Gamma estimate a dispersion: summary and coeftest test with t on the residual df; the interval uses the same quantile)
+    tdist <- family %in% c("gaussian", "gamma")
     q <- if (tdist) qt(1 - (1 - conf) / 2, df.residual(fit)) else z
     for (i in seq_len(nrow(ct))) coefs[[length(coefs) + 1]] <- list(term = nm(rownames(ct)[i]), est = ct[i, 1], se = ct[i, 2], stat = ct[i, 3], p = ct[i, 4],
       ciLow = ct[i, 1] - q * ct[i, 2], ciHigh = ct[i, 1] + q * ct[i, 2], ratio = if (ratio && rownames(ct)[i] != "(Intercept)") exp(ct[i, 1]) else NULL)
@@ -133,11 +145,15 @@ ps_regression <- function(req_json, export = FALSE) {
     if (nlevels(g) > 2) { o <- tapply(yy, g, sum); e <- tapply(pr, g, sum); k <- tapply(yy, g, length)
       hl <- sum((o - e)^2 / (e * (1 - e / k))); diag$hosmerLemeshow <- list(stat = hl, df = nlevels(g) - 2, p = pchisq(hl, nlevels(g) - 2, lower.tail = FALSE)) }
   }
-  # A curve: the response over the first numeric predictor, the others at their means or reference levels.
-  curve <- NULL
+  # Curves, one per numeric predictor: the response over that predictor, the others at their means or
+  # reference levels (a partial-effect plot). Observed values: proportions for binomial counts; none for
+  # the probability curves of ordinal and multinomial outcomes; at most 5,000 rows, every k-th row beyond.
   xnum <- Filter(function(n) !is_fac(n), preds)
-  if (length(xnum)) {
-    xn <- xnum[1]; xv <- v[[xn]]; d <- env$data
+  d <- env$data
+  keep <- if (nrow(d) > 5000) seq(1, nrow(d), length.out = 5000) else seq_len(nrow(d))
+  yobs <- if (family == "binomial" && nzchar(trials)) d[[v[[y]]]] / d[[v[[trials]]]] else if (family == "binomial" && is.factor(d[[v[[y]]]])) as.numeric(d[[v[[y]]]]) - 1 else d[[v[[y]]]]
+  curves <- Filter(Negate(is.null), lapply(xnum, function(xn) {
+    xv <- v[[xn]]
     grid <- seq(min(d[[xv]]), max(d[[xv]]), length.out = 50)
     nd <- d[rep(1, 50), , drop = FALSE]
     for (n in preds) { cv <- v[[n]]; nd[[cv]] <- if (is.factor(d[[cv]])) factor(rep(levels(d[[cv]])[1], 50), levels = levels(d[[cv]])) else rep(mean(d[[cv]]), 50) }
@@ -146,12 +162,10 @@ ps_regression <- function(req_json, export = FALSE) {
       if (family == "multinomial") { p <- predict(fit, nd, type = "probs"); if (!is.matrix(p)) p <- cbind(1 - p, p, deparse.level = 0); list(levels = fit$lev, probs = lapply(seq_len(ncol(p)), function(j) unname(p[, j]))) }
       else if (family == "ordinal") { p <- predict(fit, nd, type = "probs"); list(levels = levels(d[[v[[y]]]]), probs = lapply(seq_len(ncol(p)), function(j) unname(p[, j]))) }
       else list(y = unname(predict(fit, nd, type = "response")))
-    }, "The fitted curve")
-    # The observed values: proportions for binomial counts, level codes for ordinal and multinomial outcomes.
-    if (!is.null(pred)) curve <- c(list(x = xn, grid = grid), pred,
-      list(points = list(x = unname(d[[xv]]), y = unname(if (family == "binomial" && nzchar(trials)) d[[v[[y]]]] / d[[v[[trials]]]] else if (family %in% c("ordinal", "multinomial")) as.numeric(d[[v[[y]]]]) else d[[v[[y]]]]))))
-  }
-  ps_json(list(family = family, link = link, formula = nm(fml), se = se, coefficients = coefs, thresholds = thresholds, levels = levels_out, fit = fitv, lrt = lrt, diagnostics = diag, curve = curve,
+    }, sprintf("The fitted curve over %s", xn))
+    if (is.null(pred)) NULL else c(list(x = xn, grid = grid), pred, if (!family %in% c("ordinal", "multinomial")) list(points = list(x = unname(d[[xv]][keep]), y = unname(yobs[keep]))))
+  }))
+  ps_json(list(family = family, link = link, formula = nm(fml), se = se, coefficients = coefs, thresholds = thresholds, levels = levels_out, fit = fitv, lrt = lrt, diagnostics = diag, curves = curves,
     warnings = env$.warnings, engine = list(package = if (family %in% c("negbin", "ordinal")) "MASS" else if (family == "multinomial") "nnet" else "stats",
       version = as.character(if (family %in% c("negbin", "ordinal")) utils::packageVersion("MASS") else if (family == "multinomial") utils::packageVersion("nnet") else getRversion()))))
 }

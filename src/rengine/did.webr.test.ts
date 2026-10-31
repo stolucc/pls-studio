@@ -65,6 +65,15 @@ it('two-way fixed effects with an event study (fixest) reproduces the help-page 
   expect(r3.event.find((x) => x.time === 5)).toMatchObject({ rel: -1, est: 0 });
   expect(r3.event.length).toBe(10);
   expect(r3.warnings).toEqual([]);
+  // Periods need not be consecutive: relative time counts observed periods, the reference is the last pre-period.
+  const spaced = { ...d, cols: d.cols.map((c, i) => (d.names[i] === 'period' ? Float64Array.from(c, (v) => 2000 + 4 * v) : c)) };
+  const r4 = await didR(spaced, { ...input, post: '', firstPeriod: 2024 });
+  expect(r4.att.est).toBeCloseTo(ref.base_did.att, 6);
+  expect(r4.event.find((x) => x.time === 2020)).toMatchObject({ rel: -1, est: 0 });
+  expect(r4.event.find((x) => x.time === 2024)!.rel).toBe(0);
+  expect(r4.event.map((x) => x.rel).sort((a, b) => a - b)).toEqual([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4]);
+  // Confidence intervals come from fixest's own t distribution (cluster degrees of freedom), as its p values.
+  const a = r.att; expect(a.ciHigh - a.est).toBeGreaterThan(1.96 * a.se * 0.999);
   // Without a post column the first treated period defines it.
   const r2 = await didR(d, { ...input, post: '', eventStudy: false });
   expect(r2.att.est).toBeCloseTo(ref.base_did.att, 6);
