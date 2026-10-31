@@ -4,6 +4,10 @@
 // Scope: the pure logic (engines, model, figure, formatting); UI components
 // and the webR bridges (needing R) are covered by other means; the R-free
 // parts of the R layer (parallel planning, the desktop helper client) are in.
+// The dry run executes every test under instrumentation with several runners sharing the
+// CPU: the slow statistical tests need the long vitest timeout (see vite.config.ts).
+process.env.STRYKER_SLOW = '1';
+
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
   testRunner: 'vitest',
@@ -31,6 +35,20 @@ export default {
     'src/rengine/helper.ts',
     'src/data/recode.ts',
     'src/data/summary.ts',
+    // The analysis log (cards, versions, persistence, packing), examples' topics, link parsing, notices.
+    'src/analyses/store.ts',
+    'src/analyses/persist.ts',
+    'src/analyses/codec.ts',
+    'src/analyses/runHash.ts',
+    'src/analyses/calculate.ts',
+    'src/analyses/common.tsx',
+    'src/examples/tags.ts',
+    'src/cloud/invites.ts',
+    'src/rengine/notices.ts',
+    'src/sample.ts',
+    'src/recent.ts',
+    'src/cancellable.ts',
+    'src/canvasFit.ts',
     '!src/**/*.test.ts',
     '!src/figure/export.ts',
   ],
