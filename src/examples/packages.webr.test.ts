@@ -27,7 +27,7 @@ import { gmmR, lmmR } from '../rengine/mixed';
 import { gmmInput } from '../analyses/longitudinal';
 import { readPackageFile } from '../data/readFile';
 import { fimixR, pathmoxR, rebusR } from '../rengine/segment';
-import { estimatePlsR } from '../rengine/pls';
+import { plsScriptR, estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { exampleModel, PACKAGE_EXAMPLES, panelColumns, type PackageExample } from './packages';
 
@@ -192,6 +192,14 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, st.plsPackage);
       expect(r.converged).toBe(true);
       if (ex.id === 'csem-2ndorder') await checkSecondOrder(data, spec, r, st);
+      if (ex.id === 'seminr-interaction-methods') {
+        // ?interaction_term run natively (seminr 2.5.0): the path coefficients on Satisfaction.
+        const path = (from: string) => r.pathCoef[r.constructs.indexOf(from)][r.constructs.indexOf('Satisfaction')];
+        for (const [from, v] of [['Image', 0.4532], ['Expectation', 0.1705], ['Value', 0.3122], ['Image × Expectation', -0.1672], ['Image × Value', 0.0221]] as const) expect(path(from), from).toBeCloseTo(v, 4);
+        const script = await plsScriptR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300 }, 'seminr');
+        expect(script).toContain('method = orthogonal)');
+        expect(script).toContain('method = product_indicator)');
+      }
       if (ex.id === 'seminr-hoc') {
         // seminr's demo, both variants, against seminr 2.5.0 run natively.
         const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'secondorder', 'seminr.json'), 'utf8'));

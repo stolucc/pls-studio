@@ -338,3 +338,22 @@ describe('describeChanges, the remaining branches', () => {
     expect(latestRun([])).toBeNull();
   });
 });
+
+describe('a moderation’s interaction method in the change log', () => {
+  it('is part of the moderation’s name', () => {
+    const a = s().addConstruct(0, 0, ['a1']), b = s().addConstruct(1, 0, ['b1']), c = s().addConstruct(2, 0, ['c1']);
+    s().addPath(a, b);
+    const p = s().model.paths[0].id;
+    s().addModeration(c, p);
+    const data = { fingerprint: 'x', name: 'a.csv', rows: 10 };
+    const v1 = { model: structuredClone(s().model), settings: s().settings, data };
+    s().setModerationMethod(s().model.moderations[0].id, 'product_indicator');
+    const v2 = { model: structuredClone(s().model), settings: s().settings, data };
+    const names = Object.fromEntries(s().model.constructs.map((k) => [k.id, k.name]));
+    const d = describeChanges(v1, v2);
+    expect(d).toEqual([`+ moderation ${names[c]} on ${names[a]} → ${names[b]} (product indicators)`, `− moderation ${names[c]} on ${names[a]} → ${names[b]}`]);
+    expect(runHash(v1.model, v1.settings, data)).not.toBe(runHash(v2.model, v2.settings, data));
+    s().setModerationMethod(s().model.moderations[0].id, undefined);
+    expect(s().model.moderations[0]).not.toHaveProperty('method');
+  });
+});

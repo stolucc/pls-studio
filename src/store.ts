@@ -12,7 +12,7 @@ import { autoLayout, suggestName } from './model/layout';
 import { graphToModel, isSlotName, templateModel, templatePositions } from './process/canvas';
 import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
-import {
+import { type InteractionMethod,
   createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec, unconfirmedUncorrelated,
   type Construct, type Correlation, type DataInfo, type DefinedParameter, type ModelState, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
 
@@ -141,6 +141,8 @@ interface State {
   setMean: (id: string, patch: { fixed?: number | null; label?: string | null }) => void;
   deleteItems: (constructIds: string[], pathIds: string[], moderationIds?: string[], correlationIds?: string[]) => void;
   addModeration: (moderatorId: string, pathId: string) => boolean;
+  /** PLS-SEM (seminr): how the moderation's interaction term is built (undefined: two-stage). */
+  setModerationMethod: (id: string, method: InteractionMethod | undefined) => void;
   /** Moderated moderation (conditional process analysis): `moderatorId` moderates the moderation `moderationId`. */
   addThreeWay: (moderatorId: string, moderationId: string) => boolean;
   /** Quadratic effect of a path's predictor (X² → Y). */
@@ -323,6 +325,9 @@ export const useStore = create<State>((set, get) => ({
   },
   updateConstruct: (id, patch) =>
     get().commit((m) => ({ ...m, constructs: m.constructs.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+  setModerationMethod: (id, method) => get().commit((m) => ({
+    ...m, moderations: m.moderations.map((mo) => { if (mo.id !== id) return mo; const { method: _old, ...rest } = mo; return method ? { ...rest, method } : rest; }),
+  })),
   setLabel: (target, label) => get().commit((m) => {
     const set = <T extends { label?: string }>(x: T): T => { const { label: _l, ...rest } = x; return (label ? { ...rest, label } : rest) as T; };
     if (target.kind === 'path') return { ...m, paths: m.paths.map((p) => (p.id === target.id ? set(p) : p)) };

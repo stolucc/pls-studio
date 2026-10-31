@@ -105,7 +105,7 @@ export function describeChanges(prev: { model: ModelState; settings: Settings; d
     if (!!p.covariate !== !!c.covariate) out.push(`${c.name}: ${c.covariate ? 'now a covariate' : 'no longer a covariate'}`);
   }
   out.push(...diffList(pm.paths.map((p) => pathLabel(pm, p)), nm.paths.map((p) => pathLabel(nm, p)), 'path'));
-  const modLabel = (m: ModelState, mo: { moderator: string; path: string }) => { const p = m.paths.find((x) => x.id === mo.path); return `${nameOf(m).get(mo.moderator) ?? mo.moderator} on ${p ? pathLabel(m, p) : mo.path}`; };
+  const modLabel = (m: ModelState, mo: { moderator: string; path: string; method?: string }) => { const p = m.paths.find((x) => x.id === mo.path); return `${nameOf(m).get(mo.moderator) ?? mo.moderator} on ${p ? pathLabel(m, p) : mo.path}${mo.method ? ` (${mo.method === 'orthogonal' ? 'orthogonalising' : 'product indicators'})` : ''}`; };
   out.push(...diffList(pm.moderations.map((x) => modLabel(pm, x)), nm.moderations.map((x) => modLabel(nm, x)), 'moderation'));
   const corrLabel = (m: ModelState, k: { a: string; b: string; kind: string }) => (k.kind === 'construct' ? `${nameOf(m).get(k.a) ?? k.a} ↔ ${nameOf(m).get(k.b) ?? k.b}` : `${k.a} ↔ ${k.b}`);
   out.push(...diffList((pm.correlations ?? []).map((k) => corrLabel(pm, k)), (nm.correlations ?? []).map((k) => corrLabel(nm, k)), 'correlation'));

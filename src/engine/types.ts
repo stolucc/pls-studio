@@ -49,6 +49,8 @@ export interface ModerationSpec {
   from: string;
   moderator: string;
   to: string;
+  /** PLS-SEM, seminr: interaction_term(method = …); absent = two_stage. */
+  method?: 'orthogonal' | 'product_indicator';
 }
 
 /**

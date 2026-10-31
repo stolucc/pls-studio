@@ -62,7 +62,8 @@ export interface PackageExample {
   constructs: ExConstruct[];
   paths: [string, string][];
   correlations?: [string, string, Correlation['kind']][];
-  moderations?: [string, string, string][];
+  /** [predictor, moderator, outcome, method?]: the method is seminr's interaction_term(method = …); absent = two_stage. */
+  moderations?: ([string, string, string] | [string, string, string, 'orthogonal' | 'product_indicator'])[];
   /** CB-SEM: multiple groups (construct names in `free` are not used). */
   multigroup?: MultigroupSpec;
   multilevel?: { column: string; between: 'same' | 'saturated' };
@@ -529,6 +530,14 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     moderations: [['Image', 'Expectation', 'Satisfaction'], ['Image', 'Value', 'Satisfaction']], settings: SEMINR(500),
   },
   {
+    id: 'seminr-interaction-methods', package: 'seminr', title: 'Orthogonalising and product-indicator interaction terms', source: 'seminr, ?interaction_term',
+    links: [{ label: '?interaction_term', url: 'https://rdrr.io/cran/seminr/man/interaction_term.html' }, { label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }],
+    description: 'The help-page example: image × expectation as an orthogonalised term and image × value from product indicators, both predicting satisfaction with the main effects. Select a moderation arrow to switch its term between two-stage, orthogonalising and product indicators.',
+    data: { package: 'seminr', name: 'mobi' }, constructs: [MOBI[0], MOBI[1], MOBI[3], MOBI[4]],
+    paths: [['Image', 'Satisfaction'], ['Expectation', 'Satisfaction'], ['Value', 'Satisfaction']],
+    moderations: [['Image', 'Expectation', 'Satisfaction', 'orthogonal'], ['Image', 'Value', 'Satisfaction', 'product_indicator']], settings: SEMINR(500),
+  },
+  {
     id: 'seminr-corprep', package: 'seminr', title: 'Corporate reputation (PLS-SEM primer)', source: 'seminr, corp_rep_data; Hair et al. (2021), chapter 5',
     links: [{ label: '?corp_rep_data', url: 'https://rdrr.io/cran/seminr/man/corp_rep_data.html' }, { label: 'Hair et al. (2021), PLS-SEM using R (open access)', url: 'https://doi.org/10.1007/978-3-030-80519-7' }],
     description: 'The extended corporate reputation model: quality, performance, CSR and attractiveness (Mode B) driving competence and likeability, satisfaction and loyalty. Missing values (-99) are replaced by indicator means; 1,000 bootstrap subsamples with seed 123, as in the book.',
@@ -627,7 +636,7 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
       ...(k.labels ? { loadingLabels: k.labels } : {}),
     })),
     paths,
-    moderations: (ex.moderations ?? []).map(([from, moderator, to]) => ({ id: newId('m'), moderator: id(moderator), path: paths.find((p) => p.from === id(from) && p.to === id(to))!.id })),
+    moderations: (ex.moderations ?? []).map(([from, moderator, to, method]) => ({ id: newId('m'), moderator: id(moderator), path: paths.find((p) => p.from === id(from) && p.to === id(to))!.id, ...(method ? { method } : {}) })),
     ...(ex.correlations?.length ? { correlations: ex.correlations.map(([a, b, kind]) => ({ id: newId('k'), kind, a: kind === 'construct' ? id(a) : a, b: kind === 'construct' ? id(b) : b })) } : {}),
     ...(ex.multigroup ? { multigroup: ex.multigroup } : {}),
     ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),

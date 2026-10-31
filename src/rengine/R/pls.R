@@ -44,6 +44,10 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
     if (length(mods) && any(n$cname[hoc] %in% unlist(lapply(mods, function(m) c(m$from, m$moderator))))) stop("Interactions with a second-order construct are not supported.")
   }
   if (gsca && pkg != "cSEM") stop("This weighting approach is estimated with cSEM; choose cSEM.")
+  # Interaction terms: seminr builds them by the two-stage, orthogonalising or product-indicator approach
+  # (interaction_term's method); cSEM has one approach, products of the construct scores.
+  int_method <- vapply(mods, function(m) { v <- m$method %||% "two_stage"; if (!v %in% c("two_stage", "orthogonal", "product_indicator")) stop("Invalid interaction method in the request."); v }, "")
+  if (pkg != "seminr" && any(int_method != "two_stage")) stop("The orthogonalising and product-indicator interaction terms are seminr's (interaction_term); cSEM estimates products of the construct scores. Choose seminr, or the two-stage term.")
   if (pkg == "cSEM") {
     sep <- "."
     int_l <- vapply(mods, function(m) paste0(n$cv[[m$from]], ".", n$cv[[m$moderator]]), "")
@@ -86,7 +90,7 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
     # Second-order constructs (after their dimensions): seminr's two-stage approach, weighted by the construct's mode.
     mm <- c(mm, vapply(which(hoc), function(j) sprintf("higher_composite(\"%s\", dimensions = %s, method = two_stage, weights = %s)",
       cv[j], ps_q(cv[match(comps[[j]], n$cname)]), weights_of(j)), ""))
-    mm <- c(mm, vapply(mods, function(m) sprintf("interaction_term(iv = \"%s\", moderator = \"%s\", method = two_stage)", n$cv[[m$from]], n$cv[[m$moderator]]), ""))
+    mm <- c(mm, vapply(seq_along(mods), function(q) sprintf("interaction_term(iv = \"%s\", moderator = \"%s\", method = %s)", n$cv[[mods[[q]]$from]], n$cv[[mods[[q]]$moderator]], int_method[q]), ""))
     sm <- vapply(ends, function(t) {
       extra <- int_l[vapply(mods, function(m) m$to == t, TRUE)]
       sprintf("paths(from = %s, to = \"%s\")", ps_q(c(from_to(t), extra)), n$cv[[t]])

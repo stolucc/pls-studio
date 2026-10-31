@@ -111,11 +111,17 @@ export interface DataInfo {
   droppedRows?: RowExclusion[];
 }
 
+/** PLS-SEM (seminr): how an interaction term is built; absent = the two-stage approach (products of construct scores). */
+export type InteractionMethod = 'orthogonal' | 'product_indicator';
+export const INTERACTION_METHOD_NAMES: Record<InteractionMethod, string> = { orthogonal: 'orthogonalising', product_indicator: 'product indicators' };
+
 /** A construct moderating a structural path (drawn as an arrow onto that arrow). */
 export interface Moderation {
   id: string;
   moderator: string;
   path: string;
+  /** PLS-SEM, seminr: interaction_term(method = …); absent = two_stage. cSEM and CB-SEM have their own single approach. */
+  method?: InteractionMethod;
 }
 
 /**
@@ -427,7 +433,7 @@ export function toSpec(model: ModelState): ModelSpec {
     } : {}),
     moderations: (model.moderations ?? []).flatMap((mo) => {
       const p = model.paths.find((q) => q.id === mo.path);
-      return p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, to: name.get(p.to)! }] : [];
+      return p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, to: name.get(p.to)!, ...(mo.method ? { method: mo.method } : {}) }] : [];
     }),
     ...(model.ordered?.length ? { ordered: model.ordered.filter((i) => model.constructs.some((c) => c.indicators.includes(i))) } : {}),
     ...covarianceSpec(model, name),
@@ -646,6 +652,8 @@ export function validateModel(
       for (const id of new Set([p.from, mo.moderator])) {
         if (model.paths.some((q) => q.to === id)) err(`${cap(label)}: in CB-SEM ${quadratic ? "the predictor" : "the predictor and moderator"} must be exogenous, but ${cname.get(id)} has incoming paths.`, id);
       }
+    } else if (mo.method && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'seminr')) {
+      err(`${cap(label)} uses ${INTERACTION_METHOD_NAMES[mo.method]}: that interaction term is seminr’s (interaction_term). Choose seminr under R packages, or the two-stage term.`, mo.moderator);
     } else if (method.consistent && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'cSEM')) {
       // cSEM estimates nonlinear models with PLSc (Dijkstra & Schermelleh-Engel 2014); seminr and the built-in engine do not.
       err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) with PLSc ${quadratic ? 'need' : 'needs'} cSEM: choose R packages → cSEM, or switch consistent PLS off.`, mo.moderator);
@@ -1228,7 +1236,7 @@ export function parseModelState(m: unknown): ModelState {
   const rawMods = Array.isArray(m.moderations) ? m.moderations.slice(0, 1000) : [];
   const moderations: Moderation[] = rawMods.map((mo: unknown) => {
     if (!isObj(mo)) throw new Error('Invalid moderation in project file.');
-    const out = { id: str(mo.id, 64), moderator: str(mo.moderator, 64), path: str(mo.path, 64) };
+    const out: Moderation = { id: str(mo.id, 64), moderator: str(mo.moderator, 64), path: str(mo.path, 64), ...(mo.method === 'orthogonal' || mo.method === 'product_indicator' ? { method: mo.method } : {}) };
     if (!ids.has(out.moderator) || !pathIds.has(out.path)) throw new Error('Invalid project file: moderation references unknown construct or path.');
     return out;
   });

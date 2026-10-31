@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { covarianceLayout } from '../components/CovarianceLayer';
-import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, impliedIntercepts, type Construct, type ModelState, parseProject, pruneCorrelations, pruneMeans, serializeProject, toSpec, validateModel } from './project';
+import { correlationEndError, correlationPairError, createsCycle, DEFAULT_SETTINGS, exogenousPairs, impliedCorrelations, impliedIntercepts, type Construct, type ModelState, parseProject, pruneCorrelations, pruneMeans, serializeProject, type Settings, toSpec, validateModel } from './project';
 
 const data = { names: ['a1', 'a2', 'b1', 'c1'], cols: [1, 2, 3, 4].map(() => Float64Array.from({ length: 100 }, (_, i) => i % 7)) };
 const C = (id: string, name: string, indicators: string[]) => ({ id, name, type: 'factor' as const, mode: 'A' as const, indicators, x: 0, y: 0, side: 'left' as const });
@@ -542,5 +542,32 @@ describe('intercepts the constant implies', () => {
     expect(impliedIntercepts({ ...k, means: [{ id: 'm', target: 'A' }] })).toEqual([{ construct: 'A', indicator: 'a2' }, { construct: 'B', indicator: 'b1' }]);
     expect(impliedIntercepts({ ...k, means: [{ id: 'm', target: 'A', fixed: 0 }] })).toHaveLength(3);
     expect(impliedIntercepts({ ...k, means: [{ id: 'm', target: 'Z' }] })).toHaveLength(3);
+  });
+});
+
+describe('interaction terms (seminr’s method per moderation)', () => {
+  const c = (id: string, indicators: string[]): Construct => ({ id, name: id, type: 'composite', mode: 'A', indicators, x: 0, y: 0, side: 'left' });
+  const model: ModelState = {
+    constructs: [c('X', ['x1', 'x2']), c('M', ['m1', 'm2']), c('Y', ['y1', 'y2'])], paths: [{ id: 'p', from: 'X', to: 'Y' }, { id: 'q', from: 'M', to: 'Y' }],
+    moderations: [{ id: 'mo', moderator: 'M', path: 'p', method: 'orthogonal' }],
+  };
+  const data = { names: ['x1', 'x2', 'm1', 'm2', 'y1', 'y2'], cols: Array.from({ length: 6 }, (_, k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1.1)) + (i % (k + 2)))) };
+  it('survives the project file, reaches the spec, and drops unknown methods', () => {
+    const back = parseProject(serializeProject(model, DEFAULT_SETTINGS, null, null)).model;
+    expect(back.moderations[0].method).toBe('orthogonal');
+    expect(toSpec(back).moderations).toEqual([{ from: 'X', moderator: 'M', to: 'Y', method: 'orthogonal' }]);
+    const loose = parseProject(serializeProject({ ...model, moderations: [{ ...model.moderations[0], method: 'magic' as 'orthogonal' }] }, DEFAULT_SETTINGS, null, null)).model;
+    expect(loose.moderations[0].method).toBeUndefined();
+    expect(toSpec(loose).moderations![0]).not.toHaveProperty('method');
+  });
+  it('is accepted with seminr only', () => {
+    const errors = (s: Partial<Settings>) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'pls', ...s }).filter((i) => i.level === 'error').map((i) => i.message);
+    expect(errors({ engine: 'r', plsPackage: 'seminr' })).toEqual([]);
+    expect(errors({ engine: 'r', plsPackage: 'cSEM' })).toEqual([expect.stringMatching(/orthogonalising: that interaction term is seminr’s/)]);
+    expect(errors({ engine: 'builtin' })).toEqual([expect.stringMatching(/seminr/)]);
+    // A two-stage term (no method) is fine everywhere; CB-SEM ignores the field (lavaan has its own product indicators).
+    const plain = { ...model, moderations: [{ id: 'mo', moderator: 'M', path: 'p' }] };
+    expect(validateModel(plain, data, { ...DEFAULT_SETTINGS, method: 'pls', engine: 'r', plsPackage: 'cSEM' }).filter((i) => i.level === 'error')).toEqual([]);
+    expect(validateModel({ ...model, constructs: model.constructs.map((k) => ({ ...k, type: 'factor' as const })) }, data, { ...DEFAULT_SETTINGS, method: 'cbsem' }).filter((i) => /seminr/.test(i.message))).toEqual([]);
   });
 });

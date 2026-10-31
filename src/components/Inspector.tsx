@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ComputeSettings } from './ComputeSettings';
 import { useCompute } from '../rengine/compute';
 import { fmt, fmtP } from '../format';
-import { endogenousIds, validateModel, type Construct, type Settings } from '../model/project';
+import { endogenousIds, INTERACTION_METHOD_NAMES, validateModel, type Construct, type InteractionMethod, type Settings } from '../model/project';
 import { useFreshResults, useStore } from '../store';
 import { IconAlert, IconSwap, IconTrash, IconX, IconSide } from './icons';
 import { switchMethod } from '../methodSwitch';
@@ -297,6 +297,8 @@ function ThreeWayInspector({ id }: { id: string }) {
 function ModerationInspector({ id }: { id: string }) {
   const model = useStore((s) => s.model);
   const del = useStore((s) => s.deleteItems);
+  const setMethod = useStore((s) => s.setModerationMethod);
+  const plsPackage = useStore((s) => s.settings.engine === 'r' ? s.settings.plsPackage : null);
   const mo = model.moderations.find((x) => x.id === id);
   const p = mo && model.paths.find((q) => q.id === mo.path);
   const nameOf = (cid: string) => model.constructs.find((c) => c.id === cid)?.name ?? '?';
@@ -319,6 +321,25 @@ function ModerationInspector({ id }: { id: string }) {
           : <div className="path-title">{modName} <span className="muted">moderates</span></div>}
         <div className="hint" style={{ marginTop: 4 }}>{quadratic ? `${term} → ${toName}: the effect of ${fromName} changes with its own level.` : `${fromName} → ${toName}`}</div>
       </div>
+      {method === 'pls' && !quadratic && (
+        <div className="section">
+          <div className="section-title">Interaction term</div>
+          <div className="segmented" role="radiogroup" aria-label="Interaction term">
+            {([['two_stage', 'Two-stage'], ['orthogonal', 'Orthogonalising'], ['product_indicator', 'Product indicators']] as const).map(([mid, l]) => (
+              <button key={mid} role="radio" aria-checked={(mo.method ?? 'two_stage') === mid} className={(mo.method ?? 'two_stage') === mid ? 'on' : ''}
+                onClick={() => setMethod(mo.id, mid === 'two_stage' ? undefined : (mid as InteractionMethod))}>{l}</button>
+            ))}
+          </div>
+          <div className="hint" style={{ marginTop: 6 }}>
+            {!mo.method
+              ? 'The product of the standardised construct scores of the first stage (Chin, Marcolin & Newsted 2003; the default of seminr and cSEM).'
+              : mo.method === 'orthogonal'
+                ? 'Products of the indicators, residualised on the main-effect indicators so the term is uncorrelated with them (Little, Bovaird & Widaman 2006; seminr’s interaction_term(method = orthogonal)).'
+                : 'Every product of a predictor indicator and a moderator indicator as the term’s own indicators (Chin, Marcolin & Newsted 2003; seminr’s interaction_term(method = product_indicator)).'}
+            {mo.method && plsPackage !== 'seminr' && <> <b>seminr only</b>: choose seminr under R packages ({INTERACTION_METHOD_NAMES[mo.method]} is not available in cSEM).</>}
+          </div>
+        </div>
+      )}
       {jn && (
         <div className="section">
           <div className="section-title">{quadratic ? 'Latent quadratic effect (CB-SEM)' : 'Latent interaction (CB-SEM)'}</div>
