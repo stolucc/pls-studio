@@ -86,7 +86,17 @@ function HelperStatus() {
           {error && <div className="issue error" role="alert" style={{ marginTop: 6 }}>{error}</div>}
         </>
       )}
-      {(state === 'no-r' || state === 'mismatch') && <>{message} <button className="btn sm ghost" onClick={() => void check()}>Check again</button></>}
+      {state === 'no-r' && <>{message} <button className="btn sm ghost" onClick={() => void check()}>Check again</button></>}
+      {state === 'mismatch' && (
+        <>
+          {message}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+            <HelperDownloadLinks />
+            <button className="btn sm" onClick={() => void check()}>Check again</button>
+          </div>
+          {!allow && <div style={{ marginTop: 6 }}>From a checkout: <code>make -C helper build</code> and restart the helper.</div>}
+        </>
+      )}
       {state === 'ready' && info && (
         <>
           Paired: {info.r.replace(/^R version ([0-9.]+).*/, 'R $1')} on this computer, {info.workers} R process{info.workers === 1 ? '' : 'es'}.

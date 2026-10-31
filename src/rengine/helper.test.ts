@@ -424,7 +424,7 @@ describe('helper client edge cases', () => {
     handler = (p) => (p === '/health' ? { body: { ok: true } } : { body: { bridge: 'other', helper_version: '0.1.3', r: 'R 4.5', workers: 3 } });
     expect(await probeHelper(sources, [])).toBe('mismatch');
     expect(useHelper.getState().info).toEqual({ helperVersion: '0.1.3', r: 'R 4.5', workers: 3 });
-    expect(useHelper.getState().message).toMatch(/another version of PLS Studio/);
+    expect(useHelper.getState().message).toMatch(/newer than the helper installed here \(helper /);
     handler = (p) => (p === '/health' ? { body: { ok: true } } : { body: { bridge: hash, r_error: 'no R' } });
     expect(await probeHelper(sources, [])).toBe('no-r');
     expect(useHelper.getState().info).toMatchObject({ rError: 'no R' });

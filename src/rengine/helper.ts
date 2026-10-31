@@ -121,7 +121,7 @@ export async function probeHelper(sources: Record<string, string>, packages: str
   const raw = await v.json() as { helper_version?: string; bridge?: string; r?: string; workers?: number; r_error?: string };
   const info: HelperInfo = { helperVersion: String(raw.helper_version ?? ''), r: String(raw.r ?? ''), workers: Number(raw.workers ?? 0), ...(raw.r_error ? { rError: String(raw.r_error) } : {}) };
   if (raw.r_error) return set('no-r', raw.r_error, { info });
-  if (raw.bridge !== await bridgeHash(sources)) return set('mismatch', 'The helper was built for another version of PLS Studio: update the helper (make build in helper/).', { info });
+  if (raw.bridge !== await bridgeHash(sources)) return set('mismatch', `This site’s R code is newer than the helper installed here (helper ${info.helperVersion || 'of unknown version'}): install the current helper, then check again.`, { info });
   let versions: Record<string, string | null> = {};
   try {
     const p = await helperFetch('/packages', { method: 'POST', headers: { ...auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ packages }) }, 30000);
