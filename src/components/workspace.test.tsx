@@ -267,3 +267,20 @@ describe('the example pill', () => {
     expect(render(<TopBar />)).not.toContain('example-pill');
   });
 });
+
+// (zustand serves its initial state to server rendering, so these render on the client, as the other tests here do)
+describe('the Groups section and the invariance tab with covariance-matrix data', () => {
+  it('explain that a covariance matrix has no groups instead of hiding the section or asking for a column', async () => {
+    const { GroupsEditor } = await import('./GroupsEditor');
+    const { CbTab } = await import('./results/CbTabs');
+    useStore.getState().newProject();
+    useStore.getState().setData({ names: ['x1', 'x2'], cols: [], moments: { S: [[1, 0.3], [0.3, 1]], n: 100 } }, { fileName: 'm.csv', rows: 100, missingCells: 0, excluded: [], kind: 'matrix' });
+    expect(render(<GroupsEditor />)).toContain('this dataset is a covariance matrix');
+    const inv = render(<CbTab tab="invariance" cb={{} as never} boot={null} />);
+    expect(inv).toContain('covariance matrix (one sample, no cases)');
+    expect(inv).not.toContain('Choose a grouping column');
+    useStore.getState().setData({ names: ['x1', 'x2', 'g'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([3, 4, 5]), Float64Array.from([1, 2, 1])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
+    expect(render(<GroupsEditor />)).toContain('Groups by g');
+    expect(render(<CbTab tab="invariance" cb={{} as never} boot={null} />)).toContain('Choose a grouping column under Groups');
+  });
+});

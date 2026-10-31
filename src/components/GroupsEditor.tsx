@@ -30,7 +30,16 @@ export function GroupsEditor() {
     return vals.size >= 2;
   }) : []), [data, assigned]);
   const name = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
-  if (!data || data.moments) return null;
+  if (!data) return null;
+  // Covariance-matrix data carry no cases, so there is nothing to split into groups: say so instead of hiding the section.
+  if (data.moments && data.cols.length === 0) {
+    return (
+      <div className="section">
+        <div className="section-title">Groups</div>
+        <div className="hint">Multiple-group models need raw data with a grouping column; this dataset is a covariance matrix (summary statistics for one sample).</div>
+      </div>
+    );
+  }
   return (
     <div className="section">
       <div className="section-title">Groups</div>

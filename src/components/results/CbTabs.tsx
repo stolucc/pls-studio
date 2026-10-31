@@ -199,11 +199,16 @@ function ModIndices({ cb }: { cb: CbResult }) {
 
 function Invariance({ cb }: { cb: CbResult }) {
   const multigroup = useStore((s) => s.model.multigroup);
+  const matrix = useStore((s) => !!s.data?.moments && s.data.cols.length === 0);
   const results = useFreshResults();
   const job = useStore((s) => s.job);
   const inv = results?.invariance ?? null;
   const score = cb.groups?.score ?? [];
-  if (!multigroup) return <div className="empty-results">Choose a grouping column under Groups (Model inspector) to compare the model across groups.</div>;
+  if (!multigroup) {
+    return <div className="empty-results">{matrix
+      ? 'Measurement invariance compares groups of cases; this dataset is a covariance matrix (one sample, no cases), so there are no groups to compare.'
+      : 'Choose a grouping column under Groups (Model inspector, with nothing selected) to compare the model across groups.'}</div>;
+  }
   const d = (v: number | undefined, digits = 3) => (v === undefined ? c(null) : c(v, '', digits));
   return (
     <div className="tables">

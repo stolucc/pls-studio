@@ -13,3 +13,4 @@ describe('modification indices tab', () => {
     expect(html({ modindices: [{ lhs: 'F', op: '=~', rhs: 'x4', mi: 12.5, epc: 0.3, sepc: 0.2 }] })).toContain('F =~ x4');
   });
 });
+
