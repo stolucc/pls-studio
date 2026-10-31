@@ -426,3 +426,47 @@ export function migrateAutosave() {
     }
   });
 }
+
+/** Replace the diagram with one from lavaan syntax, or Mplus MODEL syntax (converted by lavaan in R). */
+export async function importModelSyntax() {
+  const { formDialog, confirmDialog } = await import('./components/Overlays');
+  const { looksLikeMplus, parseLavaanSyntax } = await import('./model/syntax');
+  const values = await formDialog({
+    title: 'Import model syntax',
+    body: 'Paste lavaan syntax (=~ factors, ~ regressions, ~~ covariances, ~ 1 means, := defined parameters) or Mplus MODEL syntax (BY, ON, WITH). The diagram is built from it; what it cannot hold is listed.',
+    confirmLabel: 'Build the diagram',
+    fields: [{ label: 'Syntax', multiline: true, placeholder: 'visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\ntextual ~ visual', check: (t) => (t.trim() ? null : 'Paste the model syntax.') }],
+  });
+  if (!values) return;
+  const s = useStore.getState();
+  try {
+    let text = values[0];
+    if (looksLikeMplus(text)) {
+      const { rCall } = await import('./rengine/bridge');
+      text = (await rCall<{ syntax: string }>('ps_mplus_syntax', { syntax: text }, 'lavaan')).syntax;
+    }
+    const { model, warnings } = parseLavaanSyntax(text);
+    if (s.model.constructs.length && !(await confirmDialog({ title: 'Replace the diagram?', body: 'The current diagram is replaced by the imported model (undo brings it back). The data and the analyses stay.', confirmLabel: 'Replace' }))) return;
+    useStore.getState().commit(() => model);
+    if (useStore.getState().settings.method === 'process') useStore.getState().setSettings({ method: 'cbsem' });
+    const missing = s.data ? [...new Set(model.constructs.flatMap((c) => c.indicators))].filter((i) => !s.data!.names.includes(i)) : [];
+    useStore.getState().toast(warnings.length || missing.length ? 'info' : 'success',
+      `${model.constructs.length} constructs and ${model.paths.length} paths imported.${missing.length ? ` Not in the data: ${missing.join(', ')}.` : ''}${warnings.length ? ` ${warnings.join(' ')}` : ''}`);
+  } catch (e) {
+    useStore.getState().toast('error', `Could not import the syntax: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** The model as an Mplus input file (with the data as a .dat file). */
+export async function exportMplus() {
+  const s = useStore.getState();
+  if (!s.model.constructs.length) { s.toast('error', 'Draw a model first.'); return; }
+  const { toMplus } = await import('./model/syntax');
+  const { downloadText, safeFileName } = await import('./format');
+  const { inp, dat, warnings } = toMplus(s.model, s.settings, s.data, s.dataInfo, s.projectName);
+  const stem = safeFileName(s.projectName);
+  downloadText(`${stem}.inp`, inp, 'text/plain');
+  if (dat) downloadText(`${stem.replace(/[^A-Za-z0-9_-]+/g, '_')}.dat`, dat, 'text/plain');
+  else if (s.dataInfo?.kind === 'matrix') s.toast('info', 'Covariance-matrix data: save the matrix as the .dat file Mplus expects (TYPE = COVARIANCE, lower triangle).');
+  s.toast(warnings.length ? 'info' : 'success', `Mplus input written${dat ? ' with the data' : ''}.${warnings.length ? ` ${warnings.join(' ')}` : ''}`);
+}

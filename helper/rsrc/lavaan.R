@@ -935,3 +935,16 @@ ps_cb_score_weights <- function(req_json, export = FALSE) {
     weights = lapply(seq_len(nrow(W)), function(i) I(unname(W[i, ]))), warnings = env$.warnings,
     engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }
+
+#' Mplus MODEL syntax converted to lavaan syntax (lavaan::mplus2lavaan.modelSyntax):
+#' text in, text out; nothing is evaluated.
+ps_mplus_syntax <- function(req_json) {
+  req <- ps_parse(req_json)
+  syntax <- req$syntax
+  if (!is.character(syntax) || length(syntax) != 1 || nchar(syntax) > 20000) stop("Invalid Mplus syntax in the request.")
+  # (only the MODEL section is converted: keep what follows MODEL: when the whole input file was pasted)
+  m <- regmatches(syntax, regexpr("(?is)MODEL\\s*:(.*?)(?=\\n\\s*(MODEL\\s+(CONSTRAINT|TEST|INDIRECT|PRIORS)|OUTPUT|SAVEDATA|PLOT|MONTECARLO)\\s*:|$)", syntax, perl = TRUE))
+  if (length(m)) syntax <- sub("(?is)^MODEL\\s*:", "", m, perl = TRUE)
+  out <- lavaan::mplus2lavaan.modelSyntax(syntax)
+  ps_json(list(syntax = paste(out, collapse = "\n")))
+}

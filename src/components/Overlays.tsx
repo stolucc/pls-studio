@@ -10,7 +10,7 @@ interface NumberField { label: string; min: number; max: number; integer?: boole
 /** A text field: `check` returns why the text is not acceptable (null when it is). Empty text is allowed when `allowEmpty`. */
 interface TextField { label: string; initial?: string; check: (text: string) => string | null; allowEmpty?: boolean }
 /** Several text fields at once; each `check` sees all current values (for cross-field rules). */
-interface FormField { label: string; initial?: string; placeholder?: string; hint?: string; check: (text: string, all: string[]) => string | null }
+interface FormField { label: string; initial?: string; placeholder?: string; hint?: string; multiline?: boolean; check: (text: string, all: string[]) => string | null }
 interface DialogState {
   current: (ConfirmOpts & { field?: NumberField; text?: TextField; fields?: FormField[]; choices?: Choice[]; resolve: (ok: boolean, value?: number, text?: string, choice?: string, values?: string[]) => void }) | null;
 }
@@ -95,8 +95,11 @@ export function ConfirmModal() {
         {fields?.map((f, i) => (
           <div className="field" key={f.label}>
             <label htmlFor={`dlg-f${i}`}>{f.label}</label>
-            <input id={`dlg-f${i}`} ref={i === 0 ? inputRef : undefined} className="input" value={values[i] ?? ''} autoComplete="off" spellCheck={false} placeholder={f.placeholder}
-              onChange={(e) => setValues((vs) => vs.map((v, k) => (k === i ? e.target.value : v)))} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />
+            {f.multiline
+              ? <textarea id={`dlg-f${i}`} className="input" rows={10} value={values[i] ?? ''} spellCheck={false} placeholder={f.placeholder} style={{ fontFamily: 'var(--mono)', fontSize: 12, resize: 'vertical' }}
+                onChange={(e) => setValues((vs) => vs.map((v, k) => (k === i ? e.target.value : v)))} />
+              : <input id={`dlg-f${i}`} ref={i === 0 ? inputRef : undefined} className="input" value={values[i] ?? ''} autoComplete="off" spellCheck={false} placeholder={f.placeholder}
+                onChange={(e) => setValues((vs) => vs.map((v, k) => (k === i ? e.target.value : v)))} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />}
             {fieldErrors[i] ? <span className="hint" style={{ color: 'var(--bad)' }}>{fieldErrors[i]}</span> : f.hint ? <span className="hint">{f.hint}</span> : null}
           </div>
         ))}
