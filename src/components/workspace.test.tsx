@@ -8,7 +8,7 @@ import { emptyModel, useStore } from '../store';
 import { DataWorkspace } from './DataViewer';
 import { TopBar, WorkspaceTabs } from './TopBar';
 import { AnalysesWorkspace } from './analyses/AnalysesWorkspace';
-import { addAnalysis, addText, loadCards, useAnalyses } from '../analyses/store';
+import { addAnalysis, addText, loadCards, setTitle, useAnalyses } from '../analyses/store';
 
 const s = () => useStore.getState();
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -105,6 +105,22 @@ describe('Analyses tab', () => {
     // Selected (just added): its options are in the pane, blocked without data.
     expect(html).toContain('Import raw data first.');
     expect(html).toMatch(/NCA needs raw data/);
+  });
+
+  it('shows a renamed card’s title on the card, in the outline and in the options pane', () => {
+    const id = addAnalysis('nca', { source: 'data', x: ['x1'], y: 'x2', permutations: 100 })!;
+    let html = render(<AnalysesWorkspace />);
+    // Before renaming: the analysis name, an empty Title field with it as placeholder, a Rename button.
+    expect(html).toContain('Necessary condition analysis</h3>');
+    expect(html).toMatch(/<input id="title-card-[^"]+" class="input" placeholder="Necessary condition analysis" maxlength="80" value="">/);
+    expect(html).toContain('aria-label="Rename"');
+    setTitle(id, 'Ceiling check, wave 1');
+    html = render(<AnalysesWorkspace />);
+    expect(html).toContain('Ceiling check, wave 1</h3>');
+    expect(html).not.toContain('Necessary condition analysis</h3>');
+    expect(html).toMatch(new RegExp(`<a href="#${id}"[^>]*>(<span[^>]*>[^<]*</span>)*Ceiling check, wave 1</a>`));
+    expect(html).toContain('<h2>Ceiling check, wave 1</h2>');
+    expect(html).toMatch(/placeholder="Necessary condition analysis" maxlength="80" value="Ceiling check, wave 1"/);
   });
 
   it('marks a result whose data changed as stale, with a way to rerun it', () => {

@@ -29,7 +29,7 @@ export interface CardRun {
 }
 
 export type Card =
-  | { id: string; kind: 'analysis'; type: string; options: unknown; run?: CardRun }
+  | { id: string; kind: 'analysis'; type: string; options: unknown; run?: CardRun; /** The user's own title (shown on the card, in the outline and the report instead of the analysis name). */ title?: string }
   | { id: string; kind: 'heading' | 'note'; text: string };
 export type AnalysisCard = Extract<Card, { kind: 'analysis' }>;
 

@@ -36,6 +36,7 @@ export const IconInfo = make(<><circle cx="12" cy="12" r="9" /><path d="M12 11v5
 export const IconChevronDown = make(<path d="M6 9l6 6 6-6" />);
 export const IconChevronUp = make(<path d="M6 15l6-6 6 6" />);
 export const IconCopy = make(<><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 012-2h10" /></>);
+export const IconPencil = make(<><path d="M4 20h4l10.5-10.5a2.1 2.1 0 00-3-3L5 17z" /><path d="M13.5 6.5l3 3" /></>);
 export const IconDownload = make(<><path d="M12 4v11M7 10l5 5 5-5" /><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></>);
 export const IconEye = make(<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>);
 export const IconSparkle = make(<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" />);

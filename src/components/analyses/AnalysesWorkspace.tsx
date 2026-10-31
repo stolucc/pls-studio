@@ -2,12 +2,12 @@ import { Component, useEffect, useMemo, useRef, useState, type DragEvent, type K
 import { analysisType, ANALYSIS_TYPES } from '../../analyses/registry';
 import {
   addAnalysis, currentCtx, addText, cancelCard, cardStatus, duplicateCard, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, selectCard,
-  setOptions, setText, unpackCard, useAnalyses, type CardStatus,
+  setOptions, setText, setTitle, unpackCard, useAnalyses, MAX_TITLE, type CardStatus,
 } from '../../analyses/store';
 import type { AnalysisCard, AnalysisCtx, AnalysisGroup, Card } from '../../analyses/types';
 import { downloadText, safeFileName } from '../../format';
 import { useFreshResults, useStore } from '../../store';
-import { IconCopy, IconPlay, IconRepeat, IconTrash } from '../icons';
+import { IconCopy, IconPencil, IconPlay, IconRepeat, IconTrash } from '../icons';
 import { confirmDialog } from '../Overlays';
 import { openReplication, ReplicationDialog } from './ReplicationDialog';
 
@@ -34,7 +34,21 @@ export function useStaleCount(): number {
 
 const readOnlySel = (s: ReturnType<typeof useStore.getState>) => s.cloud?.role === 'viewer';
 const when = (at: number) => new Date(at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const titleOf = (c: Card) => (c.kind === 'analysis' ? (() => { const t = analysisType(c.type); return t ? t.cardTitle?.(c.options) ?? t.title : c.type; })() : c.text.split('\n')[0].slice(0, 80) || (c.kind === 'heading' ? 'Heading' : 'Note'));
+/** The analysis name (or the options-dependent title) of an analysis card, before any renaming. */
+const defaultTitle = (c: AnalysisCard) => { const t = analysisType(c.type); return t ? t.cardTitle?.(c.options) ?? t.title : c.type; };
+const titleOf = (c: Card) => (c.kind === 'analysis' ? c.title || defaultTitle(c) : c.text.split('\n')[0].slice(0, 80) || (c.kind === 'heading' ? 'Heading' : 'Note'));
+
+/** The card's title, editable in place (the pencil, or a double-click): Enter or leaving the field saves, Escape cancels, empty restores the analysis name. */
+function CardTitle({ card, editing, setEditing }: { card: AnalysisCard; editing: boolean; setEditing: (on: boolean) => void }) {
+  if (!editing) return <h3 onDoubleClick={() => setEditing(true)}>{titleOf(card)}</h3>;
+  const commit = (el: HTMLInputElement) => { setTitle(card.id, el.value); setEditing(false); };
+  return (
+    <input className="input title-edit" aria-label="Card title" defaultValue={card.title ?? ''} placeholder={defaultTitle(card)} maxLength={MAX_TITLE} autoFocus
+      onClick={(e) => e.stopPropagation()} onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commit(e.currentTarget); else if (e.key === 'Escape') setEditing(false); }}
+      onBlur={(e) => commit(e.currentTarget)} />
+  );
+}
 
 class ResultBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
@@ -127,6 +141,7 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
   const unpacking = useAnalyses((s) => !!s.unpacking[card.id]);
   const progress = useAnalyses((s) => s.progress[card.id]);
   const [over, setOver] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const packed = card.kind === 'analysis' ? card.run?.packed : undefined;
   useEffect(() => { if (packed && !hasResult) void unpackCard(card.id); }, [card.id, packed, hasResult]);
 
@@ -166,12 +181,13 @@ function CardView({ card, ctx, readOnly, dragging, setDragging }: { card: Card; 
     <article id={card.id} className={cls} {...drop} onClick={() => selectCard(card.id)}>
       <div className="card-head" tabIndex={0} {...drag} onKeyDown={onKey} aria-label={`${titleOf(card)} (Alt+↑/↓ to move)`}>
         {!readOnly && <span className="grip" aria-hidden>⋮⋮</span>}
-        <h3>{titleOf(card)}</h3>
+        <CardTitle card={card} editing={renaming && !readOnly} setEditing={setRenaming} />
         <span className={`pill ${tone}`}>{label}</span>
         <span className="muted card-meta">{t?.frozen ? 'snapshot' : t?.summary(card.options as never)}{card.run ? ` · ${when(card.run.at)}` : ''}</span>
         {!readOnly && (
           <span className="card-acts">
             {!t?.frozen && <button className="btn icon ghost sm" title={card.run ? 'Run again' : 'Run'} aria-label={card.run ? 'Run again' : 'Run'} disabled={running} onClick={(e) => { e.stopPropagation(); void runCard(card.id); }}>{card.run ? <IconRepeat size={13} /> : <IconPlay size={13} />}</button>}
+            <button className="btn icon ghost sm" title="Rename" aria-label="Rename" onClick={(e) => { e.stopPropagation(); setRenaming(true); }}><IconPencil size={13} /></button>
             {!t?.frozen && <button className="btn icon ghost sm" title="Duplicate" aria-label="Duplicate" onClick={(e) => { e.stopPropagation(); duplicateCard(card.id); }}><IconCopy size={13} /></button>}
             <button className="btn icon ghost sm" title="Remove" aria-label="Remove" onClick={(e) => { e.stopPropagation(); void confirmRemove(card); }}><IconTrash size={13} /></button>
           </span>
@@ -223,6 +239,11 @@ function OptionsPane({ ctx, readOnly }: { ctx: AnalysisCtx; readOnly: boolean })
   return (
     <div className="pane-inner">
       <h2>{titleOf(c)}</h2>
+      <div className="field">
+        <label htmlFor={`title-${c.id}`}>Title</label>
+        <input id={`title-${c.id}`} className="input" key={c.id} defaultValue={c.title ?? ''} placeholder={defaultTitle(c)} maxLength={MAX_TITLE} disabled={readOnly}
+          onBlur={(e) => setTitle(c.id, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') setTitle(c.id, e.currentTarget.value); }} />
+      </div>
       <t.Options options={c.options} set={(o) => setOptions(c.id, o)} ctx={ctx} disabled={readOnly || running} />
       {blocked && !t.frozen && <div className="hint">{blocked}</div>}
       {!readOnly && !t.frozen && (

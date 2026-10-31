@@ -11,6 +11,7 @@ import type { AnalysisCard, AnalysisCtx, Card } from './types';
 
 export const MAX_CARDS = 200;
 export const MAX_TEXT = 5000;
+export const MAX_TITLE = 80;
 
 interface AnalysesState {
   cards: Card[];
@@ -86,12 +87,22 @@ export function setText(id: string, text: string) {
   edit((cs) => cs.map((c) => (c.id === id && c.kind !== 'analysis' ? { ...c, text: text.slice(0, MAX_TEXT) } : c)));
 }
 
+/** Rename an analysis card: one line, trimmed; empty restores the analysis name. */
+export function setTitle(id: string, title: string) {
+  const t = title.replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE);
+  edit((cs) => cs.map((c) => {
+    if (c.id !== id || c.kind !== 'analysis') return c;
+    const { title: _old, ...rest } = c;
+    return t ? { ...rest, title: t } : rest;
+  }));
+}
+
 export function duplicateCard(id: string): string | null {
   const s = useAnalyses.getState();
   const i = s.cards.findIndex((c) => c.id === id);
   if (i < 0 || readOnly() || s.cards.length >= MAX_CARDS) return null;
   const src = s.cards[i];
-  const copy: Card = src.kind === 'analysis' ? { id: newCardId(), kind: 'analysis', type: src.type, options: src.options } : { ...src, id: newCardId() };
+  const copy: Card = src.kind === 'analysis' ? { id: newCardId(), kind: 'analysis', type: src.type, options: src.options, ...(src.title ? { title: src.title } : {}) } : { ...src, id: newCardId() };
   edit((cs) => [...cs.slice(0, i + 1), copy, ...cs.slice(i + 1)]);
   useAnalyses.setState({ selected: copy.id });
   return copy.id;

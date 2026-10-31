@@ -83,7 +83,7 @@ export function buildReport(cards: Card[], title: string, doc: Document = docume
       continue;
     }
     const t = analysisType(card.type);
-    add('h3', t ? t.cardTitle?.(card.options as never) ?? t.title : card.type);
+    add('h3', card.title || (t ? t.cardTitle?.(card.options as never) ?? t.title : card.type));
     if (t) add('p', `${t.frozen ? 'Snapshot' : t.summary(card.options as never)}${card.run ? ` · ${new Date(card.run.at).toLocaleString()}` : ''}`, 'meta');
     if (!card.run) { add('p', 'Not run.', 'status'); continue; }
     const st = cardStatus(card, ctx, false, card.id in results);

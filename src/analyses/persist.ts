@@ -4,7 +4,7 @@
 import type { McDesign } from '../engine/montecarlo';
 import { MAX_PACKED } from './codec';
 import { analysisType } from './registry';
-import { MAX_CARDS, MAX_TEXT } from './store';
+import { MAX_CARDS, MAX_TEXT, MAX_TITLE } from './store';
 import type { Card, CardRun } from './types';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -31,7 +31,8 @@ export function parseCards(raw: unknown): Card[] {
       const options = t?.parseOptions(c.options);
       if (!t || !options) continue;
       const run = parseRun(c.run);
-      out.push({ id: c.id, kind: 'analysis', type: t.id, options, ...(run ? { run } : {}) });
+      const title = typeof c.title === 'string' ? c.title.replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE) : '';
+      out.push({ id: c.id, kind: 'analysis', type: t.id, options, ...(run ? { run } : {}), ...(title ? { title } : {}) });
     } else continue;
     seen.add(c.id);
   }

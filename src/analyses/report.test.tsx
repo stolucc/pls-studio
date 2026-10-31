@@ -7,7 +7,7 @@ import { parseProject, serializeProject } from '../model/project';
 import { useStore } from '../store';
 import { parseCards } from './persist';
 import { buildReport, cleanResult } from './report';
-import { addFrozenCard, addText, cardStatus, currentCtx, loadCards, useAnalyses } from './store';
+import { addFrozenCard, addText, cardStatus, currentCtx, loadCards, setTitle, useAnalyses } from './store';
 import { ANALYSIS_TYPES } from './registry';
 import type { AnalysisCard } from './types';
 
@@ -32,6 +32,16 @@ describe('report', () => {
     expect(html).toContain('My &lt;project&gt;');
     expect(html.indexOf('Measurement')).toBeLessThan(html.indexOf('CB-SEM model, snapshot 1'));
     expect(html).not.toMatch(/<button|<input|<select/);
+  });
+
+  it('heads a renamed card with its own title', async () => {
+    const id = (await addFrozenCard('snapshot', { label: 'PLS-SEM model, snapshot 1' }, { method: 'pls', description: 'cSEM', diagram: null, level: 0.95 }))!;
+    setTitle(id, 'Baseline model <before> pruning');
+    const unmount = mount();
+    const html = buildReport(useAnalyses.getState().cards, 'P');
+    unmount();
+    expect(html).toContain('<h3>Baseline model &lt;before&gt; pruning</h3>');
+    expect(html).not.toContain('<h3>PLS-SEM model, snapshot 1</h3>');
   });
 
   it('cleans a result: no event handlers, links or foreign images; charts as images', () => {

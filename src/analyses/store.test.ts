@@ -5,7 +5,7 @@ import { fingerprint } from './codec';
 import { parseCards, shareableCards } from './persist';
 import { ANALYSIS_TYPES } from './registry';
 import {
-  addAnalysis, addText, cardStatus, currentCtx, duplicateCard, loadCards, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, setOptions, setText, unpackCard, useAnalyses,
+  addAnalysis, addText, cardStatus, currentCtx, duplicateCard, loadCards, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, setOptions, setText, setTitle, unpackCard, useAnalyses,
 } from './store';
 import type { AnalysisCard, AnalysisType } from './types';
 
@@ -90,6 +90,25 @@ describe('analysis log', () => {
     expect(a().cards).toHaveLength(1);
     expect(card(m).options).toEqual({ col: 'x' });
   });
+
+  it('renames a card: one trimmed line of at most 80 characters, empty restores the analysis name, copies keep it', () => {
+    const m = addAnalysis('test-mean')!;
+    setTitle(m, '  Mean of  x\n(first wave)  ');
+    expect(card(m).title).toBe('Mean of x (first wave)');
+    const copy = duplicateCard(m)!;
+    expect(card(copy).title).toBe('Mean of x (first wave)');
+    setTitle(m, 'x'.repeat(100));
+    expect(card(m).title).toHaveLength(80);
+    setTitle(m, '   ');
+    expect('title' in card(m)).toBe(false);
+    // Only analysis cards, and not for viewers.
+    const h = addText('heading', 'H')!;
+    setTitle(h, 'nope');
+    expect((a().cards.find((c) => c.id === h) as { title?: string }).title).toBeUndefined();
+    useStore.setState({ cloud: { projectId: 'p', role: 'viewer', status: 'online' } });
+    setTitle(copy, 'changed by a viewer');
+    expect(card(copy).title).toBe('Mean of x (first wave)');
+  });
 });
 
 describe('running a card', () => {
@@ -153,13 +172,24 @@ describe('cards from files and collaborators', () => {
       { id: 'card-2', kind: 'analysis', type: 'no-such', options: {} },
       { id: 'card-3', kind: 'analysis', type: 'test-mean', options: { col: 7 } },
       { id: 'card-4', kind: 'analysis', type: 'test-mean', options: { col: 'x' }, run: { at: 1, fingerprint: 'f', options: '{}', packed: 'x'.repeat(9_000_000) } },
-      { id: 'card-5', kind: 'analysis', type: 'test-mean', options: { col: 'x' }, run: { at: 'yesterday' } },
+      { id: 'card-5', kind: 'analysis', type: 'test-mean', options: { col: 'x' }, run: { at: 'yesterday' }, title: { not: 'a string' } },
+      { id: 'card-6', kind: 'analysis', type: 'test-mean', options: { col: 'x' }, title: ' My\ttitle ' + 'x'.repeat(100) },
       'junk',
     ]);
-    expect(cards.map((c) => c.id)).toEqual(['card-1', 'card-4', 'card-5']);
+    expect(cards.map((c) => c.id)).toEqual(['card-1', 'card-4', 'card-5', 'card-6']);
     expect((cards[0] as { text: string }).text).toHaveLength(5000);
     expect((cards[1] as AnalysisCard).run).toEqual({ at: 1, fingerprint: 'f', options: '{}' });
     expect((cards[2] as AnalysisCard).run).toBeUndefined();
+    expect((cards[2] as AnalysisCard).title).toBeUndefined();
+    expect((cards[3] as AnalysisCard).title).toBe(('My title ' + 'x'.repeat(100)).slice(0, 80));
+  });
+
+  it('keep their titles through a project file', () => {
+    const m = addAnalysis('test-mean')!;
+    setTitle(m, 'Mean of x');
+    const s = useStore.getState();
+    const back = parseCards(parseProject(serializeProject(s.model, s.settings, null, null, null, a().cards)).analyses);
+    expect((back[0] as AnalysisCard).title).toBe('Mean of x');
   });
 
   it('go to shared projects without their results; a collaborator’s copy keeps ours', async () => {
