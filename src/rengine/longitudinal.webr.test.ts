@@ -38,6 +38,14 @@ describe('latent growth curves', () => {
     check(await growthR(growthData, input), ref.conditional);
     expect(await growthScriptR(growthData, input)).toContain('i + s ~ x1 + x2');
   }, 600_000);
+  it('time-varying covariates (each occasion on its own) match the lavaan tutorial model', async () => {
+    const input = { measures: t, times: [0, 1, 2, 3], shape: 'linear' as const, covariates: ['x1', 'x2'], timeVarying: ['c1', 'c2', 'c3', 'c4'], estimator: 'ML' as const, missing: 'casewise' as const };
+    const r = await growthR(growthData, input);
+    check(r, ref.timeVarying);
+    expect(r.estimates.filter((e) => e.op === '~' && /^t\d$/.test(e.lhs)).map((e) => `${e.lhs} ~ ${e.rhs}`)).toEqual(['t1 ~ c1', 't2 ~ c2', 't3 ~ c3', 't4 ~ c4']);
+    expect(await growthScriptR(growthData, input)).toContain('t3 ~ c3');
+    await expect(growthR(growthData, { ...input, timeVarying: ['c1', 'c2'] })).rejects.toThrow(/one time-varying covariate per measurement occasion/);
+  }, 600_000);
 });
 
 describe('RI-CLPM', () => {

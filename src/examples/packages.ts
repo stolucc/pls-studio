@@ -33,7 +33,7 @@ interface ExConstruct {
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
 export type ExamplePanel =
-  | { kind: 'growth'; measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[] }
+  | { kind: 'growth'; measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[]; timeVarying?: string[] }
   | { kind: 'irt'; items: string[]; model: IrtModel }
   | { kind: 'lca'; items: string[]; from: number; to: number }
   | ({ kind: 'lmm' } & LmmInput)
@@ -163,6 +163,13 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'Four repeated measures t1–t4 (N = 400): random intercept and linear slope with time scores 0, 1, 2, 3. Opens its card on the Analyses tab.',
     data: { package: 'lavaan', name: 'Demo.growth' }, constructs: [], paths: [],
     panel: { kind: 'growth', measures: items('t', 4), times: [0, 1, 2, 3], shape: 'linear', covariates: [] }, settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-growth-conditional', package: 'lavaan', title: 'Conditional latent curve model with time-varying covariates', source: 'lavaan tutorial: growth curve models (Demo.growth)',
+    links: [{ label: 'lavaan tutorial: growth curve models', url: 'https://lavaan.ugent.be/tutorial/growth.html' }, { label: '?growth', url: 'https://rdrr.io/cran/lavaan/man/growth.html' }, { label: '?Demo.growth', url: 'https://rdrr.io/cran/lavaan/man/Demo.growth.html' }],
+    description: 'The tutorial’s second model: intercept and linear slope over t1–t4 regressed on x1 and x2, and each occasion on its own time-varying covariate c1–c4 (Bollen & Curran’s conditional latent curve model). Opens its card on the Analyses tab.',
+    data: { package: 'lavaan', name: 'Demo.growth' }, constructs: [], paths: [],
+    panel: { kind: 'growth', measures: items('t', 4), times: [0, 1, 2, 3], shape: 'linear', covariates: ['x1', 'x2'], timeVarying: items('c', 4) }, settings: CB('ML'),
   },
   {
     id: 'miivsem-bollen', package: 'MIIVsem', title: 'Political democracy by MIIV-2SLS', source: 'MIIVsem, bollen1989a',

@@ -12,7 +12,7 @@ describe('growth curve card', () => {
   it('defaults the time scores to 0, 1, 2, … and takes the estimator and missing data from the settings', () => {
     const o = { ...growth.defaults(ctx()), measures: t };
     expect(growthInput(o, ctx({ settings: { ...DEFAULT_SETTINGS, estimator: 'MLR', missing: 'fiml' } })))
-      .toEqual({ measures: t, times: [0, 1, 2, 3], shape: 'linear', covariates: [], estimator: 'MLR', missing: 'fiml' });
+      .toEqual({ measures: t, times: [0, 1, 2, 3], shape: 'linear', covariates: [], timeVarying: [], estimator: 'MLR', missing: 'fiml' });
     expect(growthInput({ ...o, times: [0, 0.5, 1, 2] }, ctx()).times).toEqual([0, 0.5, 1, 2]);
     expect(growthInput(o, ctx({ settings: { ...DEFAULT_SETTINGS, estimator: 'WLSMV' } })).estimator).toBe('ML');
   });
@@ -23,7 +23,8 @@ describe('growth curve card', () => {
     expect(growth.blocked({ ...o, measures: t.slice(0, 2) }, ctx())).toContain('at least three');
     expect(growth.blocked({ ...o, times: [0, 1] }, ctx())).toContain('one time score per measure');
     expect(growth.fingerprint(o, ctx({ settings: { ...DEFAULT_SETTINGS, estimator: 'MLR' } }))).not.toBe(growth.fingerprint(o, ctx()));
-    expect(growth.parseOptions({ measures: t, times: [0, 'x', 2], shape: 'cubic' })).toEqual({ measures: t, times: [0, 2], shape: 'linear', covariates: [] });
+    expect(growth.parseOptions({ measures: t, times: [0, 'x', 2], shape: 'cubic' })).toEqual({ measures: t, times: [0, 2], shape: 'linear', covariates: [], timeVarying: [] });
+    expect(growth.blocked({ ...growth.defaults(ctx()), measures: t, timeVarying: ['c1'] }, ctx())).toMatch(/one time-varying covariate per occasion/);
   });
 });
 

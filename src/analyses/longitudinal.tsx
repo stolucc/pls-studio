@@ -12,7 +12,7 @@ import { c, pCell, Table, type Row } from '../components/results/Table';
 import { Choice, clampNum, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
-export interface GrowthOptions { measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[] }
+export interface GrowthOptions { measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[]; timeVarying: string[] }
 export interface RiclpmOptions { x: string[]; y: string[]; equal: boolean }
 export interface GmmOptions {
   format: 'wide' | 'long'; measures: string[]; times: number[]; subject: string; time: string; outcome: string;
@@ -35,7 +35,9 @@ function GrowthView({ r }: { r: GrowthResult }) {
   const f = (x: string) => name[x] ?? x;
   const means = r.estimates.filter((e) => e.op === '~1');
   const vars = r.estimates.filter((e) => e.op === '~~');
-  const regs = r.estimates.filter((e) => e.op === '~');
+  const growthFactor = (x: string) => x in name;
+  const regs = r.estimates.filter((e) => e.op === '~' && growthFactor(e.lhs));
+  const tvc = r.estimates.filter((e) => e.op === '~' && !growthFactor(e.lhs));
   const W = 460, H = 240, pad = { l: 56, r: 14, t: 12, b: 40 };
   const all = [...r.impliedMeans, ...r.observedMeans];
   const lo = Math.min(...all), hi = Math.max(...all), span = hi - lo || 1;
@@ -53,6 +55,8 @@ function GrowthView({ r }: { r: GrowthResult }) {
         rows={vars.map((e) => estRow(e, e.lhs === e.rhs ? f(e.lhs) : `${f(e.lhs)} ↔ ${f(e.rhs)}`))}
         note="Variances: how much people differ in level and change; covariance: whether people who start higher change faster." />
       {regs.length > 0 && <Table title="Covariates predicting the growth factors" file="growth-covariates" columns={estCols} rows={regs.map((e) => estRow(e, `${e.rhs} → ${f(e.lhs)}`))} />}
+      {tvc.length > 0 && <Table title="Time-varying covariates" file="growth-time-varying" columns={estCols} rows={tvc.map((e) => estRow(e, `${e.rhs} → ${e.lhs}`))}
+        note="Each occasion regressed on its own covariate: the effect of the covariate at that time, over and above the growth curve." />}
       <ChartFrame id="growth:trajectory" name="growth-trajectory" width={W} height={H} defaults={{ x: 'Time', y: 'Mean' }}>
         {(labels) => (
           <svg className="mc-chart" width={W} height={H} role="img" aria-label="Mean trajectory">
@@ -196,7 +200,9 @@ function GrowthOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Grow
         hint="Default 0, 1, 2, …: the intercept is the level at the first occasion. Use e.g. 0, 0.5, 1, 2 for unequal spacing." />
       <Choice label="Shape" value={o.shape} onChange={(shape) => set({ ...o, shape })} options={[['linear', 'Linear'], ['quadratic', 'Quadratic'], ['basis', 'Latent basis']]}
         hint="Latent basis: the first two time scores fixed (0, 1), the others estimated, so the shape of change is free." />
-      <OrderedPicker label="Covariates predicting the growth factors (optional)" columns={columns.filter((n) => !o.measures.includes(n))} value={o.covariates} onChange={(covariates) => set({ ...o, covariates })} />
+      <OrderedPicker label="Covariates predicting the growth factors (optional)" columns={columns.filter((n) => !o.measures.includes(n) && !o.timeVarying.includes(n))} value={o.covariates} onChange={(covariates) => set({ ...o, covariates })} />
+      <OrderedPicker label="Time-varying covariates (optional: one per occasion, in time order)" hint="Each occasion is regressed on its own covariate (lavaan tutorial: t1 ~ c1, t2 ~ c2, …)."
+        columns={columns.filter((n) => !o.measures.includes(n) && !o.covariates.includes(n))} value={o.timeVarying} onChange={(timeVarying) => set({ ...o, timeVarying })} />
       <div className="hint">lavaan {l.estimator}{MISSING_NOTE[l.missing] ?? ''} (from the Model settings).</div>
     </fieldset>
   );
@@ -263,19 +269,20 @@ export const growthAnalysis: AnalysisType<GrowthOptions, WithInput<GrowthResult,
   title: 'Latent growth curve',
   sub: 'linear, quadratic or free change over occasions (lavaan)',
   group: 'Longitudinal',
-  defaults: () => ({ measures: [], times: [], shape: 'linear', covariates: [] }),
-  parseOptions: (raw) => (isObj(raw) ? { measures: names(raw.measures), times: parseTimes(raw.times), shape: oneOf(raw.shape, ['linear', 'quadratic', 'basis'] as const, 'linear'), covariates: names(raw.covariates) } : null),
+  defaults: () => ({ measures: [], times: [], shape: 'linear', covariates: [], timeVarying: [] }),
+  parseOptions: (raw) => (isObj(raw) ? { measures: names(raw.measures), times: parseTimes(raw.times), shape: oneOf(raw.shape, ['linear', 'quadratic', 'basis'] as const, 'linear'), covariates: names(raw.covariates), timeVarying: names(raw.timeVarying) } : null),
   Options: GrowthOptionsForm,
   View: ({ result }) => <GrowthView r={result} />,
   blocked: (o, ctx) => {
     if (o.measures.length < 3) return 'Choose at least three repeated measures.';
     if (o.times.length && o.times.length !== o.measures.length) return 'Give one time score per measure (or none for 0, 1, 2, …).';
-    return missingColumns(ctx, [...o.measures, ...o.covariates], 'A growth curve');
+    if (o.timeVarying.length && o.timeVarying.length !== o.measures.length) return 'Give one time-varying covariate per occasion (or none).';
+    return missingColumns(ctx, [...o.measures, ...o.covariates, ...o.timeVarying], 'A growth curve');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, [...o.measures, ...o.covariates], [lavaanOf(ctx).estimator, lavaanOf(ctx).missing]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, [...o.measures, ...o.covariates, ...o.timeVarying], [lavaanOf(ctx).estimator, lavaanOf(ctx).missing]),
   run: async (o, ctx) => { const input = growthInput(o, ctx); return { ...(await (await import('../rengine/longitudinal')).growthR(rawData(ctx)!, input)), input }; },
   script: async (o, ctx) => (await import('../rengine/longitudinal')).growthScriptR(rawData(ctx)!, growthInput(o, ctx)),
-  summary: (o) => `${o.measures.length} occasions · ${o.shape === 'basis' ? 'latent basis' : o.shape}${o.covariates.length ? ` · ${o.covariates.length} covariates` : ''}`,
+  summary: (o) => `${o.measures.length} occasions · ${o.shape === 'basis' ? 'latent basis' : o.shape}${o.covariates.length ? ` · ${o.covariates.length} covariates` : ''}${o.timeVarying.length ? ' · time-varying' : ''}`,
 };
 
 export const riclpmAnalysis: AnalysisType<RiclpmOptions, WithInput<RiclpmResult, RiclpmInput>> = {

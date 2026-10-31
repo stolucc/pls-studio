@@ -8,7 +8,8 @@ import { LAVAAN_FIT, type REngineInfo } from './lavaan';
 
 export interface LongEstimate { lhs: string; op: string; rhs: string; est: number; se: number | null; z: number | null; p: number | null; std: number }
 
-export interface GrowthInput { measures: string[]; times: number[]; shape: 'linear' | 'quadratic' | 'basis'; covariates: string[]; estimator: 'ML' | 'MLR'; missing: MissingTreatment }
+/** `timeVarying`: one covariate per occasion (each measure regressed on its own), or none. */
+export interface GrowthInput { measures: string[]; times: number[]; shape: 'linear' | 'quadratic' | 'basis'; covariates: string[]; timeVarying?: string[]; estimator: 'ML' | 'MLR'; missing: MissingTreatment }
 export interface GrowthResult {
   n: number; fit: Partial<CbFit>; estimates: LongEstimate[]; r2: Record<string, number>;
   impliedMeans: number[]; observedMeans: number[]; measures: string[]; times: number[]; warnings: string[]; engine: REngineInfo;
@@ -32,7 +33,7 @@ const fitOf = (raw: Record<string, unknown>): Partial<CbFit> => {
 const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const estimates = (v: unknown) => arr<any>(v).map((e) => ({ lhs: e.lhs, op: e.op, rhs: e.rhs, est: e.est, se: e.se ?? null, z: e.z ?? null, p: e.p ?? null, std: e.std })) as LongEstimate[];
 
-export const growthRequest = (data: Dataset, i: GrowthInput) => ({ kind: 'growth', ...i, data: columns(data, [...i.measures, ...i.covariates]) });
+export const growthRequest = (data: Dataset, i: GrowthInput) => ({ kind: 'growth', ...i, timeVarying: i.timeVarying ?? [], data: columns(data, [...i.measures, ...i.covariates, ...(i.timeVarying ?? [])]) });
 export const riclpmRequest = (data: Dataset, i: RiclpmInput) => ({ kind: 'riclpm', ...i, data: columns(data, [...i.x, ...i.y]) });
 
 export async function growthR(data: Dataset, input: GrowthInput): Promise<GrowthResult> {

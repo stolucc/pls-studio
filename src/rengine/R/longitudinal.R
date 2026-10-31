@@ -30,9 +30,12 @@ ps_long_fit <- function(fit) {
   lapply(as.list(fm[keep]), as.numeric)
 }
 
-ps_long_estimates <- function(fit, back, lvs) {
+#' `also`: further rows to keep (op and lhs), e.g. the occasions' regressions on time-varying covariates.
+ps_long_estimates <- function(fit, back, lvs, also = NULL) {
   pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
-  pe <- pe[pe$op %in% c("~1", "~~", "~", "=~") & pe$lhs %in% lvs, ]
+  keep <- pe$op %in% c("~1", "~~", "~", "=~") & pe$lhs %in% lvs
+  if (!is.null(also)) keep <- keep | (pe$op == also$op & pe$lhs %in% also$lhs)
+  pe <- pe[keep, ]
   nm <- function(x) ifelse(x %in% names(back), back[x], x)
   lapply(seq_len(nrow(pe)), function(i) list(lhs = nm(pe$lhs[i]), op = pe$op[i], rhs = nm(pe$rhs[i]), est = pe$est[i],
     se = if (is.na(pe$se[i]) || pe$se[i] == 0) NULL else pe$se[i], z = if (is.na(pe$z[i])) NULL else pe$z[i],
@@ -41,20 +44,23 @@ ps_long_estimates <- function(fit, back, lvs) {
 
 ps_growth <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  measures <- unlist(req$measures); covs <- unlist(req$covariates)
+  measures <- unlist(req$measures); covs <- unlist(req$covariates); tvc <- unlist(req$timeVarying)
   times <- as.numeric(unlist(req$times))
   if (length(measures) < 3) stop("A growth model needs at least three measurement occasions.")
+  if (length(tvc) && length(tvc) != length(measures)) stop("Give one time-varying covariate per measurement occasion (or none).")
   if (length(times) != length(measures) || any(!is.finite(times))) stop("Give one time score per measurement occasion.")
   shape <- req$shape %||% "linear"
   if (!shape %in% c("linear", "quadratic", "basis")) stop("Invalid growth shape in the request.")
   if (shape == "quadratic" && length(measures) < 4) stop("A quadratic growth model needs at least four occasions.")
-  fr <- ps_long_frame(req, c(measures, covs))
+  fr <- ps_long_frame(req, c(measures, covs, tvc))
   o <- ps_long_options(req)
   y <- unname(fr$v[measures])
   slope <- if (shape == "basis") c(paste0("0*", y[1]), paste0("1*", y[2]), y[-(1:2)]) else paste0(format(times), "*", y)
   lines <- c(paste("i =~", paste0("1*", y, collapse = " + ")), paste("s =~", paste(trimws(slope), collapse = " + ")),
     if (shape == "quadratic") paste("q =~", paste0(format(times^2), "*", y, collapse = " + ")),
-    if (length(covs)) sprintf("%s ~ %s", paste(c("i", "s", if (shape == "quadratic") "q"), collapse = " + "), paste(unname(fr$v[covs]), collapse = " + ")))
+    if (length(covs)) sprintf("%s ~ %s", paste(c("i", "s", if (shape == "quadratic") "q"), collapse = " + "), paste(unname(fr$v[covs]), collapse = " + ")),
+    # Time-varying covariates: each occasion regressed on its own covariate (lavaan tutorial, growth curve models).
+    if (length(tvc)) c("# time-varying covariates", sprintf("%s ~ %s", y, unname(fr$v[tvc]))))
   body <- c("suppressPackageStartupMessages(library(lavaan))",
     if (!o$fiml) ps_missing_code(req$missing),
     sprintf("# Latent growth curve (%s), time scores %s", shape, paste(format(times), collapse = ", ")),
@@ -67,7 +73,7 @@ ps_growth <- function(req_json, export = FALSE) {
   fit <- env$fit
   implied <- lavaan::fitted(fit)$mean[y]
   ps_json(list(n = lavaan::lavInspect(fit, "nobs"), fit = ps_long_fit(fit),
-    estimates = ps_long_estimates(fit, fr$back, c("i", "s", "q")),
+    estimates = ps_long_estimates(fit, fr$back, c("i", "s", "q"), also = if (length(tvc)) list(op = "~", lhs = y)),
     r2 = as.list(lavaan::lavInspect(fit, "r2")[intersect(c("i", "s", "q"), names(lavaan::lavInspect(fit, "r2")))]),
     impliedMeans = unname(implied), observedMeans = unname(colMeans(env$data[, y, drop = FALSE], na.rm = TRUE)),
     measures = measures, times = times,
