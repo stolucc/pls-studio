@@ -402,6 +402,8 @@ export function currentEntry(): RecentEntry | null {
 export async function autosave() {
   const e = currentEntry();
   if (e) await saveRecent(e);
+  // Signed in: the project belongs in the account (cloud/keep.ts decides whether this one does, now).
+  void import('./cloud/keep').then((m) => m.keepInAccount());
 }
 
 /** Move a pre-home-screen localStorage autosave into Recent projects. */

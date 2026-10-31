@@ -13,6 +13,7 @@ import { HomeScreen } from './components/HomeScreen';
 import { AuthDialog } from './components/cloud/AuthDialog';
 import { useAuth } from './cloud/auth';
 import { handleUrlParams } from './cloud/invites';
+import './cloud/keep';
 import { autosave, importCsv, loadSample, migrateAutosave, openProject, saveProject } from './io';
 import { useStore } from './store';
 

@@ -50,10 +50,10 @@ function SharedProjects() {
   if (!auth.user) {
     return (
       <section>
-        <h2>Shared projects</h2>
+        <h2>Your projects</h2>
         <div className="start-card" style={{ cursor: 'default' }}>
-          <b>Work together on a project</b>
-          <span>Sign in to share projects with collaborators and edit them together in real time. Shared datasets are stored encrypted on the PLS Studio server.</span>
+          <b>Keep projects in an account</b>
+          <span>Sign in and the projects you work on are saved to your account and listed here on every computer; share them with collaborators and edit together in real time. Datasets are stored encrypted on the PLS Studio server.</span>
           <button className="btn primary" style={{ marginTop: 6 }} onClick={() => auth.openDialog('signin')}>Sign in or create an account</button>
         </div>
       </section>
@@ -64,9 +64,9 @@ function SharedProjects() {
   };
   return (
     <section>
-      <h2>Shared projects</h2>
+      <h2>Your projects</h2>
       {list === null ? <div className="hint">Loading…</div> : list.length === 0 ? (
-        <div className="hint">No shared projects yet. Open a project and use Share to invite people.</div>
+        <div className="hint">No projects in your account yet. A project you work on while signed in is saved here as soon as it has a model or data; Share invites others to it.</div>
       ) : (
         <div className="recent-grid">
           {list.map((p) => (
@@ -227,7 +227,7 @@ export function HomeScreen() {
               ))}
             </div>
           )}
-          {recent && recent.length > 0 && <div className="hint" style={{ marginTop: 8 }}>Kept in this browser only. Use Save in a project to keep a file you can share or back up.</div>}
+          {recent && recent.length > 0 && <div className="hint" style={{ marginTop: 8 }}>Kept in this browser only. Use Save in a project to keep a file you can share or back up; sign in and a project you open is saved to your account.</div>}
         </section>
 
         <section className="home-examples">

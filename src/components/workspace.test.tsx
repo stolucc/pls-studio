@@ -228,6 +228,14 @@ describe('workspace layout', () => {
   });
 });
 
+describe('analyses layout', () => {
+  it('keeps the Add analysis bar in view while the cards scroll', () => {
+    expect(rule('.log-bar')).toContain('position: sticky');
+    expect(rule('.log-bar')).toContain('top: 0');
+    expect(rule('.card-log')).toContain('overflow: auto');
+  });
+});
+
 describe('weighting controls', () => {
   it('the per-construct outer weights are named as such and hidden when cSEM weights every construct globally; the global control says it applies to all', () => {
     s().newProject();
