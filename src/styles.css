@@ -515,6 +515,12 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .mc-chart .grid-line { stroke: var(--border); }
 .mc-chart .ref-line { stroke: var(--text-3); stroke-dasharray: 4 4; }
 .mc-chart .axis-title { font-weight: 500; }
+.data-chart .bar { fill: var(--accent); fill-opacity: 0.8; }
+.data-chart .dot { fill: var(--accent); fill-opacity: 0.7; }
+.data-chart .fit-line { stroke: var(--bad); stroke-width: 1.6; }
+.data-chart .box { fill: var(--accent); fill-opacity: 0.25; stroke: var(--accent); }
+.data-chart .median { stroke: var(--text); stroke-width: 2; }
+.data-chart .whisker { stroke: var(--text-2); }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); margin: 4px 0 14px; }
 .legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
 

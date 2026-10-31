@@ -183,10 +183,12 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       expect(r.converged).toBe(true);
       if (CHISQ[ex.id] !== undefined) expect(r.fit.chisq).toBeCloseTo(CHISQ[ex.id], 2);
       if (ex.id === 'modsem-oneint') {
-        // ?compare_fit run natively (modsem 1.0.x): LMS on oneInt, D = 6288.39 on 1 df.
+        // ?compare_fit: LMS on oneInt against its null model (estimate_h0). modsem 1.0.23 (webR): D = 676.55 on 1 df,
+        // which is 2 x (logLik h1 - logLik h0) of its own fits; modsem 1.0.10 computed a different LMS log-likelihood
+        // for h1 (D = 6288) with the same h0, so the value is version-bound (the native scratch library has 1.0.10).
         expect(r.interaction).toBe('lms');
         expect(r.lrt?.df).toBe(1);
-        expect(r.lrt?.D).toBeCloseTo(6288.39, 0);
+        expect(r.lrt?.D).toBeCloseTo(676.55, 1);
         expect(r.lrt?.p).toBeLessThan(0.001);
       }
       if (ex.id === 'lavaan-hs-means') {
