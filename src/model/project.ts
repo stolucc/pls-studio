@@ -114,6 +114,8 @@ export interface DataInfo {
   hasNacov?: boolean;
   /** Columns reverse-coded in the app (x -> min + max - x), with their scale. */
   reversed?: { name: string; min: number; max: number }[];
+  /** Columns computed from a formula over other columns (data/compute.ts), in the order they were added. */
+  computed?: { name: string; expr: string }[];
   /** Cases excluded in the app (e.g. outliers), kept so they can be restored (model/rows.ts). */
   droppedRows?: RowExclusion[];
 }
@@ -1089,6 +1091,13 @@ function parseCategories(raw: unknown, names: string[]): { categories?: Record<s
 }
 
 /** Reverse-coded columns of a project file (columns that exist, finite scales). */
+function parseComputed(raw: unknown, names: string[]): { computed?: { name: string; expr: string }[] } {
+  if (!Array.isArray(raw)) return {};
+  const out = raw.filter((r): r is Record<string, unknown> => isObj(r)).map((r) => ({ name: str(r.name, 64), expr: str(r.expr, 500) }))
+    .filter((r) => r.name && r.expr && names.includes(r.name));
+  return out.length ? { computed: out } : {};
+}
+
 function parseReversed(raw: unknown, names: string[]): { reversed?: { name: string; min: number; max: number }[] } {
   if (!Array.isArray(raw)) return {};
   const out = raw.filter((r): r is Record<string, unknown> => isObj(r)).map((r) => ({ name: str(r.name), min: Number(r.min), max: Number(r.max) }))
@@ -1117,6 +1126,7 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
     missingCells: cols.reduce((s: number, c: Float64Array) => s + c.filter(Number.isNaN).length, 0),
     excluded: [],
     ...parseReversed(d.info.reversed, names),
+    ...parseComputed(d.info.computed, names),
     ...(parseDroppedRows(d.info.droppedRows, names) ? { droppedRows: parseDroppedRows(d.info.droppedRows, names) } : {}),
   };
   if (d.moments !== undefined) {

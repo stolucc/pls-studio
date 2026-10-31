@@ -34,11 +34,26 @@ const EXAMPLES = [
     links: [{ label: '?PoliticalDemocracy (lavaan)', url: 'https://rdrr.io/cran/lavaan/man/PoliticalDemocracy.html' }, { label: 'lavaan tutorial: SEM', url: 'https://lavaan.ugent.be/tutorial/sem.html' }],
     body: 'Bollen (1989), Structural Equations with Latent Variables: 75 developing countries, democracy measured in 1960 and 1965. The classic model with six correlated measurement errors, drawn as double-headed arrows between error terms.',
   },
+  {
+    id: 'mimic' as const,
+    title: 'Social participation (MIMIC model)',
+    tags: ['CB-SEM', 'MIMIC', 'Covariates', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Schumacker & Lomax, A Beginner’s Guide to SEM', url: 'https://www.routledge.com/A-Beginners-Guide-to-Structural-Equation-Modeling/Whittaker-Schumacker/p/book/9780367477967' }, { label: 'Hodge & Treiman (1968)', url: 'https://doi.org/10.2307/2092317' }],
+    body: 'Multiple indicators, multiple causes: income, occupation and education cause social participation, measured by church attendance, memberships and friends seen. Jöreskog & Sörbom’s LISREL example (Hodge & Treiman 1968, N = 530), the worked MIMIC example in Schumacker & Lomax; the correlation matrix and maximum likelihood, reproducing its coefficients.',
+  },
 ];
+
+/** Whether every word of a query occurs in one of the texts (case-insensitive). */
+export function matchesQuery(query: string, texts: (string | undefined)[]): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = texts.filter((t): t is string => !!t).join(' \n ').toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
 
 interface CloudProject { id: string; name: string; role: 'owner' | 'editor' | 'viewer'; owner_name: string; members: number; updated_at: string }
 
-function SharedProjects() {
+function SharedProjects({ query }: { query: string }) {
   const auth = useAuth();
   const toast = useStore((s) => s.toast);
   const [list, setList] = useState<CloudProject[] | null>(null);
@@ -67,9 +82,11 @@ function SharedProjects() {
       <h2>Your projects</h2>
       {list === null ? <div className="hint">Loading…</div> : list.length === 0 ? (
         <div className="hint">No projects in your account yet. A project you work on while signed in is saved here as soon as it has a model or data; Share invites others to it.</div>
+      ) : list.filter((p) => matchesQuery(query, [p.name, p.owner_name])).length === 0 ? (
+        <div className="hint">No project of yours matches “{query}”.</div>
       ) : (
         <div className="recent-grid">
-          {list.map((p) => (
+          {list.filter((p) => matchesQuery(query, [p.name, p.owner_name])).map((p) => (
             <div key={p.id} className="recent-card">
               <button className="recent-open" onClick={() => void open(p.id)} title={`Open ${p.name}`}>
                 <span className="recent-name">{p.name}</span>
@@ -103,11 +120,11 @@ export function ExampleTags({ tags }: { tags: string[] }) {
 }
 
 /** Examples from the R packages' documentation, filterable by package and by topic. */
-function PackageExamples() {
+function PackageExamples({ query }: { query: string }) {
   const [pkg, setPkg] = useState<ExamplePackage | 'all'>('all');
   const [topic, setTopic] = useState<string>('all');
   const topics = allTags(PACKAGE_EXAMPLES);
-  const shown = PACKAGE_EXAMPLES.filter((e) => (pkg === 'all' || e.package === pkg) && (topic === 'all' || exampleTags(e).includes(topic)));
+  const shown = PACKAGE_EXAMPLES.filter((e) => (pkg === 'all' || e.package === pkg) && (topic === 'all' || exampleTags(e).includes(topic)) && matchesQuery(query, [e.title, e.description, e.source, e.package, ...exampleTags(e)]));
   return (
     <section className="home-examples">
       <div className="section-head">
@@ -124,7 +141,7 @@ function PackageExamples() {
         ))}
       </div>
       <p className="hint" style={{ marginTop: 0 }}>Datasets and models from each package’s own documentation. The data are loaded from the package in your browser’s R; results are calculated by that package.</p>
-      {shown.length === 0 && <p className="hint">No example of {pkg} covers {topic}.</p>}
+      {shown.length === 0 && <p className="hint">No example{pkg === 'all' ? '' : ` of ${pkg}`}{topic === 'all' ? '' : ` on ${topic}`}{query.trim() ? ` matches “${query.trim()}”` : ''}.</p>}
       <div className="example-grid">
         {shown.map((e) => (
           <div key={e.id} className="example-card">
@@ -149,6 +166,7 @@ export function HomeScreen() {
   const [recent, setRecent] = useState<RecentMeta[] | null>(null);
   const [persistent, setPersistent] = useState(true);
   const [about, setAbout] = useState(false);
+  const [query, setQuery] = useState('');
 
   const refresh = () => { void listRecent().then(setRecent); };
   useEffect(() => {
@@ -201,16 +219,23 @@ export function HomeScreen() {
           </div>
         </section>
 
-        <SharedProjects />
+        <section className="home-search">
+          <input className="input" type="search" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search projects and examples"
+            placeholder="Search your projects and the examples: words in the name, a topic (e.g. mediation, MIMIC, lavaan)…" />
+        </section>
+
+        <SharedProjects query={query} />
 
         <section className="home-recent">
           <h2>Recent projects</h2>
           {!persistent && <div className="issue warning">This browser does not allow local storage here, so recent projects are not kept between visits. Use Save to keep project files.</div>}
           {recent === null ? <div className="hint">Loading…</div> : recent.length === 0 ? (
             <div className="hint">No recent projects yet. Projects you work on are kept here automatically, in this browser only.</div>
+          ) : recent.filter((r) => matchesQuery(query, [r.name, r.method, r.dataLabel])).length === 0 ? (
+            <div className="hint">No recent project matches “{query}”.</div>
           ) : (
             <div className="recent-grid">
-              {recent.map((r) => (
+              {recent.filter((r) => matchesQuery(query, [r.name, r.method, r.dataLabel])).map((r) => (
                 <div key={r.id} className={`recent-card${r.id === projectId && hasCurrent ? ' current' : ''}`}>
                   <button className="recent-open" onClick={() => void openRecent(r.id)} title={`Open ${r.name}`}>
                     <span className="recent-name">{r.name}</span>
@@ -232,8 +257,9 @@ export function HomeScreen() {
 
         <section className="home-examples">
           <h2>Examples</h2>
+          {EXAMPLES.filter((e) => matchesQuery(query, [e.title, e.body, ...e.tags])).length === 0 && <p className="hint">No built-in example matches “{query}”.</p>}
           <div className="example-grid">
-            {EXAMPLES.map((e) => (
+            {EXAMPLES.filter((e) => matchesQuery(query, [e.title, e.body, ...e.tags])).map((e) => (
               <div key={e.id} className="example-card">
                 <div className="example-top"><b>{e.title}</b><span className="chip accent">{e.tags[0]}</span></div>
                 <ExampleTags tags={e.tags} />
@@ -245,7 +271,7 @@ export function HomeScreen() {
           </div>
         </section>
 
-        <PackageExamples />
+        <PackageExamples query={query} />
       </main>
       {about && <AboutDialog onClose={() => setAbout(false)} />}
     </div>

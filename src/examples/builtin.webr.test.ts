@@ -9,6 +9,7 @@ import { estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { makeSample } from '../sample';
 import { makeEmseExample } from './emse';
+import { makeMimicExample } from './mimic';
 import { makePoldemExample } from './poldem';
 
 beforeAll(startTestRuntime);
@@ -42,4 +43,16 @@ it('Stol et al. (2022) and political democracy: CB-SEM as their sources, without
   expect(p.converged).toBe(true);
   expect(p.warnings).toEqual([]);
   expect(p.notes).toEqual([]);
+}, 600_000);
+
+it('social participation (MIMIC): lavaan on the correlation matrix reproduces the book, without a warning', async () => {
+  const ex = makeMimicExample(DEFAULT_SETTINGS);
+  const r = await estimateCbLavaan(ex.data, toSpec(ex.model), 'casewise', 'ML', 'product');
+  expect(r.converged).toBe(true);
+  expect(r.warnings).toEqual([]);
+  expect(r.notes).toEqual([]);
+  const est = (op: string, rhs: string) => r.estimates.find((e) => e.op === op && e.lhs === 'Social participation' && e.rhs === rhs)!.est;
+  expect(est('~', 'income')).toBeCloseTo(0.108, 3); expect(est('~', 'occupation')).toBeCloseTo(0.045, 3); expect(est('~', 'education')).toBeCloseTo(0.155, 3);
+  expect(est('=~', 'memberships')).toBeCloseTo(1.579, 3); expect(est('=~', 'friends')).toBeCloseTo(0.862, 3);
+  expect(r.fit.chisq).toBeCloseTo(12.522, 3); expect(r.fit.df).toBe(6);
 }, 600_000);

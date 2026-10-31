@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { mean, sd } from '../engine/stats';
+import { computeColumn, FUNCTIONS, nameError, parseFormula, columnsIn, recomputeAll, removeComputed } from '../data/compute';
 import { observedRange, reverseCode } from '../data/recode';
 import { importCsv, loadSample } from '../io';
-import { textDialog } from './Overlays';
+import { formDialog, confirmDialog, textDialog } from './Overlays';
 import { useStore } from '../store';
 import { VARS_MIME } from './dnd';
 import { IconEye, IconUpload } from './icons';
@@ -88,6 +89,48 @@ export function DataPanel() {
     }
   };
 
+  const computed = new Map((info?.computed ?? []).map((c) => [c.name, c]));
+  /** Add a column from a formula, or edit the formula of the selected computed column. */
+  const computeNew = async (edit?: string) => {
+    if (!data || !info) return;
+    const current = edit ? computed.get(edit) : undefined;
+    const values = await formDialog({
+      title: current ? `Edit the formula of ${edit}` : 'Add a computed column',
+      body: `A formula over the existing columns: + − × ÷ ^, comparisons (<, >=, ==), & and |, and ${Object.keys(FUNCTIONS).join(', ')}. Names with spaces or dots in backticks: \`my var\`. Missing values stay missing.`,
+      confirmLabel: current ? 'Recompute' : 'Add column',
+      fields: [
+        { label: 'Column name', initial: edit ?? '', placeholder: 'e.g. log_income', check: (t) => nameError(t, data, info, edit) },
+        { label: 'Formula', initial: current?.expr ?? '', placeholder: 'e.g. log(income) or (x1 + x2) / 2 or z(score)', hint: 'Examples: log(x), sqrt(x), z(x), center(x), ifelse(age >= 18, 1, 0), mean(x1, x2, x3), x^2.',
+          check: (t, all) => { try { const n = parseFormula(t); for (const c of columnsIn(n)) { if (c === all[0]) return 'A column cannot be computed from itself.'; if (!data.names.includes(c)) return `“${c}” is not a column of the dataset.`; } return null; } catch (e) { return (e as Error).message; } } },
+      ],
+    });
+    if (!values) return;
+    try {
+      const r = computeColumn(data, info, values[0], values[1]);
+      useStore.getState().setData(r.data, r.info);
+      const col = r.data.cols[r.data.names.indexOf(values[0])];
+      const miss = col.filter(Number.isNaN).length;
+      useStore.getState().toast('success', `${current ? 'Recomputed' : 'Added'} ${values[0]} = ${values[1].trim()}${miss ? ` (${miss} missing)` : ''}.`);
+    } catch (e) {
+      useStore.getState().toast('error', (e as Error).message);
+    }
+  };
+  const removeSelectedComputed = async () => {
+    if (!data || !info) return;
+    const names = selected.filter((n) => computed.has(n));
+    const used = names.filter((n) => owner.has(n));
+    if (used.length) { useStore.getState().toast('error', `${used.join(', ')} ${used.length === 1 ? 'is' : 'are'} in the model; remove ${used.length === 1 ? 'it' : 'them'} from the construct first.`); return; }
+    if (!(await confirmDialog({ title: `Remove ${names.length === 1 ? names[0] : `${names.length} computed columns`}?`, body: 'The column and its formula are removed from the dataset.', confirmLabel: 'Remove', danger: true }))) return;
+    try {
+      let r = { data, info };
+      for (const n of names) r = removeComputed(r.data, r.info, n);
+      useStore.getState().setData(r.data, r.info);
+      setSelected(selected.filter((n) => !names.includes(n)));
+    } catch (e) {
+      useStore.getState().toast('error', (e as Error).message);
+    }
+  };
+
   const onFileDrop = (e: DragEvent) => {
     setOver(false);
     const f = e.dataTransfer.files?.[0];
@@ -103,6 +146,7 @@ export function DataPanel() {
         {data && (
           <span style={{ display: 'flex', gap: 4 }}>
             <button className="btn sm ghost" onClick={() => useStore.getState().setWorkspace('data')} title="See the rows and descriptive statistics of the dataset"><IconEye size={13} /> Inspect</button>
+            {info?.kind !== 'matrix' && <button className="btn sm ghost" onClick={() => void computeNew()} title="Add a column computed from a formula over the existing columns (log, z-score, sums, recodes…)">ƒ Compute…</button>}
             <button className="btn sm ghost" onClick={() => void importCsv()} title="Replace dataset"><IconUpload size={13} /> Replace</button>
           </span>
         )}
@@ -141,7 +185,7 @@ export function DataPanel() {
                   <button className="btn sm" onClick={() => void import('../model/rows').then(({ restoreRows }) => {
                     const s = useStore.getState();
                     if (!s.data || !s.dataInfo) return;
-                    const r = restoreRows(s.data, s.dataInfo);
+                    const r = recomputeAll(restoreRows(s.data, s.dataInfo).data, restoreRows(s.data, s.dataInfo).info);
                     s.setData(r.data, r.info);
                     s.toast('success', 'The excluded cases are back in the dataset.');
                   })}>Restore</button>
@@ -164,6 +208,8 @@ export function DataPanel() {
                 <div className="selection-bar">
                   <span className="muted">{selected.length} selected</span>
                   <button className="btn sm ghost" onClick={() => void reverseSelected()} title="For negatively worded items: x becomes lowest + highest − x on the answer scale">Reverse-code…</button>
+                  {selected.length === 1 && computed.has(selected[0]) && <button className="btn sm ghost" onClick={() => void computeNew(selected[0])} title={`Edit the formula: ${computed.get(selected[0])!.expr}`}>Edit formula…</button>}
+                  {selected.some((n) => computed.has(n)) && <button className="btn sm ghost" onClick={() => void removeSelectedComputed()} title="Remove the computed column(s) and their formulas">Remove computed</button>}
                 </div>
               )}
               <div className="var-list" role="listbox" aria-multiselectable="true">
@@ -178,7 +224,7 @@ export function DataPanel() {
                     onClick={(e) => onClick(e, v.name)}
                     title={Number.isNaN(v.mean) ? `sd ${v.sd.toFixed(2)}` : `mean ${v.mean.toFixed(2)} · sd ${v.sd.toFixed(2)} · missing ${v.missing}`}
                   >
-                    <span className="vname">{v.name}{reversed.has(v.name) && <span className="rev-mark" title={`Reverse-coded on ${reversed.get(v.name)!.min}–${reversed.get(v.name)!.max}`}> (R)</span>}</span>
+                    <span className="vname">{v.name}{computed.has(v.name) && <span className="comp-mark" title={`Computed: ${computed.get(v.name)!.expr}`}> ƒ</span>}{reversed.has(v.name) && <span className="rev-mark" title={`Reverse-coded on ${reversed.get(v.name)!.min}–${reversed.get(v.name)!.max}`}> (R)</span>}</span>
                     {owner.has(v.name)
                       ? <span className="chip accent">{owner.get(v.name)}</span>
                       : data.categories?.[v.name]

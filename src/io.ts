@@ -243,7 +243,7 @@ export async function openRecent(id: string) {
   }
 }
 
-export type ExampleId = 'customer' | 'emse' | 'poldem';
+export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic';
 
 export async function loadSample(which: ExampleId = 'customer') {
   if (!(await confirmDiscard('Loading the example'))) return;
@@ -257,6 +257,14 @@ export async function loadSample(which: ExampleId = 'customer') {
     s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'emse' });
     loadCards([]);
     s.toast('info', 'Stol, Schaarschmidt & Goldblit (2022), EMSE 27:35. Covariance + NACOV matrices (N = 155), estimated with MLM as in the paper. Press Calculate.');
+    return;
+  }
+  if (which === 'mimic') {
+    const { makeMimicExample } = await import('./examples/mimic');
+    const ex = makeMimicExample(fresh);
+    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'mimic' });
+    loadCards([]);
+    s.toast('info', 'MIMIC model of social participation (Jöreskog & Sörbom; Schumacker & Lomax): correlation matrix, N = 530, maximum likelihood. Press Calculate.');
     return;
   }
   if (which === 'poldem') {

@@ -9,8 +9,10 @@ interface Choice { id: string; label: string; danger?: boolean; primary?: boolea
 interface NumberField { label: string; min: number; max: number; integer?: boolean; initial?: string }
 /** A text field: `check` returns why the text is not acceptable (null when it is). Empty text is allowed when `allowEmpty`. */
 interface TextField { label: string; initial?: string; check: (text: string) => string | null; allowEmpty?: boolean }
+/** Several text fields at once; each `check` sees all current values (for cross-field rules). */
+interface FormField { label: string; initial?: string; placeholder?: string; hint?: string; check: (text: string, all: string[]) => string | null }
 interface DialogState {
-  current: (ConfirmOpts & { field?: NumberField; text?: TextField; choices?: Choice[]; resolve: (ok: boolean, value?: number, text?: string, choice?: string) => void }) | null;
+  current: (ConfirmOpts & { field?: NumberField; text?: TextField; fields?: FormField[]; choices?: Choice[]; resolve: (ok: boolean, value?: number, text?: string, choice?: string, values?: string[]) => void }) | null;
 }
 const useDialog = create<DialogState>(() => ({ current: null }));
 
@@ -29,6 +31,11 @@ export function textDialog(opts: ConfirmOpts & { text: TextField }): Promise<str
   return new Promise((resolve) => useDialog.setState({ current: { ...opts, resolve: (ok, _v, t) => resolve(ok && t !== undefined ? t : null) } }));
 }
 
+/** A small form: resolves the trimmed values of the fields, or null on cancel. */
+export function formDialog(opts: ConfirmOpts & { fields: FormField[] }): Promise<string[] | null> {
+  return new Promise((resolve) => useDialog.setState({ current: { ...opts, resolve: (ok, _v, _t, _c, values) => resolve(ok && values ? values : null) } }));
+}
+
 /** A question with several answers; resolves the chosen id, or null on cancel. */
 export function choiceDialog(opts: ConfirmOpts & { choices: Choice[] }): Promise<string | null> {
   return new Promise((resolve) => useDialog.setState({ current: { ...opts, resolve: (ok, _v, _t, choice) => resolve(ok && choice ? choice : null) } }));
@@ -39,21 +46,26 @@ export function ConfirmModal() {
   const okRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
+  const [values, setValues] = useState<string[]>([]);
   const field = current?.field;
   const textField = current?.text;
+  const fields = current?.fields;
   const value = Number(text);
   const textError = textField && (text.trim() === '' ? (textField.allowEmpty ? null : '') : textField.check(text.trim()));
-  const valid = textField ? textError === null
-    : !field || (text.trim() !== '' && Number.isFinite(value) && value >= field.min && value <= field.max && (!field.integer || Number.isInteger(value)));
+  const trimmed = values.map((v) => v.trim());
+  const fieldErrors = fields ? fields.map((f, i) => (trimmed[i] === '' ? '' : f.check(trimmed[i], trimmed))) : [];
+  const valid = fields ? fieldErrors.every((e) => e === null)
+    : textField ? textError === null
+      : !field || (text.trim() !== '' && Number.isFinite(value) && value >= field.min && value <= field.max && (!field.integer || Number.isInteger(value)));
   const close = (ok: boolean, choice?: string) => {
     if (ok && !valid) return;
-    current?.resolve(ok, field ? value : undefined, textField ? text.trim() : undefined, choice);
+    current?.resolve(ok, field ? value : undefined, textField ? text.trim() : undefined, choice, fields ? trimmed : undefined);
     useDialog.setState({ current: null });
   };
-  useEffect(() => { setText(current?.field?.initial ?? current?.text?.initial ?? ''); }, [current]);
+  useEffect(() => { setText(current?.field?.initial ?? current?.text?.initial ?? ''); setValues(current?.fields?.map((f) => f.initial ?? '') ?? []); }, [current]);
   useEffect(() => {
     if (!current) return;
-    (current.field || current.text ? inputRef.current : okRef.current)?.focus();
+    (current.field || current.text || current.fields ? inputRef.current : okRef.current)?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
@@ -80,6 +92,14 @@ export function ConfirmModal() {
             {textError && <span className="hint" style={{ color: 'var(--bad)' }}>{textError}</span>}
           </div>
         )}
+        {fields?.map((f, i) => (
+          <div className="field" key={f.label}>
+            <label htmlFor={`dlg-f${i}`}>{f.label}</label>
+            <input id={`dlg-f${i}`} ref={i === 0 ? inputRef : undefined} className="input" value={values[i] ?? ''} autoComplete="off" spellCheck={false} placeholder={f.placeholder}
+              onChange={(e) => setValues((vs) => vs.map((v, k) => (k === i ? e.target.value : v)))} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />
+            {fieldErrors[i] ? <span className="hint" style={{ color: 'var(--bad)' }}>{fieldErrors[i]}</span> : f.hint ? <span className="hint">{f.hint}</span> : null}
+          </div>
+        ))}
         <div className="actions">
           <button className="btn" onClick={() => close(false)}>Cancel</button>
           {current.choices
