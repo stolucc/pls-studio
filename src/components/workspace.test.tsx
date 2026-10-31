@@ -284,3 +284,22 @@ describe('the Groups section and the invariance tab with covariance-matrix data'
     expect(render(<CbTab tab="invariance" cb={{} as never} boot={null} />)).toContain('Choose a grouping column under Groups');
   });
 });
+
+describe('the group switch of the results panel', () => {
+  it('says which parameters invariance holds equal across groups', async () => {
+    const { ResultsPanel } = await import('./ResultsPanel');
+    useStore.getState().newProject();
+    const groupResult = { estimates: [], fit: {}, n: 10, constructs: [], indicators: [], warnings: [], converged: true } as never;
+    const seed = (invariance: 'configural' | 'metric' | 'scalar' | 'strict') => {
+      useStore.setState((x) => ({ resultsOpen: true, settings: { ...x.settings, method: 'cbsem' }, model: { ...x.model, multigroup: { column: 'sex', invariance, free: [] } },
+        results: { pls: null, miiv: null, boot: null, fitTest: null, key: resultsKey({ ...x, settings: { ...x.settings, method: 'cbsem' }, model: { ...x.model, multigroup: { column: 'sex', invariance, free: [] } } }),
+          cb: { ...(groupResult as object), groups: { labels: ['1', '2'], results: [groupResult, groupResult], score: [] }, groupIndex: 0 } as never } }));
+    };
+    seed('scalar');
+    const html = render(<ResultsPanel height={300} onResize={() => {}} />);
+    expect(html).toContain('Loadings and intercepts equal across groups');
+    expect(html).toContain('Group 1');
+    seed('configural');
+    expect(render(<ResultsPanel height={300} onResize={() => {}} />)).not.toContain('equal across groups');
+  });
+});

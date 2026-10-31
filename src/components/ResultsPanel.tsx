@@ -15,6 +15,7 @@ import { IconAlert } from './icons';
 
 export function ResultsPanel({ height, onResize }: { height: number; onResize: (h: number) => void }) {
   const open = useStore((s) => s.resultsOpen);
+  const invariance = useStore((s) => s.model.multigroup?.invariance);
   const setOpen = useStore((s) => s.setResultsOpen);
   const job = useStore((s) => s.job);
   const method = useStore((s) => s.settings.method);
@@ -116,6 +117,11 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
           Messages{messageCount > 0 ? ` (${messageCount})` : ''}
         </button>
         <div className="spacer" />
+        {cb?.groups && !cb.groups.levels && invariance && invariance !== 'configural' && (
+          <span className="hint" title="Measurement invariance holds these parameters equal across groups; the tables that show them are the same in every group. Variances, covariances, structural paths and (from scalar on) latent means still differ per group.">
+            {invariance === 'metric' ? 'Loadings equal across groups' : invariance === 'scalar' ? 'Loadings and intercepts equal across groups' : 'Loadings, intercepts and residual variances equal across groups'}
+          </span>
+        )}
         {cb?.groups && (
           <div className="segmented group-switch" role="radiogroup" aria-label="Group shown">
             {cb.groups.labels.map((l, i) => (
