@@ -43,10 +43,12 @@ ps_endo <- function(req_json, export = FALSE) {
   if (!is.finite(B) || B < 10 || B > 20000) stop(sprintf("Bootstrap samples must be between 10 and 20,000 (got %s).", req$boot$samples %||% "none"))
   if (!is.finite(conf) || conf <= 0.5 || conf >= 1) stop(sprintf("The confidence level must lie between 0.5 and 1 (got %s).", req$boot$confidence %||% "none"))
   ols <- sprintf("ols <- lm(%s ~ %s, data = data)", y, rhs(x, p))
-  body <- c("suppressPackageStartupMessages({ library(ivreg); library(lmtest) })",
+  # Only the instrument methods need packages: the copula correction is base R, so its script runs anywhere.
+  needs_ivreg <- method %in% c("iv", "het", "hm")
+  body <- c(if (needs_ivreg) "suppressPackageStartupMessages({ library(ivreg); library(lmtest) })",
     "data <- data[complete.cases(data), ]",
     "# For comparison: ordinary least squares, which assumes the regressors are exogenous.", ols)
-  pkgs <- "ivreg"
+  pkgs <- if (needs_ivreg) "ivreg" else character(0)
   if (method == "iv") {
     if (!length(z)) stop("Choose at least one instrument (a variable that affects the outcome only through the endogenous regressor).")
     if (length(z) < length(p)) stop("Two-stage least squares needs at least as many instruments as endogenous regressors.")

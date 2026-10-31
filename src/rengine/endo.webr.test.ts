@@ -4,7 +4,9 @@
 // ivreg on Kmenta and sampleSelection (two-step) on Mroz87.
 // Run with npm run test:webr.
 
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { parseCsv } from '../engine/dataset';
@@ -37,7 +39,21 @@ it('Gaussian copula (two continuous endogenous regressors) equals REndo::copulaC
   }
   expect(r.normality.map((x) => x.variable)).toEqual(['P1', 'P2']);
   expect(r.ols.length).toBe(5);
-  expect(await endoScriptR(rendo('dataCopCont2'), { ...base, method: 'copula', endogenous: ['P1', 'P2'] })).toContain('pstar <- function(v)');
+  const script = await endoScriptR(rendo('dataCopCont2'), { ...base, method: 'copula', endogenous: ['P1', 'P2'] });
+  expect(script).toContain('pstar <- function(v)');
+  // Base R only: no library() or install.packages() line (the instrument methods load ivreg).
+  expect(script).not.toMatch(/library\(|install\.packages/);
+  expect(script).toContain('base R only, no packages needed');
+  expect(await endoScriptR(rendo('dataCopCont2'), { ...base, method: 'het', endogenous: ['P1'] })).toContain('library(ivreg)');
+  // The exported script runs in a plain R installation (the system R here, whatever packages it has).
+  const rscript = spawnSync('Rscript', ['--version'], { encoding: 'utf8' });
+  if (rscript.status === 0) {
+    const dir = mkdtempSync(join(tmpdir(), 'copula-'));
+    writeFileSync(join(dir, 'copula.R'), script);
+    const run = spawnSync('Rscript', ['copula.R'], { cwd: dir, encoding: 'utf8', timeout: 300_000 });
+    expect(run.status, run.stderr.slice(-2000)).toBe(0);
+    expect(run.stdout).toContain('PStar.P1');
+  }
   // Out-of-range bootstrap settings are named, not just refused.
   await expect(endoR(rendo('dataCopCont2'), { ...base, method: 'copula', endogenous: ['P1', 'P2'], boot: { samples: 50_000, seed: 1, confidence: 0.95 } })).rejects.toThrow('between 10 and 20,000 (got 50000)');
 }, 900_000);
