@@ -79,6 +79,8 @@ export interface PackageExample {
   /** Adds a Data screening card on the example's indicators, or (influence) an Influential cases card. */
   screening?: { tab: 'univariate' | 'normality' | 'outliers' | 'influence' };
   settings: Partial<Settings>;
+  /** Further topics the home screen shows (most are derived from the definition: examples/tags.ts). */
+  tags?: string[];
 }
 
 const f = (name: string, indicators: string[], labels?: Record<string, string>): ExConstruct => ({ name, type: 'factor', mode: 'A', indicators, ...(labels ? { labels } : {}) });

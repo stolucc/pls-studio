@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { loadPackageExample, loadSample, newProject, newProjectFromData, openProject, openRecent } from '../io';
 import { EXAMPLE_PACKAGES, PACKAGE_EXAMPLES, type ExamplePackage } from '../examples/packages';
+import { allTags, exampleTags } from '../examples/tags';
 import { listRecent, recentPersistent, relativeTime, removeRecent, type RecentMeta } from '../recent';
 import { useStore } from '../store';
 import { confirmDialog } from './Overlays';
@@ -15,21 +16,21 @@ const EXAMPLES = [
   {
     id: 'customer' as const,
     title: 'Customer experience survey',
-    tag: 'PLS-SEM',
+    tags: ['PLS-SEM', 'Mediation', 'Missing values', 'Bootstrap'],
     links: [] as { label: string; url: string }[],
     body: 'Synthetic survey (N = 300) with service quality, price fairness, trust, satisfaction and loyalty. Raw data with a few missing values: try PLS, PLSc, bootstrapping, IPMA, moderation and the fit test.',
   },
   {
     id: 'emse' as const,
     title: 'Gamification in software engineering',
-    tag: 'CB-SEM',
+    tags: ['CB-SEM', 'MLM', 'Second-order', 'Covariates', 'Mediation', 'Covariance input', 'Published study'],
     links: [{ label: 'Paper (EMSE 27:35)', url: 'https://doi.org/10.1007/s10664-021-10062-w' }, { label: 'Replication package (Zenodo)', url: 'https://doi.org/10.5281/zenodo.6322761' }],
     body: 'Stol, Schaarschmidt & Goldblit (2022), Empirical Software Engineering 27:35. The published model from the replication package’s covariance and NACOV matrices (N = 155): second-order engagement factor, covariates, robust MLM, MIIV-2SLS.',
   },
   {
     id: 'poldem' as const,
     title: 'Industrialisation and political democracy',
-    tag: 'CB-SEM',
+    tags: ['CB-SEM', 'Mediation', 'Correlated errors'],
     links: [{ label: '?PoliticalDemocracy (lavaan)', url: 'https://rdrr.io/cran/lavaan/man/PoliticalDemocracy.html' }, { label: 'lavaan tutorial: SEM', url: 'https://lavaan.ugent.be/tutorial/sem.html' }],
     body: 'Bollen (1989), Structural Equations with Latent Variables: 75 developing countries, democracy measured in 1960 and 1965. The classic model with six correlated measurement errors, drawn as double-headed arrows between error terms.',
   },
@@ -96,10 +97,17 @@ function SourceLinks({ links }: { links: { label: string; url: string }[] }) {
   );
 }
 
-/** Examples from the R packages' documentation, filterable by package. */
+/** What an example is about, as chips. */
+export function ExampleTags({ tags }: { tags: string[] }) {
+  return <div className="example-tags" aria-label="Topics">{tags.map((t) => <span key={t} className="chip">{t}</span>)}</div>;
+}
+
+/** Examples from the R packages' documentation, filterable by package and by topic. */
 function PackageExamples() {
   const [pkg, setPkg] = useState<ExamplePackage | 'all'>('all');
-  const shown = PACKAGE_EXAMPLES.filter((e) => pkg === 'all' || e.package === pkg);
+  const [topic, setTopic] = useState<string>('all');
+  const topics = allTags(PACKAGE_EXAMPLES);
+  const shown = PACKAGE_EXAMPLES.filter((e) => (pkg === 'all' || e.package === pkg) && (topic === 'all' || exampleTags(e).includes(topic)));
   return (
     <section className="home-examples">
       <div className="section-head">
@@ -110,11 +118,18 @@ function PackageExamples() {
           ))}
         </div>
       </div>
+      <div className="segmented wrap topics" role="radiogroup" aria-label="Topic">
+        {['all', ...topics].map((t) => (
+          <button key={t} role="radio" aria-checked={topic === t} className={topic === t ? 'on' : ''} onClick={() => setTopic(t)}>{t === 'all' ? 'All topics' : t}</button>
+        ))}
+      </div>
       <p className="hint" style={{ marginTop: 0 }}>Datasets and models from each package’s own documentation. The data are loaded from the package in your browser’s R; results are calculated by that package.</p>
+      {shown.length === 0 && <p className="hint">No example of {pkg} covers {topic}.</p>}
       <div className="example-grid">
         {shown.map((e) => (
           <div key={e.id} className="example-card">
             <div className="example-top"><b>{e.title}</b><span className="chip accent">{e.package}</span></div>
+            <ExampleTags tags={exampleTags(e)} />
             <p>{e.description}</p>
             <span className="hint">{e.source}</span>
             <SourceLinks links={e.links} />
@@ -220,7 +235,8 @@ export function HomeScreen() {
           <div className="example-grid">
             {EXAMPLES.map((e) => (
               <div key={e.id} className="example-card">
-                <div className="example-top"><b>{e.title}</b><span className="chip accent">{e.tag}</span></div>
+                <div className="example-top"><b>{e.title}</b><span className="chip accent">{e.tags[0]}</span></div>
+                <ExampleTags tags={e.tags} />
                 <p>{e.body}</p>
                 <SourceLinks links={e.links} />
                 <button className="btn" onClick={() => void loadSample(e.id)}>Open example</button>

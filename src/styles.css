@@ -242,6 +242,9 @@ button, input, select { font: inherit; color: inherit; }
   max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .chip.accent { background: var(--accent-soft); color: var(--accent-strong); }
+.example-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+.example-tags .chip { font-size: 11px; }
+.segmented.topics { margin-bottom: 8px; }
 
 /* ---------- canvas ---------- */
 .canvas-wrap { position: relative; min-height: 0; }
