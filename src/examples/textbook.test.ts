@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from '../engine/cbsem';
 import { DEFAULT_SETTINGS, toSpec, validateModel } from '../model/project';
-import { fromLowerTriangle, KERCKHOFF_R, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
+import { fromLowerTriangle, HAYDUK_NAMES, HAYDUK_RELIABILITY, HAYDUK_S, KERCKHOFF_R, makeHaydukExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
 
 const est = (cb: ReturnType<typeof estimateCb>, op: string, lhs: string, rhs: string) => cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
 
@@ -96,5 +96,47 @@ describe('ambition and attainment (Kerckhoff 1974; LISREL manual)', () => {
     expect(r2('Grades')).toBeCloseTo(0.349, 3);
     expect(r2('EducExp')).toBeCloseTo(0.483, 3);
     expect(r2('OccupAsp')).toBeCloseTo(0.443, 3);
+  });
+});
+
+describe('smoking behaviour and antismoking acts (Hayduk 1987, ch. 4)', () => {
+  const ex = makeHaydukExample(DEFAULT_SETTINGS);
+  it('the transcribed covariances agree with the correlations printed above them (Figure 4.5)', () => {
+    // The printed correlations, lower triangle by rows: a check on the transcription of the covariances.
+    const printed = fromLowerTriangle(HAYDUK_NAMES, [
+      0.021,
+      0.012, -0.176,
+      0.129, 0.213, 0.041,
+      -0.043, -0.173, -0.021, -0.473,
+      0.142, 0.268, -0.042, 0.641, -0.532,
+      0.120, 0.047, -0.152, 0.381, -0.175, 0.396,
+      -0.039, -0.116, -0.163, -0.176, 0.145, -0.072, -0.035,
+      -0.026, -0.107, -0.199, -0.186, 0.119, -0.076, -0.030, 0.912,
+      -0.089, -0.119, -0.120, -0.192, 0.178, -0.094, -0.039, 0.885, 0.807,
+      -0.059, -0.116, -0.179, -0.198, 0.146, -0.090, -0.032, 0.900, 0.965, 0.916,
+      0.168, 0.170, 0.078, 0.141, -0.086, 0.134, 0.150, -0.259, -0.288, -0.247, -0.288,
+      0.078, -0.076, 0.118, -0.062, 0.003, -0.029, 0.084, -0.148, -0.150, -0.096, -0.126, 0.140,
+    ], false);
+    const sd = HAYDUK_S.map((r, i) => Math.sqrt(r[i]));
+    for (let i = 0; i < 13; i++) for (let j = 0; j < i; j++) expect(Math.abs(HAYDUK_S[i][j] / (sd[i] * sd[j]) - printed[i][j]), `${HAYDUK_NAMES[i]} / ${HAYDUK_NAMES[j]}`).toBeLessThan(0.0025);
+    // Standard deviations as printed (sex .500, age 15.7, antismoking acts 1.14).
+    expect(sd[0]).toBeCloseTo(0.5, 3); expect(sd[1]).toBeCloseTo(15.7, 1); expect(sd[12]).toBeCloseTo(1.14, 2);
+  });
+  it('is a valid CB-SEM project for the R engine: seven single indicators with known reliabilities, gamma 32 fixed at zero', () => {
+    expect(ex.settings).toMatchObject({ method: 'cbsem', estimator: 'ML', engine: 'r' });
+    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
+    // The built-in engine cannot fix error variances: the validator says so, so the example pins the R engine.
+    expect(validateModel(ex.model, ex.data, { ...ex.settings, engine: 'builtin' }).some((i) => i.level === 'error' && /known reliability/.test(i.message))).toBe(true);
+    expect(ex.model.constructs.map((c) => [c.indicators[0], c.reliability])).toEqual(Object.entries(HAYDUK_RELIABILITY));
+    expect(ex.model.constructs.some((c) => c.covariate)).toBe(false);
+    const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
+    const into = (to: string) => ex.model.paths.filter((p) => name.get(p.to) === to).map((p) => name.get(p.from));
+    expect(into('Smoking')).toEqual(['Sex', 'Age', 'Education', 'Strength of religion']);
+    expect(into('Antismoking views')).toEqual(['Smoking', 'Sex', 'Age', 'Education', 'Strength of religion']);
+    expect(into('Antismoking acts')).toEqual(['Smoking', 'Antismoking views', 'Sex', 'Education', 'Strength of religion']);
+    // The spec carries the reliabilities for lavaan.R (error variance = (1 - r) x the indicator's variance in the matrix).
+    expect(toSpec(ex.model).constructs.map((c) => c.reliability)).toEqual([0.99, 0.95, 0.9, 0.9, 0.9, 0.95, 0.95]);
+    expect(ex.data.moments!.n).toBe(432);
+    expect(ex.data.names.length).toBe(13);
   });
 });

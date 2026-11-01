@@ -35,7 +35,7 @@ it('the Stol et al. (2022) example opens with MLM, the political democracy examp
 });
 
 it('the textbook matrix examples open as CB-SEM projects with maximum likelihood, from the defaults', async () => {
-  for (const id of ['wheaton', 'thurstone', 'kerckhoff'] as const) {
+  for (const id of ['wheaton', 'thurstone', 'kerckhoff', 'hayduk'] as const) {
     useStore.getState().newProject();
     useStore.getState().setSettings({ bootSamples: 50_000, missing: 'mi', consistent: true });
     await loadSample(id);
@@ -43,5 +43,6 @@ it('the textbook matrix examples open as CB-SEM projects with maximum likelihood
     expect(s.settings, id).toMatchObject({ method: 'cbsem', estimator: 'ML', consistent: false, bootSamples: DEFAULT_SETTINGS.bootSamples, missing: DEFAULT_SETTINGS.missing });
     expect(s.example, id).toBe(id);
     expect(s.data?.moments?.n, id).toBeGreaterThan(200);
+    expect(s.settings.engine, id).toBe('r');
   }
 });

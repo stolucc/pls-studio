@@ -11,7 +11,7 @@ import { makeSample } from '../sample';
 import { makeEmseExample } from './emse';
 import { makeMimicExample } from './mimic';
 import { makePoldemExample } from './poldem';
-import { makeKerckhoffExample, makeThurstoneExample, makeWheatonExample } from './textbook';
+import { makeHaydukExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample } from './textbook';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -84,4 +84,36 @@ it('Wheaton, Thurstone and Kerckhoff: lavaan on the published matrices reproduce
   expect(est(k, '~', 'Grades', 'Intelligence').est).toBeCloseTo(0.526, 3);
   expect(est(k, '~', 'OccupAsp', 'EducExp').est).toBeCloseTo(0.550, 3);
   expect(k.r2Constructs[k.constructs.indexOf('OccupAsp')]).toBeCloseTo(0.443, 3);
+}, 600_000);
+
+it('Hayduk (1987) smoking model: lavaan with the fixed error variances reproduces Figure 4.7, without a warning', async () => {
+  const ex = makeHaydukExample(DEFAULT_SETTINGS);
+  const r = await estimateCbLavaan(ex.data, toSpec(ex.model), 'casewise', 'ML', 'product');
+  expect(r.converged).toBe(true);
+  expect(r.warnings).toEqual([]);
+  expect(r.notes).toEqual([]);
+  const est = (op: string, lhs: string, rhs: string) => r.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!.est;
+  expect(r.fit.df).toBe(1);
+  expect(r.fit.chisq).toBeCloseTo(2.283, 2);
+  // BETA and GAMMA of Figure 4.7 (LISREL printed three decimals; two differ by one unit in the last place).
+  expect(est('~', 'Antismoking views', 'Smoking')).toBeCloseTo(-0.879, 2);
+  expect(est('~', 'Antismoking acts', 'Smoking')).toBeCloseTo(-0.312, 3);
+  expect(est('~', 'Antismoking acts', 'Antismoking views')).toBeCloseTo(0.068, 3);
+  expect(est('~', 'Smoking', 'Education')).toBeCloseTo(-0.037, 3);
+  expect(est('~', 'Smoking', 'Strength of religion')).toBeCloseTo(-0.036, 3);
+  expect(est('~', 'Antismoking views', 'Sex')).toBeCloseTo(0.545, 2);
+  expect(est('~', 'Antismoking views', 'Age')).toBeCloseTo(0.017, 3);
+  expect(est('~', 'Antismoking acts', 'Sex')).toBeCloseTo(0.161, 2);
+  expect(est('~', 'Antismoking acts', 'Strength of religion')).toBeCloseTo(-0.068, 3);
+  expect(r.estimates.some((e) => e.op === '~' && e.lhs === 'Antismoking acts' && e.rhs === 'Age')).toBe(false);
+  // THETA DELTA / EPS, the fixed error variances (sex .002, age 12.345, education .691, attendance .466; smoking .025, views .166, acts .065),
+  // and PHI / PSI (lavaan divides the matrix by N rather than N - 1: within 0.3% of the LISREL 234.553 and 2.736). The latent Age and its
+  // indicator share a name, so both variances are "Age ~~ Age": one is the fixed 12.345, the other the estimated 234.
+  const vars = (name: string) => r.estimates.filter((e) => e.op === '~~' && e.lhs === name && e.rhs === name).map((e) => e.est).sort((a, b) => a - b);
+  expect(vars('Age').length).toBe(2);
+  expect(vars('Age')[0]).toBeCloseTo(12.345, 2);
+  expect(vars('Age')[1] / 234.553).toBeCloseTo(1, 2);
+  expect(vars('Education')[0]).toBeCloseTo(0.691, 3);
+  expect(vars('AS-views')).toEqual([expect.closeTo(0.166, 3)]);
+  expect(vars('Antismoking views')[0] / 2.736).toBeCloseTo(1, 2);
 }, 600_000);

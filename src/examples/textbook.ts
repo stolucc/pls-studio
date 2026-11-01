@@ -9,6 +9,9 @@
 //   confirmatory factor analysis of the SAS/STAT PROC CALIS manual.
 // - Kerckhoff (1974), ambition and attainment: the observed-variable recursive
 //   path model of the LISREL manual.
+// - Hayduk (1987), Structural Equation Modeling with LISREL, chapter 4: smoking
+//   behaviour and antismoking acts, every concept a single indicator with its
+//   error variance fixed from an assessed reliability (Figures 4.5 to 4.7).
 //
 // Numbers pinned in the tests come from native lavaan on these matrices
 // (scripts/validation is not needed: the matrices are the data).
@@ -137,5 +140,59 @@ export function makeKerckhoffExample(settings: Settings): BuiltinExample {
     info: info('Kerckhoff (1974) correlation matrix, via the LISREL manual', KERCKHOFF_N),
     model: makeCovariancesExplicit(model),
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false },
+  };
+}
+
+// ---- Hayduk (1987), ch. 4, "A real model: smoking behavior and antismoking acts": N = 432 (listwise), Figure 4.5
+export const HAYDUK_NAMES = ['Sex', 'Age', 'Education', 'R-attend', 'R-strength', 'R-import', 'R-God-E', 'S-current', 'S-amount', 'S-history', 'S-p-strain', 'AS-views', 'AS-acts'];
+export const HAYDUK_N = 432;
+/** The covariances of Figure 4.5 (all thirteen indicators; the chapter's model uses seven). */
+export const HAYDUK_S = fromLowerTriangle(HAYDUK_NAMES, [
+  0.250,
+  0.167, 246.898,
+  0.016, -7.251, 6.909,
+  0.139, 7.239, 0.233, 4.657,
+  -0.010, -1.232, -0.025, -0.464, 0.206,
+  0.150, 8.907, -0.233, 2.922, -0.511, 4.466,
+  0.088, 1.088, -0.584, 1.204, -0.116, 1.225, 2.146,
+  -0.010, -0.907, -0.213, -0.188, 0.033, -0.076, -0.026, 0.247,
+  -0.015, -2.003, -0.623, -0.476, 0.065, -0.190, -0.053, 0.540, 1.417,
+  -0.035, -1.467, -0.248, -0.324, 0.063, -0.156, -0.045, 0.344, 0.752, 0.612,
+  -0.042, -2.599, -0.667, -0.606, 0.094, -0.269, -0.067, 0.636, 1.631, 1.017, 2.016,
+  0.153, 4.850, 0.375, 0.553, -0.071, 0.516, 0.401, -0.234, -0.625, -0.352, -0.745, 3.314,
+  0.044, -1.366, 0.357, -0.154, 0.001, -0.069, 0.141, -0.084, -0.203, -0.085, -0.203, 0.291, 1.302,
+], true);
+/** Figure 4.5, "assessed proportion of error variance" of the seven indicators the model uses: reliability = 1 − proportion. */
+export const HAYDUK_RELIABILITY: Record<string, number> = { Sex: 0.99, Age: 0.95, Education: 0.90, 'R-attend': 0.90, 'S-current': 0.90, 'AS-views': 0.95, 'AS-acts': 0.95 };
+
+export function makeHaydukExample(settings: Settings): BuiltinExample {
+  // Every concept has one indicator whose error variance is fixed at the assessed proportion of its variance (THETA in Figure 4.7):
+  // the exogenous concepts are latent too (PHI is estimated), so they are not fixed.x covariates.
+  const single = (name: string, indicator: string, x: number, y: number, side: Construct['side']) => C(name, [indicator], x, y, side, { reliability: HAYDUK_RELIABILITY[indicator] });
+  const sex = single('Sex', 'Sex', 0, -330, 'left');
+  const age = single('Age', 'Age', 0, -110, 'left');
+  const education = single('Education', 'Education', 0, 110, 'left');
+  const religion = single('Strength of religion', 'R-attend', 0, 330, 'left');
+  const smoking = single('Smoking', 'S-current', 500, -270, 'top');
+  const views = single('Antismoking views', 'AS-views', 500, 270, 'bottom');
+  const acts = single('Antismoking acts', 'AS-acts', 1000, 0, 'right');
+  const exogenous = [sex, age, education, religion];
+  const model: ModelState = {
+    constructs: [...exogenous, smoking, views, acts],
+    paths: [
+      ...exogenous.map((x) => P(x, smoking)),
+      P(smoking, views), ...exogenous.map((x) => P(x, views)),
+      // gamma 32 (age -> antismoking acts) is fixed at zero in the book.
+      P(smoking, acts), P(views, acts), P(sex, acts), P(education, acts), P(religion, acts),
+    ],
+    moderations: [],
+  };
+  return {
+    name: 'Smoking behaviour and antismoking acts (Hayduk 1987)',
+    data: matrix(HAYDUK_NAMES, HAYDUK_S.map((r) => [...r]), HAYDUK_N),
+    info: info('Hayduk (1987), Figure 4.5 covariance matrix', HAYDUK_N),
+    // Known reliabilities are estimated by lavaan (the built-in engine does not fix error variances).
+    model: makeCovariancesExplicit(model),
+    settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false, engine: 'r' },
   };
 }

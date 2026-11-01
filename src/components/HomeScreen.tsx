@@ -62,6 +62,13 @@ const EXAMPLES = [
     links: [{ label: '?sem (sem package): the matrix and model', url: 'https://rdrr.io/cran/sem/man/sem.html' }],
     body: 'The LISREL manual’s observed-variable path model: intelligence, number of siblings, father’s education and occupation explain grades, educational expectations and occupational aspirations of 737 boys. Four fixed exogenous variables, a just-identified recursive model: coefficients and R² only.',
   },
+  {
+    id: 'hayduk' as const,
+    title: 'Smoking behaviour and antismoking acts (Hayduk 1987)',
+    tags: ['CB-SEM', 'Single indicators', 'Known reliability', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
+    body: 'Chapter 4’s “real model”: sex, age, education and religious attendance explain current smoking, antismoking views and antismoking acts (N = 432). Each concept has one indicator whose error variance is fixed from an assessed reliability (1% for sex, 5% to 10% for the rest), Hayduk’s way of modelling measurement error without multiple indicators; the figure reproduces his LISREL estimates (Figure 4.7). The matrix carries all thirteen indicators of Figure 4.5, so the other religion and smoking measures can be swapped in.',
+  },
 ];
 
 /** Whether every word of a query occurs in one of the texts (case-insensitive). */
