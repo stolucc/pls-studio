@@ -19,9 +19,10 @@ import { bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis } from
 import { sampleSizeAnalysis } from './sampleSize';
 import { egaAnalysis, networkAnalysis } from './network';
 import { runAnalysis } from './runCard';
+import { BASIC_TEST_TYPES } from './tests';
 import { snapshotAnalysis } from './snapshot';
 import type { AnalysisType } from './types';
 
-export const ANALYSIS_TYPES: AnalysisType[] = [runAnalysis, snapshotAnalysis, screenAnalysis, chartAnalysis, influenceAnalysis, regressionAnalysis, didAnalysis, efaAnalysis, irtAnalysis, lcaAnalysis, networkAnalysis, egaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, endoAnalysis, lmmAnalysis, growthAnalysis, riclpmAnalysis, gmmAnalysis];
+export const ANALYSIS_TYPES: AnalysisType[] = [runAnalysis, snapshotAnalysis, screenAnalysis, chartAnalysis, influenceAnalysis, ...BASIC_TEST_TYPES, regressionAnalysis, didAnalysis, efaAnalysis, irtAnalysis, lcaAnalysis, networkAnalysis, egaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, endoAnalysis, lmmAnalysis, growthAnalysis, riclpmAnalysis, gmmAnalysis];
 
 export const analysisType = (id: string): AnalysisType | undefined => ANALYSIS_TYPES.find((t) => t.id === id);
