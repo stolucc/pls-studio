@@ -8,7 +8,7 @@ import { fixedText } from '../diagramLabels';
 import { meanSegment } from '../geometry';
 import { useStore } from '../store';
 
-export type MeanEdgeData = { value: number | null; p: number | null; fixed?: number; label?: string };
+export type MeanEdgeData = { value: number | null; p: number | null; fixed?: number; label?: string; labelAt?: { x: number; y: number } };
 export type MeanFlowEdge = Edge<MeanEdgeData, 'mean'>;
 
 function MeanEdgeImpl({ id, target, data, selected }: EdgeProps<MeanFlowEdge>) {
@@ -17,8 +17,8 @@ function MeanEdgeImpl({ id, target, data, selected }: EdgeProps<MeanFlowEdge>) {
   const geo = useMemo(() => {
     if (!k || !t) return null;
     const seg = meanSegment(k, t);
-    return seg ? { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: (seg.x1 + seg.x2) / 2, my: (seg.y1 + seg.y2) / 2 } : null;
-  }, [k, t]);
+    return seg ? { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: data?.labelAt?.x ?? (seg.x1 + seg.x2) / 2, my: data?.labelAt?.y ?? (seg.y1 + seg.y2) / 2 } : null;
+  }, [k, t, data?.labelAt]);
   if (!geo) return null;
   const fixed = data?.fixed;
   const value = data?.value ?? fixed ?? null;

@@ -8,6 +8,7 @@ import { fixedText } from '../diagramLabels';
 export type PathEdgeData = {
   beta: number | null; p: number | null; moderated?: boolean; /** CB-SEM: coefficient held at this value. */ fixed?: number; /** CB-SEM: parameter label. */ label?: string;
   /** A moderator's main effect implied by the moderation (estimated, not drawn): dashed, not editable. */ implied?: boolean;
+  /** Where the label goes (placed so that labels do not overlap); otherwise the midpoint. */ labelAt?: { x: number; y: number };
 };
 export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
 
@@ -22,8 +23,8 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
     if (!seg) return null;
     // Moderator arrows land on the midpoint, so move this path's label aside.
     const f = data?.moderated ? 0.3 : 0.5;
-    return { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: seg.x1 + f * (seg.x2 - seg.x1), my: seg.y1 + f * (seg.y2 - seg.y1) };
-  }, [s, t, offset, data?.moderated]);
+    return { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: data?.labelAt?.x ?? seg.x1 + f * (seg.x2 - seg.x1), my: data?.labelAt?.y ?? seg.y1 + f * (seg.y2 - seg.y1) };
+  }, [s, t, offset, data?.moderated, data?.labelAt]);
   const figure = useStore((st) => st.settings.figure);
   if (!geo) return null;
 

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type
 import { CONSTANT_R, constructGeometry, distanceToSegment, interceptSegment, meanSegment, moderatorSegment, pathOffset, pathSegment, quadraticLoop } from '../geometry';
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
+import { canvasLabelSize, placeFigureLabels } from '../figure/labels';
 import { FigurePanel } from './FigurePanel';
 import { setFigureSource } from '../figure/source';
 import { numberDialog, textDialog } from './Overlays';
@@ -349,39 +350,6 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     };
   })], [model.constructs, model.constant, model.esem?.blocks, selection.nodes, display, errorIds, tool, method, picked]);
 
-  const edges: FlowEdge[] = useMemo(() => {
-    const name = new Map(model.constructs.map((c) => [c.id, c.name]));
-    const means: MeanFlowEdge[] = model.constant ? (model.means ?? []).flatMap((t): MeanFlowEdge[] => {
-      const nm = name.get(t.target);
-      if (!nm) return [];
-      const l = meanOf(nm);
-      return [{ id: t.id, source: 'constant', target: t.target, sourceHandle: 's', targetHandle: 't', type: 'mean', selected: selection.edges.includes(t.id),
-        data: { value: l?.value ?? null, p: l?.p ?? null, ...(t.fixed !== undefined ? { fixed: t.fixed } : {}), ...(t.fixed === undefined && t.label ? { label: t.label } : {}) } }];
-    }) : [];
-    const drawn: FlowEdge[] = model.paths.map((p): PathFlowEdge => ({
-      id: p.id, source: p.from, target: p.to, sourceHandle: 's', targetHandle: 't', type: 'path',
-      selected: selection.edges.includes(p.id),
-      data: {
-        ...(display ? display.path(name.get(p.from)!, name.get(p.to)!) : { beta: null, p: null }),
-        moderated: model.moderations.some((mo) => mo.path === p.id),
-        ...(method === 'cbsem' && p.fixed !== undefined ? { fixed: p.fixed } : {}),
-        ...(method === 'cbsem' && p.fixed === undefined && p.label ? { label: p.label } : {}),
-      },
-    }));
-    drawn.push(...means);
-    if (!showImplied) return drawn;
-    // The intercepts the constant implies (every indicator's, bar a drawn mean's marker): dashed, not editable.
-    const intercepts = impliedIntercepts(model).map((e): InterceptFlowEdge => {
-      const l = meanOf(e.indicator);
-      return { id: `intercept:${e.construct}:${e.indicator}`, source: 'constant', target: e.construct, sourceHandle: 's', targetHandle: 't', type: 'intercept',
-        selectable: false, deletable: false, focusable: false, data: { indicator: e.indicator, value: l?.value ?? null, p: l?.p ?? null } };
-    });
-    return [...drawn, ...intercepts, ...implied.map((e): PathFlowEdge => ({
-      id: `implied:${e.from}:${e.to}`, source: e.from, target: e.to, sourceHandle: 's', targetHandle: 't', type: 'path',
-      selectable: false, deletable: false, focusable: false,
-      data: { ...(display ? display.path(name.get(e.from)!, name.get(e.to)!) : { beta: null, p: null }), implied: true },
-    }))];
-  }, [model, selection.edges, display, meanOf, method, implied, showImplied]);
 
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
     let sel: Selection | null = null;
@@ -512,7 +480,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p.from, p.to)) : null;
       if (!seg) return [];
       const l = display?.path(nameOf(p.from), nameOf(p.to));
-      return [{ ...seg, label: lbl(l?.beta, l?.p ?? null), moderated: m.moderations.some((mo) => mo.path === p.id), ...('implied' in p ? { implied: true } : {}) }];
+      return [{ key: 'implied' in p ? `implied:${p.from}:${p.to}` : p.id, ...seg, label: lbl(l?.beta, l?.p ?? null), moderated: m.moderations.some((mo) => mo.path === p.id), ...('implied' in p ? { implied: true } : {}) }];
     });
     const moderations = m.moderations.flatMap((mo) => {
       const p = m.paths.find((q) => q.id === mo.path);
@@ -522,16 +490,16 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const l = moderationLabel(mo.id);
       if (mod.id === p!.from) {
         const q = quadraticLoop(mod, seg);
-        return [{ x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: lbl(l?.beta, l?.p ?? null), loop: { ...q, tag: `${mod.name}²` } }];
+        return [{ key: `mod:${mo.id}`, x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: lbl(l?.beta, l?.p ?? null), loop: { ...q, tag: `${mod.name}²` } }];
       }
-      return [{ ...moderatorSegment(mod, seg), label: lbl(l?.beta, l?.p ?? null) }];
+      return [{ key: `mod:${mo.id}`, ...moderatorSegment(mod, seg), label: lbl(l?.beta, l?.p ?? null) }];
     });
     const higherOrder = m.constructs.flatMap((parent) => (parent.components ?? []).flatMap((cid) => {
       const child = byId.get(cid);
       const seg = child ? (parent.type === 'composite' ? pathSegment(child, parent) : pathSegment(parent, child)) : null;
       if (!seg || !child) return [];
       const l = hoLoading(parent.name, child.name);
-      return [{ ...seg, label: l ? { value: l.value, p: null, fixed: l.fixed } : null }];
+      return [{ key: `ho:${parent.id}:${cid}`, ...seg, label: l ? { value: l.value, p: null, fixed: l.fixed } : null }];
     }));
     const cov = covarianceLayout(m, method === 'cbsem', showErrors);
     const errors = [
@@ -550,7 +518,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const seg = c && meanSegment(constant, c);
       if (!seg) return [];
       const l = meanOf(c.name);
-      return [{ ...seg, label: lbl(l?.value ?? (t.fixed !== undefined ? t.fixed : null), l?.p ?? null, t.fixed !== undefined && l == null) }];
+      return [{ key: `mean:${t.id}`, ...seg, label: lbl(l?.value ?? (t.fixed !== undefined ? t.fixed : null), l?.p ?? null, t.fixed !== undefined && l == null) }];
     }) : [];
     const intercepts = constant && st().showImpliedEffects ? impliedIntercepts(m).flatMap((e) => {
       const c = byId.get(e.construct);
@@ -558,10 +526,46 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const seg = c && box && interceptSegment(constant, c, box);
       if (!seg) return [];
       const l = meanOf(e.indicator);
-      return [{ ...seg, label: lbl(l?.value ?? null, l?.p ?? null) }];
+      return [{ key: `intercept:${e.construct}:${e.indicator}`, ...seg, label: lbl(l?.value ?? null, l?.p ?? null) }];
     }) : [];
     return { constructs, paths, moderations, higherOrder, errors, correlations, ...(constant ? { constant, means, intercepts } : {}) };
   }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel]);
+
+  // Where each estimate label goes, so that none overlap (the figure export places them the same way).
+  const labelAt = useMemo(() => placeFigureLabels(figureInput(), canvasLabelSize), [figureInput]);
+  const edges: FlowEdge[] = useMemo(() => {
+    const name = new Map(model.constructs.map((c) => [c.id, c.name]));
+    const means: MeanFlowEdge[] = model.constant ? (model.means ?? []).flatMap((t): MeanFlowEdge[] => {
+      const nm = name.get(t.target);
+      if (!nm) return [];
+      const l = meanOf(nm);
+      return [{ id: t.id, source: 'constant', target: t.target, sourceHandle: 's', targetHandle: 't', type: 'mean', selected: selection.edges.includes(t.id),
+        data: { value: l?.value ?? null, p: l?.p ?? null, ...(t.fixed !== undefined ? { fixed: t.fixed } : {}), ...(t.fixed === undefined && t.label ? { label: t.label } : {}), labelAt: labelAt.get(`mean:${t.id}`) } }];
+    }) : [];
+    const drawn: FlowEdge[] = model.paths.map((p): PathFlowEdge => ({
+      id: p.id, source: p.from, target: p.to, sourceHandle: 's', targetHandle: 't', type: 'path',
+      selected: selection.edges.includes(p.id),
+      data: {
+        ...(display ? display.path(name.get(p.from)!, name.get(p.to)!) : { beta: null, p: null }),
+        moderated: model.moderations.some((mo) => mo.path === p.id), labelAt: labelAt.get(p.id),
+        ...(method === 'cbsem' && p.fixed !== undefined ? { fixed: p.fixed } : {}),
+        ...(method === 'cbsem' && p.fixed === undefined && p.label ? { label: p.label } : {}),
+      },
+    }));
+    drawn.push(...means);
+    if (!showImplied) return drawn;
+    // The intercepts the constant implies (every indicator's, bar a drawn mean's marker): dashed, not editable.
+    const intercepts = impliedIntercepts(model).map((e): InterceptFlowEdge => {
+      const l = meanOf(e.indicator);
+      return { id: `intercept:${e.construct}:${e.indicator}`, source: 'constant', target: e.construct, sourceHandle: 's', targetHandle: 't', type: 'intercept',
+        selectable: false, deletable: false, focusable: false, data: { indicator: e.indicator, value: l?.value ?? null, p: l?.p ?? null, labelAt: labelAt.get(`intercept:${e.construct}:${e.indicator}`) } };
+    });
+    return [...drawn, ...intercepts, ...implied.map((e): PathFlowEdge => ({
+      id: `implied:${e.from}:${e.to}`, source: e.from, target: e.to, sourceHandle: 's', targetHandle: 't', type: 'path',
+      selectable: false, deletable: false, focusable: false,
+      data: { ...(display ? display.path(name.get(e.from)!, name.get(e.to)!) : { beta: null, p: null }), implied: true, labelAt: labelAt.get(`implied:${e.from}:${e.to}`) },
+    }))];
+  }, [model, selection.edges, display, meanOf, method, implied, showImplied, labelAt]);
   // Model snapshots on the Analyses tab draw the diagram from the canvas.
   useEffect(() => { setFigureSource(figureInput); return () => setFigureSource(null); }, [figureInput]);
 
@@ -841,8 +845,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         attributionPosition="top-right"
         style={{ cursor: tool === 'construct' ? 'copy' : undefined }}
       >
-        <ModeratorLayer labelFor={moderationLabel} onMenu={openMenu} />
-        <HigherOrderLayer loadingFor={hoLoading} />
+        <ModeratorLayer labelFor={moderationLabel} onMenu={openMenu} labelAt={(id) => labelAt.get(`mod:${id}`) ?? null} />
+        <HigherOrderLayer loadingFor={hoLoading} labelAt={(parent, child) => labelAt.get(`ho:${parent}:${child}`) ?? null} />
         <CovarianceLayer active={method === 'cbsem'} showErrors={showErrors} picked={picked}
           onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} onMenu={openMenu} />
         <PresenceLayer />

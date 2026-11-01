@@ -4,6 +4,7 @@
 // svg2pdf.js can turn it into vector PDF without embedded fonts.
 
 import { arrowHead, ERR_R, hexagonVertices, QUAD_RISE, type ConstructGeom, type ErrorTerm, type QuadraticLoop, CONSTANT_R } from '../geometry';
+import { placeFigureLabels } from './labels';
 import type { Construct } from '../model/project';
 import { estimateText, FONT_FAMILY, pathStrokeWidth, type FigureStyle } from './style';
 
@@ -13,17 +14,18 @@ export interface FigureInput {
   /** `observed`: drawn as a rectangle (an observed variable) whatever the construct type. */
   constructs: { c: Construct; geom: ConstructGeom; r2: number | null; indicators: (FigureLabel | null)[]; observed?: boolean }[];
   /** `implied`: a moderator's main effect implied by its moderation (dashed). */
-  paths: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; moderated: boolean; implied?: boolean }[];
+  /** `key` identifies the arrow for label placement (placeFigureLabels), shared with the canvas. */
+  paths: { key?: string; x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; moderated: boolean; implied?: boolean }[];
   /** `loop`: a quadratic effect (Henseler 2021), X's own arrow curving onto its path, tagged X². */
-  moderations: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; loop?: QuadraticLoop & { tag: string } }[];
-  higherOrder: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
+  moderations: { key?: string; x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; loop?: QuadraticLoop & { tag: string } }[];
+  higherOrder: { key?: string; x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
   errors: { term: ErrorTerm; kind: 'indicator' | 'disturbance'; value: number | null }[];
   correlations: { d: string; heads: string[]; lx: number; ly: number; nx: number; ny: number; points: [number, number][]; label: FigureLabel | null }[];
   /** The constant (triangle, "1") and its arrows: latent means and intercepts. */
   constant?: { x: number; y: number };
-  means?: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
+  means?: { key?: string; x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
   /** The intercepts the constant implies (dashed arrows to the indicator boxes). */
-  intercepts?: { x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
+  intercepts?: { key?: string; x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null }[];
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -127,17 +129,18 @@ export function renderFigureSvg(f: FigureInput, style: FigureStyle): { svg: stri
   }
 
   if (style.showEstimates) {
-    for (const p of f.paths) if (p.label) {
-      const t = p.moderated ? 0.3 : 0.5;
-      label(p.x1 + t * (p.x2 - p.x1), p.y1 + t * (p.y2 - p.y1), p.label, tone(p.label.p));
-    }
+    // Labels never overlap: each sits where the placement pass put it (its preferred point on the arrow when free).
+    const size = (l: FigureLabel) => { const text = l.fixed && Math.abs(l.value - 1) < 1e-12 ? '1' : estimateText(style, l.value, l.p); return { w: textWidth(text, small) + 8, h: small + 6 }; };
+    const placed = placeFigureLabels(f, size);
+    const at = (key: string | undefined, s: { x1: number; y1: number; x2: number; y2: number }, t: number) => (key ? placed.get(key) : undefined) ?? { x: s.x1 + t * (s.x2 - s.x1), y: s.y1 + t * (s.y2 - s.y1) };
+    for (const p of f.paths) if (p.label) { const q = at(p.key, p, p.moderated ? 0.3 : 0.5); label(q.x, q.y, p.label, tone(p.label.p)); }
     for (const m of f.moderations) if (m.label) {
       if (m.loop) label(m.loop.lx, m.loop.ly, m.label, tone(m.label.p));
-      else label((m.x1 + m.x2) / 2, (m.y1 + m.y2) / 2, m.label, tone(m.label.p));
+      else { const q = at(m.key, m, 0.5); label(q.x, q.y, m.label, tone(m.label.p)); }
     }
-    for (const h of f.higherOrder) if (h.label) label((h.x1 + h.x2) / 2, (h.y1 + h.y2) / 2, h.label, '#333333');
-    for (const t of f.means ?? []) if (t.label) label((t.x1 + t.x2) / 2, (t.y1 + t.y2) / 2, t.label, tone(t.label.p));
-    for (const t of f.intercepts ?? []) if (t.label) label((t.x1 + t.x2) / 2, (t.y1 + t.y2) / 2, t.label, tone(t.label.p));
+    for (const h of f.higherOrder) if (h.label) { const q = at(h.key, h, 0.5); label(q.x, q.y, h.label, '#333333'); }
+    for (const t of f.means ?? []) if (t.label) { const q = at(t.key, t, 0.5); label(q.x, q.y, t.label, tone(t.label.p)); }
+    for (const t of f.intercepts ?? []) if (t.label) { const q = at(t.key, t, 0.5); label(q.x, q.y, t.label, tone(t.label.p)); }
     for (const k of f.correlations) if (k.label) {
       // Hang the label off the outer side of the arc.
       const text = estimateText(style, k.label.value, k.label.p);

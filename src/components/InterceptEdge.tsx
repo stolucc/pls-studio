@@ -7,7 +7,7 @@ import { memo, useMemo } from 'react';
 import { constructGeometry, interceptSegment } from '../geometry';
 import { useStore } from '../store';
 
-export type InterceptEdgeData = { indicator: string; value: number | null; p: number | null };
+export type InterceptEdgeData = { indicator: string; value: number | null; p: number | null; labelAt?: { x: number; y: number } };
 export type InterceptFlowEdge = Edge<InterceptEdgeData, 'intercept'>;
 
 function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
@@ -17,7 +17,7 @@ function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
     if (!k || !t || !data) return null;
     const box = constructGeometry(t).indicators.find((b) => b.name === data.indicator);
     const seg = box && interceptSegment(k, t, box);
-    return seg ? { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: (seg.x1 + seg.x2) / 2, my: (seg.y1 + seg.y2) / 2 } : null;
+    return seg ? { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: data.labelAt?.x ?? (seg.x1 + seg.x2) / 2, my: data.labelAt?.y ?? (seg.y1 + seg.y2) / 2 } : null;
   }, [k, t, data]);
   if (!geo) return null;
   const value = data?.value ?? null;

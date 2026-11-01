@@ -23,8 +23,10 @@ const NONE: string[] = [];
  * Moderating effects drawn as dashed arrows from the moderator onto the
  * midpoint of the moderated path. Rendered in flow coordinates.
  */
-export function ModeratorLayer({ labelFor, onMenu }: {
+export function ModeratorLayer({ labelFor, onMenu, labelAt }: {
   labelFor: (moderationId: string) => ModerationLabel | null;
+  /** Where a moderation's label goes (placed so that labels do not overlap); otherwise the arrow's midpoint. */
+  labelAt?: (moderationId: string) => { x: number; y: number } | null;
   /** Right-click: open the canvas context menu. */
   onMenu: (e: MouseEvent, t: MenuTarget) => void;
 }) {
@@ -94,7 +96,7 @@ export function ModeratorLayer({ labelFor, onMenu }: {
           <div key={mo.id} className={`elabel mod-label${cls}`} onClick={(e) => select(e, mo.id)}
             onContextMenu={(e) => { select(e, mo.id); onMenu(e, { kind: 'moderation', id: mo.id }); }}
             // On the arrow: a quadratic effect's estimate at the top of its loop.
-            style={{ transform: `translate(-50%, -50%) translate(${loop ? loop.lx : (seg.x1 + seg.x2) / 2}px, ${loop ? loop.ly : (seg.y1 + seg.y2) / 2}px)` }}>
+            style={{ transform: `translate(-50%, -50%) translate(${loop ? loop.lx : (labelAt?.(mo.id)?.x ?? (seg.x1 + seg.x2) / 2)}px, ${loop ? loop.ly : (labelAt?.(mo.id)?.y ?? (seg.y1 + seg.y2) / 2)}px)` }}>
             {l.beta.toFixed(3)}
             {l.p !== null && <span className="p">{l.p < 0.001 ? 'p<.001' : `p=${l.p.toFixed(3).slice(1)}`}</span>}
           </div>
