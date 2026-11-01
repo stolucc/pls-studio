@@ -141,7 +141,7 @@ ps_cb_build <- function(req) {
     if (!is.null(eps) && !(is.numeric(eps) && length(eps) == 1 && eps > 0 && eps <= 1)) stop("Invalid geomin epsilon in the request.")
     if (!is.null(target)) inputs$TARGET <- target
   }
-  rel_inds <- character(0); composites <- character(0)
+  rel_inds <- character(0); free_err_inds <- character(0); composites <- character(0)
   for (j in seq_len(k0)) {
     if (is_cov[j] || n$cname[j] %in% in_block) next
     # The first loading of each factor is fixed to 1 (marker / scaling indicator); written explicitly.
@@ -185,7 +185,8 @@ ps_cb_build <- function(req) {
       }
       if (length(v) == 1) {
         rel <- cons[[j]]$reliability
-        if (is.null(rel)) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
+        if (isTRUE(cons[[j]]$freeError)) { free_err_inds <- c(free_err_inds, v); lines <- c(lines, paste0(v, " ~~ NA*", v, "   # single indicator: error variance estimated (identified by the model)")) }
+        else if (is.null(rel)) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
         else lines <- c(lines, fix_theta(v, rel, "single indicator"))
       } else {
         rels <- cons[[j]]$reliabilities %||% list()
@@ -292,7 +293,7 @@ ps_cb_build <- function(req) {
     for (j in seq_len(k0)) {
       if (is_cov[j] || length(n$inds[[j]]) != 1 || length(comps[[j]]) || n$cname[j] %in% drawn) next
       ov <- unname(n$iv[[n$inds[[j]][1]]])
-      if (ov %in% rel_inds) next
+      if (ov %in% rel_inds || ov %in% free_err_inds) next
       lines <- c(lines, paste0(lname[[j]], " ~ 1"), paste0(ov, " ~ 0*1   # the intercept of ", lname[[j]], " (an observed variable)"))
       obs_single[unname(lname[[j]])] <- ov
     }
@@ -392,6 +393,11 @@ ps_cb_build <- function(req) {
     if ((mg$invariance %||% "configural") %in% c("scalar", "strict")) stop("Scalar and strict invariance hold intercepts equal: they need the mean structure.")
     extra <- paste0(extra, ", meanstructure = FALSE")
   }
+  # Groups from matrices that carry means behave as groups from raw data: lavaan gets the means, so every group
+  # has its intercepts (held equal under scalar invariance, the latent means then free after the first group).
+  pass_m <- means_on || (matrix_groups && !is.null(inputs$M) && !identical(mg$meanStructure, FALSE))
+  if (matrix_groups && is.null(inputs$M) && (mg$invariance %||% "configural") %in% c("scalar", "strict"))
+    stop("Scalar and strict invariance hold intercepts equal: they need the variables' means, and these matrices carry none.")
   # The sample-size convention: the Wishart likelihood (N - 1, the matrix as given; LISREL, EQS, Amos, the sem package),
   # or a covariance matrix fitted as given with N (sample.cov.rescale = FALSE, as Kline's scripts).
   if (!is.null(req$model$likelihood)) {
@@ -424,7 +430,7 @@ ps_cb_build <- function(req) {
       inputs = inputs, body = body, matrix_input = matrix_input, group_var = NULL, modsem = method))
   }
   # (with matrices, extra holds the group equalities of a stacked model and the bounds only: the rest was refused above)
-  call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s%s, estimator = \"%s\"%s)", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", if (means_on) ", sample.mean = M" else "", req$estimator, extra)
+  call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s%s, estimator = \"%s\"%s)", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", if (pass_m) ", sample.mean = M" else "", req$estimator, extra)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
   # Multiple imputation (mice, then lavaan.mi's Rubin pooling); a lavaan fit to the first imputed data set
   # serves as the template for the model's structure, every reported number is pooled.

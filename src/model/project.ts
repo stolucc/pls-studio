@@ -38,6 +38,8 @@ export interface Construct {
   covariate?: boolean;
   /** CB-SEM single indicator: known reliability (error variance fixed at (1 − r) × variance; otherwise 0). */
   reliability?: number;
+  /** CB-SEM single indicator: its error variance estimated instead of 0, when the model identifies it (Bollen 1989, Figure 5.4: reciprocal effects with an instrument for each). R engine. */
+  freeError?: boolean;
   /** CB-SEM multi-indicator factor: known reliabilities of some indicators (by name), fixing their error variances likewise (Hayduk 1987). */
   reliabilities?: Record<string, number>;
   /** Conditional process analysis: model this scale as a latent variable (lavaan::sam) instead of its mean score. */
@@ -453,6 +455,7 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.components?.length && c.markerFree ? { markerFree: true } : {}),
       ...(c.covariate ? { covariate: true } : {}),
       ...(c.reliability !== undefined && c.indicators.length === 1 && !c.covariate ? { reliability: c.reliability } : {}),
+      ...(c.freeError && c.reliability === undefined && c.indicators.length === 1 && !c.covariate ? { freeError: true } : {}),
       ...(c.reliabilities && c.indicators.length > 1 && !c.covariate && Object.keys(c.reliabilities).some((k) => c.indicators.includes(k))
         ? { reliabilities: Object.fromEntries(Object.entries(c.reliabilities).filter(([k]) => c.indicators.includes(k))) } : {}),
       ...(c.dominant && c.indicators.includes(c.dominant) ? { dominant: c.dominant } : {}),
@@ -673,6 +676,12 @@ export function validateModel(
       else if (c.indicators.length !== 1 || c.covariate) err(`"${c.name}": a known reliability applies to a single-indicator factor only.`, c.id);
       else if (method.estimator === '2SLS') err(`"${c.name}": a known reliability is not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
       else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": a known reliability is estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
+    }
+    if (c.freeError && method.method === 'cbsem') {
+      if (c.indicators.length !== 1 || c.covariate) err(`"${c.name}": an estimated error variance applies to a single-indicator factor only.`, c.id);
+      else if (c.reliability !== undefined) err(`"${c.name}": choose one: a known reliability fixes the error variance, an estimated one leaves it free.`, c.id);
+      else if (method.estimator === '2SLS') err(`"${c.name}": an estimated error variance of a single indicator is not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
+      else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": the error variance of a single indicator is estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
     }
     if (c.mode !== 'A' && c.indicators.length === 1 && method.method === 'pls') warn(`"${c.name}" uses ${c.mode === 'B' ? 'Mode B' : 'sum scores'} with a single indicator; the weighting has no effect.`, c.id);
     if (method.method === 'cbsem' && c.type === 'composite') {
@@ -1398,6 +1407,7 @@ export function parseModelState(m: unknown): ModelState {
       ...(c.markerFree === true && Array.isArray(c.components) && c.components.length ? { markerFree: true } : {}),
       ...(c.covariate === true ? { covariate: true } : {}),
       ...(typeof c.reliability === 'number' && c.reliability > 0 && c.reliability <= 1 ? { reliability: c.reliability } : {}),
+      ...(c.freeError === true ? { freeError: true } : {}),
       ...(reliabilitiesOf(c.reliabilities, c.indicators as unknown[])),
       ...(typeof c.dominant === 'string' && (c.indicators as unknown[]).includes(c.dominant) ? { dominant: c.dominant } : {}),
       ...(c.latent === true ? { latent: true } : {}),

@@ -37,6 +37,8 @@ export interface ConstructSpec {
   markerFree?: boolean;
   /** CB-SEM (lavaan): a single indicator's known reliability; its error variance is fixed at (1 − reliability) × its variance. */
   reliability?: number;
+  /** CB-SEM (lavaan): a single indicator whose error variance is estimated (identified by the model) instead of 0. */
+  freeError?: boolean;
   /** CB-SEM (lavaan): known reliabilities of some indicators of a multi-indicator factor (by indicator name), fixing their error variances likewise. */
   reliabilities?: Record<string, number>;
 }

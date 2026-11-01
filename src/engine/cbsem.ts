@@ -975,6 +975,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
   if (spec.esem?.blocks.length) throw new Error('Exploratory SEM (ESEM) is estimated by lavaan: choose the R engine.');
   if (spec.constructs.some((c) => c.type === 'composite')) throw new Error('Composites in CB-SEM are estimated by lavaan: choose the R engine.');
   if (spec.constructs.some((c) => c.reliability !== undefined)) throw new Error('Single indicators with a known reliability are estimated by lavaan: choose the R engine.');
+  if (spec.constructs.some((c) => c.freeError)) throw new Error('Single indicators with an estimated error variance are estimated by lavaan: choose the R engine.');
   if (spec.paths.some((p) => p.label) || spec.constructs.some((c) => c.loadingLabels && Object.keys(c.loadingLabels).length) || spec.covariances?.some((k) => k.label) || spec.defined?.length || spec.waldTests?.length) {
     throw new Error('Parameter labels, equality constraints, defined parameters and Wald tests are estimated by lavaan: choose the R engine.');
   }

@@ -24,7 +24,7 @@ interface IndicatorPlace { owner: Construct; term: ErrorTerm }
 function indicatorPlaces(model: ModelState): Map<string, IndicatorPlace> {
   const out = new Map<string, IndicatorPlace>();
   for (const c of model.constructs) {
-    if (c.covariate || c.type === 'composite' || (c.indicators.length < 2 && c.reliability === undefined)) continue;
+    if (c.covariate || c.type === 'composite' || (c.indicators.length < 2 && c.reliability === undefined && !c.freeError)) continue;
     for (const ind of constructGeometry(c).indicators) out.set(ind.name, { owner: c, term: errorTerm(c, ind) });
   }
   return out;

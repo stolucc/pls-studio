@@ -135,7 +135,7 @@ describe('shared projects from before explicit correlations', () => {
 // both a project file and the shared document.
 const full: Construct & Required<Omit<Construct, 'categorical' | 'components' | 'componentLoadings' | 'markerFree'>> = {
   id: 'f', name: 'Full', type: 'factor', mode: 'unit', indicators: ['f1', 'f2', 'f3'], x: 10, y: 20, side: 'top',
-  covariate: true, reliability: 0.8, reliabilities: { f3: 0.9 }, latent: true, fixedLoadings: { f2: 0.5 }, dominant: 'f2', loadingLabels: { f3: 'lf' },
+  covariate: true, reliability: 0.8, freeError: true, reliabilities: { f3: 0.9 }, latent: true, fixedLoadings: { f2: 0.5 }, dominant: 'f2', loadingLabels: { f3: 'lf' },
 };
 const kitchenSink: Required<ModelState> = {
   constructs: [

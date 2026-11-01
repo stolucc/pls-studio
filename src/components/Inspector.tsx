@@ -151,6 +151,12 @@ function ConstructInspector({ c }: { c: Construct }) {
               <div className="hint">A known reliability (e.g. a published α) fixes the error variance at (1 − reliability) × the indicator’s variance (Bollen 1989). Empty: the error variance is 0. R engine (lavaan).</div>
             </div>
           )}
+          {c.indicators.length === 1 && !c.covariate && c.reliability === undefined && (
+            <label className="check" style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={!!c.freeError} onChange={(e) => update(c.id, { freeError: e.target.checked ? true : undefined })} />
+              <span><b>Estimate the error variance of {c.indicators[0]}</b><br /><span className="hint">Instead of 0. Only when the rest of the model identifies it, e.g. two variables that cause each other, each with its own instrument (Bollen 1989, ch. 5). R engine (lavaan).</span></span>
+            </label>
+          )}
           {c.indicators.length > 1 && !c.covariate && !c.components?.length && (
             <div className="field" style={{ marginTop: 8 }}>
               <label>Known reliabilities of indicators (optional)</label>

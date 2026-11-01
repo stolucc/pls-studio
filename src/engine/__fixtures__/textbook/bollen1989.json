@@ -1,0 +1,1461 @@
+{
+  "ses": {
+    "chisq": 3.82804898890754e-13,
+    "df": 0,
+    "cfi": 0.999999999999999,
+    "rmsea": 0,
+    "estimates": [
+      {
+        "lhs": "subjIncome",
+        "op": "~",
+        "rhs": "income",
+        "group": 1,
+        "est": 0.103433590447353,
+        "se": 0.0161438092648795
+      },
+      {
+        "lhs": "subjIncome",
+        "op": "~",
+        "rhs": "subjPrestige",
+        "group": 1,
+        "est": 0.248310131814464,
+        "se": 0.183947817063322
+      },
+      {
+        "lhs": "subjPrestige",
+        "op": "~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 0.00696338267322099,
+        "se": 0.00143835479175528
+      },
+      {
+        "lhs": "subjPrestige",
+        "op": "~",
+        "rhs": "subjIncome",
+        "group": 1,
+        "est": 0.290617106163826,
+        "se": 0.117984301097952
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~",
+        "rhs": "subjIncome",
+        "group": 1,
+        "est": 0.430558035701589,
+        "se": 0.144334251901627
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~",
+        "rhs": "subjPrestige",
+        "group": 1,
+        "est": 0.537317629340802,
+        "se": 0.1940849370933
+      },
+      {
+        "lhs": "subjIncome",
+        "op": "~~",
+        "rhs": "subjPrestige",
+        "group": 1,
+        "est": -0.0641508503987516,
+        "se": 0.0777913465216563
+      },
+      {
+        "lhs": "subjIncome",
+        "op": "~~",
+        "rhs": "subjStatus",
+        "group": 1,
+        "est": -0.0270227795904542,
+        "se": 0.0518573251742456
+      },
+      {
+        "lhs": "subjPrestige",
+        "op": "~~",
+        "rhs": "subjStatus",
+        "group": 1,
+        "est": -0.102348554154866,
+        "se": 0.0644801485914955
+      },
+      {
+        "lhs": "subjIncome",
+        "op": "~~",
+        "rhs": "subjIncome",
+        "group": 1,
+        "est": 0.340156294390322,
+        "se": 0.026949477822482
+      },
+      {
+        "lhs": "subjPrestige",
+        "op": "~~",
+        "rhs": "subjPrestige",
+        "group": 1,
+        "est": 0.329485532456384,
+        "se": 0.0228897897072008
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~~",
+        "rhs": "subjStatus",
+        "group": 1,
+        "est": 0.290889796646211,
+        "se": 0.0412456357337477
+      },
+      {
+        "lhs": "income",
+        "op": "~~",
+        "rhs": "income",
+        "group": 1,
+        "est": 4.831,
+        "se": 0.329089025959481
+      },
+      {
+        "lhs": "income",
+        "op": "~~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 13.656,
+        "se": 2.34670780747043
+      },
+      {
+        "lhs": "prestige",
+        "op": "~~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 452.711,
+        "se": 30.8387957009196
+      }
+    ],
+    "book": {
+      "chisq": 0,
+      "df": 0,
+      "est": {
+        "subjPrestige~subjIncome": 0.29,
+        "subjIncome~subjPrestige": 0.25,
+        "subjStatus~subjIncome": 0.43,
+        "subjStatus~subjPrestige": 0.54,
+        "subjIncome~income": 0.1,
+        "subjPrestige~prestige": 0.007,
+        "subjIncome~~subjIncome": 0.34,
+        "subjIncome~~subjPrestige": -0.06,
+        "subjPrestige~~subjPrestige": 0.33,
+        "subjIncome~~subjStatus": -0.03,
+        "subjPrestige~~subjStatus": -0.1,
+        "subjStatus~~subjStatus": 0.29
+      }
+    }
+  },
+  "sesError": {
+    "chisq": 0.270848694345942,
+    "df": 1,
+    "cfi": 1,
+    "rmsea": 0,
+    "estimates": [
+      {
+        "lhs": "SI",
+        "op": "=~",
+        "rhs": "subjIncome",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "SP",
+        "op": "=~",
+        "rhs": "subjPrestige",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "subjIncome",
+        "op": "~~",
+        "rhs": "subjIncome",
+        "group": 1,
+        "est": 0.103175708982212,
+        "se": 0.0571414575191093
+      },
+      {
+        "lhs": "subjPrestige",
+        "op": "~~",
+        "rhs": "subjPrestige",
+        "group": 1,
+        "est": 0.208929874571304,
+        "se": 0.0460061302179134
+      },
+      {
+        "lhs": "SI",
+        "op": "~",
+        "rhs": "income",
+        "group": 1,
+        "est": 0.100509652878189,
+        "se": 0.0155303566265097
+      },
+      {
+        "lhs": "SI",
+        "op": "~",
+        "rhs": "SP",
+        "group": 1,
+        "est": 0.288420840157729,
+        "se": 0.167720642350572
+      },
+      {
+        "lhs": "SP",
+        "op": "~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 0.00674923096776475,
+        "se": 0.00138685284509166
+      },
+      {
+        "lhs": "SP",
+        "op": "~",
+        "rhs": "SI",
+        "group": 1,
+        "est": 0.330211949999357,
+        "se": 0.0904892309183004
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~",
+        "rhs": "SI",
+        "group": 1,
+        "est": 0.398988656372026,
+        "se": 0.139056852462621
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~",
+        "rhs": "SP",
+        "group": 1,
+        "est": 0.534921507910274,
+        "se": 0.200685284806935
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~~",
+        "rhs": "subjStatus",
+        "group": 1,
+        "est": 0.209883805855552,
+        "se": 0.0226328739513906
+      },
+      {
+        "lhs": "SI",
+        "op": "~~",
+        "rhs": "SI",
+        "group": 1,
+        "est": 0.218435324874114,
+        "se": 0.0757756200444877
+      },
+      {
+        "lhs": "SP",
+        "op": "~~",
+        "rhs": "SP",
+        "group": 1,
+        "est": 0.109034916103295,
+        "se": 0.0485618940140732
+      },
+      {
+        "lhs": "income",
+        "op": "~~",
+        "rhs": "income",
+        "group": 1,
+        "est": 4.831,
+        "se": 0.329089025959481
+      },
+      {
+        "lhs": "income",
+        "op": "~~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 13.656,
+        "se": 2.34670780747043
+      },
+      {
+        "lhs": "prestige",
+        "op": "~~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 452.711,
+        "se": 30.8387957009196
+      }
+    ],
+    "book": {
+      "est": {
+        "SP~SI": 0.33,
+        "SI~SP": 0.29,
+        "subjStatus~SI": 0.4,
+        "subjStatus~SP": 0.54,
+        "SI~income": 0.1,
+        "SP~prestige": 0.007,
+        "SI~~SI": 0.22,
+        "SP~~SP": 0.11,
+        "subjStatus~~subjStatus": 0.21,
+        "subjIncome~~subjIncome": 0.1,
+        "subjPrestige~~subjPrestige": 0.21
+      }
+    }
+  },
+  "sesGroups": {
+    "chisq": 13.8034441525009,
+    "df": 8,
+    "cfi": 0.991610620114901,
+    "rmsea": 0.0426394371639762,
+    "estimates": [
+      {
+        "lhs": "SI",
+        "op": "=~",
+        "rhs": "subjIncome",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "SP",
+        "op": "=~",
+        "rhs": "subjPrestige",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "subjIncome",
+        "op": "~~",
+        "rhs": "subjIncome",
+        "group": 1,
+        "est": 0.175514379774901,
+        "se": 0.0632450968740513
+      },
+      {
+        "lhs": "subjPrestige",
+        "op": "~~",
+        "rhs": "subjPrestige",
+        "group": 1,
+        "est": 0.105830657299428,
+        "se": 0.0843203127191024
+      },
+      {
+        "lhs": "SI",
+        "op": "~",
+        "rhs": "income",
+        "group": 1,
+        "est": 0.109007251859926,
+        "se": 0.0124740767841502
+      },
+      {
+        "lhs": "SI",
+        "op": "~",
+        "rhs": "SP",
+        "group": 1,
+        "est": 0.353646741417566,
+        "se": 0.11520369422124
+      },
+      {
+        "lhs": "SP",
+        "op": "~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 0.00728489352163508,
+        "se": 0.00117410919161431
+      },
+      {
+        "lhs": "SP",
+        "op": "~",
+        "rhs": "SI",
+        "group": 1,
+        "est": 0.379759046164289,
+        "se": 0.0725781884754242
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~",
+        "rhs": "SI",
+        "group": 1,
+        "est": 0.433411256704508,
+        "se": 0.113083151172133
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~",
+        "rhs": "SP",
+        "group": 1,
+        "est": 0.374742382457823,
+        "se": 0.138820297796729
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~~",
+        "rhs": "subjStatus",
+        "group": 1,
+        "est": 0.399367076102807,
+        "se": 0.0357269594000034
+      },
+      {
+        "lhs": "SI",
+        "op": "~~",
+        "rhs": "SI",
+        "group": 1,
+        "est": 0.236935127488225,
+        "se": 0.081414674105863
+      },
+      {
+        "lhs": "SP",
+        "op": "~~",
+        "rhs": "SP",
+        "group": 1,
+        "est": 0.252442301947822,
+        "se": 0.0924786693948704
+      },
+      {
+        "lhs": "income",
+        "op": "~~",
+        "rhs": "income",
+        "group": 1,
+        "est": 4.397,
+        "se": 0.324557090847784
+      },
+      {
+        "lhs": "income",
+        "op": "~~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 7.485,
+        "se": 1.81811227102179
+      },
+      {
+        "lhs": "prestige",
+        "op": "~~",
+        "rhs": "prestige",
+        "group": 1,
+        "est": 263.218,
+        "se": 19.4289898429889
+      },
+      {
+        "lhs": "SI",
+        "op": "=~",
+        "rhs": "subjIncome",
+        "group": 2,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "SP",
+        "op": "=~",
+        "rhs": "subjPrestige",
+        "group": 2,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "subjIncome",
+        "op": "~~",
+        "rhs": "subjIncome",
+        "group": 2,
+        "est": 0.119964545548073,
+        "se": 0.040230753968555
+      },
+      {
+        "lhs": "subjPrestige",
+        "op": "~~",
+        "rhs": "subjPrestige",
+        "group": 2,
+        "est": 0.196478011274302,
+        "se": 0.0473998012603988
+      },
+      {
+        "lhs": "SI",
+        "op": "~",
+        "rhs": "income",
+        "group": 2,
+        "est": 0.109007251859926,
+        "se": 0.0124740767841502
+      },
+      {
+        "lhs": "SI",
+        "op": "~",
+        "rhs": "SP",
+        "group": 2,
+        "est": 0.353646741417566,
+        "se": 0.115203694221241
+      },
+      {
+        "lhs": "SP",
+        "op": "~",
+        "rhs": "prestige",
+        "group": 2,
+        "est": 0.00728489352163509,
+        "se": 0.00117410919161429
+      },
+      {
+        "lhs": "SP",
+        "op": "~",
+        "rhs": "SI",
+        "group": 2,
+        "est": 0.379759046164289,
+        "se": 0.0725781884754242
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~",
+        "rhs": "SI",
+        "group": 2,
+        "est": 0.433411256704508,
+        "se": 0.113083151172133
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~",
+        "rhs": "SP",
+        "group": 2,
+        "est": 0.374742382457823,
+        "se": 0.138820297796729
+      },
+      {
+        "lhs": "subjStatus",
+        "op": "~~",
+        "rhs": "subjStatus",
+        "group": 2,
+        "est": 0.219171923988738,
+        "se": 0.0194690395415798
+      },
+      {
+        "lhs": "SI",
+        "op": "~~",
+        "rhs": "SI",
+        "group": 2,
+        "est": 0.187128223501144,
+        "se": 0.0517306455021437
+      },
+      {
+        "lhs": "SP",
+        "op": "~~",
+        "rhs": "SP",
+        "group": 2,
+        "est": 0.112176617249723,
+        "se": 0.0497354486964908
+      },
+      {
+        "lhs": "income",
+        "op": "~~",
+        "rhs": "income",
+        "group": 2,
+        "est": 4.831,
+        "se": 0.329119572116875
+      },
+      {
+        "lhs": "income",
+        "op": "~~",
+        "rhs": "prestige",
+        "group": 2,
+        "est": 13.656,
+        "se": 2.34692562970207
+      },
+      {
+        "lhs": "prestige",
+        "op": "~~",
+        "rhs": "prestige",
+        "group": 2,
+        "est": 452.711,
+        "se": 30.8416581686198
+      }
+    ],
+    "book": {
+      "chisq": 13.85,
+      "df": 8,
+      "note": "LISREL VI on three-decimal matrices; lavaan 13.80"
+    }
+  },
+  "morale": {
+    "chisq": 35.3122717178685,
+    "df": 36,
+    "cfi": 1,
+    "rmsea": 0,
+    "estimates": [
+      {
+        "lhs": "Morale",
+        "op": "=~",
+        "rhs": "morale1",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Morale",
+        "op": "=~",
+        "rhs": "morale2",
+        "group": 1,
+        "est": -0.962946588543639,
+        "se": 0.123096709603952
+      },
+      {
+        "lhs": "Morale",
+        "op": "=~",
+        "rhs": "morale3",
+        "group": 1,
+        "est": 0.864787097995046,
+        "se": 0.0723988561984449
+      },
+      {
+        "lhs": "Morale",
+        "op": "=~",
+        "rhs": "morale4",
+        "group": 1,
+        "est": 0.872447909814529,
+        "se": 0.0757008048170831
+      },
+      {
+        "lhs": "Belonging",
+        "op": "=~",
+        "rhs": "belong1",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Belonging",
+        "op": "=~",
+        "rhs": "belong2",
+        "group": 1,
+        "est": 0.949344591906741,
+        "se": 0.0902197101634489
+      },
+      {
+        "lhs": "Belonging",
+        "op": "=~",
+        "rhs": "belong3",
+        "group": 1,
+        "est": 0.946150620404255,
+        "se": 0.0665671630326005
+      },
+      {
+        "lhs": "morale1",
+        "op": "~~",
+        "rhs": "morale1",
+        "group": 1,
+        "est": 1.63091059907678,
+        "se": 0.386383936747743
+      },
+      {
+        "lhs": "morale2",
+        "op": "~~",
+        "rhs": "morale2",
+        "group": 1,
+        "est": 4.14670608770643,
+        "se": 0.890233570508681
+      },
+      {
+        "lhs": "morale3",
+        "op": "~~",
+        "rhs": "morale3",
+        "group": 1,
+        "est": 0.571978845524028,
+        "se": 0.168420109000576
+      },
+      {
+        "lhs": "morale4",
+        "op": "~~",
+        "rhs": "morale4",
+        "group": 1,
+        "est": 0.79903876774345,
+        "se": 0.209314242525974
+      },
+      {
+        "lhs": "belong1",
+        "op": "~~",
+        "rhs": "belong1",
+        "group": 1,
+        "est": 0.718906184488627,
+        "se": 0.269318474770962
+      },
+      {
+        "lhs": "belong2",
+        "op": "~~",
+        "rhs": "belong2",
+        "group": 1,
+        "est": 2.64978791221031,
+        "se": 0.599596603097006
+      },
+      {
+        "lhs": "belong3",
+        "op": "~~",
+        "rhs": "belong3",
+        "group": 1,
+        "est": 2.4649251981418,
+        "se": 0.561233714538029
+      },
+      {
+        "lhs": "Morale",
+        "op": "~~",
+        "rhs": "Morale",
+        "group": 1,
+        "est": 2.57947690218559,
+        "se": 0.665715801175503
+      },
+      {
+        "lhs": "Belonging",
+        "op": "~~",
+        "rhs": "Belonging",
+        "group": 1,
+        "est": 2.86458017961177,
+        "se": 0.707673384419134
+      },
+      {
+        "lhs": "Morale",
+        "op": "~~",
+        "rhs": "Belonging",
+        "group": 1,
+        "est": 2.544416644155,
+        "se": 0.601793002164046
+      },
+      {
+        "lhs": "morale1",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 8.32396765973092,
+        "se": 0.264316320257943
+      },
+      {
+        "lhs": "morale2",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 1.94693159903045,
+        "se": 0.29437360549008
+      },
+      {
+        "lhs": "morale3",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 8.9705800193125,
+        "se": 0.219843410768179
+      },
+      {
+        "lhs": "morale4",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 8.9014870568499,
+        "se": 0.22604093737437
+      },
+      {
+        "lhs": "belong1",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 8.0957243087394,
+        "se": 0.267036697717776
+      },
+      {
+        "lhs": "belong2",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 7.87683703223518,
+        "se": 0.28376304472316
+      },
+      {
+        "lhs": "belong3",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 8.18003038022067,
+        "se": 0.267887093675857
+      },
+      {
+        "lhs": "Morale",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 0,
+        "se": 0
+      },
+      {
+        "lhs": "Belonging",
+        "op": "~1",
+        "rhs": "",
+        "group": 1,
+        "est": 0,
+        "se": 0
+      },
+      {
+        "lhs": "Morale",
+        "op": "=~",
+        "rhs": "morale1",
+        "group": 2,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Morale",
+        "op": "=~",
+        "rhs": "morale2",
+        "group": 2,
+        "est": -0.96294658854364,
+        "se": 0.123096709603952
+      },
+      {
+        "lhs": "Morale",
+        "op": "=~",
+        "rhs": "morale3",
+        "group": 2,
+        "est": 0.864787097995046,
+        "se": 0.0723988561984448
+      },
+      {
+        "lhs": "Morale",
+        "op": "=~",
+        "rhs": "morale4",
+        "group": 2,
+        "est": 0.872447909814529,
+        "se": 0.0757008048170831
+      },
+      {
+        "lhs": "Belonging",
+        "op": "=~",
+        "rhs": "belong1",
+        "group": 2,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Belonging",
+        "op": "=~",
+        "rhs": "belong2",
+        "group": 2,
+        "est": 0.949344591906741,
+        "se": 0.0902197101634489
+      },
+      {
+        "lhs": "Belonging",
+        "op": "=~",
+        "rhs": "belong3",
+        "group": 2,
+        "est": 0.946150620404256,
+        "se": 0.0665671630326004
+      },
+      {
+        "lhs": "morale1",
+        "op": "~~",
+        "rhs": "morale1",
+        "group": 2,
+        "est": 0.838046665574285,
+        "se": 0.194975012639618
+      },
+      {
+        "lhs": "morale2",
+        "op": "~~",
+        "rhs": "morale2",
+        "group": 2,
+        "est": 2.90198416962682,
+        "se": 0.575835512848738
+      },
+      {
+        "lhs": "morale3",
+        "op": "~~",
+        "rhs": "morale3",
+        "group": 2,
+        "est": 0.671018501475001,
+        "se": 0.153469419269796
+      },
+      {
+        "lhs": "morale4",
+        "op": "~~",
+        "rhs": "morale4",
+        "group": 2,
+        "est": 0.759227790424849,
+        "se": 0.169803295212013
+      },
+      {
+        "lhs": "belong1",
+        "op": "~~",
+        "rhs": "belong1",
+        "group": 2,
+        "est": 0.799857201910797,
+        "se": 0.198084446572026
+      },
+      {
+        "lhs": "belong2",
+        "op": "~~",
+        "rhs": "belong2",
+        "group": 2,
+        "est": 1.87231004597057,
+        "se": 0.387918994343789
+      },
+      {
+        "lhs": "belong3",
+        "op": "~~",
+        "rhs": "belong3",
+        "group": 2,
+        "est": 0.46618172646035,
+        "se": 0.140521500613409
+      },
+      {
+        "lhs": "Morale",
+        "op": "~~",
+        "rhs": "Morale",
+        "group": 2,
+        "est": 3.17976428738347,
+        "se": 0.725006922922808
+      },
+      {
+        "lhs": "Belonging",
+        "op": "~~",
+        "rhs": "Belonging",
+        "group": 2,
+        "est": 4.2789112511329,
+        "se": 0.937168276656298
+      },
+      {
+        "lhs": "Morale",
+        "op": "~~",
+        "rhs": "Belonging",
+        "group": 2,
+        "est": 3.63127375823661,
+        "se": 0.757264816889681
+      },
+      {
+        "lhs": "morale1",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": 8.32396765973092,
+        "se": 0.264316320257943
+      },
+      {
+        "lhs": "morale2",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": 1.94693159903045,
+        "se": 0.29437360549008
+      },
+      {
+        "lhs": "morale3",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": 8.9705800193125,
+        "se": 0.219843410768179
+      },
+      {
+        "lhs": "morale4",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": 8.9014870568499,
+        "se": 0.22604093737437
+      },
+      {
+        "lhs": "belong1",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": 8.0957243087394,
+        "se": 0.267036697717776
+      },
+      {
+        "lhs": "belong2",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": 7.87683703223518,
+        "se": 0.28376304472316
+      },
+      {
+        "lhs": "belong3",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": 8.18003038022067,
+        "se": 0.267887093675857
+      },
+      {
+        "lhs": "Morale",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": -0.208794173808092,
+        "se": 0.350140927053016
+      },
+      {
+        "lhs": "Belonging",
+        "op": "~1",
+        "rhs": "",
+        "group": 2,
+        "est": -0.247722976399235,
+        "se": 0.391138554714042
+      }
+    ],
+    "book": {
+      "chisq": 35.37,
+      "df": 36
+    }
+  },
+  "demUncorrelated": {
+    "chisq": 46.6731771770463,
+    "df": 22,
+    "cfi": 0.942216242147761,
+    "rmsea": 0.123107734267652,
+    "estimates": [
+      {
+        "lhs": "Democracy60",
+        "op": "=~",
+        "rhs": "press60",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "=~",
+        "rhs": "opposition60",
+        "group": 1,
+        "est": 1.31506111517091,
+        "se": 0.122631869437323
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "=~",
+        "rhs": "elections60",
+        "group": 1,
+        "est": 1.19372588144293,
+        "se": 0.111699458655482
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "=~",
+        "rhs": "legislature60",
+        "group": 1,
+        "est": 1.32385936196726,
+        "se": 0.106423967786391
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "=~",
+        "rhs": "press65",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "=~",
+        "rhs": "opposition65",
+        "group": 1,
+        "est": 1.31506111517091,
+        "se": 0.122631869437323
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "=~",
+        "rhs": "elections65",
+        "group": 1,
+        "est": 1.19372588144293,
+        "se": 0.111699458655482
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "=~",
+        "rhs": "legislature65",
+        "group": 1,
+        "est": 1.32385936196726,
+        "se": 0.106423967786391
+      },
+      {
+        "lhs": "press60",
+        "op": "~~",
+        "rhs": "press60",
+        "group": 1,
+        "est": 2.00196856406428,
+        "se": 0.403356933476721
+      },
+      {
+        "lhs": "opposition60",
+        "op": "~~",
+        "rhs": "opposition60",
+        "group": 1,
+        "est": 6.68305885644941,
+        "se": 1.20938822032923
+      },
+      {
+        "lhs": "elections60",
+        "op": "~~",
+        "rhs": "elections60",
+        "group": 1,
+        "est": 5.41151275980139,
+        "se": 0.981153090205973
+      },
+      {
+        "lhs": "legislature60",
+        "op": "~~",
+        "rhs": "legislature60",
+        "group": 1,
+        "est": 2.86133682650631,
+        "se": 0.610073999866051
+      },
+      {
+        "lhs": "press65",
+        "op": "~~",
+        "rhs": "press65",
+        "group": 1,
+        "est": 2.61969402936738,
+        "se": 0.493527400956662
+      },
+      {
+        "lhs": "opposition65",
+        "op": "~~",
+        "rhs": "opposition65",
+        "group": 1,
+        "est": 4.17338709183747,
+        "se": 0.797669774819941
+      },
+      {
+        "lhs": "elections65",
+        "op": "~~",
+        "rhs": "elections65",
+        "group": 1,
+        "est": 3.57845443271603,
+        "se": 0.679394068324797
+      },
+      {
+        "lhs": "legislature65",
+        "op": "~~",
+        "rhs": "legislature65",
+        "group": 1,
+        "est": 2.86924128620448,
+        "se": 0.597041983286204
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "~~",
+        "rhs": "Democracy60",
+        "group": 1,
+        "est": 4.69784192775793,
+        "se": 0.991197375577119
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "~~",
+        "rhs": "Democracy65",
+        "group": 1,
+        "est": 4.44402959931167,
+        "se": 0.962635275242916
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "~~",
+        "rhs": "Democracy65",
+        "group": 1,
+        "est": 4.454773222416,
+        "se": 0.920676642816314
+      }
+    ],
+    "book": {
+      "chisq": 46.7,
+      "df": 22
+    }
+  },
+  "demCorrelated": {
+    "chisq": 15.244836307401,
+    "df": 16,
+    "cfi": 1,
+    "rmsea": 0,
+    "estimates": [
+      {
+        "lhs": "Democracy60",
+        "op": "=~",
+        "rhs": "press60",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "=~",
+        "rhs": "opposition60",
+        "group": 1,
+        "est": 1.21304576597334,
+        "se": 0.14389904305896
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "=~",
+        "rhs": "elections60",
+        "group": 1,
+        "est": 1.21006972502824,
+        "se": 0.12574060210774
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "=~",
+        "rhs": "legislature60",
+        "group": 1,
+        "est": 1.27283230911724,
+        "se": 0.122553747981099
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "=~",
+        "rhs": "press65",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "=~",
+        "rhs": "opposition65",
+        "group": 1,
+        "est": 1.21304576597334,
+        "se": 0.14389904305896
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "=~",
+        "rhs": "elections65",
+        "group": 1,
+        "est": 1.21006972502824,
+        "se": 0.12574060210774
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "=~",
+        "rhs": "legislature65",
+        "group": 1,
+        "est": 1.27283230911724,
+        "se": 0.122553747981099
+      },
+      {
+        "lhs": "press60",
+        "op": "~~",
+        "rhs": "press65",
+        "group": 1,
+        "est": 0.586178363883141,
+        "se": 0.371387550207515
+      },
+      {
+        "lhs": "opposition60",
+        "op": "~~",
+        "rhs": "opposition65",
+        "group": 1,
+        "est": 2.09159086010544,
+        "se": 0.747790706112206
+      },
+      {
+        "lhs": "elections60",
+        "op": "~~",
+        "rhs": "elections65",
+        "group": 1,
+        "est": 0.741708095989004,
+        "se": 0.623673905301907
+      },
+      {
+        "lhs": "legislature60",
+        "op": "~~",
+        "rhs": "legislature65",
+        "group": 1,
+        "est": 0.47955328278442,
+        "se": 0.462655387734523
+      },
+      {
+        "lhs": "opposition60",
+        "op": "~~",
+        "rhs": "legislature60",
+        "group": 1,
+        "est": 1.40267447853595,
+        "se": 0.698499684707089
+      },
+      {
+        "lhs": "opposition65",
+        "op": "~~",
+        "rhs": "legislature65",
+        "group": 1,
+        "est": 1.26388603594391,
+        "se": 0.594177272329054
+      },
+      {
+        "lhs": "press60",
+        "op": "~~",
+        "rhs": "press60",
+        "group": 1,
+        "est": 1.90563561780241,
+        "se": 0.440362157701905
+      },
+      {
+        "lhs": "opposition60",
+        "op": "~~",
+        "rhs": "opposition60",
+        "group": 1,
+        "est": 7.62870412631746,
+        "se": 1.39104305418491
+      },
+      {
+        "lhs": "elections60",
+        "op": "~~",
+        "rhs": "elections60",
+        "group": 1,
+        "est": 5.02932698636338,
+        "se": 0.984900586888894
+      },
+      {
+        "lhs": "legislature60",
+        "op": "~~",
+        "rhs": "legislature60",
+        "group": 1,
+        "est": 3.25316332612632,
+        "se": 0.736681349718734
+      },
+      {
+        "lhs": "press65",
+        "op": "~~",
+        "rhs": "press65",
+        "group": 1,
+        "est": 2.53318316452211,
+        "se": 0.528628495166543
+      },
+      {
+        "lhs": "opposition65",
+        "op": "~~",
+        "rhs": "opposition65",
+        "group": 1,
+        "est": 4.86868075861312,
+        "se": 0.942928107823016
+      },
+      {
+        "lhs": "elections65",
+        "op": "~~",
+        "rhs": "elections65",
+        "group": 1,
+        "est": 3.34796373850584,
+        "se": 0.713574871361811
+      },
+      {
+        "lhs": "legislature65",
+        "op": "~~",
+        "rhs": "legislature65",
+        "group": 1,
+        "est": 3.26634606796215,
+        "se": 0.734473927925769
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "~~",
+        "rhs": "Democracy60",
+        "group": 1,
+        "est": 4.77172422863442,
+        "se": 1.0491768506965
+      },
+      {
+        "lhs": "Democracy65",
+        "op": "~~",
+        "rhs": "Democracy65",
+        "group": 1,
+        "est": 4.5900898367146,
+        "se": 1.04341328969413
+      },
+      {
+        "lhs": "Democracy60",
+        "op": "~~",
+        "rhs": "Democracy65",
+        "group": 1,
+        "est": 4.52105617472317,
+        "se": 0.987154403253134
+      }
+    ],
+    "book": {
+      "chisq": 15.1,
+      "df": 16,
+      "note": "lavaan 15.25 on the two-decimal correlations"
+    }
+  },
+  "air": {
+    "chisq": 16.0386770940605,
+    "df": 2,
+    "cfi": 0.909080261057975,
+    "rmsea": 0.354041425820439,
+    "estimates": [
+      {
+        "lhs": "Air",
+        "op": "=~",
+        "rhs": "overall",
+        "group": 1,
+        "est": 1,
+        "se": 0
+      },
+      {
+        "lhs": "Air",
+        "op": "=~",
+        "rhs": "clarity",
+        "group": 1,
+        "est": 1.97666358078454,
+        "se": 0.256301877205853
+      },
+      {
+        "lhs": "Air",
+        "op": "=~",
+        "rhs": "color",
+        "group": 1,
+        "est": 1.89386256573477,
+        "se": 0.224052552016342
+      },
+      {
+        "lhs": "Air",
+        "op": "=~",
+        "rhs": "odor",
+        "group": 1,
+        "est": 0.754343821758858,
+        "se": 0.134544662610857
+      },
+      {
+        "lhs": "overall",
+        "op": "~~",
+        "rhs": "overall",
+        "group": 1,
+        "est": 0.110052848378556,
+        "se": 0.0251849832297859
+      },
+      {
+        "lhs": "clarity",
+        "op": "~~",
+        "rhs": "clarity",
+        "group": 1,
+        "est": 0.29671554349566,
+        "se": 0.0770459253055589
+      },
+      {
+        "lhs": "color",
+        "op": "~~",
+        "rhs": "color",
+        "group": 1,
+        "est": 0.105525451726263,
+        "se": 0.0506254075831443
+      },
+      {
+        "lhs": "odor",
+        "op": "~~",
+        "rhs": "odor",
+        "group": 1,
+        "est": 0.142273423434669,
+        "se": 0.0289262614251912
+      },
+      {
+        "lhs": "Air",
+        "op": "~~",
+        "rhs": "Air",
+        "group": 1,
+        "est": 0.220947150321518,
+        "se": 0.0606799787276751
+      }
+    ],
+    "book": {
+      "chisq": 16,
+      "df": 2
+    }
+  },
+  "versions": {
+    "R": "R version 4.3.1 (2023-06-16)",
+    "lavaan": "0.6.19"
+  }
+}

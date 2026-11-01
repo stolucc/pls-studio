@@ -301,7 +301,9 @@ export async function openRecent(id: string) {
 
 export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk' | 'hayduk-stacked' | 'hayduk-revised' | 'hayduk-means' | 'hayduk-stacked-means' | 'dhp'
   | 'kline-roth' | 'kline-kabc' | 'kline-sabatelli' | 'kline-worland' | 'kline-romney-somatic' | 'kline-romney-medical' | 'kline-lynam' | 'kline-robbins' | 'kline-sauve'
-  | 'brown-ne' | 'brown-tau' | 'brown-mtmm' | 'brown-coping' | 'brown-reliability' | 'brown-stress' | 'bollen-curran-lcm' | 'bollen-curran-alt';
+  | 'brown-ne' | 'brown-tau' | 'brown-mtmm' | 'brown-coping' | 'brown-reliability' | 'brown-stress' | 'bollen-curran-lcm' | 'bollen-curran-alt'
+  | 'bollen-ses' | 'bollen-ses-error' | 'bollen-ses-groups' | 'bollen-morale' | 'bollen-democracy-cfa' | 'bollen-democracy-cfa-errors' | 'bollen-air'
+  | 'eqs-bagozzi' | 'eqs-werts' | 'eqs-headstart' | 'eqs-headstart-groups' | 'eqs-olsson';
 
 /** The built-in examples other than the synthetic survey: each a module loaded on demand, and what the toast says. */
 const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
@@ -333,6 +335,18 @@ const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: 
   'brown-stress': { make: () => import('./examples/brown').then((m) => m.makeBrownStressExample), toast: 'Brown (2015), Table 8.12: life stress as a formative construct caused by three stressors, identified by satisfaction and optimism as its reflective second-order indicators, N = 500 (chi-square 55.88 on 23 df). Press Calculate.' },
   'bollen-curran-lcm': { make: () => import('./examples/bollencurran').then((m) => m.makeBollenCurranLcmExample), toast: 'Bollen & Curran (2004): a latent curve model drawn as a diagram, the five waves as single-indicator constructs and intercept and slope as higher-order factors with loadings held at 1, 1, 1, 1, 1 and 0, 1, 2, 3, 4; artificial covariance matrix, N = 500. Press Calculate.' },
   'bollen-curran-alt': { make: () => import('./examples/bollencurran').then((m) => m.makeBollenCurranAltExample), toast: 'Bollen & Curran (2004): the autoregressive latent trajectory model, the first wave predetermined and each wave predicting the next on top of the curve (R engine). Press Calculate.' },
+  'bollen-ses': { make: () => import('./examples/bollen1989').then((m) => m.makeSesExample), toast: 'Bollen (1989), ch. 4: objective and subjective status of whites (Kluegel et al. 1977), N = 432; subjective income and prestige cause each other, an exactly identified model (R engine, N − 1 as LISREL). Press Calculate.' },
+  'bollen-ses-error': { make: () => import('./examples/bollen1989').then((m) => m.makeSesErrorExample), toast: 'Bollen (1989), ch. 5: the status model with measurement error in subjective income and prestige, their error variances estimated, N = 432 (R engine). Press Calculate.' },
+  'bollen-ses-groups': { make: () => import('./examples/bollen1989').then((m) => m.makeSesGroupsExample), toast: 'Bollen (1989), ch. 8: the status model in blacks (N = 368) and whites (N = 432), all coefficients equal across the groups (R engine). Press Calculate.' },
+  'bollen-morale': { make: () => import('./examples/bollen1989').then((m) => m.makeMoraleExample), toast: 'Bollen (1989), ch. 8: morale and sense of belonging of female (N = 49) and male (N = 57) students, loadings and intercepts equal, latent means compared (R engine). Press Calculate.' },
+  'bollen-democracy-cfa': { make: () => import('./examples/bollen1989').then((m) => (s: Settings) => m.makeDemocracyCfaExample(s, 'uncorrelated')), toast: 'Bollen (1989), ch. 7: political democracy in 1960 and 1965 as two factors, loadings equal over time, errors uncorrelated, N = 75 (R engine). Press Calculate.' },
+  'bollen-democracy-cfa-errors': { make: () => import('./examples/bollen1989').then((m) => (s: Settings) => m.makeDemocracyCfaExample(s, 'correlated')), toast: 'Bollen (1989), ch. 7: the two-wave democracy CFA with six correlated errors, N = 75 (R engine). Press Calculate.' },
+  'bollen-air': { make: () => import('./examples/bollen1989').then((m) => m.makeAirQualityExample), toast: 'Bollen (1989), ch. 7: perceived air quality, one factor for four ratings, N = 57; a poor fit (R engine). Press Calculate and see the modification indices.' },
+  'eqs-bagozzi': { make: () => import('./examples/eqs').then((m) => m.makeBagozziExample), toast: 'EQS 6 manual: Bagozzi (1980), performance and job satisfaction of 122 salespeople, with verbal IQ as an observed predictor (R engine, N − 1 as EQS). Press Calculate.' },
+  'eqs-werts': { make: () => import('./examples/eqs').then((m) => m.makeWertsExample), toast: 'EQS 6 manual: Werts et al. (1976), two factors in two groups (N = 865 and 900), loadings, factor variances and covariance equal (R engine). Press Calculate.' },
+  'eqs-headstart': { make: () => import('./examples/eqs').then((m) => m.makeHeadStartExample), toast: 'EQS 6 manual: SES predicting cognitive ability in 148 Head Start children (R engine). Press Calculate.' },
+  'eqs-headstart-groups': { make: () => import('./examples/eqs').then((m) => m.makeHeadStartGroupsExample), toast: 'EQS 6 manual: Head Start (N = 148) and control (N = 155) children with means; intercepts, loadings and the SES -> ability path equal (R engine). Press Calculate.' },
+  'eqs-olsson': { make: () => import('./examples/eqs').then((m) => m.makeOlssonExample), toast: 'EQS 6 manual: verbal ability before and after training, controls (N = 105) and experimentals (N = 108), with means (R engine). Press Calculate.' },
   kerckhoff: { make: () => import('./examples/textbook').then((m) => m.makeKerckhoffExample), toast: 'Kerckhoff (1974), ambition and attainment: observed-variable path analysis from the LISREL manual, correlation matrix, N = 737. Press Calculate.' },
 };
 

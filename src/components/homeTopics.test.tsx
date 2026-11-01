@@ -24,7 +24,7 @@ it('shows the topics once, above every example, and filters both lists by the ch
   const shown = [...host.querySelectorAll('.example-card')];
   expect(shown.length).toBeLessThan(all);
   for (const card of shown) expect(card.querySelector('.example-tags')!.textContent).toContain('Non-recursive');
-  expect(shown.length).toBe(PACKAGE_EXAMPLES.filter((e) => exampleTags(e).includes('Non-recursive')).length + 3);  // plus the three built-in non-recursive models (Hayduk 8.6, Duncan-Haller-Portes, Robbins)
+  expect(shown.length).toBe(PACKAGE_EXAMPLES.filter((e) => exampleTags(e).includes('Non-recursive')).length + 6);  // plus the six built-in non-recursive models (Hayduk 8.6, Duncan-Haller-Portes, Robbins, Bollen's three status models)
 });
 
 it('lists the topics in alphabetical order, after All topics', () => {
@@ -49,8 +49,8 @@ it('filters by author: a row of the authors whose books, manuals and papers the 
   act(() => { [...row.querySelectorAll('button')].find((b) => b.textContent === 'Bollen')!.click(); });
   const shown = [...host.querySelectorAll('.example-card')];
   for (const card of shown) expect(card.querySelector('[aria-label="Authors"]')?.textContent, card.textContent?.slice(0, 60)).toContain('Bollen');
-  // Bollen's package examples, plus the built-ins: political democracy and Bollen & Curran's two latent curve models.
-  expect(shown.length).toBe(PACKAGE_EXAMPLES.filter((e) => exampleAuthors(e).includes('Bollen')).length + 3);
+  // Bollen's package examples, plus the built-ins: political democracy, Bollen & Curran's two latent curve models and the seven from his 1989 book.
+  expect(shown.length).toBe(PACKAGE_EXAMPLES.filter((e) => exampleAuthors(e).includes('Bollen')).length + 10);
   // Clicking the author again shows every example.
   act(() => { [...row.querySelectorAll('button')].find((b) => b.textContent === 'Bollen')!.click(); });
   expect(host.querySelectorAll('.example-card').length).toBe(all);
