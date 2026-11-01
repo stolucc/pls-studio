@@ -8,6 +8,9 @@ import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt, fmtP } from '../format';
 import type { Coefficient, Family, RegressionCurve, RegressionInput, RegressionResult } from '../rengine/regression';
+import { confirmDialog } from '../components/Overlays';
+import { newId, type Construct, type ModelState, type Path } from '../model/project';
+import { useStore } from '../store';
 import { Choice, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -126,7 +129,45 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
 /** A result as stored by this version, or by the one before it (one `curve`, no `curves`). */
 const curvesOf = (r: Result): RegressionCurve[] => Array.isArray(r.curves) ? r.curves : (r as unknown as { curve?: RegressionCurve | null }).curve ? [(r as unknown as { curve: RegressionCurve }).curve] : [];
 
-function RegressionView({ r, plot }: { r: Result; plot: string }) {
+/**
+ * A linear regression as a path model: the predictors as observed covariates (fixed.x), the outcome
+ * a single indicator without error, one path per predictor; the same coefficients under ML, and a
+ * diagram to grow (indicators, mediators, groups). Returns why it cannot be drawn otherwise.
+ */
+export function regressionModel(o: RegressionOptions): ModelState | string {
+  if (o.family !== 'gaussian') return 'Only a linear regression is a path model with the same estimates; the other families have no CB-SEM counterpart.';
+  if (o.categorical.length) return `Categorical predictors (${o.categorical.join(', ')}) enter as dummy variables: add them as computed columns (e.g. g == 2) first.`;
+  if (o.interactions.length) return 'Interaction terms are not drawn: draw the main effects, then add a moderation arrow on the canvas.';
+  if (o.trials) return 'Trials apply to a binomial outcome only.';
+  if (o.weights) return 'Weighted regression is not a path model; CB-SEM has sampling weights under the Model inspector instead.';
+  if (!o.outcome || !o.predictors.length) return 'Choose the outcome and at least one predictor.';
+  const gap = 180;
+  const predictors: Construct[] = o.predictors.map((x, i) => ({ id: newId('c'), name: x, type: 'factor', mode: 'A', indicators: [x], x: 0, y: Math.round((i - (o.predictors.length - 1) / 2) * gap), side: 'left', covariate: true }));
+  const outcome: Construct = { id: newId('c'), name: o.outcome, type: 'factor', mode: 'A', indicators: [o.outcome], x: 520, y: 0, side: 'right' };
+  const paths: Path[] = predictors.map((p) => ({ id: newId('p'), from: p.id, to: outcome.id }));
+  return { constructs: [...predictors, outcome], paths, moderations: [], ...(o.se === 'cluster' && o.cluster ? { cluster: o.cluster } : {}) };
+}
+
+/** Replace the diagram by the regression's path model and switch to CB-SEM (ML). */
+export async function drawRegressionModel(o: RegressionOptions): Promise<boolean> {
+  const st = useStore.getState();
+  const m = regressionModel(o);
+  if (typeof m === 'string') { st.toast('error', m); return false; }
+  if (st.model.constructs.length && !(await confirmDialog({ title: 'Replace the diagram?', body: 'The regression becomes the diagram on the Model tab; the current constructs and paths are replaced (undo restores them).', confirmLabel: 'Replace' }))) return false;
+  st.commit(() => m);
+  st.setSettings({ method: 'cbsem', estimator: 'ML' });
+  st.setWorkspace('model');
+  st.toast('success', `${o.outcome} on ${o.predictors.join(', ')} as a path model: the predictors as observed covariates, the outcome a single indicator. CB-SEM with ML gives the regression's coefficients (standard errors divide by N rather than N − p). Add indicators, mediators or groups from here.${o.se === 'cluster' && o.cluster ? ` Sampling clusters: ${o.cluster}.` : o.se === 'HC3' ? ' HC3 errors are not carried over; choose MLR for robust ones.' : ''}`);
+  return true;
+}
+
+function DrawModel({ o }: { o: RegressionOptions }) {
+  const readOnly = useStore((s) => s.cloud?.role === 'viewer');
+  const why = regressionModel(o);
+  return <button className="btn sm" disabled={readOnly || typeof why === 'string'} title={typeof why === 'string' ? why : 'Draw this regression as a path model on the Model tab (CB-SEM)'} onClick={() => void drawRegressionModel(o)}>Draw as SEM</button>;
+}
+
+function RegressionView({ r, plot, o }: { r: Result; plot: string; o: RegressionOptions }) {
   const curves = curvesOf(r);
   const cv = curves.find((k) => k.x === plot) ?? curves[0];
   const f = r.fit, pct = Math.round(r.input.confidence * 100);
@@ -143,6 +184,7 @@ function RegressionView({ r, plot }: { r: Result; plot: string }) {
   return (
     <div className="tables">
       <div className="stat-cards">{cards.map(([k, v]) => <div className="stat-card" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>)}</div>
+      {r.family === 'gaussian' && <div className="table-tools"><DrawModel o={o} /><span className="hint">A linear regression is a saturated path model: draw it to extend it into an SEM.</span></div>}
       <p className="hint" style={{ marginTop: 0 }}>
         {FAMILY_NAME[r.family]}{r.link && r.link !== 'logit' && r.link !== 'logistic' ? ` (${r.link} link)` : ''}: <code>{r.formula}</code>; {r.engine.package} {r.engine.version}.
         {r.se !== 'model' && ` ${r.se === 'HC3' ? 'Heteroskedasticity-consistent (HC3)' : 'Cluster-robust'} standard errors.`}
@@ -192,7 +234,7 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     se: oneOf(raw.se, ['model', 'HC3', 'cluster'] as const, 'model'), cluster: name(raw.cluster), plot: name(raw.plot),
   } : null),
   Options: RegressionOptionsForm,
-  View: ({ result, options }) => <RegressionView r={result} plot={options.plot} />,
+  View: ({ result, options }) => <RegressionView r={result} plot={options.plot} o={options} />,
   display: ['plot'],
   blocked: (o, ctx) => {
     if (!o.outcome) return 'Choose the outcome.';

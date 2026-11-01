@@ -74,7 +74,7 @@ const EXAMPLES = [
     title: 'Stacked smoking model: younger and older (Hayduk 1987)',
     tags: ['CB-SEM', 'Multigroup', 'Stacked model', 'Known reliability', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
-    body: 'Chapter 9’s stacked model: the smoking model fitted to younger (N = 213) and older (N = 219) respondents at once, one covariance matrix per group (Figure 9.2), each group’s error variances fixed from its own variances. The path coefficients are held equal across the groups except the heavy arrows of Figure 9.1 (the effects of age and education, of sex on acts, and of smoking), which may differ; the χ² of the equalities tests whether the groups share one model. Groups: pick a group or All groups in the results.',
+    body: 'Chapter 9’s stacked model: the smoking model fitted to younger (N = 213) and older (N = 219) respondents at once, one covariance matrix per group (Figure 9.2), each group’s error variances fixed from its own variances. The path coefficients are held equal across the groups except the heavy arrows of Figure 9.1 (the effects of age and education, of sex on acts, and of smoking), which may differ (read from the figure; the fit is checked against native lavaan: χ² = 3.33 on 6 df for the six equalities); the χ² of the equalities tests whether the groups share one model. Groups: pick a group or All groups in the results.',
   },
   {
     id: 'hayduk-revised' as const,

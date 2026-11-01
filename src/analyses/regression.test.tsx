@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
 import { regressionRequest } from '../rengine/regression';
-import { FAMILIES, regressionAnalysis, regressionColumns, regressionInput, type RegressionOptions } from './regression';
+import { useStore } from '../store';
+import { drawRegressionModel, FAMILIES, regressionAnalysis, regressionColumns, regressionInput, regressionModel, type RegressionOptions } from './regression';
 import type { AnalysisCtx } from './types';
 
 const data = { names: ['y', 'a', 'b', 'g', 'n', 'w', 'k'], cols: Array.from({ length: 7 }, (_, k) => Float64Array.from([k, k + 1, k === 2 ? NaN : k + 2])), categories: { g: ['x', 'y', 'z'] } };
@@ -56,5 +57,40 @@ describe('regression view', () => {
     expect(html({ ...base, curve })).toContain('Partial effect of a');   // the previous shape
     expect(html({ ...base, curve: null })).not.toContain('Partial effect');
     expect(html(base)).toContain('Coefficients');
+  });
+});
+
+describe('a linear regression drawn as a path model', () => {
+  it('maps the predictors to observed covariates and the outcome to a single indicator, one path each', () => {
+    const m = regressionModel(o({ outcome: 'y', predictors: ['a', 'b'], se: 'cluster', cluster: 'k' }));
+    expect(typeof m).toBe('object');
+    const model = m as Exclude<typeof m, string>;
+    expect(model.constructs.map((c) => [c.name, c.indicators, !!c.covariate])).toEqual([['a', ['a'], true], ['b', ['b'], true], ['y', ['y'], false]]);
+    expect(model.paths.map((p) => [model.constructs.find((c) => c.id === p.from)!.name, model.constructs.find((c) => c.id === p.to)!.name])).toEqual([['a', 'y'], ['b', 'y']]);
+    expect(model.cluster).toBe('k');
+    expect(model.constructs.map((c) => c.y)).toEqual([-90, 90, 0]);
+  });
+  it('says why another specification cannot be drawn', () => {
+    expect(regressionModel(o({ outcome: 'y', predictors: ['a'], family: 'binomial' }))).toMatch(/Only a linear regression/);
+    expect(regressionModel(o({ outcome: 'y', predictors: ['a', 'g'], categorical: ['g'] }))).toMatch(/dummy variables/);
+    expect(regressionModel(o({ outcome: 'y', predictors: ['a'], interactions: [['a', 'b']] }))).toMatch(/moderation arrow/);
+    expect(regressionModel(o({ outcome: 'y', predictors: ['a'], weights: 'w' }))).toMatch(/sampling weights/);
+    expect(regressionModel(o({ outcome: 'y', predictors: [] }))).toMatch(/at least one predictor/);
+  });
+  it('replaces the diagram, switches to CB-SEM with ML and opens the Model tab', async () => {
+    const s = useStore.getState();
+    s.newProject();
+    useStore.setState({ toasts: [] });
+    s.setData(data, { fileName: 'd.csv', rows: 3, missingCells: 1, excluded: [] });
+    s.setSettings({ method: 'pls' });
+    expect(await drawRegressionModel(o({ outcome: 'y', predictors: ['a', 'b'] }))).toBe(true);
+    const st = useStore.getState();
+    expect(st.settings).toMatchObject({ method: 'cbsem', estimator: 'ML' });
+    expect(st.workspace).toBe('model');
+    expect(st.model.constructs.map((c) => c.name)).toEqual(['a', 'b', 'y']);
+    expect(st.model.paths.length).toBe(2);
+    expect(st.toasts.at(-1)!.text).toMatch(/as a path model/);
+    expect(await drawRegressionModel(o({ outcome: 'y', predictors: ['a'], family: 'poisson' }))).toBe(false);
+    expect(st.model.constructs.length).toBe(3);
   });
 });
