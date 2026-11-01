@@ -236,7 +236,7 @@ ps_script <- function(title, packages, inputs, body, report) {
     # A stacked model: one matrix per group, then the named list lavaan takes.
     else if (is.list(v) && length(v) && all(vapply(v, is.matrix, TRUE))) c(unlist(lapply(seq_along(v), function(i) ps_embed_matrix(sprintf("%s_%d", nm, i), v[[i]]))),
       sprintf("%s <- list(%s)", nm, paste(sprintf("%s = %s_%d", encodeString(names(v), quote = '"'), nm, seq_along(v)), collapse = ", ")))
-    else sprintf("%s <- %s", nm, deparse(v))
+    else sprintf("%s <- %s", nm, paste(deparse(v, width.cutoff = 500), collapse = ""))
   }))
   vers <- vapply(packages, function(p) sprintf("%s %s", p, as.character(utils::packageVersion(p))), "")
   c(sprintf("# %s", ps_comment(title)),

@@ -63,7 +63,8 @@ it('shares the covariance matrix instead of the raw data: the model refits from 
   expect(existsSync(join(root, 'data', 'hs-covariances.csv'))).toBe(true);
   const csv = readFileSync(join(root, 'data', 'hs-covariances.csv'), 'utf8');
   expect(csv.split('\n')[0]).toBe(',x1,x2,x3,x4,x5,x6');
-  expect(csv.split('\n').length).toBe(8);
+  expect(csv.split('\n')[1]).toMatch(/^mean,/);  // the means travel with the matrix (a mean structure can be refitted)
+  expect(csv.split('\n').length).toBe(9);
   const script = readFileSync(join(root, 'R', '01-model.R'), 'utf8');
   expect(script).toContain('sample.cov = S, sample.nobs = N');
   expect(script).not.toMatch(/data <- read\.csv/);
