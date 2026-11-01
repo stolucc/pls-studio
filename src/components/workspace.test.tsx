@@ -332,3 +332,23 @@ describe('the group switch of the results panel', () => {
     expect(render(<ResultsPanel height={300} onResize={() => {}} />)).not.toContain('equal across groups');
   });
 });
+
+describe('the replication dialog', () => {
+  it('offers the covariance matrix instead of the raw data for CB-SEM, a plain data checkbox otherwise', async () => {
+    const { ReplicationDialog, useReplication } = await import('./analyses/ReplicationDialog');
+    useStore.getState().newProject();
+    const col = (k: number) => Float64Array.from({ length: 12 }, (_, i) => ((i * (k + 3)) % 7) / 10 + (i % 3) * 0.2);
+    useStore.getState().setData({ names: ['x1', 'x2', 'y1'], cols: [col(1), col(2), col(3)] }, { fileName: 'd.csv', rows: 12, missingCells: 0, excluded: [] });
+    useStore.getState().commit((m) => ({ ...m, constructs: [{ id: 'x', name: 'X', type: 'factor', mode: 'A', indicators: ['x1', 'x2'], x: 0, y: 0, side: 'left' }, { id: 'y', name: 'Y', type: 'factor', mode: 'A', indicators: ['y1'], x: 300, y: 0, side: 'right' }], paths: [{ id: 'p', from: 'x', to: 'y' }] }));
+    useStore.getState().setSettings({ method: 'cbsem', engine: 'r' });
+    useReplication.setState({ open: true });
+    let html = render(<ReplicationDialog />);
+    expect(html).toContain('Covariance matrix only');
+    expect(html).toContain('Full dataset');
+    useStore.getState().setSettings({ method: 'pls' });
+    html = render(<ReplicationDialog />);
+    expect(html).not.toContain('Covariance matrix only');
+    expect(html).toContain('The data (CSV, and in the project file)');
+    useReplication.setState({ open: false });
+  });
+});

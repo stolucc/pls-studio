@@ -48,3 +48,30 @@ it('builds a package whose run-all.R runs in native R', async () => {
   expect(run.stderr).toContain('== 03-necessary-condition-analysis.R');
   expect(run.stdout).toContain('Root Mean Square Error of Approximation');
 }, 900_000);
+
+it('shares the covariance matrix instead of the raw data: the model refits from it in native R, the rest is listed as needing cases', async () => {
+  const items = packageItems();
+  const p = await buildPackage(new Set(items.map((i) => i.id)), { data: 'covariance', report: false });
+  expect(p.scripts).toBe(1);
+  const dir = mkdtempSync(join(tmpdir(), 'replication-cov-'));
+  writeFileSync(join(dir, p.name), Buffer.from(await p.zip.arrayBuffer()));
+  execFileSync('unzip', ['-q', join(dir, p.name), '-d', dir]);
+  const root = join(dir, p.name.replace(/\.zip$/, ''));
+  const readme = readFileSync(join(root, 'README.md'), 'utf8');
+  expect(readme).toContain('the raw data are not shared');
+  expect(readme).toContain('Not included, because they need the raw data');
+  expect(existsSync(join(root, 'data', 'hs-covariances.csv'))).toBe(true);
+  const csv = readFileSync(join(root, 'data', 'hs-covariances.csv'), 'utf8');
+  expect(csv.split('\n')[0]).toBe(',x1,x2,x3,x4,x5,x6');
+  expect(csv.split('\n').length).toBe(8);
+  const script = readFileSync(join(root, 'R', '01-model.R'), 'utf8');
+  expect(script).toContain('sample.cov = S, sample.nobs = N');
+  expect(script).not.toMatch(/data <- read\.csv/);
+  const project = JSON.parse(readFileSync(join(root, 'project', 'project.plsproj.json'), 'utf8'));
+  expect(project.data.columns).toEqual([]);
+  expect(project.data.moments.n).toBe(301);
+  const run = spawnSync('Rscript', ['run-all.R'], { cwd: join(root, 'R'), encoding: 'utf8', timeout: 600_000 });
+  expect(run.status, run.stderr.slice(-2000)).toBe(0);
+  expect(run.stdout).toContain('Number of observations');
+  expect(run.stdout).toContain('301');
+}, 900_000);

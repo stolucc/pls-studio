@@ -38,7 +38,9 @@ export function packageItems(): PackageItem[] {
 export function datasetCsv(data: Dataset): string {
   const quote = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   if (data.moments && data.cols.length === 0) {
-    // A covariance matrix: one labelled row per variable.
+    // A covariance matrix: one labelled row per variable; several groups: a first column with the group, N as a row.
+    const g = data.moments.groups;
+    if (g) return [['group', 'N', '', ...data.names].map(quote).join(','), ...g.flatMap((k) => data.names.map((n, i) => [quote(k.label), String(k.n), quote(n), ...k.S[i].map(String)].join(',')))].join('\n') + '\n';
     return [['', ...data.names].map(quote).join(','), ...data.names.map((n, i) => [quote(n), ...data.moments!.S[i].map(String)].join(','))].join('\n') + '\n';
   }
   const n = data.cols[0]?.length ?? 0;
@@ -84,6 +86,8 @@ const slug = (s: string) => safeFileName(s).toLowerCase().slice(0, 40) || 'analy
 
 function readme(o: {
   project: string; date: Date; data: Dataset | null; info: DataInfo | null; dataFile: string | null; scripts: { file: string; title: string; detail: string }[];
+  /** Items left out because they need the raw data (a package sharing the covariance matrix only). */
+  needRaw?: { title: string; detail: string }[]; covarianceOnly?: boolean;
   appOnly: { title: string; detail: string }[]; r: string; packages: { name: string; version: string | null }[]; report: boolean; settings: string[];
 }): string {
   const L: string[] = [];
@@ -98,7 +102,7 @@ function readme(o: {
     const matrix = !!o.data.moments && o.data.cols.length === 0;
     L.push('## Data', '');
     L.push(matrix
-      ? `\`data/${o.dataFile}\`: a covariance matrix of ${o.data.names.length} variables, N = ${o.info.rows} (from ${o.info.fileName}).`
+      ? `\`data/${o.dataFile}\`: ${o.data.moments?.groups ? `one covariance matrix per group (${o.data.moments.groups.map((g) => `${g.label}: N = ${g.n}`).join(', ')}) of` : 'a covariance matrix of'} ${o.data.names.length} variables, N = ${o.info.rows}${o.covarianceOnly ? ' (computed from the raw data over the complete rows, N − 1; the raw data are not shared: the matrix and N reproduce the CB-SEM estimation exactly)' : ` (from ${o.info.fileName})`}.`
       : `\`data/${o.dataFile}\`: ${o.info.rows} observations of ${o.data.names.length} variables (from ${o.info.fileName}); empty cells are missing values (${o.info.missingCells} in all). Text columns are written with their labels.`);
     if (o.info.reversed?.length) L.push('', `Reverse-coded in PLS Studio (x → min + max − x): ${o.info.reversed.map((r) => `${r.name} (${r.min}–${r.max})`).join(', ')}. The CSV contains the recoded values.`);
     if (o.info.droppedRows?.length) L.push('', `Cases excluded in PLS Studio before the analyses: ${o.info.droppedRows.reduce((n, d) => n + d.at.length, 0)} (${o.info.droppedRows.map((d) => d.reason).join("; ")}; see the project file); the CSV contains the remaining cases.`);
@@ -107,6 +111,10 @@ function readme(o: {
   }
   L.push('## Scripts', '', 'Each script is self-contained: it holds the data it needs (as text) and runs on its own. `R/run-all.R` runs them in order. The random seeds are set in the scripts, so bootstrap and permutation results repeat exactly with the same package versions.', '');
   o.scripts.forEach((s) => L.push(`- \`R/${s.file}\`: ${s.title} (${s.detail}).`));
+  if (o.needRaw?.length) {
+    L.push('', 'Not included, because they need the raw data (this package shares the covariance matrix only):', '');
+    o.needRaw.forEach((a) => L.push(`- ${a.title} (${a.detail}).`));
+  }
   if (o.appOnly.length) {
     L.push('', 'Computed in PLS Studio without an R script (closed-form formulas; see the project file):', '');
     o.appOnly.forEach((a) => L.push(`- ${a.title} (${a.detail}).`));
@@ -120,28 +128,37 @@ function readme(o: {
 }
 
 /** Build and download the zip for the chosen items. */
-export async function createPackage(chosen: Set<string>, opts: { data: boolean; report: boolean }, progress: (text: string) => void = () => {}) {
+/** What the package shares of the data: the dataset, its covariance matrix only (CB-SEM), or nothing. */
+export type DataSharing = 'full' | 'covariance' | 'none';
+
+export async function createPackage(chosen: Set<string>, opts: { data: boolean | DataSharing; report: boolean }, progress: (text: string) => void = () => {}) {
   const p = await buildPackage(chosen, opts, progress);
   downloadBlob(p.name, p.zip);
   return p;
 }
 
 /** The zip for the chosen items; report: include the HTML report (the Analyses tab must be showing). */
-export async function buildPackage(chosen: Set<string>, opts: { data: boolean; report: boolean }, progress: (text: string) => void = () => {}) {
+export async function buildPackage(chosen: Set<string>, opts: { data: boolean | DataSharing; report: boolean }, progress: (text: string) => void = () => {}) {
   const s = useStore.getState();
+  const sharing: DataSharing = opts.data === true ? 'full' : opts.data === false ? 'none' : opts.data;
   const items = packageItems().filter((i) => chosen.has(i.id));
-  const { buildRScript } = await import('../io');
+  const { buildRScript, covarianceOnly } = await import('../io');
+  // Covariance matrix instead of the raw data: the model is refitted from it; everything that needs cases stays out.
+  const cov = sharing === 'covariance' ? covarianceOnly() : null;
+  const shared = cov ? { data: cov.data, info: cov.info, model: cov.model } : sharing === 'full' ? { data: s.data, info: s.dataInfo, model: s.model } : { data: null, info: null, model: s.model };
   const root = `${safeFileName(s.projectName)}-replication`;
   const files: ZipEntry[] = [];
   const scripts: { file: string; title: string; detail: string; text: string }[] = [];
   const appOnly: { title: string; detail: string }[] = [];
+  const needRaw: { title: string; detail: string }[] = [];
   const ctx = currentCtx();
   let k = 0;
   for (const it of items) {
     progress(`Writing the script for ${it.title}…`);
     const num = String(++k).padStart(2, '0');
+    if (cov && it.kind !== 'model') { needRaw.push({ title: it.title, detail: it.detail }); k--; continue; }
     if (it.kind === 'model' || it.kind === 'bootstrap') {
-      const r = await buildRScript(it.kind);
+      const r = await buildRScript(it.kind, cov ? { data: cov.data, model: cov.model } : {});
       scripts.push({ file: `${num}-${it.kind === 'model' ? 'model' : 'bootstrap'}.R`, title: it.title, detail: it.detail, text: r.text });
       continue;
     }
@@ -158,9 +175,9 @@ export async function buildPackage(chosen: Set<string>, opts: { data: boolean; r
     '# Set the working directory to this folder (the R/ folder) first, e.g. setwd("path/to/R").',
     ...scripts.map((sc) => `message("== ${sc.file}"); local(source("${sc.file}", echo = TRUE, max.deparse.length = Inf))`), '',
   ].join('\n') });
-  const dataFile = opts.data && s.data ? `${safeFileName(s.dataInfo?.fileName.replace(/\.[A-Za-z]+$/, '') ?? 'data')}.csv` : null;
-  if (dataFile && s.data) files.push({ path: `${root}/data/${dataFile}`, data: datasetCsv(s.data) });
-  files.push({ path: `${root}/project/project.plsproj.json`, data: serializeProject(s.model, s.settings, opts.data ? s.data : null, opts.data ? s.dataInfo : null, null, useAnalyses.getState().cards) });
+  const dataFile = shared.data ? `${safeFileName(shared.info?.fileName.replace(/\.[A-Za-z]+$/, '') ?? 'data')}.csv` : null;
+  if (dataFile && shared.data) files.push({ path: `${root}/data/${dataFile}`, data: datasetCsv(shared.data) });
+  files.push({ path: `${root}/project/project.plsproj.json`, data: serializeProject(shared.model, s.settings, shared.data, shared.info, null, cov ? [] : useAnalyses.getState().cards) });
   if (opts.report) {
     progress('Adding the report…');
     const { buildReport } = await import('../analyses/report');
@@ -173,7 +190,7 @@ export async function buildPackage(chosen: Set<string>, opts: { data: boolean; r
     `Method: ${st.method === 'pls' ? `PLS-SEM (${st.plsPackage})` : st.method === 'cbsem' ? `CB-SEM, ${st.estimator}` : 'conditional process analysis'}`,
     `Missing values: ${st.missing}`, `Bootstrap: ${st.bootSamples} samples, seed ${st.seed}, ${Math.round(st.confidence * 100)}% ${st.bootInterval === 'bca' ? 'BCa' : 'percentile'} intervals, ${st.bootTails === 'one' ? 'one' : 'two'}-tailed tests`,
   ];
-  files.unshift({ path: `${root}/README.md`, data: readme({ project: s.projectName, date: new Date(), data: opts.data ? s.data : null, info: s.dataInfo, dataFile, scripts, appOnly, r: v.r, packages: v.packages, report: opts.report, settings }) });
+  files.unshift({ path: `${root}/README.md`, data: readme({ project: s.projectName, date: new Date(), data: shared.data, info: shared.info, dataFile, scripts, appOnly, needRaw, covarianceOnly: !!cov, r: v.r, packages: v.packages, report: opts.report, settings }) });
   progress('Compressing…');
   const zip = await makeZip(files);
   return { name: `${root}.zip`, zip, files: files.map((f) => f.path), scripts: scripts.length };

@@ -4,7 +4,10 @@ import { confirmDialog, numberDialog } from './components/Overlays';
 import { parseCovMatrixCsv, parseNacovCsv } from './examples/matrix';
 import { dataFileFormat, readDataFile, readPackageFile } from './data/readFile';
 import { safeFileName, downloadText } from './format';
-import { parseProject, serializeProject, toSpec, validateModel, type Settings } from './model/project';
+import { parseProject, serializeProject, toSpec, validateModel, type DataInfo, type ModelState, type Settings } from './model/project';
+import { covarianceDataset } from './data/covariance';
+import { datasetCsv } from './replication/package';
+import type { Dataset } from './engine/types';
 import { makeSample } from './sample';
 import { addAnalysis, loadCards, useAnalyses } from './analyses/store';
 import { parseCards, withLegacySimulation } from './analyses/persist';
@@ -174,8 +177,10 @@ export async function exportRScript(what: ScriptTarget = 'model') {
  * The R script for the current model and settings, as text: exactly what the R
  * engine runs for that analysis, data embedded. Throws with a readable message.
  */
-export async function buildRScript(what: ScriptTarget = 'model'): Promise<{ text: string; file: string; pkg: string }> {
-  const s = useStore.getState();
+export async function buildRScript(what: ScriptTarget = 'model', opts: { data?: Dataset; model?: ModelState } = {}): Promise<{ text: string; file: string; pkg: string }> {
+  const st0 = useStore.getState();
+  // (a replication package without the raw data: the model's covariance matrix stands in for the dataset)
+  const s = { ...st0, data: opts.data ?? st0.data, model: opts.model ?? st0.model };
   const errors = validateModel(s.model, s.data, s.settings).filter((i) => i.level === 'error');
   if (errors.length || !s.data) throw new Error(errors[0]?.message ?? 'Import a dataset first.');
   const { rMessage } = await import('./rengine/bridge');
@@ -214,6 +219,49 @@ export async function buildRScript(what: ScriptTarget = 'model'): Promise<{ text
   } catch (e) {
     throw new Error(rMessage(e), { cause: e });
   }
+}
+
+/**
+ * The current CB-SEM model's data reduced to its covariance matrix (listwise, N − 1; one matrix per group
+ * with a grouping column), with the model adjusted to it: for sharing an analysis without the raw data.
+ */
+export function covarianceOnly(): { data: Dataset; info: DataInfo; model: ModelState } {
+  const s = useStore.getState();
+  if (!s.data) throw new Error('Import a dataset first.');
+  const names = [...new Set(s.model.constructs.flatMap((c) => c.indicators))];
+  if (!names.length) throw new Error('The model has no indicators yet.');
+  const mg = s.model.multigroup;
+  const data = covarianceDataset(s.data, names, mg?.column || undefined);
+  const model: ModelState = mg ? { ...s.model, multigroup: { ...mg, column: '' } } : s.model;
+  const info: DataInfo = { fileName: `${(s.dataInfo?.fileName ?? 'data').replace(/\.[A-Za-z]+$/, '')}-covariances.csv`, rows: data.moments!.n, missingCells: 0, excluded: [], kind: 'matrix' };
+  return { data, info, model };
+}
+
+/** Why the current analysis cannot be shared as a covariance matrix instead of the raw data (null: it can). */
+export function covarianceOnlyBlocked(): string | null {
+  const s = useStore.getState();
+  if (!s.data) return 'Import a dataset first.';
+  if (s.data.moments && s.data.cols.length === 0) return 'The dataset already is a covariance matrix.';
+  if (s.settings.method !== 'cbsem') return 'A covariance matrix reproduces CB-SEM only; PLS-SEM and conditional process analysis need the raw data.';
+  if (!s.model.constructs.length) return 'Draw the model first: the matrix covers its indicators.';
+  try {
+    const { data, model } = covarianceOnly();
+    const errors = validateModel(model, data, s.settings).filter((i) => i.level === 'error');
+    return errors.length ? `With the covariance matrix: ${errors[0].message}` : null;
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
+/** Download the model's covariance matrix (CSV; N in the file name) instead of the raw data. */
+export function exportCovarianceCsv() {
+  const s = useStore.getState();
+  const why = covarianceOnlyBlocked();
+  if (why) { s.toast('error', why); return; }
+  const { data } = covarianceOnly();
+  const m = data.moments!;
+  downloadText(`${safeFileName(s.projectName)}-covariances-N${m.n}.csv`, datasetCsv(data), 'text/csv');
+  s.toast('success', `Covariance matrix of ${data.names.length} variables saved (${m.groups ? m.groups.map((g) => `${g.label}: N = ${g.n}`).join(', ') : `N = ${m.n}`}, listwise). lavaan refits the model from it; share it with N instead of the raw data.`);
 }
 
 export function saveProject() {

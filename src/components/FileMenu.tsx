@@ -1,6 +1,6 @@
 import { openReplication } from './analyses/ReplicationDialog';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { exportMplus, exportRScript, importCsv, importModelSyntax, newProject, openProject, saveProject } from '../io';
+import { exportCovarianceCsv, exportMplus, exportRScript, importCsv, importModelSyntax, newProject, openProject, saveProject } from '../io';
 import { useStore } from '../store';
 import { IconChevronDown } from './icons';
 
@@ -11,6 +11,7 @@ export function FileMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const hasData = useStore((s) => s.data !== null);
+  const rawCb = useStore((s) => !!s.data && !(s.data.moments && s.data.cols.length === 0) && s.settings.method === 'cbsem');
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
@@ -47,6 +48,7 @@ export function FileMenu() {
           <div className="menu-sep" role="separator" />
           {item('Import model syntax (lavaan, Mplus)…', () => void importModelSyntax())}
           {item('Download R script', () => void exportRScript(), { disabled: !hasData })}
+          {rawCb && item('Download covariance matrix (CSV)', () => exportCovarianceCsv())}
           {item('Download Mplus input', () => void exportMplus())}
           <div className="menu-sep" />
           <a role="menuitem" className="menu-item" href="guide.html" target="_blank" rel="noopener">User guide</a>
