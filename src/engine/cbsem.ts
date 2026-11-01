@@ -135,7 +135,7 @@ interface CbModel {
   singleIndicator: boolean[];
   exo: number[];
   /** Second-order relations child ← parent; the first child of each parent is the marker (B fixed to 1). */
-  ho: { parent: number; child: number; marker: boolean }[];
+  ho: { parent: number; child: number; marker: boolean; /** The loading held at this value (a marker: instead of 1). */ fixed?: number }[];
   /** Observed covariates (lavaan fixed.x): construct indices. */
   covariates: number[];
   /** Ψ entries fixed at sample values (covariates), set per sample by bindSample(). */
@@ -159,7 +159,8 @@ function buildCbModel(spec: ModelSpec): CbModel {
       const child = m.constructs.indexOf(name);
       if (child < 0) throw new Error(`"${c.name}" refers to unknown component "${name}".`);
       if (m.preds[child].length) throw new Error(`"${name}" is a component of "${c.name}" and cannot have structural predictors.`);
-      ho.push({ parent, child, marker: i === 0 });
+      const fixed = c.componentLoadings?.[name];
+      ho.push({ parent, child, marker: i === 0, ...(fixed !== undefined ? { fixed } : {}) });
     });
   });
   spec.constructs.forEach((c, j) => {
@@ -176,7 +177,7 @@ function buildCbModel(spec: ModelSpec): CbModel {
 
   m.blocks.forEach((b, j) => b.slice(1).forEach((i) => params.push({ kind: 'loading', i, j })));
   for (let t = 0; t < k; t++) for (const f of m.preds[t]) params.push({ kind: 'regression', i: t, j: f });
-  for (const h of ho) if (!h.marker) params.push({ kind: 'hoLoading', i: h.child, j: h.parent });
+  for (const h of ho) if (!h.marker && h.fixed === undefined) params.push({ kind: 'hoLoading', i: h.child, j: h.parent });
   const exo = m.constructs.map((_, j) => j).filter((j) => m.preds[j].length === 0 && !isChild.has(j));
   for (let j = 0; j < k; j++) if (!isCov.has(j)) params.push({ kind: 'lvcov', i: j, j });
   // Exogenous latent variables covary; observed covariates (fixed.x) do not covary with them (lavaan default).
@@ -297,7 +298,7 @@ function matrices(cm: CbModel, th: number[]): Matrices {
   const Psi = zeros(k, k);
   const theta = new Array<number>(p).fill(0);
   const thetaCov: Matrices['thetaCov'] = [];
-  for (const h of cm.ho) if (h.marker) B[h.child][h.parent] = 1;
+  for (const h of cm.ho) if (h.marker || h.fixed !== undefined) B[h.child][h.parent] = h.fixed ?? 1;
   for (const f of cm.fixedPsi) { Psi[f.i][f.j] = f.value; Psi[f.j][f.i] = f.value; }
   for (const f of cm.fixedCoef ?? []) { if (f.kind === 'loading') L[f.i][f.j] = f.value; else B[f.i][f.j] = f.value; }
   for (const f of cm.fixedThetaCov ?? []) thetaCov.push({ i: f.i, j: f.j, v: f.value });
@@ -1024,7 +1025,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
   }
   for (const f of cm.fixedThetaCov ?? []) push({ kind: 'fixed', lhs: name(f.i), op: '~~', rhs: name(f.j), est: f.value, se: null, std: f.value / Math.sqrt(X.theta[f.i] * X.theta[f.j]) });
   const stdHo = (child: number, parent: number) => (X.B[child][parent] * st.sdEta[parent]) / st.sdEta[child];
-  for (const h of cm.ho) if (h.marker) push({ kind: 'fixed-loading', lhs: lv(h.parent), op: '=~', rhs: lv(h.child), est: 1, se: null, std: stdHo(h.child, h.parent) });
+  for (const h of cm.ho) if (h.marker || h.fixed !== undefined) push({ kind: 'fixed-loading', lhs: lv(h.parent), op: '=~', rhs: lv(h.child), est: h.fixed ?? 1, se: null, std: stdHo(h.child, h.parent) });
   for (const f of cm.fixedPsi) push({ kind: 'fixed', lhs: lv(f.i), op: '~~', rhs: lv(f.j), est: f.value, se: null, std: f.value / (st.sdEta[f.i] * st.sdEta[f.j]) });
   cm.params.forEach((d, a) => {
     const est = core.theta[a];

@@ -203,7 +203,22 @@ function ConstructInspector({ c }: { c: Construct }) {
       <div className="section">
         <div className="section-title">{c.components?.length ? `Components (${c.components.length})` : `Indicators (${c.indicators.length})`}</div>
         {c.indicators.length === 0 && !c.components?.length && <div className="hint">Drag variables from the data panel onto this construct{method === 'cbsem' ? ', or tick components above to make it a higher-order factor' : method === 'pls' ? ', or tick components above to make it a second-order construct' : ''}.</div>}
-        {c.components?.map((id) => <div key={id} className="ind"><span>{constructs.find((k) => k.id === id)?.name}</span></div>)}
+        {c.components?.map((id) => (
+          <div key={id} className="ind" style={{ alignItems: 'center' }}>
+            <span>{constructs.find((k) => k.id === id)?.name}</span>
+            {method === 'cbsem' && (
+              <input className="input num" type="number" step="any" placeholder={c.components![0] === id ? '1 (marker)' : 'estimated'} aria-label={`Loading of ${constructs.find((k) => k.id === id)?.name}`} style={{ width: 90 }}
+                value={c.componentLoadings?.[id] ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value === '' ? undefined : Number(e.target.value);
+                  const next = { ...(c.componentLoadings ?? {}) };
+                  if (v !== undefined && Number.isFinite(v)) next[id] = v; else delete next[id];
+                  update(c.id, { componentLoadings: Object.keys(next).length ? next : undefined });
+                }} />
+            )}
+          </div>
+        ))}
+        {method === 'cbsem' && !!c.components?.length && <div className="hint">A value holds that loading (the first component sets the scale with 1 unless given a value). A latent curve model: intercept 1, 1, 1, … and slope 0, 1, 2, … over the waves as components.</div>}
         <div className="ind-list">
           {c.indicators.map((name) => {
             const k = idx.get(name);

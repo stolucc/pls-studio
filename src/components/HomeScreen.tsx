@@ -196,6 +196,20 @@ const EXAMPLES = [
     body: 'Chapter 8, Table 8.12: three observed stressors cause life stress (the first coefficient fixed at 1 to scale it), and life stress is identified by two reflective second-order indicators, satisfaction and optimism (three items each), N = 500. The MIMIC-style identification of a formative construct. χ² = 55.88 on 23 df.',
   },
   {
+    id: 'bollen-curran-lcm' as const,
+    title: 'Latent curve model as a diagram (Bollen & Curran 2004)',
+    tags: ['CB-SEM', 'Growth curve', 'Longitudinal', 'Second-order', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Bollen & Curran (2004), Sociological Methods & Research', url: 'https://doi.org/10.1177/0049124103260222' }, { label: 'Bollen & Curran (2006), Latent Curve Models', url: 'https://www.wiley.com/en-us/Latent+Curve+Models%3A+A+Structural+Equation+Perspective-p-9780471455929' }],
+    body: 'A latent curve model specified by hand: five repeated measures as single-indicator constructs, intercept and slope as higher-order factors with loadings held at 1, 1, 1, 1, 1 and 0, 1, 2, 3, 4, their variances and covariance free, one residual variance per wave. Bollen & Curran’s artificial covariance matrix (N = 500) was generated from exactly this model, so it fits perfectly: compare with the Growth curve card, which writes the same model from raw data.',
+  },
+  {
+    id: 'bollen-curran-alt' as const,
+    title: 'Autoregressive latent trajectory model (Bollen & Curran 2004)',
+    tags: ['CB-SEM', 'Growth curve', 'Longitudinal', 'Autoregressive', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Bollen & Curran (2004), Sociological Methods & Research', url: 'https://doi.org/10.1177/0049124103260222' }],
+    body: 'Bollen & Curran’s synthesis of the autoregressive and the latent curve traditions: the first wave is predetermined (exogenous, correlated with intercept and slope), the curve runs over waves 2 to 5, and each wave also predicts the next. On their latent-curve-generated matrix the autoregressive coefficients come out at zero, which is the demonstration. Components with predictors are estimated by lavaan (R engine).',
+  },
+  {
     id: 'hayduk-revised' as const,
     title: 'Revised smoking model: a reciprocal effect (Hayduk 1987)',
     tags: ['CB-SEM', 'Non-recursive', 'Known reliability', 'Covariance input', 'Textbook example'],

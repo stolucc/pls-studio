@@ -30,6 +30,8 @@ export interface Construct {
   side: Side;
   /** CB-SEM higher-order construct: ids of the first-order constructs it is measured by. */
   components?: string[];
+  /** CB-SEM: loadings on components held at values (by component id); a value for the first component replaces the marker's 1 (a latent curve: 1, 1, 1 and 0, 1, 2). */
+  componentLoadings?: Record<string, number>;
   /** CB-SEM observed covariate (single indicator): lavaan fixed.x semantics. */
   covariate?: boolean;
   /** CB-SEM single indicator: known reliability (error variance fixed at (1 − r) × variance; otherwise 0). */
@@ -425,6 +427,8 @@ export function toSpec(model: ModelState): ModelSpec {
     constructs: model.constructs.map((c) => ({
       name: c.name, type: c.type, mode: c.mode, indicators: c.indicators,
       ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
+      ...(c.components?.length && c.componentLoadings && Object.keys(c.componentLoadings).some((id) => c.components!.includes(id))
+        ? { componentLoadings: Object.fromEntries(Object.entries(c.componentLoadings).filter(([id]) => c.components!.includes(id)).map(([id, v]) => [name.get(id) ?? id, v])) } : {}),
       ...(c.covariate ? { covariate: true } : {}),
       ...(c.reliability !== undefined && c.indicators.length === 1 && !c.covariate ? { reliability: c.reliability } : {}),
       ...(c.reliabilities && c.indicators.length > 1 && !c.covariate && Object.keys(c.reliabilities).some((k) => c.indicators.includes(k))
@@ -598,10 +602,17 @@ export function validateModel(
       }
       if (c.indicators.length) err(`"${c.name}" has both indicators and component constructs; remove one.`, c.id);
       if (c.components!.length < 2) warn(`"${c.name}" has a single component; a higher-order factor needs at least two (three for local identification).`, c.id);
+      for (const [id, v] of Object.entries(c.componentLoadings ?? {})) {
+        if (!c.components!.includes(id)) continue;
+        if (!Number.isFinite(v)) err(`"${c.name}": a component loading held at a value must be a number.`, c.id);
+        else if (method.method !== 'cbsem') err(`"${c.name}": component loadings are held at values in CB-SEM only.`, c.id);
+      }
       for (const id of c.components!) {
         const comp = model.constructs.find((k) => k.id === id);
         if (!comp) err(`"${c.name}" refers to a removed component.`, c.id);
-        else if (model.paths.some((q) => q.to === id)) err(`"${comp.name}" is a component of "${c.name}" and cannot also have incoming paths.`, comp.id);
+        // lavaan estimates a component with predictors (an autoregressive latent trajectory: the waves are components of
+        // intercept and slope and each wave predicts the next); the built-in engine and PLS do not.
+        else if (model.paths.some((q) => q.to === id) && (method.method !== 'cbsem' || (method.engine ?? 'r') === 'builtin')) err(`"${comp.name}" is a component of "${c.name}" and cannot also have incoming paths${method.method === 'cbsem' ? ' with the built-in engine: choose “R packages” under Calculated by' : ''}.`, comp.id);
         else if (method.method === 'pls' && (comp.components?.length || !comp.indicators.length)) err(`"${comp.name}" is a component of "${c.name}": in PLS, components are first-order constructs with indicators.`, comp.id);
         else if (method.method === 'pls' && (model.paths.some((q) => q.from === id) || (model.moderations ?? []).some((mo) => mo.moderator === id || model.paths.find((q) => q.id === mo.path)?.from === id)))
           err(`"${comp.name}" is a component of "${c.name}" and cannot also be in the structural model (cSEM’s two-stage approach); connect "${c.name}" instead.`, comp.id);
@@ -765,7 +776,7 @@ export function validateModel(
       for (const t of model.means ?? []) {
         const c = model.constructs.find((k) => k.id === t.target);
         if (!c) err('A mean arrow points to a removed construct.');
-        else if (c.components?.length) err(`The mean of "${c.name}" (a second-order construct) is not available.`, c.id);
+        else if (c.components?.length && c.components.some((id) => model.constructs.find((k) => k.id === id)?.indicators.length !== 1)) err(`The mean of "${c.name}" (a second-order construct) is identified only when its components are single indicators (a latent curve model).`, c.id);
       }
     }
   }
@@ -1269,6 +1280,12 @@ function parseMultigroup(r: Record<string, unknown>, ids: Set<string>): Multigro
 
 /** A parameter label from a file (validated again before use). */
 const labelOf = (v: unknown): { label?: string } => (typeof v === 'string' && v.trim() ? { label: v.trim().slice(0, 31) } : {});
+function componentLoadingsOf(raw: unknown, components: unknown[]): { componentLoadings?: Record<string, number> } {
+  if (!isObj(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw)) if (components.includes(k) && typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  return Object.keys(out).length ? { componentLoadings: out } : {};
+}
 function reliabilitiesOf(raw: unknown, indicators: unknown[]): { reliabilities?: Record<string, number> } {
   if (!isObj(raw)) return {};
   const out: Record<string, number> = {};
@@ -1325,6 +1342,7 @@ export function parseModelState(m: unknown): ModelState {
       y: num(c.y, -1e6, 1e6, 0),
       side: sides.includes(c.side as Side) ? (c.side as Side) : 'left',
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
+      ...(componentLoadingsOf(c.componentLoadings, Array.isArray(c.components) ? c.components : [])),
       ...(c.covariate === true ? { covariate: true } : {}),
       ...(typeof c.reliability === 'number' && c.reliability > 0 && c.reliability <= 1 ? { reliability: c.reliability } : {}),
       ...(reliabilitiesOf(c.reliabilities, c.indicators as unknown[])),

@@ -150,8 +150,10 @@ describe('higher-order constructs and covariates', () => {
   });
   it('rejects components with incoming paths and covariates with predictors', () => {
     const bad: ModelState = { ...m, paths: [...m.paths, { id: 'p2', from: 'X', to: 'A' }, { id: 'p3', from: 'A', to: 'X' }] };
-    const e = validateModel(bad, d4, cbs).map((i) => i.message);
+    // (a component with a predictor is for lavaan: the built-in engine refuses it)
+    const e = validateModel(bad, d4, { ...cbs, engine: 'builtin' }).map((i) => i.message);
     expect(e.some((x) => x.includes('component of "High"'))).toBe(true);
+    expect(validateModel(bad, d4, { ...cbs, engine: 'r' }).some((i) => i.message.includes('component of "High"'))).toBe(false);
     expect(e.some((x) => x.includes('Covariate "Cov" cannot have incoming paths'))).toBe(true);
   });
 });
@@ -749,5 +751,34 @@ describe('mean structures from matrices, measurement biases and per-indicator re
     expect(() => parseProject(JSON.stringify(bad))).toThrow(/every group has means or none/);
     bad.data.moments.groups[1].means = [1, 2];
     expect(() => parseProject(JSON.stringify(bad))).toThrow(/expected 3 numbers/);
+  });
+});
+
+describe('higher-order factors with held component loadings (latent curve models)', () => {
+  const T = (id: string): Construct => ({ id, name: id, type: 'factor', mode: 'A', indicators: [id], x: 0, y: 0, side: 'left' });
+  const waves = ['t1', 't2', 't3'].map(T);
+  const i: Construct = { id: 'I', name: 'Intercept', type: 'factor', mode: 'A', indicators: [], x: 0, y: 0, side: 'top', components: ['t1', 't2', 't3'], componentLoadings: { t1: 1, t2: 1, t3: 1, zz: 5 } };
+  const s: Construct = { id: 'S', name: 'Slope', type: 'factor', mode: 'A', indicators: [], x: 0, y: 0, side: 'top', components: ['t1', 't2', 't3'], componentLoadings: { t1: 0, t2: 1, t3: 2 } };
+  const m: ModelState = { constructs: [...waves, i, s], paths: [], moderations: [] };
+  const data = { names: ['t1', 't2', 't3'], cols: [], moments: { S: [[1, 0.5, 0.4], [0.5, 1.2, 0.6], [0.4, 0.6, 1.5]], n: 200 } };
+  it('is valid in CB-SEM, carries the loadings by component name in the spec (unknown keys dropped), and not in PLS', () => {
+    expect(validateModel(m, data, { method: 'cbsem', consistent: false, estimator: 'ML' }).filter((x) => x.level === 'error')).toEqual([]);
+    const spec = toSpec(m);
+    expect(spec.constructs[3].componentLoadings).toEqual({ t1: 1, t2: 1, t3: 1 });
+    expect(spec.constructs[4].componentLoadings).toEqual({ t1: 0, t2: 1, t3: 2 });
+    expect(validateModel(m, null, { method: 'pls', consistent: false }).some((x) => /held at values in CB-SEM only/.test(x.message))).toBe(true);
+    expect(validateModel({ ...m, constructs: [...waves, { ...i, componentLoadings: { t1: NaN } }, s] }, null, { method: 'cbsem', consistent: false, estimator: 'ML' }).some((x) => /must be a number/.test(x.message))).toBe(true);
+  });
+  it('a component with a predictor (an autoregressive latent trajectory) is for lavaan: refused by the built-in engine and PLS', () => {
+    const alt: ModelState = { ...m, paths: [{ id: 'p', from: 't1', to: 't2' }] };
+    const errs = (settings: Parameters<typeof validateModel>[2]) => validateModel(alt, data, settings).filter((x) => x.level === 'error').map((x) => x.message);
+    expect(errs({ method: 'cbsem', consistent: false, estimator: 'ML', engine: 'r' })).toEqual([]);
+    expect(errs({ method: 'cbsem', consistent: false, estimator: 'ML', engine: 'builtin' })).toContainEqual(expect.stringContaining('cannot also have incoming paths with the built-in engine'));
+    expect(validateModel(alt, null, { method: 'pls', consistent: false }).some((x) => /cannot also have incoming paths/.test(x.message))).toBe(true);
+  });
+  it('round-trips through a project file', () => {
+    const p = parseProject(serializeProject(m, DEFAULT_SETTINGS, data, { fileName: 'm.csv', rows: 200, missingCells: 0, excluded: [], kind: 'matrix' }));
+    expect(p.model.constructs[3].componentLoadings).toEqual({ t1: 1, t2: 1, t3: 1 });  // (zz is not a component)
+    expect(p.model.constructs[4].componentLoadings).toEqual({ t1: 0, t2: 1, t3: 2 });
   });
 });

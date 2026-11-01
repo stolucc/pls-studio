@@ -31,6 +31,8 @@ export interface ConstructSpec {
   dominant?: string;
   /** Observed exogenous covariate (single indicator, CB-SEM): variances/covariances fixed at sample values (lavaan fixed.x). */
   covariate?: boolean;
+  /** CB-SEM: loadings of a higher-order factor on its components held at values (by component name); a value for the first component replaces the marker's 1 (latent curve models: 1, 1, 1 and 0, 1, 2). */
+  componentLoadings?: Record<string, number>;
   /** CB-SEM (lavaan): a single indicator's known reliability; its error variance is fixed at (1 − reliability) × its variance. */
   reliability?: number;
   /** CB-SEM (lavaan): known reliabilities of some indicators of a multi-indicator factor (by indicator name), fixing their error variances likewise. */

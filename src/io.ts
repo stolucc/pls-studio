@@ -294,7 +294,7 @@ export async function openRecent(id: string) {
 
 export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk' | 'hayduk-stacked' | 'hayduk-revised' | 'hayduk-means' | 'hayduk-stacked-means' | 'dhp'
   | 'kline-roth' | 'kline-kabc' | 'kline-sabatelli' | 'kline-worland' | 'kline-romney-somatic' | 'kline-romney-medical' | 'kline-lynam' | 'kline-robbins' | 'kline-sauve'
-  | 'brown-ne' | 'brown-tau' | 'brown-mtmm' | 'brown-coping' | 'brown-reliability' | 'brown-stress';
+  | 'brown-ne' | 'brown-tau' | 'brown-mtmm' | 'brown-coping' | 'brown-reliability' | 'brown-stress' | 'bollen-curran-lcm' | 'bollen-curran-alt';
 
 /** The built-in examples other than the synthetic survey: each a module loaded on demand, and what the toast says. */
 const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
@@ -324,6 +324,8 @@ const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: 
   'brown-coping': { make: () => import('./examples/brown').then((m) => m.makeBrownCopingExample), toast: 'Brown (2015), Table 8.2: four coping factors under two second-order factors, N = 275 (chi-square 83.00 on 49 df). Press Calculate.' },
   'brown-reliability': { make: () => import('./examples/brown').then((m) => m.makeBrownReliabilityExample), toast: 'Brown (2015), Table 8.8: intrusions and avoidance with one error covariance, N = 500; the Reliability tab gives the omegas his MODEL CONSTRAINT computes. Press Calculate.' },
   'brown-stress': { make: () => import('./examples/brown').then((m) => m.makeBrownStressExample), toast: 'Brown (2015), Table 8.12: life stress as a formative construct caused by three stressors, identified by satisfaction and optimism as its reflective second-order indicators, N = 500 (chi-square 55.88 on 23 df). Press Calculate.' },
+  'bollen-curran-lcm': { make: () => import('./examples/bollencurran').then((m) => m.makeBollenCurranLcmExample), toast: 'Bollen & Curran (2004): a latent curve model drawn as a diagram, the five waves as single-indicator constructs and intercept and slope as higher-order factors with loadings held at 1, 1, 1, 1, 1 and 0, 1, 2, 3, 4; artificial covariance matrix, N = 500. Press Calculate.' },
+  'bollen-curran-alt': { make: () => import('./examples/bollencurran').then((m) => m.makeBollenCurranAltExample), toast: 'Bollen & Curran (2004): the autoregressive latent trajectory model, the first wave predetermined and each wave predicting the next on top of the curve (R engine). Press Calculate.' },
   kerckhoff: { make: () => import('./examples/textbook').then((m) => m.makeKerckhoffExample), toast: 'Kerckhoff (1974), ambition and attainment: observed-variable path analysis from the LISREL manual, correlation matrix, N = 737. Press Calculate.' },
 };
 

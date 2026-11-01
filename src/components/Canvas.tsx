@@ -470,8 +470,10 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       return { value: model.constructs.find((k) => k.name === parent)?.type === 'composite' ? h.weight : h.loading, fixed: false };
     }
     if (method !== 'cbsem') return null;
-    const isMarker = model.constructs.find((k) => k.name === parent)?.components?.[0] === model.constructs.find((k) => k.name === child)?.id;
-    const marker = isMarker ? { value: 1, fixed: true } : null;
+    const par = model.constructs.find((k) => k.name === parent), kid = model.constructs.find((k) => k.name === child);
+    const held = kid && par?.componentLoadings?.[kid.id];
+    const isMarker = par?.components?.[0] === kid?.id;
+    const marker = held !== undefined ? { value: held, fixed: true } : isMarker ? { value: 1, fixed: true } : null;
     if (!showResults) return marker;
     if (settings.estimator === '2SLS') {
       const m = results?.miiv;

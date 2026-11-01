@@ -27,8 +27,8 @@ export function HigherOrderLayer({ loadingFor }: { loadingFor: (parent: string, 
       </svg>
       {items.map(({ key, seg, label }) => label === null ? null : (
         <div key={key} className={`elabel ho-label${label.fixed ? ' fixed' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${(seg.x1 + seg.x2) / 2}px, ${(seg.y1 + seg.y2) / 2}px)` }}
-          title={label.fixed ? 'Loading fixed to 1: this component sets the scale of the higher-order factor' : undefined}>
-          {label.fixed && label.value === 1 ? '1 (fixed)' : label.value.toFixed(3)}
+          title={label.fixed ? (label.value === 1 ? 'Loading fixed to 1: this component sets the scale of the higher-order factor' : `Loading held at ${label.value}`) : undefined}>
+          {label.fixed ? `${Number.isInteger(label.value) ? label.value : label.value.toFixed(3)} (fixed)` : label.value.toFixed(3)}
         </div>
       ))}
     </ViewportPortal>

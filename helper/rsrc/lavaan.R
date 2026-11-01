@@ -141,7 +141,12 @@ ps_cb_build <- function(req) {
   for (j in seq_len(k0)) {
     if (is_cov[j] || n$cname[j] %in% in_block) next
     # The first loading of each factor is fixed to 1 (marker / scaling indicator); written explicitly.
-    if (length(comps[[j]])) lines <- c(lines, paste(lname[[j]], "=~", ps_marked(lname[comps[[j]]])))
+    if (length(comps[[j]])) {
+      # Component loadings held at values (a latent curve: 1, 1, 1 and 0, 1, 2), keyed by the components' lavaan names.
+      cl <- cons[[j]]$componentLoadings %||% list()
+      fixed_c <- setNames(cl, unname(lname[names(cl)]))
+      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(lname[comps[[j]]], fixed_c)))
+    }
     else {
       v <- unname(n$iv[n$inds[[j]]])
       fl <- cons[[j]]$fixedLoadings %||% list()
@@ -258,6 +263,7 @@ ps_cb_build <- function(req) {
       lv <- lname[[mt$construct]]
       term <- if (!is.null(mt$fixed)) paste0(ps_num(mt$fixed), "*1") else if (!is.null(mt$label)) paste0(ps_label(mt$label), "*1") else "1"
       lines <- c(lines, paste(lv, "~", term))
+      # (a higher-order factor's mean is identified by its components' fixed intercepts: no marker rule here)
       if (is.null(mt$fixed) && !is_cov[j] && length(n$inds[[j]]) && !length(comps[[j]])) {
         # The marker's intercept: 0 identifies the latent mean in the marker's units; a known measurement bias instead
         # (Hayduk 1987, ch. 9: the indicator reads the concept plus this much), one value per group when given so.
