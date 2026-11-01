@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { loadPackageExample, loadSample, newProject, newProjectFromData, openProject, openRecent } from '../io';
 import { EXAMPLE_PACKAGES, PACKAGE_EXAMPLES, type ExamplePackage } from '../examples/packages';
-import { allTags, exampleTags } from '../examples/tags';
+import { exampleTags } from '../examples/tags';
 import { listRecent, recentPersistent, relativeTime, removeRecent, type RecentMeta } from '../recent';
 import { useStore } from '../store';
 import { confirmDialog } from './Overlays';
@@ -302,10 +302,8 @@ export function ExampleTags({ tags }: { tags: string[] }) {
 }
 
 /** Examples from the R packages' documentation, filterable by package and by topic. */
-function PackageExamples({ query }: { query: string }) {
+function PackageExamples({ query, topic }: { query: string; topic: string }) {
   const [pkg, setPkg] = useState<ExamplePackage | 'all'>('all');
-  const [topic, setTopic] = useState<string>('all');
-  const topics = allTags(PACKAGE_EXAMPLES);
   const shown = PACKAGE_EXAMPLES.filter((e) => (pkg === 'all' || e.package === pkg) && (topic === 'all' || exampleTags(e).includes(topic)) && matchesQuery(query, [e.title, e.description, e.source, e.package, ...exampleTags(e)]));
   return (
     <section className="home-examples">
@@ -316,11 +314,6 @@ function PackageExamples({ query }: { query: string }) {
             <button key={p} role="radio" aria-checked={pkg === p} className={pkg === p ? 'on' : ''} onClick={() => setPkg(p)}>{p === 'all' ? 'All' : p}</button>
           ))}
         </div>
-      </div>
-      <div className="segmented wrap topics" role="radiogroup" aria-label="Topic">
-        {['all', ...topics].map((t) => (
-          <button key={t} role="radio" aria-checked={topic === t} className={topic === t ? 'on' : ''} onClick={() => setTopic(t)}>{t === 'all' ? 'All topics' : t}</button>
-        ))}
       </div>
       <p className="hint" style={{ marginTop: 0 }}>Datasets and models from each package’s own documentation. The data are loaded from the package in your browser’s R; results are calculated by that package.</p>
       {shown.length === 0 && <p className="hint">No example{pkg === 'all' ? '' : ` of ${pkg}`}{topic === 'all' ? '' : ` on ${topic}`}{query.trim() ? ` matches “${query.trim()}”` : ''}.</p>}
@@ -349,6 +342,14 @@ export function HomeScreen() {
   const [persistent, setPersistent] = useState(true);
   const [about, setAbout] = useState(false);
   const [query, setQuery] = useState('');
+  // One topic filter for every example, built-in and from the packages; the topics in order of how many examples carry them.
+  const [topic, setTopic] = useState('all');
+  const topics = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const t of [...EXAMPLES.flatMap((e) => e.tags), ...PACKAGE_EXAMPLES.flatMap((e) => exampleTags(e))]) n.set(t, (n.get(t) ?? 0) + 1);
+    return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+  }, []);
+  const builtins = EXAMPLES.filter((e) => (topic === 'all' || e.tags.includes(topic)) && matchesQuery(query, [e.title, e.body, ...e.tags]));
 
   const refresh = () => { void listRecent().then(setRecent); };
   useEffect(() => {
@@ -439,9 +440,14 @@ export function HomeScreen() {
 
         <section className="home-examples">
           <h2>Examples</h2>
-          {EXAMPLES.filter((e) => matchesQuery(query, [e.title, e.body, ...e.tags])).length === 0 && <p className="hint">No built-in example matches “{query}”.</p>}
+          <div className="segmented wrap topics" role="radiogroup" aria-label="Topic">
+            {['all', ...topics].map((t) => (
+              <button key={t} role="radio" aria-checked={topic === t} className={topic === t ? 'on' : ''} onClick={() => setTopic(t)}>{t === 'all' ? 'All topics' : t}</button>
+            ))}
+          </div>
+          {builtins.length === 0 && <p className="hint">No built-in example{topic === 'all' ? '' : ` on ${topic}`}{query.trim() ? ` matches “${query.trim()}”` : ''}.</p>}
           <div className="example-grid">
-            {EXAMPLES.filter((e) => matchesQuery(query, [e.title, e.body, ...e.tags])).map((e) => (
+            {builtins.map((e) => (
               <div key={e.id} className="example-card">
                 <div className="example-top"><b>{e.title}</b><span className="chip accent">{e.tags[0]}</span></div>
                 <ExampleTags tags={e.tags} />
@@ -453,7 +459,7 @@ export function HomeScreen() {
           </div>
         </section>
 
-        <PackageExamples query={query} />
+        <PackageExamples query={query} topic={topic} />
       </main>
       {about && <AboutDialog onClose={() => setAbout(false)} />}
     </div>
