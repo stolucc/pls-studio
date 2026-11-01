@@ -88,3 +88,10 @@ describe('AMOS Graphics files', () => {
     expect(() => decodeAmw(new Uint8Array(6_000_000))).toThrow(/too large/);
   });
 });
+
+describe('choosing an AMOS file', () => {
+  it('the dialog shows every file (macOS knows no .amw type; the file is checked once chosen)', async () => {
+    const { FILE_FILTERS } = await import('../io');
+    expect(FILE_FILTERS.amos).toBe('');
+  });
+});

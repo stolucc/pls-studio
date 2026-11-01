@@ -20,11 +20,18 @@ import type { IpmaOptions } from './engine/ipma';
 import { processInput } from './process/input';
 
 
+/**
+ * The file dialog's filter per kind of file. AMOS models get none: browsers on macOS
+ * (Safari) map an extension to a system file type, and .amw has none, so every file
+ * would be greyed out; the file is checked after it is chosen instead.
+ */
+export const FILE_FILTERS = { amos: '' } as const;
+
 function pickFile(accept: string): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = accept;
+    if (accept) input.accept = accept;
     input.onchange = () => resolve(input.files?.[0] ?? null);
     input.oncancel = () => resolve(null);
     input.click();
@@ -534,10 +541,11 @@ export async function importModelSyntax() {
 
 /** Replace the diagram with an AMOS Graphics model (.amw): its variables, arrows, positions and analysis properties. */
 export async function importAmos() {
-  const file = await pickFile('.amw');
+  const file = await pickFile(FILE_FILTERS.amos);
   if (!file) return;
   const s = useStore.getState();
   try {
+    if (!/\.amw$/i.test(file.name)) throw new Error(`“${file.name}” is not an AMOS Graphics model: choose an .amw file.`);
     if (file.size > 5_000_000) throw new Error('The file is too large for an AMOS model.');
     const { decodeAmw, parseAmw, amosDiagram } = await import('./model/amos');
     const { parseLavaanSyntax } = await import('./model/syntax');
