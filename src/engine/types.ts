@@ -89,7 +89,8 @@ export type StructuralEquality = 'regressions' | 'lv.variances' | 'lv.covariance
  * several covariance matrices (a stacked model). `invariance` is the measurement
  * level; `structural` what else is held equal; `free` the exceptions.
  */
-export interface MultigroupSpec { column: string; invariance: InvarianceLevel; free: FreedParameter[]; structural?: StructuralEquality[] }
+/** `meanStructure: false`: no means and intercepts in the groups (Mplus MODEL = NOMEANSTRUCTURE; lavaan meanstructure = FALSE). */
+export interface MultigroupSpec { column: string; invariance: InvarianceLevel; free: FreedParameter[]; structural?: StructuralEquality[]; meanStructure?: false }
 
 export interface ModelSpec {
   constructs: ConstructSpec[];
@@ -106,6 +107,8 @@ export interface ModelSpec {
   inequalities?: string[];
   /** CB-SEM (lavaan): keep variances non-negative (bounds = "pos.var"). */
   positiveVariances?: boolean;
+  /** CB-SEM (lavaan): standard errors from the observed (Hessian) instead of the expected information (Mplus's default for ML). */
+  information?: 'observed';
   /** CB-SEM (lavaan): multiple-group analysis by a grouping column, with a level of measurement invariance. */
   multigroup?: MultigroupSpec;
   /** CB-SEM (lavaan): sampling (survey) weights from this column (lavaan's sampling.weights; robust standard errors). */
@@ -115,7 +118,7 @@ export interface ModelSpec {
   /** CB-SEM (lavaan): two-level model by a cluster column; between level saturated or with the same structure. */
   multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
-  esem?: { blocks: string[][]; rotation: EsemRotation };
+  esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number };
   /** CB-SEM (lavaan): estimate the mean structure (meanstructure = TRUE: every indicator intercept free). */
   meanStructure?: boolean;
   /** CB-SEM (lavaan): latent means (or observed variables' intercepts) to estimate, fix or label. */

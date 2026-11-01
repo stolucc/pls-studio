@@ -585,6 +585,7 @@ function ModelInspector() {
   // Where the R packages run: the browser's R (webR) or desktop R through the helper.
   const where = useCompute((s) => s.backend) === 'helper' ? 'in desktop R (through the helper)' : 'in your browser (webR)';
   const setSettings = useStore((s) => s.setSettings);
+  const setInformation = useStore((s) => s.setInformation);
   const select = useStore((s) => s.select);
   const issues = validateModel(model, data, settings);
   const readOnlyChecks = useStore((s) => s.cloud?.role === 'viewer');
@@ -755,6 +756,12 @@ function ModelInspector() {
             {ESTIMATORS.map((e) => <option key={e.id} value={e.id}>{e.id} — {e.label}</option>)}
           </select>
           <div className="hint" style={{ marginTop: 8 }}>{ESTIMATORS.find((e) => e.id === settings.estimator)?.hint}</div>
+          {settings.estimator === 'ML' && (
+            <label className="check" style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={model.information === 'observed'} disabled={readOnlyChecks} onChange={(e) => setInformation(e.target.checked ? 'observed' : null)} />
+              <span>Standard errors from the observed information<br /><span className="hint">The second derivatives of the log-likelihood at the estimates (lavaan information = “observed”; the default of Mplus for ML) instead of lavaan’s expected information. Estimates and χ² are the same; standard errors differ slightly.</span></span>
+            </label>
+          )}
         </div>
       )}
       {pls && <div className="section">

@@ -116,6 +116,8 @@ interface State {
   setWaldTests: (tests: WaldTest[]) => void;
   setInequalities: (text: string) => void;
   setPositiveVariances: (on: boolean) => void;
+  /** CB-SEM: standard errors from the observed information, or lavaan's default (null). */
+  setInformation: (information: 'observed' | null) => void;
   /** Multiple-group CB-SEM results: show group `index` (diagram and tables). */
   showGroup: (index: number) => void;
   setCompareGroups: (on: boolean) => void;
@@ -353,6 +355,7 @@ export const useStore = create<State>((set, get) => ({
   setWaldTests: (tests) => get().commit((m) => { const { waldTests: _w, ...rest } = m; return tests.length ? { ...rest, waldTests: tests } : rest; }),
   setInequalities: (text) => get().commit((m) => { const { inequalities: _i, ...rest } = m; return text.trim() ? { ...rest, inequalities: text } : rest; }),
   setPositiveVariances: (on) => get().commit((m) => { const { positiveVariances: _p, ...rest } = m; return on ? { ...rest, positiveVariances: true } : rest; }),
+  setInformation: (information) => get().commit((m) => { const { information: _i, ...rest } = m; return information ? { ...rest, information } : rest; }),
   setCompareGroups: (compareGroups) => set({ compareGroups }),
   showGroup: (index) => set((s) => {
     const cb = s.results?.cb;

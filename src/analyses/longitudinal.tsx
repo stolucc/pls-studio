@@ -168,7 +168,11 @@ export function GmmView({ r }: { r: GmmResult }) {
 const IN_TIME_ORDER = 'Click columns below in time order.';
 const MISSING_NOTE: Partial<Record<string, string>> = { fiml: ', FIML', pairwise: ', pairwise deletion', twostage: ', two-stage', robusttwostage: ', robust two-stage' };
 /** lavaan settings from the project: ML or MLR, and its missing-data treatment. */
-const lavaanOf = (ctx: Pick<AnalysisCtx, 'settings'>) => ({ estimator: ctx.settings.estimator === 'MLR' ? 'MLR' as const : 'ML' as const, missing: ctx.settings.missing });
+const lavaanOf = (ctx: Pick<AnalysisCtx, 'settings' | 'model'>) => {
+  const estimator = ctx.settings.estimator === 'MLR' ? 'MLR' as const : 'ML' as const;
+  // (standard errors from the observed information: the Model settings' option under ML, as Mplus)
+  return { estimator, missing: ctx.settings.missing, ...(estimator === 'ML' && ctx.model?.information === 'observed' ? { information: 'observed' as const } : {}) };
+};
 /** Time scores 0, 1, 2, … unless given. */
 const timeScores = (measures: string[], times: number[]) => (times.length ? times : measures.map((_, i) => i));
 const parseTimes = (v: unknown) => (Array.isArray(v) ? v.slice(0, 500).map(Number).filter(Number.isFinite) : []);
@@ -204,7 +208,7 @@ function GrowthOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Grow
       <OrderedPicker label="Covariates predicting the growth factors (optional)" columns={columns.filter((n) => !o.measures.includes(n) && !o.timeVarying.includes(n))} value={o.covariates} onChange={(covariates) => set({ ...o, covariates })} />
       <OrderedPicker label="Time-varying covariates (optional: one per occasion, in time order)" hint="Each occasion is regressed on its own covariate (lavaan tutorial: t1 ~ c1, t2 ~ c2, …)."
         columns={columns.filter((n) => !o.measures.includes(n) && !o.covariates.includes(n))} value={o.timeVarying} onChange={(timeVarying) => set({ ...o, timeVarying })} />
-      <div className="hint">lavaan {l.estimator}{MISSING_NOTE[l.missing] ?? ''} (from the Model settings).</div>
+      <div className="hint">lavaan {l.estimator}{MISSING_NOTE[l.missing] ?? ''}{l.information ? ', observed-information standard errors' : ''} (from the Model settings).</div>
     </fieldset>
   );
 }
@@ -219,7 +223,7 @@ function RiclpmOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Ricl
       <OrderedPicker label="Variable Y at the same waves" hint={IN_TIME_ORDER} columns={columns.filter((n) => !o.x.includes(n))} value={o.y} onChange={(y) => set({ ...o, y })} />
       <label className="check"><input type="checkbox" checked={o.equal} onChange={(e) => set({ ...o, equal: e.target.checked })} />
         <span>Hold the lagged effects equal over time<br /><span className="hint">For equally spaced waves; test it against the free model by comparing fit.</span></span></label>
-      <div className="hint">lavaan {l.estimator}{MISSING_NOTE[l.missing] ?? ''} (from the Model settings).</div>
+      <div className="hint">lavaan {l.estimator}{MISSING_NOTE[l.missing] ?? ''}{l.information ? ', observed-information standard errors' : ''} (from the Model settings).</div>
     </fieldset>
   );
 }
@@ -257,8 +261,8 @@ function GmmOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<GmmOpti
   );
 }
 
-export const growthInput = (o: GrowthOptions, ctx: Pick<AnalysisCtx, 'settings'>): GrowthInput => ({ ...o, times: timeScores(o.measures, o.times), ...lavaanOf(ctx) });
-export const riclpmInput = (o: RiclpmOptions, ctx: Pick<AnalysisCtx, 'settings'>): RiclpmInput => ({ ...o, ...lavaanOf(ctx) });
+export const growthInput = (o: GrowthOptions, ctx: Pick<AnalysisCtx, 'settings' | 'model'>): GrowthInput => ({ ...o, times: timeScores(o.measures, o.times), ...lavaanOf(ctx) });
+export const riclpmInput = (o: RiclpmOptions, ctx: Pick<AnalysisCtx, 'settings' | 'model'>): RiclpmInput => ({ ...o, ...lavaanOf(ctx) });
 export function gmmInput(o: GmmOptions, seed: number): GmmInput {
   const common = { shape: o.shape, random: o.random, classes: Array.from({ length: o.to }, (_, i) => i + 1), covariates: o.covariates, nrep: o.nrep, seed };
   return o.format === 'wide' ? { ...common, format: 'wide', measures: o.measures, times: timeScores(o.measures, o.times) } : { ...common, format: 'long', subject: o.subject, time: o.time, outcome: o.outcome };
@@ -280,7 +284,7 @@ export const growthAnalysis: AnalysisType<GrowthOptions, WithInput<GrowthResult,
     if (o.timeVarying.length && o.timeVarying.length !== o.measures.length) return 'Give one time-varying covariate per occasion (or none).';
     return missingColumns(ctx, [...o.measures, ...o.covariates, ...o.timeVarying], 'A growth curve');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, [...o.measures, ...o.covariates, ...o.timeVarying], [lavaanOf(ctx).estimator, lavaanOf(ctx).missing]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, [...o.measures, ...o.covariates, ...o.timeVarying], [lavaanOf(ctx).estimator, lavaanOf(ctx).missing, lavaanOf(ctx).information ?? '']),
   run: async (o, ctx) => { const input = growthInput(o, ctx); return { ...(await (await import('../rengine/longitudinal')).growthR(rawData(ctx)!, input)), input }; },
   script: async (o, ctx) => (await import('../rengine/longitudinal')).growthScriptR(rawData(ctx)!, growthInput(o, ctx)),
   summary: (o) => `${o.measures.length} occasions · ${o.shape === 'basis' ? 'latent basis' : o.shape}${o.covariates.length ? ` · ${o.covariates.length} covariates` : ''}${o.timeVarying.length ? ' · time-varying' : ''}`,
@@ -300,7 +304,7 @@ export const riclpmAnalysis: AnalysisType<RiclpmOptions, WithInput<RiclpmResult,
     if (o.x.length !== o.y.length) return 'Choose Y at the same number of waves as X.';
     return missingColumns(ctx, [...o.x, ...o.y], 'The RI-CLPM');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, [...o.x, ...o.y], [lavaanOf(ctx).estimator, lavaanOf(ctx).missing]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, [...o.x, ...o.y], [lavaanOf(ctx).estimator, lavaanOf(ctx).missing, lavaanOf(ctx).information ?? '']),
   run: async (o, ctx) => { const input = riclpmInput(o, ctx); return { ...(await (await import('../rengine/longitudinal')).riclpmR(rawData(ctx)!, input)), input }; },
   script: async (o, ctx) => (await import('../rengine/longitudinal')).riclpmScriptR(rawData(ctx)!, riclpmInput(o, ctx)),
   summary: (o) => `${o.x.length} waves${o.equal ? ' · equal lagged effects' : ''}`,

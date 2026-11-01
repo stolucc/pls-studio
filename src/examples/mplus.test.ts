@@ -11,7 +11,8 @@ import { parseCsv } from '../engine/dataset';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
 import { exampleTags } from './tags';
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'textbook', 'mplus.json'), 'utf8')) as Record<string, { mplus?: { logl?: number; npar?: number; chisq?: number }; logl?: number; npar?: number; df?: number }>;
+// What the Mplus outputs print (scripts/validation/mplus_printed.py); the webR test compares the app with it.
+const printed = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'textbook', 'mplus_printed.json'), 'utf8')) as Record<string, { fit: { npar?: number }; estimates: unknown[] }>;
 const MPLUS = PACKAGE_EXAMPLES.filter((e) => e.id.startsWith('mplus-'));
 const ex = (id: string) => PACKAGE_EXAMPLES.find((e) => e.id === `mplus-${id}`)!;
 
@@ -25,15 +26,26 @@ describe('Mplus User’s Guide examples', () => {
       expect(e.links[0].url).toBe(`https://www.statmodel.com/usersguide/chap${key[2]}/${key}.html`);
       expect(exampleTags(e)).toContain('Mplus User’s Guide');
       expect(exampleTags(e)).toContain('Shipped data');
-      // The native reference holds the example (5.13 is LMS: modsem, no lavaan fit; the SEM is 5.11's data).
-      if (key !== 'ex5.13') expect(ref[key], key).toBeTruthy();
+      // Every example has the numbers its Mplus output prints (each example has its own data, 5.13 included).
+      expect(printed[key]?.estimates.length, key).toBeGreaterThan(0);
+      expect(printed[key].fit.npar, key).toBeGreaterThan(0);
     }
-    // The native fits reproduce the Mplus log-likelihoods and parameter counts the guide prints.
-    for (const [key, r] of Object.entries(ref)) {
-      if (!r.mplus) continue;
-      if (r.mplus.logl !== undefined) expect(r.logl, key).toBeCloseTo(r.mplus.logl, 2);
-      if (r.mplus.npar !== undefined) expect(r.npar, key).toBe(r.mplus.npar);
+  });
+
+  it('carry Mplus’s defaults: mean structure, observed information (expected where the input asks), geomin ε, no mean structure where the input says so', () => {
+    for (const key of ['ex3.11', 'ex5.1', 'ex5.6', 'ex5.8', 'ex5.11', 'ex5.15', 'ex5.25']) {
+      const m = exampleModel(ex(key));
+      expect(m.constant, key).toBeTruthy();
+      expect(toSpec(m).information, key).toBe('observed');
     }
+    for (const key of ['ex6.1', 'ex6.8', 'ex6.9', 'ex6.10']) expect(exampleModel(ex(key)).information, key).toBe('observed');
+    // ex5.14: MODEL = NOMEANSTRUCTURE and INFORMATION = EXPECTED (lavaan's default).
+    const m514 = exampleModel(ex('ex5.14'));
+    expect(m514.multigroup!.meanStructure).toBe(false);
+    expect(m514.information).toBeUndefined();
+    expect(toSpec(m514).multigroup!.meanStructure).toBe(false);
+    // ex5.25: geomin with ε = 0.0001, Mplus's value for two factors.
+    expect(toSpec(exampleModel(ex('ex5.25'))).esem).toMatchObject({ rotation: 'geomin', epsilon: 0.0001 });
   });
 
   it('build valid models: WLSMV on ordered indicators, freed loadings and intercepts by construct name, the freed disturbance covariance', () => {

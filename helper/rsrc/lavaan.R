@@ -135,6 +135,9 @@ ps_cb_build <- function(req) {
   if (length(esem$blocks)) {
     rot <- esem$rotation %||% "geomin"
     if (!rot %in% c("geomin", "oblimin", "quartimin", "varimax", "target")) stop("Invalid rotation in the request.")
+    # geomin's epsilon (lavaan 0.001; Mplus 0.0001 for two factors, 0.001 for three, 0.01 for four or more)
+    eps <- esem$epsilon
+    if (!is.null(eps) && !(is.numeric(eps) && length(eps) == 1 && eps > 0 && eps <= 1)) stop("Invalid geomin epsilon in the request.")
     if (!is.null(target)) inputs$TARGET <- target
   }
   rel_inds <- character(0); composites <- character(0)
@@ -278,6 +281,21 @@ ps_cb_build <- function(req) {
       }
     }
   }
+  # An observed variable drawn as an error-free single indicator stands for itself: its intercept belongs to
+  # the construct (the indicator's fixed at 0), so the construct equals the variable and the intercept of an
+  # equation that it predicts is that of the observed regression (as lavaan and Mplus give for observed
+  # variables). Equivalent fit. (One group only: with groups, equal intercepts across groups are the indicators'.)
+  obs_single <- character(0)
+  if (means_on && is.null(group_var) && !matrix_groups) {
+    drawn <- vapply(req$model$means, function(mt) mt$construct, "")
+    for (j in seq_len(k0)) {
+      if (is_cov[j] || length(n$inds[[j]]) != 1 || length(comps[[j]]) || n$cname[j] %in% drawn) next
+      ov <- unname(n$iv[[n$inds[[j]][1]]])
+      if (ov %in% rel_inds) next
+      lines <- c(lines, paste0(lname[[j]], " ~ 1"), paste0(ov, " ~ 0*1   # the intercept of ", lname[[j]], " (an observed variable)"))
+      obs_single[unname(lname[[j]])] <- ov
+    }
+  }
   # Defined parameters (functions of labelled parameters, with delta-method standard errors).
   defs <- vapply(req$model$defined, function(d) paste(ps_label(d$name), ":=", ps_expr(d$expr)), "")
   # Inequality constraints on labelled parameters (each side checked as an expression).
@@ -351,10 +369,24 @@ ps_cb_build <- function(req) {
       if (length(partial)) sprintf(", group.partial = %s", ps_q(partial)) else "")
   }
   if (means_on) extra <- paste0(extra, ", meanstructure = TRUE")
+  # Groups without means and intercepts (Mplus MODEL = NOMEANSTRUCTURE; lavaan adds them to every multiple-group model).
+  if ((!is.null(group_var) || matrix_groups) && identical(mg$meanStructure, FALSE)) {
+    if (means_on) stop("Groups without a mean structure cannot have means or intercepts (remove the constant).")
+    if ((mg$invariance %||% "configural") %in% c("scalar", "strict")) stop("Scalar and strict invariance hold intercepts equal: they need the mean structure.")
+    extra <- paste0(extra, ", meanstructure = FALSE")
+  }
+  # Standard errors from the observed information (the Hessian; Mplus's default for ML) instead of lavaan's expected information.
+  if (!is.null(req$model$information)) {
+    if (!identical(req$model$information, "observed")) stop("Invalid information in the request.")
+    extra <- paste0(extra, ", information = \"observed\"")
+  }
   # The diagram is the model: the disturbances of two endogenous constructs covary only when drawn
   # (lavaan's sem() would otherwise free every such covariance, auto.cov.y).
   extra <- paste0(extra, ", auto.cov.y = FALSE", bounds)
-  if (length(esem$blocks)) extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (!is.null(target)) ", rotation.args = list(target = TARGET)" else "")
+  if (length(esem$blocks)) {
+    rargs <- c(if (!is.null(target)) "target = TARGET", if (!is.null(eps) && rot == "geomin") sprintf("geomin.epsilon = %s", format(eps, scientific = FALSE)))
+    extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (length(rargs)) sprintf(", rotation.args = list(%s)", paste(rargs, collapse = ", ")) else "")
+  }
   if (use_modsem) {
     if (!is.null(weight_var)) stop("Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.")
     if (means_on) stop("Means and intercepts are not available with LMS / QML; use product indicators.")
@@ -445,7 +477,7 @@ ps_cb_build <- function(req) {
   # (the baseline lines travel separately: every other user of this body expects the fit call last)
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites)
+    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
@@ -513,7 +545,9 @@ ps_cb <- function(req_json, export = FALSE) {
     pe <- pe[pe$op %in% c("=~", "<~", "~", "~~", "|", ":=") | (pe$op == "~1" & (isTRUE(b$means) | (pe$lhs %in% lv_lname & !is.na(pe$free) & pe$free > 0))), ]
     est <- lapply(seq_len(nrow(pe)), function(i) {
       r <- pe[i, ]; free <- r$free > 0
-      kind <- if (r$op == "~1") { if (r$lhs %in% latent_names) "mean" else "intercept" } else if (r$op == ":=") "defined" else if (r$op == "|") "threshold"
+      # (an observed variable's intercept is its construct's: the indicator's, fixed at 0, is not listed)
+      if (r$op == "~1" && r$lhs %in% unname(b$obs_single)) return(NULL)
+      kind <- if (r$op == "~1") { if (r$lhs %in% latent_names && !r$lhs %in% names(b$obs_single)) "mean" else "intercept" } else if (r$op == ":=") "defined" else if (r$op == "|") "threshold"
         else if (r$op == "<~") { if (free) "weight" else "fixed-weight" }
         else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
         else if (r$op == "~") "regression"
@@ -524,7 +558,7 @@ ps_cb <- function(req_json, export = FALSE) {
       if (is.na(kind)) return(NULL)
       if (r$op == ":=") return(list(kind = kind, lhs = r$lhs, op = r$op, rhs = r$rhs, est = r$est, se = if (is.na(r$se)) NULL else r$se,
         z = if (is.na(r$z)) NULL else r$z, p = if (is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all))
-      list(kind = kind, lhs = nm(r$lhs), op = r$op, rhs = if (r$op == "|") r$rhs else nm(r$rhs), est = r$est,
+      list(kind = kind, lhs = nm(r$lhs), op = r$op, rhs = if (r$op %in% c("|", "~1")) r$rhs else nm(r$rhs), est = r$est,
         label = if (isTRUE(nzchar(r$label)) && !startsWith(r$label, ".")) r$label else NULL,
         se = if (!free || is.na(r$se)) NULL else r$se, z = if (!free || is.na(r$z)) NULL else r$z,
         p = if (!free || is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all,

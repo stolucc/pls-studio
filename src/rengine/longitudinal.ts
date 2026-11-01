@@ -9,13 +9,14 @@ import { LAVAAN_FIT, type REngineInfo } from './lavaan';
 export interface LongEstimate { lhs: string; op: string; rhs: string; est: number; se: number | null; z: number | null; p: number | null; std: number }
 
 /** `timeVarying`: one covariate per occasion (each measure regressed on its own), or none. */
-export interface GrowthInput { measures: string[]; times: number[]; shape: 'linear' | 'quadratic' | 'basis'; covariates: string[]; timeVarying?: string[]; estimator: 'ML' | 'MLR'; missing: MissingTreatment }
+/** `information: 'observed'`: standard errors from the observed information (ML; Mplus's default). */
+export interface GrowthInput { measures: string[]; times: number[]; shape: 'linear' | 'quadratic' | 'basis'; covariates: string[]; timeVarying?: string[]; estimator: 'ML' | 'MLR'; missing: MissingTreatment; information?: 'observed' }
 export interface GrowthResult {
   n: number; fit: Partial<CbFit>; estimates: LongEstimate[]; r2: Record<string, number>;
   impliedMeans: number[]; observedMeans: number[]; measures: string[]; times: number[]; warnings: string[]; engine: REngineInfo;
 }
 
-export interface RiclpmInput { x: string[]; y: string[]; equal: boolean; estimator: 'ML' | 'MLR'; missing: MissingTreatment }
+export interface RiclpmInput { x: string[]; y: string[]; equal: boolean; estimator: 'ML' | 'MLR'; missing: MissingTreatment; information?: 'observed' }
 export interface RiclpmResult {
   n: number; waves: number; equal: boolean; fit: Partial<CbFit>; clpmFit: Partial<CbFit>; estimates: LongEstimate[];
   comparison: { chisqDiff: number; dfDiff: number; p: number }; warnings: string[]; engine: REngineInfo;

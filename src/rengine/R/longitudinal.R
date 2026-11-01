@@ -20,7 +20,10 @@ ps_long_options <- function(req) {
   est <- req$estimator %||% "ML"
   if (!est %in% c("ML", "MLR")) stop("Longitudinal models use the ML or MLR estimator.")
   # (fiml: lavaan handles the missing values (FIML, pairwise, two-stage), so no rows are dropped beforehand)
-  list(est = est, fiml = !is.null(PS_LAVAAN_MISSING[[req$missing %||% ""]]))
+  info <- req$information
+  if (!is.null(info) && !(identical(info, "observed") && est == "ML")) stop("Invalid information in the request: observed information is an option for ML.")
+  # (`extra`: the further lavaan arguments of the call: standard errors from the observed information, as Mplus)
+  list(est = est, fiml = !is.null(PS_LAVAAN_MISSING[[req$missing %||% ""]]), extra = if (!is.null(info)) ", information = \"observed\"" else "")
 }
 
 ps_long_fit <- function(fit) {
@@ -30,11 +33,11 @@ ps_long_fit <- function(fit) {
   lapply(as.list(fm[keep]), as.numeric)
 }
 
-#' `also`: further rows to keep (op and lhs), e.g. the occasions' regressions on time-varying covariates.
+#' `also`: further rows to keep (ops and lhs), e.g. the occasions' residual variances and their regressions on time-varying covariates.
 ps_long_estimates <- function(fit, back, lvs, also = NULL) {
   pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
   keep <- pe$op %in% c("~1", "~~", "~", "=~") & pe$lhs %in% lvs
-  if (!is.null(also)) keep <- keep | (pe$op == also$op & pe$lhs %in% also$lhs)
+  for (a in also) keep <- keep | (pe$op == a$op & pe$lhs %in% a$lhs & (a$op != "~~" | pe$lhs == pe$rhs))
   pe <- pe[keep, ]
   nm <- function(x) ifelse(x %in% names(back), back[x], x)
   lapply(seq_len(nrow(pe)), function(i) list(lhs = nm(pe$lhs[i]), op = pe$op[i], rhs = nm(pe$rhs[i]), est = pe$est[i],
@@ -65,7 +68,7 @@ ps_growth <- function(req_json, export = FALSE) {
     if (!o$fiml) ps_missing_code(req$missing),
     sprintf("# Latent growth curve (%s), time scores %s", shape, paste(format(times), collapse = ", ")),
     "model <- '", paste0("  ", lines), "'",
-    sprintf("fit <- growth(model, data = data, estimator = \"%s\"%s)", o$est, ps_lavaan_missing(req$missing)))
+    sprintf("fit <- growth(model, data = data, estimator = \"%s\"%s%s)", o$est, ps_lavaan_missing(req$missing), o$extra))
   inputs <- list(data = fr$data)
   if (export) return(paste(ps_script("Latent growth curve (lavaan)", "lavaan", inputs, body,
     "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"), collapse = "\n"))
@@ -73,7 +76,8 @@ ps_growth <- function(req_json, export = FALSE) {
   fit <- env$fit
   implied <- lavaan::fitted(fit)$mean[y]
   ps_json(list(n = lavaan::lavInspect(fit, "nobs"), fit = ps_long_fit(fit),
-    estimates = ps_long_estimates(fit, fr$back, c("i", "s", "q"), also = if (length(tvc)) list(op = "~", lhs = y)),
+    # (with the occasions' residual variances, as lavaan's and Mplus's output list them)
+    estimates = ps_long_estimates(fit, fr$back, c("i", "s", "q"), also = c(list(list(op = "~~", lhs = y)), if (length(tvc)) list(list(op = "~", lhs = y)))),
     r2 = as.list(lavaan::lavInspect(fit, "r2")[intersect(c("i", "s", "q"), names(lavaan::lavInspect(fit, "r2")))]),
     impliedMeans = unname(implied), observedMeans = unname(colMeans(env$data[, y, drop = FALSE], na.rm = TRUE)),
     measures = measures, times = times,
@@ -97,8 +101,8 @@ ps_riclpm <- function(req_json, export = FALSE) {
     sprintf("wx%d ~~ wy%d", 1:T, 1:T), sprintf("wx%d ~~ wx%d", 1:T, 1:T), sprintf("wy%d ~~ wy%d", 1:T, 1:T),
     if (random) c("RIx ~~ RIx", "RIy ~~ RIy", "RIx ~~ RIy", "RIx ~~ 0*wx1", "RIx ~~ 0*wy1", "RIy ~~ 0*wx1", "RIy ~~ 0*wy1"),
     sprintf("%s ~~ 0*%s", c(x, y), c(x, y)))
-  call <- function(name, model) sprintf("%s <- lavaan(%s, data = data, meanstructure = TRUE, int.ov.free = TRUE, estimator = \"%s\"%s)",
-    name, model, o$est, ps_lavaan_missing(req$missing))
+  call <- function(name, model) sprintf("%s <- lavaan(%s, data = data, meanstructure = TRUE, int.ov.free = TRUE, estimator = \"%s\"%s%s)",
+    name, model, o$est, ps_lavaan_missing(req$missing), o$extra)
   body <- c("suppressPackageStartupMessages(library(lavaan))",
     if (!o$fiml) ps_missing_code(req$missing),
     "# RI-CLPM: stable between-person differences (random intercepts RIx, RIy) separated from",

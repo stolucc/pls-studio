@@ -782,3 +782,39 @@ describe('higher-order factors with held component loadings (latent curve models
     expect(p.model.constructs[4].componentLoadings).toEqual({ t1: 0, t2: 1, t3: 2 });
   });
 });
+
+describe('lavaan options taken from Mplus defaults', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3']), C('G', ['b1', 'b2', 'b3'])], paths: [{ id: 'p', from: 'F', to: 'G' }], moderations: [] };
+  const errors = (model: ModelState, s: Partial<Settings> = {}) => validateModel(model, null, { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'ML', engine: 'r', ...s }).filter((i) => i.level === 'error' && !/Import a dataset/.test(i.message)).map((i) => i.message);
+
+  it('observed information: in the spec and project files, lavaan only, not with MIIV-2SLS', () => {
+    expect(toSpec({ ...m, information: 'observed' }).information).toBe('observed');
+    expect(toSpec(m).information).toBeUndefined();
+    expect(parseProject(serializeProject({ ...m, information: 'observed' }, DEFAULT_SETTINGS, null, null)).model.information).toBe('observed');
+    // (anything else in a file is dropped)
+    const f = JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null)); f.model.information = 'hessian';
+    expect(parseProject(JSON.stringify(f)).model.information).toBeUndefined();
+    expect(errors({ ...m, information: 'observed' })).toEqual([]);
+    expect(errors({ ...m, information: 'observed' }, { engine: 'builtin' }).some((e) => /observed information.*lavaan/i.test(e))).toBe(true);
+    expect(errors({ ...m, information: 'observed' }, { estimator: '2SLS' }).some((e) => /MIIV-2SLS has its own standard errors/.test(e))).toBe(true);
+  });
+
+  it('geomin epsilon: in the spec and project files, within (0, 1]', () => {
+    const esem = { ...m, paths: [], esem: { rotation: 'geomin' as const, blocks: [{ id: 'e', constructs: ['F', 'G'] }], epsilon: 0.0001 } };
+    expect(toSpec(esem).esem).toEqual({ rotation: 'geomin', blocks: [['F', 'G']], epsilon: 0.0001 });
+    expect(parseProject(serializeProject(esem, DEFAULT_SETTINGS, null, null)).model.esem?.epsilon).toBe(0.0001);
+    const f = JSON.parse(serializeProject(esem, DEFAULT_SETTINGS, null, null)); f.model.esem.epsilon = 5;
+    expect(parseProject(JSON.stringify(f)).model.esem?.epsilon).toBeUndefined();
+    expect(toSpec({ ...esem, esem: { ...esem.esem, epsilon: undefined } }).esem).not.toHaveProperty('epsilon');
+  });
+
+  it('groups without a mean structure: kept in files; refused with the constant or with scalar invariance', () => {
+    const mg = { ...m, multigroup: { column: 'g', invariance: 'metric' as const, free: [], meanStructure: false as const } };
+    expect(toSpec(mg).multigroup!.meanStructure).toBe(false);
+    expect(parseProject(serializeProject(mg, DEFAULT_SETTINGS, null, null)).model.multigroup!.meanStructure).toBe(false);
+    expect(errors(mg).filter((e) => /mean structure/.test(e))).toEqual([]);
+    expect(errors({ ...mg, constant: { x: 0, y: 0 } }).some((e) => /without a mean structure cannot have means/.test(e))).toBe(true);
+    expect(errors({ ...mg, multigroup: { ...mg.multigroup, invariance: 'scalar' } }).some((e) => /Scalar and strict invariance hold intercepts equal/.test(e))).toBe(true);
+  });
+});

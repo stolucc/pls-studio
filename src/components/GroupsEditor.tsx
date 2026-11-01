@@ -86,6 +86,13 @@ export function GroupsEditor() {
                 : 'With nothing held equal the structural model is estimated separately per group; compare the groups side by side in the results (All groups).'}
             </div>
           </div>
+          {!model.constant && (mg.invariance === 'configural' || mg.invariance === 'metric') && (
+            <div className="field">
+              <label className="check"><input type="checkbox" checked={mg.meanStructure !== false} disabled={readOnly}
+                onChange={(e) => { const { meanStructure: _m, ...rest } = mg; setMultigroup(e.target.checked ? rest : { ...rest, meanStructure: false }); }} />
+                <span>Intercepts in every group<br /><span className="hint">lavaan estimates the indicator intercepts per group in every multiple-group model. Untick for a model of the covariances only (Mplus MODEL = NOMEANSTRUCTURE): the fit is the same, with fewer parameters.</span></span></label>
+            </div>
+          )}
           {mg.free.length > 0 && (
             <div className="field">
               <label>Free across groups (differs between groups)</label>
@@ -137,6 +144,18 @@ export function EsemEditor() {
           {ROTATIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
         </select>
       </div>
+      {esem.rotation === 'geomin' && (
+        <div className="field">
+          <label htmlFor="esem-eps">Geomin ε</label>
+          <select id="esem-eps" className="select" value={String(esem.epsilon ?? 0.001)} disabled={readOnly}
+            onChange={(e) => { const v = Number(e.target.value); const { epsilon: _e, ...rest } = esem; setEsem(v === 0.001 ? rest : { ...rest, epsilon: v }); }}>
+            <option value="0.001">0.001 (lavaan’s default; Mplus with three factors)</option>
+            <option value="0.0001">0.0001 (Mplus with two factors)</option>
+            <option value="0.01">0.01 (Mplus with four or more factors)</option>
+          </select>
+          <div className="hint">The small constant that keeps geomin’s criterion smooth; it changes the rotated loadings, and with them the factor correlations and the paths of rotated factors.</div>
+        </div>
+      )}
       <div className="hint">Each factor of a block loads on every indicator of the block; the factors are identified by rotation (variances 1), not by a marker (Asparouhov &amp; Muthén, 2009; lavaan efa()). Cross-loadings are in the Loadings table; the diagram draws each factor’s own indicators.</div>
     </div>
   );

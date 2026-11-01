@@ -1,124 +1,135 @@
-// The Mplus User's Guide examples in webR against the native reference
-// (scripts/validation/mplus.R: lavaan, glm and modsem on the guide's data,
-// each matching the log-likelihood the Mplus output prints) and the estimates
-// the guide prints for the latent interaction. Run with npm run test:webr.
+// The Mplus User's Guide examples in webR against what their Mplus outputs
+// print (scripts/validation/mplus_printed.py, from the statmodel.com output
+// pages): fit information and every estimate and standard error, by group.
+// Mplus prints three decimals and stops at a looser convergence criterion than
+// lavaan, so values agree within 0.001. Run with npm run test:webr.
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import type { CbEstimator } from '../engine/cbsem';
 import { parseCsv } from '../engine/dataset';
+import { growthInput } from '../analyses/longitudinal';
 import { toSpec } from '../model/project';
 import { estimateCbLavaan } from '../rengine/lavaan';
 import { growthR } from '../rengine/longitudinal';
 import { regressionR } from '../rengine/regression';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
+import { DEFAULT_SETTINGS } from '../model/project';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-type Estimate = { lhs: string; op: string; rhs: string; group: number; est: number; se: number };
-type Fit = { n: number; chisq: number; df: number; logl: number | null; npar: number; scaled?: number | null; estimates: Estimate[] };
-type Glm = { logl: number; coef: Record<string, number> };
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'textbook', 'mplus.json'), 'utf8')) as Record<string, Fit & Glm>;
+type Printed = { lhs: string; op: string; rhs: string; group: number; est: number; se: number };
+type Fit = { npar?: number; logl?: number; aic?: number; bic?: number; chisq?: number; df?: number };
+const MPLUS = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'textbook', 'mplus_printed.json'), 'utf8')) as Record<string, { fit: Fit; estimates: Printed[] }>;
+/** Mplus's three printed decimals plus its convergence criterion. */
+const TOL = 0.001;
 
 const example = (key: string) => PACKAGE_EXAMPLES.find((e) => e.id === `mplus-${key}`)!;
 const load = (key: string) => parseCsv(readFileSync(join(__dirname, '..', '..', 'public', example(key).data.file!), 'utf8')).dataset;
-const close = (a: number, b: number, tol = 1e-4) => expect(Math.abs(a - b), `${a} vs ${b}`).toBeLessThan(tol * Math.max(1, Math.abs(b)));
+type Mine = { lhs: string; op: string; rhs: string; est: number; se: number | null; kind?: string };
 
-/** Every loading and regression of the reference (free ones) is in the app's table, at the same value. */
-function sameEstimates(mine: { lhs: string; op: string; rhs: string; est: number }[], want: Estimate[], where: string, tol = 1e-4) {
-  for (const w of want.filter((w) => (w.op === '=~' || w.op === '~') && w.se > 0)) {
-    const pool = mine.filter((e) => e.op === w.op && e.lhs === w.lhs && e.rhs === w.rhs);
-    expect(pool.length, `${where}: ${w.lhs} ${w.op} ${w.rhs}`).toBeGreaterThan(0);
-    expect(Math.min(...pool.map((e) => Math.abs(e.est - w.est))), `${where}: ${w.lhs} ${w.op} ${w.rhs}`).toBeLessThan(tol * Math.max(1, Math.abs(w.est)));
+/**
+ * Every parameter Mplus prints: a free one (SE > 0) must be in the app's table with the same estimate
+ * and (unless `ses` is false) standard error; a fixed one, when the app lists it, at the same value.
+ */
+function samePrinted(mine: Mine[], printed: Printed[], where: string, opts: { tol?: number; ses?: boolean; skip?: (p: Printed) => boolean } = {}) {
+  const tol = opts.tol ?? TOL;
+  for (const p of printed) {
+    if (opts.skip?.(p)) continue;
+    const pool = mine.filter((e) => (e.op === p.op || (p.op === '|' && e.kind === 'threshold'))
+      && ((e.lhs === p.lhs && e.rhs === p.rhs) || (p.op === '~~' && e.lhs === p.rhs && e.rhs === p.lhs)));
+    const what = `${where}: ${p.lhs} ${p.op} ${p.rhs} (group ${p.group})`;
+    if (p.se === 0) {
+      if (pool.length) expect(Math.min(...pool.map((e) => Math.abs(e.est - p.est))), what).toBeLessThanOrEqual(tol);
+      continue;
+    }
+    expect(pool.length, `${what} is not in the app's table`).toBeGreaterThan(0);
+    const best = pool.reduce((a, b) => (Math.abs(b.est - p.est) < Math.abs(a.est - p.est) ? b : a));
+    expect(Math.abs(best.est - p.est), `${what}: estimate ${best.est} vs Mplus ${p.est}`).toBeLessThanOrEqual(tol);
+    if (opts.ses !== false) expect(Math.abs((best.se ?? 0) - p.se), `${what}: SE ${best.se} vs Mplus ${p.se}`).toBeLessThanOrEqual(tol);
   }
 }
 
-it.each([['ex3.1'], ['ex3.5'], ['ex3.7']])('%s: the regression card reproduces glm (and the Mplus log-likelihood)', async (key) => {
+function sameFit(fit: Partial<Record<'npar' | 'logl' | 'aic' | 'bic' | 'chisq' | 'df', number | undefined>>, want: Fit, where: string) {
+  if (want.npar !== undefined) expect(fit.npar, `${where} free parameters`).toBe(want.npar);
+  if (want.df !== undefined) expect(fit.df, `${where} df`).toBe(want.df);
+  for (const k of ['logl', 'aic', 'bic', 'chisq'] as const) if (want[k] !== undefined) expect(Math.abs(fit[k]! - want[k]!), `${where} ${k}: ${fit[k]} vs Mplus ${want[k]}`).toBeLessThanOrEqual(0.002);
+}
+
+it.each([['ex3.1'], ['ex3.5'], ['ex3.7']])('%s: the regression card reproduces the Mplus coefficients and log-likelihood', async (key) => {
   const ex = example(key);
-  const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'regression' }>;
-  const { kind: _k, ...opts } = p;
+  const { kind: _k, ...opts } = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'regression' }>;
   const r = await regressionR(load(key), { ...opts, confidence: 0.95 });
-  const want = ref[key];
-  close(r.fit.logLik, want.logl, 1e-6);
-  for (const [term, est] of Object.entries(want.coef)) {
-    const mine = r.coefficients.find((c) => c.term === term);
-    expect(mine, `${key}: ${term}`).toBeTruthy();
-    close(mine!.est, est, 1e-5);
+  const want = MPLUS[key];
+  expect(Math.abs(r.fit.logLik - want.fit.logl!)).toBeLessThanOrEqual(0.001);
+  expect(Math.abs(r.fit.aic - want.fit.aic!)).toBeLessThanOrEqual(0.002);
+  const coef = (term: string) => r.coefficients.find((c) => c.term === term)!;
+  for (const p of want.estimates) {
+    // (Mplus: u1 ON x1 is the slope; the intercept of a count or continuous outcome, the threshold of a binary one (its negative))
+    const c = p.op === '~' ? coef(p.rhs) : p.op === '~1' ? coef('(Intercept)') : p.op === '|' ? { ...coef('(Intercept)'), est: -coef('(Intercept)').est } : null;
+    if (!c) continue;  // the residual variance (ex3.1): the card reports the least-squares residual SD instead (see the description)
+    expect(Math.abs(c.est - p.est), `${key} ${p.lhs} ${p.op} ${p.rhs}`).toBeLessThanOrEqual(TOL);
+    // 3.1: least-squares SEs (N − 3) are within 0.001 of Mplus's ML ones; 3.7: Mplus's are MLR (robust), the card's model-based (documented).
+    if (key !== 'ex3.7') expect(Math.abs(c.se - p.se), `${key} SE ${p.lhs} ${p.op} ${p.rhs}`).toBeLessThanOrEqual(TOL);
   }
 }, 600_000);
 
-it.each([['ex3.11'], ['ex5.1'], ['ex5.6'], ['ex5.8'], ['ex5.11'], ['ex5.25']])('%s under ML reproduces native lavaan', async (key) => {
+it.each([['ex3.11'], ['ex5.1'], ['ex5.2'], ['ex5.6'], ['ex5.8'], ['ex5.11'], ['ex5.14'], ['ex5.15'], ['ex5.25']])('%s reproduces the Mplus output: fit, estimates and standard errors', async (key) => {
   const ex = example(key);
-  const r = await estimateCbLavaan(load(key), toSpec(exampleModel(ex)), 'casewise', 'ML', 'product');
-  const want = ref[key];
+  const st = { ...DEFAULT_SETTINGS, ...ex.settings };
+  const r = await estimateCbLavaan(load(key), toSpec(exampleModel(ex)), 'casewise', st.estimator as CbEstimator, 'product');
+  const want = MPLUS[key];
   expect(r.converged).toBe(true);
-  expect(r.fit.df).toBe(want.df);
-  close(r.fit.chisq, want.chisq, 1e-5);
-  // ESEM: the rotated loadings depend on the rotation's start; the fit and the structural part do not.
-  sameEstimates(r.estimates, key === 'ex5.25' ? want.estimates.filter((w) => w.op === '~') : want.estimates, key);
+  if (key === 'ex5.2') {
+    // WLSMV: lavaan's scaled-shifted statistic adjusts slightly differently from Mplus's (documented on the card).
+    expect(r.fit.npar).toBe(want.fit.npar);
+    expect(r.fit.df).toBe(want.fit.df);
+    expect(Math.abs(r.fit.chisqScaled! - want.fit.chisq!)).toBeLessThan(0.01);
+    // Reliability with ordinal indicators: categorical omega and ordinal alpha, without a warning from semTools.
+    expect(r.warnings).toEqual([]);
+    for (const rel of r.reliability) { expect(rel.omega).toBeGreaterThan(0.5); expect(rel.alpha).toBeGreaterThan(0.5); }
+  } else sameFit(r.fit, want.fit, key);
+  if (r.groups) {
+    expect(r.groups.labels.length).toBe(2);
+    for (const g of [1, 2]) samePrinted(r.groups.results[g - 1].estimates, want.estimates.filter((p) => p.group === g), `${key} group ${g}`);
+  } else samePrinted(r.estimates, want.estimates, key);
 }, 600_000);
 
-it('ex5.2: binary indicators under WLSMV reproduce native lavaan (Mplus: χ² 5.482 on 8 df)', async () => {
-  const ex = example('ex5.2');
-  const spec = toSpec(exampleModel(ex));
-  expect(spec.ordered).toEqual(['u1', 'u2', 'u3', 'u4', 'u5', 'u6']);
-  const r = await estimateCbLavaan(load('ex5.2'), spec, 'casewise', 'WLSMV', 'product');
-  const want = ref['ex5.2'];
-  expect(r.converged).toBe(true);
-  expect(r.fit.df).toBe(8);
-  close(r.fit.chisq, want.chisq, 1e-5);
-  close(r.fit.chisqScaled!, want.scaled!, 1e-5);
-  expect(Math.abs(r.fit.chisqScaled! - 5.482)).toBeLessThan(0.02);
-  sameEstimates(r.estimates, want.estimates, 'ex5.2');
-  // Reliability with ordinal indicators: categorical omega (Green & Yang) and ordinal alpha, without a warning from semTools.
-  expect(r.warnings).toEqual([]);
-  for (const rel of r.reliability) { expect(rel.omega).toBeGreaterThan(0.5); expect(rel.alpha).toBeGreaterThan(0.5); }
-}, 600_000);
-
-it.each([['ex5.14'], ['ex5.15']])('%s: the two-group MIMIC model reproduces native lavaan (and the Mplus parameter count)', async (key) => {
-  const ex = example(key);
-  const r = await estimateCbLavaan(load(key), toSpec(exampleModel(ex)), 'casewise', ex.settings.estimator as CbEstimator, 'product');
-  const want = ref[key];
-  expect(r.converged).toBe(true);
-  expect(r.groups!.labels.length).toBe(2);
-  expect(r.fit.df).toBe(want.df);
-  close(r.fit.chisq, want.chisq, 1e-5);
-  for (const g of [1, 2]) sameEstimates(r.groups!.results[g - 1].estimates, want.estimates.filter((w) => w.group === g), `${key} group ${g}`);
-  // The loading of y3 on f1 differs between the groups (freed for females); the others are equal.
-  const y3 = r.groups!.results.map((g) => g.estimates.find((e) => e.op === '=~' && e.lhs === 'f1' && e.rhs === 'y3')!.est);
-  expect(Math.abs(y3[0] - y3[1])).toBeGreaterThan(0.1);
-  const y2 = r.groups!.results.map((g) => g.estimates.find((e) => e.op === '=~' && e.lhs === 'f1' && e.rhs === 'y2')!.est);
-  close(y2[0], y2[1], 1e-8);
-}, 600_000);
-
-it('ex5.13: the latent interaction by LMS reproduces the estimates Mplus prints', async () => {
+it('ex5.13: the latent interaction by LMS reproduces the Mplus estimates to two decimals', async () => {
   const ex = example('ex5.13');
   const r = await estimateCbLavaan(load('ex5.13'), toSpec(exampleModel(ex)), 'casewise', 'ML', 'lms');
   expect(r.interaction).toBe('lms');
-  const est = (lhs: string, rhs: string) => r.estimates.find((e) => e.op === '~' && e.lhs === lhs && e.rhs === rhs)!.est;
-  // Mplus User's Guide, example 5.13 output (XWITH, numerical integration): F3 ON F1 0.439, F2 0.812, F1XF2 0.397; F4 ON F3 0.585.
-  expect(est('f3', 'f1')).toBeCloseTo(0.439, 2);
-  expect(est('f3', 'f2')).toBeCloseTo(0.812, 2);
-  expect(est('f4', 'f3')).toBeCloseTo(0.585, 2);
-  const inter = r.estimates.find((e) => e.op === '~' && e.lhs === 'f3' && /f1.*f2|f2.*f1/.test(e.rhs))!;
-  expect(inter, 'interaction term').toBeTruthy();
-  expect(inter.est).toBeCloseTo(0.397, 2);
+  // Mplus integrates numerically (MLR); modsem's LMS uses its own quadrature (ML): the loadings and paths agree
+  // within 0.002, the standard errors and the log-likelihood are not comparable (both documented on the card).
+  const mine = r.estimates.map((e) => (e.op === '~' && /f1.*f2|f2.*f1/.test(e.rhs) ? { ...e, rhs: 'f1:f2' } : e));
+  samePrinted(mine, MPLUS['ex5.13'].estimates.filter((p) => p.op === '=~' || p.op === '~'), 'ex5.13', { tol: 0.002, ses: false });
 }, 600_000);
 
-it.each([['ex6.1'], ['ex6.8'], ['ex6.9'], ['ex6.10']])('%s: the growth card reproduces native lavaan::growth', async (key) => {
+it.each([['ex6.1'], ['ex6.8'], ['ex6.9'], ['ex6.10']])('%s: the growth card reproduces the Mplus output: fit, estimates and standard errors', async (key) => {
   const ex = example(key);
-  const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'growth' }>;
-  const r = await growthR(load(key), { ...p, estimator: 'ML', missing: 'casewise' });
-  const want = ref[key];
-  expect(r.fit.df).toBe(want.df);
-  close(r.fit.chisq!, want.chisq, 1e-5);
-  // Growth factor means, variances and the regressions on the covariates.
-  for (const w of want.estimates.filter((w) => w.se > 0 && (w.op === '~1' || w.op === '~' || (w.op === '~~' && w.lhs !== w.rhs)) && /^[isq]$/.test(w.lhs))) {
-    const pool = r.estimates.filter((e) => e.op === w.op && ((e.lhs === w.lhs && e.rhs === w.rhs) || (w.op === '~~' && e.lhs === w.rhs && e.rhs === w.lhs)));
-    expect(pool.length, `${key}: ${w.lhs} ${w.op} ${w.rhs}`).toBeGreaterThan(0);
-    close(pool[0].est, w.est, 1e-4);
-  }
+  const { kind: _k, ...opts } = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'growth' }>;
+  const input = growthInput({ ...opts, timeVarying: opts.timeVarying ?? [] }, { settings: { ...DEFAULT_SETTINGS, ...ex.settings, missing: 'casewise' }, model: exampleModel(ex) });
+  expect(input.information).toBe('observed');
+  const r = await growthR(load(key), input);
+  const want = MPLUS[key];
+  sameFit(r.fit, want.fit, key);
+  samePrinted(r.estimates, want.estimates, key);
+}, 600_000);
+
+it('the replication scripts carry the Mplus defaults: observed information, geomin ε, no mean structure, intercepts of observed variables', async () => {
+  const { cbScriptLavaan } = await import('../rengine/lavaan');
+  const script = async (key: string) => cbScriptLavaan(load(key), toSpec(exampleModel(example(key))), 'casewise', 'ML');
+  const s525 = await script('ex5.25');
+  expect(s525).toContain('information = "observed"');
+  expect(s525).toContain('rotation.args = list(geomin.epsilon = 0.0001)');
+  const s514 = await script('ex5.14');
+  expect(s514).toContain('meanstructure = FALSE');
+  expect(s514).not.toContain('information = "observed"');
+  // An observed variable's intercept on its construct (the indicator's fixed at 0), in one group.
+  const s311 = await script('ex3.11');
+  expect(s311).toMatch(/y3_lv ~ 1/);
+  expect(s311).toMatch(/y3 ~ 0\*1 {3}# the intercept of y3_lv/);
 }, 600_000);

@@ -28,7 +28,7 @@ describe.each(lavaanCases)('lavaan in webR: $name', (c) => {
 it('exports the script it runs, with the data embedded', async () => {
   const c = cases.find((k) => k.name === 'cov_lavaan_bollen_ml')!;
   const script = await cbScriptLavaan(loadData(c), toSpec(c), 'casewise', 'ML');
-  expect(script).toContain("fit <- sem(model, data = data, estimator = \"ML\")");
+  expect(script).toContain("fit <- sem(model, data = data, estimator = \"ML\", auto.cov.y = FALSE)");
   expect(script).toContain('y1 ~~ y5');
   expect(script).toContain("data <- read.csv(text = '");
 }, 300_000);

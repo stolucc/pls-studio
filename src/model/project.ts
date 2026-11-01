@@ -188,6 +188,8 @@ export interface ModelState {
   inequalities?: string;
   /** CB-SEM (lavaan): keep (residual) variances non-negative (bounds = "pos.var"). */
   positiveVariances?: boolean;
+  /** CB-SEM (lavaan): standard errors from the observed information (Mplus's ML default); absent = lavaan's expected information. */
+  information?: 'observed';
   /** CB-SEM: multiple groups by a data column, with measurement invariance (constructs by id in `free`). */
   multigroup?: MultigroupSpec;
   /** CB-SEM: two-level model by a cluster column. */
@@ -200,7 +202,8 @@ export interface ModelState {
    */
   cluster?: string;
   /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
-  esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation };
+  /** `epsilon`: geomin's ε (lavaan's default 0.001; Mplus uses 0.0001 for two factors). */
+  esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation; epsilon?: number };
   /**
    * CB-SEM (lavaan): the mean structure. `constant` is the triangle ("1") on the canvas; its
    * presence turns the mean structure on (every indicator intercept is estimated, lavaan's
@@ -448,7 +451,8 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.multilevel ? { multilevel: model.multilevel } : {}),
     ...(model.weights ? { weights: model.weights } : {}),
     ...(model.cluster ? { cluster: model.cluster } : {}),
-    ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)) } } : {}),
+    ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)), ...(model.esem.epsilon !== undefined ? { epsilon: model.esem.epsilon } : {}) } } : {}),
+    ...(model.information ? { information: model.information } : {}),
     ...(model.multigroup ? {
       multigroup: {
         ...model.multigroup,
@@ -799,10 +803,11 @@ export function validateModel(
   const engine = method.engine ?? 'r';
   const missingChoice = method.missing ?? 'mean';
   if (method.method === 'cbsem') {
-    const lavaanOnly = [ordered.length && 'ordinal indicators', method.estimator === 'WLSMV' && 'WLSMV', missingChoice === 'fiml' && 'FIML', missingChoice === 'pairwise' && 'pairwise deletion', (missingChoice === 'twostage' || missingChoice === 'robusttwostage') && 'the two-stage approach'].filter(Boolean);
+    const lavaanOnly = [ordered.length && 'ordinal indicators', model.information === 'observed' && 'Standard errors from the observed information', method.estimator === 'WLSMV' && 'WLSMV', missingChoice === 'fiml' && 'FIML', missingChoice === 'pairwise' && 'pairwise deletion', (missingChoice === 'twostage' || missingChoice === 'robusttwostage') && 'the two-stage approach'].filter(Boolean);
     if (lavaanOnly.length && engine === 'builtin') err(`${lavaanOnly.join(', ')} ${lavaanOnly.length === 1 ? 'is' : 'are'} estimated by lavaan: choose “R packages” under Calculated by.`);
     if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
     if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
+    if (model.information === 'observed' && method.estimator === '2SLS') err('MIIV-2SLS has its own standard errors: the observed-information option is for the maximum-likelihood estimators.');
     if (missingChoice === 'fiml' && method.estimator !== 'ML' && method.estimator !== 'MLR' && method.estimator !== 'RML') err('FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).');
     if (missingChoice === 'pairwise') {
       // lavaan: pairwise deletion of the sample statistics; standard errors and test as if the data were complete.
@@ -949,6 +954,8 @@ export function validateModel(
     else {
       if (engine === 'builtin') err('Multiple-group analysis is estimated by lavaan: choose “R packages” under Calculated by.');
       if (method.estimator === '2SLS') err('Multiple-group analysis is not available with MIIV-2SLS.');
+      if (mg.meanStructure === false && model.constant) err('Groups without a mean structure cannot have means or intercepts: remove the constant, or estimate the mean structure.');
+      if (mg.meanStructure === false && (mg.invariance === 'scalar' || mg.invariance === 'strict')) err('Scalar and strict invariance hold intercepts equal: they need the mean structure.');
       if (data?.moments && !data.moments.groups) err('Multiple-group analysis needs raw data with a grouping column, or a dataset of one covariance matrix per group.');
       else if (data?.moments?.groups) {
         if (mg.column) err('With one covariance matrix per group the groups are those matrices: no grouping column applies.');
@@ -1275,7 +1282,7 @@ function parseMultigroup(r: Record<string, unknown>, ids: Set<string>): Multigro
   });
   const STRUCTURAL: StructuralEquality[] = ['regressions', 'lv.variances', 'lv.covariances', 'means'];
   const structural = Array.isArray(r.structural) ? STRUCTURAL.filter((k) => (r.structural as unknown[]).includes(k)) : [];
-  return { column: str(r.column), invariance: LEVELS.find((l) => l === r.invariance) ?? 'configural', free, ...(structural.length ? { structural } : {}) };
+  return { column: str(r.column), invariance: LEVELS.find((l) => l === r.invariance) ?? 'configural', free, ...(structural.length ? { structural } : {}), ...(r.meanStructure === false ? { meanStructure: false as const } : {}) };
 }
 
 /** A parameter label from a file (validated again before use). */
@@ -1399,7 +1406,9 @@ export function parseModelState(m: unknown): ModelState {
       ...(isObj(m.esem) && Array.isArray(m.esem.blocks) ? { esem: {
         rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',
         blocks: m.esem.blocks.slice(0, 50).filter(isObj).map((b: Record<string, unknown>) => ({ id: str(b.id, 64), constructs: (Array.isArray(b.constructs) ? b.constructs : []).map((x: unknown) => str(x, 64)).filter((x: string) => ids.has(x)) })),
+        ...(typeof m.esem.epsilon === 'number' && m.esem.epsilon > 0 && m.esem.epsilon <= 1 ? { epsilon: m.esem.epsilon } : {}),
       } } : {}),
+      ...(m.information === 'observed' ? { information: 'observed' as const } : {}),
       ...(typeof m.inequalities === 'string' && m.inequalities.trim() ? { inequalities: str(m.inequalities, 2000) } : {}),
       ...(m.positiveVariances === true ? { positiveVariances: true } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
