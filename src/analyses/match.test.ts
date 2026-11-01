@@ -12,7 +12,19 @@ describe('matching card', () => {
   it('validates options from files', () => {
     expect(t.parseOptions([])).toBeNull();
     expect(t.parseOptions({ treatment: 'treat', method: 'magic', ratio: 99, caliper: 'x', replace: 'yes', estimand: 'ATE', effectModel: 'ipw' }))
-      .toEqual({ treatment: 'treat', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATE', ratio: 10, caliper: -1, replace: false, effectModel: 'ipw' });
+      .toEqual({ treatment: 'treat', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATE', ratio: 10, caliper: -1, replace: false, effectModel: 'ipw', weightMethod: 'glm', link: 'logit', matchEffect: 'difference' });
+    expect(t.parseOptions({ treatment: 'treat', weightMethod: 'ebal', link: 'probit', matchEffect: 'dr' })).toMatchObject({ weightMethod: 'ebal', link: 'probit', matchEffect: 'dr' });
+  });
+
+  it('sends the probit link and the g-computation effect only where they apply, entropy balancing only for weighting', async () => {
+    const { toInput } = await import('./match');
+    const base = { ...t.defaults({} as never), treatment: 'treat', covariates: ['x'], outcome: 'y' };
+    expect(toInput({ ...base, method: 'full', link: 'probit', matchEffect: 'dr' }, 1, 0.95)).toMatchObject({ link: 'probit', matchEffect: 'dr' });
+    expect(toInput({ ...base, method: 'full', distance: 'mahalanobis', link: 'probit' }, 1, 0.95)).not.toHaveProperty('link');
+    expect(toInput({ ...base, method: 'exact', link: 'probit' }, 1, 0.95)).not.toHaveProperty('link');
+    expect(toInput({ ...base, method: 'weighting', weightMethod: 'ebal', matchEffect: 'dr' }, 1, 0.95)).toMatchObject({ weightMethod: 'ebal' });
+    expect(toInput({ ...base, method: 'weighting', matchEffect: 'dr' }, 1, 0.95)).not.toHaveProperty('matchEffect');
+    expect(toInput({ ...base, method: 'nearest', weightMethod: 'ebal' }, 1, 0.95)).not.toHaveProperty('weightMethod');
   });
 
   it('says why it cannot run', () => {

@@ -13,6 +13,12 @@ export interface MatchInput {
   ratio: number; caliper: number | null; replace: boolean; seed: number; confidence: number;
   /** Weighting: the effect from the weighted outcome on treatment (IPW), or doubly robust (outcome model with covariates, g-computation). */
   effectModel?: 'ipw' | 'dr';
+  /** Weighting: weights from a logistic propensity score (glm) or by entropy balancing (ebal). */
+  weightMethod?: 'glm' | 'ebal';
+  /** Matching on a propensity score: its link (logit or probit). */
+  link?: 'logit' | 'probit';
+  /** Matching: the effect as the difference in the matched data, or (dr) the outcome model with the covariates by g-computation. */
+  matchEffect?: 'difference' | 'dr';
 }
 export interface MatchResult {
   method: MatchMethod; estimand: string;
@@ -22,6 +28,9 @@ export interface MatchResult {
   /** Weighting: the largest weight and the ranges among treated and controls. */
   weights?: { max: number; treatedRange: number[]; controlRange: number[] };
   effectModel?: 'ipw' | 'dr';
+  weightMethod?: 'glm' | 'ebal';
+  matchEffect?: 'difference' | 'dr';
+  link?: 'logit' | 'probit';
   warnings: string[]; engine: REngineInfo;
 }
 
@@ -46,6 +55,9 @@ export async function matchR(data: Dataset, input: MatchInput): Promise<MatchRes
     method: raw.method, estimand: raw.estimand, counts: arr(raw.counts),
     ...(raw.weights ? { weights: { max: Number(raw.weights.max), treatedRange: arr<number>(raw.weights.treatedRange), controlRange: arr<number>(raw.weights.controlRange) } } : {}),
     ...(raw.effectModel ? { effectModel: raw.effectModel } : {}),
+    ...(raw.weightMethod === 'ebal' ? { weightMethod: 'ebal' as const } : {}),
+    ...(raw.matchEffect === 'dr' ? { matchEffect: 'dr' as const } : {}),
+    ...(raw.link === 'probit' ? { link: 'probit' as const } : {}),
     balance: arr<any>(raw.balance).map((b) => ({ ...b, ratioBefore: n0(b.ratioBefore), ratioAfter: n0(b.ratioAfter) })),
     effect: raw.effect ?? null, warnings: rStrings(raw.warnings), engine: raw.engine,
   };

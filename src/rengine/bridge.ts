@@ -56,7 +56,7 @@ export const R_PACKAGES = {
   ivreg: ['jsonlite', 'ivreg', 'lmtest'],
   sampleSelection: ['jsonlite', 'sampleSelection'],
   optimx: ['jsonlite', 'ivreg', 'lmtest', 'optimx', 'mvtnorm', 'corpcor'],
-  MatchIt: ['jsonlite', 'MatchIt', 'optmatch', 'cobalt', 'sandwich', 'lmtest'],
+  MatchIt: ['jsonlite', 'MatchIt', 'optmatch', 'cobalt', 'sandwich', 'lmtest', 'marginaleffects'],
   WeightIt: ['jsonlite', 'WeightIt', 'cobalt', 'marginaleffects'],
   polynomial: ['jsonlite', 'lavaan'],
   nca: ['jsonlite'],

@@ -14,6 +14,12 @@ ps_match <- function(req_json, export = FALSE) {
   if (method == "weighting") return(ps_weight(req, export))
   distance <- req$distance %||% "glm"
   if (!distance %in% c("glm", "mahalanobis")) stop("Invalid distance in the request.")
+  link <- req$link %||% "logit"
+  if (!link %in% c("logit", "probit")) stop("Invalid link in the request.")
+  # The effect: the outcome on treatment in the matched data, or (dr) the outcome model with the covariates and their
+  # interactions with treatment, averaged over the target group by g-computation (MatchIt's "Getting started" vignette).
+  match_effect <- req$matchEffect %||% "difference"
+  if (!match_effect %in% c("difference", "dr")) stop("Invalid effect model in the request.")
   estimand <- req$estimand %||% "ATT"
   if (!estimand %in% c("ATT", "ATE", "ATC")) stop("Invalid estimand in the request.")
   if (method %in% c("nearest", "optimal") && estimand == "ATE") stop("Nearest-neighbour and optimal pair matching estimate the ATT (or ATC); use full matching or subclassification for the ATE.")
@@ -28,10 +34,14 @@ ps_match <- function(req_json, export = FALSE) {
   cats <- req$categories %||% list()
   fac <- unlist(lapply(covs, function(cv) { l <- cats[[cv]]; if (is.null(l)) NULL else
     sprintf("data$%s <- factor(data$%s, levels = seq_len(%d), labels = %s)", v[[cv]], v[[cv]], length(unlist(l)), ps_q(unlist(l))) }))
+  glm_ps <- method %in% c("nearest", "optimal", "full", "subclass") && distance == "glm"
   args <- c(sprintf("method = \"%s\"", method), if (method %in% c("nearest", "optimal", "full", "subclass")) sprintf("distance = \"%s\"", distance),
+    if (glm_ps && link == "probit") "link = \"probit\"",
     sprintf("estimand = \"%s\"", estimand), if (method %in% c("nearest", "optimal") && ratio > 1) sprintf("ratio = %d", ratio),
     if (method == "nearest" && !is.null(caliper)) sprintf("caliper = %s", format(caliper)), if (replace) "replace = TRUE")
-  body <- c("suppressPackageStartupMessages({ library(MatchIt); library(cobalt); library(sandwich); library(lmtest) })",
+  dr <- !is.null(Y) && match_effect == "dr"
+  focal <- c(ATT = "md[md$%s == 1, ]", ATC = "md[md$%s == 0, ]", ATE = "md")[[estimand]]
+  body <- c(sprintf("suppressPackageStartupMessages({ library(MatchIt); library(cobalt); library(sandwich); library(lmtest)%s })", if (dr) "; library(marginaleffects)" else ""),
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(T, X))),
     sprintf("# Treatment: the higher of the two values of %s is \"treated\".", ps_comment(treat)),
     sprintf("vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment must have exactly two values.\")", T),
@@ -42,7 +52,15 @@ ps_match <- function(req_json, export = FALSE) {
     "# Balance before and after: standardised mean differences (|d| < .1 is the usual target) and variance ratios.",
     "bal <- bal.tab(m, un = TRUE, stats = c(\"mean.diffs\", \"variance.ratios\"), binary = \"std\", continuous = \"std\")",
     "md <- match.data(m)",
-    if (!is.null(Y)) c(
+    if (dr) c(
+      sprintf("# Treatment effect (%s): the weighted outcome model with the covariates and their interactions with treatment,", estimand),
+      sprintf("# averaged over the %s by g-computation; %s.", c(ATT = "treated", ATC = "controls", ATE = "whole matched sample")[[estimand]],
+        if (replace) "HC3 robust standard errors (matching with replacement)" else "standard errors clustered by matched set (HC3 without matched sets)"),
+      sprintf("fit <- lm(%s ~ %s * (%s), data = md, weights = weights)", Y, T, paste(X, collapse = " + ")),
+      sprintf("est <- avg_comparisons(fit, variables = \"%s\", vcov = %s, newdata = %s, conf_level = %s)", T,
+        if (replace) "\"HC3\"" else "if (\"subclass\" %in% names(md)) ~subclass else \"HC3\"", sprintf(focal, T), format(conf)),
+      "effect_dr <- as.data.frame(est)")
+    else if (!is.null(Y)) c(
       sprintf("# Treatment effect (%s): weighted regression on the matched data; %s.", estimand,
         if (replace) "HC3 robust standard errors (matching with replacement)" else "standard errors clustered by matched set (HC3 without matched sets)"),
       sprintf("fit <- lm(%s ~ %s, data = md, weights = weights)", Y, T),
@@ -51,7 +69,7 @@ ps_match <- function(req_json, export = FALSE) {
       sprintf("effect_ci <- coefci(fit, vcov. = vc, level = %s)", format(conf))))
   inputs <- list(data = fr$data)
   if (export) return(paste(ps_script(sprintf("Matching (MatchIt, %s)", method), c("MatchIt", "cobalt", "sandwich", "lmtest"), inputs, body,
-    c("summary(m)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (!is.null(Y)) c("effect", "effect_ci"))), collapse = "\n"))
+    c("summary(m)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (dr) "est" else if (!is.null(Y)) c("effect", "effect_ci"))), collapse = "\n"))
   env <- ps_run(body, inputs)
   b <- env$bal$Balance
   nn <- summary(env$m)$nn
@@ -60,8 +78,10 @@ ps_match <- function(req_json, export = FALSE) {
     counts = lapply(seq_len(nrow(nn)), function(i) list(row = rownames(nn)[i], control = nn[i, 1], treated = nn[i, 2])),
     balance = lapply(seq_len(nrow(b)), function(i) list(variable = if (rownames(b)[i] == "distance") "Propensity score" else nm(rownames(b)[i]), type = b$Type[i],
       diffBefore = b$Diff.Un[i], diffAfter = b$Diff.Adj[i], ratioBefore = if (is.null(b$V.Ratio.Un)) NULL else b$V.Ratio.Un[i], ratioAfter = if (is.null(b$V.Ratio.Adj)) NULL else b$V.Ratio.Adj[i])),
-    effect = if (is.null(Y)) NULL else list(est = env$effect[2, 1], se = env$effect[2, 2], t = env$effect[2, 3], p = env$effect[2, 4],
+    effect = if (is.null(Y)) NULL else if (dr) { e <- env$effect_dr; list(est = e$estimate[1], se = e$std.error[1], t = e$statistic[1], p = e$p.value[1],
+      ciLow = e$conf.low[1], ciHigh = e$conf.high[1], n = nrow(env$md)) } else list(est = env$effect[2, 1], se = env$effect[2, 2], t = env$effect[2, 3], p = env$effect[2, 4],
       ciLow = env$effect_ci[2, 1], ciHigh = env$effect_ci[2, 2], n = nrow(env$md)),
+    matchEffect = match_effect, link = link,
     warnings = env$.warnings, engine = list(package = "MatchIt", version = as.character(utils::packageVersion("MatchIt")))))
 }
 
@@ -78,6 +98,9 @@ ps_weight <- function(req, export = FALSE) {
   if (!estimand %in% c("ATT", "ATE", "ATC")) stop("Invalid estimand in the request.")
   effect_model <- req$effectModel %||% "dr"
   if (!effect_model %in% c("ipw", "dr")) stop("Invalid effect model in the request.")
+  # The weights: from a logistic propensity score (glm), or entropy balancing (ebal; Hainmueller 2012).
+  wmethod <- req$weightMethod %||% "glm"
+  if (!wmethod %in% c("glm", "ebal")) stop("Invalid weighting method in the request.")
   conf <- as.numeric(req$confidence %||% 0.95)
   cols <- unique(c(treat, covs, if (nzchar(outcome)) outcome))
   fr <- ps_long_frame(req, cols)
@@ -92,8 +115,9 @@ ps_weight <- function(req, export = FALSE) {
     sprintf("vals <- sort(unique(data$%s)); if (length(vals) != 2) stop(\"The treatment must have exactly two values.\")", T),
     sprintf("data$%s <- as.integer(data$%s == vals[2])", T, T),
     if (length(fac)) c("# Text (categorical) covariates as factors.", fac),
-    sprintf("# Propensity scores by logistic regression; weights for the %s.", estimand),
-    sprintf("W <- weightit(%s ~ %s, data = data, method = \"glm\", estimand = \"%s\")", T, paste(X, collapse = " + "), estimand),
+    if (wmethod == "ebal") sprintf("# Entropy balancing (Hainmueller 2012): weights that balance the covariates' means exactly, for the %s.", estimand)
+    else sprintf("# Propensity scores by logistic regression; weights for the %s.", estimand),
+    sprintf("W <- weightit(%s ~ %s, data = data, method = \"%s\", estimand = \"%s\")", T, paste(X, collapse = " + "), wmethod, estimand),
     "ess <- summary(W)$effective.sample.size",
     "# Balance before and after weighting: standardised mean differences (|d| < .1) and variance ratios.",
     "bal <- bal.tab(W, un = TRUE, stats = c(\"mean.diffs\", \"variance.ratios\"), binary = \"std\", continuous = \"std\")",
@@ -114,7 +138,7 @@ ps_weight <- function(req, export = FALSE) {
   nm <- function(x) { for (k in names(fr$back)) x <- sub(paste0("^", k), fr$back[[k]], x); x }
   ess <- env$ess
   e <- env$effect
-  ps_json(list(method = "weighting", estimand = estimand, effectModel = effect_model,
+  ps_json(list(method = "weighting", estimand = estimand, effectModel = effect_model, weightMethod = wmethod,
     counts = lapply(seq_len(nrow(ess)), function(i) list(row = if (rownames(ess)[i] == "Weighted") "Effective sample size" else rownames(ess)[i], control = ess[i, "Control"], treated = ess[i, "Treated"])),
     balance = lapply(seq_len(nrow(b)), function(i) list(variable = if (rownames(b)[i] == "prop.score") "Propensity score" else nm(rownames(b)[i]), type = b$Type[i],
       diffBefore = b$Diff.Un[i], diffAfter = b$Diff.Adj[i], ratioBefore = if (is.null(b$V.Ratio.Un)) NULL else b$V.Ratio.Un[i], ratioAfter = if (is.null(b$V.Ratio.Adj)) NULL else b$V.Ratio.Adj[i])),

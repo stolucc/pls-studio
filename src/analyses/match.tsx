@@ -11,7 +11,7 @@ import { clampNum, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns
 import type { AnalysisType, OptionsProps } from './types';
 
 export type MatchPreset = Partial<MatchInput>;
-export type MatchOptions = Omit<MatchInput, 'seed' | 'confidence' | 'effectModel'> & { effectModel: 'ipw' | 'dr' };
+export type MatchOptions = Omit<MatchInput, 'seed' | 'confidence' | 'effectModel' | 'weightMethod' | 'link' | 'matchEffect'> & { effectModel: 'ipw' | 'dr'; weightMethod: 'glm' | 'ebal'; link: 'logit' | 'probit'; matchEffect: 'difference' | 'dr' };
 type MatchCardResult = MatchResult & { input: MatchInput };
 
 const METHODS: { id: MatchMethod; label: string; hint: string }[] = [
@@ -62,6 +62,7 @@ function MatchView({ r, input }: { r: MatchResult; input: MatchInput }) {
   const weighting = r.method === 'weighting';
   return (
     <div className="tables">
+      {weighting && r.weightMethod === 'ebal' && <div className="hint">Entropy balancing (Hainmueller 2012): weights that make the control group’s covariate means equal the treated group’s exactly.</div>}
       <Table title="Sample sizes" file="matching-counts" columns={['', 'Control', 'Treated']} rows={r.counts.map((x) => [c(x.row), c(x.control, undefined, Number.isInteger(x.control) ? 0 : 2), c(x.treated, undefined, Number.isInteger(x.treated) ? 0 : 2)])}
         note={weighting ? `Effective sample size: how many unweighted cases the weighted group is worth (Kish). Weights from ${fmt(r.weights!.controlRange[0], 3)} to ${fmt(r.weights!.controlRange[1], 3)} among controls; the largest ${fmt(r.weights!.max, 2)}. Very large weights make the estimate unstable.` : 'Matched (ESS): the effective sample size after weighting. Unmatched cases are not used.'} />
       <LovePlot b={r.balance} />
@@ -77,7 +78,9 @@ function MatchView({ r, input }: { r: MatchResult; input: MatchInput }) {
             ? (r.effectModel === 'ipw'
               ? 'IPW: the weighted difference in the outcome between treated and controls (lm_weightit), with standard errors that account for estimating the weights (M-estimation; WeightIt).'
               : `Doubly robust: the weighted outcome model with the covariates and their interactions with treatment, averaged over the ${r.estimand === 'ATT' ? 'treated' : r.estimand === 'ATC' ? 'controls' : 'whole sample'} by g-computation (marginaleffects); consistent if either the propensity or the outcome model is right. Standard errors account for estimating the weights (WeightIt’s recommended approach).`)
-            : `Difference in the outcome between treated and controls in the matched sample, weighted by the matching weights; ${input.replace ? 'HC3 robust standard errors (matching with replacement)' : 'standard errors clustered by matched set'} (MatchIt’s recommended approach).`} />
+            : r.matchEffect === 'dr'
+              ? `The outcome model with the covariates and their interactions with treatment, fitted to the matched sample with the matching weights and averaged over the ${r.estimand === 'ATT' ? 'treated' : r.estimand === 'ATC' ? 'controls' : 'matched sample'} by g-computation (marginaleffects); ${input.replace ? 'HC3 robust standard errors (matching with replacement)' : 'standard errors clustered by matched set'}, as in MatchIt’s “Getting started” vignette.`
+              : `Difference in the outcome between treated and controls in the matched sample, weighted by the matching weights; ${input.replace ? 'HC3 robust standard errors (matching with replacement)' : 'standard errors clustered by matched set'} (MatchIt’s recommended approach).`} />
       )}
       {r.warnings.length > 0 && <div>{r.warnings.map((w, i) => <div key={i} className="issue warning">{w}</div>)}</div>}
     </div>
@@ -94,7 +97,9 @@ export function toInput(o: MatchOptions, seed: number, confidence: number): Matc
     treatment: o.treatment, covariates: o.covariates, outcome: o.outcome, method: o.method, distance: o.distance,
     estimand: pairs && o.estimand === 'ATE' ? 'ATT' : o.estimand, ratio: pairs ? o.ratio : 1,
     caliper: o.method === 'nearest' ? o.caliper : null, replace: o.method === 'nearest' && o.replace, seed, confidence,
-    ...(o.method === 'weighting' ? { effectModel: o.effectModel } : {}),
+    ...(o.method === 'weighting' ? { effectModel: o.effectModel, ...(o.weightMethod === 'ebal' ? { weightMethod: 'ebal' as const } : {}) } : {}),
+    ...(['nearest', 'optimal', 'full', 'subclass'].includes(o.method) && o.distance === 'glm' && o.link === 'probit' ? { link: 'probit' as const } : {}),
+    ...(o.method !== 'weighting' && o.matchEffect === 'dr' ? { matchEffect: 'dr' as const } : {}),
   };
 }
 
@@ -118,6 +123,24 @@ function MatchOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Match
       </div>
       {o.method === 'weighting' && (
         <div className="field">
+          <label>Weights</label>
+          <div className="segmented">
+            <button className={o.weightMethod === 'glm' ? 'on' : ''} onClick={() => set({ ...o, weightMethod: 'glm' })} title="Inverse probability weights from a logistic propensity score">Propensity score</button>
+            <button className={o.weightMethod === 'ebal' ? 'on' : ''} onClick={() => set({ ...o, weightMethod: 'ebal' })} title="Entropy balancing (Hainmueller 2012): weights that balance the covariate means exactly">Entropy balancing</button>
+          </div>
+        </div>
+      )}
+      {o.method !== 'weighting' && o.outcome && (
+        <div className="field">
+          <label>Effect</label>
+          <div className="segmented">
+            <button className={o.matchEffect === 'difference' ? 'on' : ''} onClick={() => set({ ...o, matchEffect: 'difference' })} title="The weighted difference in the outcome between treated and controls in the matched data">Difference</button>
+            <button className={o.matchEffect === 'dr' ? 'on' : ''} onClick={() => set({ ...o, matchEffect: 'dr' })} title="The weighted outcome model with the covariates and their interactions with treatment, averaged by g-computation (MatchIt's vignette)">With covariates</button>
+          </div>
+        </div>
+      )}
+      {o.method === 'weighting' && (
+        <div className="field">
           <label>Effect</label>
           <div className="segmented">
             <button className={o.effectModel === 'dr' ? 'on' : ''} onClick={() => set({ ...o, effectModel: 'dr' })} title="Weighted outcome model with the covariates, averaged by g-computation">Doubly robust</button>
@@ -129,7 +152,8 @@ function MatchOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Match
         <div className="field">
           <label>Distance</label>
           <div className="segmented">
-            <button className={o.distance === 'glm' ? 'on' : ''} onClick={() => set({ ...o, distance: 'glm' })}>Propensity score (logit)</button>
+            <button className={o.distance === 'glm' && o.link === 'logit' ? 'on' : ''} onClick={() => set({ ...o, distance: 'glm', link: 'logit' })}>Propensity score (logit)</button>
+            <button className={o.distance === 'glm' && o.link === 'probit' ? 'on' : ''} onClick={() => set({ ...o, distance: 'glm', link: 'probit' })}>Propensity score (probit)</button>
             <button className={o.distance === 'mahalanobis' ? 'on' : ''} disabled={o.method === 'subclass'} onClick={() => set({ ...o, distance: 'mahalanobis' })}>Mahalanobis</button>
           </div>
         </div>
@@ -167,13 +191,16 @@ export const matchAnalysis: AnalysisType<MatchOptions, MatchCardResult> = {
   title: 'Propensity score matching',
   sub: 'matching, weighting, balance, treatment effect (MatchIt, WeightIt)',
   group: 'Regression and causal inference',
-  defaults: () => ({ treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, effectModel: 'dr' }),
+  defaults: () => ({ treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, effectModel: 'dr', weightMethod: 'glm', link: 'logit', matchEffect: 'difference' }),
   parseOptions: (raw) => (isObj(raw) ? {
     treatment: name(raw.treatment), covariates: names(raw.covariates), outcome: name(raw.outcome),
     method: oneOf(raw.method, METHOD_IDS, 'nearest'), distance: oneOf(raw.distance, ['glm', 'mahalanobis'] as const, 'glm'),
     estimand: oneOf(raw.estimand, ['ATT', 'ATE', 'ATC'] as const, 'ATT'), ratio: clampNum(raw.ratio, 1, 10, 1, true),
     caliper: raw.caliper === null || raw.caliper === undefined ? null : clampNum(raw.caliper, -1, 100, -1),
     replace: flag(raw.replace), effectModel: oneOf(raw.effectModel, ['ipw', 'dr'] as const, 'dr'),
+    // (cards saved before these options: the logistic score, the difference, propensity-score weights)
+    weightMethod: oneOf(raw.weightMethod, ['glm', 'ebal'] as const, 'glm'), link: oneOf(raw.link, ['logit', 'probit'] as const, 'logit'),
+    matchEffect: oneOf(raw.matchEffect, ['difference', 'dr'] as const, 'difference'),
   } : null),
   Options: MatchOptionsForm,
   View: ({ result }) => <MatchView r={result} input={result.input} />,

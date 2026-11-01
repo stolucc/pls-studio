@@ -146,15 +146,19 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const r = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre });
         expect(r.counts[1].treated).toBe(185);
         if (ex.id === 'weightit-lalonde') {
-          // WeightIt's vignette, against WeightIt + marginaleffects run natively (scripts/validation/weightit.R).
+          // (the example's entropy balancing is checked against the vignette in causal.webr.test.ts)
+          expect(Math.abs(r.effect!.est - 1273)).toBeLessThan(0.5);
+          // Propensity-score weights (the vignette's first step), against WeightIt + marginaleffects run natively (scripts/validation/weightit.R).
           const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'match', 'weightit.json'), 'utf8'));
-          expect(r.effect!.est).toBeCloseTo(ref.dr.est, 4);
+          const glm = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre, weightMethod: 'glm' });
+          const r2 = glm;
+          expect(r2.effect!.est).toBeCloseTo(ref.dr.est, 4);
           // (marginaleffects differentiates numerically: SEs agree to about 6 significant digits across builds)
-          expect(Math.abs(r.effect!.se / ref.dr.se - 1)).toBeLessThan(1e-5);
-          expect(Math.abs(r.effect!.ciLow / ref.dr.low - 1)).toBeLessThan(1e-4);
-          expect(r.counts[1].control).toBeCloseTo(ref.essControl, 6);
-          expect(r.balance.find((b) => b.variable === 'age')!.diffAfter).toBeCloseTo(ref.ageAfter, 8);
-          const ipw = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre, effectModel: 'ipw' });
+          expect(Math.abs(r2.effect!.se / ref.dr.se - 1)).toBeLessThan(1e-5);
+          expect(Math.abs(r2.effect!.ciLow / ref.dr.low - 1)).toBeLessThan(1e-4);
+          expect(r2.counts[1].control).toBeCloseTo(ref.essControl, 6);
+          expect(r2.balance.find((b) => b.variable === 'age')!.diffAfter).toBeCloseTo(ref.ageAfter, 8);
+          const ipw = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre, weightMethod: 'glm', effectModel: 'ipw' });
           expect(ipw.effect!.est).toBeCloseTo(ref.ipw.est, 4);
           expect(ipw.effect!.se).toBeCloseTo(ref.ipw.se, 4);
         }
@@ -184,14 +188,18 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       } else if (p.kind === 'growth') {
         const r = await growthR(data, { ...p, estimator: 'ML', missing: st.missing });
         if (ex.id === 'lavaan-growth-conditional') { expect(r.fit.df).toBe(21); expect(r.fit.chisq).toBeCloseTo(26.059, 2); }  // the tutorial's model, run natively
-        else expect(r.fit.df).toBe(GROWTH_DF[ex.id] ?? 5);  // ?growth: linear growth on four occasions; the Mplus growth examples (checked in mplus.webr.test.ts)
+        else expect(r.fit.df).toBe(GROWTH_DF[ex.id] ?? 5);
+        if (ex.id === 'lavaan-growth') expect(r.fit.chisq).toBeCloseTo(8.069, 3);  // the tutorial prints 8.069 on 5 df  // ?growth: linear growth on four occasions; the Mplus growth examples (checked in mplus.webr.test.ts)
       } else if (p.kind === 'irt') {
         const r = await irtR(data, p.items, p.model);
         expect(r.params.length).toBe(p.items.length);
         if (ex.id === 'ltm-lsat') expect(r.logLik).toBeCloseTo(-2466.9376, 3);  // rasch(LSAT) in native R (ltm 1.2-0)
       } else if (p.kind === 'lca') {
-        const r = await lcaR(data, p.items, Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i), 10, 1);
+        const r = await lcaR(data, p.items, Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i), 10, st.seed);
         expect(r.models.map((m) => m.k)).toEqual(Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i));
+        // The log-likelihoods the help pages print (poLCA's ?carcinoma: 2, 3, 4 classes; ?values: 1, 2, 3).
+        const LL: Record<string, number[]> = { 'polca-carcinoma': [-317.2568, -293.705, -289.2858], 'polca-values': [-543.6498, -504.4677, -503.3011] };
+        if (LL[ex.id]) r.models.forEach((m, i) => expect(m.llik, `${ex.id} k = ${m.k}`).toBeCloseTo(LL[ex.id][i], 3));
       }
       checkClean(ex.id);
       return;
