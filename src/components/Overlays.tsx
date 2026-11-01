@@ -52,7 +52,9 @@ export function ConfirmModal() {
   const fields = current?.fields;
   const value = Number(text);
   const textError = textField && (text.trim() === '' ? (textField.allowEmpty ? null : '') : textField.check(text.trim()));
-  const trimmed = values.map((v) => v.trim());
+  // The fields' current text: on the first render (before the effect below fills `values`) their initial text.
+  const vals = fields ? fields.map((f, i) => values[i] ?? f.initial ?? '') : [];
+  const trimmed = vals.map((v) => v.trim());
   const fieldErrors = fields ? fields.map((f, i) => (trimmed[i] === '' ? '' : f.check(trimmed[i], trimmed))) : [];
   const valid = fields ? fieldErrors.every((e) => e === null)
     : textField ? textError === null
@@ -96,10 +98,10 @@ export function ConfirmModal() {
           <div className="field" key={f.label}>
             <label htmlFor={`dlg-f${i}`}>{f.label}</label>
             {f.multiline
-              ? <textarea id={`dlg-f${i}`} className="input" rows={10} value={values[i] ?? ''} spellCheck={false} placeholder={f.placeholder} style={{ fontFamily: 'var(--mono)', fontSize: 12, resize: 'vertical' }}
-                onChange={(e) => setValues((vs) => vs.map((v, k) => (k === i ? e.target.value : v)))} />
-              : <input id={`dlg-f${i}`} ref={i === 0 ? inputRef : undefined} className="input" value={values[i] ?? ''} autoComplete="off" spellCheck={false} placeholder={f.placeholder}
-                onChange={(e) => setValues((vs) => vs.map((v, k) => (k === i ? e.target.value : v)))} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />}
+              ? <textarea id={`dlg-f${i}`} className="input" rows={10} value={vals[i]} spellCheck={false} placeholder={f.placeholder} style={{ fontFamily: 'var(--mono)', fontSize: 12, resize: 'vertical' }}
+                onChange={(e) => { const next = [...vals]; next[i] = e.target.value; setValues(next); }} />
+              : <input id={`dlg-f${i}`} ref={i === 0 ? inputRef : undefined} className="input" value={vals[i]} autoComplete="off" spellCheck={false} placeholder={f.placeholder}
+                onChange={(e) => { const next = [...vals]; next[i] = e.target.value; setValues(next); }} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />}
             {fieldErrors[i] ? <span className="hint" style={{ color: 'var(--bad)' }}>{fieldErrors[i]}</span> : f.hint ? <span className="hint">{f.hint}</span> : null}
           </div>
         ))}
