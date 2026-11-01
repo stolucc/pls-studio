@@ -861,27 +861,30 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         <div className="canvas-empty">
           <div className="card">
             <IconSparkle size={22} style={{ color: 'var(--accent)' }} />
-            <h2>{method === 'process' ? 'Build a conditional process model' : method === 'cbsem' ? 'Build a structural equation model' : 'Build a PLS path model'}</h2>
+            <h2>Start your model</h2>
             {method === 'process' ? (
               <>
                 <p>Pick one of Hayes’s PROCESS models (mediation, moderation, moderated mediation) and drag your variables onto its slots, or draw your own model: one X, one Y, mediators between them, and moderators pointing at paths.</p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn primary" onClick={() => setTemplatesOpen(true)} disabled={readOnly}><IconSparkle size={14} /> Choose a PROCESS model</button>
-                  {!data && <button className="btn" onClick={onImport}><IconUpload /> Import CSV</button>}
+                  {!data && <button className="btn" onClick={onImport}><IconUpload /> Import data</button>}
                 </div>
               </>
             ) : data ? (
+              <>
+              <p>Draw the model here and estimate it by PLS-SEM, CB-SEM or conditional process analysis (CPA): choose in the top bar. Further analyses (factor analysis, growth curves, regression, matching, …) are on the Analyses tab.</p>
               <ol className="steps">
                 <li>Drag variables from the left panel onto the canvas to create a construct.</li>
                 <li>Drop more variables on a construct to add indicators.</li>
                 <li>Drag from a construct's right-hand dot to another construct to add a path.</li>
                 <li>Press <b>Calculate</b>.</li>
               </ol>
+              </>
             ) : (
               <>
-                <p>Import a CSV with one column per indicator (or a labelled covariance matrix), or explore a ready-made example.</p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn primary" onClick={onImport}><IconUpload /> Import CSV</button>
+                <p>Import your data, one column per variable: CSV, SPSS, Stata or Excel, or a labelled covariance matrix. Then draw a model to estimate by PLS-SEM, CB-SEM or conditional process analysis (CPA), or run an analysis from the Analyses tab. Or explore a ready-made example.</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button className="btn primary" onClick={onImport}><IconUpload /> Import data</button>
                   <button className="btn" onClick={() => onSample('customer')}>Load example</button>
                   <button className="btn" onClick={() => onSample('emse')} title="Stol, Schaarschmidt & Goldblit (2022), EMSE: CB-SEM from published covariance matrices">CB-SEM example</button>
                 </div>
