@@ -401,7 +401,99 @@ function Moderation({ cb }: { cb: CbResult }) {
   );
 }
 
-export function CbTab({ tab, cb, boot }: { tab: CbTabId; cb: CbResult; boot: BootstrapResult | null }) {
+const key = (e: Pick<CbEstimate, 'lhs' | 'op' | 'rhs'>) => `${e.lhs} ${e.op} ${e.op === '~1' ? '' : e.rhs}`.trim();
+
+/**
+ * Groups side by side: one column set per group for every parameter of the
+ * tab, the difference from the first group (two groups), and, where the
+ * parameter is held equal across groups, the score test of that constraint.
+ */
+function GroupCompare({ tab, cb }: { tab: CbTabId; cb: CbResult }) {
+  const g = cb.groups!;
+  const G = g.results, labels = g.labels;
+  const score = new Map(g.score.map((t) => [t.param.trim(), t]));
+  const robust = seLabel(cb);
+  const pick = (r: CbResult, f: (e: CbEstimate) => boolean) => r.estimates.filter(f);
+  const union = (f: (e: CbEstimate) => boolean): CbEstimate[] => {
+    const seen = new Map<string, CbEstimate>();
+    for (const r of G) for (const e of pick(r, f)) if (!seen.has(key(e))) seen.set(key(e), e);
+    return [...seen.values()];
+  };
+  const cols = ['Parameter', ...labels.flatMap((l) => [`Estimate (${l})`, `${robust} (${l})`, `p (${l})`]), ...(G.length === 2 ? [`Δ (${labels[1]} − ${labels[0]})`] : []), 'Equal across groups?'];
+  const rows = (f: (e: CbEstimate) => boolean, label: (e: CbEstimate) => string): Row[] => union(f).map((e) => {
+    const per = G.map((r) => pick(r, (x) => key(x) === key(e))[0]);
+    const t = score.get(key(e));
+    const allEqual = per.every((x) => x && Math.abs(x.est - per[0]!.est) < 1e-9);
+    return [c(label(e)), ...per.flatMap((x) => (x ? [c(x.est), c(x.se), pCell(x.p)] : [c(null), c(null), c(null)])),
+      ...(G.length === 2 ? [per[0] && per[1] ? c(per[1].est - per[0].est, allEqual ? 'dim' : '') : c(null)] : []),
+      t ? { v: `held equal; score test p ${fmtP(t.p)}`, cls: t.p < 0.05 ? 'bad' : 'dim' } : c(allEqual ? 'equal (held)' : 'free per group', allEqual ? 'dim' : '')];
+  });
+  const note = 'One column set per group. Δ: the second group minus the first. A parameter held equal across groups shows the score test of that constraint (lavaan::lavTestScore): a small p says the groups differ on it and releasing it would improve fit (partial invariance).';
+  const stat = (f: (r: CbResult, j: number) => number | null | undefined, names: string[], title: string, file: string, what: string) => (
+    <Table title={title} file={file} columns={['', ...labels, ...(G.length === 2 ? [`Δ (${labels[1]} − ${labels[0]})`] : [])]}
+      rows={names.map((n, j) => { const v = G.map((r) => f(r, j)); return [c(n), ...v.map((x) => c(x ?? null)), ...(G.length === 2 ? [c(v[0] != null && v[1] != null ? v[1] - v[0] : null)] : [])]; })}
+      note={`${what}, per group.`} />
+  );
+  switch (tab) {
+    case 'paths': return (
+      <div className="tables">
+        <Table title="Regressions by group" file="cb-groups-regressions" columns={cols} rows={rows((e) => e.op === '~', (e) => `${e.rhs} → ${e.lhs}`)} note={note} />
+        {stat((r, j) => r.r2Constructs[j], cb.constructs, 'R² by group', 'cb-groups-r2', 'R² of each endogenous construct')}
+      </div>);
+    case 'loadings': return (
+      <div className="tables">
+        <Table title="Factor loadings by group" file="cb-groups-loadings" columns={cols} rows={rows((e) => e.op === '=~', (e) => `${e.lhs} → ${e.rhs}`)} note={`${note} Marker loadings are fixed to 1 in every group.`} />
+        {stat((r, j) => r.r2Indicators[j], cb.indicators.map((i) => i.name), 'Indicator R² by group', 'cb-groups-indicator-r2', 'Share of each indicator’s variance explained by its factor')}
+      </div>);
+    case 'variances': return (
+      <div className="tables">
+        <Table title="Factor (co)variances and disturbances by group" file="cb-groups-lv-cov" columns={cols}
+          rows={rows((e) => e.op === '~~' && (e.kind === 'lvcov' || e.kind === 'fixed' || (cb.constructs.includes(e.lhs) && e.kind !== 'residual' && e.kind !== 'rescov')), (e) => (e.lhs === e.rhs ? e.lhs : `${e.lhs} ↔ ${e.rhs}`))} note={note} />
+        <Table title="Indicator error variances and covariances by group" file="cb-groups-residuals" columns={cols}
+          rows={rows((e) => e.op === '~~' && (e.kind === 'residual' || e.kind === 'rescov'), (e) => (e.lhs === e.rhs ? e.lhs : `${e.lhs} ↔ ${e.rhs}`))} />
+        {G.some((r) => r.estimates.some((e) => e.kind === 'mean' || e.kind === 'intercept')) && (
+          <Table title="Means and intercepts by group" file="cb-groups-means" columns={cols} rows={rows((e) => e.kind === 'mean' || e.kind === 'intercept', (e) => (e.kind === 'mean' ? `${e.lhs} (latent mean)` : e.lhs))}
+            note="Under scalar invariance the first group’s latent means are fixed to 0 and the other groups’ are differences from it; intercepts held equal show the score test of that constraint." />
+        )}
+      </div>);
+    case 'reliability': return (
+      <div className="tables">
+        {stat((r, j) => r.reliability[j]?.cr, cb.constructs, 'Composite reliability by group', 'cb-groups-cr', 'Composite reliability from the standardised loadings')}
+        {stat((r, j) => r.reliability[j]?.ave, cb.constructs, 'AVE by group', 'cb-groups-ave', 'Average variance extracted')}
+      </div>);
+    case 'effects': return (
+      <div className="tables">
+        <Table title="Standardised total effects by group" file="cb-groups-total" columns={['Effect', ...labels, ...(G.length === 2 ? [`Δ (${labels[1]} − ${labels[0]})`] : [])]}
+          rows={cb.constructs.flatMap((a, i) => cb.constructs.flatMap((b, j) => {
+            const v = G.map((r) => r.stdTotal[i][j]);
+            return i === j || v.every((x) => Math.abs(x) < 1e-12) ? [] : [[c(`${a} → ${b}`), ...v.map((x) => c(x)), ...(G.length === 2 ? [c(v[1] - v[0])] : [])] as Row];
+          }))} note="Standardised, so differences also reflect the groups’ variances." />
+      </div>);
+    case 'defined': return (
+      <div className="tables">
+        <Table title="Defined and labelled parameters by group" file="cb-groups-defined" columns={cols}
+          rows={rows((e) => e.kind === 'defined' || !!e.label, (e) => (e.kind === 'defined' ? e.lhs : `${e.label}: ${e.lhs} ${e.op} ${e.rhs}`))} note={note} />
+      </div>);
+    default: return null;
+  }
+}
+
+export function CbTab({ tab, cb, boot, compare = false }: { tab: CbTabId; cb: CbResult; boot: BootstrapResult | null; compare?: boolean }) {
+  if (compare && cb.groups && !cb.groups.levels) {
+    if (['paths', 'loadings', 'variances', 'reliability', 'effects', 'defined'].includes(tab)) return <GroupCompare tab={tab} cb={cb} />;
+    if (tab === 'fit' || tab === 'invariance' || tab === 'modindices') return <CbTab tab={tab} cb={cb} boot={boot} />;
+    // Tabs without a parameter list (matrices, the bootstrap, moderation): each group after the other.
+    return (
+      <div className="tables">
+        {cb.groups.results.map((r, i) => (
+          <div key={i}>
+            <div className="table-tools"><h3>Group {cb.groups!.labels[i]}</h3></div>
+            <CbTab tab={tab} cb={{ ...r, groups: cb.groups, groupIndex: i, modindices: cb.modindices, wald: cb.wald }} boot={i === cb.groupIndex ? boot : null} />
+          </div>
+        ))}
+      </div>
+    );
+  }
   switch (tab) {
     case 'fit': return <Fit cb={cb} />;
     case 'paths': return <Paths cb={cb} boot={boot} />;

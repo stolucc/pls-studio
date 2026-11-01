@@ -299,6 +299,10 @@ describe('the group switch of the results panel', () => {
     const html = render(<ResultsPanel height={300} onResize={() => {}} />);
     expect(html).toContain('Loadings and intercepts equal across groups');
     expect(html).toContain('Group 1');
+    expect(html).toContain('All groups');
+    useStore.getState().setCompareGroups(true);
+    expect(render(<ResultsPanel height={300} onResize={() => {}} />)).toContain('aria-checked="true"');
+    useStore.getState().setCompareGroups(false);
     seed('configural');
     expect(render(<ResultsPanel height={300} onResize={() => {}} />)).not.toContain('equal across groups');
   });

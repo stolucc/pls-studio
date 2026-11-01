@@ -4,7 +4,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { BootstrapResult, PlsResult } from '../../engine/types';
-import { seLabel } from './CbTabs';
+import type { CbEstimate, CbResult } from '../../engine/cbsem';
+import { CbTab, seLabel } from './CbTabs';
 import { PlsTab } from './PlsTabs';
 
 const pls = (over: Partial<PlsResult> = {}): PlsResult => ({
@@ -66,5 +67,41 @@ describe('PLS tabs say what was computed', () => {
     expect(out).toContain('Orthogonalising: products of indicators');
     const two = html('moderation', pls({ ...r, moderations: [{ from: 'A', moderator: 'B', to: 'Y', construct: 3, method: 'two_stage' }] }));
     expect(two).toContain('Two-stage approach (Henseler');
+  });
+});
+
+describe('groups side by side', () => {
+  const est = (lhs: string, op: '=~' | '~' | '~~', rhs: string, e: number, kind = 'loading'): CbEstimate => ({ kind: kind as never, lhs, op, rhs, est: e, se: 0.1, z: e / 0.1, p: 0.01, std: e });
+  const group = (k: number): CbResult => ({
+    estimator: 'ML', n: 100 + k, iterations: 10, converged: true, constructs: ['F', 'G'], indicators: [{ name: 'x1', construct: 0 }, { name: 'x2', construct: 0 }, { name: 'y1', construct: 1 }],
+    estimates: [est('F', '=~', 'x1', 1, 'fixed-loading'), est('F', '=~', 'x2', 0.5), est('G', '~', 'F', 0.3 + 0.2 * k, 'path'), est('F', '~~', 'F', 1 + k, 'lvvar')],
+    fit: { chisq: 10, df: 4, pvalue: 0.04, cfi: 0.95, tli: 0.9, rmsea: 0.05, rmseaLow: 0, rmseaHigh: 0.1, rmseaP: 0.5, srmr: 0.04, npar: 10, baselineChisq: 100, baselineDf: 6, logl: -1, aic: 2, bic: 3 },
+    r2Indicators: [0.5, 0.25, 1], r2Constructs: [null, 0.09 + 0.1 * k], stdLoadings: [1, 0.5, 1], stdPaths: [[0, 0.3], [0, 0]], hasPath: [[false, true], [false, false]], stdTotal: [[0, 0.3 + 0.2 * k], [0, 0]], stdIndirect: [[0, 0], [0, 0]],
+    lvCor: [[1, 0.3], [0.3, 1]], reliability: [{ cr: 0.8, ave: 0.6 }, { cr: 1, ave: 1 }], residualCor: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], htmt: [[null, null], [0.2, null]], htmt2: [[null, null], [0.2, null]], vcov: null,
+    moderations: [], warnings: [], droppedRows: 0, engine: { package: 'lavaan', version: '0.6' },
+  } as unknown as CbResult);
+  const groups = { labels: ['1', '2'], results: [group(0), group(1)], score: [{ param: 'F =~ x2', groups: ['1', '2'], x2: 5.2, df: 1, p: 0.022 }] };
+  const cb: CbResult = { ...group(0), groups, groupIndex: 0 };
+  const html = (tab: Parameters<typeof import('./CbTabs').CbTab>[0]['tab']) => renderToStaticMarkup(<CbTab tab={tab} cb={cb} boot={null} compare />);
+  it('shows one column set per group, the difference, and the score test of an equality constraint', () => {
+    const paths = html('paths');
+    expect(paths).toContain('Regressions by group');
+    expect(paths).toContain('Estimate (1)'); expect(paths).toContain('Estimate (2)'); expect(paths).toContain('Δ (2 − 1)');
+    expect(paths).toContain('0.200');  // 0.5 − 0.3
+    expect(paths).toContain('free per group');
+    expect(paths).toContain('R² by group');
+    const loads = html('loadings');
+    expect(loads).toContain('held equal; score test p 0.022');
+    expect(loads).toContain('Marker loadings are fixed to 1');
+    const vars = html('variances');
+    expect(vars).toContain('Factor (co)variances and disturbances by group');
+    expect(vars).toContain('1.000');
+  });
+  it('keeps the whole-model tabs and stacks the others per group', () => {
+    expect(html('fit')).toContain('Fit statistics');
+    const disc = html('discriminant');
+    expect(disc).toContain('Group 1'); expect(disc).toContain('Group 2');
+    expect((disc.match(/Fornell–Larcker/g) ?? []).length).toBe(2);
+    expect(renderToStaticMarkup(<CbTab tab="paths" cb={cb} boot={null} />)).not.toContain('Regressions by group');
   });
 });

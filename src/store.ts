@@ -96,6 +96,8 @@ interface State {
   /** CB-SEM diagrams: standardised (std.all) or unstandardised estimates. */
   estimateScale: 'std' | 'unstd';
   resultsOpen: boolean;
+  /** Multiple groups: every result tab shows the groups side by side instead of one group. */
+  compareGroups: boolean;
   /** Incremented whenever the canvas should re-fit the view (project load, layout). */
   fitRequest: number;
 
@@ -116,6 +118,7 @@ interface State {
   setPositiveVariances: (on: boolean) => void;
   /** Multiple-group CB-SEM results: show group `index` (diagram and tables). */
   showGroup: (index: number) => void;
+  setCompareGroups: (on: boolean) => void;
   /** CB-SEM: exploratory SEM blocks and rotation (null removes them all). */
   setEsem: (esem: ModelState['esem'] | null) => void;
   /** CB-SEM: set or clear the two-level model. */
@@ -272,6 +275,7 @@ export const useStore = create<State>((set, get) => ({
   showImpliedEffects: true,
   estimateScale: 'std',
   resultsOpen: false,
+  compareGroups: false,
   fitRequest: 0,
 
   commit: (fn) => {
@@ -349,6 +353,7 @@ export const useStore = create<State>((set, get) => ({
   setWaldTests: (tests) => get().commit((m) => { const { waldTests: _w, ...rest } = m; return tests.length ? { ...rest, waldTests: tests } : rest; }),
   setInequalities: (text) => get().commit((m) => { const { inequalities: _i, ...rest } = m; return text.trim() ? { ...rest, inequalities: text } : rest; }),
   setPositiveVariances: (on) => get().commit((m) => { const { positiveVariances: _p, ...rest } = m; return on ? { ...rest, positiveVariances: true } : rest; }),
+  setCompareGroups: (compareGroups) => set({ compareGroups }),
   showGroup: (index) => set((s) => {
     const cb = s.results?.cb;
     const g = cb?.groups;

@@ -16,6 +16,7 @@ import { IconAlert } from './icons';
 export function ResultsPanel({ height, onResize }: { height: number; onResize: (h: number) => void }) {
   const open = useStore((s) => s.resultsOpen);
   const invariance = useStore((s) => s.model.multigroup?.invariance);
+  const compareGroups = useStore((s) => s.compareGroups);
   const setOpen = useStore((s) => s.setResultsOpen);
   const job = useStore((s) => s.job);
   const method = useStore((s) => s.settings.method);
@@ -58,7 +59,7 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
     : proc ? <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />
     : pls ? <PlsTab tab={plsTab} pls={pls} boot={boot} fitTest={results?.fitTest ?? null} />
     : miiv ? <MiivTab tab={miivTab} miiv={miiv} />
-    : cb && !isMiiv ? <CbTab tab={cbTab} cb={cb} boot={boot} />
+    : cb && !isMiiv ? <CbTab tab={cbTab} cb={cb} boot={boot} compare={compareGroups && !!cb.groups && !cb.groups.levels} />
       : (
         <div className="empty-results">
           {anyResults ? 'The model or settings changed since the last run. ' : 'No results yet. '}
@@ -125,11 +126,15 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
         {cb?.groups && (
           <div className="segmented group-switch" role="radiogroup" aria-label="Group shown">
             {cb.groups.labels.map((l, i) => (
-              <button key={l} role="radio" aria-checked={cb.groupIndex === i} className={cb.groupIndex === i ? 'on' : ''}
-                onClick={() => useStore.getState().showGroup(i)} title={`Show the results of group ${l} (diagram and tables)`}>
+              <button key={l} role="radio" aria-checked={!compareGroups && cb.groupIndex === i} className={!compareGroups && cb.groupIndex === i ? 'on' : ''}
+                onClick={() => { useStore.getState().setCompareGroups(false); useStore.getState().showGroup(i); }} title={`Show the results of group ${l} (diagram and tables)`}>
                 {cb.groups!.levels || cb.groups!.labels.length > 4 ? l : `Group ${l}`}
               </button>
             ))}
+            {!cb.groups.levels && (
+              <button role="radio" aria-checked={compareGroups} className={compareGroups ? 'on' : ''} onClick={() => useStore.getState().setCompareGroups(true)}
+                title="Every table with one column set per group, differences from the first group, and the score test of each equality constraint">All groups</button>
+            )}
           </div>
         )}
         {!job && <EngineBadge label={engineLabel} />}

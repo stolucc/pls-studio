@@ -671,6 +671,38 @@ Accounts: express-session in Postgres, CSRF token + Origin check on every state 
 passwords with lockout, TOTP, Google OIDC with PKCE, email verification and password reset by
 single-use hashed tokens carried in the URL fragment. `server/README.md` has the full list.
 
+### 7.1 Database schema (server, Postgres)
+
+Nine tables, created by `server/src/migrations/*.sql` (applied in order by `server/src/migrate.ts`
+at start-up). What the server stores is the account, who may open which project, the shared
+Y.js document and the encrypted dataset; no results, no project files, no analysis output.
+
+```
+ users 1 ──< project_members >── 1 projects 1 ── 1 datasets
+   │                                 │
+   │ 1 ──< auth_tokens               ├─< project_updates   (binary Y.js updates since the last compaction)
+   │ 1 ──< invitations (invited_by)  ├─< invitations
+   │ 1 ──< audit_log (user_id)       └─< audit_log (project_id)
+   │
+ session (express-session; sess holds the user id, CSRF token and the pending TOTP step)
+```
+
+| Table | Columns | Holds |
+|---|---|---|
+| `users` | `id` uuid, `email` citext unique, `display_name`, `password_hash` (argon2id; null for Google-only accounts), `google_sub` unique, `totp_secret` bytea (AES-256-GCM under `TOTP_KEY`), `totp_enabled`, `email_verified`, `failed_logins`, `locked_until`, `created_at` | One row per account. Lockout after repeated failed logins; TOTP secret encrypted at rest. |
+| `session` | `sid`, `sess` json, `expire`; index on `expire` | express-session store (connect-pg-simple): the signed-in user, the CSRF token, a half-finished sign-in waiting for its TOTP code. |
+| `auth_tokens` | `id`, `user_id`, `kind` (`verify` or `reset`), `token_hash` bytea unique (SHA-256), `expires_at`, `used_at`, `created_at` | Email verification and password-reset links: only the hash of the token in the link is stored; single use; expiry. |
+| `projects` | `id` uuid, `name`, `owner_id`, `yjs_state` bytea (the compacted Y.js document), `data_revision`, `created_at`, `updated_at` | One row per shared project: the model, settings and analysis cards as a Y.js state; `data_revision` tells clients to refetch the dataset. |
+| `project_updates` | `id` bigserial, `project_id`, `update` bytea, `created_at`; index `(project_id, id)` | Y.js updates received since the last compaction, replayed on top of `yjs_state` when a room opens; compacted back into `yjs_state` (size cap `MAX_DOC_BYTES`). |
+| `project_members` | `(project_id, user_id)` key, `role` (`owner`, `editor`, `viewer`), `added_at`; index on `user_id` | Who may open a project and what they may change; the WebSocket handshake and every route check it. |
+| `invitations` | `id`, `project_id`, `email` citext, `role` (`editor`, `viewer`), `token_hash` unique, `invited_by`, `expires_at`, `accepted_at`, `revoked_at`, `created_at` | Pending, accepted or withdrawn invitations (7-day expiry); the emailed token is hashed, accepting requires an account with that address. |
+| `datasets` | `project_id` key, `ciphertext` bytea, `wrapped_key` bytea, `key_version`, `byte_size`, `updated_by`, `updated_at` | The project's dataset: gzip + AES-256-GCM under a per-project data key, itself wrapped by the master key; the project id is the associated data, so a blob cannot be moved to another project. |
+| `audit_log` | `id` bigserial, `user_id`, `project_id`, `action`, `meta` jsonb, `created_at` | Security-relevant events (sign-ins, lockouts, sharing, data uploads) with the user and project kept nullable so rows outlive deletions. |
+
+Deleting a user cascades to their projects as owner, memberships, tokens and invitations;
+deleting a project cascades to its updates, members, invitations and dataset. Audit rows keep
+their foreign keys as null instead. `citext` makes emails case-insensitive and unique.
+
 ## 8. Examples and validation
 
 `src/examples/packages.ts` describes each example: its data (loaded from the package in R, or
