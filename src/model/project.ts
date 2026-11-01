@@ -32,6 +32,8 @@ export interface Construct {
   components?: string[];
   /** CB-SEM: loadings on components held at values (by component id); a value for the first component replaces the marker's 1 (a latent curve: 1, 1, 1 and 0, 1, 2). */
   componentLoadings?: Record<string, number>;
+  /** CB-SEM higher-order factor: the first component's loading is estimated too; the scale comes from a path into this factor held at a value (Brown 2015, Table 8.12: STRESS BY SATIS* OPTIM; STRESS ON X1@1). */
+  markerFree?: boolean;
   /** CB-SEM observed covariate (single indicator): lavaan fixed.x semantics. */
   covariate?: boolean;
   /** CB-SEM single indicator: known reliability (error variance fixed at (1 − r) × variance; otherwise 0). */
@@ -190,6 +192,12 @@ export interface ModelState {
   positiveVariances?: boolean;
   /** CB-SEM (lavaan): standard errors from the observed information (Mplus's ML default); absent = lavaan's expected information. */
   information?: 'observed';
+  /** CB-SEM (lavaan): the baseline of CFI and TLI. Absent: the covariances among exogenous observed variables stay free (Mplus; lavaan with fixed.x); 'independence': every variable uncorrelated (LISREL; lavaan when the syntax writes those covariances out). */
+  baseline?: 'independence';
+  /** CB-SEM (lavaan): 'wishart': χ² and standard errors with N − 1 and the covariance matrix as given (LISREL, EQS, Amos, CALIS, the sem package); absent: lavaan's normal likelihood with N. */
+  likelihood?: 'wishart';
+  /** CB-SEM (lavaan), covariance-matrix input: false fits the matrix as given instead of rescaling it by (N − 1)/N (lavaan's sample.cov.rescale = FALSE; Kline's scripts). */
+  sampleCovRescale?: false;
   /** CB-SEM: multiple groups by a data column, with measurement invariance (constructs by id in `free`). */
   multigroup?: MultigroupSpec;
   /** CB-SEM: two-level model by a cluster column. */
@@ -432,6 +440,7 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
       ...(c.components?.length && c.componentLoadings && Object.keys(c.componentLoadings).some((id) => c.components!.includes(id))
         ? { componentLoadings: Object.fromEntries(Object.entries(c.componentLoadings).filter(([id]) => c.components!.includes(id)).map(([id, v]) => [name.get(id) ?? id, v])) } : {}),
+      ...(c.components?.length && c.markerFree ? { markerFree: true } : {}),
       ...(c.covariate ? { covariate: true } : {}),
       ...(c.reliability !== undefined && c.indicators.length === 1 && !c.covariate ? { reliability: c.reliability } : {}),
       ...(c.reliabilities && c.indicators.length > 1 && !c.covariate && Object.keys(c.reliabilities).some((k) => c.indicators.includes(k))
@@ -453,6 +462,9 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.cluster ? { cluster: model.cluster } : {}),
     ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)), ...(model.esem.epsilon !== undefined ? { epsilon: model.esem.epsilon } : {}) } } : {}),
     ...(model.information ? { information: model.information } : {}),
+    ...(model.baseline ? { baseline: model.baseline } : {}),
+    ...(model.likelihood ? { likelihood: model.likelihood } : {}),
+    ...(model.sampleCovRescale === false ? { sampleCovRescale: false as const } : {}),
     ...(model.multigroup ? {
       multigroup: {
         ...model.multigroup,
@@ -606,6 +618,14 @@ export function validateModel(
       }
       if (c.indicators.length) err(`"${c.name}" has both indicators and component constructs; remove one.`, c.id);
       if (c.components!.length < 2) warn(`"${c.name}" has a single component; a higher-order factor needs at least two (three for local identification).`, c.id);
+      if (c.markerFree) {
+        // Without the marker's 1 the scale must come from a path into the factor held at a value, or from a held component loading.
+        const scaled = model.paths.some((q) => q.to === c.id && q.fixed !== undefined && q.fixed !== 0) || Object.entries(c.componentLoadings ?? {}).some(([id, v]) => c.components!.includes(id) && v !== 0);
+        if (method.method !== 'cbsem') err(`"${c.name}": an estimated first component loading is a CB-SEM option.`, c.id);
+        else if (!scaled) err(`"${c.name}": with the first component's loading estimated, hold a path into “${c.name}” at a value (e.g. 1) or a component loading, to set its scale.`, c.id);
+        else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": an estimated first component loading is estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
+        else if (method.estimator === '2SLS') err(`"${c.name}": MIIV-2SLS scales each factor by its first component; keep that loading at 1.`, c.id);
+      }
       for (const [id, v] of Object.entries(c.componentLoadings ?? {})) {
         if (!c.components!.includes(id)) continue;
         if (!Number.isFinite(v)) err(`"${c.name}": a component loading held at a value must be a number.`, c.id);
@@ -807,6 +827,10 @@ export function validateModel(
     if (lavaanOnly.length && engine === 'builtin') err(`${lavaanOnly.join(', ')} ${lavaanOnly.length === 1 ? 'is' : 'are'} estimated by lavaan: choose “R packages” under Calculated by.`);
     if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
     if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
+    if ((model.likelihood || model.sampleCovRescale === false) && engine === 'builtin') err('The Wishart likelihood and an unrescaled covariance matrix are lavaan options: choose “R packages” under Calculated by.');
+    if ((model.likelihood || model.sampleCovRescale === false) && !['ML', 'MLM', 'MLMV', 'MLR'].includes(method.estimator ?? 'ML')) err('The Wishart likelihood and an unrescaled covariance matrix apply to the maximum-likelihood estimators.');
+    if (model.likelihood && model.sampleCovRescale === false) err('Choose one convention: the Wishart likelihood already fits the matrix as given (N − 1).');
+    if (model.sampleCovRescale === false && data && !data.moments) err('Fitting the covariance matrix as given applies to covariance-matrix input.');
     if (model.information === 'observed' && method.estimator === '2SLS') err('MIIV-2SLS has its own standard errors: the observed-information option is for the maximum-likelihood estimators.');
     if (missingChoice === 'fiml' && method.estimator !== 'ML' && method.estimator !== 'MLR' && method.estimator !== 'RML') err('FIML needs the ML or MLR estimator (MLR adds robust standard errors and test statistic).');
     if (missingChoice === 'pairwise') {
@@ -1350,6 +1374,7 @@ export function parseModelState(m: unknown): ModelState {
       side: sides.includes(c.side as Side) ? (c.side as Side) : 'left',
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
       ...(componentLoadingsOf(c.componentLoadings, Array.isArray(c.components) ? c.components : [])),
+      ...(c.markerFree === true && Array.isArray(c.components) && c.components.length ? { markerFree: true } : {}),
       ...(c.covariate === true ? { covariate: true } : {}),
       ...(typeof c.reliability === 'number' && c.reliability > 0 && c.reliability <= 1 ? { reliability: c.reliability } : {}),
       ...(reliabilitiesOf(c.reliabilities, c.indicators as unknown[])),
@@ -1409,6 +1434,9 @@ export function parseModelState(m: unknown): ModelState {
         ...(typeof m.esem.epsilon === 'number' && m.esem.epsilon > 0 && m.esem.epsilon <= 1 ? { epsilon: m.esem.epsilon } : {}),
       } } : {}),
       ...(m.information === 'observed' ? { information: 'observed' as const } : {}),
+      ...(m.baseline === 'independence' ? { baseline: 'independence' as const } : {}),
+      ...(m.likelihood === 'wishart' ? { likelihood: 'wishart' as const } : {}),
+      ...(m.sampleCovRescale === false ? { sampleCovRescale: false as const } : {}),
       ...(typeof m.inequalities === 'string' && m.inequalities.trim() ? { inequalities: str(m.inequalities, 2000) } : {}),
       ...(m.positiveVariances === true ? { positiveVariances: true } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),

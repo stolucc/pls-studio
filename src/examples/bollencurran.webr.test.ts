@@ -10,7 +10,7 @@ import { makeBollenCurranAltExample, makeBollenCurranLcmExample } from './bollen
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
-type Ref = { chisq: number; df: number; estimates: { lhs: string; op: string; rhs: string; est: number; se: number | null }[] };
+type Ref = { chisq: number; df: number; cfi: number; tli: number; estimates: { lhs: string; op: string; rhs: string; est: number; se: number | null }[] };
 const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'textbook', 'bollencurran.json'), 'utf8')) as Record<string, Ref>;
 
 it.each([['lcm', makeBollenCurranLcmExample], ['alt', makeBollenCurranAltExample]] as const)('%s reproduces native lavaan, without a warning', async (key, make) => {
@@ -20,6 +20,9 @@ it.each([['lcm', makeBollenCurranLcmExample], ['alt', makeBollenCurranAltExample
   expect(r.warnings).toEqual([]);
   expect(r.fit.df).toBe(ref[key].df);
   expect(Math.abs(r.fit.chisq - ref[key].chisq)).toBeLessThan(0.001);
+  // CFI and TLI against lavaan's baseline (the waves are components of intercept and slope, not exogenous variables).
+  expect(Math.abs(r.fit.cfi - ref[key].cfi)).toBeLessThan(1e-6);
+  expect(Math.abs(r.fit.tli - ref[key].tli)).toBeLessThan(1e-6);
   for (const w of ref[key].estimates) {
     const pool = r.estimates.filter((e) => e.op === w.op && ((e.lhs === w.lhs && e.rhs === w.rhs) || (w.op === '~~' && e.lhs === w.rhs && e.rhs === w.lhs)));
     if (!pool.length && (w.se === 0 || w.se === null)) continue;

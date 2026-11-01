@@ -24,6 +24,8 @@ describe('Brown (2015) examples', () => {
   it('every example is a valid CB-SEM project with the fixture’s degrees of freedom and chi-square under the built-in engine', () => {
     for (const [k, ex] of Object.entries(every)) {
       expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'), k).toEqual([]);
+      // (the stress model's free second-order loadings are lavaan's: the built-in engine is refused, checked in webR)
+      if (k === 'stress') { expect(validateModel(ex.model, ex.data, { ...ex.settings, engine: 'builtin' }).some((i) => i.level === 'error' && /estimated by lavaan/.test(i.message))).toBe(true); continue; }
       const cb = estimateCb(ex.data, toSpec(ex.model), 'casewise', 'ML');
       expect(cb.fit.df, k).toBe(ref[k].df);
       expect(cb.fit.chisq, k).toBeCloseTo(ref[k].chisq, 2);
@@ -38,5 +40,8 @@ describe('Brown (2015) examples', () => {
     expect(stress.constructs.filter((c) => c.covariate).map((c) => c.name)).toEqual(['X1', 'X2', 'X3']);
     expect(stress.paths.map((p) => p.fixed)).toEqual([1, undefined, undefined]);
     expect(stress.constructs.find((c) => c.name === 'Stress')!.components!.length).toBe(2);
+    // Brown's input frees both second-order loadings (STRESS BY SATIS* OPTIM): the scale comes from X1@1 only.
+    expect(stress.constructs.find((c) => c.name === 'Stress')!.markerFree).toBe(true);
+    expect(toSpec(stress).constructs.find((c) => c.name === 'Stress')!.markerFree).toBe(true);
   });
 });

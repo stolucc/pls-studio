@@ -207,7 +207,7 @@ function ConstructInspector({ c }: { c: Construct }) {
           <div key={id} className="ind" style={{ alignItems: 'center' }}>
             <span>{constructs.find((k) => k.id === id)?.name}</span>
             {method === 'cbsem' && (
-              <input className="input num" type="number" step="any" placeholder={c.components![0] === id ? '1 (marker)' : 'estimated'} aria-label={`Loading of ${constructs.find((k) => k.id === id)?.name}`} style={{ width: 90 }}
+              <input className="input num" type="number" step="any" placeholder={c.components![0] === id && !c.markerFree ? '1 (marker)' : 'estimated'} aria-label={`Loading of ${constructs.find((k) => k.id === id)?.name}`} style={{ width: 90 }}
                 value={c.componentLoadings?.[id] ?? ''}
                 onChange={(e) => {
                   const v = e.target.value === '' ? undefined : Number(e.target.value);
@@ -219,6 +219,12 @@ function ConstructInspector({ c }: { c: Construct }) {
           </div>
         ))}
         {method === 'cbsem' && !!c.components?.length && <div className="hint">A value holds that loading (the first component sets the scale with 1 unless given a value). A latent curve model: intercept 1, 1, 1, … and slope 0, 1, 2, … over the waves as components.</div>}
+        {method === 'cbsem' && !!c.components?.length && (
+          <label className="check" style={{ marginTop: 6 }}>
+            <input type="checkbox" checked={!!c.markerFree} onChange={(e) => update(c.id, { markerFree: e.target.checked ? true : undefined })} />
+            <span>Estimate the first loading too<br /><span className="hint">The scale then comes from a path into {c.name} held at a value (right-click the path → Hold at a value), e.g. a formative construct scaled by one of its causes (Brown 2015, Table 8.12).</span></span>
+          </label>
+        )}
         <div className="ind-list">
           {c.indicators.map((name) => {
             const k = idx.get(name);
@@ -586,6 +592,8 @@ function ModelInspector() {
   const where = useCompute((s) => s.backend) === 'helper' ? 'in desktop R (through the helper)' : 'in your browser (webR)';
   const setSettings = useStore((s) => s.setSettings);
   const setInformation = useStore((s) => s.setInformation);
+  const setBaseline = useStore((s) => s.setBaseline);
+  const setConvention = useStore((s) => s.setConvention);
   const select = useStore((s) => s.select);
   const issues = validateModel(model, data, settings);
   const readOnlyChecks = useStore((s) => s.cloud?.role === 'viewer');
@@ -760,6 +768,24 @@ function ModelInspector() {
             <label className="check" style={{ marginTop: 8 }}>
               <input type="checkbox" checked={model.information === 'observed'} disabled={readOnlyChecks} onChange={(e) => setInformation(e.target.checked ? 'observed' : null)} />
               <span>Standard errors from the observed information<br /><span className="hint">The second derivatives of the log-likelihood at the estimates (lavaan information = “observed”; the default of Mplus for ML) instead of lavaan’s expected information. Estimates and χ² are the same; standard errors differ slightly.</span></span>
+            </label>
+          )}
+          {['ML', 'MLM', 'MLMV', 'MLR'].includes(settings.estimator) && (
+            <div className="field" style={{ marginTop: 8 }}>
+              <label htmlFor="cb-convention">Sample size in χ²</label>
+              <select id="cb-convention" className="select" disabled={readOnlyChecks} value={model.likelihood === 'wishart' ? 'wishart' : model.sampleCovRescale === false ? 'asGiven' : 'lavaan'}
+                onChange={(e) => setConvention(e.target.value as 'lavaan' | 'wishart' | 'asGiven')}>
+                <option value="lavaan">N (lavaan, Mplus)</option>
+                <option value="wishart">N − 1, Wishart likelihood (LISREL, EQS, Amos, the sem package)</option>
+                {data?.moments && <option value="asGiven">N, the covariance matrix as given (sample.cov.rescale = FALSE)</option>}
+              </select>
+              <div className="hint">Programs differ in whether χ² uses N or N − 1 and whether a covariance matrix is rescaled to its maximum-likelihood version; choose the convention of the program whose results you reproduce. Estimates of coefficients and loadings are the same; χ² and variances differ by a factor near N / (N − 1).</div>
+            </div>
+          )}
+          {settings.estimator !== '2SLS' && (
+            <label className="check" style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={model.baseline === 'independence'} disabled={readOnlyChecks} onChange={(e) => setBaseline(e.target.checked ? 'independence' : null)} />
+              <span>CFI and TLI against uncorrelated variables<br /><span className="hint">The baseline model in which every variable is uncorrelated (LISREL’s; lavaan’s when the syntax writes the covariances of exogenous variables out). By default the covariances among exogenous observed variables stay free in the baseline, as in Mplus and lavaan with fixed.x. Only matters with two or more exogenous observed variables.</span></span>
             </label>
           )}
         </div>

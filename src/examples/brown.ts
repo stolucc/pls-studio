@@ -81,11 +81,12 @@ export const STRESS_NAMES = ['Y1', 'Y2', 'Y3', 'Y4', 'Y5', 'Y6', 'X1', 'X2', 'X3
 export const STRESS_S = covFromCor([1, 0.700, 1, 0.713, 0.636, 1, 0.079, 0.066, 0.076, 1, 0.088, 0.058, 0.070, 0.681, 1, 0.084, 0.056, 0.074, 0.712, 0.633, 1, 0.279, 0.248, 0.240, 0.177, 0.155, 0.170, 1, 0.250, 0.214, 0.222, 0.157, 0.143, 0.152, 0.373, 1, 0.280, 0.236, 0.251, 0.173, 0.178, 0.171, 0.448, 0.344, 1],
   [2.5, 2.1, 3.0, 4.1, 3.9, 4.4, 1.2, 1.0, 1.2]);
 export function makeBrownStressExample(settings: Settings): BuiltinExample {
-  // Three observed stressors cause the latent life stress (the first cause's coefficient fixed at 1 to scale it); life stress is
-  // identified by its two reflective second-order indicators, satisfaction and optimism.
+  // Three observed stressors cause the latent life stress, the first cause's coefficient fixed at 1 to scale it; life stress is
+  // identified by its two reflective second-order indicators, satisfaction and optimism, whose loadings are both estimated
+  // (Brown's Mplus input: STRESS BY SATIS* OPTIM; STRESS ON X1@1 X2 X3).
   const sat = C('Satisfaction', ['Y1', 'Y2', 'Y3']), opt = C('Optimism', ['Y4', 'Y5', 'Y6']);
   const x1 = C('X1', ['X1'], { covariate: true }), x2 = C('X2', ['X2'], { covariate: true }), x3 = C('X3', ['X3'], { covariate: true });
-  const stress = C('Stress', [], { components: [sat.id, opt.id] });
+  const stress = C('Stress', [], { components: [sat.id, opt.id], markerFree: true });
   const model: ModelState = { constructs: [x1, x2, x3, stress, sat, opt], paths: [P(x1, stress, 1), P(x2, stress), P(x3, stress)], moderations: [] };
   return finish('Life stress as a formative construct (Brown 2015)', matrix(STRESS_NAMES, STRESS_S, 500), 'Figure 8.7 / Table 8.12', model, settings);
 }

@@ -5,9 +5,10 @@
 
 #' "1*a + b + c": the marker loading fixed to 1, made explicit.
 #' Loadings of a factor: the marker fixed to 1 (or to the user's value), other user-fixed loadings as value*name.
-ps_marked <- function(v, fixed = list(), labels = list()) {
+#' `free_first`: the first loading estimated as well (NA*), the scale being set elsewhere (a fixed path into the factor).
+ps_marked <- function(v, fixed = list(), labels = list(), free_first = FALSE) {
   pre <- vapply(v, function(x) if (!is.null(fixed[[x]])) paste0(ps_num(fixed[[x]]), "*") else if (!is.null(labels[[x]])) paste0(ps_label(labels[[x]]), "*") else "", "")
-  pre[1] <- if (nzchar(pre[1])) pre[1] else "1*"
+  pre[1] <- if (nzchar(pre[1])) pre[1] else if (isTRUE(free_first)) "NA*" else "1*"
   paste(paste0(pre, v), collapse = " + ")
 }
 
@@ -148,7 +149,7 @@ ps_cb_build <- function(req) {
       # Component loadings held at values (a latent curve: 1, 1, 1 and 0, 1, 2), keyed by the components' lavaan names.
       cl <- cons[[j]]$componentLoadings %||% list()
       fixed_c <- setNames(cl, unname(lname[names(cl)]))
-      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(lname[comps[[j]]], fixed_c)))
+      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(lname[comps[[j]]], fixed_c, free_first = isTRUE(cons[[j]]$markerFree))))
     }
     else {
       v <- unname(n$iv[n$inds[[j]]])
@@ -375,6 +376,16 @@ ps_cb_build <- function(req) {
     if ((mg$invariance %||% "configural") %in% c("scalar", "strict")) stop("Scalar and strict invariance hold intercepts equal: they need the mean structure.")
     extra <- paste0(extra, ", meanstructure = FALSE")
   }
+  # The sample-size convention: the Wishart likelihood (N - 1, the matrix as given; LISREL, EQS, Amos, the sem package),
+  # or a covariance matrix fitted as given with N (sample.cov.rescale = FALSE, as Kline's scripts).
+  if (!is.null(req$model$likelihood)) {
+    if (!identical(req$model$likelihood, "wishart")) stop("Invalid likelihood in the request.")
+    extra <- paste0(extra, ", likelihood = \"wishart\"")
+  }
+  if (identical(req$model$sampleCovRescale, FALSE)) {
+    if (!matrix_input) stop("sample.cov.rescale applies to covariance-matrix input.")
+    extra <- paste0(extra, ", sample.cov.rescale = FALSE")
+  }
   # Standard errors from the observed information (the Hessian; Mplus's default for ML) instead of lavaan's expected information.
   if (!is.null(req$model$information)) {
     if (!identical(req$model$information, "observed")) stop("Invalid information in the request.")
@@ -461,11 +472,16 @@ ps_cb_build <- function(req) {
   # CFI and TLI compare the model with a baseline of uncorrelated variables. lavaan leaves the covariances
   # among exogenous *observed* variables free in that baseline (as Mplus); an observed variable drawn as a
   # single error-free indicator of its own exogenous construct would lose that, so the baseline is written
-  # out when there are two or more of them, and fitMeasures() is told to use it.
+  # out when there are two or more of them, and fitMeasures() is told to use it. (A component of a
+  # higher-order factor, such as a wave of a latent curve, is not exogenous.) `baseline = "independence"`:
+  # every variable uncorrelated instead (LISREL's null model; lavaan's when the exogenous covariances are
+  # written out in the syntax, as on some help pages).
   to_ids <- vapply(req$model$paths, function(p) p$to, "")
-  xlike <- unlist(lapply(seq_len(k0), function(j) if (!is_cov[j] && length(n$inds[[j]]) == 1 && is.null(cons[[j]]$reliability) && !(n$cname[j] %in% to_ids) && !length(comps[[j]]) && !(n$cname[j] %in% in_block)) unname(n$iv[[n$inds[[j]][1]]]) else NULL))
+  in_hoc <- unlist(lapply(seq_len(k0), function(j) unlist(cons[[j]]$components)))
+  xlike <- unlist(lapply(seq_len(k0), function(j) if (!is_cov[j] && length(n$inds[[j]]) == 1 && is.null(cons[[j]]$reliability) && !(n$cname[j] %in% to_ids) && !length(comps[[j]]) && !(n$cname[j] %in% in_hoc) && !(n$cname[j] %in% in_block)) unname(n$iv[[n$inds[[j]][1]]]) else NULL))
+  if (!is.null(req$model$baseline) && !identical(req$model$baseline, "independence")) stop("Invalid baseline in the request.")
   baseline <- character(0)
-  if (length(xlike) >= 2 && !mi && !length(ordered) && !length(esem$blocks) && is.null(cluster_var) && !matrix_groups_nacov(inputs)) {
+  if (length(xlike) >= 2 && !identical(req$model$baseline, "independence") && !mi && !length(ordered) && !length(esem$blocks) && is.null(cluster_var) && !matrix_groups_nacov(inputs)) {
     ov <- unname(n$iv[n$all_inds])
     pairs <- combn(xlike, 2)
     bmodel <- c(paste(ov, "~~", ov), paste(pairs[1, ], "~~", pairs[2, ]), if (means_on) paste(ov, "~ 1"))
@@ -639,7 +655,8 @@ ps_cb <- function(req_json, export = FALSE) {
     #  ordinal alpha of Zumbo, Gadermann & Zeisser 2007.)
     alpha <- if (no_rel) NULL else ps_try(semTools::compRelSEM(rfit, tau.eq = TRUE, ord.scale = !length(unlist(req$model$ordered))), "Coefficient alpha (semTools::compRelSEM)")
     per_group <- function(x, name) {
-      v <- if (is.list(x)) x[[name]] else NULL
+      # (semTools returns a list per group, or for one group a named vector: a lavaan.vector in semTools 0.5-7)
+      v <- if (is.list(x)) x[[name]] else if (is.numeric(x) && !is.null(names(x)) && name %in% names(x)) x[[name]] else NULL
       if (is.null(v)) return(NULL)
       v <- as.numeric(unclass(v))
       if (length(v) > 1) v[if (is.null(g)) 1 else group_of(g)] else v

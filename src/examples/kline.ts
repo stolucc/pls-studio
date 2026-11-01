@@ -44,7 +44,8 @@ export function makeRothExample(settings: Settings): BuiltinExample {
     defined: [{ id: newId('d'), name: 'ab', expr: 'a*b' }, { id: newId('d'), name: 'cd', expr: 'c*d' }],
   };
   // (labels and defined parameters are lavaan features: R engine)
-  return finish('Exercise, hardiness and illness (Roth et al. 1989)', matrix(ROTH_NAMES, ROTH_S, 373), `${KLINE} ch. 9: Roth et al. (1989) correlations and SDs`, model, settings, 'r');
+  // (Kline's script: sample.cov.rescale = FALSE, the matrix fitted as given)
+  return finish('Exercise, hardiness and illness (Roth et al. 1989)', matrix(ROTH_NAMES, ROTH_S, 373), `${KLINE} ch. 9: Roth et al. (1989) correlations and SDs`, { ...model, sampleCovRescale: false }, settings, 'r');
 }
 
 // ---- Kaufman & Kaufman (1983), KABC-I, 10-year-olds of the normative sample (ch. 14; N = 200)
@@ -88,7 +89,8 @@ export function makeRomneyExample(settings: Settings, variant: 'somatic' | 'medi
   const paths = variant === 'somatic'
     ? [P(ses, morale), P(dysfunction, morale), P(morale, relations), P(morale, symptoms)]  // symptoms and relations: disturbances uncorrelated (undrawn)
     : [P(symptoms, ses), P(dysfunction, ses), P(symptoms, morale), P(ses, morale), P(dysfunction, relations), P(morale, relations)];
-  const model: ModelState = { constructs: [morale, symptoms, dysfunction, relations, ses], paths, moderations: [] };
+  // (Kline's script: sample.cov.rescale = FALSE, the matrix fitted as given)
+  const model: ModelState = { constructs: [morale, symptoms, dysfunction, relations, ses], paths, moderations: [], sampleCovRescale: false };
   return finish(`Quality of life after heart surgery: the ${variant === 'somatic' ? 'psychosomatic' : 'conventional medical'} model (Romney et al. 1992)`, matrix(ROMNEY_NAMES, ROMNEY_S, 469), `${KLINE} ch. 11: Romney et al. (1992) correlations and SDs`, model, settings);
 }
 
@@ -132,8 +134,9 @@ export const SAUVE_S = covFromCor([1, 0.753, 1, 0.329, 0.334, 1, 0.316, 0.307, 0
   [4.713, 2.670, 1.664, 1.009, 0.116, 0.121, 1.225]);
 export function makeSauveExample(settings: Settings): BuiltinExample {
   const cognitive = C('Cognitive', ['isl', 'islr', 'gml', 'ocl', 'cpal', 'gmr']);
-  // The SUMD score is a single indicator with reliability .76: its error variance is fixed at (1 - .76) x its variance (Kline: .360).
-  const sumd = C('SUMD', ['sumd'], { reliability: 0.76 });
+  // The SUMD score is a single indicator with reliability .76; Kline fixes its error variance at .360, (1 - .76) x 1.225² rounded,
+  // so the reliability is the one that gives exactly .360 (0.76010 to five places).
+  const sumd = C('SUMD', ['sumd'], { reliability: 1 - 0.360 / SAUVE_S[6][6] });
   const model: ModelState = { constructs: [cognitive, sumd], paths: [P(cognitive, sumd)], moderations: [], correlations: [E('isl', 'islr'), E('gml', 'gmr')] };
   return finish('Cognitive ability and insight: a partial SR model (Sauve et al.)', matrix(SAUVE_NAMES, SAUVE_S, 193), `${KLINE} ch. 15: Sauve et al. correlations and SDs`, model, settings, 'r');
 }

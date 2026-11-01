@@ -33,6 +33,8 @@ export interface ConstructSpec {
   covariate?: boolean;
   /** CB-SEM: loadings of a higher-order factor on its components held at values (by component name); a value for the first component replaces the marker's 1 (latent curve models: 1, 1, 1 and 0, 1, 2). */
   componentLoadings?: Record<string, number>;
+  /** CB-SEM (lavaan): the first component's loading estimated (scale from a fixed path into the factor). */
+  markerFree?: boolean;
   /** CB-SEM (lavaan): a single indicator's known reliability; its error variance is fixed at (1 − reliability) × its variance. */
   reliability?: number;
   /** CB-SEM (lavaan): known reliabilities of some indicators of a multi-indicator factor (by indicator name), fixing their error variances likewise. */
@@ -109,6 +111,12 @@ export interface ModelSpec {
   positiveVariances?: boolean;
   /** CB-SEM (lavaan): standard errors from the observed (Hessian) instead of the expected information (Mplus's default for ML). */
   information?: 'observed';
+  /** CB-SEM (lavaan): CFI/TLI baseline of uncorrelated variables (otherwise the exogenous observed variables' covariances stay free). */
+  baseline?: 'independence';
+  /** CB-SEM (lavaan): likelihood = "wishart" (N − 1, as LISREL, EQS, Amos, the sem package). */
+  likelihood?: 'wishart';
+  /** CB-SEM (lavaan): sample.cov.rescale = FALSE (covariance-matrix input fitted as given). */
+  sampleCovRescale?: false;
   /** CB-SEM (lavaan): multiple-group analysis by a grouping column, with a level of measurement invariance. */
   multigroup?: MultigroupSpec;
   /** CB-SEM (lavaan): sampling (survey) weights from this column (lavaan's sampling.weights; robust standard errors). */

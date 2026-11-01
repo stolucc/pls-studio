@@ -74,6 +74,8 @@ export interface PackageExample {
   ordered?: string[];
   /** CB-SEM: standard errors from the observed information (Mplus's ML default). */
   information?: 'observed';
+  /** CB-SEM: the CFI/TLI baseline of uncorrelated variables (the source's syntax writes the exogenous covariances out). */
+  baseline?: 'independence';
   multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM: exploratory SEM blocks of construct names. */
   esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number };
@@ -425,7 +427,8 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     description: 'McDonald & Clelland’s (1984) 173 southern non-union textile workers: age and years in the mill (correlated) explain deference to managers, support for labour activism and union sentiment, a recursive path model of observed variables with free exogenous variances. Reproduces Bollen’s Table 4.3: union sentiment on deference −.218, activism .850, years .861; χ² = 1.26 on 3 df. Switch the estimator to MIIV-2SLS for Bollen’s own instrumental-variable estimates.',
     data: { package: 'MIIVsem', name: 'bollen1989b' }, tags: ['Path analysis', 'Textbook example'],
     constructs: [v('age'), v('yrsmill'), v('deferenc'), v('laboract'), v('unionsen')],
-    paths: [['age', 'deferenc'], ['age', 'laboract'], ['deferenc', 'laboract'], ['deferenc', 'unionsen'], ['laboract', 'unionsen'], ['yrsmill', 'unionsen']], settings: CB('ML'),
+    // (the help page writes yrsmill ~~ age out: lavaan's baseline for CFI/TLI is then every variable uncorrelated)
+    paths: [['age', 'deferenc'], ['age', 'laboract'], ['deferenc', 'laboract'], ['deferenc', 'unionsen'], ['laboract', 'unionsen'], ['yrsmill', 'unionsen']], baseline: 'independence', settings: CB('ML'),
   },
   {
     id: 'bollen-felson', package: 'MIIVsem', title: 'Are the good beautiful? A reciprocal effect (Felson & Bohrnstedt 1979)', source: 'MIIVsem, ?felson1979; Bollen (1989), ch. 4',
@@ -438,15 +441,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'bollen-accessibility', package: 'MIIVsem', title: 'Perceived accessibility of clinics: his and her informants (Bollen, Speizer & Mroz 1996)', source: 'MIIVsem, ?bollen1996',
     links: [{ label: '?bollen1996', url: 'https://rdrr.io/cran/MIIVsem/man/bollen1996.html' }],
-    description: 'Three female and three male informants in each of 220 Tanzanian clusters rated how accessible a family-planning clinic is and how easy it is to reach: four factors (female and male accessibility, female and male ease), each informant’s two ratings with correlated errors. χ² = 50.6 on 42 df. Without the six error correlations the solution is improper (a factor correlation above 1), which is what Bollen’s MIIV-2SLS Sargan tests flag: switch the estimator to see them.',
-    data: { package: 'MIIVsem', name: 'bollen1996' }, tags: ['CFA', 'Correlated errors', 'Textbook example'],
+    description: 'Three female and three male informants in each of 220 Tanzanian clusters rated how accessible a family-planning clinic is and how easy it is to reach: the help page’s four factors (female and male accessibility, female and male ease), estimated as MIIVsem does, by MIIV-2SLS. Every Sargan test rejects (χ² 105 to 125 on 9 df, p < .001): each equation’s instruments do not fit the model as written. The variances and covariances estimated afterwards (var.cov) give factor correlations above 1 (female access with female ease 1.12, male 1.08), which R reports as a warning: as written, the four-factor model is misspecified for these data.',
+    data: { package: 'MIIVsem', name: 'bollen1996' }, tags: ['CFA', 'Textbook example'],
     constructs: [f('femaleAccess', items('access', 3)), f('maleAccess', items('access', 3, 4)), f('femaleEasy', items('easy', 3)), f('maleEasy', items('easy', 3, 4))], paths: [],
-    correlations: [['access1', 'easy1', 'indicator'], ['access2', 'easy2', 'indicator'], ['access3', 'easy3', 'indicator'], ['access4', 'easy4', 'indicator'], ['access5', 'easy5', 'indicator'], ['access6', 'easy6', 'indicator']], settings: CB('ML'),
+    settings: CB('2SLS'),
   },
   {
     id: 'bollen-reisenzein', package: 'MIIVsem', title: 'Attribution, affect and helping (Reisenzein 1986)', source: 'MIIVsem, ?reisenzein1986',
     links: [{ label: '?reisenzein1986', url: 'https://rdrr.io/cran/MIIVsem/man/reisenzein1986.html' }, { label: 'Reisenzein (1986)', url: 'https://doi.org/10.1037/0022-3514.50.6.1123' }],
-    description: 'Weiner’s attribution–affect model in a randomised vignette experiment (N = 138): whether a collapsed subway passenger is drunk or ill (the manipulation, an observed covariate) → perceived controllability → sympathy and anger → helping, each a three-indicator factor. χ² = 87.2 on 61 df.',
+    description: 'Weiner’s attribution–affect model in a randomised vignette experiment (N = 138): whether a collapsed subway passenger is drunk or ill (the manipulation, an observed covariate) → perceived controllability → sympathy and anger → helping, each a three-indicator factor. The help page gives no model code: this is the model its description states in words (situation → controllability → sympathy and anger → helping), not necessarily Reisenzein’s published specification. χ² = 87.2 on 61 df.',
     data: { package: 'MIIVsem', name: 'reisenzein1986' }, tags: ['Mediation', 'Textbook example'],
     constructs: [v('Z1', true), f('controllability', ['Z2', 'Z3', 'Z4']), f('sympathy', ['Z5', 'Z6', 'Z7']), f('anger', ['Z8', 'Z9', 'Z10']), f('helping', ['Z11', 'Z12', 'Z13'])],
     paths: [['Z1', 'controllability'], ['controllability', 'sympathy'], ['controllability', 'anger'], ['sympathy', 'helping'], ['anger', 'helping']], settings: CB('ML'),
@@ -946,6 +949,7 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
     ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),
     ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })), ...(ex.esem.epsilon !== undefined ? { epsilon: ex.esem.epsilon } : {}) } } : {}),
     ...(ex.information ? { information: ex.information } : {}),
+    ...(ex.baseline ? { baseline: ex.baseline } : {}),
     // The constant sits left of the first column (autoLayout moves only the constructs).
     ...(ex.constant || ex.means?.length ? { constant: { x: -220, y: 120 } } : {}),
     ...(ex.means?.length ? { means: ex.means.map((t) => ({ id: newId('mt'), target: id(t.construct), ...(t.fixed !== undefined ? { fixed: t.fixed } : {}), ...(t.label ? { label: t.label } : {}) })) } : {}),

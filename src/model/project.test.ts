@@ -818,3 +818,50 @@ describe('lavaan options taken from Mplus defaults', () => {
     expect(errors({ ...mg, multigroup: { ...mg.multigroup, invariance: 'scalar' } }).some((e) => /Scalar and strict invariance hold intercepts equal/.test(e))).toBe(true);
   });
 });
+
+describe('higher-order factor with its first loading estimated', () => {
+  const C = (id: string, inds: string[], extra = {}) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const, ...extra });
+  const base: ModelState = { constructs: [C('X', ['x'], { covariate: true }), C('A', ['a1', 'a2', 'a3']), C('B', ['b1', 'b2', 'b3']), C('H', [], { components: ['A', 'B'], markerFree: true })], paths: [{ id: 'p', from: 'X', to: 'H' }], moderations: [] };
+  const errors = (m: ModelState, s: Partial<Settings> = {}) => validateModel(m, null, { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'ML', engine: 'r', ...s }).filter((i) => i.level === 'error' && /first component|scales each factor/.test(i.message)).map((i) => i.message);
+  it('needs a path into the factor held at a value (or a held component loading) to set the scale', () => {
+    expect(errors(base)[0]).toMatch(/hold a path into “H” at a value/);
+    const scaled = { ...base, paths: [{ id: 'p', from: 'X', to: 'H', fixed: 1 }] };
+    expect(errors(scaled)).toEqual([]);
+    expect(errors({ ...base, constructs: base.constructs.map((c) => (c.id === 'H' ? { ...c, componentLoadings: { B: 1 } } : c)) })).toEqual([]);
+    expect(errors(scaled, { estimator: '2SLS' })[0]).toMatch(/MIIV-2SLS scales each factor/);
+    expect(errors(scaled, { engine: 'builtin' })[0]).toMatch(/estimated by lavaan/);
+  });
+  it('is kept in the spec and in project files, for higher-order factors only', () => {
+    const scaled = { ...base, paths: [{ id: 'p', from: 'X', to: 'H', fixed: 1 }] };
+    expect(toSpec(scaled).constructs.find((c) => c.name === 'H')!.markerFree).toBe(true);
+    expect(parseProject(serializeProject(scaled, DEFAULT_SETTINGS, null, null)).model.constructs.find((c) => c.id === 'H')!.markerFree).toBe(true);
+    const first = { ...base, constructs: base.constructs.map((c) => (c.id === 'A' ? { ...c, markerFree: true } : c)) };
+    expect(toSpec(first).constructs.find((c) => c.name === 'A')!.markerFree).toBeUndefined();
+  });
+});
+
+describe('fit conventions of other programs: CFI/TLI baseline, Wishart likelihood, the covariance matrix as given', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3']), C('G', ['b1', 'b2', 'b3'])], paths: [{ id: 'p', from: 'F', to: 'G' }], moderations: [] };
+  const raw = { names: ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'], cols: Array.from({ length: 6 }, (_, k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1.3)) + (i % (k + 3)))) };
+  const moments = { names: raw.names, cols: [], moments: { S: raw.names.map((_, i) => raw.names.map((__, j) => (i === j ? 1 : 0.3))), n: 100 } };
+  const errors = (model: ModelState, data: typeof raw | typeof moments | null, s: Partial<Settings> = {}) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'ML', engine: 'r', ...s }).filter((i) => i.level === 'error' && /Wishart|as given|unrescaled/.test(i.message)).map((i) => i.message);
+  it('are kept in the spec and project files; anything else in a file is dropped', () => {
+    const all = { ...m, baseline: 'independence' as const, likelihood: 'wishart' as const };
+    expect(toSpec(all)).toMatchObject({ baseline: 'independence', likelihood: 'wishart' });
+    expect(toSpec({ ...m, sampleCovRescale: false }).sampleCovRescale).toBe(false);
+    const back = parseProject(serializeProject({ ...all, sampleCovRescale: false }, DEFAULT_SETTINGS, null, null)).model;
+    expect(back).toMatchObject({ baseline: 'independence', likelihood: 'wishart', sampleCovRescale: false });
+    const f = JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null)); Object.assign(f.model, { baseline: 'saturated', likelihood: 'normal', sampleCovRescale: true });
+    const p = parseProject(JSON.stringify(f)).model;
+    expect(p.baseline).toBeUndefined(); expect(p.likelihood).toBeUndefined(); expect(p.sampleCovRescale).toBeUndefined();
+  });
+  it('are lavaan options for the ML estimators; the matrix as given needs matrix input; one convention at a time', () => {
+    expect(errors({ ...m, likelihood: 'wishart' }, raw)).toEqual([]);
+    expect(errors({ ...m, likelihood: 'wishart' }, raw, { engine: 'builtin' })[0]).toMatch(/lavaan options/);
+    expect(errors({ ...m, likelihood: 'wishart' }, raw, { estimator: 'ULS' })[0]).toMatch(/maximum-likelihood/);
+    expect(errors({ ...m, sampleCovRescale: false }, moments)).toEqual([]);
+    expect(errors({ ...m, sampleCovRescale: false }, raw)[0]).toMatch(/covariance-matrix input/);
+    expect(errors({ ...m, sampleCovRescale: false, likelihood: 'wishart' }, moments)[0]).toMatch(/Choose one convention/);
+  });
+});

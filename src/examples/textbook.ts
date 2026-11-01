@@ -3,8 +3,8 @@
 // package's documentation, where John Fox reproduces them):
 //
 // - Wheaton, Muthén, Alwin & Summers (1977), stability of alienation: the
-//   panel model of Bollen (1989, ch. 7) and Jöreskog & Sörbom's LISREL manual,
-//   with two correlated measurement errors across the 1967 and 1971 waves.
+//   panel model of lavaan's ?getCov example, with two correlated measurement
+//   errors across the 1967 and 1971 waves (chi-square 4.735 on 4 df).
 // - Thurstone's mental tests (Thurstone & Thurstone 1941): the second-order
 //   confirmatory factor analysis of the SAS/STAT PROC CALIS manual.
 // - Kerckhoff (1974), ambition and attainment: the observed-variable recursive
@@ -51,7 +51,7 @@ const E = (a: string, b: string) => ({ id: newId('k'), kind: 'indicator' as cons
 const matrix = (names: string[], S: number[][], n: number): Dataset => ({ names, cols: [], moments: { S, n } });
 const info = (fileName: string, n: number): DataInfo => ({ fileName, rows: n, missingCells: 0, excluded: [], kind: 'matrix' });
 
-// ---- Wheaton et al. (1977): N = 932, covariance matrix (sem, ?sem; SAS/STAT PROC CALIS; Bollen 1989, ch. 7)
+// ---- Wheaton et al. (1977): N = 932, covariance matrix (lavaan, ?getCov; also sem's ?sem and SAS/STAT PROC CALIS)
 export const WHEATON_NAMES = ['Anomia67', 'Powerless67', 'Anomia71', 'Powerless71', 'Education', 'SEI'];
 export const WHEATON_N = 932;
 export const WHEATON_S = fromLowerTriangle(WHEATON_NAMES, [
@@ -108,7 +108,7 @@ export function makeThurstoneExample(settings: Settings): BuiltinExample {
     name: 'Thurstone mental tests: second-order factor',
     data: matrix(THURSTONE_NAMES, THURSTONE_R.map((r) => [...r]), THURSTONE_N),
     info: info('Thurstone & Thurstone (1941) correlation matrix', THURSTONE_N),
-    model: makeCovariancesExplicit(model),
+    model: { ...makeCovariancesExplicit(model), likelihood: 'wishart' },  // (N − 1, as the sem package and LISREL)
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false },
   };
 }
@@ -148,7 +148,7 @@ export function makeKerckhoffExample(settings: Settings): BuiltinExample {
     name: 'Ambition and attainment (Kerckhoff 1974)',
     data: matrix(KERCKHOFF_NAMES, KERCKHOFF_R.map((r) => [...r]), KERCKHOFF_N),
     info: info('Kerckhoff (1974) correlation matrix, via the LISREL manual', KERCKHOFF_N),
-    model: makeCovariancesExplicit(model),
+    model: { ...makeCovariancesExplicit(model), likelihood: 'wishart' },  // (N − 1, as the sem package and LISREL)
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false },
   };
 }
@@ -338,7 +338,7 @@ export function makeDhpExample(settings: Settings): BuiltinExample {
     name: 'Peer influences on aspirations (Duncan, Haller & Portes 1968)',
     data: matrix(DHP_NAMES, DHP_R.map((r) => [...r]), DHP_N),
     info: info('Duncan, Haller & Portes (1968) correlation matrix, via the sem package', DHP_N),
-    model: makeCovariancesExplicit(model),
+    model: { ...makeCovariancesExplicit(model), likelihood: 'wishart' },  // (N − 1, as the sem package and LISREL)
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false },
   };
 }

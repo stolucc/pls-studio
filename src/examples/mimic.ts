@@ -34,7 +34,7 @@ export function makeMimicExample(settings: Settings): { name: string; data: Data
     data: { names: MIMIC_NAMES, cols: [], moments: { S: MIMIC_R.map((r) => [...r]), n: MIMIC_N } },
     info: { fileName: 'Hodge & Treiman (1968) correlation matrix, via Jöreskog & Sörbom', rows: MIMIC_N, missingCells: 0, excluded: [], kind: 'matrix' },
     // (observed causes are fixed.x covariates: their correlations are the sample's, nothing to draw)
-    model: makeCovariancesExplicit(model),
+    model: { ...makeCovariancesExplicit(model), likelihood: 'wishart' },  // (N − 1, as LISREL)
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false },
   };
 }

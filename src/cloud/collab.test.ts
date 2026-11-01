@@ -133,7 +133,7 @@ describe('shared projects from before explicit correlations', () => {
 // Every model and construct field, set. Typed Required<…>: a field added to the
 // model later fails typechecking here until it is added, and then must survive
 // both a project file and the shared document.
-const full: Construct & Required<Omit<Construct, 'categorical' | 'components' | 'componentLoadings'>> = {
+const full: Construct & Required<Omit<Construct, 'categorical' | 'components' | 'componentLoadings' | 'markerFree'>> = {
   id: 'f', name: 'Full', type: 'factor', mode: 'unit', indicators: ['f1', 'f2', 'f3'], x: 10, y: 20, side: 'top',
   covariate: true, reliability: 0.8, reliabilities: { f3: 0.9 }, latent: true, fixedLoadings: { f2: 0.5 }, dominant: 'f2', loadingLabels: { f3: 'lf' },
 };
@@ -142,7 +142,7 @@ const kitchenSink: Required<ModelState> = {
     full,
     { ...C('a', 'Alpha'), categorical: 'helmert' },
     C('b', 'Beta'),
-    { id: 'h', name: 'High', type: 'factor', mode: 'A', indicators: [], x: 0, y: 0, side: 'left', components: ['a', 'b'], componentLoadings: { b: 2 } },
+    { id: 'h', name: 'High', type: 'factor', mode: 'A', indicators: [], x: 0, y: 0, side: 'left', components: ['a', 'b'], componentLoadings: { b: 2 }, markerFree: true },
   ],
   paths: [{ id: 'p', from: 'a', to: 'b', label: 'pa' }, { id: 'p2', from: 'f', to: 'b', fixed: 0.3 }],
   moderations: [{ id: 'mo', moderator: 'f', path: 'p' }],
@@ -154,6 +154,9 @@ const kitchenSink: Required<ModelState> = {
   inequalities: 'pa > 0',
   positiveVariances: true,
   information: 'observed',
+  baseline: 'independence',
+  likelihood: 'wishart',
+  sampleCovRescale: false,
   multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'a', indicator: 'a2' }, { kind: 'intercept', indicator: 'b1' }], meanStructure: false },
   multilevel: { column: 'school', between: 'same' },
   weights: 'w',

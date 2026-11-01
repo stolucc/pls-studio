@@ -440,7 +440,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     if (method !== 'cbsem') return null;
     const par = model.constructs.find((k) => k.name === parent), kid = model.constructs.find((k) => k.name === child);
     const held = kid && par?.componentLoadings?.[kid.id];
-    const isMarker = par?.components?.[0] === kid?.id;
+    const isMarker = par?.components?.[0] === kid?.id && !par?.markerFree;
     const marker = held !== undefined ? { value: held, fixed: true } : isMarker ? { value: 1, fixed: true } : null;
     if (!showResults) return marker;
     if (settings.estimator === '2SLS') {

@@ -1,7 +1,7 @@
 # Reference for the examples from Kline (2023), Principles and Practice of
 # Structural Equation Modeling, 5th ed.: the correlation matrices and standard
 # deviations of his companion files (guilford.com/add/kline), fitted with lavaan
-# as the app fits them (sample.cov.rescale = TRUE; single indicators with a known
+# as his scripts do (sample.cov.rescale = FALSE where they say so; single indicators with a known
 # reliability). Writes src/engine/__fixtures__/textbook/kline.json; the webR test
 # compares the app's estimates with it and the chi-squares with Kline's output.
 #   Rscript scripts/validation/kline.R
@@ -19,7 +19,7 @@ fit_one <- function(model, S, n, ..., groups = NULL) {
 out <- list()
 # Roth et al. (1989), ch. 9: N = 373 (Kline: sample.cov.rescale = FALSE, chi-square 11.107 on 5 df)
 S <- cov_of(' 1.00 \n -.03 1.00 \n .39 .07 1.00 \n -.05 -.23 -.13 1.00 \n -.08 -.16 -.29 .34 1.00', c("exercise", "hardy", "fitness", "stress", "illness"), c(66.50, 38.00, 18.40, 33.50, 62.48))
-out$roth <- fit_one('fitness ~ a*exercise\nstress ~ c*hardy\nillness ~ b*fitness + d*stress\nab := a*b\ncd := c*d', S, 373, fixed.x = FALSE)
+out$roth <- fit_one('fitness ~ a*exercise\nstress ~ c*hardy\nillness ~ b*fitness + d*stress\nab := a*b\ncd := c*d', S, 373, fixed.x = FALSE, sample.cov.rescale = FALSE)
 out$roth$kline <- list(chisq = 11.107, df = 5, note = "sample.cov.rescale = FALSE")
 # Kaufman & Kaufman (1983) KABC-I, ch. 14: N = 200, chi-square 38.325 on 19 df
 S <- cov_of(' 1.00 \n .39 1.00 \n .35 .67 1.00 \n .21 .11 .16 1.00 \n .32 .27 .29 .38 1.00 \n .40 .29 .28 .30 .47 1.00 \n .39 .32 .30 .31 .42 .41 1.00 \n .39 .29 .37 .42 .58 .51 .42 1.00',
@@ -35,8 +35,8 @@ out$worland <- fit_one('Cognitive =~ verbal + visual + memory\nAchievement =~ re
 out$worland$kline <- list(chisq = 37.320, df = 39)
 # Romney et al. (1992), ch. 11 (two non-nested path models): N = 469 (Kline: rescale = FALSE; 40.488 on 5 df and 3.245 on 3 df)
 S <- cov_of(' 1.00 \n .53 1.00 \n .15 .18 1.00 \n .52 .29 -.05 1.00 \n .30 .34 .23 .09 1.00', c("morale", "symptoms", "dysfunction", "relations", "ses"), c(3.75, 17.00, 19.50, 3.50, 24.70))
-out$romneySomatic <- fit_one('morale ~ ses + dysfunction\nrelations ~ morale\nsymptoms ~ morale', S, 469, fixed.x = FALSE); out$romneySomatic$kline <- list(chisq = 40.488, df = 5, note = "sample.cov.rescale = FALSE")
-out$romneyMedical <- fit_one('ses ~ symptoms + dysfunction\nmorale ~ symptoms + ses\nrelations ~ dysfunction + morale', S, 469, fixed.x = FALSE); out$romneyMedical$kline <- list(chisq = 3.245, df = 3, note = "sample.cov.rescale = FALSE")
+out$romneySomatic <- fit_one('morale ~ ses + dysfunction\nrelations ~ morale\nsymptoms ~ morale', S, 469, fixed.x = FALSE, sample.cov.rescale = FALSE); out$romneySomatic$kline <- list(chisq = 40.488, df = 5, note = "sample.cov.rescale = FALSE")
+out$romneyMedical <- fit_one('ses ~ symptoms + dysfunction\nmorale ~ symptoms + ses\nrelations ~ dysfunction + morale', S, 469, fixed.x = FALSE, sample.cov.rescale = FALSE); out$romneyMedical$kline <- list(chisq = 3.245, df = 3, note = "sample.cov.rescale = FALSE")
 # Lynam et al. (1993), ch. 12: two groups with means, coefficients equal except delinq ~ achieve (Kline's lynam2: 6.107 on 6 df)
 nm <- c("ses", "effort", "viq", "achieve", "delinq")
 black <- cov_of(' 1.00 \n .08 1.00 \n .28 .30 1.00 \n .05 .21 .50 1.00 \n -.11 -.17 -.26 -.33 1.00', nm, c(10.58, 1.35, 13.62, .79, 1.63))
@@ -53,7 +53,7 @@ out$robbins$kline <- list(chisq = 5.896, df = 5)
 # Sauve et al., ch. 15 (partial SR model; sumd a single indicator with reliability .76): N = 193, chi-square 9.885 on 12 df
 S <- cov_of('1.000 \n .753 1.000 \n .329 .334 1.000 \n .316 .307 .672 1.000 \n .398 .347 .411 .451 1.000 \n .430 .439 .526 .532 .470 1.000 \n -.144 -.155 -.215 -.108 -.146 -.143 1.000',
   c("isl", "islr", "gml", "gmr", "ocl", "cpal", "sumd"), c(4.713, 2.670, 1.664, 1.009, .116, .121, 1.225))
-theta <- (1 - .76) * S["sumd", "sumd"]  # as the app: (1 - reliability) x the indicator variance of the matrix (Kline fixes .360)
+theta <- .360  # as Kline's script (the app: reliability 1 - .360 / 1.225^2)
 out$sauve <- fit_one(sprintf('Cognitive =~ isl + islr + gml + ocl + cpal + gmr\nisl ~~ islr\ngml ~~ gmr\nSUMD =~ sumd\nsumd ~~ %s*sumd\nSUMD ~ Cognitive', theta), S, 193)
 out$sauve$kline <- list(chisq = 9.885, df = 12, note = "sumd error variance fixed at .360")
 out$versions <- list(R = R.version.string, lavaan = as.character(packageVersion("lavaan")))

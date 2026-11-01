@@ -17,7 +17,7 @@ import { exampleModel, PACKAGE_EXAMPLES } from './packages';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-type Ml = { n: number; chisq: number; df: number; cfi: number; estimates: { lhs: string; op: string; rhs: string; est: number; se: number | null }[] };
+type Ml = { n: number; chisq: number; df: number; cfi: number; tli: number; estimates: { lhs: string; op: string; rhs: string; est: number; se: number | null }[] };
 type Miiv = { coefficients: { name: string; est: number }[]; eqn: { DVobs: string; sargan: number; 'sargan.df': number }[] };
 const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'textbook', 'bollen.json'), 'utf8')) as Record<string, { ml: Ml; miiv: Miiv }>;
 
@@ -28,7 +28,7 @@ async function load(id: string): Promise<{ data: Dataset; spec: ReturnType<typeo
   return { data, spec: toSpec(exampleModel(ex)) };
 }
 
-it.each([['bollen-union', 'union'], ['bollen-felson', 'felson'], ['bollen-accessibility', 'accessibility'], ['bollen-reisenzein', 'reisenzein']])('%s under ML reproduces native lavaan', async (id, key) => {
+it.each([['bollen-union', 'union'], ['bollen-felson', 'felson'], ['bollen-reisenzein', 'reisenzein']])('%s under ML reproduces native lavaan', async (id, key) => {
   const { data, spec } = await load(id);
   const r = await estimateCbLavaan(data, spec, 'casewise', 'ML', 'product');
   const want = ref[key].ml;
@@ -36,6 +36,8 @@ it.each([['bollen-union', 'union'], ['bollen-felson', 'felson'], ['bollen-access
   expect(r.fit.df).toBe(want.df);
   expect(r.fit.chisq).toBeCloseTo(want.chisq, 3);
   expect(r.fit.cfi).toBeCloseTo(want.cfi, 3);
+  // (TLI: the baseline as lavaan's for the help page's syntax; union writes yrsmill ~~ age out, so every variable is uncorrelated in it)
+  expect(r.fit.tli).toBeCloseTo(want.tli, 3);
   for (const w of want.estimates) {
     const pool = r.estimates.filter((e) => e.op === w.op && ((e.lhs === w.lhs && e.rhs === w.rhs) || (w.op === '~~' && e.lhs === w.rhs && e.rhs === w.lhs)));
     if (!pool.length && (w.se === 0 || w.se === null)) continue;

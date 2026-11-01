@@ -109,7 +109,7 @@ interface State {
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
   /** Factors from an exploratory factor analysis, as common factors (one undo step); `correlate`: draw their correlations. */
   addFactors: (groups: string[][], correlate: boolean, names?: string[]) => string[];
-  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical' | 'dominant' | 'reliability' | 'reliabilities' | 'componentLoadings'>>) => void;
+  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical' | 'dominant' | 'reliability' | 'reliabilities' | 'componentLoadings' | 'markerFree'>>) => void;
   /** CB-SEM: label a path coefficient, loading or drawn covariance (null removes it); equal labels = equal values. */
   setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
   setDefined: (defined: DefinedParameter[]) => void;
@@ -118,6 +118,10 @@ interface State {
   setPositiveVariances: (on: boolean) => void;
   /** CB-SEM: standard errors from the observed information, or lavaan's default (null). */
   setInformation: (information: 'observed' | null) => void;
+  /** CB-SEM: the CFI/TLI baseline of uncorrelated variables, or the default (null). */
+  setBaseline: (baseline: 'independence' | null) => void;
+  /** CB-SEM: the sample-size convention of χ²: lavaan's (N), Wishart (N − 1), or the matrix as given with N. */
+  setConvention: (c: 'lavaan' | 'wishart' | 'asGiven') => void;
   /** Multiple-group CB-SEM results: show group `index` (diagram and tables). */
   showGroup: (index: number) => void;
   setCompareGroups: (on: boolean) => void;
@@ -356,6 +360,8 @@ export const useStore = create<State>((set, get) => ({
   setInequalities: (text) => get().commit((m) => { const { inequalities: _i, ...rest } = m; return text.trim() ? { ...rest, inequalities: text } : rest; }),
   setPositiveVariances: (on) => get().commit((m) => { const { positiveVariances: _p, ...rest } = m; return on ? { ...rest, positiveVariances: true } : rest; }),
   setInformation: (information) => get().commit((m) => { const { information: _i, ...rest } = m; return information ? { ...rest, information } : rest; }),
+  setBaseline: (baseline) => get().commit((m) => { const { baseline: _b, ...rest } = m; return baseline ? { ...rest, baseline } : rest; }),
+  setConvention: (c) => get().commit((m) => { const { likelihood: _l, sampleCovRescale: _r, ...rest } = m; return c === 'wishart' ? { ...rest, likelihood: 'wishart' } : c === 'asGiven' ? { ...rest, sampleCovRescale: false } : rest; }),
   setCompareGroups: (compareGroups) => set({ compareGroups }),
   showGroup: (index) => set((s) => {
     const cb = s.results?.cb;

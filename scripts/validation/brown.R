@@ -40,7 +40,7 @@ out$reliability <- fit_one('Intrusions =~ Y1 + Y2 + Y3 + Y4\nAvoidance =~ Y5 + Y
 # Figure 8.7 / Table 8.12: a formative construct (life stress) with two reflective second-order indicators, N = 500
 S <- cov_of('1 \n .700 1 \n .713 .636 1 \n .079 .066 .076 1 \n .088 .058 .070 .681 1 \n .084 .056 .074 .712 .633 1 \n .279 .248 .240 .177 .155 .170 1 \n .250 .214 .222 .157 .143 .152 .373 1 \n .280 .236 .251 .173 .178 .171 .448 .344 1',
   c("Y1","Y2","Y3","Y4","Y5","Y6","X1","X2","X3"), c(2.5, 2.1, 3.0, 4.1, 3.9, 4.4, 1.2, 1.0, 1.2))
-out$stress <- fit_one('Satisfaction =~ Y1 + Y2 + Y3\nOptimism =~ Y4 + Y5 + Y6\nStress =~ Satisfaction + Optimism\nStress ~ 1*X1 + X2 + X3', S, 500)
+out$stress <- fit_one('Satisfaction =~ Y1 + Y2 + Y3\nOptimism =~ Y4 + Y5 + Y6\nStress =~ NA*Satisfaction + Optimism\nStress ~ 1*X1 + X2 + X3', S, 500)
 out$versions <- list(R = R.version.string, lavaan = as.character(packageVersion("lavaan")))
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/textbook/brown.json")
 for (k in setdiff(names(out), "versions")) cat(sprintf("%-12s chisq %8.3f df %2d p %.3f cfi %.3f rmsea %.3f\n", k, out[[k]]$chisq, out[[k]]$df, out[[k]]$pvalue, out[[k]]$cfi, out[[k]]$rmsea))

@@ -56,9 +56,14 @@ const EXPECTED_NOTES: Record<string, RegExp[]> = {
   // Bollen's data: income in dollars and weight in pounds next to ratings on short scales; lavaan's advice on scaling.
   'bollen-felson': [/observed variances are \(at least\) a factor/],
 };
+/** Warnings that are the source's own result, and why. */
+const EXPECTED_WARNINGS: Record<string, RegExp[]> = {
+  // ?bollen1996's four-factor model as written: the variances estimated after MIIV-2SLS give factor correlations above 1 (stated on the card).
+  'bollen-accessibility': [/not positive definite/],
+};
 const checkClean = (id: string) => {
   const r = raised[id] ?? { warnings: [], notes: [] };
-  expect(r.warnings, `${id} warned`).toEqual([]);
+  expect(r.warnings.filter((w) => !(EXPECTED_WARNINGS[id] ?? []).some((re) => re.test(w))), `${id} warned`).toEqual([]);
   const unexpected = [...new Set(r.notes)].filter((n) => !(EXPECTED_NOTES[id] ?? []).some((re) => re.test(n)));
   expect(unexpected, `${id} carries an unexpected note`).toEqual([]);
 };

@@ -11,7 +11,7 @@ S <- lavaan::getCov('.619 \n .453 .595 \n .438 .438 .587 \n .422 .430 .438 .595 
 fit_one <- function(model) {
   f <- lavaan::sem(model, sample.cov = S, sample.nobs = 500, auto.cov.y = FALSE)
   pe <- parameterEstimates(f, standardized = TRUE); keep <- pe$op %in% c("=~", "~", "~~")
-  list(chisq = unname(fitMeasures(f, "chisq")), df = unname(fitMeasures(f, "df")), pvalue = unname(fitMeasures(f, "pvalue")), cfi = unname(fitMeasures(f, "cfi")), rmsea = unname(fitMeasures(f, "rmsea")),
+  list(chisq = unname(fitMeasures(f, "chisq")), df = unname(fitMeasures(f, "df")), pvalue = unname(fitMeasures(f, "pvalue")), cfi = unname(fitMeasures(f, "cfi")), tli = unname(fitMeasures(f, "tli")), rmsea = unname(fitMeasures(f, "rmsea")),
     estimates = lapply(which(keep), function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], est = pe$est[i], se = pe$se[i], std = pe$std.all[i])))
 }
 out <- list()

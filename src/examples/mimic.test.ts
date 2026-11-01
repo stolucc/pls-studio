@@ -22,6 +22,8 @@ describe('MIMIC example (social participation; Jöreskog & Sörbom, Schumacker &
     expect(est('=~', 'Social participation', 'memberships').est).toBeCloseTo(1.579, 3);
     expect(est('=~', 'Social participation', 'friends').est).toBeCloseTo(0.862, 3);
     expect(est('=~', 'Social participation', 'memberships').se).toBeCloseTo(0.235, 3);
+    // (the built-in engine uses lavaan's N; the example runs lavaan with N − 1, as LISREL: 12.498, checked in webR)
+    expect(ex.model.likelihood).toBe('wishart');
     expect(cb.fit.chisq).toBeCloseTo(12.522, 3);
     expect(cb.fit.df).toBe(6);
     expect(cb.r2Constructs[cb.constructs.indexOf('Social participation')]).toBeCloseTo(0.258, 3);

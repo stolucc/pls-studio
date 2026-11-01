@@ -35,6 +35,7 @@ it.each(Object.keys(CASES))('%s reproduces native lavaan, without a warning', as
     expect(pool.length, `${key}: ${w.lhs} ${w.op} ${w.rhs}`).toBeGreaterThan(0);
     expect(Math.min(...pool.map((e) => Math.abs(e.est - w.est))), `${key}: ${w.lhs} ${w.op} ${w.rhs}`).toBeLessThan(1e-4 * Math.max(1, Math.abs(w.est)));
   }
-  // Brown's Table 8.8: the reliabilities of the two scales from the CFA (omega), computed here by semTools.
-  if (key === 'reliability') for (const rel of r.reliability) expect(rel.omega).toBeGreaterThan(0.8);
+  // Brown's Table 8.8: the reliabilities of the two scales, .919 and .823 with the model-implied variance of the sum (his MODEL
+  // CONSTRAINT); semTools' omega divides by the observed variance: .9195 and .8234 (semTools compRelSEM, native and webR).
+  if (key === 'reliability') { expect(r.reliability[0].omega).toBeCloseTo(0.9195, 3); expect(r.reliability[1].omega).toBeCloseTo(0.8234, 3); }
 }, 600_000);

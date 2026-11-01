@@ -36,7 +36,7 @@ describe('stability of alienation (Wheaton et al. 1977)', () => {
     expect(ex.data.moments!.n).toBe(932);
     expect(ex.info.kind).toBe('matrix');
   });
-  it('reproduces Bollen (1989): chi-square 4.73 on 4 df and the structural coefficients', () => {
+  it('reproduces lavaan’s ?getCov example as printed: chi-square 4.735 on 4 df, the coefficients and loadings', () => {
     const cb = estimateCb(ex.data, toSpec(ex.model), 'casewise', 'ML');
     expect(cb.fit.chisq).toBeCloseTo(4.735, 2);
     expect(cb.fit.df).toBe(4);
@@ -62,6 +62,8 @@ describe('Thurstone mental tests: second-order CFA (SAS/STAT PROC CALIS manual)'
   });
   it('reproduces the manual: chi-square 38.38 on 24 df and the standardised loadings', () => {
     const cb = estimateCb(ex.data, toSpec(ex.model), 'casewise', 'ML');
+    // (the built-in engine uses lavaan's N; the example runs lavaan with N − 1, as sem: 38.196, checked in webR)
+    expect(ex.model.likelihood).toBe('wishart');
     expect(cb.fit.chisq).toBeCloseTo(38.376, 2);
     expect(cb.fit.df).toBe(24);
     expect(cb.fit.rmsea).toBeCloseTo(0.053, 3);
@@ -200,6 +202,7 @@ describe('non-recursive textbook models', () => {
     expect(ex.model.correlations!.map((k) => k.kind)).toEqual(['construct']);
     const cb = estimateCb(ex.data, toSpec(ex.model), 'casewise', 'ML');
     // sem's ?sem (model.dhp.1): gam11 .161, beta12 .184, beta21 .235, lam21 1.063, lam42 .930; lavaan's chi-square 26.78 on 15 df.
+    // (the built-in engine uses lavaan's N; the example runs lavaan with N − 1, as sem: 26.697, checked in webR)
     expect(cb.fit.chisq).toBeCloseTo(26.779, 2);
     expect(cb.fit.df).toBe(15);
     expect(est(cb, '~', 'RGenAsp', 'RParAsp').est).toBeCloseTo(0.161, 3);

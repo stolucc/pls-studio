@@ -53,7 +53,10 @@ describe('Kline (2023) examples', () => {
     const robbins = validateModel(every.robbins.model, every.robbins.data, every.robbins.settings);
     expect(robbins.some((i) => /Non-recursive model/.test(i.message))).toBe(true);
     expect(every.robbins.model.correlations!.filter((k) => k.kind === 'construct').length).toBeGreaterThanOrEqual(1);
-    expect(every.sauve.model.constructs.find((c) => c.name === 'SUMD')!.reliability).toBe(0.76);
+    // (the reliability that fixes the error variance at Kline's .360 exactly)
+    const sumd = every.sauve.model.constructs.find((c) => c.name === 'SUMD')!;
+    expect((1 - sumd.reliability!) * 1.225 ** 2).toBeCloseTo(0.360, 12);
+    expect(every.roth.model.sampleCovRescale).toBe(false);
     expect(every.lynam.model.multigroup).toMatchObject({ column: '', structural: ['regressions'] });
     expect(every.lynam.data.moments!.groups!.map((g) => [g.label, g.n, g.means![2]])).toEqual([['Black', 214, 93.76], ['White', 181, 104.18]]);
   });

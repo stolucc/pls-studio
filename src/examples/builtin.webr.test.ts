@@ -58,7 +58,8 @@ it('social participation (MIMIC): lavaan on the correlation matrix reproduces th
   const est = (op: string, rhs: string) => r.estimates.find((e) => e.op === op && e.lhs === 'Social participation' && e.rhs === rhs)!.est;
   expect(est('~', 'income')).toBeCloseTo(0.108, 3); expect(est('~', 'occupation')).toBeCloseTo(0.045, 3); expect(est('~', 'education')).toBeCloseTo(0.155, 3);
   expect(est('=~', 'memberships')).toBeCloseTo(1.579, 3); expect(est('=~', 'friends')).toBeCloseTo(0.862, 3);
-  expect(r.fit.chisq).toBeCloseTo(12.522, 3); expect(r.fit.df).toBe(6);
+  // (LISREL's convention, N − 1: the Wishart likelihood; lavaan's default N would give 12.522)
+  expect(r.fit.chisq).toBeCloseTo(12.498, 3); expect(r.fit.df).toBe(6);
 }, 600_000);
 
 it('Wheaton, Thurstone and Kerckhoff: lavaan on the published matrices reproduces the manuals, without a warning', async () => {
@@ -70,15 +71,15 @@ it('Wheaton, Thurstone and Kerckhoff: lavaan on the published matrices reproduce
     return r;
   };
   const est = (r: Awaited<ReturnType<typeof estimateCbLavaan>>, op: string, lhs: string, rhs: string) => r.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
-  // Wheaton et al.: chi-square 4.73 on 4 df (Bollen 1989); SES -> Alienation 1967 -0.575, 1967 -> 1971 0.607.
+  // Wheaton et al.: lavaan's ?getCov example, chi-square 4.735 on 4 df; SES -> Alienation 1967 -0.575, 1967 -> 1971 0.607.
   const w = await run(makeWheatonExample(DEFAULT_SETTINGS));
   expect(w.fit.chisq).toBeCloseTo(4.735, 2); expect(w.fit.df).toBe(4);
   expect(est(w, '~', 'Alienation 1967', 'SES').est).toBeCloseTo(-0.575, 3);
   expect(est(w, '~', 'Alienation 1971', 'Alienation 1967').est).toBeCloseTo(0.607, 3);
   expect(est(w, '~~', 'Anomia67', 'Anomia71').est).toBeCloseTo(1.623, 3);
-  // Thurstone: chi-square 38.38 on 24 df (lavaan; sem's 38.20 divides by N - 1), standardised second-order loadings .822 / .782 / .815.
+  // Thurstone: chi-square 38.1963 on 24 df as sem prints it (N − 1: the Wishart likelihood), standardised second-order loadings .822 / .782 / .815.
   const t = await run(makeThurstoneExample(DEFAULT_SETTINGS));
-  expect(t.fit.chisq).toBeCloseTo(38.376, 2); expect(t.fit.df).toBe(24);
+  expect(t.fit.chisq).toBeCloseTo(38.1963, 3); expect(t.fit.df).toBe(24);
   expect(est(t, '=~', 'General ability', 'Verbal').std).toBeCloseTo(0.822, 3);
   expect(est(t, '=~', 'General ability', 'Reasoning').std).toBeCloseTo(0.815, 3);
   // Kerckhoff: just identified (df 0); Grades on Intelligence .526, OccupAsp on EducExp .550.
@@ -101,7 +102,7 @@ it('Hayduk (1987) smoking model: lavaan with the fixed error variances reproduce
   expect(r.fit.chisq).toBeCloseTo(2.283, 2);
   expect(Math.abs(r.fit.chisq - 2.28)).toBeLessThan(0.01);
   expect(r.fit.pvalue).toBeCloseTo(0.131, 3);
-  // BETA and GAMMA of Figure 4.7 (LISREL printed three decimals; two differ by one unit in the last place).
+  // BETA and GAMMA of Figure 4.7 (LISREL printed three decimals; sex -> acts differs by two units in the last place: .159 against .161).
   expect(est('~', 'Antismoking views', 'Smoking')).toBeCloseTo(-0.879, 2);
   expect(est('~', 'Antismoking acts', 'Smoking')).toBeCloseTo(-0.312, 3);
   expect(est('~', 'Antismoking acts', 'Antismoking views')).toBeCloseTo(0.068, 3);
@@ -183,7 +184,8 @@ it('non-recursive models: Duncan-Haller-Portes and Hayduk Figure 8.6 under lavaa
   const dhp = makeDhpExample(DEFAULT_SETTINGS);
   const d = await estimateCbLavaan(dhp.data, toSpec(dhp.model), 'casewise', 'ML', 'product');
   expect(d.converged).toBe(true); expect(d.warnings).toEqual([]); expect(d.notes).toEqual([]);
-  expect(d.fit.chisq).toBeCloseTo(26.779, 2); expect(d.fit.df).toBe(15);
+  // (sem prints 26.697 on 15 df: N − 1, the Wishart likelihood)
+  expect(d.fit.chisq).toBeCloseTo(26.697, 3); expect(d.fit.df).toBe(15);
   expect(est(d, '~', 'RGenAsp', 'FGenAsp').est).toBeCloseTo(0.184, 3);
   expect(est(d, '~', 'FGenAsp', 'RGenAsp').est).toBeCloseTo(0.235, 3);
   expect(est(d, '~~', 'RGenAsp', 'FGenAsp').est).toBeCloseTo(-0.023, 3);
@@ -194,7 +196,9 @@ it('non-recursive models: Duncan-Haller-Portes and Hayduk Figure 8.6 under lavaa
   expect(r.converged).toBe(true); expect(r.warnings).toEqual([]); expect(r.notes).toEqual([]);
   // p. 267: "fits acceptably chi-square = 3.07 with 2 d.f. and p = .22" (lavaan 3.11).
   expect(r.fit.df).toBe(2);
-  expect(Math.abs(r.fit.chisq - 3.07)).toBeLessThan(0.05);
+  // (3.104 here; the 0.03 to the book is not N against N - 1, which gives 3.098: stated on the card)
+  expect(r.fit.chisq).toBeCloseTo(3.104, 3);
+  expect(Math.abs(r.fit.chisq - 3.07)).toBeLessThan(0.04);
   expect(r.fit.pvalue).toBeCloseTo(0.22, 1);
   expect(est(r, '~', 'Smoking', 'Antismoking views').est).toBeCloseTo(0.027, 3);
   expect(est(r, '~', 'Antismoking views', 'Smoking').est).toBeCloseTo(-1.258, 1);
@@ -229,7 +233,8 @@ it('Hayduk (1987) means models: Figure 9.8 from the matrix and means, Figure 9.1
   const two = makeHaydukStackedMeansExample(DEFAULT_SETTINGS);
   const t = await estimateCbLavaan(two.data, toSpec(two.model), 'casewise', 'ML', 'product');
   expect(t.converged).toBe(true); expect(t.warnings).toEqual([]); expect(t.notes).toEqual([]);
-  expect(t.fit.df).toBe(38); expect(Math.abs(t.fit.chisq - 54.97)).toBeLessThan(1);
+  // (55.462 here against the book's 54.97: the gap is stated on the card; N - 1 would give 55.246)
+  expect(t.fit.df).toBe(38); expect(t.fit.chisq).toBeCloseTo(55.462, 3); expect(Math.abs(t.fit.chisq - 54.97)).toBeLessThan(0.5);
   expect(t.groups!.labels).toEqual(['Younger', 'Older']);
   const g = (i: number) => t.groups!.results[i];
   const at = (i: number, op: string, lhs: string, rhs: string) => g(i).estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!.est;
@@ -250,3 +255,14 @@ it('Hayduk (1987) means models: Figure 9.8 from the matrix and means, Figure 9.1
   expect(theta(0, 'S-current')[0]).toBeCloseTo(0.025, 3);  // fixed from the younger variance
   expect(theta(1, 'Age').sort((a, b) => a - b)[0]).toBeCloseTo(8.676, 2);  // fixed: 5% of 173.51
 }, 900_000);
+
+it('the source conventions reach the replication scripts: Wishart (sem, LISREL), the matrix as given (Kline), the independence baseline (MIIVsem help page)', async () => {
+  const { makeRothExample } = await import('./kline');
+  const script = async (ex: { data: Parameters<typeof cbScriptLavaan>[0]; model: Parameters<typeof toSpec>[0] }) => cbScriptLavaan(ex.data, toSpec(ex.model), 'casewise', 'ML');
+  expect(await script(makeThurstoneExample(DEFAULT_SETTINGS))).toContain('likelihood = "wishart"');
+  const roth = await script(makeRothExample(DEFAULT_SETTINGS));
+  expect(roth).toContain('sample.cov.rescale = FALSE');
+  expect(roth).not.toContain('likelihood = "wishart"');
+  // Kline's Roth model keeps the explicit baseline (exercise ~~ hardy free), as his lavaan output prints it.
+  expect(roth).toContain('fit_baseline <- sem(baseline_model');
+}, 600_000);
