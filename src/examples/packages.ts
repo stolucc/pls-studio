@@ -871,7 +871,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'readxl-mtcars', package: 'readxl', title: 'An Excel file: car road tests', source: 'readxl, ?read_excel (datasets.xlsx)',
     links: [{ label: '?read_excel', url: 'https://readxl.tidyverse.org/reference/read_excel.html' }, { label: 'readxl', url: 'https://readxl.tidyverse.org/' }],
-    description: 'readxl’s example workbook (.xlsx), its mtcars sheet (the second; the first is iris): the 1974 Motor Trend road tests of 32 cars, read as you would read your own Excel file, with data screening of six measures (distributions, multivariate normality, outliers): an analysis added by this example (the help page only reads the file). Opens its card on the Analyses tab.',
+    description: 'readxl’s example workbook (.xlsx), its first sheet, mtcars (the others are chickwts and quakes): the 1974 Motor Trend road tests of 32 cars, read as you would read your own Excel file, with data screening of six measures (distributions, multivariate normality, outliers): an analysis added by this example (the help page only reads the file). Opens its card on the Analyses tab.',
     data: { package: 'readxl', name: 'datasets.xlsx', packageFile: { path: 'extdata/datasets.xlsx', format: 'xlsx', sheet: 'mtcars' } }, constructs: [], paths: [],
     panel: { kind: 'screen', vars: ['mpg', 'disp', 'hp', 'drat', 'wt', 'qsec'] }, settings: CB('ML'),
   },
