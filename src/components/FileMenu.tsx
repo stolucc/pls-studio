@@ -1,6 +1,6 @@
 import { openReplication } from './analyses/ReplicationDialog';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { exportCovarianceCsv, exportMplus, exportRScript, importCsv, importModelSyntax, newProject, openProject, saveProject } from '../io';
+import { exportCovarianceCsv, exportMplus, exportRScript, importAmos, importCsv, importModelSyntax, newProject, openProject, saveProject } from '../io';
 import { useStore } from '../store';
 import { IconChevronDown } from './icons';
 
@@ -47,6 +47,7 @@ export function FileMenu() {
           {item('Create replication package…', () => openReplication())}
           <div className="menu-sep" role="separator" />
           {item('Import model syntax (lavaan, Mplus)…', () => void importModelSyntax())}
+          {item('Import AMOS model (.amw)…', () => void importAmos())}
           {item('Download R script', () => void exportRScript(), { disabled: !hasData })}
           {rawCb && item('Download covariance matrix (CSV)', () => exportCovarianceCsv())}
           {item('Download Mplus input', () => void exportMplus())}

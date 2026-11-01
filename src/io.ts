@@ -532,6 +532,41 @@ export async function importModelSyntax() {
   }
 }
 
+/** Replace the diagram with an AMOS Graphics model (.amw): its variables, arrows, positions and analysis properties. */
+export async function importAmos() {
+  const file = await pickFile('.amw');
+  if (!file) return;
+  const s = useStore.getState();
+  try {
+    if (file.size > 5_000_000) throw new Error('The file is too large for an AMOS model.');
+    const { decodeAmw, parseAmw, amosDiagram } = await import('./model/amos');
+    const { parseLavaanSyntax } = await import('./model/syntax');
+    const amos = parseAmw(decodeAmw(new Uint8Array(await file.arrayBuffer())));
+    const parsed = parseLavaanSyntax(amos.syntax);
+    const model = amosDiagram(parsed.model, amos);
+    if (s.model.constructs.length && !(await (await import('./components/Overlays')).confirmDialog({ title: 'Replace the diagram?', body: 'The current diagram is replaced by the AMOS model (undo brings it back). The data and the analyses stay.', confirmLabel: 'Replace' }))) return;
+    useStore.getState().commit(() => model);
+    const st = amos.settings;
+    useStore.getState().setSettings({
+      method: 'cbsem', ...(st.estimator ? { estimator: st.estimator } : {}), ...(st.bootSamples ? { bootSamples: st.bootSamples } : {}),
+      ...(st.confidence ? { confidence: st.confidence } : {}), ...(st.seed !== undefined ? { seed: st.seed } : {}),
+    });
+    // (AMOS fitting its unbiased covariance matrix as given is the Wishart convention)
+    if (st.unbiasedAnalysis) useStore.getState().setConvention('wishart');
+    const data = useStore.getState().data;
+    const missing = data ? [...new Set(model.constructs.flatMap((c) => c.indicators))].filter((i) => !data.names.includes(i)) : [];
+    const notes = [...amos.warnings, ...parsed.warnings.filter((w) => !/fixed\.x/.test(w))];
+    useStore.getState().toast(notes.length || missing.length || !data ? 'info' : 'success',
+      `AMOS model imported: ${model.constructs.length} constructs, ${model.paths.length} paths (${st.estimator ?? 'ML'}${st.bootSamples ? `, bootstrap ${st.bootSamples}` : ''}${st.confidence ? `, ${Math.round(st.confidence * 100)}% intervals` : ''}).`
+      + (amos.dataFile && (!data || missing.length) ? ` It was fitted to ${amos.dataFile}: import that file (Data panel) to estimate it.` : '')
+      + (data && missing.length ? ` Not in the current data: ${missing.join(', ')}.` : '')
+      + (st.means ? ' AMOS estimated means and intercepts: add the constant to the diagram for them.' : '')
+      + (notes.length ? ` ${notes.join(' ')}` : ''));
+  } catch (e) {
+    useStore.getState().toast('error', `Could not import the AMOS file: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 /** The model as an Mplus input file (with the data as a .dat file). */
 export async function exportMplus() {
   const s = useStore.getState();
