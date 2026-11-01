@@ -54,5 +54,12 @@ describe('side panels', () => {
     // (a grid column of 1fr cannot shrink below its content: the file name needs minmax(0, 1fr))
     expect(rule('.data-meta')).toMatch(/grid-template-columns:\s*auto minmax\(0,\s*1fr\)/);
     expect(rule('.var .vname')).toMatch(/min-width:\s*0/);
+    // The empty panel's drop zone: one column that cannot grow past the panel, and buttons (example names) that wrap.
+    expect(rule('.dropzone')).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+    expect(rule('.dropzone > *')).toMatch(/max-width:\s*100%/);
+    expect(rule('.panel .btn')).toMatch(/white-space:\s*normal/);
+    // The header's buttons stay one line each and their row wraps (Inspect, Compute…, Replace).
+    expect(rule('.panel-actions')).toMatch(/flex-wrap:\s*wrap/);
+    expect(rule('.panel-head .btn')).toMatch(/white-space:\s*nowrap/);
   });
 });

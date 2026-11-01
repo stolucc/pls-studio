@@ -146,7 +146,7 @@ export function DataPanel() {
       <div className="panel-head">
         <span>Data</span>
         {data && (
-          <span style={{ display: 'flex', gap: 4 }}>
+          <span className="panel-actions">
             <button className="btn sm ghost" onClick={() => useStore.getState().setWorkspace('data')} title="See the rows and descriptive statistics of the dataset"><IconEye size={13} /> Inspect</button>
             {info?.kind !== 'matrix' && <button className="btn sm ghost" onClick={() => void computeNew()} title="Add a column computed from a formula over the existing columns (log, z-score, sums, recodes…)">ƒ Compute…</button>}
             <button className="btn sm ghost" onClick={() => void importCsv()} title="Replace dataset"><IconUpload size={13} /> Replace</button>
