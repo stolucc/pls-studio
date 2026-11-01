@@ -96,8 +96,11 @@ it('Hayduk (1987) smoking model: lavaan with the fixed error variances reproduce
   expect(r.warnings).toEqual([]);
   expect(r.notes).toEqual([]);
   const est = (op: string, lhs: string, rhs: string) => r.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!.est;
+  // Figure 9.8 (p. 301) prints the fit of this model: chi-square 2.28 on 1 df, p = .131.
   expect(r.fit.df).toBe(1);
   expect(r.fit.chisq).toBeCloseTo(2.283, 2);
+  expect(Math.abs(r.fit.chisq - 2.28)).toBeLessThan(0.01);
+  expect(r.fit.pvalue).toBeCloseTo(0.131, 3);
   // BETA and GAMMA of Figure 4.7 (LISREL printed three decimals; two differ by one unit in the last place).
   expect(est('~', 'Antismoking views', 'Smoking')).toBeCloseTo(-0.879, 2);
   expect(est('~', 'Antismoking acts', 'Smoking')).toBeCloseTo(-0.312, 3);
@@ -141,6 +144,23 @@ it('Hayduk (1987) stacked model: two covariance matrices as groups, coefficients
     expect(e!.est, `${w.to} ~ ${w.from} (${ref.groups[w.group - 1]})`).toBeCloseTo(w.est, 5);
     expect(e!.se, `se ${w.to} ~ ${w.from}`).toBeCloseTo(w.se, 5);
   }
+  // Figure 9.4 (p. 285), Hayduk's LISREL output for this run: chi-square 3.35 on 6 df (p = .764), and every coefficient of
+  // both groups; the six held equal are identical across his groups, which confirms the heavy arrows read from Figure 9.1.
+  expect(Math.abs(r.fit.chisq - 3.35)).toBeLessThan(0.03);
+  expect(r.fit.pvalue).toBeCloseTo(0.764, 2);
+  const book: [number, string, string, number][] = [
+    [0, 'Smoking', 'Sex', -0.015], [0, 'Smoking', 'Age', 0.001], [0, 'Smoking', 'Education', -0.064], [0, 'Smoking', 'Strength of religion', -0.036],
+    [0, 'Antismoking views', 'Smoking', -1.356], [0, 'Antismoking views', 'Sex', 0.485], [0, 'Antismoking views', 'Age', -0.018], [0, 'Antismoking views', 'Education', 0.059], [0, 'Antismoking views', 'Strength of religion', 0.042],
+    [0, 'Antismoking acts', 'Smoking', -0.527], [0, 'Antismoking acts', 'Antismoking views', 0.061], [0, 'Antismoking acts', 'Sex', 0.307], [0, 'Antismoking acts', 'Age', 0.001], [0, 'Antismoking acts', 'Education', 0.082], [0, 'Antismoking acts', 'Strength of religion', -0.058],
+    [1, 'Smoking', 'Sex', -0.015], [1, 'Smoking', 'Age', -0.006], [1, 'Smoking', 'Education', -0.025], [1, 'Smoking', 'Strength of religion', -0.036],
+    [1, 'Antismoking views', 'Smoking', -0.453], [1, 'Antismoking views', 'Sex', 0.485], [1, 'Antismoking views', 'Age', -0.001], [1, 'Antismoking views', 'Education', 0.025], [1, 'Antismoking views', 'Strength of religion', 0.042],
+    [1, 'Antismoking acts', 'Smoking', -0.126], [1, 'Antismoking acts', 'Antismoking views', 0.061], [1, 'Antismoking acts', 'Sex', 0.005], [1, 'Antismoking acts', 'Age', -0.009], [1, 'Antismoking acts', 'Education', 0.001], [1, 'Antismoking acts', 'Strength of religion', -0.058],
+  ];
+  const coefOf = (g: number, to: string, from: string) => r.groups!.results[g].estimates.find((x) => x.op === '~' && x.lhs === to && x.rhs === from)!.est;
+  for (const [g, to, from, v] of book) expect(Math.abs(coefOf(g, to, from) - v), `${ref.groups[g]}: ${to} ~ ${from}`).toBeLessThan(0.005);
+  // Squared multiple correlations (Figure 9.4): younger .113 .151 .149; older .069 .062 .032.
+  const r2 = (g: number, k: string) => r.groups!.results[g].r2Constructs[r.constructs.indexOf(k)]!;
+  for (const [g, k, v] of [[0, 'Smoking', 0.113], [0, 'Antismoking views', 0.151], [0, 'Antismoking acts', 0.149], [1, 'Smoking', 0.069], [1, 'Antismoking views', 0.062], [1, 'Antismoking acts', 0.032]] as const) expect(r2(g, k), `${ref.groups[g]} R2 ${k}`).toBeCloseTo(v, 2);
   // Held equal: sex -> smoking identical in both groups; freed: smoking -> views differs.
   const coef = (g: number, to: string, from: string) => r.groups!.results[g].estimates.find((x) => x.op === '~' && x.lhs === to && x.rhs === from)!.est;
   expect(coef(0, 'Smoking', 'Sex')).toBe(coef(1, 'Smoking', 'Sex'));
@@ -172,7 +192,10 @@ it('non-recursive models: Duncan-Haller-Portes and Hayduk Figure 8.6 under lavaa
   const rev = makeHaydukRevisedExample(DEFAULT_SETTINGS);
   const r = await estimateCbLavaan(rev.data, toSpec(rev.model), 'casewise', 'ML', 'product');
   expect(r.converged).toBe(true); expect(r.warnings).toEqual([]); expect(r.notes).toEqual([]);
+  // p. 267: "fits acceptably chi-square = 3.07 with 2 d.f. and p = .22" (lavaan 3.11).
   expect(r.fit.df).toBe(2);
+  expect(Math.abs(r.fit.chisq - 3.07)).toBeLessThan(0.05);
+  expect(r.fit.pvalue).toBeCloseTo(0.22, 1);
   expect(est(r, '~', 'Smoking', 'Antismoking views').est).toBeCloseTo(0.027, 3);
   expect(est(r, '~', 'Antismoking views', 'Smoking').est).toBeCloseTo(-1.258, 1);
   expect(est(r, '~', 'Antismoking views', 'Smoking').se).toBeGreaterThan(0.7);  // the loop is barely determined

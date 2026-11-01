@@ -218,7 +218,8 @@ export function makeHaydukExample(settings: Settings): BuiltinExample {
   };
 }
 
-// ---- Hayduk (1987), ch. 9, "Stacked models for multiple groups": Figure 9.2, younger (N = 213) and older (N = 219) respondents
+// ---- Hayduk (1987), ch. 9, "Stacked models for multiple groups": Figure 9.2, younger (33 or younger, N = 213) and older (N = 219)
+// respondents; the estimates are his Figure 9.4 (p. 285), which the webR test reproduces.
 export const HAYDUK_STACKED_NAMES = ['S-current', 'S-p-strain', 'AS-views', 'AS-acts', 'Sex', 'Age', 'Education', 'R-attend', 'R-import'];
 /** Younger respondents: the upper-right triangle of Figure 9.2 (covariances) and the variances of its table. */
 export const HAYDUK_YOUNGER_S = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
