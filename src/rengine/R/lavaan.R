@@ -576,7 +576,8 @@ ps_cb <- function(req_json, export = FALSE) {
       rfit <- ps_try({
         pt <- lavaan::parTable(fit)
         if ("group" %in% names(pt)) pt <- pt[pt$group <= 1, ]
-        facs <- unique(pt$lhs[pt$op == "=~" & pt$lhs %in% unname(b$lname[!b$is_cov])])
+        # (first-order factors only: a higher-order factor measured by them is not identified on its own)
+        facs <- unique(pt$lhs[pt$op == "=~" & pt$lhs %in% unname(b$lname[!b$is_cov]) & !(pt$rhs %in% lv_lname)])
         term <- function(r) if (r$free == 0 && !is.na(r$ustart)) sprintf("%s*%s", format(r$ustart), r$rhs) else r$rhs
         lines <- vapply(facs, function(f) { rows <- pt[pt$op == "=~" & pt$lhs == f, ]; paste(f, "=~", paste(vapply(seq_len(nrow(rows)), function(i) term(rows[i, ]), ""), collapse = " + ")) }, "")
         inds <- pt$rhs[pt$op == "=~" & pt$lhs %in% facs]

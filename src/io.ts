@@ -293,7 +293,8 @@ export async function openRecent(id: string) {
 }
 
 export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk' | 'hayduk-stacked' | 'hayduk-revised' | 'hayduk-means' | 'hayduk-stacked-means' | 'dhp'
-  | 'kline-roth' | 'kline-kabc' | 'kline-sabatelli' | 'kline-worland' | 'kline-romney-somatic' | 'kline-romney-medical' | 'kline-lynam' | 'kline-robbins' | 'kline-sauve';
+  | 'kline-roth' | 'kline-kabc' | 'kline-sabatelli' | 'kline-worland' | 'kline-romney-somatic' | 'kline-romney-medical' | 'kline-lynam' | 'kline-robbins' | 'kline-sauve'
+  | 'brown-ne' | 'brown-tau' | 'brown-mtmm' | 'brown-coping' | 'brown-reliability' | 'brown-stress';
 
 /** The built-in examples other than the synthetic survey: each a module loaded on demand, and what the toast says. */
 const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
@@ -317,6 +318,12 @@ const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: 
   'kline-lynam': { make: () => import('./examples/kline').then((m) => m.makeLynamExample), toast: 'Lynam et al. (1993), Kline ch. 12: achievement and delinquency in two groups with means (N = 214 and 181), coefficients equal across the groups except achievement -> delinquency (R engine). Press Calculate.' },
   'kline-robbins': { make: () => import('./examples/kline').then((m) => m.makeRobbinsExample), toast: 'Robbins (2012), Kline ch. 19: institutional quality and trust cause each other (a causal loop with correlated disturbances), 64 countries, chi-square 5.90 on 5 df. Press Calculate.' },
   'kline-sauve': { make: () => import('./examples/kline').then((m) => m.makeSauveExample), toast: 'Sauve et al., Kline ch. 15: cognitive ability predicting a single-indicator outcome with reliability .76 (error variance fixed), two correlated errors, N = 193 (R engine). Press Calculate.' },
+  'brown-ne': { make: () => import('./examples/brown').then((m) => m.makeBrownNeExample), toast: 'Brown (2015), Figure 4.1: a two-factor CFA of neuroticism and extraversion, N = 250 (chi-square 13.29 on 19 df). Press Calculate.' },
+  'brown-tau': { make: () => import('./examples/brown').then((m) => m.makeBrownTauExample), toast: 'Brown (2015), Table 7.2: tau-equivalent auditory indicators, the three loadings held equal, N = 200; compare with the free model (chi-square 5.66 on 10 df versus 4.88 on 8). Press Calculate.' },
+  'brown-mtmm': { make: () => import('./examples/brown').then((m) => m.makeBrownMtmmExample), toast: 'Brown (2015), Table 6.3: the correlated-uniqueness MTMM model of three personality disorders by three methods, N = 500 (chi-square 14.37 on 15 df). Press Calculate.' },
+  'brown-coping': { make: () => import('./examples/brown').then((m) => m.makeBrownCopingExample), toast: 'Brown (2015), Table 8.2: four coping factors under two second-order factors, N = 275 (chi-square 83.00 on 49 df). Press Calculate.' },
+  'brown-reliability': { make: () => import('./examples/brown').then((m) => m.makeBrownReliabilityExample), toast: 'Brown (2015), Table 8.8: intrusions and avoidance with one error covariance, N = 500; the Reliability tab gives the omegas his MODEL CONSTRAINT computes. Press Calculate.' },
+  'brown-stress': { make: () => import('./examples/brown').then((m) => m.makeBrownStressExample), toast: 'Brown (2015), Table 8.12: life stress as a formative construct caused by three stressors, identified by satisfaction and optimism as its reflective second-order indicators, N = 500 (chi-square 55.88 on 23 df). Press Calculate.' },
   kerckhoff: { make: () => import('./examples/textbook').then((m) => m.makeKerckhoffExample), toast: 'Kerckhoff (1974), ambition and attainment: observed-variable path analysis from the LISREL manual, correlation matrix, N = 737. Press Calculate.' },
 };
 
