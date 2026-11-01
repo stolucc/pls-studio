@@ -65,6 +65,18 @@ ps_miiv <- function(req_json, export = FALSE) {
   b <- ps_cb_build(req)
   # Same model syntax; single-indicator error variances are implied by MIIVsem's scaling.
   body <- b$body[!grepl("~~ 0\\*", b$body)]
+  # An error-free single indicator stands for its construct directly: MIIVsem takes a one-indicator factor
+  # as unidentified, even with its error variance fixed. (Covariates already are their own variable.)
+  single_ov <- character(0)
+  for (j in seq_len(b$k0)) {
+    if (b$is_cov[j] || length(b$n$inds[[j]]) != 1 || length(b$comps[[j]])) next
+    ov <- unname(b$n$iv[[b$n$inds[[j]][1]]])
+    if (ov %in% b$rel_inds) next
+    lv <- unname(b$lname[[j]])
+    body <- body[!grepl(paste0("^\\s*", lv, " =~ "), body)]
+    body <- gsub(paste0("(?<![A-Za-z0-9_])", lv, "(?![A-Za-z0-9_])"), ov, body, perl = TRUE)
+    single_ov[ov] <- b$n$cname[j]
+  }
   body[length(body)] <- if (b$matrix_input)
     "fit <- miive(model, sample.cov = S, sample.mean = setNames(rep(0, ncol(S)), colnames(S)), sample.nobs = N, var.cov = TRUE)  # means only affect intercepts"
   else "fit <- miive(model, data, var.cov = TRUE)"
@@ -87,12 +99,14 @@ ps_miiv <- function(req_json, export = FALSE) {
   constructs <- b$n$cname
   back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
   nm <- function(x) unname(back[x])
+  # (a single indicator standing for its construct is reported under the construct's name in the structural rows)
+  nmc <- function(x) ifelse(x %in% names(single_ov), unname(single_ov[x]), nm(x))
   et <- MIIVsem::estimatesTable(fit)
   et <- et[et$op %in% c("=~", "~") & et$se > 0, ]
   coef <- function(lhs, op, rhs) {
     r <- et[et$lhs == lhs & et$op == op & et$rhs == rhs, ][1, ]
     s <- if (std_ok) env$std$est.std[env$std$lhs == lhs & env$std$op == op & env$std$rhs == rhs] else numeric(0)
-    list(lhs = nm(lhs), op = op, rhs = nm(rhs), est = r$est, se = r$se, z = r$z, p = r$pvalue, std = if (length(s)) s[1] else NULL)
+    list(lhs = if (op == "~") nmc(lhs) else nm(lhs), op = op, rhs = if (op == "~") nmc(rhs) else nm(rhs), est = r$est, se = r$se, z = r$z, p = r$pvalue, std = if (length(s)) s[1] else NULL)
   }
   lv <- unname(b$lname[constructs])
   eqs <- lapply(fit$eqn, function(e) {
@@ -115,7 +129,7 @@ ps_miiv <- function(req_json, export = FALSE) {
       est = pe$est[i], std = env$std$est.std[env$std$op == "~~" & env$std$lhs == pe$lhs[i] & env$std$rhs == pe$rhs[i]][1]))
   } else list()
   r2 <- ps_try(env$fit$v$rsquare, "R² (MIIVsem)")
-  r2 <- if (is.null(r2)) list() else as.list(setNames(as.numeric(r2), nm(names(r2))))
+  r2 <- if (is.null(r2)) list() else as.list(setNames(as.numeric(r2), nmc(names(r2))))
   ps_json(list(n = n, equations = eqs, estimates = unlist(lapply(eqs, `[[`, "coefficients"), recursive = FALSE), r2 = r2, fixedStd = fixed_std, variances = variances,
     warnings = env$.warnings, engine = list(package = "MIIVsem", version = as.character(utils::packageVersion("MIIVsem")))))
 }

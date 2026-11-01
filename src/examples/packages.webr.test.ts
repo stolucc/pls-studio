@@ -53,6 +53,8 @@ const EXPECTED_NOTES: Record<string, RegExp[]> = {
   'csem-yoo': [/correlate with mixed signs/],
   // mice's nhanes: cholesterol (mg/dL) has a variance a thousand times that of age (coded 1-3); lavaan's advice on scaling.
   'mice-nhanes': [/observed variances are \(at least\) a factor/],
+  // Bollen's data: income in dollars and weight in pounds next to ratings on short scales; lavaan's advice on scaling.
+  'bollen-felson': [/observed variances are \(at least\) a factor/],
 };
 const checkClean = (id: string) => {
   const r = raised[id] ?? { warnings: [], notes: [] };

@@ -436,20 +436,22 @@ ps_cb_build <- function(req) {
     baseline <- c("# The baseline model for CFI and TLI: as lavaan's for observed variables, the covariances among the",
       "# exogenous observed variables stay free", "baseline_model <- '", paste0("  ", bmodel), "'", bcall)
   }
-  body <- c(body, "model <- '", paste0("  ", lines), "'", call, baseline, wald)
+  # (the baseline lines travel separately: every other user of this body expects the fit call last)
+  body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites)
+    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   b <- ps_cb_build(req)
   if (!is.null(b$modsem)) { r <- ps_cb_modsem(req, b, export); return(if (export) r else ps_json(r)) }
+  body <- c(b$body, b$baseline)
   if (export) {
-    return(paste(ps_script("CB-SEM (lavaan)", "lavaan", b$inputs, b$body,
-      c("summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)")), collapse = "\n"))
+    return(paste(ps_script("CB-SEM (lavaan)", "lavaan", b$inputs, body,
+      c(if (length(b$baseline)) "summary(fit, standardized = TRUE, rsquare = TRUE); fitMeasures(fit, baseline.model = fit_baseline)" else "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)")), collapse = "\n"))
   }
-  env <- ps_run(b$body, b$inputs)
+  env <- ps_run(body, b$inputs)
   fit <- env$fit
   n <- b$n; k0 <- b$k0; comps <- b$comps; mods <- b$mods
 
