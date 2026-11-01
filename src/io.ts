@@ -292,7 +292,8 @@ export async function openRecent(id: string) {
   }
 }
 
-export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk' | 'hayduk-stacked' | 'hayduk-revised' | 'hayduk-means' | 'hayduk-stacked-means' | 'dhp';
+export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk' | 'hayduk-stacked' | 'hayduk-revised' | 'hayduk-means' | 'hayduk-stacked-means' | 'dhp'
+  | 'kline-roth' | 'kline-kabc' | 'kline-sabatelli' | 'kline-worland' | 'kline-romney-somatic' | 'kline-romney-medical' | 'kline-lynam' | 'kline-robbins' | 'kline-sauve';
 
 /** The built-in examples other than the synthetic survey: each a module loaded on demand, and what the toast says. */
 const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
@@ -307,6 +308,15 @@ const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: 
   dhp: { make: () => import('./examples/textbook').then((m) => m.makeDhpExample), toast: 'Duncan, Haller & Portes (1968): peer influences on aspirations, a non-recursive model with reciprocal effects and correlated disturbances; correlation matrix, N = 329, maximum likelihood. Press Calculate.' },
   'hayduk-means': { make: () => import('./examples/textbook').then((m) => m.makeHaydukMeansExample), toast: 'Hayduk (1987), Figure 9.8: the smoking model with means and intercepts from the matrix and its means, the marker intercepts fixed at his measurement biases (R engine). Press Calculate.' },
   'hayduk-stacked-means': { make: () => import('./examples/textbook').then((m) => m.makeHaydukStackedMeansExample), toast: 'Hayduk (1987), Figures 9.9 to 9.11: the stacked smoking model with means, two indicators of smoking and of religion, means and coefficients equal across the age groups except those freed (R engine). Press Calculate.' },
+  'kline-roth': { make: () => import('./examples/kline').then((m) => m.makeRothExample), toast: 'Roth et al. (1989), Kline ch. 9: a path model of exercise, hardiness, fitness, stress and illness (N = 373) with labelled paths and the indirect effects ab and cd as defined parameters. Press Calculate.' },
+  'kline-kabc': { make: () => import('./examples/kline').then((m) => m.makeKabcExample), toast: 'KABC-I (Kaufman & Kaufman 1983), Kline ch. 14: two-factor CFA of eight subtests, N = 200, chi-square 38.33 on 19 df. Press Calculate.' },
+  'kline-sabatelli': { make: () => import('./examples/kline').then((m) => m.makeSabatelliExample), toast: 'Sabatelli & Bartle-Haring (2003), Kline ch. 14: a two-factor model whose ML solution has a negative error variance (a Heywood case), N = 103. Press Calculate and read the warning.' },
+  'kline-worland': { make: () => import('./examples/kline').then((m) => m.makeWorlandExample), toast: 'Worland et al. (1984), Kline ch. 15: a four-factor structural regression model, N = 158, chi-square 37.32 on 39 df. Press Calculate.' },
+  'kline-romney-somatic': { make: () => import('./examples/kline').then((m) => (s: Settings) => m.makeRomneyExample(s, 'somatic')), toast: 'Romney et al. (1992), Kline ch. 11: the psychosomatic model of quality of life after heart surgery, N = 469 (chi-square 40.49 on 5 df); compare with the medical model. Press Calculate.' },
+  'kline-romney-medical': { make: () => import('./examples/kline').then((m) => (s: Settings) => m.makeRomneyExample(s, 'medical')), toast: 'Romney et al. (1992), Kline ch. 11: the conventional medical model, N = 469 (chi-square 3.25 on 3 df), the better of two non-nested models. Press Calculate.' },
+  'kline-lynam': { make: () => import('./examples/kline').then((m) => m.makeLynamExample), toast: 'Lynam et al. (1993), Kline ch. 12: achievement and delinquency in two groups with means (N = 214 and 181), coefficients equal across the groups except achievement -> delinquency (R engine). Press Calculate.' },
+  'kline-robbins': { make: () => import('./examples/kline').then((m) => m.makeRobbinsExample), toast: 'Robbins (2012), Kline ch. 19: institutional quality and trust cause each other (a causal loop with correlated disturbances), 64 countries, chi-square 5.90 on 5 df. Press Calculate.' },
+  'kline-sauve': { make: () => import('./examples/kline').then((m) => m.makeSauveExample), toast: 'Sauve et al., Kline ch. 15: cognitive ability predicting a single-indicator outcome with reliability .76 (error variance fixed), two correlated errors, N = 193 (R engine). Press Calculate.' },
   kerckhoff: { make: () => import('./examples/textbook').then((m) => m.makeKerckhoffExample), toast: 'Kerckhoff (1974), ambition and attainment: observed-variable path analysis from the LISREL manual, correlation matrix, N = 737. Press Calculate.' },
 };
 

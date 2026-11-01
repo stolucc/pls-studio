@@ -345,7 +345,9 @@ ps_cb_build <- function(req) {
       if (length(partial)) sprintf(", group.partial = %s", ps_q(partial)) else "")
   }
   if (means_on) extra <- paste0(extra, ", meanstructure = TRUE")
-  extra <- paste0(extra, bounds)
+  # The diagram is the model: the disturbances of two endogenous constructs covary only when drawn
+  # (lavaan's sem() would otherwise free every such covariance, auto.cov.y).
+  extra <- paste0(extra, ", auto.cov.y = FALSE", bounds)
   if (length(esem$blocks)) extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (!is.null(target)) ", rotation.args = list(target = TARGET)" else "")
   if (use_modsem) {
     if (!is.null(weight_var)) stop("Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.")
@@ -418,7 +420,23 @@ ps_cb_build <- function(req) {
     sprintf("wald <- list(%s)", paste(vapply(seq_along(tests), function(i) sprintf("lavTestWald(fit, constraints = '%s')",
       paste(vapply(unlist(tests[[i]]$constraints), function(h) { parts <- strsplit(h, "==", fixed = TRUE)[[1]]
         if (length(parts) != 2) stop("Invalid hypothesis in the request."); paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2]))) }, ""), collapse = "\n")), ""), collapse = ",\n  ")))
-  body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
+  # CFI and TLI compare the model with a baseline of uncorrelated variables. lavaan leaves the covariances
+  # among exogenous *observed* variables free in that baseline (as Mplus); an observed variable drawn as a
+  # single error-free indicator of its own exogenous construct would lose that, so the baseline is written
+  # out when there are two or more of them, and fitMeasures() is told to use it.
+  to_ids <- vapply(req$model$paths, function(p) p$to, "")
+  xlike <- unlist(lapply(seq_len(k0), function(j) if (!is_cov[j] && length(n$inds[[j]]) == 1 && is.null(cons[[j]]$reliability) && !(n$cname[j] %in% to_ids) && !length(comps[[j]]) && !(n$cname[j] %in% in_block)) unname(n$iv[[n$inds[[j]][1]]]) else NULL))
+  baseline <- character(0)
+  if (length(xlike) >= 2 && !mi && !length(ordered) && !length(esem$blocks) && is.null(cluster_var) && !matrix_groups_nacov(inputs)) {
+    ov <- unname(n$iv[n$all_inds])
+    pairs <- combn(xlike, 2)
+    bmodel <- c(paste(ov, "~~", ov), paste(pairs[1, ], "~~", pairs[2, ]), if (means_on) paste(ov, "~ 1"))
+    bcall <- sub("^fit <- sem\\(model", "fit_baseline <- sem(baseline_model", call)
+    for (drop in c(", group\\.equal = c\\([^)]*\\)", ", group\\.partial = c\\([^)]*\\)", ", bounds = \"pos\\.var\"")) bcall <- gsub(drop, "", bcall)
+    baseline <- c("# The baseline model for CFI and TLI: as lavaan's for observed variables, the covariances among the",
+      "# exogenous observed variables stay free", "baseline_model <- '", paste0("  ", bmodel), "'", bcall)
+  }
+  body <- c(body, "model <- '", paste0("  ", lines), "'", call, baseline, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
     inputs = inputs, body = body, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites)
 }
@@ -607,7 +625,7 @@ ps_cb <- function(req_json, export = FALSE) {
       for (a in seq_along(blocks)) for (c in seq_along(blocks)) out[blocks[a], blocks[c]] <- h[lv_lname[blocks[a]], lv_lname[blocks[c]]]
       out
     }
-    fm <- if (isTRUE(b$mi)) lavaan::fitMeasures(env$fit_mi) else lavaan::fitMeasures(fit)
+    fm <- if (isTRUE(b$mi)) lavaan::fitMeasures(env$fit_mi) else if (exists("fit_baseline", envir = env, inherits = FALSE)) lavaan::fitMeasures(fit, baseline.model = env$fit_baseline) else lavaan::fitMeasures(fit)
     # Robust ML (rsem): the rescaled statistic TRML takes the place of the scaled chi-square.
     if (isTRUE(b$robust)) { t <- env$robust_fit$TRML[[1]]; fm[c("chisq.scaled", "df.scaled", "pvalue.scaled")] <- c(t[["Statistic"]], t[["df"]], t[["p-value"]]) }
     fmv <- as.list(fm[intersect(c("npar", "chisq", "df", "pvalue", "chisq.scaled", "df.scaled", "pvalue.scaled", "chisq.scaling.factor",
@@ -656,6 +674,9 @@ ps_cb <- function(req_json, export = FALSE) {
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)
   ps_json(out)
 }
+
+#' (a placeholder guard: the baseline is not refitted with a NACOV matrix of several groups, which cannot arise)
+matrix_groups_nacov <- function(inputs) is.list(inputs$S) && !is.null(inputs$NACOV)
 
 #' One group's value of a per-group lavInspect result (a plain number with one group).
 ps_per_group <- function(x, g) if (is.list(x)) x[[g]] else if (length(x) >= g) x[[g]] else x[[1]]
