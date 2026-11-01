@@ -14,7 +14,8 @@ describe('MIMIC example (social participation; Jöreskog & Sörbom, Schumacker &
   it('reproduces the published maximum-likelihood solution', () => {
     const cb = estimateCb(ex.data, toSpec(ex.model), 'casewise', 'ML');
     const est = (op: string, lhs: string, rhs: string) => cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
-    // Structural coefficients and loadings as printed in the LISREL output reproduced in the book.
+    // Scaled by church (loading 1): the book (SIMPLIS, social participation of variance 1) prints these divided by church's
+    // standardised loading .47 (member .74, friends .40; income .23, occupation .097, education .33); the webR test pins those.
     expect(est('~', 'Social participation', 'income').est).toBeCloseTo(0.108, 3);
     expect(est('~', 'Social participation', 'occupation').est).toBeCloseTo(0.045, 3);
     expect(est('~', 'Social participation', 'education').est).toBeCloseTo(0.155, 3);

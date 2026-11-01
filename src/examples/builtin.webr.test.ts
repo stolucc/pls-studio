@@ -60,6 +60,15 @@ it('social participation (MIMIC): lavaan on the correlation matrix reproduces th
   expect(est('=~', 'memberships')).toBeCloseTo(1.579, 3); expect(est('=~', 'friends')).toBeCloseTo(0.862, 3);
   // (LISREL's convention, N − 1: the Wishart likelihood; lavaan's default N would give 12.522)
   expect(r.fit.chisq).toBeCloseTo(12.498, 3); expect(r.fit.df).toBe(6);
+  // Schumacker & Lomax (2004), ch. 13: Minimum Fit Function Chi-Square = 12.50 on 6 df. SIMPLIS scales social participation to
+  // variance 1, so the book prints standardised values: church 0.47, member 0.74, friends 0.40; social = 0.23 income + 0.097
+  // occup + 0.33 educ, R² = 0.26. The example scales by church (loading 1): the same model, its standardised estimates are the book's.
+  expect(Math.abs(r.fit.chisq - 12.50)).toBeLessThan(0.005);
+  const std = (op: string, rhs: string) => r.estimates.find((e) => e.op === op && e.lhs === 'Social participation' && e.rhs === rhs)!.std;
+  for (const [op, rhs, v] of [['=~', 'church', 0.47], ['=~', 'memberships', 0.74], ['=~', 'friends', 0.40], ['~', 'income', 0.23], ['~', 'education', 0.33]] as const)
+    expect(Math.abs(std(op, rhs) - v), `${op} ${rhs}`).toBeLessThan(0.005);
+  expect(Math.abs(std('~', 'occupation') - 0.097)).toBeLessThan(0.0005);
+  expect(Math.abs(r.r2Constructs[r.constructs.indexOf('Social participation')]! - 0.26)).toBeLessThan(0.005);
 }, 600_000);
 
 it('Wheaton, Thurstone and Kerckhoff: lavaan on the published matrices reproduces the manuals, without a warning', async () => {
