@@ -50,9 +50,12 @@ export function exampleTags(ex: PackageExample): string[] {
   return [...new Set(out)];
 }
 
-/** Every tag in use, most frequent first (the home screen's topic filter). */
+/** Topics in alphabetical order (case-insensitive), each once: the home screen's topic filter. */
+export function sortTopics(tags: Iterable<string>): string[] {
+  return [...new Set(tags)].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b));
+}
+
+/** Every tag in use, in alphabetical order (the home screen's topic filter). */
 export function allTags(examples: PackageExample[]): string[] {
-  const n = new Map<string, number>();
-  for (const e of examples) for (const t of exampleTags(e)) n.set(t, (n.get(t) ?? 0) + 1);
-  return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+  return sortTopics(examples.flatMap((e) => exampleTags(e)));
 }

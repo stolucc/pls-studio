@@ -26,3 +26,13 @@ it('shows the topics once, above every example, and filters both lists by the ch
   for (const card of shown) expect(card.querySelector('.example-tags')!.textContent).toContain('Non-recursive');
   expect(shown.length).toBe(PACKAGE_EXAMPLES.filter((e) => exampleTags(e).includes('Non-recursive')).length + 3);  // plus the three built-in non-recursive models (Hayduk 8.6, Duncan-Haller-Portes, Robbins)
 });
+
+it('lists the topics in alphabetical order, after All topics', () => {
+  const host = document.createElement('div');
+  act(() => { createRoot(host).render(<HomeScreen />); });
+  const labels = [...host.querySelectorAll('[role="radiogroup"][aria-label="Topic"] button')].map((b) => b.textContent ?? '');
+  expect(labels[0]).toBe('All topics');
+  const topics = labels.slice(1);
+  expect(topics.length).toBeGreaterThan(10);
+  expect(topics).toEqual([...topics].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b)));
+});

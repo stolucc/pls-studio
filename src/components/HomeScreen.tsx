@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { loadPackageExample, loadSample, newProject, newProjectFromData, openProject, openRecent } from '../io';
 import { EXAMPLE_PACKAGES, PACKAGE_EXAMPLES, type ExamplePackage } from '../examples/packages';
-import { exampleTags } from '../examples/tags';
+import { exampleTags, sortTopics } from '../examples/tags';
 import { listRecent, recentPersistent, relativeTime, removeRecent, type RecentMeta } from '../recent';
 import { useStore } from '../store';
 import { confirmDialog } from './Overlays';
@@ -342,12 +342,10 @@ export function HomeScreen() {
   const [persistent, setPersistent] = useState(true);
   const [about, setAbout] = useState(false);
   const [query, setQuery] = useState('');
-  // One topic filter for every example, built-in and from the packages; the topics in order of how many examples carry them.
+  // One topic filter for every example, built-in and from the packages; the topics in alphabetical order.
   const [topic, setTopic] = useState('all');
   const topics = useMemo(() => {
-    const n = new Map<string, number>();
-    for (const t of [...EXAMPLES.flatMap((e) => e.tags), ...PACKAGE_EXAMPLES.flatMap((e) => exampleTags(e))]) n.set(t, (n.get(t) ?? 0) + 1);
-    return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+    return sortTopics([...EXAMPLES.flatMap((e) => e.tags), ...PACKAGE_EXAMPLES.flatMap((e) => exampleTags(e))]);
   }, []);
   const builtins = EXAMPLES.filter((e) => (topic === 'all' || e.tags.includes(topic)) && matchesQuery(query, [e.title, e.body, ...e.tags]));
 
