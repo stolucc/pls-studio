@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from '../engine/cbsem';
 import { DEFAULT_SETTINGS, toSpec, validateModel } from '../model/project';
-import { DHP_R, fromLowerTriangle, HAYDUK_NAMES, HAYDUK_OLDER_S, HAYDUK_RELIABILITY, HAYDUK_S, HAYDUK_STACKED_NAMES, HAYDUK_YOUNGER_S, KERCKHOFF_R, makeDhpExample, makeHaydukExample, makeHaydukRevisedExample, makeHaydukStackedExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
+import { DHP_R, fromLowerTriangle, HAYDUK_NAMES, HAYDUK_OLDER_S, HAYDUK_RELIABILITY, HAYDUK_S, HAYDUK_STACKED_NAMES, HAYDUK_YOUNGER_S, KERCKHOFF_R, makeDhpExample, makeHaydukExample, makeHaydukMeansExample, makeHaydukRevisedExample, makeHaydukStackedExample, makeHaydukStackedMeansExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
 
 const est = (cb: ReturnType<typeof estimateCb>, op: string, lhs: string, rhs: string) => cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
 
@@ -223,5 +223,36 @@ describe('non-recursive textbook models', () => {
     expect(into('Antismoking acts')).toEqual(['Smoking', 'Antismoking views', 'Sex', 'Education', 'Strength of religion']);
     // zeta 1 and zeta 2 uncorrelated, as the figure (the drawn correlations are the exogenous pairs only).
     expect((ex.model.correlations ?? []).every((k) => k.kind === 'construct' && [k.a, k.b].every((id) => ['Sex', 'Age', 'Education', 'Strength of religion'].includes(name.get(id)!)))).toBe(true);
+  });
+});
+
+describe('Hayduk (1987) means models (Figures 9.8 and 9.11)', () => {
+  it('the single-group model carries the means of Figure 4.5 and fixes each marker intercept at the assigned bias', () => {
+    const ex = makeHaydukMeansExample(DEFAULT_SETTINGS);
+    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
+    expect(ex.data.moments!.means!.length).toBe(13);
+    expect(ex.data.moments!.means![ex.data.names.indexOf('Age')]).toBe(38.45);
+    expect(ex.model.constant).toBeTruthy();
+    const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
+    expect(ex.model.means!.map((t) => [name.get(t.target), t.bias])).toEqual([['Sex', 0], ['Age', -0.25], ['Education', 0.1], ['Strength of religion', 0.1], ['Smoking', -0.02], ['Antismoking views', 0.5], ['Antismoking acts', 0]]);
+    expect(toSpec(ex.model).means!.find((t) => t.construct === 'Age')).toEqual({ construct: 'Age', bias: -0.25 });
+  });
+  it('the stacked model: two indicators each for smoking and religion, means per group, equalities and the freed means', () => {
+    const ex = makeHaydukStackedMeansExample(DEFAULT_SETTINGS);
+    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
+    expect(ex.data.moments!.groups!.map((g) => g.means![5])).toEqual([25.99, 50.56]);  // Age, Figure 9.2
+    const by = new Map(ex.model.constructs.map((c) => [c.name, c]));
+    expect(by.get('Smoking')!.indicators).toEqual(['S-current', 'S-p-strain']);
+    expect(by.get('Smoking')!.reliabilities).toEqual({ 'S-current': 0.9 });
+    expect(by.get('Strength of religion')!.indicators).toEqual(['R-attend', 'R-import']);
+    expect(by.get('Sex')!.reliability).toBe(0.99);
+    const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
+    expect(ex.model.means!.find((t) => name.get(t.target) === 'Age')!.bias).toEqual([-0.2, -0.3]);
+    const mg = ex.model.multigroup!;
+    expect(mg.invariance).toBe('metric');
+    expect(mg.structural).toEqual(['regressions', 'means']);
+    expect(mg.free.filter((f) => f.kind === 'mean').map((f) => name.get((f as { construct: string }).construct))).toEqual(['Age', 'Education', 'Strength of religion']);
+    expect(mg.free.filter((f) => f.kind === 'regression').length).toBe(9);
+    expect(ex.model.paths.length).toBe(15);
   });
 });

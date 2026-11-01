@@ -14,7 +14,7 @@ import { makePoldemExample } from './poldem';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cbScriptLavaan } from '../rengine/lavaan';
-import { makeDhpExample, makeHaydukExample, makeHaydukRevisedExample, makeHaydukStackedExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample } from './textbook';
+import { makeDhpExample, makeHaydukExample, makeHaydukMeansExample, makeHaydukRevisedExample, makeHaydukStackedExample, makeHaydukStackedMeansExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample } from './textbook';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -208,3 +208,45 @@ it('non-recursive models: Duncan-Haller-Portes and Hayduk Figure 8.6 under lavaa
   expect(est(r, '~', 'Antismoking acts', 'Strength of religion').est).toBeCloseTo(-0.068, 3);
   expect(r.estimates.some((e) => e.op === '~' && e.lhs === 'Smoking' && e.rhs === 'Sex')).toBe(false);
 }, 600_000);
+
+it('Hayduk (1987) means models: Figure 9.8 from the matrix and means, Figure 9.11 stacked with two indicators, as the book', async () => {
+  const est = (r: Awaited<ReturnType<typeof estimateCbLavaan>>, op: string, lhs: string, rhs: string) => r.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
+  // Figure 9.8 (p. 301): chi-square 2.28 on 1 df; the concept means (sex 1.491, age 38.704, education 8.081, attendance 2.641)
+  // and the intercepts of the endogenous concepts (smoking 1.033, views 4.567, acts -0.092).
+  const one = makeHaydukMeansExample(DEFAULT_SETTINGS);
+  const r = await estimateCbLavaan(one.data, toSpec(one.model), 'casewise', 'ML', 'product');
+  expect(r.converged).toBe(true); expect(r.warnings).toEqual([]); expect(r.notes).toEqual([]);
+  expect(r.fit.df).toBe(1); expect(Math.abs(r.fit.chisq - 2.28)).toBeLessThan(0.01);
+  const mean = (k: string) => r.estimates.find((e) => e.op === '~1' && e.lhs === k && (e.kind === 'mean' || e.kind === 'intercept'))!.est;
+  for (const [k, v] of [['Sex', 1.491], ['Age', 38.704], ['Education', 8.081], ['Strength of religion', 2.641], ['Smoking', 1.033], ['Antismoking views', 4.567], ['Antismoking acts', -0.092]] as const) expect(Math.abs(mean(k) - v), k).toBeLessThan(0.01);
+  expect(est(r, '~', 'Antismoking views', 'Smoking').est).toBeCloseTo(-0.879, 2);
+  const script = await cbScriptLavaan(one.data, toSpec(one.model), 'casewise', 'ML');
+  expect(script).toContain('sample.mean = M');
+  expect(script).toMatch(/Age ~ -0\.25\*1/);
+  // Figure 9.11 (p. 312): chi-square 54.97 on 38 df (p = .037); loadings 2.860 (strain) and 0.677 (importance), equal across groups;
+  // intercepts equal across groups: smoking 1.113, views 5.751, acts 0.217, sex 1.491; means free: age 26.194 / 50.884,
+  // education 8.341 / 7.833, religion 2.181 / 3.082; error variances of the second indicators free: .161 / .227 and 2.814 / 2.025.
+  const two = makeHaydukStackedMeansExample(DEFAULT_SETTINGS);
+  const t = await estimateCbLavaan(two.data, toSpec(two.model), 'casewise', 'ML', 'product');
+  expect(t.converged).toBe(true); expect(t.warnings).toEqual([]); expect(t.notes).toEqual([]);
+  expect(t.fit.df).toBe(38); expect(Math.abs(t.fit.chisq - 54.97)).toBeLessThan(1);
+  expect(t.groups!.labels).toEqual(['Younger', 'Older']);
+  const g = (i: number) => t.groups!.results[i];
+  const at = (i: number, op: string, lhs: string, rhs: string) => g(i).estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!.est;
+  const gm = (i: number, k: string) => g(i).estimates.find((e) => e.op === '~1' && e.lhs === k && (e.kind === 'mean' || e.kind === 'intercept'))!.est;
+  for (const i of [0, 1]) {
+    expect(Math.abs(at(i, '=~', 'Smoking', 'S-p-strain') - 2.86), 'strain loading').toBeLessThan(0.01);
+    expect(Math.abs(at(i, '=~', 'Strength of religion', 'R-import') - 0.677), 'importance loading').toBeLessThan(0.005);
+    for (const [k, v] of [['Smoking', 1.113], ['Antismoking views', 5.751], ['Antismoking acts', 0.217], ['Sex', 1.491]] as const) expect(Math.abs(gm(i, k) - v), `${k} (group ${i})`).toBeLessThan(0.01);
+  }
+  for (const [i, k, v] of [[0, 'Age', 26.194], [1, 'Age', 50.884], [0, 'Education', 8.341], [1, 'Education', 7.833], [0, 'Strength of religion', 2.181], [1, 'Strength of religion', 3.082]] as const) expect(Math.abs(gm(i, k) - v), `${k} ${i}`).toBeLessThan(0.01);
+  expect(Math.abs(at(0, '~', 'Antismoking views', 'Smoking') - -1.524)).toBeLessThan(0.01);
+  expect(Math.abs(at(1, '~', 'Antismoking views', 'Smoking') - -0.437)).toBeLessThan(0.01);
+  expect(at(0, '~', 'Smoking', 'Sex')).toBe(at(1, '~', 'Smoking', 'Sex'));
+  expect(Math.abs(at(0, '~', 'Smoking', 'Sex') - -0.022)).toBeLessThan(0.002);
+  const theta = (i: number, v: string) => g(i).estimates.filter((e) => e.op === '~~' && e.lhs === v && e.rhs === v).map((e) => e.est);
+  expect(Math.abs(theta(0, 'S-p-strain')[0] - 0.161)).toBeLessThan(0.01);
+  expect(Math.abs(theta(1, 'S-p-strain')[0] - 0.227)).toBeLessThan(0.01);
+  expect(theta(0, 'S-current')[0]).toBeCloseTo(0.025, 3);  // fixed from the younger variance
+  expect(theta(1, 'Age').sort((a, b) => a - b)[0]).toBeCloseTo(8.676, 2);  // fixed: 5% of 173.51
+}, 900_000);

@@ -13,6 +13,11 @@ describe('several groups of summary statistics', () => {
     expect(pooledMoments([a]).S).toEqual(a.S);
     expect(() => pooledMoments([])).toThrow(/No groups/);
   });
+  it('pools the means weighted by N when every group has them', () => {
+    const p = pooledMoments([{ ...a, means: [1, 2] }, { ...b, means: [4, 5] }]);
+    expect(p.means![0]).toBeCloseTo((11 * 1 + 21 * 4) / 32, 12);
+    expect(pooledMoments([{ ...a, means: [1, 2] }, b]).means).toBeUndefined();
+  });
   it('keeps the groups next to the pooled matrix', () => {
     const m = momentsOfGroups([a, b]);
     expect(m.groups).toEqual([a, b]);

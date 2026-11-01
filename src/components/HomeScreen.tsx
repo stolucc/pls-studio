@@ -77,6 +77,20 @@ const EXAMPLES = [
     body: 'Chapter 9’s stacked model: the smoking model fitted to younger (N = 213) and older (N = 219) respondents at once, one covariance matrix per group (Figure 9.2), each group’s error variances fixed from its own variances. The path coefficients are held equal across the groups except the heavy arrows of Figure 9.1 (the effects of age and education, of sex on acts, and of smoking), which may differ; reproduces his Figure 9.4 (every coefficient of both groups; χ² = 3.35 on 6 df, p = .76 for the six equalities). Groups: pick a group or All groups in the results.',
   },
   {
+    id: 'hayduk-means' as const,
+    title: 'Smoking model with means and intercepts (Hayduk 1987)',
+    tags: ['CB-SEM', 'Means and intercepts', 'Known reliability', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
+    body: 'Figure 9.8: the chapter-4 model with a mean structure, estimated from the covariance matrix and the means of Figure 4.5. Each marker’s intercept is fixed at a measurement bias he assigns (age reports 0.25 low, views 0.50 high, …), so the concept means come out corrected: age 38.70, education 8.08, attendance 2.64; the three endogenous intercepts 1.03, 4.57, −0.09; the same χ² = 2.28 on 1 df.',
+  },
+  {
+    id: 'hayduk-stacked-means' as const,
+    title: 'Stacked smoking model with means (Hayduk 1987)',
+    tags: ['CB-SEM', 'Multigroup', 'Stacked model', 'Means and intercepts', 'Known reliability', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
+    body: 'Figures 9.9 to 9.11: the stacked model with the means of both age groups, a second indicator for smoking (physiological strain) and for religion (importance) with loadings equal across the groups and error variances free, the marker biases of Figure 9.8 (age −0.2 for the younger, −0.3 for the older). Coefficients and the concept means and intercepts are equal across the groups except the heavy arrows and the means of age, education and religion. Reproduces Figure 9.11: χ² = 54.97 on 38 df (p = .04), loadings 2.86 and 0.68, the intercepts and means of both groups.',
+  },
+  {
     id: 'hayduk-revised' as const,
     title: 'Revised smoking model: a reciprocal effect (Hayduk 1987)',
     tags: ['CB-SEM', 'Non-recursive', 'Known reliability', 'Covariance input', 'Textbook example'],

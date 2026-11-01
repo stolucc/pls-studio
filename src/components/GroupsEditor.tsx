@@ -43,7 +43,7 @@ export function GroupsEditor() {
   }
   const structural = mg?.structural ?? [];
   const toggleStructural = (k: StructuralEquality) => mg && setMultigroup({ ...mg, structural: structural.includes(k) ? structural.filter((x) => x !== k) : [...structural, k] });
-  const freed = (f: FreedParameter) => (f.kind === 'loading' ? `${name(f.construct)} → ${f.indicator} (loading)` : f.kind === 'intercept' ? `${f.indicator} (intercept)` : `${name(f.from)} → ${name(f.to)} (coefficient)`);
+  const freed = (f: FreedParameter) => (f.kind === 'loading' ? `${name(f.construct)} → ${f.indicator} (loading)` : f.kind === 'intercept' ? `${f.indicator} (intercept)` : f.kind === 'mean' ? `${name(f.construct)} (mean / intercept)` : `${name(f.from)} → ${name(f.to)} (coefficient)`);
   return (
     <div className="section">
       <div className="section-title">Groups</div>
@@ -79,6 +79,7 @@ export function GroupsEditor() {
             <label className="check"><input type="checkbox" checked={structural.includes('regressions')} disabled={readOnly} onChange={() => toggleStructural('regressions')} /> <span>Path coefficients (a stacked model)</span></label>
             <label className="check"><input type="checkbox" checked={structural.includes('lv.variances')} disabled={readOnly} onChange={() => toggleStructural('lv.variances')} /> <span>Construct variances</span></label>
             <label className="check"><input type="checkbox" checked={structural.includes('lv.covariances')} disabled={readOnly} onChange={() => toggleStructural('lv.covariances')} /> <span>Construct covariances</span></label>
+            {model.constant && <label className="check"><input type="checkbox" checked={structural.includes('means')} disabled={readOnly} onChange={() => toggleStructural('means')} /> <span>Construct means and intercepts (the arrows from the constant)</span></label>}
             <div className="hint" style={{ marginTop: 6 }}>
               {structural.includes('regressions')
                 ? 'Every path coefficient is the same in every group except those freed: right-click a path to let it differ between groups (Hayduk’s stacked model). The score tests under Measurement invariance say which equality fits worst.'

@@ -33,6 +33,8 @@ export interface ConstructSpec {
   covariate?: boolean;
   /** CB-SEM (lavaan): a single indicator's known reliability; its error variance is fixed at (1 − reliability) × its variance. */
   reliability?: number;
+  /** CB-SEM (lavaan): known reliabilities of some indicators of a multi-indicator factor (by indicator name), fixing their error variances likewise. */
+  reliabilities?: Record<string, number>;
 }
 
 export interface PathSpec {
@@ -77,9 +79,9 @@ export type EsemRotation = 'geomin' | 'oblimin' | 'quartimin' | 'varimax' | 'tar
 export type InvarianceLevel = 'configural' | 'metric' | 'scalar' | 'strict';
 /** Parameters freed across groups despite the invariance level (partial invariance). */
 export type FreedParameter = { kind: 'loading'; construct: string; indicator: string } | { kind: 'intercept'; indicator: string }
-  | { kind: 'regression'; from: string; to: string };
-/** Structural parameters held equal across groups (lavaan's group.equal): the paths, the exogenous constructs' variances and covariances. */
-export type StructuralEquality = 'regressions' | 'lv.variances' | 'lv.covariances';
+  | { kind: 'regression'; from: string; to: string } | { kind: 'mean'; construct: string };
+/** Structural parameters held equal across groups (lavaan's group.equal): the paths, the constructs' variances, covariances, and means / intercepts (the constant drawn). */
+export type StructuralEquality = 'regressions' | 'lv.variances' | 'lv.covariances' | 'means';
 /**
  * Multiple groups: by a data column, or (column '') the groups of a dataset of
  * several covariance matrices (a stacked model). `invariance` is the measurement
@@ -115,7 +117,8 @@ export interface ModelSpec {
   /** CB-SEM (lavaan): estimate the mean structure (meanstructure = TRUE: every indicator intercept free). */
   meanStructure?: boolean;
   /** CB-SEM (lavaan): latent means (or observed variables' intercepts) to estimate, fix or label. */
-  means?: { construct: string; fixed?: number; label?: string }[];
+  /** `bias`: the marker indicator's intercept fixed at this value instead of 0 (a known measurement bias, Hayduk 1987); with groups one value per group. */
+  means?: { construct: string; fixed?: number; label?: string; bias?: number | number[] }[];
 }
 
 /** Column-oriented numeric data; NaN marks a missing value. */
@@ -124,11 +127,13 @@ export interface MomentData {
   S: number[][];
   n: number;
   nacov?: number[][];
+  /** The variables' means (in `names` order): a mean structure can then be estimated from the matrix. */
+  means?: number[];
   /** Several groups (a stacked model): each group's own covariance matrix and N; S and n are then the pooled matrix and the total. */
   groups?: MomentGroup[];
 }
 /** One group's summary statistics of a multiple-group (stacked) dataset. */
-export interface MomentGroup { label: string; S: number[][]; n: number }
+export interface MomentGroup { label: string; S: number[][]; n: number; means?: number[] }
 
 export interface Dataset {
   names: string[];

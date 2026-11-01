@@ -14,8 +14,10 @@
 //   error variance fixed from an assessed reliability (Figures 4.5 to 4.7);
 //   and its chapter-9 stacked model: younger and older respondents, one
 //   covariance matrix each, the coefficients equal across the groups except
-//   those Figure 9.1 draws heavy; and its chapter-8 revised model (Figure 8.6),
-//   smoking and antismoking views causing each other.
+//   those Figure 9.1 draws heavy; its chapter-8 revised model (Figure 8.6),
+//   smoking and antismoking views causing each other; and its means models
+//   (Figures 9.8 and 9.11): the mean structure from the matrices' means, the
+//   marker intercepts fixed at the author's measurement biases.
 // - Duncan, Haller & Portes (1968), peer influences on aspirations: the
 //   non-recursive model of the sem documentation (reciprocal effects of the
 //   respondent's and the friend's aspirations, correlated disturbances).
@@ -178,15 +180,17 @@ export const HAYDUK_RELIABILITY: Record<string, number> = { Sex: 0.99, Age: 0.95
  * ch4: Figure 4.6; ch9: with the age -> acts path (the stacked model); revised:
  * Figure 8.6, where views also cause smoking (identified by dropping sex -> smoking and religion -> views).
  */
-function haydukModel(variant: 'ch4' | 'ch9' | 'revised') {
+function haydukModel(variant: 'ch4' | 'ch9' | 'revised', twoIndicators = false) {
   // Every concept has one indicator whose error variance is fixed at the assessed proportion of its variance (THETA in Figure 4.7):
   // the exogenous concepts are latent too (PHI is estimated), so they are not fixed.x covariates.
   const single = (name: string, indicator: string, x: number, y: number, side: Construct['side']) => C(name, [indicator], x, y, side, { reliability: HAYDUK_RELIABILITY[indicator] });
   const sex = single('Sex', 'Sex', 0, -330, 'left');
   const age = single('Age', 'Age', 0, -110, 'left');
   const education = single('Education', 'Education', 0, 110, 'left');
-  const religion = single('Strength of religion', 'R-attend', 0, 330, 'left');
-  const smoking = single('Smoking', 'S-current', 500, -270, 'top');
+  // Figure 9.9: smoking and religion get a second indicator (physiological strain, importance of religion) with a free loading
+  // and a free error variance; the first indicator keeps its assessed reliability.
+  const religion = twoIndicators ? C('Strength of religion', ['R-attend', 'R-import'], 0, 330, 'left', { reliabilities: { 'R-attend': HAYDUK_RELIABILITY['R-attend'] } }) : single('Strength of religion', 'R-attend', 0, 330, 'left');
+  const smoking = twoIndicators ? C('Smoking', ['S-current', 'S-p-strain'], 500, -270, 'top', { reliabilities: { 'S-current': HAYDUK_RELIABILITY['S-current'] } }) : single('Smoking', 'S-current', 500, -270, 'top');
   const views = single('Antismoking views', 'AS-views', 500, 270, 'bottom');
   const acts = single('Antismoking acts', 'AS-acts', 1000, 0, 'right');
   const exogenous = [sex, age, education, religion];
@@ -214,6 +218,27 @@ export function makeHaydukExample(settings: Settings): BuiltinExample {
     info: info('Hayduk (1987), Figure 4.5 covariance matrix', HAYDUK_N),
     // Known reliabilities are estimated by lavaan (the built-in engine does not fix error variances).
     model: makeCovariancesExplicit(model),
+    settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false, engine: 'r' },
+  };
+}
+
+/** Figure 4.5: the indicators' means (N = 432), for the means model of Figure 9.8. */
+export const HAYDUK_MEANS: Record<string, number> = { Sex: 1.49, Age: 38.45, Education: 8.18, 'R-attend': 2.74, 'R-strength': 1.64, 'R-import': 4.39, 'R-God-E': 3.25, 'S-current': 0.444, 'S-amount': 0.970, 'S-history': 1.23, 'S-p-strain': 1.75, 'AS-views': 6.62, 'AS-acts': 0.605 };
+/** Figure 9.8: the measurement biases Hayduk fixes the marker intercepts at (indicator = concept + bias). */
+export const HAYDUK_BIAS: Record<string, number> = { Sex: 0, Age: -0.25, Education: 0.10, 'R-attend': 0.10, 'S-current': -0.02, 'AS-views': 0.50, 'AS-acts': 0 };
+
+/** The constant and an arrow to every construct, each marker's intercept fixed at the construct's bias (by indicator name). */
+function withMeans(model: ModelState, bias: Record<string, number | number[]>): ModelState {
+  return { ...model, constant: { x: -420, y: 0 }, means: model.constructs.map((c) => ({ id: newId('m'), target: c.id, ...(bias[c.indicators[0]] !== undefined ? { bias: bias[c.indicators[0]] } : {}) })) };
+}
+
+export function makeHaydukMeansExample(settings: Settings): BuiltinExample {
+  const { model } = haydukModel('ch4');
+  return {
+    name: 'Smoking model with means and intercepts (Hayduk 1987)',
+    data: { names: HAYDUK_NAMES, cols: [], moments: { S: HAYDUK_S.map((r) => [...r]), n: HAYDUK_N, means: HAYDUK_NAMES.map((v) => HAYDUK_MEANS[v]) } },
+    info: info('Hayduk (1987), Figure 4.5 covariance matrix and means', HAYDUK_N),
+    model: makeCovariancesExplicit(withMeans(model, HAYDUK_BIAS)),
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false, engine: 'r' },
   };
 }
@@ -246,6 +271,8 @@ export const HAYDUK_OLDER_S = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
   -0.096, -0.269, 0.502, 0.160, 0.225, 6.089, -0.398, 2.760, 3.853,
 ], true);
 export const HAYDUK_STACKED_N = { younger: 213, older: 219 };
+/** Figure 9.2: the indicators' means per group, in HAYDUK_STACKED_NAMES order. */
+export const HAYDUK_STACKED_MEANS = { younger: [0.479, 1.854, 6.225, 0.662, 1.469, 25.99, 8.437, 2.272, 3.944], older: [0.411, 1.648, 7.009, 0.550, 1.511, 50.56, 7.932, 3.196, 4.822] };
 
 export function makeHaydukStackedExample(settings: Settings): BuiltinExample {
   const h = haydukModel('ch9');
@@ -313,5 +340,40 @@ export function makeDhpExample(settings: Settings): BuiltinExample {
     info: info('Duncan, Haller & Portes (1968) correlation matrix, via the sem package', DHP_N),
     model: makeCovariancesExplicit(model),
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false },
+  };
+}
+
+/** The heavy arrows of Figure 9.1 as freed coefficients, for a smoking model built by haydukModel. */
+function heavyArrows(h: ReturnType<typeof haydukModel>) {
+  const heavy: [Construct, Construct][] = [
+    [h.sex, h.acts], [h.age, h.smoking], [h.age, h.views], [h.age, h.acts], [h.education, h.smoking], [h.education, h.views], [h.education, h.acts], [h.smoking, h.views], [h.smoking, h.acts],
+  ];
+  return heavy.map(([from, to]) => ({ kind: 'regression' as const, from: from.id, to: to.id }));
+}
+
+export function makeHaydukStackedMeansExample(settings: Settings): BuiltinExample {
+  const h = haydukModel('ch9', true);
+  // Figure 9.9 / 9.11: the marker biases of Figure 9.8, age's per group (-0.2 younger, -0.3 older); loadings equal across groups
+  // (metric invariance); coefficients and the constructs' means and intercepts equal except the heavy arrows and the means of
+  // age, education and religion.
+  const bias: Record<string, number | number[]> = { ...HAYDUK_BIAS, Age: [-0.2, -0.3] };
+  const base = withMeans(h.model, bias);
+  const model: ModelState = {
+    ...base,
+    multigroup: {
+      column: '', invariance: 'metric', structural: ['regressions', 'means'],
+      free: [...heavyArrows(h), ...[h.age, h.education, h.religion].map((c) => ({ kind: 'mean' as const, construct: c.id }))],
+    },
+  };
+  const groups = [
+    { label: 'Younger', S: HAYDUK_YOUNGER_S.map((r) => [...r]), n: HAYDUK_STACKED_N.younger, means: [...HAYDUK_STACKED_MEANS.younger] },
+    { label: 'Older', S: HAYDUK_OLDER_S.map((r) => [...r]), n: HAYDUK_STACKED_N.older, means: [...HAYDUK_STACKED_MEANS.older] },
+  ];
+  return {
+    name: 'Stacked smoking model with means (Hayduk 1987)',
+    data: { names: HAYDUK_STACKED_NAMES, cols: [], moments: momentsOfGroups(groups) },
+    info: info('Hayduk (1987), Figure 9.2 covariance matrices and means (younger, older)', HAYDUK_STACKED_N.younger + HAYDUK_STACKED_N.older),
+    model: makeCovariancesExplicit(model),
+    settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false, engine: 'r' },
   };
 }

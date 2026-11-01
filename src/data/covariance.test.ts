@@ -13,6 +13,7 @@ describe('covariance matrix from raw data', () => {
     expect(d.names).toEqual(['c', 'a']);
     expect(d.cols).toEqual([]);
     expect(d.moments!.n).toBe(7);
+    expect(d.moments!.means).toEqual([16 / 7, 4]);
     const ref = covarianceN([data.cols[3], data.cols[0]]);
     expect(d.moments!.S[0][1]).toBeCloseTo((ref[0][1] * 7) / 6, 12);
     expect(d.moments!.S[1][1]).toBeCloseTo((ref[1][1] * 7) / 6, 12);
@@ -25,6 +26,8 @@ describe('covariance matrix from raw data', () => {
     expect(d.moments!.groups!.map((k) => [k.label, k.n])).toEqual([['control', 3], ['treated', 4]]);
     expect(d.moments!.n).toBe(7);
     expect(d.moments!.groups![0].S[0][0]).toBeCloseTo(1, 12);
+    expect(d.moments!.groups!.map((k) => k.means![0])).toEqual([2, 5.5]);
+    expect(d.moments!.means![0]).toBeCloseTo((3 * 2 + 4 * 5.5) / 7, 12);
     expect(d.moments!.S[0][0]).toBeCloseTo((2 * 1 + 3 * (5 / 3)) / 5, 12);
   });
   it('refuses unknown columns, too few rows and a one-valued grouping column; passes a matrix dataset through', () => {

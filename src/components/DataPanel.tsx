@@ -28,7 +28,7 @@ export function DataPanel() {
   const stats = useMemo(() => {
     if (!data) return [];
     if (data.moments && data.cols.length === 0) {
-      return data.names.map((name, i) => ({ name, mean: NaN, sd: Math.sqrt(data.moments!.S[i][i]), missing: 0 }));
+      return data.names.map((name, i) => ({ name, mean: data.moments!.means?.[i] ?? NaN, sd: Math.sqrt(data.moments!.S[i][i]), missing: 0 }));
     }
     return data.names.map((name, i) => {
       const present = data.cols[i].filter((v) => !Number.isNaN(v));

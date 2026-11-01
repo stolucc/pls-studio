@@ -107,8 +107,8 @@ collaboration steps marked as such.
 **Stores.** `useStore` (src/store.ts) is the project: `model` (constructs, paths, moderations,
 correlations, model-level fields), `settings` (method, estimator, engine, PLS options, missing
 values, bootstrap options, figure and chart styles), `data` (column-oriented `Float64Array`s,
-`NaN` = missing; or a covariance matrix with N and optional NACOV, or one matrix per group for a
-stacked model, pooled into S and N), `results` with its `key`,
+`NaN` = missing; or a covariance matrix with N, optional NACOV and optional means, or one matrix per
+group for a stacked model, pooled into S and N), `results` with its `key`,
 `past`/`future` for undo, `workspace` (data / model / analyses), `messages`, `cloud`.
 `useAnalyses` (src/analyses/store.ts) holds the cards of the log, which card is selected, unpacked
 results per card, running state, errors.

@@ -300,6 +300,9 @@ describe('the Groups section and the invariance tab with covariance-matrix data'
     expect(html).toContain('Path coefficients (a stacked model)');
     expect(html).toContain('Alpha → Beta (coefficient)');
     expect(html).toContain('right-click a path');
+    expect(html).not.toContain('Construct means and intercepts');
+    useStore.getState().addConstant();
+    expect(render(<GroupsEditor />)).toContain('Construct means and intercepts');
     const inv = render(<CbTab tab="invariance" cb={{} as never} boot={null} />);
     expect(inv).not.toContain('covariance matrix (one sample, no cases)');
     expect(inv).toContain('Compare configural, metric, scalar and strict');

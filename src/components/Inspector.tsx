@@ -150,6 +150,25 @@ function ConstructInspector({ c }: { c: Construct }) {
               <div className="hint">A known reliability (e.g. a published α) fixes the error variance at (1 − reliability) × the indicator’s variance (Bollen 1989). Empty: the error variance is 0. R engine (lavaan).</div>
             </div>
           )}
+          {c.indicators.length > 1 && !c.covariate && !c.components?.length && (
+            <div className="field" style={{ marginTop: 8 }}>
+              <label>Known reliabilities of indicators (optional)</label>
+              {c.indicators.map((ind) => (
+                <div className="ind" key={ind} style={{ alignItems: 'center' }}>
+                  <span>{ind}</span>
+                  <input className="input num" type="number" min={0.01} max={1} step={0.01} placeholder="estimated" aria-label={`Reliability of ${ind}`} style={{ width: 90 }}
+                    value={c.reliabilities?.[ind] ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value === '' ? undefined : Number(e.target.value);
+                      const next = { ...(c.reliabilities ?? {}) };
+                      if (v !== undefined && Number.isFinite(v)) next[ind] = v; else delete next[ind];
+                      update(c.id, { reliabilities: Object.keys(next).length ? next : undefined });
+                    }} />
+                </div>
+              ))}
+              <div className="hint">An indicator with a known reliability gets its error variance fixed at (1 − reliability) × its variance (per group with groups), as Hayduk (1987) fixes measurement error; the others’ error variances are estimated. R engine (lavaan).</div>
+            </div>
+          )}
           {c.indicators.length === 0 && (
             <>
               <div className="hint" style={{ marginBottom: 6 }}>Higher-order factor: measured by other constructs (the first is the marker).</div>
@@ -854,7 +873,9 @@ function ModelInspector() {
 /** An arrow from the constant: the construct's latent mean (or an observed variable's intercept). */
 function MeanInspector({ id }: { id: string }) {
   const model = useStore((s) => s.model);
+  const data = useStore((s) => s.data);
   const setMean = useStore((s) => s.setMean);
+  const setMultigroup = useStore((s) => s.setMultigroup);
   const del = useStore((s) => s.deleteItems);
   const results = useFreshResults();
   const t = model.means?.find((x) => x.id === id);
@@ -862,6 +883,17 @@ function MeanInspector({ id }: { id: string }) {
   if (!t || !c) return null;
   const observed = c.covariate || (c.indicators.length === 1 && c.type !== 'factor');
   const est = results?.cb?.estimates.find((e) => (e.kind === 'mean' || e.kind === 'intercept') && e.lhs === c.name);
+  const mg = model.multigroup;
+  const groupLabels = data?.moments?.groups?.map((g) => g.label);
+  const biasText = t.bias === undefined ? '' : Array.isArray(t.bias) ? t.bias.join(', ') : String(t.bias);
+  const setBias = (text: string) => {
+    const parts = text.split(',').map((x) => x.trim()).filter(Boolean).map(Number);
+    if (!parts.length) { setMean(id, { bias: null }); return; }
+    if (parts.some((v) => !Number.isFinite(v))) return;
+    setMean(id, { bias: parts.length === 1 ? parts[0] : parts });
+  };
+  const meanFree = !!mg?.free.some((f) => f.kind === 'mean' && f.construct === c.id);
+  const toggleMeanFree = () => mg && setMultigroup({ ...mg, free: meanFree ? mg.free.filter((f) => !(f.kind === 'mean' && f.construct === c.id)) : [...mg.free, { kind: 'mean', construct: c.id }] });
   return (
     <>
       <div className="section">
@@ -890,6 +922,16 @@ function MeanInspector({ id }: { id: string }) {
           <label htmlFor="mean-label">Label (equal labels = equal values; usable in defined parameters)</label>
           <input id="mean-label" className="input" value={t.label ?? ''} maxLength={31} disabled={t.fixed !== undefined} onChange={(e) => setMean(id, { label: e.target.value.trim() || null })} />
         </div>
+        {!observed && c.indicators.length > 0 && (
+          <div className="field">
+            <label htmlFor="mean-bias">Intercept of {c.indicators[0]} (measurement bias; empty: 0)</label>
+            <input id="mean-bias" className="input" value={biasText} placeholder={groupLabels ? `0, or one per group (${groupLabels.join(', ')})` : '0'} onChange={(e) => setBias(e.target.value)} />
+            <div className="hint">The marker’s intercept is fixed here instead of at 0: the indicator reads the concept plus this much (Hayduk 1987). With groups, one value or a comma-separated value per group.</div>
+          </div>
+        )}
+        {mg?.structural?.includes('means') && (
+          <label className="check"><input type="checkbox" checked={meanFree} onChange={toggleMeanFree} /><span>Differs between groups (not held equal)</span></label>
+        )}
         <button className="btn sm danger" onClick={() => del([], [id])}>Remove this arrow</button>
       </div>
     </>

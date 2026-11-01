@@ -37,6 +37,12 @@ describe('replication package parts', () => {
     expect(csv).toBe('group,N,,a,b\nyoung,10,a,1,0.5\nyoung,10,b,0.5,2\nold,20,a,3,0\nold,20,b,0,4\n');
   });
 
+  it('writes the means as a first row (and per group) when the matrix carries them', () => {
+    expect(datasetCsv({ names: ['a', 'b'], cols: [], moments: { S: [[1, 0], [0, 1]], n: 30, means: [10, 20] } })).toBe(',a,b\nmean,10,20\na,1,0\nb,0,1\n');
+    const csv = datasetCsv({ names: ['a'], cols: [], moments: { S: [[1]], n: 30, groups: [{ label: 'y', S: [[1]], n: 10, means: [5] }, { label: 'o', S: [[2]], n: 20, means: [6] }] } });
+    expect(csv).toBe('group,N,,a\ny,10,mean,5\ny,10,a,1\no,20,mean,6\no,20,a,2\n');
+  });
+
   it('finds the packages a script uses', () => {
     expect(scriptPackages('suppressPackageStartupMessages(library(lavaan))\nx <- semTools::compRelSEM(fit)\nif (requireNamespace("mice", quietly = TRUE)) 1\nstats::sd(1)\nlibrary(cSEM, quietly = TRUE)'))
       .toEqual(['cSEM', 'lavaan', 'mice', 'semTools']);

@@ -115,11 +115,11 @@ export async function importCsv(file?: File | null) {
 }
 
 /** A labelled square covariance matrix: ask for N and optionally a NACOV file (for MLM/MLMV). */
-async function importMatrix(fileName: string, m: { names: string[]; S: number[][] }) {
+async function importMatrix(fileName: string, m: { names: string[]; S: number[][]; means?: number[] }) {
   const s = useStore.getState();
   const n = await numberDialog({
     title: 'Covariance matrix detected',
-    body: `${fileName} is a ${m.names.length} × ${m.names.length} covariance matrix. CB-SEM can be estimated from it (ML, GLS, ULS; MLM/MLMV with a NACOV file). PLS and bootstrapping need raw data.`,
+    body: `${fileName} is a ${m.names.length} × ${m.names.length} covariance matrix${m.means ? ' with the variables’ means' : ''}. CB-SEM can be estimated from it (ML, GLS, ULS; MLM/MLMV with a NACOV file${m.means ? '; means and intercepts too' : ''}). PLS and bootstrapping need raw data.`,
     confirmLabel: 'Use matrix',
     field: { label: 'Sample size N', min: 3, max: 1e8, integer: true },
   });
@@ -131,7 +131,7 @@ async function importMatrix(fileName: string, m: { names: string[]; S: number[][
       try { nacov = parseNacovCsv(await nf.text(), m.names.length); } catch (err) { s.toast('error', err instanceof Error ? err.message : String(err)); }
     }
   }
-  s.setData({ names: m.names, cols: [], moments: { S: m.S, n, ...(nacov ? { nacov } : {}) } },
+  s.setData({ names: m.names, cols: [], moments: { S: m.S, n, ...(nacov ? { nacov } : {}), ...(m.means ? { means: m.means } : {}) } },
     { fileName: fileName.slice(0, 200), rows: n, missingCells: 0, excluded: [], kind: 'matrix', hasNacov: !!nacov });
   if (s.settings.method !== 'cbsem') s.setSettings({ method: 'cbsem' });
   s.toast('success', `Loaded a ${m.names.length}-variable covariance matrix (N = ${n})${nacov ? ' with NACOV' : ''}. Switched to CB-SEM.`);
@@ -292,7 +292,7 @@ export async function openRecent(id: string) {
   }
 }
 
-export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk' | 'hayduk-stacked' | 'hayduk-revised' | 'dhp';
+export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk' | 'hayduk-stacked' | 'hayduk-revised' | 'hayduk-means' | 'hayduk-stacked-means' | 'dhp';
 
 /** The built-in examples other than the synthetic survey: each a module loaded on demand, and what the toast says. */
 const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
@@ -305,6 +305,8 @@ const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: 
   'hayduk-stacked': { make: () => import('./examples/textbook').then((m) => m.makeHaydukStackedExample), toast: 'Hayduk (1987), ch. 9: the smoking model stacked over younger (N = 213) and older (N = 219) respondents, one covariance matrix each; coefficients equal across the groups except the heavy arrows of Figure 9.1 (R engine). Press Calculate.' },
   'hayduk-revised': { make: () => import('./examples/textbook').then((m) => m.makeHaydukRevisedExample), toast: 'Hayduk (1987), Figure 8.6: smoking and antismoking views cause each other (non-recursive), identified by dropping sex -> smoking and religion -> views; N = 432, maximum likelihood (R engine). Press Calculate.' },
   dhp: { make: () => import('./examples/textbook').then((m) => m.makeDhpExample), toast: 'Duncan, Haller & Portes (1968): peer influences on aspirations, a non-recursive model with reciprocal effects and correlated disturbances; correlation matrix, N = 329, maximum likelihood. Press Calculate.' },
+  'hayduk-means': { make: () => import('./examples/textbook').then((m) => m.makeHaydukMeansExample), toast: 'Hayduk (1987), Figure 9.8: the smoking model with means and intercepts from the matrix and its means, the marker intercepts fixed at his measurement biases (R engine). Press Calculate.' },
+  'hayduk-stacked-means': { make: () => import('./examples/textbook').then((m) => m.makeHaydukStackedMeansExample), toast: 'Hayduk (1987), Figures 9.9 to 9.11: the stacked smoking model with means, two indicators of smoking and of religion, means and coefficients equal across the age groups except those freed (R engine). Press Calculate.' },
   kerckhoff: { make: () => import('./examples/textbook').then((m) => m.makeKerckhoffExample), toast: 'Kerckhoff (1974), ambition and attainment: observed-variable path analysis from the LISREL manual, correlation matrix, N = 737. Press Calculate.' },
 };
 

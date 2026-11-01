@@ -23,6 +23,7 @@ export function DataWorkspace() {
   const [group, setGroup] = useState(-1);  // -1: pooled
   const shownS = groups && group >= 0 && group < groups.length ? groups[group].S : data?.moments?.S;
   const shownN = groups && group >= 0 && group < groups.length ? groups[group].n : data?.moments?.n;
+  const shownMeans = groups && group >= 0 && group < groups.length ? groups[group].means : data?.moments?.means;
   const rows = data && !matrix ? data.cols[0]?.length ?? 0 : 0;
   const pages = Math.max(1, Math.ceil(rows / PAGE));
   const q = query.trim().toLowerCase();
@@ -61,7 +62,7 @@ export function DataWorkspace() {
             {info && info.excluded.length > 0 && <div className="hint">Not imported (non-numeric): {info.excluded.map((e) => e.name).join(', ')}.</div>}
             {matrix ? (
               <Table title={groups && group >= 0 ? `Covariance matrix: ${groups[group].label}` : groups ? 'Covariance matrix (pooled within groups)' : 'Covariance matrix'} file="covariances" columns={['', ...shown.map(([n]) => n)]}
-                rows={shown.map(([n, i]) => [c(n), ...shown.map(([, j]) => num(shownS![i][j]))])}
+                rows={[...(shownMeans ? [[c('mean', 'dim'), ...shown.map(([, i]) => num(shownMeans[i]))]] : []), ...shown.map(([n, i]) => [c(n), ...shown.map(([, j]) => num(shownS![i][j]))])]}
                 note={groups
                   ? `Summary-statistics data of ${groups.length} groups (${groups.map((g) => `${g.label}: N = ${g.n}`).join('; ')}); the pooled matrix weights each group's by N − 1. There are no rows to show.`
                   : `Summary-statistics data: covariances (N = ${shownN}${data.moments!.nacov ? ', with NACOV' : ''}); there are no rows to show.`} />

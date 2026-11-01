@@ -32,11 +32,15 @@ describe('covariance matrix instead of the raw data', () => {
     expect(data.moments!.groups!.map((k) => [k.label, k.n])).toEqual([['women', 20], ['men', 20]]);
     expect(model.multigroup).toEqual({ column: '', invariance: 'metric', free: [] });
   });
-  it('says why it is unavailable: not CB-SEM, no model, a mean structure, no data', () => {
+  it('says why it is unavailable: not CB-SEM, no model, ordinal indicators, no data; a mean structure travels with the matrix', () => {
     useStore.getState().setSettings({ method: 'pls' });
     expect(covarianceOnlyBlocked()).toMatch(/CB-SEM only/);
     useStore.getState().setSettings({ method: 'cbsem' });
+    // A mean structure is fine: the matrix carries the means.
     useStore.getState().addConstant();
+    expect(covarianceOnlyBlocked()).toBeNull();
+    expect(covarianceOnly().data.moments!.means!.length).toBe(4);
+    useStore.getState().setOrdered(['x1'], true);
     expect(covarianceOnlyBlocked()).toMatch(/^With the covariance matrix: /);
     useStore.getState().newProject();
     expect(covarianceOnlyBlocked()).toBe('Import a dataset first.');

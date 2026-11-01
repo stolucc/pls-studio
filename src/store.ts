@@ -109,7 +109,7 @@ interface State {
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
   /** Factors from an exploratory factor analysis, as common factors (one undo step); `correlate`: draw their correlations. */
   addFactors: (groups: string[][], correlate: boolean, names?: string[]) => string[];
-  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical' | 'dominant' | 'reliability'>>) => void;
+  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical' | 'dominant' | 'reliability' | 'reliabilities'>>) => void;
   /** CB-SEM: label a path coefficient, loading or drawn covariance (null removes it); equal labels = equal values. */
   setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
   setDefined: (defined: DefinedParameter[]) => void;
@@ -143,7 +143,7 @@ interface State {
   addConstant: () => void;
   moveConstant: (x: number, y: number) => void;
   addMean: (constructId: string) => boolean;
-  setMean: (id: string, patch: { fixed?: number | null; label?: string | null }) => void;
+  setMean: (id: string, patch: { fixed?: number | null; label?: string | null; bias?: number | number[] | null }) => void;
   deleteItems: (constructIds: string[], pathIds: string[], moderationIds?: string[], correlationIds?: string[]) => void;
   addModeration: (moderatorId: string, pathId: string) => boolean;
   /** PLS-SEM (seminr): how the moderation's interaction term is built (undefined: two-stage). */
@@ -436,10 +436,11 @@ export const useStore = create<State>((set, get) => ({
   },
   setMean: (id, patch) => get().commit((m) => ({ ...m, means: (m.means ?? []).map((t) => {
     if (t.id !== id) return t;
-    const { fixed: _f, label: _l, ...rest } = t;
+    const { fixed: _f, label: _l, bias: _b, ...rest } = t;
     const fixed = patch.fixed === undefined ? t.fixed : patch.fixed ?? undefined;
     const label = patch.label === undefined ? t.label : patch.label ?? undefined;
-    return { ...rest, ...(fixed !== undefined ? { fixed } : {}), ...(label && fixed === undefined ? { label } : {}) };
+    const bias = patch.bias === undefined ? t.bias : patch.bias ?? undefined;
+    return { ...rest, ...(fixed !== undefined ? { fixed } : {}), ...(label && fixed === undefined ? { label } : {}), ...(bias !== undefined ? { bias } : {}) };
   }) })),
 
   addPath: (from, to) => {

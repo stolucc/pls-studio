@@ -40,8 +40,9 @@ export function datasetCsv(data: Dataset): string {
   if (data.moments && data.cols.length === 0) {
     // A covariance matrix: one labelled row per variable; several groups: a first column with the group, N as a row.
     const g = data.moments.groups;
-    if (g) return [['group', 'N', '', ...data.names].map(quote).join(','), ...g.flatMap((k) => data.names.map((n, i) => [quote(k.label), String(k.n), quote(n), ...k.S[i].map(String)].join(',')))].join('\n') + '\n';
-    return [['', ...data.names].map(quote).join(','), ...data.names.map((n, i) => [quote(n), ...data.moments!.S[i].map(String)].join(','))].join('\n') + '\n';
+    if (g) return [['group', 'N', '', ...data.names].map(quote).join(','), ...g.flatMap((k) => [...(k.means ? [[quote(k.label), String(k.n), 'mean', ...k.means.map(String)].join(',')] : []), ...data.names.map((n, i) => [quote(k.label), String(k.n), quote(n), ...k.S[i].map(String)].join(','))])].join('\n') + '\n';
+    const m = data.moments.means;
+    return [['', ...data.names].map(quote).join(','), ...(m ? [['mean', ...m.map(String)].join(',')] : []), ...data.names.map((n, i) => [quote(n), ...data.moments!.S[i].map(String)].join(','))].join('\n') + '\n';
   }
   const n = data.cols[0]?.length ?? 0;
   const cell = (k: number, r: number) => {

@@ -34,6 +34,8 @@ export interface Construct {
   covariate?: boolean;
   /** CB-SEM single indicator: known reliability (error variance fixed at (1 − r) × variance; otherwise 0). */
   reliability?: number;
+  /** CB-SEM multi-indicator factor: known reliabilities of some indicators (by name), fixing their error variances likewise (Hayduk 1987). */
+  reliabilities?: Record<string, number>;
   /** Conditional process analysis: model this scale as a latent variable (lavaan::sam) instead of its mean score. */
   latent?: boolean;
   /** CB-SEM: loadings held at a value (by indicator name); a value for the first indicator replaces the marker's 1. */
@@ -208,7 +210,8 @@ export interface ModelState {
 }
 
 /** An arrow from the constant: a latent mean (or an observed variable's intercept) of construct `target`. */
-export interface MeanTerm { id: string; target: string; fixed?: number; label?: string }
+/** `bias`: the marker indicator's intercept fixed at this value instead of 0 (a known measurement bias; one value per group with groups). */
+export interface MeanTerm { id: string; target: string; fixed?: number; label?: string; bias?: number | number[] }
 
 /** Drop mean arrows whose construct is gone, and all of them without the constant. */
 export function pruneMeans(model: ModelState): ModelState {
@@ -424,6 +427,8 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.components?.length ? { components: c.components.map((id) => name.get(id) ?? id) } : {}),
       ...(c.covariate ? { covariate: true } : {}),
       ...(c.reliability !== undefined && c.indicators.length === 1 && !c.covariate ? { reliability: c.reliability } : {}),
+      ...(c.reliabilities && c.indicators.length > 1 && !c.covariate && Object.keys(c.reliabilities).some((k) => c.indicators.includes(k))
+        ? { reliabilities: Object.fromEntries(Object.entries(c.reliabilities).filter(([k]) => c.indicators.includes(k))) } : {}),
       ...(c.dominant && c.indicators.includes(c.dominant) ? { dominant: c.dominant } : {}),
       ...(c.categorical && c.indicators.length === 1 ? { categorical: true } : {}),
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
@@ -443,13 +448,13 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.multigroup ? {
       multigroup: {
         ...model.multigroup,
-        free: model.multigroup.free.map((f) => (f.kind === 'loading' ? { ...f, construct: name.get(f.construct) ?? f.construct }
+        free: model.multigroup.free.map((f) => (f.kind === 'loading' || f.kind === 'mean' ? { ...f, construct: name.get(f.construct) ?? f.construct }
           : f.kind === 'regression' ? { ...f, from: name.get(f.from) ?? f.from, to: name.get(f.to) ?? f.to } : f)),
       },
     } : {}),
     ...(model.constant ? {
       meanStructure: true,
-      means: (model.means ?? []).flatMap((t) => (name.has(t.target) ? [{ construct: name.get(t.target)!, ...(t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : {}) }] : [])),
+      means: (model.means ?? []).flatMap((t) => (name.has(t.target) ? [{ construct: name.get(t.target)!, ...(t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : {}), ...(t.bias !== undefined ? { bias: t.bias } : {}) }] : [])),
     } : {}),
     moderations: (model.moderations ?? []).flatMap((mo) => {
       const p = model.paths.find((q) => q.id === mo.path);
@@ -609,6 +614,15 @@ export function validateModel(
       if (c.indicators.length !== 1) err(`Covariate "${c.name}" must have exactly one indicator.`, c.id);
       if (model.paths.some((q) => q.to === c.id)) err(`Covariate "${c.name}" cannot have incoming paths.`, c.id);
     }
+    if (c.reliabilities && method.method === 'cbsem') {
+      for (const [k, r] of Object.entries(c.reliabilities)) {
+        if (!c.indicators.includes(k)) continue;
+        if (!(r > 0 && r <= 1)) err(`The reliability of ${k} ("${c.name}") must be above 0 and at most 1.`, c.id);
+        else if (c.indicators.length < 2 || c.covariate) err(`"${c.name}": per-indicator reliabilities apply to a factor with several indicators (a single indicator has its own reliability field).`, c.id);
+        else if (method.estimator === '2SLS') err(`"${c.name}": known reliabilities are not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
+        else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": known reliabilities are estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
+      }
+    }
     if (c.reliability !== undefined && method.method === 'cbsem') {
       if (!(c.reliability > 0 && c.reliability <= 1)) err(`The reliability of "${c.name}" must be above 0 and at most 1.`, c.id);
       else if (c.indicators.length !== 1 || c.covariate) err(`"${c.name}": a known reliability applies to a single-indicator factor only.`, c.id);
@@ -737,9 +751,16 @@ export function validateModel(
     else {
       if ((method.engine ?? 'r') === 'builtin') err('Means and intercepts are estimated by lavaan: choose “R packages” under Calculated by.');
       if (method.estimator === '2SLS') err('Means and intercepts are not available with MIIV-2SLS; choose a maximum-likelihood estimator.');
-      if (matrix) err('Means and intercepts need raw data: a covariance matrix carries no means.');
-      if (model.multigroup) err('With groups, latent means come from the invariance level (scalar): remove the constant, or the groups.');
+      if (matrix && !(data?.moments?.means || data?.moments?.groups?.every((g) => g.means))) err('Means and intercepts need the variables’ means: this covariance matrix carries none (add a “mean” row to the matrix file, or use raw data).');
       if (model.multilevel) err('Means and intercepts are not available in a two-level model here.');
+      const nGroups = data?.moments?.groups?.length;
+      for (const t of model.means ?? []) {
+        if (t.bias === undefined) continue;
+        const bias = Array.isArray(t.bias) ? t.bias : [t.bias];
+        if (!bias.length || bias.some((b) => !Number.isFinite(b))) err('A marker intercept (bias) must be a number.');
+        else if (Array.isArray(t.bias) && !model.multigroup) err('One marker intercept (bias) per group needs groups.');
+        else if (Array.isArray(t.bias) && nGroups && t.bias.length !== nGroups) err(`A marker intercept (bias) per group needs ${nGroups} values (one per group).`);
+      }
       if ((method.interaction ?? 'product') !== 'product' && model.moderations.length) err('Means and intercepts are not available with LMS / QML; use product indicators.');
       for (const t of model.means ?? []) {
         const c = model.constructs.find((k) => k.id === t.target);
@@ -920,7 +941,6 @@ export function validateModel(
       if (data?.moments && !data.moments.groups) err('Multiple-group analysis needs raw data with a grouping column, or a dataset of one covariance matrix per group.');
       else if (data?.moments?.groups) {
         if (mg.column) err('With one covariance matrix per group the groups are those matrices: no grouping column applies.');
-        if (model.means?.length || model.constant) err('Latent means need raw data; the groups here are covariance matrices.');
       } else if (data) {
         const col = data.cols[data.names.indexOf(mg.column)];
         if (!col) err(`The grouping column “${mg.column}” is not in the dataset.`);
@@ -939,6 +959,8 @@ export function validateModel(
       const ids = new Set(model.constructs.map((c) => c.id));
       for (const f of mg.free) if (f.kind === 'loading' && !ids.has(f.construct)) err('A loading freed across groups refers to a removed construct.');
       for (const f of mg.free) if (f.kind === 'regression' && !model.paths.some((q) => q.from === f.from && q.to === f.to)) err('A coefficient freed across groups refers to a removed path.');
+      for (const f of mg.free) if (f.kind === 'mean' && !(model.means ?? []).some((t) => t.target === f.construct)) err('A mean freed across groups refers to a construct without a mean arrow.');
+      if (mg.structural?.includes('means') && !model.constant) warn('Means are held equal across groups, but there is no constant on the canvas: nothing to hold equal.');
       if (mg.free.some((f) => f.kind === 'regression') && !mg.structural?.includes('regressions')) warn('Coefficients are freed across groups, but the structural coefficients are not held equal (Groups): the freeing has no effect.');
     }
   }
@@ -1162,11 +1184,12 @@ export function parseMoments(raw: unknown, p: number): MomentData {
     if (!Array.isArray(r.groups) || r.groups.length < 2 || r.groups.length > 20) throw new Error('Invalid covariance-matrix data: expected 2 to 20 groups.');
     const groups: MomentGroup[] = r.groups.map((g: unknown, i: number) => {
       if (!isObj(g)) throw new Error('Invalid covariance-matrix data: malformed group.');
-      const { S, n } = parseMoments({ S: g.S, n: g.n }, p);
+      const { S, n, means } = parseMoments({ S: g.S, n: g.n, means: g.means }, p);
       const label = typeof g.label === 'string' && g.label.trim() ? g.label.trim().slice(0, 60) : `Group ${i + 1}`;
-      return { label, S, n };
+      return { label, S, n, ...(means ? { means } : {}) };
     });
     if (new Set(groups.map((g) => g.label)).size !== groups.length) throw new Error('Invalid covariance-matrix data: group labels must differ.');
+    if (groups.some((g) => g.means) && !groups.every((g) => g.means)) throw new Error('Invalid covariance-matrix data: either every group has means or none.');
     return { ...pooledMoments(groups), groups };
   }
   const square = (m: unknown, k: number, what: string): number[][] => {
@@ -1185,7 +1208,12 @@ export function parseMoments(raw: unknown, p: number): MomentData {
   const n = typeof r.n === 'number' && Number.isInteger(r.n) && r.n > 2 && r.n < 1e9 ? r.n : NaN;
   if (Number.isNaN(n)) throw new Error('Invalid covariance-matrix data: N must be an integer above 2.');
   const nacov = r.nacov === undefined || r.nacov === null ? undefined : square(r.nacov, (p * (p + 1)) / 2, 'NACOV matrix');
-  return { S, n, ...(nacov ? { nacov } : {}) };
+  let means: number[] | undefined;
+  if (r.means !== undefined && r.means !== null) {
+    if (!Array.isArray(r.means) || r.means.length !== p || r.means.some((v) => typeof v !== 'number' || !Number.isFinite(v))) throw new Error(`Invalid means: expected ${p} numbers.`);
+    means = r.means as number[];
+  }
+  return { S, n, ...(nacov ? { nacov } : {}), ...(means ? { means } : {}) };
 }
 
 /**
@@ -1231,15 +1259,22 @@ function parseMultigroup(r: Record<string, unknown>, ids: Set<string>): Multigro
     if (f.kind === 'loading' && typeof f.construct === 'string' && ids.has(f.construct) && typeof f.indicator === 'string') return [{ kind: 'loading' as const, construct: f.construct, indicator: str(f.indicator) }];
     if (f.kind === 'intercept' && typeof f.indicator === 'string') return [{ kind: 'intercept' as const, indicator: str(f.indicator) }];
     if (f.kind === 'regression' && typeof f.from === 'string' && typeof f.to === 'string' && ids.has(f.from) && ids.has(f.to)) return [{ kind: 'regression' as const, from: f.from, to: f.to }];
+    if (f.kind === 'mean' && typeof f.construct === 'string' && ids.has(f.construct)) return [{ kind: 'mean' as const, construct: f.construct }];
     return [];
   });
-  const STRUCTURAL: StructuralEquality[] = ['regressions', 'lv.variances', 'lv.covariances'];
+  const STRUCTURAL: StructuralEquality[] = ['regressions', 'lv.variances', 'lv.covariances', 'means'];
   const structural = Array.isArray(r.structural) ? STRUCTURAL.filter((k) => (r.structural as unknown[]).includes(k)) : [];
   return { column: str(r.column), invariance: LEVELS.find((l) => l === r.invariance) ?? 'configural', free, ...(structural.length ? { structural } : {}) };
 }
 
 /** A parameter label from a file (validated again before use). */
 const labelOf = (v: unknown): { label?: string } => (typeof v === 'string' && v.trim() ? { label: v.trim().slice(0, 31) } : {});
+function reliabilitiesOf(raw: unknown, indicators: unknown[]): { reliabilities?: Record<string, number> } {
+  if (!isObj(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw)) if (indicators.includes(k) && typeof v === 'number' && v > 0 && v <= 1) out[k] = v;
+  return Object.keys(out).length ? { reliabilities: out } : {};
+}
 function loadingLabelsOf(raw: unknown, indicators: unknown[]): { loadingLabels?: Record<string, string> } {
   if (!isObj(raw)) return {};
   const out: Record<string, string> = {};
@@ -1292,6 +1327,7 @@ export function parseModelState(m: unknown): ModelState {
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
       ...(c.covariate === true ? { covariate: true } : {}),
       ...(typeof c.reliability === 'number' && c.reliability > 0 && c.reliability <= 1 ? { reliability: c.reliability } : {}),
+      ...(reliabilitiesOf(c.reliabilities, c.indicators as unknown[])),
       ...(typeof c.dominant === 'string' && (c.indicators as unknown[]).includes(c.dominant) ? { dominant: c.dominant } : {}),
       ...(c.latent === true ? { latent: true } : {}),
       ...((['indicator', 'sequential', 'helmert', 'effect'] as const).includes(c.categorical as 'indicator') ? { categorical: c.categorical as 'indicator' } : {}),
@@ -1356,7 +1392,8 @@ export function parseModelState(m: unknown): ModelState {
           const target = str(t.target, 64);
           if (!ids.has(target) || seen.has(target)) return [];
           seen.add(target);
-          return [{ id: str(t.id, 64), target, ...(finite(t.fixed) ? { fixed: t.fixed } : {}), ...(labelOf(t.label)) }];
+          const bias = finite(t.bias) ? { bias: t.bias } : Array.isArray(t.bias) && t.bias.length >= 1 && t.bias.length <= 20 && t.bias.every(finite) ? { bias: t.bias as number[] } : {};
+          return [{ id: str(t.id, 64), target, ...(finite(t.fixed) ? { fixed: t.fixed } : {}), ...(labelOf(t.label)), ...bias }];
         });
       })() } : {}),
   };

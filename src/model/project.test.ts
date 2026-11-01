@@ -522,8 +522,9 @@ describe('the mean structure (the constant)', () => {
     expect(errs({ method: 'pls', consistent: false })).toContainEqual(expect.stringContaining('is a CB-SEM feature'));
     expect(errs({ ...cbs, engine: 'builtin' })).toContainEqual(expect.stringContaining('estimated by lavaan'));
     expect(errs({ ...cbs, estimator: '2SLS' })).toContainEqual(expect.stringContaining('not available with MIIV-2SLS'));
-    expect(errs(cbs, m, { names: raw.names, cols: [], moments: { S: raw.names.map((_, i) => raw.names.map((_, j) => (i === j ? 1 : 0.2))), n: 50 } })).toContainEqual(expect.stringContaining('carries no means'));
-    expect(errs(cbs, { ...m, multigroup: { column: 'g', invariance: 'scalar', free: [] } })).toContainEqual(expect.stringContaining('come from the invariance level'));
+    expect(errs(cbs, m, { names: raw.names, cols: [], moments: { S: raw.names.map((_, i) => raw.names.map((_, j) => (i === j ? 1 : 0.2))), n: 50 } })).toContainEqual(expect.stringContaining('carries none'));
+    // Groups and a mean structure go together (each group's means, held equal or freed under Groups).
+    expect(errs(cbs, { ...m, multigroup: { column: 'g', invariance: 'scalar', free: [] } }).some((x) => /come from the invariance level/.test(x))).toBe(false);
     expect(errs(cbs, { ...m, constructs: [...m.constructs, K('H', 'Higher', [], { components: ['A', 'B'] })], means: [{ id: 'm9', target: 'H' }] })).toContainEqual(expect.stringContaining('second-order construct'));
   });
 });
@@ -632,10 +633,10 @@ describe('stacked models: one covariance matrix per group, structural equalities
   const issues = (model = m, d: Parameters<typeof validateModel>[1] = data, settings = cbs) => validateModel(model, d, settings);
   const errs = (...a: Parameters<typeof issues>) => issues(...a).filter((i) => i.level === 'error').map((i) => i.message);
 
-  it('is valid with the groups of the matrices and no grouping column; a column or latent means are refused', () => {
+  it('is valid with the groups of the matrices and no grouping column; a column, or means without the matrices’ means, are refused', () => {
     expect(errs()).toEqual([]);
     expect(errs({ ...m, multigroup: { ...m.multigroup!, column: 'g' } })).toContainEqual(expect.stringContaining('no grouping column applies'));
-    expect(errs({ ...m, constant: { x: 0, y: 0 }, means: [{ id: 'mt', target: 'A' }] })).toContainEqual(expect.stringContaining('Latent means need raw data'));
+    expect(errs({ ...m, constant: { x: 0, y: 0 }, means: [{ id: 'mt', target: 'A' }] })).toContainEqual(expect.stringContaining('carries none'));
     // One matrix without groups: still no multiple-group analysis.
     expect(errs(m, { names: data.names, cols: [], moments: { S: groups[0].S, n: 100 } })).toContainEqual(expect.stringContaining('one covariance matrix per group'));
   });
@@ -668,7 +669,7 @@ describe('stacked models: one covariance matrix per group, structural equalities
     expect(() => parseProject(JSON.stringify(bad))).toThrow(/3 × 3/);
     // An unknown structural equality or a freed coefficient of unknown constructs is dropped, not kept.
     const odd = JSON.parse(text);
-    odd.model.multigroup.structural = ['regressions', 'means'];
+    odd.model.multigroup.structural = ['regressions', 'nope'];
     odd.model.multigroup.free.push({ kind: 'regression', from: 'nope', to: 'B' });
     expect(parseProject(JSON.stringify(odd)).model.multigroup).toEqual(m.multigroup);
   });
@@ -692,5 +693,61 @@ describe('non-recursive models (cycles in the structural model)', () => {
   it('the spec carries both directions', () => {
     const spec = toSpec(m);
     expect(spec.paths.filter((p) => (p.from === 'Alpha' && p.to === 'Beta') || (p.from === 'Beta' && p.to === 'Alpha')).length).toBe(2);
+  });
+});
+
+describe('mean structures from matrices, measurement biases and per-indicator reliabilities', () => {
+  const C2 = (id: string, name: string, ind: string[], extra: Partial<Construct> = {}): Construct => ({ id, name, type: 'factor', mode: 'A', indicators: ind, x: 0, y: 0, side: 'left', ...extra });
+  const m: ModelState = {
+    constructs: [C2('A', 'Alpha', ['a1', 'a2'], { reliabilities: { a1: 0.9, zz: 0.5 } }), C2('B', 'Beta', ['b1'], { reliability: 0.95 })],
+    paths: [{ id: 'p', from: 'A', to: 'B' }], moderations: [],
+    constant: { x: -200, y: 0 }, means: [{ id: 'm1', target: 'A', bias: 0.1 }, { id: 'm2', target: 'B', bias: [0, -0.3] }],
+  };
+  const groups = [{ label: 'Y', S: [[1, 0.3, 0.2], [0.3, 1, 0.1], [0.2, 0.1, 1]], n: 100, means: [1, 2, 3] }, { label: 'O', S: [[2, 0.4, 0.2], [0.4, 1.5, 0.3], [0.2, 0.3, 1]], n: 120, means: [1.5, 2.5, 3.5] }];
+  const names = ['a1', 'a2', 'b1'];
+  const cbs = { method: 'cbsem' as const, consistent: false, estimator: 'ML' as const, engine: 'r' as const };
+  const errs = (model: ModelState, d: Parameters<typeof validateModel>[1]) => validateModel(model, d, cbs).filter((i) => i.level === 'error').map((i) => i.message);
+
+  it('a matrix with means allows the constant; without means it does not; biases per group need the groups', () => {
+    const one = { names, cols: [], moments: { S: groups[0].S, n: 100, means: [1, 2, 3] } };
+    const single = { ...m, means: [{ id: 'm1', target: 'A', bias: 0.1 }] };
+    expect(errs(single, one)).toEqual([]);
+    expect(errs(single, { names, cols: [], moments: { S: groups[0].S, n: 100 } })).toContainEqual(expect.stringContaining('carries none'));
+    expect(errs(m, one)).toContainEqual(expect.stringContaining('per group needs groups'));
+    const stacked = { names, cols: [], moments: { S: groups[0].S, n: 220, groups } };
+    const mg = { ...m, multigroup: { column: '', invariance: 'metric' as const, structural: ['means' as const], free: [{ kind: 'mean' as const, construct: 'B' }] } };
+    expect(errs(mg, stacked)).toEqual([]);
+    expect(errs({ ...mg, means: [{ id: 'm2', target: 'B', bias: [0, -0.3, 1] }] }, stacked)).toContainEqual(expect.stringContaining('needs 2 values'));
+    expect(errs({ ...mg, means: [] }, stacked)).toContainEqual(expect.stringContaining('without a mean arrow'));
+    expect(validateModel({ ...mg, constant: undefined, means: undefined }, stacked, cbs).some((i) => i.level === 'warning' && /no constant on the canvas/.test(i.message))).toBe(true);
+  });
+  it('the spec carries the reliabilities of a factor’s indicators, the biases and the freed means by name', () => {
+    const spec = toSpec(m);
+    expect(spec.constructs[0].reliabilities).toEqual({ a1: 0.9 });
+    expect(spec.constructs[1].reliability).toBe(0.95);
+    expect(spec.means).toEqual([{ construct: 'Alpha', bias: 0.1 }, { construct: 'Beta', bias: [0, -0.3] }]);
+    expect(toSpec({ ...m, multigroup: { column: '', invariance: 'configural', free: [{ kind: 'mean', construct: 'A' }] } }).multigroup!.free).toEqual([{ kind: 'mean', construct: 'Alpha' }]);
+  });
+  it('reliabilities are checked: in range, on a multi-indicator factor, R engine', () => {
+    expect(errs({ ...m, constructs: [C2('A', 'Alpha', ['a1', 'a2'], { reliabilities: { a1: 1.2 } }), m.constructs[1]] }, null).some((x) => /must be above 0 and at most 1/.test(x))).toBe(true);
+    expect(errs({ ...m, constructs: [C2('A', 'Alpha', ['a1'], { reliabilities: { a1: 0.9 } }), m.constructs[1]] }, null).some((x) => /several indicators/.test(x))).toBe(true);
+    expect(validateModel(m, null, { ...cbs, engine: 'builtin' }).some((i) => /known reliabilities are estimated by lavaan/.test(i.message))).toBe(true);
+  });
+  it('round-trips through a project file: means with the matrix, the biases, the reliabilities, the freed means', () => {
+    const stacked = { names, cols: [], moments: { S: groups[0].S, n: 220, groups } };
+    const mg: ModelState = { ...m, multigroup: { column: '', invariance: 'metric', structural: ['regressions', 'means'], free: [{ kind: 'mean', construct: 'B' }] } };
+    const p = parseProject(serializeProject(mg, DEFAULT_SETTINGS, stacked, { fileName: 'm.csv', rows: 220, missingCells: 0, excluded: [], kind: 'matrix' }));
+    expect(p.data!.moments!.groups!.map((g) => g.means)).toEqual([[1, 2, 3], [1.5, 2.5, 3.5]]);
+    expect(p.data!.moments!.means![0]).toBeCloseTo((100 * 1 + 120 * 1.5) / 220, 12);
+    expect(p.model.means).toEqual(mg.means);
+    expect(p.model.constructs[0].reliabilities).toEqual({ a1: 0.9 });  // a key that is not an indicator is dropped
+    expect(p.model.multigroup).toEqual(mg.multigroup);
+    const one = parseProject(serializeProject(m, DEFAULT_SETTINGS, { names, cols: [], moments: { S: groups[0].S, n: 100, means: [1, 2, 3] } }, { fileName: 'm.csv', rows: 100, missingCells: 0, excluded: [], kind: 'matrix' }));
+    expect(one.data!.moments!.means).toEqual([1, 2, 3]);
+    const bad = JSON.parse(serializeProject(m, DEFAULT_SETTINGS, stacked, { fileName: 'm.csv', rows: 220, missingCells: 0, excluded: [], kind: 'matrix' }));
+    delete bad.data.moments.groups[1].means;
+    expect(() => parseProject(JSON.stringify(bad))).toThrow(/every group has means or none/);
+    bad.data.moments.groups[1].means = [1, 2];
+    expect(() => parseProject(JSON.stringify(bad))).toThrow(/expected 3 numbers/);
   });
 });

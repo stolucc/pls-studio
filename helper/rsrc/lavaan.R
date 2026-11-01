@@ -42,14 +42,19 @@ ps_cb_build <- function(req) {
       dimnames(S) <- list(unname(n$iv[n$all_inds]), unname(n$iv[n$all_inds]))
       S
     }
+    # The variables' means, when the matrix carries them (a mean structure can then be estimated: lavaan's sample.mean).
+    pick_m <- function(m) { m <- as.numeric(unlist(m)); names(m) <- req$data$names; m <- m[n$all_inds]; names(m) <- unname(n$iv[n$all_inds]); m }
     if (matrix_groups) {
       # A stacked model: one matrix per group (lavaan takes a named list, the names as group labels).
       if (!is.null(mo$nacov)) stop("A NACOV matrix is not available with several groups.")
-      inputs$S <- setNames(lapply(mo$groups, function(g) pick(g$S)), vapply(mo$groups, function(g) as.character(g$label), ""))
+      labels <- vapply(mo$groups, function(g) as.character(g$label), "")
+      inputs$S <- setNames(lapply(mo$groups, function(g) pick(g$S)), labels)
       inputs$N <- vapply(mo$groups, function(g) as.numeric(g$n), 0)
+      if (all(vapply(mo$groups, function(g) !is.null(g$means), TRUE))) inputs$M <- setNames(lapply(mo$groups, function(g) pick_m(g$means)), labels)
     } else {
       inputs$S <- pick(mo$S)
       inputs$N <- mo$n
+      if (!is.null(mo$means)) inputs$M <- pick_m(mo$means)
     }
     robust_nacov <- req$estimator %in% c("MLM", "MLMV") && !is.null(mo$nacov)
     if (robust_nacov) {
@@ -155,24 +160,27 @@ ps_cb_build <- function(req) {
         next
       }
       lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels)))
+      # Known reliability (Bollen 1989; Hayduk 1987): error variance fixed at (1 - reliability) x the indicator's variance.
+      # With several groups, each group's own variance (Hayduk 1987, ch. 9: the stacked model fixes each group's error variance).
+      fix_theta <- function(vi, rel, what) {
+        rel <- ps_number(rel, "reliability")
+        if (rel <= 0 || rel > 1) stop("A reliability must be above 0 and at most 1.")
+        s2 <- if (matrix_groups) vapply(inputs$S, function(M) M[vi, vi], 0)
+          else if (matrix_input) inputs$S[vi, vi]
+          else if (!is.null(group_var)) vapply(split(inputs$data[[vi]], inputs$data[[group_var]]), stats::var, 0, na.rm = TRUE)
+          else stats::var(inputs$data[[vi]], na.rm = TRUE)
+        if (!all(is.finite(s2))) stop("The variance of ", vi, " cannot be computed.")
+        rel_inds <<- c(rel_inds, vi)
+        theta <- if (length(s2) > 1) sprintf("c(%s)", paste(vapply((1 - rel) * s2, ps_num, ""), collapse = ", ")) else ps_num((1 - rel) * s2)
+        sprintf("%s ~~ %s*%s   # %s, reliability %s: (1 - %s) x variance %s", vi, theta, vi, what, format(rel), format(rel), paste(format(signif(s2, 6)), collapse = " / "))
+      }
       if (length(v) == 1) {
         rel <- cons[[j]]$reliability
         if (is.null(rel)) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
-        else {
-          # Known reliability (Bollen 1989; Hayduk 1987): error variance fixed at (1 - reliability) x the indicator's variance.
-          rel <- ps_number(rel, "reliability")
-          if (rel <= 0 || rel > 1) stop("A reliability must be above 0 and at most 1.")
-          # With several groups, each group's own variance (Hayduk 1987, ch. 9: the stacked model fixes each group's error variance).
-          s2 <- if (matrix_groups) vapply(inputs$S, function(M) M[v, v], 0)
-            else if (matrix_input) inputs$S[v, v]
-            else if (!is.null(group_var)) vapply(split(inputs$data[[v]], inputs$data[[group_var]]), stats::var, 0, na.rm = TRUE)
-            else stats::var(inputs$data[[v]], na.rm = TRUE)
-          if (!all(is.finite(s2))) stop("The variance of ", n$inds[[j]], " cannot be computed.")
-          rel_inds <- c(rel_inds, v)
-          theta <- if (length(s2) > 1) sprintf("c(%s)", paste(vapply((1 - rel) * s2, ps_num, ""), collapse = ", ")) else ps_num((1 - rel) * s2)
-          lines <- c(lines, sprintf("%s ~~ %s*%s   # single indicator, reliability %s: (1 - %s) x variance %s", v, theta, v,
-            format(rel), format(rel), paste(format(signif(s2, 6)), collapse = " / ")))
-        }
+        else lines <- c(lines, fix_theta(v, rel, "single indicator"))
+      } else {
+        rels <- cons[[j]]$reliabilities %||% list()
+        for (ind in names(rels)) if (ind %in% n$inds[[j]]) lines <- c(lines, fix_theta(unname(n$iv[[ind]]), rels[[ind]], "known reliability"))
       }
     }
   }
@@ -241,9 +249,9 @@ ps_cb_build <- function(req) {
   # variable's intercept; fixed at a value or labelled when asked.
   means_on <- isTRUE(req$model$meanStructure)
   if (means_on) {
-    if (matrix_input) stop("Means and intercepts need raw data: a covariance matrix carries no means.")
-    if (!is.null(mg)) stop("With groups, latent means come from the invariance level (scalar): remove the constant, or the groups.")
+    if (matrix_input && is.null(inputs$M)) stop("Means and intercepts need the variables' means: this covariance matrix carries none.")
     if (!is.null(ml)) stop("Means and intercepts are not available in a two-level model here.")
+    n_groups <- if (matrix_groups) length(inputs$S) else if (!is.null(group_var)) length(unique(inputs$data[[group_var]][is.finite(inputs$data[[group_var]])])) else 1
     for (mt in req$model$means) {
       j <- match(mt$construct, n$cname)
       if (is.na(j)) stop("Unknown construct in a mean term.")
@@ -251,7 +259,16 @@ ps_cb_build <- function(req) {
       term <- if (!is.null(mt$fixed)) paste0(ps_num(mt$fixed), "*1") else if (!is.null(mt$label)) paste0(ps_label(mt$label), "*1") else "1"
       lines <- c(lines, paste(lv, "~", term))
       if (is.null(mt$fixed) && !is_cov[j] && length(n$inds[[j]]) && !length(comps[[j]])) {
-        lines <- c(lines, paste0(n$iv[[n$inds[[j]][1]]], " ~ 0*1   # marker intercept fixed at 0: identifies the latent mean of ", lv))
+        # The marker's intercept: 0 identifies the latent mean in the marker's units; a known measurement bias instead
+        # (Hayduk 1987, ch. 9: the indicator reads the concept plus this much), one value per group when given so.
+        bias <- unlist(mt$bias)
+        if (is.null(bias)) at <- "0"
+        else {
+          bias <- vapply(bias, ps_number, 0, "bias")
+          if (length(bias) > 1 && length(bias) != n_groups) stop("A marker intercept per group needs one value per group.")
+          at <- if (length(bias) > 1) sprintf("c(%s)", paste(vapply(bias, ps_num, ""), collapse = ", ")) else ps_num(bias)
+        }
+        lines <- c(lines, paste0(n$iv[[n$inds[[j]][1]]], " ~ ", at, "*1   # marker intercept fixed", if (is.null(bias)) " at 0: identifies" else " at a known bias: identifies", " the latent mean of ", lv))
       }
     }
   }
@@ -313,13 +330,15 @@ ps_cb_build <- function(req) {
     lev <- mg$invariance %||% "configural"
     if (!lev %in% c("configural", "metric", "scalar", "strict")) stop("Invalid invariance level in the request.")
     structural <- unlist(mg$structural)
-    if (!all(structural %in% c("regressions", "lv.variances", "lv.covariances"))) stop("Invalid structural equality in the request.")
+    if (!all(structural %in% c("regressions", "lv.variances", "lv.covariances", "means"))) stop("Invalid structural equality in the request.")
+    if ("means" %in% structural && !means_on) structural <- setdiff(structural, "means")
     equal <- c(if (lev != "configural") "loadings", if (lev %in% c("scalar", "strict")) c("intercepts", if (length(ordered)) "thresholds"),
       if (lev == "strict") "residuals", structural)
     partial <- unlist(lapply(mg$free, function(f) {
       if (identical(f$kind, "loading")) paste0(lname[[f$construct]], "=~", n$iv[[f$indicator]])
       else if (identical(f$kind, "intercept")) paste0(n$iv[[f$indicator]], "~1")
       else if (identical(f$kind, "regression")) paste0(lname[[f$to]], "~", lname[[f$from]])
+      else if (identical(f$kind, "mean")) paste0(lname[[f$construct]], "~1")
     }))
     extra <- paste0(extra, if (!is.null(group_var)) sprintf(", group = \"%s\"", group_var) else "",
       if (length(equal)) sprintf(", group.equal = %s", ps_q(equal)) else "",
@@ -338,7 +357,7 @@ ps_cb_build <- function(req) {
       inputs = inputs, body = body, matrix_input = matrix_input, group_var = NULL, modsem = method))
   }
   # (with matrices, extra holds the group equalities of a stacked model and the bounds only: the rest was refused above)
-  call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\"%s)", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator, extra)
+  call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s%s, estimator = \"%s\"%s)", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", if (means_on) ", sample.mean = M" else "", req$estimator, extra)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
   # Multiple imputation (mice, then lavaan.mi's Rubin pooling); a lavaan fit to the first imputed data set
   # serves as the template for the model's structure, every reported number is pooled.
