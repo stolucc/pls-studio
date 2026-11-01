@@ -7,7 +7,8 @@ import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
 import { exprToR, nameError, namesIn, parseConstraint, parseExpr, parseInequality } from './expr';
-import type { ConstructType, Dataset, EsemRotation, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MultigroupSpec, WeightingScheme } from '../engine/types';
+import type { ConstructType, Dataset, EsemRotation, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MomentData, MomentGroup, MultigroupSpec, StructuralEquality, WeightingScheme } from '../engine/types';
+import { pooledMoments } from '../data/moments';
 import { LAVAAN_MISSING } from '../engine/types';
 import { MAX_CATEGORIES } from '../engine/dataset';
 
@@ -442,7 +443,8 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.multigroup ? {
       multigroup: {
         ...model.multigroup,
-        free: model.multigroup.free.map((f) => (f.kind === 'loading' ? { ...f, construct: name.get(f.construct) ?? f.construct } : f)),
+        free: model.multigroup.free.map((f) => (f.kind === 'loading' ? { ...f, construct: name.get(f.construct) ?? f.construct }
+          : f.kind === 'regression' ? { ...f, from: name.get(f.from) ?? f.from, to: name.get(f.to) ?? f.to } : f)),
       },
     } : {}),
     ...(model.constant ? {
@@ -709,7 +711,7 @@ export function validateModel(
       if (mods) err('Latent interactions need raw data (product indicators); this dataset is a covariance matrix.');
       if (method.estimator === 'MLR') err('MLR needs raw data; with a covariance matrix use MLM or MLMV (with NACOV), ML, GLS or ULS.');
       if (method.estimator === 'RML') err('Robust ML (rsem) needs raw data.');
-      if (model.multigroup) err('Multiple-group analysis needs raw data with a grouping column.');
+      if (model.multigroup && !data?.moments?.groups) err('Multiple-group analysis needs raw data with a grouping column, or one covariance matrix per group.');
       if (model.multilevel) err('A two-level model needs raw data with a cluster column.');
       if (model.weights) err('Sampling weights need raw data.');
       if ((method.missing ?? 'mean') === 'mi') err('Multiple imputation needs raw data.');
@@ -915,8 +917,11 @@ export function validateModel(
     else {
       if (engine === 'builtin') err('Multiple-group analysis is estimated by lavaan: choose “R packages” under Calculated by.');
       if (method.estimator === '2SLS') err('Multiple-group analysis is not available with MIIV-2SLS.');
-      if (data?.moments) err('Multiple-group analysis needs raw data with a grouping column.');
-      else if (data) {
+      if (data?.moments && !data.moments.groups) err('Multiple-group analysis needs raw data with a grouping column, or a dataset of one covariance matrix per group.');
+      else if (data?.moments?.groups) {
+        if (mg.column) err('With one covariance matrix per group the groups are those matrices: no grouping column applies.');
+        if (model.means?.length || model.constant) err('Latent means need raw data; the groups here are covariance matrices.');
+      } else if (data) {
         const col = data.cols[data.names.indexOf(mg.column)];
         if (!col) err(`The grouping column “${mg.column}” is not in the dataset.`);
         else {
@@ -933,6 +938,8 @@ export function validateModel(
       }
       const ids = new Set(model.constructs.map((c) => c.id));
       for (const f of mg.free) if (f.kind === 'loading' && !ids.has(f.construct)) err('A loading freed across groups refers to a removed construct.');
+      for (const f of mg.free) if (f.kind === 'regression' && !model.paths.some((q) => q.from === f.from && q.to === f.to)) err('A coefficient freed across groups refers to a removed path.');
+      if (mg.free.some((f) => f.kind === 'regression') && !mg.structural?.includes('regressions')) warn('Coefficients are freed across groups, but the structural coefficients are not held equal (Groups): the freeing has no effect.');
     }
   }
 
@@ -1140,9 +1147,21 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
 // ---------- persistence ----------
 
 /** Validate summary statistics: a finite symmetric positive-diagonal p × p matrix, N > 2, optional p* × p* NACOV. */
-export function parseMoments(raw: unknown, p: number): { S: number[][]; n: number; nacov?: number[][] } {
+export function parseMoments(raw: unknown, p: number): MomentData {
   if (typeof raw !== 'object' || raw === null) throw new Error('Invalid covariance-matrix data.');
   const r = raw as Record<string, unknown>;
+  // Several groups (a stacked model): each its own matrix and N; S and n are recomputed from them (pooled, total).
+  if (r.groups !== undefined && r.groups !== null) {
+    if (!Array.isArray(r.groups) || r.groups.length < 2 || r.groups.length > 20) throw new Error('Invalid covariance-matrix data: expected 2 to 20 groups.');
+    const groups: MomentGroup[] = r.groups.map((g: unknown, i: number) => {
+      if (!isObj(g)) throw new Error('Invalid covariance-matrix data: malformed group.');
+      const { S, n } = parseMoments({ S: g.S, n: g.n }, p);
+      const label = typeof g.label === 'string' && g.label.trim() ? g.label.trim().slice(0, 60) : `Group ${i + 1}`;
+      return { label, S, n };
+    });
+    if (new Set(groups.map((g) => g.label)).size !== groups.length) throw new Error('Invalid covariance-matrix data: group labels must differ.');
+    return { ...pooledMoments(groups), groups };
+  }
   const square = (m: unknown, k: number, what: string): number[][] => {
     if (!Array.isArray(m) || m.length !== k || k > 20000) throw new Error(`Invalid ${what}: expected a ${k} × ${k} matrix.`);
     return m.map((row) => {
@@ -1173,7 +1192,7 @@ export interface ProjectFile {
   version: typeof FORMAT_VERSION;
   model: ModelState;
   settings: Settings;
-  data: { info: DataInfo; names: string[]; columns: (number | null)[][]; moments?: { S: number[][]; n: number; nacov?: number[][] } } | null;
+  data: { info: DataInfo; names: string[]; columns: (number | null)[][]; moments?: MomentData } | null;
   simulation?: McDesign | null;
   /** The Analyses tab: cards in order (validated by analyses/persist.ts). */
   analyses?: unknown[];
@@ -1204,9 +1223,12 @@ function parseMultigroup(r: Record<string, unknown>, ids: Set<string>): Multigro
   const free = (Array.isArray(r.free) ? r.free.slice(0, 1000) : []).filter(isObj).flatMap((f: Record<string, unknown>): FreedParameter[] => {
     if (f.kind === 'loading' && typeof f.construct === 'string' && ids.has(f.construct) && typeof f.indicator === 'string') return [{ kind: 'loading' as const, construct: f.construct, indicator: str(f.indicator) }];
     if (f.kind === 'intercept' && typeof f.indicator === 'string') return [{ kind: 'intercept' as const, indicator: str(f.indicator) }];
+    if (f.kind === 'regression' && typeof f.from === 'string' && typeof f.to === 'string' && ids.has(f.from) && ids.has(f.to)) return [{ kind: 'regression' as const, from: f.from, to: f.to }];
     return [];
   });
-  return { column: str(r.column), invariance: LEVELS.find((l) => l === r.invariance) ?? 'configural', free };
+  const STRUCTURAL: StructuralEquality[] = ['regressions', 'lv.variances', 'lv.covariances'];
+  const structural = Array.isArray(r.structural) ? STRUCTURAL.filter((k) => (r.structural as unknown[]).includes(k)) : [];
+  return { column: str(r.column), invariance: LEVELS.find((l) => l === r.invariance) ?? 'configural', free, ...(structural.length ? { structural } : {}) };
 }
 
 /** A parameter label from a file (validated again before use). */

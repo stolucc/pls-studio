@@ -208,7 +208,7 @@ function ModIndices({ cb }: { cb: CbResult }) {
 
 function Invariance({ cb }: { cb: CbResult }) {
   const multigroup = useStore((s) => s.model.multigroup);
-  const matrix = useStore((s) => !!s.data?.moments && s.data.cols.length === 0);
+  const matrix = useStore((s) => !!s.data?.moments && s.data.cols.length === 0 && !s.data.moments.groups);
   const results = useFreshResults();
   const job = useStore((s) => s.job);
   const inv = results?.invariance ?? null;
@@ -227,7 +227,7 @@ function Invariance({ cb }: { cb: CbResult }) {
         <RScriptButton what="invariance" />
       </div>
       {inv && (
-        <Table title={`Measurement invariance across ${multigroup.column}`} file="cb-invariance"
+        <Table title={`Measurement invariance across ${multigroup.column || 'the groups'}`} file="cb-invariance"
           columns={['Model', 'χ²', 'df', 'CFI', 'RMSEA', 'SRMR', 'Δχ²', 'Δdf', 'p', 'ΔCFI', 'ΔRMSEA']}
           rows={inv.levels.map((l) => [c(l.level), c(l.chisq), c(l.df, '', 0), c(l.cfi), c(l.rmsea), c(l.srmr), d(l.chisqDiff), d(l.dfDiff, 0),
             // A significant difference means the added equalities do not hold: a warning, not a success.

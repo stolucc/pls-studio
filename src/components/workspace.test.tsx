@@ -283,6 +283,31 @@ describe('the Groups section and the invariance tab with covariance-matrix data'
     expect(render(<GroupsEditor />)).toContain('Groups by g');
     expect(render(<CbTab tab="invariance" cb={{} as never} boot={null} />)).toContain('Choose a grouping column under Groups');
   });
+
+  it('offers the groups of a dataset of several matrices (a stacked model) with the structural equalities and the freed coefficients', async () => {
+    const { GroupsEditor } = await import('./GroupsEditor');
+    const { CbTab } = await import('./results/CbTabs');
+    const { DataWorkspace } = await import('./DataViewer');
+    useStore.getState().newProject();
+    const groups = [{ label: 'Younger', S: [[1, 0.3], [0.3, 1]], n: 100 }, { label: 'Older', S: [[2, 0.1], [0.1, 1]], n: 120 }];
+    useStore.getState().setData({ names: ['x1', 'x2'], cols: [], moments: { S: groups[0].S, n: 220, groups } }, { fileName: 'm.csv', rows: 220, missingCells: 0, excluded: [], kind: 'matrix' });
+    let html = render(<GroupsEditor />);
+    expect(html).toContain('2 groups: Younger (N = 100), Older (N = 120)');
+    expect(html).not.toContain('this dataset is a covariance matrix');
+    useStore.getState().commit((m) => ({ ...m, constructs: [{ id: 'a', name: 'Alpha', type: 'factor', mode: 'A', indicators: ['x1'], x: 0, y: 0, side: 'left' }, { id: 'b', name: 'Beta', type: 'factor', mode: 'A', indicators: ['x2'], x: 300, y: 0, side: 'right' }], paths: [{ id: 'p', from: 'a', to: 'b' }] }));
+    useStore.getState().setMultigroup({ column: '', invariance: 'configural', structural: ['regressions'], free: [{ kind: 'regression', from: 'a', to: 'b' }] });
+    html = render(<GroupsEditor />);
+    expect(html).toContain('Path coefficients (a stacked model)');
+    expect(html).toContain('Alpha → Beta (coefficient)');
+    expect(html).toContain('right-click a path');
+    const inv = render(<CbTab tab="invariance" cb={{} as never} boot={null} />);
+    expect(inv).not.toContain('covariance matrix (one sample, no cases)');
+    expect(inv).toContain('Compare configural, metric, scalar and strict');
+    const dv = render(<DataWorkspace />);
+    expect(dv).toContain('2 covariance matrices, N = 220');
+    expect(dv).toContain('Younger (N = 100)');
+    expect(dv).toContain('pooled within groups');
+  });
 });
 
 describe('the group switch of the results panel', () => {

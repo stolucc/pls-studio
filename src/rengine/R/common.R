@@ -233,6 +233,9 @@ ps_script <- function(title, packages, inputs, body, report) {
     v <- inputs[[nm]]
     if (is.data.frame(v)) ps_embed_frame(nm, v)
     else if (is.matrix(v)) { if (is.null(rownames(v))) dimnames(v) <- list(seq_len(nrow(v)), seq_len(ncol(v))); ps_embed_matrix(nm, v) }
+    # A stacked model: one matrix per group, then the named list lavaan takes.
+    else if (is.list(v) && length(v) && all(vapply(v, is.matrix, TRUE))) c(unlist(lapply(seq_along(v), function(i) ps_embed_matrix(sprintf("%s_%d", nm, i), v[[i]]))),
+      sprintf("%s <- list(%s)", nm, paste(sprintf("%s = %s_%d", encodeString(names(v), quote = '"'), nm, seq_along(v)), collapse = ", ")))
     else sprintf("%s <- %s", nm, deparse(v))
   }))
   vers <- vapply(packages, function(p) sprintf("%s %s", p, as.character(utils::packageVersion(p))), "")

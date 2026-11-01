@@ -244,7 +244,7 @@ export async function openRecent(id: string) {
   }
 }
 
-export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk';
+export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff' | 'hayduk' | 'hayduk-stacked';
 
 /** The built-in examples other than the synthetic survey: each a module loaded on demand, and what the toast says. */
 const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
@@ -254,6 +254,7 @@ const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: 
   wheaton: { make: () => import('./examples/textbook').then((m) => m.makeWheatonExample), toast: 'Wheaton et al. (1977), stability of alienation: covariance matrix, N = 932, maximum likelihood, with two correlated errors across the waves (Bollen 1989; Jöreskog & Sörbom). Press Calculate.' },
   thurstone: { make: () => import('./examples/textbook').then((m) => m.makeThurstoneExample), toast: 'Thurstone mental tests: second-order confirmatory factor analysis of nine tests, correlation matrix, N = 213 (SAS/STAT PROC CALIS manual). Press Calculate.' },
   hayduk: { make: () => import('./examples/textbook').then((m) => m.makeHaydukExample), toast: 'Hayduk (1987), Structural Equation Modeling with LISREL, ch. 4: smoking behaviour and antismoking acts, N = 432; seven single indicators with error variances fixed from their assessed reliabilities, maximum likelihood (R engine). Press Calculate.' },
+  'hayduk-stacked': { make: () => import('./examples/textbook').then((m) => m.makeHaydukStackedExample), toast: 'Hayduk (1987), ch. 9: the smoking model stacked over younger (N = 213) and older (N = 219) respondents, one covariance matrix each; coefficients equal across the groups except the heavy arrows of Figure 9.1 (R engine). Press Calculate.' },
   kerckhoff: { make: () => import('./examples/textbook').then((m) => m.makeKerckhoffExample), toast: 'Kerckhoff (1974), ambition and attainment: observed-variable path analysis from the LISREL manual, correlation matrix, N = 737. Press Calculate.' },
 };
 

@@ -69,6 +69,13 @@ const EXAMPLES = [
     links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
     body: 'Chapter 4’s “real model”: sex, age, education and religious attendance explain current smoking, antismoking views and antismoking acts (N = 432). Each concept has one indicator whose error variance is fixed from an assessed reliability (1% for sex, 5% to 10% for the rest), Hayduk’s way of modelling measurement error without multiple indicators; the figure reproduces his LISREL estimates (Figure 4.7). The matrix carries all thirteen indicators of Figure 4.5, so the other religion and smoking measures can be swapped in.',
   },
+  {
+    id: 'hayduk-stacked' as const,
+    title: 'Stacked smoking model: younger and older (Hayduk 1987)',
+    tags: ['CB-SEM', 'Multigroup', 'Stacked model', 'Known reliability', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
+    body: 'Chapter 9’s stacked model: the smoking model fitted to younger (N = 213) and older (N = 219) respondents at once, one covariance matrix per group (Figure 9.2), each group’s error variances fixed from its own variances. The path coefficients are held equal across the groups except the heavy arrows of Figure 9.1 (the effects of age and education, of sex on acts, and of smoking), which may differ; the χ² of the equalities tests whether the groups share one model. Groups: pick a group or All groups in the results.',
+  },
 ];
 
 /** Whether every word of a query occurs in one of the texts (case-insensitive). */

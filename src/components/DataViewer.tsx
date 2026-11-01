@@ -19,6 +19,10 @@ export function DataWorkspace() {
   useEffect(() => { setPage(0); }, [data]);
   const summaries = useMemo(() => (tab === 'summary' && data && data.cols.length ? data.cols.map(columnSummary) : []), [tab, data]);
   const matrix = !!data?.moments && data.cols.length === 0;
+  const groups = data?.moments?.groups;
+  const [group, setGroup] = useState(-1);  // -1: pooled
+  const shownS = groups && group >= 0 && group < groups.length ? groups[group].S : data?.moments?.S;
+  const shownN = groups && group >= 0 && group < groups.length ? groups[group].n : data?.moments?.n;
   const rows = data && !matrix ? data.cols[0]?.length ?? 0 : 0;
   const pages = Math.max(1, Math.ceil(rows / PAGE));
   const q = query.trim().toLowerCase();
@@ -27,7 +31,7 @@ export function DataWorkspace() {
   return (
     <section className="data-workspace" role="tabpanel" id="ws-data" aria-labelledby="ws-tab-data">
         <header className="sim-head">
-          <div><b>Data</b><span className="muted">{info ? `${info.fileName} · ${matrix ? `covariance matrix, N = ${info.rows}` : `${info.rows} rows`} · ${data?.names.length ?? 0} variables` : 'no dataset'}</span></div>
+          <div><b>Data</b><span className="muted">{info ? `${info.fileName} · ${matrix ? `${groups ? `${groups.length} covariance matrices, N = ${info.rows}` : `covariance matrix, N = ${info.rows}`}` : `${info.rows} rows`} · ${data?.names.length ?? 0} variables` : 'no dataset'}</span></div>
         </header>
         {!data ? <div className="empty-results">No dataset yet: import a CSV file or load an example from the Data panel on the left.</div> : (
           <div className="data-view">
@@ -37,6 +41,12 @@ export function DataWorkspace() {
                   <button className={tab === 'rows' ? 'on' : ''} onClick={() => setTab('rows')}>Rows</button>
                   <button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Descriptives</button>
                 </div>
+              )}
+              {groups && (
+                <select className="select" style={{ maxWidth: 260 }} value={group} onChange={(e) => setGroup(Number(e.target.value))} aria-label="Group">
+                  <option value={-1}>All groups pooled (N = {data.moments!.n})</option>
+                  {groups.map((g, i) => <option key={g.label} value={i}>{g.label} (N = {g.n})</option>)}
+                </select>
               )}
               <input className="input" style={{ maxWidth: 220 }} placeholder="Filter variables…" value={query} onChange={(e) => setQuery(e.target.value)} />
               <div className="spacer" />
@@ -50,9 +60,11 @@ export function DataWorkspace() {
             </div>
             {info && info.excluded.length > 0 && <div className="hint">Not imported (non-numeric): {info.excluded.map((e) => e.name).join(', ')}.</div>}
             {matrix ? (
-              <Table title="Covariance matrix" file="covariances" columns={['', ...shown.map(([n]) => n)]}
-                rows={shown.map(([n, i]) => [c(n), ...shown.map(([, j]) => num(data.moments!.S[i][j]))])}
-                note={`Summary-statistics data: covariances (N = ${data.moments!.n}${data.moments!.nacov ? ', with NACOV' : ''}); there are no rows to show.`} />
+              <Table title={groups && group >= 0 ? `Covariance matrix: ${groups[group].label}` : groups ? 'Covariance matrix (pooled within groups)' : 'Covariance matrix'} file="covariances" columns={['', ...shown.map(([n]) => n)]}
+                rows={shown.map(([n, i]) => [c(n), ...shown.map(([, j]) => num(shownS![i][j]))])}
+                note={groups
+                  ? `Summary-statistics data of ${groups.length} groups (${groups.map((g) => `${g.label}: N = ${g.n}`).join('; ')}); the pooled matrix weights each group's by N − 1. There are no rows to show.`
+                  : `Summary-statistics data: covariances (N = ${shownN}${data.moments!.nacov ? ', with NACOV' : ''}); there are no rows to show.`} />
             ) : tab === 'rows' ? (
               <div className="data-grid-wrap">
                 <table className="data-grid">

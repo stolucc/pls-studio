@@ -63,3 +63,16 @@ describe('canvas context menus', () => {
     expect(actions({ kind: 'path', id: 'gone' })).toBeNull();
   });
 });
+
+describe('stacked models: freeing a coefficient across groups', () => {
+  const stacked: ModelState = { ...model, multigroup: { column: '', invariance: 'configural', structural: ['regressions'], free: [] } };
+  it('offers to free a path coefficient only when the coefficients are held equal across groups, in CB-SEM', () => {
+    expect(actions({ kind: 'path', id: 'p1' })).not.toContain('toggle-free-path');
+    const items = menuFor({ kind: 'path', id: 'p1' }, stacked, { method: 'cbsem', readOnly: false })!.items;
+    expect(items[0]).toEqual({ action: 'toggle-free-path', label: 'Free coefficient across groups (differs between groups)' });
+    expect(menuFor({ kind: 'path', id: 'p1' }, stacked, { method: 'pls', readOnly: false })!.items.map((i) => i.action)).not.toContain('toggle-free-path');
+    expect(menuFor({ kind: 'path', id: 'p1' }, { ...stacked, multigroup: { ...stacked.multigroup!, structural: [] } }, { method: 'cbsem', readOnly: false })!.items.map((i) => i.action)).not.toContain('toggle-free-path');
+    const freed = { ...stacked, multigroup: { ...stacked.multigroup!, free: [{ kind: 'regression' as const, from: 'a', to: 'b' }] } };
+    expect(menuFor({ kind: 'path', id: 'p1' }, freed, { method: 'cbsem', readOnly: false })!.items[0].label).toBe('Hold coefficient equal across groups');
+  });
+});

@@ -17,7 +17,7 @@ export type MenuTarget =
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
-  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'make-esem' | 'leave-esem';
+  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'toggle-free-path' | 'make-esem' | 'leave-esem';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
@@ -99,7 +99,12 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       const p = model.paths.find((q) => q.id === target.id);
       if (!p) return null;
       const hasQuadratic = model.moderations.some((mo) => mo.path === p.id && mo.moderator === p.from);
+      // A stacked model (coefficients equal across groups): let this one differ between the groups.
+      const mg = model.multigroup;
+      const stacked = !!mg?.structural?.includes('regressions');
+      const pathFree = !!mg?.free.some((f) => f.kind === 'regression' && f.from === p.from && f.to === p.to);
       return out(`${nameOf(p.from)} → ${nameOf(p.to)}`, [
+        edit && cb && stacked && p.fixed === undefined && { action: 'toggle-free-path', label: pathFree ? 'Hold coefficient equal across groups' : 'Free coefficient across groups (differs between groups)' },
         edit && cb && { action: 'fix-value', label: p.fixed !== undefined ? `Change fixed value (${p.fixed})…` : 'Fix coefficient at a value…' },
         edit && cb && p.fixed !== undefined && { action: 'free-value', label: 'Free coefficient (estimate it)' },
         edit && cb && p.fixed === undefined && { action: 'set-label', label: p.label ? `Label (${p.label})…` : 'Label (for constraints and defined parameters)…' },

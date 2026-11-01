@@ -619,3 +619,57 @@ describe('sampling clusters (cluster-robust standard errors, CB-SEM)', () => {
     expect(validateModel(m, d, { method: 'pls', consistent: false }).some((i) => i.level === 'warning' && /PLS-SEM ignores them/.test(i.message))).toBe(true);
   });
 });
+
+describe('stacked models: one covariance matrix per group, structural equalities across groups', () => {
+  const C2 = (id: string, name: string, ind: string[]): Construct => ({ id, name, type: 'factor', mode: 'A', indicators: ind, x: 0, y: 0, side: 'left', reliability: 0.9 });
+  const m: ModelState = {
+    constructs: [C2('A', 'Alpha', ['a1']), C2('B', 'Beta', ['b1']), C2('K', 'Kappa', ['k1'])], paths: [{ id: 'p', from: 'A', to: 'B' }, { id: 'q', from: 'K', to: 'B' }], moderations: [],
+    multigroup: { column: '', invariance: 'configural', structural: ['regressions'], free: [{ kind: 'regression', from: 'K', to: 'B' }] },
+  };
+  const groups = [{ label: 'Younger', S: [[1, 0.3, 0.2], [0.3, 1, 0.1], [0.2, 0.1, 1]], n: 100 }, { label: 'Older', S: [[2, 0.4, 0.2], [0.4, 1.5, 0.3], [0.2, 0.3, 1]], n: 120 }];
+  const data = { names: ['a1', 'b1', 'k1'], cols: [], moments: { ...groups[0], groups } };
+  const cbs = { method: 'cbsem' as const, consistent: false, estimator: 'ML' as const, engine: 'r' as const };
+  const issues = (model = m, d: Parameters<typeof validateModel>[1] = data, settings = cbs) => validateModel(model, d, settings);
+  const errs = (...a: Parameters<typeof issues>) => issues(...a).filter((i) => i.level === 'error').map((i) => i.message);
+
+  it('is valid with the groups of the matrices and no grouping column; a column or latent means are refused', () => {
+    expect(errs()).toEqual([]);
+    expect(errs({ ...m, multigroup: { ...m.multigroup!, column: 'g' } })).toContainEqual(expect.stringContaining('no grouping column applies'));
+    expect(errs({ ...m, constant: { x: 0, y: 0 }, means: [{ id: 'mt', target: 'A' }] })).toContainEqual(expect.stringContaining('Latent means need raw data'));
+    // One matrix without groups: still no multiple-group analysis.
+    expect(errs(m, { names: data.names, cols: [], moments: { S: groups[0].S, n: 100 } })).toContainEqual(expect.stringContaining('one covariance matrix per group'));
+  });
+  it('checks the freed coefficients against the paths and warns when nothing holds them equal', () => {
+    expect(errs({ ...m, paths: [m.paths[0]] })).toContainEqual(expect.stringContaining('freed across groups refers to a removed path'));
+    const w = issues({ ...m, multigroup: { ...m.multigroup!, structural: [] } }).filter((i) => i.level === 'warning').map((i) => i.message);
+    expect(w).toContainEqual(expect.stringContaining('the freeing has no effect'));
+    expect(issues().filter((i) => i.level === 'warning').map((i) => i.message)).not.toContainEqual(expect.stringContaining('the freeing has no effect'));
+  });
+  it('the spec names the freed coefficient by construct names and carries the structural equalities', () => {
+    const spec = toSpec(m);
+    expect(spec.multigroup).toEqual({ column: '', invariance: 'configural', structural: ['regressions'], free: [{ kind: 'regression', from: 'Kappa', to: 'Beta' }] });
+  });
+  it('round-trips through a project file: the groups, their labels and Ns, the equalities and the freed coefficient', () => {
+    const text = serializeProject(m, DEFAULT_SETTINGS, data, { fileName: 'm.csv', rows: 220, missingCells: 0, excluded: [], kind: 'matrix' });
+    const p = parseProject(text);
+    expect(p.data!.moments!.groups).toEqual(groups);
+    expect(p.data!.moments!.n).toBe(220);
+    // The pooled matrix is recomputed from the groups (weights N − 1).
+    expect(p.data!.moments!.S[0][0]).toBeCloseTo((99 * 1 + 119 * 2) / 218, 12);
+    expect(p.info!.rows).toBe(220);
+    expect(p.model.multigroup).toEqual(m.multigroup);
+    // Malformed groups are refused.
+    const bad = JSON.parse(text);
+    bad.data.moments.groups = [groups[0]];
+    expect(() => parseProject(JSON.stringify(bad))).toThrow(/2 to 20 groups/);
+    bad.data.moments.groups = [groups[0], { ...groups[1], label: 'Younger' }];
+    expect(() => parseProject(JSON.stringify(bad))).toThrow(/labels must differ/);
+    bad.data.moments.groups = [groups[0], { ...groups[1], S: [[1, 0], [0, 1]] }];
+    expect(() => parseProject(JSON.stringify(bad))).toThrow(/3 × 3/);
+    // An unknown structural equality or a freed coefficient of unknown constructs is dropped, not kept.
+    const odd = JSON.parse(text);
+    odd.model.multigroup.structural = ['regressions', 'means'];
+    odd.model.multigroup.free.push({ kind: 'regression', from: 'nope', to: 'B' });
+    expect(parseProject(JSON.stringify(odd)).model.multigroup).toEqual(m.multigroup);
+  });
+});

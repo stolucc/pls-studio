@@ -663,6 +663,14 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         if (target.kind === 'construct' && m.esem) s.setEsem({ ...m.esem, blocks: m.esem.blocks.map((b) => ({ ...b, constructs: b.constructs.filter((x) => x !== target.id) })) });
         break;
       }
+      case 'toggle-free-path': {
+        const mg = st().model.multigroup;
+        const p = target.kind === 'path' ? st().model.paths.find((q) => q.id === target.id) : undefined;
+        if (!mg || !p) break;
+        const same = (f: (typeof mg.free)[number]) => f.kind === 'regression' && f.from === p.from && f.to === p.to;
+        s.setMultigroup({ ...mg, free: mg.free.some(same) ? mg.free.filter((f) => !same(f)) : [...mg.free, { kind: 'regression', from: p.from, to: p.to }] });
+        break;
+      }
       case 'toggle-free-loading':
       case 'toggle-free-intercept': {
         const mg = st().model.multigroup;

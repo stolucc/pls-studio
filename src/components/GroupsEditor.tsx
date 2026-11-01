@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { InvarianceLevel } from '../engine/types';
+import type { FreedParameter, InvarianceLevel, StructuralEquality } from '../engine/types';
 import { useStore } from '../store';
 import { IconX } from './icons';
 
@@ -31,29 +31,41 @@ export function GroupsEditor() {
   }) : []), [data, assigned]);
   const name = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
   if (!data) return null;
+  const matrixGroups = data.moments?.groups;
   // Covariance-matrix data carry no cases, so there is nothing to split into groups: say so instead of hiding the section.
-  if (data.moments && data.cols.length === 0) {
+  if (data.moments && data.cols.length === 0 && !matrixGroups) {
     return (
       <div className="section">
         <div className="section-title">Groups</div>
-        <div className="hint">Multiple-group models need raw data with a grouping column; this dataset is a covariance matrix (summary statistics for one sample).</div>
+        <div className="hint">Multiple-group models need raw data with a grouping column, or one covariance matrix per group; this dataset is a covariance matrix (summary statistics for one sample).</div>
       </div>
     );
   }
+  const structural = mg?.structural ?? [];
+  const toggleStructural = (k: StructuralEquality) => mg && setMultigroup({ ...mg, structural: structural.includes(k) ? structural.filter((x) => x !== k) : [...structural, k] });
+  const freed = (f: FreedParameter) => (f.kind === 'loading' ? `${name(f.construct)} → ${f.indicator} (loading)` : f.kind === 'intercept' ? `${f.indicator} (intercept)` : `${name(f.from)} → ${name(f.to)} (coefficient)`);
   return (
     <div className="section">
       <div className="section-title">Groups</div>
-      <select className="select" value={mg?.column ?? ''} disabled={readOnly}
-        onChange={(e) => setMultigroup(e.target.value ? { column: e.target.value, invariance: mg?.invariance ?? 'configural', free: mg?.free ?? [] } : null)}>
-        <option value="">One group (no grouping)</option>
-        {candidates.map((c) => <option key={c} value={c}>Groups by {c}</option>)}
-        {mg && !candidates.includes(mg.column) && <option value={mg.column}>Groups by {mg.column}</option>}
-      </select>
-      {!candidates.length && !mg && <div className="hint" style={{ marginTop: 6 }}>A grouping column is a numeric column with 2 to 20 values that is not an indicator (e.g. 1 = control, 2 = treatment).</div>}
+      {matrixGroups ? (
+        <select className="select" value={mg ? 'matrices' : ''} disabled={readOnly} aria-label="Groups"
+          onChange={(e) => setMultigroup(e.target.value ? { column: '', invariance: mg?.invariance ?? 'configural', free: mg?.free ?? [], ...(mg?.structural ? { structural: mg.structural } : {}) } : null)}>
+          <option value="">One group (the matrices pooled)</option>
+          <option value="matrices">{matrixGroups.length} groups: {matrixGroups.map((g) => `${g.label} (N = ${g.n})`).join(', ')}</option>
+        </select>
+      ) : (
+        <select className="select" value={mg?.column ?? ''} disabled={readOnly}
+          onChange={(e) => setMultigroup(e.target.value ? { column: e.target.value, invariance: mg?.invariance ?? 'configural', free: mg?.free ?? [] } : null)}>
+          <option value="">One group (no grouping)</option>
+          {candidates.map((c) => <option key={c} value={c}>Groups by {c}</option>)}
+          {mg && !candidates.includes(mg.column) && <option value={mg.column}>Groups by {mg.column}</option>}
+        </select>
+      )}
+      {!matrixGroups && !candidates.length && !mg && <div className="hint" style={{ marginTop: 6 }}>A grouping column is a numeric column with 2 to 20 values that is not an indicator (e.g. 1 = control, 2 = treatment).</div>}
       {mg && (
         <>
           <div className="field" style={{ marginTop: 10 }}>
-            <label>Held equal across groups</label>
+            <label>Measurement held equal across groups</label>
             <div className="segmented">
               {LEVELS.map((l) => (
                 <button key={l.id} className={mg.invariance === l.id ? 'on' : ''} disabled={readOnly} title={l.hint}
@@ -62,12 +74,23 @@ export function GroupsEditor() {
             </div>
             <div className="hint" style={{ marginTop: 6 }}>{LEVELS.find((l) => l.id === mg.invariance)?.hint} Compare all levels in the results’ Measurement invariance tab.</div>
           </div>
+          <div className="field">
+            <label>Structural model held equal across groups</label>
+            <label className="check"><input type="checkbox" checked={structural.includes('regressions')} disabled={readOnly} onChange={() => toggleStructural('regressions')} /> <span>Path coefficients (a stacked model)</span></label>
+            <label className="check"><input type="checkbox" checked={structural.includes('lv.variances')} disabled={readOnly} onChange={() => toggleStructural('lv.variances')} /> <span>Construct variances</span></label>
+            <label className="check"><input type="checkbox" checked={structural.includes('lv.covariances')} disabled={readOnly} onChange={() => toggleStructural('lv.covariances')} /> <span>Construct covariances</span></label>
+            <div className="hint" style={{ marginTop: 6 }}>
+              {structural.includes('regressions')
+                ? 'Every path coefficient is the same in every group except those freed: right-click a path to let it differ between groups (Hayduk’s stacked model). The score tests under Measurement invariance say which equality fits worst.'
+                : 'With nothing held equal the structural model is estimated separately per group; compare the groups side by side in the results (All groups).'}
+            </div>
+          </div>
           {mg.free.length > 0 && (
             <div className="field">
-              <label>Free across groups (partial invariance)</label>
+              <label>Free across groups (differs between groups)</label>
               {mg.free.map((f, i) => (
                 <div className="ind" key={i}>
-                  <span>{f.kind === 'loading' ? `${name(f.construct)} → ${f.indicator} (loading)` : `${f.indicator} (intercept)`}</span><span />
+                  <span>{freed(f)}</span><span />
                   {!readOnly && <button className="btn icon ghost sm always" aria-label="Hold equal again" title="Hold equal across groups again"
                     onClick={() => setMultigroup({ ...mg, free: mg.free.filter((_, k) => k !== i) })}><IconX size={13} /></button>}
                 </div>

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from '../engine/cbsem';
 import { DEFAULT_SETTINGS, toSpec, validateModel } from '../model/project';
-import { fromLowerTriangle, HAYDUK_NAMES, HAYDUK_RELIABILITY, HAYDUK_S, KERCKHOFF_R, makeHaydukExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
+import { fromLowerTriangle, HAYDUK_NAMES, HAYDUK_OLDER_S, HAYDUK_RELIABILITY, HAYDUK_S, HAYDUK_STACKED_NAMES, HAYDUK_YOUNGER_S, KERCKHOFF_R, makeHaydukExample, makeHaydukStackedExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
 
 const est = (cb: ReturnType<typeof estimateCb>, op: string, lhs: string, rhs: string) => cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
 
@@ -138,5 +138,53 @@ describe('smoking behaviour and antismoking acts (Hayduk 1987, ch. 4)', () => {
     expect(toSpec(ex.model).constructs.map((c) => c.reliability)).toEqual([0.99, 0.95, 0.9, 0.9, 0.9, 0.95, 0.95]);
     expect(ex.data.moments!.n).toBe(432);
     expect(ex.data.names.length).toBe(13);
+  });
+});
+
+describe('stacked smoking model, younger and older respondents (Hayduk 1987, ch. 9)', () => {
+  const ex = makeHaydukStackedExample(DEFAULT_SETTINGS);
+  it('both transcribed matrices agree with the correlations printed with them (Figure 9.2)', () => {
+    // Younger: the upper-right correlations; older: the lower-left ones (lower triangles by rows, in the matrices' variable order).
+    const younger = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
+      0.904,
+      -0.328, -0.394,
+      -0.271, -0.245, 0.224,
+      -0.036, -0.050, 0.191, 0.156,
+      -0.076, -0.105, 0.014, 0.059, 0.021,
+      -0.271, -0.312, 0.150, 0.217, 0.048, 0.260,
+      -0.160, -0.215, 0.082, -0.075, 0.105, 0.067, 0.096,
+      -0.023, -0.058, 0.042, -0.101, 0.050, 0.099, 0.033, 0.606,
+    ], false);
+    const older = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
+      0.895,
+      -0.153, -0.142,
+      -0.029, -0.015, 0.063,
+      -0.038, -0.062, 0.130, 0.003,
+      -0.126, -0.109, -0.003, -0.109, -0.034,
+      -0.098, -0.098, 0.062, 0.038, -0.007, -0.269,
+      -0.170, -0.162, 0.123, -0.032, 0.139, 0.088, 0.041,
+      -0.099, -0.096, 0.170, 0.073, 0.228, 0.235, -0.069, 0.647,
+    ], false);
+    for (const [S, R, who] of [[HAYDUK_YOUNGER_S, younger, 'younger'], [HAYDUK_OLDER_S, older, 'older']] as const) {
+      const sd = S.map((r, i) => Math.sqrt(r[i]));
+      for (let i = 0; i < 9; i++) for (let j = 0; j < i; j++) expect(Math.abs(S[i][j] / (sd[i] * sd[j]) - R[i][j]), `${who}: ${HAYDUK_STACKED_NAMES[i]} / ${HAYDUK_STACKED_NAMES[j]}`).toBeLessThan(0.004);
+    }
+  });
+  it('is a valid two-group CB-SEM project: the matrices as groups, coefficients equal except the heavy arrows, age -> acts back in', () => {
+    expect(ex.settings).toMatchObject({ method: 'cbsem', estimator: 'ML', engine: 'r' });
+    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
+    expect(ex.data.moments!.groups!.map((g) => [g.label, g.n])).toEqual([['Younger', 213], ['Older', 219]]);
+    expect(ex.data.moments!.n).toBe(432);
+    expect(ex.info.rows).toBe(432);
+    const mg = ex.model.multigroup!;
+    expect(mg.column).toBe('');
+    expect(mg.structural).toEqual(['regressions']);
+    expect(ex.model.paths.length).toBe(15);
+    const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
+    const freed = mg.free.map((f) => (f.kind === 'regression' ? `${name.get(f.from)} → ${name.get(f.to)}` : f.kind));
+    expect(freed).toEqual(['Sex → Antismoking acts', 'Age → Smoking', 'Age → Antismoking views', 'Age → Antismoking acts', 'Education → Smoking', 'Education → Antismoking views', 'Education → Antismoking acts', 'Smoking → Antismoking views', 'Smoking → Antismoking acts']);
+    const spec = toSpec(ex.model);
+    expect(spec.multigroup!.free[0]).toEqual({ kind: 'regression', from: 'Sex', to: 'Antismoking acts' });
+    expect(spec.constructs.every((c) => c.reliability !== undefined)).toBe(true);
   });
 });

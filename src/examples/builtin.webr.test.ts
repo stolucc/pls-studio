@@ -11,7 +11,10 @@ import { makeSample } from '../sample';
 import { makeEmseExample } from './emse';
 import { makeMimicExample } from './mimic';
 import { makePoldemExample } from './poldem';
-import { makeHaydukExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample } from './textbook';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { cbScriptLavaan } from '../rengine/lavaan';
+import { makeHaydukExample, makeHaydukStackedExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample } from './textbook';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -116,4 +119,41 @@ it('Hayduk (1987) smoking model: lavaan with the fixed error variances reproduce
   expect(vars('Education')[0]).toBeCloseTo(0.691, 3);
   expect(vars('AS-views')).toEqual([expect.closeTo(0.166, 3)]);
   expect(vars('Antismoking views')[0] / 2.736).toBeCloseTo(1, 2);
+}, 600_000);
+
+it('Hayduk (1987) stacked model: two covariance matrices as groups, coefficients equal except the heavy arrows (native lavaan reference)', async () => {
+  type Ref = { chisq: number; df: number; groups: string[]; regressions: { to: string; from: string; group: number; est: number; se: number }[]; psi: { construct: string; est: number[] }[] };
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'textbook', 'hayduk_stacked.json'), 'utf8')) as Ref;
+  const ex = makeHaydukStackedExample(DEFAULT_SETTINGS);
+  const r = await estimateCbLavaan(ex.data, toSpec(ex.model), 'casewise', 'ML', 'product');
+  expect(r.converged).toBe(true);
+  expect(r.warnings).toEqual([]);
+  expect(r.notes).toEqual([]);
+  expect(r.groups!.labels).toEqual(['Younger', 'Older']);
+  expect(r.fit.chisq).toBeCloseTo(ref.chisq, 4);
+  expect(r.fit.df).toBe(ref.df);
+  expect(r.n).toBe(213);
+  // Every coefficient of every group, as native lavaan on the same matrices (scripts/validation/hayduk-stacked.R; its names are the indicators').
+  const concept: Record<string, string> = { Sex: 'Sex', Age: 'Age', Education: 'Education', 'R-attend': 'Strength of religion', 'S-current': 'Smoking', 'AS-views': 'Antismoking views', 'AS-acts': 'Antismoking acts' };
+  for (const w of ref.regressions.map((x) => ({ ...x, to: concept[x.to], from: concept[x.from] }))) {
+    const e = r.groups!.results[w.group - 1].estimates.find((x) => x.op === '~' && x.lhs === w.to && x.rhs === w.from);
+    expect(e, `${w.to} ~ ${w.from} (${ref.groups[w.group - 1]})`).toBeTruthy();
+    expect(e!.est, `${w.to} ~ ${w.from} (${ref.groups[w.group - 1]})`).toBeCloseTo(w.est, 5);
+    expect(e!.se, `se ${w.to} ~ ${w.from}`).toBeCloseTo(w.se, 5);
+  }
+  // Held equal: sex -> smoking identical in both groups; freed: smoking -> views differs.
+  const coef = (g: number, to: string, from: string) => r.groups!.results[g].estimates.find((x) => x.op === '~' && x.lhs === to && x.rhs === from)!.est;
+  expect(coef(0, 'Smoking', 'Sex')).toBe(coef(1, 'Smoking', 'Sex'));
+  expect(coef(0, 'Antismoking views', 'Smoking')).not.toBeCloseTo(coef(1, 'Antismoking views', 'Smoking'), 1);
+  // Each group's error variances come from its own matrix: age 5% of 15.68 (younger) and of 173.51 (older).
+  const theta = (g: number) => r.groups!.results[g].estimates.filter((x) => x.op === '~~' && x.lhs === 'Age' && x.rhs === 'Age').map((x) => x.est).sort((a, b) => a - b)[0];
+  expect(theta(0)).toBeCloseTo(0.05 * 15.68, 4);
+  expect(theta(1)).toBeCloseTo(0.05 * 173.51, 4);
+  // The score tests of the six equalities are there.
+  expect(r.groups!.score.length).toBe(6);
+  // The exported script carries both matrices and the equality constraints.
+  const script = await cbScriptLavaan(ex.data, toSpec(ex.model), 'casewise', 'ML');
+  expect(script).toContain('S <- list("Younger" = S_1, "Older" = S_2)');
+  expect(script).toContain('group.equal = c("regressions")');
+  expect(script).toContain('group.partial = c(');
 }, 600_000);

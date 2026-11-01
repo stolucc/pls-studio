@@ -3,7 +3,7 @@
 // the app's CbResult, so every view works unchanged.
 
 import type { CbEstimate, CbEstimator, CbFit, CbResult } from '../engine/cbsem';
-import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
+import type { Dataset, MissingTreatment, ModelSpec, MomentData } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
 
 
@@ -15,7 +15,7 @@ export interface CbRequest {
   estimator: CbEstimator;
   interaction?: LatentInteraction;
   missing: MissingTreatment;
-  data: { names: string[]; cols?: (number | null)[][]; moments?: { S: number[][]; n: number; nacov?: number[][] } };
+  data: { names: string[]; cols?: (number | null)[][]; moments?: MomentData };
   model: ModelSpec;
 }
 

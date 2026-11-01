@@ -11,12 +11,16 @@
 //   path model of the LISREL manual.
 // - Hayduk (1987), Structural Equation Modeling with LISREL, chapter 4: smoking
 //   behaviour and antismoking acts, every concept a single indicator with its
-//   error variance fixed from an assessed reliability (Figures 4.5 to 4.7).
+//   error variance fixed from an assessed reliability (Figures 4.5 to 4.7);
+//   and its chapter-9 stacked model: younger and older respondents, one
+//   covariance matrix each, the coefficients equal across the groups except
+//   those Figure 9.1 draws heavy.
 //
 // Numbers pinned in the tests come from native lavaan on these matrices
 // (scripts/validation is not needed: the matrices are the data).
 
 import type { Dataset } from '../engine/types';
+import { momentsOfGroups } from '../data/moments';
 import { makeCovariancesExplicit, newId, type Construct, type DataInfo, type ModelState, type Settings } from '../model/project';
 
 export interface BuiltinExample { name: string; data: Dataset; info: DataInfo; model: ModelState; settings: Settings }
@@ -165,7 +169,8 @@ export const HAYDUK_S = fromLowerTriangle(HAYDUK_NAMES, [
 /** Figure 4.5, "assessed proportion of error variance" of the seven indicators the model uses: reliability = 1 − proportion. */
 export const HAYDUK_RELIABILITY: Record<string, number> = { Sex: 0.99, Age: 0.95, Education: 0.90, 'R-attend': 0.90, 'S-current': 0.90, 'AS-views': 0.95, 'AS-acts': 0.95 };
 
-export function makeHaydukExample(settings: Settings): BuiltinExample {
+/** The seven single-indicator concepts of the smoking model and its paths; `ageToActs`: with the age -> acts path (chapter 9). */
+function haydukModel(ageToActs: boolean) {
   // Every concept has one indicator whose error variance is fixed at the assessed proportion of its variance (THETA in Figure 4.7):
   // the exogenous concepts are latent too (PHI is estimated), so they are not fixed.x covariates.
   const single = (name: string, indicator: string, x: number, y: number, side: Construct['side']) => C(name, [indicator], x, y, side, { reliability: HAYDUK_RELIABILITY[indicator] });
@@ -182,16 +187,70 @@ export function makeHaydukExample(settings: Settings): BuiltinExample {
     paths: [
       ...exogenous.map((x) => P(x, smoking)),
       P(smoking, views), ...exogenous.map((x) => P(x, views)),
-      // gamma 32 (age -> antismoking acts) is fixed at zero in the book.
-      P(smoking, acts), P(views, acts), P(sex, acts), P(education, acts), P(religion, acts),
+      // gamma 32 (age -> antismoking acts) is fixed at zero in chapter 4; chapter 9 brings it back (the groups are age groups).
+      P(smoking, acts), P(views, acts), P(sex, acts), ...(ageToActs ? [P(age, acts)] : []), P(education, acts), P(religion, acts),
     ],
     moderations: [],
   };
+  return { model, sex, age, education, religion, smoking, views, acts };
+}
+
+export function makeHaydukExample(settings: Settings): BuiltinExample {
+  const { model } = haydukModel(false);
   return {
     name: 'Smoking behaviour and antismoking acts (Hayduk 1987)',
     data: matrix(HAYDUK_NAMES, HAYDUK_S.map((r) => [...r]), HAYDUK_N),
     info: info('Hayduk (1987), Figure 4.5 covariance matrix', HAYDUK_N),
     // Known reliabilities are estimated by lavaan (the built-in engine does not fix error variances).
+    model: makeCovariancesExplicit(model),
+    settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false, engine: 'r' },
+  };
+}
+
+// ---- Hayduk (1987), ch. 9, "Stacked models for multiple groups": Figure 9.2, younger (N = 213) and older (N = 219) respondents
+export const HAYDUK_STACKED_NAMES = ['S-current', 'S-p-strain', 'AS-views', 'AS-acts', 'Sex', 'Age', 'Education', 'R-attend', 'R-import'];
+/** Younger respondents: the upper-right triangle of Figure 9.2 (covariances) and the variances of its table. */
+export const HAYDUK_YOUNGER_S = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
+  0.251,
+  0.636, 1.974,
+  -0.332, -1.118, 4.088,
+  -0.158, -0.401, 0.527, 1.359,
+  -0.009, -0.035, 0.193, 0.091, 0.250,
+  -0.151, -0.586, 0.113, 0.270, 0.042, 15.68,
+  -0.304, -0.983, 0.682, 0.568, 0.053, 2.311, 5.030,
+  -0.164, -0.616, 0.339, -0.179, 0.107, 0.540, 0.442, 4.171,
+  -0.025, -0.178, 0.183, -0.255, 0.055, 0.849, 0.162, 2.690, 4.723,
+], true);
+/** Older respondents: the lower-left triangle of Figure 9.2. */
+export const HAYDUK_OLDER_S = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
+  0.243,
+  0.631, 2.046,
+  -0.114, -0.306, 2.273,
+  -0.016, -0.024, 0.106, 1.245,
+  -0.009, -0.044, 0.099, 0.002, 0.251,
+  -0.820, -2.058, -0.065, -1.602, -0.222, 173.51,
+  -0.141, -0.414, 0.274, 0.125, -0.011, -10.433, 8.642,
+  -0.182, -0.504, 0.404, -0.079, 0.151, 2.533, 0.261, 4.727,
+  -0.096, -0.269, 0.502, 0.160, 0.225, 6.089, -0.398, 2.760, 3.853,
+], true);
+export const HAYDUK_STACKED_N = { younger: 213, older: 219 };
+
+export function makeHaydukStackedExample(settings: Settings): BuiltinExample {
+  const h = haydukModel(true);
+  // The heavy arrows of Figure 9.1: coefficients allowed to differ between the age groups; every other coefficient is equal.
+  const heavy: [Construct, Construct][] = [
+    [h.sex, h.acts], [h.age, h.smoking], [h.age, h.views], [h.age, h.acts], [h.education, h.smoking], [h.education, h.views], [h.education, h.acts], [h.smoking, h.views], [h.smoking, h.acts],
+  ];
+  const model: ModelState = {
+    ...h.model,
+    multigroup: { column: '', invariance: 'configural', structural: ['regressions'], free: heavy.map(([from, to]) => ({ kind: 'regression' as const, from: from.id, to: to.id })) },
+  };
+  const groups = [{ label: 'Younger', S: HAYDUK_YOUNGER_S.map((r) => [...r]), n: HAYDUK_STACKED_N.younger }, { label: 'Older', S: HAYDUK_OLDER_S.map((r) => [...r]), n: HAYDUK_STACKED_N.older }];
+  const n = HAYDUK_STACKED_N.younger + HAYDUK_STACKED_N.older;
+  return {
+    name: 'Stacked smoking model: younger and older respondents (Hayduk 1987)',
+    data: { names: HAYDUK_STACKED_NAMES, cols: [], moments: momentsOfGroups(groups) },
+    info: info('Hayduk (1987), Figure 9.2 covariance matrices (younger, older)', n),
     model: makeCovariancesExplicit(model),
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false, engine: 'r' },
   };

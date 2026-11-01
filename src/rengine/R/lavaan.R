@@ -31,15 +31,26 @@ ps_cb_build <- function(req) {
   group_var <- NULL; cluster_var <- NULL; weight_var <- NULL; complex_var <- NULL
   mg <- req$model$multigroup
   ml <- req$model$multilevel
-  if (matrix_input && !is.null(mg)) stop("Multiple-group analysis needs raw data with a grouping column.")
+  matrix_groups <- matrix_input && !is.null(mg) && !is.null(req$data$moments$groups)
+  if (matrix_input && !is.null(mg) && !matrix_groups) stop("Multiple-group analysis needs raw data with a grouping column, or one covariance matrix per group.")
   if (matrix_input) {
     mo <- req$data$moments
-    S <- mo$S; dimnames(S) <- list(req$data$names, req$data$names)
     if (!all(n$all_inds %in% req$data$names)) stop("Indicator(s) not in the covariance matrix: ", paste(setdiff(n$all_inds, req$data$names), collapse = ", "))
-    S <- S[n$all_inds, n$all_inds, drop = FALSE]
-    dimnames(S) <- list(unname(n$iv[n$all_inds]), unname(n$iv[n$all_inds]))
-    inputs$S <- S
-    inputs$N <- mo$n
+    pick <- function(S) {
+      dimnames(S) <- list(req$data$names, req$data$names)
+      S <- S[n$all_inds, n$all_inds, drop = FALSE]
+      dimnames(S) <- list(unname(n$iv[n$all_inds]), unname(n$iv[n$all_inds]))
+      S
+    }
+    if (matrix_groups) {
+      # A stacked model: one matrix per group (lavaan takes a named list, the names as group labels).
+      if (!is.null(mo$nacov)) stop("A NACOV matrix is not available with several groups.")
+      inputs$S <- setNames(lapply(mo$groups, function(g) pick(g$S)), vapply(mo$groups, function(g) as.character(g$label), ""))
+      inputs$N <- vapply(mo$groups, function(g) as.numeric(g$n), 0)
+    } else {
+      inputs$S <- pick(mo$S)
+      inputs$N <- mo$n
+    }
     robust_nacov <- req$estimator %in% c("MLM", "MLMV") && !is.null(mo$nacov)
     if (robust_nacov) {
       # NACOV arrives in the file's column-major vech order; keep the model's variables, in vech order.
@@ -151,11 +162,16 @@ ps_cb_build <- function(req) {
           # Known reliability (Bollen 1989; Hayduk 1987): error variance fixed at (1 - reliability) x the indicator's variance.
           rel <- ps_number(rel, "reliability")
           if (rel <= 0 || rel > 1) stop("A reliability must be above 0 and at most 1.")
-          s2 <- if (matrix_input) inputs$S[v, v] else stats::var(inputs$data[[v]], na.rm = TRUE)
-          if (!is.finite(s2)) stop("The variance of ", n$inds[[j]], " cannot be computed.")
+          # With several groups, each group's own variance (Hayduk 1987, ch. 9: the stacked model fixes each group's error variance).
+          s2 <- if (matrix_groups) vapply(inputs$S, function(M) M[v, v], 0)
+            else if (matrix_input) inputs$S[v, v]
+            else if (!is.null(group_var)) vapply(split(inputs$data[[v]], inputs$data[[group_var]]), stats::var, 0, na.rm = TRUE)
+            else stats::var(inputs$data[[v]], na.rm = TRUE)
+          if (!all(is.finite(s2))) stop("The variance of ", n$inds[[j]], " cannot be computed.")
           rel_inds <- c(rel_inds, v)
-          lines <- c(lines, sprintf("%s ~~ %s*%s   # single indicator, reliability %s: (1 - %s) x variance %s", v, ps_num((1 - rel) * s2), v,
-            format(rel), format(rel), format(signif(s2, 6))))
+          theta <- if (length(s2) > 1) sprintf("c(%s)", paste(vapply((1 - rel) * s2, ps_num, ""), collapse = ", ")) else ps_num((1 - rel) * s2)
+          lines <- c(lines, sprintf("%s ~~ %s*%s   # single indicator, reliability %s: (1 - %s) x variance %s", v, theta, v,
+            format(rel), format(rel), paste(format(signif(s2, 6)), collapse = " / ")))
         }
       }
     }
@@ -290,21 +306,25 @@ ps_cb_build <- function(req) {
     # (lavaan then reports robust, design-based standard errors)
     extra <- paste0(extra, sprintf(", sampling.weights = \"%s\"", weight_var))
   }
-  if (!is.null(group_var)) {
-    # Measurement invariance: what is held equal across groups, and what is freed (partial invariance).
+  if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
+  if (!is.null(group_var) || matrix_groups) {
+    # Measurement invariance: what is held equal across groups, and what is freed (partial invariance);
+    # structural equalities (a stacked model: the paths, the exogenous variances and covariances) likewise.
     lev <- mg$invariance %||% "configural"
     if (!lev %in% c("configural", "metric", "scalar", "strict")) stop("Invalid invariance level in the request.")
+    structural <- unlist(mg$structural)
+    if (!all(structural %in% c("regressions", "lv.variances", "lv.covariances"))) stop("Invalid structural equality in the request.")
     equal <- c(if (lev != "configural") "loadings", if (lev %in% c("scalar", "strict")) c("intercepts", if (length(ordered)) "thresholds"),
-      if (lev == "strict") "residuals")
+      if (lev == "strict") "residuals", structural)
     partial <- unlist(lapply(mg$free, function(f) {
       if (identical(f$kind, "loading")) paste0(lname[[f$construct]], "=~", n$iv[[f$indicator]])
       else if (identical(f$kind, "intercept")) paste0(n$iv[[f$indicator]], "~1")
+      else if (identical(f$kind, "regression")) paste0(lname[[f$to]], "~", lname[[f$from]])
     }))
-    extra <- paste0(extra, sprintf(", group = \"%s\"", group_var),
+    extra <- paste0(extra, if (!is.null(group_var)) sprintf(", group = \"%s\"", group_var) else "",
       if (length(equal)) sprintf(", group.equal = %s", ps_q(equal)) else "",
       if (length(partial)) sprintf(", group.partial = %s", ps_q(partial)) else "")
   }
-  if (matrix_input && nzchar(extra)) stop("Ordinal indicators and FIML need raw data.")
   if (means_on) extra <- paste0(extra, ", meanstructure = TRUE")
   extra <- paste0(extra, bounds)
   if (length(esem$blocks)) extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (!is.null(target)) ", rotation.args = list(target = TARGET)" else "")
@@ -317,7 +337,8 @@ ps_cb_build <- function(req) {
     return(list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
       inputs = inputs, body = body, matrix_input = matrix_input, group_var = NULL, modsem = method))
   }
-  call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\"%s)", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator, bounds)
+  # (with matrices, extra holds the group equalities of a stacked model and the bounds only: the rest was refused above)
+  call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s, estimator = \"%s\"%s)", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", req$estimator, extra)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)
   # Multiple imputation (mice, then lavaan.mi's Rubin pooling); a lavaan fit to the first imputed data set
   # serves as the template for the model's structure, every reported number is pooled.
@@ -557,7 +578,7 @@ ps_cb <- function(req_json, export = FALSE) {
       if (length(blocks) < 2) return(out)
       if (!requireNamespace("semTools", quietly = TRUE)) { ps_note("HTMT could not be computed: the R package semTools is not installed."); return(out) }
       hm <- paste(vapply(blocks, function(j) paste(lv_lname[j], "=~", paste(ind_v[ind_con == j - 1], collapse = " + ")), ""), collapse = "\n")
-      h <- ps_try((if (b$matrix_input) semTools::htmt(hm, sample.cov = b$inputs$S, htmt2 = two)
+      h <- ps_try((if (b$matrix_input) semTools::htmt(hm, sample.cov = if (is.list(b$inputs$S)) b$inputs$S[[group_of(g)]] else b$inputs$S, htmt2 = two)
         # Multiple imputation: the average over the imputed data sets.
         else if (isTRUE(b$mi)) Reduce(`+`, lapply(seq_len(env$imp$m), function(k) { dk <- mice::complete(env$imp, k)
           if (!is.null(g) && !is.null(b$group_var)) dk <- dk[as.character(dk[[b$group_var]]) == glab[group_of(g)], , drop = FALSE]
@@ -576,7 +597,7 @@ ps_cb <- function(req_json, export = FALSE) {
       "srmr", "logl", "aic", "bic"), names(fm))])
     vc <- if (isTRUE(b$robust)) unname(env$robust_se$vcov[[1]]) else if (isTRUE(b$mi)) { if (is.null(env$vcov_mi)) NULL else unname(unclass(env$vcov_mi)) }
       else ps_try(unclass(lavaan::lavInspect(fit, "vcov")), "The covariance matrix of the estimates (lavInspect vcov; used for Monte Carlo intervals)")
-    n_in <- if (b$matrix_input) b$inputs$N else nrow(b$inputs$data)
+    n_in <- if (b$matrix_input) sum(b$inputs$N) else nrow(b$inputs$data)
 
     list(
       estimator = req$estimator,

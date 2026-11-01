@@ -76,8 +76,16 @@ export const interactionName = (from: string, moderator: string) => (from === mo
 export type EsemRotation = 'geomin' | 'oblimin' | 'quartimin' | 'varimax' | 'target';
 export type InvarianceLevel = 'configural' | 'metric' | 'scalar' | 'strict';
 /** Parameters freed across groups despite the invariance level (partial invariance). */
-export type FreedParameter = { kind: 'loading'; construct: string; indicator: string } | { kind: 'intercept'; indicator: string };
-export interface MultigroupSpec { column: string; invariance: InvarianceLevel; free: FreedParameter[] }
+export type FreedParameter = { kind: 'loading'; construct: string; indicator: string } | { kind: 'intercept'; indicator: string }
+  | { kind: 'regression'; from: string; to: string };
+/** Structural parameters held equal across groups (lavaan's group.equal): the paths, the exogenous constructs' variances and covariances. */
+export type StructuralEquality = 'regressions' | 'lv.variances' | 'lv.covariances';
+/**
+ * Multiple groups: by a data column, or (column '') the groups of a dataset of
+ * several covariance matrices (a stacked model). `invariance` is the measurement
+ * level; `structural` what else is held equal; `free` the exceptions.
+ */
+export interface MultigroupSpec { column: string; invariance: InvarianceLevel; free: FreedParameter[]; structural?: StructuralEquality[] }
 
 export interface ModelSpec {
   constructs: ConstructSpec[];
@@ -116,7 +124,11 @@ export interface MomentData {
   S: number[][];
   n: number;
   nacov?: number[][];
+  /** Several groups (a stacked model): each group's own covariance matrix and N; S and n are then the pooled matrix and the total. */
+  groups?: MomentGroup[];
 }
+/** One group's summary statistics of a multiple-group (stacked) dataset. */
+export interface MomentGroup { label: string; S: number[][]; n: number }
 
 export interface Dataset {
   names: string[];
