@@ -13,7 +13,7 @@ describe.each(diagrams.map((e) => [e.id, e] as const))('package example %s', (_i
   it('builds a valid model for its method', () => {
     const model = exampleModel(ex);
     const names = [...new Set([...model.constructs.flatMap((c) => c.indicators), ...(ex.multigroup ? [ex.multigroup.column] : []), ...(ex.multilevel ? [ex.multilevel.column] : [])])];
-    const data = { names, cols: names.map((_, k) => Float64Array.from({ length: 400 }, (_, i) => (names[k] === 'school' ? 1 + (i % 2) : names[k] === 'cluster' ? 1 + (i % 40) : Math.sin(i * (k + 1.3)) + (i % (k + 3))))) };
+    const data = { names, cols: names.map((_, k) => Float64Array.from({ length: 400 }, (_, i) => (names[k] === 'school' || names[k] === ex.multigroup?.column ? 1 + (i % 2) : names[k] === 'cluster' ? 1 + (i % 40) : Math.sin(i * (k + 1.3)) + (i % (k + 3))))) };
     const errors = validateModel(model, data, { ...DEFAULT_SETTINGS, ...ex.settings }).filter((i) => i.level === 'error');
     expect(errors.map((e) => e.message)).toEqual([]);
     expect(model.moderations.length).toBe(ex.moderations?.length ?? 0);

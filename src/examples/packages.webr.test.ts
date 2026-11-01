@@ -63,6 +63,8 @@ const checkClean = (id: string) => {
   expect(unexpected, `${id} carries an unexpected note`).toEqual([]);
 };
 
+/** The Mplus growth examples' degrees of freedom (6.8 latent basis, 6.9 quadratic, 6.10 covariates). */
+const GROWTH_DF: Record<string, number> = { 'mplus-ex6.8': 3, 'mplus-ex6.9': 1, 'mplus-ex6.10': 21 };
 /** Documented values the estimate must reproduce. */
 const CHISQ: Record<string, number> = { 'lavaan-poldem': 40.179, 'lavaan-hs': 85.306, 'lavaan-hs-means': 85.306, 'lavaan-hs-groups': 164.103 };
 /** lavaan tutorial, mean structures: cfa(HS.model, data = HolzingerSwineford1939, meanstructure = TRUE), the intercepts (native lavaan, 3 decimals). */
@@ -177,7 +179,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       } else if (p.kind === 'growth') {
         const r = await growthR(data, { ...p, estimator: 'ML', missing: st.missing });
         if (ex.id === 'lavaan-growth-conditional') { expect(r.fit.df).toBe(21); expect(r.fit.chisq).toBeCloseTo(26.059, 2); }  // the tutorial's model, run natively
-        else expect(r.fit.df).toBe(5);  // ?growth: linear growth on four occasions
+        else expect(r.fit.df).toBe(GROWTH_DF[ex.id] ?? 5);  // ?growth: linear growth on four occasions; the Mplus growth examples (checked in mplus.webr.test.ts)
       } else if (p.kind === 'irt') {
         const r = await irtR(data, p.items, p.model);
         expect(r.params.length).toBe(p.items.length);

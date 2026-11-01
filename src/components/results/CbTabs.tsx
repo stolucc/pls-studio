@@ -319,7 +319,7 @@ function Reliability({ cb }: { cb: CbResult }) {
         return [c(n), c(r.cr, r.cr >= 0.7 ? 'good' : 'warn'), c(r.ave, r.ave >= 0.5 ? 'good' : 'bad'),
           ...(model ? [c(r.omega ?? null, r.omega === undefined ? '' : r.omega >= 0.7 ? 'good' : 'warn'), c(r.alpha ?? null, r.alpha === undefined ? '' : r.alpha >= 0.7 ? 'good' : 'warn')] : [])];
       })}
-      note={`From standardised loadings: CR = (Σλ)² / ((Σλ)² + Σ(1−λ²)), AVE = mean λ².${model ? ' ω: the model-based reliability of each factor’s indicator sum (semTools::compRelSEM; residual covariances and ordinal indicators taken into account, total variance from the unrestricted model); α: coefficient alpha of the same sum.' : ''}`} />
+      note={`From standardised loadings: CR = (Σλ)² / ((Σλ)² + Σ(1−λ²)), AVE = mean λ².${model ? ' ω: the model-based reliability of each factor’s indicator sum (semTools::compRelSEM; residual covariances and ordinal indicators taken into account, total variance from the unrestricted model); α: coefficient alpha of the same sum (with ordinal indicators: ordinal alpha from the polychoric correlations, on the latent-response scale).' : ''}`} />
   );
 }
 

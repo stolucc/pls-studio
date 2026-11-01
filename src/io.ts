@@ -388,7 +388,7 @@ export async function loadPackageExample(id: string) {
   if (!ex) return;
   if (!(await confirmDiscard('Loading the example'))) return;
   const s = useStore.getState();
-  s.toast('info', `Loading ${ex.data.package}::${ex.data.name} in R…`);
+  s.toast('info', ex.data.file ? `Loading ${ex.data.name}…` : `Loading ${ex.data.package}::${ex.data.name} in R…`);
   try {
     const { rCall, rMessage } = await import('./rengine/bridge');
     const pf = ex.data.packageFile;
@@ -402,7 +402,7 @@ export async function loadPackageExample(id: string) {
     const model = exampleModel(ex);
     model.constructs = autoLayout(model);
     let exData = fromFile ? fromFile.data : { names: raw.names, cols, ...categoriesOf(raw.levels) };
-    let exInfo = fromFile ? fromFile.info : { fileName: `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] };
+    let exInfo = fromFile ? fromFile.info : { fileName: ex.data.file ? ex.data.file.split('/').pop()! : `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] };
     // The help page's recodes: computed columns, then category labels for coded columns.
     if (ex.computed?.length) {
       const { computeColumn } = await import('./data/compute');

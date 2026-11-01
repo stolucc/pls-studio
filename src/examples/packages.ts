@@ -68,8 +68,10 @@ export interface PackageExample {
   correlations?: [string, string, Correlation['kind']][];
   /** [predictor, moderator, outcome, method?]: the method is seminr's interaction_term(method = …); absent = two_stage. */
   moderations?: ([string, string, string] | [string, string, string, 'orthogonal' | 'product_indicator'])[];
-  /** CB-SEM: multiple groups (construct names in `free` are not used). */
+  /** CB-SEM: multiple groups; `free` names constructs by name (mapped to ids when the model is built). */
   multigroup?: MultigroupSpec;
+  /** CB-SEM: indicators treated as ordered categorical (WLSMV). */
+  ordered?: string[];
   multilevel?: { column: string; between: 'same' | 'saturated' };
   /** CB-SEM: exploratory SEM blocks of construct names. */
   esem?: { blocks: string[][]; rotation: EsemRotation };
@@ -101,6 +103,16 @@ const v = (name: string, covariate = false): ExConstruct => ({ name, type: 'fact
 const c = (name: string, indicators: string[], mode: 'A' | 'B' = 'B'): ExConstruct => ({ name, type: 'composite', mode, indicators });
 const items = (p: string, k: number, from = 1) => Array.from({ length: k }, (_, i) => `${p}${i + from}`);
 const fan = (from: string[], to: string[]) => from.flatMap((a) => to.map((b): [string, string] => [a, b]));
+/** The Mplus User's Guide examples (Muthén & Muthén): the guide's page for one example and its chapter's inputs, data and outputs. */
+const mplusLinks = (ex: string) => [
+  { label: `Mplus User’s Guide, example ${ex}`, url: `https://www.statmodel.com/usersguide/chap${ex.split('.')[0]}/ex${ex}.html` },
+  { label: `Chapter ${ex.split('.')[0]}: inputs, data and outputs`, url: `https://www.statmodel.com/usersguide/chapter${ex.split('.')[0]}.shtml` },
+];
+const mplusData = (ex: string, pkg: ExamplePackage = 'lavaan') => ({ package: pkg, name: `Mplus example ${ex}`, file: `examples/mplus/ex${ex}.csv` });
+const MPLUS_TAG = 'Mplus User’s Guide';
+const MPLUS_SRC = (ex: string) => `Mplus User’s Guide (Muthén & Muthén 2017), example ${ex}`;
+const regression = (family: RegressionOptions['family'], link: string, outcome: string, predictors: string[]) =>
+  ({ kind: 'regression' as const, family, link, outcome, predictors, categorical: [], interactions: [], trials: '', weights: '', se: 'model' as const, cluster: '' });
 
 const BOLLEN = {
   constructs: [f('ind60', items('x', 3)), f('dem60', items('y', 4)), f('dem65', items('y', 4, 5))],
@@ -291,6 +303,118 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     links: [{ label: '?miive', url: 'https://rdrr.io/cran/MIIVsem/man/miive.html' }, { label: '?bollen1989a', url: 'https://rdrr.io/cran/MIIVsem/man/bollen1989a.html' }],
     description: 'The same model estimated equation by equation with model-implied instrumental variables (Bollen 1996). Correlated errors remove the instruments they invalidate; Sargan tests check each overidentified equation.',
     data: { package: 'MIIVsem', name: 'bollen1989a' }, ...BOLLEN, settings: CB('2SLS'),
+  },
+  // The Mplus User's Guide examples: generated data (N = 500, 1100 for the two-group examples) published with each example,
+  // shipped with the app. Each reproduces the Mplus output (scripts/validation/mplus.R, src/engine/__fixtures__/textbook/mplus.json).
+  {
+    id: 'mplus-ex3.1', package: 'stats', title: 'Linear regression (Mplus ex. 3.1)', source: MPLUS_SRC('3.1'), links: mplusLinks('3.1'),
+    description: 'Mplus’s first example: a linear regression of y1 on x1 and x3 (generated data, N = 500). Mplus reports a log-likelihood of −694.334; R’s lm gives the same coefficients and log-likelihood. Opens its card on the Analyses tab.',
+    data: mplusData('3.1', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: regression('gaussian', 'identity', 'y1', ['x1', 'x3']), settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex3.5', package: 'stats', title: 'Logistic regression (Mplus ex. 3.5)', source: MPLUS_SRC('3.5'), links: mplusLinks('3.5'),
+    description: 'A binary u1 regressed on x1 and x3 by maximum likelihood (Mplus: ESTIMATOR = ML, log-likelihood −202.620). R’s glm with a logit link gives the same coefficients and log-likelihood. Opens its card on the Analyses tab.',
+    data: mplusData('3.5', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Logistic regression'],
+    panel: regression('binomial', 'logit', 'u1', ['x1', 'x3']), settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex3.7', package: 'stats', title: 'Poisson regression (Mplus ex. 3.7)', source: MPLUS_SRC('3.7'), links: mplusLinks('3.7'),
+    description: 'A count u1 regressed on x1 and x3 (Mplus log-likelihood −966.884). R’s glm with a log link gives the same coefficients and log-likelihood; Mplus uses robust (MLR) standard errors, which the card offers under Standard errors. Opens its card on the Analyses tab.',
+    data: mplusData('3.7', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Count data'],
+    panel: regression('poisson', 'log', 'u1', ['x1', 'x3']), settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex3.11', package: 'lavaan', title: 'Path analysis with observed variables (Mplus ex. 3.11)', source: MPLUS_SRC('3.11'), links: mplusLinks('3.11'),
+    description: 'Three covariates x1–x3 explain y1 and y2, which with x2 explain y3: Mplus’s path analysis of observed variables, conditional on the covariates (no residual covariance between y1 and y2). Mplus: log-likelihood −2364.002, 15 free parameters; lavaan reproduces it with χ² = 0.76 on 3 df.',
+    data: mplusData('3.11'), tags: [MPLUS_TAG, 'Path analysis'],
+    constructs: [v('x1', true), v('x2', true), v('x3', true), v('y1'), v('y2'), v('y3')],
+    paths: [...fan(['x1', 'x2', 'x3'], ['y1', 'y2']), ['y1', 'y3'], ['y2', 'y3'], ['x2', 'y3']], settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.1', package: 'lavaan', title: 'CFA with continuous indicators (Mplus ex. 5.1)', source: MPLUS_SRC('5.1'), links: mplusLinks('5.1'),
+    description: 'Two correlated factors of three indicators each, the first loading of each fixed at 1 as Mplus does: χ² = 3.896 on 8 df, log-likelihood −4906.609 in the Mplus output, which lavaan reproduces.',
+    data: mplusData('5.1'), tags: [MPLUS_TAG], constructs: [f('f1', items('y', 3)), f('f2', items('y', 3, 4))], paths: [], settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.2', package: 'lavaan', title: 'CFA with binary indicators, WLSMV (Mplus ex. 5.2)', source: MPLUS_SRC('5.2'), links: mplusLinks('5.2'),
+    description: 'The same two-factor model on six binary indicators u1–u6 declared categorical: thresholds and tetrachoric correlations with Mplus’s default WLSMV estimator and delta parameterisation. Mplus prints χ² = 5.482 on 8 df; lavaan’s mean-and-variance-adjusted statistic is 5.474 (its scaled-shifted version), with the same loadings and thresholds.',
+    data: mplusData('5.2'), tags: [MPLUS_TAG], constructs: [f('f1', items('u', 3)), f('f2', items('u', 3, 4))], paths: [], ordered: items('u', 6), settings: CB('WLSMV'),
+  },
+  {
+    id: 'mplus-ex5.6', package: 'lavaan', title: 'Second-order factor model (Mplus ex. 5.6)', source: MPLUS_SRC('5.6'), links: mplusLinks('5.6'),
+    description: 'Four first-order factors of three indicators each load on one second-order factor f5. Mplus: log-likelihood −7211.373; lavaan reproduces it with χ² = 46.74 on 50 df.',
+    data: mplusData('5.6'), tags: [MPLUS_TAG],
+    constructs: [f('f1', items('y', 3)), f('f2', items('y', 3, 4)), f('f3', items('y', 3, 7)), f('f4', items('y', 3, 10)), { name: 'f5', type: 'factor', mode: 'A', components: ['f1', 'f2', 'f3', 'f4'] }],
+    paths: [], settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.8', package: 'lavaan', title: 'CFA with covariates, MIMIC (Mplus ex. 5.8)', source: MPLUS_SRC('5.8'), links: mplusLinks('5.8'),
+    description: 'Two factors regressed on three covariates x1–x3. Mplus frees the residual covariance of f1 and f2 by default (two factors regressed on the same covariates), drawn here as the double-headed arrow between their disturbances. Mplus: log-likelihood −4000.617; lavaan reproduces it with χ² = 20.02 on 20 df.',
+    data: mplusData('5.8'), tags: [MPLUS_TAG, 'MIMIC'],
+    constructs: [v('x1', true), v('x2', true), v('x3', true), f('f1', items('y', 3)), f('f2', items('y', 3, 4))],
+    paths: fan(['x1', 'x2', 'x3'], ['f1', 'f2']), correlations: [['f1', 'f2', 'construct']], settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.11', package: 'lavaan', title: 'SEM with an indirect effect (Mplus ex. 5.11)', source: MPLUS_SRC('5.11'), links: mplusLinks('5.11'),
+    description: 'Four factors of three indicators: f1 and f2 (correlated) explain f3, which explains f4. Mplus’s example 5.12 is the same model with the indirect effect f1 → f3 → f4 requested (MODEL INDIRECT), which the app reports in its effects table. Mplus: log-likelihood −9646.960; lavaan reproduces it with χ² = 53.70 on 50 df.',
+    data: mplusData('5.11'), tags: [MPLUS_TAG],
+    constructs: [f('f1', items('y', 3)), f('f2', items('y', 3, 4)), f('f3', items('y', 3, 7)), f('f4', items('y', 3, 10))],
+    paths: [['f1', 'f3'], ['f2', 'f3'], ['f3', 'f4']], settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.13', package: 'modsem', title: 'Latent interaction by LMS (Mplus ex. 5.13)', source: MPLUS_SRC('5.13'), links: mplusLinks('5.13'),
+    description: 'Example 5.11 with the interaction of f1 and f2 on f3 (Mplus: f1 XWITH f2, TYPE = RANDOM, numerical integration): the latent moderated structural equations of Klein & Moosbrugger, which modsem’s LMS implements. Mplus estimates the interaction at 0.397 (SE 0.062), f3 on f1 0.439 and on f2 0.812; modsem reproduces them to two decimals.',
+    data: mplusData('5.13', 'modsem'), tags: [MPLUS_TAG],
+    constructs: [f('f1', items('y', 3)), f('f2', items('y', 3, 4)), f('f3', items('y', 3, 7)), f('f4', items('y', 3, 10))],
+    paths: [['f1', 'f3'], ['f2', 'f3'], ['f3', 'f4']], moderations: [['f1', 'f2', 'f3']], settings: { ...CB('ML'), interaction: 'lms' },
+  },
+  {
+    id: 'mplus-ex5.14', package: 'lavaan', title: 'Two-group MIMIC model (Mplus ex. 5.14)', source: MPLUS_SRC('5.14'), links: mplusLinks('5.14'),
+    description: 'The MIMIC model of example 5.8 in two groups (g: 1 = male, 2 = female; N = 1100) without a mean structure (Mplus: MODEL = NOMEANSTRUCTURE). Loadings are held equal across groups except that of y3 on f1, freed for females (MODEL female: f1 BY y3); regressions and residual variances differ by group. Mplus: log-likelihood −8811.413, 35 free parameters; lavaan reproduces it with χ² = 41.74 on 43 df.',
+    data: mplusData('5.14'), tags: [MPLUS_TAG, 'MIMIC'], labels: { g: ['male', 'female'] },
+    constructs: [v('x1', true), v('x2', true), v('x3', true), f('f1', items('y', 3)), f('f2', items('y', 3, 4))],
+    paths: fan(['x1', 'x2', 'x3'], ['f1', 'f2']), correlations: [['f1', 'f2', 'construct']],
+    multigroup: { column: 'g', invariance: 'metric', free: [{ kind: 'loading', construct: 'f1', indicator: 'y3' }] }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.15', package: 'lavaan', title: 'Two-group MIMIC model with a mean structure (Mplus ex. 5.15)', source: MPLUS_SRC('5.15'), links: mplusLinks('5.15'),
+    description: 'Example 5.14 with Mplus’s default mean structure: intercepts equal across groups and factor means fixed at zero for males and free for females, the loading and the intercept of y3 freed for females ([y3]). Mplus: log-likelihood −8812.330, 44 free parameters; lavaan reproduces it with χ² = 43.57 on 46 df.',
+    data: mplusData('5.15'), tags: [MPLUS_TAG, 'MIMIC'], labels: { g: ['male', 'female'] },
+    constructs: [v('x1', true), v('x2', true), v('x3', true), f('f1', items('y', 3)), f('f2', items('y', 3, 4))],
+    paths: fan(['x1', 'x2', 'x3'], ['f1', 'f2']), correlations: [['f1', 'f2', 'construct']],
+    multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'f1', indicator: 'y3' }, { kind: 'intercept', indicator: 'y3' }] }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.25', package: 'lavaan', title: 'SEM with EFA and CFA factors (Mplus ex. 5.25)', source: MPLUS_SRC('5.25'), links: mplusLinks('5.25'),
+    description: 'Two exploratory factors f1 and f2 of y1–y6 (Mplus: f1-f2 BY y1-y6 (*1), geomin rotation) explain the CFA factor f3, which explains f4: exploratory SEM. Mplus: log-likelihood −6482.762, 44 free parameters; lavaan’s efa() blocks reproduce it with χ² = 51.35 on 46 df. Rotations differ only in the EFA loadings’ orientation.',
+    data: mplusData('5.25'), tags: [MPLUS_TAG],
+    constructs: [f('f1', items('y', 3)), f('f2', items('y', 3, 4)), f('f3', items('y', 3, 7)), f('f4', items('y', 3, 10))],
+    paths: [['f1', 'f3'], ['f2', 'f3'], ['f3', 'f4']], esem: { blocks: [['f1', 'f2']], rotation: 'geomin' }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex6.1', package: 'lavaan', title: 'Linear growth model (Mplus ex. 6.1)', source: MPLUS_SRC('6.1'), links: mplusLinks('6.1'),
+    description: 'y11–y14 over four occasions (Mplus: i s | y11@0 y12@1 y13@2 y14@3): intercept and slope factors with means, variances and covariance. Mplus: log-likelihood −3016.386, 9 free parameters; lavaan’s growth() reproduces it with χ² = 4.59 on 5 df. Opens its card on the Analyses tab.',
+    data: mplusData('6.1'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: { kind: 'growth', measures: items('y1', 4), times: [0, 1, 2, 3], shape: 'linear', covariates: [] }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex6.8', package: 'lavaan', title: 'Latent basis growth model (Mplus ex. 6.8)', source: MPLUS_SRC('6.8'), links: mplusLinks('6.8'),
+    description: 'Growth with the shape of the curve estimated: the slope loadings of the third and fourth occasions are free (Mplus: i s | y11@0 y12@1 y13 y14). Mplus: log-likelihood −3016.249, 11 free parameters; lavaan reproduces it with χ² = 4.32 on 3 df. Opens its card on the Analyses tab.',
+    data: mplusData('6.8'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: { kind: 'growth', measures: items('y1', 4), times: [0, 1, 2, 3], shape: 'basis', covariates: [] }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex6.9', package: 'lavaan', title: 'Quadratic growth model (Mplus ex. 6.9)', source: MPLUS_SRC('6.9'), links: mplusLinks('6.9'),
+    description: 'Intercept, linear and quadratic growth factors over four occasions (Mplus: i s q | y11@0 y12@1 y13@2 y14@3). Mplus: log-likelihood −3975.519, 13 free parameters; lavaan reproduces it with χ² = 0.47 on 1 df. Opens its card on the Analyses tab.',
+    data: mplusData('6.9'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: { kind: 'growth', measures: items('y1', 4), times: [0, 1, 2, 3], shape: 'quadratic', covariates: [] }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex6.10', package: 'lavaan', title: 'Growth model with time-invariant and time-varying covariates (Mplus ex. 6.10)', source: MPLUS_SRC('6.10'), links: mplusLinks('6.10'),
+    description: 'Linear growth of y11–y14 with the intercept and slope regressed on x1 and x2, and each occasion regressed on its own time-varying covariate a31–a34 (Mplus: i s ON x1 x2; y11 ON a31; …). 17 free parameters; lavaan gives χ² = 25.79 on 21 df. Opens its card on the Analyses tab.',
+    data: mplusData('6.10'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: { kind: 'growth', measures: items('y1', 4), times: [0, 1, 2, 3], shape: 'linear', covariates: ['x1', 'x2'], timeVarying: items('a3', 4) }, settings: CB('ML'),
   },
   {
     id: 'bollen-union', package: 'MIIVsem', title: 'Union sentiment of textile workers (Bollen 1989, ch. 4)', source: 'MIIVsem, ?bollen1989b; Bollen (1989), Structural Equations with Latent Variables, pp. 82–83',
@@ -814,7 +938,8 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
     paths,
     moderations: (ex.moderations ?? []).map(([from, moderator, to, method]) => ({ id: newId('m'), moderator: id(moderator), path: paths.find((p) => p.from === id(from) && p.to === id(to))!.id, ...(method ? { method } : {}) })),
     ...(ex.correlations?.length ? { correlations: ex.correlations.map(([a, b, kind]) => ({ id: newId('k'), kind, a: kind === 'construct' ? id(a) : a, b: kind === 'construct' ? id(b) : b })) } : {}),
-    ...(ex.multigroup ? { multigroup: ex.multigroup } : {}),
+    ...(ex.multigroup ? { multigroup: { ...ex.multigroup, free: ex.multigroup.free.map((p) => (p.kind === 'loading' || p.kind === 'mean' ? { ...p, construct: id(p.construct) } : p.kind === 'regression' ? { ...p, from: id(p.from), to: id(p.to) } : p)) } } : {}),
+    ...(ex.ordered?.length ? { ordered: [...ex.ordered] } : {}),
     ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),
     ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })) } } : {}),
     // The constant sits left of the first column (autoLayout moves only the constructs).

@@ -600,7 +600,10 @@ ps_cb <- function(req_json, export = FALSE) {
       if (is.null(rfit)) no_rel <- TRUE
     }
     omega <- if (no_rel) NULL else ps_try(semTools::compRelSEM(rfit), "Model-based reliability (omega, semTools::compRelSEM)")
-    alpha <- if (no_rel) NULL else ps_try(semTools::compRelSEM(rfit, tau.eq = TRUE), "Coefficient alpha (semTools::compRelSEM)")
+    # (Ordinal indicators: semTools puts omega on the observed ordinal scale (Green & Yang 2009) but refuses
+    #  alpha there; alpha then comes from the polychoric correlations, on the latent-response scale: the
+    #  ordinal alpha of Zumbo, Gadermann & Zeisser 2007.)
+    alpha <- if (no_rel) NULL else ps_try(semTools::compRelSEM(rfit, tau.eq = TRUE, ord.scale = !length(unlist(req$model$ordered))), "Coefficient alpha (semTools::compRelSEM)")
     per_group <- function(x, name) {
       v <- if (is.list(x)) x[[name]] else NULL
       if (is.null(v)) return(NULL)

@@ -2029,6 +2029,13 @@
    "url": "https://cran.r-project.org/package=RSA"
   },
   {
+   "name": "Mplus User’s Guide example data (examples 3.1–6.10)",
+   "where": "public/examples/mplus, validation fixtures",
+   "license": "Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated)",
+   "credit": "Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples; shipped with the app, each example links to its page.",
+   "url": "https://www.statmodel.com/ugexcerpts.shtml"
+  },
+  {
    "name": "REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV)",
    "where": "public/examples/rendo, validation fixtures",
    "license": "GPL-3, from the REndo package",
