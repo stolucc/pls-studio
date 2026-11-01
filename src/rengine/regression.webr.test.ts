@@ -89,6 +89,11 @@ it('robust and cluster-robust standard errors come from sandwich', async () => {
   expect(h.coefficients[1].se).not.toBeCloseTo(m.coefficients[1].se, 4);
   expect(k.coefficients[1].se).not.toBeCloseTo(m.coefficients[1].se, 4);
   expect(await regressionScriptR(data, { ...base, se: 'cluster', cluster: 'stratum' })).toContain('vcovCL(fit, cluster = ~stratum)');
+  // HC0 (White, as Mplus MLR): the leverage-free sandwich, never larger than HC3's leverage-inflated one.
+  const h0 = await regressionR(data, { ...base, se: 'HC0' });
+  expect(h0.se).toBe('HC0');
+  h0.coefficients.forEach((c, i) => expect(c.se).toBeLessThan(h.coefficients[i].se));
+  expect(await regressionScriptR(data, { ...base, se: 'HC0' })).toContain('vcovHC(fit, type = "HC0")');
   await expect(regressionR(data, { ...base, family: 'multinomial', se: 'HC3' })).rejects.toThrow(/Robust standard errors are available for lm and glm/);
   // Term names map back to the columns' names piece by piece, even when one name is a prefix of another.
   const renamed = { ...data, names: data.names.map((n) => (n === 'spontaneous' ? 'Price (EUR)' : n === 'induced' ? 'Price index' : n)) };

@@ -14,7 +14,7 @@ ps_regression <- function(req_json, export = FALSE) {
   if (family == "ordinal" && !link %in% c("logistic", "probit", "cloglog")) stop("Invalid link in the request.")
   trials <- req$trials %||% ""; wcol <- req$weights %||% ""; cluster <- req$cluster %||% ""
   se <- req$se %||% "model"
-  if (!se %in% c("model", "HC3", "cluster")) stop("Invalid standard-error choice in the request.")
+  if (!se %in% c("model", "HC0", "HC3", "cluster")) stop("Invalid standard-error choice in the request.")
   if (se == "cluster" && !nzchar(cluster)) stop("Choose the cluster column for cluster-robust standard errors.")
   if (se != "model" && family %in% c("ordinal", "multinomial")) stop("Robust standard errors are available for lm and glm models; ordinal and multinomial models report their own.")
   conf <- ps_number(req$confidence %||% 0.95, "confidence level")
@@ -64,6 +64,8 @@ ps_regression <- function(req_json, export = FALSE) {
     if (family %in% c("ordinal", "multinomial")) "options(contrasts = c(\"contr.treatment\", \"contr.poly\"))",
     call,
     if (se == "HC3") "# Heteroskedasticity-consistent (HC3) standard errors.\nvc <- vcovHC(fit, type = \"HC3\"); ct <- coeftest(fit, vcov. = vc)",
+    # (HC0: White's sandwich without small-sample correction, the robust ML standard errors of Mplus's MLR)
+    if (se == "HC0") "# Heteroskedasticity-consistent (HC0, White) standard errors: the maximum-likelihood sandwich, as Mplus MLR.\nvc <- vcovHC(fit, type = \"HC0\"); ct <- coeftest(fit, vcov. = vc)",
     if (se == "cluster") sprintf("# Standard errors clustered by %s.\nvc <- vcovCL(fit, cluster = ~%s); ct <- coeftest(fit, vcov. = vc)", ps_comment(cluster), v[[cluster]]))
   inputs <- list(data = fr$data)
   title <- c(gaussian = "Linear regression (lm)", binomial = sprintf("%s regression (glm)", if (link == "probit") "Probit" else "Logistic"), poisson = "Poisson regression (glm)",

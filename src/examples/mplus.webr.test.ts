@@ -63,6 +63,7 @@ it.each([['ex3.1'], ['ex3.5'], ['ex3.7']])('%s: the regression card reproduces t
   const ex = example(key);
   const { kind: _k, ...opts } = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'regression' }>;
   const r = await regressionR(load(key), { ...opts, confidence: 0.95 });
+  if (key === 'ex3.7') expect(r.se).toBe('HC0');
   const want = MPLUS[key];
   expect(Math.abs(r.fit.logLik - want.fit.logl!)).toBeLessThanOrEqual(0.001);
   expect(Math.abs(r.fit.aic - want.fit.aic!)).toBeLessThanOrEqual(0.002);
@@ -72,8 +73,8 @@ it.each([['ex3.1'], ['ex3.5'], ['ex3.7']])('%s: the regression card reproduces t
     const c = p.op === '~' ? coef(p.rhs) : p.op === '~1' ? coef('(Intercept)') : p.op === '|' ? { ...coef('(Intercept)'), est: -coef('(Intercept)').est } : null;
     if (!c) continue;  // the residual variance (ex3.1): the card reports the least-squares residual SD instead (see the description)
     expect(Math.abs(c.est - p.est), `${key} ${p.lhs} ${p.op} ${p.rhs}`).toBeLessThanOrEqual(TOL);
-    // 3.1: least-squares SEs (N − 3) are within 0.001 of Mplus's ML ones; 3.7: Mplus's are MLR (robust), the card's model-based (documented).
-    if (key !== 'ex3.7') expect(Math.abs(c.se - p.se), `${key} SE ${p.lhs} ${p.op} ${p.rhs}`).toBeLessThanOrEqual(TOL);
+    // 3.1: least-squares SEs (N − 3) are within 0.001 of Mplus's ML ones; 3.7: Mplus's MLR = the card's HC0 sandwich.
+    expect(Math.abs(c.se - p.se), `${key} SE ${p.lhs} ${p.op} ${p.rhs}`).toBeLessThanOrEqual(TOL);
   }
 }, 600_000);
 

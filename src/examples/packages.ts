@@ -116,7 +116,7 @@ const mplusData = (ex: string, pkg: ExamplePackage = 'lavaan') => ({ package: pk
 const MPLUS_TAG = 'Mplus User’s Guide';
 const MPLUS_SRC = (ex: string) => `Mplus User’s Guide (Muthén & Muthén 2017), example ${ex}`;
 const regression = (family: RegressionOptions['family'], link: string, outcome: string, predictors: string[]) =>
-  ({ kind: 'regression' as const, family, link, outcome, predictors, categorical: [], interactions: [], trials: '', weights: '', se: 'model' as const, cluster: '' });
+  ({ kind: 'regression' as const, family, link, outcome, predictors, categorical: [], interactions: [], trials: '', weights: '', se: 'model' as RegressionOptions['se'], cluster: '' });
 
 const BOLLEN = {
   constructs: [f('ind60', items('x', 3)), f('dem60', items('y', 4)), f('dem65', items('y', 4, 5))],
@@ -325,9 +325,9 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   },
   {
     id: 'mplus-ex3.7', package: 'stats', title: 'Poisson regression (Mplus ex. 3.7)', source: MPLUS_SRC('3.7'), links: mplusLinks('3.7'),
-    description: 'A count u1 regressed on x1 and x3 by Poisson regression. R’s glm with a log link gives the coefficients and the log-likelihood Mplus prints (−966.884). Mplus’s default estimator for counts is MLR, robust (sandwich) standard errors: 0.027, 0.026 and 0.030 for x1, x3 and the intercept; the card shows the model-based standard errors of glm (0.024, 0.025, 0.028). Opens its card on the Analyses tab.',
+    description: 'A count u1 regressed on x1 and x3 by Poisson regression. R’s glm with a log link gives the coefficients and the log-likelihood Mplus prints (−966.884). Mplus’s default estimator for counts is MLR, whose standard errors are White’s sandwich without a small-sample correction (HC0), so the card is set to HC0 and reproduces them: 0.027, 0.026 and 0.030 for x1, x3 and the intercept (HC3, the card’s small-sample choice, gives 0.028, 0.026 and 0.030). Opens its card on the Analyses tab.',
     data: mplusData('3.7', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Count data'],
-    panel: regression('poisson', 'log', 'u1', ['x1', 'x3']), settings: CB('ML'),
+    panel: { ...regression('poisson', 'log', 'u1', ['x1', 'x3']), se: 'HC0' }, settings: CB('ML'),
   },
   {
     id: 'mplus-ex3.11', package: 'lavaan', title: 'Path analysis with observed variables (Mplus ex. 3.11)', source: MPLUS_SRC('3.11'), links: mplusLinks('3.11'),

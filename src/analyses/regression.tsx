@@ -83,7 +83,7 @@ function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<
         <div className="field">
           <label htmlFor="reg-se">Standard errors</label>
           <select id="reg-se" className="select" value={o.se} disabled={o.family === 'ordinal' || o.family === 'multinomial'} onChange={(e) => { const se = e.target.value as RegressionInput['se']; set({ ...o, se, cluster: se === 'cluster' ? o.cluster : '' }); }}>
-            <option value="model">Model-based</option><option value="HC3">Robust (HC3)</option><option value="cluster">Cluster-robust</option>
+            <option value="model">Model-based</option><option value="HC3">Robust (HC3; small samples)</option><option value="HC0">Robust (HC0, White; as Mplus MLR)</option><option value="cluster">Cluster-robust</option>
           </select>
         </div>
       </div>
@@ -157,7 +157,7 @@ export async function drawRegressionModel(o: RegressionOptions): Promise<boolean
   st.commit(() => m);
   st.setSettings({ method: 'cbsem', estimator: 'ML' });
   st.setWorkspace('model');
-  st.toast('success', `${o.outcome} on ${o.predictors.join(', ')} as a path model: the predictors as observed covariates, the outcome a single indicator. CB-SEM with ML gives the regression's coefficients (standard errors divide by N rather than N − p). Add indicators, mediators or groups from here.${o.se === 'cluster' && o.cluster ? ` Sampling clusters: ${o.cluster}.` : o.se === 'HC3' ? ' HC3 errors are not carried over; choose MLR for robust ones.' : ''}`);
+  st.toast('success', `${o.outcome} on ${o.predictors.join(', ')} as a path model: the predictors as observed covariates, the outcome a single indicator. CB-SEM with ML gives the regression's coefficients (standard errors divide by N rather than N − p). Add indicators, mediators or groups from here.${o.se === 'cluster' && o.cluster ? ` Sampling clusters: ${o.cluster}.` : o.se === 'HC3' || o.se === 'HC0' ? ` ${o.se} errors are not carried over; choose MLR for robust ones.` : ''}`);
   return true;
 }
 
@@ -187,7 +187,7 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
       {r.family === 'gaussian' && <div className="table-tools"><DrawModel o={o} /><span className="hint">A linear regression is a saturated path model: draw it to extend it into an SEM.</span></div>}
       <p className="hint" style={{ marginTop: 0 }}>
         {FAMILY_NAME[r.family]}{r.link && r.link !== 'logit' && r.link !== 'logistic' ? ` (${r.link} link)` : ''}: <code>{r.formula}</code>; {r.engine.package} {r.engine.version}.
-        {r.se !== 'model' && ` ${r.se === 'HC3' ? 'Heteroskedasticity-consistent (HC3)' : 'Cluster-robust'} standard errors.`}
+        {r.se !== 'model' && ` ${r.se === 'HC3' ? 'Heteroskedasticity-consistent (HC3)' : r.se === 'HC0' ? 'Heteroskedasticity-consistent (HC0, White; Mplus MLR)' : 'Cluster-robust'} standard errors.`}
         {r.lrt && <> Likelihood-ratio test against the intercept-only model: χ²({r.lrt.df}) = {fmt(r.lrt.stat, 2)}, p {r.lrt.p < 0.001 ? '< 0.001' : `= ${fmt(r.lrt.p)}`}.</>}
         {f.dispersion !== undefined && f.dispersion !== null && f.dispersion > 1.5 && r.family === 'poisson' && ' Dispersion well above 1: consider the negative binomial.'}
       </p>
@@ -231,7 +231,7 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     outcome: name(raw.outcome), predictors: names(raw.predictors), categorical: names(raw.categorical),
     interactions: (Array.isArray(raw.interactions) ? raw.interactions.slice(0, 50) : []).map((t) => names(t)).filter((t) => t.length >= 2),
     family: oneOf(raw.family, FAMILY_IDS, 'gaussian'), link: name(raw.link, 20) || 'logit', trials: name(raw.trials), weights: name(raw.weights),
-    se: oneOf(raw.se, ['model', 'HC3', 'cluster'] as const, 'model'), cluster: name(raw.cluster), plot: name(raw.plot),
+    se: oneOf(raw.se, ['model', 'HC0', 'HC3', 'cluster'] as const, 'model'), cluster: name(raw.cluster), plot: name(raw.plot),
   } : null),
   Options: RegressionOptionsForm,
   View: ({ result, options }) => <RegressionView r={result} plot={options.plot} o={options} />,

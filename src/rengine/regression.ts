@@ -18,7 +18,8 @@ export interface RegressionInput {
   trials: string;
   /** Frequency weights. */
   weights: string;
-  se: 'model' | 'HC3' | 'cluster';
+  /** HC0: White's sandwich (Mplus MLR); HC3: the leverage-corrected one (small samples). */
+  se: 'model' | 'HC0' | 'HC3' | 'cluster';
   cluster: string;
   confidence: number;
 }
