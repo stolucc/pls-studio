@@ -581,7 +581,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'plspm-fimix', package: 'plspm', title: 'FIMIX-PLS: the same hidden segments', source: 'plspm simdata; FIMIX-PLS with flexmix (Sarstedt et al. 2011)',
     links: [{ label: '?simdata', url: 'https://rdrr.io/cran/plspm/man/simdata.html' }, { label: 'flexmix', url: 'https://rdrr.io/cran/flexmix/man/flexmix.html' }, { label: 'Sarstedt et al. (2011)', url: 'https://doi.org/10.1007/BF03396856' }],
-    description: 'The two simulated customer segments again, found by a finite mixture of the structural model (FIMIX-PLS): AIC3, CAIC and BIC point to two segments with price-driven and quality-driven satisfaction. Opens its card on the Analyses tab.',
+    description: 'The two simulated customer segments again, found by a finite mixture of the structural model (FIMIX-PLS; Sarstedt et al. 2011): no package documents this analysis on simdata, so it is the app’s FIMIX-PLS (flexmix’s mixture of regressions on the cSEM construct scores, ten starts per number of segments), checked against flexmix run directly on the same scores. BIC points to two segments with price-driven and quality-driven satisfaction. Opens its card on the Analyses tab.',
     data: { package: 'plspm', name: 'simdata' },
     constructs: [f('Price', items('mv', 5)), f('Quality', items('mv', 5, 6)), f('Satisfaction', items('mv', 3, 11))],
     paths: [['Price', 'Satisfaction'], ['Quality', 'Satisfaction']], segmentation: { method: 'fimix' }, settings: { ...PLS('cSEM', false, 'path'), missing: 'casewise' },
@@ -637,9 +637,9 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     paths: [['eta1', 'eta2'], ['eta1', 'eta3'], ['eta2', 'eta3']], settings: CSEM(),
   },
   {
-    id: 'csem-satisfaction', package: 'cSEM', title: 'Customer satisfaction (ECSI)', source: 'cSEM, satisfaction data; Tenenhaus et al. (2005) model',
-    links: [{ label: '?satisfaction', url: 'https://rdrr.io/cran/cSEM/man/satisfaction.html' }],
-    description: 'European Customer Satisfaction Index for a mobile phone provider (N = 250): image, expectations, quality, value, satisfaction and loyalty.',
+    id: 'csem-satisfaction', package: 'cSEM', title: 'Customer satisfaction (ECSI model)', source: 'cSEM, ?infer (satisfaction)',
+    links: [{ label: '?infer', url: 'https://rdrr.io/cran/cSEM/man/infer.html' }, { label: '?satisfaction', url: 'https://rdrr.io/cran/cSEM/man/satisfaction.html' }],
+    description: 'An ECSI-type model on cSEM’s satisfaction data: 250 customers of a Spanish credit institution rate image, expectations, quality, value, satisfaction and loyalty. The model of cSEM’s ?infer help page: six common factors, csem() defaults (consistent PLS, path scheme). Consistent PLS gives some path coefficients beyond ±1 here (quality → value 2.59, expectations → value −1.74): the disattenuation is unstable for these data, which comparing with PLSc switched off shows.',
     data: { package: 'cSEM', name: 'satisfaction' },
     constructs: [f('IMAG', items('imag', 5)), f('EXPE', items('expe', 5)), f('QUAL', items('qual', 5)), f('VAL', items('val', 4)), f('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['IMAG', 'SAT'], ['IMAG', 'LOY'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['EXPE', 'SAT'], ['QUAL', 'VAL'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['SAT', 'LOY']],
@@ -648,7 +648,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'csem-gender', package: 'cSEM', title: 'Customer satisfaction: women and men (MICOM, MGA)', source: 'cSEM, ?testMICOM, ?testMGD (satisfaction_gender)',
     links: [{ label: '?testMICOM', url: 'https://rdrr.io/cran/cSEM/man/testMICOM.html' }, { label: '?testMGD', url: 'https://rdrr.io/cran/cSEM/man/testMGD.html' }, { label: '?satisfaction_gender', url: 'https://rdrr.io/cran/cSEM/man/satisfaction_gender.html' }],
-    description: 'The ECSI model as on cSEM’s ?testMGD help page (composites for expectations, image, satisfaction and value; common factors for quality and loyalty, consistent PLS) for 148 women and 102 men. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? Opens its card on the Analyses tab.',
+    description: 'The ECSI model as on cSEM’s ?testMGD help page (composites for expectations, image, satisfaction and value; common factors for quality and loyalty, consistent PLS) applied to 148 women and 102 men; the help pages themselves run testMGD on three almost identical subsets of satisfaction and testMICOM on generated data. Is the measurement invariant (MICOM), and do the paths differ (multigroup analysis)? The card permutes 499 times (seed 1234). Opens its card on the Analyses tab.',
     data: { package: 'cSEM', name: 'satisfaction_gender' },
     constructs: [c('IMAG', items('imag', 5)), c('EXPE', items('expe', 5)), f('QUAL', items('qual', 5)), c('VAL', items('val', 4)), c('SAT', items('sat', 4)), f('LOY', items('loy', 4))],
     paths: [['IMAG', 'EXPE'], ['EXPE', 'QUAL'], ['EXPE', 'VAL'], ['QUAL', 'VAL'], ['IMAG', 'SAT'], ['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT'], ['IMAG', 'LOY'], ['SAT', 'LOY']],
@@ -818,9 +818,9 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: SEMINR(1000),
   },
   {
-    id: 'sempls-qsquared', package: 'cSEM', title: 'Mobile phone satisfaction: blindfolding Q²', source: 'semPLS, ?qSquared (ECSImobi on mobi)',
+    id: 'sempls-qsquared', package: 'cSEM', title: 'Mobile phone satisfaction: blindfolding Q²', source: 'semPLS, ?qSquared (ECSImobi on mobi): qSquared(ecsi, d = 4, impfun = meanimp, dlines = FALSE)',
     links: [{ label: '?qSquared', url: 'https://rdrr.io/cran/semPLS/man/semplsGOF.html' }, { label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }],
-    description: 'semPLS’s help example: the ECSI model with the centroid scheme, and Stone–Geisser Q² from blindfolding with omission distance 4. Estimated with cSEM; semPLS (not available in the browser) is the reference. Opens its card on the Analyses tab.',
+    description: 'The ECSI model of semPLS’s help page (sempls with the centroid scheme), and Stone–Geisser Q² from blindfolding with omission distance 4. The blindfolding card omits single data points and replaces them by the indicator means (Wold’s procedure, as SmartPLS): semPLS’s qSquared with impfun = meanimp and dlines = FALSE, its reference here. The help page calls qSquared with its defaults instead, omitting whole rows of each block and refitting with pairwise correlations, which a cSEM fit on complete data cannot do; its Q² values differ. Estimated with cSEM (semPLS is not available in the browser). Opens its card on the Analyses tab.',
     data: { package: 'seminr', name: 'mobi' }, constructs: MOBI,
     paths: [...fan(['Image'], ['Expectation', 'Satisfaction', 'Loyalty']), ...fan(['Expectation'], ['Quality', 'Value', 'Satisfaction']), ...fan(['Quality'], ['Value', 'Satisfaction']),
       ['Value', 'Satisfaction'], ['Satisfaction', 'Complaints'], ['Satisfaction', 'Loyalty'], ['Complaints', 'Loyalty']],

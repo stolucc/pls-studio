@@ -91,3 +91,17 @@ out5 <- list(statistic = as.list(it_omf$Test_statistic),
   correlations = as.list(as.data.frame(it_out$Estimates$Construct_VCV)))
 write(toJSON(out5, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/reference5.json")
 cat("written 5\n")
+
+# ---- The csem-gender example's own model (?testMGD's: composites IMAG, EXPE, VAL, SAT; factors QUAL, LOY;
+# csem() defaults: consistent PLS, path scheme) on satisfaction_gender: the deterministic parts of MICOM and MGA.
+mg <- "EXPE ~ IMAG\nQUAL ~ EXPE\nVAL ~ EXPE + QUAL\nSAT ~ IMAG + EXPE + QUAL + VAL\nLOY ~ IMAG + SAT
+IMAG <~ imag1 + imag2 + imag3 + imag4 + imag5\nEXPE <~ expe1 + expe2 + expe3 + expe4 + expe5\nQUAL =~ qual1 + qual2 + qual3 + qual4 + qual5
+VAL <~ val1 + val2 + val3 + val4\nSAT <~ sat1 + sat2 + sat3 + sat4\nLOY =~ loy1 + loy2 + loy3 + loy4"
+gg <- csem(satisfaction_gender, mg, .id = "gender")
+set.seed(1); mi2 <- testMICOM(gg, .R = 30, .seed = 1, .verbose = FALSE)
+md2 <- testMGD(gg, .approach_mgd = c("Klesel", "Chin"), .R_permutation = 30, .seed = 1, .verbose = FALSE)
+gender <- list(version = as.character(packageVersion("cSEM")), micomC = as.list(mi2$Step2$Test_statistic[[1]]), klesel = as.list(md2$Klesel$Test_statistic),
+  chin = as.list(md2$Chin$Test_statistic[[1]][grepl(" ~ ", names(md2$Chin$Test_statistic[[1]]))]),
+  groups = lapply(gg, function(x) { P <- x$Estimates$Path_estimates; list(SAT_VAL = P["SAT", "VAL"], LOY_SAT = P["LOY", "SAT"], VAL_QUAL = P["VAL", "QUAL"]) }))
+write(toJSON(gender, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/plsx/gender.json")
+cat("gender written\n")

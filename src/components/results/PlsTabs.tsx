@@ -241,7 +241,7 @@ function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
         The <b>saturated</b> model freely correlates all constructs and tests the measurement model; the <b>estimated</b> model
         imposes the structural model. HI95/HI99 are bootstrap quantiles under the null of exact fit (data rotated to the
         model-implied matrix). Composites leave within-block correlations unrestricted; common factors impose λλ′.
-        d_G uses the natural logarithm. SRMR below 0.08 is a common approximate-fit heuristic.
+        d_G uses the natural logarithm, as Dijkstra &amp; Henseler define it; cSEM prints it with base-10 logarithms, ln(10)² ≈ 5.30 times smaller. SRMR below 0.08 is a common approximate-fit heuristic.
       </div>
     </>
   );

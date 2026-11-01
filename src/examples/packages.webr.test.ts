@@ -234,7 +234,8 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         for (const e of r.estimates.filter((e) => e.kind === 'mean')) expect(e.est, e.lhs).toBe(0);  // latent means stay fixed at zero: no arrows drawn
       }
     } else {
-      const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 1e-7, maxIter: 300, hocApproach: st.hocApproach }, st.plsPackage);
+      // (each example at its own settings: scheme, PLSc, tolerance and iterations as its source)
+      const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 10 ** -st.stopExp, maxIter: st.maxIter, hocApproach: st.hocApproach }, st.plsPackage);
       expect(r.converged).toBe(true);
       if (ex.id === 'csem-2ndorder') await checkSecondOrder(data, spec, r, st);
       if (ex.id === 'csem-2ndorder-embedded' || ex.id === 'csem-2ndorder-repeated') {

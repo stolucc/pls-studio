@@ -75,7 +75,7 @@ describe('PLS assessment (cSEM)', () => {
     const r = await groupsR(d, spec, options, { group: 'gender', approaches: ['Klesel', 'Chin', 'Henseler'], samples: 30, seed: 1 });
     for (const [k, v] of Object.entries(ref.micomC as Record<string, number>)) expect(r.micom.c[k], k).toBeCloseTo(v, 6);
     const kl = r.mga.find((a) => a.approach === 'Klesel')!.overall!;
-    expect(kl.dG.statistic).toBeCloseTo(ref.klesel.dG, 6);
+    expect(kl.dG.statistic).toBeCloseTo(Math.log(10) ** 2 * ref.klesel.dG, 6);  // (natural logarithm; cSEM base 10)
     expect(kl.dL.statistic).toBeCloseTo(ref.klesel.dL, 5);
     const chin = r.mga.find((a) => a.approach === 'Chin')!.comparisons![0];
     expect(chin.groups).toBe('female_male');
@@ -135,7 +135,9 @@ describe('PLS assessment (cSEM)', () => {
     // Paths not saturated on purpose: CCA ignores them (saturated model, structural model ignored in the weights).
     const it: ModelSpec = { constructs: [cmp('ITComp', 'ITCOMP'), cmp('Modul', 'MOD'), cmp('ITConn', 'ITCONN'), cmp('ITPers', 'ITPSF')], paths: [P('ITComp', 'ITPers'), P('Modul', 'ITPers'), P('ITConn', 'ITPers')] };
     const r = await ccaR(d, it, { ...options, scheme: 'factor', tolerance: 1e-6, maxIter: 100 }, { samples: 40, seed: 7, alpha: 0.05 });
-    for (const f of r.fit) expect(f.statistic, f.measure).toBeCloseTo(ref5.statistic[f.measure], 6);
+    // (cSEM's dG is in base-10 logarithms; the app's, as Dijkstra & Henseler, in natural ones: ln(10)^2 times larger)
+    const LN = (m: string) => (m === 'dG' ? Math.log(10) ** 2 : 1);
+    for (const f of r.fit) expect(f.statistic, f.measure).toBeCloseTo(LN(f.measure) * ref5.statistic[f.measure], 6);
     for (const w of r.weights) expect(w.est, w.indicator).toBeCloseTo(ref5.weights[w.construct][w.indicator], 6);
     expect(r.weights).toHaveLength(16);
     for (const v of r.vif) expect(v.vif, v.indicator).toBeCloseTo(ref5.vif[v.construct][v.indicator], 6);
@@ -148,7 +150,7 @@ describe('PLS assessment (cSEM)', () => {
       b <- csem(ITFlex, m, .PLS_weight_scheme_inner = "factorial", .tolerance = 1e-6, .PLS_ignore_structural_model = TRUE, .resample_method = "bootstrap", .R = 40, .seed = 7)
       w <- summarize(b, .alpha = 0.05, .ci = "CI_percentile")$Estimates$Weight_estimates
       ps_json(list(q95 = as.list(t$Critical_value[, "95%"]), low = as.list(setNames(w[[7]], w$Name)), high = as.list(setNames(w[[8]], w$Name))))`, null)) as { q95: Record<string, number>; low: Record<string, number>; high: Record<string, number> };
-    for (const f of r.fit) expect(f.q95, f.measure).toBeCloseTo(own.q95[f.measure], 10);
+    for (const f of r.fit) expect(f.q95, f.measure).toBeCloseTo(LN(f.measure) * own.q95[f.measure], 10);
     for (const w of r.weights) {
       expect(w.low, w.indicator).toBeCloseTo(own.low[`${w.construct} <~ ${w.indicator}`], 10);
       expect(w.high, w.indicator).toBeCloseTo(own.high[`${w.construct} <~ ${w.indicator}`], 10);

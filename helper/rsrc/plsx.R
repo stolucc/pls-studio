@@ -110,7 +110,8 @@ ps_pls_groups <- function(req_json, export = FALSE) {
   }
   mga <- lapply(approaches, function(a) {
     x <- env$mga[[a]]
-    if (a == "Klesel") return(list(approach = a, overall = list(dG = list(statistic = x$Test_statistic[["dG"]], p = x$P_value[["dG"]]), dL = list(statistic = x$Test_statistic[["dL"]], p = x$P_value[["dL"]]))))
+    # (d_G with the natural logarithm, as elsewhere in the app; the p-value does not depend on the base)
+    if (a == "Klesel") return(list(approach = a, overall = list(dG = list(statistic = log(10)^2 * x$Test_statistic[["dG"]], p = x$P_value[["dG"]]), dL = list(statistic = x$Test_statistic[["dL"]], p = x$P_value[["dL"]]))))
     # Sarstedt et al.: one test across all groups per parameter; the others per pair of groups.
     if (a == "Sarstedt") return(list(approach = a, comparisons = list(list(groups = "all", paths = pathRows(x$Test_statistic, first(x$P_value))))))
     comps <- names(x$Test_statistic)
@@ -282,8 +283,9 @@ ps_cca <- function(req_json, export = FALSE) {
     lapply(names(v), function(i) list(construct = unname(back[k]), indicator = unname(back[i]), vif = unname(v[i]))) }), recursive = FALSE)
   R <- env$cor_composites
   ps_json(list(samples = B, alpha = alpha, admissible = omf$Information$Number_admissibles,
-    fit = lapply(names(omf$Test_statistic), function(k) list(measure = k, statistic = unname(omf$Test_statistic[k]),
-      q95 = unname(omf$Critical_value[k, "95%"]), q99 = unname(omf$Critical_value[k, "99%"]))),
+    # (d_G with the natural logarithm, as Dijkstra & Henseler 2015 and the app's Fit tab; cSEM prints it with log base 10)
+    fit = lapply(names(omf$Test_statistic), function(k) { s <- if (k == "dG") log(10)^2 else 1
+      list(measure = k, statistic = s * unname(omf$Test_statistic[k]), q95 = s * unname(omf$Critical_value[k, "95%"]), q99 = s * unname(omf$Critical_value[k, "99%"])) }),
     weights = tab(env$est$Weight_estimates), loadings = tab(env$est$Loading_estimates), vif = vifs,
     composites = unname(back[rownames(R)]), correlations = unname(R),
     warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
