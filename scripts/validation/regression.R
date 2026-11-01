@@ -3,7 +3,7 @@
 # that the help pages build inline (Dobson's trial from ?glm, the clotting
 # times from ?glm) as CSV files shipped with the app.
 #   Rscript scripts/validation/regression.R
-suppressPackageStartupMessages({ library(MASS); library(nnet); library(jsonlite) })
+suppressPackageStartupMessages({ library(MASS); library(nnet); library(carData); library(faraway); library(jsonlite) })
 options(contrasts = c("contr.treatment", "contr.poly"))
 counts <- c(18,17,15,20,10,20,25,13,12); outcome <- gl(3,1,9); treatment <- gl(3,3)
 write.csv(data.frame(counts, outcome = as.integer(outcome), treatment = as.integer(treatment)), "public/examples/regression/dobson.csv", row.names = FALSE)
@@ -20,7 +20,13 @@ m <- list(
   quine = glm.nb(Days ~ Sex/(Age + Eth*Lrn), data = quine),
   housing = polr(Sat ~ Infl + Type + Cont, weights = Freq, data = housing),
   birthwt = glm(low ~ ., binomial, bwt),
-  multinom = multinom(low ~ ., bwt, trace = FALSE))
+  multinom = multinom(low ~ ., bwt, trace = FALSE),
+  # Textbook regressions: Chatterjee & Price (?attitude), Mosteller & Tukey (?swiss), Fox & Weisberg (Duncan, Prestige), Faraway (gala).
+  attitude = lm(rating ~ ., data = attitude),
+  swiss = lm(Fertility ~ ., data = swiss),
+  duncan = lm(prestige ~ income + education, data = Duncan),
+  prestige = lm(prestige ~ education + log2(income) + women, data = Prestige),
+  gala = glm(Species ~ Area + Elevation + Nearest + Scruz + Adjacent, family = poisson, data = gala))
 out <- lapply(names(m), function(k) { f <- m[[k]]
   r <- list(coefficients = if (k == "multinom") { s <- summary(f); lapply(seq_along(coef(f)), function(i) list(term = names(coef(f))[i], est = unname(coef(f)[i]), se = unname(s$standard.errors[i]))) } else tab(f),
     logLik = as.numeric(logLik(f)), aic = AIC(f))
@@ -29,7 +35,7 @@ out <- lapply(names(m), function(k) { f <- m[[k]]
   if (inherits(f, "glm")) r$deviance <- deviance(f)
   r })
 names(out) <- names(m)
-out$versions <- list(R = R.version.string, MASS = as.character(packageVersion("MASS")), nnet = as.character(packageVersion("nnet")))
+out$versions <- list(R = R.version.string, MASS = as.character(packageVersion("MASS")), nnet = as.character(packageVersion("nnet")), carData = as.character(packageVersion("carData")), faraway = as.character(packageVersion("faraway")))
 dir.create("src/engine/__fixtures__/regression", showWarnings = FALSE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/regression/reference.json")
 cat("written\n"); for (k in names(m)) cat(k, ":", paste(sprintf("%s=%.4f", names(coef(m[[k]]))[1:min(3, length(coef(m[[k]])))], coef(m[[k]])[1:min(3, length(coef(m[[k]])))]), collapse = " "), "\n")

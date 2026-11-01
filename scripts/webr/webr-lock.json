@@ -1014,6 +1014,22 @@
         "File": "expm_1.0-1.tgz"
       }
     },
+    "faraway": {
+      "version": "1.0.9",
+      "md5": "95132e532f452a011f24181b50ce86e1",
+      "license": "GPL",
+      "stanza": {
+        "Package": "faraway",
+        "Version": "1.0.9",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "methods, lme4, nlme",
+        "Suggests": "leaps",
+        "License": "GPL",
+        "MD5sum": "95132e532f452a011f24181b50ce86e1",
+        "Built": "R 4.6.0; ; 2026-05-13 02:35:16 UTC; unix",
+        "File": "faraway_1.0.9.tgz"
+      }
+    },
     "farver": {
       "version": "2.1.2",
       "md5": "d4d2197542b63048e6d99dcefef59a43",

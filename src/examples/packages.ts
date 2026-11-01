@@ -22,8 +22,8 @@ import type { EgaOptions, NetworkOptions } from '../analyses/network';
 import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -249,6 +249,42 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'MASS', name: 'birthwt' }, constructs: [], paths: [], tags: ['Multinomial outcome'],
     computed: [{ name: 'ptd', expr: 'ptl > 0' }, { name: 'ftv2', expr: 'min(ftv, 2)' }], labels: { race: ['white', 'black', 'other'], ftv2: ['0', '1', '2+'] },
     panel: { kind: 'regression', family: 'multinomial', link: 'logit', outcome: 'low', predictors: ['age', 'lwt', 'race', 'smoke', 'ptd', 'ht', 'ui', 'ftv2'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'datasets-attitude', package: 'datasets', title: 'Linear regression: the attitude survey', source: 'datasets, ?attitude (Chatterjee & Price 1977)',
+    links: [{ label: '?attitude', url: 'https://rdrr.io/r/datasets/attitude.html' }],
+    description: 'Chatterjee & Price’s survey of 30 departments of a financial organisation: the overall rating of a department on the proportion of favourable responses to six questions (complaints, privileges, learning, raises, critical, advance), lm(rating ~ .) as on the help page. Opens its card on the Analyses tab.',
+    data: { package: 'datasets', name: 'attitude' }, constructs: [], paths: [], tags: ['Textbook example'],
+    panel: { kind: 'regression', family: 'gaussian', link: 'identity', outcome: 'rating', predictors: ['complaints', 'privileges', 'learning', 'raises', 'critical', 'advance'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'datasets-swiss', package: 'datasets', title: 'Linear regression: Swiss fertility and socio-economic indicators', source: 'datasets, ?swiss (Mosteller & Tukey 1977)',
+    links: [{ label: '?swiss', url: 'https://rdrr.io/r/datasets/swiss.html' }],
+    description: 'A standardised fertility measure for 47 French-speaking provinces of Switzerland in 1888 on agriculture, examination, education, Catholic and infant mortality: lm(Fertility ~ .) as on the help page (Mosteller & Tukey, Data Analysis and Regression). Opens its card on the Analyses tab.',
+    data: { package: 'datasets', name: 'swiss' }, constructs: [], paths: [], tags: ['Textbook example'],
+    panel: { kind: 'regression', family: 'gaussian', link: 'identity', outcome: 'Fertility', predictors: ['Agriculture', 'Examination', 'Education', 'Catholic', 'Infant.Mortality'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'cardata-duncan', package: 'carData', title: 'Linear regression: Duncan’s occupational prestige', source: 'carData, ?Duncan; Fox & Weisberg, An R Companion to Applied Regression, ch. 1',
+    links: [{ label: '?Duncan', url: 'https://rdrr.io/cran/carData/man/Duncan.html' }, { label: 'An R Companion to Applied Regression', url: 'https://www.john-fox.ca/Companion/' }],
+    description: 'Duncan’s (1961) 45 US occupations: prestige (percentage rated good or better) on income and education (percentages of incumbents earning $3,500 or more and with a high-school diploma), the opening regression of Fox & Weisberg’s Companion: lm(prestige ~ income + education). Opens its card on the Analyses tab.',
+    data: { package: 'carData', name: 'Duncan' }, constructs: [], paths: [], tags: ['Textbook example'],
+    panel: { kind: 'regression', family: 'gaussian', link: 'identity', outcome: 'prestige', predictors: ['income', 'education'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'cardata-prestige', package: 'carData', title: 'Linear regression: Canadian occupational prestige', source: 'carData, ?Prestige; Fox & Weisberg, An R Companion to Applied Regression, ch. 4',
+    links: [{ label: '?Prestige', url: 'https://rdrr.io/cran/carData/man/Prestige.html' }, { label: 'An R Companion to Applied Regression', url: 'https://www.john-fox.ca/Companion/' }],
+    description: 'Pineo–Porter prestige of 102 Canadian occupations (1971) on education, log₂ income and percentage of women, as in the Companion: lm(prestige ~ education + log2(income) + women); the log is a computed column. Opens its card on the Analyses tab.',
+    data: { package: 'carData', name: 'Prestige' }, constructs: [], paths: [], tags: ['Textbook example'],
+    computed: [{ name: 'log2_income', expr: 'log2(income)' }],
+    panel: { kind: 'regression', family: 'gaussian', link: 'identity', outcome: 'prestige', predictors: ['education', 'log2_income', 'women'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'faraway-gala', package: 'faraway', title: 'Poisson regression: species on the Galápagos islands', source: 'faraway, ?gala; Faraway, Extending the Linear Model with R, ch. 5',
+    links: [{ label: '?gala', url: 'https://rdrr.io/cran/faraway/man/gala.html' }, { label: 'Extending the Linear Model with R', url: 'https://julianfaraway.github.io/faraway/ELM/' }],
+    description: 'Johnson & Raven’s (1973) counts of plant species on 30 Galápagos islands on area, elevation, distance to the nearest island and to Santa Cruz, and the area of the adjacent island: Faraway’s Poisson log-linear model, glm(Species ~ Area + Elevation + Nearest + Scruz + Adjacent, poisson). The large residual deviance (717 on 24 df) is his point about overdispersion. Opens its card on the Analyses tab.',
+    data: { package: 'faraway', name: 'gala' }, constructs: [], paths: [], tags: ['Count data', 'Textbook example'],
+    panel: { kind: 'regression', family: 'poisson', link: 'log', outcome: 'Species', predictors: ['Area', 'Elevation', 'Nearest', 'Scruz', 'Adjacent'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
   },
   {
     id: 'miivsem-bollen', package: 'MIIVsem', title: 'Political democracy by MIIV-2SLS', source: 'MIIVsem, bollen1989a',

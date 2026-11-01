@@ -6,9 +6,11 @@ MatchIt
 WeightIt
 bootnet
 cSEM
+carData
 cobalt
 corpcor
 did
+faraway
 fixest
 flexmix
 genpathmox

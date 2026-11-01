@@ -568,6 +568,12 @@
    "url": "https://cran.r-project.org/package=expm"
   },
   {
+   "name": "faraway",
+   "version": "1.0.9",
+   "license": "GPL",
+   "url": "https://cran.r-project.org/package=faraway"
+  },
+  {
    "name": "farver",
    "version": "2.1.2",
    "license": "MIT + file LICENSE",

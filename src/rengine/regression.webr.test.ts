@@ -34,9 +34,10 @@ async function load(ex: PackageExample): Promise<Dataset> {
   return d;
 }
 
-const CASES: [string, string][] = [['stats-dobson', 'dobson'], ['stats-clotting', 'clotting'], ['datasets-infert', 'infert'], ['mass-menarche', 'menarche'], ['mass-quine', 'quine'], ['mass-housing', 'housing'], ['mass-birthwt', 'birthwt'], ['nnet-birthwt', 'multinom']];
+const CASES: [string, string][] = [['stats-dobson', 'dobson'], ['stats-clotting', 'clotting'], ['datasets-infert', 'infert'], ['mass-menarche', 'menarche'], ['mass-quine', 'quine'], ['mass-housing', 'housing'], ['mass-birthwt', 'birthwt'], ['nnet-birthwt', 'multinom'],
+  ['datasets-attitude', 'attitude'], ['datasets-swiss', 'swiss'], ['cardata-duncan', 'duncan'], ['cardata-prestige', 'prestige'], ['faraway-gala', 'gala']];
 /** R's term names for the reference (factor levels under their labels) match ours up to the names of recoded columns. */
-const same = (a: string, b: string) => a.replace(/^log\(u\)$/, 'log_u').replace(/^ftv/, 'ftv2').replace(/TRUE$/, '') === b;
+const same = (a: string, b: string) => a.replace(/^log\(u\)$/, 'log_u').replace(/^log2\(income\)$/, 'log2_income').replace(/^ftv/, 'ftv2').replace(/TRUE$/, '') === b;
 
 it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === id)!;
@@ -71,7 +72,10 @@ it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   if (key === 'housing') expect(r.thresholds.map((t) => t.term)).toEqual(['Low|Medium', 'Medium|High']);
   if (key === 'multinom') expect(r.levels).toEqual({ reference: '0', others: ['1'] });
   const script = await regressionScriptR(data, input);
-  expect(script).toContain(key === 'quine' ? 'glm.nb(' : key === 'housing' ? 'polr(' : key === 'multinom' ? 'multinom(' : key === 'dobson' ? 'family = poisson' : key === 'clotting' ? 'family = Gamma' : key === 'menarche' ? 'binomial(link = "probit")' : 'family = binomial');
+  const LM = ['attitude', 'swiss', 'duncan', 'prestige'];
+  expect(script).toContain(key === 'quine' ? 'glm.nb(' : key === 'housing' ? 'polr(' : key === 'multinom' ? 'multinom(' : ['dobson', 'gala'].includes(key) ? 'family = poisson' : key === 'clotting' ? 'family = Gamma' : key === 'menarche' ? 'binomial(link = "probit")' : LM.includes(key) ? 'fit <- lm(' : 'family = binomial');
+  if (key === 'gala') { expect(r.fit.deviance).toBeCloseTo(716.8458, 3); expect(r.fit.n).toBe(30); }  // Faraway: residual deviance 716.85 on 24 df
+  if (key === 'prestige') expect(r.formula).toMatch(/log2_income/);
 }, 900_000);
 
 it('robust and cluster-robust standard errors come from sandwich', async () => {

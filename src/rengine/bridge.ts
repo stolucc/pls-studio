@@ -74,6 +74,9 @@ export const R_PACKAGES = {
   MASS: ['jsonlite', 'MASS'],
   nnet: ['jsonlite', 'nnet', 'MASS'],
   datasets: ['jsonlite'],
+  // Textbook datasets: Fox & Weisberg (carData), Faraway (faraway).
+  carData: ['jsonlite', 'carData'],
+  faraway: ['jsonlite', 'faraway'],
   stats: ['jsonlite'],
   EGAnet: ['jsonlite', 'EGAnet'],
   // R and package versions (replication packages).

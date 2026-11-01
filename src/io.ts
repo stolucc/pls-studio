@@ -4,12 +4,13 @@ import { confirmDialog, numberDialog } from './components/Overlays';
 import { parseCovMatrixCsv, parseNacovCsv } from './examples/matrix';
 import { dataFileFormat, readDataFile, readPackageFile } from './data/readFile';
 import { safeFileName, downloadText } from './format';
-import { parseProject, serializeProject, toSpec, validateModel } from './model/project';
+import { parseProject, serializeProject, toSpec, validateModel, type Settings } from './model/project';
 import { makeSample } from './sample';
 import { addAnalysis, loadCards, useAnalyses } from './analyses/store';
 import { parseCards, withLegacySimulation } from './analyses/persist';
 import { analysisType } from './analyses/registry';
 import { getRecent, migrateLegacyAutosave, recentPersistent, saveRecent, type RecentEntry } from './recent';
+import type { BuiltinExample } from './examples/textbook';
 import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
 import type { IpmaOptions } from './engine/ipma';
@@ -243,7 +244,17 @@ export async function openRecent(id: string) {
   }
 }
 
-export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic';
+export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | 'thurstone' | 'kerckhoff';
+
+/** The built-in examples other than the synthetic survey: each a module loaded on demand, and what the toast says. */
+const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
+  emse: { make: () => import('./examples/emse').then((m) => m.makeEmseExample), toast: 'Stol, Schaarschmidt & Goldblit (2022), EMSE 27:35. Covariance + NACOV matrices (N = 155), estimated with MLM as in the paper. Press Calculate.' },
+  mimic: { make: () => import('./examples/mimic').then((m) => m.makeMimicExample), toast: 'MIMIC model of social participation (Jöreskog & Sörbom; Schumacker & Lomax): correlation matrix, N = 530, maximum likelihood. Press Calculate.' },
+  poldem: { make: () => import('./examples/poldem').then((m) => m.makePoldemExample), toast: 'Bollen (1989): industrialisation and political democracy, N = 75, with six correlated measurement errors. Press Calculate.' },
+  wheaton: { make: () => import('./examples/textbook').then((m) => m.makeWheatonExample), toast: 'Wheaton et al. (1977), stability of alienation: covariance matrix, N = 932, maximum likelihood, with two correlated errors across the waves (Bollen 1989; Jöreskog & Sörbom). Press Calculate.' },
+  thurstone: { make: () => import('./examples/textbook').then((m) => m.makeThurstoneExample), toast: 'Thurstone mental tests: second-order confirmatory factor analysis of nine tests, correlation matrix, N = 213 (SAS/STAT PROC CALIS manual). Press Calculate.' },
+  kerckhoff: { make: () => import('./examples/textbook').then((m) => m.makeKerckhoffExample), toast: 'Kerckhoff (1974), ambition and attainment: observed-variable path analysis from the LISREL manual, correlation matrix, N = 737. Press Calculate.' },
+};
 
 export async function loadSample(which: ExampleId = 'customer') {
   if (!(await confirmDiscard('Loading the example'))) return;
@@ -251,28 +262,12 @@ export async function loadSample(which: ExampleId = 'customer') {
   // The built-in examples open with their documented settings too (see exampleSettings).
   const { exampleSettings } = await import('./examples/packages');
   const fresh = exampleSettings(s.settings);
-  if (which === 'emse') {
-    const { makeEmseExample } = await import('./examples/emse');
-    const ex = makeEmseExample(fresh);
-    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'emse' });
+  if (which !== 'customer') {
+    const b = BUILTIN[which];
+    const ex = (await b.make())(fresh);
+    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: which });
     loadCards([]);
-    s.toast('info', 'Stol, Schaarschmidt & Goldblit (2022), EMSE 27:35. Covariance + NACOV matrices (N = 155), estimated with MLM as in the paper. Press Calculate.');
-    return;
-  }
-  if (which === 'mimic') {
-    const { makeMimicExample } = await import('./examples/mimic');
-    const ex = makeMimicExample(fresh);
-    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'mimic' });
-    loadCards([]);
-    s.toast('info', 'MIMIC model of social participation (Jöreskog & Sörbom; Schumacker & Lomax): correlation matrix, N = 530, maximum likelihood. Press Calculate.');
-    return;
-  }
-  if (which === 'poldem') {
-    const { makePoldemExample } = await import('./examples/poldem');
-    const ex = makePoldemExample(fresh);
-    s.loadProject({ name: ex.name, model: ex.model, settings: ex.settings, data: ex.data, info: ex.info, example: 'poldem' });
-    loadCards([]);
-    s.toast('info', 'Bollen (1989): industrialisation and political democracy, N = 75, with six correlated measurement errors. Press Calculate.');
+    s.toast('info', b.toast);
     return;
   }
   const { data, info, model } = makeSample();

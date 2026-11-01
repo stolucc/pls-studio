@@ -41,6 +41,27 @@ const EXAMPLES = [
     links: [{ label: 'Schumacker & Lomax, A Beginner’s Guide to SEM', url: 'https://www.routledge.com/A-Beginners-Guide-to-Structural-Equation-Modeling/Whittaker-Schumacker/p/book/9780367477967' }, { label: 'Hodge & Treiman (1968)', url: 'https://doi.org/10.2307/2092317' }],
     body: 'Multiple indicators, multiple causes: income, occupation and education cause social participation, measured by church attendance, memberships and friends seen. Jöreskog & Sörbom’s LISREL example (Hodge & Treiman 1968, N = 530), the worked MIMIC example in Schumacker & Lomax; the correlation matrix and maximum likelihood, reproducing its coefficients.',
   },
+  {
+    id: 'wheaton' as const,
+    title: 'Stability of alienation (Wheaton et al. 1977)',
+    tags: ['CB-SEM', 'Panel model', 'Correlated errors', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Wheaton, Muthén, Alwin & Summers (1977)', url: 'https://doi.org/10.2307/270754' }, { label: '?sem (sem package): the matrix and model', url: 'https://rdrr.io/cran/sem/man/sem.html' }],
+    body: 'Alienation (anomia, powerlessness) measured in 1967 and 1971, explained by socio-economic status (education, occupational index), N = 932. The model in Bollen (1989), Jöreskog & Sörbom’s LISREL manual and the SAS/STAT PROC CALIS manual, with the errors of each item correlated across the waves: χ² = 4.73 on 4 df.',
+  },
+  {
+    id: 'thurstone' as const,
+    title: 'Thurstone mental tests: second-order factor',
+    tags: ['CB-SEM', 'Second-order', 'CFA', 'Covariance input', 'Textbook example'],
+    links: [{ label: '?sem (sem package): the matrix and model', url: 'https://rdrr.io/cran/sem/man/sem.html' }, { label: 'SAS/STAT PROC CALIS: second-order CFA', url: 'https://go.documentation.sas.com/doc/en/statug/latest/statug_calis_examples.htm' }],
+    body: 'Nine tests from Thurstone & Thurstone (1941), N = 213: verbal, word-fluency and reasoning factors, with a general ability factor at the second order, as in the SAS/STAT PROC CALIS manual. A correlation matrix, maximum likelihood.',
+  },
+  {
+    id: 'kerckhoff' as const,
+    title: 'Ambition and attainment (Kerckhoff 1974)',
+    tags: ['CB-SEM', 'Path analysis', 'Covariates', 'Covariance input', 'Textbook example'],
+    links: [{ label: '?sem (sem package): the matrix and model', url: 'https://rdrr.io/cran/sem/man/sem.html' }],
+    body: 'The LISREL manual’s observed-variable path model: intelligence, number of siblings, father’s education and occupation explain grades, educational expectations and occupational aspirations of 737 boys. Four fixed exogenous variables, a just-identified recursive model: coefficients and R² only.',
+  },
 ];
 
 /** Whether every word of a query occurs in one of the texts (case-insensitive). */

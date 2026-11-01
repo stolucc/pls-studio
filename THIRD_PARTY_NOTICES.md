@@ -76,6 +76,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | ellipse | 0.5.0 | GPL (>= 2) | https://cran.r-project.org/package=ellipse |
 | evaluate | 1.0.5 | MIT + file LICENSE | https://cran.r-project.org/package=evaluate |
 | expm | 1.0-1 | GPL (>= 2) | https://cran.r-project.org/package=expm |
+| faraway | 1.0.9 | GPL | https://cran.r-project.org/package=faraway |
 | farver | 2.1.2 | MIT + file LICENSE | https://cran.r-project.org/package=farver |
 | fastGHQuad | 1.0.1 | MIT + file LICENSE | https://cran.r-project.org/package=fastGHQuad |
 | fastglm | 0.1.2 | GPL (>= 2) | https://cran.r-project.org/package=fastglm |
