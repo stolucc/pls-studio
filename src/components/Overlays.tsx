@@ -65,9 +65,13 @@ export function ConfirmModal() {
     useDialog.setState({ current: null });
   };
   useEffect(() => { setText(current?.field?.initial ?? current?.text?.initial ?? ''); setValues(current?.fields?.map((f) => f.initial ?? '') ?? []); }, [current]);
+  // Focus the first field (or OK) once, when a dialog opens: not on every render, or typing in another field jumps back.
   useEffect(() => {
     if (!current) return;
     (current.field || current.text || current.fields ? inputRef.current : okRef.current)?.focus();
+  }, [current]);
+  useEffect(() => {
+    if (!current) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
