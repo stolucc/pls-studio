@@ -1,6 +1,6 @@
 import { ViewportPortal } from '@xyflow/react';
 import type { MouseEvent } from 'react';
-import { moderatorSegment, pathSegment, quadraticLoop, type QuadraticLoop } from '../geometry';
+import { moderatorSegment, pathOffset, pathSegment, quadraticLoop, type QuadraticLoop } from '../geometry';
 import type { Moderation } from '../model/project';
 import { useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
@@ -39,7 +39,7 @@ export function ModeratorLayer({ labelFor, onMenu }: {
     if (!path || !m) return [];
     const s = byId.get(path.from), t = byId.get(path.to);
     if (!s || !t) return [];
-    const seg = pathSegment(s, t);
+    const seg = pathSegment(s, t, pathOffset(model.paths, path.from, path.to));
     if (!seg) return [];
     // The predictor moderating its own path: a quadratic effect (Henseler 2021), X's arrow onto X → Y.
     if (m.id === path.from) {

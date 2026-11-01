@@ -4,7 +4,7 @@ import {
   type Connection, type ConnectionLineComponentProps, type EdgeChange, type FinalConnectionState, type NodeChange, type OnDelete,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { CONSTANT_R, constructGeometry, distanceToSegment, interceptSegment, meanSegment, moderatorSegment, pathSegment, quadraticLoop } from '../geometry';
+import { CONSTANT_R, constructGeometry, distanceToSegment, interceptSegment, meanSegment, moderatorSegment, pathOffset, pathSegment, quadraticLoop } from '../geometry';
 import { figureCssVars } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { FigurePanel } from './FigurePanel';
@@ -431,7 +431,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     const byId = new Map(m.constructs.map((c) => [c.id, c]));
     let best: { id: string; d: number; moderation?: boolean } | null = null;
     for (const p of m.paths) {
-      const seg = pathSegment(byId.get(p.from)!, byId.get(p.to)!);
+      const seg = pathSegment(byId.get(p.from)!, byId.get(p.to)!, pathOffset(m.paths, p.from, p.to));
       if (!seg) continue;
       const d = distanceToSegment(pos.x, pos.y, seg);
       if (!best || d < best.d) best = { id: p.id, d };
@@ -507,7 +507,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     const impliedPaths = st().showImpliedEffects ? impliedMainEffects(m).map((e) => ({ id: '', from: e.from, to: e.to, implied: true })) : [];
     const paths = [...m.paths, ...impliedPaths].flatMap((p) => {
       const s = byId.get(p.from), t = byId.get(p.to);
-      const seg = s && t ? pathSegment(s, t) : null;
+      const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p.from, p.to)) : null;
       if (!seg) return [];
       const l = display?.path(nameOf(p.from), nameOf(p.to));
       return [{ ...seg, label: lbl(l?.beta, l?.p ?? null), moderated: m.moderations.some((mo) => mo.path === p.id), ...('implied' in p ? { implied: true } : {}) }];

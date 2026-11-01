@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, interceptSegment, moderatorSegment, QUAD_RISE, quadraticLoop, pathSegment,
+  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, interceptSegment, moderatorSegment, pathOffset, QUAD_RISE, quadraticLoop, pathSegment, RECIPROCAL_OFFSET,
 } from './geometry';
 
 describe('construct shapes', () => {
@@ -157,5 +157,18 @@ describe('intercept arrows from the constant', () => {
     expect(down.x2).toBeCloseTo(0, 9); expect(down.y2).toBeCloseTo(100, 9);
     const across = interceptSegment({ x: 0, y: 113 }, { ...t, x: 0, y: 0 }, { x: 100, y: 100, w: 40, h: 26 })!;
     expect(across.y2).toBeCloseTo(113, 9); expect(across.x2).toBeCloseTo(100, 9);
+  });
+});
+
+describe('reciprocal pairs', () => {
+  const a = { id: 'a', name: 'A', type: 'factor' as const, mode: 'A' as const, indicators: ['a1'], x: 0, y: 0, side: 'left' as const };
+  const b = { id: 'b', name: 'B', type: 'factor' as const, mode: 'A' as const, indicators: ['b1'], x: 400, y: 0, side: 'right' as const };
+  it('offsets each arrow of a reciprocal pair to its own right, so the two do not overlap', () => {
+    const ab = pathSegment(a, b, RECIPROCAL_OFFSET)!, ba = pathSegment(b, a, RECIPROCAL_OFFSET)!, plain = pathSegment(a, b)!;
+    expect(ab.y1).toBeCloseTo(plain.y1 + RECIPROCAL_OFFSET, 9);
+    expect(ba.y1).toBeCloseTo(plain.y1 - RECIPROCAL_OFFSET, 9);
+    expect(ab.x1).toBeCloseTo(plain.x1, 9);
+    expect(pathOffset([{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }], 'a', 'b')).toBe(RECIPROCAL_OFFSET);
+    expect(pathOffset([{ from: 'a', to: 'b' }], 'a', 'b')).toBe(0);
   });
 });

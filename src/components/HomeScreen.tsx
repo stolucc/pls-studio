@@ -76,6 +76,20 @@ const EXAMPLES = [
     links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
     body: 'Chapter 9’s stacked model: the smoking model fitted to younger (N = 213) and older (N = 219) respondents at once, one covariance matrix per group (Figure 9.2), each group’s error variances fixed from its own variances. The path coefficients are held equal across the groups except the heavy arrows of Figure 9.1 (the effects of age and education, of sex on acts, and of smoking), which may differ; the χ² of the equalities tests whether the groups share one model. Groups: pick a group or All groups in the results.',
   },
+  {
+    id: 'hayduk-revised' as const,
+    title: 'Revised smoking model: a reciprocal effect (Hayduk 1987)',
+    tags: ['CB-SEM', 'Non-recursive', 'Known reliability', 'Covariance input', 'Textbook example'],
+    links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
+    body: 'Figure 8.6: antismoking views now also cause smoking, a loop with the effect of smoking on views. Identified by two exclusions, sex → smoking and religion → views (the instruments). Reproduces the LISREL estimates on the page: smoking → views −1.26, views → smoking 0.03, the latter with a standard error eight times its size: the data cannot tell the two directions apart, which is the chapter’s lesson.',
+  },
+  {
+    id: 'dhp' as const,
+    title: 'Peer influences on aspirations (Duncan, Haller & Portes 1968)',
+    tags: ['CB-SEM', 'Non-recursive', 'Covariates', 'Covariance input', 'Textbook example'],
+    links: [{ label: '?sem (sem package): the matrix and model', url: 'https://rdrr.io/cran/sem/man/sem.html' }, { label: 'Duncan, Haller & Portes (1968), AJS 74', url: 'https://doi.org/10.1086/224615' }],
+    body: 'The classic non-recursive model: a respondent’s and a best friend’s general aspirations (each measured by occupational and educational aspiration) influence each other, with parental aspiration, intelligence and socio-economic status of both as fixed background variables and correlated disturbances. The first example of the sem package’s documentation (correlation matrix, N = 329): χ² = 26.8 on 15 df, reciprocal effects .18 and .24.',
+  },
 ];
 
 /** Whether every word of a query occurs in one of the texts (case-insensitive). */

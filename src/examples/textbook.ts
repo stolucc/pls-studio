@@ -14,7 +14,11 @@
 //   error variance fixed from an assessed reliability (Figures 4.5 to 4.7);
 //   and its chapter-9 stacked model: younger and older respondents, one
 //   covariance matrix each, the coefficients equal across the groups except
-//   those Figure 9.1 draws heavy.
+//   those Figure 9.1 draws heavy; and its chapter-8 revised model (Figure 8.6),
+//   smoking and antismoking views causing each other.
+// - Duncan, Haller & Portes (1968), peer influences on aspirations: the
+//   non-recursive model of the sem documentation (reciprocal effects of the
+//   respondent's and the friend's aspirations, correlated disturbances).
 //
 // Numbers pinned in the tests come from native lavaan on these matrices
 // (scripts/validation is not needed: the matrices are the data).
@@ -169,8 +173,12 @@ export const HAYDUK_S = fromLowerTriangle(HAYDUK_NAMES, [
 /** Figure 4.5, "assessed proportion of error variance" of the seven indicators the model uses: reliability = 1 − proportion. */
 export const HAYDUK_RELIABILITY: Record<string, number> = { Sex: 0.99, Age: 0.95, Education: 0.90, 'R-attend': 0.90, 'S-current': 0.90, 'AS-views': 0.95, 'AS-acts': 0.95 };
 
-/** The seven single-indicator concepts of the smoking model and its paths; `ageToActs`: with the age -> acts path (chapter 9). */
-function haydukModel(ageToActs: boolean) {
+/**
+ * The seven single-indicator concepts of the smoking model and its paths.
+ * ch4: Figure 4.6; ch9: with the age -> acts path (the stacked model); revised:
+ * Figure 8.6, where views also cause smoking (identified by dropping sex -> smoking and religion -> views).
+ */
+function haydukModel(variant: 'ch4' | 'ch9' | 'revised') {
   // Every concept has one indicator whose error variance is fixed at the assessed proportion of its variance (THETA in Figure 4.7):
   // the exogenous concepts are latent too (PHI is estimated), so they are not fixed.x covariates.
   const single = (name: string, indicator: string, x: number, y: number, side: Construct['side']) => C(name, [indicator], x, y, side, { reliability: HAYDUK_RELIABILITY[indicator] });
@@ -182,21 +190,24 @@ function haydukModel(ageToActs: boolean) {
   const views = single('Antismoking views', 'AS-views', 500, 270, 'bottom');
   const acts = single('Antismoking acts', 'AS-acts', 1000, 0, 'right');
   const exogenous = [sex, age, education, religion];
-  const model: ModelState = {
-    constructs: [...exogenous, smoking, views, acts],
-    paths: [
+  const paths = variant === 'revised'
+    ? [
+      P(views, smoking), P(age, smoking), P(education, smoking), P(religion, smoking),
+      P(smoking, views), P(sex, views), P(age, views), P(education, views),
+      P(smoking, acts), P(views, acts), P(sex, acts), P(education, acts), P(religion, acts),
+    ]
+    : [
       ...exogenous.map((x) => P(x, smoking)),
       P(smoking, views), ...exogenous.map((x) => P(x, views)),
       // gamma 32 (age -> antismoking acts) is fixed at zero in chapter 4; chapter 9 brings it back (the groups are age groups).
-      P(smoking, acts), P(views, acts), P(sex, acts), ...(ageToActs ? [P(age, acts)] : []), P(education, acts), P(religion, acts),
-    ],
-    moderations: [],
-  };
+      P(smoking, acts), P(views, acts), P(sex, acts), ...(variant === 'ch9' ? [P(age, acts)] : []), P(education, acts), P(religion, acts),
+    ];
+  const model: ModelState = { constructs: [...exogenous, smoking, views, acts], paths, moderations: [] };
   return { model, sex, age, education, religion, smoking, views, acts };
 }
 
 export function makeHaydukExample(settings: Settings): BuiltinExample {
-  const { model } = haydukModel(false);
+  const { model } = haydukModel('ch4');
   return {
     name: 'Smoking behaviour and antismoking acts (Hayduk 1987)',
     data: matrix(HAYDUK_NAMES, HAYDUK_S.map((r) => [...r]), HAYDUK_N),
@@ -236,7 +247,7 @@ export const HAYDUK_OLDER_S = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
 export const HAYDUK_STACKED_N = { younger: 213, older: 219 };
 
 export function makeHaydukStackedExample(settings: Settings): BuiltinExample {
-  const h = haydukModel(true);
+  const h = haydukModel('ch9');
   // The heavy arrows of Figure 9.1: coefficients allowed to differ between the age groups; every other coefficient is equal.
   const heavy: [Construct, Construct][] = [
     [h.sex, h.acts], [h.age, h.smoking], [h.age, h.views], [h.age, h.acts], [h.education, h.smoking], [h.education, h.views], [h.education, h.acts], [h.smoking, h.views], [h.smoking, h.acts],
@@ -253,5 +264,53 @@ export function makeHaydukStackedExample(settings: Settings): BuiltinExample {
     info: info('Hayduk (1987), Figure 9.2 covariance matrices (younger, older)', n),
     model: makeCovariancesExplicit(model),
     settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false, engine: 'r' },
+  };
+}
+
+export function makeHaydukRevisedExample(settings: Settings): BuiltinExample {
+  const { model } = haydukModel('revised');
+  return {
+    name: 'Revised smoking model: views and smoking cause each other (Hayduk 1987)',
+    data: matrix(HAYDUK_NAMES, HAYDUK_S.map((r) => [...r]), HAYDUK_N),
+    info: info('Hayduk (1987), Figure 4.5 covariance matrix', HAYDUK_N),
+    model: makeCovariancesExplicit(model),
+    settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false, engine: 'r' },
+  };
+}
+
+// ---- Duncan, Haller & Portes (1968): N = 329, correlation matrix (sem, ?sem; Duncan, Haller & Portes, AJS 74)
+export const DHP_NAMES = ['ROccAsp', 'REdAsp', 'FOccAsp', 'FEdAsp', 'RParAsp', 'RIQ', 'RSES', 'FSES', 'FIQ', 'FParAsp'];
+export const DHP_N = 329;
+export const DHP_R = fromLowerTriangle(DHP_NAMES, [
+  0.6247,
+  0.3269, 0.3669,
+  0.4216, 0.3275, 0.6404,
+  0.2137, 0.2742, 0.1124, 0.0839,
+  0.4105, 0.4043, 0.2903, 0.2598, 0.1839,
+  0.3240, 0.4047, 0.3054, 0.2786, 0.0489, 0.2220,
+  0.2930, 0.2407, 0.4105, 0.3607, 0.0186, 0.1861, 0.2707,
+  0.2995, 0.2863, 0.5191, 0.5007, 0.0782, 0.3355, 0.2302, 0.2950,
+  0.0760, 0.0702, 0.2784, 0.1988, 0.1147, 0.1021, 0.0931, -0.0438, 0.2087,
+], false);
+
+export function makeDhpExample(settings: Settings): BuiltinExample {
+  // Six observed background variables (fixed.x), the respondent's and the friend's general aspirations as factors of
+  // their occupational and educational aspirations, each influencing the other (non-recursive), disturbances correlated.
+  const cov = (name: string, y: number) => C(name, [name], 0, y, 'left', { covariate: true });
+  const rPar = cov('RParAsp', -500), rIq = cov('RIQ', -300), rSes = cov('RSES', -100), fSes = cov('FSES', 100), fIq = cov('FIQ', 300), fPar = cov('FParAsp', 500);
+  const rGen = C('RGenAsp', ['ROccAsp', 'REdAsp'], 560, -220, 'top');
+  const fGen = C('FGenAsp', ['FOccAsp', 'FEdAsp'], 560, 220, 'bottom');
+  const model: ModelState = {
+    constructs: [rPar, rIq, rSes, fSes, fIq, fPar, rGen, fGen],
+    paths: [P(rPar, rGen), P(rIq, rGen), P(rSes, rGen), P(fSes, rGen), P(fGen, rGen), P(rSes, fGen), P(fSes, fGen), P(fIq, fGen), P(fPar, fGen), P(rGen, fGen)],
+    moderations: [],
+    correlations: [{ id: newId('k'), kind: 'construct', a: rGen.id, b: fGen.id }],
+  };
+  return {
+    name: 'Peer influences on aspirations (Duncan, Haller & Portes 1968)',
+    data: matrix(DHP_NAMES, DHP_R.map((r) => [...r]), DHP_N),
+    info: info('Duncan, Haller & Portes (1968) correlation matrix, via the sem package', DHP_N),
+    model: makeCovariancesExplicit(model),
+    settings: { ...settings, method: 'cbsem', estimator: 'ML', consistent: false },
   };
 }

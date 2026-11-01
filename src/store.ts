@@ -445,13 +445,15 @@ export const useStore = create<State>((set, get) => ({
   addPath: (from, to) => {
     const { model, toast } = get();
     if (model.paths.some((p) => p.from === from && p.to === to)) return false;
-    if (model.paths.some((p) => p.from === to && p.to === from)) {
-      toast('error', 'A path already runs the other way. Use "Reverse" on it instead.');
+    // CB-SEM estimates non-recursive models (reciprocal paths, loops); PLS-SEM and process analysis need recursive ones.
+    const cb = get().settings.method === 'cbsem';
+    if (model.paths.some((p) => p.from === to && p.to === from) && !cb) {
+      toast('error', 'A path already runs the other way. Use "Reverse" on it instead, or switch to CB-SEM for a reciprocal effect.');
       return false;
     }
     if (createsCycle(model.paths, from, to)) {
-      toast('error', 'That path would create a cycle. PLS-SEM models must be recursive.');
-      return false;
+      if (!cb) { toast('error', 'That path would create a cycle. PLS-SEM models must be recursive; CB-SEM estimates non-recursive models.'); return false; }
+      toast('info', 'Non-recursive model: each construct in the loop needs a predictor the other lacks (an instrument) to be identified.');
     }
     const id = newId('p');
     get().commit((m) => ({ ...m, paths: [...m.paths, { id, from, to }] }));
@@ -568,8 +570,9 @@ export const useStore = create<State>((set, get) => ({
     const p = model.paths.find((q) => q.id === id);
     if (!p) return;
     const others = model.paths.filter((q) => q.id !== id);
-    if (createsCycle(others, p.to, p.from)) {
-      toast('error', 'Reversing this path would create a cycle.');
+    if (others.some((q) => q.from === p.to && q.to === p.from)) { toast('error', 'A path already runs that way.'); return; }
+    if (createsCycle(others, p.to, p.from) && get().settings.method !== 'cbsem') {
+      toast('error', 'Reversing this path would create a cycle. PLS-SEM models must be recursive; CB-SEM estimates non-recursive models.');
       return;
     }
     get().commit((m) => ({ ...m, paths: m.paths.map((q) => (q.id === id ? { ...q, from: q.to, to: q.from } : q)) }));

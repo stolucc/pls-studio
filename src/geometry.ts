@@ -124,13 +124,28 @@ export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'si
 type Placed = Pick<Construct, 'name' | 'indicators' | 'side' | 'x' | 'y'> & { type?: ConstructType; covariate?: boolean };
 
 /** Endpoints of a structural path, clipped to both construct shapes. */
-export function pathSegment(s: Placed, t: Placed): { x1: number; y1: number; x2: number; y2: number } | null {
+/** How far the two arrows of a reciprocal pair (A → B and B → A) sit from the centre line, each to its own right. */
+export const RECIPROCAL_OFFSET = 14;
+
+/**
+ * The straight arrow from construct s to construct t, boundary to boundary.
+ * `offset` shifts it sideways (to the arrow's right): the two arrows of a
+ * reciprocal pair (a non-recursive model) each get it, so they do not overlap.
+ */
+export function pathSegment(s: Placed, t: Placed, offset = 0): { x1: number; y1: number; x2: number; y2: number } | null {
   const gs = constructGeometry(s), gt = constructGeometry(t);
   const dx = t.x - s.x, dy = t.y - s.y;
   if (dx === 0 && dy === 0) return null;
   const [sx, sy] = shapePoint(shapeOf(s), gs.rx, gs.ry, dx, dy);
   const [tx, ty] = shapePoint(shapeOf(t), gt.rx, gt.ry, -dx, -dy);
-  return { x1: s.x + sx, y1: s.y + sy, x2: t.x + tx, y2: t.y + ty };
+  const l = Math.hypot(dx, dy);
+  const ox = (offset * -dy) / l, oy = (offset * dx) / l;
+  return { x1: s.x + sx + ox, y1: s.y + sy + oy, x2: t.x + tx + ox, y2: t.y + ty + oy };
+}
+
+/** The sideways offset of the arrow from → to: RECIPROCAL_OFFSET when a path runs the other way too, else 0. */
+export function pathOffset(paths: { from: string; to: string }[], from: string, to: string): number {
+  return paths.some((p) => p.from === to && p.to === from) ? RECIPROCAL_OFFSET : 0;
 }
 
 /** Distance from point (px, py) to the segment. */

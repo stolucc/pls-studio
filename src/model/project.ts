@@ -1060,10 +1060,17 @@ export function validateModel(
     }
   }
 
+  // Cycles (reciprocal paths, feedback loops): a non-recursive model. CB-SEM estimates it (lavaan, the built-in
+  // ML engine) when the equations are identified; PLS-SEM and conditional process analysis need a recursive model.
   const seen: Path[] = [];
+  const loops: string[] = [];
   for (const p of model.paths) {
-    if (createsCycle(seen, p.from, p.to)) err('The structural model contains a cycle. PLS-SEM requires a recursive model.');
+    if (createsCycle(seen, p.from, p.to)) loops.push(`${cname.get(p.from)} → ${cname.get(p.to)}`);
     seen.push(p);
+  }
+  if (loops.length) {
+    if (method.method !== 'cbsem') err(`The structural model contains a cycle (${loops.join(', ')}). ${method.method === 'pls' ? 'PLS-SEM' : 'Conditional process analysis'} requires a recursive model; CB-SEM estimates non-recursive models.`);
+    else warn(`Non-recursive model (${loops.join(', ')} closes a loop). Each construct in a loop needs a predictor the other lacks (an instrument) or the loop is not identified; lavaan reports the identification problem if so.`);
   }
 
   if (data && model.constructs.length > 0 && method.method !== 'process') {

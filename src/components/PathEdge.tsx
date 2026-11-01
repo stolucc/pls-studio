@@ -1,6 +1,6 @@
 import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
-import { pathSegment } from '../geometry';
+import { pathOffset, pathSegment } from '../geometry';
 import { useStore } from '../store';
 import { pathStrokeWidth } from '../figure/style';
 import { fixedText } from '../diagramLabels';
@@ -14,14 +14,16 @@ export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
 function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlowEdge>) {
   const s = useStore((st) => st.model.constructs.find((c) => c.id === source));
   const t = useStore((st) => st.model.constructs.find((c) => c.id === target));
+  // A reciprocal pair (non-recursive model): each arrow shifted to its own side.
+  const offset = useStore((st) => pathOffset(st.model.paths, source, target));
   const geo = useMemo(() => {
     if (!s || !t) return null;
-    const seg = pathSegment(s, t);
+    const seg = pathSegment(s, t, offset);
     if (!seg) return null;
     // Moderator arrows land on the midpoint, so move this path's label aside.
     const f = data?.moderated ? 0.3 : 0.5;
     return { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: seg.x1 + f * (seg.x2 - seg.x1), my: seg.y1 + f * (seg.y2 - seg.y1) };
-  }, [s, t, data?.moderated]);
+  }, [s, t, offset, data?.moderated]);
   const figure = useStore((st) => st.settings.figure);
   if (!geo) return null;
 

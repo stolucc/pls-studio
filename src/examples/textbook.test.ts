@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from '../engine/cbsem';
 import { DEFAULT_SETTINGS, toSpec, validateModel } from '../model/project';
-import { fromLowerTriangle, HAYDUK_NAMES, HAYDUK_OLDER_S, HAYDUK_RELIABILITY, HAYDUK_S, HAYDUK_STACKED_NAMES, HAYDUK_YOUNGER_S, KERCKHOFF_R, makeHaydukExample, makeHaydukStackedExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
+import { DHP_R, fromLowerTriangle, HAYDUK_NAMES, HAYDUK_OLDER_S, HAYDUK_RELIABILITY, HAYDUK_S, HAYDUK_STACKED_NAMES, HAYDUK_YOUNGER_S, KERCKHOFF_R, makeDhpExample, makeHaydukExample, makeHaydukRevisedExample, makeHaydukStackedExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
 
 const est = (cb: ReturnType<typeof estimateCb>, op: string, lhs: string, rhs: string) => cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
 
@@ -186,5 +186,42 @@ describe('stacked smoking model, younger and older respondents (Hayduk 1987, ch.
     const spec = toSpec(ex.model);
     expect(spec.multigroup!.free[0]).toEqual({ kind: 'regression', from: 'Sex', to: 'Antismoking acts' });
     expect(spec.constructs.every((c) => c.reliability !== undefined)).toBe(true);
+  });
+});
+
+describe('non-recursive textbook models', () => {
+  it('Duncan, Haller & Portes: reciprocal aspirations with correlated disturbances; the built-in engine reproduces the sem documentation', () => {
+    const ex = makeDhpExample(DEFAULT_SETTINGS);
+    expect(DHP_R[9][7]).toBe(-0.0438);
+    const issues = validateModel(ex.model, ex.data, ex.settings);
+    expect(issues.filter((i) => i.level === 'error')).toEqual([]);
+    expect(issues.some((i) => /Non-recursive model/.test(i.message))).toBe(true);
+    expect(ex.model.constructs.filter((c) => c.covariate).length).toBe(6);
+    expect(ex.model.correlations!.map((k) => k.kind)).toEqual(['construct']);
+    const cb = estimateCb(ex.data, toSpec(ex.model), 'casewise', 'ML');
+    // sem's ?sem (model.dhp.1): gam11 .161, beta12 .184, beta21 .235, lam21 1.063, lam42 .930; lavaan's chi-square 26.78 on 15 df.
+    expect(cb.fit.chisq).toBeCloseTo(26.779, 2);
+    expect(cb.fit.df).toBe(15);
+    expect(est(cb, '~', 'RGenAsp', 'RParAsp').est).toBeCloseTo(0.161, 3);
+    expect(est(cb, '~', 'RGenAsp', 'FGenAsp').est).toBeCloseTo(0.184, 3);
+    expect(est(cb, '~', 'FGenAsp', 'RGenAsp').est).toBeCloseTo(0.235, 3);
+    expect(est(cb, '~', 'FGenAsp', 'RGenAsp').se).toBeCloseTo(0.119, 3);
+    expect(est(cb, '=~', 'RGenAsp', 'REdAsp').est).toBeCloseTo(1.063, 3);
+    expect(est(cb, '=~', 'FGenAsp', 'FEdAsp').est).toBeCloseTo(0.930, 3);
+    expect(est(cb, '~~', 'RGenAsp', 'FGenAsp').est).toBeCloseTo(-0.023, 3);
+    expect(cb.r2Constructs[cb.constructs.indexOf('RGenAsp')]).toBeCloseTo(0.522, 3);
+  });
+  it('Hayduk Figure 8.6: views cause smoking too, identified by the two exclusions', () => {
+    const ex = makeHaydukRevisedExample(DEFAULT_SETTINGS);
+    const issues = validateModel(ex.model, ex.data, ex.settings);
+    expect(issues.filter((i) => i.level === 'error')).toEqual([]);
+    expect(issues.some((i) => /Non-recursive model/.test(i.message))).toBe(true);
+    const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
+    const into = (to: string) => ex.model.paths.filter((p) => name.get(p.to) === to).map((p) => name.get(p.from));
+    expect(into('Smoking')).toEqual(['Antismoking views', 'Age', 'Education', 'Strength of religion']);
+    expect(into('Antismoking views')).toEqual(['Smoking', 'Sex', 'Age', 'Education']);
+    expect(into('Antismoking acts')).toEqual(['Smoking', 'Antismoking views', 'Sex', 'Education', 'Strength of religion']);
+    // zeta 1 and zeta 2 uncorrelated, as the figure (the drawn correlations are the exogenous pairs only).
+    expect((ex.model.correlations ?? []).every((k) => k.kind === 'construct' && [k.a, k.b].every((id) => ['Sex', 'Age', 'Education', 'Strength of religion'].includes(name.get(id)!)))).toBe(true);
   });
 });

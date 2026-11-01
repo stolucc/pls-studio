@@ -673,3 +673,24 @@ describe('stacked models: one covariance matrix per group, structural equalities
     expect(parseProject(JSON.stringify(odd)).model.multigroup).toEqual(m.multigroup);
   });
 });
+
+describe('non-recursive models (cycles in the structural model)', () => {
+  const C2 = (id: string, name: string, ind: string[], covariate = false): Construct => ({ id, name, type: 'factor', mode: 'A', indicators: ind, x: 0, y: 0, side: 'left', ...(covariate ? { covariate } : {}) });
+  // A <-> B reciprocal, each with its own instrument (x for A, z for B).
+  const m: ModelState = {
+    constructs: [C2('X', 'Ex', ['x1'], true), C2('Z', 'Zed', ['z1'], true), C2('A', 'Alpha', ['a1', 'a2']), C2('B', 'Beta', ['b1', 'b2'])],
+    paths: [{ id: 'p1', from: 'X', to: 'A' }, { id: 'p2', from: 'Z', to: 'B' }, { id: 'p3', from: 'A', to: 'B' }, { id: 'p4', from: 'B', to: 'A' }], moderations: [],
+  };
+  const issues = (method: 'pls' | 'cbsem' | 'process') => validateModel(m, null, { method, consistent: false, estimator: 'ML' });
+  it('is an error for PLS-SEM and conditional process analysis, a warning about identification for CB-SEM', () => {
+    expect(issues('pls').filter((i) => i.level === 'error').map((i) => i.message)).toContainEqual(expect.stringMatching(/contains a cycle \(Beta → Alpha\)\. PLS-SEM requires a recursive model; CB-SEM estimates non-recursive models/));
+    expect(issues('process').filter((i) => i.level === 'error').map((i) => i.message)).toContainEqual(expect.stringContaining('Conditional process analysis requires a recursive model'));
+    const cb = issues('cbsem');
+    expect(cb.filter((i) => i.level === 'error' && i.message !== 'Import a dataset first.')).toEqual([]);
+    expect(cb.filter((i) => i.level === 'warning').map((i) => i.message)).toContainEqual(expect.stringMatching(/^Non-recursive model \(Beta → Alpha closes a loop\)\. Each construct in a loop needs a predictor the other lacks/));
+  });
+  it('the spec carries both directions', () => {
+    const spec = toSpec(m);
+    expect(spec.paths.filter((p) => (p.from === 'Alpha' && p.to === 'Beta') || (p.from === 'Beta' && p.to === 'Alpha')).length).toBe(2);
+  });
+});

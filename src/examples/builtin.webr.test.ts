@@ -14,7 +14,7 @@ import { makePoldemExample } from './poldem';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cbScriptLavaan } from '../rengine/lavaan';
-import { makeHaydukExample, makeHaydukStackedExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample } from './textbook';
+import { makeDhpExample, makeHaydukExample, makeHaydukRevisedExample, makeHaydukStackedExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample } from './textbook';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -156,4 +156,32 @@ it('Hayduk (1987) stacked model: two covariance matrices as groups, coefficients
   expect(script).toContain('S <- list("Younger" = S_1, "Older" = S_2)');
   expect(script).toContain('group.equal = c("regressions")');
   expect(script).toContain('group.partial = c(');
+}, 600_000);
+
+it('non-recursive models: Duncan-Haller-Portes and Hayduk Figure 8.6 under lavaan, without a warning', async () => {
+  const est = (r: Awaited<ReturnType<typeof estimateCbLavaan>>, op: string, lhs: string, rhs: string) => r.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
+  const dhp = makeDhpExample(DEFAULT_SETTINGS);
+  const d = await estimateCbLavaan(dhp.data, toSpec(dhp.model), 'casewise', 'ML', 'product');
+  expect(d.converged).toBe(true); expect(d.warnings).toEqual([]); expect(d.notes).toEqual([]);
+  expect(d.fit.chisq).toBeCloseTo(26.779, 2); expect(d.fit.df).toBe(15);
+  expect(est(d, '~', 'RGenAsp', 'FGenAsp').est).toBeCloseTo(0.184, 3);
+  expect(est(d, '~', 'FGenAsp', 'RGenAsp').est).toBeCloseTo(0.235, 3);
+  expect(est(d, '~~', 'RGenAsp', 'FGenAsp').est).toBeCloseTo(-0.023, 3);
+  // Hayduk's Figure 8.6 (LISREL): beta 12 .027, beta 21 -1.258, beta 31 -.312, beta 32 .067; gamma: smoking on age -.004, education -.040, attendance -.039;
+  // views on sex .557, age .017, education .035; acts on sex .162, education .046, attendance -.068.
+  const rev = makeHaydukRevisedExample(DEFAULT_SETTINGS);
+  const r = await estimateCbLavaan(rev.data, toSpec(rev.model), 'casewise', 'ML', 'product');
+  expect(r.converged).toBe(true); expect(r.warnings).toEqual([]); expect(r.notes).toEqual([]);
+  expect(r.fit.df).toBe(2);
+  expect(est(r, '~', 'Smoking', 'Antismoking views').est).toBeCloseTo(0.027, 3);
+  expect(est(r, '~', 'Antismoking views', 'Smoking').est).toBeCloseTo(-1.258, 1);
+  expect(est(r, '~', 'Antismoking views', 'Smoking').se).toBeGreaterThan(0.7);  // the loop is barely determined
+  expect(est(r, '~', 'Antismoking acts', 'Smoking').est).toBeCloseTo(-0.312, 2);
+  expect(est(r, '~', 'Antismoking acts', 'Antismoking views').est).toBeCloseTo(0.067, 3);
+  expect(est(r, '~', 'Smoking', 'Education').est).toBeCloseTo(-0.040, 3);
+  expect(est(r, '~', 'Smoking', 'Strength of religion').est).toBeCloseTo(-0.039, 3);
+  expect(est(r, '~', 'Antismoking views', 'Sex').est).toBeCloseTo(0.557, 3);
+  expect(est(r, '~', 'Antismoking acts', 'Sex').est).toBeCloseTo(0.162, 2);
+  expect(est(r, '~', 'Antismoking acts', 'Strength of religion').est).toBeCloseTo(-0.068, 3);
+  expect(r.estimates.some((e) => e.op === '~' && e.lhs === 'Smoking' && e.rhs === 'Sex')).toBe(false);
 }, 600_000);
