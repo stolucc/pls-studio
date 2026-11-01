@@ -80,20 +80,25 @@ ps_miiv <- function(req_json, export = FALSE) {
   body[length(body)] <- if (b$matrix_input)
     "fit <- miive(model, sample.cov = S, sample.mean = setNames(rep(0, ncol(S)), colnames(S)), sample.nobs = N, var.cov = TRUE)  # means only affect intercepts"
   else "fit <- miive(model, data, var.cov = TRUE)"
-  # Standardised values: MIIVsem's model with every coefficient fixed at its 2SLS estimate and the
-  # (co)variances estimated (var.cov = TRUE), standardised by lavaan.
-  body <- c(body,
-    "# Standardised estimates: lavaan's std.all for the MIIV-2SLS coefficients (variances from var.cov = TRUE)",
-    if (b$matrix_input) "fit_std <- lavaan::sem(paste(fit$v$model, collapse = \"\\n\"), sample.cov = S, sample.nobs = N)"
-    else "fit_std <- lavaan::sem(paste(fit$v$model, collapse = \"\\n\"), data = data)",
+  # Standardised values from MIIVsem's own estimates, nothing re-estimated: its var.cov = TRUE step holds
+  # the 2SLS coefficients fixed and estimates the variances and covariances (fit$v); both go into its
+  # parameter table as fixed values and lavaan (do.fit = FALSE) only does the std.all algebra on them.
+  std_block <- c(
+    "# Standardised values (std.all) from the MIIV-2SLS coefficients and the variances and covariances of",
+    "# MIIVsem's var.cov step (fit$v), all held fixed: lavaan does the standardisation algebra, no re-estimation.",
+    "pt_std <- fit$v$pt[fit$v$pt$op != \"~1\", ]",
+    "vc <- pt_std$op == \"~~\"",
+    "pt_std$ustart[vc] <- unname(fit$v$coefficients[paste0(pt_std$lhs, \"~~\", pt_std$rhs)[vc]])",
+    "pt_std$free <- 0L; pt_std$user <- 1L; pt_std$est <- pt_std$ustart",
+    if (b$matrix_input) "fit_std <- lavaan::lavaan(pt_std, sample.cov = S, sample.nobs = N, do.fit = FALSE, se = \"none\")"
+    else "fit_std <- lavaan::lavaan(pt_std, data = data, do.fit = FALSE, se = \"none\")",
     "std <- lavaan::standardizedSolution(fit_std, se = FALSE)")
   body[1] <- "suppressPackageStartupMessages(library(MIIVsem))"
-  if (export) return(paste(ps_script("MIIV-2SLS (MIIVsem)", c("MIIVsem", "lavaan"), b$inputs, body,
+  if (export) return(paste(ps_script("MIIV-2SLS (MIIVsem)", c("MIIVsem", "lavaan"), b$inputs, c(body, std_block),
     c("summary(fit)", "std[std$op %in% c(\"=~\", \"~\"), c(\"lhs\", \"op\", \"rhs\", \"est.std\")]")), collapse = "\n"))
-  # The standardisation step can fail (e.g. an improper variance solution) without affecting the 2SLS estimates.
-  fit_body <- body[seq_len(length(body) - 3)]
-  env <- ps_run(fit_body, b$inputs)
-  std_ok <- tryCatch({ eval(parse(text = paste(body[(length(body) - 1):length(body)], collapse = "\n")), envir = env); TRUE },
+  # The standardisation can fail (MIIVsem's var.cov step returns NA on an improper solution) without affecting the 2SLS estimates.
+  env <- ps_run(body, b$inputs)
+  std_ok <- tryCatch({ eval(parse(text = paste(std_block, collapse = "\n")), envir = env); TRUE },
     error = function(e) { env$.warnings <- c(env$.warnings, paste("Standardised values unavailable:", conditionMessage(e))); FALSE })
   fit <- env$fit
   constructs <- b$n$cname
@@ -122,7 +127,7 @@ ps_miiv <- function(req_json, export = FALSE) {
   # Markers: the first indicator (or component) of each factor.
   markers <- unlist(lapply(seq_along(b$comps), function(j) if (b$is_cov[j]) NULL else if (length(b$comps[[j]])) unname(b$lname[[b$comps[[j]][1]]]) else unname(b$n$iv[[b$n$inds[[j]][1]]])))
   fixed_std <- if (std_ok) { s <- env$std[env$std$op == "=~" & env$std$rhs %in% markers, ]; as.list(setNames(s$est.std, nm(s$rhs))) } else list()
-  # Variances and covariances from MIIVsem's var.cov step (no standard errors), with lavaan's std.all.
+  # Variances and covariances from MIIVsem's var.cov step (no standard errors; read back from the fixed table), with std.all.
   variances <- if (std_ok) {
     pe <- lavaan::parameterEstimates(env$fit_std, se = FALSE); pe <- pe[pe$op == "~~", ]
     lapply(seq_len(nrow(pe)), function(i) list(lhs = nm(pe$lhs[i]), rhs = nm(pe$rhs[i]), latent = pe$lhs[i] %in% unname(b$lname),

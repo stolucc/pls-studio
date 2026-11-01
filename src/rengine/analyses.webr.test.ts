@@ -82,5 +82,9 @@ it('exports bootstrap, fit-test, IPMA and MIIV scripts', async () => {
   expect(await analysisScript(loadData(c), toSpec(c), { kind: 'fitTest', options: PLS, boot })).toContain('testOMF(fit, .R = 100');
   expect(await analysisScript(loadData(c), toSpec(c), { kind: 'ipma', options: PLS, ipma: { target: 'eta3', rescale: true } })).toContain('ipma <- doIPMA(fit)');
   const m = byName('miiv_miivsem_poldem');
-  expect(await analysisScript(loadData(m), toSpec(m), { kind: 'miiv', missing: 'casewise' })).toContain('fit <- miive(model, data, var.cov = TRUE)');
+  const script = await analysisScript(loadData(m), toSpec(m), { kind: 'miiv', missing: 'casewise' });
+  expect(script).toContain('fit <- miive(model, data, var.cov = TRUE)');
+  // Standardisation uses MIIVsem's own estimates held fixed: no second estimation by ML.
+  expect(script).toContain('do.fit = FALSE');
+  expect(script).not.toMatch(/lavaan::sem\(|lavaan::cfa\(/);
 }, T);

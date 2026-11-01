@@ -37,7 +37,7 @@ function Coefficients({ miiv }: { miiv: MiivResult }) {
     <div className="tables">
     <Table title="Coefficients" file="miiv-coefficients" columns={['Parameter', 'Type', 'Estimate', 'Std. error', 'z', 'p', ...(hasStd ? ['Standardised'] : [])]} rows={rows}
       note={hasStd
-        ? "Estimates are unstandardised, in the metric of each factor's scaling indicator (first indicator, loading fixed to 1). Standardised values use the variances estimated with the 2SLS coefficients held fixed (MIIVsem's var.cov = TRUE; std.all). MIIV-2SLS has no global fit test."
+        ? "Estimates are unstandardised, in the metric of each factor's scaling indicator (first indicator, loading fixed to 1). Standardised values (std.all) are computed from the 2SLS coefficients and the variances MIIVsem estimates with them held fixed (var.cov = TRUE); nothing is re-estimated. MIIV-2SLS has no global fit test."
         : "Unstandardised, in the metric of each factor's scaling indicator (first indicator, loading fixed to 1). MIIV-2SLS estimates loadings and regressions; variances, covariances and global fit indices are not part of it (choose the R engine for standardised values)."} />
     {vars.length > 0 && (
       <Table title="Variances and covariances" file="miiv-variances" columns={['Parameter', 'Estimate', 'Standardised']}
