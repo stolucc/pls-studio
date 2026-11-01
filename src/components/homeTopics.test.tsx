@@ -55,3 +55,22 @@ it('filters by author: a row of the authors whose books, manuals and papers the 
   act(() => { [...row.querySelectorAll('button')].find((b) => b.textContent === 'Bollen')!.click(); });
   expect(host.querySelectorAll('.example-card').length).toBe(all);
 });
+
+it('keeps every filter together at the top: topics, authors and R packages, above every example', () => {
+  const host = document.createElement('div');
+  act(() => { createRoot(host).render(<HomeScreen />); });
+  const rows = [...host.querySelectorAll('[role="radiogroup"]')].map((g) => g.getAttribute('aria-label'));
+  expect(rows).toEqual(['Topic', 'Author', 'Package']);
+  const html = host.innerHTML;
+  expect(html.indexOf('aria-label="Package"')).toBeLessThan(html.indexOf('class="example-card"'));
+  const row = host.querySelector('[role="radiogroup"][aria-label="Package"]')!;
+  const all = host.querySelectorAll('.example-card').length;
+  const lavaan = [...row.querySelectorAll('button')].find((b) => b.textContent === 'lavaan')!;
+  act(() => { lavaan.click(); });
+  const shown = [...host.querySelectorAll('.example-card')];
+  // Only that package's examples: the built-in examples come from no package.
+  expect(shown.length).toBe(PACKAGE_EXAMPLES.filter((e) => e.package === 'lavaan').length);
+  for (const card of shown) expect(card.querySelector('.chip.accent')!.textContent).toBe('lavaan');
+  act(() => { lavaan.click(); });
+  expect(host.querySelectorAll('.example-card').length).toBe(all);
+});

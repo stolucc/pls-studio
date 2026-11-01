@@ -90,7 +90,7 @@ button, input, select { font: inherit; color: inherit; }
 .card-meta { font-size: 11.5px; min-width: 0; }
 .card-acts { margin-left: auto; display: flex; gap: 2px; }
 /* Authors of the examples: their own filter row and chips. */
-.topics.authors { margin-top: 6px; }
+.topics.authors, .topics.packages { margin-top: 6px; }
 .chip.author { font-style: italic; }
 .pill { font-size: 11px; border-radius: 10px; padding: 1px 8px; font-weight: 500; white-space: nowrap; }
 .pill.ok { background: var(--good-soft); color: var(--good); }

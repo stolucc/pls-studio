@@ -337,20 +337,12 @@ export function ExampleTags({ tags }: { tags: string[] }) {
   return <div className="example-tags" aria-label="Topics">{tags.map((t) => <span key={t} className="chip">{t}</span>)}</div>;
 }
 
-/** Examples from the R packages' documentation, filterable by package and by topic. */
-function PackageExamples({ query, topic }: { query: string; topic: string }) {
-  const [pkg, setPkg] = useState<ExamplePackage | 'all'>('all');
+/** Examples from the R packages' documentation, filtered by the package, topic and author chosen at the top of the examples. */
+function PackageExamples({ query, topic, pkg }: { query: string; topic: string; pkg: ExamplePackage | 'all' }) {
   const shown = PACKAGE_EXAMPLES.filter((e) => (pkg === 'all' || e.package === pkg) && (topic === 'all' || exampleTags(e).includes(topic) || exampleAuthors(e).includes(topic)) && matchesQuery(query, [e.title, e.description, e.source, e.package, ...exampleTags(e), ...exampleAuthors(e)]));
   return (
     <section className="home-examples">
-      <div className="section-head">
-        <h2>From R packages</h2>
-        <div className="segmented wrap" role="radiogroup" aria-label="Package">
-          {(['all', ...EXAMPLE_PACKAGES] as const).map((p) => (
-            <button key={p} role="radio" aria-checked={pkg === p} className={pkg === p ? 'on' : ''} onClick={() => setPkg(p)}>{p === 'all' ? 'All' : p}</button>
-          ))}
-        </div>
-      </div>
+      <h2>From R packages</h2>
       <p className="hint" style={{ marginTop: 0 }}>Datasets and models from each package’s own documentation. The data are loaded from the package in your browser’s R; results are calculated by that package.</p>
       {shown.length === 0 && <p className="hint">No example{pkg === 'all' ? '' : ` of ${pkg}`}{topic === 'all' ? '' : ` on ${topic}`}{query.trim() ? ` matches “${query.trim()}”` : ''}.</p>}
       <div className="example-grid">
@@ -381,11 +373,13 @@ export function HomeScreen() {
   const [query, setQuery] = useState('');
   // One filter for every example, built-in and from the packages: a topic or an author, each list in alphabetical order.
   const [topic, setTopic] = useState('all');
+  // The R package filter sits with the topics and authors; choosing a package shows that package's examples only.
+  const [pkg, setPkg] = useState<ExamplePackage | 'all'>('all');
   const topics = useMemo(() => {
     return sortTopics([...EXAMPLES.flatMap((e) => e.tags), ...PACKAGE_EXAMPLES.flatMap((e) => exampleTags(e))]);
   }, []);
   const authors = useMemo(() => sortTopics([...EXAMPLES.flatMap((e) => e.authors), ...PACKAGE_EXAMPLES.flatMap((e) => exampleAuthors(e))]), []);
-  const builtins = EXAMPLES.filter((e) => (topic === 'all' || e.tags.includes(topic) || e.authors.includes(topic)) && matchesQuery(query, [e.title, e.body, ...e.tags, ...e.authors]));
+  const builtins = pkg !== 'all' ? [] : EXAMPLES.filter((e) => (topic === 'all' || e.tags.includes(topic) || e.authors.includes(topic)) && matchesQuery(query, [e.title, e.body, ...e.tags, ...e.authors]));
 
   const refresh = () => { void listRecent().then(setRecent); };
   useEffect(() => {
@@ -486,7 +480,12 @@ export function HomeScreen() {
               <button key={a} role="radio" aria-checked={topic === a} className={topic === a ? 'on' : ''} onClick={() => setTopic(topic === a ? 'all' : a)} title={`Examples from ${a}’s book, manual or paper`}>{a}</button>
             ))}
           </div>
-          {builtins.length === 0 && <p className="hint">No built-in example{topic === 'all' ? '' : ` on ${topic}`}{query.trim() ? ` matches “${query.trim()}”` : ''}.</p>}
+          <div className="segmented wrap topics packages" role="radiogroup" aria-label="Package">
+            {EXAMPLE_PACKAGES.map((p) => (
+              <button key={p} role="radio" aria-checked={pkg === p} className={pkg === p ? 'on' : ''} onClick={() => setPkg(pkg === p ? 'all' : p)} title={`Examples from the documentation of the R package ${p}`}>{p}</button>
+            ))}
+          </div>
+          {pkg === 'all' && builtins.length === 0 && <p className="hint">No built-in example{topic === 'all' ? '' : ` on ${topic}`}{query.trim() ? ` matches “${query.trim()}”` : ''}.</p>}
           <div className="example-grid">
             {builtins.map((e) => (
               <div key={e.id} className="example-card">
@@ -501,7 +500,7 @@ export function HomeScreen() {
           </div>
         </section>
 
-        <PackageExamples query={query} topic={topic} />
+        <PackageExamples query={query} topic={topic} pkg={pkg} />
       </main>
       {about && <AboutDialog onClose={() => setAbout(false)} />}
     </div>
