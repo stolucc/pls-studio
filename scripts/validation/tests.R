@@ -70,5 +70,30 @@ out$contingency23 <- list(chisq = ht(c23), fisher = ht(fisher.test(t23)), cramer
 # Binomial and multinomial: transmission against 0.5; cylinders against equal and given proportions
 out$binomial <- lapply(as.numeric(table(mt$am)), function(k) ht(binom.test(k, 32, p = 0.5)))
 out$multinomial <- list(equal = ht(chisq.test(table(mt$cyl))), given = ht(chisq.test(table(mt$cyl), p = c(1, 1, 2), rescale.p = TRUE)))
+# Post hoc: pairwise Wilcoxon after Kruskal-Wallis (Holm), pairwise paired t-tests after repeated measures (Holm)
+pw <- pairwise.wilcox.test(tg$len, tg$dose, p.adjust.method = "holm", exact = FALSE)$p.value
+out$pairwiseRank <- c(pw["1", "0.5"], pw["2", "0.5"], pw["2", "1"])
+pr <- combn(4, 2, simplify = FALSE); pp <- vapply(pr, function(k) t.test(Y[, k[1]], Y[, k[2]], paired = TRUE)$p.value, 0)
+out$rmPosthoc <- list(p = pp, pHolm = p.adjust(pp, "holm"))
+# Reliability (psych): five agreeableness items of bfi (complete cases of the first 300), Shrout & Fleiss's ratings,
+# two raters' categories, and Bland-Altman on two of the CO2 concentrations
+if (requireNamespace("psych", quietly = TRUE)) {
+  suppressPackageStartupMessages(library(psych))
+  it <- bfi[1:300, c("A2", "A3", "A4", "A5")]
+  out$bfi <- frame(it)
+  itc <- it[complete.cases(it), ]
+  al <- alpha(itc, check.keys = FALSE)
+  out$scale <- list(alpha = al$total$raw_alpha, omega = suppressMessages(omega(itc, nfactors = 1, plot = FALSE))$omega.tot, glb = glb.fa(cor(itc))$glb, alphaDrop = al$alpha.drop$raw_alpha, itemRest = al$item.stats$r.drop)
+  sf <- data.frame(j1 = c(9, 6, 8, 7, 10, 6), j2 = c(2, 1, 4, 1, 5, 2), j3 = c(5, 3, 6, 2, 6, 4), j4 = c(8, 2, 8, 6, 9, 7))
+  out$shroutFleiss <- frame(sf)
+  ic <- ICC(sf, lmer = FALSE)$results
+  out$icc <- list(icc = ic$ICC, lower = ic[["lower bound"]])
+  kp <- data.frame(a = c(1, 2, 2, 3, 1, 1, 2, 3, 3, 1, 2, 2), b = c(1, 2, 3, 3, 1, 2, 2, 3, 3, 1, 1, 2))
+  out$raters <- frame(kp)
+  ck <- suppressWarnings(cohen.kappa(kp))$confid
+  out$kappa <- list(kappa = ck[1, 2], weighted = ck[2, 2], lower = ck[1, 1])
+}
+d <- co2$c250 - co2$c350
+out$blandAltman <- list(bias = mean(d), lower = mean(d) - 1.96 * sd(d), upper = mean(d) + 1.96 * sd(d), ciLow = t.test(d)$conf.int[1])
 out$versions <- list(R = R.version.string)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"), "src/engine/__fixtures__/tests/reference.json")

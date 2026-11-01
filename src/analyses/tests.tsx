@@ -2,12 +2,13 @@
 // repeated-measures ANOVA, MANOVA, correlations, contingency tables, binomial
 // and multinomial tests. The confidence level is the project's (Settings).
 
+import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt } from '../format';
 import type {
   Alternative, AnovaInput, AnovaResult, ContingencyInput, ContingencyResult, CorrelationInput, CorrelationResult, FreqTestInput, FreqTestResult,
-  HTest, ManovaInput, ManovaResult, RmAnovaInput, RmAnovaResult, TTestInput, TTestResult,
+  HTest, ManovaInput, ManovaResult, ReliabilityInput, ReliabilityResult, RmAnovaInput, RmAnovaResult, TTestInput, TTestResult,
 } from '../rengine/tests';
 import { Choice, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
@@ -171,6 +172,8 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
       )}
       {r.tukey && <Table title="Post hoc comparisons (Tukey HSD)" file="anova-tukey" columns={['Comparison', 'Difference', `${pct(conf)} CI`, 'p (adjusted)']}
         rows={r.tukey.map((t): Row => [c(t.comparison), c(t.diff), c(ci(t.ciLow, t.ciHigh)), pCell(t.p)])} />}
+      {r.pairwiseRank && r.pairwiseRank.length > 0 && <Table title="Post hoc after Kruskal–Wallis (pairwise Wilcoxon rank-sum tests)" file="anova-pairwise-rank" columns={['Comparison', 'p (Holm)']}
+        rows={r.pairwiseRank.map((t): Row => [c(t.comparison), pCell(t.pHolm)])} note="Normal approximation; p-values adjusted for the number of comparisons by Holm’s method." />}
       <Table title="Descriptives by cell" file="anova-cells" columns={['Cell', 'N', 'Mean', 'SD', 'SE']} rows={r.cells.map((x): Row => [c(x.cell), c(x.n, undefined, 0), c(x.mean), c(x.sd ?? null), c(x.se ?? null)])} />
       <Table title="Assumption checks" file="anova-assumptions" columns={['Test', 'Statistic', 'p']} rows={[
         [c(`Levene F(${r.levene.df1}, ${r.levene.df2}), median-centred`), c(r.levene.stat), pCell(r.levene.p)],
@@ -236,6 +239,8 @@ function RmView({ r }: { r: RmAnovaResult }) {
       ]} note="A small p of Mauchly’s test speaks against sphericity: then read the corrected p-values below (Greenhouse–Geisser is the more conservative)." />
       <Table title="Sphericity-corrected p-values" file="rmanova-corrected" columns={['Term', 'p (uncorrected)', 'p (Greenhouse–Geisser)', 'p (Huynh–Feldt)']}
         rows={r.corrected.map((x): Row => [c(x.term), pCell(x.p), pCell(x.pGG), pCell(x.pHF)])} />
+      {r.posthoc && r.posthoc.length > 0 && <Table title="Post hoc comparisons (paired t-tests)" file="rmanova-posthoc" columns={['Comparison', 'Mean difference', 't', 'df', 'p', 'p (Holm)']}
+        rows={r.posthoc.map((x): Row => [c(x.comparison), c(x.diff), c(x.t), c(x.df, undefined, 0), pCell(x.p), pCell(x.pHolm)])} note="Every pair of levels, over all subjects; Holm’s adjustment for the number of comparisons." />}
       {r.friedman && <Table title="Friedman’s rank test" file="rmanova-friedman" columns={['χ²', 'df', 'p']} rows={[[c(r.friedman.stat), c(df(r.friedman)), pCell(r.friedman.p)]]} />}
       <Table title="Descriptives" file="rmanova-cells" columns={['Level', 'N', 'Mean', 'SD', 'SE']} rows={r.cells.map((x): Row => [c(x.cell), c(x.n, undefined, 0), c(x.mean), c(x.sd ?? null), c(x.se ?? null)])} />
     </div>
@@ -486,4 +491,117 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
   summary: (o) => `${o.type} · ${o.variable || '…'}${o.type === 'binomial' ? ` vs ${o.testValue}` : ''}`,
 };
 
-export const BASIC_TEST_TYPES = [ttestAnalysis, anovaAnalysis, rmAnovaAnalysis, manovaAnalysis, correlationAnalysis, contingencyAnalysis, freqTestAnalysis];
+// ---------------------------------------------------------------- reliability and agreement
+
+export type ReliabilityOptions = Omit<ReliabilityInput, 'confidence'>;
+const REL_NAME = { scale: 'Scale reliability', icc: 'Intraclass correlation', kappa: 'Cohen’s kappa', blandaltman: 'Bland–Altman agreement' } as const;
+const REL_HINT = {
+  scale: 'The items of one scale, scored in the same direction (reverse-code items first, in the data panel).',
+  icc: 'One column per rater (or occasion), one row per subject rated.',
+  kappa: 'Two raters’ category codes for the same subjects.',
+  blandaltman: 'Two methods measuring the same quantity on the same subjects.',
+} as const;
+
+function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<ReliabilityOptions>) {
+  const d = rawData(ctx);
+  if (!d) return <NoData />;
+  const pair = o.type === 'kappa' || o.type === 'blandaltman';
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <Choice label="Analysis" value={o.type} onChange={(type) => set({ ...o, type, vars: type === 'kappa' || type === 'blandaltman' ? o.vars.slice(0, 2) : o.vars })}
+        options={[['scale', 'Scale'], ['icc', 'ICC'], ['kappa', 'Kappa'], ['blandaltman', 'Bland–Altman']]} hint={REL_HINT[o.type]} />
+      <OrderedPicker label={pair ? 'Two variables' : 'Variables'} columns={o.type === 'kappa' ? d.names : d.names.filter((n) => !d.categories?.[n])} value={o.vars}
+        onChange={(vars) => set({ ...o, vars: pair ? vars.slice(-2) : vars })} />
+    </fieldset>
+  );
+}
+
+function BlandAltman({ r }: { r: ReliabilityResult }) {
+  const pts = r.points!;
+  const W = 520, H = 300, pad = { l: 56, r: 16, t: 14, b: 44 };
+  const lo = (a: number[]) => a.reduce((m, v) => Math.min(m, v), Infinity), hi = (a: number[]) => a.reduce((m, v) => Math.max(m, v), -Infinity);
+  const x0 = lo(pts.mean), x1 = hi(pts.mean);
+  const ys = [Math.min(lo(pts.diff), r.lower!), Math.max(hi(pts.diff), r.upper!)];
+  const m = (ys[1] - ys[0] || 1) * 0.08;
+  const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
+  const sy = (v: number) => pad.t + ((ys[1] + m - v) / (ys[1] - ys[0] + 2 * m)) * (H - pad.t - pad.b);
+  const ticks = (a: number, b: number) => Array.from({ length: 6 }, (_, i) => a + ((b - a) * i) / 5);
+  return (
+    <ChartFrame id="blandaltman" name="bland-altman" width={W} height={H} defaults={{ x: `Mean of ${r.vars[0]} and ${r.vars[1]}`, y: `${r.vars[0]} − ${r.vars[1]}` }}
+      caption={<span className="hint">Each subject’s difference against its mean. Solid line: the mean difference (bias); dashed: the limits of agreement, bias ± 1.96 SD.</span>}>
+      {(labels) => (
+        <svg className="mc-chart data-chart" width={W} height={H} role="img" aria-label="Bland–Altman plot">
+          {ticks(ys[0] - m, ys[1] + m).map((v) => <g key={v}><line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} /><text x={pad.l - 6} y={sy(v) + 4} textAnchor="end">{fmt(v, 2)}</text></g>)}
+          {ticks(x0, x1).map((v) => <text key={`x${v}`} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">{fmt(v, 2)}</text>)}
+          {pts.mean.map((x, i) => <circle key={i} className="dot" cx={sx(x)} cy={sy(pts.diff[i])} r={2.5} />)}
+          <line className="fit-line" x1={pad.l} x2={W - pad.r} y1={sy(r.bias!)} y2={sy(r.bias!)} />
+          {[r.lower!, r.upper!].map((v) => <line key={v} className="fit-line" strokeDasharray="5 4" x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} />)}
+          <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">{labels.x}</text>
+          <text transform={`translate(12 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`} textAnchor="middle" className="axis-title">{labels.y}</text>
+        </svg>
+      )}
+    </ChartFrame>
+  );
+}
+
+const ICC_NAME: Record<string, string> = {
+  ICC1: 'ICC(1): single rater, one-way random', ICC2: 'ICC(2,1): single rater, absolute agreement (two-way random)', ICC3: 'ICC(3,1): single rater, consistency (two-way mixed)',
+  ICC1k: 'ICC(1,k): mean of k raters, one-way random', ICC2k: 'ICC(2,k): mean of k raters, absolute agreement', ICC3k: 'ICC(3,k): mean of k raters, consistency',
+};
+
+function ReliabilityView({ r }: { r: ReliabilityResult }) {
+  const conf = pct(r.confidence);
+  return (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>n = {r.n} complete cases; {r.engine.package} {r.engine.version}.</p>
+      {r.type === 'scale' && <>
+        <Table title="Scale reliability" file="reliability-scale" columns={['Coefficient', 'Value']} rows={[
+          [c('Cronbach’s α'), c(r.alpha ?? null)], [c('Standardised α'), c(r.stdAlpha ?? null)], [c('McDonald’s ω total (one factor)'), c(r.omegaTotal ?? null)],
+          [c('Greatest lower bound (glb)'), c(r.glb ?? null)], [c('Average inter-item correlation'), c(r.averageR ?? null)],
+        ]} note="α assumes equal loadings (tau-equivalence); ω total uses a one-factor model’s loadings; the glb is the largest reliability consistent with the inter-item correlations (psych’s factor-analytic estimate, glb.fa). psych::alpha, omega and glb.fa." />
+        <Table title="Items" file="reliability-items" columns={['Item', 'Mean', 'SD', 'Item–rest correlation', 'α if dropped']}
+          rows={(r.items ?? []).map((x): Row => [c(x.item), c(x.mean), c(x.sd), c(x.itemRest), c(x.alphaIfDropped)])} note="A negative item–rest correlation usually means the item needs reverse coding." />
+      </>}
+      {r.type === 'icc' && <Table title="Intraclass correlations (Shrout & Fleiss)" file="reliability-icc" columns={['Type', 'ICC', 'F', 'df1', 'df2', 'p', `${conf} CI`]}
+        rows={(r.icc ?? []).map((x): Row => [c(ICC_NAME[x.type] ?? x.type), c(x.icc), c(x.f), c(x.df1, undefined, 0), c(x.df2, undefined, 0), pCell(x.p), c(ci(x.ciLow, x.ciHigh))])}
+        note="Absolute agreement counts systematic differences between raters against agreement; consistency ignores them. Use the k-rater forms when the mean of the raters is what is used." />}
+      {r.type === 'kappa' && <Table title={`Cohen’s kappa: ${r.vars.join(' and ')}`} file="reliability-kappa" columns={['Coefficient', 'Estimate', `${conf} CI`]} rows={[
+        [c('Unweighted κ'), c(r.kappa!.est), c(ci(r.kappa!.ciLow, r.kappa!.ciHigh))],
+        [c('Weighted κ (squared distances)'), c(r.weighted!.est), c(ci(r.weighted!.ciLow, r.weighted!.ciHigh))],
+      ]} note="Weighted κ treats the categories as ordered: a near miss counts as partial agreement. Interval limits beyond ±1 are set to ±1 (psych::cohen.kappa)." />}
+      {r.type === 'blandaltman' && <>
+        <Table title={`Bland–Altman: ${r.vars[0]} − ${r.vars[1]}`} file="reliability-blandaltman" columns={['Statistic', 'Value', `${conf} CI`]} rows={[
+          [c('Mean difference (bias)'), c(r.bias!), c(ci(r.biasCiLow, r.biasCiHigh))], [c('SD of the differences'), c(r.sd ?? null), c(null)],
+          [c('Lower limit of agreement'), c(r.lower!), c(null)], [c('Upper limit of agreement'), c(r.upper!), c(null)],
+        ]} />
+        {r.points && <BlandAltman r={r} />}
+      </>}
+    </div>
+  );
+}
+
+export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityResult> = {
+  id: 'reliability', title: 'Reliability and agreement', sub: 'α, ω, glb; ICC; Cohen’s kappa; Bland–Altman (psych)', group: 'Basic statistics',
+  entries: [
+    { title: 'Scale reliability', sub: 'Cronbach’s α, McDonald’s ω, greatest lower bound, item statistics', options: (o) => ({ ...o, type: 'scale' }) },
+    { title: 'Intraclass correlation', sub: 'agreement of raters on a continuous rating (Shrout & Fleiss)', options: (o) => ({ ...o, type: 'icc' }) },
+    { title: 'Cohen’s kappa', sub: 'agreement of two raters on categories', options: (o) => ({ ...o, type: 'kappa' }) },
+    { title: 'Bland–Altman', sub: 'agreement of two measurement methods', options: (o) => ({ ...o, type: 'blandaltman' }) },
+  ],
+  cardTitle: (o) => REL_NAME[o.type],
+  defaults: () => ({ type: 'scale', vars: [] }),
+  parseOptions: (raw) => (isObj(raw) ? { type: oneOf(raw.type, ['scale', 'icc', 'kappa', 'blandaltman'] as const, 'scale'), vars: names(raw.vars) } : null),
+  Options: ReliabilityForm,
+  View: ({ result }) => <ReliabilityView r={result} />,
+  blocked: (o, ctx) => {
+    if ((o.type === 'kappa' || o.type === 'blandaltman') && o.vars.length !== 2) return 'Choose exactly two variables.';
+    if (o.vars.length < 2) return 'Choose at least two variables.';
+    return missingColumns(ctx, o.vars, REL_NAME[o.type]);
+  },
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, o.vars, [o.type, ctx.settings.confidence]),
+  run: async (o, ctx) => (await engine()).reliabilityR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
+  script: async (o, ctx) => (await engine()).reliabilityScriptR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
+  summary: (o) => `${REL_NAME[o.type].toLowerCase()} · ${o.vars.join(', ') || '…'}`,
+};
+
+export const BASIC_TEST_TYPES = [ttestAnalysis, anovaAnalysis, rmAnovaAnalysis, manovaAnalysis, correlationAnalysis, contingencyAnalysis, freqTestAnalysis, reliabilityAnalysis];

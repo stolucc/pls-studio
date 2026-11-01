@@ -138,9 +138,11 @@ ps_anova <- function(req_json, export = FALSE) {
     sprintf("levene <- anova(lm(abs(data$%s - ave(data$%s, cells, FUN = median)) ~ cells))  # Levene's test (median-centred)", v[[y]], v[[y]]),
     if (oneway) c(sprintf("welch <- oneway.test(%s, data = data, var.equal = FALSE)  # Welch's ANOVA", fml),
       sprintf("kruskal <- kruskal.test(%s, data = data)", fml),
-      sprintf("tukey <- TukeyHSD(aov(%s, data = data), conf.level = %s)", fml, format(ps_bt_conf(req)))))
+      sprintf("tukey <- TukeyHSD(aov(%s, data = data), conf.level = %s)", fml, format(ps_bt_conf(req))),
+      "# After Kruskal-Wallis: pairwise Wilcoxon rank-sum tests, p adjusted by Holm's method.",
+      sprintf("pwRank <- pairwise.wilcox.test(data$%s, data$%s, p.adjust.method = \"holm\", exact = FALSE)", v[[y]], v[[fac[1]]])))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", character(0), inputs, body, c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey"))), collapse = "\n"))
+  if (export) return(paste(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", character(0), inputs, body, c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank"))), collapse = "\n"))
   env <- ps_run(body, inputs)
   fit <- env$fit; tab <- env$tab; d <- env$data
   ssres <- sum(residuals(fit)^2); dfres <- df.residual(fit); msres <- ssres / dfres
@@ -159,6 +161,7 @@ ps_anova <- function(req_json, export = FALSE) {
     levene = list(stat = env$levene$`F value`[1], df1 = env$levene$Df[1], df2 = env$levene$Df[2], p = env$levene$`Pr(>F)`[1]), shapiro = ps_htest(env$shapiro),
     welch = if (oneway) ps_htest(env$welch) else NULL, welchDf2 = if (oneway) unname(env$welch$parameter[2]) else NULL,
     kruskal = if (oneway) ps_htest(env$kruskal) else NULL, tukey = tk,
+    pairwiseRank = if (oneway) { m <- env$pwRank$p.value; Filter(Negate(is.null), unlist(lapply(colnames(m), function(a) lapply(rownames(m), function(b) if (!is.na(m[b, a])) list(comparison = paste(b, "-", a), pHolm = m[b, a]))), recursive = FALSE)) } else NULL,
     cells = lapply(names(cells), function(k) c(list(cell = k), ps_desc(cells[[k]]))),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
 }
@@ -187,9 +190,13 @@ ps_rmanova <- function(req_json, export = FALSE) {
     sprintf("mlm <- lm(Y ~ %s)", if (bt) sprintf("data$%s", v[[between]]) else "1"),
     "mauchly <- mauchly.test(mlm, X = ~ 1)",
     "spher <- anova(mlm, X = ~ 1, test = \"Spherical\")  # Greenhouse-Geisser and Huynh-Feldt corrections",
-    if (!bt) "friedman <- friedman.test(Y)")
+    if (!bt) "friedman <- friedman.test(Y)",
+    "# Post hoc: every pair of levels by a paired t-test, p adjusted by Holm's method.",
+    "pairs <- combn(ncol(Y), 2, simplify = FALSE)",
+    "posthoc <- lapply(pairs, function(p) t.test(Y[, p[1]], Y[, p[2]], paired = TRUE))",
+    "pHolm <- p.adjust(vapply(posthoc, function(h) h$p.value, 0), method = \"holm\")")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman")), collapse = "\n"))
+  if (export) return(paste(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")), collapse = "\n"))
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
   strat <- function(s) { t <- s[[1]]; rn <- trimws(rownames(t)); lapply(seq_len(nrow(t)), function(i) list(term = rn[i], ss = t[i, "Sum Sq"], df = t[i, "Df"], ms = t[i, "Mean Sq"], f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL, p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL)) }
@@ -211,6 +218,8 @@ ps_rmanova <- function(req_json, export = FALSE) {
     within = pe(ws, res_w), betweenTable = pe(bs, res_b),
     sphericity = list(w = unname(env$mauchly$statistic), p = env$mauchly$p.value, gg = gg, hf = hf), corrected = corr,
     friedman = if (!bt) ps_htest(env$friedman) else NULL,
+    posthoc = lapply(seq_along(env$pairs), function(i) { p <- env$pairs[[i]]; h <- env$posthoc[[i]]
+      list(comparison = paste(within[p[1]], "-", within[p[2]]), diff = unname(h$estimate), t = unname(h$statistic), df = unname(h$parameter), p = h$p.value, pHolm = env$pHolm[i]) }),
     cells = lapply(within, function(l) c(list(cell = l), ps_desc(env$Y[, v[[l]]]))),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
 }
@@ -336,4 +345,56 @@ ps_freqtest <- function(req_json, export = FALSE) {
     testValue = if (type == "binomial") p0 else NULL,
     multinomial = if (type == "multinomial") c(ps_htest(env$gof), list(expected = unname(env$gof$expected))) else NULL,
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
+}
+
+#' Reliability and agreement (psych; Bland-Altman in base R):
+#' - scale: Cronbach's alpha with item statistics (psych::alpha), McDonald's
+#'   omega total of a one-factor model (psych::omega) and the greatest lower
+#'   bound (psych::glb.fa, of the correlation matrix);
+#' - icc: the six intraclass correlations of Shrout & Fleiss (psych::ICC);
+#' - kappa: Cohen's kappa, unweighted and weighted, of two raters (psych::cohen.kappa);
+#' - blandaltman: the mean difference of two methods and its limits of agreement.
+ps_reliability <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  type <- req$type %||% "scale"
+  if (!type %in% c("scale", "icc", "kappa", "blandaltman")) stop("Invalid reliability analysis in the request.")
+  vars <- unlist(req$vars)
+  need <- c(scale = 2, icc = 2, kappa = 2, blandaltman = 2)[[type]]
+  if (length(vars) < need) stop(sprintf("Choose at least %d variables.", need))
+  if (type %in% c("kappa", "blandaltman") && length(vars) != 2) stop("Choose exactly two variables (the two raters or methods).")
+  conf <- ps_bt_conf(req)
+  fr <- ps_long_frame(req, vars)
+  v <- unname(unlist(fr$v[vars]))
+  body <- c(sprintf("X <- data[complete.cases(data[, %s]), %s, drop = FALSE]", ps_q(v), ps_q(v)))
+  body <- c(body, switch(type,
+    scale = c("suppressPackageStartupMessages(library(psych))",
+      "a <- alpha(X, check.keys = FALSE)  # Cronbach's alpha, item statistics, alpha if an item is dropped",
+      "# Omega total of one factor (omega hierarchical is not reported: its one-factor warnings do not concern omega total).",
+      "o <- suppressWarnings(suppressMessages(omega(X, nfactors = 1, plot = FALSE)))",
+      "g <- glb.fa(cor(X))  # greatest lower bound (psych's factor-analytic estimate)"),
+    icc = c("suppressPackageStartupMessages(library(psych))", sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf))),
+    kappa = c("suppressPackageStartupMessages(library(psych))", sprintf("k <- cohen.kappa(X, alpha = %s)  # weighted: squared distances between categories", format(1 - conf))),
+    blandaltman = c("d <- X[[1]] - X[[2]]; m <- (X[[1]] + X[[2]]) / 2",
+      "bias <- mean(d); s <- sd(d); n <- length(d)",
+      "loa <- bias + c(-1, 1) * 1.96 * s  # limits of agreement",
+      sprintf("biasCI <- bias + c(-1, 1) * qt(1 - (1 - %s) / 2, n - 1) * s / sqrt(n)", format(conf)))))
+  inputs <- list(data = fr$data)
+  title <- c(scale = "Scale reliability (psych)", icc = "Intraclass correlation (psych)", kappa = "Cohen's kappa (psych)", blandaltman = "Bland-Altman agreement")[[type]]
+  if (export) return(paste(ps_script(title, if (type == "blandaltman") character(0) else c("psych", "GPArotation")[seq_len(if (type == "scale") 2 else 1)], inputs, body,
+    switch(type, scale = c("a", "o$omega.tot", "g$glb"), icc = "icc", kappa = "k", blandaltman = c("c(bias = bias, sd = s, lower = loa[1], upper = loa[2])", "biasCI"))), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  n <- nrow(env$X)
+  out <- switch(type,
+    scale = { a <- env$a; tot <- a$total; dr <- a$alpha.drop; is <- a$item.stats
+      list(alpha = tot$raw_alpha, stdAlpha = tot$std.alpha, averageR = tot$average_r, omegaTotal = env$o$omega.tot, glb = env$g$glb, mean = tot$mean, sd = tot$sd,
+        items = lapply(seq_len(nrow(dr)), function(i) list(item = vars[i], alphaIfDropped = dr$raw_alpha[i], itemRest = is$r.drop[i], mean = is$mean[i], sd = is$sd[i]))) },
+    icc = { r <- env$icc$results
+      list(icc = lapply(seq_len(nrow(r)), function(i) list(type = as.character(r$type[i]), icc = r$ICC[i], f = r$F[i], df1 = r$df1[i], df2 = r$df2[i], p = r$p[i], ciLow = r[i, "lower bound"], ciHigh = r[i, "upper bound"]))) },
+    kappa = { cf <- env$k$confid
+      list(kappa = list(est = cf[1, 2], ciLow = cf[1, 1], ciHigh = cf[1, 3]), weighted = list(est = cf[2, 2], ciLow = cf[2, 1], ciHigh = cf[2, 3]), agreement = env$k$agree, categories = nrow(env$k$agree)) },
+    blandaltman = { keep <- if (n > 5000) seq(1, n, length.out = 5000) else seq_len(n)
+      list(bias = env$bias, sd = env$s, lower = env$loa[1], upper = env$loa[2], biasCiLow = env$biasCI[1], biasCiHigh = env$biasCI[2], points = list(mean = unname(env$m[keep]), diff = unname(env$d[keep]))) })
+  if (type == "kappa") out$agreement <- NULL
+  ps_json(c(list(type = type, vars = vars, n = n, confidence = conf), out, list(warnings = env$.warnings,
+    engine = if (type == "blandaltman") list(package = "stats", version = as.character(getRversion())) else list(package = "psych", version = as.character(utils::packageVersion("psych"))))))
 }

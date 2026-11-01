@@ -27,6 +27,8 @@ export interface AnovaResult {
   table: AnovaRow[]; residual: { ss: number; df: number; ms: number }; n: number;
   levene: { stat: number; df1: number; df2: number; p: number }; shapiro: HTest | null;
   welch: HTest | null; kruskal: HTest | null; tukey: { comparison: string; diff: number; ciLow: number; ciHigh: number; p: number }[] | null;
+  /** One factor: pairwise Wilcoxon rank-sum tests after Kruskal-Wallis, p adjusted by Holm (absent in results from before they were added). */
+  pairwiseRank?: { comparison: string; pHolm: number }[] | null;
   cells: (Desc & { cell: string })[]; warnings: string[]; engine: REngineInfo;
 }
 
@@ -38,6 +40,8 @@ export interface RmAnovaResult {
   sphericity: { w: number; p: number; gg: number; hf: number };
   corrected: { term: string; p: number; pGG: number; pHF: number }[];
   friedman: HTest | null; cells: (Desc & { cell: string })[]; warnings: string[]; engine: REngineInfo;
+  /** Every pair of levels by a paired t-test, p adjusted by Holm (absent in results from before they were added). */
+  posthoc?: { comparison: string; diff: number; t: number; df: number; p: number; pHolm: number }[];
 }
 
 export interface ManovaInput { dependents: string[]; factors: string[]; interactions: boolean }
@@ -89,7 +93,7 @@ export const anovaRequest = (d: Dataset, i: AnovaInput) => testRequest(d, 'anova
 export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
   const r = await rCall<Record<string, any>>('ps_anova', anovaRequest(d, i), 'stats');
   return { ...r, factors: arr<string>(r.factors), covariates: arr<string>(r.covariates), table: arr<AnovaRow>(r.table), shapiro: obj<HTest>(r.shapiro),
-    welch: obj<HTest>(r.welch), kruskal: obj<HTest>(r.kruskal), tukey: r.tukey ? arr(r.tukey) : null, cells: arr(r.cells), warnings: rStrings(r.warnings) } as AnovaResult;
+    welch: obj<HTest>(r.welch), kruskal: obj<HTest>(r.kruskal), tukey: r.tukey ? arr(r.tukey) : null, pairwiseRank: r.pairwiseRank ? arr(r.pairwiseRank) : null, cells: arr(r.cells), warnings: rStrings(r.warnings) } as AnovaResult;
 }
 export const anovaScriptR = (d: Dataset, i: AnovaInput) => rScript('ps_anova', anovaRequest(d, i), 'stats');
 
@@ -97,7 +101,7 @@ export const rmAnovaRequest = (d: Dataset, i: RmAnovaInput) => testRequest(d, 'r
 export async function rmAnovaR(d: Dataset, i: RmAnovaInput): Promise<RmAnovaResult> {
   const r = await rCall<Record<string, any>>('ps_rmanova', rmAnovaRequest(d, i), 'stats');
   return { ...r, levels: arr<string>(r.levels), within: arr<RmRow>(r.within), betweenTable: arr<RmRow>(r.betweenTable), corrected: arr(r.corrected),
-    friedman: obj<HTest>(r.friedman), cells: arr(r.cells), warnings: rStrings(r.warnings) } as RmAnovaResult;
+    friedman: obj<HTest>(r.friedman), cells: arr(r.cells), posthoc: arr(r.posthoc), warnings: rStrings(r.warnings) } as RmAnovaResult;
 }
 export const rmAnovaScriptR = (d: Dataset, i: RmAnovaInput) => rScript('ps_rmanova', rmAnovaRequest(d, i), 'stats');
 
@@ -132,3 +136,22 @@ export async function freqTestR(d: Dataset, i: FreqTestInput): Promise<FreqTestR
     multinomial: mult ? { ...mult, expected: arr<number>(mult.expected) } : null, warnings: rStrings(r.warnings) } as FreqTestResult;
 }
 export const freqTestScriptR = (d: Dataset, i: FreqTestInput) => rScript('ps_freqtest', freqTestRequest(d, i), 'stats');
+
+export interface ReliabilityInput { type: 'scale' | 'icc' | 'kappa' | 'blandaltman'; vars: string[]; confidence: number }
+export interface ReliabilityResult {
+  type: ReliabilityInput['type']; vars: string[]; n: number; confidence: number;
+  alpha?: number; stdAlpha?: number; averageR?: number; omegaTotal?: number; glb?: number; mean?: number; sd?: number;
+  items?: { item: string; alphaIfDropped: number; itemRest: number; mean: number; sd: number }[];
+  icc?: { type: string; icc: number; f: number; df1: number; df2: number; p: number; ciLow: number; ciHigh: number }[];
+  kappa?: { est: number; ciLow: number; ciHigh: number }; weighted?: { est: number; ciLow: number; ciHigh: number }; categories?: number;
+  bias?: number; lower?: number; upper?: number; biasCiLow?: number; biasCiHigh?: number; points?: { mean: number[]; diff: number[] };
+  warnings: string[]; engine: REngineInfo;
+}
+export const reliabilityRequest = (d: Dataset, i: ReliabilityInput) => testRequest(d, 'reliability', i.vars, i);
+export async function reliabilityR(d: Dataset, i: ReliabilityInput): Promise<ReliabilityResult> {
+  const r = await rCall<Record<string, any>>('ps_reliability', reliabilityRequest(d, i), i.type === 'blandaltman' ? 'stats' : 'psych');
+  const pts = obj<{ mean: unknown; diff: unknown }>(r.points);
+  return { ...r, vars: arr<string>(r.vars), ...(r.items ? { items: arr(r.items) } : {}), ...(r.icc ? { icc: arr(r.icc) } : {}),
+    ...(pts ? { points: { mean: arr<number>(pts.mean), diff: arr<number>(pts.diff) } } : {}), warnings: rStrings(r.warnings) } as ReliabilityResult;
+}
+export const reliabilityScriptR = (d: Dataset, i: ReliabilityInput) => rScript('ps_reliability', reliabilityRequest(d, i), i.type === 'blandaltman' ? 'stats' : 'psych');

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset } from '../engine/types';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
-import { anovaR, contingencyR, correlationR, freqTestR, manovaR, rmAnovaR, ttestR, type TTestInput } from './tests';
+import { anovaR, contingencyR, correlationR, freqTestR, manovaR, reliabilityR, rmAnovaR, ttestR, type TTestInput } from './tests';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -115,5 +115,30 @@ describe('correlations and frequencies', () => {
     close(m.multinomial!.stat, ref.multinomial.equal.stat, 'χ² equal'); close(m.multinomial!.p, ref.multinomial.equal.p, 'p equal');
     const g = await freqTestR(data(ref.mtcars), { type: 'multinomial', variable: 'cyl', testValue: 0.5, proportions: [1, 1, 2], alternative: 'two.sided', confidence: 0.95 });
     close(g.multinomial!.stat, ref.multinomial.given.stat, 'χ² given');
+  }, 600_000);
+});
+
+describe('post hoc tests and reliability', () => {
+  it('pairwise rank tests after Kruskal-Wallis and paired t-tests after repeated measures, Holm-adjusted', async () => {
+    const a = await anovaR(data(ref.toothgrowth), { dependent: 'len', factors: ['dose'], covariates: [], ssType: 'III', interactions: true, confidence: 0.95 });
+    expect(a.pairwiseRank!.map((x) => x.comparison)).toEqual(['1 - 0.5', '2 - 0.5', '2 - 1']);
+    (ref.pairwiseRank as number[]).forEach((p, i) => close(a.pairwiseRank![i].pHolm, p, 'Holm p'));
+    const r = await rmAnovaR(data(ref.co2), { levels: ['c95', 'c175', 'c250', 'c350'], factorName: 'conc', between: '' });
+    (ref.rmPosthoc.p as number[]).forEach((p, i) => { close(r.posthoc![i].p, p, 'paired p'); close(r.posthoc![i].pHolm, ref.rmPosthoc.pHolm[i], 'Holm p'); });
+  }, 600_000);
+  it('scale reliability: alpha, omega total, glb, item statistics', async () => {
+    const r = await reliabilityR(data(ref.bfi), { type: 'scale', vars: ['A2', 'A3', 'A4', 'A5'], confidence: 0.95 });
+    close(r.alpha, ref.scale.alpha, 'alpha'); close(r.omegaTotal, ref.scale.omega, 'omega'); close(r.glb, ref.scale.glb, 'glb');
+    (ref.scale.alphaDrop as number[]).forEach((x, i) => { close(r.items![i].alphaIfDropped, x, 'alpha if dropped'); close(r.items![i].itemRest, ref.scale.itemRest[i], 'item-rest'); });
+    expect(r.warnings).toEqual([]);
+  }, 600_000);
+  it('intraclass correlations, Cohen’s kappa and Bland–Altman', async () => {
+    const i = await reliabilityR(data(ref.shroutFleiss), { type: 'icc', vars: ['j1', 'j2', 'j3', 'j4'], confidence: 0.95 });
+    (ref.icc.icc as number[]).forEach((x, k) => { close(i.icc![k].icc, x, 'ICC'); close(i.icc![k].ciLow, ref.icc.lower[k], 'ICC lower'); });
+    const k = await reliabilityR(data(ref.raters), { type: 'kappa', vars: ['a', 'b'], confidence: 0.95 });
+    close(k.kappa!.est, ref.kappa.kappa, 'kappa'); close(k.weighted!.est, ref.kappa.weighted, 'weighted kappa'); close(k.kappa!.ciLow, ref.kappa.lower, 'kappa lower');
+    const b = await reliabilityR(data(ref.co2), { type: 'blandaltman', vars: ['c250', 'c350'], confidence: 0.95 });
+    close(b.bias, ref.blandAltman.bias, 'bias'); close(b.lower, ref.blandAltman.lower, 'lower limit'); close(b.upper, ref.blandAltman.upper, 'upper limit'); close(b.biasCiLow, ref.blandAltman.ciLow, 'bias CI');
+    expect(b.points!.diff).toHaveLength(12);
   }, 600_000);
 });
