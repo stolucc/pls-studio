@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { loadPackageExample, loadSample, newProject, newProjectFromData, openProject, openRecent } from '../io';
 import { EXAMPLE_PACKAGES, PACKAGE_EXAMPLES, type ExamplePackage } from '../examples/packages';
-import { exampleTags, sortTopics } from '../examples/tags';
+import { exampleAuthors, exampleTags, sortTopics } from '../examples/tags';
 import { listRecent, recentPersistent, relativeTime, removeRecent, type RecentMeta } from '../recent';
 import { useStore } from '../store';
 import { confirmDialog } from './Overlays';
@@ -15,6 +15,7 @@ import { IconLogo, IconNew, IconOpen, IconTrash, IconUpload } from './icons';
 const EXAMPLES = [
   {
     id: 'customer' as const,
+    authors: [] as string[],
     title: 'Customer experience survey',
     tags: ['PLS-SEM', 'Mediation', 'Missing values', 'Bootstrap'],
     links: [] as { label: string; url: string }[],
@@ -22,6 +23,7 @@ const EXAMPLES = [
   },
   {
     id: 'emse' as const,
+    authors: ['Stol'] as string[],
     title: 'Gamification in software engineering',
     tags: ['CB-SEM', 'MLM', 'Second-order', 'Covariates', 'Mediation', 'Covariance input', 'Published study'],
     links: [{ label: 'Paper (EMSE 27:35)', url: 'https://doi.org/10.1007/s10664-021-10062-w' }, { label: 'Replication package (Zenodo)', url: 'https://doi.org/10.5281/zenodo.6322761' }],
@@ -29,6 +31,7 @@ const EXAMPLES = [
   },
   {
     id: 'poldem' as const,
+    authors: ['Bollen'] as string[],
     title: 'Industrialisation and political democracy',
     tags: ['CB-SEM', 'Mediation', 'Correlated errors'],
     links: [{ label: '?PoliticalDemocracy (lavaan)', url: 'https://rdrr.io/cran/lavaan/man/PoliticalDemocracy.html' }, { label: 'lavaan tutorial: SEM', url: 'https://lavaan.ugent.be/tutorial/sem.html' }],
@@ -36,6 +39,7 @@ const EXAMPLES = [
   },
   {
     id: 'mimic' as const,
+    authors: ['Schumacker', 'Lomax'] as string[],
     title: 'Social participation (MIMIC model)',
     tags: ['CB-SEM', 'MIMIC', 'Covariates', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Schumacker & Lomax, A Beginner’s Guide to SEM', url: 'https://www.routledge.com/A-Beginners-Guide-to-Structural-Equation-Modeling/Whittaker-Schumacker/p/book/9780367477967' }, { label: 'Hodge & Treiman (1968)', url: 'https://doi.org/10.2307/2092317' }],
@@ -43,6 +47,7 @@ const EXAMPLES = [
   },
   {
     id: 'wheaton' as const,
+    authors: [] as string[],
     title: 'Stability of alienation (Wheaton et al. 1977)',
     tags: ['CB-SEM', 'Panel model', 'Correlated errors', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Wheaton, Muthén, Alwin & Summers (1977)', url: 'https://doi.org/10.2307/270754' }, { label: 'lavaan, ?getCov: the matrix and model', url: 'https://rdrr.io/cran/lavaan/man/getCov.html' }],
@@ -50,6 +55,7 @@ const EXAMPLES = [
   },
   {
     id: 'thurstone' as const,
+    authors: [] as string[],
     title: 'Thurstone mental tests: second-order factor',
     tags: ['CB-SEM', 'Second-order', 'CFA', 'Covariance input', 'Textbook example'],
     links: [{ label: '?sem (sem package): the matrix and model', url: 'https://rdrr.io/cran/sem/man/sem.html' }, { label: 'SAS/STAT PROC CALIS: second-order CFA', url: 'https://go.documentation.sas.com/doc/en/statug/latest/statug_calis_examples.htm' }],
@@ -57,6 +63,7 @@ const EXAMPLES = [
   },
   {
     id: 'kerckhoff' as const,
+    authors: [] as string[],
     title: 'Ambition and attainment (Kerckhoff 1974)',
     tags: ['CB-SEM', 'Path analysis', 'Covariates', 'Covariance input', 'Textbook example'],
     links: [{ label: '?sem (sem package): the matrix and model', url: 'https://rdrr.io/cran/sem/man/sem.html' }],
@@ -64,6 +71,7 @@ const EXAMPLES = [
   },
   {
     id: 'hayduk' as const,
+    authors: ['Hayduk'] as string[],
     title: 'Smoking behaviour and antismoking acts (Hayduk 1987)',
     tags: ['CB-SEM', 'Single indicators', 'Known reliability', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
@@ -71,6 +79,7 @@ const EXAMPLES = [
   },
   {
     id: 'hayduk-stacked' as const,
+    authors: ['Hayduk'] as string[],
     title: 'Stacked smoking model: younger and older (Hayduk 1987)',
     tags: ['CB-SEM', 'Multigroup', 'Stacked model', 'Known reliability', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
@@ -78,6 +87,7 @@ const EXAMPLES = [
   },
   {
     id: 'hayduk-means' as const,
+    authors: ['Hayduk'] as string[],
     title: 'Smoking model with means and intercepts (Hayduk 1987)',
     tags: ['CB-SEM', 'Means and intercepts', 'Known reliability', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
@@ -85,6 +95,7 @@ const EXAMPLES = [
   },
   {
     id: 'hayduk-stacked-means' as const,
+    authors: ['Hayduk'] as string[],
     title: 'Stacked smoking model with means (Hayduk 1987)',
     tags: ['CB-SEM', 'Multigroup', 'Stacked model', 'Means and intercepts', 'Known reliability', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
@@ -92,6 +103,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-roth' as const,
+    authors: ['Kline'] as string[],
     title: 'Exercise, hardiness and illness (Roth et al. 1989)',
     tags: ['CB-SEM', 'Path analysis', 'Mediation', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -99,6 +111,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-kabc' as const,
+    authors: ['Kline'] as string[],
     title: 'KABC-I: sequential and simultaneous processing (Kaufman & Kaufman 1983)',
     tags: ['CB-SEM', 'CFA', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -106,6 +119,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-sabatelli' as const,
+    authors: ['Kline'] as string[],
     title: 'A Heywood case (Sabatelli & Bartle-Haring 2003)',
     tags: ['CB-SEM', 'CFA', 'Heywood case', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -113,6 +127,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-worland' as const,
+    authors: ['Kline'] as string[],
     title: 'Achievement and classroom adjustment (Worland et al. 1984)',
     tags: ['CB-SEM', 'Structural regression', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -120,6 +135,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-romney-somatic' as const,
+    authors: ['Kline'] as string[],
     title: 'Quality of life after heart surgery: psychosomatic model (Romney et al. 1992)',
     tags: ['CB-SEM', 'Path analysis', 'Model comparison', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -127,6 +143,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-romney-medical' as const,
+    authors: ['Kline'] as string[],
     title: 'Quality of life after heart surgery: medical model (Romney et al. 1992)',
     tags: ['CB-SEM', 'Path analysis', 'Model comparison', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -134,6 +151,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-lynam' as const,
+    authors: ['Kline'] as string[],
     title: 'Achievement and delinquency in two groups (Lynam et al. 1993)',
     tags: ['CB-SEM', 'Multigroup', 'Means and intercepts', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -141,6 +159,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-robbins' as const,
+    authors: ['Kline'] as string[],
     title: 'Institutional quality and trust: a causal loop (Robbins 2012)',
     tags: ['CB-SEM', 'Non-recursive', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -148,6 +167,7 @@ const EXAMPLES = [
   },
   {
     id: 'kline-sauve' as const,
+    authors: ['Kline'] as string[],
     title: 'Cognitive ability and insight: a partial SR model (Sauve et al.)',
     tags: ['CB-SEM', 'Known reliability', 'Correlated errors', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Kline (2023), Principles and Practice of SEM, 5th ed.', url: 'https://www.guilford.com/books/Principles-and-Practice-of-Structural-Equation-Modeling/Rex-Kline/9781462551910' }, { label: 'Companion files (data, lavaan syntax, output)', url: 'https://www.guilford.com/kline' }],
@@ -155,6 +175,7 @@ const EXAMPLES = [
   },
   {
     id: 'brown-ne' as const,
+    authors: ['Brown'] as string[],
     title: 'Neuroticism and extraversion: a two-factor CFA (Brown 2015)',
     tags: ['CB-SEM', 'CFA', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Brown (2015), Confirmatory Factor Analysis for Applied Research, 2nd ed.', url: 'https://www.guilford.com/books/Confirmatory-Factor-Analysis-for-Applied-Research/Timothy-Brown/9781462515363' }, { label: 'Companion files (data and Mplus, LISREL, EQS syntax)', url: 'https://sites.bu.edu/tabrown/cfabook/' }],
@@ -162,6 +183,7 @@ const EXAMPLES = [
   },
   {
     id: 'brown-tau' as const,
+    authors: ['Brown'] as string[],
     title: 'Tau-equivalent indicators of auditory memory (Brown 2015)',
     tags: ['CB-SEM', 'CFA', 'Equality constraints', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Brown (2015), Confirmatory Factor Analysis for Applied Research, 2nd ed.', url: 'https://www.guilford.com/books/Confirmatory-Factor-Analysis-for-Applied-Research/Timothy-Brown/9781462515363' }, { label: 'Companion files (data and Mplus, LISREL, EQS syntax)', url: 'https://sites.bu.edu/tabrown/cfabook/' }],
@@ -169,6 +191,7 @@ const EXAMPLES = [
   },
   {
     id: 'brown-mtmm' as const,
+    authors: ['Brown'] as string[],
     title: 'Multitrait-multimethod: correlated uniqueness model (Brown 2015)',
     tags: ['CB-SEM', 'CFA', 'Correlated errors', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Brown (2015), Confirmatory Factor Analysis for Applied Research, 2nd ed.', url: 'https://www.guilford.com/books/Confirmatory-Factor-Analysis-for-Applied-Research/Timothy-Brown/9781462515363' }, { label: 'Companion files (data and Mplus, LISREL, EQS syntax)', url: 'https://sites.bu.edu/tabrown/cfabook/' }],
@@ -176,6 +199,7 @@ const EXAMPLES = [
   },
   {
     id: 'brown-coping' as const,
+    authors: ['Brown'] as string[],
     title: 'Coping: a higher-order CFA (Brown 2015)',
     tags: ['CB-SEM', 'Second-order', 'CFA', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Brown (2015), Confirmatory Factor Analysis for Applied Research, 2nd ed.', url: 'https://www.guilford.com/books/Confirmatory-Factor-Analysis-for-Applied-Research/Timothy-Brown/9781462515363' }, { label: 'Companion files (data and Mplus, LISREL, EQS syntax)', url: 'https://sites.bu.edu/tabrown/cfabook/' }],
@@ -183,6 +207,7 @@ const EXAMPLES = [
   },
   {
     id: 'brown-reliability' as const,
+    authors: ['Brown'] as string[],
     title: 'Scale reliability from a CFA (Brown 2015)',
     tags: ['CB-SEM', 'CFA', 'Reliability', 'Correlated errors', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Brown (2015), Confirmatory Factor Analysis for Applied Research, 2nd ed.', url: 'https://www.guilford.com/books/Confirmatory-Factor-Analysis-for-Applied-Research/Timothy-Brown/9781462515363' }, { label: 'Companion files (data and Mplus, LISREL, EQS syntax)', url: 'https://sites.bu.edu/tabrown/cfabook/' }],
@@ -190,6 +215,7 @@ const EXAMPLES = [
   },
   {
     id: 'brown-stress' as const,
+    authors: ['Brown'] as string[],
     title: 'Life stress as a formative construct (Brown 2015)',
     tags: ['CB-SEM', 'Formative', 'Second-order', 'Covariates', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Brown (2015), Confirmatory Factor Analysis for Applied Research, 2nd ed.', url: 'https://www.guilford.com/books/Confirmatory-Factor-Analysis-for-Applied-Research/Timothy-Brown/9781462515363' }, { label: 'Companion files (data and Mplus, LISREL, EQS syntax)', url: 'https://sites.bu.edu/tabrown/cfabook/' }],
@@ -197,6 +223,7 @@ const EXAMPLES = [
   },
   {
     id: 'bollen-curran-lcm' as const,
+    authors: ['Bollen', 'Curran'] as string[],
     title: 'Latent curve model as a diagram (Bollen & Curran 2004)',
     tags: ['CB-SEM', 'Growth curve', 'Longitudinal', 'Second-order', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Bollen & Curran (2004), Sociological Methods & Research', url: 'https://doi.org/10.1177/0049124103260222' }, { label: 'Bollen & Curran (2006), Latent Curve Models', url: 'https://www.wiley.com/en-us/Latent+Curve+Models%3A+A+Structural+Equation+Perspective-p-9780471455929' }],
@@ -204,6 +231,7 @@ const EXAMPLES = [
   },
   {
     id: 'bollen-curran-alt' as const,
+    authors: ['Bollen', 'Curran'] as string[],
     title: 'Autoregressive latent trajectory model (Bollen & Curran 2004)',
     tags: ['CB-SEM', 'Growth curve', 'Longitudinal', 'Autoregressive', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Bollen & Curran (2004), Sociological Methods & Research', url: 'https://doi.org/10.1177/0049124103260222' }],
@@ -211,6 +239,7 @@ const EXAMPLES = [
   },
   {
     id: 'hayduk-revised' as const,
+    authors: ['Hayduk'] as string[],
     title: 'Revised smoking model: a reciprocal effect (Hayduk 1987)',
     tags: ['CB-SEM', 'Non-recursive', 'Known reliability', 'Covariance input', 'Textbook example'],
     links: [{ label: 'Hayduk (1987), Structural Equation Modeling with LISREL', url: 'https://www.press.jhu.edu/books/title/2405/structural-equation-modeling-lisrel' }],
@@ -218,6 +247,7 @@ const EXAMPLES = [
   },
   {
     id: 'dhp' as const,
+    authors: [] as string[],
     title: 'Peer influences on aspirations (Duncan, Haller & Portes 1968)',
     tags: ['CB-SEM', 'Non-recursive', 'Covariates', 'Covariance input', 'Textbook example'],
     links: [{ label: '?sem (sem package): the matrix and model', url: 'https://rdrr.io/cran/sem/man/sem.html' }, { label: 'Duncan, Haller & Portes (1968), AJS 74', url: 'https://doi.org/10.1086/224615' }],
@@ -296,6 +326,12 @@ function SourceLinks({ links }: { links: { label: string; url: string }[] }) {
   );
 }
 
+/** Who the example comes from (the authors of the book, manual or paper it reproduces), as chips. */
+export function ExampleAuthors({ authors }: { authors: string[] }) {
+  if (!authors.length) return null;
+  return <div className="example-tags" aria-label="Authors">{authors.map((a) => <span key={a} className="chip author">{a}</span>)}</div>;
+}
+
 /** What an example is about, as chips. */
 export function ExampleTags({ tags }: { tags: string[] }) {
   return <div className="example-tags" aria-label="Topics">{tags.map((t) => <span key={t} className="chip">{t}</span>)}</div>;
@@ -304,7 +340,7 @@ export function ExampleTags({ tags }: { tags: string[] }) {
 /** Examples from the R packages' documentation, filterable by package and by topic. */
 function PackageExamples({ query, topic }: { query: string; topic: string }) {
   const [pkg, setPkg] = useState<ExamplePackage | 'all'>('all');
-  const shown = PACKAGE_EXAMPLES.filter((e) => (pkg === 'all' || e.package === pkg) && (topic === 'all' || exampleTags(e).includes(topic)) && matchesQuery(query, [e.title, e.description, e.source, e.package, ...exampleTags(e)]));
+  const shown = PACKAGE_EXAMPLES.filter((e) => (pkg === 'all' || e.package === pkg) && (topic === 'all' || exampleTags(e).includes(topic) || exampleAuthors(e).includes(topic)) && matchesQuery(query, [e.title, e.description, e.source, e.package, ...exampleTags(e), ...exampleAuthors(e)]));
   return (
     <section className="home-examples">
       <div className="section-head">
@@ -322,6 +358,7 @@ function PackageExamples({ query, topic }: { query: string; topic: string }) {
           <div key={e.id} className="example-card">
             <div className="example-top"><b>{e.title}</b><span className="chip accent">{e.package}</span></div>
             <ExampleTags tags={exampleTags(e)} />
+            <ExampleAuthors authors={exampleAuthors(e)} />
             <p>{e.description}</p>
             <span className="hint">{e.source}</span>
             <SourceLinks links={e.links} />
@@ -342,12 +379,13 @@ export function HomeScreen() {
   const [persistent, setPersistent] = useState(true);
   const [about, setAbout] = useState(false);
   const [query, setQuery] = useState('');
-  // One topic filter for every example, built-in and from the packages; the topics in alphabetical order.
+  // One filter for every example, built-in and from the packages: a topic or an author, each list in alphabetical order.
   const [topic, setTopic] = useState('all');
   const topics = useMemo(() => {
     return sortTopics([...EXAMPLES.flatMap((e) => e.tags), ...PACKAGE_EXAMPLES.flatMap((e) => exampleTags(e))]);
   }, []);
-  const builtins = EXAMPLES.filter((e) => (topic === 'all' || e.tags.includes(topic)) && matchesQuery(query, [e.title, e.body, ...e.tags]));
+  const authors = useMemo(() => sortTopics([...EXAMPLES.flatMap((e) => e.authors), ...PACKAGE_EXAMPLES.flatMap((e) => exampleAuthors(e))]), []);
+  const builtins = EXAMPLES.filter((e) => (topic === 'all' || e.tags.includes(topic) || e.authors.includes(topic)) && matchesQuery(query, [e.title, e.body, ...e.tags, ...e.authors]));
 
   const refresh = () => { void listRecent().then(setRecent); };
   useEffect(() => {
@@ -443,12 +481,18 @@ export function HomeScreen() {
               <button key={t} role="radio" aria-checked={topic === t} className={topic === t ? 'on' : ''} onClick={() => setTopic(t)}>{t === 'all' ? 'All topics' : t}</button>
             ))}
           </div>
+          <div className="segmented wrap topics authors" role="radiogroup" aria-label="Author">
+            {authors.map((a) => (
+              <button key={a} role="radio" aria-checked={topic === a} className={topic === a ? 'on' : ''} onClick={() => setTopic(topic === a ? 'all' : a)} title={`Examples from ${a}’s book, manual or paper`}>{a}</button>
+            ))}
+          </div>
           {builtins.length === 0 && <p className="hint">No built-in example{topic === 'all' ? '' : ` on ${topic}`}{query.trim() ? ` matches “${query.trim()}”` : ''}.</p>}
           <div className="example-grid">
             {builtins.map((e) => (
               <div key={e.id} className="example-card">
                 <div className="example-top"><b>{e.title}</b><span className="chip accent">{e.tags[0]}</span></div>
                 <ExampleTags tags={e.tags} />
+                <ExampleAuthors authors={e.authors} />
                 <p>{e.body}</p>
                 <SourceLinks links={e.links} />
                 <button className="btn" onClick={() => void loadSample(e.id)}>Open example</button>

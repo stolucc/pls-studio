@@ -59,3 +59,24 @@ export function sortTopics(tags: Iterable<string>): string[] {
 export function allTags(examples: PackageExample[]): string[] {
   return sortTopics(examples.flatMap((e) => exampleTags(e)));
 }
+
+/**
+ * The authors whose book, manual or paper an example reproduces (surnames, one tag each,
+ * so that "Bollen" finds Bollen's own models and Bollen & Curran's): the home screen's
+ * author filter. Package help pages without such a source carry none.
+ */
+const AUTHORS_BY_ID: Record<string, string[]> = {
+  'lavaan-poldem': ['Bollen'], 'miivsem-bollen': ['Bollen'], 'bollen-union': ['Bollen'], 'bollen-felson': ['Bollen'], 'bollen-accessibility': ['Bollen'],
+  'cardata-duncan': ['Fox', 'Weisberg'], 'cardata-prestige': ['Fox', 'Weisberg'], 'faraway-gala': ['Faraway'],
+  'mass-menarche': ['Venables', 'Ripley'], 'mass-quine': ['Venables', 'Ripley'], 'mass-housing': ['Venables', 'Ripley'], 'mass-birthwt': ['Venables', 'Ripley'], 'nnet-birthwt': ['Venables', 'Ripley'],
+  'stats-dobson': ['Dobson'], 'stats-clotting': ['McCullagh', 'Nelder'], 'datasets-attitude': ['Chatterjee', 'Price'], 'datasets-swiss': ['Mosteller', 'Tukey'],
+  'csem-itflex': ['Henseler'], 'csem-yoo': ['Henseler'], 'csem-bergami': ['Henseler'], 'csem-switching': ['Henseler'], 'csem-russett': ['Henseler'], 'csem-lancelot': ['Henseler'],
+  'seminr-corprep': ['Hair'], 'seminr-influencer': ['Hair'],
+  'did-mpdta': ['Callaway', 'Sant’Anna'], 'plspm-fimix': ['Sarstedt'],
+  'manymome-med': ['Hayes'], 'manymome-modmed': ['Hayes'], 'manymome-serial': ['Hayes'],
+};
+
+export function exampleAuthors(ex: Pick<PackageExample, 'id'>): string[] {
+  if (ex.id.startsWith('mplus-')) return ['Muthén'];
+  return AUTHORS_BY_ID[ex.id] ?? [];
+}

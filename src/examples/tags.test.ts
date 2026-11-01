@@ -39,3 +39,19 @@ describe('example topics', () => {
     expect(new Set(all).size).toBe(all.length);
   });
 });
+
+describe('example authors', () => {
+  it('names the authors of the book, manual or paper an example reproduces', async () => {
+    const { exampleAuthors } = await import('./tags');
+    const authorsOf = (id: string) => exampleAuthors(PACKAGE_EXAMPLES.find((e) => e.id === id)!);
+    expect(authorsOf('bollen-union')).toEqual(['Bollen']);
+    expect(authorsOf('mplus-ex5.1')).toEqual(['Muthén']);
+    expect(authorsOf('cardata-duncan')).toEqual(['Fox', 'Weisberg']);
+    expect(authorsOf('csem-itflex')).toEqual(['Henseler']);
+    expect(authorsOf('seminr-corprep')).toEqual(['Hair']);
+    expect(authorsOf('lavaan-hs')).toEqual([]);
+    // Every mapped id is an example (no stale entries).
+    for (const e of PACKAGE_EXAMPLES) expect(Array.isArray(exampleAuthors(e))).toBe(true);
+    expect(PACKAGE_EXAMPLES.filter((e) => exampleAuthors(e).length).length).toBeGreaterThan(40);
+  });
+});

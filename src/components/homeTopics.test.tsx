@@ -36,3 +36,22 @@ it('lists the topics in alphabetical order, after All topics', () => {
   expect(topics.length).toBeGreaterThan(10);
   expect(topics).toEqual([...topics].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b)));
 });
+
+it('filters by author: a row of the authors whose books, manuals and papers the examples reproduce', async () => {
+  const { exampleAuthors } = await import('../examples/tags');
+  const host = document.createElement('div');
+  act(() => { createRoot(host).render(<HomeScreen />); });
+  const row = host.querySelector('[role="radiogroup"][aria-label="Author"]')!;
+  const names = [...row.querySelectorAll('button')].map((b) => b.textContent ?? '');
+  for (const a of ['Bollen', 'Brown', 'Curran', 'Hayduk', 'Kline', 'Muthén', 'Schumacker', 'Lomax', 'Henseler', 'Hair']) expect(names, a).toContain(a);
+  expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b)));
+  const all = host.querySelectorAll('.example-card').length;
+  act(() => { [...row.querySelectorAll('button')].find((b) => b.textContent === 'Bollen')!.click(); });
+  const shown = [...host.querySelectorAll('.example-card')];
+  for (const card of shown) expect(card.querySelector('[aria-label="Authors"]')?.textContent, card.textContent?.slice(0, 60)).toContain('Bollen');
+  // Bollen's package examples, plus the built-ins: political democracy and Bollen & Curran's two latent curve models.
+  expect(shown.length).toBe(PACKAGE_EXAMPLES.filter((e) => exampleAuthors(e).includes('Bollen')).length + 3);
+  // Clicking the author again shows every example.
+  act(() => { [...row.querySelectorAll('button')].find((b) => b.textContent === 'Bollen')!.click(); });
+  expect(host.querySelectorAll('.example-card').length).toBe(all);
+});
