@@ -881,6 +881,12 @@ export function validateModel(
       const strayNominal = (method.miNominal ?? []).filter((x) => !inImputation.has(x));
       if ((method.miMethod ?? 'mice') === 'amelia' && strayNominal.length) err(`Nominal variables of the imputation must be among its variables (the model's or the auxiliary ones): ${strayNominal.join(', ')}.`);
     }
+    if (method.estimator === 'WLS') {
+      // ADF (Browne 1984; EQS's AGLS): weights from the fourth-order moments, so raw data or a NACOV matrix.
+      if (engine === 'builtin') err('Distribution-free estimation (ADF / WLS) is done by lavaan: choose “R packages” under Calculated by.');
+      if (data?.moments && data.cols.length === 0 && !data.moments.nacov) err('Distribution-free estimation (ADF / WLS) needs raw data, or a covariance matrix with its NACOV (asymptotic covariance) matrix.');
+      if (ordered.length) err('With ordinal indicators choose WLSMV (robust weighted least squares on polychoric correlations).');
+    }
     if (method.estimator === 'RML') {
       // Robust ML (rsem): one group of continuous indicators, raw data, lavaan through R.
       if (engine === 'builtin') err('Robust ML is estimated by rsem with lavaan: choose “R packages” under Calculated by.');
@@ -1495,7 +1501,7 @@ export function parseSettings(raw: unknown): Settings {
   return {
     method: s.method === 'cbsem' || s.method === 'process' ? s.method : 'pls',
     consistent: s.consistent === true,
-    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLSMV', '2SLS', 'RML'] as const).find((e) => e === s.estimator) ?? 'ML',
+    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLS', 'WLSMV', '2SLS', 'RML'] as const).find((e) => e === s.estimator) ?? 'ML',
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
     plsApproach: (['GSCA', 'PCA', 'unit'] as const).find((x) => x === s.plsApproach) ?? 'PLS-PM',

@@ -57,7 +57,7 @@ ps_cb_build <- function(req) {
       inputs$N <- mo$n
       if (!is.null(mo$means)) inputs$M <- pick_m(mo$means)
     }
-    robust_nacov <- req$estimator %in% c("MLM", "MLMV") && !is.null(mo$nacov)
+    robust_nacov <- req$estimator %in% c("MLM", "MLMV", "WLS") && !is.null(mo$nacov)
     if (robust_nacov) {
       # NACOV arrives in the file's column-major vech order; keep the model's variables, in vech order.
       p0 <- length(req$data$names)

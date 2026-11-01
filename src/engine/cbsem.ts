@@ -20,7 +20,7 @@ export type CbParamKind = 'loading' | 'regression' | 'hoLoading' | 'lvcov' | 're
  */
 /** WLSMV (ordinal indicators) is estimated by lavaan only. */
 /** RML: robust ML with Huber-type case weights (Yuan & Zhang 2012; rsem, R engine only). */
-export type CbEstimator = 'ML' | 'MLM' | 'MLMV' | 'MLR' | 'GLS' | 'ULS' | 'WLSMV' | 'RML';
+export type CbEstimator = 'ML' | 'MLM' | 'MLMV' | 'MLR' | 'GLS' | 'ULS' | 'WLS' | 'WLSMV' | 'RML';
 
 interface ParamDef {
   kind: CbParamKind;
@@ -970,6 +970,7 @@ export function standardized(cm: CbModel, X: Matrices) {
 
 export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreatment = 'casewise', estimator: CbEstimator = 'ML'): CbResult {
   if (estimator === 'WLSMV' || spec.ordered?.length || LAVAAN_MISSING.includes(missing)) throw new Error('Ordinal indicators, WLSMV, FIML, pairwise deletion and the two-stage approach are estimated by lavaan: choose the R engine.');
+  if (estimator === 'WLS') throw new Error('Distribution-free estimation (ADF / WLS) is done by lavaan: choose the R engine.');
   if (spec.multigroup) throw new Error('Multiple-group analysis is estimated by lavaan: choose the R engine.');
   if (spec.multilevel) throw new Error('Two-level models are estimated by lavaan: choose the R engine.');
   if (spec.esem?.blocks.length) throw new Error('Exploratory SEM (ESEM) is estimated by lavaan: choose the R engine.');

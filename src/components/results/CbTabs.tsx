@@ -64,7 +64,7 @@ function Fit({ cb }: { cb: CbResult }) {
   const pv = robust ? f.pvalueScaled : f.pvalue;
   const cfi = robustIdx ? f.cfiRobust! : f.cfi, tli = robustIdx ? f.tliRobust! : f.tli, rmsea = robustIdx ? f.rmseaRobust! : f.rmsea;
   const rml = cb.estimator === 'RML';
-  const ml = cb.estimator !== 'GLS' && cb.estimator !== 'ULS';
+  const ml = cb.estimator !== 'GLS' && cb.estimator !== 'ULS' && cb.estimator !== 'WLS';
   const rows: Row[] = [
     [c('Estimator'), c(cb.estimator), c(null)],
     [c('Observations'), c(String(cb.n)), c(null)],

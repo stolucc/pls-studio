@@ -178,7 +178,7 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
 /** Whether the text is Mplus MODEL syntax rather than lavaan's. */
 export const looksLikeMplus = (text: string) => !/=~|~~|~1|:=/.test(text) && /\b(BY|ON|WITH)\b/i.test(text);
 
-const ESTIMATOR: Partial<Record<Settings['estimator'], string>> = { ML: 'ML', MLM: 'MLM', MLMV: 'MLMV', MLR: 'MLR', GLS: 'GLS', ULS: 'ULS', WLSMV: 'WLSMV' };
+const ESTIMATOR: Partial<Record<Settings['estimator'], string>> = { ML: 'ML', MLM: 'MLM', MLMV: 'MLMV', MLR: 'MLR', GLS: 'GLS', ULS: 'ULS', WLS: 'WLS', WLSMV: 'WLSMV' };
 
 /** Mplus variable names: at most 8 characters in older versions; letters, digits and _ only. */
 export function mplusName(name: string, taken: Map<string, string>): string {
