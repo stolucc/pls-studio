@@ -25,19 +25,26 @@ describe('data screening card', () => {
 
 describe('influential cases card', () => {
   it('needs a valid CB-SEM model on raw data with the R engine', () => {
-    expect(inf.blocked({}, ctx())).toBeNull();
-    expect(inf.blocked({}, ctx({ settings: { ...DEFAULT_SETTINGS, method: 'pls' } }))).toContain('switch the model to CB-SEM');
-    expect(inf.blocked({}, ctx({ model: { constructs: [], paths: [], moderations: [] } }))).toContain('Draw a CB-SEM model first');
-    expect(inf.blocked({}, ctx({ data: null }))).toContain('need raw data');
+    expect(inf.blocked({ approach: 'exact' }, ctx())).toBeNull();
+    expect(inf.blocked({ approach: 'exact' }, ctx({ settings: { ...DEFAULT_SETTINGS, method: 'pls' } }))).toContain('switch the model to CB-SEM');
+    expect(inf.blocked({ approach: 'exact' }, ctx({ model: { constructs: [], paths: [], moderations: [] } }))).toContain('Draw a CB-SEM model first');
+    expect(inf.blocked({ approach: 'exact' }, ctx({ data: null }))).toContain('need raw data');
+  });
+
+  it('keeps the approach; cards saved before it ran the refits', () => {
+    expect(inf.parseOptions({})).toEqual({ approach: 'exact' });
+    expect(inf.parseOptions({ approach: 'approximate' })).toEqual({ approach: 'approximate' });
+    expect(inf.parseOptions({ approach: 'other' })).toEqual({ approach: 'exact' });
+    expect(inf.summary!({ approach: 'approximate' })).toContain('approximate');
   });
 
   it('is stale when the model, the estimator or its indicators change', () => {
-    const f = inf.fingerprint({}, ctx());
+    const f = inf.fingerprint({ approach: 'exact' }, ctx());
     expect(f).toBeTruthy();
-    expect(inf.fingerprint({}, ctx({ data: { ...data, cols: [...data.cols.slice(0, 3), col(0, 0, 0, 0)] } }))).toBe(f);
-    expect(inf.fingerprint({}, ctx({ data: { ...data, cols: [col(1, 2, 3, 5), ...data.cols.slice(1)] } }))).not.toBe(f);
-    expect(inf.fingerprint({}, ctx({ model: { ...model, constructs: [C('f', ['a', 'b', 'd'])] } }))).not.toBe(f);
-    expect(inf.fingerprint({}, ctx({ settings: { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'MLR' } }))).not.toBe(f);
-    expect(inf.fingerprint({}, ctx({ settings: { ...DEFAULT_SETTINGS, method: 'pls' } }))).toBeNull();
+    expect(inf.fingerprint({ approach: 'exact' }, ctx({ data: { ...data, cols: [...data.cols.slice(0, 3), col(0, 0, 0, 0)] } }))).toBe(f);
+    expect(inf.fingerprint({ approach: 'exact' }, ctx({ data: { ...data, cols: [col(1, 2, 3, 5), ...data.cols.slice(1)] } }))).not.toBe(f);
+    expect(inf.fingerprint({ approach: 'exact' }, ctx({ model: { ...model, constructs: [C('f', ['a', 'b', 'd'])] } }))).not.toBe(f);
+    expect(inf.fingerprint({ approach: 'exact' }, ctx({ settings: { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'MLR' } }))).not.toBe(f);
+    expect(inf.fingerprint({ approach: 'exact' }, ctx({ settings: { ...DEFAULT_SETTINGS, method: 'pls' } }))).toBeNull();
   });
 });

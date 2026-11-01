@@ -214,7 +214,7 @@ export async function buildRScript(what: ScriptTarget = 'model', opts: { data?: 
       text = await analysisScript(s.data, spec, cb
         ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot, interaction: st.interaction }
         : { kind: 'plsBoot', pkg: st.plsPackage, options, boot });
-    } else text = cb ? await cbScriptLavaan(s.data, spec, st.missing, st.estimator as CbEstimator, st.interaction, { m: st.miImputations, seed: st.seed }) : await plsScriptR(s.data, spec, options, st.plsPackage);
+    } else text = cb ? await cbScriptLavaan(s.data, spec, st.missing, st.estimator as CbEstimator, st.interaction, { m: st.miImputations, seed: st.seed, method: st.miMethod, auxiliary: st.miAuxiliary, nominal: st.miNominal }) : await plsScriptR(s.data, spec, options, st.plsPackage);
     return { text, file: `${name}-${pkg}${suffix ? `-${suffix}` : ''}.R`, pkg };
   } catch (e) {
     throw new Error(rMessage(e), { cause: e });
@@ -435,7 +435,7 @@ export async function loadPackageExample(id: string) {
       return;
     }
     if (ex.screening) {
-      if (ex.screening.tab === 'influence') addAnalysis('influence');
+      if (ex.screening.tab === 'influence') addAnalysis('influence', { approach: ex.screening.approach ?? 'exact' });
       else addAnalysis('screen', { vars: [...new Set(ex.constructs.flatMap((k) => k.indicators ?? []))] });
       useStore.getState().setWorkspace('analyses');
       useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Run on the card.`);

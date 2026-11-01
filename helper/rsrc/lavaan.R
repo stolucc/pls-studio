@@ -308,11 +308,27 @@ ps_cb_build <- function(req) {
   }, ""))
   # (In a two-level model they follow the level blocks: defined once, not per level.)
   if (is.null(cluster_var)) lines <- c(lines, defs)
-  # Two-level: the model within clusters; between clusters the same structure (factors named *_b)
-  # or a saturated model (all variances and covariances of the observed variables free).
+  between_cov <- character(0)
+  # Two-level: the model within clusters; between clusters the same structure (factors named *_b),
+  # a saturated model (all variances and covariances of the observed variables free), or the factors
+  # (same indicators, *_b) regressed on cluster-level covariates (lavaan's tutorial: fb =~ y1 + y2 + y3; fb ~ w1 + w2).
   if (!is.null(cluster_var)) {
-    if (!(ml$between %||% "saturated") %in% c("same", "saturated")) stop("Invalid between-level model in the request.")
-    if (identical(ml$between, "same")) {
+    if (!(ml$between %||% "saturated") %in% c("same", "saturated", "factors")) stop("Invalid between-level model in the request.")
+    if (identical(ml$between, "factors")) {
+      ws <- character(0)
+      for (w in as.character(unlist(ml$betweenCovariates))) {
+        at <- match(w, req$data$names)
+        if (is.na(at)) stop("A cluster-level covariate is not in the dataset.")
+        cols <- req$data$cols
+        id <- ps_ident(c(unname(n$iv), names(inputs$data), w))[length(n$iv) + ncol(inputs$data) + 1]
+        inputs$data[[id]] <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+        ws <- c(ws, id); between_cov[id] <- w
+      }
+      fac <- which(!is_cov[seq_len(k0)] & vapply(seq_len(k0), function(j) length(n$inds[[j]]) > 0 && !length(comps[[j]]), TRUE))
+      if (!length(fac)) stop("A between-level factor model needs factors with indicators.")
+      between <- c(vapply(fac, function(j) paste(paste0(lname[[j]], "_b"), "=~", ps_marked(unname(n$iv[n$inds[[j]]]))), ""),
+        if (length(ws)) sprintf("%s ~ %s", paste0(unname(lname[fac]), "_b"), paste(ws, collapse = " + ")))
+    } else if (identical(ml$between, "same")) {
       between <- lines
       for (lv in unname(lname[n$cname[!is_cov]])) between <- gsub(sprintf("\\b%s\\b", lv), paste0(lv, "_b"), between, perl = TRUE)
     } else {
@@ -419,27 +435,50 @@ ps_cb_build <- function(req) {
       stop("Multiple imputation is available for continuous indicators: no clusters, sampling weights, ordinal indicators or ESEM blocks.")
     if (!req$estimator %in% c("ML", "MLR")) stop("With multiple imputation choose the ML or MLR estimator.")
     ms <- ps_mi_settings(req)
-    body[1] <- "suppressPackageStartupMessages({ library(lavaan); library(mice); library(lavaan.mi) })"
+    # Auxiliary variables: columns that inform the imputation without being in the model (they travel with the data).
+    model_cols <- intersect(names(n$iv), req$data$names)
+    aux_id <- character(0)
+    for (a in setdiff(ms$auxiliary, model_cols)) {
+      at <- match(a, req$data$names)
+      if (is.na(at)) stop("An auxiliary variable for the imputation is not in the dataset.")
+      cols <- req$data$cols
+      av <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      id <- ps_ident(c(unname(n$iv), names(inputs$data), a))[length(n$iv) + ncol(inputs$data) + 1]
+      inputs$data[[id]] <- av
+      aux_id[a] <- id
+    }
+    ident_of <- function(x) if (x %in% names(aux_id)) unname(aux_id[x]) else if (x %in% names(n$iv)) unname(n$iv[[x]]) else stop("A nominal variable for the imputation is not among its variables.")
+    noms <- vapply(ms$nominal, ident_of, "")
+    amelia <- identical(ms$method, "amelia")
+    body[1] <- sprintf("suppressPackageStartupMessages({ library(lavaan); library(%s); library(lavaan.mi) })", if (amelia) "Amelia" else "mice")
     call <- c(
-      if (!is.null(group_var)) c("# The grouping column is categorical: mice uses it as a factor.", sprintf("data$%s <- factor(data$%s)", group_var, group_var)),
-      sprintf("# Multiple imputation by chained equations (mice, predictive mean matching), %d imputed data sets.", ms$m),
-      sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)", ms$m, ms$seed),
+      if (length(aux_id)) sprintf("# Auxiliary variables of the imputation (not in the model): %s", paste(ps_comment(names(aux_id)), collapse = ", ")),
+      if (amelia) c(
+        sprintf("# Multiple imputation by Amelia (EM with bootstrapping; Honaker, King & Blackwell), %d imputed data sets.", ms$m),
+        sprintf("set.seed(%d)", ms$seed),
+        sprintf("imp <- amelia(data, m = %d%s, p2s = 0)$imputations", ms$m, if (length(noms)) sprintf(", noms = %s", ps_q(unname(noms))) else ""),
+        "imp <- lapply(seq_along(imp), function(k) as.data.frame(imp[[k]]))")
+      else c(
+        if (!is.null(group_var)) c("# The grouping column is categorical: mice uses it as a factor.", sprintf("data$%s <- factor(data$%s)", group_var, group_var)),
+        sprintf("# Multiple imputation by chained equations (mice, predictive mean matching), %d imputed data sets.", ms$m),
+        sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE)", ms$m, ms$seed),
+        sprintf("imp <- lapply(seq_len(%d), function(k) complete(imp, k))", ms$m)),
       "# The model in every imputed data set, pooled by Rubin's rules (lavaan.mi).",
       sprintf("fit_mi <- sem.mi(model, data = imp, estimator = \"%s\"%s)", req$estimator, extra),
       "# Pooled covariance matrix of the estimates (lavaan.mi: (1 + ARIV) times the mean within-imputation matrix, which its SEs use).",
       "# Where lavaan.mi's S4 vcov method is not dispatched (R in the browser), the same matrix from the per-imputation fits.",
       "vcov_mi <- tryCatch(vcov(fit_mi), error = function(e) {",
-      sprintf("  fits <- lapply(seq_len(imp$m), function(k) sem(model, data = complete(imp, k), estimator = \"%s\"%s))", req$estimator, extra),
+      sprintf("  fits <- lapply(imp, function(d) sem(model, data = d, estimator = \"%s\"%s))", req$estimator, extra),
       "  # (as lavaan.mi's vcov: equality constraints counted out, a generalised inverse when there are any)",
       "  pt <- lavaan::parTable(fits[[1]]); ncon <- sum(pt$op == \"==\"); npar <- max(pt$free) - ncon",
       "  keep <- pt$free > 0L & !duplicated(pt$free)",
       "  B <- stats::cov(do.call(rbind, lapply(fits, function(x) lavaan::parTable(x)$est[keep])))",
-      "  W <- Reduce(`+`, lapply(fits, function(x) unclass(lavaan::lavInspect(x, \"vcov\")))) / imp$m",
+      "  W <- Reduce(`+`, lapply(fits, function(x) unclass(lavaan::lavInspect(x, \"vcov\")))) / length(imp)",
       "  inv <- if (ncon == 0) tryCatch(solve(W), error = function(e) MASS::ginv(W)) else MASS::ginv(W)",
-      "  (1 + (1 + 1 / imp$m) / npar * sum(diag(B %*% inv))) * W",
+      "  (1 + (1 + 1 / length(imp)) / npar * sum(diag(B %*% inv))) * W",
       "})",
       "# (The model fitted to the first imputed data set: only its structure is used.)",
-      sprintf("fit <- sem(model, data = complete(imp, 1), estimator = \"%s\"%s)", req$estimator, extra))
+      sprintf("fit <- sem(model, data = imp[[1]], estimator = \"%s\"%s)", req$estimator, extra))
   }
   robust <- identical(req$estimator, "RML")
   if (robust) {
@@ -493,7 +532,7 @@ ps_cb_build <- function(req) {
   # (the baseline lines travel separately: every other user of this body expects the fit call last)
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single)
+    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single, between_cov = between_cov)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
@@ -503,7 +542,9 @@ ps_cb <- function(req_json, export = FALSE) {
   body <- c(b$body, b$baseline)
   if (export) {
     return(paste(ps_script("CB-SEM (lavaan)", "lavaan", b$inputs, body,
-      c(if (length(b$baseline)) "summary(fit, standardized = TRUE, rsquare = TRUE); fitMeasures(fit, baseline.model = fit_baseline)" else "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)")), collapse = "\n"))
+      # (multiple imputation: the results pooled over the imputed data sets, fit_mi, as the app reports them; fit is one imputation)
+      c(if (isTRUE(b$mi)) "summary(fit_mi, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"
+        else if (length(b$baseline)) "summary(fit, standardized = TRUE, rsquare = TRUE); fitMeasures(fit, baseline.model = fit_baseline)" else "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)")), collapse = "\n"))
   }
   env <- ps_run(body, b$inputs)
   fit <- env$fit
@@ -519,7 +560,8 @@ ps_cb <- function(req_json, export = FALSE) {
   counts <- vapply(mods, function(m) min(length(n$inds[[match(m$from, n$cname)]]), length(n$inds[[match(m$moderator, n$cname)]])), 1L)
   ind_con <- c(unname(vapply(n$all_inds, owner, 1L)) - 1L, rep(k0 - 1L + seq_along(mods), counts))
   # Between-level factors of a two-level model carry the suffix _b.
-  back <- c(setNames(constructs, lv_lname), setNames(constructs, paste0(lv_lname, "_b")), setNames(indicators, ind_v))
+  # (cluster-level covariates of a between-level factor model: their own names)
+  back <- c(setNames(constructs, lv_lname), setNames(constructs, paste0(lv_lname, "_b")), setNames(indicators, ind_v), setNames(unname(b$between_cov), names(b$between_cov)))
   is_lv <- function(x) x %in% c(lv_lname, paste0(lv_lname, "_b"))
   # (an observed covariate is its own lavaan name: its "~1" is an intercept, not a latent mean)
   latent_names <- { lv <- unname(b$lname[!b$is_cov]); c(lv, paste0(lv, "_b")) }
@@ -669,7 +711,10 @@ ps_cb <- function(req_json, export = FALSE) {
     rr <- if (isTRUE(b$mi)) lavaan.mi::lavResiduals.mi(env$fit_mi, type = "cor.bollen")
       else if (isTRUE(req$missing %in% c("twostage", "robusttwostage"))) ps_cor_residuals(fit)
       else lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
-    res <- (if (is.null(g)) rr$cov else rr[[g]]$cov)[ind_v, ind_v]
+    # (a two-level model's between level lacks the within-only variables: their rows stay NA)
+    r0 <- if (is.null(g)) rr$cov else rr[[g]]$cov
+    res <- matrix(NA_real_, length(ind_v), length(ind_v), dimnames = list(ind_v, ind_v))
+    have_r <- intersect(ind_v, rownames(r0)); res[have_r, have_r] <- r0[have_r, have_r]
     gdata <- if (is.null(g) || b$matrix_input || is.null(b$group_var)) env$data else env$data[as.character(env$data[[b$group_var]]) == glab[group_of(g)], , drop = FALSE]
     # HTMT on the measurement blocks (semTools), classic and HTMT2.
     htmt <- function(two) {
@@ -680,9 +725,9 @@ ps_cb <- function(req_json, export = FALSE) {
       hm <- paste(vapply(blocks, function(j) paste(lv_lname[j], "=~", paste(ind_v[ind_con == j - 1], collapse = " + ")), ""), collapse = "\n")
       h <- ps_try((if (b$matrix_input) semTools::htmt(hm, sample.cov = if (is.list(b$inputs$S)) b$inputs$S[[group_of(g)]] else b$inputs$S, htmt2 = two)
         # Multiple imputation: the average over the imputed data sets.
-        else if (isTRUE(b$mi)) Reduce(`+`, lapply(seq_len(env$imp$m), function(k) { dk <- mice::complete(env$imp, k)
+        else if (isTRUE(b$mi)) Reduce(`+`, lapply(seq_along(env$imp), function(k) { dk <- env$imp[[k]]
           if (!is.null(g) && !is.null(b$group_var)) dk <- dk[as.character(dk[[b$group_var]]) == glab[group_of(g)], , drop = FALSE]
-          semTools::htmt(hm, data = dk, htmt2 = two) })) / env$imp$m
+          semTools::htmt(hm, data = dk, htmt2 = two) })) / length(env$imp)
         else semTools::htmt(hm, data = gdata, htmt2 = two)), if (two) "HTMT2 (semTools::htmt)" else "HTMT (semTools::htmt)")
       if (is.null(h)) return(out)
       for (a in seq_along(blocks)) for (c in seq_along(blocks)) out[blocks[a], blocks[c]] <- h[lv_lname[blocks[a]], lv_lname[blocks[c]]]
@@ -732,7 +777,7 @@ ps_cb <- function(req_json, export = FALSE) {
   out$modindices <- mi$items
   out$modindicesError <- mi$error
   out$modindicesNote <- mi$note
-  if (isTRUE(b$mi)) out$imputations <- env$imp$m
+  if (isTRUE(b$mi)) out$imputations <- length(env$imp)
   # Robust ML (rsem): each analysed case's weight (below 1: down-weighted as atypical).
   if (isTRUE(b$robust)) out$caseWeights <- list(rows = env$case_row, weights = env$case_weight)
   ps_json(out)

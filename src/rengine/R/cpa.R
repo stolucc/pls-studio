@@ -50,7 +50,8 @@ ps_cpa_combine_code <- function(field, what) c(
   "combine <- function(effects, weights) {",
   "  est <- sum(weights * vapply(effects, function(e) e$indirect, 0))",
   sprintf("  draws <- drop(vapply(effects, function(e) e$%s, numeric(length(effects[[1]]$%s))) %%*%% weights)", field, field),
-  "  ci <- unname(quantile(draws, c((1 - level) / 2, 1 - (1 - level) / 2), type = 6))",
+  "  # (the percentile interval as manymome computes it for its effects: boot::boot.ci, type \"perc\")",
+  "  ci <- unname(boot::boot.ci(list(t0 = est, t = matrix(draws, ncol = 1), R = length(draws)), type = \"perc\", conf = level)$perc[4:5])",
   "  c(est = est, se = sd(draws), lo = ci[1], hi = ci[2])",
   "}")
 
@@ -383,8 +384,9 @@ ps_cpa_glm <- function(req, export = FALSE) {
   at_list <- function(at) as.list(setNames(unname(at), nm(names(at))))
   pv <- if (length(b$mods)) env$probe_values else list()
   cf0 <- env$cf0; boots <- env$boots
-  ci <- function(draws) unname(quantile(draws, c((1 - level) / 2, 1 - (1 - level) / 2), type = 6))
-  boot_eff <- function(f) { d <- vapply(boots, f, 0); est <- f(cf0); q <- ci(d); list(est = est, se = sd(d), lo = q[1], hi = q[2]) }
+  # (percentile intervals as manymome computes them: boot::boot.ci, type "perc")
+  ci <- function(draws, est) unname(boot::boot.ci(list(t0 = est, t = matrix(draws, ncol = 1), R = length(draws)), type = "perc", conf = level)$perc[4:5])
+  boot_eff <- function(f) { d <- vapply(boots, f, 0); est <- f(cf0); q <- ci(d, est); list(est = est, se = sd(d), lo = q[1], hi = q[2]) }
   combine <- function(fs, w) boot_eff(function(cf) sum(w * vapply(fs, function(f) f(cf), 0)))
   eq_out <- lapply(req$equations, function(e) {
     f <- env$eqs[[id(e$outcome)]]; s <- summary(f); ct <- s$coefficients

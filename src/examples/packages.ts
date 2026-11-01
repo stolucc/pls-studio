@@ -76,7 +76,7 @@ export interface PackageExample {
   information?: 'observed';
   /** CB-SEM: the CFI/TLI baseline of uncorrelated variables (the source's syntax writes the exogenous covariances out). */
   baseline?: 'independence';
-  multilevel?: { column: string; between: 'same' | 'saturated' };
+  multilevel?: ModelState['multilevel'];
   /** CB-SEM: exploratory SEM blocks of construct names. */
   esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number };
   /** Columns computed from the loaded data before anything else (as a help page recodes its data), and category labels for coded columns. */
@@ -95,7 +95,7 @@ export interface PackageExample {
   /** Adds the PLS-SEM assessment card for the example's diagram (which one, and the grouping column or omission distance). */
   assessment?: AssessmentPreset;
   /** Adds a Data screening card on the example's indicators, or (influence) an Influential cases card. */
-  screening?: { tab: 'univariate' | 'normality' | 'outliers' | 'influence' };
+  screening?: { tab: 'univariate' | 'normality' | 'outliers' | 'influence'; approach?: 'exact' | 'approximate' };
   settings: Partial<Settings>;
   /** Further topics the home screen shows (most are derived from the definition: examples/tags.ts). */
   tags?: string[];
@@ -175,10 +175,10 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'lavaan-twolevel', package: 'lavaan', title: 'Two-level factor model', source: 'lavaan tutorial: multilevel SEM, ?Demo.twolevel',
     links: [{ label: 'lavaan tutorial: multilevel SEM', url: 'https://lavaan.ugent.be/tutorial/multilevel.html' }, { label: '?Demo.twolevel', url: 'https://rdrr.io/cran/lavaan/man/Demo.twolevel.html' }],
-    description: 'Simulated data, 2500 people in 200 clusters: a factor of y1–y3 regressed on x1–x3 within clusters, as in the tutorial. Here the between level is saturated (the tutorial also models it, with cluster-level predictors w1, w2).',
+    description: 'Simulated data, 2500 people in 200 clusters, the tutorial’s model: within clusters a factor of y1–y3 regressed on x1–x3; between clusters a factor of the same items (fb in the tutorial) regressed on the cluster-level w1 and w2. Reproduces the tutorial: χ² = 8.092 on 10 df, 20 parameters; within, fw on x1 0.510, x2 0.407, x3 0.205; between, fb on w1 0.165 and w2 0.131. Results: switch Within / Between in the results header.',
     data: { package: 'lavaan', name: 'Demo.twolevel' },
     constructs: [f('fw', items('y', 3)), v('x1', true), v('x2', true), v('x3', true)], paths: [['x1', 'fw'], ['x2', 'fw'], ['x3', 'fw']],
-    multilevel: { column: 'cluster', between: 'saturated' }, settings: CB('ML'),
+    multilevel: { column: 'cluster', between: 'factors', betweenCovariates: ['w1', 'w2'] }, settings: CB('ML'),
   },
   {
     id: 'lavaan-growth', package: 'lavaan', title: 'Linear latent growth curve', source: 'lavaan, ?growth',
@@ -461,31 +461,31 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [], settings: CB('2SLS'),
   },
   {
-    id: 'modsem-oneint', package: 'modsem', title: 'Latent interaction by LMS', source: 'modsem, ?modsem (oneInt)',
-    links: [{ label: '?modsem', url: 'https://rdrr.io/cran/modsem/man/modsem.html' }, { label: 'modsem: LMS and QML', url: 'https://modsem.org/articles/lms_qml.html' }, { label: '?oneInt', url: 'https://rdrr.io/cran/modsem/man/oneInt.html' }],
-    description: 'Simulated data (N = 2000) with one latent interaction: Y on X, Z and X × Z, estimated by the latent moderated structural equations method (Klein & Moosbrugger 2000).',
+    id: 'modsem-oneint', package: 'modsem', title: 'Latent interaction by LMS', source: 'modsem, article “LMS and QML approaches” (oneInt)',
+    links: [{ label: 'modsem: LMS and QML', url: 'https://modsem.org/articles/lms_qml.html' }, { label: '?modsem', url: 'https://rdrr.io/cran/modsem/man/modsem.html' }, { label: '?oneInt', url: 'https://rdrr.io/cran/modsem/man/oneInt.html' }],
+    description: 'Simulated data (N = 2000) with one latent interaction: Y on X, Z and X × Z by the latent moderated structural equations method (Klein & Moosbrugger 2000), as modsem’s LMS article runs it: modsem(m1, oneInt, method = "lms"). Reproduces the article: Y on X 0.673, Z 0.569, X:Z 0.718; the likelihood-ratio test against the model without the interaction D = 676.56 on 1 df; the fit measures shown are those of that model (χ² 17.52 on 24 df), as modsem reports them. (?modsem’s first example uses the double-centring approach instead.)',
     data: { package: 'modsem', name: 'oneInt' },
     constructs: [f('X', items('x', 3)), f('Z', items('z', 3)), f('Y', items('y', 3))],
     paths: [['X', 'Y'], ['Z', 'Y']], moderations: [['X', 'Z', 'Y']], settings: { ...CB('ML'), interaction: 'lms' },
   },
   {
     id: 'manymome-med', package: 'manymome', title: 'Simple mediation with covariates', source: 'manymome, ?data_med (PROCESS model 4)',
-    links: [{ label: '?data_med', url: 'https://rdrr.io/cran/manymome/man/data_med.html' }, { label: 'manymome: mediation with lm()', url: 'https://sfcheung.github.io/manymome/articles/med_lm.html' }],
-    description: 'x → m → y with control variables c1 and c2 (N = 100): the indirect effect with a nonparametric bootstrap interval.',
+    links: [{ label: '?data_med', url: 'https://rdrr.io/cran/manymome/man/data_med.html' }],
+    description: 'x → m → y with control variables c1 and c2 (N = 100). The help page fits these equations with lavaan: a = 0.935, b = 0.785, indirect effect 0.733 (delta-method SE 0.236). Conditional process analysis estimates the same equations by least squares, which gives the same coefficients and indirect effect, with a percentile bootstrap interval (manymome) instead of the delta-method standard error.',
     data: { package: 'manymome', name: 'data_med' },
     constructs: [v('x'), v('m'), v('y'), v('c1', true), v('c2', true)], paths: [['x', 'm'], ['m', 'y'], ['x', 'y']], processModel: 4, settings: CPA,
   },
   {
-    id: 'manymome-modmed', package: 'manymome', title: 'First-stage moderated mediation', source: 'manymome, ?data_med_mod_a (PROCESS model 7)',
-    links: [{ label: '?data_med_mod_a', url: 'https://rdrr.io/cran/manymome/man/data_med_mod_a.html' }, { label: 'manymome: moderated mediation', url: 'https://sfcheung.github.io/manymome/articles/mome_lm.html' }],
-    description: 'w moderates the x → m path: conditional indirect effects at values of w and the index of moderated mediation.',
+    id: 'manymome-modmed', package: 'manymome', title: 'First-stage moderated mediation', source: 'manymome, vignette “Moderated mediation with lm()” (data_med_mod_a; PROCESS model 7)',
+    links: [{ label: 'manymome: moderated mediation with lm()', url: 'https://sfcheung.github.io/manymome/articles/mome_lm.html' }, { label: '?data_med_mod_a', url: 'https://rdrr.io/cran/manymome/man/data_med_mod_a.html' }],
+    description: 'w moderates the x → m path, as in manymome’s vignette: lm(m ~ x*w + c1 + c2) and lm(y ~ m + x + c1 + c2), 100 bootstrap samples with seed 54532, w probed at its mean and one SD either side. Reproduces the vignette: conditional indirect effects 3.060, 2.136 and 1.212, index of moderated mediation 0.938 [0.178, 1.732]. (The help page’s lavaan model also regresses y on w.)',
     data: { package: 'manymome', name: 'data_med_mod_a' },
-    constructs: [v('x'), v('w'), v('m'), v('y'), v('c1', true), v('c2', true)], paths: [['x', 'm'], ['m', 'y'], ['x', 'y']], moderations: [['x', 'w', 'm']], processModel: 7, settings: CPA,
+    constructs: [v('x'), v('w'), v('m'), v('y'), v('c1', true), v('c2', true)], paths: [['x', 'm'], ['m', 'y'], ['x', 'y']], moderations: [['x', 'w', 'm']], processModel: 7, settings: { ...CPA, probe: 'meansd', bootSamples: 100, seed: 54532 },
   },
   {
     id: 'manymome-serial', package: 'manymome', title: 'Serial mediation', source: 'manymome, ?data_serial (PROCESS model 6)',
     links: [{ label: '?data_serial', url: 'https://rdrr.io/cran/manymome/man/data_serial.html' }],
-    description: 'x → m1 → m2 → y with covariates c1 and c2: three indirect paths and their total.',
+    description: 'x → m1 → m2 → y with covariates c1 and c2 (N = 100). The help page fits these equations with lavaan and prints the serial indirect effect, 0.180 (delta-method SE 0.09); conditional process analysis estimates them by least squares (the same coefficients and indirect effect) with percentile bootstrap intervals, and adds the other two indirect paths and the total.',
     data: { package: 'manymome', name: 'data_serial' },
     constructs: [v('x'), v('m1'), v('m2'), v('y'), v('c1', true), v('c2', true)],
     paths: [['x', 'm1'], ['x', 'm2'], ['m1', 'm2'], ['x', 'y'], ['m1', 'y'], ['m2', 'y']], processModel: 6, settings: CPA,
@@ -717,11 +717,11 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   {
     id: 'semfindr-cfa', package: 'semfindr', title: 'Influential cases in a CFA', source: 'semfindr, ?cfa_dat2',
     links: [{ label: '?cfa_dat2', url: 'https://rdrr.io/cran/semfindr/man/cfa_dat2.html' }, { label: '?influence_stat', url: 'https://rdrr.io/cran/semfindr/man/influence_stat.html' }],
-    description: 'semfindr’s two-factor CFA on simulated data (N = 100) with influential cases: the model is refitted without each case, and generalized Cook’s distance shows which cases move the estimates. Opens its card on the Analyses tab.',
+    description: 'semfindr’s two-factor CFA on simulated data (N = 100) with influential cases, as on ?cfa_dat2: influence_stat() on the fitted model, semfindr’s approximate approach (no refits); generalized Cook’s distance shows which cases move the estimates. Switch the card to refitting without each case for the exact values (?influence_stat’s leave-one-out approach). Opens its card on the Analyses tab.',
     data: { package: 'semfindr', name: 'cfa_dat2' },
     constructs: [f('f1', ['x1', 'x2', 'x3']), f('f2', ['x4', 'x5', 'x6'])],
     paths: [], correlations: [['f1', 'f2', 'construct']],
-    screening: { tab: 'influence' }, settings: CB('ML'),
+    screening: { tab: 'influence', approach: 'approximate' }, settings: CB('ML'),
   },
   {
     id: 'rsem-mardia', package: 'rsem', title: 'Robust ML with missing data: exam scores', source: 'rsem, ?rsem.lavaan (mardiamv25)',
@@ -733,21 +733,22 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: { ...CB('RML'), missing: 'fiml' },
   },
   {
-    id: 'mice-nhanes', package: 'mice', title: 'Multiple imputation: cholesterol by age and BMI', source: 'mice, ?mice (nhanes)',
-    links: [{ label: '?mice', url: 'https://rdrr.io/cran/mice/man/mice.html' }, { label: '?nhanes', url: 'https://rdrr.io/cran/mice/man/nhanes.html' }],
-    description: 'The NHANES excerpt of mice’s help page (25 people, a third of the values missing): cholesterol regressed on age and BMI, with mice’s five imputations (its default; the help page sets no seed) pooled by Rubin’s rules. As a path model of observed variables in CB-SEM; the help page also uses hyp to impute.',
+    id: 'mice-nhanes', package: 'mice', title: 'Multiple imputation: cholesterol by age, hypertension and BMI', source: 'mice, ?pool.r.squared (nhanes)',
+    links: [{ label: '?pool.r.squared', url: 'https://rdrr.io/cran/mice/man/pool.r.squared.html' }, { label: '?nhanes', url: 'https://rdrr.io/cran/mice/man/nhanes.html' }],
+    description: 'The NHANES excerpt of mice’s help pages (25 people, a third of the values missing), as on ?pool.r.squared: mice(nhanes, seed = 16117) with its five imputations, then cholesterol regressed on age, hypertension and BMI in every imputed data set, pooled by Rubin’s rules. Here the regression is a path model of observed variables estimated by maximum likelihood (lavaan.mi): the pooled coefficients are those of the help page’s lm(); the standard errors are maximum-likelihood ones (divided by N rather than by the residual degrees of freedom) and so smaller than lm’s.',
     data: { package: 'mice', name: 'nhanes' },
-    constructs: [v('age'), v('bmi'), v('chl')],
-    paths: [['age', 'chl'], ['bmi', 'chl']], correlations: [['age', 'bmi', 'construct']],
-    settings: { ...CB('ML'), missing: 'mi', miImputations: 5 },
+    // (in nhanes's column order: mice's imputations depend on it)
+    constructs: [v('age'), v('bmi'), v('hyp'), v('chl')],
+    paths: [['age', 'chl'], ['hyp', 'chl'], ['bmi', 'chl']],
+    settings: { ...CB('ML'), missing: 'mi', miImputations: 5, seed: 16117 },
   },
   {
-    id: 'lavaanmi-hs', package: 'lavaan.mi', title: 'CFA with multiply imputed data', source: 'lavaan.mi, ?lavaan.mi (HS20imps)',
+    id: 'lavaanmi-hs', package: 'lavaan.mi', title: 'CFA with multiply imputed data', source: 'lavaan.mi, ?lavaan.mi and ?HS20imps',
     links: [{ label: '?lavaan.mi', url: 'https://rdrr.io/cran/lavaan.mi/man/lavaan.mi.html' }, { label: '?HS20imps', url: 'https://rdrr.io/cran/lavaan.mi/man/HS20imps.html' }],
-    description: 'The three-factor CFA of lavaan’s ?cfa on Holzinger & Swineford’s tests with the help page’s missing values (x5: the lowest 30% deleted; x9: the youngest 30%). Twenty imputations, pooled by Rubin’s rules (lavaan.mi). The help page imputes with Amelia; here mice imputes.',
+    description: 'The three-factor CFA of lavaan’s ?cfa on Holzinger & Swineford’s tests with the help page’s missing values (x5: the lowest 30% deleted; x9: the youngest 30%), imputed as ?HS20imps does: Amelia with age and school as auxiliary variables (school nominal), 20 imputations, seed 456, which gives the HS20imps data sets exactly. The CFA in each, pooled by Rubin’s rules (lavaan.mi’s cfa.mi).',
     data: { package: 'lavaan.mi', name: 'HSMiss', file: 'examples/mi/HSMiss.csv' },
     constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6']), f('speed', ['x7', 'x8', 'x9'])],
-    paths: [], settings: { ...CB('ML'), missing: 'mi', miImputations: 20, seed: 123 },
+    paths: [], settings: { ...CB('ML'), missing: 'mi', miImputations: 20, seed: 456, miMethod: 'amelia', miAuxiliary: ['ageyr', 'agemo', 'school'], miNominal: ['school'] },
   },
   {
     id: 'weightit-lalonde', package: 'WeightIt', title: 'Job training: inverse probability weighting', source: 'WeightIt, vignette "Estimating effects after weighting"',

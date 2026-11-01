@@ -71,7 +71,7 @@ const checkClean = (id: string) => {
 /** The Mplus growth examples' degrees of freedom (6.8 latent basis, 6.9 quadratic, 6.10 covariates). */
 const GROWTH_DF: Record<string, number> = { 'mplus-ex6.8': 3, 'mplus-ex6.9': 1, 'mplus-ex6.10': 21 };
 /** Documented values the estimate must reproduce. */
-const CHISQ: Record<string, number> = { 'lavaan-poldem': 40.179, 'lavaan-hs': 85.306, 'lavaan-hs-means': 85.306, 'lavaan-hs-groups': 164.103 };
+const CHISQ: Record<string, number> = { 'lavaan-twolevel': 8.092, 'lavaan-hs-esem': 22.897, 'lavaan-poldem': 40.179, 'lavaan-hs': 85.306, 'lavaan-hs-means': 85.306, 'lavaan-hs-groups': 164.103 };
 /** lavaan tutorial, mean structures: cfa(HS.model, data = HolzingerSwineford1939, meanstructure = TRUE), the intercepts (native lavaan, 3 decimals). */
 const HS_INTERCEPTS: Record<string, number> = { x1: 4.936, x2: 6.088, x3: 2.250, x4: 3.061, x5: 4.341, x6: 2.186, x7: 4.186, x8: 5.527, x9: 5.374 };
 
@@ -219,6 +219,12 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         expect(r.lrt?.df).toBe(1);
         expect(r.lrt?.D).toBeCloseTo(676.55, 1);
         expect(r.lrt?.p).toBeLessThan(0.001);
+        // modsem.org, article "LMS and QML approaches" (modsem 1.0.24): Y ~ X 0.673 (0.031), Z 0.569 (0.030), X:Z 0.718 (0.028); H0 chi-square 17.52 on 24 df.
+        const reg = (rhs: RegExp) => r.estimates.find((e) => e.op === '~' && e.lhs === 'Y' && rhs.test(e.rhs))!;
+        expect(reg(/^X$/).est).toBeCloseTo(0.673, 3); expect(reg(/^X$/).se!).toBeCloseTo(0.031, 3);
+        expect(reg(/^Z$/).est).toBeCloseTo(0.569, 3);
+        expect(reg(/X.*Z|Z.*X/).est).toBeCloseTo(0.718, 3); expect(reg(/X.*Z|Z.*X/).se!).toBeCloseTo(0.028, 3);
+        expect(Math.abs(r.fit.chisq - 17.52)).toBeLessThan(0.01); expect(r.fit.df).toBe(24);  // (17.529: modsem's printout truncates)
       }
       if (ex.id === 'lavaan-hs-means') {
         expect(spec.meanStructure).toBe(true);
@@ -290,4 +296,17 @@ it('factors arrive as codes in level order, with their levels', async () => {
   const school = d.cols[d.names.indexOf('school')];
   expect(new Set(school)).toEqual(new Set([1, 2]));
   expect((d.levels as Record<string, string[]>).school).toEqual(['Grant-White', 'Pasteur']);
+}, 600_000);
+
+it('lavaan-twolevel reproduces the multilevel tutorial: the estimates within and between clusters', async () => {
+  const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'lavaan-twolevel')!;
+  const data = await load(ex);
+  const r = await estimateCbLavaan(data, toSpec(exampleModel(ex)), 'casewise', 'ML', 'product');
+  expect(r.fit.df).toBe(10); expect(r.fit.npar).toBe(20); expect(r.fit.chisq).toBeCloseTo(8.092, 3);
+  const [within, between] = r.groups!.results;
+  const est = (g: typeof within, lhs: string, rhs: string) => g.estimates.find((e) => e.op === '~' && e.lhs === lhs && e.rhs === rhs)!.est;
+  // Printed: fw ~ x1 0.510, x2 0.407, x3 0.205; fb ~ w1 0.165, w2 0.131; fb =~ y2 0.717, y3 0.587.
+  expect(est(within, 'fw', 'x1')).toBeCloseTo(0.510, 3); expect(est(within, 'fw', 'x2')).toBeCloseTo(0.407, 3); expect(est(within, 'fw', 'x3')).toBeCloseTo(0.205, 3);
+  expect(est(between, 'fw', 'w1')).toBeCloseTo(0.165, 3); expect(est(between, 'fw', 'w2')).toBeCloseTo(0.131, 3);
+  expect(between.estimates.find((e) => e.op === '=~' && e.lhs === 'fw' && e.rhs === 'y2')!.est).toBeCloseTo(0.717, 3);
 }, 600_000);

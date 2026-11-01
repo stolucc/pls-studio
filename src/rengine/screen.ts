@@ -16,7 +16,9 @@ export interface ScreenResult {
   warnings: string[]; engine: REngineInfo;
 }
 
+/** `approach` absent in results saved before it existed: exact (they were all refits). */
 export interface InfluenceResult {
+  approach?: 'exact' | 'approximate';
   rows: number[]; gcd: number[]; md: number[]; chisq: number[]; cfi: number[]; rmsea: number[]; tli: number[];
   warnings: string[]; engine: REngineInfo;
 }
@@ -39,8 +41,11 @@ export async function screenR(data: Dataset, vars: string[], alpha: number): Pro
 }
 export const screenScriptR = (data: Dataset, vars: string[], alpha: number) => rScript('ps_screen', screenRequest(data, vars, alpha), 'psych');
 
-export async function influenceR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator): Promise<InfluenceResult> {
-  const raw = await rCall<Record<string, any>>('ps_influence', cbRequest(data, spec, missing, estimator), 'semfindr');
-  return { rows: nums(raw.rows), gcd: nums(raw.gcd), md: nums(raw.md), chisq: nums(raw.chisq), cfi: nums(raw.cfi), rmsea: nums(raw.rmsea), tli: nums(raw.tli), warnings: rStrings(raw.warnings), engine: raw.engine };
+/** exact: the model refitted without each case (lavaan_rerun); approximate: semfindr's approximations from the one fit. */
+export type InfluenceApproach = 'exact' | 'approximate';
+const influenceRequest = (data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, approach: InfluenceApproach) => ({ ...cbRequest(data, spec, missing, estimator), approach });
+export async function influenceR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, approach: InfluenceApproach = 'exact'): Promise<InfluenceResult> {
+  const raw = await rCall<Record<string, any>>('ps_influence', influenceRequest(data, spec, missing, estimator, approach), 'semfindr');
+  return { approach: raw.approach === 'approximate' ? 'approximate' : 'exact', rows: nums(raw.rows), gcd: nums(raw.gcd), md: nums(raw.md), chisq: nums(raw.chisq), cfi: nums(raw.cfi), rmsea: nums(raw.rmsea), tli: nums(raw.tli), warnings: rStrings(raw.warnings), engine: raw.engine };
 }
-export const influenceScriptR = (data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator) => rScript('ps_influence', cbRequest(data, spec, missing, estimator), 'semfindr');
+export const influenceScriptR = (data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, approach: InfluenceApproach = 'exact') => rScript('ps_influence', influenceRequest(data, spec, missing, estimator, approach), 'semfindr');

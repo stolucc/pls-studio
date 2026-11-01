@@ -326,7 +326,11 @@ ps_mi_settings <- function(req) {
   m <- as.integer(ps_number(mi[["m", exact = TRUE]] %||% 20, "number of imputations"))
   seed <- as.integer(ps_number(mi[["seed", exact = TRUE]] %||% 1, "imputation seed"))
   if (is.na(m) || m < 2L || m > 200L) stop("The number of imputations must be between 2 and 200.")
-  list(m = m, seed = seed)
+  method <- mi[["method", exact = TRUE]] %||% "mice"
+  if (!method %in% c("mice", "amelia")) stop("Invalid imputation method in the request.")
+  # (auxiliary and nominal columns: names, checked against the data by the caller)
+  aux <- as.character(unlist(mi[["auxiliary", exact = TRUE]])); noms <- as.character(unlist(mi[["nominal", exact = TRUE]]))
+  list(m = m, seed = seed, method = method, auxiliary = aux, nominal = noms)
 }
 
 #' Versions of R and of the requested packages (NA when not installed), for a replication package's README.

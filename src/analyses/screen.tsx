@@ -7,7 +7,7 @@ import type { CbEstimator } from '../engine/cbsem';
 import { fmt } from '../format';
 import { toSpec, validateModel } from '../model/project';
 import { farOut, flaggedCases, influentialCases, mardiaVerdict, normalityLevel } from '../model/screen';
-import type { InfluenceResult, ScreenResult } from '../rengine/screen';
+import type { InfluenceApproach, InfluenceResult, ScreenResult } from '../rengine/screen';
 import { useStore } from '../store';
 import { confirmDialog } from '../components/Overlays';
 import { VariablePicker } from '../components/VariablePicker';
@@ -142,6 +142,7 @@ export const screenAnalysis: AnalysisType<ScreenOptions, ScreenResult> = {
 // ---------- influential cases (the CB-SEM model on the canvas) ----------
 
 function InfluenceView({ inf, current }: { inf: InfluenceResult; current: boolean }) {
+  const approx = inf.approach === 'approximate';
   const top = influentialCases(inf, 15);
   const at = (row: number) => inf.rows.indexOf(row);
   const far = top.filter((x) => x.flagged);
@@ -153,21 +154,32 @@ function InfluenceView({ inf, current }: { inf: InfluenceResult; current: boolea
       )}
       <Table title="Most influential cases" file="screening-influence" columns={['Row', 'Generalized Cook’s distance', 'Mahalanobis', 'Δχ²', 'ΔCFI', 'ΔRMSEA']}
         rows={top.map((x) => [c(x.row, undefined, 0), c(x.gcd, x.flagged ? 'bad' : ''), c(inf.md[at(x.row)], undefined, 2), c(inf.chisq[at(x.row)]), c(inf.cfi[at(x.row)]), c(inf.rmsea[at(x.row)])])}
-        note={`Generalized Cook’s distance (Pek & MacCallum 2011): how far the parameter estimates move without the case. It has no conventional cutoff; red: far out from the other cases (above Q3 + 3 IQR = ${fmt(farOut(inf.gcd))}). Δ: fit with the case minus without it. ${inf.engine.package} ${inf.engine.version}.`} />
+        note={`Generalized Cook’s distance (Pek & MacCallum 2011): how far the parameter estimates move without the case${approx ? ', approximated from the one fit without refitting (semfindr’s approximate approach; gcd_approx)' : ' (the model refitted without each case)'}. It has no conventional cutoff; red: far out from the other cases (above Q3 + 3 IQR = ${fmt(farOut(inf.gcd))}). Δ: fit with the case minus without it. ${inf.engine.package} ${inf.engine.version}.`} />
     </div>
   );
 }
 
 const modelIndicators = (ctx: AnalysisCtx) => [...new Set((ctx.model?.constructs ?? []).flatMap((k) => k.indicators))];
 
-export const influenceAnalysis: AnalysisType<Record<string, never>, InfluenceResult> = {
+export interface InfluenceOptions { approach: InfluenceApproach }
+
+export const influenceAnalysis: AnalysisType<InfluenceOptions, InfluenceResult> = {
   id: 'influence',
   title: 'Influential cases',
   sub: 'case influence on the CB-SEM model: generalized Cook’s distance (semfindr)',
   group: 'Data',
-  defaults: () => ({}),
-  parseOptions: (raw) => (isObj(raw) ? {} : null),
-  Options: () => <p className="hint" style={{ marginTop: 0 }}>Influence of each case on the CB-SEM model on the canvas: the model is refitted without each case in turn (semfindr; n refits, so this takes a while). It uses the model, estimator and missing-data setting as they are when you run it.</p>,
+  defaults: () => ({ approach: 'exact' }),
+  // (cards saved before the option: the refits they ran)
+  parseOptions: (raw) => (isObj(raw) ? { approach: raw.approach === 'approximate' ? 'approximate' : 'exact' } : null),
+  Options: ({ options: o, set, disabled }) => (
+    <fieldset className="card-options" disabled={disabled}>
+      <p className="hint" style={{ marginTop: 0 }}>Influence of each case on the CB-SEM model on the canvas (semfindr). It uses the model, estimator and missing-data setting as they are when you run it.</p>
+      <div className="segmented">
+        <button className={o.approach === 'exact' ? 'on' : ''} onClick={() => set({ ...o, approach: 'exact' })} title="The model refitted without each case in turn: n refits, so this takes a while">Refit without each case</button>
+        <button className={o.approach === 'approximate' ? 'on' : ''} onClick={() => set({ ...o, approach: 'approximate' })} title="semfindr's approximations from the one fit (influence_stat on the lavaan fit): fast">Approximate (one fit)</button>
+      </div>
+    </fieldset>
+  ),
   View: ({ result, current }) => <InfluenceView inf={result} current={current} />,
   blocked: (_o, ctx) => {
     if (ctx.settings.method !== 'cbsem') return 'Influential cases are computed for CB-SEM models: switch the model to CB-SEM (Model tab).';
@@ -182,7 +194,7 @@ export const influenceAnalysis: AnalysisType<Record<string, never>, InfluenceRes
     const cols = columnsFingerprint(ctx, modelIndicators(ctx));
     return cols && fingerprint([cols, JSON.stringify(toSpec(ctx.model)), ctx.settings.estimator, ctx.settings.missing]);
   },
-  run: async (_o, ctx) => (await import('../rengine/screen')).influenceR(rawData(ctx)!, toSpec(ctx.model!), ctx.settings.missing, ctx.settings.estimator as CbEstimator),
-  script: async (_o, ctx) => (await import('../rengine/screen')).influenceScriptR(rawData(ctx)!, toSpec(ctx.model!), ctx.settings.missing, ctx.settings.estimator as CbEstimator),
-  summary: () => 'the CB-SEM model on the canvas',
+  run: async (o, ctx) => (await import('../rengine/screen')).influenceR(rawData(ctx)!, toSpec(ctx.model!), ctx.settings.missing, ctx.settings.estimator as CbEstimator, o.approach),
+  script: async (o, ctx) => (await import('../rengine/screen')).influenceScriptR(rawData(ctx)!, toSpec(ctx.model!), ctx.settings.missing, ctx.settings.estimator as CbEstimator, o.approach),
+  summary: (o) => `the CB-SEM model on the canvas${o.approach === 'approximate' ? ', approximate' : ''}`,
 };

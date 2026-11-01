@@ -124,7 +124,7 @@ export interface ModelSpec {
   /** CB-SEM: sampling clusters in a single-level model (lavaan cluster =; cluster-robust standard errors). */
   cluster?: string;
   /** CB-SEM (lavaan): two-level model by a cluster column; between level saturated or with the same structure. */
-  multilevel?: { column: string; between: 'same' | 'saturated' };
+  multilevel?: { column: string; between: 'same' | 'saturated' | 'factors'; betweenCovariates?: string[] };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
   esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number };
   /** CB-SEM (lavaan): estimate the mean structure (meanstructure = TRUE: every indicator intercept free). */

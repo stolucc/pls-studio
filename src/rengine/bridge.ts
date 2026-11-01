@@ -37,14 +37,16 @@ export const R_PACKAGES = {
   seminr: ['jsonlite', 'seminr'],
   // Multiple imputation: mice (and lavaan.mi) only when it is chosen.
   mice: ['jsonlite', 'mice'],
-  'lavaan.mi': ['jsonlite', 'lavaan', 'semTools', 'mice', 'lavaan.mi'],
+  // (Amelia: the alternative imputation, as lavaan.mi's ?HS20imps)
+  'lavaan.mi': ['jsonlite', 'lavaan', 'semTools', 'mice', 'Amelia', 'lavaan.mi'],
   cSEMMi: ['jsonlite', 'cSEM', 'mice'],
   seminrMi: ['jsonlite', 'seminr', 'mice'],
   MIIVsem: ['jsonlite', 'lavaan', 'MIIVsem'],
   simulation: ['jsonlite', 'lavaan', 'cSEM'],
-  manymome: ['jsonlite', 'manymome', 'sandwich'],
-  processGlm: ['jsonlite'],
-  manymomeSam: ['jsonlite', 'manymome', 'lavaan'],
+  // (boot: the percentile intervals of combined effects, by manymome's rule, boot::boot.ci)
+  manymome: ['jsonlite', 'manymome', 'sandwich', 'boot'],
+  processGlm: ['jsonlite', 'boot'],
+  manymomeSam: ['jsonlite', 'manymome', 'lavaan', 'boot'],
   modsem: ['jsonlite', 'lavaan', 'semTools', 'modsem'],
   ltm: ['jsonlite', 'ltm'],
   poLCA: ['jsonlite', 'poLCA'],

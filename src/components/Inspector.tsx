@@ -4,6 +4,7 @@ import { useCompute } from '../rengine/compute';
 import { fmt, fmtP } from '../format';
 import { endogenousIds, INTERACTION_METHOD_NAMES, validateModel, type Construct, type InteractionMethod, type Settings } from '../model/project';
 import { useFreshResults, useStore } from '../store';
+import { OrderedPicker } from './OrderedPicker';
 import { IconAlert, IconSwap, IconTrash, IconX, IconSide } from './icons';
 import { switchMethod } from '../methodSwitch';
 import { exportRScript } from '../io';
@@ -861,7 +862,7 @@ function ModelInspector() {
             {settings.method === 'cbsem' && <option value="twostage">Two-stage (Savalei &amp; Bentler)</option>}
             {settings.method === 'cbsem' && <option value="robusttwostage">Robust two-stage</option>}
             {settings.method === 'cbsem' && <option value="pairwise">Pairwise deletion</option>}
-            <option value="mi">Multiple imputation (mice)</option>
+            <option value="mi">Multiple imputation{settings.method === 'cbsem' ? '' : ' (mice)'}</option>
             {settings.method !== 'cbsem' && ['fiml', 'twostage', 'robusttwostage', 'pairwise'].includes(settings.missing) && <option value={settings.missing} disabled>{settings.missing} (CB-SEM only)</option>}
           </select>
           {settings.method === 'cbsem' && settings.missing === 'fiml' && <div className="hint" style={{ marginTop: 6 }}>Full-information maximum likelihood uses all observed values of every case (missing at random); with MLR the standard errors and test are robust.</div>}
@@ -872,8 +873,29 @@ function ModelInspector() {
               <label>Imputed data sets</label>
               <input className="input num" type="number" min={2} max={200} value={settings.miImputations}
                 onChange={(e) => setSettings({ miImputations: Math.max(2, Math.min(200, Math.round(Number(e.target.value)) || 20)) })} />
+              {settings.method === 'cbsem' && (
+                <>
+                  <label htmlFor="mi-method" style={{ marginTop: 8 }}>Imputation</label>
+                  <select id="mi-method" className="select" value={settings.miMethod} onChange={(e) => setSettings({ miMethod: e.target.value === 'amelia' ? 'amelia' : 'mice' })}>
+                    <option value="mice">mice: chained equations, predictive mean matching</option>
+                    <option value="amelia">Amelia: EM with bootstrapping (multivariate normal)</option>
+                  </select>
+                  {data && !data.moments && (
+                    <OrderedPicker label="Auxiliary variables (inform the imputation, not in the model)" columns={data.names.filter((n) => !model.constructs.some((c) => c.indicators.includes(n)))}
+                      value={settings.miAuxiliary.filter((a) => data.names.includes(a))} onChange={(miAuxiliary) => setSettings({ miAuxiliary, miNominal: settings.miNominal.filter((x) => miAuxiliary.includes(x) || model.constructs.some((c) => c.indicators.includes(x))) })} />
+                  )}
+                  {settings.miMethod === 'amelia' && settings.miAuxiliary.length > 0 && (
+                    <div className="field">
+                      <label>Nominal (unordered categories; Amelia’s noms)</label>
+                      {settings.miAuxiliary.map((a) => (
+                        <label className="check" key={a}><input type="checkbox" checked={settings.miNominal.includes(a)} onChange={(e) => setSettings({ miNominal: e.target.checked ? [...settings.miNominal, a] : settings.miNominal.filter((x) => x !== a) })} /> <span>{a}</span></label>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
               <div className="hint" style={{ marginTop: 6 }}>
-                mice imputes the missing values {settings.miImputations} times (predictive mean matching, missing at random; seed as for bootstrapping); {settings.method === 'cbsem'
+                {settings.method === 'cbsem' && settings.miMethod === 'amelia' ? 'Amelia' : 'mice'} imputes the missing values {settings.miImputations} times ({settings.method === 'cbsem' && settings.miMethod === 'amelia' ? 'EM with bootstrapping, multivariate normal' : 'predictive mean matching'}, missing at random; seed as for bootstrapping{settings.miAuxiliary.length && settings.method === 'cbsem' ? `; with ${settings.miAuxiliary.join(', ')}` : ''}); {settings.method === 'cbsem'
                   ? 'the model is estimated in every imputed data set and pooled by Rubin’s rules (lavaan.mi), with pooled standard errors, tests and fit.'
                   : 'the model is estimated in every imputed data set and the estimates are averaged; bootstrapping pools the bootstrap standard errors by Rubin’s rules.'}
               </div>

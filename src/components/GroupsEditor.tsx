@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { FreedParameter, InvarianceLevel, StructuralEquality } from '../engine/types';
 import { useStore } from '../store';
+import { OrderedPicker } from './OrderedPicker';
 import { IconX } from './icons';
 
 const LEVELS: { id: InvarianceLevel; label: string; hint: string }[] = [
@@ -191,11 +192,18 @@ export function ClustersEditor() {
           <div className="segmented">
             <button className={ml.between === 'saturated' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'saturated' })}>Saturated</button>
             <button className={ml.between === 'same' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'same' })}>Same model</button>
+            <button className={ml.between === 'factors' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'factors' })}>Factors</button>
           </div>
+          {ml.between === 'factors' && data && (
+            <OrderedPicker label="Cluster-level covariates (predict the between factors)" columns={data.names.filter((n) => !assigned.has(n) && n !== ml.column)}
+              value={(ml.betweenCovariates ?? []).filter((w) => data.names.includes(w))} onChange={(betweenCovariates) => setMultilevel({ ...ml, betweenCovariates })} />
+          )}
           <div className="hint" style={{ marginTop: 6 }}>
             {ml.between === 'saturated'
               ? 'The model is fitted to the within-cluster (co)variances; between clusters every variance and covariance is free. For clustered data when the interest is within.'
-              : 'The same factors and paths also between clusters (on the cluster means; factors suffixed “(between)” in lavaan as *_b).'}
+              : ml.between === 'factors'
+                ? 'Between clusters each factor is measured by the same indicators (on the cluster means; *_b in lavaan) and regressed on the cluster-level covariates, as in lavaan’s multilevel tutorial (fb =~ y1 + y2 + y3; fb ~ w1 + w2).'
+                : 'The same factors and paths also between clusters (on the cluster means; factors suffixed “(between)” in lavaan as *_b).'}
             {' '}Results: switch Within / Between in the results header (lavaan, ML or MLR).
           </div>
         </div>

@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset } from '../engine/types';
 import { toSpec, type ModelState } from '../model/project';
 import { rCall, type RPackage } from './bridge';
-import { influenceR, screenR, screenScriptR } from './screen';
+import { influenceR, influenceScriptR, screenR, screenScriptR } from './screen';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
@@ -42,6 +42,21 @@ describe('data screening', () => {
     top.forEach((x, i) => expect(x.d2).toBeCloseTo(ref.mahalanobis.d2[i], 8));
     expect(await screenScriptR(data, vars, 0.001)).toContain('mard <- mardia(Xc, plot = FALSE)');
   }, 600_000);
+
+  it('case influence, approximate approach as ?cfa_dat2 runs it: influence_stat(fit), close to the refits', async () => {
+    const d = await load('semfindr', 'cfa_dat2');
+    const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+    const model: ModelState = { constructs: [C('f1', ['x1', 'x2', 'x3']), C('f2', ['x4', 'x5', 'x6'])], paths: [], moderations: [], correlations: [{ id: 'k', kind: 'construct', a: 'f1', b: 'f2' }] };
+    const approx = await influenceR(d, toSpec(model), 'casewise', 'ML', 'approximate');
+    expect(approx.approach).toBe('approximate');
+    expect(approx.rows).toHaveLength(100);
+    // The approximation ranks the cases as the refits do: the five most influential are the same (semfindr's documented use).
+    const top = approx.rows.map((row, i) => ({ row, i })).sort((a, b) => approx.gcd[b.i] - approx.gcd[a.i]).slice(0, 5);
+    expect([...top.map((x) => x.row)].sort((a, b) => a - b)).toEqual([...ref.influence.rows].sort((a: number, b: number) => a - b));
+    const script = await influenceScriptR(d, toSpec(model), 'casewise', 'ML', 'approximate');
+    expect(script).toContain('infl <- influence_stat(fit)');
+    expect(script).not.toContain('lavaan_rerun');
+  }, 900_000);
 
   it('case influence of a CFA equals semfindr (?cfa_dat2)', async () => {
     const d = await load('semfindr', 'cfa_dat2');

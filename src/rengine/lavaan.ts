@@ -19,12 +19,14 @@ export interface CbRequest {
   model: ModelSpec;
 }
 
-/** Multiple imputation: number of imputed data sets and the seed (only with missing = 'mi'). */
-export interface MiSettings { m: number; seed: number }
+/** Multiple imputation: number of imputed data sets and the seed (only with missing = 'mi'); CB-SEM: the method, auxiliary and (Amelia) nominal columns. */
+export interface MiSettings { m: number; seed: number; method?: 'mice' | 'amelia'; auxiliary?: string[]; nominal?: string[] }
 
 export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): CbRequest {
   // Only the columns the model uses travel to R.
-  const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.multilevel ? [spec.multilevel.column] : []), ...(spec.weights ? [spec.weights] : []), ...(spec.cluster ? [spec.cluster] : [])]);
+  const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.multilevel ? [spec.multilevel.column, ...(spec.multilevel.between === 'factors' ? spec.multilevel.betweenCovariates ?? [] : [])] : []), ...(spec.weights ? [spec.weights] : []), ...(spec.cluster ? [spec.cluster] : []),
+    // (multiple imputation: the auxiliary variables travel too; they inform the imputation, not the model)
+    ...(missing === 'mi' ? mi?.auxiliary ?? [] : [])]);
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'cb', estimator, missing, ...(interaction !== 'product' && spec.moderations?.length ? { interaction } : {}),

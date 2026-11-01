@@ -86,7 +86,7 @@ function runR(kind: JobKind, key: string) {
         t.toast('success', `MIIVsem ${r.engine.version}: ${r.equations.length} equations estimated${rejected ? `; ${rejected} Sargan test${rejected > 1 ? 's' : ''} significant at .05` : ''}.`);
       }).catch(failed);
     } else if (cb) {
-      import('./rengine/lavaan').then(({ estimateCbLavaan }) => estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction, { m: st.miImputations, seed: st.seed })).then((r) => {
+      import('./rengine/lavaan').then(({ estimateCbLavaan }) => estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction, { m: st.miImputations, seed: st.seed, method: st.miMethod, auxiliary: st.miAuxiliary, nominal: st.miNominal })).then((r) => {
         const t = done(); if (!t) return;
         t.setResults({ cb: r }, key); logged();
         cbToast(r, `lavaan ${r.engine.version}`);

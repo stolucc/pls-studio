@@ -94,6 +94,12 @@ export interface Settings {
   missing: MissingTreatment;
   /** Multiple imputation: number of imputed data sets. */
   miImputations: number;
+  /** CB-SEM multiple imputation: mice (chained equations) or Amelia (EM with bootstrap; Honaker, King & Blackwell). */
+  miMethod: 'mice' | 'amelia';
+  /** Multiple imputation, CB-SEM: further columns that inform the imputation without being in the model (auxiliary variables). */
+  miAuxiliary: string[];
+  /** Amelia: nominal (unordered categorical) columns among the imputation's variables (Amelia's noms). */
+  miNominal: string[];
   bootSamples: number;
   /** Bootstrap tests one-tailed (p in the direction of the estimate, intervals [α, 1 − α]) or two-tailed. */
   bootTails: 'two' | 'one';
@@ -201,7 +207,8 @@ export interface ModelState {
   /** CB-SEM: multiple groups by a data column, with measurement invariance (constructs by id in `free`). */
   multigroup?: MultigroupSpec;
   /** CB-SEM: two-level model by a cluster column. */
-  multilevel?: { column: string; between: 'same' | 'saturated' };
+  /** between: 'factors': each factor measured by the same indicators between clusters, regressed on `betweenCovariates` (cluster-level variables), as lavaan's tutorial model. */
+  multilevel?: { column: string; between: 'same' | 'saturated' | 'factors'; betweenCovariates?: string[] };
   /** CB-SEM: sampling (survey) weights column. */
   weights?: string;
   /**
@@ -370,6 +377,9 @@ export const DEFAULT_SETTINGS: Settings = {
   stopExp: 7,
   missing: 'mean',
   miImputations: 20,
+  miMethod: 'mice',
+  miAuxiliary: [],
+  miNominal: [],
   bootSamples: 1000,
   bootTails: 'two',
   bootInterval: 'percentile',
@@ -588,7 +598,7 @@ export function createsCycle(paths: Path[], from: string, to: string): boolean {
 export function validateModel(
   model: ModelState,
   data: Dataset | null,
-  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc' | 'plsPackage' | 'plsApproach' | 'scheme' | 'hocApproach'>> = DEFAULT_SETTINGS,
+  method: Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc' | 'plsPackage' | 'plsApproach' | 'scheme' | 'hocApproach' | 'miMethod' | 'miAuxiliary' | 'miNominal'>> = DEFAULT_SETTINGS,
 ): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string, constructId?: string) => issues.push({ level: 'error', message, constructId });
@@ -855,6 +865,12 @@ export function validateModel(
       if (data?.moments && data.cols.length === 0) err('Multiple imputation needs raw data; this dataset is a covariance matrix.');
       if (model.multilevel || model.weights || ordered.length || model.esem?.blocks.length) err('Multiple imputation is available for continuous indicators: no clusters, sampling weights, ordinal indicators or ESEM blocks.');
       if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Multiple imputation cannot be combined with LMS / QML latent interactions; use product indicators.');
+      const missingAux = (method.miAuxiliary ?? []).filter((a) => data && !data.moments && !data.names.includes(a));
+      if (missingAux.length) err(`Auxiliary variables of the imputation not in the data: ${missingAux.join(', ')}.`);
+      if ((method.miMethod ?? 'mice') === 'amelia' && model.multigroup) err('Amelia imputes one group here; choose mice for a multiple-group model.');
+      const inImputation = new Set([...model.constructs.flatMap((c) => c.indicators), ...(method.miAuxiliary ?? [])]);
+      const strayNominal = (method.miNominal ?? []).filter((x) => !inImputation.has(x));
+      if ((method.miMethod ?? 'mice') === 'amelia' && strayNominal.length) err(`Nominal variables of the imputation must be among its variables (the model's or the auxiliary ones): ${strayNominal.join(', ')}.`);
     }
     if (method.estimator === 'RML') {
       // Robust ML (rsem): one group of continuous indicators, raw data, lavaan through R.
@@ -877,6 +893,7 @@ export function validateModel(
   } else {
     if (LAVAAN_MISSING.includes(missingChoice) && method.method === 'pls') err(`${missingChoice === 'fiml' ? 'FIML' : missingChoice === 'pairwise' ? 'Pairwise deletion' : 'The two-stage approach'} is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.`);
     if (missingChoice === 'mi' && method.method === 'pls' && engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
+    if (missingChoice === 'mi' && method.method === 'pls' && (method.miMethod ?? 'mice') === 'amelia') err('Amelia imputation is available for CB-SEM; PLS-SEM imputes with mice.');
     // Categorical exogenous constructs (PLS): one column, 2 to 20 categories, no predictors.
     if (method.method === 'pls') for (const c of model.constructs.filter((k) => k.categorical)) {
       if (c.indicators.length !== 1) err(`The categorical variable "${c.name}" must be a single column (its categories become dummy variables).`, c.id);
@@ -964,6 +981,10 @@ export function validateModel(
         if (!col) err(`The cluster column “${ml.column}” is not in the dataset.`);
         else {
           if (assignedSet.has(ml.column)) err(`“${ml.column}” is an indicator and cannot also define the clusters.`);
+          for (const w of ml.between === 'factors' ? ml.betweenCovariates ?? [] : []) {
+            if (!data.names.includes(w)) err(`The cluster-level covariate “${w}” is not in the dataset.`);
+            else if (assignedSet.has(w) || w === ml.column) err(`“${w}” is in the model or defines the clusters: a cluster-level covariate is a further column.`);
+          }
           const k = new Set([...col].filter((v) => !Number.isNaN(v))).size;
           if (k < 2) err(`The cluster column “${ml.column}” has fewer than two clusters.`);
           else if (k < 30) warn(`Only ${k} clusters: between-level estimates and standard errors are unreliable with fewer than about 30–50 clusters (Maas & Hox, 2005).`);
@@ -1427,7 +1448,11 @@ export function parseModelState(m: unknown): ModelState {
       ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
       ...(typeof m.weights === 'string' && m.weights ? { weights: str(m.weights) } : {}),
       ...(typeof m.cluster === 'string' && m.cluster ? { cluster: str(m.cluster) } : {}),
-      ...(isObj(m.multilevel) && typeof m.multilevel.column === 'string' ? { multilevel: { column: str(m.multilevel.column), between: m.multilevel.between === 'same' ? 'same' as const : 'saturated' as const } } : {}),
+      ...(isObj(m.multilevel) && typeof m.multilevel.column === 'string' ? { multilevel: {
+        column: str(m.multilevel.column), between: m.multilevel.between === 'same' ? 'same' as const : m.multilevel.between === 'factors' ? 'factors' as const : 'saturated' as const,
+        ...(m.multilevel.between === 'factors' && Array.isArray(m.multilevel.betweenCovariates) && m.multilevel.betweenCovariates.length
+          ? { betweenCovariates: [...new Set((m.multilevel.betweenCovariates as unknown[]).slice(0, 100).filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 200)))] } : {}),
+      } } : {}),
       ...(isObj(m.esem) && Array.isArray(m.esem.blocks) ? { esem: {
         rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',
         blocks: m.esem.blocks.slice(0, 50).filter(isObj).map((b: Record<string, unknown>) => ({ id: str(b.id, 64), constructs: (Array.isArray(b.constructs) ? b.constructs : []).map((x: unknown) => str(x, 64)).filter((x: string) => ids.has(x)) })),
@@ -1473,6 +1498,9 @@ export function parseSettings(raw: unknown): Settings {
     stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
     missing: (['casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const).find((m) => m === s.missing) ?? 'mean',
     miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
+    miMethod: s.miMethod === 'amelia' ? 'amelia' : 'mice',
+    miAuxiliary: Array.isArray(s.miAuxiliary) ? [...new Set(s.miAuxiliary.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
+    miNominal: Array.isArray(s.miNominal) ? [...new Set(s.miNominal.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
     bootTails: s.bootTails === 'one' ? 'one' : 'two',
     bootInterval: s.bootInterval === 'bca' ? 'bca' : 'percentile',

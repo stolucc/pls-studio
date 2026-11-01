@@ -865,3 +865,40 @@ describe('fit conventions of other programs: CFI/TLI baseline, Wishart likelihoo
     expect(errors({ ...m, sampleCovRescale: false, likelihood: 'wishart' }, moments)[0]).toMatch(/Choose one convention/);
   });
 });
+
+describe('multiple imputation: Amelia, auxiliary and nominal variables', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3'])], paths: [], moderations: [] };
+  const data = { names: ['a1', 'a2', 'a3', 'age', 'school'], cols: Array.from({ length: 5 }, (_, k) => Float64Array.from({ length: 40 }, (_, i) => Math.sin(i * (k + 1.3)) + (i % (k + 3)))) };
+  const errs = (s: Partial<Settings>, model: ModelState = m) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'ML', engine: 'r', missing: 'mi', ...s }).filter((i) => i.level === 'error' && /imputation|Amelia/i.test(i.message)).map((i) => i.message);
+  it('are settings kept in project files and sanitised', () => {
+    const s = parseSettings({ ...DEFAULT_SETTINGS, miMethod: 'amelia', miAuxiliary: ['age', 'school', 'age', 7], miNominal: ['school'] });
+    expect(s).toMatchObject({ miMethod: 'amelia', miAuxiliary: ['age', 'school'], miNominal: ['school'] });
+    expect(parseSettings({ ...DEFAULT_SETTINGS, miMethod: 'other' }).miMethod).toBe('mice');
+    expect(DEFAULT_SETTINGS).toMatchObject({ miMethod: 'mice', miAuxiliary: [], miNominal: [] });
+  });
+  it('are checked: auxiliary columns in the data, nominal ones among the imputation variables, Amelia for one group of CB-SEM', () => {
+    expect(errs({ miMethod: 'amelia', miAuxiliary: ['age', 'school'], miNominal: ['school'] })).toEqual([]);
+    expect(errs({ miAuxiliary: ['height'] })[0]).toMatch(/not in the data: height/);
+    expect(errs({ miMethod: 'amelia', miNominal: ['school'] })[0]).toMatch(/Nominal variables of the imputation must be among its variables/);
+    expect(errs({ miMethod: 'amelia' }, { ...m, multigroup: { column: 'school', invariance: 'configural', free: [] } }).some((e) => /Amelia imputes one group/.test(e))).toBe(true);
+    expect(validateModel(m, data, { ...DEFAULT_SETTINGS, method: 'pls', missing: 'mi', miMethod: 'amelia' }).some((i) => i.level === 'error' && /Amelia imputation is available for CB-SEM/.test(i.message))).toBe(true);
+  });
+});
+
+describe('two-level model with between-level factors and cluster-level covariates', () => {
+  const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+  const m: ModelState = { constructs: [C('F', ['a1', 'a2', 'a3'])], paths: [], moderations: [], multilevel: { column: 'cl', between: 'factors', betweenCovariates: ['w'] } };
+  const data = { names: ['a1', 'a2', 'a3', 'cl', 'w'], cols: Array.from({ length: 5 }, (_, k) => Float64Array.from({ length: 400 }, (_, i) => (k === 3 ? i % 40 : Math.sin(i * (k + 1.3)) + (i % (k + 3))))) };
+  const errs = (model: ModelState) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'ML', engine: 'r', missing: 'casewise' }).filter((i) => i.level === 'error').map((i) => i.message);
+  it('is kept in project files; covariates only with the factors model', () => {
+    expect(parseProject(serializeProject(m, DEFAULT_SETTINGS, null, null)).model.multilevel).toEqual({ column: 'cl', between: 'factors', betweenCovariates: ['w'] });
+    const f = JSON.parse(serializeProject({ ...m, multilevel: { column: 'cl', between: 'saturated', betweenCovariates: ['w'] } }, DEFAULT_SETTINGS, null, null));
+    expect(parseProject(JSON.stringify(f)).model.multilevel).toEqual({ column: 'cl', between: 'saturated' });
+  });
+  it('checks the covariates: in the data, not in the model, not the cluster column', () => {
+    expect(errs(m)).toEqual([]);
+    expect(errs({ ...m, multilevel: { ...m.multilevel!, betweenCovariates: ['z'] } })[0]).toMatch(/“z” is not in the dataset/);
+    expect(errs({ ...m, multilevel: { ...m.multilevel!, betweenCovariates: ['a1'] } })[0]).toMatch(/a cluster-level covariate is a further column/);
+  });
+});

@@ -12,7 +12,7 @@ const diagrams = PACKAGE_EXAMPLES.filter((e) => !e.panel);
 describe.each(diagrams.map((e) => [e.id, e] as const))('package example %s', (_id, ex) => {
   it('builds a valid model for its method', () => {
     const model = exampleModel(ex);
-    const names = [...new Set([...model.constructs.flatMap((c) => c.indicators), ...(ex.multigroup ? [ex.multigroup.column] : []), ...(ex.multilevel ? [ex.multilevel.column] : [])])];
+    const names = [...new Set([...model.constructs.flatMap((c) => c.indicators), ...(ex.multigroup ? [ex.multigroup.column] : []), ...(ex.multilevel ? [ex.multilevel.column, ...(ex.multilevel.betweenCovariates ?? [])] : []), ...(ex.settings.miAuxiliary ?? [])])];
     const data = { names, cols: names.map((_, k) => Float64Array.from({ length: 400 }, (_, i) => (names[k] === 'school' || names[k] === ex.multigroup?.column ? 1 + (i % 2) : names[k] === 'cluster' ? 1 + (i % 40) : Math.sin(i * (k + 1.3)) + (i % (k + 3))))) };
     const errors = validateModel(model, data, { ...DEFAULT_SETTINGS, ...ex.settings }).filter((i) => i.level === 'error');
     expect(errors.map((e) => e.message)).toEqual([]);
@@ -125,12 +125,12 @@ describe('documented settings', () => {
     expect(ex('plspm-rebus')).toMatchObject({ scheme: 'centroid', consistent: false, stopExp: 6, maxIter: 100 });
     expect(ex('sempls-qsquared')).toMatchObject({ scheme: 'centroid', consistent: false, stopExp: 7, maxIter: 20 });
   });
-  it('panel examples carry their help pages’ arguments: RSA() estimates by MLR, nca_analysis() runs no permutation test, mice() sets no seed', () => {
+  it('panel examples carry their help pages’ arguments: RSA() estimates by MLR, nca_analysis() runs no permutation test, ?pool.r.squared’s mice(nhanes, seed = 16117)', () => {
     const panel = (id: string) => PACKAGE_EXAMPLES.find((e) => e.id === id)!.panel as Record<string, unknown>;
     expect(panel('rsa-motcon')).toMatchObject({ estimation: 'MLR', center: 'none' });
     expect(panel('nca-example')).toMatchObject({ permutations: 0 });
     expect(ex('mice-nhanes')).toMatchObject({ missing: 'mi', miImputations: 5 });
-    expect(ex('mice-nhanes').seed).toBeUndefined();
+    expect(ex('mice-nhanes').seed).toBe(16117);
   });
 });
 
