@@ -18,7 +18,8 @@ describe('architecture page', () => {
 
   it('is a plain document with a contents list of every section', () => {
     expect(html).not.toMatch(/<script/i);
-    expect(html).not.toMatch(/\bsrc=|@import|url\(/i);
+    expect(html).not.toMatch(/\bsrc=|@import|url\((?!#)/i); // url(#…) is an SVG marker reference inside the page
+    expect(html).toContain('<figure class="diagram"><svg');
     const sections = [...md.matchAll(/^## (.*)$/gm)].map((m) => m[1]);
     expect(sections.length).toBeGreaterThan(5);
     for (const s of sections) expect(html).toContain(`>${s.replace(/&/g, '&amp;')}</a>`);

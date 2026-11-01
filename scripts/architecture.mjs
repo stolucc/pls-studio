@@ -4,7 +4,7 @@
 // test src/architecture.test.ts fails when the page is out of date.
 //
 // A small Markdown subset is enough for the document: headings, paragraphs,
-// fenced code, pipe tables, bullet and numbered lists, inline code, bold,
+// fenced code (a ```svg fence is a diagram, emitted as is), pipe tables, bullet and numbered lists, inline code, bold,
 // links. Anything else is written as text.
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -41,11 +41,14 @@ export function render(md) {
     const line = lines[i];
     if (line.startsWith('```')) {
       flush();
+      const info = line.slice(3).trim();
       const code = [];
       i++;
       while (i < lines.length && !lines[i].startsWith('```')) code.push(lines[i++]);
       i++;
-      out.push(`<pre>${esc(code.join('\n'))}</pre>`);
+      // A diagram written as SVG in the document itself (no scripts; the CSP allows inline SVG).
+      if (info === 'svg') out.push(`<figure class="diagram">${code.join('\n')}</figure>`);
+      else out.push(`<pre>${esc(code.join('\n'))}</pre>`);
       continue;
     }
     const h = /^(#{1,3}) (.*)$/.exec(line);
@@ -128,7 +131,7 @@ ${body}
 export function build() {
   const md = readFileSync(join(ROOT, 'ARCHITECTURE.md'), 'utf8');
   const guide = readFileSync(join(ROOT, 'public', 'guide.html'), 'utf8');
-  const style = /<style>[\s\S]*?<\/style>/.exec(guide)[0];
+  const style = /<style>[\s\S]*?<\/style>/.exec(guide)[0].replace('</style>', 'figure.diagram { margin: 12px 0 18px; overflow-x: auto; } figure.diagram svg { display: block; max-width: 100%; height: auto; } </style>');
   return page(md, style);
 }
 

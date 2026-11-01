@@ -39,7 +39,7 @@ footer { margin-top: 48px; color: var(--text-3); font-size: 13px; border-top: 1p
 a { color: var(--accent); }
 @media (max-width: 760px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav { position: static; max-height: none; } table { display: block; overflow-x: auto; } }
 @media print { nav { display: none; } .wrap { grid-template-columns: 1fr; } }
-</style>
+figure.diagram { margin: 12px 0 18px; overflow-x: auto; } figure.diagram svg { display: block; max-width: 100%; height: auto; } </style>
 </head>
 <body>
 <div class="wrap">
@@ -440,27 +440,306 @@ this.unsubs.push(useAnalyses.subscribe((s, prev) =&gt; {
  Undo on either side goes through Y.UndoManager, scoped to that person's own changes.</pre>
 <p>Accounts: express-session in Postgres, CSRF token + Origin check on every state change, argon2id passwords with lockout, TOTP, Google OIDC with PKCE, email verification and password reset by single-use hashed tokens carried in the URL fragment. <code>server/README.md</code> has the full list.</p>
 <h3 id="7-1-database-schema-server-postgres">7.1 Database schema (server, Postgres)</h3>
-<p>Nine tables, created by <code>server/src/migrations/*.sql</code> (applied in order by <code>server/src/migrate.ts</code> at start-up). What the server stores is the account, who may open which project, the shared Y.js document and the encrypted dataset; no results, no project files, no analysis output.</p>
-<pre> users 1 ──&lt; project_members &gt;── 1 projects 1 ── 1 datasets
-   │                                 │
-   │ 1 ──&lt; auth_tokens               ├─&lt; project_updates   (binary Y.js updates since the last compaction)
-   │ 1 ──&lt; invitations (invited_by)  ├─&lt; invitations
-   │ 1 ──&lt; audit_log (user_id)       └─&lt; audit_log (project_id)
-   │
- session (express-session; sess holds the user id, CSRF token and the pending TOTP step)</pre>
+<p>Nine tables, created by <code>server/src/migrations/*.sql</code> (applied in order by <code>server/src/migrate.ts</code> at start-up). The server stores accounts, who may open which project, the shared Y.js document and the encrypted dataset; never results, project files or analysis output.</p>
+<figure class="diagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 930 760" width="930" height="760" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif" fill="#1f2430" role="img" aria-label="Entity-relationship diagram of the PLS Studio server database">
+<defs>
+<marker id="many" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M0 6 L11 6 M11 6 L0 1 M11 6 L0 11" fill="none" stroke="#64748b" stroke-width="1.3"/></marker>
+<marker id="one" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M0 6 L11 6 M6 1 L6 11" fill="none" stroke="#64748b" stroke-width="1.3"/></marker>
+</defs>
+<g><rect x="20" y="20" width="270" height="236" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="20" y="20" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="20" y="34" width="270" height="12" fill="#e9edf7"/>
+<text x="30" y="38" font-weight="700" font-size="13">users</text>
+<text x="30" y="63" font-size="12" font-family="ui-monospace, Menlo, monospace">id</text>
+<text x="160" y="63" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="282" y="63" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK</text>
+<text x="30" y="81" font-size="12" font-family="ui-monospace, Menlo, monospace">email</text>
+<text x="160" y="81" font-size="11.5" fill="#4b5160">citext</text>
+<text x="282" y="81" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">UQ</text>
+<text x="30" y="99" font-size="12" font-family="ui-monospace, Menlo, monospace">display_name</text>
+<text x="160" y="99" font-size="11.5" fill="#4b5160">text</text>
+<text x="30" y="117" font-size="12" font-family="ui-monospace, Menlo, monospace">password_hash</text>
+<text x="160" y="117" font-size="11.5" fill="#4b5160">text</text>
+<text x="282" y="117" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">null: Google only</text>
+<text x="30" y="135" font-size="12" font-family="ui-monospace, Menlo, monospace">google_sub</text>
+<text x="160" y="135" font-size="11.5" fill="#4b5160">text</text>
+<text x="282" y="135" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">UQ</text>
+<text x="30" y="153" font-size="12" font-family="ui-monospace, Menlo, monospace">totp_secret</text>
+<text x="160" y="153" font-size="11.5" fill="#4b5160">bytea</text>
+<text x="282" y="153" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">encrypted</text>
+<text x="30" y="171" font-size="12" font-family="ui-monospace, Menlo, monospace">totp_enabled</text>
+<text x="160" y="171" font-size="11.5" fill="#4b5160">boolean</text>
+<text x="30" y="189" font-size="12" font-family="ui-monospace, Menlo, monospace">email_verified</text>
+<text x="160" y="189" font-size="11.5" fill="#4b5160">boolean</text>
+<text x="30" y="207" font-size="12" font-family="ui-monospace, Menlo, monospace">failed_logins</text>
+<text x="160" y="207" font-size="11.5" fill="#4b5160">integer</text>
+<text x="30" y="225" font-size="12" font-family="ui-monospace, Menlo, monospace">locked_until</text>
+<text x="160" y="225" font-size="11.5" fill="#4b5160">timestamptz</text>
+<text x="30" y="243" font-size="12" font-family="ui-monospace, Menlo, monospace">created_at</text>
+<text x="160" y="243" font-size="11.5" fill="#4b5160">timestamptz</text>
+</g>
+<g><rect x="330" y="20" width="270" height="92" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="330" y="20" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="330" y="34" width="270" height="12" fill="#e9edf7"/>
+<text x="340" y="38" font-weight="700" font-size="13">session</text>
+<text x="340" y="63" font-size="12" font-family="ui-monospace, Menlo, monospace">sid</text>
+<text x="470" y="63" font-size="11.5" fill="#4b5160">varchar</text>
+<text x="592" y="63" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK</text>
+<text x="340" y="81" font-size="12" font-family="ui-monospace, Menlo, monospace">sess</text>
+<text x="470" y="81" font-size="11.5" fill="#4b5160">json</text>
+<text x="340" y="99" font-size="12" font-family="ui-monospace, Menlo, monospace">expire</text>
+<text x="470" y="99" font-size="11.5" fill="#4b5160">timestamptz</text>
+<text x="592" y="99" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">IDX</text>
+</g>
+<g><rect x="330" y="150" width="270" height="164" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="330" y="150" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="330" y="164" width="270" height="12" fill="#e9edf7"/>
+<text x="340" y="168" font-weight="700" font-size="13">auth_tokens</text>
+<text x="340" y="193" font-size="12" font-family="ui-monospace, Menlo, monospace">id</text>
+<text x="470" y="193" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="592" y="193" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK</text>
+<text x="340" y="211" font-size="12" font-family="ui-monospace, Menlo, monospace">user_id</text>
+<text x="470" y="211" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="592" y="211" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">FK users</text>
+<text x="340" y="229" font-size="12" font-family="ui-monospace, Menlo, monospace">kind</text>
+<text x="470" y="229" font-size="11.5" fill="#4b5160">text</text>
+<text x="592" y="229" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">verify | reset</text>
+<text x="340" y="247" font-size="12" font-family="ui-monospace, Menlo, monospace">token_hash</text>
+<text x="470" y="247" font-size="11.5" fill="#4b5160">bytea</text>
+<text x="592" y="247" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">UQ, SHA-256</text>
+<text x="340" y="265" font-size="12" font-family="ui-monospace, Menlo, monospace">expires_at</text>
+<text x="470" y="265" font-size="11.5" fill="#4b5160">timestamptz</text>
+<text x="340" y="283" font-size="12" font-family="ui-monospace, Menlo, monospace">used_at</text>
+<text x="470" y="283" font-size="11.5" fill="#4b5160">timestamptz</text>
+<text x="340" y="301" font-size="12" font-family="ui-monospace, Menlo, monospace">created_at</text>
+<text x="470" y="301" font-size="11.5" fill="#4b5160">timestamptz</text>
+</g>
+<g><rect x="640" y="20" width="270" height="164" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="640" y="20" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="640" y="34" width="270" height="12" fill="#e9edf7"/>
+<text x="650" y="38" font-weight="700" font-size="13">projects</text>
+<text x="650" y="63" font-size="12" font-family="ui-monospace, Menlo, monospace">id</text>
+<text x="780" y="63" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="902" y="63" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK</text>
+<text x="650" y="81" font-size="12" font-family="ui-monospace, Menlo, monospace">name</text>
+<text x="780" y="81" font-size="11.5" fill="#4b5160">text</text>
+<text x="650" y="99" font-size="12" font-family="ui-monospace, Menlo, monospace">owner_id</text>
+<text x="780" y="99" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="902" y="99" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">FK users</text>
+<text x="650" y="117" font-size="12" font-family="ui-monospace, Menlo, monospace">yjs_state</text>
+<text x="780" y="117" font-size="11.5" fill="#4b5160">bytea</text>
+<text x="902" y="117" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">compacted Y.js</text>
+<text x="650" y="135" font-size="12" font-family="ui-monospace, Menlo, monospace">data_revision</text>
+<text x="780" y="135" font-size="11.5" fill="#4b5160">integer</text>
+<text x="650" y="153" font-size="12" font-family="ui-monospace, Menlo, monospace">created_at</text>
+<text x="780" y="153" font-size="11.5" fill="#4b5160">timestamptz</text>
+<text x="650" y="171" font-size="12" font-family="ui-monospace, Menlo, monospace">updated_at</text>
+<text x="780" y="171" font-size="11.5" fill="#4b5160">timestamptz</text>
+</g>
+<g><rect x="20" y="300" width="270" height="110" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="20" y="300" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="20" y="314" width="270" height="12" fill="#e9edf7"/>
+<text x="30" y="318" font-weight="700" font-size="13">project_members</text>
+<text x="30" y="343" font-size="12" font-family="ui-monospace, Menlo, monospace">project_id</text>
+<text x="160" y="343" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="282" y="343" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK, FK projects</text>
+<text x="30" y="361" font-size="12" font-family="ui-monospace, Menlo, monospace">user_id</text>
+<text x="160" y="361" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="282" y="361" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK, FK users</text>
+<text x="30" y="379" font-size="12" font-family="ui-monospace, Menlo, monospace">role</text>
+<text x="160" y="379" font-size="11.5" fill="#4b5160">text</text>
+<text x="282" y="379" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">owner | editor | viewer</text>
+<text x="30" y="397" font-size="12" font-family="ui-monospace, Menlo, monospace">added_at</text>
+<text x="160" y="397" font-size="11.5" fill="#4b5160">timestamptz</text>
+</g>
+<g><rect x="20" y="450" width="270" height="218" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="20" y="450" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="20" y="464" width="270" height="12" fill="#e9edf7"/>
+<text x="30" y="468" font-weight="700" font-size="13">invitations</text>
+<text x="30" y="493" font-size="12" font-family="ui-monospace, Menlo, monospace">id</text>
+<text x="160" y="493" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="282" y="493" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK</text>
+<text x="30" y="511" font-size="12" font-family="ui-monospace, Menlo, monospace">project_id</text>
+<text x="160" y="511" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="282" y="511" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">FK projects</text>
+<text x="30" y="529" font-size="12" font-family="ui-monospace, Menlo, monospace">email</text>
+<text x="160" y="529" font-size="11.5" fill="#4b5160">citext</text>
+<text x="30" y="547" font-size="12" font-family="ui-monospace, Menlo, monospace">role</text>
+<text x="160" y="547" font-size="11.5" fill="#4b5160">text</text>
+<text x="282" y="547" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">editor | viewer</text>
+<text x="30" y="565" font-size="12" font-family="ui-monospace, Menlo, monospace">token_hash</text>
+<text x="160" y="565" font-size="11.5" fill="#4b5160">bytea</text>
+<text x="282" y="565" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">UQ, SHA-256</text>
+<text x="30" y="583" font-size="12" font-family="ui-monospace, Menlo, monospace">invited_by</text>
+<text x="160" y="583" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="282" y="583" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">FK users</text>
+<text x="30" y="601" font-size="12" font-family="ui-monospace, Menlo, monospace">expires_at</text>
+<text x="160" y="601" font-size="11.5" fill="#4b5160">timestamptz</text>
+<text x="30" y="619" font-size="12" font-family="ui-monospace, Menlo, monospace">accepted_at</text>
+<text x="160" y="619" font-size="11.5" fill="#4b5160">timestamptz</text>
+<text x="30" y="637" font-size="12" font-family="ui-monospace, Menlo, monospace">revoked_at</text>
+<text x="160" y="637" font-size="11.5" fill="#4b5160">timestamptz</text>
+<text x="30" y="655" font-size="12" font-family="ui-monospace, Menlo, monospace">created_at</text>
+<text x="160" y="655" font-size="11.5" fill="#4b5160">timestamptz</text>
+</g>
+<g><rect x="640" y="230" width="270" height="164" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="640" y="230" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="640" y="244" width="270" height="12" fill="#e9edf7"/>
+<text x="650" y="248" font-weight="700" font-size="13">datasets</text>
+<text x="650" y="273" font-size="12" font-family="ui-monospace, Menlo, monospace">project_id</text>
+<text x="780" y="273" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="902" y="273" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK, FK projects</text>
+<text x="650" y="291" font-size="12" font-family="ui-monospace, Menlo, monospace">ciphertext</text>
+<text x="780" y="291" font-size="11.5" fill="#4b5160">bytea</text>
+<text x="902" y="291" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">AES-256-GCM</text>
+<text x="650" y="309" font-size="12" font-family="ui-monospace, Menlo, monospace">wrapped_key</text>
+<text x="780" y="309" font-size="11.5" fill="#4b5160">bytea</text>
+<text x="902" y="309" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">wrapped DEK</text>
+<text x="650" y="327" font-size="12" font-family="ui-monospace, Menlo, monospace">key_version</text>
+<text x="780" y="327" font-size="11.5" fill="#4b5160">integer</text>
+<text x="650" y="345" font-size="12" font-family="ui-monospace, Menlo, monospace">byte_size</text>
+<text x="780" y="345" font-size="11.5" fill="#4b5160">integer</text>
+<text x="650" y="363" font-size="12" font-family="ui-monospace, Menlo, monospace">updated_by</text>
+<text x="780" y="363" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="902" y="363" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">FK users, null</text>
+<text x="650" y="381" font-size="12" font-family="ui-monospace, Menlo, monospace">updated_at</text>
+<text x="780" y="381" font-size="11.5" fill="#4b5160">timestamptz</text>
+</g>
+<g><rect x="640" y="440" width="270" height="110" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="640" y="440" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="640" y="454" width="270" height="12" fill="#e9edf7"/>
+<text x="650" y="458" font-weight="700" font-size="13">project_updates</text>
+<text x="650" y="483" font-size="12" font-family="ui-monospace, Menlo, monospace">id</text>
+<text x="780" y="483" font-size="11.5" fill="#4b5160">bigserial</text>
+<text x="902" y="483" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK</text>
+<text x="650" y="501" font-size="12" font-family="ui-monospace, Menlo, monospace">project_id</text>
+<text x="780" y="501" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="902" y="501" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">FK projects, IDX</text>
+<text x="650" y="519" font-size="12" font-family="ui-monospace, Menlo, monospace">update</text>
+<text x="780" y="519" font-size="11.5" fill="#4b5160">bytea</text>
+<text x="902" y="519" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">Y.js update</text>
+<text x="650" y="537" font-size="12" font-family="ui-monospace, Menlo, monospace">created_at</text>
+<text x="780" y="537" font-size="11.5" fill="#4b5160">timestamptz</text>
+</g>
+<g><rect x="330" y="480" width="270" height="146" rx="6" fill="#fff" stroke="#64748b" stroke-width="1.2"/>
+<rect x="330" y="480" width="270" height="26" rx="6" fill="#e9edf7" stroke="#64748b" stroke-width="1.2"/>
+<rect x="330" y="494" width="270" height="12" fill="#e9edf7"/>
+<text x="340" y="498" font-weight="700" font-size="13">audit_log</text>
+<text x="340" y="523" font-size="12" font-family="ui-monospace, Menlo, monospace">id</text>
+<text x="470" y="523" font-size="11.5" fill="#4b5160">bigserial</text>
+<text x="592" y="523" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">PK</text>
+<text x="340" y="541" font-size="12" font-family="ui-monospace, Menlo, monospace">user_id</text>
+<text x="470" y="541" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="592" y="541" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">FK users, null</text>
+<text x="340" y="559" font-size="12" font-family="ui-monospace, Menlo, monospace">project_id</text>
+<text x="470" y="559" font-size="11.5" fill="#4b5160">uuid</text>
+<text x="592" y="559" font-size="10.5" text-anchor="end" fill="#3b5bdb" font-weight="600">FK projects, null</text>
+<text x="340" y="577" font-size="12" font-family="ui-monospace, Menlo, monospace">action</text>
+<text x="470" y="577" font-size="11.5" fill="#4b5160">text</text>
+<text x="340" y="595" font-size="12" font-family="ui-monospace, Menlo, monospace">meta</text>
+<text x="470" y="595" font-size="11.5" fill="#4b5160">jsonb</text>
+<text x="340" y="613" font-size="12" font-family="ui-monospace, Menlo, monospace">created_at</text>
+<text x="470" y="613" font-size="11.5" fill="#4b5160">timestamptz</text>
+</g>
+<polyline points="290,60 640,60" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="440" y="54" font-size="10.5" fill="#4b5160">owner_id</text>
+<polyline points="290,200 330,200" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="292" y="194" font-size="10.5" fill="#4b5160">user_id</text>
+<polyline points="155,256 155,300" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="160" y="282" font-size="10.5" fill="#4b5160">user_id</text>
+<polyline points="640,170 610,170 610,345 290,345" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="420" y="339" font-size="10.5" fill="#4b5160">project_id</text>
+<polyline points="775,184 775,230" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#one)"/><text x="780" y="211" font-size="10.5" fill="#4b5160">1 : 1</text>
+<polyline points="640,140 625,140 625,470 640,470" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="560" y="464" font-size="10.5" fill="#4b5160">project_id</text>
+<polyline points="640,160 605,160 605,700 155,700 155,668" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="300" y="694" font-size="10.5" fill="#4b5160">project_id</text>
+<polyline points="20,120 5,120 5,560 20,560" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="22" y="440" font-size="10.5" fill="#4b5160">invited_by</text>
+<polyline points="290,230 310,230 310,520 330,520" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="300" y="514" font-size="10.5" fill="#4b5160">user_id</text>
+<polyline points="640,100 630,100 630,630 600,630" fill="none" stroke="#64748b" stroke-width="1.3" marker-start="url(#one)" marker-end="url(#many)"/><text x="560" y="644" font-size="10.5" fill="#4b5160">project_id</text>
+<text x="20" y="748" font-size="11" fill="#4b5160">Crow’s foot: many; bar: one. PK primary key, FK foreign key (ON DELETE CASCADE unless “null”), UQ unique, IDX indexed. Dotted keys are nullable foreign keys that survive the deletion of their target.</text>
+</svg></figure>
+<p>Deleting a user cascades to the projects they own, their memberships, tokens and invitations; deleting a project cascades to its updates, members, invitations and dataset; audit rows keep the reference as null instead. <code>citext</code> makes emails case-insensitive and unique.</p>
+<p><strong>users</strong> — one row per account.</p>
 <table>
-<tr><th>Table</th><th>Columns</th><th>Holds</th></tr>
-<tr><td><code>users</code></td><td><code>id</code> uuid, <code>email</code> citext unique, <code>display_name</code>, <code>password_hash</code> (argon2id; null for Google-only accounts), <code>google_sub</code> unique, <code>totp_secret</code> bytea (AES-256-GCM under <code>TOTP_KEY</code>), <code>totp_enabled</code>, <code>email_verified</code>, <code>failed_logins</code>, <code>locked_until</code>, <code>created_at</code></td><td>One row per account. Lockout after repeated failed logins; TOTP secret encrypted at rest.</td></tr>
-<tr><td><code>session</code></td><td><code>sid</code>, <code>sess</code> json, <code>expire</code>; index on <code>expire</code></td><td>express-session store (connect-pg-simple): the signed-in user, the CSRF token, a half-finished sign-in waiting for its TOTP code.</td></tr>
-<tr><td><code>auth_tokens</code></td><td><code>id</code>, <code>user_id</code>, <code>kind</code> (<code>verify</code> or <code>reset</code>), <code>token_hash</code> bytea unique (SHA-256), <code>expires_at</code>, <code>used_at</code>, <code>created_at</code></td><td>Email verification and password-reset links: only the hash of the token in the link is stored; single use; expiry.</td></tr>
-<tr><td><code>projects</code></td><td><code>id</code> uuid, <code>name</code>, <code>owner_id</code>, <code>yjs_state</code> bytea (the compacted Y.js document), <code>data_revision</code>, <code>created_at</code>, <code>updated_at</code></td><td>One row per shared project: the model, settings and analysis cards as a Y.js state; <code>data_revision</code> tells clients to refetch the dataset.</td></tr>
-<tr><td><code>project_updates</code></td><td><code>id</code> bigserial, <code>project_id</code>, <code>update</code> bytea, <code>created_at</code>; index <code>(project_id, id)</code></td><td>Y.js updates received since the last compaction, replayed on top of <code>yjs_state</code> when a room opens; compacted back into <code>yjs_state</code> (size cap <code>MAX_DOC_BYTES</code>).</td></tr>
-<tr><td><code>project_members</code></td><td><code>(project_id, user_id)</code> key, <code>role</code> (<code>owner</code>, <code>editor</code>, <code>viewer</code>), <code>added_at</code>; index on <code>user_id</code></td><td>Who may open a project and what they may change; the WebSocket handshake and every route check it.</td></tr>
-<tr><td><code>invitations</code></td><td><code>id</code>, <code>project_id</code>, <code>email</code> citext, <code>role</code> (<code>editor</code>, <code>viewer</code>), <code>token_hash</code> unique, <code>invited_by</code>, <code>expires_at</code>, <code>accepted_at</code>, <code>revoked_at</code>, <code>created_at</code></td><td>Pending, accepted or withdrawn invitations (7-day expiry); the emailed token is hashed, accepting requires an account with that address.</td></tr>
-<tr><td><code>datasets</code></td><td><code>project_id</code> key, <code>ciphertext</code> bytea, <code>wrapped_key</code> bytea, <code>key_version</code>, <code>byte_size</code>, <code>updated_by</code>, <code>updated_at</code></td><td>The project's dataset: gzip + AES-256-GCM under a per-project data key, itself wrapped by the master key; the project id is the associated data, so a blob cannot be moved to another project.</td></tr>
-<tr><td><code>audit_log</code></td><td><code>id</code> bigserial, <code>user_id</code>, <code>project_id</code>, <code>action</code>, <code>meta</code> jsonb, <code>created_at</code></td><td>Security-relevant events (sign-ins, lockouts, sharing, data uploads) with the user and project kept nullable so rows outlive deletions.</td></tr>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>id</code></td><td>uuid, primary key</td><td>Account id, referenced everywhere else.</td></tr>
+<tr><td><code>email</code></td><td>citext, unique</td><td>Sign-in address; case-insensitive.</td></tr>
+<tr><td><code>display_name</code></td><td>text</td><td>Shown to collaborators.</td></tr>
+<tr><td><code>password_hash</code></td><td>text, nullable</td><td>argon2id hash; null for accounts that only sign in with Google.</td></tr>
+<tr><td><code>google_sub</code></td><td>text, unique, nullable</td><td>Google subject id for OIDC sign-in.</td></tr>
+<tr><td><code>totp_secret</code></td><td>bytea, nullable</td><td>Authenticator secret, AES-256-GCM under <code>TOTP_KEY</code>.</td></tr>
+<tr><td><code>totp_enabled</code></td><td>boolean</td><td>Two-factor authentication on.</td></tr>
+<tr><td><code>email_verified</code></td><td>boolean</td><td>Sharing and invitations need a verified address.</td></tr>
+<tr><td><code>failed_logins</code>, <code>locked_until</code></td><td>integer, timestamptz</td><td>Lockout after repeated failures.</td></tr>
+<tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
 </table>
-<p>Deleting a user cascades to their projects as owner, memberships, tokens and invitations; deleting a project cascades to its updates, members, invitations and dataset. Audit rows keep their foreign keys as null instead. <code>citext</code> makes emails case-insensitive and unique.</p>
+<p><strong>session</strong> — express-session store (connect-pg-simple).</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>sid</code></td><td>varchar, primary key</td><td>Session id from the cookie.</td></tr>
+<tr><td><code>sess</code></td><td>json</td><td>The signed-in user, the CSRF token, a sign-in waiting for its TOTP code.</td></tr>
+<tr><td><code>expire</code></td><td>timestamptz, indexed</td><td>Pruned when expired.</td></tr>
+</table>
+<p><strong>auth_tokens</strong> — single-use links sent by email.</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>id</code></td><td>uuid, primary key</td><td></td></tr>
+<tr><td><code>user_id</code></td><td>uuid, FK users (cascade)</td><td></td></tr>
+<tr><td><code>kind</code></td><td>text: <code>verify</code>, <code>reset</code></td><td>Email verification or password reset.</td></tr>
+<tr><td><code>token_hash</code></td><td>bytea, unique</td><td>SHA-256 of the token in the link; the token itself is never stored.</td></tr>
+<tr><td><code>expires_at</code>, <code>used_at</code>, <code>created_at</code></td><td>timestamptz</td><td>One hour for resets; a token is used once.</td></tr>
+</table>
+<p><strong>projects</strong> — one row per shared project.</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>id</code></td><td>uuid, primary key</td><td></td></tr>
+<tr><td><code>name</code></td><td>text</td><td></td></tr>
+<tr><td><code>owner_id</code></td><td>uuid, FK users (cascade)</td><td>The owner; also a row in <code>project_members</code> with role owner.</td></tr>
+<tr><td><code>yjs_state</code></td><td>bytea, nullable</td><td>The compacted Y.js document: model, settings, analysis cards (no results).</td></tr>
+<tr><td><code>data_revision</code></td><td>integer</td><td>Bumped on every dataset upload so clients refetch it.</td></tr>
+<tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamptz</td><td></td></tr>
+</table>
+<p><strong>project_updates</strong> — Y.js updates since the last compaction.</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>id</code></td><td>bigserial, primary key</td><td>Order of arrival.</td></tr>
+<tr><td><code>project_id</code></td><td>uuid, FK projects (cascade), indexed with <code>id</code></td><td></td></tr>
+<tr><td><code>update</code></td><td>bytea</td><td>One binary Y.js update; replayed on top of <code>yjs_state</code> when a room opens, folded back into it on compaction (<code>MAX_DOC_BYTES</code> caps the document).</td></tr>
+<tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+</table>
+<p><strong>project_members</strong> — who may open a project.</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>project_id</code>, <code>user_id</code></td><td>uuid, composite primary key, FKs (cascade)</td><td></td></tr>
+<tr><td><code>role</code></td><td>text: <code>owner</code>, <code>editor</code>, <code>viewer</code></td><td>Checked by every route and by the WebSocket handshake; viewers' document updates are dropped.</td></tr>
+<tr><td><code>added_at</code></td><td>timestamptz</td><td></td></tr>
+</table>
+<p><strong>invitations</strong> — pending, accepted or withdrawn invitations.</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>id</code></td><td>uuid, primary key</td><td></td></tr>
+<tr><td><code>project_id</code></td><td>uuid, FK projects (cascade), indexed</td><td></td></tr>
+<tr><td><code>email</code></td><td>citext</td><td>Only an account with this address can accept.</td></tr>
+<tr><td><code>role</code></td><td>text: <code>editor</code>, <code>viewer</code></td><td></td></tr>
+<tr><td><code>token_hash</code></td><td>bytea, unique</td><td>SHA-256 of the emailed token.</td></tr>
+<tr><td><code>invited_by</code></td><td>uuid, FK users (cascade)</td><td></td></tr>
+<tr><td><code>expires_at</code>, <code>accepted_at</code>, <code>revoked_at</code>, <code>created_at</code></td><td>timestamptz</td><td>Seven-day expiry; accepted and revoked are kept for the audit trail.</td></tr>
+</table>
+<p><strong>datasets</strong> — the project's data, encrypted.</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>project_id</code></td><td>uuid, primary key, FK projects (cascade)</td><td>One dataset per project.</td></tr>
+<tr><td><code>ciphertext</code></td><td>bytea</td><td>gzip of the dataset, AES-256-GCM under the project's data key; the project id is the associated data, so a blob cannot be moved to another project.</td></tr>
+<tr><td><code>wrapped_key</code></td><td>bytea</td><td>The data key, wrapped by the server's master key.</td></tr>
+<tr><td><code>key_version</code></td><td>integer</td><td>Which master key wrapped it (rotation).</td></tr>
+<tr><td><code>byte_size</code></td><td>integer</td><td>Size of the ciphertext (caps and quotas).</td></tr>
+<tr><td><code>updated_by</code></td><td>uuid, FK users (set null)</td><td></td></tr>
+<tr><td><code>updated_at</code></td><td>timestamptz</td><td></td></tr>
+</table>
+<p><strong>audit_log</strong> — security-relevant events.</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>id</code></td><td>bigserial, primary key</td><td></td></tr>
+<tr><td><code>user_id</code>, <code>project_id</code></td><td>uuid, FKs (set null)</td><td>Kept nullable so rows outlive the deletion of the user or project.</td></tr>
+<tr><td><code>action</code></td><td>text</td><td>sign-in, lockout, share, invite, upload, …</td></tr>
+<tr><td><code>meta</code></td><td>jsonb</td><td>Details of the event.</td></tr>
+<tr><td><code>created_at</code></td><td>timestamptz</td><td></td></tr>
+</table>
 <h2 id="8-examples-and-validation">8. Examples and validation</h2>
 <p><code>src/examples/packages.ts</code> describes each example: its data (loaded from the package in R, or shipped), model, analysis card, and the settings its source documents (<code>CSEM()</code>/<code>SEMINR()</code> helpers hold the packages' defaults). Opening an example resets the estimation settings to those (<code>exampleSettings</code>). Tests run every example in webR and require it to raise no warning.</p>
 <p>Correctness rests on three layers (README, &quot;Validation&quot;): the estimators are the packages themselves; fixtures from native R check the bridge and the built-in engine at 1e-5; printed results from the literature check the whole chain. <code>npm test</code> (unit, ~930), <code>npm run test:webr</code> (R in webR, ~370), <code>npm run test:server</code> (Postgres, 53), <code>go test ./...</code> in helper/; CI runs all four.</p>
