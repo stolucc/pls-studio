@@ -10,7 +10,7 @@ import type { Dataset } from '../engine/types';
 import { PACKAGE_EXAMPLES } from '../examples/packages';
 import { withR } from './runtime';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
-import { banovaR, bbinomialR, bcontingencyR, bcorrelationR, bttestR, type BTTestInput } from './tests';
+import { banovaR, bbinomialR, bcontingencyR, bcorrelationR, bregressionR, brmanovaR, bttestR, type BTTestInput } from './tests';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -21,7 +21,7 @@ const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures_
 const native = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'bayes', 'native.json'), 'utf8')) as Record<string, any>;
 const data = (f: Frame): Dataset => ({ names: f.names, cols: f.cols.map((c) => Float64Array.from(c)), ...(Object.keys(f.categories ?? {}).length ? { categories: f.categories } : {}) });
 /** Bayes factors to a relative 1e-5 (BayesFactor's quadrature against base R's). */
-const bf = (a: number, b: number, what: string) => expect(Math.abs(a / b - 1), `${what}: ${a} vs ${b}`).toBeLessThan(1e-5);
+const bf = (a: number | null, b: number, what: string) => expect(Math.abs((a ?? NaN) / b - 1), `${what}: ${a} vs ${b}`).toBeLessThan(1e-5);
 const B: Omit<BTTestInput, 'type' | 'vars'> = { pairs: [], group: '', testValue: 0, alternative: 'two.sided', priorWidth: Math.SQRT1_2, seed: 1234, iterations: 20000, confidence: 0.95 };
 
 describe('Bayesian t-tests (JZS)', () => {
@@ -116,5 +116,48 @@ describe('against native BayesFactor (desktop R, same version and seeds)', () =>
       bf(r.bf10, native.contingency[sampling], sampling);
     }
     bf((await bcontingencyR(data(native.mtcars), { rows: 'am', columns: 'vs', counts: '', sampling: 'jointMulti', priorConcentration: 2 })).bf10, native.contingency.concentration2, 'concentration 2');
+  }, 600_000);
+});
+
+describe('repeated measures, regression, robustness and sequential analyses', () => {
+  it('repeated-measures ANOVA: subjects random, against the subjects-only model (native, same seed; within the sampling error)', async () => {
+    const r = await brmanovaR(data(native.co2), { levels: ['c95', 'c175', 'c250', 'c350'], factorName: 'conc', between: 'type', priorFixed: 0.5, priorRandom: 1, seed: 1234, iterations: 10000 });
+    expect(r.models.map((m) => m.model)).toEqual(['Null model (subjects)', 'conc', 'type', 'conc + type', 'conc + type + conc × type']);
+    (native.rmanova.bf10 as number[]).forEach((x, i) => {
+      const m = r.models[i + 1];
+      // (Monte Carlo: the same seed in the same version, but compared within three times the reported proportional error)
+      expect(Math.abs(m.bf10 / x - 1), `${m.model}: ${m.bf10} vs ${x} (error ${m.error})`).toBeLessThan(Math.max(1e-5, 3 * m.error));
+    });
+    expect(r.effects.map((e) => e.effect)).toEqual(['conc', 'type', 'conc × type']);
+  }, 600_000);
+  it('linear regression: every subset against native BayesFactor and the Zellner–Siow integral; model priors and inclusion', async () => {
+    const u = await bregressionR(data(native.mtcarsFull), { outcome: 'mpg', predictors: ['wt', 'hp', 'qsec'], priorWidth: Math.SQRT2 / 4, modelPrior: 'uniform', seed: 1234, iterations: 5000, confidence: 0.95 });
+    (native.regression.bf10 as number[]).forEach((x, i) => { bf(u.models[i + 1].bf10, x, native.regression.models[i]); bf(u.models[i + 1].bf10, ref.regression[i].bf10, `${ref.regression[i].model} (integral)`); });
+    expect(u.models.every((m) => Math.abs(m.prior - 1 / 8) < 1e-12)).toBe(true);
+    const b = await bregressionR(data(native.mtcarsFull), { outcome: 'mpg', predictors: ['wt', 'hp', 'qsec'], priorWidth: Math.SQRT2 / 4, modelPrior: 'betabinomial', seed: 1234, iterations: 5000, confidence: 0.95 });
+    // beta-binomial(1, 1): each size (0 to 3 predictors) has prior 1/4, shared by the models of that size
+    expect(b.models.map((m) => m.prior)).toEqual([1 / 4, 1 / 12, 1 / 12, 1 / 12, 1 / 12, 1 / 12, 1 / 12, 1 / 4].map((x) => expect.closeTo(x, 12)));
+    expect(b.models.reduce((a, m) => a + m.posterior, 0)).toBeCloseTo(1, 12);
+    expect(b.effects.map((e) => e.effect)).toEqual(['wt', 'hp', 'qsec']);
+    expect(b.best).toBe('wt + hp');
+    expect(b.coefficients.map((c) => c.term)).toEqual(['wt', 'hp']);
+    expect(b.coefficients[0].low).toBeLessThan(b.coefficients[0].mean); expect(b.coefficients[0].high).toBeGreaterThan(b.coefficients[0].mean);
+  }, 600_000);
+  it('robustness and sequential curves: points equal BayesFactor at those widths and sample sizes, and end at the full result', async () => {
+    const t = (await bttestR(data(ref.sleep), { ...B, type: 'paired', vars: [], pairs: [['drug1', 'drug2']], robustness: true, sequential: true })).rows[0];
+    bf(t.robustness!.bf10[t.robustness!.widths.findIndex((w) => Math.abs(w - 0.2) < 1e-12)], native.curves.pairedR02, 'r = 0.2');
+    bf(t.sequential!.bf10[t.sequential!.n.indexOf(5)], native.curves.pairedFirst5, 'first 5 pairs');
+    bf(t.sequential!.bf10.at(-1)!, t.bf10, 'sequential ends at the full Bayes factor');
+    // (the chosen width is on the grid; R writes it with 15 significant digits)
+    expect(t.robustness!.widths.some((w) => Math.abs(w - Math.SQRT1_2) < 1e-12)).toBe(true);
+    const c = (await bcorrelationR(data(ref.mtcars), { vars: ['mpg', 'wt'], alternative: 'two.sided', priorWidth: 1, seed: 1, iterations: 5000, confidence: 0.95, robustness: true, sequential: true })).pairs[0];
+    bf(c.robustness!.bf10[c.robustness!.widths.findIndex((w) => Math.abs(w - 0.5) < 1e-12)], native.curves.corK05, 'kappa = 0.5');
+    bf(c.sequential!.bf10[c.sequential!.n.indexOf(10)], native.curves.corFirst10, 'first 10');
+    bf(c.sequential!.bf10.at(-1)!, c.bf10, 'sequential ends at the full Bayes factor');
+    // A start without variance (the first two differences equal): no Bayes factor there, a gap in the plot, not 0.
+    const flat: Dataset = { names: ['a', 'b'], cols: [Float64Array.from([3, 4, 5, 2, 6, 4, 7, 5]), Float64Array.from([2, 3, 3, 3, 4, 4, 4, 5])] };
+    const s0 = (await bttestR(flat, { ...B, type: 'paired', vars: [], pairs: [['a', 'b']], sequential: true })).rows[0].sequential!;
+    expect(s0.n[0]).toBe(2); expect(s0.bf10[0]).toBeNull();
+    expect(s0.bf10.slice(1).every((v) => v !== null && v > 0)).toBe(true);
   }, 600_000);
 });

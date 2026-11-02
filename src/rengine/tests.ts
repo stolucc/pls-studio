@@ -159,15 +159,17 @@ export const reliabilityScriptR = (d: Dataset, i: ReliabilityInput) => rScript('
 // ---- Bayesian tests (R/bayes.R): JASP's default priors
 
 export interface Posterior { median: number; low: number; high: number }
-export interface BTTestInput { type: TTestInput['type']; vars: string[]; pairs: [string, string][]; group: string; testValue: number; alternative: Alternative; priorWidth: number; seed: number; iterations: number; confidence: number }
+/** BF10 over prior widths (robustness check) and as the cases accumulate in row order (sequential analysis). */
+export interface BayesCurves { robustness?: { widths: number[]; bf10: (number | null)[] } | null; sequential?: { n: number[]; bf10: (number | null)[] } | null }
+export interface BTTestInput { type: TTestInput['type']; vars: string[]; pairs: [string, string][]; group: string; testValue: number; alternative: Alternative; priorWidth: number; seed: number; iterations: number; confidence: number; robustness?: boolean; sequential?: boolean }
 export interface BTTestResult {
   type: BTTestInput['type']; alternative: Alternative; testValue: number; priorWidth: number; confidence: number; seed: number; iterations: number; groups: string[] | null;
-  rows: { label: string; bf10: number; error: number; delta: Posterior }[]; warnings: string[]; engine: REngineInfo;
+  rows: ({ label: string; bf10: number; error: number; delta: Posterior } & BayesCurves)[]; warnings: string[]; engine: REngineInfo;
 }
-export interface BCorrelationInput { vars: string[]; alternative: Alternative; priorWidth: number; seed: number; iterations: number; confidence: number }
+export interface BCorrelationInput { vars: string[]; alternative: Alternative; priorWidth: number; seed: number; iterations: number; confidence: number; robustness?: boolean; sequential?: boolean }
 export interface BCorrelationResult {
   alternative: Alternative; priorWidth: number; confidence: number; seed: number; iterations: number; vars: string[];
-  pairs: { a: string; b: string; r: number; n: number; bf10: number; error: number; rho: Posterior }[]; warnings: string[]; engine: REngineInfo;
+  pairs: ({ a: string; b: string; r: number; n: number; bf10: number; error: number; rho: Posterior } & BayesCurves)[]; warnings: string[]; engine: REngineInfo;
 }
 export interface BBinomialInput { variable: string; testValue: number; alternative: Alternative; priorA: number; priorB: number; confidence: number }
 export interface BBinomialResult {
@@ -175,17 +177,21 @@ export interface BBinomialResult {
   rows: { bf10: number; median: number; low: number; high: number }[]; warnings: string[]; engine: REngineInfo;
 }
 
+/** The curves of a row as arrays (R returns a length-one vector as a number). */
+const curves = <T extends Record<string, any>>(x: T): T => ({ ...x,
+  robustness: x.robustness ? { widths: arr<number>(x.robustness.widths), bf10: arr<number | null>(x.robustness.bf10) } : null,
+  sequential: x.sequential ? { n: arr<number>(x.sequential.n), bf10: arr<number | null>(x.sequential.bf10) } : null });
 export const bttestRequest = (d: Dataset, i: BTTestInput) => testRequest(d, 'bttest', i.type === 'paired' ? i.pairs.flat() : [...i.vars, i.type === 'independent' ? i.group : ''], i);
 export async function bttestR(d: Dataset, i: BTTestInput): Promise<BTTestResult> {
   const r = await rCall<Record<string, any>>('ps_bttest', bttestRequest(d, i), 'BayesFactor');
-  return { ...r, groups: r.groups ? arr<string>(r.groups) : null, rows: arr(r.rows), warnings: rStrings(r.warnings) } as BTTestResult;
+  return { ...r, groups: r.groups ? arr<string>(r.groups) : null, rows: arr<any>(r.rows).map(curves), warnings: rStrings(r.warnings) } as BTTestResult;
 }
 export const bttestScriptR = (d: Dataset, i: BTTestInput) => rScript('ps_bttest', bttestRequest(d, i), 'BayesFactor');
 
 export const bcorrelationRequest = (d: Dataset, i: BCorrelationInput) => testRequest(d, 'bcorrelation', i.vars, i);
 export async function bcorrelationR(d: Dataset, i: BCorrelationInput): Promise<BCorrelationResult> {
   const r = await rCall<Record<string, any>>('ps_bcorrelation', bcorrelationRequest(d, i), 'BayesFactor');
-  return { ...r, vars: arr<string>(r.vars), pairs: arr(r.pairs), warnings: rStrings(r.warnings) } as BCorrelationResult;
+  return { ...r, vars: arr<string>(r.vars), pairs: arr<any>(r.pairs).map(curves), warnings: rStrings(r.warnings) } as BCorrelationResult;
 }
 export const bcorrelationScriptR = (d: Dataset, i: BCorrelationInput) => rScript('ps_bcorrelation', bcorrelationRequest(d, i), 'BayesFactor');
 
@@ -199,8 +205,7 @@ export const bbinomialScriptR = (d: Dataset, i: BBinomialInput) => rScript('ps_b
 export interface BAnovaInput { dependent: string; factors: string[]; covariates: string[]; interactions: boolean; priorFixed: number; priorCovariates: number; seed: number; iterations: number }
 export interface BAnovaResult {
   dependent: string; factors: string[]; covariates: string[]; n: number; priorFixed: number; priorCovariates: number; seed: number; iterations: number;
-  models: { model: string; terms: string[]; bf10: number; error: number; posterior: number; bfM: number }[];
-  effects: { effect: string; priorInclusion: number; posteriorInclusion: number; bfInclusion: number }[]; warnings: string[]; engine: REngineInfo;
+  models: BayesModel[]; effects: BayesEffect[]; warnings: string[]; engine: REngineInfo;
 }
 export interface BContingencyInput { rows: string; columns: string; counts: string; sampling: 'poisson' | 'jointMulti' | 'indepRows' | 'indepCols' | 'hypergeom'; priorConcentration: number }
 export interface BContingencyResult {
@@ -221,3 +226,29 @@ export async function bcontingencyR(d: Dataset, i: BContingencyInput): Promise<B
   return { ...r, rowLevels: arr<string>(r.rowLevels), colLevels: arr<string>(r.colLevels), counts: arr<unknown>(r.counts).map((x) => arr<number>(x)), warnings: rStrings(r.warnings) } as BContingencyResult;
 }
 export const bcontingencyScriptR = (d: Dataset, i: BContingencyInput) => rScript('ps_bcontingency', bcontingencyRequest(d, i), 'BayesFactor');
+
+/** A model comparison (null model first), with inclusion Bayes factors. */
+export interface BayesModel { model: string; terms: string[]; bf10: number; error: number; prior: number; posterior: number; bfM: number; r2?: number }
+export interface BayesEffect { effect: string; priorInclusion: number; posteriorInclusion: number; bfInclusion: number }
+export interface BRmAnovaInput { levels: string[]; factorName: string; between: string; priorFixed: number; priorRandom: number; seed: number; iterations: number }
+export interface BRmAnovaResult { factorName: string; levels: string[]; between: string; n: number; priorFixed: number; priorRandom: number; seed: number; iterations: number; models: BayesModel[]; effects: BayesEffect[]; warnings: string[]; engine: REngineInfo }
+export interface BRegressionInput { outcome: string; predictors: string[]; priorWidth: number; modelPrior: 'uniform' | 'betabinomial'; seed: number; iterations: number; confidence: number }
+export interface BRegressionResult {
+  outcome: string; predictors: string[]; n: number; priorWidth: number; modelPrior: BRegressionInput['modelPrior']; confidence: number; seed: number; iterations: number;
+  models: BayesModel[]; effects: BayesEffect[]; best: string; coefficients: { term: string; mean: number; sd: number; low: number; high: number }[]; warnings: string[]; engine: REngineInfo;
+}
+const comparison = (r: Record<string, any>) => ({ models: arr<any>(r.models).map((m) => ({ ...m, terms: arr<string>(m.terms) })), effects: arr<BayesEffect>(r.effects) });
+
+export const brmanovaRequest = (d: Dataset, i: BRmAnovaInput) => testRequest(d, 'brmanova', [...i.levels, i.between], i);
+export async function brmanovaR(d: Dataset, i: BRmAnovaInput): Promise<BRmAnovaResult> {
+  const r = await rCall<Record<string, any>>('ps_brmanova', brmanovaRequest(d, i), 'BayesFactor');
+  return { ...r, levels: arr<string>(r.levels), ...comparison(r), warnings: rStrings(r.warnings) } as BRmAnovaResult;
+}
+export const brmanovaScriptR = (d: Dataset, i: BRmAnovaInput) => rScript('ps_brmanova', brmanovaRequest(d, i), 'BayesFactor');
+
+export const bregressionRequest = (d: Dataset, i: BRegressionInput) => testRequest(d, 'bregression', [i.outcome, ...i.predictors], i);
+export async function bregressionR(d: Dataset, i: BRegressionInput): Promise<BRegressionResult> {
+  const r = await rCall<Record<string, any>>('ps_bregression', bregressionRequest(d, i), 'BayesFactor');
+  return { ...r, predictors: arr<string>(r.predictors), ...comparison(r), coefficients: arr(r.coefficients), warnings: rStrings(r.warnings) } as BRegressionResult;
+}
+export const bregressionScriptR = (d: Dataset, i: BRegressionInput) => rScript('ps_bregression', bregressionRequest(d, i), 'BayesFactor');

@@ -68,6 +68,11 @@ out$binomial <- list(counts = k, bf = vapply(k, function(x) bfbin(x, 32, 0.5, 1,
 out$iris <- frame(iris[, c("Sepal.Length", "Sepal.Width")])
 ri <- cor(iris$Sepal.Length, iris$Sepal.Width)
 out$irisCorrelation <- list(r = ri, bf10 = bfcor(ri, 150, 1 / 3))
+# Linear regression (Liang et al. 2008, Zellner-Siow): BF of a model with p predictors and R2 against the intercept-only
+# model = integral over g of (1 + g)^((N - p - 1)/2) (1 + g (1 - R2))^(-(N - 1)/2) times an inverse-gamma(1/2, r^2 N / 2) prior on g.
+zs <- function(N, p, R2, r) integrate(function(g) exp(((N - p - 1) / 2) * log1p(g) - ((N - 1) / 2) * log1p(g * (1 - R2)) + log(r^2 * N / 2) / 2 - lgamma(1 / 2) - 1.5 * log(g) - r^2 * N / (2 * g)), 0, Inf, rel.tol = 1e-12)$value
+sets <- list("wt", "hp", "qsec", c("wt", "hp"), c("wt", "qsec"), c("hp", "qsec"), c("wt", "hp", "qsec"))
+out$regression <- lapply(sets, function(x) list(model = paste(x, collapse = " + "), bf10 = zs(32, length(x), summary(lm(reformulate(x, "mpg"), mtcars))$r.squared, sqrt(2) / 4)))
 out$versions <- list(R = R.version.string)
 dir.create("src/engine/__fixtures__/bayes", showWarnings = FALSE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/bayes/reference.json")

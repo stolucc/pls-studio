@@ -45,18 +45,35 @@ ps_bttest <- function(req_json, export = FALSE) {
   }
   q <- c((1 - conf) / 2, 0.5, 1 - (1 - conf) / 2)
   items <- if (type == "paired") pairs else as.list(vars)
+  robust <- isTRUE(req$robustness); sequential <- isTRUE(req$sequential)
+  if (robust || sequential) body <- c(body,
+    "# The Bayes factor of x (and y) for a prior width w: for the robustness check and the sequential analysis.",
+    "# (NA where no Bayes factor exists, e.g. the first cases all equal: no variance)",
+    sprintf("bfAt <- function(x, y = NULL, w) tryCatch({ b <- exp(extractBF(ttestBF(x, y, %s%srscale = w, nullInterval = %s), logbf = TRUE)$bf[1]); if (is.finite(b) && b > 0) b else NA_real_ }, error = function(e) NA_real_)",
+      if (type == "one") sprintf("mu = %s, ", format(mu, digits = 15)) else "", if (type == "paired") "paired = TRUE, " else "", ni))
+  if (robust) body <- c(body, sprintf("widths <- sort(unique(c(seq(0.05, 1.5, by = 0.05), %s)))  # prior widths for the robustness check", format(r, digits = 15)))
   for (k in seq_along(items)) {
     b <- sprintf("b%d", k)
-    if (type == "one") body <- c(body, sprintf("# %s", ps_comment(items[[k]])), sprintf("y <- data$%s[!is.na(data$%s)]", v[[items[[k]]]], v[[items[[k]]]]),
-      sprintf("%s <- ttestBF(y, mu = %s, %s)", b, format(mu, digits = 15), args))
+    # x and y: the two samples of this row (y = NULL for one sample), in row order.
+    if (type == "one") body <- c(body, sprintf("# %s", ps_comment(items[[k]])), sprintf("x <- data$%s[!is.na(data$%s)]; y <- NULL", v[[items[[k]]]], v[[items[[k]]]]),
+      sprintf("%s <- ttestBF(x, mu = %s, %s)", b, format(mu, digits = 15), args))
     else if (type == "paired") { p <- items[[k]]; body <- c(body, sprintf("# %s - %s", ps_comment(p[1]), ps_comment(p[2])),
-      sprintf("ok <- complete.cases(data$%s, data$%s)", v[[p[1]]], v[[p[2]]]),
-      sprintf("%s <- ttestBF(data$%s[ok], data$%s[ok], paired = TRUE, %s)", b, v[[p[1]]], v[[p[2]]], args)) }
+      sprintf("ok <- complete.cases(data$%s, data$%s); x <- data$%s[ok]; y <- data$%s[ok]", v[[p[1]]], v[[p[2]]], v[[p[1]]], v[[p[2]]]),
+      sprintf("%s <- ttestBF(x, y, paired = TRUE, %s)", b, args)) }
     else body <- c(body, sprintf("# %s", ps_comment(items[[k]])),
-      sprintf("ok <- !is.na(data$%s) & !is.na(g); y <- data$%s[ok]; gg <- droplevels(g[ok])", v[[items[[k]]]], v[[items[[k]]]]),
-      sprintf("%s <- ttestBF(y[gg == levels(gg)[1]], y[gg == levels(gg)[2]], %s)", b, args))
+      sprintf("ok <- !is.na(data$%s) & !is.na(g); yy <- data$%s[ok]; gg <- droplevels(g[ok]); x <- yy[gg == levels(gg)[1]]; y <- yy[gg == levels(gg)[2]]", v[[items[[k]]]], v[[items[[k]]]]),
+      sprintf("%s <- ttestBF(x, y, %s)", b, args))
     body <- c(body, sprintf("post%d <- posterior(%s[1], iterations = %d, progress = FALSE)  # the standardised effect delta under H1", k, b, iter),
       sprintf("delta%d <- quantile(as.numeric(post%d[, \"delta\"]), %s)", k, k, paste0("c(", paste(format(q, digits = 15), collapse = ", "), ")")))
+    if (robust) body <- c(body, sprintf("robust%d <- vapply(widths, function(w) bfAt(x, y, w), 0)", k))
+    if (sequential) body <- c(body,
+      # (the first n cases in row order; at most 150 steps; each group needs two cases)
+      if (type == "independent") c("idx <- seq_along(yy); first <- max(vapply(levels(gg), function(l) which(gg == l)[2], 0))",
+        "steps <- unique(round(seq(first, length(yy), length.out = min(150, length(yy) - first + 1))))",
+        sprintf("seq%d <- vapply(steps, function(n) { s <- yy[1:n]; h <- gg[1:n]; bfAt(s[h == levels(gg)[1]], s[h == levels(gg)[2]], %s) }, 0)", k, format(r, digits = 15)))
+      else c("steps <- unique(round(seq(2, length(x), length.out = min(150, length(x) - 1))))",
+        sprintf("seq%d <- vapply(steps, function(n) bfAt(x[1:n], if (is.null(y)) NULL else y[1:n], %s), 0)", k, format(r, digits = 15))),
+      sprintf("steps%d <- steps", k))
   }
   inputs <- list(data = fr$data)
   title <- c(one = "Bayesian one-sample t-test", paired = "Bayesian paired-samples t-test", independent = "Bayesian independent-samples t-test")[[type]]
@@ -67,7 +84,9 @@ ps_bttest <- function(req_json, export = FALSE) {
     d <- env[[sprintf("delta%d", k)]]
     list(label = if (type == "paired") paste(items[[k]], collapse = " - ") else items[[k]], bf10 = exp(e$bf),
       error = e$error,
-      delta = list(median = unname(d[2]), low = unname(d[1]), high = unname(d[3])))
+      delta = list(median = unname(d[2]), low = unname(d[1]), high = unname(d[3])),
+      robustness = if (robust) list(widths = env$widths, bf10 = env[[sprintf("robust%d", k)]]) else NULL,
+      sequential = if (sequential) list(n = env[[sprintf("steps%d", k)]], bf10 = env[[sprintf("seq%d", k)]]) else NULL)
   })
   groups <- if (type == "independent") { g <- fr$data[[v[[group]]]]; codes <- sort(unique(g[!is.na(g)])); l <- unlist(req$categories[[group]]); if (!is.null(l) && all(codes %in% seq_along(l))) l[codes] else format(codes, trim = TRUE) } else NULL
   ps_json(list(type = type, alternative = alt, testValue = mu, priorWidth = r, confidence = conf, seed = seed, iterations = iter, groups = groups, rows = rows,
@@ -93,13 +112,23 @@ ps_bcorrelation <- function(req_json, export = FALSE) {
       format(kappa, digits = 15), ps_bayes_interval(alt, "1")),
     sprintf("rho <- lapply(bfs, function(b) quantile(as.numeric(posterior(b[1], iterations = %d, progress = FALSE)[, \"rho\"]), %s))", iter, paste0("c(", paste(format(q, digits = 15), collapse = ", "), ")")),
     "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)",
-    "r <- vapply(pairs, function(p) cor(data[[p[1]]], data[[p[2]]], use = \"complete.obs\"), 0)")
+    "r <- vapply(pairs, function(p) cor(data[[p[1]]], data[[p[2]]], use = \"complete.obs\"), 0)",
+    if (isTRUE(req$robustness) || isTRUE(req$sequential)) c("# The Bayes factor of x and y for a prior width w: for the robustness check and the sequential analysis.",
+      "# (NA where no Bayes factor exists, e.g. the first cases without variance)",
+      sprintf("bfAt <- function(x, y, w) tryCatch({ b <- exp(extractBF(correlationBF(x, y, rscale = w, nullInterval = %s), logbf = TRUE)$bf[1]); if (is.finite(b) && b > 0) b else NA_real_ }, error = function(e) NA_real_)", ps_bayes_interval(alt, "1")),
+      "xy <- lapply(pairs, function(p) { ok <- complete.cases(data[[p[1]]], data[[p[2]]]); list(x = data[[p[1]]][ok], y = data[[p[2]]][ok]) })"),
+    if (isTRUE(req$robustness)) c(sprintf("widths <- sort(unique(c(seq(0.05, 2, by = 0.05), %s)))", format(kappa, digits = 15)),
+      "robust <- lapply(xy, function(d) vapply(widths, function(w) bfAt(d$x, d$y, w), 0))"),
+    # (the first n cases in row order, from 3; at most 150 steps)
+    if (isTRUE(req$sequential)) sprintf("sequential <- lapply(xy, function(d) { steps <- unique(round(seq(3, length(d$x), length.out = min(150, length(d$x) - 2)))); list(n = steps, bf10 = vapply(steps, function(n) bfAt(d$x[1:n], d$y[1:n], %s), 0)) })", format(kappa, digits = 15)))
   inputs <- list(data = fr$data)
   if (export) return(paste(ps_script("Bayesian Pearson correlations", "BayesFactor", inputs, body, c("bfs", "rho")), collapse = "\n"))
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(env$pairs), function(i) { p <- env$pairs[[i]]; e <- BayesFactor::extractBF(env$bfs[[i]], logbf = TRUE)[1, ]
     list(a = fr$back[[p[1]]], b = fr$back[[p[2]]], r = env$r[i], n = env$n[i], bf10 = exp(e$bf), error = e$error,
-      rho = list(median = unname(env$rho[[i]][2]), low = unname(env$rho[[i]][1]), high = unname(env$rho[[i]][3]))) })
+      rho = list(median = unname(env$rho[[i]][2]), low = unname(env$rho[[i]][1]), high = unname(env$rho[[i]][3])),
+      robustness = if (isTRUE(req$robustness)) list(widths = env$widths, bf10 = env$robust[[i]]) else NULL,
+      sequential = if (isTRUE(req$sequential)) env$sequential[[i]] else NULL) })
   ps_json(list(alternative = alt, priorWidth = kappa, confidence = conf, seed = seed, iterations = iter, vars = vars, pairs = rows,
     warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
 }
@@ -135,6 +164,30 @@ ps_bbinomial <- function(req_json, export = FALSE) {
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
 }
 
+#' Model comparison from log Bayes factors against the null model: posterior
+#' probabilities, BF_M and inclusion Bayes factors per effect, all from sums on the
+#' log scale (odds stay exact when a probability is near 1). `prior`: the prior
+#' model probabilities (null model first; equal by default).
+ps_bayes_models <- function(names, lbf, errors, back, prior = NULL, terms_of = function(m) trimws(strsplit(m, "+", fixed = TRUE)[[1]])) {
+  lse <- function(x) { m <- max(x); m + log(sum(exp(x - m))) }
+  k <- length(lbf)
+  prior <- if (is.null(prior)) rep(1 / k, k) else prior
+  lp <- lbf + log(prior)
+  post <- exp(lp - lse(lp))
+  terms <- c(list(character(0)), lapply(names[-1], terms_of))
+  models <- lapply(seq_len(k), function(i) list(model = if (i == 1) names[1] else paste(vapply(terms[[i]], back, ""), collapse = " + "),
+    terms = I(vapply(terms[[i]], back, "")), bf10 = exp(lbf[i]), error = errors[i], prior = prior[i], posterior = post[i],
+    # BF_M: the model's posterior odds over its prior odds
+    bfM = exp(lp[i] - lse(lp[-i]) - (log(prior[i]) - log(sum(prior[-i]))))))
+  effects <- unique(unlist(terms))
+  incl <- lapply(effects, function(t) {
+    has <- vapply(terms, function(x) t %in% x, TRUE)
+    pi <- sum(prior[has])
+    list(effect = back(t), priorInclusion = pi, posteriorInclusion = sum(post[has]), bfInclusion = exp(lse(lp[has]) - lse(lp[!has]) - log(pi / (1 - pi))))
+  })
+  list(models = models, effects = incl)
+}
+
 #' Bayesian ANOVA and ANCOVA (BayesFactor::generalTestBF): every model of the
 #' factors (with their interactions, or main effects only) and covariates that
 #' keeps the principle of marginality ("withmain"), each against the null model.
@@ -166,25 +219,9 @@ ps_banova <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script(if (length(cov)) "Bayesian ANCOVA" else "Bayesian ANOVA", "BayesFactor", inputs, body, c("bf", "post")), collapse = "\n"))
   env <- ps_run(body, inputs)
   ex <- BayesFactor::extractBF(env$bf, logbf = TRUE)
-  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " × ")
-  terms_of <- function(m) trimws(strsplit(m, "+", fixed = TRUE)[[1]])
-  mods <- rownames(ex); k <- length(mods) + 1
-  prior <- 1 / k
-  models <- c(list(list(model = "Null model", terms = list(), bf10 = 1, error = 0, posterior = unname(env$post[1]))),
-    lapply(seq_along(mods), function(i) list(model = paste(vapply(terms_of(mods[i]), back, ""), collapse = " + "), terms = I(vapply(terms_of(mods[i]), back, "")),
-      bf10 = exp(ex$bf[i]), error = ex$error[i], posterior = unname(env$post[i + 1]))))
-  # From the log Bayes factors (sums of Bayes factors on the log scale), so that odds stay exact when a probability is near 1.
-  lse <- function(x) { m <- max(x); m + log(sum(exp(x - m))) }
-  lbf <- env$lbf
-  # BF_M: a model's posterior odds over its prior odds, 1 / (k - 1) with k equally likely models.
-  for (i in seq_along(models)) models[[i]]$bfM <- exp(lbf[i] - lse(lbf[-i]) + log(k - 1))
-  # Inclusion Bayes factors across all models: the posterior odds of the models with the effect over those without, by their prior odds.
-  effects <- unique(unlist(lapply(mods, terms_of)))
-  incl <- lapply(effects, function(t) {
-    has <- c(FALSE, vapply(mods, function(m) t %in% terms_of(m), TRUE))
-    pi <- mean(has)
-    list(effect = back(t), priorInclusion = pi, posteriorInclusion = sum(env$post[has]), bfInclusion = exp(lse(lbf[has]) - lse(lbf[!has]) - log(pi / (1 - pi))))
-  })
+  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " \u00d7 ")
+  mc <- ps_bayes_models(c("Null model", rownames(ex)), c(0, ex$bf), c(0, ex$error), back)
+  models <- mc$models; incl <- mc$effects
   ps_json(list(dependent = y, factors = fac, covariates = cov, n = nrow(env$data), priorFixed = rf, priorCovariates = rc, seed = seed, iterations = iter,
     models = models, effects = incl, warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
 }
@@ -217,5 +254,95 @@ ps_bcontingency <- function(req_json, export = FALSE) {
   e <- BayesFactor::extractBF(env$bf, logbf = TRUE)
   ps_json(list(rows = rv, columns = cv, rowLevels = rownames(tab), colLevels = colnames(tab), counts = lapply(seq_len(nrow(tab)), function(i) unname(as.numeric(tab[i, ]))), n = sum(tab),
     sampling = st, priorConcentration = a, bf10 = exp(e$bf[1]), error = e$error[1],
+    warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+}
+
+#' Bayesian repeated-measures ANOVA: one within-subject factor (wide columns) and
+#' optionally one between factor; subjects as a random effect (BayesFactor's
+#' whichRandom). As JASP, every model includes the subjects and is compared with
+#' the null model of the subjects alone. Priors: fixed effects r = 0.5, the
+#' subjects' random effect r = 1.
+ps_brmanova <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  within <- unlist(req$levels); between <- req$between %||% ""
+  if (length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
+  fname <- req$factorName %||% "condition"
+  if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname) || fname %in% c("subject", "y")) stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31), and not subject or y.")
+  rf <- ps_number(req$priorFixed %||% 0.5, "prior width of the fixed effects"); rr <- ps_number(req$priorRandom %||% 1, "prior width of the random effect")
+  if (rf <= 0 || rr <= 0) stop("The prior widths must be positive.")
+  seed <- ps_bayes_seed(req)
+  iter <- as.integer(ps_number(req$iterations %||% 10000, "number of samples"))
+  if (iter < 1000 || iter > 1e6) stop("The number of samples must be between 1,000 and 1,000,000.")
+  fr <- ps_long_frame(req, unique(c(within, if (nzchar(between)) between)))
+  v <- fr$v
+  bt <- nzchar(between)
+  if (bt && v[[between]] %in% c("subject", "y", fname)) stop("Rename the between factor: its name is taken by the model.")
+  body <- c("suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
+    sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(within, if (bt) between)])))),
+    if (bt) ps_bt_factor_line(req, fr, between),
+    sprintf("Y <- as.matrix(data[, %s])", ps_q(unname(unlist(v[within])))),
+    sprintf("long <- data.frame(subject = factor(rep(seq_len(nrow(Y)), ncol(Y))), %s = factor(rep(%s, each = nrow(Y)), levels = %s), y = c(Y)%s)",
+      fname, ps_q(within), ps_q(within), if (bt) sprintf(", %s = rep(data$%s, ncol(Y))", v[[between]], v[[between]]) else ""),
+    "# Every model with the subjects as a random effect, against the subjects-only model (JASP's null model).",
+    sprintf("bf <- generalTestBF(y ~ %s%s + subject, data = long, whichRandom = \"subject\", whichModels = \"withmain\", neverExclude = \"^subject$\", rscaleFixed = %s, rscaleRandom = %s, iterations = %d, progress = FALSE)",
+      fname, if (bt) sprintf(" * %s", v[[between]]) else "", format(rf, digits = 15), format(rr, digits = 15), iter),
+    sprintf("null <- lmBF(y ~ subject, data = long, whichRandom = \"subject\", rscaleRandom = %s, iterations = %d, progress = FALSE)", format(rr, digits = 15), iter),
+    "rel <- bf / null")
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Bayesian repeated-measures ANOVA", "BayesFactor", inputs, body, "rel"), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  e <- BayesFactor::extractBF(env$bf, logbf = TRUE); e0 <- BayesFactor::extractBF(env$null, logbf = TRUE)
+  keep <- rownames(e) != "subject"
+  strip <- function(m) trimws(setdiff(trimws(strsplit(m, "+", fixed = TRUE)[[1]]), "subject"))
+  names_ <- c("Null model (subjects)", vapply(rownames(e)[keep], function(m) paste(strip(m), collapse = " + "), ""))
+  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " × ")
+  # (errors of the two Bayes factors combine as proportional errors do)
+  mc <- ps_bayes_models(names_, c(0, e$bf[keep] - e0$bf[1]), c(e0$error[1], sqrt(e$error[keep]^2 + e0$error[1]^2)), back)
+  ps_json(list(factorName = fname, levels = within, between = between, n = nrow(env$Y), priorFixed = rf, priorRandom = rr, seed = seed, iterations = iter,
+    models = mc$models, effects = mc$effects, warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+}
+
+#' Bayesian linear regression (BayesFactor::regressionBF): every subset of the
+#' predictors against the intercept-only model, JZS (Zellner-Siow) prior with
+#' scale r = sqrt(2)/4 (JASP's default). Model prior: uniform over the models, or
+#' beta-binomial(1, 1) (each model size equally likely; JASP's default). Inclusion
+#' probabilities and Bayes factors per predictor; the most probable model's
+#' coefficients from its posterior.
+ps_bregression <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  y <- req$outcome %||% ""; preds <- unlist(req$predictors)
+  if (!nzchar(y) || !length(preds)) stop("Choose the outcome and at least one predictor.")
+  if (length(preds) > 10) stop("At most ten predictors (1,024 models).")
+  r <- ps_bayes_width(req, sqrt(2) / 4); seed <- ps_bayes_seed(req)
+  mp <- req$modelPrior %||% "betabinomial"
+  if (!mp %in% c("uniform", "betabinomial")) stop("Invalid model prior in the request.")
+  conf <- ps_bt_conf(req)
+  iter <- as.integer(ps_number(req$iterations %||% 10000, "number of posterior samples"))
+  if (iter < 1000 || iter > 1e6) stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  fr <- ps_long_frame(req, unique(c(y, preds)))
+  v <- fr$v
+  fml <- sprintf("%s ~ %s", v[[y]], paste(vapply(preds, function(n) v[[n]], ""), collapse = " + "))
+  q <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
+  body <- c("suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
+    sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, preds)])))),
+    sprintf("bf <- regressionBF(%s, data = data, whichModels = \"all\", rscaleCont = %s, progress = FALSE)", fml, format(r, digits = 15)),
+    "# The most probable model (under the model prior below) and its coefficients' posterior.",
+    "lbf <- c(0, extractBF(bf, logbf = TRUE)$bf); sizes <- c(0, vapply(strsplit(rownames(extractBF(bf)), \"+\", fixed = TRUE), length, 0))",
+    sprintf("prior <- %s", if (mp == "uniform") "rep(1 / length(lbf), length(lbf))" else sprintf("1 / ((%d + 1) * choose(%d, sizes))  # beta-binomial(1, 1): each model size equally likely", length(preds), length(preds))),
+    "best <- which.max(lbf + log(prior))",
+    sprintf("post <- if (best > 1) posterior(bf[best - 1], iterations = %d, progress = FALSE)", iter))
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Bayesian linear regression", "BayesFactor", inputs, body, c("bf", "summary(post)")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  e <- BayesFactor::extractBF(env$bf, logbf = TRUE)
+  back <- function(t) ps_bt_back(fr, trimws(t))
+  mc <- ps_bayes_models(c("Null model", rownames(e)), c(0, e$bf), c(0, e$error), back, prior = env$prior)
+  # R2 of each model (lm), for reading the comparison.
+  r2 <- c(0, vapply(rownames(e), function(m) summary(stats::lm(stats::as.formula(paste(v[[y]], "~", m)), data = env$data))$r.squared, 0))
+  for (i in seq_along(mc$models)) mc$models[[i]]$r2 <- r2[i]
+  coefs <- if (!is.null(env$post)) { pm <- as.matrix(env$post); keep <- colnames(pm) %in% unname(unlist(v[preds]))
+    lapply(colnames(pm)[keep], function(cn) { x <- pm[, cn]; list(term = back(cn), mean = mean(x), sd = stats::sd(x), low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2]))) }) } else list()
+  ps_json(list(outcome = y, predictors = preds, n = nrow(env$data), priorWidth = r, modelPrior = mp, confidence = conf, seed = seed, iterations = iter,
+    models = mc$models, effects = mc$effects, best = mc$models[[env$best]]$model, coefficients = coefs,
     warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
 }

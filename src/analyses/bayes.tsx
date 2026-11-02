@@ -3,10 +3,11 @@
 // The posterior sampling uses the project's seed; the credible level is the
 // project's confidence level.
 
+import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, Table, type Row } from '../components/results/Table';
 import { fmt } from '../format';
-import type { Alternative, BAnovaInput, BAnovaResult, BBinomialInput, BBinomialResult, BContingencyInput, BContingencyResult, BCorrelationInput, BCorrelationResult, BTTestInput, BTTestResult } from '../rengine/tests';
+import type { Alternative, BAnovaInput, BAnovaResult, BayesCurves, BayesEffect, BayesModel, BBinomialInput, BBinomialResult, BContingencyInput, BContingencyResult, BCorrelationInput, BCorrelationResult, BRegressionInput, BRegressionResult, BRmAnovaInput, BRmAnovaResult, BTTestInput, BTTestResult } from '../rengine/tests';
 import { Choice, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -41,6 +42,61 @@ function PriorWidth({ id = 'bayes-width', value, onChange, label, hint }: { id?:
     <div className="field"><label htmlFor={id}>{label}</label>
       <input id={id} className="input num" type="number" min={0.01} max={100} step={0.001} value={Number(value.toFixed(4))} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v > 0) onChange(v); }} />
       <div className="hint">{hint}</div></div>
+  );
+}
+
+/** BF10 on a log scale over the prior width (robustness) or the number of cases (sequential), with the evidence bands. */
+function BFCurve({ id, x: xAll, y: yAll, xLabel, mark, title }: { id: string; x: number[]; y: (number | null)[]; xLabel: string; mark?: number; title: string }) {
+  const W = 520, H = 280, pad = { l: 64, r: 16, t: 14, b: 44 };
+  // Points without a Bayes factor (R's NA: too few or constant cases at the start of a sequential analysis) are left out.
+  const keep = yAll.map((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
+  const x = xAll.filter((_, i) => keep[i]), y = yAll.filter((_, i) => keep[i]) as number[];
+  if (!x.length) return null;
+  const ly = y.map((v) => Math.log10(v));
+  const lo = Math.min(-1, Math.floor(Math.min(...ly))), hi = Math.max(1, Math.ceil(Math.max(...ly)));
+  const x0 = Math.min(...x), x1 = Math.max(...x);
+  const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
+  const sy = (v: number) => pad.t + ((hi - v) / (hi - lo || 1)) * (H - pad.t - pad.b);
+  const step = Math.max(1, Math.ceil((hi - lo) / 8));
+  const ticks: number[] = []; for (let t = lo; t <= hi; t += step) ticks.push(t);
+  const xt = Array.from({ length: 6 }, (_, i) => x0 + ((x1 - x0) * i) / 5);
+  return (
+    <ChartFrame id={id} name={id} width={W} height={H} defaults={{ x: xLabel, y: 'BF₁₀ (log scale)' }}
+      caption={<span className="hint">{title} Dashed lines: BF₁₀ = 1/3, 1 and 3 (moderate evidence for H0, none, moderate for H1).{mark !== undefined ? ' The dot: the chosen prior width.' : ''}</span>}>
+      {(labels) => (
+        <svg className="mc-chart data-chart" width={W} height={H} role="img" aria-label={title}>
+          {ticks.map((t) => <g key={t}><line className="grid-line" x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} /><text x={pad.l - 6} y={sy(t) + 4} textAnchor="end">{t === 0 ? '1' : `10^${t}`}</text></g>)}
+          {[-Math.log10(3), 0, Math.log10(3)].filter((t) => t >= lo && t <= hi).map((t) => <line key={t} className="fit-line" strokeDasharray="4 4" opacity={0.5} x1={pad.l} x2={W - pad.r} y1={sy(t)} y2={sy(t)} />)}
+          {xt.map((v) => <text key={`x${v}`} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">{fmt(v, x1 - x0 > 20 ? 0 : 2)}</text>)}
+          <polyline className="fit-line" fill="none" points={x.map((v, i) => `${sx(v)},${sy(ly[i])}`).join(' ')} />
+          {mark !== undefined && (() => { const i = x.findIndex((v) => Math.abs(v - mark) < 1e-9); return i >= 0 ? <circle className="dot" cx={sx(x[i])} cy={sy(ly[i])} r={4} /> : null; })()}
+          <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">{labels.x}</text>
+          <text transform={`translate(12 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`} textAnchor="middle" className="axis-title">{labels.y}</text>
+        </svg>
+      )}
+    </ChartFrame>
+  );
+}
+
+function CurveChecks({ o, set }: { o: { robustness?: boolean; sequential?: boolean }; set: (p: { robustness?: boolean; sequential?: boolean }) => void }) {
+  return (
+    <div className="field">
+      <label>Plots</label>
+      <div className="chips">
+        <label className="check"><input type="checkbox" checked={!!o.robustness} onChange={(e) => set({ robustness: e.target.checked })} /> Robustness check</label>
+        <label className="check"><input type="checkbox" checked={!!o.sequential} onChange={(e) => set({ sequential: e.target.checked })} /> Sequential analysis</label>
+      </div>
+      <div className="hint">Robustness: BF₁₀ for other prior widths. Sequential: BF₁₀ as the cases accumulate, in the order of the rows.</div>
+    </div>
+  );
+}
+
+function Curves({ id, label, c, width, widthName }: { id: string; label: string; c: BayesCurves; width: number; widthName: string }) {
+  return (
+    <>
+      {c.robustness && <BFCurve id={`${id}-robustness`} x={c.robustness.widths} y={c.robustness.bf10} xLabel={`Prior width ${widthName}`} mark={width} title={`${label}: Bayes factor robustness check.`} />}
+      {c.sequential && <BFCurve id={`${id}-sequential`} x={c.sequential.n} y={c.sequential.bf10} xLabel="Number of cases" title={`${label}: sequential analysis (the first n cases in row order).`} />}
+    </>
   );
 }
 
@@ -80,6 +136,7 @@ function BTTestForm({ options: o, set, ctx, disabled }: OptionsProps<BTTestOptio
         hint={altHint(o, o.type === 'independent' ? 'the effect (first group minus second)' : o.type === 'paired' ? 'the effect (first minus second)' : 'the effect (mean minus test value)')} />
       <PriorWidth label="Cauchy prior width (r)" value={o.priorWidth} onChange={(priorWidth) => set({ ...o, priorWidth })}
         hint="The prior on the standardised effect δ under H1: Cauchy(0, r). √2/2 ≈ 0.707 is the default of JASP and BayesFactor (“medium”); 1 is “wide”." />
+      <CurveChecks o={o} set={(p) => set({ ...o, ...p })} />
     </fieldset>
   );
 }
@@ -94,6 +151,7 @@ function BTTestView({ r }: { r: BTTestResult }) {
       <Table title="Posterior of the standardised effect δ" file="bayes-ttest-posterior" columns={['Variable', 'Median', `${cri} credible interval`]}
         rows={r.rows.map((x): Row => [c(x.label), c(x.delta.median), c(`[${fmt(x.delta.low)}, ${fmt(x.delta.high)}]`)])}
         note={`From ${r.iterations.toLocaleString('en')} posterior samples under H1${r.alternative === 'two.sided' ? '' : ' (restricted to the one-sided alternative)'}, seed ${r.seed}.`} />
+      {r.rows.map((x, i) => <Curves key={i} id={`bayes-ttest-${i}`} label={x.label} c={x} width={r.priorWidth} widthName="r" />)}
     </div>
   );
 }
@@ -111,13 +169,13 @@ export const bayesTtestAnalysis: AnalysisType<BTTestOptions, BTTestResult> = {
     { title: 'Bayesian one-sample t-test', sub: 'a mean against a test value', options: (o) => ({ ...o, type: 'one' }) },
   ],
   cardTitle: (o) => T_NAME[o.type],
-  defaults: () => ({ type: 'independent', vars: [], pairs: [['', '']], group: '', testValue: 0, alternative: 'two.sided', priorWidth: Math.SQRT1_2, iterations: 10000 }),
+  defaults: () => ({ type: 'independent', vars: [], pairs: [['', '']], group: '', testValue: 0, alternative: 'two.sided', priorWidth: Math.SQRT1_2, iterations: 10000, robustness: false, sequential: false }),
   parseOptions: (raw) => (isObj(raw) ? {
     type: oneOf(raw.type, ['one', 'paired', 'independent'] as const, 'independent'), vars: names(raw.vars),
     pairs: (Array.isArray(raw.pairs) ? raw.pairs.slice(0, 100) : []).filter(Array.isArray).map((p) => [name(p[0]), name(p[1])] as [string, string]),
     group: name(raw.group), testValue: typeof raw.testValue === 'number' && Number.isFinite(raw.testValue) ? raw.testValue : 0,
     alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), priorWidth: num(raw.priorWidth, 0, 100, Math.SQRT1_2),
-    iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)),
+    iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)), robustness: raw.robustness === true, sequential: raw.sequential === true,
   } : null),
   Options: BTTestForm,
   View: ({ result }) => <BTTestView r={result} />,
@@ -127,7 +185,7 @@ export const bayesTtestAnalysis: AnalysisType<BTTestOptions, BTTestResult> = {
     if (o.type === 'independent' && !o.group) return 'Choose the grouping variable.';
     return missingColumns(ctx, btCols(o), 'Bayesian t-test');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, btCols(o), [o.type, o.testValue, o.alternative, o.priorWidth, o.iterations, ctx.settings.seed, ctx.settings.confidence]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, btCols(o), [o.type, o.testValue, o.alternative, o.priorWidth, o.iterations, String(!!o.robustness), String(!!o.sequential), ctx.settings.seed, ctx.settings.confidence]),
   run: async (o, ctx) => (await engine()).bttestR(rawData(ctx)!, btInput(o, ctx)),
   script: async (o, ctx) => (await engine()).bttestScriptR(rawData(ctx)!, btInput(o, ctx)),
   summary: (o) => `${T_NAME[o.type].toLowerCase()} · ${o.type === 'paired' ? o.pairs.map((p) => p.join(' − ')).join(', ') || '…' : o.vars.join(', ') || '…'}${o.type === 'independent' ? ` by ${o.group || '…'}` : ''} · r = ${fmt(o.priorWidth)}`,
@@ -140,8 +198,8 @@ export type BCorrelationOptions = Omit<BCorrelationInput, 'confidence' | 'seed'>
 export const bayesCorrelationAnalysis: AnalysisType<BCorrelationOptions, BCorrelationResult> = {
   id: 'bcorrelation', title: 'Bayesian correlation', sub: 'Pearson’s r with Bayes factors and the posterior of ρ (BayesFactor)', group: 'Basic statistics',
   cardTitle: () => 'Bayesian Pearson correlations',
-  defaults: () => ({ vars: [], alternative: 'two.sided', priorWidth: 1, iterations: 10000 }),
-  parseOptions: (raw) => (isObj(raw) ? { vars: names(raw.vars), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), priorWidth: num(raw.priorWidth, 0, 100, 1), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)) } : null),
+  defaults: () => ({ vars: [], alternative: 'two.sided', priorWidth: 1, iterations: 10000, robustness: false, sequential: false }),
+  parseOptions: (raw) => (isObj(raw) ? { vars: names(raw.vars), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), priorWidth: num(raw.priorWidth, 0, 100, 1), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)), robustness: raw.robustness === true, sequential: raw.sequential === true } : null),
   Options: ({ options: o, set, ctx, disabled }) => {
     const d = rawData(ctx);
     if (!d) return <NoData />;
@@ -151,6 +209,7 @@ export const bayesCorrelationAnalysis: AnalysisType<BCorrelationOptions, BCorrel
         <Choice label="Alternative hypothesis" value={o.alternative} onChange={(alternative) => set({ ...o, alternative })} options={ALTS} hint={altHint(o, 'the correlation')} />
         <PriorWidth label="Stretched beta prior width (κ)" value={o.priorWidth} onChange={(priorWidth) => set({ ...o, priorWidth })}
           hint="The prior on ρ: a beta(1/κ, 1/κ) stretched to −1…1. κ = 1 (uniform) is JASP’s default; smaller κ puts more weight near zero." />
+        <CurveChecks o={o} set={(p) => set({ ...o, ...p })} />
       </fieldset>
     );
   },
@@ -160,10 +219,11 @@ export const bayesCorrelationAnalysis: AnalysisType<BCorrelationOptions, BCorrel
       <Table title="Bayesian Pearson correlations" file="bayes-correlation" columns={['Pair', 'r', 'N', bfName(r.alternative), 'BF₀₁', 'Evidence', 'Posterior median ρ', `${pct(r.confidence)} credible interval`]}
         rows={r.pairs.map((p): Row => [c(`${p.a} – ${p.b}`), c(p.r), c(p.n, undefined, 0), ...bfCells(p.bf10), c(p.rho.median), c(`[${fmt(p.rho.low)}, ${fmt(p.rho.high)}]`)])}
         note={`${EVIDENCE_NOTE} Posterior from ${r.iterations.toLocaleString('en')} samples, seed ${r.seed}.`} />
+      {r.pairs.map((p, i) => <Curves key={i} id={`bayes-correlation-${i}`} label={`${p.a} – ${p.b}`} c={p} width={r.priorWidth} widthName="κ" />)}
     </div>
   ),
   blocked: (o, ctx) => (o.vars.length < 2 ? 'Choose at least two variables.' : missingColumns(ctx, o.vars, 'Bayesian correlation')),
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, o.vars, [o.alternative, o.priorWidth, o.iterations, ctx.settings.seed, ctx.settings.confidence]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, o.vars, [o.alternative, o.priorWidth, o.iterations, String(!!o.robustness), String(!!o.sequential), ctx.settings.seed, ctx.settings.confidence]),
   run: async (o, ctx) => (await engine()).bcorrelationR(rawData(ctx)!, { ...o, seed: ctx.settings.seed, confidence: ctx.settings.confidence }),
   script: async (o, ctx) => (await engine()).bcorrelationScriptR(rawData(ctx)!, { ...o, seed: ctx.settings.seed, confidence: ctx.settings.confidence }),
   summary: (o) => `${o.vars.join(', ') || '…'} · κ = ${fmt(o.priorWidth)}`,
@@ -238,16 +298,11 @@ function BAnovaForm({ options: o, set, ctx, disabled }: OptionsProps<BAnovaOptio
 }
 
 function BAnovaView({ r }: { r: BAnovaResult }) {
-  const best = r.models.reduce((a, m) => (m.posterior > a.posterior ? m : a), r.models[0]);
   return (
     <div className="tables">
       <p className="hint" style={{ marginTop: 0 }}>{r.dependent}, n = {r.n}; prior widths {fmt(r.priorFixed)} (factors){r.covariates.length ? `, ${fmt(r.priorCovariates)} (covariates)` : ''}; {r.iterations.toLocaleString('en')} samples, seed {r.seed}; BayesFactor {r.engine.version}.</p>
-      <Table title={`Bayesian ${r.covariates.length ? 'ANCOVA' : 'ANOVA'}: model comparison`} file="bayes-anova-models" columns={['Model', 'P(M)', 'P(M | data)', 'BF_M', 'BF₁₀', 'Error %']}
-        rows={[...r.models].sort((a, b) => b.posterior - a.posterior).map((m): Row => [{ v: m.model, bold: m === best }, c(1 / r.models.length), c(m.posterior), c(fmtBF(m.bfM)), c(fmtBF(m.bf10)), c(m.error ? m.error * 100 : null, undefined, 4)])}
-        note="BF₁₀: each model against the null model (intercept only). P(M): equal prior probabilities; BF_M: a model’s posterior odds over its prior odds. Error: the proportional error of BayesFactor’s numerical integration or sampling." />
-      <Table title="Analysis of effects (across all models)" file="bayes-anova-effects" columns={['Effect', 'P(incl)', 'P(incl | data)', 'BF_incl', 'Evidence']}
-        rows={r.effects.map((e): Row => [c(e.effect), c(e.priorInclusion), c(e.posteriorInclusion), c(fmtBF(e.bfInclusion)), c(evidence(e.bfInclusion))])}
-        note="Inclusion Bayes factor: the posterior odds of the models with the effect over those without, by their prior odds." />
+      <ModelTables file="bayes-anova" title={`Bayesian ${r.covariates.length ? 'ANCOVA' : 'ANOVA'}: model comparison`} models={r.models} effects={r.effects}
+        priorNote="BF₁₀: each model against the null model (intercept only); equal prior model probabilities. Error: the proportional error of BayesFactor’s numerical integration or sampling." />
     </div>
   );
 }
@@ -334,4 +389,116 @@ export const bayesContingencyAnalysis: AnalysisType<BContingencyOptions, BContin
   summary: (o) => `${o.rows || '…'} × ${o.columns || '…'} · ${SAMPLING.find(([id]) => id === o.sampling)?.[1].toLowerCase()}`,
 };
 
-export const BAYES_TYPES = [bayesTtestAnalysis, bayesAnovaAnalysis, bayesCorrelationAnalysis, bayesContingencyAnalysis, bayesBinomialAnalysis];
+// ---------------------------------------------------------------- shared: model comparison
+
+function ModelTables({ file, title, models, effects, effectName = 'Effect', r2 = false, priorNote }: { file: string; title: string; models: BayesModel[]; effects: BayesEffect[]; effectName?: string; r2?: boolean; priorNote: string }) {
+  const best = models.reduce((a, m) => (m.posterior > a.posterior ? m : a), models[0]);
+  return (
+    <>
+      <Table title={title} file={`${file}-models`} columns={['Model', 'P(M)', 'P(M | data)', 'BF_M', 'BF₁₀', ...(r2 ? ['R²'] : []), 'Error %']}
+        rows={[...models].sort((a, b) => b.posterior - a.posterior).slice(0, 50).map((m): Row => [{ v: m.model, bold: m === best }, c(m.prior), c(m.posterior), c(fmtBF(m.bfM)), c(fmtBF(m.bf10)), ...(r2 ? [c(m.r2 ?? null)] : []), c(m.error ? m.error * 100 : null, undefined, 4)])}
+        note={`${priorNote} BF_M: a model’s posterior odds over its prior odds.${models.length > 50 ? ` The 50 most probable of ${models.length} models.` : ''}`} />
+      <Table title={`Analysis of ${effectName === 'Effect' ? 'effects' : 'predictors'} (across all models)`} file={`${file}-effects`} columns={[effectName, 'P(incl)', 'P(incl | data)', 'BF_incl', 'Evidence']}
+        rows={effects.map((e): Row => [c(e.effect), c(e.priorInclusion), c(e.posteriorInclusion), c(fmtBF(e.bfInclusion)), c(evidence(e.bfInclusion))])}
+        note="Inclusion Bayes factor: the posterior odds of the models with the term over those without, by their prior odds." />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- repeated-measures ANOVA
+
+export type BRmAnovaOptions = Omit<BRmAnovaInput, 'seed'>;
+const rmCols = (o: BRmAnovaOptions) => [...o.levels, o.between].filter(Boolean);
+
+export const bayesRmAnovaAnalysis: AnalysisType<BRmAnovaOptions, BRmAnovaResult> = {
+  id: 'brmanova', title: 'Bayesian repeated-measures ANOVA', sub: 'a within-subject factor (wide columns), subjects random; models and effects (BayesFactor)', group: 'Basic statistics',
+  cardTitle: (o) => `Bayesian repeated-measures ANOVA: ${o.factorName || '…'}`,
+  defaults: () => ({ levels: [], factorName: 'condition', between: '', priorFixed: 0.5, priorRandom: 1, iterations: 10000 }),
+  parseOptions: (raw) => (isObj(raw) ? {
+    levels: names(raw.levels), factorName: name(raw.factorName, 31) || 'condition', between: name(raw.between),
+    priorFixed: num(raw.priorFixed, 0, 100, 0.5), priorRandom: num(raw.priorRandom, 0, 100, 1), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)),
+  } : null),
+  Options: ({ options: o, set, ctx, disabled }) => {
+    const d = rawData(ctx);
+    if (!d) return <NoData />;
+    return (
+      <fieldset className="card-options" disabled={disabled}>
+        <div className="field"><label htmlFor="brm-name">Within-subject factor name</label>
+          <input id="brm-name" className="input" value={o.factorName} maxLength={31} onChange={(e) => set({ ...o, factorName: e.target.value })} /></div>
+        <OrderedPicker label="Levels: one column per condition (wide data)" columns={d.names.filter((n) => !d.categories?.[n] && n !== o.between)} value={o.levels} onChange={(levels) => set({ ...o, levels })} />
+        <ColumnSelect id="brm-b" label="Between-subjects factor (optional)" optional="None" value={o.between} columns={d.names} exclude={o.levels} onChange={(between) => set({ ...o, between })} />
+        <div className="row2">
+          <PriorWidth id="brm-rf" label="Prior width, fixed effects" value={o.priorFixed} onChange={(priorFixed) => set({ ...o, priorFixed })} hint="JASP’s default 0.5." />
+          <PriorWidth id="brm-rr" label="Prior width, subjects" value={o.priorRandom} onChange={(priorRandom) => set({ ...o, priorRandom })} hint="The random effect of the subjects; JASP’s default 1." />
+        </div>
+      </fieldset>
+    );
+  },
+  View: ({ result: r }) => (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>{r.levels.length} levels of {r.factorName}{r.between ? `, between ${r.between}` : ''}; {r.n} subjects; prior widths {fmt(r.priorFixed)} (fixed), {fmt(r.priorRandom)} (subjects); {r.iterations.toLocaleString('en')} samples, seed {r.seed}; BayesFactor {r.engine.version}.</p>
+      <ModelTables file="bayes-rmanova" title="Bayesian repeated-measures ANOVA: model comparison" models={r.models} effects={r.effects}
+        priorNote="Every model includes the subjects as a random effect; BF₁₀ against the null model of the subjects alone, as JASP. Equal prior model probabilities." />
+    </div>
+  ),
+  blocked: (o, ctx) => {
+    if (o.levels.length < 2) return 'Choose at least two columns, one per level.';
+    if (!/^[A-Za-z][A-Za-z0-9_.]{0,30}$/.test(o.factorName) || ['subject', 'y'].includes(o.factorName)) return 'The factor name must start with a letter, use letters, digits, _ or . only, and not be subject or y.';
+    if (o.levels.includes(o.between)) return 'The between factor cannot be one of the levels.';
+    return missingColumns(ctx, rmCols(o), 'Bayesian repeated-measures ANOVA');
+  },
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, rmCols(o), [o.factorName, o.between, o.priorFixed, o.priorRandom, o.iterations, ctx.settings.seed]),
+  run: async (o, ctx) => (await engine()).brmanovaR(rawData(ctx)!, { ...o, seed: ctx.settings.seed }),
+  script: async (o, ctx) => (await engine()).brmanovaScriptR(rawData(ctx)!, { ...o, seed: ctx.settings.seed }),
+  summary: (o) => `${o.factorName}: ${o.levels.join(', ') || '…'}${o.between ? ` · between ${o.between}` : ''}`,
+};
+
+// ---------------------------------------------------------------- linear regression
+
+export type BRegressionOptions = Omit<BRegressionInput, 'seed' | 'confidence'>;
+const brCols = (o: BRegressionOptions) => [o.outcome, ...o.predictors].filter(Boolean);
+
+export const bayesRegressionAnalysis: AnalysisType<BRegressionOptions, BRegressionResult> = {
+  id: 'bregression', title: 'Bayesian linear regression', sub: 'every subset of the predictors; inclusion probabilities, coefficients (BayesFactor)', group: 'Basic statistics',
+  cardTitle: (o) => `Bayesian linear regression${o.outcome ? `: ${o.outcome}` : ''}`,
+  defaults: () => ({ outcome: '', predictors: [], priorWidth: Math.SQRT2 / 4, modelPrior: 'betabinomial', iterations: 10000 }),
+  parseOptions: (raw) => (isObj(raw) ? {
+    outcome: name(raw.outcome), predictors: names(raw.predictors), priorWidth: num(raw.priorWidth, 0, 100, Math.SQRT2 / 4),
+    modelPrior: oneOf(raw.modelPrior, ['betabinomial', 'uniform'] as const, 'betabinomial'), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)),
+  } : null),
+  Options: ({ options: o, set, ctx, disabled }) => {
+    const d = rawData(ctx);
+    if (!d) return <NoData />;
+    const numeric = d.names.filter((n) => !d.categories?.[n]);
+    return (
+      <fieldset className="card-options" disabled={disabled}>
+        <ColumnSelect id="br-y" label="Outcome" value={o.outcome} columns={numeric} exclude={o.predictors} onChange={(outcome) => set({ ...o, outcome })} />
+        <OrderedPicker label="Predictors (numeric, at most ten)" columns={numeric.filter((n) => n !== o.outcome)} value={o.predictors} onChange={(predictors) => set({ ...o, predictors })} />
+        <Choice label="Model prior" value={o.modelPrior} onChange={(modelPrior) => set({ ...o, modelPrior })} options={[['betabinomial', 'Beta-binomial (1, 1)'], ['uniform', 'Uniform']]}
+          hint={o.modelPrior === 'betabinomial' ? 'Every model size is equally likely, shared by the models of that size (JASP’s default): guards against favouring many predictors.' : 'Every model equally likely.'} />
+        <PriorWidth label="Prior width of the coefficients (r)" value={o.priorWidth} onChange={(priorWidth) => set({ ...o, priorWidth })} hint="The Zellner–Siow (JZS) prior’s scale; √2/4 ≈ 0.354 is JASP’s default (BayesFactor’s “medium”)." />
+      </fieldset>
+    );
+  },
+  View: ({ result: r }) => (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>{r.outcome} on {r.predictors.join(', ')}, n = {r.n}; JZS prior r = {fmt(r.priorWidth)}; {r.modelPrior === 'betabinomial' ? 'beta-binomial (1, 1)' : 'uniform'} model prior; BayesFactor {r.engine.version}.</p>
+      <ModelTables file="bayes-regression" title="Bayesian linear regression: model comparison" models={r.models} effects={r.effects} effectName="Predictor" r2
+        priorNote="BF₁₀ against the intercept-only model (exact, by quadrature)." />
+      {r.coefficients.length > 0 && <Table title={`Coefficients of the most probable model (${r.best})`} file="bayes-regression-coefficients" columns={['Predictor', 'Posterior mean', 'SD', `${pct(r.confidence)} credible interval`]}
+        rows={r.coefficients.map((x): Row => [c(x.term), c(x.mean), c(x.sd), c(`[${fmt(x.low)}, ${fmt(x.high)}]`)])} note={`From ${r.iterations.toLocaleString('en')} posterior samples, seed ${r.seed}.`} />}
+    </div>
+  ),
+  blocked: (o, ctx) => {
+    if (!o.outcome) return 'Choose the outcome.';
+    if (!o.predictors.length) return 'Choose at least one predictor.';
+    if (o.predictors.length > 10) return 'At most ten predictors (1,024 models).';
+    return missingColumns(ctx, brCols(o), 'Bayesian linear regression');
+  },
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, brCols(o), [o.priorWidth, o.modelPrior, o.iterations, ctx.settings.seed, ctx.settings.confidence]),
+  run: async (o, ctx) => (await engine()).bregressionR(rawData(ctx)!, { ...o, seed: ctx.settings.seed, confidence: ctx.settings.confidence }),
+  script: async (o, ctx) => (await engine()).bregressionScriptR(rawData(ctx)!, { ...o, seed: ctx.settings.seed, confidence: ctx.settings.confidence }),
+  summary: (o) => `${o.outcome || '…'} on ${o.predictors.join(', ') || '…'} · ${o.modelPrior === 'betabinomial' ? 'beta-binomial' : 'uniform'} prior`,
+};
+
+export const BAYES_TYPES = [bayesTtestAnalysis, bayesAnovaAnalysis, bayesRmAnovaAnalysis, bayesRegressionAnalysis, bayesCorrelationAnalysis, bayesContingencyAnalysis, bayesBinomialAnalysis];
