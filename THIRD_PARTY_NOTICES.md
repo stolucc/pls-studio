@@ -20,6 +20,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | askpass | 1.2.1 | MIT + file LICENSE | https://cran.r-project.org/package=askpass |
 | backports | 1.5.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=backports |
 | base64enc | 0.1-6 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=base64enc |
+| BayesFactor | 0.9.12-4.8 | GPL-2 | https://cran.r-project.org/package=BayesFactor |
 | bigmemory | 4.6.6 | LGPL-3 \| Apache License 2.0 | https://cran.r-project.org/package=bigmemory |
 | bigmemory.sri | 0.1.8 | LGPL-3 \| Apache License 2.0 | https://cran.r-project.org/package=bigmemory.sri |
 | bit | 4.6.0 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=bit |
@@ -48,6 +49,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | codetools | 0.2-20 | GPL | https://cran.r-project.org/package=codetools |
 | colorspace | 2.1-4 | BSD_3_clause + file LICENSE | https://cran.r-project.org/package=colorspace |
 | combinat | 0.0-9 | GPL-2 | https://cran.r-project.org/package=combinat |
+| contfrac | 1.1-12 | GPL-2 | https://cran.r-project.org/package=contfrac |
 | corpcor | 1.6.10 | GPL (>= 3) | https://cran.r-project.org/package=corpcor |
 | corrplot | 0.95 | MIT + file LICENSE | https://cran.r-project.org/package=corrplot |
 | cowplot | 1.2.0 | GPL-2 | https://cran.r-project.org/package=cowplot |
@@ -60,6 +62,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | DBI | 1.3.0 | LGPL (>= 2.1) | https://cran.r-project.org/package=DBI |
 | dendextend | 1.19.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=dendextend |
 | Deriv | 4.3.5 | GPL (>= 3) | https://cran.r-project.org/package=Deriv |
+| deSolve | 1.42 |  | https://cran.r-project.org/package=deSolve |
 | diagram | 1.6.5 | GPL (>= 2) | https://cran.r-project.org/package=diagram |
 | DiagrammeR | 1.0.12 | MIT + file LICENSE | https://cran.r-project.org/package=DiagrammeR |
 | DiagrammeRsvg | 0.1 | MIT + file LICENSE | https://cran.r-project.org/package=DiagrammeRsvg |
@@ -74,6 +77,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | EGAnet | 2.4.1 | AGPL (>= 3.0) | https://cran.r-project.org/package=EGAnet |
 | eigenmodel | 1.12 | GPL-2 | https://cran.r-project.org/package=eigenmodel |
 | ellipse | 0.5.0 | GPL (>= 2) | https://cran.r-project.org/package=ellipse |
+| elliptic | 1.5-1 | GPL-2 | https://cran.r-project.org/package=elliptic |
 | evaluate | 1.0.5 | MIT + file LICENSE | https://cran.r-project.org/package=evaluate |
 | expm | 1.0-1 | GPL (>= 2) | https://cran.r-project.org/package=expm |
 | faraway | 1.0.9 | GPL | https://cran.r-project.org/package=faraway |
@@ -123,6 +127,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | htmltools | 0.5.9 | GPL (>= 2) | https://cran.r-project.org/package=htmltools |
 | htmlwidgets | 1.6.4 | MIT + file LICENSE | https://cran.r-project.org/package=htmlwidgets |
 | httr | 1.4.9 | MIT + file LICENSE | https://cran.r-project.org/package=httr |
+| hypergeo | 1.2-15 | GPL-2 | https://cran.r-project.org/package=hypergeo |
 | igraph | 2.3.1 | GPL (>= 2) | https://cran.r-project.org/package=igraph |
 | insight | 1.5.4 | GPL-3 | https://cran.r-project.org/package=insight |
 | IsingFit | 0.4 | GPL-2 | https://cran.r-project.org/package=IsingFit |

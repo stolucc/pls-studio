@@ -19,11 +19,12 @@ import type { RsaPreset } from '../analyses/rsa';
 import type { EfaPreset } from '../analyses/efa';
 import type { DataFileFormat } from '../data/readFile';
 import type { EgaOptions, NetworkOptions } from '../analyses/network';
+import type { BCorrelationOptions } from '../analyses/bayes';
 import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -49,7 +50,8 @@ export type ExamplePanel =
   | ({ kind: 'regression' } & Omit<RegressionOptions, 'plot'> & { plot?: string })
   | { kind: 'screen'; vars: string[] }
   | ({ kind: 'network' } & Partial<NetworkOptions>)
-  | ({ kind: 'ega' } & Partial<EgaOptions>);
+  | ({ kind: 'ega' } & Partial<EgaOptions>)
+  | ({ kind: 'bcorrelation' } & BCorrelationOptions);
 
 export interface PackageExample {
   id: string;
@@ -889,6 +891,13 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'EGAnet', name: 'wmt2' }, constructs: [], paths: [],
     panel: { kind: 'ega', vars: ['wmt1', 'wmt2', 'wmt3', 'wmt4', 'wmt5', 'wmt6', 'wmt7', 'wmt8', 'wmt9', 'wmt10', 'wmt11', 'wmt12', 'wmt13', 'wmt14', 'wmt15', 'wmt16', 'wmt17', 'wmt18'], model: 'glasso', algorithm: 'walktrap', corr: 'auto' }, settings: CB('ML'),
   },
+  {
+    id: 'bayesfactor-iris', package: 'BayesFactor', title: 'Bayesian correlation: sepal length and width of irises', source: 'BayesFactor, ?correlationBF',
+    links: [{ label: '?correlationBF', url: 'https://rdrr.io/cran/BayesFactor/man/correlationBF.html' }, { label: 'Ly, Verhagen & Wagenmakers (2016)', url: 'https://doi.org/10.1016/j.jmp.2015.06.004' }],
+    description: 'Anderson’s 150 irises: is sepal length correlated with sepal width? The help page’s call, with BayesFactor’s default prior (rscale “medium”, a stretched beta of width 1/3; JASP’s default would be 1). The Bayes factor and the posterior of ρ. Opens its card on the Analyses tab.',
+    data: { package: 'datasets', name: 'iris' }, constructs: [], paths: [],
+    panel: { kind: 'bcorrelation', vars: ['Sepal.Length', 'Sepal.Width'], alternative: 'two.sided', priorWidth: 1 / 3, iterations: 10000 }, settings: CB('ML'),
+  },
 ];
 
 /** The data columns a panel example uses. */
@@ -907,6 +916,7 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'efa': return p.vars ?? [];
     case 'screen': return p.vars;
     case 'network': case 'ega': return p.vars ?? [];
+    case 'bcorrelation': return p.vars;
   }
 }
 

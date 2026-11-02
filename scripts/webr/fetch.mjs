@@ -31,7 +31,7 @@ const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://gi
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
 /** Packages the app calls directly. */
-const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'Amelia', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet'];
+const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'Amelia', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet', 'BayesFactor'];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES
  * stanzas) instead of downloaded from repo.r-wasm.org. glasso and glassoFast
@@ -39,6 +39,9 @@ const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 
  * crashes and glassoFast returns wrong results (r-wasm/webr#633). These are
  * r-universe's rebuilds of the same versions (2026-10-28), checked against
  * native R; vendored because r-universe keeps only its latest build.
+ * deSolve (needed by hypergeo, which BayesFactor imports) is not in the webR
+ * repository at all: r-universe's build of 1.42 (2026-10-19), SHA-256 as
+ * published there.
  */
 const VENDOR = join(ROOT, 'scripts', 'webr', 'vendor');
 const vendored = () => new Map(parsePackages(readFileSync(join(VENDOR, 'PACKAGES'), 'utf8')).map((s) => [s.Package, s]));
@@ -54,6 +57,8 @@ function parsePackages(text) {
     const out = {};
     let key = null;
     for (const line of stanza.split('\n')) {
+      // (a blank line, e.g. a trailing newline, is no field: read as one it became ": " in PACKAGES, which R cannot parse)
+      if (!line.trim()) continue;
       if (/^\s/.test(line) && key) out[key] += ' ' + line.trim();
       else { const i = line.indexOf(':'); key = line.slice(0, i); out[key] = line.slice(i + 1).trim(); }
     }

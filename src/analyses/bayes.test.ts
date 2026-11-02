@@ -1,0 +1,50 @@
+// The Bayesian cards: Bayes factors written for reading, the evidence
+// categories, options from a file, and what each card still needs.
+// (Their results against independent integrals: src/rengine/bayes.webr.test.ts.)
+
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_SETTINGS } from '../model/project';
+import { bayesBinomialAnalysis, bayesCorrelationAnalysis, bayesTtestAnalysis, evidence, fmtBF } from './bayes';
+import { ANALYSIS_TYPES } from './registry';
+import type { AnalysisCtx } from './types';
+
+const data = { names: ['y', 'x', 'g'], cols: [new Float64Array([1, 2, 3, 4]), new Float64Array([2, 3, 4, 6]), new Float64Array([1, 1, 2, 2])], categories: { g: ['a', 'b'] } };
+const ctx = { data, info: null, settings: DEFAULT_SETTINGS, pls: null, projectName: 'p' } as unknown as AnalysisCtx;
+
+describe('Bayesian cards', () => {
+  it('write Bayes factors for reading', () => {
+    expect(fmtBF(17.25888)).toBe('17.259');
+    expect(fmtBF(250)).toBe('250.0');
+    expect(fmtBF(77198223)).toBe('7.72 × 10^7');
+    expect(fmtBF(0.0004)).toBe('4.00 × 10^-4');
+    expect(fmtBF(Infinity)).toBe('∞');
+  });
+  it('name the evidence (Lee & Wagenmakers 2013)', () => {
+    expect(evidence(1)).toBe('none');
+    expect(evidence(2)).toBe('anecdotal for H1');
+    expect(evidence(17.26)).toBe('strong for H1');
+    expect(evidence(1 / 5)).toBe('moderate for H0');
+    expect(evidence(1e6)).toBe('extreme for H1');
+  });
+  it('are in the Add menu with JASP’s default priors', () => {
+    for (const id of ['bttest', 'bcorrelation', 'bbinomial']) expect(ANALYSIS_TYPES.find((t) => t.id === id)?.group).toBe('Basic statistics');
+    expect(bayesTtestAnalysis.defaults(ctx).priorWidth).toBeCloseTo(Math.SQRT1_2, 12);
+    expect(bayesCorrelationAnalysis.defaults(ctx).priorWidth).toBe(1);
+    expect(bayesBinomialAnalysis.defaults(ctx)).toMatchObject({ priorA: 1, priorB: 1, testValue: 0.5 });
+  });
+  it('parse options from a file, replacing invalid values', () => {
+    expect(bayesTtestAnalysis.parseOptions({ type: 'one', vars: ['y'], priorWidth: -1, iterations: 5, alternative: 'up' })).toMatchObject({ priorWidth: Math.SQRT1_2, iterations: 10000, alternative: 'two.sided' });
+    expect(bayesBinomialAnalysis.parseOptions({ variable: 'g', priorA: 0, testValue: 1 })).toMatchObject({ priorA: 1, testValue: 0.5 });
+    for (const a of [bayesTtestAnalysis, bayesCorrelationAnalysis, bayesBinomialAnalysis]) { expect(a.parseOptions(null)).toBeNull(); expect(a.parseOptions(a.defaults(ctx))).toEqual(a.defaults(ctx)); }
+  });
+  it('say what they need, and rerun when the seed or the prior changes', () => {
+    const t = bayesTtestAnalysis.defaults(ctx);
+    expect(bayesTtestAnalysis.blocked(t, ctx)).toMatch(/at least one variable/);
+    expect(bayesTtestAnalysis.blocked({ ...t, vars: ['y'], group: 'g' }, ctx)).toBeNull();
+    expect(bayesCorrelationAnalysis.blocked({ ...bayesCorrelationAnalysis.defaults(ctx), vars: ['y'] }, ctx)).toMatch(/two variables/);
+    const o = { ...t, vars: ['y'], group: 'g' };
+    const f = bayesTtestAnalysis.fingerprint(o, ctx);
+    expect(bayesTtestAnalysis.fingerprint({ ...o, priorWidth: 1 }, ctx)).not.toBe(f);
+    expect(bayesTtestAnalysis.fingerprint(o, { ...ctx, settings: { ...DEFAULT_SETTINGS, seed: 99 } })).not.toBe(f);
+  });
+});

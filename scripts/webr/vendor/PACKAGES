@@ -15,3 +15,13 @@ SHA256: 6f8d56a92e59e6a5f88fc6859b369edddf2ed4651eb3bc441ff72ae134b5f19e
 Suggests: glasso, rbenchmark
 Path: glassoFast_1.0.1.tgz?sha256=6f8d56a92e59e6a5f88fc6859b369edddf2ed4651eb3bc441ff72ae134b5f19e&file=
 
+Package: deSolve
+Version: 1.42
+NeedsCompilation: yes
+Built: R 4.6.0; emscripten; 2026-10-19 09:50:35 UTC; unix
+Filesize: 2673429
+SHA256: 1b8703d09f9ae70702ad2db1715ce24d4d978155323fefd623147d4451cee454
+Depends: R (>= 3.3.0)
+Imports: methods, graphics, grDevices, stats
+Suggests: scatterplot3d, nlme, FME
+Path: deSolve_1.42.tgz?sha256=1b8703d09f9ae70702ad2db1715ce24d4d978155323fefd623147d4451cee454&file=

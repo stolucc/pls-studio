@@ -232,6 +232,12 @@
    "url": "https://cran.r-project.org/package=base64enc"
   },
   {
+   "name": "BayesFactor",
+   "version": "0.9.12-4.8",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=BayesFactor"
+  },
+  {
    "name": "bigmemory",
    "version": "4.6.6",
    "license": "LGPL-3 | Apache License 2.0",
@@ -400,6 +406,12 @@
    "url": "https://cran.r-project.org/package=combinat"
   },
   {
+   "name": "contfrac",
+   "version": "1.1-12",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=contfrac"
+  },
+  {
    "name": "corpcor",
    "version": "1.6.10",
    "license": "GPL (>= 3)",
@@ -470,6 +482,11 @@
    "version": "4.3.5",
    "license": "GPL (>= 3)",
    "url": "https://cran.r-project.org/package=Deriv"
+  },
+  {
+   "name": "deSolve",
+   "version": "1.42",
+   "url": "https://cran.r-project.org/package=deSolve"
   },
   {
    "name": "diagram",
@@ -554,6 +571,12 @@
    "version": "0.5.0",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=ellipse"
+  },
+  {
+   "name": "elliptic",
+   "version": "1.5-1",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=elliptic"
   },
   {
    "name": "evaluate",
@@ -846,6 +869,12 @@
    "version": "1.4.9",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=httr"
+  },
+  {
+   "name": "hypergeo",
+   "version": "1.2-15",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=hypergeo"
   },
   {
    "name": "igraph",

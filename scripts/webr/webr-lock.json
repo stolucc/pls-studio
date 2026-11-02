@@ -139,6 +139,23 @@
         "File": "base64enc_0.1-6.tgz"
       }
     },
+    "BayesFactor": {
+      "version": "0.9.12-4.8",
+      "md5": "ad45d382d6d085fb3460efb3f527fa93",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "BayesFactor",
+        "Version": "0.9.12-4.8",
+        "Depends": "R (>= 3.2.0), coda, Matrix (>= 1.1-1)",
+        "Imports": "pbapply, mvtnorm, stringr, utils, graphics, MatrixModels, Rcpp (>= 1.1.1), methods, hypergeo",
+        "LinkingTo": "Rcpp (>= 1.1.1), RcppEigen (>= 0.3.2.2.0)",
+        "Suggests": "doMC, foreach, testthat, knitr, markdown, rmarkdown, arm, lme4, xtable, languageR",
+        "License": "GPL-2",
+        "MD5sum": "ad45d382d6d085fb3460efb3f527fa93",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 16:49:05 UTC; unix",
+        "File": "BayesFactor_0.9.12-4.8.tgz"
+      }
+    },
     "bigmemory": {
       "version": "4.6.6",
       "md5": "7b2e8be303cdd3974052c7a6fe70c929",
@@ -580,6 +597,19 @@
         "File": "combinat_0.0-9.tgz"
       }
     },
+    "contfrac": {
+      "version": "1.1-12",
+      "md5": "cc87d730cce0ea9e3017fb23c19284d9",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "contfrac",
+        "Version": "1.1-12",
+        "License": "GPL-2",
+        "MD5sum": "cc87d730cce0ea9e3017fb23c19284d9",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 21:17:16 UTC; unix",
+        "File": "contfrac_1.1-12.tgz"
+      }
+    },
     "corpcor": {
       "version": "1.6.10",
       "md5": "98b04a28ffaba00cafe89a3b08e10662",
@@ -765,6 +795,24 @@
         "MD5sum": "96a9a1d2cfa3c9912394e3e839baafe6",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 16:20:07 UTC; unix",
         "File": "Deriv_4.3.5.tgz"
+      }
+    },
+    "deSolve": {
+      "version": "1.42",
+      "md5": "3f1323e2e20459e53e5b42bfcc5390d5",
+      "vendored": true,
+      "stanza": {
+        "Package": "deSolve",
+        "Version": "1.42",
+        "NeedsCompilation": "yes",
+        "Built": "R 4.6.0; emscripten; 2026-10-19 09:50:35 UTC; unix",
+        "Filesize": "2673429",
+        "SHA256": "1b8703d09f9ae70702ad2db1715ce24d4d978155323fefd623147d4451cee454",
+        "Depends": "R (>= 3.3.0)",
+        "Imports": "methods, graphics, grDevices, stats",
+        "Suggests": "scatterplot3d, nlme, FME",
+        "Path": "deSolve_1.42.tgz?sha256=1b8703d09f9ae70702ad2db1715ce24d4d978155323fefd623147d4451cee454&file=",
+        "MD5sum": "3f1323e2e20459e53e5b42bfcc5390d5"
       }
     },
     "diagram": {
@@ -981,6 +1029,22 @@
         "MD5sum": "fe4d066a556c283b4cbe7143a4c2381f",
         "Built": "R 4.6.0; ; 2026-05-13 01:16:26 UTC; unix",
         "File": "ellipse_0.5.0.tgz"
+      }
+    },
+    "elliptic": {
+      "version": "1.5-1",
+      "md5": "7e4f469b003a918d055fe481aabd3bab",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "elliptic",
+        "Version": "1.5-1",
+        "Depends": "R (>= 2.5.0)",
+        "Imports": "MASS",
+        "Suggests": "emulator, calibrator (>= 1.2-8), testthat, hypergeo",
+        "License": "GPL-2",
+        "MD5sum": "7e4f469b003a918d055fe481aabd3bab",
+        "Built": "R 4.6.0; ; 2026-05-13 01:16:33 UTC; unix",
+        "File": "elliptic_1.5-1.tgz"
       }
     },
     "evaluate": {
@@ -1754,6 +1818,23 @@
         "MD5sum": "3d29e5d044f2533173851f594e069ca7",
         "Built": "R 4.6.0; ; 2026-10-10 03:46:07 UTC; unix",
         "File": "httr_1.4.9.tgz"
+      }
+    },
+    "hypergeo": {
+      "version": "1.2-15",
+      "md5": "d30f14ff0502ffb6c32d2f1a98990a0b",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "hypergeo",
+        "Version": "1.2-15",
+        "Depends": "R (>= 3.1.0)",
+        "Imports": "elliptic (>= 1.3-5), contfrac (>= 1.1-9), deSolve, Rcpp (>= 0.12.3)",
+        "LinkingTo": "Rcpp, RcppArmadillo",
+        "Suggests": "magrittr,testthat",
+        "License": "GPL-2",
+        "MD5sum": "d30f14ff0502ffb6c32d2f1a98990a0b",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 03:48:39 UTC; unix",
+        "File": "hypergeo_1.2-15.tgz"
       }
     },
     "igraph": {

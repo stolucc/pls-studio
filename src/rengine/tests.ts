@@ -155,3 +155,43 @@ export async function reliabilityR(d: Dataset, i: ReliabilityInput): Promise<Rel
     ...(pts ? { points: { mean: arr<number>(pts.mean), diff: arr<number>(pts.diff) } } : {}), warnings: rStrings(r.warnings) } as ReliabilityResult;
 }
 export const reliabilityScriptR = (d: Dataset, i: ReliabilityInput) => rScript('ps_reliability', reliabilityRequest(d, i), i.type === 'blandaltman' ? 'stats' : 'psych');
+
+// ---- Bayesian tests (R/bayes.R): JASP's default priors
+
+export interface Posterior { median: number; low: number; high: number }
+export interface BTTestInput { type: TTestInput['type']; vars: string[]; pairs: [string, string][]; group: string; testValue: number; alternative: Alternative; priorWidth: number; seed: number; iterations: number; confidence: number }
+export interface BTTestResult {
+  type: BTTestInput['type']; alternative: Alternative; testValue: number; priorWidth: number; confidence: number; seed: number; iterations: number; groups: string[] | null;
+  rows: { label: string; bf10: number; error: number; delta: Posterior }[]; warnings: string[]; engine: REngineInfo;
+}
+export interface BCorrelationInput { vars: string[]; alternative: Alternative; priorWidth: number; seed: number; iterations: number; confidence: number }
+export interface BCorrelationResult {
+  alternative: Alternative; priorWidth: number; confidence: number; seed: number; iterations: number; vars: string[];
+  pairs: { a: string; b: string; r: number; n: number; bf10: number; error: number; rho: Posterior }[]; warnings: string[]; engine: REngineInfo;
+}
+export interface BBinomialInput { variable: string; testValue: number; alternative: Alternative; priorA: number; priorB: number; confidence: number }
+export interface BBinomialResult {
+  variable: string; levels: string[]; counts: number[]; n: number; alternative: Alternative; testValue: number; priorA: number; priorB: number; confidence: number;
+  rows: { bf10: number; median: number; low: number; high: number }[]; warnings: string[]; engine: REngineInfo;
+}
+
+export const bttestRequest = (d: Dataset, i: BTTestInput) => testRequest(d, 'bttest', i.type === 'paired' ? i.pairs.flat() : [...i.vars, i.type === 'independent' ? i.group : ''], i);
+export async function bttestR(d: Dataset, i: BTTestInput): Promise<BTTestResult> {
+  const r = await rCall<Record<string, any>>('ps_bttest', bttestRequest(d, i), 'BayesFactor');
+  return { ...r, groups: r.groups ? arr<string>(r.groups) : null, rows: arr(r.rows), warnings: rStrings(r.warnings) } as BTTestResult;
+}
+export const bttestScriptR = (d: Dataset, i: BTTestInput) => rScript('ps_bttest', bttestRequest(d, i), 'BayesFactor');
+
+export const bcorrelationRequest = (d: Dataset, i: BCorrelationInput) => testRequest(d, 'bcorrelation', i.vars, i);
+export async function bcorrelationR(d: Dataset, i: BCorrelationInput): Promise<BCorrelationResult> {
+  const r = await rCall<Record<string, any>>('ps_bcorrelation', bcorrelationRequest(d, i), 'BayesFactor');
+  return { ...r, vars: arr<string>(r.vars), pairs: arr(r.pairs), warnings: rStrings(r.warnings) } as BCorrelationResult;
+}
+export const bcorrelationScriptR = (d: Dataset, i: BCorrelationInput) => rScript('ps_bcorrelation', bcorrelationRequest(d, i), 'BayesFactor');
+
+export const bbinomialRequest = (d: Dataset, i: BBinomialInput) => testRequest(d, 'bbinomial', [i.variable], i);
+export async function bbinomialR(d: Dataset, i: BBinomialInput): Promise<BBinomialResult> {
+  const r = await rCall<Record<string, any>>('ps_bbinomial', bbinomialRequest(d, i), 'stats');
+  return { ...r, levels: arr<string>(r.levels), counts: arr<number>(r.counts), rows: arr(r.rows), warnings: rStrings(r.warnings) } as BBinomialResult;
+}
+export const bbinomialScriptR = (d: Dataset, i: BBinomialInput) => rScript('ps_bbinomial', bbinomialRequest(d, i), 'stats');

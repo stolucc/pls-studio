@@ -1,4 +1,5 @@
 Amelia
+BayesFactor
 EGAnet
 GPArotation
 MASS

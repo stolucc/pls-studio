@@ -24,12 +24,13 @@ import screenR from './R/screen.R?raw';
 import networkR from './R/network.R?raw';
 import segmentR from './R/segment.R?raw';
 import testsR from './R/tests.R?raw';
+import bayesR from './R/bayes.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR };
+export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -82,6 +83,8 @@ export const R_PACKAGES = {
   faraway: ['jsonlite', 'faraway'],
   stats: ['jsonlite'],
   EGAnet: ['jsonlite', 'EGAnet'],
+  // Bayesian tests (JZS t-tests, correlations; JASP's priors).
+  BayesFactor: ['jsonlite', 'BayesFactor'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;
