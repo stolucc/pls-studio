@@ -10,13 +10,15 @@ import type { Dataset } from '../engine/types';
 import { PACKAGE_EXAMPLES } from '../examples/packages';
 import { withR } from './runtime';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
-import { bbinomialR, bcorrelationR, bttestR, type BTTestInput } from './tests';
+import { banovaR, bbinomialR, bcontingencyR, bcorrelationR, bttestR, type BTTestInput } from './tests';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
 type Frame = { names: string[]; cols: number[][]; categories: Record<string, string[]> };
 const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'bayes', 'reference.json'), 'utf8')) as Record<string, any>;
+/** Native BayesFactor in desktop R, same version and seeds (scripts/validation/bayes_native.R). */
+const native = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'bayes', 'native.json'), 'utf8')) as Record<string, any>;
 const data = (f: Frame): Dataset => ({ names: f.names, cols: f.cols.map((c) => Float64Array.from(c)), ...(Object.keys(f.categories ?? {}).length ? { categories: f.categories } : {}) });
 /** Bayes factors to a relative 1e-5 (BayesFactor's quadrature against base R's). */
 const bf = (a: number, b: number, what: string) => expect(Math.abs(a / b - 1), `${what}: ${a} vs ${b}`).toBeLessThan(1e-5);
@@ -80,3 +82,39 @@ it('the BayesFactor example reproduces the help page’s call (?correlationBF) a
   bf(r.pairs[0].bf10, ref.irisCorrelation.bf10, 'exact integral');
   expect(r.pairs[0].r).toBeCloseTo(ref.irisCorrelation.r, 10);
 }, 600_000);
+
+describe('against native BayesFactor (desktop R, same version and seeds)', () => {
+  it('t-tests and correlations', async () => {
+    bf((await bttestR(data(ref.sleep), { ...B, type: 'paired', vars: [], pairs: [['drug1', 'drug2']] })).rows[0].bf10, native.ttest.paired, 'paired');
+    bf((await bttestR(data(ref.toothgrowth), { ...B, type: 'independent', vars: ['len'], group: 'supp' })).rows[0].bf10, native.ttest.independent, 'independent');
+    bf((await bttestR(data(ref.toothgrowth), { ...B, type: 'independent', vars: ['len'], group: 'supp', alternative: 'greater' })).rows[0].bf10, native.ttest.independentGreater, 'independent, greater');
+    bf((await bttestR(data(ref.toothgrowth), { ...B, type: 'one', vars: ['len'], testValue: 18, priorWidth: 1 })).rows[0].bf10, native.ttest.one, 'one sample');
+    const c = await bcorrelationR(data(ref.mtcars), { vars: ['mpg', 'wt'], alternative: 'two.sided', priorWidth: 1, seed: 1, iterations: 5000, confidence: 0.95 });
+    bf(c.pairs[0].bf10, native.correlation.mpgWt, 'correlation');
+    const g = await bcorrelationR(data(ref.mtcars), { vars: ['mpg', 'wt'], alternative: 'greater', priorWidth: 1, seed: 1, iterations: 5000, confidence: 0.95 });
+    bf(g.pairs[0].bf10, native.correlation.mpgWtGreater, 'correlation, greater');
+  }, 600_000);
+  it('ANOVA: every model, the same as native with the same seed; posterior and inclusion consistent', async () => {
+    const r = await banovaR(data(native.toothgrowth), { dependent: 'len', factors: ['supp', 'dose'], covariates: [], interactions: true, priorFixed: 0.5, priorCovariates: Math.SQRT2 / 4, seed: 1234, iterations: 10000 });
+    expect(r.models.map((m) => m.model)).toEqual(['Null model', 'supp', 'dose', 'supp + dose', 'supp + dose + supp × dose']);
+    (native.anova.bf10 as number[]).forEach((x, i) => bf(r.models[i + 1].bf10, x, native.anova.models[i]));
+    // The one-factor model equals the independent t-test (r = 0.5 here is r = sqrt(2)/2 there).
+    bf(r.models[1].bf10, ref.independent.bf10, 'supp alone = t-test (exact integral)');
+    expect(r.models.reduce((a, m) => a + m.posterior, 0)).toBeCloseTo(1, 12);
+    const full = r.models[4], inter = r.effects.find((e) => e.effect === 'supp × dose')!;
+    // The interaction is in one model of five: its inclusion BF equals that model's BF_M.
+    expect(inter.priorInclusion).toBeCloseTo(0.2, 12); expect(inter.bfInclusion / full.bfM).toBeCloseTo(1, 10);
+  }, 600_000);
+  it('ANCOVA: a factor and a covariate', async () => {
+    const r = await banovaR(data(native.mtcars), { dependent: 'mpg', factors: ['am'], covariates: ['wt'], interactions: true, priorFixed: 0.5, priorCovariates: Math.SQRT2 / 4, seed: 1234, iterations: 10000 });
+    expect(r.models.slice(1).map((m) => m.model)).toEqual(['am', 'wt', 'am + wt']);
+    (native.ancova.bf10 as number[]).forEach((x, i) => bf(r.models[i + 1].bf10, x, native.ancova.models[i]));
+  }, 600_000);
+  it('contingency tables: every sampling scheme, two prior concentrations', async () => {
+    for (const sampling of ['jointMulti', 'poisson', 'indepRows', 'indepCols', 'hypergeom'] as const) {
+      const r = await bcontingencyR(data(native.mtcars), { rows: 'am', columns: 'vs', counts: '', sampling, priorConcentration: 1 });
+      bf(r.bf10, native.contingency[sampling], sampling);
+    }
+    bf((await bcontingencyR(data(native.mtcars), { rows: 'am', columns: 'vs', counts: '', sampling: 'jointMulti', priorConcentration: 2 })).bf10, native.contingency.concentration2, 'concentration 2');
+  }, 600_000);
+});

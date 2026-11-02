@@ -6,7 +6,7 @@
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, Table, type Row } from '../components/results/Table';
 import { fmt } from '../format';
-import type { Alternative, BBinomialInput, BBinomialResult, BCorrelationInput, BCorrelationResult, BTTestInput, BTTestResult } from '../rengine/tests';
+import type { Alternative, BAnovaInput, BAnovaResult, BBinomialInput, BBinomialResult, BContingencyInput, BContingencyResult, BCorrelationInput, BCorrelationResult, BTTestInput, BTTestResult } from '../rengine/tests';
 import { Choice, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -36,10 +36,10 @@ const altHint = (o: { alternative: Alternative }, what: string) => (o.alternativ
 const ALTS: readonly (readonly [Alternative, string])[] = [['two.sided', 'Two-sided'], ['greater', 'Positive'], ['less', 'Negative']];
 const EVIDENCE_NOTE = 'BF₁₀: how many times more likely the data are under H1 than under H0; BF₀₁ = 1/BF₁₀. Evidence categories after Jeffreys (Lee & Wagenmakers 2013): 1–3 anecdotal, 3–10 moderate, 10–30 strong, 30–100 very strong, above 100 extreme.';
 
-function PriorWidth({ value, onChange, label, hint }: { value: number; onChange: (v: number) => void; label: string; hint: string }) {
+function PriorWidth({ id = 'bayes-width', value, onChange, label, hint }: { id?: string; value: number; onChange: (v: number) => void; label: string; hint: string }) {
   return (
-    <div className="field"><label htmlFor="bayes-width">{label}</label>
-      <input id="bayes-width" className="input num" type="number" min={0.01} max={100} step={0.001} value={value} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v > 0) onChange(v); }} />
+    <div className="field"><label htmlFor={id}>{label}</label>
+      <input id={id} className="input num" type="number" min={0.01} max={100} step={0.001} value={Number(value.toFixed(4))} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v > 0) onChange(v); }} />
       <div className="hint">{hint}</div></div>
   );
 }
@@ -214,4 +214,124 @@ export const bayesBinomialAnalysis: AnalysisType<BBinomialOptions, BBinomialResu
   summary: (o) => `${o.variable || '…'} vs ${o.testValue} · beta(${o.priorA}, ${o.priorB})`,
 };
 
-export const BAYES_TYPES = [bayesTtestAnalysis, bayesCorrelationAnalysis, bayesBinomialAnalysis];
+// ---------------------------------------------------------------- ANOVA / ANCOVA
+
+export type BAnovaOptions = Omit<BAnovaInput, 'seed'>;
+
+function BAnovaForm({ options: o, set, ctx, disabled }: OptionsProps<BAnovaOptions>) {
+  const d = rawData(ctx);
+  if (!d) return <NoData />;
+  const numeric = d.names.filter((n) => !d.categories?.[n]);
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <ColumnSelect id="ba-y" label="Dependent variable" value={o.dependent} columns={numeric} exclude={[...o.factors, ...o.covariates]} onChange={(dependent) => set({ ...o, dependent })} />
+      <OrderedPicker label="Fixed factors" columns={d.names.filter((n) => n !== o.dependent && !o.covariates.includes(n))} value={o.factors} onChange={(factors) => set({ ...o, factors })} />
+      <OrderedPicker label="Covariates (ANCOVA, optional)" columns={numeric.filter((n) => n !== o.dependent && !o.factors.includes(n))} value={o.covariates} onChange={(covariates) => set({ ...o, covariates })} />
+      <Choice label="Model terms" value={o.interactions ? 'full' : 'main'} onChange={(v) => set({ ...o, interactions: v === 'full' })} options={[['full', 'With interactions'], ['main', 'Main effects only']]}
+        hint="Every model that keeps an interaction’s main effects is compared with the null model (BayesFactor’s “withmain”, as JASP)." />
+      <div className="row2">
+        <PriorWidth id="ba-rf" label="Prior width, fixed effects" value={o.priorFixed} onChange={(priorFixed) => set({ ...o, priorFixed })} hint="JASP’s default 0.5 (BayesFactor’s “medium”)." />
+        <PriorWidth id="ba-rc" label="Prior width, covariates" value={o.priorCovariates} onChange={(priorCovariates) => set({ ...o, priorCovariates })} hint="JASP’s default √2/4 ≈ 0.354." />
+      </div>
+    </fieldset>
+  );
+}
+
+function BAnovaView({ r }: { r: BAnovaResult }) {
+  const best = r.models.reduce((a, m) => (m.posterior > a.posterior ? m : a), r.models[0]);
+  return (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>{r.dependent}, n = {r.n}; prior widths {fmt(r.priorFixed)} (factors){r.covariates.length ? `, ${fmt(r.priorCovariates)} (covariates)` : ''}; {r.iterations.toLocaleString('en')} samples, seed {r.seed}; BayesFactor {r.engine.version}.</p>
+      <Table title={`Bayesian ${r.covariates.length ? 'ANCOVA' : 'ANOVA'}: model comparison`} file="bayes-anova-models" columns={['Model', 'P(M)', 'P(M | data)', 'BF_M', 'BF₁₀', 'Error %']}
+        rows={[...r.models].sort((a, b) => b.posterior - a.posterior).map((m): Row => [{ v: m.model, bold: m === best }, c(1 / r.models.length), c(m.posterior), c(fmtBF(m.bfM)), c(fmtBF(m.bf10)), c(m.error ? m.error * 100 : null, undefined, 4)])}
+        note="BF₁₀: each model against the null model (intercept only). P(M): equal prior probabilities; BF_M: a model’s posterior odds over its prior odds. Error: the proportional error of BayesFactor’s numerical integration or sampling." />
+      <Table title="Analysis of effects (across all models)" file="bayes-anova-effects" columns={['Effect', 'P(incl)', 'P(incl | data)', 'BF_incl', 'Evidence']}
+        rows={r.effects.map((e): Row => [c(e.effect), c(e.priorInclusion), c(e.posteriorInclusion), c(fmtBF(e.bfInclusion)), c(evidence(e.bfInclusion))])}
+        note="Inclusion Bayes factor: the posterior odds of the models with the effect over those without, by their prior odds." />
+    </div>
+  );
+}
+
+const baCols = (o: BAnovaOptions) => [o.dependent, ...o.factors, ...o.covariates].filter(Boolean);
+export const bayesAnovaAnalysis: AnalysisType<BAnovaOptions, BAnovaResult> = {
+  id: 'banova', title: 'Bayesian ANOVA', sub: 'model comparison and inclusion Bayes factors; ANCOVA with covariates (BayesFactor)', group: 'Basic statistics',
+  entries: [
+    { title: 'Bayesian ANOVA', sub: 'between-subjects factors; models and effects', options: (o) => o },
+    { title: 'Bayesian ANCOVA', sub: 'factors and covariates', options: (o) => o },
+  ],
+  cardTitle: (o) => `Bayesian ${o.covariates.length ? 'ANCOVA' : 'ANOVA'}${o.dependent ? `: ${o.dependent}` : ''}`,
+  defaults: () => ({ dependent: '', factors: [], covariates: [], interactions: true, priorFixed: 0.5, priorCovariates: Math.SQRT2 / 4, iterations: 10000 }),
+  parseOptions: (raw) => (isObj(raw) ? {
+    dependent: name(raw.dependent), factors: names(raw.factors), covariates: names(raw.covariates), interactions: raw.interactions !== false,
+    priorFixed: num(raw.priorFixed, 0, 100, 0.5), priorCovariates: num(raw.priorCovariates, 0, 100, Math.SQRT2 / 4), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)),
+  } : null),
+  Options: BAnovaForm,
+  View: ({ result }) => <BAnovaView r={result} />,
+  blocked: (o, ctx) => {
+    if (!o.dependent) return 'Choose the dependent variable.';
+    if (!o.factors.length) return 'Choose at least one factor.';
+    if (o.factors.length + o.covariates.length > 6) return 'At most six factors and covariates: the number of models grows quickly.';
+    return missingColumns(ctx, baCols(o), 'Bayesian ANOVA');
+  },
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, baCols(o), [String(o.interactions), o.priorFixed, o.priorCovariates, o.iterations, ...o.factors, '|', ...o.covariates, ctx.settings.seed]),
+  run: async (o, ctx) => (await engine()).banovaR(rawData(ctx)!, { ...o, seed: ctx.settings.seed }),
+  script: async (o, ctx) => (await engine()).banovaScriptR(rawData(ctx)!, { ...o, seed: ctx.settings.seed }),
+  summary: (o) => `${o.dependent || '…'} by ${o.factors.join(' × ') || '…'}${o.covariates.length ? ` + ${o.covariates.join(', ')}` : ''}`,
+};
+
+// ---------------------------------------------------------------- contingency tables
+
+export type BContingencyOptions = BContingencyInput;
+const SAMPLING: readonly (readonly [BContingencyInput['sampling'], string])[] = [
+  ['jointMulti', 'Joint multinomial'], ['indepRows', 'Independent multinomial, rows fixed'], ['indepCols', 'Independent multinomial, columns fixed'], ['poisson', 'Poisson'], ['hypergeom', 'Hypergeometric (2 × 2)'],
+];
+const SAMPLING_HINT: Record<BContingencyInput['sampling'], string> = {
+  jointMulti: 'Only the total N was fixed by the design (JASP’s default).', indepRows: 'The number of cases in each row was fixed by the design.', indepCols: 'The number of cases in each column was fixed by the design.',
+  poisson: 'Nothing was fixed: the total itself is random.', hypergeom: 'Both margins were fixed (2 × 2 tables only).',
+};
+
+export const bayesContingencyAnalysis: AnalysisType<BContingencyOptions, BContingencyResult> = {
+  id: 'bcontingency', title: 'Bayesian contingency table', sub: 'independence against association (Gunel & Dickey; BayesFactor)', group: 'Basic statistics',
+  cardTitle: (o) => `Bayesian contingency table${o.rows && o.columns ? `: ${o.rows} × ${o.columns}` : ''}`,
+  defaults: () => ({ rows: '', columns: '', counts: '', sampling: 'jointMulti', priorConcentration: 1 }),
+  parseOptions: (raw) => (isObj(raw) ? {
+    rows: name(raw.rows), columns: name(raw.columns), counts: name(raw.counts),
+    sampling: oneOf(raw.sampling, ['jointMulti', 'indepRows', 'indepCols', 'poisson', 'hypergeom'] as const, 'jointMulti'), priorConcentration: num(raw.priorConcentration, 0, 1e4, 1),
+  } : null),
+  Options: ({ options: o, set, ctx, disabled }) => {
+    const d = rawData(ctx);
+    if (!d) return <NoData />;
+    return (
+      <fieldset className="card-options" disabled={disabled}>
+        <div className="row2">
+          <ColumnSelect id="bc-r" label="Rows" value={o.rows} columns={d.names} exclude={[o.columns, o.counts]} onChange={(rows) => set({ ...o, rows })} />
+          <ColumnSelect id="bc-c" label="Columns" value={o.columns} columns={d.names} exclude={[o.rows, o.counts]} onChange={(columns) => set({ ...o, columns })} />
+        </div>
+        <ColumnSelect id="bc-w" label="Counts (optional)" optional="None: one row per case" value={o.counts} columns={d.names.filter((n) => !d.categories?.[n])} exclude={[o.rows, o.columns]} onChange={(counts) => set({ ...o, counts })} />
+        <div className="field"><label htmlFor="bc-s">Sampling plan</label>
+          <select id="bc-s" className="select" value={o.sampling} onChange={(e) => set({ ...o, sampling: e.target.value as BContingencyInput['sampling'] })}>
+            {SAMPLING.map(([id, l]) => <option key={id} value={id}>{l}</option>)}
+          </select>
+          <div className="hint">{SAMPLING_HINT[o.sampling]} The Bayes factor depends on what the design fixed.</div></div>
+        <PriorWidth label="Prior concentration (a)" value={o.priorConcentration} onChange={(priorConcentration) => set({ ...o, priorConcentration })} hint="The Dirichlet prior on the cell probabilities; 1 is JASP’s default." />
+      </fieldset>
+    );
+  },
+  View: ({ result: r }) => (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>{SAMPLING.find(([id]) => id === r.sampling)?.[1]} sampling, prior concentration {fmt(r.priorConcentration)}; n = {r.n}; BayesFactor {r.engine.version}.</p>
+      <Table title={`${r.rows} × ${r.columns}`} file="bayes-contingency-table" columns={[`${r.rows} \\ ${r.columns}`, ...r.colLevels, 'Total']}
+        rows={[...r.rowLevels.map((l, i): Row => [c(l), ...r.counts[i].map((x) => c(x, undefined, 0)), c(r.counts[i].reduce((a, b) => a + b, 0), undefined, 0)]),
+          [c('Total'), ...r.colLevels.map((_, j) => c(r.counts.reduce((a, row) => a + row[j], 0), undefined, 0)), c(r.n, undefined, 0)]]} />
+      <Table title="Bayesian test of association" file="bayes-contingency" columns={['BF₁₀', 'BF₀₁', 'Evidence', 'Error %']}
+        rows={[[...bfCells(r.bf10), c(r.error ? r.error * 100 : null, undefined, 4)]]} note={`H0: the row and column variables are independent; H1: they are associated. ${EVIDENCE_NOTE}`} />
+    </div>
+  ),
+  blocked: (o, ctx) => (!o.rows || !o.columns ? 'Choose the row and the column variables.' : o.rows === o.columns ? 'Choose two different variables.' : missingColumns(ctx, [o.rows, o.columns, o.counts].filter(Boolean), 'Bayesian contingency table')),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, [o.rows, o.columns, o.counts].filter(Boolean), [o.rows, o.columns, o.counts, o.sampling, o.priorConcentration]),
+  run: async (o, ctx) => (await engine()).bcontingencyR(rawData(ctx)!, o),
+  script: async (o, ctx) => (await engine()).bcontingencyScriptR(rawData(ctx)!, o),
+  summary: (o) => `${o.rows || '…'} × ${o.columns || '…'} · ${SAMPLING.find(([id]) => id === o.sampling)?.[1].toLowerCase()}`,
+};
+
+export const BAYES_TYPES = [bayesTtestAnalysis, bayesAnovaAnalysis, bayesCorrelationAnalysis, bayesContingencyAnalysis, bayesBinomialAnalysis];

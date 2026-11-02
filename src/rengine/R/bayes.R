@@ -134,3 +134,88 @@ ps_bbinomial <- function(req_json, export = FALSE) {
     rows = lapply(seq_along(ct), function(i) list(bf10 = env$bf10[i], median = env$cri[i, 2], low = env$cri[i, 1], high = env$cri[i, 3])),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
 }
+
+#' Bayesian ANOVA and ANCOVA (BayesFactor::generalTestBF): every model of the
+#' factors (with their interactions, or main effects only) and covariates that
+#' keeps the principle of marginality ("withmain"), each against the null model.
+#' JASP's priors: fixed effects r = 0.5, covariates r = sqrt(2)/4. Equal prior
+#' model probabilities; inclusion Bayes factors of each effect across all models.
+ps_banova <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  y <- req$dependent %||% ""; fac <- unlist(req$factors); cov <- unlist(req$covariates)
+  if (!nzchar(y) || !length(fac)) stop("Choose the dependent variable and at least one factor.")
+  full <- !identical(req$interactions, FALSE)
+  rf <- ps_number(req$priorFixed %||% 0.5, "prior width of the fixed effects"); rc <- ps_number(req$priorCovariates %||% (sqrt(2) / 4), "prior width of the covariates")
+  if (rf <= 0 || rc <= 0) stop("The prior widths must be positive.")
+  seed <- ps_bayes_seed(req)
+  iter <- as.integer(ps_number(req$iterations %||% 10000, "number of samples"))
+  if (iter < 1000 || iter > 1e6) stop("The number of samples must be between 1,000 and 1,000,000.")
+  fr <- ps_long_frame(req, unique(c(y, fac, cov)))
+  v <- fr$v
+  if (length(fac) + length(cov) > 6) stop("At most six factors and covariates: the number of models grows quickly.")
+  rhs <- paste(c(paste(vapply(fac, function(n) v[[n]], ""), collapse = if (full) " * " else " + "), vapply(cov, function(n) v[[n]], "")), collapse = " + ")
+  body <- c("suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
+    sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
+    "# Factors (their levels as the groups).", vapply(fac, function(n) ps_bt_factor_line(req, fr, n), ""),
+    sprintf("bf <- generalTestBF(%s ~ %s, data = data, whichModels = \"withmain\", rscaleFixed = %s, rscaleCont = %s, iterations = %d, progress = FALSE)",
+      v[[y]], rhs, format(rf, digits = 15), format(rc, digits = 15), iter),
+    "# Posterior model probabilities (equal prior probabilities, the null model included).",
+    "lbf <- c(0, extractBF(bf, logbf = TRUE)$bf); names(lbf) <- c(\"Null model\", rownames(extractBF(bf)))",
+    "post <- exp(lbf - max(lbf)); post <- post / sum(post)")
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script(if (length(cov)) "Bayesian ANCOVA" else "Bayesian ANOVA", "BayesFactor", inputs, body, c("bf", "post")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  ex <- BayesFactor::extractBF(env$bf, logbf = TRUE)
+  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " × ")
+  terms_of <- function(m) trimws(strsplit(m, "+", fixed = TRUE)[[1]])
+  mods <- rownames(ex); k <- length(mods) + 1
+  prior <- 1 / k
+  models <- c(list(list(model = "Null model", terms = list(), bf10 = 1, error = 0, posterior = unname(env$post[1]))),
+    lapply(seq_along(mods), function(i) list(model = paste(vapply(terms_of(mods[i]), back, ""), collapse = " + "), terms = I(vapply(terms_of(mods[i]), back, "")),
+      bf10 = exp(ex$bf[i]), error = ex$error[i], posterior = unname(env$post[i + 1]))))
+  # From the log Bayes factors (sums of Bayes factors on the log scale), so that odds stay exact when a probability is near 1.
+  lse <- function(x) { m <- max(x); m + log(sum(exp(x - m))) }
+  lbf <- env$lbf
+  # BF_M: a model's posterior odds over its prior odds, 1 / (k - 1) with k equally likely models.
+  for (i in seq_along(models)) models[[i]]$bfM <- exp(lbf[i] - lse(lbf[-i]) + log(k - 1))
+  # Inclusion Bayes factors across all models: the posterior odds of the models with the effect over those without, by their prior odds.
+  effects <- unique(unlist(lapply(mods, terms_of)))
+  incl <- lapply(effects, function(t) {
+    has <- c(FALSE, vapply(mods, function(m) t %in% terms_of(m), TRUE))
+    pi <- mean(has)
+    list(effect = back(t), priorInclusion = pi, posteriorInclusion = sum(env$post[has]), bfInclusion = exp(lse(lbf[has]) - lse(lbf[!has]) - log(pi / (1 - pi))))
+  })
+  ps_json(list(dependent = y, factors = fac, covariates = cov, n = nrow(env$data), priorFixed = rf, priorCovariates = rc, seed = seed, iterations = iter,
+    models = models, effects = incl, warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+}
+
+#' Bayesian contingency table (BayesFactor::contingencyTableBF; Gunel & Dickey
+#' 1974): independence against dependence under the chosen sampling scheme,
+#' Dirichlet prior of concentration a (JASP's default 1).
+ps_bcontingency <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  rv <- req$rows %||% ""; cv <- req$columns %||% ""; wv <- req$counts %||% ""
+  if (!nzchar(rv) || !nzchar(cv) || rv == cv) stop("Choose two different variables for the rows and the columns.")
+  st <- req$sampling %||% "jointMulti"
+  if (!st %in% c("poisson", "jointMulti", "indepRows", "indepCols", "hypergeom")) stop("Invalid sampling scheme in the request.")
+  a <- ps_number(req$priorConcentration %||% 1, "prior concentration")
+  if (a <= 0) stop("The prior concentration must be positive.")
+  fr <- ps_long_frame(req, unique(c(rv, cv, if (nzchar(wv)) wv)))
+  v <- fr$v
+  call <- switch(st, poisson = "sampleType = \"poisson\"", jointMulti = "sampleType = \"jointMulti\"", hypergeom = "sampleType = \"hypergeom\"",
+    indepRows = "sampleType = \"indepMulti\", fixedMargin = \"rows\"", indepCols = "sampleType = \"indepMulti\", fixedMargin = \"cols\"")
+  body <- c("suppressPackageStartupMessages(library(BayesFactor))",
+    sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(rv, cv, if (nzchar(wv)) wv)])))),
+    ps_bt_factor_line(req, fr, rv), ps_bt_factor_line(req, fr, cv),
+    sprintf("tab <- xtabs(%s~ %s + %s, data = data)", if (nzchar(wv)) paste0(v[[wv]], " ") else "", v[[rv]], v[[cv]]),
+    sprintf("bf <- contingencyTableBF(tab, %s, priorConcentration = %s)", call, format(a, digits = 15)))
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Bayesian contingency table", "BayesFactor", inputs, body, c("tab", "bf")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  tab <- env$tab
+  if (st == "hypergeom" && !all(dim(tab) == 2)) stop("The hypergeometric scheme (both margins fixed) is for 2 x 2 tables.")
+  e <- BayesFactor::extractBF(env$bf, logbf = TRUE)
+  ps_json(list(rows = rv, columns = cv, rowLevels = rownames(tab), colLevels = colnames(tab), counts = lapply(seq_len(nrow(tab)), function(i) unname(as.numeric(tab[i, ]))), n = sum(tab),
+    sampling = st, priorConcentration = a, bf10 = exp(e$bf[1]), error = e$error[1],
+    warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+}

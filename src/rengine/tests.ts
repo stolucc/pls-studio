@@ -195,3 +195,29 @@ export async function bbinomialR(d: Dataset, i: BBinomialInput): Promise<BBinomi
   return { ...r, levels: arr<string>(r.levels), counts: arr<number>(r.counts), rows: arr(r.rows), warnings: rStrings(r.warnings) } as BBinomialResult;
 }
 export const bbinomialScriptR = (d: Dataset, i: BBinomialInput) => rScript('ps_bbinomial', bbinomialRequest(d, i), 'stats');
+
+export interface BAnovaInput { dependent: string; factors: string[]; covariates: string[]; interactions: boolean; priorFixed: number; priorCovariates: number; seed: number; iterations: number }
+export interface BAnovaResult {
+  dependent: string; factors: string[]; covariates: string[]; n: number; priorFixed: number; priorCovariates: number; seed: number; iterations: number;
+  models: { model: string; terms: string[]; bf10: number; error: number; posterior: number; bfM: number }[];
+  effects: { effect: string; priorInclusion: number; posteriorInclusion: number; bfInclusion: number }[]; warnings: string[]; engine: REngineInfo;
+}
+export interface BContingencyInput { rows: string; columns: string; counts: string; sampling: 'poisson' | 'jointMulti' | 'indepRows' | 'indepCols' | 'hypergeom'; priorConcentration: number }
+export interface BContingencyResult {
+  rows: string; columns: string; rowLevels: string[]; colLevels: string[]; counts: number[][]; n: number; sampling: BContingencyInput['sampling']; priorConcentration: number;
+  bf10: number; error: number; warnings: string[]; engine: REngineInfo;
+}
+
+export const banovaRequest = (d: Dataset, i: BAnovaInput) => testRequest(d, 'banova', [i.dependent, ...i.factors, ...i.covariates], i);
+export async function banovaR(d: Dataset, i: BAnovaInput): Promise<BAnovaResult> {
+  const r = await rCall<Record<string, any>>('ps_banova', banovaRequest(d, i), 'BayesFactor');
+  return { ...r, factors: arr<string>(r.factors), covariates: arr<string>(r.covariates), models: arr<any>(r.models).map((m) => ({ ...m, terms: arr<string>(m.terms) })), effects: arr(r.effects), warnings: rStrings(r.warnings) } as BAnovaResult;
+}
+export const banovaScriptR = (d: Dataset, i: BAnovaInput) => rScript('ps_banova', banovaRequest(d, i), 'BayesFactor');
+
+export const bcontingencyRequest = (d: Dataset, i: BContingencyInput) => testRequest(d, 'bcontingency', [i.rows, i.columns, i.counts], i);
+export async function bcontingencyR(d: Dataset, i: BContingencyInput): Promise<BContingencyResult> {
+  const r = await rCall<Record<string, any>>('ps_bcontingency', bcontingencyRequest(d, i), 'BayesFactor');
+  return { ...r, rowLevels: arr<string>(r.rowLevels), colLevels: arr<string>(r.colLevels), counts: arr<unknown>(r.counts).map((x) => arr<number>(x)), warnings: rStrings(r.warnings) } as BContingencyResult;
+}
+export const bcontingencyScriptR = (d: Dataset, i: BContingencyInput) => rScript('ps_bcontingency', bcontingencyRequest(d, i), 'BayesFactor');

@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
-import { bayesBinomialAnalysis, bayesCorrelationAnalysis, bayesTtestAnalysis, evidence, fmtBF } from './bayes';
+import { bayesAnovaAnalysis, bayesBinomialAnalysis, bayesContingencyAnalysis, bayesCorrelationAnalysis, bayesTtestAnalysis, evidence, fmtBF } from './bayes';
 import { ANALYSIS_TYPES } from './registry';
 import type { AnalysisCtx } from './types';
 
@@ -27,7 +27,10 @@ describe('Bayesian cards', () => {
     expect(evidence(1e6)).toBe('extreme for H1');
   });
   it('are in the Add menu with JASP’s default priors', () => {
-    for (const id of ['bttest', 'bcorrelation', 'bbinomial']) expect(ANALYSIS_TYPES.find((t) => t.id === id)?.group).toBe('Basic statistics');
+    for (const id of ['bttest', 'banova', 'bcorrelation', 'bcontingency', 'bbinomial']) expect(ANALYSIS_TYPES.find((t) => t.id === id)?.group).toBe('Basic statistics');
+    expect(bayesAnovaAnalysis.defaults(ctx)).toMatchObject({ priorFixed: 0.5, interactions: true });
+    expect(bayesAnovaAnalysis.defaults(ctx).priorCovariates).toBeCloseTo(Math.SQRT2 / 4, 12);
+    expect(bayesContingencyAnalysis.defaults(ctx)).toMatchObject({ sampling: 'jointMulti', priorConcentration: 1 });
     expect(bayesTtestAnalysis.defaults(ctx).priorWidth).toBeCloseTo(Math.SQRT1_2, 12);
     expect(bayesCorrelationAnalysis.defaults(ctx).priorWidth).toBe(1);
     expect(bayesBinomialAnalysis.defaults(ctx)).toMatchObject({ priorA: 1, priorB: 1, testValue: 0.5 });
@@ -35,13 +38,18 @@ describe('Bayesian cards', () => {
   it('parse options from a file, replacing invalid values', () => {
     expect(bayesTtestAnalysis.parseOptions({ type: 'one', vars: ['y'], priorWidth: -1, iterations: 5, alternative: 'up' })).toMatchObject({ priorWidth: Math.SQRT1_2, iterations: 10000, alternative: 'two.sided' });
     expect(bayesBinomialAnalysis.parseOptions({ variable: 'g', priorA: 0, testValue: 1 })).toMatchObject({ priorA: 1, testValue: 0.5 });
-    for (const a of [bayesTtestAnalysis, bayesCorrelationAnalysis, bayesBinomialAnalysis]) { expect(a.parseOptions(null)).toBeNull(); expect(a.parseOptions(a.defaults(ctx))).toEqual(a.defaults(ctx)); }
+    expect(bayesContingencyAnalysis.parseOptions({ rows: 'g', columns: 'y', sampling: 'binomial', priorConcentration: -2 })).toMatchObject({ sampling: 'jointMulti', priorConcentration: 1 });
+    expect(bayesAnovaAnalysis.parseOptions({ dependent: 'y', factors: ['g'], priorFixed: 0 })).toMatchObject({ priorFixed: 0.5 });
+    for (const a of [bayesTtestAnalysis, bayesAnovaAnalysis, bayesCorrelationAnalysis, bayesContingencyAnalysis, bayesBinomialAnalysis]) { expect(a.parseOptions(null)).toBeNull(); expect(a.parseOptions(a.defaults(ctx))).toEqual(a.defaults(ctx)); }
   });
   it('say what they need, and rerun when the seed or the prior changes', () => {
     const t = bayesTtestAnalysis.defaults(ctx);
     expect(bayesTtestAnalysis.blocked(t, ctx)).toMatch(/at least one variable/);
     expect(bayesTtestAnalysis.blocked({ ...t, vars: ['y'], group: 'g' }, ctx)).toBeNull();
     expect(bayesCorrelationAnalysis.blocked({ ...bayesCorrelationAnalysis.defaults(ctx), vars: ['y'] }, ctx)).toMatch(/two variables/);
+    expect(bayesAnovaAnalysis.blocked({ ...bayesAnovaAnalysis.defaults(ctx), dependent: 'y' }, ctx)).toMatch(/factor/);
+    expect(bayesAnovaAnalysis.blocked({ ...bayesAnovaAnalysis.defaults(ctx), dependent: 'y', factors: ['g'], covariates: ['x'] }, ctx)).toBeNull();
+    expect(bayesContingencyAnalysis.blocked({ ...bayesContingencyAnalysis.defaults(ctx), rows: 'g', columns: 'g' }, ctx)).toMatch(/two different/);
     const o = { ...t, vars: ['y'], group: 'g' };
     const f = bayesTtestAnalysis.fingerprint(o, ctx);
     expect(bayesTtestAnalysis.fingerprint({ ...o, priorWidth: 1 }, ctx)).not.toBe(f);
