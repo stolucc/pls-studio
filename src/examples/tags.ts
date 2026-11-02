@@ -7,7 +7,7 @@ import type { PackageExample } from './packages';
 const PANEL_TAGS: Record<string, string[]> = {
   growth: ['Longitudinal', 'Growth curve'], irt: ['Items', 'IRT'], lca: ['Items', 'Latent classes'], lmm: ['Mixed models'], gmm: ['Longitudinal', 'Growth mixture'],
   endo: ['Regression', 'Endogeneity'], match: ['Causal inference'], did: ['Causal inference', 'Difference-in-differences', 'Panel data'], regression: ['Regression'], rsa: ['Regression', 'Response surface'], nca: ['Necessary conditions'],
-  efa: ['Measurement', 'Factor analysis'], screen: ['Data screening'], network: ['Networks'], ega: ['Networks', 'EGA'], bcorrelation: ['Bayesian', 'Correlation'],
+  efa: ['Measurement', 'Factor analysis'], screen: ['Data screening'], network: ['Networks'], ega: ['Networks', 'EGA'], bcorrelation: ['Bayesian', 'Correlation'], bsem: ['Bayesian', 'CB-SEM'],
 };
 const ASSESSMENT_TAGS: Record<string, string> = { predict: 'Prediction', blindfold: 'Blindfolding', compare: 'Model comparison', groups: 'Multigroup', cca: 'Confirmatory composite analysis' };
 const SEGMENTATION_TAGS: Record<string, string> = { rebus: 'Segmentation', fimix: 'Segmentation', pathmox: 'Segmentation', pos: 'Segmentation' };

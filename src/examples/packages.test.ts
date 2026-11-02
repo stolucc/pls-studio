@@ -47,8 +47,9 @@ it('ESEM blocks refer to the example’s constructs by id', () => {
   expect(m.esem?.blocks[0].constructs).toEqual(m.constructs.map((c) => c.id));
 });
 
-it('panel examples carry no diagram and name their columns', () => {
+it('panel examples carry no diagram and name their columns (a Bayesian SEM card fits its diagram instead)', () => {
   for (const e of PACKAGE_EXAMPLES.filter((x) => x.panel)) {
+    if (e.panel!.kind === 'bsem') { expect(e.constructs.length, e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
     expect(e.constructs, e.id).toEqual([]);
     expect(panelColumns(e.panel!).length, e.id).toBeGreaterThanOrEqual(2);
   }

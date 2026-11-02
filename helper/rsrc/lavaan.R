@@ -14,6 +14,9 @@ ps_marked <- function(v, fixed = list(), labels = list(), free_first = FALSE) {
 
 ps_cb_build <- function(req) {
   cons <- req$model$constructs
+  # Identification of the factors: a marker indicator (the default), or unit factor variances (the first
+  # loading free; the caller then fits with std.lv = TRUE: Bayesian SEM, whose chains mix better that way).
+  unit_id <- identical(req$model$identification, "unit")
   n <- ps_names(cons)
   k0 <- length(cons)
   comps <- lapply(cons, function(c) as.character(unlist(c$components)))
@@ -149,7 +152,7 @@ ps_cb_build <- function(req) {
       # Component loadings held at values (a latent curve: 1, 1, 1 and 0, 1, 2), keyed by the components' lavaan names.
       cl <- cons[[j]]$componentLoadings %||% list()
       fixed_c <- setNames(cl, unname(lname[names(cl)]))
-      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(lname[comps[[j]]], fixed_c, free_first = isTRUE(cons[[j]]$markerFree))))
+      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(lname[comps[[j]]], fixed_c, free_first = isTRUE(cons[[j]]$markerFree) || unit_id)))
     }
     else {
       v <- unname(n$iv[n$inds[[j]]])
@@ -168,7 +171,7 @@ ps_cb_build <- function(req) {
         composites <- c(composites, n$cname[j])
         next
       }
-      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels)))
+      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels, free_first = unit_id)))
       # Known reliability (Bollen 1989; Hayduk 1987): error variance fixed at (1 - reliability) x the indicator's variance.
       # With several groups, each group's own variance (Hayduk 1987, ch. 9: the stacked model fixes each group's error variance).
       fix_theta <- function(vi, rel, what) {

@@ -85,10 +85,22 @@ export const R_PACKAGES = {
   EGAnet: ['jsonlite', 'EGAnet'],
   // Bayesian tests (JZS t-tests, correlations; JASP's priors).
   BayesFactor: ['jsonlite', 'BayesFactor'],
+  // Bayesian SEM (Stan): desktop R only (DESKTOP_ONLY).
+  blavaan: ['jsonlite', 'lavaan', 'blavaan'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
+/** Packages that R in the browser cannot run (Stan): only through the desktop helper, never webR. */
+export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>(['blavaan']);
+export class DesktopOnly extends Error {}
+/** What to do when desktop R is not in use or lacks the packages. */
+function helperAdvice(): string {
+  if (useCompute.getState().backend !== 'helper') return 'Choose Desktop R (helper) under R runs in (Model tab), with the PLS Studio Helper running.';
+  const h = useHelper.getState();
+  return h.state === 'ready' ? 'Install the packages from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.' : `Desktop R is not available (${h.message || h.state}).`;
+}
+const desktopOnly = (pkg: RPackage, why: string) => new DesktopOnly(`This analysis runs in desktop R (${R_PACKAGES[pkg].filter((p) => p !== 'jsonlite').join(', ')}; Stan does not run in the browser). ${why}`);
 
 /** Every R package the bridge uses (what the helper's `setup` installs). */
 const ALL_R_PACKAGES = [...new Set(Object.values(R_PACKAGES).flat())].sort();
@@ -164,6 +176,7 @@ function reported<T>(r: T, pkg: RPackage): T { reportRWarnings(r, pkg); return r
 export async function rCall<T>(fn: string, req: unknown, pkg: RPackage): Promise<T> {
   const h = await viaHelper(fn, req, pkg, false);
   if (h !== null) return reported(fromDesktop<T>(h), pkg);
+  if (DESKTOP_ONLY.has(pkg)) throw desktopOnly(pkg, helperAdvice());
   return reported(await withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `ps_call("${fn}", req)`, req)) as T, pkg);
 }
 
@@ -171,6 +184,7 @@ export async function rCall<T>(fn: string, req: unknown, pkg: RPackage): Promise
 export async function rCallOn<T>(session: number, fn: string, req: unknown, pkg: RPackage): Promise<T> {
   const h = await viaHelper(fn, req, pkg, false);
   if (h !== null) return reported(fromDesktop<T>(h), pkg);
+  if (DESKTOP_ONLY.has(pkg)) throw desktopOnly(pkg, helperAdvice());
   return reported(await withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `ps_call("${fn}", req)`, req)) as T, pkg);
 }
 
@@ -199,6 +213,7 @@ export async function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackag
 export async function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string> {
   const h = await viaHelper(fn, req, pkg, true);
   if (h !== null) return h;
+  if (DESKTOP_ONLY.has(pkg)) throw desktopOnly(pkg, helperAdvice());
   return withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callString(webR, `ps_call("${fn}", req, export = TRUE)`, req));
 }
 

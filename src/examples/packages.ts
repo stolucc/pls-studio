@@ -20,11 +20,12 @@ import type { EfaPreset } from '../analyses/efa';
 import type { DataFileFormat } from '../data/readFile';
 import type { EgaOptions, NetworkOptions } from '../analyses/network';
 import type { BCorrelationOptions } from '../analyses/bayes';
+import type { BsemOptions } from '../rengine/bsem';
 import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan'];
 
 interface ExConstruct {
   name: string; type?: 'factor' | 'composite'; mode?: 'A' | 'B'; indicators?: string[]; components?: string[];
@@ -51,7 +52,8 @@ export type ExamplePanel =
   | { kind: 'screen'; vars: string[] }
   | ({ kind: 'network' } & Partial<NetworkOptions>)
   | ({ kind: 'ega' } & Partial<EgaOptions>)
-  | ({ kind: 'bcorrelation' } & BCorrelationOptions);
+  | ({ kind: 'bcorrelation' } & BCorrelationOptions)
+  | ({ kind: 'bsem' } & BsemOptions);
 
 export interface PackageExample {
   id: string;
@@ -898,6 +900,13 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'datasets', name: 'iris' }, constructs: [], paths: [],
     panel: { kind: 'bcorrelation', vars: ['Sepal.Length', 'Sepal.Width'], alternative: 'two.sided', priorWidth: 1 / 3, iterations: 10000 }, settings: CB('ML'),
   },
+  {
+    id: 'blavaan-hs', package: 'blavaan', title: 'Bayesian CFA: Holzinger & Swineford', source: 'blavaan, ?bcfa',
+    links: [{ label: '?bcfa', url: 'https://rdrr.io/cran/blavaan/man/bcfa.html' }, { label: 'Merkle & Rosseel (2018), Journal of Statistical Software', url: 'https://doi.org/10.18637/jss.v085.i04' }],
+    description: 'The three-factor model of the 301 children’s mental ability tests, fitted by MCMC (Stan) as on blavaan’s help page: blavaan’s defaults (3 chains, 500 burn-in and 1,000 draws each, its default priors, marker indicators). Posterior means and intervals, R-hat, PPP, WAIC and LOO. Runs in desktop R through the PLS Studio Helper (Stan does not run in the browser). Opens its card on the Analyses tab.',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [],
+    panel: { kind: 'bsem', identification: 'marker', chains: 3, burnin: 500, sample: 1000 }, settings: CB('ML'),
+  },
 ];
 
 /** The data columns a panel example uses. */
@@ -917,6 +926,8 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'screen': return p.vars;
     case 'network': case 'ega': return p.vars ?? [];
     case 'bcorrelation': return p.vars;
+    // (the Bayesian SEM card fits the diagram: its columns are the constructs' indicators)
+    case 'bsem': return [];
   }
 }
 

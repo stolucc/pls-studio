@@ -6,6 +6,7 @@ MASS
 MIIVsem
 MatchIt
 WeightIt
+blavaan
 boot
 bootnet
 cSEM

@@ -346,3 +346,63 @@ ps_bregression <- function(req_json, export = FALSE) {
     models = mc$models, effects = mc$effects, best = mc$models[[env$best]]$model, coefficients = coefs,
     warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
 }
+
+#' Bayesian SEM (blavaan, Stan): the CB-SEM model of the diagram fitted by MCMC.
+#' Desktop R only (Stan is not available in R in the browser). Factors identified
+#' by unit variances (std.lv; chains mix more reliably) or by marker indicators as
+#' the diagram. blavaan's default priors. Reports posterior means, SDs and
+#' central intervals from the draws, R-hat and effective sample sizes, and
+#' blavaan's fit measures (PPP, DIC, WAIC, LOOIC, the marginal log-likelihood).
+ps_bsem <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  if (grepl("emscripten", R.version$platform)) stop("Bayesian SEM (blavaan, Stan) runs in desktop R: choose Desktop R (helper) under R runs in.")
+  ident <- req$identification %||% "unit"
+  if (!ident %in% c("unit", "marker")) stop("Invalid identification in the request.")
+  chains <- as.integer(ps_number(req$chains %||% 3, "number of chains")); burnin <- as.integer(ps_number(req$burnin %||% 500, "burn-in"))
+  sample <- as.integer(ps_number(req$sample %||% 1000, "number of draws per chain"))
+  if (chains < 1 || chains > 8 || burnin < 100 || burnin > 1e5 || sample < 100 || sample > 1e5) stop("Chains 1 to 8; burn-in and draws per chain 100 to 100,000.")
+  seed <- ps_bayes_seed(req); conf <- ps_bt_conf(req)
+  cores <- as.integer(req$cores %||% 1L)
+  if (is.na(cores) || cores < 1L || cores > 64L) stop("Invalid number of cores.")
+  req$model$identification <- ident
+  b <- ps_cb_build(req)
+  if (b$matrix_input) stop("Bayesian SEM needs raw data; this dataset is a covariance matrix.")
+  if (isTRUE(b$mi) || isTRUE(b$robust)) stop("Bayesian SEM handles missing values itself (FIML-like); choose casewise or FIML, not multiple imputation or robust ML.")
+  if (!is.null(b$group_var) || !is.null(b$cluster_var)) stop("Bayesian SEM here fits one group without clusters.")
+  if (length(b$mods)) stop("Bayesian SEM here does not include latent interactions.")
+  if (length(b$composites)) stop("Composites are not available in Bayesian SEM.")
+  if (length(unlist(req$model$ordered))) stop("Bayesian SEM here treats indicators as continuous; ordinal indicators need WLSMV.")
+  if (isTRUE(b$means) && ident == "unit") stop("Means and intercepts in Bayesian SEM need marker identification: choose Marker indicators.")
+  at <- match("model <- '", b$body)
+  close <- at + match("'", b$body[-seq_len(at)])
+  if (is.na(at) || is.na(close)) stop("The model syntax could not be built.")
+  q <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
+  body <- c(b$body[seq_len(close)],
+    "suppressPackageStartupMessages({ library(lavaan); library(blavaan) })",
+    sprintf("# MCMC by Stan (blavaan's default priors): %d chains, %d burn-in and %d draws each%s.", chains, burnin, sample, if (ident == "unit") "; factors with unit variances (std.lv)" else ""),
+    sprintf("fit <- bsem(model, data = data, n.chains = %d, burnin = %d, sample = %d, seed = %d, std.lv = %s%s, bcontrol = list(cores = %d))",
+      chains, burnin, sample, seed, if (ident == "unit") "TRUE" else "FALSE", if (isTRUE(b$means)) ", meanstructure = TRUE" else "", cores),
+    "draws <- do.call(rbind, lapply(blavInspect(fit, \"mcmc\"), as.matrix))",
+    "rhat <- blavInspect(fit, \"rhat\"); neff <- blavInspect(fit, \"neff\")",
+    "# (lavaan 0.7's fitMeasures generic does not reach blavaan's method: blavaan's own function)",
+    "fm <- tryCatch(blavaan:::blav_fit_measures(fit), error = function(e) NULL)")
+  inputs <- b$inputs
+  if (export) return(paste(ps_script("Bayesian SEM (blavaan)", c("lavaan", "blavaan"), inputs, body, c("summary(fit)", "fm")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  n <- b$n
+  constructs <- n$cname; lv_lname <- unname(b$lname[constructs])
+  back <- c(setNames(constructs, lv_lname), setNames(n$all_inds, unname(n$iv[n$all_inds])))
+  nm <- function(x) if (x %in% names(back)) unname(back[[x]]) else x
+  d <- env$draws
+  parse_par <- function(p) { for (op in c("=~", "~~", "~1", "~")) { i <- regexpr(op, p, fixed = TRUE); if (i > 0) return(list(lhs = substr(p, 1, i - 1), op = op, rhs = substr(p, i + nchar(op), nchar(p)))) }; list(lhs = p, op = "", rhs = "") }
+  pars <- lapply(colnames(d), function(p) { x <- d[, p]; pp <- parse_par(p)
+    list(lhs = nm(pp$lhs), op = pp$op, rhs = if (pp$op == "~1") "" else nm(pp$rhs), mean = mean(x), sd = stats::sd(x),
+      low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2])), rhat = unname(env$rhat[p]), neff = unname(env$neff[p])) })
+  fm <- env$fm
+  fmv <- function(k) if (!is.null(fm) && k %in% names(fm)) unname(as.numeric(fm[[k]])) else NULL
+  maxr <- max(env$rhat, na.rm = TRUE)
+  ps_json(list(identification = ident, chains = chains, burnin = burnin, sample = sample, seed = seed, confidence = conf, n = lavaan::lavInspect(env$fit, "nobs"),
+    parameters = pars, maxRhat = maxr, minNeff = min(env$neff, na.rm = TRUE), converged = is.finite(maxr) && maxr < 1.05,
+    fit = list(ppp = fmv("ppp"), dic = fmv("dic"), pDic = fmv("p_dic"), waic = fmv("waic"), looic = fmv("looic"), seLooic = fmv("se_loo"), margLogLik = fmv("margloglik"), bic = fmv("bic")),
+    warnings = env$.warnings, engine = list(package = "blavaan", version = as.character(utils::packageVersion("blavaan")))))
+}
