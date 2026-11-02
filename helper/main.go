@@ -258,8 +258,23 @@ func runSetup(logger *log.Logger) {
 // first argument. CRAN's binaries for this R are used even when a newer
 // source version exists (compiling needs compilers most users lack); every
 // package that still does not load is reported with R's reason.
+//
+// Packages in the helper's library built for another R x.y (after the user
+// upgraded R) are reinstalled first, without loading them: loading compiled
+// code built for another R can crash R itself (a segfault in dyn.load), not
+// just fail. Those that cannot be reinstalled are removed from the helper's
+// own library (never the user's), so that the load check below cannot crash.
 const setupRCode = `a <- commandArgs(trailingOnly = TRUE); lib <- a[1]; pk <- a[-1]; .libPaths(c(lib, .libPaths()))
 options(install.packages.compile.from.source = "never")
+cur <- paste(R.version$major, sub("[.].*", "", R.version$minor), sep = ".")
+built_for <- function() { ip <- utils::installed.packages(lib.loc = lib, fields = "Built", noCache = TRUE); setNames(sub("^R ([0-9]+[.][0-9]+).*", "\\1", ip[, "Built"]), rownames(ip)) }
+stale <- names(which(built_for() != cur))
+if (length(stale)) {
+  cat("Reinstalling ", length(stale), " package(s) built for another version of R (now ", cur, ") ...\n", sep = "")
+  install.packages(stale, lib = lib, repos = "https://cloud.r-project.org")
+  left <- intersect(stale, names(which(built_for() != cur)))
+  if (length(left)) { cat("Removing from the helper's library (no build for R ", cur, "): ", paste(left, collapse = ", "), "\n", sep = ""); utils::remove.packages(left, lib = lib) }
+}
 loads <- function(p) tryCatch({ loadNamespace(p); TRUE }, error = function(e) FALSE)
 need <- pk[!vapply(pk, loads, TRUE)]
 if (length(need)) install.packages(need, lib = lib, repos = "https://cloud.r-project.org") else cat("All packages are installed.\n")

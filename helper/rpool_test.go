@@ -224,10 +224,13 @@ func TestRPool_ParallelCallsUseAllWorkers(t *testing.T) {
 	}
 }
 
-// setup uses CRAN's binaries for the installed R (no compiling) and names
-// the packages that still fail, with R's reason.
+// setup uses CRAN's binaries for the installed R (no compiling), reinstalls
+// packages built for another R before loading anything, and names the
+// packages that still fail, with R's reason.
 func TestSetupRCode(t *testing.T) {
-	for _, want := range []string{`install.packages.compile.from.source = "never"`, `lib = lib`, `Could not load `, `quit(status = 1)`} {
+	for _, want := range []string{`install.packages.compile.from.source = "never"`, `lib = lib`, `Could not load `, `quit(status = 1)`,
+		// packages built for another R are reinstalled before anything is loaded (loading them can crash R)
+		`installed.packages(lib.loc = lib, fields = "Built"`, `built for another version of R`, `remove.packages(left, lib = lib)`} {
 		if !strings.Contains(setupRCode, want) {
 			t.Errorf("setup R code lacks %q", want)
 		}
