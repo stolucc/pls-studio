@@ -56,6 +56,14 @@ it('filters by author: a row of the authors whose books, manuals and papers the 
   expect(host.querySelectorAll('.example-card').length).toBe(all);
 });
 
+it('lists the R packages in alphabetical order', () => {
+  const host = document.createElement('div');
+  act(() => { createRoot(host).render(<HomeScreen />); });
+  const names = [...host.querySelectorAll('[role="radiogroup"][aria-label="Package"] button')].map((b) => b.textContent!);
+  expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })));
+  expect(names.length).toBe(new Set(PACKAGE_EXAMPLES.map((e) => e.package)).size);
+});
+
 it('keeps every filter together at the top: topics, authors and R packages, above every example', () => {
   const host = document.createElement('div');
   act(() => { createRoot(host).render(<HomeScreen />); });

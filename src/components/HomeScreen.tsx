@@ -475,6 +475,7 @@ export function HomeScreen() {
     return sortTopics([...EXAMPLES.flatMap((e) => e.tags), ...PACKAGE_EXAMPLES.flatMap((e) => exampleTags(e))]);
   }, []);
   const authors = useMemo(() => sortTopics([...EXAMPLES.flatMap((e) => e.authors), ...PACKAGE_EXAMPLES.flatMap((e) => exampleAuthors(e))]), []);
+  const packages = useMemo(() => sortTopics(EXAMPLE_PACKAGES) as ExamplePackage[], []);
   const builtins = pkg !== 'all' ? [] : EXAMPLES.filter((e) => (topic === 'all' || e.tags.includes(topic) || e.authors.includes(topic)) && matchesQuery(query, [e.title, e.body, ...e.tags, ...e.authors]));
 
   const refresh = () => { void listRecent().then(setRecent); };
@@ -577,7 +578,7 @@ export function HomeScreen() {
             ))}
           </div>
           <div className="segmented wrap topics packages" role="radiogroup" aria-label="Package">
-            {EXAMPLE_PACKAGES.map((p) => (
+            {packages.map((p) => (
               <button key={p} role="radio" aria-checked={pkg === p} className={pkg === p ? 'on' : ''} onClick={() => setPkg(pkg === p ? 'all' : p)} title={`Examples from the documentation of the R package ${p}`}>{p}</button>
             ))}
           </div>
