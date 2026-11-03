@@ -9,7 +9,8 @@ import { DEFAULT_SETTINGS, type ModelState } from '../../model/project';
 import { estimationKey } from '../../validation/exampleState';
 import { resetEvidence } from '../../validation/useEvidence';
 import type { Evidence } from '../../validation/types';
-import { ValidationDialog } from './ValidationDialog';
+import { useStore } from '../../store';
+import { ValidationPage } from './ValidationPage';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,9 +38,9 @@ afterEach(() => { vi.unstubAllGlobals(); host.remove(); });
 
 const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
-describe('ValidationDialog', () => {
+describe('ValidationPage', () => {
   it('summarises the record, groups the examples by method and opens one’s comparisons', async () => {
-    act(() => { createRoot(host).render(<ValidationDialog onClose={() => {}} focus="mplus-ex5.25" titles={{}} />); });
+    act(() => { createRoot(host).render(<ValidationPage onBack={() => {}} focus="mplus-ex5.25" titles={{}} />); });
     await flush();
     const text = host.textContent!;
     expect(text).toContain('4 comparisons in 3 checks, all passed');
@@ -55,13 +56,36 @@ describe('ValidationDialog', () => {
   });
 });
 
-describe('ValidationDialog without a record', () => {
+describe('ValidationPage without a record', () => {
   it('says the record is not available (a missing file: the dev server answers with its HTML page)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, headers: new Headers({ 'content-type': 'text/html' }), json: async () => { throw new Error('not JSON'); } })));
-    act(() => { createRoot(host).render(<ValidationDialog onClose={() => {}} />); });
+    act(() => { createRoot(host).render(<ValidationPage onBack={() => {}} />); });
     await flush();
     expect(host.textContent).toContain('The validation record is not available in this copy of PLS Studio yet.');
     expect(host.textContent).not.toContain('Loading the validation record');
+  });
+});
+
+describe('the validation view', () => {
+  it('opens at an example and goes back where it was opened from', () => {
+    const s = () => useStore.getState();
+    s().setView('editor');
+    s().openValidation('mplus-ex5.25');
+    expect([s().view, s().validationFocus, s().validationReturn]).toEqual(['validation', 'mplus-ex5.25', 'editor']);
+    s().closeValidation();
+    expect([s().view, s().validationFocus]).toEqual(['editor', null]);
+    s().setView('home');
+    s().openValidation();
+    s().closeValidation();
+    expect(s().view).toBe('home');
+  });
+  it('has a back button saying where it goes', async () => {
+    let back = 0;
+    act(() => { createRoot(host).render(<ValidationPage onBack={() => { back++; }} backLabel="Home" />); });
+    await flush();
+    const button = [...host.querySelectorAll('button')].find((b) => b.textContent === '← Home')!;
+    act(() => { button.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(back).toBe(1);
   });
 });
 

@@ -11,7 +11,6 @@ import { openCloudProject } from '../cloud/collab';
 import { AccountMenu } from './cloud/AccountMenu';
 import { AboutDialog } from './AboutDialog';
 import { EvidenceBadge } from './validation/EvidenceBadge';
-import { ValidationDialog } from './validation/ValidationDialog';
 import { IconLogo, IconNew, IconOpen, IconTrash, IconUpload } from './icons';
 
 export const EXAMPLES = [
@@ -469,8 +468,7 @@ export function HomeScreen() {
   const [recent, setRecent] = useState<RecentMeta[] | null>(null);
   const [persistent, setPersistent] = useState(true);
   const [about, setAbout] = useState(false);
-  // The validation record: open (true), or open at an example (its id).
-  const [validation, setValidation] = useState<string | boolean>(false);
+  const openValidation = useStore((s) => s.openValidation);
   const [query, setQuery] = useState('');
   // One filter for every example, built-in and from the packages: a topic or an author, each list in alphabetical order.
   const [topic, setTopic] = useState('all');
@@ -508,7 +506,7 @@ export function HomeScreen() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <a className="btn ghost" href="guide.html" target="_blank" rel="noopener">User guide</a>
           <a className="btn ghost" href="architecture.html" target="_blank" rel="noopener" title="For developers: how PLS Studio is designed and how it talks to R">How it works</a>
-          <button className="btn ghost" onClick={() => setValidation(true)} title="What every example and method is checked against, and a check of this browser">Validation</button>
+          <button className="btn ghost" onClick={() => openValidation()} title="What every example and method is checked against, and a check of this browser">Validation</button>
           <button className="btn ghost" onClick={() => setAbout(true)}>About &amp; licences</button>
           {hasCurrent && <button className="btn primary" onClick={() => setView('editor')}>Back to “{currentName}”</button>}
           <AccountMenu />
@@ -600,18 +598,16 @@ export function HomeScreen() {
                 <ExampleAuthors authors={e.authors} />
                 <p>{e.body}</p>
                 <SourceLinks links={e.links} />
-                <div className="example-evidence"><EvidenceBadge id={e.id} onOpen={setValidation} /></div>
+                <div className="example-evidence"><EvidenceBadge id={e.id} onOpen={openValidation} /></div>
                 <button className="btn" onClick={() => void loadSample(e.id)}>Open example</button>
               </div>
             ))}
           </div>
         </section>
 
-        <PackageExamples query={query} topic={topic} pkg={pkg} onEvidence={setValidation} />
+        <PackageExamples query={query} topic={topic} pkg={pkg} onEvidence={openValidation} />
       </main>
       {about && <AboutDialog onClose={() => setAbout(false)} />}
-      {validation !== false && <ValidationDialog onClose={() => setValidation(false)} focus={typeof validation === 'string' ? validation : undefined}
-        titles={Object.fromEntries(EXAMPLES.map((e) => [e.id, e.title]))} />}
     </div>
   );
 }

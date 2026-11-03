@@ -45,7 +45,8 @@ export interface Results {
 export type JobKind = 'estimate' | 'boot' | 'fittest';
 export interface Job { kind: JobKind; done: number; total: number; workers?: number; /** Set for R calculations (no step count): what is running. */ label?: string }
 
-export type View = 'home' | 'editor';
+/** `validation`: the record of what the examples and methods were checked against (components/validation). */
+export type View = 'home' | 'editor' | 'validation';
 /** The editor's workspace tabs: the dataset itself, the diagram with its results, or the analysis log. */
 export type Workspace = 'data' | 'model' | 'analyses';
 
@@ -74,6 +75,9 @@ interface State {
   /** Undo/redo availability when `history` is set. */
   historyCounts: { undo: number; redo: number };
   view: View;
+  /** The validation page: the example it opened at, and the view its back button returns to. */
+  validationFocus: string | null;
+  validationReturn: 'home' | 'editor';
   workspace: Workspace;
   projectName: string;
   model: ModelState;
@@ -182,6 +186,9 @@ interface State {
   /** Turn the open example into an ordinary project of one's own (kept from now on). */
   keepExample: () => void;
   setView: (v: View) => void;
+  /** Open the validation page (at an example); its back button returns to the current view. */
+  openValidation: (focus?: string) => void;
+  closeValidation: () => void;
   setWorkspace: (w: Workspace) => void;
   newProject: () => void;
   setProjectName: (name: string) => void;
@@ -263,6 +270,8 @@ export const useStore = create<State>((set, get) => ({
   history: null,
   historyCounts: { undo: 0, redo: 0 },
   view: 'home',
+  validationFocus: null,
+  validationReturn: 'home',
   workspace: 'model',
   projectName: 'Untitled model',
   model: emptyModel(),
@@ -628,6 +637,8 @@ export const useStore = create<State>((set, get) => ({
   setSettings: (p) => { if (!readOnly(get())) set((s) => ({ settings: { ...s.settings, ...p }, dirty: true })); },
   setData: (data, dataInfo) => set((s) => ({ data, dataInfo, dataVersion: s.dataVersion + 1, dirty: true, selectedVars: [] })),
   setView: (view) => set({ view }),
+  openValidation: (focus) => set((s) => ({ view: 'validation', validationFocus: focus ?? null, validationReturn: s.view === 'editor' ? 'editor' : s.view === 'validation' ? s.validationReturn : 'home' })),
+  closeValidation: () => set((s) => ({ view: s.validationReturn, validationFocus: null })),
   setWorkspace: (workspace) => set({ workspace }),
   loadProject: ({ name, model, settings, data, info, id, example }) =>
     set((s) => ({

@@ -831,7 +831,8 @@ a.btn { text-decoration: none; }
 .chip.evidence.native { background: var(--accent-soft); color: var(--accent-strong); }
 .chip.evidence.recovery { background: var(--warn-soft); color: var(--warn); }
 button.chip.evidence { border: 0; font: inherit; cursor: pointer; }
-.modal.validation { width: min(920px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+.validation-body { display: block; max-width: 980px; }
+.validation-body .home-intro { margin-bottom: 12px; }
 .evidence-levels { display: grid; gap: 6px; margin: 0 0 14px; }
 .evidence-level { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .evidence-group h4 { margin: 14px 0 6px; }

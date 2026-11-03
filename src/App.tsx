@@ -9,7 +9,8 @@ import { Inspector } from './components/Inspector';
 import { ConfirmModal, Toasts } from './components/Overlays';
 import { ResultsPanel } from './components/ResultsPanel';
 import { TopBar } from './components/TopBar';
-import { HomeScreen } from './components/HomeScreen';
+import { EXAMPLES, HomeScreen } from './components/HomeScreen';
+import { ValidationPage } from './components/validation/ValidationPage';
 import { AuthDialog } from './components/cloud/AuthDialog';
 import { useAuth } from './cloud/auth';
 import { handleUrlParams } from './cloud/invites';
@@ -26,6 +27,26 @@ export default function App() {
   const [resultsHeight, setResultsHeight] = useState(320);
   const view = useStore((s) => s.view);
   const workspace = useStore((s) => s.workspace);
+  const validationFocus = useStore((s) => s.validationFocus), validationReturn = useStore((s) => s.validationReturn);
+  const projectName = useStore((s) => s.projectName);
+
+  // The validation page has its own address (#validation), so that it can be linked to and bookmarked.
+  useEffect(() => {
+    const fromHash = () => {
+      const s = useStore.getState();
+      if (window.location.hash === '#validation' && s.view !== 'validation') s.openValidation();
+      else if (window.location.hash !== '#validation' && s.view === 'validation') s.closeValidation();
+    };
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+    const unsub = useStore.subscribe((s, prev) => {
+      if (s.view === prev.view) return;
+      const url = new URL(window.location.href);
+      url.hash = s.view === 'validation' ? 'validation' : '';
+      if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url.href.replace(/#$/, ''));
+    });
+    return () => { window.removeEventListener('hashchange', fromHash); unsub(); };
+  }, []);
 
   useEffect(() => {
     void migrateAutosave();
@@ -52,7 +73,7 @@ export default function App() {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); void openProject(); return; }
       // Everything else is an editor shortcut.
-      if (s.view === 'home') return;
+      if (s.view !== 'editor') return;
       if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveProject(); return; }
       if (mod && e.key === 'Enter') { e.preventDefault(); void import('./analyses/calculate').then((m) => m.calculateHere(e.shiftKey ? 'boot' : 'estimate')); return; }
       if (isTyping(e)) return;
@@ -76,6 +97,17 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  if (view === 'validation') {
+    return (
+      <>
+        <ValidationPage onBack={() => useStore.getState().closeValidation()} focus={validationFocus ?? undefined}
+          backLabel={validationReturn === 'editor' ? `Back to “${projectName}”` : 'Home'} titles={Object.fromEntries(EXAMPLES.map((e) => [e.id, e.title]))} />
+        <ConfirmModal />
+        <Toasts />
+      </>
+    );
+  }
 
   if (view === 'home') {
     return (

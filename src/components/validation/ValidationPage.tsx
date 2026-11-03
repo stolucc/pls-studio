@@ -5,7 +5,7 @@ import type { SelfCheckOutcome } from '../../validation/selfCheck';
 import type { Check, Evidence, EvidenceLevel } from '../../validation/types';
 import { EVIDENCE_LEVELS } from '../../validation/types';
 import { largestDifference, LEVEL_TEXT, useEvidenceStatus } from '../../validation/useEvidence';
-import { IconX } from '../icons';
+import { IconLogo } from '../icons';
 
 type Tab = 'examples' | 'methods' | 'browser';
 
@@ -140,10 +140,11 @@ function BrowserCheck({ e }: { e: Evidence }) {
 }
 
 /**
- * What every example and method was checked against, as the test suite recorded it (public/validation.json), and a
- * self-check that re-runs some of it in this browser. `focus`: an example to open; `titles`: example ids to titles.
+ * The validation page: what every example and method was checked against, as the test suite recorded it
+ * (public/validation.json), and a self-check that re-runs some of it in this browser. `focus`: an example to open
+ * (and scroll to); `titles`: example ids to titles; `onBack`: back to where it was opened from.
  */
-export function ValidationDialog({ onClose, focus, titles = {} }: { onClose: () => void; focus?: string; titles?: Record<string, string> }) {
+export function ValidationPage({ onBack, backLabel = 'Back', focus, titles = {} }: { onBack: () => void; backLabel?: string; focus?: string; titles?: Record<string, string> }) {
   const status = useEvidenceStatus();
   const e = status.state === 'ready' ? status.evidence : null;
   const [tab, setTab] = useState<Tab>('examples');
@@ -151,10 +152,14 @@ export function ValidationDialog({ onClose, focus, titles = {} }: { onClose: () 
   const [query, setQuery] = useState('');
   const [level, setLevel] = useState<EvidenceLevel | 'all'>('all');
   useEffect(() => {
-    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') { ev.stopPropagation(); onClose(); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !(ev.target instanceof HTMLInputElement)) onBack(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onBack]);
+  // Opened at an example: scroll to it once the record is there.
+  useEffect(() => {
+    if (focus && e) document.getElementById(`evidence-example:${focus}`)?.scrollIntoView({ block: 'center' });
+  }, [focus, e]);
   const titleOf = (c: Check) => (c.subject === 'example' ? titles[c.id] ?? PACKAGE_EXAMPLES.find((x) => x.id === c.id)?.title ?? c.title : c.title);
   const groups = useMemo(() => {
     if (!e) return [];
@@ -167,12 +172,13 @@ export function ValidationDialog({ onClose, focus, titles = {} }: { onClose: () 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [e, tab, query, level, titles]);
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal about validation" role="dialog" aria-modal="true" aria-labelledby="validation-title" onMouseDown={(ev) => ev.stopPropagation()}>
-        <div className="share-head">
-          <h3 id="validation-title">Validation</h3>
-          <button className="btn icon ghost" onClick={onClose} aria-label="Close"><IconX /></button>
-        </div>
+    <div className="home validation-page">
+      <header className="home-head">
+        <div className="brand"><span className="brand-mark"><IconLogo size={17} /></span>PLS Studio</div>
+        <button className="btn ghost" onClick={onBack}>← {backLabel}</button>
+      </header>
+      <main className="home-body validation-body" aria-labelledby="validation-title">
+        <div className="home-intro"><h1 id="validation-title">Validation</h1></div>
         {status.state === 'loading' && <p className="hint">Loading the validation record…</p>}
         {status.state === 'missing' && (
           <>
@@ -210,7 +216,7 @@ export function ValidationDialog({ onClose, focus, titles = {} }: { onClose: () 
                     <h4>{method} <span className="hint">({checks.length})</span></h4>
                     {checks.map((c) => {
                       const key = `${c.subject}:${c.id}`;
-                      return <CheckRow key={key} c={c} title={titleOf(c)} open={open === key} onToggle={() => setOpen(open === key ? null : key)} />;
+                      return <div key={key} id={`evidence-${key}`}><CheckRow c={c} title={titleOf(c)} open={open === key} onToggle={() => setOpen(open === key ? null : key)} /></div>;
                     })}
                   </section>
                 ))}
@@ -218,7 +224,7 @@ export function ValidationDialog({ onClose, focus, titles = {} }: { onClose: () 
             )}
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 }
