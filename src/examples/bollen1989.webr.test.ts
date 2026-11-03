@@ -8,6 +8,8 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, toSpec } from '../model/project';
 import { estimateCbLavaan } from '../rengine/lavaan';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
+import { against, example, near, same } from '../validation/record';
+import { builtinDefinition, nearest } from '../validation/textbook';
 import { makeAirQualityExample, makeDemocracyCfaExample, makeMoraleExample, makeSesErrorExample, makeSesExample, makeSesGroupsExample } from './bollen1989';
 
 beforeAll(startTestRuntime);
@@ -24,18 +26,27 @@ const CASES = {
   air: makeAirQualityExample,
 };
 /** Chi-squares the app (as native lavaan) gives on the printed matrices, against the book's: within its rounding of the matrices. */
+/** The examples' ids (src/io.ts). */
+const ID: Record<keyof typeof CASES, string> = {
+  ses: 'bollen-ses', sesError: 'bollen-ses-error', sesGroups: 'bollen-ses-groups', morale: 'bollen-morale',
+  demUncorrelated: 'bollen-democracy-cfa', demCorrelated: 'bollen-democracy-cfa-errors', air: 'bollen-air',
+};
 const BOOK_TOL: Record<string, number> = { sesGroups: 0.06, morale: 0.07, demCorrelated: 0.2 };
 
 it.each(Object.keys(CASES))('%s reproduces native lavaan and the book', async (key) => {
   const ex = CASES[key as keyof typeof CASES](DEFAULT_SETTINGS);
+  example(ID[key as keyof typeof CASES], { title: key, method: 'CB-SEM', packages: ['lavaan'], definition: builtinDefinition(ex) });
   const r = await estimateCbLavaan(ex.data, toSpec(ex.model), 'casewise', 'ML', 'product');
   const want = ref[key];
   expect(r.converged, key).toBe(true);
-  expect(r.fit.df).toBe(want.df);
-  expect(r.fit.chisq).toBeCloseTo(want.chisq, 3);
-  if (want.book.chisq !== undefined) expect(Math.abs(r.fit.chisq - want.book.chisq), `${key}: the book's chi-square`).toBeLessThan(BOOK_TOL[key] ?? 0.05);
-  if (want.book.df !== undefined) expect(r.fit.df).toBe(want.book.df);
-  if (want.df > 0) { expect(r.fit.cfi).toBeCloseTo(want.cfi, 3); expect(r.fit.rmsea).toBeCloseTo(want.rmsea, 3); }
+  const BOOK = { label: 'Bollen (1989), Structural Equations with Latent Variables: printed results', level: 'published' as const };
+  against(BOOK);
+  if (want.book.chisq !== undefined) near('χ² (Bollen)', r.fit.chisq, want.book.chisq, BOOK_TOL[key] ?? 0.05);
+  if (want.book.df !== undefined) same('df (Bollen)', r.fit.df, want.book.df);
+  against({ label: 'desktop lavaan on the same matrices, scripts/validation/bollen1989.R', script: 'scripts/validation/bollen1989.R', level: 'native' });
+  same('df', r.fit.df, want.df);
+  expect(r.fit.chisq, 'χ²').toBeCloseTo(want.chisq, 3);
+  if (want.df > 0) { expect(r.fit.cfi, 'CFI').toBeCloseTo(want.cfi, 3); expect(r.fit.rmsea, 'RMSEA').toBeCloseTo(want.rmsea, 3); }
   const results = r.groups ? r.groups.results : [r];
   const name = (x: string) => RENAMED[x] ?? x;
   // Every free loading, path, (co)variance and intercept, by group, as native lavaan.
@@ -46,14 +57,15 @@ it.each(Object.keys(CASES))('%s reproduces native lavaan and the book', async (k
     const pool = results[w.group - 1].estimates.filter((e) => (e.op as string) === w.op && (w.op === '~1' ? e.lhs === name(w.lhs)
       : (e.lhs === name(w.lhs) && e.rhs === name(w.rhs)) || (w.op === '~~' && e.lhs === name(w.rhs) && e.rhs === name(w.lhs))));
     expect(pool.length, `${key}: ${w.lhs} ${w.op} ${w.rhs} (group ${w.group})`).toBeGreaterThan(0);
-    expect(Math.min(...pool.map((e) => Math.abs(e.est - w.est))), `${key}: ${w.lhs} ${w.op} ${w.rhs}`).toBeLessThan(1e-4 * Math.max(1, Math.abs(w.est)));
+    nearest(`${w.lhs} ${w.op} ${w.rhs}${results.length > 1 ? ` (group ${w.group})` : ''}`, pool, w.est);
   }
+  against(BOOK);
   // The estimates the book prints, to its two decimals (three for the small prestige effect).
   for (const [k, v] of Object.entries(want.book.est ?? {})) {
     const [lhs, op, rhs] = k.includes('~~') ? [k.split('~~')[0], '~~', k.split('~~')[1]] : [k.split('~')[0], '~', k.split('~')[1]];
     const e = r.estimates.find((x) => x.op === op && ((x.lhs === name(lhs) && x.rhs === name(rhs)) || (op === '~~' && x.lhs === name(rhs) && x.rhs === name(lhs))));
     expect(e, `${key}: ${k}`).toBeTruthy();
-    expect(Math.abs(e!.est - v), `${key}: ${k} = ${e!.est} (book ${v})`).toBeLessThanOrEqual(v === 0.007 ? 0.0005 : 0.006);  // (two decimals of LISREL VI: native lavaan gives .535 where the book prints .54)
+    near(`${k} (Bollen)`, e!.est, v, v === 0.007 ? 0.0005 : 0.006);  // (two decimals of LISREL VI: native lavaan gives .535 where the book prints .54)
   }
   expect(r.warnings, key).toEqual([]);
 }, 600_000);

@@ -8,6 +8,8 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, toSpec } from '../model/project';
 import { estimateCbLavaan } from '../rengine/lavaan';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
+import { against, example, near } from '../validation/record';
+import { builtinDefinition, sameEstimates, sameFit } from '../validation/textbook';
 import { makeBrownCopingExample, makeBrownMtmmExample, makeBrownNeExample, makeBrownReliabilityExample, makeBrownStressExample, makeBrownTauExample } from './brown';
 
 beforeAll(startTestRuntime);
@@ -25,35 +27,31 @@ const CASES = { ne: makeBrownNeExample, tau: makeBrownTauExample, mtmm: makeBrow
 
 it.each(Object.keys(CASES))('%s reproduces native lavaan, without a warning', async (key) => {
   const ex = CASES[key as keyof typeof CASES](DEFAULT_SETTINGS);
+  example(`brown-${key}`, { title: key, method: 'CB-SEM', packages: ['lavaan'], definition: builtinDefinition(ex) });
   const r = await estimateCbLavaan(ex.data, toSpec(ex.model), 'casewise', 'ML', 'product');
   const want = ref[key];
   const RENAMED: Record<string, Record<string, string>> = { tau: { Auditory: 'Auditory memory', Visual: 'Visual memory' } };
   const name = (x: string) => RENAMED[key]?.[x] ?? x;
   expect(r.converged, key).toBe(true);
   expect(r.warnings, key).toEqual([]);
-  expect(r.fit.df).toBe(want.df);
-  expect(r.fit.chisq).toBeCloseTo(want.chisq, 3);
   // As the book prints it.
+  against({ label: 'Brown (2015), Confirmatory Factor Analysis for Applied Research, 2nd ed.: printed output', level: 'published' });
   expect(r.fit.df, `${key} df (Brown)`).toBe(BOOK[key].df);
-  expect(Math.abs(r.fit.chisq - BOOK[key].chisq), `${key}: ${r.fit.chisq} vs Brown ${BOOK[key].chisq}`).toBeLessThan(BOOK[key].tol);
-  expect(r.fit.cfi).toBeCloseTo(want.cfi, 3);
-  expect(r.fit.rmsea).toBeCloseTo(want.rmsea, 3);
-  for (const w of want.estimates) {
-    const pool = r.estimates.filter((e) => (e.op as string) === w.op && ((e.lhs === name(w.lhs) && e.rhs === name(w.rhs)) || (w.op === '~~' && e.lhs === name(w.rhs) && e.rhs === name(w.lhs))));
-    if (!pool.length && (w.se === 0 || w.se === null)) continue;  // fixed parameters are not reported
-    expect(pool.length, `${key}: ${w.lhs} ${w.op} ${w.rhs}`).toBeGreaterThan(0);
-    expect(Math.min(...pool.map((e) => Math.abs(e.est - w.est))), `${key}: ${w.lhs} ${w.op} ${w.rhs}`).toBeLessThan(1e-4 * Math.max(1, Math.abs(w.est)));
-  }
+  near('χ² (Brown)', r.fit.chisq, BOOK[key].chisq, BOOK[key].tol);
+  against({ label: 'desktop lavaan on the same matrices, scripts/validation/brown.R', script: 'scripts/validation/brown.R', level: 'native' });
+  sameFit(r.fit, want);
+  sameEstimates([r], want.estimates, name);
   // Brown's Table 8.8: the reliabilities of the two scales, .919 and .823 with the model-implied variance of the sum (his MODEL
   // CONSTRAINT); semTools' omega divides by the observed variance: .9195 and .8234 (semTools compRelSEM, native and webR).
-  if (key === 'reliability') { expect(r.reliability[0].omega).toBeCloseTo(0.9195, 3); expect(r.reliability[1].omega).toBeCloseTo(0.8234, 3); }
+  if (key === 'reliability') { expect(r.reliability[0].omega, 'ω intrusions').toBeCloseTo(0.9195, 3); expect(r.reliability[1].omega, 'ω avoidance').toBeCloseTo(0.8234, 3); }
   // Brown's Table 8.12 (Mplus output): STRESS BY SATIS 0.317, OPTIM 0.338; STRESS ON X1 1 (fixed), X2 1.054, X3 1.073
     // (within 0.001: three printed decimals and Mplus's looser convergence criterion, as for the Mplus examples).
   if (key === 'stress') {
     const e = (op: string, lhs: string, rhs: string) => r.estimates.find((x) => (x.op as string) === op && x.lhs === lhs && x.rhs === rhs)!.est;
-    expect(Math.abs(e('=~', 'Stress', 'Satisfaction') - 0.317)).toBeLessThan(0.001);
-    expect(Math.abs(e('=~', 'Stress', 'Optimism') - 0.338)).toBeLessThan(0.001);
-    expect(Math.abs(e('~', 'Stress', 'X2') - 1.054)).toBeLessThan(0.001);
-    expect(Math.abs(e('~', 'Stress', 'X3') - 1.073)).toBeLessThan(0.001);
+    against({ label: 'Brown (2015), Table 8.12 (Mplus output)', level: 'published' });
+    near('Stress =~ Satisfaction', e('=~', 'Stress', 'Satisfaction'), 0.317, 0.001);
+    near('Stress =~ Optimism', e('=~', 'Stress', 'Optimism'), 0.338, 0.001);
+    near('Stress ~ X2', e('~', 'Stress', 'X2'), 1.054, 0.001);
+    near('Stress ~ X3', e('~', 'Stress', 'X3'), 1.073, 0.001);
   }
 }, 600_000);

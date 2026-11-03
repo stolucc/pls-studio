@@ -134,6 +134,14 @@ Three layers, run by `.github/workflows/ci.yml` on every push:
    centroid scheme). Tenenhaus et al. (2005, Fig. 2) fitted ECSI to unstandardised indicators, which the app
    does not do (plspm with `scaled = FALSE` reproduces that figure).
 
+**The evidence users see.** Every comparison these tests make is also recorded: `npm run validate:evidence` runs the
+webR tests with `PS_VALIDATION_DIR` set and writes `public/validation.json` (`src/validation/`: `record.ts` grades the
+examples, `setup.ts` records every `toBeCloseTo` of the feature tests listed in `features.ts`). The app shows it as a
+badge on each example (reproduces published results / matches native R / recovers known values / runs as documented),
+a Validation page with every number compared, a "Check this browser" self-check that re-runs ten examples and compares
+their digests, and a badge on the results of an unmodified example. `src/validation/evidence.test.ts` fails when the
+record is incomplete, has a failed check, is older than an example's definition, or was made with other package versions.
+
 Independently of all this, **File → Download R script** gives the exact lavaan/cSEM/seminr syntax a project
 runs, and a replication package bundles it with the data: run it in native R and compare.
 

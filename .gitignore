@@ -13,3 +13,4 @@ reports/
 .env.*
 *.dmg
 SHA256SUMS
+.validation/

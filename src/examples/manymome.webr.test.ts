@@ -14,12 +14,15 @@ import { rCall, type RPackage } from '../rengine/bridge';
 import { estimateCpaR } from '../rengine/cpa';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
+import { against, example as exampleCheck } from '../validation/record';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
 async function run(id: string) {
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === id)!;
+  exampleCheck(id, { title: ex.title, method: 'PROCESS', packages: [ex.package], definition: ex });
+  against({ label: id === 'manymome-modmed' ? 'manymome vignette (printed)' : `manymome, ?${id === 'manymome-med' ? 'data_med' : 'data_serial'} (printed)`, level: 'native' });
   const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: [] }, ex.data.package as RPackage);
   const data: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
   const st = { ...DEFAULT_SETTINGS, ...ex.settings };
@@ -35,20 +38,20 @@ it('manymome-modmed reproduces the vignette: conditional indirect effects at mea
   expect(byW.length).toBe(3);
   byW.forEach((row, i) => {
     const [w, ind, lo, hi] = want[i];
-    expect(Number(Object.values(row.at)[0])).toBeCloseTo(w, 3);
-    expect(row.est).toBeCloseTo(ind, 3);
-    expect(row.lo).toBeCloseTo(lo, 3);
-    expect(row.hi).toBeCloseTo(hi, 3);
+    expect(Number(Object.values(row.at)[0]), `moderator value ${i + 1}`).toBeCloseTo(w, 3);
+    expect(row.est, `conditional indirect effect at w = ${w}`).toBeCloseTo(ind, 3);
+    expect(row.lo, `lower limit at w = ${w}`).toBeCloseTo(lo, 3);
+    expect(row.hi, `upper limit at w = ${w}`).toBeCloseTo(hi, 3);
   });
   // Printed: Index = 0.938, 95% bootstrap percentile CI [0.178, 1.732].
   const mm = r.indices.find((k) => k.kind === 'mm')!;
-  expect(mm.est).toBeCloseTo(0.938, 3); expect(mm.lo).toBeCloseTo(0.178, 3); expect(mm.hi).toBeCloseTo(1.732, 3);
+  expect(mm.est, 'index of moderated mediation').toBeCloseTo(0.938, 3); expect(mm.lo, 'index: lower limit').toBeCloseTo(0.178, 3); expect(mm.hi, 'index: upper limit').toBeCloseTo(1.732, 3);
 }, 900_000);
 
 it('manymome-med and manymome-serial: the least-squares indirect effects equal the help pages’ lavaan ones', async () => {
   // ?data_med: ab := a*b, 0.733; ?data_serial: indirect := a*b1*b2, 0.180 (both printed by the help pages' code, 3 decimals).
   const med = await run('manymome-med');
-  expect(med.indirect.find((p) => p.path.join(' ') === 'x m y')!.rows[0].est).toBeCloseTo(0.733, 3);
+  expect(med.indirect.find((p) => p.path.join(' ') === 'x m y')!.rows[0].est, 'indirect effect x → m → y').toBeCloseTo(0.733, 3);
   const serial = await run('manymome-serial');
-  expect(serial.indirect.find((p) => p.path.join(' ') === 'x m1 m2 y')!.rows[0].est).toBeCloseTo(0.180, 3);
+  expect(serial.indirect.find((p) => p.path.join(' ') === 'x m1 m2 y')!.rows[0].est, 'indirect effect x → m1 → m2 → y').toBeCloseTo(0.180, 3);
 }, 900_000);

@@ -306,7 +306,7 @@ export type ExampleId = 'customer' | 'emse' | 'poldem' | 'mimic' | 'wheaton' | '
   | 'eqs-bagozzi' | 'eqs-werts' | 'eqs-headstart' | 'eqs-headstart-groups' | 'eqs-olsson';
 
 /** The built-in examples other than the synthetic survey: each a module loaded on demand, and what the toast says. */
-const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
+export const BUILTIN: Record<Exclude<ExampleId, 'customer'>, { make: () => Promise<(s: Settings) => BuiltinExample>; toast: string }> = {
   emse: { make: () => import('./examples/emse').then((m) => m.makeEmseExample), toast: 'Stol, Schaarschmidt & Goldblit (2022), EMSE 27:35. Covariance + NACOV matrices (N = 155), estimated with MLM as in the paper. Press Calculate.' },
   mimic: { make: () => import('./examples/mimic').then((m) => m.makeMimicExample), toast: 'MIMIC model of social participation (Jöreskog & Sörbom; Schumacker & Lomax): correlation matrix, N = 530, maximum likelihood. Press Calculate.' },
   poldem: { make: () => import('./examples/poldem').then((m) => m.makePoldemExample), toast: 'Bollen (1989): industrialisation and political democracy, N = 75, with six correlated measurement errors. Press Calculate.' },

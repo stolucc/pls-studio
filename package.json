@@ -13,6 +13,7 @@
     "test:server": "cd server && npm test",
     "server": "cd server && npm run dev",
     "test:webr": "WEBR_TESTS=1 vitest run webr.test",
+    "validate:evidence": "rm -rf .validation && PS_VALIDATION_DIR=.validation WEBR_TESTS=1 vitest run webr.test; node scripts/validation/evidence.mjs .validation",
     "webr:fetch": "node scripts/webr/fetch.mjs",
     "prebuild": "node scripts/webr/fetch.mjs --if-missing && node scripts/architecture.mjs",
     "docs:architecture": "node scripts/architecture.mjs",

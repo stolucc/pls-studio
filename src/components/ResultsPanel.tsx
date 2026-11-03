@@ -4,6 +4,7 @@ import { useFreshResults, useStore } from '../store';
 import { IconChevronDown, IconChevronUp, IconPlay } from './icons';
 import { useR } from '../rengine/status';
 import { EngineBadge, engineOf } from './EngineBadge';
+import { ExampleResultsBadge } from './validation/ExampleResultsBadge';
 import { CB_TABS, CbTab, type CbTabId } from './results/CbTabs';
 import { MIIV_TABS, MiivTab, type MiivTabId } from './results/MiivTabs';
 import { PLS_TABS, PlsTab, type PlsTabId } from './results/PlsTabs';
@@ -137,6 +138,7 @@ export function ResultsPanel({ height, onResize }: { height: number; onResize: (
             )}
           </div>
         )}
+        {!job && <ExampleResultsBadge />}
         {!job && <EngineBadge label={engineLabel} />}
         {progress}
         <button className="btn icon ghost" onClick={() => setOpen(false)} aria-label="Collapse results"><IconChevronDown /></button>

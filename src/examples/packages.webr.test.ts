@@ -30,6 +30,8 @@ import { fimixR, pathmoxR, rebusR } from '../rengine/segment';
 import { plsScriptR, estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { exampleModel, PACKAGE_EXAMPLES, panelColumns, type PackageExample } from './packages';
+import { against, cleanRun, example, near, same } from '../validation/record';
+import type { EvidenceSource } from '../validation/types';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -63,9 +65,37 @@ const EXPECTED_WARNINGS: Record<string, RegExp[]> = {
 };
 const checkClean = (id: string) => {
   const r = raised[id] ?? { warnings: [], notes: [] };
-  expect(r.warnings.filter((w) => !(EXPECTED_WARNINGS[id] ?? []).some((re) => re.test(w))), `${id} warned`).toEqual([]);
+  const warned = r.warnings.filter((w) => !(EXPECTED_WARNINGS[id] ?? []).some((re) => re.test(w)));
   const unexpected = [...new Set(r.notes)].filter((n) => !(EXPECTED_NOTES[id] ?? []).some((re) => re.test(n)));
+  cleanRun(warned.length + unexpected.length);
+  expect(warned, `${id} warned`).toEqual([]);
   expect(unexpected, `${id} carries an unexpected note`).toEqual([]);
+};
+
+/** The method family of an example, for the validation page. */
+const PANEL_METHOD: Record<string, string> = {
+  growth: 'Longitudinal', gmm: 'Longitudinal', lmm: 'Longitudinal', irt: 'Items', lca: 'Items', endo: 'Regression', regression: 'Regression', rsa: 'Regression',
+  match: 'Causal inference', did: 'Causal inference', nca: 'NCA', efa: 'EFA', screen: 'CB-SEM', network: 'Networks', ega: 'Networks', bcorrelation: 'Bayesian', bsem: 'Bayesian',
+};
+const methodOf = (ex: PackageExample) => (ex.panel ? PANEL_METHOD[ex.panel.kind] ?? 'Analyses'
+  : ex.settings.method === 'process' ? 'PROCESS' : ex.settings.method === 'cbsem' ? 'CB-SEM' : 'PLS-SEM');
+
+/** Where the numbers an example is compared with come from (all from the packages' own documentation, or the package run natively). */
+const doc = (label: string, url?: string): EvidenceSource & { level: 'native' } => ({ label, level: 'native', ...(url ? { url } : {}) });
+const nativeScript = (name: string, what: string): EvidenceSource & { level: 'native' } => ({ label: `${what}, scripts/validation/${name}`, script: `scripts/validation/${name}`, level: 'native' });
+const TUTORIAL = doc('lavaan tutorial, printed output', 'https://lavaan.ugent.be/tutorial/');
+const SOURCES: Record<string, (EvidenceSource & { level: 'native' })[]> = {
+  'lavaan-hs': [TUTORIAL], 'lavaan-hs-means': [TUTORIAL], 'lavaan-poldem': [TUTORIAL], 'lavaan-hs-groups': [TUTORIAL], 'lavaan-hs-esem': [TUTORIAL], 'lavaan-growth': [TUTORIAL],
+  'lavaan-growth-conditional': [doc('the lavaan tutorial’s model run in desktop lavaan')],
+  'did-mpdta': [doc('did, ?aggte (printed)', 'https://bcallaway11.github.io/did/reference/aggte.html')],
+  'ivreg-kmenta': [doc('ivreg, ?ivreg (printed)')], 'nca-example': [doc('NCA, ?nca_analysis (printed)')], 'rsa-motcon': [doc('RSA run in desktop R')],
+  'weightit-lalonde': [doc('WeightIt vignette (printed)'), nativeScript('weightit.R', 'desktop WeightIt and marginaleffects')],
+  'lme4-sleepstudy': [doc('lme4, ?lmer (printed)')], 'ltm-lsat': [doc('ltm 1.2-0 run in desktop R')],
+  'polca-carcinoma': [doc('poLCA, ?carcinoma (printed)')], 'polca-values': [doc('poLCA, ?values (printed)')],
+  'modsem-oneint': [doc('modsem.org, “LMS and QML approaches” (printed)', 'https://modsem.org')],
+  'csem-2ndorder': [nativeScript('secondorder.R', 'desktop cSEM')], 'csem-2ndorder-embedded': [nativeScript('hoc-approaches.R', 'desktop cSEM')], 'csem-2ndorder-repeated': [nativeScript('hoc-approaches.R', 'desktop cSEM')],
+  'seminr-interaction-methods': [doc('seminr 2.5.0, ?interaction_term run in desktop R')], 'seminr-hoc': [doc('seminr 2.5.0 demo run in desktop R')],
+  'csem-yoo': [nativeScript('secondorder.R', 'desktop cSEM')], 'plspm-rebus': [doc('plspm, ?it.reb (printed)')],
 };
 
 /** The Mplus growth examples' degrees of freedom (6.8 latent basis, 6.9 quadratic, 6.10 covariates). */
@@ -89,12 +119,12 @@ async function load(ex: PackageExample): Promise<Dataset & { levels?: unknown }>
 type SecondOrderRef = { paths: Record<string, number>; r2: Record<string, number>; secondOrder: { loadings: Record<string, number>; weights: Record<string, number> }; firstOrderWeights?: Record<string, number> };
 function sameSecondOrder(r: Awaited<ReturnType<typeof estimatePlsR>>, ref: SecondOrderRef, hoc: string, digits = 5) {
   const C = r.constructs, at = (n: string) => C.indexOf(n);
-  for (const [k, b] of Object.entries(ref.paths)) { const [f, t] = k.split(' -> '); expect(r.pathCoef[at(f)][at(t)], k).toBeCloseTo(b, digits); }
-  for (const [k, v] of Object.entries(ref.r2)) expect(r.rSquared[at(k)], k).toBeCloseTo(v, digits);
+  for (const [k, b] of Object.entries(ref.paths)) { const [f, t] = k.split(' -> '); expect(r.pathCoef[at(f)][at(t)], `path ${k}`).toBeCloseTo(b, digits); }
+  for (const [k, v] of Object.entries(ref.r2)) expect(r.rSquared[at(k)], `R² ${k}`).toBeCloseTo(v, digits);
   for (const comp of Object.keys(ref.secondOrder.loadings)) {
     const h = r.higherOrder!.find((x) => C[x.construct] === hoc && C[x.component] === comp)!;
-    expect(h.loading, comp).toBeCloseTo(ref.secondOrder.loadings[comp], digits);
-    expect(h.weight, comp).toBeCloseTo(ref.secondOrder.weights[comp], digits);
+    expect(h.loading, `second-order loading ${comp}`).toBeCloseTo(ref.secondOrder.loadings[comp], digits);
+    expect(h.weight, `second-order weight ${comp}`).toBeCloseTo(ref.secondOrder.weights[comp], digits);
   }
 }
 
@@ -116,6 +146,8 @@ async function checkSecondOrder(data: Dataset, spec: ReturnType<typeof toSpec>, 
 describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example %s in webR', (_id, ex) => {
   it('loads its data from the package and estimates', async () => {
     currentExample = ex.id;
+    example(ex.id, { title: ex.title, method: methodOf(ex), packages: [ex.package], definition: ex });
+    for (const s of SOURCES[ex.id] ?? []) against(s);
     let data = await load(ex);
     // The help page's recodes (computed columns, category labels), as the example loader applies them.
     if (ex.computed?.length || ex.labels) {
@@ -133,39 +165,41 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const r = await endoR(data, { method: 'iv', outcome: '', exogenous: [], endogenous: [], instruments: [], hetRegressors: [], hmTypes: [], selection: { outcome: '', regressors: [] },
           heckmanMethod: 'ml', boot: { samples: 50, seed: 1, confidence: 0.95 }, ...pre });
         expect(r.coefficients.length).toBeGreaterThan(0);
-        if (ex.id === 'ivreg-kmenta') expect(r.coefficients.find((x) => x.term === 'P')!.est).toBeCloseTo(-0.2436, 4);  // ?ivreg
+        if (ex.id === 'ivreg-kmenta') expect(r.coefficients.find((x) => x.term === 'P')!.est, 'coefficient of P').toBeCloseTo(-0.2436, 4);  // ?ivreg
       } else if (p.kind === 'nca') {
         const r = await ncaR(data, p.x, p.y, 50);
-        expect(r.conditions[0].ceFdh).toBeCloseTo(0.4155, 3);  // ?nca_analysis: Individualism, CE-FDH
+        expect(r.conditions[0].ceFdh, 'CE-FDH effect size, Individualism').toBeCloseTo(0.4155, 3);  // ?nca_analysis: Individualism, CE-FDH
       } else if (p.kind === 'rsa') {
         const { kind: _k, ...pre } = p;
         const r = await rsaR(data, { outcome: '', x: '', y: '', controls: [], estimation: 'OLS', center: 'none', midpoint: 0, confidence: 0.95, ...pre });
-        expect(r.surface.find((s) => s.name === 'a1')!.est).toBeCloseTo(0.5553, 3);  // RSA: a1 on motcon
+        expect(r.surface.find((s) => s.name === 'a1')!.est, 'surface parameter a1').toBeCloseTo(0.5553, 3);  // RSA: a1 on motcon
       } else if (p.kind === 'match') {
         const { kind: _k, ...pre } = p;
         const r = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre });
         expect(r.counts[1].treated).toBe(185);
         if (ex.id === 'weightit-lalonde') {
           // (the example's entropy balancing is checked against the vignette in causal.webr.test.ts)
-          expect(Math.abs(r.effect!.est - 1273)).toBeLessThan(0.5);
+          against(SOURCES[ex.id][0]);
+          near('ATT (entropy balancing)', r.effect!.est, 1273, 0.5);
+          against(SOURCES[ex.id][1]);
           // Propensity-score weights (the vignette's first step), against WeightIt + marginaleffects run natively (scripts/validation/weightit.R).
           const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'match', 'weightit.json'), 'utf8'));
           const glm = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre, weightMethod: 'glm' });
           const r2 = glm;
-          expect(r2.effect!.est).toBeCloseTo(ref.dr.est, 4);
+          expect(r2.effect!.est, 'ATT (propensity-score weights, doubly robust)').toBeCloseTo(ref.dr.est, 4);
           // (marginaleffects differentiates numerically: SEs agree to about 6 significant digits across builds)
-          expect(Math.abs(r2.effect!.se / ref.dr.se - 1)).toBeLessThan(1e-5);
-          expect(Math.abs(r2.effect!.ciLow / ref.dr.low - 1)).toBeLessThan(1e-4);
-          expect(r2.counts[1].control).toBeCloseTo(ref.essControl, 6);
-          expect(r2.balance.find((b) => b.variable === 'age')!.diffAfter).toBeCloseTo(ref.ageAfter, 8);
+          near('SE / reference SE', r2.effect!.se / ref.dr.se, 1, 1e-5);
+          near('CI lower / reference', r2.effect!.ciLow / ref.dr.low, 1, 1e-4);
+          expect(r2.counts[1].control, 'effective sample size, control').toBeCloseTo(ref.essControl, 6);
+          expect(r2.balance.find((b) => b.variable === 'age')!.diffAfter, 'balance on age after weighting').toBeCloseTo(ref.ageAfter, 8);
           const ipw = await matchR(data, { treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95, ...pre, weightMethod: 'glm', effectModel: 'ipw' });
-          expect(ipw.effect!.est).toBeCloseTo(ref.ipw.est, 4);
-          expect(ipw.effect!.se).toBeCloseTo(ref.ipw.se, 4);
+          expect(ipw.effect!.est, 'ATT (IPW)').toBeCloseTo(ref.ipw.est, 4);
+          expect(ipw.effect!.se, 'SE (IPW)').toBeCloseTo(ref.ipw.se, 4);
         }
       } else if (p.kind === 'lmm') {
         const { kind: _k, ...input } = p;
         const r = await lmmR(data, input);
-        expect(r.fixed.find((f) => f.term === 'Days')!.est).toBeCloseTo(10.4673, 3);  // ?lmer: fixef(fm1)
+        expect(r.fixed.find((f) => f.term === 'Days')!.est, 'fixed effect of Days').toBeCloseTo(10.4673, 3);  // ?lmer: fixef(fm1)
         expect(r.clusters).toBe(18);
       } else if (p.kind === 'gmm') {
         const { kind: _k, ...options } = p;
@@ -183,17 +217,17 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const { didR } = await import('../rengine/did');
         const { kind: _k, ...opts } = p;
         const r = await didR(data, { ...opts, seed: 1, confidence: 0.95 });
-        if (ex.id === 'did-mpdta') { expect(r.att.est).toBeCloseTo(-0.04, 2); expect(r.att.se).toBeCloseTo(0.013, 2); expect(r.groupTime!.length).toBeGreaterThanOrEqual(12); }  // ?aggte: ATT -0.04 (0.013)
+        if (ex.id === 'did-mpdta') { expect(r.att.est, 'overall ATT').toBeCloseTo(-0.04, 2); expect(r.att.se, 'SE of the ATT').toBeCloseTo(0.013, 2); expect(r.groupTime!.length).toBeGreaterThanOrEqual(12); }  // ?aggte: ATT -0.04 (0.013)
         else { expect(r.units).toBe(new Set(data.cols[data.names.indexOf('id')]).size); expect(r.periods).toBe(10); expect(r.event.length).toBe(10); expect(r.att.est).toBeGreaterThan(0); }
       } else if (p.kind === 'growth') {
         const r = await growthR(data, { ...p, estimator: 'ML', missing: st.missing });
-        if (ex.id === 'lavaan-growth-conditional') { expect(r.fit.df).toBe(21); expect(r.fit.chisq).toBeCloseTo(26.059, 2); }  // the tutorial's model, run natively
+        if (ex.id === 'lavaan-growth-conditional') { expect(r.fit.df).toBe(21); expect(r.fit.chisq, 'χ²').toBeCloseTo(26.059, 2); }  // the tutorial's model, run natively
         else expect(r.fit.df).toBe(GROWTH_DF[ex.id] ?? 5);
-        if (ex.id === 'lavaan-growth') expect(r.fit.chisq).toBeCloseTo(8.069, 3);  // the tutorial prints 8.069 on 5 df  // ?growth: linear growth on four occasions; the Mplus growth examples (checked in mplus.webr.test.ts)
+        if (ex.id === 'lavaan-growth') expect(r.fit.chisq, 'χ²').toBeCloseTo(8.069, 3);  // the tutorial prints 8.069 on 5 df  // ?growth: linear growth on four occasions; the Mplus growth examples (checked in mplus.webr.test.ts)
       } else if (p.kind === 'irt') {
         const r = await irtR(data, p.items, p.model);
         expect(r.params.length).toBe(p.items.length);
-        if (ex.id === 'ltm-lsat') expect(r.logLik).toBeCloseTo(-2466.9376, 3);  // rasch(LSAT) in native R (ltm 1.2-0)
+        if (ex.id === 'ltm-lsat') expect(r.logLik, 'log-likelihood').toBeCloseTo(-2466.9376, 3);  // rasch(LSAT) in native R (ltm 1.2-0)
       } else if (p.kind === 'lca') {
         const r = await lcaR(data, p.items, Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i), 10, st.seed);
         expect(r.models.map((m) => m.k)).toEqual(Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i));
@@ -218,27 +252,27 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     } else if (st.method === 'cbsem') {
       const r = await estimateCbLavaan(data, spec, st.missing, st.estimator as CbEstimator, st.interaction);
       expect(r.converged).toBe(true);
-      if (CHISQ[ex.id] !== undefined) expect(r.fit.chisq).toBeCloseTo(CHISQ[ex.id], 2);
+      if (CHISQ[ex.id] !== undefined) expect(r.fit.chisq, 'χ²').toBeCloseTo(CHISQ[ex.id], 2);
       if (ex.id === 'modsem-oneint') {
         // ?compare_fit: LMS on oneInt against its null model (estimate_h0). modsem 1.0.23 (webR): D = 676.55 on 1 df,
         // which is 2 x (logLik h1 - logLik h0) of its own fits; modsem 1.0.10 computed a different LMS log-likelihood
         // for h1 (D = 6288) with the same h0, so the value is version-bound (the native scratch library has 1.0.10).
         expect(r.interaction).toBe('lms');
         expect(r.lrt?.df).toBe(1);
-        expect(r.lrt?.D).toBeCloseTo(676.55, 1);
+        expect(r.lrt?.D, 'likelihood-ratio D (modsem 1.0.23)').toBeCloseTo(676.55, 1);
         expect(r.lrt?.p).toBeLessThan(0.001);
         // modsem.org, article "LMS and QML approaches" (modsem 1.0.24): Y ~ X 0.673 (0.031), Z 0.569 (0.030), X:Z 0.718 (0.028); H0 chi-square 17.52 on 24 df.
         const reg = (rhs: RegExp) => r.estimates.find((e) => e.op === '~' && e.lhs === 'Y' && rhs.test(e.rhs))!;
-        expect(reg(/^X$/).est).toBeCloseTo(0.673, 3); expect(reg(/^X$/).se!).toBeCloseTo(0.031, 3);
-        expect(reg(/^Z$/).est).toBeCloseTo(0.569, 3);
-        expect(reg(/X.*Z|Z.*X/).est).toBeCloseTo(0.718, 3); expect(reg(/X.*Z|Z.*X/).se!).toBeCloseTo(0.028, 3);
-        expect(Math.abs(r.fit.chisq - 17.52)).toBeLessThan(0.01); expect(r.fit.df).toBe(24);  // (17.529: modsem's printout truncates)
+        expect(reg(/^X$/).est, 'Y ~ X').toBeCloseTo(0.673, 3); expect(reg(/^X$/).se!, 'SE of Y ~ X').toBeCloseTo(0.031, 3);
+        expect(reg(/^Z$/).est, 'Y ~ Z').toBeCloseTo(0.569, 3);
+        expect(reg(/X.*Z|Z.*X/).est, 'Y ~ X:Z').toBeCloseTo(0.718, 3); expect(reg(/X.*Z|Z.*X/).se!, 'SE of Y ~ X:Z').toBeCloseTo(0.028, 3);
+        near('H0 χ²', r.fit.chisq, 17.52, 0.01); expect(r.fit.df).toBe(24);  // (17.529: modsem's printout truncates)
       }
       if (ex.id === 'lavaan-hs-means') {
         expect(spec.meanStructure).toBe(true);
         const intercepts = r.estimates.filter((e) => e.kind === 'intercept');
         expect(intercepts.map((e) => e.lhs).sort()).toEqual(Object.keys(HS_INTERCEPTS));
-        for (const e of intercepts) expect(e.est, e.lhs).toBeCloseTo(HS_INTERCEPTS[e.lhs], 3);
+        for (const e of intercepts) expect(e.est, `intercept of ${e.lhs}`).toBeCloseTo(HS_INTERCEPTS[e.lhs], 3);
         for (const e of r.estimates.filter((e) => e.kind === 'mean')) expect(e.est, e.lhs).toBe(0);  // latent means stay fixed at zero: no arrows drawn
       }
     } else {
@@ -294,7 +328,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     } else if (ex.segmentation) {
       const seg = await rebusR(data, spec, { scheme: st.scheme, consistent: false, missing: 'casewise', tolerance: 1e-6, maxIter: 100 },
         { classes: [ex.segmentation.from ?? 2], stopCrit: 0.005, iterMax: 100, seed: 1 });
-      if (ex.id === 'plspm-rebus') expect(seg.models[0].gqi).toBeCloseTo(0.8341, 3);  // ?it.reb, nk = 2
+      if (ex.id === 'plspm-rebus') expect(seg.models[0].gqi, 'GQI, two classes').toBeCloseTo(0.8341, 3);  // ?it.reb, nk = 2
     }
     checkClean(ex.id);
   }, 600_000);
@@ -309,13 +343,15 @@ it('factors arrive as codes in level order, with their levels', async () => {
 
 it('lavaan-twolevel reproduces the multilevel tutorial: the estimates within and between clusters', async () => {
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'lavaan-twolevel')!;
+  example(ex.id, { title: ex.title, method: 'CB-SEM', packages: [ex.package], definition: ex });
+  against(doc('lavaan tutorial, “Multilevel SEM” (printed)', 'https://lavaan.ugent.be/tutorial/multilevel.html'));
   const data = await load(ex);
   const r = await estimateCbLavaan(data, toSpec(exampleModel(ex)), 'casewise', 'ML', 'product');
-  expect(r.fit.df).toBe(10); expect(r.fit.npar).toBe(20); expect(r.fit.chisq).toBeCloseTo(8.092, 3);
+  same('df', r.fit.df, 10); same('free parameters', r.fit.npar, 20); expect(r.fit.chisq, 'χ²').toBeCloseTo(8.092, 3);
   const [within, between] = r.groups!.results;
   const est = (g: typeof within, lhs: string, rhs: string) => g.estimates.find((e) => e.op === '~' && e.lhs === lhs && e.rhs === rhs)!.est;
   // Printed: fw ~ x1 0.510, x2 0.407, x3 0.205; fb ~ w1 0.165, w2 0.131; fb =~ y2 0.717, y3 0.587.
-  expect(est(within, 'fw', 'x1')).toBeCloseTo(0.510, 3); expect(est(within, 'fw', 'x2')).toBeCloseTo(0.407, 3); expect(est(within, 'fw', 'x3')).toBeCloseTo(0.205, 3);
-  expect(est(between, 'fw', 'w1')).toBeCloseTo(0.165, 3); expect(est(between, 'fw', 'w2')).toBeCloseTo(0.131, 3);
-  expect(between.estimates.find((e) => e.op === '=~' && e.lhs === 'fw' && e.rhs === 'y2')!.est).toBeCloseTo(0.717, 3);
+  expect(est(within, 'fw', 'x1'), 'within: fw ~ x1').toBeCloseTo(0.510, 3); expect(est(within, 'fw', 'x2'), 'within: fw ~ x2').toBeCloseTo(0.407, 3); expect(est(within, 'fw', 'x3'), 'within: fw ~ x3').toBeCloseTo(0.205, 3);
+  expect(est(between, 'fw', 'w1'), 'between: fw ~ w1').toBeCloseTo(0.165, 3); expect(est(between, 'fw', 'w2'), 'between: fw ~ w2').toBeCloseTo(0.131, 3);
+  expect(between.estimates.find((e) => e.op === '=~' && e.lhs === 'fw' && e.rhs === 'y2')!.est, 'between: fw =~ y2').toBeCloseTo(0.717, 3);
 }, 600_000);

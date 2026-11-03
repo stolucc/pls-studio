@@ -824,3 +824,26 @@ a.btn { text-decoration: none; }
 .invite-link { display: flex; gap: 6px; }
 .invite-link .input { flex: 1; min-width: 0; font-family: var(--mono, monospace); font-size: 11.5px; }
 .menu-item.unverified { color: #8a5300; }
+
+/* Validation evidence (components/validation) */
+.chip.evidence { cursor: help; white-space: nowrap; }
+.chip.evidence.published { background: var(--good-soft); color: var(--good); }
+.chip.evidence.native { background: var(--accent-soft); color: var(--accent-strong); }
+.chip.evidence.recovery { background: var(--warn-soft); color: var(--warn); }
+button.chip.evidence { border: 0; font: inherit; cursor: pointer; }
+.modal.validation { width: min(920px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+.evidence-levels { display: grid; gap: 6px; margin: 0 0 14px; }
+.evidence-level { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.evidence-group h4 { margin: 14px 0 6px; }
+.evidence-row { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 4px; }
+.evidence-row.open { border-color: var(--accent); }
+.evidence-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; background: none; border: 0; text-align: left; font: inherit; cursor: pointer; color: inherit; }
+.evidence-title { flex: 1; }
+.evidence-status.ok { color: var(--good); font-weight: 600; }
+.evidence-status.bad { color: var(--bad); font-weight: 600; }
+.evidence-body { padding: 4px 12px 12px; }
+.evidence-sources { margin: 4px 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.7; }
+.evidence-table td, .evidence-table th { font-size: 12px; }
+.results-evidence { display: inline-flex; align-items: center; gap: 6px; }
+.issue.good { background: var(--good-soft); color: var(--good); }
+.example-evidence { margin: 2px 0 8px; }

@@ -23,7 +23,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { estimatePls } from '../engine/pls';
 import type { Dataset, ModelSpec, PlsOptions, PlsResult } from '../engine/types';
 import { exampleModel, PACKAGE_EXAMPLES } from '../examples/packages';
-import { toSpec } from '../model/project';
+import { DEFAULT_SETTINGS, toSpec } from '../model/project';
+import { against, example } from '../validation/record';
 import { rCall } from './bridge';
 import { estimatePlsR, type PlsPackage } from './pls';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
@@ -114,6 +115,19 @@ describe('Hair et al. (2021), PLS-SEM Using R: corporate reputation', () => {
       c.fSquare({ 'LIKE -> CUSA': 0.159, 'LIKE -> CUSL': 0.138, 'COMP -> CUSA': 0.018, 'COMP -> CUSL': 0.000 });
     }, 600_000);
   });
+
+  it('the example as it opens (its own settings: seminr, path scheme, mean replacement) reproduces chapter 6', async () => {
+    const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'seminr-corprep')!;
+    example(ex.id, { title: ex.title, method: 'PLS-SEM', packages: ['seminr'], definition: ex });
+    against({ label: 'Hair, Hult, Ringle, Sarstedt, Danks & Ray (2021), PLS-SEM Using R, chapter 6 (printed)', url: 'https://doi.org/10.1007/978-3-030-80519-7', level: 'published' });
+    const st = { ...DEFAULT_SETTINGS, ...ex.settings };
+    const r = await estimatePlsR(data, toSpec(exampleModel(ex)), { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 10 ** -st.stopExp, maxIter: st.maxIter }, st.plsPackage);
+    const c = checks(r);
+    c.paths({ 'QUAL -> COMP': 0.430, 'QUAL -> LIKE': 0.380, 'CSOR -> COMP': 0.059, 'CSOR -> LIKE': 0.178, 'LIKE -> CUSA': 0.436, 'LIKE -> CUSL': 0.344, 'CUSA -> CUSL': 0.505, 'COMP -> CUSL': 0.006 });
+    c.r2({ COMP: 0.631, CUSL: 0.562, LIKE: 0.558, CUSA: 0.292 });
+    c.total({ 'QUAL -> CUSL': 0.248, 'CSOR -> CUSL': 0.105, 'ATTR -> CUSL': 0.101, 'PERF -> CUSL': 0.089 });
+    c.fSquare({ 'LIKE -> CUSA': 0.159, 'LIKE -> CUSL': 0.138, 'COMP -> CUSA': 0.018, 'COMP -> CUSL': 0.000 });
+  }, 600_000);
 });
 
 describe('Monecke & Leisch (2012), semPLS: ECSI on mobi', () => {

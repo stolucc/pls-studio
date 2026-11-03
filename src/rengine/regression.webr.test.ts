@@ -10,6 +10,7 @@ import type { Dataset } from '../engine/types';
 import type { DataInfo } from '../model/project';
 import { computeColumn } from '../data/compute';
 import { PACKAGE_EXAMPLES, type PackageExample } from '../examples/packages';
+import { against, example } from '../validation/record';
 import type { RPackage } from './bridge';
 import { rCall } from './bridge';
 import { regressionR, regressionScriptR, type RegressionInput } from './regression';
@@ -41,6 +42,8 @@ const same = (a: string, b: string) => a.replace(/^log\(u\)$/, 'log_u').replace(
 
 it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === id)!;
+  example(id, { title: ex.title, method: 'Regression', packages: [ex.package], definition: ex });
+  against({ label: 'the help page’s model in desktop R, scripts/validation/regression.R', script: 'scripts/validation/regression.R', level: 'native' });
   const data = await load(ex);
   const { kind: _k, ...opts } = ex.panel as { kind: 'regression' } & Omit<RegressionInput, 'confidence'>;
   const input: RegressionInput = { ...opts, confidence: 0.95 };
@@ -50,13 +53,13 @@ it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   for (const w of want.coefficients) {
     const mine = r.coefficients.find((e) => same(w.term, e.term)) ?? r.thresholds.find((e) => same(w.term, e.term));
     expect(mine, `${id}: ${w.term} (have ${r.coefficients.map((e) => e.term).join(', ')})`).toBeTruthy();
-    expect(mine!.est, `${id}: ${w.term}`).toBeCloseTo(w.est, digits);
-    expect(mine!.se, `${id}: se ${w.term}`).toBeCloseTo(w.se, digits);
+    expect(mine!.est, w.term).toBeCloseTo(w.est, digits);
+    expect(mine!.se, `SE of ${w.term}`).toBeCloseTo(w.se, digits);
   }
-  expect(r.fit.logLik).toBeCloseTo(want.logLik, digits);
-  expect(r.fit.aic).toBeCloseTo(want.aic, digits);
-  if (want.theta !== undefined) expect(r.fit.theta).toBeCloseTo(want.theta, 4);
-  if (want.deviance !== undefined) expect(r.fit.deviance).toBeCloseTo(want.deviance, 5);
+  expect(r.fit.logLik, 'log-likelihood').toBeCloseTo(want.logLik, digits);
+  expect(r.fit.aic, 'AIC').toBeCloseTo(want.aic, digits);
+  if (want.theta !== undefined) expect(r.fit.theta, 'θ (negative binomial)').toBeCloseTo(want.theta, 4);
+  if (want.deviance !== undefined) expect(r.fit.deviance, 'deviance').toBeCloseTo(want.deviance, 5);
   if (want.zeta) for (const [k, v] of Object.entries(want.zeta)) expect(r.thresholds.find((t) => t.term === k)!.est, k).toBeCloseTo(v, 5);
   expect(r.warnings, r.warnings.join(' | ')).toEqual([]);
   expect(r.lrt).toBeTruthy();
@@ -74,7 +77,7 @@ it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   const script = await regressionScriptR(data, input);
   const LM = ['attitude', 'swiss', 'duncan', 'prestige'];
   expect(script).toContain(key === 'quine' ? 'glm.nb(' : key === 'housing' ? 'polr(' : key === 'multinom' ? 'multinom(' : ['dobson', 'gala'].includes(key) ? 'family = poisson' : key === 'clotting' ? 'family = Gamma' : key === 'menarche' ? 'binomial(link = "probit")' : LM.includes(key) ? 'fit <- lm(' : 'family = binomial');
-  if (key === 'gala') { expect(r.fit.deviance).toBeCloseTo(716.8458, 3); expect(r.fit.n).toBe(30); }  // Faraway: residual deviance 716.85 on 24 df
+  if (key === 'gala') { against({ label: 'Faraway, Extending the Linear Model with R: residual deviance (printed by R)', level: 'native' }); expect(r.fit.deviance, 'residual deviance').toBeCloseTo(716.8458, 3); expect(r.fit.n).toBe(30); }  // Faraway: residual deviance 716.85 on 24 df
   if (key === 'prestige') expect(r.formula).toMatch(/log2_income/);
 }, 900_000);
 

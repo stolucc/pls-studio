@@ -59,7 +59,8 @@ it('filters by author: a row of the authors whose books, manuals and papers the 
 it('lists the R packages in alphabetical order', () => {
   const host = document.createElement('div');
   act(() => { createRoot(host).render(<HomeScreen />); });
-  const names = [...host.querySelectorAll('[role="radiogroup"][aria-label="Package"] button')].map((b) => b.textContent!);
+  const [lead, ...names] = [...host.querySelectorAll('[role="radiogroup"][aria-label="Package"] button')].map((b) => b.textContent!);
+  expect(lead).toBe('Libraries');
   expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })));
   expect(names.length).toBe(new Set(PACKAGE_EXAMPLES.map((e) => e.package)).size);
 });
@@ -81,4 +82,26 @@ it('keeps every filter together at the top: topics, authors and R packages, abov
   for (const card of shown) expect(card.querySelector('.chip.accent')!.textContent).toBe('lavaan');
   act(() => { lavaan.click(); });
   expect(host.querySelectorAll('.example-card').length).toBe(all);
+});
+
+it('names each filter row with its first chip: All topics, Authors, Libraries, each on while nothing in its row is chosen', () => {
+  const host = document.createElement('div');
+  act(() => { createRoot(host).render(<HomeScreen />); });
+  const row = (label: string) => host.querySelector(`[role="radiogroup"][aria-label="${label}"]`)!;
+  const first = (label: string) => row(label).querySelector('button')!;
+  expect([first('Topic'), first('Author'), first('Package')].map((b) => b.textContent)).toEqual(['All topics', 'Authors', 'Libraries']);
+  for (const l of ['Topic', 'Author', 'Package']) expect(first(l).getAttribute('aria-checked'), l).toBe('true');
+  // Choosing an author turns "Authors" off; "Authors" clears it again.
+  const bollen = [...row('Author').querySelectorAll('button')].find((b) => b.textContent === 'Bollen')!;
+  act(() => { bollen.click(); });
+  expect(first('Author').getAttribute('aria-checked')).toBe('false');
+  act(() => { first('Author').click(); });
+  expect(first('Author').getAttribute('aria-checked')).toBe('true');
+  expect(bollen.getAttribute('aria-checked')).toBe('false');
+  // Likewise a package and "Libraries".
+  const lavaan = [...row('Package').querySelectorAll('button')].find((b) => b.textContent === 'lavaan')!;
+  act(() => { lavaan.click(); });
+  expect(first('Package').getAttribute('aria-checked')).toBe('false');
+  act(() => { first('Package').click(); });
+  expect(lavaan.getAttribute('aria-checked')).toBe('false');
 });

@@ -15,6 +15,7 @@ import { rCall, type RPackage } from '../rengine/bridge';
 import { cbScriptLavaan, estimateCbLavaan } from '../rengine/lavaan';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
+import { against, example as exampleCheck, near } from '../validation/record';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -26,6 +27,8 @@ const miOf = (id: string) => { const s = settingsOf(id); return { m: s.miImputat
 
 it('lavaanmi-hs: Amelia with the help page’s auxiliary variables and seed gives HS20imps: the pooled CFA as cfa.mi', async () => {
   const ex = example('lavaanmi-hs');
+  exampleCheck(ex.id, { title: ex.title, method: 'CB-SEM', packages: ['lavaan', 'Amelia', 'lavaan.mi'], definition: ex });
+  against({ label: 'desktop Amelia and lavaan.mi (the help page’s HS20imps and cfa.mi), scripts/validation/examples_mi.R', script: 'scripts/validation/examples_mi.R', level: 'native' });
   const data = parseCsv(readFileSync(join(__dirname, '..', '..', 'public', ex.data.file!), 'utf8')).dataset;
   const r = await estimateCbLavaan(data, toSpec(exampleModel(ex)), 'mi', 'ML', 'product', miOf('lavaanmi-hs'));
   expect(r.converged).toBe(true);
@@ -36,7 +39,7 @@ it('lavaanmi-hs: Amelia with the help page’s auxiliary variables and seed give
     const mine = r.estimates.find((e) => e.op === op && ((e.lhs === lhs && e.rhs === rhs) || (op === '~~' && e.lhs === rhs && e.rhs === lhs)));
     if (!mine && op === '=~' && v === 1) continue;  // (a marker loading)
     expect(mine, k).toBeTruthy();
-    expect(Math.abs(mine!.est - v), k).toBeLessThan(1e-4 * Math.max(1, Math.abs(v)));
+    near(`pooled ${k}`, mine!.est, v, 1e-4 * Math.max(1, Math.abs(v)));
   }
   const script = await cbScriptLavaan(data, toSpec(exampleModel(ex)), 'mi', 'ML', 'product', miOf('lavaanmi-hs'));
   expect(script).toContain('set.seed(456)');
@@ -47,6 +50,8 @@ it('lavaanmi-hs: Amelia with the help page’s auxiliary variables and seed give
 
 it('mice-nhanes: mice(nhanes, seed = 16117) and the regression of ?pool.r.squared: the pooled coefficients of its lm()', async () => {
   const ex = example('mice-nhanes');
+  exampleCheck(ex.id, { title: ex.title, method: 'CB-SEM', packages: ['lavaan', 'mice'], definition: ex });
+  against({ label: 'desktop mice (?pool.r.squared’s regression), scripts/validation/examples_mi.R', script: 'scripts/validation/examples_mi.R', level: 'native' });
   const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'mice', name: 'nhanes', na: [] }, 'mice' as RPackage);
   const data: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
   expect(data.names).toEqual(['age', 'bmi', 'hyp', 'chl']);
@@ -54,6 +59,6 @@ it('mice-nhanes: mice(nhanes, seed = 16117) and the regression of ?pool.r.square
   expect(r.imputations).toBe(5);
   for (const k of ['age', 'hyp', 'bmi']) {
     const mine = r.estimates.find((e) => e.op === '~' && e.lhs === 'chl' && e.rhs === k)!;
-    expect(Math.abs(mine.est - ref.nhanes[k]), k).toBeLessThan(1e-4 * Math.max(1, Math.abs(ref.nhanes[k])));
+    near(`pooled chl ~ ${k}`, mine.est, ref.nhanes[k], 1e-4 * Math.max(1, Math.abs(ref.nhanes[k])));
   }
 }, 900_000);

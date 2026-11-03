@@ -10,9 +10,11 @@ import { api } from '../cloud/api';
 import { openCloudProject } from '../cloud/collab';
 import { AccountMenu } from './cloud/AccountMenu';
 import { AboutDialog } from './AboutDialog';
+import { EvidenceBadge } from './validation/EvidenceBadge';
+import { ValidationDialog } from './validation/ValidationDialog';
 import { IconLogo, IconNew, IconOpen, IconTrash, IconUpload } from './icons';
 
-const EXAMPLES = [
+export const EXAMPLES = [
   {
     id: 'customer' as const,
     authors: [] as string[],
@@ -434,7 +436,7 @@ export function ExampleTags({ tags }: { tags: string[] }) {
 }
 
 /** Examples from the R packages' documentation, filtered by the package, topic and author chosen at the top of the examples. */
-function PackageExamples({ query, topic, pkg }: { query: string; topic: string; pkg: ExamplePackage | 'all' }) {
+function PackageExamples({ query, topic, pkg, onEvidence }: { query: string; topic: string; pkg: ExamplePackage | 'all'; onEvidence: (id: string) => void }) {
   const shown = PACKAGE_EXAMPLES.filter((e) => (pkg === 'all' || e.package === pkg) && (topic === 'all' || exampleTags(e).includes(topic) || exampleAuthors(e).includes(topic)) && matchesQuery(query, [e.title, e.description, e.source, e.package, ...exampleTags(e), ...exampleAuthors(e)]));
   return (
     <section className="home-examples">
@@ -450,6 +452,7 @@ function PackageExamples({ query, topic, pkg }: { query: string; topic: string; 
             <p>{e.description}</p>
             <span className="hint">{e.source}</span>
             <SourceLinks links={e.links} />
+            <div className="example-evidence"><EvidenceBadge id={e.id} onOpen={onEvidence} /></div>
             <button className="btn" onClick={() => void loadPackageExample(e.id)}>Open example</button>
           </div>
         ))}
@@ -466,6 +469,8 @@ export function HomeScreen() {
   const [recent, setRecent] = useState<RecentMeta[] | null>(null);
   const [persistent, setPersistent] = useState(true);
   const [about, setAbout] = useState(false);
+  // The validation record: open (true), or open at an example (its id).
+  const [validation, setValidation] = useState<string | boolean>(false);
   const [query, setQuery] = useState('');
   // One filter for every example, built-in and from the packages: a topic or an author, each list in alphabetical order.
   const [topic, setTopic] = useState('all');
@@ -503,6 +508,7 @@ export function HomeScreen() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <a className="btn ghost" href="guide.html" target="_blank" rel="noopener">User guide</a>
           <a className="btn ghost" href="architecture.html" target="_blank" rel="noopener" title="For developers: how PLS Studio is designed and how it talks to R">How it works</a>
+          <button className="btn ghost" onClick={() => setValidation(true)} title="What every example and method is checked against, and a check of this browser">Validation</button>
           <button className="btn ghost" onClick={() => setAbout(true)}>About &amp; licences</button>
           {hasCurrent && <button className="btn primary" onClick={() => setView('editor')}>Back to “{currentName}”</button>}
           <AccountMenu />
@@ -573,11 +579,14 @@ export function HomeScreen() {
             ))}
           </div>
           <div className="segmented wrap topics authors" role="radiogroup" aria-label="Author">
+            {/* (authors share the topic filter: "Authors" is on while no author is chosen, and clears one) */}
+            <button role="radio" aria-checked={!authors.includes(topic)} className={!authors.includes(topic) ? 'on' : ''} onClick={() => { if (authors.includes(topic)) setTopic('all'); }} title="Examples by any author">Authors</button>
             {authors.map((a) => (
               <button key={a} role="radio" aria-checked={topic === a} className={topic === a ? 'on' : ''} onClick={() => setTopic(topic === a ? 'all' : a)} title={`Examples from ${a}’s book, manual or paper`}>{a}</button>
             ))}
           </div>
           <div className="segmented wrap topics packages" role="radiogroup" aria-label="Package">
+            <button role="radio" aria-checked={pkg === 'all'} className={pkg === 'all' ? 'on' : ''} onClick={() => setPkg('all')} title="Examples from every R package, and the built-in examples">Libraries</button>
             {packages.map((p) => (
               <button key={p} role="radio" aria-checked={pkg === p} className={pkg === p ? 'on' : ''} onClick={() => setPkg(pkg === p ? 'all' : p)} title={`Examples from the documentation of the R package ${p}`}>{p}</button>
             ))}
@@ -591,15 +600,18 @@ export function HomeScreen() {
                 <ExampleAuthors authors={e.authors} />
                 <p>{e.body}</p>
                 <SourceLinks links={e.links} />
+                <div className="example-evidence"><EvidenceBadge id={e.id} onOpen={setValidation} /></div>
                 <button className="btn" onClick={() => void loadSample(e.id)}>Open example</button>
               </div>
             ))}
           </div>
         </section>
 
-        <PackageExamples query={query} topic={topic} pkg={pkg} />
+        <PackageExamples query={query} topic={topic} pkg={pkg} onEvidence={setValidation} />
       </main>
       {about && <AboutDialog onClose={() => setAbout(false)} />}
+      {validation !== false && <ValidationDialog onClose={() => setValidation(false)} focus={typeof validation === 'string' ? validation : undefined}
+        titles={Object.fromEntries(EXAMPLES.map((e) => [e.id, e.title]))} />}
     </div>
   );
 }

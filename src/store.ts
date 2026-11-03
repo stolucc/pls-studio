@@ -8,6 +8,7 @@ import type { BootstrapResult, Dataset, PlsResult } from './engine/types';
 import type { CpaResult } from './rengine/cpa';
 import type { InvarianceResult } from './rengine/lavaan';
 import { setWarningSink } from './rengine/notices';
+import { estimationKey } from './validation/exampleState';
 import { autoLayout, suggestName } from './model/layout';
 import { graphToModel, isSlotName, templateModel, templatePositions } from './process/canvas';
 import { processGraph } from './process/fromModel';
@@ -67,6 +68,8 @@ interface State {
    * kept (not autosaved), so reopening it gives the original.
    */
   example: string | null;
+  /** The example's estimationKey (validation/exampleState.ts) when it opened: its results carry its validation while it is unchanged. */
+  exampleBaseline: string | null;
   history: HistoryOverride | null;
   /** Undo/redo availability when `history` is set. */
   historyCounts: { undo: number; redo: number };
@@ -256,6 +259,7 @@ export const useStore = create<State>((set, get) => ({
   projectId: newId('proj'),
   cloud: null,
   example: null,
+  exampleBaseline: null,
   history: null,
   historyCounts: { undo: 0, redo: 0 },
   view: 'home',
@@ -628,20 +632,21 @@ export const useStore = create<State>((set, get) => ({
   loadProject: ({ name, model, settings, data, info, id, example }) =>
     set((s) => ({
       projectId: id ?? newId('proj'), view: 'editor', workspace: 'model', cloud: null, example: example ?? null, history: null, historyCounts: { undo: 0, redo: 0 },
+      exampleBaseline: example ? estimationKey(model, settings, s.dataVersion + 1) : null,
       projectName: name, model, settings, data, dataInfo: info, dataVersion: s.dataVersion + 1,
       past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null, dirty: false, resultsOpen: false,
       fitRequest: s.fitRequest + 1, messages: [],
     })),
   newProject: () =>
     set((s) => ({
-      projectId: newId('proj'), view: 'editor', workspace: 'model', cloud: null, example: null, history: null, historyCounts: { undo: 0, redo: 0 },
+      projectId: newId('proj'), view: 'editor', workspace: 'model', cloud: null, example: null, exampleBaseline: null, history: null, historyCounts: { undo: 0, redo: 0 },
       projectName: 'Untitled model', model: emptyModel(), settings: DEFAULT_SETTINGS, data: null, dataInfo: null,
       dataVersion: s.dataVersion + 1, past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null,
       dirty: false, resultsOpen: false, messages: [],
     })),
   setProjectName: (projectName) => { if (!readOnly(get())) set({ projectName: projectName.slice(0, 100), dirty: true }); },
   markSaved: () => set({ dirty: false }),
-  keepExample: () => set((s) => (s.example ? { example: null, projectId: newId('proj'), projectName: s.projectName.replace(/^Example: /, ''), dirty: true } : {})),
+  keepExample: () => set((s) => (s.example ? { example: null, exampleBaseline: null, projectId: newId('proj'), projectName: s.projectName.replace(/^Example: /, ''), dirty: true } : {})),
 
   setJob: (job) => set({ job }),
   setResults: (r, key) =>

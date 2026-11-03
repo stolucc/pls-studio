@@ -17,6 +17,7 @@ import { regressionR } from '../rengine/regression';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { DEFAULT_SETTINGS } from '../model/project';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
+import { against, example as exampleCheck, near, same } from '../validation/record';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -28,6 +29,12 @@ const MPLUS = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixture
 const TOL = 0.001;
 
 const example = (key: string) => PACKAGE_EXAMPLES.find((e) => e.id === `mplus-${key}`)!;
+/** Start the example's validation evidence: the Mplus output it is compared with. */
+const evidence = (key: string, method: string, packages: string[]) => {
+  const ex = example(key);
+  exampleCheck(ex.id, { title: ex.title, method, packages, definition: ex });
+  against({ label: `Mplus User’s Guide, example ${key.slice(2)}: the printed output (statmodel.com)`, url: 'https://www.statmodel.com/ugexcerpts.shtml', level: 'published' });
+};
 const load = (key: string) => parseCsv(readFileSync(join(__dirname, '..', '..', 'public', example(key).data.file!), 'utf8')).dataset;
 type Mine = { lhs: string; op: string; rhs: string; est: number; se: number | null; kind?: string };
 
@@ -42,53 +49,58 @@ function samePrinted(mine: Mine[], printed: Printed[], where: string, opts: { to
     const pool = mine.filter((e) => (e.op === p.op || (p.op === '|' && e.kind === 'threshold'))
       && ((e.lhs === p.lhs && e.rhs === p.rhs) || (p.op === '~~' && e.lhs === p.rhs && e.rhs === p.lhs)));
     const what = `${where}: ${p.lhs} ${p.op} ${p.rhs} (group ${p.group})`;
+    const label = `${p.lhs} ${p.op} ${p.rhs}${p.group > 1 || where.includes('group') ? ` (group ${p.group})` : ''}`;
     if (p.se === 0) {
-      if (pool.length) expect(Math.min(...pool.map((e) => Math.abs(e.est - p.est))), what).toBeLessThanOrEqual(tol);
+      if (pool.length) near(`${label} (fixed)`, pool.reduce((a, b) => (Math.abs(b.est - p.est) < Math.abs(a.est - p.est) ? b : a)).est, p.est, tol);
       continue;
     }
     expect(pool.length, `${what} is not in the app's table`).toBeGreaterThan(0);
     const best = pool.reduce((a, b) => (Math.abs(b.est - p.est) < Math.abs(a.est - p.est) ? b : a));
-    expect(Math.abs(best.est - p.est), `${what}: estimate ${best.est} vs Mplus ${p.est}`).toBeLessThanOrEqual(tol);
-    if (opts.ses !== false) expect(Math.abs((best.se ?? 0) - p.se), `${what}: SE ${best.se} vs Mplus ${p.se}`).toBeLessThanOrEqual(tol);
+    near(label, best.est, p.est, tol);
+    if (opts.ses !== false) near(`SE of ${label}`, best.se ?? 0, p.se, tol);
   }
 }
 
 function sameFit(fit: Partial<Record<'npar' | 'logl' | 'aic' | 'bic' | 'chisq' | 'df', number | undefined>>, want: Fit, where: string) {
-  if (want.npar !== undefined) expect(fit.npar, `${where} free parameters`).toBe(want.npar);
-  if (want.df !== undefined) expect(fit.df, `${where} df`).toBe(want.df);
-  for (const k of ['logl', 'aic', 'bic', 'chisq'] as const) if (want[k] !== undefined) expect(Math.abs(fit[k]! - want[k]!), `${where} ${k}: ${fit[k]} vs Mplus ${want[k]}`).toBeLessThanOrEqual(0.002);
+  void where;
+  if (want.npar !== undefined) same('free parameters', fit.npar!, want.npar);
+  if (want.df !== undefined) same('df', fit.df!, want.df);
+  const label = { logl: 'log-likelihood', aic: 'AIC', bic: 'BIC', chisq: 'χ²' } as const;
+  for (const k of ['logl', 'aic', 'bic', 'chisq'] as const) if (want[k] !== undefined) near(label[k], fit[k]!, want[k]!, 0.002);
 }
 
 it.each([['ex3.1'], ['ex3.5'], ['ex3.7']])('%s: the regression card reproduces the Mplus coefficients and log-likelihood', async (key) => {
   const ex = example(key);
+  evidence(key, 'Regression', ['stats']);
   const { kind: _k, ...opts } = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'regression' }>;
   const r = await regressionR(load(key), { ...opts, confidence: 0.95 });
   if (key === 'ex3.7') expect(r.se).toBe('HC0');
   const want = MPLUS[key];
-  expect(Math.abs(r.fit.logLik - want.fit.logl!)).toBeLessThanOrEqual(0.001);
-  expect(Math.abs(r.fit.aic - want.fit.aic!)).toBeLessThanOrEqual(0.002);
+  near('log-likelihood', r.fit.logLik, want.fit.logl!, 0.001);
+  near('AIC', r.fit.aic, want.fit.aic!, 0.002);
   const coef = (term: string) => r.coefficients.find((c) => c.term === term)!;
   for (const p of want.estimates) {
     // (Mplus: u1 ON x1 is the slope; the intercept of a count or continuous outcome, the threshold of a binary one (its negative))
     const c = p.op === '~' ? coef(p.rhs) : p.op === '~1' ? coef('(Intercept)') : p.op === '|' ? { ...coef('(Intercept)'), est: -coef('(Intercept)').est } : null;
     if (!c) continue;  // the residual variance (ex3.1): the card reports the least-squares residual SD instead (see the description)
-    expect(Math.abs(c.est - p.est), `${key} ${p.lhs} ${p.op} ${p.rhs}`).toBeLessThanOrEqual(TOL);
+    near(`${p.lhs} ${p.op} ${p.rhs}`, c.est, p.est, TOL);
     // 3.1: least-squares SEs (N − 3) are within 0.001 of Mplus's ML ones; 3.7: Mplus's MLR = the card's HC0 sandwich.
-    expect(Math.abs(c.se - p.se), `${key} SE ${p.lhs} ${p.op} ${p.rhs}`).toBeLessThanOrEqual(TOL);
+    near(`SE of ${p.lhs} ${p.op} ${p.rhs}`, c.se, p.se, TOL);
   }
 }, 600_000);
 
 it.each([['ex3.11'], ['ex5.1'], ['ex5.2'], ['ex5.6'], ['ex5.8'], ['ex5.11'], ['ex5.14'], ['ex5.15'], ['ex5.25']])('%s reproduces the Mplus output: fit, estimates and standard errors', async (key) => {
   const ex = example(key);
+  evidence(key, 'CB-SEM', ['lavaan']);
   const st = { ...DEFAULT_SETTINGS, ...ex.settings };
   const r = await estimateCbLavaan(load(key), toSpec(exampleModel(ex)), 'casewise', st.estimator as CbEstimator, 'product');
   const want = MPLUS[key];
   expect(r.converged).toBe(true);
   if (key === 'ex5.2') {
     // WLSMV: lavaan's scaled-shifted statistic adjusts slightly differently from Mplus's (documented on the card).
-    expect(r.fit.npar).toBe(want.fit.npar);
-    expect(r.fit.df).toBe(want.fit.df);
-    expect(Math.abs(r.fit.chisqScaled! - want.fit.chisq!)).toBeLessThan(0.01);
+    same('free parameters', r.fit.npar, want.fit.npar!);
+    same('df', r.fit.df, want.fit.df!);
+    near('χ² (WLSMV, scaled and shifted)', r.fit.chisqScaled!, want.fit.chisq!, 0.01);
     // Reliability with ordinal indicators: categorical omega and ordinal alpha, without a warning from semTools.
     expect(r.warnings).toEqual([]);
     for (const rel of r.reliability) { expect(rel.omega).toBeGreaterThan(0.5); expect(rel.alpha).toBeGreaterThan(0.5); }
@@ -101,6 +113,7 @@ it.each([['ex3.11'], ['ex5.1'], ['ex5.2'], ['ex5.6'], ['ex5.8'], ['ex5.11'], ['e
 
 it('ex5.13: the latent interaction by LMS reproduces the Mplus estimates to two decimals', async () => {
   const ex = example('ex5.13');
+  evidence('ex5.13', 'CB-SEM', ['modsem']);
   const r = await estimateCbLavaan(load('ex5.13'), toSpec(exampleModel(ex)), 'casewise', 'ML', 'lms');
   expect(r.interaction).toBe('lms');
   // Mplus integrates numerically (MLR); modsem's LMS uses its own quadrature (ML): the loadings and paths agree
@@ -111,6 +124,7 @@ it('ex5.13: the latent interaction by LMS reproduces the Mplus estimates to two 
 
 it.each([['ex6.1'], ['ex6.8'], ['ex6.9'], ['ex6.10']])('%s: the growth card reproduces the Mplus output: fit, estimates and standard errors', async (key) => {
   const ex = example(key);
+  evidence(key, 'Longitudinal', ['lavaan']);
   const { kind: _k, ...opts } = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'growth' }>;
   const input = growthInput({ ...opts, timeVarying: opts.timeVarying ?? [] }, { settings: { ...DEFAULT_SETTINGS, ...ex.settings, missing: 'casewise' }, model: exampleModel(ex) });
   expect(input.information).toBe('observed');
