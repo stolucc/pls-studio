@@ -599,6 +599,11 @@ ps_cb <- function(req_json, export = FALSE) {
   # Mplus TECH4: the model-implied means, covariances and correlations of the latent variables, per block.
   # (Not with multiple imputation, whose estimates are pooled; robust ML (rsem) has no lavaan covariance matrix.)
   tech4 <- if (isTRUE(b$mi)) NULL else ps_try(ps_tech4(fit, se = !isTRUE(b$robust)), "The model-implied latent means and covariances (TECH4)")
+  # Ordinal indicators: the sample polychoric (and polyserial) correlations and thresholds the model is fitted
+  # to (Mplus SAMPSTAT), and each pair's bivariate fit (Mplus TECH10). (Not pooled over imputations.)
+  ordinal <- length(unlist(req$model$ordered)) > 0 && !isTRUE(b$mi)
+  sampstat <- if (ordinal) ps_try(ps_sampstat(fit), "The sample polychoric correlations (SAMPSTAT)") else NULL
+  tech10 <- if (ordinal) ps_try(ps_tech10(fit), "The bivariate fit of the ordinal indicators (TECH10)") else NULL
   map_group <- function(g) {
     pt <- lavaan::parTable(fit)
     pe <- lavaan::parameterEstimates(fit, standardized = TRUE, remove.nonfree = FALSE)
@@ -785,6 +790,8 @@ ps_cb <- function(req_json, export = FALSE) {
       stdPaths = stdB, hasPath = has, stdTotal = total, stdIndirect = total - stdB,
       lvCor = unname(lvcor), reliability = rel, residualCor = unname(res), bifactor = Filter(Negate(is.null), bifactor),
       tech4 = if (!is.null(tech4)) { t4 <- tech4[[g %||% 1]]; t4$names <- nm(t4$names); t4 },
+      sampleCor = if (!is.null(sampstat)) { s <- sampstat[[g %||% 1]]; s$names <- nm(s$names); s$thresholds$variable <- nm(s$thresholds$variable); s },
+      tech10 = if (!is.null(tech10)) { t <- tech10[[g %||% 1]]; t$lhs <- nm(t$lhs); t$rhs <- nm(t$rhs); t },
       htmt = htmt(FALSE), htmt2 = htmt(TRUE), vcov = if (is.null(vc)) NULL else unname(vc),
       moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
       wald = lapply(seq_along(env$wald), function(i) list(name = req$model$waldTests[[i]]$name, stat = unname(env$wald[[i]]$stat),
@@ -1090,6 +1097,36 @@ ps_tech4 <- function(fit, se = TRUE) {
     mu <- if (means) take(kb) else NULL
     cv <- take(kb * (kb + 1) / 2); cr <- take(kb * (kb + 1) / 2)
     list(names = names_b[[b]], mean = mu$est, meanSe = mu$se, cov = full(cv$est, kb), covSe = full(cv$se, kb), cor = full(cr$est, kb), corSe = full(cr$se, kb))
+  })
+}
+
+#' Mplus SAMPSTAT for ordinal indicators: the sample statistics the model is fitted to, per group: the
+#' correlation matrix of the indicators (polychoric between ordinal ones, polyserial between an ordinal and
+#' a continuous one, Pearson between continuous ones) and the thresholds, in standard-normal units.
+ps_sampstat <- function(fit) {
+  s <- lavaan::lavInspect(fit, "sampstat")
+  if (!is.null(s$cov)) s <- list(s)
+  ord <- lavaan::lavNames(fit, "ov.ord")
+  lapply(s, function(x) {
+    R <- stats::cov2cor(unclass(x$cov))
+    th <- unclass(x$th)
+    list(names = rownames(R), ordinal = rownames(R) %in% ord, cor = unname(R),
+      thresholds = list(variable = sub("\\|t[0-9]+$", "", names(th)), index = as.integer(sub(".*\\|t", "", names(th))), value = unname(as.numeric(th))))
+  })
+}
+
+#' Mplus TECH10 (bivariate part): for each pair of ordinal indicators, the observed against the
+#' model-implied two-way table of their categories (lavaan::lavTables), as Pearson X2 and likelihood-ratio
+#' G2 with their df and p. A large value points to a pair the model does not reproduce: a local
+#' dependency, a missing cross-loading or error correlation, or categories that do not follow the
+#' bivariate normal distribution the polychoric correlation assumes. One list per group.
+ps_tech10 <- function(fit) {
+  tb <- lavaan::lavTables(fit, dimension = 2L, type = "table", statistic = c("X2", "G2"), p_value = TRUE)
+  if (is.null(tb) || !nrow(tb)) return(NULL)
+  lapply(seq_len(lavaan::lavInspect(fit, "ngroups")), function(g) {
+    t <- if ("group" %in% names(tb)) tb[tb$group == g, , drop = FALSE] else tb
+    list(lhs = as.character(t$lhs), rhs = as.character(t$rhs), df = as.numeric(t$df), x2 = as.numeric(t$X2), x2p = as.numeric(t$X2.pval),
+      g2 = as.numeric(t$G2), g2p = as.numeric(t$G2.pval))
   })
 }
 

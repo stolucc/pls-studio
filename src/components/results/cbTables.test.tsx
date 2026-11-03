@@ -28,3 +28,20 @@ describe('variances tab, TECH4', () => {
     for (const v of ['0.505', '0.550', '0.094', '0.090']) expect(out).toContain(v);
   });
 });
+
+describe('residuals tab, ordinal indicators', () => {
+  it('adds TECH10 with chance and Bonferroni flags, and the sample polychoric correlations and thresholds', () => {
+    const rt = (cb: Partial<CbResult>) => renderToStaticMarkup(<CbTab tab="residuals" cb={{ indicators: [{ name: 'a', construct: 0 }, { name: 'b', construct: 0 }], residualCor: [[0, 0.02], [0.02, 0]], ...cb } as CbResult} boot={null} />);
+    expect(rt({})).not.toContain('TECH10');
+    const out = rt({
+      tech10: [{ lhs: 'a', rhs: 'b', df: 3, x2: 12.5, x2p: 0.006, g2: 11.9, g2p: 0.0077 }, { lhs: 'a', rhs: 'c', df: 3, x2: 1.2, x2p: 0.75, g2: 1.1, g2p: 0.78 }],
+      sampleCor: { names: ['a', 'b'], ordinal: [true, false], cor: [[1, 0.41], [0.41, 1]], thresholds: [{ variable: 'a', index: 1, value: 0 }] },
+    });
+    expect(out).toContain('Bivariate fit of the ordinal indicators (TECH10)');
+    expect(out).toContain('a × b');
+    expect(out).toContain('class="num bad">0.006');  // 0.006 < .05 / 2
+    expect(out).toContain('b (continuous)');
+    expect(out).toContain('0.410');
+    expect(out).toContain('0.500');  // Φ(0)
+  });
+});

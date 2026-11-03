@@ -57,9 +57,10 @@ export interface REngineInfo { package: string; version: string }
 export type CbResultR = CbResult & { engine: REngineInfo };
 
 /** Shape ps_cb()'s JSON into a CbResult (null → NaN for numbers, null kept where the type allows). */
+const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
+
 /** TECH4 from R: length-one vectors arrive unboxed, standard errors held fixed as null. */
 function parseTech4(t: Record<string, any>): NonNullable<CbResultR['tech4']> {
-  const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
   const orNull = (v: unknown) => (typeof v === 'number' ? v : null);
   const sq = (v: unknown) => list(v).map((r) => list(r));
   return {
@@ -67,6 +68,24 @@ function parseTech4(t: Record<string, any>): NonNullable<CbResultR['tech4']> {
     ...(t.mean != null ? { mean: list(t.mean).map(num) } : {}), ...(t.meanSe != null ? { meanSe: list(t.meanSe).map(orNull) } : {}),
     ...(t.covSe != null ? { covSe: sq(t.covSe).map((r) => r.map(orNull)) } : {}), ...(t.corSe != null ? { corSe: sq(t.corSe).map((r) => r.map(orNull)) } : {}),
   };
+}
+
+/** SAMPSTAT from R: the correlation matrix (a single indicator arrives unboxed) and the thresholds, column-wise. */
+function parseSampleCor(s: Record<string, any>): NonNullable<CbResultR['sampleCor']> {
+  const th = s.thresholds ?? {};
+  const v = list(th.variable).map(String), idx = list(th.index).map(num), val = list(th.value).map(num);
+  return {
+    names: rStrings(s.names), ordinal: list(s.ordinal).map((x) => x === true), cor: list(s.cor).map((r) => list(r).map(num)),
+    thresholds: v.map((variable, i) => ({ variable, index: idx[i], value: val[i] })),
+  };
+}
+
+/** TECH10 from R: columns, one entry per pair of ordinal indicators. */
+function parseTech10(t: Record<string, any>): NonNullable<CbResultR['tech10']> {
+  const lhs = list(t.lhs).map(String), rhs = list(t.rhs).map(String);
+  const col = (k: string) => list(t[k]).map(num);
+  const [df, x2, x2p, g2, g2p] = ['df', 'x2', 'x2p', 'g2', 'g2p'].map(col);
+  return lhs.map((a, i) => ({ lhs: a, rhs: rhs[i], df: df[i], x2: x2[i], x2p: x2p[i], g2: g2[i], g2p: g2p[i] }));
 }
 
 export function parseCbOutput(raw: Record<string, any>): CbResultR {
@@ -95,6 +114,8 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     reliability: (raw.reliability as any[]).map((r) => ({ cr: num(r.cr), ave: num(r.ave), ...(typeof r.omega === 'number' ? { omega: r.omega } : {}), ...(typeof r.alpha === 'number' ? { alpha: r.alpha } : {}) })),
     residualCor: mat(raw.residualCor),
     ...(raw.tech4 && typeof raw.tech4 === 'object' ? { tech4: parseTech4(raw.tech4) } : {}),
+    ...(raw.sampleCor && typeof raw.sampleCor === 'object' ? { sampleCor: parseSampleCor(raw.sampleCor) } : {}),
+    ...(raw.tech10 && typeof raw.tech10 === 'object' ? { tech10: parseTech10(raw.tech10) } : {}),
     ...(Array.isArray(raw.bifactor) && raw.bifactor.length ? { bifactor: (raw.bifactor as any[]).map((x) => ({
       general: String(x.general), items: num(x.items), ecv: num(x.ecv), omega: num(x.omega), omegaH: num(x.omegaH),
       specific: (Array.isArray(x.specific) ? x.specific : x.specific ? [x.specific] : []).map((s: any) => ({ factor: String(s.factor), omega: num(s.omega), omegaHS: num(s.omegaHS), items: num(s.items) })),

@@ -127,6 +127,13 @@ export interface CbResult {
    * latent variables, endogenous ones with their total variance, and delta-method standard errors (null: held fixed).
    */
   tech4?: { names: string[]; mean?: number[]; meanSe?: (number | null)[]; cov: number[][]; covSe?: (number | null)[][]; cor: number[][]; corSe?: (number | null)[][] };
+  /**
+   * Ordinal indicators (R engine), Mplus SAMPSTAT: the sample correlations the model is fitted to (polychoric between
+   * ordinal indicators, polyserial with a continuous one, Pearson between continuous ones) and the thresholds.
+   */
+  sampleCor?: { names: string[]; ordinal: boolean[]; cor: number[][]; thresholds: { variable: string; index: number; value: number }[] };
+  /** Ordinal indicators (R engine), Mplus TECH10: each pair's observed against model-implied two-way table (lavaan::lavTables). */
+  tech10?: { lhs: string; rhs: string; df: number; x2: number; x2p: number; g2: number; g2p: number }[];
   /** ESEM blocks with a bifactor rotation (R engine): ECV, ω and ωH of the block, ω and ωHS of each specific factor's own indicators. */
   bifactor?: BifactorIndices[];
   /** Standardised residual correlations (observed − implied). */

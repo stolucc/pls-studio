@@ -3,7 +3,7 @@ import type { BootstrapResult } from '../../engine/types';
 import { fmt, fmtP, stars } from '../../format';
 import { useState } from 'react';
 import { johnsonNeyman } from '../../engine/jn';
-import { normalP } from '../../engine/stats';
+import { normalP, pnorm } from '../../engine/stats';
 import { mcIndirect, type McIndirect } from '../../engine/mcci';
 import { JohnsonNeymanPlot } from '../JohnsonNeymanPlot';
 import { BootstrapTab } from './PlsTabs';
@@ -382,10 +382,38 @@ function Discriminant({ cb }: { cb: CbResult }) {
 
 function Residuals({ cb }: { cb: CbResult }) {
   const names = cb.indicators.map((i) => i.name);
-  return (
+  const residuals = (
     <Table title="Residual correlations (observed − implied)" file="cb-residual-cor" columns={['', ...names]}
       rows={matrixRows(names, (i, j) => (i === j ? null : cb.residualCor[i][j]), (v) => (Math.abs(v) > 0.1 ? 'bad' : Math.abs(v) > 0.05 ? 'warn' : ''))}
-      note="Absolute residual correlations above 0.10 point to local misfit (e.g. a missing cross-loading or error covariance)." />
+      note={`Absolute residual correlations above 0.10 point to local misfit (e.g. a missing cross-loading or error covariance).${cb.sampleCor ? ' With ordinal indicators: of the polychoric correlations below.' : ''}`} />
+  );
+  if (!cb.sampleCor && !cb.tech10) return residuals;
+  return <div className="tables">{residuals}{cb.tech10 && <Tech10 rows={cb.tech10} />}{cb.sampleCor && <SampleCor s={cb.sampleCor} />}</div>;
+}
+
+/** Mplus TECH10, bivariate part: the pairs of ordinal indicators whose two-way table the model does not reproduce. */
+function Tech10({ rows }: { rows: NonNullable<CbResult['tech10']> }) {
+  const bonferroni = 0.05 / Math.max(1, rows.length);
+  const flag = (p: number) => (p < bonferroni ? 'bad' : p < 0.05 ? 'warn' : '');
+  return (
+    <Table title="Bivariate fit of the ordinal indicators (TECH10)" file="cb-tech10" columns={['Pair', 'Pearson X²', 'p', 'LR G²', 'p', 'df']}
+      rows={rows.map((r) => [c(`${r.lhs} × ${r.rhs}`), c(r.x2), c(r.x2p, flag(r.x2p), 3), c(r.g2), c(r.g2p, flag(r.g2p), 3), c(r.df, '', 0)])}
+      note={`For each pair of ordinal indicators, the observed two-way table of their categories against the table the model implies (lavaan::lavTables; Mplus TECH10). A large X² or G² points to a pair the model does not reproduce: a local dependency, a missing cross-loading or error correlation, or answers that do not follow the bivariate normal distribution the polychoric correlation assumes. With ${rows.length} pairs some will reach p < .05 by chance: amber below .05, red below the Bonferroni level ${bonferroni < 0.001 ? bonferroni.toExponential(1) : bonferroni.toFixed(4)}. In large samples every pair tends to reject; compare the pairs with each other.`} />
+  );
+}
+
+/** Mplus SAMPSTAT for ordinal indicators: the polychoric (polyserial, Pearson) correlations and thresholds the model is fitted to. */
+function SampleCor({ s }: { s: NonNullable<CbResult['sampleCor']> }) {
+  const label = (i: number) => `${s.names[i]}${s.ordinal[i] ? '' : ' (continuous)'}`;
+  return (
+    <>
+      <Table title="Sample correlations: polychoric (SAMPSTAT)" file="cb-sampstat-cor" columns={['', ...s.names]}
+        rows={matrixRows(s.names.map((_, i) => label(i)), (i, j) => (i === j ? null : s.cor[i][j]), () => '')}
+        note="The correlations the model is fitted to: polychoric between two ordinal indicators (tetrachoric when both are binary), polyserial between an ordinal and a continuous one, Pearson between continuous ones. Each estimates the correlation of the continuous responses assumed to underlie the categories." />
+      <Table title="Sample thresholds" file="cb-sampstat-thresholds" columns={['Indicator', 'Threshold', 'Value', 'Proportion below']}
+        rows={s.thresholds.map((t) => [c(t.variable), c(`t${t.index}`, 'dim'), c(t.value), c(pnorm(t.value))])}
+        note="Where each category ends on the underlying standard-normal response: the proportion of answers at or below that category is Φ(threshold)." />
+    </>
   );
 }
 
