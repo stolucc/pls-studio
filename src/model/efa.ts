@@ -31,9 +31,17 @@ export interface EfaDesign {
   parallel: number;
   /** Loadings below this (absolute) are blanked in the table and left out when building a model. */
   threshold: number;
+  /**
+   * The correlations analysed: Pearson, or polychoric for ordinal (Likert) items (psych's mixedCor: tetrachoric for
+   * binary items, polyserial with a continuous variable). Absent in designs saved before the option: Pearson.
+   */
+  correlation: 'pearson' | 'polychoric';
 }
 
-export const DEFAULT_EFA: EfaDesign = { vars: [], method: 'minres', criterion: 'parallel', nfactors: 1, rotation: 'oblimin', missing: 'pairwise', parallel: 100, threshold: 0.3 };
+/** Parallel analysis on polychoric correlations recomputes them for every sample: at most this many by default. */
+export const POLYCHORIC_PARALLEL = 20;
+
+export const DEFAULT_EFA: EfaDesign = { vars: [], method: 'minres', criterion: 'parallel', nfactors: 1, rotation: 'oblimin', missing: 'pairwise', parallel: 100, threshold: 0.3, correlation: 'pearson' };
 
 /** A design from an (untrusted) project file. */
 export function parseEfaDesign(v: unknown): EfaDesign | undefined {
@@ -50,6 +58,7 @@ export function parseEfaDesign(v: unknown): EfaDesign | undefined {
     missing: r.missing === 'listwise' ? 'listwise' : 'pairwise',
     parallel: int(r.parallel, 0, 2000, DEFAULT_EFA.parallel),
     threshold: typeof r.threshold === 'number' && r.threshold >= 0 && r.threshold < 1 ? r.threshold : DEFAULT_EFA.threshold,
+    correlation: r.correlation === 'polychoric' ? 'polychoric' : 'pearson',
   };
 }
 

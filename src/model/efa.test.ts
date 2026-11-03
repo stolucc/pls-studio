@@ -4,10 +4,13 @@ import { constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabe
 describe('EFA design from a project file', () => {
   it('keeps valid values and replaces invalid ones', () => {
     expect(parseEfaDesign({ vars: ['a', 'b', 3], method: 'ml', nfactors: 4.4, rotation: 'promax', missing: 'listwise', parallel: 50, threshold: 0.4 }))
-      .toEqual({ vars: ['a', 'b'], method: 'ml', criterion: 'fixed', nfactors: 4, rotation: 'promax', missing: 'listwise', parallel: 50, threshold: 0.4 });
+      .toEqual({ vars: ['a', 'b'], method: 'ml', criterion: 'fixed', nfactors: 4, rotation: 'promax', missing: 'listwise', parallel: 50, threshold: 0.4, correlation: 'pearson' });
     expect(parseEfaDesign({ method: 'system("x")', rotation: 'evil', nfactors: 1e9, parallel: -5, threshold: 7 }))
       .toEqual({ ...DEFAULT_EFA, criterion: 'fixed', nfactors: 100, parallel: 0 });
     expect(parseEfaDesign({ criterion: 'kaiser' })!.criterion).toBe('kaiser');
+    // (designs saved before the option analysed Pearson correlations)
+    expect(parseEfaDesign({ correlation: 'polychoric' })!.correlation).toBe('polychoric');
+    expect(parseEfaDesign({ correlation: 'spearman' })!.correlation).toBe('pearson');
     expect(parseEfaDesign({ criterion: 'k <- 99' })!.criterion).toBe('fixed');
     expect(parseEfaDesign('nope')).toBeUndefined();
     expect(parseEfaDesign(null)).toBeUndefined();

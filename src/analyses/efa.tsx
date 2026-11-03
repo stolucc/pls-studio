@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { fmt } from '../format';
-import { constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_CRITERIA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, parseEfaDesign, switchAnalysis, type EfaDesign } from '../model/efa';
+import { constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_CRITERIA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, parseEfaDesign, POLYCHORIC_PARALLEL, switchAnalysis, type EfaDesign } from '../model/efa';
 import type { EfaResult } from '../rengine/efa';
 import { useStore } from '../store';
 import { ChartFrame } from '../components/ChartFrame';
@@ -70,7 +70,7 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
       </div>
       <div className="tables">
         {shown === 'suitability' && (
-          <Table title={`Suitability: KMO ${fmt(r.kmo.overall)} (${kmoLabel(r.kmo.overall)})`} file="efa-suitability" columns={['Measure', 'Value', 'df', 'p']}
+          <Table title={`Suitability: KMO ${fmt(r.kmo.overall)} (${kmoLabel(r.kmo.overall)})${r.correlation === 'polychoric' ? ', polychoric correlations' : ''}`} file="efa-suitability" columns={['Measure', 'Value', 'df', 'p']}
             rows={[[c('Kaiser–Meyer–Olkin (overall)'), c(r.kmo.overall), c(''), c('')], [c('Bartlett’s test of sphericity, χ²'), c(r.bartlett.chisq, undefined, 2), c(r.bartlett.df, undefined, 0), pCell(r.bartlett.p)],
               ...r.variables.map((v, i) => [c(`MSA ${v}`), { ...c(r.kmo.items[i]), cls: r.kmo.items[i] < 0.5 ? 'bad' : undefined }, c(''), c('')])]}
             note={`KMO ≥ .6 is usually wanted (Kaiser 1974: .9 marvelous, .8 meritorious, .7 middling, .6 mediocre, .5 miserable); per item (MSA), below .5 suggests dropping it. Bartlett’s test should reject (the correlations are not all zero).`} />
@@ -120,13 +120,13 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
                 <button className={residual ? '' : 'on'} onClick={() => setResidual(false)}>Observed</button>
                 <button className={residual ? 'on' : ''} onClick={() => setResidual(true)}>Residual{big ? ` (${big} > .10)` : ''}</button>
               </div>
-              <Table title={residual ? `Residual correlations: ${big} of ${pairs} pairs above .10` : 'Correlations between the variables'} file={residual ? 'efa-residual-correlations' : 'efa-correlations'}
+              <Table title={residual ? `Residual correlations: ${big} of ${pairs} pairs above .10` : r.correlation === 'polychoric' ? 'Polychoric correlations between the variables' : 'Correlations between the variables'} file={residual ? 'efa-residual-correlations' : 'efa-correlations'}
                 columns={['', ...order.map((i) => r.variables[i])]}
                 rows={order.map((i, a) => [c(r.variables[i]), ...order.map((j, b) => (b > a ? c('') : b === a ? c(residual ? '' : '1', 'dim')
                   : residual ? (Math.abs(m[i][j]) > 0.1 ? { ...c(m[i][j], 'bad'), bold: true } : c(m[i][j], 'dim')) : { ...c(m[i][j]), bg: shade(m[i][j]) }))])}
                 note={residual
                   ? `What the ${r.k}-${unit} solution leaves unexplained: observed minus model-implied correlation (ΛΦΛᵀ). Residuals above .10 (bold) point to a missing ${unit}, locally dependent items (similar wording) or a misplaced item.`
-                  : `Pairwise correlations the analysis starts from, ordered as the loadings table so its blocks show; shading by size. Very high correlations (above about .8) suggest redundant items; variables correlating with nothing will not load.`} />
+                  : `${r.correlation === 'polychoric' ? `Polychoric correlations (psych’s mixedCor): ordinal ${r.ordinal?.length ? r.ordinal.join(', ') : 'none'}${r.ordinal && r.ordinal.length < r.variables.length ? `; continuous (polyserial, Pearson): ${r.variables.filter((v) => !r.ordinal!.includes(v)).join(', ')}` : ''}. ` : ''}Pairwise correlations the analysis starts from, ordered as the loadings table so its blocks show; shading by size. Very high correlations (above about .8) suggest redundant items; variables correlating with nothing will not load.`} />
             </>
           );
         })()}
@@ -217,6 +217,17 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
       <div className="field"><label htmlFor="efa-thr">Hide loadings below</label>
         <input id="efa-thr" className="input num" type="number" min={0} max={0.95} step={0.05} value={d.threshold} onChange={(e) => setDesign({ threshold: Math.max(0, Math.min(0.95, Number(e.target.value) || 0)) })} />
         <div className="hint">Changes the tables and Build model only; no need to run again.</div></div>
+      <div className="field">
+        <label>Correlations</label>
+        <div className="segmented" role="radiogroup" aria-label="Correlations">
+          <button role="radio" aria-checked={d.correlation !== 'polychoric'} className={d.correlation !== 'polychoric' ? 'on' : ''} onClick={() => setDesign({ correlation: 'pearson' })}>Pearson</button>
+          <button role="radio" aria-checked={d.correlation === 'polychoric'} className={d.correlation === 'polychoric' ? 'on' : ''}
+            onClick={() => setDesign({ correlation: 'polychoric', ...(d.parallel > POLYCHORIC_PARALLEL ? { parallel: POLYCHORIC_PARALLEL } : {}) })}>Polychoric</button>
+        </div>
+        <div className="hint">{d.correlation === 'polychoric'
+          ? `For ordinal (Likert) items: the correlations of the continuous responses assumed to underlie the categories (psych’s mixedCor). Items with at most 8 categories are treated as ordinal (tetrachoric when binary), others as continuous (polyserial, Pearson). Pearson correlations of such items are too low, the more so with few or skewed categories, which lowers loadings and can split items by their popularity. Each parallel-analysis sample recomputes the polychoric correlations, so the samples are slow (about a second each for 25 items): set to ${POLYCHORIC_PARALLEL} when chosen.`
+          : 'Pearson correlations treat the values as continuous. For ordinal (Likert) items with few or skewed categories choose polychoric.'}</div>
+      </div>
       <div className="field">
         <label>Missing values</label>
         <div className="segmented">

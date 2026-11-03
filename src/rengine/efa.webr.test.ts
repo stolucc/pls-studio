@@ -92,4 +92,24 @@ describe('exploratory factor analysis (psych)', () => {
     await expect(efaR(d, { ...base, criterion: 'parallel', parallel: 0 }, 1)).rejects.toThrow(/Parallel analysis needs samples/);
     await expect(efaR(d, { ...base, criterion: 'evil' as never }, 1)).rejects.toThrow(/Invalid criterion/);
   }, 900_000);
+
+  it('bfi with age: factor analysis of polychoric correlations equals desktop psych (cor = "mixed")', async () => {
+    const pr = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'polychoric.json'), 'utf8'));
+    const d = await load('bfi');
+    const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: pr.vars, nfactors: 5, method: 'minres', rotation: 'oblimin', parallel: 5, correlation: 'polychoric' }, 1);
+    expect(r.correlation).toBe('polychoric');
+    expect(r.ordinal).toEqual(pr.vars.slice(0, 25));  // age has more than 8 values: continuous (polyserial)
+    for (let i = 0; i < 26; i++) for (let j = 0; j < 26; j++) expect(r.correlations[i][j]).toBeCloseTo(pr.cor[i][j], 6);
+    expect(r.kmo.overall).toBeCloseTo(pr.kmo, 6);
+    r.eigenvalues.forEach((e, i) => expect(e).toBeCloseTo(pr.eigenvalues[i], 6));
+    sameLoadings(r.loadings, pr.loadings, 4);
+    r.communality.forEach((h, i) => expect(h).toBeCloseTo(pr.communality[i], 5));
+    r.parallel!.observed.forEach((e, i) => expect(e).toBeCloseTo(pr.parallelObserved[i], 5));
+    // Independent: lavaan's polychoric correlations on the complete cases agree with psych's (polyserial ones less).
+    const cc = pr.completeCases;
+    for (let i = 0; i < 25; i++) for (let j = 0; j < 25; j++) expect(Math.abs(cc.psych[i][j] - cc.lavaan[i][j])).toBeLessThan(1e-4);
+    // And the reason for the option: larger loadings than from Pearson correlations of the same items.
+    expect(pr.meanTopLoading[0]).toBeGreaterThan(pr.meanTopLoading[1]);
+    expect(await efaScriptR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: pr.vars, nfactors: 5, correlation: 'polychoric' }, 1)).toContain('fa(X, nfactors = k, fm = "minres", rotate = "oblimin", cor = "mixed")');
+  }, 900_000);
 });

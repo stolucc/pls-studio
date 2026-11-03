@@ -8,6 +8,8 @@ import type { REngineInfo } from './lavaan';
 
 export interface EfaResult {
   method: EfaDesign['method']; rotation: EfaDesign['rotation']; oblique: boolean; n: number; k: number; criterion: EfaDesign['criterion'];
+  /** The correlations analysed; with polychoric, the variables treated as ordinal (at most 8 categories). */
+  correlation: EfaDesign['correlation']; ordinal?: string[];
   variables: string[]; factors: string[];
   loadings: number[][]; structure: number[][] | null;
   communality: number[]; uniqueness: number[]; complexity: number[];
@@ -35,6 +37,7 @@ export function efaRequest(data: Dataset, d: EfaDesign, seed: number) {
   const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => d.vars.includes(n));
   return {
     vars: d.vars, method: d.method, criterion: d.criterion, nfactors: d.nfactors, rotation: d.rotation, deletion: d.missing, parallel: d.parallel, seed,
+    ...(d.correlation === 'polychoric' ? { correlation: 'polychoric' } : {}),
     data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
   };
 }
@@ -44,6 +47,7 @@ export function parseEfa(raw: Record<string, any>): EfaResult {
   const parallel = raw.parallel ? { observed: nums(raw.parallel.observed), simulated: nums(raw.parallel.simulated), suggested: typeof raw.parallel.suggested === 'number' ? raw.parallel.suggested : null, iterations: raw.parallel.iterations } : null;
   return {
     method: raw.method, rotation: raw.rotation, oblique: !!raw.oblique, n: raw.n, k,
+    correlation: raw.correlation === 'polychoric' ? 'polychoric' : 'pearson', ...(raw.correlation === 'polychoric' ? { ordinal: rStrings(raw.ordinal) } : {}),
     criterion: (['parallel', 'kaiser', 'map'] as const).find((x) => x === raw.criterion) ?? 'fixed',
     variables: rStrings(raw.variables), factors: rStrings(raw.factors),
     loadings: mat(raw.loadings, k), structure: raw.structure ? mat(raw.structure, k) : null,

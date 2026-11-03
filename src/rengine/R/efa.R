@@ -28,6 +28,13 @@ ps_efa <- function(req_json, export = FALSE) {
   if (iter < 0 || iter > 2000) stop("Invalid number of parallel-analysis samples.")
   if (criterion == "parallel" && iter == 0) stop("Parallel analysis needs samples: set the number of parallel-analysis samples above 0, or choose another criterion.")
   seed <- as.integer(ps_number(req$seed %||% 1, "seed"))
+  # Correlations: Pearson, or for ordinal (Likert) items those of the continuous responses assumed to underlie
+  # them: psych's mixedCor (cor = "mixed"): polychoric between items with at most 8 categories, tetrachoric
+  # between binary ones, polyserial with a continuous variable, Pearson between continuous ones.
+  correlation <- req$correlation %||% "pearson"
+  if (!(length(correlation) == 1 && correlation %in% c("pearson", "polychoric"))) stop("Invalid correlation type in the request.")
+  poly <- correlation == "polychoric"
+  carg <- if (poly) ", cor = \"mixed\"" else ""
   listwise <- identical(req$deletion, "listwise")  # (missing: reserved for the SEM missing-data choices)
   fr <- ps_long_frame(req, vars)
   v <- ps_lookup(fr$v, vars)
@@ -40,8 +47,8 @@ ps_efa <- function(req_json, export = FALSE) {
     parallel = sprintf("k <- %s  # retained by parallel analysis", if (pca) "parallel$ncomp" else "parallel$nfact"),
     kaiser = "k <- sum(eigenvalues > 1)  # eigenvalues above 1 (Kaiser)",
     map = "k <- which.min(map)  # Velicer's minimum average partial")
-  call <- if (pca) sprintf("principal(X, nfactors = k, rotate = \"%s\")", rotation)
-    else sprintf("fa(X, nfactors = k, fm = \"%s\", rotate = \"%s\")", fm, rotation)
+  call <- if (pca) sprintf("principal(X, nfactors = k, rotate = \"%s\"%s)", rotation, carg)
+    else sprintf("fa(X, nfactors = k, fm = \"%s\", rotate = \"%s\"%s)", fm, rotation, carg)
   what <- if (criterion == "fixed") sprintf("%d %s", k, unit) else sprintf("%s by %s", unit, PS_EFA_CRITERIA[[criterion]])
   body <- c(
     "suppressPackageStartupMessages({ library(psych); library(GPArotation) })",
@@ -50,15 +57,18 @@ ps_efa <- function(req_json, export = FALSE) {
     sprintf("X <- data[, %s]", ps_q(v)),
     if (listwise) "X <- X[complete.cases(X), , drop = FALSE]  # listwise deletion" else "# Missing values: pairwise correlations (psych's default)",
     "n <- nrow(X)",
-    "R <- cor(X, use = \"pairwise.complete.obs\")",
+    if (poly) c("# Polychoric (tetrachoric, polyserial) correlations; ordinal: at most 8 categories (psych's rule).",
+      "ordinal <- vapply(X, function(x) length(unique(x[!is.na(x)])) <= 8, TRUE)",
+      "R <- mixedCor(X)$rho")
+    else "R <- cor(X, use = \"pairwise.complete.obs\")",
     "# Is the matrix suitable for factoring? Kaiser-Meyer-Olkin and Bartlett's test of sphericity.",
     "kmo <- KMO(R)",
     "bartlett <- cortest.bartlett(R, n = n)",
     "# How many factors: eigenvalues, parallel analysis (Horn 1965) and Velicer's MAP.",
     "eigenvalues <- eigen(R, symmetric = TRUE, only.values = TRUE)$values",
     if (iter > 0) c(sprintf("set.seed(%d)", seed),
-      sprintf("parallel <- fa.parallel(X, fm = \"%s\", fa = \"%s\", n.iter = %d, plot = FALSE)", fm, if (pca) "pc" else "fa", iter)),
-    sprintf("map <- VSS(X, n = %d, fm = \"%s\", plot = FALSE)$map", min(8L, length(v) - 1L), fm),
+      sprintf("parallel <- fa.parallel(X, fm = \"%s\", fa = \"%s\", n.iter = %d%s, plot = FALSE)", fm, if (pca) "pc" else "fa", iter, carg)),
+    sprintf("map <- VSS(X, n = %d, fm = \"%s\"%s, plot = FALSE)$map", min(8L, length(v) - 1L), fm, carg),
     sprintf("# The solution: %s, %s, rotation %s.", PS_EFA_METHODS[[method]], what, rotation),
     kline,
     if (criterion != "fixed") "k <- max(1L, min(k, ncol(X) - 1L), na.rm = TRUE)",
@@ -78,7 +88,8 @@ ps_efa <- function(req_json, export = FALSE) {
   stat <- function(x) if (is.null(x) || length(x) == 0 || !is.finite(x[1])) NULL else unname(x[1])
   par <- env$parallel
   ps_json(list(
-    method = method, rotation = rotation, oblique = rotation %in% PS_EFA_OBLIQUE, n = env$n, k = env$k, criterion = criterion,
+    method = method, rotation = rotation, oblique = rotation %in% PS_EFA_OBLIQUE, n = env$n, k = env$k, criterion = criterion, correlation = correlation,
+    ordinal = if (poly) I(unname(back[names(env$ordinal)[env$ordinal]])) else NULL,
     variables = unname(back[rownames(L)]), factors = factors,
     loadings = unname(L), structure = if (is.null(S)) NULL else unname(S),
     communality = unname(fit$communality[rownames(L)]), uniqueness = unname(fit$uniquenesses[rownames(L)]),
