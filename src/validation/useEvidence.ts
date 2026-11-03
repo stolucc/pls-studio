@@ -38,11 +38,12 @@ export function useEvidence(): Evidence | null {
 
 export const exampleEvidence = (e: Evidence | null, id: string): Check | undefined => e?.checks.find((c) => c.subject === 'example' && c.id === id);
 
+/** `short`: the badge (one word or two); `long`: the level's name; `hint`: what it means (tooltips, the Validation page). */
 export const LEVEL_TEXT: Record<EvidenceLevel, { short: string; long: string; hint: string }> = {
-  published: { short: 'Reproduces published results', long: 'Reproduces published results', hint: 'The app’s numbers equal those printed by other people with other software: a book’s tables, Mplus output, a paper.' },
-  native: { short: 'Matches native R', long: 'Matches the R package run natively', hint: 'The app’s numbers equal the same R package run in desktop R on the same data (a reference script), or the package’s own documented output.' },
-  recovery: { short: 'Recovers known values', long: 'Recovers known values in simulated data', hint: 'No reference package exists: simulated data with known true values, which the method recovers.' },
-  runs: { short: 'Runs as documented', long: 'Runs as documented', hint: 'The package’s documented example estimates without unexpected warnings; there are no independent numbers to compare it with.' },
+  published: { short: 'Published', long: 'Reproduces published results', hint: 'The app’s numbers equal those printed by other people with other software: a book’s tables, Mplus output, a paper.' },
+  native: { short: 'Native R', long: 'Matches the R package run natively', hint: 'The app’s numbers equal the same R package run in desktop R on the same data (a reference script), or the package’s own documented output.' },
+  recovery: { short: 'Simulated', long: 'Recovers known values in simulated data', hint: 'No reference package exists: simulated data with known true values, which the method recovers.' },
+  runs: { short: 'Runs', long: 'Runs as documented', hint: 'The package’s documented example estimates without unexpected warnings; there are no independent numbers to compare it with.' },
 };
 
 /** The largest difference of a check's numeric comparisons. */

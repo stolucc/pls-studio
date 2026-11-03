@@ -19,7 +19,7 @@ export function ExampleResultsBadge() {
   return (
     <span className="results-evidence">
       <button className={`chip evidence ${c.level}`} onClick={() => setOpen(true)}
-        title={`This example as it opened: ${LEVEL_TEXT[c.level].hint} The test suite compared ${c.comparisons.length} numbers. Edit the model, settings or data and this no longer applies.`}>
+        title={`This example as it opened: ${LEVEL_TEXT[c.level].long.toLowerCase()}. ${LEVEL_TEXT[c.level].hint} The test suite compared ${c.comparisons.length} numbers. Edit the model, settings or data and this no longer applies.`}>
         {c.level === 'runs' ? '' : '✓ '}{LEVEL_TEXT[c.level].short}
       </button>
       {open && <ValidationDialog onClose={() => setOpen(false)} focus={example!} titles={{ [example!]: name.replace(/^Example: /, '') }} />}

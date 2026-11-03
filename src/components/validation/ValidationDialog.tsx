@@ -13,7 +13,7 @@ const num = (v: number | string) => (typeof v === 'number' ? (Number.isInteger(v
 const diff = (v: number | null) => (v === null ? '—' : v === 0 ? '0' : v < 1e-12 ? '< 1e−12' : v.toExponential(1));
 
 export function LevelChip({ level }: { level: EvidenceLevel }) {
-  return <span className={`chip evidence ${level}`} title={LEVEL_TEXT[level].hint}>{level === 'runs' ? '' : '✓ '}{LEVEL_TEXT[level].short}</span>;
+  return <span className={`chip evidence ${level}`} title={`${LEVEL_TEXT[level].long}. ${LEVEL_TEXT[level].hint}`}>{level === 'runs' ? '' : '✓ '}{LEVEL_TEXT[level].short}</span>;
 }
 
 function Sources({ c }: { c: Check }) {
@@ -85,7 +85,7 @@ function Summary({ e }: { e: Evidence }) {
       </p>
       <div className="evidence-levels">
         {EVIDENCE_LEVELS.filter((l) => l !== 'recovery').map((l) => (
-          <div key={l} className="evidence-level"><LevelChip level={l} /><b>{count(l)}</b> <span className="hint">of {ex.length} examples. {LEVEL_TEXT[l].hint}</span></div>
+          <div key={l} className="evidence-level"><LevelChip level={l} /><b>{count(l)}</b> <span className="hint">of {ex.length} examples: {LEVEL_TEXT[l].long.toLowerCase()}. {LEVEL_TEXT[l].hint}</span></div>
         ))}
       </div>
     </>
