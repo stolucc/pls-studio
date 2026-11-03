@@ -826,7 +826,7 @@ a.btn { text-decoration: none; }
 .menu-item.unverified { color: #8a5300; }
 
 /* Validation evidence (components/validation) */
-.chip.evidence { cursor: help; white-space: nowrap; }
+.chip.evidence { cursor: help; white-space: nowrap; max-width: none; flex: none; overflow: visible; }
 .chip.evidence.published { background: var(--good-soft); color: var(--good); }
 .chip.evidence.native { background: var(--accent-soft); color: var(--accent-strong); }
 .chip.evidence.recovery { background: var(--warn-soft); color: var(--warn); }
