@@ -62,6 +62,20 @@ export interface CbFit {
   rmseaScaled?: number; rmseaRobust?: number;
 }
 
+
+/** Bifactor indices of one ESEM block (Rodriguez, Reise & Haviland 2016), from the standardised solution. */
+export interface BifactorIndices {
+  general: string;
+  /** Indicators in the block. */
+  items: number;
+  /** Explained common variance: the general factor's share of the common variance. */
+  ecv: number;
+  /** ω and ω hierarchical of the total score of the block's indicators. */
+  omega: number;
+  omegaH: number;
+  /** Each specific factor: ω and ω hierarchical subscale of the sum of its own (drawn) indicators. */
+  specific: { factor: string; omega: number; omegaHS: number; items: number }[];
+}
 export interface CbResult {
   /** Multiple groups (lavaan): every group's results; this object is group `groupIndex`'s. */
   groups?: {
@@ -108,6 +122,8 @@ export interface CbResult {
   lvCor: number[][];
   /** cr, ave from the standardised loadings; omega, alpha: semTools::compRelSEM (R engine only). */
   reliability: { cr: number; ave: number; omega?: number; alpha?: number }[];
+  /** ESEM blocks with a bifactor rotation (R engine): ECV, ω and ωH of the block, ω and ωHS of each specific factor's own indicators. */
+  bifactor?: BifactorIndices[];
   /** Standardised residual correlations (observed − implied). */
   residualCor: number[][];
   htmt: (number | null)[][];

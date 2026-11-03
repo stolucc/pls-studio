@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { FreedParameter, InvarianceLevel, StructuralEquality } from '../engine/types';
+import { BIFACTOR_ROTATIONS, ORTHOGONALISABLE_ROTATIONS, type FreedParameter, type InvarianceLevel, type StructuralEquality } from '../engine/types';
 import { useStore } from '../store';
 import { OrderedPicker } from './OrderedPicker';
 import { IconX } from './icons';
@@ -119,6 +119,8 @@ const ROTATIONS: { id: import('../engine/types').EsemRotation; label: string }[]
   { id: 'quartimin', label: 'Quartimin (oblique)' },
   { id: 'varimax', label: 'Varimax (orthogonal)' },
   { id: 'target', label: 'Target (towards the drawn loadings)' },
+  { id: 'bigeomin', label: 'Bi-geomin (bifactor; Mplus BI-GEOMIN)' },
+  { id: 'biquartimin', label: 'Bi-quartimin (bifactor; Mplus BI-QUARTIMIN)' },
 ];
 
 /** CB-SEM exploratory SEM blocks: their factors, and the rotation. */
@@ -128,15 +130,27 @@ export function EsemEditor() {
   const setEsem = useStore((s) => s.setEsem);
   const esem = model.esem;
   if (!esem?.blocks.length) return null;
+  const bifactor = BIFACTOR_ROTATIONS.includes(esem.rotation);
   const name = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
   return (
     <div className="section">
       <div className="section-title">Exploratory SEM</div>
       {esem.blocks.map((b, i) => (
-        <div className="ind" key={b.id}>
-          <span>Block {i + 1}: {b.constructs.map(name).join(', ')}</span><span />
-          {!readOnly && <button className="btn sm ghost always" title="Make these ordinary factors again"
-            onClick={() => setEsem({ ...esem, blocks: esem.blocks.filter((_, k) => k !== i) })}>Dissolve</button>}
+        <div key={b.id}>
+          <div className="ind">
+            <span>Block {i + 1}: {b.constructs.map(name).join(', ')}</span><span />
+            {!readOnly && <button className="btn sm ghost always" title="Make these ordinary factors again"
+              onClick={() => setEsem({ ...esem, blocks: esem.blocks.filter((_, k) => k !== i) })}>Dissolve</button>}
+          </div>
+          {bifactor && (
+            <div className="field">
+              <label htmlFor={`esem-general-${b.id}`}>General factor</label>
+              <select id={`esem-general-${b.id}`} className="select" value={b.constructs[0]} disabled={readOnly}
+                onChange={(e) => { const g = e.target.value; setEsem({ ...esem, blocks: esem.blocks.map((x, k) => (k === i ? { ...x, constructs: [g, ...x.constructs.filter((id) => id !== g)] } : x)) }); }}>
+                {b.constructs.map((id) => <option key={id} value={id}>{name(id)}</option>)}
+              </select>
+            </div>
+          )}
         </div>
       ))}
       <div className="field" style={{ marginTop: 8 }}>
@@ -145,9 +159,17 @@ export function EsemEditor() {
           {ROTATIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
         </select>
       </div>
-      {esem.rotation === 'geomin' && (
+      {ORTHOGONALISABLE_ROTATIONS.includes(esem.rotation) && (
+        <label className="check">
+          <input type="checkbox" checked={!!esem.orthogonal} disabled={readOnly}
+            onChange={(e) => { const { orthogonal: _o, ...rest } = esem; setEsem(e.target.checked ? { ...rest, orthogonal: true } : rest); }} />
+          {' '}<span>Orthogonal (uncorrelated factors; Mplus {esem.rotation.toUpperCase().replace(/^BI/, 'BI-')}(ORTHOGONAL))</span>
+        </label>
+      )}
+      {bifactor && <div className="hint">Bifactor: the general factor loads on every indicator of the block, and each specific factor is meant for its own (drawn) indicators. With the oblique version the specific factors correlate with each other, the general factor with none of them (Jennrich &amp; Bentler 2011, 2012). ECV, ωH and ωHS are under Reliability.</div>}
+      {(esem.rotation === 'geomin' || esem.rotation === 'bigeomin') && (
         <div className="field">
-          <label htmlFor="esem-eps">Geomin ε</label>
+          <label htmlFor="esem-eps">{esem.rotation === 'bigeomin' ? 'Bi-geomin ε' : 'Geomin ε'}</label>
           <select id="esem-eps" className="select" value={String(esem.epsilon ?? 0.001)} disabled={readOnly}
             onChange={(e) => { const v = Number(e.target.value); const { epsilon: _e, ...rest } = esem; setEsem(v === 0.001 ? rest : { ...rest, epsilon: v }); }}>
             <option value="0.001">0.001 (lavaan’s default; Mplus with three factors)</option>

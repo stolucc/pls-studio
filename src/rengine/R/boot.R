@@ -219,6 +219,9 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   if (isTRUE(b$robust)) stop("Robust ML (rsem) has its own robust standard errors; the bootstrap resamples the raw data with ML or MLR.")
   if (isTRUE(b$mi)) stop("With multiple imputation the standard errors are pooled by Rubin's rules; the bootstrap is not combined with it.")
   if (b$matrix_input) stop("Bootstrapping needs raw data; this dataset is a covariance matrix.")
+  # (lavaan refits a bifactor rotation in each sample without aligning it to the original: the specific
+  #  factors swap and flip between samples, and many refits fail, so the intervals would mean nothing)
+  if (isTRUE(b$bifactor)) stop("A bifactor rotation cannot be bootstrapped: lavaan does not align the rotated factors across samples. Use the standard errors of the estimates.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")
   bca <- ps_boot_bca(req)
   if (bca && (!is.null(b$modsem) || !is.null(b$cluster_var))) stop("BCa intervals need a jackknife, which is not available here for LMS / QML or two-level models; choose percentile intervals.")
@@ -289,6 +292,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script(sprintf("Bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
+  b <- ps_esem_align(b, env$fit)
   constructs <- c(b$n$cname, b$int_names)
   back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
   r <- env$result

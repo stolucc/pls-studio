@@ -82,7 +82,7 @@ export interface PackageExample {
   baseline?: 'independence';
   multilevel?: ModelState['multilevel'];
   /** CB-SEM: exploratory SEM blocks of construct names. */
-  esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number };
+  esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean };
   /** Columns computed from the loaded data before anything else (as a help page recodes its data), and category labels for coded columns. */
   computed?: { name: string; expr: string }[];
   labels?: Record<string, string[]>;
@@ -970,7 +970,7 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
     ...(ex.multigroup ? { multigroup: { ...ex.multigroup, free: ex.multigroup.free.map((p) => (p.kind === 'loading' || p.kind === 'mean' ? { ...p, construct: id(p.construct) } : p.kind === 'regression' ? { ...p, from: id(p.from), to: id(p.to) } : p)) } } : {}),
     ...(ex.ordered?.length ? { ordered: [...ex.ordered] } : {}),
     ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),
-    ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })), ...(ex.esem.epsilon !== undefined ? { epsilon: ex.esem.epsilon } : {}) } } : {}),
+    ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })), ...(ex.esem.epsilon !== undefined ? { epsilon: ex.esem.epsilon } : {}), ...(ex.esem.orthogonal ? { orthogonal: true } : {}) } } : {}),
     ...(ex.information ? { information: ex.information } : {}),
     ...(ex.baseline ? { baseline: ex.baseline } : {}),
     // The constant sits left of the first column (autoLayout moves only the constructs).

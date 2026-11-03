@@ -27,10 +27,12 @@ export interface MenuContext { method: Method; readOnly: boolean; /** Constructs
 function esemItems(model: ModelState, edit: boolean, id: string, selected: string[]): (MenuItem | false)[] {
   if (!edit) return [];
   const inBlock = (x: string) => !!model.esem?.blocks.some((b) => b.constructs.includes(x));
-  const candidates = selected.filter((x) => !inBlock(x) && model.constructs.some((c) => c.id === x && !c.covariate && !c.components?.length && c.indicators.length));
+  // (a factor without indicators can join: a bifactor block's general factor needs none of its own)
+  const candidates = selected.filter((x) => !inBlock(x) && model.constructs.some((c) => c.id === x && !c.covariate && !c.components?.length));
+  const measured = candidates.filter((x) => model.constructs.some((c) => c.id === x && c.indicators.length));
   return [
     inBlock(id) && { action: 'leave-esem', label: 'Take out of the ESEM block' },
-    !inBlock(id) && selected.includes(id) && candidates.length >= 2 && { action: 'make-esem', label: `Make ESEM block of the ${candidates.length} selected factors` },
+    !inBlock(id) && selected.includes(id) && measured.length >= 2 && { action: 'make-esem', label: `Make ESEM block of the ${candidates.length} selected factors` },
   ];
 }
 

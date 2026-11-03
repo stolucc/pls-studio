@@ -809,6 +809,27 @@ describe('lavaan options taken from Mplus defaults', () => {
     expect(toSpec({ ...esem, esem: { ...esem.esem, epsilon: undefined } }).esem).not.toHaveProperty('epsilon');
   });
 
+  it('bifactor rotations: a general factor first, needing no indicators of its own; orthogonal option; implied correlations', () => {
+    const bi: ModelState = { constructs: [C('Gen', []), C('F', ['a1', 'a2', 'a3']), C('G', ['b1', 'b2', 'b3'])], paths: [], moderations: [],
+      esem: { rotation: 'bigeomin', blocks: [{ id: 'e', constructs: ['Gen', 'F', 'G'] }] } };
+    expect(errors(bi)).toEqual([]);
+    expect(toSpec(bi).esem).toEqual({ rotation: 'bigeomin', blocks: [['Gen', 'F', 'G']] });
+    // The general factor of the oblique version correlates with no specific factor; the specific ones correlate.
+    expect(impliedCorrelations(bi).map((k) => [k.a, k.b])).toEqual([['F', 'G']]);
+    const orth: ModelState = { ...bi, esem: { ...bi.esem!, orthogonal: true } };
+    expect(toSpec(orth).esem).toEqual({ rotation: 'bigeomin', blocks: [['Gen', 'F', 'G']], orthogonal: true });
+    expect(impliedCorrelations(orth)).toEqual([]);
+    expect(parseProject(serializeProject(orth, DEFAULT_SETTINGS, null, null)).model.esem).toMatchObject({ rotation: 'bigeomin', orthogonal: true });
+    // (varimax is orthogonal anyway: no flag sent, no correlation implied)
+    const vm: ModelState = { ...bi, constructs: bi.constructs.slice(1), esem: { rotation: 'varimax', blocks: [{ id: 'e', constructs: ['F', 'G'] }], orthogonal: true } };
+    expect(toSpec(vm).esem).not.toHaveProperty('orthogonal');
+    expect(impliedCorrelations(vm)).toEqual([]);
+    // A general factor and at least two specific ones; only the general factor may go without indicators.
+    expect(errors({ ...bi, esem: { rotation: 'biquartimin', blocks: [{ id: 'e', constructs: ['F', 'G'] }] } }).some((e) => /bifactor rotation needs a general and at least two specific/.test(e))).toBe(true);
+    expect(errors({ ...bi, esem: { rotation: 'bigeomin', blocks: [{ id: 'e', constructs: ['F', 'Gen', 'G'] }] } }).some((e) => /"Gen" has no indicators/.test(e))).toBe(true);
+    expect(errors({ ...bi, esem: { rotation: 'geomin', blocks: [{ id: 'e', constructs: ['Gen', 'F', 'G'] }] } }).some((e) => /"Gen" has no indicators/.test(e))).toBe(true);
+  });
+
   it('groups without a mean structure: kept in files; refused with the constant or with scalar invariance', () => {
     const mg = { ...m, multigroup: { column: 'g', invariance: 'metric' as const, free: [], meanStructure: false as const } };
     expect(toSpec(mg).multigroup!.meanStructure).toBe(false);

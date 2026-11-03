@@ -81,7 +81,11 @@ export interface CovarianceSpec {
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */
 export const interactionName = (from: string, moderator: string) => (from === moderator ? `${from}²` : `${from} × ${moderator}`);
 
-export type EsemRotation = 'geomin' | 'oblimin' | 'quartimin' | 'varimax' | 'target';
+/** `bigeomin`, `biquartimin`: bifactor rotations (Jennrich & Bentler 2011, 2012); the block's first factor is the general one. */
+export type EsemRotation = 'geomin' | 'oblimin' | 'quartimin' | 'varimax' | 'target' | 'bigeomin' | 'biquartimin';
+export const BIFACTOR_ROTATIONS: readonly EsemRotation[] = ['bigeomin', 'biquartimin'];
+/** Rotations that can be made orthogonal (Mplus's GEOMIN(ORTHOGONAL); lavaan rotation.args orthogonal). */
+export const ORTHOGONALISABLE_ROTATIONS: readonly EsemRotation[] = ['geomin', 'oblimin', 'quartimin', 'bigeomin', 'biquartimin'];
 export type InvarianceLevel = 'configural' | 'metric' | 'scalar' | 'strict';
 /** Parameters freed across groups despite the invariance level (partial invariance). */
 export type FreedParameter = { kind: 'loading'; construct: string; indicator: string } | { kind: 'intercept'; indicator: string }
@@ -128,7 +132,7 @@ export interface ModelSpec {
   /** CB-SEM (lavaan): two-level model by a cluster column; between level saturated or with the same structure. */
   multilevel?: { column: string; between: 'same' | 'saturated' | 'factors'; betweenCovariates?: string[] };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
-  esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number };
+  esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean };
   /** CB-SEM (lavaan): estimate the mean structure (meanstructure = TRUE: every indicator intercept free). */
   meanStructure?: boolean;
   /** CB-SEM (lavaan): latent means (or observed variables' intercepts) to estimate, fix or label. */

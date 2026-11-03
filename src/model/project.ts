@@ -7,7 +7,7 @@ import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
 import { exprToR, nameError, namesIn, parseConstraint, parseExpr, parseInequality } from './expr';
-import type { ConstructType, Dataset, EsemRotation, FreedParameter, InvarianceLevel, MissingTreatment, Mode, ModelSpec, MomentData, MomentGroup, MultigroupSpec, StructuralEquality, WeightingScheme } from '../engine/types';
+import { BIFACTOR_ROTATIONS, ORTHOGONALISABLE_ROTATIONS, type ConstructType, type Dataset, type EsemRotation, type FreedParameter, type InvarianceLevel, type MissingTreatment, type Mode, type ModelSpec, type MomentData, type MomentGroup, type MultigroupSpec, type StructuralEquality, type WeightingScheme } from '../engine/types';
 import { pooledMoments } from '../data/moments';
 import { LAVAAN_MISSING } from '../engine/types';
 import { MAX_CATEGORIES } from '../engine/dataset';
@@ -220,7 +220,8 @@ export interface ModelState {
   cluster?: string;
   /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
   /** `epsilon`: geomin's ε (lavaan's default 0.001; Mplus uses 0.0001 for two factors). */
-  esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation; epsilon?: number };
+  /** `orthogonal`: the rotation kept orthogonal (uncorrelated factors). A bifactor rotation's general factor is the block's first. */
+  esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean };
   /**
    * CB-SEM (lavaan): the mean structure. `constant` is the triangle ("1") on the canvas; its
    * presence turns the mean structure on (every indicator intercept is estimated, lavaan's
@@ -277,7 +278,7 @@ export function pruneCorrelations(model: ModelState): ModelState {
  */
 export function exogenousPairs(model: ModelState): [Construct, Construct][] {
   const endo = endogenousIds(model);
-  const exo = model.constructs.filter((c) => !endo.has(c.id) && !c.covariate && (c.indicators.length > 0 || (c.components?.length ?? 0) > 0));
+  const exo = model.constructs.filter((c) => !endo.has(c.id) && !c.covariate && (c.indicators.length > 0 || (c.components?.length ?? 0) > 0 || isBifactorGeneral(model, c.id)));
   const block = new Map((model.esem?.blocks ?? []).flatMap((b) => b.constructs.map((id) => [id, b.id] as const)));
   const out: [Construct, Construct][] = [];
   for (let i = 0; i < exo.length; i++) for (let j = i + 1; j < exo.length; j++) {
@@ -315,17 +316,33 @@ export function makeCovariancesExplicit(model: ModelState): ModelState {
  */
 export function impliedCorrelations(model: ModelState): Correlation[] {
   const endo = endogenousIds(model);
-  const exo = model.constructs.filter((c) => !endo.has(c.id) && (c.indicators.length > 0 || (c.components?.length ?? 0) > 0));
+  const exo = model.constructs.filter((c) => !endo.has(c.id) && (c.indicators.length > 0 || (c.components?.length ?? 0) > 0 || isBifactorGeneral(model, c.id)));
   const has = recorded(model);
   const block = new Map((model.esem?.blocks ?? []).flatMap((b) => b.constructs.map((id) => [id, b.id] as const)));
   const out: Correlation[] = [];
   for (let i = 0; i < exo.length; i++) for (let j = i + 1; j < exo.length; j++) {
     const a = exo[i], b = exo[j];
     const covariates = !!a.covariate && !!b.covariate;
-    const rotated = !a.covariate && !b.covariate && block.has(a.id) && block.get(a.id) === block.get(b.id);
+    const rotated = !a.covariate && !b.covariate && block.has(a.id) && block.get(a.id) === block.get(b.id) && rotationCorrelates(model.esem!, a.id, b.id);
     if ((covariates || rotated) && !has.has(pairKey(a.id, b.id))) out.push({ id: `auto:${a.id}:${b.id}`, kind: 'construct', a: a.id, b: b.id });
   }
   return out;
+}
+
+/**
+ * Whether an ESEM rotation correlates two factors of one block: not an orthogonal one, and a bifactor
+ * rotation keeps its general factor (the block's first) uncorrelated with the specific factors.
+ */
+/** The general factor of a bifactor ESEM block (its first): it loads on every indicator of the block and needs none of its own. */
+export function isBifactorGeneral(model: ModelState, id: string): boolean {
+  return !!model.esem && BIFACTOR_ROTATIONS.includes(model.esem.rotation) && model.esem.blocks.some((b) => b.constructs[0] === id);
+}
+
+export function rotationCorrelates(esem: NonNullable<ModelState['esem']>, a: string, b: string): boolean {
+  if (esem.rotation === 'varimax' || (esem.orthogonal && ORTHOGONALISABLE_ROTATIONS.includes(esem.rotation))) return false;
+  if (!BIFACTOR_ROTATIONS.includes(esem.rotation)) return true;
+  const general = esem.blocks.find((bl) => bl.constructs.includes(a))?.constructs[0];
+  return a !== general && b !== general;
 }
 
 /** One end of a correlation being drawn: a construct's shape, its disturbance (ζ) circle, or an indicator error. */
@@ -473,7 +490,7 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.multilevel ? { multilevel: model.multilevel } : {}),
     ...(model.weights ? { weights: model.weights } : {}),
     ...(model.cluster ? { cluster: model.cluster } : {}),
-    ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)), ...(model.esem.epsilon !== undefined ? { epsilon: model.esem.epsilon } : {}) } } : {}),
+    ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)), ...(model.esem.epsilon !== undefined ? { epsilon: model.esem.epsilon } : {}), ...(model.esem.orthogonal && ORTHOGONALISABLE_ROTATIONS.includes(model.esem.rotation) ? { orthogonal: true } : {}) } } : {}),
     ...(model.information ? { information: model.information } : {}),
     ...(model.baseline ? { baseline: model.baseline } : {}),
     ...(model.likelihood ? { likelihood: model.likelihood } : {}),
@@ -654,7 +671,7 @@ export function validateModel(
         else if (method.method === 'pls' && (model.paths.some((q) => q.from === id) || (model.moderations ?? []).some((mo) => mo.moderator === id || model.paths.find((q) => q.id === mo.path)?.from === id)))
           err(`"${comp.name}" is a component of "${c.name}" and cannot also be in the structural model (cSEM’s two-stage approach); connect "${c.name}" instead.`, comp.id);
       }
-    } else if (c.indicators.length === 0) err(method.method === 'process'
+    } else if (c.indicators.length === 0 && !(method.method === 'cbsem' && isBifactorGeneral(model, c.id))) err(method.method === 'process'
       ? `"${c.name}" has no variable yet. Drag a column (or a scale's items) from the data panel onto it.`
       : `"${c.name}" has no indicators. Drag variables from the data panel onto it.`, c.id);
     if (higher && method.method === 'process') err(`"${c.name}" is a higher-order construct; these are supported in CB-SEM only.`, c.id);
@@ -1074,6 +1091,7 @@ export function validateModel(
         }
       }
       if (model.esem!.rotation === 'target' && blocks.length > 1) err('Target rotation is available for a single ESEM block.');
+      if (BIFACTOR_ROTATIONS.includes(model.esem!.rotation) && blocks.some((b) => b.constructs.length < 3)) err('A bifactor rotation needs a general and at least two specific factors in every ESEM block.');
     }
   }
 
@@ -1470,9 +1488,10 @@ export function parseModelState(m: unknown): ModelState {
           ? { betweenCovariates: [...new Set((m.multilevel.betweenCovariates as unknown[]).slice(0, 100).filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 200)))] } : {}),
       } } : {}),
       ...(isObj(m.esem) && Array.isArray(m.esem.blocks) ? { esem: {
-        rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',
+        rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target', 'bigeomin', 'biquartimin'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',
         blocks: m.esem.blocks.slice(0, 50).filter(isObj).map((b: Record<string, unknown>) => ({ id: str(b.id, 64), constructs: (Array.isArray(b.constructs) ? b.constructs : []).map((x: unknown) => str(x, 64)).filter((x: string) => ids.has(x)) })),
         ...(typeof m.esem.epsilon === 'number' && m.esem.epsilon > 0 && m.esem.epsilon <= 1 ? { epsilon: m.esem.epsilon } : {}),
+        ...(m.esem.orthogonal === true ? { orthogonal: true } : {}),
       } } : {}),
       ...(m.information === 'observed' ? { information: 'observed' as const } : {}),
       ...(m.baseline === 'independence' ? { baseline: 'independence' as const } : {}),

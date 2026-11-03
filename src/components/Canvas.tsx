@@ -659,9 +659,13 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'set-label': void setLabel(target); break;
       case 'make-esem': {
         const m = st().model;
-        const free = st().selection.nodes.filter((x) => !m.esem?.blocks.some((b) => b.constructs.includes(x)) && m.constructs.some((c) => c.id === x && !c.covariate && !c.components?.length && c.indicators.length));
-        s.setEsem({ rotation: m.esem?.rotation ?? 'geomin', blocks: [...(m.esem?.blocks ?? []), { id: newId('e'), constructs: free }] });
-        s.toast('info', 'ESEM block: each of its factors now loads on all the block’s indicators (rotated, geomin). Rotation and blocks are listed in the Model inspector.');
+        const free = st().selection.nodes.filter((x) => !m.esem?.blocks.some((b) => b.constructs.includes(x)) && m.constructs.some((c) => c.id === x && !c.covariate && !c.components?.length));
+        // A factor without indicators first: a bifactor rotation's general factor is the block's first.
+        const empty = (x: string) => !m.constructs.find((c) => c.id === x)?.indicators.length;
+        const ordered = [...free.filter(empty), ...free.filter((x) => !empty(x))];
+        const rotation = m.esem?.rotation ?? 'geomin';
+        s.setEsem({ ...(m.esem ?? {}), rotation, blocks: [...(m.esem?.blocks ?? []), { id: newId('e'), constructs: ordered }] });
+        s.toast('info', `ESEM block: each of its factors now loads on all the block’s indicators (rotated, ${rotation}). Rotation and blocks are listed in the Model inspector.`);
         break;
       }
       case 'leave-esem': {

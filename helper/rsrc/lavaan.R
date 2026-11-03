@@ -138,7 +138,14 @@ ps_cb_build <- function(req) {
   }
   if (length(esem$blocks)) {
     rot <- esem$rotation %||% "geomin"
-    if (!rot %in% c("geomin", "oblimin", "quartimin", "varimax", "target")) stop("Invalid rotation in the request.")
+    if (!rot %in% c("geomin", "oblimin", "quartimin", "varimax", "target", "bigeomin", "biquartimin")) stop("Invalid rotation in the request.")
+    # Bifactor rotations (Jennrich & Bentler 2011, 2012; Mplus BI-GEOMIN, BI-QUARTIMIN): a general factor,
+    # the block's first, and specific factors; oblique by default (the specific factors correlate, the
+    # general factor with none of them), or orthogonal (Mplus's BI-GEOMIN(ORTHOGONAL)).
+    bifactor <- rot %in% c("bigeomin", "biquartimin")
+    if (bifactor && any(lengths(lapply(esem$blocks, unlist)) < 3)) stop("A bifactor rotation needs a general and at least two specific factors in each ESEM block.")
+    orth <- isTRUE(esem$orthogonal)
+    if (orth && rot %in% c("varimax", "target")) stop("Invalid orthogonal option for this rotation in the request.")
     # geomin's epsilon (lavaan 0.001; Mplus 0.0001 for two factors, 0.001 for three, 0.01 for four or more)
     eps <- esem$epsilon
     if (!is.null(eps) && !(is.numeric(eps) && length(eps) == 1 && eps > 0 && eps <= 1)) stop("Invalid geomin epsilon in the request.")
@@ -420,7 +427,11 @@ ps_cb_build <- function(req) {
   # (lavaan's sem() would otherwise free every such covariance, auto.cov.y).
   extra <- paste0(extra, ", auto.cov.y = FALSE", bounds)
   if (length(esem$blocks)) {
-    rargs <- c(if (!is.null(target)) "target = TARGET", if (!is.null(eps) && rot == "geomin") sprintf("geomin.epsilon = %s", format(eps, scientific = FALSE)))
+    rargs <- c(if (!is.null(target)) "target = TARGET", if (!is.null(eps) && rot %in% c("geomin", "bigeomin")) sprintf("geomin.epsilon = %s", format(eps, scientific = FALSE)),
+      if (orth) "orthogonal = TRUE",
+      # (the bifactor criteria are flat: at lavaan's default tolerance, 1e-5, the loadings vary in the third
+      #  decimal with the random starts; at 1e-8 they are reproducible)
+      if (bifactor) "gpa.tol = 1e-8")
     extra <- paste0(extra, sprintf(", rotation = \"%s\"", rot), if (length(rargs)) sprintf(", rotation.args = list(%s)", paste(rargs, collapse = ", ")) else "")
   }
   if (use_modsem) {
@@ -541,7 +552,8 @@ ps_cb_build <- function(req) {
   # (the baseline lines travel separately: every other user of this body expects the fit call last)
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single, between_cov = between_cov)
+    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single, between_cov = between_cov,
+    esem_blocks = lapply(esem$blocks, function(x) as.character(unlist(x))), bifactor = length(esem$blocks) > 0 && bifactor)
 }
 
 ps_cb <- function(req_json, export = FALSE) {
@@ -557,6 +569,7 @@ ps_cb <- function(req_json, export = FALSE) {
   }
   env <- ps_run(body, b$inputs)
   fit <- env$fit
+  b <- ps_esem_align(b, fit)
   n <- b$n; k0 <- b$k0; comps <- b$comps; mods <- b$mods
 
   # ---- names back
@@ -717,6 +730,7 @@ ps_cb <- function(req_json, export = FALSE) {
       if (!length(l) || (j <= k0 && length(comps[[j]])) || constructs[j] %in% b$composites) return(list(cr = NULL, ave = NULL))
       list(cr = sum(l)^2 / (sum(l)^2 + sum(1 - l^2)), ave = mean(l^2), omega = per_group(omega, lv_lname[j]), alpha = per_group(alpha, lv_lname[j]))
     })
+    bifactor <- if (isTRUE(b$bifactor)) lapply(b$esem_blocks, function(fs) ps_try(ps_bifactor(fit, g, b, fs), "Bifactor indices (ECV, omega hierarchical)"))
     rr <- if (isTRUE(b$mi)) lavaan.mi::lavResiduals.mi(env$fit_mi, type = "cor.bollen")
       else if (isTRUE(req$missing %in% c("twostage", "robusttwostage"))) ps_cor_residuals(fit)
       else lavaan::lavResiduals(fit, type = "cor.bollen", summary = FALSE)
@@ -766,7 +780,7 @@ ps_cb <- function(req_json, export = FALSE) {
       estimates = est, fit = lapply(fmv, as.numeric),
       r2Indicators = unname(r2_ind), r2Constructs = r2_con, stdLoadings = std_load,
       stdPaths = stdB, hasPath = has, stdTotal = total, stdIndirect = total - stdB,
-      lvCor = unname(lvcor), reliability = rel, residualCor = unname(res),
+      lvCor = unname(lvcor), reliability = rel, residualCor = unname(res), bifactor = Filter(Negate(is.null), bifactor),
       htmt = htmt(FALSE), htmt2 = htmt(TRUE), vcov = if (is.null(vc)) NULL else unname(vc),
       moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
       wald = lapply(seq_along(env$wald), function(i) list(name = req$model$waldTests[[i]]$name, stat = unname(env$wald[[i]]$stat),
@@ -985,12 +999,69 @@ ps_cb_scores <- function(req_json, export = FALSE) {
   inputs <- b$inputs
   if (export) return(paste(ps_script(sprintf("Factor scores (lavaan, %s)", method), "lavaan", inputs, body, "head(cbind(row = rows, scores))"), collapse = "\n"))
   env <- ps_run(body, inputs)
+  b <- ps_esem_align(b, env$fit)
   cons <- c(b$n$cname, b$int_names)
   back <- setNames(cons, unname(b$lname[cons]))
   sc <- env$scores
   ps_json(list(method = method, names = unname(back[colnames(sc)]), rows = env$rows,
     scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j])),
     warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}
+
+#' ESEM blocks: lavaan orders a block's rotated factors by its own rule (order.lv.by), and a bifactor
+#' rotation's general factor need not come first, so each of the app's factors is matched to the rotated
+#' column that carries it, and the app's names follow the columns (b$lname permuted within the block).
+#' A bifactor block's general factor (its first) takes the column with the largest sum of squared
+#' loadings; every other factor the column on which its own (drawn) indicators load most: the
+#' permutation with the largest total, lavaan's order on a tie.
+ps_esem_align <- function(b, fit) {
+  if (!length(b$esem_blocks)) return(b)
+  std <- lavaan::lavInspect(fit, "std")
+  L <- if (is.matrix(std$lambda)) std$lambda else std[[1]]$lambda
+  for (fs in b$esem_blocks) {
+    k <- length(fs)
+    if (k > 8) next
+    js <- match(fs, b$n$cname)
+    ln <- unname(b$lname[fs])
+    own <- lapply(js, function(j) unname(b$n$iv[b$n$inds[[j]]]))
+    A <- L[unique(unlist(own)), ln, drop = FALSE]^2
+    # score[f, c]: the squared loadings of factor f's own indicators on column c
+    score <- t(vapply(own, function(ii) colSums(A[ii, , drop = FALSE]), numeric(k)))
+    if (isTRUE(b$bifactor)) score[1, ] <- 1e6 * colSums(A)
+    P <- ps_perms(k)
+    best <- P[which.max(apply(P, 1, function(p) sum(score[cbind(seq_len(k), p)]))), ]
+    b$lname[fs] <- ln[best]
+  }
+  b
+}
+
+#' All permutations of 1..n, one per row, the identity first.
+ps_perms <- function(n) {
+  if (n <= 1) return(matrix(seq_len(n), 1))
+  do.call(rbind, lapply(seq_len(n), function(i) { r <- setdiff(seq_len(n), i); cbind(i, matrix(r[ps_perms(n - 1)], ncol = n - 1)) }))
+}
+
+#' Bifactor indices of an ESEM block (fs: the app's factors, general first) from the standardised
+#' solution (Rodriguez, Reise & Haviland 2016): ECV, the general factor's share of the common variance;
+#' omega and omega hierarchical of the total score of the block's indicators; for each specific factor,
+#' omega and omega hierarchical subscale (omegaHS) of the sum of its own (drawn) indicators. The total
+#' variance is the model-implied one (residual covariances included); a specific factor's omegaHS counts
+#' its own variance only, also when the specific factors correlate (oblique bifactor rotation).
+ps_bifactor <- function(fit, g, b, fs) {
+  std <- lavaan::lavInspect(fit, "std")
+  if (!is.matrix(std$lambda)) std <- std[[g %||% 1]]
+  P <- lavaan::lavInspect(fit, "cor.lv"); if (is.list(P)) P <- P[[g %||% 1]]
+  lv <- unname(b$lname[fs])
+  own <- lapply(match(fs, b$n$cname), function(j) unname(b$n$iv[b$n$inds[[j]]]))
+  inds <- unique(unlist(own))
+  L <- std$lambda[inds, lv, drop = FALSE]
+  P <- P[lv, lv]
+  C <- L %*% P %*% t(L)
+  S <- C + std$theta[inds, inds, drop = FALSE]
+  part <- function(ii, k) { tot <- sum(S[ii, ii]); list(omega = sum(C[ii, ii]) / tot, omegaH = sum(L[ii, k])^2 * P[k, k] / tot) }
+  all <- part(inds, 1)
+  list(general = fs[1], items = length(inds), ecv = sum(L[, 1]^2) / sum(L^2), omega = all$omega, omegaH = all$omegaH,
+    specific = lapply(seq_along(fs)[-1], function(k) { s <- part(own[[k]], k); list(factor = fs[k], omega = s$omega, omegaHS = s$omegaH, items = length(own[[k]])) }))
 }
 
 #' Correlation residuals (lavaan's "cor.bollen": each matrix standardised by its own
@@ -1071,7 +1142,7 @@ ps_cb_compare_params <- function(req_json, export = FALSE) {
     "rownames(z) <- colnames(z) <- paste(sel$lhs, sel$op, sel$rhs, if (max(sel$group) > 1) paste0(\"@\", sel$group) else \"\")")
   if (export) return(paste(ps_script("Pairwise parameter comparisons (critical ratios for differences)", "lavaan", b$inputs, body, "print(round(z, 3))"), collapse = "\n"))
   env <- ps_run(body, b$inputs)
-  sel <- env$sel; back <- ps_cb_back(b)
+  sel <- env$sel; back <- ps_cb_back(ps_esem_align(b, env$fit))
   nm <- function(x) ifelse(x %in% names(back), unname(back[x]), x)
   label <- ifelse(sel$op == "~", paste(nm(sel$rhs), "→", nm(sel$lhs)),
     ifelse(sel$op == "=~", paste(nm(sel$lhs), "→", nm(sel$rhs)),
@@ -1109,7 +1180,7 @@ ps_cb_score_weights <- function(req_json, export = FALSE) {
     "dimnames(W) <- list(colnames(L), rownames(L))")
   if (export) return(paste(ps_script(sprintf("Factor score weights (%s)", method), "lavaan", b$inputs, body, "print(round(W, 4))"), collapse = "\n"))
   env <- ps_run(body, b$inputs)
-  W <- env$W; back <- ps_cb_back(b)
+  W <- env$W; back <- ps_cb_back(ps_esem_align(b, env$fit))
   nm <- function(x) ifelse(x %in% names(back), unname(back[x]), x)
   ps_json(list(method = method, factors = I(nm(rownames(W))), variables = I(nm(colnames(W))),
     weights = lapply(seq_len(nrow(W)), function(i) I(unname(W[i, ]))), warnings = env$.warnings,

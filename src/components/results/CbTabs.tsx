@@ -311,7 +311,7 @@ function Effects({ cb, boot }: { cb: CbResult; boot: BootstrapResult | null }) {
 function Reliability({ cb }: { cb: CbResult }) {
   // semTools' omega and alpha come with the R engine.
   const model = cb.reliability.some((r) => r.omega !== undefined || r.alpha !== undefined);
-  return (
+  const table = (
     <Table title="Reliability and convergent validity" file="cb-reliability"
       columns={['Factor', 'Composite reliability', 'AVE', ...(model ? ['ω (semTools)', 'α'] : [])]}
       rows={cb.constructs.map((n, j) => {
@@ -320,6 +320,21 @@ function Reliability({ cb }: { cb: CbResult }) {
           ...(model ? [c(r.omega ?? null, r.omega === undefined ? '' : r.omega >= 0.7 ? 'good' : 'warn'), c(r.alpha ?? null, r.alpha === undefined ? '' : r.alpha >= 0.7 ? 'good' : 'warn')] : [])];
       })}
       note={`From standardised loadings: CR = (Σλ)² / ((Σλ)² + Σ(1−λ²)), AVE = mean λ².${model ? ' ω: the model-based reliability of each factor’s indicator sum (semTools::compRelSEM; residual covariances and ordinal indicators taken into account, total variance from the unrestricted model); α: coefficient alpha of the same sum (with ordinal indicators: ordinal alpha from the polychoric correlations, on the latent-response scale).' : ''}`} />
+  );
+  if (!cb.bifactor?.length) return table;
+  return <div className="tables">{table}{cb.bifactor.map((bf) => <Bifactor key={bf.general} bf={bf} />)}</div>;
+}
+
+/** A bifactor ESEM block: how much of the common variance, and of the scores' variance, the general factor accounts for. */
+function Bifactor({ bf }: { bf: NonNullable<CbResult['bifactor']>[number] }) {
+  return (
+    <Table title={`Bifactor indices: general factor ${bf.general}`} file={`cb-bifactor-${bf.general}`}
+      columns={['Score', 'Factor', 'Items', 'ω', 'ωH / ωHS', 'ωH / ω', 'ECV']}
+      rows={[
+        [c('Total'), c(bf.general), c(bf.items), c(bf.omega), c(bf.omegaH, bf.omegaH >= 0.8 ? 'good' : ''), c(bf.omegaH / bf.omega), c(bf.ecv, bf.ecv >= 0.7 ? 'good' : '')],
+        ...bf.specific.map((s) => [c('Subscale'), c(s.factor), c(s.items), c(s.omega), c(s.omegaHS), c(s.omegaHS / s.omega), c(null, 'dim')]),
+      ]}
+      note="Rodriguez, Reise & Haviland (2016), from the standardised solution and the model-implied variance of each sum score. Total: the sum of all the block's indicators; ωH is the share of its variance due to the general factor, ECV the general factor's share of the common variance. Subscale: the sum of a specific factor's own (drawn) indicators; ωHS is the share due to that specific factor alone, after the general factor. ECV ≥ .70 with ωH ≥ .80 suggests the items are essentially unidimensional (a total score is defensible); a low ωHS means the subscale score mostly reflects the general factor." />
   );
 }
 
