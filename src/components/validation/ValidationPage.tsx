@@ -4,7 +4,7 @@ import { safeUrl } from '../../format';
 import type { SelfCheckOutcome } from '../../validation/selfCheck';
 import type { Check, Evidence, EvidenceLevel } from '../../validation/types';
 import { EVIDENCE_LEVELS } from '../../validation/types';
-import { largestDifference, LEVEL_TEXT, useEvidenceStatus } from '../../validation/useEvidence';
+import { evidenceKinds, largestDifference, LEVEL_TEXT, useEvidenceStatus } from '../../validation/useEvidence';
 import { IconLogo } from '../icons';
 
 type Tab = 'examples' | 'methods' | 'browser';
@@ -64,7 +64,7 @@ function CheckRow({ c, title, open, onToggle }: { c: Check; title: string; open:
       <button className="evidence-head" onClick={onToggle} aria-expanded={open}>
         <span className={`evidence-status ${c.passed ? 'ok' : 'bad'}`} aria-label={c.passed ? 'passed' : 'failed'}>{c.passed ? '✓' : '✗'}</span>
         <span className="evidence-title">{title}</span>
-        <LevelChip level={c.level} />
+        <span className="evidence-badges">{evidenceKinds(c).map((k) => <LevelChip key={k} level={k} />)}</span>
         <span className="hint">{c.comparisons.length} compared{d !== null ? `, largest |Δ| ${diff(d)}` : ''}</span>
       </button>
       {open && <div className="evidence-body"><Sources c={c} /><Comparisons c={c} /></div>}
@@ -74,7 +74,7 @@ function CheckRow({ c, title, open, onToggle }: { c: Check; title: string; open:
 
 function Summary({ e }: { e: Evidence }) {
   const ex = e.checks.filter((c) => c.subject === 'example');
-  const count = (l: EvidenceLevel) => ex.filter((c) => c.level === l).length;
+  const count = (l: EvidenceLevel) => ex.filter((c) => evidenceKinds(c).includes(l)).length;
   const failed = e.checks.filter((c) => !c.passed).length;
   const comparisons = e.checks.reduce((a, c) => a + c.comparisons.length, 0);
   return (
@@ -85,6 +85,7 @@ function Summary({ e }: { e: Evidence }) {
       </p>
       <table className="grid evidence-levels">
         <thead><tr><th>Badge</th><th className="num">Examples</th><th>What it means</th></tr></thead>
+        <tfoot><tr><td colSpan={3} className="hint">Kinds of evidence, not a ranking: published results show that another author or program gets the same numbers (to the decimals printed), native R that the browser computes exactly what the package does in desktop R (every estimate, to four to six decimals). {ex.filter((c) => evidenceKinds(c).length > 1).length} examples have both.</td></tr></tfoot>
         <tbody>
           {EVIDENCE_LEVELS.filter((l) => l !== 'recovery').map((l) => (
             <tr key={l}>
@@ -172,7 +173,7 @@ export function ValidationPage({ onBack, backLabel = 'Back', focus, titles = {} 
     if (!e) return [];
     const subject = tab === 'methods' ? 'feature' : 'example';
     const q = query.trim().toLowerCase();
-    const shown = e.checks.filter((c) => c.subject === subject && (level === 'all' || c.level === level) && (!q || `${titleOf(c)} ${c.method} ${c.id}`.toLowerCase().includes(q)));
+    const shown = e.checks.filter((c) => c.subject === subject && (level === 'all' || evidenceKinds(c).includes(level)) && (!q || `${titleOf(c)} ${c.method} ${c.id}`.toLowerCase().includes(q)));
     const by = new Map<string, Check[]>();
     for (const c of shown) by.set(c.method, [...(by.get(c.method) ?? []), c]);
     return [...by].sort(([a], [b]) => a.localeCompare(b));
@@ -211,8 +212,8 @@ export function ValidationPage({ onBack, backLabel = 'Back', focus, titles = {} 
               <>
                 <div className="row2" style={{ marginBottom: 8 }}>
                   <input className="input" placeholder={tab === 'methods' ? 'Search methods' : 'Search examples'} value={query} onChange={(ev) => setQuery(ev.target.value)} aria-label="Search" />
-                  <select className="select" value={level} onChange={(ev) => setLevel(ev.target.value as EvidenceLevel | 'all')} aria-label="Level">
-                    <option value="all">Every level</option>
+                  <select className="select" value={level} onChange={(ev) => setLevel(ev.target.value as EvidenceLevel | 'all')} aria-label="Kind of evidence">
+                    <option value="all">Every kind of evidence</option>
                     {EVIDENCE_LEVELS.map((l) => <option key={l} value={l}>{LEVEL_TEXT[l].long}</option>)}
                   </select>
                 </div>

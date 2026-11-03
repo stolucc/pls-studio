@@ -3,7 +3,8 @@
 // scripts/validation/evidence.mjs. The same numbers the tests assert; nothing is typed in by hand.
 
 /**
- * How strong the evidence is, strongest first:
+ * The kind of evidence (kinds, not a ranking: an example often has both published and native evidence, which
+ * show different things; useEvidence.ts evidenceKinds lists them):
  * - `published`: reproduces numbers printed by other people with other software (Mplus output, a book's tables);
  * - `native`: equals the same R package run in desktop R on the same data (a reference script), or an
  *   independent computation (numerical integration, a direct call of the package in the same R);
@@ -16,7 +17,7 @@ export const EVIDENCE_LEVELS: readonly EvidenceLevel[] = ['published', 'native',
 export interface EvidenceSource {
   /** e.g. "Mplus User's Guide, example 5.25 (output)", "desktop lavaan, scripts/validation/esem.R". */
   label: string;
-  /** Examples: the level this source gives (a check's level is that of its strongest source with comparisons). */
+  /** Examples: the kind of evidence this source gives (`Check.level` keeps one of them, for sorting; the app shows every kind). */
   level?: EvidenceLevel;
   url?: string;
   /** A reference script in the repository (scripts/validation/...). */

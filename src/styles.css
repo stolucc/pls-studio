@@ -836,6 +836,11 @@ button.chip.evidence { border: 0; font: inherit; cursor: pointer; }
 .evidence-levels { margin: 0 0 16px; width: 100%; }
 .evidence-levels td { vertical-align: top; font-size: 13px; line-height: 1.5; }
 .evidence-levels td:first-child, .evidence-levels td.num { white-space: nowrap; }
+/* (table.grid right-aligns and does not wrap: right for numbers, wrong for sentences) */
+table.grid.evidence-levels th:last-child, table.grid.evidence-levels td:last-child,
+table.grid.evidence-levels tfoot td { text-align: left; white-space: normal; }
+table.grid.evidence-levels td:last-child { width: 100%; }
+table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { text-align: left; white-space: normal; }
 .evidence-group h4 { margin: 14px 0 6px; }
 .evidence-row { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 4px; }
 .evidence-row.open { border-color: var(--accent); }
@@ -849,3 +854,4 @@ button.chip.evidence { border: 0; font: inherit; cursor: pointer; }
 .results-evidence { display: inline-flex; align-items: center; gap: 6px; }
 .issue.good { background: var(--good-soft); color: var(--good); }
 .example-evidence { margin: 2px 0 8px; }
+.evidence-badges { display: inline-flex; gap: 4px; flex-wrap: wrap; }

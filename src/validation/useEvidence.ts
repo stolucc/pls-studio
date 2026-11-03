@@ -46,6 +46,18 @@ export const LEVEL_TEXT: Record<EvidenceLevel, { short: string; long: string; hi
   runs: { short: 'Runs', long: 'Runs as documented', hint: 'The package’s documented example estimates without unexpected warnings; there are no independent numbers to compare it with.' },
 };
 
+/**
+ * The kinds of evidence a check has: for an example, those of the sources it was actually compared with
+ * (published, native R; often both, which are different evidence, not one stronger than the other), or
+ * "runs" when it was compared with none; for a method check, its own.
+ */
+export function evidenceKinds(c: Check): EvidenceLevel[] {
+  if (c.subject !== 'example') return [c.level];
+  const used = new Set(c.comparisons.map((x) => x.source).filter(Boolean));
+  const kinds = (['published', 'native', 'recovery'] as const).filter((k) => c.sources.some((s) => s.level === k && used.has(s.label)));
+  return kinds.length ? [...kinds] : ['runs'];
+}
+
 /** The largest difference of a check's numeric comparisons. */
 export function largestDifference(c: Check): number | null {
   const d = c.comparisons.filter((x) => typeof x.value === 'number' && typeof x.reference === 'number').map((x) => Math.abs((x.value as number) - (x.reference as number)));

@@ -18,7 +18,8 @@ for (const f of readdirSync(dir).filter((x) => x.endsWith('.json')).sort()) {
     const key = `${c.subject}:${c.id}`;
     const prev = byKey.get(key);
     if (!prev) { byKey.set(key, c); continue; }
-    // The same example checked in several test files: one check, the strongest level, every comparison.
+    // The same example checked in several test files: one check with every source and comparison (the app shows each kind of
+    // evidence; `level` keeps one, published before native, for sorting).
     const rank = { published: 0, native: 1, recovery: 2, runs: 3 };
     prev.level = rank[c.level] < rank[prev.level] ? c.level : prev.level;
     prev.comparisons.push(...c.comparisons);

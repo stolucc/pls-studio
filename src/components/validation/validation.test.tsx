@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../../model/project';
 import { estimationKey } from '../../validation/exampleState';
-import { resetEvidence } from '../../validation/useEvidence';
+import { evidenceKinds, resetEvidence } from '../../validation/useEvidence';
 import type { Evidence } from '../../validation/types';
 import { useStore } from '../../store';
 import { ValidationPage } from './ValidationPage';
@@ -63,6 +63,17 @@ describe('ValidationPage without a record', () => {
     await flush();
     expect(host.textContent).toContain('The validation record is not available in this copy of PLS Studio yet.');
     expect(host.textContent).not.toContain('Loading the validation record');
+  });
+});
+
+describe('evidenceKinds', () => {
+  it('lists every kind of evidence an example was compared with, not just one; runs when none', () => {
+    const both = { ...evidence.checks[0], sources: [{ label: 'book', level: 'published' as const }, { label: 'desktop lavaan', level: 'native' as const }, { label: 'unused', level: 'native' as const }],
+      comparisons: [{ quantity: 'χ²', value: 1, reference: 1, tolerance: 0.01, source: 'book' }, { quantity: 'x', value: 1, reference: 1, tolerance: 1e-4, source: 'desktop lavaan' }] };
+    expect(evidenceKinds(both)).toEqual(['published', 'native']);
+    expect(evidenceKinds({ ...both, comparisons: [both.comparisons[0]] })).toEqual(['published']);
+    expect(evidenceKinds(evidence.checks[1])).toEqual(['runs']);
+    expect(evidenceKinds(evidence.checks[2])).toEqual(['native']);  // a method check: its own kind
   });
 });
 

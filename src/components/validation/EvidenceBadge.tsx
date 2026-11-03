@@ -1,14 +1,18 @@
-import { exampleEvidence, LEVEL_TEXT, useEvidence } from '../../validation/useEvidence';
+import { evidenceKinds, exampleEvidence, LEVEL_TEXT, useEvidence } from '../../validation/useEvidence';
 
-/** An example's validation level, from the test suite's record; opens what it was compared with. */
+/** An example's kinds of validation evidence, from the test suite's record, one badge each; they open what it was compared with. */
 export function EvidenceBadge({ id, onOpen }: { id: string; onOpen: (id: string) => void }) {
   const c = exampleEvidence(useEvidence(), id);
   if (!c) return null;
   const n = c.comparisons.length;
   return (
-    <button className={`chip evidence ${c.passed ? c.level : 'runs'}`} onClick={() => onOpen(id)}
-      title={`${LEVEL_TEXT[c.level].long}. ${LEVEL_TEXT[c.level].hint} ${n} number${n === 1 ? '' : 's'} compared by the test suite${c.passed ? '' : ', and a check FAILED'}. Click for the details.`}>
-      {c.passed ? (c.level === 'runs' ? '' : '✓ ') : '✗ '}{LEVEL_TEXT[c.level].short}
-    </button>
+    <span className="evidence-badges">
+      {evidenceKinds(c).map((k) => (
+        <button key={k} className={`chip evidence ${c.passed ? k : 'runs'}`} onClick={() => onOpen(id)}
+          title={`${LEVEL_TEXT[k].long}. ${LEVEL_TEXT[k].hint} ${n} number${n === 1 ? '' : 's'} compared by the test suite in all${c.passed ? '' : ', and a check FAILED'}. Click for the details.`}>
+          {c.passed ? (k === 'runs' ? '' : '✓ ') : '✗ '}{LEVEL_TEXT[k].short}
+        </button>
+      ))}
+    </span>
   );
 }
