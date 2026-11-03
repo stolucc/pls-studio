@@ -83,11 +83,18 @@ function Summary({ e }: { e: Evidence }) {
         Every example and every method is run by the test suite in the same R the app uses (webR {e.webR}, R {e.R}) and compared with a reference
         that does not come from this app. The numbers below are what the tests compared on {e.generated}: {comparisons.toLocaleString('en')} comparisons in {e.checks.length} checks{failed ? `, ${failed} failed` : ', all passed'}.
       </p>
-      <div className="evidence-levels">
-        {EVIDENCE_LEVELS.filter((l) => l !== 'recovery').map((l) => (
-          <div key={l} className="evidence-level"><LevelChip level={l} /><b>{count(l)}</b> <span className="hint">of {ex.length} examples: {LEVEL_TEXT[l].long.toLowerCase()}. {LEVEL_TEXT[l].hint}</span></div>
-        ))}
-      </div>
+      <table className="grid evidence-levels">
+        <thead><tr><th>Badge</th><th className="num">Examples</th><th>What it means</th></tr></thead>
+        <tbody>
+          {EVIDENCE_LEVELS.filter((l) => l !== 'recovery').map((l) => (
+            <tr key={l}>
+              <td><LevelChip level={l} /></td>
+              <td className="num">{count(l)} of {ex.length}</td>
+              <td><b>{LEVEL_TEXT[l].long}.</b> {LEVEL_TEXT[l].hint}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </>
   );
 }

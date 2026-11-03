@@ -833,8 +833,9 @@ a.btn { text-decoration: none; }
 button.chip.evidence { border: 0; font: inherit; cursor: pointer; }
 .validation-body { display: block; max-width: 980px; }
 .validation-body .home-intro { margin-bottom: 12px; }
-.evidence-levels { display: grid; gap: 6px; margin: 0 0 14px; }
-.evidence-level { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.evidence-levels { margin: 0 0 16px; width: 100%; }
+.evidence-levels td { vertical-align: top; font-size: 13px; line-height: 1.5; }
+.evidence-levels td:first-child, .evidence-levels td.num { white-space: nowrap; }
 .evidence-group h4 { margin: 14px 0 6px; }
 .evidence-row { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 4px; }
 .evidence-row.open { border-color: var(--accent); }
