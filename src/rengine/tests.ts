@@ -47,9 +47,18 @@ export interface RmAnovaResult {
 export interface ManovaInput { dependents: string[]; factors: string[]; interactions: boolean }
 export interface ManovaResult { dependents: string[]; factors: string[]; n: number; tests: { test: string; rows: { term: string; df: number; value: number; f: number; df1: number; df2: number; p: number }[] }[]; warnings: string[]; engine: REngineInfo }
 
-export interface CorrelationInput { vars: string[]; method: 'pearson' | 'spearman' | 'kendall'; alternative: Alternative; deletion: 'pairwise' | 'listwise'; confidence: number }
-export interface CorrelationPair { a: string; b: string; r: number; p: number; n: number; stat: number; ciLow?: number | null; ciHigh?: number | null }
-export interface CorrelationResult { method: CorrelationInput['method']; alternative: Alternative; confidence: number; deletion: CorrelationInput['deletion']; vars: string[]; pairs: CorrelationPair[]; warnings: string[]; engine: REngineInfo }
+/** `polychoric`: lavaan's lavCor for ordinal variables (polychoric, tetrachoric, polyserial; Pearson between continuous ones). */
+export interface CorrelationInput { vars: string[]; method: 'pearson' | 'spearman' | 'kendall' | 'polychoric'; alternative: Alternative; deletion: 'pairwise' | 'listwise'; confidence: number }
+/** `stat`: t, S, T or (polychoric) z; `se` and `kind` with polychoric. */
+export interface CorrelationPair { a: string; b: string; r: number; p: number; n: number; stat: number; ciLow?: number | null; ciHigh?: number | null; se?: number; kind?: 'polychoric' | 'tetrachoric' | 'polyserial' | 'pearson' }
+/** Polychoric: each ordinal pair's test of the bivariate normal model (observed against implied two-way table). */
+export interface CorrelationNormality { a: string; b: string; df: number; x2: number; x2p: number; g2: number; g2p: number }
+export interface CorrelationResult {
+  method: CorrelationInput['method']; alternative: Alternative; confidence: number; deletion: CorrelationInput['deletion']; vars: string[]; pairs: CorrelationPair[];
+  /** Polychoric: the variables treated as ordinal (integer values, at most 8 categories), and the normality tests. */
+  ordinal?: string[]; normality?: CorrelationNormality[];
+  warnings: string[]; engine: REngineInfo;
+}
 
 export interface ContingencyInput { rows: string; columns: string; counts: string; confidence: number }
 export interface ContingencyResult {
@@ -114,10 +123,11 @@ export const manovaScriptR = (d: Dataset, i: ManovaInput) => rScript('ps_manova'
 
 export const correlationRequest = (d: Dataset, i: CorrelationInput) => testRequest(d, 'correlation', i.vars, i);
 export async function correlationR(d: Dataset, i: CorrelationInput): Promise<CorrelationResult> {
-  const r = await rCall<Record<string, any>>('ps_correlation', correlationRequest(d, i), 'stats');
-  return { ...r, vars: arr<string>(r.vars), pairs: arr<CorrelationPair>(r.pairs), warnings: rStrings(r.warnings) } as CorrelationResult;
+  const r = await rCall<Record<string, any>>('ps_correlation', correlationRequest(d, i), i.method === 'polychoric' ? 'lavaan' : 'stats');
+  return { ...r, vars: arr<string>(r.vars), pairs: arr<CorrelationPair>(r.pairs), ...(r.method === 'polychoric' ? { ordinal: rStrings(r.ordinal), normality: arr<CorrelationNormality>(r.normality) } : {}),
+    warnings: rStrings(r.warnings) } as CorrelationResult;
 }
-export const correlationScriptR = (d: Dataset, i: CorrelationInput) => rScript('ps_correlation', correlationRequest(d, i), 'stats');
+export const correlationScriptR = (d: Dataset, i: CorrelationInput) => rScript('ps_correlation', correlationRequest(d, i), i.method === 'polychoric' ? 'lavaan' : 'stats');
 
 export const contingencyRequest = (d: Dataset, i: ContingencyInput) => testRequest(d, 'contingency', [i.rows, i.columns, i.counts], i);
 export async function contingencyR(d: Dataset, i: ContingencyInput): Promise<ContingencyResult> {

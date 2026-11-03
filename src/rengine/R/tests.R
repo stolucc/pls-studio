@@ -249,17 +249,19 @@ ps_manova <- function(req_json, export = FALSE) {
 }
 
 #' Correlation matrix: Pearson, Spearman or Kendall, each pair by cor.test (with a
-#' confidence interval for Pearson's r); pairwise or listwise deletion.
+#' confidence interval for Pearson's r); pairwise or listwise deletion. "polychoric":
+#' ps_polychoric.
 ps_correlation <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   vars <- unlist(req$vars)
   if (length(vars) < 2) stop("Choose at least two variables.")
   method <- req$method %||% "pearson"
-  if (!method %in% c("pearson", "spearman", "kendall")) stop("Invalid correlation method in the request.")
+  if (!method %in% c("pearson", "spearman", "kendall", "polychoric")) stop("Invalid correlation method in the request.")
   alt <- ps_bt_alt(req); conf <- ps_bt_conf(req)
   listwise <- identical(req$deletion, "listwise")
   fr <- ps_long_frame(req, vars)
   v <- fr$v
+  if (method == "polychoric") return(ps_polychoric(fr, vars, alt, conf, listwise, export))
   body <- c(if (listwise) sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[vars])))),
     sprintf("vars <- %s", ps_q(unname(unlist(v[vars])))),
     "pairs <- combn(vars, 2, simplify = FALSE)",
@@ -274,6 +276,48 @@ ps_correlation <- function(req_json, export = FALSE) {
       ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1], ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2]) })
   ps_json(list(method = method, alternative = alt, confidence = conf, deletion = if (listwise) "listwise" else "pairwise", vars = vars, pairs = rows,
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
+}
+
+#' Correlations of ordinal (Likert) variables: those of the continuous responses assumed to underlie the
+#' categories, by lavaan (lavCor, as CB-SEM with ordinal indicators): polychoric between two ordinal
+#' variables (tetrachoric when both are binary), polyserial between an ordinal and a continuous one,
+#' Pearson between continuous ones; standard errors, z tests and Wald confidence intervals from the
+#' standardised solution. Ordinal: integer values, at most 8 categories (psych's rule, as the EFA card).
+#' For each pair of ordinal variables, a test of the bivariate normal model the polychoric correlation
+#' assumes: the observed two-way table against the one it implies (lavTables; Pearson X2, LR G2).
+ps_polychoric <- function(fr, vars, alt, conf, listwise, export) {
+  v <- fr$v
+  col <- unname(unlist(v[vars]))
+  ordinal <- vapply(col, function(k) { x <- fr$data[[k]]; x <- x[!is.na(x)]; length(x) > 0 && all(x == round(x)) && length(unique(x)) <= 8 }, TRUE)
+  if (!any(ordinal)) stop("No variable has at most 8 categories (integer values), so there is nothing ordinal to correlate: choose Pearson, Spearman or Kendall.")
+  bin <- vapply(col, function(k) length(unique(stats::na.omit(fr$data[[k]]))) == 2, TRUE)
+  body <- c("suppressPackageStartupMessages(library(lavaan))",
+    sprintf("vars <- %s", ps_q(col)),
+    sprintf("ordinal <- %s  # integer values, at most 8 categories", ps_q(col[ordinal])),
+    if (listwise) "data <- data[complete.cases(data[, vars]), ]",
+    "# (continuous variables standardised, so that every estimate is a correlation)",
+    "for (k in setdiff(vars, ordinal)) data[[k]] <- as.numeric(scale(data[[k]]))",
+    sprintf("fit <- lavCor(data[, vars], ordered = ordinal, se = \"standard\", output = \"fit\", missing = \"%s\")", if (listwise) "listwise" else "pairwise"),
+    sprintf("est <- standardizedSolution(fit, level = %s)", format(conf)),
+    "est <- est[est$op == \"~~\" & est$lhs != est$rhs, ]",
+    "n <- vapply(seq_len(nrow(est)), function(i) sum(complete.cases(data[[est$lhs[i]]], data[[est$rhs[i]]])), 0)",
+    if (sum(ordinal) >= 2) "normality <- lavTables(fit, dimension = 2L, type = \"table\", statistic = c(\"X2\", \"G2\"), p_value = TRUE)")
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Polychoric correlations (lavaan)", "lavaan", inputs, body, c("est", if (sum(ordinal) >= 2) "normality")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  e <- env$est
+  z <- e$est.std / e$se
+  p <- switch(alt, two.sided = 2 * stats::pnorm(-abs(z)), greater = stats::pnorm(-z), less = stats::pnorm(z))
+  kind <- function(a, b) { oa <- ordinal[[a]]; ob <- ordinal[[b]]
+    if (oa && ob) { if (bin[[a]] && bin[[b]]) "tetrachoric" else "polychoric" } else if (oa || ob) "polyserial" else "pearson" }
+  rows <- lapply(seq_len(nrow(e)), function(i) list(a = fr$back[[e$lhs[i]]], b = fr$back[[e$rhs[i]]], r = e$est.std[i], p = p[i], n = env$n[i], stat = z[i],
+    se = e$se[i], ciLow = e$ci.lower[i], ciHigh = e$ci.upper[i], kind = kind(e$lhs[i], e$rhs[i])))
+  nt <- env$normality
+  ps_json(list(method = "polychoric", alternative = alt, confidence = conf, deletion = if (listwise) "listwise" else "pairwise", vars = vars, pairs = rows,
+    ordinal = I(unname(vapply(col[ordinal], function(k) fr$back[[k]], ""))),
+    normality = if (is.null(nt)) list() else lapply(seq_len(nrow(nt)), function(i) list(a = fr$back[[as.character(nt$lhs[i])]], b = fr$back[[as.character(nt$rhs[i])]],
+      df = as.numeric(nt$df[i]), x2 = as.numeric(nt$X2[i]), x2p = as.numeric(nt$X2.pval[i]), g2 = as.numeric(nt$G2[i]), g2p = as.numeric(nt$G2.pval[i]))),
+    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }
 
 #' Contingency table: counts (or a column of frequencies), expected counts, the

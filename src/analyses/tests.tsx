@@ -313,7 +313,7 @@ export const manovaAnalysis: AnalysisType<ManovaOptions, ManovaResult> = {
 // ---------------------------------------------------------------- correlation
 
 export type CorrelationOptions = Omit<CorrelationInput, 'confidence'>;
-const METHOD_NAME = { pearson: 'Pearson', spearman: 'Spearman', kendall: 'Kendall' } as const;
+const METHOD_NAME = { pearson: 'Pearson', spearman: 'Spearman', kendall: 'Kendall', polychoric: 'Polychoric' } as const;
 
 function CorrelationForm({ options: o, set, ctx, disabled }: OptionsProps<CorrelationOptions>) {
   const d = rawData(ctx);
@@ -321,36 +321,49 @@ function CorrelationForm({ options: o, set, ctx, disabled }: OptionsProps<Correl
   return (
     <fieldset className="card-options" disabled={disabled}>
       <OrderedPicker label="Variables" columns={d.names.filter((n) => !d.categories?.[n])} value={o.vars} onChange={(vars) => set({ ...o, vars })} />
-      <Choice label="Coefficient" value={o.method} onChange={(method) => set({ ...o, method })} options={[['pearson', 'Pearson’s r'], ['spearman', 'Spearman’s ρ'], ['kendall', 'Kendall’s τ-b']]} />
+      <Choice label="Coefficient" value={o.method} onChange={(method) => set({ ...o, method })} options={[['pearson', 'Pearson’s r'], ['spearman', 'Spearman’s ρ'], ['kendall', 'Kendall’s τ-b'], ['polychoric', 'Polychoric']]} />
       <div className="row2">
         <Choice label="Alternative hypothesis" value={o.alternative} onChange={(alternative) => set({ ...o, alternative })} options={ALTS} />
         <Choice label="Missing values" value={o.deletion} onChange={(deletion) => set({ ...o, deletion })} options={[['pairwise', 'Pairwise'], ['listwise', 'Listwise']]} />
       </div>
-      <div className="hint">Each pair is tested with cor.test; Spearman and Kendall use the normal approximation (exact = FALSE), as with ties. A confidence interval is given for Pearson’s r (Fisher’s z).</div>
+      <div className="hint">{o.method === 'polychoric'
+        ? 'For ordinal (Likert) variables: the correlation of the continuous responses assumed to underlie the categories (lavaan’s lavCor, as CB-SEM with ordinal indicators). Variables with integer values and at most 8 categories are ordinal: polychoric between two of them (tetrachoric when both are binary), polyserial with a continuous variable, Pearson between continuous ones. Standard errors, z tests and Wald intervals; each ordinal pair is also tested for the bivariate normal model the polychoric correlation assumes.'
+        : 'Each pair is tested with cor.test; Spearman and Kendall use the normal approximation (exact = FALSE), as with ties. A confidence interval is given for Pearson’s r (Fisher’s z).'}</div>
     </fieldset>
   );
 }
 
 function CorrelationView({ r }: { r: CorrelationResult }) {
-  const sym = r.method === 'pearson' ? 'r' : r.method === 'spearman' ? 'ρ' : 'τ';
+  const sym = r.method === 'pearson' || r.method === 'polychoric' ? 'r' : r.method === 'spearman' ? 'ρ' : 'τ';
+  const poly = r.method === 'polychoric';
+  const withCi = r.method === 'pearson' || poly;
   const at = (a: string, b: string) => r.pairs.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
   const matrix: Row[] = r.vars.map((a, i) => [c(a), ...r.vars.map((b, j) => (j === i ? c('—') : j > i ? c(null) : (() => { const p = at(a, b)!; return { v: `${fmt(p.r)}${p.p < 0.001 ? '***' : p.p < 0.01 ? '**' : p.p < 0.05 ? '*' : ''}` }; })()))]);
   return (
     <div className="tables">
       <Engine e={r.engine} />
       <Table title={`${METHOD_NAME[r.method]} correlations`} file="correlation-matrix" columns={['', ...r.vars]} rows={matrix} note="* p < .05, ** p < .01, *** p < .001." />
-      <Table title="Every pair" file="correlation-pairs" columns={['Pair', sym, 'N', 'p', ...(r.method === 'pearson' ? [`${pct(r.confidence)} CI`] : [])]}
-        rows={r.pairs.map((p): Row => [c(`${p.a} – ${p.b}`), c(p.r), c(p.n, undefined, 0), pCell(p.p), ...(r.method === 'pearson' ? [c(ci(p.ciLow, p.ciHigh))] : [])])}
-        note={`${r.deletion === 'pairwise' ? 'Pairwise' : 'Listwise'} deletion of missing values${r.alternative !== 'two.sided' ? `; one-sided (${r.alternative})` : ''}.`} />
+      <Table title="Every pair" file="correlation-pairs" columns={['Pair', ...(poly ? ['Type'] : []), sym, ...(poly ? ['SE'] : []), 'N', 'p', ...(withCi ? [`${pct(r.confidence)} CI`] : [])]}
+        rows={r.pairs.map((p): Row => [c(`${p.a} – ${p.b}`), ...(poly ? [c(p.kind ?? '', 'dim')] : []), c(p.r), ...(poly ? [c(p.se ?? null)] : []), c(p.n, undefined, 0), pCell(p.p), ...(withCi ? [c(ci(p.ciLow, p.ciHigh))] : [])])}
+        note={`${r.deletion === 'pairwise' ? 'Pairwise' : 'Listwise'} deletion of missing values${r.alternative !== 'two.sided' ? `; one-sided (${r.alternative})` : ''}.${poly ? ` Ordinal (integer values, at most 8 categories): ${r.ordinal?.join(', ') || 'none'}; the others are treated as continuous. z tests and Wald intervals from lavaan’s standard errors.` : ''}`} />
+      {poly && !!r.normality?.length && (() => {
+        const bonferroni = 0.05 / r.normality.length;
+        const flag = (p: number) => (p < bonferroni ? 'bad' : p < 0.05 ? 'warn' : '');
+        return (
+          <Table title="Bivariate normality of the ordinal pairs" file="correlation-normality" columns={['Pair', 'Pearson X²', 'p', 'LR G²', 'p', 'df']}
+            rows={r.normality.map((t): Row => [c(`${t.a} – ${t.b}`), c(t.x2), c(t.x2p, flag(t.x2p), 3), c(t.g2), c(t.g2p, flag(t.g2p), 3), c(t.df, undefined, 0)])}
+            note={`A polychoric correlation assumes that the two variables’ categories cut a bivariate normal distribution. Each test compares the observed two-way table with the one that model implies (lavaan::lavTables). A rejection (amber below .05, red below the Bonferroni level for ${r.normality.length} pairs) means the correlation summarises the table less well: skewed, floor or ceiling answers, a non-linear relation, or a subgroup answering differently. In large samples the tests reject easily; compare the pairs with each other.`} />
+        );
+      })()}
     </div>
   );
 }
 
 export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationResult> = {
-  id: 'correlation', title: 'Correlation', sub: 'Pearson, Spearman, Kendall with tests and intervals', group: 'Basic statistics',
+  id: 'correlation', title: 'Correlation', sub: 'Pearson, Spearman, Kendall, polychoric with tests and intervals', group: 'Basic statistics',
   cardTitle: (o) => `${METHOD_NAME[o.method]} correlations`,
   defaults: () => ({ vars: [], method: 'pearson', alternative: 'two.sided', deletion: 'pairwise' }),
-  parseOptions: (raw) => (isObj(raw) ? { vars: names(raw.vars), method: oneOf(raw.method, ['pearson', 'spearman', 'kendall'] as const, 'pearson'), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), deletion: oneOf(raw.deletion, ['pairwise', 'listwise'] as const, 'pairwise') } : null),
+  parseOptions: (raw) => (isObj(raw) ? { vars: names(raw.vars), method: oneOf(raw.method, ['pearson', 'spearman', 'kendall', 'polychoric'] as const, 'pearson'), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), deletion: oneOf(raw.deletion, ['pairwise', 'listwise'] as const, 'pairwise') } : null),
   Options: CorrelationForm,
   View: ({ result }) => <CorrelationView r={result} />,
   blocked: (o, ctx) => (o.vars.length < 2 ? 'Choose at least two variables.' : missingColumns(ctx, o.vars, 'Correlation')),
