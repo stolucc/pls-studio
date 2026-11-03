@@ -978,34 +978,73 @@ ps_cb_modsem <- function(req, b, export) {
 
 #' Factor scores of the latent constructs (lavaan::lavPredict): regression
 #' (Thurstone; what AMOS's factor-score imputation gives) or Bartlett, with the
-#' data row of each score (rows dropped for missing values get none).
+#' data row of each score (rows dropped for missing values get none); with
+#' scoreSe, each score's standard error (lavPredict se = "standard": for
+#' regression scores the posterior SD, for Bartlett scores the SD of the error).
+#' scoreMethod "plausible": plausible values (semTools::plausibleValues; Mplus
+#' SAVEDATA FACTORS / PLAUSIBLE), draws from each case's distribution of the
+#' factors given its data and the estimates (Asparouhov & Muthen 2010), for
+#' secondary analyses that keep the scores' uncertainty.
 ps_cb_scores <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   method <- req$scoreMethod %||% "regression"
-  if (!method %in% c("regression", "Bartlett")) stop("Invalid factor score method in the request.")
+  if (!method %in% c("regression", "Bartlett", "plausible")) stop("Invalid factor score method in the request.")
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Factor scores need raw data; this dataset is a covariance matrix.")
   if (isTRUE(b$robust)) stop("Factor scores are not available with robust ML (rsem), which fits robust moments; use ML or MLR.")
   if (isTRUE(b$mi)) stop("Factor scores are not available with multiple imputation (they would differ per imputed data set); use FIML.")
   if (!is.null(b$modsem)) stop("Factor scores are not available for LMS / QML models; use product indicators.")
   if (!is.null(b$cluster_var)) stop("Factor scores are not available for two-level models.")
-  body <- c(b$body,
-    sprintf("# Factor scores (%s method) for the analysed cases; case.idx gives each case's row in data.", method),
-    sprintf("scores <- lavPredict(fit, method = \"%s\")", method),
+  common <- c(
     "idx <- lavInspect(fit, \"case.idx\")",
-    "if (!is.list(scores)) { scores <- list(scores); idx <- list(idx) }",
-    "rows <- unlist(lapply(idx, function(i) as.integer(rownames(data))[i]))",
+    "if (!is.list(idx)) idx <- list(idx)",
+    "rows <- unlist(lapply(idx, function(i) as.integer(rownames(data))[i]))")
+  if (method == "plausible") {
+    # (semTools draws them for complete data and continuous indicators only)
+    if (!is.null(PS_LAVAAN_MISSING[[req$missing %||% ""]])) stop("Plausible values need complete cases: choose casewise deletion or mean replacement (semTools does not draw them with FIML, pairwise or two-stage missing data).")
+    if (length(unlist(req$model$ordered))) stop("Plausible values are available for continuous indicators only (semTools); with ordinal indicators save the factor scores.")
+    draws <- as.integer(ps_number(req$plausibleDraws %||% 5, "number of plausible values"))
+    if (draws < 1 || draws > 100) stop("The number of plausible values must be between 1 and 100.")
+    seed <- as.integer(ps_number(req$seed %||% 1234, "seed"))
+    body <- c(b$body,
+      sprintf("# %d plausible values of each factor per case (semTools::plausibleValues): draws from the", draws),
+      "# distribution of the factors given the case's data and the estimates; case.idx gives each case's row in data.",
+      "suppressPackageStartupMessages(library(semTools))",
+      sprintf("pv <- plausibleValues(fit, nDraws = %d, seed = %d)", draws, seed),
+      "rows <- as.integer(rownames(data))[pv[[1]]$case.idx]",
+      "factors <- setdiff(names(pv[[1]]), c(\"case.idx\", lavInspect(fit, \"group\")))")
+    if (export) return(paste(ps_script(sprintf("Plausible values (semTools, %d draws)", draws), c("lavaan", "semTools"), b$inputs, body, "head(cbind(row = rows, pv[[1]][factors]))"), collapse = "\n"))
+    env <- ps_run(body, b$inputs)
+    b <- ps_esem_align(b, env$fit)
+    cons <- c(b$n$cname, b$int_names)
+    back <- setNames(cons, unname(b$lname[cons]))
+    f <- env$factors
+    return(ps_json(list(method = method, names = unname(back[f]), rows = env$rows,
+      draws = lapply(env$pv, function(d) lapply(f, function(k) unname(d[[k]]))),
+      warnings = env$.warnings, engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools"))))))
+  }
+  se <- isTRUE(req$scoreSe)
+  body <- c(b$body,
+    sprintf("# Factor scores (%s method) for the analysed cases%s; case.idx gives each case's row in data.", method, if (se) ", with their standard errors" else ""),
+    sprintf("scores <- lavPredict(fit, method = \"%s\"%s)", method, if (se) ", se = \"standard\"" else ""),
+    common,
+    if (se) c(
+      "# (one row of standard errors per group when every case has the same pattern of observed values)",
+      "se <- attr(scores, \"se\")",
+      "se <- do.call(rbind, lapply(seq_along(idx), function(g) { s <- se[[g]]; if (nrow(s) == 1) s[rep(1, length(idx[[g]])), , drop = FALSE] else s }))"),
+    "if (!is.list(scores) || is.data.frame(scores)) scores <- list(scores)",
     "scores <- do.call(rbind, scores)")
   inputs <- b$inputs
-  if (export) return(paste(ps_script(sprintf("Factor scores (lavaan, %s)", method), "lavaan", inputs, body, "head(cbind(row = rows, scores))"), collapse = "\n"))
+  if (export) return(paste(ps_script(sprintf("Factor scores (lavaan, %s)", method), "lavaan", inputs, body, if (se) "head(cbind(row = rows, scores, se = se))" else "head(cbind(row = rows, scores))"), collapse = "\n"))
   env <- ps_run(body, inputs)
   b <- ps_esem_align(b, env$fit)
   cons <- c(b$n$cname, b$int_names)
   back <- setNames(cons, unname(b$lname[cons]))
   sc <- env$scores
-  ps_json(list(method = method, names = unname(back[colnames(sc)]), rows = env$rows,
-    scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j])),
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+  ps_json(c(list(method = method, names = unname(back[colnames(sc)]), rows = env$rows,
+    scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j]))),
+    if (se) list(se = lapply(colnames(sc), function(k) unname(env$se[, k]))),
+    list(warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan"))))))
 }
 
 #' ESEM blocks: lavaan orders a block's rotated factors by its own rule (order.lv.by), and a bifactor

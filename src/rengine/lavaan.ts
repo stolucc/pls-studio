@@ -163,13 +163,30 @@ export function invarianceScriptR(data: Dataset, spec: ModelSpec, missing: Missi
   return rScript('ps_invariance', cbRequest(data, spec, missing, estimator), 'lavaan');
 }
 
-export interface FactorScores { method: 'regression' | 'Bartlett'; names: string[]; rows: number[]; scores: number[][]; warnings: string[]; engine: REngineInfo }
+/**
+ * Factor scores, index-aligned with `names` and `rows`: `scores` (regression, Bartlett), with `se` when asked;
+ * `draws` for plausible values (draw → factor → case).
+ */
+export interface FactorScores {
+  method: 'regression' | 'Bartlett' | 'plausible'; names: string[]; rows: number[]; scores: number[][];
+  se?: number[][]; draws?: number[][][]; warnings: string[]; engine: REngineInfo;
+}
 
-/** Factor scores of the latent constructs (lavPredict), with the 1-based data row of each. */
-export async function cbScoresR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, method: FactorScores['method']): Promise<FactorScores> {
-  const raw = await rCall<Record<string, any>>('ps_cb_scores', { ...cbRequest(data, spec, missing, estimator), scoreMethod: method }, 'lavaan');
+/**
+ * Factor scores of the latent constructs (lavPredict), with the 1-based data row of each; `se`: their standard
+ * errors too. Plausible values (semTools::plausibleValues): `draws` per case, from `seed`.
+ */
+export async function cbScoresR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, method: FactorScores['method'],
+  opts: { se?: boolean; draws?: number; seed?: number } = {}): Promise<FactorScores> {
+  const raw = await rCall<Record<string, any>>('ps_cb_scores', { ...cbRequest(data, spec, missing, estimator), scoreMethod: method,
+    ...(opts.se ? { scoreSe: true } : {}), ...(method === 'plausible' ? { plausibleDraws: opts.draws ?? 5, seed: opts.seed ?? 1234 } : {}) }, 'lavaan');
   const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-  return { method: raw.method, names: rStrings(raw.names), rows: arr<number>(raw.rows), scores: arr<unknown>(raw.scores).map((c) => arr<number>(c)), warnings: rStrings(raw.warnings), engine: raw.engine };
+  const cols = (v: unknown) => arr<unknown>(v).map((c) => arr<number>(c));
+  return {
+    method: raw.method, names: rStrings(raw.names), rows: arr<number>(raw.rows), scores: cols(raw.scores),
+    ...(raw.se ? { se: cols(raw.se) } : {}), ...(raw.draws ? { draws: arr<unknown>(raw.draws).map(cols) } : {}),
+    warnings: rStrings(raw.warnings), engine: raw.engine,
+  };
 }
 
 /**
