@@ -372,3 +372,44 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | RSA example data (motcon) | public/examples/rsa, validation fixtures | GPL (>= 2), from the RSA package | Distributed with RSA (Schönbrodt & Humberg); shipped with the app because RSA cannot run in the browser. |
 | Mplus User’s Guide example data (examples 3.1–6.10) | public/examples/mplus, validation fixtures | Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated) | Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples; shipped with the app, each example links to its page. |
 | REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV) | public/examples/rendo, validation fixtures | GPL-3, from the REndo package | Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser. |
+
+## Published sources
+
+The examples use numbers from these publications: matrices typed from the publication or its companion files as data, and printed estimates and fit statistics as the references the validation compares with. Only numbers are used; no text, tables or figures are reproduced.
+
+| Source | Used for | Link |
+|---|---|---|
+| Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. | The example data (see Datasets) and the printed output of each example, as validation references. | https://www.statmodel.com/ugexcerpts.shtml |
+| Kline, R. B. (2023). Principles and Practice of Structural Equation Modeling (5th ed.). New York: Guilford Press. | Correlation matrices, standard deviations and means of the detailed examples (companion files) and the chi-squares of their output. | https://www.guilford.com/add/kline |
+| Brown, T. A. (2015). Confirmatory Factor Analysis for Applied Research (2nd ed.). New York: Guilford Press. | Correlations and standard deviations of the examples (companion site) and printed results. | https://sites.bu.edu/tabrown/cfabook/ |
+| Bollen, K. A. (1989). Structural Equations with Latent Variables. New York: Wiley. | Covariance and correlation matrices of the worked examples and printed estimates. |  |
+| Bollen, K. A. & Curran, P. J. (2004). Autoregressive latent trajectory (ALT) models: a synthesis of two traditions. Sociological Methods & Research, 32(3), 336–383. | The artificial covariance matrix of the illustration. | https://doi.org/10.1177/0049124103260222 |
+| Hayduk, L. A. (1987). Structural Equation Modeling with LISREL: Essentials and Advances. Baltimore: Johns Hopkins University Press. | Covariance matrices, means and reliabilities of the smoking examples, and printed results. |  |
+| Bentler, P. M. (2006). EQS 6 Structural Equations Program Manual. Encino, CA: Multivariate Software. | Data printed in the manual’s input files and the chi-squares it prints. |  |
+| Jöreskog, K. G. & Sörbom, D. LISREL user’s guides (Scientific Software International): Kerckhoff (1974) and Hodge & Treiman (1968) correlation matrices. | Data of the Kerckhoff and MIMIC examples. |  |
+| Schumacker, R. E. & Lomax, R. G. (2004). A Beginner’s Guide to Structural Equation Modeling (2nd ed.). Mahwah, NJ: Erlbaum. | Printed results of the MIMIC example. |  |
+| SAS Institute Inc. SAS/STAT User’s Guide: The CALIS Procedure. Thurstone & Thurstone (1941) mental tests. | Correlation matrix and printed results of the second-order example. |  |
+| Wheaton, B., Muthén, B., Alwin, D. F. & Summers, G. F. (1977). Assessing reliability and stability in panel models. Sociological Methodology, 8, 84–136. | Covariance matrix (as in lavaan’s ?getCov). |  |
+| Duncan, O. D., Haller, A. O. & Portes, A. (1968). Peer influences on aspirations: a reinterpretation. American Journal of Sociology, 74(2), 119–137. | Correlation matrix (as in the sem package’s documentation). |  |
+| Hair, J. F., Hult, G. T. M., Ringle, C. M., Sarstedt, M., Danks, N. P. & Ray, S. (2021). Partial Least Squares Structural Equation Modeling (PLS-SEM) Using R. Cham: Springer (open access). | Printed results of the corporate reputation models, as validation references. | https://doi.org/10.1007/978-3-030-80519-7 |
+| Monecke, A. & Leisch, F. (2012). semPLS: structural equation modeling using partial least squares. Journal of Statistical Software, 48(3). | Printed path coefficients and loadings of the ECSI model, as validation references. | https://doi.org/10.18637/jss.v048.i03 |
+| Hayes, A. F. (2022). Introduction to Mediation, Moderation, and Conditional Process Analysis (3rd ed.). New York: Guilford Press. | The numbering of the PROCESS models; PROCESS for R as a validation reference. | https://www.processmacro.org |
+
+## Trademarks
+
+Product and company names are used only to identify the software whose methods, defaults, file formats or published results PLS Studio follows, reads or compares with. They are trademarks or registered trademarks of their owners. PLS Studio is independent software: it is not affiliated with, endorsed by or sponsored by any of them, and it does not include or reproduce their software.
+
+| Name | Owner |
+|---|---|
+| Mplus | Muthén & Muthén |
+| SmartPLS | SmartPLS GmbH |
+| IBM SPSS Statistics, IBM SPSS Amos | International Business Machines Corporation |
+| Stata | StataCorp LLC |
+| SAS, SAS/STAT | SAS Institute Inc. |
+| LISREL | Scientific Software International, Inc. |
+| EQS | Multivariate Software, Inc. |
+| ADANCO | Composite Modeling GmbH & Co. KG |
+| JASP | the JASP team, University of Amsterdam |
+| PROCESS | Andrew F. Hayes (the PROCESS macro) |
+| Microsoft Excel, Microsoft Word | Microsoft Corporation |
+| Google | Google LLC |

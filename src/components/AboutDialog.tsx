@@ -65,6 +65,16 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
         <ul className="hint about-list">
           {thirdParty.datasets.map((d) => <li key={d.name}><b>{d.name}</b> ({d.license}). {d.credit} {d.url && link(d.url, '↗')}</li>)}
         </ul>
+        <h4>Published sources</h4>
+        <p className="hint">The examples use numbers from these publications: matrices typed from the publication or its companion files as data, and printed estimates and fit statistics as the references the validation compares with. Only numbers are used; no text, tables or figures are reproduced.</p>
+        <ul className="hint about-list">
+          {thirdParty.publishedSources.map((p) => <li key={p.credit}>{p.credit} <i>{p.use}</i> {p.url && link(p.url, '↗')}</li>)}
+        </ul>
+        <h4>Trademarks</h4>
+        <p className="hint">{thirdParty.trademarkNotice}</p>
+        <ul className="hint about-list">
+          {thirdParty.trademarks.map((t) => <li key={t.name}><b>{t.name}</b>: {t.owner}</li>)}
+        </ul>
       </div>
     </div>
   );

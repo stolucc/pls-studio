@@ -1,5 +1,6 @@
 // Third-party notices: npm dependencies (app and server), webR and the R
-// packages (from scripts/webr/webr-lock.json), fonts and datasets. Writes
+// packages (from scripts/webr/webr-lock.json), fonts, datasets, the published
+// sources whose numbers the examples reproduce, and trademarks. Writes
 // THIRD_PARTY_NOTICES.md and src/generated/third-party.json (for the app's
 // About dialog). Run after changing dependencies: npm run notices
 
@@ -49,6 +50,43 @@ const data = {
     { name: 'Mplus User’s Guide example data (examples 3.1–6.10)', where: 'public/examples/mplus, validation fixtures', license: 'Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated)', credit: 'Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples; shipped with the app, each example links to its page.', url: 'https://www.statmodel.com/ugexcerpts.shtml' },
     { name: 'REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV)', where: 'public/examples/rendo, validation fixtures', license: 'GPL-3, from the REndo package', credit: 'Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser.', url: 'https://cran.r-project.org/package=REndo' },
   ],
+  // Publications whose printed numbers the examples use: their matrices (typed from the publication or its companion
+  // files) as data, and their printed estimates and fit as the references the validation compares with. Only numbers
+  // are used; no text, tables or figures are reproduced.
+  publishedSources: [
+    { credit: 'Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén.', use: 'The example data (see Datasets) and the printed output of each example, as validation references.', url: 'https://www.statmodel.com/ugexcerpts.shtml' },
+    { credit: 'Kline, R. B. (2023). Principles and Practice of Structural Equation Modeling (5th ed.). New York: Guilford Press.', use: 'Correlation matrices, standard deviations and means of the detailed examples (companion files) and the chi-squares of their output.', url: 'https://www.guilford.com/add/kline' },
+    { credit: 'Brown, T. A. (2015). Confirmatory Factor Analysis for Applied Research (2nd ed.). New York: Guilford Press.', use: 'Correlations and standard deviations of the examples (companion site) and printed results.', url: 'https://sites.bu.edu/tabrown/cfabook/' },
+    { credit: 'Bollen, K. A. (1989). Structural Equations with Latent Variables. New York: Wiley.', use: 'Covariance and correlation matrices of the worked examples and printed estimates.', url: '' },
+    { credit: 'Bollen, K. A. & Curran, P. J. (2004). Autoregressive latent trajectory (ALT) models: a synthesis of two traditions. Sociological Methods & Research, 32(3), 336–383.', use: 'The artificial covariance matrix of the illustration.', url: 'https://doi.org/10.1177/0049124103260222' },
+    { credit: 'Hayduk, L. A. (1987). Structural Equation Modeling with LISREL: Essentials and Advances. Baltimore: Johns Hopkins University Press.', use: 'Covariance matrices, means and reliabilities of the smoking examples, and printed results.', url: '' },
+    { credit: 'Bentler, P. M. (2006). EQS 6 Structural Equations Program Manual. Encino, CA: Multivariate Software.', use: 'Data printed in the manual’s input files and the chi-squares it prints.', url: '' },
+    { credit: 'Jöreskog, K. G. & Sörbom, D. LISREL user’s guides (Scientific Software International): Kerckhoff (1974) and Hodge & Treiman (1968) correlation matrices.', use: 'Data of the Kerckhoff and MIMIC examples.', url: '' },
+    { credit: 'Schumacker, R. E. & Lomax, R. G. (2004). A Beginner’s Guide to Structural Equation Modeling (2nd ed.). Mahwah, NJ: Erlbaum.', use: 'Printed results of the MIMIC example.', url: '' },
+    { credit: 'SAS Institute Inc. SAS/STAT User’s Guide: The CALIS Procedure. Thurstone & Thurstone (1941) mental tests.', use: 'Correlation matrix and printed results of the second-order example.', url: '' },
+    { credit: 'Wheaton, B., Muthén, B., Alwin, D. F. & Summers, G. F. (1977). Assessing reliability and stability in panel models. Sociological Methodology, 8, 84–136.', use: 'Covariance matrix (as in lavaan’s ?getCov).', url: '' },
+    { credit: 'Duncan, O. D., Haller, A. O. & Portes, A. (1968). Peer influences on aspirations: a reinterpretation. American Journal of Sociology, 74(2), 119–137.', use: 'Correlation matrix (as in the sem package’s documentation).', url: '' },
+    { credit: 'Hair, J. F., Hult, G. T. M., Ringle, C. M., Sarstedt, M., Danks, N. P. & Ray, S. (2021). Partial Least Squares Structural Equation Modeling (PLS-SEM) Using R. Cham: Springer (open access).', use: 'Printed results of the corporate reputation models, as validation references.', url: 'https://doi.org/10.1007/978-3-030-80519-7' },
+    { credit: 'Monecke, A. & Leisch, F. (2012). semPLS: structural equation modeling using partial least squares. Journal of Statistical Software, 48(3).', use: 'Printed path coefficients and loadings of the ECSI model, as validation references.', url: 'https://doi.org/10.18637/jss.v048.i03' },
+    { credit: 'Hayes, A. F. (2022). Introduction to Mediation, Moderation, and Conditional Process Analysis (3rd ed.). New York: Guilford Press.', use: 'The numbering of the PROCESS models; PROCESS for R as a validation reference.', url: 'https://www.processmacro.org' },
+  ],
+  // Products named in the app or its documentation, to say whose methods, defaults or results PLS Studio follows or
+  // compares with. None is affiliated with PLS Studio.
+  trademarks: [
+    { name: 'Mplus', owner: 'Muthén & Muthén' },
+    { name: 'SmartPLS', owner: 'SmartPLS GmbH' },
+    { name: 'IBM SPSS Statistics, IBM SPSS Amos', owner: 'International Business Machines Corporation' },
+    { name: 'Stata', owner: 'StataCorp LLC' },
+    { name: 'SAS, SAS/STAT', owner: 'SAS Institute Inc.' },
+    { name: 'LISREL', owner: 'Scientific Software International, Inc.' },
+    { name: 'EQS', owner: 'Multivariate Software, Inc.' },
+    { name: 'ADANCO', owner: 'Composite Modeling GmbH & Co. KG' },
+    { name: 'JASP', owner: 'the JASP team, University of Amsterdam' },
+    { name: 'PROCESS', owner: 'Andrew F. Hayes (the PROCESS macro)' },
+    { name: 'Microsoft Excel, Microsoft Word', owner: 'Microsoft Corporation' },
+    { name: 'Google', owner: 'Google LLC' },
+  ],
+  trademarkNotice: 'Product and company names are used only to identify the software whose methods, defaults, file formats or published results PLS Studio follows, reads or compares with. They are trademarks or registered trademarks of their owners. PLS Studio is independent software: it is not affiliated with, endorsed by or sponsored by any of them, and it does not include or reproduce their software.',
 };
 writeFileSync(join(ROOT, 'src', 'generated', 'third-party.json'), JSON.stringify(data, null, 1) + '\n');
 
@@ -82,6 +120,18 @@ writeFileSync(join(ROOT, 'THIRD_PARTY_NOTICES.md'), [
   '## Datasets',
   '',
   table(data.datasets, [['Data', (r) => r.name], ['Where', (r) => r.where], ['Licence', (r) => r.license], ['Credit', (r) => r.credit]]),
+  '',
+  '## Published sources',
+  '',
+  'The examples use numbers from these publications: matrices typed from the publication or its companion files as data, and printed estimates and fit statistics as the references the validation compares with. Only numbers are used; no text, tables or figures are reproduced.',
+  '',
+  table(data.publishedSources, [['Source', (r) => r.credit], ['Used for', (r) => r.use], ['Link', (r) => r.url]]),
+  '',
+  '## Trademarks',
+  '',
+  data.trademarkNotice,
+  '',
+  table(data.trademarks, [['Name', (r) => r.name], ['Owner', (r) => r.owner]]),
   '',
 ].join('\n'));
 console.log(`Notices: ${data.npm.length} app + ${data.server.length} server npm packages, ${data.rPackages.length} R packages.`);
