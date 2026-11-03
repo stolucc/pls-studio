@@ -596,6 +596,9 @@ ps_cb <- function(req_json, export = FALSE) {
     else if (levels2) c("Within", "Between") else glab
   between_block <- function(g) levels2 && !is.null(g) && g %% 2 == 0
   group_of <- function(g) if (levels2) (g + 1) %/% 2 else g
+  # Mplus TECH4: the model-implied means, covariances and correlations of the latent variables, per block.
+  # (Not with multiple imputation, whose estimates are pooled; robust ML (rsem) has no lavaan covariance matrix.)
+  tech4 <- if (isTRUE(b$mi)) NULL else ps_try(ps_tech4(fit, se = !isTRUE(b$robust)), "The model-implied latent means and covariances (TECH4)")
   map_group <- function(g) {
     pt <- lavaan::parTable(fit)
     pe <- lavaan::parameterEstimates(fit, standardized = TRUE, remove.nonfree = FALSE)
@@ -781,6 +784,7 @@ ps_cb <- function(req_json, export = FALSE) {
       r2Indicators = unname(r2_ind), r2Constructs = r2_con, stdLoadings = std_load,
       stdPaths = stdB, hasPath = has, stdTotal = total, stdIndirect = total - stdB,
       lvCor = unname(lvcor), reliability = rel, residualCor = unname(res), bifactor = Filter(Negate(is.null), bifactor),
+      tech4 = if (!is.null(tech4)) { t4 <- tech4[[g %||% 1]]; t4$names <- nm(t4$names); t4 },
       htmt = htmt(FALSE), htmt2 = htmt(TRUE), vcov = if (is.null(vc)) NULL else unname(vc),
       moderations = lapply(seq_along(mods), function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)),
       wald = lapply(seq_along(env$wald), function(i) list(name = req$model$waldTests[[i]]$name, stat = unname(env$wald[[i]]$stat),
@@ -1045,6 +1049,48 @@ ps_cb_scores <- function(req_json, export = FALSE) {
     scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j]))),
     if (se) list(se = lapply(colnames(sc), function(k) unname(env$se[, k]))),
     list(warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan"))))))
+}
+
+#' Mplus TECH4: the model-implied means (with a mean structure), covariances and correlations of the
+#' latent variables in each block (group or level), endogenous ones included (their total variance, not
+#' the disturbance), with delta-method standard errors: the numerical Jacobian of the moments in the
+#' free parameters (lavaan's own functions for the implied moments) and lavaan's covariance matrix of
+#' the estimates, as lavaan computes the standard errors of defined (:=) parameters.
+ps_tech4 <- function(fit, se = TRUE) {
+  ns <- asNamespace("lavaan")
+  M <- fit@Model
+  means <- isTRUE(M@meanstructure)
+  lv <- lavaan::lavInspect(fit, "cov.lv"); if (!is.list(lv)) lv <- list(lv)
+  names_b <- lapply(lv, rownames)
+  if (!sum(lengths(names_b))) return(NULL)
+  low <- function(m) m[lower.tri(m, diag = TRUE)]
+  moments <- function(x) {
+    M2 <- ns$lav_model_set_parameters(M, x)
+    V <- ns$lav_model_veta(M2, remove_dummy_lv = TRUE)
+    E <- if (means) ns$lav_model_eeta(M2, NULL, fit@SampleStats, remove_dummy_lv = TRUE) else NULL
+    unlist(lapply(seq_along(V), function(b) { v <- V[[b]]; r <- stats::cov2cor(v)
+      c(if (means) as.numeric(E[[b]]), low(v), low(r)) }))
+  }
+  x <- ns$lav_model_get_parameters(M, type = "free")
+  est <- moments(x)
+  k <- lengths(names_b)
+  if (length(est) != sum((if (means) k else 0) + k * (k + 1))) stop("the latent variables could not be matched to lavaan's")
+  ses <- if (se) {
+    V <- lavaan::lavInspect(fit, "vcov")
+    J <- numDeriv::jacobian(moments, x)
+    sqrt(pmax(diag(J %*% V %*% t(J)), 0))
+  } else NULL
+  # (moments held fixed, such as a reference group's latent means or a correlation's diagonal, get no standard error)
+  if (!is.null(ses)) ses[ses < 1e-10] <- NA
+  at <- 0
+  take <- function(n) { i <- at + seq_len(n); at <<- at + n; list(est = est[i], se = if (is.null(ses)) NULL else ses[i]) }
+  full <- function(v, kb) { if (is.null(v)) return(NULL); m <- matrix(NA_real_, kb, kb); m[lower.tri(m, diag = TRUE)] <- v; m[upper.tri(m)] <- t(m)[upper.tri(m)]; m }
+  lapply(seq_along(names_b), function(b) {
+    kb <- k[b]
+    mu <- if (means) take(kb) else NULL
+    cv <- take(kb * (kb + 1) / 2); cr <- take(kb * (kb + 1) / 2)
+    list(names = names_b[[b]], mean = mu$est, meanSe = mu$se, cov = full(cv$est, kb), covSe = full(cv$se, kb), cor = full(cr$est, kb), corSe = full(cr$se, kb))
+  })
 }
 
 #' ESEM blocks: lavaan orders a block's rotated factors by its own rule (order.lv.by), and a bifactor

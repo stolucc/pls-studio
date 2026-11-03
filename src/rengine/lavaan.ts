@@ -57,6 +57,18 @@ export interface REngineInfo { package: string; version: string }
 export type CbResultR = CbResult & { engine: REngineInfo };
 
 /** Shape ps_cb()'s JSON into a CbResult (null → NaN for numbers, null kept where the type allows). */
+/** TECH4 from R: length-one vectors arrive unboxed, standard errors held fixed as null. */
+function parseTech4(t: Record<string, any>): NonNullable<CbResultR['tech4']> {
+  const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
+  const orNull = (v: unknown) => (typeof v === 'number' ? v : null);
+  const sq = (v: unknown) => list(v).map((r) => list(r));
+  return {
+    names: rStrings(t.names), cov: sq(t.cov).map((r) => r.map(num)), cor: sq(t.cor).map((r) => r.map(num)),
+    ...(t.mean != null ? { mean: list(t.mean).map(num) } : {}), ...(t.meanSe != null ? { meanSe: list(t.meanSe).map(orNull) } : {}),
+    ...(t.covSe != null ? { covSe: sq(t.covSe).map((r) => r.map(orNull)) } : {}), ...(t.corSe != null ? { corSe: sq(t.corSe).map((r) => r.map(orNull)) } : {}),
+  };
+}
+
 export function parseCbOutput(raw: Record<string, any>): CbResultR {
   const fit: Partial<CbFit> = {};
   for (const [name, key] of Object.entries(LAVAAN_FIT)) {
@@ -82,6 +94,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
     lvCor: mat(raw.lvCor),
     reliability: (raw.reliability as any[]).map((r) => ({ cr: num(r.cr), ave: num(r.ave), ...(typeof r.omega === 'number' ? { omega: r.omega } : {}), ...(typeof r.alpha === 'number' ? { alpha: r.alpha } : {}) })),
     residualCor: mat(raw.residualCor),
+    ...(raw.tech4 && typeof raw.tech4 === 'object' ? { tech4: parseTech4(raw.tech4) } : {}),
     ...(Array.isArray(raw.bifactor) && raw.bifactor.length ? { bifactor: (raw.bifactor as any[]).map((x) => ({
       general: String(x.general), items: num(x.items), ecv: num(x.ecv), omega: num(x.omega), omegaH: num(x.omegaH),
       specific: (Array.isArray(x.specific) ? x.specific : x.specific ? [x.specific] : []).map((s: any) => ({ factor: String(s.factor), omega: num(s.omega), omegaHS: num(s.omegaHS), items: num(s.items) })),

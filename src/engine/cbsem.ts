@@ -122,6 +122,11 @@ export interface CbResult {
   lvCor: number[][];
   /** cr, ave from the standardised loadings; omega, alpha: semTools::compRelSEM (R engine only). */
   reliability: { cr: number; ave: number; omega?: number; alpha?: number }[];
+  /**
+   * Mplus TECH4 (R engine): the model-implied means (with a mean structure), covariances and correlations of the
+   * latent variables, endogenous ones with their total variance, and delta-method standard errors (null: held fixed).
+   */
+  tech4?: { names: string[]; mean?: number[]; meanSe?: (number | null)[]; cov: number[][]; covSe?: (number | null)[][]; cor: number[][]; corSe?: (number | null)[][] };
   /** ESEM blocks with a bifactor rotation (R engine): ECV, ω and ωH of the block, ω and ωHS of each specific factor's own indicators. */
   bifactor?: BifactorIndices[];
   /** Standardised residual correlations (observed − implied). */

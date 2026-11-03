@@ -3,6 +3,7 @@ import type { BootstrapResult } from '../../engine/types';
 import { fmt, fmtP, stars } from '../../format';
 import { useState } from 'react';
 import { johnsonNeyman } from '../../engine/jn';
+import { normalP } from '../../engine/stats';
 import { mcIndirect, type McIndirect } from '../../engine/mcci';
 import { JohnsonNeymanPlot } from '../JohnsonNeymanPlot';
 import { BootstrapTab } from './PlsTabs';
@@ -183,12 +184,32 @@ function Variances({ cb }: { cb: CbResult }) {
           rows={cb.estimates.filter((e) => e.kind === 'mean' || e.kind === 'intercept').map((e) => estRow(e, e.kind === 'mean' ? `${e.lhs} (latent mean)` : e.lhs))}
           note="With the constant on the canvas every indicator intercept is estimated (lavaan’s mean structure); an arrow from the constant is a latent mean, identified by fixing its marker indicator’s intercept at 0 (shown without a standard error), or an observed variable’s intercept. Under scalar invariance across groups the latent means of the first group are fixed to 0; in the other groups they are the differences from it, in the factors’ units." />
       )}
+      {cb.tech4 && <Tech4 t={cb.tech4} />}
       {cb.estimates.some((e) => e.kind === 'threshold') && (
         <Table title="Thresholds of the ordinal indicators" file="cb-thresholds" columns={['Indicator', 'Threshold', ...estCols(cb)]}
           rows={cb.estimates.filter((e) => e.kind === 'threshold').map((e) => [c(e.lhs), c(e.rhs, 'dim'), ...estRow(e, '').slice(1)])}
           note="Each threshold is the point on the underlying continuous (latent response) variable, in standard-normal units, above which the next category is observed. An item with k categories has k − 1 thresholds." />
       )}
     </div>
+  );
+}
+
+/** Mplus TECH4: the model-implied moments of the latent variables (endogenous ones in total, not their disturbances). */
+function Tech4({ t }: { t: NonNullable<CbResult['tech4']> }) {
+  const zp = (est: number, se: number | null | undefined) => (se ? pCell(normalP(est / se)) : c(null));
+  const pairs: [number, number][] = t.names.flatMap((_, i) => t.names.slice(0, i + 1).map((__, j): [number, number] => [i, j]));
+  return (
+    <>
+      {t.mean && (
+        <Table title="Implied latent means (TECH4)" file="cb-tech4-means" columns={['Latent variable', 'Mean', 'SE', 'p']}
+          rows={t.names.map((n, i) => [c(n), c(t.mean![i]), c(t.meanSe?.[i] ?? null), zp(t.mean![i], t.meanSe?.[i])])}
+          note="The latent variables’ means implied by the model: for an endogenous factor its intercept plus the paths times its predictors’ means. Delta-method standard errors (as lavaan’s for defined parameters); none where the mean is held fixed, as a reference group’s." />
+      )}
+      <Table title="Implied latent variances, covariances and correlations (TECH4)" file="cb-tech4-cov" columns={['Latent variables', 'Covariance', 'SE', 'p', 'Correlation', 'SE']}
+        rows={pairs.map(([i, j]) => [c(i === j ? t.names[i] : `${t.names[j]} ↔ ${t.names[i]}`), c(t.cov[i][j]), c(t.covSe?.[i][j] ?? null), zp(t.cov[i][j], t.covSe?.[i][j]),
+          c(i === j ? null : t.cor[i][j]), c(i === j ? null : t.corSe?.[i][j] ?? null)])}
+        note="As Mplus’s TECH4: the variances and covariances of the latent variables implied by the model. For an endogenous factor this is its total variance (explained plus disturbance), unlike the disturbance variances in the table above. Delta-method standard errors: the numerical Jacobian of these moments in the free parameters with lavaan’s covariance matrix of the estimates; p tests the covariance against 0." />
+    </>
   );
 }
 

@@ -16,3 +16,15 @@ describe('reliability tab, bifactor ESEM', () => {
     for (const v of ['0.659', '0.933', '0.789', '0.064', '0.427']) expect(out).toContain(v);
   });
 });
+
+describe('variances tab, TECH4', () => {
+  it('lists the implied means and every pair of latent variables, without SEs where held fixed', () => {
+    const vt = (cb: Partial<CbResult>) => renderToStaticMarkup(<CbTab tab="variances" cb={{ estimates: [], ...cb } as CbResult} boot={null} />);
+    expect(vt({})).not.toContain('TECH4');
+    const out = vt({ tech4: { names: ['visual', 'speed'], mean: [0, -0.177], meanSe: [null, 0.0901],
+      cov: [[0.8, 0.33], [0.33, 0.505]], covSe: [[0.14, 0.082], [0.082, 0.115]], cor: [[1, 0.55], [0.55, 1]], corSe: [[null, 0.094], [0.094, null]] } });
+    expect(out).toContain('Implied latent means (TECH4)');
+    expect(out).toContain('visual ↔ speed');
+    for (const v of ['0.505', '0.550', '0.094', '0.090']) expect(out).toContain(v);
+  });
+});
