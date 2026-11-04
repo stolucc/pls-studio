@@ -207,8 +207,14 @@ func TestInstallBinary(t *testing.T) {
 	}
 	got, _ := os.ReadFile(exe)
 	st, _ := os.Stat(exe)
-	if string(got) != "new" || st.Mode().Perm()&0o100 == 0 {
+	// (Windows has no executable bit; there the old binary is moved aside, removed on the next start)
+	if string(got) != "new" || (runtime.GOOS != "windows" && st.Mode().Perm()&0o100 == 0) {
 		t.Errorf("replaced: %q, mode %v", got, st.Mode())
+	}
+	if runtime.GOOS == "windows" {
+		if old, err := os.ReadFile(exe + ".old"); err != nil || string(old) != "old" {
+			t.Errorf("the old binary moved aside: %q %v", old, err)
+		}
 	}
 	left, _ := filepath.Glob(filepath.Join(filepath.Dir(exe), ".pls-studio-helper-update-*"))
 	if len(left) != 0 {
