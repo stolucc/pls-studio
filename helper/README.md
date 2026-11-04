@@ -57,6 +57,25 @@ A PLS Studio deployment on its own address must be trusted first:
 ./pls-studio-helper allow-origin https://pls.example.edu
 ```
 
+## Updating
+
+From version 0.1.9 the helper updates itself, when asked: the menu-bar /
+tray icon → **Check for updates…**, `pls-studio-helper update` (or
+`update --check` to only report), or in PLS Studio the **Update helper**
+button shown when the helper is older than the site. It downloads the latest
+release from this repository's GitHub releases, installs it only if the
+release's `SHA256SUMS` carries a valid Ed25519 signature by the release key
+built into the helper (`updatekey.go`) and the binary matches it, replaces
+itself (on macOS inside the app, which is re-signed ad hoc) and restarts.
+Nothing is updated automatically, and a page cannot choose what is installed.
+Then install any new R packages (**Install R packages…** or
+`pls-studio-helper setup`). Versions before 0.1.9 are updated by installing
+the new release by hand once.
+
+Releases are signed by the release workflow with the repository secret
+`HELPER_SIGNING_KEY` (`go run ./cmd/sign-release keygen <file>` makes a key
+pair; the workflow refuses to publish without the secret).
+
 ## 3 · What runs where
 
 - Every calculation (estimation, bootstrap, the R script export, …) goes to

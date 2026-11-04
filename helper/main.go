@@ -77,12 +77,15 @@ func main() {
 		case "help", "-h", "--help":
 			printHelp()
 			return
+		case "update":
+			os.Exit(runUpdate(os.Args[2:]))
 		case "version":
 			fmt.Printf("pls-studio-helper %s\nbuild sha:  %s\nbuild time: %s\nR bridge:   %s\n", helperVersion, helperBuildSHA, orUnknown(helperBuildTime), bridgeHash()[:12])
 			return
 		}
 	}
 
+	cleanupAfterUpdate()
 	portFlag := flag.Int("port", 0, "override the configured port")
 	noTrayFlag := flag.Bool("no-tray", false, "run headless even on platforms that default to the tray UI")
 	allowFirstFlag := flag.Bool("allow-first-connection", false, "without a tray: approve the first browser that connects (instead of a pairing code)")
@@ -112,13 +115,15 @@ func main() {
 	}
 	srv := newServer(cfg, logger, pool)
 	tray := !*noTrayFlag && trayDefault()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	// After an update (POST /update, the tray): shut down as on Quit, then start the new binary (below).
+	srv.restart = func(path string) { requestRestart(path); cancel() }
 	if tray {
 		srv.connect.ask = askConnect // native Allow / Deny dialog
 	}
 	srv.connect.allowFirst = *allowFirstFlag
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -151,6 +156,13 @@ func main() {
 		serve()
 	}
 	logger.Print("shutdown complete")
+	if path := pendingRestart(); path != "" {
+		pool.close()
+		logger.Printf("restarting into the updated helper")
+		if err := restartInto(path); err != nil {
+			logger.Printf("restart failed (%v): start the helper again", err)
+		}
+	}
 }
 
 // trayDefault: the tray UI is the default on macOS and Windows; Linux runs headless.
@@ -175,6 +187,7 @@ Usage:
   pls-studio-helper allow-origin <url>    trust a PLS Studio deployment
   pls-studio-helper deny-origin <url>     remove an origin from the trust list
   pls-studio-helper info                  config path, port, trusted origins
+  pls-studio-helper update [--check]      install the latest release (verified; --check: only report)
   pls-studio-helper version               print version
   pls-studio-helper help                  this message
 

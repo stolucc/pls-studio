@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MAX_WORKERS, useCompute } from '../rengine/compute';
-import { browserPlatform, HELPER_RELEASES, helperAllowCommand, helperDownloads, useHelper } from '../rengine/helper';
+import { browserPlatform, HELPER_RELEASES, helperAllowCommand, helperDownloads, useHelper, type HelperUpdate } from '../rengine/helper';
 
 /** Choices of the parallel option: off, and up to the computer's cores (at most MAX_WORKERS). */
 export function workerChoices(cores: number): number[] {
@@ -43,6 +43,25 @@ function HelperStatus() {
       setError((e as Error).message);
       if (/no tray/.test((e as Error).message)) setUseCode(true);
     } finally { setBusy(false); }
+  };
+  // An outdated helper that can update itself (0.1.9 and later): offer it.
+  const [update, setUpdate] = useState<HelperUpdate | null>(null);
+  const [updating, setUpdating] = useState('');
+  useEffect(() => {
+    if (state !== 'mismatch') { setUpdate(null); return; }
+    let live = true;
+    void import('../rengine/helper').then((h) => h.checkHelperUpdate()).then((u) => { if (live) setUpdate(u); });
+    return () => { live = false; };
+  }, [state]);
+  const runUpdate = async () => {
+    setUpdating('Downloading and verifying the new helper…'); setError('');
+    try {
+      const to = await (await import('../rengine/helper')).updateHelper();
+      setUpdating(`Updated${to ? ` to ${to}` : ''}; checking again…`);
+      await check();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally { setUpdating(''); }
   };
   const missing = Object.entries(packages).filter(([, v]) => !v).map(([k]) => k);
   const allow = helperAllowCommand(typeof location !== 'undefined' ? location.origin : '');
@@ -90,10 +109,25 @@ function HelperStatus() {
       {state === 'mismatch' && (
         <>
           {message}
+          {update?.available && (
+            <div style={{ marginTop: 6 }}>
+              <button className="btn sm primary" disabled={!!updating} onClick={() => void runUpdate()}
+                title="The helper downloads its latest release from GitHub, checks the release’s signature and checksum, replaces itself and restarts">
+                {updating || `Update helper to ${update.latest}`}
+              </button>
+              {' '}The helper installs its latest release itself (signature and checksum verified) and restarts; calculations running in it stop.
+            </div>
+          )}
+          {error && <div className="issue error" role="alert" style={{ marginTop: 6 }}>{error}</div>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
             <HelperDownloadLinks />
             <button className="btn sm" onClick={() => void check()}>Check again</button>
           </div>
+          {update && !update.available && update.reason && (
+            <div style={{ marginTop: 6 }}>{update.latest && update.latest === update.current
+              ? `The helper is the latest release (${update.current}); this site’s R code is newer than any release so far.`
+              : `The helper cannot update itself: ${update.reason}.`}</div>
+          )}
           {!allow && <div style={{ marginTop: 6 }}>From a checkout: <code>make -C helper build</code> and restart the helper.</div>}
         </>
       )}

@@ -472,3 +472,42 @@ describe('helperAllowCommand', () => {
     expect(helperAllowCommand('')).toBeNull();
   });
 });
+
+describe('helper self-update', () => {
+  it('asks the paired helper whether it can update; older helpers without the route answer null', async () => {
+    store.set('pls-studio.helper.token', TOKEN);
+    const { checkHelperUpdate } = await import('./helper');
+    handler = (path, init) => {
+      expect(path).toBe('/update');
+      expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`);
+      return { body: { current: '0.1.9', latest: '0.2.0', available: true } };
+    };
+    expect(await checkHelperUpdate()).toEqual({ current: '0.1.9', latest: '0.2.0', available: true });
+    handler = () => ({ status: 404, raw: 'not found' });
+    expect(await checkHelperUpdate()).toBeNull();
+    handler = () => 'down';
+    expect(await checkHelperUpdate()).toBeNull();
+  });
+
+  it('starts the update, then waits for the restarted helper', async () => {
+    store.set('pls-studio.helper.token', TOKEN);
+    const { updateHelper } = await import('./helper');
+    let healthCalls = 0;
+    handler = (path, init) => {
+      if (path === '/update') { expect(init.method).toBe('POST'); return { body: { updated: true, from: '0.1.9', to: '0.2.0' } }; }
+      if (path === '/health') return ++healthCalls < 2 ? 'down' : { body: { ok: true } };  // restarting, then up
+      throw new Error(path);
+    };
+    expect(await updateHelper(20_000)).toBe('0.2.0');
+    expect(healthCalls).toBe(2);
+  }, 30_000);
+
+  it('reports why the helper did not update (its own message)', async () => {
+    store.set('pls-studio.helper.token', TOKEN);
+    const { updateHelper } = await import('./helper');
+    handler = () => ({ status: 502, body: { error: 'the release signature is not valid' } });
+    await expect(updateHelper(1000)).rejects.toThrow(/signature is not valid/);
+    handler = () => ({ status: 409, body: { current: '0.2.0', available: false, reason: 'this is the latest version' } });
+    await expect(updateHelper(1000)).rejects.toThrow(/latest version/);
+  });
+});

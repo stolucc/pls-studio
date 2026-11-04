@@ -29,6 +29,8 @@ type server struct {
 	// limiter caps the request rate (a parallel bootstrap sends one call
 	// per chunk, so the burst is generous); the R pool caps concurrency.
 	limiter *callLimiter
+	// restart shuts the helper down and starts the binary at path (set by main; nil in tests).
+	restart func(path string)
 }
 
 const callRateBurst = 200
@@ -45,6 +47,7 @@ func newServer(cfg *config, logger *log.Logger, pool *rPool) *server {
 	mux.HandleFunc("/pair", withAuth(cfg, false, s.handlePair))
 	mux.HandleFunc("/connect", withAuth(cfg, false, s.handleConnect))
 	mux.HandleFunc("/version", withAuth(cfg, true, s.handleVersion))
+	mux.HandleFunc("/update", withAuth(cfg, true, s.handleUpdate))
 	mux.HandleFunc("/packages", withAuth(cfg, true, s.handlePackages))
 	mux.HandleFunc("/call", withAuth(cfg, true, s.handleCall))
 	mux.HandleFunc("/batch", withAuth(cfg, true, s.handleBatch))
@@ -152,6 +155,46 @@ func (s *server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		resp["r_error"] = err.Error()
 	}
 	writeJSON(w, resp)
+}
+
+// /update — GET: is a newer release available (updateInfo)? POST: install it
+// (verified, update.go), answer, then restart into it. The paired page can
+// start an update, but only of this helper to the latest release of its own
+// repository: nothing in the request chooses what is installed.
+func (s *server) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		info, _, err := checkUpdate(r.Context())
+		if err != nil {
+			writeJSON(w, map[string]any{"current": helperVersion, "available": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, info)
+	case http.MethodPost:
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		info, path, err := performUpdate(ctx)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			writeJSON(w, map[string]any{"current": helperVersion, "error": err.Error()})
+			return
+		}
+		if !info.Available {
+			w.WriteHeader(http.StatusConflict)
+			writeJSON(w, info)
+			return
+		}
+		s.logger.Printf("updated from %s to %s; restarting", info.Current, info.Latest)
+		writeJSON(w, map[string]any{"updated": true, "from": info.Current, "to": info.Latest})
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		if s.restart != nil {
+			go func() { time.Sleep(300 * time.Millisecond); s.restart(path) }()
+		}
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // /packages — POST {"packages":[...]}: installed versions (null if missing).

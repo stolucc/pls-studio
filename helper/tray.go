@@ -51,6 +51,7 @@ func onTrayReady() {
 	systray.AddSeparator()
 	pairMI := systray.AddMenuItem("Generate pairing code…", "A 6-digit code for PLS Studio, valid for 60 s")
 	setupMI := systray.AddMenuItem("Install R packages…", "Install the R packages PLS Studio uses (from CRAN, into the helper's own library)")
+	updateMI := systray.AddMenuItem("Check for updates…", "Install the latest PLS Studio Helper (verified) and restart")
 	aboutMI := systray.AddMenuItem("About PLS Studio Helper", "Version and build")
 	systray.AddSeparator()
 	quitMI := systray.AddMenuItem("Quit", "Stop the helper and its R processes")
@@ -78,6 +79,8 @@ func onTrayReady() {
 			go handleGeneratePair()
 		case <-setupMI.ClickedCh:
 			go handleSetup(setupMI)
+		case <-updateMI.ClickedCh:
+			go handleUpdateMenu(updateMI)
 		case <-aboutMI.ClickedCh:
 			go showDialog(fmt.Sprintf("PLS Studio Helper\n\nVersion: %s\nBuild: %s\nBuilt: %s\nR bridge: %s", helperVersion, helperBuildSHA, orUnknown(helperBuildTime), bridgeHash()[:12]), "About PLS Studio Helper")
 		case <-quitMI.ClickedCh:
@@ -93,6 +96,63 @@ func onTrayExit() {
 	if tray.cancel != nil {
 		tray.cancel() // main's shutdown path closes the server and the R workers
 	}
+}
+
+// handleUpdateMenu: is a newer release available? If so, ask, install it
+// (verified, update.go) and restart into it.
+func handleUpdateMenu(mi *systray.MenuItem) {
+	mi.Disable()
+	defer mi.Enable()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	info, _, err := checkUpdate(ctx)
+	if err != nil {
+		showDialog("Could not check for updates: "+err.Error(), "PLS Studio Helper")
+		return
+	}
+	if !info.Available {
+		showDialog(fmt.Sprintf("PLS Studio Helper %s: %s.", info.Current, info.Reason), "PLS Studio Helper")
+		return
+	}
+	ok, err := askYesNo(fmt.Sprintf("PLS Studio Helper %s is available (this is %s).\n\nInstall it now? The helper restarts; calculations running now are stopped.", info.Latest, info.Current), "Not now", "Update")
+	if err != nil || !ok {
+		return
+	}
+	mi.SetTitle("Updating…")
+	info, path, err := performUpdate(ctx)
+	mi.SetTitle("Check for updates…")
+	if err != nil {
+		showDialog("The update failed: "+err.Error(), "PLS Studio Helper")
+		return
+	}
+	if !info.Available {
+		return
+	}
+	tray.logger.Printf("updated from %s to %s; restarting", info.Current, info.Latest)
+	if tray.server.restart != nil {
+		tray.server.restart(path)
+	}
+}
+
+// askYesNo asks a question with two buttons; true for the second (yes).
+func askYesNo(body, no, yes string) (bool, error) {
+	switch runtime.GOOS {
+	case "darwin":
+		esc := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
+		out, err := exec.Command("osascript", "-e", fmt.Sprintf(`display dialog "%s" with title "PLS Studio Helper" buttons {"%s", "%s"} default button "%s" cancel button "%s" with icon note`, esc.Replace(body), no, yes, yes, no)).Output()
+		if err != nil {
+			return false, nil // the cancel button exits with an error
+		}
+		return strings.Contains(string(out), "button returned:"+yes), nil
+	case "windows":
+		esc := strings.NewReplacer("'", "''", "\n", "`n")
+		out, err := exec.Command("powershell", "-NoProfile", "-Command", fmt.Sprintf(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('%s', 'PLS Studio Helper', 'YesNo', 'Question', 'Button1')`, esc.Replace(body))).Output()
+		if err != nil {
+			return false, err
+		}
+		return strings.TrimSpace(string(out)) == "Yes", nil
+	}
+	return false, errNoApprover
 }
 
 // handleSetup installs the R packages in the background and reports the result.

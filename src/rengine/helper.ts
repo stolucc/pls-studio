@@ -155,6 +155,43 @@ export async function connectHelper(): Promise<void> {
   await keepToken(r);
 }
 
+/** What the helper says about updating itself (GET /update; helpers before 0.1.9 have no such route). */
+export interface HelperUpdate { current: string; latest?: string; available: boolean; reason?: string; error?: string }
+
+/** Can the paired helper update itself to a newer release? null: this helper cannot say (too old, or not answering). */
+export async function checkHelperUpdate(): Promise<HelperUpdate | null> {
+  try {
+    const r = await helperFetch('/update', { headers: auth() }, 15000);
+    if (!r.ok) return null;
+    return await r.json() as HelperUpdate;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ask the paired helper to install its latest release (it verifies the release's signature and checksum itself and
+ * fetches only from its own repository) and restart; then wait for it to come back. Resolves with the version installed.
+ */
+export async function updateHelper(waitMs = 90_000): Promise<string> {
+  let r: Response;
+  try {
+    r = await helperFetch('/update', { method: 'POST', headers: auth() }, 10 * 60_000);
+  } catch {
+    throw new Error('The helper did not answer.');
+  }
+  const body = await r.json().catch(() => ({})) as { to?: string; error?: string; reason?: string };
+  if (!r.ok) throw new Error(body.error ?? body.reason ?? `The helper answered ${r.status}.`);
+  // It restarts: wait until it answers again.
+  const until = Date.now() + waitMs;
+  await new Promise((res) => setTimeout(res, 1500));
+  while (Date.now() < until) {
+    try { if ((await helperFetch('/health', {}, 1500)).ok) return body.to ?? ''; } catch { /* restarting */ }
+    await new Promise((res) => setTimeout(res, 1000));
+  }
+  throw new Error('The helper was updated but has not restarted: start it again.');
+}
+
 /** Pair with the code the helper shows; stores the token in this browser. */
 export async function pairHelper(code: string): Promise<void> {
   if (!/^\d{6}$/.test(code.trim())) throw new Error('The pairing code has 6 digits.');
