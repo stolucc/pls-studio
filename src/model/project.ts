@@ -1107,6 +1107,7 @@ export function validateModel(
   }
 
   const mg = model.multigroup;
+  if (!mg && [...(model.parameters ?? []), ...(model.correlations ?? [])].some((t) => t.byGroup?.length)) err('Some parameters have values per group, but there are no groups: set a grouping column (Groups), or give one value.');
   if (mg) {
     if (method.method !== 'cbsem') warn(`Multiple groups (${mg.column}) are analysed in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} pools the groups.`);
     else {
@@ -1127,6 +1128,9 @@ export function validateModel(
           if (counts.size < 2) err(`The grouping column “${mg.column}” has fewer than two groups.`);
           else if (counts.size > 20) err(`The grouping column “${mg.column}” has ${counts.size} distinct values; choose a column with a few groups (at most 20).`);
           else {
+            // Values per group (lavaan c(…)): one entry per group.
+            const perGroup = [...(model.parameters ?? []), ...(model.correlations ?? [])].filter((t) => t.byGroup?.length && t.byGroup.length !== counts.size);
+            if (perGroup.length) err(`Values per group need one entry for each of the ${counts.size} groups of “${mg.column}”; ${perGroup.length === 1 ? 'one parameter has' : `${perGroup.length} parameters have`} ${[...new Set(perGroup.map((t) => t.byGroup!.length))].join(' or ')}.`);
             const small = [...counts].filter(([, k]) => k < 30).map(([v]) => v);
             if (small.length) warn(`Group${small.length === 1 ? '' : 's'} ${small.join(', ')} of “${mg.column}” ${small.length === 1 ? 'has' : 'have'} fewer than 30 cases; estimates may be unstable.`);
           }

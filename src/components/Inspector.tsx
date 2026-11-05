@@ -610,6 +610,7 @@ function ModelInspector() {
   const where = useCompute((s) => s.backend) === 'helper' ? 'in desktop R (through the helper)' : 'in your browser (webR)';
   const setSettings = useStore((s) => s.setSettings);
   const setInformation = useStore((s) => s.setInformation);
+  const setParameterization = useStore((s) => s.setParameterization);
   const setBaseline = useStore((s) => s.setBaseline);
   const setConvention = useStore((s) => s.setConvention);
   const select = useStore((s) => s.select);
@@ -787,6 +788,17 @@ function ModelInspector() {
               <input type="checkbox" checked={model.information === 'observed'} disabled={readOnlyChecks} onChange={(e) => setInformation(e.target.checked ? 'observed' : null)} />
               <span>Standard errors from the observed information<br /><span className="hint">The second derivatives of the log-likelihood at the estimates (lavaan information = “observed”; the default of Mplus for ML) instead of lavaan’s expected information. Estimates and χ² are the same; standard errors differ slightly.</span></span>
             </label>
+          )}
+          {(model.ordered?.length ?? 0) > 0 && (
+            <div className="field" style={{ marginTop: 8 }}>
+              <label htmlFor="cb-parameterization">Ordinal indicators: parameterisation</label>
+              <select id="cb-parameterization" className="select" disabled={readOnlyChecks} value={model.parameterization ?? 'delta'}
+                onChange={(e) => setParameterization(e.target.value === 'theta' ? 'theta' : null)}>
+                <option value="delta">Delta (default): scale factors</option>
+                <option value="theta">Theta: residual variances</option>
+              </select>
+              <div className="hint">How the latent response behind each ordinal indicator is scaled. Delta fixes its total variance at 1; theta fixes its residual variance at 1, so residual variances can be held or freed (right-click an indicator), as in Mplus PARAMETERIZATION = THETA. The fit is the same; the scale of the estimates differs.</div>
+            </div>
           )}
           {['ML', 'MLM', 'MLMV', 'MLR'].includes(settings.estimator) && (
             <div className="field" style={{ marginTop: 8 }}>

@@ -10,14 +10,15 @@ import type { FigureInput, FigureLabel } from '../figure/render';
 import { canvasLabelSize, placeFigureLabels } from '../figure/labels';
 import { FigurePanel } from './FigurePanel';
 import { setFigureSource } from '../figure/source';
-import { numberDialog, textDialog } from './Overlays';
+import { formDialog, numberDialog, textDialog } from './Overlays';
+import { heldText, parseHeldValue, type HeldValue } from '../model/heldValue';
 import { nameError } from '../model/expr';
 import { ProcessGallery } from './ProcessGallery';
 import { ProcessBar } from './ProcessBar';
 import { ModelVersionBadge } from './ModelVersionBadge';
 import { fitPadding, overlayBottom } from '../canvasFit';
 import { ContextMenu } from './ContextMenu';
-import { menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
+import { heldOf, menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
 import { correlationEndError, correlationPairError, endogenousIds, impliedIntercepts, impliedMainEffects, newId, validateModel, type Correlation } from '../model/project';
 import { endAt } from './correlationEnds';
 import type { ExampleId } from '../io';
@@ -628,6 +629,58 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     });
     if (label !== null) st().setLabel(t, label || null);
   };
+  // Held or labelled variances, intercepts, thresholds and values per group: one text field (heldValue.ts).
+  const HELD_HINT = 'A number holds it at that value; a name labels it (equal labels are equal; usable in defined parameters and constraints); empty estimates it freely.';
+  const GROUP_HINT = ' With groups, one entry per group separated by commas (a number, NA for free, or a label), e.g. 1, NA, a.';
+  const heldOpts = () => {
+    const m = st().model;
+    return { groups: !!m.multigroup, reserved: new Set([...m.constructs.map((c) => c.name), ...m.constructs.flatMap((c) => c.indicators)]) };
+  };
+  const checkHeld = (x: string) => { const r = parseHeldValue(x, heldOpts()); return r && 'error' in r ? r.error : null; };
+  const heldDialog = async (title: string, body: string, initial: string): Promise<HeldValue | undefined> => {
+    const text = await textDialog({ title, body: `${body} ${HELD_HINT}${heldOpts().groups ? GROUP_HINT : ''}`, confirmLabel: 'Apply', text: { label: 'Value or label', initial, allowEmpty: true, check: checkHeld } });
+    return text === null ? undefined : parseHeldValue(text, heldOpts()) as HeldValue;
+  };
+  const heldParameter = async (target: MenuTarget, kind: 'variance' | 'intercept' | 'threshold') => {
+    const m = st().model;
+    if (target.kind === 'indicator') {
+      if (kind === 'threshold') {
+        const first = heldOf(m, { kind, target: target.name, indicator: true, threshold: 1 });
+        const values = await formDialog({
+          title: `A threshold of ${target.name}`,
+          body: `Threshold k separates categories k and k + 1 of the ordinal indicator (lavaan ${target.name} | t1; Mplus [${target.name}$1]). ${HELD_HINT}${heldOpts().groups ? GROUP_HINT : ''}`,
+          confirmLabel: 'Apply',
+          fields: [
+            { label: 'Threshold', initial: '1', check: (x) => (/^\d{1,2}$/.test(x) && Number(x) >= 1 ? null : 'A threshold number: 1, 2, …') },
+            { label: 'Value or label', initial: heldText(first), check: (x) => checkHeld(x) },
+          ],
+        });
+        if (values) st().setHeldParameter({ kind, target: target.name, indicator: true, threshold: Number(values[0]) }, parseHeldValue(values[1], heldOpts()) as HeldValue);
+        return;
+      }
+      const key = { kind, target: target.name, indicator: true };
+      const what = kind === 'variance' ? `the error variance of ${target.name}` : `the intercept of ${target.name}`;
+      const v = await heldDialog(kind === 'variance' ? `Error variance of ${target.name}` : `Intercept of ${target.name}`,
+        `Hold or label ${what} (lavaan ${kind === 'variance' ? `${target.name} ~~ v*${target.name}` : `${target.name} ~ i*1`}; Mplus ${kind === 'variance' ? `${target.name} (v)` : `[${target.name}] (i)`}).`, heldText(heldOf(m, key)));
+      if (v !== undefined) st().setHeldParameter(key, v);
+      return;
+    }
+    const id = target.kind === 'construct' || target.kind === 'disturbance' ? target.id : null;
+    const c = id ? m.constructs.find((k) => k.id === id) : undefined;
+    if (!c) return;
+    const disturbance = endogenousIds(m).has(c.id);
+    const key = { kind: 'variance' as const, target: c.id };
+    const v = await heldDialog(disturbance ? `Disturbance variance of ${c.name}` : `Variance of ${c.name}`,
+      `Hold or label the ${disturbance ? 'variance of the disturbance (what its predictors leave unexplained)' : 'variance'} of ${c.name} (lavaan ${c.name} ~~ v*${c.name}; Mplus ${c.name}@1 or ${c.name} (v)).`, heldText(heldOf(m, key)));
+    if (v !== undefined) st().setHeldParameter(key, v);
+  };
+  const groupValues = async (target: MenuTarget) => {
+    if (target.kind !== 'correlation') return;
+    const k = st().model.correlations?.find((x) => x.id === target.id);
+    if (!k) return;
+    const v = await heldDialog('Covariance per group', 'Give the covariance a value or label in each group (lavaan c(…); Mplus group-specific MODEL commands), or one for all groups.', heldText(k));
+    if (v !== undefined) st().setCorrelationValue(k.id, v);
+  };
   const onMenuAction = (target: MenuTarget, a: MenuAction) => {
     const s = st();
     switch (a) {
@@ -659,6 +712,10 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'fix-zero': if (target.kind === 'implied') s.addCorrelation('construct', target.a, target.b, true); break;
       case 'fix-value': void fixValue(target); break;
       case 'set-label': void setLabel(target); break;
+      case 'held-variance': void heldParameter(target, 'variance'); break;
+      case 'held-intercept': void heldParameter(target, 'intercept'); break;
+      case 'held-threshold': void heldParameter(target, 'threshold'); break;
+      case 'group-values': void groupValues(target); break;
       case 'make-esem': {
         const m = st().model;
         const free = st().selection.nodes.filter((x) => !m.esem?.blocks.some((b) => b.constructs.includes(x)) && m.constructs.some((c) => c.id === x && !c.covariate && !c.components?.length));

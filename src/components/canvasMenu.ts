@@ -1,7 +1,8 @@
 // Right-click menus on the canvas: what can be done with the thing under the
 // pointer. Pure, so the choice of items is testable; Canvas performs them.
 
-import { endogenousIds, type Method, type ModelState } from '../model/project';
+import { endogenousIds, type Method, type ModelState, type ParameterTerm } from '../model/project';
+import { heldText } from '../model/heldValue';
 
 export type MenuTarget =
   | { kind: 'construct'; id: string }
@@ -17,7 +18,8 @@ export type MenuTarget =
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
-  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'toggle-free-path' | 'make-esem' | 'leave-esem';
+  | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'toggle-free-path' | 'make-esem' | 'leave-esem'
+  | 'held-variance' | 'held-intercept' | 'held-threshold' | 'group-values';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
@@ -34,6 +36,24 @@ function esemItems(model: ModelState, edit: boolean, id: string, selected: strin
     inBlock(id) && { action: 'leave-esem', label: 'Take out of the ESEM block' },
     !inBlock(id) && selected.includes(id) && measured.length >= 2 && { action: 'make-esem', label: `Make ESEM block of the ${candidates.length} selected factors` },
   ];
+}
+
+/** A held or labelled variance, intercept or threshold of the model, if any. */
+export function heldOf(model: ModelState, key: Pick<ParameterTerm, 'kind' | 'target' | 'indicator' | 'threshold'>): ParameterTerm | undefined {
+  return model.parameters?.find((t) => t.kind === key.kind && t.target === key.target && !!t.indicator === !!key.indicator && (key.kind !== 'threshold' || (t.threshold ?? 1) === (key.threshold ?? 1)));
+}
+/** "Variance (held at 1)…": the menu wording with the parameter's current state. */
+const heldLabel = (what: string, t: ParameterTerm | undefined) => {
+  if (!t) return `${what}…`;
+  const v = heldText(t);
+  return `${what} (${t.byGroup?.length ? `per group: ${v}` : t.fixed !== undefined ? `held at ${v}` : `label ${v}`})…`;
+};
+
+/** CB-SEM: hold or label a construct's variance (a disturbance's when it is explained). Not for covariates (fixed.x) or a factor scaled by its variance. */
+function varianceItem(model: ModelState, edit: boolean, id: string): MenuItem | false {
+  const c = model.constructs.find((k) => k.id === id);
+  if (!edit || !c || c.covariate || c.type === 'composite' || c.scaling === 'variance') return false;
+  return { action: 'held-variance', label: heldLabel(endogenousIds(model).has(id) ? 'Disturbance variance' : 'Variance', heldOf(model, { kind: 'variance', target: id })) };
 }
 
 /** Partial invariance: free (or hold equal again) an indicator's loading or intercept across groups. */
@@ -73,6 +93,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && proc && !c.covariate && !model.paths.some((p) => p.from === c.id || p.to === c.id) && !model.moderations.some((m) => m.moderator === c.id) && { action: 'make-covariate', label: 'Use as covariate' },
         edit && proc && !!c.covariate && { action: 'unmake-covariate', label: 'Stop using as covariate' },
         edit && cb && { action: 'correlate', label: endogenous ? 'Correlate disturbance (ζ) with…' : 'Correlate with…' },
+        cb && varianceItem(model, edit, c.id),
         ...esemItems(model, edit && cb, c.id, ctx.selected ?? []),
         edit && { action: 'delete-construct', label: 'Delete construct', danger: true },
       ]);
@@ -83,6 +104,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       const owner2 = model.constructs.find((c) => c.id === target.construct);
       const held = owner2?.fixedLoadings?.[target.name];
       const isMarker = owner2?.indicators[0] === target.name;
+      const ordinal = !!model.ordered?.includes(target.name);
       return out(target.name, [
         edit && cb && !owner2?.covariate && { action: 'fix-value', label: held !== undefined ? `Change fixed loading (${held})…` : isMarker ? 'Fix loading at another value than 1…' : 'Fix loading at a value…' },
         edit && cb && held !== undefined && { action: 'free-value', label: isMarker ? 'Back to the marker’s 1' : 'Free loading (estimate it)' },
@@ -90,12 +112,19 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && cb && { action: 'correlate', label: 'Correlate error (ε) with…' },
         ...groupItems(model, edit && cb, target.construct, target.name, isMarker),
         edit && cb && !owner2?.covariate && { action: 'toggle-ordinal', label: model.ordered?.includes(target.name) ? 'Treat as continuous' : 'Treat as ordinal (categorical)' },
+        // Held or labelled: the error variance (a parameter of an ordinal indicator only under the theta parameterisation),
+        // the intercept (with the constant: a mean structure) or the thresholds of an ordinal indicator.
+        ...(edit && cb && owner2 && !owner2.covariate && owner2.indicators.length > 1 ? [
+          (!ordinal || model.parameterization === 'theta') && { action: 'held-variance' as const, label: heldLabel('Error variance', heldOf(model, { kind: 'variance', target: target.name, indicator: true })) },
+          !ordinal && !!model.constant && { action: 'held-intercept' as const, label: heldLabel('Intercept', heldOf(model, { kind: 'intercept', target: target.name, indicator: true })) },
+          ordinal && { action: 'held-threshold' as const, label: 'Hold or label a threshold…' },
+        ] : []),
         edit && { action: 'remove-indicator', label: `Remove from ${owner}`, danger: true },
       ]);
     }
     case 'disturbance': {
       const name = nameOf(target.id);
-      return name ? out(`Disturbance of ${name}`, [edit && cb && { action: 'correlate', label: 'Correlate with…' }]) : null;
+      return name ? out(`Disturbance of ${name}`, [edit && cb && { action: 'correlate', label: 'Correlate with…' }, cb && varianceItem(model, edit, target.id)]) : null;
     }
     case 'path': {
       const p = model.paths.find((q) => q.id === target.id);
@@ -133,7 +162,8 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       return out(`${end(k.a)} ↔ ${end(k.b)}`, [
         edit && cb && { action: 'fix-value', label: k.fixed !== undefined ? `Change fixed value (${k.fixed})…` : 'Fix covariance at a value…' },
         edit && cb && k.fixed !== undefined && { action: 'free-value', label: 'Free covariance (estimate it)' },
-        edit && cb && k.fixed === undefined && { action: 'set-label', label: k.label ? `Label (${k.label})…` : 'Label…' },
+        edit && cb && k.fixed === undefined && !k.byGroup?.length && { action: 'set-label', label: k.label ? `Label (${k.label})…` : 'Label…' },
+        edit && cb && !!model.multigroup && !k.zero && { action: 'group-values', label: k.byGroup?.length ? `Values per group (${heldText(k)})…` : 'Values per group…' },
         edit && { action: 'delete-correlation', label: 'Delete correlation', danger: true },
       ]);
     }

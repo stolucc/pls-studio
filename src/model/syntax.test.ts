@@ -136,6 +136,25 @@ describe('Mplus input out', () => {
     const taken = new Map<string, string>();
     expect([mplusName('my var', taken), mplusName('1st', taken), mplusName('my_var', taken), mplusName('my var', taken)]).toEqual(['my_var', 'v1st', 'my_var_2', 'my_var']);
   });
+  it('writes held and labelled variances, intercepts and thresholds, and the theta parameterisation', () => {
+    const { model: m } = parseLavaanSyntax('f =~ y1 + y2 + u1\ng =~ y3 + y4 + y5\ng ~ f');
+    const id = (n: string) => m.constructs.find((c) => c.name === n)!.id;
+    const held: ModelState = {
+      ...m, ordered: ['u1'], parameterization: 'theta', parameters: [
+        { id: 'a', kind: 'variance', target: id('f'), fixed: 1 },
+        { id: 'b', kind: 'variance', target: id('g'), label: 'dg' },
+        { id: 'c', kind: 'variance', target: 'y2', indicator: true, label: 've' },
+        { id: 'd', kind: 'intercept', target: 'y3', indicator: true, fixed: 0 },
+        { id: 'e', kind: 'threshold', target: 'u1', indicator: true, threshold: 2, label: 't' },
+        { id: 'f', kind: 'variance', target: 'y4', indicator: true, byGroup: [1, null] },
+      ],
+    };
+    const { inp, warnings } = toMplus(held, { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'WLSMV' }, null, null, 'p');
+    for (const line of ['f@1;', 'g (dg);', 'y2 (ve);', '[y3@0];', '[u1$2] (t);']) expect(inp).toContain(`  ${line}`);
+    expect(inp).toContain('PARAMETERIZATION = THETA;');
+    expect(inp).not.toMatch(/^\s+y4/m);
+    expect(warnings).toEqual([expect.stringMatching(/Values per group are not written/)]);
+  });
 });
 
 describe('factors scaled by their variance, and direct effects on indicators (Mplus examples 5.30 and 5.24)', () => {

@@ -291,3 +291,40 @@ describe('the constant in the store', () => {
     expect(st().model.constant).toEqual({ x: -50, y: 40 });
   });
 });
+
+describe('held and labelled parameters in the store', () => {
+  it('holds, labels, gives values per group and frees a variance, intercept or threshold; one term per parameter', () => {
+    const { x } = setup();
+    s().setHeldParameter({ kind: 'variance', target: x }, { fixed: 1 });
+    s().setHeldParameter({ kind: 'variance', target: x }, { label: 'vx' });
+    expect(s().model.parameters).toEqual([expect.objectContaining({ kind: 'variance', target: x, label: 'vx' })]);
+    expect(s().model.parameters![0].fixed).toBeUndefined();
+    s().setHeldParameter({ kind: 'threshold', target: 'u1', indicator: true, threshold: 2 }, { byGroup: [0.5, null] });
+    s().setHeldParameter({ kind: 'threshold', target: 'u1', indicator: true, threshold: 1 }, { fixed: 0 });
+    expect(s().model.parameters).toHaveLength(3);
+    s().setHeldParameter({ kind: 'variance', target: x }, null);
+    s().setHeldParameter({ kind: 'threshold', target: 'u1', indicator: true, threshold: 2 }, null);
+    s().setHeldParameter({ kind: 'threshold', target: 'u1', indicator: true, threshold: 1 }, null);
+    expect(s().model.parameters).toBeUndefined();
+  });
+
+  it('sets a covariance’s value, label or values per group, replacing the others', () => {
+    const { x, y } = setup();
+    s().addCorrelation('construct', x, y);
+    const k = s().model.correlations![0].id;
+    s().setCorrelationValue(k, { fixed: 0.3 });
+    s().setCorrelationValue(k, { byGroup: [0.3, 'c'] });
+    expect(s().model.correlations![0]).toMatchObject({ byGroup: [0.3, 'c'] });
+    expect(s().model.correlations![0].fixed).toBeUndefined();
+    s().setCorrelationValue(k, null);
+    expect(s().model.correlations![0].byGroup).toBeUndefined();
+  });
+
+  it('sets and clears the theta parameterisation', () => {
+    setup();
+    s().setParameterization('theta');
+    expect(s().model.parameterization).toBe('theta');
+    s().setParameterization(null);
+    expect(s().model.parameterization).toBeUndefined();
+  });
+});

@@ -400,6 +400,17 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
     lines.push(`[${lvName(c)}${m.fixed !== undefined ? `@${m.fixed}` : ''}]${m.label ? ` (${m.label})` : ''};`);
     if (m.fixed === undefined && !c.covariate && c.indicators.length > 1) lines.push(`[${nm(c.indicators[0])}@0];`);
   }
+  // Held or labelled variances, intercepts and thresholds (one value for all groups; values per group are not written).
+  for (const t of model.parameters ?? []) {
+    if (t.byGroup?.length) continue;
+    const c = t.indicator ? undefined : byId.get(t.target);
+    if (!t.indicator && !c) continue;
+    const v = t.indicator ? nm(t.target) : lvName(c!);
+    const at = t.fixed !== undefined ? `@${t.fixed}` : '', lab = t.label && t.fixed === undefined ? ` (${t.label})` : '';
+    if (t.kind === 'variance') lines.push(`${v}${at}${lab};`);
+    else if (t.kind === 'intercept') lines.push(`[${v}${at}]${lab};`);
+    else lines.push(`[${v}$${t.threshold ?? 1}${at}]${lab};`);
+  }
   for (const c of model.constructs) if (c.components?.length) for (const id of c.components) { const k = byId.get(id); if (k) for (const i of k.indicators) mark(nm(i)); }
   const ordered = (model.ordered ?? []).map(nm).filter((n) => used.includes(n));
   // Without data: the observed variables only (indicators, covariates, design columns), never the factors.
@@ -417,7 +428,7 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
     ...(model.multigroup ? [`  GROUPING = ${nm(model.multigroup.column)};`] : []),
     ...(model.cluster ? [`  CLUSTER = ${nm(model.cluster)};`] : []),
     ...(model.weights ? [`  WEIGHT = ${nm(model.weights)};`] : []),
-    `ANALYSIS: ESTIMATOR = ${ESTIMATOR[settings.estimator] ?? 'ML'};${model.cluster ? ' TYPE = COMPLEX;' : ''}${xwith.length ? ' TYPE = RANDOM; ALGORITHM = INTEGRATION;' : ''}${settings.missing === 'casewise' ? ' LISTWISE = ON;' : ''}`,
+    `ANALYSIS: ESTIMATOR = ${ESTIMATOR[settings.estimator] ?? 'ML'};${model.cluster ? ' TYPE = COMPLEX;' : ''}${xwith.length ? ' TYPE = RANDOM; ALGORITHM = INTEGRATION;' : ''}${settings.missing === 'casewise' ? ' LISTWISE = ON;' : ''}${model.parameterization === 'theta' && ordered.length ? ' PARAMETERIZATION = THETA;' : ''}`,
     'MODEL:',
     ...xwith.map((l) => `  ${l}`),
     ...lines.map((l) => `  ${l}`),
@@ -425,8 +436,7 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
   if (model.defined?.length) inp.push('MODEL CONSTRAINT:', `  NEW(${model.defined.map((d) => d.name).join(' ')});`, ...model.defined.map((d) => `  ${d.name} = ${d.expr};`));
   if (model.multilevel) warn('Two-level models are not written (Mplus: TYPE = TWOLEVEL with %WITHIN% and %BETWEEN% blocks); the single-level model is.');
   if (model.esem?.blocks.length) warn('ESEM blocks are not written; the factors are written as a CFA.');
-  if (model.parameters?.length || model.correlations?.some((k) => k.byGroup?.length)) warn('Held or labelled variances, intercepts and thresholds, and values per group, are not written; add them to the MODEL command (f1@1; y1 (ve1); [y1] (i); [u1$1] (t); group-specific MODEL commands).');
-  if (model.parameterization) warn('The theta parameterisation is not written; add ANALYSIS: PARAMETERIZATION = THETA.');
+  if (model.parameters?.some((t) => t.byGroup?.length) || model.correlations?.some((k) => k.byGroup?.length)) warn('Values per group are not written; add them as group-specific MODEL commands (MODEL g2: …).');
   if (settings.estimator === '2SLS' || settings.estimator === 'RML') warn(`Mplus has no ${settings.estimator}; ML is written.`);
   if (model.multigroup && (model.multigroup.column)) { const g = nm(model.multigroup.column); mark(g); if (!inp[3].includes(g)) inp[3] = `${inp[3].slice(0, -1)} ${g};`; }
   for (const col of [model.cluster, model.weights]) if (col) { const n = nm(col); if (!inp[3].includes(n)) inp[3] = `${inp[3].slice(0, -1)} ${n};`; }

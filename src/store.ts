@@ -15,7 +15,8 @@ import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
 import { type InteractionMethod,
   createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec, unconfirmedUncorrelated,
-  type Construct, type Correlation, type DataInfo, type DefinedParameter, type ModelState, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
+  type Construct, type Correlation, type DataInfo, type DefinedParameter, type ModelState, type ParameterTerm, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
+import type { HeldValue } from './model/heldValue';
 
 export type Tool = 'select' | 'construct' | 'connect' | 'correlate';
 export interface Selection { nodes: string[]; edges: string[]; moderations?: string[]; correlations?: string[] }
@@ -123,6 +124,12 @@ interface State {
   setWaldTests: (tests: WaldTest[]) => void;
   setInequalities: (text: string) => void;
   setPositiveVariances: (on: boolean) => void;
+  /** CB-SEM: hold, label or free (null) a variance, an indicator's intercept or a threshold; values per group with groups. */
+  setHeldParameter: (key: Pick<ParameterTerm, 'kind' | 'target' | 'indicator' | 'threshold'>, value: HeldValue) => void;
+  /** CB-SEM: a drawn covariance held, labelled, given values per group, or free (null). */
+  setCorrelationValue: (id: string, value: HeldValue) => void;
+  /** CB-SEM with ordinal indicators: the theta parameterisation (residual variances) instead of delta (scale factors). */
+  setParameterization: (p: 'theta' | null) => void;
   /** CB-SEM: standard errors from the observed information, or lavaan's default (null). */
   setInformation: (information: 'observed' | null) => void;
   /** CB-SEM: the CFI/TLI baseline of uncorrelated variables, or the default (null). */
@@ -372,6 +379,25 @@ export const useStore = create<State>((set, get) => ({
   setWaldTests: (tests) => get().commit((m) => { const { waldTests: _w, ...rest } = m; return tests.length ? { ...rest, waldTests: tests } : rest; }),
   setInequalities: (text) => get().commit((m) => { const { inequalities: _i, ...rest } = m; return text.trim() ? { ...rest, inequalities: text } : rest; }),
   setPositiveVariances: (on) => get().commit((m) => { const { positiveVariances: _p, ...rest } = m; return on ? { ...rest, positiveVariances: true } : rest; }),
+  setHeldParameter: (key, value) => get().commit((m) => {
+    const same = (t: ParameterTerm) => t.kind === key.kind && t.target === key.target && !!t.indicator === !!key.indicator && (key.kind !== 'threshold' || (t.threshold ?? 1) === (key.threshold ?? 1));
+    const kept = (m.parameters ?? []).filter((t) => !same(t));
+    const old = (m.parameters ?? []).find(same);
+    const parameters = value === null ? kept : [...kept, {
+      id: old?.id ?? newId('v'), kind: key.kind, target: key.target, ...(key.indicator ? { indicator: true } : {}), ...(key.kind === 'threshold' ? { threshold: key.threshold ?? 1 } : {}), ...value,
+    }];
+    const { parameters: _p, ...rest } = m;
+    return parameters.length ? { ...rest, parameters } : rest;
+  }),
+  setCorrelationValue: (id, value) => get().commit((m) => ({
+    ...m,
+    correlations: (m.correlations ?? []).map((k) => {
+      if (k.id !== id) return k;
+      const { fixed: _f, label: _l, byGroup: _g, ...rest } = k;
+      return value === null ? rest : { ...rest, ...value };
+    }),
+  })),
+  setParameterization: (p) => get().commit((m) => { const { parameterization: _p, ...rest } = m; return p ? { ...rest, parameterization: p } : rest; }),
   setInformation: (information) => get().commit((m) => { const { information: _i, ...rest } = m; return information ? { ...rest, information } : rest; }),
   setBaseline: (baseline) => get().commit((m) => { const { baseline: _b, ...rest } = m; return baseline ? { ...rest, baseline } : rest; }),
   setConvention: (c) => get().commit((m) => { const { likelihood: _l, sampleCovRescale: _r, ...rest } = m; return c === 'wishart' ? { ...rest, likelihood: 'wishart' } : c === 'asGiven' ? { ...rest, sampleCovRescale: false } : rest; }),

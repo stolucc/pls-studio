@@ -94,6 +94,13 @@ export function GroupsEditor() {
                 <span>Intercepts in every group<br /><span className="hint">lavaan estimates the indicator intercepts per group in every multiple-group model. Untick for a model of the covariances only (Mplus MODEL = NOMEANSTRUCTURE): the fit is the same, with fewer parameters.</span></span></label>
             </div>
           )}
+          {(model.ordered?.length ?? 0) > 0 && mg.invariance !== 'configural' && mg.invariance !== 'metric' && (
+            <div className="field">
+              <label className="check"><input type="checkbox" checked={mg.ordinalScales === 'free'} disabled={readOnly}
+                onChange={(e) => { const { ordinalScales: _o, ...rest } = mg; setMultigroup(e.target.checked ? { ...rest, ordinalScales: 'free' } : rest); }} />
+                <span>Free the ordinal scales after the first group<br /><span className="hint">With thresholds equal across groups, the scale factors (delta) or residual variances (theta) of the ordinal indicators are estimated in every group but the first, as Mplus does by default; an indicator whose thresholds are freed keeps them at 1. Unticked: lavaan’s default, 1 in every group.</span></span></label>
+            </div>
+          )}
           {mg.free.length > 0 && (
             <div className="field">
               <label>Free across groups (differs between groups)</label>

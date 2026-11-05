@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { labelUses, newId, type DefinedParameter, type WaldTest } from '../model/project';
+import { endogenousIds, labelUses, newId, type DefinedParameter, type ModelState, type ParameterTerm, type WaldTest } from '../model/project';
+import { heldText } from '../model/heldValue';
 import { useStore } from '../store';
 import { IconX } from './icons';
 
@@ -16,6 +17,13 @@ function Field({ value, onCommit, placeholder, mono, multiline }: { value: strin
     : <input {...props} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />;
 }
 
+/** What a held or labelled parameter is, in words. */
+function heldWhat(model: ModelState, t: ParameterTerm): string {
+  if (t.indicator) return t.kind === 'variance' ? `Error variance of ${t.target}` : t.kind === 'intercept' ? `Intercept of ${t.target}` : `Threshold ${t.threshold ?? 1} of ${t.target}`;
+  const c = model.constructs.find((k) => k.id === t.target);
+  return `${c && endogenousIds(model).has(c.id) ? 'Disturbance variance' : 'Variance'} of ${c?.name ?? '?'}`;
+}
+
 /**
  * CB-SEM (lavaan): labels in use (equal labels = equality constraints),
  * defined parameters (name := expression) and Wald tests (left == right).
@@ -27,6 +35,8 @@ export function ConstraintsEditor() {
   const setWaldTests = useStore((s) => s.setWaldTests);
   const setInequalities = useStore((s) => s.setInequalities);
   const setPositiveVariances = useStore((s) => s.setPositiveVariances);
+  const setHeldParameter = useStore((s) => s.setHeldParameter);
+  const held = model.parameters ?? [];
   const labels = [...labelUses(model)];
   const defined = model.defined ?? [];
   const tests = model.waldTests ?? [];
@@ -48,6 +58,19 @@ export function ConstraintsEditor() {
           </div>
         )}
       <div className="field" style={{ marginTop: 10 }}>
+        <label>Held and labelled variances, intercepts, thresholds</label>
+        {held.length === 0
+          ? <div className="hint">Right-click a construct, its disturbance or an indicator → Variance…, Error variance…, Intercept… or a threshold, to hold one at a value, label it, or give values per group.</div>
+          : held.map((t) => (
+            <div className="label-row" key={t.id}>
+              <span>{heldWhat(model, t)}</span>
+              <span className="hint">{t.byGroup?.length ? `per group: ${heldText(t)}` : t.fixed !== undefined ? `held at ${heldText(t)}` : `label ${heldText(t)}`}</span>
+              {!readOnly && <button className="btn icon ghost sm" aria-label={`Estimate ${heldWhat(model, t)} freely`} title="Estimate it freely again"
+                onClick={() => setHeldParameter(t, null)}><IconX size={13} /></button>}
+            </div>
+          ))}
+      </div>
+      <div className="field">
         <label>Defined parameters</label>
         {defined.map((d, i) => (
           <div className="def-row" key={d.id}>
