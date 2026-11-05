@@ -652,7 +652,10 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
           confirmLabel: 'Apply',
           fields: [
             { label: 'Threshold', initial: '1', check: (x) => (/^\d{1,2}$/.test(x) && Number(x) >= 1 ? null : 'A threshold number: 1, 2, …') },
-            { label: 'Value or label', initial: heldText(first), check: (x) => checkHeld(x) },
+            // (the value of the threshold the first field names, refilled when that number changes)
+            { label: 'Value or label', initial: heldText(first), check: (x) => checkHeld(x),
+              follow: (all, changed) => (changed === 0 && /^\d{1,2}$/.test(all[0]) && Number(all[0]) >= 1
+                ? heldText(heldOf(st().model, { kind, target: target.name, indicator: true, threshold: Number(all[0]) })) : undefined) },
           ],
         });
         if (values) st().setHeldParameter({ kind, target: target.name, indicator: true, threshold: Number(values[0]) }, parseHeldValue(values[1], heldOpts()) as HeldValue);

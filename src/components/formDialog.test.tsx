@@ -1,8 +1,4 @@
 // @vitest-environment happy-dom
-// A form dialog (Compute… in the data panel) opens without crashing: its fields'
-// checks see text from the first render on, typing reaches the field, and OK
-// resolves the trimmed values.
-
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it } from 'vitest';
@@ -10,42 +6,37 @@ import { ConfirmModal, formDialog } from './Overlays';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it('opens, checks, takes typing and resolves the values', async () => {
+/** React's input value setter, so the change event reaches onChange as typing would. */
+function type(input: HTMLInputElement, text: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+it('refills a following field when the field it follows changes, and keeps edits otherwise', async () => {
+  const held: Record<string, string> = { 1: 't1', 2: '0.5' };
   const host = document.createElement('div');
-  document.body.appendChild(host);
-  act(() => { createRoot(host).render(<ConfirmModal />); });
-  const seen: unknown[] = [];
-  let pending!: Promise<string[] | null>;
+  document.body.append(host);
+  const root = createRoot(host);
+  act(() => root.render(<ConfirmModal />));
+  let result: Promise<string[] | null> = Promise.resolve(null);
   act(() => {
-    pending = formDialog({
-      title: 'Add a computed column', body: 'A formula over the columns.', confirmLabel: 'Add column',
+    result = formDialog({
+      title: 'A threshold', body: '', confirmLabel: 'Apply',
       fields: [
-        // (checks that call string methods, as the data panel's: undefined text would throw)
-        { label: 'Column name', check: (t) => { seen.push(t); return /^[a-z_]+$/.test(t.trim()) ? null : 'A name.'; } },
-        { label: 'Formula', initial: 'log(x)', check: (t, all) => (t.trim().length && all[0] !== undefined ? null : 'A formula.') },
+        { label: 'Threshold', initial: '1', check: () => null },
+        { label: 'Value or label', initial: held[1], check: () => null, follow: (all, changed) => (changed === 0 ? held[all[0]] ?? '' : undefined) },
       ],
     });
   });
-  expect(host.querySelector('#dlg-f0')).toBeTruthy();
-  expect((host.querySelector('#dlg-f1') as HTMLInputElement).value).toBe('log(x)');
-  expect(seen.every((t) => typeof t === 'string')).toBe(true);
-  const input = host.querySelector('#dlg-f0') as HTMLInputElement;
-  act(() => {
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-    set.call(input, ' newcol ');
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  expect((host.querySelector('#dlg-f0') as HTMLInputElement).value).toBe(' newcol ');
-  // Typing in the second field keeps the focus there (it used to jump back to the first on every keystroke).
-  const formula = host.querySelector('#dlg-f1') as HTMLInputElement;
-  act(() => { formula.focus(); });
-  act(() => {
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-    set.call(formula, 'log(x) + 1');
-    formula.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-  expect(document.activeElement).toBe(host.querySelector('#dlg-f1'));
-  const ok = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Add column')!;
-  act(() => { ok.click(); });
-  await expect(pending).resolves.toEqual(['newcol', 'log(x) + 1']);
+  const [n, v] = [...host.querySelectorAll('input')] as HTMLInputElement[];
+  expect(v.value).toBe('t1');
+  act(() => type(n, '2'));
+  expect(v.value).toBe('0.5');
+  act(() => type(n, '3'));
+  expect(v.value).toBe('');
+  act(() => type(v, 'lab'));
+  expect(n.value).toBe('3');
+  act(() => (([...host.querySelectorAll('button')].find((b) => b.textContent === 'Apply')!) as HTMLButtonElement).click());
+  expect(await result).toEqual(['3', 'lab']);
+  act(() => root.unmount());
 });

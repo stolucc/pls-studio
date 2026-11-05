@@ -10,7 +10,11 @@ interface NumberField { label: string; min: number; max: number; integer?: boole
 /** A text field: `check` returns why the text is not acceptable (null when it is). Empty text is allowed when `allowEmpty`. */
 interface TextField { label: string; initial?: string; check: (text: string) => string | null; allowEmpty?: boolean }
 /** Several text fields at once; each `check` sees all current values (for cross-field rules). */
-interface FormField { label: string; initial?: string; placeholder?: string; hint?: string; multiline?: boolean; check: (text: string, all: string[]) => string | null }
+interface FormField {
+  label: string; initial?: string; placeholder?: string; hint?: string; multiline?: boolean; check: (text: string, all: string[]) => string | null;
+  /** When another field (`changed`) is edited: this field's new text, or undefined to keep it (e.g. the current value of what field 0 now names). */
+  follow?: (all: string[], changed: number) => string | undefined;
+}
 interface DialogState {
   current: (ConfirmOpts & { field?: NumberField; text?: TextField; fields?: FormField[]; choices?: Choice[]; resolve: (ok: boolean, value?: number, text?: string, choice?: string, values?: string[]) => void }) | null;
 }
@@ -54,6 +58,11 @@ export function ConfirmModal() {
   const textError = textField && (text.trim() === '' ? (textField.allowEmpty ? null : '') : textField.check(text.trim()));
   // The fields' current text: on the first render (before the effect below fills `values`) their initial text.
   const vals = fields ? fields.map((f, i) => values[i] ?? f.initial ?? '') : [];
+  const edit = (i: number, v: string) => {
+    const next = [...vals]; next[i] = v;
+    fields?.forEach((f, j) => { if (j !== i && f.follow) { const w = f.follow(next.map((x) => x.trim()), i); if (w !== undefined) next[j] = w; } });
+    setValues(next);
+  };
   const trimmed = vals.map((v) => v.trim());
   const fieldErrors = fields ? fields.map((f, i) => (trimmed[i] === '' ? '' : f.check(trimmed[i], trimmed))) : [];
   const valid = fields ? fieldErrors.every((e) => e === null)
@@ -103,9 +112,9 @@ export function ConfirmModal() {
             <label htmlFor={`dlg-f${i}`}>{f.label}</label>
             {f.multiline
               ? <textarea id={`dlg-f${i}`} className="input" rows={10} value={vals[i]} spellCheck={false} placeholder={f.placeholder} style={{ fontFamily: 'var(--mono)', fontSize: 12, resize: 'vertical' }}
-                onChange={(e) => { const next = [...vals]; next[i] = e.target.value; setValues(next); }} />
+                onChange={(e) => edit(i, e.target.value)} />
               : <input id={`dlg-f${i}`} ref={i === 0 ? inputRef : undefined} className="input" value={vals[i]} autoComplete="off" spellCheck={false} placeholder={f.placeholder}
-                onChange={(e) => { const next = [...vals]; next[i] = e.target.value; setValues(next); }} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />}
+                onChange={(e) => edit(i, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') close(true); }} />}
             {fieldErrors[i] ? <span className="hint" style={{ color: 'var(--bad)' }}>{fieldErrors[i]}</span> : f.hint ? <span className="hint">{f.hint}</span> : null}
           </div>
         ))}
