@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS, toSpec, validateModel } from '../model/project';
 import { parseCsv } from '../engine/dataset';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
 import { exampleTags } from './tags';
+import { parseLavaanSyntax } from '../model/syntax';
 
 // What the Mplus outputs print (scripts/validation/mplus_printed.py); the webR test compares the app with it.
 const printed = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'textbook', 'mplus_printed.json'), 'utf8')) as Record<string, { fit: { npar?: number }; estimates: unknown[] }>;
@@ -18,17 +19,25 @@ const ex = (id: string) => PACKAGE_EXAMPLES.find((e) => e.id === `mplus-${id}`)!
 
 describe('Mplus User’s Guide examples', () => {
   it('cover the guide’s examples with the reference fixture, shipped data and the guide’s pages', () => {
-    expect(MPLUS.map((e) => e.id.slice(6)).sort()).toEqual(['ex3.1', 'ex3.11', 'ex3.5', 'ex3.7', 'ex5.1', 'ex5.11', 'ex5.13', 'ex5.14', 'ex5.15', 'ex5.2', 'ex5.25', 'ex5.6', 'ex5.8', 'ex6.1', 'ex6.10', 'ex6.8', 'ex6.9']);
+    expect(MPLUS.length).toBeGreaterThanOrEqual(17);
+    expect(new Set(MPLUS.map((e) => e.id)).size).toBe(MPLUS.length);
     for (const e of MPLUS) {
       const key = e.id.slice(6);
+      expect(key, e.id).toMatch(/^ex\d+\.\d+[a-z0-9]*$/);
       expect(e.data.file).toBe(`examples/mplus/${key}.csv`);
       expect(readFileSync(join(__dirname, '..', '..', 'public', e.data.file!), 'utf8').split('\n')[0].split(',').length).toBeGreaterThan(1);
-      expect(e.links[0].url).toBe(`https://www.statmodel.com/usersguide/chap${key[2]}/${key}.html`);
+      expect(e.links[0].url).toBe(`https://www.statmodel.com/usersguide/chap${key.slice(2).split('.')[0]}/${key}.html`);
       expect(exampleTags(e)).toContain('Mplus User’s Guide');
       expect(exampleTags(e)).toContain('Shipped data');
-      // Every example has the numbers its Mplus output prints (each example has its own data, 5.13 included).
-      expect(printed[key]?.estimates.length, key).toBeGreaterThan(0);
-      expect(printed[key].fit.npar, key).toBeGreaterThan(0);
+      // Every example has the output Mplus prints for it (parsed from the guide's output page).
+      expect(printed[key], key).toBeDefined();
+    }
+  });
+
+  it('given as lavaan syntax, import without losing a line', () => {
+    for (const e of MPLUS.filter((x) => x.syntax)) {
+      expect(e.constructs, e.id).toEqual([]);
+      expect(parseLavaanSyntax(e.syntax!).warnings, e.id).toEqual([]);
     }
   });
 

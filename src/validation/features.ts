@@ -14,7 +14,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   // Examples: graded per example with verify().
   'examples/bollen': 'examples', 'examples/bollen1989': 'examples', 'examples/bollencurran': 'examples', 'examples/brown': 'examples',
   'examples/builtin': 'examples', 'examples/causal': 'examples', 'examples/eqs': 'examples', 'examples/imputation': 'examples',
-  'examples/kline': 'examples', 'examples/manymome': 'examples', 'examples/mplus': 'examples', 'examples/packages': 'examples',
+  'examples/kline': 'examples', 'examples/manymome': 'examples', 'examples/mplus/ch3': 'examples', 'examples/mplus/ch5': 'examples', 'examples/mplus/ch6': 'examples', 'examples/packages': 'examples',
   'examples/plsGender': 'examples', 'examples/selection': 'examples',
 
   // CB-SEM (lavaan and friends)

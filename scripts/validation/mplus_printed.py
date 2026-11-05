@@ -1,6 +1,6 @@
 """The numbers the Mplus User's Guide outputs print, for the examples in the app.
 
-Reads the Mplus 8 output pages of the examples (statmodel.com/usersguide/chapN/exN.M.html,
+Reads the Mplus 8 output pages of all the examples (statmodel.com/usersguide/chapN/exN.M.html,
 saved to a folder) and writes src/engine/__fixtures__/textbook/mplus_printed.json: per example
 the MODEL RESULTS (estimate and standard error of every parameter, by group) and the fit
 information (log-likelihood, free parameters, AIC, BIC, chi-square, df), so the tests compare the
@@ -9,7 +9,12 @@ app with what Mplus prints, not with a rerun of our own.
 """
 import html, json, os, re, sys
 
-EXAMPLES = ['3.1', '3.5', '3.7', '3.11', '5.1', '5.2', '5.6', '5.8', '5.11', '5.12', '5.13', '5.14', '5.15', '5.25', '6.1', '6.8', '6.9', '6.10']
+def _all(folder):
+    return sorted((f[2:-5] for f in os.listdir(folder) if re.fullmatch(r'ex\d+\.\d+\w*\.html', f)),
+                  key=lambda e: [int(x) if x.isdigit() else x for x in re.split(r'(\d+)', e)])
+
+
+EXAMPLES = []
 NUM = r'(-?\d+\.\d+)'
 
 
@@ -44,24 +49,38 @@ def fit(lines):
     return {k: v for k, v in out.items() if v is not None}
 
 
+SECTIONS = ('Intercepts', 'Means', 'Variances', 'Residual Variances', 'Thresholds', 'New/Additional Parameters',
+            'Dispersion', 'Scales', 'Base Hazard Parameters', 'Steps', 'Covariances')
+BLOCK = re.compile(r'^(Group \S+|Latent Class \d+.*|Latent Class Pattern .*|Class \d+|Within Level|Between( \S+)? Level|'
+                   r'Categorical Latent Variables|Class Proportions)\s*$')
+
+
 def results(lines):
+    """MODEL RESULTS: per parameter its estimate and standard error (posterior SD for Bayes), with the block
+    it is printed under (a group, a latent class, a level) and, for groups, the group's number in print order."""
     i = next(k for k, l in enumerate(lines) if l.strip() == 'MODEL RESULTS')
-    out, group, sec = [], 1, None
+    out, groups, group, block, sec = [], [], 1, '', None
     for l in lines[i + 1:]:
         s = l.strip()
-        if re.match(r'^(QUALITY OF|STANDARDIZED|TECHNICAL|RESULTS IN|R-SQUARE|LOGISTIC|TOTAL, TOTAL|Beginning|EFA|IRT)', s):
+        if re.match(r'^(QUALITY OF|STANDARDIZED|TECHNICAL|RESULTS IN|R-SQUARE|LOGISTIC|TOTAL, TOTAL|Beginning|EFA|IRT|'
+                    r'ODDS RATIO|ALTERNATIVE PARAMETERIZATIONS|LATENT TRANSITION|BRANT|CONFIDENCE|MODEL COMMAND)', s):
             break
-        if s.startswith('Group '):
-            group = 2 if 'FEMALE' in s.upper() else 1
+        if BLOCK.match(s) and not l.startswith(' '):
+            block = s
+            if s.startswith('Group '):
+                if s not in groups:
+                    groups.append(s)
+                group = groups.index(s) + 1
+            sec = None
             continue
-        m = re.match(r'^ (\S+)\s+(BY|ON|WITH|\|)\s*$', l)
+        m = re.match(r'^ (\S+)\s+(BY|ON|WITH|\||XWITH)\s*$', l)
         if m:
             sec = (m.group(1).lower(), m.group(2))
             continue
-        if s in ('Intercepts', 'Means', 'Variances', 'Residual Variances', 'Thresholds'):
+        if l.startswith(' ') and not l.startswith('  ') and s in SECTIONS:
             sec = (s, None)
             continue
-        m = re.match(r'^\s+(\S+)\s+' + NUM + r'\s+' + NUM + r'\s', l + ' ')
+        m = re.match(r'^\s+(\S+)\s+' + NUM + r'\s+' + NUM + r'(\s|$)', l + ' ')
         if not (m and sec):
             continue
         name, est, se = m.group(1).lower(), float(m.group(2)), float(m.group(3))
@@ -74,27 +93,37 @@ def results(lines):
             k = (a, '~~', name)
         elif a in ('Intercepts', 'Means'):
             k = (name, '~1', '')
-        elif a == 'Thresholds':
-            v, t = name.split('$')
+        elif a == 'Thresholds' and '$' in name:
+            v, t = name.rsplit('$', 1)
             k = (v, '|', 't' + t)
-        else:
+        elif a in ('Variances', 'Residual Variances'):
             k = (name, '~~', name)
-        out.append({'lhs': k[0], 'op': k[1], 'rhs': k[2], 'group': group, 'est': est, 'se': se})
+        else:
+            k = (name, a, '')
+        out.append({'lhs': k[0], 'op': k[1], 'rhs': k[2], 'group': group, 'block': block, 'est': est, 'se': se})
     return out
 
 
 def main(folder):
+    EXAMPLES[:] = _all(folder)
     data = {}
     for ex in EXAMPLES:
         path = os.path.join(folder, f'ex{ex}.html')
+        if not os.path.exists(path):
+            continue
         lines = text(path)
-        data[f'ex{ex}'] = {'fit': fit(lines), 'estimates': results(lines)}
+        try:
+            data[f'ex{ex}'] = {'fit': fit(lines), 'estimates': results(lines)}
+        except StopIteration:  # no MODEL RESULTS (EFA, TYPE = BASIC): parsed where an example needs it
+            data[f'ex{ex}'] = {'fit': {}, 'estimates': []}
     data['source'] = 'Mplus 8 outputs of the Mplus User’s Guide examples (Muthén & Muthén), statmodel.com/usersguide'
     dest = os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'engine', '__fixtures__', 'textbook', 'mplus_printed.json')
     with open(dest, 'w') as f:
         json.dump(data, f, indent=1)
     for ex in EXAMPLES:
-        d = data[f'ex{ex}']
+        d = data.get(f'ex{ex}')
+        if d is None:
+            continue
         print(f'ex{ex:5} {len(d["estimates"]):3} parameters  fit {d["fit"]}')
 
 
