@@ -6,7 +6,7 @@
 
 import { CB, items } from '../define';
 import type { PackageExample } from '../packages';
-import { MPLUS_SRC, MPLUS_TAG, mplusData, mplusLinks } from './common';
+import { MPLUS_SRC, MPLUS_TAG, mplusData, mplusLinks, regression } from './common';
 
 const lcaNote = 'poLCA estimates probabilities, Mplus logits: each threshold Mplus prints is logit P(u ≤ category | class) of the card’s probabilities, and c#1 the log of the ratio of the two class shares.';
 
@@ -64,5 +64,27 @@ export const MPLUS_CH7: PackageExample[] = [
     description: 'Three latent classes of four continuous items that covary within class, the variances and covariances equal across classes (Mplus: y1 WITH y2-y4; … in %OVERALL%). The card’s latent-profile model with covariances equal across classes (EM from 10 starts) reproduces the Mplus output: log-likelihood −3054.963, 24 free parameters, BIC 6259.077, the three classes’ means, the common variances and covariances, and the two class intercepts. Standard errors (Mplus’s MLR) are not reproduced. Opens its card on the Analyses tab.',
     data: mplusData('7.22', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'lca', model: 'lpa', structure: 'EEE', items: items('y', 4), from: 3, to: 3 }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex7.25', package: 'stats', title: 'Zero-inflated Poisson regression as a two-class model (Mplus ex. 7.25)', source: MPLUS_SRC('7.25'), links: mplusLinks('7.25'),
+    description: 'A count u1 regressed on x1 and x3, written in Mplus as a mixture: in class 1 the count is fixed at zero ([u1@-15], u1 ON x1@0 x3@0), in class 2 it is Poisson with log rate on x1 and x3, and the class regressed on x1 and x3 (c ON x1 x3). That is the zero-inflated Poisson regression: class 1 is the structural zero, its logit c#1 the inflation. The regression card’s zero-inflated Poisson model (maximum likelihood in R) with HC0 (the sandwich; Mplus’s default MLR) reproduces the Mplus output: log-likelihood −724.663, 6 free parameters, AIC 1461.327, BIC 1486.614, class 2’s intercept and slopes (1.042, 0.634, 0.287) and the inflation’s (c#1: −1.238, 2.189, 0.961), each with its standard error. Opens its card on the Analyses tab.',
+    data: mplusData('7.25', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Count data'],
+    panel: { ...regression('poisson', 'log', 'u1', ['x1', 'x3']), inflated: true, se: 'HC0' }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex7.28', package: 'stats', title: 'Twin model for binary outcomes with known classes (Mplus ex. 7.28)', source: MPLUS_SRC('7.28'), links: mplusLinks('7.28'),
+    description: 'Binary twin outcomes u1, u2 (N = 3000 pairs) with zygosity as a known class (KNOWNCLASS = cdz: dz = 0 monozygotic, 1 dizygotic) and a probit link: each twin’s latent response is a factor f plus a unit residual, the factors’ variance a² + c² + 0.001 and their covariance a² + c² in mz and 0.5a² + c² in dz pairs, one threshold for both twins (Mplus: f1 BY u1; f2 BY u2; f1-f2 (varf); f1 WITH f2 (covmz) and (covdz); MODEL CONSTRAINT). The classes are observed, so the likelihood is a bivariate probit for the twins times a binomial for the classes. The example opens two custom likelihood cards: the probit model of u1 and u2, the thresholds t and the latent responses’ variances a² + c² + 0.001 + 1 and covariance a² + c² − dz·0.5a² (dz, the class, a data column), with varf, covmz, covdz and h = a²/(a² + c² + 1) defined; and a nominal model of dz whose logit k is Mplus’s class mean cdz#1 (0.053, SE 0.028, as printed). Both with sandwich (MLR) standard errors, as Mplus. Mplus integrates the two factors numerically (adaptive quadrature, 15 points per dimension), the card computes the bivariate normal probabilities exactly (pbivnorm): at Mplus’s own estimates the exact log-likelihood is −9927.527, Mplus prints −9927.558, the quadrature’s error. The cards reach −9927.526 (AIC 19863.052; 4 parameters), and with the likelihood flat in c (SE 0.34) their estimates differ from Mplus’s by up to 0.004: t 0.013 (SE 0.029), a 1.682 (0.119) against 1.679 (0.116), c 0.335 (0.347) against 0.339 (0.340), h 0.718 (0.067) against 0.717 (0.066), varf 2.942 against 2.934, covdz 1.527 against 1.524. Opens its cards on the Analyses tab.',
+    data: mplusData('7.28', 'stats'), tags: [MPLUS_TAG, 'Twin model'], constructs: [], paths: [],
+    panel: { kind: 'customml', type: 'probit', outcomes: ['u1', 'u2'], parameters: [{ name: 't', start: 0 }, { name: 'a', start: 1 }, { name: 'c', start: 0.5 }],
+      logits: [], means: ['t', 't'], variances: ['a^2 + c^2 + 0.001 + 1', 'a^2 + c^2 + 0.001 + 1'], covariances: ['a^2 + c^2 - dz*0.5*a^2'],
+      defined: [{ name: 'varf', expr: 'a^2 + c^2 + 0.001' }, { name: 'covmz', expr: 'a^2 + c^2' }, { name: 'covdz', expr: '0.5*a^2 + c^2' }, { name: 'h', expr: 'a^2/(a^2 + c^2 + 1)' }], se: 'robust' },
+    morePanels: [{ kind: 'customml', type: 'nominal', outcomes: ['dz'], parameters: [{ name: 'k', start: 0 }], logits: ['k'], means: [], variances: [], covariances: [], defined: [], se: 'robust' }],
+    settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex7.30', package: 'stats', title: 'Cox regression with a treatment effect, as a mixture with observed classes (Mplus ex. 7.30)', source: MPLUS_SRC('7.30'), links: mplusLinks('7.30'),
+    description: 'A survival time t (500 persons, 143 censored) on a covariate x, with the treatment u as a class indicator whose thresholds are fixed at ±15 (Mplus: [u$1@15] in class 1, [u$1@-15] in class 2), so the classes are the observed groups u = 0 and u = 1, and the class-specific intercept of t ([t@0] in class 1, [t] in class 2) is the log hazard ratio of treatment. That is a Cox regression of t on x and u: survival’s coxph with HC0 (the robust sandwich; Mplus’s default MLR) reproduces the coefficient of x (0.541, SE 0.057) and the treatment effect (0.974, SE 0.117), and c#1 (−0.160, SE 0.090) is the log of the ratio of the group sizes. Mplus’s log-likelihood (−98.989) is on its own basis: the partial log-likelihood coxph reports (−1824.250), minus the number of events, minus the log of each event’s distance to the previous observed time (Mplus’s baseline hazard, a step function), plus the binomial log-likelihood of u; the test computes it this way to within 0.001. Opens its card on the Analyses tab.',
+    data: mplusData('7.30', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Survival analysis'],
+    panel: { ...regression('survival', 'logit', 't', ['x', 'u']), status: 'tcent', statusCensored: true, se: 'HC0' }, settings: CB('ML'),
   },
 ];

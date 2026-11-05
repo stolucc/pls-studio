@@ -12,6 +12,7 @@ import type { Config } from './config.ts';
 import { safeEqual } from './crypto.ts';
 import type { Db } from './db.ts';
 import { authRoutes } from './routes/auth.ts';
+import { exampleDataRoutes, type ExampleDataOptions } from './routes/exampleData.ts';
 import { projectRoutes } from './routes/projects.ts';
 import type { Mailer } from './services/mailer.ts';
 import { AccessError } from './services/projects.ts';
@@ -35,6 +36,8 @@ export interface AppDeps {
   /** Set by the WebSocket layer so membership changes can disconnect users. */
   onMembershipChange?: (projectId: string, userId?: string) => void;
   google?: import('./routes/google.ts').GoogleClient;
+  /** (tests) the example-data pass-through's fetch, limits and timeout */
+  exampleData?: ExampleDataOptions;
 }
 
 export const SESSION_COOKIE = 'pls.sid';
@@ -65,8 +68,9 @@ export function createApp(deps: AppDeps) {
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc: ['https://fonts.gstatic.com'],
         imgSrc: ["'self'", 'data:', 'blob:'],
-        // The optional desktop R helper (helper/) on the loopback interface.
-        connectSrc: ["'self'", 'http://127.0.0.1:9878'],
+        // The optional desktop R helper (helper/) on the loopback interface; example data read from their source
+        // when an example opens (src/examples/remote: the RI-CLPM tutorial's file on GitHub).
+        connectSrc: ["'self'", 'http://127.0.0.1:9878', 'https://raw.githubusercontent.com'],
         workerSrc: ["'self'", 'blob:'],
         objectSrc: ["'none'"],
         baseUri: ["'none'"],
@@ -88,6 +92,10 @@ export function createApp(deps: AppDeps) {
     await deps.db.query('SELECT 1');
     res.set('Cache-Control', 'no-store').json({ ok: true });
   }));
+
+  // Example data the browser cannot fetch itself (statmodel.com sends no CORS header), passed through and never
+  // stored (routes/exampleData.ts). Before the session middleware: anonymous, it creates no session rows or cookies.
+  app.use('/api/example-data', exampleDataRoutes(deps.exampleData));
 
   const PgStore = connectPg(session);
   const sessionMiddleware = session({

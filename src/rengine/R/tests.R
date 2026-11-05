@@ -173,6 +173,8 @@ ps_anova <- function(req_json, export = FALSE) {
 #' without a between factor.
 ps_rmanova <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
+  design <- ps_rm_design(req)
+  if (!is.null(design)) return(ps_rmanova_multi(req, design, export))
   within <- unlist(req$levels); between <- req$between %||% ""
   if (length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
   fname <- req$factorName %||% "condition"
@@ -224,6 +226,104 @@ ps_rmanova <- function(req_json, export = FALSE) {
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
 }
 
+#' Several within-subject factors (SPSS's and JASP's "define factors"): `factors`, each
+#' a name and its level names, and `cells`, one wide column per combination of levels
+#' (the first factor varying slowest, the last fastest). NULL for the one-factor design
+#' (`levels`, `factorName`), which keeps its own code.
+ps_rm_design <- function(req) {
+  fs <- req$factors
+  if (is.null(fs) || length(fs) < 2) return(NULL)
+  if (!is.list(fs) || length(fs) > 4) stop("At most four within-subject factors.")
+  nm <- vapply(fs, function(f) { x <- f$name; if (is.character(x) && length(x) == 1) x else "" }, "")
+  lv <- lapply(fs, function(f) as.character(unlist(f$levels)))
+  for (k in seq_along(fs)) {
+    if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", nm[k]) || nm[k] %in% c("subject", "y")) stop("Each factor name must be a letter followed by letters, digits, _ or . (at most 31), and not subject or y.")
+    if (length(lv[[k]]) < 2 || length(lv[[k]]) > 50 || anyDuplicated(lv[[k]]) || any(!nzchar(lv[[k]]))) stop(sprintf("Factor %s needs at least two distinct, named levels.", nm[k]))
+  }
+  if (anyDuplicated(nm)) stop("The within-subject factors need different names.")
+  cells <- as.character(unlist(req$cells))
+  if (length(cells) != prod(lengths(lv)) || any(!nzchar(cells)) || anyDuplicated(cells)) stop(sprintf("Assign a different column to each of the %d cells.", prod(lengths(lv))))
+  list(names = nm, levels = lv, cells = cells)
+}
+
+#' Script lines of a several-factor design: `idata` (one row per cell, in the order of
+#' the cells) and `long` (one row per subject and cell; `bvar`: the between factor's R name or "").
+ps_rm_design_lines <- function(design, cellsR, bvar) {
+  k <- length(design$names)
+  fac <- vapply(rev(seq_len(k)), function(i) sprintf("%s = factor(%s, levels = %s)", design$names[i], ps_q(design$levels[[i]]), ps_q(design$levels[[i]])), "")
+  c("# The within-subject design: one row per cell (wide column), the last factor varying fastest.",
+    sprintf("idata <- expand.grid(%s, KEEP.OUT.ATTRS = FALSE)[, %s]", paste(fac, collapse = ", "), ps_q(design$names)),
+    sprintf("Y <- as.matrix(data[, %s])", ps_q(cellsR)),
+    sprintf("long <- data.frame(subject = factor(rep(seq_len(nrow(Y)), ncol(Y))), idata[rep(seq_len(ncol(Y)), each = nrow(Y)), , drop = FALSE], y = c(Y)%s)",
+      if (nzchar(bvar)) sprintf(", %s = rep(data$%s, ncol(Y))", bvar, bvar) else ""),
+    "rownames(long) <- NULL")
+}
+
+#' The within-subject effects of a design: every non-empty set of the factors, main effects first (as aov orders them).
+ps_rm_effects <- function(names) {
+  sets <- unlist(lapply(seq_along(names), function(m) combn(names, m, simplify = FALSE)), recursive = FALSE)
+  sets
+}
+
+#' Repeated-measures ANOVA with several within-subject factors (and optionally one
+#' between factor): aov with an error stratum per within effect, and for each
+#' within effect the multivariate linear model's sphericity test (Mauchly) and the
+#' Greenhouse-Geisser and Huynh-Feldt corrections (anova.mlm on the effect's
+#' contrasts, `M` and `X` over `idata`, as car::Anova's idesign).
+ps_rmanova_multi <- function(req, design, export) {
+  between <- req$between %||% ""
+  bt <- nzchar(between)
+  fr <- ps_long_frame(req, unique(c(design$cells, if (bt) between)))
+  v <- fr$v
+  bvar <- if (bt) v[[between]] else ""
+  if (bt && bvar %in% c("subject", "y", "idata", design$names)) stop("Rename the between factor: its name is taken by a within-subject factor or the model.")
+  cellsR <- unname(unlist(v[design$cells]))
+  effects <- ps_rm_effects(design$names)
+  wf <- paste(design$names, collapse = " * ")
+  body <- c(sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(design$cells, if (bt) between)])))),
+    if (bt) ps_bt_factor_line(req, fr, between),
+    ps_rm_design_lines(design, cellsR, bvar),
+    sprintf("fit <- aov(y ~ %s%s + Error(subject/(%s)), data = long)", wf, if (bt) sprintf(" * %s", bvar) else "", wf),
+    sprintf("mlm <- lm(Y ~ %s)", if (bt) sprintf("data$%s", bvar) else "1"),
+    "# Each within effect: its contrasts are the cells' space of the effect's factors (M) less that of their lower-order terms (X).",
+    "effects <- list(",
+    paste0("  ", vapply(effects, function(e) sprintf("%s = list(M = ~ %s, X = ~ %s)", encodeString(paste(e, collapse = ":"), quote = "`"),
+      paste(e, collapse = " * "), if (length(e) == 1) "1" else if (length(e) == 2) paste(e, collapse = " + ") else sprintf("(%s)^%d", paste(e, collapse = " + "), length(e) - 1)), ""), collapse = ",\n"),
+    ")",
+    "spher <- lapply(effects, function(e) anova(mlm, M = e$M, X = e$X, idata = idata, test = \"Spherical\"))  # Greenhouse-Geisser and Huynh-Feldt corrections",
+    "mauchly <- lapply(effects, function(e) mauchly.test(mlm, M = e$M, X = e$X, idata = idata))  # (an effect with one degree of freedom is spherical)")
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  sm <- summary(env$fit)
+  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " × ")
+  strat <- function(s, stratum) { t <- s[[1]]; rn <- trimws(rownames(t)); res <- if ("Residuals" %in% rn) t[which(rn == "Residuals"), "Sum Sq"] else NULL
+    lapply(seq_len(nrow(t)), function(i) { r <- list(term = if (rn[i] == "Residuals") "Residuals" else back(rn[i]), stratum = stratum, ss = t[i, "Sum Sq"], df = t[i, "Df"], ms = t[i, "Mean Sq"],
+      f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL, p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL)
+      if (rn[i] != "Residuals" && !is.null(res)) r$partialEta2 <- r$ss / (r$ss + res)
+      r }) }
+  bs <- strat(sm[[which(names(sm) == "Error: subject")]], "subject")
+  ws <- unlist(lapply(effects, function(e) { key <- sprintf("Error: subject:%s", paste(e, collapse = ":")); strat(sm[[which(names(sm) == key)]], back(paste(e, collapse = ":"))) }), recursive = FALSE)
+  S <- crossprod(residuals(env$mlm)) / df.residual(env$mlm); n <- df.residual(env$mlm)
+  proj <- function(f) { m <- stats::model.matrix(f, env$idata); m %*% solve(crossprod(m), t(m)) }
+  sph <- list(); corr <- list()
+  for (i in seq_along(effects)) {
+    e <- env$effects[[i]]; term <- back(paste(effects[[i]], collapse = ":"))
+    Tm <- proj(e$M) - proj(e$X); k <- round(sum(diag(Tm)))
+    C <- eigen(Tm, symmetric = TRUE)$vectors[, seq_len(k), drop = FALSE]; M <- t(C) %*% S %*% C
+    gg <- sum(diag(M))^2 / (k * sum(diag(M %*% M))); hf <- min(1, ((n + 1) * k * gg - 2) / (k * (n - k * gg)))
+    if (k > 1) sph[[length(sph) + 1]] <- list(term = term, df = k, w = unname(env$mauchly[[i]]$statistic), p = env$mauchly[[i]]$p.value, gg = gg, hf = hf)
+    sp <- env$spher[[i]]
+    for (j in seq_len(nrow(sp) - 1)) corr[[length(corr) + 1]] <- list(term = if (j == 1) term else paste(term, "×", between), p = sp[j, "Pr(>F)"], pGG = sp[j, "G-G Pr"], pHF = sp[j, "H-F Pr"])
+  }
+  labels <- apply(expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_along(design$names)), drop = FALSE], 1, paste, collapse = " · ")
+  ps_json(list(factorName = paste(design$names, collapse = " × "), levels = design$cells, between = between, n = nrow(env$Y),
+    factors = lapply(seq_along(design$names), function(i) list(name = design$names[i], levels = I(design$levels[[i]]))),
+    within = ws, betweenTable = bs, sphericity = NULL, sphericityTable = sph, corrected = corr, friedman = NULL, posthoc = list(),
+    cells = lapply(seq_along(design$cells), function(i) c(list(cell = sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))),
+    warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
+}
+
 #' MANOVA: summary.manova with Pillai's trace, Wilks' lambda, Hotelling-Lawley
 #' trace and Roy's largest root for each term.
 ps_manova <- function(req_json, export = FALSE) {
@@ -262,10 +362,14 @@ ps_correlation <- function(req_json, export = FALSE) {
   fr <- ps_long_frame(req, vars)
   v <- fr$v
   if (method == "polychoric") return(ps_polychoric(fr, vars, alt, conf, listwise, export))
+  exact <- isTRUE(req$exact) && method %in% c("spearman", "kendall")
   body <- c(if (listwise) sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[vars])))),
     sprintf("vars <- %s", ps_q(unname(unlist(v[vars])))),
     "pairs <- combn(vars, 2, simplify = FALSE)",
-    sprintf("tests <- lapply(pairs, function(p) cor.test(data[[p[1]]], data[[p[2]]], method = \"%s\", alternative = \"%s\"%s))", method, alt,
+    if (exact) c(sprintf("# Exact p-values (exact = TRUE) where they exist: no ties, and at most %d cases; otherwise the normal approximation.", if (method == "kendall") 200 else 1289),
+      sprintf("exact <- vapply(pairs, function(p) { ok <- complete.cases(data[[p[1]]], data[[p[2]]]); x <- data[[p[1]]][ok]; y <- data[[p[2]]][ok]; !anyDuplicated(x) && !anyDuplicated(y) && sum(ok) <= %d }, TRUE)", if (method == "kendall") 200 else 1289),
+      sprintf("tests <- lapply(seq_along(pairs), function(i) { p <- pairs[[i]]; cor.test(data[[p[1]]], data[[p[2]]], method = \"%s\", alternative = \"%s\", exact = exact[i]) })", method, alt))
+    else sprintf("tests <- lapply(pairs, function(p) cor.test(data[[p[1]]], data[[p[2]]], method = \"%s\", alternative = \"%s\"%s))", method, alt,
       if (method == "pearson") sprintf(", conf.level = %s", format(conf)) else ", exact = FALSE"),
     "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)")
   inputs <- list(data = fr$data)
@@ -273,8 +377,8 @@ ps_correlation <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(env$pairs), function(i) { p <- env$pairs[[i]]; h <- env$tests[[i]]
     list(a = fr$back[[p[1]]], b = fr$back[[p[2]]], r = unname(h$estimate), p = h$p.value, n = env$n[i], stat = unname(h$statistic),
-      ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1], ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2]) })
-  ps_json(list(method = method, alternative = alt, confidence = conf, deletion = if (listwise) "listwise" else "pairwise", vars = vars, pairs = rows,
+      ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1], ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2], exact = if (exact) env$exact[i] else NULL) })
+  ps_json(list(method = method, alternative = alt, confidence = conf, deletion = if (listwise) "listwise" else "pairwise", vars = vars, pairs = rows, exact = if (exact) TRUE else NULL,
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
 }
 
@@ -391,6 +495,61 @@ ps_freqtest <- function(req_json, export = FALSE) {
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
 }
 
+#' Cohen's kappa weights: psych's default (squared distances), linear distances, or a
+#' matrix (one row per category of the first rater): agreement weights, or
+#' disagreement weights when its diagonal is zero (Cohen 1968), converted to agreement weights.
+ps_kappa_weights <- function(req, k) {
+  w <- req$kappaWeights %||% "squared"
+  if (!w %in% c("squared", "linear", "custom")) stop("Invalid kappa weights in the request.")
+  if (w != "custom") return(character(0))
+  m <- req$weightMatrix
+  if (!is.matrix(m) || !is.numeric(m) || nrow(m) != ncol(m) || nrow(m) < 2 || any(!is.finite(m))) stop("The kappa weights must be a square matrix of numbers.")
+  if (!is.null(k) && nrow(m) != k) stop(sprintf("The weight matrix has %d rows; the table has %d categories.", nrow(m), k))
+  c("# Weights (rows: the first rater's categories).",
+    sprintf("W <- matrix(c(%s), nrow = %d, byrow = TRUE)", paste(format(c(t(m)), digits = 15), collapse = ", "), nrow(m)),
+    "# A zero diagonal: disagreement weights (Cohen 1968), taken as the agreement weights 1 - W / max(W). The weighted kappa is the same,",
+    "# and psych's standard error is the one for agreement weights (Fleiss, Cohen & Everitt 1969).",
+    "if (all(diag(W) == 0) && max(W) > 0) W <- 1 - W / max(W)")
+}
+ps_kappa_args <- function(req) switch(req$kappaWeights %||% "squared", squared = "", linear = ", w.exp = 1", custom = ", w = W")
+
+#' Cohen's kappa of an agreement table: the two raters' categories as rows and columns,
+#' one row of data per cell with its count or proportion (`counts`; none: one row per
+#' subject). Proportions are scaled to `nObs` subjects for the standard errors
+#' (psych's n.obs).
+ps_kappa_table <- function(req, export) {
+  kt <- req$kappaTable
+  rv <- kt$rows %||% ""; cv <- kt$columns %||% ""; wv <- kt$counts %||% ""
+  if (!is.character(rv) || !is.character(cv) || !is.character(wv) || !nzchar(rv) || !nzchar(cv) || rv == cv) stop("Choose the two raters' variables for the rows and the columns.")
+  nobs <- kt$nObs
+  if (!is.null(nobs)) { nobs <- ps_number(nobs, "number of subjects"); if (nobs < 2 || nobs > 1e9) stop("The number of subjects must be at least 2.") }
+  conf <- ps_bt_conf(req)
+  fr <- ps_long_frame(req, unique(c(rv, cv, if (nzchar(wv)) wv)))
+  v <- fr$v
+  if (is.null(nobs) && nzchar(wv)) { w <- fr$data[[v[[wv]]]]; if (abs(sum(w[stats::complete.cases(fr$data)], na.rm = TRUE) - 1) < 1e-6) stop("The table holds proportions: give the number of subjects rated, for the standard errors.") }
+  codes <- sort(unique(c(fr$data[[v[[rv]]]], fr$data[[v[[cv]]]])))
+  codes <- codes[!is.na(codes)]
+  if (length(codes) < 2) stop("The raters use fewer than two categories.")
+  l <- unlist(req$categories[[rv]]) %||% unlist(req$categories[[cv]])
+  labels <- if (!is.null(l) && all(codes %in% seq_along(l))) l[codes] else format(codes, trim = TRUE)
+  lev <- sprintf("levels = c(%s), labels = %s", paste(format(codes, digits = 15, trim = TRUE), collapse = ", "), ps_q(labels))
+  body <- c(sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(rv, cv, if (nzchar(wv)) wv)])))),
+    "# Both raters on the same categories (either rater's), so that the table is square.",
+    sprintf("data$%s <- factor(data$%s, %s)", v[[rv]], v[[rv]], lev), sprintf("data$%s <- factor(data$%s, %s)", v[[cv]], v[[cv]], lev),
+    sprintf("tab <- unclass(xtabs(%s~ %s + %s, data = data))  # rows: the first rater; columns: the second", if (nzchar(wv)) paste0(v[[wv]], " ") else "", v[[rv]], v[[cv]]),
+    if (!is.null(nobs)) sprintf("tab <- tab / sum(tab) * %s  # proportions (or counts) scaled to the number of subjects", format(nobs, digits = 15)),
+    "suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, length(codes)),
+    sprintf("k <- cohen.kappa(tab%s, alpha = %s)", ps_kappa_args(req), format(1 - conf)))
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Cohen's kappa of an agreement table (psych)", "psych", inputs, body, c("tab", "k")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  cf <- env$k$confid
+  ps_json(list(type = "kappa", vars = c(rv, cv), n = sum(env$tab), confidence = conf, table = TRUE,
+    kappa = list(est = cf[1, 2], ciLow = cf[1, 1], ciHigh = cf[1, 3]), weighted = list(est = cf[2, 2], ciLow = cf[2, 1], ciHigh = cf[2, 3]), categories = length(codes),
+    weights = req$kappaWeights %||% "squared", levels = I(labels), counts = lapply(seq_len(nrow(env$tab)), function(i) unname(as.numeric(env$tab[i, ]))),
+    warnings = env$.warnings, engine = list(package = "psych", version = as.character(utils::packageVersion("psych")))))
+}
+
 #' Reliability and agreement (psych; Bland-Altman in base R):
 #' - scale: Cronbach's alpha with item statistics (psych::alpha), McDonald's
 #'   omega total of a one-factor model (psych::omega) and the greatest lower
@@ -402,6 +561,7 @@ ps_reliability <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   type <- req$type %||% "scale"
   if (!type %in% c("scale", "icc", "kappa", "blandaltman")) stop("Invalid reliability analysis in the request.")
+  if (type == "kappa" && is.list(req$kappaTable)) return(ps_kappa_table(req, export))
   vars <- unlist(req$vars)
   need <- c(scale = 2, icc = 2, kappa = 2, blandaltman = 2)[[type]]
   if (length(vars) < need) stop(sprintf("Choose at least %d variables.", need))
@@ -417,7 +577,8 @@ ps_reliability <- function(req_json, export = FALSE) {
       "o <- suppressWarnings(suppressMessages(omega(X, nfactors = 1, plot = FALSE)))",
       "g <- glb.fa(cor(X))  # greatest lower bound (psych's factor-analytic estimate)"),
     icc = c("suppressPackageStartupMessages(library(psych))", sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf))),
-    kappa = c("suppressPackageStartupMessages(library(psych))", sprintf("k <- cohen.kappa(X, alpha = %s)  # weighted: squared distances between categories", format(1 - conf))),
+    kappa = c("suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, NULL),
+      sprintf("k <- cohen.kappa(X%s, alpha = %s)%s", ps_kappa_args(req), format(1 - conf), if (identical(req$kappaWeights %||% "squared", "squared")) "  # weighted: squared distances between categories" else "")),
     blandaltman = c("d <- X[[1]] - X[[2]]; m <- (X[[1]] + X[[2]]) / 2",
       "bias <- mean(d); s <- sd(d); n <- length(d)",
       "loa <- bias + c(-1, 1) * 1.96 * s  # limits of agreement",

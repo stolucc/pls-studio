@@ -13,7 +13,8 @@ import { estimateCbLavaan } from '../../rengine/lavaan';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { near, same } from '../../validation/record';
 import { exampleModel } from '../packages';
-import { evidence, example, load, MPLUS, sameFit, samePrinted, TOL } from './testkit';
+import { evidence, example, load, MPLUS, runCards, sameFit, samePrinted, TOL } from './testkit';
+import type { TwoLevelEfaResult } from '../../rengine/twolevelefa';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -96,21 +97,23 @@ it('ex4.1 part 1: the EFA card (lavaan) reproduces Mplus’s TYPE = EFA 1 4: the
   for (const k of [1, 2, 3]) sameSolution(await efaR(data, { ...d, nfactors: k, from: k, epsilon: mplusEpsilon(k) }, 1), solution(key, k), EXACT);
 }, 600_000);
 
-it('ex4.2: binary items by WLSMV: the rotated solution within 0.002 of Mplus’s, its standard errors within 0.008, the χ² within 0.3%', async () => {
+it('ex4.2: binary items by WLSMV reproduce Mplus’s TYPE = EFA 1 4: the χ² of each number of factors and the rotated solution with its standard errors', async () => {
   const key = 'ex4.2';
   evidence(key, 'EFA', ['lavaan']);
   const r = await efaR(load(key), design(key), 1);
   expect(r.warnings).toEqual([]);
   expect(r.estimator).toBe('WLSMV');
   expect(r.ordinal).toEqual(design(key).vars);
-  // lavaan's scaled-shifted χ² adjusts slightly differently from Mplus's (as in ex. 5.2): 729.259 against 730.699 with one
-  // factor, 22.749 against 22.796 with four. Mplus counts the free parameters of a categorical EFA without the 12 thresholds
-  // (42 with four factors; lavaan 54), and computes SRMR for categorical items differently (0.026 against 0.024).
-  for (const row of r.comparison!) near(`χ² (${row.k} factors), relative`, row.chisq! / solution(key, row.k).fit.chisq, 1, 0.003);
-  sameComparison(r, key, Infinity, false, { npar: false, skip: ['srmr'] });
-  // The rotated loadings and factor correlations within 0.0011 (WLSMV); lavaan's standard errors up to 0.0065 larger than
-  // Mplus's for the loadings and 0.008 for the residual variances (documented on the card).
-  sameSolution(r, solution(key, 4), { loadings: 0.002, se: 0.007, phi: 0.002, phiSe: 0.007, residual: 0.002, residualSe: 0.009 });
+  // The test statistic as Mplus's (mimic = "Mplus"). Mplus counts the free parameters of a categorical EFA without the
+  // 12 thresholds (42 with four factors; lavaan 54), and computes SRMR for categorical items differently (0.026 against 0.024).
+  // (χ² within 0.002 with one to three factors; with four 22.792 against Mplus's 22.796, its looser convergence)
+  sameComparison(r, key, 0.004, false, { npar: false, skip: ['srmr'] });
+  // WLSMV standard errors as Mplus's (the default): the expected information in the sandwich, divided by N. Every standard
+  // error within 0.001; the estimates within 0.0011 (u2 on factor 4: 0.0699 against 0.071).
+  sameSolution(r, solution(key, 4), { ...EXACT, loadings: 0.0011, phi: 0.0011, residual: 0.0011 });
+  const s = await efaScriptR(load(key), design(key), 1);
+  expect(s).toContain('mimic = "Mplus", gamma.vcov.mplus = FALSE, information.bread = "expected"');
+  expect(s).toContain('fits <- lapply(fits, mplus_se)');
 }, 600_000);
 
 it('ex4.7: bi-geomin EFA 2 3: the fit, the rotated solutions and the residual variances with their standard errors', async () => {
@@ -147,4 +150,49 @@ it('the EFA card’s lavaan script carries the Mplus settings: ε, observed info
   expect(s).toContain('seq(min(1, k), k)');
   const b = await efaScriptR(load('ex4.7'), design('ex4.7'), 1);
   expect(b).toContain('rotation = list("bigeomin", geomin_epsilon = 0.001)');
+}, 600_000);
+
+/**
+ * ex4.5 (TWOLEVEL EFA): the two-level EFA card. ex4.5's printed output is not parsed into mplus_printed.json (its
+ * TYPE = TWOLEVEL EFA layout differs); the values below are copied from it (statmodel.com, ex4.5.out).
+ */
+it('ex4.5: the two-level EFA card reproduces the Mplus output: the fit of each combination, and the rotated loadings, correlations, residual variances and standard errors', async () => {
+  evidence('ex4.5', 'Two-level EFA', ['lavaan', 'GPArotation']);
+  const [r] = await runCards<TwoLevelEfaResult>('ex4.5');
+  expect(r.warnings).toEqual([]);
+  expect(r.clusters).toBe(110);
+  const sol = (w: number | 'U', b: number | 'U') => r.solutions.find((s) => s.within === w && s.between === b)!;
+  const fits: [number | 'U', number | 'U', number, number, number, number][] = [[1, 1, 30, -11160.512, 812.672, 18], [2, 1, 35, -10759.644, 10.937, 13], ['U', 1, 18, -10757.461, 6.571, 9], [2, 'U', 23, -10756.649, 4.946, 4]];
+  for (const [w, b, npar, logl, chisq, df] of fits) {
+    const s = sol(w, b);
+    same(`${w} within, ${b} between: free parameters (Mplus's count)`, s.fit.nparMplus, npar);
+    same(`${w} within, ${b} between: df`, s.fit.df, df);
+    near(`${w} within, ${b} between: log-likelihood`, s.fit.logl, logl, 0.001);
+    near(`${w} within, ${b} between: χ²`, s.fit.chisq, chisq, 0.002);
+  }
+  // One within factor, unrestricted between: a flat ridge (stated on the card).
+  near('1 within, U between: log-likelihood (a flat ridge: Mplus −11156.190)', sol(1, 'U').fit.logl, -11156.19, 0.07);
+  // Two within factors and one between factor: every estimate and SE Mplus prints.
+  const w = sol(2, 1).withinLevel!, bt = sol(2, 1).betweenLevel!;
+  const L = [[0.801, 0.006], [0.797, -0.009], [0.788, 0.002], [-0.002, 0.765], [-0.008, 0.815], [0.027, 0.758]];
+  const Lse = [[0.021, 0.022], [0.022, 0.025], [0.020, 0.017], [0.014, 0.021], [0.023, 0.022], [0.032, 0.025]];
+  // (factors matched to Mplus's: the one y1 loads on first)
+  const o = Math.abs(w.loadings[0].est[0]) > Math.abs(w.loadings[0].est[1]) ? [0, 1] : [1, 0];
+  L.forEach((row, i) => row.forEach((v, j) => {
+    near(`within: y${i + 1} on factor ${j + 1}`, w.loadings[i].est[o[j]], v, TOL);
+    near(`within: SE of y${i + 1} on factor ${j + 1}`, w.loadings[i].se[o[j]], Lse[i][j], TOL);
+  }));
+  near('within: factor correlation', w.correlations[0].est, 0.374, TOL);
+  near('within: SE of the factor correlation', w.correlations[0].se, 0.038, TOL);
+  [0.354, 0.371, 0.378, 0.415, 0.340, 0.410].forEach((v, i) => near(`within: residual variance of y${i + 1}`, w.residuals[i].est, v, TOL));
+  [0.029, 0.029, 0.029, 0.030, 0.031, 0.030].forEach((v, i) => near(`within: SE of the residual variance of y${i + 1}`, w.residuals[i].se, v, TOL));
+  near('within: rotation criterion', w.criterion!, 0.06784, 0.00001);
+  [0.931, 0.915, 0.928, 0.886, 0.949, 0.903].forEach((v, i) => near(`between: y${i + 1}`, bt.loadings[i].est[0], v, TOL));
+  [0.021, 0.024, 0.023, 0.030, 0.020, 0.026].forEach((v, i) => near(`between: SE of y${i + 1}`, bt.loadings[i].se[0], v, TOL));
+  [0.134, 0.163, 0.138, 0.216, 0.100, 0.184].forEach((v, i) => near(`between: residual variance of y${i + 1}`, bt.residuals[i].est, v, TOL));
+  [0.040, 0.045, 0.042, 0.053, 0.037, 0.047].forEach((v, i) => near(`between: SE of the residual variance of y${i + 1}`, bt.residuals[i].se, v, TOL));
+  // One within and one between factor: the between level.
+  const b11 = sol(1, 1).betweenLevel!;
+  [0.910, 0.901, 0.912, 0.913, 0.977, 0.934].forEach((v, i) => near(`1/1 between: y${i + 1}`, b11.loadings[i].est[0], v, TOL));
+  [0.025, 0.026, 0.026, 0.029, 0.019, 0.023].forEach((v, i) => near(`1/1 between: SE of y${i + 1}`, b11.loadings[i].se[0], v, TOL));
 }, 600_000);

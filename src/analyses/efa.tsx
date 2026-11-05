@@ -246,6 +246,17 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
                 <option value="expected">Expected information (lavaan)</option><option value="observed">Observed information (Mplus)</option>
               </select></div>
           )}
+          {d.correlation === 'polychoric' && (
+            <div className="field"><label htmlFor="efa-wlsmv-se">Standard errors</label>
+              <select id="efa-wlsmv-se" className="select" value={d.wlsmvSe ?? 'mplus'} onChange={(e) => setDesign({ wlsmvSe: e.target.value === 'lavaan' ? 'lavaan' : undefined })}>
+                <option value="mplus">Mplus / classic WLSMV (default)</option><option value="lavaan">lavaan 0.7 (observed information in the sandwich)</option>
+              </select>
+              <div className="hint">Mplus’s WLSMV puts the expected information in the sandwich and divides by N; lavaan 0.7 puts the observed information there, which for rotated solutions gives standard errors up to several times larger.</div></div>
+          )}
+          {d.correlation === 'polychoric' && (
+            <label className="check"><input type="checkbox" checked={d.mimic === 'Mplus'} onChange={(e) => setDesign({ mimic: e.target.checked ? 'Mplus' : undefined })} />
+              <span>Test statistic as Mplus<br /><span className="hint">lavaan’s mimic = “Mplus”: the mean- and variance-adjusted χ² Mplus prints (lavaan’s own differs slightly).</span></span></label>
+          )}
         </div>
       )}
       <div className="field"><label htmlFor="efa-thr">Hide loadings below</label>

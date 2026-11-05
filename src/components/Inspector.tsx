@@ -611,6 +611,8 @@ function ModelInspector() {
   const setSettings = useStore((s) => s.setSettings);
   const setInformation = useStore((s) => s.setInformation);
   const setParameterization = useStore((s) => s.setParameterization);
+  const setWlsmvSe = useStore((s) => s.setWlsmvSe);
+  const setMimic = useStore((s) => s.setMimic);
   const setBaseline = useStore((s) => s.setBaseline);
   const setConvention = useStore((s) => s.setConvention);
   const select = useStore((s) => s.select);
@@ -800,6 +802,23 @@ function ModelInspector() {
               <div className="hint">How the latent response behind each ordinal indicator is scaled. Delta fixes its total variance at 1; theta fixes its residual variance at 1, so residual variances can be held or freed (right-click an indicator), as in Mplus PARAMETERIZATION = THETA. The fit is the same; the scale of the estimates differs.</div>
             </div>
           )}
+          {settings.estimator === 'WLSMV' && (
+            <div className="field" style={{ marginTop: 8 }}>
+              <label htmlFor="cb-wlsmv-se">Standard errors</label>
+              <select id="cb-wlsmv-se" className="select" disabled={readOnlyChecks} value={model.wlsmvSe ?? 'mplus'}
+                onChange={(e) => setWlsmvSe(e.target.value === 'lavaan' ? 'lavaan' : null)}>
+                <option value="mplus">Mplus / classic WLSMV (default)</option>
+                <option value="lavaan">lavaan 0.7 (observed information in the sandwich)</option>
+              </select>
+              <div className="hint">{model.wlsmvSe === 'lavaan'
+                ? 'lavaan 0.7’s default: the observed information (the Hessian) in the sandwich’s bread, and the covariance matrix of the estimates divided by N − G. Estimates and the test statistic are the same; the standard errors differ from Mplus’s, in models with covariates or exploratory rotations by up to several times.'
+                : 'As Mplus and lavaan up to 0.7-1 (Muthén, du Toit & Spisic 1997): the expected information (Δ′WΔ)⁻¹ in the sandwich (information.bread = “expected”) and the covariance matrix of the estimates divided by N. Estimates and the test statistic do not change. With sampling clusters or weights lavaan’s own standard errors are kept.'}</div>
+              <label className="check" style={{ marginTop: 8 }}>
+                <input type="checkbox" checked={model.mimic === 'Mplus'} disabled={readOnlyChecks || (!!model.multigroup && model.mimic !== 'Mplus')} onChange={(e) => setMimic(e.target.checked ? 'Mplus' : null)} />
+                <span>Test statistic as Mplus<br /><span className="hint">lavaan’s mimic = “Mplus” (with gamma.vcov.mplus = FALSE): the mean- and variance-adjusted χ² Mplus prints, and Mplus’s handling of covariates with mixed continuous and ordinal outcomes; estimates can move in the third decimal. One group only: with groups lavaan’s mimic also changes which parameters are held equal.</span></span>
+              </label>
+            </div>
+          )}
           {['ML', 'MLM', 'MLMV', 'MLR'].includes(settings.estimator) && (
             <div className="field" style={{ marginTop: 8 }}>
               <label htmlFor="cb-convention">Sample size in χ²</label>
@@ -905,18 +924,19 @@ function ModelInspector() {
               {settings.method === 'cbsem' && (
                 <>
                   <label htmlFor="mi-method" style={{ marginTop: 8 }}>Imputation</label>
-                  <select id="mi-method" className="select" value={settings.miMethod} onChange={(e) => setSettings({ miMethod: e.target.value === 'amelia' ? 'amelia' : 'mice' })}>
+                  <select id="mi-method" className="select" value={settings.miMethod} onChange={(e) => setSettings({ miMethod: e.target.value === 'amelia' || e.target.value === 'micenorm' ? e.target.value : 'mice' })}>
                     <option value="mice">mice: chained equations, predictive mean matching</option>
+                    <option value="micenorm">mice: Bayesian normal regression (Mplus's H1 imputation)</option>
                     <option value="amelia">Amelia: EM with bootstrapping (multivariate normal)</option>
                   </select>
                   {data && !data.moments && (
                     <OrderedPicker label="Auxiliary variables (inform the imputation, not in the model)" columns={data.names.filter((n) => !model.constructs.some((c) => c.indicators.includes(n)))}
                       value={settings.miAuxiliary.filter((a) => data.names.includes(a))} onChange={(miAuxiliary) => setSettings({ miAuxiliary, miNominal: settings.miNominal.filter((x) => miAuxiliary.includes(x) || model.constructs.some((c) => c.indicators.includes(x))) })} />
                   )}
-                  {settings.miMethod === 'amelia' && settings.miAuxiliary.length > 0 && (
+                  {((settings.miMethod === 'amelia' && settings.miAuxiliary.length > 0) || settings.miMethod === 'micenorm') && (
                     <div className="field">
-                      <label>Nominal (unordered categories; Amelia’s noms)</label>
-                      {settings.miAuxiliary.map((a) => (
+                      <label>{settings.miMethod === 'amelia' ? 'Nominal (unordered categories; Amelia’s noms)' : 'Categorical (imputed by logistic or multinomial regression)'}</label>
+                      {(settings.miMethod === 'amelia' ? settings.miAuxiliary : [...new Set([...model.constructs.flatMap((c) => c.indicators), ...settings.miAuxiliary])]).map((a) => (
                         <label className="check" key={a}><input type="checkbox" checked={settings.miNominal.includes(a)} onChange={(e) => setSettings({ miNominal: e.target.checked ? [...settings.miNominal, a] : settings.miNominal.filter((x) => x !== a) })} /> <span>{a}</span></label>
                       ))}
                     </div>
@@ -924,7 +944,7 @@ function ModelInspector() {
                 </>
               )}
               <div className="hint" style={{ marginTop: 6 }}>
-                {settings.method === 'cbsem' && settings.miMethod === 'amelia' ? 'Amelia' : 'mice'} imputes the missing values {settings.miImputations} times ({settings.method === 'cbsem' && settings.miMethod === 'amelia' ? 'EM with bootstrapping, multivariate normal' : 'predictive mean matching'}, missing at random; seed as for bootstrapping{settings.miAuxiliary.length && settings.method === 'cbsem' ? `; with ${settings.miAuxiliary.join(', ')}` : ''}); {settings.method === 'cbsem'
+                {settings.method === 'cbsem' && settings.miMethod === 'amelia' ? 'Amelia' : 'mice'} imputes the missing values {settings.miImputations} times ({settings.method === 'cbsem' && settings.miMethod === 'amelia' ? 'EM with bootstrapping, multivariate normal' : settings.method === 'cbsem' && settings.miMethod === 'micenorm' ? 'Bayesian normal regression, logistic for nominal columns' : 'predictive mean matching'}, missing at random; seed as for bootstrapping{settings.miAuxiliary.length && settings.method === 'cbsem' ? `; with ${settings.miAuxiliary.join(', ')}` : ''}); {settings.method === 'cbsem'
                   ? 'the model is estimated in every imputed data set and pooled by Rubin’s rules (lavaan.mi), with pooled standard errors, tests and fit.'
                   : 'the model is estimated in every imputed data set and the estimates are averaged; bootstrapping pools the bootstrap standard errors by Rubin’s rules.'}
               </div>

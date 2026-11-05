@@ -1439,6 +1439,128 @@
     "se": 0.114
    }
   ],
+  "ci": [
+   {
+    "lhs": "y1",
+    "op": "~",
+    "rhs": "x1",
+    "block": "",
+    "low": 0.907,
+    "high": 1.075
+   },
+   {
+    "lhs": "y1",
+    "op": "~",
+    "rhs": "x2",
+    "block": "",
+    "low": 1.918,
+    "high": 2.091
+   },
+   {
+    "lhs": "y1",
+    "op": "~",
+    "rhs": "x3",
+    "block": "",
+    "low": 2.976,
+    "high": 3.133
+   },
+   {
+    "lhs": "y2",
+    "op": "~",
+    "rhs": "x1",
+    "block": "",
+    "low": 2.834,
+    "high": 3.029
+   },
+   {
+    "lhs": "y2",
+    "op": "~",
+    "rhs": "x2",
+    "block": "",
+    "low": 1.889,
+    "high": 2.095
+   },
+   {
+    "lhs": "y2",
+    "op": "~",
+    "rhs": "x3",
+    "block": "",
+    "low": 0.926,
+    "high": 1.123
+   },
+   {
+    "lhs": "y3",
+    "op": "~",
+    "rhs": "y1",
+    "block": "",
+    "low": 0.468,
+    "high": 0.544
+   },
+   {
+    "lhs": "y3",
+    "op": "~",
+    "rhs": "y2",
+    "block": "",
+    "low": 0.708,
+    "high": 0.78
+   },
+   {
+    "lhs": "y3",
+    "op": "~",
+    "rhs": "x2",
+    "block": "",
+    "low": 0.906,
+    "high": 1.204
+   },
+   {
+    "lhs": "y1",
+    "op": "~1",
+    "rhs": "",
+    "block": "",
+    "low": -1.15,
+    "high": -0.969
+   },
+   {
+    "lhs": "y2",
+    "op": "~1",
+    "rhs": "",
+    "block": "",
+    "low": -0.139,
+    "high": 0.06
+   },
+   {
+    "lhs": "y3",
+    "op": "~1",
+    "rhs": "",
+    "block": "",
+    "low": 0.956,
+    "high": 1.201
+   },
+   {
+    "lhs": "y1",
+    "op": "~~",
+    "rhs": "y1",
+    "block": "",
+    "low": 0.924,
+    "high": 1.186
+   },
+   {
+    "lhs": "y2",
+    "op": "~~",
+    "rhs": "y2",
+    "block": "",
+    "low": 1.237,
+    "high": 1.555
+   },
+   {
+    "lhs": "y3",
+    "op": "~~",
+    "rhs": "y3",
+    "block": "",
+    "low": 1.478,
+    "high": 1.94
+   }
+  ],
   "indirect": [
    {
     "from": "x1",
@@ -33003,7 +33125,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CU#1",
     "est": -0.92,
     "se": 0.206
    },
@@ -33012,7 +33134,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CU#1",
     "est": -1.076,
     "se": 0.184
    },
@@ -33021,7 +33143,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CU#1",
     "est": -0.9,
     "se": 0.139
    },
@@ -33030,7 +33152,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CU#1",
     "est": -0.762,
     "se": 0.176
    },
@@ -33039,7 +33161,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CU#2",
     "est": 0.969,
     "se": 0.239
    },
@@ -33048,7 +33170,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CU#2",
     "est": 1.02,
     "se": 0.337
    },
@@ -33057,7 +33179,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CU#2",
     "est": 0.786,
     "se": 0.295
    },
@@ -33066,7 +33188,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CU#2",
     "est": 1.139,
     "se": 0.288
    },
@@ -33075,7 +33197,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#1",
     "est": -0.925,
     "se": 0.061
    },
@@ -33084,7 +33206,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#1",
     "est": -1.052,
     "se": 0.058
    },
@@ -33093,7 +33215,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#1",
     "est": -1.069,
     "se": 0.058
    },
@@ -33102,7 +33224,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#1",
     "est": -0.999,
     "se": 0.054
    },
@@ -33111,7 +33233,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#2",
     "est": 1.149,
     "se": 0.085
    },
@@ -33120,7 +33242,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#2",
     "est": 1.052,
     "se": 0.083
    },
@@ -33129,7 +33251,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#2",
     "est": 1.086,
     "se": 0.077
    },
@@ -33138,7 +33260,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#2",
     "est": 0.998,
     "se": 0.069
    },
@@ -33147,7 +33269,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#3",
     "est": 1.798,
     "se": 0.081
    },
@@ -33156,7 +33278,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#3",
     "est": 2.073,
     "se": 0.104
    },
@@ -33165,7 +33287,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#3",
     "est": 2.028,
     "se": 0.114
    },
@@ -33174,7 +33296,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CY#3",
     "est": 2.106,
     "se": 0.148
    },
@@ -33238,7 +33360,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 15.0,
     "se": 0.0
    },
@@ -33247,7 +33369,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -15.0,
     "se": 0.0
    },
@@ -33256,7 +33378,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 15.0,
     "se": 0.0
    },
@@ -33265,7 +33387,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -15.0,
     "se": 0.0
    },
@@ -33274,7 +33396,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#1",
     "est": 15.0,
     "se": 0.0
    },
@@ -33283,7 +33405,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#2",
     "est": -15.0,
     "se": 0.0
    },
@@ -33781,7 +33903,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 1.012,
     "se": 0.104
    },
@@ -33790,7 +33912,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 1.08,
     "se": 0.11
    },
@@ -33799,7 +33921,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 1.054,
     "se": 0.108
    },
@@ -33808,7 +33930,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -0.963,
     "se": 0.1
    },
@@ -33817,7 +33939,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -0.984,
     "se": 0.103
    },
@@ -33826,7 +33948,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -0.943,
     "se": 0.098
    },
@@ -33835,7 +33957,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 0.992,
     "se": 0.103
    },
@@ -33844,7 +33966,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 1.287,
     "se": 0.139
    },
@@ -33853,7 +33975,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 0.976,
     "se": 0.102
    },
@@ -33862,7 +33984,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -0.935,
     "se": 0.092
    },
@@ -33871,7 +33993,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -1.035,
     "se": 0.106
    },
@@ -33880,7 +34002,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -0.917,
     "se": 0.09
    },
@@ -34630,7 +34752,7 @@
     "op": "~~",
     "rhs": "y1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CG#1",
     "est": 1.021,
     "se": 0.066
    },
@@ -34639,7 +34761,7 @@
     "op": "~~",
     "rhs": "y2",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CG#1",
     "est": 0.986,
     "se": 0.065
    },
@@ -34648,7 +34770,7 @@
     "op": "~~",
     "rhs": "y3",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CG#1",
     "est": 0.99,
     "se": 0.063
    },
@@ -34657,7 +34779,7 @@
     "op": "~~",
     "rhs": "y4",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CG#1",
     "est": 1.001,
     "se": 0.06
    },
@@ -34666,7 +34788,7 @@
     "op": "~~",
     "rhs": "y1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CG#2",
     "est": 0.551,
     "se": 0.035
    },
@@ -34675,7 +34797,7 @@
     "op": "~~",
     "rhs": "y2",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CG#2",
     "est": 0.447,
     "se": 0.027
    },
@@ -34684,7 +34806,7 @@
     "op": "~~",
     "rhs": "y3",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CG#2",
     "est": 0.514,
     "se": 0.031
    },
@@ -34693,7 +34815,7 @@
     "op": "~~",
     "rhs": "y4",
     "group": 1,
-    "block": "",
+    "block": "Latent Class CG#2",
     "est": 0.465,
     "se": 0.03
    },
@@ -34702,7 +34824,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C#1",
     "est": -0.96,
     "se": 0.036
    },
@@ -34711,7 +34833,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C#1",
     "est": -0.957,
     "se": 0.033
    },
@@ -34720,7 +34842,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C#1",
     "est": -1.01,
     "se": 0.034
    },
@@ -34729,7 +34851,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C#1",
     "est": -1.041,
     "se": 0.034
    },
@@ -34738,7 +34860,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C#2",
     "est": 0.938,
     "se": 0.042
    },
@@ -34747,7 +34869,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C#2",
     "est": 0.905,
     "se": 0.039
    },
@@ -34756,7 +34878,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C#2",
     "est": 0.97,
     "se": 0.041
    },
@@ -34765,7 +34887,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C#2",
     "est": 1.008,
     "se": 0.04
    },
@@ -42076,7 +42198,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 4.099,
     "se": 0.212
    },
@@ -42085,7 +42207,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 1.458,
     "se": 0.062
    },
@@ -42094,7 +42216,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 2.068,
     "se": 0.182
    },
@@ -42103,7 +42225,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 1.017,
     "se": 0.08
    },
@@ -42112,7 +42234,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -0.054,
     "se": 0.128
    },
@@ -42121,7 +42243,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 0.053,
     "se": 0.06
    },
@@ -42130,7 +42252,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.012,
     "se": 0.076
    },
@@ -42139,7 +42261,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.05,
     "se": 0.042
    },
@@ -42148,7 +42270,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -2.061,
     "se": 0.135
    },
@@ -42157,7 +42279,7 @@
     "op": "~1",
     "rhs": "",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -1.07,
     "se": 0.048
    },
@@ -43665,7 +43787,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -0.904,
     "se": 0.269
    },
@@ -43674,7 +43796,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.934,
     "se": 0.154
    },
@@ -43683,7 +43805,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.904,
     "se": 0.269
    },
@@ -43692,7 +43814,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.934,
     "se": 0.154
    },
@@ -43701,7 +43823,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#1",
     "est": -0.904,
     "se": 0.269
    },
@@ -43710,7 +43832,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#2",
     "est": 0.934,
     "se": 0.154
    },
@@ -43719,7 +43841,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C4#1",
     "est": -0.904,
     "se": 0.269
    },
@@ -43728,7 +43850,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C4#2",
     "est": 0.934,
     "se": 0.154
    },
@@ -43810,7 +43932,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -1.253,
     "se": 0.279
    },
@@ -43819,7 +43941,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -0.895,
     "se": 0.203
    },
@@ -43828,7 +43950,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -0.974,
     "se": 0.099
    },
@@ -43837,7 +43959,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -1.039,
     "se": 0.11
    },
@@ -43846,7 +43968,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -0.838,
     "se": 0.096
    },
@@ -43855,7 +43977,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 1.061,
     "se": 0.101
    },
@@ -43864,7 +43986,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.959,
     "se": 0.086
    },
@@ -43873,7 +43995,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.86,
     "se": 0.12
    },
@@ -43882,7 +44004,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.829,
     "se": 0.107
    },
@@ -43891,7 +44013,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.941,
     "se": 0.126
    },
@@ -43900,7 +44022,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 0.96,
     "se": 0.309
    },
@@ -43909,7 +44031,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 0.719,
     "se": 0.209
    },
@@ -43918,7 +44040,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -1.078,
     "se": 0.173
    },
@@ -43927,7 +44049,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -0.824,
     "se": 0.147
    },
@@ -43936,7 +44058,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -1.286,
     "se": 0.247
    },
@@ -43945,7 +44067,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -1.253,
     "se": 0.279
    },
@@ -43954,7 +44076,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.895,
     "se": 0.203
    },
@@ -43963,7 +44085,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.974,
     "se": 0.099
    },
@@ -43972,7 +44094,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -1.039,
     "se": 0.11
    },
@@ -43981,7 +44103,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.838,
     "se": 0.096
    },
@@ -43990,7 +44112,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 1.061,
     "se": 0.101
    },
@@ -43999,7 +44121,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.959,
     "se": 0.086
    },
@@ -44008,7 +44130,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.86,
     "se": 0.12
    },
@@ -44017,7 +44139,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.829,
     "se": 0.107
    },
@@ -44026,7 +44148,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.941,
     "se": 0.126
    },
@@ -44035,7 +44157,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 0.96,
     "se": 0.309
    },
@@ -44044,7 +44166,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 0.719,
     "se": 0.209
    },
@@ -44053,7 +44175,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -1.078,
     "se": 0.173
    },
@@ -44062,7 +44184,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -0.824,
     "se": 0.147
    },
@@ -44071,7 +44193,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -1.286,
     "se": 0.247
    },
@@ -44161,7 +44283,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": -0.868,
     "se": 0.98
    },
@@ -44170,7 +44292,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": -0.349,
     "se": 0.989
    },
@@ -44179,7 +44301,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": -1.336,
     "se": 1.21
    },
@@ -44188,7 +44310,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": 1.017,
     "se": 1.054
    },
@@ -44197,7 +44319,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": 2.534,
     "se": 3.14
    },
@@ -44206,7 +44328,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": -1.423,
     "se": 0.69
    },
@@ -44215,7 +44337,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": 2.103,
     "se": 3.224
    },
@@ -44224,7 +44346,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": -1.018,
     "se": 0.672
    }
@@ -44243,7 +44365,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -1.253,
     "se": 0.279
    },
@@ -44252,7 +44374,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -0.895,
     "se": 0.203
    },
@@ -44261,7 +44383,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -0.974,
     "se": 0.099
    },
@@ -44270,7 +44392,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -1.039,
     "se": 0.11
    },
@@ -44279,7 +44401,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -0.838,
     "se": 0.096
    },
@@ -44288,7 +44410,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 1.061,
     "se": 0.101
    },
@@ -44297,7 +44419,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.959,
     "se": 0.086
    },
@@ -44306,7 +44428,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.86,
     "se": 0.12
    },
@@ -44315,7 +44437,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.829,
     "se": 0.107
    },
@@ -44324,7 +44446,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.941,
     "se": 0.126
    },
@@ -44333,7 +44455,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 0.96,
     "se": 0.309
    },
@@ -44342,7 +44464,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 0.718,
     "se": 0.209
    },
@@ -44351,7 +44473,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -1.078,
     "se": 0.173
    },
@@ -44360,7 +44482,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -0.824,
     "se": 0.147
    },
@@ -44369,7 +44491,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -1.286,
     "se": 0.247
    },
@@ -44378,7 +44500,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -1.253,
     "se": 0.279
    },
@@ -44387,7 +44509,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.895,
     "se": 0.203
    },
@@ -44396,7 +44518,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.974,
     "se": 0.099
    },
@@ -44405,7 +44527,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -1.039,
     "se": 0.11
    },
@@ -44414,7 +44536,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.838,
     "se": 0.096
    },
@@ -44423,7 +44545,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 1.061,
     "se": 0.101
    },
@@ -44432,7 +44554,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.959,
     "se": 0.086
    },
@@ -44441,7 +44563,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.86,
     "se": 0.12
    },
@@ -44450,7 +44572,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.829,
     "se": 0.107
    },
@@ -44459,7 +44581,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.941,
     "se": 0.126
    },
@@ -44468,7 +44590,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 0.96,
     "se": 0.309
    },
@@ -44477,7 +44599,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 0.718,
     "se": 0.209
    },
@@ -44486,7 +44608,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -1.078,
     "se": 0.173
    },
@@ -44495,7 +44617,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -0.824,
     "se": 0.147
    },
@@ -44504,7 +44626,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -1.286,
     "se": 0.247
    },
@@ -44558,7 +44680,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": 0.467,
     "se": 0.119
    },
@@ -44567,7 +44689,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": 0.298,
     "se": 0.067
    },
@@ -44576,7 +44698,7 @@
     "op": "~",
     "rhs": "c1#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": 0.547,
     "se": 0.13
    },
@@ -44585,7 +44707,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": 0.138,
     "se": 0.061
    },
@@ -44594,7 +44716,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": 0.552,
     "se": 0.045
    },
@@ -44603,7 +44725,7 @@
     "op": "~",
     "rhs": "c1#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#1",
     "est": 0.259,
     "se": 0.101
    },
@@ -44612,7 +44734,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": 0.702,
     "se": 0.081
    },
@@ -44621,7 +44743,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": 0.249,
     "se": 0.107
    },
@@ -44630,7 +44752,7 @@
     "op": "~",
     "rhs": "c1#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": 0.475,
     "se": 0.09
    },
@@ -44639,7 +44761,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": 0.269,
     "se": 0.068
    },
@@ -44648,7 +44770,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": 0.22,
     "se": 0.084
    },
@@ -44657,7 +44779,7 @@
     "op": "~",
     "rhs": "c1#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class CG#2",
     "est": 0.281,
     "se": 0.053
    }
@@ -44676,7 +44798,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -1.107,
     "se": 0.388
    },
@@ -44685,7 +44807,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -1.442,
     "se": 0.6
    },
@@ -44694,7 +44816,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -1.148,
     "se": 0.134
    },
@@ -44703,7 +44825,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -0.932,
     "se": 0.113
    },
@@ -44712,7 +44834,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": -1.196,
     "se": 0.154
    },
@@ -44721,7 +44843,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.953,
     "se": 0.204
    },
@@ -44730,7 +44852,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": 0.934,
     "se": 0.2
    },
@@ -44739,7 +44861,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -0.865,
     "se": 0.09
    },
@@ -44748,7 +44870,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -1.088,
     "se": 0.085
    },
@@ -44757,7 +44879,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -0.794,
     "se": 0.074
    },
@@ -44766,7 +44888,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 0.858,
     "se": 0.08
    },
@@ -44775,7 +44897,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 1.082,
     "se": 0.087
    },
@@ -44784,7 +44906,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 1.125,
     "se": 0.098
    },
@@ -44793,7 +44915,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 1.012,
     "se": 0.106
    },
@@ -44802,7 +44924,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 1.155,
     "se": 0.112
    },
@@ -44811,7 +44933,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -1.107,
     "se": 0.388
    },
@@ -44820,7 +44942,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -1.442,
     "se": 0.6
    },
@@ -44829,7 +44951,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -1.148,
     "se": 0.134
    },
@@ -44838,7 +44960,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -0.932,
     "se": 0.113
    },
@@ -44847,7 +44969,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": -1.196,
     "se": 0.154
    },
@@ -44856,7 +44978,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.953,
     "se": 0.204
    },
@@ -44865,7 +44987,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": 0.934,
     "se": 0.2
    },
@@ -44874,7 +44996,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -0.865,
     "se": 0.09
    },
@@ -44883,7 +45005,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -1.088,
     "se": 0.085
    },
@@ -44892,7 +45014,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -0.794,
     "se": 0.074
    },
@@ -44901,7 +45023,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 0.858,
     "se": 0.08
    },
@@ -44910,7 +45032,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 1.082,
     "se": 0.087
    },
@@ -44919,7 +45041,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 1.125,
     "se": 0.098
    },
@@ -44928,7 +45050,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 1.012,
     "se": 0.106
    },
@@ -44937,7 +45059,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 1.155,
     "se": 0.112
    },
@@ -45036,7 +45158,7 @@
     "op": "~",
     "rhs": "x",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C1#1",
     "est": -0.689,
     "se": 0.327
    },
@@ -45045,7 +45167,7 @@
     "op": "~",
     "rhs": "x",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C1#1",
     "est": -1.708,
     "se": 0.63
    },
@@ -45054,7 +45176,7 @@
     "op": "~",
     "rhs": "x",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C1#2",
     "est": -1.659,
     "se": 0.863
    },
@@ -45063,7 +45185,7 @@
     "op": "~",
     "rhs": "x",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C1#2",
     "est": -2.353,
     "se": 0.734
    },
@@ -45072,7 +45194,7 @@
     "op": "~",
     "rhs": "x",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C1#3",
     "est": 0.522,
     "se": 0.384
    },
@@ -45081,7 +45203,7 @@
     "op": "~",
     "rhs": "x",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C1#3",
     "est": 1.316,
     "se": 0.424
    }
@@ -45100,7 +45222,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 0.962,
     "se": 0.071
    },
@@ -45109,7 +45231,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 0.982,
     "se": 0.074
    },
@@ -45118,7 +45240,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 0.949,
     "se": 0.092
    },
@@ -45127,7 +45249,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 1.073,
     "se": 0.099
    },
@@ -45136,7 +45258,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#1",
     "est": 1.022,
     "se": 0.096
    },
@@ -45145,7 +45267,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -0.957,
     "se": 0.131
    },
@@ -45154,7 +45276,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -1.047,
     "se": 0.144
    },
@@ -45163,7 +45285,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -1.099,
     "se": 0.085
    },
@@ -45172,7 +45294,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -0.984,
     "se": 0.086
    },
@@ -45181,7 +45303,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#2",
     "est": -0.94,
     "se": 0.082
    },
@@ -45190,7 +45312,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 1.039,
     "se": 0.097
    },
@@ -45199,7 +45321,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": 1.022,
     "se": 0.097
    },
@@ -45208,7 +45330,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -0.952,
     "se": 0.072
    },
@@ -45217,7 +45339,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -1.004,
     "se": 0.078
    },
@@ -45226,7 +45348,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C1#3",
     "est": -1.041,
     "se": 0.082
    },
@@ -45235,7 +45357,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 0.962,
     "se": 0.071
    },
@@ -45244,7 +45366,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 0.982,
     "se": 0.074
    },
@@ -45253,7 +45375,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 0.949,
     "se": 0.092
    },
@@ -45262,7 +45384,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 1.073,
     "se": 0.099
    },
@@ -45271,7 +45393,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#1",
     "est": 1.022,
     "se": 0.096
    },
@@ -45280,7 +45402,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -0.957,
     "se": 0.131
    },
@@ -45289,7 +45411,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -1.047,
     "se": 0.144
    },
@@ -45298,7 +45420,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -1.099,
     "se": 0.085
    },
@@ -45307,7 +45429,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -0.984,
     "se": 0.086
    },
@@ -45316,7 +45438,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#2",
     "est": -0.94,
     "se": 0.082
    },
@@ -45325,7 +45447,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 1.039,
     "se": 0.097
    },
@@ -45334,7 +45456,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": 1.022,
     "se": 0.097
    },
@@ -45343,7 +45465,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -0.952,
     "se": 0.072
    },
@@ -45352,7 +45474,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -1.004,
     "se": 0.078
    },
@@ -45361,7 +45483,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C2#3",
     "est": -1.041,
     "se": 0.082
    },
@@ -45370,7 +45492,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#1",
     "est": 0.962,
     "se": 0.071
    },
@@ -45379,7 +45501,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#1",
     "est": 0.982,
     "se": 0.074
    },
@@ -45388,7 +45510,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#1",
     "est": 0.949,
     "se": 0.092
    },
@@ -45397,7 +45519,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#1",
     "est": 1.073,
     "se": 0.099
    },
@@ -45406,7 +45528,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#1",
     "est": 1.022,
     "se": 0.096
    },
@@ -45415,7 +45537,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#2",
     "est": -0.957,
     "se": 0.131
    },
@@ -45424,7 +45546,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#2",
     "est": -1.047,
     "se": 0.144
    },
@@ -45433,7 +45555,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#2",
     "est": -1.099,
     "se": 0.085
    },
@@ -45442,7 +45564,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#2",
     "est": -0.984,
     "se": 0.086
    },
@@ -45451,7 +45573,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#2",
     "est": -0.94,
     "se": 0.082
    },
@@ -45460,7 +45582,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#3",
     "est": 1.039,
     "se": 0.097
    },
@@ -45469,7 +45591,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#3",
     "est": 1.022,
     "se": 0.097
    },
@@ -45478,7 +45600,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#3",
     "est": -0.952,
     "se": 0.072
    },
@@ -45487,7 +45609,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#3",
     "est": -1.004,
     "se": 0.078
    },
@@ -45496,7 +45618,7 @@
     "op": "|",
     "rhs": "t1",
     "group": 1,
-    "block": "",
+    "block": "Latent Class C3#3",
     "est": -1.041,
     "se": 0.082
    },
@@ -45550,7 +45672,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.184,
     "se": 0.049
    },
@@ -45559,7 +45681,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.149,
     "se": 0.089
    },
@@ -45568,7 +45690,7 @@
     "op": "~",
     "rhs": "c1#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.387,
     "se": 0.141
    },
@@ -45577,7 +45699,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.239,
     "se": 0.051
    },
@@ -45586,7 +45708,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.485,
     "se": 0.189
    },
@@ -45595,7 +45717,7 @@
     "op": "~",
     "rhs": "c1#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.613,
     "se": 0.199
    },
@@ -45604,7 +45726,7 @@
     "op": "~",
     "rhs": "c2#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.103,
     "se": 0.149
    },
@@ -45613,7 +45735,7 @@
     "op": "~",
     "rhs": "c2#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.232,
     "se": 0.075
    },
@@ -45622,7 +45744,7 @@
     "op": "~",
     "rhs": "c2#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.243,
     "se": 0.058
    },
@@ -45631,7 +45753,7 @@
     "op": "~",
     "rhs": "c2#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.314,
     "se": 0.107
    },
@@ -45640,7 +45762,7 @@
     "op": "~",
     "rhs": "c2#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.473,
     "se": 0.108
    },
@@ -45649,7 +45771,7 @@
     "op": "~",
     "rhs": "c2#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#1",
     "est": 0.546,
     "se": 0.094
    },
@@ -45658,7 +45780,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 1.0,
     "se": 0.0
    },
@@ -45667,7 +45789,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 0.0,
     "se": 0.0
    },
@@ -45676,7 +45798,7 @@
     "op": "~",
     "rhs": "c1#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 0.0,
     "se": 0.0
    },
@@ -45685,7 +45807,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 0.0,
     "se": 0.0
    },
@@ -45694,7 +45816,7 @@
     "op": "~",
     "rhs": "c1#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 1.0,
     "se": 0.0
    },
@@ -45703,7 +45825,7 @@
     "op": "~",
     "rhs": "c1#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 0.0,
     "se": 0.0
    },
@@ -45712,7 +45834,7 @@
     "op": "~",
     "rhs": "c2#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 1.0,
     "se": 0.0
    },
@@ -45721,7 +45843,7 @@
     "op": "~",
     "rhs": "c2#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 0.0,
     "se": 0.0
    },
@@ -45730,7 +45852,7 @@
     "op": "~",
     "rhs": "c2#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 0.0,
     "se": 0.0
    },
@@ -45739,7 +45861,7 @@
     "op": "~",
     "rhs": "c2#1",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 0.0,
     "se": 0.0
    },
@@ -45748,7 +45870,7 @@
     "op": "~",
     "rhs": "c2#2",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 1.0,
     "se": 0.0
    },
@@ -45757,7 +45879,7 @@
     "op": "~",
     "rhs": "c2#3",
     "group": 1,
-    "block": "Categorical Latent Variables",
+    "block": "Latent Class C#2",
     "est": 0.0,
     "se": 0.0
    }
@@ -70245,7 +70367,7 @@
     "op": "~",
     "rhs": "c1#1",
     "group": 1,
-    "block": "Within Level",
+    "block": "Latent Class CB#1",
     "est": 1.223,
     "se": 0.392
    },

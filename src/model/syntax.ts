@@ -160,6 +160,12 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
       if (comps.length !== c.indicators.length) warn(`${c.name} mixes factors and indicators; only the factors are kept as its components.`);
       c.components = comps.map((n) => byName.get(n)!.id);
       c.indicators = [];
+      // Component loadings held at values (a latent curve of factors: i =~ 1*f1 + 1*f2 + 1*f3; s =~ 0*f1 + 1*f2 + 2*f3).
+      const held = Object.entries(c.fixedLoadings ?? {}).filter(([n]) => comps.includes(n));
+      if (held.length) c.componentLoadings = Object.fromEntries(held.map(([n, v]) => [byName.get(n)!.id, v]));
+      delete c.fixedLoadings;
+      if (Object.keys(c.loadingLabels ?? {}).some((n) => comps.includes(n))) warn(`${c.name}: labels on the loadings of its components are not kept.`);
+      delete c.loadingLabels;
     }
   }
   /** An observed variable in the structural part: a single-indicator construct (a covariate when exogenous). */
@@ -220,13 +226,19 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
   const parameters: ParameterTerm[] = [];
   const held = (t: Term) => t.fixed !== undefined || !!t.label || !!t.byGroup?.length;
   const valueOf = (t: Term) => (t.byGroup?.length ? { byGroup: t.byGroup } : t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : {});
+  // Ordinal variables (those with thresholds): a residual variance written out frees it (theta parameterisation).
+  const withThresholds = new Set(rows.filter((x) => x.op === '|').flatMap((x) => x.lhs));
   // Covariances.
   const correlations: Correlation[] = [];
   for (const r of rows.filter((x) => x.op === '~~')) for (const l of r.lhs) for (const t of r.rhs.split('+')) {
     const term = parseTerm(t, warn, true);
     if (!term) continue;
     if (term.name === l) {
-      if (!held(term)) continue;
+      if (!held(term)) {
+        // (lavaan fixes an ordinal indicator's residual variance in the theta parameterisation; written out, it is free)
+        if (indicatorOf.has(l) && (term.free || withThresholds.has(l)) && !byName.has(l)) parameters.push({ id: newId('v'), kind: 'variance', target: l, indicator: true, free: true });
+        continue;
+      }
       // A construct's variance (an observed variable's, when it stands for itself), or an indicator's residual variance.
       const c = byName.get(l);
       if (c?.covariate) { warn(`The variance of ${l} is not kept: an exogenous observed variable's is the sample's (fixed.x).`); continue; }
@@ -257,7 +269,8 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
     if (mods && !c && indicatorOf.has(l) && groupValues(mods)) term.byGroup = groupValues(mods)!;
     else if (mods) { if (/^[-+]?(\d+\.?\d*|\.\d+)$/.test(mods)) term.fixed = Number(mods); else if (/^[A-Za-z][A-Za-z0-9_.]*$/.test(mods) && mods !== 'NA') term.label = mods; else if (mods !== 'NA') warn(`Modifier “${mods}” on the intercept of ${l} was ignored.`); }
     if (!c) {
-      if (term.fixed === 0) continue;
+      // (0 on a factor's marker is the marker convention; on another indicator it is kept, e.g. a growth model's y2 ~ 0*1)
+      if (term.fixed === 0 && (!indicatorOf.has(l) || constructs.some((k) => k.indicators[0] === l))) continue;
       // An indicator's intercept, labelled or held (equal intercepts: y1 ~ i*1; y2 ~ i*1); a free one is free anyway.
       if (indicatorOf.has(l)) { if (held(term) && !parameters.some((p) => p.kind === 'intercept' && p.target === l)) parameters.push({ id: newId('i'), kind: 'intercept', target: l, indicator: true, ...valueOf(term) }); continue; }
       warn(`${l} ~ 1: “${l}” is not in the model; its intercept was skipped.`); continue;
@@ -287,7 +300,14 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
         if (held(term)) parameters.push({ id: newId('t'), kind: 'threshold', target: ind, indicator: true, ...(Number(k[1]) !== 1 ? { threshold: Number(k[1]) } : {}), ...valueOf(term) });
       }
     }
-    if (r.op === '~*~' || r.op === '%') warn(`“${r.lhs.join(' + ')} ${r.op} ${r.rhs}” is not kept.`);
+    // Scale factors of ordinal indicators (delta parameterisation; u2 ~*~ u2 frees one, u1 ~*~ 1*u1 holds it).
+    if (r.op === '~*~') for (const l of r.lhs) for (const t of r.rhs.split('+')) {
+      const term = parseTerm(t, warn, true);
+      if (!term) continue;
+      if (term.name !== l || !indicatorOf.has(l)) { warn(`“${l} ~*~ ${t.trim()}” is not kept: a scale factor is an indicator’s own (u1 ~*~ u1).`); continue; }
+      parameters.push({ id: newId('s'), kind: 'scale', target: l, indicator: true, ...(held(term) ? valueOf(term) : { free: true as const }) });
+    }
+    if (r.op === '%') warn(`“${r.lhs.join(' + ')} ${r.op} ${r.rhs}” is not kept.`);
   }
   if (!constructs.length) throw new Error('The syntax defines no variables (no =~ or ~ lines).');
   const model: ModelState = {
@@ -408,6 +428,7 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
     const v = t.indicator ? nm(t.target) : lvName(c!);
     const at = t.fixed !== undefined ? `@${t.fixed}` : '', lab = t.label && t.fixed === undefined ? ` (${t.label})` : '';
     if (t.kind === 'variance') lines.push(`${v}${at}${lab};`);
+    else if (t.kind === 'scale') lines.push(`{${v}${at}}${lab};`);
     else if (t.kind === 'intercept') lines.push(`[${v}${at}]${lab};`);
     else lines.push(`[${v}$${t.threshold ?? 1}${at}]${lab};`);
   }

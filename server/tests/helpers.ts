@@ -31,10 +31,10 @@ export interface TestEnv {
   close(): Promise<void>;
 }
 
-export async function startEnv(google?: GoogleClient): Promise<TestEnv> {
+export async function startEnv(google?: GoogleClient, more: Partial<AppDeps> = {}): Promise<TestEnv> {
   const db = await freshDb();
   const config = loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB, APP_ORIGIN: ORIGIN });
-  const deps: AppDeps = { config, db, mailer: createMailer(undefined, config.MAIL_FROM, false), google };
+  const deps: AppDeps = { config, db, mailer: createMailer(undefined, config.MAIL_FROM, false), google, ...more };
   const app = createApp(deps);
   const server = createServer(app);
   const collab = attachCollab(server, db, (app as unknown as { sessionMiddleware: Parameters<typeof attachCollab>[2] }).sessionMiddleware, ORIGIN);

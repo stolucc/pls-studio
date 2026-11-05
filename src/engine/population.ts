@@ -52,6 +52,8 @@ export interface Population {
   r2: (number | null)[];
   /** Marker (first-indicator) loading or composite loading, for CB-SEM's unstandardised metric. */
   markerLoading: number[];
+  /** Correlations between exogenous constructs that the specification gives (zero ones included), as [a, b] indices. */
+  covariances: { a: number; b: number; value: number }[];
   /** Non-normal generation (null: multivariate normal). */
   vm: ValeMaurelli | null;
 }
@@ -87,10 +89,12 @@ export function buildPopulation(pop: PopulationSpec): Population {
 
   const Phi = zeros(J, J);
   for (let j = 0; j < J; j++) Phi[j][j] = 1;
+  const covariances: Population['covariances'] = [];
   for (const r of pop.exoCor) {
     const a = idx.get(r.a), b = idx.get(r.b);
-    if (a === undefined || b === undefined || !exo[a] || !exo[b]) continue;
+    if (a === undefined || b === undefined || !exo[a] || !exo[b] || a === b) continue;
     Phi[a][b] = Phi[b][a] = r.value;
+    covariances.push({ a, b, value: r.value });
   }
   const r2: (number | null)[] = new Array(J).fill(null);
   const done: number[] = [];
@@ -161,7 +165,7 @@ export function buildPopulation(pop: PopulationSpec): Population {
   const skew = ofC.map((j) => pop.constructs[j].skew ?? pop.skew ?? 0);
   const kurt = ofC.map((j) => pop.constructs[j].kurtosis ?? pop.kurtosis ?? 0);
   const vm = skew.some((v) => v !== 0) || kurt.some((v) => v !== 0) ? valeMaurelli(Sigma, skew, kurt) : null;
-  return { names, Sigma, Phi, constructs: C, paths, specified, indirect, r2, markerLoading: blocks.map((b) => load[b[0]]), vm };
+  return { names, Sigma, Phi, constructs: C, paths, specified, indirect, r2, markerLoading: blocks.map((b) => load[b[0]]), covariances, vm };
 }
 
 /** Model specification matching a population (for estimating simulated data). */

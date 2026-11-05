@@ -90,6 +90,13 @@ pair; the workflow refuses to publish without the secret).
   browsers open at most six connections to a host.
 - If a package is missing in desktop R, or the helper stops, that
   calculation runs in the browser instead (PLS Studio says so).
+- Opening an Mplus User's Guide example downloads its input and data from
+  statmodel.com (PLS Studio does not distribute them, and statmodel.com does
+  not let a page read them itself): the connected helper fetches them
+  (`GET /example-data/statmodel/chapN/exN.M….inp|.dat`), otherwise the PLS
+  Studio server does. Only the guide's example files under
+  `https://www.statmodel.com/usersguide/` can be asked for; no redirect is
+  followed, files are capped at 10 MB and nothing is stored.
 - Desktop R uses the package versions you installed; the browser uses pinned
   versions. Results can differ slightly between versions; the package and
   version used are shown with the results (and in the exported script).

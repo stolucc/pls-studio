@@ -8,9 +8,9 @@ describe('example topics', () => {
   it('are derived from what the example contains', () => {
     expect(tagsOf('lavaan-hs')).toEqual(['CB-SEM', 'CFA']);
     expect(tagsOf('lavaan-hs-means')).toEqual(['CB-SEM', 'CFA', 'Mean structure']);
-    expect(tagsOf('did-mpdta')).toEqual(['CB-SEM', 'Causal inference', 'Difference-in-differences', 'Panel data']);
-    expect(tagsOf('mass-quine')).toEqual(['CB-SEM', 'Regression', 'Count data']);
-    expect(tagsOf('mass-birthwt')).toEqual(['CB-SEM', 'Regression', 'Logistic regression']);
+    expect(tagsOf('did-mpdta')).toEqual(['Causal inference', 'Difference-in-differences', 'Panel data']);
+    expect(tagsOf('mass-quine')).toEqual(['Regression', 'Count data']);
+    expect(tagsOf('mass-birthwt')).toEqual(['Regression', 'Logistic regression']);
     expect(tagsOf('seminr-interaction-methods')).toEqual(['PLS-SEM', 'Moderation', 'Composites']);
     expect(tagsOf('lavaan-poldem')).toEqual(['CB-SEM', 'Mediation', 'Correlated errors']);
     expect(tagsOf('lavaan-hs-groups')).toEqual(['CB-SEM', 'CFA', 'Multigroup']);
@@ -24,10 +24,11 @@ describe('example topics', () => {
     expect(tagsOf('miivsem-bollen')).toEqual(['MIIV-2SLS', 'Mediation', 'Correlated errors']);
     expect(tagsOf('rsem-mardia')).toEqual(['CB-SEM', 'Robust ML', 'FIML', 'CFA']);
     expect(tagsOf('mice-nhanes')).toEqual(['CB-SEM', 'Multiple imputation']);
-    expect(tagsOf('rendo-copula')).toEqual(['CB-SEM', 'Regression', 'Endogeneity', 'Shipped data']);
-    expect(tagsOf('ivreg-kmenta')).toEqual(['CB-SEM', 'Regression', 'Endogeneity', 'Instrumental variables']);
+    expect(tagsOf('rendo-copula')).toEqual(['Regression', 'Endogeneity', 'Shipped data']);
+    expect(tagsOf('mulder-riclpm')).toEqual(['FIML', 'Longitudinal', 'Panel data', 'Cross-lagged', 'Downloaded data']);
+    expect(tagsOf('ivreg-kmenta')).toEqual(['Regression', 'Endogeneity', 'Instrumental variables']);
     expect(tagsOf('plspm-rebus')).toEqual(['PLS-SEM', 'Segmentation']);
-    expect(tagsOf('haven-iris')).toEqual(['CB-SEM', 'Measurement', 'Factor analysis', 'PCA', 'File import']);
+    expect(tagsOf('haven-iris')).toEqual(['Measurement', 'Factor analysis', 'PCA', 'File import']);
   });
 
   it('give every example at least two tags, and the topic list is in alphabetical order', () => {

@@ -144,8 +144,11 @@ ps_bbinomial <- function(req_json, export = FALSE) {
   if (p0 <= 0 || p0 >= 1) stop("The test proportion must be between 0 and 1.")
   a <- ps_number(req$priorA %||% 1, "prior a"); b <- ps_number(req$priorB %||% 1, "prior b")
   if (a <= 0 || b <= 0) stop("The beta prior's parameters must be positive.")
+  prior <- req$prior %||% "beta"
+  if (!prior %in% c("beta", "logistic")) stop("Invalid prior in the request.")
   fr <- ps_long_frame(req, x)
   v <- fr$v
+  if (prior == "logistic") return(ps_bbinomial_logistic(req, fr, x, alt, conf, p0, export))
   body <- c(sprintf("data <- data[!is.na(data$%s), , drop = FALSE]", v[[x]]), ps_bt_factor_line(req, fr, x), sprintf("counts <- table(data$%s); n <- sum(counts)", v[[x]]),
     sprintf("a <- %s; b <- %s; p0 <- %s", format(a, digits = 15), format(b, digits = 15), format(p0, digits = 15)),
     "# Marginal likelihood under H1 (beta prior, restricted to the alternative) over the likelihood at p0, on the log scale.",
@@ -162,6 +165,35 @@ ps_bbinomial <- function(req_json, export = FALSE) {
   ps_json(list(variable = x, levels = names(ct), counts = unname(as.numeric(ct)), n = sum(ct), alternative = alt, testValue = p0, priorA = a, priorB = b, confidence = conf,
     rows = lapply(seq_along(ct), function(i) list(bf10 = env$bf10[i], median = env$cri[i, 2], low = env$cri[i, 1], high = env$cri[i, 3])),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
+}
+
+#' The binomial test with BayesFactor's prior (proportionBF): under H1 the log odds
+#' are logistic, centred on the null value's log odds, with scale r (BayesFactor's
+#' "medium" 0.5). BF10 by quadrature; the posterior of the proportion sampled.
+ps_bbinomial_logistic <- function(req, fr, x, alt, conf, p0, export) {
+  v <- fr$v
+  r <- ps_number(req$priorScale %||% 0.5, "prior scale")
+  if (r <= 0 || r > 100) stop("The prior scale must be positive.")
+  seed <- ps_bayes_seed(req)
+  iter <- as.integer(ps_number(req$iterations %||% 10000, "number of posterior samples"))
+  if (iter < 1000 || iter > 1e6) stop("The number of posterior samples must be between 1,000 and 1,000,000.")
+  ni <- switch(alt, two.sided = "NULL", greater = "c(p0, 1)", less = "c(0, p0)")
+  body <- c("suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
+    sprintf("data <- data[!is.na(data$%s), , drop = FALSE]", v[[x]]), ps_bt_factor_line(req, fr, x), sprintf("counts <- table(data$%s); n <- sum(counts)", v[[x]]),
+    sprintf("p0 <- %s", format(p0, digits = 15)),
+    "# Each category against the rest: logistic prior on the log odds under H1 (restricted to the alternative's side).",
+    sprintf("bfs <- lapply(as.numeric(counts), function(k) proportionBF(y = k, N = n, p = p0, rscale = %s, nullInterval = %s))", format(r, digits = 15), ni),
+    "bf10 <- exp(vapply(bfs, function(b) extractBF(b, logbf = TRUE)$bf[1], 0))",
+    sprintf("cri <- t(vapply(bfs, function(b) quantile(as.numeric(suppressMessages(posterior(b[1], iterations = %d, progress = FALSE))[, \"p\"]), c(%s, 0.5, %s)), numeric(3)))  # posterior median and central interval of the proportion",
+      iter, format((1 - conf) / 2, digits = 15), format(1 - (1 - conf) / 2, digits = 15)))
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Bayesian binomial test", "BayesFactor", inputs, body, c("counts", "bfs", "cri")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  ct <- env$counts
+  ps_json(list(variable = x, levels = names(ct), counts = unname(as.numeric(ct)), n = sum(ct), alternative = alt, testValue = p0, prior = "logistic", priorScale = r,
+    seed = seed, iterations = iter, confidence = conf,
+    rows = lapply(seq_along(ct), function(i) list(bf10 = env$bf10[i], error = BayesFactor::extractBF(env$bfs[[i]])$error[1], median = unname(env$cri[i, 2]), low = unname(env$cri[i, 1]), high = unname(env$cri[i, 3]))),
+    warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
 }
 
 #' Model comparison from log Bayes factors against the null model: posterior
@@ -206,7 +238,10 @@ ps_banova <- function(req_json, export = FALSE) {
   fr <- ps_long_frame(req, unique(c(y, fac, cov)))
   v <- fr$v
   if (length(fac) + length(cov) > 6) stop("At most six factors and covariates: the number of models grows quickly.")
-  rhs <- paste(c(paste(vapply(fac, function(n) v[[n]], ""), collapse = if (full) " * " else " + "), vapply(cov, function(n) v[[n]], "")), collapse = " + ")
+  # covariateInteractions: the covariates enter the factorial too (factor x covariate interactions, slopes differing by group).
+  withCov <- full && isTRUE(req$covariateInteractions) && length(cov) > 0
+  rhs <- if (withCov) paste(vapply(c(fac, cov), function(n) v[[n]], ""), collapse = " * ")
+    else paste(c(paste(vapply(fac, function(n) v[[n]], ""), collapse = if (full) " * " else " + "), vapply(cov, function(n) v[[n]], "")), collapse = " + ")
   body <- c("suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
     "# Factors (their levels as the groups).", vapply(fac, function(n) ps_bt_factor_line(req, fr, n), ""),
@@ -222,7 +257,7 @@ ps_banova <- function(req_json, export = FALSE) {
   back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " \u00d7 ")
   mc <- ps_bayes_models(c("Null model", rownames(ex)), c(0, ex$bf), c(0, ex$error), back)
   models <- mc$models; incl <- mc$effects
-  ps_json(list(dependent = y, factors = fac, covariates = cov, n = nrow(env$data), priorFixed = rf, priorCovariates = rc, seed = seed, iterations = iter,
+  ps_json(list(dependent = y, factors = fac, covariates = cov, covariateInteractions = withCov, n = nrow(env$data), priorFixed = rf, priorCovariates = rc, seed = seed, iterations = iter,
     models = models, effects = incl, warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
 }
 
@@ -265,24 +300,28 @@ ps_bcontingency <- function(req_json, export = FALSE) {
 ps_brmanova <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   within <- unlist(req$levels); between <- req$between %||% ""
-  if (length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
+  multi <- !is.null(req$factors) && length(req$factors) >= 2
+  if (!multi && length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
   fname <- req$factorName %||% "condition"
-  if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname) || fname %in% c("subject", "y")) stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31), and not subject or y.")
+  if (!multi && (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname) || fname %in% c("subject", "y"))) stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31), and not subject or y.")
   rf <- ps_number(req$priorFixed %||% 0.5, "prior width of the fixed effects"); rr <- ps_number(req$priorRandom %||% 1, "prior width of the random effect")
   if (rf <= 0 || rr <= 0) stop("The prior widths must be positive.")
   seed <- ps_bayes_seed(req)
   iter <- as.integer(ps_number(req$iterations %||% 10000, "number of samples"))
   if (iter < 1000 || iter > 1e6) stop("The number of samples must be between 1,000 and 1,000,000.")
+  design <- ps_rm_design(req)
+  if (!is.null(design)) { within <- design$cells; fname <- paste(design$names, collapse = " * ") }
   fr <- ps_long_frame(req, unique(c(within, if (nzchar(between)) between)))
   v <- fr$v
   bt <- nzchar(between)
-  if (bt && v[[between]] %in% c("subject", "y", fname)) stop("Rename the between factor: its name is taken by the model.")
+  if (bt && v[[between]] %in% c("subject", "y", "idata", fname, design$names)) stop("Rename the between factor: its name is taken by the model.")
   body <- c("suppressPackageStartupMessages(library(BayesFactor))", sprintf("set.seed(%d)", seed),
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(within, if (bt) between)])))),
     if (bt) ps_bt_factor_line(req, fr, between),
+    if (!is.null(design)) ps_rm_design_lines(design, unname(unlist(v[within])), if (bt) v[[between]] else "") else c(
     sprintf("Y <- as.matrix(data[, %s])", ps_q(unname(unlist(v[within])))),
     sprintf("long <- data.frame(subject = factor(rep(seq_len(nrow(Y)), ncol(Y))), %s = factor(rep(%s, each = nrow(Y)), levels = %s), y = c(Y)%s)",
-      fname, ps_q(within), ps_q(within), if (bt) sprintf(", %s = rep(data$%s, ncol(Y))", v[[between]], v[[between]]) else ""),
+      fname, ps_q(within), ps_q(within), if (bt) sprintf(", %s = rep(data$%s, ncol(Y))", v[[between]], v[[between]]) else "")),
     "# Every model with the subjects as a random effect, against the subjects-only model (JASP's null model).",
     sprintf("bf <- generalTestBF(y ~ %s%s + subject, data = long, whichRandom = \"subject\", whichModels = \"withmain\", neverExclude = \"^subject$\", rscaleFixed = %s, rscaleRandom = %s, iterations = %d, progress = FALSE)",
       fname, if (bt) sprintf(" * %s", v[[between]]) else "", format(rf, digits = 15), format(rr, digits = 15), iter),
@@ -298,7 +337,8 @@ ps_brmanova <- function(req_json, export = FALSE) {
   back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " × ")
   # (errors of the two Bayes factors combine as proportional errors do)
   mc <- ps_bayes_models(names_, c(0, e$bf[keep] - e0$bf[1]), c(e0$error[1], sqrt(e$error[keep]^2 + e0$error[1]^2)), back)
-  ps_json(list(factorName = fname, levels = within, between = between, n = nrow(env$Y), priorFixed = rf, priorRandom = rr, seed = seed, iterations = iter,
+  ps_json(list(factorName = if (is.null(design)) fname else paste(design$names, collapse = " \u00d7 "), levels = within, between = between, n = nrow(env$Y),
+    factors = if (!is.null(design)) lapply(seq_along(design$names), function(i) list(name = design$names[i], levels = I(design$levels[[i]]))), priorFixed = rf, priorRandom = rr, seed = seed, iterations = iter,
     models = mc$models, effects = mc$effects, warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
 }
 

@@ -7,7 +7,10 @@ name: ci
 # and the published results.
 #
 # The webR runtime (public/webr, ~250 MB without sources) is cached by the
-# lock file, so only a lock change downloads it again.
+# lock file, so only a lock change downloads it again. The example data the
+# repository does not distribute are downloaded into .cache/ (npm run
+# data:fetch, cached; the script downloads only what is missing) before the
+# client and webR tests.
 
 on:
   push:
@@ -34,6 +37,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Cache the example data
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: example-data-${{ hashFiles('scripts/validation/fetch_example_data.mjs', 'src/examples/remote/convert.ts', 'src/examples/remote/source.ts', 'src/examples/**/*.ts') }}
+          restore-keys: example-data-
+      # Data the repository may not distribute (Mplus User's Guide, RI-CLPM), downloaded from their source and
+      # converted into .cache/ as the app converts them; the tests read it there.
+      - run: npm run data:fetch
       - run: npx tsc -b
       - run: npx eslint .
       - run: npx vitest run
@@ -104,4 +116,13 @@ jobs:
       - name: Fetch the R runtime
         if: steps.webr-cache.outputs.cache-hit != 'true'
         run: node scripts/webr/fetch.mjs --no-sources
+      - name: Cache the example data
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: example-data-${{ hashFiles('scripts/validation/fetch_example_data.mjs', 'src/examples/remote/convert.ts', 'src/examples/remote/source.ts', 'src/examples/**/*.ts') }}
+          restore-keys: example-data-
+      # Data the repository may not distribute (Mplus User's Guide, RI-CLPM), downloaded from their source and
+      # converted into .cache/ as the app converts them; the tests read it there.
+      - run: npm run data:fetch
       - run: npm run test:webr

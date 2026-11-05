@@ -31,7 +31,7 @@ const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://gi
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
 /** Packages the app calls directly. */
-const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'Amelia', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet', 'BayesFactor'];
+const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'Amelia', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet', 'BayesFactor', 'mirt', 'GLMMadaptive', 'glca'];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES
  * stanzas) instead of downloaded from repo.r-wasm.org. glasso and glassoFast
@@ -41,7 +41,10 @@ const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 
  * native R; vendored because r-universe keeps only its latest build.
  * deSolve (needed by hypergeo, which BayesFactor imports) is not in the webR
  * repository at all: r-universe's build of 1.42 (2026-10-19), SHA-256 as
- * published there.
+ * published there. qs2 (imported by SimDesign, which mirt imports) is not in the
+ * webR repository either: r-universe's build of 0.4.0 (2026-11-02), with the
+ * RcppParallel it needs (>= 6.1.1; the webR repository has 5.1.11-2): r-universe's
+ * build of 6.2.1 (2026-10-26), SHA-256 as published there.
  */
 const VENDOR = join(ROOT, 'scripts', 'webr', 'vendor');
 const vendored = () => new Map(parsePackages(readFileSync(join(VENDOR, 'PACKAGES'), 'utf8')).map((s) => [s.Package, s]));

@@ -20,3 +20,16 @@ describe('latent profile and latent class growth requests', () => {
     expect(lcaRequest(data, ['q1', 'q2'], [2], 10, 7, {})).not.toHaveProperty('structure');
   });
 });
+
+describe('mirt and glca requests', () => {
+  it('go to ps_mirt with the frequency column and priors, and to ps_mlca with the cluster column', () => {
+    expect(irtRequest(data, ['q1', 'q2'], 'threepl', { priorG: [-1.386, 1], priorU: [2, 1], freq: 'other', guessItems: ['q2', 'q9'], robust: true }))
+      .toMatchObject({ model: 'threepl', priorG: [-1.386, 1], freq: 'other', guessItems: ['q2'], robust: true, data: { names: ['q1', 'q2', 'other'] } });
+    expect(irtRequest(data, ['q1', 'q2'], 'threepl', { priorU: [2, 1] })).not.toHaveProperty('priorU');
+    expect(irtRequest(data, ['q1', 'q2'], 'mixture', { robust: true, seed: 3 })).toMatchObject({ classes: 2, nrep: 10, seed: 3 });
+    expect(irtRequest(data, ['q1', 'q2'], 'mixture', { robust: true })).not.toHaveProperty('robust');
+    expect(irtRequest(data, ['q1', 'q2'], 'twopl', { priorG: [0, 1], freq: 'other' })).not.toHaveProperty('freq');
+    expect(lcaRequest(data, ['q1', 'q2'], [4], 10, 7, { model: 'mlca', cluster: 'other', clusterClasses: 5 }))
+      .toMatchObject({ kind: 'mlca', cluster: 'other', clusterClasses: 5, data: { names: ['q1', 'q2', 'other'] } });
+  });
+});

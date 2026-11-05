@@ -212,6 +212,20 @@ export function unpairHelper() {
   useHelper.setState({ state: 'unpaired', message: 'Not paired.', packages: {} });
 }
 
+/** Paired with a helper that has not been found missing: worth asking before the server (R need not work for this). */
+export const helperConnected = () => !!getToken() && useHelper.getState().state !== 'absent' && useHelper.getState().state !== 'unpaired';
+
+/**
+ * A file of the Mplus User's Guide examples (e.g. chap6/ex6.19.dat), which the helper downloads from statmodel.com
+ * (GET /example-data/statmodel/<path>): statmodel.com sends no CORS header, so the browser cannot read it itself.
+ * Throws HelperUnavailable (the caller asks the server instead), also from helpers without the route.
+ */
+export async function helperExampleData(path: string): Promise<Uint8Array> {
+  const r = await helperFetch(`/example-data/statmodel/${path}`, { headers: auth() }, 60_000);
+  if (!r.ok || !(r.headers.get('content-type') ?? '').startsWith('text/plain')) throw new HelperUnavailable(`The helper answered ${r.status}.`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
 const running = new Set<string>();
 let seq = 0;
 const newId = () => `c${Date.now().toString(36)}-${(seq++).toString(36)}`;

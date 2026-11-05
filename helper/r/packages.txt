@@ -1,6 +1,7 @@
 Amelia
 BayesFactor
 EGAnet
+GLMMadaptive
 GPArotation
 MASS
 MIIVsem
@@ -18,6 +19,7 @@ faraway
 fixest
 flexmix
 genpathmox
+glca
 haven
 ivreg
 jsonlite
@@ -31,11 +33,13 @@ ltm
 manymome
 marginaleffects
 mice
+mirt
 modsem
 mvtnorm
 nnet
 optimx
 optmatch
+pbivnorm
 plspm
 poLCA
 psych

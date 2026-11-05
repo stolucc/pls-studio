@@ -25,3 +25,27 @@ Depends: R (>= 3.3.0)
 Imports: methods, graphics, grDevices, stats
 Suggests: scatterplot3d, nlme, FME
 Path: deSolve_1.42.tgz?sha256=1b8703d09f9ae70702ad2db1715ce24d4d978155323fefd623147d4451cee454&file=
+
+Package: qs2
+Version: 0.4.0
+NeedsCompilation: yes
+Built: R 4.6.0; emscripten; 2026-11-02 18:51:06 UTC; unix
+Filesize: 1105696
+SHA256: a65a22f683edf527ef278c9bbf500b01997f045808073ef7fd432000b3e08bce
+Depends: R (>= 3.6.0)
+LinkingTo: Rcpp, RcppParallel (>= 6.1.1), charport (>= 0.1.1)
+Imports: Rcpp, RcppParallel (>= 6.1.1), charport (>= 0.1.1)
+Suggests: knitr, rmarkdown, dplyr, data.table, stringi
+License: GPL-3
+Path: qs2_0.4.0.tgz?sha256=a65a22f683edf527ef278c9bbf500b01997f045808073ef7fd432000b3e08bce&file=
+
+Package: RcppParallel
+Version: 6.2.1
+NeedsCompilation: yes
+Built: R 4.6.0; emscripten; 2026-10-26 07:27:11 UTC; unix
+Filesize: 1932844
+SHA256: 3bea355b2a699006250ddaff3bf1527e314e7530906fde39e52d9b8e8b2449c8
+Depends: R (>= 3.6.0)
+Suggests: Rcpp, knitr, rmarkdown
+License: GPL (>= 3)
+Path: RcppParallel_6.2.1.tgz?sha256=3bea355b2a699006250ddaff3bf1527e314e7530906fde39e52d9b8e8b2449c8&file=

@@ -9,7 +9,8 @@ import { irtR } from '../../rengine/items';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { near, same } from '../../validation/record';
 import { exampleModel } from '../packages';
-import { evidence, example, load, MPLUS, sameFit, samePrinted } from './testkit';
+import { evidence, example, load, MPLUS, runCards, sameFit, samePrinted } from './testkit';
+import type { CustomMlResult } from '../../rengine/customml';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -22,10 +23,10 @@ it.each([['ex3.11'], ['ex5.1'], ['ex5.2'], ['ex5.6'], ['ex5.8'], ['ex5.11'], ['e
   const want = MPLUS[key];
   expect(r.converged).toBe(true);
   if (key === 'ex5.2') {
-    // WLSMV: lavaan's scaled-shifted statistic adjusts slightly differently from Mplus's (documented on the card).
+    // WLSMV with the test statistic as Mplus's (mimic = "Mplus").
     same('free parameters', r.fit.npar, want.fit.npar!);
     same('df', r.fit.df, want.fit.df!);
-    near('χ² (WLSMV, scaled and shifted)', r.fit.chisqScaled!, want.fit.chisq!, 0.01);
+    near('χ² (WLSMV, as Mplus)', r.fit.chisqScaled!, want.fit.chisq!, 0.002);
     // Reliability with ordinal indicators: categorical omega and ordinal alpha, without a warning from semTools.
     expect(r.warnings).toEqual([]);
     for (const rel of r.reliability) { expect(rel.omega).toBeGreaterThan(0.5); expect(rel.alpha).toBeGreaterThan(0.5); }
@@ -142,9 +143,9 @@ it('ex5.20, ex5.21: non-linear constraints and NEW parameters (defined parameter
 }, 600_000);
 
 it('ex5.3, ex5.10, ex5.16, ex5.22: categorical indicators by WLSMV, estimates and standard errors as Mplus prints them', async () => {
-  // ex5.10: thresholds held equal; ex5.22: the twin model for binary outcomes. Every estimate and SE as printed;
-  // lavaan's scaled-shifted χ² adjusts slightly differently from Mplus's (as in example 5.2).
-  for (const [key, chiTol] of [['ex5.10', 0.03], ['ex5.22', 0.002]] as const) {
+  // ex5.10: thresholds held equal (the test statistic as Mplus's, mimic = "Mplus"); ex5.22: the twin model for binary
+  // outcomes. Every estimate and SE as printed.
+  for (const [key, chiTol] of [['ex5.10', 0.002], ['ex5.22', 0.002]] as const) {
     evidence(key, 'CB-SEM', ['lavaan']);
     const r = await fitOf(key);
     scaledFit(r, key, chiTol);
@@ -152,20 +153,20 @@ it('ex5.3, ex5.10, ex5.16, ex5.22: categorical indicators by WLSMV, estimates an
     if (printedExtra(key).new) sameNew(r, key);
     expect(r.warnings).toEqual([]);
   }
-  // ex5.3: continuous and binary indicators. Every estimate as printed; the SEs as printed except those of three
-  // variances (f2 0.067 vs 0.062, y4 0.023 vs 0.025, y5 0.022 vs 0.021), documented on the card.
+  // ex5.3: continuous and binary indicators, with Mplus's standard errors (the default) and test statistic (mimic =
+  // "Mplus", which also weights the continuous indicators' variances as Mplus): every estimate and SE as printed.
   evidence('ex5.3', 'CB-SEM', ['lavaan']);
   const r3 = await fitOf('ex5.3');
-  scaledFit(r3, 'ex5.3', 0.02);
-  const odd = (p: { lhs: string; op: string; rhs: string }) => p.op === '~~' && p.lhs === p.rhs && ['f2', 'y4', 'y5'].includes(p.lhs);
-  samePrinted(r3.estimates, MPLUS['ex5.3'].estimates, 'ex5.3', { skip: odd });
-  samePrinted(r3.estimates, MPLUS['ex5.3'].estimates.filter(odd), 'ex5.3', { seTol: 0.006 });
+  scaledFit(r3, 'ex5.3', 0.002);
+  samePrinted(r3.estimates, MPLUS['ex5.3'].estimates, 'ex5.3');
   // ex5.16: two groups, thresholds and loadings equal, scale factors free in the second group; u3's loading and
-  // threshold free for females, its scale fixed at 1. Estimates as printed; SEs within 0.004 (documented).
+  // threshold free for females, its scale fixed at 1. Every estimate and SE as printed (Mplus's standard errors: the
+  // expected information in the sandwich, divided by N, not N − 2). lavaan's χ² (mimic = "Mplus" would change the
+  // groups' equalities) is 33.693 against Mplus's 33.718.
   evidence('ex5.16', 'CB-SEM', ['lavaan']);
   const r16 = await fitOf('ex5.16');
   scaledFit(r16, 'ex5.16', 0.03);
-  sameByGroup(r16, 'ex5.16', { seTol: 0.004 });
+  sameByGroup(r16, 'ex5.16');
   expect(r16.warnings).toEqual([]);
 }, 600_000);
 
@@ -175,10 +176,11 @@ it('ex5.17: the theta parameterisation is the same model as ex5.16 (same χ²); 
   scaledFit(r, 'ex5.17', 0.03);
   const r16 = await fitOf('ex5.16');
   near('χ² equal to the delta parameterisation’s', r.fit.chisqScaled!, r16.fit.chisqScaled!, 1e-6);
-  // Male group (residual variances fixed at 1): as printed. Female group: within 0.021 (estimates) and 0.007 (SEs);
-  // lavaan's objective at Mplus's printed values is 0.0048524 against 0.0048522 at its own minimum (documented).
-  samePrinted(r.groups!.results[0].estimates, MPLUS['ex5.17'].estimates.filter((p) => p.group === 1), 'ex5.17 group 1', { tol: 0.002, seTol: 0.007 });
-  samePrinted(r.groups!.results[1].estimates, MPLUS['ex5.17'].estimates.filter((p) => p.group === 2), 'ex5.17 group 2', { tol: 0.021, seTol: 0.007 });
+  // Male group (residual variances fixed at 1): estimates within 0.002, every SE within 0.001 (Mplus's standard errors).
+  // Female group: within 0.021 (estimates) and 0.009 (SEs, which follow the estimates: f1's variance 0.711 against 0.719); lavaan's objective at Mplus's
+  // printed values is 0.0048524 against 0.0048522 at its own minimum (documented).
+  samePrinted(r.groups!.results[0].estimates, MPLUS['ex5.17'].estimates.filter((p) => p.group === 1), 'ex5.17 group 1', { tol: 0.002 });
+  samePrinted(r.groups!.results[1].estimates, MPLUS['ex5.17'].estimates.filter((p) => p.group === 2), 'ex5.17 group 2', { tol: 0.021, seTol: 0.009 });
   expect(r.warnings).toEqual([]);
 }, 600_000);
 
@@ -198,3 +200,41 @@ it.each([['ex5.5part2', 'twopl'], ['ex5.5', 'gpcm']])('%s: the IRT model (ltm, %
     op: k.parameter === 'loading' ? '=~' : p.model === 'gpcm' ? 'Steps' : '|', rhs: k.parameter === 'loading' ? k.item : p.model === 'gpcm' ? '' : 't1', est: k.est, se: k.se }));
   samePrinted(mine, want.estimates.filter((q) => q.se > 0), key, { tol: 0.002 });
 }, 900_000);
+
+it('ex5.18, ex5.19: twin ACE models whose outcomes load on several factors (an indicator in several CB-SEM factors) reproduce the Mplus output', async () => {
+  evidence('ex5.18', 'CB-SEM', ['lavaan']);
+  const r18 = await fitOf('ex5.18');
+  sameFit(r18.fit, MPLUS['ex5.18'].fit);
+  sameByGroup(r18, 'ex5.18');
+  expect(r18.warnings).toEqual([]);
+  // ex5.19: WLSMV; c is weakly determined (c² = 2cov(dz) − cov(mz)): 0.228 (SE 0.200) against Mplus's 0.229 (0.199),
+  // as in example 5.22, the same model by constraints (stated on the card).
+  evidence('ex5.19', 'CB-SEM', ['lavaan']);
+  const r19 = await fitOf('ex5.19');
+  scaledFit(r19, 'ex5.19', 0.002);
+  sameByGroup(r19, 'ex5.19', { tol: 0.0015, seTol: 0.0015 });
+  expect(r19.warnings).toEqual([]);
+  const { cbScriptLavaan } = await import('../../rengine/lavaan');
+  const s18 = await cbScriptLavaan(load('ex5.18'), toSpec(exampleModel(example('ex5.18'))), 'casewise', 'ML');
+  for (const [f, l] of [['a1', 'la'], ['c1', 'lc'], ['e1', 'le']]) expect(s18).toContain(`${f} =~ NA*y1 + c(${l}, ${l})*y1`);
+  expect(s18.match(/y1 ~~ 0\*y1/g)?.length).toBe(1);
+}, 600_000);
+
+it('ex5.23: the QTL sibling model, a covariance that depends on each pair’s pihat, on the custom likelihood card reproduces the Mplus output', async () => {
+  evidence('ex5.23', 'Custom likelihood', ['stats']);
+  const [r] = await runCards<CustomMlResult>('ex5.23');
+  expect(r.converged).toBe(true);
+  expect(r.warnings).toEqual([]);
+  const want = MPLUS['ex5.23'];
+  same('free parameters', r.fit.npar, want.fit.npar!);
+  near('log-likelihood', r.fit.logLik, want.fit.logl!, 0.001);
+  near('AIC', r.fit.aic, want.fit.aic!, 0.002);
+  near('BIC', r.fit.bic, want.fit.bic!, 0.002);
+  const part = (n: string) => r.parts.find((q) => q.name === n)!;
+  for (const p of want.estimates) {
+    if (p.lhs !== p.rhs && p.op === '~~') { expect(part('Covariance y1, y2').est).toBeNull(); continue; }  // (varies with pihat: Mplus prints 999)
+    const q = p.op === '~1' ? part(`Mean ${p.lhs}`) : p.lhs.startsWith('y') ? part(`Variance ${p.lhs}`) : r.parameters.find((x) => x.name === p.lhs)!;
+    near(`${p.lhs} ${p.op} ${p.rhs}`, q.est!, p.est, 0.001);
+    near(`SE of ${p.lhs} ${p.op} ${p.rhs}`, q.se!, p.se, 0.001);
+  }
+}, 600_000);

@@ -16,7 +16,6 @@ import { rsaR } from '../rengine/rsa';
 import { groupsR } from '../rengine/plsx';
 import { ncaR } from '../rengine/nca';
 import { categoriesOf } from '../io';
-import { parseCsv } from '../engine/dataset';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { estimateCpaR } from '../rengine/cpa';
@@ -30,9 +29,10 @@ import { readPackageFile } from '../data/readFile';
 import { fimixR, pathmoxR, rebusR } from '../rengine/segment';
 import { plsScriptR, estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
-import { exampleModel, PACKAGE_EXAMPLES, panelColumns, type PackageExample } from './packages';
+import { exampleModel, examplePanels, PACKAGE_EXAMPLES, panelColumns, type PackageExample } from './packages';
 import { against, cleanRun, example, near, same } from '../validation/record';
 import type { EvidenceSource } from '../validation/types';
+import { exampleTestData } from './testData';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -67,7 +67,13 @@ const EXPECTED_WARNINGS: Record<string, RegExp[]> = {
   // passes through infeasible points, Browne's test is not defined, and the standardised solution's constraint check
   // and a standardised defined parameter come with cautions. The estimates are Mplus's (mplus/ch5, ch6 tests).
   'mplus-ex5.20': [/NA\/NaN function evaluation/, /browne\.residual\.nt\.model/, /number of items to replace/],
+  // Mplus's own estimate of y4's residual variance is near zero (0.340, SE 0.254): some imputed data sets give a negative one.
+  'mplus-ex11.6': [/some estimated ov variances are negative/],
+  // ?mirt's 3PL of the LSAT7 patterns: its information matrix is singular, as on the help page (estimates as there, no SEs).
+  'mirt-lsat7-3pl': [/Could not invert information matrix/],
   'mplus-ex6.17': [/browne\.residual\.nt\.model/, /standardized value of the defined parameter/],
+  // ?fisher.test's job-satisfaction table: expected counts below 5, so chisq.test warns; the help page reads the exact test.
+  'stats-contingency-job': [/approximation may be incorrect/],
 };
 const checkClean = (id: string) => {
   const r = raised[id] ?? { warnings: [], notes: [] };
@@ -113,7 +119,8 @@ const HS_INTERCEPTS: Record<string, number> = { x1: 4.936, x2: 6.088, x3: 2.250,
 
 async function load(ex: PackageExample): Promise<Dataset & { levels?: unknown }> {
   // Data shipped with the app (packages that cannot run in the browser's R).
-  if (ex.data.file) return parseCsv(readFileSync(join(__dirname, '..', '..', 'public', ex.data.file), 'utf8')).dataset;
+  const fromFile = exampleTestData(ex);
+  if (fromFile) return fromFile;
   const pf = ex.data.packageFile;
   if (pf) return (await readPackageFile(ex.data.package, pf.path, pf.format, pf.sheet)).data;
   const raw = await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: Record<string, string[]> }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package as RPackage);
@@ -165,7 +172,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     const st = { ...DEFAULT_SETTINGS, ...ex.settings };
     if (ex.panel) {
       const p = ex.panel;
-      for (const c of panelColumns(p)) expect(data.names, `${ex.id}: ${c}`).toContain(c);
+      for (const q of examplePanels(ex)) for (const c of panelColumns(q)) expect(data.names, `${ex.id}: ${c}`).toContain(c);
       if (p.kind === 'endo') {
         const { kind: _k, ...pre } = p;
         const r = await endoR(data, { method: 'iv', outcome: '', exogenous: [], endogenous: [], instruments: [], hetRegressors: [], hmTypes: [], selection: { outcome: '', regressors: [] },
@@ -222,7 +229,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const r = await regressionR(data, { ...opts, confidence: 0.95 });
         expect(r.coefficients.length).toBeGreaterThan(0);
         // (a likelihood-ratio test against the null model; not for the censored, inflated and survival models, checked in mplus/ch3 and ch6surv)
-        if (opts.family !== 'censored' && opts.family !== 'survival' && !opts.inflated) expect(r.lrt).toBeTruthy();
+        if (opts.family !== 'censored' && opts.family !== 'survival' && !opts.inflated && !opts.randomSlope) expect(r.lrt).toBeTruthy();
       } else if (p.kind === 'did') {
         const { didR } = await import('../rengine/did');
         const { kind: _k, ...opts } = p;
@@ -234,6 +241,10 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         if (ex.id === 'lavaan-growth-conditional') { expect(r.fit.df).toBe(21); expect(r.fit.chisq, 'χ²').toBeCloseTo(26.059, 2); }  // the tutorial's model, run natively
         else expect(r.fit.df).toBe(GROWTH_DF[ex.id] ?? 5);
         if (ex.id === 'lavaan-growth') expect(r.fit.chisq, 'χ²').toBeCloseTo(8.069, 3);  // the tutorial prints 8.069 on 5 df  // ?growth: linear growth on four occasions; the Mplus growth examples (checked in mplus.webr.test.ts)
+      } else if (p.kind === 'irt' && (p.model === 'threepl' || p.model === 'fourpl' || (p.classes ?? 1) > 1)) {
+        // (the mirt models with priors and mixtures: estimated with their options, at length, in their own tests,
+        // examples/mplus/ch5irt and ch7irt and examples/cards/items; here the data and the card's options)
+        expect(p.items.every((i) => data.names.includes(i))).toBe(true);
       } else if (p.kind === 'irt') {
         const r = await irtR(data, p.items, p.model);
         expect(r.params.length).toBe(p.items.length);

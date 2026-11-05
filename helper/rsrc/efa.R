@@ -54,6 +54,13 @@ ps_efa <- function(req_json, export = FALSE) {
   eps <- req$epsilon
   if (!is.null(eps) && !(is.numeric(eps) && length(eps) == 1 && eps > 0 && eps <= 1)) stop("Invalid geomin epsilon in the request.")
   observed <- identical(req$information, "observed")
+  # WLSMV (polychoric): standard errors as Mplus's (ps_mplus_se_lines), unless wlsmvSe is "lavaan" (lavaan 0.7's
+  # observed information in the sandwich).
+  if (!is.null(req$wlsmvSe) && !identical(req$wlsmvSe, "lavaan")) stop("Invalid WLSMV standard errors in the request.")
+  mplus_se <- poly && lav && is.null(req$wlsmvSe)
+  # WLSMV: the test statistic as Mplus's (mimic = "Mplus", gamma.vcov.mplus = FALSE).
+  if (!is.null(req$mimic) && !identical(req$mimic, "Mplus")) stop("Invalid test statistic in the request.")
+  mimic <- poly && lav && identical(req$mimic, "Mplus")
   from <- as.integer(ps_number(req$from %||% 1, "smallest number of factors"))
   if (from < 1) stop("Invalid smallest number of factors in the request.")
   if (rotation %in% c("bigeomin", "biquartimin") && (from < 2 || (criterion == "fixed" && k < 2))) stop("A bifactor rotation needs at least two factors (a general and a specific one): compare fit from 2.")
@@ -70,7 +77,7 @@ ps_efa <- function(req_json, export = FALSE) {
       from, PS_EFA_LAVAAN_ROT[[rotation]], if (is.null(eps)) "" else sprintf(", geomin_epsilon = %s", ps_num(eps)),
       paste(c(if (poly) c("ordered = names(X)[ordinal]", "estimator = \"WLSMV\"") else c("estimator = \"ML\"", "meanstructure = TRUE"),
         sprintf("missing = \"%s\"", if (listwise) "listwise" else if (poly) "pairwise" else "ml"),
-        if (observed && !poly) "information = \"observed\""), collapse = ", "))
+        if (observed && !poly) "information = \"observed\"", if (mimic) c("mimic = \"Mplus\"", "gamma.vcov.mplus = FALSE"), if (mplus_se) "information.bread = \"expected\""), collapse = ", "))
     else sprintf("fa(X, nfactors = k, fm = \"%s\", rotate = \"%s\"%s)", fm, rotation, carg)
   what <- if (criterion == "fixed") sprintf("%d %s", k, unit) else sprintf("%s by %s", unit, PS_EFA_CRITERIA[[criterion]])
   body <- c(
@@ -99,7 +106,7 @@ ps_efa <- function(req_json, export = FALSE) {
     kline,
     if (criterion != "fixed") sprintf("k <- max(%dL, min(k, ncol(X) - 1L), na.rm = TRUE)", if (lav && rotation %in% c("bigeomin", "biquartimin")) 2L else 1L),
     if (lav) c(sprintf("# lavaan: every number of factors from %d to k, the last one the solution (standardised loadings, delta-method standard errors).", from),
-      sprintf("fits <- %s", call), "fit <- fits[[length(fits)]]", "std <- standardizedSolution(fit)",
+      sprintf("fits <- %s", call), if (mplus_se) ps_mplus_se_lines("fits"), "fit <- fits[[length(fits)]]", "std <- standardizedSolution(fit)",
       sprintf("comparison <- t(sapply(fits, fitMeasures, %s))", if (poly) "c(\"npar\", \"chisq.scaled\", \"df.scaled\", \"pvalue.scaled\")" else "c(\"npar\", \"logl\", \"chisq\", \"df\", \"pvalue\", \"aic\", \"bic\")"))
     else sprintf("fit <- %s", call),
     if (lav) "summary(fit)" else "print(fit, sort = TRUE)")

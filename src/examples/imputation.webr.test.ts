@@ -9,13 +9,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import type { Dataset } from '../engine/types';
-import { parseCsv } from '../engine/dataset';
 import { DEFAULT_SETTINGS, toSpec } from '../model/project';
 import { rCall, type RPackage } from '../rengine/bridge';
 import { cbScriptLavaan, estimateCbLavaan } from '../rengine/lavaan';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
 import { against, example as exampleCheck, near } from '../validation/record';
+import { exampleTestData } from './testData';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -29,7 +29,7 @@ it('lavaanmi-hs: Amelia with the help page’s auxiliary variables and seed give
   const ex = example('lavaanmi-hs');
   exampleCheck(ex.id, { title: ex.title, method: 'CB-SEM', packages: ['lavaan', 'Amelia', 'lavaan.mi'], definition: ex });
   against({ label: 'desktop Amelia and lavaan.mi (the help page’s HS20imps and cfa.mi), scripts/validation/examples_mi.R', script: 'scripts/validation/examples_mi.R', level: 'native' });
-  const data = parseCsv(readFileSync(join(__dirname, '..', '..', 'public', ex.data.file!), 'utf8')).dataset;
+  const data = exampleTestData(ex)!;
   const r = await estimateCbLavaan(data, toSpec(exampleModel(ex)), 'mi', 'ML', 'product', miOf('lavaanmi-hs'));
   expect(r.converged).toBe(true);
   expect(r.imputations).toBe(20);

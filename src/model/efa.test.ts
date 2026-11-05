@@ -10,6 +10,9 @@ describe('EFA design from a project file', () => {
     expect(parseEfaDesign({ criterion: 'kaiser' })!.criterion).toBe('kaiser');
     // (designs saved before the option analysed Pearson correlations)
     expect(parseEfaDesign({ correlation: 'polychoric' })!.correlation).toBe('polychoric');
+    // WLSMV: lavaan 0.7's standard errors and Mplus's test statistic are kept; absent or invalid: Mplus's standard errors, lavaan's χ².
+    expect(parseEfaDesign({ wlsmvSe: 'lavaan', mimic: 'Mplus' })).toMatchObject({ wlsmvSe: 'lavaan', mimic: 'Mplus' });
+    expect(['wlsmvSe', 'mimic'].filter((k) => k in parseEfaDesign({ wlsmvSe: 'x', mimic: 'EQS' })!)).toEqual([]);
     expect(parseEfaDesign({ correlation: 'spearman' })!.correlation).toBe('pearson');
     expect(parseEfaDesign({ criterion: 'k <- 99' })!.criterion).toBe('fixed');
     // The lavaan extraction's options: geomin ε, observed information, the smallest number of factors compared.

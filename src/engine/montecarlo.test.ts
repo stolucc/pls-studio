@@ -91,3 +91,24 @@ describe('non-normal data and the model χ² test', () => {
     expect(r.bias).toBeNaN();
   });
 });
+
+describe('the correlation of two exogenous constructs', () => {
+  // Muthén & Muthén's (2002) CFA population: two factors of five indicators (loadings .8), correlated .25.
+  const cfa: PopulationSpec = {
+    constructs: [
+      { name: 'F1', type: 'factor', indicators: ['a1', 'a2', 'a3', 'a4', 'a5'], loadings: [0.8, 0.8, 0.8, 0.8, 0.8] },
+      { name: 'F2', type: 'factor', indicators: ['b1', 'b2', 'b3', 'b4', 'b5'], loadings: [0.8, 0.8, 0.8, 0.8, 0.8] },
+    ],
+    paths: [], exoCor: [{ a: 'F1', b: 'F2', value: 0.25 }],
+  };
+  it('is a parameter: unbiased with nominal coverage (CB-ML)', () => {
+    const design: McDesign = { population: cfa, estimators: [{ id: 'ML', method: 'cb', estimator: 'ML' }], sampleSizes: [300], replications: 150, seed: 3, alpha: 0.05, bootSamples: 0, mcDraws: 0 };
+    const rows = run(design, 1);
+    const ml = row(rows, 'ML', 'cov:F1:F2');
+    expect(ml.param).toMatchObject({ kind: 'covariance', from: 'F1', to: 'F2', value: 0.25 });
+    expect(ml.reps).toBe(150);
+    expect(Math.abs(ml.bias)).toBeLessThan(0.02);
+    expect(ml.coverage!).toBeGreaterThan(0.88);
+    expect(ml.rejection!).toBeGreaterThan(0.8);
+  });
+});

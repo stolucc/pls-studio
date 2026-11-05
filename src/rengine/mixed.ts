@@ -5,19 +5,52 @@ import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
 import type { REngineInfo } from './lavaan';
 
+/** A cluster level above the first, nesting it (e.g. schools above classes), with its random slopes. */
+export interface LmmLevel {
+  cluster: string; slopes: string[];
+  /** A variance per occasion at this level (repeated measures in columns): the occasions' residual variances between these clusters. */
+  occasions?: boolean;
+}
+/**
+ * Repeated measures in columns (wide data, as Mplus reads them): each row is a person, the measures are stacked as
+ * the outcome, one row per person and occasion, with the time score `time` and the time-varying covariates
+ * (one column per occasion each). The persons are the first level.
+ */
+export interface LmmRepeated { measures: string[]; times: number[]; time: string; varying: { name: string; columns: string[] }[] }
+/** A further outcome, modelled with the first (stacked): its own intercept, predictors and random slopes. */
+export interface LmmOutcome { outcome: string; predictors: string[]; slopes: string[] }
 export interface LmmInput {
   outcome: string; predictors: string[]; cluster: string; slopes: string[];
   /** none; grand-mean centred; within / between (cluster means as extra predictors). */
   center: 'none' | 'grand' | 'cluster';
   estimation: 'REML' | 'ML';
+  // The further options (absent in older saved cards, which run as before): these fit by nlme where lme4 cannot.
+  /** Interaction terms (products of two or more predictors), as fixed effects. */
+  interactions?: string[][];
+  /** Random slopes uncorrelated with the intercept and the other random effects (at every level; Mplus's default for s | y ON x). */
+  independent?: string[];
+  /** Further cluster levels, each nesting the one below. */
+  levels?: LmmLevel[];
+  repeated?: LmmRepeated;
+  /** A residual variance per occasion (repeated measures in columns; nlme's varIdent). */
+  residuals?: 'occasion';
+  outcomes?: LmmOutcome[];
+  /** Robust standard errors as Mplus's MLR: the sandwich over the top-level clusters, for every parameter (ML only). */
+  se?: 'robust';
 }
 export interface LmmResult {
-  n: number; clusters: number; reml: boolean; icc: number;
-  fixed: { term: string; est: number; se: number; df: number; t: number; p: number; ciLow: number; ciHigh: number }[];
-  /** Variance components: a (and b for a covariance) within group; group "Residual" for the residual. */
-  random: { group: string; a: string | null; b: string | null; variance: number; sd: number }[];
-  r2: { marginal: number; conditional: number };
+  n: number; clusters: number; reml: boolean;
+  /** (null: wide data, several outcomes or levels) */
+  icc: number | null;
+  /** df null: robust standard errors (z tests). */
+  fixed: { term: string; est: number; se: number; df: number | null; t: number; p: number; ciLow: number; ciHigh: number }[];
+  /** Variance components: a (and b for a covariance) within group; group "Residual" for the residual (a: the occasion or outcome of a residual variance per occasion or outcome); se with robust standard errors. */
+  random: { group: string; a: string | null; b: string | null; variance: number; sd: number; se?: number | null }[];
+  /** (null with several outcomes) */
+  r2: { marginal: number; conditional: number } | null;
   logLik: number; aic: number; bic: number; singular: boolean;
+  /** The general version: the units per level (lowest first), free parameters, cases (BIC's n), robust standard errors. */
+  levels?: { name: string; units: number }[]; npar?: number; cases?: number; robust?: boolean;
   slopeTest: { chisq: number; df: number; p: number } | null;
   lines: { predictor: string; range: [number, number]; intercepts: number[]; slopes: number[]; fixed: [number, number] } | null;
   warnings: string[]; engine: REngineInfo;
@@ -51,7 +84,17 @@ const columns = (data: Dataset, names: string[]) => {
   return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
 };
 
-export const lmmRequest = (data: Dataset, i: LmmInput) => ({ ...i, data: columns(data, [i.outcome, ...i.predictors, i.cluster]) });
+/** The data columns a multilevel regression uses (with repeated measures in columns: the measures and the time-varying covariates' columns, not the names they create). */
+export function lmmColumns(i: LmmInput): string[] {
+  const created = i.repeated ? [i.outcome, i.repeated.time, ...i.repeated.varying.map((v) => v.name)] : [];
+  return [...new Set([
+    ...(i.repeated ? [...i.repeated.measures, ...i.repeated.varying.flatMap((v) => v.columns)] : [i.outcome]),
+    ...[...i.predictors, ...(i.interactions ?? []).flat()].filter((x) => !created.includes(x)),
+    ...(i.outcomes ?? []).flatMap((o) => [o.outcome, ...o.predictors]),
+    i.cluster, ...(i.levels ?? []).map((l) => l.cluster),
+  ].filter(Boolean))];
+}
+export const lmmRequest = (data: Dataset, i: LmmInput) => ({ ...i, data: columns(data, lmmColumns(i)) });
 export const gmmRequest = (data: Dataset, i: GmmInput) =>
   ({ ...i, data: columns(data, [...(i.format === 'wide' ? i.measures : [i.subject, i.time, i.outcome]), ...i.covariates, ...(i.format === 'wide' && i.residuals ? i.membership ?? [] : [])]) });
 /** lcmm, or the wide model with a residual variance per occasion. */
@@ -60,7 +103,10 @@ const gmmBridge = (i: GmmInput) => (i.format === 'wide' && i.residuals === 'occa
 export async function lmmR(data: Dataset, input: LmmInput): Promise<LmmResult> {
   const raw = await rCall<Record<string, any>>('ps_lmm', lmmRequest(data, input), 'lme4');
   return {
-    ...raw, fixed: arr(raw.fixed), random: arr<any>(raw.random).map((r) => ({ ...r, a: r.a ?? null, b: r.b ?? null })),
+    ...raw, icc: n0(raw.icc), r2: raw.r2 && typeof raw.r2.marginal === 'number' ? raw.r2 : null,
+    fixed: arr<any>(raw.fixed).map((f) => ({ ...f, df: n0(f.df) })),
+    random: arr<any>(raw.random).map((r) => ({ ...r, a: r.a ?? null, b: r.b ?? null, ...('se' in r ? { se: n0(r.se) } : {}) })),
+    ...(raw.levels ? { levels: arr(raw.levels) } : {}),
     slopeTest: raw.slopeTest ?? null,
     lines: raw.lines ? { ...raw.lines, intercepts: arr<number>(raw.lines.intercepts), slopes: arr<number>(raw.lines.slopes) } : null,
     warnings: rStrings(raw.warnings),

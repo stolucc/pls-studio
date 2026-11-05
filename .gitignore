@@ -14,3 +14,4 @@ reports/
 *.dmg
 SHA256SUMS
 .validation/
+.cache/

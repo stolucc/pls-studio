@@ -6,6 +6,9 @@
 # Data: psych's bfi, agreeableness A1-A5 and conscientiousness C1-C5 (six-point items), the first 1000
 # complete cases, written to the fixture as the app reads it.
 #
+# No standard errors are compared, so the WLSMV standard-error convention (the app's default is Mplus's, the expected
+# information in the sandwich; lavaan >= 0.7-2 uses the observed one) does not enter these references.
+#
 #   Rscript scripts/validation/ordinal_fit.R
 
 suppressMessages({ library(lavaan); library(psych); library(jsonlite); library(pbivnorm) })

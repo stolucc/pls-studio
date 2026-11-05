@@ -257,6 +257,7 @@ function Correlations({ pls }: { pls: PlsResult }) {
 const GROUPS: { id: BootstrapStat['group']; label: string }[] = [
   { id: 'path', label: 'Paths' }, { id: 'indirect', label: 'Indirect' }, { id: 'total', label: 'Total' },
   { id: 'loading', label: 'Loadings' }, { id: 'weight', label: 'Weights' }, { id: 'r2', label: 'R²' },
+  { id: 'estimate', label: 'Unstandardised' },
 ];
 
 export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?: boolean }) {
@@ -278,7 +279,7 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
         </div>
         <RScriptButton what="bootstrap" />
       </div>
-      <Table title={`Bootstrap: ${GROUPS.find((g) => g.id === group)!.label.toLowerCase()}${std ? ' (standardised)' : ''}`} file={`bootstrap-${group}`}
+      <Table title={`Bootstrap: ${GROUPS.find((g) => g.id === group)!.label.toLowerCase()}${std && group !== 'estimate' ? ' (standardised)' : ''}`} file={`bootstrap-${group}`}
         columns={['Parameter', 'Original', ...bootCols(boot)]}
         rows={stats.map((s) => [c(s.label), c(s.original), ...bootCells(s)])}
         note={boot.imputations

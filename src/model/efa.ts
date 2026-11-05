@@ -43,6 +43,10 @@ export interface EfaDesign {
   epsilon?: number;
   /** lavaan extraction, maximum likelihood: standard errors from the observed information (Mplus's default); absent: the expected. */
   information?: 'observed';
+  /** lavaan extraction, WLSMV (polychoric): 'lavaan': lavaan 0.7's standard errors (observed information in the sandwich); absent: Mplus's (classic WLSMV, the default). */
+  wlsmvSe?: 'lavaan';
+  /** lavaan extraction, WLSMV (polychoric): the test statistic as Mplus's (lavaan mimic = "Mplus"). */
+  mimic?: 'Mplus';
   /** lavaan extraction: the fit is compared for every number of factors from this one (absent: 1) to the solution's (Mplus: TYPE = EFA 1 4). */
   from?: number;
 }
@@ -70,6 +74,8 @@ export function parseEfaDesign(v: unknown): EfaDesign | undefined {
     correlation: r.correlation === 'polychoric' ? 'polychoric' : 'pearson',
     ...(typeof r.epsilon === 'number' && r.epsilon > 0 && r.epsilon <= 1 ? { epsilon: r.epsilon } : {}),
     ...(r.information === 'observed' ? { information: 'observed' as const } : {}),
+    ...(r.wlsmvSe === 'lavaan' ? { wlsmvSe: 'lavaan' as const } : {}),
+    ...(r.mimic === 'Mplus' ? { mimic: 'Mplus' as const } : {}),
     ...(typeof r.from === 'number' && Number.isFinite(r.from) && r.from >= 1 ? { from: Math.min(100, Math.round(r.from)) } : {}),
   };
 }

@@ -1,13 +1,13 @@
 // Shared by the Mplus chapter tests (chN.webr.test.ts): the printed Mplus output of each example
-// (scripts/validation/mplus_printed.py, from the statmodel.com output pages), the shipped data, and
+// (scripts/validation/mplus_printed.py, from the statmodel.com output pages), the data (see load), and
 // comparisons that record validation evidence. Mplus prints three decimals and stops at a looser
 // convergence criterion than lavaan, so values agree within 0.001 unless a test says otherwise.
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect } from 'vitest';
-import { parseCsv } from '../../engine/dataset';
 import { PACKAGE_EXAMPLES } from '../packages';
+import { DATA_CACHE, exampleTestData } from '../testData';
 import { against, example as exampleCheck, near, same } from '../../validation/record';
 
 /** One parameter of MODEL RESULTS: `block` is the heading it is printed under (a group, latent class or level), `group` the group's number in print order. */
@@ -28,7 +28,17 @@ export const evidence = (key: string, method: string, packages: string[]) => {
   exampleCheck(ex.id, { title: ex.title, method, packages, definition: ex });
   against({ label: `Mplus User’s Guide, example ${key.slice(2)}: the printed output (statmodel.com)`, url: 'https://www.statmodel.com/ugexcerpts.shtml', level: 'published' });
 };
-export const load = (key: string) => parseCsv(readFileSync(join(__dirname, '..', '..', '..', 'public', example(key).data.file!), 'utf8')).dataset;
+/**
+ * The example's data, as opening it gives them. The Mplus data are not shipped with the app (no licence is stated):
+ * tests read them from the local cache .cache/mplus/ (not in git), which npm run data:fetch fills from statmodel.com
+ * with the app's own conversion; reshapes (ex6.19, ex9.16) are applied in code, as the app applies them.
+ */
+export const MPLUS_CACHE = join(DATA_CACHE, 'mplus');
+export const load = (key: string) => {
+  const d = exampleTestData(example(key));
+  if (!d) throw new Error(`mplus-${key} has no data file`);
+  return d;
+};
 export type Mine = { lhs: string; op: string; rhs: string; est: number; se: number | null; kind?: string };
 
 /**
@@ -59,4 +69,26 @@ export function sameFit(fit: Partial<Record<'npar' | 'logl' | 'aic' | 'bic' | 'c
   if (want.df !== undefined) same('df', fit.df!, want.df);
   const label = { logl: 'log-likelihood', aic: 'AIC', bic: 'BIC', chisq: 'χ²' } as const;
   for (const k of ['logl', 'aic', 'bic', 'chisq'] as const) if (want[k] !== undefined) near(label[k], fit[k]!, want[k]!, 0.002);
+}
+
+/** Run each card the example opens (panel, then morePanels) through its card's own run(), on the example's data. */
+export async function runCards<R = unknown>(key: string): Promise<R[]> {
+  const { analysisType } = await import('../../analyses/registry');
+  const { examplePanels, exampleSettings, panelPreset } = await import('../packages');
+  const { DEFAULT_SETTINGS } = await import('../../model/project');
+  const { computeColumn } = await import('../../data/compute');
+  const ex = example(key);
+  let data = load(key);
+  // (the example's computed columns, as the app adds them when the example opens)
+  let info = { fileName: key, rows: data.cols[0]?.length ?? 0, missingCells: 0, excluded: [] } as unknown as Parameters<typeof computeColumn>[1];
+  for (const k of ex.computed ?? []) ({ data, info } = computeColumn(data, info, k.name, k.expr));
+  const ctx = { data, info: null, settings: exampleSettings(DEFAULT_SETTINGS, ex.settings), pls: null, projectName: ex.title };
+  const out: R[] = [];
+  for (const p of examplePanels(ex)) {
+    const t = analysisType(p.kind)!;
+    const options = t.parseOptions({ ...t.defaults(ctx), ...panelPreset(p) });
+    expect(t.blocked(options, ctx), `${key}: ${p.kind} is ready to run`).toBeNull();
+    out.push(await t.run(options, ctx, () => {}) as R);
+  }
+  return out;
 }

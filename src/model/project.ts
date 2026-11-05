@@ -99,7 +99,8 @@ export interface Settings {
   /** Multiple imputation: number of imputed data sets. */
   miImputations: number;
   /** CB-SEM multiple imputation: mice (chained equations) or Amelia (EM with bootstrap; Honaker, King & Blackwell). */
-  miMethod: 'mice' | 'amelia';
+  /** mice: predictive mean matching; micenorm: mice's Bayesian normal regression (logistic for nominal columns), as Mplus's H1 imputation; amelia. */
+  miMethod: 'mice' | 'amelia' | 'micenorm';
   /** Multiple imputation, CB-SEM: further columns that inform the imputation without being in the model (auxiliary variables). */
   miAuxiliary: string[];
   /** Amelia: nominal (unordered categorical) columns among the imputation's variables (Amelia's noms). */
@@ -175,7 +176,12 @@ export interface Correlation {
  * y1 ~~ ve1*y1, y1 ~ i*1, u1 | t*t1; Mplus f1@1, y1 (ve1), [y1] (i), [u1$1] (t)). `target`: a construct id
  * (its variance, or its disturbance's) or, with `indicator`, an indicator's name.
  */
-export interface ParameterTerm { id: string; kind: 'variance' | 'intercept' | 'threshold'; target: string; indicator?: boolean; threshold?: number; fixed?: number; label?: string; byGroup?: GroupValue[] }
+/**
+ * `kind: 'scale'`: an ordinal indicator's scale factor (delta parameterisation; lavaan ~*~, Mplus {u1}). `free`: written
+ * out without a value or label, which frees a parameter lavaan fixes by default (an ordinal indicator's scale factor, or
+ * its residual variance in the theta parameterisation; lavaan NA*, Mplus {u2} or u2).
+ */
+export interface ParameterTerm { id: string; kind: 'variance' | 'intercept' | 'threshold' | 'scale'; target: string; indicator?: boolean; threshold?: number; fixed?: number; label?: string; byGroup?: GroupValue[]; free?: true }
 
 /**
  * CB-SEM: a direct effect on an indicator (lavaan y1 ~ x1; Mplus y1 ON x1), beside its loading: from a construct
@@ -224,6 +230,10 @@ export interface ModelState {
   positiveVariances?: boolean;
   /** CB-SEM (lavaan): standard errors from the observed information (Mplus's ML default); absent = lavaan's expected information. */
   information?: 'observed';
+  /** CB-SEM (lavaan), WLSMV with ordinal indicators: 'lavaan': lavaan 0.7's standard errors (the observed information in the sandwich); absent: Mplus's (classic WLSMV, the expected information; the default, also for projects saved before the option). */
+  wlsmvSe?: 'lavaan';
+  /** CB-SEM (lavaan), WLSMV with ordinal indicators, one group: the test statistic as Mplus's (lavaan mimic = "Mplus"). */
+  mimic?: 'Mplus';
   /** CB-SEM (lavaan): the baseline of CFI and TLI. Absent: the covariances among exogenous observed variables stay free (Mplus; lavaan with fixed.x); 'independence': every variable uncorrelated (LISREL; lavaan when the syntax writes those covariances out). */
   baseline?: 'independence';
   /** CB-SEM (lavaan): 'wishart': χ² and standard errors with N − 1 and the covariance matrix as given (LISREL, EQS, Amos, CALIS, the sem package); absent: lavaan's normal likelihood with N. */
@@ -492,8 +502,17 @@ function covarianceSpec(model: ModelState, name: Map<string, string>): Pick<Mode
   return all.length ? { covariances: all } : {};
 }
 
+/** CB-SEM: indicators that load on several factors (outside ESEM blocks too: the A, C and E factors of a twin model). */
+export function sharedIndicators(model: Pick<ModelState, 'constructs'>): Set<string> {
+  const seen = new Set<string>(), shared = new Set<string>();
+  for (const c of model.constructs) if (c.type === 'factor' && !c.covariate && !c.components?.length) for (const i of c.indicators) (seen.has(i) ? shared : seen).add(i);
+  return shared;
+}
+
 export function toSpec(model: ModelState): ModelSpec {
   const name = new Map(model.constructs.map((c) => [c.id, c.name]));
+  // (a factor of one indicator it shares with other factors is a factor, not the variable: it may be scaled by its variance)
+  const shared = sharedIndicators(model);
   return {
     constructs: model.constructs.map((c) => ({
       name: c.name, type: c.type, mode: c.mode, indicators: c.indicators,
@@ -510,7 +529,7 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.categorical && c.indicators.length === 1 ? { categorical: true } : {}),
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
       ...(c.loadingLabels && Object.keys(c.loadingLabels).length ? { loadingLabels: c.loadingLabels } : {}),
-      ...(c.scaling === 'variance' && c.indicators.length > 1 && !c.covariate && !c.components?.length ? { scaling: 'variance' as const } : {}),
+      ...(c.scaling === 'variance' && (c.indicators.length > 1 || shared.has(c.indicators[0])) && !c.covariate && !c.components?.length ? { scaling: 'variance' as const } : {}),
     })),
     paths: [
       ...model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })),
@@ -524,6 +543,8 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.cluster ? { cluster: model.cluster } : {}),
     ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)), ...(model.esem.epsilon !== undefined ? { epsilon: model.esem.epsilon } : {}), ...(model.esem.orthogonal && ORTHOGONALISABLE_ROTATIONS.includes(model.esem.rotation) ? { orthogonal: true } : {}) } } : {}),
     ...(model.information ? { information: model.information } : {}),
+    ...(model.wlsmvSe ? { wlsmvSe: model.wlsmvSe } : {}),
+    ...(model.mimic ? { mimic: model.mimic } : {}),
     ...(model.baseline ? { baseline: model.baseline } : {}),
     ...(model.likelihood ? { likelihood: model.likelihood } : {}),
     ...(model.sampleCovRescale === false ? { sampleCovRescale: false as const } : {}),
@@ -558,7 +579,7 @@ function parameterSpec(model: ModelState, name: Map<string, string>): Pick<Model
   const parameters = (model.parameters ?? []).flatMap((t) => {
     if (t.indicator ? !assigned.has(t.target) : (t.kind !== 'variance' || !name.has(t.target))) return [];
     return [{ kind: t.kind, target: t.indicator ? t.target : name.get(t.target)!, ...(t.indicator ? { indicator: true } : {}), ...(t.threshold !== undefined ? { threshold: t.threshold } : {}),
-      ...(t.byGroup?.length ? { byGroup: t.byGroup } : t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : {}) }];
+      ...(t.byGroup?.length ? { byGroup: t.byGroup } : t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : t.free ? { free: true as const } : {}) }];
   });
   return parameters.length ? { parameters } : {};
 }
@@ -574,7 +595,7 @@ export function labelUses(model: ModelState): Map<string, string[]> {
   for (const k of model.correlations ?? []) if (!k.zero) for (const v of k.byGroup ?? []) if (typeof v === 'string') add(v, `${k.kind === 'construct' ? name(k.a) : k.a} ↔ ${k.kind === 'construct' ? name(k.b) : k.b}`);
   for (const p of model.indicatorPaths ?? []) if (p.fixed === undefined) add(p.label, `${name(p.from)} → ${p.to}`);
   for (const t of model.parameters ?? []) {
-    const what = t.kind === 'variance' ? `variance of ${t.indicator ? t.target : name(t.target)}` : t.kind === 'intercept' ? `intercept of ${t.target}` : `threshold ${t.threshold ?? 1} of ${t.target}`;
+    const what = t.kind === 'variance' ? `variance of ${t.indicator ? t.target : name(t.target)}` : t.kind === 'intercept' ? `intercept of ${t.target}` : t.kind === 'scale' ? `scale factor of ${t.target}` : `threshold ${t.threshold ?? 1} of ${t.target}`;
     if (t.byGroup?.length) { for (const v of t.byGroup) if (typeof v === 'string') add(v, what); } else if (t.fixed === undefined) add(t.label, what);
   }
   // (a between level as written: its labelled parameters, between clusters)
@@ -793,7 +814,10 @@ export function validateModel(
       // (an ESEM block's factors load on all of the block's indicators: a factor outside the block may share them, Mplus example 5.30)
       const inEsem = (id: string) => (model.esem?.blocks ?? []).some((b) => b.constructs.includes(id));
       const oc = model.constructs.find((k) => k.name === o);
-      if (o && !(method.method === 'cbsem' && oc && inEsem(oc.id) !== inEsem(c.id))) err(`Indicator "${ind}" is assigned to both "${o}" and "${c.name}".`, c.id);
+      // (CB-SEM: an indicator may load on several common factors, e.g. the A, C and E factors of a twin model, Mplus
+      //  examples 5.18 and 5.19; not on a composite, whose indicators define it, nor as an observed covariate)
+      const sharedFactors = method.method === 'cbsem' && !!oc && [oc, c].every((k) => k.type === 'factor' && !k.covariate && !k.components?.length);
+      if (o && !(method.method === 'cbsem' && oc && inEsem(oc.id) !== inEsem(c.id)) && !sharedFactors) err(`Indicator "${ind}" is assigned to both "${o}" and "${c.name}".`, c.id);
       owner.set(ind, c.name);
       if (data && !available.has(ind)) err(`Indicator "${ind}" (in "${c.name}") is not in the current dataset.`, c.id);
     }
@@ -907,7 +931,11 @@ export function validateModel(
       for (const t of model.means ?? []) {
         const c = model.constructs.find((k) => k.id === t.target);
         if (!c) err('A mean arrow points to a removed construct.');
-        else if (c.components?.length && c.components.some((id) => model.constructs.find((k) => k.id === id)?.indicators.length !== 1)) err(`The mean of "${c.name}" (a second-order construct) is identified only when its components are single indicators (a latent curve model).`, c.id);
+        // (a curve of factors, Mplus ex. 6.14 and 6.15: identified when each component's indicators hold an intercept or threshold
+        //  at a value or a label, the measurement invariance over time that carries the location)
+        else if (c.components?.length && c.components.some((id) => { const k = model.constructs.find((x) => x.id === id); return k?.indicators.length !== 1
+          && !(k?.indicators.length && k.indicators.some((i) => (model.parameters ?? []).some((t) => t.indicator && t.target === i && (t.kind === 'intercept' || t.kind === 'threshold') && (t.fixed !== undefined || !!t.label || !!t.byGroup?.length)))); }))
+          err(`The mean of "${c.name}" (a second-order construct) is identified only when its components are single indicators (a latent curve model) or hold an indicator’s intercept or threshold at a value or label (a curve of factors).`, c.id);
       }
     }
   }
@@ -933,6 +961,7 @@ export function validateModel(
     const lavaanOnly = [ordered.length && 'ordinal indicators', model.information === 'observed' && 'Standard errors from the observed information', method.estimator === 'WLSMV' && 'WLSMV', missingChoice === 'fiml' && 'FIML', missingChoice === 'pairwise' && 'pairwise deletion', (missingChoice === 'twostage' || missingChoice === 'robusttwostage') && 'the two-stage approach'].filter(Boolean);
     if (lavaanOnly.length && engine === 'builtin') err(`${lavaanOnly.join(', ')} ${lavaanOnly.length === 1 ? 'is' : 'are'} estimated by lavaan: choose “R packages” under Calculated by.`);
     if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
+    if (ordered.length && method.estimator === 'WLSMV' && model.mimic === 'Mplus' && model.multigroup) err('The Mplus test statistic (lavaan mimic = "Mplus") is available for one group: with groups lavaan’s mimic also changes which parameters are held equal, and so the model. Use lavaan’s test statistic, or remove the grouping.');
     if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
     if ((model.likelihood || model.sampleCovRescale === false) && engine === 'builtin') err('The Wishart likelihood and an unrescaled covariance matrix are lavaan options: choose “R packages” under Calculated by.');
     if ((model.likelihood || model.sampleCovRescale === false) && !['ML', 'MLM', 'MLMV', 'MLR'].includes(method.estimator ?? 'ML')) err('The Wishart likelihood and an unrescaled covariance matrix apply to the maximum-likelihood estimators.');
@@ -967,7 +996,7 @@ export function validateModel(
       if ((method.miMethod ?? 'mice') === 'amelia' && model.multigroup) err('Amelia imputes one group here; choose mice for a multiple-group model.');
       const inImputation = new Set([...model.constructs.flatMap((c) => c.indicators), ...(method.miAuxiliary ?? [])]);
       const strayNominal = (method.miNominal ?? []).filter((x) => !inImputation.has(x));
-      if ((method.miMethod ?? 'mice') === 'amelia' && strayNominal.length) err(`Nominal variables of the imputation must be among its variables (the model's or the auxiliary ones): ${strayNominal.join(', ')}.`);
+      if ((method.miMethod ?? 'mice') !== 'mice' && strayNominal.length) err(`Nominal variables of the imputation must be among its variables (the model's or the auxiliary ones): ${strayNominal.join(', ')}.`);
     }
     if (method.estimator === 'WLS') {
       // ADF (Browne 1984; EQS's AGLS): weights from the fourth-order moments, so raw data or a NACOV matrix.
@@ -997,6 +1026,7 @@ export function validateModel(
     if (LAVAAN_MISSING.includes(missingChoice) && method.method === 'pls') err(`${missingChoice === 'fiml' ? 'FIML' : missingChoice === 'pairwise' ? 'Pairwise deletion' : 'The two-stage approach'} is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.`);
     if (missingChoice === 'mi' && method.method === 'pls' && engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
     if (missingChoice === 'mi' && method.method === 'pls' && (method.miMethod ?? 'mice') === 'amelia') err('Amelia imputation is available for CB-SEM; PLS-SEM imputes with mice.');
+    if (missingChoice === 'mi' && method.method === 'pls' && method.miMethod === 'micenorm') err('Bayesian normal-regression imputation is available for CB-SEM; PLS-SEM imputes with predictive mean matching.');
     // Categorical exogenous constructs (PLS): one column, 2 to 20 categories, no predictors.
     if (method.method === 'pls') for (const c of model.constructs.filter((k) => k.categorical)) {
       if (c.indicators.length !== 1) err(`The categorical variable "${c.name}" must be a single column (its categories become dummy variables).`, c.id);
@@ -1601,6 +1631,8 @@ export function parseModelState(m: unknown): ModelState {
         ...(m.esem.orthogonal === true ? { orthogonal: true } : {}),
       } } : {}),
       ...(m.information === 'observed' ? { information: 'observed' as const } : {}),
+      ...(m.wlsmvSe === 'lavaan' ? { wlsmvSe: 'lavaan' as const } : {}),
+      ...(m.mimic === 'Mplus' ? { mimic: 'Mplus' as const } : {}),
       ...(m.baseline === 'independence' ? { baseline: 'independence' as const } : {}),
       ...(m.likelihood === 'wishart' ? { likelihood: 'wishart' as const } : {}),
       ...(m.sampleCovRescale === false ? { sampleCovRescale: false as const } : {}),
@@ -1612,12 +1644,12 @@ export function parseModelState(m: unknown): ModelState {
         return ids.has(from) && indicatorNames.has(to) ? [{ id: str(p.id, 64), from, to, ...(finite(p.fixed) ? { fixed: p.fixed } : {}), ...(labelOf(p.label)) }] : [];
       }) } : {}),
       ...(Array.isArray(m.parameters) && m.parameters.length ? { parameters: m.parameters.slice(0, 2000).filter(isObj).flatMap((t: Record<string, unknown>): ParameterTerm[] => {
-        if (t.kind !== 'variance' && t.kind !== 'intercept' && t.kind !== 'threshold') return [];
+        if (t.kind !== 'variance' && t.kind !== 'intercept' && t.kind !== 'threshold' && t.kind !== 'scale') return [];
         const indicator = t.indicator === true || t.kind !== 'variance';
         const target = str(t.target, 200);
         if (indicator ? !indicatorNames.has(target) : !ids.has(target)) return [];
         return [{ id: str(t.id, 64), kind: t.kind, target, ...(indicator ? { indicator: true } : {}), ...(t.kind === 'threshold' && finite(t.threshold) && t.threshold >= 1 && t.threshold <= 50 ? { threshold: Math.round(t.threshold) } : {}),
-          ...(finite(t.fixed) ? { fixed: t.fixed } : {}), ...(labelOf(t.label)), ...(byGroupOf(t.byGroup)) }];
+          ...(finite(t.fixed) ? { fixed: t.fixed } : {}), ...(labelOf(t.label)), ...(byGroupOf(t.byGroup)), ...(t.free === true ? { free: true as const } : {}) }];
       }) } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
       ...(isObj(m.constant) ? { constant: { x: num(m.constant.x, -1e6, 1e6, 0), y: num(m.constant.y, -1e6, 1e6, 0) } } : {}),
@@ -1653,7 +1685,7 @@ export function parseSettings(raw: unknown): Settings {
     stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
     missing: (['casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const).find((m) => m === s.missing) ?? 'mean',
     miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
-    miMethod: s.miMethod === 'amelia' ? 'amelia' : 'mice',
+    miMethod: s.miMethod === 'amelia' || s.miMethod === 'micenorm' ? s.miMethod : 'mice',
     miAuxiliary: Array.isArray(s.miAuxiliary) ? [...new Set(s.miAuxiliary.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
     miNominal: Array.isArray(s.miNominal) ? [...new Set(s.miNominal.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),

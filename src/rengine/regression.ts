@@ -35,10 +35,15 @@ export interface RegressionInput {
   statusCensored?: boolean;
   /** survival: cut points of a piecewise-constant baseline hazard (piecewise exponential model); none: Cox regression. */
   cuts?: number[];
+  /**
+   * gaussian: a predictor whose slope varies across cases (a random slope in a one-level model, Mplus TYPE = RANDOM:
+   * s | y ON x; s WITH y): the residual variance becomes sigma2 + 2 c x + tau x^2, fitted by maximum likelihood.
+   */
+  randomSlope?: string;
 }
 export interface RegressionCurve { x: string; grid: number[]; y?: number[]; levels?: string[]; probs?: number[][]; points?: { x: number[]; y: number[] } }
-/** `part`: the inflation's coefficients (inflated models) or a baseline hazard (piecewise exponential; est is the hazard). */
-export interface Coefficient { level?: string; part?: 'inflation' | 'baseline' | null; term: string; est: number; se: number; stat: number; p: number; ciLow: number; ciHigh: number; ratio?: number }
+/** `part`: the inflation's coefficients (inflated models), a baseline hazard (piecewise exponential; est is the hazard) or a variance or covariance of a random slope. */
+export interface Coefficient { level?: string; part?: 'inflation' | 'baseline' | 'random' | null; term: string; est: number; se: number; stat: number; p: number; ciLow: number; ciHigh: number; ratio?: number }
 export interface RegressionResult {
   family: Family; link: string; formula: string; se: string;
   coefficients: Coefficient[];

@@ -7,6 +7,10 @@
 #' and optional random slopes; within / between decomposition on request.
 ps_lmm <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
+  # Wide repeated measures, several outcomes, more cluster levels, interaction terms, uncorrelated slopes, a residual
+  # variance per occasion or robust standard errors: the general version below (nlme where lme4 cannot).
+  if (!is.null(req$repeated) || length(req$outcomes) || length(req$levels) || length(req$independent) || length(req$interactions) || !is.null(req$residuals) || !is.null(req$se))
+    return(ps_lmm_ext(req, export))
   y <- req$outcome; xs <- unlist(req$predictors); cl <- req$cluster; slopes <- unlist(req$slopes)
   if (!length(y) || !length(cl)) stop("Choose an outcome and a cluster column.")
   if (y %in% c(xs, cl) || cl %in% xs) stop("The outcome, predictors and cluster column must be different columns.")
@@ -70,6 +74,329 @@ ps_lmm <- function(req_json, export = FALSE) {
       intercepts = unname(cc[, "(Intercept)"]), slopes = unname(cc[, focal]),
       fixed = c(unname(lme4::fixef(fit)["(Intercept)"]), unname(lme4::fixef(fit)[focal]))),
     warnings = env$.warnings, engine = list(package = "lme4", version = as.character(utils::packageVersion("lme4")))))
+}
+
+# ---- Multilevel regression: wide repeated measures, several outcomes, more cluster levels, MLR ----
+# The script functions: the covariance matrices of a fit (lme4 or nlme) as blocks, and the marginal likelihood
+# written with them (V = Z G Z' within each unit of each level, plus the residual variances), whose scores and
+# observed information give Mplus's MLR standard errors: the sandwich over the top-level clusters, with every
+# parameter as Mplus has it (fixed effects, variances, covariances).
+PS_LMM_FUNCTIONS <- strsplit(r"---(# The random effects of a fit as blocks: grouping (unit ids), columns Z, covariance matrix G, covariances free
+# (symm) or zero (diag); the residual variances last, one per group of rows (nlme's varIdent).
+lmm_blocks <- function(fit, d, resid_by = NULL) {
+  zmat <- function(nms) do.call(cbind, lapply(nms, function(nm) if (nm == "(Intercept)") rep(1, nrow(d)) else as.numeric(d[[nm]])))
+  if (inherits(fit, "merMod")) {
+    cn <- lme4::getME(fit, "cnms"); vc <- lme4::VarCorr(fit)
+    out <- lapply(seq_along(cn), function(i) list(level = names(cn)[i], f = d[[names(cn)[i]]], Z = zmat(cn[[i]]), names = cn[[i]],
+      G = unname(as.matrix(vc[[i]])), type = if (length(cn[[i]]) > 1) "symm" else "diag"))
+    return(c(out, list(list(level = "Residual", f = seq_len(nrow(d)), Z = matrix(1, nrow(d)), names = "Residual", G = matrix(stats::sigma(fit)^2), type = "diag"))))
+  }
+  s2 <- fit$sigma^2; re <- fit$modelStruct$reStruct; out <- list()
+  for (g in names(re)) {
+    pd <- re[[g]]
+    for (p in if (inherits(pd, "pdBlocked")) lapply(seq_along(pd), function(k) pd[[k]]) else list(pd)) {
+      G <- as.matrix(p) * s2; nms <- rownames(G)
+      out[[length(out) + 1]] <- list(level = g, f = d[[g]], Z = zmat(nms), names = nms, G = unname(G), type = if (inherits(p, "pdDiag")) "diag" else "symm")
+    }
+  }
+  vs <- fit$modelStruct$varStruct
+  res <- if (is.null(vs)) list(level = "Residual", f = seq_len(nrow(d)), Z = matrix(1, nrow(d)), names = "Residual", G = matrix(s2), type = "diag") else {
+    gr <- attr(vs, "groupNames"); w <- stats::coef(vs, unconstrained = FALSE, allCoef = TRUE)[gr]
+    list(level = "Residual", f = seq_len(nrow(d)), Z = sapply(gr, function(x) as.numeric(as.character(d[[resid_by]]) == x)), names = gr, G = diag(s2 * w^2, length(gr)), type = "diag")
+  }
+  c(out, list(res))
+}
+# Log-likelihood, scores (per top-level cluster) and observed information of the fixed effects and the covariance parameters.
+mlr_info <- function(y, X, beta, top, blocks) {
+  th <- do.call(rbind, lapply(seq_along(blocks), function(b) { q <- ncol(blocks[[b]]$Z)
+    ix <- which(lower.tri(diag(q), diag = TRUE), arr.ind = TRUE); if (blocks[[b]]$type == "diag") ix <- ix[ix[, 1] == ix[, 2], , drop = FALSE]
+    cbind(b = b, u = ix[, 1], v = ix[, 2]) }))
+  p <- ncol(X); K <- nrow(th); np <- p + K
+  est <- c(beta, mapply(function(b, u, v) blocks[[b]]$G[u, v], th[, "b"], th[, "u"], th[, "v"]))
+  names(est) <- c(names(beta), mapply(function(b, u, v) { B <- blocks[[b]]; paste0(B$level, ": ", if (u == v) B$names[u] else paste(B$names[v], "with", B$names[u])) }, th[, "b"], th[, "u"], th[, "v"]))
+  # Each covariance parameter's derivative of V is a sum of terms A B' (A, B: one column of a block's Z, per unit).
+  co <- unique(rbind(th[, c("b", "u")], `colnames<-`(th[, c("b", "v")], c("b", "u"))))
+  cid <- function(b, u) which(co[, 1] == b & co[, 2] == u)
+  terms <- lapply(seq_len(K), function(k) { a <- cid(th[k, "b"], th[k, "u"]); c2 <- cid(th[k, "b"], th[k, "v"]); if (a == c2) list(c(a, a)) else list(c(a, c2), c(c2, a)) })
+  H <- matrix(0, np, np); tops <- split(seq_along(top), factor(top, levels = unique(top))); S <- matrix(0, length(tops), np); ll <- 0
+  for (j in seq_along(tops)) {
+    r <- tops[[j]]; n <- length(r); Xj <- X[r, , drop = FALSE]
+    V <- matrix(0, n, n)
+    for (B in blocks) { f <- B$f[r]; Z <- B$Z[r, , drop = FALSE]; V <- V + outer(f, f, "==") * (Z %*% B$G %*% t(Z)) }
+    R <- chol(V); Vi <- chol2inv(R)
+    e <- as.vector(y[r] - Xj %*% beta); w <- as.vector(Vi %*% e)
+    ll <- ll - sum(log(diag(R))) - 0.5 * sum(e * w) - 0.5 * n * log(2 * pi)
+    cols <- lapply(seq_len(nrow(co)), function(i) { B <- blocks[[co[i, 1]]]; z <- B$Z[r, co[i, 2]]; nz <- which(z != 0)
+      list(rows = nz, f = match(B$f[r][nz], unique(B$f[r][nz])), z = z[nz]) })
+    Aw <- lapply(cols, function(cc) as.vector(rowsum(w[cc$rows] * cc$z, cc$f, reorder = FALSE)))
+    Q <- lapply(cols, function(cc) t(rowsum(t(Vi[, cc$rows, drop = FALSE]) * cc$z, cc$f, reorder = FALSE)))
+    XA <- lapply(Q, function(q) crossprod(Xj, q))
+    Tc <- list(); Tm <- function(b, a) { k <- paste(b, a); if (is.null(Tc[[k]])) { cb <- cols[[b]]; Tc[[k]] <<- rowsum(Q[[a]][cb$rows, , drop = FALSE] * cb$z, cb$f, reorder = FALSE) }; Tc[[k]] }
+    S[j, ] <- c(crossprod(Xj, w), vapply(terms, function(tk) sum(vapply(tk, function(t) -0.5 * sum(diag(Tm(t[2], t[1]))) + 0.5 * sum(Aw[[t[1]]] * Aw[[t[2]]]), 0)), 0))
+    Hj <- matrix(0, np, np); Hj[1:p, 1:p] <- -crossprod(Xj, Vi %*% Xj)
+    for (k in seq_len(K)) {
+      Hj[1:p, p + k] <- Hj[p + k, 1:p] <- -Reduce(`+`, lapply(terms[[k]], function(t) XA[[t[1]]] %*% Aw[[t[2]]]))
+      for (l in seq_len(k)) {
+        v <- 0
+        for (t in terms[[k]]) for (s in terms[[l]]) { T1 <- Tm(t[2], s[1]); v <- v + 0.5 * sum(T1 * t(Tm(s[2], t[1]))) - sum(Aw[[t[1]]] * (T1 %*% Aw[[s[2]]])) }
+        Hj[p + k, p + l] <- Hj[p + l, p + k] <- v
+      }
+    }
+    H <- H + Hj
+  }
+  list(est = est, th = th, ll = ll, score = colSums(S), scores = S, H = H)
+}
+# Mplus's MLR: the estimates at the maximum (Newton steps from the package's solution while the scores are not
+# yet zero), the model-based standard errors from the observed information, the robust ones from the sandwich.
+mlr_fit <- function(y, X, beta, top, blocks, steps = 5) {
+  put <- function(blocks, th, v) { for (k in seq_len(nrow(th))) { b <- th[k, 1]; u <- th[k, 2]; w <- th[k, 3]; blocks[[b]]$G[u, w] <- blocks[[b]]$G[w, u] <- v[k] }; blocks }
+  m <- mlr_info(y, X, beta, top, blocks); ll0 <- m$ll; n <- 0
+  while (n < steps && max(abs(m$score)) > 1e-4) {
+    step <- tryCatch(solve(-m$H, m$score), error = function(e) NULL); if (is.null(step)) break
+    better <- NULL
+    for (h in 2^-(0:5)) { v <- m$est + h * step
+      t2 <- tryCatch(mlr_info(y, X, v[seq_len(ncol(X))], top, put(blocks, m$th, v[-seq_len(ncol(X))])), error = function(e) NULL)
+      if (!is.null(t2) && t2$ll >= m$ll - 1e-9) { better <- list(m = t2, beta = v[seq_len(ncol(X))], blocks = put(blocks, m$th, v[-seq_len(ncol(X))])); break } }
+    if (is.null(better)) break
+    m <- better$m; beta <- better$beta; blocks <- better$blocks; n <- n + 1
+  }
+  Ii <- solve(-m$H)
+  list(est = m$est, beta = beta, blocks = blocks, th = m$th, ll = m$ll, gain = m$ll - ll0, steps = n, clusters = nrow(m$scores),
+    model = sqrt(diag(Ii)), robust = sqrt(diag(Ii %*% crossprod(m$scores) %*% Ii)))
+}
+# R-squared (Nakagawa & Schielzeth 2013; Johnson 2014): the variance of the fixed part, the mean variance of the
+# random effects and of the residuals over the rows.
+lmm_r2 <- function(X, beta, blocks) {
+  vf <- stats::var(as.vector(X %*% beta))
+  part <- vapply(blocks, function(B) mean(rowSums((B$Z %*% B$G) * B$Z)), 0)
+  res <- vapply(blocks, function(B) identical(B$level, "Residual"), TRUE)
+  vr <- sum(part[!res]); ve <- sum(part[res])
+  c(marginal = vf / (vf + vr + ve), conditional = (vf + vr) / (vf + vr + ve))
+})---", "\n")[[1]]
+
+ps_lmm_ext <- function(req, export) {
+  str <- function(x) as.character(x %||% "")
+  y <- str(req$outcome); xs <- as.character(unlist(req$predictors)); cl <- str(req$cluster)
+  slopes <- as.character(unlist(req$slopes)); indep <- as.character(unlist(req$independent))
+  # (equally long terms arrive as a matrix, one term per row)
+  ints <- if (is.matrix(req$interactions)) lapply(seq_len(nrow(req$interactions)), function(i) as.character(req$interactions[i, ])) else lapply(req$interactions %||% list(), function(t) as.character(unlist(t)))
+  lv <- lapply(req$levels %||% list(), function(l) list(cluster = str(l$cluster), slopes = as.character(unlist(l$slopes)), occasions = isTRUE(l$occasions)))
+  outs <- lapply(req$outcomes %||% list(), function(o) list(outcome = str(o$outcome), predictors = as.character(unlist(o$predictors)), slopes = as.character(unlist(o$slopes))))
+  rp <- req$repeated; wide <- !is.null(rp); stacked <- length(outs) > 0
+  center <- req$center %||% "none"
+  if (!center %in% c("none", "grand", "cluster")) stop("Invalid centring in the request.")
+  reml <- !identical(req$estimation, "ML")
+  se <- req$se %||% "model"; if (!se %in% c("model", "robust")) stop("Invalid standard errors in the request.")
+  robust <- se == "robust"
+  resid <- req$residuals %||% "equal"; if (!resid %in% c("equal", "occasion")) stop("Invalid residual variances in the request.")
+  if (robust && reml) stop("Robust standard errors (Mplus's MLR) go with ML estimation.")
+  if (wide && stacked) stop("Repeated measures in columns and several outcomes are alternatives.")
+  if (center != "none" && (wide || stacked || length(lv))) stop("Centring is available with one row per observation and one cluster level; centre the predictors as computed columns.")
+  if (resid == "occasion" && !wide) stop("A residual variance per occasion needs repeated measures in columns.")
+  if (any(vapply(lv, function(l) l$occasions, TRUE)) && !wide) stop("A variance per occasion at a cluster level needs repeated measures in columns.")
+  if (stacked && (length(lv) || length(ints))) stop("Several outcomes are modelled with one cluster level and without interaction terms (add products as computed columns).")
+  if (!nzchar(y)) stop("Choose the outcome.")
+  if (!wide && !nzchar(cl)) stop("Choose the cluster column.")
+  if (wide && nzchar(cl)) stop("With repeated measures in columns each row is a person: clusters of persons are a level above.")
+  for (t in ints) if (length(t) < 2) stop("An interaction term needs two or more variables.")
+  # The variables: data columns, and the names the long data create (outcome, time, time-varying covariates).
+  created <- character(0); ms <- character(0); times <- numeric(0); tname <- ""; vary <- list()
+  if (wide) {
+    ms <- as.character(unlist(rp$measures)); times <- as.numeric(unlist(rp$times)); tname <- str(rp$time %||% "time")
+    vary <- lapply(rp$varying %||% list(), function(v) list(name = str(v$name), columns = as.character(unlist(v$columns))))
+    if (length(ms) < 2) stop("Repeated measures need two or more occasions.")
+    if (length(times) != length(ms) || any(!is.finite(times))) stop("Give one time score per occasion.")
+    for (v in vary) if (length(v$columns) != length(ms)) stop(sprintf("The time-varying covariate %s needs one column per occasion.", v$name))
+    created <- c(y, tname, vapply(vary, `[[`, "", "name"))
+    if (anyDuplicated(created) || any(!nzchar(created))) stop("The outcome, the time and the time-varying covariates need different names.")
+  }
+  if (stacked) {
+    created <- character(0)
+    for (o in outs) if (!nzchar(o$outcome)) stop("Choose every outcome.")
+  }
+  allout <- if (stacked) c(list(list(outcome = y, predictors = xs, slopes = slopes)), outs) else NULL
+  lv_cols <- vapply(lv, `[[`, "", "cluster")
+  if (any(!nzchar(lv_cols))) stop("Choose the cluster column of every level.")
+  cols <- unique(c(if (wide) c(ms, unlist(lapply(vary, `[[`, "columns"))) else y,
+    if (stacked) unlist(lapply(allout, function(o) c(o$outcome, o$predictors))),
+    setdiff(c(xs, unlist(ints)), created), if (nzchar(cl)) cl, lv_cols))
+  if (any(created %in% cols)) stop("The outcome, time and time-varying covariates of the long data need names that are not columns in the model.")
+  for (s in c(slopes, unlist(lapply(lv, `[[`, "slopes")))) if (!s %in% c(xs, if (stacked) unlist(lapply(outs, `[[`, "predictors")))) stop("Random slopes need predictors in the model.")
+  if (stacked) for (o in allout) if (!all(o$slopes %in% o$predictors)) stop("Random slopes need predictors of their outcome.")
+  if (!stacked && y %in% c(xs, cl, lv_cols)) stop("The outcome, predictors and cluster columns must be different columns.")
+  if (any(c(cl, lv_cols) %in% c(xs, unlist(ints))) || anyDuplicated(c(if (nzchar(cl)) cl, lv_cols))) stop("The outcome, predictors and cluster columns must be different columns.")
+  fr <- ps_long_frame(req, cols)
+  id_of <- c(fr$v)
+  fresh <- function(x) { v <- ps_ident(c(unname(id_of), x))[length(id_of) + seq_along(x)]; id_of[x] <<- v; v }
+  # ---- the long data ----
+  occ <- character(0); occ_name <- character(0)
+  if (wide) {
+    ids <- fresh(c(created, ".person", ".occasion"))
+    Yi <- ids[1]; Ti <- ids[2]; Vi_ <- ids[2 + seq_along(vary)]; Pi <- ids[length(ids) - 1]; Oi <- ids[length(ids)]
+    keep <- setdiff(cols, c(ms, unlist(lapply(vary, `[[`, "columns"))))
+    prep <- c("# Repeated measures in columns: one row per person and occasion (wide to long).",
+      sprintf("times <- %s", paste(deparse(times), collapse = "")),
+      sprintf("measures <- %s", ps_q(fr$v[ms])),
+      vapply(seq_along(vary), function(k) sprintf("%s_cols <- %s", Vi_[k], ps_q(fr$v[vary[[k]]$columns])), ""),
+      "long <- do.call(rbind, lapply(seq_along(times), function(t) data.frame(",
+      sprintf("  %s = seq_len(nrow(data)), %s = t, %s = times[t], %s = data[[measures[t]]]%s%s)))", Pi, Oi, Ti, Yi,
+        paste(vapply(seq_along(vary), function(k) sprintf(", %s = data[[%s_cols[t]]]", Vi_[k], Vi_[k]), ""), collapse = ""),
+        paste(vapply(keep, function(x) sprintf(", %s = data$%s", fr$v[[x]], fr$v[[x]]), ""), collapse = "")),
+      sprintf("long <- long[order(long$%s, long$%s), ]", Pi, Oi))
+    if (resid == "occasion" || any(vapply(lv, function(l) l$occasions, TRUE))) {
+      occ <- fresh(paste0(".occ", seq_along(ms))); occ_name <- ms
+      prep <- c(prep, "# Occasion indicators (a variance per occasion)", sprintf("long$%s <- as.numeric(long$%s == %d)", occ, Oi, seq_along(ms)))
+    }
+    y_id <- Yi
+  } else if (stacked) {
+    ids <- fresh(c(".case", ".outcome", ".y")); Ci <- ids[1]; Oi <- ids[2]; Yi <- ids[3]
+    # One intercept column and one column per predictor of each outcome (the predictor on that outcome's rows, 0 elsewhere).
+    tcol <- lapply(allout, function(o) fresh(paste(o$outcome, c("Intercept", o$predictors), sep = "_")))
+    tdisp <- unlist(lapply(allout, function(o) paste0(o$outcome, ": ", c("Intercept", o$predictors))))
+    names(tdisp) <- unlist(tcol)
+    rows <- vapply(seq_along(allout), function(k) {
+      o <- allout[[k]]
+      vals <- unlist(lapply(seq_along(allout), function(m) { om <- allout[[m]]
+        if (m != k) rep("0", 1 + length(om$predictors)) else c("1", sprintf("data$%s", fr$v[om$predictors])) }))
+      sprintf("  data.frame(%s = seq_len(nrow(data)), %s = data$%s, %s = %d, %s = data$%s, %s)", Ci, fr$v[[cl]], fr$v[[cl]], Oi, k, Yi, fr$v[[o$outcome]],
+        paste(sprintf("%s = %s", unlist(tcol), vals), collapse = ", "))
+    }, "")
+    prep <- c("# Outcomes stacked: one row per case and outcome. Each outcome has its own intercept and effects: the column",
+      "# <outcome>_<predictor> is the predictor on that outcome's rows and 0 on the others.",
+      "long <- rbind(", paste0(rows, c(rep(",", length(rows) - 1), "")), ")",
+      sprintf("long <- long[order(long$%s, long$%s, long$%s), ]", fr$v[[cl]], Ci, Oi))
+    y_id <- Yi
+  } else {
+    prep <- "long <- data"
+    y_id <- fr$v[[y]]
+  }
+  idv <- function(x) unname(id_of[x])
+  # ---- the levels, lowest first: units nested in the units above (unique ids) ----
+  base <- if (wide) list(col = Pi, name = "Person", slopes = slopes, occasions = FALSE) else list(col = fr$v[[cl]], name = cl, slopes = if (stacked) NULL else slopes, occasions = FALSE)
+  levs <- c(list(base), lapply(lv, function(l) list(col = fr$v[[l$cluster]], name = l$cluster, slopes = l$slopes, occasions = l$occasions)))
+  H <- length(levs)
+  gid <- fresh(paste0(".level", seq_len(H)))
+  nest <- c(if (H > 0) vapply(rev(seq_len(H)), function(h) if (h == H) sprintf("long$%s <- long$%s", gid[h], levs[[h]]$col)
+    else sprintf("long$%s <- as.integer(factor(paste(%s)))", gid[h], paste(sprintf("long$%s", vapply(levs[h:H], `[[`, "", "col")), collapse = ", ")), ""))
+  # ---- fixed and random terms ----
+  cm <- character(0)
+  if (stacked) {
+    fixed <- c("0", unlist(tcol))
+  } else {
+    if (center == "cluster" && length(xs)) cm <- fresh(paste0(xs, "_cm"))
+    fixed <- c(idv(xs), cm, vapply(ints, function(t) paste(idv(t), collapse = ":"), ""))
+    if (!length(fixed)) fixed <- "1"
+  }
+  term_ids <- function(h) {
+    L <- levs[[h]]
+    if (stacked && h == 1) {
+      sl <- unlist(lapply(seq_along(allout), function(k) { o <- allout[[k]]; tcol[[k]][1 + match(o$slopes, o$predictors)] }))
+      pr <- unlist(lapply(seq_along(allout), function(k) { o <- allout[[k]]; o$slopes }))
+      list(corr = c(vapply(tcol, `[`, "", 1), sl[!pr %in% indep]), ind = sl[pr %in% indep], int = FALSE)
+    } else list(corr = idv(L$slopes[!L$slopes %in% indep]), ind = idv(L$slopes[L$slopes %in% indep]), int = TRUE)
+  }
+  nlme <- stacked || resid == "occasion" || any(vapply(levs, function(l) isTRUE(l$occasions), TRUE))
+  if (nlme) {
+    pd <- vapply(rev(seq_len(H)), function(h) {
+      t <- term_ids(h)
+      parts <- c(sprintf("pdSymm(~ %s)", paste(c(if (t$int) "1" else "0", t$corr), collapse = " + ")),
+        if (length(t$ind)) sprintf("pdDiag(~ 0 + %s)", paste(t$ind, collapse = " + ")),
+        if (isTRUE(levs[[h]]$occasions)) sprintf("pdDiag(~ 0 + %s)", paste(occ, collapse = " + ")))
+      sprintf("%s = %s", gid[h], if (length(parts) == 1) parts else sprintf("pdBlocked(list(%s))", paste(parts, collapse = ", ")))
+    }, "")
+    wts <- if (stacked) Oi else if (resid == "occasion") Oi else NULL
+    call <- sprintf("fit <- lme(%s ~ %s, random = list(%s)%s, data = long, method = \"%s\", control = lmeControl(maxIter = 500, msMaxIter = 500, msMaxEval = 2000))",
+      y_id, paste(fixed, collapse = " + "), paste(pd, collapse = ", "), if (!is.null(wts)) sprintf(", weights = varIdent(form = ~ 1 | %s)", wts) else "", if (reml) "REML" else "ML")
+  } else {
+    ran <- unlist(lapply(seq_len(H), function(h) { t <- term_ids(h)
+      c(sprintf("(%s | %s)", paste(c("1", t$corr), collapse = " + "), gid[h]), vapply(t$ind, function(s) sprintf("(0 + %s | %s)", s, gid[h]), "")) }))
+    call <- sprintf("fit <- lmer(%s ~ %s + %s, data = long, REML = %s)", y_id, paste(fixed, collapse = " + "), paste(ran, collapse = " + "), reml)
+  }
+  model_vars <- unique(c(y_id, if (stacked) unlist(tcol) else idv(c(xs, unlist(ints))), vapply(levs, `[[`, "", "col")))
+  wts_col <- if (nlme && (stacked || resid == "occasion")) Oi else NULL
+  top <- gid[H]
+  xform <- sprintf("~ %s", paste(fixed, collapse = " + "))
+  body <- c(if (nlme) "suppressPackageStartupMessages(library(nlme))  # linear mixed models with variance functions and blocked covariance matrices"
+      else "suppressPackageStartupMessages(library(lmerTest))  # lme4 with Satterthwaite degrees of freedom",
+    PS_LMM_FUNCTIONS, prep,
+    "# Rows complete on the model's variables.",
+    sprintf("long <- long[complete.cases(long[, %s]), ]", ps_q(model_vars)),
+    if (center == "grand" && length(xs)) c("# Predictors centred at their grand mean.", sprintf("long$%s <- long$%s - mean(long$%s)", idv(xs), idv(xs), idv(xs))),
+    if (length(cm)) c("# Within / between: each predictor split into its cluster mean (between) and the deviation from it (within).",
+      sprintf("long$%s <- ave(long$%s, long$%s)", cm, idv(xs), fr$v[[cl]]), sprintf("long$%s <- long$%s - long$%s", idv(xs), idv(xs), cm)),
+    if (H > 0) c("# Units of each level, nested in those above (unique ids).", nest),
+    if (!stacked && !wide && H == 1) c("# Intraclass correlation from the model without predictors.",
+      sprintf("null <- lmer(%s ~ 1 + (1 | %s), data = long, REML = %s)", y_id, gid[1], reml),
+      "vc0 <- as.data.frame(VarCorr(null)); icc <- vc0$vcov[1] / sum(vc0$vcov)"),
+    call,
+    if (nlme) "coefs <- summary(fit)$tTable  # estimate, SE, df, t, p" else c("coefs <- summary(fit)$coefficients  # estimate, SE, df (Satterthwaite), t, p",
+      "ci <- confint(fit, parm = \"beta_\", method = \"Wald\")"),
+    sprintf("X <- model.matrix(%s, long); beta <- %s", xform, if (nlme) "nlme::fixef(fit)" else "lme4::fixef(fit)"),
+    sprintf("blocks <- lmm_blocks(fit, long%s)", if (!is.null(wts_col)) sprintf(", \"%s\"", wts_col) else ""),
+    if (robust) c("# Mplus's MLR: robust standard errors (sandwich over the top-level clusters) of every parameter.",
+      sprintf("mlr <- mlr_fit(long$%s, X, beta, long$%s, blocks)", y_id, top),
+      "beta <- mlr$beta; blocks <- mlr$blocks"),
+    if (!stacked) "r2 <- lmm_r2(X, beta, blocks)")
+  inputs <- list(data = fr$data)
+  pkg <- if (nlme) "nlme" else "lme4"
+  if (export) return(paste(ps_script(sprintf("Multilevel regression (%s)", pkg), if (nlme) "nlme" else c("lme4", "lmerTest"), inputs, body,
+    c("summary(fit)", if (robust) "data.frame(estimate = mlr$est, se_model = mlr$model, se_mlr = mlr$robust)  # every parameter, Mplus's MLR standard errors", if (!stacked) "r2")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  fit <- env$fit; d <- env$long
+  # Display names: the variables, created columns, cluster levels.
+  back <- c(setNames(names(id_of), unname(id_of)))
+  disp <- function(x) {
+    out <- x
+    for (i in seq_along(x)) {
+      v <- x[i]
+      out[i] <- if (v == "(Intercept)") "Intercept"
+        else if (stacked && v %in% names(tdisp)) tdisp[[v]]
+        else if (v %in% occ) occ_name[match(v, occ)]
+        else if (v %in% cm) paste0(back[[xs[match(v, cm)]]] %||% v, " (cluster mean)")
+        else if (grepl(":", v, fixed = TRUE)) paste(vapply(strsplit(v, ":", fixed = TRUE)[[1]], function(p) if (p %in% names(back)) back[[p]] else p, ""), collapse = " × ")
+        else if (v %in% names(back)) back[[v]] else v
+    }
+    unname(out)
+  }
+  lev_name <- setNames(vapply(levs, `[[`, "", "name"), gid)
+  co <- env$coefs; beta <- env$beta; blocks <- env$blocks
+  mlr <- env$mlr; p <- length(beta)
+  fixed_out <- lapply(seq_len(p), function(i) {
+    est <- unname(beta[i])
+    if (robust) { s <- mlr$robust[i]; z <- est / s
+      list(term = disp(names(beta)[i]), est = est, se = s, df = NULL, t = z, p = 2 * stats::pnorm(-abs(z)), ciLow = est - stats::qnorm(0.975) * s, ciHigh = est + stats::qnorm(0.975) * s)
+    } else {
+      s <- co[i, 2]; df <- co[i, 3]
+      ci <- if (nlme) est + c(-1, 1) * stats::qt(0.975, df) * s else env$ci[rownames(co)[i], ]
+      list(term = disp(rownames(co)[i]), est = est, se = s, df = df, t = co[i, 4], p = co[i, 5], ciLow = ci[1], ciHigh = ci[2])
+    }
+  })
+  # Variance components: higher levels first, the residual last; standard errors (MLR) where computed.
+  th_se <- function(b, u, v) if (robust) { k <- which(mlr$th[, 1] == b & mlr$th[, 2] == u & mlr$th[, 3] == v); if (length(k)) mlr$robust[p + k] else NULL } else NULL
+  ord <- order(vapply(blocks, function(B) if (identical(B$level, "Residual")) Inf else -match(B$level, gid), 0))
+  random <- list()
+  for (b in ord) {
+    B <- blocks[[b]]; resid_b <- identical(B$level, "Residual"); q <- ncol(B$Z)
+    grp <- if (resid_b) "Residual" else lev_name[[B$level]]
+    for (u in seq_len(q)) {
+      a <- if (resid_b) (if (q > 1) (if (stacked) allout[[as.integer(B$names[u])]]$outcome else ms[as.integer(B$names[u])]) else NULL) else disp(B$names[u])
+      random[[length(random) + 1]] <- list(group = grp, a = a, b = NULL, variance = B$G[u, u], sd = sqrt(max(B$G[u, u], 0)), se = th_se(b, u, u))
+    }
+    if (B$type == "symm" && q > 1) for (v in seq_len(q - 1)) for (u in (v + 1):q)
+      random[[length(random) + 1]] <- list(group = grp, a = disp(B$names[v]), b = disp(B$names[u]), variance = B$G[u, v], sd = B$G[u, v] / sqrt(B$G[u, u] * B$G[v, v]), se = th_se(b, u, v))
+  }
+  K <- sum(vapply(blocks, function(B) { q <- ncol(B$Z); if (B$type == "diag") q else q * (q + 1) / 2 }, 0))
+  ll <- if (robust) mlr$ll else as.numeric(stats::logLik(fit))
+  npar <- p + K
+  # BIC with the number of cases (rows of the data): wide repeated measures and stacked outcomes count persons, as Mplus.
+  ncase <- if (wide) length(unique(d[[Pi]])) else if (stacked) length(unique(d[[Ci]])) else nrow(d)
+  if (robust && mlr$steps > 0 && mlr$gain > 1e-4) ps_note(sprintf("The %s solution was refined by %d Newton step%s to the maximum of the likelihood (log-likelihood %+.4f).", pkg, mlr$steps, if (mlr$steps > 1) "s" else "", mlr$gain))
+  ps_json(list(n = nrow(d), clusters = length(unique(d[[gid[1]]])), reml = reml, icc = env$icc,
+    levels = lapply(seq_len(H), function(h) list(name = levs[[h]]$name, units = length(unique(d[[gid[h]]])))),
+    fixed = fixed_out, random = random, robust = robust, npar = npar, cases = ncase,
+    r2 = if (stacked) NULL else as.list(env$r2), logLik = ll, aic = -2 * ll + 2 * npar, bic = -2 * ll + npar * log(ncase),
+    singular = if (nlme) FALSE else lme4::isSingular(fit), slopeTest = NULL, lines = NULL,
+    warnings = env$.warnings, engine = list(package = pkg, version = as.character(utils::packageVersion(pkg)))))
 }
 
 #' Growth mixture model (latent class linear mixed model, lcmm::hlme) for 1..K

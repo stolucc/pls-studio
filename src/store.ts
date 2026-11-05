@@ -132,6 +132,10 @@ interface State {
   setParameterization: (p: 'theta' | null) => void;
   /** CB-SEM: standard errors from the observed information, or lavaan's default (null). */
   setInformation: (information: 'observed' | null) => void;
+  /** CB-SEM, WLSMV: lavaan 0.7's standard errors ('lavaan'), or Mplus's (null, the default). */
+  setWlsmvSe: (se: 'lavaan' | null) => void;
+  /** CB-SEM, WLSMV: Mplus's test statistic (lavaan mimic = "Mplus"), or lavaan's (null). */
+  setMimic: (mimic: 'Mplus' | null) => void;
   /** CB-SEM: the CFI/TLI baseline of uncorrelated variables, or the default (null). */
   setBaseline: (baseline: 'independence' | null) => void;
   /** CB-SEM: the sample-size convention of χ²: lavaan's (N), Wishart (N − 1), or the matrix as given with N. */
@@ -399,6 +403,8 @@ export const useStore = create<State>((set, get) => ({
   })),
   setParameterization: (p) => get().commit((m) => { const { parameterization: _p, ...rest } = m; return p ? { ...rest, parameterization: p } : rest; }),
   setInformation: (information) => get().commit((m) => { const { information: _i, ...rest } = m; return information ? { ...rest, information } : rest; }),
+  setWlsmvSe: (se) => get().commit((m) => { const { wlsmvSe: _s, ...rest } = m; return se ? { ...rest, wlsmvSe: se } : rest; }),
+  setMimic: (mimic) => get().commit((m) => { const { mimic: _m, ...rest } = m; return mimic ? { ...rest, mimic } : rest; }),
   setBaseline: (baseline) => get().commit((m) => { const { baseline: _b, ...rest } = m; return baseline ? { ...rest, baseline } : rest; }),
   setConvention: (c) => get().commit((m) => { const { likelihood: _l, sampleCovRescale: _r, ...rest } = m; return c === 'wishart' ? { ...rest, likelihood: 'wishart' } : c === 'asGiven' ? { ...rest, sampleCovRescale: false } : rest; }),
   setCompareGroups: (compareGroups) => set({ compareGroups }),

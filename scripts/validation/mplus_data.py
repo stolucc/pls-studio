@@ -1,11 +1,16 @@
-"""The data of the Mplus User's Guide examples as CSV files for the app.
+"""The data of the Mplus User's Guide examples as CSV files: the reference for the app's converter.
+
+The data are not shipped (no licence is stated): the app downloads each example's files from
+statmodel.com and converts them with src/examples/remote/convert.ts, a port of this script, and
+npm run data:fetch fills the test cache .cache/mplus the same way. convert.test.ts checks that
+the port writes the same bytes as convert() here on every cached example.
 
 Reads each example's input (exN.M.inp) for its variable names and missing-value code and
-its free-format data (the .dat the input names), and writes public/examples/mplus/exN.M.csv
-with a header row and missing values as empty cells. Free format is read as Mplus reads it:
+its free-format data (the .dat the input names), and writes <dest>/exN.M.csv (by default
+.cache/mplus) with a header row and missing values as empty cells. Free format is read as Mplus reads it:
 a stream of values, one record per len(NAMES) values, whatever the line breaks (a file with
 one record per line and more columns than NAMES keeps the first len(NAMES)).
-    python3 -I scripts/validation/mplus_data.py <folder with the ex*.inp and *.dat files> [ex5.1 ...]
+    MPLUS_DEST=<dir> python3 -I scripts/validation/mplus_data.py <folder with the ex*.inp and *.dat files> [ex5.1 ...]
 """
 import os, re, sys
 
@@ -95,7 +100,7 @@ def convert(folder, ex, dest):
 
 
 def main(folder, only):
-    dest = os.path.join(os.path.dirname(__file__), '..', '..', 'public', 'examples', 'mplus')
+    dest = os.environ.get('MPLUS_DEST') or os.path.join(os.path.dirname(__file__), '..', '..', '.cache', 'mplus')
     os.makedirs(dest, exist_ok=True)
     exs = only or sorted({f[:-4] for f in os.listdir(folder) if re.fullmatch(r'ex\d+\.\d+\w*\.inp', f)})
     for ex in exs:

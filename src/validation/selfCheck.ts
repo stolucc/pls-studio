@@ -7,6 +7,7 @@ import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset } from '../engine/types';
 import { exampleModel, PACKAGE_EXAMPLES, type PackageExample } from '../examples/packages';
 import { type DataInfo, DEFAULT_SETTINGS, toSpec } from '../model/project';
+import type { RemoteData } from '../examples/remote/source';
 import type { RPackage } from '../rengine/bridge';
 import { digest, digestDifferences } from './digest';
 import type { Evidence } from './types';
@@ -16,11 +17,16 @@ export const SELF_CHECK_IDS = [
   'lavaan-hs', 'mplus-ex5.25', 'seminr-corprep', 'csem-threecf', 'ltm-lsat', 'polca-carcinoma', 'lme4-sleepstudy', 'stats-dobson', 'manymome-med', 'did-mpdta',
 ] as const;
 
-/** An example's dataset: from its R package, or a file shipped with the app (read by `readText`). */
-export async function loadExampleData(ex: PackageExample, readText: (path: string) => Promise<string>): Promise<Dataset> {
+/** Data downloaded from their source at use (examples/remote): in the browser, downloaded now; the tests read their cache. */
+export type ReadRemote = (r: RemoteData) => Promise<Dataset>;
+const download: ReadRemote = async (r) => (await (await import('../examples/remote/load')).remoteDataset(r)).data;
+
+/** An example's dataset: from its R package, a file shipped with the app (read by `readText`) or downloaded (`readRemote`). */
+export async function loadExampleData(ex: PackageExample, readText: (path: string) => Promise<string>, readRemote: ReadRemote = download): Promise<Dataset> {
   const { rCall } = await import('../rengine/bridge');
   let data: Dataset;
   if (ex.data.file) data = parseCsv(await readText(ex.data.file)).dataset;
+  else if (ex.data.remote) data = await readRemote(ex.data.remote);
   else {
     const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[] | string> | unknown[] }>('ps_dataset',
       { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package as RPackage);
@@ -38,10 +44,10 @@ export async function loadExampleData(ex: PackageExample, readText: (path: strin
 }
 
 /** Run one self-check example as the app runs it at the example's settings; the result object whose digest is compared. */
-export async function runSelfCheck(id: string, readText: (path: string) => Promise<string>): Promise<unknown> {
+export async function runSelfCheck(id: string, readText: (path: string) => Promise<string>, readRemote?: ReadRemote): Promise<unknown> {
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === id);
   if (!ex) throw new Error(`No example ${id}`);
-  const data = await loadExampleData(ex, readText);
+  const data = await loadExampleData(ex, readText, readRemote);
   const st = { ...DEFAULT_SETTINGS, ...ex.settings };
   const p = ex.panel;
   if (p?.kind === 'irt') return (await import('../rengine/items')).irtR(data, p.items, p.model, { quadrature: p.quadrature, robust: p.robust });

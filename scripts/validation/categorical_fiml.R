@@ -1,5 +1,5 @@
-# Reference results for ordinal indicators (WLSMV) and FIML, from desktop
-# lavaan. Writes src/engine/__fixtures__/categorical/*.{csv,json}.
+# Reference results for ordinal indicators (WLSMV; standard errors as Mplus's, the app's default) and FIML,
+# from desktop lavaan. Writes src/engine/__fixtures__/categorical/*.{csv,json}.
 #
 #   Rscript scripts/validation/categorical_fiml.R
 
@@ -11,11 +11,26 @@ model <- "visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9
 # Ordinal: each item cut into 4 categories at its quartiles (1-4).
 ord <- as.data.frame(lapply(hs, function(v) as.integer(cut(v, quantile(v, 0:4 / 4), include.lowest = TRUE))))
 write.csv(ord, file.path(root, "hs_ordinal.csv"), row.names = FALSE)
-f <- sem(model, ord, ordered = names(ord), estimator = "WLSMV")
+# Standard errors as the app computes them by default, Mplus's WLSMV (Muthen, du Toit & Spisic 1997): since 0.7-2
+# lavaan puts the observed information in the sandwich's bread for categorical DWLS; Mplus (and lavaan up to 0.7-1)
+# the expected one, information.bread = "expected", and Mplus divides the covariance matrix of the estimates by N
+# where lavaan divides by N - G. `lavaanSe`: lavaan 0.7's own standard errors (the app's wlsmvSe = "lavaan").
+f <- sem(model, ord, ordered = names(ord), estimator = "WLSMV", information.bread = "expected")
+mplus_se <- function(fit) {
+  k <- 1 - lavInspect(fit, "ngroups") / lavInspect(fit, "ntotal")
+  fit@vcov$vcov <- fit@vcov$vcov * k
+  fit@ParTable$se <- fit@ParTable$se * sqrt(k)
+  fit@Fit@se <- fit@Fit@se * sqrt(k)
+  fit
+}
+f <- mplus_se(f)
+f_lavaan <- sem(model, ord, ordered = names(ord), estimator = "WLSMV")
 pe <- parameterEstimates(f, standardized = TRUE)
-pick <- function(op) { r <- pe[pe$op == op, ]; lapply(seq_len(nrow(r)), function(i) list(lhs = r$lhs[i], op = op, rhs = r$rhs[i], est = r$est[i], se = r$se[i], std = r$std.all[i])) }
+pe_lavaan <- parameterEstimates(f_lavaan)
+pick <- function(op) { r <- pe[pe$op == op, ]; l <- pe_lavaan[pe_lavaan$op == op, ]
+  lapply(seq_len(nrow(r)), function(i) list(lhs = r$lhs[i], op = op, rhs = r$rhs[i], est = r$est[i], se = r$se[i], std = r$std.all[i], stdSe = standardizedSolution(f)$se[standardizedSolution(f)$op == op][i], lavaanSe = l$se[i])) }
 fm <- fitMeasures(f, c("chisq", "df", "chisq.scaled", "df.scaled", "pvalue.scaled", "cfi.scaled", "tli.scaled", "rmsea.scaled", "srmr"))
-write(toJSON(list(lavaan = as.character(packageVersion("lavaan")), model = model, fit = as.list(fm),
+write(toJSON(list(lavaan = as.character(packageVersion("lavaan")), model = model, se = "Mplus (information.bread = \"expected\", vcov x (N - 1) / N)", fit = as.list(fm),
   loadings = pick("=~"), regressions = pick("~"), thresholds = pick("|")), auto_unbox = TRUE, digits = NA, pretty = TRUE),
   file.path(root, "hs_wlsmv.json"))
 

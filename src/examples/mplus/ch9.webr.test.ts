@@ -4,11 +4,8 @@
 // model-based where Mplus's are robust (MLR): those are checked against the values the cards state.
 // Run with npm run test:webr.
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { computeColumn } from '../../data/compute';
-import { parseCsv } from '../../engine/dataset';
 import type { Dataset } from '../../engine/types';
 import type { DataInfo } from '../../model/project';
 import { toSpec } from '../../model/project';
@@ -17,7 +14,8 @@ import { lmmR, type LmmInput } from '../../rengine/mixed';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { near, same } from '../../validation/record';
 import { exampleModel } from '../packages';
-import { evidence, example, MPLUS, type Printed, sameFit, samePrinted, TOL } from './testkit';
+import { remoteTestData } from '../testData';
+import { evidence, example, load, MPLUS, type Printed, sameFit, samePrinted, TOL } from './testkit';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -25,8 +23,8 @@ afterAll(stopTestRuntime);
 /** The example's data with its computed columns (Mplus's DEFINE / CENTER), as opening it gives. */
 function data(key: string): Dataset {
   const ex = example(key);
-  let d = parseCsv(readFileSync(join(__dirname, '..', '..', '..', 'public', ex.data.file!), 'utf8')).dataset;
-  let info: DataInfo = { fileName: ex.data.file!, rows: d.cols[0].length, missingCells: 0, excluded: [] };
+  let d = load(key);
+  let info: DataInfo = { fileName: `${key}.dat`, rows: d.cols[0].length, missingCells: 0, excluded: [] };
   for (const k of ex.computed ?? []) ({ data: d, info } = computeColumn(d, info, k.name, k.expr));
   return d;
 }
@@ -122,7 +120,8 @@ it.each([['ex9.2a'], ['ex9.2b'], ['ex9.16']])('%s: lme4 (ML) reproduces the Mplu
 }, 600_000);
 
 it('ex9.16: the long data are the wide data reshaped as Mplus’s DATA WIDETOLONG does', () => {
-  const wide = parseCsv(readFileSync(join(__dirname, '..', '..', '..', 'public', 'examples', 'mplus', 'ex9.16.csv'), 'utf8')).dataset;
+  const { reshape: _r, ...asDownloaded } = example('ex9.16').data.remote!;
+  const wide = remoteTestData(asDownloaded);
   const long = data('ex9.16');
   const col = (d: Dataset, n: string) => d.cols[d.names.indexOf(n)];
   expect(col(long, 'y').length).toBe(4 * col(wide, 'x1').length);

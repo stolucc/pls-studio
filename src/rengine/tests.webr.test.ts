@@ -72,7 +72,7 @@ describe('ANOVA', () => {
     expect(eff.map((x) => x.term)).toEqual(['conc', 'conc × type']);
     eff.forEach((x, i) => { close(x.f, w.withinF[i], `${x.term} F`); close(x.p, w.withinP[i], `${x.term} p`); });
     close(r.betweenTable[0].f, w.betweenF, 'type F');
-    close(r.sphericity.w, w.mauchly.stat, 'Mauchly W'); close(r.sphericity.p, w.mauchly.p, 'Mauchly p');
+    close(r.sphericity!.w, w.mauchly.stat, 'Mauchly W'); close(r.sphericity!.p, w.mauchly.p, 'Mauchly p');
     r.corrected.forEach((c, i) => { close(c.pGG, w.pGG[i], 'G-G p'); close(c.pHF, w.pHF[i], 'H-F p'); });
   }, 600_000);
   it('repeated measures without a between factor, with Friedman’s test', async () => {

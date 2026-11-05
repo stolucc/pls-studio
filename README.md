@@ -11,13 +11,15 @@ analysis can be exported as the R script that produced it.
 ```bash
 npm install
 npm run webr:fetch # webR + pinned R packages (and their sources) into public/webr (~300 MB, once)
+npm run data:fetch # example data the app may not distribute (Mplus User's Guide, RI-CLPM) into .cache/, for the tests
 npm run dev        # http://localhost:5175
 npm test           # client tests; npm run test:webr runs the R packages in webR; npm run test:server
 npm run build      # production build in dist/ (fetches public/webr if missing; strict CSP injected)
 ```
 
 The R packages are pinned in `scripts/webr/webr-lock.json` (versions and checksums) and served from
-the app's own origin; nothing is loaded from third parties at run time. The page must be served
+the app's own origin; no code is loaded from third parties at run time (only the data of examples whose licence
+does not let PLS Studio distribute them, downloaded from their source when such an example is opened). The page must be served
 cross-origin isolated (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy:
 require-corp`) and allow WebAssembly (`script-src 'wasm-unsafe-eval'`); the dev/preview servers and
 `server/` do this.
@@ -55,8 +57,8 @@ structural equation is estimated separately by 2SLS on scaling indicators, with 
 instruments and a Sargan overidentification test per equation; works from raw data or a covariance
 matrix. Misspecification in one equation does not propagate to others.
 
-**Examples**: 159 examples from the R packages' own documentation (lavaan, MIIVsem, modsem, manymome, plspm, genpathmox, ivreg, REndo, sampleSelection, MatchIt, RSA, NCA,
-cSEM, seminr, ltm, poLCA, lme4, lcmm, did, fixest, MASS, nnet, datasets, carData, faraway, BayesFactor, blavaan; data loaded from the packages, each linked to its source) and from the Mplus User's Guide (Muthén & Muthén; generated example data shipped with the app, fitted with lavaan, glm, survival, ltm, poLCA, lme4, modsem and maximum likelihood written out in R), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
+**Examples**: 263 examples from the R packages' own documentation (lavaan, MIIVsem, modsem, manymome, plspm, genpathmox, ivreg, REndo, sampleSelection, MatchIt, RSA, NCA,
+cSEM, seminr, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, lcmm, did, fixest, MASS, nnet, datasets, carData, faraway, BayesFactor, blavaan; data loaded from the packages, each linked to its source) and from the Mplus User's Guide (Muthén & Muthén; their generated example data are not distributed with the app but downloaded from statmodel.com each time an example is opened, through the PLS Studio server or the desktop helper, fitted with lavaan, glm, survival, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, modsem and maximum likelihood written out in R), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
 Schaarschmidt & Goldblit (2022), *Gamification in software engineering*, Empirical Software
 Engineering 27:35 (CB-SEM, MLM, from the covariance and NACOV matrices of the replication
 package, doi:10.5281/zenodo.6322761, CC BY 4.0). The example reproduces the paper's results.

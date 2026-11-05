@@ -1,5 +1,6 @@
 // Ordinal indicators with WLSMV, and FIML for missing values, through lavaan
-// in webR, against desktop lavaan 0.6-16 (scripts/validation/categorical_fiml.R).
+// in webR, against desktop lavaan (scripts/validation/categorical_fiml.R; WLSMV: lavaan 0.7-3 with Mplus's
+// standard errors, the app's default, and lavaan's own; FIML: lavaan 0.6-16).
 // Run with npm run test:webr.
 
 import { readFileSync } from 'node:fs';
@@ -22,7 +23,7 @@ const spec: ModelSpec = {
   constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6']), f('speed', ['x7', 'x8', 'x9'])],
   paths: [{ from: 'visual', to: 'speed' }, { from: 'textual', to: 'speed' }],
 };
-type Row = { lhs: string; op: string; rhs: string; est: number; se: number; std: number };
+type Row = { lhs: string; op: string; rhs: string; est: number; se: number; std: number; stdSe?: number; lavaanSe?: number };
 
 describe('ordinal indicators (WLSMV)', () => {
   it('matches lavaan: scaled test, loadings, thresholds', async () => {
@@ -40,6 +41,27 @@ describe('ordinal indicators (WLSMV)', () => {
     expect(th).toHaveLength((r0.thresholds as Row[]).length);
     for (const t of r0.thresholds as Row[]) expect(th.find((x) => x.lhs === t.lhs && x.rhs === t.rhs)!.est).toBeCloseTo(t.est, 5);
     expect(await cbScriptLavaan(load('hs_ordinal.csv'), { ...spec, ordered: items }, 'casewise', 'WLSMV')).toContain('estimator = "WLSMV", ordered = c("x1"');
+  }, 600_000);
+
+  it('standard errors as Mplus by default (expected information in the sandwich, divided by N), lavaan 0.7’s on request', async () => {
+    const r0 = ref('hs_wlsmv.json');
+    const rows = [...r0.loadings, ...r0.regressions].filter((l: Row) => l.se > 0) as Row[];
+    const mplus = await estimateCbLavaan(load('hs_ordinal.csv'), { ...spec, ordered: items }, 'casewise', 'WLSMV');
+    const own = await estimateCbLavaan(load('hs_ordinal.csv'), { ...spec, ordered: items, wlsmvSe: 'lavaan' }, 'casewise', 'WLSMV');
+    const find = (r: typeof mplus, l: Row) => r.estimates.find((x) => x.lhs === l.lhs && x.op === l.op && x.rhs === l.rhs)!;
+    for (const l of rows) {
+      expect(find(mplus, l).se!, `SE of ${l.lhs} ${l.op} ${l.rhs}`).toBeCloseTo(l.se, 6);
+      expect(find(own, l).se!, `lavaan's SE of ${l.lhs} ${l.op} ${l.rhs}`).toBeCloseTo(l.lavaanSe!, 6);
+      expect(find(own, l).est).toBeCloseTo(find(mplus, l).est, 10);
+    }
+    // (estimates and the test statistic do not depend on it)
+    expect(own.fit.chisqScaled!).toBeCloseTo(mplus.fit.chisqScaled!, 8);
+    const s = await cbScriptLavaan(load('hs_ordinal.csv'), { ...spec, ordered: items }, 'casewise', 'WLSMV');
+    expect(s).toContain('information.bread = "expected"');
+    expect(s).toContain('fit <- mplus_se(fit)');
+    const t = await cbScriptLavaan(load('hs_ordinal.csv'), { ...spec, ordered: items, wlsmvSe: 'lavaan' }, 'casewise', 'WLSMV');
+    expect(t).not.toContain('information.bread');
+    expect(t).not.toContain('mplus_se');
   }, 600_000);
 });
 

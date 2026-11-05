@@ -148,3 +148,33 @@ describe('a linear regression drawn as a path model', () => {
     expect(st.model.constructs.length).toBe(3);
   });
 });
+
+describe('regression with a random slope (one level, Mplus TYPE = RANDOM)', () => {
+  it('reads the option from files only when set, says when it cannot run, keeps it out of path models and the fingerprint of others', () => {
+    expect(regressionAnalysis.parseOptions({ outcome: 'y', predictors: ['a'] })).not.toHaveProperty('randomSlope');
+    expect(regressionAnalysis.parseOptions({ outcome: 'y', predictors: ['a'], randomSlope: 'a' })).toMatchObject({ randomSlope: 'a' });
+    const rs = o({ outcome: 'y', predictors: ['a', 'b'], interactions: [['a', 'b']], randomSlope: 'a', se: 'HC0' });
+    expect(regressionAnalysis.blocked(rs, ctx())).toBeNull();
+    expect(regressionAnalysis.blocked({ ...rs, randomSlope: 'n' }, ctx())).toMatch(/must be one of the predictors/);
+    expect(regressionAnalysis.blocked({ ...rs, categorical: ['a'] }, ctx())).toMatch(/numeric predictor/);
+    expect(regressionAnalysis.blocked({ ...rs, weights: 'w' }, ctx())).toMatch(/Weights are not available/);
+    expect(regressionAnalysis.blocked({ ...rs, se: 'HC3' }, ctx())).toMatch(/model-based or HC0/);
+    // (another family ignores it)
+    expect(regressionAnalysis.blocked({ ...rs, family: 'poisson' }, ctx())).toBeNull();
+    expect(regressionModel(rs)).toMatch(/random slope/);
+    expect(regressionAnalysis.fingerprint(rs, ctx())).not.toBe(regressionAnalysis.fingerprint({ ...rs, randomSlope: undefined }, ctx()));
+    expect(regressionAnalysis.fingerprint(o({ outcome: 'y', predictors: ['a'] }), ctx())).toBe(regressionAnalysis.fingerprint(o({ outcome: 'y', predictors: ['a'], family: 'gaussian' }), ctx()));
+    expect(regressionAnalysis.summary(rs)).toBe('linear (gaussian) · y on a, b · random slope of a · HC0 SEs');
+    expect(regressionRequest(data, regressionInput(rs, ctx()))).toMatchObject({ randomSlope: 'a' });
+  });
+  it('shows the variances and the covariance of the random slope in their own table', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const row = (term: string, part: 'random' | null = null) => ({ term, part, est: 0.85, se: 0.078, stat: 10, p: 0, ciLow: 0.7, ciHigh: 1 });
+    const rs = o({ outcome: 'y', predictors: ['a'], randomSlope: 'a' });
+    const r = { family: 'gaussian', link: 'identity', formula: 'y ~ a', se: 'HC0', coefficients: [row('a'), row('Residual variance', 'random'), row('Variance of the slope of a', 'random')], thresholds: [], levels: null,
+      fit: { n: 10, logLik: -5, aic: 14, bic: 15, npar: 4 }, lrt: null, diagnostics: {}, curves: [], warnings: [], engine: { package: 'stats', version: '4.6' }, input: regressionInput(rs, ctx()) };
+    const html = renderToStaticMarkup(<regressionAnalysis.View result={r as never} options={rs} current />);
+    expect(html).toContain('Random slope of a: variances and covariance');
+    expect(html).toContain('Variance of the slope of a');
+  });
+});

@@ -9,9 +9,9 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, toSpec, validateModel } from '../model/project';
 import type { DataInfo } from '../model/project';
 import { computeColumn } from '../data/compute';
-import { parseCsv } from '../engine/dataset';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
 import { exampleTags } from './tags';
+import { exampleTestData } from './testData';
 import { parseLavaanSyntax } from '../model/syntax';
 
 // What the Mplus outputs print (scripts/validation/mplus_printed.py); the webR test compares the app with it.
@@ -20,19 +20,21 @@ const MPLUS = PACKAGE_EXAMPLES.filter((e) => e.id.startsWith('mplus-'));
 const ex = (id: string) => PACKAGE_EXAMPLES.find((e) => e.id === `mplus-${id}`)!;
 
 describe('Mplus User’s Guide examples', () => {
-  it('cover the guide’s examples with the reference fixture, shipped data and the guide’s pages', () => {
+  it('cover the guide’s examples with the reference fixture, data downloaded from the guide and the guide’s pages', () => {
     expect(MPLUS.length).toBeGreaterThanOrEqual(17);
     expect(new Set(MPLUS.map((e) => e.id)).size).toBe(MPLUS.length);
     for (const e of MPLUS) {
       const key = e.id.slice(6);
       expect(key, e.id).toMatch(/^ex\d+\.\d+[a-z0-9]*$/);
-      // (or the data as Mplus reshapes them, DATA WIDETOLONG: <key>long.csv)
-      expect([`examples/mplus/${key}.csv`, `examples/mplus/${key}long.csv`], e.id).toContain(e.data.file);
-      // (a header and data rows; a univariate time series has a single column)
-      expect(readFileSync(join(__dirname, '..', '..', 'public', e.data.file!), 'utf8').trim().split('\n').length, key).toBeGreaterThan(10);
+      // (not shipped: no licence is stated; downloaded from statmodel.com when the example opens)
+      expect(e.data.file, e.id).toBeUndefined();
+      // (an example's own data, or those of the example it varies: ex5.27b reads ex5.27's)
+      expect(e.data.remote?.kind === 'mplus' && key.slice(2).startsWith(e.data.remote.example), e.id).toBe(true);
+      // (data rows; a univariate time series has a single column)
+      expect(exampleTestData(e)!.cols[0].length, key).toBeGreaterThan(10);
       expect(e.links[0].url).toBe(`https://www.statmodel.com/usersguide/chap${key.slice(2).split('.')[0]}/${key}.html`);
       expect(exampleTags(e)).toContain('Mplus User’s Guide');
-      expect(exampleTags(e)).toContain('Shipped data');
+      expect(exampleTags(e)).toContain('Downloaded data');
       // Every example has the output Mplus prints for it (parsed from the guide's output page).
       expect(printed[key], key).toBeDefined();
     }
@@ -75,9 +77,9 @@ describe('Mplus User’s Guide examples', () => {
     expect(m58.constructs.filter((c) => c.covariate).map((c) => c.name)).toEqual(['x1', 'x2', 'x3']);
     for (const e of MPLUS) {
       if (e.panel) continue;
-      let data = parseCsv(readFileSync(join(__dirname, '..', '..', 'public', e.data.file!), 'utf8')).dataset;
+      let data = exampleTestData(e)!;
       // (the example's computed columns, as opening it adds them: Mplus's DEFINE, CENTER)
-      let info: DataInfo = { fileName: e.data.file!, rows: data.cols[0].length, missingCells: 0, excluded: [] };
+      let info: DataInfo = { fileName: e.id, rows: data.cols[0].length, missingCells: 0, excluded: [] };
       for (const k of e.computed ?? []) ({ data, info } = computeColumn(data, info, k.name, k.expr));
       const issues = validateModel(exampleModel(e), data, { ...DEFAULT_SETTINGS, ...e.settings, engine: 'r' }).filter((i) => i.level === 'error');
       expect(issues, e.id).toEqual([]);

@@ -2,16 +2,18 @@
 // repeated-measures ANOVA, MANOVA, correlations, contingency tables, binomial
 // and multinomial tests. The confidence level is the project's (Settings).
 
+import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt } from '../format';
 import type {
   Alternative, AnovaInput, AnovaResult, ContingencyInput, ContingencyResult, CorrelationInput, CorrelationResult, FreqTestInput, FreqTestResult,
-  HTest, ManovaInput, ManovaResult, ReliabilityInput, ReliabilityResult, RmAnovaInput, RmAnovaResult, TTestInput, TTestResult,
+  HTest, KappaTable, ManovaInput, ManovaResult, ReliabilityInput, ReliabilityResult, RmAnovaInput, RmAnovaResult, TTestInput, TTestResult,
 } from '../rengine/tests';
 import { Choice, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
+import { designColumns, isMulti, parseWithinDesign, withinDesignBlocked, WithinDesignForm, withinFingerprint } from './withinDesign';
 
 const ALTS: readonly (readonly [Alternative, string])[] = [['two.sided', 'Two-sided'], ['greater', 'Greater'], ['less', 'Less']];
 const ALT_IDS = ALTS.map(([id]) => id);
@@ -217,26 +219,30 @@ function RmForm({ options: o, set, ctx, disabled }: OptionsProps<RmAnovaOptions>
   const numeric = d.names.filter((n) => !d.categories?.[n]);
   return (
     <fieldset className="card-options" disabled={disabled}>
-      <div className="field"><label htmlFor="rm-name">Within-subject factor name</label>
-        <input id="rm-name" className="input" value={o.factorName} maxLength={31} onChange={(e) => set({ ...o, factorName: e.target.value })} /></div>
-      <OrderedPicker label="Levels: one column per condition (wide data)" columns={numeric.filter((n) => n !== o.between)} value={o.levels} onChange={(levels) => set({ ...o, levels })} />
-      <ColumnSelect id="rm-b" label="Between-subjects factor (optional)" optional="None" value={o.between} columns={d.names} exclude={o.levels} onChange={(between) => set({ ...o, between })} />
-      <div className="hint">Each row is one subject measured under every condition. Rows with a missing value are left out.</div>
+      <WithinDesignForm id="rm" o={o} set={set} numeric={numeric} />
+      <ColumnSelect id="rm-b" label="Between-subjects factor (optional)" optional="None" value={o.between} columns={d.names} exclude={designColumns({ ...o, between: '' })} onChange={(between) => set({ ...o, between })} />
     </fieldset>
   );
 }
 
 function RmView({ r }: { r: RmAnovaResult }) {
-  const row = (x: RmAnovaResult['within'][number]): Row => [c(x.term), c(x.ss), c(x.df, undefined, 0), c(x.ms), c(x.f ?? null), x.p === undefined || x.p === null ? c(null) : pCell(x.p), c(x.partialEta2 ?? null)];
+  const multi = !!r.factors && r.factors.length >= 2;
+  // (several within factors: each effect has its own error stratum, so its residual row is named after it)
+  const row = (x: RmAnovaResult['within'][number]): Row => [c(multi && x.term === 'Residuals' && x.stratum && x.stratum !== 'subject' ? `Residuals (${x.stratum})` : x.term), c(x.ss), c(x.df, undefined, 0), c(x.ms), c(x.f ?? null), x.p === undefined || x.p === null ? c(null) : pCell(x.p), c(x.partialEta2 ?? null)];
   const cols = ['Term', 'Sum of squares', 'df', 'Mean square', 'F', 'p', 'Partial η²'];
+  const SPHERICITY_NOTE = 'A small p of Mauchly’s test speaks against sphericity: then read the corrected p-values below (Greenhouse–Geisser is the more conservative).';
   return (
     <div className="tables">
-      <p className="hint" style={{ marginTop: 0 }}>{r.levels.length} levels of {r.factorName}, {r.n} subjects; base R ({r.engine.package} {r.engine.version}).</p>
+      <p className="hint" style={{ marginTop: 0 }}>{multi ? `${r.factors!.map((f) => `${f.name} (${f.levels.length} levels)`).join(' × ')}: ${r.levels.length} cells` : `${r.levels.length} levels of ${r.factorName}`}, {r.n} subjects; base R ({r.engine.package} {r.engine.version}).</p>
       <Table title="Within-subjects effects" file="rmanova-within" columns={cols} rows={r.within.map(row)} />
       {r.betweenTable.length > 0 && <Table title="Between-subjects effects" file="rmanova-between" columns={cols} rows={r.betweenTable.map(row)} />}
-      <Table title="Sphericity" file="rmanova-sphericity" columns={['Statistic', 'Value']} rows={[
+      {r.sphericity && <Table title="Sphericity" file="rmanova-sphericity" columns={['Statistic', 'Value']} rows={[
         [c('Mauchly’s W'), c(r.sphericity.w)], [c('p'), pCell(r.sphericity.p)], [c('Greenhouse–Geisser ε'), c(r.sphericity.gg)], [c('Huynh–Feldt ε'), c(r.sphericity.hf)],
-      ]} note="A small p of Mauchly’s test speaks against sphericity: then read the corrected p-values below (Greenhouse–Geisser is the more conservative)." />
+      ]} note={SPHERICITY_NOTE} />}
+      {multi && (r.sphericityTable?.length
+        ? <Table title="Sphericity" file="rmanova-sphericity" columns={['Effect', 'df', 'Mauchly’s W', 'p', 'Greenhouse–Geisser ε', 'Huynh–Feldt ε']}
+          rows={r.sphericityTable.map((x): Row => [c(x.term), c(x.df, undefined, 0), c(x.w), pCell(x.p), c(x.gg), c(x.hf)])} note={`${SPHERICITY_NOTE} Effects with one degree of freedom (two levels) are spherical and are not tested.`} />
+        : <p className="hint">Every within effect has one degree of freedom (two levels): sphericity holds, and no correction is needed.</p>)}
       <Table title="Sphericity-corrected p-values" file="rmanova-corrected" columns={['Term', 'p (uncorrected)', 'p (Greenhouse–Geisser)', 'p (Huynh–Feldt)']}
         rows={r.corrected.map((x): Row => [c(x.term), pCell(x.p), pCell(x.pGG), pCell(x.pHF)])} />
       {r.posthoc && r.posthoc.length > 0 && <Table title="Post hoc comparisons (paired t-tests)" file="rmanova-posthoc" columns={['Comparison', 'Mean difference', 't', 'df', 'p', 'p (Holm)']}
@@ -247,24 +253,29 @@ function RmView({ r }: { r: RmAnovaResult }) {
   );
 }
 
-const rmCols = (o: RmAnovaOptions) => [...o.levels, o.between].filter(Boolean);
+const rmCols = (o: RmAnovaOptions) => designColumns(o);
+/** The within factors' names, for titles and summaries. */
+const rmName = (o: RmAnovaOptions) => (isMulti(o) ? o.factors!.map((f) => f.name || '…').join(' × ') : o.factorName || '…');
 export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
-  id: 'rmanova', title: 'Repeated-measures ANOVA', sub: 'one within-subject factor (wide columns), optional between factor; sphericity corrections, Friedman', group: 'Basic statistics',
-  cardTitle: (o) => `Repeated-measures ANOVA: ${o.factorName || '…'}`,
+  id: 'rmanova', title: 'Repeated-measures ANOVA', sub: 'within-subject factors (wide columns), optional between factor; sphericity corrections, Friedman', group: 'Basic statistics',
+  cardTitle: (o) => `Repeated-measures ANOVA: ${rmName(o)}`,
   defaults: () => ({ levels: [], factorName: 'condition', between: '' }),
-  parseOptions: (raw) => (isObj(raw) ? { levels: names(raw.levels), factorName: name(raw.factorName, 31) || 'condition', between: name(raw.between) } : null),
+  parseOptions: (raw) => (isObj(raw) ? parseWithinDesign(raw) : null),
   Options: RmForm,
   View: ({ result }) => <RmView r={result} />,
   blocked: (o, ctx) => {
-    if (o.levels.length < 2) return 'Choose at least two columns, one per level.';
-    if (!/^[A-Za-z][A-Za-z0-9_.]{0,30}$/.test(o.factorName)) return 'The factor name must start with a letter and use letters, digits, _ or . only.';
-    if (o.levels.includes(o.between)) return 'The between factor cannot be one of the levels.';
+    if (isMulti(o)) { const b = withinDesignBlocked(o); if (b) return b; }
+    else {
+      if (o.levels.length < 2) return 'Choose at least two columns, one per level.';
+      if (!/^[A-Za-z][A-Za-z0-9_.]{0,30}$/.test(o.factorName)) return 'The factor name must start with a letter and use letters, digits, _ or . only.';
+      if (o.levels.includes(o.between)) return 'The between factor cannot be one of the levels.';
+    }
     return missingColumns(ctx, rmCols(o), 'Repeated-measures ANOVA');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, rmCols(o), [o.factorName, o.between]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, rmCols(o), [o.factorName, o.between, ...withinFingerprint(o)]),
   run: async (o, ctx) => (await engine()).rmAnovaR(rawData(ctx)!, o),
   script: async (o, ctx) => (await engine()).rmAnovaScriptR(rawData(ctx)!, o),
-  summary: (o) => `${o.factorName}: ${o.levels.join(', ') || '…'}${o.between ? ` · between ${o.between}` : ''}`,
+  summary: (o) => (isMulti(o) ? `${rmName(o)}: ${(o.cells ?? []).filter(Boolean).length} cells` : `${o.factorName}: ${o.levels.join(', ') || '…'}`) + (o.between ? ` · between ${o.between}` : ''),
 };
 
 // ---------------------------------------------------------------- MANOVA
@@ -328,7 +339,12 @@ function CorrelationForm({ options: o, set, ctx, disabled }: OptionsProps<Correl
       </div>
       <div className="hint">{o.method === 'polychoric'
         ? 'For ordinal (Likert) variables: the correlation of the continuous responses assumed to underlie the categories (lavaan’s lavCor, as CB-SEM with ordinal indicators). Variables with integer values and at most 8 categories are ordinal: polychoric between two of them (tetrachoric when both are binary), polyserial with a continuous variable, Pearson between continuous ones. Standard errors, z tests and Wald intervals; each ordinal pair is also tested for the bivariate normal model the polychoric correlation assumes.'
-        : 'Each pair is tested with cor.test; Spearman and Kendall use the normal approximation (exact = FALSE), as with ties. A confidence interval is given for Pearson’s r (Fisher’s z).'}</div>
+        : `Each pair is tested with cor.test; Spearman and Kendall use the normal approximation (exact = FALSE), as with ties${o.method === 'spearman' || o.method === 'kendall' ? ', unless exact p-values are chosen' : ''}. A confidence interval is given for Pearson’s r (Fisher’s z).`}</div>
+      {(o.method === 'spearman' || o.method === 'kendall') && (
+        <div className="field"><label className="check"><input type="checkbox" checked={!!o.exact}
+          onChange={(e) => { const { exact: _e, ...rest } = o; set(e.target.checked ? { ...rest, exact: true } : rest); }} /> Exact p-values</label>
+          <div className="hint">R’s exact = TRUE: the exact null distribution of {o.method === 'kendall' ? 'T (Kendall, up to 200 cases)' : 'S (Spearman, up to 1,289 cases; AS 89)'}. It exists only without ties; a pair with ties keeps the normal approximation.</div></div>
+      )}
     </fieldset>
   );
 }
@@ -337,15 +353,17 @@ function CorrelationView({ r }: { r: CorrelationResult }) {
   const sym = r.method === 'pearson' || r.method === 'polychoric' ? 'r' : r.method === 'spearman' ? 'ρ' : 'τ';
   const poly = r.method === 'polychoric';
   const withCi = r.method === 'pearson' || poly;
+  const exact = !!r.exact;
   const at = (a: string, b: string) => r.pairs.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
   const matrix: Row[] = r.vars.map((a, i) => [c(a), ...r.vars.map((b, j) => (j === i ? c('—') : j > i ? c(null) : (() => { const p = at(a, b)!; return { v: `${fmt(p.r)}${p.p < 0.001 ? '***' : p.p < 0.01 ? '**' : p.p < 0.05 ? '*' : ''}` }; })()))]);
   return (
     <div className="tables">
       <Engine e={r.engine} />
       <Table title={`${METHOD_NAME[r.method]} correlations`} file="correlation-matrix" columns={['', ...r.vars]} rows={matrix} note="* p < .05, ** p < .01, *** p < .001." />
-      <Table title="Every pair" file="correlation-pairs" columns={['Pair', ...(poly ? ['Type'] : []), sym, ...(poly ? ['SE'] : []), 'N', 'p', ...(withCi ? [`${pct(r.confidence)} CI`] : [])]}
-        rows={r.pairs.map((p): Row => [c(`${p.a} – ${p.b}`), ...(poly ? [c(p.kind ?? '', 'dim')] : []), c(p.r), ...(poly ? [c(p.se ?? null)] : []), c(p.n, undefined, 0), pCell(p.p), ...(withCi ? [c(ci(p.ciLow, p.ciHigh))] : [])])}
-        note={`${r.deletion === 'pairwise' ? 'Pairwise' : 'Listwise'} deletion of missing values${r.alternative !== 'two.sided' ? `; one-sided (${r.alternative})` : ''}.${poly ? ` Ordinal (integer values, at most 8 categories): ${r.ordinal?.join(', ') || 'none'}; the others are treated as continuous. z tests and Wald intervals from lavaan’s standard errors.` : ''}`} />
+      <Table title="Every pair" file="correlation-pairs" columns={['Pair', ...(poly ? ['Type'] : []), sym, ...(poly ? ['SE'] : []), 'N', ...(exact ? [r.method === 'kendall' ? 'T or z' : 'S', 'p (exact)'] : ['p']), ...(withCi ? [`${pct(r.confidence)} CI`] : [])]}
+        rows={r.pairs.map((p): Row => [c(`${p.a} – ${p.b}`), ...(poly ? [c(p.kind ?? '', 'dim')] : []), c(p.r), ...(poly ? [c(p.se ?? null)] : []), c(p.n, undefined, 0),
+          ...(exact ? [c(p.stat), p.exact === false ? { v: `${fmt(p.p, 3)} (approx.)` } : pCell(p.p)] : [pCell(p.p)]), ...(withCi ? [c(ci(p.ciLow, p.ciHigh))] : [])])}
+        note={`${r.deletion === 'pairwise' ? 'Pairwise' : 'Listwise'} deletion of missing values${r.alternative !== 'two.sided' ? `; one-sided (${r.alternative})` : ''}.${poly ? ` Ordinal (integer values, at most 8 categories): ${r.ordinal?.join(', ') || 'none'}; the others are treated as continuous. z tests and Wald intervals from lavaan’s standard errors.` : ''}${exact ? ` Exact p-values (R’s exact = TRUE) where they exist; pairs with ties${r.method === 'kendall' ? ' or more than 200 cases' : ' or more than 1,289 cases'} keep the normal approximation (approx.; Kendall’s statistic is then z).` : ''}`} />
       {poly && !!r.normality?.length && (() => {
         const bonferroni = 0.05 / r.normality.length;
         const flag = (p: number) => (p < bonferroni ? 'bad' : p < 0.05 ? 'warn' : '');
@@ -359,18 +377,27 @@ function CorrelationView({ r }: { r: CorrelationResult }) {
   );
 }
 
+/** Exact p-values apply to Spearman and Kendall only. */
+const exactRank = (o: CorrelationOptions) => !!o.exact && (o.method === 'spearman' || o.method === 'kendall');
+const corInput = (o: CorrelationOptions, ctx: Pick<AnalysisCtx, 'settings'>): CorrelationInput => {
+  const { exact: _e, ...rest } = o;
+  return { ...rest, confidence: ctx.settings.confidence, ...(exactRank(o) ? { exact: true } : {}) };
+};
 export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationResult> = {
   id: 'correlation', title: 'Correlation', sub: 'Pearson, Spearman, Kendall, polychoric with tests and intervals', group: 'Basic statistics',
   cardTitle: (o) => `${METHOD_NAME[o.method]} correlations`,
   defaults: () => ({ vars: [], method: 'pearson', alternative: 'two.sided', deletion: 'pairwise' }),
-  parseOptions: (raw) => (isObj(raw) ? { vars: names(raw.vars), method: oneOf(raw.method, ['pearson', 'spearman', 'kendall', 'polychoric'] as const, 'pearson'), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), deletion: oneOf(raw.deletion, ['pairwise', 'listwise'] as const, 'pairwise') } : null),
+  parseOptions: (raw) => (isObj(raw) ? {
+    vars: names(raw.vars), method: oneOf(raw.method, ['pearson', 'spearman', 'kendall', 'polychoric'] as const, 'pearson'), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), deletion: oneOf(raw.deletion, ['pairwise', 'listwise'] as const, 'pairwise'),
+    ...(raw.exact === true ? { exact: true } : {}),
+  } : null),
   Options: CorrelationForm,
   View: ({ result }) => <CorrelationView r={result} />,
   blocked: (o, ctx) => (o.vars.length < 2 ? 'Choose at least two variables.' : missingColumns(ctx, o.vars, 'Correlation')),
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, o.vars, [o.method, o.alternative, o.deletion, ctx.settings.confidence]),
-  run: async (o, ctx) => (await engine()).correlationR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
-  script: async (o, ctx) => (await engine()).correlationScriptR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
-  summary: (o) => `${METHOD_NAME[o.method]} · ${o.vars.join(', ') || '…'}`,
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, o.vars, [o.method, o.alternative, o.deletion, ctx.settings.confidence, ...(exactRank(o) ? ['exact'] : [])]),
+  run: async (o, ctx) => (await engine()).correlationR(rawData(ctx)!, corInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).correlationScriptR(rawData(ctx)!, corInput(o, ctx)),
+  summary: (o) => `${METHOD_NAME[o.method]}${exactRank(o) ? ' (exact p)' : ''} · ${o.vars.join(', ') || '…'}`,
 };
 
 // ---------------------------------------------------------------- contingency tables
@@ -515,16 +542,55 @@ const REL_HINT = {
   blandaltman: 'Two methods measuring the same quantity on the same subjects.',
 } as const;
 
+/** A weight matrix typed as rows of numbers (one line per row); kept as typed while it is edited. */
+function WeightMatrixInput({ value, onChange }: { value: number[][]; onChange: (m: number[][]) => void }) {
+  const [text, setText] = useState(() => value.map((r) => r.join(' ')).join('\n'));
+  return (
+    <div className="field"><label htmlFor="rel-w">Weights (one line per category of the first rater)</label>
+      <textarea id="rel-w" className="input" rows={Math.max(3, value.length)} value={text} placeholder={'0 1 3\n1 0 6\n3 6 0'}
+        onChange={(e) => { setText(e.target.value); onChange(parseWeightMatrix(e.target.value)); }} />
+      <div className="hint">Agreement weights (1 on the diagonal: full agreement), or disagreement weights (0 on the diagonal, as Cohen 1968), which are taken as 1 − w / max(w): the same weighted κ.</div></div>
+  );
+}
+export const parseWeightMatrix = (text: string): number[][] => text.split(/[\n;]+/).map((r) => r.trim()).filter(Boolean).map((r) => r.split(/[\s,]+/).map(Number));
+const squareMatrix = (m: number[][]) => m.length >= 2 && m.length <= 20 && m.every((r) => r.length === m.length && r.every((x) => Number.isFinite(x)));
+const WEIGHT_NAME = { squared: 'squared distances', linear: 'linear distances', custom: 'the given weights' } as const;
+
 function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<ReliabilityOptions>) {
   const d = rawData(ctx);
   if (!d) return <NoData />;
   const pair = o.type === 'kappa' || o.type === 'blandaltman';
+  const kt = o.type === 'kappa' ? o.kappaTable : undefined;
+  const setTable = (t: Partial<KappaTable>) => set({ ...o, kappaTable: { ...kt!, ...t } });
   return (
     <fieldset className="card-options" disabled={disabled}>
       <Choice label="Analysis" value={o.type} onChange={(type) => set({ ...o, type, vars: type === 'kappa' || type === 'blandaltman' ? o.vars.slice(0, 2) : o.vars })}
         options={[['scale', 'Scale'], ['icc', 'ICC'], ['kappa', 'Kappa'], ['blandaltman', 'Bland–Altman']]} hint={REL_HINT[o.type]} />
-      <OrderedPicker label={pair ? 'Two variables' : 'Variables'} columns={o.type === 'kappa' ? d.names : d.names.filter((n) => !d.categories?.[n])} value={o.vars}
-        onChange={(vars) => set({ ...o, vars: pair ? vars.slice(-2) : vars })} />
+      {o.type === 'kappa' && (
+        <Choice label="Data" value={kt ? 'table' : 'raters'} options={[['raters', 'Two raters’ columns'], ['table', 'Agreement table']]}
+          onChange={(v) => { const { kappaTable: _t, ...rest } = o; set(v === 'table' ? { ...rest, kappaTable: { rows: '', columns: '', counts: '' } } : rest); }}
+          hint={kt ? 'One row per cell of the table: the first rater’s category, the second rater’s, and the count or proportion of subjects (as Cohen’s tables).' : undefined} />
+      )}
+      {kt ? <>
+        <div className="row2">
+          <ColumnSelect id="rel-tr" label="First rater (rows)" value={kt.rows} columns={d.names} exclude={[kt.columns, kt.counts]} onChange={(rows) => setTable({ rows })} />
+          <ColumnSelect id="rel-tc" label="Second rater (columns)" value={kt.columns} columns={d.names} exclude={[kt.rows, kt.counts]} onChange={(columns) => setTable({ columns })} />
+        </div>
+        <ColumnSelect id="rel-tw" label="Counts or proportions" optional="None: one row per subject" value={kt.counts} columns={d.names.filter((n) => !d.categories?.[n])} exclude={[kt.rows, kt.columns]} onChange={(counts) => setTable({ counts })} />
+        <div className="field"><label htmlFor="rel-tn">Number of subjects (for proportions)</label>
+          <input id="rel-tn" className="input num" type="number" min={2} step={1} value={kt.nObs ?? ''} placeholder="the counts’ total"
+            onChange={(e) => { const v = Number(e.target.value); const { nObs: _n, ...t } = kt; set({ ...o, kappaTable: e.target.value && Number.isFinite(v) && v >= 2 ? { ...t, nObs: v } : t }); }} />
+          <div className="hint">The standard errors need the number of subjects rated: give it when the table holds proportions (psych’s n.obs).</div></div>
+      </> : (
+        <OrderedPicker label={pair ? 'Two variables' : 'Variables'} columns={o.type === 'kappa' ? d.names : d.names.filter((n) => !d.categories?.[n])} value={o.vars}
+          onChange={(vars) => set({ ...o, vars: pair ? vars.slice(-2) : vars })} />
+      )}
+      {o.type === 'kappa' && <>
+        <Choice label="Weighted κ" value={o.kappaWeights ?? 'squared'} options={[['squared', 'Squared distances'], ['linear', 'Linear distances'], ['custom', 'Weight matrix']]}
+          onChange={(w) => { const { kappaWeights: _w, weightMatrix: _m, ...rest } = o; set(w === 'squared' ? rest : w === 'linear' ? { ...rest, kappaWeights: w } : { ...rest, kappaWeights: w, weightMatrix: o.weightMatrix ?? [] }); }}
+          hint="Categories in their order: a near miss counts as partial agreement. Squared distances are psych’s default." />
+        {o.kappaWeights === 'custom' && <WeightMatrixInput value={o.weightMatrix ?? []} onChange={(weightMatrix) => set({ ...o, weightMatrix })} />}
+      </>}
     </fieldset>
   );
 }
@@ -580,8 +646,10 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
         note="Absolute agreement counts systematic differences between raters against agreement; consistency ignores them. Use the k-rater forms when the mean of the raters is what is used." />}
       {r.type === 'kappa' && <Table title={`Cohen’s kappa: ${r.vars.join(' and ')}`} file="reliability-kappa" columns={['Coefficient', 'Estimate', `${conf} CI`]} rows={[
         [c('Unweighted κ'), c(r.kappa!.est), c(ci(r.kappa!.ciLow, r.kappa!.ciHigh))],
-        [c('Weighted κ (squared distances)'), c(r.weighted!.est), c(ci(r.weighted!.ciLow, r.weighted!.ciHigh))],
+        [c(`Weighted κ (${WEIGHT_NAME[r.weights ?? 'squared']})`), c(r.weighted!.est), c(ci(r.weighted!.ciLow, r.weighted!.ciHigh))],
       ]} note="Weighted κ treats the categories as ordered: a near miss counts as partial agreement. Interval limits beyond ±1 are set to ±1 (psych::cohen.kappa)." />}
+      {r.type === 'kappa' && r.table && r.levels && r.counts && <Table title="Agreement table" file="reliability-kappa-table" columns={[`${r.vars[0]} \\ ${r.vars[1]}`, ...r.levels]}
+        rows={r.levels.map((l, i): Row => [c(l), ...r.counts![i].map((x) => c(x))])} note={`Scaled to the ${fmt(r.n, 0)} subjects of the standard errors.`} />}
       {r.type === 'blandaltman' && <>
         <Table title={`Bland–Altman: ${r.vars[0]} − ${r.vars[1]}`} file="reliability-blandaltman" columns={['Statistic', 'Value', `${conf} CI`]} rows={[
           [c('Mean difference (bias)'), c(r.bias!), c(ci(r.biasCiLow, r.biasCiHigh))], [c('SD of the differences'), c(r.sd ?? null), c(null)],
@@ -593,6 +661,16 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
   );
 }
 
+/** The kappa options apply to kappa only (they stay in the options when the analysis changes, unused). */
+const relCols = (o: ReliabilityOptions) => (o.type === 'kappa' && o.kappaTable ? [o.kappaTable.rows, o.kappaTable.columns, o.kappaTable.counts].filter(Boolean) : o.vars);
+const kappaParts = (o: ReliabilityOptions): (string | number)[] => [
+  ...(o.kappaTable ? ['table', o.kappaTable.rows, o.kappaTable.columns, o.kappaTable.counts, o.kappaTable.nObs ?? ''] : []),
+  ...(o.kappaWeights && o.kappaWeights !== 'squared' ? [o.kappaWeights, JSON.stringify(o.weightMatrix ?? [])] : []),
+];
+const relInput = (o: ReliabilityOptions, ctx: Pick<AnalysisCtx, 'settings'>): ReliabilityInput => {
+  const { kappaTable, kappaWeights, weightMatrix, ...rest } = o;
+  return { ...rest, confidence: ctx.settings.confidence, ...(o.type === 'kappa' ? { ...(kappaTable ? { kappaTable } : {}), ...(kappaWeights && kappaWeights !== 'squared' ? { kappaWeights } : {}), ...(kappaWeights === 'custom' ? { weightMatrix } : {}) } : {}) };
+};
 export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityResult> = {
   id: 'reliability', title: 'Reliability and agreement', sub: 'α, ω, glb; ICC; Cohen’s kappa; Bland–Altman (psych)', group: 'Basic statistics',
   entries: [
@@ -603,18 +681,37 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
   ],
   cardTitle: (o) => REL_NAME[o.type],
   defaults: () => ({ type: 'scale', vars: [] }),
-  parseOptions: (raw) => (isObj(raw) ? { type: oneOf(raw.type, ['scale', 'icc', 'kappa', 'blandaltman'] as const, 'scale'), vars: names(raw.vars) } : null),
+  // (the kappa fields only when set: earlier options, and their fingerprints, are unchanged)
+  parseOptions: (raw) => {
+    if (!isObj(raw)) return null;
+    const kt = isObj(raw.kappaTable) ? raw.kappaTable : null;
+    const n = kt && typeof kt.nObs === 'number' && Number.isFinite(kt.nObs) && kt.nObs >= 2 ? kt.nObs : null;
+    const w = oneOf(raw.kappaWeights, ['squared', 'linear', 'custom'] as const, 'squared');
+    const m = Array.isArray(raw.weightMatrix) ? raw.weightMatrix.slice(0, 20).filter(Array.isArray).map((r) => r.slice(0, 20).map((x) => (typeof x === 'number' ? x : NaN))) : [];
+    return {
+      type: oneOf(raw.type, ['scale', 'icc', 'kappa', 'blandaltman'] as const, 'scale'), vars: names(raw.vars),
+      ...(kt ? { kappaTable: { rows: name(kt.rows), columns: name(kt.columns), counts: name(kt.counts), ...(n !== null ? { nObs: n } : {}) } } : {}),
+      ...(w !== 'squared' ? { kappaWeights: w } : {}), ...(w === 'custom' ? { weightMatrix: m } : {}),
+    };
+  },
   Options: ReliabilityForm,
   View: ({ result }) => <ReliabilityView r={result} />,
   blocked: (o, ctx) => {
+    if (o.type === 'kappa' && o.kappaWeights === 'custom' && !squareMatrix(o.weightMatrix ?? [])) return 'Type the weights as a square matrix of numbers: one line per category, at least two.';
+    if (o.type === 'kappa' && o.kappaTable) {
+      const t = o.kappaTable;
+      if (!t.rows || !t.columns) return 'Choose the two raters’ variables (rows and columns of the table).';
+      if (t.rows === t.columns) return 'Choose two different variables for the two raters.';
+      return missingColumns(ctx, relCols(o), REL_NAME.kappa);
+    }
     if ((o.type === 'kappa' || o.type === 'blandaltman') && o.vars.length !== 2) return 'Choose exactly two variables.';
     if (o.vars.length < 2) return 'Choose at least two variables.';
     return missingColumns(ctx, o.vars, REL_NAME[o.type]);
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, o.vars, [o.type, ctx.settings.confidence]),
-  run: async (o, ctx) => (await engine()).reliabilityR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
-  script: async (o, ctx) => (await engine()).reliabilityScriptR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
-  summary: (o) => `${REL_NAME[o.type].toLowerCase()} · ${o.vars.join(', ') || '…'}`,
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, relCols(o), [o.type, ctx.settings.confidence, ...(o.type === 'kappa' ? kappaParts(o) : [])]),
+  run: async (o, ctx) => (await engine()).reliabilityR(rawData(ctx)!, relInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).reliabilityScriptR(rawData(ctx)!, relInput(o, ctx)),
+  summary: (o) => `${REL_NAME[o.type].toLowerCase()} · ${o.type === 'kappa' && o.kappaTable ? `table ${o.kappaTable.rows || '…'} × ${o.kappaTable.columns || '…'}` : o.vars.join(', ') || '…'}`,
 };
 
 export const BASIC_TEST_TYPES = [ttestAnalysis, anovaAnalysis, rmAnovaAnalysis, manovaAnalysis, correlationAnalysis, contingencyAnalysis, freqTestAnalysis, reliabilityAnalysis];

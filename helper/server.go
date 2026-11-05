@@ -29,6 +29,8 @@ type server struct {
 	// limiter caps the request rate (a parallel bootstrap sends one call
 	// per chunk, so the burst is generous); the R pool caps concurrency.
 	limiter *callLimiter
+	// exampleLimiter caps example-data downloads (exampledata.go): an example takes two files.
+	exampleLimiter *callLimiter
 	// restart shuts the helper down and starts the binary at path (set by main; nil in tests).
 	restart func(path string)
 }
@@ -41,7 +43,7 @@ const callMaxBodyBytes = 256 << 20
 
 func newServer(cfg *config, logger *log.Logger, pool *rPool) *server {
 	s := &server{cfg: cfg, logger: logger, pair: newPairStore(), jobs: newJobRegistry(), pool: pool, connect: &connectGate{},
-		limiter: newCallLimiter(callRateBurst, callRatePerMin)}
+		limiter: newCallLimiter(callRateBurst, callRatePerMin), exampleLimiter: newCallLimiter(30, 60)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", withAuth(cfg, false, s.handleHealth))
 	mux.HandleFunc("/pair", withAuth(cfg, false, s.handlePair))
@@ -52,6 +54,7 @@ func newServer(cfg *config, logger *log.Logger, pool *rPool) *server {
 	mux.HandleFunc("/call", withAuth(cfg, true, s.handleCall))
 	mux.HandleFunc("/batch", withAuth(cfg, true, s.handleBatch))
 	mux.HandleFunc("/cancel/", withAuth(cfg, true, s.handleCancel))
+	mux.HandleFunc(examplePrefix, withAuth(cfg, true, s.handleExampleData))
 	// Bind to 127.0.0.1 ONLY (see main.go: the listener is created there).
 	s.HTTP = &http.Server{
 		Addr:              net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.listenPort())),

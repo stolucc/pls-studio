@@ -220,6 +220,12 @@
    "url": "https://cran.r-project.org/package=askpass"
   },
   {
+   "name": "audio",
+   "version": "0.1-12",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=audio"
+  },
+  {
    "name": "backports",
    "version": "1.5.1",
    "license": "GPL-2 | GPL-3",
@@ -236,6 +242,12 @@
    "version": "0.9.12-4.8",
    "license": "GPL-2",
    "url": "https://cran.r-project.org/package=BayesFactor"
+  },
+  {
+   "name": "beepr",
+   "version": "2.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=beepr"
   },
   {
    "name": "bigmemory",
@@ -292,6 +304,12 @@
    "url": "https://cran.r-project.org/package=bootnet"
   },
   {
+   "name": "brio",
+   "version": "1.1.5",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=brio"
+  },
+  {
    "name": "broom",
    "version": "1.0.13",
    "license": "MIT + file LICENSE",
@@ -308,6 +326,12 @@
    "version": "1.1.0",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=cachem"
+  },
+  {
+   "name": "callr",
+   "version": "3.8.0",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=callr"
   },
   {
    "name": "car",
@@ -332,6 +356,12 @@
    "version": "1.1.0",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=cellranger"
+  },
+  {
+   "name": "charport",
+   "version": "0.1.1",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=charport"
   },
   {
    "name": "checkmate",
@@ -472,6 +502,12 @@
    "url": "https://cran.r-project.org/package=DBI"
   },
   {
+   "name": "dcurver",
+   "version": "0.9.3",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=dcurver"
+  },
+  {
    "name": "dendextend",
    "version": "1.19.1",
    "license": "GPL-2 | GPL-3",
@@ -482,6 +518,12 @@
    "version": "4.3.5",
    "license": "GPL (>= 3)",
    "url": "https://cran.r-project.org/package=Deriv"
+  },
+  {
+   "name": "desc",
+   "version": "1.4.3",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=desc"
   },
   {
    "name": "deSolve",
@@ -511,6 +553,12 @@
    "version": "2.5.1",
    "license": "GPL-3",
    "url": "https://cran.r-project.org/package=did"
+  },
+  {
+   "name": "diffobj",
+   "version": "0.3.9",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=diffobj"
   },
   {
    "name": "digest",
@@ -767,6 +815,18 @@
    "name": "glassoFast",
    "version": "1.0.1",
    "url": "https://cran.r-project.org/package=glassoFast"
+  },
+  {
+   "name": "glca",
+   "version": "1.4.2",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=glca"
+  },
+  {
+   "name": "GLMMadaptive",
+   "version": "0.9-7",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=GLMMadaptive"
   },
   {
    "name": "glmnet",
@@ -1165,6 +1225,18 @@
    "url": "https://cran.r-project.org/package=minqa"
   },
   {
+   "name": "mirai",
+   "version": "2.7.3",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=mirai"
+  },
+  {
+   "name": "mirt",
+   "version": "1.46.1",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=mirt"
+  },
+  {
    "name": "miscTools",
    "version": "0.6-30",
    "license": "GPL (>= 2)",
@@ -1229,6 +1301,12 @@
    "version": "1.2-4",
    "license": "GPL-2",
    "url": "https://cran.r-project.org/package=mvtnorm"
+  },
+  {
+   "name": "nanonext",
+   "version": "1.10.3",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=nanonext"
   },
   {
    "name": "NCA",
@@ -1369,16 +1447,34 @@
    "url": "https://cran.r-project.org/package=pbkrtest"
   },
   {
+   "name": "permute",
+   "version": "0.9-10",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=permute"
+  },
+  {
    "name": "pillar",
    "version": "1.11.1",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=pillar"
   },
   {
+   "name": "pkgbuild",
+   "version": "1.4.8",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=pkgbuild"
+  },
+  {
    "name": "pkgconfig",
    "version": "2.0.3",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=pkgconfig"
+  },
+  {
+   "name": "pkgload",
+   "version": "1.5.3",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=pkgload"
   },
   {
    "name": "plotly",
@@ -1441,10 +1537,22 @@
    "url": "https://cran.r-project.org/package=pracma"
   },
   {
+   "name": "praise",
+   "version": "1.0.0",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=praise"
+  },
+  {
    "name": "prettyunits",
    "version": "1.2.0",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=prettyunits"
+  },
+  {
+   "name": "processx",
+   "version": "3.9.0",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=processx"
   },
   {
    "name": "progress",
@@ -1469,6 +1577,12 @@
    "version": "0.4-29",
    "license": "GPL-2 | GPL-3",
    "url": "https://cran.r-project.org/package=proxy"
+  },
+  {
+   "name": "ps",
+   "version": "1.9.3",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=ps"
   },
   {
    "name": "psych",
@@ -1499,6 +1613,12 @@
    "version": "0.0-11",
    "license": "GPL-2 | GPL-3",
    "url": "https://cran.r-project.org/package=qrng"
+  },
+  {
+   "name": "qs2",
+   "version": "0.4.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=qs2"
   },
   {
    "name": "quadprog",
@@ -1567,6 +1687,12 @@
    "url": "https://cran.r-project.org/package=Rcpp"
   },
   {
+   "name": "RcppParallel",
+   "version": "6.2.1",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=RcppParallel"
+  },
+  {
    "name": "Rdpack",
    "version": "2.6.6",
    "license": "GPL (>= 2)",
@@ -1631,6 +1757,12 @@
    "version": "4.1.27",
    "license": "GPL-2 | GPL-3",
    "url": "https://cran.r-project.org/package=rpart"
+  },
+  {
+   "name": "rprojroot",
+   "version": "2.1.1",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=rprojroot"
   },
   {
    "name": "rsem",
@@ -1717,6 +1849,12 @@
    "url": "https://cran.r-project.org/package=semTools"
   },
   {
+   "name": "sessioninfo",
+   "version": "1.2.4",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=sessioninfo"
+  },
+  {
    "name": "sets",
    "version": "1.0-25",
    "license": "GPL-2",
@@ -1727,6 +1865,12 @@
    "version": "1.4.6.1",
    "license": "GPL (>= 3)",
    "url": "https://cran.r-project.org/package=shape"
+  },
+  {
+   "name": "SimDesign",
+   "version": "2.25",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=SimDesign"
   },
   {
    "name": "smacof",
@@ -1757,6 +1901,12 @@
    "version": "1.84-2",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=SparseM"
+  },
+  {
+   "name": "splines2",
+   "version": "0.5.4",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=splines2"
   },
   {
    "name": "statnet.common",
@@ -1811,6 +1961,12 @@
    "version": "0.3.0",
    "license": "GPL-3",
    "url": "https://cran.r-project.org/package=tester"
+  },
+  {
+   "name": "testthat",
+   "version": "3.3.2",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=testthat"
   },
   {
    "name": "tibble",
@@ -1909,6 +2065,12 @@
    "url": "https://cran.r-project.org/package=vctrs"
   },
   {
+   "name": "vegan",
+   "version": "2.7-6",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=vegan"
+  },
+  {
    "name": "VGAM",
    "version": "1.1-14",
    "license": "GPL-3",
@@ -1937,6 +2099,12 @@
    "version": "1.7.1.9000",
    "license": "MIT + file LICENSE",
    "url": "https://github.com/tidyverse/vroom"
+  },
+  {
+   "name": "waldo",
+   "version": "0.6.2",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=waldo"
   },
   {
    "name": "WeightIt",
@@ -2040,7 +2208,7 @@
    "name": "Examples from R packages",
    "where": "loaded at run time from the packages in the browser (not stored here)",
    "license": "per package",
-   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, lme4, lcmm, ivreg, sampleSelection and MatchIt datasets; each example links to its documentation.",
+   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection and MatchIt datasets; each example links to its documentation.",
    "url": ""
   },
   {
@@ -2058,11 +2226,53 @@
    "url": "https://cran.r-project.org/package=RSA"
   },
   {
-   "name": "Mplus User’s Guide example data (chapters 3–9)",
-   "where": "public/examples/mplus, validation fixtures",
-   "license": "Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated)",
-   "credit": "Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples; shipped with the app, each example links to its page.",
+   "name": "Mplus User’s Guide example data",
+   "where": "not distributed: downloaded from statmodel.com each time an example is opened (passed through by the PLS Studio server or the desktop helper, nothing stored); tests: .cache/mplus (npm run data:fetch)",
+   "license": "Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated, so not redistributed)",
+   "credit": "Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples, read from the guide’s input and data files when an example opens; each example links to its page.",
    "url": "https://www.statmodel.com/ugexcerpts.shtml"
+  },
+  {
+   "name": "RI-CLPM tutorial data (RICLPM.dat)",
+   "where": "not distributed: downloaded from the tutorial’s GitHub repository (pinned commit) each time the example is opened; tests: .cache/riclpm (npm run data:fetch)",
+   "license": "Simulated data in github.com/JeroenDMulder/RI-CLPM (no licence stated, so not redistributed)",
+   "credit": "Mulder, J. D. & Hamaker, E. L. (2021). Three extensions of the random intercept cross-lagged panel model. Structural Equation Modeling, 28(4), 638–648. Tutorial data from the authors’ repository.",
+   "url": "https://github.com/JeroenDMulder/RI-CLPM"
+  },
+  {
+   "name": "Tables from R help pages (sleep, RoundingTimes, plastic film, tuna, party identification, job satisfaction, Mendel’s cross, five categories, Conover’s peas, Cohen’s table, Shrout & Fleiss’s ratings)",
+   "where": "public/examples/tests, public/examples/bayes, validation fixtures",
+   "license": "GPL (>= 2), from R’s datasets and stats help pages and the psych package",
+   "credit": "The data the R help pages (?t.test, ?friedman.test, ?summary.manova, ?cor.test, ?chisq.test, ?fisher.test, ?binom.test; psych’s ?cohen.kappa and ?ICC) type in and analyse, coded as there.",
+   "url": "https://www.r-project.org"
+  },
+  {
+   "name": "chickwts, puzzles, raceDolls and a 15-of-25 proportion",
+   "where": "public/examples/bayes, validation fixtures",
+   "license": "GPL (>= 2), from R’s datasets package and BayesFactor",
+   "credit": "chickwts (R datasets); puzzles and raceDolls distributed with BayesFactor (Morey & Rouder); the proportion of ?proportionBF.",
+   "url": "https://cran.r-project.org/package=BayesFactor"
+  },
+  {
+   "name": "HSMiss (Holzinger & Swineford with missing values)",
+   "where": "public/examples/mi, validation fixtures",
+   "license": "GPL (>= 2), from lavaan and lavaan.mi",
+   "credit": "HolzingerSwineford1939 (lavaan) with the missing values lavaan.mi’s ?lavaan.mi creates.",
+   "url": "https://cran.r-project.org/package=lavaan.mi"
+  },
+  {
+   "name": "Dobson (1990) and clotting (McCullagh & Nelder)",
+   "where": "public/examples/regression, validation fixtures",
+   "license": "GPL (>= 2), from R’s ?glm help page",
+   "credit": "The data ?glm types in.",
+   "url": "https://www.r-project.org"
+  },
+  {
+   "name": "Monte Carlo sample (Muthén & Muthén 2002 population)",
+   "where": "public/examples/montecarlo",
+   "license": "GPL-2.0-or-later (generated by PLS Studio)",
+   "credit": "One sample of 150 drawn with lavaan::simulateData from the population of Muthén & Muthén (2002), seed 53487.",
+   "url": ""
   },
   {
    "name": "REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV)",

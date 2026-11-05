@@ -253,6 +253,11 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     "    setNames(ld$est.std, lab(\"loading\", ld$lhs, ld$rhs)),",
     "    setNames(wt$est.std, lab(\"weight\", wt$lhs, wt$rhs)),",
     "    setNames(unname(r2), lab(\"r2\", names(r2))))",
+    "  # Unstandardised: every free parameter and defined parameter (:=), as the estimates table lists them",
+    "  # (Mplus BOOTSTRAP: bootstrap standard errors of the model results and of MODEL INDIRECT / NEW).",
+    "  pt <- parTable(f); pt <- pt[pt$free > 0 | pt$op == \":=\", ]",
+    "  if (nb > 1) pt <- pt[pt$block == bk | (bk == 1 & pt$op == \":=\"), ]",
+    "  v <- c(v, setNames(pt$est, paste0(\"estimate: \", pt$lhs, \"|\", pt$op, \"|\", pt$rhs)))",
     "  if (nb > 1 && length(v)) names(v) <- paste0(names(v), \" @\", bk)",
     "  v",
     "  }))",
@@ -305,7 +310,13 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     par <- sub(" @[0-9]+$", "", par)
     g <- sub(":.*", "", par); parts <- strsplit(sub("^[a-z0-9]+: ", "", par), " -> ")[[1]]
     a <- unname(back[parts[1]]); z <- if (length(parts) > 1) unname(back[parts[2]]) else NA
+    # (an unstandardised parameter: "estimate: lhs|op|rhs" in lavaan's names, shown in the app's)
+    nm <- function(x) if (!is.na(back[x])) unname(back[x]) else x
+    est <- if (g == "estimate") strsplit(sub("^estimate: ", "", par), "|", fixed = TRUE)[[1]] else NULL
+    if (length(est) == 2) est <- c(est, "")
     k <- switch(g, path = , total = , indirect = list(key = sprintf("%s:%s:%s", g, a, z), label = sprintf("%s → %s", a, z)),
+      estimate = if (est[2] == ":=") list(key = sprintf("estimate:%s", est[1]), label = sprintf("%s := %s", est[1], est[3]))
+        else list(key = sprintf("estimate:%s %s %s", nm(est[1]), est[2], nm(est[3])), label = trimws(sprintf("%s %s %s", nm(est[1]), est[2], nm(est[3])))),
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
       weight = list(key = sprintf("weight:%s", z), label = sprintf("%s → %s", z, a)),
       r2 = list(key = sprintf("r2:%s", a), label = a))

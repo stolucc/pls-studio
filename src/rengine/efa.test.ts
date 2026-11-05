@@ -15,6 +15,14 @@ describe('EFA request', () => {
     expect(['epsilon', 'information', 'from'].filter((k) => k in psych)).toEqual([]);
     expect(psych.data.cols[0]).toEqual([1, 2, null]);
   });
+  it('sends the WLSMV options (lavaan 0.7’s standard errors, Mplus’s test statistic) with polychoric correlations only', () => {
+    const d = { ...DEFAULT_EFA, vars: ['a', 'b', 'c'], method: 'lavaan' as const, wlsmvSe: 'lavaan' as const, mimic: 'Mplus' as const };
+    expect(efaRequest(data, { ...d, correlation: 'polychoric' }, 1)).toMatchObject({ wlsmvSe: 'lavaan', mimic: 'Mplus' });
+    const pearson = efaRequest(data, d, 1);
+    expect(['wlsmvSe', 'mimic'].filter((k) => k in pearson)).toEqual([]);
+    // (the default, Mplus's standard errors, sends nothing)
+    expect('wlsmvSe' in efaRequest(data, { ...d, wlsmvSe: undefined, correlation: 'polychoric' }, 1)).toBe(false);
+  });
 });
 
 describe('EFA result', () => {

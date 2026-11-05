@@ -154,6 +154,8 @@ const kitchenSink: Required<ModelState> = {
   inequalities: 'pa > 0',
   positiveVariances: true,
   information: 'observed',
+  wlsmvSe: 'lavaan',
+  mimic: 'Mplus',
   baseline: 'independence',
   likelihood: 'wishart',
   sampleCovRescale: false,

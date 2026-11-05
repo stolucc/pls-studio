@@ -1,6 +1,6 @@
 import type { RPackage } from './rengine/bridge';
 import { MAX_FILE_BYTES, parseCsv } from './engine/dataset';
-import { confirmDialog, numberDialog } from './components/Overlays';
+import { choiceDialog, confirmDialog, numberDialog } from './components/Overlays';
 import { parseCovMatrixCsv, parseNacovCsv } from './examples/matrix';
 import { dataFileFormat, readDataFile, readPackageFile } from './data/readFile';
 import { safeFileName, downloadText } from './format';
@@ -14,6 +14,8 @@ import { parseCards, withLegacySimulation } from './analyses/persist';
 import { analysisType } from './analyses/registry';
 import { getRecent, migrateLegacyAutosave, recentPersistent, saveRecent, type RecentEntry } from './recent';
 import type { BuiltinExample } from './examples/textbook';
+import type { RemoteData } from './examples/remote/source';
+import type { ChosenFile } from './examples/remote/load';
 import { useStore } from './store';
 import type { CbEstimator } from './engine/cbsem';
 import type { IpmaOptions } from './engine/ipma';
@@ -393,6 +395,53 @@ async function bundledDataset(file: string): Promise<{ names: string[]; cols: (n
   return { names: d.names, cols: d.cols.map((c) => Array.from(c, (v) => (Number.isNaN(v) ? null : v))), n: d.cols[0]?.length ?? 0 };
 }
 
+/** Thrown when a person closes the import dialog: the example is not opened, without an error. */
+class ImportCancelled extends Error {}
+
+/** Files the person picks (the browser's file chooser), read into memory; null when nothing is chosen. */
+export function pickFiles(accept: string): Promise<ChosenFile[] | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.multiple = true; input.accept = accept;
+    input.addEventListener('cancel', () => resolve(null));
+    input.addEventListener('change', () => {
+      const list = [...(input.files ?? [])];
+      if (!list.length) { resolve(null); return; }
+      void Promise.all(list.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))).then(resolve);
+    });
+    input.click();
+  });
+}
+/** What the file chooser offers for an example's own data files. */
+export const EXAMPLE_FILES_ACCEPT = '.inp,.dat,.zip,.txt,.csv';
+
+/**
+ * Data PLS Studio may not distribute (examples/remote; nothing is stored): the files the person chose, or downloaded
+ * from their source now. When the download fails, the person can import the files they downloaded themselves.
+ */
+async function downloadedDataset(r: RemoteData, files?: ChosenFile[]): Promise<{ names: string[]; cols: (number | null)[][]; n: number; levels?: undefined; fileName: string }> {
+  const { remoteDataset, importedDataset, downloadLinks } = await import('./examples/remote/load');
+  const out = (d: { data: Dataset; fileName: string }) => ({ names: d.data.names, cols: d.data.cols.map((c) => Array.from(c, (v) => (Number.isNaN(v) ? null : v))), n: d.data.cols[0]?.length ?? 0, fileName: d.fileName });
+  if (files) return out(await importedDataset(r, files));
+  try {
+    return out(await remoteDataset(r));
+  } catch (e) {
+    const links = downloadLinks(r);
+    for (;;) {
+      const choice = await choiceDialog({
+        title: 'The example’s data could not be downloaded',
+        body: `${(e as Error).message.replace(/ You can get them from \S+\.$/, '')}\n\nYou can download the files yourself and import them: ${links.map((l) => `${l.label}: ${l.url}`).join('; ')}.`,
+        choices: [{ id: 'import', label: 'Import downloaded files…', primary: true }, { id: 'page', label: 'Open the download page' }],
+      });
+      if (choice === 'page') { window.open(links[0].url, '_blank', 'noopener'); continue; }
+      if (choice !== 'import') throw new ImportCancelled();
+      const chosen = await pickFiles(EXAMPLE_FILES_ACCEPT);
+      if (!chosen) throw new ImportCancelled();
+      return out(await importedDataset(r, chosen));
+    }
+  }
+}
+
 /** R factor levels as the dataset's category labels (codes 1, 2, ... in level order). */
 export function categoriesOf(levels: Record<string, string[] | string> | unknown[] | undefined): { categories?: Record<string, string[]> } {
   if (!levels || Array.isArray(levels) || !Object.keys(levels).length) return {};
@@ -403,19 +452,21 @@ export function categoriesOf(levels: Record<string, string[] | string> | unknown
  * Open an example from an R package's documentation: its dataset is loaded
  * from the package (in the browser's R) and the model laid out automatically.
  */
-export async function loadPackageExample(id: string) {
-  const [{ PACKAGE_EXAMPLES, exampleModel, exampleSettings }, { autoLayout }] = await Promise.all([import('./examples/packages'), import('./model/layout')]);
+export async function loadPackageExample(id: string, opts: { files?: ChosenFile[] } = {}) {
+  const [{ PACKAGE_EXAMPLES, exampleModel, exampleSettings, examplePanels, panelPreset }, { autoLayout }] = await Promise.all([import('./examples/packages'), import('./model/layout')]);
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === id);
   if (!ex) return;
   if (!(await confirmDiscard('Loading the example'))) return;
   const s = useStore.getState();
-  s.toast('info', ex.data.file ? `Loading ${ex.data.name}…` : `Loading ${ex.data.package}::${ex.data.name} in R…`);
+  s.toast('info', ex.data.remote ? (opts.files ? `Reading ${ex.data.name}…` : `Downloading ${ex.data.name}…`) : ex.data.file ? `Loading ${ex.data.name}…` : `Loading ${ex.data.package}::${ex.data.name} in R…`);
   try {
     const { rCall, rMessage } = await import('./rengine/bridge');
     const pf = ex.data.packageFile;
     // An SPSS / Stata / Excel file shipped in the package: read as a user's file would be.
     const fromFile = pf ? await readPackageFile(ex.data.package, pf.path, pf.format, pf.sheet).catch((e) => { throw new Error(rMessage(e)); }) : null;
+    const downloaded = !fromFile && ex.data.remote ? await downloadedDataset(ex.data.remote, opts.files) : null;
     const raw = fromFile ? { names: fromFile.data.names, cols: [] as (number | null)[][], n: fromFile.info.rows, levels: undefined }
+      : downloaded ? downloaded
       : ex.data.file ? await bundledDataset(ex.data.file)
       : await rCall<{ names: string[]; cols: (number | null)[][]; n: number; levels?: Record<string, string[] | string> | unknown[] }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] }, ex.data.package as RPackage).catch((e) => { throw new Error(rMessage(e)); });
     const cols = fromFile ? fromFile.data.cols : raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN)));
@@ -423,7 +474,7 @@ export async function loadPackageExample(id: string) {
     const model = exampleModel(ex);
     model.constructs = autoLayout(model);
     let exData = fromFile ? fromFile.data : { names: raw.names, cols, ...categoriesOf(raw.levels) };
-    let exInfo = fromFile ? fromFile.info : { fileName: ex.data.file ? ex.data.file.split('/').pop()! : `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] };
+    let exInfo = fromFile ? fromFile.info : { fileName: downloaded ? downloaded.fileName : ex.data.file ? ex.data.file.split('/').pop()! : `${ex.data.package}::${ex.data.name}`, rows: raw.n, missingCells, excluded: [] };
     // The help page's recodes: computed columns, then category labels for coded columns.
     if (ex.computed?.length) {
       const { computeColumn } = await import('./data/compute');
@@ -440,9 +491,8 @@ export async function loadPackageExample(id: string) {
     if (ex.panel) {
       const p = ex.panel;
       if (analysisType(p.kind)) {
-        // Analyses that live as cards: the example adds its card, set up.
-        const { kind, ...preset } = p;
-        addAnalysis(kind, preset);
+        // Analyses that live as cards: the example adds its card (or cards), set up.
+        for (const q of examplePanels(ex)) if (analysisType(q.kind)) addAnalysis(q.kind, panelPreset(q));
         useStore.getState().setWorkspace('analyses');
       }
       useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} ${analysisType(p.kind) ? 'Press Run on the card.' : 'Press Estimate.'}`);
@@ -476,6 +526,7 @@ export async function loadPackageExample(id: string) {
     }
     useStore.getState().toast('success', `${ex.title} (${ex.source}).${coded} Press Calculate.`);
   } catch (e) {
+    if (e instanceof ImportCancelled) return;
     useStore.getState().toast('error', `Could not load the example: ${(e as Error).message}`);
   }
 }

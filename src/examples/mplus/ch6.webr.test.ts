@@ -3,15 +3,18 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { growthInput } from '../../analyses/longitudinal';
-import { DEFAULT_SETTINGS } from '../../model/project';
+import { DEFAULT_SETTINGS, toSpec } from '../../model/project';
 import { growthR } from '../../rengine/longitudinal';
+import { cbScriptLavaan, estimateCbLavaan } from '../../rengine/lavaan';
+import type { CbEstimator } from '../../engine/cbsem';
 import { regressionR } from '../../rengine/regression';
 import { computeColumn } from '../../data/compute';
 import type { DataInfo } from '../../model/project';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { exampleModel } from '../packages';
-import { near } from '../../validation/record';
-import { evidence, example, load, MPLUS, sameFit, samePrinted } from './testkit';
+import { near, same } from '../../validation/record';
+import { evidence, example, load, MPLUS, runCards, sameFit, samePrinted } from './testkit';
+import type { BmvregResult } from '../../rengine/customml';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -98,4 +101,51 @@ it('a growth model written as syntax refuses function calls and quotes (lavaan e
   for (const syntax of ['i =~ 1*y1 + 1*y2 + 1*y3\nk := exp(1)', 'i =~ 1*y1 + 1*y2 + 1*y3\nk := system("ls")', "i =~ 1*y1 + label('a')*y2"]) {
     await expect(growthR(load('ex6.17'), { ...input, syntax })).rejects.toThrow(/syntax/);
   }
+}, 600_000);
+
+it.each([['ex6.4'], ['ex6.5'], ['ex6.15']])('%s: categorical growth by WLSMV (CB-SEM, lavaan syntax) reproduces the Mplus output: χ², every estimate and standard error', async (key) => {
+  const ex = example(key);
+  evidence(key, 'CB-SEM', ['lavaan']);
+  const st = { ...DEFAULT_SETTINGS, ...ex.settings };
+  const spec = toSpec(exampleModel(ex));
+  const r = await estimateCbLavaan(load(key), spec, 'casewise', st.estimator as CbEstimator, 'product');
+  expect(r.converged).toBe(true);
+  expect(r.warnings).toEqual([]);
+  const want = MPLUS[key];
+  same('free parameters', r.fit.npar, want.fit.npar!);
+  same('df', r.fit.df, want.fit.df!);
+  near('χ² (WLSMV, as Mplus)', r.fit.chisqScaled!, want.fit.chisq!, 0.002);
+  // (Mplus prints the scale factors under Scales: lavaan's ~*~ rows)
+  samePrinted(r.estimates.map((e) => (e.kind === 'scale' ? { ...e, op: 'Scales', rhs: '' } : e)), want.estimates, key);
+  const s = await cbScriptLavaan(load(key), spec, 'casewise', 'WLSMV');
+  expect(s).toContain('information.bread = "expected"');
+  expect(s).toContain('fit <- mplus_se(fit)');
+  if (key !== 'ex6.5') expect(s).toMatch(/u12 ~\*~ NA\*u12/);
+  else expect(s).toMatch(/u12 ~~ NA\*u12/);
+}, 600_000);
+
+it('ex6.25: the bivariate VAR(1) on the Bayesian multivariate regression card (exact posterior, flat priors) agrees with Mplus’s MCMC medians within its Monte Carlo error', async () => {
+  evidence('ex6.25', 'Bayesian multivariate regression', ['stats']);
+  const [r] = await runCards<BmvregResult>('ex6.25');
+  expect(r.n).toBe(99);
+  expect(r.warnings).toEqual([]);
+  same('free parameters (coefficients, intercepts, residual variances and covariance)', r.parameters.length, MPLUS['ex6.25'].fit.npar!);
+  // Mplus: 2 chains × 500 iterations, the second halves kept: 500 draws. The Monte Carlo SE of a median of 500
+  // draws is about 1.2533·SD/√500; the card's exact medians lie within three of them of Mplus's, the SDs within three
+  // Monte Carlo SEs of an SD (SD/√(2·500)).
+  const name = (p: { lhs: string; op: string; rhs: string }) => p.op === '~' ? `${p.lhs} ON ${p.rhs.replace(/^(\w+)&1$/, '$1_lag1')}`
+    : p.op === '~1' ? `${p.lhs} ON (Intercept)` : p.lhs === p.rhs ? `Residual variance ${p.lhs}` : `Residual covariance ${[p.lhs, p.rhs].sort().join(' ')}`;
+  for (const p of MPLUS['ex6.25'].estimates) {
+    const q = r.parameters.find((x) => x.name === name(p));
+    expect(q, name(p)).toBeTruthy();
+    near(`${name(p)}: posterior median (Mplus by MCMC)`, q!.median, p.est, 3 * 1.2533 * p.se / Math.sqrt(500));
+    near(`${name(p)}: posterior SD`, q!.sd, p.se, 3 * p.se / Math.sqrt(1000));
+  }
+  // The numbers stated on the card.
+  const at = (n: string) => r.parameters.find((x) => x.name === n)!.median;
+  near('intercept of y1', at('y1 ON (Intercept)'), -0.033, 0.0005);
+  near('residual variance of y2', at('Residual variance y2'), 1.032, 0.0005);
+  near('y1 on y2&1', at('y1 ON y2_lag1'), -0.231, 0.0005);
+  near('y2 on y1&1', at('y2 ON y1_lag1'), 0.347, 0.0005);
+  near('residual covariance', at('Residual covariance y1 y2'), 0.006, 0.001);
 }, 600_000);

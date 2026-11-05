@@ -8,8 +8,13 @@
 
 import type { LcaModel } from '../../rengine/items';
 import type { GmmModel } from '../../rengine/mixed';
+import type { MixtureParam } from '../../rengine/mixture';
+import { expect } from 'vitest';
+import { buildMixture } from '../../analyses/mixtureSyntax';
+import { DEFAULT_SETTINGS } from '../../model/project';
+import { mixtureR } from '../../rengine/mixture';
 import { near } from '../../validation/record';
-import type { Mine, Printed } from './testkit';
+import { evidence, example, load, MPLUS, sameFit, TOL, type Mine, type Printed } from './testkit';
 
 const logit = (p: number) => Math.log(p / (1 - p));
 
@@ -117,3 +122,124 @@ export function sameGmm(m: GmmModel, printed: Printed[], tol: number) {
   }
   return perm;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The mixture model card (analyses/mixture.tsx): its parameters carry the class of each latent class variable they
+// belong to (`at`, 0 = all). Mplus prints them under "Latent Class 2" (one class variable), "Latent Class C1#2"
+// (one of several), "Latent Class Pattern 1 2" (a joint class) or in the overall part / "Categorical Latent
+// Variables" (all classes).
+
+
+/** The classes a printed block stands for: per class variable its class (0: not given). */
+export function blockClasses(block: string, names: string[]): number[] {
+  const out = names.map(() => 0);
+  const one = /^Latent Class (\d+)$/.exec(block);
+  if (one) { const main = names.length === 1 ? 0 : -1; if (main < 0) throw new Error(`"${block}" with several latent class variables`); out[main] = Number(one[1]); return out; }
+  const pat = /^Latent Class Pattern ([\d ]+)$/.exec(block);
+  if (pat) { pat[1].trim().split(/\s+/).map(Number).forEach((k, i) => { out[i] = k; }); return out; }
+  const named = /^Latent Class (\w+)#(\d+)$/.exec(block);
+  if (named) { const i = names.indexOf(named[1].toLowerCase()); if (i < 0) throw new Error(`Unknown class variable in "${block}"`); out[i] = Number(named[2]); return out; }
+  return out;
+}
+
+const isClassName = (s: string, names: string[]) => names.includes(s.split('#')[0]);
+/** Rename a class category under a permutation (Mplus class j = the card's perm[j − 1]). */
+const mapCat = (s: string, names: string[], perm: number[][]) => {
+  const [v, k] = s.split('#'); const i = names.indexOf(v);
+  return i < 0 || !k ? s : `${v}#${perm[i][Number(k) - 1]}`;
+};
+
+/** The card's row printed by Mplus as `p`, with Mplus's classes mapped to the card's by `perm`. */
+export function findMixture(mine: MixtureParam[], p: Printed, names: string[], perm: number[][], renameClasses = false): MixtureParam | undefined {
+  const cond = blockClasses(p.block, names).map((k, i) => (k ? perm[i][k - 1] : 0));
+  const lhs = renameClasses ? mapCat(p.lhs, names, perm) : p.lhs, rhs = renameClasses ? mapCat(p.rhs, names, perm) : p.rhs;
+  return mine.find((e) => e.op === p.op && ((e.lhs === lhs && e.rhs === rhs) || (p.op === '~~' && e.lhs === rhs && e.rhs === lhs))
+    && e.at.every((a, i) => a === 0 || a === cond[i]));
+}
+
+/**
+ * The permutation of each latent class variable's classes that matches the card's solution to Mplus's (Mplus class j
+ * = the card's class perm[v][j − 1]), from the class-specific parameters (and, with `probabilities`, the class
+ * model's probabilities, which are the same in any order); known classes keep their order.
+ */
+export function matchClasses(mine: MixtureParam[], printed: Printed[], classes: { name: string; k: number; known: boolean }[], probabilities = false): number[][] {
+  const names = classes.map((c) => c.name);
+  const options = classes.map((c) => (c.known ? [Array.from({ length: c.k }, (_, i) => i + 1)] : perms(c.k).map((p) => p.map((x) => x + 1))));
+  const rows = printed.filter((p) => (probabilities ? true : !isClassName(p.lhs, names)) && blockClasses(p.block, names).some((k) => k > 0) || (probabilities && isClassName(p.lhs, names) && p.op === '~'));
+  let best: number[][] = options.map((o) => o[0]), bestScore = Infinity;
+  const walk = (i: number, acc: number[][]) => {
+    if (i === options.length) {
+      // (per parameter, up to a common shift: a mean fixed at 0 in another reference class moves the others)
+      const diffs = new Map<string, number[]>();
+      let s = 0;
+      for (const p of rows) {
+        const e = findMixture(mine, p, names, acc, probabilities);
+        if (!e) { s += isClassName(p.lhs, names) ? 0.5 : 1e3; continue; }
+        const k = `${p.lhs} ${p.op} ${p.rhs}`;
+        if (!diffs.has(k)) diffs.set(k, []);
+        diffs.get(k)!.push(e.est - p.est);
+      }
+      for (const [k, d] of diffs) { const shift = isClassName(k.split(' ')[0], names) ? 0 : [...d].sort((a, b) => a - b)[Math.floor(d.length / 2)]; s += d.reduce((t, x) => t + Math.abs(x - shift), 0); }
+      if (s < bestScore) { bestScore = s; best = acc.map((x) => [...x]); }
+      return;
+    }
+    for (const o of options[i]) walk(i + 1, [...acc, o]);
+  };
+  walk(0, []);
+  return best;
+}
+
+/**
+ * Every parameter Mplus prints against the card's (classes already in Mplus's order): the estimate within `tol`, the
+ * standard error (MLR) within `seTol` (unless `ses` is false). Returns the largest differences.
+ */
+export function sameMixture(mine: MixtureParam[], printed: Printed[], names: string[], tol: (p: Printed) => number, seTol: (p: Printed) => number | null) {
+  const id = names.map(() => Array.from({ length: 12 }, (_, i) => i + 1));
+  let worst = 0, worstSe = 0;
+  for (const p of printed) {
+    const e = findMixture(mine, p, names, id);
+    const label = `${p.lhs} ${p.op} ${p.rhs}${p.block ? ` (${p.block})` : ''}`;
+    if (!e) throw new Error(`${label} is not among the card's parameters`);
+    worst = Math.max(worst, Math.abs(e.est - p.est));
+    near(`${label}${p.se === 0 ? ' (fixed)' : ''}`, e.est, p.est, tol(p));
+    const st = seTol(p);
+    if (process.env.MIXDEBUG && p.se > 0 && Math.abs((e.se ?? NaN) - p.se) > 0.001) console.log('SE', label, e.est, p.est, e.se, p.se);
+    if (p.se > 0 && st !== null) { worstSe = Math.max(worstSe, Math.abs((e.se ?? NaN) - p.se)); near(`SE of ${label}`, e.se ?? NaN, p.se, st); }
+  }
+  return { worst, worstSe };
+}
+
+/** Per example: tolerances of estimates and standard errors where Mplus's convergence or its MLR differ (see the descriptions). */
+export const MIX_TOL: Record<string, { est?: number; se?: number; noSe?: (p: Printed) => boolean }> = {
+  // (Mplus stops at its convergence criterion where the likelihood is flat: see the description)
+  'ex8.13part1': { est: 0.002, se: 0.003 },
+  // (a transition probability at 0: the information there depends on the side it is taken from; the SEs of that row
+  // are not compared, the others agree within 0.002: see the description)
+  'ex8.15': { se: 0.002, noSe: (p) => p.rhs === 'c1#3' && p.block === 'Latent Class C#1' },
+};
+
+export async function fitMixture(key: string) {
+  const ex = example(key);
+  const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'mixture' }>;
+  const data = load(key);
+  const parsed = buildMixture(p.syntax, data, { seed: DEFAULT_SETTINGS.seed, starts: p.starts });
+  const r = await mixtureR(data, parsed.spec);
+  const want = MPLUS[key];
+  const perm = matchClasses(r.params, want.estimates, parsed.classes, parsed.parameterization === 'probability');
+  const identity = perm.every((q) => q.every((x, i) => x === i + 1));
+  // In Mplus's class order: refit from the maximum with the classes relabelled (the same likelihood).
+  const r2 = identity ? r : await mixtureR(data, { ...parsed.spec, order: perm, given: r.theta, starts: 1, final: 1 });
+  return { r, r2, parsed, perm, want };
+}
+
+export async function checkMixture(key: string) {
+  evidence(key, 'Mixture model', ['R']);
+  const { r, r2, parsed, want } = await fitMixture(key);
+  expect(r.converged).toBe(true);
+  sameFit({ npar: r.npar, logl: r.logLik, aic: r.aic, bic: r.bic }, want.fit);
+  near2(r2.logLik, r.logLik);
+  const t = MIX_TOL[key] ?? {};
+  return sameMixture(r2.params, want.estimates, parsed.classes.map((c) => c.name), () => t.est ?? TOL, (p) => (t.noSe?.(p) ? null : t.se ?? TOL));
+}
+const near2 = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-4);
+

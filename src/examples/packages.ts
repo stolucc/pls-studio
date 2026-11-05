@@ -4,14 +4,17 @@
 // faithfully (PLS higher-order composites, ignored structural models) are left
 // out or noted. Every R package the app calculates with has examples here.
 
+import type { MixtureOptions } from '../analyses/mixture';
+import { mixtureColumns } from '../analyses/mixtureSyntax';
 import type { EsemRotation, MultigroupSpec } from '../engine/types';
 import type { Correlation, ModelState, Settings } from '../model/project';
 import { DEFAULT_SETTINGS, makeCovariancesExplicit, newId } from '../model/project';
 import type { GrowthInput } from '../rengine/longitudinal';
-import type { IrtModel } from '../rengine/items';
 import type { LmmInput } from '../rengine/mixed';
 import type { GmmOptions } from '../analyses/longitudinal';
-import type { LcaOptions } from '../analyses/items';
+import type { IrtOptions, LcaOptions } from '../analyses/items';
+import type { GlmmOptions } from '../analyses/glmm';
+import { glmmColumns } from '../rengine/glmm';
 import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
 import type { DidOptions } from '../analyses/did';
@@ -26,17 +29,22 @@ import type { AssessmentPreset } from '../analyses/plsAssessment';
 import type { NcaPreset } from '../analyses/nca';
 import { c, CB, type ExConstruct, f, fan, items, v } from './define';
 import { MPLUS_EXAMPLES } from './mplus';
+import { CARD_EXAMPLES } from './cards';
 import { parseLavaanSyntax } from '../model/syntax';
+import { namesIn, parseExpr } from '../model/expr';
+import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'mirt' | 'GLMMadaptive' | 'glca';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'mirt', 'GLMMadaptive', 'glca'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
 export type ExamplePanel =
   | { kind: 'growth'; measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[]; timeVarying?: string[]; syntax?: string; group?: string }
-  | { kind: 'irt'; items: string[]; model: IrtModel; quadrature?: number; robust?: boolean }
+  | ({ kind: 'irt' } & IrtOptions)
+  | ({ kind: 'glmm' } & GlmmOptions)
   | ({ kind: 'lca' } & LcaOptions)
+  | ({ kind: 'mixture' } & MixtureOptions)
   | ({ kind: 'lmm' } & LmmInput)
   | ({ kind: 'gmm' } & GmmOptions)
   | ({ kind: 'endo' } & EndoPreset)
@@ -50,7 +58,25 @@ export type ExamplePanel =
   | ({ kind: 'network' } & Partial<NetworkOptions>)
   | ({ kind: 'ega' } & Partial<EgaOptions>)
   | ({ kind: 'bcorrelation' } & BCorrelationOptions)
-  | ({ kind: 'bsem' } & BsemOptions);
+  | ({ kind: 'bsem' } & BsemOptions)
+  | ({ kind: CardPanelKind } & Record<string, unknown>)
+  /** The card's options as an object of their own, for a card with an option of the same name as `kind` (the chart type). */
+  | { kind: CardPanelKind; options: Record<string, unknown> };
+
+/** The options an example's panel gives its card: `options` when given, otherwise the panel's fields but `kind`. */
+export function panelPreset(p: ExamplePanel): Record<string, unknown> {
+  if ('options' in p && p.options && typeof p.options === 'object' && !Array.isArray(p.options)) return p.options as Record<string, unknown>;
+  const { kind: _k, ...rest } = p as { kind: string } & Record<string, unknown>;
+  return rest;
+}
+
+/**
+ * Further cards an example can open, with their options as the card stores them (analyses/presets.test.ts checks
+ * the card takes them unchanged). Cards about the model (Bollen–Stine, PLSpredict, …) open beside the example's diagram.
+ */
+export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
+  | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
+  | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l';
 
 export interface PackageExample {
   id: string;
@@ -63,7 +89,8 @@ export interface PackageExample {
   description: string;
   /** The dataset in the package; `file`: shipped with the app instead (packages that cannot run in the browser's R). */
   /** file: a CSV shipped with the app; packageFile: an SPSS, Stata or Excel file shipped in the R package, read by R. */
-  data: { package: ExamplePackage; name: string; na?: number[]; file?: string; packageFile?: { path: string; format: DataFileFormat; sheet?: string } };
+  /** remote: data PLS Studio may not distribute, downloaded from their source each time the example is opened (examples/remote). */
+  data: { package: ExamplePackage; name: string; na?: number[]; file?: string; packageFile?: { path: string; format: DataFileFormat; sheet?: string }; remote?: RemoteData };
   constructs: ExConstruct[];
   paths: [string, string][];
   /**
@@ -81,6 +108,8 @@ export interface PackageExample {
   ordered?: string[];
   /** CB-SEM: standard errors from the observed information (Mplus's ML default). */
   information?: 'observed';
+  /** CB-SEM, WLSMV: Mplus's test statistic (lavaan mimic = "Mplus"), where the example compares Mplus's χ². */
+  mimic?: 'Mplus';
   /** CB-SEM, ordinal indicators: the theta parameterisation (Mplus PARAMETERIZATION = THETA). */
   parameterization?: 'theta';
   /** CB-SEM: (residual) variances kept non-negative (lavaan's bounds = "pos.var"; Mplus: MODEL CONSTRAINT v > 0). */
@@ -101,6 +130,8 @@ export interface PackageExample {
   processModel?: number;
   /** Adds this analysis card instead of a diagram (constructs and paths are empty). */
   panel?: ExamplePanel;
+  /** Further cards opened after `panel`, in order (an example whose model is several analyses, e.g. a path model whose likelihood factorises into regressions). */
+  morePanels?: ExamplePanel[];
   /** Adds a segmentation card for the example's diagram: REBUS (numbers of classes) or PATHMOX (segmentation variables; ordered ones with their categories in order). */
   segmentation?: { method?: 'rebus' | 'pathmox' | 'fimix' | 'pos'; from?: number; to?: number; segments?: { column: string; order?: string[] }[] };
   /** Adds the PLS-SEM assessment card for the example's diagram (which one, and the grouping column or omission distance). */
@@ -302,6 +333,7 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'MIIVsem', name: 'bollen1989a' }, ...BOLLEN, settings: CB('2SLS'),
   },
   ...MPLUS_EXAMPLES,
+  ...CARD_EXAMPLES,
   {
     id: 'bollen-union', package: 'MIIVsem', title: 'Union sentiment of textile workers (Bollen 1989, ch. 4)', source: 'MIIVsem, ?bollen1989b; Bollen (1989), Structural Equations with Latent Variables, pp. 82–83',
     links: [{ label: '?bollen1989b', url: 'https://rdrr.io/cran/MIIVsem/man/bollen1989b.html' }],
@@ -786,6 +818,9 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
   },
 ];
 
+/** Every card an example opens: `panel`, then `morePanels`. */
+export const examplePanels = (ex: Pick<PackageExample, 'panel' | 'morePanels'>): ExamplePanel[] => (ex.panel ? [ex.panel, ...(ex.morePanels ?? [])] : []);
+
 /** The data columns a panel example uses. */
 export function panelColumns(p: ExamplePanel): string[] {
   switch (p.kind) {
@@ -793,8 +828,15 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'growth': return [...p.measures, ...p.covariates, ...(p.timeVarying ?? []), ...(p.group ? [p.group] : [])];
     case 'did': return [p.outcome, p.unit, p.time, p.treated, ...(p.post ? [p.post] : []), ...p.covariates];
     case 'regression': return [...new Set([p.outcome, ...p.predictors, ...p.interactions.flat(), p.trials, p.weights, p.cluster].filter(Boolean))];
-    case 'irt': case 'lca': return p.items;
-    case 'lmm': return [p.outcome, ...p.predictors, p.cluster];
+    case 'irt': return [...p.items, ...(p.freq ? [p.freq] : [])];
+    case 'lca': return [...p.items, ...(p.cluster ? [p.cluster] : [])];
+    // (the mixture model: the columns its Mplus syntax names)
+    case 'mixture': return mixtureColumns(p.syntax);
+    // (the two-level EFA card: its items and the cluster column; its other options are numbers of factors)
+    case 'efa2l': { const o = panelPreset(p) as { items?: string[]; cluster?: string }; return [...(o.items ?? []), ...(o.cluster ? [o.cluster] : [])]; }
+    case 'glmm': return glmmColumns(p);
+    // (with repeated measures in columns: the measures and the time-varying covariates' columns, not the names they create)
+    case 'lmm': { const made = p.repeated ? [p.outcome, p.repeated.time, ...p.repeated.varying.map((x) => x.name)] : []; return [...new Set([...(p.repeated ? [...p.repeated.measures, ...p.repeated.varying.flatMap((x) => x.columns)] : [p.outcome]), ...[...p.predictors, ...(p.interactions ?? []).flat()].filter((x) => !made.includes(x)), ...(p.outcomes ?? []).flatMap((x) => [x.outcome, ...x.predictors]), p.cluster, ...(p.levels ?? []).map((l) => l.cluster)].filter(Boolean))]; }
     case 'gmm': return [...(p.format === 'wide' ? p.measures : [p.subject, p.time, p.outcome]), ...p.covariates];
     case 'endo': return [p.outcome ?? '', ...(p.exogenous ?? []), ...(p.endogenous ?? []), ...(p.instruments ?? []), ...(p.selection ? [p.selection.outcome, ...p.selection.regressors] : [])].filter(Boolean);
     case 'match': return [p.treatment ?? '', ...(p.covariates ?? []), p.outcome ?? ''].filter(Boolean);
@@ -806,8 +848,26 @@ export function panelColumns(p: ExamplePanel): string[] {
     case 'bcorrelation': return p.vars;
     // (the Bayesian SEM card fits the diagram: its columns are the constructs' indicators)
     case 'bsem': return [];
+    // (the custom likelihood: the outcomes, and the data columns its expressions use, which are not its parameters)
+    case 'customml': {
+      const o = panelPreset(p) as { outcomes: string[]; parameters: { name: string }[]; logits?: string[]; means?: string[]; variances?: string[]; covariances?: string[] };
+      const pars = new Set(o.parameters.map((q) => q.name));
+      const used = [...(o.logits ?? []), ...(o.means ?? []), ...(o.variances ?? []), ...(o.covariances ?? [])].filter((e) => e.trim())
+        .flatMap((e) => namesIn(parseExpr(e.replace(/\b(exp|log|sqrt)\s*\(/g, '(')))).filter((n) => !pars.has(n) && !['exp', 'log', 'sqrt'].includes(n));
+      return [...new Set([...o.outcomes, ...used])];
+    }
+    // (the further cards: the string and string-list options that name columns)
+    default: {
+      const named = (v: unknown): string[] => (typeof v === 'string' ? [v] : Array.isArray(v) ? v.flatMap(named) : []);
+      // (kappa of an agreement table: the raters' and the counts' columns)
+      const o = panelPreset(p);
+      const kt = o.kappaTable as Record<string, unknown> | undefined;
+      return [...new Set([...COLUMN_OPTIONS.flatMap((k) => named(o[k])), ...(kt ? ['rows', 'columns', 'counts'].flatMap((k) => named(kt[k])) : [])])].filter(Boolean);
+    }
   }
 }
+/** Options of the further cards (CardPanelKind) that hold column names. */
+const COLUMN_OPTIONS = ['vars', 'outcome', 'outcomes', 'cluster', 'dv', 'dvs', 'factors', 'covariates', 'group', 'groups', 'x', 'y', 'a', 'b', 'measures', 'within', 'between', 'subject', 'variable', 'raters', 'items', 'row', 'col', 'predictors', 'count', 'weights', 'dependent', 'dependents', 'levels', 'pairs', 'rows', 'columns', 'counts', 'cells'];
 
 /**
  * The example as an editable model (positions are set by the automatic layout).
@@ -851,6 +911,7 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
     ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),
     ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })), ...(ex.esem.epsilon !== undefined ? { epsilon: ex.esem.epsilon } : {}), ...(ex.esem.orthogonal ? { orthogonal: true } : {}) } } : {}),
     ...(ex.information ? { information: ex.information } : {}),
+    ...(ex.mimic ? { mimic: ex.mimic } : {}),
     ...(ex.parameterization ? { parameterization: ex.parameterization } : {}),
     ...(ex.positiveVariances ? { positiveVariances: true } : {}),
     ...(ex.baseline ? { baseline: ex.baseline } : {}),
@@ -872,6 +933,7 @@ function fromSyntax(ex: PackageExample): ModelState {
     ...(ex.multilevel ? { multilevel: { ...m.multilevel, ...ex.multilevel } } : {}),
     ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })), ...(ex.esem.epsilon !== undefined ? { epsilon: ex.esem.epsilon } : {}), ...(ex.esem.orthogonal ? { orthogonal: true } : {}) } } : {}),
     ...(ex.information ? { information: ex.information } : {}),
+    ...(ex.mimic ? { mimic: ex.mimic } : {}),
     ...(ex.parameterization ? { parameterization: ex.parameterization } : {}),
     ...(ex.positiveVariances ? { positiveVariances: true } : {}),
     ...(ex.baseline ? { baseline: ex.baseline } : {}),

@@ -50,7 +50,7 @@ export function efaRequest(data: Dataset, d: EfaDesign, seed: number) {
   return {
     vars: d.vars, method: d.method, criterion: d.criterion, nfactors: d.nfactors, rotation: d.rotation, deletion: d.missing, parallel: d.parallel, seed,
     ...(d.correlation === 'polychoric' ? { correlation: 'polychoric' } : {}),
-    ...(d.method === 'lavaan' ? { ...(d.epsilon !== undefined ? { epsilon: d.epsilon } : {}), ...(d.information ? { information: d.information } : {}), ...(d.from !== undefined ? { from: d.from } : {}) } : {}),
+    ...(d.method === 'lavaan' ? { ...(d.epsilon !== undefined ? { epsilon: d.epsilon } : {}), ...(d.information ? { information: d.information } : {}), ...(d.wlsmvSe && d.correlation === 'polychoric' ? { wlsmvSe: d.wlsmvSe } : {}), ...(d.mimic && d.correlation === 'polychoric' ? { mimic: d.mimic } : {}), ...(d.from !== undefined ? { from: d.from } : {}) } : {}),
     data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
   };
 }

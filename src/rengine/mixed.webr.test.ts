@@ -41,8 +41,8 @@ describe('multilevel regression (lme4)', () => {
       expect(mine.variance).toBeCloseTo(v.vcov, 2);
     }
     expect(r.icc).toBeCloseTo(ref.lmm.icc, 6);
-    expect(r.r2.marginal).toBeCloseTo(ref.lmm.r2.marginal, 5);
-    expect(r.r2.conditional).toBeCloseTo(ref.lmm.r2.conditional, 5);
+    expect(r.r2!.marginal).toBeCloseTo(ref.lmm.r2.marginal, 5);
+    expect(r.r2!.conditional).toBeCloseTo(ref.lmm.r2.conditional, 5);
     expect(r.logLik).toBeCloseTo(ref.lmm.logLik, 4);
     expect(r.slopeTest!.chisq).toBeCloseTo(ref.lmm.slopeTest.chisq, 3);
     expect(r.slopeTest!.df).toBe(2);

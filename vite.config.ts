@@ -2,11 +2,12 @@ import { createReadStream, statSync } from 'node:fs';
 import { join, normalize, sep } from 'node:path';
 import { defineConfig, type Connect, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { STATMODEL_BASE, statmodelPath } from './src/examples/remote/source';
 
 // Strict CSP for production builds only: dev mode needs inline scripts for
 // React Fast Refresh. All analysis runs in the browser (or in the optional
 // desktop helper on 127.0.0.1), so no other external connections are allowed
-// apart from the font stylesheet.
+// apart from the font stylesheet and example data read from their source.
 const CSP = [
   "default-src 'self'",
   // WebAssembly compilation for the in-browser R runtime (webR); JS eval stays blocked.
@@ -15,8 +16,9 @@ const CSP = [
   'font-src https://fonts.gstatic.com',
   "img-src 'self' data: blob:",
   "worker-src 'self' blob:",
-  // The optional desktop R helper (helper/) listens on the loopback interface only.
-  "connect-src 'self' http://127.0.0.1:9878",
+  // The optional desktop R helper (helper/) listens on the loopback interface only; example data that PLS Studio
+  // does not distribute are read from their source when an example opens (src/examples/remote: RI-CLPM tutorial).
+  "connect-src 'self' http://127.0.0.1:9878 https://raw.githubusercontent.com",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -51,13 +53,45 @@ const webrPlugin = (): Plugin => ({
   configurePreviewServer: (server) => { server.middlewares.use(webrFiles); },
 });
 
+// Development without the collaboration server (it needs PostgreSQL): the dev server passes the Mplus example data
+// through itself, with the same allowlist and limits as server/src/routes/exampleData.ts (production uses that route).
+const exampleData: Connect.NextHandleFunction = (req, res, next) => {
+  const url = req.url ?? '';
+  const prefix = '/api/example-data/statmodel/';
+  if (!url.startsWith(prefix) || req.method !== 'GET') return next();
+  const path = statmodelPath(url.slice(prefix.length));
+  if (!path) { res.statusCode = 404; res.end('Not one of the Mplus User’s Guide example files.'); return; }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  void (async () => {
+    try {
+      const up = await fetch(STATMODEL_BASE + path, { redirect: 'manual', signal: controller.signal });
+      if (up.status !== 200) { res.statusCode = up.status >= 300 && up.status < 500 ? 404 : 502; res.end('statmodel.com does not have this file.'); return; }
+      const body = Buffer.from(await up.arrayBuffer());
+      if (body.length > 10 * 1024 * 1024) { res.statusCode = 502; res.end('The file is too large.'); return; }
+      res.setHeader('Content-Type', 'text/plain; charset=iso-8859-1');
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      for (const [k, v] of Object.entries(ISOLATION_HEADERS)) res.setHeader(k, v);
+      res.end(body);
+    } catch {
+      res.statusCode = 504; res.end('statmodel.com did not answer.');
+    } finally { clearTimeout(timer); }
+  })();
+};
+const exampleDataPlugin = (): Plugin => ({
+  name: 'example-data-dev',
+  configureServer: (server) => { server.middlewares.use(exampleData); },
+  configurePreviewServer: (server) => { server.middlewares.use(exampleData); },
+});
+
 // Cross-origin isolation: webR's SharedArrayBuffer channel (its recommended
 // mode, which allows interrupting R) needs it. Every cross-origin resource must
 // then be CORS-enabled (Google Fonts is).
 export const ISOLATION_HEADERS = { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' };
 
 export default defineConfig({
-  plugins: [react(), cspPlugin(), webrPlugin()],
+  plugins: [react(), cspPlugin(), webrPlugin(), exampleDataPlugin()],
   // Development: the collaboration server (server/) runs on :8787; same-origin via proxy.
   server: {
     port: 5175,

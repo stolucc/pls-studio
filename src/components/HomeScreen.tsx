@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { loadPackageExample, loadSample, newProject, newProjectFromData, openProject, openRecent } from '../io';
+import { EXAMPLE_FILES_ACCEPT, loadPackageExample, loadSample, newProject, newProjectFromData, openProject, openRecent, pickFiles } from '../io';
 import { EXAMPLE_PACKAGES, PACKAGE_EXAMPLES, type ExamplePackage } from '../examples/packages';
 import { exampleAuthors, exampleTags, sortTopics } from '../examples/tags';
 import { listRecent, recentPersistent, relativeTime, removeRecent, type RecentMeta } from '../recent';
@@ -452,7 +452,14 @@ function PackageExamples({ query, topic, pkg, onEvidence }: { query: string; top
             <span className="hint">{e.source}</span>
             <SourceLinks links={e.links} />
             <div className="example-evidence"><EvidenceBadge id={e.id} onOpen={onEvidence} /></div>
-            <button className="btn" onClick={() => void loadPackageExample(e.id)}>Open example</button>
+            <div className="example-actions">
+              <button className="btn" onClick={() => void loadPackageExample(e.id)}>Open example</button>
+              {/* (data PLS Studio does not distribute: downloaded on opening, or from files the person downloaded) */}
+              {e.data.remote && (
+                <button className="btn ghost" title="Open the example with its data files downloaded from the source yourself (for Mplus: the example’s .inp and .dat, or the chapter’s zip)"
+                  onClick={() => void pickFiles(EXAMPLE_FILES_ACCEPT).then((files) => { if (files) void loadPackageExample(e.id, { files }); })}>Import downloaded files…</button>
+              )}
+            </div>
           </div>
         ))}
       </div>

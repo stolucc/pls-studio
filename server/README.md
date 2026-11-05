@@ -68,5 +68,12 @@ safe: without it, stored datasets cannot be decrypted.
   (16 MB; one member cannot fill the database) and on open sockets per user (10).
 - **Emailed links** (verification, password reset, invitations) carry their token in
   the URL fragment, which browsers never send: it reaches no access log or Referer.
+- **Example data pass-through**: `GET /api/example-data/statmodel/:chap/:file` downloads one
+  Mplus User's Guide example file from statmodel.com per request (the browser cannot: no CORS
+  header there; PLS Studio may not distribute the data) and stores nothing. Against SSRF: the
+  host is a constant, the path must match `^chap(\d{1,2})/ex(\d{1,2})\.\d{1,2}[a-z0-9]*\.(dat|inp)$`
+  (chapter and example number equal), no query, header or cookie is passed on, redirects are not
+  followed (a 3xx answer means the file is not there: 404; any other answer but 200 is an error), 10 MB and 20 s caps, 60 requests per IP per minute
+  and 8 downloads at once; `Cache-Control: no-store`, `text/plain`, no session, not logged.
 - **Headers**: helmet with a strict CSP (no inline scripts), `frame-ancestors 'none'`.
 - **Audit log**: project creation/deletion, invitations, membership and dataset changes.

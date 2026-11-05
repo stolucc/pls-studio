@@ -94,7 +94,7 @@ collaboration steps marked as such.
 | `src/analyses/` | The Analyses log: `types.ts` (card and analysis-type contracts), `registry.ts` (all analysis types), `store.ts` (cards, running, results), `persist.ts` (validated load/save), `codec.ts` (gzip + base64 packing of results), `runs.tsx` / `runHash.ts` / `runCard.tsx` (model runs and versions), `report.ts`, one file per analysis. |
 | `src/process/` | Conditional process analysis (PROCESS models): recognising the diagram, building the regression plan. |
 | `src/cloud/` | Collaboration client: `api.ts` (fetch with CSRF), `auth.ts` (accounts), `collab.ts` (Y.js document ⇄ store), `invites.ts` (emailed links). |
-| `src/examples/` | Home-screen examples (`packages.ts`: 159 package examples with their sources and documented settings; built-in examples). |
+| `src/examples/` | Home-screen examples (`packages.ts`: 263 package examples with their sources and documented settings; built-in examples). |
 | `src/figure/`, `src/replication/` | Diagram rendering for export (SVG/PDF/LaTeX); replication package (zip of data, scripts, project, README). |
 | `public/webr/` | The self-hosted R runtime and package repository (not in git; `scripts/webr/fetch.mjs` builds it from `scripts/webr/webr-lock.json`, with every package's source tarball for GPL compliance). |
 | `server/` | Express + Postgres: accounts (argon2id, TOTP, Google OIDC, email verification, reset), projects, invitations, encrypted datasets, Y.js WebSocket rooms, audit log, migrations. |
@@ -996,8 +996,11 @@ the reference as null instead. `citext` makes emails case-insensitive and unique
 
 ## 8. Examples and validation
 
-`src/examples/packages.ts` describes each example: its data (loaded from the package in R, or
-shipped), model, analysis card, and the settings its source documents (`CSEM()`/`SEMINR()`
+`src/examples/packages.ts` describes each example: its data (loaded from the package in R,
+shipped, or, where the licence does not let PLS Studio distribute them, downloaded from their
+source each time the example opens: `src/examples/remote`, with the Mplus files passed through by
+the server's `/api/example-data` or the helper's `/example-data`), model, analysis card, and the
+settings its source documents (`CSEM()`/`SEMINR()`
 helpers hold the packages' defaults). Opening an example resets the estimation settings to those
 (`exampleSettings`). Tests run every example in webR and require it to raise no warning.
 

@@ -6,12 +6,76 @@
 #' "1*a + b + c": the marker loading fixed to 1, made explicit.
 #' Loadings of a factor: the marker fixed to 1 (or to the user's value), other user-fixed loadings as value*name.
 #' `free_first`: the first loading estimated as well (NA*), the scale being set elsewhere (a fixed path into the factor).
-ps_marked <- function(v, fixed = list(), labels = list(), free_first = FALSE) {
-  pre <- vapply(v, function(x) if (!is.null(fixed[[x]])) paste0(ps_num(fixed[[x]]), "*") else if (!is.null(labels[[x]])) paste0(ps_label(labels[[x]]), "*") else "", "")
+ps_marked <- function(v, fixed = list(), labels = list(), free_first = FALSE, label_mod = function(l) paste0(ps_label(l), "*")) {
+  pre <- vapply(v, function(x) if (!is.null(fixed[[x]])) paste0(ps_num(fixed[[x]]), "*") else if (!is.null(labels[[x]])) label_mod(labels[[x]]) else "", "")
   # (a free first loading that is labelled is written twice, NA* frees it and the label names it: lavaan's way)
   if (isTRUE(free_first) && is.null(fixed[[v[1]]]) && nzchar(pre[1])) return(paste(c(paste0("NA*", v[1]), paste0(pre, v)), collapse = " + "))
   pre[1] <- if (nzchar(pre[1])) pre[1] else if (isTRUE(free_first)) "NA*" else "1*"
   paste(paste0(pre, v), collapse = " + ")
+}
+
+#' Standard errors as Mplus's WLSMV (Muthen, du Toit & Spisic 1997), the script lines that follow the fit:
+#' since 0.7-2 lavaan puts the observed information (the Hessian) in the sandwich's bread for DWLS and ULS with
+#' categorical data; Mplus, and lavaan up to 0.7-1, the expected one, (Delta' W Delta)^-1 (information.bread =
+#' "expected" in the call), and Mplus divides the covariance matrix of the estimates by N where lavaan divides
+#' by N - G (G groups). `fits`: the name of a list of fits (EFA) instead of one fit.
+ps_mplus_se_lines <- function(fits = NULL) c(
+  "# Standard errors as Mplus's WLSMV (Muthen, du Toit & Spisic 1997; lavaan up to 0.7-1): the expected information",
+  "# in the sandwich (information.bread = \"expected\" above), and the covariance matrix of the estimates divided by N",
+  "# where lavaan divides by N - G (G groups). z, p, intervals, standardised standard errors, defined parameters and",
+  "# Wald tests follow from it; estimates and the test statistic are unchanged.",
+  "mplus_se <- function(fit) {",
+  "  if (is.null(fit@vcov$vcov)) return(fit)",
+  "  k <- 1 - lavInspect(fit, \"ngroups\") / lavInspect(fit, \"ntotal\")",
+  "  fit@vcov$vcov <- fit@vcov$vcov * k",
+  "  fit@ParTable$se <- fit@ParTable$se * sqrt(k)",
+  "  fit@Fit@se <- fit@Fit@se * sqrt(k)",
+  "  fit",
+  "}",
+  if (is.null(fits)) "fit <- mplus_se(fit)" else sprintf("%s <- lapply(%s, mplus_se)", fits, fits))
+
+#' Robust (MLR) standard errors of a two-level model with groups, the script lines that follow the fit. lavaan 0.7
+#' weights each group's first-order (cluster-level) information by its share of the observations; the sandwich
+#' over the clusters (Mplus's MLR) weights it by the group's share of the clusters. With one group the two agree.
+#' The covariance matrix is rebuilt from lavaan's own information matrices with the clusters' shares.
+PS_TWOLEVEL_GROUPS_SE <- c(
+  "# Robust standard errors (MLR) with groups and clusters: the sandwich over all clusters, as Mplus. lavaan 0.7",
+  "# weights each group's cluster-level first-order information by its share of the observations; here by its share",
+  "# of the clusters. z, p, intervals and defined parameters follow; estimates and test statistics are unchanged.",
+  "mlr_clusters <- function(fit) {",
+  "  if (is.null(fit@vcov$vcov)) return(fit)",
+  "  a <- list(lavmodel = fit@Model, lavsamplestats = fit@SampleStats, lavdata = fit@Data, lavcache = fit@Cache, lavimplied = fit@implied, lavh1 = fit@h1, lavoptions = fit@Options)",
+  "  e_inv <- do.call(lavaan:::lav_model_info, c(a, list(extra = FALSE, augmented = TRUE, inverted = TRUE)))",
+  "  b0 <- attr(do.call(lavaan:::lav_model_info_firstorder, c(a, list(extra = TRUE))), \"B0.group\")",
+  "  J <- vapply(fit@Data@Lp, function(l) as.numeric(l$nclusters[[2]]), 0)",
+  "  V <- e_inv %*% Reduce(`+`, lapply(seq_along(b0), function(g) b0[[g]] * J[g] / sum(J))) %*% e_inv / sum(J)",
+  "  V <- V[seq_len(nrow(fit@vcov$vcov)), seq_len(ncol(fit@vcov$vcov)), drop = FALSE]",
+  "  free <- fit@ParTable$free > 0",
+  "  fit@vcov$vcov[] <- V",
+  "  fit@ParTable$se[free] <- sqrt(diag(V))[fit@ParTable$free[free]]",
+  "  fit@Fit@se[free] <- fit@ParTable$se[free]",
+  "  fit",
+  "}",
+  "fit <- mlr_clusters(fit)")
+
+#' The WLSMV conventions of a CB-SEM request: `args` for the lavaan call, `lines` after it.
+#' Standard errors as Mplus's unless model$wlsmvSe is "lavaan" (lavaan 0.7's observed information in the sandwich);
+#' with sampling clusters or weights lavaan's own (design-based) standard errors are kept. model$mimic = "Mplus":
+#' Mplus's test statistic as well (lavaan's mimic = "Mplus", with gamma.vcov.mplus = FALSE), one group only: with
+#' groups lavaan's mimic = "Mplus" also changes which parameters are held equal, so the model itself.
+ps_wlsmv_se <- function(req, ordinal, groups, design) {
+  se <- req$model$wlsmvSe; mimic <- req$model$mimic
+  if (!is.null(se) && !identical(se, "lavaan")) stop("Invalid WLSMV standard errors in the request.")
+  if (!is.null(mimic) && !identical(mimic, "Mplus")) stop("Invalid test statistic in the request.")
+  wlsmv <- ordinal && isTRUE(req$estimator %in% c("WLSMV", "ULSMV"))
+  args <- ""
+  # (both apply to WLSMV with ordinal indicators only; with another estimator they are kept for when it comes back)
+  if (!is.null(mimic) && wlsmv) {
+    if (groups) stop("The Mplus test statistic is available for one group: with groups, lavaan's mimic = \"Mplus\" also changes which parameters are held equal across them, and so the model.")
+    args <- ", mimic = \"Mplus\", gamma.vcov.mplus = FALSE"
+  }
+  mplus <- wlsmv && is.null(se) && !design
+  list(args = paste0(args, if (mplus) ", information.bread = \"expected\"" else ""), lines = if (mplus) ps_mplus_se_lines() else character(0))
 }
 
 ps_cb_build <- function(req) {
@@ -170,7 +234,13 @@ ps_cb_build <- function(req) {
     # (one label for every group, written once per group: lavaan's way to say "equal across the groups")
     if (!is.null(t$fixed)) paste0(ps_num(t$fixed), "*") else if (!is.null(t$label)) ps_group_label(t$label) else ""
   }
-  ps_group_label <- function(l) if (n_groups > 1) sprintf("c(%s)*", paste(rep(ps_label(l), n_groups), collapse = ", ")) else paste0(ps_label(l), "*")
+  # (not in a two-level model with groups: it is written once per "group:" block, where a label is a plain label)
+  ps_group_label <- function(l) if (n_groups > 1 && is.null(req$model$multilevel)) sprintf("c(%s)*", paste(rep(ps_label(l), n_groups), collapse = ", ")) else paste0(ps_label(l), "*")
+  # Indicators that load on several factors outside ESEM blocks (Mplus ex. 5.18, 5.19: twin A, C and E factors). A factor
+  # of one such indicator is a factor of its own, not the variable: its residual variance is the model's to set.
+  fac_j <- which(!is_cov & !(n$cname %in% in_block) & vapply(seq_len(k0), function(j) !length(comps[[j]]) && !identical(cons[[j]]$type, "composite"), TRUE))
+  fac_iv <- unlist(lapply(fac_j, function(j) unname(n$iv[n$inds[[j]]])))
+  shared_iv <- unique(fac_iv[duplicated(fac_iv)])
   for (j in seq_len(k0)) {
     if (is_cov[j] || n$cname[j] %in% in_block) next
     # The first loading of each factor is fixed to 1 (marker / scaling indicator); written explicitly.
@@ -199,7 +269,8 @@ ps_cb_build <- function(req) {
         composites <- c(composites, n$cname[j])
         next
       }
-      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels, free_first = unit_id || by_variance)))
+      # (a label written once per group: lavaan's way to hold a loading equal across groups, without its warning)
+      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels, free_first = unit_id || by_variance, label_mod = ps_group_label)))
       # The factor's scale from its variance (Mplus f BY y1* …; f@1): every loading estimated, the variance 1.
       if (by_variance && !unit_id && !(n$cname[j] %in% var_set)) lines <- c(lines, paste0(lname[[j]], " ~~ 1*", lname[[j]], "   # scale: the variance fixed at 1, every loading estimated"))
       # Known reliability (Bollen 1989; Hayduk 1987): error variance fixed at (1 - reliability) x the indicator's variance.
@@ -216,7 +287,7 @@ ps_cb_build <- function(req) {
         theta <- if (length(s2) > 1) sprintf("c(%s)", paste(vapply((1 - rel) * s2, ps_num, ""), collapse = ", ")) else ps_num((1 - rel) * s2)
         sprintf("%s ~~ %s*%s   # %s, reliability %s: (1 - %s) x variance %s", vi, theta, vi, what, format(rel), format(rel), paste(format(signif(s2, 6)), collapse = " / "))
       }
-      if (length(v) == 1) {
+      if (length(v) == 1 && !(v %in% shared_iv)) {
         rel <- cons[[j]]$reliability
         if (isTRUE(cons[[j]]$freeError)) { free_err_inds <- c(free_err_inds, v); lines <- c(lines, paste0(v, " ~~ NA*", v, "   # single indicator: error variance estimated (identified by the model)")) }
         else if (is.null(rel) && v %in% ord_iv) {
@@ -230,6 +301,14 @@ ps_cb_build <- function(req) {
           else if (n$cname[j] %in% vapply(req$model$paths, function(p) p$to, "") && !(n$cname[j] %in% vapply(req$model$paths, function(p) p$from, "")) &&
             !length(req$model$moderations) && !(n$cname[j] %in% var_set))
             lines <- c(lines, paste0(lname[[j]], " ~~ 0*", lname[[j]], "   # an ordinal outcome: the systematic part of its latent response (probit regression)"))
+          # An ordinal outcome that predicts others (Mplus ex. 3.12: u3 ON u1 u2 x2): the construct is the whole latent
+          # response, which the others regress on, so the indicator has no residual of its own and the construct's
+          # disturbance is the response's residual variance given its predictors, 1 (theta; delta with covariates
+          # as the only predictors, whose conditional variance the delta parameterisation sets to 1).
+          else if (n$cname[j] %in% vapply(req$model$paths, function(p) p$to, "") && !length(req$model$moderations) && !(n$cname[j] %in% var_set) &&
+            (theta || all(vapply(req$model$paths, function(p) !identical(p$to, n$cname[j]) || isTRUE(is_cov[match(p$from, n$cname)]), TRUE))))
+            lines <- c(lines, if (theta) paste0(v, " ~~ 0*", v, "   # an ordinal outcome that predicts others: the construct is its whole latent response"),
+              paste0(lname[[j]], " ~~ 1*", lname[[j]], "   # an ordinal outcome that predicts others: the residual variance of its latent response, 1 given its predictors"))
         }
         else if (is.null(rel)) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
         else lines <- c(lines, fix_theta(v, rel, "single indicator"))
@@ -303,16 +382,20 @@ ps_cb_build <- function(req) {
     lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else if (!is.null(cv$byGroup)) paste0(ps_mod(cv), b) else if (!is.null(cv$fixed)) paste0(ps_num(cv$fixed), "*", b)
       else if (!is.null(cv$label)) paste0(ps_label(cv$label), "*", b) else b))
   }
-  # Variances, intercepts of indicators and thresholds held at values or labelled (Mplus f1@1; y1-y3 (ve1-ve3);
-  # [y1a y1b y1c] (1); [u1$1] (t)), per group when given so.
+  # Variances, intercepts of indicators, thresholds and scale factors held at values or labelled (Mplus f1@1;
+  # y1-y3 (ve1-ve3); [y1a y1b y1c] (1); [u1$1] (t); {u1@1}), per group when given so; `free`: written out (NA*),
+  # which frees what lavaan fixes by default (an ordinal indicator's scale factor, or its residual variance with theta).
   for (t in req$model$parameters) {
-    if (!(is.character(t$kind) && length(t$kind) == 1 && t$kind %in% c("variance", "intercept", "threshold"))) stop("Invalid parameter in the request.")
+    if (!(is.character(t$kind) && length(t$kind) == 1 && t$kind %in% c("variance", "intercept", "threshold", "scale"))) stop("Invalid parameter in the request.")
     tgt <- if (isTRUE(t$indicator)) { if (!t$target %in% n$all_inds) stop("Unknown indicator in a parameter."); unname(n$iv[[t$target]]) }
       else { if (!identical(t$kind, "variance") || !t$target %in% n$cname) stop("Unknown construct in a parameter."); lname[[t$target]] }
     mod <- ps_mod(t)
+    if (!nzchar(mod) && isTRUE(t$free)) mod <- "NA*"
     if (!nzchar(mod)) next
+    if (identical(t$kind, "scale") && (!tgt %in% ord_iv || theta)) stop("A scale factor belongs to an ordinal indicator in the delta parameterisation.")
     lines <- c(lines, switch(t$kind,
       variance = paste0(tgt, " ~~ ", mod, tgt),
+      scale = paste0(tgt, " ~*~ ", mod, tgt),
       intercept = paste0(tgt, " ~ ", mod, "1"),
       threshold = { k <- t$threshold %||% 1; if (!(is.numeric(k) && length(k) == 1 && k >= 1 && k == round(k))) stop("Invalid threshold number in the request.")
         if (!tgt %in% ord_iv) stop("A threshold belongs to an ordinal indicator."); paste0(tgt, " | ", mod, "t", k) }))
@@ -343,6 +426,8 @@ ps_cb_build <- function(req) {
           if (length(bias) > 1 && length(bias) != n_groups) stop("A marker intercept per group needs one value per group.")
           at <- if (length(bias) > 1) sprintf("c(%s)", paste(vapply(bias, ps_num, ""), collapse = ", ")) else ps_num(bias)
         }
+        # (two factors with the same marker, e.g. a growth model's intercept and slope: its intercept is fixed once)
+        if (!any(startsWith(lines, paste0(n$iv[[n$inds[[j]][1]]], " ~ ", at, "*1"))))
         lines <- c(lines, paste0(n$iv[[n$inds[[j]][1]]], " ~ ", at, "*1   # marker intercept fixed", if (is.null(bias)) " at 0: identifies" else " at a known bias: identifies", " the latent mean of ", lv))
       }
     }
@@ -357,7 +442,9 @@ ps_cb_build <- function(req) {
     for (j in seq_len(k0)) {
       if (is_cov[j] || length(n$inds[[j]]) != 1 || length(comps[[j]]) || n$cname[j] %in% drawn) next
       ov <- unname(n$iv[[n$inds[[j]][1]]])
-      if (ov %in% rel_inds || ov %in% free_err_inds) next
+      if (ov %in% shared_iv) next
+      # (an ordinal variable's location is its thresholds: no intercept of its own)
+      if (ov %in% rel_inds || ov %in% free_err_inds || ov %in% ord_iv) next
       lines <- c(lines, paste0(lname[[j]], " ~ 1"), paste0(ov, " ~ 0*1   # the intercept of ", lname[[j]], " (an observed variable)"))
       obs_single[unname(lname[[j]])] <- ov
     }
@@ -455,7 +542,12 @@ ps_cb_build <- function(req) {
     # With groups as well, lavaan wants the level blocks once per group (group: <value>).
     lines <- if (!is.null(group_var)) {
       gv <- sort(unique(inputs$data[[group_var]][!is.na(inputs$data[[group_var]])]))
-      unlist(lapply(gv, function(v) c(sprintf("group: %s", format(v)), paste0("  ", lv_block))))
+      # Intercepts held equal (scalar or strict invariance): the between-level factors' means are free after the first
+      # group, as lavaan frees the factor means in a one-level model and Mplus at the between level (unless the means
+      # are held equal too).
+      bfree <- if ((mg$invariance %||% "configural") %in% c("scalar", "strict") && !"means" %in% unlist(mg$structural)) between_lv else character(0)
+      unlist(lapply(seq_along(gv), function(i) c(sprintf("group: %s", format(gv[i])), paste0("  ", lv_block),
+        if (i > 1 && length(bfree)) sprintf("    %s ~ NA*1", bfree))))
     } else lv_block
     lines <- c(lines, defs)
   }
@@ -547,6 +639,10 @@ ps_cb_build <- function(req) {
     if (!identical(req$model$information, "observed")) stop("Invalid information in the request.")
     extra <- paste0(extra, ", information = \"observed\"")
   }
+  # WLSMV standard errors as Mplus computes them (the default; wlsmvSe = "lavaan" keeps lavaan 0.7's), and the
+  # test statistic as Mplus (mimic = "Mplus"): ps_wlsmv_se.
+  wse <- ps_wlsmv_se(req, length(ordered) > 0, !is.null(group_var) || matrix_groups, !is.null(complex_var) || !is.null(weight_var))
+  extra <- paste0(extra, wse$args)
   # The diagram is the model: the disturbances of two endogenous constructs covary only when drawn
   # (lavaan's sem() would otherwise free every such covariance, auto.cov.y).
   # Exception: explained factors of an ESEM block. Their residual covariance comes with the rotation (lavaan
@@ -564,6 +660,9 @@ ps_cb_build <- function(req) {
   if (length(esem$blocks)) {
     rargs <- c(if (!is.null(target)) "target = TARGET", if (!is.null(eps) && rot %in% c("geomin", "bigeomin")) sprintf("geomin.epsilon = %s", format(eps, scientific = FALSE)),
       if (orth) "orthogonal = TRUE",
+      # Loadings held equal across groups (invariant ESEM): the unstandardised loadings are rotated, as Mplus does
+      # (Mplus ex. 5.27 b-e); lavaan's default standardises them by the observed SDs, which differ between groups.
+      if ((!is.null(group_var) || matrix_groups) && (mg$invariance %||% "configural") != "configural") "std.ov = FALSE",
       # (the bifactor criteria are flat: at lavaan's default tolerance, 1e-5, the loadings vary in the third
       #  decimal with the random starts; at 1e-8 they are reproducible)
       if (bifactor) "gpa.tol = 1e-8")
@@ -613,6 +712,15 @@ ps_cb_build <- function(req) {
         sprintf("set.seed(%d)", ms$seed),
         sprintf("imp <- amelia(data, m = %d%s, p2s = 0)$imputations", ms$m, if (length(noms)) sprintf(", noms = %s", ps_q(unname(noms))) else ""),
         "imp <- lapply(seq_along(imp), function(k) as.data.frame(imp[[k]]))")
+      else if (identical(ms$method, "micenorm")) c(
+        if (!is.null(group_var)) c("# The grouping column is categorical: mice uses it as a factor.", sprintf("data$%s <- factor(data$%s)", group_var, group_var)),
+        sprintf("# Multiple imputation by chained equations (mice), %d imputed data sets: Bayesian linear regression (norm) for", ms$m),
+        "# continuous variables, a draw from the posterior of a normal model as Mplus's H1 imputation; logistic or multinomial",
+        "# regression for the nominal ones, which return to their codes for the model.",
+        if (length(noms)) sprintf("for (v in %s) data[[v]] <- factor(data[[v]])", ps_q(unname(noms))),
+        sprintf("imp <- mice(data, m = %d, seed = %d, printFlag = FALSE, defaultMethod = c(\"norm\", \"logreg\", \"polyreg\", \"polr\"))", ms$m, ms$seed),
+        sprintf("imp <- lapply(seq_len(%d), function(k) { d <- complete(imp, k)%s; d })", ms$m,
+          if (length(noms)) sprintf("; for (v in %s) d[[v]] <- as.numeric(as.character(d[[v]]))", ps_q(unname(noms))) else ""))
       else c(
         if (!is.null(group_var)) c("# The grouping column is categorical: mice uses it as a factor.", sprintf("data$%s <- factor(data$%s)", group_var, group_var)),
         sprintf("# Multiple imputation by chained equations (mice, predictive mean matching), %d imputed data sets.", ms$m),
@@ -672,7 +780,7 @@ ps_cb_build <- function(req) {
   # written out in the syntax, as on some help pages).
   to_ids <- vapply(req$model$paths, function(p) p$to, "")
   in_hoc <- unlist(lapply(seq_len(k0), function(j) unlist(cons[[j]]$components)))
-  xlike <- unlist(lapply(seq_len(k0), function(j) if (!is_cov[j] && length(n$inds[[j]]) == 1 && is.null(cons[[j]]$reliability) && !(n$cname[j] %in% to_ids) && !length(comps[[j]]) && !(n$cname[j] %in% in_hoc) && !(n$cname[j] %in% in_block)) unname(n$iv[[n$inds[[j]][1]]]) else NULL))
+  xlike <- unlist(lapply(seq_len(k0), function(j) if (!is_cov[j] && length(n$inds[[j]]) == 1 && !(unname(n$iv[[n$inds[[j]][1]]]) %in% shared_iv) && is.null(cons[[j]]$reliability) && !(n$cname[j] %in% to_ids) && !length(comps[[j]]) && !(n$cname[j] %in% in_hoc) && !(n$cname[j] %in% in_block)) unname(n$iv[[n$inds[[j]][1]]]) else NULL))
   if (!is.null(req$model$baseline) && !identical(req$model$baseline, "independence")) stop("Invalid baseline in the request.")
   baseline <- character(0)
   if (length(xlike) >= 2 && !identical(req$model$baseline, "independence") && !mi && !length(ordered) && !length(esem$blocks) && is.null(cluster_var) && !matrix_groups_nacov(inputs)) {
@@ -685,7 +793,9 @@ ps_cb_build <- function(req) {
       "# exogenous observed variables stay free", "baseline_model <- '", paste0("  ", bmodel), "'", bcall)
   }
   # (the baseline lines travel separately: every other user of this body expects the fit call last)
-  body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
+  body <- c(body, "model <- '", paste0("  ", lines), "'", call, wse$lines,
+    # (MLR with groups and clusters: Mplus's robust standard errors, lavaan's pieces weighted by the groups' clusters)
+    if (!is.null(cluster_var) && !is.null(group_var) && identical(req$estimator, "MLR")) PS_TWOLEVEL_GROUPS_SE, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
     inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single, between_cov = between_cov, between_lv = between_lv,
     esem_blocks = lapply(esem$blocks, function(x) as.character(unlist(x))), bifactor = length(esem$blocks) > 0 && bifactor)
@@ -839,6 +949,11 @@ ps_cb <- function(req_json, export = FALSE) {
     # (Reliability is of factors with two or more indicators: none, as in a path model of observed variables, then none.)
     pt_rel <- lavaan::parTable(fit)
     if (!any(table(pt_rel$lhs[pt_rel$op == "=~" & pt_rel$lhs %in% unname(b$lname[!b$is_cov])]) >= 2)) no_rel <- TRUE
+    # (a growth curve: every factor measured by two or more observed variables has all its loadings fixed, its
+    #  intercept and slope; they measure nothing, and semTools fails on them, e.g. with multiple imputation)
+    ld_rel <- pt_rel[pt_rel$op == "=~" & !(pt_rel$rhs %in% pt_rel$lhs[pt_rel$op == "=~"]), ]
+    measured <- names(which(table(ld_rel$lhs) >= 2))
+    if (length(measured) && !any(ld_rel$free[ld_rel$lhs %in% measured] > 0)) no_rel <- TRUE
     # semTools's compRelSEM fails on models with observed covariates (lavaan's fixed.x): omega and alpha
     # then come from the factors' measurement model alone (their CFA on the same data, estimator and
     # options, through update()), which is where reliability is assessed anyway.

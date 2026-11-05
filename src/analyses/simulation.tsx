@@ -208,7 +208,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                       <select className="select" value={activeParam.key} onChange={(e) => setParamKey(e.target.value)}>
                         {params.map((p) => (
                           <option key={p.key} value={p.key}>
-                            {p.kind === 'fit' ? 'Model χ² test (CB-SEM, correct model)' : `${p.kind === 'indirect' ? 'indirect ' : ''}${p.from} → ${p.to} (true ${fmt(p.value)})`}
+                            {p.kind === 'fit' ? 'Model χ² test (CB-SEM, correct model)' : p.kind === 'covariance' ? `${p.from} ↔ ${p.to} (correlation, true ${fmt(p.value)})` : `${p.kind === 'indirect' ? 'indirect ' : ''}${p.from} → ${p.to} (true ${fmt(p.value)})`}
                           </option>
                         ))}
                       </select>
@@ -223,7 +223,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                   <div className="legend">
                     {design.estimators.map((e, k) => <span key={e.id}><i style={{ background: COLORS[k % COLORS.length] }} />{e.id}</span>)}
                   </div>
-                  <Table title={activeParam.kind === 'fit' ? 'Model χ² test' : `${activeParam.from} → ${activeParam.to}${activeParam.kind === 'indirect' ? ' (indirect)' : ''}`} file="simulation"
+                  <Table title={activeParam.kind === 'fit' ? 'Model χ² test' : activeParam.kind === 'covariance' ? `${activeParam.from} ↔ ${activeParam.to} (correlation)` : `${activeParam.from} → ${activeParam.to}${activeParam.kind === 'indirect' ? ' (indirect)' : ''}`} file="simulation"
                     columns={['Estimator', 'N', 'Reps', 'Mean', 'Bias', 'Rel. bias', 'SD', 'RMSE', 'Coverage', Math.abs(activeParam.value) < 1e-12 ? 'Type I' : 'Power']}
                     rows={rows.filter((r) => r.param.key === activeParam.key).map((r): Row => [
                       c(r.estimator), c(String(r.n)), c(`${r.reps}${r.failed ? ` (−${r.failed})` : ''}`), c(r.mean), c(r.bias),
@@ -250,7 +250,9 @@ export const mcAnalysis: AnalysisType<McDesign, McSummaryRow[]> = {
   Options: McOptionsForm,
   View: ({ result, options }) => <McView rows={result} design={options} />,
   blocked: (d, ctx) => (ctx.settings.method === 'process' ? 'Monte Carlo simulation is for PLS-SEM and CB-SEM models.' : !d.population.constructs.length ? 'Build a model first (Model tab), then press Reset to defaults: the population uses its constructs, indicators and paths.'
-    : !d.estimators.length ? 'Choose at least one estimator.' : populationError(d)),
+    : !d.estimators.length ? 'Choose at least one estimator.'
+      : !d.population.paths.length && d.estimators.some((e) => e.method === 'pls') ? 'PLS-SEM needs at least one path between constructs; for a measurement model only (correlated factors), use the CB-SEM estimators.'
+        : populationError(d)),
   // The study depends on its design (the options) and the engine only, not on the data.
   fingerprint: (_d, ctx) => fingerprint(['mc', ctx.settings.engine]),
   run: async (d, ctx, progress) => (await import('../runner')).simulate(d, ctx.settings.engine, (done, total) => progress(done, total)),

@@ -5,7 +5,7 @@ import { factorCodes } from '../io';
 import { DEFAULT_SETTINGS, toSpec, validateModel, unconfirmedUncorrelated } from '../model/project';
 import { processGraph } from '../process/fromModel';
 import { R_PACKAGES } from '../rengine/bridge';
-import { EXAMPLE_PACKAGES, exampleModel, exampleSettings, PACKAGE_EXAMPLES, panelColumns } from './packages';
+import { EXAMPLE_PACKAGES, exampleModel, examplePanels, exampleSettings, PACKAGE_EXAMPLES, panelColumns } from './packages';
 
 const diagrams = PACKAGE_EXAMPLES.filter((e) => !e.panel);
 
@@ -51,10 +51,22 @@ it('ESEM blocks refer to the example’s constructs by id', () => {
 
 it('panel examples carry no diagram and name their columns (a Bayesian SEM card fits its diagram instead)', () => {
   for (const e of PACKAGE_EXAMPLES.filter((x) => x.panel)) {
-    if (e.panel!.kind === 'bsem') { expect(e.constructs.length, e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
+    // (cards about the model open beside the example's diagram: Bayesian SEM, Bollen–Stine, PLSpredict, simulation, …)
+    if (['bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc'].includes(e.panel!.kind)) { expect(e.constructs.length, e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
     expect(e.constructs, e.id).toEqual([]);
-    expect(panelColumns(e.panel!).length, e.id).toBeGreaterThanOrEqual(2);
+    for (const p of examplePanels(e)) expect(panelColumns(p).length, e.id).toBeGreaterThanOrEqual(['freqtest', 'bbinomial', 'chart', 'customml'].includes(p.kind) || (p as { type?: string }).type === 'one' ? 1 : 2);  // (a binomial test, a one-sample t-test, a chart of one variable and a nominal custom likelihood have one column)
   }
+});
+
+it('further cards (morePanels) come only after a first card, and every one is a card the Analyses tab has', async () => {
+  const { analysisType } = await import('../analyses/registry');
+  for (const e of PACKAGE_EXAMPLES.filter((x) => x.morePanels)) {
+    expect(e.panel, e.id).toBeTruthy();
+    expect(e.morePanels!.length, e.id).toBeGreaterThan(0);
+    for (const p of examplePanels(e)) expect(analysisType(p.kind), `${e.id}: ${p.kind}`).toBeTruthy();
+  }
+  expect(examplePanels({})).toEqual([]);
+  expect(examplePanels({ morePanels: [{ kind: 'screen', vars: ['a'] }] })).toEqual([]);
 });
 
 it('ids are unique and every R package the app calculates with has an example', () => {
@@ -67,7 +79,9 @@ it('ids are unique and every R package the app calculates with has an example', 
   // regression: base R with MASS, nnet and sandwich, shown by the stats, datasets, MASS and nnet examples.
   // psychLavaan: psych with lavaan's efa(), shown by the Mplus EFA examples (chapter 4).
   // regressionSurvival: the regression card with survival (censored, Cox), shown by the Mplus examples 3.2, 6.20 and 6.21.
-  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival']);
+  // customml: the custom likelihood and Bayesian multivariate regression cards (base R, pbivnorm), shown by the datasets examples and Mplus 5.23, 6.25, 7.28.
+  // efa2: the two-level EFA card (lavaan + GPArotation), shown by the lavaan Demo.twolevel example and Mplus 4.5.
+  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival', 'customml', 'efa2']);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });
 

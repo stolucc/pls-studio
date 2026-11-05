@@ -15,6 +15,7 @@ import itemsR from './R/items.R?raw';
 import longitudinalR from './R/longitudinal.R?raw';
 import mcR from './R/mc.R?raw';
 import mixedR from './R/mixed.R?raw';
+import mixtureR from './R/mixture.R?raw';
 import ncaR from './R/nca.R?raw';
 import plsR from './R/pls.R?raw';
 import regressionR from './R/regression.R?raw';
@@ -25,12 +26,15 @@ import networkR from './R/network.R?raw';
 import segmentR from './R/segment.R?raw';
 import testsR from './R/tests.R?raw';
 import bayesR from './R/bayes.R?raw';
+import customMlR from './R/customml.R?raw';
+import twoLevelEfaR from './R/twolevelefa.R?raw';
+import glmmR from './R/glmm.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR };
+export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -52,6 +56,12 @@ export const R_PACKAGES = {
   modsem: ['jsonlite', 'lavaan', 'semTools', 'modsem'],
   ltm: ['jsonlite', 'ltm'],
   poLCA: ['jsonlite', 'poLCA'],
+  // 3PL and 4PL IRT with priors on the asymptotes, mixture IRT.
+  mirt: ['jsonlite', 'mirt'],
+  // Multilevel latent class analysis.
+  glca: ['jsonlite', 'glca'],
+  // Generalized linear mixed models by adaptive Gauss-Hermite quadrature.
+  GLMMadaptive: ['jsonlite', 'GLMMadaptive'],
   lme4: ['jsonlite', 'lme4', 'lmerTest'],
   lcmm: ['jsonlite', 'lcmm'],
   plspm: ['jsonlite', 'plspm'],
@@ -62,6 +72,10 @@ export const R_PACKAGES = {
   WeightIt: ['jsonlite', 'WeightIt', 'cobalt', 'marginaleffects'],
   polynomial: ['jsonlite', 'lavaan'],
   nca: ['jsonlite'],
+  // The custom likelihood card (nlminb; pbivnorm for two binary outcomes, as lavaan uses it).
+  customml: ['jsonlite', 'pbivnorm'],
+  // Two-level EFA: lavaan's unrotated two-level fit, rotated by GPArotation.
+  efa2: ['jsonlite', 'lavaan', 'GPArotation'],
   cta: ['jsonlite'],
   genpathmox: ['jsonlite', 'cSEM', 'genpathmox'],
   flexmix: ['jsonlite', 'cSEM', 'flexmix'],

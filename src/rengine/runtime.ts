@@ -90,7 +90,12 @@ export function withSession<T>(index: number, packages: string[], sources: Recor
   while (sessions.length <= index) sessions.push(newSession());
   const s = sessions[index];
   const main = index === 0;
-  const task = s.queue.then(async () => {
+  const discard = (webR: WebR) => {
+    s.webR = null; s.installed.clear(); s.sourced.clear();
+    try { webR.close(); } catch { /* already gone */ }
+    if (main) useR.setState({ status: 'idle', message: '' });
+  };
+  const run = async (fresh: boolean): Promise<T> => {
     const webR = await start(s, index);
     const o = options ?? browserOptions();
     const missing = packages.filter((p) => !s.installed.has(p));
@@ -120,15 +125,17 @@ export function withSession<T>(index: number, packages: string[], sources: Recor
     try {
       return await fn(webR);
     } catch (e) {
+      // R loads at most 100 compiled libraries per session, and WebAssembly R cannot raise that limit (R_MAX_NUM_DLLS
+      // stops it from starting): after many packages in one session, start a fresh session and run again, once.
+      if (!fresh && isDllLimit(e)) { discard(webR); return run(true); }
       if (!isWasmCrash(e)) throw e;
       // Compiled package code crashed the WebAssembly runtime: the R session is no longer
       // usable. Discard it; the next calculation starts a fresh one.
-      s.webR = null; s.installed.clear(); s.sourced.clear();
-      try { webR.close(); } catch { /* already gone */ }
-      if (main) useR.setState({ status: 'idle', message: '' });
+      discard(webR);
       throw new Error(`${(e as Error).message}: the package's compiled code crashed in the browser's R (WebAssembly). R has been restarted for the next calculation. Check the inputs (for example that the id column identifies persons); if they are right, run the R script in desktop R.`, { cause: e });
     }
-  });
+  };
+  const task = s.queue.then(() => run(false));
   s.queue = task.catch(() => undefined);
   return task;
 }
@@ -154,6 +161,11 @@ export async function parallelMap<I, O>(items: I[], workers: number, run: (item:
 }
 
 /** A WebAssembly trap (not an R error): the R session cannot continue after it. */
+/** R refused to load another package's compiled code: the session has reached R's limit of loaded libraries. */
+export function isDllLimit(e: unknown): boolean {
+  return /maximal number of DLLs reached/.test(e instanceof Error ? `${e.message} ${String((e as { cause?: unknown }).cause ?? '')}` : String(e));
+}
+
 export function isWasmCrash(e: unknown): boolean {
   const m = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
   return /memory access out of bounds|unreachable executed|^RuntimeError|Aborted\(|call stack size exceeded|out of memory/i.test(m);

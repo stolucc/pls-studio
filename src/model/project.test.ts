@@ -800,6 +800,28 @@ describe('lavaan options taken from Mplus defaults', () => {
     expect(errors({ ...m, information: 'observed' }, { estimator: '2SLS' }).some((e) => /MIIV-2SLS has its own standard errors/.test(e))).toBe(true);
   });
 
+  it('WLSMV standard errors and test statistic: Mplus’s standard errors by default, lavaan 0.7’s or Mplus’s χ² on request', () => {
+    expect(toSpec(m).wlsmvSe).toBeUndefined();
+    expect(toSpec(m).mimic).toBeUndefined();
+    expect(toSpec({ ...m, wlsmvSe: 'lavaan', mimic: 'Mplus' })).toMatchObject({ wlsmvSe: 'lavaan', mimic: 'Mplus' });
+    const back = parseProject(serializeProject({ ...m, wlsmvSe: 'lavaan', mimic: 'Mplus' }, DEFAULT_SETTINGS, null, null)).model;
+    expect([back.wlsmvSe, back.mimic]).toEqual(['lavaan', 'Mplus']);
+    // (a file saved before the option, or with anything else, gets the default: Mplus's standard errors, lavaan's χ²)
+    const f = JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null)); f.model.wlsmvSe = 'observed'; f.model.mimic = 'EQS';
+    const old = parseProject(JSON.stringify(f)).model;
+    expect([old.wlsmvSe, old.mimic]).toEqual([undefined, undefined]);
+    // Mplus's test statistic: one group only (lavaan's mimic would change the groups' equalities).
+    const ord = { ...m, ordered: ['a1', 'a2', 'a3'], mimic: 'Mplus' as const };
+    expect(errors(ord, { estimator: 'WLSMV', missing: 'casewise' })).toEqual([]);
+    expect(errors({ ...ord, multigroup: { column: 'g', invariance: 'configural', free: [] } }, { estimator: 'WLSMV', missing: 'casewise' }).some((e) => /one group/.test(e))).toBe(true);
+  });
+
+  it('scale factors of ordinal indicators, held, labelled or freed: in the spec and project files', () => {
+    const scaled: ModelState = { ...m, ordered: ['a1', 'a2'], parameters: [{ id: 's1', kind: 'scale', target: 'a1', indicator: true, fixed: 1 }, { id: 's2', kind: 'scale', target: 'a2', indicator: true, free: true }, { id: 'v', kind: 'variance', target: 'a3', indicator: true, free: true }] };
+    expect(toSpec(scaled).parameters).toEqual([{ kind: 'scale', target: 'a1', indicator: true, fixed: 1 }, { kind: 'scale', target: 'a2', indicator: true, free: true }, { kind: 'variance', target: 'a3', indicator: true, free: true }]);
+    expect(parseProject(serializeProject(scaled, DEFAULT_SETTINGS, null, null)).model.parameters).toEqual(scaled.parameters);
+  });
+
   it('geomin epsilon: in the spec and project files, within (0, 1]', () => {
     const esem = { ...m, paths: [], esem: { rotation: 'geomin' as const, blocks: [{ id: 'e', constructs: ['F', 'G'] }], epsilon: 0.0001 } };
     expect(toSpec(esem).esem).toEqual({ rotation: 'geomin', blocks: [['F', 'G']], epsilon: 0.0001 });
@@ -921,5 +943,43 @@ describe('two-level model with between-level factors and cluster-level covariate
     expect(errs(m)).toEqual([]);
     expect(errs({ ...m, multilevel: { ...m.multilevel!, betweenCovariates: ['z'] } })[0]).toMatch(/“z” is not in the dataset/);
     expect(errs({ ...m, multilevel: { ...m.multilevel!, betweenCovariates: ['a1'] } })[0]).toMatch(/a cluster-level covariate is a further column/);
+  });
+});
+
+describe('an indicator in several CB-SEM factors (twin ACE models, Mplus 5.18 and 5.19)', () => {
+  const cb = { method: 'cbsem' as const, consistent: false, estimator: 'ML' as const };
+  const twin: ModelState = { constructs: [{ ...C('A', 'a1', ['a1']), scaling: 'variance' }, { ...C('Cc', 'c1', ['a1']), scaling: 'variance' }, { ...C('E', 'e1', ['a1', 'a2']) }], paths: [], moderations: [] };
+  it('is allowed in CB-SEM between common factors', () => {
+    expect(validateModel(twin, data, cb).filter((i) => i.level === 'error').map((i) => i.message).filter((m) => m.includes('assigned to both'))).toEqual([]);
+  });
+  it('is still refused in PLS-SEM, and with a composite or an observed covariate', () => {
+    expect(errors(twin).some((m) => m.includes('"a1" is assigned to both'))).toBe(true);
+    const comp: ModelState = { ...twin, constructs: [twin.constructs[0], { ...twin.constructs[1], type: 'composite' }] };
+    expect(validateModel(comp, data, cb).some((i) => i.level === 'error' && i.message.includes('assigned to both'))).toBe(true);
+    const cov: ModelState = { ...twin, constructs: [twin.constructs[0], { ...C('X', 'x', ['a1']), covariate: true }] };
+    expect(validateModel(cov, data, cb).some((i) => i.level === 'error' && i.message.includes('assigned to both'))).toBe(true);
+  });
+  it('a single-indicator factor scaled by its variance keeps that scaling only when its indicator is shared (old projects unchanged)', () => {
+    const s = toSpec(twin);
+    expect(s.constructs[0].scaling).toBe('variance');
+    expect(s.constructs[1].scaling).toBe('variance');
+    const alone = toSpec({ ...base, constructs: [base.constructs[0], { ...base.constructs[1], scaling: 'variance' }] });
+    expect(alone.constructs[1].scaling).toBeUndefined();
+  });
+});
+
+describe('growth syntax and multiple imputation by Bayesian normal regression (Mplus 11.6)', () => {
+  it('the syntax import keeps a zero intercept on a non-marker indicator, and drops it on a marker', async () => {
+    const { parseLavaanSyntax } = await import('./syntax');
+    const { model, warnings } = parseLavaanSyntax('i =~ 1*y1 + 1*y2\ns =~ 0*y1 + 1*y2\ni ~ 1\ns ~ 1\ny1 ~ 0*1\ny2 ~ 0*1');
+    expect(warnings).toEqual([]);
+    expect((model.parameters ?? []).filter((p) => p.kind === 'intercept')).toMatchObject([{ target: 'y2', indicator: true, fixed: 0 }]);
+  });
+  it('micenorm is a CB-SEM choice; old settings files read as before', () => {
+    expect(parseSettings({ miMethod: 'micenorm' }).miMethod).toBe('micenorm');
+    expect(parseSettings({ miMethod: 'evil' }).miMethod).toBe('mice');
+    expect(parseSettings({}).miMethod).toBe('mice');
+    const pls = validateModel(base, data, { method: 'pls', consistent: false, missing: 'mi', miMethod: 'micenorm' });
+    expect(pls.some((i) => i.level === 'error' && i.message.includes('Bayesian normal-regression imputation is available for CB-SEM'))).toBe(true);
   });
 });

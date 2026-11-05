@@ -5,10 +5,19 @@
 import type { PackageExample } from './packages';
 
 const PANEL_TAGS: Record<string, string[]> = {
-  growth: ['Longitudinal', 'Growth curve'], irt: ['Items', 'IRT'], lca: ['Items', 'Latent classes'], lmm: ['Mixed models'], gmm: ['Longitudinal', 'Growth mixture'],
+  growth: ['Longitudinal', 'Growth curve'], irt: ['Items', 'IRT'], lca: ['Items', 'Latent classes'], lmm: ['Mixed models', 'Multilevel'], glmm: ['Mixed models', 'Generalized linear mixed model'], gmm: ['Longitudinal', 'Growth mixture'],
   endo: ['Regression', 'Endogeneity'], match: ['Causal inference'], did: ['Causal inference', 'Difference-in-differences', 'Panel data'], regression: ['Regression'], rsa: ['Regression', 'Response surface'], nca: ['Necessary conditions'],
-  efa: ['Measurement', 'Factor analysis'], screen: ['Data screening'], network: ['Networks'], ega: ['Networks', 'EGA'], bcorrelation: ['Bayesian', 'Correlation'], bsem: ['Bayesian', 'CB-SEM'],
+  efa: ['Measurement', 'Factor analysis'], screen: ['Data screening'], network: ['Networks', 'Partial correlations'], ega: ['Networks', 'EGA'], bcorrelation: ['Bayesian', 'Correlation'], bsem: ['Bayesian', 'CB-SEM'],
+  ttest: ['Basic statistics', 't-test'], anova: ['Basic statistics', 'ANOVA'], rmanova: ['Basic statistics', 'ANOVA', 'Repeated measures'], manova: ['Basic statistics', 'MANOVA'],
+  correlation: ['Basic statistics', 'Correlation'], contingency: ['Basic statistics', 'Contingency table'], freqtest: ['Basic statistics', 'Binomial test'],
+  reliability: ['Basic statistics', 'Reliability'], bttest: ['Bayesian', 't-test'], banova: ['Bayesian', 'ANOVA'], brmanova: ['Bayesian', 'ANOVA', 'Repeated measures'],
+  bregression: ['Bayesian', 'Regression'], bcontingency: ['Bayesian', 'Contingency table'], bbinomial: ['Bayesian', 'Binomial test'], chart: ['Charts'],
+  bollenstine: ['Bootstrap', 'Model fit'], cbcompare: ['Parameter comparisons'], scoreweights: ['Factor scores'], plspredict: ['Prediction'], compare: ['Model comparison'],
+  cta: ['Tetrad analysis'], minsample: ['Sample size'], pos: ['Segmentation'], mc: ['Simulation', 'Sample size'], riclpm: ['Longitudinal', 'Panel data', 'Cross-lagged'],
+  customml: ['Custom likelihood'], bmvreg: ['Bayesian', 'Regression'], efa2l: ['Measurement', 'Factor analysis', 'Multilevel'],
 };
+/** Cards about the example's model: the model's method is a topic of the example. The other cards stand on their own. */
+const MODEL_CARDS = new Set(['bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc']);
 const ASSESSMENT_TAGS: Record<string, string> = { predict: 'Prediction', blindfold: 'Blindfolding', compare: 'Model comparison', groups: 'Multigroup', cca: 'Confirmatory composite analysis' };
 const SEGMENTATION_TAGS: Record<string, string> = { rebus: 'Segmentation', fimix: 'Segmentation', pathmox: 'Segmentation', pos: 'Segmentation' };
 
@@ -19,10 +28,12 @@ export function exampleTags(ex: PackageExample): string[] {
   const s = ex.settings;
   const out: string[] = [];
   const method = s.method ?? 'pls';
-  if (method === 'process') out.push('CPA', 'Mediation');
-  else if (method === 'cbsem') out.push(s.estimator === '2SLS' ? 'MIIV-2SLS' : 'CB-SEM');
-  else out.push(s.consistent ? 'PLSc' : 'PLS-SEM');
-  if (method === 'cbsem' && s.estimator && !['ML', '2SLS'].includes(s.estimator)) out.push(s.estimator === 'RML' ? 'Robust ML' : s.estimator);
+  // (an example that opens a card of its own, e.g. a regression or a t-test, is not about the model's method)
+  const ofModel = !ex.panel || MODEL_CARDS.has(ex.panel.kind);
+  if (ofModel && method === 'process') out.push('CPA', 'Mediation');
+  else if (ofModel && method === 'cbsem') out.push(s.estimator === '2SLS' ? 'MIIV-2SLS' : 'CB-SEM');
+  else if (ofModel) out.push(s.consistent ? 'PLSc' : 'PLS-SEM');
+  if (ofModel && method === 'cbsem' && s.estimator && !['ML', '2SLS'].includes(s.estimator)) out.push(s.estimator === 'RML' ? 'Robust ML' : s.estimator);
   if (s.missing === 'mi') out.push('Multiple imputation');
   if (s.missing === 'fiml') out.push('FIML');
   if (method === 'cbsem' && !ex.panel && ex.constructs.length && ex.paths.length === 0) out.push('CFA');
@@ -37,15 +48,17 @@ export function exampleTags(ex: PackageExample): string[] {
   if (ex.ordered?.length) out.push('Ordinal indicators');
   if (ex.constructs.some((c) => c.covariate)) out.push('Covariates');
   if (ex.constant || ex.means?.length) out.push('Mean structure');
-  if (ex.panel) out.push(...(PANEL_TAGS[ex.panel.kind] ?? []));
+  if (ex.panel) for (const p of [ex.panel, ...(ex.morePanels ?? [])]) out.push(...(PANEL_TAGS[p.kind] ?? []));
   if (ex.panel?.kind === 'endo' && ex.panel.method === 'iv') out.push('Instrumental variables');
   if (ex.panel?.kind === 'endo' && ex.panel.method === 'heckman') out.push('Sample selection');
   if (ex.panel?.kind === 'efa' && ex.panel.method === 'pca') out.push('PCA');
-  if (ex.panel?.kind === 'match' && ex.panel.method === 'weighting') out.push('Weighting');
+  if (ex.panel?.kind === 'match') out.push(ex.panel.method === 'weighting' ? 'Weighting' : 'Matching');
   if (ex.assessment) { const t = ASSESSMENT_TAGS[ex.assessment.tab]; if (t && !out.includes(t)) out.push(t); }
   if (ex.segmentation) out.push(SEGMENTATION_TAGS[ex.segmentation.method ?? 'rebus']);
   if (ex.screening) out.push(ex.screening.tab === 'influence' ? 'Influential cases' : 'Data screening');
   if (ex.data.packageFile || ex.data.file) out.push(ex.data.packageFile ? 'File import' : 'Shipped data');
+  // (data PLS Studio may not distribute: downloaded from their source when the example opens)
+  if (ex.data.remote) out.push('Downloaded data');
   for (const t of ex.tags ?? []) if (!out.includes(t)) out.push(t);
   return [...new Set(out)];
 }
@@ -74,6 +87,8 @@ const AUTHORS_BY_ID: Record<string, string[]> = {
   'seminr-corprep': ['Hair'], 'seminr-influencer': ['Hair'],
   'did-mpdta': ['Callaway', 'Sant’Anna'], 'plspm-fimix': ['Sarstedt'],
   'manymome-med': ['Hayes'], 'manymome-modmed': ['Hayes'], 'manymome-serial': ['Hayes'],
+  'seminr-corprep-predict': ['Hair'], 'seminr-corprep-cta': ['Hair'], 'seminr-corprep-minsample': ['Hair', 'Kock', 'Hadaya'], 'plspm-pos': ['Becker'],
+  'lavaan-hs-bollenstine': ['Bollen', 'Stine'], 'muthen-mc-cfa': ['Muthén'], 'mulder-riclpm': ['Mulder', 'Hamaker'],
 };
 
 export function exampleAuthors(ex: Pick<PackageExample, 'id'>): string[] {

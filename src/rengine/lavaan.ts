@@ -20,7 +20,7 @@ export interface CbRequest {
 }
 
 /** Multiple imputation: number of imputed data sets and the seed (only with missing = 'mi'); CB-SEM: the method, auxiliary and (Amelia) nominal columns. */
-export interface MiSettings { m: number; seed: number; method?: 'mice' | 'amelia'; auxiliary?: string[]; nominal?: string[] }
+export interface MiSettings { m: number; seed: number; method?: 'mice' | 'amelia' | 'micenorm'; auxiliary?: string[]; nominal?: string[] }
 
 export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): CbRequest {
   // Only the columns the model uses travel to R.

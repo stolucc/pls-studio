@@ -4,7 +4,7 @@
 // and summarises the per-replication results exactly as for the built-in engine.
 
 import { buildPopulation, specFromPopulation } from '../engine/population';
-import { mcParameters, replicationSeed, type McDesign, type McPart } from '../engine/montecarlo';
+import { ciTruth, mcParameters, replicationSeed, type McDesign, type McPart } from '../engine/montecarlo';
 import { rCallOn, rScript } from './bridge';
 
 const rSeed = (s: number) => s % 2147483647;
@@ -48,9 +48,8 @@ export async function runMcChunkR(design: McDesign, n: number, start: number, en
 export function parseMcChunk(design: McDesign, n: number, start: number, raw: Record<string, unknown>): McPart {
   const pop = buildPopulation(design.population);
   const params = mcParameters(pop, design.estimators.some((e) => e.method === 'cb'));
-  const ci = (name: string) => pop.constructs.indexOf(name);
   // CB-SEM CIs are in the unstandardised (marker) metric: β · λ_mk(to) / λ_mk(from).
-  const truthCI = design.estimators.map((e) => params.map((p) => (p.kind === 'fit' ? NaN : e.method === 'cb' ? p.value * pop.markerLoading[ci(p.to)] / pop.markerLoading[ci(p.from)] : p.value)));
+  const truthCI = ciTruth(design, pop, params);
   const arr = (x: unknown) => (x as unknown[][]).map((perE) => perE.map(f64));
   return { n, start, est: arr(raw.est), lo: arr(raw.lo), hi: arr(raw.hi), sig: arr(raw.sig), truthCI, proper: (raw.proper as unknown[]).map(f64) };
 }

@@ -5,7 +5,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { parseCsv } from '../engine/dataset';
 import type { Dataset } from '../engine/types';
 import type { DataInfo } from '../model/project';
 import { computeColumn } from '../data/compute';
@@ -15,6 +14,7 @@ import type { RPackage } from './bridge';
 import { rCall } from './bridge';
 import { regressionR, regressionScriptR, type RegressionInput } from './regression';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
+import { exampleTestData, remoteTestData } from '../examples/testData';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -24,7 +24,8 @@ const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures_
 
 async function load(ex: PackageExample): Promise<Dataset> {
   let d: Dataset;
-  if (ex.data.file) d = parseCsv(readFileSync(join(__dirname, '..', '..', 'public', ex.data.file), 'utf8')).dataset;
+  const fromFile = exampleTestData(ex);
+  if (fromFile) d = fromFile;
   else {
     const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: [] }, ex.data.package as RPackage);
     d = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), ...(raw.levels && !Array.isArray(raw.levels) && Object.keys(raw.levels).length ? { categories: raw.levels } : {}) };
@@ -109,8 +110,7 @@ it('robust and cluster-robust standard errors come from sandwich', async () => {
 }, 900_000);
 
 it('censored from above mirrors censored from below; inflated models give model-based errors too; the scripts run on their own', async () => {
-  const csv = readFileSync(join(__dirname, '..', '..', 'public', 'examples', 'mplus', 'ex3.2.csv'), 'utf8');
-  const d = parseCsv(csv).dataset;
+  const d = remoteTestData({ kind: 'mplus', example: '3.2' });
   const neg = { ...d, cols: d.cols.map((c, k) => (d.names[k] === 'y1' ? c.map((v) => -v) : c)) };
   const opts: RegressionInput = { outcome: 'y1', predictors: ['x1', 'x3'], categorical: [], interactions: [], family: 'censored', link: 'logit', trials: '', weights: '', se: 'model', cluster: '', confidence: 0.95 };
   const below = await regressionR(d, opts);

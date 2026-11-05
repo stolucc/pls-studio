@@ -1,6 +1,6 @@
 # Item-level measurement models: item response theory with ltm (Rizopoulos
 # 2006: Rasch, two-parameter logistic, graded response, generalized partial
-# credit) and latent class analysis with poLCA (Linzer & Lewis 2011).
+# credit) and latent class analysis with poLCA (Linzer & Lewis 2011); mirt and glca below.
 
 ps_items_frame <- function(req) {
   items <- unlist(req$items)
@@ -319,4 +319,203 @@ ps_lcga <- function(req_json, export = FALSE) {
   })
   ps_json(list(n = n, items = unname(fr$back[fr$items]), models = models, times = times,
     warnings = env$.warnings, engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))))
+}
+
+# Item response models that need mirt (Chalmers 2012): the three- and four-parameter logistic models, with
+# normal priors on the logits of the lower and upper asymptotes (as Mplus's MODEL PRIORS), and the mixture
+# 2PL model (latent classes with class-specific item parameters; Mplus TYPE = MIXTURE with a factor).
+# The parameters are those Mplus prints (factor variance 1): loading a, threshold -d, and for the asymptotes
+# Mplus's u$2 = -logit(g) and u$3 = -logit(upper).
+PS_MIRT_ROBUST <- c(
+  "# Robust (sandwich) standard errors, as Mplus's MLR: V H^-1 B V, with V the inverse of mirt's (Oakes) information,",
+  "# which includes the priors, and B the cross-product of each person's score (the gradient of their marginal",
+  "# log-likelihood, on mirt's quadrature nodes). A missing response adds nothing.",
+  "mirt_robust <- function(fit, X) {",
+  "  z <- as.vector(fit@Model$Theta); w <- fit@Internals$Prior[[1]]; w <- w / sum(w)",
+  "  N <- nrow(X); Q <- length(z); M <- !is.na(X); X[!M] <- 0",
+  "  sv <- mod2values(fit); sv <- sv[sv$est & sv$item %in% colnames(X), ]",
+  "  cf <- coef(fit, IRTpars = FALSE, simplify = TRUE)$items",
+  "  P <- lapply(seq_len(ncol(X)), function(j) { g <- cf[j, \"g\"]; u <- cf[j, \"u\"]; s <- plogis(cf[j, \"a1\"] * z + cf[j, \"d\"]); list(s = s, g = g, u = u, p = g + (u - g) * s) })",
+  "  LL <- matrix(0, N, Q)",
+  "  for (j in seq_along(P)) LL <- LL + M[, j] * (outer(X[, j], log(P[[j]]$p)) + outer(1 - X[, j], log(1 - P[[j]]$p)))",
+  "  L <- exp(LL - apply(LL, 1, max)) * rep(w, each = N); post <- L / rowSums(L)",
+  "  S <- sapply(seq_len(nrow(sv)), function(r) {",
+  "    j <- match(sv$item[r], colnames(X)); q <- P[[j]]; ds <- q$s * (1 - q$s)",
+  "    dp <- switch(sv$name[r], a1 = (q$u - q$g) * ds * z, d = (q$u - q$g) * ds, g = q$g * (1 - q$g) * (1 - q$s), u = q$u * (1 - q$u) * q$s)",
+  "    res <- (outer(X[, j], rep(1, Q)) - rep(q$p, each = N)) / rep(q$p * (1 - q$p), each = N)",
+  "    M[, j] * rowSums(post * res * rep(dp, each = N))",
+  "  })",
+  "  colnames(S) <- paste(sv$name, sv$parnum, sep = \".\")",
+  "  V <- vcov(fit); S <- S[, colnames(V)]",
+  "  V %*% crossprod(S) %*% V",
+  "}")
+
+PS_MIRT_MIXTURE <- c(
+  "# The mixture 2PL model (EM to a change below 1e-5, up to 5000 cycles) from several starts, keeping the best log-likelihood: the first starts each class's",
+  "# intercepts from k-means clusters of the response patterns, the others from mirt's random values.",
+  "mirt_mixture <- function(items, k, nrep, quadpts) {",
+  "  dentype <- sprintf(\"mixture-%d\", k)",
+  "  sv <- multipleGroup(items, 1, dentype = dentype, pars = \"values\")",
+  "  X <- as.matrix(items); X[is.na(X)] <- 0.5",
+  "  cl <- stats::kmeans(X, k, nstart = 10)$cluster",
+  "  for (c in seq_len(k)) for (j in colnames(items)) {",
+  "    p <- mean(items[cl == c, j], na.rm = TRUE)",
+  "    sv$value[sv$group == sprintf(\"MIXTURE_%d\", c) & sv$item == j & sv$name == \"d\"] <- qlogis(min(max(p, 0.02), 0.98))",
+  "  }",
+  "  # (each start's warnings are kept with it: only the best start's are reported)",
+  "  one <- function(...) { w <- character(0); f <- tryCatch(withCallingHandlers(multipleGroup(items, 1, dentype = dentype, quadpts = quadpts, TOL = 1e-5,",
+  "    technical = list(NCYCLES = 5000), verbose = FALSE, ...), warning = function(x) { w <<- c(w, conditionMessage(x)); invokeRestart(\"muffleWarning\") }), error = function(e) NULL)",
+  "    if (!is.null(f)) attr(f, \"warn\") <- w; f }",
+  "  fits <- c(list(one(pars = sv)), lapply(seq_len(nrep - 1), function(r) one(GenRandomPars = TRUE)))",
+  "  fits <- Filter(Negate(is.null), fits)",
+  "  if (!length(fits)) stop(\"No start of the mixture model converged.\")",
+  "  best <- fits[[which.max(vapply(fits, logLik, 0))]]",
+  "  for (w in attr(best, \"warn\")) warning(w, call. = FALSE)",
+  "  best",
+  "}")
+
+ps_mirt <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  model <- req$model %||% "threepl"
+  if (!model %in% c("threepl", "fourpl", "mixture")) stop("Invalid IRT model in the request.")
+  items <- unlist(req$items)
+  if (length(items) < 2) stop("Choose at least two items.")
+  freq <- req$freq
+  if (!is.null(freq) && (!is.character(freq) || length(freq) != 1 || freq %in% items)) stop("Invalid frequency column in the request.")
+  fr <- ps_long_frame(req, c(items, freq))
+  vi <- unname(fr$v[items])
+  k <- req$quadrature %||% 61
+  if (!(is.numeric(k) && length(k) == 1 && k == round(k) && k >= 5 && k <= 201)) stop("Choose between 5 and 201 quadrature points.")
+  robust <- isTRUE(req$robust)
+  if (robust && model == "mixture") stop("Robust standard errors are available for the 3PL and 4PL models.")
+  prior <- function(p, what) {
+    if (is.null(p)) return(NULL)
+    p <- as.numeric(unlist(p))
+    if (length(p) != 2 || !all(is.finite(p)) || p[2] <= 0) stop(sprintf("Invalid prior for the %s in the request.", what))
+    p
+  }
+  pg <- prior(req$priorG, "lower asymptote"); pu <- prior(req$priorU, "upper asymptote")
+  if (!is.null(pu) && model != "fourpl") stop("A prior on the upper asymptote needs the 4PL model.")
+  if (!is.null(pg) && model == "mixture") stop("Priors are available for the 3PL and 4PL models.")
+  guess <- unlist(req$guessItems)
+  if (!is.null(guess) && (model != "threepl" || !all(guess %in% items))) stop("Invalid items with a guessing parameter in the request.")
+  classes <- as.integer(req$classes %||% 2)
+  nrep <- as.integer(req$nrep %||% 10); seed <- as.integer(req$seed %||% 1)
+  if (model == "mixture" && (classes < 2 || classes > 5 || nrep < 1 || nrep > 100)) stop("Choose between 2 and 5 classes.")
+  types <- if (model == "fourpl") rep("4PL", length(items)) else if (model == "mixture") rep("2PL", length(items)) else ifelse(items %in% (guess %||% items), "3PL", "2PL")
+  body <- c("suppressPackageStartupMessages(library(mirt))",
+    sprintf("items <- data[, %s]", ps_q(vi)),
+    if (!is.null(freq)) c("# Each row stands for as many respondents as its frequency (mirt's expand.table).",
+      sprintf("items <- items[rep(seq_len(nrow(items)), data[[%s]]), , drop = FALSE]; rownames(items) <- NULL", encodeString(unname(fr$v[freq]), quote = '"'))),
+    "# Binary items: the two observed values become 0 and 1 (lower = 0).",
+    "items[] <- lapply(items, function(v) { u <- sort(unique(v[!is.na(v)])); if (length(u) != 2) stop('The 3PL, 4PL and mixture models need binary items.'); as.integer(v == u[2]) })")
+  if (model == "mixture") {
+    body <- c(body, PS_MIRT_MIXTURE,
+      sprintf("# %d latent classes, each with its own loadings and thresholds (factor mean 0 and variance 1 in each); %d starts.", classes, nrep),
+      sprintf("set.seed(%d)", seed),
+      sprintf("fit <- mirt_mixture(items, %d, %d, %d)", classes, nrep, as.integer(k)))
+  } else {
+    pri <- c(if (!is.null(pg)) sprintf("sv$parnum[sv$name == \"g\" & sv$est], \"norm\", %s, %s", format(pg[1], digits = 15), format(pg[2], digits = 15)),
+      if (!is.null(pu)) sprintf("sv$parnum[sv$name == \"u\" & sv$est], \"norm\", %s, %s", format(pu[1], digits = 15), format(pu[2], digits = 15)))
+    body <- c(body,
+      sprintf("itemtype <- %s", paste(deparse(types, width.cutoff = 500), collapse = "")),
+      if (length(pri)) c("# Normal priors on the logits of the asymptotes (mirt stores g and u as logits; Mplus: MODEL PRIORS on u$2 = -logit(g), u$3 = -logit(u)).",
+        "sv <- mirt(items, 1, itemtype = itemtype, pars = \"values\")",
+        "pp <- function(at, ...) lapply(at, function(p) c(p, ...))",
+        sprintf("prior <- c(%s)", paste(sprintf("pp(%s)", pri), collapse = ", "))),
+      "# (EM to a change below 1e-6, up to 5000 cycles: mirt's default of 500 stops short on flat likelihoods)",
+      sprintf("fit <- mirt(items, 1, itemtype = itemtype%s, quadpts = %d, TOL = 1e-6, technical = list(NCYCLES = 5000), SE = TRUE, verbose = FALSE)", if (length(pri)) ", parprior = prior" else "", as.integer(k)),
+      "# Standard errors from the observed information (Oakes; with the priors).",
+      "V <- vcov(fit)",
+      if (robust) c(PS_MIRT_ROBUST, "V <- mirt_robust(fit, as.matrix(items))"))
+  }
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script(sprintf("Item response model (%s, mirt)", c(threepl = "3PL", fourpl = "4PL", mixture = "mixture 2PL")[[model]]), "mirt", inputs, body,
+    c("fit", "coef(fit, IRTpars = TRUE, simplify = TRUE)", if (model != "mixture") "sqrt(diag(V))")), collapse = "\n"))
+  set.seed(seed)
+  env <- ps_run(body, inputs)
+  fit <- env$fit
+  back <- function(v) unname(fr$back[v])
+  logit <- function(p) if (is.finite(p) && p > 0 && p < 1) qlogis(p) else NA_real_
+  # Mplus's metric: loading a, threshold -d, u$2 = -logit(g), u$3 = -logit(u).
+  rows <- function(cf, se, cls = NULL) unlist(lapply(rownames(cf), function(it) {
+    s <- function(nm) { v <- se[[paste(it, nm)]]; if (is.null(v) || !is.finite(v)) NA_real_ else v }
+    one <- function(parameter, est, sv) c(list(item = back(it), parameter = parameter, est = est, se = sv), if (!is.null(cls)) list(class = cls))
+    c(list(one("loading", unname(cf[it, "a1"]), s("a1")), one("threshold 1", -unname(cf[it, "d"]), s("d"))),
+      if (types[match(it, vi)] %in% c("3PL", "4PL")) list(one("threshold 2 (lower asymptote)", -logit(cf[it, "g"]), s("g"))),
+      if (model == "fourpl") list(one("threshold 3 (upper asymptote)", -logit(cf[it, "u"]), s("u"))))
+  }), recursive = FALSE)
+  irt <- function(cf, suffix = "") lapply(rownames(cf), function(it) list(item = paste0(back(it), suffix),
+    values = as.list(c(Dscrmn = unname(cf[it, "a"]), Dffclt = unname(cf[it, "b"]), if (types[match(it, vi)] %in% c("3PL", "4PL")) c(Gussng = unname(cf[it, "g"])), if (model == "fourpl") c(Upper = unname(cf[it, "u"]))))))
+  classes_out <- NULL
+  if (model == "mixture") {
+    cfs <- coef(fit, IRTpars = FALSE, simplify = TRUE); irts <- coef(fit, IRTpars = TRUE, simplify = TRUE)
+    shares <- vapply(cfs, function(x) as.numeric(unlist(x$class_proportion))[1], 0)
+    ord <- order(-shares)  # classes by size
+    coefficients <- unlist(lapply(seq_along(ord), function(c) rows(cfs[[ord[c]]]$items, list(), c)), recursive = FALSE)
+    params <- unlist(lapply(seq_along(ord), function(c) irt(irts[[ord[c]]]$items, sprintf(" (class %d)", c))), recursive = FALSE)
+    classes_out <- unname(shares[ord])
+    theta <- numeric(0); info <- list(); rel <- NULL
+  } else {
+    cf <- coef(fit, IRTpars = FALSE, simplify = TRUE)$items
+    V <- env$V; sv <- mod2values(fit); sv <- sv[sv$est & sv$item %in% rownames(cf), ]
+    se <- setNames(as.list(sqrt(pmax(diag(V)[paste(sv$name, sv$parnum, sep = ".")], 0))), paste(sv$item, sv$name))
+    coefficients <- rows(cf, se)
+    params <- irt(coef(fit, IRTpars = TRUE, simplify = TRUE)$items)
+    theta <- seq(-4, 4, by = 0.1)
+    info <- lapply(seq_along(items), function(j) unname(as.numeric(iteminfo(extract.item(fit, j), matrix(theta)))))
+    rel <- ps_try(unname(marginal_rxx(fit)), "Marginal reliability")
+  }
+  lp <- ps_try(unname(extract.mirt(fit, "logPrior")), "Log prior")
+  ps_json(list(model = model, n = nrow(env$items), items = back(vi),
+    params = params, coefficients = coefficients, quadrature = as.integer(k), robust = robust,
+    logLik = as.numeric(logLik(fit)), logPrior = if (length(pg) || length(pu)) lp else NULL, npar = extract.mirt(fit, "nest"),
+    aic = extract.mirt(fit, "AIC"), bic = extract.mirt(fit, "BIC"), reliability = rel, classes = classes_out,
+    theta = theta, information = info, itemFit = list(),
+    warnings = env$.warnings, engine = list(package = "mirt", version = as.character(utils::packageVersion("mirt")))))
+}
+
+# Multilevel latent class analysis with glca (Kim, Jeon, Chung & Lee): classes of people (within) whose
+# shares differ between classes of clusters (between; Vermunt's nonparametric multilevel LCA, Mplus's
+# TYPE = TWOLEVEL MIXTURE with a between-level class variable, as in its example 10.7). The item
+# probabilities are equal across cluster classes.
+ps_mlca <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  items <- unlist(req$items)
+  if (length(items) < 2) stop("Choose at least two items.")
+  cluster <- req$cluster
+  if (!is.character(cluster) || length(cluster) != 1 || cluster %in% items) stop("Choose the cluster column (not one of the items).")
+  ks <- as.integer(unlist(req$classes))
+  if (!length(ks) || any(ks < 1 | ks > 10)) stop("Choose between 1 and 10 classes.")
+  w <- as.integer(req$clusterClasses %||% 2)
+  if (length(w) != 1 || w < 1 || w > 10) stop("Choose between 1 and 10 classes of clusters.")
+  nrep <- as.integer(req$nrep %||% 10); seed <- as.integer(req$seed %||% 1)
+  if (nrep < 1 || nrep > 100) stop("Invalid number of starts.")
+  fr <- ps_long_frame(req, c(items, cluster))
+  vi <- unname(fr$v[items]); vc <- unname(fr$v[cluster])
+  f <- sprintf("item(%s) ~ 1", paste(vi, collapse = ", "))
+  body <- c("suppressPackageStartupMessages(library(glca))",
+    sprintf("d <- data[, %s]", ps_q(c(vi, vc))),
+    sprintf("d <- d[!is.na(d[[%s]]), , drop = FALSE]  # (a person without a cluster is left out)", encodeString(vc, quote = '"')),
+    sprintf("for (v in %s) d[[v]] <- as.integer(factor(d[[v]]))  # glca needs categories 1, 2, ...", ps_q(vi)),
+    sprintf("# %s classes of people within %d classes of clusters; %d random starts each (glca keeps the best).", paste(ks, collapse = ", "), w, nrep),
+    sprintf("fits <- lapply(%s, function(k) glca(%s, group = %s, data = d, nclass = k, ncluster = %d, n.init = %d, seed = %d, verbose = FALSE))",
+      paste(deparse(ks), collapse = ""), f, vc, w, nrep, seed))
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Multilevel latent class analysis (glca)", "glca", inputs, body,
+    c("lapply(fits, summary)")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  models <- lapply(env$fits, function(m) {
+    delta <- as.numeric(m$param$delta); gamma <- matrix(m$param$gamma, nrow = length(delta))
+    shares <- as.numeric(delta %*% gamma)
+    ord <- order(-shares); cord <- order(-delta)  # classes and cluster classes by size
+    list(k = ncol(gamma), llik = m$gof$loglik, npar = m$model$npar, aic = m$gof$AIC, bic = m$gof$BIC, gsq = m$gof$Gsq, entropy = m$gof$entropy,
+      shares = shares[ord],
+      probs = lapply(seq_along(vi), function(i) list(item = unname(fr$back[vi[i]]),
+        categories = levels(factor(fr$data[[vi[i]]])),
+        byClass = lapply(ord, function(c) unname(m$param$rho[[i]][c, ])))),
+      clusters = list(shares = delta[cord], byCluster = lapply(cord, function(b) unname(gamma[b, ord]))))
+  })
+  ps_json(list(n = nrow(env$d), clusters = length(unique(env$d[[vc]])), items = unname(fr$back[vi]), models = models, cluster = cluster, clusterClasses = w,
+    warnings = env$.warnings, engine = list(package = "glca", version = as.character(utils::packageVersion("glca")))))
 }

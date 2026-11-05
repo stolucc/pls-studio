@@ -5,6 +5,24 @@ import { formulas, looksLikeMplus, mplusName, parseLavaanSyntax, toMplus } from 
 const name = (m: ModelState, id: string) => m.constructs.find((c) => c.id === id)!.name;
 
 describe('lavaan syntax in', () => {
+  it('keeps scale factors (~*~), freed residual variances of ordinal variables and a curve of factors (Mplus ex. 6.4, 6.5, 6.15)', () => {
+    const delta = parseLavaanSyntax('f1 =~ u1 + u2\nf2 =~ u3 + u4\ni =~ 1*f1 + 1*f2\ns =~ 0*f1 + 1*f2\nu1 | a*t1\nu3 | a*t1\nu1 ~*~ 1*u1\nu3 ~*~ u3\nu4 ~*~ s4*u4');
+    expect(delta.warnings).toEqual([]);
+    const id = (n: string) => delta.model.constructs.find((c) => c.name === n)!.id;
+    expect(delta.model.parameters!.filter((t) => t.kind === 'scale').map(({ id: _i, ...t }) => t)).toEqual([
+      { kind: 'scale', target: 'u1', indicator: true, fixed: 1 }, { kind: 'scale', target: 'u3', indicator: true, free: true }, { kind: 'scale', target: 'u4', indicator: true, label: 's4' }]);
+    const s = delta.model.constructs.find((c) => c.name === 's')!, i = delta.model.constructs.find((c) => c.name === 'i')!;
+    expect(s.componentLoadings).toEqual({ [id('f1')]: 0, [id('f2')]: 1 });
+    expect(i.componentLoadings).toEqual({ [id('f2')]: 1 });
+    expect([s.fixedLoadings, i.fixedLoadings]).toEqual([undefined, undefined]);
+    expect(toSpec(delta.model).constructs.find((c) => c.name === 's')!.componentLoadings).toEqual({ f1: 0, f2: 1 });
+    // Theta: an ordinal variable's residual variance written out is freed (lavaan fixes it at 1); a continuous one's is free anyway.
+    const theta = parseLavaanSyntax('f =~ u1 + u2 + y3\nu1 | t1\nu2 | t1\nu1 ~~ 1*u1\nu2 ~~ u2\ny3 ~~ y3');
+    expect(theta.warnings).toEqual([]);
+    expect(theta.model.parameters!.map(({ id: _i, ...t }) => t)).toEqual([{ kind: 'variance', target: 'u1', indicator: true, fixed: 1 }, { kind: 'variance', target: 'u2', indicator: true, free: true }]);
+    expect(parseLavaanSyntax('f =~ u1 + u2\nu1 ~*~ u2').warnings.some((w) => /scale factor/.test(w))).toBe(true);
+  });
+
   it('builds the Holzinger & Swineford CFA', () => {
     const { model, warnings } = parseLavaanSyntax('# three factors\nvisual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9');
     expect(warnings).toEqual([]);
@@ -202,7 +220,9 @@ describe('factors scaled by their variance, and direct effects on indicators (Mp
     const ids = model.constructs.filter((c) => c.name !== 'fg').map((c) => c.id);
     const data = { names: ['y1', 'y2', 'y3', 'y4'], cols: Array.from({ length: 4 }, (_, j) => Float64Array.from({ length: 10 }, (_, i) => ((i * (j + 3)) % 7) + i / 10)) };
     const assigned = (m: ModelState) => validateModel(m, data, { method: 'cbsem', consistent: false }).filter((i) => /assigned to both/.test(i.message));
-    expect(assigned(model)).not.toEqual([]);
+    // (CB-SEM lets an indicator load on several common factors, ESEM or not: Mplus examples 5.18 and 5.19; PLS-SEM does not)
+    expect(assigned(model)).toEqual([]);
+    expect(validateModel(model, data, { method: 'pls', consistent: false }).filter((i) => /assigned to both/.test(i.message))).not.toEqual([]);
     expect(assigned({ ...model, esem: { rotation: 'geomin', blocks: [{ id: 'b', constructs: ids }] } })).toEqual([]);
   });
 });

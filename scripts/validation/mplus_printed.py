@@ -51,7 +51,8 @@ def fit(lines):
 
 SECTIONS = ('Intercepts', 'Means', 'Variances', 'Residual Variances', 'Thresholds', 'New/Additional Parameters',
             'Dispersion', 'Scales', 'Base Hazard Parameters', 'Steps', 'Covariances')
-BLOCK = re.compile(r'^(Group \S+|Latent Class \d+.*|Latent Class Pattern .*|Class \d+|Within Level|Between( \S+)? Level|'
+# (Latent Class C1#1: a class of one of several latent class variables)
+BLOCK = re.compile(r'^(Group \S+|Latent Class \d+.*|Latent Class Pattern .*|Latent Class \w+#\d+|Class \d+|Within Level|Between( \S+)? Level|'
                    r'Categorical Latent Variables|Class Proportions)\s*$')
 
 
@@ -194,6 +195,39 @@ def new_parameters(lines):
     return out or None
 
 
+def intervals(lines):
+    """CONFIDENCE INTERVALS OF MODEL RESULTS (OUTPUT: CINTERVAL): per parameter the 95% limits (Lower 2.5%, Upper
+    2.5%), keyed like MODEL RESULTS; bootstrap percentile limits when the analysis bootstraps."""
+    try:
+        i = next(k for k, l in enumerate(lines) if l.strip() == 'CONFIDENCE INTERVALS OF MODEL RESULTS')
+    except StopIteration:
+        return None
+    out, block, sec = [], '', None
+    for l in lines[i + 1:]:
+        s = l.strip()
+        if re.match(r'^[A-Z][A-Z ,.-]{15,}$', s) or s.startswith('Beginning Time'):
+            break
+        if BLOCK.match(s) and not l.startswith(' '):
+            block, sec = s, None
+            continue
+        m = re.match(r'^ (\S+)\s+(BY|ON|WITH|\|)\s*$', l)
+        if m:
+            sec = (m.group(1).lower(), m.group(2))
+            continue
+        if l.startswith(' ') and not l.startswith('  ') and s in SECTIONS:
+            sec = (s, None)
+            continue
+        m = re.match(r'^\s+(\S+)' + (r'\s+' + NUM) * 7 + r'\s*$', l)
+        if not (m and sec):
+            continue
+        name, low, high = m.group(1).lower(), float(m.group(3)), float(m.group(7))
+        a, op = sec
+        k = ((a, '=~', name) if op in ('BY', '|') else (a, '~', name) if op == 'ON' else (a, '~~', name) if op == 'WITH'
+             else (name, '~1', '') if a in ('Intercepts', 'Means') else (name, '~~', name) if a in ('Variances', 'Residual Variances') else (name, a, ''))
+        out.append({'lhs': k[0], 'op': k[1], 'rhs': k[2], 'block': block, 'low': low, 'high': high})
+    return out or None
+
+
 def indirect(lines):
     """MODEL INDIRECT: per 'Effects from X to Y' the total, (sum of) indirect, specific indirect (with its path,
     outcome first) and direct effects, estimate and standard error."""
@@ -247,6 +281,9 @@ def main(folder):
         n = new_parameters(lines)  # MODEL CONSTRAINT's NEW parameters (an extra key)
         if n:
             data[f'ex{ex}']['new'] = n
+        ci = intervals(lines)  # OUTPUT: CINTERVAL, 95% limits (an extra key)
+        if ci:
+            data[f'ex{ex}']['ci'] = ci
         ind = indirect(lines)  # MODEL INDIRECT (an extra key)
         if ind:
             data[f'ex{ex}']['indirect'] = ind

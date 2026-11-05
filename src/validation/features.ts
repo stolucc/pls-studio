@@ -13,9 +13,14 @@ const native = (title: string, method: string, packages: string[], ...sources: E
 export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   // Examples: graded per example with verify().
   'examples/bollen': 'examples', 'examples/bollen1989': 'examples', 'examples/bollencurran': 'examples', 'examples/brown': 'examples',
-  'examples/builtin': 'examples', 'examples/causal': 'examples', 'examples/eqs': 'examples', 'examples/imputation': 'examples',
-  'examples/kline': 'examples', 'examples/manymome': 'examples', 'examples/mplus/ch3': 'examples', 'examples/mplus/ch4': 'examples', 'examples/mplus/ch5': 'examples', 'examples/mplus/ch5efa': 'examples', 'examples/mplus/ch6': 'examples', 'examples/mplus/ch6surv': 'examples', 'examples/mplus/ch11': 'examples', 'examples/mplus/ch7': 'examples', 'examples/mplus/ch8': 'examples', 'examples/mplus/ch9': 'examples', 'examples/packages': 'examples',
+  'examples/builtin': 'examples', 'examples/causal': 'examples', 'examples/cards/basic': 'examples', 'examples/eqs': 'examples', 'examples/imputation': 'examples',
+  'examples/kline': 'examples', 'examples/manymome': 'examples', 'examples/mplus/ch3': 'examples', 'examples/mplus/ch4': 'examples', 'examples/mplus/ch5': 'examples', 'examples/mplus/ch5efa': 'examples', 'examples/mplus/ch6': 'examples', 'examples/mplus/ch6surv': 'examples', 'examples/mplus/ch11': 'examples', 'examples/mplus/ch7': 'examples', 'examples/mplus/ch7mix': 'examples', 'examples/mplus/ch7reg': 'examples', 'examples/mplus/ch8mix': 'examples', 'examples/mplus/ch8': 'examples', 'examples/mplus/ch9': 'examples', 'examples/mplus/ch9random': 'examples', 'examples/mplus/ch6random': 'examples', 'examples/mplus/ch3random': 'examples', 'examples/packages': 'examples',
   'examples/plsGender': 'examples', 'examples/selection': 'examples',
+  'examples/cards/bayes': 'examples',
+  'examples/cards/model': 'examples',
+  'examples/cards/likelihood': 'examples',
+  'examples/cards/items': 'examples',
+  'examples/mplus/ch5irt': 'examples', 'examples/mplus/ch7irt': 'examples', 'examples/mplus/ch6glmm': 'examples', 'examples/mplus/ch10': 'examples',
 
   // CB-SEM (lavaan and friends)
   'rengine/lavaan': native('CB-SEM estimation', 'CB-SEM', ['lavaan'], script('generate.R', 'desktop lavaan, the reference corpus')),
@@ -69,7 +74,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
 
   // Other analyses
   'rengine/efa': native('Exploratory factor analysis and PCA', 'EFA', ['psych'], script('efa.R', 'desktop psych'), script('efa_polychoric.R', 'desktop psych and lavaan::lavCor')),
-  'rengine/items': native('IRT and latent class analysis', 'Items', ['ltm', 'poLCA'], script('items.R', 'desktop ltm and poLCA')),
+  'rengine/items': native('IRT and latent class analysis', 'Items', ['ltm', 'poLCA', 'mirt', 'glca'], script('items.R', 'desktop ltm and poLCA')),
   'rengine/longitudinal': native('Growth models, RI-CLPM', 'Longitudinal', ['lavaan'], script('longitudinal.R', 'desktop lavaan')),
   'rengine/mixed': native('Mixed models, growth mixture models', 'Longitudinal', ['lme4', 'lcmm'], script('mixed.R', 'desktop lme4 and lcmm')),
   'rengine/did': native('Difference-in-differences', 'Causal inference', ['did', 'fixest'], script('did.R', 'desktop did and fixest')),

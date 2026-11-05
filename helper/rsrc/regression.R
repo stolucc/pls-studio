@@ -28,10 +28,16 @@ ps_regression <- function(req_json, export = FALSE) {
   cuts <- if (family == "survival") vapply(as.list(unlist(req$cuts)), function(x) ps_number(x, "interval cut point"), 0) else numeric(0)
   if (length(cuts) && (any(cuts <= 0) || is.unsorted(cuts, strictly = TRUE) || length(cuts) > 200)) stop("The interval cut points must be positive and increasing (at most 200).")
   if (family == "survival" && !nzchar(status)) stop("Choose the status column: which times are events and which are censored.")
-  own <- inflated || family %in% c("censored", "survival")
+  # A random slope in a one-level linear model (Mplus TYPE = RANDOM: s | y ON x): the residual variance becomes
+  # sigma2 + 2 c x + tau x^2 (tau the slope's variance, c its covariance with the residual), by maximum likelihood.
+  slope <- req$randomSlope %||% ""
+  if (nzchar(slope) && family != "gaussian") stop("A random slope is available for a linear regression.")
+  if (nzchar(slope) && !slope %in% unlist(req$predictors)) stop("The random slope must be one of the predictors.")
+  if (nzchar(slope) && slope %in% cats) stop("A random slope needs a numeric predictor.")
+  own <- inflated || family %in% c("censored", "survival") || nzchar(slope)
   if (se != "model" && family == "ordinal") stop("Robust standard errors are available for lm and glm models; ordinal models report their own.")
   if (se %in% c("HC3", "cluster") && (family == "multinomial" || own)) stop("For multinomial, censored, inflated and survival models choose model-based or HC0 (Mplus MLR) standard errors.")
-  if (nzchar(wcol) && (family == "survival" || inflated)) stop("Weights are not available for survival and inflated models.")
+  if (nzchar(wcol) && (family == "survival" || inflated || nzchar(slope))) stop("Weights are not available for survival, inflated and random-slope models.")
   conf <- ps_number(req$confidence %||% 0.95, "confidence level")
   # (terms of equal length arrive from JSON as a matrix, one row per term; otherwise as a list)
   ints <- req$interactions
@@ -80,7 +86,15 @@ ps_regression <- function(req_json, export = FALSE) {
   yv <- v[[y]]
   lim_line <- if (family == "censored") sprintf("lim <- %s(data$%s)  # the censoring point: the %s value (censored from %s)", if (censoring == "below") "min" else "max", yv, if (censoring == "below") "lowest" else "highest", censoring)
   event <- if (nzchar(status)) sprintf("%s == %d", v[[status]], if (status_censored) 0L else 1L)
-  call <- if (inflated) c(ps_ml_source,
+  call <- if (nzchar(slope)) c(ps_ml_source,
+    sprintf("X <- model.matrix(~ %s, data); y <- data$%s; x <- data$%s; k <- ncol(X)", rhs, yv, v[[slope]]),
+    sprintf("# A random slope of %s: y = X b + u x + e, u and e with variances tau and sigma2 and covariance c, so y | x is", ps_comment(slope)),
+    "# normal with mean X b and variance sigma2 + 2 c x + tau x^2 (Mplus TYPE = RANDOM; s | y ON x; s WITH y).",
+    "ll <- function(p) dnorm(y, drop(X %*% p[1:k]), sqrt(pmax(p[k + 1] + 2 * p[k + 3] * x + p[k + 2] * x^2, 1e-8)), log = TRUE)",
+    sprintf("ols <- lm(%s, data = data)", fml),
+    "start <- c(setNames(coef(ols), colnames(X)), \"random:residual\" = summary(ols)$sigma^2, \"random:slope\" = 0.1 * summary(ols)$sigma^2 / var(x), \"random:slope with residual\" = 0)",
+    sprintf("fit <- ml_fit(ll, start, robust = %s)", if (se == "HC0") "TRUE" else "FALSE"))
+  else if (inflated) c(ps_ml_source,
     sprintf("X <- model.matrix(~ %s, data); y <- data$%s; k <- ncol(X)", rhs, yv),
     if (family == "poisson") c(
       "# Zero-inflated Poisson: counts from a Poisson model (log link) and extra zeros, whose probability is a logistic model (the inflation).",
@@ -137,11 +151,12 @@ ps_regression <- function(req_json, export = FALSE) {
     if (se == "HC0" && !own_hc0) "# Heteroskedasticity-consistent (HC0, White) standard errors: the maximum-likelihood sandwich, as Mplus MLR.\nvc <- vcovHC(fit, type = \"HC0\"); ct <- coeftest(fit, vcov. = vc)",
     if (se == "cluster") sprintf("# Standard errors clustered by %s.\nvc <- vcovCL(fit, cluster = ~%s); ct <- coeftest(fit, vcov. = vc)", ps_comment(cluster), v[[cluster]]))
   inputs <- list(data = fr$data)
-  title <- if (inflated) sprintf("%s regression (maximum likelihood, optim)", if (family == "poisson") "Zero-inflated Poisson" else "Censored-inflated")
+  title <- if (nzchar(slope)) "Linear regression with a random slope (maximum likelihood, optim)"
+    else if (inflated) sprintf("%s regression (maximum likelihood, optim)", if (family == "poisson") "Zero-inflated Poisson" else "Censored-inflated")
     else c(gaussian = "Linear regression (lm)", binomial = sprintf("%s regression (glm)", if (link == "probit") "Probit" else "Logistic"), poisson = "Poisson regression (glm)",
     gamma = "Gamma regression (glm)", negbin = "Negative binomial regression (MASS::glm.nb)", ordinal = "Ordinal regression (MASS::polr)", multinomial = "Multinomial logistic regression (nnet::multinom)",
     censored = "Censored (tobit) regression (survival::survreg)", survival = if (piecewise) "Piecewise exponential survival model (survival::survSplit, glm)" else "Cox regression (survival::coxph)")[[family]]
-  report <- if (inflated) c("cbind(estimate = fit$coefficients, se = sqrt(diag(fit$vcov)))", "fit$logLik")
+  report <- if (inflated || nzchar(slope)) c("cbind(estimate = fit$coefficients, se = sqrt(diag(fit$vcov)))", "fit$logLik")
     else c("summary(fit)", if (family %in% c("binomial", "poisson", "negbin", "ordinal", "multinomial", "survival") && !piecewise) "exp(coef(fit))  # odds, rate or hazard ratios", if (se != "model" && !own) "ct",
     if (se == "HC0" && family == "multinomial") "matrix(sqrt(diag(vc)), nrow = nrow(coef(fit)), byrow = TRUE, dimnames = dimnames(coef(fit)))  # HC0 standard errors",
     if (piecewise) c("exp(coef(fit))  # baseline hazards and hazard ratios", "ll", if (se == "HC0") "sqrt(diag(vc))"),
@@ -160,7 +175,7 @@ ps_regression <- function(req_json, export = FALSE) {
   if (own) {
     # Censored, inflated and survival models: the coefficients by part (the inflation's, the baseline hazards of a
     # piecewise exponential model), the residual variance of a censored outcome (as Mplus prints it), the fit.
-    if (inflated) { est <- fit$coefficients; sev <- sqrt(diag(fit$vcov)) }
+    if (inflated || nzchar(slope)) { est <- fit$coefficients; sev <- sqrt(diag(fit$vcov)) }
     else { est <- coef(fit); sev <- sqrt(diag(if (piecewise && se == "HC0") env$vc else vcov(fit)))[names(est)] }
     resvar <- NULL
     if (family == "censored") {
@@ -172,16 +187,20 @@ ps_regression <- function(req_json, export = FALSE) {
     br <- c(0, cuts, Inf)
     for (i in seq_along(est)) {
       t <- names(est)[i]; b <- est[[i]]; s <- sev[[i]]
-      part <- if (startsWith(t, "inflation:")) "inflation" else if (startsWith(t, ".interval")) "baseline" else NULL
+      part <- if (startsWith(t, "inflation:")) "inflation" else if (startsWith(t, ".interval")) "baseline" else if (startsWith(t, "random:")) "random" else NULL
       coefs[[length(coefs) + 1]] <- if (identical(part, "baseline")) {
         j <- as.integer(substring(t, 10))
         list(part = part, term = sprintf("[%s, %s)", format(br[j]), format(br[j + 1])), est = exp(b), se = exp(b) * s, stat = b / s, p = 2 * pnorm(-abs(b / s)), ciLow = exp(b - z * s), ciHigh = exp(b + z * s))
+      } else if (identical(part, "random")) {
+        # (Mplus: y ~~ y, s ~~ s, s WITH y)
+        lab <- c("random:residual" = "Residual variance", "random:slope" = sprintf("Variance of the slope of %s", slope), "random:slope with residual" = sprintf("Covariance of the slope of %s and the residual", slope))[[t]]
+        list(part = part, term = lab, est = b, se = s, stat = b / s, p = 2 * pnorm(-abs(b / s)), ciLow = b - z * s, ciHigh = b + z * s)
       } else list(part = part, term = nm(if (identical(part, "inflation")) substring(t, 11) else t), est = b, se = s, stat = b / s, p = 2 * pnorm(-abs(b / s)),
         ciLow = b - z * s, ciHigh = b + z * s, ratio = if (family == "survival") exp(b) else NULL)
     }
     n <- nrow(env$data)
-    ll <- if (inflated) fit$logLik else if (piecewise) env$ll else if (family == "survival") fit$loglik[2] else as.numeric(logLik(fit))
-    npar <- if (inflated) fit$npar else if (family == "survival") length(coef(fit)) else attr(logLik(fit), "df")
+    ll <- if (inflated || nzchar(slope)) fit$logLik else if (piecewise) env$ll else if (family == "survival") fit$loglik[2] else as.numeric(logLik(fit))
+    npar <- if (inflated || nzchar(slope)) fit$npar else if (family == "survival") length(coef(fit)) else attr(logLik(fit), "df")
     lrt <- if (family == "survival" && !piecewise) { st <- 2 * (fit$loglik[2] - fit$loglik[1]); list(stat = st, df = npar, p = pchisq(st, npar, lower.tail = FALSE)) } else NULL
     yy <- env$data[[yv]]
     fitv <- list(n = n, logLik = ll, aic = -2 * ll + 2 * npar, bic = -2 * ll + npar * log(n), npar = npar,
@@ -189,7 +208,7 @@ ps_regression <- function(req_json, export = FALSE) {
       censored = if (family == "censored") sum(if (censoring == "below") yy <= min(yy) else yy >= max(yy)) else NULL,
       zeros = if (family == "poisson") sum(yy == 0) else NULL,
       residualVariance = resvar$est, residualVarianceSe = resvar$se)
-    eng <- if (inflated) list(package = "stats", version = as.character(getRversion())) else list(package = "survival", version = as.character(utils::packageVersion("survival")))
+    eng <- if (inflated || nzchar(slope)) list(package = "stats", version = as.character(getRversion())) else list(package = "survival", version = as.character(utils::packageVersion("survival")))
     shown <- if (family == "survival") sprintf("Surv(%s, %s) ~ %s%s", yv, event, if (piecewise) "baseline hazard by interval + " else "", rhs) else fml
     return(ps_json(list(family = family, link = link, formula = nm(shown), se = se, coefficients = coefs, thresholds = list(), levels = NULL, fit = fitv, lrt = lrt,
       diagnostics = list(), curves = list(), warnings = env$.warnings, engine = eng)))

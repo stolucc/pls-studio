@@ -22,7 +22,7 @@ const fit = async (key: string) => {
   return r;
 };
 
-it.each([['ex5.27'], ['ex5.28']])('%s reproduces the Mplus output: fit, estimates and standard errors', async (key) => {
+it.each([['ex5.27'], ['ex5.27b'], ['ex5.27c'], ['ex5.27d'], ['ex5.27e'], ['ex5.28']])('%s reproduces the Mplus output: fit, estimates and standard errors', async (key) => {
   const r = await fit(key);
   const want = MPLUS[key];
   sameFit(r.fit, want.fit);
@@ -67,4 +67,12 @@ it('the replication scripts write the variance scaling (NA* and f ~~ 1*f), the d
   expect(s524).toMatch(/y8 ~ x2\n/);
   expect(s524).not.toMatch(/f1 ~~ f2/);
   expect(s524).not.toContain('auto.cov.y = FALSE');
+}, 600_000);
+
+it('ex5.27b–e: with the loadings held equal across groups the unstandardised loadings are rotated (std.ov = FALSE), as Mplus; not without groups or with configural groups', async () => {
+  const { cbScriptLavaan } = await import('../../rengine/lavaan');
+  const script = (key: string) => cbScriptLavaan(load(key), toSpec(exampleModel(example(key))), 'casewise', 'ML');
+  for (const k of ['ex5.27b', 'ex5.27c', 'ex5.27d', 'ex5.27e']) expect(await script(k)).toContain('std.ov = FALSE');
+  for (const k of ['ex5.27', 'ex5.28']) expect(await script(k)).not.toContain('std.ov');
+  expect(await script('ex5.27d')).toMatch(/group.equal = c\("loadings", "intercepts", "lv.variances", "lv.covariances"\)/);
 }, 600_000);

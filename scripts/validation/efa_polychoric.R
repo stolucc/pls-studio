@@ -5,6 +5,10 @@
 # polychoric correlations agree within 1e-4; the polyserial ones with age differ by up to .02, the two
 # packages' polyserial estimators being different (psych's ad hoc, lavaan's two-step maximum likelihood).
 #
+# psych only, without standard errors: the WLSMV standard-error convention of the lavaan extraction (the app's default is
+# Mplus's; see categorical_fiml.R) does not enter these references. The lavaan extraction by WLSMV is checked against
+# Mplus's printed output instead (src/examples/mplus/ch4.webr.test.ts, example 4.2).
+#
 #   Rscript scripts/validation/efa_polychoric.R
 
 suppressMessages({ library(psych); library(GPArotation); library(lavaan); library(jsonlite) })

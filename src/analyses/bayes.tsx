@@ -10,6 +10,7 @@ import { fmt } from '../format';
 import type { Alternative, BAnovaInput, BAnovaResult, BayesCurves, BayesEffect, BayesModel, BBinomialInput, BBinomialResult, BContingencyInput, BContingencyResult, BCorrelationInput, BCorrelationResult, BRegressionInput, BRegressionResult, BRmAnovaInput, BRmAnovaResult, BTTestInput, BTTestResult } from '../rengine/tests';
 import { Choice, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
+import { designColumns, isMulti, parseWithinDesign, withinDesignBlocked, WithinDesignForm, withinFingerprint } from './withinDesign';
 
 const engine = () => import('../rengine/tests');
 const ALT_IDS = ['two.sided', 'greater', 'less'] as const;
@@ -231,7 +232,12 @@ export const bayesCorrelationAnalysis: AnalysisType<BCorrelationOptions, BCorrel
 
 // ---------------------------------------------------------------- binomial
 
-export type BBinomialOptions = Omit<BBinomialInput, 'confidence'>;
+export type BBinomialOptions = Omit<BBinomialInput, 'confidence' | 'seed'>;
+const logistic = (o: BBinomialOptions) => o.prior === 'logistic';
+/** The prior fields: none for the beta prior (the card's original options), the logistic prior's scale and samples otherwise. */
+const binomialPrior = (raw: Record<string, unknown>): Partial<BBinomialOptions> => (raw.prior === 'logistic'
+  ? { prior: 'logistic', priorScale: num(raw.priorScale, 0, 100, 0.5), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)) } : {});
+const bbInput = (o: BBinomialOptions, ctx: Pick<AnalysisCtx, 'settings'>): BBinomialInput => ({ ...o, confidence: ctx.settings.confidence, ...(logistic(o) ? { seed: ctx.settings.seed } : {}) });
 
 export const bayesBinomialAnalysis: AnalysisType<BBinomialOptions, BBinomialResult> = {
   id: 'bbinomial', title: 'Bayesian binomial test', sub: 'a proportion against a value, beta prior (Bayes factor, posterior)', group: 'Basic statistics',
@@ -239,7 +245,7 @@ export const bayesBinomialAnalysis: AnalysisType<BBinomialOptions, BBinomialResu
   defaults: () => ({ variable: '', testValue: 0.5, alternative: 'two.sided', priorA: 1, priorB: 1 }),
   parseOptions: (raw) => (isObj(raw) ? {
     variable: name(raw.variable), testValue: typeof raw.testValue === 'number' && raw.testValue > 0 && raw.testValue < 1 ? raw.testValue : 0.5,
-    alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), priorA: num(raw.priorA, 0, 1e4, 1), priorB: num(raw.priorB, 0, 1e4, 1),
+    alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), priorA: num(raw.priorA, 0, 1e4, 1), priorB: num(raw.priorB, 0, 1e4, 1), ...binomialPrior(raw),
   } : null),
   Options: ({ options: o, set, ctx, disabled }) => {
     const d = rawData(ctx);
@@ -251,27 +257,36 @@ export const bayesBinomialAnalysis: AnalysisType<BBinomialOptions, BBinomialResu
         <div className="field"><label htmlFor="bb-p">Test proportion</label><input id="bb-p" className="input num" type="number" min={0.001} max={0.999} step={0.01} value={o.testValue} onChange={setNum('testValue')} /></div>
         <Choice label="Alternative hypothesis" value={o.alternative} onChange={(alternative) => set({ ...o, alternative })} options={[['two.sided', 'Two-sided'], ['greater', 'Greater'], ['less', 'Less']]}
           hint={o.alternative === 'two.sided' ? 'H1: the proportion differs from the test value.' : `H1: the proportion is ${o.alternative === 'greater' ? 'above' : 'below'} the test value (the prior restricted to that side).`} />
-        <div className="row2">
-          <div className="field"><label htmlFor="bb-a">Beta prior a</label><input id="bb-a" className="input num" type="number" min={0.01} step={0.1} value={o.priorA} onChange={setNum('priorA')} /></div>
-          <div className="field"><label htmlFor="bb-b">Beta prior b</label><input id="bb-b" className="input num" type="number" min={0.01} step={0.1} value={o.priorB} onChange={setNum('priorB')} /></div>
-        </div>
-        <div className="hint">The prior on the proportion under H1: beta(a, b). a = b = 1 (uniform) is JASP’s default.</div>
+        <Choice label="Prior under H1" value={logistic(o) ? 'logistic' : 'beta'} options={[['beta', 'Beta on the proportion'], ['logistic', 'Logistic on the log odds']]}
+          onChange={(p) => { const { prior: _p, priorScale: _s, iterations: _i, ...beta } = o; set(p === 'logistic' ? { ...beta, ...binomialPrior({ prior: 'logistic' }) } : beta); }} />
+        {logistic(o) ? <>
+          <PriorWidth id="bb-r" label="Prior scale (r)" value={o.priorScale ?? 0.5} onChange={(priorScale) => set({ ...o, priorScale })}
+            hint="BayesFactor’s proportionBF: the log odds under H1 are logistic, centred on the test proportion’s log odds, with scale r; 0.5 is its default (“medium”), 1 “wide”. The posterior of the proportion is sampled (the project’s seed)." />
+        </> : <>
+          <div className="row2">
+            <div className="field"><label htmlFor="bb-a">Beta prior a</label><input id="bb-a" className="input num" type="number" min={0.01} step={0.1} value={o.priorA} onChange={setNum('priorA')} /></div>
+            <div className="field"><label htmlFor="bb-b">Beta prior b</label><input id="bb-b" className="input num" type="number" min={0.01} step={0.1} value={o.priorB} onChange={setNum('priorB')} /></div>
+          </div>
+          <div className="hint">The prior on the proportion under H1: beta(a, b). a = b = 1 (uniform) is JASP’s default.</div>
+        </>}
       </fieldset>
     );
   },
   View: ({ result: r }) => (
     <div className="tables">
-      <p className="hint" style={{ marginTop: 0 }}>Beta({fmt(r.priorA, 2)}, {fmt(r.priorB, 2)}) prior; test proportion {fmt(r.testValue)}; closed form (base R {r.engine.version}).</p>
+      <p className="hint" style={{ marginTop: 0 }}>{r.prior === 'logistic'
+        ? <>Logistic prior on the log odds, scale r = {fmt(r.priorScale ?? 0.5)}; test proportion {fmt(r.testValue)}; BayesFactor {r.engine.version} (proportionBF), posterior from {(r.iterations ?? 0).toLocaleString('en')} samples, seed {r.seed}.</>
+        : <>Beta({fmt(r.priorA, 2)}, {fmt(r.priorB, 2)}) prior; test proportion {fmt(r.testValue)}; closed form (base R {r.engine.version}).</>}</p>
       <Table title={`Bayesian binomial test: ${r.variable}`} file="bayes-binomial" columns={['Category', 'Count', 'Total', 'Proportion', r.alternative === 'two.sided' ? 'BF₁₀' : r.alternative === 'greater' ? 'BF₊₀' : 'BF₋₀', 'BF₀₁', 'Evidence', 'Posterior median', `${pct(r.confidence)} credible interval`]}
         rows={r.levels.map((l, i): Row => [c(l), c(r.counts[i], undefined, 0), c(r.n, undefined, 0), c(r.counts[i] / r.n), ...bfCells(r.rows[i].bf10), c(r.rows[i].median), c(`[${fmt(r.rows[i].low)}, ${fmt(r.rows[i].high)}]`)])}
-        note={`Each category against the rest. ${EVIDENCE_NOTE} The posterior (beta) is the unrestricted one.`} />
+        note={`Each category against the rest. ${EVIDENCE_NOTE} ${r.prior === 'logistic' ? 'The posterior is sampled under H1 (restricted to the one-sided alternative).' : 'The posterior (beta) is the unrestricted one.'}`} />
     </div>
   ),
   blocked: (o, ctx) => (!o.variable ? 'Choose the variable.' : missingColumns(ctx, [o.variable], 'Bayesian binomial test')),
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, [o.variable], [o.testValue, o.alternative, o.priorA, o.priorB, ctx.settings.confidence]),
-  run: async (o, ctx) => (await engine()).bbinomialR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
-  script: async (o, ctx) => (await engine()).bbinomialScriptR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
-  summary: (o) => `${o.variable || '…'} vs ${o.testValue} · beta(${o.priorA}, ${o.priorB})`,
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, [o.variable], [o.testValue, o.alternative, o.priorA, o.priorB, ctx.settings.confidence, ...(logistic(o) ? ['logistic', o.priorScale ?? 0.5, o.iterations ?? 10000, ctx.settings.seed] : [])]),
+  run: async (o, ctx) => (await engine()).bbinomialR(rawData(ctx)!, bbInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).bbinomialScriptR(rawData(ctx)!, bbInput(o, ctx)),
+  summary: (o) => `${o.variable || '…'} vs ${o.testValue} · ${logistic(o) ? `logistic prior, r = ${fmt(o.priorScale ?? 0.5)}` : `beta(${o.priorA}, ${o.priorB})`}`,
 };
 
 // ---------------------------------------------------------------- ANOVA / ANCOVA
@@ -289,6 +304,11 @@ function BAnovaForm({ options: o, set, ctx, disabled }: OptionsProps<BAnovaOptio
       <OrderedPicker label="Covariates (ANCOVA, optional)" columns={numeric.filter((n) => n !== o.dependent && !o.factors.includes(n))} value={o.covariates} onChange={(covariates) => set({ ...o, covariates })} />
       <Choice label="Model terms" value={o.interactions ? 'full' : 'main'} onChange={(v) => set({ ...o, interactions: v === 'full' })} options={[['full', 'With interactions'], ['main', 'Main effects only']]}
         hint="Every model that keeps an interaction’s main effects is compared with the null model (BayesFactor’s “withmain”, as JASP)." />
+      {o.interactions && o.covariates.length > 0 && (
+        <div className="field"><label className="check"><input type="checkbox" checked={!!o.covariateInteractions}
+          onChange={(e) => { const { covariateInteractions: _c, ...rest } = o; set(e.target.checked ? { ...rest, covariateInteractions: true } : rest); }} /> Interactions with the covariates</label>
+          <div className="hint">The covariates enter the factorial too: a factor × covariate interaction lets the covariate’s slope differ between groups (as BayesFactor’s manual fits supp × log₂ dose).</div></div>
+      )}
       <div className="row2">
         <PriorWidth id="ba-rf" label="Prior width, fixed effects" value={o.priorFixed} onChange={(priorFixed) => set({ ...o, priorFixed })} hint="JASP’s default 0.5 (BayesFactor’s “medium”)." />
         <PriorWidth id="ba-rc" label="Prior width, covariates" value={o.priorCovariates} onChange={(priorCovariates) => set({ ...o, priorCovariates })} hint="JASP’s default √2/4 ≈ 0.354." />
@@ -300,7 +320,7 @@ function BAnovaForm({ options: o, set, ctx, disabled }: OptionsProps<BAnovaOptio
 function BAnovaView({ r }: { r: BAnovaResult }) {
   return (
     <div className="tables">
-      <p className="hint" style={{ marginTop: 0 }}>{r.dependent}, n = {r.n}; prior widths {fmt(r.priorFixed)} (factors){r.covariates.length ? `, ${fmt(r.priorCovariates)} (covariates)` : ''}; {r.iterations.toLocaleString('en')} samples, seed {r.seed}; BayesFactor {r.engine.version}.</p>
+      <p className="hint" style={{ marginTop: 0 }}>{r.dependent}, n = {r.n}; prior widths {fmt(r.priorFixed)} (factors){r.covariates.length ? `, ${fmt(r.priorCovariates)} (covariates)` : ''}{r.covariateInteractions ? '; with the covariates’ interactions' : ''}; {r.iterations.toLocaleString('en')} samples, seed {r.seed}; BayesFactor {r.engine.version}.</p>
       <ModelTables file="bayes-anova" title={`Bayesian ${r.covariates.length ? 'ANCOVA' : 'ANOVA'}: model comparison`} models={r.models} effects={r.effects}
         priorNote="BF₁₀: each model against the null model (intercept only); equal prior model probabilities. Error: the proportional error of BayesFactor’s numerical integration or sampling." />
     </div>
@@ -308,6 +328,8 @@ function BAnovaView({ r }: { r: BAnovaResult }) {
 }
 
 const baCols = (o: BAnovaOptions) => [o.dependent, ...o.factors, ...o.covariates].filter(Boolean);
+/** Factor × covariate interactions apply only with interactions and covariates. */
+const withCovInteractions = (o: BAnovaOptions) => !!o.covariateInteractions && o.interactions && o.covariates.length > 0;
 export const bayesAnovaAnalysis: AnalysisType<BAnovaOptions, BAnovaResult> = {
   id: 'banova', title: 'Bayesian ANOVA', sub: 'model comparison and inclusion Bayes factors; ANCOVA with covariates (BayesFactor)', group: 'Basic statistics',
   entries: [
@@ -319,6 +341,7 @@ export const bayesAnovaAnalysis: AnalysisType<BAnovaOptions, BAnovaResult> = {
   parseOptions: (raw) => (isObj(raw) ? {
     dependent: name(raw.dependent), factors: names(raw.factors), covariates: names(raw.covariates), interactions: raw.interactions !== false,
     priorFixed: num(raw.priorFixed, 0, 100, 0.5), priorCovariates: num(raw.priorCovariates, 0, 100, Math.SQRT2 / 4), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)),
+    ...(raw.covariateInteractions === true ? { covariateInteractions: true } : {}),
   } : null),
   Options: BAnovaForm,
   View: ({ result }) => <BAnovaView r={result} />,
@@ -328,10 +351,10 @@ export const bayesAnovaAnalysis: AnalysisType<BAnovaOptions, BAnovaResult> = {
     if (o.factors.length + o.covariates.length > 6) return 'At most six factors and covariates: the number of models grows quickly.';
     return missingColumns(ctx, baCols(o), 'Bayesian ANOVA');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, baCols(o), [String(o.interactions), o.priorFixed, o.priorCovariates, o.iterations, ...o.factors, '|', ...o.covariates, ctx.settings.seed]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, baCols(o), [String(o.interactions), o.priorFixed, o.priorCovariates, o.iterations, ...o.factors, '|', ...o.covariates, ctx.settings.seed, ...(withCovInteractions(o) ? ['covariate interactions'] : [])]),
   run: async (o, ctx) => (await engine()).banovaR(rawData(ctx)!, { ...o, seed: ctx.settings.seed }),
   script: async (o, ctx) => (await engine()).banovaScriptR(rawData(ctx)!, { ...o, seed: ctx.settings.seed }),
-  summary: (o) => `${o.dependent || '…'} by ${o.factors.join(' × ') || '…'}${o.covariates.length ? ` + ${o.covariates.join(', ')}` : ''}`,
+  summary: (o) => `${o.dependent || '…'} by ${o.factors.join(' × ') || '…'}${o.covariates.length ? ` ${withCovInteractions(o) ? '×' : '+'} ${o.covariates.join(', ')}` : ''}`,
 };
 
 // ---------------------------------------------------------------- contingency tables
@@ -408,25 +431,25 @@ function ModelTables({ file, title, models, effects, effectName = 'Effect', r2 =
 // ---------------------------------------------------------------- repeated-measures ANOVA
 
 export type BRmAnovaOptions = Omit<BRmAnovaInput, 'seed'>;
-const rmCols = (o: BRmAnovaOptions) => [...o.levels, o.between].filter(Boolean);
+const rmCols = (o: BRmAnovaOptions) => designColumns(o);
+const rmName = (o: BRmAnovaOptions) => (isMulti(o) ? o.factors!.map((f) => f.name || '…').join(' × ') : o.factorName || '…');
 
 export const bayesRmAnovaAnalysis: AnalysisType<BRmAnovaOptions, BRmAnovaResult> = {
-  id: 'brmanova', title: 'Bayesian repeated-measures ANOVA', sub: 'a within-subject factor (wide columns), subjects random; models and effects (BayesFactor)', group: 'Basic statistics',
-  cardTitle: (o) => `Bayesian repeated-measures ANOVA: ${o.factorName || '…'}`,
+  id: 'brmanova', title: 'Bayesian repeated-measures ANOVA', sub: 'within-subject factors (wide columns), subjects random; models and effects (BayesFactor)', group: 'Basic statistics',
+  cardTitle: (o) => `Bayesian repeated-measures ANOVA: ${rmName(o)}`,
   defaults: () => ({ levels: [], factorName: 'condition', between: '', priorFixed: 0.5, priorRandom: 1, iterations: 10000 }),
-  parseOptions: (raw) => (isObj(raw) ? {
-    levels: names(raw.levels), factorName: name(raw.factorName, 31) || 'condition', between: name(raw.between),
-    priorFixed: num(raw.priorFixed, 0, 100, 0.5), priorRandom: num(raw.priorRandom, 0, 100, 1), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)),
-  } : null),
+  parseOptions: (raw) => {
+    if (!isObj(raw)) return null;
+    const { factors, cells, ...design } = parseWithinDesign(raw);
+    return { ...design, priorFixed: num(raw.priorFixed, 0, 100, 0.5), priorRandom: num(raw.priorRandom, 0, 100, 1), iterations: Math.round(num(raw.iterations, 999, 1e6, 10000)), ...(factors ? { factors, cells } : {}) };
+  },
   Options: ({ options: o, set, ctx, disabled }) => {
     const d = rawData(ctx);
     if (!d) return <NoData />;
     return (
       <fieldset className="card-options" disabled={disabled}>
-        <div className="field"><label htmlFor="brm-name">Within-subject factor name</label>
-          <input id="brm-name" className="input" value={o.factorName} maxLength={31} onChange={(e) => set({ ...o, factorName: e.target.value })} /></div>
-        <OrderedPicker label="Levels: one column per condition (wide data)" columns={d.names.filter((n) => !d.categories?.[n] && n !== o.between)} value={o.levels} onChange={(levels) => set({ ...o, levels })} />
-        <ColumnSelect id="brm-b" label="Between-subjects factor (optional)" optional="None" value={o.between} columns={d.names} exclude={o.levels} onChange={(between) => set({ ...o, between })} />
+        <WithinDesignForm id="brm" o={o} set={set} numeric={d.names.filter((n) => !d.categories?.[n])} />
+        <ColumnSelect id="brm-b" label="Between-subjects factor (optional)" optional="None" value={o.between} columns={d.names} exclude={designColumns({ ...o, between: '' })} onChange={(between) => set({ ...o, between })} />
         <div className="row2">
           <PriorWidth id="brm-rf" label="Prior width, fixed effects" value={o.priorFixed} onChange={(priorFixed) => set({ ...o, priorFixed })} hint="JASP’s default 0.5." />
           <PriorWidth id="brm-rr" label="Prior width, subjects" value={o.priorRandom} onChange={(priorRandom) => set({ ...o, priorRandom })} hint="The random effect of the subjects; JASP’s default 1." />
@@ -436,21 +459,24 @@ export const bayesRmAnovaAnalysis: AnalysisType<BRmAnovaOptions, BRmAnovaResult>
   },
   View: ({ result: r }) => (
     <div className="tables">
-      <p className="hint" style={{ marginTop: 0 }}>{r.levels.length} levels of {r.factorName}{r.between ? `, between ${r.between}` : ''}; {r.n} subjects; prior widths {fmt(r.priorFixed)} (fixed), {fmt(r.priorRandom)} (subjects); {r.iterations.toLocaleString('en')} samples, seed {r.seed}; BayesFactor {r.engine.version}.</p>
+      <p className="hint" style={{ marginTop: 0 }}>{r.factors && r.factors.length >= 2 ? `${r.factors.map((f) => `${f.name} (${f.levels.length} levels)`).join(' × ')}: ${r.levels.length} cells` : `${r.levels.length} levels of ${r.factorName}`}{r.between ? `, between ${r.between}` : ''}; {r.n} subjects; prior widths {fmt(r.priorFixed)} (fixed), {fmt(r.priorRandom)} (subjects); {r.iterations.toLocaleString('en')} samples, seed {r.seed}; BayesFactor {r.engine.version}.</p>
       <ModelTables file="bayes-rmanova" title="Bayesian repeated-measures ANOVA: model comparison" models={r.models} effects={r.effects}
         priorNote="Every model includes the subjects as a random effect; BF₁₀ against the null model of the subjects alone, as JASP. Equal prior model probabilities." />
     </div>
   ),
   blocked: (o, ctx) => {
-    if (o.levels.length < 2) return 'Choose at least two columns, one per level.';
-    if (!/^[A-Za-z][A-Za-z0-9_.]{0,30}$/.test(o.factorName) || ['subject', 'y'].includes(o.factorName)) return 'The factor name must start with a letter, use letters, digits, _ or . only, and not be subject or y.';
-    if (o.levels.includes(o.between)) return 'The between factor cannot be one of the levels.';
+    if (isMulti(o)) { const b = withinDesignBlocked(o); if (b) return b; }
+    else {
+      if (o.levels.length < 2) return 'Choose at least two columns, one per level.';
+      if (!/^[A-Za-z][A-Za-z0-9_.]{0,30}$/.test(o.factorName) || ['subject', 'y'].includes(o.factorName)) return 'The factor name must start with a letter, use letters, digits, _ or . only, and not be subject or y.';
+      if (o.levels.includes(o.between)) return 'The between factor cannot be one of the levels.';
+    }
     return missingColumns(ctx, rmCols(o), 'Bayesian repeated-measures ANOVA');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, rmCols(o), [o.factorName, o.between, o.priorFixed, o.priorRandom, o.iterations, ctx.settings.seed]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, rmCols(o), [o.factorName, o.between, o.priorFixed, o.priorRandom, o.iterations, ctx.settings.seed, ...withinFingerprint(o)]),
   run: async (o, ctx) => (await engine()).brmanovaR(rawData(ctx)!, { ...o, seed: ctx.settings.seed }),
   script: async (o, ctx) => (await engine()).brmanovaScriptR(rawData(ctx)!, { ...o, seed: ctx.settings.seed }),
-  summary: (o) => `${o.factorName}: ${o.levels.join(', ') || '…'}${o.between ? ` · between ${o.between}` : ''}`,
+  summary: (o) => (isMulti(o) ? `${rmName(o)}: ${(o.cells ?? []).filter(Boolean).length} cells` : `${o.factorName}: ${o.levels.join(', ') || '…'}`) + (o.between ? ` · between ${o.between}` : ''),
 };
 
 // ---------------------------------------------------------------- linear regression

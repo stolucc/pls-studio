@@ -31,4 +31,11 @@ export const MPLUS_CH11: PackageExample[] = [
     data: mplusData('11.4'), constructs: [], paths: [], tags: [MPLUS_TAG], computed: [1, 2, 3, 4, 5].map(dropout),
     panel: { kind: 'growth', measures: items('y', 6, 0), times: [0, 1, 2, 3, 4, 5], shape: 'linear', covariates: [], syntax: PATTERN_MIXTURE }, information: 'observed', settings: { ...CB('ML'), missing: 'fiml' },
   },
+  {
+    id: 'mplus-ex11.6', package: 'lavaan', title: 'Growth model on multiply imputed data (Mplus ex. 11.6)', source: MPLUS_SRC('11.6'), links: mplusLinks('11.6'),
+    description: 'Linear growth of y1–y4 regressed on x1 and x2 (Mplus: i s | y1@0 y2@1 y3@2 y4@3; i s ON x1 x2), with missing values in every variable (29–58% of y1–y4, 17% of the binary x1, 22% of x2), estimated on 10 imputed data sets and pooled by Rubin’s rules (Mplus: DATA IMPUTATION: IMPUTE = y1-y4 x1 (c) x2; NDATASETS = 10). Mplus imputes from a Bayesian unrestricted (H1) model; here Missing values → multiple imputation with mice’s Bayesian normal regression (a draw from the posterior of a normal model for each continuous variable, logistic regression for x1, marked categorical), 10 data sets, lavaan.mi pooling. Imputation is random, so the pooled estimates differ from Mplus’s by Monte Carlo error: within three Monte Carlo standard errors of the difference of two pooled estimates (√(2B/10), B the between-imputation variance) for every parameter, the regressions on x1 and x2, the growth factors’ intercepts, residual variances and covariance, and the outcomes’ residual variances; the standard errors likewise. (Predictive mean matching, mice’s default, misses Mplus’s s on x2 by more than that: 0.17 against 0.224.)',
+    data: mplusData('11.6'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Growth curve'],
+    syntax: 'i =~ 1*y1 + 1*y2 + 1*y3 + 1*y4\ns =~ 0*y1 + 1*y2 + 2*y3 + 3*y4\ni + s ~ x1 + x2\ni ~~ s\ni ~ 1\ns ~ 1\ny1 ~ 0*1\ny2 ~ 0*1\ny3 ~ 0*1\ny4 ~ 0*1',
+    settings: { ...CB('ML'), missing: 'mi', miImputations: 10, miMethod: 'micenorm', miNominal: ['x1'], seed: 11 },
+  },
 ];

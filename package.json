@@ -18,6 +18,7 @@
     "prebuild": "node scripts/webr/fetch.mjs --if-missing && node scripts/architecture.mjs",
     "docs:architecture": "node scripts/architecture.mjs",
     "notices": "node scripts/notices.mjs",
+    "data:fetch": "node scripts/validation/fetch_example_data.mjs",
     "test:mutation": "stryker run",
     "test:mutation:engine": "stryker run stryker.engine.config.mjs"
   },

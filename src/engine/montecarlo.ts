@@ -35,8 +35,8 @@ export interface McDesign {
 
 export interface McParam {
   key: string;
-  /** 'fit': the CB-SEM model χ² test (its rejection rate is the test's Type I error). */
-  kind: 'path' | 'indirect' | 'fit';
+  /** 'fit': the CB-SEM model χ² test (its rejection rate is the test's Type I error); 'covariance': the correlation of two exogenous constructs. */
+  kind: 'path' | 'indirect' | 'covariance' | 'fit';
   from: string;
   to: string;
   /** True standardised value. */
@@ -66,10 +66,21 @@ export function mcParameters(pop: Population, withFit = false): McParam[] {
   C.forEach((f, i) => C.forEach((t, j) => {
     if (pop.specified[i][j]) out.push({ key: `path:${f}:${t}`, kind: 'path', from: f, to: t, value: pop.paths[i][j] });
   }));
+  for (const k of pop.covariances) out.push({ key: `cov:${C[k.a]}:${C[k.b]}`, kind: 'covariance', from: C[k.a], to: C[k.b], value: k.value });
   C.forEach((f, i) => C.forEach((t, j) => {
     if (Math.abs(pop.indirect[i][j]) > 1e-12) out.push({ key: `indirect:${f}:${t}`, kind: 'indirect', from: f, to: t, value: pop.indirect[i][j] });
   }));
   return out;
+}
+
+/**
+ * The true values the confidence intervals are checked against, per estimator and parameter. CB-SEM CIs are for
+ * unstandardised effects in the marker metric: β · λ_mk(to) / λ_mk(from); a covariance ρ · λ_mk(a) · λ_mk(b).
+ */
+export function ciTruth(design: McDesign, pop: Population, params: McParam[]): number[][] {
+  const ci = (name: string) => pop.constructs.indexOf(name);
+  return design.estimators.map((e) => params.map((p) => (p.kind === 'fit' ? NaN : e.method !== 'cb' ? p.value
+    : p.kind === 'covariance' ? p.value * pop.markerLoading[ci(p.from)] * pop.markerLoading[ci(p.to)] : p.value * pop.markerLoading[ci(p.to)] / pop.markerLoading[ci(p.from)])));
 }
 
 export const replicationSeed = (seed: number, n: number, r: number) => sampleSeed(seed, ((n * 100003) ^ r) >>> 0);
@@ -84,8 +95,7 @@ export function runMcTask(task: McTask, onProgress?: (done: number, total: numbe
   const proper = Array.from({ length: E }, () => new Float64Array(count).fill(NaN));
   const C = pop.constructs;
   const ci = (name: string) => C.indexOf(name);
-  // CB-SEM CIs are for unstandardised effects in the marker metric: β · λ_mk(to) / λ_mk(from).
-  const truthCI = design.estimators.map((e) => params.map((p) => (p.kind === 'fit' ? NaN : e.method === 'cb' ? p.value * pop.markerLoading[ci(p.to)] / pop.markerLoading[ci(p.from)] : p.value)));
+  const truthCI = ciTruth(design, pop, params);
   const zc = zCrit(design.alpha);
   const plsSpec = specFromPopulation(design.population);
   const cbSpec = specFromPopulation(design.population, 'factor');
@@ -115,7 +125,7 @@ export function runMcTask(task: McTask, onProgress?: (done: number, total: numbe
             params.forEach((p, pi) => {
               if (p.kind === 'fit') return;
               const i = ci(p.from), j = ci(p.to);
-              est[ei][pi][k] = p.kind === 'path' ? st.pathCoef[i][j] : st.totalEffects[i][j] - st.pathCoef[i][j];
+              est[ei][pi][k] = p.kind === 'path' ? st.pathCoef[i][j] : p.kind === 'covariance' ? st.C[i][j] : st.totalEffects[i][j] - st.pathCoef[i][j];
             });
           }
           proper[ei][k] = 1;
@@ -133,7 +143,16 @@ export function runMcTask(task: McTask, onProgress?: (done: number, total: numbe
               return;
             }
             const i = cb.constructs.indexOf(p.from), j = cb.constructs.indexOf(p.to);
-            if (p.kind === 'path') {
+            if (p.kind === 'covariance') {
+              const e2 = cb.estimates.find((x) => x.op === '~~' && ((x.lhs === p.from && x.rhs === p.to) || (x.lhs === p.to && x.rhs === p.from)));
+              if (!e2) return;
+              est[ei][pi][k] = e2.std;
+              if (e2.se) {
+                lo[ei][pi][k] = e2.est - zc * e2.se;
+                hi[ei][pi][k] = e2.est + zc * e2.se;
+                sig[ei][pi][k] = (e2.p ?? 1) < design.alpha ? 1 : 0;
+              }
+            } else if (p.kind === 'path') {
               est[ei][pi][k] = cb.stdPaths[i][j];
               const e2 = cb.estimates.find((x) => x.op === '~' && x.lhs === p.to && x.rhs === p.from);
               if (e2?.se) {

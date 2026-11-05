@@ -567,6 +567,7 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .example-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .example-card p { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.55; }
 .example-card .btn { justify-self: start; }
+.example-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .brand-btn { border: none; background: none; cursor: pointer; padding: 4px 6px; border-radius: 8px; color: var(--text); font: inherit; font-weight: 700; }
 .brand-btn:hover { background: var(--surface-3); }
 .recent-meta .chip { flex: none; max-width: none; }

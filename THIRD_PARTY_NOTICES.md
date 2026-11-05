@@ -18,9 +18,11 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | Amelia | 1.8.3 | GPL (>= 2) | https://cran.r-project.org/package=Amelia |
 | arg | 0.2.1 | GPL (>= 2) | https://cran.r-project.org/package=arg |
 | askpass | 1.2.1 | MIT + file LICENSE | https://cran.r-project.org/package=askpass |
+| audio | 0.1-12 | MIT + file LICENSE | https://cran.r-project.org/package=audio |
 | backports | 1.5.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=backports |
 | base64enc | 0.1-6 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=base64enc |
 | BayesFactor | 0.9.12-4.8 | GPL-2 | https://cran.r-project.org/package=BayesFactor |
+| beepr | 2.0 | GPL-3 | https://cran.r-project.org/package=beepr |
 | bigmemory | 4.6.6 | LGPL-3 \| Apache License 2.0 | https://cran.r-project.org/package=bigmemory |
 | bigmemory.sri | 0.1.8 | LGPL-3 \| Apache License 2.0 | https://cran.r-project.org/package=bigmemory.sri |
 | bit | 4.6.0 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=bit |
@@ -30,13 +32,16 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | BMisc | 1.4.10 | GPL-3 | https://cran.r-project.org/package=BMisc |
 | boot | 1.3-32 | Unlimited | https://cran.r-project.org/package=boot |
 | bootnet | 1.9.1 | GPL-2 | https://cran.r-project.org/package=bootnet |
+| brio | 1.1.5 | MIT + file LICENSE | https://cran.r-project.org/package=brio |
 | broom | 1.0.13 | MIT + file LICENSE | https://cran.r-project.org/package=broom |
 | bslib | 0.12.0 | MIT + file LICENSE | https://cran.r-project.org/package=bslib |
 | cachem | 1.1.0 | MIT + file LICENSE | https://cran.r-project.org/package=cachem |
+| callr | 3.8.0 | MIT + file LICENSE | https://cran.r-project.org/package=callr |
 | car | 3.1-5 | GPL (>= 2) | https://cran.r-project.org/package=car |
 | carData | 3.0-6 | GPL (>= 2) | https://cran.r-project.org/package=carData |
 | caTools | 1.18.4 | GPL-3 | https://cran.r-project.org/package=caTools |
 | cellranger | 1.1.0 | MIT + file LICENSE | https://cran.r-project.org/package=cellranger |
+| charport | 0.1.1 | MIT + file LICENSE | https://cran.r-project.org/package=charport |
 | checkmate | 2.3.4 | BSD_3_clause + file LICENSE | https://cran.r-project.org/package=checkmate |
 | class | 7.3-24 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=class |
 | cli | 3.6.6 | MIT + file LICENSE | https://cran.r-project.org/package=cli |
@@ -60,13 +65,16 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | curl | 8.0.0 | MIT + file LICENSE | https://cran.r-project.org/package=curl |
 | data.table | 1.18.6.1 | MPL-2.0 \| file LICENSE | https://cran.r-project.org/package=data.table |
 | DBI | 1.3.0 | LGPL (>= 2.1) | https://cran.r-project.org/package=DBI |
+| dcurver | 0.9.3 | GPL-3 | https://cran.r-project.org/package=dcurver |
 | dendextend | 1.19.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=dendextend |
 | Deriv | 4.3.5 | GPL (>= 3) | https://cran.r-project.org/package=Deriv |
+| desc | 1.4.3 | MIT + file LICENSE | https://cran.r-project.org/package=desc |
 | deSolve | 1.42 |  | https://cran.r-project.org/package=deSolve |
 | diagram | 1.6.5 | GPL (>= 2) | https://cran.r-project.org/package=diagram |
 | DiagrammeR | 1.0.12 | MIT + file LICENSE | https://cran.r-project.org/package=DiagrammeR |
 | DiagrammeRsvg | 0.1 | MIT + file LICENSE | https://cran.r-project.org/package=DiagrammeRsvg |
 | did | 2.5.1 | GPL-3 | https://cran.r-project.org/package=did |
+| diffobj | 0.3.9 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=diffobj |
 | digest | 0.6.39 | GPL (>= 2) | https://cran.r-project.org/package=digest |
 | doBy | 4.7.2 | GPL (>= 2) | https://cran.r-project.org/package=doBy |
 | doParallel | 1.0.17 | GPL-2 | https://cran.r-project.org/package=doParallel |
@@ -110,6 +118,8 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | ggstats | 0.14.0 | GPL (>= 3) | https://cran.r-project.org/package=ggstats |
 | glasso | 1.11 |  | https://cran.r-project.org/package=glasso |
 | glassoFast | 1.0.1 |  | https://cran.r-project.org/package=glassoFast |
+| glca | 1.4.2 | GPL-3 | https://cran.r-project.org/package=glca |
+| GLMMadaptive | 0.9-7 | GPL (>= 3) | https://cran.r-project.org/package=GLMMadaptive |
 | glmnet | 5.1 | GPL-2 | https://cran.r-project.org/package=glmnet |
 | globals | 0.20.0 | LGPL (>= 2.1) | https://cran.r-project.org/package=globals |
 | glue | 1.8.1 | MIT + file LICENSE | https://cran.r-project.org/package=glue |
@@ -176,6 +186,8 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | MIIVsem | 0.5.8 | GPL-2 | https://cran.r-project.org/package=MIIVsem |
 | mime | 0.13 | GPL | https://cran.r-project.org/package=mime |
 | minqa | 1.2.8 | GPL-2 | https://cran.r-project.org/package=minqa |
+| mirai | 2.7.3 | MIT + file LICENSE | https://cran.r-project.org/package=mirai |
+| mirt | 1.46.1 | GPL (>= 3) | https://cran.r-project.org/package=mirt |
 | miscTools | 0.6-30 | GPL (>= 2) | https://cran.r-project.org/package=miscTools |
 | mitml | 0.4-5 | GPL (>= 2) | https://cran.r-project.org/package=mitml |
 | mnormt | 2.1.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=mnormt |
@@ -187,6 +199,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | multipol | 1.0-9 | GPL | https://cran.r-project.org/package=multipol |
 | mvnfast | 0.2.8 | GPL (>= 2.0) | https://cran.r-project.org/package=mvnfast |
 | mvtnorm | 1.2-4 | GPL-2 | https://cran.r-project.org/package=mvtnorm |
+| nanonext | 1.10.3 | MIT + file LICENSE | https://cran.r-project.org/package=nanonext |
 | NCA | 5.0.2 | GPL (>= 3) | https://cran.r-project.org/package=NCA |
 | network | 1.20.0 | GPL (>= 2) | https://cran.r-project.org/package=network |
 | NetworkToolbox | 1.4.4 | GPL (>= 3.0) | https://cran.r-project.org/package=NetworkToolbox |
@@ -210,8 +223,11 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | pbapply | 1.7-5 | GPL (>= 2) | https://cran.r-project.org/package=pbapply |
 | pbivnorm | 0.6.0 | GPL (>= 2) | https://cran.r-project.org/package=pbivnorm |
 | pbkrtest | 0.5.5 | GPL (>= 2) | https://cran.r-project.org/package=pbkrtest |
+| permute | 0.9-10 | GPL-2 | https://cran.r-project.org/package=permute |
 | pillar | 1.11.1 | MIT + file LICENSE | https://cran.r-project.org/package=pillar |
+| pkgbuild | 1.4.8 | MIT + file LICENSE | https://cran.r-project.org/package=pkgbuild |
 | pkgconfig | 2.0.3 | MIT + file LICENSE | https://cran.r-project.org/package=pkgconfig |
+| pkgload | 1.5.3 | MIT + file LICENSE | https://cran.r-project.org/package=pkgload |
 | plotly | 4.12.1 | MIT + file LICENSE | https://cran.r-project.org/package=plotly |
 | plotrix | 3.8-14 | GPL (>= 2) | https://cran.r-project.org/package=plotrix |
 | plspm | 0.6.0 | GPL-3 | https://cran.r-project.org/package=plspm |
@@ -222,16 +238,20 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | polynom | 1.4-1 | GPL-2 | https://cran.r-project.org/package=polynom |
 | ppcor | 1.1 | GPL-2 | https://cran.r-project.org/package=ppcor |
 | pracma | 2.4.6 | GPL (>= 3) | https://cran.r-project.org/package=pracma |
+| praise | 1.0.0 | MIT + file LICENSE | https://cran.r-project.org/package=praise |
 | prettyunits | 1.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=prettyunits |
+| processx | 3.9.0 | MIT + file LICENSE | https://cran.r-project.org/package=processx |
 | progress | 1.2.3 | MIT + file LICENSE | https://cran.r-project.org/package=progress |
 | progressr | 1.0.0 | Apache License (>= 2) | https://cran.r-project.org/package=progressr |
 | promises | 1.5.0 | MIT + file LICENSE | https://cran.r-project.org/package=promises |
 | proxy | 0.4-29 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=proxy |
+| ps | 1.9.3 | MIT + file LICENSE | https://cran.r-project.org/package=ps |
 | psych | 2.6.9 | GPL (>= 2) | https://cran.r-project.org/package=psych |
 | purrr | 1.2.2 | MIT + file LICENSE | https://cran.r-project.org/package=purrr |
 | pwr | 1.3-0 | GPL (>= 3) | https://cran.r-project.org/package=pwr |
 | qgraph | 1.10.1 | GPL-2 | https://cran.r-project.org/package=qgraph |
 | qrng | 0.0-11 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=qrng |
+| qs2 | 0.4.0 | GPL-3 | https://cran.r-project.org/package=qs2 |
 | quadprog | 1.5-8 | GPL (>= 2) | https://cran.r-project.org/package=quadprog |
 | quantreg | 6.1 | GPL (>= 2) | https://cran.r-project.org/package=quantreg |
 | R.matlab | 3.8.1 | LGPL (>= 2.1) | https://cran.r-project.org/package=R.matlab |
@@ -243,6 +263,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | rbibutils | 2.4.1 | GPL-2 | https://cran.r-project.org/package=rbibutils |
 | RColorBrewer | 1.1-3 | Apache License 2.0 | https://cran.r-project.org/package=RColorBrewer |
 | Rcpp | 1.1.2 | GPL (>= 2) | https://cran.r-project.org/package=Rcpp |
+| RcppParallel | 6.2.1 | GPL (>= 3) | https://cran.r-project.org/package=RcppParallel |
 | Rdpack | 2.6.6 | GPL (>= 2) | https://cran.r-project.org/package=Rdpack |
 | readr | 2.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=readr |
 | readxl | 1.5.0.1 | MIT + file LICENSE | https://cran.r-project.org/package=readxl |
@@ -254,6 +275,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | rlemon | 0.2.1 | BSL-1.0 | https://cran.r-project.org/package=rlemon |
 | rmarkdown | 2.32 | MIT + file LICENSE | https://cran.r-project.org/package=rmarkdown |
 | rpart | 4.1.27 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=rpart |
+| rprojroot | 2.1.1 | MIT + file LICENSE | https://cran.r-project.org/package=rprojroot |
 | rsem | 0.5.1 | GPL-2 | https://cran.r-project.org/package=rsem |
 | RSQLite | 3.53.3 | LGPL (>= 2.1) | https://cran.r-project.org/package=RSQLite |
 | rstatix | 1.1.0 | GPL-2 | https://cran.r-project.org/package=rstatix |
@@ -268,13 +290,16 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | seminr | 2.5.0 | GPL-3 | https://cran.r-project.org/package=seminr |
 | semPlot | 1.2.0 | GPL-2 | https://cran.r-project.org/package=semPlot |
 | semTools | 0.5-10 | GPL (>= 2) | https://cran.r-project.org/package=semTools |
+| sessioninfo | 1.2.4 | GPL-2 | https://cran.r-project.org/package=sessioninfo |
 | sets | 1.0-25 | GPL-2 | https://cran.r-project.org/package=sets |
 | shape | 1.4.6.1 | GPL (>= 3) | https://cran.r-project.org/package=shape |
+| SimDesign | 2.25 | GPL (>= 2) | https://cran.r-project.org/package=SimDesign |
 | smacof | 2.1-7 | GPL-3 | https://cran.r-project.org/package=smacof |
 | sna | 2.8 | GPL (>= 2) | https://cran.r-project.org/package=sna |
 | snow | 0.4-4 | GPL | https://cran.r-project.org/package=snow |
 | spacefillr | 0.4.0 | MIT + file LICENSE | https://cran.r-project.org/package=spacefillr |
 | SparseM | 1.84-2 | GPL (>= 2) | https://cran.r-project.org/package=SparseM |
+| splines2 | 0.5.4 | GPL (>= 3) | https://cran.r-project.org/package=splines2 |
 | statnet.common | 4.13.0 | GPL-3 + file LICENSE | https://cran.r-project.org/package=statnet.common |
 | stringi | 1.8.9 | file LICENSE | https://cran.r-project.org/package=stringi |
 | stringmagic | 1.3.0 | GPL (>= 2) | https://cran.r-project.org/package=stringmagic |
@@ -284,6 +309,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | sys | 3.4.3 | MIT + file LICENSE | https://cran.r-project.org/package=sys |
 | systemfit | 1.1-30 | GPL (>= 2) | https://cran.r-project.org/package=systemfit |
 | tester | 0.3.0 | GPL-3 | https://cran.r-project.org/package=tester |
+| testthat | 3.3.2 | MIT + file LICENSE | https://cran.r-project.org/package=testthat |
 | tibble | 3.3.1 | MIT + file LICENSE | https://cran.r-project.org/package=tibble |
 | tidyr | 1.3.2 | MIT + file LICENSE | https://cran.r-project.org/package=tidyr |
 | tidyselect | 1.2.1 | MIT + file LICENSE | https://cran.r-project.org/package=tidyselect |
@@ -300,11 +326,13 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | uuid | 1.2-2 | MIT + file LICENSE | https://cran.r-project.org/package=uuid |
 | V8 | 8.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=V8 |
 | vctrs | 0.7.3 | MIT + file LICENSE | https://cran.r-project.org/package=vctrs |
+| vegan | 2.7-6 | GPL-2 | https://cran.r-project.org/package=vegan |
 | VGAM | 1.1-14 | GPL-3 | https://cran.r-project.org/package=VGAM |
 | viridis | 0.6.5 | MIT + file LICENSE | https://cran.r-project.org/package=viridis |
 | viridisLite | 0.4.3 | MIT + file LICENSE | https://cran.r-project.org/package=viridisLite |
 | visNetwork | 2.1.4 | MIT + file LICENSE | https://cran.r-project.org/package=visNetwork |
 | vroom | 1.7.1.9000 | MIT + file LICENSE | https://github.com/tidyverse/vroom |
+| waldo | 0.6.2 | MIT + file LICENSE | https://cran.r-project.org/package=waldo |
 | WeightIt | 2.1.0 | GPL (>= 2) | https://cran.r-project.org/package=WeightIt |
 | weights | 1.1.2 | GPL (>= 2) | https://cran.r-project.org/package=weights |
 | withr | 3.0.3 | MIT + file LICENSE | https://cran.r-project.org/package=withr |
@@ -367,10 +395,16 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | mobi and corp_rep_data | validation fixtures | GPL-3, from the seminr package | ECSI mobile phone data (Tenenhaus et al. 2005) and corporate reputation data (Hair et al. 2021), distributed with seminr. |
 | satisfaction and threecommonfactors | validation fixtures | GPL-3, from the cSEM package | Distributed with cSEM (Rademaker & Schuberth). |
 | Customer experience example | generated in the app (src/sample.ts) | GPL-2.0-or-later (synthetic) | Synthetic data generated by PLS Studio. |
-| Examples from R packages | loaded at run time from the packages in the browser (not stored here) | per package | lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, lme4, lcmm, ivreg, sampleSelection and MatchIt datasets; each example links to its documentation. |
+| Examples from R packages | loaded at run time from the packages in the browser (not stored here) | per package | lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection and MatchIt datasets; each example links to its documentation. |
 | NCA example data (nca.example) | public/examples/nca, validation fixtures | GPL (>= 3), from the NCA package | Distributed with NCA (Dul); shipped with the app because NCA cannot run in the browser. |
 | RSA example data (motcon) | public/examples/rsa, validation fixtures | GPL (>= 2), from the RSA package | Distributed with RSA (Schönbrodt & Humberg); shipped with the app because RSA cannot run in the browser. |
-| Mplus User’s Guide example data (chapters 3–9) | public/examples/mplus, validation fixtures | Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated) | Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples; shipped with the app, each example links to its page. |
+| Mplus User’s Guide example data | not distributed: downloaded from statmodel.com each time an example is opened (passed through by the PLS Studio server or the desktop helper, nothing stored); tests: .cache/mplus (npm run data:fetch) | Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated, so not redistributed) | Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples, read from the guide’s input and data files when an example opens; each example links to its page. |
+| RI-CLPM tutorial data (RICLPM.dat) | not distributed: downloaded from the tutorial’s GitHub repository (pinned commit) each time the example is opened; tests: .cache/riclpm (npm run data:fetch) | Simulated data in github.com/JeroenDMulder/RI-CLPM (no licence stated, so not redistributed) | Mulder, J. D. & Hamaker, E. L. (2021). Three extensions of the random intercept cross-lagged panel model. Structural Equation Modeling, 28(4), 638–648. Tutorial data from the authors’ repository. |
+| Tables from R help pages (sleep, RoundingTimes, plastic film, tuna, party identification, job satisfaction, Mendel’s cross, five categories, Conover’s peas, Cohen’s table, Shrout & Fleiss’s ratings) | public/examples/tests, public/examples/bayes, validation fixtures | GPL (>= 2), from R’s datasets and stats help pages and the psych package | The data the R help pages (?t.test, ?friedman.test, ?summary.manova, ?cor.test, ?chisq.test, ?fisher.test, ?binom.test; psych’s ?cohen.kappa and ?ICC) type in and analyse, coded as there. |
+| chickwts, puzzles, raceDolls and a 15-of-25 proportion | public/examples/bayes, validation fixtures | GPL (>= 2), from R’s datasets package and BayesFactor | chickwts (R datasets); puzzles and raceDolls distributed with BayesFactor (Morey & Rouder); the proportion of ?proportionBF. |
+| HSMiss (Holzinger & Swineford with missing values) | public/examples/mi, validation fixtures | GPL (>= 2), from lavaan and lavaan.mi | HolzingerSwineford1939 (lavaan) with the missing values lavaan.mi’s ?lavaan.mi creates. |
+| Dobson (1990) and clotting (McCullagh & Nelder) | public/examples/regression, validation fixtures | GPL (>= 2), from R’s ?glm help page | The data ?glm types in. |
+| Monte Carlo sample (Muthén & Muthén 2002 population) | public/examples/montecarlo | GPL-2.0-or-later (generated by PLS Studio) | One sample of 150 drawn with lavaan::simulateData from the population of Muthén & Muthén (2002), seed 53487. |
 | REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV) | public/examples/rendo, validation fixtures | GPL-3, from the REndo package | Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser. |
 
 ## Published sources

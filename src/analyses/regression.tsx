@@ -17,7 +17,7 @@ import { Choice, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, 
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 /** `plot`: which predictor's partial-effect curve to show (display only). */
-export interface RegressionOptions extends Pick<RegressionInput, 'censoring' | 'inflated' | 'reference' | 'status' | 'statusCensored' | 'cuts'> { outcome: string; predictors: string[]; categorical: string[]; interactions: string[][]; family: Family; link: string; trials: string; weights: string; se: RegressionInput['se']; cluster: string; plot: string }
+export interface RegressionOptions extends Pick<RegressionInput, 'censoring' | 'inflated' | 'reference' | 'status' | 'statusCensored' | 'cuts' | 'randomSlope'> { outcome: string; predictors: string[]; categorical: string[]; interactions: string[][]; family: Family; link: string; trials: string; weights: string; se: RegressionInput['se']; cluster: string; plot: string }
 type Result = RegressionResult & { input: RegressionInput };
 
 export const FAMILIES: readonly (readonly [Family, string, string])[] = [
@@ -32,7 +32,7 @@ export const FAMILIES: readonly (readonly [Family, string, string])[] = [
   ['survival', 'Survival (Cox, piecewise exponential)', 'Time to an event, with censored times: Cox regression (survival::coxph), or a piecewise-constant baseline hazard with cut points.'],
 ];
 /** Models whose standard errors are model-based or HC0 (the maximum-likelihood sandwich, Mplus MLR) only. */
-const ownSe = (o: Pick<RegressionOptions, 'family' | 'inflated'>) => o.family === 'multinomial' || o.family === 'censored' || o.family === 'survival' || (o.family === 'poisson' && !!o.inflated);
+const ownSe = (o: Pick<RegressionOptions, 'family' | 'inflated' | 'randomSlope'>) => o.family === 'multinomial' || o.family === 'censored' || o.family === 'survival' || (o.family === 'poisson' && !!o.inflated) || (o.family === 'gaussian' && !!o.randomSlope);
 /** Cut points typed as a list ("1, 2, 3") or ranges ("1:20"). */
 export function parseCuts(text: string): number[] {
   const out: number[] = [];
@@ -58,7 +58,7 @@ function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<
     <fieldset className="card-options" disabled={disabled}>
       <div className="field">
         <label htmlFor="reg-family">Model</label>
-        <select id="reg-family" className="select" value={o.family} onChange={(e) => { const family = e.target.value as Family; const own = family === 'ordinal' || (ownSe({ family, inflated: o.inflated }) && o.se !== 'HC0'); set({ ...o, family, link: family === 'ordinal' ? 'logistic' : 'logit', trials: family === 'binomial' ? o.trials : '', ...(own ? { se: 'model', cluster: '' } : {}) }); }}>
+        <select id="reg-family" className="select" value={o.family} onChange={(e) => { const family = e.target.value as Family; const own = family === 'ordinal' || (ownSe({ family, inflated: o.inflated, randomSlope: o.randomSlope }) && o.se !== 'HC0'); set({ ...o, family, link: family === 'ordinal' ? 'logistic' : 'logit', trials: family === 'binomial' ? o.trials : '', ...(own ? { se: 'model', cluster: '' } : {}) }); }}>
           {FAMILIES.map(([id, l]) => <option key={id} value={id}>{l}</option>)}
         </select>
         <div className="hint">{FAMILIES.find(([id]) => id === o.family)![2]}</div>
@@ -109,6 +109,13 @@ function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<
             <button className="btn sm" disabled={ia.length < 2 || o.interactions.some((t) => t.length === ia.length && t.every((x) => ia.includes(x)))} onClick={() => { set({ ...o, interactions: [...o.interactions, columns.filter((n) => ia.includes(n))] }); setIa([]); }}>Add term</button>
           </div>
           <div className="hint">Tick two or more variables and add their product (a:b in R). A variable that is not among the predictors enters through the term only (nested effects, as R’s a/b).</div>
+        </div>
+      )}
+      {o.family === 'gaussian' && (
+        <div className="field">
+          <ColumnSelect id="reg-slope" label="Random slope (optional)" optional="None" value={o.randomSlope ?? ''} columns={o.predictors.filter((n) => !text(n) && !o.categorical.includes(n))}
+            onChange={(v) => { const { randomSlope: _s, ...rest } = o; set(v ? { ...rest, randomSlope: v, weights: '', ...(o.se !== 'model' && o.se !== 'HC0' ? { se: 'model' as const, cluster: '' } : {}) } : rest); }} />
+          <div className="hint">The slope of this predictor varies across cases, with a variance and a covariance with the residual: the residual variance becomes σ² + 2c·x + τ·x² (Mplus TYPE = RANDOM: s | y ON x; s WITH y; a regression of the slope on w is the interaction x × w). Maximum likelihood written out in R (optim).</div>
         </div>
       )}
       <div className="row2">
@@ -169,6 +176,7 @@ const curvesOf = (r: Result): RegressionCurve[] => Array.isArray(r.curves) ? r.c
  */
 export function regressionModel(o: RegressionOptions): ModelState | string {
   if (o.family !== 'gaussian') return 'Only a linear regression is a path model with the same estimates; the other families have no CB-SEM counterpart.';
+  if (o.randomSlope) return 'A random slope has no path-model counterpart.';
   if (o.categorical.length) return `Categorical predictors (${o.categorical.join(', ')}) enter as dummy variables: add them as computed columns (e.g. g == 2) first.`;
   if (o.interactions.length) return 'Interaction terms are not drawn: draw the main effects, then add a moderation arrow on the canvas.';
   if (o.trials) return 'Trials apply to a binomial outcome only.';
@@ -218,6 +226,7 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
     ...(f.zeros !== undefined && f.zeros !== null ? [['Zeros', String(f.zeros)]] as [string, string][] : []),
     ...(f.events !== undefined && f.events !== null ? [['Events', String(f.events)]] as [string, string][] : [])];
   const main = (r.coefficients ?? []).filter((e) => !e.part), inflation = (r.coefficients ?? []).filter((e) => e.part === 'inflation'), baseline = (r.coefficients ?? []).filter((e) => e.part === 'baseline');
+  const random = (r.coefficients ?? []).filter((e) => e.part === 'random');
   const dg = r.diagnostics;
   return (
     <div className="tables">
@@ -235,6 +244,8 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
           note={ratio ? `${ratioName}s: exp(estimate), the multiplicative change in the ${r.family === 'binomial' || r.family === 'ordinal' ? 'odds' : r.family === 'survival' ? 'hazard' : 'expected count'} per unit of the predictor.` : undefined} />}
       {inflation.length > 0 && <Table title="Inflation (logistic model for the extra values)" file="regression-inflation" columns={cols.slice(0, 6)} rows={inflation.map((e) => coefRow(e, false))}
         note={`The log-odds of a ${r.family === 'poisson' ? 'structural zero' : 'value at the censoring point beyond the censored-normal model'} (Mplus: ${r.family === 'poisson' ? 'u' : 'y'}#1 ON …).`} />}
+      {random.length > 0 && <Table title={`Random slope of ${r.input.randomSlope ?? ''}: variances and covariance`} file="regression-random-slope" columns={cols.slice(0, 6)} rows={random.map((e) => coefRow(e, false))}
+        note="The residual variance σ² (Mplus: y), the slope’s variance τ (s) and its covariance c with the residual (s WITH y): the outcome’s variance given x is σ² + 2c·x + τ·x². The slope’s mean is the predictor’s coefficient above." />}
       {baseline.length > 0 && <Table title="Baseline hazard by interval" file="regression-baseline-hazard" columns={cols.slice(0, 6)} rows={baseline.map((e) => coefRow(e, false))}
         note="The hazard in each interval for a person with all predictors at zero; z and p test its logarithm against 0; the interval is exp(log hazard ± z × SE)." />}
       {r.thresholds.length > 0 && <Table title="Thresholds (cut points between the ordered levels)" file="regression-thresholds" columns={cols.slice(0, 6)} rows={r.thresholds.map((e) => coefRow(e, false))} />}
@@ -280,6 +291,7 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     ...(raw.censoring === 'above' ? { censoring: 'above' as const } : {}), ...(raw.inflated === true ? { inflated: true } : {}), ...(raw.reference === 'last' ? { reference: 'last' as const } : {}),
     ...(name(raw.status) ? { status: name(raw.status) } : {}), ...(raw.statusCensored === true ? { statusCensored: true } : {}),
     ...(Array.isArray(raw.cuts) && raw.cuts.length ? { cuts: parseCuts(raw.cuts.filter((x) => typeof x === 'number').join(',')) } : {}),
+    ...(name(raw.randomSlope) ? { randomSlope: name(raw.randomSlope) } : {}),
   } : null),
   Options: RegressionOptionsForm,
   View: ({ result, options }) => <RegressionView r={result} plot={options.plot} o={options} />,
@@ -296,13 +308,19 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     if (o.family === 'survival' && !o.status) return 'Choose the status column (0/1: which times are events, which censored).';
     if (o.family === 'survival' && o.status && o.status === o.outcome) return 'The status column cannot be the survival time.';
     if ((o.family === 'survival' || (o.family === 'poisson' && o.inflated) || (o.family === 'censored' && o.inflated)) && o.weights) return 'Weights are not available for survival and inflated models.';
+    if (o.randomSlope && o.family === 'gaussian') {
+      if (!o.predictors.includes(o.randomSlope)) return `The random slope (${o.randomSlope}) must be one of the predictors.`;
+      if (o.categorical.includes(o.randomSlope) || rawData(ctx)?.categories?.[o.randomSlope]) return 'A random slope needs a numeric predictor.';
+      if (o.weights) return 'Weights are not available with a random slope.';
+    }
     return missingColumns(ctx, regressionColumns(o), 'Regression');
   },
   fingerprint: (o, ctx) => columnsFingerprint(ctx, regressionColumns(o), [o.family, o.link, o.se, ...o.categorical, ...o.interactions.map((t) => t.join(':')), ctx.settings.confidence,
     // (only options that differ from the defaults: earlier results keep their fingerprint)
     ...(o.family === 'censored' && o.censoring === 'above' ? ['above'] : []), ...((o.family === 'censored' || o.family === 'poisson') && o.inflated ? ['inflated'] : []),
-    ...(o.family === 'multinomial' && o.reference === 'last' ? ['last'] : []), ...(o.family === 'survival' ? [o.statusCensored ? 'censored' : 'event', (o.cuts ?? []).join(',')] : [])]),
+    ...(o.family === 'multinomial' && o.reference === 'last' ? ['last'] : []), ...(o.family === 'survival' ? [o.statusCensored ? 'censored' : 'event', (o.cuts ?? []).join(',')] : []),
+    ...(o.family === 'gaussian' && o.randomSlope ? [`slope:${o.randomSlope}`] : [])]),
   run: async (o, ctx) => { const input = regressionInput(o, ctx); return { ...(await (await import('../rengine/regression')).regressionR(rawData(ctx)!, input)), input }; },
   script: async (o, ctx) => (await import('../rengine/regression')).regressionScriptR(rawData(ctx)!, regressionInput(o, ctx)),
-  summary: (o) => `${FAMILY_NAME[o.family].toLowerCase()} · ${o.outcome || '…'} on ${o.predictors.length ? o.predictors.join(', ') : '…'}${o.se !== 'model' ? ` · ${o.se} SEs` : ''}`,
+  summary: (o) => `${FAMILY_NAME[o.family].toLowerCase()} · ${o.outcome || '…'} on ${o.predictors.length ? o.predictors.join(', ') : '…'}${o.family === 'gaussian' && o.randomSlope ? ` · random slope of ${o.randomSlope}` : ''}${o.se !== 'model' ? ` · ${o.se} SEs` : ''}`,
 };

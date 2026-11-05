@@ -1,17 +1,21 @@
-// The Mplus User's Guide examples (Muthén & Muthén): generated data published with each example, shipped with the
-// app (public/examples/mplus, converted by scripts/validation/mplus_data.py), with Mplus's defaults (mean structure,
+// The Mplus User's Guide examples (Muthén & Muthén): generated data published with each example, which states no
+// licence, so it is not shipped: opening an example downloads its input and data from statmodel.com and converts them
+// in the browser (examples/remote, a port of scripts/validation/mplus_data.py), with Mplus's defaults (mean structure,
 // observed information, geomin epsilon). The tests compare each with the numbers its Mplus output prints
 // (scripts/validation/mplus_printed.py, src/engine/__fixtures__/textbook/mplus_printed.json).
 
 import type { RegressionOptions } from '../../analyses/regression';
 import type { ExamplePackage } from '../packages';
+import type { RemoteData, Reshape } from '../remote/source';
 
 /** The guide's page for one example and its chapter's inputs, data and outputs. */
 export const mplusLinks = (ex: string) => [
   { label: `Mplus User’s Guide, example ${ex}`, url: `https://www.statmodel.com/usersguide/chap${ex.split('.')[0]}/ex${ex}.html` },
   { label: `Chapter ${ex.split('.')[0]}: inputs, data and outputs`, url: `https://www.statmodel.com/usersguide/chapter${ex.split('.')[0]}.shtml` },
 ];
-export const mplusData = (ex: string, pkg: ExamplePackage = 'lavaan') => ({ package: pkg, name: `Mplus example ${ex}`, file: `examples/mplus/ex${ex}.csv` });
+/** The example's data: not distributed with the app (no licence stated), downloaded from statmodel.com when it is opened (examples/remote), reshaped after loading where `reshape` says. */
+export const mplusData = (ex: string, pkg: ExamplePackage = 'lavaan', reshape?: Reshape): { package: ExamplePackage; name: string; remote: RemoteData } =>
+  ({ package: pkg, name: `Mplus example ${ex}`, remote: { kind: 'mplus', example: ex, ...(reshape ? { reshape } : {}) } });
 export const MPLUS_TAG = 'Mplus User’s Guide';
 export const MPLUS_SRC = (ex: string) => `Mplus User’s Guide (Muthén & Muthén 2017), example ${ex}`;
 export const regression = (family: RegressionOptions['family'], link: string, outcome: string, predictors: string[]) =>

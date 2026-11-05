@@ -91,7 +91,8 @@ export type GroupValue = number | string | null;
  * disturbance's when it is explained) or, with `indicator`, an indicator's name (its residual variance,
  * intercept or threshold number `threshold`, 1 when absent).
  */
-export interface ParameterSpec { kind: 'variance' | 'intercept' | 'threshold'; target: string; indicator?: boolean; threshold?: number; fixed?: number; label?: string; byGroup?: GroupValue[] }
+/** `free`: written out without a value, freeing a parameter lavaan fixes by default (NA*). */
+export interface ParameterSpec { kind: 'variance' | 'intercept' | 'threshold' | 'scale'; target: string; indicator?: boolean; threshold?: number; fixed?: number; label?: string; byGroup?: GroupValue[]; free?: true }
 
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */
 export const interactionName = (from: string, moderator: string) => (from === moderator ? `${from}²` : `${from} × ${moderator}`);
@@ -137,6 +138,14 @@ export interface ModelSpec {
   positiveVariances?: boolean;
   /** CB-SEM (lavaan): standard errors from the observed (Hessian) instead of the expected information (Mplus's default for ML). */
   information?: 'observed';
+  /**
+   * CB-SEM (lavaan), WLSMV with ordinal indicators: 'lavaan': lavaan 0.7's standard errors (the observed information in
+   * the sandwich). Absent: Mplus's (classic WLSMV): the expected information in the sandwich, the covariance matrix of
+   * the estimates divided by N rather than N − G.
+   */
+  wlsmvSe?: 'lavaan';
+  /** CB-SEM (lavaan), WLSMV with ordinal indicators, one group: Mplus's test statistic (mimic = "Mplus", gamma.vcov.mplus = FALSE). */
+  mimic?: 'Mplus';
   /** CB-SEM (lavaan): CFI/TLI baseline of uncorrelated variables (otherwise the exogenous observed variables' covariances stay free). */
   baseline?: 'independence';
   /** CB-SEM (lavaan): likelihood = "wishart" (N − 1, as LISREL, EQS, Amos, the sem package). */
@@ -299,7 +308,7 @@ export interface BootstrapOptions {
 
 export interface BootstrapStat {
   key: string;
-  group: 'path' | 'total' | 'indirect' | 'loading' | 'weight' | 'r2';
+  group: 'path' | 'total' | 'indirect' | 'loading' | 'weight' | 'r2' | 'estimate';
   label: string;
   original: number;
   mean: number;
