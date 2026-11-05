@@ -89,9 +89,12 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
         )}
         {shown === 'loadings' && (
           <>
-            <Table title={`${r.oblique ? 'Pattern matrix' : 'Loadings'}: ${r.k} ${unit}s, ${EFA_METHODS.find((m) => m.id === r.method)?.label.toLowerCase()}, ${r.rotation === 'none' ? 'unrotated' : `${EFA_ROTATIONS.find((x) => x.id === r.rotation)?.label.toLowerCase()} rotation`}`}
+            <Table title={`${r.oblique ? 'Pattern matrix' : 'Loadings'}: ${r.k} ${unit}s, ${r.estimator === 'WLSMV' ? 'WLSMV with standard errors (lavaan)' : EFA_METHODS.find((m) => m.id === r.method)?.label.toLowerCase()}, ${r.rotation === 'none' ? 'unrotated' : `${EFA_ROTATIONS.find((x) => x.id === r.rotation)?.label.toLowerCase()} rotation`}`}
               file="efa-loadings" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.loadings)}
               note={`Sorted by the ${unit} each variable loads most on; loadings below ${threshold} are blank, ≥ .5 bold. h²: communality; u²: uniqueness; complexity: Hofmann’s index (1: one ${unit}). The Cross-loadings tab lists every loading.`} />
+            {r.se && <Table title="Standard errors of the loadings" file="efa-loadings-se" columns={['Variable', ...r.factors, 'u²']}
+              rows={order.map((i) => [c(r.variables[i]), ...r.se!.loadings[i].map((v) => c(v)), c(r.se!.uniqueness[i])])}
+              note={`Standard errors of the standardised loadings and uniquenesses (lavaan, delta method${r.estimator === 'WLSMV' ? '; WLSMV, robust' : ''}). A loading more than about twice its standard error differs from 0 at the 5% level.`} />}
             {r.structure && <Table title={`Structure matrix (correlations of variables and ${unit}s)`} file="efa-structure" columns={['Variable', ...r.factors, 'h²', 'u²', 'Complexity']} rows={rows(r.structure)} />}
           </>
         )}
@@ -136,15 +139,27 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
               rows={[[c('Sum of squared loadings'), ...r.ssLoadings.map((v) => c(v))], [c('Proportion'), ...r.proportion.map((v) => c(v))], [c('Cumulative'), ...r.cumulative.map((v) => c(v))]]} />
             {r.phi && <Table title={`${pca ? 'Component' : 'Factor'} correlations`} file="efa-phi" columns={['', ...r.factors]}
               rows={r.factors.map((f, i) => [c(f), ...r.phi![i].map((v, j) => (j <= i ? c(v) : c('')))])} />}
+            {r.phi && r.se?.phi && <Table title="Standard errors of the factor correlations" file="efa-phi-se" columns={['', ...r.factors]}
+              rows={r.factors.map((f, i) => [c(f), ...r.se!.phi![i].map((v, j) => (j < i ? c(v) : c('')))])} />}
           </>
         )}
-        {shown === 'fit' && !pca && (
+        {shown === 'fit' && !pca && r.comparison && (
+          <Table title={`Fit by number of factors (${r.estimator === 'WLSMV' ? 'WLSMV' : 'maximum likelihood'}, lavaan)`} file="efa-fit"
+            columns={['Factors', 'Parameters', 'χ²', 'df', 'p', 'RMSEA', '90% CI', 'CFI', 'TLI', 'SRMR', ...(r.estimator === 'WLSMV' ? [] : ['Log-likelihood', 'AIC', 'BIC'])]}
+            rows={r.comparison.map((f) => [c(f.k, undefined, 0), c(f.npar ?? null, undefined, 0), c(f.chisq ?? null, undefined, 3), c(f.df ?? null, undefined, 0), pCell(f.p ?? null), c(f.rmsea ?? null),
+              c(f.rmseaLow != null && f.rmseaHigh != null ? `${fmt(f.rmseaLow)}–${fmt(f.rmseaHigh)}` : '–'), c(f.cfi ?? null), c(f.tli ?? null), c(f.srmr ?? null),
+              ...(r.estimator === 'WLSMV' ? [] : [c(f.logl ?? null, undefined, 3), c(f.aic ?? null, undefined, 3), c(f.bic ?? null, undefined, 3)])])}
+            note={`Each number of factors against the saturated model (n = ${r.n})${r.estimator === 'WLSMV' ? '; WLSMV’s scaled and shifted χ², which cannot be differenced directly' : '; with nested numbers of factors the difference in χ² is a likelihood-ratio test'}. RMSEA ≤ .06, CFI and TLI ≥ .95 and SRMR ≤ .08 suggest good fit (Hu & Bentler 1999). As Mplus’s TYPE = EFA.`} />
+        )}
+        {shown === 'fit' && !pca && !r.comparison && (
           <Table title="Fit of the factor model" file="efa-fit" columns={['χ²', 'df', 'p', 'RMSEA', '90% CI', 'TLI', 'BIC']}
             rows={[[c(r.fit.chisq ?? null, undefined, 2), c(r.fit.df ?? null, undefined, 0), pCell(r.fit.p ?? null), c(r.fit.rmsea ?? null),
               c(r.fit.rmseaLow != null && r.fit.rmseaHigh != null ? `${fmt(r.fit.rmseaLow)}–${fmt(r.fit.rmseaHigh)}` : '–'), c(r.fit.tli ?? null), c(r.fit.bic ?? null, undefined, 1)]]}
             note={`Likelihood-ratio test of the ${r.k}-factor model against the saturated one (psych; n = ${r.n}). RMSEA ≤ .06 and TLI ≥ .95 suggest good fit (Hu & Bentler 1999). χ² rejects easily in large samples.`} />
         )}
-        <div className="hint">Calculated by psych {r.engine.version} (Revelle){r.rotation !== 'none' && r.oblique ? ' with GPArotation' : ''}.</div>
+        <div className="hint">{r.engine.package === 'lavaan'
+          ? `Solution calculated by lavaan ${r.engine.version} (efa(), ${r.estimator ?? 'ML'}, rotation with random starts); suitability and the number of factors by psych.`
+          : `Calculated by psych ${r.engine.version} (Revelle)${r.rotation !== 'none' && r.oblique ? ' with GPArotation' : ''}.`}</div>
       </div>
     </>
   );
@@ -209,11 +224,30 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
       <div className="row2">
         <div className="field"><label htmlFor="efa-rot">Rotation</label>
           <select id="efa-rot" className="select" value={d.rotation} onChange={(e) => setDesign({ rotation: e.target.value as EfaDesign['rotation'] })}>
-            {EFA_ROTATIONS.map((m) => <option key={m.id} value={m.id}>{m.label}{m.id === 'none' ? '' : m.oblique ? ' (oblique)' : ' (orthogonal)'}</option>)}
+            {EFA_ROTATIONS.filter((m) => !m.lavaan || d.method === 'lavaan' || m.id === d.rotation).map((m) => <option key={m.id} value={m.id}>{m.label}{m.id === 'none' ? '' : m.oblique ? ' (oblique)' : ' (orthogonal)'}</option>)}
           </select></div>
         <div className="field"><label htmlFor="efa-par">Parallel analysis samples</label>
           <input id="efa-par" className="input num" type="number" min={0} max={2000} value={d.parallel} onChange={(e) => setDesign({ parallel: Math.max(0, Math.min(2000, Math.round(Number(e.target.value)) || 0)) })} /></div>
       </div>
+      {d.method === 'lavaan' && (
+        <div className="row2">
+          {(d.rotation === 'geominQ' || d.rotation === 'bigeomin') && (
+            <div className="field"><label htmlFor="efa-eps">Geomin ε</label>
+              <input id="efa-eps" className="input num" type="number" min={0.00001} max={1} step={0.0001} value={d.epsilon ?? 0.001}
+                onChange={(e) => { const v = Number(e.target.value); setDesign({ epsilon: v > 0 && v <= 1 ? v : undefined }); }} />
+              <div className="hint">lavaan’s default 0.001; Mplus uses 0.0001 with two factors, 0.001 with three, 0.01 with four or more.</div></div>
+          )}
+          <div className="field"><label htmlFor="efa-from">Compare fit from</label>
+            <input id="efa-from" className="input num" type="number" min={1} max={maxK} value={d.from ?? 1} onChange={(e) => setDesign({ from: Math.max(1, Math.min(maxK, Math.round(Number(e.target.value)) || 1)) })} />
+            <div className="hint">The fit of every number of {unit} from this one to the solution’s (Mplus: TYPE = EFA 1 4).</div></div>
+          {d.correlation !== 'polychoric' && (
+            <div className="field"><label htmlFor="efa-info">Standard errors</label>
+              <select id="efa-info" className="select" value={d.information ?? 'expected'} onChange={(e) => setDesign({ information: e.target.value === 'observed' ? 'observed' : undefined })}>
+                <option value="expected">Expected information (lavaan)</option><option value="observed">Observed information (Mplus)</option>
+              </select></div>
+          )}
+        </div>
+      )}
       <div className="field"><label htmlFor="efa-thr">Hide loadings below</label>
         <input id="efa-thr" className="input num" type="number" min={0} max={0.95} step={0.05} value={d.threshold} onChange={(e) => setDesign({ threshold: Math.max(0, Math.min(0.95, Number(e.target.value) || 0)) })} />
         <div className="hint">Changes the tables and Build model only; no need to run again.</div></div>
@@ -226,7 +260,8 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
         </div>
         <div className="hint">{d.correlation === 'polychoric'
           ? `For ordinal (Likert) items: the correlations of the continuous responses assumed to underlie the categories (psych’s mixedCor). Items with at most 8 categories are treated as ordinal (tetrachoric when binary), others as continuous (polyserial, Pearson). Pearson correlations of such items are too low, the more so with few or skewed categories, which lowers loadings and can split items by their popularity. Each parallel-analysis sample recomputes the polychoric correlations, so the samples are slow (about a second each for 25 items): set to ${POLYCHORIC_PARALLEL} when chosen.`
-          : 'Pearson correlations treat the values as continuous. For ordinal (Likert) items with few or skewed categories choose polychoric.'}</div>
+          : 'Pearson correlations treat the values as continuous. For ordinal (Likert) items with few or skewed categories choose polychoric.'}
+          {d.method === 'lavaan' ? (d.correlation === 'polychoric' ? ' lavaan estimates the solution by WLSMV from the polychoric correlations of the ordinal items.' : ' lavaan estimates the solution by maximum likelihood; with pairwise missing values, by full-information ML.') : ''}</div>
       </div>
       <div className="field">
         <label>Missing values</label>
@@ -237,7 +272,7 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
       </div>
       <p className="hint">{d.method === 'pca'
         ? 'PCA summarises the variables in components that explain as much of their variance as possible; it is a data reduction, not a model of latent factors.'
-        : 'Factor analysis models common factors behind the variables (shared variance only); use it to explore a measurement structure before a CFA.'}
+        : `Factor analysis models common factors behind the variables (shared variance only); use it to explore a measurement structure before a CFA.${d.method === 'lavaan' ? ' The lavaan extraction adds standard errors of the rotated loadings and factor correlations and the fit of each number of factors (as Mplus’s TYPE = EFA).' : ''}`}
         {oblique ? ` An oblique rotation lets the ${unit} correlate, which is usual for psychological constructs.` : ''}</p>
     </fieldset>
   );
@@ -274,6 +309,10 @@ export const efaAnalysis: AnalysisType<EfaDesign, EfaResult> = {
     if (vars.length < 3) return 'Choose at least three variables.';
     if (d.criterion === 'fixed' && d.nfactors >= vars.length) return `Choose fewer ${d.method === 'pca' ? 'components' : 'factors'} than variables.`;
     if (d.criterion === 'parallel' && d.parallel <= 0) return 'Parallel analysis needs samples.';
+    if (EFA_ROTATIONS.find((x) => x.id === d.rotation)?.lavaan) {
+      if (d.method !== 'lavaan') return 'Bifactor rotations need the lavaan extraction (maximum likelihood with standard errors).';
+      if ((d.from ?? 1) < 2 || (d.criterion === 'fixed' && d.nfactors < 2)) return 'A bifactor rotation needs at least two factors (a general and a specific one): compare fit from 2.';
+    }
     return null;
   },
   fingerprint: (d, ctx) => {

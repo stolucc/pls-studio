@@ -1,7 +1,7 @@
 import { ViewportPortal } from '@xyflow/react';
 import type { MouseEvent } from 'react';
 import {
-  constructGeometry, correlationCurve, disturbanceTerm, ERR_R, errorTerm,
+  constructGeometry, correlationCurve, disturbanceTerm, ERR_R, errorTerm, shapeOf, shapePoint,
   type Anchor, type ErrorTerm,
 } from '../geometry';
 import { endogenousIds, impliedCorrelations, type Construct, type Correlation, type CorrelationEnd as CorrelationPick, type ModelState } from '../model/project';
@@ -72,7 +72,20 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
     const normal = pa && pb && pa.owner.id === pb.owner.id ? [pa.term.nx, pa.term.ny] as [number, number] : undefined;
     return [{ k, curve: correlationCurve(a, b, { normal, away: centre }), auto: k.id.startsWith('auto:') }];
   });
-  return { places: errors ? places : new Map<string, IndicatorPlace>(), disturbances, curves, errors };
+  // Direct effects on indicators: a straight arrow from the construct's border to the indicator's box.
+  const boxes = new Map<string, { x: number; y: number; w: number; h: number }>();
+  for (const c of model.constructs) for (const g of constructGeometry(c).indicators) if (!boxes.has(g.name)) boxes.set(g.name, { x: c.x + g.x, y: c.y + g.y, w: g.w, h: g.h });
+  const direct = (active ? model.indicatorPaths ?? [] : []).flatMap((p) => {
+    const c = byId.get(p.from), b = boxes.get(p.to);
+    if (!c || !b) return [];
+    const bx = b.x + b.w / 2, by = b.y + b.h / 2, dx = bx - c.x, dy = by - c.y, len = Math.hypot(dx, dy) || 1;
+    const g = constructGeometry(c);
+    const [sx, sy] = shapePoint(shapeOf(c), g.rx, g.ry, dx / len, dy / len);
+    // (the end on the box's border, along the line)
+    const t = Math.min(Math.abs(dx) > 1e-9 ? (b.w / 2) / Math.abs(dx) : Infinity, Math.abs(dy) > 1e-9 ? (b.h / 2) / Math.abs(dy) : Infinity);
+    return [{ p, x1: c.x + sx, y1: c.y + sy, x2: bx - dx * t, y2: by - dy * t }];
+  });
+  return { places: errors ? places : new Map<string, IndicatorPlace>(), disturbances, curves, errors, direct };
 }
 
 const fmtP = (p: number) => (p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`);
@@ -97,8 +110,8 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
   const model = useStore((s) => s.model);
   const selected = useStore((s) => s.selection.correlations ?? NONE);
   const setSelection = useStore((s) => s.setSelection);
-  const { places, disturbances, curves: raw, errors } = covarianceLayout(model, active, showErrors);
-  if (raw.length === 0 && !errors && disturbances.length === 0) return null;
+  const { places, disturbances, curves: raw, errors, direct } = covarianceLayout(model, active, showErrors);
+  if (raw.length === 0 && !errors && disturbances.length === 0 && direct.length === 0) return null;
   const curves = raw.map((r) => ({ ...r, on: selected.includes(r.k.id) }));
 
   const select = (e: MouseEvent, id: string) => {
@@ -137,6 +150,13 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Disturbance ζ of {c.name}{errorFor('construct', c.name) !== null ? ` (standardised variance ${errorFor('construct', c.name)!.toFixed(3)})` : ''}</title></circle>
             {errContent(t, 'ζ', errorFor('construct', c.name))}
+          </g>
+        ))}
+        {direct.map(({ p, x1, y1, x2, y2 }) => (
+          <g key={`ip:${p.id}`} className="direct-effect">
+            <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--path)" strokeWidth={1.4} markerEnd="url(#arrow-path)">
+              <title>Direct effect on the indicator {p.to}{p.fixed !== undefined ? ` (fixed at ${p.fixed})` : p.label ? ` (${p.label})` : ''}</title>
+            </line>
           </g>
         ))}
         {curves.map(({ k, curve, on, auto }) => (

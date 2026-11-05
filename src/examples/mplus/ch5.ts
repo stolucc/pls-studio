@@ -4,6 +4,8 @@ import { CB, f, fan, items, v } from '../define';
 import type { PackageExample } from '../packages';
 import { MPLUS_SRC, MPLUS_TAG, mplusData, mplusLinks } from './common';
 
+const TWIN = { g: ['mz', 'dz'] };
+
 export const MPLUS_CH5: PackageExample[] = [
   {
     id: 'mplus-ex5.1', package: 'lavaan', title: 'CFA with continuous indicators (Mplus ex. 5.1)', source: MPLUS_SRC('5.1'), links: mplusLinks('5.1'),
@@ -14,6 +16,23 @@ export const MPLUS_CH5: PackageExample[] = [
     id: 'mplus-ex5.2', package: 'lavaan', title: 'CFA with binary indicators, WLSMV (Mplus ex. 5.2)', source: MPLUS_SRC('5.2'), links: mplusLinks('5.2'),
     description: 'The same two-factor model on six binary indicators u1–u6 declared categorical: thresholds and tetrachoric correlations with Mplus’s default WLSMV estimator and delta parameterisation. Every loading, threshold and factor (co)variance and their standard errors are those Mplus prints. The test statistics differ slightly in their adjustment: Mplus prints χ² = 5.482 on 8 df, lavaan’s scaled-shifted statistic is 5.474; lavaan’s SRMR (0.024) is computed differently from Mplus’s (0.021).',
     data: mplusData('5.2'), tags: [MPLUS_TAG], constructs: [f('f1', items('u', 3)), f('f2', items('u', 3, 4))], paths: [], ordered: items('u', 6), settings: CB('WLSMV'),
+  },
+  {
+    id: 'mplus-ex5.3', package: 'lavaan', title: 'CFA with continuous and categorical indicators (Mplus ex. 5.3)', source: MPLUS_SRC('5.3'), links: mplusLinks('5.3'),
+    description: 'Two correlated factors: f1 of three binary indicators u1–u3 declared categorical, f2 of three continuous indicators y4–y6, with Mplus’s default WLSMV estimator and delta parameterisation (thresholds for the binary, intercepts and residual variances for the continuous indicators). Reproduces every estimate Mplus prints and the standard errors of the loadings, thresholds, intercepts and the factor covariance; three standard errors of variances differ, in how the two programs weight the continuous indicators’ variances: f2 0.067 (Mplus 0.062), y4 0.023 (0.025), y5 0.022 (0.021). 16 free parameters; lavaan’s scaled-shifted χ² is 3.916 on 8 df, Mplus prints 3.935.',
+    data: mplusData('5.3'), tags: [MPLUS_TAG], constructs: [f('f1', items('u', 3)), f('f2', items('y', 3, 4))], paths: [], ordered: items('u', 3), constant: true, settings: CB('WLSMV'),
+  },
+  {
+    id: 'mplus-ex5.5', package: 'ltm', title: 'Generalized partial credit IRT model (Mplus ex. 5.5, part 1)', source: MPLUS_SRC('5.5'), links: mplusLinks('5.5'),
+    description: 'Twenty items u1–u20 with five ordered categories (N = 5000) and one factor f with variance 1 (Mplus: CATEGORICAL = u1-u20 (gpcm); f BY u1-u20*; f@1; ESTIMATOR = MLR): Muraki’s generalized partial credit model, which ltm’s gpcm fits by marginal maximum likelihood. With ltm’s default of 21 quadrature points the log-likelihood is off by 180 (−121801.6); the card is set to 81, and robust (sandwich) standard errors as Mplus’s MLR. Reproduces the Mplus output: log-likelihood −121621.098, 100 free parameters, AIC 243442.196, BIC 244093.915, every loading and step within 0.0011 and their MLR standard errors within 0.001 (the card’s logit-metric table; Mplus’s steps are minus ltm’s intercepts). The partial credit model takes a few minutes in the browser.',
+    data: mplusData('5.5', 'ltm'), tags: [MPLUS_TAG], constructs: [], paths: [],
+    panel: { kind: 'irt', items: items('u', 20), model: 'gpcm', quadrature: 81, robust: true }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.5part2', package: 'ltm', title: 'Two-parameter logistic IRT model (Mplus ex. 5.5, part 2)', source: MPLUS_SRC('5.5'), links: mplusLinks('5.5part2'),
+    description: 'Twenty binary items u1–u20 (N = 500), one factor f with variance 1 (Mplus: CATEGORICAL = u1-u20; f BY u1-u20*; f@1; ESTIMATOR = MLR): the two-parameter logistic model, fitted by ltm with 81 quadrature points and robust (sandwich) standard errors as Mplus’s MLR. Reproduces the Mplus output: log-likelihood −6265.314 (Mplus −6265.315), 40 free parameters, AIC 12610.628 (12610.630), BIC 12779.213 (12779.214), the thresholds and every MLR standard error within 0.001, and the loadings within 0.0015 (ltm’s are slightly lower, u1 1.0246 against 1.026, at a log-likelihood no lower than Mplus’s). The card also shows the IRT parameterisation (difficulty = threshold / loading).',
+    data: mplusData('5.5part2', 'ltm'), tags: [MPLUS_TAG], constructs: [], paths: [],
+    panel: { kind: 'irt', items: items('u', 20), model: 'twopl', quadrature: 81, robust: true }, settings: CB('ML'),
   },
   {
     id: 'mplus-ex5.6', package: 'lavaan', title: 'Second-order factor model (Mplus ex. 5.6)', source: MPLUS_SRC('5.6'), links: mplusLinks('5.6'),
@@ -30,11 +49,32 @@ export const MPLUS_CH5: PackageExample[] = [
     paths: fan(['x1', 'x2', 'x3'], ['f1', 'f2']), correlations: [['f1', 'f2', 'construct']], constant: true, information: 'observed', settings: CB('ML'),
   },
   {
+    id: 'mplus-ex5.9', package: 'lavaan', title: 'Mean structure CFA with equal intercepts (Mplus ex. 5.9)', source: MPLUS_SRC('5.9'), links: mplusLinks('5.9'),
+    description: 'Two factors whose three indicators all load 1 (Mplus: f1 BY y1a y1b@1 y1c@1), with the intercepts held equal within each factor ([y1a y1b y1c] (1)): a mean structure for repeated measures of one construct. Written as lavaan syntax with labelled intercepts (y1a ~ i1*1 …); intercepts and observed-information standard errors as Mplus. Reproduces the Mplus output: log-likelihood −4150.048, 11 free parameters, χ² = 12.844 on 16 df, and every estimate and standard error.',
+    data: mplusData('5.9'), tags: [MPLUS_TAG], constructs: [], paths: [],
+    syntax: 'f1 =~ y1a + 1*y1b + 1*y1c\nf2 =~ y2a + 1*y2b + 1*y2c\ny1a ~ i1*1\ny1b ~ i1*1\ny1c ~ i1*1\ny2a ~ i2*1\ny2b ~ i2*1\ny2c ~ i2*1',
+    constant: true, information: 'observed', settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.10', package: 'lavaan', title: 'Threshold structure CFA with categorical indicators (Mplus ex. 5.10)', source: MPLUS_SRC('5.10'), links: mplusLinks('5.10'),
+    description: 'Example 5.9 with binary indicators declared categorical: loadings 1 and the thresholds held equal within each factor ([u1a$1 u1b$1 u1c$1] (1); lavaan u1a | t1*t1 …), with Mplus’s default WLSMV estimator and delta parameterisation. Reproduces every estimate and standard error Mplus prints and its 5 free parameters on 16 df; lavaan’s scaled-shifted χ² is 15.091, Mplus prints 15.119 (the adjustment differs slightly, as in example 5.2).',
+    data: mplusData('5.10'), tags: [MPLUS_TAG], constructs: [], paths: [],
+    syntax: 'f1 =~ u1a + 1*u1b + 1*u1c\nf2 =~ u2a + 1*u2b + 1*u2c\nu1a | t1*t1\nu1b | t1*t1\nu1c | t1*t1\nu2a | t2*t1\nu2b | t2*t1\nu2c | t2*t1',
+    settings: CB('WLSMV'),
+  },
+  {
     id: 'mplus-ex5.11', package: 'lavaan', title: 'SEM with an indirect effect (Mplus ex. 5.11)', source: MPLUS_SRC('5.11'), links: mplusLinks('5.11'),
-    description: 'Four factors of three indicators: f1 and f2 (correlated) explain f3, which explains f4; intercepts and observed-information standard errors as Mplus. Reproduces the Mplus output: log-likelihood −9646.960, 40 free parameters, χ² = 53.704 on 50 df, and every estimate and standard error. Mplus’s example 5.12 is the same model with MODEL INDIRECT: the indirect effect of f1 on f4 through f3 is 0.266 (SE 0.043, delta method); the app’s effects table shows it standardised, and the indirect-effects card gives it unstandardised with a Monte Carlo or bootstrap interval.',
+    description: 'Four factors of three indicators: f1 and f2 (correlated) explain f3, which explains f4; intercepts and observed-information standard errors as Mplus. Reproduces the Mplus output: log-likelihood −9646.960, 40 free parameters, χ² = 53.704 on 50 df, and every estimate and standard error. Example 5.12 is the same model with MODEL INDIRECT, the indirect effect of f1 on f4 as a defined parameter.',
     data: mplusData('5.11'), tags: [MPLUS_TAG],
     constructs: [f('f1', items('y', 3)), f('f2', items('y', 3, 4)), f('f3', items('y', 3, 7)), f('f4', items('y', 3, 10))],
     paths: [['f1', 'f3'], ['f2', 'f3'], ['f3', 'f4']], constant: true, information: 'observed', settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.12', package: 'lavaan', title: 'SEM with an indirect effect, MODEL INDIRECT (Mplus ex. 5.12)', source: MPLUS_SRC('5.12'), links: mplusLinks('5.12'),
+    description: 'The model of example 5.11 with MODEL INDIRECT (f4 IND f3 f1): the paths f1 → f3 and f3 → f4 labelled a and b, and the indirect effect defined as ind := a*b, with its delta-method standard error. Intercepts and observed-information standard errors as Mplus. Reproduces the Mplus output: log-likelihood −9646.960, 40 free parameters, χ² = 53.704 on 50 df, every estimate and standard error, and the indirect effect of f1 on f4, 0.266 (SE 0.043).',
+    data: mplusData('5.12'), tags: [MPLUS_TAG], constructs: [], paths: [],
+    syntax: 'f1 =~ y1 + y2 + y3\nf2 =~ y4 + y5 + y6\nf3 =~ y7 + y8 + y9\nf4 =~ y10 + y11 + y12\nf4 ~ b*f3\nf3 ~ a*f1 + f2\nind := a*b',
+    constant: true, information: 'observed', settings: CB('ML'),
   },
   {
     id: 'mplus-ex5.13', package: 'modsem', title: 'Latent interaction by LMS (Mplus ex. 5.13)', source: MPLUS_SRC('5.13'), links: mplusLinks('5.13'),
@@ -58,6 +98,47 @@ export const MPLUS_CH5: PackageExample[] = [
     constructs: [v('x1', true), v('x2', true), v('x3', true), f('f1', items('y', 3)), f('f2', items('y', 3, 4))],
     paths: fan(['x1', 'x2', 'x3'], ['f1', 'f2']), correlations: [['f1', 'f2', 'construct']],
     multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'f1', indicator: 'y3' }, { kind: 'intercept', indicator: 'y3' }] }, constant: true, information: 'observed', settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.16', package: 'lavaan', title: 'Two-group MIMIC model with categorical indicators (Mplus ex. 5.16)', source: MPLUS_SRC('5.16'), links: mplusLinks('5.16'),
+    description: 'The MIMIC model of example 5.14 with six binary indicators declared categorical, in two groups (g: 1 = male, 2 = female), with Mplus’s defaults for groups: loadings and thresholds equal, the factor means and the scale factors free in the second group; for females the loading and threshold of u3 are free (MODEL female: f1 BY u3; [u3$1]) and its scale factor fixed at 1 ({u3@1}). WLSMV, delta parameterisation. Reproduces the Mplus output: 37 free parameters on 41 df and every estimate in both groups; the standard errors agree within 0.004 (the largest, the scale factor of u2 in females, 0.306 against 0.302). lavaan’s scaled-shifted χ² is 33.693, Mplus prints 33.718.',
+    data: mplusData('5.16'), tags: [MPLUS_TAG, 'MIMIC'], labels: { g: ['male', 'female'] },
+    constructs: [v('x1', true), v('x2', true), v('x3', true), f('f1', items('u', 3)), f('f2', items('u', 3, 4))],
+    paths: fan(['x1', 'x2', 'x3'], ['f1', 'f2']), correlations: [['f1', 'f2', 'construct']], ordered: items('u', 6),
+    multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'f1', indicator: 'u3' }, { kind: 'intercept', indicator: 'u3' }], ordinalScales: 'free' }, settings: CB('WLSMV'),
+  },
+  {
+    id: 'mplus-ex5.17', package: 'lavaan', title: 'Two-group MIMIC model with categorical indicators, theta parameterisation (Mplus ex. 5.17)', source: MPLUS_SRC('5.17'), links: mplusLinks('5.17'),
+    description: 'Example 5.16 in the theta parameterisation (Mplus: PARAMETERIZATION = THETA): residual variances of the latent responses fixed at 1 for males and free for females, except u3’s, fixed at 1 (u3@1). The same model as 5.16 differently scaled: lavaan’s χ² is that of 5.16 to six decimals (33.693; Mplus prints 33.719). The male group reproduces Mplus within 0.002 (estimates) and 0.007 (standard errors); in the female group the factor f1 is weakly determined (its variance has SE 0.71) and Mplus’s printed estimates differ by up to 0.021 (f1’s variance 1.579 against 1.599) and their standard errors by up to 0.007: lavaan’s fit function is 0.0048524 at Mplus’s printed values and 0.0048522 at its own minimum, to which it returns when started from Mplus’s values.',
+    data: mplusData('5.17'), tags: [MPLUS_TAG, 'MIMIC'], labels: { g: ['male', 'female'] },
+    constructs: [v('x1', true), v('x2', true), v('x3', true), f('f1', items('u', 3)), f('f2', items('u', 3, 4))],
+    paths: fan(['x1', 'x2', 'x3'], ['f1', 'f2']), correlations: [['f1', 'f2', 'construct']], ordered: items('u', 6), parameterization: 'theta',
+    multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'f1', indicator: 'u3' }, { kind: 'intercept', indicator: 'u3' }], ordinalScales: 'free' }, settings: CB('WLSMV'),
+  },
+  {
+    id: 'mplus-ex5.20', package: 'lavaan', title: 'CFA with parameter constraints (Mplus ex. 5.20)', source: MPLUS_SRC('5.20'), links: mplusLinks('5.20'),
+    description: 'Two factors with labelled loadings, factor variances and residual variances, and MODEL CONSTRAINT: the reliabilities rel2 and rel5 and the standardised loadings stan3 and stan6 as new parameters, held equal (rel5 = rel2; 0 = stan6 − stan3), and the inequalities ve2 > ve5 and ve4 > 0. Written as lavaan syntax: the new parameters are defined parameters (:=, SQRT as ^0.5), the equalities and inequalities lavaan constraints (under Constraints). Intercepts and observed-information standard errors as Mplus. Reproduces the Mplus output: log-likelihood −3898.949, 17 free parameters, χ² = 4.090 on 10 df, every estimate, rel2 = rel5 = 0.722 (SE 0.024) and stan3 = stan6 = 0.805 (SE 0.015); one standard error, of f2’s variance, is 0.088 against Mplus’s 0.087.',
+    data: mplusData('5.20'), tags: [MPLUS_TAG], constructs: [], paths: [],
+    syntax: ['f1 =~ y1 + lam2*y2 + lam3*y3', 'f2 =~ y4 + lam5*y5 + lam6*y6', 'f1 ~~ vf1*f1', 'f2 ~~ vf2*f2',
+      ...[1, 2, 3, 4, 5, 6].map((i) => `y${i} ~~ ve${i}*y${i}`),
+      'rel2 := lam2^2*vf1/(lam2^2*vf1 + ve2)', 'rel5 := lam5^2*vf2/(lam5^2*vf2 + ve5)',
+      'stan3 := lam3*vf1^0.5/(lam3^2*vf1 + ve3)^0.5', 'stan6 := lam6*vf2^0.5/(lam6^2*vf2 + ve6)^0.5',
+      'rel5 == rel2', 'stan6 == stan3', 've2 > ve5', 've4 > 0'].join('\n'),
+    constant: true, information: 'observed', settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.21', package: 'lavaan', title: 'Twin ACE model for continuous outcomes by parameter constraints (Mplus ex. 5.21)', source: MPLUS_SRC('5.21'), links: mplusLinks('5.21'),
+    description: 'Twin pairs (y1, y2) in two groups, monozygotic and dizygotic (g: 1 = mz, 2 = dz): means and variances equal across twins and groups, the twin covariance covmz and covdz per group (lavaan c(covmz, covdz)). Mplus estimates the additive genetic, common and unique environment parameters a, c and e as new parameters with var = a² + c² + e², covmz = a² + c², covdz = 0.5a² + c²; lavaan cannot estimate parameters outside the model, so the three equations are solved instead: a = √(2(covmz − covdz)), c = √(2covdz − covmz), e = √(var − covmz) and the heritability h = a²/var are defined parameters, with delta-method standard errors. The same model, with the same maximum and standard errors. Reproduces the Mplus output: log-likelihood −5216.004, 4 free parameters, χ² = 5.161 on 6 df, every estimate and standard error, a = 0.801 (SE 0.035), c = 0.333 (0.078), e = 0.515 (0.011), h = 0.631 (0.053).',
+    data: mplusData('5.21'), tags: [MPLUS_TAG, 'Twin model'], labels: TWIN, constructs: [], paths: [],
+    syntax: 'y1 ~ i*1\ny2 ~ i*1\ny1 ~~ v*y1\ny2 ~~ v*y2\ny1 ~~ c(covmz, covdz)*y2\na := (2*(covmz - covdz))^0.5\nc := (2*covdz - covmz)^0.5\ne := (v - covmz)^0.5\nh := 2*(covmz - covdz)/v',
+    multigroup: { column: 'g', invariance: 'configural', free: [] }, information: 'observed', settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex5.22', package: 'lavaan', title: 'Twin ACE model for categorical outcomes by parameter constraints (Mplus ex. 5.22)', source: MPLUS_SRC('5.22'), links: mplusLinks('5.22'),
+    description: 'Example 5.21 for binary twin outcomes (u1, u2 categorical, WLSMV): one threshold for both twins and groups, the tetrachoric correlation covmz and covdz per group, and as in 5.21 a = √(2(covmz − covdz)), c = √(2covdz − covmz), e = 1 − covmz and h = a² (the latent responses have variance 1) as defined parameters instead of Mplus’s new parameters. Reproduces every estimate and standard error Mplus prints, 3 free parameters on 3 df, a = 0.848 (SE 0.060), c = 0.228 (0.199), e = 0.229 (0.026), h = 0.719 (0.102); lavaan’s scaled-shifted χ² is 0.904, Mplus prints 0.905.',
+    data: mplusData('5.22'), tags: [MPLUS_TAG, 'Twin model'], labels: TWIN, constructs: [], paths: [],
+    syntax: 'u1 | t*t1\nu2 | t*t1\nu1 ~~ c(covmz, covdz)*u2\na := (2*(covmz - covdz))^0.5\nc := (2*covdz - covmz)^0.5\ne := 1 - covmz\nh := 2*(covmz - covdz)',
+    multigroup: { column: 'g', invariance: 'configural', free: [] }, settings: CB('WLSMV'),
   },
   {
     id: 'mplus-ex5.25', package: 'lavaan', title: 'SEM with EFA and CFA factors (Mplus ex. 5.25)', source: MPLUS_SRC('5.25'), links: mplusLinks('5.25'),

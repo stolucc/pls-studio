@@ -8,6 +8,8 @@
 #' `free_first`: the first loading estimated as well (NA*), the scale being set elsewhere (a fixed path into the factor).
 ps_marked <- function(v, fixed = list(), labels = list(), free_first = FALSE) {
   pre <- vapply(v, function(x) if (!is.null(fixed[[x]])) paste0(ps_num(fixed[[x]]), "*") else if (!is.null(labels[[x]])) paste0(ps_label(labels[[x]]), "*") else "", "")
+  # (a free first loading that is labelled is written twice, NA* frees it and the label names it: lavaan's way)
+  if (isTRUE(free_first) && is.null(fixed[[v[1]]]) && nzchar(pre[1])) return(paste(c(paste0("NA*", v[1]), paste0(pre, v)), collapse = " + "))
   pre[1] <- if (nzchar(pre[1])) pre[1] else if (isTRUE(free_first)) "NA*" else "1*"
   paste(paste0(pre, v), collapse = " + ")
 }
@@ -152,6 +154,23 @@ ps_cb_build <- function(req) {
     if (!is.null(target)) inputs$TARGET <- target
   }
   rel_inds <- character(0); free_err_inds <- character(0); composites <- character(0)
+  # Ordinal indicators (lavaan names), the parameterisation, and the constructs whose variance is given (parameters).
+  ord_iv <- unname(n$iv[intersect(unlist(req$model$ordered), n$all_inds)])
+  if (!is.null(req$model$parameterization) && !identical(req$model$parameterization, "theta")) stop("Invalid parameterization in the request.")
+  theta <- identical(req$model$parameterization, "theta")
+  var_set <- unlist(lapply(req$model$parameters, function(t) if (identical(t$kind, "variance") && !isTRUE(t$indicator)) t$target))
+  # Values per group (lavaan c(...)): a number holds the parameter, a name labels it, null (NA) leaves it free.
+  n_groups <- if (matrix_groups) length(inputs$S) else if (!is.null(group_var)) length(unique(inputs$data[[group_var]][is.finite(inputs$data[[group_var]])])) else 1
+  ps_mod <- function(t) {
+    if (!is.null(t$byGroup)) {
+      vals <- t$byGroup
+      if (n_groups < 2 || length(vals) != n_groups) stop("Values per group need one value per group.")
+      return(sprintf("c(%s)*", paste(vapply(vals, function(x) if (is.null(x) || (length(x) == 1 && is.na(x))) "NA" else if (is.character(x)) ps_label(x) else ps_num(x), ""), collapse = ", ")))
+    }
+    # (one label for every group, written once per group: lavaan's way to say "equal across the groups")
+    if (!is.null(t$fixed)) paste0(ps_num(t$fixed), "*") else if (!is.null(t$label)) ps_group_label(t$label) else ""
+  }
+  ps_group_label <- function(l) if (n_groups > 1) sprintf("c(%s)*", paste(rep(ps_label(l), n_groups), collapse = ", ")) else paste0(ps_label(l), "*")
   for (j in seq_len(k0)) {
     if (is_cov[j] || n$cname[j] %in% in_block) next
     # The first loading of each factor is fixed to 1 (marker / scaling indicator); written explicitly.
@@ -166,8 +185,10 @@ ps_cb_build <- function(req) {
       fl <- cons[[j]]$fixedLoadings %||% list()
       fixed <- setNames(fl, unname(n$iv[names(fl)]))
       ll <- cons[[j]]$loadingLabels %||% list()
-      # The marker's 1 is fixed: a label on it would have no effect.
-      ll <- ll[names(ll) != n$inds[[j]][1]]
+      # The marker's 1 is fixed: a label on it would have no effect. With the scale from the variance, there is no marker.
+      by_variance <- identical(cons[[j]]$scaling, "variance")
+      if (!is.null(cons[[j]]$scaling) && !by_variance) stop("Invalid factor scaling in the request.")
+      if (!by_variance) ll <- ll[names(ll) != n$inds[[j]][1]]
       labels <- setNames(ll, unname(n$iv[names(ll)]))
       if (identical(cons[[j]]$type, "composite")) {
         # A composite (emergent variable): an exact weighted sum of its indicators, which covary freely
@@ -178,7 +199,9 @@ ps_cb_build <- function(req) {
         composites <- c(composites, n$cname[j])
         next
       }
-      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels, free_first = unit_id)))
+      lines <- c(lines, paste(lname[[j]], "=~", ps_marked(v, fixed, labels, free_first = unit_id || by_variance)))
+      # The factor's scale from its variance (Mplus f BY y1* …; f@1): every loading estimated, the variance 1.
+      if (by_variance && !unit_id && !(n$cname[j] %in% var_set)) lines <- c(lines, paste0(lname[[j]], " ~~ 1*", lname[[j]], "   # scale: the variance fixed at 1, every loading estimated"))
       # Known reliability (Bollen 1989; Hayduk 1987): error variance fixed at (1 - reliability) x the indicator's variance.
       # With several groups, each group's own variance (Hayduk 1987, ch. 9: the stacked model fixes each group's error variance).
       fix_theta <- function(vi, rel, what) {
@@ -196,6 +219,18 @@ ps_cb_build <- function(req) {
       if (length(v) == 1) {
         rel <- cons[[j]]$reliability
         if (isTRUE(cons[[j]]$freeError)) { free_err_inds <- c(free_err_inds, v); lines <- c(lines, paste0(v, " ~~ NA*", v, "   # single indicator: error variance estimated (identified by the model)")) }
+        else if (is.null(rel) && v %in% ord_iv) {
+          # An ordinal variable on its own: the construct is its latent response, whose variance is 1 (delta
+          # parameterisation; lavaan has no residual variance to fix for it). Explained, or with theta: lavaan's own.
+          if (!(n$cname[j] %in% vapply(req$model$paths, function(p) p$to, "")) && !theta && !(n$cname[j] %in% var_set))
+            lines <- c(lines, paste0(lname[[j]], " ~~ 1*", lname[[j]], "   # an ordinal variable: its latent response has variance 1"))
+          # An ordinal outcome that predicts nothing (a probit regression, Mplus's u ON x): the construct is the systematic
+          # part of the latent response, its disturbance fixed at 0 (the response's residual variance is set by the
+          # parameterisation, 1 given the predictors); left free it is not identified (one parameter too many).
+          else if (n$cname[j] %in% vapply(req$model$paths, function(p) p$to, "") && !(n$cname[j] %in% vapply(req$model$paths, function(p) p$from, "")) &&
+            !length(req$model$moderations) && !(n$cname[j] %in% var_set))
+            lines <- c(lines, paste0(lname[[j]], " ~~ 0*", lname[[j]], "   # an ordinal outcome: the systematic part of its latent response (probit regression)"))
+        }
         else if (is.null(rel)) lines <- c(lines, paste0(v, " ~~ 0*", v, "   # single indicator: no measurement error"))
         else lines <- c(lines, fix_theta(v, rel, "single indicator"))
       } else {
@@ -252,6 +287,11 @@ ps_cb_build <- function(req) {
     rhs <- vapply(ps, function(p) paste0(if (!is.null(p$fixed)) paste0(ps_num(p$fixed), "*") else if (!is.null(p$label)) paste0(ps_label(p$label), "*") else "", lname[[p$from]]), "")
     lines <- c(lines, paste(lname[[t]], "~", paste(rhs, collapse = " + ")))
   }
+  # Direct effects on indicators (Mplus y1 ON x1), beside their loadings.
+  for (ip in req$model$indicatorPaths) {
+    if (!(ip$to %in% n$all_inds) || !(ip$from %in% n$cname)) stop("Unknown construct or indicator in a direct effect.")
+    lines <- c(lines, paste(n$iv[[ip$to]], "~", paste0(if (!is.null(ip$fixed)) paste0(ps_num(ip$fixed), "*") else if (!is.null(ip$label)) ps_group_label(ip$label) else "", lname[[ip$from]])))
+  }
   seen <- character(0)
   for (cv in req$model$covariances) {
     a <- if (cv$kind == "construct") lname[[cv$a]] else n$iv[[cv$a]]
@@ -260,8 +300,22 @@ ps_cb_build <- function(req) {
     if (key %in% seen) next  # lavaan rejects a covariance listed twice (in either order)
     seen <- c(seen, key)
     # A fixed zero makes two exogenous factors uncorrelated (lavaan frees them by default).
-    lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else if (!is.null(cv$fixed)) paste0(ps_num(cv$fixed), "*", b)
+    lines <- c(lines, paste(a, "~~", if (isTRUE(cv$zero)) paste0("0*", b) else if (!is.null(cv$byGroup)) paste0(ps_mod(cv), b) else if (!is.null(cv$fixed)) paste0(ps_num(cv$fixed), "*", b)
       else if (!is.null(cv$label)) paste0(ps_label(cv$label), "*", b) else b))
+  }
+  # Variances, intercepts of indicators and thresholds held at values or labelled (Mplus f1@1; y1-y3 (ve1-ve3);
+  # [y1a y1b y1c] (1); [u1$1] (t)), per group when given so.
+  for (t in req$model$parameters) {
+    if (!(is.character(t$kind) && length(t$kind) == 1 && t$kind %in% c("variance", "intercept", "threshold"))) stop("Invalid parameter in the request.")
+    tgt <- if (isTRUE(t$indicator)) { if (!t$target %in% n$all_inds) stop("Unknown indicator in a parameter."); unname(n$iv[[t$target]]) }
+      else { if (!identical(t$kind, "variance") || !t$target %in% n$cname) stop("Unknown construct in a parameter."); lname[[t$target]] }
+    mod <- ps_mod(t)
+    if (!nzchar(mod)) next
+    lines <- c(lines, switch(t$kind,
+      variance = paste0(tgt, " ~~ ", mod, tgt),
+      intercept = paste0(tgt, " ~ ", mod, "1"),
+      threshold = { k <- t$threshold %||% 1; if (!(is.numeric(k) && length(k) == 1 && k >= 1 && k == round(k))) stop("Invalid threshold number in the request.")
+        if (!tgt %in% ord_iv) stop("A threshold belongs to an ordinal indicator."); paste0(tgt, " | ", mod, "t", k) }))
   }
   # The mean structure (the constant on the canvas): every indicator intercept is free (lavaan's default
   # under meanstructure = TRUE). A drawn arrow is a latent mean, identified by fixing the marker
@@ -276,7 +330,7 @@ ps_cb_build <- function(req) {
       j <- match(mt$construct, n$cname)
       if (is.na(j)) stop("Unknown construct in a mean term.")
       lv <- lname[[mt$construct]]
-      term <- if (!is.null(mt$fixed)) paste0(ps_num(mt$fixed), "*1") else if (!is.null(mt$label)) paste0(ps_label(mt$label), "*1") else "1"
+      term <- if (!is.null(mt$fixed)) paste0(ps_num(mt$fixed), "*1") else if (!is.null(mt$label)) paste0(ps_group_label(mt$label), "1") else "1"
       lines <- c(lines, paste(lv, "~", term))
       # (a higher-order factor's mean is identified by its components' fixed intercepts: no marker rule here)
       if (is.null(mt$fixed) && !is_cov[j] && length(n$inds[[j]]) && !length(comps[[j]])) {
@@ -311,6 +365,12 @@ ps_cb_build <- function(req) {
   # Defined parameters (functions of labelled parameters, with delta-method standard errors).
   defs <- vapply(req$model$defined, function(d) paste(ps_label(d$name), ":=", ps_expr(d$expr)), "")
   # Inequality constraints on labelled parameters (each side checked as an expression).
+  # Equality constraints on labelled and defined parameters (lavaan ==; Mplus MODEL CONSTRAINT: rel5 = rel2).
+  defs <- c(defs, vapply(unlist(req$model$equalities), function(h) {
+    parts <- strsplit(h, "==", fixed = TRUE)[[1]]
+    if (length(parts) != 2) stop("Invalid equality constraint in the request.")
+    paste(ps_expr(trimws(parts[1])), "==", ps_expr(trimws(parts[2])))
+  }, ""))
   defs <- c(defs, vapply(unlist(req$model$inequalities), function(h) {
     op <- regmatches(h, regexpr("[<>]", h))
     parts <- strsplit(h, "[<>]")[[1]]
@@ -319,13 +379,58 @@ ps_cb_build <- function(req) {
   }, ""))
   # (In a two-level model they follow the level blocks: defined once, not per level.)
   if (is.null(cluster_var)) lines <- c(lines, defs)
-  between_cov <- character(0)
+  between_cov <- character(0); between_lv <- character(0)
   # Two-level: the model within clusters; between clusters the same structure (factors named *_b),
   # a saturated model (all variances and covariances of the observed variables free), or the factors
   # (same indicators, *_b) regressed on cluster-level covariates (lavaan's tutorial: fb =~ y1 + y2 + y3; fb ~ w1 + w2).
   if (!is.null(cluster_var)) {
-    if (!(ml$between %||% "saturated") %in% c("same", "saturated", "factors")) stop("Invalid between-level model in the request.")
-    if (identical(ml$between, "factors")) {
+    if (!(ml$between %||% "saturated") %in% c("same", "saturated", "factors", "model")) stop("Invalid between-level model in the request.")
+    if (identical(ml$between, "model")) {
+      # The between level as written (two-level syntax, lavaan's level: 2 block; Mplus %BETWEEN%): its variables are
+      # the diagram's observed variables, other data columns (cluster-level ones join the data under their own names)
+      # and the between-level factors defined there (=~), under names no other variable has.
+      sts <- ml$betweenModel
+      if (!length(sts)) stop("The between-level model has no statements.")
+      ok_name <- function(x) is.character(x) && length(x) == 1 && grepl("^[A-Za-z_.][A-Za-z0-9_.]*$", x)
+      fac_b <- unique(unlist(lapply(sts, function(st) if (identical(st$op, "=~")) st$lhs)))
+      bmap <- character(0)
+      bname <- function(x) {
+        if (!ok_name(x)) stop("Invalid name in the between-level model.")
+        if (x %in% names(bmap)) return(unname(bmap[[x]]))
+        taken <- c(unname(n$iv), names(inputs$data), unname(lname), unname(bmap))
+        fresh <- function() ps_ident(c(taken, x))[length(taken) + 1]
+        id <- if (x %in% fac_b) { id <- fresh(); between_lv <<- c(between_lv, id); between_cov[id] <<- x; id }
+          else if (x %in% names(n$iv)) unname(n$iv[[x]])
+          else {
+            at <- match(x, req$data$names)
+            if (is.na(at)) stop(sprintf("%s in the between-level model is neither a column of the dataset nor a between-level factor.", x))
+            cols <- req$data$cols
+            id <- fresh()
+            inputs$data[[id]] <<- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+            between_cov[id] <<- x
+            id
+          }
+        bmap[x] <<- id
+        id
+      }
+      term <- function(t) {
+        pre <- if (!is.null(t$fixed)) paste0(ps_num(t$fixed), "*") else if (!is.null(t$label)) paste0(ps_label(t$label), "*") else ""
+        paste0(pre, if (identical(t$name, "1")) "1" else bname(t$name))
+      }
+      between <- vapply(sts, function(st) {
+        op <- st$op
+        if (!(is.character(op) && length(op) == 1 && op %in% c("=~", "~", "~~", "~1"))) stop("Invalid operator in the between-level model.")
+        if (!length(st$rhs)) stop("A between-level statement has no right-hand side.")
+        lhs <- bname(st$lhs)
+        if (op == "~1") {
+          t <- st$rhs[[1]]
+          if (!identical(t$name, "1")) stop("Invalid intercept in the between-level model.")
+          return(paste(lhs, "~", term(t)))
+        }
+        if (any(vapply(st$rhs, function(t) identical(t$name, "1"), TRUE))) stop("Invalid term in the between-level model.")
+        paste(lhs, op, paste(vapply(st$rhs, term, ""), collapse = " + "))
+      }, "")
+    } else if (identical(ml$between, "factors")) {
       ws <- character(0)
       for (w in as.character(unlist(ml$betweenCovariates))) {
         at <- match(w, req$data$names)
@@ -388,15 +493,34 @@ ps_cb_build <- function(req) {
       if (lev == "strict") "residuals", structural)
     partial <- unlist(lapply(mg$free, function(f) {
       if (identical(f$kind, "loading")) paste0(lname[[f$construct]], "=~", n$iv[[f$indicator]])
-      else if (identical(f$kind, "intercept")) paste0(n$iv[[f$indicator]], "~1")
+      else if (identical(f$kind, "intercept")) {
+        iv <- n$iv[[f$indicator]]
+        # An ordinal indicator's "intercept" is its thresholds: all of them freed.
+        if (iv %in% ordered && !matrix_input) c(paste0(iv, "|t", seq_len(max(1, length(unique(inputs$data[[iv]][!is.na(inputs$data[[iv]])])) - 1))))
+        else paste0(iv, "~1")
+      }
       else if (identical(f$kind, "regression")) paste0(lname[[f$to]], "~", lname[[f$from]])
       else if (identical(f$kind, "mean")) paste0(lname[[f$construct]], "~1")
     }))
+    # Mplus's default with equal thresholds: the ordinal indicators' scale factors (delta) or residual variances
+    # (theta) free after the first group; an indicator whose thresholds are freed keeps 1 in every group ({u3@1}).
+    if (!is.null(mg$ordinalScales)) {
+      if (!identical(mg$ordinalScales, "free")) stop("Invalid ordinal scales in the request.")
+      if (!length(ordered) || !lev %in% c("scalar", "strict")) stop("Free scale factors need ordinal indicators with equal thresholds (scalar invariance).")
+      freed <- unlist(lapply(mg$free, function(f) if (identical(f$kind, "intercept")) n$iv[[f$indicator]]))
+      op <- if (theta) " ~~ " else " ~*~ "
+      lines <- c(lines, vapply(ordered, function(u) paste0(u, op, sprintf("c(%s)*", paste(c("1", rep(if (u %in% freed) "1" else "NA", n_groups - 1)), collapse = ", ")), u,
+        if (u %in% freed) "   # thresholds free across groups: scale fixed at 1" else ""), ""))
+    }
     extra <- paste0(extra, if (!is.null(group_var)) sprintf(", group = \"%s\"", group_var) else "",
       if (length(equal)) sprintf(", group.equal = %s", ps_q(equal)) else "",
       if (length(partial)) sprintf(", group.partial = %s", ps_q(partial)) else "")
   }
   if (means_on) extra <- paste0(extra, ", meanstructure = TRUE")
+  if (theta) {
+    if (!length(ordered)) stop("The theta parameterisation applies to ordinal indicators.")
+    extra <- paste0(extra, ", parameterization = \"theta\"")
+  }
   # Groups without means and intercepts (Mplus MODEL = NOMEANSTRUCTURE; lavaan adds them to every multiple-group model).
   if ((!is.null(group_var) || matrix_groups) && identical(mg$meanStructure, FALSE)) {
     if (means_on) stop("Groups without a mean structure cannot have means or intercepts (remove the constant).")
@@ -425,7 +549,18 @@ ps_cb_build <- function(req) {
   }
   # The diagram is the model: the disturbances of two endogenous constructs covary only when drawn
   # (lavaan's sem() would otherwise free every such covariance, auto.cov.y).
-  extra <- paste0(extra, ", auto.cov.y = FALSE", bounds)
+  # Exception: explained factors of an ESEM block. Their residual covariance comes with the rotation (lavaan
+  # frees it after rotating, which keeps the count of parameters and df right); written as a covariance it would be
+  # estimated before the rotation as well, one parameter too many. When every explained construct is in an ESEM
+  # block, lavaan's default is kept and a drawn covariance within a block is left to the rotation (Mplus ex. 5.24).
+  endo_names <- unique(vapply(req$model$paths, function(p) p$to, ""))
+  esem_endo <- length(esem$blocks) && length(endo_names) && all(endo_names %in% in_block)
+  if (esem_endo) {
+    same_block <- function(a, b) any(vapply(esem$blocks, function(bl) all(c(a, b) %in% unname(lname[unlist(bl)])), TRUE))
+    keep <- vapply(lines, function(l) { m <- regmatches(l, regexec("^(\\S+) ~~ (\\S+)$", l))[[1]]; !(length(m) == 3 && m[2] != m[3] && same_block(m[2], m[3])) }, TRUE)
+    lines <- lines[keep]
+  }
+  extra <- paste0(extra, if (esem_endo) "" else ", auto.cov.y = FALSE", bounds)
   if (length(esem$blocks)) {
     rargs <- c(if (!is.null(target)) "target = TARGET", if (!is.null(eps) && rot %in% c("geomin", "bigeomin")) sprintf("geomin.epsilon = %s", format(eps, scientific = FALSE)),
       if (orth) "orthogonal = TRUE",
@@ -552,7 +687,7 @@ ps_cb_build <- function(req) {
   # (the baseline lines travel separately: every other user of this body expects the fit call last)
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wald)
   list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
-    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single, between_cov = between_cov,
+    inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single, between_cov = between_cov, between_lv = between_lv,
     esem_blocks = lapply(esem$blocks, function(x) as.character(unlist(x))), bifactor = length(esem$blocks) > 0 && bifactor)
 }
 
@@ -584,9 +719,9 @@ ps_cb <- function(req_json, export = FALSE) {
   # Between-level factors of a two-level model carry the suffix _b.
   # (cluster-level covariates of a between-level factor model: their own names)
   back <- c(setNames(constructs, lv_lname), setNames(constructs, paste0(lv_lname, "_b")), setNames(indicators, ind_v), setNames(unname(b$between_cov), names(b$between_cov)))
-  is_lv <- function(x) x %in% c(lv_lname, paste0(lv_lname, "_b"))
+  is_lv <- function(x) x %in% c(lv_lname, paste0(lv_lname, "_b"), b$between_lv)
   # (an observed covariate is its own lavaan name: its "~1" is an intercept, not a latent mean)
-  latent_names <- { lv <- unname(b$lname[!b$is_cov]); c(lv, paste0(lv, "_b")) }
+  latent_names <- { lv <- unname(b$lname[!b$is_cov]); c(lv, paste0(lv, "_b"), b$between_lv) }
   nm <- function(x) unname(back[x])
 
   levels2 <- !is.null(b$cluster_var)
@@ -603,7 +738,8 @@ ps_cb <- function(req_json, export = FALSE) {
   # to (Mplus SAMPSTAT), and each pair's bivariate fit (Mplus TECH10). (Not pooled over imputations.)
   ordinal <- length(unlist(req$model$ordered)) > 0 && !isTRUE(b$mi)
   sampstat <- if (ordinal) ps_try(ps_sampstat(fit), "The sample polychoric correlations (SAMPSTAT)") else NULL
-  tech10 <- if (ordinal) ps_try(ps_tech10(fit), "The bivariate fit of the ordinal indicators (TECH10)") else NULL
+  # (TECH10 needs pairs: not with a single ordinal variable)
+  tech10 <- if (ordinal && length(lavaan::lavNames(fit, "ov.ord")) >= 2) ps_try(ps_tech10(fit), "The bivariate fit of the ordinal indicators (TECH10)") else NULL
   map_group <- function(g) {
     pt <- lavaan::parTable(fit)
     pe <- lavaan::parameterEstimates(fit, standardized = TRUE, remove.nonfree = FALSE)
@@ -630,12 +766,13 @@ ps_cb <- function(req_json, export = FALSE) {
     if (!is.null(g)) pe <- pe[blk(pe) == g | pe$op == ":=", ]
     # Means and intercepts: all of them with the mean structure on (a fixed marker intercept
     # included); otherwise the latent means estimated in groups after the first under scalar invariance.
-    pe <- pe[pe$op %in% c("=~", "<~", "~", "~~", "|", ":=") | (pe$op == "~1" & (isTRUE(b$means) | (pe$lhs %in% lv_lname & !is.na(pe$free) & pe$free > 0))), ]
+    # (A two-level model always has its mean structure: the free intercepts and means are listed.)
+    pe <- pe[pe$op %in% c("=~", "<~", "~", "~~", "|", ":=") | (pe$op == "~*~" & !is.na(pe$free) & pe$free > 0) | (pe$op == "~1" & (isTRUE(b$means) | ((pe$lhs %in% lv_lname | levels2) & !is.na(pe$free) & pe$free > 0))), ]
     est <- lapply(seq_len(nrow(pe)), function(i) {
       r <- pe[i, ]; free <- r$free > 0
       # (an observed variable's intercept is its construct's: the indicator's, fixed at 0, is not listed)
       if (r$op == "~1" && r$lhs %in% unname(b$obs_single)) return(NULL)
-      kind <- if (r$op == "~1") { if (r$lhs %in% latent_names && !r$lhs %in% names(b$obs_single)) "mean" else "intercept" } else if (r$op == ":=") "defined" else if (r$op == "|") "threshold"
+      kind <- if (r$op == "~*~") "scale" else if (r$op == "~1") { if (r$lhs %in% latent_names && !r$lhs %in% names(b$obs_single)) "mean" else "intercept" } else if (r$op == ":=") "defined" else if (r$op == "|") "threshold"
         else if (r$op == "<~") { if (free) "weight" else "fixed-weight" }
         else if (r$op == "=~") { if (!free) "fixed-loading" else if (is_lv(r$rhs)) "hoLoading" else "loading" }
         else if (r$op == "~") "regression"
@@ -699,6 +836,9 @@ ps_cb <- function(req_json, export = FALSE) {
     rfit <- if (isTRUE(b$mi)) env$fit_mi else fit
     # (Not with composites in the model: compRelSEM then misreads the factors' true-score variance.)
     no_rel <- levels2 || length(b$composites) > 0
+    # (Reliability is of factors with two or more indicators: none, as in a path model of observed variables, then none.)
+    pt_rel <- lavaan::parTable(fit)
+    if (!any(table(pt_rel$lhs[pt_rel$op == "=~" & pt_rel$lhs %in% unname(b$lname[!b$is_cov])]) >= 2)) no_rel <- TRUE
     # semTools's compRelSEM fails on models with observed covariates (lavaan's fixed.x): omega and alpha
     # then come from the factors' measurement model alone (their CFA on the same data, estimator and
     # options, through update()), which is where reliability is assessed anyway.
@@ -710,8 +850,17 @@ ps_cb <- function(req_json, export = FALSE) {
         facs <- unique(pt$lhs[pt$op == "=~" & pt$lhs %in% unname(b$lname[!b$is_cov]) & !(pt$rhs %in% lv_lname)])
         term <- function(r) if (r$free == 0 && !is.na(r$ustart)) sprintf("%s*%s", format(r$ustart), r$rhs) else r$rhs
         lines <- vapply(facs, function(f) { rows <- pt[pt$op == "=~" & pt$lhs == f, ]; paste(f, "=~", paste(vapply(seq_len(nrow(rows)), function(i) term(rows[i, ]), ""), collapse = " + ")) }, "")
+        # (factors of an ESEM block stay a rotated block: written out as plain factors their cross-loadings are not identified)
+        for (bi in seq_along(b$esem_blocks)) {
+          bf <- intersect(unname(b$lname[b$esem_blocks[[bi]]]), facs)
+          if (!length(bf)) next
+          lines <- c(lines[!facs %in% bf], sprintf("%s =~ %s", paste(sprintf("efa(\"b%d\")*%s", bi, bf), collapse = " + "), paste(unique(pt$rhs[pt$op == "=~" & pt$lhs %in% bf]), collapse = " + ")))
+          facs <- c(facs[!facs %in% bf], bf)
+        }
         inds <- pt$rhs[pt$op == "=~" & pt$lhs %in% facs]
         fixed <- pt[pt$op == "~~" & pt$lhs == pt$rhs & pt$free == 0 & !is.na(pt$ustart) & pt$lhs %in% inds, ]
+        # (an ordinal indicator's residual variance is not a parameter under the delta parameterisation)
+        if (!identical(lavaan::lavInspect(fit, "options")$parameterization, "theta")) fixed <- fixed[!fixed$lhs %in% lavaan::lavNames(fit, "ov.ord"), ]
         if (nrow(fixed)) lines <- c(lines, sprintf("%s ~~ %s*%s", fixed$lhs, format(fixed$ustart), fixed$rhs))
         # (the original call with the measurement model only, evaluated where its data live; a NACOV
         #  matrix covers the full model's variables, and omega needs point estimates only: plain ML then)
@@ -1149,7 +1298,9 @@ ps_esem_align <- function(b, fit) {
     A <- L[unique(unlist(own)), ln, drop = FALSE]^2
     # score[f, c]: the squared loadings of factor f's own indicators on column c
     score <- t(vapply(own, function(ii) colSums(A[ii, , drop = FALSE]), numeric(k)))
-    if (isTRUE(b$bifactor)) score[1, ] <- 1e6 * colSums(A)
+    # The general factor: the column without near-zero loadings (the largest product of squared loadings; the
+    # largest sum would pick a strong specific factor, as in Mplus's example 5.29).
+    if (isTRUE(b$bifactor)) score[1, ] <- 1e6 * rank(colSums(log(pmax(A, 1e-12))))
     P <- ps_perms(k)
     best <- P[which.max(apply(P, 1, function(p) sum(score[cbind(seq_len(k), p)]))), ]
     b$lname[fs] <- ln[best]

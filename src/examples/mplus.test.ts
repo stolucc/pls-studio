@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, toSpec, validateModel } from '../model/project';
+import type { DataInfo } from '../model/project';
+import { computeColumn } from '../data/compute';
 import { parseCsv } from '../engine/dataset';
 import { exampleModel, PACKAGE_EXAMPLES } from './packages';
 import { exampleTags } from './tags';
@@ -24,8 +26,10 @@ describe('Mplus User’s Guide examples', () => {
     for (const e of MPLUS) {
       const key = e.id.slice(6);
       expect(key, e.id).toMatch(/^ex\d+\.\d+[a-z0-9]*$/);
-      expect(e.data.file).toBe(`examples/mplus/${key}.csv`);
-      expect(readFileSync(join(__dirname, '..', '..', 'public', e.data.file!), 'utf8').split('\n')[0].split(',').length).toBeGreaterThan(1);
+      // (or the data as Mplus reshapes them, DATA WIDETOLONG: <key>long.csv)
+      expect([`examples/mplus/${key}.csv`, `examples/mplus/${key}long.csv`], e.id).toContain(e.data.file);
+      // (a header and data rows; a univariate time series has a single column)
+      expect(readFileSync(join(__dirname, '..', '..', 'public', e.data.file!), 'utf8').trim().split('\n').length, key).toBeGreaterThan(10);
       expect(e.links[0].url).toBe(`https://www.statmodel.com/usersguide/chap${key.slice(2).split('.')[0]}/${key}.html`);
       expect(exampleTags(e)).toContain('Mplus User’s Guide');
       expect(exampleTags(e)).toContain('Shipped data');
@@ -71,7 +75,10 @@ describe('Mplus User’s Guide examples', () => {
     expect(m58.constructs.filter((c) => c.covariate).map((c) => c.name)).toEqual(['x1', 'x2', 'x3']);
     for (const e of MPLUS) {
       if (e.panel) continue;
-      const data = parseCsv(readFileSync(join(__dirname, '..', '..', 'public', e.data.file!), 'utf8')).dataset;
+      let data = parseCsv(readFileSync(join(__dirname, '..', '..', 'public', e.data.file!), 'utf8')).dataset;
+      // (the example's computed columns, as opening it adds them: Mplus's DEFINE, CENTER)
+      let info: DataInfo = { fileName: e.data.file!, rows: data.cols[0].length, missingCells: 0, excluded: [] };
+      for (const k of e.computed ?? []) ({ data, info } = computeColumn(data, info, k.name, k.expr));
       const issues = validateModel(exampleModel(e), data, { ...DEFAULT_SETTINGS, ...e.settings, engine: 'r' }).filter((i) => i.level === 'error');
       expect(issues, e.id).toEqual([]);
     }

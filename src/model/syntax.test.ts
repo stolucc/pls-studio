@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, toSpec, validateModel, type ModelState } from './project';
+import { DEFAULT_SETTINGS, parseProject, serializeProject, toSpec, validateModel, type ModelState } from './project';
 import { formulas, looksLikeMplus, mplusName, parseLavaanSyntax, toMplus } from './syntax';
 
 const name = (m: ModelState, id: string) => m.constructs.find((c) => c.id === id)!.name;
@@ -51,7 +51,41 @@ describe('lavaan syntax in', () => {
     expect(by.G.components!.map((id) => name(model, id))).toEqual(['F1', 'F2']);
     expect(by.G.indicators).toEqual([]);
     expect(model.paths.map((p) => [name(model, p.from), name(model, p.to)])).toEqual([['G', 'Y'], ['F1', 'Y'], ['M', 'Y']]);
-    expect(warnings).toEqual(expect.arrayContaining([expect.stringMatching(/main effect of F1 was added/), expect.stringMatching(/variance of Y/), expect.stringMatching(/Thresholds/), expect.stringMatching(/Constraint/)]));
+    expect(warnings).toEqual([expect.stringMatching(/main effect of F1 was added/)]);
+    // A held variance, a threshold (the indicator becomes ordinal) and a constraint are kept (checked against the labels under Constraints).
+    expect(model.parameters).toEqual([expect.objectContaining({ kind: 'variance', target: by.Y.id, fixed: 0.3 })]);
+    expect(model.ordered).toEqual(['a1']);
+    expect(model.inequalities).toBe('F1 == 0');
+  });
+  it('keeps variances, intercepts and thresholds held or labelled, values per group, and constraints (Mplus examples 5.9, 5.10, 5.20, 5.21, 5.22)', () => {
+    // Observed variables only in variances, covariances and intercepts: single-indicator constructs.
+    const twin = parseLavaanSyntax('y1 ~ i*1\ny2 ~ i*1\ny1 ~~ v*y1\ny2 ~~ v*y2\ny1 ~~ c(covmz, covdz)*y2\na := (2*(covmz - covdz))^0.5');
+    expect(twin.warnings).toEqual([]);
+    const by = Object.fromEntries(twin.model.constructs.map((c) => [c.name, c]));
+    expect(by.y1.indicators).toEqual(['y1']); expect(by.y1.covariate).toBeUndefined();
+    expect(twin.model.means!.map((m) => [name(twin.model, m.target), m.label])).toEqual([['y1', 'i'], ['y2', 'i']]);
+    expect(twin.model.parameters!.map((p) => [p.kind, name(twin.model, p.target), p.label])).toEqual([['variance', 'y1', 'v'], ['variance', 'y2', 'v']]);
+    expect(twin.model.correlations).toEqual([expect.objectContaining({ kind: 'construct', a: by.y1.id, b: by.y2.id, byGroup: ['covmz', 'covdz'] })]);
+    // Indicator intercepts and thresholds labelled, residual and factor variances labelled, == and > kept.
+    const cfa = parseLavaanSyntax('f1 =~ y1 + lam2*y2 + 1*y3\nf1 ~~ vf1*f1\ny2 ~~ ve2*y2\ny1 ~ a*1\ny2 ~ c(a, NA)*1\nu1 | t*t1 + 0.5*t2\nf2 =~ u1 + u2\nrel := lam2^2*vf1\nrel == 0.5\nve2 > 0');
+    expect(cfa.warnings).toEqual([]);
+    const f1 = cfa.model.constructs.find((c) => c.name === 'f1')!;
+    expect(cfa.model.parameters).toEqual([
+      expect.objectContaining({ kind: 'variance', target: f1.id, label: 'vf1' }),
+      expect.objectContaining({ kind: 'variance', target: 'y2', indicator: true, label: 've2' }),
+      expect.objectContaining({ kind: 'intercept', target: 'y1', indicator: true, label: 'a' }),
+      expect.objectContaining({ kind: 'intercept', target: 'y2', indicator: true, byGroup: ['a', null] }),
+      expect.objectContaining({ kind: 'threshold', target: 'u1', indicator: true, label: 't' }),
+      expect.objectContaining({ kind: 'threshold', target: 'u1', indicator: true, threshold: 2, fixed: 0.5 }),
+    ]);
+    expect(cfa.model.ordered).toEqual(['u1']);
+    expect(cfa.model.inequalities).toBe('rel == 0.5\nve2 > 0');
+    // An ordinal variable on its own (thresholds and a covariance): an observed construct, the variable ordinal.
+    const ord = parseLavaanSyntax('u1 | t*t1\nu2 | t*t1\nu1 ~~ c(cm, cd)*u2');
+    expect(ord.warnings).toEqual([]);
+    expect(ord.model.constructs.map((c) => [c.name, c.indicators])).toEqual([['u1', ['u1']], ['u2', ['u2']]]);
+    expect(ord.model.ordered).toEqual(['u1', 'u2']);
+    expect(ord.model.parameters!.map((p) => [p.kind, p.target, p.label])).toEqual([['threshold', 'u1', 't'], ['threshold', 'u2', 't']]);
   });
   it('refuses empty or oversized syntax and formulas without an operator', () => {
     expect(() => parseLavaanSyntax('')).toThrow(/No model syntax/);
@@ -101,5 +135,55 @@ describe('Mplus input out', () => {
     expect(noData).not.toMatch(/NAMES = .*\bY\b/);
     const taken = new Map<string, string>();
     expect([mplusName('my var', taken), mplusName('1st', taken), mplusName('my_var', taken), mplusName('my var', taken)]).toEqual(['my_var', 'v1st', 'my_var_2', 'my_var']);
+  });
+});
+
+describe('factors scaled by their variance, and direct effects on indicators (Mplus examples 5.30 and 5.24)', () => {
+  const CB = { ...DEFAULT_SETTINGS, method: 'cbsem' as const };
+  it('f =~ NA*y1 + … with f ~~ 1*f imports as the variance scaling: in the spec, the Mplus input and a saved project', () => {
+    const { model, warnings } = parseLavaanSyntax('fg =~ NA*y1 + y2 + y3\nfg ~~ 1*fg\nf2 =~ y4 + y5 + y6');
+    expect(warnings).toEqual([]);
+    const fg = model.constructs.find((c) => c.name === 'fg')!;
+    expect(fg.scaling).toBe('variance');
+    expect(model.parameters).toBeUndefined();
+    expect(model.constructs.find((c) => c.name === 'f2')!.scaling).toBeUndefined();
+    expect(toSpec(model).constructs.find((c) => c.name === 'fg')).toMatchObject({ scaling: 'variance' });
+    const inp = toMplus(model, CB, null, null, 'p').inp;
+    expect(inp).toContain('fg BY y1* y2* y3*;');
+    expect(inp).toContain('fg@1;');
+    expect(inp).toContain('f2 BY y4 y5* y6*;');
+    expect(parseProject(serializeProject(model, CB, null, null)).model.constructs.find((c) => c.name === 'fg')!.scaling).toBe('variance');
+    // A labelled free first loading (NA*y1 + l1*y1) keeps its label; a bare NA* without a fixed variance still warns (unidentified).
+    expect(parseLavaanSyntax('f =~ NA*y1 + l1*y1 + y2 + y3\nf ~~ 1*f').model.constructs[0]).toMatchObject({ scaling: 'variance', loadingLabels: { y1: 'l1' } });
+    const bare = parseLavaanSyntax('f =~ NA*y1 + y2 + y3');
+    expect(bare.model.constructs[0].scaling).toBeUndefined();
+    expect(bare.warnings).toEqual([expect.stringMatching(/free first loading/)]);
+    // Old projects (no scaling) load unchanged.
+    expect(parseProject(serializeProject(bare.model, CB, null, null)).model.constructs[0].scaling).toBeUndefined();
+  });
+  it('y1 ~ x1, y1 an indicator of a factor, imports as a direct effect on the indicator: spec, Mplus input, project, validation', () => {
+    const { model, warnings } = parseLavaanSyntax('f1 =~ y1 + y2 + y3\nf1 ~ x1 + x2\ny1 ~ d*x1\ny3 ~ 0.5*x2');
+    expect(warnings).toEqual([]);
+    const id = (n: string) => model.constructs.find((c) => c.name === n)!.id;
+    expect(model.constructs.map((c) => c.name)).toEqual(['f1', 'x1', 'x2']);
+    expect(model.indicatorPaths).toEqual([expect.objectContaining({ from: id('x1'), to: 'y1', label: 'd' }), expect.objectContaining({ from: id('x2'), to: 'y3', fixed: 0.5 })]);
+    expect(toSpec(model).indicatorPaths).toEqual([{ from: 'x1', to: 'y1', label: 'd' }, { from: 'x2', to: 'y3', fixed: 0.5 }]);
+    const inp = toMplus(model, CB, null, null, 'p').inp;
+    expect(inp).toContain('y1 ON x1 (d);');
+    expect(inp).toContain('y3 ON x2@0.5;');
+    expect(parseProject(serializeProject(model, CB, null, null)).model.indicatorPaths).toEqual(model.indicatorPaths);
+    const data = { names: ['y1', 'y2', 'y3', 'x1', 'x2'], cols: Array.from({ length: 5 }, (_, j) => Float64Array.from({ length: 10 }, (_, i) => ((i * (j + 3)) % 7) + i / 10)) };
+    expect(validateModel(model, data, { method: 'cbsem', consistent: false }).filter((i) => i.level === 'error')).toEqual([]);
+    expect(validateModel(model, data, { method: 'pls', consistent: false }).map((i) => i.message)).toContain('The direct effect x1 → y1 on an indicator is a CB-SEM parameter; switch to CB-SEM or remove it.');
+    // The loading is not a direct effect.
+    expect(parseLavaanSyntax('f1 =~ y1 + y2 + y3\ny1 ~ f1').warnings).toEqual([expect.stringMatching(/loading of y1/)]);
+  });
+  it('an indicator may belong to a factor outside an ESEM block and to the block (Mplus example 5.30)', () => {
+    const { model } = parseLavaanSyntax('fg =~ NA*y1 + y2 + y3 + y4\nfg ~~ 1*fg\nf1 =~ y1 + y2\nf2 =~ y3 + y4\nfg ~~ 0*f1\nfg ~~ 0*f2');
+    const ids = model.constructs.filter((c) => c.name !== 'fg').map((c) => c.id);
+    const data = { names: ['y1', 'y2', 'y3', 'y4'], cols: Array.from({ length: 4 }, (_, j) => Float64Array.from({ length: 10 }, (_, i) => ((i * (j + 3)) % 7) + i / 10)) };
+    const assigned = (m: ModelState) => validateModel(m, data, { method: 'cbsem', consistent: false }).filter((i) => /assigned to both/.test(i.message));
+    expect(assigned(model)).not.toEqual([]);
+    expect(assigned({ ...model, esem: { rotation: 'geomin', blocks: [{ id: 'b', constructs: ids }] } })).toEqual([]);
   });
 });

@@ -30,6 +30,10 @@ describe('factor analysis / PCA card', () => {
     expect(t.blocked({ ...d, nfactors: 4 }, ctx())).toContain('fewer factors than variables');
     expect(t.blocked({ ...d, criterion: 'parallel', parallel: 0 }, ctx())).toBe('Parallel analysis needs samples.');
     expect(t.blocked(d, ctx({ data: null }))).toContain('needs raw data');
+    // Bifactor rotations: lavaan's, with a general and at least one specific factor.
+    expect(t.blocked({ ...d, rotation: 'bigeomin' }, ctx())).toContain('need the lavaan extraction');
+    expect(t.blocked({ ...d, method: 'lavaan', rotation: 'bigeomin', nfactors: 2 }, ctx())).toContain('compare fit from 2');
+    expect(t.blocked({ ...d, method: 'lavaan', rotation: 'bigeomin', nfactors: 2, from: 2 }, ctx())).toBeNull();
   });
 
   it('changing the display threshold does not make the result stale', () => {

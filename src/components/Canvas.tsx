@@ -502,6 +502,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       return [{ key: `ho:${parent.id}:${cid}`, ...seg, label: l ? { value: l.value, p: null, fixed: l.fixed } : null }];
     }));
     const cov = covarianceLayout(m, method === 'cbsem', showErrors);
+    // (direct effects on indicators: drawn as arrows like a higher-order loading)
+    higherOrder.push(...cov.direct.map((d) => ({ key: `ip:${d.p.id}`, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, label: null })));
     const errors = [
       ...[...cov.places.entries()].map(([name, { term }]) => ({ term, kind: 'indicator' as const, value: errorValue('indicator', name) })),
       ...cov.disturbances.map(({ c, term }) => ({ term, kind: 'disturbance' as const, value: errorValue('construct', c.name) })),

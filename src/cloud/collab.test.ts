@@ -135,7 +135,7 @@ describe('shared projects from before explicit correlations', () => {
 // both a project file and the shared document.
 const full: Construct & Required<Omit<Construct, 'categorical' | 'components' | 'componentLoadings' | 'markerFree'>> = {
   id: 'f', name: 'Full', type: 'factor', mode: 'unit', indicators: ['f1', 'f2', 'f3'], x: 10, y: 20, side: 'top',
-  covariate: true, reliability: 0.8, freeError: true, reliabilities: { f3: 0.9 }, latent: true, fixedLoadings: { f2: 0.5 }, dominant: 'f2', loadingLabels: { f3: 'lf' },
+  covariate: true, reliability: 0.8, freeError: true, reliabilities: { f3: 0.9 }, latent: true, fixedLoadings: { f2: 0.5 }, dominant: 'f2', loadingLabels: { f3: 'lf' }, scaling: 'variance',
 };
 const kitchenSink: Required<ModelState> = {
   constructs: [
@@ -146,7 +146,7 @@ const kitchenSink: Required<ModelState> = {
   ],
   paths: [{ id: 'p', from: 'a', to: 'b', label: 'pa' }, { id: 'p2', from: 'f', to: 'b', fixed: 0.3 }],
   moderations: [{ id: 'mo', moderator: 'f', path: 'p' }],
-  correlations: [{ id: 'k1', kind: 'construct', a: 'a', b: 'f', zero: true }, { id: 'k2', kind: 'indicator', a: 'a1', b: 'b2', label: 'e1' }, { id: 'k3', kind: 'construct', a: 'h', b: 'f', fixed: 0.2 }],
+  correlations: [{ id: 'k1', kind: 'construct', a: 'a', b: 'f', zero: true }, { id: 'k2', kind: 'indicator', a: 'a1', b: 'b2', label: 'e1' }, { id: 'k3', kind: 'construct', a: 'h', b: 'f', fixed: 0.2 }, { id: 'k4', kind: 'indicator', a: 'a2', b: 'b1', byGroup: ['cm', 0.5, null] }],
   threeWay: [{ id: 't', moderation: 'mo', moderator: 'h' }],
   ordered: ['a1', 'b1'],
   defined: [{ id: 'd', name: 'ind', expr: 'pa*2' }],
@@ -157,13 +157,16 @@ const kitchenSink: Required<ModelState> = {
   baseline: 'independence',
   likelihood: 'wishart',
   sampleCovRescale: false,
-  multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'a', indicator: 'a2' }, { kind: 'intercept', indicator: 'b1' }], meanStructure: false },
+  multigroup: { column: 'g', invariance: 'scalar', free: [{ kind: 'loading', construct: 'a', indicator: 'a2' }, { kind: 'intercept', indicator: 'b1' }], meanStructure: false, ordinalScales: 'free' },
   multilevel: { column: 'school', between: 'same' },
   weights: 'w',
   cluster: 'k',
   constant: { x: 5, y: 6 },
   means: [{ id: 'm1', target: 'f', fixed: 2 }, { id: 'm2', target: 'b', label: 'mu', bias: 0.5 }],
   esem: { blocks: [{ id: 'e', constructs: ['a', 'b'] }], rotation: 'target' },
+  parameters: [{ id: 'v1', kind: 'variance', target: 'a', fixed: 1 }, { id: 'v2', kind: 'variance', target: 'b1', indicator: true, label: 've' }, { id: 'i1', kind: 'intercept', target: 'a1', indicator: true, byGroup: ['i', 'i'] }, { id: 't1', kind: 'threshold', target: 'b1', indicator: true, threshold: 2, label: 'tt' }],
+  parameterization: 'theta',
+  indicatorPaths: [{ id: 'ip', from: 'b', to: 'a1', label: 'dir' }, { id: 'ip2', from: 'f', to: 'a2', fixed: 0.1 }],
 };
 
 describe('every model field survives', () => {

@@ -47,4 +47,16 @@ describe('growth mixture card', () => {
     expect(gmm.fingerprint(long, ctx({ settings: { ...DEFAULT_SETTINGS, seed: 9 } }))).not.toBe(gmm.fingerprint(long, ctx()));
     expect(gmm.parseOptions({ to: 50, nrep: 1, random: 'all' })).toMatchObject({ to: 6, nrep: 5, random: 'intercept' });
   });
+
+  it('wide data with a residual variance per occasion (as Mplus): the class-membership covariates go to R and into the fingerprint', () => {
+    const o = { ...gmm.defaults(ctx()), measures: t, to: 2, covariates: ['c'], residuals: 'occasion' as const, membership: ['id'] };
+    expect(gmmInput(o, 5)).toMatchObject({ format: 'wide', residuals: 'occasion', membership: ['id'], covariates: ['c'] });
+    expect(gmmInput({ ...o, residuals: undefined }, 5)).not.toHaveProperty('residuals');
+    expect(gmm.blocked(o, ctx())).toBeNull();
+    expect(gmm.blocked({ ...o, membership: ['x'] }, ctx())).toBe('Not in the data: x.');
+    expect(gmm.fingerprint(o, ctx())).not.toBe(gmm.fingerprint({ ...o, residuals: undefined }, ctx()));
+    expect(gmm.parseOptions({ residuals: 'occasion', membership: ['c', 'c'] })).toMatchObject({ residuals: 'occasion', membership: ['c'] });
+    expect(gmm.parseOptions({ residuals: 'other', membership: ['c'] })).not.toHaveProperty('residuals');
+  });
 });
+

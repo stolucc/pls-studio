@@ -5,6 +5,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import type { CbEstimator } from '../../engine/cbsem';
 import { DEFAULT_SETTINGS, toSpec } from '../../model/project';
 import { estimateCbLavaan } from '../../rengine/lavaan';
+import { irtR } from '../../rengine/items';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { near, same } from '../../validation/record';
 import { exampleModel } from '../packages';
@@ -59,4 +60,141 @@ it('the replication scripts carry the Mplus defaults: observed information, geom
   const s311 = await script('ex3.11');
   expect(s311).toMatch(/y3_lv ~ 1/);
   expect(s311).toMatch(/y3 ~ 0\*1 {3}# the intercept of y3_lv/);
+  // Ordinal groups as Mplus: scale factors (delta) or residual variances (theta) free after the first group, u3's fixed;
+  // u3's thresholds freed with its loading; equality constraints and per-group labels as lavaan syntax.
+  const s516 = await script('ex5.16'), s517 = await script('ex5.17');
+  expect(s516).toMatch(/u1 ~\*~ c\(1, NA\)\*u1/);
+  expect(s516).toMatch(/u3 ~\*~ c\(1, 1\)\*u3/);
+  expect(s516).toContain('"u3|t1"');
+  expect(s517).toMatch(/u1 ~~ c\(1, NA\)\*u1/);
+  expect(s517).toContain('parameterization = "theta"');
+  const s520 = await script('ex5.20');
+  expect(s520).toMatch(/\(rel5\) == \(rel2\)|rel5 == rel2/);
+  expect(s520).toMatch(/y2 ~~ ve2\*y2/);
+  const s521 = await script('ex5.21');
+  expect(s521).toMatch(/~~ c\(covmz, covdz\)\*/);
+  expect(s521).toMatch(/~~ c\(v, v\)\*/);
 }, 600_000);
+
+
+/** MODEL CONSTRAINT's NEW parameters and MODEL INDIRECT's effects, where the output prints them (extra keys of the printed file). */
+const printedExtra = (key: string) => MPLUS[key] as unknown as { new?: Record<string, { est: number; se: number }>; indirect?: { from: string; to: string; effect: string; est: number; se: number }[] };
+type Result = Awaited<ReturnType<typeof estimateCbLavaan>>;
+const fitOf = async (key: string): Promise<Result> => {
+  const ex = example(key);
+  const st = { ...DEFAULT_SETTINGS, ...ex.settings };
+  const r = await estimateCbLavaan(load(key), toSpec(exampleModel(ex)), 'casewise', st.estimator as CbEstimator, 'product');
+  expect(r.converged).toBe(true);
+  return r;
+};
+/** Each group's estimates against what Mplus prints for it (Mplus's Scales are lavaan's ~*~ rows). */
+const sameByGroup = (r: Result, key: string, opts: Parameters<typeof samePrinted>[3] = {}) => {
+  const scales = (e: Result['estimates'][number]) => (e.kind === 'scale' ? { ...e, op: 'Scales', rhs: '' } : e);
+  if (!r.groups) { samePrinted(r.estimates.map(scales), MPLUS[key].estimates, key, opts); return; }
+  for (const g of [1, 2]) samePrinted(r.groups.results[g - 1].estimates.map(scales), MPLUS[key].estimates.filter((p) => p.group === g), `${key} group ${g}`, opts);
+};
+/** NEW parameters (Mplus) against the defined parameters (lavaan :=), which every group's table lists. */
+const sameNew = (r: Result, key: string, seTol = 0.001) => {
+  const est = (r.groups ? r.groups.results[0].estimates : r.estimates).filter((e) => e.kind === 'defined');
+  for (const [name, p] of Object.entries(printedExtra(key).new!)) {
+    const e = est.find((x) => x.lhs === name);
+    expect(e, `${key}: ${name}`).toBeDefined();
+    near(name, e!.est, p.est, 0.001);
+    near(`SE of ${name}`, e!.se!, p.se, seTol);
+  }
+};
+const scaledFit = (r: Result, key: string, tol: number) => {
+  const want = MPLUS[key].fit;
+  same('free parameters', r.fit.npar, want.npar!);
+  same('df', r.fit.df, want.df!);
+  near('χ² (WLSMV, scaled and shifted)', r.fit.chisqScaled!, want.chisq!, tol);
+};
+
+it('ex5.9, ex5.12: equal intercepts; the indirect effect (MODEL INDIRECT) with its delta-method standard error', async () => {
+  for (const key of ['ex5.9', 'ex5.12']) {
+    evidence(key, 'CB-SEM', ['lavaan']);
+    const r = await fitOf(key);
+    sameFit(r.fit, MPLUS[key].fit);
+    samePrinted(r.estimates, MPLUS[key].estimates, key);
+    expect(r.warnings).toEqual([]);
+  }
+  // ex5.9: the intercepts are equal within each factor (one label each).
+  const r9 = await fitOf('ex5.9');
+  const ints = r9.estimates.filter((e) => e.op === '~1' && e.kind === 'intercept');
+  expect(new Set(ints.filter((e) => e.lhs.startsWith('y1')).map((e) => e.est.toFixed(10))).size).toBe(1);
+  const r12 = await fitOf('ex5.12');
+  const ind = r12.estimates.find((e) => e.kind === 'defined' && e.lhs === 'ind')!;
+  const want = printedExtra('ex5.12').indirect!.find((x) => x.from === 'f1' && x.to === 'f4' && x.effect === 'Indirect')!;
+  near('indirect effect of f1 on f4 via f3', ind.est, want.est, 0.001);
+  near('SE of the indirect effect (delta method)', ind.se!, want.se, 0.001);
+}, 600_000);
+
+it('ex5.20, ex5.21: non-linear constraints and NEW parameters (defined parameters, == and > constraints, values per group)', async () => {
+  for (const key of ['ex5.20', 'ex5.21']) {
+    evidence(key, 'CB-SEM', ['lavaan']);
+    const r = await fitOf(key);
+    sameFit(r.fit, MPLUS[key].fit);
+    const isNew = (p: { lhs: string }) => p.lhs in printedExtra(key).new!;
+    // ex5.20: one standard error, of f2's variance, is 0.0880 against Mplus's printed 0.087 (documented on the card).
+    sameByGroup(r, key, { skip: isNew, seTol: key === 'ex5.20' ? 0.0011 : 0.001 });
+    sameNew(r, key);
+  }
+}, 600_000);
+
+it('ex5.3, ex5.10, ex5.16, ex5.22: categorical indicators by WLSMV, estimates and standard errors as Mplus prints them', async () => {
+  // ex5.10: thresholds held equal; ex5.22: the twin model for binary outcomes. Every estimate and SE as printed;
+  // lavaan's scaled-shifted χ² adjusts slightly differently from Mplus's (as in example 5.2).
+  for (const [key, chiTol] of [['ex5.10', 0.03], ['ex5.22', 0.002]] as const) {
+    evidence(key, 'CB-SEM', ['lavaan']);
+    const r = await fitOf(key);
+    scaledFit(r, key, chiTol);
+    sameByGroup(r, key, { skip: (p) => !!printedExtra(key).new && p.lhs in printedExtra(key).new! });
+    if (printedExtra(key).new) sameNew(r, key);
+    expect(r.warnings).toEqual([]);
+  }
+  // ex5.3: continuous and binary indicators. Every estimate as printed; the SEs as printed except those of three
+  // variances (f2 0.067 vs 0.062, y4 0.023 vs 0.025, y5 0.022 vs 0.021), documented on the card.
+  evidence('ex5.3', 'CB-SEM', ['lavaan']);
+  const r3 = await fitOf('ex5.3');
+  scaledFit(r3, 'ex5.3', 0.02);
+  const odd = (p: { lhs: string; op: string; rhs: string }) => p.op === '~~' && p.lhs === p.rhs && ['f2', 'y4', 'y5'].includes(p.lhs);
+  samePrinted(r3.estimates, MPLUS['ex5.3'].estimates, 'ex5.3', { skip: odd });
+  samePrinted(r3.estimates, MPLUS['ex5.3'].estimates.filter(odd), 'ex5.3', { seTol: 0.006 });
+  // ex5.16: two groups, thresholds and loadings equal, scale factors free in the second group; u3's loading and
+  // threshold free for females, its scale fixed at 1. Estimates as printed; SEs within 0.004 (documented).
+  evidence('ex5.16', 'CB-SEM', ['lavaan']);
+  const r16 = await fitOf('ex5.16');
+  scaledFit(r16, 'ex5.16', 0.03);
+  sameByGroup(r16, 'ex5.16', { seTol: 0.004 });
+  expect(r16.warnings).toEqual([]);
+}, 600_000);
+
+it('ex5.17: the theta parameterisation is the same model as ex5.16 (same χ²); Mplus’s printed estimates sit on a flat stretch of the fit function', async () => {
+  evidence('ex5.17', 'CB-SEM', ['lavaan']);
+  const r = await fitOf('ex5.17');
+  scaledFit(r, 'ex5.17', 0.03);
+  const r16 = await fitOf('ex5.16');
+  near('χ² equal to the delta parameterisation’s', r.fit.chisqScaled!, r16.fit.chisqScaled!, 1e-6);
+  // Male group (residual variances fixed at 1): as printed. Female group: within 0.021 (estimates) and 0.007 (SEs);
+  // lavaan's objective at Mplus's printed values is 0.0048524 against 0.0048522 at its own minimum (documented).
+  samePrinted(r.groups!.results[0].estimates, MPLUS['ex5.17'].estimates.filter((p) => p.group === 1), 'ex5.17 group 1', { tol: 0.002, seTol: 0.007 });
+  samePrinted(r.groups!.results[1].estimates, MPLUS['ex5.17'].estimates.filter((p) => p.group === 2), 'ex5.17 group 2', { tol: 0.021, seTol: 0.007 });
+  expect(r.warnings).toEqual([]);
+}, 600_000);
+
+it.each([['ex5.5part2', 'twopl'], ['ex5.5', 'gpcm']])('%s: the IRT model (ltm, %s) reproduces the Mplus output: log-likelihood, loadings, thresholds and their MLR standard errors', async (key) => {
+  const ex = example(key);
+  evidence(key, 'Item response theory', ['ltm']);
+  const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'irt' }>;
+  const r = await irtR(load(key), p.items, p.model, { quadrature: p.quadrature, robust: p.robust });
+  const want = MPLUS[key];
+  const npar = Math.round((r.aic + 2 * r.logLik) / 2);
+  same('free parameters', npar, want.fit.npar!);
+  near('log-likelihood', r.logLik, want.fit.logl!, 0.002);
+  near('AIC', r.aic, want.fit.aic!, 0.004);
+  near('BIC', r.bic, want.fit.bic!, 0.004);
+  // Mplus's =~ rows are the loadings; its thresholds (2PL) and steps (partial credit) are minus ltm's intercepts.
+  const mine = r.coefficients!.map((k) => ({ lhs: k.parameter === 'loading' ? 'f' : p.model === 'gpcm' ? `${k.item}$${k.parameter.slice(5)}` : k.item,
+    op: k.parameter === 'loading' ? '=~' : p.model === 'gpcm' ? 'Steps' : '|', rhs: k.parameter === 'loading' ? k.item : p.model === 'gpcm' ? '' : 't1', est: k.est, se: k.se }));
+  samePrinted(mine, want.estimates.filter((q) => q.se > 0), key, { tol: 0.002 });
+}, 900_000);

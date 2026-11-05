@@ -7,7 +7,7 @@ import type { McDesign } from '../engine/montecarlo';
 import { parseDesign } from './simulation';
 import { processGraph } from '../process/fromModel';
 import { exprToR, nameError, namesIn, parseConstraint, parseExpr, parseInequality } from './expr';
-import { BIFACTOR_ROTATIONS, ORTHOGONALISABLE_ROTATIONS, type ConstructType, type Dataset, type EsemRotation, type FreedParameter, type InvarianceLevel, type MissingTreatment, type Mode, type ModelSpec, type MomentData, type MomentGroup, type MultigroupSpec, type StructuralEquality, type WeightingScheme } from '../engine/types';
+import { BIFACTOR_ROTATIONS, ORTHOGONALISABLE_ROTATIONS, type ConstructType, type Dataset, type EsemRotation, type FreedParameter, type GroupValue, type InvarianceLevel, type MissingTreatment, type Mode, type ModelSpec, type MomentData, type MomentGroup, type MultigroupSpec, type StructuralEquality, type WeightingScheme } from '../engine/types';
 import { pooledMoments } from '../data/moments';
 import { LAVAAN_MISSING } from '../engine/types';
 import { MAX_CATEGORIES } from '../engine/dataset';
@@ -50,6 +50,8 @@ export interface Construct {
   dominant?: string;
   /** CB-SEM: labels of loadings (by indicator name); equal labels = equal loadings. */
   loadingLabels?: Record<string, string>;
+  /** CB-SEM factor: its scale from a variance fixed at 1, every loading estimated (lavaan NA*y1 + …; f ~~ 1*f; Mplus f BY y1* …; f@1); absent: the first loading fixed at 1 (marker). */
+  scaling?: 'variance';
   /** Conditional process analysis: X is multicategorical, coded this way (PROCESS mcx). */
   categorical?: 'indicator' | 'sequential' | 'helmert' | 'effect';
 }
@@ -164,7 +166,22 @@ export interface Correlation {
   fixed?: number;
   /** CB-SEM: parameter label; parameters with the same label are equal. */
   label?: string;
+  /** CB-SEM, several groups: a value or label per group (lavaan c(...)) instead of `fixed` / `label`. */
+  byGroup?: GroupValue[];
 }
+
+/**
+ * CB-SEM: a variance, an indicator's intercept or a threshold held at a value or labelled (lavaan f1 ~~ 1*f1,
+ * y1 ~~ ve1*y1, y1 ~ i*1, u1 | t*t1; Mplus f1@1, y1 (ve1), [y1] (i), [u1$1] (t)). `target`: a construct id
+ * (its variance, or its disturbance's) or, with `indicator`, an indicator's name.
+ */
+export interface ParameterTerm { id: string; kind: 'variance' | 'intercept' | 'threshold'; target: string; indicator?: boolean; threshold?: number; fixed?: number; label?: string; byGroup?: GroupValue[] }
+
+/**
+ * CB-SEM: a direct effect on an indicator (lavaan y1 ~ x1; Mplus y1 ON x1), beside its loading: from a construct
+ * or covariate (`from`, a construct id) to an indicator (`to`, its name), as in MIMIC models with direct effects.
+ */
+export interface IndicatorPath { id: string; from: string; to: string; fixed?: number; label?: string }
 
 /** CB-SEM: a defined parameter, name := expression over labels (e.g. an indirect effect a*b). */
 export interface DefinedParameter { id: string; name: string; expr: string }
@@ -183,6 +200,13 @@ export interface ThreeWay {
   /** Z. */
   moderator: string;
 }
+
+/**
+ * One statement of a two-level model's between level as written in syntax (lavaan's level: 2 block): `lhs op rhs`,
+ * each right-hand term a data column or a between-level factor, fixed at a value or labelled. `~1` is an intercept
+ * or mean (its one term is named "1"). Names are column or factor names, not construct ids.
+ */
+export interface BetweenStatement { lhs: string; op: '=~' | '~' | '~~' | '~1'; rhs: { name: string; fixed?: number; label?: string }[] }
 
 export interface ModelState {
   constructs: Construct[];
@@ -210,7 +234,8 @@ export interface ModelState {
   multigroup?: MultigroupSpec;
   /** CB-SEM: two-level model by a cluster column. */
   /** between: 'factors': each factor measured by the same indicators between clusters, regressed on `betweenCovariates` (cluster-level variables), as lavaan's tutorial model. */
-  multilevel?: { column: string; between: 'same' | 'saturated' | 'factors'; betweenCovariates?: string[] };
+  /** between: 'model': the between-level model as written in syntax (lavaan's level: 2 block, Mplus %BETWEEN%), `betweenModel`. */
+  multilevel?: { column: string; between: 'same' | 'saturated' | 'factors' | 'model'; betweenCovariates?: string[]; betweenModel?: BetweenStatement[] };
   /** CB-SEM: sampling (survey) weights column. */
   weights?: string;
   /**
@@ -230,6 +255,12 @@ export interface ModelState {
    */
   constant?: { x: number; y: number };
   means?: MeanTerm[];
+  /** CB-SEM (lavaan): variances, indicator intercepts and thresholds held at values or labelled. */
+  parameters?: ParameterTerm[];
+  /** CB-SEM (lavaan), ordinal indicators: the theta parameterisation instead of delta (Mplus PARAMETERIZATION = THETA). */
+  parameterization?: 'theta';
+  /** CB-SEM: direct effects of constructs or covariates on indicators. */
+  indicatorPaths?: IndicatorPath[];
 }
 
 /** An arrow from the constant: a latent mean (or an observed variable's intercept) of construct `target`. */
@@ -454,8 +485,8 @@ export function impliedIntercepts(model: ModelState): { construct: string; indic
  */
 function covarianceSpec(model: ModelState, name: Map<string, string>): Pick<ModelSpec, 'covariances'> {
   const drawn = (model.correlations?.length ? pruneCorrelations(model).correlations! : []).map((k) => (k.kind === 'construct'
-      ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}), ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}) }
-      : { a: k.a, b: k.b, kind: 'indicator' as const, ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}) }));
+      ? { a: name.get(k.a)!, b: name.get(k.b)!, kind: 'construct' as const, ...(k.zero ? { zero: true } : {}), ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}), ...(k.byGroup?.length && !k.zero ? { byGroup: k.byGroup } : {}) }
+      : { a: k.a, b: k.b, kind: 'indicator' as const, ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}), ...(k.byGroup?.length ? { byGroup: k.byGroup } : {}) }));
   const zeros = unconfirmedUncorrelated(model).map(([a, b]) => ({ a: name.get(a.id)!, b: name.get(b.id)!, kind: 'construct' as const, zero: true }));
   const all = [...drawn, ...zeros];
   return all.length ? { covariances: all } : {};
@@ -479,6 +510,7 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.categorical && c.indicators.length === 1 ? { categorical: true } : {}),
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
       ...(c.loadingLabels && Object.keys(c.loadingLabels).length ? { loadingLabels: c.loadingLabels } : {}),
+      ...(c.scaling === 'variance' && c.indicators.length > 1 && !c.covariate && !c.components?.length ? { scaling: 'variance' as const } : {}),
     })),
     paths: [
       ...model.paths.map((p) => ({ from: name.get(p.from)!, to: name.get(p.to)!, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })),
@@ -512,7 +544,23 @@ export function toSpec(model: ModelState): ModelSpec {
     }),
     ...(model.ordered?.length ? { ordered: model.ordered.filter((i) => model.constructs.some((c) => c.indicators.includes(i))) } : {}),
     ...covarianceSpec(model, name),
+    ...parameterSpec(model, name),
+    ...(model.indicatorPaths?.some((p) => name.has(p.from) && model.constructs.some((c) => c.indicators.includes(p.to)))
+      ? { indicatorPaths: model.indicatorPaths.filter((p) => name.has(p.from) && model.constructs.some((c) => c.indicators.includes(p.to)))
+        .map((p) => ({ from: name.get(p.from)!, to: p.to, ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}) })) } : {}),
+    ...(model.parameterization ? { parameterization: model.parameterization } : {}),
   };
+}
+
+/** Variances, intercepts and thresholds held or labelled, by construct name (terms whose construct or indicator is gone are dropped). */
+function parameterSpec(model: ModelState, name: Map<string, string>): Pick<ModelSpec, 'parameters'> {
+  const assigned = new Set(model.constructs.flatMap((c) => c.indicators));
+  const parameters = (model.parameters ?? []).flatMap((t) => {
+    if (t.indicator ? !assigned.has(t.target) : (t.kind !== 'variance' || !name.has(t.target))) return [];
+    return [{ kind: t.kind, target: t.indicator ? t.target : name.get(t.target)!, ...(t.indicator ? { indicator: true } : {}), ...(t.threshold !== undefined ? { threshold: t.threshold } : {}),
+      ...(t.byGroup?.length ? { byGroup: t.byGroup } : t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : {}) }];
+  });
+  return parameters.length ? { parameters } : {};
 }
 
 /** Every label in use, with the parameters carrying it. */
@@ -523,6 +571,14 @@ export function labelUses(model: ModelState): Map<string, string[]> {
   for (const p of model.paths) if (p.fixed === undefined) add(p.label, `${name(p.from)} → ${name(p.to)}`);
   for (const c of model.constructs) for (const [ind, l] of Object.entries(c.loadingLabels ?? {})) if (c.fixedLoadings?.[ind] === undefined) add(l, `${c.name} → ${ind}`);
   for (const k of model.correlations ?? []) if (k.fixed === undefined && !k.zero) add(k.label, `${k.kind === 'construct' ? name(k.a) : k.a} ↔ ${k.kind === 'construct' ? name(k.b) : k.b}`);
+  for (const k of model.correlations ?? []) if (!k.zero) for (const v of k.byGroup ?? []) if (typeof v === 'string') add(v, `${k.kind === 'construct' ? name(k.a) : k.a} ↔ ${k.kind === 'construct' ? name(k.b) : k.b}`);
+  for (const p of model.indicatorPaths ?? []) if (p.fixed === undefined) add(p.label, `${name(p.from)} → ${p.to}`);
+  for (const t of model.parameters ?? []) {
+    const what = t.kind === 'variance' ? `variance of ${t.indicator ? t.target : name(t.target)}` : t.kind === 'intercept' ? `intercept of ${t.target}` : `threshold ${t.threshold ?? 1} of ${t.target}`;
+    if (t.byGroup?.length) { for (const v of t.byGroup) if (typeof v === 'string') add(v, what); } else if (t.fixed === undefined) add(t.label, what);
+  }
+  // (a between level as written: its labelled parameters, between clusters)
+  if (model.multilevel?.between === 'model') for (const st of model.multilevel.betweenModel ?? []) for (const t of st.rhs) if (t.fixed === undefined) add(t.label, `${st.lhs} ${st.op === '~1' ? '~ 1' : `${st.op} ${t.name}`} (between)`);
   return out;
 }
 
@@ -552,10 +608,11 @@ export function constraintErrors(model: ModelState): string[] {
   }
   for (const line of inequalityLines(model)) {
     try {
-      const c = parseInequality(line);
+      // (an equality constraint, left == right, is written on the same list: lavaan's ==)
+      const c = line.includes('==') ? parseConstraint(line) : parseInequality(line);
       const unknown = [...namesIn(c.left), ...namesIn(c.right)].filter((n) => !known.has(n));
-      if (unknown.length) errs.push(`Inequality “${line}”: ${unknown.join(', ')} ${unknown.length === 1 ? 'is' : 'are'} not a label or defined parameter.`);
-    } catch (x) { errs.push(`Inequality “${line}”: ${(x as Error).message}`); }
+      if (unknown.length) errs.push(`${line.includes('==') ? 'Constraint' : 'Inequality'} “${line}”: ${unknown.join(', ')} ${unknown.length === 1 ? 'is' : 'are'} not a label or defined parameter.`);
+    } catch (x) { errs.push(`${line.includes('==') ? 'Constraint' : 'Inequality'} “${line}”: ${(x as Error).message}`); }
   }
   for (const t of model.waldTests ?? []) {
     if (!hypotheses(t).length) errs.push(`Wald test “${t.name}” has no hypothesis.`);
@@ -571,12 +628,13 @@ export function constraintErrors(model: ModelState): string[] {
 }
 
 /** Defined parameters and Wald tests for the request, printed from their parsed form (only when all are valid). */
-function constraintSpec(model: ModelState): Pick<ModelSpec, 'defined' | 'waldTests' | 'inequalities' | 'positiveVariances'> {
+function constraintSpec(model: ModelState): Pick<ModelSpec, 'defined' | 'waldTests' | 'inequalities' | 'equalities' | 'positiveVariances'> {
   const bounds = model.positiveVariances ? { positiveVariances: true } : {};
   if (!(model.defined?.length || model.waldTests?.length || inequalityLines(model).length) || constraintErrors(model).length) return bounds;
   return {
     ...bounds,
-    ...(inequalityLines(model).length ? { inequalities: inequalityLines(model).map((line) => { const c = parseInequality(line); return `${exprToR(c.left)} ${c.op} ${exprToR(c.right)}`; }) } : {}),
+    ...(inequalityLines(model).some((l) => !l.includes('==')) ? { inequalities: inequalityLines(model).filter((l) => !l.includes('==')).map((line) => { const c = parseInequality(line); return `${exprToR(c.left)} ${c.op} ${exprToR(c.right)}`; }) } : {}),
+    ...(inequalityLines(model).some((l) => l.includes('==')) ? { equalities: inequalityLines(model).filter((l) => l.includes('==')).map((line) => { const c = parseConstraint(line); return `${exprToR(c.left)} == ${exprToR(c.right)}`; }) } : {}),
     ...(model.defined?.length ? { defined: model.defined.map((d) => ({ name: d.name, expr: exprToR(parseExpr(d.expr)) })) } : {}),
     ...(model.waldTests?.length ? {
       waldTests: model.waldTests.map((t) => ({
@@ -732,7 +790,10 @@ export function validateModel(
     }
     for (const ind of c.indicators) {
       const o = owner.get(ind);
-      if (o) err(`Indicator "${ind}" is assigned to both "${o}" and "${c.name}".`, c.id);
+      // (an ESEM block's factors load on all of the block's indicators: a factor outside the block may share them, Mplus example 5.30)
+      const inEsem = (id: string) => (model.esem?.blocks ?? []).some((b) => b.constructs.includes(id));
+      const oc = model.constructs.find((k) => k.name === o);
+      if (o && !(method.method === 'cbsem' && oc && inEsem(oc.id) !== inEsem(c.id))) err(`Indicator "${ind}" is assigned to both "${o}" and "${c.name}".`, c.id);
       owner.set(ind, c.name);
       if (data && !available.has(ind)) err(`Indicator "${ind}" (in "${c.name}") is not in the current dataset.`, c.id);
     }
@@ -740,6 +801,16 @@ export function validateModel(
     const isComponent = model.constructs.some((k) => k.components?.includes(c.id));
     // (a moderator is connected through its moderation, which implies its effect on the outcome)
     if (method.method === 'pls' && !isComponent && !model.paths.some((p) => p.from === c.id || p.to === c.id) && !(model.moderations ?? []).some((mo) => mo.moderator === c.id)) err(`"${c.name}" is not connected to any other construct.`, c.id);
+  }
+
+  // Direct effects on indicators (CB-SEM): from another construct or covariate to a factor's indicator.
+  for (const p of model.indicatorPaths ?? []) {
+    const from = model.constructs.find((k) => k.id === p.from), owners = model.constructs.filter((k) => k.indicators.includes(p.to));
+    if (method.method !== 'cbsem') { err(`The direct effect ${from?.name ?? '?'} → ${p.to} on an indicator is a CB-SEM parameter; switch to CB-SEM or remove it.`); continue; }
+    if (!from || !owners.length) err(`A direct effect on an indicator refers to a construct or indicator that is no longer in the model.`);
+    else if (owners.some((k) => k.type === 'composite')) err(`${p.to} is an indicator of a composite: a direct effect on it is not available.`);
+    else if (owners.some((k) => k.id === from.id)) err(`${from.name} → ${p.to} is the loading of ${p.to}; a direct effect comes from another construct or covariate.`);
+    else if (owners.some((k) => k.indicators.length === 1 && !k.reliability && !k.freeError)) err(`${p.to} is a single indicator that stands for its construct: draw the path to the construct instead.`);
   }
 
   const cname = new Map(model.constructs.map((c) => [c.id, c.name]));
@@ -1004,6 +1075,16 @@ export function validateModel(
         err('Two-level models cannot be combined with ESEM blocks, ordinal indicators or latent interactions (lavaan estimates two-level models by ML only).');
       }
       if (model.multigroup?.column === ml.column) err(`“${ml.column}” cannot define both the groups and the clusters.`);
+      if (!ml.column) err('Choose the cluster column under Clusters (two-level).');
+      if (ml.between === 'model') {
+        // The between level as written: every name a column of the dataset or a factor it defines.
+        const st = ml.betweenModel ?? [];
+        if (!st.length) err('The between-level model has no statements; choose another between-level model under Clusters.');
+        const factors = new Set(st.filter((x) => x.op === '=~').map((x) => x.lhs));
+        if (data && !data.moments) for (const x of new Set(st.flatMap((x) => [x.lhs, ...x.rhs.map((t) => t.name)]))) {
+          if (x !== '1' && !factors.has(x) && !data.names.includes(x)) err(`“${x}” in the between-level model is neither a column of the dataset nor a between-level factor.`);
+        }
+      }
       if (ml.between === 'same' && labelUses(model).size > 0) {
         warn('Labels apply at both levels: parameters with the same label are equal within and between clusters (cross-level invariance).');
       }
@@ -1350,6 +1431,22 @@ const str = (v: unknown, max = 200): string => {
 /** A fixed parameter value from a file: a finite number of sensible size. */
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1e6;
 const LEVELS: InvarianceLevel[] = ['configural', 'metric', 'scalar', 'strict'];
+/** A saved between-level model (two-level syntax): well-formed statements only, names as plain identifiers. */
+export function parseBetweenModel(v: unknown): BetweenStatement[] {
+  if (!Array.isArray(v)) return [];
+  const ident = (x: unknown): x is string => typeof x === 'string' && /^[A-Za-z_.][A-Za-z0-9_.]{0,199}$/.test(x);
+  const ops: BetweenStatement['op'][] = ['=~', '~', '~~', '~1'];
+  const obj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
+  return v.slice(0, 500).filter(obj)
+    .filter((st) => ident(st.lhs) && ops.includes(st.op as BetweenStatement['op']) && Array.isArray(st.rhs))
+    .map((st) => ({
+      lhs: st.lhs as string, op: st.op as BetweenStatement['op'],
+      rhs: (st.rhs as unknown[]).slice(0, 200).filter(obj).filter((t) => (st.op === '~1' ? t.name === '1' : ident(t.name)))
+        .map((t) => ({ name: t.name as string, ...(typeof t.fixed === 'number' && Number.isFinite(t.fixed) ? { fixed: t.fixed } : {}), ...(ident(t.label) ? { label: t.label } : {}) })),
+    }))
+    .filter((st) => st.rhs.length > 0);
+}
+
 function parseMultigroup(r: Record<string, unknown>, ids: Set<string>): MultigroupSpec {
   const free = (Array.isArray(r.free) ? r.free.slice(0, 1000) : []).filter(isObj).flatMap((f: Record<string, unknown>): FreedParameter[] => {
     if (f.kind === 'loading' && typeof f.construct === 'string' && ids.has(f.construct) && typeof f.indicator === 'string') return [{ kind: 'loading' as const, construct: f.construct, indicator: str(f.indicator) }];
@@ -1360,11 +1457,14 @@ function parseMultigroup(r: Record<string, unknown>, ids: Set<string>): Multigro
   });
   const STRUCTURAL: StructuralEquality[] = ['regressions', 'lv.variances', 'lv.covariances', 'means'];
   const structural = Array.isArray(r.structural) ? STRUCTURAL.filter((k) => (r.structural as unknown[]).includes(k)) : [];
-  return { column: str(r.column), invariance: LEVELS.find((l) => l === r.invariance) ?? 'configural', free, ...(structural.length ? { structural } : {}), ...(r.meanStructure === false ? { meanStructure: false as const } : {}) };
+  return { column: str(r.column), invariance: LEVELS.find((l) => l === r.invariance) ?? 'configural', free, ...(structural.length ? { structural } : {}), ...(r.meanStructure === false ? { meanStructure: false as const } : {}), ...(r.ordinalScales === 'free' ? { ordinalScales: 'free' as const } : {}) };
 }
 
 /** A parameter label from a file (validated again before use). */
 const labelOf = (v: unknown): { label?: string } => (typeof v === 'string' && v.trim() ? { label: v.trim().slice(0, 31) } : {});
+/** Values per group from a file: numbers, labels (validated again before use) or null (free). */
+const byGroupOf = (v: unknown): { byGroup?: GroupValue[] } => (Array.isArray(v) && v.length >= 1 && v.length <= 50 && v.every((x) => x === null || finite(x) || (typeof x === 'string' && x.trim()))
+  ? { byGroup: v.map((x) => (typeof x === 'string' ? x.trim().slice(0, 31) : x as number | null)) } : {});
 function componentLoadingsOf(raw: unknown, components: unknown[]): { componentLoadings?: Record<string, number> } {
   if (!isObj(raw)) return {};
   const out: Record<string, number> = {};
@@ -1438,6 +1538,7 @@ export function parseModelState(m: unknown): ModelState {
       ...((['indicator', 'sequential', 'helmert', 'effect'] as const).includes(c.categorical as 'indicator') ? { categorical: c.categorical as 'indicator' } : {}),
       ...(fixedLoadingsOf(c.fixedLoadings, c.indicators as unknown[])),
       ...(loadingLabelsOf(c.loadingLabels, c.indicators as unknown[])),
+      ...(c.scaling === 'variance' ? { scaling: 'variance' as const } : {}),
     };
   });
   const ids = new Set(constructs.map((c) => c.id));
@@ -1470,7 +1571,7 @@ export function parseModelState(m: unknown): ModelState {
   const rawCorrs = Array.isArray(m.correlations) ? m.correlations.slice(0, 5000) : [];
   const correlations: Correlation[] = rawCorrs.map((k: unknown) => {
     if (!isObj(k) || (k.kind !== 'construct' && k.kind !== 'indicator')) throw new Error('Invalid correlation in project file.');
-    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}), ...(finite(k.fixed) ? { fixed: k.fixed } : {}), ...(labelOf(k.label)) };
+    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}), ...(finite(k.fixed) ? { fixed: k.fixed } : {}), ...(labelOf(k.label)), ...(byGroupOf(k.byGroup)) };
     const known = out.kind === 'construct' ? ids : indicatorNames;
     if (!known.has(out.a) || !known.has(out.b) || out.a === out.b) throw new Error('Invalid project file: correlation references an unknown construct or indicator.');
     return out;
@@ -1483,9 +1584,11 @@ export function parseModelState(m: unknown): ModelState {
       ...(typeof m.weights === 'string' && m.weights ? { weights: str(m.weights) } : {}),
       ...(typeof m.cluster === 'string' && m.cluster ? { cluster: str(m.cluster) } : {}),
       ...(isObj(m.multilevel) && typeof m.multilevel.column === 'string' ? { multilevel: {
-        column: str(m.multilevel.column), between: m.multilevel.between === 'same' ? 'same' as const : m.multilevel.between === 'factors' ? 'factors' as const : 'saturated' as const,
+        column: str(m.multilevel.column), between: m.multilevel.between === 'same' ? 'same' as const : m.multilevel.between === 'factors' ? 'factors' as const
+          : m.multilevel.between === 'model' && parseBetweenModel(m.multilevel.betweenModel).length ? 'model' as const : 'saturated' as const,
         ...(m.multilevel.between === 'factors' && Array.isArray(m.multilevel.betweenCovariates) && m.multilevel.betweenCovariates.length
           ? { betweenCovariates: [...new Set((m.multilevel.betweenCovariates as unknown[]).slice(0, 100).filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 200)))] } : {}),
+        ...(m.multilevel.between === 'model' && parseBetweenModel(m.multilevel.betweenModel).length ? { betweenModel: parseBetweenModel(m.multilevel.betweenModel) } : {}),
       } } : {}),
       ...(isObj(m.esem) && Array.isArray(m.esem.blocks) ? { esem: {
         rotation: (['geomin', 'oblimin', 'quartimin', 'varimax', 'target', 'bigeomin', 'biquartimin'] as const).find((r) => r === (m.esem as Record<string, unknown>).rotation) ?? 'geomin',
@@ -1499,6 +1602,19 @@ export function parseModelState(m: unknown): ModelState {
       ...(m.sampleCovRescale === false ? { sampleCovRescale: false as const } : {}),
       ...(typeof m.inequalities === 'string' && m.inequalities.trim() ? { inequalities: str(m.inequalities, 2000) } : {}),
       ...(m.positiveVariances === true ? { positiveVariances: true } : {}),
+      ...(m.parameterization === 'theta' ? { parameterization: 'theta' as const } : {}),
+      ...(Array.isArray(m.indicatorPaths) && m.indicatorPaths.length ? { indicatorPaths: m.indicatorPaths.slice(0, 2000).filter(isObj).flatMap((p: Record<string, unknown>): IndicatorPath[] => {
+        const from = str(p.from, 64), to = str(p.to, 200);
+        return ids.has(from) && indicatorNames.has(to) ? [{ id: str(p.id, 64), from, to, ...(finite(p.fixed) ? { fixed: p.fixed } : {}), ...(labelOf(p.label)) }] : [];
+      }) } : {}),
+      ...(Array.isArray(m.parameters) && m.parameters.length ? { parameters: m.parameters.slice(0, 2000).filter(isObj).flatMap((t: Record<string, unknown>): ParameterTerm[] => {
+        if (t.kind !== 'variance' && t.kind !== 'intercept' && t.kind !== 'threshold') return [];
+        const indicator = t.indicator === true || t.kind !== 'variance';
+        const target = str(t.target, 200);
+        if (indicator ? !indicatorNames.has(target) : !ids.has(target)) return [];
+        return [{ id: str(t.id, 64), kind: t.kind, target, ...(indicator ? { indicator: true } : {}), ...(t.kind === 'threshold' && finite(t.threshold) && t.threshold >= 1 && t.threshold <= 50 ? { threshold: Math.round(t.threshold) } : {}),
+          ...(finite(t.fixed) ? { fixed: t.fixed } : {}), ...(labelOf(t.label)), ...(byGroupOf(t.byGroup)) }];
+      }) } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
       ...(isObj(m.constant) ? { constant: { x: num(m.constant.x, -1e6, 1e6, 0), y: num(m.constant.y, -1e6, 1e6, 0) } } : {}),
       ...(isObj(m.constant) && Array.isArray(m.means) && m.means.length ? { means: (() => {

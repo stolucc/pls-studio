@@ -23,8 +23,9 @@ export const FUNCTIONS: Record<string, { arity: [number, number]; doc: string }>
   sum: { arity: [1, Infinity], doc: 'sum of the values in the row' }, mean: { arity: [1, Infinity], doc: 'mean of the values in the row' },
   ifelse: { arity: [3, 3], doc: 'ifelse(condition, value if true, value if false)' },
   isna: { arity: [1, 1], doc: '1 when missing, else 0' },
-  z: { arity: [1, 1], doc: 'standardised: (x − mean) / sd over the rows' }, center: { arity: [1, 1], doc: 'mean-centred over the rows' },
+  z: { arity: [1, 1], doc: 'standardised: (x − mean) / sd over the rows' }, center: { arity: [1, 2], doc: 'mean-centred over the rows; center(x, g): within the groups of g (group-mean centring)' },
   rank: { arity: [1, 1], doc: 'rank over the rows (1 = smallest; ties averaged)' },
+  lag: { arity: [1, 2], doc: 'lag(x, k): the value k rows earlier (default 1; missing in the first k rows), for a time series in row order' },
 };
 export const MAX_FORMULA = 500;
 export const MAX_NAME = 64;
@@ -160,10 +161,22 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
           case 'ifelse': { const [c, a, b] = args, out = new Float64Array(n); for (let i = 0; i < n; i++) out[i] = Number.isNaN(c[i]) ? NaN : c[i] !== 0 ? a[i] : b[i]; return out; }
           case 'isna': return args[0].map((v) => (Number.isNaN(v) ? 1 : 0));
           case 'z': case 'center': {
+            if (nd.fn === 'center' && args[1]) {
+              // Group-mean centring: each value less the mean of its group (rows where x or g is missing are missing).
+              const x = args[0], g = args[1], sum = new Map<number, [number, number]>();
+              for (let i = 0; i < n; i++) if (!Number.isNaN(x[i]) && !Number.isNaN(g[i])) { const a = sum.get(g[i]) ?? [0, 0]; a[0] += x[i]; a[1]++; sum.set(g[i], a); }
+              return x.map((v, i) => { const a = sum.get(g[i]); return Number.isNaN(v) || !a ? NaN : v - a[0] / a[1]; });
+            }
             const x = args[0], ok = Array.from(x).filter((v) => !Number.isNaN(v));
             const m = ok.reduce((s, v) => s + v, 0) / ok.length;
             const sd = ok.length > 1 ? Math.sqrt(ok.reduce((s, v) => s + (v - m) ** 2, 0) / (ok.length - 1)) : NaN;
             return x.map((v) => (Number.isNaN(v) ? NaN : nd.fn === 'center' ? v - m : sd > 0 ? (v - m) / sd : NaN));
+          }
+          case 'lag': {
+            const k = args[1] ? args[1][0] : 1;
+            if (!(Number.isInteger(k) && k >= 1 && k < 1e6)) throw new Error('lag(x, k): k must be a whole number of rows, 1 or more.');
+            const x = args[0];
+            return x.map((_, i) => (i >= k ? x[i - k] : NaN));
           }
           case 'rank': {
             const x = args[0], idx = Array.from(x).map((v, i) => [v, i] as const).filter(([v]) => !Number.isNaN(v)).sort((a, b) => a[0] - b[0]);

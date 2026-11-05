@@ -12,6 +12,11 @@ describe('EFA design from a project file', () => {
     expect(parseEfaDesign({ correlation: 'polychoric' })!.correlation).toBe('polychoric');
     expect(parseEfaDesign({ correlation: 'spearman' })!.correlation).toBe('pearson');
     expect(parseEfaDesign({ criterion: 'k <- 99' })!.criterion).toBe('fixed');
+    // The lavaan extraction's options: geomin ε, observed information, the smallest number of factors compared.
+    expect(parseEfaDesign({ method: 'lavaan', rotation: 'bigeomin', epsilon: 0.01, information: 'observed', from: 2.2 }))
+      .toMatchObject({ method: 'lavaan', rotation: 'bigeomin', epsilon: 0.01, information: 'observed', from: 2 });
+    const bad = parseEfaDesign({ method: 'lavaan', epsilon: -1, information: 'robust', from: 0 })!;
+    expect([bad.epsilon, bad.information, bad.from]).toEqual([undefined, undefined, undefined]);
     expect(parseEfaDesign('nope')).toBeUndefined();
     expect(parseEfaDesign(null)).toBeUndefined();
   });
@@ -26,6 +31,10 @@ describe('switching between factor analysis and PCA', () => {
     expect(switchAnalysis(pca, false, 'ml')).toMatchObject({ method: 'ml', rotation: 'oblimin' });
     expect(switchAnalysis({ ...fa, rotation: 'promax' }, true).rotation).toBe('promax');
     expect(switchAnalysis({ ...pca, rotation: 'quartimax' }, false).rotation).toBe('quartimax');
+  });
+  it('a bifactor rotation (lavaan only) does not follow to PCA', () => {
+    expect(switchAnalysis({ ...fa, method: 'lavaan', rotation: 'bigeomin' }, true).rotation).toBe('varimax');
+    expect(switchAnalysis({ ...fa, method: 'lavaan', rotation: 'geominQ' }, true).rotation).toBe('geominQ');
   });
   it('leaves the design alone when the analysis does not change', () => {
     expect(switchAnalysis(fa, false)).toBe(fa);

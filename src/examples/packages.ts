@@ -11,6 +11,7 @@ import type { GrowthInput } from '../rengine/longitudinal';
 import type { IrtModel } from '../rengine/items';
 import type { LmmInput } from '../rengine/mixed';
 import type { GmmOptions } from '../analyses/longitudinal';
+import type { LcaOptions } from '../analyses/items';
 import type { EndoPreset } from '../analyses/endo';
 import type { MatchPreset } from '../analyses/match';
 import type { DidOptions } from '../analyses/did';
@@ -33,9 +34,9 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 's
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
 export type ExamplePanel =
-  | { kind: 'growth'; measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[]; timeVarying?: string[] }
-  | { kind: 'irt'; items: string[]; model: IrtModel }
-  | { kind: 'lca'; items: string[]; from: number; to: number }
+  | { kind: 'growth'; measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[]; timeVarying?: string[]; syntax?: string; group?: string }
+  | { kind: 'irt'; items: string[]; model: IrtModel; quadrature?: number; robust?: boolean }
+  | ({ kind: 'lca' } & LcaOptions)
   | ({ kind: 'lmm' } & LmmInput)
   | ({ kind: 'gmm' } & GmmOptions)
   | ({ kind: 'endo' } & EndoPreset)
@@ -80,6 +81,10 @@ export interface PackageExample {
   ordered?: string[];
   /** CB-SEM: standard errors from the observed information (Mplus's ML default). */
   information?: 'observed';
+  /** CB-SEM, ordinal indicators: the theta parameterisation (Mplus PARAMETERIZATION = THETA). */
+  parameterization?: 'theta';
+  /** CB-SEM: (residual) variances kept non-negative (lavaan's bounds = "pos.var"; Mplus: MODEL CONSTRAINT v > 0). */
+  positiveVariances?: boolean;
   /** CB-SEM: the CFI/TLI baseline of uncorrelated variables (the source's syntax writes the exogenous covariances out). */
   baseline?: 'independence';
   multilevel?: ModelState['multilevel'];
@@ -784,7 +789,8 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
 /** The data columns a panel example uses. */
 export function panelColumns(p: ExamplePanel): string[] {
   switch (p.kind) {
-    case 'growth': return [...p.measures, ...p.covariates, ...(p.timeVarying ?? [])];
+    // (a model written as syntax: the chart's occasions and the group column; the syntax names the rest)
+    case 'growth': return [...p.measures, ...p.covariates, ...(p.timeVarying ?? []), ...(p.group ? [p.group] : [])];
     case 'did': return [p.outcome, p.unit, p.time, p.treated, ...(p.post ? [p.post] : []), ...p.covariates];
     case 'regression': return [...new Set([p.outcome, ...p.predictors, ...p.interactions.flat(), p.trials, p.weights, p.cluster].filter(Boolean))];
     case 'irt': case 'lca': return p.items;
@@ -845,6 +851,8 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
     ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),
     ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })), ...(ex.esem.epsilon !== undefined ? { epsilon: ex.esem.epsilon } : {}), ...(ex.esem.orthogonal ? { orthogonal: true } : {}) } } : {}),
     ...(ex.information ? { information: ex.information } : {}),
+    ...(ex.parameterization ? { parameterization: ex.parameterization } : {}),
+    ...(ex.positiveVariances ? { positiveVariances: true } : {}),
     ...(ex.baseline ? { baseline: ex.baseline } : {}),
     // The constant sits left of the first column (autoLayout moves only the constructs).
     ...(ex.constant || ex.means?.length ? { constant: { x: -220, y: 120 } } : {}),
@@ -860,9 +868,12 @@ function fromSyntax(ex: PackageExample): ModelState {
     ...m,
     ...(ex.multigroup ? { multigroup: { ...ex.multigroup, free: ex.multigroup.free.map((p) => (p.kind === 'loading' || p.kind === 'mean' ? { ...p, construct: id(p.construct) } : p.kind === 'regression' ? { ...p, from: id(p.from), to: id(p.to) } : p)) } } : {}),
     ...(ex.ordered?.length ? { ordered: [...ex.ordered] } : {}),
-    ...(ex.multilevel ? { multilevel: ex.multilevel } : {}),
+    // (two-level syntax brings its between level; the example gives the cluster column)
+    ...(ex.multilevel ? { multilevel: { ...m.multilevel, ...ex.multilevel } } : {}),
     ...(ex.esem ? { esem: { rotation: ex.esem.rotation, blocks: ex.esem.blocks.map((b) => ({ id: newId('e'), constructs: b.map(id) })), ...(ex.esem.epsilon !== undefined ? { epsilon: ex.esem.epsilon } : {}), ...(ex.esem.orthogonal ? { orthogonal: true } : {}) } } : {}),
     ...(ex.information ? { information: ex.information } : {}),
+    ...(ex.parameterization ? { parameterization: ex.parameterization } : {}),
+    ...(ex.positiveVariances ? { positiveVariances: true } : {}),
     ...(ex.baseline ? { baseline: ex.baseline } : {}),
     ...((ex.constant || ex.means?.length) && !m.constant ? { constant: { x: -220, y: 120 } } : {}),
   };

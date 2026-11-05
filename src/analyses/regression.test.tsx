@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
-import { regressionRequest } from '../rengine/regression';
+import { regressionPackages, regressionRequest } from '../rengine/regression';
 import { useStore } from '../store';
-import { drawRegressionModel, FAMILIES, regressionAnalysis, regressionColumns, regressionInput, regressionModel, type RegressionOptions } from './regression';
+import { drawRegressionModel, FAMILIES, parseCuts, regressionAnalysis, regressionColumns, regressionInput, regressionModel, type RegressionOptions } from './regression';
 import type { AnalysisCtx } from './types';
 
 const data = { names: ['y', 'a', 'b', 'g', 'n', 'w', 'k'], cols: Array.from({ length: 7 }, (_, k) => Float64Array.from([k, k + 1, k === 2 ? NaN : k + 2])), categories: { g: ['x', 'y', 'z'] } };
@@ -11,8 +11,8 @@ const o = (p: Partial<RegressionOptions>): RegressionOptions => ({ ...regression
 
 describe('regression card', () => {
   it('offers every family as an Add-menu entry, validates options and names what is missing', () => {
-    expect(FAMILIES.map(([id]) => id)).toEqual(['gaussian', 'binomial', 'poisson', 'negbin', 'gamma', 'ordinal', 'multinomial']);
-    expect(regressionAnalysis.entries!.map((e) => e.options(regressionAnalysis.defaults(ctx())).family)).toEqual(['gaussian', 'binomial', 'poisson', 'ordinal', 'multinomial']);
+    expect(FAMILIES.map(([id]) => id)).toEqual(['gaussian', 'binomial', 'poisson', 'negbin', 'gamma', 'ordinal', 'multinomial', 'censored', 'survival']);
+    expect(regressionAnalysis.entries!.map((e) => e.options(regressionAnalysis.defaults(ctx())).family)).toEqual(['gaussian', 'binomial', 'poisson', 'ordinal', 'multinomial', 'censored', 'survival']);
     expect(regressionAnalysis.blocked(o({}), ctx())).toMatch(/Choose the outcome/);
     expect(regressionAnalysis.blocked(o({ outcome: 'y' }), ctx())).toMatch(/at least one predictor/);
     expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['y'] }), ctx())).toMatch(/cannot be a predictor/);
@@ -39,6 +39,60 @@ describe('regression card', () => {
     expect(r.categories).toEqual({ g: ['x', 'y', 'z'] });
     expect(r.confidence).toBe(DEFAULT_SETTINGS.confidence);
     expect(() => regressionRequest({ names: ['a'], cols: [], moments: { S: [[1]], n: 5 } }, regressionInput(o({}), ctx()))).toThrow(/covariance matrix/);
+  });
+});
+
+describe('censored, inflated, multinomial (reference level) and survival models', () => {
+  it('validates their options: HC0 or model-based errors, the status column, no weights where unavailable', () => {
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'multinomial', se: 'HC0' }), ctx())).toBeNull();
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'multinomial', se: 'HC3' }), ctx())).toMatch(/model-based or HC0/);
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'poisson', inflated: true, se: 'cluster', cluster: 'k' }), ctx())).toMatch(/model-based or HC0/);
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'poisson', se: 'cluster', cluster: 'k' }), ctx())).toBeNull();
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'censored', inflated: true, weights: 'w' }), ctx())).toMatch(/Weights/);
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'survival' }), ctx())).toMatch(/status column/);
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'survival', status: 'y' }), ctx())).toMatch(/cannot be the survival time/);
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'survival', status: 'n', se: 'HC0' }), ctx())).toBeNull();
+    expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['a'], family: 'survival', status: 'nope' }), ctx())).toMatch(/nope/);
+  });
+  it('keeps the options when set, and only then (earlier projects read as before)', () => {
+    const raw = { family: 'survival', outcome: 't', predictors: ['x'], status: 'tc', statusCensored: true, cuts: [3, 1, 2, 2, -1, 'x'], censoring: 'above', inflated: true, reference: 'last' };
+    expect(regressionAnalysis.parseOptions(raw)).toMatchObject({ family: 'survival', status: 'tc', statusCensored: true, cuts: [1, 2, 3], censoring: 'above', inflated: true, reference: 'last' });
+    const plain = regressionAnalysis.parseOptions({ family: 'censored', censoring: 'sideways', inflated: 'yes', reference: 'middle', cuts: [] })!;
+    for (const k of ['censoring', 'inflated', 'reference', 'status', 'statusCensored', 'cuts']) expect(plain, k).not.toHaveProperty(k);
+    expect(parseCuts('1:3, 5; 7.5 0 -2 x 1')).toEqual([1, 2, 3, 5, 7.5]);
+    expect(parseCuts('1:5000')).toEqual([]);  // (a range of more than 1000 values is ignored)
+    expect(parseCuts('')).toEqual([]);
+  });
+  it('sends the status column and the cut points of a survival model only, and loads survival only when needed', () => {
+    const r = regressionRequest(data, regressionInput(o({ outcome: 'y', predictors: ['a'], family: 'survival', status: 'n', statusCensored: true, cuts: [1, 2] }), ctx()));
+    expect(r.data.names).toEqual(['y', 'a', 'n']);
+    expect([r.status, r.cuts, r.statusCensored]).toEqual(['n', [1, 2], true]);
+    const g = regressionRequest(data, regressionInput(o({ outcome: 'y', predictors: ['a'], status: 'n', cuts: [1] }), ctx()));
+    expect([g.data.names, g.status, g.cuts]).toEqual([['y', 'a'], '', []]);
+    expect(regressionColumns(o({ outcome: 'y', predictors: ['a'], family: 'survival', status: 'n' }))).toEqual(['y', 'a', 'n']);
+    expect(regressionPackages({ family: 'survival' })).toBe('regressionSurvival');
+    expect(regressionPackages({ family: 'censored' })).toBe('regressionSurvival');
+    expect(regressionPackages({ family: 'censored', inflated: true })).toBe('regression');
+    expect(regressionPackages({ family: 'poisson', inflated: true })).toBe('regression');
+    const fp = (p: Partial<RegressionOptions>) => regressionAnalysis.fingerprint(o({ outcome: 'y', predictors: ['a'], ...p }), ctx());
+    expect(fp({ family: 'multinomial' })).toBe(fp({ family: 'multinomial', reference: 'first' }));
+    expect(fp({ family: 'multinomial' })).not.toBe(fp({ family: 'multinomial', reference: 'last' }));
+    expect(fp({ family: 'poisson' })).not.toBe(fp({ family: 'poisson', inflated: true }));
+    expect(fp({ family: 'survival', status: 'n' })).not.toBe(fp({ family: 'survival', status: 'n', cuts: [1] }));
+  });
+  it('shows the inflation and the baseline hazards in their own tables, and the residual variance', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const row = (term: string, part?: 'inflation' | 'baseline') => ({ term, part: part ?? null, est: 1, se: 0.1, stat: 10, p: 0, ciLow: 0.8, ciHigh: 1.2 });
+    const res = (family: string, coefficients: unknown[], fit: object = {}) => ({ family, link: 'logit', formula: 'y ~ a', se: 'HC0', coefficients, thresholds: [], levels: null, fit: { n: 10, logLik: -5, aic: 14, bic: 15, npar: 3, ...fit }, lrt: null, diagnostics: {}, curves: [], warnings: [], engine: { package: 'survival', version: '3.8' }, input: regressionInput(o({ outcome: 'y', predictors: ['a'] }), ctx()) });
+    const html = (r: unknown) => renderToStaticMarkup(<regressionAnalysis.View result={r as never} options={o({ outcome: 'y', predictors: ['a'] })} current />);
+    const cens = html(res('censored', [row('a'), row('a', 'inflation')], { residualVariance: 1.156, residualVarianceSe: 0.155, censored: 4 }));
+    expect(cens).toContain('Inflation (logistic model for the extra values)');
+    expect(cens).toContain('Residual variance');
+    expect(cens).toContain('1.156');
+    const surv = html(res('survival', [row('a'), row('[0, 1)', 'baseline')], { events: 7 }));
+    expect(surv).toContain('Baseline hazard by interval');
+    expect(surv).toContain('[0, 1)');
+    expect(surv).toContain('Events');
   });
 });
 

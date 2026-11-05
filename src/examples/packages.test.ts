@@ -12,7 +12,9 @@ const diagrams = PACKAGE_EXAMPLES.filter((e) => !e.panel);
 describe.each(diagrams.map((e) => [e.id, e] as const))('package example %s', (_id, ex) => {
   it('builds a valid model for its method', () => {
     const model = exampleModel(ex);
-    const names = [...new Set([...model.constructs.flatMap((c) => c.indicators), ...(ex.multigroup ? [ex.multigroup.column] : []), ...(ex.multilevel ? [ex.multilevel.column, ...(ex.multilevel.betweenCovariates ?? [])] : []), ...(ex.settings.miAuxiliary ?? [])])];
+    const names = [...new Set([...model.constructs.flatMap((c) => c.indicators), ...(ex.multigroup ? [ex.multigroup.column] : []), ...(ex.multilevel ? [ex.multilevel.column, ...(ex.multilevel.betweenCovariates ?? [])] : []),
+      // (a between level as written: the columns it names, not the factors it defines)
+      ...(model.multilevel?.betweenModel ?? []).flatMap((st) => [st.lhs, ...st.rhs.map((t) => t.name)]).filter((n) => n !== '1' && !(model.multilevel?.betweenModel ?? []).some((st) => st.op === '=~' && st.lhs === n)), ...(ex.settings.miAuxiliary ?? [])])];
     const data = { names, cols: names.map((_, k) => Float64Array.from({ length: 400 }, (_, i) => (names[k] === 'school' || names[k] === ex.multigroup?.column ? 1 + (i % 2) : names[k] === 'cluster' ? 1 + (i % 40) : Math.sin(i * (k + 1.3)) + (i % (k + 3))))) };
     const errors = validateModel(model, data, { ...DEFAULT_SETTINGS, ...ex.settings }).filter((i) => i.level === 'error');
     expect(errors.map((e) => e.message)).toEqual([]);
@@ -63,7 +65,9 @@ it('ids are unique and every R package the app calculates with has an example', 
   // cSEMMi / seminrMi: cSEM and seminr with mice (multiple imputation), shown by the mice and lavaan.mi examples.
   // readData: haven + readxl (SPSS, Stata, Excel import), shown by the haven and readxl examples.
   // regression: base R with MASS, nnet and sandwich, shown by the stats, datasets, MASS and nnet examples.
-  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression']);
+  // psychLavaan: psych with lavaan's efa(), shown by the Mplus EFA examples (chapter 4).
+  // regressionSurvival: the regression card with survival (censored, Cox), shown by the Mplus examples 3.2, 6.20 and 6.21.
+  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival']);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });
 

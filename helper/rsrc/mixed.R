@@ -159,3 +159,119 @@ ps_gmm <- function(req_json, export = FALSE) {
   ps_json(list(n = length(unique(env$long$id)), observations = nrow(env$long), times = grid, observedTimes = obs_times, models = models,
     warnings = env$.warnings, engine = list(package = "lcmm", version = as.character(utils::packageVersion("lcmm")))))
 }
+
+# Growth mixture model of wide data with a residual variance per occasion (Mplus's default for
+# TYPE = MIXTURE: i s | y1@0 y2@1 ...; i s ON x; c ON w), a likelihood written out in base R:
+# within class c, y | x ~ N(L (a_c + G x), L Psi L' + diag(theta)); P(c | w) multinomial logit.
+# The growth factor means differ across classes; G, Psi and theta are equal across classes.
+PS_GMM_WIDE_FUNCTIONS <- c(
+  "gmm_wide_fit <- function(Y, times, X, W, k, shape, random, nrep) {",
+  "  Y <- as.matrix(Y); X <- as.matrix(X); W <- as.matrix(W); n <- nrow(Y); nt <- ncol(Y); q <- ncol(X); r <- ncol(W)",
+  "  L <- cbind(1, times, if (shape == \"quadratic\") times^2); f <- ncol(L)",
+  "  nr <- switch(random, none = 0, intercept = 1, slope = f)  # growth factors that vary within class",
+  "  nv <- nr * (nr + 1) / 2",
+  "  # Natural parameters: class means a (f x k), G (f x q), Psi (lower triangle), theta, membership logits (k - 1 x (1 + r)).",
+  "  unpack <- function(th) {",
+  "    o <- 0; take <- function(m) { v <- th[o + seq_len(m)]; o <<- o + m; v }",
+  "    a <- matrix(take(f * k), f); G <- matrix(take(f * q), f); P <- matrix(0, f, f)",
+  "    if (nr) { Pr <- matrix(0, nr, nr); Pr[lower.tri(Pr, diag = TRUE)] <- take(nv); Pr <- Pr + t(Pr) - diag(diag(Pr), nr); P[seq_len(nr), seq_len(nr)] <- Pr }",
+  "    theta <- take(nt); B <- rbind(matrix(take((k - 1) * (1 + r)), k - 1, 1 + r), 0)",
+  "    list(a = a, G = G, Psi = P, theta = theta, B = B)",
+  "  }",
+  "  loglik <- function(th, post = FALSE) {",
+  "    p <- unpack(th); if (any(p$theta <= 0)) return(-Inf)",
+  "    S <- L %*% p$Psi %*% t(L) + diag(p$theta, nt); R <- tryCatch(chol(S), error = function(e) NULL); if (is.null(R)) return(-Inf)",
+  "    if (nr && any(eigen(p$Psi[seq_len(nr), seq_len(nr), drop = FALSE], symmetric = TRUE, only.values = TRUE)$values < -1e-10)) return(-Inf)",
+  "    lw <- cbind(1, W) %*% t(p$B); lw <- lw - apply(lw, 1, max); lw <- lw - log(rowSums(exp(lw)))",
+  "    XG <- X %*% t(p$G)",
+  "    lp <- vapply(seq_len(k), function(c) { mu <- sweep(XG, 2, p$a[, c], `+`) %*% t(L)",
+  "      z <- backsolve(R, t(Y - mu), transpose = TRUE); -0.5 * colSums(z^2) - sum(log(diag(R))) - 0.5 * nt * log(2 * pi) }, numeric(n))",
+  "    lp <- matrix(lp, n) + lw; m <- apply(lp, 1, max); lse <- m + log(rowSums(exp(lp - m)))",
+  "    if (post) exp(lp - lse) else sum(lse)",
+  "  }",
+  "  # Optimised on a scale without bounds: log residual variances, the covariance matrix by its Cholesky factor.",
+  "  nat <- function(u) { o <- f * k + f * q; th <- u",
+  "    if (nr) { C <- matrix(0, nr, nr); C[lower.tri(C, diag = TRUE)] <- u[o + seq_len(nv)]; diag(C) <- exp(diag(C)); Pr <- C %*% t(C); th[o + seq_len(nv)] <- Pr[lower.tri(Pr, diag = TRUE)] }",
+  "    o <- o + nv; th[o + seq_len(nt)] <- exp(u[o + seq_len(nt)]); th }",
+  "  fn <- function(u) { v <- -loglik(nat(u)); if (is.finite(v)) v else 1e300 }",
+  "  # Starts: each person's least-squares growth factors, regressed on the covariates; their residuals clustered.",
+  "  bi <- t(solve(crossprod(L), t(L) %*% t(Y))); X1 <- cbind(1, X); cf <- qr.solve(X1, bi); res <- bi - X1 %*% cf",
+  "  th0 <- log(pmax(colMeans((Y - bi %*% t(L))^2), 1e-3 * stats::var(as.vector(Y))) + 0.1 * stats::var(as.vector(Y)) / nt)",
+  "  ch0 <- if (nr) { C <- t(chol(stats::cov(res[, seq_len(nr), drop = FALSE]) * 0.5 + diag(1e-3, nr))); diag(C) <- log(diag(C)); C[lower.tri(C, diag = TRUE)] } else NULL",
+  "  best <- NULL",
+  "  for (s in seq_len(if (k == 1) 1 else nrep)) {",
+  "    cl <- if (k == 1) rep(1L, n) else stats::kmeans(res, k, nstart = 1, iter.max = 50)$cluster",
+  "    a0 <- vapply(seq_len(k), function(c) cf[1, ] + colMeans(res[cl == c, , drop = FALSE]), numeric(f))",
+  "    u0 <- c(a0, t(cf[-1, , drop = FALSE]), ch0, th0, if (k > 1) stats::rnorm((k - 1) * (1 + r), 0, 0.3))",
+  "    o <- tryCatch(stats::optim(u0, fn, method = \"BFGS\", control = list(maxit = 5000, reltol = 1e-12)), error = function(e) NULL)",
+  "    if (!is.null(o) && o$value < 1e300 && (is.null(best) || o$value < best$value)) best <- o",
+  "  }",
+  "  if (is.null(best)) stop(sprintf(\"No start of the %d-class model converged.\", k))",
+  "  # The best start is restarted until the log-likelihood stops improving (BFGS stops early on flat ridges).",
+  "  for (i in 1:20) { o <- stats::optim(best$par, fn, method = \"BFGS\", control = list(maxit = 5000, reltol = 1e-14)); done <- best$value - o$value < 1e-9; if (o$value < best$value) best <- o; if (done) break }",
+  "  est <- nat(best$par)",
+  "  # Standard errors from the observed information (numerical Hessian at the maximum).",
+  "  se <- tryCatch(sqrt(diag(solve(stats::optimHess(est, function(t) { v <- -loglik(t); if (is.finite(v)) v else 1e300 })))), error = function(e) rep(NA_real_, length(est)), warning = function(w) rep(NA_real_, length(est)))",
+  "  list(ll = -best$value, npar = length(est), est = est, se = se, p = unpack(est), post = loglik(est, post = TRUE), converged = best$convergence == 0, f = f, nr = nr)",
+  "}")
+
+ps_gmm_wide <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  covs <- unlist(req$covariates); memb <- unlist(req$membership)
+  shape <- req$shape %||% "linear"
+  if (!shape %in% c("linear", "quadratic")) stop("Invalid trajectory shape in the request.")
+  random <- req$random %||% "slope"
+  if (!random %in% c("none", "intercept", "slope")) stop("Invalid random effects in the request.")
+  ks <- as.integer(unlist(req$classes))
+  if (!length(ks) || any(ks < 1 | ks > 6)) stop("Choose between 1 and 6 classes.")
+  nrep <- as.integer(req$nrep %||% 20); seed <- as.integer(req$seed %||% 1)
+  if (nrep < 1 || nrep > 100) stop("Invalid number of random starts.")
+  measures <- unlist(req$measures); times <- as.numeric(unlist(req$times))
+  if (length(measures) < 3) stop("A growth mixture model needs at least three occasions.")
+  if (length(times) != length(measures) || any(!is.finite(times))) stop("Give one time score per occasion.")
+  fr <- ps_long_frame(req, unique(c(measures, covs, memb)))
+  m <- unname(fr$v[measures]); cv <- unname(fr$v[covs]); wv <- unname(fr$v[memb])
+  body <- c(PS_GMM_WIDE_FUNCTIONS,
+    sprintf("d <- data[complete.cases(data[, %s]), , drop = FALSE]  # persons with every occasion and covariate", ps_q(unique(c(m, cv, wv)))),
+    sprintf("Y <- d[, %s]; X <- d[, %s, drop = FALSE]; W <- d[, %s, drop = FALSE]", ps_q(m), if (length(cv)) ps_q(cv) else "integer(0)", if (length(wv)) ps_q(wv) else "integer(0)"),
+    sprintf("times <- %s", paste(deparse(times), collapse = "")),
+    sprintf("# %s classes; %d random starts each (k-means of the persons' growth factors), the best kept.", paste(ks, collapse = ", "), nrep),
+    sprintf("fits <- lapply(%s, function(k) { set.seed(%d); gmm_wide_fit(Y, times, X, W, k, \"%s\", \"%s\", %d) })", paste(deparse(ks), collapse = ""), seed, shape, random, nrep),
+    "entropy <- function(m) { p <- m$post; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }")
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Growth mixture model, a residual variance per occasion", character(0), inputs, body,
+    c("sapply(fits, function(m) c(classes = ncol(m$post), llik = m$ll, npar = m$npar, BIC = -2 * m$ll + m$npar * log(nrow(Y)), entropy = env_entropy <- entropy(m)))",
+      "lapply(fits, `[[`, \"p\")")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  n <- nrow(env$Y); nt <- length(m)
+  fac <- c("intercept", "slope", "quadratic")
+  grid <- seq(min(times), max(times), length.out = 41)
+  xbar <- if (length(cv)) colMeans(as.matrix(env$X)) else numeric(0)
+  models <- lapply(env$fits, function(fit) {
+    p <- fit$p; k <- ncol(fit$post); f <- fit$f; nr <- fit$nr
+    shares <- colMeans(fit$post); ord <- order(-shares); ref <- ord[k]
+    # Parameter names in the order of the estimates (unpack), with the classes renumbered by size.
+    cls <- match(seq_len(k), ord)
+    nm <- c(as.vector(outer(fac[seq_len(f)], seq_len(k), function(a, c) sprintf("class %d: %s mean", cls[c], a))),
+      as.vector(outer(fac[seq_len(f)], covs, function(a, x) sprintf("%s ~ %s", a, x))),
+      if (nr) { ix <- which(lower.tri(diag(nr), diag = TRUE), arr.ind = TRUE); ifelse(ix[, 1] == ix[, 2], sprintf("variance: %s", fac[ix[, 1]]), sprintf("covariance: %s, %s", fac[ix[, 2]], fac[ix[, 1]])) },
+      sprintf("residual variance: %s", measures),
+      if (k > 1) as.vector(outer(seq_len(k - 1), c("intercept", memb), function(c, x) sprintf("membership: class %d vs %d: %s", cls[c], cls[k], x))))
+    est <- fit$est; se <- fit$se
+    keep <- if (k > 1) TRUE else !grepl("^membership", nm)
+    # The membership logits against the smallest class (the last): re-expressed when the reference differs.
+    B <- p$B; Bs <- sweep(B, 2, B[ref, ], `-`)
+    mb <- if (k > 1) lapply(setdiff(ord, ref), function(c) list(name = sprintf("membership: class %d vs %d", cls[c], k), est = unname(Bs[c, ]), terms = c("intercept", memb))) else list()
+    params <- lapply(which(keep & !grepl("^membership", nm)), function(i) {
+      z <- est[i] / se[i]; list(name = nm[i], est = unname(est[i]), se = if (is.finite(se[i])) unname(se[i]) else NULL, p = if (is.finite(z)) 2 * stats::pnorm(-abs(unname(z))) else NULL) })
+    for (b in mb) for (j in seq_along(b$terms)) params[[length(params) + 1]] <- list(name = sprintf("%s: %s", b$name, b$terms[j]), est = b$est[j], se = NULL, p = NULL)
+    Lg <- cbind(1, grid, if (f == 3) grid^2)
+    cl <- max.col(fit$post, ties.method = "first")
+    list(k = k, logLik = fit$ll, npar = fit$npar, aic = -2 * fit$ll + 2 * fit$npar, bic = -2 * fit$ll + fit$npar * log(n), sabic = -2 * fit$ll + fit$npar * log((n + 2) / 24),
+      entropy = env$entropy(fit), converged = fit$converged, shares = unname(shares[ord]), params = params,
+      trajectories = lapply(ord, function(c) unname(as.vector(Lg %*% (p$a[, c] + if (length(xbar)) p$G %*% xbar else 0)))),
+      observed = lapply(ord, function(c) unname(colMeans(as.matrix(env$Y)[cl == c, , drop = FALSE]))))
+  })
+  ps_json(list(n = n, observations = n * nt, times = grid, observedTimes = times, models = models,
+    warnings = env$.warnings, engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))))
+}

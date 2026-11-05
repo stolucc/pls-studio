@@ -64,4 +64,14 @@ describe('request values never become R code', () => {
     const endo = base('ps_endo');
     await refused('ps_endo', { ...endo, method: 'het', endogenous: [endo.endogenous[0]], hetRegressors: [PAYLOAD] }, 'ivreg', /not in the dataset|Unknown variable/);
   }, 900_000);
+
+  it('the options of censored, inflated, multinomial and survival regressions', async () => {
+    const req = { kind: 'regression', outcome: 't', predictors: ['x'], categorical: [], interactions: [], family: 'survival', link: 'logit', trials: '', weights: '', se: 'model', cluster: '', confidence: 0.95,
+      status: 'd', statusCensored: false, cuts: [], categories: {}, data: { names: ['t', 'x', 'd'], cols: [[1, 2, 3, 4], [0, 1, 0, 1], [1, 0, 1, 1]] } };
+    expect((await script('ps_regression', { ...req, cuts: [1, 2] }, 'regressionSurvival')).e).toBe('');
+    await refused('ps_regression', { ...req, cuts: [1, NUMBER] }, 'regressionSurvival', /Invalid interval cut point/);
+    await refused('ps_regression', { ...req, status: PAYLOAD }, 'regressionSurvival', /not in the dataset/);
+    await refused('ps_regression', { ...req, family: 'censored', censoring: PAYLOAD }, 'regressionSurvival', /Invalid censoring/);
+    await refused('ps_regression', { ...req, family: 'multinomial', reference: PAYLOAD }, 'regression', /Invalid reference level/);
+  }, 900_000);
 });

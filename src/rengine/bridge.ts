@@ -66,6 +66,8 @@ export const R_PACKAGES = {
   genpathmox: ['jsonlite', 'cSEM', 'genpathmox'],
   flexmix: ['jsonlite', 'cSEM', 'flexmix'],
   psych: ['jsonlite', 'psych', 'GPArotation'],
+  // Exploratory factor analysis with lavaan's efa() (standard errors, the fit by number of factors).
+  psychLavaan: ['jsonlite', 'psych', 'GPArotation', 'lavaan'],
   semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],
   // Reading SPSS, Stata and Excel files.
   readData: ['jsonlite', 'haven', 'readxl'],
@@ -75,6 +77,8 @@ export const R_PACKAGES = {
   fixest: ['jsonlite', 'fixest'],
   // Regression: base R plus MASS (negative binomial, ordinal), nnet (multinomial) and sandwich / lmtest for robust standard errors.
   regression: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest'],
+  // Censored (tobit) and survival (Cox, piecewise exponential) regressions: the regression card with survival.
+  regressionSurvival: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest', 'survival'],
   MASS: ['jsonlite', 'MASS'],
   nnet: ['jsonlite', 'nnet', 'MASS'],
   datasets: ['jsonlite'],

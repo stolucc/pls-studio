@@ -3,12 +3,19 @@
 # parallel analysis, Velicer's MAP), the solution (psych::fa or
 # psych::principal; oblique rotations through GPArotation) with loadings,
 # communalities, variance explained, factor correlations and, for factor
-# analysis, its fit.
+# analysis, its fit. method "lavaan": the solution from lavaan's efa() instead: maximum likelihood (WLSMV
+# with polychoric correlations) with standard errors of the rotated loadings and factor correlations,
+# random starts for the rotation, and the fit of every number of factors up to the one chosen (as Mplus's
+# TYPE = EFA 1 4).
 
 PS_EFA_METHODS <- c(pca = "Principal components (psych::principal)", minres = "Minimum residual (psych::fa)",
-  ml = "Maximum likelihood (psych::fa)", pa = "Principal axis factoring (psych::fa)")
-PS_EFA_ROTATIONS <- c("none", "varimax", "quartimax", "promax", "oblimin", "geominQ")
-PS_EFA_OBLIQUE <- c("promax", "oblimin", "geominQ")
+  ml = "Maximum likelihood (psych::fa)", pa = "Principal axis factoring (psych::fa)", lavaan = "Maximum likelihood with standard errors (lavaan::efa)")
+PS_EFA_ROTATIONS <- c("none", "varimax", "quartimax", "promax", "oblimin", "geominQ", "bigeomin", "biquartimin")
+PS_EFA_OBLIQUE <- c("promax", "oblimin", "geominQ", "bigeomin", "biquartimin")
+# Rotations lavaan's efa() names differently (GPArotation's oblique geomin is lavaan's geomin); the bifactor
+# rotations (Jennrich & Bentler 2011, 2012; Mplus BI-GEOMIN, BI-QUARTIMIN) are lavaan's only.
+PS_EFA_LAVAAN_ROT <- c(none = "none", varimax = "varimax", quartimax = "quartimax", promax = "promax", oblimin = "oblimin",
+  geominQ = "geomin", bigeomin = "bigeomin", biquartimin = "biquartimin")
 # How the number of factors / components is chosen: given, or by a retention criterion.
 PS_EFA_CRITERIA <- c(fixed = "given", parallel = "parallel analysis", kaiser = "eigenvalues > 1", map = "Velicer's MAP")
 
@@ -39,7 +46,18 @@ ps_efa <- function(req_json, export = FALSE) {
   fr <- ps_long_frame(req, vars)
   v <- ps_lookup(fr$v, vars)
   pca <- method == "pca"
-  fm <- if (pca) "minres" else method
+  lav <- method == "lavaan"
+  if (!lav && rotation %in% c("bigeomin", "biquartimin")) stop("Bifactor rotations need the lavaan extraction (maximum likelihood with standard errors).")
+  # lavaan: geomin's epsilon (lavaan's default 0.001; Mplus uses 0.0001 with two factors, 0.001 with three, 0.01 with
+  # four or more), the standard errors' information matrix (Mplus's ML default: observed), and the smallest number
+  # of factors whose fit is compared.
+  eps <- req$epsilon
+  if (!is.null(eps) && !(is.numeric(eps) && length(eps) == 1 && eps > 0 && eps <= 1)) stop("Invalid geomin epsilon in the request.")
+  observed <- identical(req$information, "observed")
+  from <- as.integer(ps_number(req$from %||% 1, "smallest number of factors"))
+  if (from < 1) stop("Invalid smallest number of factors in the request.")
+  if (rotation %in% c("bigeomin", "biquartimin") && (from < 2 || (criterion == "fixed" && k < 2))) stop("A bifactor rotation needs at least two factors (a general and a specific one): compare fit from 2.")
+  fm <- if (pca) "minres" else if (lav) "ml" else method
   unit <- if (pca) "components" else "factors"
   # k is set in the script: the given number, or what the criterion retains (at least 1, fewer than the variables).
   kline <- switch(criterion,
@@ -48,14 +66,22 @@ ps_efa <- function(req_json, export = FALSE) {
     kaiser = "k <- sum(eigenvalues > 1)  # eigenvalues above 1 (Kaiser)",
     map = "k <- which.min(map)  # Velicer's minimum average partial")
   call <- if (pca) sprintf("principal(X, nfactors = k, rotate = \"%s\"%s)", rotation, carg)
+    else if (lav) sprintf("lapply(seq(min(%d, k), k), function(m) efa(X, nfactors = m, rotation = list(\"%s\"%s), %s, output = \"lavaan\"))",
+      from, PS_EFA_LAVAAN_ROT[[rotation]], if (is.null(eps)) "" else sprintf(", geomin_epsilon = %s", ps_num(eps)),
+      paste(c(if (poly) c("ordered = names(X)[ordinal]", "estimator = \"WLSMV\"") else c("estimator = \"ML\"", "meanstructure = TRUE"),
+        sprintf("missing = \"%s\"", if (listwise) "listwise" else if (poly) "pairwise" else "ml"),
+        if (observed && !poly) "information = \"observed\""), collapse = ", "))
     else sprintf("fa(X, nfactors = k, fm = \"%s\", rotate = \"%s\"%s)", fm, rotation, carg)
   what <- if (criterion == "fixed") sprintf("%d %s", k, unit) else sprintf("%s by %s", unit, PS_EFA_CRITERIA[[criterion]])
   body <- c(
-    "suppressPackageStartupMessages({ library(psych); library(GPArotation) })",
+    if (lav) "suppressPackageStartupMessages({ library(psych); library(GPArotation); library(lavaan) })"
+    else "suppressPackageStartupMessages({ library(psych); library(GPArotation) })",
     "# psych spreads parallel analysis and MAP over cores (mclapply); R in the browser cannot fork.",
     "if (grepl(\"emscripten\", R.version$platform)) options(mc.cores = 1)",
     sprintf("X <- data[, %s]", ps_q(v)),
-    if (listwise) "X <- X[complete.cases(X), , drop = FALSE]  # listwise deletion" else "# Missing values: pairwise correlations (psych's default)",
+    if (listwise) "X <- X[complete.cases(X), , drop = FALSE]  # listwise deletion"
+    else if (lav && !poly) "# Missing values: pairwise correlations (psych's default); full-information ML in lavaan"
+    else "# Missing values: pairwise correlations (psych's default)",
     "n <- nrow(X)",
     if (poly) c("# Polychoric (tetrachoric, polyserial) correlations; ordinal: at most 8 categories (psych's rule).",
       "ordinal <- vapply(X, function(x) length(unique(x[!is.na(x)])) <= 8, TRUE)",
@@ -71,13 +97,17 @@ ps_efa <- function(req_json, export = FALSE) {
     sprintf("map <- VSS(X, n = %d, fm = \"%s\"%s, plot = FALSE)$map", min(8L, length(v) - 1L), fm, carg),
     sprintf("# The solution: %s, %s, rotation %s.", PS_EFA_METHODS[[method]], what, rotation),
     kline,
-    if (criterion != "fixed") "k <- max(1L, min(k, ncol(X) - 1L), na.rm = TRUE)",
-    sprintf("fit <- %s", call),
-    "print(fit, sort = TRUE)")
+    if (criterion != "fixed") sprintf("k <- max(%dL, min(k, ncol(X) - 1L), na.rm = TRUE)", if (lav && rotation %in% c("bigeomin", "biquartimin")) 2L else 1L),
+    if (lav) c(sprintf("# lavaan: every number of factors from %d to k, the last one the solution (standardised loadings, delta-method standard errors).", from),
+      sprintf("fits <- %s", call), "fit <- fits[[length(fits)]]", "std <- standardizedSolution(fit)",
+      sprintf("comparison <- t(sapply(fits, fitMeasures, %s))", if (poly) "c(\"npar\", \"chisq.scaled\", \"df.scaled\", \"pvalue.scaled\")" else "c(\"npar\", \"logl\", \"chisq\", \"df\", \"pvalue\", \"aic\", \"bic\")"))
+    else sprintf("fit <- %s", call),
+    if (lav) "summary(fit)" else "print(fit, sort = TRUE)")
   inputs <- list(data = fr$data)
   if (export) return(paste(ps_script(sprintf("%s: %s, %s rotation", PS_EFA_METHODS[[method]], what, rotation),
-    c("psych", "GPArotation"), inputs, body, c("kmo", "bartlett", if (iter > 0) "parallel", "fit")), collapse = "\n"))
+    c("psych", "GPArotation", if (lav) "lavaan"), inputs, body, c("kmo", "bartlett", if (iter > 0) "parallel", if (lav) c("comparison", "std") else "fit")), collapse = "\n"))
   env <- ps_run(body[-length(body)], inputs)
+  if (lav) return(ps_efa_lavaan(env, fr$back, method, rotation, criterion, correlation, poly, iter, pca))
   fit <- env$fit
   back <- fr$back
   L <- unclass(fit$loadings)
@@ -113,4 +143,53 @@ ps_efa <- function(req_json, export = FALSE) {
       tli = stat(fit$TLI), bic = stat(fit$BIC), rms = stat(fit$rms)),
     warnings = env$.warnings,
     engine = list(package = "psych", version = as.character(utils::packageVersion("psych")))))
+}
+
+# The lavaan solution (ps_efa with method "lavaan"): standardised loadings, factor correlations and residual
+# variances with their standard errors, the fit of the solution and of each smaller number of factors, and the
+# correlations lavaan analysed (Pearson, or polychoric with WLSMV) with the residuals the solution leaves.
+ps_efa_lavaan <- function(env, back, method, rotation, criterion, correlation, poly, iter, pca) {
+  fit <- env$fit; std <- env$std
+  ov <- lavaan::lavNames(fit, "ov"); lv <- lavaan::lavNames(fit, "lv")
+  pick <- function(op, l, r, col) { i <- which(std$op == op & std$lhs == l & std$rhs == r); if (length(i)) std[[col]][i[1]] else NA_real_ }
+  grid <- function(col) outer(ov, lv, Vectorize(function(o, f) pick("=~", f, o, col)))
+  L <- grid("est.std"); Lse <- grid("se")
+  pair <- function(col) outer(lv, lv, Vectorize(function(a, b) { x <- pick("~~", a, b, col); if (is.na(x)) pick("~~", b, a, col) else x }))
+  Phi <- pair("est.std"); Phise <- pair("se")
+  oblique <- rotation %in% PS_EFA_OBLIQUE
+  u <- vapply(ov, function(o) pick("~~", o, o, "est.std"), 0); use <- vapply(ov, function(o) pick("~~", o, o, "se"), 0)
+  ss <- if (oblique) diag(Phi %*% crossprod(L)) else colSums(L^2)
+  S <- lavaan::lavInspect(fit, "sampstat")$cov; Sigma <- lavaan::lavInspect(fit, "implied")$cov
+  R <- stats::cov2cor(S[ov, ov]); E <- R - stats::cov2cor(Sigma[ov, ov]); diag(E) <- 0
+  fm <- function(f, x) { v <- suppressWarnings(lavaan::fitMeasures(f, x)); v <- v[!is.na(v)]; if (length(v)) unname(v[1]) else NULL }
+  # Robust (scaled and shifted) statistics with WLSMV, as Mplus prints.
+  rob <- function(x) if (poly) c(paste0(x, ".scaled"), x) else x
+  fits <- function(f) list(npar = fm(f, "npar"), chisq = fm(f, rob("chisq")), df = fm(f, rob("df")), p = fm(f, rob("pvalue")),
+    rmsea = fm(f, rob("rmsea")), rmseaLow = fm(f, rob("rmsea.ci.lower")), rmseaHigh = fm(f, rob("rmsea.ci.upper")),
+    cfi = fm(f, rob("cfi")), tli = fm(f, rob("tli")), srmr = fm(f, "srmr"),
+    logl = if (poly) NULL else fm(f, "logl"), aic = if (poly) NULL else fm(f, "aic"), bic = if (poly) NULL else fm(f, "bic"))
+  ks <- vapply(env$fits, function(f) length(lavaan::lavNames(f, "lv")), 1L)
+  comparison <- lapply(seq_along(env$fits), function(i) c(list(k = ks[i]), fits(env$fits[[i]])))
+  par <- env$parallel
+  ps_json(list(
+    method = method, rotation = rotation, oblique = oblique, n = lavaan::lavInspect(fit, "nobs"), k = env$k, criterion = criterion, correlation = correlation,
+    estimator = if (poly) "WLSMV" else "ML",
+    ordinal = if (poly) I(unname(back[names(env$ordinal)[env$ordinal]])) else NULL,
+    variables = unname(back[ov]), factors = lv,
+    loadings = unname(L), structure = if (oblique && length(lv) > 1) unname(L %*% Phi) else NULL,
+    communality = unname(1 - u), uniqueness = unname(u),
+    complexity = unname(rowSums(L^2)^2 / rowSums(L^4)),
+    ssLoadings = unname(ss), proportion = unname(ss / length(ov)), cumulative = unname(cumsum(ss) / length(ov)),
+    phi = if (length(lv) > 1) unname(Phi) else NULL,
+    se = list(loadings = unname(Lse), phi = if (length(lv) > 1) unname(Phise) else NULL, uniqueness = unname(use)),
+    correlations = unname(R), residuals = unname(E),
+    kmo = list(overall = unname(env$kmo$MSA), items = unname(env$kmo$MSAi[ov])),
+    bartlett = list(chisq = env$bartlett$chisq, df = env$bartlett$df, p = env$bartlett$p.value),
+    eigenvalues = eigen(R, symmetric = TRUE, only.values = TRUE)$values,
+    parallel = if (is.null(par)) NULL else list(observed = unname(par$fa.values), simulated = unname(par$fa.sim), suggested = par$nfact, iterations = iter),
+    map = list(values = unname(env$map), suggested = which.min(env$map)),
+    kaiser = sum(env$eigenvalues > 1),
+    fit = fits(fit), comparison = comparison,
+    warnings = env$.warnings,
+    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }

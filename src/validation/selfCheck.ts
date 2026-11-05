@@ -44,7 +44,7 @@ export async function runSelfCheck(id: string, readText: (path: string) => Promi
   const data = await loadExampleData(ex, readText);
   const st = { ...DEFAULT_SETTINGS, ...ex.settings };
   const p = ex.panel;
-  if (p?.kind === 'irt') return (await import('../rengine/items')).irtR(data, p.items, p.model);
+  if (p?.kind === 'irt') return (await import('../rengine/items')).irtR(data, p.items, p.model, { quadrature: p.quadrature, robust: p.robust });
   if (p?.kind === 'lca') return (await import('../rengine/items')).lcaR(data, p.items, Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i), 10, st.seed);
   if (p?.kind === 'lmm') { const { kind: _k, ...input } = p; return (await import('../rengine/mixed')).lmmR(data, input); }
   if (p?.kind === 'regression') { const { kind: _k, ...opts } = p; return (await import('../rengine/regression')).regressionR(data, { ...opts, confidence: 0.95 }); }

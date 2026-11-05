@@ -45,8 +45,61 @@ ps_long_estimates <- function(fit, back, lvs, also = NULL) {
     p = if (is.na(pe$pvalue[i])) NULL else pe$pvalue[i], std = pe$std.all[i]))
 }
 
+#' The model syntax of a growth model as written: lavaan syntax with variable names, numbers, operators and the
+#' modifiers c() and start() only. lavaan turns constraints (==, <, >, :=) into R code, so no other function call
+#' (and no quote, $, @, [ or {) may reach it. Comments are dropped.
+ps_growth_syntax_text <- function(x) {
+  if (!is.character(x) || length(x) != 1 || nchar(x) > 20000) stop("Invalid model syntax in the request.")
+  body <- gsub("[#!][^\n]*", "", x)
+  if (!grepl("^[-A-Za-z0-9_ .+*/^()=~|:,;<>\n\r\t]*$", body)) stop("The model syntax may contain only variable names, numbers, lavaan operators and the modifiers c() and start().")
+  calls <- sub("[[:space:]]*\\($", "", regmatches(body, gregexpr("[A-Za-z0-9_.]+[[:space:]]*\\(", body))[[1]])
+  if (length(setdiff(calls, c("c", "start")))) stop("The model syntax may call no function other than the modifiers c() and start().")
+  trimws(gsub("\n[[:space:]]*\n+", "\n", body))
+}
+
+#' A growth model written as lavaan syntax, estimated by lavaan::growth() (growth factor means free, the
+#' occasions' intercepts fixed at 0): piecewise or parallel processes, multiple indicators per occasion,
+#' equality and nonlinear constraints, labels, and (`group`) several groups with c() modifiers per group.
+ps_growth_syntax <- function(req, export) {
+  model <- ps_growth_syntax_text(req$syntax)
+  group <- req$group %||% ""
+  cols <- unlist(req$data$names)
+  fr <- ps_long_frame(req, cols)
+  if (!identical(unname(fr$v), cols)) stop("The variables of a growth model written as syntax must be column names of letters, digits and _.")
+  o <- ps_long_options(req)
+  if (nzchar(group) && !group %in% cols) stop("The group column is not in the request.")
+  measures <- unlist(req$measures); times <- as.numeric(unlist(req$times))
+  body <- c("suppressPackageStartupMessages(library(lavaan))",
+    if (!o$fiml) ps_missing_code(req$missing),
+    "# Latent growth model as written (lavaan syntax in `model`)",
+    sprintf("fit <- growth(model, data = data, estimator = \"%s\"%s%s%s)", o$est, ps_lavaan_missing(req$missing),
+      if (nzchar(group)) sprintf(", group = %s", encodeString(group, quote = '"')) else "", o$extra))
+  inputs <- list(data = fr$data, model = model)
+  if (export) return(paste(ps_script("Latent growth model (lavaan)", "lavaan", inputs, body,
+    "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  fit <- env$fit
+  pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
+  pe <- pe[pe$op %in% c("=~", "~", "~~", "~1", "|", "~*~", ":="), ]
+  num <- function(x) if (is.null(x) || is.na(x)) NULL else x
+  est <- lapply(seq_len(nrow(pe)), function(i) list(lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], est = pe$est[i],
+    se = if (is.na(pe$se[i]) || pe$se[i] == 0) NULL else pe$se[i], z = num(pe$z[i]), p = num(pe$pvalue[i]), std = num(pe$std.all[i]),
+    group = if (is.null(pe$group)) 1L else pe$group[i], label = if (is.null(pe$label) || !nzchar(pe$label[i])) NULL else pe$label[i]))
+  groups <- lavaan::lavInspect(fit, "ngroups")
+  # (the trajectory chart: the model-implied and observed means of the occasions listed, one group only)
+  plot <- groups == 1 && length(measures) >= 2 && length(times) == length(measures) && all(measures %in% cols)
+  ps_json(list(n = sum(unlist(lavaan::lavInspect(fit, "nobs"))), fit = ps_long_fit(fit), estimates = est, r2 = list(),
+    impliedMeans = if (plot) unname(lavaan::fitted(fit)$mean[measures]) else list(),
+    observedMeans = if (plot) unname(colMeans(env$data[, measures, drop = FALSE], na.rm = TRUE)) else list(),
+    measures = if (plot) measures else list(), times = if (plot) times else list(),
+    groups = if (groups > 1) as.list(lavaan::lavInspect(fit, "group.label")) else list(),
+    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}
+
 ps_growth <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
+  # (a model written as lavaan syntax instead of the shape and covariates)
+  if (nzchar(req$syntax %||% "")) return(ps_growth_syntax(req, export))
   measures <- unlist(req$measures); covs <- unlist(req$covariates); tvc <- unlist(req$timeVarying)
   times <- as.numeric(unlist(req$times))
   if (length(measures) < 3) stop("A growth model needs at least three measurement occasions.")

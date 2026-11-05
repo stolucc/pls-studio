@@ -204,7 +204,7 @@ export function ClustersEditor() {
     <div className="section">
       <div className="section-title">Clusters (two-level)</div>
       <select className="select" value={ml?.column ?? ''} disabled={readOnly}
-        onChange={(e) => setMultilevel(e.target.value ? { column: e.target.value, between: ml?.between ?? 'saturated' } : null)}>
+        onChange={(e) => setMultilevel(e.target.value ? { ...ml, column: e.target.value, between: ml?.between ?? 'saturated' } : null)}>
         <option value="">No clustering (one level)</option>
         {candidates.map((c) => <option key={c} value={c}>Clusters by {c}</option>)}
       </select>
@@ -215,7 +215,14 @@ export function ClustersEditor() {
             <button className={ml.between === 'saturated' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'saturated' })}>Saturated</button>
             <button className={ml.between === 'same' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'same' })}>Same model</button>
             <button className={ml.between === 'factors' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'factors' })}>Factors</button>
+            {!!ml.betweenModel?.length && <button className={ml.between === 'model' ? 'on' : ''} disabled={readOnly} onClick={() => setMultilevel({ ...ml, between: 'model' })}>As written</button>}
           </div>
+          {ml.between === 'model' && (
+            <pre className="hint" style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>
+              {(ml.betweenModel ?? []).map((st) => (st.op === '~1' ? `${st.lhs} ~ ${st.rhs[0].fixed ?? st.rhs[0].label ?? ''}${st.rhs[0].fixed !== undefined || st.rhs[0].label ? '*' : ''}1`
+                : `${st.lhs} ${st.op} ${st.rhs.map((t) => `${t.fixed ?? t.label ?? ''}${t.fixed !== undefined || t.label ? '*' : ''}${t.name}`).join(' + ')}`)).join('\n')}
+            </pre>
+          )}
           {ml.between === 'factors' && data && (
             <OrderedPicker label="Cluster-level covariates (predict the between factors)" columns={data.names.filter((n) => !assigned.has(n) && n !== ml.column)}
               value={(ml.betweenCovariates ?? []).filter((w) => data.names.includes(w))} onChange={(betweenCovariates) => setMultilevel({ ...ml, betweenCovariates })} />
@@ -223,6 +230,8 @@ export function ClustersEditor() {
           <div className="hint" style={{ marginTop: 6 }}>
             {ml.between === 'saturated'
               ? 'The model is fitted to the within-cluster (co)variances; between clusters every variance and covariance is free. For clustered data when the interest is within.'
+              : ml.between === 'model'
+                ? 'Between clusters the model as written in the imported syntax (lavaan’s level: 2 block; Mplus %BETWEEN%): the within level is the diagram.'
               : ml.between === 'factors'
                 ? 'Between clusters each factor is measured by the same indicators (on the cluster means; *_b in lavaan) and regressed on the cluster-level covariates, as in lavaan’s multilevel tutorial (fb =~ y1 + y2 + y3; fb ~ w1 + w2).'
                 : 'The same factors and paths also between clusters (on the cluster means; factors suffixed “(between)” in lavaan as *_b).'}

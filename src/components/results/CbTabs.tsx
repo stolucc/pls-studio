@@ -190,6 +190,11 @@ function Variances({ cb }: { cb: CbResult }) {
           rows={cb.estimates.filter((e) => e.kind === 'threshold').map((e) => [c(e.lhs), c(e.rhs, 'dim'), ...estRow(e, '').slice(1)])}
           note="Each threshold is the point on the underlying continuous (latent response) variable, in standard-normal units, above which the next category is observed. An item with k categories has k − 1 thresholds." />
       )}
+      {cb.estimates.some((e) => e.kind === 'scale') && (
+        <Table title="Scale factors of the ordinal indicators" file="cb-scales" columns={['Indicator', ...estCols(cb)]}
+          rows={cb.estimates.filter((e) => e.kind === 'scale').map((e) => [c(e.lhs), ...estRow(e, '').slice(1)])}
+          note="1 / the standard deviation of each latent response variable: fixed at 1 in the first group, estimated in the others (Mplus’s Scales; lavaan ~*~)." />
+      )}
     </div>
   );
 }

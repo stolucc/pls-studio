@@ -97,7 +97,7 @@ it('robust and cluster-robust standard errors come from sandwich', async () => {
   expect(h0.se).toBe('HC0');
   h0.coefficients.forEach((c, i) => expect(c.se).toBeLessThan(h.coefficients[i].se));
   expect(await regressionScriptR(data, { ...base, se: 'HC0' })).toContain('vcovHC(fit, type = "HC0")');
-  await expect(regressionR(data, { ...base, family: 'multinomial', se: 'HC3' })).rejects.toThrow(/Robust standard errors are available for lm and glm/);
+  await expect(regressionR(data, { ...base, family: 'multinomial', se: 'HC3' })).rejects.toThrow(/model-based or HC0/);
   // Term names map back to the columns' names piece by piece, even when one name is a prefix of another.
   const renamed = { ...data, names: data.names.map((n) => (n === 'spontaneous' ? 'Price (EUR)' : n === 'induced' ? 'Price index' : n)) };
   const t = await regressionR(renamed, { ...base, predictors: ['Price (EUR)', 'Price index'], interactions: [['Price (EUR)', 'Price index']] });
@@ -106,4 +106,28 @@ it('robust and cluster-robust standard errors come from sandwich', async () => {
   const txt = { ...data, categories: { ...(data.categories ?? {}), case: ['control', 'case'] } };
   const g = await regressionR(txt, base);
   expect(g.coefficients[1].est).toBeCloseTo(m.coefficients[1].est, 10);
+}, 900_000);
+
+it('censored from above mirrors censored from below; inflated models give model-based errors too; the scripts run on their own', async () => {
+  const csv = readFileSync(join(__dirname, '..', '..', 'public', 'examples', 'mplus', 'ex3.2.csv'), 'utf8');
+  const d = parseCsv(csv).dataset;
+  const neg = { ...d, cols: d.cols.map((c, k) => (d.names[k] === 'y1' ? c.map((v) => -v) : c)) };
+  const opts: RegressionInput = { outcome: 'y1', predictors: ['x1', 'x3'], categorical: [], interactions: [], family: 'censored', link: 'logit', trials: '', weights: '', se: 'model', cluster: '', confidence: 0.95 };
+  const below = await regressionR(d, opts);
+  const above = await regressionR(neg, { ...opts, censoring: 'above' });
+  // (y censored below at 0 is −y censored above at 0: the coefficients change sign, everything else is equal)
+  below.coefficients.forEach((c, i) => { expect(above.coefficients[i].est).toBeCloseTo(-c.est, 6); expect(above.coefficients[i].se).toBeCloseTo(c.se, 6); });
+  expect(above.fit.logLik).toBeCloseTo(below.fit.logLik, 6);
+  expect(above.fit.censored).toBe(below.fit.censored);
+  expect(above.fit.residualVariance).toBeCloseTo(below.fit.residualVariance!, 6);
+  const inf = await regressionR(d, { ...opts, inflated: true });
+  expect(inf.coefficients.filter((c) => c.part === 'inflation').length).toBe(3);
+  expect(inf.fit.npar).toBe(7);
+  expect(inf.warnings).toEqual([]);
+  // The tobit is the censored-inflated model without the inflation: the inflated fit is at least as good.
+  expect(inf.fit.logLik).toBeGreaterThanOrEqual(below.fit.logLik - 1e-6);
+  const s = await regressionScriptR(d, { ...opts, inflated: true, se: 'HC0' });
+  expect(s).toContain('ml_fit <- function');
+  expect(s).toContain('fit <- ml_fit(ll, start, robust = TRUE)');
+  expect(await regressionScriptR(d, opts)).toContain('survreg(Surv(y1, y1 > lim, type = "left") ~ x1 + x3');
 }, 900_000);

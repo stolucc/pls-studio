@@ -157,6 +157,16 @@ function ConstructInspector({ c }: { c: Construct }) {
               <span><b>Estimate the error variance of {c.indicators[0]}</b><br /><span className="hint">Instead of 0. Only when the rest of the model identifies it, e.g. two variables that cause each other, each with its own instrument (Bollen 1989, ch. 5). R engine (lavaan).</span></span>
             </label>
           )}
+          {c.indicators.length > 1 && !c.covariate && !c.components?.length && c.type === 'factor' && (
+            <div className="field" style={{ marginTop: 8 }}>
+              <label htmlFor="factor-scale">Scale of {c.name}</label>
+              <select id="factor-scale" className="select" value={c.scaling ?? 'marker'} onChange={(e) => update(c.id, { scaling: e.target.value === 'variance' ? 'variance' : undefined })}>
+                <option value="marker">First loading = 1 (marker indicator)</option>
+                <option value="variance">Variance = 1 (every loading estimated)</option>
+              </select>
+              <div className="hint">How the factor gets its units: from its first indicator, or from a variance (a disturbance’s, when it is explained) fixed at 1 (lavaan NA*{c.indicators[0]} and {c.name} ~~ 1*{c.name}; Mplus {c.name} BY {c.indicators[0]}* …; {c.name}@1).</div>
+            </div>
+          )}
           {c.indicators.length > 1 && !c.covariate && !c.components?.length && (
             <div className="field" style={{ marginTop: 8 }}>
               <label>Known reliabilities of indicators (optional)</label>

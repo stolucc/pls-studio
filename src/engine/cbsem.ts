@@ -32,7 +32,7 @@ interface ParamDef {
 export interface CbEstimate {
   /** weight / fixed-weight: a composite's weights (lavaan <~). */
   /** mean: a latent mean; intercept: an observed variable's or indicator's intercept (fixed when se is null). */
-  kind: CbParamKind | 'fixed-loading' | 'fixed' | 'threshold' | 'defined' | 'mean' | 'intercept' | 'weight' | 'fixed-weight';
+  kind: CbParamKind | 'fixed-loading' | 'fixed' | 'threshold' | 'defined' | 'mean' | 'intercept' | 'weight' | 'fixed-weight' | 'scale';
   /** lavaan parameter label (equal labels = equality constraint). */
   label?: string;
   /** lavaan-style labels: lhs op rhs. */
@@ -1068,7 +1068,7 @@ export function estimateCb(data: Dataset, spec: ModelSpec, missing: MissingTreat
     else push({ kind: d.kind, lhs: name(d.i), op: '~~', rhs: name(d.i), est, se: se(a), std: est / X.Sigma[d.i][d.i], index: a });
   });
   // Order like lavaan: loadings, regressions, then variances/covariances.
-  const order = { 'fixed-loading': 0, loading: 0, weight: 0, 'fixed-weight': 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3, threshold: 4, defined: 5, mean: 4, intercept: 4 } as const;
+  const order = { 'fixed-loading': 0, loading: 0, weight: 0, 'fixed-weight': 0, hoLoading: 0, regression: 1, residual: 2, rescov: 2, lvcov: 3, fixed: 3, threshold: 4, scale: 4, defined: 5, mean: 4, intercept: 4 } as const;
   // Fixed values sort with their kind of parameter (op).
   const rank = (e: CbEstimate) => (e.kind === 'fixed' ? (e.op === '~' ? 1 : 3) : order[e.kind]);
   estimates.sort((x, y) => rank(x) - rank(y));

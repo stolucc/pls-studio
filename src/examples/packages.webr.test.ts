@@ -21,6 +21,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { estimateCpaR } from '../rengine/cpa';
 import { irtR, lcaR } from '../rengine/items';
+import { lcaSpec } from '../analyses/items';
 import { estimateCbLavaan } from '../rengine/lavaan';
 import { growthR } from '../rengine/longitudinal';
 import { gmmR, lmmR } from '../rengine/mixed';
@@ -62,6 +63,11 @@ const EXPECTED_NOTES: Record<string, RegExp[]> = {
 const EXPECTED_WARNINGS: Record<string, RegExp[]> = {
   // ?bollen1996's four-factor model as written: the variances estimated after MIIV-2SLS give factor correlations above 1 (stated on the card).
   'bollen-accessibility': [/not positive definite/],
+  // lavaan's own notes under non-linear equality constraints (Mplus MODEL CONSTRAINT): its augmented-Lagrangian optimiser
+  // passes through infeasible points, Browne's test is not defined, and the standardised solution's constraint check
+  // and a standardised defined parameter come with cautions. The estimates are Mplus's (mplus/ch5, ch6 tests).
+  'mplus-ex5.20': [/NA\/NaN function evaluation/, /browne\.residual\.nt\.model/, /number of items to replace/],
+  'mplus-ex6.17': [/browne\.residual\.nt\.model/, /standardized value of the defined parameter/],
 };
 const checkClean = (id: string) => {
   const r = raised[id] ?? { warnings: [], notes: [] };
@@ -99,7 +105,7 @@ const SOURCES: Record<string, (EvidenceSource & { level: 'native' })[]> = {
 };
 
 /** The Mplus growth examples' degrees of freedom (6.8 latent basis, 6.9 quadratic, 6.10 covariates). */
-const GROWTH_DF: Record<string, number> = { 'mplus-ex6.8': 3, 'mplus-ex6.9': 1, 'mplus-ex6.10': 21 };
+const GROWTH_DF: Record<string, number> = { 'mplus-ex6.8': 3, 'mplus-ex6.9': 1, 'mplus-ex6.10': 21, 'mplus-ex6.11': 6, 'mplus-ex6.13': 24, 'mplus-ex6.14': 33, 'mplus-ex6.17': 7, 'mplus-ex6.18': 77, 'mplus-ex11.4': 37 };
 /** Documented values the estimate must reproduce. */
 const CHISQ: Record<string, number> = { 'lavaan-twolevel': 8.092, 'lavaan-hs-esem': 22.897, 'lavaan-poldem': 40.179, 'lavaan-hs': 85.306, 'lavaan-hs-means': 85.306, 'lavaan-hs-groups': 164.103 };
 /** lavaan tutorial, mean structures: cfa(HS.model, data = HolzingerSwineford1939, meanstructure = TRUE), the intercepts (native lavaan, 3 decimals). */
@@ -199,20 +205,24 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
       } else if (p.kind === 'lmm') {
         const { kind: _k, ...input } = p;
         const r = await lmmR(data, input);
-        expect(r.fixed.find((f) => f.term === 'Days')!.est, 'fixed effect of Days').toBeCloseTo(10.4673, 3);  // ?lmer: fixef(fm1)
-        expect(r.clusters).toBe(18);
+        expect(r.fixed.length).toBeGreaterThan(0);
+        if (ex.id === 'lme4-sleepstudy') {
+          expect(r.fixed.find((f) => f.term === 'Days')!.est, 'fixed effect of Days').toBeCloseTo(10.4673, 3);  // ?lmer: fixef(fm1)
+          expect(r.clusters).toBe(18);
+        }  // (the Mplus two-level regressions: checked in mplus/ch9.webr.test.ts)
       } else if (p.kind === 'gmm') {
         const { kind: _k, ...options } = p;
         const r = await gmmR(data, gmmInput(options, 1));
-        expect(r.models.map((m) => m.k)).toEqual([1, 2, 3]);
-        expect(r.n).toBe(100);
+        expect(r.models.map((m) => m.k)).toEqual(Array.from({ length: options.to }, (_, i) => i + 1));
+        if (ex.id === 'lcmm-hlme') expect(r.n).toBe(100);  // (the Mplus growth mixtures: checked in mplus/ch8.webr.test.ts)
       } else if (p.kind === 'regression') {
         // (each of these is checked coefficient by coefficient in src/rengine/regression.webr.test.ts)
         const { regressionR } = await import('../rengine/regression');
         const { kind: _k, ...opts } = p;
         const r = await regressionR(data, { ...opts, confidence: 0.95 });
         expect(r.coefficients.length).toBeGreaterThan(0);
-        expect(r.lrt).toBeTruthy();
+        // (a likelihood-ratio test against the null model; not for the censored, inflated and survival models, checked in mplus/ch3 and ch6surv)
+        if (opts.family !== 'censored' && opts.family !== 'survival' && !opts.inflated) expect(r.lrt).toBeTruthy();
       } else if (p.kind === 'did') {
         const { didR } = await import('../rengine/did');
         const { kind: _k, ...opts } = p;
@@ -229,7 +239,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         expect(r.params.length).toBe(p.items.length);
         if (ex.id === 'ltm-lsat') expect(r.logLik, 'log-likelihood').toBeCloseTo(-2466.9376, 3);  // rasch(LSAT) in native R (ltm 1.2-0)
       } else if (p.kind === 'lca') {
-        const r = await lcaR(data, p.items, Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i), 10, st.seed);
+        const r = await lcaR(data, p.items, Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i), 10, st.seed, lcaSpec(p));
         expect(r.models.map((m) => m.k)).toEqual(Array.from({ length: p.to - p.from + 1 }, (_, i) => p.from + i));
         // The log-likelihoods the help pages print (poLCA's ?carcinoma: 2, 3, 4 classes; ?values: 1, 2, 3).
         const LL: Record<string, number[]> = { 'polca-carcinoma': [-317.2568, -293.705, -289.2858], 'polca-values': [-543.6498, -504.4677, -503.3011] };

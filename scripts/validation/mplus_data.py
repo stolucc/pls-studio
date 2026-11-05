@@ -37,9 +37,13 @@ def expand(names):
     out = []
     for tok in names.split():
         m = re.fullmatch(r'([A-Za-z_]\w*?)(\d+)-([A-Za-z_]\w*?)(\d+)', tok)
+        # A trailing letter that runs (y1a-y1c is y1a y1b y1c; Mplus examples 5.9 and 5.10).
+        ml = re.fullmatch(r'([A-Za-z_]\w*?\d)([A-Za-z])-([A-Za-z_]\w*?\d)([A-Za-z])', tok)
         if m and m.group(1) == m.group(3):
             a, b = int(m.group(2)), int(m.group(4))
             out += [f'{m.group(1)}{i}' for i in range(a, b + 1)]
+        elif ml and ml.group(1) == ml.group(3) and ml.group(2) < ml.group(4):
+            out += [f'{ml.group(1)}{chr(c)}' for c in range(ord(ml.group(2)), ord(ml.group(4)) + 1)]
         else:
             out.append(tok)
     return [n.lower() for n in out]

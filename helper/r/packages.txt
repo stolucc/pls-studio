@@ -47,3 +47,4 @@ sandwich
 semTools
 semfindr
 seminr
+survival

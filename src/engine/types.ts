@@ -25,6 +25,8 @@ export interface ConstructSpec {
   fixedLoadings?: Record<string, number>;
   /** CB-SEM (lavaan): parameter labels of loadings (by indicator name); equal labels = equal values. */
   loadingLabels?: Record<string, string>;
+  /** CB-SEM (lavaan): the factor's scale from its variance fixed at 1 (every loading estimated) instead of a marker loading. */
+  scaling?: 'variance';
   /** PLS: a categorical exogenous variable: its single column becomes k − 1 dummies forming a Mode B composite (engine/categorical.ts). */
   categorical?: boolean;
   /** PLS: the dominant indicator, which fixes the sign of the construct (its loading made positive; cSEM's .dominant_indicators). */
@@ -76,7 +78,20 @@ export interface CovarianceSpec {
   fixed?: number;
   /** CB-SEM (lavaan): parameter label; equal labels = equal values. */
   label?: string;
+  /** CB-SEM (lavaan), several groups: a value per group (lavaan's c(...)), instead of `fixed` / `label`. */
+  byGroup?: GroupValue[];
 }
+
+/** CB-SEM (lavaan), several groups: a number holds the parameter at that value in that group, a name labels it (equal names, equal parameters), null leaves it free. */
+export type GroupValue = number | string | null;
+
+/**
+ * CB-SEM (lavaan): a variance, an indicator's intercept or a threshold held at a value or labelled (Mplus f1@1;
+ * y1-y3 (ve1-ve3); [y1a y1b y1c] (1); [u1$1] (t)). `target` is a construct's name (its variance, or its
+ * disturbance's when it is explained) or, with `indicator`, an indicator's name (its residual variance,
+ * intercept or threshold number `threshold`, 1 when absent).
+ */
+export interface ParameterSpec { kind: 'variance' | 'intercept' | 'threshold'; target: string; indicator?: boolean; threshold?: number; fixed?: number; label?: string; byGroup?: GroupValue[] }
 
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */
 export const interactionName = (from: string, moderator: string) => (from === moderator ? `${from}²` : `${from} × ${moderator}`);
@@ -98,7 +113,12 @@ export type StructuralEquality = 'regressions' | 'lv.variances' | 'lv.covariance
  * level; `structural` what else is held equal; `free` the exceptions.
  */
 /** `meanStructure: false`: no means and intercepts in the groups (Mplus MODEL = NOMEANSTRUCTURE; lavaan meanstructure = FALSE). */
-export interface MultigroupSpec { column: string; invariance: InvarianceLevel; free: FreedParameter[]; structural?: StructuralEquality[]; meanStructure?: false }
+/**
+ * `ordinalScales: 'free'`: with ordinal indicators and equal thresholds, their scale factors (delta) or residual
+ * variances (theta) are free in every group after the first, as Mplus's default; an indicator whose thresholds
+ * are freed keeps them at 1 in every group (Mplus {u3@1}). Absent: lavaan's default, 1 in every group.
+ */
+export interface MultigroupSpec { column: string; invariance: InvarianceLevel; free: FreedParameter[]; structural?: StructuralEquality[]; meanStructure?: false; ordinalScales?: 'free' }
 
 export interface ModelSpec {
   constructs: ConstructSpec[];
@@ -130,7 +150,7 @@ export interface ModelSpec {
   /** CB-SEM: sampling clusters in a single-level model (lavaan cluster =; cluster-robust standard errors). */
   cluster?: string;
   /** CB-SEM (lavaan): two-level model by a cluster column; between level saturated or with the same structure. */
-  multilevel?: { column: string; between: 'same' | 'saturated' | 'factors'; betweenCovariates?: string[] };
+  multilevel?: { column: string; between: 'same' | 'saturated' | 'factors' | 'model'; betweenCovariates?: string[]; betweenModel?: { lhs: string; op: '=~' | '~' | '~~' | '~1'; rhs: { name: string; fixed?: number; label?: string }[] }[] };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
   esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean };
   /** CB-SEM (lavaan): estimate the mean structure (meanstructure = TRUE: every indicator intercept free). */
@@ -138,6 +158,14 @@ export interface ModelSpec {
   /** CB-SEM (lavaan): latent means (or observed variables' intercepts) to estimate, fix or label. */
   /** `bias`: the marker indicator's intercept fixed at this value instead of 0 (a known measurement bias, Hayduk 1987); with groups one value per group. */
   means?: { construct: string; fixed?: number; label?: string; bias?: number | number[] }[];
+  /** CB-SEM (lavaan): variances, indicator intercepts and thresholds held at values or labelled. */
+  parameters?: ParameterSpec[];
+  /** CB-SEM (lavaan), ordinal indicators: the theta parameterisation (residual variances of the latent responses fixed at 1) instead of delta. */
+  parameterization?: 'theta';
+  /** CB-SEM (lavaan): direct effects on indicators (lavaan y1 ~ x1), from a construct (by name) to an indicator. */
+  indicatorPaths?: { from: string; to: string; fixed?: number; label?: string }[];
+  /** CB-SEM (lavaan): equality constraints "left == right" on labels and defined parameters (R syntax printed from parsed expressions). */
+  equalities?: string[];
 }
 
 /** Column-oriented numeric data; NaN marks a missing value. */

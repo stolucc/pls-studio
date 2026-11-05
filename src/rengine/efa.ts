@@ -23,8 +23,20 @@ export interface EfaResult {
   parallel: { observed: number[]; simulated: number[]; suggested: number | null; iterations: number } | null;
   map: { values: number[]; suggested: number };
   kaiser: number;
-  fit: { offDiagonal?: number | null; chisq?: number | null; df?: number | null; p?: number | null; rmsea?: number | null; rmseaLow?: number | null; rmseaHigh?: number | null; tli?: number | null; bic?: number | null; rms?: number | null };
+  fit: EfaFit;
+  /** lavaan extraction: ML, or WLSMV with polychoric correlations. */
+  estimator?: 'ML' | 'WLSMV';
+  /** lavaan extraction: standard errors of the standardised loadings, factor correlations and uniquenesses (delta method). */
+  se?: { loadings: number[][]; phi: number[][] | null; uniqueness: number[] };
+  /** lavaan extraction: the fit of each number of factors up to the solution's (Mplus: SUMMARY OF MODEL FIT INFORMATION). */
+  comparison?: ({ k: number } & EfaFit)[];
   warnings: string[]; engine: REngineInfo;
+}
+
+export interface EfaFit {
+  offDiagonal?: number | null; chisq?: number | null; df?: number | null; p?: number | null; rmsea?: number | null; rmseaLow?: number | null; rmseaHigh?: number | null; tli?: number | null; bic?: number | null; rms?: number | null;
+  /** lavaan extraction. */
+  npar?: number | null; cfi?: number | null; srmr?: number | null; logl?: number | null; aic?: number | null;
 }
 
 const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
@@ -38,6 +50,7 @@ export function efaRequest(data: Dataset, d: EfaDesign, seed: number) {
   return {
     vars: d.vars, method: d.method, criterion: d.criterion, nfactors: d.nfactors, rotation: d.rotation, deletion: d.missing, parallel: d.parallel, seed,
     ...(d.correlation === 'polychoric' ? { correlation: 'polychoric' } : {}),
+    ...(d.method === 'lavaan' ? { ...(d.epsilon !== undefined ? { epsilon: d.epsilon } : {}), ...(d.information ? { information: d.information } : {}), ...(d.from !== undefined ? { from: d.from } : {}) } : {}),
     data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
   };
 }
@@ -60,10 +73,15 @@ export function parseEfa(raw: Record<string, any>): EfaResult {
     eigenvalues: nums(raw.eigenvalues), parallel,
     map: { values: nums(raw.map?.values), suggested: Number(raw.map?.suggested) },
     kaiser: Number(raw.kaiser), fit: raw.fit ?? {}, warnings: rStrings(raw.warnings), engine: raw.engine,
+    ...(raw.estimator === 'ML' || raw.estimator === 'WLSMV' ? { estimator: raw.estimator } : {}),
+    ...(raw.se ? { se: { loadings: mat(raw.se.loadings, k), phi: raw.se.phi ? mat(raw.se.phi, k) : null, uniqueness: nums(raw.se.uniqueness) } } : {}),
+    ...(raw.comparison ? { comparison: arr<Record<string, any>>(raw.comparison).map((x) => ({ ...x, k: Number(x.k) })) } : {}),
   };
 }
 
+/** The R packages: psych, and lavaan for its extraction. */
+const efaPackage = (d: EfaDesign) => (d.method === 'lavaan' ? 'psychLavaan' as const : 'psych' as const);
 export async function efaR(data: Dataset, d: EfaDesign, seed: number): Promise<EfaResult> {
-  return parseEfa(await rCall<Record<string, any>>('ps_efa', efaRequest(data, d, seed), 'psych'));
+  return parseEfa(await rCall<Record<string, any>>('ps_efa', efaRequest(data, d, seed), efaPackage(d)));
 }
-export const efaScriptR = (data: Dataset, d: EfaDesign, seed: number) => rScript('ps_efa', efaRequest(data, d, seed), 'psych');
+export const efaScriptR = (data: Dataset, d: EfaDesign, seed: number) => rScript('ps_efa', efaRequest(data, d, seed), efaPackage(d));

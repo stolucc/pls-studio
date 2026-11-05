@@ -25,7 +25,15 @@ export interface LmmResult {
 
 export type GmmInput = {
   shape: 'linear' | 'quadratic'; random: 'none' | 'intercept' | 'slope'; classes: number[]; covariates: string[]; nrep: number; seed: number;
-} & ({ format: 'wide'; measures: string[]; times: number[] } | { format: 'long'; subject: string; time: string; outcome: string });
+} & ({
+  format: 'wide'; measures: string[]; times: number[];
+  /**
+   * 'occasion': a residual variance per occasion (Mplus's default), fitted by a likelihood written out in R
+   * (ps_gmm_wide) instead of lcmm; the covariates then predict the growth factors (Mplus: i s ON x) and
+   * `membership` the class (c ON w).
+   */
+  residuals?: 'occasion'; membership?: string[];
+} | { format: 'long'; subject: string; time: string; outcome: string });
 export interface GmmModel {
   k: number; logLik: number; npar: number; aic: number; bic: number; sabic: number; entropy: number | null; converged: boolean;
   shares: number[]; params: { name: string; est: number; se: number | null; p: number | null }[];
@@ -45,7 +53,9 @@ const columns = (data: Dataset, names: string[]) => {
 
 export const lmmRequest = (data: Dataset, i: LmmInput) => ({ ...i, data: columns(data, [i.outcome, ...i.predictors, i.cluster]) });
 export const gmmRequest = (data: Dataset, i: GmmInput) =>
-  ({ ...i, data: columns(data, [...(i.format === 'wide' ? i.measures : [i.subject, i.time, i.outcome]), ...i.covariates]) });
+  ({ ...i, data: columns(data, [...(i.format === 'wide' ? i.measures : [i.subject, i.time, i.outcome]), ...i.covariates, ...(i.format === 'wide' && i.residuals ? i.membership ?? [] : [])]) });
+/** lcmm, or the wide model with a residual variance per occasion. */
+const gmmBridge = (i: GmmInput) => (i.format === 'wide' && i.residuals === 'occasion' ? ['ps_gmm_wide', 'stats'] as const : ['ps_gmm', 'lcmm'] as const);
 
 export async function lmmR(data: Dataset, input: LmmInput): Promise<LmmResult> {
   const raw = await rCall<Record<string, any>>('ps_lmm', lmmRequest(data, input), 'lme4');
@@ -59,7 +69,8 @@ export async function lmmR(data: Dataset, input: LmmInput): Promise<LmmResult> {
 export const lmmScriptR = (data: Dataset, input: LmmInput) => rScript('ps_lmm', lmmRequest(data, input), 'lme4');
 
 export async function gmmR(data: Dataset, input: GmmInput): Promise<GmmResult> {
-  const raw = await rCall<Record<string, any>>('ps_gmm', gmmRequest(data, input), 'lcmm');
+  const [fn, pkg] = gmmBridge(input);
+  const raw = await rCall<Record<string, any>>(fn, gmmRequest(data, input), pkg);
   // Lists of vectors (one per class) stay arrays of arrays in R's JSON.
   const rows = (v: unknown) => arr<unknown>(v).map((x) => arr<number>(x));
   return {
@@ -72,4 +83,4 @@ export async function gmmR(data: Dataset, input: GmmInput): Promise<GmmResult> {
     })),
   } as GmmResult;
 }
-export const gmmScriptR = (data: Dataset, input: GmmInput) => rScript('ps_gmm', gmmRequest(data, input), 'lcmm');
+export const gmmScriptR = (data: Dataset, input: GmmInput) => rScript(gmmBridge(input)[0], gmmRequest(data, input), gmmBridge(input)[1]);

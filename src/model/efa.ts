@@ -1,15 +1,18 @@
 // Exploratory factor analysis / principal component analysis: the design kept
 // with the project (Settings.efa), and turning a solution into constructs.
 
-export type EfaMethod = 'pca' | 'minres' | 'ml' | 'pa';
-export type EfaRotation = 'none' | 'varimax' | 'quartimax' | 'promax' | 'oblimin' | 'geominQ';
+export type EfaMethod = 'pca' | 'minres' | 'ml' | 'pa' | 'lavaan';
+export type EfaRotation = 'none' | 'varimax' | 'quartimax' | 'promax' | 'oblimin' | 'geominQ' | 'bigeomin' | 'biquartimin';
 export const EFA_METHODS: { id: EfaMethod; label: string }[] = [
   { id: 'minres', label: 'Minimum residual' }, { id: 'ml', label: 'Maximum likelihood' },
   { id: 'pa', label: 'Principal axis' }, { id: 'pca', label: 'Principal components (PCA)' },
+  { id: 'lavaan', label: 'Maximum likelihood with standard errors (lavaan)' },
 ];
-export const EFA_ROTATIONS: { id: EfaRotation; label: string; oblique: boolean }[] = [
+/** `lavaan`: only with the lavaan extraction (bifactor rotations: a general factor, the first, and specific factors). */
+export const EFA_ROTATIONS: { id: EfaRotation; label: string; oblique: boolean; lavaan?: true }[] = [
   { id: 'oblimin', label: 'Oblimin', oblique: true }, { id: 'promax', label: 'Promax', oblique: true }, { id: 'geominQ', label: 'Geomin (oblique)', oblique: true },
   { id: 'varimax', label: 'Varimax', oblique: false }, { id: 'quartimax', label: 'Quartimax', oblique: false }, { id: 'none', label: 'None', oblique: false },
+  { id: 'bigeomin', label: 'Bi-geomin (bifactor)', oblique: true, lavaan: true }, { id: 'biquartimin', label: 'Bi-quartimin (bifactor)', oblique: true, lavaan: true },
 ];
 
 /** How many factors / components: given (nfactors), or as many as a retention criterion keeps. */
@@ -36,6 +39,12 @@ export interface EfaDesign {
    * binary items, polyserial with a continuous variable). Absent in designs saved before the option: Pearson.
    */
   correlation: 'pearson' | 'polychoric';
+  /** lavaan extraction: geomin's ε (absent: lavaan's 0.001; Mplus uses 0.0001 with two factors, 0.001 with three, 0.01 with four or more). */
+  epsilon?: number;
+  /** lavaan extraction, maximum likelihood: standard errors from the observed information (Mplus's default); absent: the expected. */
+  information?: 'observed';
+  /** lavaan extraction: the fit is compared for every number of factors from this one (absent: 1) to the solution's (Mplus: TYPE = EFA 1 4). */
+  from?: number;
 }
 
 /** Parallel analysis on polychoric correlations recomputes them for every sample: at most this many by default. */
@@ -59,6 +68,9 @@ export function parseEfaDesign(v: unknown): EfaDesign | undefined {
     parallel: int(r.parallel, 0, 2000, DEFAULT_EFA.parallel),
     threshold: typeof r.threshold === 'number' && r.threshold >= 0 && r.threshold < 1 ? r.threshold : DEFAULT_EFA.threshold,
     correlation: r.correlation === 'polychoric' ? 'polychoric' : 'pearson',
+    ...(typeof r.epsilon === 'number' && r.epsilon > 0 && r.epsilon <= 1 ? { epsilon: r.epsilon } : {}),
+    ...(r.information === 'observed' ? { information: 'observed' as const } : {}),
+    ...(typeof r.from === 'number' && Number.isFinite(r.from) && r.from >= 1 ? { from: Math.min(100, Math.round(r.from)) } : {}),
   };
 }
 
@@ -164,5 +176,7 @@ const conventionalRotation = (pca: boolean): EfaRotation => (pca ? 'varimax' : '
  */
 export function switchAnalysis(d: EfaDesign, pca: boolean, extraction: Exclude<EfaMethod, 'pca'> = 'minres'): EfaDesign {
   if (pca === (d.method === 'pca')) return d;
-  return { ...d, method: pca ? 'pca' : extraction, rotation: d.rotation === conventionalRotation(!pca) ? conventionalRotation(pca) : d.rotation };
+  // (a bifactor rotation is lavaan's only: PCA takes its conventional one)
+  const keep = d.rotation !== conventionalRotation(!pca) && !(pca && EFA_ROTATIONS.find((x) => x.id === d.rotation)?.lavaan);
+  return { ...d, method: pca ? 'pca' : extraction, rotation: keep ? d.rotation : conventionalRotation(pca) };
 }

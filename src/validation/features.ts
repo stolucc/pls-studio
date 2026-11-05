@@ -14,7 +14,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   // Examples: graded per example with verify().
   'examples/bollen': 'examples', 'examples/bollen1989': 'examples', 'examples/bollencurran': 'examples', 'examples/brown': 'examples',
   'examples/builtin': 'examples', 'examples/causal': 'examples', 'examples/eqs': 'examples', 'examples/imputation': 'examples',
-  'examples/kline': 'examples', 'examples/manymome': 'examples', 'examples/mplus/ch3': 'examples', 'examples/mplus/ch5': 'examples', 'examples/mplus/ch6': 'examples', 'examples/packages': 'examples',
+  'examples/kline': 'examples', 'examples/manymome': 'examples', 'examples/mplus/ch3': 'examples', 'examples/mplus/ch4': 'examples', 'examples/mplus/ch5': 'examples', 'examples/mplus/ch5efa': 'examples', 'examples/mplus/ch6': 'examples', 'examples/mplus/ch6surv': 'examples', 'examples/mplus/ch11': 'examples', 'examples/mplus/ch7': 'examples', 'examples/mplus/ch8': 'examples', 'examples/mplus/ch9': 'examples', 'examples/packages': 'examples',
   'examples/plsGender': 'examples', 'examples/selection': 'examples',
 
   // CB-SEM (lavaan and friends)
@@ -75,7 +75,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/did': native('Difference-in-differences', 'Causal inference', ['did', 'fixest'], script('did.R', 'desktop did and fixest')),
   'rengine/match': native('Matching and weighting', 'Causal inference', ['MatchIt', 'WeightIt'], script('match.R', 'desktop MatchIt'), script('weightit.R', 'desktop WeightIt')),
   'rengine/endo': native('Endogeneity: IV, copulas, Heckman', 'Regression', ['ivreg', 'REndo', 'sampleSelection'], script('endo.R', 'desktop R')),
-  'rengine/regression': native('Regression (linear, GLM, ordinal, multinomial)', 'Regression', ['stats', 'MASS', 'nnet'], script('regression.R', 'desktop R')),
+  'rengine/regression': native('Regression (linear, GLM, ordinal, multinomial, censored, survival)', 'Regression', ['stats', 'MASS', 'nnet', 'survival'], script('regression.R', 'desktop R')),
   'rengine/rsa': native('Response surface analysis', 'Regression', ['RSA'], script('rsa.R', 'desktop RSA')),
   'rengine/nca': native('Necessary condition analysis', 'NCA', ['NCA'], script('nca.R', 'desktop NCA')),
   'rengine/network': native('Network psychometrics and EGA', 'Networks', ['bootnet', 'EGAnet'], script('network.R', 'desktop bootnet and EGAnet')),

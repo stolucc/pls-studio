@@ -37,10 +37,18 @@ describe('formulas', () => {
     expect(ev('sum(x, y)')).toEqual([11, 22, 33, 44, NaN]);
     expect(ev('mean(x, y)')).toEqual([5.5, 11, 16.5, 22, NaN]);
     expect(ev('center(x)')).toEqual([-1.5, -0.5, 0.5, 1.5, NaN]);
+    // Group-mean centring (Mplus CENTER … GROUPMEAN): g = 0 rows have x 1, 4 (mean 2.5); g = 1 rows 2, 3 (x missing in the fifth).
+    expect(ev('center(x, g)')).toEqual([-1.5, -0.5, 0.5, 1.5, NaN]);
+    expect(ev('center(y, g)').map((v) => Number(v.toFixed(6)))).toEqual([-15, -13.333333, -3.333333, 15, 16.666667]);
     const z = ev('z(x)');
     expect(z[4]).toBeNaN(); expect(z[0]).toBeCloseTo(-1.5 / Math.sqrt(5 / 3), 12);
     expect(ev('rank(y)')).toEqual([1, 2, 3, 4, 5]);
     expect(ev('rank(g)')).toEqual([1.5, 4, 4, 1.5, 4]);
+    // A time series in row order: the value k rows earlier (Mplus LAGGED = y(k)).
+    expect(ev('lag(y)')).toEqual([NaN, 10, 20, 30, 40]);
+    expect(ev('lag(y, 2)')).toEqual([NaN, NaN, 10, 20, 30]);
+    expect(ev('lag(x)')).toEqual([NaN, 1, 2, 3, 4]);
+    expect(() => ev('lag(y, 0.5)')).toThrow(/whole number/);
     expect(ev('exp(log(y))').map(Math.round)).toEqual([10, 20, 30, 40, 50]);
     expect(ev('log10(y)')[0]).toBeCloseTo(1, 12); expect(ev('log2(y)')[0]).toBeCloseTo(Math.log2(10), 12);
     expect(ev('log(x - 2)')).toEqual([NaN, NaN, 0, Math.log(2), NaN]);  // no infinities
