@@ -239,7 +239,9 @@ it('CB-SEM extras on the model on the canvas: parameter comparisons and factor s
   const w = await runAsCard<{ factors: string[] }>('scoreweights', hs, { method: 'regression' }, setup);
   expect(w.result.factors).toEqual(['visual', 'textual', 'speed']);
   expect(w.html).toContain('>Scores</button>'); expect(w.html).toContain('>Weights</button>');
-  expect(w.html).toContain('Save as data columns');  // the Scores tab opens first; the weights table is on the Weights tab
+  // The Scores tab opens first; the weights table is on the Weights tab. A static render reads the store's initial
+  // state (no data), so the save button itself is checked in factorScores.test.tsx; here only its section.
+  expect(w.html).toContain('Download all scores (CSV)'); expect(w.html).toContain('Save to the dataset');
 }, 900_000);
 
 it('network analysis (bootnet) and EGA (EGAnet) as cards', async () => {
