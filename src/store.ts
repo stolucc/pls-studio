@@ -101,6 +101,8 @@ export interface State {
   showErrorTerms: boolean;
   /** Show the moderators' implied main effects (estimated, not drawn) as dashed arrows. */
   showImpliedEffects: boolean;
+  /** The intercepts a mean structure implies: estimated either way; published diagrams usually leave them out. */
+  showIntercepts: boolean;
   /** CB-SEM diagrams: standardised (std.all) or unstandardised estimates. */
   estimateScale: 'std' | 'unstd';
   resultsOpen: boolean;
@@ -222,6 +224,7 @@ export interface State {
   setShowResultsOnDiagram: (v: boolean) => void;
   setShowErrorTerms: (v: boolean) => void;
   setShowImpliedEffects: (v: boolean) => void;
+  setShowIntercepts: (v: boolean) => void;
   setEstimateScale: (v: 'std' | 'unstd') => void;
   setResultsOpen: (v: boolean) => void;
 }
@@ -310,6 +313,7 @@ export const useStore = create<State>((set, get) => ({
   showResultsOnDiagram: true,
   showErrorTerms: true,
   showImpliedEffects: true,
+  showIntercepts: false,
   estimateScale: 'std',
   resultsOpen: false,
   compareGroups: false,
@@ -734,6 +738,7 @@ export const useStore = create<State>((set, get) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setShowErrorTerms: (showErrorTerms) => set({ showErrorTerms }),
   setShowImpliedEffects: (showImpliedEffects) => set({ showImpliedEffects }),
+  setShowIntercepts: (showIntercepts) => set({ showIntercepts }),
   setEstimateScale: (estimateScale) => set({ estimateScale }),
   setShowResultsOnDiagram: (showResultsOnDiagram) => set({ showResultsOnDiagram }),
   setResultsOpen: (resultsOpen) => set({ resultsOpen }),

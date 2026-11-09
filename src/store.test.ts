@@ -230,6 +230,21 @@ describe('showing implied main effects', () => {
     expect(toSpec(s().model)).toEqual(before);
     s().setShowImpliedEffects(true);
   });
+
+  it('hides a mean structure’s intercept arrows by default, on an option of their own that does not touch the estimates', () => {
+    const { m, path } = setup();
+    s().addModeration(m, path);
+    expect(s().showIntercepts).toBe(false);
+    const before = toSpec(s().model);
+    s().setShowIntercepts(true);
+    expect(s().showIntercepts).toBe(true);
+    expect(s().showImpliedEffects).toBe(true);
+    expect(toSpec(s().model)).toEqual(before);
+    s().setShowImpliedEffects(false);
+    expect(s().showIntercepts).toBe(true);
+    s().setShowImpliedEffects(true);
+    s().setShowIntercepts(false);
+  });
 });
 
 describe('factors from an exploratory factor analysis', () => {

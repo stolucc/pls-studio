@@ -123,6 +123,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   const workspace = useStore((s) => s.workspace);
   const showErrors = useStore((s) => s.showErrorTerms);
   const showImplied = useStore((s) => s.showImpliedEffects);
+  const showIntercepts = useStore((s) => s.showIntercepts);
   const scale = useStore((s) => s.estimateScale);
   const unstd = scale === 'unstd';
   const method = settings.method;
@@ -560,7 +561,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const l = meanOf(c.name);
       return [{ key: `mean:${t.id}`, ...seg, label: lbl(l?.value ?? (t.fixed !== undefined ? t.fixed : null), l?.p ?? null, t.fixed !== undefined && l == null) }];
     }) : [];
-    const intercepts = constant && st().showImpliedEffects ? impliedIntercepts(m).flatMap((e) => {
+    const intercepts = constant && showIntercepts ? impliedIntercepts(m).flatMap((e) => {
       const c = byId.get(e.construct);
       const box = c && constructGeometry(c).indicators.find((b) => b.name === e.indicator);
       const seg = c && box && interceptSegment(constant, c, box);
@@ -577,7 +578,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       }),
     }));
     return { method, ...(m.notes?.length ? { notes: m.notes.map((k) => ({ x: k.x, y: k.y, text: k.text })) } : {}), constructs, paths, moderations, higherOrder, errors, correlations, ...(copulas.length ? { copulas } : {}), ...(constant ? { constant, means, intercepts } : {}) };
-  }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel, unstd, results]);
+  }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, showIntercepts, errorValue, correlationLabel, unstd, results]);
 
   // Where each estimate label goes, so that none overlap (the figure export places them the same way).
   const labelAt = useMemo(() => placeFigureLabels(figureInput(), canvasLabelSize), [figureInput]);
@@ -601,19 +602,18 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       },
     }));
     drawn.push(...means);
-    if (!showImplied) return drawn;
     // The intercepts the constant implies (every indicator's, bar a drawn mean's marker): dashed, not editable.
-    const intercepts = impliedIntercepts(model).map((e): InterceptFlowEdge => {
+    const intercepts = (showIntercepts ? impliedIntercepts(model) : []).map((e): InterceptFlowEdge => {
       const l = meanOf(e.indicator);
       return { id: `intercept:${e.construct}:${e.indicator}`, source: 'constant', target: e.construct, sourceHandle: 's', targetHandle: 't', type: 'intercept',
         selectable: false, deletable: false, focusable: false, data: { indicator: e.indicator, value: l?.value ?? null, p: l?.p ?? null, labelAt: labelAt.get(`intercept:${e.construct}:${e.indicator}`) } };
     });
-    return [...drawn, ...intercepts, ...implied.map((e): PathFlowEdge => ({
+    return [...drawn, ...intercepts, ...(showImplied ? implied : []).map((e): PathFlowEdge => ({
       id: `implied:${e.from}:${e.to}`, source: e.from, target: e.to, sourceHandle: 's', targetHandle: 't', type: 'path',
       selectable: false, deletable: false, focusable: false,
       data: { ...(display ? display.path(name.get(e.from)!, name.get(e.to)!) : { beta: null, p: null }), implied: true, labelAt: labelAt.get(`implied:${e.from}:${e.to}`) },
     }))];
-  }, [model, selection.edges, display, meanOf, method, implied, showImplied, labelAt]);
+  }, [model, selection.edges, display, meanOf, method, implied, showImplied, showIntercepts, labelAt]);
   // Model snapshots on the Analyses tab draw the diagram from the canvas.
   useEffect(() => { setFigureSource(figureInput); return () => setFigureSource(null); }, [figureInput]);
 
@@ -884,9 +884,15 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
             <button role="radio" aria-checked={unstd} className={unstd ? 'on' : ''} onClick={() => st().setEstimateScale('unstd')} title="Unstandardised estimates (marker loadings are 1)">Unstd</button>
           </div>
         )}
-        {(implied.length > 0 || (model.constant && impliedIntercepts(model).length > 0)) && (
+        {!!model.constant && impliedIntercepts(model).length > 0 && (
+          <button className={`btn ghost${showIntercepts ? ' on' : ''}`} onClick={() => st().setShowIntercepts(!showIntercepts)} aria-pressed={showIntercepts}
+            title={showIntercepts ? 'Hide the intercepts the mean structure implies (they are estimated either way)' : 'Show the intercepts the mean structure implies, as dashed arrows from the constant (they are estimated either way)'}>
+            Intercepts
+          </button>
+        )}
+        {implied.length > 0 && (
           <button className={`btn ghost${showImplied ? ' on' : ''}`} onClick={() => st().setShowImpliedEffects(!showImplied)} aria-pressed={showImplied}
-            title={showImplied ? 'Hide what the model implies (dashed: the moderators’ main effects, the constant’s intercepts; they are estimated either way)' : 'Show what the model implies as dashed arrows (the moderators’ main effects, the constant’s intercepts; they are estimated either way)'}>
+            title={showImplied ? 'Hide what the model implies (dashed: the moderators’ main effects; they are estimated either way)' : 'Show what the model implies as dashed arrows (the moderators’ main effects; they are estimated either way)'}>
             Implied
           </button>
         )}
