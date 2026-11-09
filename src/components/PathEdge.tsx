@@ -1,8 +1,8 @@
 import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
-import { pathOffset, pathSegment } from '../geometry';
+import { besideLine, pathOffset, pathSegment } from '../geometry';
 import { useStore } from '../store';
-import { pathStrokeWidth } from '../figure/style';
+import { formatEstimate, pathStrokeWidth, significanceText } from '../figure/style';
 import { fixedText } from '../diagramLabels';
 
 export type PathEdgeData = {
@@ -23,7 +23,7 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
     if (!seg) return null;
     // Moderator arrows land on the midpoint, so move this path's label aside.
     const f = data?.moderated ? 0.3 : 0.5;
-    return { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: data?.labelAt?.x ?? seg.x1 + f * (seg.x2 - seg.x1), my: data?.labelAt?.y ?? seg.y1 + f * (seg.y2 - seg.y1) };
+    return { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, seg, mx: data?.labelAt?.x ?? seg.x1 + f * (seg.x2 - seg.x1), my: data?.labelAt?.y ?? seg.y1 + f * (seg.y2 - seg.y1) };
   }, [s, t, offset, data?.moderated, data?.labelAt]);
   const figure = useStore((st) => st.settings.figure);
   if (!geo) return null;
@@ -35,6 +35,8 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
   const label = data?.label;
   const width = pathStrokeWidth(figure, beta) * 1.4;
   const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
+  // Amos notation: the number beside the line, not on it.
+  const off = figure.notation === 'amos' ? besideLine(geo.seg.x1, geo.seg.y1, geo.seg.x2, geo.seg.y2, 14, 8) : { dx: 0, dy: 0 };
 
   return (
     <>
@@ -53,11 +55,11 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
       )}
       {beta !== null && (
         <EdgeLabelRenderer>
-          <div className={`elabel${cls}${fixed !== undefined ? ' fixed' : ''}${data?.implied ? ' implied' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
+          <div className={`elabel${cls}${fixed !== undefined ? ' fixed' : ''}${data?.implied ? ' implied' : ''}${figure.notation === 'amos' ? ' beside' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx + off.dx}px, ${geo.my + off.dy}px)` }}
             title={fixed !== undefined ? `Fixed at ${fixedText(fixed)}: not estimated` : data?.implied ? 'Main effect implied by the moderation (estimated with the model; draw the arrow to edit it)' : undefined}>
             {label && <span className="plabel-name">{label} </span>}
-            {fixed !== undefined && data?.beta == null ? fixedText(fixed) : beta.toFixed(3)}
-            {p !== null && <span className="p">{p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`}</span>}
+            {fixed !== undefined && data?.beta == null ? fixedText(fixed) : formatEstimate(figure, beta)}
+            {p !== null && significanceText(figure, p) && <span className="p">{significanceText(figure, p)}</span>}
           </div>
         </EdgeLabelRenderer>
       )}

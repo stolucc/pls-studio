@@ -7,7 +7,7 @@ import { fmt } from '../format';
 import type { ModelSpec, PlsOptions } from '../engine/types';
 import { layoutCcaDiagram } from '../model/ccaDiagram';
 import { toSpec, validateModel, type Settings } from '../model/project';
-import { hexagonVertices } from '../geometry';
+import { BOX_RX, hexagonVertices } from '../geometry';
 import { blindfoldTargets, type BlindfoldResult, type CcaEstimate, type CcaResult, type CompareResult, type CtaResult, type GroupsResult, type MgaApproach, type PredictResult } from '../rengine/plsx';
 import { useStore } from '../store';
 import { ChartFrame } from '../components/ChartFrame';
@@ -163,7 +163,7 @@ function CcaDiagramView({ r }: { r: CcaResult }) {
                 {k.geom.indicators.map((ind) => (
                   <g key={ind.name}>
                     <line x1={ind.ax} y1={ind.ay} x2={ind.ex} y2={ind.ey} stroke="#64748b" strokeWidth={1.1} markerEnd="url(#cca-arrow)" />
-                    <rect x={ind.x} y={ind.y} width={ind.w} height={ind.h} rx={5} fill="#f8fafc" stroke="#94a3b8" />
+                    <rect x={ind.x} y={ind.y} width={ind.w} height={ind.h} rx={BOX_RX} fill="#f8fafc" stroke="#94a3b8" />
                     <text x={ind.x + ind.w / 2} y={ind.y + ind.h / 2 + 4} textAnchor="middle" fontSize={11} fill="#334155">{ind.name}</text>
                   </g>
                 ))}

@@ -1,7 +1,67 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
+  besideLine,
+  clearPointOnCurve,
+  setCircleConstructs,
+  shapeOf,
   constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, interceptSegment, moderatorSegment, pathOffset, QUAD_RISE, quadraticLoop, pathSegment, RECIPROCAL_OFFSET,
 } from './geometry';
+
+describe('clearPointOnCurve', () => {
+  const p1: [number, number] = [0, -100], p2: [number, number] = [0, 100], mid: [number, number] = [-50, 0], left: [number, number] = [-1, 0];
+  it('keeps the midpoint when it is free', () => {
+    expect(clearPointOnCurve(p1, p2, mid, left, 30, 18, [])).toEqual({ x: -50, y: 0 });
+    expect(clearPointOnCurve(p1, p2, mid, left, 30, 18, [{ x: 100, y: 0, w: 20, h: 20 }])).toEqual({ x: -50, y: 0 });
+  });
+  it('slides along the arc off a box, to a point on the curve', () => {
+    const box = { x: -90, y: -13, w: 50, h: 26 };
+    const q = clearPointOnCurve(p1, p2, mid, left, 30, 18, [box]);
+    expect(Math.abs(q.y)).toBeGreaterThanOrEqual(13 + 9);        // label's half height + box's
+    const t = (q.y + 100) / 200;                                  // this arc is linear in y
+    expect(q.x).toBeCloseTo(2 * t * (1 - t) * -100, 6);
+  });
+  it('falls back to the midpoint when nowhere is free', () => {
+    expect(clearPointOnCurve(p1, p2, mid, left, 30, 18, [{ x: -500, y: -500, w: 1000, h: 1000 }])).toEqual({ x: -50, y: 0 });
+  });
+});
+
+describe('constructs drawn as circles', () => {
+  const k = { name: 'A rather long construct name', indicators: ['a', 'b'], side: 'left' as const };
+  afterEach(() => setCircleConstructs(false));
+  it('makes a factor a circle whatever its name, the indicator arrows ending on it', () => {
+    expect(constructGeometry(k).rx).toBeGreaterThan(constructGeometry(k).ry);
+    setCircleConstructs(true);
+    const g = constructGeometry({ ...k, type: 'factor' });
+    expect([g.rx, g.ry]).toEqual([36, 36]);
+    expect(shapeOf({ type: 'factor' })).toBe('factor');
+    for (const b of g.indicators) expect(Math.hypot(b.ex, b.ey)).toBeCloseTo(36, 6);
+  });
+  it('keeps a composite a hexagon, its size independent of the name, the indicator arrows ending on it', () => {
+    setCircleConstructs(true);
+    const g = constructGeometry({ ...k, type: 'composite' });
+    expect(shapeOf({ type: 'composite' })).toBe('composite');
+    expect(g.ry).toBe(36);
+    expect(g.rx).toBe(constructGeometry({ ...k, name: 'A', type: 'composite' }).rx);
+    for (const b of g.indicators) expect([b.ex, b.ey]).toEqual(hexagonPoint(g.rx, g.ry, b.ax, b.ay));
+  });
+  it('leaves an observed covariate a rectangle, and a caller may ask for the ordinary shape', () => {
+    setCircleConstructs(true);
+    expect(shapeOf({ covariate: true })).toBe('observed');
+    expect(constructGeometry({ ...k, covariate: true }).ry).toBe(18);
+    expect(constructGeometry({ ...k, type: 'composite' }, false).rx).toBeGreaterThan(36);
+  });
+});
+
+describe('besideLine', () => {
+  it('moves a label above a sloped or level line and right of a vertical one, clear of the line', () => {
+    expect(besideLine(0, 0, 100, 0, 10, 5)).toEqual({ dx: expect.closeTo(0), dy: -7 });
+    expect(besideLine(100, 0, 0, 0, 10, 5)).toEqual({ dx: expect.closeTo(0), dy: -7 });
+    expect(besideLine(0, 0, 0, 100, 10, 5)).toEqual({ dx: 12, dy: expect.closeTo(0) });
+    expect(besideLine(0, 100, 0, 0, 10, 5)).toEqual({ dx: 12, dy: expect.closeTo(0) });
+    expect(besideLine(0, 0, 100, 100, 10, 5).dy).toBeLessThan(0);
+    expect(besideLine(100, 100, 0, 0, 10, 5).dy).toBeLessThan(0);
+  });
+});
 
 describe('construct shapes', () => {
   it('ellipse boundary points satisfy the ellipse equation', () => {

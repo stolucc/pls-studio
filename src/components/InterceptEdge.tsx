@@ -4,6 +4,7 @@
 
 import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
+import { formatEstimate, significanceText } from '../figure/style';
 import { constructGeometry, interceptSegment } from '../geometry';
 import { useStore } from '../store';
 
@@ -19,6 +20,7 @@ function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
     const seg = box && interceptSegment(k, t, box);
     return seg ? { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: data.labelAt?.x ?? (seg.x1 + seg.x2) / 2, my: data.labelAt?.y ?? (seg.y1 + seg.y2) / 2 } : null;
   }, [k, t, data]);
+  const figure = useStore((st) => st.settings.figure);
   if (!geo) return null;
   const value = data?.value ?? null;
   const p = data?.p ?? null;
@@ -30,8 +32,8 @@ function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
         <EdgeLabelRenderer>
           <div className={`elabel implied${cls}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
             title={`Intercept of ${data!.indicator} (estimated with the mean structure)`}>
-            {value.toFixed(3)}
-            {p !== null && <span className="p">{p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`}</span>}
+            {formatEstimate(figure, value)}
+            {p !== null && significanceText(figure, p) && <span className="p">{significanceText(figure, p)}</span>}
           </div>
         </EdgeLabelRenderer>
       )}

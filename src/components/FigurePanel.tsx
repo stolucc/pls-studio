@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { exportFigure, type FigureFormat } from '../figure/export';
 import { renderFigureSvg, type FigureInput } from '../figure/render';
-import { FIGURE_PRESETS, type FigureStyle } from '../figure/style';
+import { FIGURE_PRESETS, matchPreset, type FigureStyle } from '../figure/style';
 import { safeFileName } from '../format';
 import { useStore } from '../store';
 import { IconDownload, IconX } from './icons';
 
 const COLORS: [keyof FigureStyle, string][] = [
-  ['constructFill', 'Construct fill'], ['constructStroke', 'Construct outline'], ['indicatorFill', 'Indicator fill'],
+  ['constructFill', 'Construct fill'], ['constructStroke', 'Construct outline'], ['indicatorFill', 'Indicator fill'], ['gradientEnd', 'Gradient end'],
   ['indicatorStroke', 'Indicator outline'], ['indicatorArrow', 'Indicator arrows'], ['pathColor', 'Paths'],
   ['correlationColor', 'Correlations'], ['moderationColor', 'Moderation'], ['labelSignificant', 'Significant estimates'],
   ['labelNonSignificant', 'Non-significant estimates'],
@@ -58,12 +58,13 @@ export function FigurePanel({ input, onClose }: { input: () => FigureInput; onCl
         <div className="figure-body">
           <div className="figure-preview">{preview && <img src={preview} alt="Preview of the exported diagram" />}</div>
           <div className="figure-controls">
-            <label className="field">Preset
-              <select className="select" value="" onChange={(e) => e.target.value && setSettings({ figure: FIGURE_PRESETS[e.target.value].style })}>
-                <option value="">Choose a preset…</option>
+            <label className="field">Style
+              <select className="select" value={matchPreset(style) ?? ''} onChange={(e) => e.target.value && setSettings({ figure: FIGURE_PRESETS[e.target.value].style })}>
+                <option value="">Custom</option>
                 {Object.entries(FIGURE_PRESETS).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
               </select>
             </label>
+            {['amos', 'smartpls'].includes(matchPreset(style) ?? '') && <p className="hint">Resembles diagrams drawn by that program{matchPreset(style) === 'smartpls' ? ', and follows the model: PLS and CB-SEM models are drawn differently' : ''}. PLS Studio is not affiliated with it (see About &amp; licences).</p>}
             <div className="row2">
               <label className="field">Font
                 <select className="select" value={style.font} onChange={(e) => set({ font: e.target.value as FigureStyle['font'] })}>
@@ -96,9 +97,10 @@ export function FigurePanel({ input, onClose }: { input: () => FigureInput; onCl
                 <option value="p">p-values: 0.447 (p &lt; .001)</option><option value="stars">Stars: 0.447***</option><option value="none">None</option>
               </select>
             </label>
-            {([['pathWidthByEffect', 'Thicker paths for larger effects'], ['labelBoxes', 'Outline around estimates'], ['showEstimates', 'Show estimates'], ['showR2', 'Show R²']] as [keyof FigureStyle, string][]).map(([k, label]) => (
+            {([['circleConstructs', 'Circles for factors, names outside'], ['gradientFill', 'Gradient fill (left to right)'], ['pathWidthByEffect', 'Thicker paths for larger effects'], ['labelBoxes', 'Outline around estimates'], ['showEstimates', 'Show estimates'], ['showR2', 'Show R²']] as [keyof FigureStyle, string][]).map(([k, label]) => (
               <label key={k} className="check"><input type="checkbox" checked={style[k] as boolean} onChange={(e) => set({ [k]: e.target.checked } as Partial<FigureStyle>)} /> {label}</label>
             ))}
+            <label className="check"><input type="checkbox" checked={style.notation === 'amos'} onChange={(e) => set({ notation: e.target.checked ? 'amos' : 'standard' })} /> Amos notation: .85 beside the lines, e1, R² above the variable</label>
             <p className="hint">The style also applies to the diagram on screen and is saved with the project. Error terms and the standardised / unstandardised choice follow the canvas toolbar. PDF uses the built-in PDF fonts, so error terms read e / d instead of ε / ζ.</p>
             <div className="figure-export">
               <button className="btn primary" disabled={busy} onClick={() => void doExport('pdf')}><IconDownload size={13} /> PDF (vector)</button>

@@ -447,7 +447,7 @@ The examples use numbers from these publications: matrices typed from the public
 
 ## Trademarks
 
-Product and company names are used only to identify the software whose methods, defaults, file formats or published results PLS Studio follows, reads or compares with. They are trademarks or registered trademarks of their owners. PLS Studio is independent software: it is not affiliated with, endorsed by or sponsored by any of them, and it does not include or reproduce their software.
+Product and company names are used only to identify the software whose methods, defaults, file formats, diagram styles or published results PLS Studio follows, reads, resembles or compares with. They are trademarks or registered trademarks of their owners. PLS Studio is independent software: it is not affiliated with, endorsed by or sponsored by any of them, and it does not include or reproduce their software.
 
 | Name | Owner |
 |---|---|

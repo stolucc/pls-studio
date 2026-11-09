@@ -682,6 +682,42 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .canvas-wrap .cnode .iline { stroke: var(--indicator-arrow, #9aa3b5); stroke-width: var(--indicator-arrow-width, 1.2); }
 .canvas-wrap .elabel.sig { color: var(--label-sig); }
 .canvas-wrap .elabel.ns { color: var(--label-ns); }
+/* One colour of line on white boxes (Classic, Amos, black & white): no app colours left in the diagram. */
+.plain-figure .cnode:not(.error):not(.drop) .ellipse.observed { fill: var(--construct-fill); stroke: var(--construct-stroke); }
+.plain-figure .cnode .cname, .plain-figure .cnode .itext, .plain-figure .cnode .ilabel, .plain-figure .cnode .ilabel.low, .plain-figure .cnode .ilabel.mid, .plain-figure .cnode .cmeta,
+.plain-figure .err-text, .plain-figure .err-value { fill: var(--path); }
+.plain-figure .cnode .ilabel-bg { stroke: transparent; }
+.plain-figure .cnode .fixed .ilabel-bg { stroke: var(--path); }
+.plain-figure .elabel, .plain-figure .elabel.sig, .plain-figure .elabel.mod-label { background: #fff; border-color: transparent; box-shadow: none; }
+.plain-figure .elabel.fixed { border-color: var(--path); }
+.plain-figure .elabel.ns, .plain-figure .elabel:not(.sig) { color: var(--path); }
+.plain-figure .err-line { stroke: var(--indicator-arrow); }
+.plain-figure .err-circle { fill: var(--indicator-fill); }
+.plain-figure .pedge.implied, .plain-figure .pedge.intercept { opacity: 1; }
+.plain-figure .cnode.constant .constant-shape { fill: var(--indicator-fill); stroke: var(--construct-stroke); }
+.amos-notation .cnode .cname { font-weight: 400; }
+/* Amos writes numbers beside the lines, a held 1 plainly, and draws every outline at one weight. */
+.amos-notation .cnode .ilabel-bg, .amos-notation .cnode .fixed .ilabel-bg { fill: transparent; stroke: transparent; }
+.amos-notation .elabel.beside, .amos-notation .elabel.cor-label { background: transparent; }
+.amos-notation .cnode .ibox, .amos-notation .err-circle, .amos-notation .err-line { stroke-width: var(--indicator-arrow-width); }
+.amos-notation .err-text { font-style: normal; }
+.amos-notation .err-text, .amos-notation .err-value { font-family: var(--figure-font); }
+.amos-notation .err-value { font-size: 10px; }
+.amos-notation .err-r2 { font-size: 8.5px; }
+.amos-notation .cnode .fixed .ilabel { font-weight: 400; }
+.amos-notation .elabel.fixed { border-color: transparent; }
+/* SmartPLS: colours measured from its documentation; a CB-SEM model has purple error terms ending in a diamond. */
+.smartpls-notation .cnode .cmeta { fill: #fff; font-weight: 700; }
+.smartpls-notation .cnode .ibox { stroke-width: 1; }
+.smartpls-notation .cnode .fixed .ilabel-bg { stroke: transparent; }
+.smartpls-notation .cnode .fixed .ilabel { font-weight: 400; }
+.smartpls-notation .elabel.fixed { border-color: transparent; }
+.smartpls-notation .err-line { stroke: #855dc2; stroke-width: 1; marker-end: url(#err-diamond); }
+.smartpls-notation .err-circle { fill: #855dc2; stroke: none; }
+.smartpls-notation .err-text, .smartpls-notation .err-value { fill: #fff; font-style: normal; font-family: var(--figure-font); }
+.smartpls-notation .err-value { font-size: 7px; }
+.smartpls-notation .cor-line { stroke-width: 1; stroke-dasharray: 4 3; }
+.smartpls-pls .elabel:not(.cor-label) { font-weight: 700; }
 .modal.figure-panel { width: min(1100px, 96vw); max-height: 92vh; overflow: auto; }
 .figure-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; }
 .figure-preview { border: 1px solid var(--border); border-radius: 8px; background: #fff; display: grid; place-items: center; min-height: 360px; padding: 8px; }

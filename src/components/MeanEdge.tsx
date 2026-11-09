@@ -5,6 +5,7 @@
 import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
 import { fixedText } from '../diagramLabels';
+import { formatEstimate, significanceText } from '../figure/style';
 import { meanSegment } from '../geometry';
 import { useStore } from '../store';
 
@@ -19,6 +20,7 @@ function MeanEdgeImpl({ id, target, data, selected }: EdgeProps<MeanFlowEdge>) {
     const seg = meanSegment(k, t);
     return seg ? { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: data?.labelAt?.x ?? (seg.x1 + seg.x2) / 2, my: data?.labelAt?.y ?? (seg.y1 + seg.y2) / 2 } : null;
   }, [k, t, data?.labelAt]);
+  const figure = useStore((st) => st.settings.figure);
   if (!geo) return null;
   const fixed = data?.fixed;
   const value = data?.value ?? fixed ?? null;
@@ -37,8 +39,8 @@ function MeanEdgeImpl({ id, target, data, selected }: EdgeProps<MeanFlowEdge>) {
           <div className={`elabel${cls}${fixed !== undefined ? ' fixed' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
             title={fixed !== undefined ? `Fixed at ${fixedText(fixed)}: not estimated` : `${t!.name}: ${t!.covariate || t!.indicators.length <= 1 && t!.type !== 'factor' ? 'intercept' : 'latent mean'}`}>
             {data?.label && <span className="plabel-name">{data.label} </span>}
-            {fixed !== undefined && data?.value == null ? fixedText(fixed) : value.toFixed(3)}
-            {p !== null && <span className="p">{p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`}</span>}
+            {fixed !== undefined && data?.value == null ? fixedText(fixed) : formatEstimate(figure, value)}
+            {p !== null && significanceText(figure, p) && <span className="p">{significanceText(figure, p)}</span>}
           </div>
         </EdgeLabelRenderer>
       )}

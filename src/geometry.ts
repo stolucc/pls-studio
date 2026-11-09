@@ -25,6 +25,18 @@ const CHAR = 7.4;
 const BOX_H = 26;
 const GAP = 8;
 const DIST = 64;
+/** Corner radius of an indicator (observed variable) box: almost square, as in path diagrams. */
+export const BOX_RX = 1;
+
+/** Radius of a common factor drawn as a circle (with SmartPLS's proportions to the indicator boxes). */
+export const CIRCLE_R = 36;
+/** Half-width of a composite's hexagon beside those circles. */
+const COMPACT_HEXAGON_RX = 46;
+// Whether common factors are circles (composites stay hexagons, in a matching size) (the figure style): every arrow's geometry hangs off the construct's shape, so this is set
+// once for all (store.ts) rather than passed through each of them.
+let circleConstructs = false;
+export const setCircleConstructs = (on: boolean) => { circleConstructs = on; };
+export const constructsAreCircles = () => circleConstructs;
 
 export const textWidth = (s: string, px = CHAR) => s.length * px;
 
@@ -32,6 +44,33 @@ export const textWidth = (s: string, px = CHAR) => s.length * px;
 export function ellipsePoint(rx: number, ry: number, dx: number, dy: number): [number, number] {
   const t = 1 / Math.sqrt((dx / rx) ** 2 + (dy / ry) ** 2 || 1);
   return [dx * t, dy * t];
+}
+
+/** How far to move a label of this half-size off a line's midpoint so that it sits beside the line: above it, or right of a vertical one. */
+export function besideLine(x1: number, y1: number, x2: number, y2: number, halfW: number, halfH: number): { dx: number; dy: number } {
+  const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+  let nx = -(y2 - y1) / len, ny = (x2 - x1) / len;
+  if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx < 0)) { nx = -nx; ny = -ny; }
+  const d = Math.abs(nx) * halfW + Math.abs(ny) * halfH + 2;
+  return { dx: nx * d, dy: ny * d };
+}
+
+/**
+ * Where on a correlation's arc (a quadratic curve through its midpoint) a label hung off the arc by (nx, ny) clears these
+ * boxes: the midpoint if free, else the nearest free point along the arc, else the midpoint after all.
+ */
+export function clearPointOnCurve(p1: [number, number], p2: [number, number], mid: [number, number], normal: [number, number], w: number, h: number, boxes: Box[]): { x: number; y: number } {
+  const at = (t: number) => {
+    const k = [2 * mid[0] - (p1[0] + p2[0]) / 2, 2 * mid[1] - (p1[1] + p2[1]) / 2];
+    const f = (i: number) => (1 - t) ** 2 * p1[i] + 2 * t * (1 - t) * k[i] + t ** 2 * p2[i];
+    return { x: f(0), y: f(1) };
+  };
+  const free = ({ x, y }: { x: number; y: number }) => {
+    const left = x + normal[0] * w / 2 - w / 2, top = y + normal[1] * h / 2 - h / 2;
+    return boxes.every((b) => left + w <= b.x || left >= b.x + b.w || top + h <= b.y || top >= b.y + b.h);
+  };
+  for (let d = 0; d <= 0.36; d += 0.03) for (const t of d === 0 ? [0.5] : [0.5 - d, 0.5 + d]) if (free(at(t))) return at(t);
+  return { x: mid[0], y: mid[1] };
 }
 
 /** Horizontal hexagon used for composites (as in Henseler's ADANCO diagrams). */
@@ -71,11 +110,11 @@ export function shapePoint(kind: ShapeKind, rx: number, ry: number, dx: number, 
   return ellipsePoint(rx, ry, dx, dy);
 }
 
-export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'side'> & { type?: ConstructType; covariate?: boolean }): ConstructGeom {
+export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'side'> & { type?: ConstructType; covariate?: boolean }, circle = circleConstructs): ConstructGeom {
   const type = shapeOf(c);
   const observed = type === 'observed';
-  const rx = observed ? Math.max(40, textWidth(c.name, 7.5) / 2 + 16) : Math.max(58, textWidth(c.name, 8) / 2 + (type === 'composite' ? 34 : 24));
-  const ry = observed ? 18 : 36;
+  const rx = circle && !observed ? (type === 'composite' ? COMPACT_HEXAGON_RX : CIRCLE_R) : observed ? Math.max(40, textWidth(c.name, 7.5) / 2 + 16) : Math.max(58, textWidth(c.name, 8) / 2 + (type === 'composite' ? 34 : 24));
+  const ry = observed ? 18 : CIRCLE_R;
   // An observed covariate is its own indicator: no indicator boxes.
   const shown = observed ? [] : c.indicators;
   const widths = shown.map((n) => Math.max(48, textWidth(n, 7) + 18));

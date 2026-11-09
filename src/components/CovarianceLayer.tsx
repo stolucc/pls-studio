@@ -1,10 +1,11 @@
 import { ViewportPortal } from '@xyflow/react';
 import type { MouseEvent } from 'react';
 import {
-  constructGeometry, correlationCurve, disturbanceTerm, ERR_R, errorTerm, shapeOf, shapePoint,
+  besideLine, clearPointOnCurve, constructGeometry, correlationCurve, disturbanceTerm, ERR_R, errorTerm, shapeOf, shapePoint,
   type Anchor, type ErrorTerm,
 } from '../geometry';
 import { endogenousIds, impliedCorrelations, type Construct, type Correlation, type CorrelationEnd as CorrelationPick, type ModelState } from '../model/project';
+import { formatEstimate, significanceText } from '../figure/style';
 import { useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 
@@ -88,13 +89,19 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
   return { places: errors ? places : new Map<string, IndicatorPlace>(), disturbances, curves, errors, direct };
 }
 
-const fmtP = (p: number) => (p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`);
+
+const indicatorBox = (owner: Construct, name: string) => {
+  const b = constructGeometry(owner).indicators.find((x) => x.name === name);
+  return b && { x: owner.x + b.x, y: owner.y + b.y, w: b.w };
+};
 
 /**
  * CB-SEM error terms (ε on indicators, ζ on endogenous constructs) and
  * double-headed arrows for free covariances. Rendered in flow coordinates.
  */
-export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, errorFor, onMenu }: {
+export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, errorFor, unstd, onMenu }: {
+  /** The estimates shown are unstandardised. */
+  unstd: boolean;
   /** CB-SEM: correlations are estimated (drawn faded otherwise). */
   active: boolean;
   showErrors: boolean;
@@ -108,6 +115,9 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
   onMenu: (e: MouseEvent, t: MenuTarget) => void;
 }) {
   const model = useStore((s) => s.model);
+  const figure = useStore((s) => s.settings.figure);
+  const amos = figure.notation === 'amos';
+  const allBoxes = figure.notation !== 'standard' ? model.constructs.flatMap((c) => constructGeometry(c).indicators.map((b) => ({ x: c.x + b.x, y: c.y + b.y, w: b.w, h: b.h }))) : [];
   const selected = useStore((s) => s.selection.correlations ?? NONE);
   const setSelection = useStore((s) => s.setSelection);
   const { places, disturbances, curves: raw, errors, direct } = covarianceLayout(model, active, showErrors);
@@ -127,29 +137,44 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
 
   // With results, the circle shows the standardised error variance (1 − R²) instead of its symbol,
   // which keeps the space around it free for correlation arcs.
-  const errContent = (t: ErrorTerm, symbol: string, v: number | null) => (v === null
+  // Amos notation keeps the term's name in the circle. Beside it: its fixed weight on the arrow until there are estimates,
+  // then its variance (unstandardised) or the indicator's reliability above the box (standardised).
+  const amosNote = (t: ErrorTerm, v: number | null, box?: { x: number; y: number; w: number }) => {
+    if (v === null) {
+      const x1 = t.cx - t.nx * ERR_R, y1 = t.cy - t.ny * ERR_R, off = besideLine(x1, y1, t.ax, t.ay, 3, 5);
+      return <text className="err-value" x={(x1 + t.ax) / 2 + off.dx} y={(y1 + t.ay) / 2 + off.dy + 3} textAnchor="middle">1</text>;
+    }
+    if (unstd) return figure.showEstimates ? <text className="err-value" x={t.cx} y={t.cy - ERR_R - 3} textAnchor="middle">{formatEstimate(figure, v)}</text> : null;
+    return box && figure.showR2 && figure.showEstimates
+      ? <text className="err-value err-r2" x={box.x + box.w * 0.65} y={box.y - 1.5} textAnchor="middle">{formatEstimate(figure, 1 - v)}<title>R² (squared multiple correlation)</title></text>
+      : null;
+  };
+  const errContent = (t: ErrorTerm, symbol: string, v: number | null, box?: { x: number; y: number; w: number }) => (amos ? <>
+    <text className="err-text" x={t.cx} y={t.cy + 4} textAnchor="middle">{symbol}</text>
+    {amosNote(t, v, box)}
+  </> : v === null
     ? <text className="err-text" x={t.cx} y={t.cy + 4} textAnchor="middle">{symbol}</text>
-    : <text className="err-value" x={t.cx} y={t.cy + 3} textAnchor="middle">{v.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.')}</text>);
+    : <text className="err-value" x={t.cx} y={t.cy + 3} textAnchor="middle">{figure.notation === 'smartpls' ? formatEstimate(figure, v) : v.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.')}</text>);
 
   return (
     <ViewportPortal>
       <svg className={`cov-layer${onPick ? ' picking' : ''}`} width={1} height={1}>
-        {errors && [...places.entries()].map(([name, { owner, term: t }]) => (
+        {errors && [...places.entries()].map(([name, { owner, term: t }], i) => (
           <g key={`e:${name}`} className={`err${isPicked('indicator', name) ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'indicator', id: name })}
             data-cor-kind="indicator" data-cor-id={name}
             onContextMenu={(e) => onMenu(e, { kind: 'indicator', construct: owner.id, name })}>
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Measurement error ε of {name}{errorFor('indicator', name) !== null ? ` (standardised variance ${errorFor('indicator', name)!.toFixed(3)})` : ''}</title></circle>
-            {errContent(t, 'ε', errorFor('indicator', name))}
+            {errContent(t, amos ? `e${i + 1}` : 'ε', errorFor('indicator', name), indicatorBox(owner, name))}
           </g>
         ))}
-        {disturbances.map(({ c, term: t }) => (
+        {disturbances.map(({ c, term: t }, i) => (
           <g key={`z:${c.id}`} className={`err${picked?.via === 'disturbance' && picked.id === c.id ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'construct', id: c.id, via: 'disturbance' })}
             data-cor-kind="construct" data-cor-id={c.id} data-cor-via="disturbance"
             onContextMenu={(e) => onMenu(e, { kind: 'disturbance', id: c.id })}>
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Disturbance ζ of {c.name}{errorFor('construct', c.name) !== null ? ` (standardised variance ${errorFor('construct', c.name)!.toFixed(3)})` : ''}</title></circle>
-            {errContent(t, 'ζ', errorFor('construct', c.name))}
+            {errContent(t, amos ? `d${i + 1}` : 'ζ', errorFor('construct', c.name))}
           </g>
         ))}
         {direct.map(({ p, x1, y1, x2, y2 }) => (
@@ -176,13 +201,14 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
         const l = active ? labelFor(k) : null;
         if (!l || l.value === null) return null;
         const cls = l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns';
+        const at = figure.notation !== 'standard' ? clearPointOnCurve([curve.x1, curve.y1], [curve.x2, curve.y2], [curve.lx, curve.ly], [curve.nx, curve.ny], 30, 18, allBoxes) : { x: curve.lx, y: curve.ly };
         return (
           <div key={k.id} className={`elabel cor-label${cls}`} onClick={(e) => { if (!k.id.startsWith('auto:')) select(e, k.id); }}
             onContextMenu={(e) => { if (!k.id.startsWith('auto:')) { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); } else onMenu(e, { kind: 'implied', a: k.a, b: k.b }); }}
             // Hang the label off the outer side of the arc so it never covers the error circles.
-            style={{ transform: `translate(${curve.lx}px, ${curve.ly}px) translate(${-50 + 50 * curve.nx}%, ${-50 + 50 * curve.ny}%)` }}>
-            {l.value.toFixed(3)}
-            {l.p !== null && <span className="p">{fmtP(l.p)}</span>}
+            style={{ transform: `translate(${at.x}px, ${at.y}px) translate(${-50 + 50 * curve.nx}%, ${-50 + 50 * curve.ny}%)` }}>
+            {formatEstimate(figure, l.value)}
+            {l.p !== null && significanceText(figure, l.p) && <span className="p">{significanceText(figure, l.p)}</span>}
           </div>
         );
       })}

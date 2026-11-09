@@ -28,7 +28,7 @@ const GAP = 22, MARGIN = 16, RISE = 46, STEP = 42, LABEL = 22;
 
 /** Positions for the diagram; arcs between farther composites bulge farther so labels do not collide. */
 export function layoutCcaDiagram(input: CcaDiagramInput): CcaDiagram {
-  const geoms = input.composites.map((c) => constructGeometry({ name: c.name, indicators: c.indicators, side: 'left', type: 'composite' }));
+  const geoms = input.composites.map((c) => constructGeometry({ name: c.name, indicators: c.indicators, side: 'left', type: 'composite' }, false));
   const n = geoms.length;
   // Hexagons share one vertical axis, as far right as the widest indicator column needs.
   const axis = MARGIN + Math.max(0, ...geoms.map((g) => -g.bounds.x));

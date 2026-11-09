@@ -1,5 +1,6 @@
 import { ViewportPortal } from '@xyflow/react';
 import { pathSegment } from '../geometry';
+import { formatEstimate } from '../figure/style';
 import { useStore } from '../store';
 
 /**
@@ -11,6 +12,7 @@ export interface HoLabel { value: number; fixed: boolean }
 
 export function HigherOrderLayer({ loadingFor, labelAt }: { loadingFor: (parent: string, child: string) => HoLabel | null; labelAt?: (parentId: string, childId: string) => { x: number; y: number } | null }) {
   const constructs = useStore((s) => s.model.constructs);
+  const figure = useStore((s) => s.settings.figure);
   const byId = new Map(constructs.map((c) => [c.id, c]));
   const items = constructs.flatMap((parent) => (parent.components ?? []).flatMap((cid) => {
     const child = byId.get(cid);
@@ -29,7 +31,7 @@ export function HigherOrderLayer({ loadingFor, labelAt }: { loadingFor: (parent:
       {items.map(({ key, at, label }) => label === null ? null : (
         <div key={key} className={`elabel ho-label${label.fixed ? ' fixed' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)` }}
           title={label.fixed ? (label.value === 1 ? 'Loading fixed to 1: this component sets the scale of the higher-order factor' : `Loading held at ${label.value}`) : undefined}>
-          {label.fixed ? `${Number.isInteger(label.value) ? label.value : label.value.toFixed(3)} (fixed)` : label.value.toFixed(3)}
+          {label.fixed ? `${Number.isInteger(label.value) ? label.value : label.value.toFixed(3)} (fixed)` : formatEstimate(figure, label.value)}
         </div>
       ))}
     </ViewportPortal>

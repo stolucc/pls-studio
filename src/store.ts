@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { constructGeometry } from './geometry';
+import { constructGeometry, setCircleConstructs } from './geometry';
 import { factorName } from './model/efa';
 import type { FitTestResult } from './engine/bootstrap';
 import type { CbResult } from './engine/cbsem';
@@ -712,6 +712,17 @@ export const useStore = create<State>((set, get) => ({
   setShowResultsOnDiagram: (showResultsOnDiagram) => set({ showResultsOnDiagram }),
   setResultsOpen: (resultsOpen) => set({ resultsOpen }),
 }));
+
+// Whether constructs are circles sets every construct's geometry (the figure style; conditional process analysis keeps its
+// rectangles). Arrows memoise their geometry on the construct object, so they get new objects: not a change to the model.
+let circles = false;
+useStore.subscribe((s) => {
+  const on = s.settings.figure.circleConstructs && s.settings.method !== 'process';
+  if (on === circles) return;
+  circles = on;
+  setCircleConstructs(on);
+  useStore.setState((st) => ({ model: { ...st.model, constructs: st.model.constructs.map((c) => ({ ...c })) } }));
+});
 
 /** Results only when they match the current model; otherwise null. */
 export function useFreshResults(): Results | null {

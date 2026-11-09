@@ -5,7 +5,7 @@ import {
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { CONSTANT_R, constructGeometry, distanceToSegment, interceptSegment, meanSegment, moderatorSegment, pathOffset, pathSegment, quadraticLoop } from '../geometry';
-import { figureCssVars } from '../figure/style';
+import { figureCssVars, figureForMethod, formatEstimate, GRADIENT_CONSTRUCT, GRADIENT_INDICATOR, isPlainFigure, SMARTPLS_ERROR } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { canvasLabelSize, placeFigureLabels } from '../figure/labels';
 import { FigurePanel } from './FigurePanel';
@@ -52,6 +52,11 @@ function Markers() {
   return (
     <svg width={0} height={0} style={{ position: 'absolute' }} aria-hidden="true">
       <defs>
+        <linearGradient id={GRADIENT_CONSTRUCT}><stop offset={0} style={{ stopColor: 'var(--construct-fill-from)' }} /><stop offset={1} style={{ stopColor: 'var(--fill-to)' }} /></linearGradient>
+        <linearGradient id={GRADIENT_INDICATOR}><stop offset={0} style={{ stopColor: 'var(--indicator-fill-from)' }} /><stop offset={1} style={{ stopColor: 'var(--fill-to)' }} /></linearGradient>
+        <marker id="err-diamond" viewBox="0 0 10 10" refX={5} refY={5} markerWidth={8} markerHeight={8} markerUnits="userSpaceOnUse" orient="auto">
+          <path d="M5,0 L10,5 L5,10 L0,5 z" fill={SMARTPLS_ERROR} />
+        </marker>
         <marker id="arrow-ind" viewBox="0 0 10 10" refX={9.5} refY={5} markerWidth={7} markerHeight={7} orient="auto-start-reverse">
           <path d="M0,1 L10,5 L0,9 z" fill="var(--indicator-arrow, #9aa3b5)" />
         </marker>
@@ -337,7 +342,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     data: { tool, hasError: errorIds.has('constant') },
   } satisfies ConstantFlowNode] : []), ...model.constructs.map((c): ConstructFlowNode => {
     const geom = constructGeometry(c);
-    const labels = indicatorLabels(c, method, display, model.esem?.blocks.some((b) => b.constructs.includes(c.id)));
+    const labels = indicatorLabels(c, method, display, model.esem?.blocks.some((b) => b.constructs.includes(c.id)), (v) => formatEstimate(settings.figure, v));
     const w = geom.bounds.w, h = geom.bounds.h;
     return {
       id: c.id,
@@ -350,7 +355,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         picked: picked?.kind === 'construct' && picked.via !== 'disturbance' && picked.id === c.id ? true : picked?.kind === 'indicator' && c.indicators.includes(picked.id) ? picked.id : false,
       },
     };
-  })], [model.constructs, model.constant, model.esem?.blocks, selection.nodes, display, errorIds, tool, method, picked]);
+  })], [model.constructs, model.constant, model.esem?.blocks, selection.nodes, display, errorIds, tool, method, picked, settings.figure]);
 
 
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
@@ -507,8 +512,14 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     // (direct effects on indicators: drawn as arrows like a higher-order loading)
     higherOrder.push(...cov.direct.map((d) => ({ key: `ip:${d.p.id}`, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, label: null })));
     const errors = [
-      ...[...cov.places.entries()].map(([name, { term }]) => ({ term, kind: 'indicator' as const, value: errorValue('indicator', name) })),
-      ...cov.disturbances.map(({ c, term }) => ({ term, kind: 'disturbance' as const, value: errorValue('construct', c.name) })),
+      ...[...cov.places.entries()].map(([name, { term }]) => {
+        const value = errorValue('indicator', name);
+        return { term, kind: 'indicator' as const, value, name, r2: value === null || unstd ? null : 1 - value };
+      }),
+      ...cov.disturbances.map(({ c, term }) => {
+        const value = errorValue('construct', c.name);
+        return { term, kind: 'disturbance' as const, value, r2: value === null || unstd ? null : 1 - value };
+      }),
     ];
     const correlations = cov.curves.map(({ k, curve }) => {
       const l = correlationLabel(k);
@@ -532,8 +543,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const l = meanOf(e.indicator);
       return [{ key: `intercept:${e.construct}:${e.indicator}`, ...seg, label: lbl(l?.value ?? null, l?.p ?? null) }];
     }) : [];
-    return { constructs, paths, moderations, higherOrder, errors, correlations, ...(constant ? { constant, means, intercepts } : {}) };
-  }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel]);
+    return { method, constructs, paths, moderations, higherOrder, errors, correlations, ...(constant ? { constant, means, intercepts } : {}) };
+  }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel, unstd]);
 
   // Where each estimate label goes, so that none overlap (the figure export places them the same way).
   const labelAt = useMemo(() => placeFigureLabels(figureInput(), canvasLabelSize), [figureInput]);
@@ -800,8 +811,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   return (
     <div
       ref={wrapRef}
-      className="canvas-wrap"
-      style={figureCssVars(settings.figure) as React.CSSProperties}
+      className={`canvas-wrap${isPlainFigure(settings.figure) ? ' plain-figure' : ''}${settings.figure.notation === 'amos' ? ' amos-notation' : ''}${settings.figure.notation === 'smartpls' ? ` smartpls-notation ${method === 'cbsem' ? 'smartpls-cb' : 'smartpls-pls'}` : ''}`}
+      style={figureCssVars(figureForMethod(settings.figure, method)) as React.CSSProperties}
       onDragOver={onDragOver}
       onDrop={onDrop}
       onPointerDownCapture={onCorrelateDown}
@@ -915,7 +926,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         <ModeratorLayer labelFor={moderationLabel} onMenu={openMenu} labelAt={(id) => labelAt.get(`mod:${id}`) ?? null} />
         <HigherOrderLayer loadingFor={hoLoading} labelAt={(parent, child) => labelAt.get(`ho:${parent}:${child}`) ?? null} />
         <CovarianceLayer active={method === 'cbsem'} showErrors={showErrors} picked={picked}
-          onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} onMenu={openMenu} />
+          onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} unstd={unstd} onMenu={openMenu} />
         <PresenceLayer />
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} color="#c9ceda" />
         <Controls showInteractive={false} position="bottom-left" showFitView={false}>
