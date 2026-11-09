@@ -1,10 +1,12 @@
 // Mplus User's Guide, example 5.5 parts 3 and 4: the IRT card's 3PL and 4PL models with priors (mirt) in webR against what the Mplus
 // outputs print (see testkit.ts). Run with npm run test:webr.
 
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect } from 'vitest';
+import { slowIt } from '../../rengine/webrSlow';
 import { irtFit } from '../../analyses/items';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { irtR } from '../../rengine/items';
+import { irtMplusR } from '../../rengine/irtMplus';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { near, same } from '../../validation/record';
 import { evidence, example, load, MPLUS, type Mine } from './testkit';
@@ -19,14 +21,16 @@ const panel = (key: string) => example(key).panel as Extract<NonNullable<ReturnT
 // −64414.662, part 4: −134598.576). The card's exact maximum differs from Mplus's printed estimates within the
 // tolerances below, stated in the examples' descriptions; the 4PL's asymptotes are weakly determined.
 const TOLS: Record<string, { logl: number; loading: number; t1: number; t2: number; t3: number; se: number }> = {
-  'ex5.5part3': { logl: 0.1, loading: 0.002, t1: 0.005, t2: 0.01, t3: 0, se: 0.03 },
+  // (part 3 with Mplus's integration rule, the card's option: its log-likelihood within 0.002; MLR SEs 0.7–2.3% above Mplus's)
+  'ex5.5part3': { logl: 0.002, loading: 0.002, t1: 0.003, t2: 0.005, t3: 0, se: 0.025 },
   'ex5.5part4': { logl: 0.15, loading: 0.09, t1: 0.01, t2: 0.025, t3: 0.04, se: 0.09 },
 };
 
-it.each([['ex5.5part3'], ['ex5.5part4']])('%s: the 3PL / 4PL model with priors (mirt) against the Mplus output', async (key) => {
-  evidence(key, 'Item response theory', ['mirt']);
+// (slow: minutes each in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+slowIt.each([['ex5.5part3'], ['ex5.5part4']])('%s: the 3PL / 4PL model with priors (mirt) against the Mplus output', async (key) => {
   const p = panel(key);
-  const r = await irtR(load(key), p.items, p.model, irtFit(p, DEFAULT_SETTINGS.seed));
+  evidence(key, 'Item response theory', p.integration === 'mplus' ? ['R'] : ['mirt']);
+  const r = await (p.integration === 'mplus' ? irtMplusR : irtR)(load(key), p.items, p.model, irtFit(p, DEFAULT_SETTINGS.seed));
   const want = MPLUS[key], tol = TOLS[key];
   same('free parameters', r.npar!, want.fit.npar!);
   // Mplus prints the log-likelihood plus the log prior density (with priors its estimates maximise that sum).

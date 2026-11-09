@@ -33,7 +33,7 @@ export type Card =
   | { id: string; kind: 'heading' | 'note'; text: string };
 export type AnalysisCard = Extract<Card, { kind: 'analysis' }>;
 
-export type AnalysisGroup = 'Model runs' | 'Data' | 'Basic statistics' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions';
+export type AnalysisGroup = 'Model runs' | 'Data' | 'Basic statistics' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions' | 'Set-theoretic methods';
 
 export interface OptionsProps<O> { options: O; set: (o: O) => void; ctx: AnalysisCtx; disabled: boolean }
 
@@ -60,6 +60,12 @@ export interface AnalysisType<O = any, R = any> {
   Options: ComponentType<OptionsProps<O>>;
   /** `current`: the result still matches the options and data (actions that write into the data need it). */
   View: ComponentType<{ result: R; options: O; current: boolean }>;
+  /**
+   * The card works on the model on the canvas (it fits it, or reads its results or construct scores): when the Model
+   * tab has no current results for the model, Run calculates the model first, so the Model tab and the card agree
+   * (a function: only with these options, e.g. when the source is the construct scores).
+   */
+  fitsModel?: boolean | ((o: O) => boolean);
   /** Why the analysis cannot run with these options and inputs; null when it can. */
   blocked: (o: O, ctx: AnalysisCtx) => string | null;
   /** Fingerprint of the inputs it reads (null when they are not available). */

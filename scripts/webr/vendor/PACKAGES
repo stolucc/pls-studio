@@ -49,3 +49,26 @@ Depends: R (>= 3.6.0)
 Suggests: Rcpp, knitr, rmarkdown
 License: GPL (>= 3)
 Path: RcppParallel_6.2.1.tgz?sha256=3bea355b2a699006250ddaff3bf1527e314e7530906fde39e52d9b8e8b2449c8&file=
+
+Package: dynamic
+Version: 1.1.0
+NeedsCompilation: no
+Built: R 4.6.2; ; 2026-11-08 18:33:14 UTC; unix
+Filesize: 638953
+SHA256: 1a5c5f5ca17830827b97deabc51fd0044f2c6cee299161ac8ba6bafad3badffe
+Depends: R (>= 4.0.0)
+Imports: dplyr (>= 1.1.0), simstandard (>= 0.6.2), tidyr (>= 1.1.0), lavaan (>= 0.6-7), ggplot2 (>= 3.3.0), magrittr (>= 1.5), tibble (>= 3.0.0), patchwork (>= 1.1.1), semTools (>= 0.5.5), stringr (>= 1.4.0), MASS (>= 7.3-30), rlang (>= 1.1.0), purrr (>= 0.3.3), Bayesrel (>= 0.7.7), mirt (>= 1.35)
+Suggests: GenOrd (>= 1.3.0), knitr, rmarkdown
+License: AGPL-3
+File: dynamic_1.1.0.tgz
+
+Package: GenOrd
+Version: 2.1.0
+NeedsCompilation: no
+Built: R 4.6.2; ; 2026-11-08 18:33:13 UTC; unix
+Filesize: 94363
+SHA256: ee43945c8b932cd161af14c1c8dace5a856accf5ebe202570d1410aac7c22569
+Imports: Matrix, mvtnorm, bbmle, stats, utils
+Suggests: cubature
+License: GPL-3
+File: GenOrd_2.1.0.tgz

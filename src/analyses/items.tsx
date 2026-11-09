@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { fmt } from '../format';
+import { irtMplusBlocked } from '../rengine/irtMplus';
 import { isMirt, type IrtFit, type IrtModel, type IrtResult, type LcaKind, type LcaModel, type LcaResult, type LpaStructure } from '../rengine/items';
 import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
@@ -17,7 +18,7 @@ import type { AnalysisType, OptionsProps } from './types';
  * the lower and upper asymptotes; guessItems, the items with a guessing parameter in the 3PL (absent: all); freq, a column of
  * frequencies (each row stands for that many respondents); classes, the mixture's number of latent classes.
  */
-export interface IrtOptions { items: string[]; model: IrtModel; quadrature?: number; robust?: boolean; priorG?: [number, number]; priorU?: [number, number]; guessItems?: string[]; freq?: string; classes?: number }
+export interface IrtOptions { items: string[]; model: IrtModel; quadrature?: number; robust?: boolean; priorG?: [number, number]; priorU?: [number, number]; guessItems?: string[]; freq?: string; classes?: number; /** 'mplus': Mplus's integration rule (2PL, 3PL, 4PL; rengine/irtMplus.ts); absent: the package's quadrature. */ integration?: 'mplus' }
 /** model (absent: categorical items, poLCA): see LcaKind; structure: latent profiles; times: growth, one per item (occasion); cluster and clusterClasses: multilevel. */
 export interface LcaOptions { items: string[]; from: number; to: number; model?: LcaKind; structure?: LpaStructure; times?: number[]; cluster?: string; clusterClasses?: number }
 
@@ -216,6 +217,10 @@ function IrtOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<IrtOpti
         <label className="check"><input type="checkbox" checked={!!o.robust} onChange={(e) => set({ ...o, robust: e.target.checked || undefined })} />
           <span>Robust standard errors (sandwich; Mplus’s MLR)</span></label>
       )}
+      {['twopl', 'threepl', 'fourpl'].includes(o.model) && (
+        <label className="check"><input type="checkbox" checked={o.integration === 'mplus'} onChange={(e) => set({ ...o, integration: e.target.checked ? 'mplus' : undefined })} />
+          <span>Mplus’s integration rule (15 rectangular points, adaptive; the integration card’s engine): the estimates and log-likelihood Mplus prints, where its rule moves them from the exact maximum</span></label>
+      )}
     </fieldset>
   );
 }
@@ -304,6 +309,7 @@ export const irtAnalysis: AnalysisType<IrtOptions, IrtResult> = {
     if (Array.isArray(raw.guessItems)) o.guessItems = names(raw.guessItems);
     if (raw.freq !== undefined && name(raw.freq)) o.freq = name(raw.freq);
     if (raw.classes !== undefined) o.classes = clampNum(raw.classes, 2, 5, 2, true);
+    if (raw.integration === 'mplus') o.integration = 'mplus';
     return o;
   },
   Options: IrtOptionsForm,
@@ -313,12 +319,13 @@ export const irtAnalysis: AnalysisType<IrtOptions, IrtResult> = {
     if (!isMirt(o.model) && (o.quadrature ?? 0) > 100) return 'Choose between 5 and 100 quadrature points for this model.';
     if (o.freq && isMirt(o.model) && o.items.includes(o.freq)) return 'The frequency column cannot be one of the items.';
     if (o.model === 'threepl' && o.guessItems && !o.guessItems.some((i) => o.items.includes(i))) return 'Choose at least one item with a guessing parameter (or use the 2PL).';
+    if (o.integration === 'mplus') { const b = irtMplusBlocked(o.items, o.model, irtFit(o, 0)); if (b) return b; }
     return missingColumns(ctx, isMirt(o.model) && o.freq ? [...o.items, o.freq] : o.items, 'Item response theory');
   },
   // (the mixture's random starts depend on the seed)
-  fingerprint: (o, ctx) => (isMirt(o.model) ? columnsFingerprint(ctx, o.freq ? [...o.items, o.freq] : o.items, o.model === 'mixture' ? [ctx.settings.seed] : []) : columnsFingerprint(ctx, o.items)),
-  run: async (o, ctx) => (await import('../rengine/items')).irtR(rawData(ctx)!, o.items, o.model, irtFit(o, ctx.settings.seed)),
-  script: async (o, ctx) => (await import('../rengine/items')).irtScriptR(rawData(ctx)!, o.items, o.model, irtFit(o, ctx.settings.seed)),
+  fingerprint: (o, ctx) => (isMirt(o.model) ? columnsFingerprint(ctx, o.freq ? [...o.items, o.freq] : o.items, o.model === 'mixture' ? [ctx.settings.seed] : o.integration ? [o.integration] : []) : columnsFingerprint(ctx, o.items, o.integration ? [o.integration] : [])),
+  run: async (o, ctx) => (o.integration === 'mplus' ? (await import('../rengine/irtMplus')).irtMplusR(rawData(ctx)!, o.items, o.model, irtFit(o, ctx.settings.seed)) : (await import('../rengine/items')).irtR(rawData(ctx)!, o.items, o.model, irtFit(o, ctx.settings.seed))),
+  script: async (o, ctx) => (o.integration === 'mplus' ? (await import('../rengine/irtMplus')).irtMplusScriptR(rawData(ctx)!, o.items, o.model, irtFit(o, ctx.settings.seed)) : (await import('../rengine/items')).irtScriptR(rawData(ctx)!, o.items, o.model, irtFit(o, ctx.settings.seed))),
   summary: (o) => `${o.items.length} items · ${MODELS.find((m) => m.id === o.model)!.label}${o.model === 'mixture' ? ` · ${o.classes ?? 2} classes` : ''}${o.priorG || o.priorU ? ' · priors' : ''}`,
 };
 

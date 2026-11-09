@@ -54,12 +54,12 @@ function ChartOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Chart
   );
 }
 
-const W = 520, H = 320, pad = { l: 56, r: 16, t: 14, b: 44 };
+export const W = 520, H = 320, pad = { l: 56, r: 16, t: 14, b: 44 };
 const ticks = (lo: number, hi: number, k = 5) => Array.from({ length: k + 1 }, (_, i) => lo + ((hi - lo) * i) / k);
 const tickText = (v: number, span: number) => (Math.abs(v) >= 1000 || span >= 1000 ? v.toFixed(0) : span >= 10 ? v.toFixed(1) : v.toFixed(2)).replace(/\.?0+$/, (m) => (m.startsWith('.') ? '' : m));
 const COLORS = ['var(--accent)', '#d97706', '#059669', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#4b5563', '#65a30d', '#9333ea', '#ea580c', '#0d9488'];
 
-function Axes({ xs, ys, xTitle, yTitle, xTick, yTick }: { xs: [number, number]; ys: [number, number]; xTitle: string; yTitle: string; xTick?: (v: number) => string; yTick?: (v: number) => string }) {
+export function Axes({ xs, ys, xTitle, yTitle, xTick, yTick }: { xs: [number, number]; ys: [number, number]; xTitle: string; yTitle: string; xTick?: (v: number) => string; yTick?: (v: number) => string }) {
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
   return (

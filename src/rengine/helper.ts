@@ -47,6 +47,24 @@ interface HelperStore {
 }
 export const useHelper = create<HelperStore>(() => ({ state: 'unknown', info: null, packages: {}, message: '' }));
 
+/** One request to the helper's R, and its reply (the worker's JSON line). */
+export interface HelperRequest { id: string; fn: string; req: string; export: boolean; packages: string[] }
+export type HelperReply = { id?: string; ok: boolean; result?: string; kind?: string; message?: string; packages?: string[] };
+/**
+ * Another way to reach desktop R than the helper's HTTP API: the tests' native mode (src/rengine/nativeR.ts) runs the
+ * same R workers as the helper in this process. When set, every helper call goes through it and the helper counts as ready.
+ */
+export interface HelperTransport {
+  info: HelperInfo;
+  call(r: HelperRequest): Promise<HelperReply>;
+  /** Every call's reply, as each finishes (any order). */
+  batch(calls: HelperRequest[], onReply: (rep: HelperReply) => void): Promise<void>;
+  /** Installed versions of `packages` (null: not installed). */
+  packages(packages: string[]): Promise<Record<string, string | null>>;
+}
+let transport: HelperTransport | null = null;
+export function setHelperTransport(t: HelperTransport | null) { transport = t; }
+
 /** The helper cannot be used for this call: the caller falls back to the browser's R. */
 export class HelperUnavailable extends Error {}
 
@@ -106,6 +124,7 @@ export async function bridgeHash(sources: Record<string, string>): Promise<strin
  */
 export async function probeHelper(sources: Record<string, string>, packages: string[]): Promise<HelperState> {
   const set = (state: HelperState, message = '', more: Partial<HelperStore> = {}) => { useHelper.setState({ state, message, ...more }); return state; };
+  if (transport) return set('ready', '', { info: transport.info, packages: await transport.packages(packages) });
   set('checking');
   try {
     const h = await helperFetch('/health', {}, 1500);
@@ -240,7 +259,7 @@ async function postRetrying(path: string, body: string, tries = 5): Promise<Resp
   }
 }
 
-type Reply = { id?: string; ok: boolean; result?: string; kind?: string; message?: string; packages?: string[] };
+type Reply = HelperReply;
 /** A reply's result, or the error it stands for. */
 function resultOf(rep: Reply): string {
   if (rep.ok) return rep.result ?? '';
@@ -257,6 +276,7 @@ function resultOf(rep: Reply): string {
  */
 export async function helperCall(fn: string, req: string, packages: string[], exportScript = false): Promise<string> {
   const id = newId();
+  if (transport) return resultOf(await transport.call({ id, fn, req, export: exportScript, packages }));
   running.add(id);
   let r: Response;
   try {
@@ -282,6 +302,18 @@ export async function helperCall(fn: string, req: string, packages: string[], ex
 export async function helperBatch(fn: string, reqs: string[], packages: string[], onDone?: (done: number) => void): Promise<string[]> {
   const ids = reqs.map(() => newId());
   const index = new Map(ids.map((id, i) => [id, i]));
+  if (transport) {
+    const out = new Array<string>(reqs.length);
+    let done = 0;
+    await transport.batch(reqs.map((req, i) => ({ id: ids[i], fn, req, export: false, packages })), (rep) => {
+      const i = index.get(rep.id ?? '');
+      if (i === undefined) return;
+      out[i] = resultOf(rep);
+      done++;
+      onDone?.(done);
+    });
+    return out;
+  }
   ids.forEach((id) => running.add(id));
   try {
     let r: Response;

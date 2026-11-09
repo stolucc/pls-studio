@@ -174,6 +174,21 @@ ps_anova <- function(req_json, export = FALSE) {
 ps_rmanova <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   design <- ps_rm_design(req)
+  # Several between-subjects factors (car's ?Anova: treatment * gender): the multivariate linear model, type II tests (car::Anova).
+  more <- as.character(unlist(req$moreBetween))
+  if (length(more)) {
+    between <- req$between %||% ""
+    if (!nzchar(between)) stop("Choose the first between-subjects factor before further ones.")
+    betweens <- c(between, more)
+    if (anyDuplicated(betweens) || length(betweens) > 4) stop("Choose up to four different between-subjects factors.")
+    if (is.null(design)) {
+      within <- as.character(unlist(req$levels)); fname <- req$factorName %||% "condition"
+      if (length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
+      if (!grepl("^[A-Za-z][A-Za-z0-9_.]{0,30}$", fname) || fname %in% c("subject", "y")) stop("The factor name must be a letter followed by letters, digits, _ or . (at most 31).")
+      design <- list(names = fname, levels = list(within), cells = within, single = TRUE)
+    }
+    return(ps_rmanova_car(req, design, betweens, export))
+  }
   if (!is.null(design)) return(ps_rmanova_multi(req, design, export))
   within <- unlist(req$levels); between <- req$between %||% ""
   if (length(within) < 2) stop("Choose at least two columns: one per level of the within-subject factor.")
@@ -291,9 +306,10 @@ ps_rmanova_multi <- function(req, design, export) {
       paste(e, collapse = " * "), if (length(e) == 1) "1" else if (length(e) == 2) paste(e, collapse = " + ") else sprintf("(%s)^%d", paste(e, collapse = " + "), length(e) - 1)), ""), collapse = ",\n"),
     ")",
     "spher <- lapply(effects, function(e) anova(mlm, M = e$M, X = e$X, idata = idata, test = \"Spherical\"))  # Greenhouse-Geisser and Huynh-Feldt corrections",
-    "mauchly <- lapply(effects, function(e) mauchly.test(mlm, M = e$M, X = e$X, idata = idata))  # (an effect with one degree of freedom is spherical)")
+    "mauchly <- lapply(effects, function(e) mauchly.test(mlm, M = e$M, X = e$X, idata = idata))  # (an effect with one degree of freedom is spherical)",
+    PS_RM_LEVEL_TESTS[c(1, if (!bt) 2, 3)])
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher")), collapse = "\n"))
+  if (export) return(paste(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "posthoc")), collapse = "\n"))
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
   back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " × ")
@@ -319,9 +335,83 @@ ps_rmanova_multi <- function(req, design, export) {
   labels <- apply(expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_along(design$names)), drop = FALSE], 1, paste, collapse = " · ")
   ps_json(list(factorName = paste(design$names, collapse = " × "), levels = design$cells, between = between, n = nrow(env$Y),
     factors = lapply(seq_along(design$names), function(i) list(name = design$names[i], levels = I(design$levels[[i]]))),
-    within = ws, betweenTable = bs, sphericity = NULL, sphericityTable = sph, corrected = corr, friedman = NULL, posthoc = list(),
+    within = ws, betweenTable = bs, sphericity = NULL, sphericityTable = sph, corrected = corr, friedman = NULL,
+    friedmanTable = if (!bt) ps_rm_friedman_out(env$friedman) else NULL, posthoc = ps_rm_posthoc_out(env$posthoc),
     cells = lapply(seq_along(design$cells), function(i) c(list(cell = sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
+}
+
+#' Script lines for the levels of each within factor (several factors): the subjects' mean over the other factors'
+#' levels, then Friedman's rank test of the factor (without between factors) and every pair of its levels by a paired
+#' t-test, Holm-adjusted within the factor (as JASP's post hoc tests of a within factor). Indexed: means, Friedman, post hoc.
+PS_RM_LEVEL_TESTS <- c(
+  "# Each within factor's levels: every subject's mean over the other factors' levels\nlvmeans <- lapply(setNames(names(idata), names(idata)), function(f) sapply(levels(idata[[f]]), function(l) rowMeans(Y[, idata[[f]] == l, drop = FALSE])))",
+  "friedman <- lapply(lvmeans, friedman.test)  # Friedman's rank test of each within factor, on those means",
+  "# Post hoc: every pair of a factor's levels by a paired t-test, p adjusted by Holm's method within the factor\nposthoc <- lapply(lvmeans, function(M) { pr <- combn(ncol(M), 2, simplify = FALSE); h <- lapply(pr, function(p) t.test(M[, p[1]], M[, p[2]], paired = TRUE))\n  list(levels = colnames(M), pairs = pr, tests = h, pHolm = p.adjust(vapply(h, function(x) x$p.value, 0), method = \"holm\")) })")
+ps_rm_friedman_out <- function(fr) lapply(names(fr), function(f) list(term = f, stat = unname(fr[[f]]$statistic), df = unname(fr[[f]]$parameter), p = fr[[f]]$p.value))
+ps_rm_posthoc_out <- function(ph) unlist(lapply(names(ph), function(f) { x <- ph[[f]]
+  lapply(seq_along(x$pairs), function(i) { p <- x$pairs[[i]]; h <- x$tests[[i]]
+    list(factor = f, comparison = sprintf("%s: %s - %s", f, x$levels[p[1]], x$levels[p[2]]), diff = unname(h$estimate), t = unname(h$statistic), df = unname(h$parameter), p = h$p.value, pHolm = x$pHolm[i]) }) }), recursive = FALSE)
+
+#' Repeated measures with several between-subjects factors (car's ?Anova: OBrienKaiser's treatment * gender with
+#' idesign = ~ phase * hour): the multivariate linear model of the wide columns on the between factors, sum-to-zero
+#' contrasts, and car::Anova's type II tests (univariate, with Mauchly's tests and the Greenhouse-Geisser and
+#' Huynh-Feldt corrections). `design`: the within factors (one or several); `betweens`: the between factors' names.
+ps_rmanova_car <- function(req, design, betweens, export) {
+  fr <- ps_long_frame(req, unique(c(design$cells, betweens)))
+  v <- fr$v
+  bvars <- vapply(betweens, function(b) v[[b]], "", USE.NAMES = FALSE)
+  if (any(bvars %in% c("subject", "y", "idata", "mlm", "Y", design$names))) stop("Rename a between factor: its name is taken by a within-subject factor or the model.")
+  cellsR <- unname(unlist(v[design$cells]))
+  k <- length(design$names)
+  fac <- vapply(rev(seq_len(k)), function(i) sprintf("%s = factor(%s, levels = %s)", design$names[i], ps_q(design$levels[[i]]), ps_q(design$levels[[i]])), "")
+  body <- c("suppressPackageStartupMessages(library(car))",
+    sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(cellsR, bvars))),
+    vapply(betweens, function(b) ps_bt_factor_line(req, fr, b), "", USE.NAMES = FALSE),
+    "# Sum-to-zero contrasts (as car's help page sets them): the within effects are tested at the unweighted mean of the groups",
+    sprintf("for (b in %s) contrasts(data[[b]]) <- contr.sum(nlevels(data[[b]]))", ps_q(bvars)),
+    "# The within-subject design: one row per cell (wide column), the last factor varying fastest.",
+    sprintf("idata <- expand.grid(%s, KEEP.OUT.ATTRS = FALSE)[, %s, drop = FALSE]", paste(fac, collapse = ", "), ps_q(design$names)),
+    sprintf("Y <- as.matrix(data[, %s])", ps_q(cellsR)),
+    sprintf("mlm <- lm(Y ~ %s, data = data)", paste(bvars, collapse = " * ")),
+    sprintf("av <- Anova(mlm, idata = idata, idesign = ~ %s, type = 2)", paste(design$names, collapse = " * ")),
+    "uni <- summary(av, multivariate = FALSE)",
+    PS_RM_LEVEL_TESTS[c(1, 3)])
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Repeated-measures ANOVA", "car", inputs, body, c("uni", "posthoc")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  ut <- env$uni$univariate.tests; rn <- rownames(ut)
+  parts <- strsplit(rn, ":", fixed = TRUE)
+  wn <- design$names
+  name_of <- function(ps) paste(vapply(ps, function(p) ps_bt_back(fr, p), ""), collapse = " × ")
+  rows_b <- list(); rows_w <- list(); corr <- list(); sph <- list(); res_b <- NULL
+  pa <- env$uni$pval.adjustments; st <- env$uni$sphericity.tests
+  for (i in seq_along(rn)) {
+    w <- parts[[i]][parts[[i]] %in% wn]; b <- parts[[i]][!parts[[i]] %in% wn]
+    ss <- ut[i, "Sum Sq"]; df <- ut[i, "num Df"]; ess <- ut[i, "Error SS"]; edf <- ut[i, "den Df"]
+    row <- list(term = name_of(c(w, b)), ss = ss, df = df, ms = ss / df, f = ut[i, "F value"], p = ut[i, "Pr(>F)"], partialEta2 = ss / (ss + ess))
+    if (!length(w)) { if (rn[i] != "(Intercept)") rows_b[[length(rows_b) + 1]] <- c(row, list(stratum = "subject")); res_b <- list(term = "Residuals", stratum = "subject", ss = ess, df = edf, ms = ess / edf); next }
+    stratum <- name_of(w)
+    rows_w[[length(rows_w) + 1]] <- c(row, list(stratum = stratum))
+    if (!length(b)) {
+      # (an effect's error row once, after its terms; Mauchly's test and the epsilons for effects with more than one df)
+      if (!is.null(st) && rn[i] %in% rownames(st)) sph[[length(sph) + 1]] <- list(term = stratum, df = df, w = st[rn[i], "Test statistic"], p = st[rn[i], "p-value"], gg = pa[rn[i], "GG eps"], hf = min(1, pa[rn[i], "HF eps"]))
+    }
+    last <- i == length(rn) || !identical(sort(parts[[i + 1]][parts[[i + 1]] %in% wn]), sort(w))
+    if (!is.null(pa) && rn[i] %in% rownames(pa)) corr[[length(corr) + 1]] <- list(term = row$term, p = row$p, pGG = pa[rn[i], "Pr(>F[GG])"], pHF = pa[rn[i], "Pr(>F[HF])"])
+    else corr[[length(corr) + 1]] <- list(term = row$term, p = row$p, pGG = row$p, pHF = row$p)
+    if (last) rows_w[[length(rows_w) + 1]] <- list(term = "Residuals", stratum = stratum, ss = ess, df = edf, ms = ess / edf)
+  }
+  single <- isTRUE(design$single)
+  labels <- if (single) design$cells else apply(expand.grid(rev(design$levels), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)[, rev(seq_len(k)), drop = FALSE], 1, paste, collapse = " · ")
+  sp1 <- if (single && length(sph)) sph[[1]] else NULL
+  ps_json(list(factorName = paste(design$names, collapse = " × "), levels = design$cells, between = paste(betweens, collapse = " × "), betweenFactors = I(betweens), n = nrow(env$Y), ssType = "II",
+    factors = if (!single) lapply(seq_len(k), function(i) list(name = design$names[i], levels = I(design$levels[[i]]))) else NULL,
+    within = rows_w, betweenTable = c(rows_b, if (!is.null(res_b)) list(res_b)),
+    sphericity = if (single) (if (is.null(sp1)) NULL else sp1[c("w", "p", "gg", "hf")]) else NULL, sphericityTable = if (!single) sph else NULL,
+    corrected = corr, friedman = NULL, posthoc = ps_rm_posthoc_out(env$posthoc),
+    cells = lapply(seq_along(design$cells), function(i) c(list(cell = if (single) design$cells[i] else sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))),
+    warnings = env$.warnings, engine = list(package = "car", version = as.character(utils::packageVersion("car")))))
 }
 
 #' MANOVA: summary.manova with Pillai's trace, Wilks' lambda, Hotelling-Lawley

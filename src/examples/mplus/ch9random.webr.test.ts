@@ -4,6 +4,7 @@
 // clusters); two-level SEM by lavaan (MLR, observed information). Run with npm run test:webr.
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { slowIt } from '../../rengine/webrSlow';
 import { toSpec } from '../../model/project';
 import { estimateCbLavaan } from '../../rengine/lavaan';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
@@ -73,7 +74,8 @@ it('ex9.20: three-level regression with random slopes at two levels (lme4, MLR) 
   samePrintedLmm('ex9.20', r, where);
 }, 600_000);
 
-it('ex9.23: three-level growth with residual variances per occasion (wide data, nlme, MLR) reproduces the Mplus estimates and standard errors', async () => {
+// (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+slowIt('ex9.23: three-level growth with residual variances per occasion (wide data, nlme, MLR) reproduces the Mplus estimates and standard errors', async () => {
   evidence('ex9.23', 'Longitudinal', ['nlme']);
   // (Mplus prints a log-likelihood 0.055 above the maximum: see the card)
   const r = await runLmm('ex9.23', 0.12);

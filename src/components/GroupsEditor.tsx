@@ -173,6 +173,13 @@ export function EsemEditor() {
           {' '}<span>Orthogonal (uncorrelated factors; Mplus {esem.rotation.toUpperCase().replace(/^BI/, 'BI-')}(ORTHOGONAL))</span>
         </label>
       )}
+      {esem.rotation === 'geomin' && !esem.orthogonal && esem.blocks.length >= 2 && (
+        <label className="check">
+          <input type="checkbox" checked={!!esem.invariant} disabled={readOnly}
+            onChange={(e) => { const { invariant: _i, ...rest } = esem; setEsem(e.target.checked ? { ...rest, invariant: true } : rest); }} />
+          {' '}<span>Invariant loadings across the blocks, rotated jointly (the same factors at several times; Mplus BY (*t1 1), (*t2 1)): the k-th indicators of the blocks load alike, the first block’s factors have variance 1</span>
+        </label>
+      )}
       {bifactor && <div className="hint">Bifactor: the general factor loads on every indicator of the block, and each specific factor is meant for its own (drawn) indicators. With the oblique version the specific factors correlate with each other, the general factor with none of them (Jennrich &amp; Bentler 2011, 2012). ECV, ωH and ωHS are under Reliability.</div>}
       {(esem.rotation === 'geomin' || esem.rotation === 'bigeomin') && (
         <div className="field">

@@ -238,7 +238,8 @@ it('CB-SEM extras on the model on the canvas: parameter comparisons and factor s
   expect(cmp.html).toContain('Critical ratios for differences');
   const w = await runAsCard<{ factors: string[] }>('scoreweights', hs, { method: 'regression' }, setup);
   expect(w.result.factors).toEqual(['visual', 'textual', 'speed']);
-  expect(w.html).toContain('Factor score weights (regression)');
+  expect(w.html).toContain('>Scores</button>'); expect(w.html).toContain('>Weights</button>');
+  expect(w.html).toContain('Save as data columns');  // the Scores tab opens first; the weights table is on the Weights tab
 }, 900_000);
 
 it('network analysis (bootnet) and EGA (EGAnet) as cards', async () => {

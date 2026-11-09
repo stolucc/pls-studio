@@ -162,6 +162,7 @@ const HM_IDS = ['g', 'gp', 'gy', 'yp', 'p2', 'y2'] as const;
 
 export const endoAnalysis: AnalysisType<EndoOptions, EndoCardResult> = {
   id: 'endo',
+  fitsModel: (o) => o.source === 'scores',
   title: 'Endogeneity',
   sub: 'instruments (2SLS), Gaussian copula, Lewbel, Heckman',
   group: 'Regression and causal inference',

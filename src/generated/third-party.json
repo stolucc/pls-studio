@@ -244,6 +244,24 @@
    "url": "https://cran.r-project.org/package=BayesFactor"
   },
   {
+   "name": "Bayesrel",
+   "version": "0.8.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=Bayesrel"
+  },
+  {
+   "name": "bbmle",
+   "version": "1.0.26",
+   "license": "GPL",
+   "url": "https://cran.r-project.org/package=bbmle"
+  },
+  {
+   "name": "bdsmatrix",
+   "version": "1.3-7",
+   "license": "LGPL-2",
+   "url": "https://cran.r-project.org/package=bdsmatrix"
+  },
+  {
    "name": "beepr",
    "version": "2.0",
    "license": "GPL-3",
@@ -508,6 +526,12 @@
    "url": "https://cran.r-project.org/package=dcurver"
   },
   {
+   "name": "declared",
+   "version": "0.27",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=declared"
+  },
+  {
    "name": "dendextend",
    "version": "1.19.1",
    "license": "GPL-2 | GPL-3",
@@ -595,6 +619,14 @@
    "version": "1.5.0",
    "license": "GPL-3",
    "url": "https://cran.r-project.org/package=dreamerr"
+  },
+  {
+   "name": "dynamic",
+   "version": "1.1.0",
+   "license": "AGPL-3",
+   "url": "https://github.com/melissagwolf/dynamic/tree/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7",
+   "patched": "GenOrd moved from Imports to Suggests, loaded when likertHB2() needs it (GenOrd imported cubature, whose WebAssembly build webR cannot load)",
+   "patch": "scripts/webr/vendor/dynamic_1.1.0.patch"
   },
   {
    "name": "e1071",
@@ -757,6 +789,14 @@
    "version": "0.1.4",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=generics"
+  },
+  {
+   "name": "GenOrd",
+   "version": "2.1.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=GenOrd",
+   "patched": "cubature moved from Imports to Suggests, loaded when pmvt.alt() (a Student’s t copula with a non-integer df) needs it (cubature’s WebAssembly build webR cannot load)",
+   "patch": "scripts/webr/vendor/GenOrd_2.1.0.patch"
   },
   {
    "name": "genpathmox",
@@ -1019,6 +1059,12 @@
    "version": "0.4.3",
    "license": "MIT + file LICENSE | Unlimited",
    "url": "https://cran.r-project.org/package=labeling"
+  },
+  {
+   "name": "LaplacesDemon",
+   "version": "16.1.8",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=LaplacesDemon"
   },
   {
    "name": "later",
@@ -1603,6 +1649,12 @@
    "url": "https://cran.r-project.org/package=pwr"
   },
   {
+   "name": "QCA",
+   "version": "3.25",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=QCA"
+  },
+  {
    "name": "qgraph",
    "version": "1.10.1",
    "license": "GPL-2",
@@ -1873,6 +1925,12 @@
    "url": "https://cran.r-project.org/package=SimDesign"
   },
   {
+   "name": "simstandard",
+   "version": "0.6.3",
+   "license": "CC0",
+   "url": "https://cran.r-project.org/package=simstandard"
+  },
+  {
    "name": "smacof",
    "version": "2.1-7",
    "license": "GPL-3",
@@ -2071,6 +2129,12 @@
    "url": "https://cran.r-project.org/package=vegan"
   },
   {
+   "name": "venn",
+   "version": "1.13",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=venn"
+  },
+  {
    "name": "VGAM",
    "version": "1.1-14",
    "license": "GPL-3",
@@ -2208,7 +2272,7 @@
    "name": "Examples from R packages",
    "where": "loaded at run time from the packages in the browser (not stored here)",
    "license": "per package",
-   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection and MatchIt datasets; each example links to its documentation.",
+   "credit": "lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection, MatchIt and QCA (Lipset and Cebotari & Vink) datasets; each example links to its documentation.",
    "url": ""
   },
   {
@@ -2245,6 +2309,13 @@
    "license": "GPL (>= 2), from R’s datasets and stats help pages and the psych package",
    "credit": "The data the R help pages (?t.test, ?friedman.test, ?summary.manova, ?cor.test, ?chisq.test, ?fisher.test, ?binom.test; psych’s ?cohen.kappa and ?ICC) type in and analyse, coded as there.",
    "url": "https://www.r-project.org"
+  },
+  {
+   "name": "Polit & Beck’s (2006) Table 1 (fictitious content-validity ratings: 10 items, 3 experts)",
+   "where": "public/examples/tests/polit2006.csv",
+   "license": "A worked example printed in the article (fictitious ratings, re-coded as 4 = relevant, 2 = not)",
+   "credit": "Polit, D. F. & Beck, C. T. (2006). The content validity index: Are you sure you know what’s being reported? Critique and recommendations. Research in Nursing & Health, 29(5), 489–497.",
+   "url": "https://doi.org/10.1002/nur.20147"
   },
   {
    "name": "chickwts, puzzles, raceDolls and a 15-of-25 proportion",

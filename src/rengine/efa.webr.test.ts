@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { slowIt } from './webrSlow';
 import type { Dataset } from '../engine/types';
 import { DEFAULT_EFA } from '../model/efa';
 import { rCall } from './bridge';
@@ -93,7 +94,8 @@ describe('exploratory factor analysis (psych)', () => {
     await expect(efaR(d, { ...base, criterion: 'evil' as never }, 1)).rejects.toThrow(/Invalid criterion/);
   }, 900_000);
 
-  it('bfi with age: factor analysis of polychoric correlations equals desktop psych (cor = "mixed")', async () => {
+  // (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+  slowIt('bfi with age: factor analysis of polychoric correlations equals desktop psych (cor = "mixed")', async () => {
     const pr = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'polychoric.json'), 'utf8'));
     const d = await load('bfi');
     const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: pr.vars, nfactors: 5, method: 'minres', rotation: 'oblimin', parallel: 5, correlation: 'polychoric' }, 1);

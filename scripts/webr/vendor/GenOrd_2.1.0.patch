@@ -1,0 +1,89 @@
+diff -ruN orig/GenOrd/DESCRIPTION patched/GenOrd/DESCRIPTION
+--- orig/GenOrd/DESCRIPTION	2026-11-08 18:31:52
++++ patched/GenOrd/DESCRIPTION	2026-11-08 18:32:25
+@@ -11,7 +11,13 @@
+ Description: A Gaussian or Student's t copula-based procedure for generating samples from discrete random variables with prescribed correlation matrix and marginal distributions.
+ License: GPL-3
+ Encoding: UTF-8
+-Imports: Matrix, mvtnorm, bbmle, cubature, stats, utils
++Imports: Matrix, mvtnorm, bbmle, stats, utils
++Suggests: cubature
++Config/PLSStudio/Patch: cubature moved from Imports to Suggests and loaded when
++    pmvt.alt() needs it (requireNamespace; it is used only for a Student's t
++    copula with a non-integer df), so that the package loads in webR, where
++    cubature cannot be loaded. No other change. Patch file and source: PLS
++    Studio (scripts/webr/vendor/GenOrd_2.1.0.patch).
+ RoxygenNote: 7.3.2
+ NeedsCompilation: no
+ Packaged: 2026-07-02 23:03:43 UTC; alessandro.barbiero
+diff -ruN orig/GenOrd/NAMESPACE patched/GenOrd/NAMESPACE
+--- orig/GenOrd/NAMESPACE	2026-11-08 18:31:52
++++ patched/GenOrd/NAMESPACE	2026-11-08 18:32:25
+@@ -13,7 +13,6 @@
+ export(pmvt.alt)
+ importFrom(Matrix,forceSymmetric)
+ importFrom(bbmle,mle2)
+-importFrom(cubature,cuhre)
+ importFrom(mvtnorm,dmvt)
+ importFrom(mvtnorm,pmvnorm)
+ importFrom(mvtnorm,pmvt)
+diff -ruN orig/GenOrd/R/estcontord.R patched/GenOrd/R/estcontord.R
+--- orig/GenOrd/R/estcontord.R	2026-11-08 18:31:52
++++ patched/GenOrd/R/estcontord.R	2026-11-08 18:32:25
+@@ -1,5 +1,4 @@
+ #' @importFrom stats cor optim
+-#' @importFrom cubature cuhre
+ #' @importFrom bbmle mle2
+ #' @importFrom mvtnorm dmvt
+ #' @export
+diff -ruN orig/GenOrd/R/logL.R patched/GenOrd/R/logL.R
+--- orig/GenOrd/R/logL.R	2026-11-08 18:31:52
++++ patched/GenOrd/R/logL.R	2026-11-08 18:32:25
+@@ -1,6 +1,5 @@
+ #' @importFrom stats qt
+ #' @importFrom utils head
+-#' @importFrom cubature cuhre
+ #' @importFrom mvtnorm dmvt
+ #' @export
+ #########################################################################
+diff -ruN orig/GenOrd/R/logLfull.R patched/GenOrd/R/logLfull.R
+--- orig/GenOrd/R/logLfull.R	2026-11-08 18:31:52
++++ patched/GenOrd/R/logLfull.R	2026-11-08 18:32:25
+@@ -1,6 +1,5 @@
+ #' @importFrom stats qt
+ #' @importFrom utils head
+-#' @importFrom cubature cuhre
+ #' @importFrom mvtnorm pmvt
+ #' @importFrom mvtnorm dmvt
+ #' @importFrom mvtnorm pmvnorm
+diff -ruN orig/GenOrd/R/logLfullz.R patched/GenOrd/R/logLfullz.R
+--- orig/GenOrd/R/logLfullz.R	2026-11-08 18:31:52
++++ patched/GenOrd/R/logLfullz.R	2026-11-08 18:32:25
+@@ -1,6 +1,5 @@
+ #' @importFrom stats qt
+ #' @importFrom utils head
+-#' @importFrom cubature cuhre
+ #' @importFrom mvtnorm pmvt
+ #' @importFrom mvtnorm dmvt
+ #' @importFrom mvtnorm pmvnorm
+diff -ruN orig/GenOrd/R/logl_mle2.R patched/GenOrd/R/logl_mle2.R
+--- orig/GenOrd/R/logl_mle2.R	2026-11-08 18:31:52
++++ patched/GenOrd/R/logl_mle2.R	2026-11-08 18:32:25
+@@ -1,4 +1,3 @@
+-#' @importFrom cubature cuhre
+ #' @export
+ 
+ # another version of the logL function accepting rho and df as distinct scalar parameters
+diff -ruN orig/GenOrd/R/pmvt.alt.R patched/GenOrd/R/pmvt.alt.R
+--- orig/GenOrd/R/pmvt.alt.R	2026-11-08 18:31:52
++++ patched/GenOrd/R/pmvt.alt.R	2026-11-08 18:32:25
+@@ -5,5 +5,8 @@
+     ff <- dmvt(arg, sigma = corr, df = df, log = FALSE)
+     return(ff)
+   }
+-  cuhre(f = integrand, df = df, lowerLimit = low, upperLimit = upp)$integral
++  # (cubature is a suggested package, PLS Studio patch: it does not load in webR, and only this function needs it)
++  if (!requireNamespace("cubature", quietly = TRUE))
++    stop("pmvt.alt() (a Student's t copula with a non-integer df) needs the cubature package, which is not installed (or cannot be loaded here); install.packages(\"cubature\").", call. = FALSE)
++  cubature::cuhre(f = integrand, df = df, lowerLimit = low, upperLimit = upp)$integral
+ }

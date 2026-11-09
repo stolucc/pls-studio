@@ -327,11 +327,78 @@ ps_mi_settings <- function(req) {
   seed <- as.integer(ps_number(mi[["seed", exact = TRUE]] %||% 1, "imputation seed"))
   if (is.na(m) || m < 2L || m > 200L) stop("The number of imputations must be between 2 and 200.")
   method <- mi[["method", exact = TRUE]] %||% "mice"
-  if (!(is.character(method) && length(method) == 1 && method %in% c("mice", "amelia", "micenorm"))) stop("Invalid imputation method in the request.")
+  if (!(is.character(method) && length(method) == 1 && method %in% c("mice", "amelia", "micenorm", "joint"))) stop("Invalid imputation method in the request.")
   # (auxiliary and nominal columns: names, checked against the data by the caller)
   aux <- as.character(unlist(mi[["auxiliary", exact = TRUE]])); noms <- as.character(unlist(mi[["nominal", exact = TRUE]]))
   list(m = m, seed = seed, method = method, auxiliary = aux, nominal = noms)
 }
+
+#' Joint imputation under the unrestricted (H1) model, as Mplus's DATA IMPUTATION (Asparouhov & Muthen 2010): data
+#' augmentation (Tanner & Wong 1987; Schafer 1997, ch. 5) for a multivariate normal model with flat priors on the means
+#' and the covariance matrix (Mplus's defaults for H1), categorical (ordered) variables through latent normal responses
+#' with thresholds (Albert & Chib 1993; the first threshold 0, the latent response's variance kept at 1 by parameter
+#' expansion). The imputed data sets are taken every `thin` iterations after `burn`. A script writes this function out.
+ps_joint_impute <- function(data, m, seed, categorical = character(0), burn = 1000, thin = 100) {
+  set.seed(seed)
+  X <- as.matrix(data); n <- nrow(X); p <- ncol(X); vn <- colnames(X)
+  cat_j <- match(categorical, vn); miss <- is.na(X)
+  if (anyNA(cat_j)) stop("A categorical variable of the imputation is not among its variables.")
+  if (any(colSums(!miss) < 2)) stop("Every variable of the imputation needs at least two observed values.")
+  lev <- lapply(seq_len(p), function(j) if (j %in% cat_j) sort(unique(X[!miss[, j], j])) else NULL)
+  for (j in cat_j) if (length(lev[[j]]) < 2 || length(lev[[j]]) > 10) stop("A categorical variable of the imputation needs 2 to 10 categories.")
+  code <- lapply(seq_len(p), function(j) if (j %in% cat_j) match(X[, j], lev[[j]]) else NULL)
+  # thresholds from the observed proportions, the first at 0 (the latent mean carries the location)
+  tau <- lapply(seq_len(p), function(j) if (j %in% cat_j) { q <- stats::qnorm(cumsum(tabulate(code[[j]], length(lev[[j]])))[-length(lev[[j]])] / sum(!miss[, j])); q - q[1] } else NULL)
+  W <- X
+  for (j in seq_len(p)) {
+    if (j %in% cat_j) { t <- c(tau[[j]][1] - 1, tau[[j]], tau[[j]][length(tau[[j]])] + 1); k <- code[[j]]; W[, j] <- ifelse(is.na(k), 0, (t[k] + t[k + 1]) / 2) }
+    else W[miss[, j], j] <- mean(X[, j], na.rm = TRUE)
+  }
+  # a normal truncated to (a, b), by the inverse distribution function
+  rtn <- function(mu, s, a, b) {
+    pa <- stats::pnorm(a, mu, s); pb <- stats::pnorm(b, mu, s)
+    x <- stats::qnorm(pmin(pmax(pa + stats::runif(length(mu)) * pmax(pb - pa, 0), 1e-300), 1 - 1e-16), mu, s)
+    pmin(pmax(x, a), b)
+  }
+  mu <- colMeans(W); S <- crossprod(sweep(W, 2, mu)) / n
+  keep <- burn + thin * seq_len(m); out <- vector("list", m)
+  for (it in seq_len(max(keep))) {
+    # the missing values (and every latent response) given the others, one variable at a time
+    for (j in seq_len(p)) {
+      upd <- if (j %in% cat_j) rep(TRUE, n) else miss[, j]
+      if (!any(upd)) next
+      b <- solve(S[-j, -j], S[-j, j]); s <- sqrt(max(S[j, j] - sum(S[j, -j] * b), 1e-12))
+      cm <- mu[j] + drop(sweep(W[upd, -j, drop = FALSE], 2, mu[-j]) %*% b)
+      if (j %in% cat_j) {
+        t <- c(-Inf, tau[[j]], Inf); k <- code[[j]]; o <- !is.na(k)
+        w <- stats::rnorm(n, cm, s); w[o] <- rtn(cm[o], s, t[k[o]], t[k[o] + 1]); W[, j] <- w
+        # the other thresholds: uniform between the neighbouring categories' latent responses
+        nt <- length(tau[[j]])
+        if (nt > 1) for (h in 2:nt) {
+          lo <- max(W[o & k == h, j], tau[[j]][h - 1]); hi <- min(W[o & k == h + 1, j], if (h < nt) tau[[j]][h + 1] else Inf)
+          if (hi > lo) tau[[j]][h] <- stats::runif(1, lo, hi)
+        }
+      } else W[upd, j] <- stats::rnorm(sum(upd), cm, s)
+    }
+    # the means and covariance matrix from their posterior given the completed data (flat prior)
+    wb <- colMeans(W)
+    S <- solve(stats::rWishart(1, n - 1, solve(crossprod(sweep(W, 2, wb))))[, , 1])
+    mu <- wb + drop(t(chol(S / n)) %*% stats::rnorm(p))
+    # (the latent responses back to variance 1: their scale is not identified)
+    for (j in cat_j) { sj <- sqrt(S[j, j]); W[, j] <- W[, j] / sj; mu[j] <- mu[j] / sj; tau[[j]] <- tau[[j]] / sj; S[j, ] <- S[j, ] / sj; S[, j] <- S[, j] / sj }
+    if (it %in% keep) {
+      D <- as.data.frame(W); names(D) <- vn
+      for (j in cat_j) D[[j]] <- lev[[j]][findInterval(W[, j], tau[[j]]) + 1L]
+      for (j in setdiff(seq_len(p), cat_j)) D[[j]][!miss[, j]] <- X[!miss[, j], j]
+      out[[match(it, keep)]] <- D
+    }
+  }
+  out
+}
+
+#' The lines of a script that define ps_joint_impute (a replication runs the same imputation).
+ps_joint_impute_lines <- function() c("# Joint imputation under the unrestricted (H1) model (data augmentation; categorical variables through latent normal responses)",
+  paste("ps_joint_impute <-", paste(deparse(ps_joint_impute, width.cutoff = 120L), collapse = "\n")))
 
 #' Versions of R and of the requested packages (NA when not installed), for a replication package's README.
 ps_versions <- function(req_json) {

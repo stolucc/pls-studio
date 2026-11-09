@@ -170,6 +170,53 @@
         "File": "BayesFactor_0.9.12-4.8.tgz"
       }
     },
+    "Bayesrel": {
+      "version": "0.8.0",
+      "md5": "cffdc31f1976c73ca9650e05ae9dab0b",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "Bayesrel",
+        "Version": "0.8.0",
+        "Depends": "R (>= 2.10)",
+        "Imports": "LaplacesDemon, MASS, lavaan, coda, methods, stats, graphics, Rdpack, Rcpp (>= 1.0.4.6), psych",
+        "LinkingTo": "Rcpp, RcppArmadillo",
+        "Suggests": "tinytest",
+        "License": "GPL-3",
+        "MD5sum": "cffdc31f1976c73ca9650e05ae9dab0b",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 13:35:59 UTC; unix",
+        "File": "Bayesrel_0.8.0.tgz"
+      }
+    },
+    "bbmle": {
+      "version": "1.0.26",
+      "md5": "0e8dfdd136a081b05af32cd6a0d54653",
+      "license": "GPL",
+      "stanza": {
+        "Package": "bbmle",
+        "Version": "1.0.26",
+        "Depends": "R (>= 3.0.0), stats4",
+        "Imports": "stats, numDeriv, lattice, MASS, methods, bdsmatrix, Matrix, mvtnorm",
+        "Suggests": "emdbook, rms, ggplot2, RUnit, MuMIn, AICcmodavg, Hmisc, optimx (>= 2013.8.6), knitr, testthat, tinytest, minqa",
+        "License": "GPL",
+        "MD5sum": "0e8dfdd136a081b05af32cd6a0d54653",
+        "Built": "R 4.6.0; ; 2026-10-09 13:40:07 UTC; unix",
+        "File": "bbmle_1.0.26.tgz"
+      }
+    },
+    "bdsmatrix": {
+      "version": "1.3-7",
+      "md5": "f26dc33a93c7d91c3d8ccd126d3c1870",
+      "license": "LGPL-2",
+      "stanza": {
+        "Package": "bdsmatrix",
+        "Version": "1.3-7",
+        "Depends": "methods, R (>= 2.0.0)",
+        "License": "LGPL-2",
+        "MD5sum": "f26dc33a93c7d91c3d8ccd126d3c1870",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 17:16:31 UTC; unix",
+        "File": "bdsmatrix_1.3-7.tgz"
+      }
+    },
     "beepr": {
       "version": "2.0",
       "md5": "74ce02be178d2fc30662ebfaa25b3bb4",
@@ -854,6 +901,20 @@
         "File": "dcurver_0.9.3.tgz"
       }
     },
+    "declared": {
+      "version": "0.27",
+      "md5": "99fd9bce4241087323eaedaf800fc06b",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "declared",
+        "Version": "0.27",
+        "Imports": "stats, utils",
+        "License": "GPL (>= 3)",
+        "MD5sum": "99fd9bce4241087323eaedaf800fc06b",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 16:11:16 UTC; unix",
+        "File": "declared_0.27.tgz"
+      }
+    },
     "dendextend": {
       "version": "1.19.1",
       "md5": "5d48f35c14aa05651490436499ad5583",
@@ -1093,6 +1154,26 @@
         "MD5sum": "3b378ba186614572f852b8d4d4e303f5",
         "Built": "R 4.6.0; ; 2026-05-13 00:07:07 UTC; unix",
         "File": "dreamerr_1.5.0.tgz"
+      }
+    },
+    "dynamic": {
+      "version": "1.1.0",
+      "md5": "5258f847bf772f5a49098dbba971bc6f",
+      "license": "AGPL-3",
+      "vendored": true,
+      "stanza": {
+        "Package": "dynamic",
+        "Version": "1.1.0",
+        "NeedsCompilation": "no",
+        "Built": "R 4.6.2; ; 2026-11-08 18:33:14 UTC; unix",
+        "Filesize": "638953",
+        "SHA256": "1a5c5f5ca17830827b97deabc51fd0044f2c6cee299161ac8ba6bafad3badffe",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "dplyr (>= 1.1.0), simstandard (>= 0.6.2), tidyr (>= 1.1.0), lavaan (>= 0.6-7), ggplot2 (>= 3.3.0), magrittr (>= 1.5), tibble (>= 3.0.0), patchwork (>= 1.1.1), semTools (>= 0.5.5), stringr (>= 1.4.0), MASS (>= 7.3-30), rlang (>= 1.1.0), purrr (>= 0.3.3), Bayesrel (>= 0.7.7), mirt (>= 1.35)",
+        "Suggests": "GenOrd (>= 1.3.0), knitr, rmarkdown",
+        "License": "AGPL-3",
+        "File": "dynamic_1.1.0.tgz",
+        "MD5sum": "5258f847bf772f5a49098dbba971bc6f"
       }
     },
     "e1071": {
@@ -1513,6 +1594,25 @@
         "MD5sum": "218be80e8ad1725dfe54cb3c3412d23b",
         "Built": "R 4.6.0; ; 2026-05-13 04:47:17 UTC; unix",
         "File": "generics_0.1.4.tgz"
+      }
+    },
+    "GenOrd": {
+      "version": "2.1.0",
+      "md5": "20968a0fee5c35cba5668e52d9e53f82",
+      "license": "GPL-3",
+      "vendored": true,
+      "stanza": {
+        "Package": "GenOrd",
+        "Version": "2.1.0",
+        "NeedsCompilation": "no",
+        "Built": "R 4.6.2; ; 2026-11-08 18:33:13 UTC; unix",
+        "Filesize": "94363",
+        "SHA256": "ee43945c8b932cd161af14c1c8dace5a856accf5ebe202570d1410aac7c22569",
+        "Imports": "Matrix, mvtnorm, bbmle, stats, utils",
+        "Suggests": "cubature",
+        "License": "GPL-3",
+        "File": "GenOrd_2.1.0.tgz",
+        "MD5sum": "20968a0fee5c35cba5668e52d9e53f82"
       }
     },
     "genpathmox": {
@@ -2208,6 +2308,22 @@
         "MD5sum": "8716cde95fcede366579cc56d8952769",
         "Built": "R 4.6.0; ; 2026-05-13 10:18:30 UTC; unix",
         "File": "labeling_0.4.3.tgz"
+      }
+    },
+    "LaplacesDemon": {
+      "version": "16.1.8",
+      "md5": "260ae898966aba8bcef3f71d3319b07e",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "LaplacesDemon",
+        "Version": "16.1.8",
+        "Depends": "R (>= 3.0.0)",
+        "Imports": "parallel, grDevices, graphics, stats, utils",
+        "Suggests": "KernSmooth",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "260ae898966aba8bcef3f71d3319b07e",
+        "Built": "R 4.6.0; ; 2026-05-13 10:25:56 UTC; unix",
+        "File": "LaplacesDemon_16.1.8.tgz"
       }
     },
     "later": {
@@ -3719,6 +3835,21 @@
         "File": "pwr_1.3-0.tgz"
       }
     },
+    "QCA": {
+      "version": "3.25",
+      "md5": "38c4e8a9e50898cb4f84268c91c20f9b",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "QCA",
+        "Version": "3.25",
+        "Depends": "R (>= 3.6.0), admisc (> 0.39)",
+        "Imports": "methods, declared, venn",
+        "License": "GPL (>= 3)",
+        "MD5sum": "38c4e8a9e50898cb4f84268c91c20f9b",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 21:23:31 UTC; unix",
+        "File": "QCA_3.25.tgz"
+      }
+    },
     "qgraph": {
       "version": "1.10.1",
       "md5": "77d2c7c8274faf8d8f669f4ffff7bc2a",
@@ -4435,6 +4566,22 @@
         "File": "SimDesign_2.25.tgz"
       }
     },
+    "simstandard": {
+      "version": "0.6.3",
+      "md5": "eef774a607c43705c348b59956ae4b67",
+      "license": "CC0",
+      "stanza": {
+        "Package": "simstandard",
+        "Version": "0.6.3",
+        "Depends": "R (>= 3.4.0)",
+        "Imports": "lavaan, mvtnorm, tibble, stats, magrittr, rlang, purrr",
+        "Suggests": "knitr, rmarkdown, ggplot2, dplyr, tidyr, forcats, stringr, testthat, covr, badger",
+        "License": "CC0",
+        "MD5sum": "eef774a607c43705c348b59956ae4b67",
+        "Built": "R 4.6.0; ; 2026-05-14 04:47:40 UTC; unix",
+        "File": "simstandard_0.6.3.tgz"
+      }
+    },
     "smacof": {
       "version": "2.1-7",
       "md5": "43f62322f37c24aaa3a51560a8c089b2",
@@ -4950,6 +5097,22 @@
         "MD5sum": "8af8a44fefabf3ab99a0b3abb2b1682e",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-12 03:04:44 UTC; unix",
         "File": "vegan_2.7-6.tgz"
+      }
+    },
+    "venn": {
+      "version": "1.13",
+      "md5": "08cdc72060db0960b9bf63743ecad722",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "venn",
+        "Version": "1.13",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "admisc (>= 0.33)",
+        "Suggests": "QCA (>= 3.9), ggplot2, ggpolypath",
+        "License": "GPL (>= 3)",
+        "MD5sum": "08cdc72060db0960b9bf63743ecad722",
+        "Built": "R 4.6.0; ; 2026-05-14 11:04:13 UTC; unix",
+        "File": "venn_1.13.tgz"
       }
     },
     "VGAM": {

@@ -18,9 +18,14 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/plsGender': 'examples', 'examples/selection': 'examples',
   'examples/cards/bayes': 'examples',
   'examples/cards/model': 'examples',
+  'examples/cards/dfi': 'examples',
+  'examples/cards/validity': 'examples',
+  'examples/cards/qca': 'examples',
   'examples/cards/likelihood': 'examples',
   'examples/cards/items': 'examples',
   'examples/mplus/ch5irt': 'examples', 'examples/mplus/ch7irt': 'examples', 'examples/mplus/ch6glmm': 'examples', 'examples/mplus/ch10': 'examples',
+  'examples/mplus/quadml': 'examples', 'examples/cards/integration': 'examples',
+  'examples/mplus/ch7int': 'examples', 'examples/mplus/ch8int': 'examples', 'examples/mplus/ch10mix': 'examples',
 
   // CB-SEM (lavaan and friends)
   'rengine/lavaan': native('CB-SEM estimation', 'CB-SEM', ['lavaan'], script('generate.R', 'desktop lavaan, the reference corpus')),

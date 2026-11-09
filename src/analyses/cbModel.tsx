@@ -4,10 +4,13 @@
 
 import type { CbEstimator } from '../engine/cbsem';
 import { quantileSorted } from '../engine/stats';
-import { fmt } from '../format';
+import { downloadText, fmt } from '../format';
 import { toSpec, validateModel } from '../model/project';
 import type { BollenStineResult, CbCall, CompareParamsResult, ParamKind, ScoreMethod, ScoreWeightsResult } from '../rengine/cbExtras';
 import { c, pCell, Table, type Row } from '../components/results/Table';
+import { factorScoresUnavailable, SaveFactorScores } from '../components/results/SaveScores';
+import type { FactorScores } from '../rengine/lavaan';
+import { useState } from 'react';
 import { fingerprint } from './codec';
 import { columnsFingerprint, isObj, rawData } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
@@ -63,6 +66,7 @@ export const quantile = (v: number[], q: number): number => quantileSorted([...v
 
 export const bollenStineAnalysis: AnalysisType<Record<string, never>, BollenStineResult> = {
   id: 'bollenstine', title: 'Bollen–Stine bootstrap', sub: 'p of the χ² test without assuming normality (lavaan)', group: CB_GROUP,
+  fitsModel: true,
   defaults: () => ({}),
   parseOptions: (raw) => (isObj(raw) ? {} : null),
   Options: ({ ctx }) => <Hint text={`Bootstrap test of exact fit (Bollen & Stine 1992): the χ² p-value when the data are not multivariate normal. ${fitNote(ctx)} ${bootOf(ctx).samples} bootstrap samples and seed ${bootOf(ctx).seed} from the Model settings; each sample refits the model, so this takes a while.`} />,
@@ -96,6 +100,7 @@ function CompareParamsView({ r }: { r: CompareParamsResult }) {
 
 export const compareParamsAnalysis: AnalysisType<CompareParamsOptions, CompareParamsResult> = {
   id: 'cbcompare', title: 'Parameter comparisons', sub: 'pairwise z-tests of differences between estimates (critical ratios)', group: CB_GROUP,
+  fitsModel: true,
   defaults: () => ({ kinds: ['paths'] }),
   parseOptions: (raw) => (isObj(raw) ? { kinds: [...new Set((Array.isArray(raw.kinds) ? raw.kinds : []).filter((k): k is ParamKind => KINDS.some(([id]) => id === k)))] } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
@@ -120,11 +125,11 @@ export const compareParamsAnalysis: AnalysisType<CompareParamsOptions, ComparePa
   summary: (o) => o.kinds.map((k) => KINDS.find(([id]) => id === k)![1].toLowerCase()).join(', ') || 'no parameters chosen',
 };
 
-// ---------- factor score weights ----------
+// ---------- factor scores (id 'scoreweights', its id from when the card showed the weights only) ----------
 
 export interface ScoreWeightsOptions { method: ScoreMethod }
 
-function ScoreWeightsView({ r }: { r: ScoreWeightsResult }) {
+function ScoreWeightsTable({ r }: { r: ScoreWeightsResult }) {
   return (
     <div className="tables">
       <Table title={`Factor score weights (${r.method === 'regression' ? 'regression' : 'Bartlett'})`} file="factor-score-weights" columns={['Variable', ...r.factors]}
@@ -136,13 +141,88 @@ function ScoreWeightsView({ r }: { r: ScoreWeightsResult }) {
   );
 }
 
-export const scoreWeightsAnalysis: AnalysisType<ScoreWeightsOptions, ScoreWeightsResult> = {
-  id: 'scoreweights', title: 'Factor score weights', sub: 'how each factor score is computed from the observed variables', group: CB_GROUP,
+type ScoresTab = 'scores' | 'weights';
+/** The card's result: the weights, and the scores themselves (absent in results from before the card computed them). */
+export type FactorScoresCardResult = ScoreWeightsResult & { scores?: FactorScores | null; scoresUnavailable?: string | null };
+
+const PREVIEW = 20;
+/** Mean, SD, min and max of each factor's scores, and their correlations (over the scored cases).
+ *  (`scores` holds one array per factor, over the scored cases in the order of `rows`: column-major, as cbScoresR returns it.) */
+export function scoreSummary(s: FactorScores) {
+  const n = s.rows.length;
+  const col = (j: number) => (s.scores[j] ?? []).filter((v) => Number.isFinite(v));
+  const stats = s.names.map((name, j) => {
+    const x = col(j), m = x.reduce((a, b) => a + b, 0) / (x.length || 1);
+    const sd = Math.sqrt(x.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, x.length - 1));
+    return { name, n: x.length, mean: m, sd, min: Math.min(...x), max: Math.max(...x) };
+  });
+  const cor = s.names.map((_, i) => s.names.map((__, j) => {
+    const xi = s.scores[i] ?? [], xj = s.scores[j] ?? [];
+    const mi = stats[i].mean, mj = stats[j].mean;
+    let num = 0, di = 0, dj = 0;
+    for (let k = 0; k < n; k++) { if (!Number.isFinite(xi[k]) || !Number.isFinite(xj[k])) continue; num += (xi[k] - mi) * (xj[k] - mj); di += (xi[k] - mi) ** 2; dj += (xj[k] - mj) ** 2; }
+    return di && dj ? num / Math.sqrt(di * dj) : null;
+  }));
+  return { stats, cor };
+}
+/** All scores as CSV: the data row number, then one column per factor. */
+export function scoresCsv(s: FactorScores): string {
+  const cell = (v: number | undefined) => (v !== undefined && Number.isFinite(v) ? String(v) : '');
+  return [['row', ...s.names].join(','), ...s.rows.map((row, k) => [row, ...s.names.map((_, j) => cell(s.scores[j]?.[k]))].join(','))].join('\n') + '\n';
+}
+
+function ScoresPanel({ r }: { r: FactorScoresCardResult }) {
+  const s = r.scores;
+  const label = r.method === 'regression' ? 'regression' : 'Bartlett';
+  return (
+    <div className="tables">
+      {s ? (() => {
+        const { stats, cor } = scoreSummary(s);
+        return (
+          <>
+            <Table title={`Factor scores (${label}): summary`} file="factor-scores-summary" columns={['Factor', 'N', 'Mean', 'SD', 'Min', 'Max']}
+              rows={stats.map((x): Row => [c(x.name), c(x.n, undefined, 0), c(x.mean), c(x.sd), c(x.min), c(x.max)])}
+              note={r.method === 'regression' ? 'Regression scores shrink towards the mean: their SDs are below the factors’ and they correlate more strongly than the factors do.' : 'Bartlett scores are unbiased: their SDs exceed the factors’ (they include measurement error).'} />
+            {s.names.length > 1 && <Table title="Correlations among the scores" file="factor-scores-correlations" columns={['', ...s.names]}
+              rows={s.names.map((a, i): Row => [c(a), ...s.names.map((_, j) => (j > i ? c(null) : j === i ? c('—') : c(cor[i][j])))])} />}
+            <Table title={`Scores of the first ${Math.min(PREVIEW, s.rows.length)} of ${s.rows.length} cases`} file="factor-scores-preview" columns={['Row', ...s.names]}
+              rows={s.rows.slice(0, PREVIEW).map((row, k): Row => [c(row, undefined, 0), ...s.names.map((_, j) => c(s.scores[j]?.[k] ?? null))])}
+              note={`Row: the case’s row in the data${s.rows.length < (s.rows.at(-1) ?? 0) ? '; rows left out of the analysis (missing values) have no score' : ''}.`} />
+          </>
+        );
+      })() : <p className="muted">{r.scoresUnavailable ?? 'Run the card again to compute the scores.'}</p>}
+      {/* (a row of its own below the tables) */}
+      <div style={{ flexBasis: '100%', width: '100%' }}>
+        {s && <div className="table-tools"><button className="btn sm" onClick={() => downloadText(`factor-scores-${label}.csv`, scoresCsv(s), 'text/csv')}>Download all scores (CSV)</button></div>}
+        <h4 style={{ margin: '12px 0 6px' }}>Save to the dataset</h4>
+        <SaveFactorScores initial={r.method} />
+      </div>
+    </div>
+  );
+}
+
+/** Two tabs: the factor scores themselves (shown, downloadable, savable as data columns) and the weights that compute them. */
+export function ScoreWeightsView({ r }: { r: FactorScoresCardResult }) {
+  const [tab, setTab] = useState<ScoresTab>('scores');
+  const tabs: [ScoresTab, string][] = [['scores', 'Scores'], ['weights', 'Weights']];
+  return (
+    <>
+      <div className="segmented efa-tabs" role="tablist" aria-label="Factor scores">
+        {tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+      </div>
+      {tab === 'scores' ? <ScoresPanel r={r} /> : <ScoreWeightsTable r={r} />}
+    </>
+  );
+}
+
+export const scoreWeightsAnalysis: AnalysisType<ScoreWeightsOptions, FactorScoresCardResult> = {
+  id: 'scoreweights', title: 'Factor scores', sub: 'the factor scores of every case (summary, table, CSV, data columns) and the weights that compute them', group: CB_GROUP,
+  fitsModel: true,
   defaults: () => ({ method: 'regression' }),
   parseOptions: (raw) => (isObj(raw) ? { method: raw.method === 'Bartlett' ? 'Bartlett' : 'regression' } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text={`The weights that turn the observed variables into factor scores, from the fitted model. ${fitNote(ctx)}`} />
+      <Hint text={`Factor scores of the fitted model: every case’s scores, summarised, previewed and downloadable, and savable as data columns (Scores tab: regression, Bartlett or plausible values); and the weights that turn the observed variables into the scores (Weights tab). ${fitNote(ctx)}`} />
       <div className="field">
         <label>Method</label>
         <div className="segmented">
@@ -153,9 +233,17 @@ export const scoreWeightsAnalysis: AnalysisType<ScoreWeightsOptions, ScoreWeight
     </fieldset>
   ),
   View: ({ result }) => <ScoreWeightsView r={result} />,
-  blocked: (_o, ctx) => cbModelBlocked(ctx, 'Factor score weights', false) ?? (ctx.model?.multigroup ? 'Factor score weights are shown for one group: remove the grouping.' : null),
+  blocked: (_o, ctx) => cbModelBlocked(ctx, 'Factor scores', false) ?? (ctx.model?.multigroup ? 'Factor scores are computed for one group: remove the grouping.' : null),
   fingerprint: (_o, ctx) => cbFingerprint(ctx),
-  run: async (o, ctx) => (await import('../rengine/cbExtras')).scoreWeightsR(callOf(ctx), o.method),
+  run: async (o, ctx) => {
+    const call = callOf(ctx);
+    const weights = await (await import('../rengine/cbExtras')).scoreWeightsR(call, o.method);
+    // The scores of every case (lavPredict), with the same method; where they cannot be computed, why.
+    const why = factorScoresUnavailable(rawData(ctx), ctx.settings);
+    if (why) return { ...weights, scores: null, scoresUnavailable: why };
+    const scores = await (await import('../rengine/lavaan')).cbScoresR(call.data, call.spec, call.missing, call.estimator, o.method);
+    return { ...weights, scores, warnings: [...new Set([...weights.warnings, ...scores.warnings])] };
+  },
   script: async (o, ctx) => (await import('../rengine/cbExtras')).scoreWeightsScriptR(callOf(ctx), o.method),
   summary: (o) => `${o.method === 'regression' ? 'regression' : 'Bartlett'} method`,
 };

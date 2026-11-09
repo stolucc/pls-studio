@@ -1,0 +1,91 @@
+diff -ruN orig/dynamic/DESCRIPTION patched/dynamic/DESCRIPTION
+--- orig/dynamic/DESCRIPTION	2026-11-08 18:31:52
++++ patched/dynamic/DESCRIPTION	2026-11-08 18:32:25
+@@ -33,9 +33,13 @@
+     rlang (>= 1.1.0),
+     purrr (>= 0.3.3),
+     Bayesrel (>= 0.7.7),
+-    GenOrd (>= 1.3.0),
+     mirt (>= 1.35)
+ Suggests: 
++    GenOrd (>= 1.3.0),
+     knitr,
+     rmarkdown
+ VignetteBuilder: knitr
++Config/PLSStudio/Patch: GenOrd moved from Imports to Suggests and loaded when
++    likertHB2() needs it (requireNamespace), so that the package loads in webR,
++    where GenOrd's import cubature cannot be loaded. No other change. Patch file
++    and source: PLS Studio (scripts/webr/vendor/dynamic_1.1.0.patch).
+diff -ruN orig/dynamic/NAMESPACE patched/dynamic/NAMESPACE
+--- orig/dynamic/NAMESPACE	2026-11-08 18:31:52
++++ patched/dynamic/NAMESPACE	2026-11-08 18:32:25
+@@ -31,7 +31,6 @@
+ export(nnorHB)
+ export(nnorOne)
+ import(Bayesrel)
+-import(GenOrd)
+ import(dplyr)
+ import(ggplot2)
+ import(lavaan)
+diff -ruN orig/dynamic/R/helper.R patched/dynamic/R/helper.R
+--- orig/dynamic/R/helper.R	2026-11-08 18:31:52
++++ patched/dynamic/R/helper.R	2026-11-08 18:32:25
+@@ -5,7 +5,7 @@
+ #' @importFrom lavaan lavaanify cfa fitMeasures
+ #' @importFrom simstandard sim_standardized
+ #' @importFrom purrr map map_dfr
+-#' @import ggplot2 GenOrd
++#' @import ggplot2
+ #' @importFrom stats quantile qnorm cov2cor density rbeta rnorm runif
+ #' @importFrom semTools bsBootMiss
+ #' @importFrom MASS mvrnorm
+@@ -3174,12 +3174,22 @@
+ }
+ 
+ ##################################################
++
++# GenOrd is a suggested package (PLS Studio patch: its import cubature does not load in webR): the likertHB2 helpers
++# below, the only users, load it when called.
++.need_GenOrd <- function() {
++  if (!requireNamespace("GenOrd", quietly = TRUE))
++    stop("likertHB2() needs the GenOrd package, which is not installed (or cannot be loaded here); install.packages(\"GenOrd\").", call. = FALSE)
++  invisible(TRUE)
++}
++
+ ################# likertHB2 ######################
+ ##################################################
+ 
+ 
+ #function for misspecified model
+ multi_fit_likert2 <- function(model,data, n,estimator,reps){
++  .need_GenOrd()
+ 
+   #Get clean model equation
+   mod <- cleanmodel(model)
+@@ -3366,6 +3376,7 @@
+ ## Function for correct model
+ 
+ true_fit_multi_likert2 <- function(model,data,n,estimator,reps){
++  .need_GenOrd()
+ 
+   #Get clean model equation
+   mod <- cleanmodel(model)
+@@ -3548,6 +3559,7 @@
+ }
+ 
+ data_likert2 <- function(model,data,n){
++  .need_GenOrd()
+ 
+   mod <- cleanmodel(model)
+ 
+diff -ruN orig/dynamic/R/likertHB2.R patched/dynamic/R/likertHB2.R
+--- orig/dynamic/R/likertHB2.R	2026-11-08 18:31:52
++++ patched/dynamic/R/likertHB2.R	2026-11-08 18:32:25
+@@ -74,6 +74,7 @@
+ 
+ 
+ likertHB2 <- function(model,data,n=NULL,plot=FALSE,manual=FALSE,estimator="ML",reps=250){
++  .need_GenOrd()
+ 
+   #If manual, expect manual (a la Shiny app)
+   if(manual){

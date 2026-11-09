@@ -135,8 +135,9 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
   const constructs: Construct[] = [];
   const byName = new Map<string, Construct>();
   const add = (c: Construct) => { constructs.push(c); byName.set(c.name, c); return c; };
-  // A factor scaled by its variance: the first loading freed (NA*) and the variance fixed at 1 (f ~~ 1*f).
-  const unitVariance = new Set(rows.filter((r) => r.op === '~~').flatMap((r) => r.lhs.filter((l) => r.rhs.split('+').some((t) => { const x = parseTerm(t, () => {}); return x?.name === l && x.fixed === 1 && !x.byGroup; }))));
+  // A factor scaled by its variance: the first loading freed (NA*) and the variance fixed at 1 (f ~~ 1*f), or at 1 in a
+  // reference group (f ~~ c(NA, 1)*f: approximate invariance, Mplus ex. 5.33).
+  const unitVariance = new Set(rows.filter((r) => r.op === '~~').flatMap((r) => r.lhs.filter((l) => r.rhs.split('+').some((t) => { const x = parseTerm(t, () => {}, true); return x?.name === l && ((x.fixed === 1 && !x.byGroup) || !!x.byGroup?.includes(1)); }))));
   const byVariance = new Set<string>();
   for (const [name, e] of latent) {
     const c: Construct = { id: newId('c'), name, type: 'factor', mode: 'A', indicators: e.terms.map((t) => t.name), x: 0, y: 0, side: 'left' };
@@ -267,6 +268,8 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
     const c = byName.get(l);
     // (an indicator's intercept may carry values per group: c(...))
     if (mods && !c && indicatorOf.has(l) && groupValues(mods)) term.byGroup = groupValues(mods)!;
+    // (a factor's mean too: f ~ c(NA, 0)*1 holds it at 0 in a reference group only)
+    else if (mods && c && groupValues(mods)) term.byGroup = groupValues(mods)!;
     else if (mods) { if (/^[-+]?(\d+\.?\d*|\.\d+)$/.test(mods)) term.fixed = Number(mods); else if (/^[A-Za-z][A-Za-z0-9_.]*$/.test(mods) && mods !== 'NA') term.label = mods; else if (mods !== 'NA') warn(`Modifier “${mods}” on the intercept of ${l} was ignored.`); }
     if (!c) {
       // (0 on a factor's marker is the marker convention; on another indicator it is kept, e.g. a growth model's y2 ~ 0*1)
@@ -276,7 +279,7 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
       warn(`${l} ~ 1: “${l}” is not in the model; its intercept was skipped.`); continue;
     }
     if (term.fixed === 0 && c.indicators.length > 1) continue;
-    if (!means.some((m) => m.target === c.id)) means.push({ id: newId('mt'), target: c.id, ...(term.fixed !== undefined ? { fixed: term.fixed } : term.label ? { label: term.label } : {}) });
+    if (!means.some((m) => m.target === c.id)) means.push({ id: newId('mt'), target: c.id, ...(term.byGroup ? { byGroup: term.byGroup } : term.fixed !== undefined ? { fixed: term.fixed } : term.label ? { label: term.label } : {}) });
   }
   const defined: DefinedParameter[] = rows.filter((x) => x.op === ':=').map((r) => ({ id: newId('d'), name: r.lhs[0], expr: r.rhs }));
   // Thresholds (u1 | t*t1 + t2): the variable is ordinal; labelled or held thresholds are kept.

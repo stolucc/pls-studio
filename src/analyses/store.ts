@@ -167,10 +167,28 @@ export function nudgeCard(id: string, delta: -1 | 1) {
 
 export const selectCard = (id: string | null) => useAnalyses.setState({ selected: id });
 
+/**
+ * Calculate the model on the Model tab when its results are not current (a card that works on the model is about
+ * to run): the estimation job of the Model tab's Calculate, awaited. Returns when the job has ended, whether or not
+ * it produced results (an error is shown on the Model tab; the card's own check then says what is missing).
+ */
+export async function ensureModelCalculated(): Promise<void> {
+  const st = useStore.getState();
+  if (!st.data || (st.results && st.results.key === resultsKey(st)) || st.job) return;
+  const { run } = await import('../runner');
+  run('estimate');
+  // (the job is set synchronously by run(); when validation refuses, it is not set and there is nothing to await)
+  await new Promise<void>((resolve) => {
+    if (!useStore.getState().job) { resolve(); return; }
+    const unsub = useStore.subscribe((s) => { if (!s.job) { unsub(); resolve(); } });
+  });
+}
+
 export async function runCard(id: string) {
   const card = useAnalyses.getState().cards.find((c): c is AnalysisCard => c.id === id && c.kind === 'analysis');
   const t = card && analysisType(card.type);
   if (!card || !t || readOnly() || useAnalyses.getState().running[id]) return;
+  if (t.fitsModel && (typeof t.fitsModel === 'function' ? t.fitsModel(card.options) : true)) await ensureModelCalculated();
   const ctx = currentCtx();
   const blocked = t.blocked(card.options, ctx);
   if (blocked) { useAnalyses.setState((s) => ({ errors: { ...s.errors, [id]: blocked } })); return; }

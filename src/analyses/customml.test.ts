@@ -19,6 +19,9 @@ describe('custom likelihood card', () => {
     expect(t.parseOptions(qtl)).toEqual(qtl);
     const p = t.parseOptions({ type: 'evil', outcomes: ['y1', 'y1', 3], parameters: [{ name: 'a', start: 'x' }, 'no'], se: 'HC9' })!;
     expect(p).toMatchObject({ type: 'normal', outcomes: ['y1'], parameters: [{ name: 'a', start: 0 }], se: 'model' });
+    // (Mplus's information under constraints is kept; a file saved before it reads as it was)
+    expect(t.parseOptions({ ...qtl, se: 'mplus' })!.se).toBe('mplus');
+    expect(t.parseOptions({ ...qtl, se: 'robust' })!.se).toBe('robust');
   });
 
   it('checks expressions: functions exp, log and sqrt; parameters and data columns only', () => {

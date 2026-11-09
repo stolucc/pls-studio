@@ -61,12 +61,19 @@ def results(lines):
     it is printed under (a group, a latent class, a level) and, for groups, the group's number in print order."""
     i = next(k for k, l in enumerate(lines) if l.strip() == 'MODEL RESULTS')
     out, groups, group, block, sec = [], [], 1, '', None
+    # (two-level mixtures print 'Within Level' / 'Between Level' and then each latent class under it: the level is kept
+    # as an extra key of those parameters)
+    level = None
     for l in lines[i + 1:]:
         s = l.strip()
         if re.match(r'^(QUALITY OF|STANDARDIZED|TECHNICAL|RESULTS IN|R-SQUARE|LOGISTIC|TOTAL, TOTAL|Beginning|EFA|IRT|'
                     r'ODDS RATIO|ALTERNATIVE PARAMETERIZATIONS|LATENT TRANSITION|BRANT|CONFIDENCE|MODEL COMMAND)', s):
             break
         if BLOCK.match(s) and not l.startswith(' '):
+            if s in ('Within Level', 'Between Level'):
+                level = s
+            elif s == 'Categorical Latent Variables' or s.startswith('Group '):
+                level = None
             block = s
             if s.startswith('Group '):
                 if s not in groups:
@@ -101,7 +108,8 @@ def results(lines):
             k = (name, '~~', name)
         else:
             k = (name, a, '')
-        out.append({'lhs': k[0], 'op': k[1], 'rhs': k[2], 'group': group, 'block': block, 'est': est, 'se': se})
+        out.append({'lhs': k[0], 'op': k[1], 'rhs': k[2], 'group': group, 'block': block, 'est': est, 'se': se,
+                    **({'level': level} if level and block != level else {})})
     return out
 
 

@@ -6,7 +6,8 @@
 #'   probit   one or two binary (0/1) outcomes: normal latent responses (the value 1 above the threshold), their
 #'            thresholds, variances and covariance (Mplus LINK = PROBIT; pbivnorm for two).
 #' Estimated by nlminb; standard errors from the observed information (numerical Hessian), or the sandwich of the
-#' cases' scores (Mplus MLR). Expressions are checked against a grammar here (numbers, names, + - * / ^, exp, log,
+#' cases' scores (MLR), or that sandwich with Mplus's information for parameters under MODEL CONSTRAINT (se = "mplus":
+#' the parts' curvature term counted twice, which reproduces Mplus's MLR standard errors and scaling factor, ex. 3.10). Expressions are checked against a grammar here (numbers, names, + - * / ^, exp, log,
 #' sqrt, parentheses) and written into the script from the checked parse tree only.
 
 PS_CML_FUNS <- c("exp", "log", "sqrt")
@@ -44,7 +45,7 @@ ps_customml <- function(req_json, export = FALSE) {
   if (anyDuplicated(pn)) stop("Each parameter needs its own name.")
   start <- vapply(pars, function(p) ps_number(p$start %||% 0, "start value"), 0)
   se_type <- req$se %||% "model"
-  if (!(is.character(se_type) && length(se_type) == 1 && se_type %in% c("model", "robust"))) stop("Invalid standard errors in the request.")
+  if (!(is.character(se_type) && length(se_type) == 1 && se_type %in% c("model", "robust", "mplus"))) stop("Invalid standard errors in the request.")
   # Data columns the expressions may use (definition variables): any column with a plain name other than the outcomes.
   cols <- as.character(unlist(req$data$names))
   defcols <- setdiff(cols[grepl("^[A-Za-z][A-Za-z0-9_]{0,30}$", cols)], c(ys, pn))
@@ -91,8 +92,8 @@ ps_customml <- function(req_json, export = FALSE) {
     sprintf("y <- data[[%s]]", encodeString(ys, quote = '"')),
     "cats <- sort(unique(y))",
     sprintf("if (length(cats) != %d) stop(\"The outcome has \", length(cats), \" categories: give \", length(cats) - 1, \" logits, one for each category but the last (the reference).\")", length(parts) + 1),
-    "loglik_i <- function(theta) {",
-    "  eta <- cbind(do.call(cbind, cases(theta)), 0)   # the last category is the reference",
+    "loglik_v <- function(v) {   # (the cases' log-likelihoods, given the parts)",
+    "  eta <- cbind(do.call(cbind, v), 0)   # the last category is the reference",
     "  m <- apply(eta, 1, max); lse <- m + log(rowSums(exp(eta - m)))",
     "  eta[cbind(seq_len(n), match(y, cats))] - lse",
     "}")
@@ -100,8 +101,8 @@ ps_customml <- function(req_json, export = FALSE) {
     "Y <- as.matrix(data[outcomes])",
     sprintf("pairs <- matrix(c(%s), ncol = 2)", if (nrow(pairs)) paste(c(pairs[, 1], pairs[, 2]), collapse = ", ") else "integer(0)"),
     "p <- length(outcomes)",
-    "loglik_i <- function(theta) {",
-    "  v <- cases(theta); M <- do.call(cbind, v[seq_len(p)]); V <- do.call(cbind, v[p + seq_len(p)]); C <- if (nrow(pairs)) do.call(cbind, v[-seq_len(2 * p)]) else matrix(0, n, 0)",
+    "loglik_v <- function(v) {   # (the cases' log-likelihoods, given the parts)",
+    "  M <- do.call(cbind, v[seq_len(p)]); V <- do.call(cbind, v[p + seq_len(p)]); C <- if (nrow(pairs)) do.call(cbind, v[-seq_len(2 * p)]) else matrix(0, n, 0)",
     "  # cases that share their means and covariance matrix, together",
     "  key <- do.call(paste, c(as.data.frame(signif(cbind(M, V, C), 12)), sep = \"|\"))",
     "  out <- numeric(n)",
@@ -119,8 +120,7 @@ ps_customml <- function(req_json, export = FALSE) {
     "Y <- as.matrix(data[outcomes])",
     "if (!all(Y %in% c(0, 1))) stop(\"The probit model's outcomes are binary: 0 and 1.\")",
     "p <- length(outcomes)",
-    "loglik_i <- function(theta) {",
-    "  v <- cases(theta)",
+    "loglik_v <- function(v) {   # (the cases' log-likelihoods, given the parts)",
     "  if (any(unlist(v[p + seq_len(p)]) <= 0)) return(rep(-Inf, n))",
     "  # the value 1 when the latent response (mean 0) is above the threshold: P(0) = Phi(threshold / sd)",
     "  z <- lapply(seq_len(p), function(j) v[[j]] / sqrt(v[[p + j]]))",
@@ -131,8 +131,10 @@ ps_customml <- function(req_json, export = FALSE) {
     "  log(pmax(pbivnorm::pbivnorm(s1 * z[[1]], s2 * z[[2]], s1 * s2 * rho), 1e-300))",
     "}")
   body <- c(body,
+    "loglik_i <- function(theta) loglik_v(cases(theta))",
     "loglik <- function(theta) sum(loglik_i(theta))",
-    "nll <- function(theta) { l <- loglik(theta); if (is.finite(l)) -l else 1e100 }",
+    "# (where the parts cannot be evaluated, e.g. the log of a negative number, the optimiser is told so: no warning)",
+    "nll <- function(theta) { l <- suppressWarnings(loglik(theta)); if (is.finite(l)) -l else 1e100 }",
     "if (!is.finite(loglik(start))) stop(\"The likelihood cannot be evaluated at the start values: choose others (e.g. values that keep variances positive and logarithms defined).\")",
     "opt <- nlminb(start, nll, control = list(eval.max = 5000, iter.max = 2000, rel.tol = 1e-12))",
     "opt2 <- optim(opt$par, nll, method = \"BFGS\", control = list(reltol = 1e-14, maxit = 2000))   # (polished)",
@@ -140,12 +142,31 @@ ps_customml <- function(req_json, export = FALSE) {
     "names(theta) <- par_names",
     "H <- optimHess(theta, nll)",
     "V_model <- tryCatch(solve(H), error = function(e) matrix(NA_real_, length(theta), length(theta)))",
-    if (se_type == "robust") c(
+    if (se_type != "model") c(
       "# The sandwich (Mplus MLR): the cases' scores by central differences",
       "h <- pmax(abs(theta), 1) * 1e-5",
       "S <- sapply(seq_along(theta), function(k) { e <- replace(numeric(length(theta)), k, h[k]); (loglik_i(theta + e) - loglik_i(theta - e)) / (2 * h[k]) })",
       "S <- matrix(S, nrow = n)",
-      "V <- V_model %*% crossprod(S) %*% V_model")
+      if (se_type == "mplus") c(
+        "# Mplus's information for parameters under MODEL CONSTRAINT (its MLR): the observed information plus, once more,",
+        "# the term of the parts' curvature, -sum over cases and parts of d loglik / d part x d2 part / d theta2 (the term",
+        "# by which the observed information differs from the expected one of the parts mapped to the parameters).",
+        "v0 <- cases(theta); np <- length(theta); K <- matrix(0, np, np)",
+        "for (k in seq_along(v0)) {",
+        "  hk <- max(abs(v0[[k]]), 1) * 1e-5; vp <- vm <- v0; vp[[k]] <- v0[[k]] + hk; vm[[k]] <- v0[[k]] - hk",
+        "  g <- (loglik_v(vp) - loglik_v(vm)) / (2 * hk)",
+        "  for (a in seq_len(np)) for (b in seq_len(a)) {",
+        "    ea <- replace(numeric(np), a, h[a] * 10); eb <- replace(numeric(np), b, h[b] * 10)",
+        "    d2 <- (cases(theta + ea + eb)[[k]] - cases(theta + ea - eb)[[k]] - cases(theta - ea + eb)[[k]] + cases(theta - ea - eb)[[k]]) / (4 * ea[a] * eb[b])",
+        "    K[a, b] <- K[b, a] <- K[a, b] - sum(g * d2)",
+        "  }",
+        "}",
+        "H_mplus <- H + K",
+        "V_bread <- tryCatch(solve(H_mplus), error = function(e) matrix(NA_real_, np, np))",
+        "V <- V_bread %*% crossprod(S) %*% V_bread",
+        "# Mplus's scaling correction factor for MLR: the trace of the bread times the meat, over the parameters",
+        "scaling <- sum(diag(V_bread %*% crossprod(S))) / np")
+      else "V <- V_model %*% crossprod(S) %*% V_model")
     else "V <- V_model",
     "# Derived quantities by the delta method: the model's parts (where the same for every case) and the defined parameters",
     sprintf("defined <- function(theta) with(as.list(setNames(theta, par_names)), { %s })",
@@ -172,7 +193,7 @@ ps_customml <- function(req_json, export = FALSE) {
     defined = lapply(seq_along(dn), function(i) item(nparts + i, "defined")),
     categories = if (type == "nominal") I(env$cats) else NULL,
     fit = list(logLik = env$logl, npar = env$npar, aic = -2 * env$logl + 2 * env$npar, bic = -2 * env$logl + log(env$n) * env$npar),
-    se = se_type, warnings = c(env$.warnings, if (!conv) "The optimiser did not report convergence: check the start values."),
+    se = se_type, scaling = if (se_type == "mplus") env$scaling else NULL, warnings = c(env$.warnings, if (!conv) "The optimiser did not report convergence: check the start values."),
     engine = list(package = "R (stats::nlminb)", version = as.character(getRversion()))))
 }
 

@@ -10,6 +10,7 @@ import { useFreshResults, useStore } from '../../store';
 import { IconCopy, IconPencil, IconPlay, IconRepeat, IconTrash } from '../icons';
 import { confirmDialog } from '../Overlays';
 import { openReplication, ReplicationDialog } from './ReplicationDialog';
+import { ExampleBanner } from '../ExampleBanner';
 
 /** The project as the analyses see it, re-rendering when it changes. */
 export function useAnalysisCtx(): AnalysisCtx {
@@ -335,6 +336,7 @@ export function AnalysesWorkspace() {
           <button className="btn" onClick={openReplication} title="A zip with the data, an R script per chosen analysis, the project and a README">Replication package</button>
           <span className="hint">{readOnly ? 'View only.' : 'Reorder by dragging in the outline (or a card’s ⋮⋮, or Alt+↑/↓). The log is saved with the project.'}</span>
         </div>
+        <ExampleBanner where="analyses" />
         {cards.length === 0 && (
           <div className="empty-results log-empty">
             No analyses yet. Add one with <b>+ Add analysis</b>: each becomes a card here, kept with the project, which you can rerun when the data or the model change.

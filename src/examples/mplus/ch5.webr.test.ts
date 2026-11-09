@@ -2,6 +2,7 @@
 // (see testkit.ts). Run with npm run test:webr.
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { itIfFast } from '../../rengine/webrSlow';
 import type { CbEstimator } from '../../engine/cbsem';
 import { DEFAULT_SETTINGS, toSpec } from '../../model/project';
 import { estimateCbLavaan } from '../../rengine/lavaan';
@@ -161,11 +162,11 @@ it('ex5.3, ex5.10, ex5.16, ex5.22: categorical indicators by WLSMV, estimates an
   samePrinted(r3.estimates, MPLUS['ex5.3'].estimates, 'ex5.3');
   // ex5.16: two groups, thresholds and loadings equal, scale factors free in the second group; u3's loading and
   // threshold free for females, its scale fixed at 1. Every estimate and SE as printed (Mplus's standard errors: the
-  // expected information in the sandwich, divided by N, not N − 2). lavaan's χ² (mimic = "Mplus" would change the
-  // groups' equalities) is 33.693 against Mplus's 33.718.
+  // expected information in the sandwich, divided by N, not N − 2). The test statistic as Mplus's with groups (mimic's
+  // options written out, the equalities the model's): 33.720 against Mplus's 33.718.
   evidence('ex5.16', 'CB-SEM', ['lavaan']);
   const r16 = await fitOf('ex5.16');
-  scaledFit(r16, 'ex5.16', 0.03);
+  scaledFit(r16, 'ex5.16', 0.002);
   sameByGroup(r16, 'ex5.16');
   expect(r16.warnings).toEqual([]);
 }, 600_000);
@@ -173,7 +174,7 @@ it('ex5.3, ex5.10, ex5.16, ex5.22: categorical indicators by WLSMV, estimates an
 it('ex5.17: the theta parameterisation is the same model as ex5.16 (same χ²); Mplus’s printed estimates sit on a flat stretch of the fit function', async () => {
   evidence('ex5.17', 'CB-SEM', ['lavaan']);
   const r = await fitOf('ex5.17');
-  scaledFit(r, 'ex5.17', 0.03);
+  scaledFit(r, 'ex5.17', 0.001);
   const r16 = await fitOf('ex5.16');
   near('χ² equal to the delta parameterisation’s', r.fit.chisqScaled!, r16.fit.chisqScaled!, 1e-6);
   // Male group (residual variances fixed at 1): estimates within 0.002, every SE within 0.001 (Mplus's standard errors).
@@ -182,9 +183,29 @@ it('ex5.17: the theta parameterisation is the same model as ex5.16 (same χ²); 
   samePrinted(r.groups!.results[0].estimates, MPLUS['ex5.17'].estimates.filter((p) => p.group === 1), 'ex5.17 group 1', { tol: 0.002 });
   samePrinted(r.groups!.results[1].estimates, MPLUS['ex5.17'].estimates.filter((p) => p.group === 2), 'ex5.17 group 2', { tol: 0.021, seTol: 0.009 });
   expect(r.warnings).toEqual([]);
+  // Where Mplus stopped: with f1's female variance held at Mplus's 1.599, every other female estimate is Mplus's within
+  // 0.0012 (f2's variance 0.0023: 2.686 against 2.684), and the fit function's slope along that variance is below Mplus's convergence
+  // criterion (0.00005 on the derivatives): Mplus stopped on the flat stretch, lavaan went on to the minimum.
+  const { withR } = await import('../../rengine/runtime');
+  const d = load('ex5.17');
+  const csv = [d.names.join(','), ...Array.from(d.cols[0], (_, i) => d.cols.map((c) => (Number.isNaN(c[i]) ? 'NA' : c[i])).join(','))].join('\n');
+  const out = JSON.parse(await withR(['lavaan', 'jsonlite'], {}, async (webR) => {
+    await webR.objs.globalEnv.bind('csv', csv);
+    return webR.evalRString(`suppressPackageStartupMessages(library(lavaan)); d <- read.csv(text = csv)
+      m <- function(v) paste0("f1 =~ u1+u2+u3; f2 =~ u4+u5+u6; f1 + f2 ~ x1+x2+x3; f1 ~~ f2; u1 ~~ c(1,NA)*u1; u2 ~~ c(1,NA)*u2; u4 ~~ c(1,NA)*u4; u5 ~~ c(1,NA)*u5; u6 ~~ c(1,NA)*u6; u3 ~~ c(1,1)*u3; f1 ~~ c(NA, ", v, ")*f1")
+      fit <- function(v) sem(m(v), d, ordered = paste0("u", 1:6), estimator = "WLSMV", group = "g", group.equal = c("loadings", "thresholds", "intercepts"), group.partial = c("f1=~u3", "u3|t1"), parameterization = "theta")
+      pe <- parameterEstimates(fit(1.599)); pe <- pe[pe$group == 2, ]
+      h <- 0.005; slope <- diff(sapply(c(1.599 - h, 1.599 + h), function(v) fitMeasures(fit(v), "fmin"))) / (2 * h)
+      jsonlite::toJSON(list(est = data.frame(lhs = pe$lhs, op = pe$op, rhs = pe$rhs, est = pe$est, se = 0), slope = unname(slope)), auto_unbox = TRUE, digits = NA)`);
+  })) as { est: { lhs: string; op: string; rhs: string; est: number }[]; slope: number };
+  const held = out.est.map((e) => ({ ...e, se: null }));
+  samePrinted(held, MPLUS['ex5.17'].estimates.filter((p) => p.group === 2), 'ex5.17 group 2, f1’s variance at Mplus’s 1.599', { ses: false, tol: 0.0012, skip: (p) => p.lhs === 'f2' && p.op === '~~' && p.rhs === 'f2' });
+  near('f2 ~~ f2 (group 2, f1’s variance at 1.599)', held.find((e) => e.lhs === 'f2' && e.op === '~~' && e.rhs === 'f2')!.est, 2.684, 0.0025);
+  expect(Math.abs(out.slope)).toBeLessThan(5e-5);
 }, 600_000);
 
-it.each([['ex5.5part2', 'twopl'], ['ex5.5', 'gpcm']])('%s: the IRT model (ltm, %s) reproduces the Mplus output: log-likelihood, loadings, thresholds and their MLR standard errors', async (key) => {
+// (ex5.5, the partial credit model, is slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+for (const [key, model] of [['ex5.5part2', 'twopl'], ['ex5.5', 'gpcm']] as const) itIfFast(key === 'ex5.5')(`${key}: the IRT model (ltm, ${model}) reproduces the Mplus output: log-likelihood, loadings, thresholds and their MLR standard errors`, async () => {
   const ex = example(key);
   evidence(key, 'Item response theory', ['ltm']);
   const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'irt' }>;

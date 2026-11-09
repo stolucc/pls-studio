@@ -27,6 +27,8 @@ export interface IrtResult {
   /** Gauss-Hermite quadrature points, when chosen (absent: ltm's default). */
   quadrature?: number;
   robust?: boolean;
+  /** 'mplus': fitted with Mplus's integration rule (rengine/irtMplus.ts). */
+  integration?: 'mplus';
   warnings: string[]; engine: REngineInfo;
 }
 /**

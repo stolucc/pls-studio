@@ -59,12 +59,13 @@ print(a$alpha.drop$raw_alpha)
 bfi.keys <- list(neuroticism=c("N1","N2","N3","N4","N5")); s <- scoreItems(bfi.keys, bfi, min = 1, max = 6); print(s$alpha)
 print(packageVersion("psych"))
 # Repeated measures with two within-subject factors: carData's OBrienKaiser as car's ?Anova analyses it (idata, idesign =
-# ~ phase * hour), with treatment as the between factor (the help page also crosses gender). Type II tests, which aov's
-# error strata give (one between factor); the sphericity tests and corrections of summary(..., multivariate = FALSE).
+# ~ phase * hour), the help page's model treatment * gender with its contrasts. Type II tests (car::Anova); the sphericity
+# tests and corrections of summary(..., multivariate = FALSE).
 suppressPackageStartupMessages(library(car))
 phase <- factor(rep(c("pretest", "posttest", "followup"), c(5, 5, 5)), levels = c("pretest", "posttest", "followup"))
 hour <- ordered(rep(1:5, 3)); idata <- data.frame(phase, hour)
-mod.ok <- lm(cbind(pre.1, pre.2, pre.3, pre.4, pre.5, post.1, post.2, post.3, post.4, post.5, fup.1, fup.2, fup.3, fup.4, fup.5) ~ treatment, data = OBrienKaiser)
+ok <- OBrienKaiser; contrasts(ok$treatment) <- matrix(c(-2, 1, 1, 0, -1, 1), ncol = 2); contrasts(ok$gender) <- c(-1, 1)
+mod.ok <- lm(cbind(pre.1, pre.2, pre.3, pre.4, pre.5, post.1, post.2, post.3, post.4, post.5, fup.1, fup.2, fup.3, fup.4, fup.5) ~ treatment * gender, data = ok)
 s <- summary(Anova(mod.ok, idata = idata, idesign = ~ phase * hour, type = 2), multivariate = FALSE)
 print(unclass(s$univariate.tests)); print(unclass(s$sphericity.tests)); print(unclass(s$pval.adjustments)[, 1:4])
 # ?cohen.kappa: Cohen's (1968) table of proportions, with his disagreement weights (Cohen reports .492 and .348) and the non-symmetric ones (.353)

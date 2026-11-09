@@ -61,8 +61,10 @@ PS_TWOLEVEL_GROUPS_SE <- c(
 #' The WLSMV conventions of a CB-SEM request: `args` for the lavaan call, `lines` after it.
 #' Standard errors as Mplus's unless model$wlsmvSe is "lavaan" (lavaan 0.7's observed information in the sandwich);
 #' with sampling clusters or weights lavaan's own (design-based) standard errors are kept. model$mimic = "Mplus":
-#' Mplus's test statistic as well (lavaan's mimic = "Mplus", with gamma.vcov.mplus = FALSE), one group only: with
-#' groups lavaan's mimic = "Mplus" also changes which parameters are held equal, so the model itself.
+#' Mplus's test statistic as well (lavaan's mimic = "Mplus", with gamma.vcov.mplus = FALSE). With groups mimic =
+#' "Mplus" would also hold loadings and thresholds equal whenever group.equal is empty (a configural model), so
+#' there the options it sets for the test statistic are written out instead (the same statistic, the model unchanged:
+#' gamma.wls.mplus, gls.v11.mplus, information.expected.mplus, rmsea.scaled.mplus), the equalities being the request's.
 ps_wlsmv_se <- function(req, ordinal, groups, design) {
   se <- req$model$wlsmvSe; mimic <- req$model$mimic
   if (!is.null(se) && !identical(se, "lavaan")) stop("Invalid WLSMV standard errors in the request.")
@@ -71,11 +73,106 @@ ps_wlsmv_se <- function(req, ordinal, groups, design) {
   args <- ""
   # (both apply to WLSMV with ordinal indicators only; with another estimator they are kept for when it comes back)
   if (!is.null(mimic) && wlsmv) {
-    if (groups) stop("The Mplus test statistic is available for one group: with groups, lavaan's mimic = \"Mplus\" also changes which parameters are held equal across them, and so the model.")
-    args <- ", mimic = \"Mplus\", gamma.vcov.mplus = FALSE"
+    args <- if (groups) ", gamma.wls.mplus = TRUE, gls.v11.mplus = TRUE, information.expected.mplus = TRUE, rmsea.scaled.mplus = TRUE, gamma.vcov.mplus = FALSE"
+      else ", mimic = \"Mplus\", gamma.vcov.mplus = FALSE"
   }
   mplus <- wlsmv && is.null(se) && !design
   list(args = paste0(args, if (mplus) ", information.bread = \"expected\"" else ""), lines = if (mplus) ps_mplus_se_lines() else character(0))
+}
+
+#' ESEM blocks with invariant loadings, rotated jointly (Mplus ex. 5.26: the same two factors measured at two times, the
+#' loadings equal across the blocks). lavaan rotates each efa() block on its own, so the rotated solution is written out
+#' instead: each block's factors load on all the block's indicators, the k-th indicators of every block alike (labels),
+#' the first block's factors with variance 1 and free correlations, the later blocks' variances and covariances free,
+#' and the oblique geomin rotation of the stacked loadings as constraints, its stationarity conditions (Jennrich 2002:
+#' the rotated loadings L, the gradient G of the criterion and the factor correlations Phi satisfy L'G = D Phi, D
+#' diagonal; for the factors j and k, (L'G)_jk = (L'G)_jj Phi_jk). The maximum is the unrotated model's, and the
+#' estimates and standard errors are the rotated solution's (the constrained information: the delta method through the
+#' rotation). Mplus's geomin epsilon by default: 0.0001 for two factors, 0.001 for three, 0.01 for more.
+ps_esem_invariant <- function(esem, n, lname) {
+  rot <- esem$rotation %||% "geomin"
+  if (!identical(rot, "geomin") || isTRUE(esem$orthogonal)) stop("Invariant ESEM blocks are rotated jointly by oblique geomin.")
+  blocks <- lapply(esem$blocks, function(b) as.character(unlist(b)))
+  if (length(blocks) < 2) stop("Invariant loadings need two or more ESEM blocks.")
+  m <- length(blocks[[1]])
+  if (any(lengths(blocks) != m) || m < 2) stop("Invariant ESEM blocks need the same number of factors (two or more).")
+  if (any(!unlist(blocks) %in% n$cname) || anyDuplicated(unlist(blocks))) stop("Invalid ESEM block in the request.")
+  inds <- lapply(blocks, function(fs) unique(unname(n$iv[unlist(n$inds[match(fs, n$cname)])])))
+  p <- length(inds[[1]])
+  if (any(lengths(inds) != p) || anyDuplicated(unlist(inds))) stop("Invariant ESEM blocks need the same number of indicators, each in one block (the k-th indicators of the blocks correspond).")
+  eps <- esem$epsilon %||% (if (m == 2) 1e-4 else if (m == 3) 1e-3 else 1e-2)
+  if (!(is.numeric(eps) && length(eps) == 1 && eps > 0 && eps <= 1)) stop("Invalid geomin epsilon in the request.")
+  lab <- function(k, i) sprintf("lam%d_%d", k, i)
+  lines <- "# ESEM blocks with invariant loadings (labels alike), rotated jointly: oblique geomin on the stacked loadings"
+  # (the unrotated model, fitted first for the rotation: the first block's factors uncorrelated, the k-th factor's loadings
+  #  on the first k - 1 indicators at 0)
+  unrot <- "# the same blocks unrotated: the factors of the first block uncorrelated with variance 1, the loadings in echelon form"
+  pairs <- utils::combn(m, 2)
+  for (bi in seq_along(blocks)) {
+    js <- match(blocks[[bi]], n$cname)
+    for (k in seq_len(m)) {
+      lines <- c(lines, sprintf("%s =~ NA*%s + %s", lname[[js[k]]], inds[[bi]][1], paste(sprintf("%s*%s", lab(k, seq_len(p)), inds[[bi]]), collapse = " + ")))
+      unrot <- c(unrot, sprintf("%s =~ %s", lname[[js[k]]], paste(ifelse(seq_len(p) < k, sprintf("0*%s", inds[[bi]]), sprintf("%s%s*%s", ifelse(seq_len(p) == k, "NA*", ""), lab(k, seq_len(p)), inds[[bi]])), collapse = " + ")))
+    }
+    unrot <- sub("NA\\*(lam[0-9_]+)\\*", "NA*\\1*", unrot)
+    if (bi == 1) {
+      lines <- c(lines, sprintf("%s ~~ 1*%s", lname[js], lname[js]), sprintf("%s ~~ phi%d_%d*%s", lname[js[pairs[1, ]]], pairs[1, ], pairs[2, ], lname[js[pairs[2, ]]]))
+      unrot <- c(unrot, sprintf("%s ~~ 1*%s", lname[js], lname[js]), sprintf("%s ~~ 0*%s", lname[js[pairs[1, ]]], lname[js[pairs[2, ]]]))
+    } else {
+      cov_lines <- c(sprintf("%s ~~ %s", lname[js], lname[js]), sprintf("%s ~~ %s", lname[js[pairs[1, ]]], lname[js[pairs[2, ]]]))
+      lines <- c(lines, cov_lines); unrot <- c(unrot, cov_lines)
+    }
+  }
+  # Geomin (m factors): Q = sum_i prod_k (l_ik^2 + eps)^(1/m); dQ/dl_ik is proportional to l_ik P_i^(1/m) / (l_ik^2 + eps).
+  P <- vapply(seq_len(p), function(i) sprintf("(%s)^(1/%d)", paste(sprintf("(%s^2 + %s)", lab(seq_len(m), i), format(eps)), collapse = "*"), m), "")
+  g <- function(k, i) sprintf("%s*%s/(%s^2 + %s)", lab(k, i), P[i], lab(k, i), format(eps))
+  LG <- function(j, k) paste(sprintf("%s*%s", lab(j, seq_len(p)), vapply(seq_len(p), function(i) g(k, i), "")), collapse = " + ")
+  phi <- function(j, k) sprintf("phi%d_%d", min(j, k), max(j, k))
+  cons <- unlist(lapply(seq_len(m), function(j) lapply(setdiff(seq_len(m), j), function(k) sprintf("0 == %s - %s*(%s)", LG(j, k), phi(j, k), LG(j, j)))))
+  within <- unlist(lapply(blocks, function(fs) { js <- match(fs, n$cname); c(sprintf("%s ~~ %s", lname[js[pairs[1, ]]], lname[js[pairs[2, ]]]), sprintf("%s ~~ %s", lname[js[pairs[2, ]]], lname[js[pairs[1, ]]])) }))
+  list(lines = c(lines, sprintf("# the stationarity conditions of geomin (epsilon %s): (t(L) G)_jk = (t(L) G)_jj Phi_jk for every pair of factors j, k", format(eps)), cons),
+    unrotated = unrot, within = within, in_block = unlist(blocks),
+    # (lavaan names of the blocks' factors and indicators, for the rotation's script lines)
+    factors = lapply(blocks, function(fs) unname(lname[match(fs, n$cname)])), indicators = inds, eps = eps, m = m,
+    # (each factor of the first block's own indicators on the diagram: they set the order of the rotated factors)
+    own = lapply(match(blocks[[1]], n$cname), function(j) unname(n$iv[n$inds[[j]]])))
+}
+
+#' Script lines between the unrotated fit and the rotated one: the joint geomin rotation of the stacked loadings (GPArotation,
+#' oblique; the identity and 30 random starts, Mplus's number; the lowest criterion kept; each factor's loadings made to sum
+#' to a positive number), and the rotated values as start values for the rotated model, from which it converges at once.
+ps_esem_invariant_rotate <- function(inv) {
+  q <- function(x) sprintf("c(%s)", paste(sprintf("\"%s\"", x), collapse = ", "))
+  c("# The joint rotation: oblique geomin of the stacked loadings of every block (GPArotation), the best of 31 starts",
+    sprintf("blocks_f <- list(%s)", paste(vapply(inv$factors, q, ""), collapse = ", ")),
+    sprintf("blocks_y <- list(%s)", paste(vapply(inv$indicators, q, ""), collapse = ", ")),
+    "E <- lavInspect(fit_unrotated, \"est\")",
+    "A <- E$lambda[blocks_y[[1]], blocks_f[[1]], drop = FALSE]",
+    "rot <- NULL",
+    "for (k in 0:30) {",
+    "  T0 <- if (k == 0) diag(ncol(A)) else { set.seed(k); qr.Q(qr(matrix(rnorm(ncol(A)^2), ncol(A)))) }",
+    sprintf("  r <- GPArotation::GPFoblq(do.call(rbind, rep(list(A), length(blocks_f))), Tmat = T0, method = \"geomin\", methodArgs = list(delta = %s), eps = 1e-12, maxit = 10000)", format(inv$eps)),
+    "  if (is.null(rot) || min(r$Table[, 2]) < min(rot$Table[, 2])) rot <- r",
+    "}",
+    "# The factors in the order of the diagram (each with its own indicators' loadings largest), the loadings summing positive",
+    sprintf("own <- list(%s)", paste(vapply(inv$own, q, ""), collapse = ", ")),
+    "L0 <- abs(A %*% t(solve(rot$Th)))",
+    "perms <- function(v) if (length(v) <= 1) list(v) else unlist(lapply(seq_along(v), function(i) lapply(perms(v[-i]), function(p) c(v[i], p))), recursive = FALSE)",
+    "fit_order <- function(o) sum(vapply(seq_along(o), function(k) sum(L0[rownames(L0) %in% own[[k]], o[k]]), 0))",
+    "best_order <- Reduce(function(a, b) if (fit_order(b) > fit_order(a)) b else a, perms(seq_len(ncol(A))))",
+    "Tm <- rot$Th[, best_order, drop = FALSE]",
+    "Tm <- Tm %*% diag(sign(colSums(A %*% t(solve(Tm)))), ncol(A))",
+    "L_rot <- A %*% t(solve(Tm))",
+    "allf <- unlist(blocks_f); Tb <- kronecker(diag(length(blocks_f)), Tm)",
+    "P_rot <- t(Tb) %*% E$psi[allf, allf] %*% Tb; dimnames(P_rot) <- list(allf, allf)",
+    "start_rot <- parTable(fit_unrotated)[, c(\"lhs\", \"op\", \"rhs\", \"est\")]",
+    "set_start <- function(lhs, op, rhs, v) {",
+    "  i <- which(start_rot$lhs == lhs & start_rot$op == op & start_rot$rhs == rhs)",
+    "  if (!length(i)) i <- which(start_rot$lhs == rhs & start_rot$op == op & start_rot$rhs == lhs)",
+    "  if (length(i)) start_rot$est[i] <<- v else start_rot <<- rbind(start_rot, data.frame(lhs = lhs, op = op, rhs = rhs, est = v))",
+    "}",
+    "for (b in seq_along(blocks_f)) for (k in seq_along(blocks_f[[b]])) for (i in seq_along(blocks_y[[b]])) set_start(blocks_f[[b]][k], \"=~\", blocks_y[[b]][i], L_rot[i, k])",
+    "for (a in seq_along(allf)) for (b in seq_len(a)) set_start(allf[a], \"~~\", allf[b], P_rot[a, b])")
 }
 
 ps_cb_build <- function(req) {
@@ -189,6 +286,16 @@ ps_cb_build <- function(req) {
   if (is.matrix(esem$blocks)) esem$blocks <- lapply(seq_len(nrow(esem$blocks)), function(i) esem$blocks[i, ])
   in_block <- character(0)
   target <- NULL
+  # Blocks with invariant loadings (Mplus ex. 5.26: f1-f2 BY y1-y6 (*t1 1); f3-f4 BY y7-y12 (*t2 1)): ps_esem_invariant writes
+  # them out as factors whose loadings are labelled alike, rotated jointly by geomin's stationarity conditions.
+  inv <- NULL
+  if (isTRUE(esem$invariant)) {
+    inv <- ps_esem_invariant(esem, n, lname)
+    lines <- c(lines, inv$lines); in_block <- inv$in_block
+    esem$blocks <- list()
+    if (any(vapply(req$model$paths, function(p) any(c(p$from, p$to) %in% in_block), TRUE)) || length(mods) || !is.null(req$model$multigroup) || !is.null(req$model$multilevel))
+      stop("Invariant ESEM blocks are available for a measurement model in one group: no paths to or from their factors, no groups or clusters.")
+  }
   for (bi in seq_along(esem$blocks)) {
     fs <- unlist(esem$blocks[[bi]])
     if (length(fs) < 2 || any(!fs %in% n$cname)) stop("Invalid ESEM block in the request.")
@@ -241,8 +348,22 @@ ps_cb_build <- function(req) {
   fac_j <- which(!is_cov & !(n$cname %in% in_block) & vapply(seq_len(k0), function(j) !length(comps[[j]]) && !identical(cons[[j]]$type, "composite"), TRUE))
   fac_iv <- unlist(lapply(fac_j, function(j) unname(n$iv[n$inds[[j]]])))
   shared_iv <- unique(fac_iv[duplicated(fac_iv)])
+  # An ordinal mediator whose predictors include another outcome, in the delta parameterisation (Mplus: u2 ON u1 x1;
+  # u3 ON u2, the u's categorical): its construct is the whole latent response, whose variance given the covariates
+  # is 1, so the disturbance would be 1 minus the variance of what the other outcomes explain, a non-linear
+  # function of the model. lavaan imposes exactly that for an ordinal variable regressed in the syntax, so the
+  # variable stands for itself there (the construct's lavaan name is the variable's, as an observed covariate's).
+  ord_self <- vapply(seq_len(k0), function(j) {
+    if (is_cov[j] || theta || length(mods) || length(n$inds[[j]]) != 1 || length(comps[[j]]) || n$cname[j] %in% in_block || identical(cons[[j]]$type, "composite")) return(FALSE)
+    v <- unname(n$iv[[n$inds[[j]][1]]])
+    if (!(v %in% ord_iv) || v %in% shared_iv || !is.null(cons[[j]]$reliability) || isTRUE(cons[[j]]$freeError) || n$cname[j] %in% var_set) return(FALSE)
+    from <- vapply(req$model$paths, function(p) if (identical(p$to, n$cname[j])) p$from else NA_character_, "")
+    from <- from[!is.na(from)]
+    length(from) > 0 && n$cname[j] %in% vapply(req$model$paths, function(p) p$from, "") && any(!is_cov[match(from, n$cname)] %in% TRUE)
+  }, TRUE)
+  lname[ord_self] <- unname(n$iv[vapply(n$inds[ord_self], `[`, "", 1)])
   for (j in seq_len(k0)) {
-    if (is_cov[j] || n$cname[j] %in% in_block) next
+    if (is_cov[j] || ord_self[j] || n$cname[j] %in% in_block) next
     # The first loading of each factor is fixed to 1 (marker / scaling indicator); written explicitly.
     if (length(comps[[j]])) {
       # Component loadings held at values (a latent curve: 1, 1, 1 and 0, 1, 2), keyed by the components' lavaan names.
@@ -413,10 +534,11 @@ ps_cb_build <- function(req) {
       j <- match(mt$construct, n$cname)
       if (is.na(j)) stop("Unknown construct in a mean term.")
       lv <- lname[[mt$construct]]
-      term <- if (!is.null(mt$fixed)) paste0(ps_num(mt$fixed), "*1") else if (!is.null(mt$label)) paste0(ps_group_label(mt$label), "1") else "1"
+      # (values per group: c(NA, 0)*1 holds the mean in a reference group, which identifies it; no marker rule then)
+      term <- if (!is.null(mt$byGroup)) paste0(ps_mod(mt), "1") else if (!is.null(mt$fixed)) paste0(ps_num(mt$fixed), "*1") else if (!is.null(mt$label)) paste0(ps_group_label(mt$label), "1") else "1"
       lines <- c(lines, paste(lv, "~", term))
       # (a higher-order factor's mean is identified by its components' fixed intercepts: no marker rule here)
-      if (is.null(mt$fixed) && !is_cov[j] && length(n$inds[[j]]) && !length(comps[[j]])) {
+      if (is.null(mt$fixed) && is.null(mt$byGroup) && !is_cov[j] && !ord_self[j] && length(n$inds[[j]]) && !length(comps[[j]])) {
         # The marker's intercept: 0 identifies the latent mean in the marker's units; a known measurement bias instead
         # (Hayduk 1987, ch. 9: the indicator reads the concept plus this much), one value per group when given so.
         bias <- unlist(mt$bias)
@@ -704,7 +826,7 @@ ps_cb_build <- function(req) {
     ident_of <- function(x) if (x %in% names(aux_id)) unname(aux_id[x]) else if (x %in% names(n$iv)) unname(n$iv[[x]]) else stop("A nominal variable for the imputation is not among its variables.")
     noms <- vapply(ms$nominal, ident_of, "")
     amelia <- identical(ms$method, "amelia")
-    body[1] <- sprintf("suppressPackageStartupMessages({ library(lavaan); library(%s); library(lavaan.mi) })", if (amelia) "Amelia" else "mice")
+    body[1] <- sprintf("suppressPackageStartupMessages({ library(lavaan); %slibrary(lavaan.mi) })", if (amelia) "library(Amelia); " else if (identical(ms$method, "joint")) "" else "library(mice); ")
     call <- c(
       if (length(aux_id)) sprintf("# Auxiliary variables of the imputation (not in the model): %s", paste(ps_comment(names(aux_id)), collapse = ", ")),
       if (amelia) c(
@@ -712,6 +834,12 @@ ps_cb_build <- function(req) {
         sprintf("set.seed(%d)", ms$seed),
         sprintf("imp <- amelia(data, m = %d%s, p2s = 0)$imputations", ms$m, if (length(noms)) sprintf(", noms = %s", ps_q(unname(noms))) else ""),
         "imp <- lapply(seq_along(imp), function(k) as.data.frame(imp[[k]]))")
+      else if (identical(ms$method, "joint")) c(
+        sprintf("# Multiple imputation as Mplus's DATA IMPUTATION, %d imputed data sets: a draw every 100 iterations of the data", ms$m),
+        "# augmentation for the unrestricted (H1) multivariate normal model, the categorical columns through latent responses.",
+        ps_joint_impute_lines(),
+        if (!is.null(group_var)) "# (the grouping column is complete: a variable of the imputation model)",
+        sprintf("imp <- ps_joint_impute(data, m = %d, seed = %d%s)", ms$m, ms$seed, if (length(noms)) sprintf(", categorical = %s", ps_q(unname(noms))) else ""))
       else if (identical(ms$method, "micenorm")) c(
         if (!is.null(group_var)) c("# The grouping column is categorical: mice uses it as a factor.", sprintf("data$%s <- factor(data$%s)", group_var, group_var)),
         sprintf("# Multiple imputation by chained equations (mice), %d imputed data sets: Bayesian linear regression (norm) for", ms$m),
@@ -792,11 +920,19 @@ ps_cb_build <- function(req) {
     baseline <- c("# The baseline model for CFI and TLI: as lavaan's for observed variables, the covariances among the",
       "# exogenous observed variables stay free", "baseline_model <- '", paste0("  ", bmodel), "'", bcall)
   }
+  # Invariant ESEM blocks: the unrotated model first, rotated jointly; its values start the rotated model.
+  if (!is.null(inv)) {
+    other <- lines[-seq_along(inv$lines)]
+    other <- other[!other %in% inv$within]
+    body <- c(body, "model_unrotated <- '", paste0("  ", c(inv$unrotated, other)), "'",
+      sub("^fit <- sem\\(model,", "fit_unrotated <- sem(model_unrotated,", call), ps_esem_invariant_rotate(inv))
+    call <- sub("\\)$", if (identical(req$estimator, "ML")) ", start = start_rot, test = \"standard\")" else ", start = start_rot)", call)
+  }
   # (the baseline lines travel separately: every other user of this body expects the fit call last)
   body <- c(body, "model <- '", paste0("  ", lines), "'", call, wse$lines,
     # (MLR with groups and clusters: Mplus's robust standard errors, lavaan's pieces weighted by the groups' clusters)
     if (!is.null(cluster_var) && !is.null(group_var) && identical(req$estimator, "MLR")) PS_TWOLEVEL_GROUPS_SE, wald)
-  list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
+  list(n = n, k0 = k0, comps = comps, is_cov = is_cov, ord_self = ord_self, lname = lname, mods = mods, means = means_on, int_names = int_names, prod = prod,
     inputs = inputs, body = body, baseline = baseline, matrix_input = matrix_input, group_var = group_var, cluster_var = cluster_var, call = call, robust = robust, mi = mi, rel_inds = rel_inds, composites = composites, obs_single = obs_single, between_cov = between_cov, between_lv = between_lv,
     esem_blocks = lapply(esem$blocks, function(x) as.character(unlist(x))), bifactor = length(esem$blocks) > 0 && bifactor)
 }
@@ -831,7 +967,7 @@ ps_cb <- function(req_json, export = FALSE) {
   back <- c(setNames(constructs, lv_lname), setNames(constructs, paste0(lv_lname, "_b")), setNames(indicators, ind_v), setNames(unname(b$between_cov), names(b$between_cov)))
   is_lv <- function(x) x %in% c(lv_lname, paste0(lv_lname, "_b"), b$between_lv)
   # (an observed covariate is its own lavaan name: its "~1" is an intercept, not a latent mean)
-  latent_names <- { lv <- unname(b$lname[!b$is_cov]); c(lv, paste0(lv, "_b"), b$between_lv) }
+  latent_names <- { lv <- unname(b$lname[!(b$is_cov | (b$ord_self %||% FALSE))]); c(lv, paste0(lv, "_b"), b$between_lv) }
   nm <- function(x) unname(back[x])
 
   levels2 <- !is.null(b$cluster_var)
@@ -893,7 +1029,8 @@ ps_cb <- function(req_json, export = FALSE) {
       if (is.na(kind)) return(NULL)
       if (r$op == ":=") return(list(kind = kind, lhs = r$lhs, op = r$op, rhs = r$rhs, est = r$est, se = if (is.na(r$se)) NULL else r$se,
         z = if (is.na(r$z)) NULL else r$z, p = if (is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all))
-      list(kind = kind, lhs = nm(r$lhs), op = r$op, rhs = if (r$op %in% c("|", "~1")) r$rhs else nm(r$rhs), est = r$est,
+      # (a threshold is the variable's, also where the variable stands for its construct: an ordinal mediator)
+      list(kind = kind, lhs = if (r$op == "|" && r$lhs %in% ind_v) indicators[match(r$lhs, ind_v)] else nm(r$lhs), op = r$op, rhs = if (r$op %in% c("|", "~1")) r$rhs else nm(r$rhs), est = r$est,
         label = if (isTRUE(nzchar(r$label)) && !startsWith(r$label, ".")) r$label else NULL,
         se = if (!free || is.na(r$se)) NULL else r$se, z = if (!free || is.na(r$z)) NULL else r$z,
         p = if (!free || is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all,

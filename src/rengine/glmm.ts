@@ -32,6 +32,8 @@ export interface GlmmInput {
   quadrature: number;
   /** Robust (sandwich) standard errors, as Mplus's MLR. */
   robust: boolean;
+  /** 'mplus': Mplus's integration rule (adaptive rectangular, `quadrature` points per dimension) by the integration card's engine (rengine/glmmMplus.ts), wide data only; absent: GLMMadaptive. */
+  integration?: 'mplus';
 }
 
 export interface GlmmCoef { term: string; est: number; se: number; z: number; p: number }
@@ -45,6 +47,8 @@ export interface GlmmResult {
   /** Negative binomial: the log of the dispersion parameter θ (variance μ + μ²/θ). */
   logPhi?: { est: number; se: number };
   logLik: number; npar: number; aic: number; bic: number; converged: boolean;
+  /** 'mplus': fitted with Mplus's integration rule (absent: GLMMadaptive). */
+  integration?: 'mplus';
   warnings: string[]; engine: REngineInfo;
 }
 

@@ -3,6 +3,7 @@
 // documented. Run with npm run test:webr.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { itIfFast } from '../rengine/webrSlow';
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset } from '../engine/types';
 import { type DataInfo, DEFAULT_SETTINGS, toSpec } from '../model/project';
@@ -33,6 +34,7 @@ import { exampleModel, examplePanels, PACKAGE_EXAMPLES, panelColumns, type Packa
 import { against, cleanRun, example, near, same } from '../validation/record';
 import type { EvidenceSource } from '../validation/types';
 import { exampleTestData } from './testData';
+import { unexpectedMessages } from './expectedMessages';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -47,38 +49,10 @@ afterAll(() => {
   setWarningSink(null);
   if (process.env.PS_EXAMPLE_WARNINGS) writeFileSync(process.env.PS_EXAMPLE_WARNINGS, JSON.stringify(raised, null, 2));
 });
-/** Notes an example is expected to carry, and why. */
-const EXPECTED_NOTES: Record<string, RegExp[]> = {
-  // plspm's simdata: Price and Quality are simulated as independent, so their items' correlations have mixed signs.
-  'plspm-rebus': [/items of Price and Quality correlate with mixed signs/],
-  'plspm-fimix': [/items of Price and Quality correlate with mixed signs/],
-  // Yoo et al. (2000): several driver constructs are nearly uncorrelated in the data.
-  'csem-yoo': [/correlate with mixed signs/],
-  // mice's nhanes: cholesterol (mg/dL) has a variance a thousand times that of age (coded 1-3); lavaan's advice on scaling.
-  'mice-nhanes': [/observed variances are \(at least\) a factor/],
-  // Bollen's data: income in dollars and weight in pounds next to ratings on short scales; lavaan's advice on scaling.
-  'bollen-felson': [/observed variances are \(at least\) a factor/],
-};
-/** Warnings that are the source's own result, and why. */
-const EXPECTED_WARNINGS: Record<string, RegExp[]> = {
-  // ?bollen1996's four-factor model as written: the variances estimated after MIIV-2SLS give factor correlations above 1 (stated on the card).
-  'bollen-accessibility': [/not positive definite/],
-  // lavaan's own notes under non-linear equality constraints (Mplus MODEL CONSTRAINT): its augmented-Lagrangian optimiser
-  // passes through infeasible points, Browne's test is not defined, and the standardised solution's constraint check
-  // and a standardised defined parameter come with cautions. The estimates are Mplus's (mplus/ch5, ch6 tests).
-  'mplus-ex5.20': [/NA\/NaN function evaluation/, /browne\.residual\.nt\.model/, /number of items to replace/],
-  // Mplus's own estimate of y4's residual variance is near zero (0.340, SE 0.254): some imputed data sets give a negative one.
-  'mplus-ex11.6': [/some estimated ov variances are negative/],
-  // ?mirt's 3PL of the LSAT7 patterns: its information matrix is singular, as on the help page (estimates as there, no SEs).
-  'mirt-lsat7-3pl': [/Could not invert information matrix/],
-  'mplus-ex6.17': [/browne\.residual\.nt\.model/, /standardized value of the defined parameter/],
-  // ?fisher.test's job-satisfaction table: expected counts below 5, so chisq.test warns; the help page reads the exact test.
-  'stats-contingency-job': [/approximation may be incorrect/],
-};
+// The notes and warnings an example is expected to raise, each with its reason, are the example's own
+// expectedMessages (examples/expectedMessages.ts): the Messages panel marks the same ones as expected.
 const checkClean = (id: string) => {
-  const r = raised[id] ?? { warnings: [], notes: [] };
-  const warned = r.warnings.filter((w) => !(EXPECTED_WARNINGS[id] ?? []).some((re) => re.test(w)));
-  const unexpected = [...new Set(r.notes)].filter((n) => !(EXPECTED_NOTES[id] ?? []).some((re) => re.test(n)));
+  const { warnings: warned, notes: unexpected } = unexpectedMessages(PACKAGE_EXAMPLES.find((e) => e.id === id)?.expectedMessages, raised[id] ?? { warnings: [], notes: [] });
   cleanRun(warned.length + unexpected.length);
   expect(warned, `${id} warned`).toEqual([]);
   expect(unexpected, `${id} carries an unexpected note`).toEqual([]);
@@ -156,8 +130,10 @@ async function checkSecondOrder(data: Dataset, spec: ReturnType<typeof toSpec>, 
   expect(sd('hoLoading:c4:c1')).toBeCloseTo(ref.bootSE['c4 =~ c1'], 4);
 }
 
+/** Examples that take minutes in webR (each also checked by its chapter's test): run with WEBR_SLOW, as npm run validate:evidence does. */
+const SLOW_EXAMPLES = new Set(['mplus-ex10.7', 'mplus-ex9.23', 'mplus-ex7.8', 'mplus-ex7.7', 'mplus-ex8.2', 'mplus-ex5.5', 'mplus-ex7.6', 'mplus-ex8.1']);
 describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example %s in webR', (_id, ex) => {
-  it('loads its data from the package and estimates', async () => {
+  itIfFast(SLOW_EXAMPLES.has(ex.id))('loads its data from the package and estimates', async () => {
     currentExample = ex.id;
     example(ex.id, { title: ex.title, method: methodOf(ex), packages: [ex.package], definition: ex });
     for (const s of SOURCES[ex.id] ?? []) against(s);
@@ -172,7 +148,7 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
     const st = { ...DEFAULT_SETTINGS, ...ex.settings };
     if (ex.panel) {
       const p = ex.panel;
-      for (const q of examplePanels(ex)) for (const c of panelColumns(q)) expect(data.names, `${ex.id}: ${c}`).toContain(c);
+      for (const q of examplePanels(ex)) for (const c of panelColumns(q, data.names)) expect(data.names, `${ex.id}: ${c}`).toContain(c);
       if (p.kind === 'endo') {
         const { kind: _k, ...pre } = p;
         const r = await endoR(data, { method: 'iv', outcome: '', exogenous: [], endogenous: [], instruments: [], hetRegressors: [], hmTypes: [], selection: { outcome: '', regressors: [] },

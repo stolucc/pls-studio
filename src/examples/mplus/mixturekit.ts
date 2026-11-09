@@ -13,7 +13,8 @@ import { expect } from 'vitest';
 import { buildMixture } from '../../analyses/mixtureSyntax';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { mixtureR } from '../../rengine/mixture';
-import { near } from '../../validation/record';
+import { near, same } from '../../validation/record';
+import { examplePanels } from '../packages';
 import { evidence, example, load, MPLUS, sameFit, TOL, type Mine, type Printed } from './testkit';
 
 const logit = (p: number) => Math.log(p / (1 - p));
@@ -131,8 +132,9 @@ export function sameGmm(m: GmmModel, printed: Printed[], tol: number) {
 
 
 /** The classes a printed block stands for: per class variable its class (0: not given). */
-export function blockClasses(block: string, names: string[]): number[] {
+export function blockClasses(block0: string, names: string[]): number[] {
   const out = names.map(() => 0);
+  const block = block0.replace(/ \(\d+\)$/, '');  // (a known class: Latent Class 1 (0), with its value)
   const one = /^Latent Class (\d+)$/.exec(block);
   if (one) { const main = names.length === 1 ? 0 : -1; if (main < 0) throw new Error(`"${block}" with several latent class variables`); out[main] = Number(one[1]); return out; }
   const pat = /^Latent Class Pattern ([\d ]+)$/.exec(block);
@@ -153,8 +155,12 @@ const mapCat = (s: string, names: string[], perm: number[][]) => {
 export function findMixture(mine: MixtureParam[], p: Printed, names: string[], perm: number[][], renameClasses = false): MixtureParam | undefined {
   const cond = blockClasses(p.block, names).map((k, i) => (k ? perm[i][k - 1] : 0));
   const lhs = renameClasses ? mapCat(p.lhs, names, perm) : p.lhs, rhs = renameClasses ? mapCat(p.rhs, names, perm) : p.rhs;
-  return mine.find((e) => e.op === p.op && ((e.lhs === lhs && e.rhs === rhs) || (p.op === '~~' && e.lhs === rhs && e.rhs === lhs))
-    && e.at.every((a, i) => a === 0 || a === cond[i]));
+  // (two-level: the level it is printed under, as a heading of its own or above the classes)
+  const lv = /^(Within|Between) Level$/.exec(p.level ?? p.block)?.[1].toLowerCase();
+  // (the most specific row: a class-specific parameter before the overall one it adds to)
+  return mine.filter((e) => e.op === p.op && ((e.lhs === lhs && e.rhs === rhs) || (p.op === '~~' && e.lhs === rhs && e.rhs === lhs))
+    && e.at.every((a, i) => a === 0 || a === cond[i]) && (!lv || !e.level || e.level === lv))
+    .sort((a, b) => b.at.filter((x) => x > 0).length - a.at.filter((x) => x > 0).length)[0];
 }
 
 /**
@@ -164,7 +170,8 @@ export function findMixture(mine: MixtureParam[], p: Printed, names: string[], p
  */
 export function matchClasses(mine: MixtureParam[], printed: Printed[], classes: { name: string; k: number; known: boolean }[], probabilities = false): number[][] {
   const names = classes.map((c) => c.name);
-  const options = classes.map((c) => (c.known ? [Array.from({ length: c.k }, (_, i) => i + 1)] : perms(c.k).map((p) => p.map((x) => x + 1))));
+  // (the classes in the card's order first: a variable the printed parameters do not tell apart keeps it)
+  const options = classes.map((c) => (c.known ? [Array.from({ length: c.k }, (_, i) => i + 1)] : perms(c.k).map((p) => p.map((x) => x + 1)).sort((a, b) => Number(b.every((x, i) => x === i + 1)) - Number(a.every((x, i) => x === i + 1)))));
   const rows = printed.filter((p) => (probabilities ? true : !isClassName(p.lhs, names)) && blockClasses(p.block, names).some((k) => k > 0) || (probabilities && isClassName(p.lhs, names) && p.op === '~'));
   let best: number[][] = options.map((o) => o[0]), bestScore = Infinity;
   const walk = (i: number, acc: number[][]) => {
@@ -193,15 +200,20 @@ export function matchClasses(mine: MixtureParam[], printed: Printed[], classes: 
  * Every parameter Mplus prints against the card's (classes already in Mplus's order): the estimate within `tol`, the
  * standard error (MLR) within `seTol` (unless `ses` is false). Returns the largest differences.
  */
-export function sameMixture(mine: MixtureParam[], printed: Printed[], names: string[], tol: (p: Printed) => number, seTol: (p: Printed) => number | null) {
+export function sameMixture(mine: MixtureParam[], printed: Printed[], names: string[], tol: (p: Printed) => number, seTol: (p: Printed) => number | null, signFree?: (p: Printed) => boolean) {
   const id = names.map(() => Array.from({ length: 12 }, (_, i) => i + 1));
   let worst = 0, worstSe = 0;
   for (const p of printed) {
     const e = findMixture(mine, p, names, id);
     const label = `${p.lhs} ${p.op} ${p.rhs}${p.block ? ` (${p.block})` : ''}`;
+    // (a parameter fixed at 0 that the card does not list, e.g. a random slope's variance: nothing to compare)
+    if (!e && p.se === 0 && p.est === 0) continue;
     if (!e) throw new Error(`${label} is not among the card's parameters`);
-    worst = Math.max(worst, Math.abs(e.est - p.est));
-    near(`${label}${p.se === 0 ? ' (fixed)' : ''}`, e.est, p.est, tol(p));
+    // (a coefficient on a factor whose sign is not identified: its magnitude)
+    const est = signFree?.(p) ? Math.sign(p.est) * Math.abs(e.est) : e.est;
+    if (process.env.MIXDEBUG && Math.abs(est - p.est) > 0.001) console.log('EST', label, est, p.est);
+    worst = Math.max(worst, Math.abs(est - p.est));
+    near(`${label}${p.se === 0 ? ' (fixed)' : ''}`, est, p.est, tol(p));
     const st = seTol(p);
     if (process.env.MIXDEBUG && p.se > 0 && Math.abs((e.se ?? NaN) - p.se) > 0.001) console.log('SE', label, e.est, p.est, e.se, p.se);
     if (p.se > 0 && st !== null) { worstSe = Math.max(worstSe, Math.abs((e.se ?? NaN) - p.se)); near(`SE of ${label}`, e.se ?? NaN, p.se, st); }
@@ -210,17 +222,30 @@ export function sameMixture(mine: MixtureParam[], printed: Printed[], names: str
 }
 
 /** Per example: tolerances of estimates and standard errors where Mplus's convergence or its MLR differ (see the descriptions). */
-export const MIX_TOL: Record<string, { est?: number; se?: number; noSe?: (p: Printed) => boolean }> = {
+export const MIX_TOL: Record<string, { signFree?: (p: Printed) => boolean; est?: number; se?: number; noSe?: (p: Printed) => boolean; logl?: number; skip?: (p: Printed) => boolean; estOf?: (p: Printed) => number | undefined; seOf?: (p: Printed) => number | undefined }> = {
   // (Mplus stops at its convergence criterion where the likelihood is flat: see the description)
   'ex8.13part1': { est: 0.002, se: 0.003 },
   // (a transition probability at 0: the information there depends on the side it is taken from; the SEs of that row
   // are not compared, the others agree within 0.002: see the description)
   'ex8.15': { se: 0.002, noSe: (p) => p.rhs === 'c1#3' && p.block === 'Latent Class C#1' },
+  // Numerical integration (see the descriptions): Mplus stops on a flat ridge of loadings and factor variance (7.19);
+  // its standard errors where the likelihood is flattest (7.27); its integration's log-likelihood (8.3, 10.2: the
+  // integral at the same estimates, which finer rules and the closed form confirm); diverging class logits (8.5 part 2).
+  'ex7.18': { signFree: (p) => p.rhs === 'f' },
+  'ex7.19': { est: 0.0025 },
+  'ex7.27': { est: 0.002, seOf: (p) => (p.op === '~~' && p.lhs === 'f' ? 0.02 : 0.004) },
+  'ex8.3': { logl: 0.012, est: 0.0015, se: 0.003 },
+  'ex8.5part2': { skip: (p) => p.lhs === 'c#1' || (p.op === '~~' && p.se === 0), est: 0.002 },
+  // (two-level: Mplus's estimates maximise its own integration's log-likelihood, which differs from the integral by up
+  // to 0.014 here; the closed form confirms the card's for 10.2: see the descriptions)
+  'ex10.2': { logl: 0.014, se: 0.0015 }, 'ex10.2alt': { logl: 0.014, est: 0.0025, se: 0.0015 }, 'ex10.3': { logl: 0.015, est: 0.017, se: 0.017 },
+  'ex10.4': { logl: 0.003, est: 0.05, se: 0.05 }, 'ex10.13': { est: 0.005, se: 0.008 },
 };
 
 export async function fitMixture(key: string) {
   const ex = example(key);
-  const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'mixture' }>;
+  // (the example's mixture card: its panel, or one of morePanels when it opens another card first)
+  const p = examplePanels(ex).find((x) => x.kind === 'mixture') as Extract<NonNullable<typeof ex.panel>, { kind: 'mixture' }>;
   const data = load(key);
   const parsed = buildMixture(p.syntax, data, { seed: DEFAULT_SETTINGS.seed, starts: p.starts });
   const r = await mixtureR(data, parsed.spec);
@@ -236,10 +261,22 @@ export async function checkMixture(key: string) {
   evidence(key, 'Mixture model', ['R']);
   const { r, r2, parsed, want } = await fitMixture(key);
   expect(r.converged).toBe(true);
-  sameFit({ npar: r.npar, logl: r.logLik, aic: r.aic, bic: r.bic }, want.fit);
-  near2(r2.logLik, r.logLik);
   const t = MIX_TOL[key] ?? {};
-  return sameMixture(r2.params, want.estimates, parsed.classes.map((c) => c.name), () => t.est ?? TOL, (p) => (t.noSe?.(p) ? null : t.se ?? TOL));
+  // (a stated difference in the log-likelihood: Mplus's integration; AIC and BIC move with it)
+  if (t.logl !== undefined) {
+    same('free parameters', r.npar, want.fit.npar!);
+    for (const [k, label] of [['logl', 'log-likelihood'], ['aic', 'AIC'], ['bic', 'BIC']] as const) near(label, k === 'logl' ? r.logLik : k === 'aic' ? r.aic : r.bic, want.fit[k]!, (k === 'logl' ? 1 : 2) * t.logl);
+  } else sameFit({ npar: r.npar, logl: r.logLik, aic: r.aic, bic: r.bic }, want.fit);
+  near2(r2.logLik, r.logLik);
+  const news = (MPLUS[key] as { new?: Record<string, { est: number; se: number }> }).new ?? {};
+  const printed = want.estimates.filter((p) => !t.skip?.(p) && !(p.lhs in news));
+  // (MODEL CONSTRAINT's NEW parameters)
+  for (const [n, v] of Object.entries(news)) {
+    const e = r2.params.find((x) => x.op === 'new' && x.lhs === n);
+    if (!e) throw new Error(`NEW parameter ${n} is not among the card's parameters`);
+    near(`${n} (NEW)`, e.est, v.est, t.est ?? TOL); near(`SE of ${n} (NEW)`, e.se ?? NaN, v.se, t.se ?? TOL);
+  }
+  return sameMixture(r2.params, printed, parsed.classes.map((c) => c.name), (p) => t.estOf?.(p) ?? t.est ?? TOL, (p) => (t.noSe?.(p) ? null : t.seOf?.(p) ?? t.se ?? TOL), t.signFree);
 }
 const near2 = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-4);
 

@@ -1,0 +1,277 @@
+{
+  "generated": "2026-11-08 12:51:43",
+  "R": "R version 4.6.2 (2026-10-29)",
+  "dynamic": "1.1.0",
+  "lavaan": "0.7.3",
+  "seconds": {
+    "dynamic-hs-cfahb": 26.422,
+    "dynamic-hs-cfaone": 32.9967,
+    "dynamic-hs-exactfit": 9.8828,
+    "dynamic-hs-equivtest": 0.0043,
+    "dynamic-holzinger-dddfi": 16.003,
+    "dynamic-example-catone": 41.3116,
+    "dynamic-example-cathb": 33.0369,
+    "dynamic-example-likertone": 24.6266,
+    "dynamic-example-likerthb": 16.9593,
+    "dynamic-example-nnorhb": 36.2752
+  },
+  "examples": {
+    "dynamic-hs-cfahb": {
+      "fn": "cfaHB",
+      "cutoffs": {
+        "rows": ["Level-0", "Specificity", "", "Level-1", "Sensitivity", "", "Level-2", "Sensitivity"],
+        "columns": ["SRMR", "RMSEA", "CFI", "Magnitude"],
+        "cells": [
+          ["0.04", "0.042", "0.985", "NONE"],
+          ["95%", "95%", "95%", ""],
+          ["", "", "", ""],
+          ["0.041", "0.042", "0.985", "0.424"],
+          ["85%", "90%", "87%", ""],
+          ["", "", "", ""],
+          ["0.06", "0.086", "0.957", "0.57"],
+          ["95%", "95%", "95%", ""]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["85.306", "24", "0", "0.065", "0.092", "0.931"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "SRMR_L2", "RMSEA_L0", "RMSEA_L1", "RMSEA_L2", "CFI_L0", "CFI_L1", "CFI_L2"],
+      "dataRows": 500
+    },
+    "dynamic-hs-cfaone": {
+      "fn": "cfaOne",
+      "cutoffs": {
+        "rows": ["Level-0", "Specificity", "", "Level-1", "Sensitivity", "", "Level-2", "Sensitivity", "", "Level-3", "Sensitivity"],
+        "columns": ["SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["0.042", "0.041", "0.977"],
+          ["95%", "95%", "95%"],
+          ["", "", ""],
+          ["0.043", "0.041", "0.977"],
+          ["95%", "87%", "86%"],
+          ["", "", ""],
+          ["0.056", "0.061", "0.952"],
+          ["95%", "95%", "95%"],
+          ["", "", ""],
+          ["0.067", "0.083", "0.926"],
+          ["95%", "95%", "95%"]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["312.264", "27", "0", "0.143", "0.187", "0.677"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "SRMR_L2", "SRMR_L3", "RMSEA_L0", "RMSEA_L1", "RMSEA_L2", "RMSEA_L3", "CFI_L0", "CFI_L1", "CFI_L2", "CFI_L3"],
+      "dataRows": 500
+    },
+    "dynamic-hs-exactfit": {
+      "fn": "exactFit",
+      "cutoffs": {
+        "rows": ["99th:", "95th:"],
+        "columns": ["Chi-Square", "df", "SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["42.447", "24", "0.043", "0.051", "0.977"],
+          ["36.553", "24", "0.04", "0.042", "0.985"]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["85.306", "24", "0", "0.065", "0.092", "0.931"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["chisq", "df", "srmr", "rmsea", "cfi"],
+      "dataRows": 500
+    },
+    "dynamic-hs-equivtest": {
+      "fn": "equivTest",
+      "cutoffs": null,
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["85.306", "24", "0", "0.065", "0.092", "0.931"]
+        ]
+      },
+      "equiv": {
+        "rmsea": ".114",
+        "cfi": ".87",
+        "rmseaBins": ["Excellent: .048 or below", "Close: .048 to .075", "Fair: .075 to .103", "Mediocre: .103 to .122", "Poor: .122 or above"],
+        "cfiBins": ["Excellent: .965 or above", "Close: .906 to .965", "Fair: .864 to .906", "Mediocre: .837 to .864", "Poor: .837 or below"]
+      },
+      "dataNames": [],
+      "dataRows": 0
+    },
+    "dynamic-hs-equivtest-manual": {
+      "rmsea": ".114",
+      "cfi": ".87"
+    },
+    "dynamic-holzinger-dddfi": {
+      "fn": "DDDFI",
+      "cutoffs": {
+        "rows": ["Consistent", "Specificity", "", "Close", "Sensitivity", "", "Fair", "Sensitivity", "", "Mediocre", "Sensitivity"],
+        "columns": ["MAD", "Sim. MAD", "CFI", "RMSEA", "90% CI"],
+        "cells": [
+          ["0.00", "0.00", "0.987", "0.04", "0.066"],
+          ["", "", "95%", "95%", ""],
+          ["", "", "", "", ""],
+          ["0.038", "0.034", "0.986", "0.041", "0.067"],
+          ["", "", "90%", "89%", ""],
+          ["", "", "", "", ""],
+          ["0.05", "0.045", "0.973", "0.057", "0.081"],
+          ["", "", "95%", "95%", ""],
+          ["", "", "", "", ""],
+          ["0.06", "0.054", "0.966", "0.064", "0.087"],
+          ["", "", "95%", "95%", ""]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "CFI", "RMSEA", "RMSEA 90% CI"],
+        "cells": [
+          ["85.306", "24", "0", "0.065", "0.931", "0.092", "0.114"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "SRMR_L2", "SRMR_L3", "RMSEA_L0", "RMSEA_L1", "RMSEA_L2", "RMSEA_L3", "CFI_L0", "CFI_L1", "CFI_L2", "CFI_L3"],
+      "dataRows": 250
+    },
+    "dynamic-example-catone": {
+      "fn": "catOne",
+      "cutoffs": {
+        "rows": ["Level-0", "Specificity", "", "Level-1", "Sensitivity", "", "Level-2", "Sensitivity"],
+        "columns": ["SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["0.031", "0.045", "0.99"],
+          ["95%", "95%", "95%"],
+          ["", "", ""],
+          ["0.04", "0.072", "0.979"],
+          ["95%", "95%", "95%"],
+          ["", "", ""],
+          ["0.048", "0.096", "0.97"],
+          ["95%", "95%", "95%"]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI", null],
+        "cells": [
+          ["10.682", "5", "0.058", "0.032", "0.989", "0.048", "0.088"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "SRMR_L2", "RMSEA_L0", "RMSEA_L1", "RMSEA_L2", "CFI_L0", "CFI_L1", "CFI_L2"],
+      "dataRows": 250
+    },
+    "dynamic-example-cathb": {
+      "fn": "catHB",
+      "cutoffs": {
+        "rows": ["Level-0", "Specificity", "", "Level-1", "Sensitivity"],
+        "columns": ["SRMR", "RMSEA", "CFI", "Magnitude"],
+        "cells": [
+          ["0.038", "0.036", "0.984", "NONE"],
+          ["95%", "95%", "95%", ""],
+          ["", "", "", ""],
+          ["0.039", "0.036", "0.984", "0.233"],
+          ["72%", "77%", "74%", ""]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI", null],
+        "cells": [
+          ["25.767", "13", "0.018", "0.042", "0.977", "0.044", "0.069"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "RMSEA_L0", "RMSEA_L1", "CFI_L0", "CFI_L1"],
+      "dataRows": 250
+    },
+    "dynamic-example-likertone": {
+      "fn": "likertOne",
+      "cutoffs": {
+        "rows": ["Level-0", "Specificity", "", "Level-1", "Sensitivity", "", "Level-2", "Sensitivity"],
+        "columns": ["SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["0.03", "0.048", "0.977"],
+          ["95%", "95%", "95%"],
+          ["", "", ""],
+          ["0.036", "0.065", "0.962"],
+          ["95%", "95%", "95%"],
+          ["", "", ""],
+          ["0.046", "0.088", "0.946"],
+          ["95%", "95%", "95%"]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI", null],
+        "cells": [
+          ["7.577", "5", "0.181", "0.024", "0.993", "0.032", "0.075"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "SRMR_L2", "RMSEA_L0", "RMSEA_L1", "RMSEA_L2", "CFI_L0", "CFI_L1", "CFI_L2"],
+      "dataRows": 250
+    },
+    "dynamic-example-likerthb": {
+      "fn": "likertHB",
+      "cutoffs": {
+        "rows": ["Level-0", "Specificity", "", "Level-1", "Sensitivity"],
+        "columns": ["SRMR", "RMSEA", "CFI", "Magnitude"],
+        "cells": [
+          ["0.034", "0.045", "0.979", "NONE"],
+          ["95%", "95%", "95%", ""],
+          ["", "", "", ""],
+          ["0.045", "0.078", "0.959", "0.537"],
+          ["95%", "95%", "95%", ""]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI", null],
+        "cells": [
+          ["11.886", "8", "0.156", "0.026", "0.992", "0.031", "0.066"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "RMSEA_L0", "RMSEA_L1", "CFI_L0", "CFI_L1"],
+      "dataRows": 250
+    },
+    "dynamic-example-nnorhb": {
+      "fn": "nnorHB",
+      "cutoffs": {
+        "rows": ["Level-0", "Specificity", "", "Level-1", "Sensitivity"],
+        "columns": ["SRMR", "RMSEA", "CFI", "Magnitude"],
+        "cells": [
+          ["0.032", "0.044", "0.986", "NONE"],
+          ["95%", "95%", "95%", ""],
+          ["", "", "", ""],
+          ["0.053", "0.099", "0.953", "0.537"],
+          ["95%", "95%", "95%", ""]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI", null],
+        "cells": [
+          ["11.886", "8", "0.156", "0.026", "0.992", "0.031", "0.066"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "RMSEA_L0", "RMSEA_L1", "CFI_L0", "CFI_L1"],
+      "dataRows": 500
+    }
+  }
+}

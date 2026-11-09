@@ -4,6 +4,7 @@
 // errors agree up to Monte Carlo error). Run with npm run test:webr.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { webrOnlyIt } from './webrSlow';
 import { bootstrapCb, bootstrapPls } from '../engine/bootstrap';
 import type { CbEstimator } from '../engine/cbsem';
 import type { PlsOptions } from '../engine/types';
@@ -59,7 +60,7 @@ it('cSEM bootstrap agrees with the built-in bootstrap', async () => {
   compareBoot(r.stats, bootstrapPls(loadData(c), toSpec(c), PLS, boot).stats, ['path', 'total', 'loading', 'r2']);
 }, T);
 
-it('seminr bootstrap: refused in the browser (needs worker processes) but exportable', async () => {
+webrOnlyIt('seminr bootstrap: refused in the browser (needs worker processes) but exportable', async () => {
   const c = byName('pls_seminr_mobi_A');
   const boot = { samples: 50, seed: 11, confidence: 0.95 };
   const opts = { ...PLS, tolerance: 1e-7, maxIter: 300 };

@@ -11,6 +11,8 @@
 // Random procedures run with the example's seed; tolerances are stated per check. Run with WEBR_TESTS=1.
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { webrOnlyIt } from '../../rengine/webrSlow';  // (the references are seminr 2.5.0's, the browser's version; desktop seminr 2.6.0 changed its benchmark)
+import { slowIt } from '../../rengine/webrSlow';
 import type { Dataset, PlsResult } from '../../engine/types';
 import { summariseMc, type McDesign, type McPart } from '../../engine/montecarlo';
 import { categoriesOf } from '../../io';
@@ -86,7 +88,8 @@ it('datasets-faithful-scatter: eruptions against waiting time with the least-squ
   near('r', r.fit!.r, 0.9008111683, 1e-8);
 }, 300_000);
 
-it('lavaan-hs-bollenstine: the bootstrap of ?bootstrapLavaan, with the example’s 1,000 samples and seed', async () => {
+// (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+slowIt('lavaan-hs-bollenstine: the bootstrap of ?bootstrapLavaan, with the example’s 1,000 samples and seed', async () => {
   const { run } = await open('lavaan-hs-bollenstine', 'CB-SEM', ['lavaan']);
   const r = await run<{ chisq: number; df: number; p: number; mlChisq: number; samples: number; boot: number[] }>();
   against({ label: 'lavaan tutorial: CFA (printed)', level: 'published', url: 'https://lavaan.ugent.be/tutorial/cfa.html' });
@@ -155,25 +158,29 @@ it('lavaan-hs-scoreweights: the weights applied to the centred tests give lavPre
   }
 }, 900_000);
 
-it('seminr-corprep-predict: PLSpredict errors as seminr’s predict_pls (predict_EA) within the noise of the folds', async () => {
-  const { run } = await open('seminr-corprep-predict', 'PLS-SEM', ['cSEM', 'seminr']);
-  const r = await run<{ folds: number; repetitions: number; indicators: { indicator: string; rmsePls: number; rmseLm: number; maePls: number; q2: number }[] }>();
+webrOnlyIt('seminr-corprep-predict: PLSpredict as seminr’s predict_pls (predict_EA, seed 123): every PLS and LM error of its summary', async () => {
+  const { run } = await open('seminr-corprep-predict', 'PLS-SEM', ['seminr']);
+  const r = await run<{ folds: number; repetitions: number; predictEngine?: string; indicators: { indicator: string; rmsePls: number; rmseLm: number; maePls: number; maeLm: number; q2: number }[] }>();
   same('folds', r.folds, 10);
   same('repetitions', r.repetitions, 10);
-  // seminr 2.6.0 in desktop R 4.6: set.seed(123); summary(predict_pls(model, technique = predict_EA, noFolds = 10, reps = 10)),
-  // the model of seminr-corprep (mean replacement, missing_value = "-99"). PLS out-of-sample RMSE and MAE (and LM RMSE, not
-  // compared: cSEM's benchmark regresses every endogenous indicator on all exogenous indicators, seminr's on other predictors).
-  const SEMINR_EA: Record<string, [number, number, number]> = {
-    comp_1: [1.045, 0.800, 1.067], comp_2: [1.099, 0.881, 1.108], comp_3: [1.135, 0.897, 1.129],
-    like_1: [1.128, 0.857, 1.153], like_2: [1.482, 1.148, 1.545], like_3: [1.511, 1.172, 1.582],
-    cusa: [1.021, 0.790, 1.014], cusl_1: [1.301, 0.990, 1.302], cusl_2: [1.523, 1.174, 1.535], cusl_3: [1.532, 1.156, 1.567],
+  expect(r.predictEngine).toBe('seminr');
+  // seminr 2.5.0 (webR's version) in desktop R 4.6.2: set.seed(123); summary(predict_pls(model, technique = predict_EA, noFolds = 10,
+  // reps = 10)), the model of seminr-corprep (mean_replacement, missing_value = "-99"): PLS RMSE, MAE, LM RMSE, MAE. (seminr 2.6.0
+  // changed the LM benchmark: comp_1 LM RMSE 1.067, as the description states.)
+  const SEMINR_EA: Record<string, [number, number, number, number]> = {
+    comp_1: [1.04589478, 0.80022668, 1.08067928, 0.82242669], comp_2: [1.09903258, 0.88179135, 1.10662327, 0.87438965], comp_3: [1.13711700, 0.89758329, 1.14194884, 0.87177759],
+    like_1: [1.13006096, 0.85739296, 1.15071002, 0.87833415], like_2: [1.48569928, 1.14971342, 1.55932197, 1.19345388], like_3: [1.51117598, 1.17359300, 1.58031245, 1.23688521],
+    cusa: [1.02138417, 0.78924470, 1.02090200, 0.79937557], cusl_1: [1.30653811, 0.99350917, 1.31230995, 0.96828109], cusl_2: [1.52735431, 1.17764423, 1.55408102, 1.17686003],
+    cusl_3: [1.53260191, 1.15599644, 1.57619640, 1.19137340],
   };
-  against({ label: 'seminr 2.6.0, predict_pls(technique = predict_EA, noFolds = 10, reps = 10), set.seed(123), run in desktop R (other random folds: PLS errors within 0.01)', level: 'native', url: 'https://rdrr.io/cran/seminr/man/predict_pls.html' });
+  against({ label: 'seminr 2.5.0, summary(predict_pls(technique = predict_EA, noFolds = 10, reps = 10)) after set.seed(123), run in desktop R 4.6.2', level: 'native', url: 'https://rdrr.io/cran/seminr/man/predict_pls.html' });
   same('predicted indicators', r.indicators.length, 10);
-  for (const [ind, [rmse, mae]] of Object.entries(SEMINR_EA)) {
+  for (const [ind, [rmse, mae, rmseLm, maeLm]] of Object.entries(SEMINR_EA)) {
     const row = r.indicators.find((x) => x.indicator === ind)!;
-    near(`RMSE (PLS) of ${ind}`, row.rmsePls, rmse, 0.01);
-    near(`MAE (PLS) of ${ind}`, row.maePls, mae, 0.01);
+    near(`RMSE (PLS) of ${ind}`, row.rmsePls, rmse, 1e-7);
+    near(`MAE (PLS) of ${ind}`, row.maePls, mae, 1e-7);
+    near(`RMSE (LM) of ${ind}`, row.rmseLm, rmseLm, 1e-7);
+    near(`MAE (LM) of ${ind}`, row.maeLm, maeLm, 1e-7);
     expect(row.q2, `Q²predict of ${ind}`).toBeGreaterThan(0);
   }
 }, 1_800_000);
@@ -270,7 +277,8 @@ it('plspm-pos: PLS-POS recovers the two simulated segments of simdata', async ()
   expect(Math.max(...price), 'one segment price-driven').toBeGreaterThan(0.6);
 }, 1_800_000);
 
-it('muthen-mc-cfa: power .81 for the factor correlation at N = 150', async () => {
+// (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+slowIt('muthen-mc-cfa: power .81 for the factor correlation at N = 150', async () => {
   const { options } = await open('muthen-mc-cfa', 'Simulation', ['lavaan']);
   // The card's run() spreads chunks over the app's R sessions (runner.simulate); here the same chunks, one after another.
   const design = options as McDesign;

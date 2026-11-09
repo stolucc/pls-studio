@@ -16,24 +16,28 @@ export const MPLUS_CH8: PackageExample[] = [
   {
     id: 'mplus-ex8.1', package: 'stats', title: 'GMM for a continuous outcome (Mplus ex. 8.1)', source: MPLUS_SRC('8.1'), links: mplusLinks('8.1'),
     description: `Two classes of linear growth in y1–y4 with random intercepts and slopes, x predicting both the growth factors and the class (Mplus: i s | y1@0 y2@1 y3@2 y4@3; i s ON x; c ON x; STARTS = 40 8). ${gmmNote} 0.103, the card 0.095). The growth mixture card reproduces the Mplus output: log-likelihood −3183.703, 15 free parameters, BIC 6460.626, every estimate of both classes, and c#1 ON x (0.776) and the class intercept. Opens its card on the Analyses tab (it also fits one class).`,
+    shows: 'Two trajectory classes: intercept means 0.886 and 2.943, slope means 0.502 and 0.95, and x raising the odds of the first class (c#1 ON x 0.776), at log-likelihood −3183.703 with 15 free parameters, as Mplus prints. The standard errors are observed-information ones and sit below Mplus’s MLR (i ON x 0.095 against 0.103).',
     data: mplusData('8.1', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'gmm', format: 'wide', measures: items('y', 4), times: [0, 1, 2, 3], subject: '', time: '', outcome: '', covariates: ['x'], shape: 'linear', random: 'slope', to: 2, nrep: 10, residuals: 'occasion', membership: ['x'] }, settings: CB('ML'),
   },
   {
     id: 'mplus-ex8.2', package: 'stats', title: 'GMM for a continuous outcome, user-specified starting values (Mplus ex. 8.2)', source: MPLUS_SRC('8.2'), links: mplusLinks('8.2'),
     description: `The growth mixture model of example 8.1 on other data, which Mplus starts from given class means ([i*1 s*.5] and [i*3 s*1]) as well as random starts; the card starts from k-means of the persons’ own growth factors. ${gmmNote} 0.148, the card 0.120). The growth mixture card reproduces the Mplus output: log-likelihood −3337.654, 15 free parameters, BIC 6768.526, every estimate of both classes, and c#1 ON x and the class intercept. Opens its card on the Analyses tab (it also fits one class).`,
+    shows: 'The same two-class growth mixture on other data: log-likelihood −3337.654, 15 free parameters, BIC 6768.526, every class mean and c#1 ON x as Mplus prints them, reached from k-means starts rather than Mplus’s given values. The standard errors are observed-information ones, below Mplus’s MLR (i ON x 0.120 against 0.148).',
     data: mplusData('8.2', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'gmm', format: 'wide', measures: items('y', 4), times: [0, 1, 2, 3], subject: '', time: '', outcome: '', covariates: ['x'], shape: 'linear', random: 'slope', to: 2, nrep: 10, residuals: 'occasion', membership: ['x'] }, settings: CB('ML'),
   },
   {
     id: 'mplus-ex8.9', package: 'stats', title: 'LCGA for a binary outcome (Mplus ex. 8.9)', source: MPLUS_SRC('8.9'), links: mplusLinks('8.9'),
     description: `Two trajectory classes of a binary outcome measured four times (Mplus: i s | u1@0 u2@1 u3@2 u4@3; CATEGORICAL = u1-u4; TYPE = MIXTURE). The latent class card’s growth model (10 random starts) reproduces the Mplus output: log-likelihood −1272.307, 5 free parameters, BIC 2575.687, the threshold (0.776), each class’s intercept and slope means, and the class intercept. ${lcgaNote} Standard errors (Mplus’s MLR) are not reproduced. Opens its card on the Analyses tab.`,
+    shows: 'Two trajectory classes of a binary outcome at log-likelihood −1272.307 with 5 free parameters: a threshold of 0.776 shared by every occasion, one class rising (slope mean 1.097) and the other flat (−0.068), as Mplus prints. Standard errors are not compared with Mplus’s MLR.',
     data: mplusData('8.9', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'lca', model: 'lcga', items: items('u', 4), times: [0, 1, 2, 3], from: 2, to: 2 }, settings: CB('ML'),
   },
   {
     id: 'mplus-ex8.10', package: 'stats', title: 'LCGA for a three-category outcome (Mplus ex. 8.10)', source: MPLUS_SRC('8.10'), links: mplusLinks('8.10'),
     description: `Two trajectory classes of an ordered three-category outcome measured four times (Mplus: i s | u1@0 u2@1 u3@2 u4@3 with CATEGORICAL = u1-u4). The latent class card’s growth model (10 random starts) reproduces the Mplus output: log-likelihood −1706.048, 6 free parameters, BIC 3449.384, the two thresholds (0.746, 1.276), each class’s intercept and slope means, and the class intercept. ${lcgaNote} Standard errors (Mplus’s MLR) are not reproduced. Opens its card on the Analyses tab.`,
+    shows: 'Two trajectory classes of a three-category outcome at log-likelihood −1706.048 with 6 free parameters: thresholds 0.746 and 1.276 shared by every occasion, one class rising (slope mean 1.07) and the other falling slightly (−0.117), as Mplus prints. Standard errors are not compared with Mplus’s MLR.',
     data: mplusData('8.10', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'lca', model: 'lcga', items: items('u', 4), times: [0, 1, 2, 3], from: 2, to: 2 }, settings: CB('ML'),
   },

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { CbEstimator } from '../../engine/cbsem';
-import type { PlsResult } from '../../engine/types';
+import type { Dataset, PlsResult } from '../../engine/types';
 import { toSpec } from '../../model/project';
 import { scoreColumns, type FactorScores } from '../../rengine/lavaan';
 import { useStore } from '../../store';
@@ -27,15 +27,25 @@ export function SavePlsScores({ pls }: { pls: PlsResult }) {
   );
 }
 
+/** Why factor scores cannot be saved as data columns for these data and settings (null when they can). */
+export function factorScoresUnavailable(data: Dataset | null, settings: { estimator?: string; missing?: string }): string | null {
+  if (!data) return 'Import data first.';
+  if (data.moments) return 'Factor scores need raw data: there are no cases to score in a covariance matrix.';
+  if (settings.estimator === 'RML') return 'Factor scores are not available with robust ML (rsem): choose ML or MLR.';
+  if (settings.missing === 'mi') return 'Factor scores are not available with multiple imputation: choose FIML, casewise or mean replacement.';
+  return null;
+}
+
 /** CB-SEM factor scores (lavaan::lavPredict), with their standard errors, or plausible values (semTools), as new data columns. */
-export function SaveFactorScores() {
+export function SaveFactorScores({ initial = 'regression' }: { initial?: FactorScores['method'] } = {}) {
   const data = useStore((s) => s.data), info = useStore((s) => s.dataInfo);
   const model = useStore((s) => s.model), settings = useStore((s) => s.settings);
-  const [method, setMethod] = useState<FactorScores['method']>('regression');
+  const [method, setMethod] = useState<FactorScores['method']>(initial);
   const [withSe, setWithSe] = useState(false);
   const [draws, setDraws] = useState(5);
   const [busy, setBusy] = useState(false);
-  if (!data || !info || data.moments) return null;
+  const why = factorScoresUnavailable(data, settings);
+  if (why || !data || !info) return <div className="muted">{why ?? 'Import data first.'}</div>;
   const save = async () => {
     setBusy(true);
     try {

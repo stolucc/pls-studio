@@ -99,8 +99,9 @@ export interface Settings {
   /** Multiple imputation: number of imputed data sets. */
   miImputations: number;
   /** CB-SEM multiple imputation: mice (chained equations) or Amelia (EM with bootstrap; Honaker, King & Blackwell). */
-  /** mice: predictive mean matching; micenorm: mice's Bayesian normal regression (logistic for nominal columns), as Mplus's H1 imputation; amelia. */
-  miMethod: 'mice' | 'amelia' | 'micenorm';
+  /** mice: predictive mean matching; micenorm: mice's Bayesian normal regression (logistic for nominal columns); amelia; joint: data augmentation
+   *  under the unrestricted multivariate normal model, categorical columns through latent responses (Mplus's H1 imputation). */
+  miMethod: 'mice' | 'amelia' | 'micenorm' | 'joint';
   /** Multiple imputation, CB-SEM: further columns that inform the imputation without being in the model (auxiliary variables). */
   miAuxiliary: string[];
   /** Amelia: nominal (unordered categorical) columns among the imputation's variables (Amelia's noms). */
@@ -232,7 +233,7 @@ export interface ModelState {
   information?: 'observed';
   /** CB-SEM (lavaan), WLSMV with ordinal indicators: 'lavaan': lavaan 0.7's standard errors (the observed information in the sandwich); absent: Mplus's (classic WLSMV, the expected information; the default, also for projects saved before the option). */
   wlsmvSe?: 'lavaan';
-  /** CB-SEM (lavaan), WLSMV with ordinal indicators, one group: the test statistic as Mplus's (lavaan mimic = "Mplus"). */
+  /** CB-SEM (lavaan), WLSMV with ordinal indicators: the test statistic as Mplus's (lavaan mimic = "Mplus"; with groups its test-statistic options, the equalities unchanged). */
   mimic?: 'Mplus';
   /** CB-SEM (lavaan): the baseline of CFI and TLI. Absent: the covariances among exogenous observed variables stay free (Mplus; lavaan with fixed.x); 'independence': every variable uncorrelated (LISREL; lavaan when the syntax writes those covariances out). */
   baseline?: 'independence';
@@ -256,7 +257,8 @@ export interface ModelState {
   /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
   /** `epsilon`: geomin's ε (lavaan's default 0.001; Mplus uses 0.0001 for two factors). */
   /** `orthogonal`: the rotation kept orthogonal (uncorrelated factors). A bifactor rotation's general factor is the block's first. */
-  esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean };
+  /** `invariant`: the blocks' loadings equal (the k-th indicators of the blocks alike), rotated jointly (geomin; Mplus ex. 5.26). */
+  esem?: { blocks: { id: string; constructs: string[] }[]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean; invariant?: boolean };
   /**
    * CB-SEM (lavaan): the mean structure. `constant` is the triangle ("1") on the canvas; its
    * presence turns the mean structure on (every indicator intercept is estimated, lavaan's
@@ -275,7 +277,7 @@ export interface ModelState {
 
 /** An arrow from the constant: a latent mean (or an observed variable's intercept) of construct `target`. */
 /** `bias`: the marker indicator's intercept fixed at this value instead of 0 (a known measurement bias; one value per group with groups). */
-export interface MeanTerm { id: string; target: string; fixed?: number; label?: string; bias?: number | number[] }
+export interface MeanTerm { id: string; target: string; fixed?: number; label?: string; bias?: number | number[]; /** Values per group (lavaan c(...)): a number holds the mean in that group, null leaves it free. */ byGroup?: GroupValue[] }
 
 /** Drop mean arrows whose construct is gone, and all of them without the constant. */
 export function pruneMeans(model: ModelState): ModelState {
@@ -541,7 +543,7 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.multilevel ? { multilevel: model.multilevel } : {}),
     ...(model.weights ? { weights: model.weights } : {}),
     ...(model.cluster ? { cluster: model.cluster } : {}),
-    ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)), ...(model.esem.epsilon !== undefined ? { epsilon: model.esem.epsilon } : {}), ...(model.esem.orthogonal && ORTHOGONALISABLE_ROTATIONS.includes(model.esem.rotation) ? { orthogonal: true } : {}) } } : {}),
+    ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)), ...(model.esem.epsilon !== undefined ? { epsilon: model.esem.epsilon } : {}), ...(model.esem.orthogonal && ORTHOGONALISABLE_ROTATIONS.includes(model.esem.rotation) ? { orthogonal: true } : {}), ...(model.esem.invariant ? { invariant: true } : {}) } } : {}),
     ...(model.information ? { information: model.information } : {}),
     ...(model.wlsmvSe ? { wlsmvSe: model.wlsmvSe } : {}),
     ...(model.mimic ? { mimic: model.mimic } : {}),
@@ -557,7 +559,7 @@ export function toSpec(model: ModelState): ModelSpec {
     } : {}),
     ...(model.constant ? {
       meanStructure: true,
-      means: (model.means ?? []).flatMap((t) => (name.has(t.target) ? [{ construct: name.get(t.target)!, ...(t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : {}), ...(t.bias !== undefined ? { bias: t.bias } : {}) }] : [])),
+      means: (model.means ?? []).flatMap((t) => (name.has(t.target) ? [{ construct: name.get(t.target)!, ...(t.byGroup?.length ? { byGroup: t.byGroup } : t.fixed !== undefined ? { fixed: t.fixed } : t.label ? { label: t.label } : {}), ...(t.bias !== undefined ? { bias: t.bias } : {}) }] : [])),
     } : {}),
     moderations: (model.moderations ?? []).flatMap((mo) => {
       const p = model.paths.find((q) => q.id === mo.path);
@@ -961,7 +963,6 @@ export function validateModel(
     const lavaanOnly = [ordered.length && 'ordinal indicators', model.information === 'observed' && 'Standard errors from the observed information', method.estimator === 'WLSMV' && 'WLSMV', missingChoice === 'fiml' && 'FIML', missingChoice === 'pairwise' && 'pairwise deletion', (missingChoice === 'twostage' || missingChoice === 'robusttwostage') && 'the two-stage approach'].filter(Boolean);
     if (lavaanOnly.length && engine === 'builtin') err(`${lavaanOnly.join(', ')} ${lavaanOnly.length === 1 ? 'is' : 'are'} estimated by lavaan: choose “R packages” under Calculated by.`);
     if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
-    if (ordered.length && method.estimator === 'WLSMV' && model.mimic === 'Mplus' && model.multigroup) err('The Mplus test statistic (lavaan mimic = "Mplus") is available for one group: with groups lavaan’s mimic also changes which parameters are held equal, and so the model. Use lavaan’s test statistic, or remove the grouping.');
     if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
     if ((model.likelihood || model.sampleCovRescale === false) && engine === 'builtin') err('The Wishart likelihood and an unrescaled covariance matrix are lavaan options: choose “R packages” under Calculated by.');
     if ((model.likelihood || model.sampleCovRescale === false) && !['ML', 'MLM', 'MLMV', 'MLR'].includes(method.estimator ?? 'ML')) err('The Wishart likelihood and an unrescaled covariance matrix apply to the maximum-likelihood estimators.');
@@ -1027,6 +1028,7 @@ export function validateModel(
     if (missingChoice === 'mi' && method.method === 'pls' && engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
     if (missingChoice === 'mi' && method.method === 'pls' && (method.miMethod ?? 'mice') === 'amelia') err('Amelia imputation is available for CB-SEM; PLS-SEM imputes with mice.');
     if (missingChoice === 'mi' && method.method === 'pls' && method.miMethod === 'micenorm') err('Bayesian normal-regression imputation is available for CB-SEM; PLS-SEM imputes with predictive mean matching.');
+    if (missingChoice === 'mi' && method.method === 'pls' && method.miMethod === 'joint') err('Joint (H1) imputation is available for CB-SEM; PLS-SEM imputes with predictive mean matching.');
     // Categorical exogenous constructs (PLS): one column, 2 to 20 categories, no predictors.
     if (method.method === 'pls') for (const c of model.constructs.filter((k) => k.categorical)) {
       if (c.indicators.length !== 1) err(`The categorical variable "${c.name}" must be a single column (its categories become dummy variables).`, c.id);
@@ -1207,6 +1209,12 @@ export function validateModel(
       }
       if (model.esem!.rotation === 'target' && blocks.length > 1) err('Target rotation is available for a single ESEM block.');
       if (BIFACTOR_ROTATIONS.includes(model.esem!.rotation) && blocks.some((b) => b.constructs.length < 3)) err('A bifactor rotation needs a general and at least two specific factors in every ESEM block.');
+      if (model.esem!.invariant) {
+        if (blocks.length < 2) err('Invariant loadings need two or more ESEM blocks.');
+        if (model.esem!.rotation !== 'geomin' || model.esem!.orthogonal) err('Invariant ESEM blocks are rotated jointly by oblique geomin.');
+        if (new Set(blocks.map((b) => b.constructs.length)).size > 1) err('Invariant ESEM blocks need the same number of factors.');
+        if (model.multigroup) err('Invariant ESEM blocks are for one group; across groups, hold the loadings equal under Groups.');
+      }
     }
   }
 
@@ -1629,6 +1637,7 @@ export function parseModelState(m: unknown): ModelState {
         blocks: m.esem.blocks.slice(0, 50).filter(isObj).map((b: Record<string, unknown>) => ({ id: str(b.id, 64), constructs: (Array.isArray(b.constructs) ? b.constructs : []).map((x: unknown) => str(x, 64)).filter((x: string) => ids.has(x)) })),
         ...(typeof m.esem.epsilon === 'number' && m.esem.epsilon > 0 && m.esem.epsilon <= 1 ? { epsilon: m.esem.epsilon } : {}),
         ...(m.esem.orthogonal === true ? { orthogonal: true } : {}),
+        ...(m.esem.invariant === true ? { invariant: true } : {}),
       } } : {}),
       ...(m.information === 'observed' ? { information: 'observed' as const } : {}),
       ...(m.wlsmvSe === 'lavaan' ? { wlsmvSe: 'lavaan' as const } : {}),
@@ -1685,7 +1694,7 @@ export function parseSettings(raw: unknown): Settings {
     stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
     missing: (['casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const).find((m) => m === s.missing) ?? 'mean',
     miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
-    miMethod: s.miMethod === 'amelia' || s.miMethod === 'micenorm' ? s.miMethod : 'mice',
+    miMethod: s.miMethod === 'amelia' || s.miMethod === 'micenorm' || s.miMethod === 'joint' ? s.miMethod : 'mice',
     miAuxiliary: Array.isArray(s.miAuxiliary) ? [...new Set(s.miAuxiliary.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
     miNominal: Array.isArray(s.miNominal) ? [...new Set(s.miNominal.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),

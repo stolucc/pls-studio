@@ -2,6 +2,7 @@
 // binomial outcomes with random intercepts and slopes, by adaptive Gauss-Hermite quadrature (GLMMadaptive).
 
 import { fmt } from '../format';
+import { glmmMplusBlocked } from '../rengine/glmmMplus';
 import { GLMM_FAMILIES, glmmColumns, zeroInflated, type GlmmCoef, type GlmmFamily, type GlmmInput, type GlmmResult } from '../rengine/glmm';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
@@ -39,7 +40,7 @@ export function GlmmView({ r }: { r: GlmmResult }) {
         note={`Variances and covariances of the random effects across ${r.layout === 'wide' ? 'persons' : 'clusters'}; standard errors by the delta method from GLMMadaptive’s log-Cholesky parameters.`} />
       {r.logPhi && <Table title="Dispersion" file="glmm-dispersion" columns={['Parameter', 'Estimate', 'Std. error']} rows={[[c('log θ'), c(r.logPhi.est), c(r.logPhi.se)], [c('θ'), c(Math.exp(r.logPhi.est)), c(null)]]}
         note="Negative binomial: variance μ + μ²/θ; a large θ is close to Poisson." />}
-      <div className="hint">Maximum likelihood by adaptive Gauss-Hermite quadrature, {r.quadrature} points per random effect (GLMMadaptive).{r.converged ? '' : ' The optimiser did not report convergence.'}</div>
+      <div className="hint">{r.integration === 'mplus' ? <>Maximum likelihood with Mplus’s integration rule: {r.quadrature} rectangular points per dimension, adaptive (the integration card’s engine, base R), so the estimates and log-likelihood are those Mplus prints for its growth model.</> : <>Maximum likelihood by adaptive Gauss-Hermite quadrature, {r.quadrature} points per random effect (GLMMadaptive).</>}{r.converged ? '' : ' The optimiser did not report convergence.'}</div>
     </div>
   );
 }
@@ -116,6 +117,10 @@ function GlmmOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<GlmmOp
       </div>
       <label className="check"><input type="checkbox" checked={o.robust} onChange={(e) => set({ ...o, robust: e.target.checked })} />
         <span>Robust standard errors (sandwich; Mplus’s MLR)</span></label>
+      {wide && (
+        <label className="check"><input type="checkbox" checked={o.integration === 'mplus'} onChange={(e) => set({ ...o, integration: e.target.checked ? 'mplus' : undefined })} />
+          <span>Mplus’s integration rule (rectangular, adaptive, the quadrature points per dimension: Mplus’s INTEGRATION; reproduces Mplus’s output where its few points move the estimates)</span></label>
+      )}
     </fieldset>
   );
 }
@@ -140,6 +145,7 @@ export const glmmAnalysis: AnalysisType<GlmmOptions, GlmmResult> = {
       family: oneOf(raw.family, GLMM_FAMILIES, 'poisson'), ziPredictors: names(raw.ziPredictors).filter(okSlope), ziRandom: raw.ziRandom === true,
       quadrature: clampNum(raw.quadrature, 1, 51, 11, true), robust: raw.robust === true,
     };
+    if (raw.integration === 'mplus') o.integration = 'mplus';
     if (raw.trials !== undefined && name(raw.trials)) o.trials = name(raw.trials);
     return o;
   },
@@ -157,11 +163,12 @@ export const glmmAnalysis: AnalysisType<GlmmOptions, GlmmResult> = {
       if (o.outcome === o.cluster || o.predictors.includes(o.outcome) || o.predictors.includes(o.cluster)) return 'The outcome, the clusters and the predictors must be different columns.';
       if (o.slopes.some((s) => o.categorical.includes(s))) return 'A random slope needs a numeric predictor.';
     }
+    if (o.integration === 'mplus') { const b = glmmMplusBlocked(o); if (b) return b; }
     return missingColumns(ctx, glmmColumns(o), 'Generalized linear mixed model');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, glmmColumns(o)),
-  run: async (o, ctx) => (await import('../rengine/glmm')).glmmR(rawData(ctx)!, o),
-  script: async (o, ctx) => (await import('../rengine/glmm')).glmmScriptR(rawData(ctx)!, o),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, glmmColumns(o), o.integration ? [o.integration] : undefined),
+  run: async (o, ctx) => (o.integration === 'mplus' ? (await import('../rengine/glmmMplus')).glmmMplusR(rawData(ctx)!, o) : (await import('../rengine/glmm')).glmmR(rawData(ctx)!, o)),
+  script: async (o, ctx) => (o.integration === 'mplus' ? (await import('../rengine/glmmMplus')).glmmMplusScriptR(rawData(ctx)!, o) : (await import('../rengine/glmm')).glmmScriptR(rawData(ctx)!, o)),
   summary: (o) => {
     const f = FAMILIES.find((x) => x.id === o.family)!.label.replace(/ \(.*\)$/, '');
     if (o.layout === 'wide') return o.occasions.length ? `${f} growth over ${o.occasions.length} occasions${o.slopes.length ? ' (random slope)' : ''}` : 'not set up yet';

@@ -22,6 +22,9 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | backports | 1.5.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=backports |
 | base64enc | 0.1-6 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=base64enc |
 | BayesFactor | 0.9.12-4.8 | GPL-2 | https://cran.r-project.org/package=BayesFactor |
+| Bayesrel | 0.8.0 | GPL-3 | https://cran.r-project.org/package=Bayesrel |
+| bbmle | 1.0.26 | GPL | https://cran.r-project.org/package=bbmle |
+| bdsmatrix | 1.3-7 | LGPL-2 | https://cran.r-project.org/package=bdsmatrix |
 | beepr | 2.0 | GPL-3 | https://cran.r-project.org/package=beepr |
 | bigmemory | 4.6.6 | LGPL-3 \| Apache License 2.0 | https://cran.r-project.org/package=bigmemory |
 | bigmemory.sri | 0.1.8 | LGPL-3 \| Apache License 2.0 | https://cran.r-project.org/package=bigmemory.sri |
@@ -66,6 +69,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | data.table | 1.18.6.1 | MPL-2.0 \| file LICENSE | https://cran.r-project.org/package=data.table |
 | DBI | 1.3.0 | LGPL (>= 2.1) | https://cran.r-project.org/package=DBI |
 | dcurver | 0.9.3 | GPL-3 | https://cran.r-project.org/package=dcurver |
+| declared | 0.27 | GPL (>= 3) | https://cran.r-project.org/package=declared |
 | dendextend | 1.19.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=dendextend |
 | Deriv | 4.3.5 | GPL (>= 3) | https://cran.r-project.org/package=Deriv |
 | desc | 1.4.3 | MIT + file LICENSE | https://cran.r-project.org/package=desc |
@@ -81,6 +85,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | dplyr | 1.2.1 | MIT + file LICENSE | https://cran.r-project.org/package=dplyr |
 | DRDID | 1.3.0 | GPL-3 | https://cran.r-project.org/package=DRDID |
 | dreamerr | 1.5.0 | GPL-3 | https://cran.r-project.org/package=dreamerr |
+| dynamic | 1.1.0 | AGPL-3 | https://github.com/melissagwolf/dynamic/tree/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7 |
 | e1071 | 1.7-17 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=e1071 |
 | EGAnet | 2.4.1 | AGPL (>= 3.0) | https://cran.r-project.org/package=EGAnet |
 | eigenmodel | 1.12 | GPL-2 | https://cran.r-project.org/package=eigenmodel |
@@ -108,6 +113,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | future.apply | 1.20.2 | GPL (>= 2) | https://cran.r-project.org/package=future.apply |
 | gdata | 3.0.1 | GPL-3 | https://cran.r-project.org/package=gdata |
 | generics | 0.1.4 | MIT + file LICENSE | https://cran.r-project.org/package=generics |
+| GenOrd | 2.1.0 | GPL-3 | https://cran.r-project.org/package=GenOrd |
 | genpathmox | 1.1 | GPL-3 | https://cran.r-project.org/package=genpathmox |
 | GGally | 2.4.0 | GPL (>= 2.0) | https://cran.r-project.org/package=GGally |
 | ggplot2 | 4.0.3 | MIT + file LICENSE | https://cran.r-project.org/package=ggplot2 |
@@ -152,6 +158,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | KernSmooth | 2.23-27 | Unlimited | https://cran.r-project.org/package=KernSmooth |
 | knitr | 1.52 | GPL | https://cran.r-project.org/package=knitr |
 | labeling | 0.4.3 | MIT + file LICENSE \| Unlimited | https://cran.r-project.org/package=labeling |
+| LaplacesDemon | 16.1.8 | MIT + file LICENSE | https://cran.r-project.org/package=LaplacesDemon |
 | later | 1.4.2.9000 | MIT + file LICENSE | https://cran.r-project.org/package=later |
 | lattice | 0.23-1 | GPL (>= 2) | https://cran.r-project.org/package=lattice |
 | lavaan | 0.7-3 | GPL (>= 2) | https://cran.r-project.org/package=lavaan |
@@ -249,6 +256,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | psych | 2.6.9 | GPL (>= 2) | https://cran.r-project.org/package=psych |
 | purrr | 1.2.2 | MIT + file LICENSE | https://cran.r-project.org/package=purrr |
 | pwr | 1.3-0 | GPL (>= 3) | https://cran.r-project.org/package=pwr |
+| QCA | 3.25 | GPL (>= 3) | https://cran.r-project.org/package=QCA |
 | qgraph | 1.10.1 | GPL-2 | https://cran.r-project.org/package=qgraph |
 | qrng | 0.0-11 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=qrng |
 | qs2 | 0.4.0 | GPL-3 | https://cran.r-project.org/package=qs2 |
@@ -294,6 +302,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | sets | 1.0-25 | GPL-2 | https://cran.r-project.org/package=sets |
 | shape | 1.4.6.1 | GPL (>= 3) | https://cran.r-project.org/package=shape |
 | SimDesign | 2.25 | GPL (>= 2) | https://cran.r-project.org/package=SimDesign |
+| simstandard | 0.6.3 | CC0 | https://cran.r-project.org/package=simstandard |
 | smacof | 2.1-7 | GPL-3 | https://cran.r-project.org/package=smacof |
 | sna | 2.8 | GPL (>= 2) | https://cran.r-project.org/package=sna |
 | snow | 0.4-4 | GPL | https://cran.r-project.org/package=snow |
@@ -327,6 +336,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | V8 | 8.2.0 | MIT + file LICENSE | https://cran.r-project.org/package=V8 |
 | vctrs | 0.7.3 | MIT + file LICENSE | https://cran.r-project.org/package=vctrs |
 | vegan | 2.7-6 | GPL-2 | https://cran.r-project.org/package=vegan |
+| venn | 1.13 | GPL (>= 3) | https://cran.r-project.org/package=venn |
 | VGAM | 1.1-14 | GPL-3 | https://cran.r-project.org/package=VGAM |
 | viridis | 0.6.5 | MIT + file LICENSE | https://cran.r-project.org/package=viridis |
 | viridisLite | 0.4.3 | MIT + file LICENSE | https://cran.r-project.org/package=viridisLite |
@@ -340,6 +350,11 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | xfun | 0.61 | MIT + file LICENSE | https://cran.r-project.org/package=xfun |
 | yaml | 2.3.12 | BSD_3_clause + file LICENSE | https://cran.r-project.org/package=yaml |
 | zoo | 1.9-1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=zoo |
+
+Two of them run in the browser in a build patched by PLS Studio so that they load in webR (cubature’s WebAssembly build cannot be loaded there); each patch turns one hard import into a suggested package loaded on demand, and changes nothing else. The patches are in scripts/webr/vendor, and the modified source of each is the one served with the app (public/webr/src), as its licence requires of a modified version:
+
+- dynamic 1.1.0 (AGPL-3): GenOrd moved from Imports to Suggests, loaded when likertHB2() needs it (GenOrd imported cubature, whose WebAssembly build webR cannot load). Patch: scripts/webr/vendor/dynamic_1.1.0.patch.
+- GenOrd 2.1.0 (GPL-3): cubature moved from Imports to Suggests, loaded when pmvt.alt() (a Student’s t copula with a non-integer df) needs it (cubature’s WebAssembly build webR cannot load). Patch: scripts/webr/vendor/GenOrd_2.1.0.patch.
 
 ## npm packages (bundled with the app)
 
@@ -395,12 +410,13 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | mobi and corp_rep_data | validation fixtures | GPL-3, from the seminr package | ECSI mobile phone data (Tenenhaus et al. 2005) and corporate reputation data (Hair et al. 2021), distributed with seminr. |
 | satisfaction and threecommonfactors | validation fixtures | GPL-3, from the cSEM package | Distributed with cSEM (Rademaker & Schuberth). |
 | Customer experience example | generated in the app (src/sample.ts) | GPL-2.0-or-later (synthetic) | Synthetic data generated by PLS Studio. |
-| Examples from R packages | loaded at run time from the packages in the browser (not stored here) | per package | lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection and MatchIt datasets; each example links to its documentation. |
+| Examples from R packages | loaded at run time from the packages in the browser (not stored here) | per package | lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection, MatchIt and QCA (Lipset and Cebotari & Vink) datasets; each example links to its documentation. |
 | NCA example data (nca.example) | public/examples/nca, validation fixtures | GPL (>= 3), from the NCA package | Distributed with NCA (Dul); shipped with the app because NCA cannot run in the browser. |
 | RSA example data (motcon) | public/examples/rsa, validation fixtures | GPL (>= 2), from the RSA package | Distributed with RSA (Schönbrodt & Humberg); shipped with the app because RSA cannot run in the browser. |
 | Mplus User’s Guide example data | not distributed: downloaded from statmodel.com each time an example is opened (passed through by the PLS Studio server or the desktop helper, nothing stored); tests: .cache/mplus (npm run data:fetch) | Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated, so not redistributed) | Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples, read from the guide’s input and data files when an example opens; each example links to its page. |
 | RI-CLPM tutorial data (RICLPM.dat) | not distributed: downloaded from the tutorial’s GitHub repository (pinned commit) each time the example is opened; tests: .cache/riclpm (npm run data:fetch) | Simulated data in github.com/JeroenDMulder/RI-CLPM (no licence stated, so not redistributed) | Mulder, J. D. & Hamaker, E. L. (2021). Three extensions of the random intercept cross-lagged panel model. Structural Equation Modeling, 28(4), 638–648. Tutorial data from the authors’ repository. |
 | Tables from R help pages (sleep, RoundingTimes, plastic film, tuna, party identification, job satisfaction, Mendel’s cross, five categories, Conover’s peas, Cohen’s table, Shrout & Fleiss’s ratings) | public/examples/tests, public/examples/bayes, validation fixtures | GPL (>= 2), from R’s datasets and stats help pages and the psych package | The data the R help pages (?t.test, ?friedman.test, ?summary.manova, ?cor.test, ?chisq.test, ?fisher.test, ?binom.test; psych’s ?cohen.kappa and ?ICC) type in and analyse, coded as there. |
+| Polit & Beck’s (2006) Table 1 (fictitious content-validity ratings: 10 items, 3 experts) | public/examples/tests/polit2006.csv | A worked example printed in the article (fictitious ratings, re-coded as 4 = relevant, 2 = not) | Polit, D. F. & Beck, C. T. (2006). The content validity index: Are you sure you know what’s being reported? Critique and recommendations. Research in Nursing & Health, 29(5), 489–497. |
 | chickwts, puzzles, raceDolls and a 15-of-25 proportion | public/examples/bayes, validation fixtures | GPL (>= 2), from R’s datasets package and BayesFactor | chickwts (R datasets); puzzles and raceDolls distributed with BayesFactor (Morey & Rouder); the proportion of ?proportionBF. |
 | HSMiss (Holzinger & Swineford with missing values) | public/examples/mi, validation fixtures | GPL (>= 2), from lavaan and lavaan.mi | HolzingerSwineford1939 (lavaan) with the missing values lavaan.mi’s ?lavaan.mi creates. |
 | Dobson (1990) and clotting (McCullagh & Nelder) | public/examples/regression, validation fixtures | GPL (>= 2), from R’s ?glm help page | The data ?glm types in. |

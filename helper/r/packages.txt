@@ -6,15 +6,18 @@ GPArotation
 MASS
 MIIVsem
 MatchIt
+QCA
 WeightIt
 blavaan
 boot
 bootnet
 cSEM
+car
 carData
 cobalt
 corpcor
 did
+dynamic
 faraway
 fixest
 flexmix
@@ -46,6 +49,7 @@ psych
 qgraph
 readxl
 rsem
+rstan
 sampleSelection
 sandwich
 semTools

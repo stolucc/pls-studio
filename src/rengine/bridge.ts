@@ -29,15 +29,22 @@ import bayesR from './R/bayes.R?raw';
 import customMlR from './R/customml.R?raw';
 import twoLevelEfaR from './R/twolevelefa.R?raw';
 import glmmR from './R/glmm.R?raw';
+import quadmlR from './R/quadml.R?raw';
+import dsemR from './R/dsem.R?raw';
+import dfiR from './R/dfi.R?raw';
+import validityR from './R/validity.R?raw';
+import qcaR from './R/qca.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR };
+export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
+  // ESEM blocks with invariant loadings: rotated jointly by GPArotation (Mplus ex. 5.26).
+  lavaanRotate: ['jsonlite', 'lavaan', 'semTools', 'GPArotation'],
   rsem: ['jsonlite', 'lavaan', 'semTools', 'rsem'],
   cSEM: ['jsonlite', 'cSEM'],
   seminr: ['jsonlite', 'seminr'],
@@ -72,6 +79,8 @@ export const R_PACKAGES = {
   WeightIt: ['jsonlite', 'WeightIt', 'cobalt', 'marginaleffects'],
   polynomial: ['jsonlite', 'lavaan'],
   nca: ['jsonlite'],
+  // Fuzzy-set QCA: calibration, necessity, truth table and minimisation by the QCA package (Dușa).
+  QCA: ['jsonlite', 'QCA'],
   // The custom likelihood card (nlminb; pbivnorm for two binary outcomes, as lavaan uses it).
   customml: ['jsonlite', 'pbivnorm'],
   // Two-level EFA: lavaan's unrotated two-level fit, rotated by GPArotation.
@@ -100,17 +109,28 @@ export const R_PACKAGES = {
   carData: ['jsonlite', 'carData'],
   faraway: ['jsonlite', 'faraway'],
   stats: ['jsonlite'],
+  // Repeated measures with several between-subjects factors: car::Anova's type II tests (car's ?Anova, OBrienKaiser).
+  car: ['jsonlite', 'car'],
   EGAnet: ['jsonlite', 'EGAnet'],
   // Bayesian tests (JZS t-tests, correlations; JASP's priors).
   BayesFactor: ['jsonlite', 'BayesFactor'],
   // Bayesian SEM (Stan): desktop R only (DESKTOP_ONLY).
   blavaan: ['jsonlite', 'lavaan', 'blavaan'],
+  // Bayesian multilevel and DSEM models: a Stan program compiled and sampled by rstan (desktop R only, DESKTOP_ONLY).
+  rstan: ['jsonlite', 'rstan'],
+  // Dynamic fit index cutoffs (dynamic, Wolf & McNeish), on a lavaan fit. In the browser a build patched to load
+  // without GenOrd (whose import cubature webR cannot load): scripts/webr/fetch.mjs PATCHED.
+  dynamic: ['jsonlite', 'lavaan', 'semTools', 'dynamic'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 /** Packages that R in the browser cannot run (Stan): only through the desktop helper, never webR. */
-export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>(['blavaan']);
+export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>(['blavaan', 'rstan']);
+/** Why each of them cannot run in the browser. */
+const DESKTOP_WHY: Partial<Record<RPackage, string>> = {
+  blavaan: 'Stan does not run in the browser', rstan: 'Stan does not run in the browser',
+};
 export class DesktopOnly extends Error {}
 /** What to do when desktop R is not in use or lacks the packages. */
 function helperAdvice(): string {
@@ -118,7 +138,7 @@ function helperAdvice(): string {
   const h = useHelper.getState();
   return h.state === 'ready' ? 'Install the packages from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.' : `Desktop R is not available (${h.message || h.state}).`;
 }
-const desktopOnly = (pkg: RPackage, why: string) => new DesktopOnly(`This analysis runs in desktop R (${R_PACKAGES[pkg].filter((p) => p !== 'jsonlite').join(', ')}; Stan does not run in the browser). ${why}`);
+const desktopOnly = (pkg: RPackage, why: string) => new DesktopOnly(`This analysis runs in desktop R (${R_PACKAGES[pkg].filter((p) => p !== 'jsonlite').join(', ')}; ${DESKTOP_WHY[pkg] ?? 'it does not run in the browser'}). ${why}`);
 
 /** Every R package the bridge uses (what the helper's `setup` installs). */
 const ALL_R_PACKAGES = [...new Set(Object.values(R_PACKAGES).flat())].sort();
@@ -149,7 +169,7 @@ export async function parallelism(): Promise<{ where: 'desktop' | 'browser'; ses
 const toJson = (req: unknown) => JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
 
 /** Bridge functions whose cSEM / seminr resampling runs on several cores of one desktop R process (results identical). */
-const MULTICORE = new Set(['ps_pls_boot', 'ps_cca', 'ps_pls_groups', 'ps_influence']);
+const MULTICORE = new Set(['ps_pls_boot', 'ps_cca', 'ps_pls_groups', 'ps_influence', 'ps_dsem']);
 
 const told = new Set<string>();
 /** Tell the user once per reason that a calculation ran in the browser's R instead of desktop R. */

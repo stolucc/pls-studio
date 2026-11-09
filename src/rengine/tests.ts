@@ -38,9 +38,11 @@ export interface WithinFactor { name: string; levels: string[] }
  * One within-subject factor: `levels` (one wide column per level) and `factorName`. Several (SPSS's "define factors"):
  * `factors` (two or more) and `cells`, one column per combination of levels, the first factor varying slowest.
  */
-export interface RmAnovaInput { levels: string[]; factorName: string; between: string; factors?: WithinFactor[]; cells?: string[] }
+export interface RmAnovaInput { levels: string[]; factorName: string; between: string; factors?: WithinFactor[]; cells?: string[];
+  /** Further between-subjects factors, crossed with `between` (car::Anova, type II); absent with one or none. */
+  moreBetween?: string[] }
 /** Several within factors: the design's columns (otherwise the levels). */
-export const rmColumns = (i: Pick<RmAnovaInput, 'levels' | 'factors' | 'cells' | 'between'>) => [...((i.factors?.length ?? 0) >= 2 ? i.cells ?? [] : i.levels), i.between].filter(Boolean);
+export const rmColumns = (i: Pick<RmAnovaInput, 'levels' | 'factors' | 'cells' | 'between' | 'moreBetween'>) => [...((i.factors?.length ?? 0) >= 2 ? i.cells ?? [] : i.levels), i.between, ...(i.moreBetween ?? [])].filter(Boolean);
 /** `stratum`: with several within factors, the within effect whose error stratum the row is in. */
 export interface RmRow { term: string; ss: number; df: number; ms: number; f?: number | null; p?: number | null; partialEta2?: number | null; stratum?: string }
 export interface RmSphericity { term: string; df: number; w: number; p: number; gg: number; hf: number }
@@ -53,8 +55,13 @@ export interface RmAnovaResult {
   sphericityTable?: RmSphericity[]; factors?: WithinFactor[];
   corrected: { term: string; p: number; pGG: number; pHF: number }[];
   friedman: HTest | null; cells: (Desc & { cell: string })[]; warnings: string[]; engine: REngineInfo;
-  /** Every pair of levels by a paired t-test, p adjusted by Holm (absent in results from before they were added). */
-  posthoc?: { comparison: string; diff: number; t: number; df: number; p: number; pHolm: number }[];
+  /** Every pair of levels by a paired t-test, p adjusted by Holm (absent in results from before they were added); with several
+   *  within factors, each factor's levels (the subjects' means over the other factors), Holm within the factor. */
+  posthoc?: { comparison: string; diff: number; t: number; df: number; p: number; pHolm: number; factor?: string }[];
+  /** Several within factors and no between factor: Friedman's test of each factor on the subjects' means of its levels. */
+  friedmanTable?: { term: string; stat: number; df: number; p: number }[];
+  /** Several between factors: their names, and the type of the tests (II, car::Anova). */
+  betweenFactors?: string[]; ssType?: 'II';
 }
 
 export interface ManovaInput { dependents: string[]; factors: string[]; interactions: boolean }
@@ -125,12 +132,13 @@ export const anovaScriptR = (d: Dataset, i: AnovaInput) => rScript('ps_anova', a
 
 export const rmAnovaRequest = (d: Dataset, i: RmAnovaInput) => testRequest(d, 'rmanova', rmColumns(i), i);
 export async function rmAnovaR(d: Dataset, i: RmAnovaInput): Promise<RmAnovaResult> {
-  const r = await rCall<Record<string, any>>('ps_rmanova', rmAnovaRequest(d, i), 'stats');
+  const r = await rCall<Record<string, any>>('ps_rmanova', rmAnovaRequest(d, i), i.moreBetween?.length ? 'car' : 'stats');
   return { ...r, levels: arr<string>(r.levels), within: arr<RmRow>(r.within), betweenTable: arr<RmRow>(r.betweenTable), corrected: arr(r.corrected),
     friedman: obj<HTest>(r.friedman), cells: arr(r.cells), posthoc: arr(r.posthoc), sphericity: obj(r.sphericity),
+    ...(r.friedmanTable ? { friedmanTable: arr(r.friedmanTable) } : {}), ...(r.betweenFactors ? { betweenFactors: arr<string>(r.betweenFactors), ssType: 'II' as const } : {}),
     ...(r.factors ? { factors: withinFactors(r.factors), sphericityTable: arr<RmSphericity>(r.sphericityTable) } : {}), warnings: rStrings(r.warnings) } as RmAnovaResult;
 }
-export const rmAnovaScriptR = (d: Dataset, i: RmAnovaInput) => rScript('ps_rmanova', rmAnovaRequest(d, i), 'stats');
+export const rmAnovaScriptR = (d: Dataset, i: RmAnovaInput) => rScript('ps_rmanova', rmAnovaRequest(d, i), i.moreBetween?.length ? 'car' : 'stats');
 
 export const manovaRequest = (d: Dataset, i: ManovaInput) => testRequest(d, 'manova', [...i.dependents, ...i.factors], i);
 export async function manovaR(d: Dataset, i: ManovaInput): Promise<ManovaResult> {

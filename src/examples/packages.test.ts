@@ -52,7 +52,7 @@ it('ESEM blocks refer to the example’s constructs by id', () => {
 it('panel examples carry no diagram and name their columns (a Bayesian SEM card fits its diagram instead)', () => {
   for (const e of PACKAGE_EXAMPLES.filter((x) => x.panel)) {
     // (cards about the model open beside the example's diagram: Bayesian SEM, Bollen–Stine, PLSpredict, simulation, …)
-    if (['bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc'].includes(e.panel!.kind)) { expect(e.constructs.length, e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
+    if (['bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
     expect(e.constructs, e.id).toEqual([]);
     for (const p of examplePanels(e)) expect(panelColumns(p).length, e.id).toBeGreaterThanOrEqual(['freqtest', 'bbinomial', 'chart', 'customml'].includes(p.kind) || (p as { type?: string }).type === 'one' ? 1 : 2);  // (a binomial test, a one-sample t-test, a chart of one variable and a nominal custom likelihood have one column)
   }
@@ -81,7 +81,9 @@ it('ids are unique and every R package the app calculates with has an example', 
   // regressionSurvival: the regression card with survival (censored, Cox), shown by the Mplus examples 3.2, 6.20 and 6.21.
   // customml: the custom likelihood and Bayesian multivariate regression cards (base R, pbivnorm), shown by the datasets examples and Mplus 5.23, 6.25, 7.28.
   // efa2: the two-level EFA card (lavaan + GPArotation), shown by the lavaan Demo.twolevel example and Mplus 4.5.
-  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival', 'customml', 'efa2']);
+  // car: repeated measures with several between factors (car::Anova), shown by the carData OBrienKaiser example.
+  // lavaanRotate: ESEM blocks with invariant loadings, rotated jointly (lavaan + GPArotation), shown by Mplus 5.26.
+  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival', 'customml', 'efa2', 'car', 'lavaanRotate']);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });
 
@@ -174,4 +176,60 @@ it('README and ARCHITECTURE state the current number of package examples', () =>
   const arch = readFileSync(join(__dirname, '..', '..', 'ARCHITECTURE.md'), 'utf8').match(/(\d+) package examples/);
   expect(Number(readme?.[1])).toBe(PACKAGE_EXAMPLES.length);
   expect(Number(arch?.[1])).toBe(PACKAGE_EXAMPLES.length);
+});
+
+describe('what each example shows', () => {
+  it('every example, from a package or built in, has a `shows` text of a few plain sentences', async () => {
+    const { EXAMPLES } = await import('../components/HomeScreen');
+    const all: { id: string; shows?: string }[] = [...PACKAGE_EXAMPLES, ...EXAMPLES];
+    expect(all.filter((e) => !e.shows?.trim()).map((e) => e.id)).toEqual([]);
+    for (const e of all) {
+      const t = e.shows!;
+      expect(t, e.id).toBe(t.trim());
+      expect(t.length, e.id).toBeGreaterThan(40);
+      expect(t.length, e.id).toBeLessThan(520);
+      // (sentences: a full stop, a question or exclamation mark followed by a space and a capital; decimals and "p = .03" do not
+      // count. One to three, and room for a short practical note such as "Takes minutes in the browser.")
+      expect(t.split(/[.!?] (?=[A-Z])/).length, `${e.id}: at most three sentences and a note`).toBeLessThanOrEqual(4);
+      expect(/[.)]$/.test(t), `${e.id}: ends a sentence`).toBe(true);
+      // The house typography: a minus sign, not a hyphen, before a number (ranges use an en dash).
+      expect(/(^|[\s(=])-\d/.test(t), `${e.id}: a hyphen as a minus sign`).toBe(false);
+    }
+  });
+});
+
+describe('the messages an example is expected to raise', () => {
+  it('each has a valid pattern and a reason', () => {
+    for (const e of PACKAGE_EXAMPLES) for (const m of e.expectedMessages ?? []) {
+      expect(() => new RegExp(m.pattern), e.id).not.toThrow();
+      expect(m.why.trim().length, `${e.id}: ${m.pattern}`).toBeGreaterThan(20);
+    }
+  });
+
+  it('are exactly the notes and warnings the webR suite allowed before they moved into the examples', () => {
+    // (formerly EXPECTED_NOTES and EXPECTED_WARNINGS in packages.webr.test.ts and cards/basic.webr.test.ts: moving
+    // them must not change which messages are allowed; change this list only with the example's expectedMessages)
+    const allowed = Object.fromEntries(PACKAGE_EXAMPLES.filter((e) => e.expectedMessages?.length).map((e) => [e.id, e.expectedMessages!.map((m) => `${m.level}: ${m.pattern}`)]));
+    expect(allowed).toEqual({
+      'plspm-rebus': ['note: items of Price and Quality correlate with mixed signs'],
+      'plspm-fimix': ['note: items of Price and Quality correlate with mixed signs'],
+      'csem-yoo': ['note: correlate with mixed signs'],
+      'mice-nhanes': ['note: observed variances are \\(at least\\) a factor'],
+      'bollen-felson': ['note: observed variances are \\(at least\\) a factor'],
+      'bollen-accessibility': ['warning: not positive definite'],
+      'mplus-ex5.20': ['warning: NA\\/NaN function evaluation', 'warning: browne\\.residual\\.nt\\.model', 'warning: number of items to replace'],
+      'mplus-ex11.6': ['warning: some estimated ov variances are negative'],
+      'mirt-lsat7-3pl': ['warning: Could not invert information matrix'],
+      'mplus-ex6.17': ['warning: browne\\.residual\\.nt\\.model', 'warning: standardized value of the defined parameter'],
+      'stats-contingency-job': ['warning: approximation may be incorrect'],
+    });
+  });
+
+  it('the webR suites take the allowed messages from the examples, not from tables of their own', () => {
+    for (const f of ['packages.webr.test.ts', 'cards/basic.webr.test.ts']) {
+      const src = readFileSync(join(__dirname, f), 'utf8');
+      expect(src, f).toContain('unexpectedMessages(');
+      expect(src, f).not.toMatch(/EXPECTED_(NOTES|WARNINGS)/);
+    }
+  });
 });

@@ -10,6 +10,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.6', package: 'stats', title: 'GMM with a categorical distal outcome (Mplus ex. 8.6)', source: MPLUS_SRC('8.6'), links: mplusLinks('8.6'),
     description: 'A growth mixture model of y1–y4 (linear growth with random intercepts and slopes regressed on x; c ON x) with a binary distal outcome u whose threshold differs between the two classes (CATEGORICAL = u). Mplus’s defaults, which the card follows: the growth factor means differ between classes; their regressions, variances, covariance and the residual variances do not. The growth part is a normal mixture (no integration), u a logit within class. Reproduces log-likelihood −3693.340, 17 free parameters, AIC 7420.680, BIC 7492.328. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −3693.340 with 17 free parameters, and under the model results two classes: a high, rising one (intercept mean 1.905, slope 1.046) and a low, flat one, with the distal u’s threshold changing sign between them (−0.982 against 1.019). Every estimate and MLR standard error matches the Mplus output within 0.001.',
     data: mplusData('8.6', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c(2);',
@@ -24,6 +25,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.7', package: 'stats', title: 'Sequential process GMM with two categorical latent variables (Mplus ex. 8.7)', source: MPLUS_SRC('8.7'), links: mplusLinks('8.7'),
     description: 'A sequential process: two growth processes (i1 s1 | y1–y4 and i2 s2 | y5–y8) with their own latent class variables, c1 with 3 classes for the first process’s growth means and c2 with 2 for the second’s, and the second’s classes depending on the first’s (c2 ON c1); the four growth factors covary (equal across classes). The likelihood is a mixture over the six joint classes. Reproduces log-likelihood −6606.707, 33 free parameters, AIC 13279.414, BIC 13418.496. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −6606.707 with 33 free parameters: three classes of the first process (intercept means 4.099, 2.068 and −0.054) and two of the second, with c2 ON c1 showing how the first class predicts the second (c2#1 ON c1#1 −1.696). Every estimate and MLR standard error matches the Mplus output within 0.001.',
     data: mplusData('8.7', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c1 (3) c2 (2);',
@@ -49,6 +51,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.8', package: 'stats', title: 'GMM with known classes (multiple groups) (Mplus ex. 8.8)', source: MPLUS_SRC('8.8'), links: mplusLinks('8.8'),
     description: 'A growth mixture model with known classes (KNOWNCLASS = cg (g = 0 g = 1)): two latent trajectory classes c within each observed group, the growth factor means specific to each of the four joint classes (%cg#1.c#1% …), c regressed on the group and on x, i s ON x. Reproduces log-likelihood −7051.578, 21 free parameters, AIC 14145.157, BIC 14248.219. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −7051.578 with 21 free parameters, and growth factor means for each of the four group-by-class cells (intercepts 1.957 and 0.111 in group 1, 2.805 and 0.981 in group 2); c#1 ON cg#1 (1.075) and ON x (1.329) show the group and x shifting class membership. Every estimate and MLR standard error matches Mplus within 0.001.',
     data: mplusData('8.8', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = cg (2) c (2);',
@@ -71,6 +74,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.11', package: 'stats', title: 'LCGA for a zero-inflated count outcome (Mplus ex. 8.11)', source: MPLUS_SRC('8.11'), links: mplusLinks('8.11'),
     description: 'Latent class growth analysis of a zero-inflated count measured four times (COUNT = u1-u4 (i)): the Poisson log rate grows linearly within class (i s | u1@0 …, means differing between the two classes, no variance), and so does the inflation logit (ii si | u1#1@0 …). Mplus’s defaults, which the card follows: the counts’ intercepts fixed at 0; the inflation intercepts equal over time and classes, the inflation intercept factor fixed at 0 and its slope equal across classes. Reproduces log-likelihood −3107.216, 7 free parameters, AIC 6228.432, BIC 6257.934. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −3107.216 with 7 free parameters: two classes of the Poisson log rate (intercept means 0.523 and 0.94, slopes −0.025 and 0.222), with the inflation intercept 0.428 and inflation slope −0.419 shared by both. Every estimate and MLR standard error matches the Mplus output within 0.001.',
     data: mplusData('8.11', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'COUNT = u1-u4 (i);',
@@ -84,6 +88,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.12', package: 'stats', title: 'Hidden Markov model with four time points (Mplus ex. 8.12)', source: MPLUS_SRC('8.12'), links: mplusLinks('8.12'),
     description: 'A hidden Markov model of a binary item at four occasions: a latent class variable per occasion (c1–c4, 2 states), the item’s thresholds equal over time within state (labels (3) and (4)), and the transitions c2 ON c1, c3 ON c2, c4 ON c3 equal over time (labels (1) and (2)). The card sums the likelihood over every sequence of classes (what the forward algorithm computes; identical response patterns are counted once with their frequency). Reproduces log-likelihood −13427.811 (depmixS4 stops at −13428.42), 5 free parameters, AIC 26865.623, BIC 26898.209, the transition logit 2.369 (SE 0.653) and the thresholds. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −13427.811 with 5 free parameters, where depmixS4 stops at −13428.42: the two states’ thresholds −0.904 and 0.934, one transition logit of 2.369 (SE 0.653) equal across occasions, and the state intercepts. Every estimate and MLR standard error matches the Mplus output within 0.001.',
     data: mplusData('8.12', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'CATEGORICAL = u1-u4;',
@@ -119,6 +124,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.13part1', package: 'stats', title: 'LTA with a binary covariate (known class), logit parameterization (Mplus ex. 8.13 part 1)', source: MPLUS_SRC('8.13'), links: mplusLinks('8.13part1'),
     description: 'A latent transition analysis of five binary items at two times (3 classes each, the items’ thresholds equal over time: labels (1)–(15)) with a binary covariate as a known class (KNOWNCLASS = cg (g = 0 g = 1)): c1 c2 ON cg, and the transitions c2 ON c1 specific to each group (MODEL cg). The card sums the likelihood over every sequence of classes (what the forward algorithm computes; identical response patterns are counted once with their frequency). Reproduces log-likelihood −14596.240, 32 free parameters, AIC 29256.479, BIC 29435.708. Mplus stops at its convergence criterion where the likelihood is flat (transition logits with SEs up to 3.1): its estimates agree with the card’s within 0.002 (c2#2 ON c1#2 in group 1: Mplus 1.017, the card 1.018) and its standard errors (MLR: the sandwich, from each case’s score) within 0.003 (3.140 against 3.142), the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −14596.240 with 32 free parameters, the three classes’ thresholds, and transition logits per group whose standard errors run up to 3.1: a flat likelihood, where Mplus stops at its convergence criterion, so estimates agree within 0.002 (c2#2 ON c1#2 in group 1: 1.017 against 1.018) and MLR standard errors within 0.003.',
     data: mplusData('8.13part1', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'CATEGORICAL = u11-u15 u21-u25;',
@@ -175,6 +181,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.13part2', package: 'stats', title: 'LTA with a binary covariate (known class), probability parameterization (Mplus ex. 8.13 part 2)', source: MPLUS_SRC('8.13'), links: mplusLinks('8.13part2'),
     description: 'The latent transition model of part 1 in the probability parameterization (PARAMETERIZATION = PROBABILITY): the class shares and the transition probabilities, P(c1 | cg) and P(c2 | c1, cg), are the parameters instead of logits. The card estimates each row of probabilities through its logits and reports the probabilities with their standard errors computed on the probability scale, as Mplus. The card sums the likelihood over every sequence of classes (what the forward algorithm computes; identical response patterns are counted once with their frequency). Reproduces log-likelihood −14596.240, 32 free parameters, AIC 29256.479, BIC 29435.708. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'The same likelihood as part 1 (−14596.240, 32 free parameters), now with the class shares and the transition probabilities P(c2 | c1, cg) reported on the probability scale with their standard errors, as Mplus prints them. Every estimate and MLR standard error matches the Mplus output within 0.001.',
     data: mplusData('8.13part2', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'CATEGORICAL = u11-u15 u21-u25;',
@@ -232,6 +239,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.14', package: 'stats', title: 'LTA with a covariate on the transitions (Mplus ex. 8.14)', source: MPLUS_SRC('8.14'), links: mplusLinks('8.14'),
     description: 'A latent transition analysis of five binary items at two times (3 classes each, thresholds equal over time) with a continuous covariate x predicting the first time’s class (c1 ON x) and the transitions (c2 ON c1, and c2 ON x specific to each class of c1: MODEL c1). The card sums the likelihood over every sequence of classes (what the forward algorithm computes; identical response patterns are counted once with their frequency). Reproduces log-likelihood −12902.140, 31 free parameters, AIC 25866.281, BIC 26039.909. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −12902.140 with 31 free parameters, x lowering the odds of the first two time-1 classes (c1#1 ON x −1.552, c1#2 ON x −2.061), and under each class of c1 its own effect of x on the transition (c2#1 ON x from −1.659 to 0.522). Every estimate and MLR standard error matches the Mplus output within 0.001.',
     data: mplusData('8.14', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'CATEGORICAL = u11-u15 u21-u25;',
@@ -286,6 +294,7 @@ export const MPLUS_CH8MIX: PackageExample[] = [
   {
     id: 'mplus-ex8.15', package: 'stats', title: 'Mover–stayer LTA, probability parameterization (Mplus ex. 8.15)', source: MPLUS_SRC('8.15'), links: mplusLinks('8.15'),
     description: 'A mover–stayer latent transition model of five binary items at three times (3 classes each, thresholds equal over time) in the probability parameterization: c (2 classes) separates movers, whose transitions c2 ON c1 and c3 ON c2 are free, from stayers, whose transition probabilities are fixed at 1 for staying and 0 otherwise (c2#1 ON c1#1@1 …); c1 depends on c. The card fits the fixed rows as fixed probabilities and estimates the free rows through their logits, reporting probabilities with standard errors on the probability scale (one mover transition is at 0, at the boundary, as in Mplus). The card sums the likelihood over every sequence of classes (what the forward algorithm computes; identical response patterns are counted once with their frequency). Mplus uses 100 random starts and continues 20 (STARTS = 100 20), and so does the card. Reproduces log-likelihood −19504.367, 32 free parameters, AIC 39072.735, BIC 39251.964. Every estimate agrees with the Mplus output within 0.001 and every standard error (MLR: the sandwich, from each case’s score) within 0.002, but those of the row with the transition at 0 (c2 ON c1#3 among the movers: Mplus 0.141 and 0.199, the card 0.146 and 0.215): at the boundary the curvature depends on the side it is taken from (the card takes it inside the admissible region), the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −19504.367 with 32 free parameters after 100 random starts, the movers’ transition probabilities free (c2#1 ON c1#1 0.184) and the stayers’ fixed at 1 and 0, as Mplus prints. Estimates agree within 0.001 and MLR standard errors within 0.002, except in the row with a transition at 0 (0.146 and 0.215 against Mplus’s 0.141 and 0.199): a boundary.',
     data: mplusData('8.15', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
     panel: { kind: 'mixture', syntax: [
       'CATEGORICAL = u11-u15 u21-u25 u31-u35;',
@@ -363,6 +372,41 @@ export const MPLUS_CH8MIX: PackageExample[] = [
       '[u33$1] (13);',
       '[u34$1] (14);',
       '[u35$1] (15);',
+    ].join('\n') }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex8.3', package: 'stats', title: 'GMM for a censored outcome (Mplus ex. 8.3)', source: MPLUS_SRC('8.3'), links: mplusLinks('8.3'),
+    description: 'A growth mixture model of four outcomes censored from below (CENSORED = y1-y4 (b)): linear growth with random intercepts and slopes regressed on x, their means differing between the two classes, c ON x; the growth factors (two dimensions) are integrated numerically. 15 free parameters as Mplus. Stated difference: Mplus’s log-likelihood −3211.438 is 0.011 below the integral’s value at the same estimates (−3211.427, which 31 rectangular and 30 Gauss–Hermite points per dimension confirm within 0.0015): Mplus’s integration differs, AIC and BIC by 0.022. Every estimate agrees with the Mplus output within 0.0015 (the slope variance 0.494 against 0.495) and every standard error within 0.003, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Numerical integration as Mplus’s ALGORITHM = INTEGRATION: rectangular, 15 points per dimension, adaptive (centred and scaled on each case’s posterior in each class), the likelihood maximised from the random starts with MLR standard errors (the sandwich, from each case’s score through Fisher’s identity).  Opens its card on the Analyses tab.',
+    shows: 'Two classes of censored growth (intercept means 3.052 and 0.943, slopes 1.001 and 0.421) with c#1 ON x −0.798, 15 free parameters, estimates within 0.0015 and MLR standard errors within 0.003 of Mplus. The log-likelihood differs: the integral at Mplus’s estimates is −3211.427 where Mplus prints −3211.438, so AIC and BIC sit 0.022 apart.',
+    data: mplusData('8.3', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
+    panel: { kind: 'mixture', syntax: [
+      'USEVARIABLES = y1-y4 x;',
+      'CLASSES = c (2);',
+      'CENSORED = y1-y4 (b);',
+      'ALGORITHM = INTEGRATION;',
+      'MODEL:',
+      '%OVERALL%',
+      'i s | y1@0 y2@1 y3@2 y4@3;',
+      'i s ON x;',
+      'c ON x;',
+    ].join('\n') }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex8.5part2', package: 'stats', title: 'GMM for a negative binomial count (Mplus ex. 8.5 part 2)', source: MPLUS_SRC('8.5'), links: mplusLinks('8.5part2'),
+    description: 'A growth mixture model of a count measured eight times (COUNT = u1-u8 (nb), the negative binomial with one dispersion per outcome, equal across classes): quadratic growth of the log rate with a random intercept (s and q without variance), i s ON x, c ON x; the intercept factor is integrated. Reproduces log-likelihood −4422.166 (the card −4422.165), 19 free parameters, AIC 8882.331, BIC 8962.409, and every estimate within 0.002 (q’s class-1 mean −23.145 against −23.147, SE 5.3) and standard error within 0.001 but the class model’s: in this solution x separates the classes completely (the smaller class is the cases with x below −2.38), so the logits of c on x diverge — the likelihood rises without bound towards a step — and Mplus stops at c#1 = −251.4 and c#1 ON x = −105.5, the card elsewhere on the same ridge; their ratio, the x at which the classes switch, agrees (−2.384 and −2.376, between the same two observed values of x). Numerical integration as Mplus’s ALGORITHM = INTEGRATION: rectangular, 15 points per dimension, adaptive (centred and scaled on each case’s posterior in each class), the likelihood maximised from the random starts with MLR standard errors (the sandwich, from each case’s score through Fisher’s identity). the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Log-likelihood −4422.165 (Mplus −4422.166) with 19 free parameters and every growth and dispersion estimate within 0.002 of Mplus. The class model is the thing to look at: x separates the classes completely, so c#1 and c#1 ON x diverge (Mplus stops at −251.4 and −105.5) and only their ratio, the switch point in x (−2.376 against −2.384), is meaningful.',
+    data: mplusData('8.5part2', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG, 'Longitudinal'],
+    panel: { kind: 'mixture', syntax: [
+      'CLASSES = c(2);',
+      'COUNT = u1-u8(nb);',
+      'ALGORITHM = INTEGRATION;',
+      'STARTS = 40 8;',
+      'MODEL:',
+      '%OVERALL%',
+      'i s q | u1@0 u2@.1 u3@.2 u4@.3 u5@.4 u6@.5 u7@.6 u8@.7;',
+      's-q@0;',
+      'i s ON x;',
+      'c ON x;',
     ].join('\n') }, settings: CB('ML'),
   },
 ];

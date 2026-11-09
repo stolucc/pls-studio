@@ -56,7 +56,7 @@ function MixtureForm({ options: o, set, ctx, disabled }: OptionsProps<MixtureOpt
         <textarea id="mix-syntax" className="input" rows={Math.min(30, Math.max(8, o.syntax.split('\n').length + 1))} spellCheck={false} maxLength={40000} value={o.syntax} placeholder={EXAMPLE}
           onChange={(e) => set({ ...o, syntax: e.target.value })} style={{ fontFamily: 'var(--mono, monospace)', fontSize: 12, width: '100%', resize: 'vertical' }} />
         <div className="hint">
-          Mplus’s VARIABLE and ANALYSIS options (CLASSES, CATEGORICAL, NOMINAL, COUNT with (i) for zero inflation, CENSORED with (a) or (b), KNOWNCLASS, FREQWEIGHT, MISSING, PARAMETERIZATION = LOGIT, LOGLINEAR or PROBABILITY, STARTS) and its MODEL: %OVERALL% and class-specific parts (%c#1%, %cg#1.c#2%, MODEL c1:), BY, ON, WITH, growth (i s | y1@0 y2@1 …), [means and thresholds], variances, @ fixed values, * starting values, (labels) for equality, MODEL CONSTRAINT with linear expressions. Mplus’s defaults: intercepts, means and thresholds differ between classes, variances, slopes and loadings do not, unless a class-specific part mentions them. Variables are the data’s columns; a range y1-y4 runs in column order. Factors whose indicators are categorical or counts need numerical integration and are not fitted.
+          Mplus’s VARIABLE and ANALYSIS options (CLASSES, CATEGORICAL, NOMINAL, COUNT with (i) for zero inflation, CENSORED with (a) or (b), KNOWNCLASS, FREQWEIGHT, MISSING, PARAMETERIZATION = LOGIT, LOGLINEAR or PROBABILITY, STARTS) and its MODEL: %OVERALL% and class-specific parts (%c#1%, %cg#1.c#2%, MODEL c1:), BY, ON, WITH, growth (i s | y1@0 y2@1 …), [means and thresholds], variances, @ fixed values, * starting values, (labels) for equality, MODEL CONSTRAINT with linear expressions. Mplus’s defaults: intercepts, means and thresholds differ between classes, variances, slopes and loadings do not, unless a class-specific part mentions them. Variables are the data’s columns; a range y1-y4 runs in column order. ALGORITHM = INTEGRATION (INTEGRATION = n, GAUSSHERMITE (n) or MONTECARLO (n); Mplus’s default 15 rectangular points per dimension, adaptive): factors of categorical, count or censored outcomes, c ON f, growth factors with variance; COUNT (nb) for negative binomial counts; MODEL CONSTRAINT with NEW parameters and non-linear expressions. TYPE = TWOLEVEL MIXTURE with CLUSTER, WITHIN, BETWEEN and %WITHIN% / %BETWEEN% parts: cluster-level random intercepts (y, c#1), between-level factors and latent class variables, random slopes with no variance (s | y ON x; s@0).
         </div>
       </div>
       <div className="row2">
@@ -76,13 +76,16 @@ function MixtureForm({ options: o, set, ctx, disabled }: OptionsProps<MixtureOpt
 }
 
 /** The heading a parameter is printed under: the classes it belongs to, or every class. */
-export function blockOf(p: Pick<MixtureParam, 'lhs' | 'at'>, names: string[]): string {
+export function blockOf(p: Pick<MixtureParam, 'lhs' | 'at' | 'level' | 'op'>, names: string[]): string {
+  if (p.op === 'new') return 'New parameters (MODEL CONSTRAINT)';
+  // (two-level: the level first, as Mplus prints it)
+  if (p.level) return `${p.level === 'between' ? 'Between' : 'Within'} level: ${blockOf({ ...p, level: undefined }, names)}`;
   if (names.some((n) => p.lhs.split('#')[0] === n)) return p.at.some((a) => a > 0) ? `Latent class variables (${names.map((n, i) => (p.at[i] ? `${n}#${p.at[i]}` : '')).filter(Boolean).join(', ')})` : 'Latent class variables';
   const set = p.at.map((a, i) => (a ? `${names[i]}#${a}` : '')).filter(Boolean);
   return set.length ? `Class ${set.join(', ')}` : 'All classes';
 }
 const OP: Record<string, string> = { '~': 'ON', '=~': 'BY', '~~': 'WITH', '~1': 'Mean / intercept', '|': 'Threshold' };
-const label = (p: MixtureParam) => (p.op === '~1' ? `[${p.lhs}]` : p.op === '|' ? `${p.lhs}$${p.rhs.slice(1)}` : p.op === '~~' && p.lhs === p.rhs ? `${p.lhs} (variance)` : `${p.lhs} ${OP[p.op] ?? p.op} ${p.rhs}`);
+const label = (p: MixtureParam) => (p.op === 'new' ? p.lhs : p.op === '~1' ? `[${p.lhs}]` : p.op === '|' ? `${p.lhs}$${p.rhs.slice(1)}` : p.op === '~~' && p.lhs === p.rhs ? `${p.lhs} (variance)` : `${p.lhs} ${OP[p.op] ?? p.op} ${p.rhs}`);
 
 function MixtureView({ r }: { r: MixtureResult }) {
   const names = r.classes.map((x) => x.name);

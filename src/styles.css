@@ -567,6 +567,18 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .example-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .example-card p { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.55; }
 .example-card .btn { justify-self: start; }
+.example-card .example-shows { margin: 0; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; color: var(--text-2); font-size: 12.5px; line-height: 1.55; }
+.example-card .example-shows b { color: var(--accent-strong); font-weight: 600; }
+
+/* What the open example shows: over the diagram (Model tab) and above the analysis log. */
+.example-banner { display: flex; gap: 8px; align-items: flex-start; padding: 8px 6px 8px 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--surface); color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
+.example-banner > svg { flex: none; margin-top: 2px; color: var(--accent); }
+.example-banner b { color: var(--accent-strong); font-weight: 600; }
+.example-banner-text { flex: 1; min-width: 0; }
+.example-banner-changed { color: var(--text-3); }
+.example-banner .btn { flex: none; padding: 2px 4px; }
+.example-banner.model { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; width: max-content; max-width: min(620px, calc(100% - 400px)); min-width: min(280px, calc(100% - 24px)); box-shadow: var(--shadow); }
+.example-banner.analyses { margin: 0 0 10px; }
 .example-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .brand-btn { border: none; background: none; cursor: pointer; padding: 4px 6px; border-radius: 8px; color: var(--text); font: inherit; font-weight: 700; }
 .brand-btn:hover { background: var(--surface-3); }
@@ -617,11 +629,11 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .topbar .project-name { flex: 0 1 auto; min-width: 90px; }
 @media (max-width: 1440px) {
   .topbar .lbl-wide { display: none; }
-  .topbar .project-name { max-width: 180px; }
+  .topbar .project-name { max-width: 360px; }
 }
 @media (max-width: 1360px) {
   .topbar .brand-btn { font-size: 0; gap: 0; margin-right: 2px; }
-  .topbar .project-name { max-width: 140px; }
+  .topbar .project-name { max-width: 280px; }
 }
 @media (max-width: 1200px) {
   .topbar .method-switch { width: 172px; }
@@ -739,6 +751,9 @@ code.block { display: block; margin: 4px 0; padding: 4px 8px; background: var(--
 .message svg { flex: none; margin-top: 2px; }
 .message .when { flex: none; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .message .chip { flex: none; max-width: none; }
+.message.expected { background: var(--surface-2); color: var(--text-2); }
+.message.expected .chip.expected { background: var(--accent-soft); color: var(--accent-strong); }
+.message .why { display: block; margin-top: 2px; color: var(--text-3); }
 .message .text { white-space: pre-wrap; }
 .msg-badge.warning { color: #8a5300; }
 .msg-badge.error { color: var(--bad, #b91c1c); }
@@ -856,3 +871,11 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .issue.good { background: var(--good-soft); color: var(--good); }
 .example-evidence { margin: 2px 0 8px; }
 .evidence-badges { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+/* Fuzzy-set QCA card: one row per variable (calibration, directional expectations) and inline numeric fields. */
+.qca-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.qca-row .name { font-family: var(--mono); font-size: 12px; min-width: 90px; }
+.qca-row .problem { color: var(--warn); font-size: 12px; }
+.qca-anchors { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.inline-field { display: inline-flex; align-items: center; gap: 6px; margin: 0 12px 6px 0; font-size: 12px; }
+.inline-field .input.num { width: 84px; }

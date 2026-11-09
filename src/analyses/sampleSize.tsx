@@ -51,6 +51,7 @@ function SampleSizeView({ r, o }: { r: SampleSizeResult; o: SampleSizeOptions })
 
 export const sampleSizeAnalysis: AnalysisType<SampleSizeOptions, SampleSizeResult> = {
   id: 'minsample', title: 'Minimum sample size', sub: 'inverse square root method (Kock & Hadaya 2018)', group: 'PLS-SEM model',
+  fitsModel: (o) => o.source === 'model',
   defaults: () => ({ alpha: 0.05, power: 0.8, tails: 'one', source: 'model', beta: 0.2 }),
   parseOptions: (raw) => (isObj(raw) ? {
     alpha: [0.01, 0.05, 0.1].includes(Number(raw.alpha)) ? Number(raw.alpha) : 0.05, power: [0.8, 0.9, 0.95].includes(Number(raw.power)) ? Number(raw.power) : 0.8,

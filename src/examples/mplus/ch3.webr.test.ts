@@ -2,6 +2,7 @@
 // (see testkit.ts). Run with npm run test:webr.
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { slowIt } from '../../rengine/webrSlow';
 import type { CbEstimator } from '../../engine/cbsem';
 import { DEFAULT_SETTINGS, toSpec } from '../../model/project';
 import { cbScriptLavaan, estimateCbLavaan } from '../../rengine/lavaan';
@@ -10,7 +11,8 @@ import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime
 import { near, same } from '../../validation/record';
 import { exampleModel, examplePanels } from '../packages';
 import { bootstrapR } from '../../rengine/analyses';
-import { evidence, example, load, MPLUS, sameFit, samePrinted, TOL } from './testkit';
+import { evidence, example, load, MPLUS, runCards, sameFit, samePrinted, TOL } from './testkit';
+import type { CustomMlResult } from '../../rengine/customml';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -92,7 +94,8 @@ it('ex3.4: the probit regression with WLSMV (lavaan, u1 ordered) reproduces the 
   expect(await cbScriptLavaan(load('ex3.4'), toSpec(exampleModel(ex)), 'casewise', 'WLSMV')).toMatch(/u1_lv ~~ 0\*u1_lv/);
 }, 600_000);
 
-it('ex3.16: the path model with bootstrapped standard errors, intervals and specific indirect effects agrees with Mplus within the bootstrap’s sampling error', async () => {
+// (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+slowIt('ex3.16: the path model with bootstrapped standard errors, intervals and specific indirect effects agrees with Mplus within the bootstrap’s sampling error', async () => {
   const ex = example('ex3.16');
   evidence('ex3.16', 'CB-SEM', ['lavaan']);
   const st = { ...DEFAULT_SETTINGS, ...ex.settings };
@@ -147,6 +150,66 @@ it.each([['ex3.12'], ['ex3.13'], ['ex3.14']])('%s: the categorical path model by
   const s = await cbScriptLavaan(load(key), toSpec(exampleModel(ex)), 'casewise', 'WLSMV');
   expect(s).toContain('mimic = "Mplus", gamma.vcov.mplus = FALSE, information.bread = "expected"');
   expect(s).toContain('fit <- mplus_se(fit)');
+}, 600_000);
+
+it('ex3.10: the nominal outcome with a non-linear constraint on its logits (custom likelihood card) reproduces the Mplus output, MLR standard errors and scaling factor included', async () => {
+  evidence('ex3.10', 'Custom likelihood', ['stats']);
+  const [r] = await runCards<CustomMlResult>('ex3.10');
+  expect(r.converged).toBe(true);
+  expect(r.warnings).toEqual([]);
+  expect(r.se).toBe('mplus');
+  const want = MPLUS['ex3.10'];
+  same('free parameters', r.fit.npar, want.fit.npar!);
+  near('log-likelihood', r.fit.logLik, want.fit.logl!, 0.001);
+  near('AIC', r.fit.aic, want.fit.aic!, 0.002);
+  near('BIC', r.fit.bic, want.fit.bic!, 0.002);
+  // Mplus's MLR under MODEL CONSTRAINT: the observed information plus once more the logits' curvature term (H0 scaling
+  // correction factor 0.9447 as printed).
+  near('MLR scaling correction factor', r.scaling!, 0.9447, 0.0001);
+  for (const p of want.estimates) {
+    const q = r.parts.find((x) => x.name === p.lhs)!;
+    near(`${p.lhs} (logit)`, q.est!, p.est, TOL);
+    near(`SE of ${p.lhs}`, q.se!, p.se, TOL);
+  }
+  // The usual observed information and sandwich give 0.042 and 0.136 (stated in the description).
+  const { customMlR } = await import('../../rengine/customml');
+  const { kind: _k, ...o } = example('ex3.10').panel as unknown as import('../../rengine/customml').CustomMlInput & { kind: 'customml' };
+  for (const se of ['model', 'robust'] as const) {
+    const q = await customMlR(load('ex3.10'), { ...o, se });
+    near(`SE of u#1 (${se})`, q.parts[0].se!, 0.042, TOL);
+    near(`SE of u#2 (${se})`, q.parts[1].se!, 0.136, TOL);
+  }
+}, 600_000);
+
+it('an ordinal mediator whose predictors include another outcome (delta parameterisation) drawn on the canvas is the model written as syntax', async () => {
+  // u2 ON u1 x1, u3 ON u2 x2 (all categorical): u2's latent response, given the covariates, has variance 1 whatever u1
+  // explains, a non-linear constraint lavaan imposes for a variable regressed in the syntax; the canvas gives the same fit.
+  const { v, fan } = await import('../define');
+  const base = example('ex3.12');
+  const drawn = { ...base, syntax: undefined, constructs: [v('x1', true), v('x2', true), v('x3', true), v('u1'), v('u2'), v('u3')],
+    paths: [...fan(['x1', 'x2', 'x3'], ['u1']), ['u1', 'u2'], ['x1', 'u2'], ['u2', 'u3'], ['x2', 'u3']] as [string, string][] };
+  const written = { ...base, syntax: 'u1 ~ x1 + x2 + x3\nu2 ~ u1 + x1\nu3 ~ u2 + x2' };
+  const fit = (ex: typeof base) => estimateCbLavaan(load('ex3.12'), toSpec(exampleModel(ex)), 'casewise', 'WLSMV', 'product');
+  const [a, b] = [await fit(drawn), await fit(written)];
+  expect(a.converged).toBe(true);
+  expect(a.warnings).toEqual([]);
+  same('free parameters', a.fit.npar, b.fit.npar);
+  same('df', a.fit.df, b.fit.df);
+  near('χ² (WLSMV, as Mplus)', a.fit.chisqScaled!, b.fit.chisqScaled!, 1e-6);
+  const key = (e: { lhs: string; op: string; rhs: string }) => `${e.lhs.replace(/_lv$/, '')} ${e.op} ${e.rhs.replace(/_lv$/, '')}`;
+  const pick = (e: { op: string; kind?: string }) => e.op === '~' || e.kind === 'threshold';
+  const want = new Map(b.estimates.filter(pick).map((e) => [key(e), e]));
+  expect(want.size).toBe(13);
+  for (const e of a.estimates.filter(pick)) {
+    const w = want.get(key(e));
+    expect(w, key(e)).toBeDefined();
+    near(key(e), e.est, w!.est, 1e-6);
+    near(`SE of ${key(e)}`, e.se!, w!.se!, 1e-6);
+  }
+  // u2's construct is the variable itself in the script (no wrapper factor), u1's and u3's keep theirs.
+  const sc = await cbScriptLavaan(load('ex3.12'), toSpec(exampleModel(drawn)), 'casewise', 'WLSMV');
+  expect(sc).toMatch(/\n\s*u2 ~ u1_lv \+ x1/);
+  expect(sc).not.toMatch(/=~ 1\*u2/);
 }, 600_000);
 
 it('ex3.15: the path model of a censored, a binary and a nominal outcome factorises into three regression cards that reproduce the Mplus output', async () => {

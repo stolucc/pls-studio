@@ -15,8 +15,19 @@ import { expect } from 'vitest';
 import { checks, current, fileName } from './collector';
 import type { Check, EvidenceLevel, EvidenceSource } from './types';
 
-/** A stable hash of an example's definition (key order normalised). */
+/**
+ * Fields of an example that describe it or the test suite's allowances, not what is estimated: left out of its
+ * definition hash, so that rewording what an example shows (or why a message is expected) leaves its evidence current.
+ */
+export const UNHASHED_FIELDS = ['shows', 'expectedMessages'] as const;
+
+/** A stable hash of an example's definition (key order normalised; UNHASHED_FIELDS of the top level left out). */
 export function definitionHash(def: unknown): string {
+  if (def && typeof def === 'object' && !Array.isArray(def)) {
+    const rest = { ...(def as Record<string, unknown>) };
+    for (const k of UNHASHED_FIELDS) delete rest[k];
+    def = rest;
+  }
   const norm = (v: unknown): unknown => (Array.isArray(v) ? v.map(norm) : v && typeof v === 'object'
     ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, norm((v as Record<string, unknown>)[k])])) : v);
   return createHash('sha256').update(JSON.stringify(norm(def) ?? null)).digest('hex').slice(0, 16);

@@ -35,4 +35,10 @@ describe('user guide', () => {
     expect(text).toContain('Forgot your password?');
     expect(text).toContain('pls-studio-helper setup');
   });
+
+  it('explains what an example shows and the messages an example is expected to raise', () => {
+    expect(text).toContain('what the example shows');
+    expect(text).toContain('a banner over the diagram on the Model tab and above the log on the Analyses tab');
+    expect(text).toContain('Expected in this example');
+  });
 });

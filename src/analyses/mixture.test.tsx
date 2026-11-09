@@ -28,7 +28,7 @@ describe('mixture model card: options', () => {
     expect(mix.blocked({ syntax: '' }, ctx())).toBe('Write the model (Mplus syntax).');
     expect(mix.blocked({ syntax: 'MODEL: %OVERALL% y ON x1;' }, ctx())).toContain('CLASSES');
     expect(mix.blocked({ syntax: 'CLASSES = c (2); MODEL: %OVERALL% y ON zz;' }, ctx())).toContain('zz is not a column');
-    expect(mix.blocked({ syntax: 'CLASSES = c (2); PARAMETERIZATION = RESCOVARIANCES; MODEL: %OVERALL% y ON x1;' }, ctx())).toContain('LOGIT, LOGLINEAR and PROBABILITY');
+    expect(mix.blocked({ syntax: 'CLASSES = c (2); PARAMETERIZATION = THETA; MODEL: %OVERALL% y ON x1;' }, ctx())).toContain('LOGIT, LOGLINEAR, PROBABILITY and RESCOVARIANCES');
     expect(mix.blocked({ syntax: 'CLASSES = c (2); CATEGORICAL = u1-u4; MODEL: %OVERALL% f BY u1-u4;' }, ctx())).toContain('numerical integration');
     expect(mix.blocked({ syntax: 'CLASSES = c (2); MODEL: %OVERALL% y ON x1; %c#3% y;' }, ctx())).toContain('c has 2 classes');
     expect(mix.blocked({ syntax: 'CLASSES = c (2); MODEL: %OVERALL% y ON x1; c ON x2;', order: { c: [1, 1] } }, ctx())).toContain('give each of its classes');
@@ -101,5 +101,56 @@ describe('mixture model card: view', () => {
     const View = mix.View;
     const html = renderToStaticMarkup(<View result={r} options={{ syntax: '' }} current />);
     for (const t of ['Classes of c', 'Class c#1', 'All classes', '[y]', 'y ON x1', 'reached by 2 of the 2 starts']) expect(html).toContain(t);
+  });
+});
+
+describe('mixture model card: numerical integration and two-level models', () => {
+  const intSpec = (syntax: string) => spec(`ALGORITHM = INTEGRATION; ${syntax}`).spec;
+  it('integrates factors of categorical outcomes (within each case), with Mplus’s rule by default', () => {
+    const s = intSpec('CLASSES = c (2); CATEGORICAL = u1-u4; MODEL: %OVERALL% f BY u1-u4;');
+    expect(s.lat).toMatchObject({ level: 'within', d: 1, names: ['f'], rule: 'rect', points: 15 });
+    // (loadings 3, thresholds equal across classes 4, factor variance, mean in class 1, class logit)
+    expect(s.theta.length).toBe(10);
+    expect(s.blocks.every((b) => b.nl === 1)).toBe(true);
+    expect(spec('CLASSES = c (2); CATEGORICAL = u1-u4; ALGORITHM = INTEGRATION; INTEGRATION = GAUSSHERMITE (10); MODEL: %OVERALL% f BY u1-u4;').spec.lat).toMatchObject({ rule: 'gh', points: 10 });
+  });
+  it('a latent class variable regressed on a factor integrates it outside the classes', () => {
+    const s = intSpec('CLASSES = c (2); CATEGORICAL = u1-u4; MODEL: %OVERALL% f BY; f@1; c ON f;');
+    expect(s.lat).toMatchObject({ level: 'between', names: ['f'] });
+    expect(s.classes[0].nl).toBe(1);
+    expect(() => spec('CLASSES = c (2); CATEGORICAL = u1-u4; MODEL: %OVERALL% f BY u1-u4; c ON f;')).toThrow(/ALGORITHM = INTEGRATION/);
+  });
+  it('reads negative binomial counts, label lists, ranges of latent variables and non-linear constraints', () => {
+    const nb = intSpec('CLASSES = c (2); COUNT = cnt (nb); MODEL: %OVERALL% i s | cnt@0; ');
+    expect(nb.blocks[0].type).toBe('nb');
+    const s = intSpec(`CLASSES = c (1); CATEGORICAL = u1-u4; MODEL: %OVERALL% f1 BY u1 u2 (l2); f2 BY u3 u4 (l2); f1-f2 (v); MODEL CONSTRAINT: NEW(a); v = a**2;`);
+    expect(s.derived?.map((d) => d.name)).toEqual(['v']);
+    expect(s.theta.map((t) => t.name)).toContain('a');
+    expect(s.report.find((r) => r.op === 'new')).toMatchObject({ lhs: 'a' });
+  });
+  it('a residual covariance of categorical outcomes (RESCOVARIANCES) is an integrated factor', () => {
+    const s = spec('CLASSES = c (2); CATEGORICAL = u1-u4; PARAMETERIZATION = RESCOVARIANCES; MODEL: %OVERALL% %c#1% u2 WITH u3;').spec;
+    expect(s.lat?.d).toBe(1);
+    expect(s.report.some((r) => r.lhs === 'u3' && r.op === '~~' && r.rhs === 'u2')).toBe(true);
+  });
+  it('two-level: random intercepts, between-level classes and outcomes, levels in the report', () => {
+    const tl = (syntax: string) => spec(`TYPE = TWOLEVEL MIXTURE; CLUSTER = g; ${syntax}`).spec;
+    const s = tl('CLASSES = c (2); WITHIN = x1; BETWEEN = x2; MODEL: %WITHIN% %OVERALL% y ON x1; %BETWEEN% %OVERALL% y ON x2; c#1; c#1 ON x2;');
+    expect(s.cluster).toBe('g');
+    expect(s.lat).toMatchObject({ level: 'between', names: ['c#1@b', 'y@b'] });
+    expect(s.report.find((r) => r.lhs === 'y' && r.op === '~~' && r.level === 'between')).toBeTruthy();
+    expect(s.report.find((r) => r.lhs === 'y' && r.op === '~' && r.rhs === 'x1')?.level).toBe('within');
+    const b = tl('CLASSES = cb (2); CATEGORICAL = u1; BETWEEN = cb u1 x2; MODEL: %WITHIN% %OVERALL% y ON x1; %BETWEEN% %OVERALL% cb ON x2;');
+    expect(b.classes[0].level).toBe('b');
+    expect(b.blocks.find((x) => x.y[0] === 'u1')?.level).toBe('b');
+    const r = tl('CLASSES = cb (2); BETWEEN = cb; MODEL: %WITHIN% %OVERALL% s | y ON x1; %BETWEEN% %OVERALL% s@0; %cb#1% [s]; %cb#2% [s];');
+    expect(r.report.filter((x) => x.lhs === 's' && x.op === '~1').length).toBe(2);
+    expect(() => spec('CLASSES = c (2); TYPE = TWOLEVEL MIXTURE; MODEL: %WITHIN% %OVERALL% y ON x1;')).toThrow(/CLUSTER/);
+    expect(() => tl('CLASSES = cb (2); BETWEEN = cb; MODEL: %WITHIN% %OVERALL% s | y ON x1;')).toThrow(/random slopes with a variance/);
+  });
+  it('a class-specific regression of one latent class variable on another adds to the overall one', () => {
+    const s = spec('CLASSES = cb (2) c1 (2) c2 (2); CATEGORICAL = u1-u2; MODEL: %OVERALL% c2 ON c1; MODEL cb: %cb#1% c2 ON c1;').spec;
+    const rows = s.report.filter((r) => r.lhs === 'c2#1' && r.op === '~' && r.rhs === 'c1#1');
+    expect(rows.map((r) => r.at)).toEqual([[0, 0, 0], [1, 0, 0]]);
   });
 });

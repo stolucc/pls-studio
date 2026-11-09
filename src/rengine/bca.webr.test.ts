@@ -4,6 +4,7 @@
 // boot_summary on the same draws. Run with npm run test:webr.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { slowIt } from './webrSlow';
 import { summarise } from '../engine/bootstrap';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { bootstrapR } from './analyses';
@@ -64,7 +65,8 @@ describe('bootstrap options', () => {
     two.stats.forEach((x, i) => expect(one.stats[i].p).toBeCloseTo(x.p / 2, 12));
   }, 900_000);
 
-  it('BCa (lavaan): the jackknife refits each case out; equals boot_summary on lavaan’s own draws', async () => {
+  // (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+  slowIt('BCa (lavaan): the jackknife refits each case out; equals boot_summary on lavaan’s own draws', async () => {
     const F = (name: string, inds: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: inds });
     const cbSpec: ModelSpec = { constructs: [F('visual', ['x1', 'x2', 'x3']), F('textual', ['x4', 'x5', 'x6'])], paths: [{ from: 'visual', to: 'textual' }] };
     const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');

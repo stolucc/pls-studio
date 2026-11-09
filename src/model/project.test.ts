@@ -810,10 +810,10 @@ describe('lavaan options taken from Mplus defaults', () => {
     const f = JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null)); f.model.wlsmvSe = 'observed'; f.model.mimic = 'EQS';
     const old = parseProject(JSON.stringify(f)).model;
     expect([old.wlsmvSe, old.mimic]).toEqual([undefined, undefined]);
-    // Mplus's test statistic: one group only (lavaan's mimic would change the groups' equalities).
+    // Mplus's test statistic, with one group or several (with groups the R side writes mimic's test-statistic options out).
     const ord = { ...m, ordered: ['a1', 'a2', 'a3'], mimic: 'Mplus' as const };
     expect(errors(ord, { estimator: 'WLSMV', missing: 'casewise' })).toEqual([]);
-    expect(errors({ ...ord, multigroup: { column: 'g', invariance: 'configural', free: [] } }, { estimator: 'WLSMV', missing: 'casewise' }).some((e) => /one group/.test(e))).toBe(true);
+    expect(errors({ ...ord, multigroup: { column: 'g', invariance: 'configural', free: [] } }, { estimator: 'WLSMV', missing: 'casewise' })).toEqual([]);
   });
 
   it('scale factors of ordinal indicators, held, labelled or freed: in the spec and project files', () => {
@@ -829,6 +829,12 @@ describe('lavaan options taken from Mplus defaults', () => {
     const f = JSON.parse(serializeProject(esem, DEFAULT_SETTINGS, null, null)); f.model.esem.epsilon = 5;
     expect(parseProject(JSON.stringify(f)).model.esem?.epsilon).toBeUndefined();
     expect(toSpec({ ...esem, esem: { ...esem.esem, epsilon: undefined } }).esem).not.toHaveProperty('epsilon');
+    // Invariant loadings across blocks (rotated jointly): in the spec and project files; a file without it reads as before.
+    const inv = { ...esem, esem: { ...esem.esem, invariant: true } };
+    expect(toSpec(inv).esem).toMatchObject({ invariant: true });
+    expect(toSpec(esem).esem).not.toHaveProperty('invariant');
+    expect(parseProject(serializeProject(inv, DEFAULT_SETTINGS, null, null)).model.esem?.invariant).toBe(true);
+    expect(parseProject(serializeProject(esem, DEFAULT_SETTINGS, null, null)).model.esem).not.toHaveProperty('invariant');
   });
 
   it('bifactor rotations: a general factor first, needing no indicators of its own; orthogonal option; implied correlations', () => {
@@ -977,6 +983,8 @@ describe('growth syntax and multiple imputation by Bayesian normal regression (M
   });
   it('micenorm is a CB-SEM choice; old settings files read as before', () => {
     expect(parseSettings({ miMethod: 'micenorm' }).miMethod).toBe('micenorm');
+    expect(parseSettings({ miMethod: 'joint' }).miMethod).toBe('joint');
+    expect(validateModel(base, data, { method: 'pls', consistent: false, missing: 'mi', miMethod: 'joint' }).some((i) => i.level === 'error' && i.message.includes('Joint (H1) imputation is available for CB-SEM'))).toBe(true);
     expect(parseSettings({ miMethod: 'evil' }).miMethod).toBe('mice');
     expect(parseSettings({}).miMethod).toBe('mice');
     const pls = validateModel(base, data, { method: 'pls', consistent: false, missing: 'mi', miMethod: 'micenorm' });

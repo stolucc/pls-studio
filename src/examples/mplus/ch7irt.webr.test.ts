@@ -1,7 +1,8 @@
 // Mplus User's Guide, example 7.27: the IRT card's mixture model (mirt) in webR against what the Mplus
 // outputs print (see testkit.ts). Run with npm run test:webr.
 
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect } from 'vitest';
+import { slowIt } from '../../rengine/webrSlow';
 import { irtFit } from '../../analyses/items';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { irtR } from '../../rengine/items';
@@ -14,7 +15,8 @@ afterAll(stopTestRuntime);
 
 const panel = (key: string) => example(key).panel as Extract<NonNullable<ReturnType<typeof example>['panel']>, { kind: 'irt' }>;
 
-it('ex7.27: the mixture 2PL (mirt) reproduces the Mplus output: fit, loadings, thresholds, factor variances and the class logit', async () => {
+// (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+slowIt('ex7.27: the mixture 2PL (mirt) reproduces the Mplus output: fit, loadings, thresholds, factor variances and the class logit', async () => {
   const key = 'ex7.27';
   evidence(key, 'Item response theory', ['mirt']);
   const p = panel(key);

@@ -20,7 +20,7 @@ export interface CbRequest {
 }
 
 /** Multiple imputation: number of imputed data sets and the seed (only with missing = 'mi'); CB-SEM: the method, auxiliary and (Amelia) nominal columns. */
-export interface MiSettings { m: number; seed: number; method?: 'mice' | 'amelia' | 'micenorm'; auxiliary?: string[]; nominal?: string[] }
+export interface MiSettings { m: number; seed: number; method?: 'mice' | 'amelia' | 'micenorm' | 'joint'; auxiliary?: string[]; nominal?: string[] }
 
 export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): CbRequest {
   // Only the columns the model uses travel to R.
@@ -150,7 +150,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
 const usesModsem = (spec: ModelSpec, interaction: LatentInteraction) => interaction !== 'product' && !!spec.moderations?.length;
 /** The R packages of a CB-SEM estimation: modsem for LMS / QML, mice and lavaan.mi for multiple imputation, rsem for robust ML. */
 const cbPackage = (spec: ModelSpec, interaction: LatentInteraction, missing: MissingTreatment, estimator: CbEstimator) =>
-  (usesModsem(spec, interaction) ? 'modsem' : missing === 'mi' ? 'lavaan.mi' : estimator === 'RML' ? 'rsem' : 'lavaan');
+  (usesModsem(spec, interaction) ? 'modsem' : missing === 'mi' ? 'lavaan.mi' : estimator === 'RML' ? 'rsem' : spec.esem?.invariant ? 'lavaanRotate' : 'lavaan');
 
 /** Estimate a CB-SEM model with lavaan (latent interactions by LMS / QML: modsem). */
 export async function estimateCbLavaan(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): Promise<CbResultR> {

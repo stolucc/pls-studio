@@ -6,6 +6,7 @@ import { useR } from '../rengine/status';
 import { EngineBadge, engineOf } from './EngineBadge';
 import { ExampleResultsBadge } from './validation/ExampleResultsBadge';
 import { CB_TABS, CbTab, type CbTabId } from './results/CbTabs';
+import '../analyses/dfiFit';  // (fills the fit tab's Dynamic-cutoffs slot)
 import { MIIV_TABS, MiivTab, type MiivTabId } from './results/MiivTabs';
 import { PLS_TABS, PlsTab, type PlsTabId } from './results/PlsTabs';
 import { PROCESS_TABS, ProcessTab, type ProcessTabId } from './results/ProcessTabs';

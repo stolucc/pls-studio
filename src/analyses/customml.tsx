@@ -81,7 +81,7 @@ function CustomMlForm({ options: o, set, ctx, disabled }: OptionsProps<CustomMlO
         </>}
       <Area id="cml-defs" label="Defined parameters (optional; one per line: name := expression)" rows={Math.max(1, o.defined.length)} value={defsText(o.defined)} onChange={(s) => set({ ...o, defined: readDefs(s) })}
         hint="Functions of the parameters, with delta-method standard errors (Mplus MODEL CONSTRAINT: NEW)." />
-      <Choice label="Standard errors" value={o.se} options={[['model', 'Observed information (ML)'], ['robust', 'Sandwich (MLR)']]} onChange={(se) => set({ ...o, se })} />
+      <Choice label="Standard errors" value={o.se} options={[['model', 'Observed information (ML)'], ['robust', 'Sandwich (MLR)'], ['mplus', 'Sandwich, Mplus’s information under constraints (MLR)']]} onChange={(se) => set({ ...o, se })} />
     </fieldset>
   );
 }
@@ -92,7 +92,7 @@ function CustomMlView({ result: r }: { result: CustomMlResult }) {
   return (
     <div className="tables">
       <div className="stat-cards">{([['n', String(r.n)], ['Log-likelihood', fmt(r.fit.logLik, 3)], ['Free parameters', String(r.fit.npar)], ['AIC', fmt(r.fit.aic, 3)], ['BIC', fmt(r.fit.bic, 3)]] as [string, string][]).map(([k, v]) => <div className="stat-card" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>)}</div>
-      <p className="hint" style={{ marginTop: 0 }}>Maximum likelihood ({r.engine.package} {r.engine.version}){r.se === 'robust' ? '; sandwich standard errors from the cases’ scores (Mplus MLR)' : '; standard errors from the observed information'}.{r.categories ? ` Categories ${r.categories.join(', ')}: the last is the reference.` : ''}{r.converged ? '' : ' The optimiser did not report convergence.'}</p>
+      <p className="hint" style={{ marginTop: 0 }}>Maximum likelihood ({r.engine.package} {r.engine.version}){r.se === 'robust' ? '; sandwich standard errors from the cases’ scores (Mplus MLR)' : r.se === 'mplus' ? `; sandwich standard errors with Mplus’s information for parameters under MODEL CONSTRAINT (the observed information plus once more the term of the parts’ curvature, as Mplus’s MLR)${r.scaling != null ? `; scaling correction factor ${fmt(r.scaling, 4)}` : ''}` : '; standard errors from the observed information'}.{r.categories ? ` Categories ${r.categories.join(', ')}: the last is the reference.` : ''}{r.converged ? '' : ' The optimiser did not report convergence.'}</p>
       <Table title="Parameters" file="customml-parameters" columns={cols.slice(0, 4)} rows={r.parameters.map((q) => row(q.name, q.est, q.se).slice(0, 4))} />
       <Table title="The model’s parts" file="customml-parts" columns={cols} rows={r.parts.map((q) => row(q.name, q.est, q.se, q.expr))}
         note="Each part at the estimates, with its delta-method standard error; a part that varies from case to case (it uses a data column) has no single value." />
@@ -115,7 +115,7 @@ export const customMlAnalysis: AnalysisType<CustomMlOptions, CustomMlResult> = {
     const pars = (Array.isArray(raw.parameters) ? raw.parameters.slice(0, 50) : []).filter(isObj).map((p) => ({ name: name(p.name, 31), start: Number.isFinite(Number(p.start)) ? Number(p.start) : 0 }));
     const defs = (Array.isArray(raw.defined) ? raw.defined.slice(0, 50) : []).filter(isObj).map((d) => ({ name: name(d.name, 31), expr: name(d.expr, 500) }));
     return { type: oneOf(raw.type, ['nominal', 'normal', 'probit'] as const, 'normal'), outcomes: names(raw.outcomes, 10), parameters: pars,
-      logits: exprs(raw.logits), means: exprs(raw.means, 10), variances: exprs(raw.variances, 10), covariances: exprs(raw.covariances, 45), defined: defs, se: oneOf(raw.se, ['model', 'robust'] as const, 'model') };
+      logits: exprs(raw.logits), means: exprs(raw.means, 10), variances: exprs(raw.variances, 10), covariances: exprs(raw.covariances, 45), defined: defs, se: oneOf(raw.se, ['model', 'robust', 'mplus'] as const, 'model') };
   },
   Options: CustomMlForm,
   View: ({ result }) => <CustomMlView result={result} />,
@@ -150,7 +150,7 @@ export const customMlAnalysis: AnalysisType<CustomMlOptions, CustomMlResult> = {
   fingerprint: (o, ctx) => { const ds = rawData(ctx); return ds ? columnsFingerprint(ctx, customMlColumns(o, ds.names), [o.type, o.se]) : null; },
   run: async (o, ctx) => (await import('../rengine/customml')).customMlR(rawData(ctx)!, o),
   script: async (o, ctx) => (await import('../rengine/customml')).customMlScriptR(rawData(ctx)!, o),
-  summary: (o) => (o.outcomes.length ? `${o.type} · ${o.outcomes.join(', ')} · ${o.parameters.length} parameter${o.parameters.length === 1 ? '' : 's'}${o.se === 'robust' ? ' · MLR' : ''}` : 'not set up yet'),
+  summary: (o) => (o.outcomes.length ? `${o.type} · ${o.outcomes.join(', ')} · ${o.parameters.length} parameter${o.parameters.length === 1 ? '' : 's'}${o.se === 'robust' ? ' · MLR' : o.se === 'mplus' ? ' · MLR (Mplus)' : ''}` : 'not set up yet'),
 };
 
 // Bayesian multivariate regression with flat priors: the exact posterior (R/customml.R, ps_bmvreg).

@@ -10,7 +10,8 @@ import { bsemAnalysis } from '../analyses/bsem';
 import type { AnalysisCtx } from '../analyses/types';
 import { DEFAULT_SETTINGS, makeCovariancesExplicit, newId, toSpec, type ModelState } from '../model/project';
 import { DESKTOP_ONLY, DesktopOnly, R_PACKAGES } from './bridge';
-import { bsemR, bsemScriptR } from './bsem';
+import { bsemR, bsemRequest, bsemResult, bsemScriptR } from './bsem';
+import { parsePriors, printPriors } from '../analyses/bsem';
 import { useCompute } from './compute';
 import * as runtime from './runtime';
 
@@ -40,7 +41,7 @@ describe('Bayesian SEM in the browser', () => {
     useCompute.setState({ backend: 'helper' } as never);
     expect(bsemAnalysis.blocked(opts, ctx)).toBeNull();
     expect(bsemAnalysis.blocked(opts, { ...ctx, settings: { ...settings, method: 'pls' } })).toMatch(/CB-SEM/);
-    expect(bsemAnalysis.blocked(opts, { ...ctx, model: { ...model, ordered: ['a1'] } })).toMatch(/continuous/);
+    expect(bsemAnalysis.blocked(opts, { ...ctx, model: { ...model, multilevel: { column: 'a1', between: 'same' } } })).toMatch(/without clusters/);
     expect(bsemAnalysis.blocked(opts, { ...ctx, model: { ...model, constant: { x: 0, y: 0 } } })).toMatch(/marker/);
     expect(bsemAnalysis.blocked({ ...opts, identification: 'marker' }, { ...ctx, model: { ...model, constant: { x: 0, y: 0 } } })).toBeNull();
   });
@@ -66,5 +67,54 @@ describe('native check of the help page’s model (desktop R)', () => {
     const get = (k: string, lhs: string, op: string, rhs: string) => (ref[k].parameters as { lhs: string; op: string; rhs: string; mean: number }[]).find((p) => p.lhs === lhs && p.op === op && p.rhs === rhs)!.mean;
     const sd = Math.sqrt(get('marker', 'visual', '~~', 'visual'));
     expect(get('unit', 'visual', '=~', 'x2') / (get('marker', 'visual', '=~', 'x2') * sd)).toBeCloseTo(1, 1);
+  });
+});
+
+describe('the card’s Bayesian options (Mplus’s priors, MODEL PRIORS, approximate invariance, LOOP, plausible values)', () => {
+  beforeEach(() => useCompute.setState({ backend: 'helper' } as never));
+  const labelled: ModelState = { ...model, constructs: model.constructs.map((k, i) => (i === 0 ? { ...k, loadingLabels: { a2: 'la2', a3: 'la3' } } : k)) };
+  const lctx = { ...ctx, model: labelled } as AnalysisCtx;
+  it('old saved options are read unchanged, and the new ones only when valid', () => {
+    expect(bsemAnalysis.parseOptions({ identification: 'marker', chains: 3, burnin: 500, sample: 1000 })).toEqual({ identification: 'marker', chains: 3, burnin: 500, sample: 1000 });
+    const full = { ...opts, priors: 'mplus', labelPriors: [{ labels: ['la2', 'la3'], mean: 0, variance: 0.01 }], wiggle: { what: ['loadings'], variance: 0.01 }, loop: { name: 'ind', expr: 'la2*m', variable: 'm', from: -1, to: 1, by: 0.5 }, plausible: 20 };
+    expect(bsemAnalysis.parseOptions(full)).toEqual(full);
+    expect(bsemAnalysis.parseOptions({ ...opts, priors: 'jeffreys', labelPriors: [{ labels: ['1x'], mean: 0, variance: 1 }, { labels: ['a'], mean: 0, variance: -1 }], wiggle: { what: ['residuals'], variance: 0.01 }, loop: { name: 'x', expr: 'a', variable: 'm', from: 0, to: 1, by: 0 }, plausible: -3 })).toEqual(opts);
+  });
+  it('priors written as Mplus’s MODEL PRIORS, with ranges of labels', () => {
+    expect(parsePriors('xload1-xload3 ~ N(0, 0.01);\ndir1 dir5 ~ N(0.5,1)')).toEqual([{ labels: ['xload1', 'xload2', 'xload3'], mean: 0, variance: 0.01 }, { labels: ['dir1', 'dir5'], mean: 0.5, variance: 1 }]);
+    expect(printPriors(parsePriors('a1-a2 ~ N(0, 0.01)'))).toBe('a1 a2 ~ N(0, 0.01);');
+    expect(() => parsePriors('a ~ N(0, 0)')).toThrow(/positive/);
+    expect(() => parsePriors('a ~ U(0, 1)')).toThrow(/labels ~ N/);
+    expect(() => parsePriors('a3-b1 ~ N(0, 1)')).toThrow(/range/);
+  });
+  it('the card says what its options need', () => {
+    expect(bsemAnalysis.blocked({ ...opts, labelPriors: [{ labels: ['la2', 'zz'], mean: 0, variance: 0.01 }] }, lctx)).toMatch(/zz is not a label/);
+    expect(bsemAnalysis.blocked({ ...opts, labelPriors: [{ labels: ['la2'], mean: 0, variance: 0.01 }] }, lctx)).toBeNull();
+    expect(bsemAnalysis.blocked({ ...opts, wiggle: { what: ['loadings'], variance: 0.01 } }, lctx)).toMatch(/several groups/);
+    const loop = { name: 'ind', expr: 'la2*(1 + m)', variable: 'm', from: -2, to: 2, by: 0.1 };
+    expect(bsemAnalysis.blocked({ ...opts, loop }, lctx)).toBeNull();
+    expect(bsemAnalysis.blocked({ ...opts, loop: { ...loop, expr: 'la2*q' } }, lctx)).toMatch(/q is not a label/);
+    expect(bsemAnalysis.blocked({ ...opts, loop: { ...loop, expr: 'exp(la2)' } }, lctx)).toMatch(/Functions/);
+    expect(bsemAnalysis.blocked({ ...opts, loop: { ...loop, by: 0.001 } }, lctx)).toMatch(/1,000 steps/);
+  });
+  it('the request: the options as R reads them, the loop’s expression printed from its parsed form', () => {
+    const req = bsemRequest(data, toSpec(labelled), 'casewise', { ...opts, priors: 'mplus', loop: { name: 'ind', expr: 'la2 *  (1+m)', variable: 'm', from: -2, to: 2, by: 0.1 }, plausible: 5 }, 1, 0.95) as Record<string, any>;
+    expect(req.priors).toBe('mplus');
+    expect(req.loop.expr).toBe('(la2 * (1 + m))');
+    expect(req.plausible).toBe(5);
+    expect(req.estimator).toBe('ML');
+    const plain = bsemRequest(data, toSpec(model), 'casewise', opts, 1, 0.95) as Record<string, unknown>;
+    for (const k of ['priors', 'labelPriors', 'wiggle', 'loop', 'plausible']) expect(plain, k).not.toHaveProperty(k);
+  });
+  it('the reply: R’s single values and empty lists read as arrays', () => {
+    const r = bsemResult({ parameters: { lhs: 'A', op: '=~', rhs: 'a2', mean: 1 }, fit: [], warnings: 'w', defined: [], groups: '1',
+      loop: { name: 'ind', variable: 'm', expr: 'a', x: 0, median: 1, mean: 1, sd: 0.1, low: 0.8, high: 1.2 },
+      plausible: { draws: 20, cases: 40, factors: 'A', mean: 0.1, cov: [[1]], meanSd: 0.5 } });
+    expect(r.parameters).toHaveLength(1);
+    expect(r.groups).toEqual(['1']);
+    expect(r.loop!.x).toEqual([0]);
+    expect(r.plausible!.factors).toEqual(['A']);
+    expect(r.plausible!.cov).toEqual([[1]]);
+    expect(r.warnings).toEqual(['w']);
   });
 });

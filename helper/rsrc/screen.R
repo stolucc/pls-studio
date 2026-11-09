@@ -78,3 +78,93 @@ ps_influence <- function(req_json, export = FALSE) {
   ps_json(list(approach = approach, rows = env$rows, gcd = col(g), md = col("md"), chisq = col("chisq"), cfi = col("cfi"), rmsea = col("rmsea"), tli = col("tli"),
     warnings = env$.warnings, engine = list(package = "semfindr", version = as.character(utils::packageVersion("semfindr")))))
 }
+
+#' Missing data as Mplus's TYPE = BASIC describes them: the patterns of missing values (Mplus's order: a pattern read as
+#' a binary number, a missing value 1, the first variable the most significant digit) with their frequencies, the
+#' covariance coverage (the proportion of cases with both values), the EM estimates of the means, covariances and
+#' correlations (the unrestricted H1 model by FIML, lavaan), the H1 log-likelihood, and, for repeated measures
+#' (DATA MISSING: TYPE = DDROPOUT), Mplus's dropout descriptives: a case drops out at occasion t when it is observed at
+#' t - 1 and missing from t on; a non-dropout is observed at the last occasion; intermittent missing is a missing value
+#' before that. A second set of variables (Mplus DESCRIPTIVE = y0-y5 | * z1-z5) is described by the same groups, each
+#' variable at its occasion ("" for none).
+ps_missing <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  vars <- as.character(unlist(req$vars)); meas <- as.character(unlist(req$measures)); desc <- as.character(unlist(req$descriptive))
+  if (length(vars) < 1 || length(vars) > 200 || anyDuplicated(vars)) stop("Choose 1 to 200 variables.")
+  if (length(meas) == 1 || length(meas) > 50 || anyDuplicated(meas)) stop("Dropout needs 2 to 50 repeated measures, in time order.")
+  if (length(desc) && length(desc) != length(meas)) stop("The second set of variables needs one entry per occasion (empty for none).")
+  if (length(desc) && !length(meas)) stop("The second set of variables is described by dropout: choose the repeated measures.")
+  used <- unique(c(vars, meas, desc[nzchar(desc)]))
+  fr <- ps_long_frame(req, used)
+  v <- ps_lookup(fr$v, vars); vm <- ps_lookup(fr$v, meas); vd <- vapply(desc, function(x) if (nzchar(x)) ps_lookup(fr$v, x) else "", "")
+  body <- c(
+    "suppressPackageStartupMessages(library(lavaan))",
+    sprintf("X <- as.matrix(data[, %s, drop = FALSE])", ps_q(v)),
+    "n <- nrow(X); M <- is.na(X)",
+    "# Missing-data patterns (x = observed), in Mplus's order: the pattern as a binary number, a missing value 1, the first",
+    "# variable the most significant digit; with their frequencies",
+    "key <- apply(M, 1, function(m) paste(as.integer(m), collapse = \"\"))",
+    "freq <- table(key); pats <- names(freq)[order(names(freq))]",
+    "patterns <- lapply(pats, function(k) list(observed = strsplit(k, \"\")[[1]] == \"0\", n = unname(as.integer(freq[k]))))",
+    "# Covariance coverage: the proportion of cases with both values",
+    "coverage <- crossprod(!M) / n",
+    "# EM estimates of the means and covariance matrix (the unrestricted model by FIML, lavaan) and its log-likelihood",
+    "h1 <- lavaan::lavCor(as.data.frame(X), missing = \"ml\", output = \"fit\", se = \"none\", test = \"none\")",
+    "em <- lavaan::lavInspect(h1, \"h1\")",
+    "em_mean <- em$mean[colnames(X)]; em_cov <- em$cov[colnames(X), colnames(X)]",
+    "loglik_h1 <- tryCatch(sum(vapply(unique(key), function(k) {",
+    "  i <- which(key == k); o <- !M[i[1], ]",
+    "  if (!any(o)) return(0)",
+    "  R <- chol(em_cov[o, o, drop = FALSE])",
+    "  z <- backsolve(R, t(sweep(X[i, o, drop = FALSE], 2, em_mean[o])), transpose = TRUE)",
+    "  -0.5 * (length(i) * (sum(o) * log(2 * pi) + 2 * sum(log(diag(R)))) + sum(z^2))",
+    "}, 0)), error = function(e) NA_real_)",
+    "# (a covariance matrix near singular, e.g. with variables that are functions of the missingness: no finite maximum)",
+    "singular <- min(eigen(em_cov, symmetric = TRUE, only.values = TRUE)$values) < 1e-6 * max(diag(em_cov))")
+  if (length(meas)) body <- c(body,
+    "# Dropout (Mplus DATA MISSING: TYPE = DDROPOUT): out at occasion t (t = 1, ...) when observed at t - 1 and missing from t on",
+    sprintf("Y <- as.matrix(data[, %s, drop = FALSE]); MY <- is.na(Y); Tn <- ncol(Y)", ps_q(vm)),
+    "out_at <- rep(NA_integer_, n)",
+    "for (t in seq_len(Tn - 1)) out_at[!MY[, t] & rowSums(MY[, (t + 1):Tn, drop = FALSE]) == Tn - t] <- t",
+    "dropout <- !is.na(out_at); stayer <- !MY[, Tn]",
+    "# intermittent missing: a missing value of the set before the dropout (or, for a non-dropout, anywhere); the dropout",
+    "# counts use the repeated measures",
+    "last <- ifelse(dropout, out_at, Tn)",
+    "gaps <- function(MS) vapply(seq_len(n), function(i) any(MS[i, seq_len(last[i])]), TRUE)",
+    "intermittent <- gaps(MY)",
+    "describe <- function(x, keep) { x <- x[keep & !is.na(x)]; list(n = length(x), mean = if (length(x)) mean(x) else NA_real_, sd = if (length(x) > 1) stats::sd(x) else NA_real_) }",
+    "# Each variable at its occasion t (0 = the first): who drops out after it, and the totals",
+    "occasion <- function(x, t, intermittent) {",
+    "  rows <- list()",
+    "  if (t < Tn - 1) rows <- c(rows, list(c(list(group = \"after\", time = t + 1), describe(x, out_at %in% (t + 1))), c(list(group = \"stayAfter\", time = t + 1), describe(x, !(out_at %in% (t + 1))))))",
+    "  dt <- dropout & out_at > t",
+    "  # (no case drops out after the last occasion)",
+    "  if (t < Tn - 1) rows <- c(rows, list(c(list(group = \"dropouts\"), describe(x, dt)), c(list(group = \"dropoutsNoIntermittent\"), describe(x, dt & !intermittent)),",
+    "    c(list(group = \"dropoutsIntermittent\"), describe(x, dt & intermittent))))",
+    "  c(rows, list(c(list(group = \"nonDropouts\"), describe(x, stayer)),",
+    "    c(list(group = \"nonDropoutsComplete\"), describe(x, stayer & !intermittent)), c(list(group = \"nonDropoutsIntermittent\"), describe(x, stayer & intermittent)),",
+    "    c(list(group = \"total\"), describe(x, dt | stayer))))",
+    "}",
+    "set1 <- lapply(seq_len(Tn), function(t) occasion(Y[, t], t - 1, intermittent))",
+    if (length(desc)) c(sprintf("D2 <- data[, %s, drop = FALSE]", ps_q(unname(vd[nzchar(vd)]))),
+      "# (the second set's intermittent missing is its own: an occasion without a variable counts as observed)",
+      sprintf("at2 <- %s", sprintf("c(%s)", paste(which(nzchar(vd)), collapse = ", "))),
+      "M2 <- matrix(FALSE, n, Tn); M2[, at2] <- is.na(as.matrix(D2))",
+      "set2 <- lapply(seq_along(at2), function(k) occasion(D2[[k]], at2[k] - 1, gaps(M2)))"))
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Missing data (patterns, coverage, EM estimates, dropout)", "lavaan", inputs, body,
+    c("patterns", "coverage", "em_mean", "em_cov", "loglik_h1", if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"), if (length(desc)) "set2")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  sym <- function(S) lapply(seq_len(nrow(S)), function(i) unname(S[i, ]))
+  em_cor <- stats::cov2cor(env$em_cov)
+  res <- list(variables = I(vars), n = env$n, patterns = env$patterns, coverage = sym(env$coverage),
+    em = list(means = I(unname(env$em_mean)), cov = sym(env$em_cov), cor = sym(em_cor), loglik = if (is.finite(env$loglik_h1) && !env$singular) env$loglik_h1 else NULL, singular = env$singular),
+    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan"))))
+  if (length(meas)) {
+    res$dropout <- list(measures = I(meas), dropouts = sum(env$dropout), nonDropoutsComplete = sum(env$stayer & !env$intermittent), nonDropoutsIntermittent = sum(env$stayer & env$intermittent),
+      byTime = I(vapply(seq_len(length(meas) - 1), function(t) sum(env$out_at %in% t), 0L)),
+      set1 = lapply(seq_along(meas), function(t) list(variable = meas[t], time = t - 1, rows = env$set1[[t]])),
+      set2 = if (length(desc)) { w <- which(nzchar(desc)); lapply(seq_along(w), function(k) list(variable = desc[w[k]], time = w[k] - 1, rows = env$set2[[k]])) } else list())
+  }
+  ps_json(res)
+}

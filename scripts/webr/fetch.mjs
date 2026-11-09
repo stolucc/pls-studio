@@ -28,10 +28,33 @@ const SRC_CACHE = join(ROOT, '.webr-cache', 'src');
 const CRAN = 'https://cran.r-project.org/src/contrib';
 /** webR ships development builds (x.y.z.9000) of a few packages; their source is the upstream repository. */
 const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://github.com/rstudio/sass', vroom: 'https://github.com/tidyverse/vroom', later: 'https://github.com/r-lib/later' };
+/**
+ * Packages whose served source is a pinned snapshot of their repository, not a CRAN tarball. dynamic's CRAN release
+ * 1.1.0 (2022) was archived on 2025-11-07 and no longer runs (dplyr >= 1.1 refuses its summarise() of several rows);
+ * the binary in scripts/webr/vendor is built from this commit of the maintained repository (still versioned 1.1.0
+ * there, no tags), and the archive below is the source of exactly that build (AGPL-3).
+ */
+const SNAPSHOT = { dynamic: { commit: '90aa51f7cd34d7de936dc36ff99a7b8363ed10d7', url: 'https://github.com/melissagwolf/dynamic/tree/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7', source: 'https://github.com/melissagwolf/dynamic/archive/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7.tar.gz' } };
+/**
+ * Packages the app ships patched, so that they load in webR. cubature's WebAssembly build (the webR repository's and
+ * r-universe's alike) uses Emscripten's JavaScript longjmp, which webR 0.6.0's R cannot link, and GenOrd imported it
+ * (dynamic imported GenOrd), so dynamic did not load in the browser. Each patch only turns one hard import into a
+ * suggested package loaded on demand (requireNamespace) by the one function that uses it, with a clear error when it
+ * is absent; no computation changes: GenOrd's Gaussian copula correction (contord/ordcont, df = Inf) already uses
+ * mvtnorm, cubature served only pmvt.alt() (a Student's t copula with a non-integer df), and dynamic uses GenOrd in
+ * likertHB2() only. The binaries in scripts/webr/vendor are built from the patched sources (`R CMD INSTALL --build`,
+ * R 4.6.2, pure R); the patches are scripts/webr/vendor/<name>_<version>.patch (against SNAPSHOT's dynamic and CRAN's
+ * GenOrd), and the served source (public/webr/src) is the patched source, scripts/webr/vendor/src/<name>_<version>.tar.gz,
+ * with the patch beside it, as AGPL-3 and GPL-3 require of a modified version.
+ */
+const PATCHED = {
+  dynamic: 'GenOrd moved from Imports to Suggests and loaded when likertHB2() needs it',
+  GenOrd: 'cubature moved from Imports to Suggests and loaded when pmvt.alt() (a Student’s t copula with a non-integer df) needs it',
+};
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
-/** Packages the app calls directly. */
-const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'Amelia', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet', 'BayesFactor', 'mirt', 'GLMMadaptive', 'glca'];
+/** Packages the app calls directly (and GenOrd: dynamic's suggested package, which its likertHB2() loads, kept in the closure). */
+const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'Amelia', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet', 'BayesFactor', 'mirt', 'GLMMadaptive', 'glca', 'dynamic', 'GenOrd', 'QCA'];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES
  * stanzas) instead of downloaded from repo.r-wasm.org. glasso and glassoFast
@@ -44,7 +67,12 @@ const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 
  * published there. qs2 (imported by SimDesign, which mirt imports) is not in the
  * webR repository either: r-universe's build of 0.4.0 (2026-11-02), with the
  * RcppParallel it needs (>= 6.1.1; the webR repository has 5.1.11-2): r-universe's
- * build of 6.2.1 (2026-10-26), SHA-256 as published there.
+ * build of 6.2.1 (2026-10-26), SHA-256 as published there. dynamic has no
+ * webR or r-universe binary (archived from CRAN, see SNAPSHOT): a pure-R package,
+ * built here with `R CMD INSTALL --build` (R 4.6.2) from the pinned commit with
+ * the patch in PATCHED applied; GenOrd likewise, from its CRAN source with its
+ * patch (the webR repository's build imports cubature, which does not load).
+ * Their SHA-256s are those of the files in vendor/.
  */
 const VENDOR = join(ROOT, 'scripts', 'webr', 'vendor');
 const vendored = () => new Map(parsePackages(readFileSync(join(VENDOR, 'PACKAGES'), 'utf8')).map((s) => [s.Package, s]));
@@ -155,11 +183,11 @@ async function main() {
   writeFileSync(join(OUT, 'LICENSES.md'), [
     '# R packages shipped with PLS Studio',
     '',
-    `Binaries built for webR ${lock.webr} (R ${lock.r}) by the webR project (repo.r-wasm.org); ${entries.filter(([, p]) => p.vendored).map(([n]) => n).join(', ') || 'none'} built by r-universe (cran.r-universe.dev; see scripts/webr/fetch.mjs). Source code of each exact version is on CRAN.`,
+    `Binaries built for webR ${lock.webr} (R ${lock.r}) by the webR project (repo.r-wasm.org); ${entries.filter(([, p]) => p.vendored).map(([n]) => n).join(', ') || 'none'} built by r-universe (cran.r-universe.dev) or, ${Object.keys(PATCHED).join(' and ')}, by PLS Studio from patched sources (see scripts/webr/fetch.mjs). Source code of each exact version is on CRAN, or served from a repository snapshot; for a patched package the served source is the modified source, with the patch (src/<package>_<version>.patch) beside it.`,
     '',
     '| Package | Version | Licence | Source |',
     '|---|---|---|---|',
-    ...entries.map(([n, p]) => `| ${n} | ${p.version} | ${p.license} | src/${n}_${p.version}.tar.gz (from CRAN) |`),
+    ...entries.map(([n, p]) => `| ${n} | ${p.version} | ${p.license} | src/${n}_${p.version}.tar.gz (${SNAPSHOT[n] ? `repository snapshot ${SNAPSHOT[n].commit.slice(0, 7)}` : 'from CRAN'}${PATCHED[n] ? `; patched by PLS Studio: ${PATCHED[n]}, see src/${n}_${p.version}.patch` : ''}) |`),
     '',
   ].join('\n'));
   // Sources for GPL compliance: CRAN tarballs of the exact versions, and webR's release source.
@@ -179,9 +207,17 @@ async function main() {
       cpSync(cached, join(srcOut, file));
       return `src/${file}`;
     };
+    // (a patched package: its modified source and the patch, both kept in scripts/webr/vendor)
+    const patchedSrc = (name, file) => {
+      const patch = `${name}_${file.replace(`${name}_`, '').replace(/\.tar\.gz$/, '')}.patch`;
+      for (const f of [join(VENDOR, 'src', file), join(VENDOR, patch)]) if (!existsSync(f)) throw new Error(`${f} is missing: the patched source of ${name} must be vendored (see PATCHED).`);
+      cpSync(join(VENDOR, 'src', file), join(srcOut, file));
+      cpSync(join(VENDOR, patch), join(srcOut, patch));
+      return `src/${file}`;
+    };
     for (const [name, p] of entries) {
       const file = `${name}_${p.version}.tar.gz`;
-      sources[name] = await fetchSrc(file, [`${CRAN}/${file}`, `${CRAN}/Archive/${name}/${file}`]);
+      sources[name] = PATCHED[name] ? patchedSrc(name, file) : await fetchSrc(file, SNAPSHOT[name] ? [SNAPSHOT[name].source] : [`${CRAN}/${file}`, `${CRAN}/Archive/${name}/${file}`]);
       if (!sources[name]) console.warn(`warning: no CRAN source found for ${name} ${p.version}`);
     }
     sources.webr = await fetchSrc(`webr-${lock.webr}.tar.gz`, [`https://github.com/r-wasm/webr/archive/refs/tags/v${lock.webr}.tar.gz`]);
@@ -189,7 +225,9 @@ async function main() {
   }
   writeFileSync(join(OUT, 'licenses.json'), JSON.stringify({
     webr: { version: lock.webr, r: lock.r, license: 'GPL-3 (webR binaries, including R); MIT (webR JavaScript API)', source: sources.webr ?? null, url: `https://github.com/r-wasm/webr/releases/tag/v${lock.webr}` },
-    packages: entries.map(([name, p]) => ({ name, version: p.version, license: p.license, source: sources[name] ?? null, url: UPSTREAM[name] ?? `https://cran.r-project.org/package=${name}`, ...(UPSTREAM[name] ? { note: 'development build by webR; source: upstream repository' } : {}) })),
+    packages: entries.map(([name, p]) => ({ name, version: p.version, license: p.license, source: sources[name] ?? null, url: UPSTREAM[name] ?? SNAPSHOT[name]?.url ?? `https://cran.r-project.org/package=${name}`,
+      ...(UPSTREAM[name] ? { note: 'development build by webR; source: upstream repository' } : SNAPSHOT[name] ? { note: `built by PLS Studio from the repository at commit ${SNAPSHOT[name].commit} (the CRAN release is archived); source: that snapshot${PATCHED[name] ? ', patched' : ''}` } : PATCHED[name] ? { note: 'built by PLS Studio from the CRAN source, patched' } : {}),
+      ...(PATCHED[name] ? { patch: `src/${name}_${p.version}.patch`, patched: `${PATCHED[name]}, so that the package loads in webR (cubature’s WebAssembly build cannot be loaded there); no other change. The served source is the modified source.` } : {}) })),
   }, null, 1));
   writeFileSync(join(OUT, '.lock-stamp'), stampText);
   const OLD = `${FINAL}.old`;

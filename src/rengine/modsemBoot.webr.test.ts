@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { slowIt } from './webrSlow';
 import { parseCsv } from '../engine/dataset';
 import type { ModelSpec } from '../engine/types';
 import commonR from './R/common.R?raw';
@@ -27,7 +28,8 @@ const spec: ModelSpec = {
 };
 
 describe.each([['qml', 8], ['lms', 4]] as const)('%s', (method, samples) => {
-  it('resamples cases and refits, as plain modsem code does', async () => {
+  // (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+  slowIt('resamples cases and refits, as plain modsem code does', async () => {
     const boot = { samples, seed: 11, confidence: 0.95 };
     const r = await bootstrapR(data, spec, { kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot, interaction: method }, () => '');
     expect(r.engine.package).toBe('modsem');

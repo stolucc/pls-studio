@@ -11,7 +11,7 @@ import { DATA_CACHE, exampleTestData } from '../testData';
 import { against, example as exampleCheck, near, same } from '../../validation/record';
 
 /** One parameter of MODEL RESULTS: `block` is the heading it is printed under (a group, latent class or level), `group` the group's number in print order. */
-export type Printed = { lhs: string; op: string; rhs: string; group: number; block: string; est: number; se: number };
+export type Printed = { lhs: string; op: string; rhs: string; group: number; block: string; est: number; se: number; level?: string };
 export type Fit = { npar?: number; logl?: number; aic?: number; bic?: number; chisq?: number; df?: number };
 export const MPLUS = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'textbook', 'mplus_printed.json'), 'utf8')) as Record<string, { fit: Fit; estimates: Printed[] }>;
 /** Mplus's three printed decimals plus its convergence criterion. */

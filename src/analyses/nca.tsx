@@ -110,6 +110,7 @@ function NcaOptionsForm({ options: o, set, ctx, disabled }: { options: NcaOption
 
 export const ncaAnalysis: AnalysisType<NcaOptions, NcaResult> = {
   id: 'nca',
+  fitsModel: (o) => o.source === 'scores',
   title: 'Necessary condition analysis',
   sub: 'NCA: ceilings, effect sizes, bottlenecks',
   group: 'Necessary conditions',

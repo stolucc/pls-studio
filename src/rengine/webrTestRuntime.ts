@@ -3,14 +3,27 @@
 
 import { appendFileSync, createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
+import { cpus } from 'node:os';
 import { join, normalize, sep } from 'node:path';
 import { configureR, observeCalls } from './runtime';
+import { setHelperTransport } from './helper';
+import { useCompute } from './compute';
+import { startNativePool, type NativePool } from './nativeR';
 
 const ROOT = join(__dirname, '..', '..');
 const PUBLIC = join(ROOT, 'public', 'webr');
 let server: Server | null = null;
+let native: NativePool | null = null;
 
 export async function startTestRuntime() {
+  // PS_NATIVE_R=1 (npm run test:native): the bridge's calls run in desktop R (nativeR.ts); webR stays available for
+  // tests that drive it directly. Not for the validation record, which is what the browser computes.
+  if (process.env.PS_NATIVE_R && !native) {
+    if (process.env.PS_VALIDATION_DIR) throw new Error('The validation record is recorded from webR: unset PS_NATIVE_R.');
+    native = await startNativePool(ROOT, Math.max(1, Number(process.env.PS_NATIVE_WORKERS) || Math.min(8, Math.max(2, cpus().length - 2))));
+    setHelperTransport(native);
+    useCompute.setState({ backend: 'helper' });
+  }
   if (server) return;
   if (!existsSync(join(PUBLIC, 'repo'))) throw new Error('public/webr is missing: run npm run webr:fetch first.');
   server = createServer((req, res) => {
@@ -33,5 +46,6 @@ export async function startTestRuntime() {
 }
 
 export function stopTestRuntime(): Promise<void> {
+  if (native) { native.stop(); native = null; setHelperTransport(null); }
   return new Promise((r) => (server ? server.close(() => { server = null; r(); }) : r()));
 }

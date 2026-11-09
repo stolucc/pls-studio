@@ -10,6 +10,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.1', package: 'stats', title: 'Mixture regression for a continuous outcome (Mplus ex. 7.1)', source: MPLUS_SRC('7.1'), links: mplusLinks('7.1'),
     description: 'A regression of y on x1 and x2 within two latent classes (Mplus: y ON x1 x2; c ON x1; in class 2 its own slope of x2 and residual variance). Mplus’s defaults, which the card follows: the intercept differs between classes, a slope or variance only where a class-specific part names it, and the class is regressed on x1 (multinomial logit against the last class). The card’s likelihood, maximised from 20 random starts (the best 4 continued, Mplus’s STARTS default), reaches Mplus’s maximum: log-likelihood −836.899 (flexmix stops at −837.015), 9 free parameters, AIC 1691.797, BIC 1729.729. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −836.899, 9 free parameters, BIC 1729.729, every estimate and MLR standard error within 0.001. Read the class columns: x1’s slope 1.999 is common, x2’s differs (2.059 against 0.971) as do the intercepts (1.967 against 0.862), and x1 predicts class membership (c#1 on x1 1.009). flexmix stops short, at −837.015.',
     data: mplusData('7.1', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c (2);',
@@ -25,6 +26,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.2', package: 'stats', title: 'Mixture regression for a zero-inflated count (Mplus ex. 7.2)', source: MPLUS_SRC('7.2'), links: mplusLinks('7.2'),
     description: 'A zero-inflated Poisson count u regressed on x1 and x2 in two latent classes (Mplus: COUNT = u (i); u ON x1 x2; u#1 ON x1 x2; c ON x1; in class 2 its own slope of x2). The count’s intercept differs between classes, the inflation’s (u#1, the logit of a structural zero) does not: Mplus’s defaults, which the card follows. Reproduces log-likelihood −902.299, 10 free parameters, AIC 1824.598, BIC 1866.744. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −902.299, 10 free parameters, BIC 1866.744, every estimate and MLR standard error within 0.001. The classes differ in the count’s intercept (1.027 against 2.079) and x2’s slope (0.383 against 0.025); the inflation part (u#1 on x1 1.654, x2 0.806) is common, and x1 lowers the odds of class 1 (c#1 on x1 −0.918).',
     data: mplusData('7.2', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c (2);',
@@ -41,6 +43,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.11', package: 'stats', title: 'LCA with binary, censored, nominal and count indicators (Mplus ex. 7.11)', source: MPLUS_SRC('7.11'), links: mplusLinks('7.11'),
     description: 'Two latent classes from four indicators of different types: binary u1, y1 censored from below, nominal u2 (three categories) and the zero-inflated count u3 (Mplus: CATEGORICAL, CENSORED = y1 (b), NOMINAL, COUNT = u3 (i)), started from the input’s values without random starts (STARTS = 0). Within class: a logit threshold, a censored-normal (tobit) mean and variance, multinomial logits against the last category, and a Poisson log rate with the inflation logit. Reproduces log-likelihood −4348.434, 15 free parameters, AIC 8726.869, BIC 8800.485. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −4348.434, 15 free parameters, BIC 8800.485, every estimate and MLR standard error within 0.001. One table holds four kinds of parameter: u1’s threshold, y1’s censored mean and variance (2.735 and 2.332 in class 1 against 0.939 and 0.991), u2’s two nominal logits, and u3’s log rate with its inflation logit.',
     data: mplusData('7.11', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c (2);',
@@ -62,6 +65,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.12', package: 'stats', title: 'LCA with a covariate and a direct effect (Mplus ex. 7.12)', source: MPLUS_SRC('7.12'), links: mplusLinks('7.12'),
     description: 'Latent class analysis of four binary items with a covariate x predicting the class (c ON x) and a direct effect of x on item u4 (u4 ON x), equal in both classes. Reproduces log-likelihood −1255.396, 11 free parameters, AIC 2532.793, BIC 2579.153. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −1255.396, 11 free parameters, BIC 2579.153, every estimate and MLR standard error within 0.001. The two effects of x to read: on class membership, c#1 on x −1.025 (SE 0.151), and directly on u4, 0.579 (0.128) in both classes, the part of x’s relation to u4 the classes do not carry.',
     data: mplusData('7.12', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c (2);',
@@ -75,6 +79,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.13', package: 'stats', title: 'LCA with parameter constraints (Mplus ex. 7.13)', source: MPLUS_SRC('7.13'), links: mplusLinks('7.13'),
     description: 'Latent class analysis of four binary items with constraints: u2’s and u3’s thresholds equal within each class (labels (1) and (2)), u1’s threshold fixed at −15 in class 2 (a probability of 1), and u4’s thresholds of opposite sign in the two classes (MODEL CONSTRAINT: p2 = − p1, a linear constraint the card applies by writing p2 as −p1). Reproduces log-likelihood −2208.165, 5 free parameters, AIC 4426.329, BIC 4450.868. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −2208.165, 5 free parameters, BIC 4450.868, every estimate and MLR standard error within 0.001. Check the constraints in the table: u2 and u3 share a threshold within each class (−1.124, then 0.949), u4’s thresholds are −1.063 and 1.063, and u1’s class-2 threshold sits at the fixed −15 with no standard error.',
     data: mplusData('7.13', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c (2);',
@@ -96,6 +101,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.14', package: 'stats', title: 'Confirmatory LCA with two categorical latent variables (Mplus ex. 7.14)', source: MPLUS_SRC('7.14'), links: mplusLinks('7.14'),
     description: 'A confirmatory latent class analysis with two latent class variables: cu (2 classes) measured by four binary items and cy (3 classes) by four continuous ones, associated with each other (cu WITH cy, PARAMETERIZATION = LOGLINEAR: the joint class probabilities are a loglinear model with the cu#1 WITH cy#m associations). The card sums the likelihood over the six joint classes. Reproduces log-likelihood −9141.129, 29 free parameters, AIC 18340.257, BIC 18482.582, the associations (0.927, 1.078) and the class means. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −9141.129, 29 free parameters, BIC 18482.582, every estimate and MLR standard error within 0.001. The point is the association between the two class variables: cu#1 with cy#1 0.927 (SE 0.333) and cu#1 with cy#2 1.078 (0.363), both positive, so cu’s first class goes with cy’s first two classes rather than its third.',
     data: mplusData('7.14', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = cu (2) cy (3);',
@@ -121,6 +127,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.15', package: 'stats', title: 'Loglinear model for a three-way table (Mplus ex. 7.15)', source: MPLUS_SRC('7.15'), links: mplusLinks('7.15'),
     description: 'A loglinear model for the 2 × 2 × 2 table of u1, u2 and u3 (frequency weights w), written as a mixture: three latent class variables, each the observed item (thresholds fixed at ±15), and the loglinear associations c1 WITH c3 and c2 WITH c3, so u1 and u2 are independent given u3 (PARAMETERIZATION = LOGLINEAR; FREQWEIGHT = w; STARTS = 0). Reproduces log-likelihood −1380.635, 5 free parameters, AIC 2771.269, BIC 2794.117, the associations 0.168 (SE 0.166) and 0.967 (0.166) and the three class means. The same associations are the u1·u3 and u2·u3 terms of a Poisson regression on the aggregated table. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −1380.635, 5 free parameters, BIC 2794.117, every estimate and MLR standard error within 0.001. The two associations are the result: u2 with u3 0.967 (SE 0.166) is strong, u1 with u3 0.168 (0.166) not distinguishable from zero; the thresholds at ±15 are the observed items, not estimates.',
     data: mplusData('7.15', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'FREQWEIGHT = w;',
@@ -152,6 +159,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.17', package: 'stats', title: 'Mixture CFA (Mplus ex. 7.17)', source: MPLUS_SRC('7.17'), links: mplusLinks('7.17'),
     description: 'A one-factor model of y1–y5 in two latent classes that differ in the factor mean (Mplus: f BY y1-y5; [f*1] in class 1): Mplus’s defaults, which the card follows, hold the loadings, intercepts, residual and factor variances equal across classes and fix the factor mean at 0 in the last class. A normal mixture whose covariance matrix is the factor model’s, so no numerical integration. Reproduces log-likelihood −2643.223, 17 free parameters, AIC 5320.446, BIC 5392.094. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −2643.223, 17 free parameters, BIC 5392.094, every estimate and MLR standard error within 0.001. Only the factor mean differs between classes, 1.800 (SE 0.182) in class 1 against 0 fixed in class 2; loadings (0.738–0.781), intercepts and variances are shared, and the class intercept −0.104 gives classes of nearly equal size.',
     data: mplusData('7.17', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c(2);',
@@ -165,6 +173,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.20', package: 'stats', title: 'Structural equation mixture model (Mplus ex. 7.20)', source: MPLUS_SRC('7.20'), links: mplusLinks('7.20'),
     description: 'A structural equation mixture: two factors (f1 BY y1-y3, f2 BY y4-y6) and the regression f2 ON f1, which differs between the two classes as do the factor means (class 1: [f1*1 f2]; the last class’s fixed at 0). Reproduces log-likelihood −7076.192, 23 free parameters, AIC 14198.384, BIC 14311.263. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −7076.192, 23 free parameters, BIC 14311.263, every estimate and MLR standard error within 0.001. The regression f2 on f1 changes sign between classes, 0.394 (SE 0.054) against −0.484 (0.067), while the measurement model is shared; class 1’s factor means (f1 −0.944, f2 2.714) are relative to class 2’s, fixed at 0.',
     data: mplusData('7.20', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c (2);',
@@ -181,6 +190,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.21', package: 'stats', title: 'Mixture with known classes (multiple groups) (Mplus ex. 7.21)', source: MPLUS_SRC('7.21'), links: mplusLinks('7.21'),
     description: 'A latent class model with a known class: cg is the observed group g (KNOWNCLASS = cg (g = 0 g = 1)), c two latent classes whose shares depend on the group (c ON cg); the means of y1–y4 differ by latent class (MODEL c), their variances by group (MODEL cg). Known classes restrict each case to the joint classes of its group; the likelihood also includes the group’s share (cg#1). Reproduces log-likelihood −6273.830, 19 free parameters, AIC 12585.660, BIC 12678.907. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −6273.830, 19 free parameters, BIC 12678.907, every estimate and MLR standard error within 0.001. The latent classes carry the means (near −1 against near +1 on all items), the known groups the variances (0.986–1.021 in group 1, 0.447–0.551 in group 2), and c#1 on cg#1 1.192 (SE 0.140) says the class shares differ by group.',
     data: mplusData('7.21', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = cg (2) c (2);',
@@ -203,6 +213,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.24', package: 'stats', title: 'CACE estimation in a randomized trial (Mplus ex. 7.24)', source: MPLUS_SRC('7.24'), links: mplusLinks('7.24'),
     description: 'Complier average causal effect (CACE) estimation: the binary u (taking the treatment) is the class indicator with thresholds fixed at ±15, so compliance is observed in the treatment group and missing (a latent class) in the control group; y is regressed on x1 in both classes and on the treatment x2 only in the compliers’ class (y ON x2@0 in class 1), with class-specific intercepts and residual variances, and compliance on x1. Reproduces log-likelihood −920.329, 8 free parameters, AIC 1856.658, BIC 1890.375 and the CACE (y ON x2 in class 2). Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −920.329, 8 free parameters, BIC 1890.375, every estimate and MLR standard error within 0.001. The result is one number: y on x2 in class 2, 0.628 (SE 0.150), the complier average causal effect, the same slope being fixed at 0 for the non-compliers in class 1; x1 raises the odds of the non-complier class (c#1 on x1 1.541).',
     data: mplusData('7.24', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c (2);',
@@ -226,6 +237,7 @@ export const MPLUS_CH7MIX: PackageExample[] = [
   {
     id: 'mplus-ex7.26', package: 'stats', title: 'CFA with a non-parametric factor distribution (Mplus ex. 7.26)', source: MPLUS_SRC('7.26'), links: mplusLinks('7.26'),
     description: 'A one-factor model with a non-parametric factor distribution: the factor has no variance within class (f@0), so three latent classes with different factor means (the last fixed at 0) are points of support approximating its distribution. Reproduces log-likelihood −2183.081, 18 free parameters, AIC 4402.163, BIC 4478.026. Every estimate and its standard error (Mplus’s MLR: the sandwich, from each case’s score) agree with the Mplus output within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −2183.081, 18 free parameters, BIC 4478.026, every estimate and MLR standard error within 0.001. The three factor means, 1.963, 3.928 and 0 (fixed), are the support points of the factor’s distribution and the class intercepts −1.504 and −2.482 their weights, so most cases sit at the fixed point; the factor variance is 0 by design.',
     data: mplusData('7.26', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
     panel: { kind: 'mixture', syntax: [
       'CLASSES = c(3);',
@@ -233,6 +245,99 @@ export const MPLUS_CH7MIX: PackageExample[] = [
       '%OVERALL%',
       'f BY y1-y5;',
       'f@0;',
+    ].join('\n') }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex7.16', package: 'stats', title: 'LCA with partial conditional independence (Mplus ex. 7.16)', source: MPLUS_SRC('7.16'), links: mplusLinks('7.16'),
+    description: 'A latent class analysis of four binary items in two classes with a residual covariance between u2 and u3 in class 1 (PARAMETERIZATION = RESCOVARIANCES; u2 WITH u3 in %c#1%). The card fits the residual covariance as Mplus defines it for logit items: the variance of a factor measured by u2 and u3 with loadings 1 in class 1, integrated numerically. Stated difference: Mplus’s printed solution is not a maximum. Mplus stops at log-likelihood −2598.111 with the covariance at 0.000 (SE 3.1), u2’s and u3’s class-1 thresholds with SEs of 6.4 and a condition number of 0.57E-04; the card reaches −2598.078 (10 free parameters as Mplus) with the covariance at 0.13 (SE 1.0), so Mplus’s estimates cannot be reproduced. What agrees: the class logit (−0.145, Mplus −0.143), u1’s and u4’s thresholds in both classes and u2’s and u3’s in class 2 within 0.025 (u3 in class 2: 0.955 against 0.977); not compared: the covariance, u2’s and u3’s class-1 thresholds and the standard errors. Numerical integration as Mplus’s ALGORITHM = INTEGRATION: rectangular, 15 points per dimension, adaptive (centred and scaled on each case’s posterior in each class), the likelihood maximised from the random starts with MLR standard errors (the sandwich, from each case’s score through Fisher’s identity). the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Opens its card on the Analyses tab.',
+    shows: 'The negative result: Mplus’s printed solution (log-likelihood −2598.111, the u2–u3 covariance 0.000 with SE 3.1, two thresholds with SEs of 6.4) is not a maximum; the card reaches −2598.078 with the covariance at 0.13 (SE 1.0), so those estimates are not reproduced. What agrees within 0.025: the class logit (−0.145 against −0.143) and the other six thresholds.',
+    data: mplusData('7.16', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: { kind: 'mixture', syntax: [
+      'CATEGORICAL = u1-u4;',
+      'CLASSES = c(2);',
+      'PARAMETERIZATION = RESCOVARIANCES;',
+      'MODEL:',
+      '%OVERALL%',
+      '%c#1%',
+      '[u1$1-u4$1*-1];',
+      'u2 WITH u3;',
+    ].join('\n') }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex7.18', package: 'stats', title: 'LCA with a second-order factor: twin analysis (Mplus ex. 7.18)', source: MPLUS_SRC('7.18'), links: mplusLinks('7.18'),
+    description: 'Two latent class variables c1 and c2 (one per twin, three binary items each) regressed on a common continuous factor f without indicators (f BY; f@1; c1 c2 ON f (1), equal slopes): the factor is integrated outside the classes, which depend on it. Reproduces log-likelihood −20142.956, 15 free parameters, AIC 40315.911, BIC 40413.669. Every estimate and its standard error agree with the Mplus output within 0.001 (the slope 0.861 on f in magnitude: f has no indicators, so its sign is arbitrary and comes out with the classes’ order), the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Numerical integration as Mplus’s ALGORITHM = INTEGRATION: rectangular, 15 points per dimension, adaptive (centred and scaled on each case’s posterior in each class), the likelihood maximised from the random starts with MLR standard errors (the sandwich, from each case’s score through Fisher’s identity).  Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus with numerical integration: log-likelihood −20142.956, 15 free parameters, BIC 40413.669, every estimate and MLR standard error within 0.001. The slope of both class variables on the common factor is 0.861 (SE 0.124), equal by constraint; its sign is arbitrary (f has no indicators) and may print negative with the classes the other way round.',
+    data: mplusData('7.18', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: { kind: 'mixture', syntax: [
+      'CLASSES = c1(2) c2(2);',
+      'CATEGORICAL = u11-u23;',
+      'ALGORITHM = INTEGRATION;',
+      'MODEL:',
+      '%OVERALL%',
+      'f BY;',
+      'f@1;',
+      'c1 c2 ON f*1 (1);',
+      'MODEL c1:',
+      '%c1#1%',
+      '[u11$1-u13$1*-1];',
+      '%c1#2%',
+      '[u11$1-u13$1*1];',
+      'MODEL c2:',
+      '%c2#1%',
+      '[u21$1-u23$1*-1];',
+      '%c2#2%',
+      '[u21$1-u23$1*1];',
+    ].join('\n') }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex7.19', package: 'stats', title: 'SEM with a categorical latent variable regressed on a continuous one (Mplus ex. 7.19)', source: MPLUS_SRC('7.19'), links: mplusLinks('7.19'),
+    description: 'A factor f measured by four binary items (thresholds and loadings equal across classes, Mplus’s default for factor indicators) predicting the latent class variable c (c ON f), whose classes are measured by four further binary items: f is integrated outside the classes. Reproduces log-likelihood −5332.536, 18 free parameters, AIC 10701.073, BIC 10789.412. Mplus stops on a flat ridge of the loadings and the factor variance: the log-likelihood at its printed estimates is 0.0002 below the card’s maximum, and the estimates agree within 0.0025 (the loading of u4: 1.079 against 1.081; u5’s class-1 threshold −1.123 against −1.124), every standard error within 0.001, the classes matched to Mplus’s numbering (they are arbitrary; the card’s class order option shows them in Mplus’s). Numerical integration as Mplus’s ALGORITHM = INTEGRATION: rectangular, 15 points per dimension, adaptive (centred and scaled on each case’s posterior in each class), the likelihood maximised from the random starts with MLR standard errors (the sandwich, from each case’s score through Fisher’s identity).  Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus with numerical integration: log-likelihood −5332.536, 18 free parameters, BIC 10789.412, standard errors within 0.001. The result is c#1 on f 1.126 (SE 0.330): the factor predicts the class. Estimates agree within 0.0025 rather than 0.001 (u4’s loading 1.079 against 1.081) because Mplus stops on a flat ridge 0.0002 below the card’s maximum.',
+    data: mplusData('7.19', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: { kind: 'mixture', syntax: [
+      'CATEGORICAL = u1-u8;',
+      'CLASSES = c (2);',
+      'ALGORITHM = INTEGRATION;',
+      'MODEL:',
+      '%OVERALL%',
+      'f BY u1-u4;',
+      'c ON f;',
+      '%c#1%',
+      '[u5$1-u8$1];',
+      '%c#2%',
+      '[u5$1-u8$1];',
+    ].join('\n') }, settings: CB('ML'),
+  },
+  {
+    id: 'mplus-ex7.29', package: 'stats', title: 'Two-group IRT twin model with parameter constraints (Mplus ex. 7.29)', source: MPLUS_SRC('7.29'), links: mplusLinks('7.29'),
+    description: 'An ACE twin model for two factors (one per twin) measured by four binary items each, with monozygotic and dizygotic pairs as known classes (KNOWNCLASS = cdz): loadings and thresholds equal across twins (label lists lam2-lam4, t1-t4), the factor variance a² + c² + e² and the covariances a² + c² (MZ) and 0.5a² + c² (DZ) given by MODEL CONSTRAINT with NEW parameters, and the heritability h = a² / (a² + c² + e²) reported. The card evaluates the non-linear constraints in R (the constrained parameters derived from a, c and e, their standard errors by the delta method). Two factors integrated jointly (225 points); with every class known there are no random starts, as in Mplus. Reproduces log-likelihood −24258.020, 11 free parameters, AIC 48538.040, BIC 48607.275; every estimate, the NEW parameters a = 0.684, c = 0.405, e = 0.639, h = 0.450 and every standard error agree with the Mplus output within 0.001. Numerical integration as Mplus’s ALGORITHM = INTEGRATION: rectangular, 15 points per dimension, adaptive (centred and scaled on each case’s posterior in each class), the likelihood maximised from the random starts with MLR standard errors (the sandwich, from each case’s score through Fisher’s identity).  Opens its card on the Analyses tab.',
+    shows: 'Reproduces Mplus: log-likelihood −24258.020, 11 free parameters, BIC 48607.275, every estimate and MLR standard error within 0.001. The NEW parameters are the result: a = 0.684, c = 0.405, e = 0.639 and the heritability h = 0.450 (SE 0.133), with the factor covariance 0.633 in MZ against 0.398 in DZ pairs; their standard errors come by the delta method.',
+    data: mplusData('7.29', 'stats'), constructs: [], paths: [], tags: [MPLUS_TAG],
+    panel: { kind: 'mixture', syntax: [
+      'CATEGORICAL = u11-u24;',
+      'CLASSES = cdz (2);',
+      'KNOWNCLASS = cdz (dz = 0 dz = 1);',
+      'ALGORITHM = INTEGRATION;',
+      'MODEL:',
+      '%OVERALL%',
+      'f1 BY u11',
+      'u12-u14 (lam2-lam4);',
+      'f2 BY u21',
+      'u22-u24 (lam2-lam4);',
+      '[f1-f2@0];',
+      'f1-f2 (var);',
+      '[u11$1-u14$1] (t1-t4);',
+      '[u21$1-u24$1] (t1-t4);',
+      '%cdz#1%',
+      'f1 WITH f2(covmz);',
+      '%cdz#2%',
+      'f1 WITH f2(covdz);',
+      'MODEL CONSTRAINT:',
+      'NEW(a c e h);',
+      'var = a**2 + c**2 + e**2;',
+      'covmz = a**2 + c**2;',
+      'covdz = 0.5*a**2 + c**2;',
+      'h = a**2/(a**2 + c**2 + e**2);',
     ].join('\n') }, settings: CB('ML'),
   },
 ];

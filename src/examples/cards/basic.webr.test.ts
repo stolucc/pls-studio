@@ -18,6 +18,7 @@ import type { EvidenceLevel, EvidenceSource } from '../../validation/types';
 import { panelPreset, type PackageExample } from '../packages';
 import { CARD_BASIC } from './basic';
 import { exampleTestData } from '../testData';
+import { unexpectedMessages } from '../expectedMessages';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -36,24 +37,19 @@ async function load(e: PackageExample): Promise<Dataset> {
   return e.labels ? { ...d, categories: { ...(d.categories ?? {}), ...e.labels } } : d;
 }
 
-/** Warnings an example is expected to raise, and why. */
-const EXPECTED_WARNINGS: Record<string, RegExp[]> = {
-  // Agresti's job-satisfaction table: expected counts below 5, so chisq.test warns (the help page reads Fisher's test).
-  'stats-contingency-job': [/approximation may be incorrect/],
-};
-
 /** Start the example's evidence, run its card as the app does (options through parseOptions, blocked() clear), check the run is clean. */
 async function runCard<R>(id: string, source: EvidenceSource & { level: EvidenceLevel }): Promise<R> {
   const e = ex(id);
   const kind = e.panel!.kind, preset = panelPreset(e.panel!);
-  example(e.id, { title: e.title, method: 'Basic statistics', packages: [e.package === 'psych' ? 'psych' : 'stats'], definition: e });
+  example(e.id, { title: e.title, method: 'Basic statistics', packages: [e.package === 'psych' ? 'psych' : (e.panel as { moreBetween?: string[] }).moreBetween?.length ? 'car' : 'stats'], definition: e });
   const data = await load(e);
   const ctx: AnalysisCtx = { data, info: null, settings: { ...DEFAULT_SETTINGS, ...e.settings }, pls: null, projectName: e.title };
   const t = analysisType(kind)!;
   const options = t.parseOptions({ ...t.defaults(ctx), ...preset })!;
   expect(t.blocked?.(options, ctx) ?? null, `${id}: the card is ready to run`).toBeNull();
   const r = await t.run(options, ctx, () => {}) as R & { warnings: string[] };
-  const unexpected = r.warnings.filter((w) => !(EXPECTED_WARNINGS[id] ?? []).some((re) => re.test(w)));
+  // (the warnings the example is expected to raise are its expectedMessages: examples/expectedMessages.ts)
+  const unexpected = unexpectedMessages(e.expectedMessages, { warnings: r.warnings, notes: [] }).warnings;
   cleanRun(unexpected.length);
   expect(unexpected, `${id} warned`).toEqual([]);
   against(source);
@@ -114,31 +110,57 @@ describe('basic-statistics card examples in webR', () => {
     near('SS residual (within)', r.within.find((x) => x.term === 'Residuals')!.ss, 0.31295455, 1e-8);
   }, 600_000);
 
-  it('cardata-rmanova-obrienkaiser: two within-subject factors, as car::Anova(idata, idesign = ~ phase * hour)', async () => {
-    const r = await runCard<RmAnovaResult>('cardata-rmanova-obrienkaiser', { label: 'car 3.1.5, ?Anova’s OBrienKaiser with treatment as the between factor, type II (scripts/validation/basic_cards.R), desktop R 4.6.2', level: 'native' });
+  it('cardata-rmanova-obrienkaiser: two within-subject factors and two between factors, as car::Anova(mod.ok, idata, idesign = ~ phase * hour)', async () => {
+    const r = await runCard<RmAnovaResult>('cardata-rmanova-obrienkaiser', { label: 'car 3.1.5, ?Anova’s OBrienKaiser, treatment * gender with the help page’s contrasts, type II (scripts/validation/basic_cards.R), desktop R 4.6.2', level: 'native' });
     same('subjects', r.n, 16);
     same('factors', r.factors!.map((f) => `${f.name}: ${f.levels.join(' ')}`).join('; '), 'phase: pretest posttest followup; hour: 1 2 3 4 5');
-    // summary(Anova(mod.ok, idata, idesign = ~ phase * hour, type = 2), multivariate = FALSE)$univariate.tests
-    const want: [string, number, number, number, number][] = [
-      ['phase', 167.5, 2, 23.62567811935, 1.419220297e-06], ['phase × treatment', 77, 4, 5.43037974684, 2.578107893e-03],
-      ['hour', 106.291666667, 4, 18.97693087437, 1.128249937e-09], ['hour × treatment', 0.894047619, 8, 0.07981001897, 9.995966171e-01],
-      ['phase × hour', 11.083333333, 8, 1.23193273889, 2.879468478e-01], ['phase × hour × treatment', 5.959523810, 16, 0.33120597696, 9.925740614e-01],
+    expect(r.betweenFactors).toEqual(['treatment', 'gender']);
+    // summary(Anova(mod.ok, idata, idesign = ~ phase * hour), multivariate = FALSE)$univariate.tests: term, SS, df, error SS, error df, F, p
+    const want: [string, number, number, number, number, number, number][] = [
+      ['treatment', 211.2864964, 2, 228.0555556, 10, 4.63234705762, 0.0376868129], ['gender', 58.28649635, 1, 228.0555556, 10, 2.55580251963, 0.1409735495],
+      ['treatment:gender', 130.2412814, 2, 228.0555556, 10, 2.85547267441, 0.104469234],
+      ['phase', 167.5, 2, 80.27777778, 20, 20.8650519031, 1.274470783e-05], ['treatment:phase', 78.66788321, 4, 80.27777778, 20, 4.89972975021, 0.006425940329],
+      ['gender:phase', 1.667883212, 2, 80.27777778, 20, 0.207763998687, 0.8141300649], ['treatment:gender:phase', 10.22100568, 4, 80.27777778, 20, 0.636602429722, 0.6423694889],
+      ['hour', 106.2916667, 4, 62.5, 40, 17.0066666667, 3.191104577e-08], ['treatment:hour', 1.161192214, 8, 62.5, 40, 0.092895377129, 0.9992574922],
+      ['gender:hour', 2.558811262, 4, 62.5, 40, 0.409409801877, 0.8007718644], ['treatment:gender:hour', 7.755474453, 8, 62.5, 40, 0.620437956204, 0.7554844499],
+      ['phase:hour', 11.08333333, 8, 96.16666667, 80, 1.15251299827, 0.3383165621], ['treatment:phase:hour', 6.26216545, 16, 96.16666667, 80, 0.325589191514, 0.9928141426],
+      ['gender:phase:hour', 6.635974974, 8, 96.16666667, 80, 0.690049390703, 0.699123644], ['treatment:gender:phase:hour', 14.15450122, 16, 96.16666667, 80, 0.735935938469, 0.7495616395],
     ];
-    for (const [term, ss, df, f, p] of want) {
-      const x = r.within.find((y) => y.term === term)!;
+    // (the card names an effect within factors first: phase × treatment for car's treatment:phase)
+    const within = ['phase', 'hour'];
+    const label = (t: string) => { const ps = t.split(':'); return [...ps.filter((x) => within.includes(x)), ...ps.filter((x) => !within.includes(x))].join(' × '); };
+    for (const [term, ss, df, ess, edf, f, p] of want) {
+      const x = [...r.within, ...r.betweenTable].find((y) => y.term === label(term))!;
+      expect(x, term).toBeTruthy();
       near(`SS ${term}`, x.ss, ss, 1e-6); same(`df ${term}`, x.df, df); near(`F ${term}`, x.f!, f, 1e-8); near(`p ${term}`, x.p!, p, 1e-9 * Math.max(1, p * 1e3));
+      const res = (x.stratum === 'subject' ? r.betweenTable : r.within).find((y) => y.term === 'Residuals' && y.stratum === x.stratum)!;
+      near(`error SS of ${term}`, res.ss, ess, 1e-6); same(`error df of ${term}`, res.df, edf);
     }
-    const res = (stratum: string) => r.within.find((y) => y.term === 'Residuals' && y.stratum === stratum)!.ss;
-    near('error SS, phase', res('phase'), 92.16666667, 1e-6); near('error SS, hour', res('hour'), 72.81428571, 1e-6); near('error SS, phase × hour', res('phase × hour'), 116.95714286, 1e-6);
-    near('F treatment (between)', r.betweenTable.find((y) => y.term === 'treatment')!.f!, 2.91388277656, 1e-8);
-    const sph: [string, number, number, number, number][] = [['phase', 0.851511891409, 0.381192461781, 0.8707099294, 0.9939032162], ['hour', 0.098585103305, 0.001935426095, 0.4886720455, 0.5741267192], ['phase × hour', 0.008373226678, 0.090376141513, 0.5028261605, 0.7562961736]];
+    const sph: [string, number, number, number, number][] = [['phase', 0.749272638019, 0.27282202608, 0.7995347591, 0.927859404], ['hour', 0.0660662716436, 0.00759677238327, 0.4602815023, 0.5592801813], ['phase × hour', 0.00477992135411, 0.449394153218, 0.4495012577, 0.7330607762]];
     for (const [term, w, p, gg, hf] of sph) {
       const x = r.sphericityTable!.find((y) => y.term === term)!;
       near(`Mauchly W, ${term}`, x.w, w, 1e-9); near(`Mauchly p, ${term}`, x.p, p, 1e-9); near(`GG ε, ${term}`, x.gg, gg, 1e-9); near(`HF ε, ${term}`, x.hf, hf, 1e-9);
     }
-    const adj: [string, number, number][] = [['phase', 5.664539999e-06, 1.514766928e-06], ['phase × treatment', 4.301327036e-03, 2.640817026e-03], ['hour', 1.016078446e-05, 2.189836785e-06],
-      ['hour × treatment', 9.868346858e-01, 9.927707041e-01], ['phase × hour', 3.086826647e-01, 2.989262420e-01], ['phase × hour × treatment', 9.506765585e-01, 9.816067037e-01]];
-    for (const [term, gg, hf] of adj) { const x = r.corrected.find((y) => y.term === term)!; near(`p GG, ${term}`, x.pGG, gg, 1e-9 * Math.max(1, gg * 1e3)); near(`p HF, ${term}`, x.pHF, hf, 1e-9 * Math.max(1, hf * 1e3)); }
+    const adj: [string, number, number][] = [['phase', 7.323095848e-05, 2.387543287e-05], ['treatment:phase', 0.01222955949, 0.008089765448], ['gender:phase', 0.7661592692, 0.798449536],
+      ['treatment:gender:phase', 0.6116208917, 0.6319975313], ['hour', 8.741059752e-05, 2.014357033e-05], ['treatment:hour', 0.9787941161, 0.9887715975], ['gender:hour', 0.6534571114, 0.6911521155],
+      ['treatment:gender:hour', 0.6413624618, 0.6692976145], ['phase:hour', 0.3457305236, 0.344045978], ['treatment:phase:hour', 0.9401851749, 0.9804731142],
+      ['gender:phase:hour', 0.5890254303, 0.6552382108], ['treatment:gender:phase:hour', 0.646344904, 0.7080121616]];
+    for (const [term, gg, hf] of adj) { const x = r.corrected.find((y) => y.term === label(term))!; near(`p GG, ${term}`, x.pGG, gg, 1e-9 * Math.max(1, gg * 1e3)); near(`p HF, ${term}`, x.pHF, hf, 1e-9 * Math.max(1, hf * 1e3)); }
+    // Post hoc: each factor's levels on the subjects' means over the other factor's levels (paired t-tests, Holm within the factor).
+    expect(r.posthoc!.map((x) => x.comparison).slice(0, 3)).toEqual(['phase: pretest - posttest', 'phase: pretest - followup', 'phase: posttest - followup']);
+    same('post hoc comparisons', r.posthoc!.length, 3 + 10);
+    // Without between factors: Friedman's test of each within factor on the subjects' means of its levels (desktop R,
+    // friedman.test on those means), and the post hoc t-tests as paired t.test of two such means.
+    const e = ex('cardata-rmanova-obrienkaiser'), t = analysisType('rmanova')!;
+    const ctx: AnalysisCtx = { data: await load(e), info: null, settings: { ...DEFAULT_SETTINGS, ...e.settings }, pls: null, projectName: e.title };
+    const o = t.parseOptions({ ...panelPreset(e.panel!), between: '', moreBetween: [] })!;
+    expect(t.blocked?.(o, ctx) ?? null).toBeNull();
+    const w = await t.run(o, ctx, () => {}) as RmAnovaResult;
+    const fr = (f: string) => w.friedmanTable!.find((x) => x.term === f)!;
+    near('Friedman χ², phase', fr('phase').stat, 14.7719298246, 1e-8); near('Friedman p, phase', fr('phase').p, 0.000619892233306, 1e-11);
+    near('Friedman χ², hour', fr('hour').stat, 39.5231788079, 1e-8); near('Friedman p, hour', fr('hour').p, 5.4313947241e-08, 1e-14);
+    const h13 = w.posthoc!.find((x) => x.comparison === 'hour: 1 - 3')!;
+    near('t, hour 1 − 3', h13.t, -10.5812313715, 1e-8); near('p, hour 1 − 3', h13.p, 2.36437908708e-08, 1e-14);
   }, 600_000);
 
   it('stats-manova-plastic: manova(cbind(tear, gloss, opacity) ~ rate * additive)', async () => {

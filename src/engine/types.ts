@@ -161,12 +161,12 @@ export interface ModelSpec {
   /** CB-SEM (lavaan): two-level model by a cluster column; between level saturated or with the same structure. */
   multilevel?: { column: string; between: 'same' | 'saturated' | 'factors' | 'model'; betweenCovariates?: string[]; betweenModel?: { lhs: string; op: '=~' | '~' | '~~' | '~1'; rhs: { name: string; fixed?: number; label?: string }[] }[] };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
-  esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean };
+  esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean; invariant?: boolean };
   /** CB-SEM (lavaan): estimate the mean structure (meanstructure = TRUE: every indicator intercept free). */
   meanStructure?: boolean;
   /** CB-SEM (lavaan): latent means (or observed variables' intercepts) to estimate, fix or label. */
   /** `bias`: the marker indicator's intercept fixed at this value instead of 0 (a known measurement bias, Hayduk 1987); with groups one value per group. */
-  means?: { construct: string; fixed?: number; label?: string; bias?: number | number[] }[];
+  means?: { construct: string; fixed?: number; label?: string; bias?: number | number[]; byGroup?: GroupValue[] }[];
   /** CB-SEM (lavaan): variances, indicator intercepts and thresholds held at values or labelled. */
   parameters?: ParameterSpec[];
   /** CB-SEM (lavaan), ordinal indicators: the theta parameterisation (residual variances of the latent responses fixed at 1) instead of delta. */

@@ -19,11 +19,14 @@ export interface CustomMlInput {
   /** One per pair of outcomes, (1,2), (1,3), (2,3), …; empty: 0. */
   covariances: string[];
   defined: { name: string; expr: string }[];
-  se: 'model' | 'robust';
+  /** Observed information; the sandwich (MLR); or the sandwich with Mplus's information under MODEL CONSTRAINT (its MLR). */
+  se: 'model' | 'robust' | 'mplus';
 }
 export interface CustomMlQuantity { name: string; kind: 'part' | 'defined'; est: number | null; se: number | null; expr: string }
 export interface CustomMlResult {
-  type: CustomMlType; outcomes: string[]; n: number; converged: boolean; se: 'model' | 'robust';
+  type: CustomMlType; outcomes: string[]; n: number; converged: boolean; se: 'model' | 'robust' | 'mplus';
+  /** se 'mplus': Mplus's MLR scaling correction factor (the trace of the bread times the meat, over the parameters). */
+  scaling?: number;
   parameters: { name: string; est: number; se: number; start: number }[];
   parts: CustomMlQuantity[]; defined: CustomMlQuantity[]; categories: number[] | null;
   fit: { logLik: number; npar: number; aic: number; bic: number };
@@ -74,7 +77,7 @@ export async function customMlR(data: Dataset, o: CustomMlInput): Promise<Custom
     type: raw.type, outcomes: arr<string>(raw.outcomes), n: raw.n, converged: !!raw.converged, se: raw.se,
     parameters: arr<any>(raw.parameters).map((p) => ({ name: p.name, est: p.est, se: p.se, start: p.start })),
     parts: arr<any>(raw.parts).map(q), defined: arr<any>(raw.defined).map(q), categories: raw.categories ? arr<number>(raw.categories) : null,
-    fit: raw.fit, warnings: rStrings(raw.warnings), engine: raw.engine,
+    fit: raw.fit, warnings: rStrings(raw.warnings), engine: raw.engine, ...(num(raw.scaling) !== null ? { scaling: num(raw.scaling)! } : {}),
   };
 }
 export const customMlScriptR = (data: Dataset, o: CustomMlInput) => rScript('ps_customml', customMlRequest(data, o), 'customml');

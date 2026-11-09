@@ -220,7 +220,10 @@ function RmForm({ options: o, set, ctx, disabled }: OptionsProps<RmAnovaOptions>
   return (
     <fieldset className="card-options" disabled={disabled}>
       <WithinDesignForm id="rm" o={o} set={set} numeric={numeric} />
-      <ColumnSelect id="rm-b" label="Between-subjects factor (optional)" optional="None" value={o.between} columns={d.names} exclude={designColumns({ ...o, between: '' })} onChange={(between) => set({ ...o, between })} />
+      <ColumnSelect id="rm-b" label="Between-subjects factor (optional)" optional="None" value={o.between} columns={d.names} exclude={[...designColumns({ ...o, between: '' }), ...(o.moreBetween ?? [])]}
+        onChange={(between) => set(between ? { ...o, between } : withoutMore({ ...o, between }))} />
+      {o.between && <OrderedPicker label="Further between-subjects factors (optional; crossed with the first: type II tests, car::Anova)" columns={d.names.filter((n) => !designColumns(o).includes(n))}
+        value={o.moreBetween ?? []} onChange={(more) => set(more.length ? { ...o, moreBetween: more } : withoutMore(o))} />}
     </fieldset>
   );
 }
@@ -233,7 +236,7 @@ function RmView({ r }: { r: RmAnovaResult }) {
   const SPHERICITY_NOTE = 'A small p of Mauchly’s test speaks against sphericity: then read the corrected p-values below (Greenhouse–Geisser is the more conservative).';
   return (
     <div className="tables">
-      <p className="hint" style={{ marginTop: 0 }}>{multi ? `${r.factors!.map((f) => `${f.name} (${f.levels.length} levels)`).join(' × ')}: ${r.levels.length} cells` : `${r.levels.length} levels of ${r.factorName}`}, {r.n} subjects; base R ({r.engine.package} {r.engine.version}).</p>
+      <p className="hint" style={{ marginTop: 0 }}>{multi ? `${r.factors!.map((f) => `${f.name} (${f.levels.length} levels)`).join(' × ')}: ${r.levels.length} cells` : `${r.levels.length} levels of ${r.factorName}`}, {r.n} subjects{r.betweenFactors ? `; between ${r.betweenFactors.join(' × ')}, type II tests with sum-to-zero contrasts` : ''}; {r.betweenFactors ? '' : 'base R '}({r.engine.package} {r.engine.version}).</p>
       <Table title="Within-subjects effects" file="rmanova-within" columns={cols} rows={r.within.map(row)} />
       {r.betweenTable.length > 0 && <Table title="Between-subjects effects" file="rmanova-between" columns={cols} rows={r.betweenTable.map(row)} />}
       {r.sphericity && <Table title="Sphericity" file="rmanova-sphericity" columns={['Statistic', 'Value']} rows={[
@@ -246,21 +249,24 @@ function RmView({ r }: { r: RmAnovaResult }) {
       <Table title="Sphericity-corrected p-values" file="rmanova-corrected" columns={['Term', 'p (uncorrected)', 'p (Greenhouse–Geisser)', 'p (Huynh–Feldt)']}
         rows={r.corrected.map((x): Row => [c(x.term), pCell(x.p), pCell(x.pGG), pCell(x.pHF)])} />
       {r.posthoc && r.posthoc.length > 0 && <Table title="Post hoc comparisons (paired t-tests)" file="rmanova-posthoc" columns={['Comparison', 'Mean difference', 't', 'df', 'p', 'p (Holm)']}
-        rows={r.posthoc.map((x): Row => [c(x.comparison), c(x.diff), c(x.t), c(x.df, undefined, 0), pCell(x.p), pCell(x.pHolm)])} note="Every pair of levels, over all subjects; Holm’s adjustment for the number of comparisons." />}
+        rows={r.posthoc.map((x): Row => [c(x.comparison), c(x.diff), c(x.t), c(x.df, undefined, 0), pCell(x.p), pCell(x.pHolm)])} note={multi ? 'Every pair of a factor’s levels, on every subject’s mean over the other factors’ levels; Holm’s adjustment within each factor.' : 'Every pair of levels, over all subjects; Holm’s adjustment for the number of comparisons.'} />}
       {r.friedman && <Table title="Friedman’s rank test" file="rmanova-friedman" columns={['χ²', 'df', 'p']} rows={[[c(r.friedman.stat), c(df(r.friedman)), pCell(r.friedman.p)]]} />}
+      {r.friedmanTable && r.friedmanTable.length > 0 && <Table title="Friedman’s rank tests" file="rmanova-friedman" columns={['Factor', 'χ²', 'df', 'p']} rows={r.friedmanTable.map((x): Row => [c(x.term), c(x.stat), c(x.df, undefined, 0), pCell(x.p)])}
+        note="Each within factor on every subject’s mean of its levels over the other factors’ levels." />}
       <Table title="Descriptives" file="rmanova-cells" columns={['Level', 'N', 'Mean', 'SD', 'SE']} rows={r.cells.map((x): Row => [c(x.cell), c(x.n, undefined, 0), c(x.mean), c(x.sd ?? null), c(x.se ?? null)])} />
     </div>
   );
 }
 
-const rmCols = (o: RmAnovaOptions) => designColumns(o);
+const rmCols = (o: RmAnovaOptions) => [...designColumns(o), ...(o.moreBetween ?? [])];
+const withoutMore = (o: RmAnovaOptions): RmAnovaOptions => { const { moreBetween: _m, ...rest } = o; return rest; };
 /** The within factors' names, for titles and summaries. */
 const rmName = (o: RmAnovaOptions) => (isMulti(o) ? o.factors!.map((f) => f.name || '…').join(' × ') : o.factorName || '…');
 export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
   id: 'rmanova', title: 'Repeated-measures ANOVA', sub: 'within-subject factors (wide columns), optional between factor; sphericity corrections, Friedman', group: 'Basic statistics',
   cardTitle: (o) => `Repeated-measures ANOVA: ${rmName(o)}`,
   defaults: () => ({ levels: [], factorName: 'condition', between: '' }),
-  parseOptions: (raw) => (isObj(raw) ? parseWithinDesign(raw) : null),
+  parseOptions: (raw) => { if (!isObj(raw)) return null; const more = names(raw.moreBetween, 3); return { ...parseWithinDesign(raw), ...(more.length ? { moreBetween: more } : {}) }; },
   Options: RmForm,
   View: ({ result }) => <RmView r={result} />,
   blocked: (o, ctx) => {
@@ -270,12 +276,17 @@ export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
       if (!/^[A-Za-z][A-Za-z0-9_.]{0,30}$/.test(o.factorName)) return 'The factor name must start with a letter and use letters, digits, _ or . only.';
       if (o.levels.includes(o.between)) return 'The between factor cannot be one of the levels.';
     }
+    if (o.moreBetween?.length) {
+      if (!o.between) return 'Choose the first between-subjects factor before further ones.';
+      const all = [o.between, ...o.moreBetween];
+      if (new Set(all).size !== all.length || all.some((b) => designColumns({ ...o, between: '' }).includes(b))) return 'The between-subjects factors must be different columns, none of them a within-subject column.';
+    }
     return missingColumns(ctx, rmCols(o), 'Repeated-measures ANOVA');
   },
-  fingerprint: (o, ctx) => columnsFingerprint(ctx, rmCols(o), [o.factorName, o.between, ...withinFingerprint(o)]),
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, rmCols(o), [o.factorName, o.between, ...withinFingerprint(o), ...(o.moreBetween?.length ? ['|', ...o.moreBetween] : [])]),
   run: async (o, ctx) => (await engine()).rmAnovaR(rawData(ctx)!, o),
   script: async (o, ctx) => (await engine()).rmAnovaScriptR(rawData(ctx)!, o),
-  summary: (o) => (isMulti(o) ? `${rmName(o)}: ${(o.cells ?? []).filter(Boolean).length} cells` : `${o.factorName}: ${o.levels.join(', ') || '…'}`) + (o.between ? ` · between ${o.between}` : ''),
+  summary: (o) => (isMulti(o) ? `${rmName(o)}: ${(o.cells ?? []).filter(Boolean).length} cells` : `${o.factorName}: ${o.levels.join(', ') || '…'}`) + (o.between ? ` · between ${[o.between, ...(o.moreBetween ?? [])].join(' × ')}` : ''),
 };
 
 // ---------------------------------------------------------------- MANOVA

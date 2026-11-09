@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { itIfFast } from './webrSlow';
 import { parseCsv } from '../engine/dataset';
 import { materialise, template } from '../process/templates';
 import { cpaScriptR, estimateCpaR, type At, type CpaInput, type CpaResult } from './cpa';
@@ -67,8 +68,10 @@ function checkInteractions(mine: CpaResult['equations'][number]['interactions'],
   }
 }
 
+/** The PROCESS models that take 15 s or more in webR (with a bootstrap): run with WEBR_SLOW, as npm run validate:evidence does. */
+const SLOW_MODELS = new Set([11, 12, 13, 17, 18, 19, 20, 21, 22, 28, 29, 66, 69, 70, 71, 72, 73, 75, 76, 88, 89]);
 describe.each(references.map((r) => [r.model, r] as const))('PROCESS model %i in webR (manymome)', (_, r) => {
-  it('reproduces PROCESS', async () => {
+  itIfFast(SLOW_MODELS.has(r.model))('reproduces PROCESS', async () => {
     const res = await estimateCpaR(data, input(r));
     expect(res.n).toBe(300);
     for (const [outcome, coef] of Object.entries(r.equations)) {

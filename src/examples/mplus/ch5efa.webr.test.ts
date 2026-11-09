@@ -8,6 +8,7 @@ import { estimateCbLavaan } from '../../rengine/lavaan';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { exampleModel } from '../packages';
 import { evidence, example, load, MPLUS, sameFit, samePrinted } from './testkit';
+import { near, same } from '../../validation/record';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -31,6 +32,24 @@ it.each([['ex5.27'], ['ex5.27b'], ['ex5.27c'], ['ex5.27d'], ['ex5.27e'], ['ex5.2
     // (Mplus stops at a looser convergence criterion: group 2's residual variances, about 2, differ by up to 0.0011)
     for (const g of [1, 2]) samePrinted(r.groups.results[g - 1].estimates, want.estimates.filter((p) => p.group === g), `${key} group ${g}`, { tol: 0.0015 });
   } else samePrinted(r.estimates, want.estimates, key);
+}, 600_000);
+
+it('ex5.26: two ESEM blocks with invariant loadings, rotated jointly, reproduce the Mplus output: fit, every estimate and standard error', async () => {
+  const r = await fit('ex5.26');
+  const want = MPLUS['ex5.26'];
+  sameFit(r.fit, want.fit);
+  near('χ²', r.fit.chisq!, 43.990, 0.002);
+  same('df', r.fit.df!, 42);
+  // (Mplus's looser convergence: f1 by y6 0.0135 against 0.014 printed, f4's variance 1.0525 against 1.053)
+  samePrinted(r.estimates, want.estimates, 'ex5.26', { tol: 0.0015 });
+  // The same loadings at both times, and geomin's stationarity holding in the rotated loadings.
+  const l = (f: string, y: string) => r.estimates.find((e) => e.op === '=~' && e.lhs === f && e.rhs === y)!.est;
+  for (let i = 1; i <= 6; i++) { near(`f1 by y${i} = f3 by y${i + 6}`, l('f1', `y${i}`), l('f3', `y${i + 6}`), 1e-9); near(`f2 by y${i} = f4 by y${i + 6}`, l('f2', `y${i}`), l('f4', `y${i + 6}`), 1e-9); }
+  const { cbScriptLavaan } = await import('../../rengine/lavaan');
+  const ex = example('ex5.26');
+  const script = await cbScriptLavaan(load('ex5.26'), toSpec(exampleModel(ex)), 'casewise', 'ML');
+  expect(script).toContain('rotated jointly');
+  expect(script).not.toContain('efa("b');
 }, 600_000);
 
 it('ex5.29: the bi-geomin ESEM reproduces Mplus’s fit and estimates, and the standard errors of the intercepts and residual variances', async () => {

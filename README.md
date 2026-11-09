@@ -57,7 +57,7 @@ structural equation is estimated separately by 2SLS on scaling indicators, with 
 instruments and a Sargan overidentification test per equation; works from raw data or a covariance
 matrix. Misspecification in one equation does not propagate to others.
 
-**Examples**: 263 examples from the R packages' own documentation (lavaan, MIIVsem, modsem, manymome, plspm, genpathmox, ivreg, REndo, sampleSelection, MatchIt, RSA, NCA,
+**Examples**: 338 examples from the R packages' own documentation (lavaan, dynamic, MIIVsem, modsem, manymome, plspm, genpathmox, ivreg, REndo, sampleSelection, MatchIt, RSA, NCA, QCA,
 cSEM, seminr, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, lcmm, did, fixest, MASS, nnet, datasets, carData, faraway, BayesFactor, blavaan; data loaded from the packages, each linked to its source) and from the Mplus User's Guide (Muthén & Muthén; their generated example data are not distributed with the app but downloaded from statmodel.com each time an example is opened, through the PLS Studio server or the desktop helper, fitted with lavaan, glm, survival, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, modsem and maximum likelihood written out in R), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
 Schaarschmidt & Goldblit (2022), *Gamification in software engineering*, Empirical Software
 Engineering 27:35 (CB-SEM, MLM, from the covariance and NACOV matrices of the replication
@@ -125,9 +125,12 @@ Three layers, run by `.github/workflows/ci.yml` on every push:
 2. **Native R references.** `npm test` runs ~900 client tests, among them a reference corpus in
    `src/engine/__fixtures__/validation` (54 cases) produced by `npm run validate:generate`
    (`scripts/validation/generate.R`) and further fixtures from the 37 scripts in `scripts/validation/`, all
-   written by native R. `npm run test:webr` (~370 tests) re-runs the packages in webR, through the same bridge
-   code the app uses, and compares with those fixtures. `npm run test:server` runs the server's 51
-   integration tests against a real PostgreSQL database.
+   written by native R. `npm run test:webr` (~900 tests) re-runs the packages in webR, through the same bridge
+   code the app uses, and compares with those fixtures; the slowest checks run only with `WEBR_SLOW=1`
+   (`npm run test:webr:all`, nightly in CI). `npm run test:native` runs the same tests with the bridge's calls
+   in desktop R instead of webR (the helper's R workers and library, `src/rengine/nativeR.ts`): several times
+   faster, for development; the validation record is always produced with webR, which is what the browser
+   computes. `npm run test:server` runs the server's 61 integration tests against a real PostgreSQL database.
 3. **Published results.** `src/rengine/published.webr.test.ts` reproduces, to the printed three decimals and
    with every engine (seminr, cSEM, built-in), values printed by other people with other software: the
    corporate reputation models of Hair et al. (2021), *PLS-SEM Using R*, chapters 4 and 6 (reliabilities,

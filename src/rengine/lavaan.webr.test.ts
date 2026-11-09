@@ -3,6 +3,7 @@
 // the same request/response code the app uses. Run with npm run test:webr.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { webrOnlyIt } from './webrSlow';
 import type { CbEstimator } from '../engine/cbsem';
 import { cases, checkCbResult, loadData, toSpec } from '../engine/validationHarness';
 import { cbScriptLavaan, estimateCbLavaan } from './lavaan';
@@ -33,6 +34,6 @@ it('exports the script it runs, with the data embedded', async () => {
   expect(script).toContain("data <- read.csv(text = '");
 }, 300_000);
 
-it('reports the package versions it ran', () => {
+webrOnlyIt('reports the package versions it ran', () => {
   expect(useR.getState().versions.lavaan).toMatch(/^\d/);
 });

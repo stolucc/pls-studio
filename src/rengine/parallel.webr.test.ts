@@ -5,6 +5,7 @@
 // Run with npm run test:webr.
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { webrOnlyIt } from './webrSlow';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { summariseMc, type McDesign } from '../engine/montecarlo';
 import { bootstrapR } from './analyses';
@@ -29,7 +30,7 @@ const boot = { samples: 250, seed: 11, confidence: 0.95 };
 const options = { scheme: 'path' as const, consistent: false, tolerance: 1e-7, maxIter: 300, missing: 'casewise' as const };
 
 describe('parallel bootstrap', () => {
-  it('cSEM: identical for 2 and 3 sessions, equal to one session drawing all chunks; off = the single run', async () => {
+  webrOnlyIt('cSEM: identical for 2 and 3 sessions, equal to one session drawing all chunks; off = the single run', async () => {
     const d = await load('cSEM', 'satisfaction');
     const spec: ModelSpec = { constructs: [fac('EXPE', items('expe', 3)), fac('SAT', items('sat', 4)), fac('LOY', items('loy', 4))], paths: [{ from: 'EXPE', to: 'SAT' }, { from: 'SAT', to: 'LOY' }] };
     const a = { kind: 'plsBoot' as const, pkg: 'cSEM' as const, options, boot };
@@ -53,7 +54,7 @@ describe('parallel bootstrap', () => {
     expect(r3.stats.find((s) => s.key === 'path:SAT:LOY')!.sd).not.toBe(single.stats.find((s) => s.key === 'path:SAT:LOY')!.sd);
   }, 900_000);
 
-  it('lavaan: identical for 2 and 3 sessions, equal to one session drawing all chunks', async () => {
+  webrOnlyIt('lavaan: identical for 2 and 3 sessions, equal to one session drawing all chunks', async () => {
     const d = await load('lavaan', 'HolzingerSwineford1939');
     const spec: ModelSpec = { constructs: [fac('visual', items('x', 3)), fac('textual', items('x', 3, 4)), fac('speed', items('x', 3, 7))], paths: [{ from: 'visual', to: 'textual' }, { from: 'textual', to: 'speed' }] };
     const a = { kind: 'cbBoot' as const, estimator: 'ML' as const, missing: 'casewise' as const, boot: { ...boot, samples: 150 } };

@@ -390,9 +390,17 @@ ps_bregression <- function(req_json, export = FALSE) {
 #' Bayesian SEM (blavaan, Stan): the CB-SEM model of the diagram fitted by MCMC.
 #' Desktop R only (Stan is not available in R in the browser). Factors identified
 #' by unit variances (std.lv; chains mix more reliably) or by marker indicators as
-#' the diagram. blavaan's default priors. Reports posterior means, SDs and
-#' central intervals from the draws, R-hat and effective sample sizes, and
-#' blavaan's fit measures (PPP, DIC, WAIC, LOOIC, the marginal log-likelihood).
+#' the diagram. Several groups (with the diagram's invariance), ordinal indicators
+#' (probit, blavaan's data augmentation), labelled and defined parameters.
+#' Priors: blavaan's defaults, or Mplus's (flat: N(0, 10^6) for loadings,
+#' regressions, intercepts and means, a variance's prior flat on the variance,
+#' and N(0, 5) for the loadings and thresholds of ordinal indicators), and normal
+#' priors on labelled parameters (Mplus MODEL PRIORS). Approximate invariance
+#' across groups by blavaan's wiggle (Mplus's DIFF priors: see below).
+#' Reports posterior medians, means, SDs and central intervals from the draws,
+#' R-hat and effective sample sizes, blavaan's fit measures (PPP, DIC, WAIC, LOOIC,
+#' the marginal log-likelihood), a defined quantity over a grid of a moderator
+#' (Mplus LOOP), and summaries of plausible values (draws of the factor scores).
 ps_bsem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   if (grepl("emscripten", R.version$platform)) stop("Bayesian SEM (blavaan, Stan) runs in desktop R: choose Desktop R (helper) under R runs in.")
@@ -404,45 +412,177 @@ ps_bsem <- function(req_json, export = FALSE) {
   seed <- ps_bayes_seed(req); conf <- ps_bt_conf(req)
   cores <- as.integer(req$cores %||% 1L)
   if (is.na(cores) || cores < 1L || cores > 64L) stop("Invalid number of cores.")
+  priors <- req$priors %||% "blavaan"
+  if (!(is.character(priors) && length(priors) == 1 && priors %in% c("blavaan", "mplus"))) stop("Invalid priors in the request.")
+  npv <- as.integer(ps_number(req$plausible %||% 0, "number of plausible values"))
+  if (npv < 0 || npv > 500) stop("Plausible values: 0 to 500 per case.")
+  if (npv > 0 && !is.null(req$model$multigroup)) stop("Plausible values here are for one group.")
   req$model$identification <- ident
   b <- ps_cb_build(req)
   if (b$matrix_input) stop("Bayesian SEM needs raw data; this dataset is a covariance matrix.")
   if (isTRUE(b$mi) || isTRUE(b$robust)) stop("Bayesian SEM handles missing values itself (FIML-like); choose casewise or FIML, not multiple imputation or robust ML.")
-  if (!is.null(b$group_var) || !is.null(b$cluster_var)) stop("Bayesian SEM here fits one group without clusters.")
+  if (!is.null(b$cluster_var)) stop("Bayesian SEM here fits models without clusters.")
   if (length(b$mods)) stop("Bayesian SEM here does not include latent interactions.")
   if (length(b$composites)) stop("Composites are not available in Bayesian SEM.")
-  if (length(unlist(req$model$ordered))) stop("Bayesian SEM here treats indicators as continuous; ordinal indicators need WLSMV.")
+  if (length(b$esem_blocks)) stop("ESEM blocks are not available in Bayesian SEM.")
   if (isTRUE(b$means) && ident == "unit") stop("Means and intercepts in Bayesian SEM need marker identification: choose Marker indicators.")
   at <- match("model <- '", b$body)
   close <- at + match("'", b$body[-seq_len(at)])
   if (is.na(at) || is.na(close)) stop("The model syntax could not be built.")
+  # What the lavaan call holds besides the estimator: groups and their invariance, ordinal indicators, no mean
+  # structure, and the diagram's own residual covariances (auto.cov.y = FALSE). (Written by ps_cb_build from
+  # validated names: group and ordered are syntactic names, the rest fixed words.)
+  carried <- function(arg) { m <- regmatches(b$call, regexpr(sprintf(", %s = (c\\([^()]*\\)|\"[A-Za-z0-9_.]*\"|TRUE|FALSE)", gsub(".", "\\.", arg, fixed = TRUE)), b$call)); if (length(m)) m else "" }
+  args <- paste0(vapply(c("group", "group.equal", "group.partial", "ordered", "meanstructure", "auto.cov.y"), carried, ""), collapse = "")
+  ordered <- unname(b$n$iv[intersect(unlist(req$model$ordered), b$n$all_inds)])
+  n_groups <- if (!is.null(b$group_var)) length(unique(b$inputs$data[[b$group_var]][is.finite(b$inputs$data[[b$group_var]])])) else 1L
+  # Normal priors on labelled parameters (Mplus MODEL PRIORS: label ~ N(mean, variance); Stan's normal takes the SD).
+  lp <- req$labelPriors
+  if (is.data.frame(lp)) lp <- lapply(seq_len(nrow(lp)), function(i) as.list(lp[i, , drop = FALSE]))
+  lp_lines <- unlist(lapply(lp, function(p) {
+    labs <- vapply(unlist(p$labels), ps_label, "")
+    if (!length(labs)) stop("A prior needs at least one label.")
+    m <- ps_number(p$mean, "prior mean"); v <- ps_number(p$variance, "prior variance")
+    if (v <= 0) stop("A prior variance must be positive.")
+    sprintf("pt$prior[pt$label %%in%% %s] <- \"normal(%s,%s)\"   # Mplus N(%s, %s)", ps_q(labs), format(m, digits = 15), format(sqrt(v), digits = 15), format(m, digits = 15), format(v, digits = 15))
+  }))
+  # Approximate invariance (blavaan's wiggle): parameters held equal across groups become approximately equal.
+  wg <- req$wiggle
+  wiggle <- character(0); wsd <- NULL
+  if (!is.null(wg)) {
+    if (n_groups < 2) stop("Approximate invariance needs several groups.")
+    wiggle <- unique(as.character(unlist(wg$what)))
+    if (!length(wiggle) || !all(wiggle %in% c("loadings", "intercepts", "regressions", "means", "thresholds"))) stop("Invalid approximate invariance in the request.")
+    v <- ps_number(wg$variance, "variance of the differences")
+    if (v <= 0 || v > 100) stop("The variance of the differences must be positive.")
+    # Mplus's DIFF(p1-pG) ~ N(0, v): every pairwise difference between the groups' values has prior variance v,
+    # i.e. group effects around a common (flat) mean with variance v/2 each. blavaan's wiggle centres groups 2..G on
+    # group 1 with SD wiggle.sd: with wiggle.sd = sqrt(v/2) a difference between two of groups 2..G has prior
+    # variance v, as Mplus's, and a difference from group 1 v/2 (blavaan's group 1 is the hub; Mplus has none).
+    wsd <- sqrt(v / 2)
+  }
+  loop <- req$loop
+  if (!is.null(loop)) {
+    lname <- ps_label(loop$name); lvar <- ps_label(loop$variable)
+    from <- ps_number(loop$from, "loop start"); to <- ps_number(loop$to, "loop end"); by <- ps_number(loop$by, "loop step")
+    if (by <= 0 || to < from || (to - from) / by > 1000) stop("The loop runs from its start to its end in at most 1,000 positive steps.")
+    lexpr <- ps_expr(loop$expr)
+  }
+  mplus <- priors == "mplus"
+  # Priors are set per parameter in blavaan's parameter table; blavaan cannot take a table together with wiggle,
+  # so with approximate invariance Mplus's priors go by type (dpriors) and priors on labels are not available.
+  if (length(wiggle) && length(lp_lines)) stop("Priors on labelled parameters cannot be combined with approximate invariance (blavaan's wiggle) here.")
+  via_pt <- (mplus || length(lp_lines) > 0) && !length(wiggle)
+  pre_args <- sprintf("%s%s, std.lv = %s", args, if (isTRUE(b$means) && !grepl("meanstructure", args)) ", meanstructure = TRUE" else "", if (ident == "unit") "TRUE" else "FALSE")
   q <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
+  fit_args <- sprintf("%s%s%s%s%s", args,
+    if (isTRUE(b$means) && !grepl("meanstructure", args)) ", meanstructure = TRUE" else "",
+    if (mplus) ", dp = dp" else "",
+    if (length(wiggle)) sprintf(", wiggle = %s, wiggle.sd = %s", ps_q(wiggle), format(wsd, digits = 15)) else "",
+    if (npv > 0) ", save.lvs = TRUE" else "")
+  run <- sprintf("n.chains = %d, burnin = %d, sample = %d, seed = %d, std.lv = %s%s, bcontrol = list(cores = %d)",
+    chains, burnin, sample, seed, if (ident == "unit") "TRUE" else "FALSE", fit_args, cores)
   body <- c(b$body[seq_len(close)],
     "suppressPackageStartupMessages({ library(lavaan); library(blavaan) })",
-    sprintf("# MCMC by Stan (blavaan's default priors): %d chains, %d burn-in and %d draws each%s.", chains, burnin, sample, if (ident == "unit") "; factors with unit variances (std.lv)" else ""),
-    sprintf("fit <- bsem(model, data = data, n.chains = %d, burnin = %d, sample = %d, seed = %d, std.lv = %s%s, bcontrol = list(cores = %d))",
-      chains, burnin, sample, seed, if (ident == "unit") "TRUE" else "FALSE", if (isTRUE(b$means)) ", meanstructure = TRUE" else "", cores),
-    "draws <- do.call(rbind, lapply(blavInspect(fit, \"mcmc\"), as.matrix))",
+    if (mplus) c(
+      "# Mplus's default priors: N(0, infinity) for loadings, regressions, intercepts and means (here N(0, 1000^2));",
+      "# N(0, 5) for the loadings and thresholds of ordinal indicators; IG(-1, 0), flat, for a variance, and IW(0, -p-1),",
+      "# flat, for a covariance matrix. blavaan puts its priors on variances and correlations: a variance with k free",
+      "# covariances gets Gamma(1 + k/2, 1e-4) on the variance, which with a uniform correlation is flat on the covariance",
+      "# matrix for k = 1 (two variables), as Mplus's; for larger blocks it is close (blavaan's correlations: LKJ(1)).",
+      if (length(wiggle)) c(
+        "# (with approximate invariance the priors go by type: a factor variance's shape from the most covariances any factor has)",
+        sprintf("pt0 <- parTable(bsem(model, data = data%s, do.fit = FALSE))", pre_args),
+        "cv0 <- pt0$free > 0 & pt0$op == \"~~\" & pt0$lhs != pt0$rhs",
+        "k0 <- max(0, vapply(unique(pt0$lhs[pt0$op == \"=~\"]), function(v) max(0, tapply(cv0 & (pt0$lhs == v | pt0$rhs == v), pt0$group, sum)), 0))"),
+      sprintf("dp <- dpriors(nu = \"normal(0,1000)\", alpha = \"normal(0,1000)\", lambda = \"%s\", beta = \"normal(0,1000)\"%s%s)",
+        if (length(wiggle) && length(ordered) && all(b$n$all_inds %in% names(b$n$iv)[b$n$iv %in% ordered])) "normal(0,2.2360680)" else "normal(0,1000)",
+        if (length(ordered)) ", tau = \"normal(0,2.2360680)\"" else "",
+        if (length(wiggle)) ", theta = \"gamma(1,1e-4)[var]\", psi = sprintf(\"gamma(%s,1e-4)[var]\", 1 + k0 / 2)" else "")),
+    sprintf("# MCMC by Stan%s: %d chains, %d burn-in and %d draws each%s.", if (mplus) " (Mplus's default priors)" else if (via_pt) "" else " (blavaan's default priors)", chains, burnin, sample, if (ident == "unit") "; factors with unit variances (std.lv)" else ""),
+    if (length(wiggle)) sprintf("# Approximate invariance (%s): groups 2..%d centred on group 1 with SD %s, Mplus DIFF priors of variance %s.", paste(wiggle, collapse = ", "), n_groups, format(signif(wsd, 4)), format(ps_number(wg$variance))),
+    if (via_pt) c(
+      sprintf("pt <- parTable(bsem(model, data = data%s%s, do.fit = FALSE))", pre_args, if (mplus) ", dp = dp" else ""),
+      if (mplus) c(
+        "free <- pt$free > 0",
+        "cv <- free & pt$op == \"~~\" & pt$lhs != pt$rhs",
+        "for (i in which(free & pt$op == \"~~\" & pt$lhs == pt$rhs)) pt$prior[i] <- sprintf(\"gamma(%s,1e-4)[var]\", 1 + sum(cv & pt$group == pt$group[i] & (pt$lhs == pt$lhs[i] | pt$rhs == pt$lhs[i])) / 2)",
+        if (length(ordered)) sprintf("pt$prior[free & pt$op == \"=~\" & pt$rhs %%in%% %s] <- \"normal(0,2.2360680)\"   # Mplus N(0, 5)", ps_q(ordered))),
+      lp_lines,
+      sprintf("fit <- bsem(pt, data = data, %s)", run))
+    else sprintf("fit <- bsem(model, data = data, %s)", run),
+    "pt <- parTable(fit)",
+    "draws <- do.call(rbind, lapply(blavInspect(fit, \"mcmc\", add.defined = TRUE), as.matrix))",
     "rhat <- blavInspect(fit, \"rhat\"); neff <- blavInspect(fit, \"neff\")",
     "# (lavaan 0.7's fitMeasures generic does not reach blavaan's method: blavaan's own function)",
-    "fm <- tryCatch(blavaan:::blav_fit_measures(fit), error = function(e) NULL)")
+    "fm <- tryCatch(blavaan:::blav_fit_measures(fit), error = function(e) NULL)",
+    if (!is.null(loop)) c(
+      sprintf("# %s = %s over %s from %s to %s by %s (Mplus MODEL CONSTRAINT: LOOP), from the draws of the labelled parameters", lname, lexpr, lvar, format(from), format(to), format(by)),
+      sprintf("loop_at <- function(%s) with(as.data.frame(draws), %s)", lvar, lexpr),
+      sprintf("loop_x <- seq(%s, %s, by = %s)", format(from, digits = 15), format(to, digits = 15), format(by, digits = 15)),
+      sprintf("loop <- t(vapply(loop_x, function(v) { d <- loop_at(v); c(median = stats::median(d), mean = mean(d), sd = stats::sd(d), stats::quantile(d, %s)) }, numeric(5)))", ps_num_vec(q))),
+    if (npv > 0) c(
+      sprintf("# Plausible values: %d draws of every case's factor scores, evenly spaced over the saved draws (Mplus FSCORES(%d))", npv, npv),
+      "lv <- blavPredict(fit, type = \"lv\")",
+      "# (blavaan 0.6's draws of a factor explained by other factors lack the part of its mean that comes from theirs, e.g.",
+      "#  a growth model's occasion factors the slope's mean: it is added back, at the posterior means of the parameters)",
+      "shift <- lavInspect(fit, \"mean.lv\"); shift <- shift - lavInspect(fit, \"est\")$alpha[names(shift), 1]",
+      "lv <- lapply(lv, function(m) sweep(as.matrix(m), 2, shift[colnames(as.matrix(m))], `+`))",
+      sprintf("pv <- lv[unique(round(seq(1, length(lv), length.out = %d)))]", npv)))
   inputs <- b$inputs
-  if (export) return(paste(ps_script("Bayesian SEM (blavaan)", c("lavaan", "blavaan"), inputs, body, c("summary(fit)", "fm")), collapse = "\n"))
+  if (export) return(paste(ps_script("Bayesian SEM (blavaan)", c("lavaan", "blavaan"), inputs, body, c("summary(fit)", "fm", if (!is.null(loop)) "loop")), collapse = "\n"))
+  if (!is.null(loop)) {
+    # The loop's expression names labelled or defined parameters and the loop variable only (checked before the run).
+    model_lines <- b$body[seq(at + 1, close - 1)]
+    labs <- unique(c(unlist(regmatches(model_lines, gregexpr("[A-Za-z][A-Za-z0-9_]*(?=\\*)", model_lines, perl = TRUE))),
+      unlist(regmatches(model_lines, gregexpr("(?<=[(,] ?)[A-Za-z][A-Za-z0-9_]*(?=[,)])", model_lines, perl = TRUE))),
+      sub(" :=.*$", "", trimws(grep(":=", model_lines, value = TRUE, fixed = TRUE)))))
+    bad <- setdiff(all.vars(parse(text = lexpr)), c(lvar, labs))
+    if (length(bad)) stop(sprintf("The loop's expression names %s: not a label of the model or the loop variable.", paste(bad, collapse = ", ")))
+  }
   env <- ps_run(body, inputs)
   n <- b$n
   constructs <- n$cname; lv_lname <- unname(b$lname[constructs])
   back <- c(setNames(constructs, lv_lname), setNames(n$all_inds, unname(n$iv[n$all_inds])))
   nm <- function(x) if (x %in% names(back)) unname(back[[x]]) else x
-  d <- env$draws
-  parse_par <- function(p) { for (op in c("=~", "~~", "~1", "~")) { i <- regexpr(op, p, fixed = TRUE); if (i > 0) return(list(lhs = substr(p, 1, i - 1), op = op, rhs = substr(p, i + nchar(op), nchar(p)))) }; list(lhs = p, op = "", rhs = "") }
-  pars <- lapply(colnames(d), function(p) { x <- d[, p]; pp <- parse_par(p)
-    list(lhs = nm(pp$lhs), op = pp$op, rhs = if (pp$op == "~1") "" else nm(pp$rhs), mean = mean(x), sd = stats::sd(x),
-      low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2])), rhat = unname(env$rhat[p]), neff = unname(env$neff[p])) })
+  d <- env$draws; pt <- env$pt
+  glab <- if (n_groups > 1) as.character(lavaan::lavInspect(env$fit, "group.label")) else character(0)
+  # The draws' columns: one per free parameter of the parameter table (in its order), then the defined ones.
+  rows <- pt[pt$free > 0, , drop = FALSE]; rows <- rows[order(rows$free), , drop = FALSE]
+  defs <- pt[pt$op == ":=", , drop = FALSE]
+  if (ncol(d) != nrow(rows) + nrow(defs)) stop("The posterior draws do not match the parameter table.")
+  summ <- function(x) list(median = stats::median(x), mean = mean(x), sd = stats::sd(x), low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2])))
+  pars <- lapply(seq_len(nrow(rows)), function(k) { r <- rows[k, ]; x <- d[, k]; p <- colnames(d)[k]
+    op <- if (r$op == "~1") "~1" else r$op
+    c(list(lhs = nm(r$lhs), op = op, rhs = if (op == "~1") "" else if (op == "|") r$rhs else nm(r$rhs)), summ(x),
+      list(rhat = unname(env$rhat[p]), neff = unname(env$neff[p]), label = if (nzchar(r$label)) r$label else NULL,
+        group = if (n_groups > 1) as.integer(r$group) else NULL, groupLabel = if (n_groups > 1) glab[r$group] else NULL, prior = if (nzchar(r$prior %||% "")) r$prior else NULL)) })
+  defined <- lapply(seq_len(nrow(defs)), function(k) c(list(name = defs$lhs[k], expr = defs$rhs[k]), summ(d[, nrow(rows) + k])))
   fm <- env$fm
   fmv <- function(k) if (!is.null(fm) && k %in% names(fm)) unname(as.numeric(fm[[k]])) else NULL
-  maxr <- max(env$rhat, na.rm = TRUE)
-  ps_json(list(identification = ident, chains = chains, burnin = burnin, sample = sample, seed = seed, confidence = conf, n = lavaan::lavInspect(env$fit, "nobs"),
-    parameters = pars, maxRhat = maxr, minNeff = min(env$neff, na.rm = TRUE), converged = is.finite(maxr) && maxr < 1.05,
+  rh <- env$rhat[is.finite(env$rhat)]
+  maxr <- if (length(rh)) max(rh) else NA_real_
+  loop_out <- if (!is.null(loop)) list(name = lname, variable = lvar, expr = lexpr, x = env$loop_x,
+    median = unname(env$loop[, "median"]), mean = unname(env$loop[, "mean"]), sd = unname(env$loop[, "sd"]), low = unname(env$loop[, 4]), high = unname(env$loop[, 5])) else NULL
+  pv_out <- NULL
+  if (npv > 0) {
+    pv <- env$pv
+    stack <- do.call(rbind, lapply(pv, as.matrix))
+    # (blavPredict names the columns by the model's latent variables; observed-variable phantoms are left out)
+    keep <- colnames(stack) %in% lv_lname
+    cols <- colnames(stack)[keep]
+    per_case <- simplify2array(lapply(pv, function(m) as.matrix(m)[, keep, drop = FALSE]))
+    case_sd <- apply(per_case, c(1, 2), stats::sd)
+    S <- stats::cov(stack[, keep, drop = FALSE])
+    pv_out <- list(draws = length(pv), cases = nrow(as.matrix(pv[[1]])), factors = I(vapply(cols, nm, "")),
+      mean = unname(colMeans(stack[, keep, drop = FALSE])), cov = unname(S), meanSd = unname(colMeans(case_sd)))
+  }
+  ps_json(list(identification = ident, chains = chains, burnin = burnin, sample = sample, seed = seed, confidence = conf, n = sum(lavaan::lavInspect(env$fit, "nobs")),
+    priors = priors, groups = if (n_groups > 1) I(glab) else NULL, wiggleSd = wsd,
+    parameters = pars, defined = defined, maxRhat = maxr, minNeff = min(env$neff, na.rm = TRUE), converged = is.finite(maxr) && maxr < 1.05,
     fit = list(ppp = fmv("ppp"), dic = fmv("dic"), pDic = fmv("p_dic"), waic = fmv("waic"), looic = fmv("looic"), seLooic = fmv("se_loo"), margLogLik = fmv("margloglik"), bic = fmv("bic")),
+    loop = loop_out, plausible = pv_out,
     warnings = env$.warnings, engine = list(package = "blavaan", version = as.character(utils::packageVersion("blavaan")))))
 }
+#' A numeric vector as R code.
+ps_num_vec <- function(x) sprintf("c(%s)", paste(vapply(x, function(v) format(ps_number(v), digits = 15), ""), collapse = ", "))

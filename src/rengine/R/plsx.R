@@ -22,9 +22,12 @@ ps_plsx_path <- function(s, back) {
 
 ps_pls_predict <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_plsx_build(req)
   folds <- as.integer(req$folds %||% 10); reps <- as.integer(req$repetitions %||% 10); seed <- as.integer(req$seed %||% 1)
   if (folds < 2 || folds > 50 || reps < 1 || reps > 100) stop("Invalid cross-validation settings.")
+  engine <- req$engine %||% "cSEM"
+  if (!engine %in% c("cSEM", "seminr")) stop("Invalid PLSpredict engine in the request.")
+  if (identical(engine, "seminr")) return(ps_pls_predict_seminr(req, folds, reps, seed, export))
+  b <- ps_plsx_build(req)
   body <- c(b$body,
     sprintf("# PLSpredict (Shmueli et al. 2019): %d-fold cross-validation, repeated %d times; benchmark: a linear", folds, reps),
     "# regression of each endogenous indicator on all exogenous indicators (LM). Q2_predict > 0: better than the training means.",
@@ -40,6 +43,47 @@ ps_pls_predict <- function(req_json, export = FALSE) {
     indicators = lapply(seq_len(nrow(m)), function(i) list(indicator = unname(back[m$Name[i]]), construct = owner(m$Name[i]),
       maePls = m$MAE_target[i], maeLm = m$MAE_benchmark[i], rmsePls = m$RMSE_target[i], rmseLm = m$RMSE_benchmark[i], q2 = m$Q2_predict[i])),
     warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
+}
+
+#' PLSpredict as seminr's predict_pls (?predict_pls): its folds and repetitions (the predictions averaged over the
+#' repetitions, then the errors), its PLS predictions from the exogenous constructs (predict_EA) or from each construct's
+#' direct antecedents (predict_DA), and its linear benchmark: each endogenous construct's items regressed on the items of
+#' the same predictors (the exogenous constructs, or the direct antecedents). Q2predict against the sample mean.
+ps_pls_predict_seminr <- function(req, folds, reps, seed, export) {
+  technique <- req$technique %||% "EA"
+  if (!technique %in% c("EA", "DA")) stop("Invalid PLSpredict technique in the request.")
+  req$package <- "seminr"
+  b <- ps_pls_build(req)
+  # Mean replacement as seminr's own (estimate_pls(missing = mean_replacement)): predict_pls then replaces the missing values
+  # of each training fold by that fold's means, as on the help page, rather than the whole sample's beforehand.
+  if (identical(req$missing %||% "mean", "mean")) {
+    mean_lines <- ps_missing_code("mean")
+    fit_at <- grep("^fit <- estimate_pls\\(", b$body)
+    if (length(fit_at) == 1 && all(mean_lines %in% b$body)) {
+      b$body <- b$body[!b$body %in% mean_lines]
+      fit_at <- grep("^fit <- estimate_pls\\(", b$body)
+      b$body[fit_at] <- sub("\\)$", ", missing = mean_replacement, missing_value = NA)   # missing values: each fold's means", b$body[fit_at])
+    }
+  }
+  body <- c(b$body,
+    sprintf("# PLSpredict as seminr's predict_pls: %d-fold cross-validation, %d repetitions (the predictions averaged), predicting", folds, reps),
+    sprintf("# from %s; the linear benchmark regresses each endogenous construct's items on the same predictors' items.", if (technique == "EA") "the exogenous constructs (predict_EA)" else "each construct's direct antecedents (predict_DA)"),
+    sprintf("set.seed(%d)", seed),
+    sprintf("pred <- predict_pls(fit, technique = predict_%s, noFolds = %d, reps = %d)", technique, folds, reps),
+    "s <- summary(pred)",
+    "# Q2predict: 1 - the out-of-sample squared error over that of the sample mean",
+    "act <- as.matrix(pred$items$item_actuals[, colnames(s$PLS_out_of_sample), drop = FALSE])",
+    "res <- as.matrix(pred$items$PLS_out_of_sample_residuals[, colnames(s$PLS_out_of_sample), drop = FALSE])",
+    "q2 <- 1 - colSums(res^2) / colSums(sweep(act, 2, colMeans(act))^2)")
+  if (export) return(paste(ps_script("PLSpredict (seminr)", "seminr", b$inputs, body, c("s$PLS_out_of_sample", "s$LM_out_of_sample", "q2")), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  s <- env$s; items <- colnames(s$PLS_out_of_sample)
+  back <- c(setNames(names(b$n$iv), unname(b$n$iv)))
+  owner <- function(i) b$n$cname[which(vapply(b$n$inds, function(x) back[[i]] %in% x, TRUE))[1]]
+  ps_json(list(folds = folds, repetitions = reps, predictEngine = "seminr", technique = technique,
+    indicators = lapply(items, function(i) list(indicator = unname(back[[i]]), construct = owner(i),
+      maePls = s$PLS_out_of_sample["MAE", i], maeLm = s$LM_out_of_sample["MAE", i], rmsePls = s$PLS_out_of_sample["RMSE", i], rmseLm = s$LM_out_of_sample["RMSE", i], q2 = unname(env$q2[i]))),
+    warnings = env$.warnings, engine = list(package = "seminr", version = as.character(utils::packageVersion("seminr")))))
 }
 
 ps_pls_compare <- function(req_json, export = FALSE) {

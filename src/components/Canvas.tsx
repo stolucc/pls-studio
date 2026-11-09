@@ -37,6 +37,7 @@ import { PresenceLayer } from './cloud/Presence';
 import { HigherOrderLayer, type HoLabel } from './HigherOrderLayer';
 import { ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
 import { PathEdge, type PathFlowEdge } from './PathEdge';
+import { ExampleBanner } from './ExampleBanner';
 
 const nodeTypes = { construct: ConstructNode, constant: ConstantNode };
 const edgeTypes = { path: PathEdge, mean: MeanEdge, intercept: InterceptEdge };
@@ -922,6 +923,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         </Controls>
         {!empty && <MiniMap pannable zoomable position="bottom-right" style={{ width: 150, height: 96 }} nodeColor="#c7cbff" maskColor="rgba(244,245,248,0.7)" />}
       </ReactFlow>
+      <ExampleBanner where="model" />
 
       {empty && (
         <div className="canvas-empty">

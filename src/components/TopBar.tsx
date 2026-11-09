@@ -75,7 +75,7 @@ export function TopBar() {
       <div className={`tb-group tb-center${example ? ' has-example' : dirty ? ' has-dirty' : ''}`}>
         {/* (sized to the name; a mark on either side keeps it centred) */}
         <input className="project-name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Project name" title={name} maxLength={100}
-          style={{ width: `${Math.min(26, Math.max(12, name.length + 2))}ch` }} />
+          style={{ width: `${Math.min(52, Math.max(12, name.length + 2))}ch` }} />
         {example ? (
           <button className="example-pill" title="An example: try anything; your changes are not kept, so it opens as the original next time. Click to save it, with your changes, as your own project."
             onClick={() => void confirmDialog({ title: 'Save example as project?', body: 'This example, with your changes, becomes your own project and is kept with your projects.', confirmLabel: 'Save as my project' })

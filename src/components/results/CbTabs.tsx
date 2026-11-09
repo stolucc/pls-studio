@@ -11,7 +11,8 @@ import { bootCells, bootCols, c, htmtCls, matrixRows, pCell, Table, type Row } f
 import { runInvariance } from '../../runner';
 import { useFreshResults, useStore } from '../../store';
 import { RScriptButton } from './RScriptButton';
-import { SaveFactorScores } from './SaveScores';
+import type { DfiForFit } from '../../analyses/dfiFit';
+import { dfiFitSlot } from './dfiSlot';
 
 export const CB_TABS = [
   { id: 'fit', label: 'Model fit' },
@@ -54,6 +55,18 @@ function CaseWeights({ w }: { w: NonNullable<CbResult['caseWeights']> }) {
 }
 
 function Fit({ cb }: { cb: CbResult }) {
+  const dfi = dfiFitSlot.use();
+  return <FitBody cb={cb} dfi={dfi} />;
+}
+
+/** The Dynamic fit cutoffs of a current run (analyses/dfiFit) as a column of the fit table, for the indices the run covers. */
+function dfiCol(dfi: DfiForFit | null, index: 'χ²' | 'CFI' | 'RMSEA' | 'SRMR') {
+  if (!dfi) return [];
+  const cell = dfiFitSlot.cell(dfi, index);
+  return [cell ? { ...c(`${cell.text} — ${cell.verdict}`, cell.ok === true ? 'good' : cell.ok === false ? 'bad' : undefined), bold: cell.ok !== null } : c(null)];
+}
+
+export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
   const f = cb.fit;
   const card = (k: string, v: string, cls?: string) => (
     <div className="stat-card"><div className="k">{k}</div><div className="v" style={cls ? { color: `var(--${cls})` } : undefined}>{v}</div></div>
@@ -72,20 +85,20 @@ function Fit({ cb }: { cb: CbResult }) {
     ...(cb.imputations ? [[c('Imputed data sets'), c(String(cb.imputations)), c('pooled (Rubin)')]] : []),
     [c('Free parameters'), c(String(f.npar)), c(null)],
     [c('Iterations'), c(String(cb.iterations)), c(null)],
-    [c('χ²'), c(f.chisq), c(f.chisqScaled ?? null)],
+    [c('χ²'), c(f.chisq), c(f.chisqScaled ?? null), ...dfiCol(dfi, 'χ²')],
     [c('df'), c(String(f.df)), c(f.dfScaled !== undefined ? String(f.dfScaled) : null)],
     [c('p'), c(Number.isNaN(f.pvalue) ? null : f.pvalue, '', 4), c(f.pvalueScaled ?? null, '', 4)],
     [c('Scaling factor'), c(null), c(f.scalingFactor ?? null)],
     ...(f.shiftParameter !== undefined ? [[c('Shift parameter'), c(null), c(f.shiftParameter)]] : []),
     [c('χ² (baseline)'), c(f.baselineChisq), c(f.baselineChisqScaled ?? null)],
     [c('df (baseline)'), c(String(f.baselineDf)), c(null)],
-    [c('CFI'), c(f.cfi), c(f.cfiRobust ?? null)],
+    [c('CFI'), c(f.cfi), c(f.cfiRobust ?? null), ...dfiCol(dfi, 'CFI')],
     [c('TLI'), c(f.tli), c(f.tliRobust ?? null)],
-    [c('RMSEA'), c(f.rmsea), c(f.rmseaRobust ?? null)],
+    [c('RMSEA'), c(f.rmsea), c(f.rmseaRobust ?? null), ...dfiCol(dfi, 'RMSEA')],
     [c('RMSEA 90% CI'), c(`[${fmt(f.rmseaLow)}, ${fmt(f.rmseaHigh)}]`), c(null)],
     [c('p (RMSEA ≤ .05)'), c(f.rmseaP), c(null)],
     ...(robustIdx ? [[c('CFI / TLI (scaled)'), c(null), c(`${fmt(f.cfiScaled)} / ${fmt(f.tliScaled)}`)], [c('RMSEA (scaled)'), c(null), c(f.rmseaScaled ?? null)]] : []),
-    [c('SRMR'), c(f.srmr), c(null)],
+    [c('SRMR'), c(f.srmr), c(null), ...dfiCol(dfi, 'SRMR')],
     ...(ml ? [[c('Log-likelihood'), c(f.logl, '', 2), c(null)], [c('AIC'), c(f.aic, '', 2), c(null)], [c('BIC'), c(f.bic, '', 2), c(null)]] : []),
   ];
   return (
@@ -106,10 +119,9 @@ function Fit({ cb }: { cb: CbResult }) {
         {card(robustIdx ? 'RMSEA (robust)' : 'RMSEA', fmt(rmsea), ok(rmsea <= 0.06))}
         {card('SRMR', fmt(f.srmr), ok(f.srmr <= 0.08))}
       </div>
-      {!rml && !cb.imputations && <SaveFactorScores />}
       <div className="tables">
-        <Table title="Fit statistics" file="cb-fit" columns={['Statistic', 'Standard', robust ? 'Robust / scaled' : '']} rows={rows}
-          note={<>Hu &amp; Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08.{robustIdx && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'}{rml && ' Robust ML (rsem; Yuan & Zhang 2012): the model is fitted to Huber-weighted means and covariances; χ² (scaled) is the rescaled statistic TRML; CFI, TLI and RMSEA are those of the fit to the robust moments.'} Validated against lavaan.{cb.fitNote && ` ${cb.fitNote}`}</>} />
+        <Table title="Fit statistics" file="cb-fit" columns={['Statistic', 'Standard', robust ? 'Robust / scaled' : '', ...(dfi ? [`Dynamic cutoffs (dynamic::${dfi.result.fn})`] : [])]} rows={dfi ? rows.map((r) => (r.length < 4 ? [...r, c(null)] : r)) : rows}
+          note={<>{dfi ? `${dfiFitSlot.note(dfi)} ` : 'Hu & Bentler (1999) cutoffs: CFI/TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08. '}<button type="button" className="btn" style={{ marginRight: 6 }} onClick={() => dfiFitSlot.open()} title="Fit index cutoffs tailored to this model and sample size (the dynamic package), on the Analyses tab">Dynamic cutoffs for this model…</button>{robustIdx && ' Robust CFI/TLI/RMSEA follow Brosseau-Liard & Savalei and estimate the population values; the scaled versions apply the correction to the statistic only.'}{rml && ' Robust ML (rsem; Yuan & Zhang 2012): the model is fitted to Huber-weighted means and covariances; χ² (scaled) is the rescaled statistic TRML; CFI, TLI and RMSEA are those of the fit to the robust moments.'} Validated against lavaan.{cb.fitNote && ` ${cb.fitNote}`}</>} />
         {cb.caseWeights && <CaseWeights w={cb.caseWeights} />}
         {cb.groups?.levels && cb.groups.icc && (
           <Table title="Intraclass correlations" file="cb-icc" columns={['Variable', 'ICC']}

@@ -2,7 +2,8 @@
 // against what its Mplus output prints (see testkit.ts). Mplus's classes are numbered arbitrarily: the card's classes
 // of people are matched to Mplus's by their thresholds, its classes of clusters by their logits. Run with npm run test:webr.
 
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect } from 'vitest';
+import { slowIt } from '../../rengine/webrSlow';
 import { lcaSpec } from '../../analyses/items';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { lcaR } from '../../rengine/items';
@@ -16,7 +17,8 @@ afterAll(stopTestRuntime);
 const logit = (p: number) => Math.log(p / (1 - p));
 const perms = (n: number): number[][] => (n === 1 ? [[0]] : perms(n - 1).flatMap((p) => Array.from({ length: n }, (_, i) => [...p.slice(0, i), n - 1, ...p.slice(i)])));
 
-it('ex10.7: the multilevel latent class model (glca) reproduces the Mplus output: fit, thresholds and the class logits at both levels', async () => {
+// (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
+slowIt('ex10.7: the multilevel latent class model (glca) reproduces the Mplus output: fit, thresholds and the class logits at both levels', async () => {
   const key = 'ex10.7';
   const ex = example(key);
   const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'lca' }>;

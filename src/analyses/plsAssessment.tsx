@@ -42,7 +42,7 @@ function PredictView({ r }: { r: PredictResult }) {
     <div className="tables">
       <Table title="PLSpredict" file="plspredict" columns={['Indicator', 'Construct', 'Q²predict', 'RMSE (PLS)', 'RMSE (LM)', 'MAE (PLS)', 'MAE (LM)']}
         rows={r.indicators.map((x) => [c(x.indicator), c(x.construct), { ...c(x.q2), bold: !(x.q2 > 0) }, { ...c(x.rmsePls), bold: x.rmsePls < x.rmseLm }, c(x.rmseLm), { ...c(x.maePls), bold: x.maePls < x.maeLm }, c(x.maeLm)])}
-        note={<>{predictivePower(r.indicators)} {r.folds}-fold cross-validation, {r.repetitions} repetitions (averaged). Bold: PLS better than the LM benchmark (or Q²predict not above 0). Shmueli et al. (2019); cSEM’s predict.</>} />
+        note={<>{predictivePower(r.indicators)} {r.folds}-fold cross-validation, {r.repetitions} repetitions (averaged{r.predictEngine === 'seminr' ? ': the predictions, then the errors' : ''}). Bold: PLS better than the LM benchmark (or Q²predict not above 0). Shmueli et al. (2019); {r.predictEngine === 'seminr' ? `seminr’s predict_pls (predict_${r.technique}), its linear benchmark on the same predictors’ items; Q²predict against the sample mean` : 'cSEM’s predict'}.</>} />
     </div>
   );
 }
@@ -250,11 +250,14 @@ const PLS_GROUP = 'PLS-SEM model' as const;
 
 // ---------- PLSpredict ----------
 
-export interface PredictOptions { folds: number; repetitions: number }
+/** `engine` 'seminr': seminr's predict_pls and its linear benchmark (absent: cSEM's predict, as saved before). */
+export interface PredictOptions { folds: number; repetitions: number; engine?: 'seminr'; technique?: 'EA' | 'DA' }
 export const predictAnalysis: AnalysisType<PredictOptions, PredictResult> = {
   id: 'plspredict', title: 'PLSpredict', sub: 'out-of-sample prediction: Q²predict, RMSE and MAE against a linear benchmark', group: PLS_GROUP,
+  fitsModel: true,
   defaults: () => ({ folds: 10, repetitions: 10 }),
-  parseOptions: (raw) => (isObj(raw) ? { folds: clampNum(raw.folds, 2, 50, 10, true), repetitions: clampNum(raw.repetitions, 1, 100, 10, true) } : null),
+  parseOptions: (raw) => (isObj(raw) ? { folds: clampNum(raw.folds, 2, 50, 10, true), repetitions: clampNum(raw.repetitions, 1, 100, 10, true),
+    ...(raw.engine === 'seminr' ? { engine: 'seminr' as const, technique: raw.technique === 'DA' ? 'DA' as const : 'EA' as const } : {}) } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
       <Hint>PLSpredict (Shmueli et al. 2016, 2019): how well does the model predict the endogenous indicators for new cases? Cross-validated predictions compared with the training means (Q²predict) and with a linear-regression benchmark (LM). {modelNote(ctx)}</Hint>
@@ -262,14 +265,24 @@ export const predictAnalysis: AnalysisType<PredictOptions, PredictResult> = {
         <div className="field"><label htmlFor="pp-folds">Folds</label><input id="pp-folds" className="input num" type="number" min={2} max={50} value={o.folds} onChange={(e) => set({ ...o, folds: clampNum(e.target.value, 2, 50, 10, true) })} /></div>
         <div className="field"><label htmlFor="pp-reps">Repetitions</label><input id="pp-reps" className="input num" type="number" min={1} max={100} value={o.repetitions} onChange={(e) => set({ ...o, repetitions: clampNum(e.target.value, 1, 100, 10, true) })} /></div>
       </div>
+      <div className="field">
+        <label htmlFor="pp-engine">Predictions and benchmark</label>
+        <select id="pp-engine" className="select" value={o.engine === 'seminr' ? `seminr-${o.technique ?? 'EA'}` : 'cSEM'}
+          onChange={(e) => { const v = e.target.value; if (v === 'cSEM') { const { engine: _e, technique: _t, ...rest } = o; set(rest); } else set({ ...o, engine: 'seminr', technique: v.endsWith('DA') ? 'DA' : 'EA' }); }}>
+          <option value="cSEM">cSEM’s predict: LM on all exogenous indicators, errors averaged over repetitions</option>
+          <option value="seminr-EA">seminr’s predict_pls, from the exogenous constructs (predict_EA)</option>
+          <option value="seminr-DA">seminr’s predict_pls, from the direct antecedents (predict_DA)</option>
+        </select>
+        <div className="hint">seminr averages the predictions over the repetitions before computing the errors, and its linear benchmark regresses each endogenous construct’s items on the items of the same predictors as the PLS predictions.</div>
+      </div>
     </fieldset>
   ),
   View: ({ result }) => <PredictView r={result} />,
   blocked: (_o, ctx) => plsModelBlocked(ctx),
-  fingerprint: (_o, ctx) => modelFingerprint(ctx, [], [ctx.settings.seed]),
-  run: async (o, ctx) => (await import('../rengine/plsx')).predictR(rawData(ctx)!, specOf(ctx), plsOptions(ctx.settings), { folds: o.folds, repetitions: o.repetitions, seed: ctx.settings.seed }),
-  script: async (o, ctx) => (await import('../rengine/plsx')).predictScriptR(rawData(ctx)!, specOf(ctx), plsOptions(ctx.settings), { folds: o.folds, repetitions: o.repetitions, seed: ctx.settings.seed }),
-  summary: (o) => `${o.folds}-fold, ${o.repetitions} repetitions`,
+  fingerprint: (o, ctx) => modelFingerprint(ctx, [], [ctx.settings.seed, ...(o.engine === 'seminr' ? [`seminr-${o.technique ?? 'EA'}`] : [])]),
+  run: async (o, ctx) => (await import('../rengine/plsx')).predictR(rawData(ctx)!, specOf(ctx), plsOptions(ctx.settings), { folds: o.folds, repetitions: o.repetitions, seed: ctx.settings.seed, ...(o.engine === 'seminr' ? { engine: 'seminr' as const, technique: o.technique ?? 'EA' } : {}) }),
+  script: async (o, ctx) => (await import('../rengine/plsx')).predictScriptR(rawData(ctx)!, specOf(ctx), plsOptions(ctx.settings), { folds: o.folds, repetitions: o.repetitions, seed: ctx.settings.seed, ...(o.engine === 'seminr' ? { engine: 'seminr' as const, technique: o.technique ?? 'EA' } : {}) }),
+  summary: (o) => `${o.folds}-fold, ${o.repetitions} repetitions${o.engine === 'seminr' ? ` · seminr (predict_${o.technique ?? 'EA'})` : ''}`,
 };
 
 // ---------- blindfolding ----------
@@ -277,6 +290,7 @@ export const predictAnalysis: AnalysisType<PredictOptions, PredictResult> = {
 export interface BlindfoldOptions { distance: number }
 export const blindfoldAnalysis: AnalysisType<BlindfoldOptions, BlindfoldResult> = {
   id: 'blindfold', title: 'Blindfolding (Q²)', sub: 'Stone–Geisser Q², cross-validated redundancy', group: PLS_GROUP,
+  fitsModel: true,
   defaults: () => ({ distance: 7 }),
   parseOptions: (raw) => (isObj(raw) ? { distance: clampNum(raw.distance, 2, 50, 7, true) } : null),
   Options: ({ options: o, set, ctx, disabled }) => {
@@ -324,6 +338,7 @@ function CompareOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Com
 
 export const compareAnalysis: AnalysisType<CompareOptions, CompareResult> = {
   id: 'compare', title: 'Model comparison', sub: 'information criteria and CVPAT against an alternative model', group: PLS_GROUP,
+  fitsModel: true,
   defaults: () => ({ alternative: null }),
   parseOptions: (raw) => {
     if (!isObj(raw)) return null;
@@ -363,6 +378,7 @@ function groupColumns(ctx: AnalysisCtx): string[] {
 
 export const groupsAnalysis: AnalysisType<GroupsOptions, GroupsResult> = {
   id: 'mga', title: 'MICOM and multigroup analysis', sub: 'measurement invariance of composites, then group differences in the paths', group: PLS_GROUP,
+  fitsModel: true,
   defaults: () => ({ group: '', approaches: ['Henseler', 'Chin', 'Klesel'] }),
   parseOptions: (raw) => (isObj(raw) ? {
     group: name(raw.group),
@@ -405,6 +421,7 @@ const ctaBlocks = (ctx: AnalysisCtx) => (ctx.model?.constructs ?? []).filter((k)
 
 export const ctaAnalysis: AnalysisType<Record<string, never>, CtaResult> = {
   id: 'cta', title: 'Confirmatory tetrad analysis', sub: 'CTA-PLS: reflective or composite measurement?', group: PLS_GROUP,
+  fitsModel: true,
   defaults: () => ({}),
   parseOptions: (raw) => (isObj(raw) ? {} : null),
   Options: ({ ctx }) => <Hint>Confirmatory tetrad analysis (CTA-PLS; Gudergan et al. 2008): is a block reflective (indicators caused by one common factor) or better modelled as a composite (an emergent variable)? For constructs with at least four indicators ({ctaBlocks(ctx)} here). Bootstrap samples {ctaCfg(ctx.settings).samples} and α = {fmtAlpha(1 - ctx.settings.confidence)} from the Model settings.</Hint>,
@@ -418,6 +435,7 @@ export const ctaAnalysis: AnalysisType<Record<string, never>, CtaResult> = {
 
 export const ccaAnalysis: AnalysisType<Record<string, never>, CcaResult> = {
   id: 'cca', title: 'Confirmatory composite analysis', sub: 'CCA: overall fit of the composite model, weights, loadings, VIF', group: PLS_GROUP,
+  fitsModel: true,
   defaults: () => ({}),
   parseOptions: (raw) => (isObj(raw) ? {} : null),
   Options: ({ ctx }) => <Hint>Confirmatory composite analysis (Schuberth, Henseler &amp; Dijkstra 2018): do the composites — every construct formed from its indicators, Mode A or B as drawn — fit the data? Bootstrap test of overall fit (SRMR, dULS, dG) and the weights, loadings and VIFs. Bootstrap samples {ccaCfg(ctx.settings).samples} and {Math.round(ctx.settings.confidence * 100)}% intervals from the Model settings.</Hint>,

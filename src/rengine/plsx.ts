@@ -6,8 +6,12 @@ import { rCall, rScript, rStrings } from './bridge';
 import type { REngineInfo } from './lavaan';
 import { plsRequest } from './pls';
 
+/** cSEM's predict (the default), or seminr's predict_pls (its predictions, folds and linear benchmark), from the exogenous constructs (EA) or direct antecedents (DA). */
+export interface PredictSettings { folds: number; repetitions: number; seed: number; engine?: 'cSEM' | 'seminr'; technique?: 'EA' | 'DA' }
 export interface PredictResult {
   folds: number; repetitions: number;
+  /** seminr: predict_pls (absent: cSEM). */
+  predictEngine?: 'seminr'; technique?: 'EA' | 'DA';
   indicators: { indicator: string; construct: string; maePls: number; maeLm: number; rmsePls: number; rmseLm: number; q2: number }[];
   warnings: string[]; engine: REngineInfo;
 }
@@ -30,12 +34,13 @@ const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]
 const rec = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, number> : {});
 const base = (data: Dataset, spec: ModelSpec, options: PlsOptions) => plsRequest(data, spec, { ...options, consistent: !!options.consistent }, 'cSEM');
 
-export async function predictR(data: Dataset, spec: ModelSpec, options: PlsOptions, cv: { folds: number; repetitions: number; seed: number }): Promise<PredictResult> {
-  const raw = await rCall<Record<string, any>>('ps_pls_predict', { ...base(data, spec, options), ...cv }, 'cSEM');
-  return { folds: raw.folds, repetitions: raw.repetitions, indicators: arr(raw.indicators), warnings: rStrings(raw.warnings), engine: raw.engine };
+export async function predictR(data: Dataset, spec: ModelSpec, options: PlsOptions, cv: PredictSettings): Promise<PredictResult> {
+  const raw = await rCall<Record<string, any>>('ps_pls_predict', { ...base(data, spec, options), ...cv }, cv.engine === 'seminr' ? 'seminr' : 'cSEM');
+  return { folds: raw.folds, repetitions: raw.repetitions, ...(raw.predictEngine === 'seminr' ? { predictEngine: 'seminr' as const, technique: raw.technique === 'DA' ? 'DA' as const : 'EA' as const } : {}),
+    indicators: arr(raw.indicators), warnings: rStrings(raw.warnings), engine: raw.engine };
 }
-export const predictScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, cv: { folds: number; repetitions: number; seed: number }) =>
-  rScript('ps_pls_predict', { ...base(data, spec, options), ...cv }, 'cSEM');
+export const predictScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, cv: PredictSettings) =>
+  rScript('ps_pls_predict', { ...base(data, spec, options), ...cv }, cv.engine === 'seminr' ? 'seminr' : 'cSEM');
 
 export async function compareR(data: Dataset, spec: ModelSpec, alternative: ModelSpec, options: PlsOptions, seed: number): Promise<CompareResult> {
   const raw = await rCall<Record<string, any>>('ps_pls_compare', { ...base(data, spec, options), alternative, seed }, 'cSEM');
