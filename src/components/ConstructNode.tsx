@@ -1,8 +1,8 @@
 import { Handle, Position, useConnection, type Node, type NodeProps } from '@xyflow/react';
 import { memo, useState, type DragEvent } from 'react';
-import { besideLine, BOX_RX, constructsAreCircles, hexagonVertices, type ConstructGeom } from '../geometry';
+import { besideLine, BOX_RX, constructsAreCircles, hexagonVertices, octagonVertices, type ConstructGeom } from '../geometry';
 import type { Construct, Method } from '../model/project';
-import { formatEstimate } from '../figure/style';
+import { formatEstimate, semplotEdge } from '../figure/style';
 import { useStore, type Tool } from '../store';
 import { readDraggedVars, VARS_MIME } from './dnd';
 
@@ -51,6 +51,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
   const connecting = useConnection((s) => s.inProgress);
   const figure = useStore((st) => st.settings.figure);
   const amos = figure.notation === 'amos';
+  const paint = c.color ? { fill: c.color } : undefined;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(c.name);
   const [dropping, setDropping] = useState(false);
@@ -92,10 +93,11 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
   const onDouble = () => { setDraft(c.name); setEditing(true); };
   const higher = (c.components?.length ?? 0) > 0;
   // With circles, names are outside the shape: below, or above when the indicators hang below.
-  const circle = constructsAreCircles() && !c.covariate;
+  const semplot = figure.notation === 'semplot';
+  const circle = constructsAreCircles() && !c.covariate && !semplot;
   // (above a name that sits above the circle)
   const modeY = circle && c.side === 'bottom' ? -ry - 20 : -ry - 8;
-  const nameY = circle ? (c.side === 'bottom' ? -ry - 6 : ry + 17) : c.covariate ? 4 : (r2 !== null && !amos) || (c.indicators.length === 0 && !higher) ? -5 : 4;
+  const nameY = circle ? (c.side === 'bottom' ? -ry - 6 : ry + 17) : c.covariate ? 4 : (r2 !== null && !amos && figure.showR2) || (c.indicators.length === 0 && !higher) ? -5 : 4;
 
   return (
     <div
@@ -107,10 +109,12 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
     >
       <svg width={bounds.w} height={bounds.h}>
         <g transform={`translate(${cx} ${cy})`}>
-          {!(observedInCpa && c.indicators.length === 1) && geom.indicators.map((ind, i) => {
-            const label = labels?.[i];
+          {!(observedInCpa && c.indicators.length === 1) && geom.indicators.map((ind) => {
+            const label = labels?.[c.indicators.indexOf(ind.name)];
             // Amos notation: the number beside the arrow, not on it.
             const off = amos ? besideLine(ind.ex, ind.ey, ind.ax, ind.ay, 9, 5) : { dx: 0, dy: 0 };
+            const value = semplot && label ? Number(label.text) : NaN;
+            const edge = semplot ? semplotEdge(Number.isFinite(value) ? value : null) : null;
             const mx = (ind.ex + ind.ax) / 2 + off.dx, my = (ind.ey + ind.ay) / 2 + off.dy;
             return (
               <g key={ind.name} data-ind={ind.name} className={picked === ind.name ? 'picked' : undefined}>
@@ -118,9 +122,10 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
                   className="iline"
                   x1={composite ? ind.ax : ind.ex} y1={composite ? ind.ay : ind.ey}
                   x2={composite ? ind.ex : ind.ax} y2={composite ? ind.ey : ind.ay}
-                  markerEnd={figure.notation === 'smartpls' && c.indicators.length === 1 ? undefined : 'url(#arrow-ind)'}
+                  markerEnd={figure.notation === 'pls' && c.indicators.length === 1 ? undefined : edge ? 'url(#arrow-sp)' : 'url(#arrow-ind)'}
+                  style={edge ? { stroke: edge.color, strokeWidth: edge.width, ...(label?.fixed ? { strokeDasharray: '5 4' } : {}) } : undefined}
                 />
-                <rect className="ibox" x={ind.x} y={ind.y} width={ind.w} height={ind.h} rx={BOX_RX} />
+                <rect className="ibox" x={ind.x} y={ind.y} width={ind.w} height={ind.h} rx={BOX_RX} style={paint} />
                 <text className="itext" x={ind.x + ind.w / 2} y={ind.y + ind.h / 2 + 4} textAnchor="middle">{ind.name}</text>
                 {ordinal.has(ind.name) && (
                   <text className="iord" x={ind.x + ind.w - 3} y={ind.y + 8} textAnchor="end">
@@ -131,7 +136,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
                   <g className={label.fixed ? 'fixed' : undefined}>
                     {label.fixed && <title>Fixed loading: held at its value, not estimated (the first indicator’s 1 sets the factor’s scale). Right-click to change it. A standardised value is shown when it differs.</title>}
                     <rect className="ilabel-bg" x={mx - 19} y={my - 8} width={38} height={15} rx={7.5} />
-                    <text className={`ilabel ${label.level}`} x={mx} y={my + 3.5} textAnchor="middle">{label.text}</text>
+                    <text className={`ilabel ${label.level}`} x={mx} y={my + 3.5} textAnchor="middle" style={edge ? { fill: edge.color } : undefined}>{label.text}</text>
                   </g>
                 )}
               </g>
@@ -139,18 +144,20 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
           })}
           {c.covariate || observedInCpa
             ? <rect className="ellipse observed" x={-rx} y={-ry} width={rx * 2} height={ry * 2} rx={BOX_RX} onDoubleClick={onDouble} />
+            : c.shape === 'rectangle' ? <rect className="ellipse" x={-rx} y={-ry} width={rx * 2} height={ry * 2} rx={BOX_RX} onDoubleClick={onDouble} style={paint} />
+            : c.shape === 'octagon' ? <polygon className="ellipse" points={octagonVertices(rx, ry).map((v) => v.join(',')).join(' ')} onDoubleClick={onDouble} style={paint} />
             : composite
-              ? <polygon className="ellipse" points={hexagonVertices(rx, ry).map((v) => v.join(',')).join(' ')} onDoubleClick={onDouble} />
-              : <ellipse className="ellipse" cx={0} cy={0} rx={rx} ry={ry} onDoubleClick={onDouble} />}
+              ? <polygon className="ellipse" points={hexagonVertices(rx, ry).map((v) => v.join(',')).join(' ')} onDoubleClick={onDouble} style={paint} />
+              : <ellipse className="ellipse" cx={0} cy={0} rx={rx} ry={ry} onDoubleClick={onDouble} style={paint} />}
           {mode && <text className={`cmode${mode.unusual ? ' unusual' : ''}`} x={0} y={modeY} textAnchor="middle">{mode.text}<title>{mode.title}</title></text>}
           {esem && <text className="cmode" x={0} y={modeY} textAnchor="middle">ESEM<title>Exploratory SEM block: this factor loads on all the block’s indicators (rotated); only its main loadings are drawn.</title></text>}
           {!editing && (
             <text className="cname" x={0} y={nameY} textAnchor="middle" pointerEvents="none">{c.name}</text>
           )}
-          {r2 !== null && (
+          {r2 !== null && figure.showR2 && (
             (amos
               ? <text className="cmeta" x={rx * 0.5} y={-ry - 3} textAnchor="middle" pointerEvents="none">{formatEstimate(figure, r2)}<title>R² (squared multiple correlation)</title></text>
-              : <text className="cmeta" x={0} y={circle ? 4 : 13} textAnchor="middle" pointerEvents="none">{figure.notation === 'smartpls' ? '' : 'R² '}{formatEstimate(figure, r2)}{figure.notation === 'smartpls' && <title>R²</title>}</text>)
+              : <text className="cmeta" x={0} y={circle ? 4 : 13} textAnchor="middle" pointerEvents="none">{figure.notation === 'pls' ? '' : 'R² '}{formatEstimate(figure, r2)}{figure.notation === 'pls' && <title>R²</title>}</text>)
           )}
           {r2 === null && c.indicators.length === 0 && !higher && (
             <text className="cmeta" x={0} y={circle ? 4 : 13} textAnchor="middle" pointerEvents="none" style={circle ? undefined : { fill: 'var(--text-3)' }}>drop variables</text>

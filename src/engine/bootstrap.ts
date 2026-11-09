@@ -39,6 +39,8 @@ export interface RangeRequest {
   end: number;
   /** Also the jackknife (each case left out once), for BCa intervals. */
   jackknife?: boolean;
+  /** Studentized intervals: this many inner resamples of each sample, for that sample's own standard error. */
+  innerSamples?: number;
 }
 
 export interface RangePart {
@@ -50,7 +52,12 @@ export interface RangePart {
   observed?: ModelFit;
   /** Jackknife estimates, one array per parameter (one value per case left out; NaN: failed). */
   jack?: Float64Array[];
+  /** Studentized intervals: (draw − estimate) / the draw's inner standard error, per parameter (NaN: failed). */
+  studentized?: Float64Array[];
 }
+
+/** Inner resamples per bootstrap sample for studentized intervals (Efron & Tibshirani: 25–200 suffice for a standard error). */
+export const STUDENTIZED_INNER = 50;
 
 /** Deterministic per-sample seed (integer hash of seed and sample index). */
 export function sampleSeed(seed: number, b: number): number {
@@ -246,11 +253,27 @@ export function runRange(req: RangeRequest, hooks: BootstrapHooks = {}): RangePa
       : fitTestJob(req.data, req.spec, req.options);
   const count = Math.max(0, req.end - req.start);
   const draws = job.params.map(() => new Float64Array(count).fill(NaN));
+  const inner = req.innerSamples ?? 0;
+  const studentized = inner > 1 ? job.params.map(() => new Float64Array(count).fill(NaN)) : undefined;
   for (let k = 0; k < count; k++) {
     if (hooks.shouldCancel?.()) throw new Error('Bootstrapping cancelled.');
     try {
-      const vals = job.sample(sampleIndices(req.seed, req.start + k, job.n));
+      const outer = sampleIndices(req.seed, req.start + k, job.n);
+      const vals = job.sample(outer);
       vals.forEach((v, p) => (draws[p][k] = v));
+      if (studentized) {
+        const inners = vals.map(() => [] as number[]);
+        for (let b = 0; b < inner; b++) {
+          const idx = sampleIndices(sampleSeed(req.seed, req.start + k + 1), b, job.n);
+          try { job.sample(idx.map((i) => outer[i])).forEach((v, p) => { if (Number.isFinite(v)) inners[p].push(v); }); } catch { /* failed inner sample: left out */ }
+        }
+        inners.forEach((u, p) => {
+          if (u.length < 2) return;
+          const m = u.reduce((s, x) => s + x, 0) / u.length;
+          const se = Math.sqrt(u.reduce((s, x) => s + (x - m) ** 2, 0) / (u.length - 1));
+          if (se > 0) studentized[p][k] = (vals[p] - job.originals[p]) / se;
+        });
+      }
     } catch {
       // failed sample stays NaN
     }
@@ -271,7 +294,7 @@ export function runRange(req: RangeRequest, hooks: BootstrapHooks = {}): RangePa
       }
     }
   }
-  return { start: req.start, params: job.params.map(({ key, group, label }) => ({ key, group, label })), originals: job.originals, draws, observed: job.observed, ...(jack ? { jack } : {}) };
+  return { start: req.start, params: job.params.map(({ key, group, label }) => ({ key, group, label })), originals: job.originals, draws, observed: job.observed, ...(studentized ? { studentized } : {}), ...(jack ? { jack } : {}) };
 }
 
 /**
@@ -304,6 +327,13 @@ export function summarise(v: number[], original: number, confidence: number, tai
   return { mean, sd, t, p: tails === 1 ? p2 / 2 : p2, ciLow: quantileSorted(sorted, lo), ciHigh: quantileSorted(sorted, hi) };
 }
 
+/** Bootstrap-t interval: the estimate minus the quantiles of the studentized draws, scaled by the bootstrap standard error (Efron & Tibshirani 1993). */
+export function studentizedInterval(tDraws: number[], original: number, sd: number, confidence: number, tails: 1 | 2 = 2) {
+  const sorted = Float64Array.from(tDraws.filter(Number.isFinite)).sort();
+  const alpha = tails === 1 ? 1 - confidence : (1 - confidence) / 2;
+  return { ciLow: original - quantileSorted(sorted, 1 - alpha) * sd, ciHigh: original - quantileSorted(sorted, alpha) * sd };
+}
+
 /** Concatenate ranges in sample order and keep the samples that succeeded. */
 function collect(parts: RangePart[]) {
   const ordered = [...parts].sort((a, b) => a.start - b.start);
@@ -327,11 +357,16 @@ export function mergeBootstrap(parts: RangePart[], confidence: number, opts: { t
   const { ordered, kept, ok, failed } = collect(parts);
   const tails = opts.tails ?? 2;
   const jack = parts.find((p) => p.jack)?.jack;
+  const studentized = parts.every((p) => p.studentized);
   const stats: BootstrapStat[] = ordered[0].params.map((p, i) => {
     const original = ordered[0].originals[i];
-    return { ...p, original, ...summarise(kept[i], original, confidence, tails, jack ? Array.from(jack[i]) : undefined) };
+    const base = summarise(kept[i], original, confidence, tails, jack ? Array.from(jack[i]) : undefined);
+    if (!studentized) return { ...p, original, ...base };
+    const t = ordered.flatMap((part) => Array.from(part.studentized![i]));
+    // (a parameter with too few usable draws, such as a fixed loading of a single item, keeps its percentile interval)
+    return { ...p, original, ...base, ...(t.filter(Number.isFinite).length >= 2 ? studentizedInterval(t, original, base.sd, confidence, tails) : {}) };
   });
-  return { samples: ok, failed, confidence, stats, ...(tails === 1 ? { tails } : {}), ...(jack ? { interval: 'bca' as const } : {}) };
+  return { samples: ok, failed, confidence, stats, ...(tails === 1 ? { tails } : {}), ...(jack ? { interval: 'bca' as const } : {}), ...(studentized ? { interval: 'studentized' as const } : {}) };
 }
 
 export function mergeFitTest(parts: RangePart[]): FitTestResult {

@@ -67,9 +67,10 @@ describe('moderation in the store', () => {
     const errors = (st: Parameters<typeof validateModel>[2]) => validateModel(s().model, data, st).filter((i) => i.level === 'error' && !i.message.includes('not connected')).map((i) => i.message);
     expect(errors({ method: 'pls', consistent: false })).toEqual([]);
     expect(errors({ method: 'cbsem', consistent: false })).toEqual([]);
-    // PLSc with a quadratic term: cSEM estimates it; seminr and the built-in engine do not.
+    // PLSc with a quadratic term: cSEM and the built-in engine estimate it; seminr does not.
     expect(errors({ method: 'pls', consistent: true })).toEqual([]);
-    expect(errors({ method: 'pls', consistent: true, plsPackage: 'seminr' })).toEqual([expect.stringMatching(/Quadratic effects \(the quadratic effect of .* on .*\) with PLSc need cSEM/)]);
+    expect(errors({ method: 'pls', consistent: true, engine: 'builtin' })).toEqual([]);
+    expect(errors({ method: 'pls', consistent: true, plsPackage: 'seminr' })).toEqual([expect.stringMatching(/Quadratic effects \(the quadratic effect of .* on .*\) with PLSc need cSEM or the built-in engine/)]);
     expect(errors({ method: 'cbsem', consistent: false, estimator: '2SLS' })).toEqual([expect.stringMatching(/Quadratic effects .* not available with MIIV-2SLS/)]);
     // CB-SEM: the predictor must be exogenous (reported once, not twice).
     const { m } = { m: s().model.constructs[2].id };
@@ -89,7 +90,7 @@ describe('moderation in the store', () => {
     expect(s().model.paths.every((p) => p.from !== m)).toBe(true);
   });
 
-  it('validates moderation per method (CB-SEM needs exogenous terms, PLSc only with cSEM)', () => {
+  it('validates moderation per method (CB-SEM needs exogenous terms, PLSc not with seminr)', () => {
     const { m, path } = setup();
     s().addModeration(m, path);
     const data = { names: ['x1', 'y1', 'm1'], cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)) };
@@ -101,7 +102,8 @@ describe('moderation in the store', () => {
     s().addPath(m, x);
     expect(validateModel(s().model, data, { method: 'cbsem', consistent: false }).some((i) => i.message.includes('exogenous'))).toBe(true);
     expect(validateModel(s().model, data, { method: 'pls', consistent: true }).some((i) => i.message.includes('PLSc'))).toBe(false);
-    expect(validateModel(s().model, data, { method: 'pls', consistent: true, engine: 'builtin' }).some((i) => i.message.includes('PLSc need'))).toBe(true);
+    expect(validateModel(s().model, data, { method: 'pls', consistent: true, engine: 'builtin' }).some((i) => i.message.includes('PLSc need'))).toBe(false);
+    expect(validateModel(s().model, data, { method: 'pls', consistent: true, plsPackage: 'seminr' }).some((i) => i.message.includes('PLSc need'))).toBe(true);
   });
 });
 

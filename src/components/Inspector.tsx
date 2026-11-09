@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ComputeSettings } from './ComputeSettings';
+import { STUDENTIZED_INNER } from '../engine/bootstrap';
 import { useCompute } from '../rengine/compute';
 import { fmt, fmtP } from '../format';
 import { endogenousIds, INTERACTION_METHOD_NAMES, validateModel, type Construct, type InteractionMethod, type Settings } from '../model/project';
@@ -61,10 +62,16 @@ function ConstructInspector({ c }: { c: Construct }) {
           <div className="field">
             <label title="How this construct's indicator weights are estimated (each construct has its own mode)">Outer weights (this construct)</label>
             <div className="segmented">
-              <button className={c.mode === 'A' ? 'on' : ''} onClick={() => update(c.id, { mode: 'A' })}>Mode A (correlation)</button>
-              <button className={c.mode === 'B' ? 'on' : ''} onClick={() => update(c.id, { mode: 'B' })}>Mode B (regression)</button>
-              <button className={c.mode === 'unit' ? 'on' : ''} onClick={() => update(c.id, { mode: 'unit' })} title="Equal weights on the standardised indicators (unit weights)">Sum scores</button>
+              <button className={!c.predefinedWeights && c.mode === 'A' ? 'on' : ''} onClick={() => update(c.id, { mode: 'A', predefinedWeights: undefined })}>Mode A (correlation)</button>
+              <button className={!c.predefinedWeights && c.mode === 'B' ? 'on' : ''} onClick={() => update(c.id, { mode: 'B', predefinedWeights: undefined })}>Mode B (regression)</button>
+              <button className={!c.predefinedWeights && c.mode === 'unit' ? 'on' : ''} onClick={() => update(c.id, { mode: 'unit', predefinedWeights: undefined })} title="Equal weights on the standardised indicators (unit weights)">Sum scores</button>
+              <button className={c.predefinedWeights ? 'on' : ''} onClick={() => update(c.id, { predefinedWeights: Object.fromEntries(c.indicators.map((i) => [i, c.predefinedWeights?.[i] ?? 1])) })} title="Weights you give, not estimated; rescaled so that the score has unit variance. Runs in the built-in engine">Pre-defined</button>
             </div>
+          {c.predefinedWeights && c.indicators.map((i) => (
+              <label key={i} className="row2" style={{ alignItems: 'center', marginTop: 4 }}>{i}
+                <input className="input num" type="number" step={0.1} value={c.predefinedWeights![i] ?? 0} onChange={(e) => update(c.id, { predefinedWeights: { ...c.predefinedWeights, [i]: Number(e.target.value) || 0 } })} />
+              </label>
+            ))}
           </div>
         )}
         {method === 'pls' && c.indicators.length === 1 && !c.components?.length && (
@@ -285,6 +292,7 @@ function ConstructInspector({ c }: { c: Construct }) {
         </div>
       )}
       <div className="section">
+        <Appearance c={c} />
         <button className="btn danger" onClick={() => del([c.id], [])}><IconTrash size={14} /> Delete construct</button>
       </div>
     </>
@@ -484,6 +492,42 @@ function CorrelationInspector({ id }: { id: string }) {
   );
 }
 
+/** How a construct is drawn: another shape, a colour of its own. Not part of the model. */
+function Appearance({ c }: { c: Construct }) {
+  const update = useStore((s) => s.updateConstruct);
+  if (c.covariate) return null;
+  return (
+    <div className="field">
+      <label>Drawn as</label>
+      <div className="row2">
+        <select className="select" aria-label="Shape" value={c.shape ?? ''} onChange={(e) => update(c.id, { shape: (e.target.value || undefined) as Construct['shape'] })}>
+          <option value="">{c.type === 'composite' ? 'Hexagon' : 'Oval or circle'} (its type)</option><option value="rectangle">Rectangle</option><option value="octagon">Octagon</option>
+        </select>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="color" aria-label="Colour" value={c.color ?? '#ffffff'} onChange={(e) => update(c.id, { color: e.target.value })} />
+          {c.color && <button className="btn sm ghost" onClick={() => update(c.id, { color: undefined })}>Style’s colour</button>}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** How a path is drawn. */
+function PathLine({ id, line, curved }: { id: string; line?: 'dashed' | 'dotted'; curved?: boolean }) {
+  const updatePath = useStore((s) => s.updatePath);
+  return (
+    <div className="field">
+      <label>Drawn as</label>
+      <div className="row2">
+        <select className="select" aria-label="Line" value={line ?? ''} onChange={(e) => updatePath(id, { line: (e.target.value || undefined) as 'dashed' | 'dotted' | undefined })}>
+          <option value="">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option>
+        </select>
+        <label className="check"><input type="checkbox" checked={!!curved} onChange={(e) => updatePath(id, { curved: e.target.checked || undefined })} /> <span>Curved</span></label>
+      </div>
+    </div>
+  );
+}
+
 function PathInspector({ id }: { id: string }) {
   const model = useStore((s) => s.model);
   const reverse = useStore((s) => s.reversePath);
@@ -581,6 +625,7 @@ function PathInspector({ id }: { id: string }) {
       </div>
       <div className="section" style={{ display: 'flex', gap: 8 }}>
         <button className="btn" onClick={() => reverse(p.id)}><IconSwap size={14} /> Reverse</button>
+        <PathLine id={p.id} line={p.line} curved={p.curved} />
         <button className="btn danger" onClick={() => del([], [p.id])}><IconTrash size={14} /> Delete</button>
       </div>
     </>
@@ -977,12 +1022,13 @@ function ModelInspector() {
         <div className="field">
           <label>Intervals</label>
           <div className="segmented">
-            <button className={settings.bootInterval !== 'bca' ? 'on' : ''} onClick={() => setSettings({ bootInterval: 'percentile' })}>Percentile</button>
+            <button className={settings.bootInterval !== 'bca' && !(settings.method === 'pls' && settings.bootInterval === 'studentized') ? 'on' : ''} onClick={() => setSettings({ bootInterval: 'percentile' })}>Percentile</button>
             <button className={settings.bootInterval === 'bca' ? 'on' : ''} onClick={() => setSettings({ bootInterval: 'bca' })} title="Bias-corrected and accelerated (Efron 1987): adds a jackknife, one refit per observation">BCa</button>
+            {settings.method === 'pls' && <button className={settings.bootInterval === 'studentized' ? 'on' : ''} onClick={() => setSettings({ bootInterval: 'studentized' })} title="Bootstrap-t (Efron & Tibshirani 1993): each subsample gets its own standard error from an inner bootstrap. Accurate, slow; runs in the built-in engine">Studentized</button>}
           </div>
         </div>
         <div className="hint">
-          {settings.bootInterval === 'bca' ? 'BCa intervals (bias-corrected and accelerated; the jackknife adds one refit per observation)' : 'Percentile intervals'}; p-values from {settings.bootTails === 'one' ? 'one-tailed' : 'two-tailed'} t tests.
+          {settings.method === 'pls' && settings.bootInterval === 'studentized' ? `Studentized intervals (bootstrap-t; ${STUDENTIZED_INNER} inner samples per subsample, so about ${STUDENTIZED_INNER + 1} times as long; built-in engine)` : settings.bootInterval === 'bca' ? 'BCa intervals (bias-corrected and accelerated; the jackknife adds one refit per observation)' : 'Percentile intervals'}; p-values from {settings.bootTails === 'one' ? 'one-tailed' : 'two-tailed'} t tests.
           {pls ? ' The same subsample count is used for the fit test (HI95/HI99).' : proc ? ' Indirect effects and indices of moderated mediation; direct and conditional effects use OLS standard errors, as PROCESS. At least 100 samples (5000 recommended for reporting).' : ' CB-SEM bootstraps standardised paths and indirect effects.'}
         </div>
       </div>

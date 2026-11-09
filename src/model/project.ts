@@ -46,6 +46,11 @@ export interface Construct {
   latent?: boolean;
   /** CB-SEM: loadings held at a value (by indicator name); a value for the first indicator replaces the marker's 1. */
   fixedLoadings?: Record<string, number>;
+  /** How it is drawn: another shape than its type's, and a colour of its own (with its indicators). */
+  shape?: 'rectangle' | 'octagon';
+  color?: string;
+  /** PLS-SEM: pre-defined outer weights, by indicator. */
+  predefinedWeights?: Record<string, number>;
   /** PLS: dominant indicator (fixes the construct's sign). */
   dominant?: string;
   /** CB-SEM: labels of loadings (by indicator name); equal labels = equal loadings. */
@@ -64,9 +69,14 @@ export interface Path {
   fixed?: number;
   /** CB-SEM: parameter label; parameters with the same label are equal. */
   label?: string;
+  /** How it is drawn. */
+  line?: 'dashed' | 'dotted';
+  curved?: boolean;
 }
 
 export interface Settings {
+  /** Recalculate by itself after a change to the model. */
+  autoCalculate: boolean;
   method: Method;
   /** Consistent PLS: correct common factors for attenuation (Dijkstra & Henseler 2015). */
   consistent: boolean;
@@ -110,7 +120,7 @@ export interface Settings {
   /** Bootstrap tests one-tailed (p in the direction of the estimate, intervals [α, 1 − α]) or two-tailed. */
   bootTails: 'two' | 'one';
   /** Bootstrap intervals: percentile, or bias-corrected and accelerated (BCa; adds a jackknife). */
-  bootInterval: 'percentile' | 'bca';
+  bootInterval: 'percentile' | 'bca' | 'studentized';
   seed: number;
   confidence: number;
   /** Conditional process analysis: moderator values at which effects are probed. */
@@ -215,10 +225,18 @@ export interface ThreeWay {
  */
 export interface BetweenStatement { lhs: string; op: '=~' | '~' | '~~' | '~1'; rhs: { name: string; fixed?: number; label?: string }[] }
 
+/** PLS-SEM: a Gaussian copula term for this path's predictor in its outcome's equation. */
+export interface Copula { id: string; path: string }
+
+/** A comment on the diagram; not part of the model. */
+export interface Note { id: string; x: number; y: number; text: string }
+
 export interface ModelState {
+  notes?: Note[];
   constructs: Construct[];
   paths: Path[];
   moderations: Moderation[];
+  copulas?: Copula[];
   correlations?: Correlation[];
   threeWay?: ThreeWay[];
   /** Indicators (data columns) treated as ordered categorical in CB-SEM (WLSMV). */
@@ -425,6 +443,7 @@ export type HocApproach = 'two_stage' | 'embedded' | 'repeated';
 export const HOC_APPROACH_NAMES: Record<HocApproach, string> = { two_stage: 'two-stage (disjoint)', embedded: 'embedded two-stage', repeated: 'repeated indicators' };
 
 export const DEFAULT_SETTINGS: Settings = {
+  autoCalculate: false,
   method: 'pls',
   consistent: false,
   estimator: 'ML',
@@ -482,10 +501,12 @@ export function impliedMainEffects(model: ModelState): { from: string; to: strin
 export function impliedIntercepts(model: ModelState): { construct: string; indicator: string }[] {
   if (!model.constant) return [];
   const out: { construct: string; indicator: string }[] = [];
+  const elsewhere = indicatorsDrawnElsewhere(model);
   for (const c of model.constructs) {
     if (c.covariate || c.components?.length) continue;
     const freeMean = (model.means ?? []).some((t) => t.target === c.id && t.fixed === undefined);
-    c.indicators.forEach((indicator, i) => { if (!(freeMean && i === 0)) out.push({ construct: c.id, indicator }); });
+    // (one arrow per indicator, to the box that draws it)
+    c.indicators.forEach((indicator, i) => { if (!(freeMean && i === 0) && !elsewhere.get(c.name)?.has(indicator)) out.push({ construct: c.id, indicator }); });
   }
   return out;
 }
@@ -502,6 +523,22 @@ function covarianceSpec(model: ModelState, name: Map<string, string>): Pick<Mode
   const zeros = unconfirmedUncorrelated(model).map(([a, b]) => ({ a: name.get(a.id)!, b: name.get(b.id)!, kind: 'construct' as const, zero: true }));
   const all = [...drawn, ...zeros];
   return all.length ? { covariances: all } : {};
+}
+
+/**
+ * An indicator of several factors is one variable, so it is drawn once: with the factor of fewest indicators (a bifactor
+ * model's specific factor; the first of equals), and the others reach its box by an arrow. By construct name: the boxes
+ * each construct leaves to another.
+ */
+export function indicatorsDrawnElsewhere(model: Pick<ModelState, 'constructs'>): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  const eligible = model.constructs.filter((c) => c.type === 'factor' && !c.covariate && !c.components?.length);
+  for (const name of sharedIndicators(model)) {
+    const having = eligible.filter((c) => c.indicators.includes(name));
+    const owner = having.reduce((a, b) => (b.indicators.length < a.indicators.length ? b : a));
+    for (const c of having) if (c !== owner) out.set(c.name, (out.get(c.name) ?? new Set<string>()).add(name));
+  }
+  return out;
 }
 
 /** CB-SEM: indicators that load on several factors (outside ESEM blocks too: the A, C and E factors of a twin model). */
@@ -528,6 +565,7 @@ export function toSpec(model: ModelState): ModelSpec {
       ...(c.reliabilities && c.indicators.length > 1 && !c.covariate && Object.keys(c.reliabilities).some((k) => c.indicators.includes(k))
         ? { reliabilities: Object.fromEntries(Object.entries(c.reliabilities).filter(([k]) => c.indicators.includes(k))) } : {}),
       ...(c.dominant && c.indicators.includes(c.dominant) ? { dominant: c.dominant } : {}),
+      ...(c.predefinedWeights ? { predefinedWeights: Object.fromEntries(c.indicators.map((i) => [i, c.predefinedWeights![i] ?? 0])) } : {}),
       ...(c.categorical && c.indicators.length === 1 ? { categorical: true } : {}),
       ...(c.fixedLoadings && Object.keys(c.fixedLoadings).length ? { fixedLoadings: c.fixedLoadings } : {}),
       ...(c.loadingLabels && Object.keys(c.loadingLabels).length ? { loadingLabels: c.loadingLabels } : {}),
@@ -565,6 +603,19 @@ export function toSpec(model: ModelState): ModelSpec {
       const p = model.paths.find((q) => q.id === mo.path);
       return p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, to: name.get(p.to)!, ...(mo.method ? { method: mo.method } : {}) }] : [];
     }),
+    ...(model.threeWay?.length ? {
+      threeWay: model.threeWay.flatMap((t) => {
+        const mo = model.moderations.find((x) => x.id === t.moderation);
+        const p = mo && model.paths.find((q) => q.id === mo.path);
+        return mo && p ? [{ from: name.get(p.from)!, moderator: name.get(mo.moderator)!, moderator2: name.get(t.moderator)!, to: name.get(p.to)! }] : [];
+      }),
+    } : {}),
+    ...(model.copulas?.length ? {
+      copulas: model.copulas.flatMap((k) => {
+        const p = model.paths.find((q) => q.id === k.path);
+        return p ? [{ from: name.get(p.from)!, to: name.get(p.to)! }] : [];
+      }),
+    } : {}),
     ...(model.ordered?.length ? { ordered: model.ordered.filter((i) => model.constructs.some((c) => c.indicators.includes(i))) } : {}),
     ...covarianceSpec(model, name),
     ...parameterSpec(model, name),
@@ -841,6 +892,17 @@ export function validateModel(
 
   const cname = new Map(model.constructs.map((c) => [c.id, c.name]));
   const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  for (const c of model.constructs) {
+    if (!c.predefinedWeights) continue;
+    if (method.method !== 'pls') err(`"${c.name}" has pre-defined weights, a PLS-SEM option: switch to PLS-SEM, or estimate its weights.`, c.id);
+    else if (c.indicators.every((i) => !c.predefinedWeights![i])) err(`"${c.name}": its pre-defined weights are all zero.`, c.id);
+    else if (method.consistent && c.type === 'factor') warn(`"${c.name}" is a common factor with pre-defined weights: PLSc does not correct it, so it is treated as a composite.`, c.id);
+  }
+  if (model.copulas?.length) {
+    if (method.method !== 'pls') err('Gaussian copulas are a PLS-SEM option here: remove them from the paths, or switch to PLS-SEM.');
+    else if (method.consistent) err('Gaussian copulas are not available with consistent PLS: switch PLSc off.');
+    else if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err('Gaussian copulas need PLS path modeling as the weighting approach.');
+  }
   for (const mo of model.moderations ?? []) {
     const p = model.paths.find((q) => q.id === mo.path);
     if (!p) { err('A moderation refers to a path that no longer exists.'); continue; }
@@ -857,9 +919,9 @@ export function validateModel(
       }
     } else if (mo.method && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'seminr')) {
       err(`${cap(label)} uses ${INTERACTION_METHOD_NAMES[mo.method]}: that interaction term is seminr’s (interaction_term). Choose seminr under R packages, or the two-stage term.`, mo.moderator);
-    } else if (method.consistent && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'cSEM')) {
-      // cSEM estimates nonlinear models with PLSc (Dijkstra & Schermelleh-Engel 2014); seminr and the built-in engine do not.
-      err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) with PLSc ${quadratic ? 'need' : 'needs'} cSEM: choose R packages → cSEM, or switch consistent PLS off.`, mo.moderator);
+    } else if (method.consistent && (method.engine ?? 'r') === 'r' && method.plsPackage === 'seminr') {
+      // cSEM and the built-in engine estimate nonlinear models with PLSc (Dijkstra & Schermelleh-Engel 2014); seminr does not.
+      err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) with PLSc ${quadratic ? 'need' : 'needs'} cSEM or the built-in engine: choose one of those, or switch consistent PLS off.`, mo.moderator);
     }
     // The moderator's main effect on the outcome is implied (toSpec); undrawn, it must not close a cycle.
     if (!quadratic && !model.paths.some((q) => q.from === mo.moderator && q.to === p.to) && createsCycle(model.paths, mo.moderator, p.to)) {
@@ -1231,8 +1293,8 @@ export function validateModel(
     + model.constructs.reduce((s, c) => s + Object.keys(c.fixedLoadings ?? {}).length, 0);
   if (nFixed && method.method !== 'cbsem') warn(`${nFixed} parameter${nFixed === 1 ? ' is' : 's are'} fixed at a value; only CB-SEM uses fixed values, ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} estimates ${nFixed === 1 ? 'it' : 'them'} freely.`);
   else if (nFixed && method.estimator === '2SLS') err('Fixed parameter values are not available with MIIV-2SLS; choose a maximum-likelihood estimator or free them.');
-  if (model.threeWay?.length && method.method !== 'process') {
-    err('Moderated moderation (a moderator acting on a moderation) is available in conditional process analysis only.');
+  if (model.threeWay?.length && method.method === 'cbsem') {
+    err('Moderated moderation (a moderator acting on a moderation) is available in PLS-SEM and conditional process analysis.');
   }
   if (method.method === 'process') {
     for (const e of processGraph(model).errors) err(e.message, e.constructId);
@@ -1576,6 +1638,9 @@ export function parseModelState(m: unknown): ModelState {
       ...(c.freeError === true ? { freeError: true } : {}),
       ...(reliabilitiesOf(c.reliabilities, c.indicators as unknown[])),
       ...(typeof c.dominant === 'string' && (c.indicators as unknown[]).includes(c.dominant) ? { dominant: c.dominant } : {}),
+      ...(c.shape === 'rectangle' || c.shape === 'octagon' ? { shape: c.shape } : {}),
+      ...(typeof c.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(c.color) ? { color: c.color } : {}),
+      ...(isObj(c.predefinedWeights) ? { predefinedWeights: Object.fromEntries((c.indicators as string[]).map((i) => { const v = (c.predefinedWeights as Record<string, unknown>)[i]; return [i, typeof v === 'number' && Number.isFinite(v) ? v : 0]; })) } : {}),
       ...(c.latent === true ? { latent: true } : {}),
       ...((['indicator', 'sequential', 'helmert', 'effect'] as const).includes(c.categorical as 'indicator') ? { categorical: c.categorical as 'indicator' } : {}),
       ...(fixedLoadingsOf(c.fixedLoadings, c.indicators as unknown[])),
@@ -1588,7 +1653,7 @@ export function parseModelState(m: unknown): ModelState {
   for (const c of constructs) if (c.components?.some((x) => !ids.has(x) || x === c.id)) throw new Error('Invalid project file: higher-order construct refers to an unknown component.');
   const paths: Path[] = m.paths.map((p: unknown) => {
     if (!isObj(p)) throw new Error('Invalid path in project file.');
-    const path = { id: str(p.id, 64), from: str(p.from, 64), to: str(p.to, 64), ...(finite(p.fixed) ? { fixed: p.fixed } : {}), ...(labelOf(p.label)) };
+    const path = { id: str(p.id, 64), from: str(p.from, 64), to: str(p.to, 64), ...(finite(p.fixed) ? { fixed: p.fixed } : {}), ...(labelOf(p.label)), ...(p.line === 'dashed' || p.line === 'dotted' ? { line: p.line as 'dashed' | 'dotted' } : {}), ...(p.curved === true ? { curved: true } : {}) };
     if (!ids.has(path.from) || !ids.has(path.to)) throw new Error('Invalid project file: path references unknown construct.');
     return path;
   });
@@ -1602,6 +1667,14 @@ export function parseModelState(m: unknown): ModelState {
     return out;
   });
   const modIds = new Set(moderations.map((mo) => mo.id));
+  const notes: Note[] = (Array.isArray(m.notes) ? m.notes.slice(0, 1000) : []).flatMap((k: unknown) => (isObj(k) && finite(k.x) && finite(k.y) && typeof k.text === 'string' ? [{ id: str(k.id, 64), x: k.x, y: k.y, text: k.text.slice(0, 5000) }] : []));
+  const rawCopulas = Array.isArray(m.copulas) ? m.copulas.slice(0, 1000) : [];
+  const copulas: Copula[] = rawCopulas.map((k: unknown) => {
+    if (!isObj(k)) throw new Error('Invalid Gaussian copula in project file.');
+    const out: Copula = { id: str(k.id, 64), path: str(k.path, 64) };
+    if (!pathIds.has(out.path)) throw new Error('Invalid project file: Gaussian copula references an unknown path.');
+    return out;
+  });
   const rawThree = Array.isArray(m.threeWay) ? m.threeWay.slice(0, 1000) : [];
   const threeWay: ThreeWay[] = rawThree.map((t: unknown) => {
     if (!isObj(t)) throw new Error('Invalid moderated moderation in project file.');
@@ -1619,7 +1692,7 @@ export function parseModelState(m: unknown): ModelState {
     return out;
   });
   return {
-      constructs, paths, moderations, ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}),
+      constructs, paths, moderations, ...(notes.length ? { notes } : {}), ...(copulas.length ? { copulas } : {}), ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}),
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
       ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
@@ -1698,8 +1771,9 @@ export function parseSettings(raw: unknown): Settings {
     miAuxiliary: Array.isArray(s.miAuxiliary) ? [...new Set(s.miAuxiliary.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
     miNominal: Array.isArray(s.miNominal) ? [...new Set(s.miNominal.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
     bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
+    autoCalculate: s.autoCalculate === true,
     bootTails: s.bootTails === 'one' ? 'one' : 'two',
-    bootInterval: s.bootInterval === 'bca' ? 'bca' : 'percentile',
+    bootInterval: s.bootInterval === 'bca' || s.bootInterval === 'studentized' ? s.bootInterval : 'percentile',
     seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
     confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
     probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',

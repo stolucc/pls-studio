@@ -109,9 +109,10 @@ describe('project files and results', () => {
     expect(resultsKey({ ...s(), model: { ...s().model, threeWay: [] } })).not.toBe(key);
   });
 
-  it('SEM methods reject moderated moderation', () => {
+  it('CB-SEM rejects moderated moderation; PLS-SEM has it', () => {
     s().applyTemplate(3, 0);
-    expect(validateModel(s().model, data, { ...s().settings, method: 'pls' }).some((i) => /Moderated moderation/.test(i.message))).toBe(true);
+    expect(validateModel(s().model, data, { ...s().settings, method: 'cbsem' }).some((i) => /Moderated moderation/.test(i.message))).toBe(true);
+    expect(validateModel(s().model, data, { ...s().settings, method: 'pls' }).some((i) => /Moderated moderation/.test(i.message))).toBe(false);
   });
 });
 

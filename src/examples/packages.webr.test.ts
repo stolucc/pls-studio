@@ -28,6 +28,7 @@ import { gmmR, lmmR } from '../rengine/mixed';
 import { gmmInput } from '../analyses/longitudinal';
 import { readPackageFile } from '../data/readFile';
 import { fimixR, pathmoxR, rebusR } from '../rengine/segment';
+import { estimatePls } from '../engine/pls';
 import { plsScriptR, estimatePlsR } from '../rengine/pls';
 import { startTestRuntime, stopTestRuntime } from '../rengine/webrTestRuntime';
 import { exampleModel, examplePanels, PACKAGE_EXAMPLES, panelColumns, type PackageExample } from './packages';
@@ -272,6 +273,9 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         for (const e of intercepts) expect(e.est, `intercept of ${e.lhs}`).toBeCloseTo(HS_INTERCEPTS[e.lhs], 3);
         for (const e of r.estimates.filter((e) => e.kind === 'mean')) expect(e.est, e.lhs).toBe(0);  // latent means stay fixed at zero: no arrows drawn
       }
+    } else if (spec.copulas?.length) {
+      // Gaussian copula terms: the built-in engine (the R packages have none); src/engine/copula.test.ts has the reference.
+      expect(estimatePls(data, spec, { scheme: st.scheme, missing: st.missing }).converged).toBe(true);
     } else {
       // (each example at its own settings: scheme, PLSc, tolerance and iterations as its source)
       const r = await estimatePlsR(data, spec, { scheme: st.scheme, consistent: st.consistent, missing: st.missing, tolerance: 10 ** -st.stopExp, maxIter: st.maxIter, hocApproach: st.hocApproach }, st.plsPackage);

@@ -17,7 +17,7 @@ export type MenuTarget =
 
 export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
-  | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
+  | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'toggle-copula' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
   | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'toggle-free-path' | 'make-esem' | 'leave-esem'
   | 'held-variance' | 'held-intercept' | 'held-threshold' | 'group-values';
 
@@ -140,6 +140,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && cb && p.fixed !== undefined && { action: 'free-value', label: 'Free coefficient (estimate it)' },
         edit && cb && p.fixed === undefined && { action: 'set-label', label: p.label ? `Label (${p.label})…` : 'Label (for constraints and defined parameters)…' },
         edit && !hasQuadratic && !proc && { action: 'add-quadratic', label: `Add quadratic effect (${nameOf(p.from)}²)` },
+        edit && pls && { action: 'toggle-copula', label: model.copulas?.some((k) => k.path === p.id) ? 'Remove Gaussian copula' : `Add Gaussian copula (endogeneity of ${nameOf(p.from)})` },
         edit && { action: 'reverse-path', label: 'Reverse direction' },
         edit && { action: 'delete-path', label: 'Delete path', danger: true },
       ]);

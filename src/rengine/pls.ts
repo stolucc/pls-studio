@@ -19,6 +19,9 @@ export interface PlsRequest {
 }
 
 export function plsRequest(data0: Dataset, spec0: ModelSpec, options: PlsOptions, pkg: PlsPackage): PlsRequest {
+  if (spec0.copulas?.length) throw new Error('This runs through the R packages, which have no Gaussian copula term: remove the copulas from the paths first.');
+  if (spec0.constructs.some((c) => c.predefinedWeights)) throw new Error('This runs through the R packages, which this app calls without pre-defined weights: estimate the weights first.');
+  if (spec0.threeWay?.length) throw new Error('This runs through the R packages, which this app calls for two-way interactions only: remove the moderated moderation first.');
   if (data0.moments && data0.cols.length === 0) throw new Error('PLS needs raw data; this dataset is a covariance matrix.');
   // Categorical exogenous constructs travel as their dummy columns, a Mode B composite.
   const { data, spec } = expandCategorical(data0, spec0);

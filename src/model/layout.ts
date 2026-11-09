@@ -1,4 +1,4 @@
-import type { Construct, ModelState, Side } from './project';
+import { indicatorsDrawnElsewhere, type Construct, type ModelState, type Side } from './project';
 
 /** Suggest a construct name from its indicators' common alphabetic prefix (IMAG1..IMAG5 → "IMAG"). */
 export function suggestName(indicators: string[], existing: string[], fallbackIndex: number): string {
@@ -81,6 +81,23 @@ export function autoLayout(model: ModelState): Construct[] {
     ...(preds.get(id) ?? []),
     ...model.paths.filter((p) => p.from === id).map((p) => p.to),
   ];
+  // Factors that share their indicators (a bifactor model): the specific factors in a column with their boxes to the left, each
+  // clear of the next, and the general factors further left, so that their arrows reach those boxes from outside.
+  const elsewhere = indicatorsDrawnElsewhere(model);
+  if (elsewhere.size) {
+    const owned = (c: Construct) => c.indicators.filter((i) => !elsewhere.get(c.name)?.has(i)).length;
+    const general = model.constructs.filter((c) => elsewhere.has(c.name) && !model.paths.some((p) => p.to === c.id || p.from === c.id));
+    const others = model.constructs.filter((c) => !general.includes(c));
+    let top = 0;
+    const placed = new Map<string, { x: number; y: number }>();
+    for (const c of others) {
+      const h = Math.max(90, owned(c) * 34);
+      placed.set(c.id, { x: 0, y: top + h / 2 });
+      top += h + 44;
+    }
+    general.forEach((c, i) => placed.set(c.id, { x: -560, y: (top - 44) / 2 + (i - (general.length - 1) / 2) * 220 }));
+    if (placed.size === model.constructs.length && general.length) return model.constructs.map((c) => ({ ...c, ...placed.get(c.id)!, side: 'left' as const }));
+  }
   return model.constructs.map((c) => {
     const l = layer.get(c.id)!;
     const cy = y.get(c.id)!;

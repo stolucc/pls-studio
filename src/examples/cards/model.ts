@@ -85,6 +85,16 @@ export const CARD_MODEL: PackageExample[] = [
     panel: { kind: 'cbcompare', kinds: ['loadings'] }, settings: CB('ML'),
   },
   {
+    id: 'compare-pls-cb', package: 'seminr', title: 'PLS-SEM and CB-SEM compared: mobile phone satisfaction', source: 'seminr, ?mobi; the comparison of Cheah et al. (2024, Fig. 6)',
+    links: [{ label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }],
+    description: 'The same diagram estimated by PLS-SEM and by CB-SEM, shown side by side with their estimates in one table: expectation and quality predicting satisfaction, on seminr’s mobi data.',
+    shows: 'Two diagrams and a table of the paths, loadings and R² of both methods. Read the Difference column: PLS-SEM’s composite estimates of common factors usually differ from CB-SEM’s most in the loadings, which it tends to overstate, and in the paths, which it tends to understate. Pick the PLS figure style to see how each model type is drawn.',
+    data: { package: 'seminr', name: 'mobi' },
+    constructs: [f('Expectation', items('CUEX', 3)), f('Quality', items('PERQ', 7)), f('Satisfaction', items('CUSA', 3))],
+    paths: [['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction']],
+    panel: { kind: 'methodcompare' }, settings: { method: 'pls' },
+  },
+  {
     id: 'lavaan-hs-scoreweights', package: 'lavaan', title: 'Factor score weights: Holzinger & Swineford', source: 'lavaan, ?lavPredict (Holzinger & Swineford)',
     links: [{ label: '?lavPredict', url: 'https://rdrr.io/cran/lavaan/man/lavPredict.html' }, ...HS_LINKS],
     description: 'The model of lavPredict’s help page, the three-factor CFA: the weights by which the regression method (Thurstone; AMOS’s factor score weights) turns the nine tests into scores of visual, textual and speed. Applied to the centred tests they give exactly the scores of lavPredict(fit). Switch to Bartlett weights on the card. Opens its card on the Analyses tab beside the diagram.',

@@ -45,7 +45,7 @@ describe('canvas context menus', () => {
   it('offers a quadratic effect once per path, labelled with the predictor', () => {
     expect(menuFor({ kind: 'path', id: 'p1' }, model, { method: 'pls', readOnly: false })?.items[0].label).toBe('Add quadratic effect (A²)');
     const withQ: ModelState = { ...model, moderations: [...model.moderations, { id: 'q1', moderator: 'a', path: 'p1' }] };
-    expect(menuFor({ kind: 'path', id: 'p1' }, withQ, { method: 'pls', readOnly: false })?.items.map((i) => i.action)).toEqual(['reverse-path', 'delete-path']);
+    expect(menuFor({ kind: 'path', id: 'p1' }, withQ, { method: 'pls', readOnly: false })?.items.map((i) => i.action)).toEqual(['toggle-copula', 'reverse-path', 'delete-path']);
     const m = menuFor({ kind: 'moderation', id: 'q1' }, withQ, { method: 'pls', readOnly: false })!;
     expect(m.title).toBe('Quadratic effect A² → B');
     expect(m.items).toEqual([{ action: 'delete-moderation', label: 'Remove quadratic effect', danger: true }]);

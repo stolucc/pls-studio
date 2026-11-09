@@ -1,4 +1,4 @@
-import { mergeBootstrap, mergeFitTest, splitRanges, type BootJobKind, type RangePart } from './engine/bootstrap';
+import { mergeBootstrap, mergeFitTest, splitRanges, STUDENTIZED_INNER, type BootJobKind, type RangePart } from './engine/bootstrap';
 import type { CbEstimator, CbResult } from './engine/cbsem';
 import type { McDesign, McPart, McSummaryRow } from './engine/montecarlo';
 import type { PlsOptions } from './engine/types';
@@ -60,7 +60,7 @@ function runR(kind: JobKind, key: string) {
   const data = s.data!;
   const spec = toSpec(s.model);
   const options: PlsOptions = { scheme: st.scheme, maxIter: st.maxIter, tolerance: 10 ** -st.stopExp, missing: st.missing, consistent: st.consistent, approach: st.plsApproach, hocApproach: st.hocApproach, mi: { m: st.miImputations, seed: st.seed } };
-  const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence, tails: st.bootTails === 'one' ? 1 as const : 2 as const, interval: st.bootInterval };
+  const boot = { samples: Math.max(2, Math.floor(st.bootSamples)), seed: st.seed, confidence: st.confidence, tails: st.bootTails === 'one' ? 1 as const : 2 as const, interval: st.bootInterval === 'bca' ? 'bca' as const : 'percentile' as const };
   const token = ++rToken;
   const modsem = cb && st.interaction !== 'product' && s.model.moderations.length > 0;
   const pkg = cb ? (st.estimator === '2SLS' ? 'MIIVsem' : modsem ? 'modsem' : 'lavaan') : kind === 'fittest' ? 'cSEM' : st.plsPackage;
@@ -216,7 +216,11 @@ export function run(kind: JobKind) {
     useStore.getState().toast('error', message);
   };
 
-  if (s.settings.engine === 'r') { runR(kind, key); return; }
+  // cSEM and seminr have no copula term, and each bootstrap sample must recompute it: the built-in engine does.
+  // Studentized intervals (an inner bootstrap per sample) run in its workers too.
+  const studentized = s.settings.method === 'pls' && kind === 'boot' && s.settings.bootInterval === 'studentized';
+  const builtInTerms = !cb && s.settings.method === 'pls' && !!(spec.copulas?.length || spec.threeWay?.length || spec.constructs.some((c) => c.predefinedWeights));
+  if (s.settings.engine === 'r' && !builtInTerms && !studentized) { runR(kind, key); return; }
 
   if (kind === 'estimate') {
     const w = spawn();
@@ -300,7 +304,7 @@ export function run(kind: JobKind) {
     const req: WorkerRequest = {
       kind: 'range',
       // BCa: the first worker also runs the jackknife (the fit test has no intervals).
-      range: { job, data, spec, options, estimator: s.settings.estimator as CbEstimator, seed: s.settings.seed, start, end, ...(i === 0 && job !== 'fittest' && s.settings.bootInterval === 'bca' ? { jackknife: true } : {}) },
+      range: { job, data, spec, options, estimator: s.settings.estimator as CbEstimator, seed: s.settings.seed, start, end, ...(studentized ? { innerSamples: STUDENTIZED_INNER } : {}), ...(i === 0 && job !== 'fittest' && s.settings.bootInterval === 'bca' ? { jackknife: true } : {}) },
     };
     w.postMessage(req);
   });

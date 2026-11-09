@@ -87,7 +87,7 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
   // R engine: cSEM's doIPMA, recomputed shortly after the inputs settle.
   const [fromR, setFromR] = useState<IpmaResult | string | null>(null);
   useEffect(() => {
-    if (!useR || !data || !target || pls.moderations.length) return;
+    if (!useR || !data || !target || pls.moderations.length || pls.copulas?.length) return;
     let live = true;
     setFromR(null);
     const t = setTimeout(() => {
@@ -100,7 +100,7 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
   }, [useR, data, model, settings, target, rescale, bounds, pls.moderations.length]);
   const result = useR ? fromR : builtin;
 
-  if (pls.moderations.length) return <div className="empty-results">IPMA is not defined for models with interaction terms.</div>;
+  if (pls.moderations.length || pls.copulas?.length) return <div className="empty-results">IPMA is not defined for models with interaction or copula terms.</div>;
   if (endogenous.length === 0) return <div className="empty-results">The model has no endogenous construct.</div>;
 
   const relevant = typeof result === 'object' && result

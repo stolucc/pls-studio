@@ -27,6 +27,8 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/mplus/quadml': 'examples', 'examples/cards/integration': 'examples',
   'examples/mplus/ch7int': 'examples', 'examples/mplus/ch8int': 'examples', 'examples/mplus/ch10mix': 'examples',
 
+  'examples/bifactor': native('Bifactor CFA on open data', 'CB-SEM', ['lavaan'], script('bifactor_cpb.R', 'Plain lavaan calls with the settings of the study’s own code')),
+
   // CB-SEM (lavaan and friends)
   'rengine/lavaan': native('CB-SEM estimation', 'CB-SEM', ['lavaan'], script('generate.R', 'desktop lavaan, the reference corpus')),
   'rengine/adf': native('Distribution-free estimation (ADF / WLS)', 'CB-SEM', ['lavaan'], script('adf.R', 'desktop lavaan')),

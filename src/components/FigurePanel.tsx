@@ -7,7 +7,7 @@ import { useStore } from '../store';
 import { IconDownload, IconX } from './icons';
 
 const COLORS: [keyof FigureStyle, string][] = [
-  ['constructFill', 'Construct fill'], ['constructStroke', 'Construct outline'], ['indicatorFill', 'Indicator fill'], ['gradientEnd', 'Gradient end'],
+  ['constructFill', 'Construct fill'], ['constructStroke', 'Construct outline'], ['indicatorFill', 'Indicator fill'], ['gradientEnd', 'Gradient end'], ['copulaFill', 'Copula fill'], ['copulaStroke', 'Copula outline'], ['copulaArrow', 'Copula arrows'],
   ['indicatorStroke', 'Indicator outline'], ['indicatorArrow', 'Indicator arrows'], ['pathColor', 'Paths'],
   ['correlationColor', 'Correlations'], ['moderationColor', 'Moderation'], ['labelSignificant', 'Significant estimates'],
   ['labelNonSignificant', 'Non-significant estimates'],
@@ -64,7 +64,9 @@ export function FigurePanel({ input, onClose }: { input: () => FigureInput; onCl
                 {Object.entries(FIGURE_PRESETS).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
               </select>
             </label>
-            {['amos', 'smartpls'].includes(matchPreset(style) ?? '') && <p className="hint">Resembles diagrams drawn by that program{matchPreset(style) === 'smartpls' ? ', and follows the model: PLS and CB-SEM models are drawn differently' : ''}. PLS Studio is not affiliated with it (see About &amp; licences).</p>}
+            {matchPreset(style) === 'amos' && <p className="hint">Resembles diagrams drawn by that program. PLS Studio is not affiliated with it (see About &amp; licences).</p>}
+            {matchPreset(style) === 'semplot' && <p className="hint">In the manner of the R package semPlot (Epskamp): arrows green or red by sign, stronger and wider with the estimate; residuals as loops. Standardise for its scale. The layout stays yours; semPlot would arrange a tree.</p>}
+            {matchPreset(style) === 'pls' && <p className="hint">Follows the model: PLS and CB-SEM models are drawn differently.</p>}
             <div className="row2">
               <label className="field">Font
                 <select className="select" value={style.font} onChange={(e) => set({ font: e.target.value as FigureStyle['font'] })}>

@@ -35,6 +35,7 @@ export const IconHelp = make(<><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5
 export const IconInfo = make(<><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>);
 export const IconChevronDown = make(<path d="M6 9l6 6 6-6" />);
 export const IconChevronUp = make(<path d="M6 15l6-6 6 6" />);
+export const IconNote = make(<><path d="M4 4h16v12H9l-5 4z" /><path d="M8 8h8M8 12h5" /></>);
 export const IconCopy = make(<><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 012-2h10" /></>);
 export const IconTriangle = make(<path d="M12 4l9 16H3z" />);
 export const IconPencil = make(<><path d="M4 20h4l10.5-10.5a2.1 2.1 0 00-3-3L5 17z" /><path d="M13.5 6.5l3 3" /></>);

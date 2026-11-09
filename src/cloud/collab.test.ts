@@ -135,7 +135,7 @@ describe('shared projects from before explicit correlations', () => {
 // both a project file and the shared document.
 const full: Construct & Required<Omit<Construct, 'categorical' | 'components' | 'componentLoadings' | 'markerFree'>> = {
   id: 'f', name: 'Full', type: 'factor', mode: 'unit', indicators: ['f1', 'f2', 'f3'], x: 10, y: 20, side: 'top',
-  covariate: true, reliability: 0.8, freeError: true, reliabilities: { f3: 0.9 }, latent: true, fixedLoadings: { f2: 0.5 }, dominant: 'f2', loadingLabels: { f3: 'lf' }, scaling: 'variance',
+  predefinedWeights: { f1: 1, f2: 0.5, f3: 0 }, shape: 'octagon', color: '#123456', covariate: true, reliability: 0.8, freeError: true, reliabilities: { f3: 0.9 }, latent: true, fixedLoadings: { f2: 0.5 }, dominant: 'f2', loadingLabels: { f3: 'lf' }, scaling: 'variance',
 };
 const kitchenSink: Required<ModelState> = {
   constructs: [
@@ -144,8 +144,10 @@ const kitchenSink: Required<ModelState> = {
     C('b', 'Beta'),
     { id: 'h', name: 'High', type: 'factor', mode: 'A', indicators: [], x: 0, y: 0, side: 'left', components: ['a', 'b'], componentLoadings: { b: 2 }, markerFree: true },
   ],
-  paths: [{ id: 'p', from: 'a', to: 'b', label: 'pa' }, { id: 'p2', from: 'f', to: 'b', fixed: 0.3 }],
+  paths: [{ id: 'p', from: 'a', to: 'b', label: 'pa', line: 'dashed', curved: true }, { id: 'p2', from: 'f', to: 'b', fixed: 0.3 }],
   moderations: [{ id: 'mo', moderator: 'f', path: 'p' }],
+  copulas: [{ id: 'gc', path: 'p' }],
+  notes: [{ id: 'note-1', x: 1, y: 2, text: 'A comment' }],
   correlations: [{ id: 'k1', kind: 'construct', a: 'a', b: 'f', zero: true }, { id: 'k2', kind: 'indicator', a: 'a1', b: 'b2', label: 'e1' }, { id: 'k3', kind: 'construct', a: 'h', b: 'f', fixed: 0.2 }, { id: 'k4', kind: 'indicator', a: 'a2', b: 'b1', byGroup: ['cm', 0.5, null] }],
   threeWay: [{ id: 't', moderation: 'mo', moderator: 'h' }],
   ordered: ['a1', 'b1'],

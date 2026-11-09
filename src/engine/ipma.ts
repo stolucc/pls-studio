@@ -34,7 +34,7 @@ export interface IpmaResult {
 }
 
 export function ipma(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>, io: IpmaOptions): IpmaResult {
-  if (spec.moderations?.length) throw new Error('IPMA is not defined for models with interaction terms.');
+  if (spec.moderations?.length || spec.copulas?.length) throw new Error('IPMA is not defined for models with interaction or copula terms.');
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const prep = preparePls(data, spec, opts);
   const { m, core, st } = prep.estimate(prep.cols);

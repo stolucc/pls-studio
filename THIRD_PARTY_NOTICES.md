@@ -429,6 +429,10 @@ The examples use numbers from these publications: matrices typed from the public
 
 | Source | Used for | Link |
 |---|---|---|
+| Cañizares-Cedeño, L. (2026). CPB Ecuador Universities: Customer Participation Behavior Survey Data (N=429) (Version 3) [Data set and code]. Zenodo. | The bifactor sample project (CC BY 4.0; the 14 items, unchanged). | https://doi.org/10.5281/zenodo.23301690 |
+| Verisya, A. (2026). Perceptions and Intentions of Designers In Using AI-Based User Interface Design Tools [Data set]. Zenodo. | The TAM sample project (CC BY 4.0; the items used, unchanged). | https://doi.org/10.5281/zenodo.22206708 |
+| Purba, I. G. D. (2026). Dataset Penelitian Pengaruh Faktor UTAUT terhadap Keputusan Menggunakan SeaBank di Medan [Data set]. Zenodo. | The UTAUT sample project (CC BY 4.0; the items of the eligible respondents, unchanged). | https://doi.org/10.5281/zenodo.21942087 |
+| Inegbedion, H. et al. (2020). Perception of workload balance and employee job satisfaction in work organisations. Heliyon 6, e03160; data on Zenodo. | The employee-retention sample project (CC0; the items used). | https://doi.org/10.5281/zenodo.4602319 |
 | Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. | The example data (see Datasets) and the printed output of each example, as validation references. | https://www.statmodel.com/ugexcerpts.shtml |
 | Kline, R. B. (2023). Principles and Practice of Structural Equation Modeling (5th ed.). New York: Guilford Press. | Correlation matrices, standard deviations and means of the detailed examples (companion files) and the chi-squares of their output. | https://www.guilford.com/add/kline |
 | Brown, T. A. (2015). Confirmatory Factor Analysis for Applied Research (2nd ed.). New York: Guilford Press. | Correlations and standard deviations of the examples (companion site) and printed results. | https://sites.bu.edu/tabrown/cfabook/ |

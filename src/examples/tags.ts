@@ -9,7 +9,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   endo: ['Regression', 'Endogeneity'], match: ['Causal inference'], did: ['Causal inference', 'Difference-in-differences', 'Panel data'], regression: ['Regression'], rsa: ['Regression', 'Response surface'], nca: ['Necessary conditions'], qca: ['Set-theoretic methods', 'fsQCA'],
   efa: ['Measurement', 'Factor analysis'], screen: ['Data screening'], network: ['Networks', 'Partial correlations'], ega: ['Networks', 'EGA'], bcorrelation: ['Bayesian', 'Correlation'], bsem: ['Bayesian', 'CB-SEM'],
   ttest: ['Basic statistics', 't-test'], anova: ['Basic statistics', 'ANOVA'], rmanova: ['Basic statistics', 'ANOVA', 'Repeated measures'], manova: ['Basic statistics', 'MANOVA'],
-  correlation: ['Basic statistics', 'Correlation'], contingency: ['Basic statistics', 'Contingency table'], freqtest: ['Basic statistics', 'Binomial test'],
+  methodcompare: ['PLS-SEM', 'CB-SEM'], correlation: ['Basic statistics', 'Correlation'], contingency: ['Basic statistics', 'Contingency table'], freqtest: ['Basic statistics', 'Binomial test'],
   reliability: ['Basic statistics', 'Reliability'], bttest: ['Bayesian', 't-test'], banova: ['Bayesian', 'ANOVA'], brmanova: ['Bayesian', 'ANOVA', 'Repeated measures'],
   bregression: ['Bayesian', 'Regression'], bcontingency: ['Bayesian', 'Contingency table'], bbinomial: ['Bayesian', 'Binomial test'], chart: ['Charts'],
   bollenstine: ['Bootstrap', 'Model fit'], dynamicfit: ['Model fit', 'Dynamic fit cutoffs'], cbcompare: ['Parameter comparisons'], scoreweights: ['Factor scores'], plspredict: ['Prediction'], compare: ['Model comparison'],
@@ -20,7 +20,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   cmb: ['Measurement', 'Common method bias'], cvi: ['Measurement', 'Content validity'],
 };
 /** Cards about the example's model: the model's method is a topic of the example. The other cards stand on their own. */
-const MODEL_CARDS = new Set(['bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb']);
+const MODEL_CARDS = new Set(['methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb']);
 const ASSESSMENT_TAGS: Record<string, string> = { predict: 'Prediction', blindfold: 'Blindfolding', compare: 'Model comparison', groups: 'Multigroup', cca: 'Confirmatory composite analysis' };
 const SEGMENTATION_TAGS: Record<string, string> = { rebus: 'Segmentation', fimix: 'Segmentation', pathmox: 'Segmentation', pos: 'Segmentation' };
 
@@ -41,6 +41,7 @@ export function exampleTags(ex: PackageExample): string[] {
   if (s.missing === 'fiml') out.push('FIML');
   if (method === 'cbsem' && !ex.panel && ex.constructs.length && ex.paths.length === 0) out.push('CFA');
   if (ex.moderations?.length) out.push('Moderation');
+  if (ex.copulas?.length) out.push('Endogeneity');
   if (method !== 'process' && hasMediation(ex.paths)) out.push('Mediation');
   if (ex.constructs.some((c) => c.components?.length)) out.push('Second-order');
   if (method === 'pls' && ex.constructs.some((c) => c.type === 'composite')) out.push('Composites');

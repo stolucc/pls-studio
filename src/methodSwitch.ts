@@ -26,8 +26,8 @@ function addMainEffects() {
 export async function switchMethod(target: Method, confirm: typeof confirmDialog = confirmDialog): Promise<boolean> {
   const s = useStore.getState();
   if (s.settings.method === target) return true;
-  if (s.settings.method === 'process' && s.model.threeWay?.length) {
-    s.toast('error', 'Moderated moderations (three-way interactions) are available in conditional process analysis only. Remove them to switch.');
+  if (target === 'cbsem' && s.model.threeWay?.length) {
+    s.toast('error', 'Moderated moderations (three-way interactions) are available in PLS-SEM and conditional process analysis. Remove them to switch.');
     return false;
   }
   if (target === 'process') {

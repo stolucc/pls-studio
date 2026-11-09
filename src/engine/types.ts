@@ -19,6 +19,8 @@ export interface ConstructSpec {
   /** Defaults to 'composite' for Mode B and 'factor' for Mode A. */
   type?: ConstructType;
   indicators: string[];
+  /** PLS-SEM: outer weights given, by indicator (rescaled so that the score has unit variance); not estimated. */
+  predefinedWeights?: Record<string, number>;
   /** Higher-order construct (CB-SEM): measured by these first-order constructs instead of indicators. */
   components?: string[];
   /** CB-SEM: loadings held at given values (by indicator name) instead of estimated; the marker's 1 can be replaced too. */
@@ -94,6 +96,14 @@ export type GroupValue = number | string | null;
 /** `free`: written out without a value, freeing a parameter lavaan fixes by default (NA*). */
 export interface ParameterSpec { kind: 'variance' | 'intercept' | 'threshold' | 'scale'; target: string; indicator?: boolean; threshold?: number; fixed?: number; label?: string; byGroup?: GroupValue[]; free?: true }
 
+/** A three-way interaction in the equation of `to`. */
+export interface ThreeWaySpec { from: string; moderator: string; moderator2: string; to: string }
+export const threeWayName = (t: Pick<ThreeWaySpec, 'from' | 'moderator' | 'moderator2'>) => `${t.from} × ${t.moderator} × ${t.moderator2}`;
+
+/** A Gaussian copula term (Park & Gupta 2012; Hult et al. 2018) for the predictor `from` in the equation of `to`. */
+export interface CopulaSpec { from: string; to: string }
+export const copulaName = (from: string, to: string) => `GC(${from} → ${to})`;
+
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */
 export const interactionName = (from: string, moderator: string) => (from === moderator ? `${from}²` : `${from} × ${moderator}`);
 
@@ -125,6 +135,10 @@ export interface ModelSpec {
   constructs: ConstructSpec[];
   paths: PathSpec[];
   moderations?: ModerationSpec[];
+  /** PLS-SEM: three-way interactions from × moderator × moderator2; their lower-order terms and main effects are implied. */
+  threeWay?: ThreeWaySpec[];
+  /** PLS-SEM: Gaussian copula terms, estimated in two stages like interaction terms. */
+  copulas?: CopulaSpec[];
   covariances?: CovarianceSpec[];
   /** CB-SEM (lavaan): indicators treated as ordered categorical (thresholds, polychoric correlations, WLSMV). */
   ordered?: string[];
@@ -275,6 +289,10 @@ export interface PlsResult {
   /** Moderations with the index of their interaction construct in `constructs`. */
   /** `method`: how the interaction term was built (seminr: two_stage, orthogonal, product_indicator; cSEM: two_stage). */
   moderations: (ModerationSpec & { construct: number })[];
+  /** Three-way interactions, with the index of their construct. */
+  threeWay?: (ThreeWaySpec & { construct: number })[];
+  /** Gaussian copula terms, with the index of their construct and the Cramér–von Mises normality test of the predictor's scores. */
+  copulas?: (CopulaSpec & { construct: number; normality: { statistic: number; p: number } })[];
   /** cSEM's weighting approach: PLS-PM (each construct's mode) or GSCA, PCA, unit (sum scores) for every construct. */
   approach?: 'PLS-PM' | 'GSCA' | 'PCA' | 'unit';
   /** With second-order constructs: how they were estimated. */
@@ -303,7 +321,7 @@ export interface BootstrapOptions {
   /** One-tailed tests: p for the direction of the estimate, intervals [α, 1 − α] (default two-tailed). */
   tails?: 1 | 2;
   /** Percentile intervals (default) or bias-corrected and accelerated (BCa: needs a jackknife). */
-  interval?: 'percentile' | 'bca';
+  interval?: 'percentile' | 'bca' | 'studentized';
 }
 
 export interface BootstrapStat {
@@ -327,7 +345,7 @@ export interface BootstrapResult {
   /** One-tailed tests (absent: two-tailed). */
   tails?: 1 | 2;
   /** BCa intervals (absent: percentile). */
-  interval?: 'percentile' | 'bca';
+  interval?: 'percentile' | 'bca' | 'studentized';
   /** Several groups or levels: every block's statistics (stats holds the block shown). */
   byBlock?: BootstrapStat[][];
   /** Multiple imputation: bootstraps in this many imputed data sets, pooled by Rubin's rules. */

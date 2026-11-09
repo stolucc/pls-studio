@@ -1,11 +1,11 @@
 import { ViewportPortal } from '@xyflow/react';
 import type { MouseEvent } from 'react';
 import {
-  besideLine, clearPointOnCurve, constructGeometry, correlationCurve, disturbanceTerm, ERR_R, errorTerm, shapeOf, shapePoint,
+  besideLine, clearPointOnCurve, selfLoop, constructGeometry, correlationCurve, disturbanceTerm, ERR_R, errorTerm, shapeOf, shapePoint,
   type Anchor, type ErrorTerm,
 } from '../geometry';
-import { endogenousIds, impliedCorrelations, type Construct, type Correlation, type CorrelationEnd as CorrelationPick, type ModelState } from '../model/project';
-import { formatEstimate, significanceText } from '../figure/style';
+import { endogenousIds, impliedCorrelations, indicatorsDrawnElsewhere, type Construct, type Correlation, type CorrelationEnd as CorrelationPick, type ModelState } from '../model/project';
+import { formatEstimate, semplotEdge, significanceText } from '../figure/style';
 import { useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 
@@ -86,7 +86,19 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
     const t = Math.min(Math.abs(dx) > 1e-9 ? (b.w / 2) / Math.abs(dx) : Infinity, Math.abs(dy) > 1e-9 ? (b.h / 2) / Math.abs(dy) : Infinity);
     return [{ p, x1: c.x + sx, y1: c.y + sy, x2: bx - dx * t, y2: by - dy * t }];
   });
-  return { places: errors ? places : new Map<string, IndicatorPlace>(), disturbances, curves, errors, direct };
+  // An indicator of several factors has one box: the other factors reach it by an arrow, like a direct effect.
+  const arrowTo = (c: Construct, b: { x: number; y: number; w: number; h: number }) => {
+    const bx = b.x + b.w / 2, by = b.y + b.h / 2, dx = bx - c.x, dy = by - c.y, len = Math.hypot(dx, dy) || 1;
+    const g = constructGeometry(c);
+    const [sx, sy] = shapePoint(shapeOf(c), g.rx, g.ry, dx / len, dy / len);
+    const t = Math.min(Math.abs(dx) > 1e-9 ? (b.w / 2) / Math.abs(dx) : Infinity, Math.abs(dy) > 1e-9 ? (b.h / 2) / Math.abs(dy) : Infinity);
+    return { x1: c.x + sx, y1: c.y + sy, x2: bx - dx * t, y2: by - dy * t };
+  };
+  const sharedLoadings = model.constructs.flatMap((c) => {
+    const hidden = indicatorsDrawnElsewhere(model).get(c.name);
+    return hidden ? c.indicators.filter((i) => hidden.has(i) && boxes.has(i)).map((indicator) => ({ construct: c.id, indicator, ...arrowTo(c, boxes.get(indicator)!) })) : [];
+  });
+  return { places: errors ? places : new Map<string, IndicatorPlace>(), disturbances, curves, errors, direct, sharedLoadings };
 }
 
 
@@ -99,7 +111,9 @@ const indicatorBox = (owner: Construct, name: string) => {
  * CB-SEM error terms (ε on indicators, ζ on endogenous constructs) and
  * double-headed arrows for free covariances. Rendered in flow coordinates.
  */
-export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, errorFor, unstd, onMenu }: {
+export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, errorFor, unstd, onMenu, loadingFor }: {
+  /** The loading of an indicator on this factor, by indicator and construct name. */
+  loadingFor: (indicator: string, construct: string) => number | null;
   /** The estimates shown are unstandardised. */
   unstd: boolean;
   /** CB-SEM: correlations are estimated (drawn faded otherwise). */
@@ -117,10 +131,11 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
   const model = useStore((s) => s.model);
   const figure = useStore((s) => s.settings.figure);
   const amos = figure.notation === 'amos';
+  const corStyle = (k: Correlation) => { if (figure.notation !== 'semplot') return undefined; const e = semplotEdge(labelFor(k)?.value ?? null); return { stroke: e.color, strokeWidth: e.width }; };
   const allBoxes = figure.notation !== 'standard' ? model.constructs.flatMap((c) => constructGeometry(c).indicators.map((b) => ({ x: c.x + b.x, y: c.y + b.y, w: b.w, h: b.h }))) : [];
   const selected = useStore((s) => s.selection.correlations ?? NONE);
   const setSelection = useStore((s) => s.setSelection);
-  const { places, disturbances, curves: raw, errors, direct } = covarianceLayout(model, active, showErrors);
+  const { places, disturbances, curves: raw, errors, direct, sharedLoadings } = covarianceLayout(model, active, showErrors);
   if (raw.length === 0 && !errors && disturbances.length === 0 && direct.length === 0) return null;
   const curves = raw.map((r) => ({ ...r, on: selected.includes(r.k.id) }));
 
@@ -149,12 +164,21 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
       ? <text className="err-value err-r2" x={box.x + box.w * 0.65} y={box.y - 1.5} textAnchor="middle">{formatEstimate(figure, 1 - v)}<title>R² (squared multiple correlation)</title></text>
       : null;
   };
+  // semPlot: a double-headed loop on the shape instead of a circle (kept, unseen, as the target for drawing correlations).
+  const loop = (t: ErrorTerm, v: number | null, title: string) => {
+    const l = selfLoop(t), edge = semplotEdge(v);
+    return <>
+      <path className="err-loop" d={l.d} style={{ stroke: edge.color, strokeWidth: edge.width }} markerStart="url(#arrow-sp)" markerEnd="url(#arrow-sp)" />
+      <circle className="err-hit" cx={t.cx} cy={t.cy} r={ERR_R}><title>{title}</title></circle>
+      {v !== null && figure.showEstimates && <text className="err-value" x={l.lx} y={l.ly + 3} textAnchor="middle" style={{ fill: edge.color }}>{formatEstimate(figure, v)}</text>}
+    </>;
+  };
   const errContent = (t: ErrorTerm, symbol: string, v: number | null, box?: { x: number; y: number; w: number }) => (amos ? <>
     <text className="err-text" x={t.cx} y={t.cy + 4} textAnchor="middle">{symbol}</text>
     {amosNote(t, v, box)}
   </> : v === null
     ? <text className="err-text" x={t.cx} y={t.cy + 4} textAnchor="middle">{symbol}</text>
-    : <text className="err-value" x={t.cx} y={t.cy + 3} textAnchor="middle">{figure.notation === 'smartpls' ? formatEstimate(figure, v) : v.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.')}</text>);
+    : <text className="err-value" x={t.cx} y={t.cy + 3} textAnchor="middle">{figure.notation === 'pls' ? formatEstimate(figure, v) : v.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.')}</text>);
 
   return (
     <ViewportPortal>
@@ -163,19 +187,27 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
           <g key={`e:${name}`} className={`err${isPicked('indicator', name) ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'indicator', id: name })}
             data-cor-kind="indicator" data-cor-id={name}
             onContextMenu={(e) => onMenu(e, { kind: 'indicator', construct: owner.id, name })}>
+            {figure.notation === 'semplot' ? loop(t, errorFor('indicator', name), `Measurement error of ${name}`) : <>
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Measurement error ε of {name}{errorFor('indicator', name) !== null ? ` (standardised variance ${errorFor('indicator', name)!.toFixed(3)})` : ''}</title></circle>
             {errContent(t, amos ? `e${i + 1}` : 'ε', errorFor('indicator', name), indicatorBox(owner, name))}
+            </>}
           </g>
         ))}
         {disturbances.map(({ c, term: t }, i) => (
           <g key={`z:${c.id}`} className={`err${picked?.via === 'disturbance' && picked.id === c.id ? ' picked' : ''}`} onClick={(e) => pick(e, { kind: 'construct', id: c.id, via: 'disturbance' })}
             data-cor-kind="construct" data-cor-id={c.id} data-cor-via="disturbance"
             onContextMenu={(e) => onMenu(e, { kind: 'disturbance', id: c.id })}>
+            {figure.notation === 'semplot' ? loop(t, errorFor('construct', c.name), `Disturbance of ${c.name}`) : <>
             <line className="err-line" x1={t.cx - t.nx * ERR_R} y1={t.cy - t.ny * ERR_R} x2={t.ax} y2={t.ay} markerEnd="url(#arrow-ind)" />
             <circle className="err-circle" cx={t.cx} cy={t.cy} r={ERR_R}><title>Disturbance ζ of {c.name}{errorFor('construct', c.name) !== null ? ` (standardised variance ${errorFor('construct', c.name)!.toFixed(3)})` : ''}</title></circle>
             {errContent(t, amos ? `d${i + 1}` : 'ζ', errorFor('construct', c.name))}
+            </>}
           </g>
+        ))}
+        {sharedLoadings.map((d) => (
+          <line key={`sl:${d.construct}:${d.indicator}`} className="iline shared-loading" x1={d.x1} y1={d.y1} x2={d.x2} y2={d.y2} markerEnd={figure.notation === 'semplot' ? 'url(#arrow-sp)' : 'url(#arrow-ind)'}
+            style={figure.notation === 'semplot' ? (() => { const n = model.constructs.find((k) => k.id === d.construct)?.name ?? ''; const e = semplotEdge(loadingFor(d.indicator, n)); return { stroke: e.color, strokeWidth: e.width }; })() : undefined} />
         ))}
         {direct.map(({ p, x1, y1, x2, y2 }) => (
           <g key={`ip:${p.id}`} className="direct-effect">
@@ -192,11 +224,19 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
                 <title>Implied: observed covariates keep their sample covariance (fixed.x); factors of one ESEM block are correlated by the rotation.</title>
               </path>
               : <path className="cor-hit" d={curve.d} onClick={(e) => select(e, k.id)} onContextMenu={(e) => { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); }} />}
-            <path className="cor-line" d={curve.d} />
-            {curve.heads.map((h, i) => <path key={i} className="cor-head" d={h} />)}
+            <path className="cor-line" d={curve.d} style={corStyle(k)} />
+            {curve.heads.map((h, i) => <path key={i} className="cor-head" d={h} style={figure.notation === 'semplot' ? { fill: semplotEdge(labelFor(k)?.value ?? null).color } : undefined} />)}
           </g>
         ))}
       </svg>
+      {sharedLoadings.map((d) => {
+        const c = model.constructs.find((k) => k.id === d.construct)!;
+        const v = loadingFor(d.indicator, c.name) ?? c.fixedLoadings?.[d.indicator] ?? (active && c.scaling !== 'variance' && c.indicators[0] === d.indicator ? 1 : null);
+        return v === null ? null : (
+          <div key={`sll:${d.construct}:${d.indicator}`} className="elabel shared-label" title={`${c.name} → ${d.indicator}`}
+            style={{ transform: `translate(-50%, -50%) translate(${d.x1 + (d.x2 - d.x1) * 0.6}px, ${d.y1 + (d.y2 - d.y1) * 0.6}px)`, ...(figure.notation === 'semplot' ? { color: semplotEdge(v).color } : {}) }}>{formatEstimate(figure, v)}</div>
+        );
+      })}
       {curves.map(({ k, curve }) => {
         const l = active ? labelFor(k) : null;
         if (!l || l.value === null) return null;

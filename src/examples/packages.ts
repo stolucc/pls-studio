@@ -12,7 +12,7 @@ import type { QuadOptions } from '../analyses/quadml';
 import { quadColumns } from '../analyses/quadmlSyntax';
 import type { EsemRotation, MultigroupSpec } from '../engine/types';
 import type { Correlation, ModelState, Settings } from '../model/project';
-import { DEFAULT_SETTINGS, makeCovariancesExplicit, newId } from '../model/project';
+import { DEFAULT_SETTINGS, makeCovariancesExplicit, newId, indicatorsDrawnElsewhere } from '../model/project';
 import type { GrowthInput } from '../rengine/longitudinal';
 import type { LmmInput } from '../rengine/mixed';
 import type { GmmOptions } from '../analyses/longitudinal';
@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi';
+  | 'methodcompare' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -126,6 +126,8 @@ export interface PackageExample {
   correlations?: [string, string, Correlation['kind']][];
   /** [predictor, moderator, outcome, method?]: the method is seminr's interaction_term(method = …); absent = two_stage. */
   moderations?: ([string, string, string] | [string, string, string, 'orthogonal' | 'product_indicator'])[];
+  /** PLS-SEM: Gaussian copula terms, [predictor, outcome]. */
+  copulas?: [string, string][];
   /** CB-SEM: multiple groups; `free` names constructs by name (mapped to ids when the model is built). */
   multigroup?: MultigroupSpec;
   /** CB-SEM: indicators treated as ordered categorical (WLSMV). */
@@ -835,6 +837,55 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: SEMINR(1000),
   },
   {
+    id: 'sample-bifactor', package: 'lavaan', title: 'Bifactor CFA: customer participation behaviour', source: 'Cañizares-Cedeño (2026), Zenodo 10.5281/zenodo.23301690 (CC BY 4.0); the study’s 09_bifactor.R',
+    links: [{ label: 'Data and code on Zenodo', url: 'https://doi.org/10.5281/zenodo.23301690' }],
+    description: 'A general factor of all 14 items of the Customer Participation Behavior scale, and four specific factors, on 429 students at six Ecuadorian universities: information seeking (IS), information sharing (ISH), responsible behaviour (RB) and personal interaction (PI). All factors are uncorrelated, with variances of 1; MLR with FIML, the settings of the study’s own code.',
+    shows: 'Robust CFI 0.911, RMSEA 0.070 and SRMR 0.061 on 63 df, χ² 185.359 (198.588 scaled), a proper solution. The general factor dominates: ECV 0.543 and ω 0.867 with ωH 0.752, so most of the reliable variance is general. Specific loadings vary: PI3 keeps 0.84, while PI1 has 0.03 and RB1 −0.26, so those specific factors are not well defined once the general factor is in, and PI3’s residual variance is close to 0 (0.002), near the boundary of a proper solution. Ask whether subscale scores add anything here.',
+    data: { package: 'lavaan', name: 'CPB survey (Cañizares-Cedeño 2026)', file: 'examples/samples/bifactor_cpb.csv' }, tags: ['Bifactor'], constructs: [], paths: [],
+    syntax: [
+      'GEN =~ NA*IS1 + IS2 + IS3 + ISH1 + ISH2 + ISH3 + ISH4 + RB1 + RB2 + RB3 + RB4 + PI1 + PI3 + PI5', 'GEN ~~ 1*GEN',
+      'IS =~ NA*IS1 + IS2 + IS3', 'IS ~~ 1*IS', 'ISH =~ NA*ISH1 + ISH2 + ISH3 + ISH4', 'ISH ~~ 1*ISH', 'RB =~ NA*RB1 + RB2 + RB3 + RB4', 'RB ~~ 1*RB', 'PI =~ NA*PI1 + PI3 + PI5', 'PI ~~ 1*PI',
+      'GEN ~~ 0*IS', 'GEN ~~ 0*ISH', 'GEN ~~ 0*RB', 'GEN ~~ 0*PI', 'IS ~~ 0*ISH', 'IS ~~ 0*RB', 'IS ~~ 0*PI', 'ISH ~~ 0*RB', 'ISH ~~ 0*PI', 'RB ~~ 0*PI',
+    ].join('\n'),
+    settings: { ...CB('MLR'), missing: 'fiml' },
+  },
+  {
+    id: 'sample-tam', package: 'cSEM', title: 'Technology acceptance (TAM): AI design tools', source: 'Verisya (2026), Zenodo 10.5281/zenodo.22206708 (CC BY 4.0)',
+    links: [{ label: 'Data on Zenodo', url: 'https://doi.org/10.5281/zenodo.22206708' }],
+    description: 'The technology acceptance model on survey data from UI/UX designers using AI design tools: perceived ease of use and usefulness drive the intention to use, with self-efficacy and trust as antecedents. This structure is the classic TAM on the study’s items, not necessarily the study’s own model. N = 273 here (the record speaks of 272 responses).',
+    shows: 'Perceived usefulness is the stronger driver of intention (0.644, against 0.298 for ease of use), and self-efficacy → ease of use is 0.942. The R² values, 0.86 to 0.89, are very high for survey data, as are the correlations between constructs: check discriminant validity (HTMT) before believing them.',
+    data: { package: 'cSEM', name: 'TAM survey (Verisya 2026)', file: 'examples/samples/tam_ai_design_tools.csv' },
+    constructs: [c('SE', items('SE', 7), 'A'), c('TR', items('TR', 6), 'A'), c('PEOU', items('PEOU', 6), 'A'), c('PU', items('PU', 6), 'A'), c('BI', items('BI', 6), 'A')],
+    paths: [['SE', 'PEOU'], ['TR', 'PU'], ['PEOU', 'PU'], ['PEOU', 'BI'], ['PU', 'BI']], settings: PLS('cSEM', false),
+  },
+  {
+    id: 'sample-utaut', package: 'cSEM', title: 'UTAUT: a digital bank in Medan', source: 'Purba (2026), Zenodo 10.5281/zenodo.21942087 (CC BY 4.0)',
+    links: [{ label: 'Data on Zenodo', url: 'https://doi.org/10.5281/zenodo.21942087' }],
+    description: 'The unified theory of acceptance and use of technology on survey data about SeaBank: performance expectancy, effort expectancy, social influence and facilitating conditions predicting behavioural intention. The 194 eligible respondents of 200; items only.',
+    shows: 'Effort expectancy and social influence lead (both 0.34), then facilitating conditions (0.18) and performance expectancy (0.125), with R² 0.906. An R² this high with loadings around 0.9 suggests the constructs overlap: look at HTMT and at the inner VIFs before reading the paths apart.',
+    data: { package: 'cSEM', name: 'UTAUT survey (Purba 2026)', file: 'examples/samples/utaut_seabank.csv' },
+    constructs: [c('PE', items('PE', 4), 'A'), c('EE', items('EE', 4), 'A'), c('SI', items('SI', 3), 'A'), c('FC', items('FC', 4), 'A'), c('BI', items('BI', 4), 'A')],
+    paths: [['PE', 'BI'], ['EE', 'BI'], ['SI', 'BI'], ['FC', 'BI']], settings: PLS('cSEM', false),
+  },
+  {
+    id: 'sample-retention', package: 'cSEM', title: 'Employee retention: workload and leaving', source: 'Inegbedion et al. (2020), Heliyon; Zenodo 10.5281/zenodo.4602319 (CC0)',
+    links: [{ label: 'Data on Zenodo', url: 'https://doi.org/10.5281/zenodo.4602319' }, { label: 'Paper', url: 'https://doi.org/10.1016/j.heliyon.2020.e03160' }],
+    description: 'Does a heavy workload relative to colleagues push employees to leave? Perceived workload predicts fulfilment in the job and the intention to leave, on a survey of employees of multinationals and universities in Nigeria. Fulfilment and leaving are single items, and this structure is an illustration, not the study’s own model. A second job-satisfaction column is an exact copy of the first in the deposit, and is left out.',
+    shows: 'Workload relative to others goes with the intention to leave (0.7), and fulfilment adds almost nothing (0.043), with R² 0.504. The single items have no measurement model, so their reliabilities are not assessed.',
+    data: { package: 'cSEM', name: 'Workload survey (Inegbedion et al. 2020)', file: 'examples/samples/retention_workload.csv' },
+    constructs: [c('Workload', items('WL', 5), 'A'), c('Fulfilment', ['FULFIL'], 'A'), c('Leaving', ['LEAVE'], 'A')],
+    paths: [['Workload', 'Fulfilment'], ['Workload', 'Leaving'], ['Fulfilment', 'Leaving']], settings: PLS('cSEM', false),
+  },
+  {
+    id: 'seminr-copula', package: 'seminr', title: 'Gaussian copulas in a PLS-SEM model', source: 'seminr, mobi; Hult et al. (2018); Park & Gupta (2012)',
+    links: [{ label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }, { label: 'Hult et al. 2018', url: 'https://doi.org/10.1509/jim.17.0151' }],
+    description: 'Are customer expectation and perceived quality endogenous in the equation of satisfaction? A Gaussian copula term for each predictor tests it without instruments: right-click a path to add one. Estimated by the built-in engine, whose bootstrap recomputes the terms in every sample; plain seminr calls give the same estimates.',
+    shows: 'The terms are 0.195 (Expectation) and 0.356 (Quality), which move Expectation → Satisfaction to −0.114 and Quality → Satisfaction to 0.404 (R² 0.649). Bootstrap to test them, and read the normality column first: near-normal scores make the term almost collinear with its predictor, which is what these large shifts warn of.',
+    data: { package: 'seminr', name: 'mobi' }, constructs: MOBI.filter((k) => ['Expectation', 'Quality', 'Satisfaction', 'Loyalty'].includes(k.name)),
+    paths: [['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction'], ['Satisfaction', 'Loyalty']], copulas: [['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction']],
+    settings: SEMINR(1000),
+  },
+  {
     id: 'sempls-qsquared', package: 'cSEM', title: 'Mobile phone satisfaction: blindfolding Q²', source: 'semPLS, ?qSquared (ECSImobi on mobi): qSquared(ecsi, d = 4, impfun = meanimp, dlines = FALSE)',
     links: [{ label: '?qSquared', url: 'https://rdrr.io/cran/semPLS/man/semplsGOF.html' }, { label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }],
     description: 'The ECSI model of semPLS’s help page (sempls with the centroid scheme), and Stone–Geisser Q² from blindfolding with omission distance 4. The blindfolding card omits single data points and replaces them by the indicator means (Wold’s procedure, as SmartPLS): semPLS’s qSquared with impfun = meanimp and dlines = FALSE, its reference here. The help page calls qSquared with its defaults instead, omitting whole rows of each block and refitting with pairwise correlations, which a cSEM fit on complete data cannot do; its Q² values differ. Estimated with cSEM (semPLS is not available in the browser). Opens its card on the Analyses tab.',
@@ -1025,6 +1076,7 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
     })),
     paths,
     moderations: (ex.moderations ?? []).map(([from, moderator, to, method]) => ({ id: newId('m'), moderator: id(moderator), path: paths.find((p) => p.from === id(from) && p.to === id(to))!.id, ...(method ? { method } : {}) })),
+    ...(ex.copulas?.length ? { copulas: ex.copulas.map(([from, to]) => { const p = paths.find((q) => q.from === id(from) && q.to === id(to))!; return { id: newId('g'), path: p.id }; }) } : {}),
     ...(ex.correlations?.length ? { correlations: ex.correlations.map(([a, b, kind]) => ({ id: newId('k'), kind, a: kind === 'construct' ? id(a) : a, b: kind === 'construct' ? id(b) : b })) } : {}),
     ...(ex.multigroup ? { multigroup: { ...ex.multigroup, free: ex.multigroup.free.map((p) => (p.kind === 'loading' || p.kind === 'mean' ? { ...p, construct: id(p.construct) } : p.kind === 'regression' ? { ...p, from: id(p.from), to: id(p.to) } : p)) } } : {}),
     ...(ex.ordered?.length ? { ordered: [...ex.ordered] } : {}),
@@ -1039,6 +1091,14 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
     ...(ex.constant || ex.means?.length ? { constant: { x: -220, y: 120 } } : {}),
     ...(ex.means?.length ? { means: ex.means.map((t) => ({ id: newId('mt'), target: id(t.construct), ...(t.fixed !== undefined ? { fixed: t.fixed } : {}), ...(t.label ? { label: t.label } : {}) })) } : {}),
   };
+}
+
+/** Where the constant goes: left of the first column, or below the diagram when factors share boxes (their arrows and error terms fill that side). */
+function constantPlace(m: ModelState) {
+  if (indicatorsDrawnElsewhere(m).size === 0) return { x: -220, y: 120 };
+  const owned = m.constructs.filter((c) => !indicatorsDrawnElsewhere(m).has(c.name));
+  const bottom = Math.max(...m.constructs.map((c) => c.y + c.indicators.length * 17));
+  return { x: Math.min(...(owned.length ? owned : m.constructs).map((c) => c.x)) - 110, y: bottom + 100 };
 }
 
 /** An example given as lavaan syntax: the imported diagram, with the example's other settings on top. */
@@ -1057,6 +1117,6 @@ function fromSyntax(ex: PackageExample): ModelState {
     ...(ex.parameterization ? { parameterization: ex.parameterization } : {}),
     ...(ex.positiveVariances ? { positiveVariances: true } : {}),
     ...(ex.baseline ? { baseline: ex.baseline } : {}),
-    ...((ex.constant || ex.means?.length) && !m.constant ? { constant: { x: -220, y: 120 } } : {}),
+    ...((ex.constant || ex.means?.length) && !m.constant ? { constant: constantPlace(m) } : {}),
   };
 }

@@ -5,7 +5,7 @@ import {
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { CONSTANT_R, constructGeometry, distanceToSegment, interceptSegment, meanSegment, moderatorSegment, pathOffset, pathSegment, quadraticLoop } from '../geometry';
-import { figureCssVars, figureForMethod, formatEstimate, GRADIENT_CONSTRUCT, GRADIENT_INDICATOR, isPlainFigure, SMARTPLS_ERROR } from '../figure/style';
+import { figureCssVars, figureForMethod, formatEstimate, GRADIENT_CONSTRUCT, GRADIENT_INDICATOR, isPlainFigure, PLS_STYLE_ERROR } from '../figure/style';
 import type { FigureInput, FigureLabel } from '../figure/render';
 import { canvasLabelSize, placeFigureLabels } from '../figure/labels';
 import { FigurePanel } from './FigurePanel';
@@ -30,18 +30,20 @@ import { InterceptEdge, type InterceptFlowEdge } from './InterceptEdge';
 import { MeanEdge, type MeanFlowEdge } from './MeanEdge';
 import { indicatorLabels } from '../diagramLabels';
 import { readDraggedVars, VARS_MIME } from './dnd';
-import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconFitView, IconLayout, IconPlay, IconPointer, IconSparkle, IconTriangle, IconUpload } from './icons';
+import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconFitView, IconLayout, IconPlay, IconPointer, IconSparkle, IconTriangle, IconUpload, IconNote } from './icons';
 import { CovarianceLayer, covarianceLayout, type CorrelationLabel, type CorrelationPick } from './CovarianceLayer';
 import { currentSession } from '../cloud/collab';
 import { PresenceLayer } from './cloud/Presence';
 import { HigherOrderLayer, type HoLabel } from './HigherOrderLayer';
+import { NoteNode, NOTE_WIDTH, type NoteFlowNode } from './NoteNode';
+import { CopulaLayer, copulaEstimate, copulaLayout } from './CopulaLayer';
 import { ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
 import { PathEdge, type PathFlowEdge } from './PathEdge';
 import { ExampleBanner } from './ExampleBanner';
 
-const nodeTypes = { construct: ConstructNode, constant: ConstantNode };
+const nodeTypes = { construct: ConstructNode, constant: ConstantNode, note: NoteNode };
 const edgeTypes = { path: PathEdge, mean: MeanEdge, intercept: InterceptEdge };
-type FlowNode = ConstructFlowNode | ConstantFlowNode;
+type FlowNode = ConstructFlowNode | ConstantFlowNode | NoteFlowNode;
 type FlowEdge = PathFlowEdge | MeanFlowEdge | InterceptFlowEdge;
 
 function ConnectionLine({ fromX, fromY, toX, toY }: ConnectionLineComponentProps) {
@@ -54,8 +56,14 @@ function Markers() {
       <defs>
         <linearGradient id={GRADIENT_CONSTRUCT}><stop offset={0} style={{ stopColor: 'var(--construct-fill-from)' }} /><stop offset={1} style={{ stopColor: 'var(--fill-to)' }} /></linearGradient>
         <linearGradient id={GRADIENT_INDICATOR}><stop offset={0} style={{ stopColor: 'var(--indicator-fill-from)' }} /><stop offset={1} style={{ stopColor: 'var(--fill-to)' }} /></linearGradient>
+        <marker id="arrow-sp" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={5} markerHeight={5} orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="context-stroke" />
+        </marker>
+        <marker id="arrow-gc" viewBox="0 0 10 10" refX={9.5} refY={5} markerWidth={8} markerHeight={8} orient="auto">
+          <path d="M1,1 L9.5,5 L1,9" fill="none" stroke="var(--gc-arrow, #b45309)" strokeWidth={1.4} />
+        </marker>
         <marker id="err-diamond" viewBox="0 0 10 10" refX={5} refY={5} markerWidth={8} markerHeight={8} markerUnits="userSpaceOnUse" orient="auto">
-          <path d="M5,0 L10,5 L5,10 L0,5 z" fill={SMARTPLS_ERROR} />
+          <path d="M5,0 L10,5 L5,10 L0,5 z" fill={PLS_STYLE_ERROR} />
         </marker>
         <marker id="arrow-ind" viewBox="0 0 10 10" refX={9.5} refY={5} markerWidth={7} markerHeight={7} orient="auto-start-reverse">
           <path d="M0,1 L10,5 L0,9 z" fill="var(--indicator-arrow, #9aa3b5)" />
@@ -220,9 +228,12 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       };
       return {
         r2: (name: string) => { const j = cb.constructs.indexOf(name); return j >= 0 ? cb.r2Constructs[j] : null; },
-        indicator: (name: string) => {
+        indicator: (name: string, construct?: string) => {
           const k = ind.get(name);
           if (k === undefined) return null;
+          // An indicator of several factors: this factor's loading.
+          const own = construct ? cb.estimates.find((x) => x.op === '=~' && x.lhs === construct && x.rhs === name) : undefined;
+          if (own && cb.estimates.filter((x) => x.op === '=~' && x.rhs === name).length > 1) return unstd ? own.est : own.std;
           // Composites show their weights (as in PLS), common factors their loadings.
           const e = loading(name);
           return unstd ? e?.est ?? null : e?.op === '<~' ? e.std : cb.stdLoadings[k];
@@ -298,6 +309,12 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
           const name = pls.constructs[mo.construct], j = pls.constructs.indexOf(to);
           return { beta: pls.pathCoef[mo.construct][j], p: results.boot?.stats.find((s) => s.key === `path:${name}:${to}`)?.p ?? null };
         },
+        threeWay: (from: string, moderator: string, moderator2: string, to: string): ModerationLabel | null => {
+          const t = pls.threeWay?.find((x) => x.from === from && x.moderator === moderator && x.moderator2 === moderator2 && x.to === to);
+          if (!t) return null;
+          const name = pls.constructs[t.construct], j = pls.constructs.indexOf(to);
+          return { beta: pls.pathCoef[t.construct][j], p: results.boot?.stats.find((s) => s.key === `path:${name}:${to}`)?.p ?? null };
+        },
       };
     }
     return null;
@@ -340,7 +357,9 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     width: CONSTANT_R * 2 + 8, height: CONSTANT_R * 2 + 4, measured: { width: CONSTANT_R * 2 + 8, height: CONSTANT_R * 2 + 4 },
     selected: selection.nodes.includes('constant'),
     data: { tool, hasError: errorIds.has('constant') },
-  } satisfies ConstantFlowNode] : []), ...model.constructs.map((c): ConstructFlowNode => {
+  } satisfies ConstantFlowNode] : []), ...(model.notes ?? []).map((k): NoteFlowNode => ({
+    id: k.id, type: 'note', position: { x: k.x, y: k.y }, width: NOTE_WIDTH, selected: selection.nodes.includes(k.id), data: { text: k.text },
+  })), ...model.constructs.map((c): ConstructFlowNode => {
     const geom = constructGeometry(c);
     const labels = indicatorLabels(c, method, display, model.esem?.blocks.some((b) => b.constructs.includes(c.id)), (v) => formatEstimate(settings.figure, v));
     const w = geom.bounds.w, h = geom.bounds.h;
@@ -355,7 +374,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         picked: picked?.kind === 'construct' && picked.via !== 'disturbance' && picked.id === c.id ? true : picked?.kind === 'indicator' && c.indicators.includes(picked.id) ? picked.id : false,
       },
     };
-  })], [model.constructs, model.constant, model.esem?.blocks, selection.nodes, display, errorIds, tool, method, picked, settings.figure]);
+  })], [model.constructs, model.constant, model.esem?.blocks, model.notes, selection.nodes, display, errorIds, tool, method, picked, settings.figure]);
 
 
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
@@ -363,6 +382,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     for (const ch of changes) {
       if (ch.type === 'position' && ch.position) {
         if (ch.id === 'constant') { st().moveConstant(ch.position.x + CONSTANT_R + 4, ch.position.y + CONSTANT_R + 2); continue; }
+        if (ch.id.startsWith('note-')) { st().moveNote(ch.id, ch.position.x, ch.position.y); continue; }
         const c = st().model.constructs.find((k) => k.id === ch.id);
         if (!c) continue;
         const b = constructGeometry(c).bounds;
@@ -410,8 +430,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       if (!seg) continue;
       const d = distanceToSegment(pos.x, pos.y, seg);
       if (!best || d < best.d) best = { id: p.id, d };
-      // Conditional process models: dropping onto a moderation's arrow moderates that moderation.
-      if (st().settings.method !== 'process') continue;
+      // PLS-SEM and conditional process models: dropping onto a moderation's arrow moderates that moderation.
+      if (st().settings.method === 'cbsem') continue;
       for (const mo of m.moderations) {
         const w = byId.get(mo.moderator);
         if (mo.path !== p.id || !w || w.id === p.from) continue;
@@ -472,7 +492,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     const constructs = m.constructs.map((c) => {
       const marker = method === 'cbsem' && !c.covariate && c.indicators.length > 0 ? c.indicators[0] : null;
       const indicators = c.indicators.map((name) => {
-        const v = display?.indicator(name) ?? null;
+        const v = display?.indicator(name, c.name) ?? null;
         const fixed = (display && 'fixed' in display && !!display.fixed?.(name)) || name === marker;
         return v === null ? (fixed ? { value: 1, p: null, fixed: true } : null) : { value: v, p: null, fixed };
       });
@@ -487,7 +507,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p.from, p.to)) : null;
       if (!seg) return [];
       const l = display?.path(nameOf(p.from), nameOf(p.to));
-      return [{ key: 'implied' in p ? `implied:${p.from}:${p.to}` : p.id, ...seg, label: lbl(l?.beta, l?.p ?? null), moderated: m.moderations.some((mo) => mo.path === p.id), ...('implied' in p ? { implied: true } : {}) }];
+      return [{ key: 'implied' in p ? `implied:${p.from}:${p.to}` : p.id, ...seg, label: lbl(l?.beta, l?.p ?? null), ...('line' in p && p.line ? { line: p.line } : {}), ...('curved' in p && p.curved ? { curved: true } : {}), moderated: m.moderations.some((mo) => mo.path === p.id), ...('implied' in p ? { implied: true } : {}) }];
     });
     const moderations = m.moderations.flatMap((mo) => {
       const p = m.paths.find((q) => q.id === mo.path);
@@ -510,6 +530,11 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     }));
     const cov = covarianceLayout(m, method === 'cbsem', showErrors);
     // (direct effects on indicators: drawn as arrows like a higher-order loading)
+    higherOrder.push(...cov.sharedLoadings.map((d) => {
+      const c = byId.get(d.construct)!;
+      const v = display?.indicator(d.indicator, c.name) ?? c.fixedLoadings?.[d.indicator] ?? (method === 'cbsem' && c.scaling !== 'variance' && c.indicators[0] === d.indicator ? 1 : null);
+      return { key: `shared:${d.construct}:${d.indicator}`, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, label: v === null ? null : { value: v, p: null, fixed: false } };
+    }));
     higherOrder.push(...cov.direct.map((d) => ({ key: `ip:${d.p.id}`, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, label: null })));
     const errors = [
       ...[...cov.places.entries()].map(([name, { term }]) => {
@@ -543,8 +568,16 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       const l = meanOf(e.indicator);
       return [{ key: `intercept:${e.construct}:${e.indicator}`, ...seg, label: lbl(l?.value ?? null, l?.p ?? null) }];
     }) : [];
-    return { method, constructs, paths, moderations, higherOrder, errors, correlations, ...(constant ? { constant, means, intercepts } : {}) };
-  }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel, unstd]);
+    const conName = (id: string) => byId.get(id)?.name ?? id;
+    const copulas = copulaLayout(m).map((g) => ({
+      cx: g.cx, cy: g.cy,
+      targets: g.targets.map((t) => {
+        const l = copulaEstimate(results?.pls, results?.boot, conName(g.from), conName(t.to));
+        return { x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2, label: lbl(l?.beta, l?.p ?? null) };
+      }),
+    }));
+    return { method, ...(m.notes?.length ? { notes: m.notes.map((k) => ({ x: k.x, y: k.y, text: k.text })) } : {}), constructs, paths, moderations, higherOrder, errors, correlations, ...(copulas.length ? { copulas } : {}), ...(constant ? { constant, means, intercepts } : {}) };
+  }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, errorValue, correlationLabel, unstd, results]);
 
   // Where each estimate label goes, so that none overlap (the figure export places them the same way).
   const labelAt = useMemo(() => placeFigureLabels(figureInput(), canvasLabelSize), [figureInput]);
@@ -562,7 +595,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       selected: selection.edges.includes(p.id),
       data: {
         ...(display ? display.path(name.get(p.from)!, name.get(p.to)!) : { beta: null, p: null }),
-        moderated: model.moderations.some((mo) => mo.path === p.id), labelAt: labelAt.get(p.id),
+        moderated: model.moderations.some((mo) => mo.path === p.id), labelAt: labelAt.get(p.id), line: p.line, curved: p.curved,
         ...(method === 'cbsem' && p.fixed !== undefined ? { fixed: p.fixed } : {}),
         ...(method === 'cbsem' && p.fixed === undefined && p.label ? { label: p.label } : {}),
       },
@@ -715,6 +748,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'remove-indicator': if (target.kind === 'indicator') s.removeIndicator(target.construct, target.name); break;
       case 'reverse-path': if (target.kind === 'path') s.reversePath(target.id); break;
       case 'add-quadratic': if (target.kind === 'path') s.addQuadratic(target.id); break;
+      case 'toggle-copula': if (target.kind === 'path') s.toggleCopula(target.id); break;
       case 'delete-path': if (target.kind === 'path') s.deleteItems([], [target.id]); break;
       case 'delete-moderation': if (target.kind === 'moderation') s.deleteItems([], [], [target.id]); break;
       case 'delete-correlation': if (target.kind === 'correlation') s.deleteItems([], [], [], [target.id]); break;
@@ -811,7 +845,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
   return (
     <div
       ref={wrapRef}
-      className={`canvas-wrap${isPlainFigure(settings.figure) ? ' plain-figure' : ''}${settings.figure.notation === 'amos' ? ' amos-notation' : ''}${settings.figure.notation === 'smartpls' ? ` smartpls-notation ${method === 'cbsem' ? 'smartpls-cb' : 'smartpls-pls'}` : ''}`}
+      className={`canvas-wrap${isPlainFigure(settings.figure) ? ' plain-figure' : ''}${settings.figure.notation === 'amos' ? ' amos-notation' : ''}${settings.figure.notation === 'semplot' ? ' semplot-notation' : ''}${settings.figure.notation === 'pls' ? ` pls-notation ${method === 'cbsem' ? 'pls-notation-cb' : 'pls-notation-pls'}` : ''}`}
       style={figureCssVars(figureForMethod(settings.figure, method)) as React.CSSProperties}
       onDragOver={onDragOver}
       onDrop={onDrop}
@@ -838,6 +872,9 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
             <IconTriangle /> Constant
           </button>
         )}
+        <button className="btn sm ghost" onClick={() => { const v = rf.getViewport(); st().addNote((80 - v.x) / v.zoom, (120 - v.y) / v.zoom); }} title="Add a comment to the diagram. It is saved with the project and exported with the figure">
+            <IconNote /> Comment
+          </button>
         <button className="btn ghost" onClick={() => setFigureOpen(true)} disabled={empty} title="Figure style and export (PDF, PNG, SVG)">
           <IconDownload /> Figure
         </button>
@@ -923,10 +960,11 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
         attributionPosition="top-right"
         style={{ cursor: tool === 'construct' ? 'copy' : undefined }}
       >
+        <CopulaLayer pls={results?.pls} boot={results?.boot} onMenu={openMenu} />
         <ModeratorLayer labelFor={moderationLabel} onMenu={openMenu} labelAt={(id) => labelAt.get(`mod:${id}`) ?? null} />
         <HigherOrderLayer loadingFor={hoLoading} labelAt={(parent, child) => labelAt.get(`ho:${parent}:${child}`) ?? null} />
         <CovarianceLayer active={method === 'cbsem'} showErrors={showErrors} picked={picked}
-          onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} unstd={unstd} onMenu={openMenu} />
+          onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} unstd={unstd} onMenu={openMenu} loadingFor={(i, n) => display?.indicator(i, n) ?? null} />
         <PresenceLayer />
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} color="#c9ceda" />
         <Controls showInteractive={false} position="bottom-left" showFitView={false}>

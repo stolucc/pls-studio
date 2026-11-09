@@ -28,7 +28,7 @@ const DIST = 64;
 /** Corner radius of an indicator (observed variable) box: almost square, as in path diagrams. */
 export const BOX_RX = 1;
 
-/** Radius of a common factor drawn as a circle (with SmartPLS's proportions to the indicator boxes). */
+/** Radius of a common factor drawn as a circle (in proportion to the indicator boxes). */
 export const CIRCLE_R = 36;
 /** Half-width of a composite's hexagon beside those circles. */
 const COMPACT_HEXAGON_RX = 46;
@@ -37,6 +37,9 @@ const COMPACT_HEXAGON_RX = 46;
 let circleConstructs = false;
 export const setCircleConstructs = (on: boolean) => { circleConstructs = on; };
 export const constructsAreCircles = () => circleConstructs;
+// The boxes each construct leaves to another (project.ts indicatorsDrawnElsewhere), set with the model (store.ts).
+let drawnElsewhere = new Map<string, Set<string>>();
+export const setDrawnElsewhere = (m: Map<string, Set<string>>) => { drawnElsewhere = m; };
 
 export const textWidth = (s: string, px = CHAR) => s.length * px;
 
@@ -81,7 +84,24 @@ export function hexagonVertices(rx: number, ry: number): [number, number][] {
 
 /** Point on the hexagon boundary in direction (dx, dy). */
 export function hexagonPoint(rx: number, ry: number, dx: number, dy: number): [number, number] {
-  const v = hexagonVertices(rx, ry);
+  return polygonPoint(hexagonVertices(rx, ry), rx, ry, dx, dy);
+}
+
+/** Octagon a construct can be drawn as. */
+export function octagonVertices(rx: number, ry: number): [number, number][] {
+  const a = rx * 0.42, b = ry * 0.42;
+  return [[-rx, -b], [-a, -ry], [a, -ry], [rx, -b], [rx, b], [a, ry], [-a, ry], [-rx, b]];
+}
+
+/** The control point of a path drawn curved (a quadratic curve), and the curve's midpoint. */
+export function pathCurve(s: { x1: number; y1: number; x2: number; y2: number }) {
+  const dx = s.x2 - s.x1, dy = s.y2 - s.y1, bow = 0.18;
+  const kx = (s.x1 + s.x2) / 2 - dy * bow, ky = (s.y1 + s.y2) / 2 + dx * bow;
+  return { kx, ky, mx: 0.25 * s.x1 + 0.5 * kx + 0.25 * s.x2, my: 0.25 * s.y1 + 0.5 * ky + 0.25 * s.y2, d: `M ${s.x1} ${s.y1} Q ${kx} ${ky} ${s.x2} ${s.y2}` };
+}
+
+/** Point on a polygon's boundary in direction (dx, dy). */
+function polygonPoint(v: [number, number][], rx: number, ry: number, dx: number, dy: number): [number, number] {
   let best = Infinity;
   for (let i = 0; i < v.length; i++) {
     const [ax, ay] = v[i], [bx, by] = v[(i + 1) % v.length];
@@ -97,26 +117,27 @@ export function hexagonPoint(rx: number, ry: number, dx: number, dy: number): [n
 }
 
 /** Ellipse: common factor; hexagon: composite; rectangle: observed covariate. */
-export type ShapeKind = ConstructType | 'observed';
+export type ShapeKind = ConstructType | 'observed' | 'rectangle' | 'octagon';
 
-export const shapeOf = (c: { type?: ConstructType; covariate?: boolean }): ShapeKind => (c.covariate ? 'observed' : c.type ?? 'factor');
+export const shapeOf = (c: { type?: ConstructType; covariate?: boolean; shape?: 'rectangle' | 'octagon' }): ShapeKind => (c.covariate ? 'observed' : c.shape ?? c.type ?? 'factor');
 
 export function shapePoint(kind: ShapeKind, rx: number, ry: number, dx: number, dy: number): [number, number] {
   if (kind === 'composite') return hexagonPoint(rx, ry, dx, dy);
-  if (kind === 'observed') {
+  if (kind === 'octagon') return polygonPoint(octagonVertices(rx, ry), rx, ry, dx, dy);
+  if (kind === 'observed' || kind === 'rectangle') {
     const t = Math.min(Math.abs(dx) > 1e-12 ? rx / Math.abs(dx) : Infinity, Math.abs(dy) > 1e-12 ? ry / Math.abs(dy) : Infinity);
     return Number.isFinite(t) ? [dx * t, dy * t] : [rx, 0];
   }
   return ellipsePoint(rx, ry, dx, dy);
 }
 
-export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'side'> & { type?: ConstructType; covariate?: boolean }, circle = circleConstructs): ConstructGeom {
+export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'side'> & { type?: ConstructType; covariate?: boolean; shape?: 'rectangle' | 'octagon' }, circle = circleConstructs): ConstructGeom {
   const type = shapeOf(c);
   const observed = type === 'observed';
   const rx = circle && !observed ? (type === 'composite' ? COMPACT_HEXAGON_RX : CIRCLE_R) : observed ? Math.max(40, textWidth(c.name, 7.5) / 2 + 16) : Math.max(58, textWidth(c.name, 8) / 2 + (type === 'composite' ? 34 : 24));
   const ry = observed ? 18 : CIRCLE_R;
   // An observed covariate is its own indicator: no indicator boxes.
-  const shown = observed ? [] : c.indicators;
+  const shown = observed ? [] : c.indicators.filter((i) => !drawnElsewhere.get(c.name)?.has(i));
   const widths = shown.map((n) => Math.max(48, textWidth(n, 7) + 18));
   const k = shown.length;
   const vertical = c.side === 'left' || c.side === 'right';
@@ -306,6 +327,14 @@ export function disturbanceTerm(c: Placed): ErrorTerm {
 }
 
 /** Filled triangle with its tip at (x, y), pointing along (dx, dy). */
+/** A residual as semPlot draws it: a double-headed loop on the shape's border, out along the error term's direction. */
+export function selfLoop(t: { ax: number; ay: number; nx: number; ny: number }) {
+  const spread = 8, out = 24, tx = -t.ny, ty = t.nx;
+  const x1 = t.ax - tx * spread, y1 = t.ay - ty * spread, x2 = t.ax + tx * spread, y2 = t.ay + ty * spread;
+  const c1x = x1 + t.nx * out - tx * spread, c1y = y1 + t.ny * out - ty * spread, c2x = x2 + t.nx * out + tx * spread, c2y = y2 + t.ny * out + ty * spread;
+  return { d: `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`, x1, y1, x2, y2, c1x, c1y, c2x, c2y, lx: t.ax + t.nx * (out + 8), ly: t.ay + t.ny * (out + 8) };
+}
+
 export function arrowHead(x: number, y: number, dx: number, dy: number, len = 9, half = 4): string {
   const l = Math.hypot(dx, dy) || 1;
   const ux = dx / l, uy = dy / l;

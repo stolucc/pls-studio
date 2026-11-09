@@ -209,7 +209,7 @@ const heldNote = (ctx: AnalysisCtx, consistentKept: boolean) => [
   ...(ctx.settings.missing !== 'mean' && ctx.settings.missing !== 'casewise' ? ['casewise deletion of missing values'] : []),
 ].join(', ');
 const rebusOptions = (ctx: AnalysisCtx) => segOptions(ctx, ctx.settings.missing === 'mean' ? 'mean' : 'casewise');
-const noInteractions = (ctx: AnalysisCtx, method: string) => (ctx.model?.moderations.length ? `${method} works on models without interaction terms.` : null);
+const noInteractions = (ctx: AnalysisCtx, method: string) => (ctx.model?.moderations.length || ctx.model?.copulas?.length ? `${method} works on models without interaction terms.` : null);
 const range = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
 const Hint = ({ text }: { text: string }) => <p className="hint" style={{ marginTop: 0 }}>{text}</p>;
 

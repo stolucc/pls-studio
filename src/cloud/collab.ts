@@ -106,7 +106,8 @@ export function readDoc(doc: Y.Doc): { model: ModelState; settings: Settings; na
   const file = {
     // (shared projects from before format 2 are migrated once, then written back as format 2)
     format: 'pls-studio', version: meta.get('format') === FORMAT_VERSION ? FORMAT_VERSION : 1,
-    model: { ...extra, constructs, paths, moderations, correlations },
+    // (a path someone else removed takes its Gaussian copula along)
+    model: { ...extra, ...(Array.isArray(extra.copulas) ? { copulas: extra.copulas.filter((k: { path: string }) => pathIds.has(k.path)) } : {}), constructs, paths, moderations, correlations },
     settings: meta.get('settings') ?? DEFAULT_SETTINGS,
     data: null,
     simulation: meta.get('simulation') ?? null,

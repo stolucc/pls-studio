@@ -4,10 +4,11 @@
 // Results are validated against R seminr in pls.test.ts.
 
 import { cholesky, invert, invertPD, matMul, solve, symEigen, transpose, zeros, type Mat } from './linalg';
-import { corStd, mean, sd, standardize } from './stats';
+import { corStd, cramerVonMises, mean, pStar, sd, standardize } from './stats';
 import type { ConstructQuality, ConstructType, Dataset, Mode, ModelFit, ModelSpec, PlsOptions, PlsResult } from './types';
-import { DEFAULT_OPTIONS, interactionName, LAVAAN_MISSING } from './types';
+import { copulaName, DEFAULT_OPTIONS, interactionName, LAVAAN_MISSING, threeWayName } from './types';
 import { expandCategorical } from './categorical';
+import { latentMoments, momentRegression } from './plscMoments';
 
 export interface CompiledModel {
   constructs: string[];
@@ -19,6 +20,8 @@ export interface CompiledModel {
   blocks: number[][];
   /** Dominant indicator of each construct (index into indicatorNames), or -1. */
   dominant: number[];
+  /** Pre-defined weights of each construct's block (null: estimated). */
+  predefined: (number[] | null)[];
   preds: number[][];
   succs: number[][];
   hasPath: boolean[][];
@@ -49,8 +52,9 @@ export function compileModel(spec: ModelSpec): CompiledModel {
     succs[f].push(t);
   }
   const types = spec.constructs.map((c) => c.type ?? (c.mode === 'B' ? 'composite' : 'factor'));
+  const predefined = spec.constructs.map((c) => (c.predefinedWeights ? c.indicators.map((name) => c.predefinedWeights![name] ?? 0) : null));
   const dominant = spec.constructs.map((c, j) => (c.dominant ? blocks[j].find((k) => indicatorNames[k] === c.dominant) ?? -1 : -1));
-  return { constructs, modes: spec.constructs.map((c) => c.mode), types, indicatorNames, indicatorConstruct, blocks, preds, succs, hasPath, dominant };
+  return { constructs, predefined, modes: spec.constructs.map((c) => c.mode), types, indicatorNames, indicatorConstruct, blocks, preds, succs, hasPath, dominant };
 }
 
 /**
@@ -103,7 +107,7 @@ export function plsCore(
 
   // Mode B needs the inverse indicator correlation matrix of each block, which is constant.
   const blockInv: (Mat | null)[] = m.blocks.map((b, j) => {
-    if (m.modes[j] !== 'B' || b.length < 2) return null;
+    if (m.modes[j] !== 'B' || b.length < 2 || m.predefined[j]) return null;
     const R = b.map((k) => b.map((l) => corStd(X[k], X[l])));
     return invert(R);
   });
@@ -164,7 +168,9 @@ export function plsCore(
       const r = b.map((k) => corStd(X[k], Z[j]));
       const inv = blockInv[j];
       // Sum scores: equal (unit) weights on the standardised indicators, rescaled below.
-      if (m.modes[j] === 'unit') b.forEach((k) => (w[k] = 1));
+      const given = m.predefined[j];
+      if (given) b.forEach((k, a) => (w[k] = given[a]));
+      else if (m.modes[j] === 'unit') b.forEach((k) => (w[k] = 1));
       else if (inv) {
         b.forEach((k, a) => (w[k] = inv[a].reduce((s, v, c) => s + v * r[c], 0)));
       } else {
@@ -228,7 +234,7 @@ function rhoAOf(b: number[], w: Float64Array, R: Mat): { rhoA: number; c: number
 }
 
 /** Whether a construct gets the ρA reliability (and PLSc correction). */
-const isCommonFactor = (m: CompiledModel, j: number) => m.types[j] === 'factor' && m.modes[j] === 'A' && m.blocks[j].length > 1;
+const isCommonFactor = (m: CompiledModel, j: number) => m.types[j] === 'factor' && m.modes[j] === 'A' && m.blocks[j].length > 1 && !m.predefined[j];
 
 /**
  * Structural results that bootstrapping also needs. With `consistent`, common
@@ -429,7 +435,8 @@ export interface PlsEstimate {
   m: CompiledModel;
   X: Float64Array[];
   core: CoreResult;
-  st: ReturnType<typeof structural>;
+  /** `r2Excluding`: PLSc with terms: R² of an equation without a predictor. */
+  st: ReturnType<typeof structural> & { r2Excluding?: (from: number, to: number) => number };
   /** Stage-1 weights when the model has moderators (warm start for bootstrapping). */
   w1?: Float64Array;
 }
@@ -440,40 +447,86 @@ export interface PlsEstimate {
  * (Henseler & Chin 2010; as seminr and SmartPLS): stage 1 estimates the model
  * without interaction terms, the product of the standardised scores of the
  * predictor and the moderator becomes a single-indicator construct, and stage 2
- * estimates the full model.
+ * estimates the full model. Gaussian copula terms take the same route (Hult et
+ * al. 2018): P* of the predictor's stage 1 scores, recomputed per bootstrap sample.
+ * With PLSc, the terms' moments are corrected instead (plscMoments.ts).
  */
 export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
   // Categorical exogenous constructs: their dummy columns and Mode B composites.
   const { data, spec } = expandCategorical(data0, spec0);
   const mods = spec.moderations ?? [];
   if (spec.constructs.some((c) => c.components?.length)) throw new Error('Higher-order constructs are supported in CB-SEM only.');
-  if (mods.length && opts.consistent) throw new Error('Moderation is not yet supported with PLSc; switch consistent PLS off.');
-  const m1 = compileModel({ constructs: spec.constructs, paths: spec.paths });
+  const cops = spec.copulas ?? [];
+  // P* is built from the proxy itself, so its error is not independent of the proxy's: PLSc's correction does not apply.
+  if (cops.length && opts.consistent) throw new Error('Gaussian copula terms are not available with PLSc; switch consistent PLS off.');
+  const threeMains = (spec.threeWay ?? []).flatMap((t) => [t.moderator, t.moderator2].map((from) => ({ from, to: t.to })));
+  const m1 = compileModel({ constructs: spec.constructs, paths: [...spec.paths, ...threeMains.filter((q) => !spec.paths.some((p) => p.from === q.from && p.to === q.to)).filter((q, i, all) => all.findIndex((o) => o.from === q.from && o.to === q.to) === i)] });
   const { cols, dropped } = extractColumns(data, m1, opts.missing);
-  if (mods.length === 0) {
+  if (mods.length === 0 && cops.length === 0 && !spec.threeWay?.length) {
     const estimate = (c: Float64Array[], init?: { w2?: Float64Array }): PlsEstimate => {
       const X = standardizeColumns(c, m1.indicatorNames);
       const core = plsCore(X, m1, opts, init?.w2);
       return { m: m1, X, core, st: structural(m1, X, core, opts.consistent) };
     };
-    return { m: m1, cols, dropped, estimate, moderations: [] as PlsResult['moderations'] };
+    return { m: m1, cols, dropped, estimate, moderations: [] as PlsResult['moderations'], threeWay: [] as NonNullable<PlsResult['threeWay']>, copulas: [] as { from: string; to: string; construct: number }[] };
   }
-  const names = mods.map((mo) => interactionName(mo.from, mo.moderator));
-  const pairs = mods.map((mo) => {
+  // A three-way interaction brings its lower-order terms and main effects along.
+  const threes = spec.threeWay ?? [];
+  const allMods = [...mods];
+  const paths = [...spec.paths];
+  for (const t of threes) {
+    if (!spec.paths.some((p) => p.from === t.from && p.to === t.to)) throw new Error(`${threeWayName(t)} acts on ${t.from} → ${t.to}, but that path is not in the model.`);
+    for (const [from, moderator] of [[t.from, t.moderator], [t.from, t.moderator2], [t.moderator, t.moderator2]]) {
+      if (!allMods.some((mo) => mo.to === t.to && ((mo.from === from && mo.moderator === moderator) || (mo.from === moderator && mo.moderator === from)))) allMods.push({ from, moderator, to: t.to });
+    }
+    for (const from of [t.moderator, t.moderator2]) if (!paths.some((p) => p.from === from && p.to === t.to)) paths.push({ from, to: t.to });
+  }
+  const names = [...allMods.map((mo) => interactionName(mo.from, mo.moderator)), ...threes.map(threeWayName)];
+  const pairs: number[][] = [...allMods.map((mo) => {
     const a = m1.constructs.indexOf(mo.from), b = m1.constructs.indexOf(mo.moderator);
     if (a < 0 || b < 0 || !m1.constructs.includes(mo.to)) throw new Error(`Moderation ${mo.moderator} on ${mo.from} → ${mo.to} references an unknown construct.`);
-    if (!spec.paths.some((p) => p.from === mo.from && p.to === mo.to)) throw new Error(`${mo.moderator} moderates ${mo.from} → ${mo.to}, but that path is not in the model.`);
-    return [a, b] as const;
+    if (mods.includes(mo) && !spec.paths.some((p) => p.from === mo.from && p.to === mo.to)) throw new Error(`${mo.moderator} moderates ${mo.from} → ${mo.to}, but that path is not in the model.`);
+    return [a, b];
+  }), ...threes.map((t) => {
+    const f = [t.from, t.moderator, t.moderator2].map((n) => m1.constructs.indexOf(n));
+    if (f.some((i) => i < 0) || !m1.constructs.includes(t.to)) throw new Error(`${threeWayName(t)} references an unknown construct.`);
+    return f;
+  })];
+  const termTo = [...allMods.map((mo) => mo.to), ...threes.map((t) => t.to)];
+  const copNames = cops.map((k) => copulaName(k.from, k.to));
+  const copFrom = cops.map((k) => {
+    if (!spec.paths.some((p) => p.from === k.from && p.to === k.to)) throw new Error(`A Gaussian copula is set on ${k.from} → ${k.to}, but that path is not in the model.`);
+    return m1.constructs.indexOf(k.from);
   });
   const m2 = compileModel({
-    constructs: [...spec.constructs, ...names.map((name) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: [name] }))],
-    paths: [...spec.paths, ...mods.map((mo, i) => ({ from: names[i], to: mo.to }))],
+    constructs: [...spec.constructs, ...[...names, ...copNames].map((name) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: [name] }))],
+    paths: [...paths, ...names.map((name, i) => ({ from: name, to: termTo[i] })), ...cops.map((k, i) => ({ from: copNames[i], to: k.to }))],
   });
   const estimate = (c: Float64Array[], init?: { w1?: Float64Array; w2?: Float64Array }): PlsEstimate => {
     const X1 = standardizeColumns(c, m1.indicatorNames);
     const core1 = plsCore(X1, m1, opts, init?.w1);
-    const products = pairs.map(([a, b]) => Float64Array.from(core1.scores[a], (v, r) => v * core1.scores[b][r]));
-    const X = standardizeColumns([...c, ...products], m2.indicatorNames);
+    const products = pairs.map((f) => Float64Array.from(core1.scores[f[0]], (_, r) => f.reduce((p, a) => p * core1.scores[a][r], 1)));
+    if (opts.consistent) {
+      // PLSc: the weights of the model without its terms, and the moments of the products corrected for measurement error.
+      const X = standardizeColumns([...c, ...products], m2.indicatorNames);
+      const core: CoreResult = { ...core1, w: Float64Array.from([...core1.w, ...products.map(() => 1)]), scores: [...core1.scores, ...products.map((p, i) => standardize(p, names[i]))] };
+      const st = structural(m2, X, core, true);
+      const moment = latentMoments(core1.scores, structural(m1, X1, core1, true).rhoA);
+      const regressors = (j: number): number[][] => m2.preds[j].map((p) => (p < m1.constructs.length ? [p] : Array.from(pairs[p - m1.constructs.length])));
+      m2.preds.forEach((P, j) => {
+        if (P.length === 0) return;
+        const { beta, r2 } = momentRegression(moment, j, regressors(j));
+        P.forEach((p, i) => { st.pathCoef[p][j] = beta[i]; });
+        st.rSquared[j] = r2;
+      });
+      const r2Excluding = (p: number, j: number) => {
+        const left = m2.preds[j].filter((q) => q !== p);
+        return momentRegression(moment, j, left.map((q) => (q < m1.constructs.length ? [q] : Array.from(pairs[q - m1.constructs.length])))).r2;
+      };
+      return { m: m2, X, core, st: { ...st, totalEffects: totalEffectsOf(st.pathCoef), r2Excluding }, w1: core1.w };
+    }
+    const pStars = copFrom.map((a) => pStar(core1.scores[a]));
+    const X = standardizeColumns([...c, ...products, ...pStars], m2.indicatorNames);
     const core = plsCore(X, m2, opts, init?.w2);
     const st = structural(m2, X, core, false);
     // Report interaction effects per unit of the product of standardised scores
@@ -487,7 +540,49 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
     });
     return { m: m2, X, core, st, w1: core1.w };
   };
-  return { m: m2, cols, dropped, estimate, moderations: mods.map((mo, i) => ({ ...mo, construct: m2.constructs.indexOf(names[i]) })) };
+  return { m: m2, cols, dropped, estimate, moderations: allMods.map((mo, i) => ({ ...mo, construct: m2.constructs.indexOf(names[i]) })), threeWay: threes.map((t) => ({ ...t, construct: m2.constructs.indexOf(threeWayName(t)) })), copulas: cops.map((k, i) => ({ ...k, construct: m2.constructs.indexOf(copNames[i]) })) };
+}
+
+/**
+ * Paths on the indicators' own scale (Fornell's rescaling, as in IPMA): outer weights per raw unit, normalised to sum to 1
+ * in each block. Mean-centred results have the same slopes and intercepts of 0. Null for a model with terms (their products have no such scale).
+ */
+export function originalScaleCoefficients(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>, weights: { name: string; weight: number }[]) {
+  if (spec.moderations?.length || spec.threeWay?.length || spec.copulas?.length) return null;
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const { data: d, spec: sp } = expandCategorical(data, spec);
+  const m = compileModel({ constructs: sp.constructs, paths: sp.paths });
+  const { cols } = extractColumns(d, m, opts.missing);
+  const w = new Map(weights.map((x) => [x.name, x.weight]));
+  const n = cols[0]?.length ?? 0;
+  const scores = m.blocks.map((b) => {
+    const raw = b.map((k) => (w.get(m.indicatorNames[k]) ?? 0) / sd(cols[k]));
+    const sum = raw.reduce((s, v) => s + v, 0);
+    const y = new Float64Array(n);
+    b.forEach((k, a) => { for (let r = 0; r < n; r++) y[r] += (raw[a] / (sum || 1)) * cols[k][r]; });
+    return y;
+  });
+  const means = scores.map((y) => mean(y));
+  const cov = (a: number, b: number) => { let s = 0; for (let r = 0; r < n; r++) s += (scores[a][r] - means[a]) * (scores[b][r] - means[b]); return s / (n - 1); };
+  return m.preds.flatMap((P, j) => {
+    if (P.length === 0) return [];
+    const b = solve(P.map((a) => P.map((c) => cov(a, c))), P.map((a) => cov(a, j)));
+    return [{ to: m.constructs[j], intercept: means[j] - P.reduce((s, p, i) => s + b[i] * means[p], 0), coefficients: P.map((p, i) => ({ from: m.constructs[p], b: b[i] })) }];
+  });
+}
+
+/**
+ * A moderator that is 0/1 read without standardising it (Becker et al. 2023): from the standardised estimates of
+ * z_y = βx·z_x + βd·z_d + βi·z_x·z_d, with z_d = (d − mean) / sd.
+ */
+export function binaryModeration(bx: number, bd: number, bi: number, d: ArrayLike<number>) {
+  const col = Float64Array.from(d as ArrayLike<number>).filter(Number.isFinite);
+  const values = [...new Set(col)].sort((a, b) => a - b);
+  if (values.length !== 2) return null;
+  const [lo, hi] = values;
+  const m = mean(col), s = sd(col);
+  const slope = (v: number) => bx + bi * (v - m) / s;
+  return { low: lo, high: hi, slopeLow: slope(lo), slopeHigh: slope(hi), difference: slope(hi) - slope(lo), groupDifference: bd * (hi - lo) / s };
 }
 
 export function estimatePls(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions> = {}): PlsResult {
@@ -512,7 +607,7 @@ export function estimatePls(data: Dataset, spec: ModelSpec, options: Partial<Pls
     const r2 = rSquared[j] as number;
     const vifs = vifDiag(P.map((a) => P.map((b) => C[a][b])));
     P.forEach((p, i) => {
-      fSquare[p][j] = (r2 - excludedRSquared(m, X, opts, C, p, j)) / (1 - r2);
+      fSquare[p][j] = (r2 - (st.r2Excluding?.(p, j) ?? excludedRSquared(m, X, opts, C, p, j))) / (1 - r2);
       vifInner[p][j] = vifs[i];
     });
   }
@@ -546,6 +641,8 @@ export function estimatePls(data: Dataset, spec: ModelSpec, options: Partial<Pls
     consistent: opts.consistent,
     types: m.types,
     moderations: prep.moderations,
+    ...(prep.threeWay.length ? { threeWay: prep.threeWay } : {}),
+    copulas: prep.copulas.map((k) => ({ ...k, normality: cramerVonMises(core.scores[m.constructs.indexOf(k.from)]) })),
     fSquare,
     vifInner,
     vifOuter,

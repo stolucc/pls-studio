@@ -3,6 +3,7 @@ import { useAnalyses } from './analyses/store';
 import { DataWorkspace } from './components/DataViewer';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useEffect, useState } from 'react';
+import { startAutoCalculate } from './autoCalculate';
 import { Canvas } from './components/Canvas';
 import { DataPanel } from './components/DataPanel';
 import { Inspector } from './components/Inspector';
@@ -31,6 +32,7 @@ export default function App() {
   const projectName = useStore((s) => s.projectName);
 
   // The validation page has its own address (#validation), so that it can be linked to and bookmarked.
+  useEffect(() => startAutoCalculate(), []);
   useEffect(() => {
     const fromHash = () => {
       const s = useStore.getState();

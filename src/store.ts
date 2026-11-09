@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { constructGeometry, setCircleConstructs } from './geometry';
+import { constructGeometry, setCircleConstructs, setDrawnElsewhere } from './geometry';
 import { factorName } from './model/efa';
 import type { FitTestResult } from './engine/bootstrap';
 import type { CbResult } from './engine/cbsem';
@@ -15,7 +15,7 @@ import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
 import { type InteractionMethod,
   createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec, unconfirmedUncorrelated,
-  type Construct, type Correlation, type DataInfo, type DefinedParameter, type ModelState, type ParameterTerm, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
+  indicatorsDrawnElsewhere, type Construct, type Correlation, type Path, type DataInfo, type DefinedParameter, type ModelState, type ParameterTerm, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
 import type { HeldValue } from './model/heldValue';
 
 export type Tool = 'select' | 'construct' | 'connect' | 'correlate';
@@ -60,7 +60,7 @@ export interface CloudState {
 /** Collaborative undo (Y.UndoManager, own changes only) replaces the local history. */
 export interface HistoryOverride { undo(): void; redo(): void }
 
-interface State {
+export interface State {
   /** Identifies the project in the recent-projects store. */
   projectId: string;
   /** Set while the open project is a shared (server) project. */
@@ -117,7 +117,7 @@ interface State {
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
   /** Factors from an exploratory factor analysis, as common factors (one undo step); `correlate`: draw their correlations. */
   addFactors: (groups: string[][], correlate: boolean, names?: string[]) => string[];
-  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical' | 'dominant' | 'reliability' | 'freeError' | 'reliabilities' | 'componentLoadings' | 'markerFree' | 'scaling'>>) => void;
+  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'shape' | 'color' | 'predefinedWeights' | 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical' | 'dominant' | 'reliability' | 'freeError' | 'reliabilities' | 'componentLoadings' | 'markerFree' | 'scaling'>>) => void;
   /** CB-SEM: label a path coefficient, loading or drawn covariance (null removes it); equal labels = equal values. */
   setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
   setDefined: (defined: DefinedParameter[]) => void;
@@ -176,6 +176,13 @@ interface State {
   addThreeWay: (moderatorId: string, moderationId: string) => boolean;
   /** Quadratic effect of a path's predictor (X² → Y). */
   addQuadratic: (pathId: string) => boolean;
+  /** PLS-SEM: add or remove the Gaussian copula term of a path's predictor. */
+  toggleCopula: (pathId: string) => void;
+  /** How a path is drawn. */
+  updatePath: (id: string, patch: Partial<Pick<Path, 'line' | 'curved'>>) => void;
+  addNote: (x: number, y: number) => void;
+  updateNote: (id: string, text: string) => void;
+  moveNote: (id: string, x: number, y: number) => void;
   /** `zero`: fix two exogenous constructs as uncorrelated instead of adding a free covariance. */
   addCorrelation: (kind: Correlation['kind'], a: string, b: string, zero?: boolean) => boolean;
   /** Exogenous constructs without a drawn correlation: draw them all (`correlate`), or confirm them as uncorrelated. */
@@ -259,11 +266,11 @@ export const emptyModel = (): ModelState => ({ constructs: [], paths: [], modera
 /** Fingerprint used to tell whether results still describe the current model. */
 export function resultsKey(s: Pick<State, 'model' | 'settings' | 'dataVersion'>): string {
   // Inference options and the figure style do not change the estimates.
-  const { bootSamples: _b, seed: _s, confidence: _c, bootTails: _t, bootInterval: _v, figure: _f, charts: _h, ...plsSettings } = s.settings;
+  const { autoCalculate: _a, bootSamples: _b, seed: _s, confidence: _c, bootTails: _t, bootInterval: _v, figure: _f, charts: _h, ...plsSettings } = s.settings;
   // Conditional process analysis bootstraps as part of estimation; it also depends on
   // moderated moderations and covariate flags, and nothing in it reads correlations.
   if (s.settings.method === 'process') {
-    const { figure: _g, charts: _i, ...settings } = s.settings;
+    const { autoCalculate: _j, figure: _g, charts: _i, ...settings } = s.settings;
     const { covariances: _k, ...spec } = toSpec(s.model);
     const three = (s.model.threeWay ?? []).map((t) => [t.moderation, t.moderator]);
     return JSON.stringify([spec, three, settings, s.dataVersion]);
@@ -533,11 +540,30 @@ export const useStore = create<State>((set, get) => ({
           c.components?.some((x) => constructIds.includes(x)) ? { ...c, components: c.components.filter((x) => !constructIds.includes(x)) } : c),
         paths,
         moderations,
+        ...(m.copulas ? { copulas: m.copulas.filter((k) => keep.has(k.path)) } : {}),
+        ...(m.notes ? { notes: m.notes.filter((k) => !constructIds.includes(k.id)) } : {}),
         ...(m.correlations ? { correlations: m.correlations.filter((k) => !correlationIds.includes(k.id)) } : {}),
         ...(m.threeWay ? { threeWay: m.threeWay.filter((t) => !moderationIds.includes(t.id) && keptMods.has(t.moderation) && !constructIds.includes(t.moderator)) } : {}),
       };
     });
     set({ selection: NO_SELECTION });
+  },
+  updatePath: (id, patch) => get().commit((m) => ({ ...m, paths: m.paths.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+  addNote: (x, y) => {
+    const id = `note-${newId('n')}`;
+    get().commit((m) => ({ ...m, notes: [...(m.notes ?? []), { id, x, y, text: '' }] }));
+    set({ selection: { ...NO_SELECTION, nodes: [id] } });
+  },
+  updateNote: (id, text) => get().commit((m) => ({ ...m, notes: (m.notes ?? []).map((k) => (k.id === id ? { ...k, text } : k)) })),
+  moveNote: (id, x, y) => readOnly(get()) ? undefined : set((s) => ({ dirty: true, model: { ...s.model, notes: (s.model.notes ?? []).map((k) => (k.id === id ? { ...k, x, y } : k)) } })),
+  toggleCopula: (pathId) => {
+    get().commit((m) => {
+      if (!m.paths.some((p) => p.id === pathId)) return m;
+      const has = m.copulas?.some((k) => k.path === pathId);
+      const copulas = has ? m.copulas!.filter((k) => k.path !== pathId) : [...(m.copulas ?? []), { id: `gc-${pathId}`, path: pathId }];
+      const { copulas: _old, ...rest } = m;
+      return copulas.length ? { ...rest, copulas } : rest;
+    });
   },
   addQuadratic: (pathId) => {
     const p = get().model.paths.find((q) => q.id === pathId);
@@ -575,7 +601,7 @@ export const useStore = create<State>((set, get) => ({
       return false;
     }
     if ((model.threeWay ?? []).some((t) => t.moderation === moderationId)) {
-      toast('error', 'This moderation is already moderated; PROCESS models have at most a three-way interaction.');
+      toast('error', 'This moderation is already moderated; at most a three-way interaction is available.');
       return false;
     }
     const id = newId('t');
@@ -715,12 +741,16 @@ export const useStore = create<State>((set, get) => ({
 
 // Whether constructs are circles sets every construct's geometry (the figure style; conditional process analysis keeps its
 // rectangles). Arrows memoise their geometry on the construct object, so they get new objects: not a change to the model.
-let circles = false;
+let circles = false, elsewhereKey = '{}';
 useStore.subscribe((s) => {
   const on = s.settings.figure.circleConstructs && s.settings.method !== 'process';
-  if (on === circles) return;
+  const elsewhere = indicatorsDrawnElsewhere(s.model);
+  const key = JSON.stringify([...elsewhere].map(([k, v]) => [k, [...v]]));
+  if (on === circles && key === elsewhereKey) return;
   circles = on;
+  elsewhereKey = key;
   setCircleConstructs(on);
+  setDrawnElsewhere(elsewhere);
   useStore.setState((st) => ({ model: { ...st.model, constructs: st.model.constructs.map((c) => ({ ...c })) } }));
 });
 

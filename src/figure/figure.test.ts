@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { BOX_RX, constructGeometry, setCircleConstructs, pathSegment, quadraticLoop } from '../geometry';
 import type { Construct } from '../model/project';
 import { R2_ABOVE_BOX_SIZE, renderFigureSvg, type FigureInput } from './render';
-import { DEFAULT_FIGURE_STYLE, estimateText, FIGURE_PRESETS, figureForMethod, formatEstimate, isPlainFigure, matchPreset, parseFigureStyle, pathStrokeWidth, significanceText } from './style';
+import { DEFAULT_FIGURE_STYLE, estimateText, FIGURE_PRESETS, figureForMethod, formatEstimate, isPlainFigure, matchPreset, semplotEdge, parseFigureStyle, pathStrokeWidth, significanceText } from './style';
 
 const C = (id: string, name: string, x: number, type: 'factor' | 'composite' = 'factor'): Construct =>
   ({ id, name, type, mode: type === 'factor' ? 'A' : 'B', indicators: [`${id}1`, `${id}2`], x, y: 0, side: 'left' });
@@ -205,8 +205,8 @@ describe('built-in styles', () => {
   });
 });
 
-describe('SmartPLS style', () => {
-  const style = FIGURE_PRESETS.smartpls.style;
+describe('PLS style', () => {
+  const style = FIGURE_PRESETS.pls.style;
   afterEach(() => setCircleConstructs(false));
   const circled = (): FigureInput => {
     setCircleConstructs(true);
@@ -217,9 +217,12 @@ describe('SmartPLS style', () => {
     return f;
   };
 
-  it('is a valid preset, and leaves the other styles alone', () => {
+  it('is a valid preset named PLS, and leaves the other styles alone', () => {
+    expect(FIGURE_PRESETS.pls.label).toBe('PLS');
+    expect(style.notation).toBe('pls');
+    expect(parseFigureStyle({ notation: 'pls' }).notation).toBe('pls');
     expect(parseFigureStyle(style)).toEqual(style);
-    expect(matchPreset(style)).toBe('smartpls');
+    expect(matchPreset(style)).toBe('pls');
     expect(parseFigureStyle({}).circleConstructs).toBe(false);
     expect(figureForMethod(DEFAULT_FIGURE_STYLE, 'cbsem')).toBe(DEFAULT_FIGURE_STYLE);
   });
@@ -273,6 +276,58 @@ describe('SmartPLS style', () => {
     const { svg } = renderFigureSvg(f, style);
     expect(svg).toContain('<line ');
     expect(svg).not.toMatch(/<line [^>]*\/>\n<path/);
+  });
+});
+
+describe('semPlot style', () => {
+  const style = FIGURE_PRESETS.semplot.style;
+  const f = (): FigureInput => {
+    const r = input();
+    r.errors = [{ kind: 'indicator', value: 0.4, name: 'a1', term: { cx: -200, cy: 0, nx: -1, ny: 0, ax: -170, ay: 0 } }];
+    return r;
+  };
+  it('is a valid preset', () => {
+    expect(parseFigureStyle(style)).toEqual(style);
+    expect(matchPreset(style)).toBe('semplot');
+    expect(style.circleConstructs).toBe(true);
+    expect(style.showR2).toBe(false);
+  });
+  it('colours arrows exactly as qgraph does', () => {
+    // Colours from semPaths(what = "std")'s graph attributes on a one-factor model; its weights are given to two decimals here, so within rounding.
+    const rgb = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+    const near = (w: number, ref: string) => rgb(semplotEdge(w).color).forEach((v, i) => expect(Math.abs(v - rgb(ref)[i])).toBeLessThanOrEqual(2));
+    near(1, '#009900'); near(0.92, '#14a114'); near(0.51, '#7dcb7d'); near(-0.91, '#c51616'); near(-0.25, '#efbebe'); near(0.15, '#d8efd8');
+    expect(semplotEdge(null).color).toBe('#6d6d6d');
+    expect(semplotEdge(1.3).color).toBe('#009900');
+  });
+  it('sizes them with the estimate, as qgraph’s 1 + 6.58·|w|', () => {
+    expect(semplotEdge(1).width / semplotEdge(0.15).width).toBeCloseTo(7.59 / 2, 1);
+    expect(semplotEdge(-0.5).width).toBe(semplotEdge(0.5).width);
+  });
+  it('draws a residual as a double-headed loop with its value, no circle', () => {
+    const { svg } = renderFigureSvg(f(), style);
+    expect(svg).not.toMatch(/<circle /);
+    expect(svg).toMatch(/<path d="M [^"]+ C [^"]+" fill="none" stroke="#6[0-9a-f]{5}"|<path d="M [^"]+ C [^"]+" fill="none"/);
+    expect(svg).toContain('>0.40<');
+  });
+  it('keeps names inside, dashes fixed loadings and colours loadings by sign', () => {
+    const { svg } = renderFigureSvg(f(), style);
+    const name = /<text x="[\d.-]+" y="([\d.-]+)"[^>]*>Loyalty</.exec(svg)!;
+    expect(Math.abs(Number(name[1]))).toBeLessThan(20);
+    expect(svg).toContain('stroke-dasharray="5 4"');
+    expect(svg).toContain(`stroke="${semplotEdge(0.812).color}"`);
+    expect(svg).toContain(`stroke="${semplotEdge(-0.2468).color}"`);
+    expect(svg).not.toContain('R²');
+  });
+  it('colours a general factor’s arrows to shared boxes too', () => {
+    const r = f();
+    r.higherOrder = [{ key: 'shared:g:a1', x1: 0, y1: 0, x2: 100, y2: 0, label: { value: -0.5, p: null } }];
+    expect(renderFigureSvg(r, style).svg).toContain(`stroke="${semplotEdge(-0.5).color}"`);
+  });
+  it('is grey before there are estimates', () => {
+    const r = f();
+    r.errors = []; r.paths = r.paths.map((p) => ({ ...p, label: null })); r.constructs = r.constructs.map((k) => ({ ...k, indicators: k.indicators.map(() => null) }));
+    expect(renderFigureSvg(r, style).svg).toContain('stroke="#6d6d6d"');
   });
 });
 

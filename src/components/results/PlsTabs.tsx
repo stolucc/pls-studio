@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { FitTestResult } from '../../engine/bootstrap';
+import { binaryModeration, originalScaleCoefficients } from '../../engine/pls';
 import type { BootstrapResult, BootstrapStat, Discrepancies, PlsResult } from '../../engine/types';
+import { toSpec } from '../../model/project';
 import { csvCell, downloadText, fmt, safeFileName } from '../../format';
 import { run } from '../../runner';
 import { useStore } from '../../store';
@@ -220,7 +222,7 @@ function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
     return <div className="empty-results">{pls.hocApproach === 'repeated'
       ? 'Overall fit is not reported with repeated indicators: the copied indicators make the model-implied correlation matrix singular.'
       : pls.hocApproach ? 'Overall fit is not reported for two-stage second-order models: cSEM’s discrepancies refer to one stage only.'
-        : pls.moderations.length ? 'Overall fit is not reported for models with interaction terms: the model-implied correlations of a nonlinear model are not defined.'
+        : pls.moderations.length || pls.copulas?.length ? `Overall fit is not reported for models with ${pls.moderations.length ? 'interaction' : 'copula'} terms: the model-implied correlations of a nonlinear model are not defined.`
           : 'Overall fit is not available for this model (the package did not report it; see Messages).'}</div>;
   }
   return (
@@ -289,6 +291,61 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
   );
 }
 
+/** Unstandardised and mean-centred paths: the same slopes, with and without an intercept. */
+function OriginalScale({ pls }: { pls: PlsResult }) {
+  const data = useStore((s) => s.data), model = useStore((s) => s.model), missing = useStore((s) => s.settings.missing);
+  const res = useMemo(() => {
+    if (!data || data.cols.length === 0) return null;
+    try { return originalScaleCoefficients(data, toSpec(model), { missing }, pls.indicators.map((x, i) => ({ name: x.name, weight: pls.weights[i] }))); } catch { return null; }
+  }, [data, model, missing, pls]);
+  if (!res?.length) return null;
+  const rows: Row[] = res.flatMap((eq) => [
+    ...eq.coefficients.map((k): Row => [c(`${k.from} → ${eq.to}`), c(k.b), c(k.b)]),
+    [c(`Intercept of ${eq.to}`, 'dim'), c(eq.intercept), c(0)],
+  ]);
+  return (
+    <div style={{ marginTop: 20 }}>
+      <Table title="Unstandardised and mean-centred" file="paths-original-scale" columns={['Path', 'Unstandardised', 'Mean-centred']} rows={rows}
+        note="On the indicators’ own scale: outer weights per raw unit, normalised to sum to 1 in each block (Fornell’s rescaling, as in IPMA). Centring the scores leaves the slopes as they are and takes the intercepts to 0." />
+    </div>
+  );
+}
+
+/** Moderators that are 0/1, read without standardising them (Becker et al. 2023). */
+function BinaryModerators({ pls }: { pls: PlsResult }) {
+  const data = useStore((s) => s.data), model = useStore((s) => s.model);
+  const C = pls.constructs;
+  const rows: Row[] = pls.moderations.flatMap((mo): Row[] => {
+    const item = model.constructs.find((k) => k.name === mo.moderator);
+    const col = item?.indicators.length === 1 ? data?.cols[data.names.indexOf(item.indicators[0])] : undefined;
+    if (!col || mo.from === mo.moderator) return [];
+    const j = C.indexOf(mo.to);
+    const b = binaryModeration(pls.pathCoef[C.indexOf(mo.from)][j], pls.pathCoef[C.indexOf(mo.moderator)][j], pls.pathCoef[mo.construct][j], col);
+    return b ? [[c(`${mo.moderator} on ${mo.from} → ${mo.to}`), c(b.slopeLow), c(b.slopeHigh), c(b.difference), c(b.groupDifference)]] : [];
+  });
+  if (rows.length === 0) return null;
+  return <Table title="Binary moderators, not standardised" file="binary-moderators" columns={['Moderation', 'Slope in the lower group', 'Slope in the higher group', 'Difference', 'Group difference in the outcome']} rows={rows}
+    note="The slopes per SD of the predictor in each group of the 0/1 moderator, in SDs of the outcome, with no manual correction for its standardisation (Becker et al. 2023). The test of the difference is the interaction term’s, above." />;
+}
+
+/** Gaussian copula terms (Hult et al. 2018; Becker, Proksch & Ringle 2022 for the requirements). */
+function Copulas({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) {
+  const terms = pls.copulas ?? [];
+  if (terms.length === 0) return null;
+  const C = pls.constructs;
+  const rows: Row[] = terms.map((k) => {
+    const name = C[k.construct];
+    return [c(`${k.from} → ${k.to}`), c(pls.pathCoef[k.construct][C.indexOf(k.to)]), c(k.normality.p), ...(boot ? bootCells(boot.stats.find((s) => s.key === `path:${name}:${k.to}`)) : [])];
+  });
+  const normal = terms.filter((k) => k.normality.p >= 0.05).map((k) => k.from);
+  return (
+    <div style={{ marginTop: 20 }}>
+      <Table title="Endogeneity: Gaussian copulas" file="copulas" columns={['Predictor → outcome', 'γ (copula term)', 'Normality p (Cramér–von Mises)', ...(boot ? bootCols(boot) : [])]} rows={rows}
+        note={<>A significant term suggests endogeneity of the predictor in that equation; the paths above are then the corrected estimates, and if it is not significant, estimate the model without the term (Hult et al. 2018; Park &amp; Gupta 2012). P* is recomputed in each bootstrap sample. The approach needs non-normal predictors and is unreliable in small samples (Becker, Proksch &amp; Ringle 2022).{!boot && ' Run the bootstrap to test the terms.'}{normal.length > 0 && <> <b>{[...new Set(normal)].join(', ')}: normality is not rejected</b>, so P* is nearly collinear with the predictor and these results should not be relied on.</>}</>} />
+    </div>
+  );
+}
+
 function Moderation({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) {
   if (pls.moderations.length === 0) {
     return <div className="empty-results">No moderators in the model. Drag from a construct’s dot onto a path arrow to add one.</div>;
@@ -296,6 +353,10 @@ function Moderation({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | nul
   const C = pls.constructs;
   const METHOD: Record<string, string> = { two_stage: 'two-stage', orthogonal: 'orthogonalising', product_indicator: 'product indicators' };
   const methods = new Set(pls.moderations.map((mo) => mo.method ?? 'two_stage'));
+  const threeRows: Row[] = (pls.threeWay ?? []).map((t) => {
+    const j = C.indexOf(t.to);
+    return [c(`${C[t.construct]} → ${t.to}`), c('three-way', 'dim'), c(pls.pathCoef[t.construct][j]), c(pls.fSquare[t.construct][j]), ...(boot ? bootCells(boot.stats.find((s) => s.key === `path:${C[t.construct]}:${t.to}`)) : [])];
+  });
   const rows: Row[] = pls.moderations.map((mo) => {
     const j = C.indexOf(mo.to);
     const b = boot?.stats.find((s) => s.key === `path:${C[mo.construct]}:${mo.to}`);
@@ -303,8 +364,9 @@ function Moderation({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | nul
   });
   return (
     <>
-      <Table title="Interaction and quadratic effects" file="interactions" columns={['Term', 'Approach', 'β', 'f²', ...(boot ? bootCols(boot) : [])]} rows={rows}
+      <Table title="Interaction and quadratic effects" file="interactions" columns={['Term', 'Approach', 'β', 'f²', ...(boot ? bootCols(boot) : [])]} rows={[...rows, ...threeRows]}
         note={<>{methods.size === 1 && methods.has('two_stage') ? 'Two-stage approach (Henseler & Chin 2010): the product of the standardised construct scores of the first stage.' : 'Orthogonalising: products of indicators residualised on the main-effect indicators (Little, Bovaird & Widaman 2006); product indicators: every product of a predictor and a moderator indicator as the term’s indicators (Chin, Marcolin & Newsted 2003); two-stage: the product of the standardised scores (Henseler & Chin 2010).'} β is per unit of the (standardised) interaction term, so the slope of the predictor at moderator level m (in SD) is β_x + β_int·m; for a quadratic term X², the slope of X at x (in SD) is β_x + 2β_q·x. f²: 0.005 small, 0.01 medium, 0.025 large for interactions (Kenny 2018).{!boot && ' Run bootstrapping for significance.'}</>} />
+      <BinaryModerators pls={pls} />
       <div className="tables" style={{ marginTop: 20 }}>
         {pls.moderations.map((mo) => {
           const j = C.indexOf(mo.to);
@@ -326,7 +388,7 @@ function Moderation({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | nul
 export function PlsTab({ tab, pls, boot, fitTest }: { tab: PlsTabId; pls: PlsResult; boot: BootstrapResult | null; fitTest: FitTestResult | null }) {
   switch (tab) {
     case 'overview': return <Overview pls={pls} boot={boot} />;
-    case 'paths': return <Paths pls={pls} boot={boot} />;
+    case 'paths': return <><Paths pls={pls} boot={boot} /><OriginalScale pls={pls} /><Copulas pls={pls} boot={boot} /></>;
     case 'effects': return <Effects pls={pls} boot={boot} />;
     case 'outer': return <Outer pls={pls} boot={boot} />;
     case 'reliability': return <Reliability pls={pls} />;

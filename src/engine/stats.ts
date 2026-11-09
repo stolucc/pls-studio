@@ -162,6 +162,39 @@ export function ncChisqCdf(x: number, df: number, ncp: number): number {
 }
 
 /** Two-tailed p-value for a standard normal z statistic. */
+/**
+ * The Gaussian copula term of a variable (Park & Gupta 2012): the normal quantile of its empirical CDF. As
+ * REndo::copulaCorrection: the largest value's CDF of 1 becomes n / (n + 1), and an exact 0 becomes 1 − n / (n + 1).
+ */
+export function pStar(v: ArrayLike<number>): Float64Array {
+  const n = v.length;
+  const sorted = Float64Array.from(v as ArrayLike<number>).sort();
+  const upper = (x: number) => { let lo = 0, hi = n; while (lo < hi) { const m = (lo + hi) >> 1; if (sorted[m] <= x) lo = m + 1; else hi = m; } return lo; };
+  return Float64Array.from(v as ArrayLike<number>, (x) => {
+    const u = upper(x) / n;
+    const s = qnorm(u === 1 ? n / (n + 1) : u);
+    return s === 0 ? 1 - n / (n + 1) : s;
+  });
+}
+
+/** Cramér–von Mises test of normality with estimated mean and SD (Stephens 1986, as nortest::cvm.test). */
+export function cramerVonMises(x: ArrayLike<number>): { statistic: number; p: number } {
+  const n = x.length;
+  if (n < 8) throw new Error('The Cramér–von Mises test needs at least eight observations.');
+  const sorted = Float64Array.from(x as ArrayLike<number>).sort();
+  const mean = sorted.reduce((s, v) => s + v, 0) / n;
+  const sd = Math.sqrt(sorted.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1));
+  let w = 1 / (12 * n);
+  sorted.forEach((v, i) => { w += (pnorm((v - mean) / sd) - (2 * (i + 1) - 1) / (2 * n)) ** 2; });
+  const m = (1 + 0.5 / n) * w;
+  const p = m < 0.0275 ? 1 - Math.exp(-13.953 + 775.5 * m - 12542.61 * m * m)
+    : m < 0.051 ? 1 - Math.exp(-5.903 + 179.546 * m - 1515.29 * m * m)
+      : m < 0.092 ? Math.exp(0.886 - 31.62 * m + 10.897 * m * m)
+        : m < 1.1 ? Math.exp(1.111 - 34.242 * m + 12.832 * m * m)
+          : 7.37e-10;
+  return { statistic: w, p };
+}
+
 export function normalP(z: number): number {
   if (!Number.isFinite(z)) return Number.isNaN(z) ? NaN : 0;
   // erfc(|z|/√2) = Q(1/2, z²/2)

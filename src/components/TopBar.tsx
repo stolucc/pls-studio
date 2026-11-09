@@ -46,6 +46,8 @@ export function TopBar() {
   const showResults = useStore((s) => s.showResultsOnDiagram);
   const setShowResults = useStore((s) => s.setShowResultsOnDiagram);
   const hasModel = useStore((s) => s.model.constructs.length > 0);
+  const autoCalculate = useStore((s) => s.settings.autoCalculate);
+  const setAuto = (on: boolean) => useStore.getState().setSettings({ autoCalculate: on });
   const setView = useStore((s) => s.setView);
   const [shareOpen, setShareOpen] = useState(false);
   const method = useStore((s) => s.settings.method);
@@ -113,6 +115,8 @@ export function TopBar() {
         style={method === 'process' ? { visibility: 'hidden' } : undefined} aria-hidden={method === 'process'} tabIndex={method === 'process' ? -1 : undefined}>
         <IconRepeat /><span className="lbl-wide">Bootstrap</span>
       </button>
+      <button className={`btn ghost${autoCalculate ? ' on' : ''}`} aria-pressed={autoCalculate} onClick={() => setAuto(!autoCalculate)}
+        title={autoCalculate ? 'Recalculates by itself after a change to the model. Click to turn off' : 'Recalculate by itself after a change to the model'}>Auto</button>
       <button className="btn primary" onClick={() => void calculateHere('estimate')} disabled={(target.kind === 'card' ? cardRunning : !!job || !hasModel)}
         title={target.kind === 'card' ? `Run the selected card: ${target.title} (${mod}↵)` : target.kind === 'run' ? `Open ${target.title} on the Model tab and calculate it (${mod}↵)`
           : `${method === 'pls' ? 'Run the PLS algorithm' : method === 'process' ? 'OLS regressions and bootstrap of the indirect effects (manymome)' : 'Maximum-likelihood estimation'} (${mod}↵)`}>
