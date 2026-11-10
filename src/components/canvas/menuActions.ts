@@ -110,6 +110,13 @@ const groupValues = async (target: MenuTarget) => {
   const v = await heldDialog('Covariance per group', 'Give the covariance a value or label in each group (lavaan c(…); Mplus group-specific MODEL commands), or one for all groups.', heldText(k));
   if (v !== undefined) st().setCorrelationValue(k.id, v);
 };
+/** Specification search: mark a path or a covariance as optional (drawn differently; the search fits the model with and without it), or required again. */
+export function toggleOptional(target: MenuTarget) {
+  const flip = <T extends { id: string; optional?: true }>(x: T): T => { if (x.id !== (target as { id?: string }).id) return x; const { optional, ...rest } = x; return (optional ? rest : { ...rest, optional: true }) as T; };
+  if (target.kind === 'path') st().commit((m) => ({ ...m, paths: m.paths.map(flip) }));
+  else if (target.kind === 'correlation') st().commit((m) => ({ ...m, correlations: (m.correlations ?? []).map(flip) }));
+}
+
 /** Carries out a context menu's action on its target. */
 export function runMenuAction(target: MenuTarget, a: MenuAction, ui: MenuUi) {
   const s = st();
@@ -148,6 +155,7 @@ export function runMenuAction(target: MenuTarget, a: MenuAction, ui: MenuUi) {
     case 'held-intercept': void heldParameter(target, 'intercept'); break;
     case 'held-threshold': void heldParameter(target, 'threshold'); break;
     case 'group-values': void groupValues(target); break;
+    case 'toggle-optional': toggleOptional(target); break;
     case 'make-esem': {
       const m = st().model;
       const free = st().selection.nodes.filter((x) => !m.esem?.blocks.some((b) => b.constructs.includes(x)) && m.constructs.some((c) => c.id === x && !c.covariate && !c.components?.length));

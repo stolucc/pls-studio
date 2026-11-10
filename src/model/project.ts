@@ -71,6 +71,8 @@ export interface Path {
   /** How it is drawn. */
   line?: 'dashed' | 'dotted';
   curved?: boolean;
+  /** CB-SEM specification search (as Amos): the arrow may be dropped; the search fits the model with and without it. */
+  optional?: true;
 }
 
 export interface Settings {
@@ -179,6 +181,8 @@ export interface Correlation {
   label?: string;
   /** CB-SEM, several groups: a value or label per group (lavaan c(...)) instead of `fixed` / `label`. */
   byGroup?: GroupValue[];
+  /** CB-SEM specification search (as Amos): the covariance may be dropped (fixed at zero). */
+  optional?: true;
 }
 
 /**
@@ -1022,7 +1026,7 @@ export function parseModelState(m: unknown): ModelState {
   for (const c of constructs) if (c.components?.some((x) => !ids.has(x) || x === c.id)) throw new Error('Invalid project file: higher-order construct refers to an unknown component.');
   const paths: Path[] = m.paths.map((p: unknown) => {
     if (!isObj(p)) throw new Error('Invalid path in project file.');
-    const path = { id: str(p.id, 64), from: str(p.from, 64), to: str(p.to, 64), ...(finite(p.fixed) ? { fixed: p.fixed } : {}), ...(labelOf(p.label)), ...(p.line === 'dashed' || p.line === 'dotted' ? { line: p.line as 'dashed' | 'dotted' } : {}), ...(p.curved === true ? { curved: true } : {}) };
+    const path = { id: str(p.id, 64), from: str(p.from, 64), to: str(p.to, 64), ...(finite(p.fixed) ? { fixed: p.fixed } : {}), ...(labelOf(p.label)), ...(p.line === 'dashed' || p.line === 'dotted' ? { line: p.line as 'dashed' | 'dotted' } : {}), ...(p.curved === true ? { curved: true } : {}), ...(p.optional === true ? { optional: true as const } : {}) };
     if (!ids.has(path.from) || !ids.has(path.to)) throw new Error('Invalid project file: path references unknown construct.');
     return path;
   });
@@ -1055,7 +1059,7 @@ export function parseModelState(m: unknown): ModelState {
   const rawCorrs = Array.isArray(m.correlations) ? m.correlations.slice(0, 5000) : [];
   const correlations: Correlation[] = rawCorrs.map((k: unknown) => {
     if (!isObj(k) || (k.kind !== 'construct' && k.kind !== 'indicator')) throw new Error('Invalid correlation in project file.');
-    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}), ...(finite(k.fixed) ? { fixed: k.fixed } : {}), ...(labelOf(k.label)), ...(byGroupOf(k.byGroup)) };
+    const out: Correlation = { id: str(k.id, 64), kind: k.kind, a: str(k.a), b: str(k.b), ...(k.zero === true && k.kind === 'construct' ? { zero: true } : {}), ...(finite(k.fixed) ? { fixed: k.fixed } : {}), ...(labelOf(k.label)), ...(byGroupOf(k.byGroup)), ...(k.optional === true && k.zero !== true ? { optional: true as const } : {}) };
     const known = out.kind === 'construct' ? ids : indicatorNames;
     if (!known.has(out.a) || !known.has(out.b) || out.a === out.b) throw new Error('Invalid project file: correlation references an unknown construct or indicator.');
     return out;

@@ -1,0 +1,59 @@
+{
+  "versions": {
+    "lavaan": "0.7.3",
+    "R": "R version 4.6.2 (2026-10-29)"
+  },
+  "lm": [
+    {
+      "parameter": "visual =~ x9",
+      "chisq": 39.4194286650165,
+      "df": 1,
+      "increment": 39.4194286650165
+    },
+    {
+      "parameter": "visual =~ x8",
+      "chisq": 50.5723342438188,
+      "df": 2,
+      "increment": 11.1529055788023
+    },
+    {
+      "parameter": "textual =~ x1",
+      "chisq": 60.98018176917,
+      "df": 3,
+      "increment": 10.4078475253512
+    },
+    {
+      "parameter": "x4 ~~ x7",
+      "chisq": 69.2025517377302,
+      "df": 4,
+      "increment": 8.22236996856025
+    },
+    {
+      "parameter": "visual =~ x5",
+      "chisq": 77.4232467590013,
+      "df": 5,
+      "increment": 8.22069502127114
+    },
+    {
+      "parameter": "x2 ~~ x7",
+      "chisq": 81.8105803650219,
+      "df": 6,
+      "increment": 4.38733360602053
+    }
+  ],
+  "lmCandidates": 59,
+  "lavaanCumulative": {
+    "parameters": ["visual=~x9 0", "textual=~x1 0", "visual=~x5 0", "x2~~x7 0", "x4~~x7 0", "visual=~x8 0"],
+    "chisq": [39.4194286650165, 49.8272761903676, 58.6647385856395, 64.5373588194468, 71.906035770852, 81.8105803650219],
+    "df": [1, 2, 3, 4, 5, 6]
+  },
+  "wald": [
+    {
+      "parameter": "speed ~ textual",
+      "chisq": 0.653514288122024,
+      "df": 1,
+      "increment": 0.653514288122024
+    }
+  ],
+  "waldCandidates": 6
+}

@@ -19,7 +19,7 @@ export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'make-parcels' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'toggle-copula' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
   | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'toggle-free-path' | 'make-esem' | 'leave-esem'
-  | 'held-variance' | 'held-intercept' | 'held-threshold' | 'group-values';
+  | 'held-variance' | 'held-intercept' | 'held-threshold' | 'group-values' | 'toggle-optional';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
@@ -143,6 +143,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && cb && { action: 'fix-value', label: p.fixed !== undefined ? `Change fixed value (${p.fixed})…` : 'Fix coefficient at a value…' },
         edit && cb && p.fixed !== undefined && { action: 'free-value', label: 'Free coefficient (estimate it)' },
         edit && cb && p.fixed === undefined && { action: 'set-label', label: p.label ? `Label (${p.label})…` : 'Label (for constraints and defined parameters)…' },
+        edit && cb && (p.optional || (p.fixed === undefined && !p.label)) && { action: 'toggle-optional', label: p.optional ? 'Make required (not optional)' : 'Make optional (specification search)' },
         edit && !hasQuadratic && !proc && { action: 'add-quadratic', label: `Add quadratic effect (${nameOf(p.from)}²)` },
         edit && pls && { action: 'toggle-copula', label: model.copulas?.some((k) => k.path === p.id) ? 'Remove Gaussian copula' : `Add Gaussian copula (endogeneity of ${nameOf(p.from)})` },
         edit && { action: 'reverse-path', label: 'Reverse direction' },
@@ -169,6 +170,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && cb && k.fixed !== undefined && { action: 'free-value', label: 'Free covariance (estimate it)' },
         edit && cb && k.fixed === undefined && !k.byGroup?.length && { action: 'set-label', label: k.label ? `Label (${k.label})…` : 'Label…' },
         edit && cb && !!model.multigroup && !k.zero && { action: 'group-values', label: k.byGroup?.length ? `Values per group (${heldText(k)})…` : 'Values per group…' },
+        edit && cb && (k.optional || (!k.zero && k.fixed === undefined && !k.label && !k.byGroup?.length)) && { action: 'toggle-optional', label: k.optional ? 'Make required (not optional)' : 'Make optional (specification search)' },
         edit && { action: 'delete-correlation', label: 'Delete correlation', danger: true },
       ]);
     }

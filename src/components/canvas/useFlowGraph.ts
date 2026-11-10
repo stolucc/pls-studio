@@ -105,6 +105,7 @@ export function useFlowGraph({ model, placed, selection, tool, picked, implied, 
         moderated: model.moderations.some((mo) => mo.path === p.id), labelAt: labelAt.get(p.id), line: p.line, curved: p.curved,
         ...(method === 'cbsem' && p.fixed !== undefined ? { fixed: p.fixed } : {}),
         ...(method === 'cbsem' && p.fixed === undefined && p.label ? { label: p.label } : {}),
+        ...(method === 'cbsem' && p.optional ? { optional: true } : {}),
       },
     }));
     drawn.push(...means);

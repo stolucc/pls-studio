@@ -29,6 +29,9 @@ import commonR from '../../rengine/R/common.R?raw';
 import { exampleModel, exampleSettings, PACKAGE_EXAMPLES, panelPreset, type PackageExample } from '../packages';
 import { against, example as exampleCheck, near, same } from '../../validation/record';
 import { exampleTestData } from '../testData';
+import type { RegsemRaw } from '../../rengine/search';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -135,6 +138,23 @@ it('lavaan-hs-wald: each critical ratio squared is lavTestWald’s test of the t
   near('z(x5, x8)² = Wald b2 == b3', z('textual → x5', 'speed → x8') ** 2, ref.w23, 1e-6);
   near('z(x2, x5)² = Wald b1 == b2', z('visual → x2', 'textual → x5') ** 2, ref.w12, 1e-6);
   near('z(x2, x8)² = Wald b1 == b3', z('visual → x2', 'speed → x8') ** 2, ref.w13, 1e-6);
+}, 900_000);
+
+it('lslx-hs-sfa: the help page’s semi-confirmatory factor analysis, as lslx runs it natively', async () => {
+  const { run } = await open('lslx-hs-sfa', 'CB-SEM', ['lslx']);
+  const r = await run<RegsemRaw>();
+  // (scripts/validation/lslx.R: ?lslx's code in desktop lslx 0.6.11, converged tightly as the card does)
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'search', 'lslx.json'), 'utf8'));
+  against({ label: 'lslx, ?lslx (Semi-Confirmatory Factor Analysis): its code run natively, scripts/validation/lslx.R', level: 'native', url: 'https://rdrr.io/cran/lslx/man/lslx.html' });
+  near('selected λ', r.selected.lambda, 0.14, 1e-10);
+  same('selected δ', r.selected.delta ?? NaN, 1.5);
+  near('χ²', r.test.chisq!, ref.test.chisq, 1e-5);
+  same('df', r.test.df!, ref.test.df);
+  near('RMSEA', r.fitIndex.rmsea!, ref.fitIndex.rmsea, 1e-6);
+  near('CFI', r.fitIndex.cfi!, ref.fitIndex.cfi, 1e-6);
+  const x9 = r.estimates.find((e) => e.label === 'visual → x9')!;
+  near('x9 on visual (penalised)', x9.est!, ref.coefficients.find((c: { name: string }) => c.name === 'x9<-visual/g').est, 1e-6);
+  same('non-zero cross-loadings', r.estimates.filter((e) => e.type === 'pen' && Math.abs(e.est ?? 0) > 1e-8).length, 4);
 }, 900_000);
 
 it('lavaan-hs-scoreweights: the weights applied to the centred tests give lavPredict’s scores', async () => {
