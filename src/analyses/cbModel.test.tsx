@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
-import { bollenStineAnalysis as bs, cbFingerprint, cbModelBlocked, compareParamsAnalysis as cmp, quantile, scoreWeightsAnalysis as sw } from './cbModel';
+import { bollenStineAnalysis as bs, cbFingerprint, cbModelBlocked, compareParamsAnalysis as cmp, scoreWeightsAnalysis as sw } from './cbModel';
+import { quantileOf } from '../engine/stats';
 import type { AnalysisCtx } from './types';
 
 const col = (...v: number[]) => Float64Array.from(v);
@@ -50,8 +51,8 @@ describe('CB-SEM model cards', () => {
   });
 
   it('quantiles as R’s type 7', () => {
-    expect(quantile([1, 2, 3, 4], 0.5)).toBe(2.5);
-    expect(quantile([3, 1, 2], 0.95)).toBeCloseTo(2.9, 12);
+    expect(quantileOf([1, 2, 3, 4], 0.5)).toBe(2.5);
+    expect(quantileOf([3, 1, 2], 0.95)).toBeCloseTo(2.9, 12);
   });
 });
 

@@ -2,12 +2,12 @@
 // through the same validation as any untrusted input.
 
 import type { McDesign } from '../engine/montecarlo';
+import { isObj } from '../parse';
 import { MAX_PACKED } from './codec';
 import { analysisType } from './registry';
 import { MAX_CARDS, MAX_TEXT, MAX_TITLE } from './store';
 import type { Card, CardRun } from './types';
 
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const ID = /^card-[A-Za-z0-9-]{1,64}$/;
 
 function parseRun(r: unknown): CardRun | undefined {

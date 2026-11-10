@@ -6,8 +6,9 @@
 // combination of them, the normal part (a linear structural model of the latent and continuous observed variables),
 // the other outcomes with their linear predictors, the integration rule, and the rows to report.
 
+import { qlogis, qnorm } from '../engine/stats';
 import type { Dataset } from '../engine/types';
-import { MixtureModel, MixtureSyntaxError } from './mixtureSyntax';
+import { columnStats, MixtureModel, MixtureSyntaxError } from './mixtureSyntax';
 
 export interface QuadSlot { c: number; t: number[] }
 export type QuadOutcomeType = 'cat' | 'count' | 'nb' | 'zip' | 'censored' | 'cinfl' | 'normal' | 'surv';
@@ -72,26 +73,7 @@ function elements(mm: MixtureModel, text: string): El[] {
   return out;
 }
 
-/** Column statistics for starting values. */
-function stats(data: Dataset, col: string) {
-  const i = data.names.indexOf(col);
-  const v = Array.from(data.cols[i]).filter((x) => Number.isFinite(x));
-  const n = v.length, mean = v.reduce((a, b) => a + b, 0) / Math.max(1, n);
-  const variance = v.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, n - 1);
-  const levels = [...new Set(v)].sort((a, b) => a - b);
-  const counts = levels.map((l) => v.filter((x) => x === l).length);
-  return { n, mean, variance: variance > 0 ? variance : 1, levels, counts, min: n ? Math.min(...v) : 0, max: n ? Math.max(...v) : 0, zeros: v.filter((x) => x === 0).length };
-}
-const qlogis = (p: number) => { const q = Math.min(Math.max(p, 1e-4), 1 - 1e-4); return Math.log(q / (1 - q)); };
-const qnorm = (p: number): number => {
-  // (Acklam's approximation; starting values only)
-  const q = Math.min(Math.max(p, 1e-6), 1 - 1e-6), a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
-  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572], c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783], d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
-  if (q < 0.02425) { const t = Math.sqrt(-2 * Math.log(q)); return (((((c[0] * t + c[1]) * t + c[2]) * t + c[3]) * t + c[4]) * t + c[5]) / ((((d[0] * t + d[1]) * t + d[2]) * t + d[3]) * t + 1); }
-  if (q > 1 - 0.02425) return -qnorm(1 - q);
-  const t = q - 0.5, r = t * t;
-  return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * t / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
-};
+
 
 /** Statements of the MODEL: each with the labels of its lines attached to the elements ((label) at the end of a line). */
 function modelStatements(model: string): string[] {
@@ -354,8 +336,8 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
   }
   for (const [y, c] of censored) if (!dv.has(y)) fail(`${y} is declared CENSORED but is not in the model.`); else void c;
   for (const y of count.keys()) if (!dv.has(y)) fail(`${y} is declared COUNT but is not in the model.`);
-  const st = new Map<string, ReturnType<typeof stats>>();
-  const S = (c: string) => { if (!st.has(c)) st.set(c, stats(data, c)); return st.get(c)!; };
+  const st = new Map<string, ReturnType<typeof columnStats>>();
+  const S = (c: string) => { if (!st.has(c)) st.set(c, columnStats(data, c)); return st.get(c)!; };
   for (const y of dv) if (S(y).n === 0) fail(`${y} has no observed values.`);
   for (const y of categorical) { if (S(y).levels.length > 10) fail(`${y} has ${S(y).levels.length} categories: is it categorical?`); if (S(y).levels.length < 2) fail(`${y} has a single category.`); }
   for (const y of count.keys()) if (S(y).min < 0 || S(y).levels.some((l) => l !== Math.round(l))) fail(`${y}: a count is a whole number ≥ 0.`);
@@ -477,7 +459,7 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
       const lab = g ? `__thr_${growths.indexOf(g)}` : undefined;
       o.thr = s.levels.slice(0, -1).map((_, j) => {
         const cum = s.counts.slice(0, j + 1).reduce((a, b) => a + b, 0) / s.n;
-        return param({ lhs: y, op: '|', rhs: `t${j + 1}` }, find(`$${j + 1}`, y), { start: link === 'probit' ? qnorm(cum) : qlogis(cum), label: lab ? `${lab}_${j}` : undefined });
+        return param({ lhs: y, op: '|', rhs: `t${j + 1}` }, find(`$${j + 1}`, y), { start: link === 'probit' ? qnorm(Math.min(Math.max(cum, 1e-6), 1 - 1e-6)) : qlogis(cum, 1e-4), label: lab ? `${lab}_${j}` : undefined });
       });
       const as = asymOf.get(y);
       if (as) {

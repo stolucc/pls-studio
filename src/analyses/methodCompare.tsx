@@ -2,13 +2,12 @@
 // in one table (the built-in engines, so that the comparison needs no R).
 
 import { Table, c, type Row } from '../components/results/Table';
-import { covarianceLayout } from '../components/CovarianceLayer';
 import { estimateCb, type CbResult } from '../engine/cbsem';
 import { estimatePls } from '../engine/pls';
 import type { PlsResult } from '../engine/types';
-import { renderFigureSvg, type FigureInput } from '../figure/render';
+import { buildFigureInput, type FigureValues } from '../figure/build';
+import { renderFigureSvg } from '../figure/render';
 import type { FigureStyle } from '../figure/style';
-import { constructGeometry, pathOffset, pathSegment } from '../geometry';
 import { toSpec, type ModelState } from '../model/project';
 import { fingerprint } from './codec';
 import { columnsFingerprint, isObj, rawData } from './common';
@@ -23,41 +22,25 @@ export interface MethodCompareResult {
   figures: { pls: string; cb: string };
 }
 
-/** The diagram of a model with the estimates of one method. */
+/** The diagram of a model with the estimates of one method (the canvas's figure, standardised). */
 export function comparisonFigure(model: ModelState, method: 'pls' | 'cbsem', pls: PlsResult, cb: CbResult, style: FigureStyle) {
   const byId = new Map(model.constructs.map((k) => [k.id, k]));
   const std = (op: string, lhs: string, rhs: string) => cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)?.std ?? null;
-  const beta = (from: string, to: string) => (method === 'pls' ? pls.pathCoef[pls.constructs.indexOf(from)]?.[pls.constructs.indexOf(to)] ?? null : std('~', to, from));
-  const cov = covarianceLayout(model, method === 'cbsem', method === 'cbsem');
-  const input: FigureInput = {
-    method,
-    constructs: model.constructs.map((k) => ({
-      c: k, geom: constructGeometry(k),
-      r2: method === 'pls' ? pls.rSquared[pls.constructs.indexOf(k.name)] ?? null : cb.r2Constructs[cb.constructs.indexOf(k.name)] ?? null,
-      indicators: k.indicators.map((name) => {
-        const v = method === 'pls' ? pls.loadings[pls.indicators.findIndex((i) => i.name === name)] : std('=~', k.name, name);
-        return v === null || v === undefined ? null : { value: v, p: null };
-      }),
-    })),
-    paths: model.paths.flatMap((p) => {
-      const s = byId.get(p.from), t = byId.get(p.to);
-      const seg = s && t ? pathSegment(s, t, pathOffset(model.paths, p.from, p.to)) : null;
-      if (!s || !t || !seg) return [];
-      const v = beta(s.name, t.name);
-      return [{ key: p.id, ...seg, label: v === null ? null : { value: v, p: null }, moderated: false }];
-    }),
-    moderations: [], higherOrder: [],
-    errors: method === 'cbsem' ? [
-      ...[...cov.places.entries()].map(([name, { term }]) => { const value = std('~~', name, name); return { term, kind: 'indicator' as const, value, name, r2: value === null ? null : 1 - value }; }),
-      ...cov.disturbances.map(({ c: k, term }) => { const value = std('~~', k.name, k.name); return { term, kind: 'disturbance' as const, value, r2: value === null ? null : 1 - value }; }),
-    ] : [],
-    correlations: method === 'cbsem' ? cov.curves.map(({ k, curve }) => {
+  const values: FigureValues = method === 'pls' ? {
+    indicator: (name) => pls.loadings[pls.indicators.findIndex((i) => i.name === name)] ?? null,
+    r2: (name) => pls.rSquared[pls.constructs.indexOf(name)] ?? null,
+    path: (from, to) => ({ beta: pls.pathCoef[pls.constructs.indexOf(from)]?.[pls.constructs.indexOf(to)] ?? null }),
+  } : {
+    indicator: (name, construct) => std('=~', construct, name),
+    r2: (name) => cb.r2Constructs[cb.constructs.indexOf(name)] ?? null,
+    path: (from, to) => ({ beta: std('~', to, from) }),
+    error: (_kind, name) => std('~~', name, name),
+    correlation: (k) => {
       const a = k.kind === 'construct' ? byId.get(k.a)?.name ?? k.a : k.a, b = k.kind === 'construct' ? byId.get(k.b)?.name ?? k.b : k.b;
-      const v = std('~~', a, b) ?? std('~~', b, a);
-      return { d: curve.d, heads: curve.heads, lx: curve.lx, ly: curve.ly, nx: curve.nx, ny: curve.ny, points: [[curve.x1, curve.y1], [curve.x2, curve.y2], [curve.lx, curve.ly]] as [number, number][], label: v === null ? null : { value: v, p: null } };
-    }) : [],
+      return { value: std('~~', a, b) ?? std('~~', b, a) };
+    },
   };
-  return renderFigureSvg(input, style).svg;
+  return renderFigureSvg(buildFigureInput(model, method, values, { showErrors: method === 'cbsem' }), style).svg;
 }
 
 export function compareMethods(data: Parameters<typeof estimatePls>[0], model: ModelState, style: FigureStyle, missing: 'mean' | 'casewise'): MethodCompareResult {

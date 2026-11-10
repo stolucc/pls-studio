@@ -3,7 +3,7 @@
 // comparisons (AMOS's critical ratios for differences) and factor score weights.
 
 import type { CbEstimator } from '../engine/cbsem';
-import { quantileSorted } from '../engine/stats';
+import { mean, quantileOf } from '../engine/stats';
 import { downloadText, fmt } from '../format';
 import { toSpec, validateModel } from '../model/project';
 import type { BollenStineResult, CbCall, CompareParamsResult, ParamKind, ScoreMethod, ScoreWeightsResult } from '../rengine/cbExtras';
@@ -53,16 +53,12 @@ function BollenStineView({ r }: { r: BollenStineResult }) {
         note={`Bollen & Stine (1992): the data are transformed so that the model holds exactly, resampled with replacement, and the model refitted; p is the share of bootstrap χ² values at least as large as the observed ${fmt(r.chisq, 2)}. Unlike the usual χ² p, it does not assume multivariate normality. ${r.engine.package} ${r.engine.version}, test = "bollen.stine".`} />
       {r.boot.length > 0 && (
         <Table title="Bootstrap χ² distribution" file="bollen-stine-quantiles" columns={['Mean', '50%', '90%', '95%', '99%', 'Observed']}
-          rows={[[c(r.boot.reduce((a, b) => a + b, 0) / r.boot.length, undefined, 2), ...[0.5, 0.9, 0.95, 0.99].map((q) => c(quantile(r.boot, q), undefined, 2)), c(r.chisq, undefined, 2)]]}
+          rows={[[c(mean(r.boot), undefined, 2), ...[0.5, 0.9, 0.95, 0.99].map((q) => c(quantileOf(r.boot, q), undefined, 2)), c(r.chisq, undefined, 2)]]}
           note="Quantiles of χ² over the bootstrap samples: the observed value above the 95% quantile rejects exact fit at the 5% level." />
       )}
     </div>
   );
 }
-
-/** Quantile (type 7, as R's default). */
-/** Quantile of unsorted values (R's type 7): the engine's, on a sorted copy. */
-export const quantile = (v: number[], q: number): number => quantileSorted([...v].sort((a, b) => a - b), q);
 
 export const bollenStineAnalysis: AnalysisType<Record<string, never>, BollenStineResult> = {
   id: 'bollenstine', title: 'Bollen–Stine bootstrap', sub: 'p of the χ² test without assuming normality (lavaan)', group: CB_GROUP,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ipma, type IpmaPoint, type IpmaResult } from '../../engine/ipma';
+import { mean } from '../../engine/stats';
 import type { PlsResult } from '../../engine/types';
 import { toSpec } from '../../model/project';
 import { useStore } from '../../store';
@@ -28,7 +29,7 @@ function IpmaChart({ id, points, xLabel, yMax }: { id: string; points: IpmaPoint
   const yLo = Math.max(0, Math.floor((Math.min(...ys) - 5) / 10) * 10), yHi = Math.min(yMax, Math.ceil((Math.max(...ys) + 5) / 10) * 10);
   const sx = (v: number) => pad.l + ((v - xMin) / (xMax - xMin)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((yHi - v) / (yHi - yLo || 1)) * (H - pad.t - pad.b);
-  const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+  const mx = mean(xs), my = mean(ys);
   const ticks = (lo: number, hi: number, k: number) => Array.from({ length: k + 1 }, (_, i) => lo + ((hi - lo) * i) / k);
   return (
     <ChartFrame id={id} name="ipma" width={W} height={H} defaults={{ x: xLabel, y: 'Performance' }}>

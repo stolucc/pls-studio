@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '../../cloud/auth';
 import { useStore } from '../../store';
+import { useEscape } from '../useEscape';
 
 /** Sign in / create account / second factor / confirm Google link, all on-theme. */
 export function AuthDialog() {
@@ -18,12 +19,7 @@ export function AuthDialog() {
   const first = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setError(null); setNeedCode(false); setCode(''); setSent(null); setPassword2(''); setTimeout(() => first.current?.focus(), 0); }, [d?.mode]);
-  useEffect(() => {
-    if (!d) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); auth.closeDialog(); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [d, auth]);
+  useEscape(() => auth.closeDialog(), !!d);
   if (!d) return null;
 
   const run = async (e: FormEvent, fn: () => Promise<void>) => {

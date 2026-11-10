@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { switchMethod } from '../methodSwitch';
 import { slotRoles, templatePositions } from '../process/canvas';
 import { describe, familyOf, materialise, mediatorRange, TEMPLATES, type ProcessGraph, type Template } from '../process/templates';
 import { useStore } from '../store';
 import { IconX } from './icons';
 import { confirmDialog } from './Overlays';
+import { useEscape } from './useEscape';
 
 const NODE_W = 34, NODE_H = 20;
 
@@ -84,11 +85,7 @@ function Card({ tp, onPick }: { tp: Template; onPick: (tp: Template, k: number) 
 /** Pick a PROCESS model: its diagram replaces the canvas, with empty slots for the variables. */
 export function ProcessGallery({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  useEscape(onClose);
   const pick = async (tp: Template, k: number) => {
     const s = useStore.getState();
     const drawn = s.model.constructs.some((c) => !c.covariate) || s.model.paths.length > 0;

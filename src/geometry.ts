@@ -183,7 +183,6 @@ export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'si
 
 type Placed = Pick<Construct, 'name' | 'indicators' | 'side' | 'x' | 'y'> & { type?: ConstructType; covariate?: boolean };
 
-/** Endpoints of a structural path, clipped to both construct shapes. */
 /** How far the two arrows of a reciprocal pair (A → B and B → A) sit from the centre line, each to its own right. */
 export const RECIPROCAL_OFFSET = 14;
 
@@ -216,7 +215,6 @@ export function distanceToSegment(px: number, py: number, seg: { x1: number; y1:
   return Math.hypot(px - (seg.x1 + u * vx), py - (seg.y1 + u * vy));
 }
 
-/** Moderator arrow: from the moderator's boundary to the midpoint of the moderated path. */
 /** Half-size of the constant's triangle (ConstantNode). */
 export const CONSTANT_R = 20;
 
@@ -240,6 +238,7 @@ export function interceptSegment(k: { x: number; y: number }, t: Placed, box: Pi
   return { x1: k.x + (dx / l) * CONSTANT_R * 0.8, y1: k.y + (dy / l) * CONSTANT_R * 0.8, x2: cx - dx * s, y2: cy - dy * s };
 }
 
+/** Moderator arrow: from the moderator's boundary to the midpoint of the moderated path. */
 export function moderatorSegment(m: Placed, path: { x1: number; y1: number; x2: number; y2: number }) {
   const mx = (path.x1 + path.x2) / 2, my = (path.y1 + path.y2) / 2;
   const g = constructGeometry(m);
@@ -326,7 +325,6 @@ export function disturbanceTerm(c: Placed): ErrorTerm {
   return { cx: c.x + bx + nx * d, cy: c.y + by + ny * d, ax: c.x + bx, ay: c.y + by, nx, ny };
 }
 
-/** Filled triangle with its tip at (x, y), pointing along (dx, dy). */
 /** A residual as semPlot draws it: a double-headed loop on the shape's border, out along the error term's direction. */
 export function selfLoop(t: { ax: number; ay: number; nx: number; ny: number }) {
   const spread = 8, out = 24, tx = -t.ny, ty = t.nx;
@@ -335,6 +333,7 @@ export function selfLoop(t: { ax: number; ay: number; nx: number; ny: number }) 
   return { d: `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`, x1, y1, x2, y2, c1x, c1y, c2x, c2y, lx: t.ax + t.nx * (out + 8), ly: t.ay + t.ny * (out + 8) };
 }
 
+/** Filled triangle with its tip at (x, y), pointing along (dx, dy). */
 export function arrowHead(x: number, y: number, dx: number, dy: number, len = 9, half = 4): string {
   const l = Math.hypot(dx, dy) || 1;
   const ux = dx / l, uy = dy / l;

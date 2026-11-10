@@ -246,7 +246,7 @@ ps_bmvreg <- function(req_json, export = FALSE) {
   inputs <- list(data = fr$data)
   if (export) return(paste(ps_script("Bayesian multivariate regression, flat priors (exact posterior)", character(0), inputs, body, c("post")), collapse = "\n"))
   env <- ps_run(body, inputs)
-  back <- function(s) { for (k in names(fr$back)) s <- gsub(sprintf("\\b%s\\b", k), fr$back[[k]], s, perl = TRUE); s }
+  back <- function(s) ps_back_names(s, fr$back)
   P <- env$post
   ps_json(list(n = env$N, k = env$k, df = env$nu, draws = draws, seed = seed, outcomes = I(ys), predictors = I(xs),
     parameters = lapply(seq_len(nrow(P)), function(i) list(name = back(P$parameter[i]), median = P$median[i], mean = P$mean[i], sd = P$sd[i], lower = P$lower[i], upper = P$upper[i], pOne = P$p_one[i], exact = P$exact[i])),

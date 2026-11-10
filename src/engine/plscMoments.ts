@@ -6,6 +6,13 @@
 
 import { solve } from './linalg';
 
+/** Even moment E[δ^k] of a normal error of variance s2: (k − 1)!! s2^(k/2). */
+export function normalMoment(k: number, s2: number): number {
+  let m = 1;
+  for (let i = k - 1; i > 1; i -= 2) m *= i;
+  return m * s2 ** (k / 2);
+}
+
 /** E[η_a η_b …] of the latent variables, from the construct scores (unit variance) and their reliabilities. */
 export function latentMoments(scores: Float64Array[], rho: number[]) {
   const n = scores[0]?.length ?? 0;
@@ -15,8 +22,6 @@ export function latentMoments(scores: Float64Array[], rho: number[]) {
     for (let r = 0; r < n; r++) { let p = 1; for (const v of vars) p *= scores[v][r]; s += p; }
     return s / n;
   };
-  // Even moments of a normal error of variance s2.
-  const errorMoment = (k: number, s2: number) => (k === 0 ? 1 : k === 2 ? s2 : k === 4 ? 3 * s2 * s2 : 15 * s2 ** 3);
   const binom = (a: number, k: number) => { let c = 1; for (let i = 0; i < k; i++) c = c * (a - i) / (i + 1); return c; };
 
   const moment = (input: number[]): number => {
@@ -38,7 +43,7 @@ export function latentMoments(scores: Float64Array[], rho: number[]) {
       let term = 1;
       const left: number[] = [];
       ids.forEach((v, j) => {
-        term *= binom(powers[j], taken[j]) * Math.sqrt(rho[v]) ** (powers[j] - taken[j]) * errorMoment(taken[j], 1 - rho[v]);
+        term *= binom(powers[j], taken[j]) * Math.sqrt(rho[v]) ** (powers[j] - taken[j]) * normalMoment(taken[j], 1 - rho[v]);
         for (let c = 0; c < powers[j] - taken[j]; c++) left.push(v);
       });
       rest -= term * moment(left);

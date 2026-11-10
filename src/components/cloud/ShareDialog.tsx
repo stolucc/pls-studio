@@ -6,6 +6,7 @@ import { useStore } from '../../store';
 import { confirmDialog } from '../Overlays';
 import { IconTrash, IconX } from '../icons';
 import { Avatar } from './AccountMenu';
+import { useEscape } from '../useEscape';
 
 interface Member { id: string; email: string; display_name: string; role: 'owner' | 'editor' | 'viewer' }
 interface Invitation { id: string; email: string; role: 'editor' | 'viewer'; expires_at: string }
@@ -50,11 +51,7 @@ export function ShareDialog({ onClose }: { onClose: () => void }) {
     } catch (e) { setError((e as Error).message); }
   }, [cloud]);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  useEscape(onClose);
 
   const act = async (fn: () => Promise<unknown>, ok?: string) => {
     setBusy(true); setError(null);

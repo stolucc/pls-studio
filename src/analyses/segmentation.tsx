@@ -2,7 +2,7 @@
 // REBUS-PLS (plspm), PATHMOX (genpathmox), FIMIX-PLS (flexmix) and PLS-POS.
 
 import { useState } from 'react';
-import { fmt } from '../format';
+import { fmt, pIs } from '../format';
 import type { PlsOptions } from '../engine/types';
 import type { FimixResult, PathmoxResult, PathmoxSegment, PosResult, RebusModel, RebusResult } from '../rengine/segment';
 import { useStore } from '../store';
@@ -79,7 +79,7 @@ function PathmoxTree({ r }: { r: PathmoxResult }) {
     <li key={n.node}>
       <div className={`tree-node${n.terminal ? ' terminal' : ''}`}>
         <b>Node {n.node}</b> · n = {n.size} ({fmt(n.percent, 1)}%){n.variable ? <> · {n.variable}: {n.category}</> : ' · all observations'}
-        {(() => { const s = r.splits.find((x) => x.node === n.node); return s ? <span className="muted"> — split by {s.variable} (F = {fmt(s.f, 2)}, p {s.p < 0.001 ? '< .001' : `= ${fmt(s.p, 3)}`})</span> : null; })()}
+        {(() => { const s = r.splits.find((x) => x.node === n.node); return s ? <span className="muted"> — split by {s.variable} (F = {fmt(s.f, 2)}, p {pIs(s.p)})</span> : null; })()}
       </div>
       {kids(n.node).length > 0 && <ul>{kids(n.node).map(render)}</ul>}
     </li>

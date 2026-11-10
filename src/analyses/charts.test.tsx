@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
-import { boxStats, counts, groupsOf, histogram, niceStep, olsLine, quantile } from './chartStats';
+import { boxStats, counts, groupsOf, histogram, niceStep, olsLine } from './chartStats';
+import { quantileSorted } from '../engine/stats';
 import { chartAnalysis, chartColumns, chartResult, MAX_POINTS, type ChartOptions } from './charts';
 import type { Dataset } from '../engine/types';
 import type { AnalysisCtx } from './types';
@@ -34,8 +35,8 @@ describe('chart statistics', () => {
   });
   it('computes quartiles as R does and Tukey whiskers', () => {
     const s = [1, 2, 3, 4, 5, 6, 7, 8, 9, 100];
-    expect(quantile(s, 0.5)).toBe(5.5);
-    expect(quantile(s, 0.25)).toBe(3.25);
+    expect(quantileSorted(s, 0.5)).toBe(5.5);
+    expect(quantileSorted(s, 0.25)).toBe(3.25);
     const b = boxStats(Float64Array.from(s), 'all')!;
     expect(b).toMatchObject({ n: 10, median: 5.5, q1: 3.25, q3: 7.75, lo: 1, hi: 9, outliers: [100] });
     expect(boxStats(Float64Array.from([NaN]), 'x')).toBeNull();

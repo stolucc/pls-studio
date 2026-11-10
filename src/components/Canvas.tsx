@@ -4,9 +4,10 @@ import {
   type Connection, type ConnectionLineComponentProps, type EdgeChange, type FinalConnectionState, type NodeChange, type OnDelete,
 } from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { CONSTANT_R, constructGeometry, distanceToSegment, interceptSegment, meanSegment, moderatorSegment, pathOffset, pathSegment, quadraticLoop } from '../geometry';
+import { CONSTANT_R, constructGeometry, distanceToSegment, moderatorSegment, pathOffset, pathSegment } from '../geometry';
 import { figureCssVars, figureForMethod, formatEstimate, GRADIENT_CONSTRUCT, GRADIENT_INDICATOR, isPlainFigure, PLS_STYLE_ERROR } from '../figure/style';
-import type { FigureInput, FigureLabel } from '../figure/render';
+import type { FigureInput } from '../figure/render';
+import { buildFigureInput } from '../figure/build';
 import { canvasLabelSize, placeFigureLabels } from '../figure/labels';
 import { FigurePanel } from './FigurePanel';
 import { setFigureSource } from '../figure/source';
@@ -28,16 +29,16 @@ import { ConstructNode, type ConstructFlowNode } from './ConstructNode';
 import { ConstantNode, type ConstantFlowNode } from './ConstantNode';
 import { InterceptEdge, type InterceptFlowEdge } from './InterceptEdge';
 import { MeanEdge, type MeanFlowEdge } from './MeanEdge';
-import { heldLoading, indicatorLabels } from '../diagramLabels';
+import { indicatorLabels } from '../diagramLabels';
 import { readDraggedVars, VARS_MIME } from './dnd';
 import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconFitView, IconLayout, IconPlay, IconPointer, IconSparkle, IconTriangle, IconUpload, IconNote } from './icons';
-import { CovarianceLayer, covarianceLayout, type CorrelationLabel, type CorrelationPick } from './CovarianceLayer';
+import { CovarianceLayer, type CorrelationLabel, type CorrelationPick } from './CovarianceLayer';
 import { currentSession } from '../cloud/collab';
 import { PresenceLayer } from './cloud/Presence';
 import { HigherOrderLayer, type HoLabel } from './HigherOrderLayer';
 import { NoteNode, NOTE_WIDTH, type NoteFlowNode } from './NoteNode';
 import { ParcelDialog } from './ParcelDialog';
-import { CopulaLayer, copulaEstimate, copulaLayout } from './CopulaLayer';
+import { CopulaLayer, copulaEstimate } from './CopulaLayer';
 import { ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
 import { PathEdge, type PathFlowEdge } from './PathEdge';
 import { ExampleBanner } from './ExampleBanner';
@@ -487,103 +488,18 @@ export function Canvas({ onImport }: EmptyProps) {
   const [figureOpen, setFigureOpen] = useState(false);
   const [parcelFor, setParcelFor] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const figureInput = useCallback((): FigureInput => {
-    const m = st().model;
-    const byId = new Map(m.constructs.map((c) => [c.id, c]));
-    const nameOf = (id: string) => byId.get(id)?.name ?? '';
-    const lbl = (v: number | null | undefined, p: number | null = null, fixed = false): FigureLabel | null => (v === null || v === undefined ? null : { value: v, p, fixed });
-    const constructs = m.constructs.map((c) => {
-      // (the same held values as the canvas: diagramLabels.ts heldLoading)
-      const esem = !!m.esem?.blocks.some((b) => b.constructs.includes(c.id));
-      const indicators = c.indicators.map((name) => {
-        const v = display?.indicator(name, c.name) ?? null;
-        const held = heldLoading(c, method, name, esem);
-        const fixed = (display && 'fixed' in display && !!display.fixed?.(name)) || held !== undefined;
-        return v === null ? (held !== undefined ? { value: held, p: null, fixed: true } : null) : { value: v, p: null, fixed };
-      });
-      // CPA: observed variables (single items, mean scores) are drawn as rectangles, latent ones as ellipses.
-      const observed = method === 'process' && !(c.latent && c.indicators.length > 1);
-      return { c, geom: constructGeometry(c), r2: display?.r2(c.name) ?? null, indicators, ...(observed ? { observed } : {}) };
-    });
-    // The moderators' implied main effects (dashed), when shown on the canvas.
-    const impliedPaths = st().showImpliedEffects ? impliedMainEffects(m).map((e) => ({ id: '', from: e.from, to: e.to, implied: true })) : [];
-    const paths = [...m.paths, ...impliedPaths].flatMap((p) => {
-      const s = byId.get(p.from), t = byId.get(p.to);
-      const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p.from, p.to)) : null;
-      if (!seg) return [];
-      const l = display?.path(nameOf(p.from), nameOf(p.to));
-      return [{ key: 'implied' in p ? `implied:${p.from}:${p.to}` : p.id, ...seg, label: lbl(l?.beta, l?.p ?? null), ...('line' in p && p.line ? { line: p.line } : {}), ...('curved' in p && p.curved ? { curved: true } : {}), moderated: m.moderations.some((mo) => mo.path === p.id), ...('implied' in p ? { implied: true } : {}) }];
-    });
-    const moderations = m.moderations.flatMap((mo) => {
-      const p = m.paths.find((q) => q.id === mo.path);
-      const s = p && byId.get(p.from), t = p && byId.get(p.to), mod = byId.get(mo.moderator);
-      // (a reciprocal pair: each arrow on its own side, as the moderator layer draws it)
-      const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p!.from, p!.to)) : null;
-      if (!seg || !mod) return [];
-      const l = moderationLabel(mo.id);
-      if (mod.id === p!.from) {
-        const q = quadraticLoop(mod, seg);
-        return [{ key: `mod:${mo.id}`, x1: q.x1, y1: q.y1, x2: q.x2, y2: q.y2, label: lbl(l?.beta, l?.p ?? null), loop: { ...q, tag: `${mod.name}²` } }];
-      }
-      return [{ key: `mod:${mo.id}`, ...moderatorSegment(mod, seg), label: lbl(l?.beta, l?.p ?? null) }];
-    });
-    const higherOrder = m.constructs.flatMap((parent) => (parent.components ?? []).flatMap((cid) => {
-      const child = byId.get(cid);
-      const seg = child ? (parent.type === 'composite' ? pathSegment(child, parent) : pathSegment(parent, child)) : null;
-      if (!seg || !child) return [];
-      const l = hoLoading(parent.name, child.name);
-      return [{ key: `ho:${parent.id}:${cid}`, ...seg, label: l ? { value: l.value, p: null, fixed: l.fixed } : null }];
-    }));
-    const cov = covarianceLayout(m, method === 'cbsem', showErrors);
-    // (direct effects on indicators: drawn as arrows like a higher-order loading)
-    higherOrder.push(...cov.sharedLoadings.map((d) => {
-      const c = byId.get(d.construct)!;
-      const v = display?.indicator(d.indicator, c.name) ?? c.fixedLoadings?.[d.indicator] ?? (method === 'cbsem' && c.scaling !== 'variance' && c.indicators[0] === d.indicator ? 1 : null);
-      return { key: `shared:${d.construct}:${d.indicator}`, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, label: v === null ? null : { value: v, p: null, fixed: false } };
-    }));
-    higherOrder.push(...cov.direct.map((d) => ({ key: `ip:${d.p.id}`, x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, label: null })));
-    const errors = [
-      ...[...cov.places.entries()].map(([name, { term }]) => {
-        const value = errorValue('indicator', name);
-        return { term, kind: 'indicator' as const, value, name, r2: value === null || unstd ? null : 1 - value };
-      }),
-      ...cov.disturbances.map(({ c, term }) => {
-        const value = errorValue('construct', c.name);
-        return { term, kind: 'disturbance' as const, value, r2: value === null || unstd ? null : 1 - value };
-      }),
-    ];
-    const correlations = cov.curves.map(({ k, curve }) => {
-      const l = correlationLabel(k);
-      return { d: curve.d, heads: curve.heads, lx: curve.lx, ly: curve.ly, nx: curve.nx, ny: curve.ny,
-        points: [[curve.x1, curve.y1], [curve.x2, curve.y2], [curve.lx, curve.ly]] as [number, number][], label: lbl(l?.value, l?.p ?? null) };
-    });
-    // The constant and its arrows (means and intercepts).
-    const constant = m.constant;
-    const means = constant ? (m.means ?? []).flatMap((t) => {
-      const c = byId.get(t.target);
-      const seg = c && meanSegment(constant, c);
-      if (!seg) return [];
-      const l = meanOf(c.name);
-      return [{ key: `mean:${t.id}`, ...seg, label: lbl(l?.value ?? (t.fixed !== undefined ? t.fixed : null), l?.p ?? null, t.fixed !== undefined && l == null) }];
-    }) : [];
-    const intercepts = constant && showIntercepts ? impliedIntercepts(m).flatMap((e) => {
-      const c = byId.get(e.construct);
-      const box = c && constructGeometry(c).indicators.find((b) => b.name === e.indicator);
-      const seg = c && box && interceptSegment(constant, c, box);
-      if (!seg) return [];
-      const l = meanOf(e.indicator);
-      return [{ key: `intercept:${e.construct}:${e.indicator}`, ...seg, label: lbl(l?.value ?? null, l?.p ?? null) }];
-    }) : [];
-    const conName = (id: string) => byId.get(id)?.name ?? id;
-    const copulas = copulaLayout(m).map((g) => ({
-      cx: g.cx, cy: g.cy,
-      targets: g.targets.map((t) => {
-        const l = copulaEstimate(results?.pls, results?.boot, conName(g.from), conName(t.to));
-        return { x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2, label: lbl(l?.beta, l?.p ?? null) };
-      }),
-    }));
-    return { method, ...(m.notes?.length ? { notes: m.notes.map((k) => ({ x: k.x, y: k.y, text: k.text })) } : {}), constructs, paths, moderations, higherOrder, errors, correlations, ...(copulas.length ? { copulas } : {}), ...(constant ? { constant, means, intercepts } : {}) };
-  }, [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, showIntercepts, errorValue, correlationLabel, unstd, results]);
+  const figureInput = useCallback((): FigureInput => buildFigureInput(st().model, method, {
+    indicator: display ? (name, construct) => display.indicator(name, construct) : undefined,
+    fixed: display && 'fixed' in display ? display.fixed : undefined,
+    r2: display ? (name) => display.r2(name) : undefined,
+    path: display ? (from, to) => display.path(from, to) : undefined,
+    moderation: moderationLabel,
+    higherOrder: hoLoading,
+    error: errorValue,
+    correlation: correlationLabel,
+    mean: meanOf,
+    copula: (from, to) => copulaEstimate(results?.pls, results?.boot, from, to),
+  }, { showErrors, showIntercepts, showImpliedEffects: st().showImpliedEffects, unstd }), [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, showIntercepts, errorValue, correlationLabel, unstd, results]);
 
   // Where each estimate label goes, so that none overlap (the figure export places them the same way).
   const labelAt = useMemo(() => placeFigureLabels(figureInput(), canvasLabelSize), [figureInput]);

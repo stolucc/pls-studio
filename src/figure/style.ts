@@ -3,6 +3,9 @@
 // project. Fonts are the PDF standard families so exported PDFs need no
 // embedded fonts.
 
+import { noLeadingZero, stars } from '../format';
+import { clampNum } from '../parse';
+
 export type FigureFont = 'helvetica' | 'times' | 'courier';
 export type PFormat = 'stars' | 'p' | 'none';
 /** amos: .85 without the leading zero, numbers beside the lines, numbered error terms (e1, d1), a bare R² above the variable, plain variable names. */
@@ -144,15 +147,14 @@ export function parseFigureStyle(raw: unknown): FigureStyle {
   if (typeof raw !== 'object' || raw === null) return d;
   const r = raw as Record<string, unknown>;
   const color = (v: unknown, dflt: string) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : dflt);
-  const num = (v: unknown, lo: number, hi: number, dflt: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt);
   const bool = (v: unknown, dflt: boolean) => (typeof v === 'boolean' ? v : dflt);
   const out: FigureStyle = {
     ...d,
     font: r.font === 'times' || r.font === 'courier' ? r.font : 'helvetica',
-    fontSize: num(r.fontSize, 6, 24, d.fontSize),
-    constructStrokeWidth: num(r.constructStrokeWidth, 0.25, 6, d.constructStrokeWidth),
-    indicatorArrowWidth: num(r.indicatorArrowWidth, 0.25, 6, d.indicatorArrowWidth),
-    pathWidth: num(r.pathWidth, 0.25, 8, d.pathWidth),
+    fontSize: clampNum(r.fontSize, 6, 24, d.fontSize),
+    constructStrokeWidth: clampNum(r.constructStrokeWidth, 0.25, 6, d.constructStrokeWidth),
+    indicatorArrowWidth: clampNum(r.indicatorArrowWidth, 0.25, 6, d.indicatorArrowWidth),
+    pathWidth: clampNum(r.pathWidth, 0.25, 8, d.pathWidth),
     pathWidthByEffect: bool(r.pathWidthByEffect, d.pathWidthByEffect),
     gradientFill: bool(r.gradientFill, d.gradientFill),
     circleConstructs: bool(r.circleConstructs, d.circleConstructs),
@@ -160,7 +162,7 @@ export function parseFigureStyle(raw: unknown): FigureStyle {
     showEstimates: bool(r.showEstimates, d.showEstimates),
     showR2: bool(r.showR2, d.showR2),
     pFormat: r.pFormat === 'stars' || r.pFormat === 'none' ? r.pFormat : 'p',
-    decimals: Math.round(num(r.decimals, 1, 4, d.decimals)),
+    decimals: Math.round(clampNum(r.decimals, 1, 4, d.decimals)),
     notation: r.notation === 'amos' || r.notation === 'pls' || r.notation === 'semplot' ? r.notation : 'standard',
   };
   for (const k of COLOR_KEYS) out[k] = color(r[k], d[k]);
@@ -211,22 +213,22 @@ export function semplotEdge(w: number | null): { color: string; width: number } 
 /** An estimate as a number, in the style's decimals and notation. */
 export function formatEstimate(style: FigureStyle, v: number): string {
   const s = v.toFixed(style.decimals);
-  return style.notation === 'amos' ? s.replace(/^(-?)0\./, '$1.') : s;
+  return style.notation === 'amos' ? noLeadingZero(s) : s;
 }
 
 /** The significance beside an estimate on screen (null: none shown). */
 export function significanceText(style: FigureStyle, p: number): string | null {
   if (style.pFormat === 'none') return null;
-  if (style.pFormat === 'stars') return p < 0.001 ? '***' : p < 0.01 ? '**' : p < 0.05 ? '*' : null;
-  return p < 0.001 ? 'p<.001' : `p=${p.toFixed(3).slice(1)}`;
+  if (style.pFormat === 'stars') return stars(p) || null;
+  return p < 0.001 ? 'p<.001' : `p=${noLeadingZero(p.toFixed(3))}`;
 }
 
 /** An estimate with its significance, as the style asks. */
 export function estimateText(style: FigureStyle, v: number, p: number | null): string {
   const s = formatEstimate(style, v);
   if (p === null || style.pFormat === 'none') return s;
-  if (style.pFormat === 'stars') return s + (p < 0.001 ? '***' : p < 0.01 ? '**' : p < 0.05 ? '*' : '');
-  return `${s} (p${p < 0.001 ? ' < .001' : ` = ${p.toFixed(3).slice(1)}`})`;
+  if (style.pFormat === 'stars') return s + stars(p);
+  return `${s} (p${p < 0.001 ? ' < .001' : ` = ${noLeadingZero(p.toFixed(3))}`})`;
 }
 
 /** Ids of the fill gradients, on screen and in exported figures. */

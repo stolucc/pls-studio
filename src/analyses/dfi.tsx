@@ -12,7 +12,7 @@ import { ChartFrame } from '../components/ChartFrame';
 import { c, Table, type Row } from '../components/results/Table';
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset } from '../engine/types';
-import { fmt } from '../format';
+import { fmt, noLeadingZero } from '../format';
 import { toSpec, type ModelState } from '../model/project';
 import type { CbCall } from '../rengine/cbExtras';
 import { DFI_ESTIMATORS, DFI_FUNCTIONS, type DfiArgs, type DfiEstimator, type DfiFn, type DfiResult, type DfiScale, type DfiTable } from '../rengine/dfi';
@@ -271,7 +271,7 @@ export function dfiVerdicts(r: DfiResult): DfiVerdict[] {
     const clears = cutoffs.findIndex((k) => k.value !== null && better(k.value));
     const last = cutoffs[cutoffs.length - 1];
     // Said with the numbers: which cutoffs the model's value is on the right side of, and what that means.
-    const num = (x: number) => fmt(x, 3).replace(/^(-?)0\./, '$1.');
+    const num = (x: number) => noLeadingZero(fmt(x, 3));
     const at = (k: { label: string; value: number | null }) => `${k.label} ${k.value === null ? 'none' : num(k.value)}`;
     const dir = higherBetter ? 'below' : 'above';
     const verdict = clears < 0
@@ -285,7 +285,7 @@ export function dfiVerdicts(r: DfiResult): DfiVerdict[] {
 }
 
 /** The cutoffs of a verdict in a few characters ("L1 .041 · L2 .060"; "NONE" where there is none). */
-export const dfiCutoffText = (v: DfiVerdict) => v.cutoffs.map((k) => `${k.label.replace(/^Level (\d+).*$/, 'L$1').replace(/ \(correct model\)/, '').replace(/ percentile$/, '')} ${k.value === null ? 'NONE' : fmt(k.value, 3).replace(/^0\./, '.')}`).join(' · ');
+export const dfiCutoffText = (v: DfiVerdict) => v.cutoffs.map((k) => `${k.label.replace(/^Level (\d+).*$/, 'L$1').replace(/ \(correct model\)/, '').replace(/ percentile$/, '')} ${k.value === null ? 'NONE' : noLeadingZero(fmt(k.value, 3))}`).join(' · ');
 
 // ---------- the card ----------
 

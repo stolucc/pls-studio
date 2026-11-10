@@ -1,6 +1,8 @@
 // Exploratory factor analysis / principal component analysis: the design kept
 // with the project (Settings.efa), and turning a solution into constructs.
 
+import { clampNum } from '../parse';
+
 export type EfaMethod = 'pca' | 'minres' | 'ml' | 'pa' | 'lavaan';
 export type EfaRotation = 'none' | 'varimax' | 'quartimax' | 'promax' | 'oblimin' | 'geominQ' | 'bigeomin' | 'biquartimin';
 export const EFA_METHODS: { id: EfaMethod; label: string }[] = [
@@ -60,16 +62,15 @@ export const DEFAULT_EFA: EfaDesign = { vars: [], method: 'minres', criterion: '
 export function parseEfaDesign(v: unknown): EfaDesign | undefined {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;
   const r = v as Record<string, unknown>;
-  const int = (x: unknown, lo: number, hi: number, d: number) => (typeof x === 'number' && Number.isFinite(x) ? Math.min(hi, Math.max(lo, Math.round(x))) : d);
   return {
     vars: (Array.isArray(r.vars) ? r.vars : []).filter((x): x is string => typeof x === 'string').slice(0, 2000).map((x) => x.slice(0, 200)),
     method: EFA_METHODS.find((m) => m.id === r.method)?.id ?? DEFAULT_EFA.method,
     // Designs saved before the criterion existed gave the number.
     criterion: EFA_CRITERIA.find((m) => m.id === r.criterion)?.id ?? 'fixed',
-    nfactors: int(r.nfactors, 1, 100, DEFAULT_EFA.nfactors),
+    nfactors: clampNum(r.nfactors, 1, 100, DEFAULT_EFA.nfactors, true),
     rotation: EFA_ROTATIONS.find((m) => m.id === r.rotation)?.id ?? DEFAULT_EFA.rotation,
     missing: r.missing === 'listwise' ? 'listwise' : 'pairwise',
-    parallel: int(r.parallel, 0, 2000, DEFAULT_EFA.parallel),
+    parallel: clampNum(r.parallel, 0, 2000, DEFAULT_EFA.parallel, true),
     threshold: typeof r.threshold === 'number' && r.threshold >= 0 && r.threshold < 1 ? r.threshold : DEFAULT_EFA.threshold,
     correlation: r.correlation === 'polychoric' ? 'polychoric' : 'pearson',
     ...(typeof r.epsilon === 'number' && r.epsilon > 0 && r.epsilon <= 1 ? { epsilon: r.epsilon } : {}),

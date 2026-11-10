@@ -5,6 +5,7 @@
 
 import { arrowHead, besideLine, BOX_RX, clearPointOnCurve, ERR_R, octagonVertices, pathCurve, selfLoop, hexagonVertices, QUAD_RISE, type ConstructGeom, type ErrorTerm, type QuadraticLoop, CONSTANT_R } from '../geometry';
 import { COPULA_R } from '../components/copulaGeometry';
+import { noLeadingZero } from '../format';
 import { placeFigureLabels } from './labels';
 import type { Construct, Method } from '../model/project';
 import { estimateText, figureForMethod, FONT_FAMILY, formatEstimate, GRADIENT_CONSTRUCT, GRADIENT_INDICATOR, isPlainFigure, pathStrokeWidth, PLS_STYLE_ERROR, semplotEdge, type FigureStyle } from './style';
@@ -12,12 +13,14 @@ import { estimateText, figureForMethod, FONT_FAMILY, formatEstimate, GRADIENT_CO
 export interface FigureLabel { value: number; p: number | null; fixed?: boolean }
 
 export interface FigureInput {
-  /** `observed`: drawn as a rectangle (an observed variable) whatever the construct type. */
   /** The kind of model: some styles draw PLS and CB-SEM differently. */
   method?: Method;
+  /** `observed`: drawn as a rectangle (an observed variable) whatever the construct type. */
   constructs: { c: Construct; geom: ConstructGeom; r2: number | null; indicators: (FigureLabel | null)[]; observed?: boolean }[];
-  /** `implied`: a moderator's main effect implied by its moderation (dashed). */
-  /** `key` identifies the arrow for label placement (placeFigureLabels), shared with the canvas. */
+  /**
+   * `key` identifies the arrow for label placement (placeFigureLabels), shared with the canvas;
+   * `implied`: a moderator's main effect implied by its moderation (dashed).
+   */
   paths: { key?: string; x1: number; y1: number; x2: number; y2: number; label: FigureLabel | null; moderated: boolean; implied?: boolean; line?: 'dashed' | 'dotted'; curved?: boolean }[];
   /** Comments on the diagram. */
   notes?: { x: number; y: number; text: string }[];
@@ -165,7 +168,7 @@ export function renderFigureSvg(f: FigureInput, baseStyle: FigureStyle): { svg: 
     extend(t.cx - ERR_R, t.cy - ERR_R); extend(t.cx + ERR_R, t.cy + ERR_R);
     out.push(`<circle cx="${n(t.cx)}" cy="${n(t.cy)}" r="${ERR_R}" ${plsStyle ? `fill="${PLS_STYLE_ERROR}"` : `fill="${indicatorPaint}" stroke="${style.indicatorStroke}" stroke-width="${n(style.indicatorArrowWidth)}"`}/>`);
     const inCircle = !amos && e.value !== null && style.showEstimates;
-    const text = inCircle ? (plsStyle ? formatEstimate(style, e.value!) : e.value!.toFixed(Math.min(style.decimals, 2)).replace(/^0\./, '.').replace(/^-0\./, '-.')) : `${e.kind === 'indicator' ? 'e' : 'd'}${amos ? numbered[e.kind] : ''}`;
+    const text = inCircle ? (plsStyle ? formatEstimate(style, e.value!) : noLeadingZero(e.value!.toFixed(Math.min(style.decimals, 2)))) : `${e.kind === 'indicator' ? 'e' : 'd'}${amos ? numbered[e.kind] : ''}`;
     out.push(`<text x="${n(t.cx)}" y="${n(t.cy + small * 0.35)}" font-size="${n(small * (plsStyle ? 0.7 : 0.85))}" text-anchor="middle" fill="${plsStyle ? '#ffffff' : style.pathColor}"${e.value === null && !amos ? ' font-style="italic"' : ''}>${esc(text)}</text>`);
     if (amos && e.value === null) {
       // Every error term's weight is fixed at 1; the diagram states it until there are estimates.

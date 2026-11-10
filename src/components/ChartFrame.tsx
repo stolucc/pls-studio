@@ -5,6 +5,7 @@ import { standaloneSvg } from '../figure/standalone';
 import { safeFileName } from '../format';
 import { useStore } from '../store';
 import { IconDownload } from './icons';
+import { useEscape } from './useEscape';
 
 export interface AxisLabels { x: string; y: string }
 
@@ -51,13 +52,12 @@ export function ChartFrame({ id, name, defaults, width, height, children, captio
       .catch((e) => useStore.getState().toast('error', `Could not export the chart: ${e instanceof Error ? e.message : String(e)}`));
   };
 
+  useEscape(() => setOpen(false), open);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
     const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    window.addEventListener('keydown', onKey, true);
     window.addEventListener('mousedown', onDown);
-    return () => { window.removeEventListener('keydown', onKey, true); window.removeEventListener('mousedown', onDown); };
+    return () => window.removeEventListener('mousedown', onDown);
   }, [open]);
 
   return (

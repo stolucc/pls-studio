@@ -39,7 +39,7 @@ describe('stats helpers', () => {
   });
 });
 
-import { bisect, chisqCdf, ncChisqCdf, normalP } from './stats';
+import { bisect, chisqCdf, ncChisqCdf, normalP, qlogis, qnorm } from './stats';
 import { cholesky, invertPD, logDetPD, matMul, symEigen, symMatFn } from './linalg';
 
 describe('chi-square distributions', () => {
@@ -70,5 +70,16 @@ describe('positive-definite and eigen helpers', () => {
     expect(values.reduce((s, v) => s + v, 0)).toBeCloseTo(9, 10);
     const R = symMatFn(A, Math.sqrt);
     matMul(R, R).forEach((r, i) => r.forEach((v, j) => expect(v).toBeCloseTo(A[i][j], 10)));
+  });
+});
+
+describe('logistic quantile', () => {
+  it('is ln(p / (1 − p)), kept finite by eps', () => {
+    expect(qlogis(0.5)).toBe(0);
+    expect(qlogis(0.75)).toBeCloseTo(Math.log(3), 12);
+    expect(qlogis(0, 1e-4)).toBeCloseTo(Math.log(1e-4 / (1 - 1e-4)), 12);
+    expect(qlogis(1, 1e-4)).toBeCloseTo(-qlogis(0, 1e-4), 12);
+    // the starting values of the integration engines: qnorm agrees with Acklam's approximation used before
+    expect(qnorm(0.975)).toBeCloseTo(1.959963985, 8);
   });
 });

@@ -5,12 +5,12 @@ import { ViewportPortal } from '@xyflow/react';
 import type { MouseEvent } from 'react';
 import type { BootstrapResult, PlsResult } from '../engine/types';
 import { copulaName } from '../engine/types';
-import { formatEstimate, significanceText } from '../figure/style';
 import { constructGeometry, distanceToSegment, pathOffset, pathSegment } from '../geometry';
 import { COPULA_R } from './copulaGeometry';
 import type { ModelState } from '../model/project';
 import { useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
+import { EstimateText } from './EstimateLabel';
 
 /** How far along its path the arrow lands; how long an arrow should at least be. */
 const LAND_AT = 0.35, MIN_ARROW = 48;
@@ -104,11 +104,10 @@ export function CopulaLayer({ pls, boot, onMenu }: { pls: PlsResult | null | und
       {groups.flatMap((g) => g.targets.map((t) => {
         const l = copulaEstimate(pls, boot, nameOf(g.from), nameOf(t.to));
         if (!l) return null;
-        const sig = l.p === null ? null : significanceText(figure, l.p);
         return (
           <div key={t.pathId} className={`elabel gc-label${l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns'}`} onContextMenu={(e) => menu(e, t.pathId)}
             style={{ transform: `translate(-50%, -50%) translate(${(t.x1 + t.x2) / 2}px, ${(t.y1 + t.y2) / 2}px)` }}>
-            {formatEstimate(figure, l.beta)}{sig && <span className="p">{sig}</span>}
+            <EstimateText figure={figure} value={l.beta} p={l.p} />
           </div>
         );
       }))}

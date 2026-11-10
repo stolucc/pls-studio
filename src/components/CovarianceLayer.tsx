@@ -5,9 +5,11 @@ import {
   type Anchor, type ErrorTerm,
 } from '../geometry';
 import { endogenousIds, impliedCorrelations, indicatorsDrawnElsewhere, type Construct, type Correlation, type CorrelationEnd as CorrelationPick, type ModelState } from '../model/project';
-import { formatEstimate, semplotEdge, significanceText } from '../figure/style';
+import { formatEstimate, semplotEdge } from '../figure/style';
+import { noLeadingZero } from '../format';
 import { useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
+import { EstimateText } from './EstimateLabel';
 
 export interface CorrelationLabel { value: number | null; p: number | null }
 /** What the user clicked while drawing a correlation. */
@@ -178,7 +180,7 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
     {amosNote(t, v, box)}
   </> : v === null
     ? <text className="err-text" x={t.cx} y={t.cy + 4} textAnchor="middle">{symbol}</text>
-    : <text className="err-value" x={t.cx} y={t.cy + 3} textAnchor="middle">{figure.notation === 'pls' ? formatEstimate(figure, v) : v.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.')}</text>);
+    : <text className="err-value" x={t.cx} y={t.cy + 3} textAnchor="middle">{figure.notation === 'pls' ? formatEstimate(figure, v) : noLeadingZero(v.toFixed(2))}</text>);
 
   return (
     <ViewportPortal>
@@ -247,8 +249,7 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
             onContextMenu={(e) => { if (!k.id.startsWith('auto:')) { select(e, k.id); onMenu(e, { kind: 'correlation', id: k.id }); } else onMenu(e, { kind: 'implied', a: k.a, b: k.b }); }}
             // Hang the label off the outer side of the arc so it never covers the error circles.
             style={{ transform: `translate(${at.x}px, ${at.y}px) translate(${-50 + 50 * curve.nx}%, ${-50 + 50 * curve.ny}%)` }}>
-            {formatEstimate(figure, l.value)}
-            {l.p !== null && significanceText(figure, l.p) && <span className="p">{significanceText(figure, l.p)}</span>}
+            <EstimateText figure={figure} value={l.value} p={l.p} />
           </div>
         );
       })}

@@ -17,10 +17,13 @@ export const AUTO_CALCULATE_DELAY = 800;
 export function startAutoCalculate(): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let tried: string | null = null;
-  const stop = useStore.subscribe((s) => {
+  // Only changes that can affect a run restart the delay; whether one is due (which validates the model) is
+  // checked once the delay has passed, not on every store change (selection, hover, panel state).
+  const stop = useStore.subscribe((s, prev) => {
+    if (s.settings === prev.settings && s.model === prev.model && s.data === prev.data && s.dataVersion === prev.dataVersion && s.job === prev.job && s.results === prev.results) return;
     if (timer) clearTimeout(timer);
     timer = null;
-    if (!autoCalculateDue(s, tried)) return;
+    if (!s.settings.autoCalculate || s.job || !s.data) return;
     timer = setTimeout(() => {
       const now = useStore.getState();
       if (!autoCalculateDue(now, tried)) return;

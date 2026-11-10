@@ -3,6 +3,7 @@
 // into the specification the R engine fits (rengine/R/mixture.R): the free parameters, every model quantity as a
 // linear combination of them, the classes' model and the blocks of observed variables, and the rows to report.
 
+import { qlogis } from '../engine/stats';
 import type { Dataset } from '../engine/types';
 
 /** A linear combination of the free parameters (`t`: pairs index, coefficient, flattened); c null = −∞ (a log-weight of 0). */
@@ -92,16 +93,16 @@ export class MixtureModel {
 // ---------------------------------------------------------------------------------------------------------------
 
 /** Column statistics for starting values. */
-function stats(data: Dataset, col: string, missing: number[]) {
+/** Column statistics for starting values (missing-value codes left out). */
+export function columnStats(data: Dataset, col: string, missing: number[] = []) {
   const i = data.names.indexOf(col);
   const v = Array.from(data.cols[i]).filter((x) => Number.isFinite(x) && !missing.includes(x));
   const n = v.length, mean = v.reduce((a, b) => a + b, 0) / Math.max(1, n);
   const variance = v.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, n - 1);
   const levels = [...new Set(v)].sort((a, b) => a - b);
   const counts = levels.map((l) => v.filter((x) => x === l).length);
-  return { n, mean, variance: variance > 0 ? variance : 1, sd: Math.sqrt(variance > 0 ? variance : 1), levels, counts, min: Math.min(...v), max: Math.max(...v) };
+  return { n, mean, variance: variance > 0 ? variance : 1, sd: Math.sqrt(variance > 0 ? variance : 1), levels, counts, min: n ? Math.min(...v) : 0, max: n ? Math.max(...v) : 0, zeros: v.filter((x) => x === 0).length };
 }
-const qlogis = (p: number) => Math.log(Math.min(Math.max(p, 1e-4), 1 - 1e-4) / (1 - Math.min(Math.max(p, 1e-4), 1 - 1e-4)));
 
 interface Combo { c: number; t: Map<number, number> }
 const K0 = (c = 0): Combo => ({ c, t: new Map() });
@@ -493,8 +494,8 @@ export function buildMixture(syntax: string, data: Dataset, opt: { seed: number;
     for (const f of factors.keys()) if (isSlope(f) && (items.filter((i) => i.key === `~~|${f}|${f}`).some((i) => i.mod.fixed !== 0) || !items.some((i) => i.key === `~~|${f}|${f}`))) fail(`${f}: random slopes with a variance are not fitted (fix it at 0: ${f}@0).`);
   }
   const missFor = (c: string) => missing.filter((m) => m.column === c).flatMap((m) => m.values);
-  const st = new Map<string, ReturnType<typeof stats>>();
-  const S = (c: string) => { if (!st.has(c)) st.set(c, stats(data, c, missFor(c))); return st.get(c)!; };
+  const st = new Map<string, ReturnType<typeof columnStats>>();
+  const S = (c: string) => { if (!st.has(c)) st.set(c, columnStats(data, c, missFor(c))); return st.get(c)!; };
   for (const y of dv) if (S(y).n === 0) fail(`${y} has no observed values.`);
   for (const y of categorical) if (S(y).levels.length > 10) fail(`${y} has ${S(y).levels.length} categories: is it categorical?`);
   for (const y of categorical) if (S(y).levels.length < 2) fail(`${y} has a single category.`);
@@ -585,11 +586,11 @@ export function buildMixture(syntax: string, data: Dataset, opt: { seed: number;
       if (j < 1 || j >= s.levels.length) return null;
       const cum = s.counts.slice(0, j).reduce((x, y) => x + y, 0) / s.n;
       const g = growthOf(a);
-      if (g) return { varying: false, start: () => qlogis(cum), scale: 0, free: true, autoLabel: `__thr_${growths.indexOf(g)}_${j}` };
+      if (g) return { varying: false, start: () => qlogis(cum, 1e-4), scale: 0, free: true, autoLabel: `__thr_${growths.indexOf(g)}_${j}` };
       // (thresholds of a factor's indicators: equal across classes, as intercepts)
       // (class-specific where a class's part mentions them: spread then, as the class indicators' thresholds)
-      if ([...factors.entries()].some(([n, f]) => !f.growth && !/@b$/.test(n) && !n.startsWith('__w_') && f.indicators.includes(a))) return { varying: false, start: (z, of) => qlogis(cum) - spread(z, of), scale: 1.5, free: true };
-      return { varying: single, start: (z, of) => qlogis(cum) - spread(z, of), scale: 1.5, free: true };
+      if ([...factors.entries()].some(([n, f]) => !f.growth && !/@b$/.test(n) && !n.startsWith('__w_') && f.indicators.includes(a))) return { varying: false, start: (z, of) => qlogis(cum, 1e-4) - spread(z, of), scale: 1.5, free: true };
+      return { varying: single, start: (z, of) => qlogis(cum, 1e-4) - spread(z, of), scale: 1.5, free: true };
     }
     if (kind === '~~' && a === b) {
       if (isFactor(a)) {

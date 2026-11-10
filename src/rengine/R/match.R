@@ -73,7 +73,7 @@ ps_match <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   b <- env$bal$Balance
   nn <- summary(env$m)$nn
-  nm <- function(x) { for (k in names(fr$back)) x <- sub(paste0("^", k), fr$back[[k]], x); x }
+  nm <- function(x) ps_back_names(x, fr$back, prefix = TRUE)
   ps_json(list(method = method, estimand = estimand,
     counts = lapply(seq_len(nrow(nn)), function(i) list(row = rownames(nn)[i], control = nn[i, 1], treated = nn[i, 2])),
     balance = lapply(seq_len(nrow(b)), function(i) list(variable = if (rownames(b)[i] == "distance") "Propensity score" else nm(rownames(b)[i]), type = b$Type[i],
@@ -135,7 +135,7 @@ ps_weight <- function(req, export = FALSE) {
     c("WeightIt", "cobalt", "marginaleffects"), inputs, body, c("summary(W)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (!is.null(Y)) "est")), collapse = "\n"))
   env <- ps_run(body, inputs)
   b <- env$bal$Balance
-  nm <- function(x) { for (k in names(fr$back)) x <- sub(paste0("^", k), fr$back[[k]], x); x }
+  nm <- function(x) ps_back_names(x, fr$back, prefix = TRUE)
   ess <- env$ess
   e <- env$effect
   ps_json(list(method = "weighting", estimand = estimand, effectModel = effect_model, weightMethod = wmethod,

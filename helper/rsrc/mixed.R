@@ -463,7 +463,7 @@ ps_gmm <- function(req_json, export = FALSE) {
   for (c in cv) nd[[c]] <- mean(env$long[[c]])
   obs_times <- sort(unique(env$long$time))
   # Covariate names back, as whole words only (a covariate "x" must not change "max").
-  back <- function(x) { for (c in cv) x <- gsub(paste0("(?<![A-Za-z0-9._])\\Q", c, "\\E(?![A-Za-z0-9._])"), fr$back[[c]], x, perl = TRUE); x }
+  back <- function(x) ps_back_names(x, fr$back[cv])
   models <- lapply(as.character(ks), function(k) {
     m <- env$fits[[k]]; g <- m$ng
     cls <- m$pprob$class

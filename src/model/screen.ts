@@ -1,5 +1,7 @@
 // Data screening rules of thumb, kept apart from the panel so they are tested.
 
+import { quantileSorted } from '../engine/stats';
+
 /**
  * Univariate non-normality (West, Finch & Curran 1995; Kline 2016): |skew| > 2
  * or |excess kurtosis| > 7 is severe; above 1 / 3 moderate.
@@ -17,7 +19,6 @@ export function flaggedCases(cases: { rows: number[]; d2: number[]; p: number[] 
 }
 
 /** Quantile (type 7, as R's default) of sorted values. */
-const quantile = (s: number[], q: number) => { const h = (s.length - 1) * q, lo = Math.floor(h); return s[lo] + (h - lo) * ((s[Math.min(lo + 1, s.length - 1)] ?? s[lo]) - s[lo]); };
 
 /**
  * The extreme upper fence Q3 + 3 IQR of a statistic (Tukey's "far out"):
@@ -27,7 +28,7 @@ const quantile = (s: number[], q: number) => { const h = (s.length - 1) * q, lo 
 export function farOut(values: number[]): number {
   const s = values.filter(Number.isFinite).sort((a, b) => a - b);
   if (s.length < 4) return Infinity;
-  const q1 = quantile(s, 0.25), q3 = quantile(s, 0.75);
+  const q1 = quantileSorted(s, 0.25), q3 = quantileSorted(s, 0.75);
   return q3 + 3 * (q3 - q1);
 }
 

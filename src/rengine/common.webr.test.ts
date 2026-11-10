@@ -45,3 +45,14 @@ it('reports warnings outside ps_run and failed optional computations, per call',
   await expect(withR(['jsonlite'], { common: commonR, probe }, (webR) => callJson(webR, 'ps_call("ps_json", req)', {}))).rejects.toThrow(/Invalid bridge function/);
   await expect(withR(['jsonlite'], { common: commonR, probe }, (webR) => callJson(webR, 'ps_call("system", req)', {}))).rejects.toThrow(/Invalid bridge function/);
 }, 300_000);
+
+// Labels from R carry the model's syntactic names; ps_back_names puts the
+// user's names back in one pass, whole names only, so a short name never
+// renames part of a longer one and a name put back is not renamed again.
+it('puts the user names back into labels, whole names only', async () => {
+  const back = await withR(['jsonlite'], { common: commonR }, (webR) => callJson(webR, `ps_json(list(
+    words = I(ps_back_names(c("x", "x2", "max", "x:x2", "B ON x"), c(x = "Age (x)", x2 = "Income", Age = "WRONG"))),
+    prefix = I(ps_back_names(c("x_hi", "Grosse_cm", "distance"), c(x = "X", Grosse = "Gr\\u00f6\\u00dfe", Grosse_cm = "Gr\\u00f6\\u00dfe (cm)"), prefix = TRUE))))`, null)) as { words: string[]; prefix: string[] };
+  expect(back.words).toEqual(['Age (x)', 'Income', 'max', 'Age (x):Income', 'B ON Age (x)']);
+  expect(back.prefix).toEqual(['X_hi', 'Größe (cm)', 'distance']);
+}, 300_000);

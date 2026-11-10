@@ -138,7 +138,7 @@ ps_pathmox <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   p <- env$pmx
   back_lv <- setNames(n$cname, unname(n$cv))
-  nm <- function(x) { for (k in names(back_lv)) x <- gsub(paste0("\\b", k, "\\b"), back_lv[[k]], x, perl = TRUE); x }
+  nm <- function(x) ps_back_names(x, back_lv)
   mox <- p$MOX
   tp <- p$terminal_paths
   ps_json(list(

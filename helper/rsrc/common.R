@@ -106,6 +106,20 @@ ps_ident <- function(x) {
   make.unique(y, sep = "_")
 }
 
+#' Model names back to the user's names inside labels, in one pass: whole names
+#' only, longest first, so "x" never touches "x2" or "max" and a name put back is
+#' never renamed again. prefix = TRUE maps only a leading name (cobalt labels a
+#' factor's level "educ_high").
+ps_back_names <- function(x, back, prefix = FALSE) {
+  if (!length(back) || !length(x)) return(x)
+  keys <- names(back)[order(-nchar(names(back)))]
+  alt <- paste(gsub("([.\\\\|()\\[\\]{}^$*+?])", "\\\\\\1", keys, perl = TRUE), collapse = "|")
+  re <- if (prefix) sprintf("^(?:%s)", alt) else sprintf("(?<![A-Za-z0-9._])(?:%s)(?![A-Za-z0-9._])", alt)
+  m <- gregexpr(re, x, perl = TRUE)
+  regmatches(x, m) <- lapply(regmatches(x, m), function(s) vapply(s, function(k) as.character(back[[k]]), "", USE.NAMES = FALSE))
+  x
+}
+
 #' Display name of an interaction term; a construct times itself is its quadratic term (X²).
 ps_int_name <- function(from, moderator) ifelse(from == moderator, paste0(from, "\u00b2"), paste(from, "\u00d7", moderator))
 

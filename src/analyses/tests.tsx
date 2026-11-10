@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
-import { fmt } from '../format';
+import { fmt, stars } from '../format';
 import type {
   Alternative, AnovaInput, AnovaResult, ContingencyInput, ContingencyResult, CorrelationInput, CorrelationResult, FreqTestInput, FreqTestResult,
   HTest, KappaTable, ManovaInput, ManovaResult, ReliabilityInput, ReliabilityResult, RmAnovaInput, RmAnovaResult, TTestInput, TTestResult,
@@ -366,7 +366,7 @@ function CorrelationView({ r }: { r: CorrelationResult }) {
   const withCi = r.method === 'pearson' || poly;
   const exact = !!r.exact;
   const at = (a: string, b: string) => r.pairs.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
-  const matrix: Row[] = r.vars.map((a, i) => [c(a), ...r.vars.map((b, j) => (j === i ? c('—') : j > i ? c(null) : (() => { const p = at(a, b)!; return { v: `${fmt(p.r)}${p.p < 0.001 ? '***' : p.p < 0.01 ? '**' : p.p < 0.05 ? '*' : ''}` }; })()))]);
+  const matrix: Row[] = r.vars.map((a, i) => [c(a), ...r.vars.map((b, j) => (j === i ? c('—') : j > i ? c(null) : (() => { const p = at(a, b)!; return { v: `${fmt(p.r)}${stars(p.p)}` }; })()))]);
   return (
     <div className="tables">
       <Engine e={r.engine} />

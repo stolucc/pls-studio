@@ -1,3 +1,4 @@
+import { clampNum, isObj } from '../parse';
 import { parseDroppedRows, type RowExclusion } from './rows';
 import { DEFAULT_FIGURE_STYLE, parseFigureStyle, type FigureStyle } from '../figure/style';
 import { parseEfaDesign, type EfaDesign } from './efa';
@@ -1536,7 +1537,6 @@ export function serializeProject(model: ModelState, settings: Settings, data: Da
   return JSON.stringify(file);
 }
 
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown, max = 200): string => {
   if (typeof v !== 'string') throw new Error('Invalid project file.');
   return v.slice(0, max);
@@ -1602,8 +1602,6 @@ function fixedLoadingsOf(raw: unknown, indicators: unknown[]): { fixedLoadings?:
   for (const [k, v] of Object.entries(raw)) if (indicators.includes(k) && finite(v)) out[k] = v;
   return Object.keys(out).length ? { fixedLoadings: out } : {};
 }
-const num = (v: unknown, lo: number, hi: number, dflt: number): number =>
-  typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
 
 /** Parse and strictly validate an untrusted project file. */
 export function parseProject(text: string): { model: ModelState; settings: Settings; data: Dataset | null; info: DataInfo | null; simulation: McDesign | null; analyses: unknown[] } {
@@ -1636,8 +1634,8 @@ export function parseModelState(m: unknown): ModelState {
       type: c.type === 'composite' || c.type === 'factor' ? c.type : mode === 'B' ? 'composite' : 'factor',
       mode,
       indicators: c.indicators.slice(0, 1000).map((i: unknown) => str(i)),
-      x: num(c.x, -1e6, 1e6, 0),
-      y: num(c.y, -1e6, 1e6, 0),
+      x: clampNum(c.x, -1e6, 1e6, 0),
+      y: clampNum(c.y, -1e6, 1e6, 0),
       side: sides.includes(c.side as Side) ? (c.side as Side) : 'left',
       ...(Array.isArray(c.components) && c.components.length ? { components: c.components.slice(0, 100).map((x: unknown) => str(x, 64)) } : {}),
       ...(componentLoadingsOf(c.componentLoadings, Array.isArray(c.components) ? c.components : [])),
@@ -1743,7 +1741,7 @@ export function parseModelState(m: unknown): ModelState {
           ...(finite(t.fixed) ? { fixed: t.fixed } : {}), ...(labelOf(t.label)), ...(byGroupOf(t.byGroup)), ...(t.free === true ? { free: true as const } : {}) }];
       }) } : {}),
       ...(Array.isArray(m.waldTests) && m.waldTests.length ? { waldTests: m.waldTests.slice(0, 100).filter(isObj).map((t: Record<string, unknown>) => ({ id: str(t.id, 64), name: str(t.name, 100), constraints: str(t.constraints, 2000) })) } : {}),
-      ...(isObj(m.constant) ? { constant: { x: num(m.constant.x, -1e6, 1e6, 0), y: num(m.constant.y, -1e6, 1e6, 0) } } : {}),
+      ...(isObj(m.constant) ? { constant: { x: clampNum(m.constant.x, -1e6, 1e6, 0), y: clampNum(m.constant.y, -1e6, 1e6, 0) } } : {}),
       ...(isObj(m.constant) && Array.isArray(m.means) && m.means.length ? { means: (() => {
         const seen = new Set<string>();
         return m.means!.slice(0, 500).filter(isObj).flatMap((t: Record<string, unknown>): MeanTerm[] => {
@@ -1772,19 +1770,19 @@ export function parseSettings(raw: unknown): Settings {
     ...(parseEfaDesign(s.efa) ? { efa: parseEfaDesign(s.efa) } : {}),
     charts: parseChartStyle(s.charts),
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
-    maxIter: Math.round(num(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
-    stopExp: Math.round(num(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
+    maxIter: Math.round(clampNum(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
+    stopExp: Math.round(clampNum(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
     missing: (['casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const).find((m) => m === s.missing) ?? 'mean',
-    miImputations: Math.round(num(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
+    miImputations: Math.round(clampNum(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
     miMethod: s.miMethod === 'amelia' || s.miMethod === 'micenorm' || s.miMethod === 'joint' ? s.miMethod : 'mice',
     miAuxiliary: Array.isArray(s.miAuxiliary) ? [...new Set(s.miAuxiliary.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
     miNominal: Array.isArray(s.miNominal) ? [...new Set(s.miNominal.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
-    bootSamples: Math.round(num(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
+    bootSamples: Math.round(clampNum(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
     autoCalculate: s.autoCalculate === true,
     bootTails: s.bootTails === 'one' ? 'one' : 'two',
     bootInterval: s.bootInterval === 'bca' || s.bootInterval === 'studentized' ? s.bootInterval : 'percentile',
-    seed: Math.round(num(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
-    confidence: num(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
+    seed: Math.round(clampNum(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
+    confidence: clampNum(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
     probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',
     hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === s.hc) ?? 'none',
     interaction: s.interaction === 'lms' || s.interaction === 'qml' ? s.interaction : 'product',

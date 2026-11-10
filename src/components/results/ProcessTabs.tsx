@@ -1,4 +1,4 @@
-import { fmt } from '../../format';
+import { fmt, pIs } from '../../format';
 import { processJn, type At, type CpaResult } from '../../rengine/cpa';
 import { JohnsonNeymanPlot } from '../JohnsonNeymanPlot';
 import { RScriptButton } from './RScriptButton';
@@ -33,10 +33,10 @@ function Equations({ res, title, level }: { res: CpaResult; title: string; level
           columns={['Term', 'Coefficient', res.hc === 'none' ? 'Std. error' : `Std. error (${res.hc})`, res.inference === 'montecarlo' ? 'z' : 't', 'p', ...ciCols(level)]}
           rows={e.coefficients.map((k): Row => [c(term(k.term)), c(k.est), c(k.se), c(k.t), pCell(k.p), c(k.lo), c(k.hi)])}
           note={e.logistic
-            ? <>Logistic regression (Y has two values; coefficients in log-odds). −2LL = {fmt(e.deviance ?? NaN, 2)}, model χ²({fmt(e.df1 ?? NaN, 0)}) = {fmt(e.chisq ?? NaN, 2)}, p {(e.p ?? 1) < 0.001 ? '< .001' : `= ${fmt(e.p ?? NaN, 3)}`}; McFadden R² = {fmt(e.mcfadden ?? NaN, 3)}, Cox &amp; Snell {fmt(e.coxsnell ?? NaN, 3)}, Nagelkerke {fmt(e.nagelkerke ?? NaN, 3)}. Tests are z tests.</>
+            ? <>Logistic regression (Y has two values; coefficients in log-odds). −2LL = {fmt(e.deviance ?? NaN, 2)}, model χ²({fmt(e.df1 ?? NaN, 0)}) = {fmt(e.chisq ?? NaN, 2)}, p {pIs(e.p ?? NaN)}; McFadden R² = {fmt(e.mcfadden ?? NaN, 3)}, Cox &amp; Snell {fmt(e.coxsnell ?? NaN, 3)}, Nagelkerke {fmt(e.nagelkerke ?? NaN, 3)}. Tests are z tests.</>
             : e.f === null || e.p === null
             ? <>R² = {fmt(e.r2, 3)}. Unstandardised coefficients in the latent variables’ metric (first item’s loading fixed to 1); a product of latent variables is SAM’s latent interaction.</>
-            : <>R² = {fmt(e.r2, 3)}, MSE = {fmt(e.mse, 3)}, F{res.hc === 'none' ? '' : ` (${res.hc})`}({fmt(e.df1 ?? NaN, 0)}, {fmt(e.df2 ?? NaN, 0)}) = {fmt(e.f, 2)}, p {e.p < 0.001 ? '< .001' : `= ${fmt(e.p, 3)}`}. Unstandardised OLS coefficients; products are of the variables as entered (not mean-centred, as PROCESS by default).</>} />
+            : <>R² = {fmt(e.r2, 3)}, MSE = {fmt(e.mse, 3)}, F{res.hc === 'none' ? '' : ` (${res.hc})`}({fmt(e.df1 ?? NaN, 0)}, {fmt(e.df2 ?? NaN, 0)}) = {fmt(e.f, 2)}, p {pIs(e.p)}. Unstandardised OLS coefficients; products are of the variables as entered (not mean-centred, as PROCESS by default).</>} />
         {e.interactions.length > 0 && (
           <Table title={`Highest-order interaction${e.interactions.length > 1 ? 's' : ''} in ${e.outcome}`} file={`process-interactions-${e.outcome}`}
             columns={['Interaction', 'R² change', res.hc === 'none' ? 'F' : `F (${res.hc})`, 'df1', 'df2', 'p']}

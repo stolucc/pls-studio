@@ -4,6 +4,7 @@
 // log-likelihood are those Mplus prints rather than the exact maximum GLMMadaptive's quadrature reaches.
 
 import { buildQuad } from '../analyses/quadmlSyntax';
+import { normalP } from '../engine/stats';
 import type { Dataset } from '../engine/types';
 import type { GlmmCoef, GlmmInput, GlmmResult } from './glmm';
 import { quadR, quadScriptR, type QuadResult } from './quadml';
@@ -46,13 +47,8 @@ const spec = (data: Dataset, o: GlmmInput) => buildQuad(glmmMplusSyntax(o), data
 
 const coef = (term: string, p?: { est: number; se: number | null }): GlmmCoef => {
   const se = p?.se ?? NaN, z = (p?.est ?? NaN) / se;
-  return { term, est: p?.est ?? NaN, se, z, p: Number.isFinite(z) ? 2 * (1 - normalCdf(Math.abs(z))) : NaN };
+  return { term, est: p?.est ?? NaN, se, z, p: Number.isFinite(z) ? normalP(z) : NaN };
 };
-function normalCdf(x: number) {
-  // (Abramowitz & Stegun 7.1.26 via erf; p-values only)
-  const t = 1 / (1 + 0.3275911 * x / Math.SQRT2), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2);
-  return 0.5 * (1 + y);
-}
 
 /** The integration engine's result as the GLMM card shows it (Mplus's growth factors as the random effects). */
 export function glmmFromQuad(o: GlmmInput, r: QuadResult, observations = r.n * o.occasions.length): GlmmResult {

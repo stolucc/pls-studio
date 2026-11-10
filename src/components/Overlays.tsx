@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { useStore } from '../store';
 import { IconAlert, IconCheck, IconInfo, IconX } from './icons';
+import { useEscape } from './useEscape';
 
 interface ConfirmOpts { title: string; body: string; confirmLabel?: string; danger?: boolean }
 /** Several ways to continue (besides Cancel), e.g. keep / discard. */
@@ -79,12 +80,7 @@ export function ConfirmModal() {
     if (!current) return;
     (current.field || current.text || current.fields ? inputRef.current : okRef.current)?.focus();
   }, [current]);
-  useEffect(() => {
-    if (!current) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  });
+  useEscape(() => close(false), !!current);
   if (!current) return null;
   return (
     <div className="modal-backdrop" onMouseDown={() => close(false)}>

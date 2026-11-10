@@ -5,7 +5,7 @@ import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table } from '../components/results/Table';
 import { pnorm } from '../engine/stats';
-import { fmt, fmtP } from '../format';
+import { fmt, fmtP, pIs } from '../format';
 import type { DidInput, DidResult } from '../rengine/did';
 import { Choice, clampNum, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
@@ -89,7 +89,7 @@ function DidView({ r }: { r: Result }) {
         {r.design === 'twfe'
           ? `Average treatment effect on the treated: the treated group’s change from before to after, net of the controls’ change (two-way fixed effects, ${r.engine.package} ${r.engine.version}; ${r.treatedUnits} of ${r.units} units treated, standard errors clustered by unit).`
           : `Average treatment effect on the treated over all treated groups and post-treatment periods (Callaway & Sant’Anna 2021, ${r.engine.package} ${r.engine.version}; control group: ${r.control === 'notyettreated' ? 'not yet treated' : 'never treated'} units; ${r.treatedUnits} of ${r.units} units ever treated).`}
-        {r.preTrend && <> Pre-trend test: {r.design === 'twfe' ? `F(${r.preTrend.df1}, ${r.preTrend.df2}) = ${fmt(r.preTrend.stat, 2)}` : `Wald χ² = ${fmt(r.preTrend.stat, 2)}`}, p {r.preTrend.p < 0.001 ? '< 0.001' : `= ${fmt(r.preTrend.p)}`}{r.preTrend.p < 0.05 ? ' — pre-treatment differences: parallel trends are doubtful.' : ' — no sign of differing pre-trends.'}</>}
+        {r.preTrend && <> Pre-trend test: {r.design === 'twfe' ? `F(${r.preTrend.df1}, ${r.preTrend.df2}) = ${fmt(r.preTrend.stat, 2)}` : `Wald χ² = ${fmt(r.preTrend.stat, 2)}`}, p {pIs(r.preTrend.p)}{r.preTrend.p < 0.05 ? ' — pre-treatment differences: parallel trends are doubtful.' : ' — no sign of differing pre-trends.'}</>}
       </p>
       {r.event.length > 0 && <EventChart r={r} />}
       {r.event.length > 0 && <Table title="Event study" file="did-event" columns={[r.design === 'twfe' ? 'Period' : 'Periods since treatment', 'Effect', 'Std. error', `${pct}% CI`]}

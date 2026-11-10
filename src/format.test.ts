@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { csvCell, fmt, fmtP, safeFileName, safeUrl, stars } from './format';
+import { csvCell, fmt, fmtP, noLeadingZero, pIs, safeFileName, safeUrl, stars } from './format';
 
 describe('number formatting', () => {
   it('formats numbers to three decimals by default, dashes for missing, ∞ for infinite', () => {
@@ -14,6 +14,13 @@ describe('number formatting', () => {
     expect(fmtP(0.0004)).toBe('<0.001');
     expect(fmtP(0.001)).toBe('0.001');
     expect(fmtP(0.04567)).toBe('0.046');
+    expect(fmtP(NaN)).toBe('—');
+    expect(fmtP(undefined)).toBe('—');
+    expect(pIs(0.0004)).toBe('< 0.001');
+    expect(pIs(0.0372)).toBe('= 0.037');
+    expect(noLeadingZero('0.450')).toBe('.450');
+    expect(noLeadingZero('-0.12')).toBe('-.12');
+    expect(noLeadingZero('10.5')).toBe('10.5');
     expect(stars(0.0009)).toBe('***');
     expect(stars(0.001)).toBe('**');
     expect(stars(0.0099)).toBe('**');

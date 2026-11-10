@@ -8,6 +8,7 @@ import { OrderedPicker } from '../components/OrderedPicker';
 import { c, Table, type Row } from '../components/results/Table';
 import { QCA_SORT_BY, qcaFormula, qcaOutcomeLabel, type QcaCalibration, type QcaExpectation, type QcaModel, type QcaResult, type QcaSolutionKind, type QcaSortBy, type QcaSpec } from '../rengine/qca';
 import { fingerprint } from './codec';
+import { clampNum } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
 
 export interface QcaOptions {
@@ -160,7 +161,6 @@ export function QcaView({ r, options: o }: { r: QcaResult; options: QcaOptions }
 // ---- The options ----
 
 const str = (v: unknown) => (typeof v === 'string' ? v.slice(0, 200) : null);
-const clampNum = (v: unknown, lo: number, hi: number, dflt: number) => { const x = Number(v); return Number.isFinite(x) ? Math.max(lo, Math.min(hi, x)) : dflt; };
 function parseCalibration(v: unknown): QcaCalibration | null {
   if (!v || typeof v !== 'object') return null;
   const k = v as Record<string, unknown>;
@@ -243,9 +243,9 @@ function QcaOptionsForm({ options: o, set, ctx, disabled }: { options: QcaOption
           )}
           <div className="field">
             <label>Truth table</label>
-            <label className="inline-field">Frequency cut-off (n.cut) <input className="input num" type="number" min={1} max={1000} step={1} value={o.nCut} onChange={(e) => set({ ...o, nCut: Math.round(clampNum(e.target.value, 1, 1000, 1)) })} /></label>
-            <label className="inline-field">Consistency cut-off (incl.cut) <input className="input num" type="number" min={0.5} max={1} step={0.01} value={o.inclCut} onChange={(e) => set({ ...o, inclCut: clampNum(e.target.value, 0.01, 1, 0.8) })} /></label>
-            <label className="inline-field">PRI cut-off (pri.cut) <input className="input num" type="number" min={0} max={1} step={0.01} value={o.priCut} onChange={(e) => set({ ...o, priCut: clampNum(e.target.value, 0, 1, 0) })} /></label>
+            <label className="inline-field">Frequency cut-off (n.cut) <input className="input num" type="number" min={1} max={1000} step={1} value={o.nCut} onChange={(e) => set({ ...o, nCut: Math.round(clampNum(Number(e.target.value), 1, 1000, 1)) })} /></label>
+            <label className="inline-field">Consistency cut-off (incl.cut) <input className="input num" type="number" min={0.5} max={1} step={0.01} value={o.inclCut} onChange={(e) => set({ ...o, inclCut: clampNum(Number(e.target.value), 0.01, 1, 0.8) })} /></label>
+            <label className="inline-field">PRI cut-off (pri.cut) <input className="input num" type="number" min={0} max={1} step={0.01} value={o.priCut} onChange={(e) => set({ ...o, priCut: clampNum(Number(e.target.value), 0, 1, 0) })} /></label>
             <label className="inline-field">Sort by <select className="select" value={o.sortBy} onChange={(e) => set({ ...o, sortBy: e.target.value as QcaSortBy })}>{QCA_SORT_BY.map((s) => <option key={s} value={s}>{s}</option>)}</select></label>
             <div className="hint">Rows with fewer cases than n.cut are remainders; a row is coded 1 when its consistency reaches incl.cut (0.8 is the usual floor, 0.75 the minimum) and its PRI reaches pri.cut (0.5 or more is recommended to avoid simultaneous subset relations).</div>
           </div>

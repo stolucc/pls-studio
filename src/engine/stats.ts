@@ -40,6 +40,9 @@ export function quantileSorted(sorted: ArrayLike<number>, p: number): number {
   return sorted[lo] + (h - lo) * (sorted[hi] - sorted[lo]);
 }
 
+/** Quantile (type 7) of unsorted values. */
+export const quantileOf = (values: ArrayLike<number>, p: number): number => quantileSorted(Float64Array.from(values).sort(), p);
+
 // ---------- Student t distribution ----------
 
 function lnGamma(z: number): number {
@@ -221,6 +224,12 @@ export function qnorm(p: number): number {
       / (((((((r * 2.0442631033899397e-15 + 1.421511758316446e-07) * r + 1.8463183175100548e-05) * r + 0.0007868691311456133) * r + 0.014875361290850615) * r + 0.1369298809227358) * r + 0.599832206555888) * r + 1);
   }
   return q < 0 ? -x : x;
+}
+
+/** Logistic quantile ln(p / (1 − p)), with p kept within [eps, 1 − eps]. */
+export function qlogis(p: number, eps = 0): number {
+  const q = Math.min(Math.max(p, eps), 1 - eps);
+  return Math.log(q / (1 - q));
 }
 
 /** Standard normal distribution function. */

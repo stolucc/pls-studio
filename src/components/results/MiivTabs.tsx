@@ -1,5 +1,5 @@
 import type { MiivResult } from '../../engine/miiv';
-import { fmt } from '../../format';
+import { fmtP } from '../../format';
 import { c, pCell, Table, type Row } from './Table';
 
 export const MIIV_TABS = [
@@ -12,7 +12,7 @@ function Equations({ miiv }: { miiv: MiivResult }) {
   const rows: Row[] = miiv.equations.map((e) => [
     c(e.dv), c(e.regressors.join(' + ')), c(e.kind, 'dim'), c(String(e.instruments.length)),
     c(e.sargan), c(e.sarganDf ? String(e.sarganDf) : '0'),
-    e.sarganP === null ? c('exactly identified', 'dim') : { v: e.sarganP < 0.001 ? '<0.001' : fmt(e.sarganP), cls: e.sarganP < 0.05 ? 'bad' : 'good' },
+    e.sarganP === null ? c('exactly identified', 'dim') : { v: fmtP(e.sarganP), cls: e.sarganP < 0.05 ? 'bad' : 'good' },
     c(e.sigma2),
   ]);
   return (

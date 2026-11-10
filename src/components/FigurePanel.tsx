@@ -5,6 +5,7 @@ import { FIGURE_PRESETS, matchPreset, type FigureStyle } from '../figure/style';
 import { safeFileName } from '../format';
 import { useStore } from '../store';
 import { IconDownload, IconX } from './icons';
+import { useEscape } from './useEscape';
 
 const COLORS: [keyof FigureStyle, string][] = [
   ['constructFill', 'Construct fill'], ['constructStroke', 'Construct outline'], ['indicatorFill', 'Indicator fill'], ['gradientEnd', 'Gradient end'], ['copulaFill', 'Copula fill'], ['copulaStroke', 'Copula outline'], ['copulaArrow', 'Copula arrows'],
@@ -33,11 +34,7 @@ export function FigurePanel({ input, onClose }: { input: () => FigureInput; onCl
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [figure.svg]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  useEscape(onClose);
 
   const doExport = async (format: FigureFormat) => {
     setBusy(true);

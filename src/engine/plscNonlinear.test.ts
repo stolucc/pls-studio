@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { bootstrapPls } from './bootstrap';
 import { parseCsv } from './dataset';
 import { binaryModeration, estimatePls, originalScaleCoefficients } from './pls';
-import { latentMoments } from './plscMoments';
+import { latentMoments, normalMoment } from './plscMoments';
 import { interactionName, type Dataset, type ModelSpec } from './types';
 
 const fx = join(__dirname, '__fixtures__');
@@ -68,6 +68,10 @@ describe('latent moments', () => {
     expect(m([0, 0])).toBeCloseTo(1, 10);
     const proxy4 = x.reduce((s, v) => s + v ** 4, 0) / 4;
     expect(m([0, 0, 0, 0])).toBeCloseTo((proxy4 - 6 * 0.8 * 0.2 - 3 * 0.04) / 0.64, 10);
+  });
+  it('use the normal error moments of every order (three-way and quadratic products reach the 8th)', () => {
+    expect([0, 2, 4, 6, 8, 10].map((k) => normalMoment(k, 1))).toEqual([1, 1, 3, 15, 105, 945]);
+    expect(normalMoment(8, 0.5)).toBeCloseTo(105 / 16, 12);
   });
   it('with reliability 1 are the moments of the scores', () => {
     const y = Float64Array.from([1.2, -0.3, -1.1, 0.2]);

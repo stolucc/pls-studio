@@ -2,8 +2,9 @@ import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/
 import { memo, useMemo } from 'react';
 import { besideLine, pathCurve, pathOffset, pathSegment } from '../geometry';
 import { useStore } from '../store';
-import { formatEstimate, pathStrokeWidth, semplotEdge, significanceText } from '../figure/style';
+import { pathStrokeWidth, semplotEdge } from '../figure/style';
 import { fixedText } from '../diagramLabels';
+import { EstimateText } from './EstimateLabel';
 
 export type PathEdgeData = {
   beta: number | null; p: number | null; moderated?: boolean; /** CB-SEM: coefficient held at this value. */ fixed?: number; /** CB-SEM: parameter label. */ label?: string;
@@ -61,8 +62,7 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
           <div className={`elabel${cls}${fixed !== undefined ? ' fixed' : ''}${data?.implied ? ' implied' : ''}${figure.notation === 'amos' ? ' beside' : ''}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx + off.dx}px, ${geo.my + off.dy}px)`, ...(edge ? { color: edge.color } : {}) }}
             title={fixed !== undefined ? `Fixed at ${fixedText(fixed)}: not estimated` : data?.implied ? 'Main effect implied by the moderation (estimated with the model; draw the arrow to edit it)' : undefined}>
             {label && <span className="plabel-name">{label} </span>}
-            {fixed !== undefined && data?.beta == null ? fixedText(fixed) : formatEstimate(figure, beta)}
-            {p !== null && significanceText(figure, p) && <span className="p">{significanceText(figure, p)}</span>}
+            <EstimateText figure={figure} value={beta} p={p} text={fixed !== undefined && data?.beta == null ? fixedText(fixed) : undefined} />
           </div>
         </EdgeLabelRenderer>
       )}

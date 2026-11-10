@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import thirdParty from '../generated/third-party.json';
 import { safeUrl } from '../format';
 import { IconX } from './icons';
+import { useEscape } from './useEscape';
 
 interface RLicences {
   webr: { version: string; r: string; license: string; source: string | null; url: string };
@@ -16,10 +17,8 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     fetch(`${base}licenses.json`).then((res) => (res.ok ? res.json() : Promise.reject())).then(setR).catch(() => setFailed(true));
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  }, []);
+  useEscape(onClose);
   const link = (url: string, label: string) => (safeUrl(url) ? <a href={url} target="_blank" rel="noopener noreferrer">{label}</a> : label);
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>

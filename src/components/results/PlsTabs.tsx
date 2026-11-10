@@ -3,7 +3,7 @@ import type { FitTestResult } from '../../engine/bootstrap';
 import { binaryModeration, originalScaleCoefficients } from '../../engine/pls';
 import type { BootstrapResult, BootstrapStat, Discrepancies, PlsResult } from '../../engine/types';
 import { toSpec } from '../../model/project';
-import { csvCell, downloadText, fmt, safeFileName } from '../../format';
+import { csvCell, downloadText, fmt, fmtP, safeFileName } from '../../format';
 import { run } from '../../runner';
 import { useStore } from '../../store';
 import { IconDownload, IconRepeat } from '../icons';
@@ -118,7 +118,7 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
     const factor = types.get(cn) !== 'composite';
     const bl = boot?.stats.find((s) => s.key === `loading:${ind.name}`);
     const bw = boot?.stats.find((s) => s.key === `weight:${ind.name}`);
-    const pc = (s: BootstrapStat | undefined) => (s ? c(s.p < 0.001 ? '<0.001' : s.p.toFixed(3), s.p < 0.05 ? 'good' : 'dim') : c(null));
+    const pc = (s: BootstrapStat | undefined) => (s ? c(fmtP(s.p), s.p < 0.05 ? 'good' : 'dim') : c(null));
     return [
       c(ind.name), c(cn), c(factor ? 'factor' : 'composite', 'dim'),
       c(l, factor ? (Math.abs(l) >= 0.708 ? 'good' : Math.abs(l) >= 0.4 ? 'warn' : 'bad') : ''),
@@ -133,7 +133,7 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
     const factor = types.get(hn) !== 'composite';
     const bl = boot?.stats.find((s) => s.key === `hoLoading:${hn}:${cn}`);
     const bw = boot?.stats.find((s) => s.key === `hoWeight:${hn}:${cn}`);
-    const pc = (s: BootstrapStat | undefined) => (s ? c(s.p < 0.001 ? '<0.001' : s.p.toFixed(3), s.p < 0.05 ? 'good' : 'dim') : c(null));
+    const pc = (s: BootstrapStat | undefined) => (s ? c(fmtP(s.p), s.p < 0.05 ? 'good' : 'dim') : c(null));
     return [c(cn), c(hn), c(factor ? 'factor' : 'composite', 'dim'), c(h.loading, factor ? (Math.abs(h.loading) >= 0.708 ? 'good' : Math.abs(h.loading) >= 0.4 ? 'warn' : 'bad') : ''), c(h.weight),
       ...(boot ? [pc(bl), pc(bw), bw ? c(`[${fmt(bw.ciLow)}, ${fmt(bw.ciHigh)}]`) : c(null)] : [])];
   });

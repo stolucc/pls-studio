@@ -1,4 +1,5 @@
 import type { CbEstimator } from '../engine/cbsem';
+import { clampNum, isObj } from '../parse';
 import type { McDesign, McEstimator } from '../engine/montecarlo';
 import type { PopulationSpec } from '../engine/population';
 import type { CbResult } from '../engine/cbsem';
@@ -71,8 +72,6 @@ export const defaultDesign = (population: PopulationSpec): McDesign => ({
   mcDraws: 1000,
 });
 
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
 const str = (v: unknown) => (typeof v === 'string' ? v.slice(0, 200) : '');
 
 /** Validate an untrusted design from a project file; null if unusable. */
@@ -80,7 +79,7 @@ export function parseDesign(raw: unknown): McDesign | null {
   if (!isObj(raw) || !isObj(raw.population)) return null;
   const p = raw.population;
   if (!Array.isArray(p.constructs) || !Array.isArray(p.paths) || p.constructs.length > 500) return null;
-  const nums = (a: unknown, lo: number, hi: number) => (Array.isArray(a) ? a.slice(0, 1000).map((v) => num(v, lo, hi, 0)) : undefined);
+  const nums = (a: unknown, lo: number, hi: number) => (Array.isArray(a) ? a.slice(0, 1000).map((v) => clampNum(v, lo, hi, 0)) : undefined);
   const population: PopulationSpec = {
     constructs: p.constructs.filter(isObj).map((c) => ({
       name: str(c.name),
@@ -88,26 +87,26 @@ export function parseDesign(raw: unknown): McDesign | null {
       indicators: Array.isArray(c.indicators) ? c.indicators.slice(0, 1000).map(str) : [],
       loadings: nums(c.loadings, -0.999, 0.999),
       weights: nums(c.weights, -100, 100),
-      withinCor: c.withinCor === undefined ? undefined : num(c.withinCor, -0.99, 0.99, 0.5),
-      ...(c.skew !== undefined ? { skew: num(c.skew, -5, 5, 0) } : {}),
-      ...(c.kurtosis !== undefined ? { kurtosis: num(c.kurtosis, -1.2, 60, 0) } : {}),
+      withinCor: c.withinCor === undefined ? undefined : clampNum(c.withinCor, -0.99, 0.99, 0.5),
+      ...(c.skew !== undefined ? { skew: clampNum(c.skew, -5, 5, 0) } : {}),
+      ...(c.kurtosis !== undefined ? { kurtosis: clampNum(c.kurtosis, -1.2, 60, 0) } : {}),
     })),
-    paths: p.paths.filter(isObj).slice(0, 5000).map((x) => ({ from: str(x.from), to: str(x.to), value: num(x.value, -0.999, 0.999, 0) })),
-    exoCor: Array.isArray(p.exoCor) ? p.exoCor.filter(isObj).slice(0, 5000).map((x) => ({ a: str(x.a), b: str(x.b), value: num(x.value, -0.999, 0.999, 0) })) : [],
-    skew: num(p.skew, -5, 5, 0),
-    kurtosis: num(p.kurtosis, -1.2, 60, 0),
+    paths: p.paths.filter(isObj).slice(0, 5000).map((x) => ({ from: str(x.from), to: str(x.to), value: clampNum(x.value, -0.999, 0.999, 0) })),
+    exoCor: Array.isArray(p.exoCor) ? p.exoCor.filter(isObj).slice(0, 5000).map((x) => ({ a: str(x.a), b: str(x.b), value: clampNum(x.value, -0.999, 0.999, 0) })) : [],
+    skew: clampNum(p.skew, -5, 5, 0),
+    kurtosis: clampNum(p.kurtosis, -1.2, 60, 0),
   };
   const ids = Array.isArray(raw.estimators) ? raw.estimators.filter(isObj).map((e) => e.id) : [];
   const estimators = ESTIMATOR_CHOICES.filter((e) => ids.includes(e.id));
-  const sizes = Array.isArray(raw.sampleSizes) ? raw.sampleSizes.map((v) => Math.round(num(v, 10, 100000, 0))).filter((v) => v >= 10).slice(0, 20) : [];
+  const sizes = Array.isArray(raw.sampleSizes) ? raw.sampleSizes.map((v) => Math.round(clampNum(v, 10, 100000, 0))).filter((v) => v >= 10).slice(0, 20) : [];
   return {
     population,
     estimators: estimators.length ? estimators : ESTIMATOR_CHOICES.slice(0, 1),
     sampleSizes: sizes.length ? sizes : [100, 200],
-    replications: Math.round(num(raw.replications, 2, 100000, 200)),
-    seed: Math.round(num(raw.seed, 0, 2 ** 31, 2026)),
-    alpha: num(raw.alpha, 0.001, 0.2, 0.05),
-    bootSamples: Math.round(num(raw.bootSamples, 0, 10000, 200)),
-    mcDraws: Math.round(num(raw.mcDraws, 0, 1000000, 1000)),
+    replications: Math.round(clampNum(raw.replications, 2, 100000, 200)),
+    seed: Math.round(clampNum(raw.seed, 0, 2 ** 31, 2026)),
+    alpha: clampNum(raw.alpha, 0.001, 0.2, 0.05),
+    bootSamples: Math.round(clampNum(raw.bootSamples, 0, 10000, 200)),
+    mcDraws: Math.round(clampNum(raw.mcDraws, 0, 1000000, 1000)),
   };
 }

@@ -1,14 +1,15 @@
 // Make parcels of a construct's items: item-to-construct balance (the usual choice), random, or by hand. Each parcel is
 // a computed column (the mean of its items), and the construct is measured by the parcels instead of the items.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { computeColumn, nameError } from '../data/compute';
 import { balanceParcels, itemLoadings, parcelExpr, parcelSizes, randomParcels, type ParcelMethod } from '../engine/parcels';
-import { mulberry32 } from '../engine/stats';
+import { mean, mulberry32 } from '../engine/stats';
 import { fmt } from '../format';
 import type { Construct } from '../model/project';
 import { useStore } from '../store';
 import { IconX } from './icons';
+import { useEscape } from './useEscape';
 
 export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void }) {
   const data = useStore((s) => s.data), info = useStore((s) => s.dataInfo), seed0 = useStore((s) => s.settings.seed);
@@ -18,11 +19,7 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
   const [seed, setSeed] = useState(seed0);
   const [manual, setManual] = useState<Record<string, number>>(() => Object.fromEntries(c.indicators.map((i, r) => [i, r % Math.min(3, Math.floor(n / 2))])));
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  useEscape(onClose);
 
   const loadings = useMemo(() => {
     if (!data) return null;
@@ -95,7 +92,7 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
           <table className="grid parcel-table"><thead><tr><th>Parcel</th><th>Items</th><th>Mean loading</th></tr></thead><tbody>
             {groups.map((g, p) => {
               const ls = g.map(loadingOf).filter((v): v is number => v !== null);
-              return <tr key={p}><td>{names[p]}</td><td>{g.join(', ')}</td><td className="num">{ls.length ? fmt(ls.reduce((s, v) => s + v, 0) / ls.length) : ''}</td></tr>;
+              return <tr key={p}><td>{names[p]}</td><td>{g.join(', ')}</td><td className="num">{ls.length ? fmt(mean(ls)) : ''}</td></tr>;
             })}
           </tbody></table>
         )}

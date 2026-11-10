@@ -4,18 +4,7 @@ import type { Dataset } from '../engine/types';
 import { fingerprint } from './codec';
 import type { AnalysisCtx } from './types';
 
-export const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-/** A column name (or other short text) from an untrusted file. */
-export const name = (v: unknown, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
-export const names = (v: unknown, max = 500) => [...new Set(Array.isArray(v) ? v.slice(0, max).map((x) => name(x)).filter(Boolean) : [])];
-export const oneOf = <T extends string>(v: unknown, all: readonly T[], fallback: T): T => (all.includes(v as T) ? (v as T) : fallback);
-export const clampNum = (v: unknown, lo: number, hi: number, fallback: number, integer = false) => {
-  const n = Number(v);
-  if (v === null || v === '' || !Number.isFinite(n)) return fallback;
-  const c = Math.max(lo, Math.min(hi, n));
-  return integer ? Math.round(c) : c;
-};
-export const flag = (v: unknown) => v === true;
+export { clampNum, flag, isObj, name, names, oneOf } from '../parse';
 
 /** The raw data, or null for none or a covariance matrix. */
 export const rawData = (ctx: AnalysisCtx): Dataset | null => (ctx.data && !(ctx.data.moments && ctx.data.cols.length === 0) ? ctx.data : null);

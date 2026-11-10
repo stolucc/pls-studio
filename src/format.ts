@@ -1,9 +1,16 @@
 export const fmt = (v: number | null | undefined, d = 3): string =>
   v === null || v === undefined || Number.isNaN(v) ? '—' : !Number.isFinite(v) ? '∞' : v.toFixed(d);
 
-export const fmtP = (p: number): string => (p < 0.001 ? '<0.001' : p.toFixed(3));
+/** A p-value for a table cell: <0.001 or three decimals. */
+export const fmtP = (p: number | null | undefined): string => (p === null || p === undefined || Number.isNaN(p) ? '—' : p < 0.001 ? '<0.001' : p.toFixed(3));
+
+/** A p-value in a sentence, after "p ": "< 0.001" or "= 0.037". */
+export const pIs = (p: number): string => (p < 0.001 ? '< 0.001' : `= ${fmt(p, 3)}`);
 
 export const stars = (p: number): string => (p < 0.001 ? '***' : p < 0.01 ? '**' : p < 0.05 ? '*' : '');
+
+/** A formatted number without its leading zero (APA and Amos style: .45, -.12). */
+export const noLeadingZero = (s: string): string => s.replace(/^(-?)0\./, '$1.');
 
 /** Write a string to the clipboard; resolves false if the browser refuses. */
 export async function copyText(text: string): Promise<boolean> {

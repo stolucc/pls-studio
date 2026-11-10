@@ -1,6 +1,6 @@
 import type { CbEstimate, CbResult } from '../../engine/cbsem';
 import type { BootstrapResult } from '../../engine/types';
-import { fmt, fmtP, stars } from '../../format';
+import { fmt, fmtP, pIs, stars } from '../../format';
 import { useState } from 'react';
 import { johnsonNeyman } from '../../engine/jn';
 import { normalP, pnorm } from '../../engine/stats';
@@ -107,13 +107,13 @@ export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
         <div className="issue warning" style={{ marginBottom: 10 }}>
           Latent interactions estimated by {cb.interaction.toUpperCase()} (modsem): there is no χ² test for a model with latent interactions. The fit statistics below are those of the same model without the interaction terms; judge the interaction by its estimate, standard error and the change in log-likelihood (Klein &amp; Moosbrugger, 2000).
         
-          {cb.lrt && <> Likelihood-ratio test of the interaction term{cb.moderations.length > 1 ? 's' : ''} against the model without {cb.moderations.length > 1 ? 'them' : 'it'} (modsem::compare_fit): D = {fmt(cb.lrt.D, 2)}, df = {cb.lrt.df}, p {cb.lrt.p < 0.001 ? '< 0.001' : `= ${fmt(cb.lrt.p)}`}.</>}
+          {cb.lrt && <> Likelihood-ratio test of the interaction term{cb.moderations.length > 1 ? 's' : ''} against the model without {cb.moderations.length > 1 ? 'them' : 'it'} (modsem::compare_fit): D = {fmt(cb.lrt.D, 2)}, df = {cb.lrt.df}, p {pIs(cb.lrt.p)}.</>}
         </div>
       )}
       <div className="stat-cards">
         {card(rml ? 'χ² (TRML)' : robust ? 'χ² (scaled)' : 'χ²', `${fmt(robust ? f.chisqScaled : f.chisq, 2)}`)}
         {card('df', String(f.df))}
-        {card('p', pv === undefined || Number.isNaN(pv) ? '—' : pv < 0.001 ? '<0.001' : fmt(pv))}
+        {card('p', fmtP(pv))}
         {card(robustIdx ? 'CFI (robust)' : 'CFI', fmt(cfi), ok(cfi >= 0.95))}
         {card(robustIdx ? 'TLI (robust)' : 'TLI', fmt(tli), ok(tli >= 0.95))}
         {card(robustIdx ? 'RMSEA (robust)' : 'RMSEA', fmt(rmsea), ok(rmsea <= 0.06))}

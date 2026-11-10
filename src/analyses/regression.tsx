@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
-import { fmt, fmtP } from '../format';
+import { fmt, fmtP, pIs } from '../format';
 import type { Coefficient, Family, RegressionCurve, RegressionInput, RegressionResult } from '../rengine/regression';
 import { confirmDialog } from '../components/Overlays';
 import { newId, type Construct, type ModelState, type Path } from '../model/project';
@@ -235,7 +235,7 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
       <p className="hint" style={{ marginTop: 0 }}>
         {FAMILY_NAME[r.family]}{r.link && r.link !== 'logit' && r.link !== 'logistic' ? ` (${r.link} link)` : ''}: <code>{r.formula}</code>; {r.engine.package} {r.engine.version}.
         {r.se !== 'model' && ` ${r.se === 'HC3' ? 'Heteroskedasticity-consistent (HC3)' : r.se === 'HC0' ? 'Heteroskedasticity-consistent (HC0, White; Mplus MLR)' : 'Cluster-robust'} standard errors.`}
-        {r.lrt && <> Likelihood-ratio test against the intercept-only model: χ²({r.lrt.df}) = {fmt(r.lrt.stat, 2)}, p {r.lrt.p < 0.001 ? '< 0.001' : `= ${fmt(r.lrt.p)}`}.</>}
+        {r.lrt && <> Likelihood-ratio test against the intercept-only model: χ²({r.lrt.df}) = {fmt(r.lrt.stat, 2)}, p {pIs(r.lrt.p)}.</>}
         {f.dispersion !== undefined && f.dispersion !== null && f.dispersion > 1.5 && r.family === 'poisson' && ' Dispersion well above 1: consider the negative binomial.'}
       </p>
       {r.family === 'multinomial' && r.levels

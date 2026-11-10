@@ -2,9 +2,9 @@ import { ViewportPortal } from '@xyflow/react';
 import type { MouseEvent } from 'react';
 import { moderatorSegment, pathOffset, pathSegment, quadraticLoop, type QuadraticLoop } from '../geometry';
 import type { Moderation } from '../model/project';
-import { formatEstimate, significanceText } from '../figure/style';
 import { useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
+import { EstimateText } from './EstimateLabel';
 
 export interface ModerationLabel { beta: number | null; p: number | null }
 
@@ -99,8 +99,7 @@ export function ModeratorLayer({ labelFor, onMenu, labelAt }: {
             onContextMenu={(e) => { select(e, mo.id); onMenu(e, { kind: 'moderation', id: mo.id }); }}
             // On the arrow: a quadratic effect's estimate at the top of its loop.
             style={{ transform: `translate(-50%, -50%) translate(${loop ? loop.lx : (labelAt?.(mo.id)?.x ?? (seg.x1 + seg.x2) / 2)}px, ${loop ? loop.ly : (labelAt?.(mo.id)?.y ?? (seg.y1 + seg.y2) / 2)}px)` }}>
-            {formatEstimate(figure, l.beta)}
-            {l.p !== null && significanceText(figure, l.p) && <span className="p">{significanceText(figure, l.p)}</span>}
+            <EstimateText figure={figure} value={l.beta} p={l.p} />
           </div>
         );
       })}
