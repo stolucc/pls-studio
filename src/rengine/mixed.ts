@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** A cluster level above the first, nesting it (e.g. schools above classes), with its random slopes. */
@@ -77,12 +78,7 @@ export interface GmmModel {
 }
 export interface GmmResult { n: number; observations: number; times: number[]; observedTimes: number[]; models: GmmModel[]; warnings: string[]; engine: REngineInfo }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const n0 = (v: unknown) => (typeof v === 'number' ? v : null);
-const columns = (data: Dataset, names: string[]) => {
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
-  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
-};
 
 /** The data columns a multilevel regression uses (with repeated measures in columns: the measures and the time-varying covariates' columns, not the names they create). */
 export function lmmColumns(i: LmmInput): string[] {
@@ -94,9 +90,9 @@ export function lmmColumns(i: LmmInput): string[] {
     i.cluster, ...(i.levels ?? []).map((l) => l.cluster),
   ].filter(Boolean))];
 }
-export const lmmRequest = (data: Dataset, i: LmmInput) => ({ ...i, data: columns(data, lmmColumns(i)) });
+export const lmmRequest = (data: Dataset, i: LmmInput) => ({ ...i, data: rColumns(data, lmmColumns(i)) });
 export const gmmRequest = (data: Dataset, i: GmmInput) =>
-  ({ ...i, data: columns(data, [...(i.format === 'wide' ? i.measures : [i.subject, i.time, i.outcome]), ...i.covariates, ...(i.format === 'wide' && i.residuals ? i.membership ?? [] : [])]) });
+  ({ ...i, data: rColumns(data, [...(i.format === 'wide' ? i.measures : [i.subject, i.time, i.outcome]), ...i.covariates, ...(i.format === 'wide' && i.residuals ? i.membership ?? [] : [])]) });
 /** lcmm, or the wide model with a residual variance per occasion. */
 const gmmBridge = (i: GmmInput) => (i.format === 'wide' && i.residuals === 'occasion' ? ['ps_gmm_wide', 'stats'] as const : ['ps_gmm', 'lcmm'] as const);
 
@@ -104,11 +100,11 @@ export async function lmmR(data: Dataset, input: LmmInput): Promise<LmmResult> {
   const raw = await rCall<Record<string, any>>('ps_lmm', lmmRequest(data, input), 'lme4');
   return {
     ...raw, icc: n0(raw.icc), r2: raw.r2 && typeof raw.r2.marginal === 'number' ? raw.r2 : null,
-    fixed: arr<any>(raw.fixed).map((f) => ({ ...f, df: n0(f.df) })),
-    random: arr<any>(raw.random).map((r) => ({ ...r, a: r.a ?? null, b: r.b ?? null, ...('se' in r ? { se: n0(r.se) } : {}) })),
-    ...(raw.levels ? { levels: arr(raw.levels) } : {}),
+    fixed: rList<any>(raw.fixed).map((f) => ({ ...f, df: n0(f.df) })),
+    random: rList<any>(raw.random).map((r) => ({ ...r, a: r.a ?? null, b: r.b ?? null, ...('se' in r ? { se: n0(r.se) } : {}) })),
+    ...(raw.levels ? { levels: rList(raw.levels) } : {}),
     slopeTest: raw.slopeTest ?? null,
-    lines: raw.lines ? { ...raw.lines, intercepts: arr<number>(raw.lines.intercepts), slopes: arr<number>(raw.lines.slopes) } : null,
+    lines: raw.lines ? { ...raw.lines, intercepts: rList<number>(raw.lines.intercepts), slopes: rList<number>(raw.lines.slopes) } : null,
     warnings: rStrings(raw.warnings),
   } as LmmResult;
 }
@@ -118,12 +114,12 @@ export async function gmmR(data: Dataset, input: GmmInput): Promise<GmmResult> {
   const [fn, pkg] = gmmBridge(input);
   const raw = await rCall<Record<string, any>>(fn, gmmRequest(data, input), pkg);
   // Lists of vectors (one per class) stay arrays of arrays in R's JSON.
-  const rows = (v: unknown) => arr<unknown>(v).map((x) => arr<number>(x));
+  const rows = (v: unknown) => rList<unknown>(v).map((x) => rList<number>(x));
   return {
-    ...raw, times: arr<number>(raw.times), observedTimes: arr<number>(raw.observedTimes), warnings: rStrings(raw.warnings),
-    models: arr<any>(raw.models).map((m) => ({
-      ...m, entropy: n0(m.entropy), shares: arr<number>(m.shares),
-      params: arr<any>(m.params).map((p) => ({ name: p.name, est: p.est, se: n0(p.se), p: n0(p.p) })),
+    ...raw, times: rList<number>(raw.times), observedTimes: rList<number>(raw.observedTimes), warnings: rStrings(raw.warnings),
+    models: rList<any>(raw.models).map((m) => ({
+      ...m, entropy: n0(m.entropy), shares: rList<number>(m.shares),
+      params: rList<any>(m.params).map((p) => ({ name: p.name, est: p.est, se: n0(p.se), p: n0(p.p) })),
       trajectories: rows(m.trajectories),
       observed: m.observed == null ? null : rows(m.observed),
     })),

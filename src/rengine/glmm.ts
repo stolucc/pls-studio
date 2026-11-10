@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export type GlmmFamily = 'poisson' | 'negbin' | 'zip' | 'zinb' | 'binomial';
@@ -52,11 +53,6 @@ export interface GlmmResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const columns = (data: Dataset, names: string[]) => {
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
-  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
-};
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 
 /** The columns the model reads. */
 export const glmmColumns = (o: GlmmInput) => (o.layout === 'wide' ? [...o.occasions, ...o.predictors]
@@ -69,15 +65,15 @@ export function glmmRequest(data: Dataset, o: GlmmInput) {
     ...(o.layout === 'wide' ? { occasions: o.occasions, times: o.times.length === o.occasions.length ? o.times : o.occasions.map((_, i) => i) }
       : { outcome: o.outcome, cluster: o.cluster, categorical: o.categorical.filter((c) => o.predictors.includes(c)), ...(o.family === 'binomial' && o.trials ? { trials: o.trials } : {}) }),
     ...(zi ? { ziPredictors: o.ziPredictors, ziRandom: o.ziRandom } : {}),
-    data: columns(data, glmmColumns(o)),
+    data: rColumns(data, glmmColumns(o)),
   };
 }
 
 export async function glmmR(data: Dataset, o: GlmmInput): Promise<GlmmResult> {
   const raw = await rCall<Record<string, any>>('ps_glmm', glmmRequest(data, o), 'GLMMadaptive');
   return {
-    ...raw, fixed: arr<GlmmCoef>(raw.fixed), ...(raw.zero != null ? { zero: arr<GlmmCoef>(raw.zero) } : {}),
-    random: arr<any>(raw.random).map((x) => ({ ...x, ...(x.b == null ? { b: undefined } : {}) })),
+    ...raw, fixed: rList<GlmmCoef>(raw.fixed), ...(raw.zero != null ? { zero: rList<GlmmCoef>(raw.zero) } : {}),
+    random: rList<any>(raw.random).map((x) => ({ ...x, ...(x.b == null ? { b: undefined } : {}) })),
     ...(raw.logPhi != null ? { logPhi: raw.logPhi } : {}), warnings: rStrings(raw.warnings),
   } as GlmmResult;
 }

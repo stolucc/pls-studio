@@ -5,6 +5,7 @@
 import type { CbEstimate, CbEstimator, CbFit, CbResult } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec, MomentData } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList } from './rjson';
 
 
 /** How latent interactions are estimated: product indicators (lavaan) or LMS / QML (modsem). */
@@ -35,13 +36,12 @@ export function cbRequest(data: Dataset, spec0: ModelSpec, missing: MissingTreat
       ...(spec.multilevel.between === 'model' ? (spec.multilevel.betweenModel ?? []).flatMap((st) => [st.lhs, ...st.rhs.map((t) => t.name)]) : [])] : []), ...(spec.weights ? [spec.weights] : []), ...(spec.cluster ? [spec.cluster] : []),
     // (multiple imputation: the auxiliary variables travel too; they inform the imputation, not the model)
     ...(missing === 'mi' ? mi?.auxiliary ?? [] : []), ...(spec.auxiliary ?? [])]);
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'cb', estimator, missing, ...(interaction !== 'product' && spec.moderations?.length ? { interaction } : {}),
     ...(missing === 'mi' && mi ? { mi } : {}),
     data: data.moments && data.cols.length === 0
       ? { names: data.names, moments: data.moments }
-      : { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
+      : rColumns(data, used),
     model: spec,
   };
 }
@@ -65,15 +65,14 @@ export interface REngineInfo { package: string; version: string }
 export type CbResultR = CbResult & { engine: REngineInfo };
 
 /** Shape ps_cb()'s JSON into a CbResult (null → NaN for numbers, null kept where the type allows). */
-const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
 
 /** TECH4 from R: length-one vectors arrive unboxed, standard errors held fixed as null. */
 function parseTech4(t: Record<string, any>): NonNullable<CbResultR['tech4']> {
   const orNull = (v: unknown) => (typeof v === 'number' ? v : null);
-  const sq = (v: unknown) => list(v).map((r) => list(r));
+  const sq = (v: unknown) => rList<unknown>(v).map((r) => rList<unknown>(r));
   return {
     names: rStrings(t.names), cov: sq(t.cov).map((r) => r.map(num)), cor: sq(t.cor).map((r) => r.map(num)),
-    ...(t.mean != null ? { mean: list(t.mean).map(num) } : {}), ...(t.meanSe != null ? { meanSe: list(t.meanSe).map(orNull) } : {}),
+    ...(t.mean != null ? { mean: rList<unknown>(t.mean).map(num) } : {}), ...(t.meanSe != null ? { meanSe: rList<unknown>(t.meanSe).map(orNull) } : {}),
     ...(t.covSe != null ? { covSe: sq(t.covSe).map((r) => r.map(orNull)) } : {}), ...(t.corSe != null ? { corSe: sq(t.corSe).map((r) => r.map(orNull)) } : {}),
   };
 }
@@ -81,17 +80,17 @@ function parseTech4(t: Record<string, any>): NonNullable<CbResultR['tech4']> {
 /** SAMPSTAT from R: the correlation matrix (a single indicator arrives unboxed) and the thresholds, column-wise. */
 function parseSampleCor(s: Record<string, any>): NonNullable<CbResultR['sampleCor']> {
   const th = s.thresholds ?? {};
-  const v = list(th.variable).map(String), idx = list(th.index).map(num), val = list(th.value).map(num);
+  const v = rList<unknown>(th.variable).map(String), idx = rList<unknown>(th.index).map(num), val = rList<unknown>(th.value).map(num);
   return {
-    names: rStrings(s.names), ordinal: list(s.ordinal).map((x) => x === true), cor: list(s.cor).map((r) => list(r).map(num)),
+    names: rStrings(s.names), ordinal: rList<unknown>(s.ordinal).map((x) => x === true), cor: rList<unknown>(s.cor).map((r) => rList<unknown>(r).map(num)),
     thresholds: v.map((variable, i) => ({ variable, index: idx[i], value: val[i] })),
   };
 }
 
 /** TECH10 from R: columns, one entry per pair of ordinal indicators. */
 function parseTech10(t: Record<string, any>): NonNullable<CbResultR['tech10']> {
-  const lhs = list(t.lhs).map(String), rhs = list(t.rhs).map(String);
-  const col = (k: string) => list(t[k]).map(num);
+  const lhs = rList<unknown>(t.lhs).map(String), rhs = rList<unknown>(t.rhs).map(String);
+  const col = (k: string) => rList<unknown>(t[k]).map(num);
   const [df, x2, x2p, g2, g2p] = ['df', 'x2', 'x2p', 'g2', 'g2p'].map(col);
   return lhs.map((a, i) => ({ lhs: a, rhs: rhs[i], df: df[i], x2: x2[i], x2p: x2p[i], g2: g2[i], g2p: g2p[i] }));
 }

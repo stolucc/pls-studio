@@ -6,6 +6,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export type Family = 'gaussian' | 'binomial' | 'poisson' | 'negbin' | 'gamma' | 'ordinal' | 'multinomial' | 'censored' | 'survival';
@@ -73,7 +74,6 @@ export interface RegressionResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 
 export function regressionRequest(data: Dataset, i: RegressionInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Regression needs raw data; this dataset is a covariance matrix.');
@@ -82,23 +82,22 @@ export function regressionRequest(data: Dataset, i: RegressionInput) {
   const status = i.family === 'survival' ? i.status ?? '' : '';
   const zero = zeroOptions(i);
   const names = [...new Set([i.outcome, ...i.predictors, ...i.interactions.flat(), ...(zero.zeroPredictors ?? []), i.trials, i.weights, cluster, status].filter(Boolean))];
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
   const categories = Object.fromEntries(names.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]));
   const { zeroModel: _z, zeroPart: _p, zeroPredictors: _q, ...rest } = i;
-  return { kind: 'regression', ...rest, ...zero, cluster, status, cuts: i.family === 'survival' ? i.cuts ?? [] : [], categories, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { kind: 'regression', ...rest, ...zero, cluster, status, cuts: i.family === 'survival' ? i.cuts ?? [] : [], categories, data: rColumns(data, names) };
 }
 
 export async function regressionR(data: Dataset, input: RegressionInput): Promise<RegressionResult> {
   const raw = await rCall<Record<string, any>>('ps_regression', regressionRequest(data, input), regressionPackages(input));
-  const curves: RegressionCurve[] = arr<any>(raw.curves).filter((c) => c && typeof c === 'object' && !Array.isArray(c)).map((c) => ({
-    x: String(c.x), grid: arr<number>(c.grid), ...(c.y ? { y: arr<number>(c.y) } : {}),
-    ...(c.levels ? { levels: arr<string>(c.levels), probs: arr<unknown>(c.probs).map((p) => arr<number>(p)) } : {}),
-    ...(c.points ? { points: { x: arr<number>(c.points.x), y: arr<number>(c.points.y) } } : {}),
+  const curves: RegressionCurve[] = rList<any>(raw.curves).filter((c) => c && typeof c === 'object' && !Array.isArray(c)).map((c) => ({
+    x: String(c.x), grid: rList<number>(c.grid), ...(c.y ? { y: rList<number>(c.y) } : {}),
+    ...(c.levels ? { levels: rList<string>(c.levels), probs: rList<unknown>(c.probs).map((p) => rList<number>(p)) } : {}),
+    ...(c.points ? { points: { x: rList<number>(c.points.x), y: rList<number>(c.points.y) } } : {}),
   }));
   const diag = raw.diagnostics && !Array.isArray(raw.diagnostics) ? raw.diagnostics : {};
   return {
-    ...raw, coefficients: arr(raw.coefficients), thresholds: arr(raw.thresholds), levels: raw.levels && !Array.isArray(raw.levels) ? { reference: String(raw.levels.reference), others: arr<string>(raw.levels.others) } : null,
-    lrt: raw.lrt && !Array.isArray(raw.lrt) ? raw.lrt : null, vuong: raw.vuong && !Array.isArray(raw.vuong) ? raw.vuong : null, diagnostics: { ...diag, ...(diag.vif ? { vif: arr(diag.vif) } : {}) }, curves, warnings: rStrings(raw.warnings),
+    ...raw, coefficients: rList(raw.coefficients), thresholds: rList(raw.thresholds), levels: raw.levels && !Array.isArray(raw.levels) ? { reference: String(raw.levels.reference), others: rList<string>(raw.levels.others) } : null,
+    lrt: raw.lrt && !Array.isArray(raw.lrt) ? raw.lrt : null, vuong: raw.vuong && !Array.isArray(raw.vuong) ? raw.vuong : null, diagnostics: { ...diag, ...(diag.vif ? { vif: rList(diag.vif) } : {}) }, curves, warnings: rStrings(raw.warnings),
   } as RegressionResult;
 }
 export const regressionScriptR = (data: Dataset, input: RegressionInput) => rScript('ps_regression', regressionRequest(data, input), regressionPackages(input));

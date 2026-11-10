@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export type EndoMethod = 'iv' | 'copula' | 'het' | 'hm' | 'liv' | 'heckman';
@@ -31,19 +32,13 @@ export interface EndoResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const n0 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const coefs = (v: unknown): EndoCoef[] => arr<any>(v).map((c) => ({ term: c.term, ...(c.equation ? { equation: c.equation } : {}), est: c.est, se: n0(c.se), stat: n0(c.stat), p: n0(c.p), ciLow: n0(c.ciLow), ciHigh: n0(c.ciHigh) }));
-const columns = (data: Dataset, names: string[]) => {
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
-  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
-};
+const coefs = (v: unknown): EndoCoef[] => rList<any>(v).map((c) => ({ term: c.term, ...(c.equation ? { equation: c.equation } : {}), est: c.est, se: rNum(c.se), stat: rNum(c.stat), p: rNum(c.p), ciLow: rNum(c.ciLow), ciHigh: rNum(c.ciHigh) }));
 const used = (i: EndoInput) => i.method === 'heckman'
   ? [i.outcome, ...i.exogenous, i.selection.outcome, ...i.selection.regressors]
   : [i.outcome, ...i.exogenous, ...i.endogenous, ...(i.method === 'iv' ? i.instruments : [])];
 export const endoRequest = (data: Dataset, i: EndoInput) => {
   if (data.moments && data.cols.length === 0) throw new Error('These methods need raw data; this dataset is a covariance matrix.');
-  return { ...i, data: columns(data, used(i).filter(Boolean)) };
+  return { ...i, data: rColumns(data, used(i).filter(Boolean)) };
 };
 const pkg = (i: EndoInput) => (i.method === 'heckman' ? 'sampleSelection' : i.method === 'liv' ? 'optimx' : 'ivreg');
 
@@ -51,7 +46,7 @@ export async function endoR(data: Dataset, input: EndoInput): Promise<EndoResult
   const raw = await rCall<Record<string, any>>('ps_endo', endoRequest(data, input), pkg(input));
   return {
     method: raw.method, n: raw.n, coefficients: coefs(raw.coefficients), ols: coefs(raw.ols),
-    diagnostics: arr(raw.diagnostics), normality: arr(raw.normality), heteroskedasticity: arr(raw.heteroskedasticity),
+    diagnostics: rList(raw.diagnostics), normality: rList(raw.normality), heteroskedasticity: rList(raw.heteroskedasticity),
     selection: raw.selection ?? null, boot: raw.boot ?? null, warnings: rStrings(raw.warnings), engine: raw.engine,
   };
 }

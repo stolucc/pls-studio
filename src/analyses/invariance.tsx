@@ -9,7 +9,7 @@ import { InvarianceTable } from '../components/results/InvarianceTable';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt, fmtP } from '../format';
 import { detectOccasions, type AlignedFactor, type AlignmentInput, type AlignmentResult, type InvFactor, type LongInvarianceInput, type LongInvarianceResult, type MimicDifInput, type MimicDifResult, type MimicEffect, type MnlfaInput, type MnlfaResult } from '../rengine/invariance';
-import { clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
+import { clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, NumField, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 const engine = () => import('../rengine/invariance');
@@ -56,15 +56,6 @@ function FactorPicker({ value, onChange, ctx, single }: { value: string[]; onCha
           <span>{f.name} <span className="hint">({f.indicators.join(', ')})</span></span>
         </label>
       ))}
-    </div>
-  );
-}
-
-/** A number field (typed text is clamped to the range; anything else keeps the value). */
-function NumField({ id, label, value, lo, hi, step, onChange }: { id: string; label: string; value: number; lo: number; hi: number; step: number; onChange: (v: number) => void }) {
-  return (
-    <div className="field"><label htmlFor={id}>{label}</label>
-      <input id={id} aria-label={label} className="input num" type="number" step={step} min={lo} max={hi} value={value} onChange={(e) => onChange(clampNum(e.target.value, lo, hi, value))} />
     </div>
   );
 }

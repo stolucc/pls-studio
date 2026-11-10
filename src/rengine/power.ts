@@ -5,6 +5,7 @@
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './rjson';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 export type PowerAnalysis = 'apriori' | 'posthoc' | 'compromise' | 'parameter' | 'equivalence';
@@ -39,7 +40,7 @@ export const powerRequest = (o: PowerInput, m: PowerModel | null) => {
   return { ...(fitsModel(o) && m ? cbRequest(m.data, m.spec, m.missing, m.estimator) : {}), power: o };
 };
 
-const arr = (v: unknown): number[] => (Array.isArray(v) ? v : v == null ? [] : [v]).map(Number);
+const nums = (v: unknown): number[] => rList<unknown>(v).map(Number);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 /** The reply as the card reads it (R's single values and empty lists normalised). */
 export function powerResult(r: Record<string, any>): PowerResult {
@@ -49,9 +50,9 @@ export function powerResult(r: Record<string, any>): PowerResult {
     if (v !== undefined) out[k] = v;
   }
   if (r.type) out.type = r.type;
-  if (r.curve && !Array.isArray(r.curve)) out.curve = { n: arr(r.curve.n), power: arr(r.curve.power) };
+  if (r.curve && !Array.isArray(r.curve)) out.curve = { n: nums(r.curve.n), power: nums(r.curve.power) };
   if (r.param && !Array.isArray(r.param)) out.param = { lhs: String(r.param.lhs), op: r.param.op, rhs: String(r.param.rhs), value: Number(r.param.value) };
-  if (r.cutoffs) out.cutoffs = arr(r.cutoffs);
+  if (r.cutoffs) out.cutoffs = nums(r.cutoffs);
   if (r.verdict) out.verdict = r.verdict;
   return out;
 }

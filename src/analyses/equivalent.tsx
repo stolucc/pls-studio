@@ -3,19 +3,17 @@
 // with lavaan (the same χ² and df); one can be applied to the canvas.
 
 import { useMemo } from 'react';
-import type { CbEstimator } from '../engine/cbsem';
 import { buildFigureInput } from '../figure/build';
 import { renderFigureSvg } from '../figure/render';
 import type { FigureStyle } from '../figure/style';
 import { applyStructure, describeChange, equivalentModels, structureOf } from '../model/equivalent';
 import { toSpec, type Correlation, type ModelState, type Path } from '../model/project';
 import { circlesFor, placeModel } from '../placement';
-import type { CbCall } from '../rengine/cbExtras';
 import type { REngineInfo } from '../rengine/lavaan';
 import type { VariantFit } from '../rengine/search';
 import { c, Table, type Row } from '../components/results/Table';
 import { useStore } from '../store';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { clampNum, isObj } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
 
@@ -82,7 +80,6 @@ function EquivalentView({ r, current }: { r: EquivalentResult; current: boolean 
   );
 }
 
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
 const variantsOf = (ctx: AnalysisCtx, o: EquivalentOptions) => alternativesOf(ctx.model!, o.max).alternatives.map((a) => { const s = toSpec({ ...ctx.model!, paths: a.paths, correlations: a.correlations }); return { paths: s.paths, covariances: s.covariances }; });
 
 export const equivalentAnalysis: AnalysisType<EquivalentOptions, EquivalentResult> = {
@@ -107,9 +104,9 @@ export const equivalentAnalysis: AnalysisType<EquivalentOptions, EquivalentResul
     const { alternatives, truncated } = alternativesOf(ctx.model!, o.max);
     const model = ctx.model!;
     if (!alternatives.length) return { model, fit: null, alternatives: [], truncated, warnings: [], engine: { package: 'lavaan', version: '' } };
-    const r = await (await import('../rengine/search')).equivalentFitsR(callOf(ctx), variantsOf(ctx, o));
+    const r = await (await import('../rengine/search')).equivalentFitsR(cbCall(ctx), variantsOf(ctx, o));
     return { model, fit: r.fits[0] ?? null, alternatives: alternatives.map((a, i) => ({ ...a, fit: r.fits[i + 1] ?? null })), truncated, warnings: r.warnings, engine: r.engine };
   },
-  script: async (o, ctx) => (await import('../rengine/search')).equivalentFitsScriptR(callOf(ctx), variantsOf(ctx, o)),
+  script: async (o, ctx) => (await import('../rengine/search')).equivalentFitsScriptR(cbCall(ctx), variantsOf(ctx, o)),
   summary: (o) => `at most ${o.max} alternatives`,
 };

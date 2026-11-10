@@ -8,7 +8,7 @@ import type { FimixResult, PathmoxResult, PathmoxSegment, PosResult, RebusModel,
 import { useStore } from '../store';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table } from '../components/results/Table';
-import { clampNum, flag, freeColumnName, isObj, name, rawData } from './common';
+import { clampNum, flag, freeColumnName, Hint, isObj, name, rawData } from './common';
 import { modelFingerprint, plsModelBlocked, specOf } from './plsAssessment';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -211,7 +211,6 @@ const heldNote = (ctx: AnalysisCtx, consistentKept: boolean) => [
 const rebusOptions = (ctx: AnalysisCtx) => segOptions(ctx, ctx.settings.missing === 'mean' ? 'mean' : 'casewise');
 const noInteractions = (ctx: AnalysisCtx, method: string) => (ctx.model?.moderations.length || ctx.model?.copulas?.length ? `${method} works on models without interaction terms.` : null);
 const range = (from: number, to: number) => Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
-const Hint = ({ text }: { text: string }) => <p className="hint" style={{ marginTop: 0 }}>{text}</p>;
 
 export interface RebusOptions { from: number; to: number }
 const rebusInput = (o: RebusOptions, ctx: AnalysisCtx) => ({ classes: range(o.from, o.to), stopCrit: 0.005, iterMax: 100, seed: ctx.settings.seed });
@@ -222,7 +221,7 @@ export const rebusAnalysis: AnalysisType<RebusOptions, RebusResult> = {
   parseOptions: (raw) => (isObj(raw) ? { from: clampNum(raw.from, 2, 6, 2, true), to: clampNum(raw.to, 2, 6, 4, true) } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text="Response-based unit segmentation (Esposito Vinzi et al. 2008) looks for groups of observations whose models differ (unobserved heterogeneity). It starts from a Ward clustering of the global model’s residuals, then moves each observation to the class whose local model fits it best, until the classes are stable." />
+      <Hint>Response-based unit segmentation (Esposito Vinzi et al. 2008) looks for groups of observations whose models differ (unobserved heterogeneity). It starts from a Ward clustering of the global model’s residuals, then moves each observation to the class whose local model fits it best, until the classes are stable.</Hint>
       <div className="field">
         <label>Numbers of classes to compare</label>
         <div className="row2">
@@ -262,7 +261,7 @@ function PathmoxOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Pat
   const toggle = (col: string, on: boolean) => setSegs(on ? [...o.segments, { column: col, labels: labelsOf(col), ordered: false }] : o.segments.filter((s) => s.column !== col));
   return (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text="PATHMOX (Lamberti et al. 2016) grows a tree: it splits the sample by observed categorical variables (e.g. age group, region) where the models of the two parts differ most." />
+      <Hint>PATHMOX (Lamberti et al. 2016) grows a tree: it splits the sample by observed categorical variables (e.g. age group, region) where the models of the two parts differ most.</Hint>
       <div className="field">
         <label>Segmentation variables (not in the model, at most 20 values)</label>
         {candidates.map((col) => {
@@ -337,7 +336,7 @@ export const fimixAnalysis: AnalysisType<FimixOptions, FimixResult> = {
   parseOptions: (raw) => (isObj(raw) ? { to: clampNum(raw.to, 2, 8, 4, true), nrep: clampNum(raw.nrep, 1, 100, 10, true), intercepts: raw.intercepts !== false } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text="FIMIX-PLS (Hahn et al. 2002; Sarstedt et al. 2011) assumes the structural model differs between unobserved segments and estimates segment-specific paths as a finite mixture on the global model’s construct scores." />
+      <Hint>FIMIX-PLS (Hahn et al. 2002; Sarstedt et al. 2011) assumes the structural model differs between unobserved segments and estimates segment-specific paths as a finite mixture on the global model’s construct scores.</Hint>
       <div className="row2">
         <div className="field"><label htmlFor="fx-to">Segments: 1 to</label><input id="fx-to" className="input num" type="number" min={2} max={8} value={o.to} onChange={(e) => set({ ...o, to: clampNum(e.target.value, 2, 8, 2, true) })} /></div>
         <div className="field"><label htmlFor="fx-nrep">Random starts</label><input id="fx-nrep" className="input num" type="number" min={1} max={100} value={o.nrep} onChange={(e) => set({ ...o, nrep: clampNum(e.target.value, 1, 100, 10, true) })} /></div>
@@ -363,7 +362,7 @@ export const posAnalysis: AnalysisType<PosOptions, PosResult> = {
   parseOptions: (raw) => (isObj(raw) ? { segments: clampNum(raw.segments, 2, 6, 2, true), nrep: clampNum(raw.nrep, 1, 50, 3, true) } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text="PLS-POS (Becker, Rai, Ringle & Völckner 2013) moves observations between segments as long as the explained variance of the endogenous constructs grows. It works with composites (Mode A or Mode B weights), and needs no distributional assumption. No R package implements it: PLS Studio’s implementation (in the R script) re-estimates the local models with cSEM." />
+      <Hint>PLS-POS (Becker, Rai, Ringle & Völckner 2013) moves observations between segments as long as the explained variance of the endogenous constructs grows. It works with composites (Mode A or Mode B weights), and needs no distributional assumption. No R package implements it: PLS Studio’s implementation (in the R script) re-estimates the local models with cSEM.</Hint>
       <div className="row2">
         <div className="field"><label htmlFor="pos-k">Segments</label><input id="pos-k" className="input num" type="number" min={2} max={6} value={o.segments} onChange={(e) => set({ ...o, segments: clampNum(e.target.value, 2, 6, 2, true) })} /></div>
         <div className="field"><label htmlFor="pos-nrep">Random starts</label><input id="pos-nrep" className="input num" type="number" min={1} max={50} value={o.nrep} onChange={(e) => set({ ...o, nrep: clampNum(e.target.value, 1, 50, 3, true) })} /></div>

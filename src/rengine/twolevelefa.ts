@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export type LevelFactors = number | 'U';
@@ -28,17 +29,16 @@ export function twoLevelEfaRequest(data: Dataset, o: TwoLevelEfaInput) {
   if (at.some((k) => k < 0)) throw new Error('A column of the analysis is not in the data.');
   return { ...o, data: { names: cols, cols: at.map((k) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
 }
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const level = (l: any): Efa2Level | null => (l ? {
-  factors: arr<string>(l.factors), criterion: typeof l.criterion === 'number' ? l.criterion : null,
-  loadings: arr<any>(l.loadings).map((x) => ({ item: x.item, est: arr<number>(x.est), se: arr<number>(x.se) })),
-  correlations: arr<any>(l.correlations), residuals: arr<any>(l.residuals),
+  factors: rList<string>(l.factors), criterion: typeof l.criterion === 'number' ? l.criterion : null,
+  loadings: rList<any>(l.loadings).map((x) => ({ item: x.item, est: rList<number>(x.est), se: rList<number>(x.se) })),
+  correlations: rList<any>(l.correlations), residuals: rList<any>(l.residuals),
 } : null);
 export async function twoLevelEfaR(data: Dataset, o: TwoLevelEfaInput): Promise<TwoLevelEfaResult> {
   const raw = await rCall<Record<string, any>>('ps_efa_twolevel', twoLevelEfaRequest(data, o), 'efa2');
   return {
-    items: arr<string>(raw.items), cluster: raw.cluster, n: raw.n, clusters: raw.clusters, warnings: rStrings(raw.warnings), engine: raw.engine,
-    solutions: arr<any>(raw.solutions).map((s) => ({ within: s.within, between: s.between, converged: !!s.converged, fit: s.fit, withinLevel: level(s.withinLevel), betweenLevel: level(s.betweenLevel) })),
+    items: rList<string>(raw.items), cluster: raw.cluster, n: raw.n, clusters: raw.clusters, warnings: rStrings(raw.warnings), engine: raw.engine,
+    solutions: rList<any>(raw.solutions).map((s) => ({ within: s.within, between: s.between, converged: !!s.converged, fit: s.fit, withinLevel: level(s.withinLevel), betweenLevel: level(s.betweenLevel) })),
   };
 }
 export const twoLevelEfaScriptR = (data: Dataset, o: TwoLevelEfaInput) => rScript('ps_efa_twolevel', twoLevelEfaRequest(data, o), 'efa2');

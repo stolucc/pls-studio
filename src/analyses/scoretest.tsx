@@ -6,13 +6,10 @@
 
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table } from '../components/results/Table';
-import type { CbEstimator } from '../engine/cbsem';
 import { fmt } from '../format';
-import { toSpec } from '../model/project';
-import type { CbCall } from '../rengine/cbExtras';
 import { SCORE_FNS, SCORE_SETS, SCORE_TESTS, type ScoreArgs, type ScoreFn, type ScoreScale, type ScoreSet, type ScoreTestResult } from '../rengine/scoretest';
 import { Axes, H, pad, W } from './charts';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { Choice, clampNum, ColumnSelect, columnsFingerprint, isObj, name, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { SERIES_COLORS } from '../figure/palette';
@@ -38,7 +35,6 @@ const SET_NAMES: Record<ScoreSet, string> = {
   lvcov: 'Factor covariances', means: 'Factor means', regressions: 'Regressions (paths)', all: 'All free parameters',
 };
 
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
 const argsOf = (o: ScoreOptions, ctx: AnalysisCtx): ScoreArgs => ({ ...o, seed: ctx.settings.seed });
 const WHAT = 'Score-based invariance tests';
 
@@ -164,10 +160,10 @@ export const scoreTestAnalysis: AnalysisType<ScoreOptions, ScoreView> = {
   blocked: (o, ctx) => cbModelBlocked(ctx, WHAT) ?? scoreBlocked(o, ctx),
   fingerprint: (o, ctx) => cbFingerprint(ctx, [o.covariate, o.scale, o.fn, ...o.sets, ...(o.fn === 'maxLMo' ? [o.nrep, ctx.settings.seed] : o.fn === 'WDMo' ? [ctx.settings.seed] : []), columnsFingerprint(ctx, [o.covariate])]),
   run: async (o, ctx) => {
-    const r = await (await import('../rengine/scoretest')).scoreTestR(callOf(ctx), argsOf(o, ctx));
+    const r = await (await import('../rengine/scoretest')).scoreTestR(cbCall(ctx), argsOf(o, ctx));
     const labels = ctx.data?.categories?.[o.covariate];
     return labels ? { ...r, categoryLabels: labels } : r;
   },
-  script: async (o, ctx) => (await import('../rengine/scoretest')).scoreTestScriptR(callOf(ctx), argsOf(o, ctx)),
+  script: async (o, ctx) => (await import('../rengine/scoretest')).scoreTestScriptR(cbCall(ctx), argsOf(o, ctx)),
   summary: (o) => `${o.fn} along ${o.covariate || '…'} · ${o.sets.map((k) => SET_NAMES[k].toLowerCase()).join(', ') || 'no parameters'}`,
 };

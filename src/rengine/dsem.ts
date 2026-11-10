@@ -4,6 +4,7 @@
 import type { Dataset } from '../engine/types';
 import type { DsemSpec } from '../analyses/dsemSyntax';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** parametrization: 'noncentred' samples every level's random effects standardised (the default: centred where clusters have 20 or more rows each). */
@@ -18,7 +19,6 @@ export interface DsemResult {
   warnings: string[]; engine: REngineInfo & { desktop?: string };
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const cols = (d: Dataset) => ({ names: d.names, cols: d.cols.map((c) => Array.from(c, (v) => (Number.isFinite(v) ? v : null))) });
 
 export const dsemRequest = (data: Dataset, spec: DsemSpec, o: DsemRunOptions, seed: number, confidence: number) =>
@@ -26,7 +26,7 @@ export const dsemRequest = (data: Dataset, spec: DsemSpec, o: DsemRunOptions, se
 
 export async function dsemR(data: Dataset, spec: DsemSpec, o: DsemRunOptions, seed: number, confidence: number): Promise<DsemResult> {
   const r = await rCall<Record<string, any>>('ps_dsem', dsemRequest(data, spec, o, seed, confidence), 'rstan');
-  return { ...r, clusters: arr(r.clusters), parameters: arr(r.parameters), warnings: rStrings(r.warnings) } as DsemResult;
+  return { ...r, clusters: rList(r.clusters), parameters: rList(r.parameters), warnings: rStrings(r.warnings) } as DsemResult;
 }
 export const dsemScriptR = (data: Dataset, spec: DsemSpec, o: DsemRunOptions, seed: number, confidence: number) =>
   rScript('ps_dsem', dsemRequest(data, spec, o, seed, confidence), 'rstan');

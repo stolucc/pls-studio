@@ -2,6 +2,7 @@
 
 import type { Dataset, ModelSpec, PlsOptions } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 import { plsRequest } from './pls';
 
@@ -26,8 +27,7 @@ export interface RebusResult {
   models: RebusModel[]; warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const nums = (v: unknown) => arr<number>(v);
+const nums = (v: unknown) => rList<number>(v);
 const rec = (v: unknown): Record<string, number[]> => (v && !Array.isArray(v) && typeof v === 'object'
   ? Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, nums(x)])) : {});
 
@@ -36,12 +36,12 @@ export const rebusRequest = (data: Dataset, spec: ModelSpec, options: PlsOptions
 
 export function parseRebus(raw: Record<string, any>): RebusResult {
   return {
-    n: raw.n, globalGof: raw.globalGof, globalPaths: arr(raw.globalPaths), fusion: nums(raw.fusion), warnings: rStrings(raw.warnings), engine: raw.engine,
-    models: arr<any>(raw.models).map((m) => ({
+    n: raw.n, globalGof: raw.globalGof, globalPaths: rList(raw.globalPaths), fusion: nums(raw.fusion), warnings: rStrings(raw.warnings), engine: raw.engine,
+    models: rList<any>(raw.models).map((m) => ({
       ...m, sizes: nums(m.sizes), segments: nums(m.segments), gof: nums(m.gof), communality: rec(m.communality), r2: rec(m.r2),
-      paths: arr<any>(m.paths).map((p) => ({ from: p.from, to: p.to, byClass: nums(p.byClass) })),
-      loadings: arr<any>(m.loadings).map((l) => ({ indicator: l.indicator, byClass: nums(l.byClass) })),
-      tests: arr<any>(m.tests).map((t) => ({ classes: nums(t.classes), paths: arr(t.paths), gof: t.gof })),
+      paths: rList<any>(m.paths).map((p) => ({ from: p.from, to: p.to, byClass: nums(p.byClass) })),
+      loadings: rList<any>(m.loadings).map((l) => ({ indicator: l.indicator, byClass: nums(l.byClass) })),
+      tests: rList<any>(m.tests).map((t) => ({ classes: nums(t.classes), paths: rList(t.paths), gof: t.gof })),
     })),
   };
 }
@@ -72,9 +72,9 @@ export function pathmoxRequest(data: Dataset, spec: ModelSpec, options: PlsOptio
 export async function pathmoxR(data: Dataset, spec: ModelSpec, options: PlsOptions, input: PathmoxInput): Promise<PathmoxResult> {
   const raw = await rCall<Record<string, any>>('ps_pathmox', pathmoxRequest(data, spec, options, input), 'genpathmox');
   return {
-    nodes: arr(raw.nodes), importance: arr(raw.importance), warnings: rStrings(raw.warnings), engine: raw.engine,
-    splits: arr<any>(raw.splits).map((s) => ({ ...s, paths: arr(s.paths) })),
-    terminal: { nodes: rStrings(raw.terminal?.nodes), rows: arr<any>(raw.terminal?.rows).map((r) => ({ name: r.name, values: nums(r.values) })) },
+    nodes: rList(raw.nodes), importance: rList(raw.importance), warnings: rStrings(raw.warnings), engine: raw.engine,
+    splits: rList<any>(raw.splits).map((s) => ({ ...s, paths: rList(s.paths) })),
+    terminal: { nodes: rStrings(raw.terminal?.nodes), rows: rList<any>(raw.terminal?.rows).map((r) => ({ name: r.name, values: nums(r.values) })) },
   };
 }
 export const pathmoxScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: PathmoxInput) =>
@@ -95,8 +95,8 @@ export async function fimixR(data: Dataset, spec: ModelSpec, options: PlsOptions
   const raw = await rCall<Record<string, any>>('ps_fimix', fimixRequest(data, spec, options, input), 'flexmix');
   return {
     n: raw.n, warnings: rStrings(raw.warnings), engine: raw.engine,
-    models: arr<any>(raw.models).map((m) => ({ k: m.k, criteria: { ...m.criteria, EN: typeof m.criteria.EN === 'number' ? m.criteria.EN : null }, assignment: nums(m.assignment),
-      segments: arr<any>(m.segments).map((g) => ({ segment: g.segment, share: g.share, paths: arr(g.paths), r2: arr<any>(g.r2).map((x) => ({ construct: x.construct, r2: typeof x.r2 === 'number' ? x.r2 : null })) })) })),
+    models: rList<any>(raw.models).map((m) => ({ k: m.k, criteria: { ...m.criteria, EN: typeof m.criteria.EN === 'number' ? m.criteria.EN : null }, assignment: nums(m.assignment),
+      segments: rList<any>(m.segments).map((g) => ({ segment: g.segment, share: g.share, paths: rList(g.paths), r2: rList<any>(g.r2).map((x) => ({ construct: x.construct, r2: typeof x.r2 === 'number' ? x.r2 : null })) })) })),
   };
 }
 export const fimixScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: FimixInput) => rScript('ps_fimix', fimixRequest(data, spec, options, input), 'flexmix');
@@ -113,6 +113,6 @@ export async function posR(data: Dataset, spec: ModelSpec, options: PlsOptions, 
   const raw = await rCall<Record<string, any>>('ps_pos', posRequest(data, spec, options, input), 'cSEM');
   const rec = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, number> : {});
   return { ...raw, starts: nums(raw.starts), assignment: nums(raw.assignment), globalR2: rec(raw.globalR2), warnings: rStrings(raw.warnings),
-    segments: arr<any>(raw.segments).map((g) => ({ segment: g.segment, size: g.size, paths: arr(g.paths), r2: rec(g.r2) })) } as PosResult;
+    segments: rList<any>(raw.segments).map((g) => ({ segment: g.segment, size: g.size, paths: rList(g.paths), r2: rec(g.r2) })) } as PosResult;
 }
 export const posScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, input: PosInput) => rScript('ps_pos', posRequest(data, spec, options, input), 'cSEM');

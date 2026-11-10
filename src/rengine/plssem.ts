@@ -4,6 +4,7 @@
 
 import type { Dataset, MissingTreatment, ModelSpec, WeightingScheme } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** A path (by construct names) whose coefficient varies across clusters (plssem's rv()). */
@@ -44,10 +45,9 @@ export function plssemRequest(m: PlssemModel, o: PlssemInput) {
   if (m.data.moments) throw new Error('Multilevel PLS-SEM needs raw data with a cluster column.');
   const used = new Set([...m.spec.constructs.flatMap((c) => c.indicators), ml.column, ...(ml.between === 'factors' ? ml.betweenCovariates ?? [] : []),
     ...(ml.between === 'model' ? (ml.betweenModel ?? []).flatMap((st) => [st.lhs, ...st.rhs.map((t) => t.name)]) : [])]);
-  const keep = m.data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     missing: m.missing,
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(m.data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(m.data, used),
     model: {
       constructs: m.spec.constructs, paths: m.spec.paths.map(({ from, to, fixed, label }) => ({ from, to, ...(fixed !== undefined ? { fixed } : {}), ...(label ? { label } : {}) })),
       ...(m.spec.moderations?.length ? { moderations: m.spec.moderations } : {}), ...(m.spec.threeWay?.length ? { threeWay: m.spec.threeWay } : {}),
@@ -58,23 +58,21 @@ export function plssemRequest(m: PlssemModel, o: PlssemInput) {
   };
 }
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const named = (x: any) => arr<string>(x?.names).map((name, i) => ({ name: String(name), value: num(arr(x?.values)[i]) }));
+const named = (x: any) => rList<string>(x?.names).map((name, i) => ({ name: String(name), value: rNum(rList(x?.values)[i]) }));
 /** The reply as the card reads it (R's single values and empty lists normalised). */
 export function plssemResult(r: Record<string, any>): PlssemResult {
   return {
-    levels: arr<Record<string, any>>(r.levels).map((l) => ({
+    levels: rList<Record<string, any>>(r.levels).map((l) => ({
       level: l.level === 2 ? 2 : 1,
-      rows: arr<Record<string, any>>(l.rows).map((x) => ({ lhs: String(x.lhs), op: String(x.op), rhs: String(x.rhs), est: num(x.est) ?? NaN, se: num(x.se), z: num(x.z), p: num(x.p), lo: num(x.lo), hi: num(x.hi) })),
+      rows: rList<Record<string, any>>(l.rows).map((x) => ({ lhs: String(x.lhs), op: String(x.op), rhs: String(x.rhs), est: rNum(x.est) ?? NaN, se: rNum(x.se), z: rNum(x.z), p: rNum(x.p), lo: rNum(x.lo), hi: rNum(x.hi) })),
       r2: named(l.r2), r2Indicators: named(l.r2Indicators),
-      fit: l.fit && !Array.isArray(l.fit) ? { chisq: num(l.fit.chisq), df: num(l.fit.df), rmsea: num(l.fit.rmsea), srmr: num(l.fit.srmr) } : null,
+      fit: l.fit && !Array.isArray(l.fit) ? { chisq: rNum(l.fit.chisq), df: rNum(l.fit.df), rmsea: rNum(l.fit.rmsea), srmr: rNum(l.fit.srmr) } : null,
     })),
-    thresholds: arr<Record<string, any>>(r.thresholds).map((x) => ({ variable: String(x.variable), threshold: String(x.threshold), est: num(x.est) ?? NaN, se: num(x.se) })),
-    icc: named(r.icc), slopes: arr<Record<string, any>>(r.slopes).map((s) => ({ name: String(s.name), sd: num(s.sd) })),
+    thresholds: rList<Record<string, any>>(r.thresholds).map((x) => ({ variable: String(x.variable), threshold: String(x.threshold), est: rNum(x.est) ?? NaN, se: rNum(x.se) })),
+    icc: named(r.icc), slopes: rList<Record<string, any>>(r.slopes).map((s) => ({ name: String(s.name), sd: rNum(s.sd) })),
     n: Number(r.n), clusters: Number(r.clusters), iterations: Number(r.iterations), converged: !!r.converged, admissible: !!r.admissible, estimator: String(r.estimator ?? ''),
     consistent: !!r.consistent, scheme: String(r.scheme ?? ''), missing: String(r.missing ?? ''), seed: Number(r.seed), bootR: Number(r.bootR ?? 0),
-    ordered: arr<string>(r.ordered).map(String), fitNote: String(r.fitNote ?? ''), syntax: arr<string>(r.syntax).map(String),
+    ordered: rList<string>(r.ordered).map(String), fitNote: String(r.fitNote ?? ''), syntax: rList<string>(r.syntax).map(String),
     warnings: rStrings(r.warnings), engine: r.engine,
   };
 }

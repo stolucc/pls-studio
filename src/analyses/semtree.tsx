@@ -6,16 +6,14 @@
 import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table, type Row } from '../components/results/Table';
-import type { CbEstimator } from '../engine/cbsem';
 import { NEGATIVE_COLOR, POSITIVE_COLOR, OTHER_COLOR } from '../figure/palette';
 import { fmt } from '../format';
-import { toSpec } from '../model/project';
 import { useCompute } from '../rengine/compute';
 import { useStore } from '../store';
 import type { CovariateType, SemTreeCovariate, SemTreeNode, SemTreeResult } from '../rengine/semtree';
 import { fingerprint } from './codec';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
-import { Choice, clampNum, columnsFingerprint, flag, isObj, name, oneOf, rawData } from './common';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
+import { Choice, clampNum, columnsFingerprint, flag, isObj, name, NumField, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 export interface SemTreeOptions {
@@ -183,9 +181,9 @@ function SemTreeForm({ options: o, set, ctx, disabled }: OptionsProps<SemTreeOpt
       <Choice label="Split selection" value={o.method} options={[['naive', 'Likelihood ratio'], ['score', 'Score-based'], ['fair', 'Fair']]} onChange={(method) => set({ ...o, method })}
         hint={o.method === 'naive' ? 'Every cut of every covariate compared by its likelihood-ratio test (semtree’s default; exhaustive, favours covariates with many cuts).' : o.method === 'score' ? 'Score-based tests (Arnold et al. 2021): fast and unbiased between covariates; not with equality constraints between parameters.' : 'Half the sample chooses each covariate’s best cut, the other half compares the covariates (Brandmaier et al. 2013).'} />
       <div className="row2">
-        <div className="field"><label>α</label><input className="input num" type="number" aria-label="α" min={0.0001} max={0.5} step={0.01} value={o.alpha} onChange={(e) => set({ ...o, alpha: clampNum(e.target.value, 0.0001, 0.5, 0.05) })} /></div>
-        <div className="field"><label>Depth at most</label><input className="input num" type="number" aria-label="Depth at most" min={1} max={10} value={o.maxDepth} onChange={(e) => set({ ...o, maxDepth: clampNum(e.target.value, 1, 10, 3, true) })} /></div>
-        <div className="field"><label>Cases per node at least</label><input className="input num" type="number" aria-label="Cases per node at least" min={2} max={100000} value={o.minN} onChange={(e) => set({ ...o, minN: clampNum(e.target.value, 2, 100000, 20, true) })} /></div>
+        <NumField label="α" value={o.alpha} lo={0.0001} hi={0.5} step={0.01} fallback={0.05} onChange={(alpha) => set({ ...o, alpha })} />
+        <NumField label="Depth at most" value={o.maxDepth} lo={1} hi={10} int fallback={3} onChange={(maxDepth) => set({ ...o, maxDepth })} />
+        <NumField label="Cases per node at least" value={o.minN} lo={2} hi={100000} int fallback={20} onChange={(minN) => set({ ...o, minN })} />
       </div>
       <label className="check"><input type="checkbox" checked={o.forest} onChange={(e) => set({ ...o, forest: e.target.checked })} /> SEM forest and variable importance</label>
       {o.forest && <div className="field"><label>Trees</label><input className="input num" type="number" aria-label="Trees" min={2} max={1000} value={o.trees} onChange={(e) => set({ ...o, trees: clampNum(e.target.value, 2, 1000, 50, true) })} />
@@ -194,7 +192,6 @@ function SemTreeForm({ options: o, set, ctx, disabled }: OptionsProps<SemTreeOpt
   );
 }
 
-const modelOf = (ctx: AnalysisCtx) => ({ data: rawData(ctx)!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator });
 const inputOf = (o: SemTreeOptions, ctx: AnalysisCtx) => ({ covariates: o.covariates, method: o.method, alpha: o.alpha, maxDepth: o.maxDepth, minN: o.minN, ...(o.forest ? { forest: { trees: o.trees, seed: ctx.settings.seed } } : {}) });
 
 export const semTreeAnalysis: AnalysisType<SemTreeOptions, SemTreeResult> = {
@@ -226,7 +223,7 @@ export const semTreeAnalysis: AnalysisType<SemTreeOptions, SemTreeResult> = {
     const m = cbFingerprint(ctx), cols = columnsFingerprint(ctx, o.covariates.map((c) => c.name));
     return m && cols && fingerprint([m, cols, o.forest ? ctx.settings.seed : null]);
   },
-  run: async (o, ctx) => (await import('../rengine/semtree')).semTreeR(modelOf(ctx), inputOf(o, ctx)),
-  script: async (o, ctx) => (await import('../rengine/semtree')).semTreeScriptR(modelOf(ctx), inputOf(o, ctx)),
+  run: async (o, ctx) => (await import('../rengine/semtree')).semTreeR(cbCall(ctx), inputOf(o, ctx)),
+  script: async (o, ctx) => (await import('../rengine/semtree')).semTreeScriptR(cbCall(ctx), inputOf(o, ctx)),
   summary: (o) => `${o.covariates.map((c) => c.name).join(', ') || 'no covariates'}${o.forest ? ` · forest of ${o.trees}` : ''}`,
 };

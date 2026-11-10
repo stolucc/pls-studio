@@ -8,6 +8,7 @@ import type { IpmaOptions, IpmaResult } from '../engine/ipma';
 import type { MiivResult } from '../engine/miiv';
 import type { BootstrapOptions, BootstrapResult, BootstrapStat, Dataset, MissingTreatment, ModelSpec, PlsOptions } from '../engine/types';
 import { parallelism, rCall, rCallParallel, rScript, type RPackage, rStrings } from './bridge';
+import { rList } from './rjson';
 import { bootChunks } from './compute';
 import { cbRequest, type LatentInteraction } from './lavaan';
 import { plsPackages, plsRequest, type PlsPackage } from './pls';
@@ -128,7 +129,6 @@ function chunked(data: Dataset, spec: ModelSpec, a: Extract<Analysis, { kind: 'p
 }
 
 const rows = (v: unknown): unknown[][] => (Array.isArray(v) ? v : []).map((r) => (Array.isArray(r) ? r : [r]));
-const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
 
 /**
  * Bootstrap by the package. With the parallel option, the chunks are drawn in
@@ -143,7 +143,7 @@ export async function bootstrapR(data: Dataset, spec: ModelSpec, a: Extract<Anal
     const { req, chunks } = chunked(data, spec, a);
     const parts = await rCallParallel<Raw>(FN[a.kind], Array.from({ length: chunks }, (_, k) => ({ ...req, boot: { ...req.boot, part: k + 1 } })), pkg,
       (done) => onProgress?.(done, chunks));
-    const draws = { names: list(parts[0].names), values: parts.flatMap((p) => rows(p.values)), original: list(parts[0].original) };
+    const draws = { names: rList<unknown>(parts[0].names), values: parts.flatMap((p) => rows(p.values)), original: rList<unknown>(parts[0].original) };
     raw = await rCall<Raw>(FN[a.kind], { ...req, boot: { ...req.boot, draws } }, pkg);
     raw.warnings = [...new Set([...parts.flatMap((p) => rStrings(p.warnings)), ...rStrings(raw.warnings)])];
   } else {

@@ -3,11 +3,11 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const nums = (v: unknown) => arr<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN));
-const matrix = (v: unknown) => arr<unknown>(v).map(nums);
+const nums = (v: unknown) => rList<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN));
+const matrix = (v: unknown) => rList<unknown>(v).map(nums);
 
 /** Only the chosen columns travel to R. */
 function columns(data: Dataset, vars: string[]) {
@@ -29,7 +29,7 @@ export async function networkR(data: Dataset, input: NetworkInput): Promise<Netw
   const r = await rCall<Record<string, any>>('ps_network', netReq(data, input), 'bootnet');
   const c = r.centrality ?? {};
   return {
-    names: arr<string>(r.names), weights: matrix(r.weights), layout: matrix(r.layout), n: r.n, nComplete: r.nComplete,
+    names: rList<string>(r.names), weights: matrix(r.weights), layout: matrix(r.layout), n: r.n, nComplete: r.nComplete,
     centrality: { strength: nums(c.strength), expectedInfluence: nums(c.expectedInfluence), closeness: nums(c.closeness), betweenness: nums(c.betweenness) },
     cs: r.cs && typeof r.cs === 'object' ? Object.fromEntries(Object.entries(r.cs as Record<string, unknown>).map(([k, v]) => [k, typeof v === 'number' ? v : NaN])) : null,
     samples: r.samples, warnings: rStrings(r.warnings), engine: r.engine,
@@ -47,9 +47,9 @@ const egaReq = (data: Dataset, i: EgaInput) => ({ ...i, data: columns(data, i.va
 export async function egaR(data: Dataset, input: EgaInput): Promise<EgaResult> {
   const r = await rCall<Record<string, any>>('ps_ega', egaReq(data, input), 'EGAnet');
   return {
-    names: arr<string>(r.names), dims: r.dims, membership: nums(r.membership), weights: matrix(r.weights), loadings: matrix(r.loadings),
-    loadingDims: arr<unknown>(r.loadingDims).map(String), layout: matrix(r.layout), tefi: typeof r.tefi === 'number' ? r.tefi : null,
-    frequency: r.frequency ? arr<{ dims: number; share: number }>(r.frequency) : null, itemStability: r.itemStability ? nums(r.itemStability) : null,
+    names: rList<string>(r.names), dims: r.dims, membership: nums(r.membership), weights: matrix(r.weights), loadings: matrix(r.loadings),
+    loadingDims: rList<unknown>(r.loadingDims).map(String), layout: matrix(r.layout), tefi: typeof r.tefi === 'number' ? r.tefi : null,
+    frequency: r.frequency ? rList<{ dims: number; share: number }>(r.frequency) : null, itemStability: r.itemStability ? nums(r.itemStability) : null,
     samples: r.samples, n: r.n, warnings: rStrings(r.warnings), engine: r.engine,
   };
 }

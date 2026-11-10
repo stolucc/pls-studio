@@ -8,6 +8,7 @@ import { codeValue, expandPlan, type Dummies } from '../process/categorical';
 import { planFor } from '../process/plan';
 import type { ProcessGraph } from '../process/templates';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** A variable of the model: one observed column, or the mean score of a scale's items. */
@@ -121,29 +122,28 @@ export interface CpaResult {
   engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 
 /** R's JSON writes 1-element vectors as scalars and empty lists as []: restore the shapes. */
 export function parseCpaOutput(raw: Record<string, any>): CpaResult {
   const at = (v: unknown): At => (v && !Array.isArray(v) ? (v as At) : {});
   return {
     ...(raw as CpaResult),
-    equations: arr<any>(raw.equations).map((e) => ({
+    equations: rList<any>(raw.equations).map((e) => ({
       ...e,
-      coefficients: arr<any>(e.coefficients).map((c) => ({ ...c, term: arr<string>(c.term) })),
-      interactions: arr<any>(e.interactions).map((t) => ({ ...t, terms: arr<unknown>(t.terms).map((x) => arr<string>(x)) })),
+      coefficients: rList<any>(e.coefficients).map((c) => ({ ...c, term: rList<string>(c.term) })),
+      interactions: rList<any>(e.interactions).map((t) => ({ ...t, terms: rList<unknown>(t.terms).map((x) => rList<string>(x)) })),
     })),
-    moderators: arr<any>(raw.moderators).map((m) => ({ name: m.name, values: arr<number>(m.values) })),
-    direct: raw.direct ? { moderators: arr<string>(raw.direct.moderators), rows: arr<any>(raw.direct.rows).map((r) => ({ ...r, at: at(r.at) })) } : null,
-    directs: arr<any>(raw.directs).map((d) => ({ x: d.x, moderators: arr<string>(d.moderators), rows: arr<any>(d.rows).map((r) => ({ ...r, at: at(r.at) })) })),
-    indirect: arr<any>(raw.indirect).map((p) => ({ path: arr<string>(p.path), moderators: arr<string>(p.moderators), rows: arr<any>(p.rows).map((r) => ({ ...r, at: at(r.at) })) })),
-    indices: arr<any>(raw.indices).map((i) => ({ ...i, path: arr<string>(i.path), at: i.at ? at(i.at) : undefined })),
-    jn: arr<any>(raw.jn).map((j) => ({ ...j, range: arr<number>(j.range), v: arr<number>(j.v), bounds: arr<any>(j.bounds) })),
+    moderators: rList<any>(raw.moderators).map((m) => ({ name: m.name, values: rList<number>(m.values) })),
+    direct: raw.direct ? { moderators: rList<string>(raw.direct.moderators), rows: rList<any>(raw.direct.rows).map((r) => ({ ...r, at: at(r.at) })) } : null,
+    directs: rList<any>(raw.directs).map((d) => ({ x: d.x, moderators: rList<string>(d.moderators), rows: rList<any>(d.rows).map((r) => ({ ...r, at: at(r.at) })) })),
+    indirect: rList<any>(raw.indirect).map((p) => ({ path: rList<string>(p.path), moderators: rList<string>(p.moderators), rows: rList<any>(p.rows).map((r) => ({ ...r, at: at(r.at) })) })),
+    indices: rList<any>(raw.indices).map((i) => ({ ...i, path: rList<string>(i.path), at: i.at ? at(i.at) : undefined })),
+    jn: rList<any>(raw.jn).map((j) => ({ ...j, range: rList<number>(j.range), v: rList<number>(j.v), bounds: rList<any>(j.bounds) })),
     warnings: rStrings(raw.warnings),
-    counterfactual: raw.counterfactual ? { ...raw.counterfactual, effects: arr<any>(raw.counterfactual.effects) } : null,
+    counterfactual: raw.counterfactual ? { ...raw.counterfactual, effects: rList<any>(raw.counterfactual.effects) } : null,
     inference: raw.inference === 'montecarlo' ? 'montecarlo' : 'bootstrap',
     hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === raw.hc) ?? 'none',
-    latent: arr<string>(raw.latent),
+    latent: rList<string>(raw.latent),
   };
 }
 

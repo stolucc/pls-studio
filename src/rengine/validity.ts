@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** `vars`: the columns of `data` analysed (data columns, the model's indicators, or the PLS construct scores). */
@@ -25,29 +26,27 @@ export interface CviResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 
 /** The request: the named columns only (missing values as null) and the category names of text columns. */
 function request(data: Dataset, kind: string, columns: string[], fields: object) {
   if (data.moments && data.cols.length === 0) throw new Error('This analysis needs raw data; the dataset is a covariance matrix.');
   const names = [...new Set(columns.filter(Boolean))];
   for (const n of names) if (!data.names.includes(n)) throw new Error(`“${n}” is not a column of the dataset.`);
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
   const categories = Object.fromEntries(names.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]));
-  return { kind, ...fields, categories, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { kind, ...fields, categories, data: rColumns(data, names) };
 }
 
 const cmbPackage = (i: CmbInput) => (i.type === 'harman' ? 'psych' as const : 'stats' as const);
 export const cmbRequest = (d: Dataset, i: CmbInput) => request(d, 'cmb', i.vars, i);
 export async function cmbR(d: Dataset, i: CmbInput): Promise<CmbResult> {
   const r = await rCall<Record<string, any>>('ps_cmb', cmbRequest(d, i), cmbPackage(i));
-  return { ...r, vars: arr<string>(r.vars), ...(r.type === 'harman' ? { eigenvalues: arr<number>(r.eigenvalues), proportions: arr<number>(r.proportions), loadings: arr(r.loadings) } : { rows: arr(r.rows) }), warnings: rStrings(r.warnings) } as CmbResult;
+  return { ...r, vars: rList<string>(r.vars), ...(r.type === 'harman' ? { eigenvalues: rList<number>(r.eigenvalues), proportions: rList<number>(r.proportions), loadings: rList(r.loadings) } : { rows: rList(r.rows) }), warnings: rStrings(r.warnings) } as CmbResult;
 }
 export const cmbScriptR = (d: Dataset, i: CmbInput) => rScript('ps_cmb', cmbRequest(d, i), cmbPackage(i));
 
 export const cviRequest = (d: Dataset, i: CviInput) => request(d, 'cvi', [i.item, ...i.raters], i);
 export async function cviR(d: Dataset, i: CviInput): Promise<CviResult> {
   const r = await rCall<Record<string, any>>('ps_cvi', cviRequest(d, i), 'stats');
-  return { ...r, experts: arr<string>(r.experts), items: arr<CviItem>(r.items), expertProportions: arr(r.expertProportions), warnings: rStrings(r.warnings) } as CviResult;
+  return { ...r, experts: rList<string>(r.experts), items: rList<CviItem>(r.items), expertProportions: rList(r.expertProportions), warnings: rStrings(r.warnings) } as CviResult;
 }
 export const cviScriptR = (d: Dataset, i: CviInput) => rScript('ps_cvi', cviRequest(d, i), 'stats');

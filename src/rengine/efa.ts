@@ -4,6 +4,7 @@
 import type { Dataset } from '../engine/types';
 import type { EfaDesign } from '../model/efa';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export interface EfaResult {
@@ -39,19 +40,17 @@ export interface EfaFit {
   npar?: number | null; cfi?: number | null; srmr?: number | null; logl?: number | null; aic?: number | null;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const nums = (v: unknown) => arr<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN));
+const nums = (v: unknown) => rList<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN));
 /** A matrix from R's JSON (rows; a single column arrives as a vector of one-element rows or of numbers). */
-const mat = (v: unknown, cols: number): number[][] => arr<unknown>(v).map((r) => (Array.isArray(r) ? nums(r) : cols === 1 ? nums([r]) : nums(r)));
+const mat = (v: unknown, cols: number): number[][] => rList<unknown>(v).map((r) => (Array.isArray(r) ? nums(r) : cols === 1 ? nums([r]) : nums(r)));
 
 export function efaRequest(data: Dataset, d: EfaDesign, seed: number) {
   if (data.moments && data.cols.length === 0) throw new Error('Exploratory factor analysis here needs raw data; this dataset is a covariance matrix.');
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => d.vars.includes(n));
   return {
     vars: d.vars, method: d.method, criterion: d.criterion, nfactors: d.nfactors, rotation: d.rotation, deletion: d.missing, parallel: d.parallel, seed,
     ...(d.correlation === 'polychoric' ? { correlation: 'polychoric' } : {}),
     ...(d.method === 'lavaan' ? { ...(d.epsilon !== undefined ? { epsilon: d.epsilon } : {}), ...(d.information ? { information: d.information } : {}), ...(d.wlsmvSe && d.correlation === 'polychoric' ? { wlsmvSe: d.wlsmvSe } : {}), ...(d.mimic && d.correlation === 'polychoric' ? { mimic: d.mimic } : {}), ...(d.from !== undefined ? { from: d.from } : {}) } : {}),
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(data, d.vars),
   };
 }
 
@@ -75,7 +74,7 @@ export function parseEfa(raw: Record<string, any>): EfaResult {
     kaiser: Number(raw.kaiser), fit: raw.fit ?? {}, warnings: rStrings(raw.warnings), engine: raw.engine,
     ...(raw.estimator === 'ML' || raw.estimator === 'WLSMV' ? { estimator: raw.estimator } : {}),
     ...(raw.se ? { se: { loadings: mat(raw.se.loadings, k), phi: raw.se.phi ? mat(raw.se.phi, k) : null, uniqueness: nums(raw.se.uniqueness) } } : {}),
-    ...(raw.comparison ? { comparison: arr<Record<string, any>>(raw.comparison).map((x) => ({ ...x, k: Number(x.k) })) } : {}),
+    ...(raw.comparison ? { comparison: rList<Record<string, any>>(raw.comparison).map((x) => ({ ...x, k: Number(x.k) })) } : {}),
   };
 }
 

@@ -4,6 +4,7 @@
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './rjson';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 export type CovariateType = 'numeric' | 'ordered' | 'categorical';
@@ -36,20 +37,19 @@ export function semTreeRequest(m: SemTreeModel, o: SemTreeInput) {
   };
 }
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 /** The reply as the card reads it (R's single values and empty lists normalised). */
 export function semTreeResult(r: Record<string, any>): SemTreeResult {
-  const nodes = arr<Record<string, any>>(r.nodes).map((x): SemTreeNode => ({
-    id: Number(x.id), n: Number(x.n), terminal: !!x.terminal, params: arr<SemTreeParam>(x.params),
+  const nodes = rList<Record<string, any>>(r.nodes).map((x): SemTreeNode => ({
+    id: Number(x.id), n: Number(x.n), terminal: !!x.terminal, params: rList<SemTreeParam>(x.params),
     ...(num(x.parent) !== undefined ? { parent: x.parent } : {}), ...(x.edge === 0 || x.edge === 1 ? { edge: x.edge } : {}),
-    ...(x.rule && !Array.isArray(x.rule) ? { rule: { variable: String(x.rule.variable), relation: String(x.rule.relation), value: arr<string>(x.rule.value).map(String) } } : {}),
+    ...(x.rule && !Array.isArray(x.rule) ? { rule: { variable: String(x.rule.variable), relation: String(x.rule.relation), value: rList<string>(x.rule.value).map(String) } } : {}),
     ...(num(x.lr) !== undefined ? { lr: x.lr } : {}), ...(num(x.df) !== undefined ? { df: x.df } : {}), ...(num(x.p) !== undefined ? { p: x.p } : {}),
   }));
   const f = r.forest && !Array.isArray(r.forest) ? r.forest : null;
   return {
-    nodes, n: r.n, method: r.method, alpha: r.alpha, maxDepth: r.maxDepth, minN: r.minN, covariates: arr<SemTreeCovariate>(r.covariates),
-    ...(f ? { forest: { variables: arr<string>(f.variables), importance: arr<unknown>(f.importance).map((v) => num(v) ?? null), trees: Number(f.trees), seed: Number(f.seed) } } : {}),
+    nodes, n: r.n, method: r.method, alpha: r.alpha, maxDepth: r.maxDepth, minN: r.minN, covariates: rList<SemTreeCovariate>(r.covariates),
+    ...(f ? { forest: { variables: rList<string>(f.variables), importance: rList<unknown>(f.importance).map((v) => num(v) ?? null), trees: Number(f.trees), seed: Number(f.seed) } } : {}),
     warnings: rStrings(r.warnings), engine: r.engine,
   };
 }

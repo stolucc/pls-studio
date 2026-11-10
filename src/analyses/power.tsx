@@ -6,15 +6,13 @@
 
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table, type Row } from '../components/results/Table';
-import type { CbEstimator } from '../engine/cbsem';
 import { POSITIVE_COLOR, OTHER_COLOR } from '../figure/palette';
 import { fmt } from '../format';
-import { toSpec } from '../model/project';
 import type { EffectMeasure, PowerAnalysis, PowerInput, PowerParam, PowerResult } from '../rengine/power';
 import { Axes, H, pad, W } from './charts';
 import { fingerprint } from './codec';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
-import { Choice, clampNum, isObj, name, oneOf } from './common';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
+import { Choice, clampNum, isObj, name, NumField, oneOf } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 export interface PowerOptions {
@@ -57,9 +55,8 @@ export function powerInput(o: PowerOptions, ctx: AnalysisCtx): PowerInput {
   return o.equivSource === 'model' ? { analysis: 'equivalence', alpha: 0.05, source: 'model' } : { analysis: 'equivalence', alpha: 0.05, source: 'manual', chisq: o.chisq, df: o.edf, n: o.en };
 }
 
-const num = (label: string, value: number, lo: number, hi: number, set: (v: number) => void, step = 1, def = value) => (
-  <div className="field"><label>{label}</label>
-    <input className="input num" type="number" aria-label={label} min={lo} max={hi} step={step} value={value} onChange={(e) => set(clampNum(e.target.value, lo, hi, def))} /></div>
+const num = (label: string, value: number, lo: number, hi: number, onChange: (v: number) => void, step = 1, fallback = value) => (
+  <NumField label={label} value={value} lo={lo} hi={hi} step={step} fallback={fallback} onChange={onChange} />
 );
 
 function PowerForm({ options: o, set, ctx, disabled }: OptionsProps<PowerOptions>) {
@@ -223,5 +220,4 @@ export const powerAnalysis: AnalysisType<PowerOptions, PowerResult> = {
     : `${ANALYSES.find(([a]) => a === o.analysis)![1]} · ${o.measure} ${o.effect} · df ${o.dfSource === 'model' ? 'of the model' : o.df}`),
 };
 
-const modelOf = (o: PowerOptions, ctx: AnalysisCtx) => (o.analysis === 'parameter' || (o.analysis === 'equivalence' && o.equivSource === 'model')
-  ? { data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator } : null);
+const modelOf = (o: PowerOptions, ctx: AnalysisCtx) => (o.analysis === 'parameter' || (o.analysis === 'equivalence' && o.equivSource === 'model') ? cbCall(ctx) : null);

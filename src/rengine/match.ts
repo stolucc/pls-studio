@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** 'weighting': inverse probability weighting (WeightIt) instead of matching. */
@@ -34,31 +35,28 @@ export interface MatchResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const n0 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 export function matchRequest(data: Dataset, i: MatchInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Matching needs raw data; this dataset is a covariance matrix.');
   const names = [i.treatment, ...i.covariates, ...(i.outcome ? [i.outcome] : [])];
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
   // Text (categorical) covariates travel with their category names, to become factors.
   const categories = Object.fromEntries(i.covariates.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]));
   return {
     ...i, caliper: i.caliper ?? undefined, categories,
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(data, names),
   };
 }
 
 export async function matchR(data: Dataset, input: MatchInput): Promise<MatchResult> {
   const raw = await rCall<Record<string, any>>('ps_match', matchRequest(data, input), input.method === 'weighting' ? 'WeightIt' : 'MatchIt');
   return {
-    method: raw.method, estimand: raw.estimand, counts: arr(raw.counts),
-    ...(raw.weights ? { weights: { max: Number(raw.weights.max), treatedRange: arr<number>(raw.weights.treatedRange), controlRange: arr<number>(raw.weights.controlRange) } } : {}),
+    method: raw.method, estimand: raw.estimand, counts: rList(raw.counts),
+    ...(raw.weights ? { weights: { max: Number(raw.weights.max), treatedRange: rList<number>(raw.weights.treatedRange), controlRange: rList<number>(raw.weights.controlRange) } } : {}),
     ...(raw.effectModel ? { effectModel: raw.effectModel } : {}),
     ...(raw.weightMethod === 'ebal' ? { weightMethod: 'ebal' as const } : {}),
     ...(raw.matchEffect === 'dr' ? { matchEffect: 'dr' as const } : {}),
     ...(raw.link === 'probit' ? { link: 'probit' as const } : {}),
-    balance: arr<any>(raw.balance).map((b) => ({ ...b, ratioBefore: n0(b.ratioBefore), ratioAfter: n0(b.ratioAfter) })),
+    balance: rList<any>(raw.balance).map((b) => ({ ...b, ratioBefore: rNum(b.ratioBefore), ratioAfter: rNum(b.ratioAfter) })),
     effect: raw.effect ?? null, warnings: rStrings(raw.warnings), engine: raw.engine,
   };
 }

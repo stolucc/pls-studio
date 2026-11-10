@@ -2,6 +2,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export interface NcaCondition {
@@ -16,25 +17,22 @@ export interface NcaCondition {
 }
 export interface NcaResult { y: string; permutations: number; conditions: NcaCondition[]; warnings: string[]; engine: REngineInfo }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const n0 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /** NCA's bottleneck notation: NN (not necessary: X may be at its minimum), NA (not reachable), else the percentage. */
 export const bottleneckText = (v: number | null) => (v === null ? 'NA' : v <= 1e-9 ? 'NN' : v > 100 + 1e-9 ? 'NA' : v.toFixed(1));
 
 export function ncaRequest(data: Dataset, x: string[], y: string, permutations: number) {
   if (data.moments && data.cols.length === 0) throw new Error('NCA needs raw data; this dataset is a covariance matrix.');
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => [...x, y].includes(n));
-  return { x, y, permutations, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { x, y, permutations, data: rColumns(data, [...x, y]) };
 }
 export async function ncaR(data: Dataset, x: string[], y: string, permutations: number): Promise<NcaResult> {
   const raw = await rCall<Record<string, any>>('ps_nca', ncaRequest(data, x, y, permutations), 'nca');
   return {
     y: raw.y, permutations: raw.permutations, warnings: rStrings(raw.warnings), engine: raw.engine,
-    conditions: arr<any>(raw.conditions).map((c) => ({
-      ...c, scope: arr<number>(c.scope), intercept: n0(c.intercept), slope: n0(c.slope), accuracy: n0(c.accuracy), p: c.p ?? null,
-      peers: { x: arr<number>(c.peers?.x), y: arr<number>(c.peers?.y) }, points: { x: arr<number>(c.points?.x), y: arr<number>(c.points?.y) },
-      bottleneck: arr<any>(c.bottleneck).map((b) => ({ y: b.y, ceFdh: n0(b.ceFdh), crFdh: n0(b.crFdh) })),
+    conditions: rList<any>(raw.conditions).map((c) => ({
+      ...c, scope: rList<number>(c.scope), intercept: rNum(c.intercept), slope: rNum(c.slope), accuracy: rNum(c.accuracy), p: c.p ?? null,
+      peers: { x: rList<number>(c.peers?.x), y: rList<number>(c.peers?.y) }, points: { x: rList<number>(c.points?.x), y: rList<number>(c.points?.y) },
+      bottleneck: rList<any>(c.bottleneck).map((b) => ({ y: b.y, ceFdh: rNum(b.ceFdh), crFdh: rNum(b.crFdh) })),
     })),
   };
 }

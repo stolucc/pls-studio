@@ -2,15 +2,15 @@
 // (backward stepwise: which free parameters to drop) for the CB-SEM model on the canvas, with lavaan's score and Wald
 // tests (lavTestScore, lavTestWald), and the univariate increments EQS reports.
 
-import type { CbEstimator } from '../engine/cbsem';
-import { toSpec } from '../model/project';
-import type { CbCall } from '../rengine/cbExtras';
+
+
+
 import type { REngineInfo } from '../rengine/lavaan';
 import type { LmWaldRequest, LmWaldStep, TestKind } from '../rengine/search';
 import { c, pCell, Table, type Row } from '../components/results/Table';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { clampNum, isObj } from './common';
-import type { AnalysisCtx, AnalysisType } from './types';
+import type { AnalysisType } from './types';
 
 export interface LmWaldOptions { lmKinds: TestKind[]; waldKinds: TestKind[]; alpha: number; maxCandidates: number }
 export interface LmWaldResult { lm: { candidates: number; steps: LmWaldStep[] } | null; wald: { candidates: number; steps: LmWaldStep[] } | null; chisq: number | null; df: number | null; alpha: number; warnings: string[]; engine: REngineInfo }
@@ -51,7 +51,6 @@ function LmWaldView({ r }: { r: LmWaldResult }) {
   );
 }
 
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
 const requestOf = (o: LmWaldOptions): LmWaldRequest => ({ lm: { kinds: o.lmKinds, maxCandidates: o.maxCandidates }, wald: { kinds: o.waldKinds }, alpha: o.alpha });
 
 export const lmWaldAnalysis: AnalysisType<LmWaldOptions, LmWaldResult> = {
@@ -83,7 +82,7 @@ export const lmWaldAnalysis: AnalysisType<LmWaldOptions, LmWaldResult> = {
     ?? (ctx.model?.multigroup ? 'The multivariate LM and Wald tests are available for one group: remove the grouping.' : null)
     ?? (o.lmKinds.length || o.waldKinds.length ? null : 'Choose the parameters to test.'),
   fingerprint: (o, ctx) => cbFingerprint(ctx, [o.lmKinds.join(','), o.waldKinds.join(','), o.alpha, o.maxCandidates]),
-  run: async (o, ctx) => ({ ...(await (await import('../rengine/search')).lmWaldR(callOf(ctx), requestOf(o))), alpha: o.alpha }),
-  script: async (o, ctx) => (await import('../rengine/search')).lmWaldScriptR(callOf(ctx), requestOf(o)),
+  run: async (o, ctx) => ({ ...(await (await import('../rengine/search')).lmWaldR(cbCall(ctx), requestOf(o))), alpha: o.alpha }),
+  script: async (o, ctx) => (await import('../rengine/search')).lmWaldScriptR(cbCall(ctx), requestOf(o)),
   summary: (o) => [o.lmKinds.length ? 'LM' : '', o.waldKinds.length ? 'Wald' : ''].filter(Boolean).join(' and ') + `, α = ${o.alpha}`,
 };

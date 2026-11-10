@@ -6,6 +6,7 @@ import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { exprToR, parseExpr } from '../model/expr';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './rjson';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 /** A normal prior on labelled parameters, as Mplus's MODEL PRIORS writes it: label ~ N(mean, variance). */
@@ -59,8 +60,7 @@ export interface BsemResult {
 /** The R package an engine runs. */
 export const bsemPackage = (o: Pick<BsemOptions, 'engine'>) => (o.engine === 'inlavaan' ? 'INLAvaan' : 'blavaan');
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const num = (v: unknown): number[] => arr<number>(v).map(Number);
+const num = (v: unknown): number[] => rList<number>(v).map(Number);
 
 export const bsemRequest = (data: Dataset, spec: ModelSpec, missing: MissingTreatment, o: BsemOptions, seed: number, confidence: number) => {
   const ordinal = (spec.ordered?.length ?? 0) > 0;
@@ -86,10 +86,10 @@ export async function bsemR(data: Dataset, spec: ModelSpec, missing: MissingTrea
 export function bsemResult(r: Record<string, any>): BsemResult {
   const loop = r.loop && !Array.isArray(r.loop) ? { ...r.loop, x: num(r.loop.x), median: num(r.loop.median), mean: num(r.loop.mean), sd: num(r.loop.sd), low: num(r.loop.low), high: num(r.loop.high) } : undefined;
   const pv = r.plausible && !Array.isArray(r.plausible) ? r.plausible : undefined;
-  const plausible = pv ? { ...pv, factors: arr<string>(pv.factors), mean: num(pv.mean), meanSd: num(pv.meanSd), cov: arr<unknown>(pv.cov).map((row) => num(row)) } : undefined;
+  const plausible = pv ? { ...pv, factors: rList<string>(pv.factors), mean: num(pv.mean), meanSd: num(pv.meanSd), cov: rList<unknown>(pv.cov).map((row) => num(row)) } : undefined;
   return {
-    ...r, parameters: arr(r.parameters), fit: r.fit && !Array.isArray(r.fit) ? r.fit : {}, warnings: rStrings(r.warnings),
-    ...(r.groups ? { groups: arr<string>(r.groups).map(String) } : {}), defined: arr(r.defined), loop, plausible,
+    ...r, parameters: rList(r.parameters), fit: r.fit && !Array.isArray(r.fit) ? r.fit : {}, warnings: rStrings(r.warnings),
+    ...(r.groups ? { groups: rList<string>(r.groups).map(String) } : {}), defined: rList(r.defined), loop, plausible,
   } as BsemResult;
 }
 export const bsemScriptR = (data: Dataset, spec: ModelSpec, missing: MissingTreatment, o: BsemOptions, seed: number, confidence: number) =>

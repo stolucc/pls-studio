@@ -5,10 +5,10 @@
 // them, so the view can draw the package's histograms.
 
 import { rCall, rScript, rStrings } from './bridge';
-import type { CbCall } from './cbExtras';
-import { cbRequest, type REngineInfo } from './lavaan';
+import { rList } from './rjson';
+import { cbCallRequest, type CbCall } from './cbExtras';
+import type { REngineInfo } from './lavaan';
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
 
 /** The dynamic functions the card calls (all take the lavaan fit; likert*, nnor* and DDDFI off the normal scale take the data too). */
@@ -54,30 +54,29 @@ export interface DfiResult {
   engine: REngineInfo & { lavaan?: string };
 }
 
-const req = (c: CbCall, a: DfiArgs) => ({
-  ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction),
+const req = (c: CbCall, a: DfiArgs) => cbCallRequest(c, {
   dfi: { fn: a.fn, reps: a.reps, ...(a.estimator ? { estimator: a.estimator } : {}), scale: a.scale, ...(a.fn === 'DDDFI' && a.mad.length ? { mad: a.mad } : {}) },
 });
 
 function table(v: unknown): DfiTable | null {
   if (!v || typeof v !== 'object') return null;
   const t = v as Record<string, unknown>;
-  const rows = arr<unknown>(t.rows).map(str), columns = arr<unknown>(t.columns).map(str);
-  const cells = arr<unknown>(t.cells).map((r) => arr<unknown>(r).map(str));
+  const rows = rList<unknown>(t.rows).map(str), columns = rList<unknown>(t.columns).map(str);
+  const cells = rList<unknown>(t.cells).map((r) => rList<unknown>(r).map(str));
   return columns.length ? { rows, columns, cells } : null;
 }
 
 export function parseDfiOutput(r: Record<string, any>): DfiResult {
   const d = r.data && typeof r.data === 'object' ? r.data as Record<string, unknown> : null;
-  const names = d ? arr<unknown>(d.names).map(str) : [];
+  const names = d ? rList<unknown>(d.names).map(str) : [];
   const colsRaw = d?.cols;
-  const cols = names.map((n, i) => arr<unknown>(Array.isArray(colsRaw) ? colsRaw[i] : (colsRaw as Record<string, unknown> | undefined)?.[n]).map((x) => (typeof x === 'number' ? x : NaN)));
+  const cols = names.map((n, i) => rList<unknown>(Array.isArray(colsRaw) ? colsRaw[i] : (colsRaw as Record<string, unknown> | undefined)?.[n]).map((x) => (typeof x === 'number' ? x : NaN)));
   const e = r.equiv && typeof r.equiv === 'object' ? r.equiv as Record<string, unknown> : null;
   return {
     fn: r.fn, reps: typeof r.reps === 'number' ? r.reps : null, n: Number(r.n), estimator: typeof r.estimator === 'string' ? r.estimator : null,
     scale: r.scale === 'nonnormal' || r.scale === 'categorical' || r.scale === 'normal' ? r.scale : null,
     cutoffs: table(r.cutoffs), fit: table(r.fit), data: names.length ? { names, cols } : null,
-    equiv: e ? { rmsea: str(e.rmsea), cfi: str(e.cfi), rmseaBins: arr<unknown>(e.rmseaBins).map(str), cfiBins: arr<unknown>(e.cfiBins).map(str) } : null,
+    equiv: e ? { rmsea: str(e.rmsea), cfi: str(e.cfi), rmseaBins: rList<unknown>(e.rmseaBins).map(str), cfiBins: rList<unknown>(e.cfiBins).map(str) } : null,
     printed: rStrings(r.printed), warnings: rStrings(r.warnings), engine: r.engine,
   };
 }
