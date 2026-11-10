@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
-import { regressionPackages, regressionRequest } from '../rengine/regression';
+import { isZeroModel, regressionPackages, regressionRequest, zeroOptions } from '../rengine/regression';
 import { useStore } from '../store';
 import { drawRegressionModel, FAMILIES, parseCuts, regressionAnalysis, regressionColumns, regressionInput, regressionModel, type RegressionOptions } from './regression';
 import type { AnalysisCtx } from './types';
@@ -12,7 +12,7 @@ const o = (p: Partial<RegressionOptions>): RegressionOptions => ({ ...regression
 describe('regression card', () => {
   it('offers every family as an Add-menu entry, validates options and names what is missing', () => {
     expect(FAMILIES.map(([id]) => id)).toEqual(['gaussian', 'binomial', 'poisson', 'negbin', 'gamma', 'ordinal', 'multinomial', 'censored', 'survival']);
-    expect(regressionAnalysis.entries!.map((e) => e.options(regressionAnalysis.defaults(ctx())).family)).toEqual(['gaussian', 'binomial', 'poisson', 'ordinal', 'multinomial', 'censored', 'survival']);
+    expect(regressionAnalysis.entries!.map((e) => e.options(regressionAnalysis.defaults(ctx())).family)).toEqual(['gaussian', 'binomial', 'poisson', 'negbin', 'ordinal', 'multinomial', 'censored', 'survival']);
     expect(regressionAnalysis.blocked(o({}), ctx())).toMatch(/Choose the outcome/);
     expect(regressionAnalysis.blocked(o({ outcome: 'y' }), ctx())).toMatch(/at least one predictor/);
     expect(regressionAnalysis.blocked(o({ outcome: 'y', predictors: ['y'] }), ctx())).toMatch(/cannot be a predictor/);
@@ -176,5 +176,74 @@ describe('regression with a random slope (one level, Mplus TYPE = RANDOM)', () =
     const html = renderToStaticMarkup(<regressionAnalysis.View result={r as never} options={rs} current />);
     expect(html).toContain('Random slope of a: variances and covariance');
     expect(html).toContain('Variance of the slope of a');
+  });
+});
+
+describe('zero-inflated and hurdle count models (pscl)', () => {
+  const zo = (p: Partial<RegressionOptions>) => o({ outcome: 'y', predictors: ['a'], family: 'negbin', zeroModel: 'zeroinfl', zeroPart: 'same', ...p });
+  it('applies to Poisson and negative binomial counts only, not with the zero-inflated Poisson written out', () => {
+    expect(isZeroModel({ family: 'negbin', zeroModel: 'hurdle' })).toBe(true);
+    expect(isZeroModel({ family: 'poisson', zeroModel: 'zeroinfl' })).toBe(true);
+    expect(isZeroModel({ family: 'gaussian', zeroModel: 'zeroinfl' })).toBe(false);
+    expect(isZeroModel({ family: 'poisson', zeroModel: 'zeroinfl', inflated: true })).toBe(false);
+    expect(regressionPackages({ family: 'negbin', zeroModel: 'hurdle' })).toBe('pscl');
+    expect(regressionPackages({ family: 'poisson', zeroModel: 'zeroinfl', inflated: true })).toBe('regression');
+    expect(regressionPackages({ family: 'binomial', zeroModel: 'zeroinfl' })).toBe('regression');
+    expect(regressionAnalysis.entries!.find((e) => /hurdle/.test(e.title))!.options(regressionAnalysis.defaults(ctx()))).toMatchObject({ family: 'negbin', zeroModel: 'zeroinfl', zeroPart: 'same' });
+  });
+  it('sends the zero part (same, intercept or its own predictors) only when a zero model applies', () => {
+    const r = regressionRequest(data, regressionInput(zo({ zeroPart: 'chosen', zeroPredictors: ['b', 'g'] }), ctx()));
+    expect(r.data.names).toEqual(['y', 'a', 'b', 'g']);
+    expect([r.zeroModel, r.zeroPart, r.zeroPredictors]).toEqual(['zeroinfl', 'chosen', ['b', 'g']]);
+    expect(r.categories).toEqual({ g: ['x', 'y', 'z'] });
+    const same = regressionRequest(data, regressionInput(zo({ zeroPredictors: ['b'] }), ctx()));
+    expect(same.data.names).toEqual(['y', 'a']);
+    expect(same).not.toHaveProperty('zeroPredictors');
+    const off = regressionRequest(data, regressionInput(zo({ family: 'gaussian', zeroPart: 'chosen', zeroPredictors: ['b'] }), ctx()));
+    for (const k of ['zeroModel', 'zeroPart', 'zeroPredictors']) expect(off, k).not.toHaveProperty(k);
+    expect(off.data.names).toEqual(['y', 'a']);
+    expect(zeroOptions({ ...regressionInput(zo({ zeroPart: undefined }), ctx()) })).toEqual({ zeroModel: 'zeroinfl', zeroPart: 'same' });
+    expect(regressionColumns(zo({ zeroPart: 'chosen', zeroPredictors: ['b'] }))).toEqual(['y', 'a', 'b']);
+    expect(regressionColumns(zo({ zeroPart: 'intercept', zeroPredictors: ['b'] }))).toEqual(['y', 'a']);
+  });
+  it('blocks weights, cluster and HC3 errors, a missing or circular zero part, and names missing zero predictors', () => {
+    expect(regressionAnalysis.blocked(zo({}), ctx())).toBeNull();
+    expect(regressionAnalysis.blocked(zo({ se: 'HC0' }), ctx())).toBeNull();
+    expect(regressionAnalysis.blocked(zo({ se: 'HC3' }), ctx())).toMatch(/model-based or HC0/);
+    expect(regressionAnalysis.blocked(zo({ se: 'cluster', cluster: 'k' }), ctx())).toMatch(/model-based or HC0/);
+    expect(regressionAnalysis.blocked(zo({ weights: 'w' }), ctx())).toMatch(/Weights/);
+    expect(regressionAnalysis.blocked(zo({ zeroPart: 'chosen' }), ctx())).toMatch(/predictors of the zero part/);
+    expect(regressionAnalysis.blocked(zo({ zeroPart: 'chosen', zeroPredictors: ['y'] }), ctx())).toMatch(/cannot be a predictor/);
+    expect(regressionAnalysis.blocked(zo({ zeroPart: 'chosen', zeroPredictors: ['nope'] }), ctx())).toMatch(/nope/);
+    // (the zero predictors of an unused zero part are not checked)
+    expect(regressionAnalysis.blocked(zo({ zeroPart: 'same', zeroPredictors: ['nope'] }), ctx())).toBeNull();
+  });
+  it('parses the zero model strictly and keeps earlier fingerprints', () => {
+    expect(regressionAnalysis.parseOptions({ family: 'poisson', zeroModel: 'hurdle', zeroPart: 'chosen', zeroPredictors: ['b', 'b', 7] })).toMatchObject({ zeroModel: 'hurdle', zeroPart: 'chosen', zeroPredictors: ['b'] });
+    expect(regressionAnalysis.parseOptions({ family: 'poisson', zeroModel: 'hurdle', zeroPart: 'other' })).toMatchObject({ zeroModel: 'hurdle', zeroPart: 'same' });
+    const bad = regressionAnalysis.parseOptions({ family: 'poisson', zeroModel: 'tobit', zeroPart: 'chosen', zeroPredictors: ['b'] })!;
+    for (const k of ['zeroModel', 'zeroPart', 'zeroPredictors']) expect(bad, k).not.toHaveProperty(k);
+    const fp = (p: Partial<RegressionOptions>) => regressionAnalysis.fingerprint(o({ outcome: 'y', predictors: ['a'], ...p }), ctx());
+    expect(fp({ family: 'gaussian' })).toBe(fp({ family: 'gaussian', zeroModel: 'zeroinfl' }));  // (a zero model does not apply there)
+    expect(fp({ family: 'negbin' })).not.toBe(fp({ family: 'negbin', zeroModel: 'zeroinfl' }));
+    expect(fp({ family: 'negbin', zeroModel: 'zeroinfl' })).not.toBe(fp({ family: 'negbin', zeroModel: 'hurdle' }));
+    expect(fp({ family: 'negbin', zeroModel: 'zeroinfl' })).not.toBe(fp({ family: 'negbin', zeroModel: 'zeroinfl', zeroPart: 'intercept' }));
+    expect(regressionAnalysis.cardTitle!(zo({ zeroModel: 'hurdle' }))).toBe('Hurdle negative binomial: y');
+    expect(regressionAnalysis.summary(zo({ zeroPart: 'chosen', zeroPredictors: ['b'], se: 'HC0' }))).toBe('zero-inflated negative binomial · y on a | b · HC0 SEs');
+    expect(regressionAnalysis.summary(zo({ zeroPart: 'intercept' }))).toBe('zero-inflated negative binomial · y on a | 1');
+  });
+  it('shows the count and zero parts, Vuong’s test and the predicted zeros', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const row = (term: string, part?: 'zero') => ({ term, part: part ?? null, est: 0.5, se: 0.1, stat: 5, p: 0, ciLow: 0.3, ciHigh: 0.7, ratio: Math.exp(0.5) });
+    const r = (zeroModel: 'zeroinfl' | 'hurdle') => ({ family: 'negbin', link: 'logit', formula: 'y ~ a | a', se: 'model', zeroModel, coefficients: [row('a'), row('a', 'zero')], thresholds: [], levels: null,
+      fit: { n: 10, logLik: -5, aic: 14, bic: 15, npar: 5, theta: 2.65, thetaSe: 0.36, zeros: 4, zerosPredicted: 4.2, zerosStandard: 3.1 }, lrt: null,
+      vuong: { raw: { z: 2.24, p: 0.0125 }, aic: { z: 1.02, p: 0.155 }, bic: { z: -1.94, p: 0.026 } }, diagnostics: {}, curves: [], warnings: [], engine: { package: 'pscl', version: '1.5.9' }, input: regressionInput(zo({}), ctx()) });
+    const html = (x: unknown) => renderToStaticMarkup(<regressionAnalysis.View result={x as never} options={zo({})} current />);
+    const zi = html(r('zeroinfl'));
+    for (const t of ['Count part (negative binomial, log link)', 'Zero inflation (logit model for a structural zero)', 'Vuong’s test against the standard negative binomial model', 'BIC-corrected', 'the zero-inflated model', 'the standard negative binomial model', 'Zeros predicted', '4.2', 'θ', 'Odds ratio']) expect(zi, t).toContain(t);
+    const h = html(r('hurdle'));
+    expect(h).toContain('Count part (zero-truncated negative binomial, log link)');
+    expect(h).toContain('Zero hurdle (logit model for a count above zero)');
+    expect(h).toContain('the hurdle model');
   });
 });

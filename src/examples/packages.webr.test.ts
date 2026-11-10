@@ -205,8 +205,10 @@ describe.each(PACKAGE_EXAMPLES.map((e) => [e.id, e] as const))('package example 
         const { kind: _k, ...opts } = p;
         const r = await regressionR(data, { ...opts, confidence: 0.95 });
         expect(r.coefficients.length).toBeGreaterThan(0);
-        // (a likelihood-ratio test against the null model; not for the censored, inflated and survival models, checked in mplus/ch3 and ch6surv)
-        if (opts.family !== 'censored' && opts.family !== 'survival' && !opts.inflated && !opts.randomSlope) expect(r.lrt).toBeTruthy();
+        // (a likelihood-ratio test against the null model; not for the censored, inflated and survival models, checked in mplus/ch3 and ch6surv;
+        // the zero-inflated and hurdle models report Vuong's test against the standard count model instead)
+        if (opts.zeroModel) expect(r.vuong).toBeTruthy();
+        else if (opts.family !== 'censored' && opts.family !== 'survival' && !opts.inflated && !opts.randomSlope) expect(r.lrt).toBeTruthy();
       } else if (p.kind === 'did') {
         const { didR } = await import('../rengine/did');
         const { kind: _k, ...opts } = p;

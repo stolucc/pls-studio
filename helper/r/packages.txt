@@ -55,6 +55,7 @@ optmatch
 pbivnorm
 plspm
 poLCA
+pscl
 psych
 psychotools
 qgraph

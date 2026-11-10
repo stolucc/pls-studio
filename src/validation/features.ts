@@ -99,7 +99,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/did': native('Difference-in-differences', 'Causal inference', ['did', 'fixest'], script('did.R', 'desktop did and fixest')),
   'rengine/match': native('Matching and weighting', 'Causal inference', ['MatchIt', 'WeightIt'], script('match.R', 'desktop MatchIt'), script('weightit.R', 'desktop WeightIt')),
   'rengine/endo': native('Endogeneity: IV, copulas, Heckman', 'Regression', ['ivreg', 'REndo', 'sampleSelection'], script('endo.R', 'desktop R')),
-  'rengine/regression': native('Regression (linear, GLM, ordinal, multinomial, censored, survival)', 'Regression', ['stats', 'MASS', 'nnet', 'survival'], script('regression.R', 'desktop R')),
+  'rengine/regression': native('Regression (linear, GLM, ordinal, multinomial, censored, survival, zero-inflated and hurdle counts)', 'Regression', ['stats', 'MASS', 'nnet', 'survival', 'pscl'], script('regression.R', 'desktop R'), script('zeroinfl.R', 'desktop pscl (zeroinfl, hurdle, vuong)')),
   'rengine/rsa': native('Response surface analysis', 'Regression', ['RSA'], script('rsa.R', 'desktop RSA')),
   'rengine/nca': native('Necessary condition analysis', 'NCA', ['NCA'], script('nca.R', 'desktop NCA')),
   'rengine/network': native('Network psychometrics and EGA', 'Networks', ['bootnet', 'EGAnet'], script('network.R', 'desktop bootnet and EGAnet')),
