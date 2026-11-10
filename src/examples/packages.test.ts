@@ -35,7 +35,7 @@ it('conditional process examples are recognised as their PROCESS model', () => {
   for (const e of cpa) {
     const g = processGraph(exampleModel(e));
     expect(g.recognised?.model, e.id).toBe(e.processModel);
-    expect(g.covariates, e.id).toEqual(['c1', 'c2']);
+    expect(g.covariates, e.id).toEqual(e.constructs.filter((k) => k.covariate).map((k) => k.name));
   }
 });
 
@@ -52,7 +52,7 @@ it('ESEM blocks refer to the example’s constructs by id', () => {
 it('panel examples carry no diagram and name their columns (a Bayesian SEM card fits its diagram instead)', () => {
   for (const e of PACKAGE_EXAMPLES.filter((x) => x.panel)) {
     // (cards about the model open beside the example's diagram: Bayesian SEM, Bollen–Stine, PLSpredict, simulation, …)
-    if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
+    if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'semsens', 'medsens'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
     expect(e.constructs, e.id).toEqual([]);
     for (const p of examplePanels(e)) expect(panelColumns(p).length, e.id).toBeGreaterThanOrEqual(['freqtest', 'bbinomial', 'chart', 'customml'].includes(p.kind) || (p as { type?: string }).type === 'one' ? 1 : 2);  // (a binomial test, a one-sample t-test, a chart of one variable and a nominal custom likelihood have one column)
   }

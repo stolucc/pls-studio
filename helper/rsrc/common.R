@@ -54,6 +54,11 @@ ps_advisory <- function(m) grepl("observed variances are \\(at least\\) a factor
 #' Notes that say nothing about the results.
 ps_irrelevant <- function(m) grepl("^package .* was built under R version", m)
 
+#' Code that set options(warn = 2) (e.g. SEMsens's sa.aco, which drops every evaluation whose fit warns) gets its
+#' warnings as errors where they are raised, as in plain R: the bridge's handlers then let a warning through to R's
+#' own conversion instead of keeping and muffling it.
+ps_warn_is_error <- function() isTRUE(getOption("warn", 0) >= 2)
+
 #' An optional computation (a statistic that is reported when available): if it
 #' fails, `otherwise` is used and the failure is reported, with what was lost;
 #' its warnings are reported too.
@@ -61,6 +66,7 @@ ps_try <- function(expr, what, otherwise = NULL) {
   withCallingHandlers(
     tryCatch(expr, error = function(e) { ps_warning(sprintf("%s could not be computed: %s", what, conditionMessage(e))); otherwise }),
     warning = function(w) {
+      if (ps_warn_is_error()) return(invisible(NULL))
       m <- conditionMessage(w)
       if (!ps_irrelevant(m)) ps_warning(sprintf("%s: %s", what, m))
       invokeRestart("muffleWarning")
@@ -78,6 +84,7 @@ ps_call <- function(fn, req, export = FALSE) {
   .ps_state$notes <- character(0)
   withCallingHandlers(if (isTRUE(export)) f(req, export = TRUE) else f(req),
     warning = function(w) {
+      if (ps_warn_is_error()) return(invisible(NULL))
       m <- conditionMessage(w)
       if (ps_irrelevant(m)) NULL else if (ps_advisory(m)) ps_note(m) else ps_warning(m)
       invokeRestart("muffleWarning")
@@ -233,6 +240,7 @@ ps_run <- function(lines, inputs) {
   withCallingHandlers(eval(parse(text = paste(lines, collapse = "\n")), envir = env),
     # Multi-line messages ("lavaan WARNING:\n  could not ...") become one line.
     warning = function(w) {
+      if (ps_warn_is_error()) return(invisible(NULL))
       m <- ps_flat(conditionMessage(w))
       # R's note that a package was built under a newer R (desktop R) says nothing about the results.
       if (ps_irrelevant(m)) NULL else if (ps_advisory(m)) ps_note(m) else warn <<- c(warn, m)
