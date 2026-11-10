@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { farOut, flaggedCases, influentialCases, mardiaVerdict, normalityLevel } from './screen';
+import { farOut, flaggedCases, influenceSeries, influentialCases, kurtosisCases, mardiaVerdict, normalityLevel } from './screen';
 
 describe('data screening rules', () => {
   it('grades univariate non-normality (West, Finch & Curran 1995)', () => {
@@ -28,5 +28,21 @@ describe('data screening rules', () => {
     expect(v.normal).toBe(false);
     expect(v.text).toContain('skewness and kurtosis');
     expect(mardiaVerdict({ pSkew: 0.01, pSmall: 0.2, pKurt: 0.5, n: 15 })).toMatchObject({ normal: true, skewP: 0.2 });
+  });
+  it('gives the index plot one statistic per case, the fence only where large means unusual', () => {
+    const r = { rows: [1, 2, 3, 5, 6], gcd: [0.1, NaN, 0.2, 0.3, 4], md: [1, 2, 3, 4, 5], chisq: [-1, 1, 0, 2, 0.5], cfi: [0, 0, 0, 0, 0], rmsea: [0, 0, 0, 0, 0],
+      kurtosis: { rows: [1, 2, 3, 5], contribution: [1, 2, 3, 4] } };
+    const g = influenceSeries(r, 'gcd');
+    expect(g.rows).toEqual([1, 3, 5, 6]);
+    expect(g.values).toEqual([0.1, 0.2, 0.3, 4]);
+    expect(g.fence).toBe(farOut([0.1, 0.2, 0.3, 4]));
+    expect(influenceSeries(r, 'chisq').fence).toBeNull();
+    expect(influenceSeries(r, 'kurtosis').rows).toEqual([1, 2, 3, 5]);
+    expect(influenceSeries({ ...r, kurtosis: undefined }, 'kurtosis').rows).toEqual([]);
+  });
+  it('shares of Mardia’s b₂,ₚ and the ratio to a case’s expected contribution p(p + 2) / n', () => {
+    // p = 2: expected b₂,ₚ = 8, a case's share 8 / 4 = 2.
+    const k = { rows: [3, 7, 8, 9], contribution: [1, 6, 2, 1], b2p: 10, p: 2 };
+    expect(kurtosisCases(k, 2)).toEqual([{ row: 7, contribution: 6, share: 0.6, ratio: 3 }, { row: 8, contribution: 2, share: 0.2, ratio: 1 }]);
   });
 });

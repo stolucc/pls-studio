@@ -6,7 +6,11 @@ import { useState } from 'react';
 import type { CbEstimator } from '../engine/cbsem';
 import { fmt } from '../format';
 import { toSpec, validateModel } from '../model/project';
-import { farOut, flaggedCases, influentialCases, mardiaVerdict, normalityLevel } from '../model/screen';
+import { farOut, flaggedCases, influenceSeries, influentialCases, kurtosisCases, mardiaVerdict, normalityLevel, type InfluenceStat } from '../model/screen';
+import { ChartFrame } from '../components/ChartFrame';
+import { IconX } from '../components/icons';
+import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../figure/palette';
+import { Axes, H, pad, W } from './charts';
 import type { InfluenceApproach, InfluenceResult, ScreenResult } from '../rengine/screen';
 import { useStore } from '../store';
 import { confirmDialog } from '../components/Overlays';
@@ -155,7 +159,74 @@ function InfluenceView({ inf, current }: { inf: InfluenceResult; current: boolea
       <Table title="Most influential cases" file="screening-influence" columns={['Row', 'Generalized Cook’s distance', 'Mahalanobis', 'Δχ²', 'ΔCFI', 'ΔRMSEA']}
         rows={top.map((x) => [c(x.row, undefined, 0), c(x.gcd, x.flagged ? 'bad' : ''), c(inf.md[at(x.row)], undefined, 2), c(inf.chisq[at(x.row)]), c(inf.cfi[at(x.row)]), c(inf.rmsea[at(x.row)])])}
         note={`Generalized Cook’s distance (Pek & MacCallum 2011): how far the parameter estimates move without the case${approx ? ', approximated from the one fit without refitting (semfindr’s approximate approach; gcd_approx)' : ' (the model refitted without each case)'}. It has no conventional cutoff; red: far out from the other cases (above Q3 + 3 IQR = ${fmt(farOut(inf.gcd))}). Δ: fit with the case minus without it. ${inf.engine.package} ${inf.engine.version}.`} />
+      <ExcludeOne rows={top.map((x) => x.row)} current={current} />
+      <IndexPlot inf={inf} />
+      {inf.kurtosis && <KurtosisCases k={inf.kurtosis} current={current} />}
     </div>
+  );
+}
+
+/** Exclude one chosen case (of the most influential), after confirmation. */
+function ExcludeOne({ rows, current, reason = 'an influential case' }: { rows: number[]; current: boolean; reason?: string }) {
+  const [row, setRow] = useState(rows[0] ?? 0);
+  if (!rows.length) return null;
+  const pick = rows.includes(row) ? row : rows[0];
+  return (
+    <div className="field" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <label htmlFor={`ex-one-${reason}`}>Exclude row</label>
+      <select id={`ex-one-${reason}`} className="select" style={{ width: 'auto' }} value={pick} onChange={(e) => setRow(Number(e.target.value))}>{rows.map((r) => <option key={r} value={r}>{r}</option>)}</select>
+      <button className="btn danger sm" disabled={!current} onClick={() => void exclude([pick], reason)} title="Remove this case from the dataset (the data panel can restore it)"><IconX size={13} /> Exclude…</button>
+    </div>
+  );
+}
+
+const STAT_LABEL: Record<InfluenceStat, string> = { gcd: 'Generalized Cook’s distance', md: 'Mahalanobis distance', chisq: 'Δχ²', cfi: 'ΔCFI', rmsea: 'ΔRMSEA', kurtosis: 'Contribution to Mardia’s kurtosis' };
+
+/** Index plot: one statistic per case against its row, the far-out fence dashed; a click on a point names the case. */
+function IndexPlot({ inf }: { inf: InfluenceResult }) {
+  const [stat, setStat] = useState<InfluenceStat>('gcd');
+  const [picked, setPicked] = useState<number | null>(null);
+  const s = influenceSeries(inf, stat);
+  if (!s.rows.length) return null;
+  const xs: [number, number] = [Math.min(...s.rows), Math.max(...s.rows)];
+  let lo = Math.min(0, ...s.values), hi = Math.max(...s.values, s.fence !== null && Number.isFinite(s.fence) ? s.fence : -Infinity);
+  const m = (hi - lo || 1) * 0.05; lo -= stat === 'gcd' || stat === 'md' || stat === 'kurtosis' ? 0 : m; hi += m;
+  const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
+  const sy = (v: number) => pad.t + ((hi - v) / (hi - lo || 1)) * (H - pad.t - pad.b);
+  const far = (v: number) => s.fence !== null && v > s.fence;
+  const at = picked === null ? -1 : s.rows.indexOf(picked);
+  const stats = (Object.keys(STAT_LABEL) as InfluenceStat[]).filter((k) => k !== 'kurtosis' || inf.kurtosis);
+  return (
+    <div>
+      <div className="segmented" role="radiogroup" aria-label="Statistic in the index plot">
+        {stats.map((k) => <button key={k} role="radio" aria-checked={stat === k} className={stat === k ? 'on' : ''} onClick={() => setStat(k)}>{STAT_LABEL[k]}</button>)}
+      </div>
+      <ChartFrame id={`influence:${stat}`} name={`influence-index-${stat}`} width={W} height={H} defaults={{ x: 'Row', y: STAT_LABEL[stat] }}
+        caption={<span className="hint">{at >= 0 ? `Row ${picked}: ${fmt(s.values[at], 4)}. ` : 'Click a point for its row. '}{s.fence !== null && Number.isFinite(s.fence) ? `Dashed: Q3 + 3 IQR = ${fmt(s.fence)}; red: cases above it.` : 'Δ: fit with the case minus without it.'}</span>}>
+        {(labels) => (
+          <svg className="mc-chart data-chart" width={W} height={H} role="img" aria-label={`Index plot of ${STAT_LABEL[stat]}`}>
+            <Axes xs={xs} ys={[lo, hi]} xTitle={labels.x} yTitle={labels.y} xTick={(v) => v.toFixed(0)} />
+            {s.fence !== null && Number.isFinite(s.fence) && <line x1={pad.l} x2={W - pad.r} y1={sy(s.fence)} y2={sy(s.fence)} stroke={NEGATIVE_COLOR} strokeDasharray="4 3" />}
+            {s.fence === null && <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} stroke="currentColor" strokeOpacity={0.5} />}
+            {s.rows.map((r, i) => <line key={`l${r}`} x1={sx(r)} x2={sx(r)} y1={sy(Math.max(lo, 0))} y2={sy(s.values[i])} stroke={far(s.values[i]) ? NEGATIVE_COLOR : POSITIVE_COLOR} strokeOpacity={0.45} />)}
+            {s.rows.map((r, i) => <circle key={r} cx={sx(r)} cy={sy(s.values[i])} r={i === at ? 5 : 3} fill={far(s.values[i]) ? NEGATIVE_COLOR : POSITIVE_COLOR} style={{ cursor: 'pointer' }} onClick={() => setPicked(r)}><title>{`Row ${r}: ${fmt(s.values[i], 4)}`}</title></circle>)}
+          </svg>
+        )}
+      </ChartFrame>
+    </div>
+  );
+}
+
+/** The cases that contribute most to Mardia's multivariate kurtosis of the model's indicators. */
+function KurtosisCases({ k, current }: { k: NonNullable<InfluenceResult['kurtosis']>; current: boolean }) {
+  const top = kurtosisCases(k, 10);
+  return (
+    <>
+      <Table title={`Contributions to multivariate kurtosis (Mardia’s b₂,ₚ = ${fmt(k.b2p, 3)})`} file="screening-kurtosis-cases" columns={['Row', 'dᵢ⁴ / n', 'Share of b₂,ₚ', '× expected']}
+        rows={top.map((x) => [c(x.row, undefined, 0), c(x.contribution, x.ratio > 10 ? 'bad' : x.ratio > 4 ? 'warn' : '', 4), c(`${fmt(100 * x.share, 1)}%`), c(x.ratio, undefined, 1)])}
+        note={`Mardia’s multivariate kurtosis of the ${k.p} indicators is the mean of dᵢ⁴, the squared Mahalanobis distances squared (psych::mardia: ${k.rows.length} complete cases, the sample covariance matrix); each case adds dᵢ⁴ / n. Under normality b₂,ₚ = p(p + 2) = ${k.p * (k.p + 2)}, a case’s expected share ${fmt((k.p * (k.p + 2)) / k.rows.length, 4)}. × expected: the case’s contribution over that share (orange above 4, red above 10). The Data screening card tests b₂,ₚ itself.`} />
+      <ExcludeOne rows={top.map((x) => x.row)} current={current} reason="a case with a large contribution to multivariate kurtosis" />
+    </>
   );
 }
 
@@ -166,7 +237,7 @@ export interface InfluenceOptions { approach: InfluenceApproach }
 export const influenceAnalysis: AnalysisType<InfluenceOptions, InfluenceResult> = {
   id: 'influence',
   title: 'Influential cases',
-  sub: 'case influence on the CB-SEM model: generalized Cook’s distance (semfindr)',
+  sub: 'case influence on the CB-SEM model: generalized Cook’s distance, fit change, index plot, contributions to Mardia’s kurtosis (semfindr)',
   group: 'Data',
   defaults: () => ({ approach: 'exact' }),
   // (cards saved before the option: the refits they ran)

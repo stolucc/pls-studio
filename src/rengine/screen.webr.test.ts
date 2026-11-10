@@ -9,6 +9,7 @@ import { toSpec, type ModelState } from '../model/project';
 import { rCall, type RPackage } from './bridge';
 import { influenceR, influenceScriptR, screenR, screenScriptR } from './screen';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
+import { kurtosisCases } from '../model/screen';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -53,8 +54,18 @@ describe('data screening', () => {
     // The approximation ranks the cases as the refits do: the five most influential are the same (semfindr's documented use).
     const top = approx.rows.map((row, i) => ({ row, i })).sort((a, b) => approx.gcd[b.i] - approx.gcd[a.i]).slice(0, 5);
     expect([...top.map((x) => x.row)].sort((a, b) => a - b)).toEqual([...ref.influence.rows].sort((a: number, b: number) => a - b));
+    // Each case's contribution to Mardia's kurtosis: d⁴ / n summing to psych::mardia's b₂,ₚ, the largest as the reference.
+    const k = approx.kurtosis!;
+    expect(k.rows).toHaveLength(100);
+    expect(k.p).toBe(6);
+    expect(k.b2p).toBeCloseTo(ref.kurtosis.b2p, 10);
+    expect(k.contribution.reduce((a, b) => a + b, 0)).toBeCloseTo(ref.kurtosis.b2p, 10);
+    const kt = kurtosisCases(k, 5);
+    expect(kt.map((x) => x.row)).toEqual(ref.kurtosis.rows);
+    kt.forEach((x, i) => expect(x.contribution).toBeCloseTo(ref.kurtosis.contribution[i], 10));
     const script = await influenceScriptR(d, toSpec(model), 'casewise', 'ML', 'approximate');
     expect(script).toContain('infl <- influence_stat(fit)');
+    expect(script).toContain('kurt_i <- kurt_d2^2 / nrow(Xk)');
     expect(script).not.toContain('lavaan_rerun');
   }, 900_000);
 

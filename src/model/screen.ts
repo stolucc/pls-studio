@@ -54,3 +54,28 @@ export function mardiaVerdict(m: { pSkew: number; pSmall: number; pKurt: number;
       : `Multivariate normality is rejected (${skewP < alpha ? 'skewness' : ''}${skewP < alpha && m.pKurt < alpha ? ' and ' : ''}${m.pKurt < alpha ? 'kurtosis' : ''}): use robust ML (MLR) or bootstrap standard errors in CB-SEM.`,
   };
 }
+
+/** The case statistics of the influence card's index plot. */
+export type InfluenceStat = 'gcd' | 'md' | 'chisq' | 'cfi' | 'rmsea' | 'kurtosis';
+type InfluenceLike = { rows: number[]; gcd: number[]; md: number[]; chisq: number[]; cfi: number[]; rmsea: number[]; kurtosis?: { rows: number[]; contribution: number[] } };
+/**
+ * One statistic per case for the index plot (cases without a value left out), with the far-out fence for the
+ * statistics where large means unusual (generalized Cook's distance, Mahalanobis distance, kurtosis contribution);
+ * the fit changes are signed and have none.
+ */
+export function influenceSeries(r: InfluenceLike, stat: InfluenceStat): { rows: number[]; values: number[]; fence: number | null } {
+  const [rows, vals] = stat === 'kurtosis' ? [r.kurtosis?.rows ?? [], r.kurtosis?.contribution ?? []] : [r.rows, r[stat]];
+  const keep = rows.map((_, i) => i).filter((i) => Number.isFinite(vals[i]));
+  const values = keep.map((i) => vals[i]);
+  return { rows: keep.map((i) => rows[i]), values, fence: stat === 'gcd' || stat === 'md' || stat === 'kurtosis' ? farOut(values) : null };
+}
+
+/**
+ * The cases contributing most to Mardia's multivariate kurtosis b₂,ₚ = Σ dᵢ⁴ / n: each case's share of it, and how
+ * many times its contribution exceeds a case's expected one under normality, p(p + 2) / n (Mardia 1970).
+ */
+export function kurtosisCases(k: { rows: number[]; contribution: number[]; b2p: number; p: number }, top = 10): { row: number; contribution: number; share: number; ratio: number }[] {
+  const expected = (k.p * (k.p + 2)) / k.rows.length;
+  return k.rows.map((row, i) => ({ row, contribution: k.contribution[i], share: k.contribution[i] / k.b2p, ratio: k.contribution[i] / expected }))
+    .sort((a, b) => b.contribution - a.contribution).slice(0, top);
+}

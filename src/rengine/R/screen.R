@@ -68,14 +68,21 @@ ps_influence <- function(req_json, export = FALSE) {
       "# Leave-one-out: the model refitted without each case (semfindr), then the influence statistics.",
       sprintf("rerun <- lavaan_rerun(fit, parallel = %s, progress = FALSE%s)", if (par) "TRUE" else "FALSE", if (par) sprintf(", ncores = %d", cores) else ""),
       "infl <- influence_stat(rerun)"),
-    "rows <- as.integer(rownames(data))[as.integer(rownames(infl))]")
+    "rows <- as.integer(rownames(data))[as.integer(rownames(infl))]",
+    "# Each case's contribution to Mardia's multivariate kurtosis b2,p of the model's indicators (as psych::mardia:",
+    "# complete cases, the sample covariance matrix): d_i^4 / n, with d_i^2 the case's Mahalanobis distance; they sum to b2,p.",
+    sprintf("Xk <- as.matrix(data[, %s, drop = FALSE]); okk <- complete.cases(Xk); Xk <- Xk[okk, , drop = FALSE]", ps_q(unname(b$n$iv[b$n$all_inds]))),
+    "kurt_d2 <- mahalanobis(Xk, colMeans(Xk), cov(Xk))",
+    "kurt_i <- kurt_d2^2 / nrow(Xk)",
+    "kurt_rows <- as.integer(rownames(data))[okk]")
   inputs <- b$inputs
   g <- if (approach == "approximate") "gcd_approx" else "gcd"
-  if (export) return(paste(ps_script("Case influence (semfindr)", c("lavaan", "semfindr"), inputs, body, sprintf("head(infl[order(-infl[, \"%s\"]), c(\"%s\", \"md\", \"chisq\")], 10)", g, g)), collapse = "\n"))
+  if (export) return(paste(ps_script("Case influence (semfindr)", c("lavaan", "semfindr"), inputs, body, c(sprintf("head(infl[order(-infl[, \"%s\"]), c(\"%s\", \"md\", \"chisq\")], 10)", g, g), "sum(kurt_i)  # = Mardia's b2,p", "head(sort(setNames(kurt_i, kurt_rows), decreasing = TRUE), 10)")), collapse = "\n"))
   env <- ps_run(body, inputs)
   infl <- env$infl
   col <- function(k) if (k %in% colnames(infl)) unname(infl[, k]) else rep(NA_real_, nrow(infl))
   ps_json(list(approach = approach, rows = env$rows, gcd = col(g), md = col("md"), chisq = col("chisq"), cfi = col("cfi"), rmsea = col("rmsea"), tli = col("tli"),
+    kurtosis = list(rows = env$kurt_rows, contribution = unname(env$kurt_i), b2p = sum(env$kurt_i), p = ncol(env$Xk)),
     warnings = env$.warnings, engine = list(package = "semfindr", version = as.character(utils::packageVersion("semfindr")))))
 }
 
