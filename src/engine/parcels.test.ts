@@ -102,3 +102,12 @@ describe('the example card', () => {
     expect(ex.shows).toContain(`${Math.round(cfi.percentile * 100)}%`);
   }, 300_000);
 });
+
+describe('allocation guards', () => {
+  it('refuses a parcel that is not in the data instead of writing past the columns', async () => {
+    const { data, spec, computed } = parcelled(Object.fromEntries(F.map((f) => [f, ref.balance[f].parcels])), 'P');
+    const targets = parcelTargets(spec, computed).map((t, i) => (i === 0 ? { ...t, parcels: ['nope', ...t.parcels.slice(1)] } : t));
+    const r = await allocationVariability(data, spec, targets, { allocations: 3, seed: 1 }).catch((e: Error) => e);
+    expect(r instanceof Error ? r.message : '').toMatch(/Too few allocations|not in the data/);
+  });
+});

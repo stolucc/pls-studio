@@ -21,14 +21,14 @@ import { ContextMenu } from './ContextMenu';
 import { heldOf, menuFor, type MenuAction, type MenuTarget } from './canvasMenu';
 import { correlationEndError, correlationPairError, endogenousIds, impliedIntercepts, impliedMainEffects, newId, validateModel, type Correlation } from '../model/project';
 import { endAt } from './correlationEnds';
-import type { ExampleId } from '../io';
+import { importModelSyntax } from '../io';
 import { run } from '../runner';
 import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from '../store';
 import { ConstructNode, type ConstructFlowNode } from './ConstructNode';
 import { ConstantNode, type ConstantFlowNode } from './ConstantNode';
 import { InterceptEdge, type InterceptFlowEdge } from './InterceptEdge';
 import { MeanEdge, type MeanFlowEdge } from './MeanEdge';
-import { indicatorLabels } from '../diagramLabels';
+import { heldLoading, indicatorLabels } from '../diagramLabels';
 import { readDraggedVars, VARS_MIME } from './dnd';
 import { IconArrow, IconCorrelate, IconDownload, IconEllipse, IconErrorTerm, IconFitView, IconLayout, IconPlay, IconPointer, IconSparkle, IconTriangle, IconUpload, IconNote } from './icons';
 import { CovarianceLayer, covarianceLayout, type CorrelationLabel, type CorrelationPick } from './CovarianceLayer';
@@ -36,6 +36,7 @@ import { currentSession } from '../cloud/collab';
 import { PresenceLayer } from './cloud/Presence';
 import { HigherOrderLayer, type HoLabel } from './HigherOrderLayer';
 import { NoteNode, NOTE_WIDTH, type NoteFlowNode } from './NoteNode';
+import { ParcelDialog } from './ParcelDialog';
 import { CopulaLayer, copulaEstimate, copulaLayout } from './CopulaLayer';
 import { ModeratorLayer, type ModerationLabel } from './ModeratorLayer';
 import { PathEdge, type PathFlowEdge } from './PathEdge';
@@ -92,9 +93,9 @@ const TOOLS: { id: Tool; label: string; key: string; icon: typeof IconPointer }[
   { id: 'correlate', label: 'Correlation', key: 'R', icon: IconCorrelate },
 ];
 
-interface EmptyProps { onImport: () => void; onSample: (which: ExampleId) => void }
+interface EmptyProps { onImport: () => void }
 
-export function Canvas({ onImport, onSample }: EmptyProps) {
+export function Canvas({ onImport }: EmptyProps) {
   const model = useStore((s) => s.model);
   const selection = useStore((s) => s.selection);
   const tool = useStore((s) => s.tool);
@@ -484,6 +485,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
 
   // Everything the figure export draws, with the same values as the diagram.
   const [figureOpen, setFigureOpen] = useState(false);
+  const [parcelFor, setParcelFor] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const figureInput = useCallback((): FigureInput => {
     const m = st().model;
@@ -491,11 +493,13 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     const nameOf = (id: string) => byId.get(id)?.name ?? '';
     const lbl = (v: number | null | undefined, p: number | null = null, fixed = false): FigureLabel | null => (v === null || v === undefined ? null : { value: v, p, fixed });
     const constructs = m.constructs.map((c) => {
-      const marker = method === 'cbsem' && !c.covariate && c.indicators.length > 0 ? c.indicators[0] : null;
+      // (the same held values as the canvas: diagramLabels.ts heldLoading)
+      const esem = !!m.esem?.blocks.some((b) => b.constructs.includes(c.id));
       const indicators = c.indicators.map((name) => {
         const v = display?.indicator(name, c.name) ?? null;
-        const fixed = (display && 'fixed' in display && !!display.fixed?.(name)) || name === marker;
-        return v === null ? (fixed ? { value: 1, p: null, fixed: true } : null) : { value: v, p: null, fixed };
+        const held = heldLoading(c, method, name, esem);
+        const fixed = (display && 'fixed' in display && !!display.fixed?.(name)) || held !== undefined;
+        return v === null ? (held !== undefined ? { value: held, p: null, fixed: true } : null) : { value: v, p: null, fixed };
       });
       // CPA: observed variables (single items, mean scores) are drawn as rectangles, latent ones as ellipses.
       const observed = method === 'process' && !(c.latent && c.indicators.length > 1);
@@ -513,7 +517,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
     const moderations = m.moderations.flatMap((mo) => {
       const p = m.paths.find((q) => q.id === mo.path);
       const s = p && byId.get(p.from), t = p && byId.get(p.to), mod = byId.get(mo.moderator);
-      const seg = s && t ? pathSegment(s, t) : null;
+      // (a reciprocal pair: each arrow on its own side, as the moderator layer draws it)
+      const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p!.from, p!.to)) : null;
       if (!seg || !mod) return [];
       const l = moderationLabel(mo.id);
       if (mod.id === p!.from) {
@@ -748,6 +753,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       case 'remove-indicator': if (target.kind === 'indicator') s.removeIndicator(target.construct, target.name); break;
       case 'reverse-path': if (target.kind === 'path') s.reversePath(target.id); break;
       case 'add-quadratic': if (target.kind === 'path') s.addQuadratic(target.id); break;
+      case 'make-parcels': if (target.kind === 'construct') setParcelFor(target.id); break;
       case 'toggle-copula': if (target.kind === 'path') s.toggleCopula(target.id); break;
       case 'delete-path': if (target.kind === 'path') s.deleteItems([], [target.id]); break;
       case 'delete-moderation': if (target.kind === 'moderation') s.deleteItems([], [], [target.id]); break;
@@ -980,7 +986,8 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
       </ReactFlow>
       <ExampleBanner where="model" />
 
-      {empty && (
+      {/* (hidden once the Construct tool is chosen, so that the first click on the canvas places a construct) */}
+      {empty && tool !== 'construct' && (
         <div className="canvas-empty">
           <div className="card">
             <IconSparkle size={22} style={{ color: 'var(--accent)' }} />
@@ -1005,11 +1012,15 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
               </>
             ) : (
               <>
-                <p>Import your data, one column per variable: CSV, SPSS, Stata or Excel, or a labelled covariance matrix. Then draw a model to estimate by PLS-SEM, CB-SEM or conditional process analysis (CPA), or run an analysis from the Analyses tab. Or explore a ready-made example.</p>
+                <p>Draw your model now and import the data when you have it, or import first: one column per variable, CSV, SPSS, Stata or Excel, or a labelled covariance matrix. Then estimate by PLS-SEM, CB-SEM or conditional process analysis (CPA).</p>
+                <ol className="steps">
+                  <li>Choose <b>Construct</b> in the toolbar and click the canvas; double-click to name it.</li>
+                  <li>In its panel, type the names of its indicators (the data’s column names).</li>
+                  <li>Drag from a construct’s right-hand dot to another construct to add a path.</li>
+                </ol>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button className="btn primary" onClick={onImport}><IconUpload /> Import data</button>
-                  <button className="btn" onClick={() => onSample('customer')}>Load example</button>
-                  <button className="btn" onClick={() => onSample('emse')} title="Stol, Schaarschmidt & Goldblit (2022), EMSE: CB-SEM from published covariance matrices">CB-SEM example</button>
+                  <button className="btn" onClick={() => void importModelSyntax()} disabled={readOnly} title="lavaan or Mplus MODEL syntax: factors, regressions, covariances">Paste model syntax</button>
                 </div>
               </>
             )}
@@ -1022,6 +1033,7 @@ export function Canvas({ onImport, onSample }: EmptyProps) {
           onAction={(a) => onMenuAction(menu.target, a)} onClose={closeMenu} />
       )}
       {figureOpen && <FigurePanel input={figureInput} onClose={() => setFigureOpen(false)} />}
+      {parcelFor && model.constructs.some((k) => k.id === parcelFor) && <ParcelDialog c={model.constructs.find((k) => k.id === parcelFor)!} onClose={() => setParcelFor(null)} />}
       {templatesOpen && <ProcessGallery onClose={() => setTemplatesOpen(false)} />}
       {method === 'process' && !empty && <ProcessBar onTemplates={() => setTemplatesOpen(true)} />}
       <ModelVersionBadge />

@@ -16,7 +16,7 @@ import { AuthDialog } from './components/cloud/AuthDialog';
 import { useAuth } from './cloud/auth';
 import { handleUrlParams } from './cloud/invites';
 import './cloud/keep';
-import { autosave, importCsv, loadSample, migrateAutosave, openProject, saveProject } from './io';
+import { autosave, importCsv, migrateAutosave, openProject, saveProject } from './io';
 import { useStore } from './store';
 
 function isTyping(e: KeyboardEvent) {
@@ -130,7 +130,7 @@ export default function App() {
           <div className="data-col" inert={workspace === 'analyses'}><DataPanel /></div>
           {/* The diagram stays mounted (and laid out) behind the Data tab, so switching back keeps its viewport. */}
           <main className="center" inert={workspace !== 'model'}>
-            <Canvas onImport={() => void importCsv()} onSample={(w) => void loadSample(w)} />
+            <Canvas onImport={() => void importCsv()} />
             <ResultsPanel height={resultsHeight} onResize={setResultsHeight} />
           </main>
           <div className="inspector-col" inert={workspace !== 'model'}><Inspector /></div>

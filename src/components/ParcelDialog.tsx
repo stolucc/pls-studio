@@ -31,7 +31,8 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
   const groups = useMemo((): string[][] => {
     if (method === 'balance') return loadings ? balanceParcels(loadings, k) : [];
     if (method === 'random') return randomParcels(c.indicators, parcelSizes(n, k), mulberry32(seed));
-    return Array.from({ length: k }, (_, p) => c.indicators.filter((i) => (manual[i] ?? 0) === p));
+    // (an item assigned to a parcel beyond a lowered count goes to the last one, never out of every parcel)
+    return Array.from({ length: k }, (_, p) => c.indicators.filter((i) => Math.min(manual[i] ?? 0, k - 1) === p));
   }, [method, loadings, k, seed, manual, c.indicators, n]);
   const loadingOf = (item: string) => loadings?.find((x) => x.item === item)?.loading ?? null;
   const base = c.name.replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
@@ -41,6 +42,7 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
   const create = () => {
     if (!data || !info) return;
     if (groups.some((g) => g.length === 0)) { setError('Every parcel needs at least one item.'); return; }
+    if (groups.flat().length !== n) { setError('Every item must be in exactly one parcel.'); return; }
     let d = data, i2 = info;
     try {
       for (let p = 0; p < groups.length; p++) {
@@ -84,7 +86,7 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
           <table className="grid parcel-table"><thead><tr><th>Item</th><th>Loading</th><th>Parcel</th></tr></thead><tbody>
             {c.indicators.map((i) => (
               <tr key={i}><td>{i}</td><td className="num">{loadingOf(i) === null ? '' : fmt(loadingOf(i)!)}</td>
-                <td><select className="select" aria-label={`Parcel of ${i}`} value={manual[i] ?? 0} onChange={(e) => setManual({ ...manual, [i]: Number(e.target.value) })}>
+                <td><select className="select" aria-label={`Parcel of ${i}`} value={Math.min(manual[i] ?? 0, k - 1)} onChange={(e) => setManual({ ...manual, [i]: Number(e.target.value) })}>
                   {Array.from({ length: k }, (_, p) => <option key={p} value={p}>{names[p] ?? `P${p + 1}`}</option>)}
                 </select></td></tr>
             ))}

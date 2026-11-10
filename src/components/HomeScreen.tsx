@@ -572,7 +572,7 @@ export function HomeScreen() {
           <h2>Start</h2>
           <div className="start-grid">
             <button className="start-card" onClick={() => void newProject()}>
-              <IconNew size={22} /><b>New project</b><span>Empty model; import data next.</span>
+              <IconNew size={22} /><b>New project</b><span>Draw a model; import data now or later.</span>
             </button>
             <button className="start-card" onClick={() => void newProjectFromData()}>
               <IconUpload size={22} /><b>New project from data</b><span>CSV with one column per indicator, or a labelled covariance matrix.</span>

@@ -21,7 +21,7 @@ beforeAll(() => {
 function renderCanvas() {
   const host = document.createElement('div');
   const root = createRoot(host);
-  act(() => root.render(<ReactFlowProvider><Canvas onImport={() => {}} onSample={() => {}} /></ReactFlowProvider>));
+  act(() => root.render(<ReactFlowProvider><Canvas onImport={() => {}} /></ReactFlowProvider>));
   const html = host.innerHTML;
   act(() => root.unmount());
   return html;
@@ -38,7 +38,20 @@ describe('a new project', () => {
       expect(html, method).toContain('PLS-SEM, CB-SEM or conditional process analysis');
       expect(html, method).toContain('Import data');
       expect(html, method).toContain('CSV, SPSS, Stata or Excel');
+      // Drawing comes first; no example buttons (examples are on the home screen).
+      expect(html, method).toContain('Draw your model now and import the data when you have it');
+      expect(html, method).toContain('type the names of its indicators');
+      expect(html, method).toContain('Paste model syntax');
+      expect(html, method).not.toMatch(/Load example|CB-SEM example/);
     }
+  });
+
+  it('steps aside once the Construct tool is chosen, so that the first click places a construct', () => {
+    useStore.getState().newProject();
+    useStore.getState().setTool('construct');
+    expect(renderCanvas()).not.toContain('Start your model');
+    useStore.getState().setTool('select');
+    expect(renderCanvas()).toContain('Start your model');
   });
 });
 

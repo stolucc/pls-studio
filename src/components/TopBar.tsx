@@ -10,7 +10,7 @@ import { switchMethod } from '../methodSwitch';
 import { AccountMenu } from './cloud/AccountMenu';
 import { PresenceBar } from './cloud/Presence';
 import { ShareDialog } from './cloud/ShareDialog';
-import { IconEye, IconHelp, IconShare, IconLogo, IconPlay, IconRedo, IconRepeat, IconUndo, IconAuto } from './icons';
+import { IconEye, IconHelp, IconShare, IconLogo, IconPlay, IconRedo, IconRepeat, IconUndo } from './icons';
 
 const mod = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
@@ -115,9 +115,9 @@ export function TopBar() {
         style={method === 'process' ? { visibility: 'hidden' } : undefined} aria-hidden={method === 'process'} tabIndex={method === 'process' ? -1 : undefined}>
         <IconRepeat /><span className="lbl-wide">Bootstrap</span>
       </button>
-      <button className={`btn ghost${autoCalculate ? ' on' : ''}`} aria-pressed={autoCalculate} onClick={() => setAuto(!autoCalculate)}
-        title={autoCalculate ? 'Recalculates by itself after a change to the model. Click to turn off' : 'Recalculate by itself after a change to the model'} aria-label="Auto-recalculate">
-        <IconAuto /><span className="lbl-wide">Auto</span>
+      <button className={`btn ghost auto-toggle${autoCalculate ? ' on' : ''}`} role="switch" aria-checked={autoCalculate} onClick={() => setAuto(!autoCalculate)}
+        title={autoCalculate ? 'Auto-recalculate is on: the model is recalculated after each change. Click to turn it off' : 'Auto-recalculate is off. Click to recalculate after each change to the model'} aria-label="Auto-recalculate">
+        <span className="mini-switch" aria-hidden="true" /><span className="lbl-wide">Auto</span>
       </button>
       <button className="btn primary" onClick={() => void calculateHere('estimate')} disabled={(target.kind === 'card' ? cardRunning : !!job || !hasModel)}
         title={target.kind === 'card' ? `Run the selected card: ${target.title} (${mod}↵)` : target.kind === 'run' ? `Open ${target.title} on the Model tab and calculate it (${mod}↵)`

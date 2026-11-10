@@ -18,12 +18,20 @@ export interface LabelSource {
 /** A fixed value as written by the user (no trailing zeros). */
 export const fixedText = (v: number) => String(Number(v.toPrecision(6)));
 
+/**
+ * The value an indicator's loading is held at (CB-SEM): the user's fixed value, or 1 for the marker (the first indicator,
+ * unless the factor is scaled by its variance or rotated in an ESEM block). Undefined: estimated. Shared by the canvas and
+ * the figure export.
+ */
+export function heldLoading(c: Pick<Construct, 'indicators' | 'covariate' | 'fixedLoadings' | 'scaling'>, method: Method, name: string, esem = false): number | undefined {
+  if (method !== 'cbsem' || c.covariate || c.indicators.length === 0) return undefined;
+  const marker = !esem && c.scaling !== 'variance' ? c.indicators[0] : null;
+  return c.fixedLoadings?.[name] ?? (name === marker ? 1 : undefined);
+}
+
 export function indicatorLabels(c: Pick<Construct, 'indicators' | 'type' | 'covariate' | 'fixedLoadings' | 'scaling'> & { name?: string }, method: Method, src: LabelSource | null, esem = false, format: (v: number) => string = (v) => v.toFixed(3)): (IndicatorLabel | null)[] | null {
   const cb = method === 'cbsem' && !c.covariate && c.indicators.length > 0;
-  // ESEM factors are identified by their variance (and rotation), not a marker.
-  const marker = cb && !esem && c.scaling !== 'variance' ? c.indicators[0] : null;
-  // The value a loading is held at: the user's, or 1 for the marker.
-  const held = (name: string) => (!cb ? undefined : c.fixedLoadings?.[name] ?? (name === marker ? 1 : undefined));
+  const held = (name: string) => heldLoading(c, method, name, esem);
   const heldLabel = (name: string): IndicatorLabel | null => { const h = held(name); return h === undefined ? null : { text: fixedText(h), level: 'ok', fixed: true }; };
   if (!src) return cb ? c.indicators.map(heldLabel) : null;
   return c.indicators.map((name): IndicatorLabel | null => {

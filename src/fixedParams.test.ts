@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { menuFor } from './components/canvasMenu';
-import { indicatorLabels } from './diagramLabels';
+import { heldLoading, indicatorLabels } from './diagramLabels';
 import { DEFAULT_SETTINGS, parseProject, serializeProject, toSpec, validateModel, type ModelState } from './model/project';
 import { useStore } from './store';
 
@@ -220,5 +220,21 @@ describe('two-level models', () => {
     s().setMultigroup(null);
     s().setOrdered(['a1'], true);
     expect(errors().some((m) => /cannot be combined with ESEM blocks, ordinal indicators/.test(m))).toBe(true);
+  });
+});
+
+describe('held loadings, as the canvas and the figure export both draw them', () => {
+  const c = { indicators: ['a', 'b', 'c'], fixedLoadings: { c: 0.8 } };
+  it('the marker is held at 1 and a fixed loading at its value, in CB-SEM only', () => {
+    expect(['a', 'b', 'c'].map((n) => heldLoading(c, 'cbsem', n))).toEqual([1, undefined, 0.8]);
+    expect(heldLoading(c, 'pls', 'a')).toBeUndefined();
+  });
+  it('a factor scaled by its variance, or rotated in an ESEM block, has no marker', () => {
+    expect(heldLoading({ ...c, scaling: 'variance' as const }, 'cbsem', 'a')).toBeUndefined();
+    expect(heldLoading(c, 'cbsem', 'a', true)).toBeUndefined();
+    expect(heldLoading({ ...c, scaling: 'variance' as const }, 'cbsem', 'c')).toBe(0.8);
+  });
+  it('an observed covariate holds nothing', () => {
+    expect(heldLoading({ ...c, covariate: true }, 'cbsem', 'a')).toBeUndefined();
   });
 });

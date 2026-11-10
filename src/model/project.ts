@@ -541,6 +541,15 @@ export function indicatorsDrawnElsewhere(model: Pick<ModelState, 'constructs'>):
   return out;
 }
 
+/** Why an indicator typed by name cannot be added to this construct (null: it can). Names need no data yet. */
+export function indicatorNameError(name: string, c: Pick<Construct, 'indicators'>): string | null {
+  const n = name.trim();
+  if (!n) return 'Type the name of the data column.';
+  if (n.length > 64) return 'A column name has at most 64 characters.';
+  if (c.indicators.includes(n)) return `${n} is already an indicator of this construct.`;
+  return null;
+}
+
 /** CB-SEM: indicators that load on several factors (outside ESEM blocks too: the A, C and E factors of a twin model). */
 export function sharedIndicators(model: Pick<ModelState, 'constructs'>): Set<string> {
   const seen = new Set<string>(), shared = new Set<string>();

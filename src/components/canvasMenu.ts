@@ -16,7 +16,7 @@ export type MenuTarget =
   | { kind: 'pane'; x: number; y: number };
 
 export type MenuAction =
-  | 'edit' | 'make-composite' | 'make-factor' | 'correlate' | 'delete-construct'
+  | 'edit' | 'make-composite' | 'make-factor' | 'make-parcels' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'toggle-copula' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
   | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'toggle-free-path' | 'make-esem' | 'leave-esem'
   | 'held-variance' | 'held-intercept' | 'held-threshold' | 'group-values';
@@ -24,6 +24,9 @@ export type MenuAction =
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
 export interface MenuContext { method: Method; readOnly: boolean; /** Constructs selected on the canvas. */ selected?: string[] }
+
+/** A CB-SEM common factor of at least four items can be measured by parcels (ParcelDialog). */
+export const canParcel = (c: { type: string; covariate?: boolean; components?: string[]; indicators: string[] }) => c.type === 'factor' && !c.covariate && !c.components?.length && c.indicators.length >= 4;
 
 /** Exploratory SEM: make a block of the selected factors, or take this one out of its block. */
 function esemItems(model: ModelState, edit: boolean, id: string, selected: string[]): (MenuItem | false)[] {
@@ -92,6 +95,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         // Covariates enter every equation of a conditional process model.
         edit && proc && !c.covariate && !model.paths.some((p) => p.from === c.id || p.to === c.id) && !model.moderations.some((m) => m.moderator === c.id) && { action: 'make-covariate', label: 'Use as covariate' },
         edit && proc && !!c.covariate && { action: 'unmake-covariate', label: 'Stop using as covariate' },
+        edit && cb && canParcel(c) && { action: 'make-parcels', label: 'Make parcels…' },
         edit && cb && { action: 'correlate', label: endogenous ? 'Correlate disturbance (ζ) with…' : 'Correlate with…' },
         cb && varianceItem(model, edit, c.id),
         ...esemItems(model, edit && cb, c.id, ctx.selected ?? []),

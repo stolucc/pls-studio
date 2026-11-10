@@ -137,3 +137,22 @@ describe('recalculating by itself', () => {
     expect(resultsKey(base)).toBe(resultsKey({ ...base, settings: DEFAULT_SETTINGS }));
   });
 });
+
+describe('indicators typed by name', () => {
+  it('need a name, are trimmed, and are not added twice to one construct', async () => {
+    const { indicatorNameError } = await import('../model/project');
+    const c = { indicators: ['sat1'] };
+    expect(indicatorNameError('  ', c)).toMatch(/Type the name/);
+    expect(indicatorNameError('sat1', c)).toMatch(/already an indicator/);
+    expect(indicatorNameError(' sat1 ', c)).toMatch(/already an indicator/);
+    expect(indicatorNameError('x'.repeat(65), c)).toMatch(/64/);
+    expect(indicatorNameError('sat2', c)).toBeNull();
+  });
+  it('give a model that is drawn before there is data, and is checked against the columns once there is', async () => {
+    const { validateModel } = await import('../model/project');
+    const m = { constructs: [C('a', 0, { indicators: ['sat1', 'sat2'] }), C('b', 400, { indicators: ['loy1', 'loy2'] })], paths: [{ id: 'p', from: 'a', to: 'b' }], moderations: [] };
+    expect(validateModel(m, null, { method: 'pls', consistent: false }).filter((i) => /not in the current dataset/.test(i.message))).toEqual([]);
+    const data = { names: ['sat1', 'sat2', 'loy1'], cols: [0, 1, 2].map(() => Float64Array.from([1, 2, 3, 4])) };
+    expect(validateModel(m, data, { method: 'pls', consistent: false }).map((i) => i.message)).toContainEqual(expect.stringMatching(/Indicator "loy2" \(in "B"\) is not in the current dataset/));
+  });
+});

@@ -3,10 +3,11 @@ import { ComputeSettings } from './ComputeSettings';
 import { STUDENTIZED_INNER } from '../engine/bootstrap';
 import { useCompute } from '../rengine/compute';
 import { fmt, fmtP } from '../format';
-import { endogenousIds, INTERACTION_METHOD_NAMES, validateModel, type Construct, type InteractionMethod, type Settings } from '../model/project';
+import { endogenousIds, indicatorNameError, INTERACTION_METHOD_NAMES, validateModel, type Construct, type InteractionMethod, type Settings } from '../model/project';
 import { useFreshResults, useStore } from '../store';
 import { OrderedPicker } from './OrderedPicker';
 import { ParcelButton } from './ParcelDialog';
+import { canParcel } from './canvasMenu';
 import { IconAlert, IconSwap, IconTrash, IconX, IconSide } from './icons';
 import { switchMethod } from '../methodSwitch';
 import { exportRScript } from '../io';
@@ -26,6 +27,33 @@ function NameField({ c }: { c: Construct }) {
   return (
     <input className="input" value={v} maxLength={100} onChange={(e) => setV(e.target.value)} onBlur={commit}
       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setV(c.name); } }} />
+  );
+}
+
+/** An indicator by name: a model can be drawn before there is data (the names are matched with the columns on import). */
+function AddIndicator({ c }: { c: Construct }) {
+  const update = useStore((s) => s.updateConstruct);
+  const names = useStore((s) => s.data?.names);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const add = () => {
+    const why = indicatorNameError(name, c);
+    if (why) { setError(why); return; }
+    update(c.id, { indicators: [...c.indicators, name.trim()] });
+    setName(''); setError(null);
+  };
+  const missing = names && name.trim() && !names.includes(name.trim());
+  return (
+    <div className="add-indicator">
+      <div className="row2">
+        <input className="input" placeholder={names ? 'Add an indicator by name' : 'Indicator name (e.g. sat1)'} aria-label="Indicator name" value={name} maxLength={64}
+          onChange={(e) => { setName(e.target.value); setError(null); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} />
+        <button className="btn" onClick={add} disabled={!name.trim()}>Add</button>
+      </div>
+      {error ? <div className="hint" role="alert" style={{ color: 'var(--bad)' }}>{error}</div>
+        : !names ? <div className="hint">No data yet: type the names of the columns you will import; they are matched by name then.</div>
+          : missing ? <div className="hint">Not a column of the current data: the model cannot be estimated until it is.</div> : null}
+    </div>
   );
 }
 
@@ -267,6 +295,8 @@ function ConstructInspector({ c }: { c: Construct }) {
             );
           })}
         </div>
+        {!c.covariate && !c.components?.length && <AddIndicator c={c} />}
+        {method === 'cbsem' && canParcel(c) && <div style={{ marginTop: 8 }}><ParcelButton c={c} /></div>}
       </div>
       {cb && jc >= 0 && (
         <div className="section">
@@ -293,7 +323,6 @@ function ConstructInspector({ c }: { c: Construct }) {
         </div>
       )}
       <div className="section">
-        {method === 'cbsem' && c.type === 'factor' && !c.covariate && !c.components?.length && c.indicators.length >= 4 && <ParcelButton c={c} />}
         <Appearance c={c} />
         <button className="btn danger" onClick={() => del([c.id], [])}><IconTrash size={14} /> Delete construct</button>
       </div>

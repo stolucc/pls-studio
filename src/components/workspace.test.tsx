@@ -204,6 +204,15 @@ describe('workspace layout', () => {
     expect(rule('.topbar .project-name')).toMatch(/flex:\s*0 1 auto/);
   });
 
+  it('shows Auto-recalculate as a switch that says whether it is on', () => {
+    useStore.getState().setSettings({ autoCalculate: false });
+    expect(render(<TopBar />)).toMatch(/role="switch" aria-checked="false"[^>]*title="Auto-recalculate is off/);
+    useStore.getState().setSettings({ autoCalculate: true });
+    expect(render(<TopBar />)).toMatch(/class="btn ghost auto-toggle on" role="switch" aria-checked="true"[^>]*title="Auto-recalculate is on/);
+    useStore.getState().setSettings({ autoCalculate: false });
+    expect(rule('.auto-toggle.on .mini-switch')).toMatch(/background:\s*var\(--accent\)/);
+  });
+
   it('puts File, the tabs and undo/redo on the left, and the project name in the centre', () => {
     const html = render(<TopBar />);
     const left = html.slice(html.indexOf('tb-left'), html.indexOf('tb-center'));

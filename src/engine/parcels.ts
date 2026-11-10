@@ -70,7 +70,9 @@ export interface Spread { label: string; current: number; mean: number; sd: numb
 export interface AllocationResult { allocations: number; failed: number; fit: Spread[]; estimates: Spread[] }
 
 const spread = (label: string, current: number, v: number[], sig?: boolean[]): Spread => {
-  const n = v.length, mean = v.reduce((s, x) => s + x, 0) / n;
+  const n = v.length;
+  if (n === 0) return { label, current, mean: NaN, sd: NaN, min: NaN, max: NaN, percentile: NaN };
+  const mean = v.reduce((s, x) => s + x, 0) / n;
   return {
     label, current, mean, sd: n > 1 ? Math.sqrt(v.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1)) : 0, min: Math.min(...v), max: Math.max(...v),
     percentile: v.filter((x) => x <= current).length / n, ...(sig ? { significant: sig.filter(Boolean).length / n } : {}),
@@ -99,7 +101,11 @@ export async function allocationVariability(data: Dataset, spec: ModelSpec, targ
   for (let a = 0; a < opts.allocations; a++) {
     const names = [...data.names], cols = [...data.cols];
     for (const t of targets) {
-      randomParcels(t.items, t.sizes, rng).forEach((items, p) => { cols[names.indexOf(t.parcels[p])] = rowMeans(data, items); });
+      randomParcels(t.items, t.sizes, rng).forEach((items, p) => {
+        const k = names.indexOf(t.parcels[p]);
+        if (k < 0) throw new Error(`Parcel "${t.parcels[p]}" is not in the data.`);
+        cols[k] = rowMeans(data, items);
+      });
     }
     try { runs.push(fitOf({ ...data, names, cols })); } catch { failed++; }
     if (a % 5 === 4 || a === opts.allocations - 1) { progress(a + 1, opts.allocations); await new Promise((r) => setTimeout(r)); }

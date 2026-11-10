@@ -126,3 +126,14 @@ describe('held and labelled variances, intercepts and thresholds', () => {
     expect(has(per, { kind: 'correlation', id: 'k' }, 'set-label')).toBe(false);
   });
 });
+
+describe('making parcels from the menu', () => {
+  const K = (id: string, n: number, more: object = {}) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: Array.from({ length: n }, (_, i) => `${id}${i + 1}`), x: 0, y: 0, side: 'left' as const, ...more });
+  const has = (c: object, method: 'cbsem' | 'pls') => menuFor({ kind: 'construct', id: (c as { id: string }).id }, { constructs: [c as never], paths: [], moderations: [] }, { method, readOnly: false })!.items.some((i) => i.action === 'make-parcels');
+  it('is offered for a CB-SEM common factor of four or more items only', () => {
+    expect(has(K('A', 4), 'cbsem')).toBe(true);
+    expect(has(K('A', 3), 'cbsem')).toBe(false);
+    expect(has(K('A', 6), 'pls')).toBe(false);
+    expect(has(K('A', 6, { type: 'composite' }), 'cbsem')).toBe(false);
+  });
+});
