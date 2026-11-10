@@ -1,13 +1,14 @@
 // Measurement invariance cards (R/invariance.R): alignment optimisation for many
 // groups (sirt, Asparouhov & Muthén 2014) on the diagram's factors, and moderated
 // nonlinear factor analysis of binary items (mnlfa; Curran et al. 2014), and
-// longitudinal invariance of a factor measured at several occasions (semTools).
+// longitudinal invariance of a factor measured at several occasions (semTools), and
+// uniform DIF by MIMIC (lavaan).
 
 import { OrderedPicker } from '../components/OrderedPicker';
 import { InvarianceTable } from '../components/results/InvarianceTable';
-import { c, Table, type Row } from '../components/results/Table';
-import { fmt } from '../format';
-import { detectOccasions, type AlignedFactor, type AlignmentInput, type AlignmentResult, type InvFactor, type LongInvarianceInput, type LongInvarianceResult, type MnlfaInput, type MnlfaResult } from '../rengine/invariance';
+import { c, pCell, Table, type Row } from '../components/results/Table';
+import { fmt, fmtP } from '../format';
+import { detectOccasions, type AlignedFactor, type AlignmentInput, type AlignmentResult, type InvFactor, type LongInvarianceInput, type LongInvarianceResult, type MimicDifInput, type MimicDifResult, type MimicEffect, type MnlfaInput, type MnlfaResult } from '../rengine/invariance';
 import { clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -379,4 +380,82 @@ export const longInvarianceAnalysis: AnalysisType<LongInvarianceOptions, LongInv
   run: async (o, ctx) => (await engine()).longInvarianceR(rawData(ctx)!, longInvarianceInput(o, ctx)),
   script: async (o, ctx) => (await engine()).longInvarianceScriptR(rawData(ctx)!, longInvarianceInput(o, ctx)),
   summary: (o) => `${o.factor.trim() || 'F'} · ${o.occasions.length} occasions × ${o.occasions[0]?.length ?? 0} items`,
+};
+
+// ---------------------------------------------------------------- DIF by MIMIC
+
+export interface MimicDifOptions { construct: string; covariate: string; adjust: MimicDifInput['adjust']; alpha: number; free: boolean }
+const ADJUST: [MimicDifInput['adjust'], string][] = [['holm', 'Holm'], ['BH', 'Benjamini–Hochberg'], ['bonferroni', 'Bonferroni'], ['none', 'None']];
+const mimicFactor = (o: MimicDifOptions, ctx: AnalysisCtx) => modelFactors(ctx).filter((f) => f.name === o.construct);
+export const mimicDifInput = (o: MimicDifOptions, ctx: AnalysisCtx): MimicDifInput => ({ factors: mimicFactor(o, ctx), covariate: o.covariate, adjust: o.adjust, alpha: o.alpha, free: o.free, ...invLavaan(ctx) });
+
+function MimicDifForm({ options: o, set, ctx, disabled }: OptionsProps<MimicDifOptions>) {
+  const d = rawData(ctx);
+  if (!d) return <div className="empty-results">Import raw data first.</div>;
+  const inds = mimicFactor(o, ctx).flatMap((f) => f.indicators);
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <p className="hint" style={{ marginTop: 0 }}>Uniform DIF by MIMIC: the factor is regressed on a covariate (a group coded 0/1, or a continuous one such as age), and each item’s direct effect from the covariate is tested: does the item differ between groups beyond what the factor difference explains? Score tests from the model without direct effects, and one model per item with its direct path (Wald z, likelihood-ratio test), corrected for the number of items. {lavaanHint(ctx)}</p>
+      <FactorPicker single value={o.construct ? [o.construct] : []} onChange={(v) => set({ ...o, construct: v[0] ?? '' })} ctx={ctx} />
+      <ColumnSelect id="mimic-cov" label="Covariate (binary group or continuous)" value={o.covariate} columns={d.names} exclude={inds} onChange={(covariate) => set({ ...o, covariate })} />
+      <div className="field"><label>Correction of the p-values</label>
+        <div className="segmented">{ADJUST.map(([id, l]) => <button key={id} className={o.adjust === id ? 'on' : ''} onClick={() => set({ ...o, adjust: id })}>{l}</button>)}</div>
+        <div className="hint">Holm and Bonferroni control the familywise error over the items; Benjamini–Hochberg the false discovery rate (p.adjust).</div>
+      </div>
+      <NumField id="mimic-alpha" label="Significance level" value={o.alpha} lo={0.001} hi={0.5} step={0.01} onChange={(alpha) => set({ ...o, alpha })} />
+      <label className="check"><input type="checkbox" checked={o.free} onChange={(e) => set({ ...o, free: e.target.checked })} />
+        <span>Free the flagged items’ direct effects in a final model<br /><span className="hint">The factor’s difference by the covariate, corrected for that DIF (partial invariance).</span></span></label>
+    </fieldset>
+  );
+}
+
+const effectRow = (label: string, e: MimicEffect): Row => [c(label), c(e.est), c(e.se), c(e.z), pCell(e.p), c(e.std)];
+function MimicDifView({ r }: { r: MimicDifResult }) {
+  const fit = (f: MimicDifResult['fit']) => `χ² = ${fmt(f.chisq, 2)}, df = ${fmt(f.df, 0)}, CFI = ${fmt(f.cfi, 3)}, RMSEA = ${fmt(f.rmsea, 3)}, SRMR = ${fmt(f.srmr, 3)}`;
+  const adj = ADJUST.find(([id]) => id === r.adjust)?.[1] ?? r.adjust;
+  return (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>{r.factor} regressed on {r.covariate}, N = {r.n}; lavaan {r.engine.version}. Model without direct effects: {fit(r.fit)}.</p>
+      <Table title={`Uniform DIF: direct effects of ${r.covariate} on the items of ${r.factor}`} file="mimic-dif"
+        columns={['Item', 'Direct effect', 'SE', 'z', 'p (Wald)', 'Standardised', 'LR χ²', 'p (LR)', `p (${adj})`, 'Score χ²', 'p (score)']}
+        rows={r.items.map((x): Row => [c(x.item), { ...c(x.est), bold: x.flagged }, c(x.se), c(x.z), pCell(x.p), c(x.std), c(x.chisq), pCell(x.pLrt),
+          { v: fmtP(x.pAdj), cls: x.flagged ? 'bad' : 'dim', bold: x.flagged }, c(x.score ?? null), x.scoreP === undefined ? c(null) : pCell(x.scoreP)])}
+        note={`Each row: the model with that item’s direct path from ${r.covariate} (its estimate, Wald test and likelihood-ratio test against the model without it), and the score test of the same path from the model without any (lavTestScore). Flagged (bold, red): the corrected LR p below ${fmt(r.alpha, 3)} (${adj}${r.adjust === 'none' ? ', no correction' : ''}). A positive direct effect: the item scores higher with the covariate than the factor predicts. With several DIF items the one-at-a-time tests can mislead (the others contaminate the anchor); a significant one flags the item, not the cause.${r.scoreError ? ' The score tests could not be computed for this model.' : ''}`} />
+      <Table title={`${r.factor} on ${r.covariate}`} file="mimic-effect" columns={['Model', 'Estimate', 'SE', 'z', 'p', 'Standardised']}
+        rows={[effectRow('Without direct effects', r.effect), ...(r.final ? [effectRow(`With the flagged items’ direct effects (${r.flagged.length ? r.flagged.join(', ') : 'none flagged'})`, r.final.effect)] : [])]}
+        note="The factor’s difference by the covariate (impact). Freeing the flagged items’ direct effects corrects it for their DIF." />
+      {r.final && r.final.direct.length > 0 && (
+        <Table title="Direct effects in the final model" file="mimic-final" columns={['Item', 'Estimate', 'SE', 'z', 'p', 'Standardised']}
+          rows={r.final.direct.map((x) => effectRow(x.item, x))} note={`Final model: ${fit(r.final.fit)}.`} />
+      )}
+    </div>
+  );
+}
+
+export const mimicDifAnalysis: AnalysisType<MimicDifOptions, MimicDifResult> = {
+  id: 'mimicdif', title: 'DIF by MIMIC', sub: 'uniform differential item functioning: each item’s direct effect from a covariate (lavaan)', group: 'Measurement',
+  defaults: (ctx) => ({ construct: modelFactors(ctx).find((f) => f.indicators.length >= 3)?.name ?? '', covariate: '', adjust: 'holm', alpha: 0.05, free: true }),
+  parseOptions: (raw) => (isObj(raw) ? {
+    construct: name(raw.construct), covariate: name(raw.covariate), adjust: oneOf(raw.adjust, ['holm', 'BH', 'bonferroni', 'none'] as const, 'holm'),
+    alpha: clampNum(raw.alpha, 0.001, 0.5, 0.05), free: raw.free === undefined ? true : raw.free === true,
+  } : null),
+  Options: MimicDifForm,
+  View: ({ result }) => <MimicDifView r={result} />,
+  blocked: (o, ctx) => {
+    if (!o.construct) return rawData(ctx) && ctx.model?.constructs.length ? 'Choose a factor.' : factorsBlocked([], [], ctx, 'DIF by MIMIC');
+    const fs = mimicFactor(o, ctx);
+    const b = factorsBlocked(fs, [o.construct], ctx, 'DIF by MIMIC');
+    if (b) return b;
+    if (fs[0].indicators.length < 3) return 'DIF screening needs a factor with at least three indicators.';
+    if (!o.covariate) return 'Choose a covariate.';
+    if (fs[0].indicators.includes(o.covariate)) return 'The covariate is an indicator of the factor.';
+    const m = missingColumns(ctx, [o.covariate], 'DIF by MIMIC');
+    if (m) return m;
+    const cats = rawData(ctx)!.categories?.[o.covariate];
+    return cats && cats.length > 2 ? `${o.covariate} has ${cats.length} categories: choose a binary group or a continuous covariate (or make dummy columns).` : null;
+  },
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, [...mimicFactor(o, ctx).flatMap((f) => f.indicators), o.covariate], [JSON.stringify(mimicDifInput(o, ctx))]),
+  run: async (o, ctx) => (await engine()).mimicDifR(rawData(ctx)!, mimicDifInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).mimicDifScriptR(rawData(ctx)!, mimicDifInput(o, ctx)),
+  summary: (o) => `${o.construct || '…'} on ${o.covariate || '…'} · ${ADJUST.find(([id]) => id === o.adjust)?.[1]}${o.free ? ' · flagged freed' : ''}`,
 };

@@ -124,6 +124,33 @@ export async function longInvarianceR(data: Dataset, i: LongInvarianceInput): Pr
 }
 export const longInvarianceScriptR = (data: Dataset, i: LongInvarianceInput) => rScript('ps_long_invariance', longInvarianceRequest(data, i), 'lavaan');
 
+/** DIF by MIMIC: one factor regressed on `covariate`, each item's direct effect screened; `free`: a final model with the flagged items' direct effects. */
+export interface MimicDifInput { factors: InvFactor[]; covariate: string; adjust: 'holm' | 'BH' | 'bonferroni' | 'none'; alpha: number; free: boolean; estimator: 'ML' | 'MLR'; missing: MissingTreatment }
+export interface MimicEffect { est: number; se: number; z: number; p: number; std: number }
+export interface MimicDifItem extends MimicEffect {
+  item: string;
+  /** Likelihood-ratio test of the direct effect (1 df), its p corrected for the number of items, and whether it is flagged. */
+  chisq: number; df: number; pLrt: number; pAdj: number; flagged: boolean;
+  /** Score test from the model without direct effects (absent when lavaan could not compute it). */
+  score?: number; scoreP?: number;
+}
+export interface MimicDifResult {
+  n: number; factor: string; covariate: string; adjust: MimicDifInput['adjust']; alpha: number;
+  effect: MimicEffect; fit: { chisq: number; df: number; cfi: number; rmsea: number; srmr: number };
+  items: MimicDifItem[]; flagged: string[];
+  final: { effect: MimicEffect; fit: MimicDifResult['fit']; direct: (MimicEffect & { item: string })[] } | null;
+  scoreError: boolean; warnings: string[]; engine: REngineInfo;
+}
+export const mimicDifRequest = (data: Dataset, i: MimicDifInput) => invRequest(data, 'mimicdif', [...i.factors.flatMap((f) => f.indicators), i.covariate], i);
+export async function mimicDifR(data: Dataset, i: MimicDifInput): Promise<MimicDifResult> {
+  const r = await rCall<Record<string, any>>('ps_mimic_dif', mimicDifRequest(data, i), 'lavaan');
+  return {
+    ...r, items: arr<any>(r.items).map((x) => ({ ...x, flagged: x.flagged === true, ...(typeof x.score === 'number' ? {} : { score: undefined, scoreP: undefined }) })),
+    flagged: rStrings(r.flagged), final: r.final ? { ...r.final, direct: arr<any>(r.final.direct) } : null, scoreError: r.scoreError === true, warnings: rStrings(r.warnings),
+  } as MimicDifResult;
+}
+export const mimicDifScriptR = (data: Dataset, i: MimicDifInput) => rScript('ps_mimic_dif', mimicDifRequest(data, i), 'lavaan');
+
 /**
  * Repeated items recognised from column names with an occasion suffix after "_" or "." (x1_t1, x1_t2; anx.1, anx.2;
  * item_w3): one indicator set per occasion, in occasion order, holding the items measured at every occasion (in the

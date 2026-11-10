@@ -237,3 +237,74 @@ ps_long_invariance <- function(req_json, export = FALSE) {
       list(factor = factor_pars(fits[[i]])))),
     warnings = env$.warnings, engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools")), lavaan = as.character(utils::packageVersion("lavaan")))))
 }
+
+#' Uniform DIF by MIMIC (Muthen 1989; Woods 2009): the factor regressed on a covariate (a binary group or a continuous
+#' one); each item's direct effect from the covariate screened (1) by a score test from the model without direct
+#' effects (lavTestScore, add = ...) and (2) by one model per item with its direct path (Wald z and a likelihood-ratio
+#' test against the model without it, scaled for MLR), the LR p-values corrected for the number of items (p.adjust).
+#' Optionally the items flagged at alpha get their direct effects in a final model, which gives the factor's
+#' difference corrected for that DIF.
+ps_mimic_dif <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  cov <- req$covariate
+  if (!(is.character(cov) && length(cov) == 1 && nzchar(cov))) stop("Choose a covariate.")
+  f <- ps_inv_factors(req, cov)
+  if (length(f$fv) != 1) stop("Choose one factor.")
+  if (length(f$iv[[1]]) < 3) stop("DIF screening needs a factor with at least three indicators.")
+  if (cov %in% unlist(f$inds)) stop("The covariate is an indicator of the factor.")
+  adjust <- req$adjust %||% "holm"
+  if (!(is.character(adjust) && length(adjust) == 1 && adjust %in% c("holm", "BH", "bonferroni", "none"))) stop("Invalid p-value correction in the request.")
+  alpha <- ps_number(req$alpha %||% 0.05, "significance level")
+  if (alpha <= 0 || alpha >= 1) stop("The significance level must be between 0 and 1.")
+  free <- isTRUE(req$free)
+  o <- ps_long_options(req)
+  s <- f$fv; items <- f$iv[[1]]; x <- unname(f$fr$v[cov])
+  call <- function(model) sprintf("sem(%s, data = data, estimator = \"%s\"%s%s)", model, o$est, ps_lavaan_missing(req$missing), o$extra)
+  body <- c("suppressPackageStartupMessages(library(lavaan))",
+    if (!o$fiml) ps_missing_code(req$missing),
+    sprintf("data <- data[!is.na(data$%s), , drop = FALSE]  # (cases without the covariate are left out)", x),
+    "# MIMIC model: the factor regressed on the covariate, no direct effects on the items",
+    "base <- '", f$lines, sprintf("  %s ~ %s", s, x), "'",
+    sprintf("fit0 <- %s", call("base")),
+    sprintf("items <- %s", ps_q(items)),
+    sprintf("paths <- sprintf(\"%%s ~ %s\", items)  # each item's direct effect from the covariate (uniform DIF)", x),
+    "# Score tests of the direct effects, from the model without them",
+    "score <- tryCatch(lavTestScore(fit0, add = paths)$uni, error = function(e) NULL)",
+    "# One model per item with its direct effect, tested against the model without it",
+    sprintf("fits <- lapply(paths, function(p) %s)", call("paste(base, p, sep = \"\\n\")")),
+    "lrt <- lapply(fits, function(f) lavTestLRT(fit0, f))",
+    "direct <- do.call(rbind, lapply(seq_along(items), function(k) {",
+    "  pe <- parameterEstimates(fits[[k]], standardized = TRUE)",
+    sprintf("  r <- pe[pe$op == \"~\" & pe$lhs == items[k] & pe$rhs == \"%s\", ]", x),
+    "  data.frame(item = items[k], est = r$est, se = r$se, z = r$z, p = r$pvalue, std = r$std.all,",
+    "    chisq = lrt[[k]][[\"Chisq diff\"]][2], df = lrt[[k]][[\"Df diff\"]][2], p_lrt = lrt[[k]][[\"Pr(>Chisq)\"]][2])",
+    "}))",
+    sprintf("direct$p_adj <- p.adjust(direct$p_lrt, method = \"%s\")  # corrected for the number of items", adjust),
+    sprintf("flagged <- direct$item[direct$p_adj < %s]", format(alpha, digits = 15)),
+    if (free) c("# Final model: the flagged items' direct effects freed",
+      sprintf("fit_free <- %s", call("paste(c(base, paths[match(flagged, items)]), collapse = \"\\n\")"))))
+  inputs <- list(data = f$fr$data)
+  if (export) return(paste(ps_script("DIF by MIMIC (lavaan)", "lavaan", inputs, body,
+    c("summary(fit0, standardized = TRUE)", "score", "direct", "flagged", if (free) "summary(fit_free, standardized = TRUE)")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  eff <- function(fit) {
+    pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
+    r <- pe[pe$op == "~" & pe$lhs == s & pe$rhs == x, ]
+    list(est = r$est, se = r$se, z = r$z, p = r$pvalue, std = r$std.all)
+  }
+  d <- env$direct; sc <- env$score
+  back <- f$fr$back
+  rows <- lapply(seq_len(nrow(d)), function(k) list(item = ps_back(d$item[k], back), est = d$est[k], se = d$se[k], z = d$z[k], p = d$p[k], std = d$std[k],
+    chisq = d$chisq[k], df = d$df[k], pLrt = d$p_lrt[k], pAdj = d$p_adj[k], flagged = d$p_adj[k] < alpha,
+    score = if (!is.null(sc)) sc$X2[k], scoreP = if (!is.null(sc)) sc$p.value[k]))
+  final <- if (free) {
+    pe <- lavaan::parameterEstimates(env$fit_free, standardized = TRUE)
+    dd <- pe[pe$op == "~" & pe$rhs == x & pe$lhs %in% env$flagged, ]
+    list(effect = eff(env$fit_free), fit = ps_inv_fit(env$fit_free),
+      direct = lapply(seq_len(nrow(dd)), function(k) list(item = ps_back(dd$lhs[k], back), est = dd$est[k], se = dd$se[k], z = dd$z[k], p = dd$pvalue[k], std = dd$std.all[k])))
+  } else NULL
+  ps_json(list(n = lavaan::lavInspect(env$fit0, "nobs"), factor = f$names, covariate = cov, adjust = adjust, alpha = alpha,
+    effect = eff(env$fit0), fit = ps_inv_fit(env$fit0), items = rows, flagged = I(ps_back(as.character(env$flagged), back)), final = final,
+    scoreError = is.null(sc), warnings = env$.warnings,
+    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}

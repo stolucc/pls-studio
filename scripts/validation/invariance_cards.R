@@ -81,6 +81,29 @@ for (est in c("ML", "MLR")) {
     scalarMean = pe$est[pe$lhs == "d65" & pe$op == "~1"], scalarMeanSe = pe$se[pe$lhs == "d65" & pe$op == "~1"], scalarVar = pe$est[pe$lhs == "d65" & pe$op == "~~" & pe$rhs == "d65"])
 }
 
+# ---- DIF by MIMIC: Holzinger & Swineford, visual (x1-x3, x9) on sex (ML, Holm) and textual (x4-x6) on age (MLR, BH) ----
+hs <- HolzingerSwineford1939
+mimic <- function(fac, items, x, est, adjust) {
+  base <- sprintf("%s =~ %s\n%s ~ %s", fac, paste(items, collapse = " + "), fac, x)
+  f0 <- sem(base, hs, estimator = est)
+  sc <- lavTestScore(f0, add = paste(items, "~", x))$uni
+  rows <- lapply(items, function(i) {
+    f1 <- sem(paste0(base, "\n", i, " ~ ", x), hs, estimator = est)
+    pe <- parameterEstimates(f1, standardized = TRUE); r <- pe[pe$lhs == i & pe$op == "~", ]
+    a <- anova(f1, f0)
+    list(est = r$est, se = r$se, p = r$pvalue, std = r$std.all, chisq = a[["Chisq diff"]][2], pLrt = a[["Pr(>Chisq)"]][2])
+  })
+  p <- sapply(rows, `[[`, "pLrt"); padj <- p.adjust(p, adjust); flagged <- items[padj < .05]
+  pe0 <- parameterEstimates(f0); e0 <- pe0[pe0$lhs == fac & pe0$op == "~", ]
+  ff <- sem(paste(c(base, if (length(flagged)) paste(flagged, "~", x)), collapse = "\n"), hs, estimator = est)
+  pef <- parameterEstimates(ff); ef <- pef[pef$lhs == fac & pef$op == "~", ]
+  list(effect = e0$est, effectSe = e0$se, est = sapply(rows, `[[`, "est"), se = sapply(rows, `[[`, "se"), p = sapply(rows, `[[`, "p"), std = sapply(rows, `[[`, "std"),
+    chisq = sapply(rows, `[[`, "chisq"), pLrt = p, pAdj = padj, score = sc$X2, scoreP = sc$p.value, flagged = I(flagged), finalEffect = ef$est, finalEffectSe = ef$se,
+    finalChisq = unname(fitMeasures(ff, if (est == "MLR") "chisq.scaled" else "chisq")))  # (scaled for MLR, as the card reports)
+}
+out$mimicVisualSex <- mimic("visual", c("x1", "x2", "x3", "x9"), "sex", "ML", "holm")
+out$mimicTextualAge <- mimic("textual", c("x4", "x5", "x6"), "ageyr", "MLR", "BH")
+
 writeLines(toJSON(list(generated = format(Sys.time()), R = R.version.string, lavaan = as.character(packageVersion("lavaan")),
   sirt = as.character(packageVersion("sirt")), mnlfa = as.character(packageVersion("mnlfa")), cases = out), auto_unbox = TRUE, pretty = TRUE, digits = NA, null = "null", na = "null"),
   "src/engine/__fixtures__/invariance/reference.json")

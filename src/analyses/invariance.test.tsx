@@ -5,11 +5,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
-import type { AlignmentResult, LongInvarianceResult, MnlfaResult } from '../rengine/invariance';
-import { alignmentRequest, detectOccasions, longInvarianceRequest, mnlfaRequest, rows } from '../rengine/invariance';
+import type { AlignmentResult, LongInvarianceResult, MimicDifResult, MnlfaResult } from '../rengine/invariance';
+import { alignmentRequest, detectOccasions, longInvarianceRequest, mimicDifRequest, mnlfaRequest, rows } from '../rengine/invariance';
 import { ANALYSIS_TYPES } from './registry';
 import type { AnalysisCtx } from './types';
-import { alignmentAnalysis, alignmentInput, invLavaan, longInvarianceAnalysis, longInvarianceInput, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
+import { alignmentAnalysis, alignmentInput, invLavaan, longInvarianceAnalysis, longInvarianceInput, mimicDifAnalysis, mimicDifInput, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
 
 const cols = ['a1', 'a2', 'a3', 'b1', 'b2', 'g', 'x'];
 const data = { names: cols, cols: cols.map((_, k) => Float64Array.from({ length: 12 }, (_, i) => ((i * (k + 2)) % 5) + (cols[k] === 'g' ? 0 : 1))), categories: { g: ['north', 'south', 'east', 'west', 'mid'] } };
@@ -175,5 +175,48 @@ describe('longitudinal invariance card', () => {
     const html = renderToStaticMarkup(<longInvarianceAnalysis.View result={r} options={{ factor: 'Democracy', occasions: [], lag: 'all' }} current />);
     for (const s of ['Longitudinal measurement invariance of Democracy', 'ΔCFI', 'scaled, for the robust estimator', 'Factor means and variances under scalar invariance', '-0.210', 'fixed']) expect(html).toContain(s);
     expect(html).toMatch(/class="num bad"[^>]*>-0\.012/);
+  });
+});
+
+describe('DIF by MIMIC card', () => {
+  it('is in the Add menu under Measurement, starts from a factor with three indicators, and parses its options', () => {
+    expect(ANALYSIS_TYPES.find((t) => t.id === 'mimicdif')?.group).toBe('Measurement');
+    const d = mimicDifAnalysis.defaults(ctx);
+    expect(d).toEqual({ construct: 'A', covariate: '', adjust: 'holm', alpha: 0.05, free: true });
+    expect(mimicDifAnalysis.parseOptions(d)).toEqual(d);
+    expect(mimicDifAnalysis.parseOptions({ construct: 1, adjust: 'fdr', alpha: 2, free: 'yes' })).toEqual({ construct: '', covariate: '', adjust: 'holm', alpha: 0.5, free: false });
+    expect(mimicDifAnalysis.parseOptions(null)).toBeNull();
+  });
+  it('says what it still needs', () => {
+    const d = { ...mimicDifAnalysis.defaults(ctx), covariate: 'x' };
+    expect(mimicDifAnalysis.blocked(d, ctx)).toBeNull();
+    expect(mimicDifAnalysis.blocked({ ...d, construct: '' }, ctx)).toMatch(/Choose a factor/);
+    expect(mimicDifAnalysis.blocked({ ...d, construct: '' }, bare)).toMatch(/Draw a measurement model/);
+    expect(mimicDifAnalysis.blocked({ ...d, construct: 'B' }, ctx)).toMatch(/at least three/);
+    expect(mimicDifAnalysis.blocked({ ...d, covariate: '' }, ctx)).toMatch(/covariate/);
+    expect(mimicDifAnalysis.blocked({ ...d, covariate: 'a2' }, ctx)).toMatch(/indicator/);
+    expect(mimicDifAnalysis.blocked({ ...d, covariate: 'g' }, ctx)).toMatch(/5 categories/);
+    expect(mimicDifAnalysis.blocked({ ...d, covariate: 'gone' }, ctx)).toMatch(/gone/);
+  });
+  it('sends the factor, the covariate and the settings', () => {
+    const o = { ...mimicDifAnalysis.defaults(ctx), covariate: 'x', adjust: 'BH' as const };
+    const i = mimicDifInput(o, ctx);
+    expect(i).toMatchObject({ factors: [{ name: 'A', indicators: ['a1', 'a2', 'a3'] }], covariate: 'x', adjust: 'BH', alpha: 0.05, free: true, estimator: 'ML', missing: 'casewise' });
+    expect(mimicDifRequest(data, i).data.names).toEqual(['a1', 'a2', 'a3', 'x']);
+    const f = mimicDifAnalysis.fingerprint(o, ctx)!;
+    expect(mimicDifAnalysis.fingerprint({ ...o, free: false }, ctx)).not.toBe(f);
+    expect(mimicDifAnalysis.summary(o)).toBe('A on x · Benjamini–Hochberg · flagged freed');
+  });
+  it('shows the direct effects, the flagged items and the corrected factor difference', () => {
+    const e = (est: number, p = 0.5) => ({ est, se: 0.1, z: est / 0.1, p, std: est / 2 });
+    const item = (it: string, est: number, pAdj: number) => ({ item: it, ...e(est, pAdj / 2), chisq: 3, df: 1, pLrt: pAdj / 2, pAdj, flagged: pAdj < 0.05, score: 2.9, scoreP: 0.09 });
+    const fit = { chisq: 13.6, df: 5, cfi: 0.95, rmsea: 0.075, srmr: 0.044 };
+    const r: MimicDifResult = {
+      n: 301, factor: 'visual', covariate: 'sex', adjust: 'holm', alpha: 0.05, effect: e(-0.25, 0.02), fit, items: [item('x1', 0.1, 0.67), item('x9', 0.324, 0.016)], flagged: ['x9'],
+      final: { effect: e(-0.319, 0.004), fit, direct: [{ item: 'x9', ...e(0.324, 0.004) }] }, scoreError: false, warnings: [], engine: { package: 'lavaan', version: '0.7.3' },
+    };
+    const html = renderToStaticMarkup(<mimicDifAnalysis.View result={r} options={mimicDifAnalysis.defaults(ctx)} current />);
+    for (const s of ['Uniform DIF: direct effects of sex on the items of visual', 'p (Holm)', 'With the flagged items’ direct effects (x9)', '-0.319', 'Direct effects in the final model']) expect(html).toContain(s);
+    expect(html).toMatch(/class="bad"[^>]*>0\.016/);
   });
 });
