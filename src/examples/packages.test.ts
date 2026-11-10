@@ -130,7 +130,7 @@ it('an example opens with its documented settings, not the previous project’s;
 describe('documented settings', () => {
   const ex = (id: string) => PACKAGE_EXAMPLES.find((e) => e.id === id)!.settings;
   it('cSEM examples use csem()’s defaults (PLSc, path scheme, 1e-05, 100 iterations, 499 resamples)', () => {
-    for (const id of ['csem-threecf', 'csem-satisfaction', 'csem-gender', 'csem-2ndorder', 'genpathmox-csibank']) {
+    for (const id of ['csem-threecf', 'csem-satisfaction', 'csem-gender', 'csem-2ndorder', 'csem-ordpls', 'genpathmox-csibank']) {
       expect(ex(id), id).toMatchObject({ plsPackage: 'cSEM', consistent: true, scheme: 'path', stopExp: 5, maxIter: 100, bootSamples: 499 });
     }
   });
@@ -222,6 +222,7 @@ describe('the messages an example is expected to raise', () => {
       'plspm-rebus': ['note: items of Price and Quality correlate with mixed signs'],
       'plspm-fimix': ['note: items of Price and Quality correlate with mixed signs'],
       'csem-yoo': ['note: correlate with mixed signs'],
+      'csem-ordpls': ['note: correlate with mixed signs'],
       'mice-nhanes': ['note: observed variances are \\(at least\\) a factor'],
       'bollen-felson': ['note: observed variances are \\(at least\\) a factor'],
       'bollen-accessibility': ['warning: not positive definite'],

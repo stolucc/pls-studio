@@ -47,8 +47,9 @@ function Overview({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null 
   return (
     <>
       <div className="stat-cards">
-        <div className="stat-card" title={pls.approach && pls.approach !== 'PLS-PM' ? 'cSEM’s weighting approach for every construct (Weighting approach, under Calculated by)' : undefined}>
-          <div className="k">Algorithm</div><div className="v">{pls.approach === 'GSCA' ? 'GSCA' : pls.approach === 'PCA' ? 'PCA' : pls.approach === 'unit' ? 'Sum scores' : pls.consistent ? 'PLSc' : 'PLS'}</div></div>
+        <div className="stat-card" title={pls.ordinal?.length ? `Ordinal PLS (Schuberth, Henseler & Dijkstra, 2018; cSEM): weights, loadings and paths from polychoric and polyserial correlations of the ordinal indicators ${pls.ordinal.join(', ')}. The construct scores are the weighted standardised category codes.`
+          : pls.approach && pls.approach !== 'PLS-PM' ? 'cSEM’s weighting approach for every construct (Weighting approach, under Calculated by)' : undefined}>
+          <div className="k">Algorithm</div><div className="v">{pls.approach === 'GSCA' ? 'GSCA' : pls.approach === 'PCA' ? 'PCA' : pls.approach === 'unit' ? 'Sum scores' : `${pls.ordinal?.length ? 'Ord' : ''}${pls.consistent ? 'PLSc' : 'PLS'}`}</div></div>
         <div className="stat-card"><div className="k">Observations</div><div className="v">{pls.n}</div></div>
         {pls.imputations && <div className="stat-card" title="Estimates averaged over the imputed data sets (Rubin's point estimate)"><div className="k">Imputed data sets</div><div className="v">{pls.imputations}</div></div>}
         <div className="stat-card"><div className="k">Iterations</div><div className="v">{pls.iterations}</div></div>

@@ -84,7 +84,8 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
 
   const cover = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
   // Factors emit arrows to their indicators; composites are formed by them.
-  const ordinal = new Set(useStore((st) => (st.settings.method === 'cbsem' ? st.model.ordered : undefined)) ?? NO_ORDERED);
+  const ordinalPls = useStore((st) => st.settings.method === 'pls');
+  const ordinal = new Set(useStore((st) => (st.settings.method === 'cbsem' || st.settings.method === 'pls' ? st.model.ordered : undefined)) ?? NO_ORDERED);
   const esem = useStore((st) => st.settings.method === 'cbsem' && !!st.model.esem?.blocks.some((b) => b.constructs.includes(c.id)));
   const composite = c.type === 'composite';
   // Conditional process analysis: variables are observed (a single item, or the mean of several items)
@@ -130,7 +131,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
                 <text className="itext" x={ind.x + ind.w / 2} y={ind.y + ind.h / 2 + 4} textAnchor="middle">{ind.name}</text>
                 {ordinal.has(ind.name) && (
                   <text className="iord" x={ind.x + ind.w - 3} y={ind.y + 8} textAnchor="end">
-                    ord<title>Ordinal (ordered categorical): thresholds and polychoric correlations, WLSMV</title>
+                    ord<title>{ordinalPls ? 'Ordinal (ordered categorical): polychoric correlations, OrdPLS/OrdPLSc (cSEM)' : 'Ordinal (ordered categorical): thresholds and polychoric correlations, WLSMV'}</title>
                   </text>
                 )}
                 {label && (

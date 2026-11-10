@@ -232,7 +232,11 @@ export function plsModelBlocked(ctx: AnalysisCtx): string | null {
   if (!ds) return 'Import raw data first (not a covariance matrix).';
   if (!ctx.model?.paths.length) return 'Draw a PLS path model first (Model tab).';
   const err = validateModel(ctx.model, ds, { ...ctx.settings, method: 'pls' }).find((i) => i.level === 'error');
-  return err ? `Fix the model first: ${err.message}` : null;
+  if (err) return `Fix the model first: ${err.message}`;
+  // Ordinal PLS (OrdPLS/OrdPLSc) is cSEM's estimation and bootstrap; the assessments here are for continuous indicators.
+  const m = ctx.model;
+  const ord = (m.ordered ?? []).filter((i) => m.constructs.some((c) => !c.categorical && c.indicators.includes(i)));
+  return ord.length ? `This assessment is for continuous indicators; ${ord.join(', ')} ${ord.length === 1 ? 'is' : 'are'} ordinal (OrdPLS: the estimation and bootstrap on the Model tab). Treat ${ord.length === 1 ? 'it' : 'them'} as continuous (right-click) to run it.` : null;
 }
 
 /** Fingerprint of the model, its PLS options and indicator columns, plus what else an assessment reads. */

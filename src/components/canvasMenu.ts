@@ -115,7 +115,8 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         edit && cb && held === undefined && !isMarker && { action: 'set-label', label: owner2?.loadingLabels?.[target.name] ? `Label (${owner2.loadingLabels[target.name]})…` : 'Label (for equality constraints)…' },
         edit && cb && { action: 'correlate', label: 'Correlate error (ε) with…' },
         ...groupItems(model, edit && cb, target.construct, target.name, isMarker),
-        edit && cb && !owner2?.covariate && { action: 'toggle-ordinal', label: model.ordered?.includes(target.name) ? 'Treat as continuous' : 'Treat as ordinal (categorical)' },
+        // (PLS: ordinal indicators make cSEM estimate OrdPLS/OrdPLSc.)
+        edit && (cb || (pls && !owner2?.categorical)) && !owner2?.covariate && { action: 'toggle-ordinal', label: model.ordered?.includes(target.name) ? 'Treat as continuous' : 'Treat as ordinal (categorical)' },
         // Held or labelled: the error variance (a parameter of an ordinal indicator only under the theta parameterisation),
         // the intercept (with the constant: a mean structure) or the thresholds of an ordinal indicator.
         ...(edit && cb && owner2 && !owner2.covariate && owner2.indicators.length > 1 ? [

@@ -5,8 +5,9 @@
 
 #' allow_hoc / allow_mi: second-order constructs (cSEM's two-stage approach) and
 #' multiple imputation are accepted only by the estimation and the bootstrap;
-#' other analyses refuse them.
-ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
+#' other analyses refuse them. allow_ord: ordinal indicators (OrdPLS/OrdPLSc, cSEM),
+#' likewise accepted by the estimation and the bootstrap only.
+ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = FALSE) {
   if (isTRUE(req$missing %in% c("fiml", "pairwise", "twostage", "robusttwostage"))) stop("FIML, pairwise deletion and the two-stage approach are CB-SEM (lavaan) options; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.")
   if (identical(req$missing, "mi") && !allow_mi) stop("This analysis is not available with multiple imputation; choose mean replacement or casewise deletion for it.")
   pkg <- req$package
@@ -52,6 +53,19 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
     if (length(mods) && any(n$cname[hoc] %in% unlist(lapply(mods, function(m) c(m$from, m$moderator))))) stop("Interactions with a second-order construct are not supported.")
   }
   if (gsca && pkg != "cSEM") stop("This weighting approach is estimated with cSEM; choose cSEM.")
+  # Ordinal indicators: OrdPLS / OrdPLSc (Schuberth, Henseler & Dijkstra 2018), cSEM's estimator for ordered factors.
+  ord <- intersect(as.character(unlist(req$model$ordered)), n$all_inds)
+  if (length(ord)) {
+    if (!allow_ord) stop("This analysis is for continuous indicators; ordinal PLS (OrdPLS/OrdPLSc) is available for the estimation and the bootstrap. Treat the indicators as continuous (right-click an indicator) to run it.")
+    if (pkg != "cSEM") stop("seminr has no ordinal PLS: OrdPLS and OrdPLSc (polychoric correlations) are estimated with cSEM. Choose cSEM, or treat the indicators as continuous.")
+    if (identical(req$missing, "mean") && anyNA(inputs$data[unname(n$iv[ord])])) stop("Mean replacement would put non-category values into ordinal indicators that have missing values; choose casewise deletion.")
+    if (identical(req$missing, "mi")) stop("Ordinal PLS (OrdPLS/OrdPLSc) is available with casewise deletion; multiple imputation is for continuous indicators.")
+    if (gsca) stop("Ordinal indicators are estimated by OrdPLS (PLS path modeling on polychoric correlations); choose PLS-PM as the weighting approach.")
+    if (length(mods)) stop("Interaction terms are products of construct scores, which OrdPLS does not estimate from the polychoric correlations; remove the interactions or treat the indicators as continuous.")
+    if (any(hoc)) stop("Second-order constructs are not available with ordinal indicators (the two-stage approach uses construct scores); treat the indicators as continuous.")
+    few <- ord[vapply(ord, function(i) length(unique(stats::na.omit(inputs$data[[n$iv[[i]]]]))) < 2, TRUE)]
+    if (length(few)) stop(sprintf("%s %s fewer than two categories; an ordinal indicator needs two or more.", paste(few, collapse = ", "), if (length(few) == 1) "has" else "have"))
+  }
   # Interaction terms: seminr builds them by the two-stage, orthogonalising or product-indicator approach
   # (interaction_term's method); cSEM has one approach, products of the construct scores.
   int_method <- vapply(mods, function(m) { v <- m$method %||% "two_stage"; if (!v %in% c("two_stage", "orthogonal", "product_indicator")) stop("Invalid interaction method in the request."); v }, "")
@@ -77,6 +91,10 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
     dom <- unlist(lapply(seq_len(k0), function(j) { d <- cons[[j]]$dominant; if (is.character(d) && length(d) == 1 && d %in% n$inds[[j]] && !hoc[j]) setNames(unname(n$iv[d]), cv[j]) }))
     dom_arg <- if (length(dom)) sprintf(", .dominant_indicators = c(%s)", paste(sprintf("%s = \"%s\"", names(dom), dom), collapse = ", ")) else ""
     body <- c("suppressPackageStartupMessages(library(cSEM))", ps_missing_code(req$missing),
+      if (length(ord)) c(sprintf("# Ordinal indicators: OrdPLS%s (Schuberth, Henseler & Dijkstra 2018). As ordered factors they make cSEM use", if (isTRUE(o$consistent)) "c" else ""),
+        "# polychoric (two ordinal) and polyserial (ordinal and continuous) correlations instead of Pearson's.",
+        sprintf("ordinal <- c(%s)", paste(ps_q(unname(n$iv[ord])), collapse = ", ")),
+        "data[ordinal] <- lapply(data[ordinal], ordered)"),
       if (length(mods)) "# Interaction terms (X.M): products of the construct scores (cSEM's nonlinear PLS)",
       "model <- '", paste0("  ", lines), "'",
       if (gsca) c(GSCA = "# Generalized structured component analysis (GSCA; Hwang & Takane 2004) instead of PLS path modeling.",
@@ -122,15 +140,16 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE) {
       sprintf("fit <- estimate_pls(data, measurement, structure, inner_weights = %s, maxIt = %d, stopCriterion = %d)",
         if (o$scheme == "factor") "path_factorial" else "path_weighting", as.integer(o$maxIter), as.integer(round(-log10(o$tolerance)))))
   } else stop("Unknown PLS package: ", pkg)
-  list(pkg = pkg, n = n, cv = cv, k0 = k0, type = type, mode = mode, mods = mods, int_l = int_l, inputs = inputs, body = body, o = o, hoc = hoc, comps = comps, two = two, repeated = repeated, hoc_approach = hoc_approach)
+  list(pkg = pkg, n = n, cv = cv, k0 = k0, type = type, mode = mode, mods = mods, int_l = int_l, inputs = inputs, body = body, o = o, hoc = hoc, comps = comps, two = two, repeated = repeated, hoc_approach = hoc_approach, ord = ord)
 }
 
 ps_pls <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE)
+  b <- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE, allow_ord = TRUE)
   if (export) {
     report <- if (b$pkg == "cSEM") c("summarize(fit)", "assess(fit)") else c("summary(fit)")
-    title <- if (isTRUE(b$o$consistent)) sprintf("Consistent PLS (%s)", b$pkg) else sprintf("PLS-SEM (%s)", b$pkg)
+    title <- if (length(b$ord)) sprintf("Ordinal PLS (OrdPLS%s, cSEM)", if (isTRUE(b$o$consistent)) "c" else "")
+      else if (isTRUE(b$o$consistent)) sprintf("Consistent PLS (%s)", b$pkg) else sprintf("PLS-SEM (%s)", b$pkg)
     if (identical(req$missing, "mi")) {
       # Multiple imputation: the model in every imputed data set; PLS Studio averages the estimates.
       ms <- ps_mi_settings(req)
@@ -343,6 +362,8 @@ ps_pls_out <- function(req, b, env) {
       method = if (b$pkg == "seminr") mods[[q]]$method %||% "two_stage" else "two_stage")),
     # How the constructs were weighted (PLS-PM with each construct's mode, or GSCA / PCA / sum scores for all) and second-order constructs estimated.
     approach = b$o$approach %||% "PLS-PM", hocApproach = if (any(b$hoc)) b$hoc_approach else NULL,
+    # Ordinal indicators (OrdPLS/OrdPLSc: polychoric and polyserial correlations), by the user's names.
+    ordinal = if (length(b$ord)) as.list(b$ord) else NULL,
     fSquare = fsq, vifInner = vif, vifOuter = vif_outer,
     scores = lapply(seq_len(K), function(j) unname(scores[, j])),
     # (cSEM's two-stage approach always corrects a second-order common factor in stage 2 and says so; the script explains it.)

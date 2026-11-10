@@ -28,6 +28,10 @@ describe('PLS-SEM assessment cards', () => {
     expect(plsModelBlocked(ctx({ data: null }))).toContain('Import raw data');
   });
 
+  it('are for continuous indicators: ordinal PLS is the estimation and bootstrap only', () => {
+    expect(plsModelBlocked(ctx({ model: { ...model, ordered: ['a1', 'a2'] } }))).toBe('This assessment is for continuous indicators; a1, a2 are ordinal (OrdPLS: the estimation and bootstrap on the Model tab). Treat them as continuous (right-click) to run it.');
+  });
+
   it('are stale when the model, the PLS settings or its indicators change', () => {
     const f = predictAnalysis.fingerprint({ folds: 10, repetitions: 10 }, ctx());
     expect(f).toBeTruthy();

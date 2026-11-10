@@ -154,3 +154,29 @@ describe('sampling weights in PLS-SEM', () => {
     expect(msgs({ engine: 'builtin' }, d, { ...m, copulas: [{ id: 'c', path: 'p' }] } as ModelState)).toContain('error: Gaussian copulas cannot be combined with sampling weights.');
   });
 });
+
+// Ordinal indicators in PLS: OrdPLS/OrdPLSc through cSEM, refused where it is not available.
+describe('ordinal PLS (OrdPLS/OrdPLSc)', () => {
+  const m: ModelState = { constructs: [C('X', 'X', ['x1', 'x2']), C('Y', 'Y', ['y1', 'y2'])], paths: [{ id: 'p', from: 'X', to: 'Y' }], moderations: [], ordered: ['x1', 'x2'] };
+  const full = cols(['x1', 'x2', 'y1', 'y2'], 40, (k, i) => 1 + ((i * 7 + k * 3 + (i >> 2) * (k + 1)) % 5));
+  const gap = { ...full, cols: full.cols.map((c, k) => (k === 0 ? Float64Array.from(c, (v, i) => (i === 3 ? NaN : v)) : c)) };
+  const errs = (s: Partial<Settings>, model = m, data: Dataset = full) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'pls', ...s }).filter((i) => i.level === 'error').map((i) => i.message);
+  it('is valid with cSEM, casewise deletion or mean replacement without gaps, PLS or PLSc', () => {
+    expect(errs({ engine: 'r', plsPackage: 'cSEM', missing: 'casewise' })).toEqual([]);
+    expect(errs({ engine: 'r', plsPackage: 'cSEM', missing: 'mean', consistent: true })).toEqual([]);
+    expect(validateModel(m, full, { ...DEFAULT_SETTINGS, method: 'pls' }).map((i) => i.message).join(' ')).not.toMatch(/as continuous\./);
+  });
+  it('refuses the built-in engine and seminr, mean replacement with gaps, MI, other approaches, interactions', () => {
+    expect(errs({ engine: 'builtin' })[0]).toMatch(/x1, x2 are ordinal: ordinal PLS .* is estimated by cSEM/);
+    expect(errs({ engine: 'r', plsPackage: 'seminr' })[0]).toMatch(/estimated by cSEM/);
+    expect(errs({ engine: 'r', missing: 'mean' }, m, gap)).toEqual(['Mean replacement would put non-category values into ordinal indicators that have missing values; choose casewise deletion.']);
+    expect(errs({ engine: 'r', missing: 'mi' })).toContain('Ordinal PLS (OrdPLS/OrdPLSc) is available with casewise deletion; multiple imputation is for continuous indicators.');
+    expect(errs({ engine: 'r', missing: 'casewise', plsApproach: 'GSCA' }).join(' ')).toMatch(/choose PLS-PM/);
+    const mod: ModelState = { ...m, constructs: [...m.constructs, C('M', 'M', ['m1'])], moderations: [{ id: 'mo', moderator: 'M', path: 'p' }] };
+    expect(errs({ engine: 'r', missing: 'casewise' }, mod, cols(['x1', 'x2', 'y1', 'y2', 'm1'], 40, (k, i) => 1 + ((i * 7 + k * 3 + (i >> 2) * (k + 1)) % 5))).join(' ')).toMatch(/interaction terms .* not available with ordinal PLS/);
+  });
+  it('ignores a categorical variable’s column (it travels as dummies)', () => {
+    const cat: ModelState = { ...m, constructs: [C('X', 'X', ['x1'], { categorical: 'indicator' }), C('Y', 'Y', ['y1', 'y2'])], ordered: ['x1'] };
+    expect(errs({ engine: 'builtin' }, cat).join(' ')).not.toMatch(/ordinal/);
+  });
+});

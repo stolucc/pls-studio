@@ -98,7 +98,7 @@ function runR(kind: JobKind, key: string) {
         const by = `${r.engine.package} ${r.engine.version}`;
         if (!r.converged) t.toast('error', `${by}: did not converge in ${r.iterations} iterations. Interpret results with care.`);
         else if (r.warnings.length) t.toast('error', `${by}: ${r.warnings.length === 1 ? r.warnings[0] : `${r.warnings.length} warnings`} (see Messages in the results panel).`, { log: false });
-        else t.toast('success', `${by}: ${r.consistent ? 'PLSc' : 'PLS'} converged in ${r.iterations} iterations.`);
+        else t.toast('success', `${by}: ${r.ordinal?.length ? 'Ord' : ''}${r.consistent ? 'PLSc' : 'PLS'} converged in ${r.iterations} iterations.`);
       }).catch(failed);
     }
     return;
@@ -221,6 +221,7 @@ export function run(kind: JobKind) {
   // Studentized intervals (an inner bootstrap per sample) run in its workers too.
   const studentized = s.settings.method === 'pls' && kind === 'boot' && s.settings.bootInterval === 'studentized';
   const builtInTerms = !cb && s.settings.method === 'pls' && !!(spec.copulas?.length || spec.threeWay?.length || spec.weights || spec.constructs.some((c) => c.predefinedWeights));
+  if (studentized && spec.ordered?.length) { fail('Studentized intervals run in the built-in engine, which has no ordinal PLS (OrdPLS): choose percentile or BCa intervals (cSEM).'); return; }
   if (s.settings.engine === 'r' && !builtInTerms && !studentized) { runR(kind, key); return; }
 
   if (kind === 'estimate') {

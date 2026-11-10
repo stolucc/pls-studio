@@ -36,3 +36,15 @@ describe('PLS request', () => {
     expect(() => plsRequest(loadData(c), { ...toSpec(c), weights: 'w' }, opts, 'seminr')).toThrow(/no sampling weights/);
   });
 });
+
+describe('ordinal PLS (OrdPLS/OrdPLSc)', () => {
+  it('sends the ordinal indicators with the model and keeps them on the result', () => {
+    const c = cases.find((k) => k.name === 'pls_csem_threecommonfactors')!;
+    const spec = { ...toSpec(c), ordered: ['y11', 'y12'] };
+    const req = plsRequest(loadData(c), spec, { scheme: 'path', consistent: true, missing: 'casewise', tolerance: 1e-7, maxIter: 300 }, 'cSEM');
+    expect(req.model.ordered).toEqual(['y11', 'y12']);
+    const raw = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'plsc_csem_threecommonfactors.r.json'), 'utf8'));
+    expect(parsePlsOutput({ ...raw, ordinal: ['y11', 'y12'] }).ordinal).toEqual(['y11', 'y12']);
+    expect(parsePlsOutput(raw).ordinal).toBeUndefined();
+  });
+});
