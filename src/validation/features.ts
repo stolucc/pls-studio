@@ -94,6 +94,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/tests': native('Basic statistics: t-tests, ANOVA, correlations, contingency tables', 'Basic statistics', ['stats'], script('tests.R', 'desktop R')),
   'rengine/correlationPolychoric': native('Polychoric correlations', 'Basic statistics', ['lavaan'], script('correlation_polychoric.R', 'desktop lavaan and psych::polychoric')),
   'rengine/bayes': native('Bayesian tests', 'Bayesian', ['BayesFactor'], script('bayes.R', 'numerical integration'), script('bayes_native.R', 'desktop BayesFactor')),
+  'rengine/inlavaan': native('Approximate Bayesian SEM (INLAvaan)', 'Bayesian', ['INLAvaan'], script('inlavaan.R', 'direct INLAvaan calls in desktop R, and blavaan’s MCMC')),
   'analyses/cards': native('Analysis cards end to end', 'Analyses', [], { label: 'the native reference fixtures, through each card' }),
   'data/readFile': native('Reading SPSS, Stata and Excel files', 'Data', ['haven', 'readxl'], { label: 'R’s own iris and mtcars' }),
 
