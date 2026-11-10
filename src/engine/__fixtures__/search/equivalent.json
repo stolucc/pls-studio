@@ -1,0 +1,59 @@
+{
+  "versions": {
+    "lavaan": "0.7.3",
+    "R": "R version 4.6.2 (2026-10-29)"
+  },
+  "S": [
+    [4422.25, -75.81, 477.204, -111.3875, -332.3936],
+    [-75.81, 1444, 48.944, -292.79, -379.8784],
+    [477.204, 48.944, 338.56, -80.132, -333.39328],
+    [-111.3875, -292.79, -80.132, 1122.25, 711.6472],
+    [-332.3936, -379.8784, -333.39328, 711.6472, 3903.7504]
+  ],
+  "names": ["exercise", "hardy", "fitness", "stress", "illness"],
+  "n": 373,
+  "fits": [
+    {
+      "name": "model",
+      "syntax": "fitness ~ exercise\nstress ~ hardy\nillness ~ fitness + stress\nexercise ~~ hardy",
+      "chisq": 11.1074643821734,
+      "df": 5
+    },
+    {
+      "name": "a",
+      "syntax": "hardy ~ exercise\nfitness ~ exercise\nstress ~ hardy\nillness ~ fitness + stress",
+      "chisq": 11.1074643821734,
+      "df": 5
+    },
+    {
+      "name": "b",
+      "syntax": "exercise ~ hardy\nfitness ~ exercise\nstress ~ hardy\nillness ~ fitness + stress",
+      "chisq": 11.1074643823456,
+      "df": 5
+    },
+    {
+      "name": "c",
+      "syntax": "hardy ~ stress\nexercise ~ hardy\nfitness ~ exercise\nillness ~ fitness + stress",
+      "chisq": 11.1074643823403,
+      "df": 5
+    },
+    {
+      "name": "d",
+      "syntax": "exercise ~ hardy\nfitness ~ exercise\nillness ~ fitness + stress\nhardy ~~ stress",
+      "chisq": 11.1074643826372,
+      "df": 5
+    },
+    {
+      "name": "e",
+      "syntax": "exercise ~ fitness\nhardy ~ exercise\nstress ~ hardy\nillness ~ fitness + stress",
+      "chisq": 11.1074643821681,
+      "df": 5
+    },
+    {
+      "name": "f",
+      "syntax": "hardy ~ exercise\nstress ~ hardy\nillness ~ fitness + stress\nexercise ~~ fitness",
+      "chisq": 11.1074643821707,
+      "df": 5
+    }
+  ]
+}

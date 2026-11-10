@@ -74,3 +74,59 @@ ps_cb_specsearch <- function(req_json, export = FALSE) {
       warning = if (nzchar(env$warned[i])) ps_flat(env$warned[i]) else NULL)),
     warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }
+
+#' The model syntax lines of a built model (between model <- ' and ').
+ps_model_lines <- function(b) {
+  i <- match("model <- '", b$body)
+  j <- if (is.na(i)) NA else i + match("'", b$body[-seq_len(i)])
+  if (is.na(j)) stop("The model syntax could not be found.")
+  b$body[seq_len(j - i - 1) + i]
+}
+
+#' Equivalent models confirmed by their fit: the model on the canvas and each alternative (the paths and covariances
+#' of the structural model replaced, the rest as on the canvas) fitted with the same data, estimator and options;
+#' equivalent models have the same chi-square and df (and log-likelihood).
+ps_cb_equivalent <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "Fitting equivalent models", raw = FALSE)
+  variants <- req$variants
+  if (!length(variants)) stop("No alternative models to fit.")
+  if (length(variants) > 50) stop("At most 50 alternative models.")
+  refit <- sub("^fit <- sem\\(model,", "sem(m,", b$call)
+  if (identical(refit, b$call)) stop("Fitting equivalent models is not available for this model.")
+  texts <- c(list(ps_model_lines(b)), lapply(variants, function(v) {
+    r2 <- req
+    r2$model$paths <- v$paths
+    r2$model$covariances <- v$covariances
+    b2 <- ps_cb_build(r2)
+    if (!identical(b2$call, b$call)) stop("An alternative model needs other lavaan options than the model; it cannot be compared.")
+    ps_model_lines(b2)
+  }))
+  names(texts) <- c("model", sprintf("alternative_%d", seq_along(variants)))
+  body <- c(b$body,
+    "# ---- The model and its equivalent alternatives (Lee & Hershberger's replacing rules), each fitted alike ----",
+    sprintf("models <- c(%s)", paste(sprintf("%s = %s", names(texts), vapply(texts, function(t) encodeString(paste(trimws(t), collapse = "\n"), quote = '"'), "")), collapse = ",\n  ")),
+    "# Each model from lavaan's default and from simple starting values, the better (lower) minimum kept: a",
+    "# reparameterised model can stop at a local minimum from one of them.",
+    sprintf("fit_from <- function(m) %s", refit),
+    if (grepl("start = ", refit, fixed = TRUE)) "fit_simple <- function(m) NULL" else sprintf("fit_simple <- function(m) %s", sub("\\)$", ", start = \"simple\")", refit)),
+    "fit_model <- function(m) {",
+    "  fits <- Filter(function(f) !is.null(f) && lavInspect(f, \"converged\"), list(tryCatch(fit_from(m), error = function(e) NULL), tryCatch(fit_simple(m), error = function(e) NULL)))",
+    "  if (!length(fits)) return(NULL)",
+    "  fits[[which.min(vapply(fits, function(f) fitMeasures(f, \"fmin\"), 0))]]",
+    "}",
+    "measures <- c(\"npar\", \"chisq\", \"df\", \"logl\")",
+    "equivalent <- t(vapply(models, function(m) {",
+    "  f <- fit_model(m)",
+    "  if (is.null(f)) return(c(converged = 0, setNames(rep(NA_real_, length(measures)), measures)))",
+    "  fm <- fitMeasures(f); fm <- setNames(fm[measures], measures)",
+    "  c(converged = as.numeric(lavInspect(f, \"converged\")), fm)",
+    "}, numeric(length(measures) + 1)))")
+  if (export) return(paste(ps_script(sprintf("The model and %d equivalent alternatives (lavaan)", length(variants)), "lavaan", b$inputs, body,
+    "print(equivalent)"), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  E <- env$equivalent
+  ps_json(list(fits = lapply(seq_len(nrow(E)), function(i) list(converged = isTRUE(E[i, "converged"] == 1), npar = E[i, "npar"], chisq = E[i, "chisq"], df = E[i, "df"], logl = E[i, "logl"])),
+    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}

@@ -1,6 +1,8 @@
-// Model search and modification through R (R/search.R) on Bollen's Political Democracy model (lavaan's ?sem).
-// The specification search fixes left-out arrows at zero in the full model's parameter table; every one of its
-// models must fit exactly as that model written out and fitted on its own (scripts/validation/specsearch.R).
+// Model search and modification through R (R/search.R). The specification search (Bollen's Political Democracy
+// model, lavaan's ?sem) fixes left-out arrows at zero in the full model's parameter table; every one of its models
+// must fit exactly as that model written out and fitted on its own (scripts/validation/specsearch.R). Equivalent
+// models (Roth et al.'s path model, Kline's data): the replacing rules must give the six alternatives written by hand
+// in scripts/validation/equivalent.R, each with the model's chi-square and df.
 // Run natively: WEBR_TESTS=1 PS_NATIVE_R=1 npx vitest run src/rengine/search.webr.test.ts
 
 import { readFileSync } from 'node:fs';
@@ -9,7 +11,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall } from './bridge';
 import type { CbCall } from './cbExtras';
-import { specSearchR, specSearchScriptR, type ArrowRef } from './search';
+import { equivalentFitsR, equivalentFitsScriptR, specSearchR, specSearchScriptR, type ArrowRef } from './search';
+import { alternativesOf, sameFit } from '../analyses/equivalent';
+import { toSpec, type ModelState } from '../model/project';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
@@ -59,5 +63,60 @@ describe('specification search (lavaan)', () => {
     await expect(specSearchR(call(), [{ type: 'path', from: 'dem65', to: 'ind60' }])).rejects.toThrow(/not a free parameter/);
     await expect(specSearchR(call(), [{ type: 'path', from: 'nope', to: 'dem65' }])).rejects.toThrow(/Unknown construct/);
     await expect(specSearchR({ ...call(), estimator: 'ULS' }, optional)).rejects.toThrow(/maximum-likelihood/);
+  }, 900_000);
+});
+
+describe('equivalent models (lavaan)', () => {
+  const ref = fixture('equivalent');
+  const vars: string[] = ref.names;
+  const V = (id: string) => ({ id, name: id[0].toUpperCase() + id.slice(1), type: 'factor' as const, mode: 'A' as const, indicators: [id], x: 0, y: 0, side: 'left' as const });
+  // Roth et al. (1989): observed variables (single indicators without error), as Kline's path model
+  const roth: ModelState = {
+    constructs: vars.map(V), moderations: [],
+    paths: [['exercise', 'fitness'], ['hardy', 'stress'], ['fitness', 'illness'], ['stress', 'illness']].map(([from, to], i) => ({ id: `p${i}`, from, to })),
+    correlations: [{ id: 'k', kind: 'construct', a: 'exercise', b: 'hardy' }],
+  };
+  const data: Dataset = { names: vars, cols: [], moments: { S: ref.S, n: ref.n } };
+  const cbCall = (): CbCall => ({ data, spec: toSpec(roth), missing: 'casewise', estimator: 'ML', interaction: 'product' });
+  // lavaan syntax of an alternative, as scripts/validation/equivalent.R writes it
+  const syntaxOf = (paths: { from: string; to: string }[], covs: { a: string; b: string }[]) => {
+    const to = [...new Set(paths.map((p) => p.to))];
+    return [...to.map((t) => `${t} ~ ${paths.filter((p) => p.to === t).map((p) => p.from).join(' + ')}`), ...covs.map((k) => `${k.a} ~~ ${k.b}`)];
+  };
+  const norm = (lines: string[]) => lines.map((l) => (l.includes('~~') ? l.split(' ~~ ').sort().join(' ~~ ') : l.replace(/~ (.*)$/, (_m, r: string) => `~ ${r.split(' + ').sort().join(' + ')}`))).sort().join('\n');
+
+  it('gives exactly the six hand-written alternatives of Roth et al.’s model, each with its chi-square and df (native lavaan)', async () => {
+    const { alternatives } = alternativesOf(roth, 50);
+    expect(alternatives).toHaveLength(6);
+    const want = ref.fits.filter((f: { name: string }) => f.name !== 'model').map((f: { syntax: string }) => norm(f.syntax.split('\n')));
+    const got = alternatives.map((a) => norm(syntaxOf(a.paths, a.correlations.filter((k) => !k.zero))));
+    expect(got.sort()).toEqual(want.sort());
+    const variants = alternatives.map((a) => { const s = toSpec({ ...roth, paths: a.paths, correlations: a.correlations }); return { paths: s.paths, covariances: s.covariances }; });
+    const r = await equivalentFitsR(cbCall(), variants);
+    expect(r.fits).toHaveLength(7);
+    for (const f of r.fits) {
+      expect(f.converged).toBe(true);
+      expect(f.df).toBe(5);
+      expect(f.chisq!).toBeCloseTo(ref.fits[0].chisq, 6);
+      expect(sameFit(r.fits[0], f)).toBe(true);
+    }
+    const script = await equivalentFitsScriptR(cbCall(), variants.slice(0, 2));
+    expect(script).toContain('alternative_2 = ');
+    expect(script).toContain('fit_simple <- function(m) sem(m, sample.cov = S, sample.nobs = N, estimator = "ML", auto.cov.y = FALSE, start = "simple")');
+  }, 900_000);
+
+  it('the Political Democracy triangle: every configuration of its saturated block fits alike', async () => {
+    const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+    const pdm: ModelState = {
+      constructs: [C('ind60', ['x1', 'x2', 'x3']), C('dem60', ['y1', 'y2', 'y3', 'y4']), C('dem65', ['y5', 'y6', 'y7', 'y8'])], moderations: [],
+      paths: [{ id: 'a', from: 'ind60', to: 'dem60' }, { id: 'b', from: 'ind60', to: 'dem65' }, { id: 'c', from: 'dem60', to: 'dem65' }],
+      correlations: [{ id: 'k1', kind: 'indicator', a: 'y1', b: 'y5' }],
+    };
+    const { alternatives } = alternativesOf(pdm, 50);
+    expect(alternatives).toHaveLength(12);
+    const variants = alternatives.map((a) => { const s = toSpec({ ...pdm, paths: a.paths, correlations: a.correlations }); return { paths: s.paths, covariances: s.covariances }; });
+    const r = await equivalentFitsR({ data: pd, spec: toSpec(pdm), missing: 'casewise', estimator: 'ML', interaction: 'product' }, variants);
+    for (const f of r.fits.slice(1)) expect(sameFit(r.fits[0], f), JSON.stringify(f)).toBe(true);
+    expect(r.fits[0].df).toBe(40);
   }, 900_000);
 });

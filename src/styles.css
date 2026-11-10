@@ -651,6 +651,11 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .cov-layer.picking .err { pointer-events: all; cursor: pointer; }
 .cov-layer.picking .err:hover .err-circle, .err.picked .err-circle { stroke: var(--accent); stroke-width: 2.2; }
 .cor-line { stroke: var(--cor); stroke-width: 1.6; fill: none; }
+/* Equivalent models: small diagrams side by side. */
+.equivalent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.equivalent-figure { margin: 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: #fff; }
+.equivalent-figure img { width: 100%; height: auto; display: block; }
+.equivalent-figure figcaption { font-size: 12px; margin-top: 6px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .cor.optional .cor-line { stroke: var(--warn); stroke-dasharray: 9 3 2 3; }
 .cor-hit { stroke: transparent; stroke-width: 14; fill: none; pointer-events: stroke; cursor: pointer; }
 .cor-head { fill: var(--cor); pointer-events: none; }

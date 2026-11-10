@@ -36,7 +36,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/ordinalFit': native('Sample polychoric correlations (SAMPSTAT) and bivariate fit (TECH10)', 'CB-SEM', ['lavaan'], script('ordinal_fit.R', 'desktop lavaan, psych::polychoric and a computation by hand')),
   'rengine/cbComposite': native('Composites in CB-SEM', 'CB-SEM', ['lavaan'], script('cb_composite.R', 'desktop lavaan')),
   'rengine/cbExtras': native('Bollen–Stine bootstrap, Wald tests, factor-score weights', 'CB-SEM', ['lavaan'], script('cbextras.R', 'desktop lavaan')),
-  'rengine/search': native('Specification search', 'CB-SEM', ['lavaan'], script('specsearch.R', 'desktop lavaan, each model written out and fitted on its own')),
+  'rengine/search': native('Specification search, equivalent models', 'CB-SEM', ['lavaan'], script('specsearch.R', 'desktop lavaan, each model written out and fitted on its own'), script('equivalent.R', 'desktop lavaan, the equivalent alternatives written out by hand')),
   'rengine/complex': native('Cluster-robust standard errors (TYPE = COMPLEX)', 'CB-SEM', ['lavaan'], script('complex.R', 'desktop lavaan')),
   'rengine/constraints': native('Equality constraints, defined parameters', 'CB-SEM', ['lavaan'], script('categorical_fiml.R', 'desktop lavaan')),
   'rengine/esem': native('Exploratory SEM and bifactor rotations', 'CB-SEM', ['lavaan'], script('esem.R', 'desktop lavaan'), script('bifactor.R', 'desktop lavaan and psych::omegaFromSem')),

@@ -4,6 +4,7 @@
 
 import { rCall, rScript, rStrings } from './bridge';
 import type { CbCall } from './cbExtras';
+import type { ModelSpec } from '../engine/types';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
@@ -30,3 +31,21 @@ export async function specSearchR(c: CbCall, optional: ArrowRef[]): Promise<Spec
   };
 }
 export const specSearchScriptR = (c: CbCall, optional: ArrowRef[]) => rScript('ps_cb_specsearch', req(c, { optional }), 'lavaan');
+
+// ---------- equivalent models ----------
+
+/** An alternative's structural model: its paths and covariances (the rest of the model as in `c.spec`). */
+export type ModelVariant = Pick<ModelSpec, 'paths' | 'covariances'>;
+export interface VariantFit { converged: boolean; npar: number | null; chisq: number | null; df: number | null; logl: number | null }
+export interface EquivalentFitsRaw { fits: VariantFit[]; warnings: string[]; engine: REngineInfo }
+const variantsOf = (v: ModelVariant[]) => v.map((x) => ({ paths: x.paths, covariances: x.covariances ?? [] }));
+
+/** The model (first) and each alternative, fitted alike. */
+export async function equivalentFitsR(c: CbCall, variants: ModelVariant[]): Promise<EquivalentFitsRaw> {
+  const r = await rCall<Record<string, any>>('ps_cb_equivalent', req(c, { variants: variantsOf(variants) }), 'lavaan');
+  return {
+    fits: arr<Record<string, unknown>>(r.fits).map((f) => ({ converged: f.converged === true, npar: num(f.npar), chisq: num(f.chisq), df: num(f.df), logl: num(f.logl) })),
+    warnings: rStrings(r.warnings), engine: r.engine,
+  };
+}
+export const equivalentFitsScriptR = (c: CbCall, variants: ModelVariant[]) => rScript('ps_cb_equivalent', req(c, { variants: variantsOf(variants) }), 'lavaan');
