@@ -18,6 +18,12 @@ interface Ctx {
   method: ValidateSettings;
   engine: NonNullable<ValidateSettings['engine']>;
   missingChoice: NonNullable<ValidateSettings['missing']>;
+  pkg: NonNullable<ValidateSettings['plsPackage']>;
+  approach: NonNullable<ValidateSettings['plsApproach']>;
+  /** Latent interactions by LMS / QML (modsem) rather than product indicators. */
+  lmsQml: boolean;
+  /** The method a CB-SEM-only option is ignored by. */
+  other: string;
   /** A covariance-matrix dataset. */
   matrix: boolean;
   /** Indicators assigned to a construct, and the ordinal ones among them. */
@@ -32,6 +38,9 @@ function context(model: ModelState, data: Dataset | null, method: ValidateSettin
   const assignedSet = new Set(model.constructs.flatMap((c) => c.indicators));
   return {
     model, data, method, engine: method.engine ?? 'r', missingChoice: method.missing ?? 'mean', matrix: !!data?.moments,
+    pkg: method.plsPackage ?? 'cSEM', approach: method.plsApproach ?? 'PLS-PM',
+    lmsQml: (model.moderations?.length ?? 0) > 0 && (method.interaction ?? 'product') !== 'product',
+    other: method.method === 'pls' ? 'PLS-SEM' : 'regression',
     assignedSet, ordered: (model.ordered ?? []).filter((i) => assignedSet.has(i)),
     cname: new Map(model.constructs.map((c) => [c.id, c.name])), cap: (t: string) => t.charAt(0).toUpperCase() + t.slice(1),
   };
@@ -44,17 +53,23 @@ function sink() {
   return { issues, err, warn };
 }
 
+/** Whether a construct is the moderator or the predictor of a moderation (an interaction or quadratic term). */
+const inInteraction = (model: ModelState, id: string) => (model.moderations ?? []).some((mo) => mo.moderator === id || model.paths.find((q) => q.id === mo.path)?.from === id);
+
+/** The number of distinct values in a column, missing values (NaN) left out. */
+const distinct = (col: ArrayLike<number>) => new Set(Array.from(col).filter((v) => !Number.isNaN(v))).size;
+
 /** A construct's components (higher-order) or, otherwise, its indicators. */
 function checkComponentsOrIndicators(v: Ctx, c: Construct, err: Report, warn: Report) {
-  const { model, method } = v;
+  const { model, method, engine, pkg, approach } = v;
   const higher = (c.components?.length ?? 0) > 0;
   if (higher) {
     if (method.method === 'pls') {
       // PLS: cSEM's two-stage approach (stage 1 the components, stage 2 the second-order construct from their scores).
-      if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}" is a second-order construct: in PLS these are estimated by cSEM or seminr. Choose “R packages” under Calculated by.`, c.id);
-      else if ((method.plsPackage ?? 'cSEM') === 'seminr' && method.consistent) err(`"${c.name}" is a second-order construct: with consistent PLS these are estimated by cSEM. Choose cSEM, or turn off PLSc for seminr.`, c.id);
-      else if ((method.hocApproach ?? 'two_stage') === 'embedded' && (method.plsPackage ?? 'cSEM') !== 'cSEM') err(`"${c.name}" is a second-order construct: the embedded two-stage approach is cSEM’s (.approach_2ndorder = "mixed"). Choose cSEM, or the two-stage or repeated-indicators approach.`, c.id);
-      else if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`"${c.name}" is a second-order construct: these are estimated with PLS path modeling. Choose PLS-PM as the weighting approach.`, c.id);
+      if (engine === 'builtin') err(`"${c.name}" is a second-order construct: in PLS these are estimated by cSEM or seminr. Choose “R packages” under Calculated by.`, c.id);
+      else if (pkg === 'seminr' && method.consistent) err(`"${c.name}" is a second-order construct: with consistent PLS these are estimated by cSEM. Choose cSEM, or turn off PLSc for seminr.`, c.id);
+      else if ((method.hocApproach ?? 'two_stage') === 'embedded' && pkg !== 'cSEM') err(`"${c.name}" is a second-order construct: the embedded two-stage approach is cSEM’s (.approach_2ndorder = "mixed"). Choose cSEM, or the two-stage or repeated-indicators approach.`, c.id);
+      else if (approach !== 'PLS-PM') err(`"${c.name}" is a second-order construct: these are estimated with PLS path modeling. Choose PLS-PM as the weighting approach.`, c.id);
     }
     if (c.indicators.length) err(`"${c.name}" has both indicators and component constructs; remove one.`, c.id);
     if (c.components!.length < 2) warn(`"${c.name}" has a single component; a higher-order factor needs at least two (three for local identification).`, c.id);
@@ -63,7 +78,7 @@ function checkComponentsOrIndicators(v: Ctx, c: Construct, err: Report, warn: Re
       const scaled = model.paths.some((q) => q.to === c.id && q.fixed !== undefined && q.fixed !== 0) || Object.entries(c.componentLoadings ?? {}).some(([id, v]) => c.components!.includes(id) && v !== 0);
       if (method.method !== 'cbsem') err(`"${c.name}": an estimated first component loading is a CB-SEM option.`, c.id);
       else if (!scaled) err(`"${c.name}": with the first component's loading estimated, hold a path into “${c.name}” at a value (e.g. 1) or a component loading, to set its scale.`, c.id);
-      else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": an estimated first component loading is estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
+      else if (engine === 'builtin') err(`"${c.name}": an estimated first component loading is estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
       else if (method.estimator === '2SLS') err(`"${c.name}": MIIV-2SLS scales each factor by its first component; keep that loading at 1.`, c.id);
     }
     for (const [id, v] of Object.entries(c.componentLoadings ?? {})) {
@@ -76,9 +91,9 @@ function checkComponentsOrIndicators(v: Ctx, c: Construct, err: Report, warn: Re
       if (!comp) err(`"${c.name}" refers to a removed component.`, c.id);
       // lavaan estimates a component with predictors (an autoregressive latent trajectory: the waves are components of
       // intercept and slope and each wave predicts the next); the built-in engine and PLS do not.
-      else if (model.paths.some((q) => q.to === id) && (method.method !== 'cbsem' || (method.engine ?? 'r') === 'builtin')) err(`"${comp.name}" is a component of "${c.name}" and cannot also have incoming paths${method.method === 'cbsem' ? ' with the built-in engine: choose “R packages” under Calculated by' : ''}.`, comp.id);
+      else if (model.paths.some((q) => q.to === id) && (method.method !== 'cbsem' || engine === 'builtin')) err(`"${comp.name}" is a component of "${c.name}" and cannot also have incoming paths${method.method === 'cbsem' ? ' with the built-in engine: choose “R packages” under Calculated by' : ''}.`, comp.id);
       else if (method.method === 'pls' && (comp.components?.length || !comp.indicators.length)) err(`"${comp.name}" is a component of "${c.name}": in PLS, components are first-order constructs with indicators.`, comp.id);
-      else if (method.method === 'pls' && (model.paths.some((q) => q.from === id) || (model.moderations ?? []).some((mo) => mo.moderator === id || model.paths.find((q) => q.id === mo.path)?.from === id)))
+      else if (method.method === 'pls' && (model.paths.some((q) => q.from === id) || inInteraction(model, id)))
         err(`"${comp.name}" is a component of "${c.name}" and cannot also be in the structural model (cSEM’s two-stage approach); connect "${c.name}" instead.`, comp.id);
     }
   } else if (c.indicators.length === 0 && !(method.method === 'cbsem' && isBifactorGeneral(model, c.id))) err(method.method === 'process'
@@ -89,50 +104,51 @@ function checkComponentsOrIndicators(v: Ctx, c: Construct, err: Report, warn: Re
 
 /** CB-SEM measurement options: covariates, known reliabilities, an estimated error variance. */
 function checkSingleIndicatorOptions(v: Ctx, c: Construct, err: Report) {
-  const { model, method } = v;
-  if (c.covariate && method.method === 'cbsem') {
+  const { model, method, engine } = v;
+  if (method.method !== 'cbsem') return;
+  // The last refusal of each option: not with MIIV-2SLS, and estimated by lavaan (so not by the built-in engine).
+  const needsLavaanMl = (notAvailable: string, estimated: string) => {
+    if (method.estimator === '2SLS') err(`"${c.name}": ${notAvailable} not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
+    else if (engine === 'builtin') err(`"${c.name}": ${estimated} by lavaan. Choose “R packages” under Calculated by.`, c.id);
+  };
+  if (c.covariate) {
     if (c.indicators.length !== 1) err(`Covariate "${c.name}" must have exactly one indicator.`, c.id);
     if (model.paths.some((q) => q.to === c.id)) err(`Covariate "${c.name}" cannot have incoming paths.`, c.id);
   }
-  if (c.reliabilities && method.method === 'cbsem') {
-    for (const [k, r] of Object.entries(c.reliabilities)) {
-      if (!c.indicators.includes(k)) continue;
-      if (!(r > 0 && r <= 1)) err(`The reliability of ${k} ("${c.name}") must be above 0 and at most 1.`, c.id);
-      else if (c.indicators.length < 2 || c.covariate) err(`"${c.name}": per-indicator reliabilities apply to a factor with several indicators (a single indicator has its own reliability field).`, c.id);
-      else if (method.estimator === '2SLS') err(`"${c.name}": known reliabilities are not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
-      else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": known reliabilities are estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
-    }
+  for (const [k, r] of Object.entries(c.reliabilities ?? {})) {
+    if (!c.indicators.includes(k)) continue;
+    if (!(r > 0 && r <= 1)) err(`The reliability of ${k} ("${c.name}") must be above 0 and at most 1.`, c.id);
+    else if (c.indicators.length < 2 || c.covariate) err(`"${c.name}": per-indicator reliabilities apply to a factor with several indicators (a single indicator has its own reliability field).`, c.id);
+    else needsLavaanMl('known reliabilities are', 'known reliabilities are estimated');
   }
-  if (c.reliability !== undefined && method.method === 'cbsem') {
+  if (c.reliability !== undefined) {
     if (!(c.reliability > 0 && c.reliability <= 1)) err(`The reliability of "${c.name}" must be above 0 and at most 1.`, c.id);
     else if (c.indicators.length !== 1 || c.covariate) err(`"${c.name}": a known reliability applies to a single-indicator factor only.`, c.id);
-    else if (method.estimator === '2SLS') err(`"${c.name}": a known reliability is not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
-    else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": a known reliability is estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
+    else needsLavaanMl('a known reliability is', 'a known reliability is estimated');
   }
-  if (c.freeError && method.method === 'cbsem') {
+  if (c.freeError) {
     if (c.indicators.length !== 1 || c.covariate) err(`"${c.name}": an estimated error variance applies to a single-indicator factor only.`, c.id);
     else if (c.reliability !== undefined) err(`"${c.name}": choose one: a known reliability fixes the error variance, an estimated one leaves it free.`, c.id);
-    else if (method.estimator === '2SLS') err(`"${c.name}": an estimated error variance of a single indicator is not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
-    else if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}": the error variance of a single indicator is estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
+    else needsLavaanMl('an estimated error variance of a single indicator is', 'the error variance of a single indicator is estimated');
   }
 }
 
 /** Weighting modes, composites in CB-SEM, two-indicator factors, PLSc with Mode B or sum scores. */
 function checkWeighting(v: Ctx, c: Construct, err: Report, warn: Report) {
-  const { model, method } = v;
+  const { model, method, engine, missingChoice } = v;
   if (c.mode !== 'A' && c.indicators.length === 1 && method.method === 'pls') warn(`"${c.name}" uses ${c.mode === 'B' ? 'Mode B' : 'sum scores'} with a single indicator; the weighting has no effect.`, c.id);
   if (method.method === 'cbsem' && c.type === 'composite') {
     // lavaan's composites (<~, lavaan >= 0.6-20): an exact weighted sum of indicators that covary freely.
     const inBlock = (model.esem?.blocks ?? []).some((b) => b.constructs.includes(c.id));
     const isComponent = model.constructs.some((k) => k.components?.includes(c.id));
-    if ((method.engine ?? 'r') === 'builtin') err(`"${c.name}" is a composite: in CB-SEM these are estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
+    if (engine === 'builtin') err(`"${c.name}" is a composite: in CB-SEM these are estimated by lavaan. Choose “R packages” under Calculated by.`, c.id);
     else if (method.estimator === '2SLS') err(`"${c.name}" is a composite: not available with MIIV-2SLS; choose a maximum-likelihood estimator.`, c.id);
     else if (c.components?.length || isComponent) err(`"${c.name}" is a composite: in CB-SEM composites cannot be higher-order constructs or their components.`, c.id);
-    else if (c.indicators.length > 0 && c.indicators.length < 2) err(`Composite "${c.name}" needs at least two indicators.`, c.id);
+    else if (c.indicators.length === 1) err(`Composite "${c.name}" needs at least two indicators.`, c.id);
     else if (inBlock) err(`"${c.name}" is a composite and cannot be in an ESEM block.`, c.id);
     else if (model.multigroup || model.multilevel) err(`"${c.name}" is a composite: composites are not available in multiple-group or two-level models.`, c.id);
-    else if (method.missing === 'mi' || method.estimator === 'RML') err(`"${c.name}" is a composite: not available with multiple imputation or robust ML (rsem).`, c.id);
-    else if ((model.moderations ?? []).some((mo) => mo.moderator === c.id || model.paths.find((q) => q.id === mo.path)?.from === c.id))
+    else if (missingChoice === 'mi' || method.estimator === 'RML') err(`"${c.name}" is a composite: not available with multiple imputation or robust ML (rsem).`, c.id);
+    else if (inInteraction(model, c.id))
       err(`"${c.name}" is a composite: latent interactions in CB-SEM need common factors.`, c.id);
     else if (c.indicators.some((i) => model.ordered?.includes(i))) err(`Composite "${c.name}" has ordinal indicators; composites need continuous indicators.`, c.id);
     else if (Object.keys(c.fixedLoadings ?? {}).length || Object.keys(c.loadingLabels ?? {}).length) err(`"${c.name}" is a composite: its weights cannot be fixed or labelled.`, c.id);
@@ -142,13 +158,11 @@ function checkWeighting(v: Ctx, c: Construct, err: Report, warn: Report) {
   if (method.method === 'cbsem' && c.type === 'factor' && c.indicators.length === 2) {
     warn(`"${c.name}" has two indicators; it is only identified through its relations with other factors.`, c.id);
   }
-  if (method.method === 'pls' && method.consistent && c.type === 'factor' && c.mode === 'B') {
+  if (method.method === 'pls' && method.consistent && c.type === 'factor') {
     // PLSc's correction (ρA, loadings from the weights) is derived for Mode A weights (Dijkstra & Henseler 2015).
-    warn(`"${c.name}" is a common factor estimated with Mode B: PLSc’s correction (ρA) assumes Mode A weights, so its corrected estimates are not known to be consistent. Use Mode A, or model "${c.name}" as a composite.`, c.id);
-  }
-  if (method.method === 'pls' && method.consistent && c.type === 'factor' && c.mode === 'unit' && c.indicators.length > 1) {
+    if (c.mode === 'B') warn(`"${c.name}" is a common factor estimated with Mode B: PLSc’s correction (ρA) assumes Mode A weights, so its corrected estimates are not known to be consistent. Use Mode A, or model "${c.name}" as a composite.`, c.id);
     // As cSEM: PLSc corrects Mode A common factors; sum scores count as error-free (reliability 1).
-    warn(`"${c.name}" is a common factor with sum scores: PLSc corrects Mode A common factors only, so "${c.name}" is treated as error-free (reliability 1) and its relations stay attenuated. Use Mode A for "${c.name}" to correct it, or model it as a composite.`, c.id);
+    if (c.mode === 'unit' && c.indicators.length > 1) warn(`"${c.name}" is a common factor with sum scores: PLSc corrects Mode A common factors only, so "${c.name}" is treated as error-free (reliability 1) and its relations stay attenuated. Use Mode A for "${c.name}" to correct it, or model it as a composite.`, c.id);
   }
 }
 
@@ -217,7 +231,7 @@ function checkIndicatorPaths(v: Ctx): Issue[] {
 /** Pre-defined weights and Gaussian copulas (PLS-SEM options). */
 function checkPlsOptions(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, method } = v;
+  const { model, method, approach } = v;
   for (const c of model.constructs) {
     if (!c.predefinedWeights) continue;
     if (method.method !== 'pls') err(`"${c.name}" has pre-defined weights, a PLS-SEM option: switch to PLS-SEM, or estimate its weights.`, c.id);
@@ -227,7 +241,7 @@ function checkPlsOptions(v: Ctx): Issue[] {
   if (model.copulas?.length) {
     if (method.method !== 'pls') err('Gaussian copulas are a PLS-SEM option here: remove them from the paths, or switch to PLS-SEM.');
     else if (method.consistent) err('Gaussian copulas are not available with consistent PLS: switch PLSc off.');
-    else if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err('Gaussian copulas need PLS path modeling as the weighting approach.');
+    else if (approach !== 'PLS-PM') err('Gaussian copulas need PLS path modeling as the weighting approach.');
   }
   return issues;
 }
@@ -235,7 +249,7 @@ function checkPlsOptions(v: Ctx): Issue[] {
 /** Moderations and quadratic effects, by method. */
 function checkModerations(v: Ctx): Issue[] {
   const { issues, err } = sink();
-  const { model, method, cname, cap } = v;
+  const { model, method, cname, cap, engine, pkg } = v;
   for (const mo of model.moderations ?? []) {
     const p = model.paths.find((q) => q.id === mo.path);
     if (!p) { err('A moderation refers to a path that no longer exists.'); continue; }
@@ -250,11 +264,11 @@ function checkModerations(v: Ctx): Issue[] {
       for (const id of new Set([p.from, mo.moderator])) {
         if (model.paths.some((q) => q.to === id)) err(`${cap(label)}: in CB-SEM ${quadratic ? "the predictor" : "the predictor and moderator"} must be exogenous, but ${cname.get(id)} has incoming paths.`, id);
       }
-    } else if (mo.method && (method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') !== 'seminr') {
+    } else if (mo.method && engine === 'r' && pkg !== 'seminr') {
       err(`${cap(label)} uses ${INTERACTION_METHOD_NAMES[mo.method]}: that interaction term is seminr’s (interaction_term) and the built-in engine’s. Choose seminr under R packages, the built-in engine, or the two-stage term.`, mo.moderator);
     } else if (mo.method && method.consistent) {
       err(`${cap(label)} uses ${INTERACTION_METHOD_NAMES[mo.method]}, which is not available with PLSc: use the two-stage term, or switch consistent PLS off.`, mo.moderator);
-    } else if (method.consistent && (method.engine ?? 'r') === 'r' && method.plsPackage === 'seminr') {
+    } else if (method.consistent && engine === 'r' && pkg === 'seminr') {
       // cSEM and the built-in engine estimate nonlinear models with PLSc (Dijkstra & Schermelleh-Engel 2014); seminr does not.
       err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) with PLSc ${quadratic ? 'need' : 'needs'} cSEM or the built-in engine: choose one of those, or switch consistent PLS off.`, mo.moderator);
     }
@@ -286,14 +300,14 @@ function checkExogenousCorrelations(v: Ctx): Issue[] {
 /** Combinations the engines refuse (PLS packages, CB-SEM with a matrix, imputation, LMS / QML, weights). */
 function checkEngineCombinations(v: Ctx): Issue[] {
   const { issues, err } = sink();
-  const { model, data, method, matrix } = v;
+  const { model, data, method, matrix, engine, missingChoice, pkg, approach, lmsQml } = v;
   // Combinations the engines refuse: said here, before anything runs (and before R is even loaded).
   if (method.method === 'pls') {
-    if ((method.plsPackage ?? 'cSEM') === 'seminr' && (method.engine ?? 'r') === 'r') {
+    if (pkg === 'seminr' && engine === 'r') {
       if (method.scheme === 'centroid') err('seminr offers the path and factor weighting schemes only; choose one of those, or cSEM.');
-      if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`The ${method.plsApproach} weighting approach is estimated with cSEM; choose cSEM.`);
+      if (approach !== 'PLS-PM') err(`The ${approach} weighting approach is estimated with cSEM; choose cSEM.`);
     }
-    if ((method.engine ?? 'r') === 'builtin' && (method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`The ${method.plsApproach} weighting approach is estimated with cSEM: choose “R packages” under Calculated by.`);
+    if (engine === 'builtin' && approach !== 'PLS-PM') err(`The ${approach} weighting approach is estimated with cSEM: choose “R packages” under Calculated by.`);
   }
   if (method.method === 'cbsem') {
     const mods = model.moderations.length > 0;
@@ -304,14 +318,14 @@ function checkEngineCombinations(v: Ctx): Issue[] {
       if (model.multigroup && !data?.moments?.groups) err('Multiple-group analysis needs raw data with a grouping column, or one covariance matrix per group.');
       if (model.multilevel) err('A two-level model needs raw data with a cluster column.');
       if (model.weights) err('Sampling weights need raw data.');
-      if ((method.missing ?? 'mean') === 'mi') err('Multiple imputation needs raw data.');
-      if ((method.missing ?? 'mean') === 'fiml') err('FIML needs raw data; a covariance matrix has no missing values.');
+      if (missingChoice === 'mi') err('Multiple imputation needs raw data.');
+      if (missingChoice === 'fiml') err('FIML needs raw data; a covariance matrix has no missing values.');
     }
-    if ((method.missing ?? 'mean') === 'mi') {
+    if (missingChoice === 'mi') {
       if (method.estimator && !['ML', 'MLR'].includes(method.estimator)) err('With multiple imputation choose the ML or MLR estimator.');
       if (method.estimator === 'RML') err('Robust ML (rsem) uses the missing values itself (EM); choose FIML or casewise instead of multiple imputation.');
     }
-    if (mods && (method.interaction ?? 'product') !== 'product') {
+    if (lmsQml) {
       if (model.multigroup) err('LMS and QML (modsem) need a single-group model; use product indicators with groups.');
       if (model.esem?.blocks.length) err('LMS and QML (modsem) cannot be combined with ESEM blocks; use product indicators.');
       if (model.weights) err('Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.');
@@ -327,12 +341,12 @@ function checkEngineCombinations(v: Ctx): Issue[] {
 /** The mean structure (the constant on the canvas): lavaan, raw data or means, no groups. */
 function checkMeanStructure(v: Ctx): Issue[] {
   const { issues, err } = sink();
-  const { model, data, method, matrix } = v;
+  const { model, data, method, matrix, engine, lmsQml } = v;
   // The mean structure (the constant on the canvas): lavaan, raw data, no groups.
   if (model.constant) {
     if (method.method !== 'cbsem') err('The constant (means and intercepts) is a CB-SEM feature: switch to CB-SEM, or remove the triangle.');
     else {
-      if ((method.engine ?? 'r') === 'builtin') err('Means and intercepts are estimated by lavaan: choose “R packages” under Calculated by.');
+      if (engine === 'builtin') err('Means and intercepts are estimated by lavaan: choose “R packages” under Calculated by.');
       if (method.estimator === '2SLS') err('Means and intercepts are not available with MIIV-2SLS; choose a maximum-likelihood estimator.');
       if (matrix && !(data?.moments?.means || data?.moments?.groups?.every((g) => g.means))) err('Means and intercepts need the variables’ means: this covariance matrix carries none (add a “mean” row to the matrix file, or use raw data).');
       if (model.multilevel) err('Means and intercepts are not available in a two-level model here.');
@@ -344,7 +358,7 @@ function checkMeanStructure(v: Ctx): Issue[] {
         else if (Array.isArray(t.bias) && !model.multigroup) err('One marker intercept (bias) per group needs groups.');
         else if (Array.isArray(t.bias) && nGroups && t.bias.length !== nGroups) err(`A marker intercept (bias) per group needs ${nGroups} values (one per group).`);
       }
-      if ((method.interaction ?? 'product') !== 'product' && model.moderations.length) err('Means and intercepts are not available with LMS / QML; use product indicators.');
+      if (lmsQml) err('Means and intercepts are not available with LMS / QML; use product indicators.');
       for (const t of model.means ?? []) {
         const c = model.constructs.find((k) => k.id === t.target);
         if (!c) err('A mean arrow points to a removed construct.');
@@ -372,7 +386,7 @@ function checkDegenerateColumns(v: Ctx): Issue[] {
       let n = 0, first = NaN, constant = true;
       for (let i = 0; i < col.length; i++) { const v = col[i]; if (Number.isNaN(v)) continue; if (n === 0) first = v; else if (v !== first) constant = false; n++; }
       if (n === 0) err(`Indicator "${ind}" (in "${c.name}") has no values.`, c.id);
-      else if (constant && n > 0) err(`Indicator "${ind}" (in "${c.name}") is constant (${first} in every row): it carries no information.`, c.id);
+      else if (constant) err(`Indicator "${ind}" (in "${c.name}") is constant (${first} in every row): it carries no information.`, c.id);
     }
   }
   return issues;
@@ -400,7 +414,7 @@ function checkCbsemEstimator(v: Ctx): Issue[] {
 /** CB-SEM: pairwise deletion, the two-stage approach, auxiliary variables and multiple imputation. */
 function checkCbsemMissingData(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, data, method, engine, missingChoice, ordered, assignedSet } = v;
+  const { model, data, method, engine, missingChoice, ordered, assignedSet, lmsQml } = v;
   if (method.method !== 'cbsem') return issues;
   if (missingChoice === 'pairwise') {
     // lavaan: pairwise deletion of the sample statistics; standard errors and test as if the data were complete.
@@ -433,7 +447,7 @@ function checkCbsemMissingData(v: Ctx): Issue[] {
       if (ordered.length) err('Auxiliary variables are available for continuous indicators (lavaan); this model has ordinal ones.');
       if (model.multilevel || model.cluster) err('Auxiliary variables are not available with clusters (two-level models or sampling clusters).');
       if (method.estimator === 'RML') err('Robust ML (rsem) handles missing values itself: auxiliary variables are not available with it.');
-      if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Auxiliary variables cannot be combined with LMS / QML latent interactions; use product indicators.');
+      if (lmsQml) err('Auxiliary variables cannot be combined with LMS / QML latent interactions; use product indicators.');
       if (engine === 'builtin') err('Auxiliary variables are a lavaan option: choose “R packages” under Calculated by.');
     }
   }
@@ -443,7 +457,7 @@ function checkCbsemMissingData(v: Ctx): Issue[] {
     if (method.estimator !== 'ML' && method.estimator !== 'MLR') err('With multiple imputation choose the ML or MLR estimator.');
     if (data?.moments && data.cols.length === 0) err('Multiple imputation needs raw data; this dataset is a covariance matrix.');
     if (model.multilevel || model.weights || ordered.length || model.esem?.blocks.length) err('Multiple imputation is available for continuous indicators: no clusters, sampling weights, ordinal indicators or ESEM blocks.');
-    if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Multiple imputation cannot be combined with LMS / QML latent interactions; use product indicators.');
+    if (lmsQml) err('Multiple imputation cannot be combined with LMS / QML latent interactions; use product indicators.');
     const missingAux = (method.miAuxiliary ?? []).filter((a) => data && !data.moments && !data.names.includes(a));
     if (missingAux.length) err(`Auxiliary variables of the imputation not in the data: ${missingAux.join(', ')}.`);
     if ((method.miMethod ?? 'mice') === 'amelia' && model.multigroup) err('Amelia imputes one group here; choose mice for a multiple-group model.');
@@ -457,7 +471,7 @@ function checkCbsemMissingData(v: Ctx): Issue[] {
 /** CB-SEM: ADF / WLS, robust ML (rsem), raw-data needs, and few-category indicators. */
 function checkCbsemRobust(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, data, method, engine, missingChoice, assignedSet, ordered } = v;
+  const { model, data, method, engine, missingChoice, ordered, lmsQml, assignedSet } = v;
   if (method.method !== 'cbsem') return issues;
   if (method.estimator === 'WLS') {
     // ADF (Browne 1984; EQS's AGLS): weights from the fourth-order moments, so raw data or a NACOV matrix.
@@ -470,7 +484,7 @@ function checkCbsemRobust(v: Ctx): Issue[] {
     if (engine === 'builtin') err('Robust ML is estimated by rsem with lavaan: choose “R packages” under Calculated by.');
     if (data?.moments && data.cols.length === 0) err('Robust ML down-weights cases, so it needs raw data; this dataset is a covariance matrix.');
     if (model.multigroup || model.multilevel || model.weights || ordered.length || model.esem?.blocks.length) err('Robust ML (rsem) handles one group of continuous indicators: no groups, clusters, sampling weights, ordinal indicators or ESEM blocks.');
-    if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Robust ML cannot be combined with LMS / QML latent interactions; use product indicators.');
+    if (lmsQml) err('Robust ML cannot be combined with LMS / QML latent interactions; use product indicators.');
   }
   if ((ordered.length || missingChoice === 'fiml') && data?.moments) err('Ordinal indicators and FIML need raw data, not a covariance matrix.');
   if (data && !data.moments && !ordered.length) {
@@ -489,36 +503,38 @@ function checkCbsemRobust(v: Ctx): Issue[] {
 /** PLS-SEM and conditional process analysis: missing data, categorical constructs, dominant and ordinal indicators. */
 function checkOtherMissingData(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, data, method, engine, missingChoice, ordered } = v;
+  const { model, data, method, engine, missingChoice, ordered, pkg, approach } = v;
   if (method.method === 'cbsem') return issues;
   if (LAVAAN_MISSING.includes(missingChoice) && method.method === 'pls') err(`${missingChoice === 'fiml' ? 'FIML' : missingChoice === 'pairwise' ? 'Pairwise deletion' : 'The two-stage approach'} is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.`);
-  if (missingChoice === 'mi' && method.method === 'pls' && engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
-  if (missingChoice === 'mi' && method.method === 'pls' && (method.miMethod ?? 'mice') === 'amelia') err('Amelia imputation is available for CB-SEM; PLS-SEM imputes with mice.');
-  if (missingChoice === 'mi' && method.method === 'pls' && method.miMethod === 'micenorm') err('Bayesian normal-regression imputation is available for CB-SEM; PLS-SEM imputes with predictive mean matching.');
-  if (missingChoice === 'mi' && method.method === 'pls' && method.miMethod === 'joint') err('Joint (H1) imputation is available for CB-SEM; PLS-SEM imputes with predictive mean matching.');
+  if (missingChoice === 'mi' && method.method === 'pls') {
+    if (engine === 'builtin') err('Multiple imputation uses mice: choose “R packages” under Calculated by.');
+    if (method.miMethod === 'amelia') err('Amelia imputation is available for CB-SEM; PLS-SEM imputes with mice.');
+    if (method.miMethod === 'micenorm') err('Bayesian normal-regression imputation is available for CB-SEM; PLS-SEM imputes with predictive mean matching.');
+    if (method.miMethod === 'joint') err('Joint (H1) imputation is available for CB-SEM; PLS-SEM imputes with predictive mean matching.');
+  }
   // Categorical exogenous constructs (PLS): one column, 2 to 20 categories, no predictors.
   if (method.method === 'pls') for (const c of model.constructs.filter((k) => k.categorical)) {
     if (c.indicators.length !== 1) err(`The categorical variable "${c.name}" must be a single column (its categories become dummy variables).`, c.id);
     else if (model.paths.some((q) => q.to === c.id)) err(`"${c.name}" is categorical: it can only predict (an exogenous variable), not be predicted.`, c.id);
     else if (data && !data.moments) {
       const col = data.cols[data.names.indexOf(c.indicators[0])];
-      const k = col ? new Set([...col].filter((v) => !Number.isNaN(v))).size : 0;
+      const k = col ? distinct(col) : 0;
       if (k < 2 || k > 20) err(`The categorical variable "${c.name}" needs 2 to 20 categories (it has ${k}).`, c.id);
     }
   }
   const dominants = model.constructs.filter((c) => c.dominant && c.indicators.includes(c.dominant));
-  if (method.method === 'pls' && dominants.length && engine === 'r' && (method.plsPackage ?? 'cSEM') === 'seminr') warn(`seminr has no dominant indicators: the signs of ${dominants.map((c) => c.name).join(', ')} are as estimated. Choose cSEM to fix them.`);
+  if (method.method === 'pls' && dominants.length && engine === 'r' && pkg === 'seminr') warn(`seminr has no dominant indicators: the signs of ${dominants.map((c) => c.name).join(', ')} are as estimated. Choose cSEM to fix them.`);
   if (missingChoice === 'mi' && method.method === 'process') err('Multiple imputation is available in PLS-SEM and CB-SEM; conditional process analysis uses casewise deletion.');
   // Ordinal indicators in PLS: OrdPLS / OrdPLSc (Schuberth, Henseler & Dijkstra 2018), cSEM's estimator on polychoric correlations.
   // (a categorical construct's column travels as dummies, never ordinal)
   const ordPls = method.method === 'pls' ? ordered.filter((i) => !model.constructs.some((c) => c.categorical && c.indicators.includes(i))) : [];
   if (ordPls.length) {
     const list = `${ordPls.join(', ')} ${ordPls.length === 1 ? 'is' : 'are'} ordinal`;
-    if (engine === 'builtin' || (method.plsPackage ?? 'cSEM') !== 'cSEM') err(`${list}: ordinal PLS (OrdPLS/OrdPLSc, polychoric correlations) is estimated by cSEM. Choose R packages → cSEM, or treat ${ordPls.length === 1 ? 'it' : 'them'} as continuous (right-click).`);
+    if (engine === 'builtin' || pkg !== 'cSEM') err(`${list}: ordinal PLS (OrdPLS/OrdPLSc, polychoric correlations) is estimated by cSEM. Choose R packages → cSEM, or treat ${ordPls.length === 1 ? 'it' : 'them'} as continuous (right-click).`);
     const gaps = data && !data.moments && ordPls.some((i) => { const col = data.cols[data.names.indexOf(i)]; return !!col && col.some((x) => Number.isNaN(x)); });
     if (missingChoice === 'mean' && gaps) err('Mean replacement would put non-category values into ordinal indicators that have missing values; choose casewise deletion.');
     if (missingChoice === 'mi') err('Ordinal PLS (OrdPLS/OrdPLSc) is available with casewise deletion; multiple imputation is for continuous indicators.');
-    if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`${list}: ordinal indicators are estimated by OrdPLS; choose PLS-PM as the weighting approach.`);
+    if (approach !== 'PLS-PM') err(`${list}: ordinal indicators are estimated by OrdPLS; choose PLS-PM as the weighting approach.`);
     if (model.moderations?.length) err(`${list}: interaction terms (products of construct scores) are not available with ordinal PLS.`);
     if (model.constructs.some((c) => c.components?.length)) err(`${list}: second-order constructs are not available with ordinal PLS.`);
     // (these terms run in the built-in engine, which has no ordinal PLS)
@@ -530,9 +546,9 @@ function checkOtherMissingData(v: Ctx): Issue[] {
 /** PLS-SEM weighting approaches other than PLS-PM: cSEM. */
 function checkPlsApproach(v: Ctx): Issue[] {
   const { issues, err } = sink();
-  const { method } = v;
-  if (method.method === 'pls' && method.plsApproach && method.plsApproach !== 'PLS-PM' && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'cSEM')) {
-    err(`${method.plsApproach === 'unit' ? 'Sum scores' : method.plsApproach} ${method.plsApproach === 'unit' ? 'are' : 'is'} estimated with cSEM: choose R packages → cSEM, or PLS path modeling.`);
+  const { method, engine, pkg, approach } = v;
+  if (method.method === 'pls' && approach !== 'PLS-PM' && !(engine === 'r' && pkg === 'cSEM')) {
+    err(`${approach === 'unit' ? 'Sum scores' : approach} ${approach === 'unit' ? 'are' : 'is'} estimated with cSEM: choose R packages → cSEM, or PLS path modeling.`);
   }
   return issues;
 }
@@ -563,15 +579,15 @@ function weightColumnIssues(v: Ctx, wcol: string, err: (m: string) => void) {
 /** Sampling (survey) weights: lavaan's sampling.weights (CB-SEM), weighted PLS (WPLS, Becker & Ismail 2016; built-in engine). */
 function checkSamplingWeights(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, method, engine, ordered } = v;
+  const { model, method, engine, ordered, missingChoice, approach, lmsQml } = v;
   const wcol = model.weights;
   if (wcol && method.method === 'pls') {
     // cSEM and seminr take no sampling weights: the run goes to the built-in engine (runner.ts).
     if (engine === 'r') warn(`Weighted PLS (sampling weights ${wcol}) is estimated by the built-in engine: neither cSEM nor seminr takes sampling weights.`);
     if (model.copulas?.length) err('Gaussian copulas cannot be combined with sampling weights.');
     if (method.consistent && model.moderations.length) err('Interaction terms with PLSc cannot be combined with sampling weights; switch consistent PLS off.');
-    if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err('Weighted PLS needs PLS path modeling as the weighting approach.');
-    if ((method.missing ?? 'mean') === 'mi') err('Weighted PLS uses mean replacement or casewise deletion, not multiple imputation.');
+    if (approach !== 'PLS-PM') err('Weighted PLS needs PLS path modeling as the weighting approach.');
+    if (missingChoice === 'mi') err('Weighted PLS uses mean replacement or casewise deletion, not multiple imputation.');
     if (model.constructs.some((c) => c.components?.length)) err('Weighted PLS is not available with second-order constructs.');
     weightColumnIssues(v, wcol, err);
   } else if (wcol) {
@@ -581,7 +597,7 @@ function checkSamplingWeights(v: Ctx): Issue[] {
       const est = method.estimator ?? 'ML';
       if (!['ML', 'MLR', 'MLM'].includes(est) && !(est === 'WLSMV' && ordered.length)) err('With sampling weights choose ML, MLR or MLM (or WLSMV for ordinal indicators): lavaan weights these estimators only.');
       if (model.multilevel) err('Sampling weights cannot be combined with a two-level model here.');
-      if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.');
+      if (lmsQml) err('Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.');
       weightColumnIssues(v, wcol, err);
     }
   }
@@ -591,17 +607,17 @@ function checkSamplingWeights(v: Ctx): Issue[] {
 /** Sampling clusters (complex design): lavaan's cluster = in a single-level model, CB-SEM only. */
 function checkSamplingClusters(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, data, method, engine, assignedSet } = v;
+  const { model, data, method, engine, assignedSet, missingChoice, lmsQml, other } = v;
   const ccol = model.cluster;
   if (ccol) {
-    if (method.method !== 'cbsem') warn(`The sampling clusters (${ccol}) give cluster-robust standard errors in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them.`);
+    if (method.method !== 'cbsem') warn(`The sampling clusters (${ccol}) give cluster-robust standard errors in CB-SEM only; ${other} ignores them.`);
     else {
       if (engine === 'builtin') err('Cluster-robust standard errors are computed by lavaan: choose “R packages” under Calculated by.');
       const est = method.estimator ?? 'ML';
       if (['2SLS', 'RML'].includes(est)) err(`Cluster-robust standard errors are not available with ${est === '2SLS' ? 'MIIV-2SLS' : 'robust ML (rsem)'}; choose ML or MLR.`);
       if (model.multilevel) err('Sampling clusters (cluster-robust standard errors) and a two-level model are alternatives: the two-level model already models the clustering.');
-      if (method.missing === 'mi') err('Cluster-robust standard errors cannot be combined with multiple imputation; use FIML.');
-      if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Cluster-robust standard errors are not available with LMS / QML latent interactions; use product indicators.');
+      if (missingChoice === 'mi') err('Cluster-robust standard errors cannot be combined with multiple imputation; use FIML.');
+      if (lmsQml) err('Cluster-robust standard errors are not available with LMS / QML latent interactions; use product indicators.');
       if (assignedSet.has(ccol) || model.multigroup?.column === ccol || model.weights === ccol) err(`“${ccol}” cannot be both the sampling clusters and an indicator, the grouping column or the sampling weights.`);
       if (data?.moments) err('Sampling clusters need raw data; this dataset is a covariance matrix.');
       else if (data) {
@@ -623,6 +639,24 @@ function checkCategoricalInCbsem(v: Ctx): Issue[] {
   return issues;
 }
 
+type Multilevel = NonNullable<ModelState['multilevel']>;
+
+/** Names in a between-level model as written that are neither data columns nor factors it defines. */
+function unknownBetweenNames(ml: Multilevel, columns: string[]): string[] {
+  if (ml.between !== 'model') return [];
+  const st = ml.betweenModel ?? [];
+  const factors = new Set(st.filter((x) => x.op === '=~').map((x) => x.lhs));
+  return [...new Set(st.flatMap((x) => [x.lhs, ...x.rhs.map((t) => t.name)]))].filter((x) => x !== '1' && !factors.has(x) && !columns.includes(x))
+    .map((x) => `“${x}” in the between-level model is neither a column of the dataset nor a between-level factor.`);
+}
+
+/** Cluster-level covariates (between level `factors`) that are not further columns of the data. */
+function betweenCovariateIssues(ml: Multilevel, columns: string[], assigned: Set<string>): string[] {
+  if (ml.between !== 'factors') return [];
+  return (ml.betweenCovariates ?? []).flatMap((w) => !columns.includes(w) ? [`The cluster-level covariate “${w}” is not in the dataset.`]
+    : assigned.has(w) || w === ml.column ? [`“${w}” is in the model or defines the clusters: a cluster-level covariate is a further column.`] : []);
+}
+
 /** Two-level models (CB-SEM). */
 function checkMultilevel(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
@@ -639,15 +673,9 @@ function checkMultilevel(v: Ctx): Issue[] {
       }
       if (model.multigroup?.column === ml.column) err(`“${ml.column}” cannot define both the groups and the clusters.`);
       if (!ml.column) err('Choose the cluster column under Clusters (two-level).');
-      if (ml.between === 'model') {
-        // The between level as written: every name a column of the dataset or a factor it defines.
-        const st = ml.betweenModel ?? [];
-        if (!st.length) err('The between-level model has no statements; choose another between-level model under Clusters.');
-        const factors = new Set(st.filter((x) => x.op === '=~').map((x) => x.lhs));
-        if (data && !data.moments) for (const x of new Set(st.flatMap((x) => [x.lhs, ...x.rhs.map((t) => t.name)]))) {
-          if (x !== '1' && !factors.has(x) && !data.names.includes(x)) err(`“${x}” in the between-level model is neither a column of the dataset nor a between-level factor.`);
-        }
-      }
+      // The between level as written: every name a column of the dataset or a factor it defines.
+      if (ml.between === 'model' && !ml.betweenModel?.length) err('The between-level model has no statements; choose another between-level model under Clusters.');
+      if (data && !data.moments) unknownBetweenNames(ml, data.names).forEach((m) => err(m));
       if (ml.between === 'same' && labelUses(model).size > 0) {
         warn('Labels apply at both levels: parameters with the same label are equal within and between clusters (cross-level invariance).');
       }
@@ -657,11 +685,8 @@ function checkMultilevel(v: Ctx): Issue[] {
         if (!col) err(`The cluster column “${ml.column}” is not in the dataset.`);
         else {
           if (assignedSet.has(ml.column)) err(`“${ml.column}” is an indicator and cannot also define the clusters.`);
-          for (const w of ml.between === 'factors' ? ml.betweenCovariates ?? [] : []) {
-            if (!data.names.includes(w)) err(`The cluster-level covariate “${w}” is not in the dataset.`);
-            else if (assignedSet.has(w) || w === ml.column) err(`“${w}” is in the model or defines the clusters: a cluster-level covariate is a further column.`);
-          }
-          const k = new Set([...col].filter((v) => !Number.isNaN(v))).size;
+          betweenCovariateIssues(ml, data.names, assignedSet).forEach((m) => err(m));
+          const k = distinct(col);
           if (k < 2) err(`The cluster column “${ml.column}” has fewer than two clusters.`);
           else if (k < 30) warn(`Only ${k} clusters: between-level estimates and standard errors are unreliable with fewer than about 30–50 clusters (Maas & Hox, 2005).`);
         }
@@ -707,16 +732,7 @@ export function plsMultilevelIssues(model: ModelState, data: Dataset | null, set
     if (k < 0) out.push(`The cluster column “${ml.column}” is not in the dataset.`);
     else if (assigned.has(ml.column)) out.push(`“${ml.column}” is an indicator and cannot also define the clusters.`);
     else if (new Set(Array.from(data.cols[k]).filter((v) => Number.isFinite(v))).size < 2) out.push(`The cluster column “${ml.column}” has fewer than two clusters.`);
-    if (ml.between === 'factors') for (const w of ml.betweenCovariates ?? []) {
-      if (!data.names.includes(w)) out.push(`The cluster-level covariate “${w}” is not in the dataset.`);
-      else if (assigned.has(w) || w === ml.column) out.push(`“${w}” is in the model or defines the clusters: a cluster-level covariate is a further column.`);
-    }
-    if (ml.between === 'model') {
-      const factors = new Set((ml.betweenModel ?? []).filter((x) => x.op === '=~').map((x) => x.lhs));
-      for (const x of new Set((ml.betweenModel ?? []).flatMap((x) => [x.lhs, ...x.rhs.map((t) => t.name)]))) {
-        if (x !== '1' && !factors.has(x) && !data.names.includes(x)) out.push(`“${x}” in the between-level model is neither a column of the dataset nor a between-level factor.`);
-      }
-    }
+    out.push(...betweenCovariateIssues(ml, data.names, assigned), ...unknownBetweenNames(ml, data.names));
   }
   if (ml.between === 'factors' && !model.constructs.some((c) => c.indicators.length > 1)) out.push('Between clusters the factors are measured by their indicators: the model needs a construct with several indicators.');
   const paths = new Set(model.paths.map((p) => `${name.get(p.from)}\r${name.get(p.to)}`));
@@ -728,11 +744,11 @@ export function plsMultilevelIssues(model: ModelState, data: Dataset | null, set
 /** Multiple groups and values per group (CB-SEM). */
 function checkMultigroup(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, data, method, engine, assignedSet } = v;
+  const { model, data, method, engine, assignedSet, other } = v;
   const mg = model.multigroup;
   if (!mg && [...(model.parameters ?? []), ...(model.correlations ?? [])].some((t) => t.byGroup?.length)) err('Some parameters have values per group, but there are no groups: set a grouping column (Groups), or give one value.');
   if (mg) {
-    if (method.method !== 'cbsem') warn(`Multiple groups (${mg.column}) are analysed in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} pools the groups.`);
+    if (method.method !== 'cbsem') warn(`Multiple groups (${mg.column}) are analysed in CB-SEM only; ${other} pools the groups.`);
     else {
       if (engine === 'builtin') err('Multiple-group analysis is estimated by lavaan: choose “R packages” under Calculated by.');
       if (method.estimator === '2SLS') err('Multiple-group analysis is not available with MIIV-2SLS.');
@@ -773,9 +789,8 @@ function checkMultigroup(v: Ctx): Issue[] {
 /** Latent interactions by LMS / QML (modsem). */
 function checkLatentInteractions(v: Ctx): Issue[] {
   const { issues, err } = sink();
-  const { model, data, method, engine, missingChoice, ordered } = v;
-  const lms = method.method === 'cbsem' && (method.interaction ?? 'product') !== 'product' && model.moderations.length > 0;
-  if (lms) {
+  const { model, data, method, engine, missingChoice, ordered, lmsQml } = v;
+  if (method.method === 'cbsem' && lmsQml) {
     const what = method.interaction === 'lms' ? 'LMS' : 'QML';
     if (engine === 'builtin') err(`${what} latent interactions are estimated by modsem: choose “R packages” under Calculated by.`);
     if (method.estimator !== 'ML') err(`${what} is a maximum-likelihood method: choose the ML estimator.`);
@@ -788,10 +803,10 @@ function checkLatentInteractions(v: Ctx): Issue[] {
 /** Exploratory SEM blocks (CB-SEM). */
 function checkEsem(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, method, engine } = v;
+  const { model, method, engine, other } = v;
   const blocks = model.esem?.blocks ?? [];
   if (blocks.length) {
-    if (method.method !== 'cbsem') warn(`ESEM blocks are estimated in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} treats their constructs as ordinary ones.`);
+    if (method.method !== 'cbsem') warn(`ESEM blocks are estimated in CB-SEM only; ${other} treats their constructs as ordinary ones.`);
     else {
       if (engine === 'builtin') err('Exploratory SEM (ESEM) is estimated by lavaan: choose “R packages” under Calculated by.');
       if (method.estimator === '2SLS') err('ESEM blocks are not available with MIIV-2SLS.');
@@ -806,7 +821,7 @@ function checkEsem(v: Ctx): Issue[] {
           seen.add(id);
           if (c.covariate || c.components?.length) err(`"${c.name}" is a covariate or higher-order factor and cannot be in an ESEM block.`, id);
           if (Object.keys(c.fixedLoadings ?? {}).length || Object.keys(c.loadingLabels ?? {}).length) err(`"${c.name}" is in an ESEM block, whose loadings are rotated: remove its fixed loadings and loading labels.`, id);
-          if (model.moderations.some((mo) => mo.moderator === id || model.paths.find((p) => p.id === mo.path)?.from === id)) err(`"${c.name}" is in an ESEM block and cannot take part in a latent interaction.`, id);
+          if (inInteraction(model, id)) err(`"${c.name}" is in an ESEM block and cannot take part in a latent interaction.`, id);
         }
       }
       if (model.esem!.rotation === 'target' && blocks.length > 1) err('Target rotation is available for a single ESEM block.');
@@ -825,9 +840,9 @@ function checkEsem(v: Ctx): Issue[] {
 /** Parameter labels, defined parameters, Wald tests, fixed values and moderated moderation. */
 function checkConstraints(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, method, engine } = v;
+  const { model, method, engine, other } = v;
   if (usesConstraints(model)) {
-    if (method.method !== 'cbsem') warn(`Parameter labels, defined parameters and Wald tests are used by CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them.`);
+    if (method.method !== 'cbsem') warn(`Parameter labels, defined parameters and Wald tests are used by CB-SEM only; ${other} ignores them.`);
     else {
       for (const e of constraintErrors(model)) err(e);
       if (engine === 'builtin') err('Parameter labels (equality constraints), defined parameters and Wald tests are estimated by lavaan: choose “R packages” under Calculated by.');
@@ -837,7 +852,7 @@ function checkConstraints(v: Ctx): Issue[] {
 
   const nFixed = model.paths.filter((p) => p.fixed !== undefined).length + (model.correlations ?? []).filter((k) => k.fixed !== undefined).length
     + model.constructs.reduce((s, c) => s + Object.keys(c.fixedLoadings ?? {}).length, 0);
-  if (nFixed && method.method !== 'cbsem') warn(`${nFixed} parameter${nFixed === 1 ? ' is' : 's are'} fixed at a value; only CB-SEM uses fixed values, ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} estimates ${nFixed === 1 ? 'it' : 'them'} freely.`);
+  if (nFixed && method.method !== 'cbsem') warn(`${nFixed} parameter${nFixed === 1 ? ' is' : 's are'} fixed at a value; only CB-SEM uses fixed values, ${other} estimates ${nFixed === 1 ? 'it' : 'them'} freely.`);
   else if (nFixed && method.estimator === '2SLS') err('Fixed parameter values are not available with MIIV-2SLS; choose a maximum-likelihood estimator or free them.');
   if (model.threeWay?.length && method.method === 'cbsem') {
     err('Moderated moderation (a moderator acting on a moderation) is available in PLS-SEM and conditional process analysis.');
@@ -862,14 +877,14 @@ function checkProcess(v: Ctx): Issue[] {
       else if (c.indicators.length !== 1 || c.latent) err(`The categorical X "${c.name}" must be a single observed column.`, c.id);
       else if (data && !data.moments) {
         const col = data.cols[data.names.indexOf(c.indicators[0])];
-        const k = col ? new Set([...col].filter((v) => !Number.isNaN(v))).size : 0;
+        const k = col ? distinct(col) : 0;
         if (k < 2 || k > 10) err(`The categorical X "${c.name}" needs 2 to 10 groups (it has ${k}).`, c.id);
       }
     }
     // Dichotomous Y (logistic) and counterfactual (X by M) effects use the lm / glm bootstrap engine.
     const gy = g && model.constructs.find((c) => c.name === g.y);
     const ycol = gy && gy.indicators.length === 1 && data && !data.moments ? data.cols[data.names.indexOf(gy.indicators[0])] : undefined;
-    const binaryY = !!ycol && new Set([...ycol].filter((v) => !Number.isNaN(v))).size === 2;
+    const binaryY = !!ycol && distinct(ycol) === 2;
     const xmint = !!g && g.moderations.some((m) => m.by === g.x && m.path[1] === g.y);
     if (binaryY && (latent.length || (method.hc ?? 'none') !== 'none')) {
       err('A dichotomous Y is analysed by logistic regression, which is not combined with latent variables or HC standard errors here.');
@@ -887,10 +902,10 @@ function checkProcess(v: Ctx): Issue[] {
 /** Correlations (double-headed arrows) and fixed zeros. */
 function checkCorrelations(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, method } = v;
+  const { model, method, other } = v;
   const corrs = model.correlations ?? [];
   if (corrs.length && method.method !== 'cbsem') {
-    warn(`The model has ${corrs.length} correlation${corrs.length === 1 ? '' : 's'} (double-headed arrows); ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them. They are estimated in CB-SEM.`);
+    warn(`The model has ${corrs.length} correlation${corrs.length === 1 ? '' : 's'} (double-headed arrows); ${other} ignores them. They are estimated in CB-SEM.`);
   } else if (corrs.length) {
     const endo = endogenousIds(model);
     const byId = new Map(model.constructs.map((c) => [c.id, c]));

@@ -27,7 +27,7 @@ export interface CountSyntax {
 }
 
 const IDENT = /^[A-Za-z][A-Za-z0-9_]*$/;
-const RESERVED = new Set(['by', 'on', 'with', 'xwith', 'is', 'are', 'model', 'variable', 'analysis', 'all', 'on', 'off']);
+const RESERVED = new Set(['by', 'on', 'with', 'xwith', 'is', 'are', 'model', 'variable', 'analysis', 'all', 'off']);
 
 /**
  * The diagram in the Integration ML card's syntax, or why it cannot be estimated that way. `columns`: the data's

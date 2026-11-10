@@ -2,7 +2,7 @@
 // the record (public/validation.json) that are its evidence, and the references the record does not have yet (a test
 // written since the record was last regenerated, or a desktop-only package's run not recorded).
 
-import { CARD_EVIDENCE, evidenceClass, featureMatches, type CardEvidence, type EvidenceClass } from './cards';
+import { CARD_EVIDENCE, entryNames, evidenceClass, featureMatches, type CardEvidence, type EvidenceClass } from './cards';
 import type { Check, Evidence } from './types';
 
 export interface CoverageRow {
@@ -23,16 +23,14 @@ export interface CoverageRow {
 
 /** Whether a check is evidence for a manifest entry: it names the entry, or the entry names it. */
 export function checkIsFor(key: string, entry: CardEvidence, c: Check): boolean {
-  if (c.cards?.includes(key)) return true;
-  return c.subject === 'example' ? !!entry.examples?.includes(c.id) : !!entry.features?.some((f) => featureMatches(f, c.id));
+  return !!c.cards?.includes(key) || entryNames(entry, c.subject, c.id);
 }
 
 /** Every manifest entry in registry order (`order`: the cards' ids), its checks and what the record lacks. */
 export function coverage(e: Evidence | null, order: string[], titleOf: (card: string) => string | undefined): CoverageRow[] {
-  const keys = Object.keys(CARD_EVIDENCE);
   const rank = (k: string) => { const card = k.split(':')[0]; const i = order.indexOf(card); return i < 0 ? order.length + (card === 'model' ? 0 : 1) : i; };
-  const sorted = keys.map((k, i) => [k, i] as const).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([k]) => k);
-  return sorted.map((key) => {
+  // (a stable sort: registry order, the manifest's order within a card)
+  return Object.keys(CARD_EVIDENCE).sort((a, b) => rank(a) - rank(b)).map((key) => {
     const entry = CARD_EVIDENCE[key];
     const card = key.split(':')[0];
     const group = card === 'model' ? 'model' : card === 'builtin' ? 'builtin' : 'cards';

@@ -321,10 +321,11 @@ export function featureMatches(ref: FeatureRef, checkId: string): boolean {
   return checkId.startsWith(`${file}::`) && (!test || checkId.slice(file.length + 2).includes(test));
 }
 
+/** Whether an entry names an example check (by id) or a feature check (by one of its feature references). */
+export const entryNames = (e: CardEvidence, subject: 'example' | 'feature', id: string): boolean =>
+  subject === 'example' ? !!e.examples?.includes(id) : !!e.features?.some((f) => featureMatches(f, id));
+
 /** The manifest entries a feature check or an example check is evidence for. */
 export function cardsOfCheck(subject: 'example' | 'feature', id: string): string[] {
-  return Object.entries(CARD_EVIDENCE).filter(([, e]) => (subject === 'example' ? e.examples?.includes(id) : e.features?.some((f) => featureMatches(f, id)))).map(([k]) => k);
+  return Object.keys(CARD_EVIDENCE).filter((k) => entryNames(CARD_EVIDENCE[k], subject, id));
 }
-
-/** A card's modes (the entries keyed `card:…`). */
-export const modesOf = (card: string): string[] => Object.keys(CARD_EVIDENCE).filter((k) => k.startsWith(`${card}:`));
