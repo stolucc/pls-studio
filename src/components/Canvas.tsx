@@ -97,10 +97,10 @@ export function Canvas({ onImport }: EmptyProps) {
     e.stopPropagation();
     setMenu({ x: e.clientX, y: e.clientY, target });
   }, []);
-  const onMenuAction = (target: MenuTarget, a: MenuAction) => runMenuAction(target, a, { startCorrelate, setParcelFor, setFigureOpen, setTemplatesOpen });
   const menuContent = menu ? menuFor(menu.target, model, { method, readOnly, selected: selection.nodes }) : null;
 
   const empty = model.constructs.length === 0;
+  const parcelConstruct = parcelFor ? model.constructs.find((k) => k.id === parcelFor) : undefined;
 
   return (
     <div
@@ -202,10 +202,10 @@ export function Canvas({ onImport }: EmptyProps) {
 
       {menu && menuContent && (
         <ContextMenu x={menu.x} y={menu.y} title={menuContent.title} items={menuContent.items}
-          onAction={(a) => onMenuAction(menu.target, a)} onClose={closeMenu} />
+          onAction={(a: MenuAction) => runMenuAction(menu.target, a, { startCorrelate, setParcelFor, setFigureOpen, setTemplatesOpen })} onClose={closeMenu} />
       )}
       {figureOpen && <FigurePanel input={figureInput} onClose={() => setFigureOpen(false)} />}
-      {parcelFor && model.constructs.some((k) => k.id === parcelFor) && <ParcelDialog c={model.constructs.find((k) => k.id === parcelFor)!} onClose={() => setParcelFor(null)} />}
+      {parcelConstruct && <ParcelDialog c={parcelConstruct} onClose={() => setParcelFor(null)} />}
       {templatesOpen && <ProcessGallery onClose={() => setTemplatesOpen(false)} />}
       {method === 'process' && !empty && <ProcessBar onTemplates={() => setTemplatesOpen(true)} />}
       <ModelVersionBadge />

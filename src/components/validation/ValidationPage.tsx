@@ -9,7 +9,6 @@ import { IconLogo } from '../icons';
 import { AnalysesCoverage } from './AnalysesCoverage';
 import { LevelChip } from './LevelChip';
 
-export { LevelChip };
 type Tab = 'examples' | 'methods' | 'analyses' | 'browser';
 
 const num = (v: number | string) => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Math.abs(v) >= 1e5 || (v !== 0 && Math.abs(v) < 1e-4) ? v.toExponential(4) : String(Number(v.toPrecision(7)))) : v);

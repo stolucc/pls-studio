@@ -143,15 +143,13 @@ export function useEstimateLabels(model: ModelState, method: Method, estimator: 
   // MIIV-2SLS (R engine): (co)variances from MIIVsem's var.cov step, without standard errors.
   const miivVar = showResults && method === 'cbsem' && estimator === '2SLS' ? results?.miiv?.variances ?? null : null;
   const correlationLabel = useCallback((k: Correlation): CorrelationLabel | null => {
+    const nameOf = (id: string) => (k.kind === 'construct' ? model.constructs.find((c) => c.id === id)?.name : id);
+    const a = nameOf(k.a), b = nameOf(k.b);
     if (miivVar) {
-      const nameOf = (id: string) => (k.kind === 'construct' ? model.constructs.find((c) => c.id === id)?.name : id);
-      const a = nameOf(k.a), b = nameOf(k.b);
       const v = miivVar.find((x) => x.lhs !== x.rhs && x.latent === (k.kind === 'construct') && ((x.lhs === a && x.rhs === b) || (x.lhs === b && x.rhs === a)));
       return v ? { value: unstd ? v.est : v.std, p: null } : null;
     }
     if (!cbEst) return null;
-    const nameOf = (id: string) => (k.kind === 'construct' ? model.constructs.find((c) => c.id === id)?.name : id);
-    const a = nameOf(k.a), b = nameOf(k.b);
     const e = cbEst.estimates.find((x) => x.op === '~~' && x.lhs !== x.rhs && ((x.lhs === a && x.rhs === b) || (x.lhs === b && x.rhs === a))
       && (k.kind === 'indicator' ? x.kind === 'rescov' : x.kind !== 'rescov'));
     return e ? { value: unstd ? e.est : e.std, p: e.p } : null;

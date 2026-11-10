@@ -70,12 +70,7 @@ export function useCorrelationTool(tool: Tool, method: Method, readOnly: boolean
     window.addEventListener('pointerup', up, true);
   };
   const startCorrelate = (p: CorrelationPick) => {
-    const endError = correlationEndError(st().model, p);
-    if (endError) {
-      st().toast('info', endError);
-      if (!st().showErrorTerms) st().setShowErrorTerms(true);
-      return;
-    }
+    if (!endOk(p)) return;
     if (p.kind === 'indicator' && !st().showErrorTerms) st().setShowErrorTerms(true);
     if (tool === 'correlate') { setPicked(p); return; }
     pendingPick.current = p;

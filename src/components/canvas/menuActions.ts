@@ -1,7 +1,7 @@
 // What the canvas's context menu actions do (canvasMenu.ts decides which each target offers): edits through the
 // store, and dialogs for values, labels and held parameters.
 
-import { newId, endogenousIds } from '../../model/project';
+import { newId, endogenousIds, type ModelState } from '../../model/project';
 import { heldText, parseHeldValue, type HeldValue } from '../../model/heldValue';
 import { nameError } from '../../model/expr';
 import { useStore } from '../../store';
@@ -20,6 +20,8 @@ export interface MenuUi {
 }
 
 const st = useStore.getState;
+/** Construct and variable names: a label must differ from them. */
+const variableNames = (m: ModelState) => new Set([...m.constructs.map((c) => c.name), ...m.constructs.flatMap((c) => c.indicators)]);
 /** The parameter a menu target stands for: a path coefficient, a loading or a drawn covariance. */
 const paramOf = (target: MenuTarget): Parameters<ReturnType<typeof st>['fixParameter']>[0] | null =>
   target.kind === 'path' ? { kind: 'path', id: target.id }
@@ -48,7 +50,7 @@ const setLabel = async (target: MenuTarget) => {
   const current = t.kind === 'path' ? m.paths.find((p) => p.id === t.id)?.label
     : t.kind === 'correlation' ? m.correlations?.find((k) => k.id === t.id)?.label
       : m.constructs.find((c) => c.id === t.construct)?.loadingLabels?.[t.indicator];
-  const variables = new Set([...m.constructs.map((c) => c.name), ...m.constructs.flatMap((c) => c.indicators)]);
+  const variables = variableNames(m);
   const label = await textDialog({
     title: 'Label this parameter',
     body: 'Parameters with the same label are constrained to be equal. Labels can be used in defined parameters (e.g. ind := a*b) and Wald tests (Model inspector). Leave empty to remove the label.',
@@ -62,7 +64,7 @@ const HELD_HINT = 'A number holds it at that value; a name labels it (equal labe
 const GROUP_HINT = ' With groups, one entry per group separated by commas (a number, NA for free, or a label), e.g. 1, NA, a.';
 const heldOpts = () => {
   const m = st().model;
-  return { groups: !!m.multigroup, reserved: new Set([...m.constructs.map((c) => c.name), ...m.constructs.flatMap((c) => c.indicators)]) };
+  return { groups: !!m.multigroup, reserved: variableNames(m) };
 };
 const checkHeld = (x: string) => { const r = parseHeldValue(x, heldOpts()); return r && 'error' in r ? r.error : null; };
 const heldDialog = async (title: string, body: string, initial: string): Promise<HeldValue | undefined> => {
@@ -112,7 +114,6 @@ const groupValues = async (target: MenuTarget) => {
   const v = await heldDialog('Covariance per group', 'Give the covariance a value or label in each group (lavaan c(…); Mplus group-specific MODEL commands), or one for all groups.', heldText(k));
   if (v !== undefined) st().setCorrelationValue(k.id, v);
 };
-/** Specification search: mark a path or a covariance as optional (drawn differently; the search fits the model with and without it), or required again. */
 /** Declare an indicator a count of a kind, or continuous again (CB-SEM: such models are estimated by integration). */
 async function setCount(name: string) {
   const now = st().model.count?.[name];
@@ -126,6 +127,7 @@ async function setCount(name: string) {
   if (pick !== 'none') st().toast('info', `${name} is a ${COUNT_NAMES[pick as CountKind]} count now. The model is estimated by numerical integration: Checks (Model inspector) → Estimate by integration.`);
 }
 
+/** Specification search: mark a path or a covariance as optional (drawn differently; the search fits the model with and without it), or required again. */
 export function toggleOptional(target: MenuTarget) {
   const flip = <T extends { id: string; optional?: true }>(x: T): T => { if (x.id !== (target as { id?: string }).id) return x; const { optional, ...rest } = x; return (optional ? rest : { ...rest, optional: true }) as T; };
   if (target.kind === 'path') st().commit((m) => ({ ...m, paths: m.paths.map(flip) }));
