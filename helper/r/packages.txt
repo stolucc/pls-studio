@@ -40,6 +40,7 @@ mirt
 modsem
 mvtnorm
 nnet
+nonnest2
 optimx
 optmatch
 pbivnorm

@@ -4,6 +4,7 @@
 
 import { rCall, rScript, rStrings } from './bridge';
 import type { CbCall } from './cbExtras';
+import type { ModelSpec } from '../engine/types';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
@@ -121,3 +122,45 @@ export function dvClassChi2(p: Pick<DiscriminantResult['pairs'][number], 'est' |
   if (w1 === null || w9 === null || w8 === null || p.est === null) return null;
   return !w1 ? 'severe' : !w9 ? 'moderate' : !w8 || Math.abs(p.est) >= 0.8 ? 'marginal' : 'none';
 }
+
+// ---------- comparing two models (lavTestNET, lavTestLRT, nonnest2) ----------
+
+export type Nesting = 'auto' | 'nested' | 'nonnested';
+type TestNote = { error: string | null; notes: string[] };
+export interface ModelFit { npar: number | null; chisq: number | null; df: number | null; pvalue: number | null; cfi: number | null; rmsea: number | null; srmr: number | null; logl: number | null; aic: number | null; bic: number | null }
+export interface CompareModelsResult {
+  /** Model 1: the diagram; model 2: the saved alternative. */
+  fit1: ModelFit; fit2: ModelFit; n: number;
+  /** nested12: model 1 nested in model 2 (null: could not be checked, or inconclusive). */
+  net: TestNote & { nested12: boolean | null; nested21: boolean | null; fx12: number | null; fx21: number | null; reason12: string; reason21: string; crit: number | null };
+  lrt: TestNote & { chisq: number | null; df: number | null; p: number | null; method: string };
+  vuong: TestNote & { nested: boolean; omega: number | null; pOmega: number | null; stat: number | null; pA: number | null; pB: number | null };
+  icci: TestNote & { aic1: number | null; aic2: number | null; aicLow: number | null; aicHigh: number | null; bic1: number | null; bic2: number | null; bicLow: number | null; bicHigh: number | null; level: number | null };
+  nestedChoice: Nesting;
+  warnings: string[]; engine: REngineInfo & { lavaan?: string };
+}
+const fitOf = (f: any): ModelFit => ({ npar: num(f?.npar), chisq: num(f?.chisq), df: num(f?.df), pvalue: num(f?.pvalue), cfi: num(f?.cfi), rmsea: num(f?.rmsea), srmr: num(f?.srmr), logl: num(f?.logl), aic: num(f?.aic), bic: num(f?.bic) });
+const noteOf = (t: any): TestNote => ({ error: str(t?.error), notes: rStrings(t?.notes) });
+const bool = (v: unknown) => (typeof v === 'boolean' ? v : null);
+export function parseCompareModels(r: Record<string, any>): CompareModelsResult {
+  const net = r.net ?? {}, lrt = r.lrt ?? {}, vt = r.vuong ?? {}, ic = r.icci ?? {};
+  return {
+    fit1: fitOf(r.fit1), fit2: fitOf(r.fit2), n: Number(r.n) || 0,
+    net: { ...noteOf(net), nested12: bool(net.nested12), nested21: bool(net.nested21), fx12: num(net.fx12), fx21: num(net.fx21), reason12: String(net.reason12 ?? ''), reason21: String(net.reason21 ?? ''), crit: num(net.crit) },
+    lrt: { ...noteOf(lrt), chisq: num(lrt.chisq), df: num(lrt.df), p: num(lrt.p), method: String(lrt.method ?? '') },
+    vuong: { ...noteOf(vt), nested: vt.nested === true, omega: num(vt.omega), pOmega: num(vt.pOmega), stat: num(vt.stat), pA: num(vt.pA), pB: num(vt.pB) },
+    icci: { ...noteOf(ic), aic1: num(ic.aic1), aic2: num(ic.aic2), aicLow: num(ic.aicLow), aicHigh: num(ic.aicHigh), bic1: num(ic.bic1), bic2: num(ic.bic2), bicLow: num(ic.bicLow), bicHigh: num(ic.bicHigh), level: num(ic.level) },
+    nestedChoice: r.nestedChoice === 'nested' || r.nestedChoice === 'nonnested' ? r.nestedChoice : 'auto',
+    warnings: rStrings(r.warnings), engine: r.engine,
+  };
+}
+/** The request: model 1's, with the data columns of both models and the alternative's model. */
+export function compareModelsRequest(c: CbCall, alternative: ModelSpec, nested: Nesting) {
+  const both: ModelSpec = { ...c.spec, constructs: [...c.spec.constructs, ...alternative.constructs], multigroup: c.spec.multigroup ?? alternative.multigroup, auxiliary: [...new Set([...(c.spec.auxiliary ?? []), ...(alternative.auxiliary ?? [])])] };
+  const alt = cbRequest(c.data, alternative, c.missing, c.estimator, c.interaction).model;
+  return { ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction), alternative: alt, compare: { nested }, data: cbRequest(c.data, both, c.missing, c.estimator, c.interaction).data };
+}
+export async function compareModelsR(c: CbCall, alternative: ModelSpec, nested: Nesting): Promise<CompareModelsResult> {
+  return parseCompareModels(await rCall<Record<string, any>>('ps_cb_compare_models', compareModelsRequest(c, alternative, nested), 'nonnest2'));
+}
+export const compareModelsScriptR = (c: CbCall, alternative: ModelSpec, nested: Nesting) => rScript('ps_cb_compare_models', compareModelsRequest(c, alternative, nested), 'nonnest2');

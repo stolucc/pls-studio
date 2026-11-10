@@ -1,6 +1,7 @@
 // The examples of cards/model.ts, each run through its card (the card's own run(), so through the same rengine
 // call the app makes) on the example's data, settings and diagram, and compared with its source:
 //   - lavaan's help pages (bootstrapLavaan, lavTestWald, lavPredict) run in the same R, and the tutorial's χ²;
+//   - nonnest2's help pages (vuongtest, icci) run natively in desktop R (scripts/validation/cbdiag.R);
 //   - seminr run in the same R (it_criteria of the alternative-models demo) or natively in desktop R
 //     (predict_pls, path coefficients: seminr 2.6.0, R 4.6, values below with the script that printed them);
 //   - Kock & Hadaya's (2018) formula and its printed z (2.486);
@@ -10,7 +11,10 @@
 //     simdata's simulated segments.
 // Random procedures run with the example's seed; tolerances are stated per check. Run with WEBR_TESTS=1.
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import type { CompareModelsResult } from '../../rengine/cbDiag';
 import { webrOnlyIt } from '../../rengine/webrSlow';  // (the references are seminr 2.5.0's, the browser's version; desktop seminr 2.6.0 changed its benchmark)
 import { slowIt } from '../../rengine/webrSlow';
 import type { Dataset, PlsResult } from '../../engine/types';
@@ -135,6 +139,26 @@ it('lavaan-hs-wald: each critical ratio squared is lavTestWald’s test of the t
   near('z(x5, x8)² = Wald b2 == b3', z('textual → x5', 'speed → x8') ** 2, ref.w23, 1e-6);
   near('z(x2, x5)² = Wald b1 == b2', z('visual → x2', 'textual → x5') ** 2, ref.w12, 1e-6);
   near('z(x2, x8)² = Wald b1 == b3', z('visual → x2', 'speed → x8') ** 2, ref.w13, 1e-6);
+}, 900_000);
+
+// nonnest2 is not in the browser's R until the lead locks it: the reference is nonnest2 0.5-9 in desktop R,
+// scripts/validation/cbdiag.R (vuongtest(fit1, fit2) and icci(fit1, fit2) of the help pages, fit1 with a mean structure as ?icci).
+it('nonnest2-hs-vuong: Vuong’s tests and the AIC / BIC difference intervals of ?vuongtest and ?icci', async () => {
+  const { run } = await open('nonnest2-hs-vuong', 'CB-SEM', ['lavaan', 'nonnest2']);
+  const r = await run<CompareModelsResult>();
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'cbdiag', 'reference.json'), 'utf8')).compare.documented;
+  against({ label: 'nonnest2, ?vuongtest and ?icci: their lavaan example run natively (scripts/validation/cbdiag.R)', level: 'native', url: 'https://rdrr.io/cran/nonnest2/man/vuongtest.html' });
+  same('treated as non-nested', String(r.vuong.nested), 'false');
+  near('ω² (variance test)', r.vuong.omega!, ref.vuong.omega, 1e-8);
+  near('p (variance test)', r.vuong.pOmega!, ref.vuong.pOmega, 1e-8);
+  near('LR test z', r.vuong.stat!, ref.vuong.stat, 1e-6);
+  near('p (model 2 better)', r.vuong.pB!, ref.vuong.pB, 1e-10);
+  near('AIC difference, lower', r.icci.aicLow!, ref.icci.aicLow, 1e-4);
+  near('AIC difference, upper', r.icci.aicHigh!, ref.icci.aicHigh, 1e-4);
+  near('BIC difference, lower', r.icci.bicLow!, ref.icci.bicLow, 1e-4);
+  near('BIC difference, upper', r.icci.bicHigh!, ref.icci.bicHigh, 1e-4);
+  near('AIC (one group), as ?icci prints', r.icci.aic1!, 7535.490, 0.001);
+  near('BIC (two groups), as ?icci prints', r.icci.bic2!, 7706.822, 0.001);
 }, 900_000);
 
 it('lavaan-hs-scoreweights: the weights applied to the centred tests give lavPredict’s scores', async () => {

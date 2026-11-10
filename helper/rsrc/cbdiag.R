@@ -11,8 +11,8 @@ PS_LOCALFIT_SCALED <- c("satorra.bentler", "yuan.bentler", "mean.var.adjusted", 
 
 #' Script lines: functions that refit the model by update() (semTools, nonnest2) evaluate its call elsewhere, where
 #' `data` (or `S`, `N`) would not be this script's objects: the call is given the objects themselves.
-PS_CALL_OBJECTS <- c("# (the model is refitted by update() outside this script: its call takes the data objects themselves)",
-  "for (a in names(fit@call)[-1]) if (is.name(fit@call[[a]]) && exists(as.character(fit@call[[a]]), inherits = FALSE)) fit@call[[a]] <- get(as.character(fit@call[[a]]))")
+ps_call_objects <- function(f = "fit") c("# (the model is refitted by update() outside this script: its call takes the data objects themselves)",
+  sprintf("for (a in names(%s@call)[-1]) if (is.name(%s@call[[a]]) && exists(as.character(%s@call[[a]]), inherits = FALSE)) %s@call[[a]] <- get(as.character(%s@call[[a]]))", f, f, f, f, f))
 
 #' A symmetric lavaan matrix as rows of numbers (NA as null).
 ps_rows <- function(m) lapply(seq_len(nrow(m)), function(i) I(unname(as.numeric(m[i, ]))))
@@ -98,7 +98,7 @@ ps_cb_discriminant <- function(req_json, export = FALSE) {
     "# model is refitted with unit factor variances when it uses markers), and chi-square difference tests against the",
     "# model with each correlation fixed at the classification's cutoffs .8, .9 and 1, one at a time (chi2(sys)).",
     "suppressPackageStartupMessages(library(semTools))",
-    PS_CALL_OBJECTS,
+    ps_call_objects(),
     sprintf("dv <- lapply(c(cut_0.8 = 0.8, cut_0.9 = 0.9, cut_1 = 1), function(k) discriminantValidity(fit, cutoff = k, level = %s))", format(level)),
     if (merge) c("# ... and against the model with the two factors merged into one (chi2(merge)).",
       sprintf("dv_merge <- discriminantValidity(fit, merge = TRUE, level = %s)", format(level))))
@@ -113,4 +113,74 @@ ps_cb_discriminant <- function(req_json, export = FALSE) {
     cut80 = pr(env$dv[[1]]), cut90 = pr(env$dv[[2]]), cut100 = pr(env$dv[[3]]), merge = if (merge) pr(env$dv_merge) else NULL,
     markers = !isTRUE(lavInspect(env$fit, "options")$std.lv), warnings = env$.warnings,
     engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools")))))
+}
+
+#' Comparison of the model on the canvas (model 1) with a saved alternative (model 2), fitted to the same
+#' data: their fit, lavaan's nesting and equivalence test (lavTestNET; Bentler & Satorra 2010), the
+#' chi-square difference test (lavTestLRT, its own nesting check on), Vuong's tests (nonnest2::vuongtest;
+#' Merkle, You & Preacher 2016) and confidence intervals of the AIC and BIC differences (nonnest2::icci).
+#' Each test on its own: one that does not apply says why.
+ps_cb_compare_models <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  if (!is.list(req$alternative) || !length(req$alternative$constructs)) stop("Save an alternative model first.")
+  if (!identical(req$estimator, "ML") && !identical(req$estimator, "MLR") && !identical(req$estimator, "MLM")) stop("Comparing models needs a maximum-likelihood estimator (ML, MLR or MLM): Vuong's tests use each case's log-likelihood.")
+  for (c in req$alternative$constructs) { if (!is.null(c$mode) && !c$mode %in% c("A", "B", "unit")) stop("Invalid construct mode in the request."); if (!is.null(c$type) && !c$type %in% c("factor", "composite")) stop("Invalid construct type in the request.") }
+  b1 <- ps_cb_build(req)
+  req2 <- req; req2$model <- req$alternative
+  b2 <- ps_cb_build(req2)
+  for (b in list(b1, b2)) {
+    ps_cb_plain(b, "Comparing models")
+    if (length(b$call) != 1 || !grepl("^fit <- sem\\(model, data = data", b$call)) stop("Comparing models is not available for this model.")
+  }
+  # (one data frame: model 2's own columns, such as its grouping column, travel too)
+  for (k in setdiff(names(b2$inputs$data), names(b1$inputs$data))) b1$inputs$data[[k]] <- b2$inputs$data[[k]]
+  if (!setequal(b1$n$all_inds, b2$n$all_inds)) stop("The two models must use the same observed variables (Vuong's tests compare the likelihoods of the same data).")
+  if (!identical(unname(b1$n$iv[sort(b1$n$all_inds)]), unname(b2$n$iv[sort(b2$n$all_inds)]))) stop("The two models name their indicators differently: rename a construct that has an indicator's name.")
+  nested <- req$compare$nested %||% "auto"
+  if (!nested %in% c("auto", "nested", "nonnested")) stop("Invalid nesting choice in the request.")
+  at <- match("model <- '", b2$body)
+  seg <- b2$body[at:match(b2$call, b2$body)]
+  seg[1] <- "model_2 <- '"
+  seg[length(seg)] <- sub("^fit <- sem\\(model,", "fit_2 <- sem(model_2,", seg[length(seg)])
+  body <- c(b1$body, "fit_1 <- fit", "", "# Model 2: the alternative, fitted to the same data", seg, "",
+    ps_call_objects("fit_1"), ps_call_objects("fit_2"),
+    "# Each test on its own: one that does not apply says why.",
+    "try_test <- function(expr) tryCatch(withCallingHandlers(expr, warning = function(w) { note <<- c(note, conditionMessage(w)); invokeRestart(\"muffleWarning\") }), error = function(e) conditionMessage(e))",
+    "note <- character(0)",
+    "# Nesting and equivalence (Bentler & Satorra 2010): is one model nested in the other, in the covariance sense?",
+    "net <- try_test(lavTestNET(fit_1, fit_2, model_names = c(\"model_1\", \"model_2\")))",
+    "note_net <- note; note <- character(0)",
+    "# Chi-square difference test (lavaan checks the nesting itself)",
+    "lrt <- try_test(lavTestLRT(fit_1, fit_2, model_names = c(\"model_1\", \"model_2\")))",
+    "note_lrt <- note; note <- character(0)",
+    "suppressPackageStartupMessages(library(nonnest2))",
+    switch(nested,
+      auto = c("# Vuong's tests (Merkle, You & Preacher 2016): as nested models when NET finds one nested in the other with fewer df",
+        "nested <- is.list(net) && isTRUE(net$df[1] != net$df[2]) && isTRUE(net$nested[1, 2] || net$nested[2, 1])"),
+      nested = c("# Vuong's tests (Merkle, You & Preacher 2016), the models taken as nested", "nested <- TRUE"),
+      nonnested = c("# Vuong's tests (Merkle, You & Preacher 2016), the models taken as non-nested", "nested <- FALSE")),
+    "vt <- try_test(vuongtest(fit_1, fit_2, nested = nested))",
+    "note_vt <- note; note <- character(0)",
+    "# Confidence intervals of the AIC and BIC differences (model 1 minus model 2); for non-nested, distinguishable models",
+    "ic <- try_test(icci(fit_1, fit_2))",
+    "note_ic <- note")
+  report <- c("print(net)", "print(lrt)", "print(vt)", "print(ic)")
+  if (export) return(paste(ps_script("Comparing two models: NET, chi-square difference, Vuong's tests (lavaan, nonnest2)", c("lavaan", "nonnest2"), b1$inputs, body, report), collapse = "\n"))
+  env <- ps_run(body, b1$inputs)
+  fm <- function(f) { m <- fitMeasures(f, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "srmr", "logl", "aic", "bic")); as.list(setNames(as.numeric(m), names(m))) }
+  num1 <- function(x) if (is.numeric(x) && length(x) == 1 && is.finite(x)) unname(x) else NULL
+  why <- function(x, notes) list(error = if (is.character(x)) ps_flat(paste(x, collapse = " ")) else NULL, notes = I(ps_flat(unique(notes))))
+  net <- env$net
+  netOut <- if (is.list(net)) list(nested12 = net$nested[1, 2], nested21 = net$nested[2, 1], fx12 = num1(net$fx[1, 2]), fx21 = num1(net$fx[2, 1]),
+    reason12 = ps_flat(net$reason[1, 2]), reason21 = ps_flat(net$reason[2, 1]), crit = num1(net$crit)) else NULL
+  lrt <- env$lrt
+  lrtOut <- if (is.data.frame(lrt)) list(chisq = num1(lrt[["Chisq diff"]][2]), df = num1(lrt[["Df diff"]][2]), p = num1(lrt[["Pr(>Chisq)"]][2]), method = ps_flat(attr(lrt, "heading")[1] %||% "")) else NULL
+  vt <- env$vt
+  vtOut <- if (is.list(vt)) list(nested = isTRUE(vt$nested), omega = num1(vt$omega), pOmega = num1(vt$p_omega), stat = num1(vt$LRTstat), pA = num1(vt$p_LRT$A), pB = num1(vt$p_LRT$B)) else NULL
+  ic <- env$ic
+  icOut <- if (is.list(ic)) list(aic1 = num1(ic$AIC$AIC1), aic2 = num1(ic$AIC$AIC2), aicLow = num1(ic$AICci[1]), aicHigh = num1(ic$AICci[2]), bic1 = num1(ic$BIC$BIC1), bic2 = num1(ic$BIC$BIC2), bicLow = num1(ic$BICci[1]), bicHigh = num1(ic$BICci[2]), level = num1(ic$confLevel)) else NULL
+  ps_json(list(fit1 = fm(env$fit_1), fit2 = fm(env$fit_2), n = sum(lavInspect(env$fit_1, "nobs")),
+    net = c(netOut, why(net, env$note_net)), lrt = c(lrtOut, why(lrt, env$note_lrt)), vuong = c(vtOut, why(vt, env$note_vt)), icci = c(icOut, why(ic, env$note_ic)),
+    nestedChoice = nested, warnings = env$.warnings,
+    engine = list(package = "nonnest2", version = as.character(utils::packageVersion("nonnest2")), lavaan = as.character(utils::packageVersion("lavaan")))))
 }

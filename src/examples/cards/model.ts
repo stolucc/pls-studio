@@ -8,11 +8,18 @@
 
 import { c, CB, f, fan, items } from '../define';
 import type { PackageExample } from '../packages';
-import type { Settings } from '../../model/project';
+import type { ModelState, Settings } from '../../model/project';
 import { RICLPM_DATA } from '../remote/source';
 
 const HS = [f('visual', items('x', 3)), f('textual', items('x', 3, 4)), f('speed', items('x', 3, 7))];
 const HS_LINKS = [{ label: '?HolzingerSwineford1939', url: 'https://rdrr.io/cran/lavaan/man/HolzingerSwineford1939.html' }];
+/** The HS CFA fitted in each school (configural groups): nonnest2's fit2, the comparison card's saved alternative. */
+const HS_BY_SCHOOL: ModelState = {
+  constructs: [['visual', items('x', 3)], ['textual', items('x', 3, 4)], ['speed', items('x', 3, 7)]].map(([name, indicators], i) => ({ id: `alt-${name as string}`, name: name as string, type: 'factor' as const, mode: 'A' as const, indicators: indicators as string[], x: 0, y: 160 * i, side: 'left' as const })),
+  paths: [], moderations: [],
+  correlations: [['visual', 'textual'], ['visual', 'speed'], ['textual', 'speed']].map(([a, b]) => ({ id: `alt-${a}-${b}`, kind: 'construct' as const, a: `alt-${a}`, b: `alt-${b}` })),
+  multigroup: { column: 'school', invariance: 'configural', free: [] },
+};
 
 /** seminr's estimate_pls() defaults (path weighting, mean replacement, 300 iterations, 1e-07), as the seminr examples in packages.ts. */
 const SEMINR = (more: Partial<Settings> = {}): Partial<Settings> => ({ method: 'pls', plsPackage: 'seminr', consistent: false, scheme: 'path', missing: 'mean', ...more });
@@ -83,6 +90,14 @@ export const CARD_MODEL: PackageExample[] = [
     data: { package: 'lavaan', name: 'HolzingerSwineford1939' },
     constructs: [f('visual', items('x', 3), { x2: 'b1' }), f('textual', items('x', 3, 4), { x5: 'b2' }), f('speed', items('x', 3, 7), { x8: 'b3' })], paths: [],
     panel: { kind: 'cbcompare', kinds: ['loadings'] }, settings: CB('ML'),
+  },
+  {
+    id: 'nonnest2-hs-vuong', package: 'nonnest2', title: 'Vuong’s tests: one group or two (Holzinger & Swineford)', source: 'nonnest2, ?vuongtest and ?icci (latent variable models)',
+    links: [{ label: '?vuongtest', url: 'https://rdrr.io/cran/nonnest2/man/vuongtest.html' }, { label: '?icci', url: 'https://rdrr.io/cran/nonnest2/man/icci.html' }, ...HS_LINKS, { label: 'Merkle, You & Preacher (2016)', url: 'https://doi.org/10.1037/met0000038' }],
+    description: 'The help pages’ latent variable example: the three-factor CFA of the 301 children fitted in one group (the diagram, with the constant on the canvas: meanstructure = TRUE, as ?icci fits it) against the same CFA fitted separately in the two schools (the saved alternative, configural groups by school). The models are not nested (lavTestNET cannot check models with different numbers of groups, and lavTestLRT says its χ² difference is invalid), so the card shows Vuong’s distinguishability and non-nested likelihood-ratio tests (vuongtest(fit1, fit2)) and intervals of the AIC and BIC differences (icci(fit1, fit2)). Opens its card on the Analyses tab beside the diagram.',
+    shows: 'The data tell the models apart (variance test p = .006; .016 on ?vuongtest, whose one-group model has no mean structure) and the two-school model fits better (non-nested LR test z = −4.99, p < .001 for model 2). The information criteria disagree: the AIC difference (one group minus two) lies between 7.45 and 94.74, favouring two groups, while the BIC difference lies between −103.76 and −16.47, favouring one group with its 48 fewer parameters.',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [], constant: true,
+    panel: { kind: 'cbmodels', alternative: { model: HS_BY_SCHOOL, savedAt: 0 }, nested: 'auto' }, settings: CB('ML'),
   },
   {
     id: 'parcels-bfi', package: 'psych', title: 'Parcels: the Big Five, and how much the allocation matters', source: 'psych, ?bfi (the SAPA project); Little et al. (2002); Sterba & MacCallum (2010)',

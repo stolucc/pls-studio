@@ -122,6 +122,8 @@ export const R_PACKAGES = {
   // Dynamic fit index cutoffs (dynamic, Wolf & McNeish), on a lavaan fit. In the browser a build patched to load
   // without GenOrd (whose import cubature webR cannot load): scripts/webr/fetch.mjs PATCHED.
   dynamic: ['jsonlite', 'lavaan', 'semTools', 'dynamic'],
+  // Comparing two CB-SEM models: Vuong's tests and AIC / BIC difference intervals (nonnest2) beside lavaan's NET and LRT.
+  nonnest2: ['jsonlite', 'lavaan', 'nonnest2'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;

@@ -1,20 +1,22 @@
 // CB-SEM diagnostics of the model on the canvas as analysis cards (lavaan):
 // local fit (residual z-tests per pair of observed variables, the SRMR's tests,
-// further tests of exact fit); discriminant validity per Rönkkö & Cho (2022).
+// further tests of exact fit); discriminant validity per Rönkkö & Cho (2022);
+// comparing the diagram with a saved alternative (NET, LRT, Vuong, icci).
 
 import { useState } from 'react';
 import type { CbEstimator } from '../engine/cbsem';
 import { normalP } from '../engine/stats';
 import { fmt } from '../format';
-import { toSpec } from '../model/project';
+import { parseModelState, toSpec, validateModel, type ModelState } from '../model/project';
 import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../figure/palette';
 import { clampStrict } from '../parse';
 import { c, pCell, Table, type Cell, type Row } from '../components/results/Table';
 import type { CbCall } from '../rengine/cbExtras';
-import { dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, SCALED_TESTS, type DiscriminantResult, type DvClass, type LocalFitBlock, type LocalFitResult, type LocalFitTest } from '../rengine/cbDiag';
+import { dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, SCALED_TESTS, type CompareModelsResult, type DiscriminantResult, type DvClass, type ModelFit, type Nesting, type LocalFitBlock, type LocalFitResult, type LocalFitTest } from '../rengine/cbDiag';
 import { cbFingerprint, cbModelBlocked } from './cbModel';
-import { clampNum, isObj, oneOf } from './common';
-import type { AnalysisCtx, AnalysisType } from './types';
+import { clampNum, columnsFingerprint, isObj, oneOf } from './common';
+import { useStore } from '../store';
+import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 const CB_GROUP = 'CB-SEM model' as const;
 const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
@@ -267,5 +269,119 @@ export const discriminantAnalysis: AnalysisType<DiscriminantOptions, Discriminan
   run: async (o, ctx) => (await import('../rengine/cbDiag')).discriminantR(callOf(ctx), o),
   script: async (o, ctx) => (await import('../rengine/cbDiag')).discriminantScriptR(callOf(ctx), o),
   summary: (o) => `${fmt(o.level * 100, 0)}% CIs, χ²(sys)${o.merge ? ' and χ²(merge)' : ''}`,
+};
+
+// ---------- comparing two models (lavTestNET, lavTestLRT, nonnest2) ----------
+
+/** The alternative: a snapshot of an earlier diagram (strictly re-read from project files by parseModelState). */
+export interface CompareModelsOptions { alternative: { model: ModelState; savedAt: number } | null; nested: Nesting }
+const NESTINGS: [Nesting, string][] = [['auto', 'From the nesting test'], ['nested', 'Nested'], ['nonnested', 'Non-nested']];
+
+const indicatorSet = (m: ModelState) => [...new Set(m.constructs.flatMap((k) => k.indicators))].sort();
+/** Why the two models cannot be compared (beyond the diagram's own problems); null when they can. */
+export function compareModelsProblem(o: CompareModelsOptions, ctx: AnalysisCtx): string | null {
+  const s = ctx.settings;
+  if (!['ML', 'MLR', 'MLM'].includes(s.estimator)) return 'Comparing models needs a maximum-likelihood estimator (ML, MLR or MLM): Vuong’s tests use each case’s log-likelihood.';
+  if (ctx.model?.ordered?.length) return 'Comparing models is for continuous indicators (Vuong’s tests need each case’s normal log-likelihood).';
+  if (!o.alternative) return 'Save the current model as the alternative, change the diagram, then run.';
+  const alt = o.alternative.model;
+  if (JSON.stringify(indicatorSet(alt)) !== JSON.stringify(indicatorSet(ctx.model!))) return 'The two models must use the same observed variables (Vuong’s tests compare likelihoods of the same data): add or remove indicators in the diagram, or save the alternative again.';
+  if (alt.ordered?.length) return 'The alternative has ordinal indicators: save it again as a model of continuous indicators.';
+  const err = validateModel(alt, ctx.data, s).find((i) => i.level === 'error');
+  if (err) return `The alternative cannot be fitted with the current data and settings: ${err.message}`;
+  if (JSON.stringify(toSpec(alt)) === JSON.stringify(toSpec(ctx.model!))) return 'The diagram is still the alternative: change the diagram first (paths, loadings, covariances, constraints or groups).';
+  return null;
+}
+
+const yesNo = (v: boolean | null) => (v === null ? c('could not be decided', 'dim') : c(v ? 'yes' : 'no', v ? 'good' : ''));
+
+export function CompareModelsView({ r }: { r: CompareModelsResult }) {
+  const f1 = r.fit1, f2 = r.fit2;
+  const fitRow = (label: string, k: keyof ModelFit, d = 3, lower = false): Row => {
+    const a = f1[k], b = f2[k];
+    const better = lower && a !== null && b !== null && a !== b ? (a < b ? 1 : 2) : 0;
+    return [c(label), { ...c(a, undefined, d), bold: better === 1 }, { ...c(b, undefined, d), bold: better === 2 }];
+  };
+  const n = r.net, equalDf = f1.df !== null && f1.df === f2.df;
+  const netVerdict = n.error ? `Not available: ${n.error}`
+    : equalDf ? (n.nested12 && n.nested21 ? 'Equivalent: the two models imply the same covariances (equal df), so no test can tell them apart.' : n.nested12 === false || n.nested21 === false ? 'Not equivalent, with equal df: neither is nested in the other, so the χ² difference test does not apply; use Vuong’s tests.' : 'Equivalence could not be decided.')
+    : n.nested12 ? 'Model 1 is nested in model 2: the χ² difference test applies.' : n.nested21 ? 'Model 2 is nested in model 1: the χ² difference test applies.' : n.nested12 === false && n.nested21 === false ? 'Not nested: the χ² difference test is invalid; use Vuong’s tests and the information criteria.' : 'Nesting could not be decided.';
+  const v = r.vuong, ic = r.icci;
+  const vuongRows: Row[] = v.error ? [[c('Vuong’s tests'), c('not available', 'dim'), c(null), c(v.error, 'bad')]] : v.nested ? [
+    [c('Vuong’s test for nested models (robust LR)'), c(v.stat, undefined, 3), pCell(v.pA), c('a small p: the larger model fits better, without assuming that either model is correct (weighted χ² reference distribution)', 'dim')],
+  ] : [
+    [c('Distinguishability (variance test, ω²)'), c(v.omega, undefined, 4), pCell(v.pOmega), c(v.pOmega !== null && v.pOmega < 0.05 ? 'distinguishable: go on to the LR test' : 'not distinguishable on these data: the LR test cannot favour either', 'dim')],
+    [c('Non-nested LR test: model 1 better'), c(v.stat, undefined, 3), pCell(v.pA), c('H1: model 1 fits better (z of the mean log-likelihood difference)', 'dim')],
+    [c('Non-nested LR test: model 2 better'), c(v.stat, undefined, 3), pCell(v.pB), c('H1: model 2 fits better', 'dim')],
+  ];
+  const ci = (lo: number | null, hi: number | null) => c(lo !== null && hi !== null ? `[${fmt(lo, 2)}, ${fmt(hi, 2)}]` : null);
+  return (
+    <div className="tables">
+      <Table title="Fit of the two models" file="cb-models-fit" columns={['', 'Model 1 (diagram)', 'Model 2 (alternative)']}
+        rows={[fitRow('Free parameters', 'npar', 0), fitRow('χ²', 'chisq'), fitRow('df', 'df', 0), fitRow('p', 'pvalue', 4), fitRow('CFI', 'cfi'), fitRow('RMSEA', 'rmsea'), fitRow('SRMR', 'srmr'), fitRow('Log-likelihood', 'logl', 2), fitRow('AIC', 'aic', 2, true), fitRow('BIC', 'bic', 2, true)]}
+        note={`Both fitted by lavaan ${r.engine.lavaan ?? ''} to the same ${r.n} cases. Bold: the lower AIC or BIC.`} />
+      <Table title="Nesting and equivalence (lavTestNET)" file="cb-models-net" columns={['', 'Nested?', 'F_min', 'Why not checked']}
+        rows={n.error ? [[c('NET'), c('not available', 'dim'), c(null), c(n.error, 'bad')]] : [[c('Model 1 within model 2'), yesNo(n.nested12), c(n.fx12, undefined, 8), c(n.reason12 || null, 'dim')], [c('Model 2 within model 1'), yesNo(n.nested21), c(n.fx21, undefined, 8), c(n.reason21 || null, 'dim')]]}
+        note={`${netVerdict} Bentler & Satorra (2010): the less restricted model is fitted to the moments the other implies; a minimum of the fit function below ${n.crit ?? 1e-7} means nested in the covariance sense (Asparouhov & Muthén 2019).`} />
+      <Table title="Tests" file="cb-models-tests" columns={['Test', 'Statistic', 'p', 'Reading']}
+        rows={[
+          r.lrt.error ? [c('χ² difference test'), c('not available', 'dim'), c(null), c(r.lrt.error, 'bad')]
+            : [c(`χ² difference test (Δdf = ${r.lrt.df ?? '—'})`), c(r.lrt.chisq, undefined, 3), pCell(r.lrt.p), c([r.lrt.method, ...r.lrt.notes].filter(Boolean).join(' ') || 'valid for nested models only', 'dim')],
+          ...vuongRows,
+          ic.error ? [c('AIC / BIC difference intervals'), c('not available', 'dim'), c(null), c(ic.error, 'bad')] : [c(`AIC difference (1 − 2), ${fmt((ic.level ?? 0.95) * 100, 0)}% CI`), ci(ic.aicLow, ic.aicHigh), c(null), c('an interval excluding 0 favours the model with the lower AIC', 'dim')],
+          ...(ic.error ? [] : [[c(`BIC difference (1 − 2), ${fmt((ic.level ?? 0.95) * 100, 0)}% CI`), ci(ic.bicLow, ic.bicHigh), c(null), c('negative: model 1 preferred; for non-nested, distinguishable models only', 'dim')] as Row]),
+        ]}
+        note={`Merkle, You & Preacher (2016), nonnest2 ${r.engine.version}: for non-nested models first ask whether the data can distinguish them (the variance test); only then does the LR test say which fits better. ${v.nested ? 'The models were treated as nested' : 'The models were treated as non-nested'} (${r.nestedChoice === 'auto' ? 'from the nesting test' : 'as chosen'}). The interval of the BIC difference (icci) is valid for non-nested, distinguishable models. Vuong (1989).${[...v.notes, ...ic.notes].length ? ` R: ${[...new Set([...v.notes, ...ic.notes])].join(' ')}` : ''}`} />
+      {r.warnings.length > 0 && <div>{r.warnings.map((w, i) => <div key={i} className="issue warning">{w}</div>)}</div>}
+    </div>
+  );
+}
+
+function CompareModelsForm({ options: o, set, ctx, disabled }: OptionsProps<CompareModelsOptions>) {
+  const save = () => {
+    if (!ctx.model) return;
+    set({ ...o, alternative: { model: structuredClone(ctx.model), savedAt: Date.now() } });
+    useStore.getState().toast('success', 'Saved the model as the alternative. Now change the diagram (Model tab) and run the comparison.');
+  };
+  const alt = o.alternative;
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <Hint text={`Compare the diagram (model 1) with an alternative (model 2) on the same observed variables: nesting and equivalence (lavaan::lavTestNET), the χ² difference test, Vuong’s tests for nested and non-nested models and intervals of the AIC and BIC differences (nonnest2). Both estimated with ${ctx.settings.estimator} (Model settings).`} />
+      <button className="btn" disabled={!ctx.model?.constructs.length} onClick={save}>Save the current model as the alternative</button>
+      <div className="hint" style={{ marginTop: 6 }}>
+        {alt ? `Alternative saved: ${alt.model.constructs.length} constructs, ${alt.model.paths.length} paths${alt.model.multigroup ? `, groups by ${alt.model.multigroup.column}` : ''}${alt.savedAt ? ` (${new Date(alt.savedAt).toLocaleString()})` : ''}.` : 'No alternative saved yet: save the model, change the diagram, then compare.'}
+      </div>
+      <div className="field" style={{ marginTop: 8 }}>
+        <label>Vuong’s tests treat the models as</label>
+        <div className="segmented">
+          {NESTINGS.map(([id, label]) => <button key={id} className={o.nested === id ? 'on' : ''} onClick={() => set({ ...o, nested: id })}>{label}</button>)}
+        </div>
+      </div>
+    </fieldset>
+  );
+}
+
+export const compareModelsAnalysis: AnalysisType<CompareModelsOptions, CompareModelsResult> = {
+  id: 'cbmodels', title: 'Model comparison (CB-SEM)', sub: 'nesting and equivalence, χ² difference, Vuong’s tests for nested and non-nested models, AIC/BIC intervals (lavaan, nonnest2)', group: CB_GROUP,
+  fitsModel: true,
+  defaults: () => ({ alternative: null, nested: 'auto' }),
+  parseOptions: (raw) => {
+    if (!isObj(raw)) return null;
+    let alternative: CompareModelsOptions['alternative'] = null;
+    if (isObj(raw.alternative)) {
+      try { alternative = { model: parseModelState(raw.alternative.model), savedAt: clampStrict(raw.alternative.savedAt, 0, 1e15, 0) }; } catch { alternative = null; }
+    }
+    return { alternative, nested: oneOf(raw.nested, ['auto', 'nested', 'nonnested'] as const, 'auto') };
+  },
+  Options: CompareModelsForm,
+  View: ({ result }) => <CompareModelsView r={result} />,
+  blocked: (o, ctx) => cbModelBlocked(ctx, 'Comparing models') ?? fitBlocked(ctx, 'Comparing models') ?? compareModelsProblem(o, ctx),
+  fingerprint: (o, ctx) => {
+    const alt = o.alternative?.model, col = alt?.multigroup?.column;
+    return cbFingerprint(ctx, [alt ? JSON.stringify(toSpec(alt)) : null, o.nested, col ? columnsFingerprint(ctx, [col]) : null]);
+  },
+  run: async (o, ctx) => (await import('../rengine/cbDiag')).compareModelsR(callOf(ctx), toSpec(o.alternative!.model), o.nested),
+  script: async (o, ctx) => (await import('../rengine/cbDiag')).compareModelsScriptR(callOf(ctx), toSpec(o.alternative!.model), o.nested),
+  summary: (o) => (o.alternative ? `diagram vs the alternative saved ${o.alternative.savedAt ? new Date(o.alternative.savedAt).toLocaleDateString() : 'with the example'}` : 'no alternative saved yet'),
 };
 

@@ -1,7 +1,8 @@
 // CB-SEM diagnostics through the bridge on the Holzinger–Swineford CFA (lavaan's ?cfa), against direct
 // lavaan calls in native R (scripts/validation/cbdiag.R → src/engine/__fixtures__/cbdiag/reference.json):
 // local fit (lavResiduals z-tests, normalized residuals, the SRMR's tests, lavTest's further tests) and
-// FIML / two-stage with auxiliary variables (lavaan aux =); discriminant validity (semTools::discriminantValidity).
+// FIML / two-stage with auxiliary variables (lavaan aux =); discriminant validity (semTools::discriminantValidity);
+// comparing two models (lavTestNET, lavTestLRT, nonnest2::vuongtest and icci).
 // Run with WEBR_TESTS=1 PS_NATIVE_R=1 (or npm run test:webr).
 
 import { readFileSync } from 'node:fs';
@@ -10,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall } from './bridge';
 import type { CbCall } from './cbExtras';
-import { discriminantR, discriminantScriptR, dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, localFitR, localFitScriptR, type LocalFitBlock } from './cbDiag';
+import { compareModelsR, compareModelsScriptR, discriminantR, discriminantScriptR, dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, localFitR, localFitScriptR, type LocalFitBlock } from './cbDiag';
 import { estimateCbLavaan } from './lavaan';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
@@ -160,5 +161,48 @@ describe('discriminant validity (semTools::discriminantValidity, Rönkkö & Cho 
     const s = await discriminantScriptR(call({ data: pd, spec: pdSpec }), { level: 0.95, merge: false });
     expect(s).toContain('discriminantValidity(fit, cutoff = k, level = 0.95)');
     expect(s).not.toContain('merge = TRUE');
+  }, 900_000);
+});
+
+describe('comparing two models (lavTestNET, lavTestLRT, nonnest2)', () => {
+  it('nonnest2’s documented example: the HS CFA (mean structure, as ?icci) against the same CFA by school', async () => {
+    const byGroup: ModelSpec = { ...spec, multigroup: { column: 'school', invariance: 'configural', free: [] } };
+    const r = await compareModelsR(call({ spec: { ...spec, meanStructure: true } }), byGroup, 'auto');
+    const ref = REF.compare.documented;
+    expect(r.fit1.logl).toBeCloseTo(ref.logl1, 6);
+    expect(r.fit2.logl).toBeCloseTo(ref.logl2, 6);
+    expect(r.vuong.error).toBeNull();
+    expect(r.vuong.nested).toBe(false);  // NET cannot check models with different numbers of groups
+    for (const k of ['omega', 'pOmega', 'stat', 'pA', 'pB'] as const) expect(r.vuong[k], k).toBeCloseTo(ref.vuong[k], 8);
+    for (const k of ['aic1', 'aic2', 'aicLow', 'aicHigh', 'bic1', 'bic2', 'bicLow', 'bicHigh'] as const) expect(r.icci[k], k).toBeCloseTo(ref.icci[k], 6);
+    expect(r.net.nested21).toBeNull();
+    expect(r.net.reason21).toMatch(/groups/);
+    expect(r.lrt.notes.join(' ')).toMatch(/number of groups differs.*invalid/);  // lavaan computes it, and says it is invalid
+  }, 900_000);
+
+  it('a nested pair (three factors against one): NET finds the nesting, the χ² difference and Vuong’s nested test as lavaan and nonnest2 give them', async () => {
+    const one: ModelSpec = { constructs: [F('g', ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9'])], paths: [] };
+    const r = await compareModelsR(call(), one, 'auto');
+    const ref = REF.compare.nested;
+    expect(r.net.nested21).toBe(true);
+    expect(r.net.nested12).toBeNull();
+    expect(r.lrt.chisq).toBeCloseTo(ref.lrt.chisq, 6);
+    expect(r.lrt.df).toBe(ref.lrt.df);
+    expect(r.lrt.p).toBeCloseTo(ref.lrt.p, 12);
+    expect(r.vuong.nested).toBe(true);
+    expect(r.vuong.stat).toBeCloseTo(ref.vuong.stat, 6);
+    expect(r.vuong.pA).toBeCloseTo(ref.vuong.pA, 10);
+    expect(r.fit1.df).toBe(24);
+    expect(r.fit2.df).toBe(27);
+    const s = await compareModelsScriptR(call(), one, 'nested');
+    expect(s).toContain('vt <- try_test(vuongtest(fit_1, fit_2, nested = nested))');
+    expect(s).toContain('nested <- TRUE');
+    expect(s).toContain('fit_2 <- sem(model_2,');
+  }, 900_000);
+
+  it('refuses models on different observed variables and non-ML estimators', async () => {
+    const fewer: ModelSpec = { constructs: [F('visual', ['x1', 'x2', 'x3']), F('textual', ['x4', 'x5', 'x6'])], paths: [] };
+    await expect(compareModelsR(call(), fewer, 'auto')).rejects.toThrow(/same observed variables/);
+    await expect(compareModelsR(call({ estimator: 'ULS' }), spec, 'auto')).rejects.toThrow(/maximum-likelihood/);
   }, 900_000);
 });

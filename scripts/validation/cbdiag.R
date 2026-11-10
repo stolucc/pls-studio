@@ -5,7 +5,8 @@
 #  - FIML with auxiliary variables (lavaan's aux =, saturated correlates) on the data with values
 #    removed by a fixed rule (x1 missing in every 5th row, x5 in rows 3, 10, 17, ...).
 #  - discriminant validity: semTools::discriminantValidity at the cutoffs .8, .9 and 1 and merged, on the HS CFA
-#    and Political Democracy's measurement model.
+#    and Political Democracy's measurement model;
+#  - comparing models: nonnest2's vuongtest / icci (documented lavaan example) and lavTestNET / lavTestLRT.
 # Run: Rscript scripts/validation/cbdiag.R  (writes src/engine/__fixtures__/cbdiag/reference.json)
 suppressPackageStartupMessages({ library(lavaan); library(jsonlite) })
 hs_model <- "visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9"
@@ -51,8 +52,26 @@ dvs <- function(f) {
 pd_model <- "ind60 =~ x1 + x2 + x3\ndem60 =~ y1 + y2 + y3 + y4\ndem65 =~ y5 + y6 + y7 + y8"
 discriminant <- list(hs = dvs(fit), poldem = dvs(cfa(pd_model, data = PoliticalDemocracy)))
 
-out <- list(versions = list(lavaan = as.character(packageVersion("lavaan")), semTools = as.character(packageVersion("semTools")), R = R.version.string),
-  localfit = localfit, aux = aux, discriminant = discriminant)
+# Comparing models: nonnest2's documented lavaan example (?vuongtest, ?icci: the HS CFA in one group, with a mean
+# structure as ?icci fits it, against the same CFA by school), and a nested pair (three factors against one) with
+# lavTestNET and lavTestLRT. (nonnest2 from the helper's library when it is not in R's own.)
+.libPaths(unique(c(.libPaths(), path.expand("~/.pls-studio-helper/library"))))
+suppressPackageStartupMessages(library(nonnest2))
+vt <- function(v) list(omega = v$omega, pOmega = v$p_omega, stat = v$LRTstat, pA = v$p_LRT$A, pB = if (is.na(v$p_LRT$B)) NULL else v$p_LRT$B)
+ici <- function(i) list(aic1 = i$AIC$AIC1, aic2 = i$AIC$AIC2, aicLow = i$AICci[1], aicHigh = i$AICci[2], bic1 = i$BIC$BIC1, bic2 = i$BIC$BIC2, bicLow = i$BICci[1], bicHigh = i$BICci[2])
+fit1m <- cfa(hs_model, data = hs, meanstructure = TRUE)
+fit2 <- cfa(hs_model, data = hs, group = "school")
+one_f <- cfa("g =~ x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9", data = hs)
+net <- lavTestNET(fit, one_f)
+lrt <- lavTestLRT(fit, one_f)
+compare <- list(
+  documented = list(vuong = vt(vuongtest(fit1m, fit2)), vuongHelp = vt(vuongtest(fit, fit2)), icci = ici(icci(fit1m, fit2)),
+    logl1 = unname(fitMeasures(fit1m, "logl")), logl2 = unname(fitMeasures(fit2, "logl"))),
+  nested = list(net21 = net$nested[2, 1], net12 = net$nested[1, 2], lrt = list(chisq = lrt[["Chisq diff"]][2], df = lrt[["Df diff"]][2], p = lrt[["Pr(>Chisq)"]][2]),
+    vuong = vt(vuongtest(fit, one_f, nested = TRUE))))
+
+out <- list(versions = list(lavaan = as.character(packageVersion("lavaan")), semTools = as.character(packageVersion("semTools")), nonnest2 = as.character(packageVersion("nonnest2")), R = R.version.string),
+  localfit = localfit, aux = aux, discriminant = discriminant, compare = compare)
 dir.create("src/engine/__fixtures__/cbdiag", showWarnings = FALSE, recursive = TRUE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"), "src/engine/__fixtures__/cbdiag/reference.json")
 str(out, max.level = 2)

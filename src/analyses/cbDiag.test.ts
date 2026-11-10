@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, parseModelState, toSpec, validateModel, type ModelState } from '../model/project';
 import { cbRequest } from '../rengine/lavaan';
+import { compareModelsRequest } from '../rengine/cbDiag';
 import { dvClass, dvClassChi2, LOCALFIT_TESTS } from '../rengine/cbDiag';
-import { discriminantAnalysis as dv, localFitAnalysis as lf, localTestProblem, zShade } from './cbDiag';
+import { compareModelsAnalysis as cm, compareModelsProblem, discriminantAnalysis as dv, localFitAnalysis as lf, localTestProblem, zShade } from './cbDiag';
 import { cbFingerprint } from './cbModel';
 import type { AnalysisCtx } from './types';
 
@@ -128,5 +129,39 @@ describe('discriminant validity card (Rönkkö & Cho 2022)', () => {
     expect(dv.blocked(o, ctx({ model: { ...model, constructs: [model.constructs[0], { ...model.constructs[1], type: 'composite' as const }] } }))).toMatch(/composites|common factors/);
     expect(dv.fingerprint({ ...o, merge: true }, ctx())).not.toBe(dv.fingerprint(o, ctx()));
     expect(dv.summary({ level: 0.95, merge: true })).toBe('95% CIs, χ²(sys) and χ²(merge)');
+  });
+});
+
+describe('model comparison card (CB-SEM)', () => {
+  const alt: ModelState = { ...model, paths: [] , correlations: [{ id: 'k', kind: 'construct', a: 'A', b: 'B' }] };
+  const o = { alternative: { model: alt, savedAt: 5 }, nested: 'auto' as const };
+  it('re-reads the saved alternative strictly from project files', () => {
+    expect(cm.parseOptions(o)).toEqual(o);
+    expect(cm.parseOptions({ alternative: { model: { constructs: 'x' }, savedAt: 1 }, nested: 'nested' })).toEqual({ alternative: null, nested: 'nested' });
+    expect(cm.parseOptions({ alternative: { model: alt, savedAt: '9' }, nested: 'evil' })).toEqual({ alternative: { model: alt, savedAt: 0 }, nested: 'auto' });
+    expect(cm.parseOptions(7)).toBeNull();
+  });
+  it('needs ML-family estimation, the same observed variables, a valid alternative that differs from the diagram', () => {
+    expect(cm.blocked(o, ctx())).toBeNull();
+    expect(compareModelsProblem({ ...o, alternative: null }, ctx())).toMatch(/Save the current model/);
+    expect(compareModelsProblem(o, ctx({ settings: { ...settings, estimator: 'ULS' } }))).toMatch(/maximum-likelihood/);
+    expect(compareModelsProblem(o, ctx({ model: { ...model, ordered: ['a1'] } }))).toMatch(/continuous/);
+    expect(compareModelsProblem({ ...o, alternative: { model: { ...alt, constructs: [alt.constructs[0], { ...alt.constructs[1], indicators: ['b1', 'b2'] }] }, savedAt: 1 } }, ctx())).toMatch(/same observed variables/);
+    expect(compareModelsProblem({ ...o, alternative: { model, savedAt: 1 } }, ctx())).toMatch(/still the alternative/);
+    expect(compareModelsProblem({ ...o, alternative: { model: { ...alt, multigroup: { column: 'nope', invariance: 'configural', free: [] } }, savedAt: 1 } }, ctx())).toMatch(/cannot be fitted/);
+    expect(cm.blocked(o, ctx({ data: { names: data.names.slice(0, 6), cols: [], moments: { S: [[1]], n: 10 } } }))).toMatch(/raw data/);
+  });
+  it('is stale when the alternative or the nesting choice changes', () => {
+    const f = cm.fingerprint(o, ctx());
+    expect(cm.fingerprint({ ...o, nested: 'nested' }, ctx())).not.toBe(f);
+    expect(cm.fingerprint({ ...o, alternative: { model: { ...alt, correlations: [] }, savedAt: 5 } }, ctx())).not.toBe(f);
+    expect(cm.fingerprint({ ...o, alternative: { model: alt, savedAt: 99 } }, ctx())).toBe(f);
+  });
+  it('sends the data columns of both models (the alternative’s grouping column too)', () => {
+    const r = compareModelsRequest({ data, spec: toSpec(model), missing: 'casewise', estimator: 'ML', interaction: 'product' }, toSpec({ ...alt, multigroup: { column: 'g', invariance: 'configural', free: [] } }), 'auto');
+    expect((r.data as { names: string[] }).names).toContain('g');
+    expect(r.model.multigroup).toBeUndefined();
+    expect(r.alternative.multigroup?.column).toBe('g');
+    expect(r.compare).toEqual({ nested: 'auto' });
   });
 });
