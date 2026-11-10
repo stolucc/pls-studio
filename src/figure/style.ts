@@ -247,6 +247,7 @@ export function figureCssVars(style: FigureStyle): Record<string, string> {
     '--mod': style.moderationColor, '--label-sig': style.labelSignificant, '--label-ns': style.labelNonSignificant,
     '--figure-font': FONT_FAMILY[style.font],
     '--gc-fill': style.copulaFill, '--gc-stroke': style.copulaStroke, '--gc-arrow': style.copulaArrow,
+    '--pls-error': PLS_STYLE_ERROR,
     ...gradient,
   };
 }

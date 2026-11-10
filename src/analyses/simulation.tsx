@@ -13,6 +13,7 @@ import { c, Table, type Row } from '../components/results/Table';
 import { emptyModel } from '../store';
 import { fingerprint } from './codec';
 import type { AnalysisType, OptionsProps } from './types';
+import { seriesColor } from '../figure/palette';
 
 /** Number input that keeps the typed text until blur (so "-0." can be typed). */
 function Num({ value, onChange, step = 0.05, min, max, width = 64 }: {
@@ -32,8 +33,6 @@ function Num({ value, onChange, step = 0.05, min, max, width = 64 }: {
       onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()} />
   );
 }
-
-const COLORS = ['#4f46e5', '#0f9d63', '#d97706', '#db2777', '#0891b2', '#7c3aed', '#64748b', '#b91c1c'];
 
 function PowerChart({ rows, paramKey, estimators, metric }: { rows: McSummaryRow[]; paramKey: string; estimators: string[]; metric: 'rejection' | 'relBias' | 'coverage' }) {
   const W = 460, H = 240, pad = { l: 54, r: 12, t: 12, b: 36 };
@@ -66,8 +65,8 @@ function PowerChart({ rows, paramKey, estimators, metric }: { rows: McSummaryRow
         if (!pts.length) return null;
         return (
           <g key={e}>
-            <path d={pts.map((r, i) => `${i ? 'L' : 'M'} ${sx(r.n)} ${sy(val(r)!)}`).join(' ')} stroke={COLORS[k % COLORS.length]} strokeWidth={2.2} fill="none" />
-            {pts.map((r) => <circle key={r.n} cx={sx(r.n)} cy={sy(val(r)!)} r={3.5} fill={COLORS[k % COLORS.length]} />)}
+            <path d={pts.map((r, i) => `${i ? 'L' : 'M'} ${sx(r.n)} ${sy(val(r)!)}`).join(' ')} stroke={seriesColor(k)} strokeWidth={2.2} fill="none" />
+            {pts.map((r) => <circle key={r.n} cx={sx(r.n)} cy={sy(val(r)!)} r={3.5} fill={seriesColor(k)} />)}
           </g>
         );
       })}
@@ -221,7 +220,7 @@ function McView({ rows, design }: { rows: McSummaryRow[]; design: McDesign }) {
                   </div>
                   <PowerChart rows={rows} paramKey={activeParam.key} estimators={(design.estimators ?? []).map((e) => e.id)} metric={metric} />
                   <div className="legend">
-                    {design.estimators.map((e, k) => <span key={e.id}><i style={{ background: COLORS[k % COLORS.length] }} />{e.id}</span>)}
+                    {design.estimators.map((e, k) => <span key={e.id}><i style={{ background: seriesColor(k) }} />{e.id}</span>)}
                   </div>
                   <Table title={activeParam.kind === 'fit' ? 'Model χ² test' : activeParam.kind === 'covariance' ? `${activeParam.from} ↔ ${activeParam.to} (correlation)` : `${activeParam.from} → ${activeParam.to}${activeParam.kind === 'indirect' ? ' (indirect)' : ''}`} file="simulation"
                     columns={['Estimator', 'N', 'Reps', 'Mean', 'Bias', 'Rel. bias', 'SD', 'RMSE', 'Coverage', Math.abs(activeParam.value) < 1e-12 ? 'Type I' : 'Power']}

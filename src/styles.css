@@ -757,8 +757,8 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .pls-notation .cnode .fixed .ilabel-bg { stroke: transparent; }
 .pls-notation .cnode .fixed .ilabel { font-weight: 400; }
 .pls-notation .elabel.fixed { border-color: transparent; }
-.pls-notation .err-line { stroke: #855dc2; stroke-width: 1; marker-end: url(#err-diamond); }
-.pls-notation .err-circle { fill: #855dc2; stroke: none; }
+.pls-notation .err-line { stroke: var(--pls-error); stroke-width: 1; marker-end: url(#err-diamond); }
+.pls-notation .err-circle { fill: var(--pls-error); stroke: none; }
 .pls-notation .err-text, .pls-notation .err-value { fill: #fff; font-style: normal; font-family: var(--figure-font); }
 .pls-notation .err-value { font-size: 7px; }
 .pls-notation .cor-line { stroke-width: 1; stroke-dasharray: 4 3; }

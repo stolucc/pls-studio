@@ -10,8 +10,7 @@ import { VariablePicker } from '../components/VariablePicker';
 import { c, Table } from '../components/results/Table';
 import { clampNum, columnsFingerprint, isObj, missingColumns, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
-
-const PALETTE = ['#6d28d9', '#0f9d63', '#d97706', '#2563eb', '#db2777', '#0891b2', '#65a30d', '#b91c1c'];
+import { NEGATIVE_COLOR, POSITIVE_COLOR, seriesColor } from '../figure/palette';
 
 /** Nodes at the layout's coordinates; edges by sign (blue positive, red negative) and strength. */
 function NetworkPlot({ id, names: labels, weights, layout, groups }: { id: string; names: string[]; weights: number[][]; layout: number[][]; groups?: number[] }) {
@@ -28,11 +27,11 @@ function NetworkPlot({ id, names: labels, weights, layout, groups }: { id: strin
         <svg className="mc-chart" width={W} height={H} role="img" aria-label="Network">
           {edges.sort((a, b) => Math.abs(a.w) - Math.abs(b.w)).map((e) => (
             <line key={`${e.i}-${e.j}`} x1={sx(xs[e.i])} y1={sy(ys[e.i])} x2={sx(xs[e.j])} y2={sy(ys[e.j])}
-              stroke={e.w > 0 ? '#2563eb' : '#dc2626'} strokeWidth={0.5 + 5 * (Math.abs(e.w) / max)} strokeOpacity={0.25 + 0.75 * (Math.abs(e.w) / max)} strokeDasharray={e.w < 0 ? '5 3' : undefined} />
+              stroke={e.w > 0 ? POSITIVE_COLOR : NEGATIVE_COLOR} strokeWidth={0.5 + 5 * (Math.abs(e.w) / max)} strokeOpacity={0.25 + 0.75 * (Math.abs(e.w) / max)} strokeDasharray={e.w < 0 ? '5 3' : undefined} />
           ))}
           {labels.map((n, k) => (
             <g key={n}>
-              <circle cx={sx(xs[k])} cy={sy(ys[k])} r={r} fill={groups ? PALETTE[(groups[k] - 1) % PALETTE.length] : '#eef0ff'} fillOpacity={groups ? 0.25 : 1} stroke={groups ? PALETTE[(groups[k] - 1) % PALETTE.length] : '#6366f1'} strokeWidth={1.5} />
+              <circle cx={sx(xs[k])} cy={sy(ys[k])} r={r} fill={groups ? seriesColor(groups[k] - 1) : '#eef0ff'} fillOpacity={groups ? 0.25 : 1} stroke={groups ? seriesColor(groups[k] - 1) : '#6366f1'} strokeWidth={1.5} />
               <text x={sx(xs[k])} y={sy(ys[k]) + 3.5} textAnchor="middle" fontSize={n.length > 5 ? 8 : 10}>{n.length > 8 ? `${n.slice(0, 7)}…` : n}</text>
             </g>
           ))}

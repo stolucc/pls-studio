@@ -20,6 +20,7 @@ import { Axes, H, pad, W } from './charts';
 import { cbFingerprint, cbModelBlocked } from './cbModel';
 import { clampNum, isObj, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
+import { SERIES_COLORS } from '../figure/palette';
 
 export type DfiOptions = DfiArgs;
 export const DFI_CARD_ID = 'dynamicfit';
@@ -363,7 +364,7 @@ function DfiOptionsForm({ options: o, set, ctx, disabled }: { options: DfiOption
 
 // ---------- the view ----------
 
-const TRUE_COLOR = '#66c2f5', MISSPEC_COLOR = '#e9798c';
+const TRUE_COLOR = SERIES_COLORS[0], MISSPEC_COLOR = SERIES_COLORS[1];
 const HB: Record<string, number> = { SRMR: 0.08, RMSEA: 0.06, CFI: 0.95 };
 
 /** Overlaid histograms of the fit index under the correct and a misspecified model, with the dynamic cutoff and Hu & Bentler's. */

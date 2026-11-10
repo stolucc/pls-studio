@@ -15,6 +15,7 @@ import { newId, type Construct, type ModelState, type Path } from '../model/proj
 import { useStore } from '../store';
 import { Choice, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
+import { seriesColor } from '../figure/palette';
 
 /** `plot`: which predictor's partial-effect curve to show (display only). */
 export interface RegressionOptions extends Pick<RegressionInput, 'censoring' | 'inflated' | 'reference' | 'status' | 'statusCensored' | 'cuts' | 'randomSlope'> { outcome: string; predictors: string[]; categorical: string[]; interactions: string[][]; family: Family; link: string; trials: string; weights: string; se: RegressionInput['se']; cluster: string; plot: string }
@@ -146,7 +147,6 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
   const ticks = (lo: number, hi: number) => Array.from({ length: 6 }, (_, i) => lo + ((hi - lo) * i) / 5);
-  const COLORS = ['var(--accent)', '#d97706', '#059669', '#dc2626', '#7c3aed', '#0891b2'];
   return (
     <ChartFrame id={`regression:${cv.x}`} name={`regression-${cv.x}`} width={W} height={H} defaults={{ x: cv.x, y: probs ? 'Probability' : r.family === 'binomial' ? 'Probability' : 'Predicted outcome' }}
       caption={<span className="hint">Partial effect of {cv.x}: the fitted {probs ? 'probability of each level' : 'response'} over it, the other predictors at their means (categorical ones at their reference level).{cv.points ? ' Dots: the observed values.' : ''}{r.curves.length > 1 ? ' Another predictor: Curve over, in the options.' : ''}</span>}>
@@ -156,8 +156,8 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
           {ticks(x0, x1).map((v) => <text key={`x${v}`} x={sx(v)} y={H - pad.b + 16} textAnchor="middle">{fmt(v, 2)}</text>)}
           {cv.points && cv.points.x.map((x, i) => <circle key={i} className="dot" cx={sx(x)} cy={sy(cv.points!.y[i])} r={2.5} />)}
           {cv.y && <polyline className="fit-line" fill="none" points={cv.grid.map((x, i) => `${sx(x)},${sy(cv.y![i])}`).join(' ')} />}
-          {probs && probs.map((p, j) => <polyline key={j} className="fit-line" fill="none" style={{ stroke: COLORS[j % COLORS.length] }} points={cv.grid.map((x, i) => `${sx(x)},${sy(p[i])}`).join(' ')} />)}
-          {probs && cv.levels!.map((l, j) => <g key={l}><line x1={W - pad.r - 110} x2={W - pad.r - 96} y1={pad.t + 10 + j * 14} y2={pad.t + 10 + j * 14} style={{ stroke: COLORS[j % COLORS.length], strokeWidth: 2 }} /><text x={W - pad.r - 92} y={pad.t + 14 + j * 14}>{l}</text></g>)}
+          {probs && probs.map((p, j) => <polyline key={j} className="fit-line" fill="none" style={{ stroke: seriesColor(j) }} points={cv.grid.map((x, i) => `${sx(x)},${sy(p[i])}`).join(' ')} />)}
+          {probs && cv.levels!.map((l, j) => <g key={l}><line x1={W - pad.r - 110} x2={W - pad.r - 96} y1={pad.t + 10 + j * 14} y2={pad.t + 10 + j * 14} style={{ stroke: seriesColor(j), strokeWidth: 2 }} /><text x={W - pad.r - 92} y={pad.t + 14 + j * 14}>{l}</text></g>)}
           <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">{labels.x}</text>
           <text transform={`translate(12 ${pad.t + (H - pad.t - pad.b) / 2}) rotate(-90)`} textAnchor="middle" className="axis-title">{labels.y}</text>
         </svg>

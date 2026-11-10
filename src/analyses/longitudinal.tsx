@@ -11,6 +11,7 @@ import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { Choice, clampNum, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
+import { seriesColor } from '../figure/palette';
 
 /** `syntax`: the model as lavaan syntax for growth() instead of the shape and covariates; `group`: a grouping column for it. */
 export interface GrowthOptions { measures: string[]; times: number[]; shape: GrowthInput['shape']; covariates: string[]; timeVarying: string[]; syntax?: string; group?: string }
@@ -139,8 +140,6 @@ function RiclpmView({ r, input }: { r: RiclpmResult; input: RiclpmInput }) {
   );
 }
 
-const COLORS = ['#6d28d9', '#0f9d63', '#d97706', '#2563eb', '#db2777', '#0891b2'];
-
 /** Best model by BIC (the usual choice for the number of classes). */
 export const bestByBic = (models: GmmModel[]) => models.reduce((a, b) => (b.bic < a.bic ? b : a), models[0]);
 
@@ -163,9 +162,9 @@ function Trajectories({ r, m }: { r: GmmResult; m: GmmModel }) {
           <text x={sx(t1)} y={H - pad.b + 16} textAnchor="middle">{fmt(t1, 2)}</text>
           {m.trajectories.map((tr, k) => (
             <g key={k}>
-              <path d={tr.map((v, i) => `${i ? 'L' : 'M'} ${sx(r.times[i])} ${sy(v)}`).join(' ')} stroke={COLORS[k % COLORS.length]} strokeWidth={2.2} fill="none" />
-              {m.observed?.[k]?.map((v, i) => v !== null && <circle key={i} cx={sx(r.observedTimes[i])} cy={sy(v)} r={3.5} fill={COLORS[k % COLORS.length]} opacity={0.7} />)}
-              <text x={W - pad.r} y={sy(tr[tr.length - 1]) - 5} textAnchor="end" fill={COLORS[k % COLORS.length]}>Class {k + 1} ({fmt(100 * m.shares[k], 0)}%)</text>
+              <path d={tr.map((v, i) => `${i ? 'L' : 'M'} ${sx(r.times[i])} ${sy(v)}`).join(' ')} stroke={seriesColor(k)} strokeWidth={2.2} fill="none" />
+              {m.observed?.[k]?.map((v, i) => v !== null && <circle key={i} cx={sx(r.observedTimes[i])} cy={sy(v)} r={3.5} fill={seriesColor(k)} opacity={0.7} />)}
+              <text x={W - pad.r} y={sy(tr[tr.length - 1]) - 5} textAnchor="end" fill={seriesColor(k)}>Class {k + 1} ({fmt(100 * m.shares[k], 0)}%)</text>
             </g>
           ))}
           <text x={pad.l + (W - pad.l - pad.r) / 2} y={H - 4} textAnchor="middle" className="axis-title">{labels.x}</text>
