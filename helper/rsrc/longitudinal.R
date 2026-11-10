@@ -176,3 +176,89 @@ ps_riclpm <- function(req_json, export = FALSE) {
     comparison = list(chisqDiff = unname(cmp[["Chisq diff"]][2]), dfDiff = unname(cmp[["Df diff"]][2]), p = unname(cmp[["Pr(>Chisq)"]][2])),
     warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }
+
+#' Latent change score (LCS) models (McArdle 2009; Kievit et al. 2018): the univariate and bivariate dual change score
+#' models of lcsm's specify_uni_lcsm / specify_bi_lcsm (Wiedemann), written here with the same latent names and
+#' parameter labels: a latent true score per occasion (lx1 ... lxT, one observed score each, residual variances equal
+#' over time), latent changes dx2 ... dxT between consecutive true scores, and the change components: constant change
+#' (a factor g2 loading 1 on every change: its mean alpha and variance), proportional change (beta: each change on the
+#' previous true score), autoregression of the changes (phi: each change on the previous change), and between two
+#' variables the coupling (delta: a change on the other variable's previous true score; xi: on the other's previous
+#' change). The observed columns are renamed x1 ... xT and y1 ... yT, as lcsm renames them, and fitted with lavaan() as
+#' lcsm::fit_uni_lcsm / fit_bi_lcsm fit them (mean structure, fixed.x = FALSE), with the estimator and missing-value
+#' treatment of the Model settings.
+ps_lcs_uni_lines <- function(T, v, m, g) {
+  t <- seq_len(T); t2 <- t[-1]; t3 <- t[-(1:2)]
+  lv <- function(i) sprintf("l%s%d", v, i); d <- function(i) sprintf("d%s%d", v, i)
+  c("# Latent true scores", sprintf("%s =~ 1 * %s%d", lv(t), v, t),
+    "# Means and variances of the latent true scores: the first free, the others defined by the changes",
+    sprintf("%s ~ gamma_%s * 1", lv(1), lv(1)), sprintf("%s ~ 0 * 1", lv(t2)),
+    sprintf("%s ~~ sigma2_%s * %s", lv(1), lv(1), lv(1)), sprintf("%s ~~ 0 * %s", lv(t2), lv(t2)),
+    "# Observed scores: intercepts 0, residual variances equal over time", sprintf("%s%d ~ 0 * 1", v, t), sprintf("%s%d ~~ sigma2_u%s * %s%d", v, t, v, v, t),
+    "# Each true score is the previous one plus the latent change", sprintf("%s ~ 1 * %s", lv(t2), lv(t2 - 1)), sprintf("%s =~ 1 * %s", d(t2), lv(t2)),
+    sprintf("%s ~ 0 * 1", d(t2)), sprintf("%s ~~ 0 * %s", d(t2), d(t2)),
+    if (isTRUE(m$constant)) c("# Constant change: a factor loading 1 on every change; its mean, variance and covariance with the initial true score",
+      sprintf("%s2 =~ %s", g, paste(sprintf("1 * %s", d(t2)), collapse = " + ")), sprintf("%s2 ~ alpha_%s2 * 1", g, g), sprintf("%s2 ~~ sigma2_%s2 * %s2", g, g, g),
+      sprintf("%s2 ~~ sigma_%s2%s * %s", g, g, lv(1), lv(1))),
+    if (isTRUE(m$proportional)) c("# Proportional change: each change depends on the previous true score", sprintf("%s ~ beta_%s * %s", d(t2), v, lv(t2 - 1))),
+    if (isTRUE(m$autoregressive)) c("# Autoregression of the changes: each change depends on the previous change", sprintf("%s ~ phi_%s * %s", d(t3), v, d(t3 - 1))))
+}
+
+ps_lcs_bi_lines <- function(T, mx, my, cp) {
+  t2 <- seq_len(T)[-1]; t3 <- seq_len(T)[-(1:2)]
+  c(ps_lcs_uni_lines(T, "x", mx, "g"), ps_lcs_uni_lines(T, "y", my, "j"),
+    "# Residual covariances of the two observed scores at each occasion, equal over time", sprintf("x%d ~~ sigma_su * y%d", seq_len(T), seq_len(T)),
+    "# Covariances of the initial true scores and the constant changes between the variables", "lx1 ~~ sigma_ly1lx1 * ly1",
+    if (isTRUE(mx$constant)) "ly1 ~~ sigma_g2ly1 * g2", if (isTRUE(my$constant)) "lx1 ~~ sigma_j2lx1 * j2", if (isTRUE(mx$constant) && isTRUE(my$constant)) "g2 ~~ sigma_j2g2 * j2",
+    if (isTRUE(cp$deltaXY)) c("# Coupling: the change in x depends on the previous true score of y", sprintf("dx%d ~ delta_lag_xy * ly%d", t2, t2 - 1)),
+    if (isTRUE(cp$deltaYX)) c("# Coupling: the change in y depends on the previous true score of x", sprintf("dy%d ~ delta_lag_yx * lx%d", t2, t2 - 1)),
+    if (isTRUE(cp$xiXY)) c("# Coupling: the change in x depends on the previous change in y", sprintf("dx%d ~ xi_lag_xy * dy%d", t3, t3 - 1)),
+    if (isTRUE(cp$xiYX)) c("# Coupling: the change in y depends on the previous change in x", sprintf("dy%d ~ xi_lag_yx * dx%d", t3, t3 - 1)))
+}
+
+ps_lcs <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  xs <- unlist(req$x); ys <- unlist(req$y)
+  T <- length(xs)
+  bi <- length(ys) > 0
+  if (T < 3) stop("A latent change score model needs at least three occasions.")
+  if (T > 50) stop("A latent change score model takes at most 50 occasions.")
+  if (bi && length(ys) != T) stop("Choose the second variable at the same number of occasions.")
+  if (anyDuplicated(c(xs, ys))) stop("An occasion is chosen twice.")
+  flags <- function(m, keys) {
+    m <- if (is.list(m)) m else list()
+    for (k in keys) if (!is.null(m[[k]]) && !(is.logical(m[[k]]) && length(m[[k]]) == 1 && !is.na(m[[k]]))) stop("Invalid model option in the request.")
+    m
+  }
+  mx <- flags(req$modelX, c("constant", "proportional", "autoregressive")); my <- flags(req$modelY, c("constant", "proportional", "autoregressive"))
+  cp <- flags(req$coupling, c("deltaXY", "deltaYX", "xiXY", "xiYX"))
+  fr <- ps_long_frame(req, c(xs, ys))
+  o <- ps_long_options(req)
+  # (the columns renamed as lcsm renames them: x1 ... xT, y1 ... yT)
+  names(fr$data) <- c(sprintf("x%d", seq_len(T)), if (bi) sprintf("y%d", seq_len(T)))
+  lines <- if (bi) ps_lcs_bi_lines(T, mx, my, cp) else ps_lcs_uni_lines(T, "x", mx, "g")
+  body <- c("suppressPackageStartupMessages(library(lavaan))",
+    sprintf("# The occasions as x1 ... x%d: %s", T, ps_comment(paste(xs, collapse = ", "))),
+    if (bi) sprintf("# and y1 ... y%d: %s", T, ps_comment(paste(ys, collapse = ", "))),
+    if (!o$fiml) ps_missing_code(req$missing),
+    sprintf("# %s latent change score model (McArdle; the specification of lcsm::specify_%s_lcsm)", if (bi) "Bivariate" else "Univariate", if (bi) "bi" else "uni"),
+    "model <- '", paste0("  ", lines), "'",
+    sprintf("fit <- lavaan(model, data = data, meanstructure = TRUE, fixed.x = FALSE, control = list(iter.max = 10000), estimator = \"%s\"%s%s)", o$est, ps_lavaan_missing(req$missing), o$extra))
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script(sprintf("%s latent change score model (lavaan)", if (bi) "Bivariate" else "Univariate"), "lavaan", inputs, body,
+    "summary(fit, fit.measures = TRUE, standardized = TRUE)"), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  fit <- env$fit
+  pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
+  # (each labelled parameter once: equal labels are one parameter)
+  pe <- pe[nzchar(pe$label) & !duplicated(pe$label), ]
+  num <- function(x) if (is.null(x) || is.na(x)) NULL else x
+  est <- lapply(seq_len(nrow(pe)), function(i) list(label = pe$label[i], lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], est = pe$est[i],
+    se = if (is.na(pe$se[i]) || pe$se[i] == 0) NULL else pe$se[i], z = num(pe$z[i]), p = num(pe$pvalue[i]), std = num(pe$std.all[i])))
+  occ <- function(v) sprintf("%s%d", v, seq_len(T))
+  obs <- function(v) if (bi || v == "x") I(unname(colMeans(env$data[, occ(v), drop = FALSE], na.rm = TRUE))) else I(numeric(0))
+  imp <- function(v) if (bi || v == "x") I(unname(lavaan::fitted(fit)$mean[occ(v)])) else I(numeric(0))
+  ps_json(list(n = lavaan::lavInspect(fit, "nobs"), occasions = T, bivariate = bi, x = I(as.character(xs)), y = I(as.character(ys)), fit = ps_long_fit(fit), estimates = est,
+    impliedMeans = list(x = imp("x"), y = imp("y")), observedMeans = list(x = obs("x"), y = obs("y")),
+    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}

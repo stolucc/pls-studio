@@ -1,6 +1,6 @@
 // Longitudinal models as analysis cards: latent growth curves and the
 // random-intercept cross-lagged panel model (lavaan), and growth mixture
-// models (lcmm).
+// models (lcmm). Latent change score models: lcs.tsx.
 
 import { useState } from 'react';
 import { fmt } from '../format';
@@ -24,7 +24,7 @@ export interface GmmOptions {
 }
 type WithInput<R, I> = R & { input: I };
 
-const fitCards = (f: Partial<Record<'chisq' | 'df' | 'cfi' | 'rmsea' | 'srmr', number>>) => (
+export const fitCards = (f: Partial<Record<'chisq' | 'df' | 'cfi' | 'rmsea' | 'srmr', number>>) => (
   <div className="stat-cards">
     {([['χ²', f.chisq, 2], ['df', f.df, 0], ['CFI', f.cfi, 3], ['RMSEA', f.rmsea, 3], ['SRMR', f.srmr, 3]] as const).map(([k, v, d]) => (
       <div className="stat-card" key={k}><div className="k">{k}</div><div className="v">{v === undefined ? '—' : fmt(v, d)}</div></div>
@@ -198,10 +198,10 @@ export function GmmView({ r }: { r: GmmResult }) {
 }
 
 
-const IN_TIME_ORDER = 'Click columns below in time order.';
-const MISSING_NOTE: Partial<Record<string, string>> = { fiml: ', FIML', pairwise: ', pairwise deletion', twostage: ', two-stage', robusttwostage: ', robust two-stage' };
+export const IN_TIME_ORDER = 'Click columns below in time order.';
+export const MISSING_NOTE: Partial<Record<string, string>> = { fiml: ', FIML', pairwise: ', pairwise deletion', twostage: ', two-stage', robusttwostage: ', robust two-stage' };
 /** lavaan settings from the project: ML or MLR, and its missing-data treatment. */
-const lavaanOf = (ctx: Pick<AnalysisCtx, 'settings' | 'model'>) => {
+export const lavaanOf = (ctx: Pick<AnalysisCtx, 'settings' | 'model'>) => {
   const estimator = ctx.settings.estimator === 'MLR' ? 'MLR' as const : 'ML' as const;
   // (standard errors from the observed information: the Model settings' option under ML, as Mplus)
   return { estimator, missing: ctx.settings.missing, ...(estimator === 'ML' && ctx.model?.information === 'observed' ? { information: 'observed' as const } : {}) };

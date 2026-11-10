@@ -1,5 +1,5 @@
 // Longitudinal models with lavaan (R/longitudinal.R): latent growth curves and
-// the random-intercept cross-lagged panel model (RI-CLPM).
+// the random-intercept cross-lagged panel model (RI-CLPM), latent change score models.
 
 import type { CbFit } from '../engine/cbsem';
 import type { Dataset, MissingTreatment } from '../engine/types';
@@ -59,3 +59,27 @@ export async function riclpmR(data: Dataset, input: RiclpmInput): Promise<Riclpm
   return { ...raw, fit: fitOf(raw.fit ?? {}), clpmFit: fitOf(raw.clpmFit ?? {}), estimates: estimates(raw.estimates), warnings: rStrings(raw.warnings) } as RiclpmResult;
 }
 export const riclpmScriptR = (data: Dataset, input: RiclpmInput) => rScript('ps_riclpm', riclpmRequest(data, input), 'lavaan');
+
+/** The change components of one variable in a latent change score model (lcsm's alpha_constant, beta, phi). */
+export interface LcsComponents { constant: boolean; proportional: boolean; autoregressive: boolean }
+/** Couplings between two variables: delta, a change on the other's previous true score; xi, on the other's previous change. */
+export interface LcsCoupling { deltaXY: boolean; deltaYX: boolean; xiXY: boolean; xiYX: boolean }
+/** `y` empty: a univariate model. */
+export interface LcsInput { x: string[]; y: string[]; modelX: LcsComponents; modelY: LcsComponents; coupling: LcsCoupling; estimator: 'ML' | 'MLR'; missing: MissingTreatment; information?: 'observed' }
+/** A labelled parameter (lcsm's labels: gamma_lx1, sigma2_lx1, alpha_g2, beta_x, phi_x, delta_lag_xy, …). */
+export interface LcsEstimate { label: string; lhs: string; op: string; rhs: string; est: number; se: number | null; z: number | null; p: number | null; std: number | null }
+export interface LcsResult {
+  n: number; occasions: number; bivariate: boolean; x: string[]; y: string[]; fit: Partial<CbFit>; estimates: LcsEstimate[];
+  impliedMeans: { x: number[]; y: number[] }; observedMeans: { x: number[]; y: number[] }; warnings: string[]; engine: REngineInfo;
+}
+
+export const lcsRequest = (data: Dataset, i: LcsInput) => ({ kind: 'lcs', ...i, data: columns(data, [...i.x, ...i.y]) });
+const pair = (v: unknown) => { const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>; return { x: arr<number>(o.x), y: arr<number>(o.y) }; };
+
+export async function lcsR(data: Dataset, input: LcsInput): Promise<LcsResult> {
+  const raw = await rCall<Record<string, any>>('ps_lcs', lcsRequest(data, input), 'lavaan');
+  return { ...raw, x: arr<string>(raw.x), y: arr<string>(raw.y), fit: fitOf(raw.fit ?? {}), warnings: rStrings(raw.warnings),
+    estimates: arr<any>(raw.estimates).map((e) => ({ label: String(e.label), lhs: e.lhs, op: e.op, rhs: e.rhs, est: e.est, se: e.se ?? null, z: e.z ?? null, p: e.p ?? null, std: e.std ?? null })),
+    impliedMeans: pair(raw.impliedMeans), observedMeans: pair(raw.observedMeans) } as LcsResult;
+}
+export const lcsScriptR = (data: Dataset, input: LcsInput) => rScript('ps_lcs', lcsRequest(data, input), 'lavaan');

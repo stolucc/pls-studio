@@ -13,7 +13,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   reliability: ['Basic statistics', 'Reliability'], bttest: ['Bayesian', 't-test'], banova: ['Bayesian', 'ANOVA'], brmanova: ['Bayesian', 'ANOVA', 'Repeated measures'],
   bregression: ['Bayesian', 'Regression'], bcontingency: ['Bayesian', 'Contingency table'], bbinomial: ['Bayesian', 'Binomial test'], chart: ['Charts'],
   bollenstine: ['Bootstrap', 'Model fit'], dynamicfit: ['Model fit', 'Dynamic fit cutoffs'], cbcompare: ['Parameter comparisons'], scoreweights: ['Factor scores'], plspredict: ['Prediction'], compare: ['Model comparison'],
-  cta: ['Tetrad analysis'], minsample: ['Sample size'], pos: ['Segmentation'], mc: ['Simulation', 'Sample size'], riclpm: ['Longitudinal', 'Panel data', 'Cross-lagged'],
+  cta: ['Tetrad analysis'], minsample: ['Sample size'], pos: ['Segmentation'], mc: ['Simulation', 'Sample size'], riclpm: ['Longitudinal', 'Panel data', 'Cross-lagged'], lcs: ['Longitudinal', 'Latent change scores'],
   customml: ['Custom likelihood'], bmvreg: ['Bayesian', 'Regression'], efa2l: ['Measurement', 'Factor analysis', 'Multilevel'], missingdata: ['Missing data', 'Data screening'],
   quadml: ['Numerical integration'],
   dsem: ['Bayesian', 'Multilevel'],

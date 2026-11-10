@@ -21,6 +21,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/dfi': 'examples',
   'examples/cards/validity': 'examples',
   'examples/cards/scoretest': 'examples',
+  'examples/cards/lcs': 'examples',
   'examples/cards/qca': 'examples',
   'examples/cards/likelihood': 'examples',
   'examples/cards/items': 'examples',
