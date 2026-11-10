@@ -488,6 +488,32 @@ export interface PlsEstimate {
 }
 
 /**
+ * Indicators of a product-indicator or orthogonalising interaction term, as seminr's interaction_term(method =
+ * product_indicator / orthogonal): the items standardised (scale()), every predictor × moderator item product
+ * (Chin, Marcolin & Newsted 2003); orthogonalising: each product replaced by its residual from a least-squares
+ * regression on all the predictor's and moderator's items (Little, Bovaird & Widaman 2006; Henseler & Chin 2010).
+ * With sampling weights the means, sds and the regression are weighted.
+ */
+export function indicatorProducts(c: Float64Array[], items: [number, number][], orthogonal: boolean, w: Float64Array | null): Float64Array[] {
+  const n = c[0].length;
+  const z = new Map<number, Float64Array>();
+  const zOf = (k: number) => {
+    if (!z.has(k)) { const mo = w ? weightedMoments(c[k], w) : { mean: mean(c[k]), sd: sd(c[k]) }; z.set(k, Float64Array.from(c[k], (v) => (v - mo.mean) / mo.sd)); }
+    return z.get(k)!;
+  };
+  const prods = items.map(([a, b]) => { const za = zOf(a), zb = zOf(b); return Float64Array.from(za, (v, r) => v * zb[r]); });
+  if (!orthogonal) return prods;
+  const regs = [...new Set(items.flatMap(([a, b]) => [a, b]))];
+  const cols = [new Float64Array(n).fill(1), ...regs.map((k) => c[k])];
+  const wt = (r: number) => (w ? w[r] : 1);
+  const XtX = cols.map((a) => cols.map((b) => { let s = 0; for (let r = 0; r < n; r++) s += wt(r) * a[r] * b[r]; return s; }));
+  return prods.map((y) => {
+    const beta = solve(XtX, cols.map((a) => { let s = 0; for (let r = 0; r < n; r++) s += wt(r) * a[r] * y[r]; return s; }));
+    return Float64Array.from(y, (v, r) => v - cols.reduce((s, col, i) => s + beta[i] * col[r], 0));
+  });
+}
+
+/**
  * Compile a (possibly moderated) model and return an estimator that works on
  * raw, complete indicator columns. Moderation uses the two-stage approach
  * (Henseler & Chin 2010; as seminr and SmartPLS): stage 1 estimates the model
@@ -561,13 +587,24 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
     return f;
   })];
   const termTo = [...allMods.map((mo) => mo.to), ...threes.map((t) => t.to)];
+  // Product-indicator and orthogonalising terms (seminr's interaction_term methods): the term's own indicators,
+  // every product of a predictor item and a moderator item; null: a two-stage term (one indicator, the product of scores).
+  const termItems: ([number, number][] | null)[] = names.map((_, i) => {
+    const mo = allMods[i];
+    const method = mo?.method ?? 'two_stage';
+    if (!mo || method === 'two_stage' || mo.from === mo.moderator) return null;
+    if (method !== 'product_indicator' && method !== 'orthogonal') throw new Error('Invalid interaction method.');
+    if (opts.consistent) throw new Error(`${names[i]}: product-indicator and orthogonalising terms are not available with PLSc; use the two-stage term or switch consistent PLS off.`);
+    return m1.blocks[pairs[i][0]].flatMap((a) => m1.blocks[pairs[i][1]].map((b) => [a, b] as [number, number]));
+  });
+  const termIndicators = names.map((name, i) => termItems[i]?.map(([a, b]) => `${m1.indicatorNames[a]}*${m1.indicatorNames[b]}`) ?? [name]);
   const copNames = cops.map((k) => copulaName(k.from, k.to));
   const copFrom = cops.map((k) => {
     if (!spec.paths.some((p) => p.from === k.from && p.to === k.to)) throw new Error(`A Gaussian copula is set on ${k.from} → ${k.to}, but that path is not in the model.`);
     return m1.constructs.indexOf(k.from);
   });
   const m2 = compileModel({
-    constructs: [...spec.constructs, ...[...names, ...copNames].map((name) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: [name] }))],
+    constructs: [...spec.constructs, ...names.map((name, i) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: termIndicators[i] })), ...copNames.map((name) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: [name] }))],
     paths: [...paths, ...names.map((name, i) => ({ from: name, to: termTo[i] })), ...cops.map((k, i) => ({ from: copNames[i], to: k.to }))],
   });
   const estimate = (c0: Float64Array[], init?: { w1?: Float64Array; w2?: Float64Array }): PlsEstimate => {
@@ -597,22 +634,26 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
       return { m: m2, X, core, st: { ...st, totalEffects: totalEffectsOf(st.pathCoef), r2Excluding }, w1: core1.w };
     }
     const pStars = copFrom.map((a) => pStar(core1.scores[a]));
-    const s2 = stdz([...c, ...products, ...pStars], m2.indicatorNames, w);
+    const termCols = names.map((_, i) => { const items = termItems[i]; return items ? indicatorProducts(c, items, allMods[i].method === 'orthogonal', w) : [products[i]]; });
+    const s2 = stdz([...c, ...termCols.flat(), ...pStars], m2.indicatorNames, w);
     const X = s2.X;
     const core = plsCore(X, m2, opts, init?.w2);
     const st = structural(m2, X, core, false);
     // Report interaction effects per unit of the product of standardised scores
     // (not of the re-standardised term), as seminr does: then the simple slope of
-    // `from` at moderator level m (in SD) is β_from + β_int · m.
-    products.forEach((prod, i) => {
+    // `from` at moderator level m (in SD) is β_from + β_int · m. A term with its own indicators is rescaled
+    // as seminr's adjust_interaction does: by the loading-weighted mean sd of its (product) indicators.
+    const sdOf = (x: Float64Array) => (w ? weightedMoments(x, w).sd : sd(x));
+    termCols.forEach((cols, i) => {
       const k = m2.constructs.indexOf(names[i]);
-      const s = w ? weightedMoments(prod, w).sd : sd(prod);
+      const lam = m2.blocks[k].map((q) => Math.abs(st.loadings[q]));
+      const s = termItems[i] ? cols.reduce((a, col, q) => a + sdOf(col) * lam[q], 0) / lam.reduce((a, v) => a + v, 0) : sdOf(cols[0]);
       st.pathCoef[k] = st.pathCoef[k].map((v) => v / s);
       st.totalEffects[k] = st.totalEffects[k].map((v) => v / s);
     });
     return { m: m2, X, core, st, w1: core1.w, ...(w ? { scores: plain(m2, core, s2.Z, w) } : {}) };
   };
-  return { m: m2, cols, dropped, estimate, moderations: allMods.map((mo, i) => ({ ...mo, construct: m2.constructs.indexOf(names[i]) })), threeWay: threes.map((t) => ({ ...t, construct: m2.constructs.indexOf(threeWayName(t)) })), copulas: cops.map((k, i) => ({ ...k, construct: m2.constructs.indexOf(copNames[i]) })) };
+  return { m: m2, cols, dropped, estimate, moderations: allMods.map((mo, i) => ({ ...mo, ...(termItems[i] ? {} : { method: 'two_stage' as const }), construct: m2.constructs.indexOf(names[i]) })), threeWay: threes.map((t) => ({ ...t, construct: m2.constructs.indexOf(threeWayName(t)) })), copulas: cops.map((k, i) => ({ ...k, construct: m2.constructs.indexOf(copNames[i]) })) };
 }
 
 /**

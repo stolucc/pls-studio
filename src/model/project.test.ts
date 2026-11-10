@@ -563,11 +563,11 @@ describe('interaction terms (seminr’s method per moderation)', () => {
     expect(loose.moderations[0].method).toBeUndefined();
     expect(toSpec(loose).moderations![0]).not.toHaveProperty('method');
   });
-  it('is accepted with seminr only', () => {
+  it('is accepted with seminr and the built-in engine', () => {
     const errors = (s: Partial<Settings>) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'pls', ...s }).filter((i) => i.level === 'error').map((i) => i.message);
     expect(errors({ engine: 'r', plsPackage: 'seminr' })).toEqual([]);
     expect(errors({ engine: 'r', plsPackage: 'cSEM' })).toEqual([expect.stringMatching(/orthogonalising: that interaction term is seminr’s/)]);
-    expect(errors({ engine: 'builtin' })).toEqual([expect.stringMatching(/seminr/)]);
+    expect(errors({ engine: 'builtin' })).toEqual([]);
     // A two-stage term (no method) is fine everywhere; CB-SEM ignores the field (lavaan has its own product indicators).
     const plain = { ...model, moderations: [{ id: 'mo', moderator: 'M', path: 'p' }] };
     expect(validateModel(plain, data, { ...DEFAULT_SETTINGS, method: 'pls', engine: 'r', plsPackage: 'cSEM' }).filter((i) => i.level === 'error')).toEqual([]);

@@ -133,7 +133,7 @@ function ModerationInspector({ id }: { id: string }) {
               : mo.method === 'orthogonal'
                 ? 'Products of the indicators, residualised on the main-effect indicators so the term is uncorrelated with them (Little, Bovaird & Widaman 2006; seminr’s interaction_term(method = orthogonal)).'
                 : 'Every product of a predictor indicator and a moderator indicator as the term’s own indicators (Chin, Marcolin & Newsted 2003; seminr’s interaction_term(method = product_indicator)).'}
-            {mo.method && plsPackage !== 'seminr' && <> <b>seminr only</b>: choose seminr under R packages ({INTERACTION_METHOD_NAMES[mo.method]} is not available in cSEM).</>}
+            {mo.method && plsPackage === 'cSEM' && <> <b>seminr or the built-in engine</b>: choose seminr under R packages, or the built-in engine ({INTERACTION_METHOD_NAMES[mo.method]} is not available in cSEM).</>}
           </div>
         </div>
       )}

@@ -122,6 +122,19 @@ it('reports sampling weights on a covariance matrix instead of reading its missi
   expect(issues).toContain('Sampling weights need raw data; this dataset is a covariance matrix.');
 });
 
+// Product-indicator and orthogonalising terms: seminr's, and the built-in engine's (not cSEM's; not with PLSc).
+describe('interaction-term methods in PLS-SEM', () => {
+  const m = { constructs: [C('A', 'A', ['a1', 'a2']), C('M', 'M', ['m1', 'm2']), C('B', 'B', ['b1', 'b2'])], paths: [{ id: 'p', from: 'A', to: 'B' }, { id: 'q', from: 'M', to: 'B' }], moderations: [{ id: 'mo', moderator: 'M', path: 'p', method: 'orthogonal' }] } as unknown as ModelState;
+  const d = cols(['a1', 'a2', 'm1', 'm2', 'b1', 'b2'], 40, (k, i) => Math.sin(i * (k + 1.3)) + (i % (k + 3)));
+  const errs = (s: Partial<Settings>) => validateModel(m, d, { ...DEFAULT_SETTINGS, method: 'pls', ...s } as Settings).filter((i) => i.level === 'error').map((i) => i.message);
+  it('allows them with seminr and the built-in engine, refuses them with cSEM and PLSc', () => {
+    expect(errs({ engine: 'builtin' })).toEqual([]);
+    expect(errs({ engine: 'r', plsPackage: 'seminr' })).toEqual([]);
+    expect(errs({ engine: 'r', plsPackage: 'cSEM' }).join()).toMatch(/seminr’s \(interaction_term\) and the built-in engine’s/);
+    expect(errs({ engine: 'builtin', consistent: true }).join()).toMatch(/not available with PLSc/);
+  });
+});
+
 // Weighted PLS (WPLS): sampling weights apply to PLS-SEM, through the built-in engine.
 describe('sampling weights in PLS-SEM', () => {
   const m: ModelState = { constructs: [C('A', 'A', ['a1', 'a2']), C('B', 'B', ['b1', 'b2'])], paths: [{ id: 'p', from: 'A', to: 'B' }], moderations: [], weights: 'wt' } as unknown as ModelState;

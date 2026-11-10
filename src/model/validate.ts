@@ -249,8 +249,10 @@ function checkModerations(v: Ctx): Issue[] {
       for (const id of new Set([p.from, mo.moderator])) {
         if (model.paths.some((q) => q.to === id)) err(`${cap(label)}: in CB-SEM ${quadratic ? "the predictor" : "the predictor and moderator"} must be exogenous, but ${cname.get(id)} has incoming paths.`, id);
       }
-    } else if (mo.method && !((method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') === 'seminr')) {
-      err(`${cap(label)} uses ${INTERACTION_METHOD_NAMES[mo.method]}: that interaction term is seminr’s (interaction_term). Choose seminr under R packages, or the two-stage term.`, mo.moderator);
+    } else if (mo.method && (method.engine ?? 'r') === 'r' && (method.plsPackage ?? 'cSEM') !== 'seminr') {
+      err(`${cap(label)} uses ${INTERACTION_METHOD_NAMES[mo.method]}: that interaction term is seminr’s (interaction_term) and the built-in engine’s. Choose seminr under R packages, the built-in engine, or the two-stage term.`, mo.moderator);
+    } else if (mo.method && method.consistent) {
+      err(`${cap(label)} uses ${INTERACTION_METHOD_NAMES[mo.method]}, which is not available with PLSc: use the two-stage term, or switch consistent PLS off.`, mo.moderator);
     } else if (method.consistent && (method.engine ?? 'r') === 'r' && method.plsPackage === 'seminr') {
       // cSEM and the built-in engine estimate nonlinear models with PLSc (Dijkstra & Schermelleh-Engel 2014); seminr does not.
       err(`${quadratic ? 'Quadratic effects' : 'Moderation'} (${label}) with PLSc ${quadratic ? 'need' : 'needs'} cSEM or the built-in engine: choose one of those, or switch consistent PLS off.`, mo.moderator);
