@@ -511,24 +511,40 @@ function checkTextColumns(v: Ctx): Issue[] {
   return issues;
 }
 
-/** Sampling (survey) weights: lavaan's sampling.weights, CB-SEM only. */
+/** Column checks shared by CB-SEM and PLS-SEM sampling weights. */
+function weightColumnIssues(v: Ctx, wcol: string, err: (m: string) => void) {
+  const { model, data, assignedSet } = v;
+  if (assignedSet.has(wcol) || model.multigroup?.column === wcol) err(`“${wcol}” cannot be both the sampling weights and an indicator or the grouping column.`);
+  const k = data?.names.indexOf(wcol) ?? -1;
+  if (data && !data.moments && k < 0) err(`The sampling-weights column “${wcol}” is not in the current dataset.`);
+  else if (data && k >= 0 && data.cols[k] && Array.from(data.cols[k]).some((x) => !Number.isFinite(x) || x < 0)) err(`The sampling weights (${wcol}) must be non-negative numbers without missing values.`);
+  else if (data && k >= 0 && data.cols[k] && !Array.from(data.cols[k]).some((x) => x > 0)) err(`The sampling weights (${wcol}) are all zero.`);
+  if (data?.moments && data.cols.length === 0) err('Sampling weights need raw data; this dataset is a covariance matrix.');
+}
+
+/** Sampling (survey) weights: lavaan's sampling.weights (CB-SEM), weighted PLS (WPLS, Becker & Ismail 2016; built-in engine). */
 function checkSamplingWeights(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, data, method, engine, assignedSet, ordered } = v;
+  const { model, method, engine, ordered } = v;
   const wcol = model.weights;
-  if (wcol) {
-    if (method.method !== 'cbsem') warn(`The sampling weights (${wcol}) are used in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores them.`);
+  if (wcol && method.method === 'pls') {
+    // cSEM and seminr take no sampling weights: the run goes to the built-in engine (runner.ts).
+    if (engine === 'r') warn(`Weighted PLS (sampling weights ${wcol}) is estimated by the built-in engine: neither cSEM nor seminr takes sampling weights.`);
+    if (model.copulas?.length) err('Gaussian copulas cannot be combined with sampling weights.');
+    if (method.consistent && model.moderations.length) err('Interaction terms with PLSc cannot be combined with sampling weights; switch consistent PLS off.');
+    if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err('Weighted PLS needs PLS path modeling as the weighting approach.');
+    if ((method.missing ?? 'mean') === 'mi') err('Weighted PLS uses mean replacement or casewise deletion, not multiple imputation.');
+    if (model.constructs.some((c) => c.components?.length)) err('Weighted PLS is not available with second-order constructs.');
+    weightColumnIssues(v, wcol, err);
+  } else if (wcol) {
+    if (method.method !== 'cbsem') warn(`The sampling weights (${wcol}) are used in CB-SEM and PLS-SEM only; regression ignores them.`);
     else {
       if (engine === 'builtin') err('Sampling weights are estimated by lavaan: choose “R packages” under Calculated by.');
       const est = method.estimator ?? 'ML';
       if (!['ML', 'MLR', 'MLM'].includes(est) && !(est === 'WLSMV' && ordered.length)) err('With sampling weights choose ML, MLR or MLM (or WLSMV for ordinal indicators): lavaan weights these estimators only.');
       if (model.multilevel) err('Sampling weights cannot be combined with a two-level model here.');
       if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Sampling weights cannot be combined with LMS / QML latent interactions; use product indicators.');
-      if (assignedSet.has(wcol) || model.multigroup?.column === wcol) err(`“${wcol}” cannot be both the sampling weights and an indicator or the grouping column.`);
-      const k = data?.names.indexOf(wcol) ?? -1;
-      if (data && !data.moments && k < 0) err(`The sampling-weights column “${wcol}” is not in the current dataset.`);
-      else if (data && k >= 0 && data.cols[k] && Array.from(data.cols[k]).some((v) => !Number.isFinite(v) || v < 0)) err(`The sampling weights (${wcol}) must be non-negative numbers without missing values.`);
-      if (data?.moments && data.cols.length === 0) err('Sampling weights need raw data; this dataset is a covariance matrix.');
+      weightColumnIssues(v, wcol, err);
     }
   }
   return issues;

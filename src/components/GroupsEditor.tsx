@@ -257,9 +257,10 @@ export function ClustersEditor() {
   );
 }
 
-/** CB-SEM sampling (survey) weights: a non-negative numeric column (lavaan's sampling.weights). */
+/** Sampling (survey) weights: a non-negative numeric column (CB-SEM: lavaan's sampling.weights; PLS-SEM: weighted PLS). */
 export function WeightsEditor() {
   const model = useStore((s) => s.model);
+  const pls = useStore((s) => s.settings.method === 'pls');
   const data = useStore((s) => s.data);
   const readOnly = useStore((s) => s.cloud?.role === 'viewer');
   const setWeights = useStore((s) => s.setWeights);
@@ -276,7 +277,9 @@ export function WeightsEditor() {
         {model.weights && !candidates.includes(model.weights) && <option value={model.weights}>{model.weights} (not usable)</option>}
         {candidates.map((c) => <option key={c} value={c}>Weighted by {c}</option>)}
       </select>
-      {model.weights && <div className="hint" style={{ marginTop: 6 }}>Survey or design weights (lavaan’s sampling.weights): the estimates are weighted and the standard errors robust (design-based). ML, MLR or MLM.</div>}
+      {model.weights && (pls
+        ? <div className="hint" style={{ marginTop: 6 }}>Weighted PLS (WPLS; Becker &amp; Ismail 2016): every correlation and regression of the PLS algorithm is weighted; bootstrap samples draw cases together with their weights. Built-in engine (cSEM and seminr take no sampling weights).</div>
+        : <div className="hint" style={{ marginTop: 6 }}>Survey or design weights (lavaan’s sampling.weights): the estimates are weighted and the standard errors robust (design-based). ML, MLR or MLM.</div>)}
     </div>
   );
 }

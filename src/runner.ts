@@ -217,9 +217,10 @@ export function run(kind: JobKind) {
   };
 
   // cSEM and seminr have no copula term, and each bootstrap sample must recompute it: the built-in engine does.
+  // Neither package takes sampling weights: weighted PLS (WPLS) is the built-in engine's.
   // Studentized intervals (an inner bootstrap per sample) run in its workers too.
   const studentized = s.settings.method === 'pls' && kind === 'boot' && s.settings.bootInterval === 'studentized';
-  const builtInTerms = !cb && s.settings.method === 'pls' && !!(spec.copulas?.length || spec.threeWay?.length || spec.constructs.some((c) => c.predefinedWeights));
+  const builtInTerms = !cb && s.settings.method === 'pls' && !!(spec.copulas?.length || spec.threeWay?.length || spec.weights || spec.constructs.some((c) => c.predefinedWeights));
   if (s.settings.engine === 'r' && !builtInTerms && !studentized) { runR(kind, key); return; }
 
   if (kind === 'estimate') {

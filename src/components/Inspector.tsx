@@ -378,7 +378,7 @@ function ModelInspector() {
       {settings.method === 'cbsem' && <EsemEditor />}
       {settings.method === 'cbsem' && <GroupsEditor />}
       {settings.method === 'cbsem' && <ClustersEditor />}
-      {settings.method === 'cbsem' && <WeightsEditor />}
+      {(settings.method === 'cbsem' || settings.method === 'pls') && <WeightsEditor />}
       {settings.method === 'cbsem' && <SamplingClustersEditor />}
       {settings.method === 'cbsem' && <ConstraintsEditor />}
       {settings.method === 'cbsem' && model.correlations?.some((k) => k.zero) && <ZeroCovariances />}

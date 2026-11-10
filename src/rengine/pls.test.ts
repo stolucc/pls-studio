@@ -30,4 +30,9 @@ describe('PLS request', () => {
     expect(req.options).toEqual({ scheme: 'path', consistent: true, tolerance: 1e-7, maxIter: 300, approach: 'PLS-PM', hocApproach: 'two_stage' });
     expect(() => plsRequest({ names: ['a'], cols: [], moments: { S: [[1]], n: 10 } }, toSpec(c), opts, 'cSEM')).toThrow(/raw data/);
   });
+  it('refuses sampling weights: cSEM and seminr take none (weighted PLS is the built-in engine’s)', () => {
+    const c = cases.find((k) => k.name === 'pls_csem_threecommonfactors')!;
+    const opts = { scheme: 'path' as const, consistent: false, missing: 'mean' as const, tolerance: 1e-7, maxIter: 300 };
+    expect(() => plsRequest(loadData(c), { ...toSpec(c), weights: 'w' }, opts, 'seminr')).toThrow(/no sampling weights/);
+  });
 });

@@ -160,7 +160,13 @@ export function plsCore(
         const yi = Y[i];
         for (let r = 0; r < n; r++) z[r] += e * yi[r];
       }
-      return standardize(z, `inner proxy of ${m.constructs[j]}`);
+      // Scaled only: z is a combination of centred scores (with sampling weights, of √w-premultiplied ones, whose centring is the weighted one).
+      let ss = 0;
+      for (let r = 0; r < n; r++) ss += z[r] * z[r];
+      const s = Math.sqrt(ss / (n - 1));
+      if (!(s > 1e-12)) throw new Error(`"inner proxy of ${m.constructs[j]}" has zero variance.`);
+      for (let r = 0; r < n; r++) z[r] /= s;
+      return z;
     });
 
     const last = w.slice();
@@ -430,6 +436,44 @@ export function standardizeColumns(cols: Float64Array[], names: string[]): Float
   return cols.map((c, i) => standardize(c, names[i]));
 }
 
+/** Sampling weights (WPLS) rescaled to sum to n, so that unit weights give the unweighted algorithm. Throws on invalid weights. */
+export function normaliseWeights(w: ArrayLike<number>): Float64Array {
+  let sum = 0;
+  for (let r = 0; r < w.length; r++) {
+    if (!(Number.isFinite(w[r]) && w[r] >= 0)) throw new Error('Sampling weights must be non-negative numbers without missing values.');
+    sum += w[r];
+  }
+  if (!(sum > 0)) throw new Error('The sampling weights are all zero.');
+  return Float64Array.from(w, (v) => (v * w.length) / sum);
+}
+
+/** Weighted mean and standard deviation (weights summing to n; n − 1 denominator, as the unweighted sd). */
+export function weightedMoments(x: ArrayLike<number>, w: ArrayLike<number>): { mean: number; sd: number } {
+  const n = x.length;
+  let m = 0, ss = 0;
+  for (let r = 0; r < n; r++) m += w[r] * x[r];
+  m /= n;
+  for (let r = 0; r < n; r++) ss += w[r] * (x[r] - m) ** 2;
+  return { mean: m, sd: Math.sqrt(ss / (n - 1)) };
+}
+
+/**
+ * Weighted PLS (WPLS; Becker & Ismail 2016, European Management Journal 34(6)): every correlation and
+ * regression of the algorithm weighted by the sampling weights. Columns are standardised with the weighted
+ * mean and sd (`Z`) and premultiplied by √w (`X`), so that the plain cross-products of plsCore / structural
+ * (corStd) are weighted correlations Σ w z_a z_b / (n − 1), and least squares on them weighted least squares.
+ * With integer weights the estimates equal those of the data with each row repeated w times.
+ */
+export function weightedColumns(cols: Float64Array[], names: string[], w: Float64Array): { X: Float64Array[]; Z: Float64Array[] } {
+  const sw = w.map(Math.sqrt);
+  const Z = cols.map((c, i) => {
+    const { mean: m, sd: s } = weightedMoments(c, w);
+    if (!(s > 1e-12)) throw new Error(`"${names[i]}" has zero (weighted) variance.`);
+    return Float64Array.from(c, (v) => (v - m) / s);
+  });
+  return { X: Z.map((z) => Float64Array.from(z, (v, r) => v * sw[r])), Z };
+}
+
 
 export interface PlsEstimate {
   m: CompiledModel;
@@ -439,6 +483,8 @@ export interface PlsEstimate {
   st: ReturnType<typeof structural> & { r2Excluding?: (from: number, to: number) => number };
   /** Stage-1 weights when the model has moderators (warm start for bootstrapping). */
   w1?: Float64Array;
+  /** Construct scores for reporting when they differ from core.scores (WPLS: core.scores are premultiplied by √w). */
+  scores?: Float64Array[];
 }
 
 /**
@@ -461,12 +507,34 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
   if (cops.length && opts.consistent) throw new Error('Gaussian copula terms are not available with PLSc; switch consistent PLS off.');
   const threeMains = (spec.threeWay ?? []).flatMap((t) => [t.moderator, t.moderator2].map((from) => ({ from, to: t.to })));
   const m1 = compileModel({ constructs: spec.constructs, paths: [...spec.paths, ...threeMains.filter((q) => !spec.paths.some((p) => p.from === q.from && p.to === q.to)).filter((q, i, all) => all.findIndex((o) => o.from === q.from && o.to === q.to) === i)] });
-  const { cols, dropped } = extractColumns(data, m1, opts.missing);
+  // Sampling weights (WPLS): the weights column travels with the rows as the last column, so bootstrap samples resample cases with their weights.
+  const wname = spec.weights;
+  if (wname) {
+    if (cops.length) throw new Error('Gaussian copula terms cannot be combined with sampling weights (P* is built from unweighted ranks).');
+    if (opts.consistent && (mods.length || spec.threeWay?.length)) throw new Error('Interaction terms with PLSc cannot be combined with sampling weights; switch consistent PLS off.');
+    if (m1.indicatorNames.includes(wname)) throw new Error(`“${wname}” cannot be both the sampling weights and an indicator.`);
+  }
+  const { cols, dropped } = extractColumns(data, wname ? { ...m1, indicatorNames: [...m1.indicatorNames, wname] } : m1, opts.missing);
+  /** Indicator columns and normalised weights (null: unweighted) of a set of rows. */
+  const split = (c: Float64Array[]) => (wname ? { c: c.slice(0, -1), w: normaliseWeights(c[c.length - 1]) } : { c, w: null });
+  /** Algorithm columns X, and the standardised (not premultiplied) columns Z. */
+  const stdz = (c: Float64Array[], names: string[], w: Float64Array | null) => {
+    if (w) return weightedColumns(c, names, w);
+    const X = standardizeColumns(c, names);
+    return { X, Z: X };
+  };
+  /** Scores for reporting and for building terms: with weights, recomputed from Z (core.scores carry the √w factor). */
+  const plain = (m: CompiledModel, core: CoreResult, Z: Float64Array[], w: Float64Array | null) => (w ? m.blocks.map((b) => {
+    const y = new Float64Array(Z[0].length);
+    for (const k of b) for (let r = 0; r < y.length; r++) y[r] += core.w[k] * Z[k][r];
+    return y;
+  }) : core.scores);
   if (mods.length === 0 && cops.length === 0 && !spec.threeWay?.length) {
-    const estimate = (c: Float64Array[], init?: { w2?: Float64Array }): PlsEstimate => {
-      const X = standardizeColumns(c, m1.indicatorNames);
+    const estimate = (c0: Float64Array[], init?: { w2?: Float64Array }): PlsEstimate => {
+      const { c, w } = split(c0);
+      const { X, Z } = stdz(c, m1.indicatorNames, w);
       const core = plsCore(X, m1, opts, init?.w2);
-      return { m: m1, X, core, st: structural(m1, X, core, opts.consistent) };
+      return { m: m1, X, core, st: structural(m1, X, core, opts.consistent), ...(w ? { scores: plain(m1, core, Z, w) } : {}) };
     };
     return { m: m1, cols, dropped, estimate, moderations: [] as PlsResult['moderations'], threeWay: [] as NonNullable<PlsResult['threeWay']>, copulas: [] as { from: string; to: string; construct: number }[] };
   }
@@ -502,10 +570,13 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
     constructs: [...spec.constructs, ...[...names, ...copNames].map((name) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: [name] }))],
     paths: [...paths, ...names.map((name, i) => ({ from: name, to: termTo[i] })), ...cops.map((k, i) => ({ from: copNames[i], to: k.to }))],
   });
-  const estimate = (c: Float64Array[], init?: { w1?: Float64Array; w2?: Float64Array }): PlsEstimate => {
-    const X1 = standardizeColumns(c, m1.indicatorNames);
+  const estimate = (c0: Float64Array[], init?: { w1?: Float64Array; w2?: Float64Array }): PlsEstimate => {
+    const { c, w } = split(c0);
+    const s1 = stdz(c, m1.indicatorNames, w);
+    const X1 = s1.X;
     const core1 = plsCore(X1, m1, opts, init?.w1);
-    const products = pairs.map((f) => Float64Array.from(core1.scores[f[0]], (_, r) => f.reduce((p, a) => p * core1.scores[a][r], 1)));
+    const y1 = plain(m1, core1, s1.Z, w);
+    const products = pairs.map((f) => Float64Array.from(y1[f[0]], (_, r) => f.reduce((p, a) => p * y1[a][r], 1)));
     if (opts.consistent) {
       // PLSc: the weights of the model without its terms, and the moments of the products corrected for measurement error.
       const X = standardizeColumns([...c, ...products], m2.indicatorNames);
@@ -526,7 +597,8 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
       return { m: m2, X, core, st: { ...st, totalEffects: totalEffectsOf(st.pathCoef), r2Excluding }, w1: core1.w };
     }
     const pStars = copFrom.map((a) => pStar(core1.scores[a]));
-    const X = standardizeColumns([...c, ...products, ...pStars], m2.indicatorNames);
+    const s2 = stdz([...c, ...products, ...pStars], m2.indicatorNames, w);
+    const X = s2.X;
     const core = plsCore(X, m2, opts, init?.w2);
     const st = structural(m2, X, core, false);
     // Report interaction effects per unit of the product of standardised scores
@@ -534,11 +606,11 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
     // `from` at moderator level m (in SD) is β_from + β_int · m.
     products.forEach((prod, i) => {
       const k = m2.constructs.indexOf(names[i]);
-      const s = sd(prod);
+      const s = w ? weightedMoments(prod, w).sd : sd(prod);
       st.pathCoef[k] = st.pathCoef[k].map((v) => v / s);
       st.totalEffects[k] = st.totalEffects[k].map((v) => v / s);
     });
-    return { m: m2, X, core, st, w1: core1.w };
+    return { m: m2, X, core, st, w1: core1.w, ...(w ? { scores: plain(m2, core, s2.Z, w) } : {}) };
   };
   return { m: m2, cols, dropped, estimate, moderations: allMods.map((mo, i) => ({ ...mo, construct: m2.constructs.indexOf(names[i]) })), threeWay: threes.map((t) => ({ ...t, construct: m2.constructs.indexOf(threeWayName(t)) })), copulas: cops.map((k, i) => ({ ...k, construct: m2.constructs.indexOf(copNames[i]) })) };
 }
@@ -592,7 +664,8 @@ export function estimatePls(data: Dataset, spec: ModelSpec, options: Partial<Pls
   const dropped = prep.dropped;
   const n = prep.cols[0]?.length ?? 0;
   if (n < 3) throw new Error('Not enough complete observations to estimate the model.');
-  const { m, X, core, st } = prep.estimate(prep.cols);
+  const { m, X, core, st, scores: shown } = prep.estimate(prep.cols);
+  const scores = shown ?? core.scores;
   const { C, pathCoef, rSquared, loadings, totalEffects } = st;
   const J = m.constructs.length;
 
@@ -642,11 +715,12 @@ export function estimatePls(data: Dataset, spec: ModelSpec, options: Partial<Pls
     types: m.types,
     moderations: prep.moderations,
     ...(prep.threeWay.length ? { threeWay: prep.threeWay } : {}),
-    copulas: prep.copulas.map((k) => ({ ...k, normality: cramerVonMises(core.scores[m.constructs.indexOf(k.from)]) })),
+    copulas: prep.copulas.map((k) => ({ ...k, normality: cramerVonMises(scores[m.constructs.indexOf(k.from)]) })),
     fSquare,
     vifInner,
     vifOuter,
-    scores: core.scores,
+    scores,
     droppedRows: dropped,
+    ...(spec.weights ? { samplingWeights: spec.weights } : {}),
   };
 }

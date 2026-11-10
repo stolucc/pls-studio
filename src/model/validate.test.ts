@@ -121,3 +121,23 @@ it('reports sampling weights on a covariance matrix instead of reading its missi
   const issues = validateModel(kitchen, matrix, { ...DEFAULT_SETTINGS, method: 'cbsem', engine: 'r' } as Settings).map((i) => i.message);
   expect(issues).toContain('Sampling weights need raw data; this dataset is a covariance matrix.');
 });
+
+// Weighted PLS (WPLS): sampling weights apply to PLS-SEM, through the built-in engine.
+describe('sampling weights in PLS-SEM', () => {
+  const m: ModelState = { constructs: [C('A', 'A', ['a1', 'a2']), C('B', 'B', ['b1', 'b2'])], paths: [{ id: 'p', from: 'A', to: 'B' }], moderations: [], weights: 'wt' } as unknown as ModelState;
+  const d = cols(['a1', 'a2', 'b1', 'b2', 'wt'], 30, (k, i) => (k === 4 ? 1 + (i % 3) : Math.sin(i * (k + 1.3)) + (i % (k + 3))));
+  const msgs = (s: Partial<Settings>, data = d, model = m) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'pls', ...s } as Settings).map((i) => `${i.level}: ${i.message}`);
+  it('no longer says PLS ignores them; with R packages, notes the built-in engine', () => {
+    expect(msgs({ engine: 'builtin' }).filter((x) => /weights/i.test(x))).toEqual([]);
+    expect(msgs({ engine: 'r' })).toContain('warning: Weighted PLS (sampling weights wt) is estimated by the built-in engine: neither cSEM nor seminr takes sampling weights.');
+  });
+  it('checks the column and refuses unsupported combinations', () => {
+    const bad = { ...d, cols: d.cols.map((c, k) => (k === 4 ? Float64Array.from(c, (v, i) => (i === 2 ? -1 : v)) : c)) };
+    expect(msgs({ engine: 'builtin' }, bad)).toContain('error: The sampling weights (wt) must be non-negative numbers without missing values.');
+    const zero = { ...d, cols: d.cols.map((c, k) => (k === 4 ? new Float64Array(c.length) : c)) };
+    expect(msgs({ engine: 'builtin' }, zero)).toContain('error: The sampling weights (wt) are all zero.');
+    expect(msgs({ engine: 'builtin', plsApproach: 'GSCA' })).toContain('error: Weighted PLS needs PLS path modeling as the weighting approach.');
+    expect(msgs({ engine: 'builtin', missing: 'mi' })).toContain('error: Weighted PLS uses mean replacement or casewise deletion, not multiple imputation.');
+    expect(msgs({ engine: 'builtin' }, d, { ...m, copulas: [{ id: 'c', path: 'p' }] } as ModelState)).toContain('error: Gaussian copulas cannot be combined with sampling weights.');
+  });
+});

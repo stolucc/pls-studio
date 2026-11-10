@@ -294,8 +294,8 @@ describe('sampling weights (CB-SEM)', () => {
     expect(errs({ ...m, weights: 'a1' })[0]).toMatch(/cannot be both the sampling weights and an indicator/);
     expect(errs({ ...m, multilevel: { column: 'w', between: 'saturated' } }).some((x) => /two-level/.test(x))).toBe(true);
   });
-  it('warns that PLS-SEM ignores them, and survives a save and load', () => {
-    expect(validateModel(m, d, { method: 'pls', consistent: false }).some((i) => i.level === 'warning' && /PLS-SEM ignores them/.test(i.message))).toBe(true);
+  it('PLS-SEM weights them (WPLS, built-in engine), and they survive a save and load', () => {
+    expect(validateModel(m, d, { method: 'pls', consistent: false }).some((i) => i.level === 'warning' && /Weighted PLS .* built-in engine/.test(i.message))).toBe(true);
     const file = JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null));
     expect(parseProject(JSON.stringify(file)).model.weights).toBe('w');
   });

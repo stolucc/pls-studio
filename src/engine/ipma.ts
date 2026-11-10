@@ -35,6 +35,7 @@ export interface IpmaResult {
 
 export function ipma(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>, io: IpmaOptions): IpmaResult {
   if (spec.moderations?.length || spec.copulas?.length) throw new Error('IPMA is not defined for models with interaction or copula terms.');
+  if (spec.weights) throw new Error('IPMA is not available with sampling weights here (its performances are unweighted means).');
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const prep = preparePls(data, spec, opts);
   const { m, core, st } = prep.estimate(prep.cols);
