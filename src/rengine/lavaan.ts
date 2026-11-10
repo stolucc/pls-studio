@@ -22,13 +22,19 @@ export interface CbRequest {
 /** Multiple imputation: number of imputed data sets and the seed (only with missing = 'mi'); CB-SEM: the method, auxiliary and (Amelia) nominal columns. */
 export interface MiSettings { m: number; seed: number; method?: 'mice' | 'amelia' | 'micenorm' | 'joint'; auxiliary?: string[]; nominal?: string[] }
 
-export function cbRequest(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): CbRequest {
+/** The missing-value treatments lavaan's auxiliary variables (aux =) work with: FIML and the two-stage approach. */
+export const AUX_MISSING: readonly MissingTreatment[] = ['fiml', 'twostage', 'robusttwostage'];
+
+export function cbRequest(data: Dataset, spec0: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, interaction: LatentInteraction = 'product', mi?: MiSettings): CbRequest {
+  // (auxiliary variables of FIML and the two-stage approach: only with those, never for matrices)
+  const { auxiliary: aux, ...rest } = spec0;
+  const spec: ModelSpec = aux?.length && AUX_MISSING.includes(missing) && !(data.moments && data.cols.length === 0) ? spec0 : rest;
   // Only the columns the model uses travel to R.
   const used = new Set([...spec.constructs.flatMap((c) => c.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.multilevel ? [spec.multilevel.column, ...(spec.multilevel.between === 'factors' ? spec.multilevel.betweenCovariates ?? [] : []),
       // (a between level as written: the columns it names; its factors are not columns and stay behind)
       ...(spec.multilevel.between === 'model' ? (spec.multilevel.betweenModel ?? []).flatMap((st) => [st.lhs, ...st.rhs.map((t) => t.name)]) : [])] : []), ...(spec.weights ? [spec.weights] : []), ...(spec.cluster ? [spec.cluster] : []),
     // (multiple imputation: the auxiliary variables travel too; they inform the imputation, not the model)
-    ...(missing === 'mi' ? mi?.auxiliary ?? [] : [])]);
+    ...(missing === 'mi' ? mi?.auxiliary ?? [] : []), ...(spec.auxiliary ?? [])]);
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'cb', estimator, missing, ...(interaction !== 'product' && spec.moderations?.length ? { interaction } : {}),

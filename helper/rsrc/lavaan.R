@@ -799,6 +799,27 @@ ps_cb_build <- function(req) {
     return(list(n = n, k0 = k0, comps = comps, is_cov = is_cov, lname = lname, mods = mods, int_names = int_names, prod = prod,
       inputs = inputs, body = body, matrix_input = matrix_input, group_var = NULL, modsem = method))
   }
+  # Auxiliary variables of FIML or the two-stage approach (lavaan aux =): columns not in the model, saturated
+  # correlates with FIML (Graham 2003), part of the first-stage EM with the two-stage approach; they travel with the data.
+  aux_cols <- as.character(unlist(req$model$auxiliary))
+  if (length(aux_cols)) {
+    if (!identical(req$missing, "fiml") && !identical(req$missing, "twostage") && !identical(req$missing, "robusttwostage")) stop("Auxiliary variables work with FIML or the two-stage approach to missing values.")
+    if (matrix_input) stop("Auxiliary variables need raw data.")
+    if (length(ordered)) stop("Auxiliary variables are available for continuous indicators (lavaan); this model has ordinal ones.")
+    if (!is.null(cluster_var) || !is.null(complex_var)) stop("Auxiliary variables are not available with clusters.")
+    if (length(aux_cols) > 200) stop("Too many auxiliary variables.")
+    aux_id <- character(0)
+    for (a in unique(aux_cols)) {
+      if (a %in% n$all_inds) stop("An auxiliary variable is an indicator of the model.")
+      at <- match(a, req$data$names)
+      if (is.na(at)) stop("An auxiliary variable is not in the dataset.")
+      cols <- req$data$cols
+      id <- ps_ident(c(unname(n$iv), names(inputs$data), a))[length(n$iv) + ncol(inputs$data) + 1]
+      inputs$data[[id]] <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      aux_id[a] <- id
+    }
+    extra <- paste0(extra, sprintf(", aux = %s", ps_q(unname(aux_id))))
+  }
   # (with matrices, extra holds the group equalities of a stacked model and the bounds only: the rest was refused above)
   call <- if (matrix_input) sprintf("fit <- sem(model, sample.cov = S, sample.nobs = N%s%s, estimator = \"%s\"%s)", if (!is.null(inputs$NACOV)) ", NACOV = NACOV" else "", if (pass_m) ", sample.mean = M" else "", req$estimator, extra)
     else sprintf("fit <- sem(model, data = data, estimator = \"%s\"%s)", req$estimator, extra)

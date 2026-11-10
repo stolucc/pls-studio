@@ -32,7 +32,7 @@ export function cbModelBlocked(ctx: AnalysisCtx, what: string, raw = true): stri
 export function cbFingerprint(ctx: AnalysisCtx, extra: (string | number | null)[] = []): string | null {
   if (ctx.settings.method !== 'cbsem' || !ctx.model || !ctx.data) return null;
   const spec = toSpec(ctx.model);
-  const cols = rawData(ctx) ? columnsFingerprint(ctx, [...new Set([...ctx.model.constructs.flatMap((k) => k.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.weights ? [spec.weights] : []), ...(spec.cluster ? [spec.cluster] : [])])])
+  const cols = rawData(ctx) ? columnsFingerprint(ctx, [...new Set([...ctx.model.constructs.flatMap((k) => k.indicators), ...(spec.multigroup ? [spec.multigroup.column] : []), ...(spec.weights ? [spec.weights] : []), ...(spec.cluster ? [spec.cluster] : []), ...(spec.auxiliary ?? [])])])
     : JSON.stringify(ctx.data.moments);
   return cols && fingerprint([cols, JSON.stringify(spec), ctx.settings.estimator, ctx.settings.missing, ctx.settings.interaction, ...extra]);
 }

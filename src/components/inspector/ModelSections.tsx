@@ -404,6 +404,14 @@ export function MissingValues() {
         </select>
         {settings.method === 'cbsem' && settings.missing === 'fiml' && <div className="hint" style={{ marginTop: 6 }}>Full-information maximum likelihood uses all observed values of every case (missing at random); with MLR the standard errors and test are robust.</div>}
         {settings.method === 'cbsem' && (settings.missing === 'twostage' || settings.missing === 'robusttwostage') && <div className="hint" style={{ marginTop: 6 }}>Two-stage (Savalei &amp; Bentler 2009; lavaan missing = &quot;{settings.missing === 'twostage' ? 'two.stage' : 'robust.two.stage'}&quot;): the saturated means and covariances are estimated from all observed values (EM), then the model is fitted to them, with standard errors and a χ² corrected for the first stage{settings.missing === 'robusttwostage' ? ' and robust to non-normality' : ''}. ML, MLR, GLS or ULS.</div>}
+        {settings.method === 'cbsem' && (settings.missing === 'fiml' || settings.missing === 'twostage' || settings.missing === 'robusttwostage') && data && !data.moments && (
+          <div style={{ marginTop: 8 }}>
+            <OrderedPicker label="Auxiliary variables (inform the missing values, not in the model)" columns={data.names.filter((n) => !model.constructs.some((c) => c.indicators.includes(n)))}
+              value={(model.auxiliary ?? []).filter((a) => data.names.includes(a))}
+              onChange={(aux) => useStore.getState().commit((m) => { const { auxiliary: _a, ...rest } = m; return aux.length ? { ...rest, auxiliary: aux } : rest; })} />
+            <div className="hint">lavaan’s aux =: with FIML each auxiliary variable is correlated with every observed variable of the model and with the others (saturated correlates, Graham 2003), which makes missing at random more plausible without changing the model or its degrees of freedom; with the two-stage approach they join the first-stage EM. Continuous columns; no ordinal indicators or clusters.</div>
+          </div>
+        )}
         {settings.method === 'cbsem' && settings.missing === 'pairwise' && <div className="hint" style={{ marginTop: 6 }}>Pairwise deletion (lavaan missing = &quot;pairwise&quot;): each covariance from the cases observed on both variables. The standard errors and χ² treat the data as complete; prefer the two-stage approach or FIML. ML or ULS.</div>}
         {settings.missing === 'mi' && (
           <div className="field" style={{ marginTop: 8 }}>

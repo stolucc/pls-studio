@@ -49,6 +49,7 @@ modsem
 mvnmle
 mvtnorm
 nnet
+nonnest2
 optimx
 optmatch
 pbivnorm

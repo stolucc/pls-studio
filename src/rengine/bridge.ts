@@ -33,6 +33,7 @@ import quadmlR from './R/quadml.R?raw';
 import dsemR from './R/dsem.R?raw';
 import dfiR from './R/dfi.R?raw';
 import validityR from './R/validity.R?raw';
+import cbdiagR from './R/cbdiag.R?raw';
 import qcaR from './R/qca.R?raw';
 import invarianceR from './R/invariance.R?raw';
 import powerR from './R/power.R?raw';
@@ -46,7 +47,7 @@ import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, prob
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, invariance: invarianceR};
+export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, cbdiag: cbdiagR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, invariance: invarianceR};
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -152,6 +153,8 @@ export const R_PACKAGES = {
   strucchange: ['jsonlite', 'lavaan', 'semTools', 'strucchange'],
   // Datasets of psychotools (YouthGratitude: the strucchange example of Merkle, Fan & Zeileis 2014).
   psychotools: ['jsonlite', 'psychotools'],
+  // Comparing two CB-SEM models: Vuong's tests and AIC / BIC difference intervals (nonnest2) beside lavaan's NET and LRT.
+  nonnest2: ['jsonlite', 'lavaan', 'nonnest2'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;
