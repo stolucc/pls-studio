@@ -3,6 +3,7 @@
 
 import type { Dataset, MissingTreatment } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './reply';
 import type { InvarianceResult, REngineInfo } from './lavaan';
 
 /** A factor of the diagram: its name and indicators (data columns). */
@@ -38,9 +39,8 @@ export interface AlignmentResult {
   warnings: string[]; engine: REngineInfo & { lavaan?: string };
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 /** A matrix from R (rows of numbers; one-element rows arrive unboxed). */
-export const rows = (v: unknown): number[][] => arr<unknown>(v).map((r) => arr<number>(r).map((x) => (typeof x === 'number' ? x : NaN)));
+export const rows = (v: unknown): number[][] => rList<unknown>(v).map((r) => rList<number>(r).map((x) => (typeof x === 'number' ? x : NaN)));
 
 /** The request: the named columns only (missing values as null); a covariance matrix cannot be used. */
 export function invRequest(data: Dataset, kind: string, columns: string[], fields: object) {
@@ -59,15 +59,15 @@ const groupNames = (data: Dataset, column: string, labels: string[]) => {
 
 const alignCols = (i: AlignmentInput) => [...i.factors.flatMap((f) => f.indicators), i.group];
 export const alignmentRequest = (data: Dataset, i: AlignmentInput) => invRequest(data, 'alignment', alignCols(i), i);
-const constraints = (c: any): AlignConstraints => ({ tolerance: c.tolerance, noninvariant: c.noninvariant, joint: arr<number>(c.joint), dif: rows(c.dif), unique: arr<number>(c.unique), uniqueGroups: arr<number>(c.uniqueGroups) });
+const constraints = (c: any): AlignConstraints => ({ tolerance: c.tolerance, noninvariant: c.noninvariant, joint: rList<number>(c.joint), dif: rows(c.dif), unique: rList<number>(c.unique), uniqueGroups: rList<number>(c.uniqueGroups) });
 
 export async function alignmentR(data: Dataset, i: AlignmentInput): Promise<AlignmentResult> {
   const r = await rCall<Record<string, any>>('ps_alignment', alignmentRequest(data, i), 'sirt');
   return {
-    ...r, groups: groupNames(data, i.group, rStrings(r.groups)), n: arr<number>(r.n), power: arr<number>(r.power), scale: arr<number>(r.scale),
-    factors: arr<any>(r.factors).map((f) => ({
+    ...r, groups: groupNames(data, i.group, rStrings(r.groups)), n: rList<number>(r.n), power: rList<number>(r.power), scale: rList<number>(r.scale),
+    factors: rList<any>(r.factors).map((f) => ({
       ...f, items: rStrings(f.items), lambda: rows(f.lambda), nu: rows(f.nu), lambdaAligned: rows(f.lambdaAligned), nuAligned: rows(f.nuAligned),
-      mean: arr<number>(f.mean), sd: arr<number>(f.sd), converged: f.converged === true, fixed: f.fixed === true, lambdaConstraints: constraints(f.lambdaConstraints), nuConstraints: constraints(f.nuConstraints),
+      mean: rList<number>(f.mean), sd: rList<number>(f.sd), converged: f.converged === true, fixed: f.fixed === true, lambdaConstraints: constraints(f.lambdaConstraints), nuConstraints: constraints(f.nuConstraints),
     })),
     warnings: rStrings(r.warnings),
   } as AlignmentResult;
@@ -97,9 +97,9 @@ export const mnlfaRequest = (data: Dataset, i: MnlfaInput) => invRequest(data, '
 export async function mnlfaR(data: Dataset, i: MnlfaInput): Promise<MnlfaResult> {
   const r = await rCall<Record<string, any>>('ps_mnlfa', mnlfaRequest(data, i), 'mnlfa');
   return {
-    ...r, items: arr<MnlfaItemParam>(r.items), trait: arr<any>(r.trait),
+    ...r, items: rList<MnlfaItemParam>(r.items), trait: rList<any>(r.trait),
     // (a categorical covariate's level code as its category name)
-    terms: arr<any>(r.terms).map((t) => ({ ...t, level: t.level == null ? null : groupNames(data, t.covariate, [String(t.level)])[0] })),
+    terms: rList<any>(r.terms).map((t) => ({ ...t, level: t.level == null ? null : groupNames(data, t.covariate, [String(t.level)])[0] })),
     converged: r.converged === true, warnings: rStrings(r.warnings),
   } as MnlfaResult;
 }
@@ -119,7 +119,7 @@ export async function longInvarianceR(data: Dataset, i: LongInvarianceInput): Pr
   const opt = (v: unknown) => (typeof v === 'number' ? v : undefined);
   return {
     ...r, robust: r.robust === true, warnings: rStrings(r.warnings),
-    levels: arr<any>(r.levels).map((l) => ({ ...l, factor: arr<any>(l.factor).map((f) => ({ mean: f.mean, variance: f.variance, ...(opt(f.meanSe) !== undefined ? { meanSe: f.meanSe } : {}), ...(opt(f.varianceSe) !== undefined ? { varianceSe: f.varianceSe } : {}) })) })),
+    levels: rList<any>(r.levels).map((l) => ({ ...l, factor: rList<any>(l.factor).map((f) => ({ mean: f.mean, variance: f.variance, ...(opt(f.meanSe) !== undefined ? { meanSe: f.meanSe } : {}), ...(opt(f.varianceSe) !== undefined ? { varianceSe: f.varianceSe } : {}) })) })),
   } as LongInvarianceResult;
 }
 export const longInvarianceScriptR = (data: Dataset, i: LongInvarianceInput) => rScript('ps_long_invariance', longInvarianceRequest(data, i), 'lavaan');
@@ -145,8 +145,8 @@ export const mimicDifRequest = (data: Dataset, i: MimicDifInput) => invRequest(d
 export async function mimicDifR(data: Dataset, i: MimicDifInput): Promise<MimicDifResult> {
   const r = await rCall<Record<string, any>>('ps_mimic_dif', mimicDifRequest(data, i), 'lavaan');
   return {
-    ...r, items: arr<any>(r.items).map((x) => ({ ...x, flagged: x.flagged === true, ...(typeof x.score === 'number' ? {} : { score: undefined, scoreP: undefined }) })),
-    flagged: rStrings(r.flagged), final: r.final ? { ...r.final, direct: arr<any>(r.final.direct) } : null, scoreError: r.scoreError === true, warnings: rStrings(r.warnings),
+    ...r, items: rList<any>(r.items).map((x) => ({ ...x, flagged: x.flagged === true, ...(typeof x.score === 'number' ? {} : { score: undefined, scoreP: undefined }) })),
+    flagged: rStrings(r.flagged), final: r.final ? { ...r.final, direct: rList<any>(r.final.direct) } : null, scoreError: r.scoreError === true, warnings: rStrings(r.warnings),
   } as MimicDifResult;
 }
 export const mimicDifScriptR = (data: Dataset, i: MimicDifInput) => rScript('ps_mimic_dif', mimicDifRequest(data, i), 'lavaan');

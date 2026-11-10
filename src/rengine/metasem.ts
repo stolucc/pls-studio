@@ -3,6 +3,7 @@
 
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './reply';
 import type { REngineInfo } from './lavaan';
 
 export interface MetaSemOptions { n: string; method: 'FEM' | 'REM'; reType: 'Diag' | 'Symm' | 'Zero' }
@@ -66,14 +67,13 @@ export function metaSemRequest(data: Dataset, spec: ModelSpec, o: MetaSemOptions
   return { model: spec, meta: { method: o.method, reType: o.reType, studies } };
 }
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 /** The reply as the card reads it (R's single values and empty lists normalised). */
 export function metaSemResult(r: Record<string, any>): MetaSemResult {
   const clean = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0))) as T;
   return {
-    stage1: { ...clean(r.stage1), pooled: arr<MetaPooled>(r.stage1?.pooled).map(clean) },
-    stage2: { params: arr<MetaParam>(r.stage2?.params), fit: clean(r.stage2?.fit ?? {}), status: r.stage2?.status },
-    variables: arr<string>(r.variables), warnings: rStrings(r.warnings), engine: r.engine,
+    stage1: { ...clean(r.stage1), pooled: rList<MetaPooled>(r.stage1?.pooled).map(clean) },
+    stage2: { params: rList<MetaParam>(r.stage2?.params), fit: clean(r.stage2?.fit ?? {}), status: r.stage2?.status },
+    variables: rList<string>(r.variables), warnings: rStrings(r.warnings), engine: r.engine,
   };
 }
 

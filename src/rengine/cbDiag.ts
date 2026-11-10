@@ -3,15 +3,13 @@
 // tests of exact fit).
 
 import { rCall, rScript, rStrings } from './bridge';
-import type { CbCall } from './cbExtras';
+import { rList, rNum } from './reply';
+import { cbCallRequest, type CbCall } from './cbExtras';
 import type { ModelSpec } from '../engine/types';
 import { cbRequest, type REngineInfo } from './lavaan';
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown) => (typeof v === 'string' && v ? v : null);
-const rows = (m: unknown) => arr<unknown>(m).map((r) => arr<unknown>(r).map(num));
-const req = (c: CbCall, extra: object) => ({ ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction), ...extra });
+const rows = (m: unknown) => rList<unknown>(m).map((r) => rList<unknown>(r).map(rNum));
 const out = (r: Record<string, any>) => ({ warnings: rStrings(r.warnings), engine: r.engine as REngineInfo });
 
 // ---------- local fit ----------
@@ -39,25 +37,25 @@ export interface LocalFitBlock {
 export interface LocalFitTestRow { test: string; label: string | null; stat: number | null; df: number | null; p: number | null; scaling: number | null; shift: number | null; base: string | null; error: string | null; warning: string | null }
 export interface LocalFitResult { blocks: LocalFitBlock[]; tests: LocalFitTestRow[]; base: 'standard' | 'RLS'; estimator: string; n: number; warnings: string[]; engine: REngineInfo }
 
-const srmr = (s: any): SrmrSummary => ({ srmr: num(s?.srmr), se: num(s?.se), z: num(s?.z), p: num(s?.p), usrmr: num(s?.usrmr), usrmrSe: num(s?.usrmrSe), low: num(s?.low), high: num(s?.high), h0: num(s?.h0), closeZ: num(s?.closeZ), closeP: num(s?.closeP) });
+const srmr = (s: any): SrmrSummary => ({ srmr: rNum(s?.srmr), se: rNum(s?.se), z: rNum(s?.z), p: rNum(s?.p), usrmr: rNum(s?.usrmr), usrmrSe: rNum(s?.usrmrSe), low: rNum(s?.low), high: rNum(s?.high), h0: rNum(s?.h0), closeZ: rNum(s?.closeZ), closeP: rNum(s?.closeP) });
 
 /** The R result as the card keeps it. */
 export function parseLocalFit(r: Record<string, any>): LocalFitResult {
   return {
-    blocks: arr<any>(r.blocks).map((b) => ({
-      label: typeof b.label === 'string' ? b.label : '', names: arr<string>(b.names), residual: rows(b.residual), se: rows(b.se), z: rows(b.z),
+    blocks: rList<any>(r.blocks).map((b) => ({
+      label: typeof b.label === 'string' ? b.label : '', names: rList<string>(b.names), residual: rows(b.residual), se: rows(b.se), z: rows(b.z),
       normalized: b.normalized == null ? null : rows(b.normalized),
-      means: b.means ? { names: arr<string>(b.means.names), residual: arr<unknown>(b.means.residual).map(num), se: arr<unknown>(b.means.se).map(num), z: arr<unknown>(b.means.z).map(num) } : null,
+      means: b.means ? { names: rList<string>(b.means.names), residual: rList<unknown>(b.means.residual).map(rNum), se: rList<unknown>(b.means.se).map(rNum), z: rList<unknown>(b.means.z).map(rNum) } : null,
       summary: srmr(b.summary),
     })),
-    tests: arr<any>(r.tests).map((t) => ({ test: String(t.test), label: str(t.label), stat: num(t.stat), df: num(t.df), p: num(t.p), scaling: num(t.scaling), shift: num(t.shift), base: str(t.base), error: str(t.error), warning: str(t.warning) })),
+    tests: rList<any>(r.tests).map((t) => ({ test: String(t.test), label: str(t.label), stat: rNum(t.stat), df: rNum(t.df), p: rNum(t.p), scaling: rNum(t.scaling), shift: rNum(t.shift), base: str(t.base), error: str(t.error), warning: str(t.warning) })),
     base: r.base === 'RLS' ? 'RLS' : 'standard', estimator: String(r.estimator ?? ''), n: Number(r.n) || 0, ...out(r),
   };
 }
 export async function localFitR(c: CbCall, o: LocalFitRequest): Promise<LocalFitResult> {
-  return parseLocalFit(await rCall<Record<string, any>>('ps_cb_localfit', req(c, { localfit: o }), 'lavaan'));
+  return parseLocalFit(await rCall<Record<string, any>>('ps_cb_localfit', cbCallRequest(c, { localfit: o }), 'lavaan'));
 }
-export const localFitScriptR = (c: CbCall, o: LocalFitRequest) => rScript('ps_cb_localfit', req(c, { localfit: o }), 'lavaan');
+export const localFitScriptR = (c: CbCall, o: LocalFitRequest) => rScript('ps_cb_localfit', cbCallRequest(c, { localfit: o }), 'lavaan');
 
 /** The pairs of observed variables in one group, largest |z| first (the diagonal, structurally zero, left out). */
 export function largestResiduals(b: LocalFitBlock, by: 'z' | 'normalized' = 'z'): { a: string; b: string; residual: number | null; se: number | null; z: number }[] {
@@ -82,10 +80,10 @@ export interface DiscriminantResult {
   markers: boolean;
   warnings: string[]; engine: REngineInfo;
 }
-const lrtCols = (v: any) => ({ chisq: arr<unknown>(v?.chisq).map(num), df: arr<unknown>(v?.df).map(num), p: arr<unknown>(v?.p).map(num) });
+const lrtCols = (v: any) => ({ chisq: rList<unknown>(v?.chisq).map(rNum), df: rList<unknown>(v?.df).map(rNum), p: rList<unknown>(v?.p).map(rNum) });
 const lrtAt = (c: ReturnType<typeof lrtCols>, i: number): Lrt => ({ chisq: c.chisq[i] ?? null, df: c.df[i] ?? null, p: c.p[i] ?? null });
 export function parseDiscriminant(r: Record<string, any>): DiscriminantResult {
-  const lhs = arr<string>(r.lhs), rhs = arr<string>(r.rhs), est = arr<unknown>(r.est).map(num), low = arr<unknown>(r.low).map(num), high = arr<unknown>(r.high).map(num);
+  const lhs = rList<string>(r.lhs), rhs = rList<string>(r.rhs), est = rList<unknown>(r.est).map(rNum), low = rList<unknown>(r.low).map(rNum), high = rList<unknown>(r.high).map(rNum);
   const c80 = lrtCols(r.cut80), c90 = lrtCols(r.cut90), c100 = lrtCols(r.cut100), merge = r.merge ? lrtCols(r.merge) : null;
   return {
     level: Number(r.level), markers: r.markers === true,
@@ -94,9 +92,9 @@ export function parseDiscriminant(r: Record<string, any>): DiscriminantResult {
   };
 }
 export async function discriminantR(c: CbCall, o: DiscriminantRequest): Promise<DiscriminantResult> {
-  return parseDiscriminant(await rCall<Record<string, any>>('ps_cb_discriminant', req(c, { discriminant: o }), 'lavaan'));
+  return parseDiscriminant(await rCall<Record<string, any>>('ps_cb_discriminant', cbCallRequest(c, { discriminant: o }), 'lavaan'));
 }
-export const discriminantScriptR = (c: CbCall, o: DiscriminantRequest) => rScript('ps_cb_discriminant', req(c, { discriminant: o }), 'lavaan');
+export const discriminantScriptR = (c: CbCall, o: DiscriminantRequest) => rScript('ps_cb_discriminant', cbCallRequest(c, { discriminant: o }), 'lavaan');
 
 export type DvClass = 'severe' | 'moderate' | 'marginal' | 'none';
 /**
@@ -139,17 +137,17 @@ export interface CompareModelsResult {
   nestedChoice: Nesting;
   warnings: string[]; engine: REngineInfo & { lavaan?: string };
 }
-const fitOf = (f: any): ModelFit => ({ npar: num(f?.npar), chisq: num(f?.chisq), df: num(f?.df), pvalue: num(f?.pvalue), cfi: num(f?.cfi), rmsea: num(f?.rmsea), srmr: num(f?.srmr), logl: num(f?.logl), aic: num(f?.aic), bic: num(f?.bic) });
+const fitOf = (f: any): ModelFit => ({ npar: rNum(f?.npar), chisq: rNum(f?.chisq), df: rNum(f?.df), pvalue: rNum(f?.pvalue), cfi: rNum(f?.cfi), rmsea: rNum(f?.rmsea), srmr: rNum(f?.srmr), logl: rNum(f?.logl), aic: rNum(f?.aic), bic: rNum(f?.bic) });
 const noteOf = (t: any): TestNote => ({ error: str(t?.error), notes: rStrings(t?.notes) });
 const bool = (v: unknown) => (typeof v === 'boolean' ? v : null);
 export function parseCompareModels(r: Record<string, any>): CompareModelsResult {
   const net = r.net ?? {}, lrt = r.lrt ?? {}, vt = r.vuong ?? {}, ic = r.icci ?? {};
   return {
     fit1: fitOf(r.fit1), fit2: fitOf(r.fit2), n: Number(r.n) || 0,
-    net: { ...noteOf(net), nested12: bool(net.nested12), nested21: bool(net.nested21), fx12: num(net.fx12), fx21: num(net.fx21), reason12: String(net.reason12 ?? ''), reason21: String(net.reason21 ?? ''), crit: num(net.crit) },
-    lrt: { ...noteOf(lrt), chisq: num(lrt.chisq), df: num(lrt.df), p: num(lrt.p), method: String(lrt.method ?? '') },
-    vuong: { ...noteOf(vt), nested: vt.nested === true, omega: num(vt.omega), pOmega: num(vt.pOmega), stat: num(vt.stat), pA: num(vt.pA), pB: num(vt.pB) },
-    icci: { ...noteOf(ic), aic1: num(ic.aic1), aic2: num(ic.aic2), aicLow: num(ic.aicLow), aicHigh: num(ic.aicHigh), bic1: num(ic.bic1), bic2: num(ic.bic2), bicLow: num(ic.bicLow), bicHigh: num(ic.bicHigh), level: num(ic.level) },
+    net: { ...noteOf(net), nested12: bool(net.nested12), nested21: bool(net.nested21), fx12: rNum(net.fx12), fx21: rNum(net.fx21), reason12: String(net.reason12 ?? ''), reason21: String(net.reason21 ?? ''), crit: rNum(net.crit) },
+    lrt: { ...noteOf(lrt), chisq: rNum(lrt.chisq), df: rNum(lrt.df), p: rNum(lrt.p), method: String(lrt.method ?? '') },
+    vuong: { ...noteOf(vt), nested: vt.nested === true, omega: rNum(vt.omega), pOmega: rNum(vt.pOmega), stat: rNum(vt.stat), pA: rNum(vt.pA), pB: rNum(vt.pB) },
+    icci: { ...noteOf(ic), aic1: rNum(ic.aic1), aic2: rNum(ic.aic2), aicLow: rNum(ic.aicLow), aicHigh: rNum(ic.aicHigh), bic1: rNum(ic.bic1), bic2: rNum(ic.bic2), bicLow: rNum(ic.bicLow), bicHigh: rNum(ic.bicHigh), level: rNum(ic.level) },
     nestedChoice: r.nestedChoice === 'nested' || r.nestedChoice === 'nonnested' ? r.nestedChoice : 'auto',
     warnings: rStrings(r.warnings), engine: r.engine,
   };
@@ -158,7 +156,7 @@ export function parseCompareModels(r: Record<string, any>): CompareModelsResult 
 export function compareModelsRequest(c: CbCall, alternative: ModelSpec, nested: Nesting) {
   const both: ModelSpec = { ...c.spec, constructs: [...c.spec.constructs, ...alternative.constructs], multigroup: c.spec.multigroup ?? alternative.multigroup, auxiliary: [...new Set([...(c.spec.auxiliary ?? []), ...(alternative.auxiliary ?? [])])] };
   const alt = cbRequest(c.data, alternative, c.missing, c.estimator, c.interaction).model;
-  return { ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction), alternative: alt, compare: { nested }, data: cbRequest(c.data, both, c.missing, c.estimator, c.interaction).data };
+  return cbCallRequest(c, { alternative: alt, compare: { nested }, data: cbRequest(c.data, both, c.missing, c.estimator, c.interaction).data });
 }
 export async function compareModelsR(c: CbCall, alternative: ModelSpec, nested: Nesting): Promise<CompareModelsResult> {
   return parseCompareModels(await rCall<Record<string, any>>('ps_cb_compare_models', compareModelsRequest(c, alternative, nested), 'nonnest2'));
@@ -172,20 +170,20 @@ export interface EpcRequest { stdLoad: number; cor: number; stdBeta: number; std
 export interface EpcRow { lhs: string; op: string; rhs: string; group: number | null; mi: number | null; epc: number | null; stdEpc: number | null; sesoi: number | null; stdSesoi: number | null; significant: boolean | null; highPower: boolean | null; power: number | null; decisionPow: string | null; seEpc: number | null; lowStd: number | null; highStd: number | null; decisionCi: string | null }
 export interface EpcResult { rows: EpcRow[]; settings: EpcRequest; groups: string[] | null; warnings: string[]; engine: REngineInfo }
 export function parseEpc(r: Record<string, any>): EpcResult {
-  const lhs = arr<string>(r.lhs), at = <T,>(k: string, f: (v: unknown) => T) => arr<unknown>(r[k]).map(f);
-  const n = (k: string) => at(k, num), s = (k: string) => at(k, str), b = (k: string) => at(k, (v) => (typeof v === 'boolean' ? v : null));
+  const lhs = rList<string>(r.lhs), at = <T,>(k: string, f: (v: unknown) => T) => rList<unknown>(r[k]).map(f);
+  const n = (k: string) => at(k, rNum), s = (k: string) => at(k, str), b = (k: string) => at(k, (v) => (typeof v === 'boolean' ? v : null));
   const [op, rhs, group, mi, epc, stdEpc, sesoi, stdSesoi, sig, high, power, dPow, seEpc, lowStd, highStd, dCi] =
     [s('op'), s('rhs'), n('group'), n('mi'), n('epc'), n('stdEpc'), n('sesoi'), n('stdSesoi'), b('significant'), b('highPower'), n('power'), s('decisionPow'), n('seEpc'), n('lowStd'), n('highStd'), s('decisionCi')] as const;
   return {
     rows: lhs.map((l, i) => ({ lhs: l, op: op[i] ?? '', rhs: rhs[i] ?? '', group: group[i] ?? null, mi: mi[i] ?? null, epc: epc[i] ?? null, stdEpc: stdEpc[i] ?? null, sesoi: sesoi[i] ?? null, stdSesoi: stdSesoi[i] ?? null,
       significant: sig[i] ?? null, highPower: high[i] ?? null, power: power[i] ?? null, decisionPow: dPow[i] ?? null, seEpc: seEpc[i] ?? null, lowStd: lowStd[i] ?? null, highStd: highStd[i] ?? null, decisionCi: dCi[i] ?? null })),
-    settings: r.settings as EpcRequest, groups: r.groups == null ? null : arr<string>(r.groups), ...out(r),
+    settings: r.settings as EpcRequest, groups: r.groups == null ? null : rList<string>(r.groups), ...out(r),
   };
 }
 export async function epcR(c: CbCall, o: EpcRequest): Promise<EpcResult> {
-  return parseEpc(await rCall<Record<string, any>>('ps_cb_epcequiv', req(c, { epc: o }), 'lavaan'));
+  return parseEpc(await rCall<Record<string, any>>('ps_cb_epcequiv', cbCallRequest(c, { epc: o }), 'lavaan'));
 }
-export const epcScriptR = (c: CbCall, o: EpcRequest) => rScript('ps_cb_epcequiv', req(c, { epc: o }), 'lavaan');
+export const epcScriptR = (c: CbCall, o: EpcRequest) => rScript('ps_cb_epcequiv', cbCallRequest(c, { epc: o }), 'lavaan');
 
 /** The decisions counted as semTools' summary() counts them (the J-rule's M and NM include EPC:M and EPC:NM). */
 export function epcCounts(rows: EpcRow[]) {

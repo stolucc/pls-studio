@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './reply';
 import type { REngineInfo } from './lavaan';
 
 export interface DidInput {
@@ -30,7 +31,6 @@ export interface DidResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 
 export function didRequest(data: Dataset, i: DidInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Difference-in-differences needs raw panel data; this dataset is a covariance matrix.');
@@ -42,6 +42,6 @@ export function didRequest(data: Dataset, i: DidInput) {
 
 export async function didR(data: Dataset, input: DidInput): Promise<DidResult> {
   const raw = await rCall<Record<string, any>>('ps_did', didRequest(data, input), 'did');
-  return { ...raw, event: arr(raw.event), ...(raw.groupTime ? { groupTime: arr(raw.groupTime) } : {}), preTrend: raw.preTrend ?? null, warnings: rStrings(raw.warnings) } as DidResult;
+  return { ...raw, event: rList(raw.event), ...(raw.groupTime ? { groupTime: rList(raw.groupTime) } : {}), preTrend: raw.preTrend ?? null, warnings: rStrings(raw.warnings) } as DidResult;
 }
 export const didScriptR = (data: Dataset, input: DidInput) => rScript('ps_did', didRequest(data, input), 'did');

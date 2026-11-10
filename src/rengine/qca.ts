@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList, rNum } from './reply';
 import type { REngineInfo } from './lavaan';
 
 /** How a column becomes a set: as it is (already fuzzy or crisp), or Ragin's direct method with three anchors. */
@@ -39,9 +40,7 @@ export interface QcaResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const n0 = (v: unknown) => num(v) ?? NaN;
+const n0 = (v: unknown) => rNum(v) ?? NaN;
 
 /** The outcome as QCA writes it: ~Y when negated. */
 export const qcaOutcomeLabel = (outcome: string, negated: boolean) => `${negated ? '~' : ''}${outcome}`;
@@ -74,10 +73,10 @@ function solution(raw: unknown): QcaSolution | null {
   if (!raw || typeof raw !== 'object') return null;
   const s = raw as Record<string, unknown>;
   return {
-    kind: s.kind as QcaSolutionKind, essential: rStrings(s.essential), counterfactuals: num(s.counterfactuals) ?? 0,
-    models: arr<Record<string, unknown>>(s.models).map((m, i) => ({
-      label: typeof m.label === 'string' ? m.label : `M${i + 1}`, inclS: n0(m.inclS), PRI: n0(m.PRI), covS: n0(m.covS), membership: arr<unknown>(m.membership).map(n0),
-      terms: arr<Record<string, unknown>>(m.terms).map((t) => ({ term: String(t.term), inclS: n0(t.inclS), PRI: n0(t.PRI), covS: n0(t.covS), covU: num(t.covU), cases: typeof t.cases === 'string' ? t.cases : '' })),
+    kind: s.kind as QcaSolutionKind, essential: rStrings(s.essential), counterfactuals: rNum(s.counterfactuals) ?? 0,
+    models: rList<Record<string, unknown>>(s.models).map((m, i) => ({
+      label: typeof m.label === 'string' ? m.label : `M${i + 1}`, inclS: n0(m.inclS), PRI: n0(m.PRI), covS: n0(m.covS), membership: rList<unknown>(m.membership).map(n0),
+      terms: rList<Record<string, unknown>>(m.terms).map((t) => ({ term: String(t.term), inclS: n0(t.inclS), PRI: n0(t.PRI), covS: n0(t.covS), covU: rNum(t.covU), cases: typeof t.cases === 'string' ? t.cases : '' })),
     })),
   };
 }
@@ -85,17 +84,17 @@ function solution(raw: unknown): QcaSolution | null {
 export function parseQcaOutput(raw: Record<string, any>): QcaResult {
   const tt = raw.truthTable ?? {};
   return {
-    outcome: raw.outcome, negated: !!raw.negated, conditions: rStrings(raw.conditions), n: num(raw.n) ?? 0, labels: raw.labels == null ? null : rStrings(raw.labels),
-    calibration: arr<any>(raw.calibration).map((k) => ({ variable: k.variable, method: k.method === 'direct' ? 'direct' : 'none', e: num(k.e) ?? undefined, c: num(k.c) ?? undefined, i: num(k.i) ?? undefined, min: n0(k.min), max: n0(k.max), above: num(k.above) ?? 0, crisp: !!k.crisp })),
-    necessity: arr<any>(raw.necessity).map((k) => ({ condition: k.condition, inclN: n0(k.inclN), RoN: n0(k.RoN), covN: n0(k.covN) })),
+    outcome: raw.outcome, negated: !!raw.negated, conditions: rStrings(raw.conditions), n: rNum(raw.n) ?? 0, labels: raw.labels == null ? null : rStrings(raw.labels),
+    calibration: rList<any>(raw.calibration).map((k) => ({ variable: k.variable, method: k.method === 'direct' ? 'direct' : 'none', e: rNum(k.e) ?? undefined, c: rNum(k.c) ?? undefined, i: rNum(k.i) ?? undefined, min: n0(k.min), max: n0(k.max), above: rNum(k.above) ?? 0, crisp: !!k.crisp })),
+    necessity: rList<any>(raw.necessity).map((k) => ({ condition: k.condition, inclN: n0(k.inclN), RoN: n0(k.RoN), covN: n0(k.covN) })),
     truthTable: {
-      rows: arr<any>(tt.rows).map((r) => ({ id: String(r.id), values: arr<unknown>(r.values).map(n0), out: r.out, n: num(r.n) ?? 0, incl: num(r.incl), pri: num(r.pri), cases: typeof r.cases === 'string' ? r.cases : '' })),
-      remainders: num(tt.remainders) ?? 0, nCut: n0(tt.nCut), inclCut: n0(tt.inclCut), priCut: n0(tt.priCut), sortBy: String(tt.sortBy ?? ''),
-      counts: { out1: num(tt.counts?.out1) ?? 0, out0: num(tt.counts?.out0) ?? 0, contradictions: num(tt.counts?.contradictions) ?? 0 },
+      rows: rList<any>(tt.rows).map((r) => ({ id: String(r.id), values: rList<unknown>(r.values).map(n0), out: r.out, n: rNum(r.n) ?? 0, incl: rNum(r.incl), pri: rNum(r.pri), cases: typeof r.cases === 'string' ? r.cases : '' })),
+      remainders: rNum(tt.remainders) ?? 0, nCut: n0(tt.nCut), inclCut: n0(tt.inclCut), priCut: n0(tt.priCut), sortBy: String(tt.sortBy ?? ''),
+      counts: { out1: rNum(tt.counts?.out1) ?? 0, out0: rNum(tt.counts?.out0) ?? 0, contradictions: rNum(tt.counts?.contradictions) ?? 0 },
     },
     expectations: rStrings(raw.expectations) as QcaExpectation[],
     solutions: { complex: solution(raw.solutions?.complex), parsimonious: solution(raw.solutions?.parsimonious), intermediate: solution(raw.solutions?.intermediate) },
-    outcomeValues: arr<unknown>(raw.outcomeValues).map(n0),
+    outcomeValues: rList<unknown>(raw.outcomeValues).map(n0),
     warnings: rStrings(raw.warnings), engine: raw.engine,
   };
 }

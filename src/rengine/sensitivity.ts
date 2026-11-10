@@ -3,17 +3,17 @@
 // 2010) for the conditional process model.
 
 import { rCall, rScript, rStrings } from './bridge';
-import type { CbCall } from './cbExtras';
+import { rList } from './reply';
+import { cbCallRequest, type CbCall } from './cbExtras';
 import type { CpaVariable } from './cpa';
-import { cbRequest, type REngineInfo } from './lavaan';
+import type { REngineInfo } from './lavaan';
 import type { Dataset } from '../engine/types';
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
-const nums = (v: unknown) => arr<unknown>(v).map(num);
+const nums = (v: unknown) => rList<unknown>(v).map(num);
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
 /** A number, or null when R gave none (NA, or an empty vector: no zero crossing within the grid). */
-const first = (v: unknown): number | null => { const x = arr<unknown>(v)[0]; return typeof x === 'number' && Number.isFinite(x) ? x : null; };
+const first = (v: unknown): number | null => { const x = rList<unknown>(v)[0]; return typeof x === 'number' && Number.isFinite(x) ? x : null; };
 
 // ---------- SEMsens ----------
 
@@ -53,17 +53,17 @@ export interface SemsensResult {
   engine: REngineInfo & { lavaan?: string };
 }
 
-const semsensReq = (c: CbCall, a: SemsensArgs) => ({ ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction), semsens: a });
-const rows = (v: unknown): SemsensRow[] => arr<any>(v).map((r) => ({ from: str(r.from), to: str(r.to), values: nums(r.values) }));
+const semsensReq = (c: CbCall, a: SemsensArgs) => cbCallRequest(c, { semsens: a });
+const rows = (v: unknown): SemsensRow[] => rList<any>(v).map((r) => ({ from: str(r.from), to: str(r.to), values: nums(r.values) }));
 
 export function parseSemsensOutput(r: Record<string, any>): SemsensResult {
   return {
     n: num(r.n), optFun: num(r.optFun), k: num(r.k), ants: num(r.ants), maxIter: num(r.maxIter), bound: num(r.bound), alpha: num(r.alpha), seed: num(r.seed),
     evaluations: num(r.evaluations), tried: num(r.tried), maxObjective: num(r.maxObjective),
-    phantoms: rStrings(r.phantoms), interest: arr<any>(r.interest).map((p) => ({ from: str(p.from), to: str(p.to) })),
-    summary: rows(r.summary), phantom: arr<any>(r.phantom).map((p) => ({ construct: str(p.construct), values: nums(p.values) })),
+    phantoms: rStrings(r.phantoms), interest: rList<any>(r.interest).map((p) => ({ from: str(p.from), to: str(p.to) })),
+    summary: rows(r.summary), phantom: rList<any>(r.phantom).map((p) => ({ construct: str(p.construct), values: nums(p.values) })),
     atMin: rows(r.atMin), atMax: rows(r.atMax), flip: rows(r.flip),
-    draws: { path: arr<any>(r.draws?.path).map((p) => ({ from: str(p.from), to: str(p.to), est: nums(p.est), p: nums(p.p) })), phantom: arr<unknown>(r.draws?.phantom).map(nums) },
+    draws: { path: rList<any>(r.draws?.path).map((p) => ({ from: str(p.from), to: str(p.to), est: nums(p.est), p: nums(p.p) })), phantom: rList<unknown>(r.draws?.phantom).map(nums) },
     warnings: rStrings(r.warnings), engine: r.engine,
   };
 }

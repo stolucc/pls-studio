@@ -4,6 +4,7 @@
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList, rNum } from './reply';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 export interface ScreenResult {
@@ -25,8 +26,7 @@ export interface InfluenceResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const nums = (v: unknown) => arr<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN));
+const nums = (v: unknown) => rList<unknown>(v).map((x) => (typeof x === 'number' ? x : NaN));
 
 export function screenRequest(data: Dataset, vars: string[], alpha: number) {
   if (data.moments && data.cols.length === 0) throw new Error('Data screening needs raw data; this dataset is a covariance matrix.');
@@ -37,7 +37,7 @@ export function screenRequest(data: Dataset, vars: string[], alpha: number) {
 export async function screenR(data: Dataset, vars: string[], alpha: number): Promise<ScreenResult> {
   const raw = await rCall<Record<string, any>>('ps_screen', screenRequest(data, vars, alpha), 'psych');
   return {
-    ...raw, variables: rStrings(raw.variables), describe: arr(raw.describe),
+    ...raw, variables: rStrings(raw.variables), describe: rList(raw.describe),
     cases: { rows: nums(raw.cases?.rows), d2: nums(raw.cases?.d2), p: nums(raw.cases?.p) }, warnings: rStrings(raw.warnings),
   } as ScreenResult;
 }
@@ -92,12 +92,11 @@ export function missingDataRequest(data: Dataset, o: MissingDataInput) {
   if (keep.some(([, k]) => k < 0)) throw new Error('A column of the summary is not in the data.');
   return { vars: o.vars, measures: o.measures, descriptive: o.descriptive, ...(o.mcar ? { mcar: true } : {}), ...(o.jamjal ? { jamjal: true, seed: o.seed ?? 42 } : {}), data: { names: used, cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
 }
-const numOrNull = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
 function parseLittle(l: any): LittleMcar | undefined {
   if (!l || typeof l !== 'object') return undefined;
   return { n: num(l.n), incomplete: num(l.incomplete), patterns: num(l.patterns), chisq: num(l.chisq), df: num(l.df), p: num(l.p),
-    byPattern: arr<any>(l.byPattern).map((x) => ({ observed: arr<unknown>(x.observed).map((b) => b === true), n: num(x.n), k: num(x.k), d2: num(x.d2) })) };
+    byPattern: rList<any>(l.byPattern).map((x) => ({ observed: rList<unknown>(x.observed).map((b) => b === true), n: num(x.n), k: num(x.k), d2: num(x.d2) })) };
 }
 function parseJamJal(j: any): JamJal | undefined {
   if (!j || typeof j !== 'object') return undefined;
@@ -105,17 +104,17 @@ function parseJamJal(j: any): JamJal | undefined {
   return { n: num(j.n), incomplete: num(j.incomplete), patterns: num(j.patterns), patternN: nums(j.patternN), hawkins: { stat: num(j.hawkins?.stat), df: num(j.hawkins?.df), p: num(j.hawkins?.p) },
     anderson: { stat: num(j.anderson?.stat), p: num(j.anderson?.p) }, seed: num(j.seed) };
 }
-const matrix = (v: unknown) => arr<unknown>(v).map((r) => nums(r));
-const dropoutVars = (v: unknown): DropoutVariable[] => arr<any>(v).map((x) => ({ variable: String(x.variable), time: Number(x.time),
-  rows: arr<any>(x.rows).map((r) => ({ group: r.group, ...(typeof r.time === 'number' ? { time: r.time } : {}), n: Number(r.n), mean: numOrNull(r.mean), sd: numOrNull(r.sd) })) }));
+const matrix = (v: unknown) => rList<unknown>(v).map((r) => nums(r));
+const dropoutVars = (v: unknown): DropoutVariable[] => rList<any>(v).map((x) => ({ variable: String(x.variable), time: Number(x.time),
+  rows: rList<any>(x.rows).map((r) => ({ group: r.group, ...(typeof r.time === 'number' ? { time: r.time } : {}), n: Number(r.n), mean: rNum(r.mean), sd: rNum(r.sd) })) }));
 export async function missingDataR(data: Dataset, o: MissingDataInput): Promise<MissingDataResult> {
   const raw = await rCall<Record<string, any>>('ps_missing', missingDataRequest(data, o), missingPkg(o));
   const d = raw.dropout;
   return {
     variables: rStrings(raw.variables), n: raw.n,
-    patterns: arr<any>(raw.patterns).map((p) => ({ observed: arr<boolean>(p.observed), n: Number(p.n) })),
+    patterns: rList<any>(raw.patterns).map((p) => ({ observed: rList<boolean>(p.observed), n: Number(p.n) })),
     coverage: matrix(raw.coverage),
-    em: { means: nums(raw.em?.means), cov: matrix(raw.em?.cov), cor: matrix(raw.em?.cor), loglik: numOrNull(raw.em?.loglik), singular: !!raw.em?.singular },
+    em: { means: nums(raw.em?.means), cov: matrix(raw.em?.cov), cor: matrix(raw.em?.cor), loglik: rNum(raw.em?.loglik), singular: !!raw.em?.singular },
     ...(raw.little ? { little: parseLittle(raw.little) } : {}),
     ...(raw.jamjal ? { jamjal: parseJamJal(raw.jamjal) } : {}),
     ...(d ? { dropout: { measures: rStrings(d.measures), dropouts: d.dropouts, nonDropoutsComplete: d.nonDropoutsComplete, nonDropoutsIntermittent: d.nonDropoutsIntermittent, byTime: nums(d.byTime), set1: dropoutVars(d.set1), set2: dropoutVars(d.set2) } } : {}),

@@ -3,8 +3,9 @@
 // (strucchange::gefp), and the test the functional gives (Merkle & Zeileis 2013; Merkle, Fan & Zeileis 2014).
 
 import { rCall, rScript, rStrings } from './bridge';
-import type { CbCall } from './cbExtras';
-import { cbRequest, type REngineInfo } from './lavaan';
+import { rList } from './reply';
+import { cbCallRequest, type CbCall } from './cbExtras';
+import type { REngineInfo } from './lavaan';
 
 export type ScoreScale = 'continuous' | 'ordinal' | 'categorical';
 /** The tests for each kind of covariate (strucchange's names: maxBB, meanL2BB, supLM; ordwmax, ordL2BB; catL2BB). */
@@ -37,14 +38,13 @@ export interface ScoreTestResult {
   engine: REngineInfo & { lavaan?: string };
 }
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
 
 /** The request: the model as the Model tab fits it, and the covariate's values for every row of the data. */
 export function scoreRequest(c: CbCall, a: ScoreArgs) {
   const at = c.data.names.indexOf(a.covariate);
   const values = at < 0 ? [] : Array.from(c.data.cols[at], (v) => (Number.isNaN(v) ? null : v));
-  return { ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction), scoretest: { covariate: a.covariate, values, scale: a.scale, fn: a.fn, sets: a.sets, seed: a.seed, nrep: a.nrep } };
+  return cbCallRequest(c, { scoretest: { covariate: a.covariate, values, scale: a.scale, fn: a.fn, sets: a.sets, seed: a.seed, nrep: a.nrep } });
 }
 
 export function parseScoreOutput(r: Record<string, any>): ScoreTestResult {
@@ -52,10 +52,10 @@ export function parseScoreOutput(r: Record<string, any>): ScoreTestResult {
   const b = s.boundary;
   return {
     fn: r.fn, scale: r.scale, covariate: String(r.covariate ?? ''), n: num(r.n), nGroups: num(r.nGroups ?? 1),
-    statistic: num(r.statistic), p: num(r.p), params: arr<unknown>(r.params).map(String), kinds: arr<unknown>(r.kinds).map(String),
-    componentMax: arr<unknown>(r.componentMax).map(num), critical: num(r.critical),
-    peak: typeof r.peak === 'number' || typeof r.peak === 'string' ? r.peak : null, levels: arr<unknown>(r.levels).map(String),
-    series: { x: arr<unknown>(s.x).map(num), y: arr<unknown>(s.y).map(num), boundary: Array.isArray(b) ? b.map(num) : num(b), labels: s.labels == null ? null : arr<unknown>(s.labels).map(String) },
+    statistic: num(r.statistic), p: num(r.p), params: rList<unknown>(r.params).map(String), kinds: rList<unknown>(r.kinds).map(String),
+    componentMax: rList<unknown>(r.componentMax).map(num), critical: num(r.critical),
+    peak: typeof r.peak === 'number' || typeof r.peak === 'string' ? r.peak : null, levels: rList<unknown>(r.levels).map(String),
+    series: { x: rList<unknown>(s.x).map(num), y: rList<unknown>(s.y).map(num), boundary: Array.isArray(b) ? b.map(num) : num(b), labels: s.labels == null ? null : rList<unknown>(s.labels).map(String) },
     nrep: typeof r.nrep === 'number' ? r.nrep : null, seed: typeof r.seed === 'number' ? r.seed : null,
     warnings: rStrings(r.warnings), engine: r.engine,
   };

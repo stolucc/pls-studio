@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './reply';
 import type { REngineInfo } from './lavaan';
 
 /** threepl, fourpl and mixture (a 2PL model in latent classes) are fitted by mirt, the others by ltm. */
@@ -69,7 +70,6 @@ const columns = (data: Dataset, names: string[]) => {
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
   return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
 };
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 
 export const irtRequest = (data: Dataset, items: string[], model: IrtModel, fit: IrtFit = {}) => isMirt(model)
   ? {
@@ -92,9 +92,9 @@ export async function irtR(data: Dataset, items: string[], model: IrtModel, fit:
   const [fn, pkg] = IRT_BRIDGE(model);
   const raw = await rCall<Record<string, any>>(fn, irtRequest(data, items, model, fit), pkg);
   return {
-    ...raw, items: arr<string>(raw.items), params: arr<any>(raw.params), theta: arr<number>(raw.theta),
-    ...(raw.coefficients != null ? { coefficients: arr<any>(raw.coefficients) } : {}), ...(raw.classes != null ? { classes: arr<number>(raw.classes) } : {}), quadrature: typeof raw.quadrature === 'number' ? raw.quadrature : undefined, robust: raw.robust === true,
-    information: arr<unknown>(raw.information).map((x) => arr<number>(x)), itemFit: arr<any>(raw.itemFit), warnings: rStrings(raw.warnings),
+    ...raw, items: rList<string>(raw.items), params: rList<any>(raw.params), theta: rList<number>(raw.theta),
+    ...(raw.coefficients != null ? { coefficients: rList<any>(raw.coefficients) } : {}), ...(raw.classes != null ? { classes: rList<number>(raw.classes) } : {}), quadrature: typeof raw.quadrature === 'number' ? raw.quadrature : undefined, robust: raw.robust === true,
+    information: rList<unknown>(raw.information).map((x) => rList<number>(x)), itemFit: rList<any>(raw.itemFit), warnings: rStrings(raw.warnings),
   } as IrtResult;
 }
 export const irtScriptR = (data: Dataset, items: string[], model: IrtModel, fit: IrtFit = {}) => rScript(IRT_BRIDGE(model)[0], irtRequest(data, items, model, fit), IRT_BRIDGE(model)[1]);
@@ -102,15 +102,15 @@ export const irtScriptR = (data: Dataset, items: string[], model: IrtModel, fit:
 export async function lcaR(data: Dataset, items: string[], classes: number[], nrep = 10, seed = 1, spec: LcaSpec = {}): Promise<LcaResult> {
   const [fn, pkg] = LCA_BRIDGE[spec.model ?? 'lca'];
   const raw = await rCall<Record<string, any>>(fn, lcaRequest(data, items, classes, nrep, seed, spec), pkg);
-  const num2 = (v: unknown) => arr<unknown>(v).map((x) => arr<number>(x));
+  const num2 = (v: unknown) => rList<unknown>(v).map((x) => rList<number>(x));
   return {
-    ...raw, items: arr<string>(raw.items), warnings: rStrings(raw.warnings), ...(raw.times != null ? { times: arr<number>(raw.times) } : {}),
-    models: arr<any>(raw.models).map((m) => ({
-      ...m, shares: arr<number>(m.shares),
-      probs: arr<any>(m.probs).map((p) => ({ item: p.item, categories: rStrings(p.categories), byClass: num2(p.byClass) })),
-      ...(m.means != null ? { means: num2(m.means), cov: arr<unknown>(m.cov).map(num2) } : {}),
-      ...(m.growth != null ? { growth: { thresholds: arr<number>(m.growth.thresholds), intercepts: arr<number>(m.growth.intercepts), slopes: arr<number>(m.growth.slopes) } } : {}),
-      ...(m.clusters != null ? { clusters: { shares: arr<number>(m.clusters.shares), byCluster: num2(m.clusters.byCluster) } } : {}),
+    ...raw, items: rList<string>(raw.items), warnings: rStrings(raw.warnings), ...(raw.times != null ? { times: rList<number>(raw.times) } : {}),
+    models: rList<any>(raw.models).map((m) => ({
+      ...m, shares: rList<number>(m.shares),
+      probs: rList<any>(m.probs).map((p) => ({ item: p.item, categories: rStrings(p.categories), byClass: num2(p.byClass) })),
+      ...(m.means != null ? { means: num2(m.means), cov: rList<unknown>(m.cov).map(num2) } : {}),
+      ...(m.growth != null ? { growth: { thresholds: rList<number>(m.growth.thresholds), intercepts: rList<number>(m.growth.intercepts), slopes: rList<number>(m.growth.slopes) } } : {}),
+      ...(m.clusters != null ? { clusters: { shares: rList<number>(m.clusters.shares), byCluster: num2(m.clusters.byCluster) } } : {}),
     })),
   } as LcaResult;
 }

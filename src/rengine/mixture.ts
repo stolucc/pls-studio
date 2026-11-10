@@ -5,6 +5,7 @@
 import type { MixtureSpec } from '../analyses/mixtureSyntax';
 import type { Dataset } from '../engine/types';
 import { parallelism, rCall, rCallParallel, rScript, rStrings } from './bridge';
+import { rList } from './reply';
 import type { REngineInfo } from './lavaan';
 
 /** A printed parameter: `at` the class of each latent class variable it belongs to (0: the same in all of its classes). */
@@ -28,7 +29,6 @@ export interface MixtureResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const columns = (data: Dataset, names: string[]) => {
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
   return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
@@ -47,10 +47,10 @@ export async function mixturePhases(data: Dataset, spec: MixtureSpec, sessions: 
   const n = spec.starts;
   const chunks = Array.from({ length: Math.min(sessions, n) }, (_, k) => Array.from({ length: n }, (_, i) => i + 1).filter((i) => (i - 1) % Math.min(sessions, n) === k));
   const st = await rCallParallel<{ stage: StartRun[] | StartRun }>('ps_mixture', chunks.map((only) => mixtureRequest(data, { ...spec, phase: { only } })), 'stats');
-  const stage = st.flatMap((r) => arr<StartRun>(r.stage)).sort((a, b) => a.value - b.value || a.i - b.i);
+  const stage = st.flatMap((r) => rList<StartRun>(r.stage)).sort((a, b) => a.value - b.value || a.i - b.i);
   const keep = stage.slice(0, Math.max(1, Math.min(spec.final, stage.length)));
   const fin = await rCallParallel<{ finals: StartRun[] | StartRun }>('ps_mixture', keep.map((s) => mixtureRequest(data, { ...spec, phase: { stage: [s], cont: true } })), 'stats');
-  return { finals: fin.flatMap((r) => arr<StartRun>(r.finals)).sort((a, b) => keep.findIndex((k) => k.i === a.i) - keep.findIndex((k) => k.i === b.i)) };
+  return { finals: fin.flatMap((r) => rList<StartRun>(r.finals)).sort((a, b) => keep.findIndex((k) => k.i === a.i) - keep.findIndex((k) => k.i === b.i)) };
 }
 
 export async function mixtureR(data: Dataset, spec: MixtureSpec): Promise<MixtureResult> {
@@ -58,10 +58,10 @@ export async function mixtureR(data: Dataset, spec: MixtureSpec): Promise<Mixtur
   if (p.sessions > 1) spec = { ...spec, phase: await mixturePhases(data, spec, p.sessions) };
   const raw = await rCall<Record<string, any>>('ps_mixture', mixtureRequest(data, spec), 'stats');
   return {
-    ...raw, params: arr<any>(raw.params).map((p) => ({ ...p, rhs: p.rhs ?? '', at: arr<number>(p.at), se: typeof p.se === 'number' ? p.se : null })),
-    classes: arr<any>(raw.classes).map((c) => ({ name: c.name, k: c.k, shares: arr<number>(c.shares) })),
-    patterns: arr<any>(raw.patterns).map((p) => ({ classes: arr<number>(p.classes), share: p.share })),
-    lls: arr<number>(raw.lls), theta: arr<number>(raw.theta), entropy: typeof raw.entropy === 'number' ? raw.entropy : null,
+    ...raw, params: rList<any>(raw.params).map((p) => ({ ...p, rhs: p.rhs ?? '', at: rList<number>(p.at), se: typeof p.se === 'number' ? p.se : null })),
+    classes: rList<any>(raw.classes).map((c) => ({ name: c.name, k: c.k, shares: rList<number>(c.shares) })),
+    patterns: rList<any>(raw.patterns).map((p) => ({ classes: rList<number>(p.classes), share: p.share })),
+    lls: rList<number>(raw.lls), theta: rList<number>(raw.theta), entropy: typeof raw.entropy === 'number' ? raw.entropy : null,
     warnings: rStrings(raw.warnings),
   } as MixtureResult;
 }

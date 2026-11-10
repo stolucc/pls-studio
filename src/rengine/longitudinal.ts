@@ -4,6 +4,7 @@
 import type { CbFit } from '../engine/cbsem';
 import type { Dataset, MissingTreatment } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './reply';
 import { LAVAAN_FIT, type REngineInfo } from './lavaan';
 
 /** `group` (1, 2, …) and `label`: a growth model written as syntax. */
@@ -35,8 +36,7 @@ const fitOf = (raw: Record<string, unknown>): Partial<CbFit> => {
   for (const [name, key] of Object.entries(LAVAAN_FIT)) if (typeof raw[name] === 'number') (out as Record<string, number>)[key] = raw[name] as number;
   return out;
 };
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const estimates = (v: unknown) => arr<any>(v).map((e) => ({ lhs: e.lhs, op: e.op, rhs: e.rhs, est: e.est, se: e.se ?? null, z: e.z ?? null, p: e.p ?? null, std: e.std,
+const estimates = (v: unknown) => rList<any>(v).map((e) => ({ lhs: e.lhs, op: e.op, rhs: e.rhs, est: e.est, se: e.se ?? null, z: e.z ?? null, p: e.p ?? null, std: e.std,
   ...(e.group !== undefined ? { group: e.group } : {}), ...(e.label ? { label: e.label } : {}) })) as LongEstimate[];
 
 /** The data columns a growth model written as syntax names (comments left out). */
@@ -49,8 +49,8 @@ export const riclpmRequest = (data: Dataset, i: RiclpmInput) => ({ kind: 'riclpm
 export async function growthR(data: Dataset, input: GrowthInput): Promise<GrowthResult> {
   const raw = await rCall<Record<string, any>>('ps_growth', growthRequest(data, input), 'lavaan');
   return { ...raw, fit: fitOf(raw.fit ?? {}), estimates: estimates(raw.estimates), r2: raw.r2 && !Array.isArray(raw.r2) ? raw.r2 : {},
-    impliedMeans: arr<number>(raw.impliedMeans), observedMeans: arr<number>(raw.observedMeans), measures: arr<string>(raw.measures), times: arr<number>(raw.times),
-    warnings: rStrings(raw.warnings), ...(arr<string>(raw.groups).length ? { groups: arr<string>(raw.groups).map(String) } : {}) } as GrowthResult;
+    impliedMeans: rList<number>(raw.impliedMeans), observedMeans: rList<number>(raw.observedMeans), measures: rList<string>(raw.measures), times: rList<number>(raw.times),
+    warnings: rStrings(raw.warnings), ...(rList<string>(raw.groups).length ? { groups: rList<string>(raw.groups).map(String) } : {}) } as GrowthResult;
 }
 export const growthScriptR = (data: Dataset, input: GrowthInput) => rScript('ps_growth', growthRequest(data, input), 'lavaan');
 
@@ -74,12 +74,12 @@ export interface LcsResult {
 }
 
 export const lcsRequest = (data: Dataset, i: LcsInput) => ({ kind: 'lcs', ...i, data: columns(data, [...i.x, ...i.y]) });
-const pair = (v: unknown) => { const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>; return { x: arr<number>(o.x), y: arr<number>(o.y) }; };
+const pair = (v: unknown) => { const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>; return { x: rList<number>(o.x), y: rList<number>(o.y) }; };
 
 export async function lcsR(data: Dataset, input: LcsInput): Promise<LcsResult> {
   const raw = await rCall<Record<string, any>>('ps_lcs', lcsRequest(data, input), 'lavaan');
-  return { ...raw, x: arr<string>(raw.x), y: arr<string>(raw.y), fit: fitOf(raw.fit ?? {}), warnings: rStrings(raw.warnings),
-    estimates: arr<any>(raw.estimates).map((e) => ({ label: String(e.label), lhs: e.lhs, op: e.op, rhs: e.rhs, est: e.est, se: e.se ?? null, z: e.z ?? null, p: e.p ?? null, std: e.std ?? null })),
+  return { ...raw, x: rList<string>(raw.x), y: rList<string>(raw.y), fit: fitOf(raw.fit ?? {}), warnings: rStrings(raw.warnings),
+    estimates: rList<any>(raw.estimates).map((e) => ({ label: String(e.label), lhs: e.lhs, op: e.op, rhs: e.rhs, est: e.est, se: e.se ?? null, z: e.z ?? null, p: e.p ?? null, std: e.std ?? null })),
     impliedMeans: pair(raw.impliedMeans), observedMeans: pair(raw.observedMeans) } as LcsResult;
 }
 export const lcsScriptR = (data: Dataset, input: LcsInput) => rScript('ps_lcs', lcsRequest(data, input), 'lavaan');

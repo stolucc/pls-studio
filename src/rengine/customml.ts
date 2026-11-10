@@ -4,6 +4,7 @@
 import type { Dataset } from '../engine/types';
 import { parseExpr, namesIn } from '../model/expr';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList, rNum } from './reply';
 import type { REngineInfo } from './lavaan';
 
 export type CustomMlType = 'nominal' | 'normal' | 'probit';
@@ -67,17 +68,15 @@ export function customMlRequest(data: Dataset, o: CustomMlInput) {
   return { ...o, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 export async function customMlR(data: Dataset, o: CustomMlInput): Promise<CustomMlResult> {
   const raw = await rCall<Record<string, any>>('ps_customml', customMlRequest(data, o), 'customml');
-  const q = (x: any): CustomMlQuantity => ({ name: x.name, kind: x.kind, est: num(x.est), se: num(x.se), expr: x.expr });
+  const q = (x: any): CustomMlQuantity => ({ name: x.name, kind: x.kind, est: rNum(x.est), se: rNum(x.se), expr: x.expr });
   return {
-    type: raw.type, outcomes: arr<string>(raw.outcomes), n: raw.n, converged: !!raw.converged, se: raw.se,
-    parameters: arr<any>(raw.parameters).map((p) => ({ name: p.name, est: p.est, se: p.se, start: p.start })),
-    parts: arr<any>(raw.parts).map(q), defined: arr<any>(raw.defined).map(q), categories: raw.categories ? arr<number>(raw.categories) : null,
-    fit: raw.fit, warnings: rStrings(raw.warnings), engine: raw.engine, ...(num(raw.scaling) !== null ? { scaling: num(raw.scaling)! } : {}),
+    type: raw.type, outcomes: rList<string>(raw.outcomes), n: raw.n, converged: !!raw.converged, se: raw.se,
+    parameters: rList<any>(raw.parameters).map((p) => ({ name: p.name, est: p.est, se: p.se, start: p.start })),
+    parts: rList<any>(raw.parts).map(q), defined: rList<any>(raw.defined).map(q), categories: raw.categories ? rList<number>(raw.categories) : null,
+    fit: raw.fit, warnings: rStrings(raw.warnings), engine: raw.engine, ...(rNum(raw.scaling) !== null ? { scaling: rNum(raw.scaling)! } : {}),
   };
 }
 export const customMlScriptR = (data: Dataset, o: CustomMlInput) => rScript('ps_customml', customMlRequest(data, o), 'customml');
@@ -96,6 +95,6 @@ export function bmvregRequest(data: Dataset, o: BmvregInput) {
 }
 export async function bmvregR(data: Dataset, o: BmvregInput): Promise<BmvregResult> {
   const raw = await rCall<Record<string, any>>('ps_bmvreg', bmvregRequest(data, o), 'customml');
-  return { ...raw, outcomes: arr<string>(raw.outcomes), predictors: arr<string>(raw.predictors), parameters: arr<BmvregParameter>(raw.parameters), warnings: rStrings(raw.warnings) } as BmvregResult;
+  return { ...raw, outcomes: rList<string>(raw.outcomes), predictors: rList<string>(raw.predictors), parameters: rList<BmvregParameter>(raw.parameters), warnings: rStrings(raw.warnings) } as BmvregResult;
 }
 export const bmvregScriptR = (data: Dataset, o: BmvregInput) => rScript('ps_bmvreg', bmvregRequest(data, o), 'customml');

@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './reply';
 import type { REngineInfo } from './lavaan';
 
 export type GlmmFamily = 'poisson' | 'negbin' | 'zip' | 'zinb' | 'binomial';
@@ -56,7 +57,6 @@ const columns = (data: Dataset, names: string[]) => {
   const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
   return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
 };
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 
 /** The columns the model reads. */
 export const glmmColumns = (o: GlmmInput) => (o.layout === 'wide' ? [...o.occasions, ...o.predictors]
@@ -76,8 +76,8 @@ export function glmmRequest(data: Dataset, o: GlmmInput) {
 export async function glmmR(data: Dataset, o: GlmmInput): Promise<GlmmResult> {
   const raw = await rCall<Record<string, any>>('ps_glmm', glmmRequest(data, o), 'GLMMadaptive');
   return {
-    ...raw, fixed: arr<GlmmCoef>(raw.fixed), ...(raw.zero != null ? { zero: arr<GlmmCoef>(raw.zero) } : {}),
-    random: arr<any>(raw.random).map((x) => ({ ...x, ...(x.b == null ? { b: undefined } : {}) })),
+    ...raw, fixed: rList<GlmmCoef>(raw.fixed), ...(raw.zero != null ? { zero: rList<GlmmCoef>(raw.zero) } : {}),
+    random: rList<any>(raw.random).map((x) => ({ ...x, ...(x.b == null ? { b: undefined } : {}) })),
     ...(raw.logPhi != null ? { logPhi: raw.logPhi } : {}), warnings: rStrings(raw.warnings),
   } as GlmmResult;
 }

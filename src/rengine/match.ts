@@ -3,6 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList, rNum } from './reply';
 import type { REngineInfo } from './lavaan';
 
 /** 'weighting': inverse probability weighting (WeightIt) instead of matching. */
@@ -34,8 +35,6 @@ export interface MatchResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const n0 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 export function matchRequest(data: Dataset, i: MatchInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Matching needs raw data; this dataset is a covariance matrix.');
@@ -52,13 +51,13 @@ export function matchRequest(data: Dataset, i: MatchInput) {
 export async function matchR(data: Dataset, input: MatchInput): Promise<MatchResult> {
   const raw = await rCall<Record<string, any>>('ps_match', matchRequest(data, input), input.method === 'weighting' ? 'WeightIt' : 'MatchIt');
   return {
-    method: raw.method, estimand: raw.estimand, counts: arr(raw.counts),
-    ...(raw.weights ? { weights: { max: Number(raw.weights.max), treatedRange: arr<number>(raw.weights.treatedRange), controlRange: arr<number>(raw.weights.controlRange) } } : {}),
+    method: raw.method, estimand: raw.estimand, counts: rList(raw.counts),
+    ...(raw.weights ? { weights: { max: Number(raw.weights.max), treatedRange: rList<number>(raw.weights.treatedRange), controlRange: rList<number>(raw.weights.controlRange) } } : {}),
     ...(raw.effectModel ? { effectModel: raw.effectModel } : {}),
     ...(raw.weightMethod === 'ebal' ? { weightMethod: 'ebal' as const } : {}),
     ...(raw.matchEffect === 'dr' ? { matchEffect: 'dr' as const } : {}),
     ...(raw.link === 'probit' ? { link: 'probit' as const } : {}),
-    balance: arr<any>(raw.balance).map((b) => ({ ...b, ratioBefore: n0(b.ratioBefore), ratioAfter: n0(b.ratioAfter) })),
+    balance: rList<any>(raw.balance).map((b) => ({ ...b, ratioBefore: rNum(b.ratioBefore), ratioAfter: rNum(b.ratioAfter) })),
     effect: raw.effect ?? null, warnings: rStrings(raw.warnings), engine: raw.engine,
   };
 }

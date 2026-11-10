@@ -2,6 +2,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList, rNum } from './reply';
 import type { REngineInfo } from './lavaan';
 
 export interface RsaInput {
@@ -25,9 +26,7 @@ export interface RsaResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const n0 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const param = (x: any) => ({ ...x, se: n0(x.se), stat: n0(x.stat), p: n0(x.p), ciLow: n0(x.ciLow), ciHigh: n0(x.ciHigh) });
+const param = (x: any) => ({ ...x, se: rNum(x.se), stat: rNum(x.stat), p: rNum(x.p), ciLow: rNum(x.ciLow), ciHigh: rNum(x.ciHigh) });
 
 export function rsaRequest(data: Dataset, i: RsaInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Polynomial regression needs raw data; this dataset is a covariance matrix.');
@@ -39,9 +38,9 @@ export function rsaRequest(data: Dataset, i: RsaInput) {
 export async function rsaR(data: Dataset, input: RsaInput): Promise<RsaResult> {
   const raw = await rCall<Record<string, any>>('ps_rsa', rsaRequest(data, input), 'polynomial');
   return {
-    estimation: raw.estimation, coefficients: arr<any>(raw.coefficients).map(param), surface: arr<any>(raw.surface).map(param),
-    steps: arr(raw.steps), fit: raw.fit, grid: arr<number>(raw.grid), z: arr<unknown>(raw.z).map((r) => arr<number>(r)),
-    points: { x: arr<number>(raw.points?.x), y: arr<number>(raw.points?.y) }, block: arr<number>(raw.block), rows: arr<number>(raw.rows),
+    estimation: raw.estimation, coefficients: rList<any>(raw.coefficients).map(param), surface: rList<any>(raw.surface).map(param),
+    steps: rList(raw.steps), fit: raw.fit, grid: rList<number>(raw.grid), z: rList<unknown>(raw.z).map((r) => rList<number>(r)),
+    points: { x: rList<number>(raw.points?.x), y: rList<number>(raw.points?.y) }, block: rList<number>(raw.block), rows: rList<number>(raw.rows),
     nTotal: raw.nTotal, warnings: rStrings(raw.warnings), engine: raw.engine,
   };
 }

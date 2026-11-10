@@ -3,13 +3,11 @@
 // regularised SEM (lslx).
 
 import { rCall, rScript, rStrings } from './bridge';
-import type { CbCall } from './cbExtras';
+import { rList, rNum } from './reply';
+import { cbCallRequest, type CbCall } from './cbExtras';
 import type { ModelSpec } from '../engine/types';
-import { cbRequest, type REngineInfo } from './lavaan';
+import type { REngineInfo } from './lavaan';
 
-const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
-const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const req = (c: CbCall, extra: object) => ({ ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction), ...extra });
 
 /** An arrow of the diagram by the names of what it joins: a path (from → to) or a covariance of constructs or indicator errors. */
 export type ArrowRef = { type: 'path'; from: string; to: string } | { type: 'cov'; kind: 'construct' | 'indicator'; a: string; b: string };
@@ -21,16 +19,16 @@ export interface SpecModel { keep: boolean[]; converged: boolean; npar: number |
 export interface SpecSearchRaw { models: SpecModel[]; warnings: string[]; engine: REngineInfo }
 
 export async function specSearchR(c: CbCall, optional: ArrowRef[]): Promise<SpecSearchRaw> {
-  const r = await rCall<Record<string, any>>('ps_cb_specsearch', req(c, { optional }), 'lavaan');
+  const r = await rCall<Record<string, any>>('ps_cb_specsearch', cbCallRequest(c, { optional }), 'lavaan');
   return {
-    models: arr<Record<string, unknown>>(r.models).map((m) => ({
-      keep: arr<boolean>(m.keep).map(Boolean), converged: m.converged === true, npar: num(m.npar), chisq: num(m.chisq), df: num(m.df), p: num(m.p),
-      cfi: num(m.cfi), rmsea: num(m.rmsea), aic: num(m.aic), bic: num(m.bic), warning: typeof m.warning === 'string' ? m.warning : null,
+    models: rList<Record<string, unknown>>(r.models).map((m) => ({
+      keep: rList<boolean>(m.keep).map(Boolean), converged: m.converged === true, npar: rNum(m.npar), chisq: rNum(m.chisq), df: rNum(m.df), p: rNum(m.p),
+      cfi: rNum(m.cfi), rmsea: rNum(m.rmsea), aic: rNum(m.aic), bic: rNum(m.bic), warning: typeof m.warning === 'string' ? m.warning : null,
     })),
     warnings: rStrings(r.warnings), engine: r.engine,
   };
 }
-export const specSearchScriptR = (c: CbCall, optional: ArrowRef[]) => rScript('ps_cb_specsearch', req(c, { optional }), 'lavaan');
+export const specSearchScriptR = (c: CbCall, optional: ArrowRef[]) => rScript('ps_cb_specsearch', cbCallRequest(c, { optional }), 'lavaan');
 
 // ---------- equivalent models ----------
 
@@ -42,13 +40,13 @@ const variantsOf = (v: ModelVariant[]) => v.map((x) => ({ paths: x.paths, covari
 
 /** The model (first) and each alternative, fitted alike. */
 export async function equivalentFitsR(c: CbCall, variants: ModelVariant[]): Promise<EquivalentFitsRaw> {
-  const r = await rCall<Record<string, any>>('ps_cb_equivalent', req(c, { variants: variantsOf(variants) }), 'lavaan');
+  const r = await rCall<Record<string, any>>('ps_cb_equivalent', cbCallRequest(c, { variants: variantsOf(variants) }), 'lavaan');
   return {
-    fits: arr<Record<string, unknown>>(r.fits).map((f) => ({ converged: f.converged === true, npar: num(f.npar), chisq: num(f.chisq), df: num(f.df), logl: num(f.logl) })),
+    fits: rList<Record<string, unknown>>(r.fits).map((f) => ({ converged: f.converged === true, npar: rNum(f.npar), chisq: rNum(f.chisq), df: rNum(f.df), logl: rNum(f.logl) })),
     warnings: rStrings(r.warnings), engine: r.engine,
   };
 }
-export const equivalentFitsScriptR = (c: CbCall, variants: ModelVariant[]) => rScript('ps_cb_equivalent', req(c, { variants: variantsOf(variants) }), 'lavaan');
+export const equivalentFitsScriptR = (c: CbCall, variants: ModelVariant[]) => rScript('ps_cb_equivalent', cbCallRequest(c, { variants: variantsOf(variants) }), 'lavaan');
 
 // ---------- multivariate LM and Wald tests (EQS) ----------
 
@@ -58,19 +56,19 @@ export interface LmWaldStep { label: string; kind: 'loading' | 'path' | 'covaria
 export interface LmWaldRaw { lm: { candidates: number; steps: LmWaldStep[] } | null; wald: { candidates: number; steps: LmWaldStep[] } | null; chisq: number | null; df: number | null; warnings: string[]; engine: REngineInfo }
 export interface LmWaldRequest { lm: { kinds: TestKind[]; maxCandidates: number }; wald: { kinds: TestKind[] }; alpha: number }
 
-const stepsOf = (v: unknown): LmWaldStep[] => arr<Record<string, unknown>>(v).map((s) => ({
-  label: String(s.label), kind: s.kind as LmWaldStep['kind'], lavaan: String(s.lavaan), chisq: num(s.chisq) ?? NaN, df: num(s.df) ?? 0, p: num(s.p) ?? NaN,
-  increment: num(s.increment) ?? NaN, incrementP: num(s.incrementP) ?? NaN, univariate: num(s.univariate), ...('epc' in s ? { epc: num(s.epc) } : {}), ...('est' in s ? { est: num(s.est) } : {}),
+const stepsOf = (v: unknown): LmWaldStep[] => rList<Record<string, unknown>>(v).map((s) => ({
+  label: String(s.label), kind: s.kind as LmWaldStep['kind'], lavaan: String(s.lavaan), chisq: rNum(s.chisq) ?? NaN, df: rNum(s.df) ?? 0, p: rNum(s.p) ?? NaN,
+  increment: rNum(s.increment) ?? NaN, incrementP: rNum(s.incrementP) ?? NaN, univariate: rNum(s.univariate), ...('epc' in s ? { epc: rNum(s.epc) } : {}), ...('est' in s ? { est: rNum(s.est) } : {}),
 }));
 export async function lmWaldR(c: CbCall, o: LmWaldRequest): Promise<LmWaldRaw> {
-  const r = await rCall<Record<string, any>>('ps_cb_lmwald', req(c, o), 'lavaan');
+  const r = await rCall<Record<string, any>>('ps_cb_lmwald', cbCallRequest(c, o), 'lavaan');
   return {
-    lm: r.lm ? { candidates: num(r.lm.candidates) ?? 0, steps: stepsOf(r.lm.steps) } : null,
-    wald: r.wald ? { candidates: num(r.wald.candidates) ?? 0, steps: stepsOf(r.wald.steps) } : null,
-    chisq: num(r.chisq), df: num(r.df), warnings: rStrings(r.warnings), engine: r.engine,
+    lm: r.lm ? { candidates: rNum(r.lm.candidates) ?? 0, steps: stepsOf(r.lm.steps) } : null,
+    wald: r.wald ? { candidates: rNum(r.wald.candidates) ?? 0, steps: stepsOf(r.wald.steps) } : null,
+    chisq: rNum(r.chisq), df: rNum(r.df), warnings: rStrings(r.warnings), engine: r.engine,
   };
 }
-export const lmWaldScriptR = (c: CbCall, o: LmWaldRequest) => rScript('ps_cb_lmwald', req(c, o), 'lavaan');
+export const lmWaldScriptR = (c: CbCall, o: LmWaldRequest) => rScript('ps_cb_lmwald', cbCallRequest(c, o), 'lavaan');
 
 // ---------- regularised SEM (lslx) ----------
 
@@ -91,15 +89,15 @@ export interface RegsemRaw {
 }
 
 export async function regsemR(c: CbCall, o: RegsemRequest): Promise<RegsemRaw> {
-  const r = await rCall<Record<string, any>>('ps_cb_regsem', req(c, o), 'lslx');
+  const r = await rCall<Record<string, any>>('ps_cb_regsem', cbCallRequest(c, o), 'lslx');
   return {
-    method: r.method, selector: r.selector, selected: { lambda: num(r.selected?.lambda) ?? NaN, delta: num(r.selected?.delta) },
-    path: arr<Record<string, unknown>>(r.path).map((l) => ({ lambda: num(l.lambda) ?? NaN, delta: num(l.delta), aic: num(l.aic), bic: num(l.bic), nonzero: num(l.nonzero), df: num(l.df), loss: num(l.loss), converged: l.converged === true, values: arr<unknown>(l.values).map(num) })),
-    penalised: arr<string>(r.penalised), penalisedKind: arr<string>(r.penalisedKind),
-    estimates: arr<Record<string, unknown>>(r.estimates).map((e) => ({ label: String(e.label), kind: String(e.kind), type: e.type === 'pen' ? 'pen' : 'free', est: num(e.est), se: num(e.se), z: num(e.z), p: num(e.p) })),
-    test: { chisq: num(r.test?.chisq), df: num(r.test?.df), p: num(r.test?.p) },
-    fitIndex: Object.fromEntries(Object.entries((r.fitIndex ?? {}) as Record<string, unknown>).map(([k, v]) => [k, num(v)])), n: num(r.n) ?? 0,
+    method: r.method, selector: r.selector, selected: { lambda: rNum(r.selected?.lambda) ?? NaN, delta: rNum(r.selected?.delta) },
+    path: rList<Record<string, unknown>>(r.path).map((l) => ({ lambda: rNum(l.lambda) ?? NaN, delta: rNum(l.delta), aic: rNum(l.aic), bic: rNum(l.bic), nonzero: rNum(l.nonzero), df: rNum(l.df), loss: rNum(l.loss), converged: l.converged === true, values: rList<unknown>(l.values).map(rNum) })),
+    penalised: rList<string>(r.penalised), penalisedKind: rList<string>(r.penalisedKind),
+    estimates: rList<Record<string, unknown>>(r.estimates).map((e) => ({ label: String(e.label), kind: String(e.kind), type: e.type === 'pen' ? 'pen' : 'free', est: rNum(e.est), se: rNum(e.se), z: rNum(e.z), p: rNum(e.p) })),
+    test: { chisq: rNum(r.test?.chisq), df: rNum(r.test?.df), p: rNum(r.test?.p) },
+    fitIndex: Object.fromEntries(Object.entries((r.fitIndex ?? {}) as Record<string, unknown>).map(([k, v]) => [k, rNum(v)])), n: rNum(r.n) ?? 0,
     warnings: rStrings(r.warnings), engine: r.engine,
   };
 }
-export const regsemScriptR = (c: CbCall, o: RegsemRequest) => rScript('ps_cb_regsem', req(c, o), 'lslx');
+export const regsemScriptR = (c: CbCall, o: RegsemRequest) => rScript('ps_cb_regsem', cbCallRequest(c, o), 'lslx');

@@ -3,6 +3,7 @@
 
 import type { Dataset, ModelSpec, PlsOptions } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { rList } from './reply';
 import type { REngineInfo } from './lavaan';
 import { plsRequest } from './pls';
 
@@ -30,21 +31,20 @@ export interface GroupsResult {
   samples: number; warnings: string[]; engine: REngineInfo;
 }
 
-const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
 const rec = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, number> : {});
 const base = (data: Dataset, spec: ModelSpec, options: PlsOptions) => plsRequest(data, spec, { ...options, consistent: !!options.consistent }, 'cSEM');
 
 export async function predictR(data: Dataset, spec: ModelSpec, options: PlsOptions, cv: PredictSettings): Promise<PredictResult> {
   const raw = await rCall<Record<string, any>>('ps_pls_predict', { ...base(data, spec, options), ...cv }, cv.engine === 'seminr' ? 'seminr' : 'cSEM');
   return { folds: raw.folds, repetitions: raw.repetitions, ...(raw.predictEngine === 'seminr' ? { predictEngine: 'seminr' as const, technique: raw.technique === 'DA' ? 'DA' as const : 'EA' as const } : {}),
-    indicators: arr(raw.indicators), warnings: rStrings(raw.warnings), engine: raw.engine };
+    indicators: rList(raw.indicators), warnings: rStrings(raw.warnings), engine: raw.engine };
 }
 export const predictScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, cv: PredictSettings) =>
   rScript('ps_pls_predict', { ...base(data, spec, options), ...cv }, cv.engine === 'seminr' ? 'seminr' : 'cSEM');
 
 export async function compareR(data: Dataset, spec: ModelSpec, alternative: ModelSpec, options: PlsOptions, seed: number): Promise<CompareResult> {
   const raw = await rCall<Record<string, any>>('ps_pls_compare', { ...base(data, spec, options), alternative, seed }, 'cSEM');
-  const crit = (v: unknown) => arr<any>(v).map((c) => ({ criterion: c.criterion, byConstruct: rec(c.byConstruct) }));
+  const crit = (v: unknown) => rList<any>(v).map((c) => ({ criterion: c.criterion, byConstruct: rec(c.byConstruct) }));
   return { criteria: crit(raw.criteria), criteriaAlt: crit(raw.criteriaAlt), cvpat: raw.cvpat, warnings: rStrings(raw.warnings), engine: raw.engine };
 }
 export const compareScriptR = (data: Dataset, spec: ModelSpec, alternative: ModelSpec, options: PlsOptions, seed: number) =>
@@ -62,9 +62,9 @@ export async function groupsR(data: Dataset, spec: ModelSpec, options: PlsOption
   const raw = await rCall<Record<string, any>>('ps_pls_groups', groupsRequest(data, spec, options, g), 'cSEM');
   const m = raw.micom;
   return {
-    groups: arr<any>(raw.groups).map((x) => ({ ...x, paths: arr(x.paths) })),
+    groups: rList<any>(raw.groups).map((x) => ({ ...x, paths: rList(x.paths) })),
     micom: { c: rec(m.c), cP: rec(m.cP), mean: { statistic: rec(m.mean.statistic), p: rec(m.mean.p) }, variance: { statistic: rec(m.variance.statistic), p: rec(m.variance.p) }, admissible: m.admissible, runs: m.runs },
-    mga: arr<any>(raw.mga).map((a) => ({ ...a, comparisons: a.comparisons ? arr<any>(a.comparisons).map((c) => ({ groups: c.groups, paths: arr<any>(c.paths).map((p) => ({ ...p, statistic: typeof p.statistic === 'number' ? p.statistic : null })) })) : undefined })),
+    mga: rList<any>(raw.mga).map((a) => ({ ...a, comparisons: a.comparisons ? rList<any>(a.comparisons).map((c) => ({ groups: c.groups, paths: rList<any>(c.paths).map((p) => ({ ...p, statistic: typeof p.statistic === 'number' ? p.statistic : null })) })) : undefined })),
     samples: raw.samples, warnings: rStrings(raw.warnings), engine: raw.engine,
   };
 }
@@ -78,7 +78,7 @@ export interface CtaResult {
 }
 export async function ctaR(data: Dataset, spec: ModelSpec, missing: PlsOptions['missing'], cfg: { samples: number; seed: number; alpha: number }): Promise<CtaResult> {
   const raw = await rCall<Record<string, any>>('ps_cta', { ...plsRequest(data, spec, { scheme: 'path', consistent: false, tolerance: 1e-7, maxIter: 300, missing }, 'cSEM'), ...cfg }, 'cta');
-  return { samples: raw.samples, alpha: raw.alpha, warnings: rStrings(raw.warnings), engine: raw.engine, blocks: arr<any>(raw.blocks).map((b) => ({ construct: b.construct, tetrads: arr(b.tetrads) })) };
+  return { samples: raw.samples, alpha: raw.alpha, warnings: rStrings(raw.warnings), engine: raw.engine, blocks: rList<any>(raw.blocks).map((b) => ({ construct: b.construct, tetrads: rList(b.tetrads) })) };
 }
 export const ctaScriptR = (data: Dataset, spec: ModelSpec, missing: PlsOptions['missing'], cfg: { samples: number; seed: number; alpha: number }) =>
   rScript('ps_cta', { ...plsRequest(data, spec, { scheme: 'path', consistent: false, tolerance: 1e-7, maxIter: 300, missing }, 'cSEM'), ...cfg }, 'cta');
@@ -95,7 +95,7 @@ export const blindfoldTargets = (spec: ModelSpec) => {
 };
 export async function blindfoldR(data: Dataset, spec: ModelSpec, options: PlsOptions, distance: number): Promise<BlindfoldResult> {
   const raw = await rCall<Record<string, any>>('ps_blindfold', { ...base(data, spec, options), distance }, 'cSEM');
-  return { ...raw, constructs: arr(raw.constructs), warnings: rStrings(raw.warnings) } as BlindfoldResult;
+  return { ...raw, constructs: rList(raw.constructs), warnings: rStrings(raw.warnings) } as BlindfoldResult;
 }
 export const blindfoldScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, distance: number) =>
   rScript('ps_blindfold', { ...base(data, spec, options), distance }, 'cSEM');
@@ -113,8 +113,8 @@ const ccaRequest = (data: Dataset, spec: ModelSpec, options: PlsOptions, cfg: { 
 /** Confirmatory composite analysis (Schuberth, Henseler & Dijkstra 2018) with cSEM. */
 export async function ccaR(data: Dataset, spec: ModelSpec, options: PlsOptions, cfg: { samples: number; seed: number; alpha: number }): Promise<CcaResult> {
   const raw = await rCall<Record<string, any>>('ps_cca', ccaRequest(data, spec, options, cfg), 'cSEM');
-  return { ...raw, fit: arr(raw.fit), weights: arr(raw.weights), loadings: arr(raw.loadings), vif: arr(raw.vif),
-    composites: rStrings(raw.composites), correlations: arr<unknown>(raw.correlations).map((r) => arr<number>(r)), warnings: rStrings(raw.warnings) } as CcaResult;
+  return { ...raw, fit: rList(raw.fit), weights: rList(raw.weights), loadings: rList(raw.loadings), vif: rList(raw.vif),
+    composites: rStrings(raw.composites), correlations: rList<unknown>(raw.correlations).map((r) => rList<number>(r)), warnings: rStrings(raw.warnings) } as CcaResult;
 }
 export const ccaScriptR = (data: Dataset, spec: ModelSpec, options: PlsOptions, cfg: { samples: number; seed: number; alpha: number }) =>
   rScript('ps_cca', ccaRequest(data, spec, options, cfg), 'cSEM');
