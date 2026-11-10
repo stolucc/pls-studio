@@ -118,3 +118,22 @@ describe('integration card: results', () => {
     expect(html).not.toContain('Dispersion');
   });
 });
+
+describe('zero-inflated negative binomial counts (nbi) and the inflation’s regressions (u#1 ON x)', () => {
+  it('reads COUNT = u (nbi): a dispersion and an inflation; u#1 ON x adds slopes to the inflation', () => {
+    const p = spec('COUNT = c1 (nbi); MODEL: c1 ON x; c1#1 ON x;').spec;
+    const o = p.outcomes[0];
+    expect(o.type).toBe('zinb');
+    expect(o.disp).toBeGreaterThanOrEqual(0);
+    expect(o.infl!.xs.map(([x]) => x)).toEqual(['x']);
+    expect(o.xs.map(([x]) => x)).toEqual(['x']);
+    // (count intercept, slope, dispersion, inflation intercept and slope)
+    expect(p.theta).toHaveLength(5);
+    expect(p.report.map((r) => `${r.lhs} ${r.op} ${r.rhs}`.trim())).toEqual(expect.arrayContaining(['c1#1 ~ x', 'c1 ~ x', 'c1 dispersion', 'c1#1 ~1']));
+    expect(spec('COUNT = c1 (i); MODEL: c1 ON x; c1#1 ON x;').spec.outcomes[0].infl!.xs).toHaveLength(1);
+  });
+  it('refuses the inflation of an outcome without one, and other count options', () => {
+    expect(quad.blocked({ syntax: 'COUNT = c1; MODEL: c1 ON x; c1#1 ON x;' }, ctx())).toMatch(/c1#1 ON x: not a parameter/);
+    expect(quad.blocked({ syntax: 'COUNT = c1 (zz); MODEL: c1 ON x;' }, ctx())).toMatch(/zero-inflated negative binomial \(nbi\)/);
+  });
+});

@@ -437,6 +437,9 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
   }
   for (const c of model.constructs) if (c.components?.length) for (const id of c.components) { const k = byId.get(id); if (k) for (const i of k.indicators) mark(nm(i)); }
   const ordered = (model.ordered ?? []).map(nm).filter((n) => used.includes(n));
+  // Count indicators (Mplus COUNT; estimated by numerical integration): the kinds with an option first, Poisson last.
+  const count = Object.entries(model.count ?? {}).map(([n, k]) => [nm(n), k] as const).filter(([n]) => used.includes(n));
+  const countLine = count.length ? [...(['nb', 'zip', 'zinb'] as const).flatMap((k) => { const ns = count.filter(([, x]) => x === k).map(([n]) => n); return ns.length ? [`${ns.join(' ')} (${k === 'nb' ? 'nb' : k === 'zip' ? 'i' : 'nbi'})`] : []; }), ...count.filter(([, x]) => x === 'poisson').map(([n]) => n)].join(' ') : '';
   // Without data: the observed variables only (indicators, covariates, design columns), never the factors.
   const observedNames = [...new Set([...model.constructs.flatMap((c) => c.indicators), ...[model.multigroup?.column, model.cluster, model.weights].filter((x): x is string => !!x)])];
   const dataNames = data ? data.names : observedNames;
@@ -449,10 +452,11 @@ export function toMplus(model: ModelState, settings: Settings, data: { names: st
     `  USEVARIABLES = ${used.join(' ')};`,
     ...(info?.kind === 'matrix' ? [] : ['  MISSING = ALL (-999);']),
     ...(ordered.length ? [`  CATEGORICAL = ${ordered.join(' ')};`] : []),
+    ...(countLine ? [`  COUNT = ${countLine};`] : []),
     ...(model.multigroup ? [`  GROUPING = ${nm(model.multigroup.column)};`] : []),
     ...(model.cluster ? [`  CLUSTER = ${nm(model.cluster)};`] : []),
     ...(model.weights ? [`  WEIGHT = ${nm(model.weights)};`] : []),
-    `ANALYSIS: ESTIMATOR = ${ESTIMATOR[settings.estimator] ?? 'ML'};${model.cluster ? ' TYPE = COMPLEX;' : ''}${xwith.length ? ' TYPE = RANDOM; ALGORITHM = INTEGRATION;' : ''}${settings.missing === 'casewise' ? ' LISTWISE = ON;' : ''}${model.parameterization === 'theta' && ordered.length ? ' PARAMETERIZATION = THETA;' : ''}`,
+    `ANALYSIS: ESTIMATOR = ${ESTIMATOR[settings.estimator] ?? 'ML'};${model.cluster ? ' TYPE = COMPLEX;' : ''}${xwith.length ? ' TYPE = RANDOM; ALGORITHM = INTEGRATION;' : countLine ? ' ALGORITHM = INTEGRATION;' : ''}${settings.missing === 'casewise' ? ' LISTWISE = ON;' : ''}${model.parameterization === 'theta' && ordered.length ? ' PARAMETERIZATION = THETA;' : ''}`,
     'MODEL:',
     ...xwith.map((l) => `  ${l}`),
     ...lines.map((l) => `  ${l}`),

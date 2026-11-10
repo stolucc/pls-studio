@@ -7,7 +7,9 @@ import { nameError } from '../../model/expr';
 import { useStore } from '../../store';
 import { heldOf, type MenuAction, type MenuTarget } from '../canvasMenu';
 import type { CorrelationPick } from '../CovarianceLayer';
-import { formDialog, numberDialog, textDialog } from '../Overlays';
+import { choiceDialog, formDialog, numberDialog, textDialog } from '../Overlays';
+import { COUNT_NAMES } from '../../model/countModel';
+import { COUNT_KINDS, type CountKind } from '../../model/project';
 
 /** What the canvas offers the menu actions: the correlation tool and its dialogs. */
 export interface MenuUi {
@@ -111,6 +113,19 @@ const groupValues = async (target: MenuTarget) => {
   if (v !== undefined) st().setCorrelationValue(k.id, v);
 };
 /** Specification search: mark a path or a covariance as optional (drawn differently; the search fits the model with and without it), or required again. */
+/** Declare an indicator a count of a kind, or continuous again (CB-SEM: such models are estimated by integration). */
+async function setCount(name: string) {
+  const now = st().model.count?.[name];
+  const pick = await choiceDialog({
+    title: `${name}: a count?`,
+    body: 'A count indicator (whole numbers ≥ 0) loads on its factor through the log link. lavaan has no count indicators: the model is then estimated by maximum likelihood with numerical integration (Integration ML on the Analyses tab, from the diagram), one group, ML or MLR. Zero-inflated: extra zeros, with a logit model (an intercept) for a structural zero. Negative binomial: over-dispersion.',
+    choices: [...COUNT_KINDS.map((k) => ({ id: k, label: k === now ? `${COUNT_NAMES[k]} (now)` : COUNT_NAMES[k][0].toUpperCase() + COUNT_NAMES[k].slice(1), primary: k === now })), ...(now ? [{ id: 'none', label: 'Continuous (not a count)' }] : [])],
+  });
+  if (!pick || pick === now) return;
+  st().setCount([name], pick === 'none' ? null : pick as CountKind);
+  if (pick !== 'none') st().toast('info', `${name} is a ${COUNT_NAMES[pick as CountKind]} count now. The model is estimated by numerical integration: Checks (Model inspector) → Estimate by integration.`);
+}
+
 export function toggleOptional(target: MenuTarget) {
   const flip = <T extends { id: string; optional?: true }>(x: T): T => { if (x.id !== (target as { id?: string }).id) return x; const { optional, ...rest } = x; return (optional ? rest : { ...rest, optional: true }) as T; };
   if (target.kind === 'path') st().commit((m) => ({ ...m, paths: m.paths.map(flip) }));
@@ -189,6 +204,9 @@ export function runMenuAction(target: MenuTarget, a: MenuAction, ui: MenuUi) {
       s.setMultigroup({ ...mg, free: mg.free.some(same) ? mg.free.filter((f) => !same(f)) : [...mg.free, kind === 'loading' ? { kind, construct: target.construct, indicator: target.name } : { kind, indicator: target.name }] });
       break;
     }
+    case 'set-count':
+      if (target.kind === 'indicator') void setCount(target.name);
+      break;
     case 'toggle-ordinal':
       if (target.kind === 'indicator') {
         const on = !(st().model.ordered ?? []).includes(target.name);

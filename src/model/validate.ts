@@ -4,6 +4,7 @@ import { BIFACTOR_ROTATIONS, LAVAAN_MISSING, type Dataset } from '../engine/type
 import { processGraph } from '../process/fromModel';
 import { constraintErrors, createsCycle, DEFAULT_SETTINGS, endogenousIds, INTERACTION_METHOD_NAMES, isBifactorGeneral, labelUses, unconfirmedUncorrelated, usesConstraints } from './project';
 import type { Construct, Issue, ModelState, Path, Settings } from './project';
+import { countIndicators, countModelSyntax } from './countModel';
 
 /** The settings validateModel reads. */
 export type ValidateSettings = Pick<Settings, 'method' | 'consistent'> & Partial<Pick<Settings, 'estimator' | 'engine' | 'missing' | 'interaction' | 'hc' | 'plsPackage' | 'plsApproach' | 'scheme' | 'hocApproach' | 'miMethod' | 'miAuxiliary' | 'miNominal'>>;
@@ -384,7 +385,8 @@ function checkCbsemEstimator(v: Ctx): Issue[] {
   if (method.method !== 'cbsem') return issues;
   const lavaanOnly = [ordered.length && 'ordinal indicators', model.information === 'observed' && 'Standard errors from the observed information', method.estimator === 'WLSMV' && 'WLSMV', missingChoice === 'fiml' && 'FIML', missingChoice === 'pairwise' && 'pairwise deletion', (missingChoice === 'twostage' || missingChoice === 'robusttwostage') && 'the two-stage approach'].filter(Boolean);
   if (lavaanOnly.length && engine === 'builtin') err(`${lavaanOnly.join(', ')} ${lavaanOnly.length === 1 ? 'is' : 'are'} estimated by lavaan: choose “R packages” under Calculated by.`);
-  if (ordered.length && method.estimator !== 'WLSMV') err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
+  // (with count indicators the model goes to the integration engine, where ordinal indicators are logit under ML: checkCounts)
+  if (ordered.length && method.estimator !== 'WLSMV' && !countIndicators(model).length) err(`${ordered.join(', ')} ${ordered.length === 1 ? 'is' : 'are'} ordinal: choose the WLSMV estimator (thresholds and polychoric correlations), or treat ${ordered.length === 1 ? 'it' : 'them'} as continuous.`);
   if (ordered.length && missingChoice === 'mean') err('Mean replacement would put non-category values into ordinal indicators; choose casewise deletion.');
   if ((model.likelihood || model.sampleCovRescale === false) && engine === 'builtin') err('The Wishart likelihood and an unrescaled covariance matrix are lavaan options: choose “R packages” under Calculated by.');
   if ((model.likelihood || model.sampleCovRescale === false) && !['ML', 'MLM', 'MLMV', 'MLR'].includes(method.estimator ?? 'ML')) err('The Wishart likelihood and an unrescaled covariance matrix apply to the maximum-likelihood estimators.');
@@ -899,7 +901,25 @@ function checkSampleSize(v: Ctx): Issue[] {
   }
   return issues;
 }
-const RULES = [checkPrerequisites, checkConstructs, checkIndicatorPaths, checkPlsOptions, checkModerations, checkExogenousCorrelations, checkEngineCombinations, checkMeanStructure, checkDegenerateColumns, checkCbsemEstimator, checkCbsemMissingData, checkCbsemRobust, checkOtherMissingData, checkPlsApproach, checkTextColumns, checkSamplingWeights, checkSamplingClusters, checkCategoricalInCbsem, checkMultilevel, checkMultigroup, checkLatentInteractions, checkEsem, checkConstraints, checkProcess, checkCorrelations, checkCycles, checkSampleSize];
+/**
+ * Count indicators: lavaan has no count outcomes, so CB-SEM's own run is blocked and the issue opens the Integration ML
+ * card on the diagram (model/countModel.ts), or says why the diagram cannot be estimated that way. Other methods
+ * treat them as continuous.
+ */
+function checkCounts(v: Ctx): Issue[] {
+  const { issues, warn } = sink();
+  const { model, data, method } = v;
+  const counts = countIndicators(model);
+  if (!counts.length) return issues;
+  const list = `${counts.join(', ')} ${counts.length === 1 ? 'is a count' : 'are counts'}`;
+  if (method.method !== 'cbsem') { warn(`${list}: count indicators are a CB-SEM declaration; ${method.method === 'pls' ? 'PLS-SEM' : 'this method'} treats ${counts.length === 1 ? 'it' : 'them'} as continuous.`); return issues; }
+  const r = countModelSyntax(model, { method: method.method, estimator: method.estimator ?? 'ML', missing: method.missing ?? 'mean' }, data?.names ?? null, { moments: !!data?.moments && data.cols.length === 0 });
+  issues.push('error' in r
+    ? { level: 'error', message: `${list}: models with count indicators are estimated by numerical integration, not lavaan, and this one cannot be: ${r.error}` }
+    : { level: 'error', message: `${list}: lavaan has no count indicators, so the model is estimated by maximum likelihood with numerical integration on the Analyses tab (Integration ML, the diagram), not by Calculate.`, action: 'count-integration' });
+  return issues;
+}
+const RULES = [checkCounts, checkPrerequisites, checkConstructs, checkIndicatorPaths, checkPlsOptions, checkModerations, checkExogenousCorrelations, checkEngineCombinations, checkMeanStructure, checkDegenerateColumns, checkCbsemEstimator, checkCbsemMissingData, checkCbsemRobust, checkOtherMissingData, checkPlsApproach, checkTextColumns, checkSamplingWeights, checkSamplingClusters, checkCategoricalInCbsem, checkMultilevel, checkMultigroup, checkLatentInteractions, checkEsem, checkConstraints, checkProcess, checkCorrelations, checkCycles, checkSampleSize];
 
 /** Errors (block calculation) and warnings for a model, its data and the chosen method, in display order. */
 export function validateModel(model: ModelState, data: Dataset | null, method: ValidateSettings = DEFAULT_SETTINGS): Issue[] {

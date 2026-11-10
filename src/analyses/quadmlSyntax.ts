@@ -11,7 +11,7 @@ import type { Dataset } from '../engine/types';
 import { columnStats, MixtureModel, MixtureSyntaxError } from './mixtureSyntax';
 
 export interface QuadSlot { c: number; t: number[] }
-export type QuadOutcomeType = 'cat' | 'count' | 'nb' | 'zip' | 'censored' | 'cinfl' | 'normal' | 'surv';
+export type QuadOutcomeType = 'cat' | 'count' | 'nb' | 'zip' | 'zinb' | 'censored' | 'cinfl' | 'normal' | 'surv';
 /** A linear predictor: intercept slot, slopes on the normal part's variables [var, slot], products [var, var, slot], covariates [column, slot] (slots −1: none). */
 export interface QuadLin { icpt: number; loads: number[][]; prods: number[][]; xs: [string, number][] }
 export interface QuadOutcome extends QuadLin {
@@ -125,7 +125,7 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
   // --- declarations
   const asymOf = new Map<string, '3pl' | '4pl'>();
   const missing: { column: string; values: number[] }[] = [];
-  const categorical = new Set<string>(), count = new Map<string, 'p' | 'i' | 'nb'>(), censored = new Map<string, { side: 'below' | 'above'; infl: boolean }>();
+  const categorical = new Set<string>(), count = new Map<string, 'p' | 'i' | 'nb' | 'nbi'>(), censored = new Map<string, { side: 'below' | 'above'; infl: boolean }>();
   let survival: { column: string; breaks: number[] } | null = null, timecens: string | undefined, weight: string | undefined;
   let link: 'logit' | 'probit' = 'logit', se: 'mlr' | 'ml' = 'mlr';
   const integ: QuadIntegration = { type: 'rect', points: 15, adaptive: true, range: 5, seed: 0 };
@@ -148,8 +148,8 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
         for (const p of value.matchAll(/([^()]+?)(?:\(\s*([a-z]+)\s*\)|$)/gi)) {
           if (!p[1].trim()) continue;
           const k = lc(p[2] ?? 'p');
-          if (!['p', 'i', 'nb'].includes(k)) fail(`COUNT = … (${p[2]}): Poisson, zero-inflated Poisson (i) and negative binomial (nb) are fitted.`);
-          for (const e of elements(mm, p[1])) count.set(needCol(e.name, 'COUNT'), k as 'p' | 'i' | 'nb');
+          if (!['p', 'i', 'nb', 'nbi'].includes(k)) fail(`COUNT = … (${p[2]}): Poisson, zero-inflated Poisson (i), negative binomial (nb) and zero-inflated negative binomial (nbi) are fitted.`);
+          for (const e of elements(mm, p[1])) count.set(needCol(e.name, 'COUNT'), k as 'p' | 'i' | 'nb' | 'nbi');
         }
         break;
       }
@@ -276,7 +276,9 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
       continue;
     } else if (on) {
       for (const l of elements(mm, on[1])) for (const r of elements(mm, on[2])) {
-        const ln = ref(l.name) ?? fail(`${l.name} ON …: ${l.name} is not a column or a latent variable.`);
+        // (u#1 ON x: the inflation of a zero-inflated count or censored-inflated outcome regressed on x)
+        const infl = /^(.+)#1$/.exec(l.name), ic = infl ? colOf(infl[1]) : null;
+        const ln = ic ? `${ic}#1` : ref(l.name) ?? fail(`${l.name} ON …: ${l.name} is not a column or a latent variable.`);
         const rn = ref(r.name) ?? fail(`… ON ${r.name}: ${r.name} is not a column or a latent variable.`);
         if (products.has(ln)) fail(`${l.name} ON …: a product (XWITH) is not regressed.`);
         add('~', ln, rn, r.mod);
@@ -304,7 +306,7 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
   // --- roles
   const typeOf = (y: string): QuadOutcomeType | 'cont' => {
     if (categorical.has(y)) return 'cat';
-    if (count.has(y)) return count.get(y) === 'i' ? 'zip' : count.get(y) === 'nb' ? 'nb' : 'count';
+    if (count.has(y)) return ({ i: 'zip', nb: 'nb', nbi: 'zinb', p: 'count' } as const)[count.get(y)!];
     if (censored.has(y)) return censored.get(y)!.infl ? 'cinfl' : 'censored';
     if (survival && survival.column === y) return 'surv';
     return 'cont';
@@ -312,7 +314,7 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
   const dv = new Set<string>();
   factors.forEach((f) => f.indicators.forEach((y) => dv.add(y)));
   for (const it of items) {
-    if (it.kind === '~' && !isLatent(it.a)) dv.add(it.a);
+    if (it.kind === '~' && !isLatent(it.a)) dv.add(it.a.replace(/#1$/, ''));
     if ((it.kind === '~~' || it.kind === '~1') && !isLatent(it.a) && !products.has(it.a)) { dv.add(it.a); if (it.kind === '~~' && it.b !== it.a && !isLatent(it.b)) dv.add(it.b); }
     if (it.kind.startsWith('$') || it.kind === '#') dv.add(it.a);
   }
@@ -396,7 +398,7 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
       const gi = g.factors.indexOf(v), y0 = g.outcomes[0], yl = g.outcomes[g.outcomes.length - 1], t0 = typeOf(y0);
       const dt = (g.times[g.times.length - 1] - g.times[0]) || 1;
       if (g.inflation || t0 === 'cat') def = gi === 0 ? { fixed: 0, start: 0 } : { start: 0 };
-      else if (t0 === 'count' || t0 === 'zip' || t0 === 'nb') def = { start: gi === 0 ? Math.log(Math.max(S(y0).mean, 0.1)) : 0 };
+      else if (t0 === 'count' || t0 === 'zip' || t0 === 'nb' || t0 === 'zinb') def = { start: gi === 0 ? Math.log(Math.max(S(y0).mean, 0.1)) : 0 };
       else def = { start: gi === 0 ? S(y0).mean : gi === 1 ? (S(yl).mean - S(y0).mean) / dt : 0 };
     } else if (lat) def = { fixed: 0, start: 0 };
     else def = growthOf(v) ? { fixed: 0, start: 0 } : { start: S(v).mean };
@@ -418,7 +420,7 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
     const lat = isLatent(v), g = lat ? growthFactor(v) : undefined;
     let start = lat ? 0.5 * sdOf(v) ** 2 : 0.5 * S(v).variance;
     if (g && g.factors.indexOf(v) > 0) start *= 0.2;
-    if (lat && g && (g.inflation || ['count', 'zip', 'nb', 'cat'].includes(typeOf(g.outcomes[0])))) start = g.factors.indexOf(v) === 0 ? 0.5 : 0.05;
+    if (lat && g && (g.inflation || ['count', 'zip', 'nb', 'zinb', 'cat'].includes(typeOf(g.outcomes[0])))) start = g.factors.indexOf(v) === 0 ? 0.5 : 0.05;
     Psi.push([i, i, param({ lhs: v, op: '~~', rhs: v }, find('~~', v, v), { start })]);
   });
   for (let i = 0; i < m; i++) for (let j = i + 1; j < m; j++) {
@@ -483,11 +485,11 @@ export function buildQuad(syntax: string, data: Dataset, opt: { integration?: Pa
       Object.assign(o, linFor(y, y, false, null));
       o.icpt = -1;
     } else {
-      const defI = g ? { fixed: 0, start: 0 } : t === 'count' || t === 'zip' || t === 'nb' ? { start: Math.log(Math.max(s.mean, 0.1)) } : { start: s.mean };
+      const defI = g ? { fixed: 0, start: 0 } : t === 'count' || t === 'zip' || t === 'nb' || t === 'zinb' ? { start: Math.log(Math.max(s.mean, 0.1)) } : { start: s.mean };
       Object.assign(o, linFor(y, y, false, defI));
       if (t === 'censored' || t === 'cinfl' || t === 'normal') { o.side = censored.get(y)?.side ?? 'below'; o.resvar = param({ lhs: y, op: '~~', rhs: y }, find('~~', y, y), { start: 0.5 * s.variance }); }
-      if (t === 'nb') o.disp = param({ lhs: y, op: 'dispersion', rhs: '' }, null, { start: 0.5 });
-      if (t === 'zip' || t === 'cinfl') {
+      if (t === 'nb' || t === 'zinb') o.disp = param({ lhs: y, op: 'dispersion', rhs: '' }, null, { start: 0.5 });
+      if (t === 'zip' || t === 'zinb' || t === 'cinfl') {
         const lab = ig ? `__infl_${growths.indexOf(ig)}` : undefined;
         o.infl = linFor(y, `${y}#1`, true, { start: -1, label: lab });
       }

@@ -151,6 +151,7 @@ const kitchenSink: Required<ModelState> = {
   correlations: [{ id: 'k1', kind: 'construct', a: 'a', b: 'f', zero: true }, { id: 'k2', kind: 'indicator', a: 'a1', b: 'b2', label: 'e1' }, { id: 'k3', kind: 'construct', a: 'h', b: 'f', fixed: 0.2 }, { id: 'k4', kind: 'indicator', a: 'a2', b: 'b1', byGroup: ['cm', 0.5, null] }],
   threeWay: [{ id: 't', moderation: 'mo', moderator: 'h' }],
   ordered: ['a1', 'b1'],
+  count: { a2: 'zip', f1: 'nb' },
   defined: [{ id: 'd', name: 'ind', expr: 'pa*2' }],
   waldTests: [{ id: 'w', name: 'Equal', constraints: 'pa == lf' }],
   inequalities: 'pa > 0',

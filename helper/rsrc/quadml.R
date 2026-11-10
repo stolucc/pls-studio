@@ -1,6 +1,6 @@
 # Maximum likelihood by numerical integration (Mplus's ALGORITHM = INTEGRATION), written out in base R, for structural
 # equation models whose outcomes are not all normal: censored (tobit, from below or above, and censored-inflated),
-# counts (Poisson, negative binomial, zero-inflated Poisson), ordered categorical (logit or probit), normal outcomes
+# counts (Poisson, negative binomial, zero-inflated Poisson and negative binomial), ordered categorical (logit or probit), normal outcomes
 # that depend non-linearly on factors (XWITH), and continuous-time survival (piecewise-constant baseline hazard,
 # proportional hazards), with continuous latent variables: factors, growth factors and random effects, and
 # continuous observed variables that predict such outcomes and are missing for some cases (they are integrated over
@@ -134,6 +134,8 @@ qml_model <- function(spec, data) {
 # The normal part at the slot values phi: the mean of z for each case (n x m) and its covariance matrix.
 qml_gauss <- function(M, phi) {
   G <- M$G; m <- G$m
+  # (no latent or continuous variable: the outcomes depend on covariates only, nothing to integrate)
+  if (m == 0) return(list(Mu = matrix(0, M$n, 0), S = matrix(0, 0, 0)))
   al <- vapply(G$alpha, function(s) if (s >= 0) phi[s + 1] else 0, 1)
   B <- matrix(0, m, m); for (r in seq_len(nrow(G$B))) B[G$B[r, 1] + 1, G$B[r, 2] + 1] <- phi[G$B[r, 3] + 1]
   Ga <- matrix(0, m, length(G$x)); for (r in seq_len(nrow(G$Gam))) Ga[G$Gam[r, 1] + 1, G$Gam[r, 2] + 1] <- phi[G$Gam[r, 3] + 1]
@@ -184,6 +186,16 @@ qml_ld <- function(u, phi, Z, rows, K, lin = NULL, li = NULL) {
     nb = {
       a <- phi[u$disp + 1]; if (!is.finite(a) || a <= 0) return(matrix(-Inf, np, K)); s <- 1 / a; mu <- exp(lin)
       lgamma(Y + s) - lgamma(s) - lgamma(Y + 1) + s * log(s / (s + mu)) + Y * log(mu / (s + mu))
+    },
+    zinb = {
+      # (zero-inflated negative binomial, Mplus COUNT = u (nbi): the dispersion a = 1 / theta, the inflation's logit li)
+      a <- phi[u$disp + 1]; if (!is.finite(a) || a <= 0) return(matrix(-Inf, np, K)); s <- 1 / a; mu <- exp(lin)
+      if (is.null(li)) li <- qml_lin(u$infl, phi, Z, rows, K)
+      nb <- lgamma(Y + s) - lgamma(s) - lgamma(Y + 1) + s * log(s / (s + mu)) + Y * log(mu / (s + mu))
+      zero <- matrix(Y == 0, np, K)
+      out <- stats::plogis(li, lower.tail = FALSE, log.p = TRUE) + nb
+      out[zero] <- log(stats::plogis(li[zero]) + stats::plogis(li[zero], lower.tail = FALSE) * exp(nb[zero]))
+      out
     },
     zip = {
       if (is.null(li)) li <- qml_lin(u$infl, phi, Z, rows, K); lam <- exp(lin)
