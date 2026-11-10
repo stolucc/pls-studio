@@ -55,4 +55,5 @@ sandwich
 semTools
 semfindr
 seminr
+sirt
 survival
