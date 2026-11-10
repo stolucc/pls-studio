@@ -1685,6 +1685,12 @@
    "url": "https://cran.r-project.org/package=ps"
   },
   {
+   "name": "pscl",
+   "version": "1.5.9",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=pscl"
+  },
+  {
    "name": "psych",
    "version": "2.6.9",
    "license": "GPL (>= 2)",

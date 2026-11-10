@@ -262,6 +262,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | promises | 1.5.0 | MIT + file LICENSE | https://cran.r-project.org/package=promises |
 | proxy | 0.4-29 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=proxy |
 | ps | 1.9.3 | MIT + file LICENSE | https://cran.r-project.org/package=ps |
+| pscl | 1.5.9 | GPL-2 | https://cran.r-project.org/package=pscl |
 | psych | 2.6.9 | GPL (>= 2) | https://cran.r-project.org/package=psych |
 | psychotools | 0.7-7 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=psychotools |
 | purrr | 1.2.2 | MIT + file LICENSE | https://cran.r-project.org/package=purrr |

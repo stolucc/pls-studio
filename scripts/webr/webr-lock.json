@@ -3931,6 +3931,21 @@
         "File": "ps_1.9.3.tgz"
       }
     },
+    "pscl": {
+      "version": "1.5.9",
+      "md5": "89276f40d7044b5546945e70d1f2da6f",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "pscl",
+        "Version": "1.5.9",
+        "Imports": "MASS, datasets, grDevices, graphics, stats, utils",
+        "Suggests": "lattice, MCMCpack, car, lmtest, sandwich, zoo, coda, vcd, mvtnorm, mgcv",
+        "License": "GPL-2",
+        "MD5sum": "89276f40d7044b5546945e70d1f2da6f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 20:59:50 UTC; unix",
+        "File": "pscl_1.5.9.tgz"
+      }
+    },
     "psych": {
       "version": "2.6.9",
       "md5": "e10924eed8a1777fc3c68468f68b21c1",
