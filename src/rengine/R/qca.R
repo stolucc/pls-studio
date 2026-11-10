@@ -92,8 +92,8 @@ ps_qca <- function(req_json, export = FALSE) {
     if (any(dir_exp != "-")) sprintf("sol_i <- try_min(minimize(tt, include = \"?\", dir.exp = \"%s\", details = TRUE))", paste(dir_exp, collapse = ",")) else "sol_i <- NULL  # no directional expectations: the intermediate solution is the parsimonious one")
   inputs <- list(data = fr$data)
   if (length(labels)) inputs$labels <- labels
-  if (export) return(paste(ps_script("Fuzzy-set QCA (QCA package)", "QCA", inputs, body,
-    c("nec", "nec_neg", "tt", "sol_c", "sol_p", "if (!is.null(sol_i)) sol_i")), collapse = "\n"))
+  if (export) return(ps_script("Fuzzy-set QCA (QCA package)", "QCA", inputs, body,
+    c("nec", "nec_neg", "tt", "sol_c", "sol_p", "if (!is.null(sol_i)) sol_i")))
   env <- ps_run(body, inputs)
   back <- fr$back
   # The truth table as printed: QCA's row order, the observed configurations (n > 0); remainders are counted.
@@ -128,5 +128,5 @@ ps_qca <- function(req_json, export = FALSE) {
     expectations = dir_exp,
     solutions = list(complex = solution(env$sol_c, "complex"), parsimonious = solution(env$sol_p, "parsimonious"), intermediate = solution(env$sol_i, "intermediate")),
     outcomeValues = utils::head(as.numeric(y), 3000),
-    warnings = env$.warnings, engine = list(package = "QCA", version = as.character(utils::packageVersion("QCA")))))
+    warnings = env$.warnings, engine = ps_engine("QCA")))
 }

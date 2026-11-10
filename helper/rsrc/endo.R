@@ -157,8 +157,8 @@ ps_endo <- function(req_json, export = FALSE) {
   inputs <- list(data = f$fr$data)
   title <- c(iv = "Instrumental variables (ivreg)", copula = "Gaussian copula correction", het = "Heteroskedasticity-based instruments (Lewbel 2012)",
     hm = "Higher-moment instruments (Lewbel 1997)", liv = "Latent instrumental variables (Ebbes et al. 2005)", heckman = "Heckman selection model (sampleSelection)")[[method]]
-  if (export) return(paste(ps_script(title, pkgs, inputs, body,
-    c(if (method != "heckman") "summary(ols)", if (method %in% c("copula", "heckman")) "res" else "res", if (method == "copula") "normality")), collapse = "\n"))
+  if (export) return(ps_script(title, pkgs, inputs, body,
+    c(if (method != "heckman") "summary(ols)", "res", if (method == "copula") "normality")))
   env <- ps_run(body, inputs)
   back <- f$fr$back
   for (q in p) back[[paste0("PStar.", q)]] <- paste0("P* (", f$fr$back[[q]], ")")
@@ -186,5 +186,5 @@ ps_endo <- function(req_json, export = FALSE) {
     heteroskedasticity = if (method == "het") lapply(names(env$bp), function(k) list(variable = ps_back(k, f$fr$back, FALSE), p = unname(env$bp[[k]]))) else list(),
     selection = if (method == "heckman") list(selected = sum(env$data[[f$v(req$selection$outcome)]] == 1), total = nrow(env$data)) else NULL,
     boot = if (method == "copula") list(samples = B, confidence = conf) else NULL,
-    warnings = env$.warnings, engine = list(package = ps_endo_pkg(method), version = as.character(utils::packageVersion(ps_endo_pkg(method))))))
+    warnings = env$.warnings, engine = ps_engine(ps_endo_pkg(method))))
 }

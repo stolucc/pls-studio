@@ -179,8 +179,8 @@ ps_customml <- function(req_json, export = FALSE) {
     "logl <- loglik(theta); npar <- length(theta)")
   inputs <- list(data = fr$data)
   pk <- if (type == "probit" && p == 2) "pbivnorm" else character(0)
-  if (export) return(paste(ps_script(sprintf("Custom likelihood (%s model, maximum likelihood)", type), pk, inputs, body,
-    c("cbind(estimate = theta, se = sqrt(diag(V)))", "cbind(estimate = d0, se = se_derived)", "c(logLik = logl, npar = npar, AIC = -2 * logl + 2 * npar, BIC = -2 * logl + log(n) * npar)")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Custom likelihood (%s model, maximum likelihood)", type), pk, inputs, body,
+    c("cbind(estimate = theta, se = sqrt(diag(V)))", "cbind(estimate = d0, se = se_derived)", "c(logLik = logl, npar = npar, AIC = -2 * logl + 2 * npar, BIC = -2 * logl + log(n) * npar)")))
   env <- ps_run(body, inputs)
   se <- sqrt(pmax(diag(env$V), 0))
   conv <- isTRUE(env$opt$convergence == 0) || isTRUE(env$opt2$convergence == 0)
@@ -244,7 +244,7 @@ ps_bmvreg <- function(req_json, export = FALSE) {
     "  p_one = pmin(colMeans(out > 0), colMeans(out < 0)))",
     "post$exact <- seq_len(nrow(post)) <= k * p + p")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Bayesian multivariate regression, flat priors (exact posterior)", character(0), inputs, body, c("post")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian multivariate regression, flat priors (exact posterior)", character(0), inputs, body, c("post")))
   env <- ps_run(body, inputs)
   back <- function(s) ps_back_names(s, fr$back)
   P <- env$post

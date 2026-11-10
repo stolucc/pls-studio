@@ -59,8 +59,8 @@ ps_rebus <- function(req_json, export = FALSE) {
     "  tests[[as.character(k)]] <- rebus.test(global, rebus[[as.character(k)]])",
     "}")
   inputs <- list(data = ps_frame(req, n))
-  if (export) return(paste(ps_script("REBUS-PLS segmentation (plspm)", "plspm", inputs, body,
-    c("global", "plot(hc, labels = FALSE, main = \"REBUS: Ward clustering of the residuals\")", "rebus", "tests")), collapse = "\n"))
+  if (export) return(ps_script("REBUS-PLS segmentation (plspm)", "plspm", inputs, body,
+    c("global", "plot(hc, labels = FALSE, main = \"REBUS: Ward clustering of the residuals\")", "rebus", "tests")))
   env <- ps_run(body, inputs)
   back_lv <- setNames(ord, lv)
   back_mv <- setNames(n$all_inds, unname(n$iv[n$all_inds]))
@@ -88,7 +88,7 @@ ps_rebus <- function(req_json, export = FALSE) {
     globalPaths = lapply(req$model$paths, function(p) list(from = p$from, to = p$to,
       est = env$global$path_coefs[n$cv[[p$to]], n$cv[[p$from]]])),
     fusion = top, models = models,
-    warnings = env$.warnings, engine = list(package = "plspm", version = as.character(utils::packageVersion("plspm")))))
+    warnings = env$.warnings, engine = ps_engine("plspm")))
 }
 
 `%|NA|%` <- function(a, b) if (!length(a) || is.na(a)) b else unname(a)
@@ -134,7 +134,7 @@ ps_pathmox <- function(req_json, export = FALSE) {
     sprintf("pmx <- pls.pathmox(.model = model, .data = data, .catvar = catvar, .scheme = \"%s\", .consistent = %s, .alpha = %s, .deep = %d, .size = %s, .tree = FALSE)",
       c(path = "path", centroid = "centroid", factor = "factorial")[[scheme]], if (isTRUE(req$options$consistent)) "TRUE" else "FALSE", format(alpha), deep, format(size)))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("PATHMOX segmentation tree (genpathmox)", "genpathmox", inputs, body, c("pmx$MOX", "pmx$Fg.r", "pmx$terminal_paths", "pmx$var_imp")), collapse = "\n"))
+  if (export) return(ps_script("PATHMOX segmentation tree (genpathmox)", "genpathmox", inputs, body, c("pmx$MOX", "pmx$Fg.r", "pmx$terminal_paths", "pmx$var_imp")))
   env <- ps_run(body, inputs)
   p <- env$pmx
   back_lv <- setNames(n$cname, unname(n$cv))
@@ -150,7 +150,7 @@ ps_pathmox <- function(req_json, export = FALSE) {
       paths = { fc <- p$Fc.r[[i]]; lapply(seq_len(nrow(fc)), function(j) list(path = nm(rownames(fc)[j]), f = fc[j, 1], p = fc[j, 2])) })),
     terminal = list(nodes = colnames(tp), rows = lapply(seq_len(nrow(tp)), function(i) list(name = nm(rownames(tp)[i]), values = unname(tp[i, ])))),
     importance = lapply(seq_len(nrow(p$var_imp)), function(i) list(variable = unname(fr$back[p$var_imp$variable[i]] %|NA|% p$var_imp$variable[i]), ranking = p$var_imp$ranking[i])),
-    warnings = env$.warnings, engine = list(package = "genpathmox", version = as.character(utils::packageVersion("genpathmox")))))
+    warnings = env$.warnings, engine = ps_engine("genpathmox")))
 }
 
 #' FIMIX-PLS (Hahn, Johnson, Herrmann & Huber 2002; Sarstedt, Becker, Ringle
@@ -191,7 +191,7 @@ ps_fimix <- function(req_json, export = FALSE) {
     "}",
     "summary_table <- t(sapply(fits, criteria))")
   inputs <- b$inputs
-  if (export) return(paste(ps_script("FIMIX-PLS (cSEM scores, flexmix)", c("cSEM", "flexmix"), inputs, body, c("summary_table", "lapply(fits, parameters)")), collapse = "\n"))
+  if (export) return(ps_script("FIMIX-PLS (cSEM scores, flexmix)", c("cSEM", "flexmix"), inputs, body, c("summary_table", "lapply(fits, parameters)")))
   env <- ps_run(body, inputs)
   back <- setNames(names(cv), unname(cv))
   models <- lapply(env$fits, function(m) {
@@ -212,7 +212,7 @@ ps_fimix <- function(req_json, export = FALSE) {
     list(k = k, criteria = as.list(cr[-1]), segments = segs, assignment = unname(as.integer(cl)))
   })
   ps_json(list(n = nrow(env$scores), models = models,
-    warnings = env$.warnings, engine = list(package = "flexmix", version = as.character(utils::packageVersion("flexmix")))))
+    warnings = env$.warnings, engine = ps_engine("flexmix")))
 }
 
 #' PLS-POS (Becker, Rai, Ringle & Voelckner 2013): prediction-oriented
@@ -276,7 +276,7 @@ ps_pos <- function(req_json, export = FALSE) {
     sprintf("runs <- lapply(seq_len(%d), function(r) pos_run(X, %d, min_size, %d, %d))", nrep, K, max_moves, cands),
     "best <- runs[[which.max(sapply(runs, `[[`, \"objective\"))]]")
   inputs <- b$inputs
-  if (export) return(paste(ps_script(sprintf("PLS-POS, %d segments (cSEM)", K), "cSEM", inputs, body, c("table(best$assignment)", "lapply(best$fits, function(g) g$B)", "sapply(best$fits, function(g) g$r2)")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("PLS-POS, %d segments (cSEM)", K), "cSEM", inputs, body, c("table(best$assignment)", "lapply(best$fits, function(g) g$B)", "sapply(best$fits, function(g) g$r2)")))
   env <- ps_run(body, inputs)
   cv <- b$n$cv; back <- setNames(names(cv), unname(cv))
   best <- env$best

@@ -68,8 +68,8 @@ ps_match <- function(req_json, export = FALSE) {
       "effect <- coeftest(fit, vcov. = vc)",
       sprintf("effect_ci <- coefci(fit, vcov. = vc, level = %s)", format(conf))))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Matching (MatchIt, %s)", method), c("MatchIt", "cobalt", "sandwich", "lmtest"), inputs, body,
-    c("summary(m)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (dr) "est" else if (!is.null(Y)) c("effect", "effect_ci"))), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Matching (MatchIt, %s)", method), c("MatchIt", "cobalt", "sandwich", "lmtest"), inputs, body,
+    c("summary(m)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (dr) "est" else if (!is.null(Y)) c("effect", "effect_ci"))))
   env <- ps_run(body, inputs)
   b <- env$bal$Balance
   nn <- summary(env$m)$nn
@@ -82,7 +82,7 @@ ps_match <- function(req_json, export = FALSE) {
       ciLow = e$conf.low[1], ciHigh = e$conf.high[1], n = nrow(env$md)) } else list(est = env$effect[2, 1], se = env$effect[2, 2], t = env$effect[2, 3], p = env$effect[2, 4],
       ciLow = env$effect_ci[2, 1], ciHigh = env$effect_ci[2, 2], n = nrow(env$md)),
     matchEffect = match_effect, link = link,
-    warnings = env$.warnings, engine = list(package = "MatchIt", version = as.character(utils::packageVersion("MatchIt")))))
+    warnings = env$.warnings, engine = ps_engine("MatchIt")))
 }
 
 #' Inverse probability weighting with WeightIt (Greifer): propensity scores by
@@ -131,8 +131,8 @@ ps_weight <- function(req, export = FALSE) {
         sprintf("est <- avg_comparisons(fit, variables = \"%s\", newdata = %s, conf_level = %s)", T, sprintf(focal, T), format(conf))),
       "effect <- as.data.frame(est)"))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Inverse probability weighting (WeightIt, %s)", if (effect_model == "dr") "doubly robust" else "IPW"),
-    c("WeightIt", "cobalt", "marginaleffects"), inputs, body, c("summary(W)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (!is.null(Y)) "est")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Inverse probability weighting (WeightIt, %s)", if (effect_model == "dr") "doubly robust" else "IPW"),
+    c("WeightIt", "cobalt", "marginaleffects"), inputs, body, c("summary(W)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (!is.null(Y)) "est")))
   env <- ps_run(body, inputs)
   b <- env$bal$Balance
   nm <- function(x) ps_back_names(x, fr$back, prefix = TRUE)
@@ -145,5 +145,5 @@ ps_weight <- function(req, export = FALSE) {
     weights = list(max = max(env$W$weights), treatedRange = range(env$W$weights[env$data[[T]] == 1]), controlRange = range(env$W$weights[env$data[[T]] == 0])),
     effect = if (is.null(Y)) NULL else list(est = e$estimate[1], se = e$std.error[1], t = e$statistic[1], p = e$p.value[1],
       ciLow = e$conf.low[1], ciHigh = e$conf.high[1], n = nrow(env$data)),
-    warnings = env$.warnings, engine = list(package = "WeightIt", version = as.character(utils::packageVersion("WeightIt")))))
+    warnings = env$.warnings, engine = ps_engine("WeightIt")))
 }

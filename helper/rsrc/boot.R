@@ -101,7 +101,7 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   body <- b$body
   # seminr's bootstrap always starts a PSOCK cluster (worker processes), which
   # R in the browser (webR) cannot do. The exported script runs in desktop R.
-  if (b$pkg == "seminr" && !export && grepl("emscripten", R.version$platform)) {
+  if (b$pkg == "seminr" && !export && ps_in_browser()) {
     stop("seminr's bootstrap needs worker processes, which R in the browser cannot start. Bootstrap with cSEM, or export the seminr bootstrap script and run it in R.")
   }
   bca <- ps_boot_bca(req)
@@ -161,7 +161,7 @@ ps_pls_boot <- function(req_json, export = FALSE) {
       failed = max(vapply(envs, function(e) B - sum(rowSums(is.finite(e$draws)) > 0), 0)),
       confidence = conf, warnings = unique(unlist(lapply(envs, function(e) ps_quiet_2ndorder(e$.warnings)))))))
   }
-  if (export) return(paste(ps_script(title, b$pkg, b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
+  if (export) return(ps_script(title, b$pkg, b$inputs, body, "print(result, digits = 4)"))
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   ps_json(list(stats = ps_boot_keys(env$result, b, req), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), tails = ps_boot_tails(req), interval = if (bca) "bca" else "percentile",
@@ -294,7 +294,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
       "colnames(jack) <- names(original)"),
     PS_BOOT_SUMMARY,
     sprintf("result <- boot_summary(draws, original, confidence = %s, tails = %d%s)", format(conf), ps_boot_tails(req), if (bca) ", jack = jack" else ""))
-  if (export) return(paste(ps_script(sprintf("Bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(result, digits = 4)"))
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   b <- ps_esem_align(b, env$fit)
@@ -370,7 +370,7 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
     PS_BOOT_SUMMARY,
     sprintf("result <- boot_summary(draws, original, confidence = %s, tails = %d)", format(conf), ps_boot_tails(req)))
   title <- sprintf("Bootstrap, %d samples (%s, modsem)", B, toupper(b$modsem))
-  if (export) return(paste(ps_script(title, c("modsem", "lavaan"), b$inputs, body, "print(result, digits = 4)"), collapse = "\n"))
+  if (export) return(ps_script(title, c("modsem", "lavaan"), b$inputs, body, "print(result, digits = 4)"))
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   constructs <- c(b$n$cname, b$int_names)

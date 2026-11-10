@@ -27,7 +27,7 @@ ps_semtree_nodes <- function(node, back, fr, parent = NULL, edge = NULL) {
 
 ps_semtree <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (grepl("emscripten", R.version$platform)) stop("SEM trees (semtree, OpenMx) run in desktop R: choose Desktop R (helper) under R runs in.")
+  if (ps_in_browser()) stop("SEM trees (semtree, OpenMx) run in desktop R: choose Desktop R (helper) under R runs in.")
   o <- req$tree
   method <- o[["method", exact = TRUE]] %||% "naive"
   if (!(is.character(method) && length(method) == 1 && method %in% c("naive", "score", "fair"))) stop("Invalid split method in the request.")
@@ -47,8 +47,7 @@ ps_semtree <- function(req_json, export = FALSE) {
   cn <- as.character(unlist(cv$names)); types <- as.character(unlist(cv$types))
   if (!length(cn) || length(cn) > 50 || anyDuplicated(cn) || length(types) != length(cn) || !all(types %in% .ps_semtree_types)) stop("Choose 1 to 50 covariates, each numeric, ordered or categorical.")
   if (any(cn %in% b$n$all_inds)) stop("A covariate is also a variable of the model.")
-  cols <- cv$cols
-  col <- function(i) as.numeric(if (is.matrix(cols)) cols[i, ] else cols[[i]])
+  col <- function(i) ps_col(cv$cols, i)
   idents <- ps_ident(c(names(b$inputs$data), cn))[-seq_along(names(b$inputs$data))]
   for (j in seq_along(idents)) while (idents[j] %in% c(names(b$inputs$data), idents[-j])) idents[j] <- paste0(idents[j], "_cov")
   if (any(vapply(seq_along(cn), function(i) length(col(i)) != nrow(b$inputs$data), TRUE))) stop("A covariate does not have one value per case.")
@@ -77,7 +76,7 @@ ps_semtree <- function(req_json, export = FALSE) {
       "vim <- varimp(forest)",
       "importance <- colMeans(vim$importance, na.rm = TRUE)"))
   inputs <- b$inputs
-  if (export) return(paste(ps_script(sprintf("SEM tree%s (semtree)", if (trees > 0) " and forest" else ""), c("lavaan", "semtree"), inputs, body, c("print(tree)", "toTable(tree)", if (trees > 0) "importance")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("SEM tree%s (semtree)", if (trees > 0) " and forest" else ""), c("lavaan", "semtree"), inputs, body, c("print(tree)", "toTable(tree)", if (trees > 0) "importance")))
   env <- ps_run(body, inputs)
   imp <- if (trees > 0) list(variables = I(unname(ps_back(names(env$importance), back))), importance = I(unname(ifelse(is.finite(env$importance), env$importance, NA_real_))),
     trees = length(env$forest$forest), seed = seed) else NULL
@@ -86,5 +85,5 @@ ps_semtree <- function(req_json, export = FALSE) {
   fr <- fr[order(fr$free), , drop = FALSE]
   ps_json(list(nodes = ps_semtree_nodes(env$tree, back, fr), n = nrow(env$data), method = method, alpha = alpha, maxDepth = depth, minN = minn,
     covariates = lapply(seq_along(cn), function(i) list(name = cn[i], type = types[i])), forest = imp,
-    warnings = env$.warnings, engine = list(package = "semtree", version = as.character(utils::packageVersion("semtree")), openmx = as.character(utils::packageVersion("OpenMx")))))
+    warnings = env$.warnings, engine = ps_engine("semtree", openmx = "OpenMx")))
 }

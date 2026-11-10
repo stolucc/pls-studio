@@ -42,7 +42,7 @@ ps_network <- function(req_json, export = FALSE) {
       sprintf("set.seed(%d)", seed),
       sprintf("boot <- bootnet(net, nBoots = %d, type = \"case\", statistics = c(\"strength\", \"expectedInfluence\", \"closeness\", \"betweenness\"), nCores = 1, verbose = FALSE)", B),
       "cs <- corStability(boot, verbose = FALSE)"))
-  if (export) return(paste(ps_script("Network (bootnet, qgraph)", c("bootnet", "qgraph"), inputs, body, c("print(round(W, 3))", "print(central)", if (B > 0) "print(cs)")), collapse = "\n"))
+  if (export) return(ps_script("Network (bootnet, qgraph)", c("bootnet", "qgraph"), inputs, body, c("print(round(W, 3))", "print(central)", if (B > 0) "print(cs)")))
   env <- ps_run(body, inputs)
   W <- env$W; ce <- env$central
   ps_json(list(names = I(colnames(W)), weights = lapply(seq_len(nrow(W)), function(i) I(unname(W[i, ]))),
@@ -50,7 +50,7 @@ ps_network <- function(req_json, export = FALSE) {
     layout = lapply(seq_len(nrow(env$layout)), function(i) I(unname(env$layout[i, ]))),
     n = nrow(inputs$data), nComplete = sum(stats::complete.cases(inputs$data)),
     cs = if (B > 0) as.list(env$cs) else NULL, samples = B, warnings = env$.warnings,
-    engine = list(package = "bootnet", version = as.character(utils::packageVersion("bootnet")))))
+    engine = ps_engine("bootnet")))
 }
 
 #' Exploratory graph analysis (Golino & Epskamp 2017; EGAnet::EGA): the number of
@@ -75,7 +75,7 @@ ps_ega <- function(req_json, export = FALSE) {
       "# Stability: EGA on bootstrap samples (bootEGA); how often each number of dimensions and each item's dimension recurs.",
       sprintf("boot <- bootEGA(data, iter = %d, seed = %d, %s, ncores = 1, plot.itemStability = FALSE, plot.typicalStructure = FALSE, verbose = FALSE)", B, seed, args),
       "items <- itemStability(boot, IS.plot = FALSE)"))
-  if (export) return(paste(ps_script("Exploratory graph analysis (EGAnet)", "EGAnet", inputs, body, c("print(ega)", "print(round(loads, 3))", if (B > 0) c("print(boot$frequency)", "print(items)"))), collapse = "\n"))
+  if (export) return(ps_script("Exploratory graph analysis (EGAnet)", "EGAnet", inputs, body, c("print(ega)", "print(round(loads, 3))", if (B > 0) c("print(boot$frequency)", "print(items)"))))
   env <- ps_run(body, inputs)
   e <- env$ega; L <- env$loads
   vars <- colnames(e$network)
@@ -88,5 +88,5 @@ ps_ega <- function(req_json, export = FALSE) {
     frequency = if (B > 0) lapply(seq_len(nrow(env$boot$frequency)), function(i) list(dims = env$boot$frequency[i, 1], share = env$boot$frequency[i, 2])) else NULL,
     itemStability = if (B > 0) I(unname(as.numeric(if (is.matrix(st)) apply(st, 1, max)[vars] else st[vars]))) else NULL,
     samples = B, n = nrow(inputs$data), warnings = env$.warnings,
-    engine = list(package = "EGAnet", version = as.character(utils::packageVersion("EGAnet")))))
+    engine = ps_engine("EGAnet")))
 }

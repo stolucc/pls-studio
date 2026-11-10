@@ -42,7 +42,7 @@ ps_did <- function(req_json, export = FALSE) {
         sprintf("pre <- evn[as.numeric(sub(\"^%s::([^:]+):.*$\", \"\\\\1\", evn)) < ref]", TM),
         "pretrend <- if (length(pre)) wald(es, keep = paste0(\"^\", gsub(\"([.|()\\\\^{}+$*?]|\\\\[|\\\\])\", \"\\\\\\\\\\\\1\", pre), \"$\"), print = FALSE) else NULL"))
     inputs <- list(data = fr$data)
-    if (export) return(paste(ps_script("Difference-in-differences (fixest, two-way fixed effects)", "fixest", inputs, body, c("summary(est)", if (event) c("summary(es)", "iplot(es)", "pretrend"))), collapse = "\n"))
+    if (export) return(ps_script("Difference-in-differences (fixest, two-way fixed effects)", "fixest", inputs, body, c("summary(est)", if (event) c("summary(es)", "iplot(es)", "pretrend"))))
     env <- ps_run(body, inputs)
     ct <- fixest::coeftable(env$est)
     k <- grep(sprintf("^%s:%s$|^%s:%s$", TR, P, P, TR), rownames(ct))
@@ -64,7 +64,7 @@ ps_did <- function(req_json, export = FALSE) {
     }
     d <- env$data
     ps_json(list(design = "twfe", att = att, event = ev, preTrend = pt, n = nrow(d), units = length(unique(d[[ID]])), periods = length(unique(d[[TM]])),
-      treatedUnits = length(unique(d[[ID]][d[[TR]] == 1])), warnings = env$.warnings, engine = list(package = "fixest", version = as.character(utils::packageVersion("fixest")))))
+      treatedUnits = length(unique(d[[ID]][d[[TR]] == 1])), warnings = env$.warnings, engine = ps_engine("fixest")))
   } else {
     body <- c("suppressPackageStartupMessages(library(did))",
       sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(Y, ID, TM, TR, X))),
@@ -76,7 +76,7 @@ ps_did <- function(req_json, export = FALSE) {
       "overall <- aggte(out, type = \"simple\")   # one ATT over all treated groups and periods",
       if (event) "dynamic <- aggte(out, type = \"dynamic\")  # by length of exposure (event study)")
     inputs <- list(data = fr$data)
-    if (export) return(paste(ps_script("Difference-in-differences with staggered adoption (did, Callaway & Sant'Anna)", "did", inputs, body, c("summary(out)", "summary(overall)", if (event) c("summary(dynamic)", "ggdid(dynamic)"))), collapse = "\n"))
+    if (export) return(ps_script("Difference-in-differences with staggered adoption (did, Callaway & Sant'Anna)", "did", inputs, body, c("summary(out)", "summary(overall)", if (event) c("summary(dynamic)", "ggdid(dynamic)"))))
     env <- ps_run(body, inputs)
     out <- env$out; ov <- env$overall
     att <- list(est = ov$overall.att, se = ov$overall.se, t = ov$overall.att / ov$overall.se, p = 2 * pnorm(-abs(ov$overall.att / ov$overall.se)),
@@ -88,6 +88,6 @@ ps_did <- function(req_json, export = FALSE) {
     pt <- if (!is.null(out$Wpval) && is.finite(out$Wpval)) list(stat = unname(out$W), p = unname(out$Wpval)) else NULL
     d <- env$data
     ps_json(list(design = "staggered", att = att, event = ev, groupTime = gt, preTrend = pt, n = nrow(d), units = length(unique(d[[ID]])), periods = length(unique(d[[TM]])),
-      treatedUnits = length(unique(d[[ID]][d[[TR]] > 0])), control = control, warnings = env$.warnings, engine = list(package = "did", version = as.character(utils::packageVersion("did")))))
+      treatedUnits = length(unique(d[[ID]][d[[TR]] > 0])), control = control, warnings = env$.warnings, engine = ps_engine("did")))
   }
 }

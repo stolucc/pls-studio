@@ -7,9 +7,7 @@
 ps_long_frame <- function(req, cols) {
   at <- match(cols, req$data$names)
   if (anyNA(at)) stop("Column(s) not in the dataset: ", paste(cols[is.na(at)], collapse = ", "))
-  dc <- req$data$cols
-  col <- function(i) as.numeric(if (is.matrix(dc)) dc[i, ] else dc[[i]])
-  df <- as.data.frame(lapply(at, col))
+  df <- as.data.frame(lapply(at, function(i) ps_col(req$data$cols, i)))
   v <- ps_ident(cols)
   names(df) <- v
   list(data = df, v = setNames(v, cols), back = setNames(cols, v))
@@ -74,8 +72,8 @@ ps_growth_syntax <- function(req, export) {
     sprintf("fit <- growth(model, data = data, estimator = \"%s\"%s%s%s)", o$est, ps_lavaan_missing(req$missing),
       if (nzchar(group)) sprintf(", group = %s", encodeString(group, quote = '"')) else "", o$extra))
   inputs <- list(data = fr$data, model = model)
-  if (export) return(paste(ps_script("Latent growth model (lavaan)", "lavaan", inputs, body,
-    "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"), collapse = "\n"))
+  if (export) return(ps_script("Latent growth model (lavaan)", "lavaan", inputs, body,
+    "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"))
   env <- ps_run(body, inputs)
   fit <- env$fit
   pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
@@ -92,7 +90,7 @@ ps_growth_syntax <- function(req, export) {
     observedMeans = if (plot) unname(colMeans(env$data[, measures, drop = FALSE], na.rm = TRUE)) else list(),
     measures = if (plot) measures else list(), times = if (plot) times else list(),
     groups = if (groups > 1) as.list(lavaan::lavInspect(fit, "group.label")) else list(),
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    warnings = env$.warnings, engine = ps_engine("lavaan")))
 }
 
 ps_growth <- function(req_json, export = FALSE) {
@@ -122,8 +120,8 @@ ps_growth <- function(req_json, export = FALSE) {
     "model <- '", paste0("  ", lines), "'",
     sprintf("fit <- growth(model, data = data, estimator = \"%s\"%s%s)", o$est, ps_lavaan_missing(req$missing), o$extra))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Latent growth curve (lavaan)", "lavaan", inputs, body,
-    "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"), collapse = "\n"))
+  if (export) return(ps_script("Latent growth curve (lavaan)", "lavaan", inputs, body,
+    "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"))
   env <- ps_run(body, inputs)
   fit <- env$fit
   implied <- lavaan::fitted(fit)$mean[y]
@@ -133,7 +131,7 @@ ps_growth <- function(req_json, export = FALSE) {
     r2 = as.list(lavaan::lavInspect(fit, "r2")[intersect(c("i", "s", "q"), names(lavaan::lavInspect(fit, "r2")))]),
     impliedMeans = unname(implied), observedMeans = unname(colMeans(env$data[, y, drop = FALSE], na.rm = TRUE)),
     measures = measures, times = times,
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    warnings = env$.warnings, engine = ps_engine("lavaan")))
 }
 
 ps_riclpm <- function(req_json, export = FALSE) {
@@ -166,15 +164,15 @@ ps_riclpm <- function(req_json, export = FALSE) {
     "# Do the random intercepts improve fit? (Their variances lie on the boundary: conservative test.)",
     "compare <- lavTestLRT(fit_clpm, fit)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("RI-CLPM (lavaan)", "lavaan", inputs, body,
-    c("summary(fit, fit.measures = TRUE, standardized = TRUE)", "compare")), collapse = "\n"))
+  if (export) return(ps_script("RI-CLPM (lavaan)", "lavaan", inputs, body,
+    c("summary(fit, fit.measures = TRUE, standardized = TRUE)", "compare")))
   env <- ps_run(body, inputs)
   lvs <- c("RIx", "RIy", sprintf("wx%d", 1:T), sprintf("wy%d", 1:T))
   cmp <- env$compare
   ps_json(list(n = lavaan::lavInspect(env$fit, "nobs"), waves = T, equal = equal, fit = ps_long_fit(env$fit), clpmFit = ps_long_fit(env$fit_clpm),
     estimates = ps_long_estimates(env$fit, fr$back, lvs),
     comparison = list(chisqDiff = unname(cmp[["Chisq diff"]][2]), dfDiff = unname(cmp[["Df diff"]][2]), p = unname(cmp[["Pr(>Chisq)"]][2])),
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    warnings = env$.warnings, engine = ps_engine("lavaan")))
 }
 
 #' Latent change score (LCS) models (McArdle 2009; Kievit et al. 2018): the univariate and bivariate dual change score
@@ -245,8 +243,8 @@ ps_lcs <- function(req_json, export = FALSE) {
     "model <- '", paste0("  ", lines), "'",
     sprintf("fit <- lavaan(model, data = data, meanstructure = TRUE, fixed.x = FALSE, control = list(iter.max = 10000), estimator = \"%s\"%s%s)", o$est, ps_lavaan_missing(req$missing), o$extra))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("%s latent change score model (lavaan)", if (bi) "Bivariate" else "Univariate"), "lavaan", inputs, body,
-    "summary(fit, fit.measures = TRUE, standardized = TRUE)"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("%s latent change score model (lavaan)", if (bi) "Bivariate" else "Univariate"), "lavaan", inputs, body,
+    "summary(fit, fit.measures = TRUE, standardized = TRUE)"))
   env <- ps_run(body, inputs)
   fit <- env$fit
   pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
@@ -260,5 +258,5 @@ ps_lcs <- function(req_json, export = FALSE) {
   imp <- function(v) if (bi || v == "x") I(unname(lavaan::fitted(fit)$mean[occ(v)])) else I(numeric(0))
   ps_json(list(n = lavaan::lavInspect(fit, "nobs"), occasions = T, bivariate = bi, x = I(as.character(xs)), y = I(as.character(ys)), fit = ps_long_fit(fit), estimates = est,
     impliedMeans = list(x = imp("x"), y = imp("y")), observedMeans = list(x = obs("x"), y = obs("y")),
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    warnings = env$.warnings, engine = ps_engine("lavaan")))
 }

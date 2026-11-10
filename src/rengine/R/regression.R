@@ -196,7 +196,7 @@ ps_regression <- function(req_json, export = FALSE) {
     if (se == "HC0" && family == "multinomial") "matrix(sqrt(diag(vc)), nrow = nrow(coef(fit)), byrow = TRUE, dimnames = dimnames(coef(fit)))  # HC0 standard errors",
     if (piecewise) c("exp(coef(fit))  # baseline hazards and hazard ratios", "ll", if (se == "HC0") "sqrt(diag(vc))"),
     if (family %in% c("gaussian", "binomial", "poisson", "negbin", "gamma")) "anova(fit, test = \"Chisq\")")
-  if (export) return(paste(ps_script(title, c("stats", libs), inputs, body, report), collapse = "\n"))
+  if (export) return(ps_script(title, c("stats", libs), inputs, body, report))
   env <- ps_run(body, inputs)
   fit <- env$fit
   # Term names back to the columns' names: each piece of a term (a:b) starts with one identifier (longest first), the rest is its level.
@@ -243,7 +243,7 @@ ps_regression <- function(req_json, export = FALSE) {
       censored = if (family == "censored") sum(if (censoring == "below") yy <= min(yy) else yy >= max(yy)) else NULL,
       zeros = if (family == "poisson") sum(yy == 0) else NULL,
       residualVariance = resvar$est, residualVarianceSe = resvar$se)
-    eng <- if (inflated || nzchar(slope)) list(package = "stats", version = as.character(getRversion())) else list(package = "survival", version = as.character(utils::packageVersion("survival")))
+    eng <- if (inflated || nzchar(slope)) list(package = "stats", version = as.character(getRversion())) else ps_engine("survival")
     shown <- if (family == "survival") sprintf("Surv(%s, %s) ~ %s%s", yv, event, if (piecewise) "baseline hazard by interval + " else "", rhs) else fml
     return(ps_json(list(family = family, link = link, formula = nm(shown), se = se, coefficients = coefs, thresholds = list(), levels = NULL, fit = fitv, lrt = lrt,
       diagnostics = list(), curves = list(), warnings = env$.warnings, engine = eng)))

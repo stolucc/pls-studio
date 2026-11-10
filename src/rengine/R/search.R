@@ -65,22 +65,14 @@ ps_cb_specsearch <- function(req_json, export = FALSE) {
     "  if (is.null(f)) return(c(converged = 0, setNames(rep(NA_real_, length(measures)), measures)))",
     sprintf("  c(converged = as.numeric(lavInspect(f, \"converged\")), fitMeasures(f, measures%s))", bl),
     "}, numeric(length(measures) + 1)))")
-  if (export) return(paste(ps_script(sprintf("Specification search over %d optional arrows, %d models (lavaan)", m, 2^m), "lavaan", b$inputs, body,
-    c("results <- data.frame(in_model, search)", "print(head(results[order(results$bic), ], 20))")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Specification search over %d optional arrows, %d models (lavaan)", m, 2^m), "lavaan", b$inputs, body,
+    c("results <- data.frame(in_model, search)", "print(head(results[order(results$bic), ], 20))")))
   env <- ps_run(body, b$inputs)
   S <- env$search; K <- env$in_model
   ps_json(list(models = lapply(seq_len(nrow(S)), function(i) list(keep = I(unname(K[i, ])), converged = S[i, "converged"] == 1,
       npar = S[i, "npar"], chisq = S[i, "chisq"], df = S[i, "df"], p = S[i, "pvalue"], cfi = S[i, "cfi"], rmsea = S[i, "rmsea"], aic = S[i, "aic"], bic = S[i, "bic"],
       warning = if (nzchar(env$warned[i])) ps_flat(env$warned[i]) else NULL)),
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
-}
-
-#' The model syntax lines of a built model (between model <- ' and ').
-ps_model_lines <- function(b) {
-  i <- match("model <- '", b$body)
-  j <- if (is.na(i)) NA else i + match("'", b$body[-seq_len(i)])
-  if (is.na(j)) stop("The model syntax could not be found.")
-  b$body[seq_len(j - i - 1) + i]
+    warnings = env$.warnings, engine = ps_engine("lavaan")))
 }
 
 #' Equivalent models confirmed by their fit: the model on the canvas and each alternative (the paths and covariances
@@ -123,12 +115,12 @@ ps_cb_equivalent <- function(req_json, export = FALSE) {
     "  fm <- fitMeasures(f); fm <- setNames(fm[measures], measures)",
     "  c(converged = as.numeric(lavInspect(f, \"converged\")), fm)",
     "}, numeric(length(measures) + 1)))")
-  if (export) return(paste(ps_script(sprintf("The model and %d equivalent alternatives (lavaan)", length(variants)), "lavaan", b$inputs, body,
-    "print(equivalent)"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("The model and %d equivalent alternatives (lavaan)", length(variants)), "lavaan", b$inputs, body,
+    "print(equivalent)"))
   env <- ps_run(body, b$inputs)
   E <- env$equivalent
   ps_json(list(fits = lapply(seq_len(nrow(E)), function(i) list(converged = isTRUE(E[i, "converged"] == 1), npar = E[i, "npar"], chisq = E[i, "chisq"], df = E[i, "df"], logl = E[i, "logl"])),
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    warnings = env$.warnings, engine = ps_engine("lavaan")))
 }
 
 #' Parameter kinds of the LM and Wald tests: lavaan operators (covariances: between two different variables).
@@ -193,8 +185,8 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
       "  wald_steps <- rbind(wald_steps, data.frame(parameter = paste(free$lhs[j], free$op[j], free$rhs[j]), lhs = free$lhs[j], op = free$op[j], rhs = free$rhs[j], est = free$est[j], chisq = w[k], df = length(dropped),",
       "    p = pchisq(w[k], length(dropped), lower.tail = FALSE), increment = inc, increment_p = pchisq(inc, 1, lower.tail = FALSE), univariate = (free$est[j] / se[j])^2, row.names = NULL))",
       "}"))
-  if (export) return(paste(ps_script("Multivariate Lagrange multiplier and Wald tests, stepwise (EQS; lavaan)", "lavaan", b$inputs, body,
-    c(if (length(lm_ops)) "print(lm_steps)", if (length(wald_ops)) "print(wald_steps)")), collapse = "\n"))
+  if (export) return(ps_script("Multivariate Lagrange multiplier and Wald tests, stepwise (EQS; lavaan)", "lavaan", b$inputs, body,
+    c(if (length(lm_ops)) "print(lm_steps)", if (length(wald_ops)) "print(wald_steps)")))
   env <- ps_run(body, b$inputs)
   back <- ps_cb_back(b)
   nm <- function(x) ps_back(x, back)
@@ -206,7 +198,7 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
     lm = if (length(lm_ops)) list(candidates = length(env$candidates), steps = rows(env$lm_steps, function(d, i) list(epc = d$epc[i]))) else NULL,
     wald = if (length(wald_ops)) list(candidates = nrow(env$free), steps = rows(env$wald_steps, function(d, i) list(est = d$est[i]))) else NULL,
     chisq = unname(fitMeasures(env$fit, "chisq")), df = unname(fitMeasures(env$fit, "df")), warnings = env$.warnings,
-    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("lavaan")))
 }
 
 #' lslx's penalty for the app's choice.
@@ -282,7 +274,7 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
   fit_args <- sprintf("penalty_method = \"%s\", %s%s, verbose = FALSE", PS_LSLX_PENALTY[[method]], grid, if (!length(deltas)) "" else sprintf(", delta_grid = c(%s)", paste(format(deltas, digits = 15), collapse = ", ")))
   # (converged tightly: at lslx's default tolerance, 1e-3, the estimates move in the third decimal with the order of the syntax)
   fit_args <- sub(", verbose = FALSE$", ", tol_out = 1e-08, iter_out_max = 1000, verbose = FALSE", fit_args)
-  body <- c(b$body[seq_len(match("model <- '", b$body) - 1)],
+  body <- c(b$body[seq_len(ps_model_span(b)[1] - 1)],
     "suppressPackageStartupMessages(library(lslx))",
     "# ---- Regularised SEM (lslx): the model with penalised parameters, pen() ----",
     "model_lslx <- '", paste0("  ", model), "'",
@@ -295,7 +287,7 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
     sprintf("estimates <- r6$test_coefficient(selector = \"%s\")", selector),
     sprintf("lr <- r6$test_lr(selector = \"%s\")", selector),
     sprintf("fit_index <- r6$extract_fit_index(selector = \"%s\")", selector))
-  if (export) return(paste(ps_script(sprintf("Regularised SEM, %s (lslx)", method), c("lavaan", "lslx"), b$inputs, body, sprintf("r6$summarize(selector = \"%s\")", selector)), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Regularised SEM, %s (lslx)", method), c("lavaan", "lslx"), b$inputs, body, sprintf("r6$summarize(selector = \"%s\")", selector)))
   env <- ps_run(body, b$inputs)
   back <- ps_cb_back(b)
   nm <- function(x) ps_back(x, back)
@@ -318,5 +310,5 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
       list(label = label[i], kind = kind[i], type = spec$type[i], est = est[r, "estimate"], se = est[r, "standard_error"], z = est[r, "z_value"], p = est[r, "p_value"]) }),
     test = list(chisq = env$lr["unadjusted", "statistic"], df = env$lr["unadjusted", "df"], p = env$lr["unadjusted", "p_value"]),
     fitIndex = as.list(env$fit_index), n = nrow(env$data), warnings = env$.warnings,
-    engine = list(package = "lslx", version = as.character(utils::packageVersion("lslx")))))
+    engine = ps_engine("lslx")))
 }

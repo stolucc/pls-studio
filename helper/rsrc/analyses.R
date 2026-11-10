@@ -14,8 +14,8 @@ ps_fittest <- function(req_json, export = FALSE) {
     sprintf("set.seed(%d)", seed),
     sprintf("test_estimated <- testOMF(fit, .R = %d, .seed = %d, .alpha = c(0.05, 0.01))", B, seed),
     sprintf("test_saturated <- testOMF(fit, .R = %d, .seed = %d, .alpha = c(0.05, 0.01), .saturated = TRUE)", B, seed))
-  if (export) return(paste(ps_script(sprintf("Test of overall model fit, %d samples (cSEM)", B), "cSEM", b$inputs, body,
-    c("test_saturated", "test_estimated")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Test of overall model fit, %d samples (cSEM)", B), "cSEM", b$inputs, body,
+    c("test_saturated", "test_estimated")))
   env <- ps_run(body, b$inputs)
   # The app reports d_G with the natural logarithm (Dijkstra & Henseler 2015).
   disc <- function(v) list(srmr = unname(v[["SRMR"]]), dULS = unname(v[["dL"]]), dG = unname(v[["dG"]]) * log(10)^2)
@@ -40,8 +40,8 @@ ps_ipma <- function(req_json, export = FALSE) {
     sprintf("for (v in %s) { a <- if (is.null(lo)) min(data[[v]]) else lo; z <- if (is.null(hi)) max(data[[v]]) else hi; data[[v]] <- (data[[v]] - a) / (z - a) * 100 }", ps_q(vars)))
   fitline <- length(b$body)
   body <- c(b$body[-fitline], resc, b$body[fitline], "ipma <- doIPMA(fit)")
-  if (export) return(paste(ps_script(sprintf("Importance-performance map analysis for %s (cSEM)", io$target), "cSEM", b$inputs, body,
-    c(sprintf("ipma$Construct$Importance[\"%s\", ]", tl), "ipma$Construct$Performance", sprintf("ipma$Indicator$Importance[\"%s\", ]", tl), "ipma$Indicator$Performance")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Importance-performance map analysis for %s (cSEM)", io$target), "cSEM", b$inputs, body,
+    c(sprintf("ipma$Construct$Importance[\"%s\", ]", tl), "ipma$Construct$Performance", sprintf("ipma$Indicator$Importance[\"%s\", ]", tl), "ipma$Indicator$Performance")))
   env <- ps_run(body, b$inputs)
   ip <- env$ipma
   cn <- setNames(b$n$cname, b$cv)
@@ -94,8 +94,8 @@ ps_miiv <- function(req_json, export = FALSE) {
     else "fit_std <- lavaan::lavaan(pt_std, data = data, do.fit = FALSE, se = \"none\")",
     "std <- lavaan::standardizedSolution(fit_std, se = FALSE)")
   body[1] <- "suppressPackageStartupMessages(library(MIIVsem))"
-  if (export) return(paste(ps_script("MIIV-2SLS (MIIVsem)", c("MIIVsem", "lavaan"), b$inputs, c(body, std_block),
-    c("summary(fit)", "std[std$op %in% c(\"=~\", \"~\"), c(\"lhs\", \"op\", \"rhs\", \"est.std\")]")), collapse = "\n"))
+  if (export) return(ps_script("MIIV-2SLS (MIIVsem)", c("MIIVsem", "lavaan"), b$inputs, c(body, std_block),
+    c("summary(fit)", "std[std$op %in% c(\"=~\", \"~\"), c(\"lhs\", \"op\", \"rhs\", \"est.std\")]")))
   # The standardisation can fail (MIIVsem's var.cov step returns NA on an improper solution) without affecting the 2SLS estimates.
   env <- ps_run(body, b$inputs)
   std_ok <- tryCatch({ eval(parse(text = paste(std_block, collapse = "\n")), envir = env); TRUE },
@@ -136,5 +136,5 @@ ps_miiv <- function(req_json, export = FALSE) {
   r2 <- ps_try(env$fit$v$rsquare, "R² (MIIVsem)")
   r2 <- if (is.null(r2)) list() else as.list(setNames(as.numeric(r2), nmc(names(r2))))
   ps_json(list(n = n, equations = eqs, estimates = unlist(lapply(eqs, `[[`, "coefficients"), recursive = FALSE), r2 = r2, fixedStd = fixed_std, variances = variances,
-    warnings = env$.warnings, engine = list(package = "MIIVsem", version = as.character(utils::packageVersion("MIIVsem")))))
+    warnings = env$.warnings, engine = ps_engine("MIIVsem")))
 }

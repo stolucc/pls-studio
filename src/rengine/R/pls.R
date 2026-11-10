@@ -158,9 +158,9 @@ ps_pls <- function(req_json, export = FALSE) {
         "fits <- lapply(seq_len(imp$m), function(k) {", "  data <- complete(imp, k)", paste0("  ", b$body), "  fit", "})",
         "# Estimates averaged over the imputed data sets (Rubin's point estimate), e.g. the path coefficients:")
       report <- if (b$pkg == "cSEM") "Reduce(`+`, lapply(fits, function(f) f$Estimates$Path_estimates)) / length(fits)" else "Reduce(`+`, lapply(fits, function(f) f$path_coef)) / length(fits)"
-      return(paste(ps_script(paste(title, "with multiple imputation"), c(b$pkg, "mice"), b$inputs, body, report), collapse = "\n"))
+      return(ps_script(paste(title, "with multiple imputation"), c(b$pkg, "mice"), b$inputs, body, report))
     }
-    return(paste(ps_script(title, b$pkg, b$inputs, b$body, report), collapse = "\n"))
+    return(ps_script(title, b$pkg, b$inputs, b$body, report))
   }
   if (identical(req$missing, "mi")) return(ps_json(ps_pls_mi(req, b)))
   ps_json(ps_htmt_notes(ps_pls_out(req, b, ps_run(b$body, b$inputs))))

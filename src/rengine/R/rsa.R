@@ -67,8 +67,8 @@ ps_rsa <- function(req_json, export = FALSE) {
     "# Block variable (Edwards & Cable 2009): the polynomial's combined prediction, a single predictor for path models.",
     "data$block <- drop(as.matrix(data[, names(b)]) %*% b)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Polynomial regression and response surface analysis", if (est == "OLS") "stats" else "lavaan", inputs, body,
-    if (est == "OLS") c("summary(fit)", "steps", "surface") else c("summary(fit, rsquare = TRUE)", "pe[pe$op == \":=\", ]")), collapse = "\n"))
+  if (export) return(ps_script("Polynomial regression and response surface analysis", if (est == "OLS") "stats" else "lavaan", inputs, body,
+    if (est == "OLS") c("summary(fit)", "steps", "surface") else c("summary(fit, rsquare = TRUE)", "pe[pe$op == \":=\", ]")))
   env <- ps_run(body, inputs)
   d <- env$data
   back <- c(fr$back, rsaX = paste(xn), rsaY = paste(yn), rsaX2 = paste0(xn, "\u00b2"), rsaXY = paste(xn, "\u00d7", yn), rsaY2 = paste0(yn, "\u00b2"))

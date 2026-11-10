@@ -76,8 +76,8 @@ ps_nca <- function(req_json, export = FALSE) {
     "})",
     "names(res) <- conditions")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Necessary condition analysis (as the NCA package)", "stats", inputs, body,
-    c("t(sapply(res, function(r) c(d_ce_fdh = r$ce, d_cr_fdh = r$cr, p = if (is.null(r$p)) NA else r$p)))", "lapply(res, `[[`, \"bottleneck\")")), collapse = "\n"))
+  if (export) return(ps_script("Necessary condition analysis (as the NCA package)", "stats", inputs, body,
+    c("t(sapply(res, function(r) c(d_ce_fdh = r$ce, d_cr_fdh = r$cr, p = if (is.null(r$p)) NA else r$p)))", "lapply(res, `[[`, \"bottleneck\")")))
   env <- ps_run(body, inputs)
   out <- lapply(env$res, function(r) list(
     n = r$n, scope = r$scope, ceFdh = r$ce, crFdh = r$cr, intercept = if (is.na(r$intercept)) NULL else r$intercept, slope = if (is.na(r$slope)) NULL else r$slope,

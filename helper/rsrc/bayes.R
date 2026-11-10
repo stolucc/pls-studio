@@ -77,7 +77,7 @@ ps_bttest <- function(req_json, export = FALSE) {
   }
   inputs <- list(data = fr$data)
   title <- c(one = "Bayesian one-sample t-test", paired = "Bayesian paired-samples t-test", independent = "Bayesian independent-samples t-test")[[type]]
-  if (export) return(paste(ps_script(title, "BayesFactor", inputs, body, unlist(lapply(seq_along(items), function(k) c(sprintf("b%d", k), sprintf("delta%d", k))))), collapse = "\n"))
+  if (export) return(ps_script(title, "BayesFactor", inputs, body, unlist(lapply(seq_along(items), function(k) c(sprintf("b%d", k), sprintf("delta%d", k))))))
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(items), function(k) {
     e <- BayesFactor::extractBF(env[[sprintf("b%d", k)]], logbf = TRUE)[1, ]
@@ -90,7 +90,7 @@ ps_bttest <- function(req_json, export = FALSE) {
   })
   groups <- if (type == "independent") { g <- fr$data[[v[[group]]]]; codes <- sort(unique(g[!is.na(g)])); l <- unlist(req$categories[[group]]); if (!is.null(l) && all(codes %in% seq_along(l))) l[codes] else format(codes, trim = TRUE) } else NULL
   ps_json(list(type = type, alternative = alt, testValue = mu, priorWidth = r, confidence = conf, seed = seed, iterations = iter, groups = groups, rows = rows,
-    warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+    warnings = env$.warnings, engine = ps_engine("BayesFactor")))
 }
 
 #' Bayesian Pearson correlations: every pair, stretched beta prior of width kappa (JASP's default 1: uniform on rho).
@@ -122,7 +122,7 @@ ps_bcorrelation <- function(req_json, export = FALSE) {
     # (the first n cases in row order, from 3; at most 150 steps)
     if (isTRUE(req$sequential)) sprintf("sequential <- lapply(xy, function(d) { steps <- unique(round(seq(3, length(d$x), length.out = min(150, length(d$x) - 2)))); list(n = steps, bf10 = vapply(steps, function(n) bfAt(d$x[1:n], d$y[1:n], %s), 0)) })", format(kappa, digits = 15)))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Bayesian Pearson correlations", "BayesFactor", inputs, body, c("bfs", "rho")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian Pearson correlations", "BayesFactor", inputs, body, c("bfs", "rho")))
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(env$pairs), function(i) { p <- env$pairs[[i]]; e <- BayesFactor::extractBF(env$bfs[[i]], logbf = TRUE)[1, ]
     list(a = fr$back[[p[1]]], b = fr$back[[p[2]]], r = env$r[i], n = env$n[i], bf10 = exp(e$bf), error = e$error,
@@ -130,7 +130,7 @@ ps_bcorrelation <- function(req_json, export = FALSE) {
       robustness = if (isTRUE(req$robustness)) list(widths = env$widths, bf10 = env$robust[[i]]) else NULL,
       sequential = if (isTRUE(req$sequential)) env$sequential[[i]] else NULL) })
   ps_json(list(alternative = alt, priorWidth = kappa, confidence = conf, seed = seed, iterations = iter, vars = vars, pairs = rows,
-    warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+    warnings = env$.warnings, engine = ps_engine("BayesFactor")))
 }
 
 #' Bayesian binomial test: each category against the rest, beta(a, b) prior on the
@@ -159,7 +159,7 @@ ps_bbinomial <- function(req_json, export = FALSE) {
     "bf10 <- exp(vapply(as.numeric(counts), logBF, 0))",
     sprintf("cri <- t(vapply(as.numeric(counts), function(k) qbeta(c(%s, 0.5, %s), k + a, n - k + b), numeric(3)))  # posterior (beta) median and central interval, unrestricted", format((1 - conf) / 2, digits = 15), format(1 - (1 - conf) / 2, digits = 15)))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Bayesian binomial test", character(0), inputs, body, c("counts", "bf10", "cri")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian binomial test", character(0), inputs, body, c("counts", "bf10", "cri")))
   env <- ps_run(body, inputs)
   ct <- env$counts
   ps_json(list(variable = x, levels = names(ct), counts = unname(as.numeric(ct)), n = sum(ct), alternative = alt, testValue = p0, priorA = a, priorB = b, confidence = conf,
@@ -187,13 +187,13 @@ ps_bbinomial_logistic <- function(req, fr, x, alt, conf, p0, export) {
     sprintf("cri <- t(vapply(bfs, function(b) quantile(as.numeric(suppressMessages(posterior(b[1], iterations = %d, progress = FALSE))[, \"p\"]), c(%s, 0.5, %s)), numeric(3)))  # posterior median and central interval of the proportion",
       iter, format((1 - conf) / 2, digits = 15), format(1 - (1 - conf) / 2, digits = 15)))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Bayesian binomial test", "BayesFactor", inputs, body, c("counts", "bfs", "cri")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian binomial test", "BayesFactor", inputs, body, c("counts", "bfs", "cri")))
   env <- ps_run(body, inputs)
   ct <- env$counts
   ps_json(list(variable = x, levels = names(ct), counts = unname(as.numeric(ct)), n = sum(ct), alternative = alt, testValue = p0, prior = "logistic", priorScale = r,
     seed = seed, iterations = iter, confidence = conf,
     rows = lapply(seq_along(ct), function(i) list(bf10 = env$bf10[i], error = BayesFactor::extractBF(env$bfs[[i]])$error[1], median = unname(env$cri[i, 2]), low = unname(env$cri[i, 1]), high = unname(env$cri[i, 3]))),
-    warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+    warnings = env$.warnings, engine = ps_engine("BayesFactor")))
 }
 
 #' Model comparison from log Bayes factors against the null model: posterior
@@ -251,14 +251,14 @@ ps_banova <- function(req_json, export = FALSE) {
     "lbf <- c(0, extractBF(bf, logbf = TRUE)$bf); names(lbf) <- c(\"Null model\", rownames(extractBF(bf)))",
     "post <- exp(lbf - max(lbf)); post <- post / sum(post)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(if (length(cov)) "Bayesian ANCOVA" else "Bayesian ANOVA", "BayesFactor", inputs, body, c("bf", "post")), collapse = "\n"))
+  if (export) return(ps_script(if (length(cov)) "Bayesian ANCOVA" else "Bayesian ANOVA", "BayesFactor", inputs, body, c("bf", "post")))
   env <- ps_run(body, inputs)
   ex <- BayesFactor::extractBF(env$bf, logbf = TRUE)
   back <- function(t) ps_back_term(trimws(t), fr$back)
   mc <- ps_bayes_models(c("Null model", rownames(ex)), c(0, ex$bf), c(0, ex$error), back)
   models <- mc$models; incl <- mc$effects
   ps_json(list(dependent = y, factors = fac, covariates = cov, covariateInteractions = withCov, n = nrow(env$data), priorFixed = rf, priorCovariates = rc, seed = seed, iterations = iter,
-    models = models, effects = incl, warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+    models = models, effects = incl, warnings = env$.warnings, engine = ps_engine("BayesFactor")))
 }
 
 #' Bayesian contingency table (BayesFactor::contingencyTableBF; Gunel & Dickey
@@ -282,14 +282,14 @@ ps_bcontingency <- function(req_json, export = FALSE) {
     sprintf("tab <- xtabs(%s~ %s + %s, data = data)", if (nzchar(wv)) paste0(v[[wv]], " ") else "", v[[rv]], v[[cv]]),
     sprintf("bf <- contingencyTableBF(tab, %s, priorConcentration = %s)", call, format(a, digits = 15)))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Bayesian contingency table", "BayesFactor", inputs, body, c("tab", "bf")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian contingency table", "BayesFactor", inputs, body, c("tab", "bf")))
   env <- ps_run(body, inputs)
   tab <- env$tab
   if (st == "hypergeom" && !all(dim(tab) == 2)) stop("The hypergeometric scheme (both margins fixed) is for 2 x 2 tables.")
   e <- BayesFactor::extractBF(env$bf, logbf = TRUE)
   ps_json(list(rows = rv, columns = cv, rowLevels = rownames(tab), colLevels = colnames(tab), counts = lapply(seq_len(nrow(tab)), function(i) unname(as.numeric(tab[i, ]))), n = sum(tab),
     sampling = st, priorConcentration = a, bf10 = exp(e$bf[1]), error = e$error[1],
-    warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+    warnings = env$.warnings, engine = ps_engine("BayesFactor")))
 }
 
 #' Bayesian repeated-measures ANOVA: one within-subject factor (wide columns) and
@@ -328,7 +328,7 @@ ps_brmanova <- function(req_json, export = FALSE) {
     sprintf("null <- lmBF(y ~ subject, data = long, whichRandom = \"subject\", rscaleRandom = %s, iterations = %d, progress = FALSE)", format(rr, digits = 15), iter),
     "rel <- bf / null")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Bayesian repeated-measures ANOVA", "BayesFactor", inputs, body, "rel"), collapse = "\n"))
+  if (export) return(ps_script("Bayesian repeated-measures ANOVA", "BayesFactor", inputs, body, "rel"))
   env <- ps_run(body, inputs)
   e <- BayesFactor::extractBF(env$bf, logbf = TRUE); e0 <- BayesFactor::extractBF(env$null, logbf = TRUE)
   keep <- rownames(e) != "subject"
@@ -339,7 +339,7 @@ ps_brmanova <- function(req_json, export = FALSE) {
   mc <- ps_bayes_models(names_, c(0, e$bf[keep] - e0$bf[1]), c(e0$error[1], sqrt(e$error[keep]^2 + e0$error[1]^2)), back)
   ps_json(list(factorName = if (is.null(design)) fname else paste(design$names, collapse = " \u00d7 "), levels = within, between = between, n = nrow(env$Y),
     factors = if (!is.null(design)) lapply(seq_along(design$names), function(i) list(name = design$names[i], levels = I(design$levels[[i]]))), priorFixed = rf, priorRandom = rr, seed = seed, iterations = iter,
-    models = mc$models, effects = mc$effects, warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+    models = mc$models, effects = mc$effects, warnings = env$.warnings, engine = ps_engine("BayesFactor")))
 }
 
 #' Bayesian linear regression (BayesFactor::regressionBF): every subset of the
@@ -372,7 +372,7 @@ ps_bregression <- function(req_json, export = FALSE) {
     "best <- which.max(lbf + log(prior))",
     sprintf("post <- if (best > 1) posterior(bf[best - 1], iterations = %d, progress = FALSE)", iter))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Bayesian linear regression", "BayesFactor", inputs, body, c("bf", "summary(post)")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian linear regression", "BayesFactor", inputs, body, c("bf", "summary(post)")))
   env <- ps_run(body, inputs)
   e <- BayesFactor::extractBF(env$bf, logbf = TRUE)
   back <- function(t) ps_back(trimws(t), fr$back)
@@ -384,7 +384,7 @@ ps_bregression <- function(req_json, export = FALSE) {
     lapply(colnames(pm)[keep], function(cn) { x <- pm[, cn]; list(term = back(cn), mean = mean(x), sd = stats::sd(x), low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2]))) }) } else list()
   ps_json(list(outcome = y, predictors = preds, n = nrow(env$data), priorWidth = r, modelPrior = mp, confidence = conf, seed = seed, iterations = iter,
     models = mc$models, effects = mc$effects, best = mc$models[[env$best]]$model, coefficients = coefs,
-    warnings = env$.warnings, engine = list(package = "BayesFactor", version = as.character(utils::packageVersion("BayesFactor")))))
+    warnings = env$.warnings, engine = ps_engine("BayesFactor")))
 }
 
 #' Bayesian SEM (blavaan, Stan): the CB-SEM model of the diagram fitted by MCMC.
@@ -408,7 +408,7 @@ ps_bsem <- function(req_json, export = FALSE) {
   engine <- req$engine %||% "blavaan"
   if (!(is.character(engine) && length(engine) == 1 && engine %in% c("blavaan", "inlavaan"))) stop("Invalid engine in the request.")
   inla <- engine == "inlavaan"
-  if (!inla && grepl("emscripten", R.version$platform)) stop("Bayesian SEM (blavaan, Stan) runs in desktop R: choose Desktop R (helper) under R runs in, or the INLAvaan engine.")
+  if (!inla && ps_in_browser()) stop("Bayesian SEM (blavaan, Stan) runs in desktop R: choose Desktop R (helper) under R runs in, or the INLAvaan engine.")
   ident <- req$identification %||% "unit"
   if (!ident %in% c("unit", "marker")) stop("Invalid identification in the request.")
   chains <- as.integer(ps_number(req$chains %||% 3, "number of chains")); burnin <- as.integer(ps_number(req$burnin %||% 500, "burn-in"))
@@ -431,9 +431,7 @@ ps_bsem <- function(req_json, export = FALSE) {
   if (length(b$composites)) stop("Composites are not available in Bayesian SEM.")
   if (length(b$esem_blocks)) stop("ESEM blocks are not available in Bayesian SEM.")
   if (isTRUE(b$means) && ident == "unit") stop("Means and intercepts in Bayesian SEM need marker identification: choose Marker indicators.")
-  at <- match("model <- '", b$body)
-  close <- at + match("'", b$body[-seq_len(at)])
-  if (is.na(at) || is.na(close)) stop("The model syntax could not be built.")
+  span <- ps_model_span(b); at <- span[1]; close <- span[2]
   # What the lavaan call holds besides the estimator: groups and their invariance, ordinal indicators, no mean
   # structure, and the diagram's own residual covariances (auto.cov.y = FALSE). (Written by ps_cb_build from
   # validated names: group and ordered are syntactic names, the rest fixed words.)
@@ -540,7 +538,7 @@ ps_bsem <- function(req_json, export = FALSE) {
       "lv <- lapply(lv, function(m) sweep(as.matrix(m), 2, shift[colnames(as.matrix(m))], `+`))",
       sprintf("pv <- lv[unique(round(seq(1, length(lv), length.out = %d)))]", npv)))
   inputs <- b$inputs
-  if (export) return(paste(ps_script("Bayesian SEM (blavaan)", c("lavaan", "blavaan"), inputs, body, c("summary(fit)", "fm", if (!is.null(loop)) "loop")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian SEM (blavaan)", c("lavaan", "blavaan"), inputs, body, c("summary(fit)", "fm", if (!is.null(loop)) "loop")))
   if (!is.null(loop)) ps_bsem_loop_check(b, at, close, lexpr, lvar)
   env <- ps_run(body, inputs)
   n <- b$n
@@ -571,7 +569,7 @@ ps_bsem <- function(req_json, export = FALSE) {
     parameters = pars, defined = defined, maxRhat = maxr, minNeff = min(env$neff, na.rm = TRUE), converged = is.finite(maxr) && maxr < 1.05,
     fit = list(ppp = fmv("ppp"), dic = fmv("dic"), pDic = fmv("p_dic"), waic = fmv("waic"), looic = fmv("looic"), seLooic = fmv("se_loo"), margLogLik = fmv("margloglik"), bic = fmv("bic")),
     loop = loop_out, plausible = pv_out,
-    warnings = env$.warnings, engine = list(package = "blavaan", version = as.character(utils::packageVersion("blavaan")))))
+    warnings = env$.warnings, engine = ps_engine("blavaan")))
 }
 #' The loop's expression names labelled or defined parameters and the loop variable only (checked before the run).
 ps_bsem_loop_check <- function(b, at, close, lexpr, lvar) {
@@ -675,7 +673,7 @@ ps_bsem_inla <- function(s, export) {
     if (npv > 0) c(
       sprintf("# Plausible values: %d draws of every case's factor scores from their posterior (Mplus FSCORES(%d))", npv, npv),
       sprintf("set.seed(%d)", seed), sprintf("pv <- predict(fit, nsamp = %d)", npv)))
-  if (export) return(paste(ps_script("Bayesian SEM (INLAvaan)", c("lavaan", "INLAvaan"), b$inputs, body, c("summary(fit)", "fm", "dg", "ic_waic", "ic_loo", if (!is.null(loop)) "loop")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian SEM (INLAvaan)", c("lavaan", "INLAvaan"), b$inputs, body, c("summary(fit)", "fm", "dg", "ic_waic", "ic_loo", if (!is.null(loop)) "loop")))
   if (!is.null(loop)) ps_bsem_loop_check(b, s$at, s$close, loop$expr, loop$variable)
   env <- ps_run(body, b$inputs)
   constructs <- b$n$cname; lv_lname <- unname(b$lname[constructs])
@@ -710,7 +708,7 @@ ps_bsem_inla <- function(s, export) {
       vbShiftMax = dgv("vb_shift_max"), kldMax = dgv("kld_max"), nmadMax = dgv("nmad_max"), scanEndMassMax = dgv("scan_end_mass_max")),
     seconds = fin(INLAvaan::timing(env$fit)[["total"]]), intervals = if (marg) "marginals" else "draws",
     loop = if (!is.null(loop)) ps_bsem_loop_out(env, loop$name, loop$variable, loop$expr), plausible = if (npv > 0) ps_bsem_pv_out(env$pv, lv_lname, nm),
-    warnings = env$.warnings, engine = list(package = "INLAvaan", version = as.character(utils::packageVersion("INLAvaan")))))
+    warnings = env$.warnings, engine = ps_engine("INLAvaan")))
 }
 #' A numeric vector as R code.
 ps_num_vec <- function(x) sprintf("c(%s)", paste(vapply(x, function(v) format(ps_number(v), digits = 15), ""), collapse = ", "))

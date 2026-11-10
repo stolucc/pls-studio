@@ -472,7 +472,7 @@ ps_dsem_bscore <- function(s, dd, k) {
 #' Bayesian multilevel / DSEM model by Stan (desktop R).
 ps_dsem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (grepl("emscripten", R.version$platform)) stop("Bayesian multilevel and DSEM models (Stan) run in desktop R: choose Desktop R (helper) under R runs in.")
+  if (ps_in_browser()) stop("Bayesian multilevel and DSEM models (Stan) run in desktop R: choose Desktop R (helper) under R runs in.")
   chains <- ps_dsem_int(req$chains %||% 2, 1, 8, "number of chains")
   warmup <- ps_dsem_int(req$warmup %||% 1000, 100, 1e5, "burn-in")
   draws <- ps_dsem_int(req$draws %||% 1000, 100, 1e5, "number of draws")
@@ -512,7 +512,7 @@ ps_dsem <- function(req_json, export = FALSE) {
       W = ps_dsem_score(s, dd, k), pre = rep(0, 2 * dd$S))
   }
   inputs <- list(standata = sdat$data, inits = lapply(seq_len(chains), function(i) st))
-  if (export) return(paste(ps_script("Bayesian multilevel / DSEM model (Stan)", c("rstan"), inputs, body, c("print(fit, digits = 3)")), collapse = "\n"))
+  if (export) return(ps_script("Bayesian multilevel / DSEM model (Stan)", c("rstan"), inputs, body, c("print(fit, digits = 3)")))
   env <- ps_run(body, inputs)
   post <- env$post; summ <- env$summ
   colv <- function(c) {
@@ -538,5 +538,5 @@ ps_dsem <- function(req_json, export = FALSE) {
     parameters = rows, maxRhat = maxr, minNeff = if (length(ne) && any(is.finite(ne))) min(ne, na.rm = TRUE) else NA_real_,
     converged = is.finite(maxr) && maxr < 1.05, divergent = div,
     npar = length(unique(unlist(lapply(s$report, function(r) if (!is.null(r$c$p)) paste(r$c$p, r$c$i %||% 0, r$c$j %||% 0))))),
-    warnings = env$.warnings, engine = list(package = "rstan", version = as.character(utils::packageVersion("rstan")))))
+    warnings = env$.warnings, engine = ps_engine("rstan")))
 }

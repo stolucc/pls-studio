@@ -91,7 +91,7 @@ ps_ttest <- function(req_json, export = FALSE) {
   }
   inputs <- list(data = fr$data)
   title <- c(one = "One-sample t-test", paired = "Paired-samples t-test", independent = "Independent-samples t-test")[[type]]
-  if (export) return(paste(ps_script(title, character(0), inputs, body, sprintf("r%d", seq_along(if (type == "paired") pairs else vars))), collapse = "\n"))
+  if (export) return(ps_script(title, character(0), inputs, body, sprintf("r%d", seq_along(if (type == "paired") pairs else vars))))
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(if (type == "paired") pairs else vars), function(k) {
     r <- env[[sprintf("r%d", k)]]
@@ -141,7 +141,7 @@ ps_anova <- function(req_json, export = FALSE) {
       "# After Kruskal-Wallis: pairwise Wilcoxon rank-sum tests, p adjusted by Holm's method.",
       sprintf("pwRank <- pairwise.wilcox.test(data$%s, data$%s, p.adjust.method = \"holm\", exact = FALSE)", v[[y]], v[[fac[1]]])))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", character(0), inputs, body, c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank"))), collapse = "\n"))
+  if (export) return(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", character(0), inputs, body, c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank"))))
   env <- ps_run(body, inputs)
   fit <- env$fit; tab <- env$tab; d <- env$data
   ssres <- sum(residuals(fit)^2); dfres <- df.residual(fit); msres <- ssres / dfres
@@ -212,7 +212,7 @@ ps_rmanova <- function(req_json, export = FALSE) {
     "posthoc <- lapply(pairs, function(p) t.test(Y[, p[1]], Y[, p[2]], paired = TRUE))",
     "pHolm <- p.adjust(vapply(posthoc, function(h) h$p.value, 0), method = \"holm\")")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")), collapse = "\n"))
+  if (export) return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")))
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
   strat <- function(s) { t <- s[[1]]; rn <- trimws(rownames(t)); lapply(seq_len(nrow(t)), function(i) list(term = rn[i], ss = t[i, "Sum Sq"], df = t[i, "Df"], ms = t[i, "Mean Sq"], f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL, p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL)) }
@@ -308,7 +308,7 @@ ps_rmanova_multi <- function(req, design, export) {
     "mauchly <- lapply(effects, function(e) mauchly.test(mlm, M = e$M, X = e$X, idata = idata))  # (an effect with one degree of freedom is spherical)",
     PS_RM_LEVEL_TESTS[c(1, if (!bt) 2, 3)])
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "posthoc")), collapse = "\n"))
+  if (export) return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "posthoc")))
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
   back <- function(t) ps_back_term(trimws(t), fr$back)
@@ -377,7 +377,7 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     "uni <- summary(av, multivariate = FALSE)",
     PS_RM_LEVEL_TESTS[c(1, 3)])
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Repeated-measures ANOVA", "car", inputs, body, c("uni", "posthoc")), collapse = "\n"))
+  if (export) return(ps_script("Repeated-measures ANOVA", "car", inputs, body, c("uni", "posthoc")))
   env <- ps_run(body, inputs)
   ut <- env$uni$univariate.tests; rn <- rownames(ut)
   parts <- strsplit(rn, ":", fixed = TRUE)
@@ -410,7 +410,7 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     sphericity = if (single) (if (is.null(sp1)) NULL else sp1[c("w", "p", "gg", "hf")]) else NULL, sphericityTable = if (!single) sph else NULL,
     corrected = corr, friedman = NULL, posthoc = ps_rm_posthoc_out(env$posthoc),
     cells = lapply(seq_along(design$cells), function(i) c(list(cell = if (single) design$cells[i] else sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))),
-    warnings = env$.warnings, engine = list(package = "car", version = as.character(utils::packageVersion("car")))))
+    warnings = env$.warnings, engine = ps_engine("car")))
 }
 
 #' MANOVA: summary.manova with Pillai's trace, Wilks' lambda, Hotelling-Lawley
@@ -429,7 +429,7 @@ ps_manova <- function(req_json, export = FALSE) {
     sprintf("fit <- manova(%s, data = data)", fml),
     sprintf("res <- lapply(%s, function(t) summary(fit, test = t)$stats)", ps_q(tests)))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("MANOVA", character(0), inputs, body, "res"), collapse = "\n"))
+  if (export) return(ps_script("MANOVA", character(0), inputs, body, "res"))
   env <- ps_run(body, inputs)
   back <- function(t) ps_back_term(trimws(t), fr$back)
   out <- lapply(seq_along(tests), function(i) { s <- env$res[[i]]; rn <- setdiff(trimws(rownames(s)), "Residuals")
@@ -462,7 +462,7 @@ ps_correlation <- function(req_json, export = FALSE) {
       if (method == "pearson") sprintf(", conf.level = %s", format(conf)) else ", exact = FALSE"),
     "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Correlations (%s)", method), character(0), inputs, body, "setNames(tests, vapply(pairs, paste, \"\", collapse = \" ~ \"))"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Correlations (%s)", method), character(0), inputs, body, "setNames(tests, vapply(pairs, paste, \"\", collapse = \" ~ \"))"))
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(env$pairs), function(i) { p <- env$pairs[[i]]; h <- env$tests[[i]]
     list(a = fr$back[[p[1]]], b = fr$back[[p[2]]], r = unname(h$estimate), p = h$p.value, n = env$n[i], stat = unname(h$statistic),
@@ -496,7 +496,7 @@ ps_polychoric <- function(fr, vars, alt, conf, listwise, export) {
     "n <- vapply(seq_len(nrow(est)), function(i) sum(complete.cases(data[[est$lhs[i]]], data[[est$rhs[i]]])), 0)",
     if (sum(ordinal) >= 2) "normality <- lavTables(fit, dimension = 2L, type = \"table\", statistic = c(\"X2\", \"G2\"), p_value = TRUE)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Polychoric correlations (lavaan)", "lavaan", inputs, body, c("est", if (sum(ordinal) >= 2) "normality")), collapse = "\n"))
+  if (export) return(ps_script("Polychoric correlations (lavaan)", "lavaan", inputs, body, c("est", if (sum(ordinal) >= 2) "normality")))
   env <- ps_run(body, inputs)
   e <- env$est
   z <- e$est.std / e$se
@@ -510,7 +510,7 @@ ps_polychoric <- function(fr, vars, alt, conf, listwise, export) {
     ordinal = I(unname(vapply(col[ordinal], function(k) fr$back[[k]], ""))),
     normality = if (is.null(nt)) list() else lapply(seq_len(nrow(nt)), function(i) list(a = fr$back[[as.character(nt$lhs[i])]], b = fr$back[[as.character(nt$rhs[i])]],
       df = as.numeric(nt$df[i]), x2 = as.numeric(nt$X2[i]), x2p = as.numeric(nt$X2.pval[i]), g2 = as.numeric(nt$G2[i]), g2p = as.numeric(nt$G2.pval[i]))),
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    warnings = env$.warnings, engine = ps_engine("lavaan")))
 }
 
 #' Contingency table: counts (or a column of frequencies), expected counts, the
@@ -539,7 +539,7 @@ ps_contingency <- function(req_json, export = FALSE) {
     sprintf("  orCI <- exp(log(or) + c(-1, 1) * qnorm(1 - (1 - %s) / 2) * sqrt(sum(1 / tab)))", format(conf)),
     "}")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Contingency table", character(0), inputs, body, c("tab", "chi", "chiYates", "c(G2 = G2, p = pG2)", "fisher", "cramerV")), collapse = "\n"))
+  if (export) return(ps_script("Contingency table", character(0), inputs, body, c("tab", "chi", "chiYates", "c(G2 = G2, p = pG2)", "fisher", "cramerV")))
   env <- ps_run(body, inputs)
   tab <- env$tab
   two <- all(dim(tab) == 2)
@@ -574,7 +574,7 @@ ps_freqtest <- function(req_json, export = FALSE) {
     body <- c(body, sprintf("gof <- chisq.test(counts%s)", if (length(props)) sprintf(", p = c(%s), rescale.p = TRUE", paste(format(props, digits = 15), collapse = ", ")) else ""))
   }
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(if (type == "binomial") "Binomial test" else "Multinomial test", character(0), inputs, body, c("counts", if (type == "binomial") "tests" else "gof")), collapse = "\n"))
+  if (export) return(ps_script(if (type == "binomial") "Binomial test" else "Multinomial test", character(0), inputs, body, c("counts", if (type == "binomial") "tests" else "gof")))
   env <- ps_run(body, inputs)
   ct <- env$counts
   ps_json(list(type = type, variable = x, levels = names(ct), counts = unname(as.numeric(ct)), n = sum(ct), alternative = alt, confidence = conf,
@@ -630,13 +630,13 @@ ps_kappa_table <- function(req, export) {
     "suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, length(codes)),
     sprintf("k <- cohen.kappa(tab%s, alpha = %s)", ps_kappa_args(req), format(1 - conf)))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Cohen's kappa of an agreement table (psych)", "psych", inputs, body, c("tab", "k")), collapse = "\n"))
+  if (export) return(ps_script("Cohen's kappa of an agreement table (psych)", "psych", inputs, body, c("tab", "k")))
   env <- ps_run(body, inputs)
   cf <- env$k$confid
   ps_json(list(type = "kappa", vars = c(rv, cv), n = sum(env$tab), confidence = conf, table = TRUE,
     kappa = list(est = cf[1, 2], ciLow = cf[1, 1], ciHigh = cf[1, 3]), weighted = list(est = cf[2, 2], ciLow = cf[2, 1], ciHigh = cf[2, 3]), categories = length(codes),
     weights = req$kappaWeights %||% "squared", levels = I(labels), counts = lapply(seq_len(nrow(env$tab)), function(i) unname(as.numeric(env$tab[i, ]))),
-    warnings = env$.warnings, engine = list(package = "psych", version = as.character(utils::packageVersion("psych")))))
+    warnings = env$.warnings, engine = ps_engine("psych")))
 }
 
 #' Reliability and agreement (psych; Bland-Altman in base R):
@@ -674,8 +674,8 @@ ps_reliability <- function(req_json, export = FALSE) {
       sprintf("biasCI <- bias + c(-1, 1) * qt(1 - (1 - %s) / 2, n - 1) * s / sqrt(n)", format(conf)))))
   inputs <- list(data = fr$data)
   title <- c(scale = "Scale reliability (psych)", icc = "Intraclass correlation (psych)", kappa = "Cohen's kappa (psych)", blandaltman = "Bland-Altman agreement")[[type]]
-  if (export) return(paste(ps_script(title, if (type == "blandaltman") character(0) else c("psych", "GPArotation")[seq_len(if (type == "scale") 2 else 1)], inputs, body,
-    switch(type, scale = c("a", "o$omega.tot", "g$glb"), icc = "icc", kappa = "k", blandaltman = c("c(bias = bias, sd = s, lower = loa[1], upper = loa[2])", "biasCI"))), collapse = "\n"))
+  if (export) return(ps_script(title, if (type == "blandaltman") character(0) else c("psych", "GPArotation")[seq_len(if (type == "scale") 2 else 1)], inputs, body,
+    switch(type, scale = c("a", "o$omega.tot", "g$glb"), icc = "icc", kappa = "k", blandaltman = c("c(bias = bias, sd = s, lower = loa[1], upper = loa[2])", "biasCI"))))
   env <- ps_run(body, inputs)
   n <- nrow(env$X)
   out <- switch(type,
@@ -690,5 +690,5 @@ ps_reliability <- function(req_json, export = FALSE) {
       list(bias = env$bias, sd = env$s, lower = env$loa[1], upper = env$loa[2], biasCiLow = env$biasCI[1], biasCiHigh = env$biasCI[2], points = list(mean = unname(env$m[keep]), diff = unname(env$d[keep]))) })
   if (type == "kappa") out$agreement <- NULL
   ps_json(c(list(type = type, vars = vars, n = n, confidence = conf), out, list(warnings = env$.warnings,
-    engine = if (type == "blandaltman") list(package = "stats", version = as.character(getRversion())) else list(package = "psych", version = as.character(utils::packageVersion("psych"))))))
+    engine = if (type == "blandaltman") list(package = "stats", version = as.character(getRversion())) else ps_engine("psych"))))
 }

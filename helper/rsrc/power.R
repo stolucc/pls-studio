@@ -136,7 +136,7 @@ ps_power <- function(req_json, export = FALSE) {
       "verdict <- c(\"excellent\", \"close\", \"fair\", \"mediocre\", \"poor\")[findInterval(rmsea_t, cutoffs) + 1]")
     report <- c("c(T = Tml, df = df, n = n, RMSEA = rmsea, RMSEA_t = rmsea_t)", "cutoffs", "verdict")
   }
-  if (export) return(paste(ps_script(sprintf("Power analysis (%s)", c(apriori = "a priori", posthoc = "post hoc", compromise = "compromise", parameter = "a parameter", equivalence = "RMSEA equivalence test")[[analysis]]), packages, inputs, body, report), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Power analysis (%s)", c(apriori = "a priori", posthoc = "post hoc", compromise = "compromise", parameter = "a parameter", equivalence = "RMSEA equivalence test")[[analysis]]), packages, inputs, body, report))
   env <- ps_run(body, inputs)
   val <- function(x) if (is.null(x) || !length(x) || !is.finite(x[1])) NULL else unname(as.numeric(x[1]))
   res <- list(analysis = analysis)
@@ -154,6 +154,6 @@ ps_power <- function(req_json, export = FALSE) {
     if (analysis == "parameter") res <- c(res, list(estimate = env$estimate, sampleN = env$n_sample, param = list(lhs = p$lhs, op = op, rhs = p$rhs, value = as.numeric(value))))
   }
   res$warnings <- env$.warnings
-  res$engine <- list(package = "semPower", version = as.character(utils::packageVersion("semPower")))
+  res$engine <- ps_engine("semPower")
   ps_json(res)
 }

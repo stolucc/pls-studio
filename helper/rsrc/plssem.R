@@ -31,11 +31,10 @@ ps_plssem_build <- function(req) {
   lv <- setNames(ifelse(single, unname(n$iv[vapply(n$inds, `[`, "", 1)]), unname(n$cv)), cname)
   taken <- c(unname(n$iv), unname(n$cv))
   fresh <- function(x) { y <- ps_ident(x); while (y %in% taken) y <- paste0(y, "_"); taken <<- c(taken, y); y }
-  cols <- req$data$cols
   col <- function(nm) {
     at <- match(nm, req$data$names)
     if (is.na(at)) stop(sprintf("%s is not in the dataset.", nm))
-    as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+    ps_col(req$data$cols, at)
   }
   data <- ps_frame(req, n)
   if (ml$column %in% n$all_inds) stop(sprintf("%s is an indicator and cannot also define the clusters.", ml$column))
@@ -127,7 +126,7 @@ ps_plssem_build <- function(req) {
 
 ps_plssem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (grepl("emscripten", R.version$platform)) stop("Multilevel PLS-SEM (plssem 0.2.0) runs in desktop R: choose Desktop R (helper) under R runs in.")
+  if (ps_in_browser()) stop("Multilevel PLS-SEM (plssem 0.2.0) runs in desktop R: choose Desktop R (helper) under R runs in.")
   if (utils::packageVersion("plssem") < "0.2.0") stop(sprintf("Multilevel PLS-SEM needs plssem 0.2.0 or later (desktop R has %s): update it from the helper's menu (Install R packages...).", utils::packageVersion("plssem")))
   o <- req$options
   b <- ps_plssem_build(req)
@@ -155,7 +154,7 @@ ps_plssem <- function(req_json, export = FALSE) {
     "fm <- fit_measures(fit)",
     "r2 <- summary(fit, fit = FALSE)$levels")
   inputs <- list(data = data)
-  if (export) return(paste(ps_script("Two-level PLS-SEM (plssem, MC-PLSc)", "plssem", inputs, body, c("summary(fit)", "est")), collapse = "\n"))
+  if (export) return(ps_script("Two-level PLS-SEM (plssem, MC-PLSc)", "plssem", inputs, body, c("summary(fit)", "est")))
   env <- ps_run(body, inputs)
   # plssem's own note (a message) with the fit measures of MC-PLSc models, shown beside them.
   fit_note <- "Fit measures for MC-PLSc models are under development! Traditional fit criteria will likely be too strict."
@@ -188,5 +187,5 @@ ps_plssem <- function(req_json, export = FALSE) {
     n = fit@info$n, clusters = fit@info$nclusters, iterations = fit@status$iterations, converged = isTRUE(fit@status$converged),
     admissible = isTRUE(fit@status$is.admissible), estimator = fit@info$estimator, consistent = consistent, scheme = scheme,
     missing = missing, seed = seed, bootR = R, ordered = I(b$ordered_names), fitNote = fit_note, syntax = I(b$syntax),
-    warnings = I(env$.warnings), engine = list(package = "plssem", version = as.character(utils::packageVersion("plssem")))))
+    warnings = I(env$.warnings), engine = ps_engine("plssem")))
 }
