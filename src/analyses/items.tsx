@@ -22,7 +22,7 @@ export interface IrtOptions { items: string[]; model: IrtModel; quadrature?: num
 /** model (absent: categorical items, poLCA): see LcaKind; structure: latent profiles; times: growth, one per item (occasion); cluster and clusterClasses: multilevel. */
 export interface LcaOptions { items: string[]; from: number; to: number; model?: LcaKind; structure?: LpaStructure; times?: number[]; cluster?: string; clusterClasses?: number }
 
-const LCA_KINDS: { id: LcaKind; label: string; hint: string }[] = [
+export const LCA_KINDS: { id: LcaKind; label: string; hint: string }[] = [
   { id: 'lca', label: 'Categorical items (latent classes)', hint: 'Categorical items (each value a category), poLCA.' },
   { id: 'lpa', label: 'Continuous items (latent profiles)', hint: 'Continuous items: a mixture of normal distributions within which the items are independent unless covariances are chosen, fitted by EM in R. Cases missing an item are left out.' },
   { id: 'lcga', label: 'Ordered outcome over time (latent class growth)', hint: 'The items are one ordered categorical outcome at successive occasions: each class has its own intercept and linear slope on the logit scale, with thresholds equal over time and classes and no variation within a class (Mplus’s LCGA). A missing occasion is left out of that person’s likelihood.' },
@@ -276,7 +276,7 @@ function LcaOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<LcaOpti
   );
 }
 
-const IRT_MODELS = ['rasch', 'twopl', 'grm', 'gpcm', 'threepl', 'fourpl', 'mixture'] as const;
+export const IRT_MODELS = ['rasch', 'twopl', 'grm', 'gpcm', 'threepl', 'fourpl', 'mixture'] as const;
 const prior = (v: unknown): [number, number] | undefined => (Array.isArray(v) && v.length === 2 && v.every((x) => typeof x === 'number' && Number.isFinite(x)) && (v[1] as number) > 0 ? [v[0], v[1]] as [number, number] : undefined);
 /** How the card's options fit the model (R's request): the mirt options only for the mirt models, robust standard errors where available. */
 export const irtFit = (o: IrtOptions, seed: number): IrtFit => ({

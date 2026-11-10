@@ -157,7 +157,7 @@ function EndoOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<EndoOp
   );
 }
 
-const METHOD_IDS = ['iv', 'copula', 'het', 'hm', 'liv', 'heckman'] as const;
+export const ENDO_METHODS = ['iv', 'copula', 'het', 'hm', 'liv', 'heckman'] as const;
 const HM_IDS = ['g', 'gp', 'gy', 'yp', 'p2', 'y2'] as const;
 
 export const endoAnalysis: AnalysisType<EndoOptions, EndoCardResult> = {
@@ -171,7 +171,7 @@ export const endoAnalysis: AnalysisType<EndoOptions, EndoCardResult> = {
     if (!isObj(raw)) return null;
     const sel = isObj(raw.selection) ? raw.selection : {};
     return {
-      source: raw.source === 'scores' ? 'scores' : 'data', method: oneOf(raw.method, METHOD_IDS, 'copula'),
+      source: raw.source === 'scores' ? 'scores' : 'data', method: oneOf(raw.method, ENDO_METHODS, 'copula'),
       outcome: name(raw.outcome), exogenous: names(raw.exogenous), endogenous: names(raw.endogenous), instruments: names(raw.instruments), hetRegressors: names(raw.hetRegressors),
       hmTypes: [...new Set((Array.isArray(raw.hmTypes) ? raw.hmTypes : []).filter((h): h is HmType => HM_IDS.includes(h as HmType)))],
       selection: { outcome: name(sel.outcome), regressors: names(sel.regressors) },

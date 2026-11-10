@@ -21,6 +21,8 @@ export interface CmbOptions { type: CmbInput['type']; source: 'model' | 'columns
 const CMB_NAME = { harman: 'Harman’s single-factor test', vif: 'Full-collinearity VIFs' } as const;
 /** Kock (2015): a VIF above 3.3 signals pathological collinearity, and so common method bias. */
 export const KOCK_VIF = 3.3;
+/** Harman's single-factor test, or full-collinearity VIFs. */
+export const CMB_TYPES = ['harman', 'vif'] as const;
 
 /** The indicators the diagram uses, in canvas order (those in the data). */
 const modelIndicators = (ctx: AnalysisCtx) => { const ds = rawData(ctx); return [...new Set((ctx.model?.constructs ?? []).flatMap((k) => k.indicators))].filter((n) => ds?.names.includes(n)); };
@@ -99,7 +101,7 @@ export const cmbAnalysis: AnalysisType<CmbOptions, CmbResult> = {
   ],
   cardTitle: (o) => CMB_NAME[o.type],
   defaults: (ctx) => ({ type: 'harman', source: ctx.model?.constructs.length ? 'model' : 'columns', vars: [], extraction: 'pca' }),
-  parseOptions: (raw) => (isObj(raw) ? { type: oneOf(raw.type, ['harman', 'vif'] as const, 'harman'), source: oneOf(raw.source, ['model', 'columns'] as const, 'model'), vars: names(raw.vars), extraction: oneOf(raw.extraction, ['pca', 'fa'] as const, 'pca') } : null),
+  parseOptions: (raw) => (isObj(raw) ? { type: oneOf(raw.type, CMB_TYPES, 'harman'), source: oneOf(raw.source, ['model', 'columns'] as const, 'model'), vars: names(raw.vars), extraction: oneOf(raw.extraction, ['pca', 'fa'] as const, 'pca') } : null),
   Options: CmbForm,
   View: ({ result, options }) => (result.type === 'harman' ? <HarmanView r={result} /> : <VifView r={result} scores={options?.source === 'model'} />),
   blocked: (o, ctx) => {

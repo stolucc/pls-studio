@@ -1157,24 +1157,31 @@ export function parseModelState(m: unknown): ModelState {
   };
 }
 
+/** The estimation choices of the Model tab (the first of each is the default; validation/cards.ts lists the evidence of each). */
+export const CB_ESTIMATORS = ['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLS', 'WLSMV', '2SLS', 'RML'] as const;
+export const PLS_APPROACHES = ['PLS-PM', 'GSCA', 'PCA', 'unit'] as const;
+export const HOC_APPROACHES = ['two_stage', 'embedded', 'repeated'] as const;
+export const MISSING_TREATMENTS = ['mean', 'casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const;
+export const BOOT_INTERVALS = ['percentile', 'bca', 'studentized'] as const;
+export const INTERACTIONS = ['product', 'lms', 'qml'] as const;
 /** Parse and strictly validate untrusted settings (a project file's, or those kept in a model-run card); anything missing takes its default. */
 export function parseSettings(raw: unknown): Settings {
   const s = isObj(raw) ? raw : {};
   return {
     method: s.method === 'cbsem' || s.method === 'process' ? s.method : 'pls',
     consistent: s.consistent === true,
-    estimator: (['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLS', 'WLSMV', '2SLS', 'RML'] as const).find((e) => e === s.estimator) ?? 'ML',
+    estimator: CB_ESTIMATORS.find((e) => e === s.estimator) ?? 'ML',
     engine: s.engine === 'builtin' ? 'builtin' : 'r',
     plsPackage: s.plsPackage === 'seminr' ? 'seminr' : 'cSEM',
-    plsApproach: (['GSCA', 'PCA', 'unit'] as const).find((x) => x === s.plsApproach) ?? 'PLS-PM',
-    hocApproach: (['embedded', 'repeated'] as const).find((x) => x === s.hocApproach) ?? 'two_stage',
+    plsApproach: PLS_APPROACHES.find((x) => x === s.plsApproach) ?? 'PLS-PM',
+    hocApproach: HOC_APPROACHES.find((x) => x === s.hocApproach) ?? 'two_stage',
     figure: parseFigureStyle(s.figure),
     ...(parseEfaDesign(s.efa) ? { efa: parseEfaDesign(s.efa) } : {}),
     charts: parseChartStyle(s.charts),
     scheme: s.scheme === 'factor' || s.scheme === 'centroid' ? s.scheme : 'path',
     maxIter: Math.round(clampStrict(s.maxIter, 10, 10000, DEFAULT_SETTINGS.maxIter)),
     stopExp: Math.round(clampStrict(s.stopExp, 3, 12, DEFAULT_SETTINGS.stopExp)),
-    missing: (['casewise', 'fiml', 'mi', 'pairwise', 'twostage', 'robusttwostage'] as const).find((m) => m === s.missing) ?? 'mean',
+    missing: MISSING_TREATMENTS.find((m) => m === s.missing) ?? 'mean',
     miImputations: Math.round(clampStrict(s.miImputations, 2, 200, DEFAULT_SETTINGS.miImputations)),
     miMethod: s.miMethod === 'amelia' || s.miMethod === 'micenorm' || s.miMethod === 'joint' ? s.miMethod : 'mice',
     miAuxiliary: Array.isArray(s.miAuxiliary) ? [...new Set(s.miAuxiliary.slice(0, 500).filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 200)))] : [],
@@ -1182,12 +1189,12 @@ export function parseSettings(raw: unknown): Settings {
     bootSamples: Math.round(clampStrict(s.bootSamples, 10, 100000, DEFAULT_SETTINGS.bootSamples)),
     autoCalculate: s.autoCalculate === true,
     bootTails: s.bootTails === 'one' ? 'one' : 'two',
-    bootInterval: s.bootInterval === 'bca' || s.bootInterval === 'studentized' ? s.bootInterval : 'percentile',
+    bootInterval: BOOT_INTERVALS.find((x) => x === s.bootInterval) ?? 'percentile',
     seed: Math.round(clampStrict(s.seed, 0, 2 ** 31, DEFAULT_SETTINGS.seed)),
     confidence: clampStrict(s.confidence, 0.5, 0.999, DEFAULT_SETTINGS.confidence),
     probe: s.probe === 'meansd' ? 'meansd' : 'percentiles',
     hc: (['HC0', 'HC1', 'HC2', 'HC3', 'HC4'] as const).find((h) => h === s.hc) ?? 'none',
-    interaction: s.interaction === 'lms' || s.interaction === 'qml' ? s.interaction : 'product',
+    interaction: INTERACTIONS.find((x) => x === s.interaction) ?? 'product',
     counterfactual: isObj(s.counterfactual) && finite(s.counterfactual.xref) && finite(s.counterfactual.xcf) ? { xref: s.counterfactual.xref, xcf: s.counterfactual.xcf } : null,
   };
 }

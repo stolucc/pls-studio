@@ -32,6 +32,8 @@ export const FAMILIES: readonly (readonly [Family, string, string])[] = [
   ['censored', 'Censored (tobit)', 'A continuous outcome censored at its lowest (or highest) value: a normal model for the latent outcome (survival::survreg); optionally censored-inflated.'],
   ['survival', 'Survival (Cox, piecewise exponential)', 'Time to an event, with censored times: Cox regression (survival::coxph), or a piecewise-constant baseline hazard with cut points.'],
 ];
+/** The count models' zero parts (pscl): zero-inflated or hurdle. */
+export const ZERO_MODELS = ['zeroinfl', 'hurdle'] as const;
 /** Models whose standard errors are model-based or HC0 (the maximum-likelihood sandwich, Mplus MLR) only. */
 const ownSe = (o: Pick<RegressionOptions, 'family' | 'inflated' | 'randomSlope' | 'zeroModel'>) => o.family === 'multinomial' || o.family === 'censored' || o.family === 'survival' || (o.family === 'poisson' && !!o.inflated) || (o.family === 'gaussian' && !!o.randomSlope) || isZeroModel(o);
 /** The zero part's predictors when chosen (y ~ x | z), otherwise none of its own. */
@@ -56,7 +58,7 @@ export function parseCuts(text: string): number[] {
   return [...new Set(out.filter((x) => x > 0))].sort((a, b) => a - b).slice(0, 200);
 }
 const FAMILY_NAME = Object.fromEntries(FAMILIES.map(([id, l]) => [id, l])) as Record<Family, string>;
-const LINKS: Record<string, readonly (readonly [string, string])[]> = { binomial: [['logit', 'Logit'], ['probit', 'Probit'], ['cloglog', 'Complementary log-log']], ordinal: [['logistic', 'Logit'], ['probit', 'Probit'], ['cloglog', 'Complementary log-log']] };
+export const LINKS: Record<string, readonly (readonly [string, string])[]> = { binomial: [['logit', 'Logit'], ['probit', 'Probit'], ['cloglog', 'Complementary log-log']], ordinal: [['logistic', 'Logit'], ['probit', 'Probit'], ['cloglog', 'Complementary log-log']] };
 
 function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<RegressionOptions>) {
   const d = rawData(ctx);
@@ -334,7 +336,7 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     ...(name(raw.status) ? { status: name(raw.status) } : {}), ...(raw.statusCensored === true ? { statusCensored: true } : {}),
     ...(Array.isArray(raw.cuts) && raw.cuts.length ? { cuts: parseCuts(raw.cuts.filter((x) => typeof x === 'number').join(',')) } : {}),
     ...(name(raw.randomSlope) ? { randomSlope: name(raw.randomSlope) } : {}),
-    ...(raw.zeroModel === 'zeroinfl' || raw.zeroModel === 'hurdle' ? { zeroModel: raw.zeroModel, zeroPart: oneOf(raw.zeroPart, ['same', 'intercept', 'chosen'] as const, 'same') } : {}),
+    ...((ZERO_MODELS as readonly unknown[]).includes(raw.zeroModel) ? { zeroModel: raw.zeroModel as (typeof ZERO_MODELS)[number], zeroPart: oneOf(raw.zeroPart, ['same', 'intercept', 'chosen'] as const, 'same') } : {}),
     ...((raw.zeroModel === 'zeroinfl' || raw.zeroModel === 'hurdle') && names(raw.zeroPredictors).length ? { zeroPredictors: names(raw.zeroPredictors) } : {}),
   } : null),
   Options: RegressionOptionsForm,

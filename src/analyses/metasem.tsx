@@ -13,6 +13,8 @@ import { Choice, ColumnSelect, isObj, name, oneOf } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 const engine = () => import('../rengine/metasem');
+/** Fixed- or random-effects stage 1 (metaSEM::tssem1). */
+export const METASEM_METHODS = ['FEM', 'REM'] as const;
 const varsOf = (ctx: AnalysisCtx) => (ctx.model ? metaVariables(toSpec(ctx.model)) : []);
 const ci = (lo?: number, hi?: number) => (lo === undefined || hi === undefined ? c(null) : c(`[${fmt(lo, 3)}, ${fmt(hi, 3)}]`));
 const paramName = (p: MetaParam) => (p.kind === 'covariance' ? `${p.from} ↔ ${p.to}` : p.kind === 'variance' ? `${p.from} (variance)` : `${p.from} → ${p.to}`);
@@ -64,7 +66,7 @@ export const metaSemAnalysis: AnalysisType<MetaSemOptions, MetaSemResult> = {
   id: 'metasem', title: 'Meta-analytic SEM (metaSEM)', group: 'CB-SEM model',
   sub: 'two-stage SEM on the studies’ correlation matrices (TSSEM): pooled correlations by fixed or random effects, then the model on the canvas; desktop R',
   defaults: (ctx) => ({ n: (ctx.data?.names ?? []).find((x) => /^n$/i.test(x)) ?? '', method: 'REM', reType: 'Diag' }),
-  parseOptions: (raw) => (isObj(raw) ? { n: name(raw.n), method: oneOf(raw.method, ['FEM', 'REM'] as const, 'REM'), reType: oneOf(raw.reType, ['Diag', 'Symm', 'Zero'] as const, 'Diag') } : null),
+  parseOptions: (raw) => (isObj(raw) ? { n: name(raw.n), method: oneOf(raw.method, METASEM_METHODS, 'REM'), reType: oneOf(raw.reType, ['Diag', 'Symm', 'Zero'] as const, 'Diag') } : null),
   Options: MetaForm,
   View: ({ result }) => <MetaView r={result} />,
   blocked: (o, ctx) => {

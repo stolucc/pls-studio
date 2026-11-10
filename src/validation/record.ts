@@ -12,7 +12,9 @@
 
 import { createHash } from 'node:crypto';
 import { expect } from 'vitest';
-import { checks, current, fileName } from './collector';
+import { cardsOfCheck } from './cards';
+import { checks, current, fileName, runtime } from './collector';
+import { FEATURES } from './features';
 import type { Check, EvidenceLevel, EvidenceSource } from './types';
 
 /**
@@ -33,14 +35,41 @@ export function definitionHash(def: unknown): string {
   return createHash('sha256').update(JSON.stringify(norm(def) ?? null)).digest('hex').slice(0, 16);
 }
 
+/** The cards an example opens (its panels) and the manifest entries that name it. */
+function exampleCards(id: string, def: unknown): string[] {
+  const d = (def && typeof def === 'object' ? def : {}) as { panel?: { kind?: unknown }; morePanels?: { kind?: unknown }[] };
+  const kinds = d.panel ? [d.panel, ...(d.morePanels ?? [])].map((p) => p.kind).filter((k): k is string => typeof k === 'string') : [];
+  return [...new Set([...kinds, ...cardsOfCheck('example', id)])];
+}
+
+/**
+ * The current test's check, when its file is a validated feature (features.ts) and evidence is being recorded: every
+ * comparison a test makes outside an example is recorded under it, and a test with none still leaves whether it passed.
+ */
+export function featureCheck(testName = expect.getState().currentTestName ?? '', create = true): Check | null {
+  const feature = FEATURES[fileName()];
+  if (!process.env.PS_VALIDATION_DIR || !feature || typeof feature === 'string') return null;
+  const id = `${fileName()}::${testName}`;
+  const key = `feature:${id}`;
+  let check = checks.get(key);
+  if (!check && create) {
+    const cards = cardsOfCheck('feature', id), where = runtime();
+    check = { id, subject: 'feature', title: `${feature.title}: ${testName}`, method: feature.method, level: feature.level, sources: feature.sources, comparisons: [],
+      packages: feature.packages, passed: true, test: `${fileName()}: ${testName}`, ...(cards.length ? { cards } : {}), ...(where ? { runtime: where } : {}) };
+    checks.set(key, check);
+  }
+  return check ?? null;
+}
+
 /** Start (or continue) the check of an example; until against(), comparisons count as "runs". */
 export function example(id: string, meta: { title: string; method: string; packages: string[]; definition?: unknown }): Check {
   const key = `example:${id}`;
   const test = `${fileName()}: ${expect.getState().currentTestName ?? ''}`;
   let check = checks.get(key);
   if (!check) {
+    const cards = exampleCards(id, meta.definition), where = runtime();
     check = { id, subject: 'example', title: meta.title, method: meta.method, level: 'runs', sources: [], comparisons: [], packages: [...meta.packages], passed: true, test,
-      ...(meta.definition !== undefined ? { definition: definitionHash(meta.definition) } : {}) };
+      ...(meta.definition !== undefined ? { definition: definitionHash(meta.definition) } : {}), ...(cards.length ? { cards } : {}), ...(where ? { runtime: where } : {}) };
     checks.set(key, check);
   } else {
     for (const p of meta.packages) if (!check.packages.includes(p)) check.packages.push(p);
@@ -61,10 +90,14 @@ export function against(source: EvidenceSource & { level: EvidenceLevel }) {
   current.source = source.label;
 }
 
-/** Record one comparison under the current example (setup.ts calls this for toBeCloseTo). */
+/** Record one comparison under the current example, or else the current test's feature check (setup.ts calls this for toBeCloseTo). */
 export function recordComparison(quantity: string, value: number | string, reference: number | string, tolerance: number, passed: boolean) {
   const check = current.example;
-  if (!check) return;
+  if (!check) {
+    const f = featureCheck();
+    if (f) { f.comparisons.push({ quantity, value, reference, tolerance }); if (!passed) f.passed = false; }
+    return;
+  }
   const label = current.source;
   check.comparisons.push({ quantity, value, reference, tolerance, ...(label ? { source: label } : {}) });
   if (!passed) check.passed = false;

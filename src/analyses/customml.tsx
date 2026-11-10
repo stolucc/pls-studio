@@ -13,6 +13,8 @@ import type { AnalysisType, OptionsProps } from './types';
 
 export type CustomMlOptions = CustomMlInput;
 
+/** The likelihoods the card writes out. */
+export const CUSTOMML_TYPES = ['nominal', 'normal', 'probit'] as const;
 const TYPES: [CustomMlType, string, string][] = [
   ['nominal', 'Nominal', 'One unordered outcome: the logit of each category against the last (Mplus u#1, u#2, …), each an expression.'],
   ['normal', 'Normal', 'Continuous outcomes: their means, variances and covariances, each an expression (multivariate normal).'],
@@ -114,7 +116,7 @@ export const customMlAnalysis: AnalysisType<CustomMlOptions, CustomMlResult> = {
     if (!isObj(raw)) return null;
     const pars = (Array.isArray(raw.parameters) ? raw.parameters.slice(0, 50) : []).filter(isObj).map((p) => ({ name: name(p.name, 31), start: Number.isFinite(Number(p.start)) ? Number(p.start) : 0 }));
     const defs = (Array.isArray(raw.defined) ? raw.defined.slice(0, 50) : []).filter(isObj).map((d) => ({ name: name(d.name, 31), expr: name(d.expr, 500) }));
-    return { type: oneOf(raw.type, ['nominal', 'normal', 'probit'] as const, 'normal'), outcomes: names(raw.outcomes, 10), parameters: pars,
+    return { type: oneOf(raw.type, CUSTOMML_TYPES, 'normal'), outcomes: names(raw.outcomes, 10), parameters: pars,
       logits: exprs(raw.logits), means: exprs(raw.means, 10), variances: exprs(raw.variances, 10), covariances: exprs(raw.covariances, 45), defined: defs, se: oneOf(raw.se, ['model', 'robust', 'mplus'] as const, 'model') };
   },
   Options: CustomMlForm,

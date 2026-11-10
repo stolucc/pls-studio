@@ -6,6 +6,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect } from 'vitest';
+import { near, same } from '../validation/record';
 import type { CbFit, CbResult } from './cbsem';
 import { parseCsv, parseCsvRows } from './dataset';
 import { johnsonNeyman } from './jn';
@@ -61,12 +62,11 @@ export const toSpec = (c: RawCase): ModelSpec => ({
   covariances: c.model.covariances ?? [],
 });
 
-/** |a − b| ≤ tol · max(1, |b|) */
+/** |a − b| ≤ tol · max(1, |b|), asserted and recorded (validation/record.ts near). */
 export function close(actual: number | null | undefined, expected: number, tol: number, label: string) {
   expect(actual, `${label}: missing`).not.toBeNull();
   expect(actual, `${label}: missing`).not.toBeUndefined();
-  const diff = Math.abs((actual as number) - expected);
-  expect(diff, `${label}: got ${actual}, expected ${expected}`).toBeLessThanOrEqual(tol * Math.max(1, Math.abs(expected)));
+  near(label, actual as number, expected, tol * Math.max(1, Math.abs(expected)));
 }
 
 // ---------------- CB-SEM ----------------
@@ -91,7 +91,7 @@ export function checkCbResult(c: RawCase, res: CbResult, opts: { estimatesOnly?:
   const e = c.expected as Record<string, any>;
   const tol = c.tolerance;
   expect(res.converged, 'converged').toBe(true);
-  expect(res.n).toBe(e.n);
+  same('N', res.n, e.n);
   for (const p of e.params) {
     const mine = res.estimates.find((x) => x.op === p.op && ((x.lhs === p.lhs && x.rhs === p.rhs) || (p.op === '~~' && x.lhs === p.rhs && x.rhs === p.lhs)));
     const label = `${p.lhs} ${p.op} ${p.rhs}`;
@@ -194,7 +194,7 @@ const arr = (v: string | string[]) => (Array.isArray(v) ? v : [v]);
 /** Compare a MIIV-2SLS result with a MIIVsem reference case. */
 export function checkMiivResult(c: RawCase, res: MiivResult) {
   const e = c.expected as { n: number; equations: MiivRefEq[]; params: { lhs: string; op: string; rhs: string; est: number; se: number; z: number; p: number }[] };
-  expect(res.n).toBe(e.n);
+  same('N', res.n, e.n);
   expect(res.equations.length).toBe(e.equations.length);
   for (const ref of e.equations) {
     const mine = res.equations.find((q) => q.dv === ref.dv && q.regressors.join() === [...arr(ref.regressors)].join())

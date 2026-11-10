@@ -184,7 +184,7 @@ function MatchOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Match
   );
 }
 
-const METHOD_IDS = ['nearest', 'optimal', 'full', 'exact', 'cem', 'subclass', 'weighting'] as const;
+export const MATCH_METHODS = ['nearest', 'optimal', 'full', 'exact', 'cem', 'subclass', 'weighting'] as const;
 
 export const matchAnalysis: AnalysisType<MatchOptions, MatchCardResult> = {
   id: 'match',
@@ -194,7 +194,7 @@ export const matchAnalysis: AnalysisType<MatchOptions, MatchCardResult> = {
   defaults: () => ({ treatment: '', covariates: [], outcome: '', method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, effectModel: 'dr', weightMethod: 'glm', link: 'logit', matchEffect: 'difference' }),
   parseOptions: (raw) => (isObj(raw) ? {
     treatment: name(raw.treatment), covariates: names(raw.covariates), outcome: name(raw.outcome),
-    method: oneOf(raw.method, METHOD_IDS, 'nearest'), distance: oneOf(raw.distance, ['glm', 'mahalanobis'] as const, 'glm'),
+    method: oneOf(raw.method, MATCH_METHODS, 'nearest'), distance: oneOf(raw.distance, ['glm', 'mahalanobis'] as const, 'glm'),
     estimand: oneOf(raw.estimand, ['ATT', 'ATE', 'ATC'] as const, 'ATT'), ratio: clampNum(raw.ratio, 1, 10, 1, true),
     caliper: raw.caliper === null || raw.caliper === undefined ? null : clampNum(raw.caliper, -1, 100, -1),
     replace: flag(raw.replace), effectModel: oneOf(raw.effectModel, ['ipw', 'dr'] as const, 'dr'),

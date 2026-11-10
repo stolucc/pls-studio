@@ -15,3 +15,4 @@ reports/
 SHA256SUMS
 .validation/
 .cache/
+.validation-desktop/

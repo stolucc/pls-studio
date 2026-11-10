@@ -11,6 +11,8 @@ import { PACKAGE_EXAMPLES } from '../examples/packages';
 import { BUILTIN } from '../io';
 import { DEFAULT_SETTINGS } from '../model/project';
 import { makeSample } from '../sample';
+import { CARD_EVIDENCE, featureMatches } from './cards';
+import { FEATURES } from './features';
 import { definitionHash } from './record';
 import { SELF_CHECK_IDS } from './selfCheck';
 import { builtinDefinition } from './textbook';
@@ -27,9 +29,17 @@ describe('the validation evidence', () => {
     expect(evidence.checks.filter((c) => !c.passed).map((c) => `${c.subject} ${c.id}`)).toEqual([]);
   });
 
-  it('every example has a check, with a level and at least the run’s own comparison', () => {
+  // Freshness: everything the test suite validates has its checks in the record. A test written since the last
+  // npm run validate:evidence (or :desktop, for the desktop-only packages) shows up here until the record is regenerated.
+  it('every example has a check, with a level and at least the run’s own comparison; every validated test file and every analysis’s evidence has its checks', () => {
     const ids = [...EXAMPLES.map((e) => e.id), ...PACKAGE_EXAMPLES.map((e) => e.id)];
-    expect(ids.filter((id) => !exampleCheck(id))).toEqual([]);
+    const features = evidence.checks.filter((c) => c.subject === 'feature');
+    const missing = [
+      ...ids.filter((id) => !exampleCheck(id)).map((id) => `example ${id}`),
+      ...Object.entries(FEATURES).filter(([k, f]) => typeof f !== 'string' && !features.some((c) => c.id.startsWith(`${k}::`))).map(([k]) => `feature ${k}`),
+      ...Object.entries(CARD_EVIDENCE).flatMap(([k, e]) => (e.features ?? []).filter((r) => r.includes('::') && !features.some((c) => featureMatches(r, c.id))).map((r) => `analysis ${k}: ${r}`)),
+    ];
+    expect(missing).toEqual([]);
     for (const id of ids) expect(exampleCheck(id)!.comparisons.length, id).toBeGreaterThan(0);
   });
 

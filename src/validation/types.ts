@@ -54,10 +54,20 @@ export interface Check {
   definition?: string;
   /** Browser self-check: the result's digest (src/validation/digest.ts) recorded with this check. */
   digest?: Record<string, number>;
+  /** The analyses (cards, modes, Model-tab entries: validation/cards.ts keys) this check is evidence for. */
+  cards?: string[];
+  /**
+   * Where the app's numbers were computed: absent, webR (the browser's R); `desktop`, the helper's desktop R (the
+   * desktop-only packages, npm run validate:evidence:desktop); `fixture`, no R at all (the built-in engine, or a
+   * desktop run recorded in a fixture and compared again).
+   */
+  runtime?: 'desktop' | 'fixture';
 }
 
 export interface Evidence {
   generated: string;
+  /** When the desktop-only packages' checks (runtime `desktop`) were last recorded (npm run validate:evidence:desktop). */
+  desktop?: string;
   webR: string;
   R: string;
   /** Versions of the R packages, from scripts/webr/webr-lock.json. */

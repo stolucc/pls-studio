@@ -4,6 +4,7 @@ import { defineConfig, type Connect, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { STATMODEL_BASE, statmodelPath } from './src/examples/remote/source';
 import WebrSequencer from './src/validation/webrSequencer';
+import EVIDENCE_RUNS from './src/validation/evidenceRuns.json';
 
 // Strict CSP for production builds only: dev mode needs inline scripts for
 // React Fast Refresh. All analysis runs in the browser (or in the optional
@@ -118,8 +119,9 @@ export default defineConfig({
   // setupFiles: the validation evidence (src/validation/setup.ts), recorded only with PS_VALIDATION_DIR set.
   // The slow webR tests (src/rengine/webrSlow.ts: slowIt, and files named *.slow.webr.test.ts) run with WEBR_SLOW set
   // (npm run validate:evidence, the nightly CI job); the webR files start slowest first (src/validation/webrSequencer.ts).
+  // The webR files of desktop-only packages (src/validation/evidenceRuns.json `desktop`) run only in desktop R (PS_NATIVE_R).
   test: { environment: 'node', setupFiles: ['src/validation/setup.ts'], testTimeout: process.env.STRYKER_SLOW ? 1_800_000 : 60_000,
     ...(process.env.WEBR_TESTS ? { sequence: { sequencer: WebrSequencer } } : {}),
     // (webR starts in beforeAll: under a full parallel run that can take longer than vitest's 10 s)
-    hookTimeout: process.env.WEBR_TESTS ? 300_000 : 10_000, exclude: ['server/**', 'node_modules/**', 'dist/**', '.stryker-tmp/**', 'reports/**', ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts', '**/*.webr.test.tsx']), ...(process.env.WEBR_SLOW ? [] : ['**/*.slow.webr.test.ts', '**/*.slow.webr.test.tsx'])] },
+    hookTimeout: process.env.WEBR_TESTS ? 300_000 : 10_000, exclude: ['server/**', 'node_modules/**', 'dist/**', '.stryker-tmp/**', 'reports/**', ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts', '**/*.webr.test.tsx']), ...(process.env.WEBR_SLOW ? [] : ['**/*.slow.webr.test.ts', '**/*.slow.webr.test.tsx']), ...(process.env.WEBR_TESTS && !process.env.PS_NATIVE_R ? EVIDENCE_RUNS.desktop : [])] },
 } as never);

@@ -86,6 +86,10 @@ function NetworkView({ r, estimator }: { r: NetworkResult; estimator: NetworkOpt
   );
 }
 
+/** The network's estimators and correlations, and EGA's network models (validation/cards.ts lists the evidence of each). */
+export const NETWORK_ESTIMATORS = ['EBICglasso', 'pcor', 'cor'] as const;
+export const NETWORK_COR_METHODS = ['cor_auto', 'cor', 'spearman'] as const;
+export const EGA_MODELS = ['glasso', 'TMFG'] as const;
 const ESTIMATORS = [['EBICglasso', 'EBICglasso (regularised)'], ['pcor', 'Partial correlations'], ['cor', 'Correlations']] as const;
 
 function NetworkOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<NetworkOptions>) {
@@ -126,8 +130,8 @@ export const networkAnalysis: AnalysisType<NetworkOptions, NetworkResult> = {
   id: 'network', title: 'Network analysis', sub: 'partial-correlation network, centrality, stability (bootnet, qgraph)', group: 'Networks',
   defaults: (ctx) => ({ vars: indicatorsOf(ctx), estimator: 'EBICglasso', corMethod: 'cor_auto', missing: 'pairwise', gamma: 0.5, stability: 0 }),
   parseOptions: (raw) => (isObj(raw) ? {
-    vars: names(raw.vars, 2000), estimator: oneOf(raw.estimator, ['EBICglasso', 'pcor', 'cor'] as const, 'EBICglasso'),
-    corMethod: oneOf(raw.corMethod, ['cor_auto', 'cor', 'spearman'] as const, 'cor_auto'), missing: oneOf(raw.missing, ['pairwise', 'listwise'] as const, 'pairwise'),
+    vars: names(raw.vars, 2000), estimator: oneOf(raw.estimator, NETWORK_ESTIMATORS, 'EBICglasso'),
+    corMethod: oneOf(raw.corMethod, NETWORK_COR_METHODS, 'cor_auto'), missing: oneOf(raw.missing, ['pairwise', 'listwise'] as const, 'pairwise'),
     gamma: clampNum(raw.gamma, 0, 1, 0.5), stability: clampNum(raw.stability, 0, 5000, 0, true),
   } : null),
   Options: NetworkOptionsForm,
@@ -197,7 +201,7 @@ export const egaAnalysis: AnalysisType<EgaOptions, EgaResult> = {
   id: 'ega', title: 'Exploratory graph analysis', sub: 'number of dimensions from network communities (EGAnet)', group: 'Networks',
   defaults: (ctx) => ({ vars: indicatorsOf(ctx), model: 'glasso', algorithm: 'walktrap', corr: 'auto', stability: 0 }),
   parseOptions: (raw) => (isObj(raw) ? {
-    vars: names(raw.vars, 2000), model: oneOf(raw.model, ['glasso', 'TMFG'] as const, 'glasso'), algorithm: oneOf(raw.algorithm, ['walktrap', 'louvain', 'leiden'] as const, 'walktrap'),
+    vars: names(raw.vars, 2000), model: oneOf(raw.model, EGA_MODELS, 'glasso'), algorithm: oneOf(raw.algorithm, ['walktrap', 'louvain', 'leiden'] as const, 'walktrap'),
     corr: oneOf(raw.corr, ['auto', 'pearson', 'spearman'] as const, 'auto'), stability: clampNum(raw.stability, 0, 5000, 0, true),
   } : null),
   Options: EgaOptionsForm,

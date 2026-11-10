@@ -34,7 +34,7 @@ it('compare-pls-cb: the PLS column equals seminr and the CB column lavaan’s st
     near(`PLS loading ${l.indicator}`, l.pls, ref.pls.loadings[l.indicator], 1e-6);
     near(`CB loading ${l.indicator} (standardised)`, l.cb!, ref.cb.loadings.find((x) => x.lhs === l.construct && x.rhs === l.indicator)!.std, 1e-4);
   }
-  near('PLS R² Satisfaction', r.r2[0].pls, ref.pls.r2, 1e-6);
+  near('PLS R² Satisfaction', r.r2[0].pls!, ref.pls.r2, 1e-6);
   near('CB R² Satisfaction', r.r2[0].cb!, ref.cb.r2, 1e-4);
   same('N (CB-SEM)', r.n.cb, ref.cb.n);
 });

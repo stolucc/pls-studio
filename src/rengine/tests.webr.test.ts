@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset } from '../engine/types';
+import { near } from '../validation/record';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 import { anovaR, contingencyR, correlationR, freqTestR, manovaR, reliabilityR, rmAnovaR, ttestR, type TTestInput } from './tests';
 
@@ -14,7 +15,7 @@ afterAll(stopTestRuntime);
 type Frame = { names: string[]; cols: number[][]; categories: Record<string, string[]> };
 const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'tests', 'reference.json'), 'utf8')) as Record<string, any>;
 const data = (f: Frame): Dataset => ({ names: f.names, cols: f.cols.map((c) => Float64Array.from(c)), ...(Object.keys(f.categories ?? {}).length ? { categories: f.categories } : {}) });
-const close = (a: number | null | undefined, b: number, what: string) => expect(Math.abs((a ?? NaN) - b), `${what}: ${a} vs ${b}`).toBeLessThan(1e-8 * Math.max(1, Math.abs(b)));
+const close = (a: number | null | undefined, b: number, what: string) => near(what, a ?? NaN, b, 1e-8 * Math.max(1, Math.abs(b)));
 const T: Omit<TTestInput, 'type' | 'vars'> = { pairs: [], group: '', testValue: 0, student: true, welch: false, rank: true, alternative: 'two.sided', confidence: 0.95 };
 
 describe('t-tests', () => {

@@ -15,6 +15,11 @@ import { Choice, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, 
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { designColumns, isMulti, parseWithinDesign, withinDesignBlocked, WithinDesignForm, withinFingerprint } from './withinDesign';
 
+/** The modes of the t-test, correlation, binomial and reliability cards (validation/cards.ts lists the evidence of each). */
+export const TTEST_TYPES = ['one', 'paired', 'independent'] as const;
+export const CORRELATION_METHODS = ['pearson', 'spearman', 'kendall', 'polychoric'] as const;
+export const FREQTEST_TYPES = ['binomial', 'multinomial'] as const;
+export const RELIABILITY_TYPES = ['scale', 'icc', 'kappa', 'blandaltman'] as const;
 const ALTS: readonly (readonly [Alternative, string])[] = [['two.sided', 'Two-sided'], ['greater', 'Greater'], ['less', 'Less']];
 const ALT_IDS = ALTS.map(([id]) => id);
 const engine = () => import('../rengine/tests');
@@ -115,7 +120,7 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
   cardTitle: (o) => T_NAME[o.type],
   defaults: () => ({ type: 'independent', vars: [], pairs: [['', '']], group: '', testValue: 0, student: true, welch: true, rank: false, alternative: 'two.sided' }),
   parseOptions: (raw) => (isObj(raw) ? {
-    type: oneOf(raw.type, ['one', 'paired', 'independent'] as const, 'independent'), vars: names(raw.vars),
+    type: oneOf(raw.type, TTEST_TYPES, 'independent'), vars: names(raw.vars),
     pairs: (Array.isArray(raw.pairs) ? raw.pairs.slice(0, 100) : []).filter(Array.isArray).map((p) => [name(p[0]), name(p[1])] as [string, string]),
     group: name(raw.group), testValue: typeof raw.testValue === 'number' && Number.isFinite(raw.testValue) ? raw.testValue : 0,
     student: raw.student !== false, welch: flag(raw.welch), rank: flag(raw.rank), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'),
@@ -399,7 +404,7 @@ export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationRe
   cardTitle: (o) => `${METHOD_NAME[o.method]} correlations`,
   defaults: () => ({ vars: [], method: 'pearson', alternative: 'two.sided', deletion: 'pairwise' }),
   parseOptions: (raw) => (isObj(raw) ? {
-    vars: names(raw.vars), method: oneOf(raw.method, ['pearson', 'spearman', 'kendall', 'polychoric'] as const, 'pearson'), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), deletion: oneOf(raw.deletion, ['pairwise', 'listwise'] as const, 'pairwise'),
+    vars: names(raw.vars), method: oneOf(raw.method, CORRELATION_METHODS, 'pearson'), alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), deletion: oneOf(raw.deletion, ['pairwise', 'listwise'] as const, 'pairwise'),
     ...(raw.exact === true ? { exact: true } : {}),
   } : null),
   Options: CorrelationForm,
@@ -523,7 +528,7 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
   cardTitle: (o) => `${o.type === 'binomial' ? 'Binomial' : 'Multinomial'} test${o.variable ? `: ${o.variable}` : ''}`,
   defaults: () => ({ type: 'binomial', variable: '', testValue: 0.5, proportions: [], alternative: 'two.sided' }),
   parseOptions: (raw) => (isObj(raw) ? {
-    type: oneOf(raw.type, ['binomial', 'multinomial'] as const, 'binomial'), variable: name(raw.variable),
+    type: oneOf(raw.type, FREQTEST_TYPES, 'binomial'), variable: name(raw.variable),
     testValue: typeof raw.testValue === 'number' && raw.testValue > 0 && raw.testValue < 1 ? raw.testValue : 0.5,
     proportions: (Array.isArray(raw.proportions) ? raw.proportions.slice(0, 200) : []).filter((x): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0),
     alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'),
@@ -700,7 +705,7 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
     const w = oneOf(raw.kappaWeights, ['squared', 'linear', 'custom'] as const, 'squared');
     const m = Array.isArray(raw.weightMatrix) ? raw.weightMatrix.slice(0, 20).filter(Array.isArray).map((r) => r.slice(0, 20).map((x) => (typeof x === 'number' ? x : NaN))) : [];
     return {
-      type: oneOf(raw.type, ['scale', 'icc', 'kappa', 'blandaltman'] as const, 'scale'), vars: names(raw.vars),
+      type: oneOf(raw.type, RELIABILITY_TYPES, 'scale'), vars: names(raw.vars),
       ...(kt ? { kappaTable: { rows: name(kt.rows), columns: name(kt.columns), counts: name(kt.counts), ...(n !== null ? { nObs: n } : {}) } } : {}),
       ...(w !== 'squared' ? { kappaWeights: w } : {}), ...(w === 'custom' ? { weightMatrix: m } : {}),
     };

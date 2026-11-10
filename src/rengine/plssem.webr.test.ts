@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseCsv } from '../engine/dataset';
 import type { ModelSpec } from '../engine/types';
 import { plssemR, plssemScriptR, type PlssemInput, type PlssemModel, type PlssemResult } from './plssem';
+import { near } from '../validation/record';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
@@ -35,23 +36,23 @@ function expectSame(r: PlssemResult, x: any, se = false, names = NAMES) {
   const th = (x.est as RefRow[]).filter((e) => e.level === null);
   expect(rows.length).toBe(x.est.length - th.length);
   expect(r.thresholds.length).toBe(th.length);
-  for (const e of th) expect(Math.abs(r.thresholds.find((t) => t.variable === e.lhs && t.threshold === e.rhs)!.est - e.est), `${e.lhs} | ${e.rhs}`).toBeLessThan(1e-6);
+  for (const e of th) near(`${e.lhs} | ${e.rhs}`, r.thresholds.find((t) => t.variable === e.lhs && t.threshold === e.rhs)!.est, e.est, 1e-6);
   for (const e of (x.est as RefRow[]).filter((y) => y.level !== null)) {
     const q = rows.find((y) => y.level === e.level && y.op === e.op && ((y.lhs === app(e.lhs) && y.rhs === app(e.rhs)) || (e.op === '~~' && y.lhs === app(e.rhs) && y.rhs === app(e.lhs))));
     const what = `level ${e.level}: ${e.lhs} ${e.op} ${e.rhs}`;
     expect(q, what).toBeTruthy();
-    expect(Math.abs(q!.est - e.est), what).toBeLessThan(1e-6);
-    if (se && e.se !== null) expect(Math.abs(q!.se! - e.se), `${what} (SE)`).toBeLessThan(1e-6);
+    near(what, q!.est, e.est, 1e-6);
+    if (se && e.se !== null) near(`${what} (SE)`, q!.se!, e.se, 1e-6);
   }
   r.levels.forEach((l, k) => {
-    for (const [n, v] of Object.entries(x.r2[k] as Record<string, number>)) expect(Math.abs(l.r2.find((y) => y.name === app(n))!.value! - v), `R² ${n}`).toBeLessThan(1e-6);
-    for (const [n, v] of Object.entries(x.r2Indicators[k] as Record<string, number>)) expect(Math.abs(l.r2Indicators.find((y) => y.name === n)!.value! - v), `R² ${n}`).toBeLessThan(1e-6);
+    for (const [n, v] of Object.entries(x.r2[k] as Record<string, number>)) near(`R² ${n}`, l.r2.find((y) => y.name === app(n))!.value!, v, 1e-6);
+    for (const [n, v] of Object.entries(x.r2Indicators[k] as Record<string, number>)) near(`R² ${n}`, l.r2Indicators.find((y) => y.name === n)!.value!, v, 1e-6);
     const f = x.fit[`level.${k + 1}`];
-    expect(Math.abs(l.fit!.chisq! - f.chisq)).toBeLessThan(1e-6);
+    near(`level ${k + 1}: χ²`, l.fit!.chisq!, f.chisq, 1e-6);
     expect(l.fit!.df).toBe(f['chisq.df']);
-    expect(Math.abs(l.fit!.srmr! - f.srmr)).toBeLessThan(1e-6);
+    near(`level ${k + 1}: SRMR`, l.fit!.srmr!, f.srmr, 1e-6);
   });
-  for (const [n, v] of Object.entries(x.icc as Record<string, number>)) expect(Math.abs(r.icc.find((y) => y.name === n)!.value! - v)).toBeLessThan(1e-6);
+  for (const [n, v] of Object.entries(x.icc as Record<string, number>)) near(`ICC ${n}`, r.icc.find((y) => y.name === n)!.value!, v, 1e-6);
   expect(r.iterations).toBe(x.iterations);
 }
 
@@ -69,8 +70,8 @@ describe('Multilevel PLS-SEM (plssem 0.2.0, desktop R)', () => {
     const r = await plssemR(model, { ...base, slopes: [{ from: 'x1', to: 'fw' }, { from: 'x2', to: 'fw' }] });
     expectSame(r, ref.randomSlopes);
     expect(r.slopes.map((s) => s.name)).toEqual(['x1 → fw (slope)', 'x2 → fw (slope)']);
-    expect(Math.abs(r.slopes[0].sd! - ref.randomSlopes.rsd.s1)).toBeLessThan(1e-6);
-    expect(Math.abs(r.slopes[1].sd! - ref.randomSlopes.rsd.s2)).toBeLessThan(1e-6);
+    near('SD of the random slope of x1', r.slopes[0].sd!, ref.randomSlopes.rsd.s1, 1e-6);
+    near('SD of the random slope of x2', r.slopes[1].sd!, ref.randomSlopes.rsd.s2, 1e-6);
     const script = await plssemScriptR(model, { ...base, slopes: [{ from: 'x1', to: 'fw' }, { from: 'x2', to: 'fw' }] });
     expect(script).toContain('fw ~ rv("s_x1_fw")*x1 + rv("s_x2_fw")*x2 + x3');
     expect(script).toContain('s_x1_fw + s_x2_fw ~ w1 + w2');

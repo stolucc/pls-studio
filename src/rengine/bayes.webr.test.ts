@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { near } from '../validation/record';
 import type { Dataset } from '../engine/types';
 import { PACKAGE_EXAMPLES } from '../examples/packages';
 import { withR } from './runtime';
@@ -21,7 +22,7 @@ const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures_
 const native = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'bayes', 'native.json'), 'utf8')) as Record<string, any>;
 const data = (f: Frame): Dataset => ({ names: f.names, cols: f.cols.map((c) => Float64Array.from(c)), ...(Object.keys(f.categories ?? {}).length ? { categories: f.categories } : {}) });
 /** Bayes factors to a relative 1e-5 (BayesFactor's quadrature against base R's). */
-const bf = (a: number | null, b: number, what: string) => expect(Math.abs((a ?? NaN) / b - 1), `${what}: ${a} vs ${b}`).toBeLessThan(1e-5);
+const bf = (a: number | null, b: number, what: string) => near(what, a ?? NaN, b, 1e-5 * Math.abs(b));
 const B: Omit<BTTestInput, 'type' | 'vars'> = { pairs: [], group: '', testValue: 0, alternative: 'two.sided', priorWidth: Math.SQRT1_2, seed: 1234, iterations: 20000, confidence: 0.95 };
 
 describe('Bayesian t-tests (JZS)', () => {
@@ -59,7 +60,7 @@ describe('Bayesian correlation and binomial test', () => {
       bf(r.pairs[i].bf10, x.bf10, `${x.a}-${x.b} BF10`); bf(w.pairs[i].bf10, x.width3, `${x.a}-${x.b} width 1/3`);
       // One-sided: BayesFactor computes BF+0 from the posterior mass of rho > 0 by its own numerical integration and reports no
       // error for it; against the exact integral it agrees to 0.013% at worst here (mpg-wt, where the data point the other way).
-      expect(Math.abs(g.pairs[i].bf10 / x.greater - 1), `${x.a}-${x.b} BF+0: ${g.pairs[i].bf10} vs ${x.greater}`).toBeLessThan(1e-3);
+      near(`${x.a}-${x.b} BF+0`, g.pairs[i].bf10, x.greater, 1e-3 * Math.abs(x.greater));
     });
   }, 600_000);
   it('binomial: beta prior, two-sided and one-sided', async () => {
@@ -126,7 +127,7 @@ describe('repeated measures, regression, robustness and sequential analyses', ()
     (native.rmanova.bf10 as number[]).forEach((x, i) => {
       const m = r.models[i + 1];
       // (Monte Carlo: the same seed in the same version, but compared within three times the reported proportional error)
-      expect(Math.abs(m.bf10 / x - 1), `${m.model}: ${m.bf10} vs ${x} (error ${m.error})`).toBeLessThan(Math.max(1e-5, 3 * m.error));
+      near(`${m.model}: BF10 (error ${m.error})`, m.bf10, x, Math.max(1e-5, 3 * m.error) * Math.abs(x));
     });
     expect(r.effects.map((e) => e.effect)).toEqual(['conc', 'type', 'conc × type']);
   }, 600_000);

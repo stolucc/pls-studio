@@ -121,6 +121,8 @@ function QuadView({ r }: { r: Result }) {
   );
 }
 
+/** The card's two inputs: Mplus-style syntax, or the CB-SEM diagram (count indicators). */
+export const QUAD_SOURCES = ['syntax', 'model'] as const;
 export const quadAnalysis: AnalysisType<QuadOptions, Result> = {
   id: 'quadml',
   title: 'Integration ML',

@@ -14,6 +14,8 @@ import { designColumns, isMulti, parseWithinDesign, withinDesignBlocked, WithinD
 
 const engine = () => import('../rengine/tests');
 const ALT_IDS = ['two.sided', 'greater', 'less'] as const;
+/** The Bayesian t-test's designs (validation/cards.ts lists the evidence of each). */
+export const BTTEST_TYPES = ['one', 'paired', 'independent'] as const;
 const pct = (conf: number) => `${Math.round(conf * 100)}%`;
 const NoData = () => <div className="empty-results">Import raw data first.</div>;
 const num = (v: unknown, lo: number, hi: number, fallback: number) => (typeof v === 'number' && Number.isFinite(v) && v > lo && v <= hi ? v : fallback);
@@ -172,7 +174,7 @@ export const bayesTtestAnalysis: AnalysisType<BTTestOptions, BTTestResult> = {
   cardTitle: (o) => T_NAME[o.type],
   defaults: () => ({ type: 'independent', vars: [], pairs: [['', '']], group: '', testValue: 0, alternative: 'two.sided', priorWidth: Math.SQRT1_2, iterations: 10000, robustness: false, sequential: false }),
   parseOptions: (raw) => (isObj(raw) ? {
-    type: oneOf(raw.type, ['one', 'paired', 'independent'] as const, 'independent'), vars: names(raw.vars),
+    type: oneOf(raw.type, BTTEST_TYPES, 'independent'), vars: names(raw.vars),
     pairs: (Array.isArray(raw.pairs) ? raw.pairs.slice(0, 100) : []).filter(Array.isArray).map((p) => [name(p[0]), name(p[1])] as [string, string]),
     group: name(raw.group), testValue: typeof raw.testValue === 'number' && Number.isFinite(raw.testValue) ? raw.testValue : 0,
     alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'), priorWidth: num(raw.priorWidth, 0, 100, Math.SQRT1_2),

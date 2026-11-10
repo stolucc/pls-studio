@@ -102,6 +102,8 @@ function DidView({ r }: { r: Result }) {
 }
 
 
+/** Two-way fixed effects (fixest) or staggered adoption (did). */
+export const DID_DESIGNS = ['twfe', 'staggered'] as const;
 export const didInput = (o: DidOptions, ctx: Pick<AnalysisCtx, 'settings'>): DidInput => ({ ...o, seed: ctx.settings.seed, confidence: ctx.settings.confidence });
 const didColumns = (o: DidOptions) => [o.outcome, o.unit, o.time, o.treated, ...(o.design === 'twfe' && o.post ? [o.post] : []), ...o.covariates].filter(Boolean);
 
@@ -112,7 +114,7 @@ export const didAnalysis: AnalysisType<DidOptions, Result> = {
   group: 'Regression and causal inference',
   defaults: () => ({ design: 'twfe', outcome: '', unit: '', time: '', treated: '', post: '', firstPeriod: null, covariates: [], control: 'nevertreated', eventStudy: true }),
   parseOptions: (raw) => (isObj(raw) ? {
-    design: oneOf(raw.design, ['twfe', 'staggered'] as const, 'twfe'), outcome: name(raw.outcome), unit: name(raw.unit), time: name(raw.time), treated: name(raw.treated), post: name(raw.post),
+    design: oneOf(raw.design, DID_DESIGNS, 'twfe'), outcome: name(raw.outcome), unit: name(raw.unit), time: name(raw.time), treated: name(raw.treated), post: name(raw.post),
     firstPeriod: raw.firstPeriod === null || raw.firstPeriod === undefined || !Number.isFinite(Number(raw.firstPeriod)) ? null : clampNum(raw.firstPeriod, -1e9, 1e9, 0),
     covariates: names(raw.covariates), control: oneOf(raw.control, ['nevertreated', 'notyettreated'] as const, 'nevertreated'), eventStudy: flag(raw.eventStudy),
   } : null),

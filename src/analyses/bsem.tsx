@@ -20,6 +20,8 @@ import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { fingerprint } from './codec';
 
 const engine = () => import('../rengine/bsem');
+/** MCMC (blavaan, desktop R) or the INLA approximation (INLAvaan). */
+export const BSEM_ENGINES = ['blavaan', 'inlavaan'] as const;
 const pct = (conf: number) => `${Math.round(conf * 100)}%`;
 const modelIndicators = (ctx: AnalysisCtx) => [...new Set((ctx.model?.constructs ?? []).flatMap((k) => k.indicators))];
 const OP_NAME: Record<string, string> = { '=~': 'Loadings', '~': 'Regressions', '~~': 'Variances and covariances', '~1': 'Intercepts and means', '|': 'Thresholds' };

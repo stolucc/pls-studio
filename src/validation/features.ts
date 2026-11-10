@@ -1,7 +1,10 @@
-// What each webR test file validates (src/validation/setup.ts records its toBeCloseTo comparisons as
+// What each webR test file validates (src/validation/setup.ts records its toBeCloseTo and near() comparisons as
 // evidence under this entry), or 'examples' (its evidence is recorded per example with verify(),
 // record.ts) or 'none' (it tests plumbing: syntax, security, error messages). Every webR test file is
-// listed (validation/features.test.ts), so a new one has to say which.
+// listed (validation/features.test.ts), so a new one has to say which; so is every plain test file that
+// validate:evidence records without R (evidenceRuns.json `fixture`: the built-in engine, recorded desktop runs).
+// The webR files of desktop-only packages (evidenceRuns.json `desktop`) are recorded in desktop R instead
+// (npm run validate:evidence:desktop), their checks marked as such.
 
 import type { EvidenceLevel, EvidenceSource } from './types';
 
@@ -116,6 +119,28 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/fixedValues': native('Parameters fixed at values', 'CB-SEM', ['lavaan'], { label: 'lavaan 0.6-16 in desktop R (the values in the test)' }),
   'rengine/zeroCovariance': native('Covariances fixed at zero', 'CB-SEM', ['lavaan'], { label: 'lavaan 0.6-16 in desktop R (the values in the test)' }),
   'rengine/glmm': native('Generalised linear mixed models: negative binomial and zero-inflated negative binomial', 'Longitudinal', ['GLMMadaptive'], script('glmm.R', 'desktop GLMMadaptive on its help page’s and vignette’s simulated data')),
+
+  // Without R (evidenceRuns.json `fixture`): the built-in engine against fixtures from the reference packages, and desktop runs recorded in fixtures.
+  'engine/validation': native('Built-in engine: the reference corpus (PLS, PLSc, CB-SEM, MIIV, IPMA, Monte Carlo CIs, HTMT)', 'Built-in engine', [], script('generate.R', 'desktop lavaan, seminr, cSEM, plspm, MIIVsem and semTools')),
+  'engine/cbsem': native('Built-in CB-SEM', 'Built-in engine', [], { label: 'lavaan 0.6 in desktop R (fixtures mobi_cb.json, small_cb.json)' }),
+  'engine/pls': native('Built-in PLS-SEM', 'Built-in engine', [], { label: 'seminr 2.3.2 in desktop R (fixtures mobi_modeA.json, mobi_modeB.json)' }),
+  'engine/plsc': native('Built-in PLSc and composite models', 'Built-in engine', [], { label: 'cSEM 0.5.0 in desktop R (fixtures csem_plsc_mixed.json, csem_composite.json)' }),
+  'engine/parcels': native('Parcel allocation variability', 'CB-SEM', [], script('parcels.R', 'plain lavaan and semTools::parcelAllocation')),
+  'engine/nonlinear': native('Nonlinear paths and causality assessment', 'PLS-SEM', [], script('nonlinear_paths.R', 'lm() on seminr’s construct scores; Kock’s indices by hand')),
+  'engine/copula': native('Gaussian copula terms', 'Built-in engine', [], script('copula.R', 'plain seminr and nortest::cvm.test')),
+  'engine/interactionMethods': native('PLS interaction terms (product indicator, orthogonal, two-stage)', 'Built-in engine', [], script('pls_interaction_methods.R', 'plain seminr')),
+  'engine/plscNonlinear': native('Nonlinear PLSc (interaction and quadratic terms)', 'Built-in engine', [], script('plsc_nonlinear.R', 'plain cSEM')),
+  'engine/wpls': native('Weighted PLS', 'Built-in engine', [], { label: 'the unweighted algorithm on the rows repeated by their integer weights, and a weighted correlation by hand' }),
+  'engine/studentized': native('Studentized bootstrap intervals', 'Built-in engine', [], { label: 'the bootstrap-t interval by hand on known draws (Davison & Hinkley 1997, §5.2)' }),
+  'engine/nonnormal': native('Non-normal data (Fleishman, Vale–Maurelli)', 'Built-in engine', [], { label: 'Fleishman’s (1978) table and high-precision solutions in desktop R (vale-maurelli.json)' }),
+  'engine/stats': native('Distributions (t, χ²)', 'Built-in engine', [], { label: 'R’s pt and pchisq (tdist.json, chisq.json)' }),
+  'engine/quadratic': { title: 'Quadratic effects in the built-in engine', method: 'Built-in engine', level: 'recovery', sources: [{ label: 'simulated data with a known curvature' }], packages: [] },
+  'engine/miivVariance': native('Built-in MIIV-2SLS variances', 'Built-in engine', [], { label: 'MIIVsem’s var.cov = TRUE with lavaan’s standardisation, recorded through the R bridge' }),
+  'engine/fixedValues': native('Built-in CB-SEM: parameters fixed at values', 'Built-in engine', [], { label: 'lavaan 0.6-16 in desktop R (the values in the test)' }),
+  'engine/zeroCovariance': native('Built-in CB-SEM: covariances fixed at zero', 'Built-in engine', [], { label: 'lavaan 0.6-16 in desktop R (the values in the test)' }),
+  'engine/fit': native('Built-in PLS fit test', 'Built-in engine', [], script('fit_test.R', 'cSEM::testOMF (observed discrepancies; bootstrap quantiles within Monte Carlo error)')),
+  'analyses/charts': native('Chart statistics (quartiles, whiskers, counts)', 'Analyses', [], script('charts.R', 'R’s quantile(type = 7), boxplot.stats and table')),
+  'analyses/methodCompare': 'examples', 'examples/mplus/bsem': 'examples', 'examples/mplus/dsem': 'examples',
 
   // Plumbing: syntax, security, messages, chunking.
   'rengine/common': 'none', 'rengine/htmt2': 'none', 'rengine/injection': 'none', 'rengine/mplus': 'none',

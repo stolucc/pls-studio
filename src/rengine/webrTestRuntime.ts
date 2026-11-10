@@ -2,6 +2,7 @@
 // served over HTTP from a local server (webR in Node fetches packages by URL).
 
 import { appendFileSync, createReadStream, existsSync, statSync } from 'node:fs';
+import { expect } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { cpus } from 'node:os';
 import { join, normalize, sep } from 'node:path';
@@ -9,17 +10,23 @@ import { configureR, observeCalls } from './runtime';
 import { setHelperTransport } from './helper';
 import { useCompute } from './compute';
 import { startNativePool, type NativePool } from './nativeR';
+import EVIDENCE_RUNS from '../validation/evidenceRuns.json';
 
 const ROOT = join(__dirname, '..', '..');
 const PUBLIC = join(ROOT, 'public', 'webr');
 let server: Server | null = null;
 let native: NativePool | null = null;
 
+/** Whether a test file is one of the desktop-only packages' (recorded in desktop R). */
+export const isDesktopEvidence = (testPath: string | undefined) => !!testPath && EVIDENCE_RUNS.desktop.some((f) => testPath.replace(/\\/g, '/').endsWith(`/${f}`));
+
 export async function startTestRuntime() {
   // PS_NATIVE_R=1 (npm run test:native): the bridge's calls run in desktop R (nativeR.ts); webR stays available for
-  // tests that drive it directly. Not for the validation record, which is what the browser computes.
+  // tests that drive it directly. Not for the validation record, which is what the browser computes, except for the
+  // files of desktop-only packages (validation/evidenceRuns.json `desktop`, npm run validate:evidence:desktop), whose
+  // checks are marked as computed in desktop R.
   if (process.env.PS_NATIVE_R && !native) {
-    if (process.env.PS_VALIDATION_DIR) throw new Error('The validation record is recorded from webR: unset PS_NATIVE_R.');
+    if (process.env.PS_VALIDATION_DIR && !isDesktopEvidence(expect.getState().testPath)) throw new Error('The validation record is recorded from webR: unset PS_NATIVE_R (only the desktop-only packages’ files record in desktop R, npm run validate:evidence:desktop).');
     native = await startNativePool(ROOT, Math.max(1, Number(process.env.PS_NATIVE_WORKERS) || Math.min(8, Math.max(2, cpus().length - 2))));
     setHelperTransport(native);
     useCompute.setState({ backend: 'helper' });

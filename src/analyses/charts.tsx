@@ -19,6 +19,8 @@ export type ChartResult =
   | { kind: 'bar'; x: string; bars: { label: string; count: number }[]; n: number };
 
 export const MAX_POINTS = 5000;
+/** The chart kinds (each computes its own statistics: bins, OLS line, quartiles, counts). */
+export const CHART_KINDS = ['histogram', 'scatter', 'box', 'bar'] as const;
 const KINDS: readonly (readonly [ChartKind, string])[] = [['histogram', 'Histogram'], ['scatter', 'Scatterplot'], ['box', 'Box plot'], ['bar', 'Bar chart']];
 const KIND_NAME: Record<ChartKind, string> = { histogram: 'Histogram', scatter: 'Scatterplot', box: 'Box plot', bar: 'Bar chart' };
 
@@ -219,7 +221,7 @@ export const chartAnalysis: AnalysisType<ChartOptions, ChartResult> = {
   ],
   cardTitle: (o) => `${KIND_NAME[o.kind]}${o.x ? `: ${o.x}${o.kind === 'scatter' && o.y ? ` and ${o.y}` : ''}` : ''}`,
   defaults: () => ({ kind: 'histogram', x: '', y: '', group: '', bins: 0, fit: true }),
-  parseOptions: (raw) => (isObj(raw) ? { kind: oneOf(raw.kind, ['histogram', 'scatter', 'box', 'bar'] as const, 'histogram'), x: name(raw.x), y: name(raw.y), group: name(raw.group), bins: clampNum(raw.bins, 0, 200, 0, true), fit: flag(raw.fit) } : null),
+  parseOptions: (raw) => (isObj(raw) ? { kind: oneOf(raw.kind, CHART_KINDS, 'histogram'), x: name(raw.x), y: name(raw.y), group: name(raw.group), bins: clampNum(raw.bins, 0, 200, 0, true), fit: flag(raw.fit) } : null),
   Options: ChartOptionsForm,
   View: ({ result }) => <ChartView r={result} />,
   blocked: (o, ctx) => {
