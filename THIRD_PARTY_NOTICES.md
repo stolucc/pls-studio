@@ -43,6 +43,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | car | 3.1-5 | GPL (>= 2) | https://cran.r-project.org/package=car |
 | carData | 3.0-6 | GPL (>= 2) | https://cran.r-project.org/package=carData |
 | caTools | 1.18.4 | GPL-3 | https://cran.r-project.org/package=caTools |
+| CDM | 8.3-14 | GPL (>= 2) | https://cran.r-project.org/package=CDM |
 | cellranger | 1.1.0 | MIT + file LICENSE | https://cran.r-project.org/package=cellranger |
 | charport | 0.1.1 | MIT + file LICENSE | https://cran.r-project.org/package=charport |
 | checkmate | 2.3.4 | BSD_3_clause + file LICENSE | https://cran.r-project.org/package=checkmate |
@@ -172,6 +173,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | lmhelprs | 0.4.5 | GPL (>= 3) | https://cran.r-project.org/package=lmhelprs |
 | lmtest | 0.9-40 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=lmtest |
 | lpSolve | 5.6.23 | LGPL-2 | https://cran.r-project.org/package=lpSolve |
+| lslx | 0.6.11 | GPL-3 | https://cran.r-project.org/package=lslx |
 | ltm | 1.2-0 | GPL (>= 2) | https://cran.r-project.org/package=ltm |
 | magrittr | 2.0.5 | MIT + file LICENSE | https://cran.r-project.org/package=magrittr |
 | mantar | 0.3.1 | GPL (>= 3) | https://cran.r-project.org/package=mantar |
@@ -197,6 +199,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | mirt | 1.46.1 | GPL (>= 3) | https://cran.r-project.org/package=mirt |
 | miscTools | 0.6-30 | GPL (>= 2) | https://cran.r-project.org/package=miscTools |
 | mitml | 0.4-5 | GPL (>= 2) | https://cran.r-project.org/package=mitml |
+| mnlfa | 0.3-4 | GPL (>= 2) | https://cran.r-project.org/package=mnlfa |
 | mnormt | 2.1.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=mnormt |
 | modelr | 0.1.11 | GPL-3 | https://cran.r-project.org/package=modelr |
 | modeltools | 0.2-25 | GPL-2 | https://cran.r-project.org/package=modeltools |
@@ -297,12 +300,14 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | semfindr | 0.2.1 | GPL-3 | https://cran.r-project.org/package=semfindr |
 | seminr | 2.5.0 | GPL-3 | https://cran.r-project.org/package=seminr |
 | semPlot | 1.2.0 | GPL-2 | https://cran.r-project.org/package=semPlot |
+| semPower | 2.1.3 | LGPL | https://cran.r-project.org/package=semPower |
 | semTools | 0.5-10 | GPL (>= 2) | https://cran.r-project.org/package=semTools |
 | sessioninfo | 1.2.4 | GPL-2 | https://cran.r-project.org/package=sessioninfo |
 | sets | 1.0-25 | GPL-2 | https://cran.r-project.org/package=sets |
 | shape | 1.4.6.1 | GPL (>= 3) | https://cran.r-project.org/package=shape |
 | SimDesign | 2.25 | GPL (>= 2) | https://cran.r-project.org/package=SimDesign |
 | simstandard | 0.6.3 | CC0 | https://cran.r-project.org/package=simstandard |
+| sirt | 4.2-133 | GPL (>= 2) | https://cran.r-project.org/package=sirt |
 | smacof | 2.1-7 | GPL-3 | https://cran.r-project.org/package=smacof |
 | sna | 2.8 | GPL (>= 2) | https://cran.r-project.org/package=sna |
 | snow | 0.4-4 | GPL | https://cran.r-project.org/package=snow |
@@ -317,6 +322,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | symmoments | 1.2.2 | GPL | https://cran.r-project.org/package=symmoments |
 | sys | 3.4.3 | MIT + file LICENSE | https://cran.r-project.org/package=sys |
 | systemfit | 1.1-30 | GPL (>= 2) | https://cran.r-project.org/package=systemfit |
+| TAM | 4.3-25 | GPL (>= 2) | https://cran.r-project.org/package=TAM |
 | tester | 0.3.0 | GPL-3 | https://cran.r-project.org/package=tester |
 | testthat | 3.3.2 | MIT + file LICENSE | https://cran.r-project.org/package=testthat |
 | tibble | 3.3.1 | MIT + file LICENSE | https://cran.r-project.org/package=tibble |

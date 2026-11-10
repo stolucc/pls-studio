@@ -498,6 +498,24 @@
         "File": "caTools_1.18.4.tgz"
       }
     },
+    "CDM": {
+      "version": "8.3-14",
+      "md5": "930b2caf57c08f50282e434c9a36a47f",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "CDM",
+        "Version": "8.3-14",
+        "Depends": "R (>= 3.1), mvtnorm",
+        "Imports": "graphics, grDevices, methods, polycor, Rcpp, stats, utils",
+        "LinkingTo": "Rcpp, RcppArmadillo",
+        "Suggests": "BIFIEsurvey, lattice, MASS, miceadds, ROI, sfsmisc",
+        "Enhances": "dina, GDINA, mirt, rrum",
+        "License": "GPL (>= 2)",
+        "MD5sum": "930b2caf57c08f50282e434c9a36a47f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 19:33:55 UTC; unix",
+        "File": "CDM_8.3-14.tgz"
+      }
+    },
     "cellranger": {
       "version": "1.1.0",
       "md5": "12bf54b9cf642368f102082b41fa086d",
@@ -2532,6 +2550,23 @@
         "File": "lpSolve_5.6.23.tgz"
       }
     },
+    "lslx": {
+      "version": "0.6.11",
+      "md5": "5acec34026edb3d24398c8de57ba4c3f",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "lslx",
+        "Version": "0.6.11",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "stats, Rcpp, R6, ggplot2",
+        "LinkingTo": "Rcpp, RcppEigen",
+        "Suggests": "knitr, rmarkdown, lavaan",
+        "License": "GPL-3",
+        "MD5sum": "5acec34026edb3d24398c8de57ba4c3f",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 11:42:12 UTC; unix",
+        "File": "lslx_0.6.11.tgz"
+      }
+    },
     "ltm": {
       "version": "1.2-0",
       "md5": "afb5196efb67ae1d0512c167b6a2df27",
@@ -2922,6 +2957,23 @@
         "MD5sum": "040c08532cd73076c468c60880e0c1b7",
         "Built": "R 4.6.0; ; 2026-05-13 14:01:37 UTC; unix",
         "File": "mitml_0.4-5.tgz"
+      }
+    },
+    "mnlfa": {
+      "version": "0.3-4",
+      "md5": "b04f768308482a4811c9faa612251bed",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "mnlfa",
+        "Version": "0.3-4",
+        "Depends": "R (>= 3.1)",
+        "Imports": "CDM (>= 7.0-4), stats, utils",
+        "LinkingTo": "Rcpp, RcppArmadillo",
+        "Enhances": "aMNLFA, GPCMlasso, sirt",
+        "License": "GPL (>= 2)",
+        "MD5sum": "b04f768308482a4811c9faa612251bed",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 14:39:44 UTC; unix",
+        "File": "mnlfa_0.3-4.tgz"
       }
     },
     "mnormt": {
@@ -4487,6 +4539,21 @@
         "File": "semPlot_1.2.0.tgz"
       }
     },
+    "semPower": {
+      "version": "2.1.3",
+      "md5": "37206a40e20bbdfb368c768fab304acd",
+      "license": "LGPL",
+      "stanza": {
+        "Package": "semPower",
+        "Version": "2.1.3",
+        "Imports": "graphics, grDevices, stats, utils",
+        "Suggests": "bookdown, covsim, doFuture, foreach, future, knitr, lavaan, mnonr, progressr, rmarkdown,",
+        "License": "LGPL",
+        "MD5sum": "37206a40e20bbdfb368c768fab304acd",
+        "Built": "R 4.6.0; ; 2026-05-14 03:41:33 UTC; unix",
+        "File": "semPower_2.1.3.tgz"
+      }
+    },
     "semTools": {
       "version": "0.5-10",
       "md5": "8a87ed5cf181dd119070fcf8e7cce046",
@@ -4580,6 +4647,23 @@
         "MD5sum": "eef774a607c43705c348b59956ae4b67",
         "Built": "R 4.6.0; ; 2026-05-14 04:47:40 UTC; unix",
         "File": "simstandard_0.6.3.tgz"
+      }
+    },
+    "sirt": {
+      "version": "4.2-133",
+      "md5": "94081b1b81e33cf99e9b5a409d633350",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "sirt",
+        "Version": "4.2-133",
+        "Depends": "R (>= 3.5)",
+        "Imports": "CDM, graphics, methods, parallel, pbapply, Rcpp, stats, TAM, utils",
+        "LinkingTo": "pbv, Rcpp, RcppArmadillo",
+        "Suggests": "coda, igraph, lavaan, MASS, Matrix, miceadds, minqa, mirt, mvtnorm, nloptr, optimx, pbivnorm, pbv, psych, sfsmisc, sm, survey",
+        "License": "GPL (>= 2)",
+        "MD5sum": "94081b1b81e33cf99e9b5a409d633350",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 04:53:04 UTC; unix",
+        "File": "sirt_4.2-133.tgz"
       }
     },
     "smacof": {
@@ -4800,6 +4884,24 @@
         "MD5sum": "9fa6e80ced14f3d5800db5a7bcb600f0",
         "Built": "R 4.6.0; ; 2026-05-14 07:55:00 UTC; unix",
         "File": "systemfit_1.1-30.tgz"
+      }
+    },
+    "TAM": {
+      "version": "4.3-25",
+      "md5": "58db889dac8cf7cc1469d2b03e8a7a7d",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "TAM",
+        "Version": "4.3-25",
+        "Depends": "R (>= 2.15.1), CDM (>= 6.4-19)",
+        "Imports": "graphics, methods, Rcpp, stats, utils",
+        "LinkingTo": "Rcpp, RcppArmadillo",
+        "Suggests": "coda, GPArotation, grDevices, lattice, lavaan, MASS, miceadds, mvtnorm, plyr, psych, sfsmisc, splines, WrightMap",
+        "Enhances": "LSAmitR",
+        "License": "GPL (>= 2)",
+        "MD5sum": "58db889dac8cf7cc1469d2b03e8a7a7d",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 08:03:42 UTC; unix",
+        "File": "TAM_4.3-25.tgz"
       }
     },
     "tester": {

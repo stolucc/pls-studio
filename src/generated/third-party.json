@@ -370,6 +370,12 @@
    "url": "https://cran.r-project.org/package=caTools"
   },
   {
+   "name": "CDM",
+   "version": "8.3-14",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=CDM"
+  },
+  {
    "name": "cellranger",
    "version": "1.1.0",
    "license": "MIT + file LICENSE",
@@ -1145,6 +1151,12 @@
    "url": "https://cran.r-project.org/package=lpSolve"
   },
   {
+   "name": "lslx",
+   "version": "0.6.11",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=lslx"
+  },
+  {
    "name": "ltm",
    "version": "1.2-0",
    "license": "GPL (>= 2)",
@@ -1293,6 +1305,12 @@
    "version": "0.4-5",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=mitml"
+  },
+  {
+   "name": "mnlfa",
+   "version": "0.3-4",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=mnlfa"
   },
   {
    "name": "mnormt",
@@ -1895,6 +1913,12 @@
    "url": "https://cran.r-project.org/package=semPlot"
   },
   {
+   "name": "semPower",
+   "version": "2.1.3",
+   "license": "LGPL",
+   "url": "https://cran.r-project.org/package=semPower"
+  },
+  {
    "name": "semTools",
    "version": "0.5-10",
    "license": "GPL (>= 2)",
@@ -1929,6 +1953,12 @@
    "version": "0.6.3",
    "license": "CC0",
    "url": "https://cran.r-project.org/package=simstandard"
+  },
+  {
+   "name": "sirt",
+   "version": "4.2-133",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=sirt"
   },
   {
    "name": "smacof",
@@ -2013,6 +2043,12 @@
    "version": "1.1-30",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=systemfit"
+  },
+  {
+   "name": "TAM",
+   "version": "4.3-25",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=TAM"
   },
   {
    "name": "tester",
