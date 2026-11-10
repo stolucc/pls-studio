@@ -5,7 +5,7 @@ import { factorCodes } from '../io';
 import { DEFAULT_SETTINGS, toSpec, validateModel, unconfirmedUncorrelated } from '../model/project';
 import { processGraph } from '../process/fromModel';
 import { R_PACKAGES } from '../rengine/bridge';
-import { EXAMPLE_PACKAGES, exampleModel, examplePanels, exampleSettings, PACKAGE_EXAMPLES, panelColumns } from './packages';
+import { EXAMPLE_PACKAGES, exampleModel, examplePanels, exampleSettings, PACKAGE_EXAMPLES, panelColumns, panelPreset } from './packages';
 
 const diagrams = PACKAGE_EXAMPLES.filter((e) => !e.panel);
 
@@ -52,7 +52,7 @@ it('ESEM blocks refer to the example’s constructs by id', () => {
 it('panel examples carry no diagram and name their columns (a Bayesian SEM card fits its diagram instead)', () => {
   for (const e of PACKAGE_EXAMPLES.filter((x) => x.panel)) {
     // (cards about the model open beside the example's diagram: Bayesian SEM, Bollen–Stine, PLSpredict, simulation, …)
-    if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
+    if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'scoretest'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual(e.panel!.kind === 'scoretest' ? [String(panelPreset(e.panel!).covariate)] : []); continue; }
     expect(e.constructs, e.id).toEqual([]);
     for (const p of examplePanels(e)) expect(panelColumns(p).length, e.id).toBeGreaterThanOrEqual(['freqtest', 'bbinomial', 'chart', 'customml'].includes(p.kind) || (p as { type?: string }).type === 'one' ? 1 : 2);  // (a binomial test, a one-sample t-test, a chart of one variable and a nominal custom likelihood have one column)
   }
@@ -83,7 +83,8 @@ it('ids are unique and every R package the app calculates with has an example', 
   // efa2: the two-level EFA card (lavaan + GPArotation), shown by the lavaan Demo.twolevel example and Mplus 4.5.
   // car: repeated measures with several between factors (car::Anova), shown by the carData OBrienKaiser example.
   // lavaanRotate: ESEM blocks with invariant loadings, rotated jointly (lavaan + GPArotation), shown by Mplus 5.26.
-  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival', 'customml', 'efa2', 'car', 'lavaanRotate']);
+  // psychotools: example data only (YouthGratitude), shown by the strucchange example.
+  const covered = new Set<string>([...EXAMPLE_PACKAGES, 'simulation', 'processGlm', 'manymomeSam', 'optimx', 'polynomial', 'nca', 'flexmix', 'cta', 'cSEMMi', 'seminrMi', 'readData', 'versions', 'regression', 'psychLavaan', 'regressionSurvival', 'customml', 'efa2', 'car', 'lavaanRotate', 'psychotools']);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });
 

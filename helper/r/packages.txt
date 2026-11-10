@@ -46,6 +46,7 @@ pbivnorm
 plspm
 poLCA
 psych
+psychotools
 qgraph
 readxl
 rsem
@@ -55,4 +56,5 @@ sandwich
 semTools
 semfindr
 seminr
+strucchange
 survival
