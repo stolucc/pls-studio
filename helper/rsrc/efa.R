@@ -111,8 +111,8 @@ ps_efa <- function(req_json, export = FALSE) {
     else sprintf("fit <- %s", call),
     if (lav) "summary(fit)" else "print(fit, sort = TRUE)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("%s: %s, %s rotation", PS_EFA_METHODS[[method]], what, rotation),
-    c("psych", "GPArotation", if (lav) "lavaan"), inputs, body, c("kmo", "bartlett", if (iter > 0) "parallel", if (lav) c("comparison", "std") else "fit")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("%s: %s, %s rotation", PS_EFA_METHODS[[method]], what, rotation),
+    c("psych", "GPArotation", if (lav) "lavaan"), inputs, body, c("kmo", "bartlett", if (iter > 0) "parallel", if (lav) c("comparison", "std") else "fit")))
   env <- ps_run(body[-length(body)], inputs)
   if (lav) return(ps_efa_lavaan(env, fr$back, method, rotation, criterion, correlation, poly, iter, pca))
   fit <- env$fit
@@ -149,7 +149,7 @@ ps_efa <- function(req_json, export = FALSE) {
       chisq = stat(fit$STATISTIC), df = stat(fit$dof), p = stat(fit$PVAL), rmsea = stat(fit$RMSEA), rmseaLow = stat(fit$RMSEA[2]), rmseaHigh = stat(fit$RMSEA[3]),
       tli = stat(fit$TLI), bic = stat(fit$BIC), rms = stat(fit$rms)),
     warnings = env$.warnings,
-    engine = list(package = "psych", version = as.character(utils::packageVersion("psych")))))
+    engine = ps_engine("psych")))
 }
 
 # The lavaan solution (ps_efa with method "lavaan"): standardised loadings, factor correlations and residual
@@ -198,5 +198,5 @@ ps_efa_lavaan <- function(env, back, method, rotation, criterion, correlation, p
     kaiser = sum(env$eigenvalues > 1),
     fit = fits(fit), comparison = comparison,
     warnings = env$.warnings,
-    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("lavaan")))
 }

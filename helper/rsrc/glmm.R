@@ -81,8 +81,8 @@ ps_glmm <- function(req_json, export = FALSE) {
     PS_GLMM_DELTA,
     "re <- re_table(fit, V)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Generalized linear mixed model (%s, GLMMadaptive)", family), "GLMMadaptive", inputs, body,
-    c("summary(fit)", "re", "logLik(fit)")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Generalized linear mixed model (%s, GLMMadaptive)", family), "GLMMadaptive", inputs, body,
+    c("summary(fit)", "re", "logLik(fit)")))
   env <- ps_run(body, inputs)
   fit <- env$fit; V <- env$V
   term <- function(x) { b <- sub("^zi_", "", x); if (b == "(Intercept)") "Intercept" else if (b %in% names(fr$back)) unname(fr$back[b])
@@ -99,5 +99,5 @@ ps_glmm <- function(req_json, export = FALSE) {
   ps_json(list(family = family, layout = layout, n = nrow(env$d), clusters = length(unique(env$d[[idv]])), quadrature = as.integer(k), robust = robust,
     fixed = fixedTab, zero = zeroTab, random = random, logPhi = phi,
     logLik = as.numeric(ll), npar = attr(ll, "df"), aic = stats::AIC(fit), bic = stats::BIC(fit), converged = isTRUE(fit$converged),
-    warnings = env$.warnings, engine = list(package = "GLMMadaptive", version = as.character(utils::packageVersion("GLMMadaptive")))))
+    warnings = env$.warnings, engine = ps_engine("GLMMadaptive")))
 }

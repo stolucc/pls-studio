@@ -180,7 +180,7 @@ ps_cpa <- function(req_json, export = FALSE) {
           levels_code(id(p$moderators)), path[1], path[k], m, fit_name, ci_args)
         else sprintf("ind(%s)", ps_q(path))
       })))
-    return(paste(ps_script(title, if (b$sam) c("manymome", "lavaan") else "manymome", b$inputs, b$body, report), collapse = "\n"))
+    return(ps_script(title, if (b$sam) c("manymome", "lavaan") else "manymome", b$inputs, b$body, report))
   }
   env <- ps_run(b$body, b$inputs)
   pv <- if (length(b$mods)) env$probe_values else list()
@@ -375,8 +375,8 @@ ps_cpa_glm <- function(req, export = FALSE) {
     report <- c("lapply(eqs, summary)", if (length(b$mods)) "probe_values",
       unlist(lapply(req$indirect, function(p) sprintf("ind_c(cf0, %s%s)  # point estimate; bootstrap: sapply(boots, ind_c, path = ...)", ps_q(id(p$vars)),
         if (length(p$moderators)) sprintf(", at = c(%s)", paste(sprintf("%s = probe_values$%s[2]", id(p$moderators), id(p$moderators)), collapse = ", ")) else ""))))
-    return(paste(ps_script(sprintf("Conditional process analysis%s", if (binary) " with a dichotomous outcome (logistic regression)" else " with counterfactual effects (X by M interaction)"),
-      "stats", b$inputs, body, report), collapse = "\n"))
+    return(ps_script(sprintf("Conditional process analysis%s", if (binary) " with a dichotomous outcome (logistic regression)" else " with counterfactual effects (X by M interaction)"),
+      "stats", b$inputs, body, report))
   }
   env <- ps_run(body, b$inputs)
   level <- req$confidence %||% 0.95

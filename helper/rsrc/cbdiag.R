@@ -14,8 +14,9 @@ PS_LOCALFIT_SCALED <- c("satorra.bentler", "yuan.bentler", "mean.var.adjusted", 
 ps_call_objects <- function(f = "fit") c("# (the model is refitted by update() outside this script: its call takes the data objects themselves)",
   sprintf("for (a in names(%s@call)[-1]) if (is.name(%s@call[[a]]) && exists(as.character(%s@call[[a]]), inherits = FALSE)) %s@call[[a]] <- get(as.character(%s@call[[a]]))", f, f, f, f, f))
 
-#' A symmetric lavaan matrix as rows of numbers (NA as null).
-ps_rows <- function(m) lapply(seq_len(nrow(m)), function(i) I(unname(as.numeric(m[i, ]))))
+#' One finite number, or NULL; one non-empty text (one line), or NULL.
+ps_num1 <- function(x) if (is.numeric(x) && length(x) == 1 && is.finite(x)) unname(x) else NULL
+ps_str1 <- function(x) if (is.character(x) && length(x) == 1 && nzchar(x)) ps_flat(x) else NULL
 
 #' Local fit (JARS-Quant 2024, Table 7): for every pair of observed variables the residual correlation
 #' (observed minus model-implied, both scaled by the observed SDs: Bentler's metric, as the SRMR) with
@@ -49,7 +50,7 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
       sprintf("tests <- list(standard = lav_test(\"standard\"),\n  %s)", paste(sprintf("%s = lav_test(\"%s\"%s)", tests, tests,
         ifelse(tests %in% PS_LOCALFIT_SCALED & base == "RLS", ", scaled_test = \"RLS\"", "")), collapse = ",\n  "))))
   report <- c("print(res)", if (length(tests)) "str(tests, max.level = 2)")
-  if (export) return(paste(ps_script("Local fit: residual z-tests and tests of exact fit (lavaan)", "lavaan", b$inputs, body, report), collapse = "\n"))
+  if (export) return(ps_script("Local fit: residual z-tests and tests of exact fit (lavaan)", "lavaan", b$inputs, body, report))
   env <- ps_run(body, b$inputs)
   back <- ps_cb_back(b)
   nm <- function(x) ps_back(x, back)
@@ -66,15 +67,13 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
         usrmr = sm("usrmr"), usrmrSe = sm("usrmr.se"), low = sm("usrmr.ci.lower"), high = sm("usrmr.ci.upper"),
         h0 = sm("usrmr.closefit.h0.value"), closeZ = sm("usrmr.closefit.z"), closeP = sm("usrmr.closefit.pvalue")))
   })
-  num1 <- function(x) if (is.numeric(x) && length(x) == 1 && is.finite(x)) x else NULL
-  str1 <- function(x) if (is.character(x) && length(x) == 1 && nzchar(x)) ps_flat(x) else NULL
   tl <- lapply(names(env$tests), function(k) {
     t <- env$tests[[k]]
-    list(test = k, label = str1(t$label), stat = num1(t$stat), df = num1(t$df), p = num1(t$pvalue), scaling = num1(t$scaling.factor), shift = num1(t$shift.parameter),
-      base = str1(t$scaled.test %||% t$chisq.type), error = str1(t$error), warning = str1(t$warning))
+    list(test = k, label = ps_str1(t$label), stat = ps_num1(t$stat), df = ps_num1(t$df), p = ps_num1(t$pvalue), scaling = ps_num1(t$scaling.factor), shift = ps_num1(t$shift.parameter),
+      base = ps_str1(t$scaled.test %||% t$chisq.type), error = ps_str1(t$error), warning = ps_str1(t$warning))
   })
   ps_json(list(blocks = blocks, tests = tl, base = base, estimator = req$estimator, n = sum(lavInspect(env$fit, "nobs")), warnings = env$.warnings,
-    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("lavaan")))
 }
 
 #' Discriminant validity per Ronkko & Cho (2022), semTools::discriminantValidity: each factor
@@ -102,7 +101,7 @@ ps_cb_discriminant <- function(req_json, export = FALSE) {
     sprintf("dv <- lapply(c(cut_0.8 = 0.8, cut_0.9 = 0.9, cut_1 = 1), function(k) discriminantValidity(fit, cutoff = k, level = %s))", format(level)),
     if (merge) c("# ... and against the model with the two factors merged into one (chi2(merge)).",
       sprintf("dv_merge <- discriminantValidity(fit, merge = TRUE, level = %s)", format(level))))
-  if (export) return(paste(ps_script("Discriminant validity, CI-CFA(sys) and chi2(sys) (semTools)", c("lavaan", "semTools"), b$inputs, body, c("print(dv)", if (merge) "print(dv_merge)")), collapse = "\n"))
+  if (export) return(ps_script("Discriminant validity, CI-CFA(sys) and chi2(sys) (semTools)", c("lavaan", "semTools"), b$inputs, body, c("print(dv)", if (merge) "print(dv_merge)")))
   env <- ps_run(body, b$inputs)
   back <- ps_cb_back(ps_esem_align(b, env$fit))
   nm <- function(x) ps_back(x, back)
@@ -112,7 +111,7 @@ ps_cb_discriminant <- function(req_json, export = FALSE) {
   ps_json(list(level = level, lhs = I(nm(d$lhs)), rhs = I(nm(d$rhs)), est = I(as.numeric(d$est)), low = I(as.numeric(d$ci.lower)), high = I(as.numeric(d$ci.upper)),
     cut80 = pr(env$dv[[1]]), cut90 = pr(env$dv[[2]]), cut100 = pr(env$dv[[3]]), merge = if (merge) pr(env$dv_merge) else NULL,
     markers = !isTRUE(lavInspect(env$fit, "options")$std.lv), warnings = env$.warnings,
-    engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools")))))
+    engine = ps_engine("semTools")))
 }
 
 #' Comparison of the model on the canvas (model 1) with a saved alternative (model 2), fitted to the same
@@ -165,24 +164,23 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
     "ic <- try_test(icci(fit_1, fit_2))",
     "note_ic <- note")
   report <- c("print(net)", "print(lrt)", "print(vt)", "print(ic)")
-  if (export) return(paste(ps_script("Comparing two models: NET, chi-square difference, Vuong's tests (lavaan, nonnest2)", c("lavaan", "nonnest2"), b1$inputs, body, report), collapse = "\n"))
+  if (export) return(ps_script("Comparing two models: NET, chi-square difference, Vuong's tests (lavaan, nonnest2)", c("lavaan", "nonnest2"), b1$inputs, body, report))
   env <- ps_run(body, b1$inputs)
   fm <- function(f) { m <- fitMeasures(f, c("npar", "chisq", "df", "pvalue", "cfi", "rmsea", "srmr", "logl", "aic", "bic")); as.list(setNames(as.numeric(m), names(m))) }
-  num1 <- function(x) if (is.numeric(x) && length(x) == 1 && is.finite(x)) unname(x) else NULL
   why <- function(x, notes) list(error = if (is.character(x)) ps_flat(paste(x, collapse = " ")) else NULL, notes = I(ps_flat(unique(notes))))
   net <- env$net
-  netOut <- if (is.list(net)) list(nested12 = net$nested[1, 2], nested21 = net$nested[2, 1], fx12 = num1(net$fx[1, 2]), fx21 = num1(net$fx[2, 1]),
-    reason12 = ps_flat(net$reason[1, 2]), reason21 = ps_flat(net$reason[2, 1]), crit = num1(net$crit)) else NULL
+  netOut <- if (is.list(net)) list(nested12 = net$nested[1, 2], nested21 = net$nested[2, 1], fx12 = ps_num1(net$fx[1, 2]), fx21 = ps_num1(net$fx[2, 1]),
+    reason12 = ps_flat(net$reason[1, 2]), reason21 = ps_flat(net$reason[2, 1]), crit = ps_num1(net$crit)) else NULL
   lrt <- env$lrt
-  lrtOut <- if (is.data.frame(lrt)) list(chisq = num1(lrt[["Chisq diff"]][2]), df = num1(lrt[["Df diff"]][2]), p = num1(lrt[["Pr(>Chisq)"]][2]), method = ps_flat(attr(lrt, "heading")[1] %||% "")) else NULL
+  lrtOut <- if (is.data.frame(lrt)) list(chisq = ps_num1(lrt[["Chisq diff"]][2]), df = ps_num1(lrt[["Df diff"]][2]), p = ps_num1(lrt[["Pr(>Chisq)"]][2]), method = ps_flat(attr(lrt, "heading")[1] %||% "")) else NULL
   vt <- env$vt
-  vtOut <- if (is.list(vt)) list(nested = isTRUE(vt$nested), omega = num1(vt$omega), pOmega = num1(vt$p_omega), stat = num1(vt$LRTstat), pA = num1(vt$p_LRT$A), pB = num1(vt$p_LRT$B)) else NULL
+  vtOut <- if (is.list(vt)) list(nested = isTRUE(vt$nested), omega = ps_num1(vt$omega), pOmega = ps_num1(vt$p_omega), stat = ps_num1(vt$LRTstat), pA = ps_num1(vt$p_LRT$A), pB = ps_num1(vt$p_LRT$B)) else NULL
   ic <- env$ic
-  icOut <- if (is.list(ic)) list(aic1 = num1(ic$AIC$AIC1), aic2 = num1(ic$AIC$AIC2), aicLow = num1(ic$AICci[1]), aicHigh = num1(ic$AICci[2]), bic1 = num1(ic$BIC$BIC1), bic2 = num1(ic$BIC$BIC2), bicLow = num1(ic$BICci[1]), bicHigh = num1(ic$BICci[2]), level = num1(ic$confLevel)) else NULL
+  icOut <- if (is.list(ic)) list(aic1 = ps_num1(ic$AIC$AIC1), aic2 = ps_num1(ic$AIC$AIC2), aicLow = ps_num1(ic$AICci[1]), aicHigh = ps_num1(ic$AICci[2]), bic1 = ps_num1(ic$BIC$BIC1), bic2 = ps_num1(ic$BIC$BIC2), bicLow = ps_num1(ic$BICci[1]), bicHigh = ps_num1(ic$BICci[2]), level = ps_num1(ic$confLevel)) else NULL
   ps_json(list(fit1 = fm(env$fit_1), fit2 = fm(env$fit_2), n = sum(lavInspect(env$fit_1, "nobs")),
     net = c(netOut, why(net, env$note_net)), lrt = c(lrtOut, why(lrt, env$note_lrt)), vuong = c(vtOut, why(vt, env$note_vt)), icci = c(icOut, why(ic, env$note_ic)),
     nestedChoice = nested, warnings = env$.warnings,
-    engine = list(package = "nonnest2", version = as.character(utils::packageVersion("nonnest2")), lavaan = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("nonnest2", lavaan = "lavaan")))
 }
 
 #' EPC-based judgement of misspecification (semTools::epcEquivFit): for every fixed parameter its MI, EPC,
@@ -208,7 +206,7 @@ ps_cb_epcequiv <- function(req_json, export = FALSE) {
     ps_call_objects(),
     sprintf("epc <- epcEquivFit(fit, stdLoad = %s, cor = %s, stdBeta = %s, stdIntcept = %s, cilevel = %s, mialpha = %s, mipower = %s, adjust.method = \"%s\")",
       format(std_load), format(cor), format(std_beta), format(std_int), format(cilevel), format(mialpha), format(mipower), adjust))
-  if (export) return(paste(ps_script("EPC-based judgement of misspecification (semTools::epcEquivFit)", c("lavaan", "semTools"), b$inputs, body, c("print(epc)", "summary(epc, ssv = TRUE)")), collapse = "\n"))
+  if (export) return(ps_script("EPC-based judgement of misspecification (semTools::epcEquivFit)", c("lavaan", "semTools"), b$inputs, body, c("print(epc)", "summary(epc, ssv = TRUE)")))
   env <- ps_run(body, b$inputs)
   d <- as.data.frame(env$epc)
   back <- ps_cb_back(ps_esem_align(b, env$fit))
@@ -222,5 +220,5 @@ ps_cb_epcequiv <- function(req_json, export = FALSE) {
     seEpc = I(col("se.epc")), lowStd = I(col("lower.std.epc")), highStd = I(col("upper.std.epc")), decisionCi = I(chr("decision.ci")),
     settings = list(stdLoad = std_load, cor = cor, stdBeta = std_beta, stdIntcept = std_int, cilevel = cilevel, mialpha = mialpha, mipower = mipower, adjust = adjust),
     groups = if (!is.null(b$group_var)) I(as.character(lavInspect(env$fit, "group.label"))) else NULL, warnings = env$.warnings,
-    engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools")))))
+    engine = ps_engine("semTools")))
 }

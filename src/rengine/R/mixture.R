@@ -1197,10 +1197,10 @@ ps_mixture <- function(req_json, export = FALSE) {
     "}")
   spec_json <- as.character(jsonlite::toJSON(spec, auto_unbox = TRUE, digits = NA, null = "null", na = "null"))
   inputs <- list(data = data, spec_json = spec_json)
-  if (export) return(paste(ps_script("Mixture model (maximum likelihood, MLR standard errors)", "jsonlite", inputs, body,
+  if (export) return(ps_script("Mixture model (maximum likelihood, MLR standard errors)", "jsonlite", inputs, body,
     c("c(logLik = est$ll, npar = est$k, BIC = -2 * est$ll + est$k * log(sum(est$M$w)))",
       "do.call(rbind, lapply(report, function(r) data.frame(lhs = r$lhs, op = r$op, rhs = r$rhs, classes = paste(r$at, collapse = \" \"), est = r$est, se = if (is.null(r$se)) NA else r$se)))",
-      "shares$classes")), collapse = "\n"))
+      "shares$classes")))
   env <- ps_run(body, inputs)
   est <- env$est
   # (a phase of the random starts run in one of several R sessions: its runs only)

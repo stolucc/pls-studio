@@ -136,7 +136,7 @@ ps_mc <- function(req_json, export = FALSE) {
       "    rmse = if (params$kind[k] == 'fit') NA else sqrt(mean((x - truth[k])^2)), rejection = mean(vals[ok, 4], na.rm = TRUE))",
       "}))))))",
       "print(summary_rows, digits = 3)")
-    return(paste(ps_script("Monte Carlo simulation (lavaan::simulateData; cSEM / lavaan)", c("lavaan", "cSEM"), list(seeds = sd), c(body, run), report), collapse = "\n"))
+    return(ps_script("Monte Carlo simulation (lavaan::simulateData; cSEM / lavaan)", c("lavaan", "cSEM"), list(seeds = sd), c(body, run), report))
   }
   env <- ps_run(c(body, run), list(seeds = sd))
   E <- length(req$estimators); K <- length(req$params)

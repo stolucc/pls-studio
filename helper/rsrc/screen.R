@@ -28,7 +28,7 @@ ps_screen <- function(req_json, export = FALSE) {
     "rows <- as.integer(rownames(Xc))",
     sprintf("flagged <- rows[p < %s]", format(alpha)))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Data screening (psych)", "psych", inputs, body, c("desc", "mard", "flagged")), collapse = "\n"))
+  if (export) return(ps_script("Data screening (psych)", "psych", inputs, body, c("desc", "mard", "flagged")))
   env <- ps_run(body, inputs)
   d <- env$desc; m <- env$mard
   ps_json(list(
@@ -38,7 +38,7 @@ ps_screen <- function(req_json, export = FALSE) {
     mardia = list(n = m$n.obs, p = m$n.var, b1p = m$b1p, b2p = m$b2p, skew = m$skew, smallSkew = m$small.skew, pSkew = m$p.skew,
       pSmall = m$p.small, kurtosis = m$kurtosis, pKurt = m$p.kurt, df = m$n.var * (m$n.var + 1) * (m$n.var + 2) / 6),
     cases = list(rows = env$rows, d2 = unname(env$d2), p = unname(env$p)), alpha = alpha, df = length(vars),
-    warnings = env$.warnings, engine = list(package = "psych", version = as.character(utils::packageVersion("psych")))))
+    warnings = env$.warnings, engine = ps_engine("psych")))
 }
 
 #' Case influence on a CB-SEM model: the model refitted without each case in turn
@@ -56,7 +56,7 @@ ps_influence <- function(req_json, export = FALSE) {
   cores <- as.integer(req$cores %||% 1L)
   if (is.na(cores) || cores < 1L || cores > 64L) stop("Invalid number of cores.")
   # (forking is unavailable in R in the browser)
-  par <- cores > 1L && !grepl("emscripten", R.version$platform)
+  par <- cores > 1L && !ps_in_browser()
   approach <- req$approach %||% "exact"
   if (!approach %in% c("exact", "approximate")) stop("Invalid influence approach in the request.")
   body <- c(b$body,
@@ -77,13 +77,13 @@ ps_influence <- function(req_json, export = FALSE) {
     "kurt_rows <- as.integer(rownames(data))[okk]")
   inputs <- b$inputs
   g <- if (approach == "approximate") "gcd_approx" else "gcd"
-  if (export) return(paste(ps_script("Case influence (semfindr)", c("lavaan", "semfindr"), inputs, body, c(sprintf("head(infl[order(-infl[, \"%s\"]), c(\"%s\", \"md\", \"chisq\")], 10)", g, g), "sum(kurt_i)  # = Mardia's b2,p", "head(sort(setNames(kurt_i, kurt_rows), decreasing = TRUE), 10)")), collapse = "\n"))
+  if (export) return(ps_script("Case influence (semfindr)", c("lavaan", "semfindr"), inputs, body, c(sprintf("head(infl[order(-infl[, \"%s\"]), c(\"%s\", \"md\", \"chisq\")], 10)", g, g), "sum(kurt_i)  # = Mardia's b2,p", "head(sort(setNames(kurt_i, kurt_rows), decreasing = TRUE), 10)")))
   env <- ps_run(body, inputs)
   infl <- env$infl
   col <- function(k) if (k %in% colnames(infl)) unname(infl[, k]) else rep(NA_real_, nrow(infl))
   ps_json(list(approach = approach, rows = env$rows, gcd = col(g), md = col("md"), chisq = col("chisq"), cfi = col("cfi"), rmsea = col("rmsea"), tli = col("tli"),
     kurtosis = list(rows = env$kurt_rows, contribution = unname(env$kurt_i), b2p = sum(env$kurt_i), p = ncol(env$Xk)),
-    warnings = env$.warnings, engine = list(package = "semfindr", version = as.character(utils::packageVersion("semfindr")))))
+    warnings = env$.warnings, engine = ps_engine("semfindr")))
 }
 
 #' Missing data as Mplus's TYPE = BASIC describes them: the patterns of missing values (Mplus's order: a pattern read as
@@ -185,14 +185,14 @@ ps_missing <- function(req_json, export = FALSE) {
       "M2 <- matrix(FALSE, n, Tn); M2[, at2] <- is.na(as.matrix(D2))",
       "set2 <- lapply(seq_along(at2), function(k) occasion(D2[[k]], at2[k] - 1, gaps(M2)))"))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Missing data (patterns, coverage, EM estimates, dropout%s)", if (mcar || jamjal) ", MCAR tests" else ""), c("lavaan", if (mcar || jamjal) c("misty", "mvnmle")), inputs, body,
-    c("patterns", "coverage", "em_mean", "em_cov", "loglik_h1", if (mcar) c("little", "little_patterns"), if (jamjal) "jj[c(\"hawkins\", \"anderson\")]", if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"), if (length(desc)) "set2")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Missing data (patterns, coverage, EM estimates, dropout%s)", if (mcar || jamjal) ", MCAR tests" else ""), c("lavaan", if (mcar || jamjal) c("misty", "mvnmle")), inputs, body,
+    c("patterns", "coverage", "em_mean", "em_cov", "loglik_h1", if (mcar) c("little", "little_patterns"), if (jamjal) "jj[c(\"hawkins\", \"anderson\")]", if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"), if (length(desc)) "set2")))
   env <- ps_run(body, inputs)
   sym <- function(S) lapply(seq_len(nrow(S)), function(i) unname(S[i, ]))
   em_cor <- stats::cov2cor(env$em_cov)
   res <- list(variables = I(vars), n = env$n, patterns = env$patterns, coverage = sym(env$coverage),
     em = list(means = I(unname(env$em_mean)), cov = sym(env$em_cov), cor = sym(em_cor), loglik = if (is.finite(env$loglik_h1) && !env$singular) env$loglik_h1 else NULL, singular = env$singular),
-    warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan"))))
+    warnings = env$.warnings, engine = ps_engine("lavaan"))
   if (mcar) {
     L <- env$little
     res$little <- list(n = L$no.cases, incomplete = L$no.incomplete, patterns = L$no.pattern, chisq = L$statistic, df = L$df, p = L$p,
@@ -204,7 +204,7 @@ ps_missing <- function(req_json, export = FALSE) {
       patternN = I(as.integer(jj$jamjal$n.pattern)), hawkins = list(stat = jj$hawkins$statistic, df = jj$hawkins$df, p = jj$hawkins$p),
       anderson = list(stat = jj$anderson$statistic, p = jj$anderson$p), seed = seed)
   }
-  if (mcar || jamjal) res$engine <- list(package = "misty", version = as.character(utils::packageVersion("misty")), lavaan = as.character(utils::packageVersion("lavaan")), mvnmle = as.character(utils::packageVersion("mvnmle")))
+  if (mcar || jamjal) res$engine <- ps_engine("misty", lavaan = "lavaan", mvnmle = "mvnmle")
   if (length(meas)) {
     res$dropout <- list(measures = I(meas), dropouts = sum(env$dropout), nonDropoutsComplete = sum(env$stayer & !env$intermittent), nonDropoutsIntermittent = sum(env$stayer & env$intermittent),
       byTime = I(vapply(seq_len(length(meas) - 1), function(t) sum(env$out_at %in% t), 0L)),

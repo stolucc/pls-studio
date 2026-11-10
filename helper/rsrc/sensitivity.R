@@ -69,12 +69,12 @@ ps_semsens <- function(req_json, export = FALSE) {
     "first <- sa$model.results[sa$model.results$evals == 1, ]",
     "stopifnot(identical(paste(first$lhs, first$op, first$rhs)[path_rows], paste(std0$lhs, std0$op, std0$rhs)[path_rows]))",
     sprintf("tables <- SEMsens::sens.tables(sa, sig.level = %s, sort = FALSE)", format(alpha)))
-  if (export) return(paste(ps_script(sprintf("Sensitivity analysis for an unmeasured confounder (SEMsens, objective %d)", opt), c("lavaan", "SEMsens"), b$inputs, body,
+  if (export) return(ps_script(sprintf("Sensitivity analysis for an unmeasured confounder (SEMsens, objective %d)", opt), c("lavaan", "SEMsens"), b$inputs, body,
     c("tables$sens.summary   # each path: the model's standardised estimate and p, and its mean, minimum and maximum over the evaluations",
       "tables$phan.paths     # the phantom coefficients (standardised): mean, minimum, maximum",
       "tables$phan.min       # the phantom coefficients at each path's minimum",
       "tables$phan.max       # ... and maximum",
-      "tables$p.paths        # the p-value closest to a flip of significance, and the phantom coefficients that give it")), collapse = "\n"))
+      "tables$p.paths        # the p-value closest to a flip of significance, and the phantom coefficients that give it")))
   env <- ps_run(body, b$inputs)
   back <- ps_back_map(b)
   nm <- function(x) { s <- strsplit(x, "~", fixed = TRUE)[[1]]; c(from = ps_back(trimws(s[2]), back), to = ps_back(trimws(s[1]), back)) }
@@ -94,7 +94,7 @@ ps_semsens <- function(req_json, export = FALSE) {
     draws = list(path = lapply(regs, function(r) { x <- nm(r); list(from = x[["from"]], to = x[["to"]], est = I(pick("est.std", r)), p = I(pick("pvalue", r))) }),
       phantom = lapply(ph, function(k) I(pick("est.std", k)))),
     warnings = env$.warnings,
-    engine = list(package = "SEMsens", version = as.character(utils::packageVersion("SEMsens")), lavaan = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("SEMsens", lavaan = "lavaan")))
 }
 
 ps_medsens <- function(req_json, export = FALSE) {
@@ -132,7 +132,7 @@ ps_medsens <- function(req_json, export = FALSE) {
     "# of rho, the correlation of the two equations' residuals",
     sprintf("sens <- medsens(med, rho.by = %s, eps = %s, effect.type = \"both\")", format(rho_by), format(eps, digits = 15)))
   inputs <- list(data = ps_frame(req, n))
-  if (export) return(paste(ps_script("Sensitivity of a mediation effect to an unmeasured confounder (mediation::medsens)", "mediation", inputs, body, c("summary(sens)", "plot(sens, sens.par = \"rho\")")), collapse = "\n"))
+  if (export) return(ps_script("Sensitivity of a mediation effect to an unmeasured confounder (mediation::medsens)", "mediation", inputs, body, c("summary(sens)", "plot(sens, sens.par = \"rho\")")))
   env <- ps_run(body, inputs)
   s <- env$sens
   v <- function(z) I(unname(as.numeric(z)))
@@ -143,5 +143,5 @@ ps_medsens <- function(req_json, export = FALSE) {
     acmeZero = list(rho = s$err.cr.d, r2star = s$R2star.d.thresh, r2tilde = s$R2tilde.d.thresh),
     adeZero = list(rho = s$err.cr.z, r2star = s$R2star.z.thresh, r2tilde = s$R2tilde.z.thresh),
     printed = I(ps_flat_lines(utils::capture.output(summary(s)))), warnings = env$.warnings,
-    engine = list(package = "mediation", version = as.character(utils::packageVersion("mediation")))))
+    engine = ps_engine("mediation")))
 }

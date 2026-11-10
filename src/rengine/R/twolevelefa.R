@@ -97,8 +97,8 @@ ps_efa_twolevel <- function(req_json, export = FALSE) {
       sprintf("solutions[[%d]] <- sol", i))
   }
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Two-level exploratory factor analysis (lavaan, geomin rotation by GPArotation)", c("lavaan", "GPArotation"), inputs, body,
-    c("lapply(solutions, function(s) list(fit = lavaan::fitMeasures(s$fit, c(\"npar\", \"logl\", \"chisq\", \"df\", \"aic\", \"bic\")), within = s$within[c(\"L\", \"Phi\", \"th\")], between = s$between[c(\"L\", \"Phi\", \"th\")]))")), collapse = "\n"))
+  if (export) return(ps_script("Two-level exploratory factor analysis (lavaan, geomin rotation by GPArotation)", c("lavaan", "GPArotation"), inputs, body,
+    c("lapply(solutions, function(s) list(fit = lavaan::fitMeasures(s$fit, c(\"npar\", \"logl\", \"chisq\", \"df\", \"aic\", \"bic\")), within = s$within[c(\"L\", \"Phi\", \"th\")], between = s$between[c(\"L\", \"Phi\", \"th\")]))")))
   env <- ps_run(body, inputs)
   level_out <- function(sol, se) if (is.null(sol)) NULL else list(
     factors = I(colnames(sol$L)), loadings = lapply(seq_len(nrow(sol$L)), function(r) list(item = items[r], est = I(unname(sol$L[r, ])), se = I(unname(se$L[r, ])))),

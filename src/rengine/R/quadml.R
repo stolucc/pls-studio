@@ -497,9 +497,9 @@ ps_quadml <- function(req_json, export = FALSE) {
     "report <- qml_report(spec, est)")
   spec_json <- as.character(jsonlite::toJSON(spec, auto_unbox = TRUE, digits = NA, null = "null", na = "null"))
   inputs <- list(data = data, spec_json = spec_json)
-  if (export) return(paste(ps_script("Maximum likelihood by numerical integration (Mplus ALGORITHM = INTEGRATION)", "jsonlite", inputs, body,
+  if (export) return(ps_script("Maximum likelihood by numerical integration (Mplus ALGORITHM = INTEGRATION)", "jsonlite", inputs, body,
     c("c(logLik = est$ll, npar = est$k, AIC = -2 * est$ll + 2 * est$k, BIC = -2 * est$ll + est$k * log(sum(est$M$w)))",
-      "do.call(rbind, lapply(report, function(r) data.frame(lhs = r$lhs, op = r$op, rhs = r$rhs, est = r$est, se = if (is.null(r$se)) NA else r$se)))")), collapse = "\n"))
+      "do.call(rbind, lapply(report, function(r) data.frame(lhs = r$lhs, op = r$op, rhs = r$rhs, est = r$est, se = if (is.null(r$se)) NA else r$se)))")))
   env <- ps_run(body, inputs)
   est <- env$est; nobs <- sum(est$M$w); k <- est$k
   if (is.null(est$V)) ps_warning("The information matrix is singular: no standard errors (the model may not be identified).")

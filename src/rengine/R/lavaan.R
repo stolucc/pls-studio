@@ -240,7 +240,7 @@ ps_cb_build <- function(req) {
       at <- match(mg$column, req$data$names)
       if (is.na(at)) stop("The grouping column is not in the dataset.")
       cols <- req$data$cols
-      gcol <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      gcol <- ps_col(cols, at)
       group_var <- ps_ident(c(unname(n$iv), mg$column))[length(n$iv) + 1]
       inputs$data[[group_var]] <- gcol
     }
@@ -249,7 +249,7 @@ ps_cb_build <- function(req) {
       at <- match(ml$column, req$data$names)
       if (is.na(at)) stop("The cluster column is not in the dataset.")
       cols <- req$data$cols
-      ccol <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      ccol <- ps_col(cols, at)
       cluster_var <- ps_ident(c(unname(n$iv), ml$column))[length(n$iv) + 1]
       inputs$data[[cluster_var]] <- ccol
     }
@@ -260,7 +260,7 @@ ps_cb_build <- function(req) {
       at <- match(kcol, req$data$names)
       if (is.na(at)) stop("The cluster column is not in the dataset.")
       cols <- req$data$cols
-      kv <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      kv <- ps_col(cols, at)
       if (length(unique(kv[is.finite(kv)])) < 2) stop("The cluster column needs at least two clusters.")
       complex_var <- ps_ident(c(unname(n$iv), kcol))[length(n$iv) + 1]
       inputs$data[[complex_var]] <- kv
@@ -271,7 +271,7 @@ ps_cb_build <- function(req) {
       at <- match(wcol, req$data$names)
       if (is.na(at)) stop("The sampling-weights column is not in the dataset.")
       cols <- req$data$cols
-      wv <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      wv <- ps_col(cols, at)
       if (any(!is.finite(wv) | wv < 0)) stop("Sampling weights must be non-negative numbers without missing values.")
       weight_var <- ps_ident(c(unname(n$iv), wcol))[length(n$iv) + 1]
       inputs$data[[weight_var]] <- wv
@@ -615,7 +615,7 @@ ps_cb_build <- function(req) {
             if (is.na(at)) stop(sprintf("%s in the between-level model is neither a column of the dataset nor a between-level factor.", x))
             cols <- req$data$cols
             id <- fresh()
-            inputs$data[[id]] <<- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+            inputs$data[[id]] <<- ps_col(cols, at)
             between_cov[id] <<- x
             id
           }
@@ -646,7 +646,7 @@ ps_cb_build <- function(req) {
         if (is.na(at)) stop("A cluster-level covariate is not in the dataset.")
         cols <- req$data$cols
         id <- ps_ident(c(unname(n$iv), names(inputs$data), w))[length(n$iv) + ncol(inputs$data) + 1]
-        inputs$data[[id]] <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+        inputs$data[[id]] <- ps_col(cols, at)
         ws <- c(ws, id); between_cov[id] <- w
       }
       fac <- which(!is_cov[seq_len(k0)] & vapply(seq_len(k0), function(j) length(n$inds[[j]]) > 0 && !length(comps[[j]]), TRUE))
@@ -815,7 +815,7 @@ ps_cb_build <- function(req) {
       if (is.na(at)) stop("An auxiliary variable is not in the dataset.")
       cols <- req$data$cols
       id <- ps_ident(c(unname(n$iv), names(inputs$data), a))[length(n$iv) + ncol(inputs$data) + 1]
-      inputs$data[[id]] <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      inputs$data[[id]] <- ps_col(cols, at)
       aux_id[a] <- id
     }
     extra <- paste0(extra, sprintf(", aux = %s", ps_q(unname(aux_id))))
@@ -839,7 +839,7 @@ ps_cb_build <- function(req) {
       at <- match(a, req$data$names)
       if (is.na(at)) stop("An auxiliary variable for the imputation is not in the dataset.")
       cols <- req$data$cols
-      av <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+      av <- ps_col(cols, at)
       id <- ps_ident(c(unname(n$iv), names(inputs$data), a))[length(n$iv) + ncol(inputs$data) + 1]
       inputs$data[[id]] <- av
       aux_id[a] <- id
@@ -964,10 +964,10 @@ ps_cb <- function(req_json, export = FALSE) {
   if (!is.null(b$modsem)) { r <- ps_cb_modsem(req, b, export); return(if (export) r else ps_json(r)) }
   body <- c(b$body, b$baseline)
   if (export) {
-    return(paste(ps_script("CB-SEM (lavaan)", "lavaan", b$inputs, body,
+    return(ps_script("CB-SEM (lavaan)", "lavaan", b$inputs, body,
       # (multiple imputation: the results pooled over the imputed data sets, fit_mi, as the app reports them; fit is one imputation)
       c(if (isTRUE(b$mi)) "summary(fit_mi, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)"
-        else if (length(b$baseline)) "summary(fit, standardized = TRUE, rsquare = TRUE); fitMeasures(fit, baseline.model = fit_baseline)" else "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)")), collapse = "\n"))
+        else if (length(b$baseline)) "summary(fit, standardized = TRUE, rsquare = TRUE); fitMeasures(fit, baseline.model = fit_baseline)" else "summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)")))
   }
   env <- ps_run(body, b$inputs)
   fit <- env$fit
@@ -1219,7 +1219,7 @@ ps_cb <- function(req_json, export = FALSE) {
       wald = lapply(seq_along(env$wald), function(i) list(name = req$model$waldTests[[i]]$name, stat = unname(env$wald[[i]]$stat),
         df = unname(env$wald[[i]]$df), p = unname(env$wald[[i]]$p.value))),
       warnings = env$.warnings, droppedRows = n_in - sum(lavaan::lavInspect(fit, "nobs")),
-      engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))
+      engine = ps_engine("lavaan")
     )
   }
   out <- if (length(groups) > 1) {
@@ -1301,8 +1301,8 @@ ps_invariance <- function(req_json, export = FALSE) {
     vapply(seq_along(levels), function(i) sub("^fit <- ", sprintf("fit_%s <- ", levels[i]), call_of(builds[[i]])), ""),
     "# Chi-square difference tests between successive levels",
     "lrt <- lavTestLRT(fit_configural, fit_metric, fit_scalar, fit_strict)")
-  if (export) return(paste(ps_script("Measurement invariance (lavaan)", "lavaan", b$inputs, body,
-    c("lrt", "sapply(list(configural = fit_configural, metric = fit_metric, scalar = fit_scalar, strict = fit_strict), fitMeasures, fit.measures = c(\"chisq\", \"df\", \"cfi\", \"rmsea\", \"srmr\"))")), collapse = "\n"))
+  if (export) return(ps_script("Measurement invariance (lavaan)", "lavaan", b$inputs, body,
+    c("lrt", "sapply(list(configural = fit_configural, metric = fit_metric, scalar = fit_scalar, strict = fit_strict), fitMeasures, fit.measures = c(\"chisq\", \"df\", \"cfi\", \"rmsea\", \"srmr\"))")))
   env <- ps_run(body, b$inputs)
   fits <- lapply(levels, function(l) env[[paste0("fit_", l)]])
   robust <- any(c("chisq.scaled") %in% names(lavaan::fitMeasures(fits[[1]])))
@@ -1323,10 +1323,10 @@ ps_invariance <- function(req_json, export = FALSE) {
 #' fit statistics reported are those of the model without interaction terms.
 ps_cb_modsem <- function(req, b, export) {
   title <- sprintf("CB-SEM with latent interactions by %s (modsem)", toupper(b$modsem))
-  if (export) return(paste(ps_script(title, c("modsem", "lavaan"), b$inputs, b$body,
+  if (export) return(ps_script(title, c("modsem", "lavaan"), b$inputs, b$body,
     c("summary(fit, standardized = TRUE)", "standardized_estimates(fit)",
       "# Likelihood-ratio test of the interaction terms: the model against the same model without them",
-      "h0 <- estimate_h0(fit, calc.se = FALSE)", "compare_fit(est_h1 = fit, est_h0 = h0)")), collapse = "\n"))
+      "h0 <- estimate_h0(fit, calc.se = FALSE)", "compare_fit(est_h1 = fit, est_h0 = h0)")))
   env <- ps_run(b$body, b$inputs)
   fit <- env$fit
   n <- b$n; k0 <- b$k0; mods <- b$mods
@@ -1404,7 +1404,7 @@ ps_cb_modsem <- function(req, b, export) {
     lrt = if (is.list(lrt) && !is.null(lrt$D)) list(D = num1(lrt$D), df = num1(lrt$df), p = num1(lrt$p), llChange = num1(lrt$llChange)) else NULL,
     fitNote = "Chi-square-based fit measures (chi-square, CFI, TLI, RMSEA, SRMR) are those of the baseline model without the interaction term, refitted with lavaan, as modsem advises; AIC and BIC are the interaction model's.",
     warnings = env$.warnings, droppedRows = 0L,
-    engine = list(package = "modsem", version = as.character(utils::packageVersion("modsem"))))
+    engine = ps_engine("modsem"))
 }
 
 #' Factor scores of the latent constructs (lavaan::lavPredict): regression
@@ -1444,7 +1444,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
       sprintf("pv <- plausibleValues(fit, nDraws = %d, seed = %d)", draws, seed),
       "rows <- as.integer(rownames(data))[pv[[1]]$case.idx]",
       "factors <- setdiff(names(pv[[1]]), c(\"case.idx\", lavInspect(fit, \"group\")))")
-    if (export) return(paste(ps_script(sprintf("Plausible values (semTools, %d draws)", draws), c("lavaan", "semTools"), b$inputs, body, "head(cbind(row = rows, pv[[1]][factors]))"), collapse = "\n"))
+    if (export) return(ps_script(sprintf("Plausible values (semTools, %d draws)", draws), c("lavaan", "semTools"), b$inputs, body, "head(cbind(row = rows, pv[[1]][factors]))"))
     env <- ps_run(body, b$inputs)
     b <- ps_esem_align(b, env$fit)
     cons <- c(b$n$cname, b$int_names)
@@ -1452,7 +1452,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
     f <- env$factors
     return(ps_json(list(method = method, names = ps_back(f, back, FALSE), rows = env$rows,
       draws = lapply(env$pv, function(d) lapply(f, function(k) unname(d[[k]]))),
-      warnings = env$.warnings, engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools"))))))
+      warnings = env$.warnings, engine = ps_engine("semTools"))))
   }
   se <- isTRUE(req$scoreSe)
   body <- c(b$body,
@@ -1466,7 +1466,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
     "if (!is.list(scores) || is.data.frame(scores)) scores <- list(scores)",
     "scores <- do.call(rbind, scores)")
   inputs <- b$inputs
-  if (export) return(paste(ps_script(sprintf("Factor scores (lavaan, %s)", method), "lavaan", inputs, body, if (se) "head(cbind(row = rows, scores, se = se))" else "head(cbind(row = rows, scores))"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Factor scores (lavaan, %s)", method), "lavaan", inputs, body, if (se) "head(cbind(row = rows, scores, se = se))" else "head(cbind(row = rows, scores))"))
   env <- ps_run(body, inputs)
   b <- ps_esem_align(b, env$fit)
   cons <- c(b$n$cname, b$int_names)
@@ -1475,7 +1475,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
   ps_json(c(list(method = method, names = ps_back(colnames(sc), back, FALSE), rows = env$rows,
     scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j]))),
     if (se) list(se = lapply(colnames(sc), function(k) unname(env$se[, k]))),
-    list(warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan"))))))
+    list(warnings = env$.warnings, engine = ps_engine("lavaan"))))
 }
 
 #' Mplus TECH4: the model-implied means (with a mean structure), covariances and correlations of the
@@ -1622,6 +1622,17 @@ ps_cor_residuals <- function(fit) {
 #' lavaan names back to the app's (constructs, interaction terms, indicators).
 ps_cb_back <- function(b) ps_back_map(b, c(b$n$cname, b$int_names))
 
+#' Where a built model's syntax is in its script: the lines model <- ' and ' (their positions).
+ps_model_span <- function(b) {
+  at <- match("model <- '", b$body)
+  close <- if (is.na(at)) NA else at + match("'", b$body[-seq_len(at)])
+  if (is.na(close)) stop("The model syntax could not be built.")
+  c(at, close)
+}
+
+#' The model syntax lines of a built model (between model <- ' and ').
+ps_model_lines <- function(b) { s <- ps_model_span(b); b$body[seq_len(s[2] - s[1] - 1) + s[1]] }
+
 #' Models these analyses cannot use (each says why).
 ps_cb_plain <- function(b, what, raw = TRUE) {
   if (raw && b$matrix_input) stop(sprintf("%s needs raw data; this dataset is a covariance matrix.", what))
@@ -1649,13 +1660,13 @@ ps_cb_bollen_stine <- function(req_json, export = FALSE) {
     sprintf("fit_bs <- %s", sub("\\)$", sprintf(", test = \"bollen.stine\", bootstrap = %d)", B), sub("^fit <- ", "", b$call))),
     "bs <- lavInspect(fit_bs, \"test\")$bollen.stine",
     "boot_chisq <- attr(bs, \"boot.T\") %||% bs$boot.T")
-  if (export) return(paste(ps_script(sprintf("Bollen-Stine bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(bs[c(\"stat\", \"df\", \"pvalue\")])"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Bollen-Stine bootstrap, %d samples (lavaan)", B), "lavaan", b$inputs, body, "print(bs[c(\"stat\", \"df\", \"pvalue\")])"))
   env <- ps_run(body, b$inputs)
   bs <- env$bs; boot <- env$boot_chisq
   ps_json(list(chisq = bs$stat, df = bs$df, p = bs$pvalue, samples = B,
     valid = if (is.null(boot)) NULL else sum(is.finite(boot)), boot = if (is.null(boot)) NULL else I(unname(as.numeric(boot))),
     mlChisq = unname(fitMeasures(env$fit, "chisq")), warnings = env$.warnings,
-    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("lavaan")))
 }
 
 #' Pairwise comparisons of free parameters (AMOS's critical ratios for differences):
@@ -1682,7 +1693,7 @@ ps_cb_compare_params <- function(req_json, export = FALSE) {
     "se <- sqrt(pmax(outer(diag(V), diag(V), \"+\") - 2 * V, 0))",
     "z <- d / se; diag(z) <- NA",
     "rownames(z) <- colnames(z) <- paste(sel$lhs, sel$op, sel$rhs, if (max(sel$group) > 1) paste0(\"@\", sel$group) else \"\")")
-  if (export) return(paste(ps_script("Pairwise parameter comparisons (critical ratios for differences)", "lavaan", b$inputs, body, "print(round(z, 3))"), collapse = "\n"))
+  if (export) return(ps_script("Pairwise parameter comparisons (critical ratios for differences)", "lavaan", b$inputs, body, "print(round(z, 3))"))
   env <- ps_run(body, b$inputs)
   sel <- env$sel; back <- ps_cb_back(ps_esem_align(b, env$fit))
   nm <- function(x) ps_back(x, back)
@@ -1693,7 +1704,7 @@ ps_cb_compare_params <- function(req_json, export = FALSE) {
   z <- env$z
   ps_json(list(params = lapply(seq_len(nrow(sel)), function(i) list(label = label[i], est = sel$est[i], kind = switch(sel$op[i], "~" = "path", "=~" = "loading", if (sel$lhs[i] == sel$rhs[i]) "variance" else "covariance"))),
     z = if (length(z)) lapply(seq_len(nrow(z)), function(i) I(unname(z[i, ]))) else list(), warnings = env$.warnings,
-    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("lavaan")))
 }
 
 #' Factor score weights: how each latent variable's score is computed from the observed
@@ -1720,12 +1731,12 @@ ps_cb_score_weights <- function(req_json, export = FALSE) {
       "Ti <- solve(lavInspect(fit, \"est\")$theta[rownames(L), rownames(L)])",
       "W <- solve(t(L) %*% Ti %*% L) %*% t(L) %*% Ti"),
     "dimnames(W) <- list(colnames(L), rownames(L))")
-  if (export) return(paste(ps_script(sprintf("Factor score weights (%s)", method), "lavaan", b$inputs, body, "print(round(W, 4))"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Factor score weights (%s)", method), "lavaan", b$inputs, body, "print(round(W, 4))"))
   env <- ps_run(body, b$inputs)
   W <- env$W; back <- ps_cb_back(ps_esem_align(b, env$fit))
   ps_json(list(method = method, factors = I(ps_back(rownames(W), back)), variables = I(ps_back(colnames(W), back)),
     weights = lapply(seq_len(nrow(W)), function(i) I(unname(W[i, ]))), warnings = env$.warnings,
-    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("lavaan")))
 }
 
 #' Mplus MODEL syntax converted to lavaan syntax (lavaan::mplus2lavaan.modelSyntax):

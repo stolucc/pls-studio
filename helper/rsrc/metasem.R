@@ -42,7 +42,7 @@ ps_metasem_studies <- function(meta, vars) {
 
 ps_metasem <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  if (grepl("emscripten", R.version$platform)) stop("Meta-analytic SEM (metaSEM, OpenMx) runs in desktop R: choose Desktop R (helper) under R runs in.")
+  if (ps_in_browser()) stop("Meta-analytic SEM (metaSEM, OpenMx) runs in desktop R: choose Desktop R (helper) under R runs in.")
   meta <- req$meta
   method <- meta[["method", exact = TRUE]] %||% "REM"
   if (!(is.character(method) && length(method) == 1 && method %in% c("FEM", "REM"))) stop("Invalid stage-1 method in the request.")
@@ -63,10 +63,6 @@ ps_metasem <- function(req_json, export = FALSE) {
   if (length(b$composites)) stop("Composites (<~) are not available in meta-analytic SEM.")
   if (length(b$esem_blocks)) stop("ESEM blocks are not available in meta-analytic SEM.")
   if (isTRUE(b$means)) stop("Meta-analytic SEM on correlations has no mean structure: remove the constant.")
-  at <- match("model <- '", b$body)
-  close <- at + match("'", b$body[-seq_len(at)])
-  if (is.na(at) || is.na(close)) stop("The model syntax could not be built.")
-  model_lines <- b$body[at:close]
   iv <- unname(b$n$iv[vars])
   studies <- ps_metasem_studies(meta, iv)
   inputs <- list(n = studies$n)
@@ -80,11 +76,11 @@ ps_metasem <- function(req_json, export = FALSE) {
     "s1 <- summary(stage1)",
     if (method == "FEM") "pooled <- coef(stage1)" else c("pooled <- vec2symMat(coef(stage1, select = \"fixed\"), diag = FALSE)", "dimnames(pooled) <- list(colnames(R[[1]]), colnames(R[[1]]))"),
     "# Stage 2: the model on the canvas, its RAM matrices from its lavaan syntax, fitted to the pooled matrix (WLS)",
-    model_lines,
+    "model <- '", ps_model_lines(b), "'",
     sprintf("RAM <- lavaan2RAM(model, obs.variables = %s)", ps_q(iv)),
     "stage2 <- tssem2(stage1, RAM = RAM)",
     "s2 <- summary(stage2)")
-  if (export) return(paste(ps_script(sprintf("Meta-analytic SEM (TSSEM, %s)", if (method == "FEM") "fixed effects" else "random effects"), "metaSEM", inputs, body, c("s1", "s2")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Meta-analytic SEM (TSSEM, %s)", if (method == "FEM") "fixed effects" else "random effects"), "metaSEM", inputs, body, c("s1", "s2")))
   env <- ps_run(body, inputs)
   back <- ps_back_map(b)
   nm <- function(x) unname(ps_back(x, back))
@@ -131,5 +127,5 @@ ps_metasem <- function(req_json, export = FALSE) {
     baselineChisq = stat2("Chi-square of independence model"), baselineDf = stat2("DF of independence model"), rmsea = stat2("RMSEA"), rmseaLow = stat2("RMSEA lower 95% CI"),
     rmseaHigh = stat2("RMSEA upper 95% CI"), srmr = stat2("SRMR"), tli = stat2("TLI"), cfi = stat2("CFI"), aic = stat2("AIC"), bic = stat2("BIC"))
   ps_json(list(stage1 = stage1, stage2 = list(params = params, fit = fit, status = s2$Mx.status1), variables = I(nm(iv)),
-    warnings = env$.warnings, engine = list(package = "metaSEM", version = as.character(utils::packageVersion("metaSEM")), openmx = as.character(utils::packageVersion("OpenMx")))))
+    warnings = env$.warnings, engine = ps_engine("metaSEM", openmx = "OpenMx")))
 }

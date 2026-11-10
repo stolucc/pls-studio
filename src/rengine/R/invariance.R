@@ -26,9 +26,6 @@ ps_inv_fit <- function(fit) {
   list(chisq = pick("chisq", "chisq.scaled"), df = unname(m["df"]), cfi = pick("cfi", "cfi.robust"), rmsea = pick("rmsea", "rmsea.robust"), srmr = unname(m["srmr"]))
 }
 
-#' A G x I matrix as rows of numbers (JSON).
-ps_inv_rows <- function(m) lapply(seq_len(nrow(m)), function(g) I(unname(as.numeric(m[g, ]))))
-
 #' Alignment optimisation (Asparouhov & Muthen 2014) with sirt::invariance.alignment, following sirt's
 #' documented workflow (?invariance.alignment, example 2): the configural model is fitted in every group by
 #' lavaan with the factors standardised (std.lv = TRUE: mean 0, variance 1 in each group), each chosen factor's
@@ -72,17 +69,17 @@ ps_alignment <- function(req_json, export = FALSE) {
       sprintf("cons_%s <- invariance_alignment_constraints(align_%s, lambda_parm_tol = %s, nu_parm_tol = %s)", s, s, tol[1], tol[2]))
   }
   inputs <- list(data = f$fr$data)
-  if (export) return(paste(ps_script("Alignment optimisation (sirt)", c("lavaan", "sirt"), inputs, body,
-    unlist(lapply(f$fv, function(s) c(sprintf("summary(align_%s)", s), sprintf("summary(cons_%s)", s))))), collapse = "\n"))
+  if (export) return(ps_script("Alignment optimisation (sirt)", c("lavaan", "sirt"), inputs, body,
+    unlist(lapply(f$fv, function(s) c(sprintf("summary(align_%s)", s), sprintf("summary(cons_%s)", s))))))
   env <- ps_run(body, inputs)
   fit <- env$fit
   factors <- lapply(seq_along(f$fv), function(k) {
     s <- f$fv[k]; a <- env[[paste0("align_", s)]]; cons <- env[[paste0("cons_", s)]]
     es <- a$es.invariance
-    side <- function(l) list(tolerance = l$parm_tol, noninvariant = l$prop_noninvariance / 100, joint = I(unname(l$parm_joint)), dif = ps_inv_rows(l$parm_dif),
+    side <- function(l) list(tolerance = l$parm_tol, noninvariant = l$prop_noninvariance / 100, joint = I(unname(l$parm_joint)), dif = ps_rows(l$parm_dif),
       unique = I(unname(l$N_unique_parm_items)), uniqueGroups = I(unname(l$N_unique_parm_groups)))
     list(name = f$names[k], items = I(f$inds[[k]]),
-      lambda = ps_inv_rows(a$lambda), nu = ps_inv_rows(a$nu), lambdaAligned = ps_inv_rows(a$lambda.aligned), nuAligned = ps_inv_rows(a$nu.aligned),
+      lambda = ps_rows(a$lambda), nu = ps_rows(a$nu), lambdaAligned = ps_rows(a$lambda.aligned), nuAligned = ps_rows(a$nu.aligned),
       mean = I(unname(a$pars$alpha0)), sd = I(unname(a$pars$psi0)),
       r2 = list(lambda = unname(es["R2", 1]), nu = unname(es["R2", 2])), sqrtU2 = list(lambda = unname(es["sqrtU2", 1]), nu = unname(es["sqrtU2", 2])),
       rbar = list(lambda = unname(es["rbar", 1]), nu = unname(es["rbar", 2])),
@@ -91,7 +88,7 @@ ps_alignment <- function(req_json, export = FALSE) {
   })
   ps_json(list(groups = I(as.character(env$groups)), n = I(unname(as.numeric(env$N))), fit = ps_inv_fit(fit), factors = factors,
     power = as.numeric(pow), scale = as.numeric(scl), weights = weights, warnings = env$.warnings,
-    engine = list(package = "sirt", version = as.character(utils::packageVersion("sirt")), lavaan = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("sirt", lavaan = "lavaan")))
 }
 
 #' Moderated nonlinear factor analysis (Curran et al. 2014; Bauer 2017) with mnlfa: one factor of binary items
@@ -154,7 +151,7 @@ ps_mnlfa <- function(req_json, export = FALSE) {
     sprintf("formula_sd <- %s%s", fml(sdv, type == "1PL"), if (type == "1PL") "  # (1PL: slopes fixed at 1, the SD free)" else "  # (2PL: the SD is 1 where the covariates are 0)"),
     sprintf("mod <- mnlfa(dat = data, items = items, item_type = \"%s\", formula_int = formula_int, formula_slo = formula_slo, formula_mean = formula_mean, formula_sd = formula_sd, verbose = FALSE)", type))
   inputs <- list(data = d)
-  if (export) return(paste(ps_script(sprintf("Moderated nonlinear factor analysis, %s (mnlfa)", type), "mnlfa", inputs, body, c("summary(mod)", "mod$item", "mod$trait")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Moderated nonlinear factor analysis, %s (mnlfa)", type), "mnlfa", inputs, body, c("summary(mod)", "mod$item", "mod$trait")))
   env <- ps_run(body, inputs)
   m <- env$mod; it <- m$item; tr <- m$trait
   item_rows <- lapply(seq_len(nrow(it)), function(i) {
@@ -166,7 +163,7 @@ ps_mnlfa <- function(req_json, export = FALSE) {
   ps_json(list(itemType = type, n = nrow(env$data), items = item_rows, trait = trait_rows, terms = terms,
     fit = list(deviance = ic$deviance, logLik = -ic$deviance / 2, npar = ic$np, aic = ic$AIC, bic = ic$BIC, caic = ic$CAIC, aicc = ic$AICc),
     iterations = m$iter, converged = isTRUE(m$converged), warnings = env$.warnings,
-    engine = list(package = "mnlfa", version = as.character(utils::packageVersion("mnlfa")))))
+    engine = ps_engine("mnlfa")))
 }
 
 #' Longitudinal measurement invariance: one factor measured at several occasions by the same items (`occasions`:
@@ -213,9 +210,9 @@ ps_long_invariance <- function(req_json, export = FALSE) {
     "# Chi-square difference tests between successive levels",
     "lrt <- lavTestLRT(fit_configural, fit_metric, fit_scalar, fit_strict)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Longitudinal measurement invariance (semTools::measEq.syntax, lavaan)", c("lavaan", "semTools"), inputs, body,
+  if (export) return(ps_script("Longitudinal measurement invariance (semTools::measEq.syntax, lavaan)", c("lavaan", "semTools"), inputs, body,
     c("lrt", "sapply(list(configural = fit_configural, metric = fit_metric, scalar = fit_scalar, strict = fit_strict), fitMeasures, fit.measures = c(\"chisq\", \"df\", \"cfi\", \"rmsea\", \"srmr\"))",
-      "cat(as.character(measEq.syntax(configural.model = model, data = data, ID.fac = \"std.lv\", longFacNames = longFacNames, longIndNames = longIndNames, long.equal = c(\"loadings\", \"intercepts\"), meanstructure = TRUE)))")), collapse = "\n"))
+      "cat(as.character(measEq.syntax(configural.model = model, data = data, ID.fac = \"std.lv\", longFacNames = longFacNames, longIndNames = longIndNames, long.equal = c(\"loadings\", \"intercepts\"), meanstructure = TRUE)))")))
   env <- ps_run(body, inputs)
   fits <- lapply(levels, function(l) env[[paste0("fit_", l)]])
   fm <- lapply(fits, ps_inv_fit)
@@ -235,7 +232,7 @@ ps_long_invariance <- function(req_json, export = FALSE) {
       if (i > 1) list(chisqDiff = unname(lrt[["Chisq diff"]][at(i)]), dfDiff = unname(lrt[["Df diff"]][at(i)]), p = unname(lrt[["Pr(>Chisq)"]][at(i)]),
         cfiChange = fm[[i]]$cfi - fm[[i - 1]]$cfi, rmseaChange = fm[[i]]$rmsea - fm[[i - 1]]$rmsea),
       list(factor = factor_pars(fits[[i]])))),
-    warnings = env$.warnings, engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools")), lavaan = as.character(utils::packageVersion("lavaan")))))
+    warnings = env$.warnings, engine = ps_engine("semTools", lavaan = "lavaan")))
 }
 
 #' Uniform DIF by MIMIC (Muthen 1989; Woods 2009): the factor regressed on a covariate (a binary group or a continuous
@@ -284,8 +281,8 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
     if (free) c("# Final model: the flagged items' direct effects freed",
       sprintf("fit_free <- %s", call("paste(c(base, paths[match(flagged, items)]), collapse = \"\\n\")"))))
   inputs <- list(data = f$fr$data)
-  if (export) return(paste(ps_script("DIF by MIMIC (lavaan)", "lavaan", inputs, body,
-    c("summary(fit0, standardized = TRUE)", "score", "direct", "flagged", if (free) "summary(fit_free, standardized = TRUE)")), collapse = "\n"))
+  if (export) return(ps_script("DIF by MIMIC (lavaan)", "lavaan", inputs, body,
+    c("summary(fit0, standardized = TRUE)", "score", "direct", "flagged", if (free) "summary(fit_free, standardized = TRUE)")))
   env <- ps_run(body, inputs)
   eff <- function(fit) {
     pe <- lavaan::parameterEstimates(fit, standardized = TRUE)
@@ -306,5 +303,5 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
   ps_json(list(n = lavaan::lavInspect(env$fit0, "nobs"), factor = f$names, covariate = cov, adjust = adjust, alpha = alpha,
     effect = eff(env$fit0), fit = ps_inv_fit(env$fit0), items = rows, flagged = I(ps_back(as.character(env$flagged), back)), final = final,
     scoreError = is.null(sc), warnings = env$.warnings,
-    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("lavaan")))
 }

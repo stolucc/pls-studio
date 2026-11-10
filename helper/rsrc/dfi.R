@@ -84,7 +84,7 @@ ps_dfi <- function(req_json, export = FALSE) {
     "# distributions, correctly specified and under graded misspecifications, with its own fixed seeds.",
     sprintf("dfi <- dynamic::%s(%s)", fn, paste(args, collapse = ", ")),
     "printed <- capture.output(print(dfi))")
-  if (export) return(paste(ps_script(sprintf("Dynamic fit index cutoffs: dynamic::%s, %s", fn, if (fn == "equivTest") "equivalence testing" else sprintf("%d replications", reps)), c("lavaan", "dynamic"), b$inputs, body, "print(dfi)"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Dynamic fit index cutoffs: dynamic::%s, %s", fn, if (fn == "equivTest") "equivalence testing" else sprintf("%d replications", reps)), c("lavaan", "dynamic"), b$inputs, body, "print(dfi)"))
   env <- ps_run(body, b$inputs)
   # lavaan's warnings about single simulated replications (a negative residual variance, a fit that did not
   # converge) concern the package's simulation, not the user's model: reported as notes, as the package itself
@@ -101,7 +101,7 @@ ps_dfi <- function(req_json, export = FALSE) {
     equiv = if (fn == "equivTest") list(rmsea = as.character(r$rmsea), cfi = as.character(r$cfi),
       rmseaBins = I(as.character(c(r$eo_r, r$ct_r, r$ft_r, r$mf_r, r$pf_r))), cfiBins = I(as.character(c(r$pf_c, r$mf_c, r$ft_c, r$ct_c, r$eo_c)))) else NULL,
     printed = I(ps_flat_lines(env$printed)), warnings = env$.warnings,
-    engine = list(package = "dynamic", version = as.character(utils::packageVersion("dynamic")), lavaan = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("dynamic", lavaan = "lavaan")))
 }
 
 #' Printed output as lines without control characters (at most 200).

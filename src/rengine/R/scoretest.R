@@ -124,8 +124,8 @@ ps_scoretest <- function(req_json, export = FALSE) {
     b$body[-1], "suppressPackageStartupMessages(library(strucchange))",
     sprintf("# Score-based test of parameter instability along %s (%s covariate, %s)", ps_comment(cov), scale, fn),
     ps_sc_lines(zv, scale, fn, sets, seed, nrep))
-  if (export) return(paste(ps_script(sprintf("Score-based invariance test along %s: %s (strucchange)", cov, fn), c("lavaan", "strucchange"), inputs, body,
-    c("test", "plot(scus, functional = fun)")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Score-based invariance test along %s: %s (strucchange)", cov, fn), c("lavaan", "strucchange"), inputs, body,
+    c("test", "plot(scus, functional = fun)")))
   env <- ps_run(body, inputs)
   back <- ps_back_map(b)
   pk <- env$pk[env$parm, , drop = FALSE]
@@ -158,5 +158,5 @@ ps_scoretest <- function(req_json, export = FALSE) {
     series = series,
     nrep = if (fn == "maxLMo") nrep else NULL, seed = if (fn %in% c("maxLMo", "WDMo")) seed else NULL,
     warnings = env$.warnings,
-    engine = list(package = "strucchange", version = as.character(utils::packageVersion("strucchange")), lavaan = as.character(utils::packageVersion("lavaan")))))
+    engine = ps_engine("strucchange", lavaan = "lavaan")))
 }

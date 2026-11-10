@@ -48,8 +48,8 @@ ps_lmm <- function(req_json, export = FALSE) {
     "vr <- mean(rowSums((Zr %*% Sg) * Zr)); ve <- sigma(fit)^2",
     "r2 <- c(marginal = vf / (vf + vr + ve), conditional = (vf + vr) / (vf + vr + ve))")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Multilevel regression (lme4%s)", if (length(S)) ", random slopes" else ""), c("lme4", "lmerTest"), inputs, body,
-    c("summary(fit)", "icc", "r2", if (length(S)) "slope_test")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Multilevel regression (lme4%s)", if (length(S)) ", random slopes" else ""), c("lme4", "lmerTest"), inputs, body,
+    c("summary(fit)", "icc", "r2", if (length(S)) "slope_test")))
   env <- ps_run(body, inputs)
   fit <- env$fit
   nm <- function(x) {
@@ -73,7 +73,7 @@ ps_lmm <- function(req_json, export = FALSE) {
     lines = if (is.null(focal)) NULL else list(predictor = nm(focal), range = range(env$data[[focal]]),
       intercepts = unname(cc[, "(Intercept)"]), slopes = unname(cc[, focal]),
       fixed = c(unname(lme4::fixef(fit)["(Intercept)"]), unname(lme4::fixef(fit)[focal]))),
-    warnings = env$.warnings, engine = list(package = "lme4", version = as.character(utils::packageVersion("lme4")))))
+    warnings = env$.warnings, engine = ps_engine("lme4")))
 }
 
 # ---- Multilevel regression: wide repeated measures, several outcomes, more cluster levels, MLR ----
@@ -339,8 +339,8 @@ ps_lmm_ext <- function(req, export) {
     if (!stacked) "r2 <- lmm_r2(X, beta, blocks)")
   inputs <- list(data = fr$data)
   pkg <- if (nlme) "nlme" else "lme4"
-  if (export) return(paste(ps_script(sprintf("Multilevel regression (%s)", pkg), if (nlme) "nlme" else c("lme4", "lmerTest"), inputs, body,
-    c("summary(fit)", if (robust) "data.frame(estimate = mlr$est, se_model = mlr$model, se_mlr = mlr$robust)  # every parameter, Mplus's MLR standard errors", if (!stacked) "r2")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Multilevel regression (%s)", pkg), if (nlme) "nlme" else c("lme4", "lmerTest"), inputs, body,
+    c("summary(fit)", if (robust) "data.frame(estimate = mlr$est, se_model = mlr$model, se_mlr = mlr$robust)  # every parameter, Mplus's MLR standard errors", if (!stacked) "r2")))
   env <- ps_run(body, inputs)
   fit <- env$fit; d <- env$long
   # Display names: the variables, created columns, cluster levels.
@@ -396,7 +396,7 @@ ps_lmm_ext <- function(req, export) {
     fixed = fixed_out, random = random, robust = robust, npar = npar, cases = ncase,
     r2 = if (stacked) NULL else as.list(env$r2), logLik = ll, aic = -2 * ll + 2 * npar, bic = -2 * ll + npar * log(ncase),
     singular = if (nlme) FALSE else lme4::isSingular(fit), slopeTest = NULL, lines = NULL,
-    warnings = env$.warnings, engine = list(package = pkg, version = as.character(utils::packageVersion(pkg)))))
+    warnings = env$.warnings, engine = ps_engine(pkg)))
 }
 
 #' Growth mixture model (latent class linear mixed model, lcmm::hlme) for 1..K
@@ -455,8 +455,8 @@ ps_gmm <- function(req_json, export = FALSE) {
     "# Sample-size adjusted BIC (Sclove 1987).",
     "sabic <- function(m) -2 * m$loglik + length(m$best) * log((m$ns + 2) / 24)")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Growth mixture model (lcmm::hlme)", "lcmm", inputs, body,
-    c("summarytable(fits[[1]], fits[-1], which = c(\"G\", \"loglik\", \"npm\", \"BIC\", \"SABIC\", \"entropy\", \"%class\"))", "lapply(fits, summary)")), collapse = "\n"))
+  if (export) return(ps_script("Growth mixture model (lcmm::hlme)", "lcmm", inputs, body,
+    c("summarytable(fits[[1]], fits[-1], which = c(\"G\", \"loglik\", \"npm\", \"BIC\", \"SABIC\", \"entropy\", \"%class\"))", "lapply(fits, summary)")))
   env <- ps_run(body, inputs)
   grid <- seq(min(env$long$time), max(env$long$time), length.out = 41)
   nd <- data.frame(time = grid)
@@ -484,7 +484,7 @@ ps_gmm <- function(req_json, export = FALSE) {
       trajectories = lapply(seq_len(g), function(c) unname(pr[, if (g == 1) 1 else paste0("Ypred_class", c)])), observed = obs)
   })
   ps_json(list(n = length(unique(env$long$id)), observations = nrow(env$long), times = grid, observedTimes = obs_times, models = models,
-    warnings = env$.warnings, engine = list(package = "lcmm", version = as.character(utils::packageVersion("lcmm")))))
+    warnings = env$.warnings, engine = ps_engine("lcmm")))
 }
 
 # Growth mixture model of wide data with a residual variance per occasion (Mplus's default for
@@ -566,9 +566,9 @@ ps_gmm_wide <- function(req_json, export = FALSE) {
     sprintf("fits <- lapply(%s, function(k) { set.seed(%d); gmm_wide_fit(Y, times, X, W, k, \"%s\", \"%s\", %d) })", paste(deparse(ks), collapse = ""), seed, shape, random, nrep),
     "entropy <- function(m) { p <- m$post; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Growth mixture model, a residual variance per occasion", character(0), inputs, body,
+  if (export) return(ps_script("Growth mixture model, a residual variance per occasion", character(0), inputs, body,
     c("sapply(fits, function(m) c(classes = ncol(m$post), llik = m$ll, npar = m$npar, BIC = -2 * m$ll + m$npar * log(nrow(Y)), entropy = env_entropy <- entropy(m)))",
-      "lapply(fits, `[[`, \"p\")")), collapse = "\n"))
+      "lapply(fits, `[[`, \"p\")")))
   env <- ps_run(body, inputs)
   n <- nrow(env$Y); nt <- length(m)
   fac <- c("intercept", "slope", "quadratic")

@@ -37,8 +37,8 @@ ps_cmb <- function(req_json, export = FALSE) {
       "r2 <- 1 - 1 / vif"))
   inputs <- list(data = fr$data)
   title <- if (type == "harman") "Harman's single-factor test (psych)" else "Full-collinearity VIFs (Kock 2015)"
-  if (export) return(paste(ps_script(title, if (type == "harman") "psych" else character(0), inputs, body,
-    if (type == "harman") c("ev", "share", "h$loadings") else "data.frame(VIF = vif, R2 = r2)"), collapse = "\n"))
+  if (export) return(ps_script(title, if (type == "harman") "psych" else character(0), inputs, body,
+    if (type == "harman") c("ev", "share", "h$loadings") else "data.frame(VIF = vif, R2 = r2)"))
   env <- ps_run(body, inputs)
   n <- nrow(env$X)
   out <- if (type == "harman") {
@@ -49,7 +49,7 @@ ps_cmb <- function(req_json, export = FALSE) {
       loadings = lapply(seq_along(vars), function(i) list(variable = vars[i], loading = ld[i])))
   } else list(rows = lapply(seq_along(vars), function(i) list(variable = vars[i], vif = unname(env$vif[i]), r2 = unname(env$r2[i]))), maxVif = max(env$vif))
   ps_json(c(list(type = type, vars = I(vars), n = n), out, list(warnings = env$.warnings,
-    engine = if (type == "harman") list(package = "psych", version = as.character(utils::packageVersion("psych"))) else list(package = "stats", version = as.character(getRversion())))))
+    engine = if (type == "harman") ps_engine("psych") else list(package = "stats", version = as.character(getRversion())))))
 }
 
 #' Content validity index of an item x expert matrix of relevance ratings (one row per item,
@@ -81,8 +81,8 @@ ps_cvi <- function(req_json, export = FALSE) {
     "scviUA <- mean(A == N)  # S-CVI/UA: items every expert found relevant",
     "expertProportion <- colMeans(rel, na.rm = TRUE)  # the share of items each expert found relevant")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Content validity index", character(0), inputs, body,
-    c("data.frame(N, A, icvi, pc, kappa)", "c(scviAve = scviAve, scviUA = scviUA)", "expertProportion")), collapse = "\n"))
+  if (export) return(ps_script("Content validity index", character(0), inputs, body,
+    c("data.frame(N, A, icvi, pc, kappa)", "c(scviAve = scviAve, scviUA = scviUA)", "expertProportion")))
   env <- ps_run(body, inputs)
   if (!nrow(env$X)) stop("No item has a rating.")
   kept <- as.integer(rownames(env$X))

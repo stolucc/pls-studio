@@ -92,8 +92,8 @@ ps_irt <- function(req_json, export = FALSE) {
     "# Reliability of the trait estimates (marginal), from the expected a posteriori scores.",
     "scores <- factor.scores(fit, method = \"EAP\")$score.dat")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Item response model (%s, ltm)", model), "ltm", inputs, body,
-    c("summary(fit)", "pars", "item.fit(fit)")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Item response model (%s, ltm)", model), "ltm", inputs, body,
+    c("summary(fit)", "pars", "item.fit(fit)")))
   env <- ps_run(body, inputs)
   fit <- env$fit
   pars <- env$pars
@@ -129,7 +129,7 @@ ps_irt <- function(req_json, export = FALSE) {
     params = params, coefficients = coefficients, quadrature = k, robust = robust, logLik = as.numeric(logLik(fit)), aic = AIC(fit), bic = BIC(fit), reliability = rel,
     theta = unname(info[, 1]), information = lapply(seq_len(ncol(info) - 1), function(j) unname(info[, j + 1])),
     itemFit = if (is.null(ifit)) list() else lapply(seq_along(ifit$Tobs), function(i) list(item = ps_back(names(ifit$Tobs)[i], fr$back, FALSE), x2 = unname(ifit$Tobs[i]), p = unname(ifit$p.values[i]))),
-    warnings = env$.warnings, engine = list(package = "ltm", version = as.character(utils::packageVersion("ltm")))))
+    warnings = env$.warnings, engine = ps_engine("ltm")))
 }
 
 ps_lca <- function(req_json, export = FALSE) {
@@ -153,8 +153,8 @@ ps_lca <- function(req_json, export = FALSE) {
     "# Entropy-based classification quality (1 = perfectly separated classes).",
     "entropy <- function(m) { p <- m$posterior; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Latent class analysis (poLCA)", "poLCA", inputs, body,
-    c("sapply(fits, function(m) c(classes = length(m$P), llik = m$llik, AIC = m$aic, BIC = m$bic, entropy = entropy(m)))", "fits")), collapse = "\n"))
+  if (export) return(ps_script("Latent class analysis (poLCA)", "poLCA", inputs, body,
+    c("sapply(fits, function(m) c(classes = length(m$P), llik = m$llik, AIC = m$aic, BIC = m$bic, entropy = entropy(m)))", "fits")))
   env <- ps_run(body, inputs)
   models <- lapply(env$fits, function(m) {
     ord <- order(-m$P)  # classes ordered by size
@@ -165,7 +165,7 @@ ps_lca <- function(req_json, export = FALSE) {
         byClass = lapply(ord, function(c) unname(m$probs[[i]][c, ])))))
   })
   ps_json(list(n = nrow(env$items), items = ps_back(fr$items, fr$back, FALSE), models = models,
-    warnings = env$.warnings, engine = list(package = "poLCA", version = as.character(utils::packageVersion("poLCA")))))
+    warnings = env$.warnings, engine = ps_engine("poLCA")))
 }
 
 # Latent profile analysis (continuous indicators) and latent class growth analysis (ordered
@@ -230,9 +230,9 @@ ps_lpa <- function(req_json, export = FALSE) {
     sprintf("fits <- lapply(%s, function(k) { set.seed(%d); lpa_fit(Y, k, \"%s\", %d) })", paste(deparse(ks), collapse = ""), seed, structure, nrep),
     "entropy <- function(m) { p <- m$post; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Latent profile analysis (%s)", structure), character(0), inputs, body,
+  if (export) return(ps_script(sprintf("Latent profile analysis (%s)", structure), character(0), inputs, body,
     c("sapply(fits, function(m) c(classes = length(m$pi), llik = m$ll, npar = m$npar, BIC = -2 * m$ll + m$npar * log(nrow(Y)), entropy = entropy(m)))",
-      "lapply(fits, function(m) list(proportions = m$pi, means = do.call(rbind, m$mu), covariances = m$S))")), collapse = "\n"))
+      "lapply(fits, function(m) list(proportions = m$pi, means = do.call(rbind, m$mu), covariances = m$S))")))
   env <- ps_run(body, inputs)
   n <- nrow(env$Y)
   models <- lapply(env$fits, function(m) {
@@ -303,9 +303,9 @@ ps_lcga <- function(req_json, export = FALSE) {
     sprintf("fits <- lapply(%s, function(k) { set.seed(%d); lcga_fit(U, times, k, %d) })", paste(deparse(ks), collapse = ""), seed, nrep),
     "entropy <- function(m) { p <- m$post; k <- ncol(p); if (k == 1) return(NA); 1 - sum(-p * log(pmax(p, 1e-300))) / (nrow(p) * log(k)) }")
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Latent class growth analysis (ordered categorical outcome)", character(0), inputs, body,
+  if (export) return(ps_script("Latent class growth analysis (ordered categorical outcome)", character(0), inputs, body,
     c("sapply(fits, function(m) c(classes = length(m$pi), llik = m$ll, npar = m$npar, BIC = -2 * m$ll + m$npar * log(nrow(U)), entropy = entropy(m)))",
-      "lapply(fits, function(m) m[c(\"pi\", \"thresholds\", \"intercepts\", \"slopes\")])")), collapse = "\n"))
+      "lapply(fits, function(m) m[c(\"pi\", \"thresholds\", \"intercepts\", \"slopes\")])")))
   env <- ps_run(body, inputs)
   n <- nrow(env$U)
   models <- lapply(env$fits, function(m) {
@@ -430,8 +430,8 @@ ps_mirt <- function(req_json, export = FALSE) {
       if (robust) c(PS_MIRT_ROBUST, "V <- mirt_robust(fit, as.matrix(items))"))
   }
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script(sprintf("Item response model (%s, mirt)", c(threepl = "3PL", fourpl = "4PL", mixture = "mixture 2PL")[[model]]), "mirt", inputs, body,
-    c("fit", "coef(fit, IRTpars = TRUE, simplify = TRUE)", if (model != "mixture") "sqrt(diag(V))")), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Item response model (%s, mirt)", c(threepl = "3PL", fourpl = "4PL", mixture = "mixture 2PL")[[model]]), "mirt", inputs, body,
+    c("fit", "coef(fit, IRTpars = TRUE, simplify = TRUE)", if (model != "mixture") "sqrt(diag(V))")))
   set.seed(seed)
   env <- ps_run(body, inputs)
   fit <- env$fit
@@ -471,7 +471,7 @@ ps_mirt <- function(req_json, export = FALSE) {
     logLik = as.numeric(logLik(fit)), logPrior = if (length(pg) || length(pu)) lp else NULL, npar = extract.mirt(fit, "nest"),
     aic = extract.mirt(fit, "AIC"), bic = extract.mirt(fit, "BIC"), reliability = rel, classes = classes_out,
     theta = theta, information = info, itemFit = list(),
-    warnings = env$.warnings, engine = list(package = "mirt", version = as.character(utils::packageVersion("mirt")))))
+    warnings = env$.warnings, engine = ps_engine("mirt")))
 }
 
 # Multilevel latent class analysis with glca (Kim, Jeon, Chung & Lee): classes of people (within) whose
@@ -501,8 +501,8 @@ ps_mlca <- function(req_json, export = FALSE) {
     sprintf("fits <- lapply(%s, function(k) glca(%s, group = %s, data = d, nclass = k, ncluster = %d, n.init = %d, seed = %d, verbose = FALSE))",
       paste(deparse(ks), collapse = ""), f, vc, w, nrep, seed))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Multilevel latent class analysis (glca)", "glca", inputs, body,
-    c("lapply(fits, summary)")), collapse = "\n"))
+  if (export) return(ps_script("Multilevel latent class analysis (glca)", "glca", inputs, body,
+    c("lapply(fits, summary)")))
   env <- ps_run(body, inputs)
   models <- lapply(env$fits, function(m) {
     delta <- as.numeric(m$param$delta); gamma <- matrix(m$param$gamma, nrow = length(delta))
@@ -516,5 +516,5 @@ ps_mlca <- function(req_json, export = FALSE) {
       clusters = list(shares = delta[cord], byCluster = lapply(cord, function(b) unname(gamma[b, ord]))))
   })
   ps_json(list(n = nrow(env$d), clusters = length(unique(env$d[[vc]])), items = ps_back(vi, fr$back, FALSE), models = models, cluster = cluster, clusterClasses = w,
-    warnings = env$.warnings, engine = list(package = "glca", version = as.character(utils::packageVersion("glca")))))
+    warnings = env$.warnings, engine = ps_engine("glca")))
 }

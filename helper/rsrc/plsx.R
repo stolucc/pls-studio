@@ -35,14 +35,14 @@ ps_pls_predict <- function(req_json, export = FALSE) {
     sprintf("runs <- lapply(seq_len(%d), function(k) predict(fit, .benchmark = \"lm\", .cv_folds = %d, .r = 1, .seed = %d + k, .handle_inadmissibles = \"ignore\")$Prediction_metrics)", reps, folds, seed),
     "cols <- c(\"MAE_target\", \"MAE_benchmark\", \"RMSE_target\", \"RMSE_benchmark\", \"Q2_predict\")",
     "metrics <- data.frame(Name = runs[[1]]$Name, Reduce(`+`, lapply(runs, function(r) as.matrix(r[, cols]))) / length(runs))")
-  if (export) return(paste(ps_script("PLSpredict (cSEM)", "cSEM", b$inputs, body, "metrics[, c(\"Name\", \"MAE_target\", \"MAE_benchmark\", \"RMSE_target\", \"RMSE_benchmark\", \"Q2_predict\")]"), collapse = "\n"))
+  if (export) return(ps_script("PLSpredict (cSEM)", "cSEM", b$inputs, body, "metrics[, c(\"Name\", \"MAE_target\", \"MAE_benchmark\", \"RMSE_target\", \"RMSE_benchmark\", \"Q2_predict\")]"))
   env <- ps_run(body, b$inputs)
   back <- ps_plsx_back(b); m <- env$metrics
   owner <- function(i) { j <- which(vapply(b$n$inds, function(x) back[[i]] %in% x, TRUE))[1]; b$n$cname[j] }
   ps_json(list(folds = folds, repetitions = reps,
     indicators = lapply(seq_len(nrow(m)), function(i) list(indicator = ps_back(m$Name[i], back, FALSE), construct = owner(m$Name[i]),
       maePls = m$MAE_target[i], maeLm = m$MAE_benchmark[i], rmsePls = m$RMSE_target[i], rmseLm = m$RMSE_benchmark[i], q2 = m$Q2_predict[i])),
-    warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
+    warnings = env$.warnings, engine = ps_engine("cSEM")))
 }
 
 #' PLSpredict as seminr's predict_pls (?predict_pls): its folds and repetitions (the predictions averaged over the
@@ -75,7 +75,7 @@ ps_pls_predict_seminr <- function(req, folds, reps, seed, export) {
     "act <- as.matrix(pred$items$item_actuals[, colnames(s$PLS_out_of_sample), drop = FALSE])",
     "res <- as.matrix(pred$items$PLS_out_of_sample_residuals[, colnames(s$PLS_out_of_sample), drop = FALSE])",
     "q2 <- 1 - colSums(res^2) / colSums(sweep(act, 2, colMeans(act))^2)")
-  if (export) return(paste(ps_script("PLSpredict (seminr)", "seminr", b$inputs, body, c("s$PLS_out_of_sample", "s$LM_out_of_sample", "q2")), collapse = "\n"))
+  if (export) return(ps_script("PLSpredict (seminr)", "seminr", b$inputs, body, c("s$PLS_out_of_sample", "s$LM_out_of_sample", "q2")))
   env <- ps_run(body, b$inputs)
   s <- env$s; items <- colnames(s$PLS_out_of_sample)
   back <- c(setNames(names(b$n$iv), unname(b$n$iv)))
@@ -83,7 +83,7 @@ ps_pls_predict_seminr <- function(req, folds, reps, seed, export) {
   ps_json(list(folds = folds, repetitions = reps, predictEngine = "seminr", technique = technique,
     indicators = lapply(items, function(i) list(indicator = unname(back[[i]]), construct = owner(i),
       maePls = s$PLS_out_of_sample["MAE", i], maeLm = s$LM_out_of_sample["MAE", i], rmsePls = s$PLS_out_of_sample["RMSE", i], rmseLm = s$LM_out_of_sample["RMSE", i], q2 = unname(env$q2[i]))),
-    warnings = env$.warnings, engine = list(package = "seminr", version = as.character(utils::packageVersion("seminr")))))
+    warnings = env$.warnings, engine = ps_engine("seminr")))
 }
 
 ps_pls_compare <- function(req_json, export = FALSE) {
@@ -105,13 +105,13 @@ ps_pls_compare <- function(req_json, export = FALSE) {
     sprintf("cvpat <- testCVPAT(fit, fit_alt, .seed = %d, .handle_inadmissibles = \"ignore\")", seed),
     "loss <- function(k) { r <- cvpat$Information[[k]]$Residuals_target[[1]]; mean(as.matrix(r)^2, na.rm = TRUE) }",
     "losses <- c(loss(1), loss(2))")
-  if (export) return(paste(ps_script("Model comparison (cSEM)", "cSEM", b$inputs, body, c("msc", "msc_alt", "cvpat")), collapse = "\n"))
+  if (export) return(ps_script("Model comparison (cSEM)", "cSEM", b$inputs, body, c("msc", "msc_alt", "cvpat")))
   env <- ps_run(body, b$inputs)
   back <- ps_plsx_back(b)
   crit <- function(ms) lapply(names(ms), function(k) list(criterion = k, byConstruct = as.list(setNames(unname(ms[[k]]), ps_back(names(ms[[k]]), back, FALSE)))))
   ps_json(list(criteria = crit(env$msc), criteriaAlt = crit(env$msc_alt),
     cvpat = list(statistic = env$cvpat$test_statistic, p = env$cvpat$p_value, df = env$cvpat$`degrees of freedom`, loss = env$losses[1], lossAlt = env$losses[2]),
-    warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
+    warnings = env$.warnings, engine = ps_engine("cSEM")))
 }
 
 ps_pls_groups <- function(req_json, export = FALSE) {
@@ -124,7 +124,7 @@ ps_pls_groups <- function(req_json, export = FALSE) {
   at <- match(req$group, req$data$names)
   if (is.na(at)) stop("The grouping column is not in the dataset.")
   cols <- req$data$cols
-  gcol <- as.numeric(if (is.matrix(cols)) cols[at, ] else cols[[at]])
+  gcol <- ps_col(cols, at)
   gv <- ps_ident(c(names(b$inputs$data), "group"))[ncol(b$inputs$data) + 1]
   b$inputs$data[[gv]] <- gcol
   labels <- unlist(req$groupLabels)
@@ -140,7 +140,7 @@ ps_pls_groups <- function(req_json, export = FALSE) {
     "# Multigroup analysis: differences between the groups' parameters.",
     ps_cores_csem(req),
     sprintf("mga <- testMGD(fit, .approach_mgd = %s, .R_permutation = %d, .R_bootstrap = %d, .seed = %d, .eval_plan = plan, .verbose = FALSE)", ps_q(approaches), R, R, seed))
-  if (export) return(paste(ps_script("Group comparison: MICOM and multigroup analysis (cSEM)", "cSEM", b$inputs, body, c("micom", "mga")), collapse = "\n"))
+  if (export) return(ps_script("Group comparison: MICOM and multigroup analysis (cSEM)", "cSEM", b$inputs, body, c("micom", "mga")))
   env <- ps_run(body, b$inputs)
   back <- ps_plsx_back(b)
   nm <- function(x) ps_back(x, back)
@@ -170,7 +170,7 @@ ps_pls_groups <- function(req_json, export = FALSE) {
       cP = as.list(setNames(unname(first(first(mi$Step2$P_value))), nm(names(first(first(mi$Step2$P_value)))))),
       mean = step3("Mean"), variance = step3("Var"), admissible = mi$Information$Number_admissibles, runs = mi$Information$Total_runs),
     mga = mga, samples = R,
-    warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
+    warnings = env$.warnings, engine = ps_engine("cSEM")))
 }
 
 #' CTA-PLS (Gudergan, Ringle, Wende & Will 2008): confirmatory tetrad
@@ -223,7 +223,7 @@ ps_cta <- function(req_json, export = FALSE) {
     "    p = 2 * stats::pnorm(-abs(est / se)), low = ci[, 1], high = ci[, 2], differs = ci[, 1] > 0 | ci[, 2] < 0)",
     "})")
   inputs <- list(data = frame)
-  if (export) return(paste(ps_script("Confirmatory tetrad analysis (CTA-PLS)", "stats", inputs, body, "cta"), collapse = "\n"))
+  if (export) return(ps_script("Confirmatory tetrad analysis (CTA-PLS)", "stats", inputs, body, "cta"))
   env <- ps_run(body, inputs)
   back_i <- setNames(n$all_inds, unname(n$iv[n$all_inds]))
   back_c <- setNames(n$cname, unname(n$cv))
@@ -278,7 +278,7 @@ ps_blindfold <- function(req_json, export = FALSE) {
     sprintf("# Omission distance D = %d; every D-th cell of the block (column by column) is omitted in round j.", D),
     sprintf("targets <- list(%s)", paste(vapply(which(refl), function(j) sprintf("%s = %s", b$n$cv[[cons[[j]]$name]], ps_q(unname(b$n$iv[unlist(cons[[j]]$indicators)]))), ""), collapse = ", ")),
     sprintf("q2 <- t(sapply(names(targets), function(k) blindfold(data, targets[[k]], k, %d)))", D))
-  if (export) return(paste(ps_script(sprintf("Blindfolding, D = %d (cSEM)", D), "cSEM", b$inputs, body, "q2"), collapse = "\n"))
+  if (export) return(ps_script(sprintf("Blindfolding, D = %d (cSEM)", D), "cSEM", b$inputs, body, "q2"))
   env <- ps_run(body, b$inputs)
   back <- setNames(names(b$n$cv), unname(b$n$cv))
   q <- env$q2
@@ -314,8 +314,8 @@ ps_cca <- function(req_json, export = FALSE) {
     sprintf("est <- summarize(boot, .alpha = %s, .ci = \"CI_percentile\")$Estimates", format(alpha)),
     "vif <- calculateVIFModeB(fit)",
     "cor_composites <- fit$Estimates$Construct_VCV")
-  if (export) return(paste(ps_script("Confirmatory composite analysis (cSEM)", "cSEM", b$inputs, body,
-    c("omf", "est$Weight_estimates", "est$Loading_estimates", "vif", "cor_composites")), collapse = "\n"))
+  if (export) return(ps_script("Confirmatory composite analysis (cSEM)", "cSEM", b$inputs, body,
+    c("omf", "est$Weight_estimates", "est$Loading_estimates", "vif", "cor_composites")))
   env <- ps_run(body, b$inputs)
   back <- ps_plsx_back(b)
   omf <- env$omf
@@ -332,5 +332,5 @@ ps_cca <- function(req_json, export = FALSE) {
       list(measure = k, statistic = s * unname(omf$Test_statistic[k]), q95 = s * unname(omf$Critical_value[k, "95%"]), q99 = s * unname(omf$Critical_value[k, "99%"])) }),
     weights = tab(env$est$Weight_estimates), loadings = tab(env$est$Loading_estimates), vif = vifs,
     composites = ps_back(rownames(R), back, FALSE), correlations = unname(R),
-    warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
+    warnings = env$.warnings, engine = ps_engine("cSEM")))
 }
