@@ -18,9 +18,10 @@ const PANEL_TAGS: Record<string, string[]> = {
   quadml: ['Numerical integration'],
   dsem: ['Bayesian', 'Multilevel'],
   cmb: ['Measurement', 'Common method bias'], cvi: ['Measurement', 'Content validity'],
+  sempower: ['Power analysis', 'Sample size'],
 };
 /** Cards about the example's model: the model's method is a topic of the example. The other cards stand on their own. */
-const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb']);
+const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'sempower']);
 const ASSESSMENT_TAGS: Record<string, string> = { predict: 'Prediction', blindfold: 'Blindfolding', compare: 'Model comparison', groups: 'Multigroup', cca: 'Confirmatory composite analysis' };
 const SEGMENTATION_TAGS: Record<string, string> = { rebus: 'Segmentation', fimix: 'Segmentation', pathmox: 'Segmentation', pos: 'Segmentation' };
 

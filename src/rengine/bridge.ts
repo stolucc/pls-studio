@@ -34,12 +34,13 @@ import dsemR from './R/dsem.R?raw';
 import dfiR from './R/dfi.R?raw';
 import validityR from './R/validity.R?raw';
 import qcaR from './R/qca.R?raw';
+import powerR from './R/power.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR };
+export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, power: powerR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -121,6 +122,8 @@ export const R_PACKAGES = {
   // Dynamic fit index cutoffs (dynamic, Wolf & McNeish), on a lavaan fit. In the browser a build patched to load
   // without GenOrd (whose import cubature webR cannot load): scripts/webr/fetch.mjs PATCHED.
   dynamic: ['jsonlite', 'lavaan', 'semTools', 'dynamic'],
+  // Analytic power analysis (semPower: a priori, post hoc, compromise; a parameter of the canvas model by lavaan).
+  semPower: ['jsonlite', 'lavaan', 'semPower'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;

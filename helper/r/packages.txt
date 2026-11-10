@@ -52,6 +52,7 @@ rsem
 rstan
 sampleSelection
 sandwich
+semPower
 semTools
 semfindr
 seminr

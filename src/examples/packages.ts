@@ -39,8 +39,8 @@ import { parseLavaanSyntax } from '../model/syntax';
 import { namesIn, parseExpr } from '../model/expr';
 import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'semPower';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'semPower'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'sempower';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -729,6 +729,16 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     constructs: [f('f1', ['x1', 'x2', 'x3']), f('f2', ['x4', 'x5', 'x6'])],
     paths: [], correlations: [['f1', 'f2', 'construct']],
     screening: { tab: 'influence', approach: 'approximate' }, settings: CB('ML'),
+  },
+  {
+    id: 'sempower-apriori', package: 'semPower', title: 'Power analysis: the N for RMSEA misfit, and for a factor covariance', source: 'semPower, ?semPower.aPriori and ?semPower.powerLav',
+    links: [{ label: '?semPower.aPriori', url: 'https://rdrr.io/cran/semPower/man/semPower.aPriori.html' }, { label: '?semPower.powerLav', url: 'https://rdrr.io/cran/semPower/man/semPower.powerLav.html' }, { label: 'Moshagen & Bader (2024), Behavior Research Methods', url: 'https://doi.org/10.3758/s13428-023-02254-7' }],
+    description: 'Two cards. The first is ?semPower.aPriori’s example: the N needed to reject a model whose misfit amounts to RMSEA = .05 on 200 df, with a power of 95% at α = .05. The second applies ?semPower.powerLav’s idea to the Holzinger & Swineford CFA on the canvas: the model as fitted is the population, and the card finds the N at which a test that the visual and textual factors are uncorrelated has 80% power. Opens its cards on the Analyses tab.',
+    shows: 'The first card gives N = 154, as the help page prints, with a power curve over N. The second takes the fitted covariance of visual and textual (0.408) as the truth and needs only N = 59 to detect it with 80% power: far fewer than the 301 children of the data.',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [],
+    panel: { kind: 'sempower', analysis: 'apriori', measure: 'RMSEA', effect: 0.05, dfSource: 'manual', df: 200, alpha: 0.05, power: 0.95 },
+    morePanels: [{ kind: 'sempower', analysis: 'parameter', param: { lhs: 'visual', op: '~~', rhs: 'textual' }, value: 0, paramType: 'apriori', alpha: 0.05, power: 0.8 }],
+    settings: CB('ML'),
   },
   {
     id: 'rsem-mardia', package: 'rsem', title: 'Robust ML with missing data: exam scores', source: 'rsem, ?rsem.lavaan (mardiamv25)',
