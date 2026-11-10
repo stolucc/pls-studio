@@ -146,6 +146,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | httr | 1.4.9 | MIT + file LICENSE | https://cran.r-project.org/package=httr |
 | hypergeo | 1.2-15 | GPL-2 | https://cran.r-project.org/package=hypergeo |
 | igraph | 2.3.1 | GPL (>= 2) | https://cran.r-project.org/package=igraph |
+| INLAvaan | 0.3.2 | GPL (>= 3) | https://cran.r-project.org/package=INLAvaan |
 | insight | 1.5.4 | GPL-3 | https://cran.r-project.org/package=insight |
 | IsingFit | 0.4 | GPL-2 | https://cran.r-project.org/package=IsingFit |
 | IsingSampler | 0.5.0 | GPL-2 | https://cran.r-project.org/package=IsingSampler |
@@ -188,6 +189,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | MatrixModels | 0.5-4 | GPL (>= 2) | https://cran.r-project.org/package=MatrixModels |
 | matrixStats | 1.5.0 | Artistic-2.0 | https://cran.r-project.org/package=matrixStats |
 | maxLik | 1.6-10 | GPL (>= 2) | https://cran.r-project.org/package=maxLik |
+| mediation | 4.5.1 | GPL (>= 2) | https://cran.r-project.org/package=mediation |
 | memoise | 2.0.1 | MIT + file LICENSE | https://cran.r-project.org/package=memoise |
 | mgcv | 1.9-4 | GPL (>= 2) | https://cran.r-project.org/package=mgcv |
 | mgm | 1.2-15 | GPL (>= 2) | https://cran.r-project.org/package=mgm |
@@ -198,6 +200,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | mirai | 2.7.3 | MIT + file LICENSE | https://cran.r-project.org/package=mirai |
 | mirt | 1.46.1 | GPL (>= 3) | https://cran.r-project.org/package=mirt |
 | miscTools | 0.6-30 | GPL (>= 2) | https://cran.r-project.org/package=miscTools |
+| misty | 0.8.3 | MIT + file LICENSE | https://cran.r-project.org/package=misty |
 | mitml | 0.4-5 | GPL (>= 2) | https://cran.r-project.org/package=mitml |
 | mnlfa | 0.3-4 | GPL (>= 2) | https://cran.r-project.org/package=mnlfa |
 | mnormt | 2.1.1 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=mnormt |
@@ -208,6 +211,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | msm | 1.8.2 | GPL (>= 2) | https://cran.r-project.org/package=msm |
 | multipol | 1.0-9 | GPL | https://cran.r-project.org/package=multipol |
 | mvnfast | 0.2.8 | GPL (>= 2.0) | https://cran.r-project.org/package=mvnfast |
+| mvnmle | 0.1-11.2 | GPL (>= 2) | https://cran.r-project.org/package=mvnmle |
 | mvtnorm | 1.2-4 | GPL-2 | https://cran.r-project.org/package=mvtnorm |
 | nanonext | 1.10.3 | MIT + file LICENSE | https://cran.r-project.org/package=nanonext |
 | NCA | 5.0.2 | GPL (>= 3) | https://cran.r-project.org/package=NCA |
@@ -257,6 +261,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | proxy | 0.4-29 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=proxy |
 | ps | 1.9.3 | MIT + file LICENSE | https://cran.r-project.org/package=ps |
 | psych | 2.6.9 | GPL (>= 2) | https://cran.r-project.org/package=psych |
+| psychotools | 0.7-7 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=psychotools |
 | purrr | 1.2.2 | MIT + file LICENSE | https://cran.r-project.org/package=purrr |
 | pwr | 1.3-0 | GPL (>= 3) | https://cran.r-project.org/package=pwr |
 | QCA | 3.25 | GPL (>= 3) | https://cran.r-project.org/package=QCA |
@@ -301,6 +306,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | seminr | 2.5.0 | GPL-3 | https://cran.r-project.org/package=seminr |
 | semPlot | 1.2.0 | GPL-2 | https://cran.r-project.org/package=semPlot |
 | semPower | 2.1.3 | LGPL | https://cran.r-project.org/package=semPower |
+| SEMsens | 1.5.5 | GPL-3 | https://cran.r-project.org/package=SEMsens |
 | semTools | 0.5-10 | GPL (>= 2) | https://cran.r-project.org/package=semTools |
 | sessioninfo | 1.2.4 | GPL-2 | https://cran.r-project.org/package=sessioninfo |
 | sets | 1.0-25 | GPL-2 | https://cran.r-project.org/package=sets |
@@ -318,6 +324,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | stringi | 1.8.9 | file LICENSE | https://cran.r-project.org/package=stringi |
 | stringmagic | 1.3.0 | GPL (>= 2) | https://cran.r-project.org/package=stringmagic |
 | stringr | 1.6.0 | MIT + file LICENSE | https://cran.r-project.org/package=stringr |
+| strucchange | 1.6-0 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=strucchange |
 | survival | 3.8-12 | LGPL (>= 2) | https://cran.r-project.org/package=survival |
 | symmoments | 1.2.2 | GPL | https://cran.r-project.org/package=symmoments |
 | sys | 3.4.3 | MIT + file LICENSE | https://cran.r-project.org/package=sys |
