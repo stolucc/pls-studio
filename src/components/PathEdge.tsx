@@ -10,6 +10,7 @@ export type PathEdgeData = {
   beta: number | null; p: number | null; moderated?: boolean; /** CB-SEM: coefficient held at this value. */ fixed?: number; /** CB-SEM: parameter label. */ label?: string;
   /** A moderator's main effect implied by the moderation (estimated, not drawn): dashed, not editable. */ implied?: boolean;
   /** How the user chose to draw it. */ line?: 'dashed' | 'dotted'; curved?: boolean;
+  /** CB-SEM specification search: an optional arrow (dash-dot, in the warning colour). */ optional?: boolean;
   /** Where the label goes (placed so that labels do not overlap); otherwise the midpoint. */ labelAt?: { x: number; y: number };
 };
 export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
@@ -47,8 +48,8 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
       <BaseEdge
         id={id}
         path={geo.path}
-        className={`pedge${data?.implied ? ' implied' : ''}`}
-        style={{ strokeWidth: width, ...(edge ? { stroke: edge.color } : {}), ...(data?.line ? { strokeDasharray: data.line === 'dotted' ? '1.5 4' : '7 4' } : {}) }}
+        className={`pedge${data?.implied ? ' implied' : ''}${data?.optional ? ' optional' : ''}`}
+        style={{ strokeWidth: width, ...(edge ? { stroke: edge.color } : {}), ...(data?.line && !data.optional ? { strokeDasharray: data.line === 'dotted' ? '1.5 4' : '7 4' } : {}) }}
         markerEnd={selected ? 'url(#arrow-path-sel)' : edge ? 'url(#arrow-sp)' : 'url(#arrow-path)'}
         interactionWidth={18}
       />

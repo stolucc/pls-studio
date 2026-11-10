@@ -219,7 +219,7 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
           </g>
         ))}
         {curves.map(({ k, curve, on, auto }) => (
-          <g key={k.id} className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}`}>
+          <g key={k.id} className={`cor${on ? ' on' : ''}${active ? '' : ' inactive'}${auto ? ' auto' : ''}${active && k.optional ? ' optional' : ''}`}>
             {auto
               // Implied, not a choice: covariates (fixed.x) and factors of one ESEM block (rotation).
               ? <path className="cor-hit" d={curve.d} onContextMenu={(e) => onMenu(e, { kind: 'implied', a: k.a, b: k.b })}>
