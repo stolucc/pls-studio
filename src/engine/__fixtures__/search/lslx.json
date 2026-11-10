@@ -1,0 +1,257 @@
+{
+  "versions": {
+    "lslx": "0.6.11",
+    "R": "R version 4.6.2 (2026-10-29)"
+  },
+  "documented": {
+    "selected": "lambda=c(0.14,0),delta=c(1.5,Inf)",
+    "chisq": 30.9002949484526
+  },
+  "selected": "lambda=c(0.14,0),delta=c(1.5,Inf)",
+  "test": {
+    "chisq": 30.9303110292852,
+    "df": 20
+  },
+  "fitIndex": {
+    "rmsea": 0.0426106358076762,
+    "cfi": 0.98761931092173,
+    "nnfi": 0.977714759659115,
+    "srmr": 0.0297559889789606
+  },
+  "coefficients": [
+    {
+      "name": "x1<-visual/g",
+      "type": "free",
+      "est": 0.709096648636867,
+      "se": 0.0947096442873376
+    },
+    {
+      "name": "x2<-visual/g",
+      "type": "free",
+      "est": 0.554968762015145,
+      "se": 0.0816233755851207
+    },
+    {
+      "name": "x3<-visual/g",
+      "type": "free",
+      "est": 0.743516959262359,
+      "se": 0.070286838678093
+    },
+    {
+      "name": "x4<-visual/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x5<-visual/g",
+      "type": "pen",
+      "est": -0.101156355488296,
+      "se": 0.072575810167079
+    },
+    {
+      "name": "x6<-visual/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x7<-visual/g",
+      "type": "pen",
+      "est": -0.256506349842696,
+      "se": 0.119059085311504
+    },
+    {
+      "name": "x8<-visual/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x9<-visual/g",
+      "type": "pen",
+      "est": 0.322878535775239,
+      "se": 0.0753503902909428
+    },
+    {
+      "name": "x1<-textual/g",
+      "type": "pen",
+      "est": 0.2553135857039,
+      "se": 0.0813820519853981
+    },
+    {
+      "name": "x2<-textual/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x3<-textual/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x4<-textual/g",
+      "type": "free",
+      "est": 0.986609530716192,
+      "se": 0.0611541820311356
+    },
+    {
+      "name": "x5<-textual/g",
+      "type": "free",
+      "est": 1.14248065467602,
+      "se": 0.0614893399085112
+    },
+    {
+      "name": "x6<-textual/g",
+      "type": "free",
+      "est": 0.913005638825687,
+      "se": 0.0580513589421862
+    },
+    {
+      "name": "x7<-textual/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x8<-textual/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x9<-textual/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x1<-speed/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x2<-speed/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x3<-speed/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x4<-speed/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x5<-speed/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x6<-speed/g",
+      "type": "pen",
+      "est": 0,
+      "se": "NA"
+    },
+    {
+      "name": "x7<-speed/g",
+      "type": "free",
+      "est": 0.825860214924289,
+      "se": 0.105981807537339
+    },
+    {
+      "name": "x8<-speed/g",
+      "type": "free",
+      "est": 0.730209250477897,
+      "se": 0.0688799977717485
+    },
+    {
+      "name": "x9<-speed/g",
+      "type": "free",
+      "est": 0.499050581477128,
+      "se": 0.062680833907893
+    },
+    {
+      "name": "textual<->visual/g",
+      "type": "free",
+      "est": 0.32469740221722,
+      "se": 0.0862444006265962
+    },
+    {
+      "name": "speed<->visual/g",
+      "type": "free",
+      "est": 0.375093753386586,
+      "se": 0.100542825409112
+    },
+    {
+      "name": "speed<->textual/g",
+      "type": "free",
+      "est": 0.278303011414253,
+      "se": 0.0778622511686163
+    },
+    {
+      "name": "x1<->x1/g",
+      "type": "free",
+      "est": 0.670496936677741,
+      "se": 0.112640066265996
+    },
+    {
+      "name": "x2<->x2/g",
+      "type": "free",
+      "est": 1.07266319081769,
+      "se": 0.105524700493129
+    },
+    {
+      "name": "x3<->x3/g",
+      "type": "free",
+      "est": 0.720018510677033,
+      "se": 0.0903938562251878
+    },
+    {
+      "name": "x4<->x4/g",
+      "type": "free",
+      "est": 0.376889503859703,
+      "se": 0.0502397458193858
+    },
+    {
+      "name": "x5<->x5/g",
+      "type": "free",
+      "est": 0.416020321259772,
+      "se": 0.0604827346756472
+    },
+    {
+      "name": "x6<->x6/g",
+      "type": "free",
+      "est": 0.362456544574174,
+      "se": 0.0458768027676513
+    },
+    {
+      "name": "x7<->x7/g",
+      "type": "free",
+      "est": 0.594206958550177,
+      "se": 0.109511281195343
+    },
+    {
+      "name": "x8<->x8/g",
+      "type": "free",
+      "est": 0.48850193754413,
+      "se": 0.0844285886198948
+    },
+    {
+      "name": "x9<->x9/g",
+      "type": "free",
+      "est": 0.539867237724869,
+      "se": 0.0640352100795913
+    }
+  ]
+}

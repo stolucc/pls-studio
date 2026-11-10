@@ -76,6 +76,15 @@ export const CARD_MODEL: PackageExample[] = [
     panel: { kind: 'bollenstine' }, settings: { ...CB('ML'), bootSamples: 1000, seed: 1234 },
   },
   {
+    id: 'lslx-hs-sfa', package: 'lslx', title: 'Regularised SEM: semi-confirmatory factor analysis (lslx)', source: 'lslx, ?lslx (Semi-Confirmatory Factor Analysis) and vignette("factor-analysis") (Holzinger & Swineford)',
+    links: [{ label: '?lslx', url: 'https://rdrr.io/cran/lslx/man/lslx.html' }, { label: 'Vignette: semi-confirmatory factor analysis', url: 'https://cran.r-project.org/web/packages/lslx/vignettes/factor-analysis.html' }, ...HS_LINKS, { label: 'Huang, Chen & Weng (2017)', url: 'https://doi.org/10.1007/s11336-017-9554-9' }],
+    description: 'The help page’s semi-confirmatory factor analysis: the three factors of the 301 children’s mental ability tests with unit variances, correlated, and every cross-loading (each test on the two other factors, 18 in all) penalised by the minimax concave penalty (MCP) at the penalty levels .02 to .60 in steps of .02 and the convexities 1.5, 3 and ∞ (∞ is the lasso), the level chosen by BIC. The model with all cross-loadings cannot be identified by maximum likelihood; the penalty selects the few it needs. Opens its card on the Analyses tab beside the diagram.',
+    shows: 'BIC chooses λ = .14 with δ = 1.5: four of the 18 cross-loadings stay non-zero, x9 (.32), x7 (−.26) and x5 (−.10) on visual and x1 on textual (.26), x9 being the cross-loading the ESEM example finds, and the model fits well (χ² = 30.93 on 20 df, p = .056; RMSEA .043, CFI .988), where the plain CFA does not (χ² = 85.3 on 24 df). The path chart shows the cross-loadings shrinking to zero as λ grows.',
+    syntax: ['visual =~ NA*x1 + x2 + x3', 'textual =~ NA*x4 + x5 + x6', 'speed =~ NA*x7 + x8 + x9', 'visual ~~ 1*visual', 'textual ~~ 1*textual', 'speed ~~ 1*speed', 'visual ~~ textual', 'visual ~~ speed', 'textual ~~ speed'].join('\n'),
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: [], paths: [],
+    panel: { kind: 'regsem', penalise: ['loadings'], penalty: 'mcp', selector: 'bic', deltas: [1.5, 3, 'Inf'], lambdaAuto: false, lambdaLength: 30, lambdaFrom: 0.02, lambdaTo: 0.6 }, settings: CB('ML'),
+  },
+  {
     id: 'lavaan-hs-wald', package: 'lavaan', title: 'Comparing loadings: critical ratios for differences', source: 'lavaan, ?lavTestWald (Holzinger & Swineford)',
     links: [{ label: '?lavTestWald', url: 'https://rdrr.io/cran/lavaan/man/lavTestWald.html' }, ...HS_LINKS],
     description: 'The model of lavTestWald’s help page: the three-factor CFA with the second loadings labelled b1 (x2), b2 (x5) and b3 (x8). The card tests every pair of free loadings for a difference, z = (a − b) / SE(a − b), AMOS’s critical ratios for differences; each z² is the Wald test of the pair held equal, so z(x5, x8)² is lavTestWald(fit, "b2 == b3"). Opens its card on the Analyses tab beside the diagram.',

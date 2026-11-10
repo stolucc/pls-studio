@@ -71,3 +71,35 @@ export async function lmWaldR(c: CbCall, o: LmWaldRequest): Promise<LmWaldRaw> {
   };
 }
 export const lmWaldScriptR = (c: CbCall, o: LmWaldRequest) => rScript('ps_cb_lmwald', req(c, o), 'lavaan');
+
+// ---------- regularised SEM (lslx) ----------
+
+export type Penalty = 'lasso' | 'ridge' | 'enet' | 'mcp';
+/** Elastic net: the lasso's share (0–1); MCP: the convexity (above 1, or 'Inf', the lasso). */
+export type Delta = number | 'Inf';
+export interface RegsemRequest {
+  penalise: TestKind[]; penalty: Penalty; selector: 'bic' | 'aic'; deltas: Delta[];
+  /** lslx's own grid of `length` levels (auto), or `length` equally spaced levels from `from` to `to`. */
+  lambda: { auto: boolean; length: number; from: number; to: number };
+}
+/** One penalty level: λ, δ, the criteria (lslx's, per observation), non-zero coefficients, df, and the penalised estimates (in `penalised` order). */
+export interface RegsemLevel { lambda: number; delta: number | null; aic: number | null; bic: number | null; nonzero: number | null; df: number | null; loss: number | null; converged: boolean; values: (number | null)[] }
+export interface RegsemEstimate { label: string; kind: string; type: 'free' | 'pen'; est: number | null; se: number | null; z: number | null; p: number | null }
+export interface RegsemRaw {
+  method: Penalty; selector: 'bic' | 'aic'; selected: { lambda: number; delta: number | null }; path: RegsemLevel[]; penalised: string[]; penalisedKind: string[];
+  estimates: RegsemEstimate[]; test: { chisq: number | null; df: number | null; p: number | null }; fitIndex: Record<string, number | null>; n: number; warnings: string[]; engine: REngineInfo;
+}
+
+export async function regsemR(c: CbCall, o: RegsemRequest): Promise<RegsemRaw> {
+  const r = await rCall<Record<string, any>>('ps_cb_regsem', req(c, o), 'lslx');
+  return {
+    method: r.method, selector: r.selector, selected: { lambda: num(r.selected?.lambda) ?? NaN, delta: num(r.selected?.delta) },
+    path: arr<Record<string, unknown>>(r.path).map((l) => ({ lambda: num(l.lambda) ?? NaN, delta: num(l.delta), aic: num(l.aic), bic: num(l.bic), nonzero: num(l.nonzero), df: num(l.df), loss: num(l.loss), converged: l.converged === true, values: arr<unknown>(l.values).map(num) })),
+    penalised: arr<string>(r.penalised), penalisedKind: arr<string>(r.penalisedKind),
+    estimates: arr<Record<string, unknown>>(r.estimates).map((e) => ({ label: String(e.label), kind: String(e.kind), type: e.type === 'pen' ? 'pen' : 'free', est: num(e.est), se: num(e.se), z: num(e.z), p: num(e.p) })),
+    test: { chisq: num(r.test?.chisq), df: num(r.test?.df), p: num(r.test?.p) },
+    fitIndex: Object.fromEntries(Object.entries((r.fitIndex ?? {}) as Record<string, unknown>).map(([k, v]) => [k, num(v)])), n: num(r.n) ?? 0,
+    warnings: rStrings(r.warnings), engine: r.engine,
+  };
+}
+export const regsemScriptR = (c: CbCall, o: RegsemRequest) => rScript('ps_cb_regsem', req(c, o), 'lslx');

@@ -32,6 +32,7 @@ lcmm
 lme4
 lmerTest
 lmtest
+lslx
 ltm
 manymome
 marginaleffects

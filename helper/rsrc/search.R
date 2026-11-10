@@ -208,3 +208,115 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
     chisq = unname(fitMeasures(env$fit, "chisq")), df = unname(fitMeasures(env$fit, "df")), warnings = env$.warnings,
     engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }
+
+#' lslx's penalty for the app's choice.
+PS_LSLX_PENALTY <- c(lasso = "lasso", ridge = "ridge", enet = "elastic_net", mcp = "mcp")
+
+#' Regularised SEM (lslx; Huang, Chen & Weng 2017; Huang 2020): the model on the canvas as lslx syntax (the lavaan
+#' syntax the app writes, NA* as free()), with penalised parameters added (pen()): cross-loadings of every indicator on
+#' the other factors, the structural paths, and/or residual covariances between every pair of indicators. lslx fits
+#' the model over a grid of penalty levels (lasso, ridge, elastic net or MCP) and the level is chosen by BIC or AIC.
+ps_cb_regsem <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "Regularised SEM (lslx)")
+  if (!is.null(b$group_var) || !is.null(req$model$multigroup)) stop("Regularised SEM is available for one group here: remove the grouping.")
+  if (length(unlist(req$model$ordered))) stop("lslx fits continuous indicators (normal-theory ML): treat the indicators as continuous.")
+  if (!(req$estimator %in% c("ML", "MLR"))) stop("lslx fits by maximum likelihood (with sandwich standard errors): choose ML or MLR.")
+  if (!(req$missing %in% c("casewise", "mean", "fiml"))) stop("Regularised SEM takes casewise deletion, mean replacement or FIML (lslx's two-step method).")
+  if (length(b$composites) || length(b$mods) || length(b$esem_blocks) || length(b$rel_inds)) stop("Regularised SEM (lslx) takes common factors and paths: no composites, latent interactions, ESEM blocks or known reliabilities.")
+  pen_kinds <- intersect(unlist(req$penalise), c("loadings", "paths", "covariances"))
+  if (!length(pen_kinds)) stop("Choose which parameters to penalise.")
+  method <- req[["penalty", exact = TRUE]]
+  if (!(is.character(method) && length(method) == 1 && method %in% names(PS_LSLX_PENALTY))) stop("Invalid penalty in the request.")
+  selector <- req[["selector", exact = TRUE]]
+  if (!(is.character(selector) && length(selector) == 1 && selector %in% c("bic", "aic"))) stop("Invalid selector in the request.")
+  # The penalty levels: lslx's own grid of `length` levels, or `length` equally spaced levels from `from` to `to`
+  lam <- req$lambda
+  L <- as.integer(ps_number(lam$length %||% 50, "number of penalty levels"))
+  if (is.na(L) || L < 2 || L > 200) stop("The number of penalty levels must be between 2 and 200.")
+  grid <- if (isTRUE(lam$auto %||% TRUE)) sprintf("lambda_length = %d", L) else {
+    lo <- ps_number(lam$from, "smallest penalty level"); hi <- ps_number(lam$to, "largest penalty level")
+    if (lo < 0 || hi <= lo || hi > 1e3) stop("The penalty levels must run from a level of 0 or more to a larger one.")
+    sprintf("lambda_grid = seq(%s, %s, length.out = %d)", format(lo, digits = 15), format(hi, digits = 15), L)
+  }
+  # Elastic net: the share of the lasso (0 ridge, 1 lasso); MCP: the convexity (above 1; Inf is the lasso). Several are tried.
+  # (a list mixing numbers and "Inf" arrives as text: each must be a number or "Inf")
+  ds <- if (method %in% c("enet", "mcp")) as.character(unlist(req$deltas %||% (if (method == "enet") 0.5 else 3))) else character(0)
+  deltas <- ifelse(ds == "Inf", Inf, suppressWarnings(as.numeric(ds)))
+  if (anyNA(deltas) || any(is.infinite(deltas) & ds != "Inf")) stop("Invalid delta in the request.")
+  if (method %in% c("enet", "mcp") && (!length(deltas) || length(deltas) > 10)) stop("Give one to ten deltas.")
+  if (method == "enet" && any(deltas < 0 | deltas > 1)) stop("The elastic-net mixing must be between 0 (ridge) and 1 (lasso).")
+  if (method == "mcp" && any(deltas <= 1)) stop("The MCP convexity must be above 1.")
+  # The model as the app writes it, comments dropped; labels and constraints are not lslx syntax
+  lines <- trimws(sub("\\s*#.*$", "", ps_model_lines(b)))
+  lines <- lines[nzchar(lines)]
+  if (any(grepl("efa\\(|:=|==|<|>|~\\*~|\\|", lines))) stop("Regularised SEM (lslx) takes no ESEM blocks, defined parameters, constraints or thresholds.")
+  if (any(grepl("(^|[ +~])(?!NA\\*)[A-Za-z_.][A-Za-z0-9_.]*\\*", lines, perl = TRUE))) stop("Regularised SEM (lslx) takes no parameter labels (equality constraints): remove them.")
+  if (any(grepl("~ *1$|~ *[^ ]+\\*1$", lines))) stop("Regularised SEM (lslx) estimates every intercept itself: remove the mean structure.")
+  lines <- gsub("NA\\*", "free()*", lines)
+  n <- b$n
+  # (factors of two or more indicators: a single indicator's construct is the variable itself)
+  is_factor <- !b$is_cov & lengths(n$inds) >= 2
+  facs <- unname(b$lname[n$cname[is_factor]])
+  own <- lapply(which(is_factor), function(j) unname(n$iv[n$inds[[j]]]))
+  inds <- unique(unlist(own))
+  added <- character(0)
+  if ("loadings" %in% pen_kinds) for (k in seq_along(facs)) {
+    other <- setdiff(inds, own[[k]])
+    if (length(other)) added <- c(added, sprintf("%s =~ %s", facs[k], paste(sprintf("pen()*%s", other), collapse = " + ")))
+  }
+  if ("paths" %in% pen_kinds) {
+    # every free term of a structural regression penalised (terms with a value or label stay as they are)
+    reg <- grepl("^[^ ]+ ~ ", lines) & !grepl("^[^ ]+ ~ *1$", lines)
+    lines[reg] <- vapply(strsplit(sub("^([^ ]+) ~ ", "\\1\t", lines[reg]), "\t"), function(p) paste(p[1], "~", paste(vapply(strsplit(p[2], " + ", fixed = TRUE)[[1]], function(t) if (grepl("*", t, fixed = TRUE)) t else paste0("pen()*", t), ""), collapse = " + ")), "")
+    if (!any(reg)) stop("The model has no structural paths to penalise.")
+  }
+  if ("covariances" %in% pen_kinds && length(inds) >= 2) {
+    have <- vapply(strsplit(lines[grepl("^[^ ]+ ~~ ", lines)], " ~~ "), function(p) paste(sort(c(p[1], sub("^.*\\*", "", p[2]))), collapse = "~~"), "")
+    pairs <- utils::combn(inds, 2)
+    keep <- !(apply(pairs, 2, function(p) paste(sort(p), collapse = "~~")) %in% have)
+    added <- c(added, sprintf("%s ~~ pen()*%s", pairs[1, keep], pairs[2, keep]))
+  }
+  model <- c(lines, added)
+  fit_args <- sprintf("penalty_method = \"%s\", %s%s, verbose = FALSE", PS_LSLX_PENALTY[[method]], grid, if (!length(deltas)) "" else sprintf(", delta_grid = c(%s)", paste(format(deltas, digits = 15), collapse = ", ")))
+  # (converged tightly: at lslx's default tolerance, 1e-3, the estimates move in the third decimal with the order of the syntax)
+  fit_args <- sub(", verbose = FALSE$", ", tol_out = 1e-08, iter_out_max = 1000, verbose = FALSE", fit_args)
+  body <- c(b$body[seq_len(match("model <- '", b$body) - 1)],
+    "suppressPackageStartupMessages(library(lslx))",
+    "# ---- Regularised SEM (lslx): the model with penalised parameters, pen() ----",
+    "model_lslx <- '", paste0("  ", model), "'",
+    sprintf("r6 <- lslx$new(model = model_lslx, data = data, verbose = FALSE)"),
+    sprintf("r6$fit(%s)", fit_args),
+    sprintf("selected <- r6$extract_penalty_level(selector = \"%s\")", selector),
+    "spec <- r6$extract_specification()",
+    "fitted <- r6$get_fitting()$fitted_result",
+    "levels <- names(fitted$coefficient)",
+    sprintf("estimates <- r6$test_coefficient(selector = \"%s\")", selector),
+    sprintf("lr <- r6$test_lr(selector = \"%s\")", selector),
+    sprintf("fit_index <- r6$extract_fit_index(selector = \"%s\")", selector))
+  if (export) return(paste(ps_script(sprintf("Regularised SEM, %s (lslx)", method), c("lavaan", "lslx"), b$inputs, body, sprintf("r6$summarize(selector = \"%s\")", selector)), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  back <- ps_cb_back(b)
+  nm <- function(x) ps_back(x, back)
+  spec <- env$spec; fitted <- env$fitted
+  kind <- ifelse(spec$right == "1", "intercept", ifelse(grepl("<->", spec$relation, fixed = TRUE), ifelse(spec$left == spec$right, "variance", "covariance"),
+    ifelse(spec$left %in% inds & spec$right %in% facs, "loading", "path")))
+  label <- ifelse(kind == "intercept", paste("Intercept of", nm(spec$left)), ifelse(kind == "variance", paste("Variance of", nm(spec$left)),
+    ifelse(kind == "covariance", paste(nm(spec$right), "\u2194", nm(spec$left)), paste(nm(spec$right), "\u2192", nm(spec$left)))))
+  pen <- which(spec$type == "pen")
+  num_of <- function(key) as.numeric(regmatches(key, regexpr("(?<=lambda=c\\()[^,]+", key, perl = TRUE)))
+  del_of <- function(key) as.numeric(regmatches(key, regexpr("(?<=delta=c\\()[^,]+", key, perl = TRUE)))
+  ic <- fitted$information_criterion; nc <- fitted$numerical_condition
+  est <- env$estimates
+  ps_json(list(method = method, selector = selector, selected = list(lambda = num_of(env$selected), delta = del_of(env$selected)),
+    path = lapply(env$levels, function(k) list(lambda = num_of(k), delta = del_of(k), aic = unname(ic[[k]]["aic"]), bic = unname(ic[[k]]["bic"]),
+      nonzero = unname(nc[[k]]["n_nonzero_coefficient"]), df = unname(nc[[k]]["degrees_of_freedom"]), loss = unname(nc[[k]]["loss_value"]),
+      converged = isTRUE(fitted$is_convergent[[k]]), values = I(unname(fitted$coefficient[[k]][rownames(spec)[pen]])))),
+    penalised = I(label[pen]), penalisedKind = I(kind[pen]),
+    estimates = lapply(which(spec$type != "fixed" & kind != "intercept"), function(i) { r <- rownames(spec)[i]
+      list(label = label[i], kind = kind[i], type = spec$type[i], est = est[r, "estimate"], se = est[r, "standard_error"], z = est[r, "z_value"], p = est[r, "p_value"]) }),
+    test = list(chisq = env$lr["unadjusted", "statistic"], df = env$lr["unadjusted", "df"], p = env$lr["unadjusted", "p_value"]),
+    fitIndex = as.list(env$fit_index), n = nrow(env$data), warnings = env$.warnings,
+    engine = list(package = "lslx", version = as.character(utils::packageVersion("lslx")))))
+}

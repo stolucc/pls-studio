@@ -4,6 +4,7 @@
 // models (Roth et al.'s path model, Kline's data): the replacing rules must give the six alternatives written by hand
 // in scripts/validation/equivalent.R, each with the model's chi-square and df. The multivariate LM and Wald tests
 // (Holzinger & Swineford) must take EQS's steps as scripts/validation/lmwald.R does with lavTestScore and lavTestWald.
+// Regularised SEM must reproduce lslx's documented semi-confirmatory factor analysis (scripts/validation/lslx.R).
 // Run natively: WEBR_TESTS=1 PS_NATIVE_R=1 npx vitest run src/rengine/search.webr.test.ts
 
 import { readFileSync } from 'node:fs';
@@ -12,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall } from './bridge';
 import type { CbCall } from './cbExtras';
-import { equivalentFitsR, equivalentFitsScriptR, lmWaldR, lmWaldScriptR, specSearchR, specSearchScriptR, type ArrowRef } from './search';
+import { equivalentFitsR, equivalentFitsScriptR, lmWaldR, lmWaldScriptR, regsemR, regsemScriptR, specSearchR, specSearchScriptR, type ArrowRef, type RegsemRequest } from './search';
 import { alternativesOf, sameFit } from '../analyses/equivalent';
 import { toSpec, type ModelState } from '../model/project';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
@@ -165,5 +166,69 @@ describe('multivariate LM and Wald tests (lavaan)', () => {
     expect(script).toContain('lavTestScore(fit, add = ');
     expect(script).toContain('lavTestWald(fit, constraints = ');
     await expect(lmWaldR(hsCall(B), { lm: { kinds: [], maxCandidates: 60 }, wald: { kinds: [] }, alpha: 0.05 })).rejects.toThrow(/Choose the parameters/);
+  }, 900_000);
+});
+
+describe('regularised SEM (lslx)', () => {
+  let hs: Dataset;
+  beforeAll(async () => {
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
+    hs = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  }, 900_000);
+  // ?lslx's semi-confirmatory factor analysis: unit factor variances, the factors correlated, every cross-loading penalised
+  const F = (name: string, inds: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: inds, scaling: 'variance' as const });
+  const SFA: ModelSpec = {
+    constructs: [F('visual', ['x1', 'x2', 'x3']), F('textual', ['x4', 'x5', 'x6']), F('speed', ['x7', 'x8', 'x9'])], paths: [],
+    covariances: [['visual', 'textual'], ['visual', 'speed'], ['textual', 'speed']].map(([a, b]) => ({ a, b, kind: 'construct' as const })),
+  };
+  const DOC: RegsemRequest = { penalise: ['loadings'], penalty: 'mcp', selector: 'bic', deltas: [1.5, 3, 'Inf'], lambda: { auto: false, length: 30, from: 0.02, to: 0.6 } };
+  const ref = fixture('lslx');
+  const lslxName = (label: string, kind: string) => {
+    const [a, b] = label.split(kind === 'covariance' || kind === 'variance' ? ' ↔ ' : ' → ');
+    return kind === 'variance' ? `${label.replace('Variance of ', '')}<->${label.replace('Variance of ', '')}/g` : kind === 'covariance' ? `${b}<->${a}/g` : `${b}<-${a}/g`;
+  };
+
+  it('reproduces lslx’s documented semi-confirmatory factor analysis (MCP, BIC) from the model on the canvas (native lslx)', async () => {
+    const r = await regsemR({ data: hs, spec: SFA, missing: 'casewise', estimator: 'ML', interaction: 'product' }, DOC);
+    expect(ref.selected).toBe('lambda=c(0.14,0),delta=c(1.5,Inf)');
+    expect(r.selected.lambda).toBeCloseTo(0.14, 10);
+    expect(r.selected.delta).toBe(1.5);
+    expect(r.test.chisq!).toBeCloseTo(ref.test.chisq, 5);
+    expect(r.test.df).toBe(ref.test.df);
+    for (const k of ['rmsea', 'cfi', 'nnfi', 'srmr']) expect(r.fitIndex[k]!, k).toBeCloseTo(ref.fitIndex[k], 6);
+    // (the help page as run, at lslx's default tolerance: the same level, chi-square within its tolerance)
+    expect(ref.documented.selected).toBe(ref.selected);
+    expect(Math.abs(r.test.chisq! - ref.documented.chisq)).toBeLessThan(0.05);
+    expect(r.penalised).toHaveLength(18);
+    expect(r.path).toHaveLength(90);
+    const byName = new Map(ref.coefficients.map((c: { name: string }) => [c.name, c]));
+    let matched = 0;
+    for (const e of r.estimates) {
+      const want = byName.get(lslxName(e.label, e.kind)) as { est: number; se: number | null; type: string } | undefined;
+      expect(want, e.label).toBeTruthy();
+      expect(e.type).toBe(want!.type);
+      expect(e.est!).toBeCloseTo(want!.est, 6);
+      if (want!.se !== null && e.se !== null) expect(e.se).toBeCloseTo(want!.se, 6);
+      matched++;
+    }
+    expect(matched).toBe(ref.coefficients.length);
+    // the path's level chosen by BIC is the smallest BIC
+    const best = r.path.filter((l) => l.bic !== null).reduce((a, b) => (b.bic! < a.bic! ? b : a));
+    expect(best.lambda).toBeCloseTo(r.selected.lambda, 10);
+  }, 900_000);
+
+  it('penalises paths and residual covariances, exports the script, and refuses what lslx cannot take', async () => {
+    const pd = { ...SFA, paths: [{ from: 'visual', to: 'textual' }, { from: 'textual', to: 'speed' }], covariances: [] };
+    const call = { data: hs, spec: pd, missing: 'casewise' as const, estimator: 'ML' as const, interaction: 'product' as const };
+    const r = await regsemR(call, { penalise: ['paths', 'covariances'], penalty: 'lasso', selector: 'aic', deltas: [], lambda: { auto: true, length: 10, from: 0, to: 1 } });
+    expect(r.penalised.filter((_, i) => r.penalisedKind[i] === 'path')).toEqual(['visual → textual', 'textual → speed']);
+    expect(r.penalisedKind.filter((k) => k === 'covariance')).toHaveLength(36);
+    expect(r.path).toHaveLength(10);
+    const script = await regsemScriptR({ data: hs, spec: SFA, missing: 'casewise', estimator: 'ML', interaction: 'product' }, DOC);
+    expect(script).toContain('r6$fit(penalty_method = "mcp", lambda_grid = seq(0.02, 0.6, length.out = 30), delta_grid = c(1.5, 3.0, Inf), tol_out = 1e-08, iter_out_max = 1000, verbose = FALSE)');
+    expect(script).toContain('visual =~ pen()*x4 + pen()*x5 + pen()*x6 + pen()*x7 + pen()*x8 + pen()*x9');
+    await expect(regsemR({ ...call, spec: { ...pd, paths: [{ from: 'visual', to: 'textual', label: 'a' }] } }, DOC)).rejects.toThrow(/labels/);
+    await expect(regsemR({ ...call, estimator: 'WLSMV' }, DOC)).rejects.toThrow(/ML or MLR/);
+    await expect(regsemR(call, { ...DOC, deltas: [0.5] })).rejects.toThrow(/convexity/);
   }, 900_000);
 });
