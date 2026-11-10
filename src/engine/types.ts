@@ -354,4 +354,6 @@ export interface BootstrapResult {
   imputations?: number;
   /** The R package that resampled (absent for the built-in engine). */
   engine?: { package: string; version: string };
+  /** The random seed it ran with (stamped when stored with the results; absent in results from before). */
+  seed?: number;
 }

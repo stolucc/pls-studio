@@ -125,7 +125,7 @@ function runR(kind: JobKind, key: string) {
     cb ? { kind: 'cbBoot', estimator: st.estimator as CbEstimator, missing: st.missing, boot, interaction: st.interaction } : { kind: 'plsBoot', pkg: st.plsPackage, options, boot }, () => v, progress))
     .then((r) => {
       const t = done(); if (!t) return;
-      t.setResults({ boot: r }, key); logged();
+      t.setResults({ boot: { ...r, seed: boot.seed } }, key); logged();
       // Multiple groups / levels: show the bootstrap of the group on screen.
       const gi = useStore.getState().results?.cb?.groupIndex;
       if (gi) useStore.getState().showGroup(gi);
@@ -291,7 +291,7 @@ export function run(kind: JobKind) {
           if (!useStore.getState().results?.pls) run('estimate');
         } else {
           const result = mergeBootstrap(parts, s.settings.confidence, { tails: s.settings.bootTails === 'one' ? 1 : 2 });
-          st.setResults({ boot: result }, key); logged();
+          st.setResults({ boot: { ...result, seed: s.settings.seed } }, key); logged();
           const failed = result.failed ? ` (${result.failed} samples failed and were skipped)` : '';
           st.toast('success', `Bootstrapping finished: ${result.samples} samples on ${ranges.length} core${ranges.length > 1 ? 's' : ''}${failed}.`);
           const r = useStore.getState().results;
