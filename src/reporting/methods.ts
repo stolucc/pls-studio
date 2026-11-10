@@ -118,6 +118,12 @@ function structural(m: ModelState): string | null {
   return `${count(m.paths.length, 'structural path')} (${m.paths.map((p) => `${name(p.from)} → ${name(p.to)}`).join('; ')})`;
 }
 
+/** "The model comprises <measurement>, and <structural paths>." */
+function comprises(m: ModelState, method: Settings['method']): string {
+  const paths = structural(m);
+  return `The model comprises ${measurement(m, method)}${paths ? `, and ${paths}` : ''}.`;
+}
+
 function higherOrder(m: ModelState): string[] {
   const name = nameOf(m);
   return m.constructs.filter((k) => k.components?.length).map((k) => `${k.name} (formed by ${list(k.components!.map(name))})`);
@@ -155,7 +161,8 @@ function bootText(b: (BootstrapResult & { seed?: number }) | null | undefined): 
   return `Standard errors and ${pct(b.confidence)} ${interval} confidence intervals came from ${b.samples.toLocaleString('en-US')} bootstrap resamples ${cite('efron1993')}${failed || ','} with ${b.tails === 1 ? 'one' : 'two'}-tailed tests${seed}.`;
 }
 
-const ranAny = (input: ReportInput, ...types: string[]) => (input.log ?? []).some((c) => c.run && types.includes(c.type));
+/** Has a card of one of these types run (in the analysis log)? */
+export const ran = (input: ReportInput, ...types: string[]) => (input.log ?? []).some((c) => c.run && types.includes(c.type));
 
 // ---------------------------------------------------------------- PLS-SEM
 
@@ -166,7 +173,7 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
   d.add(`The model was estimated by ${method} with ${software(pls.engine, input, d, 'the built-in PLS-SEM engine')}, on N = ${pls.n} cases.`);
   if (approach === 'PLS-PM') d.add(`The PLS algorithm used the ${s.scheme === 'factor' ? 'factorial' : s.scheme} weighting scheme and stopped when the outer weights changed by less than 10^−${s.stopExp} (at most ${s.maxIter} iterations); it ${pls.converged ? `converged after ${count(pls.iterations, 'iteration')}` : `did not converge within ${count(pls.iterations, 'iteration')}`}.`);
   d.add('The indicators were standardised (mean 0, variance 1) before estimation, so loadings, weights and path coefficients are standardised.');
-  d.add(`The model comprises ${measurement(m, 'pls')}${structural(m) ? `, and ${structural(m)}` : ''}.`);
+  d.add(comprises(m, 'pls'));
   const hoc = higherOrder(m);
   if (hoc.length) {
     const how = { two_stage: 'disjoint two-stage approach', embedded: 'embedded two-stage approach', repeated: 'repeated indicators approach' }[pls.hocApproach ?? s.hocApproach];
@@ -188,8 +195,8 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
     + '.');
   if (m.paths.length) d.add(`The structural model was assessed by collinearity among predictors (inner VIF below 3), the coefficient of determination R² (0.25, 0.50 and 0.75 as weak, moderate and substantial; ${citealp('hair2019')}), the effect size f² (0.02, 0.15 and 0.35 as small, medium and large; ${citealp('cohen1988')})${input.boot ? ' and the significance of the path coefficients by their bootstrap confidence intervals' : ''}.`);
   d.add(`As a measure of approximate model fit, the SRMR of the estimated model is reported against the threshold of 0.08 ${cite('henseler2014')}, with the caveat that fit measures are of limited use in PLS-SEM ${cite('hair2019')}.`);
-  if (ranAny(input, 'plspredict')) d.add(`Out-of-sample predictive power was assessed with PLSpredict (Q²predict above 0, and the RMSE or MAE of PLS-SEM against a linear benchmark) ${cite('shmueli2019')}.`);
-  if (ranAny(input, 'mga')) d.add(`Before comparing groups, measurement invariance of the composites was tested with the MICOM procedure ${cite('henseler2016')}.`);
+  if (ran(input, 'plspredict')) d.add(`Out-of-sample predictive power was assessed with PLSpredict (Q²predict above 0, and the RMSE or MAE of PLS-SEM against a linear benchmark) ${cite('shmueli2019')}.`);
+  if (ran(input, 'mga')) d.add(`Before comparing groups, measurement invariance of the composites was tested with the MICOM procedure ${cite('henseler2016')}.`);
 }
 
 // ---------------------------------------------------------------- CB-SEM
@@ -216,7 +223,7 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
   d.add(`The model was estimated as a ${cfa ? 'confirmatory factor analysis (CFA)' : 'covariance-based structural equation model (CB-SEM)'} by ${est} ${abbr(short, estKeys)} with ${software(cb.engine, input, d, 'the built-in CB-SEM engine')}, on N = ${cb.n} cases.`);
   if (cb.engine?.package === 'modsem' || cb.interaction) d.add(`The latent interactions were estimated by ${cb.interaction === 'qml' ? `quasi-maximum likelihood ${abbr('QML', ['klein2007'])}` : `the latent moderated structural equations method ${abbr('LMS', ['klein2000'])}`}.`);
   else if (m.moderations.length) d.add(`Latent interactions (${list(moderationText(m))}) were estimated with product indicators ${cite('marsh2004')}.`);
-  d.add(`The model comprises ${measurement(m, 'cbsem')}${structural(m) ? `, and ${structural(m)}` : ''}.`);
+  d.add(comprises(m, 'cbsem'));
   const hoc = higherOrder(m);
   if (hoc.length) d.add(`Second-order ${hoc.length === 1 ? 'factor' : 'factors'}: ${list(hoc)}.`);
   const variance = m.constructs.filter((k) => k.scaling === 'variance').map((k) => k.name);
@@ -235,7 +242,7 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
 
 function miivDraft(input: ReportInput, miiv: WithEngine<MiivResult>, d: Draft) {
   d.add(`The model was estimated equation by equation by model-implied instrumental variable two-stage least squares ${abbr('MIIV-2SLS', ['bollen1996'])} with ${software(miiv.engine, input, d, 'the built-in MIIV-2SLS engine')}, on N = ${miiv.n} cases.`);
-  d.add(`The model comprises ${measurement(input.model, 'cbsem')}${structural(input.model) ? `, and ${structural(input.model)}` : ''}.`);
+  d.add(comprises(input.model, 'cbsem'));
   d.add('Each equation’s instruments were tested with the Sargan overidentification test; MIIV-2SLS gives no global fit statistics.');
   d.add(missingText(input, null, 0, undefined));
 }
@@ -250,8 +257,8 @@ function processDraft(input: ReportInput, r: CpaResult, d: Draft) {
   const eng: EngineTag = r.engine as EngineTag;
   d.add(`The conditional process analysis (${label}; ${citealp('hayes2022')}) was estimated with ${software(eng, input, d, 'PLS Studio')}${latent ? `, the scales ${list(r.latent)} modelled as latent variables by the structural-after-measurement approach ${cite('rosseel2024')}` : ''}, on N = ${r.n} cases.`);
   if (g.graph) {
-    const mods = [...new Set([...g.graph.moderations.map((x) => x.by), ...g.graph.threeWay.flatMap((x) => x.by)])].map(nameOf(m));
     const name = nameOf(m);
+    const mods = [...new Set([...g.graph.moderations.map((x) => x.by), ...g.graph.threeWay.flatMap((x) => x.by)])].map(name);
     d.add(`X was ${name(g.graph.x)} and Y ${name(g.graph.y)}${g.graph.mediators.length ? `, with ${g.graph.mediators.length === 1 ? 'the mediator' : 'the mediators'} ${list(g.graph.mediators.map(name))}` : ''}${mods.length ? `, ${mods.length === 1 ? 'the moderator' : 'the moderators'} ${list(mods)}` : ''}${g.covariates.length ? `, and the ${g.covariates.length === 1 ? 'covariate' : 'covariates'} ${list(g.covariates)} in every equation` : ''}.`);
   }
   d.add(`The variables were ${measurement(m, 'process').replace(/^\d+ constructs? measured by \d+ indicators?: /, '')}.`);

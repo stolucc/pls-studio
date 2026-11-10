@@ -6,7 +6,7 @@
 // Hayes (2022) for conditional process analysis.
 
 import type { Issue } from '../model/project';
-import type { ReportInput } from './methods';
+import { ran, type ReportInput } from './methods';
 
 export type CheckStatus = 'done' | 'issue' | 'na' | 'author';
 /** Where the user can address an item: a tab of the Model tab's results, or an analysis card to add. */
@@ -27,10 +27,23 @@ const f3 = (x: number) => (Number.isFinite(x) ? x.toFixed(3) : '—');
 /** p as APA writes it: no leading zero, < .001. */
 const pv = (p: number) => (!Number.isFinite(p) ? '—' : p < 0.001 ? '< .001' : `= ${p.toFixed(3).replace(/^0/, '')}`);
 const join = (xs: string[], max = 8) => (xs.length > max ? `${xs.slice(0, max).join(', ')} and ${xs.length - max} more` : xs.join(', '));
-const ran = (input: ReportInput, ...types: string[]) => (input.log ?? []).some((c) => c.run && types.includes(c.type));
 
 const tab = (label: string): CheckLink => ({ kind: 'tab', label });
 const card = (type: string, label: string): CheckLink => ({ kind: 'card', type, label });
+const head = (id: string, section: CheckItem['section'], label: string) => ({ id, section, label });
+/** Items whose cases differ only in status and evidence. */
+const HEAD = {
+  missing: head('missing', 'Data', 'Missing data and their treatment reported'),
+  cmb: head('cmb', 'Data', 'Common method variance addressed'),
+  invariance: head('invariance', 'Groups', 'Measurement invariance established before comparing groups'),
+  predict: head('predict', 'Structural model', 'Predictive power: PLSpredict (Q²predict, RMSE/MAE against the LM benchmark)'),
+  micom: head('micom', 'Groups', 'Measurement invariance (MICOM) before comparing groups'),
+  hc: head('hc', 'Estimation', 'Heteroskedasticity-consistent standard errors (HC3 or HC4)'),
+  indirectBoot: head('bootstrap', 'Estimation', 'Indirect effects tested with bootstrap confidence intervals (at least 5,000 resamples)'),
+  probing: head('probing', 'Structural model', 'Interactions probed (conditional effects, Johnson–Neyman)'),
+  index: head('index', 'Structural model', 'Index of moderated mediation reported'),
+  scales: head('scales', 'Measurement model', 'Reliability of the multi-item scales reported'),
+};
 
 /** A chain X → M → Y in the diagram (an indirect effect to test). */
 function hasMediation(input: ReportInput): boolean {
@@ -51,10 +64,10 @@ function specItem(issues: Issue[] | undefined, sources: string[]): CheckItem {
 function missingItem(input: ReportInput, dropped: number, sources: string[]): CheckItem {
   const { info, settings: s } = input;
   const how: Record<string, string> = { mean: 'mean replacement', casewise: 'listwise deletion', pairwise: 'pairwise deletion', fiml: 'FIML', mi: 'multiple imputation', twostage: 'the two-stage approach', robusttwostage: 'the robust two-stage approach' };
-  if (info?.kind === 'matrix') return { id: 'missing', section: 'Data', label: 'Missing data and their treatment reported', status: 'na', evidence: 'Covariance-matrix input.', sources };
-  if (info && info.missingCells === 0) return { id: 'missing', section: 'Data', label: 'Missing data and their treatment reported', status: 'done', evidence: 'No missing values in the data.', sources };
+  if (info?.kind === 'matrix') return { ...HEAD.missing, status: 'na', evidence: 'Covariance-matrix input.', sources };
+  if (info && info.missingCells === 0) return { ...HEAD.missing, status: 'done', evidence: 'No missing values in the data.', sources };
   return {
-    id: 'missing', section: 'Data', label: 'Missing data and their treatment reported', sources,
+    ...HEAD.missing, sources,
     status: s.missing === 'mean' ? 'issue' : 'done',
     evidence: `${info ? `${info.missingCells} missing cells; ` : ''}treated by ${how[s.missing] ?? s.missing}${dropped ? ` (${dropped} cases dropped)` : ''}.${s.missing === 'mean' ? ' Mean replacement shrinks variances and correlations; reviewers prefer FIML or multiple imputation where the method allows.' : ''} Report the amount and pattern of missingness.`,
     link: card('missingdata', 'Add Missing data'),
@@ -70,8 +83,8 @@ function bootItem(input: ReportInput, needed: boolean, label: string, sources: s
 }
 
 const cmbItem = (input: ReportInput, sources: string[]): CheckItem => (ran(input, 'cmb')
-  ? { id: 'cmb', section: 'Data', label: 'Common method variance addressed', status: 'done', evidence: 'A common method bias card has run (see the log).', sources, link: card('cmb', 'Add Common method bias') }
-  : { id: 'cmb', section: 'Data', label: 'Common method variance addressed', status: 'author', evidence: 'Not checked in the log. With self-reported data from one source, reviewers expect procedural remedies and a statistical check.', sources, link: card('cmb', 'Add Common method bias') });
+  ? { ...HEAD.cmb, status: 'done', evidence: 'A common method bias card has run (see the log).', sources, link: card('cmb', 'Add Common method bias') }
+  : { ...HEAD.cmb, status: 'author', evidence: 'Not checked in the log. With self-reported data from one source, reviewers expect procedural remedies and a statistical check.', sources, link: card('cmb', 'Add Common method bias') });
 
 const softwareItem = (engine: { package: string; version: string } | undefined, sources: string[]): CheckItem => ({
   id: 'software', section: 'Reporting', label: 'Software, version and estimation settings reported', sources, status: 'author',
@@ -121,9 +134,9 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
   }
   // Groups: invariance before comparing them.
   const mg = input.model.multigroup;
-  out.push(!mg ? { id: 'invariance', section: 'Groups', label: 'Measurement invariance established before comparing groups', status: 'na', evidence: 'One group.', sources: ['appelbaum2018'] }
-    : input.invariance ? { id: 'invariance', section: 'Groups', label: 'Measurement invariance established before comparing groups', status: 'done', evidence: `Tested: ${input.invariance.levels.map((l) => `${l.level} (CFI ${f3(l.cfi)}${l.cfiChange !== undefined ? `, ΔCFI ${f3(l.cfiChange)}` : ''}${l.p !== undefined ? `, Δχ² p ${pv(l.p)}` : ''})`).join('; ')}.`, sources: ['appelbaum2018'], link: tab('Measurement invariance') }
-    : { id: 'invariance', section: 'Groups', label: 'Measurement invariance established before comparing groups', status: 'issue', evidence: `The groups are fitted at the ${mg.invariance} level without the sequence of invariance tests in the results.`, sources: ['appelbaum2018'], link: tab('Measurement invariance') });
+  out.push(!mg ? { ...HEAD.invariance, status: 'na', evidence: 'One group.', sources: ['appelbaum2018'] }
+    : input.invariance ? { ...HEAD.invariance, status: 'done', evidence: `Tested: ${input.invariance.levels.map((l) => `${l.level} (CFI ${f3(l.cfi)}${l.cfiChange !== undefined ? `, ΔCFI ${f3(l.cfiChange)}` : ''}${l.p !== undefined ? `, Δχ² p ${pv(l.p)}` : ''})`).join('; ')}.`, sources: ['appelbaum2018'], link: tab('Measurement invariance') }
+    : { ...HEAD.invariance, status: 'issue', evidence: `The groups are fitted at the ${mg.invariance} level without the sequence of invariance tests in the results.`, sources: ['appelbaum2018'], link: tab('Measurement invariance') });
   // Sample size against free parameters (N:q).
   const q = fit.npar;
   if (q > 0) {
@@ -145,7 +158,7 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
     evidence: `${cb.modindices?.length ? `${cb.modindices.length} modification indices ≥ 3.84 in the results. ` : ''}Report every change made after seeing the data, with its theoretical justification.`, link: tab('Modification indices') });
   out.push({ id: 'equivalent', section: 'Specification', label: 'Equivalent and alternative models considered', sources: BOTH, status: 'author', evidence: 'Not something the results can show: name the equivalent models (e.g. reversed paths) and why yours is preferred.' });
   out.push(cmbItem(input, ['appelbaum2018']));
-  out.push(softwareItem((cb as { engine?: { package: string; version: string } }).engine, JARS));
+  out.push(softwareItem(cb.engine, JARS));
   return out;
 }
 
@@ -205,19 +218,19 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
       evidence: pls.fSquare.some((r) => r.some((v) => v !== null)) ? 'f² of every path is in the results (.02 / .15 / .35 small / medium / large).' : 'No f² in the results.', link: tab('Path coefficients') });
     out.push(bootItem(input, true, 'Path coefficients tested with bootstrap confidence intervals', H));
     out.push(ran(input, 'plspredict')
-      ? { id: 'predict', section: 'Structural model', label: 'Predictive power: PLSpredict (Q²predict, RMSE/MAE against the LM benchmark)', status: 'done', evidence: 'A PLSpredict card has run.', sources: ['shmueli2019', ...H], link: card('plspredict', 'Add PLSpredict') }
-      : { id: 'predict', section: 'Structural model', label: 'Predictive power: PLSpredict (Q²predict, RMSE/MAE against the LM benchmark)', status: 'issue', evidence: `${ran(input, 'blindfold') ? 'Only blindfolding Q² has run, which mixes in-sample explanation and prediction. ' : ''}Not assessed yet.`, sources: ['shmueli2019', ...H], link: card('plspredict', 'Add PLSpredict') });
+      ? { ...HEAD.predict, status: 'done', evidence: 'A PLSpredict card has run.', sources: ['shmueli2019', ...H], link: card('plspredict', 'Add PLSpredict') }
+      : { ...HEAD.predict, status: 'issue', evidence: `${ran(input, 'blindfold') ? 'Only blindfolding Q² has run, which mixes in-sample explanation and prediction. ' : ''}Not assessed yet.`, sources: ['shmueli2019', ...H], link: card('plspredict', 'Add PLSpredict') });
   }
   const srmr = pls.fit.estimated.srmr;
   out.push({ id: 'srmr', section: 'Model fit', label: 'Approximate fit (SRMR below .08), reported with caution', sources: ['henseler2014', ...H], status: Number.isFinite(srmr) ? (srmr < 0.08 ? 'done' : 'issue') : 'na',
     evidence: Number.isFinite(srmr) ? `SRMR of the estimated model ${f3(srmr)}. Hair et al. (2019) advise against relying on fit measures in PLS-SEM.` : 'No SRMR in the results.', link: tab('Model fit') });
-  out.push(ran(input, 'mga') ? { id: 'micom', section: 'Groups', label: 'Measurement invariance (MICOM) before comparing groups', status: 'done', evidence: 'A MICOM and multigroup card has run.', sources: ['henseler2016'], link: card('mga', 'Add MICOM and multigroup analysis') }
-    : { id: 'micom', section: 'Groups', label: 'Measurement invariance (MICOM) before comparing groups', status: 'na', evidence: 'No group comparison in the log.', sources: ['henseler2016'], link: card('mga', 'Add MICOM and multigroup analysis') });
+  out.push(ran(input, 'mga') ? { ...HEAD.micom, status: 'done', evidence: 'A MICOM and multigroup card has run.', sources: ['henseler2016'], link: card('mga', 'Add MICOM and multigroup analysis') }
+    : { ...HEAD.micom, status: 'na', evidence: 'No group comparison in the log.', sources: ['henseler2016'], link: card('mga', 'Add MICOM and multigroup analysis') });
   out.push({ id: 'samplesize', section: 'Data', label: 'Sample size justified (minimum sample size)', sources: H, status: ran(input, 'minsample') ? 'done' : 'author',
     evidence: `N = ${pls.n}.${ran(input, 'minsample') ? ' The minimum sample size card has run.' : ' Justify it, e.g. by the inverse square root method.'}`, link: card('minsample', 'Add Minimum sample size') });
   out.push(missingItem(input, pls.droppedRows, H));
   out.push(cmbItem(input, H));
-  out.push(softwareItem((pls as { engine?: { package: string; version: string } }).engine, ['appelbaum2018']));
+  out.push(softwareItem(pls.engine, ['appelbaum2018']));
   return out;
 }
 
@@ -228,26 +241,26 @@ function processChecks(input: ReportInput, issues: Issue[] | undefined): CheckIt
   const HY = ['hayes2022'], JARS = ['appelbaum2018'];
   const out: CheckItem[] = [specItem(issues, HY)];
   const latent = r.latent.length > 0;
-  out.push(latent ? { id: 'hc', section: 'Estimation', label: 'Heteroskedasticity-consistent standard errors (HC3 or HC4)', status: 'na', evidence: 'Latent-variable model (lavaan::sam): no OLS standard errors.', sources: ['hayes2007'] }
-    : { id: 'hc', section: 'Estimation', label: 'Heteroskedasticity-consistent standard errors (HC3 or HC4)', sources: ['hayes2007', 'long2000'], status: r.hc === 'none' ? 'author' : 'done',
+  out.push(latent ? { ...HEAD.hc, status: 'na', evidence: 'Latent-variable model (lavaan::sam): no OLS standard errors.', sources: ['hayes2007'] }
+    : { ...HEAD.hc, sources: ['hayes2007', 'long2000'], status: r.hc === 'none' ? 'author' : 'done',
       evidence: r.hc === 'none' ? 'OLS standard errors assume homoskedasticity: check the residuals, or choose HC3 / HC4 in the settings.' : `${r.hc} standard errors.`, link: { kind: 'model', label: 'Model tab (settings)' } });
   out.push({ id: 'assumptions', section: 'Data', label: 'Regression assumptions and influential cases checked', sources: HY, status: ran(input, 'screen') ? 'done' : 'author',
     evidence: ran(input, 'screen') ? 'The data screening card has run.' : 'Report checks of linearity, the residuals’ distribution and influential cases.', link: card('screen', 'Add Data screening') });
   const indirect = r.indirect.length > 0;
-  out.push(!indirect ? { id: 'bootstrap', section: 'Estimation', label: 'Indirect effects tested with bootstrap confidence intervals (at least 5,000 resamples)', status: 'na', evidence: 'No indirect effect in the model.', sources: HY }
-    : { id: 'bootstrap', section: 'Estimation', label: 'Indirect effects tested with bootstrap confidence intervals (at least 5,000 resamples)', sources: r.inference === 'montecarlo' ? ['preacher2012', ...HY] : HY,
+  out.push(!indirect ? { ...HEAD.indirectBoot, status: 'na', evidence: 'No indirect effect in the model.', sources: HY }
+    : { ...HEAD.indirectBoot, sources: r.inference === 'montecarlo' ? ['preacher2012', ...HY] : HY,
       status: r.boot.samples >= 5000 ? 'done' : 'issue',
       evidence: `${r.boot.samples.toLocaleString('en-US')} ${r.inference === 'montecarlo' ? 'Monte Carlo draws' : 'bootstrap resamples'}${r.boot.samples < 5000 ? ': increase to at least 5,000 for stable interval limits' : ''}.`, link: tab('Direct & indirect effects') });
   const moderated = r.moderators.length > 0;
-  out.push(!moderated ? { id: 'probing', section: 'Structural model', label: 'Interactions probed (conditional effects, Johnson–Neyman)', status: 'na', evidence: 'No moderator.', sources: HY }
-    : { id: 'probing', section: 'Structural model', label: 'Interactions probed (conditional effects, Johnson–Neyman)', status: 'done', sources: HY,
+  out.push(!moderated ? { ...HEAD.probing, status: 'na', evidence: 'No moderator.', sources: HY }
+    : { ...HEAD.probing, status: 'done', sources: HY,
       evidence: `Conditional effects at ${r.moderators.map((x) => `${x.name} = ${x.values.map((v) => f2(v)).join(' / ')}`).join('; ')}${r.jn.length ? '; Johnson–Neyman regions in the results' : ''}.`, link: tab(r.jn.length ? 'Johnson–Neyman' : 'Direct & indirect effects') });
-  out.push(!(moderated && indirect) ? { id: 'index', section: 'Structural model', label: 'Index of moderated mediation reported', status: 'na', evidence: 'Not a moderated mediation model.', sources: HY }
-    : { id: 'index', section: 'Structural model', label: 'Index of moderated mediation reported', status: r.indices.length ? 'done' : 'issue', sources: HY,
+  out.push(!(moderated && indirect) ? { ...HEAD.index, status: 'na', evidence: 'Not a moderated mediation model.', sources: HY }
+    : { ...HEAD.index, status: r.indices.length ? 'done' : 'issue', sources: HY,
       evidence: r.indices.length ? `${r.indices.length} ${r.indices.length === 1 ? 'index' : 'indices'} with ${r.inference === 'montecarlo' ? 'Monte Carlo' : 'bootstrap'} intervals.` : 'The model has no linear index for this moderation: compare conditional indirect effects instead.', link: tab('Direct & indirect effects') });
   const scales = input.model.constructs.filter((k) => k.indicators.length > 1 && !k.latent);
-  out.push(!scales.length ? { id: 'scales', section: 'Measurement model', label: 'Reliability of the multi-item scales reported', status: 'na', evidence: latent ? 'The scales are latent variables.' : 'Single-item measures.', sources: JARS }
-    : { id: 'scales', section: 'Measurement model', label: 'Reliability of the multi-item scales reported', sources: JARS, status: ran(input, 'reliability') ? 'done' : 'issue',
+  out.push(!scales.length ? { ...HEAD.scales, status: 'na', evidence: latent ? 'The scales are latent variables.' : 'Single-item measures.', sources: JARS }
+    : { ...HEAD.scales, sources: JARS, status: ran(input, 'reliability') ? 'done' : 'issue',
       evidence: `${scales.map((k) => k.name).join(', ')} ${scales.length === 1 ? 'is a mean score' : 'are mean scores'}, which ignores measurement error${ran(input, 'reliability') ? '; a reliability card has run' : ': report α or ω'}.`, link: card('reliability', 'Add Reliability and agreement') });
   out.push({ id: 'effects', section: 'Structural model', label: 'Direct, indirect and total effects reported with intervals', sources: HY, status: 'done',
     evidence: `${r.direct ? 'Direct' : ''}${indirect ? `${r.direct ? ', ' : ''}${r.indirect.length} indirect` : ''}${r.total ? ' and total' : ''} effects in the results.`, link: tab('Direct & indirect effects') });
