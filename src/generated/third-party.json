@@ -2364,6 +2364,13 @@
    "license": "GPL (>= 2), from the metaSEM package",
    "credit": "Digman, J. M. (1997). Higher-order factors of the Big Five. Journal of Personality and Social Psychology, 73, 1246–1256; distributed with metaSEM (Cheung); shipped with the app because metaSEM cannot run in the browser.",
    "url": "https://cran.r-project.org/package=metaSEM"
+  },
+  {
+   "name": "lgcm (simulated latent growth curve data)",
+   "where": "public/examples/semtree, validation fixtures",
+   "license": "GPL-3, from the semtree package",
+   "credit": "Simulated data distributed with semtree (Brandmaier, Prindle & Arnold); shipped with the app because semtree cannot run in the browser.",
+   "url": "https://cran.r-project.org/package=semtree"
   }
  ],
  "publishedSources": [

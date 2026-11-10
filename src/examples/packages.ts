@@ -39,8 +39,8 @@ import { parseLavaanSyntax } from '../model/syntax';
 import { namesIn, parseExpr } from '../model/expr';
 import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'semPower' | 'metaSEM';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'semPower', 'metaSEM'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'semPower' | 'metaSEM' | 'semtree';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'semPower', 'metaSEM', 'semtree'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'sempower' | 'metasem';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'sempower' | 'metasem' | 'semtree';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -174,6 +174,8 @@ const BOLLEN = {
   paths: [['ind60', 'dem60'], ['ind60', 'dem65'], ['dem60', 'dem65']] as [string, string][],
   correlations: [['y1', 'y5', 'indicator'], ['y2', 'y4', 'indicator'], ['y2', 'y6', 'indicator'], ['y3', 'y7', 'indicator'], ['y4', 'y8', 'indicator'], ['y6', 'y8', 'indicator']] as [string, string, 'indicator'][],
 };
+/** semtree's linear latent growth curve of the lgcm data (its documentation's model), as lavaan syntax. */
+const LGCM_SYNTAX = 'i =~ 1*o1 + 1*o2 + 1*o3 + 1*o4 + 1*o5\ns =~ 0*o1 + 1*o2 + 2*o3 + 3*o4 + 4*o5\ni ~ 1\ns ~ 1\no2 ~ 0*1\no3 ~ 0*1\no4 ~ 0*1\no5 ~ 0*1\no1 ~~ e*o1\no2 ~~ e*o2\no3 ~~ e*o3\no4 ~~ e*o4\no5 ~~ e*o5\ni ~~ s';
 const HS = [f('visual', items('x', 3)), f('textual', items('x', 3, 4)), f('speed', items('x', 3, 7))];
 const MOBI = [c('Image', items('IMAG', 5), 'A'), c('Expectation', items('CUEX', 3), 'A'), c('Quality', items('PERQ', 7), 'A'), c('Value', items('PERV', 2), 'A'),
   c('Satisfaction', items('CUSA', 3), 'A'), c('Complaints', ['CUSCO'], 'A'), c('Loyalty', items('CUSL', 3), 'A')];
@@ -748,6 +750,16 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'metaSEM', name: 'Digman97', file: 'examples/metasem/digman97.csv' },
     constructs: [f('Alpha', ['A', 'C', 'ES']), f('Beta', ['E', 'I'])], paths: [],
     panel: { kind: 'metasem', n: 'N', method: 'REM', reType: 'Diag' }, settings: CB('ML'),
+  },
+  {
+    id: 'semtree-lgcm', package: 'semtree', title: 'SEM tree: who changes differently in a growth curve', source: 'semtree, ?lgcm and the getting-started vignette',
+    links: [{ label: '?lgcm', url: 'https://rdrr.io/cran/semtree/man/lgcm.html' }, { label: 'semtree: getting started', url: 'https://cran.r-project.org/web/packages/semtree/vignettes/getting-started.html' }, { label: 'Brandmaier et al. (2013), Psychological Methods', url: 'https://doi.org/10.1037/a0030001' }],
+    description: 'semtree’s simulated lgcm data (400 cases, five occasions o1–o5) with the documentation’s linear latent growth curve: intercept and slope with loadings 1 and 0–4, equal residual variances and free latent means. The SEM tree splits it on agegroup (ordered), training (categorical) and noise (numeric), as semtree’s documentation codes them. Runs in desktop R through the PLS Studio Helper (semtree needs OpenMx). Opens its card on the Analyses tab.',
+    shows: 'The first split is agegroup (LR = 1253.3 on 10 df): the younger group starts higher, intercept 5.02 against 1.97. Among the older, training splits again: the trained decline more slowly (slope −0.50 against −1.08). Noise, pure noise by design, is never used.',
+    data: { package: 'semtree', name: 'lgcm', file: 'examples/semtree/lgcm.csv' },
+    syntax: LGCM_SYNTAX, constructs: [], paths: [],
+    panel: { kind: 'semtree', covariates: [{ name: 'agegroup', type: 'ordered' }, { name: 'training', type: 'categorical' }, { name: 'noise', type: 'numeric' }], method: 'naive', alpha: 0.05, maxDepth: 3, minN: 20, forest: false, trees: 50 },
+    settings: CB('ML'),
   },
   {
     id: 'rsem-mardia', package: 'rsem', title: 'Robust ML with missing data: exam scores', source: 'rsem, ?rsem.lavaan (mardiamv25)',

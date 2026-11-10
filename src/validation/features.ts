@@ -55,6 +55,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/modsem': native('Latent interactions (LMS, QML)', 'CB-SEM', ['modsem'], script('modsem.R', 'desktop modsem'), { label: 'modsem called directly in the same R' }),
   'rengine/modsemBoot': native('Bootstrap of latent interactions', 'CB-SEM', ['modsem'], { label: 'resampling with modsem in the same R' }),
   'rengine/metasem': native('Meta-analytic SEM (two-stage SEM)', 'CB-SEM', ['metaSEM'], script('metasem.R', 'desktop metaSEM')),
+  'rengine/semtree': native('SEM trees and forests', 'CB-SEM', ['semtree'], script('semtree.R', 'desktop semtree')),
   'rengine/power': native('Power analysis (a priori, post hoc, compromise, a parameter; RMSEA equivalence test)', 'CB-SEM', ['semPower', 'lavaan'], script('sempower.R', 'desktop semPower, dynamic::equivTest and lavaan')),
   'rengine/screen': native('Data screening (outliers, influence)', 'CB-SEM', ['semfindr'], script('screen.R', 'desktop semfindr')),
   'rengine/analyses': native('MIIV-2SLS, IPMA, model fit test', 'CB-SEM', ['MIIVsem', 'cSEM'], script('generate.R', 'desktop MIIVsem and cSEM')),
