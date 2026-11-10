@@ -80,6 +80,14 @@ export const CARD_DFI: PackageExample[] = [
     panel: { kind: 'dynamicfit', fn: 'likertOne', reps: 250, estimator: '', scale: 'normal', mad: [0.038, 0.05, 0.06] }, settings: CB('ML'),
   },
   {
+    id: 'dynamic-example-nnorone', package: 'dynamic', title: 'Dynamic fit cutoffs for non-normal data: one factor (nnorOne)', source: 'dynamic, ?nnorOne (its Example data, MLR)',
+    links: [{ label: '?nnorOne', url: 'https://github.com/melissagwolf/dynamic/blob/master/man/nnorOne.Rd' }, { label: '?Example (dynamic)', url: 'https://github.com/melissagwolf/dynamic/blob/master/man/Example.Rd' }, ...DYNAMIC],
+    description: 'The help page’s example: the one-factor model of X5 to X9 (N = 500) fitted by ML, and nnorOne’s cutoffs for continuous non-normal data: a modified Bollen–Stine bootstrap of the data creates the correctly specified and the misspecified samples (omitted residual correlations), which keep the data’s non-normality, fitted by MLR; 500 replications per level with the package’s fixed seeds. ' + CARD,
+    shows: 'The same model and fit as the likertOne example (SRMR .024, RMSEA .032, CFI .993 on 5 df), passing again, with other cutoffs: .036, .062 and .973 at Level 1 against likertOne’s .036, .065 and .962. The bootstrap keeps the data’s own non-normality where likertOne keeps its response categories.',
+    data: EXAMPLE_DATA, constructs: [f('F1', items('X', 5, 5))], paths: [],
+    panel: { kind: 'dynamicfit', fn: 'nnorOne', reps: 500, estimator: '', scale: 'normal', mad: [0.038, 0.05, 0.06] }, settings: CB('ML'),
+  },
+  {
     id: 'dynamic-example-likerthb', package: 'dynamic', title: 'Dynamic fit cutoffs for Likert items treated as continuous: two factors (likertHB)', source: 'dynamic, ?likertHB (its Example data)',
     links: [{ label: '?likertHB', url: 'https://github.com/melissagwolf/dynamic/blob/master/man/likertHB.Rd' }, { label: '?Example (dynamic)', url: 'https://github.com/melissagwolf/dynamic/blob/master/man/Example.Rd' }, ...DYNAMIC],
     description: 'The help page’s example: two correlated factors (X2 to X4; X6 to X8; N = 500) fitted by ML with the items as continuous, and likertHB’s cutoffs for one omitted cross-loading, the simulated items keeping the data’s response frequencies (250 replications, the package’s fixed seeds). ' + CARD,

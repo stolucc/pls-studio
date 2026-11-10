@@ -34,7 +34,7 @@ import { cases } from '../engine/validationHarness';
 import { evidenceKinds } from './useEvidence';
 
 /** The gaps left (entries with `todo`): this may only go down. */
-const TODO_MAX = 3;
+const TODO_MAX = 2;
 
 /** Each card's statistically distinct modes, from its own option lists: a new family, link or engine needs an entry. */
 const CARD_MODES: Record<string, readonly string[]> = {

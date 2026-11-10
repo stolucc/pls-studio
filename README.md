@@ -57,7 +57,7 @@ structural equation is estimated separately by 2SLS on scaling indicators, with 
 instruments and a Sargan overidentification test per equation; works from raw data or a covariance
 matrix. Misspecification in one equation does not propagate to others.
 
-**Examples**: 362 examples from the R packages' own documentation (lavaan, dynamic, sirt, mnlfa, MIIVsem, modsem, manymome, plspm, genpathmox, ivreg, REndo, sampleSelection, MatchIt, RSA, NCA, QCA,
+**Examples**: 363 examples from the R packages' own documentation (lavaan, dynamic, sirt, mnlfa, MIIVsem, modsem, manymome, plspm, genpathmox, ivreg, REndo, sampleSelection, MatchIt, RSA, NCA, QCA,
 cSEM, seminr, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, lcmm, did, fixest, MASS, nnet, datasets, carData, faraway, BayesFactor, blavaan, semPower, metaSEM, semtree, lslx, misty, SEMsens, mediation, strucchange, INLAvaan, nonnest2, pscl, plssem; data loaded from the packages, each linked to its source) and from the Mplus User's Guide (Muthén & Muthén; their generated example data are not distributed with the app but downloaded from statmodel.com each time an example is opened, through the PLS Studio server or the desktop helper, fitted with lavaan, glm, survival, ltm, mirt, poLCA, glca, lme4, GLMMadaptive, modsem and maximum likelihood written out in R), plus a synthetic customer survey (PLS, raw data) and the published model of Stol,
 Schaarschmidt & Goldblit (2022), *Gamification in software engineering*, Empirical Software
 Engineering 27:35 (CB-SEM, MLM, from the covariance and NACOV matrices of the replication
@@ -140,12 +140,18 @@ Three layers, run by `.github/workflows/ci.yml` on every push:
    does not do (plspm with `scaled = FALSE` reproduces that figure).
 
 **The evidence users see.** Every comparison these tests make is also recorded: `npm run validate:evidence` runs the
-webR tests with `PS_VALIDATION_DIR` set and writes `public/validation.json` (`src/validation/`: `record.ts` grades the
-examples, `setup.ts` records every `toBeCloseTo` of the feature tests listed in `features.ts`). The app shows it as a
-badge on each example (reproduces published results / matches native R / recovers known values / runs as documented),
-a Validation page with every number compared, a "Check this browser" self-check that re-runs ten examples and compares
-their digests, and a badge on the results of an unmodified example. `src/validation/evidence.test.ts` fails when the
-record is incomplete, has a failed check, is older than an example's definition, or was made with other package versions.
+webR tests with `PS_VALIDATION_DIR` set, then the plain tests listed in `src/validation/evidenceRuns.json` (`fixture`:
+the built-in engine against R fixtures, recorded desktop runs) without R, and writes `public/validation.json`
+(`src/validation/`: `record.ts` grades the examples, `setup.ts` records every `toBeCloseTo` and `near()` of the feature
+tests listed in `features.ts`). `npm run validate:evidence:desktop` adds the desktop-only packages' tests (metaSEM,
+semtree, plssem; `evidenceRuns.json` `desktop`), run in desktop R and marked as such. `src/validation/cards.ts` names the
+correctness evidence of every analysis card, every mode of a card, the Model tab's analyses and the built-in engine;
+`cards.test.ts` keeps it complete. The app shows it all as a badge on each example (reproduces published results /
+matches native R / recovers known values / runs as documented), a Validation page with every number compared and an
+Analyses tab listing every analysis with its evidence, a "Check this browser" self-check that re-runs ten examples and
+compares their digests, and a badge on the results of an unmodified example. `src/validation/evidence.test.ts` fails
+when the record is incomplete (an example, test file or analysis without checks), has a failed check, is older than an
+example's definition, or was made with other package versions.
 
 Independently of all this, **File → Download R script** gives the exact lavaan/cSEM/seminr syntax a project
 runs, and a replication package bundles it with the data: run it in native R and compare.

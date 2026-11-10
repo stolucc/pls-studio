@@ -29,6 +29,10 @@ afterAll(stopTestRuntime);
 interface Ref { fn: string | string[]; cutoffs: DfiTable | null; fit: DfiTable | null; equiv: { rmsea: string; cfi: string; rmseaBins: string[]; cfiBins: string[] } | null; dataNames: string[]; dataRows: number }
 const FIXTURES = join(__dirname, '..', '..', 'engine', '__fixtures__', 'dfi');
 const REF = JSON.parse(readFileSync(join(FIXTURES, 'reference.json'), 'utf8')) as { R: string; dynamic: string; lavaan: string; examples: Record<string, Ref> };
+// (nnorOne's example, recorded on its own by scripts/validation/dfi_more.R with the same R, dynamic and lavaan)
+const MORE = JSON.parse(readFileSync(join(FIXTURES, 'more.json'), 'utf8')) as typeof REF;
+for (const k of ['R', 'dynamic', 'lavaan'] as const) if (MORE[k] !== REF[k]) throw new Error(`dfi/more.json was recorded with another ${k}`);
+Object.assign(REF.examples, MORE.examples);
 const SOURCE = { label: `dynamic ${REF.dynamic} in desktop ${REF.R} (lavaan ${REF.lavaan}): the help page’s call, scripts/validation/dfi.R`, level: 'native' as const, script: 'scripts/validation/dfi.R' };
 
 const exampleOf = (id: string) => PACKAGE_EXAMPLES.find((e) => e.id === id)!;
@@ -132,4 +136,5 @@ slowIt('dynamic-holzinger-dddfi: DDDFI’s discrepancy-based cutoffs on the pack
 slowIt('dynamic-example-cathb: catHB on two factors of ordinal items (WLSMV)', async () => { await check('dynamic-example-cathb'); }, 1_800_000);
 slowIt('dynamic-example-likertone: likertOne keeps the items’ response frequencies', async () => { await check('dynamic-example-likertone'); }, 1_800_000);
 slowIt('dynamic-example-likerthb: likertHB on two factors of Likert items', async () => { await check('dynamic-example-likerthb'); }, 1_800_000);
+slowIt('dynamic-example-nnorone: nnorOne by a modified Bollen–Stine bootstrap of the data (MLR)', async () => { await check('dynamic-example-nnorone'); }, 1_800_000);
 slowIt('dynamic-example-nnorhb: nnorHB by a modified Bollen–Stine bootstrap of the data (MLR)', async () => { await check('dynamic-example-nnorhb'); }, 1_800_000);

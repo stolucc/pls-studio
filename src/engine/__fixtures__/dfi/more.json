@@ -1,0 +1,38 @@
+{
+  "generated": "2026-11-10 21:55:07",
+  "R": "R version 4.6.2 (2026-10-29)",
+  "dynamic": "1.1.0",
+  "lavaan": "0.7.3",
+  "seconds": {
+    "dynamic-example-nnorone": 47.3554
+  },
+  "examples": {
+    "dynamic-example-nnorone": {
+      "fn": "nnorOne",
+      "cutoffs": {
+        "rows": ["Level-0", "Specificity", "", "Level-1", "Sensitivity", "", "Level-2", "Sensitivity"],
+        "columns": ["SRMR", "RMSEA", "CFI"],
+        "cells": [
+          ["0.029", "0.049", "0.982"],
+          ["95%", "95%", "95%"],
+          ["", "", ""],
+          ["0.036", "0.062", "0.973"],
+          ["95%", "95%", "95%"],
+          ["", "", ""],
+          ["0.04", "0.078", "0.962"],
+          ["95%", "95%", "95%"]
+        ]
+      },
+      "fit": {
+        "rows": [""],
+        "columns": ["Chi-Square", "df", "p-value", "SRMR", "RMSEA", "CFI", null],
+        "cells": [
+          ["7.577", "5", "0.181", "0.024", "0.993", "0.032", "0.075"]
+        ]
+      },
+      "equiv": null,
+      "dataNames": ["SRMR_L0", "SRMR_L1", "SRMR_L2", "RMSEA_L0", "RMSEA_L1", "RMSEA_L2", "CFI_L0", "CFI_L1", "CFI_L2"],
+      "dataRows": 500
+    }
+  }
+}
