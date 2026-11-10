@@ -11,6 +11,8 @@ import { evidenceKinds, resetEvidence } from '../../validation/useEvidence';
 import type { Evidence } from '../../validation/types';
 import { useStore } from '../../store';
 import { ValidationPage } from './ValidationPage';
+import { CARD_EVIDENCE } from '../../validation/cards';
+import { checkIsFor, coverage } from '../../validation/coverage';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -56,6 +58,48 @@ describe('ValidationPage', () => {
   });
 });
 
+describe('the Analyses tab', () => {
+  const click = (el: Element) => act(() => { el.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+  const tab = (name: string) => [...host.querySelectorAll('button[role="tab"]')].find((b) => b.textContent === name)!;
+  const row = (key: string) => [...host.querySelectorAll('.evidence-head')].find((b) => b.textContent!.includes(key))!;
+  it('lists every card, mode, Model-tab analysis and built-in part with its evidence, and leads to an example’s check', async () => {
+    const withHs: Evidence = { ...evidence, checks: [...evidence.checks, { ...evidence.checks[0], id: 'lavaan-hs', title: 'HS', cards: ['model:cbsem:estimator:ML'] }] };
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => withHs })));
+    act(() => { createRoot(host).render(<ValidationPage onBack={() => {}} />); });
+    await flush();
+    click(tab('Analyses'));
+    const text = host.textContent!;
+    for (const g of ['Analysis cards', 'Model tab', 'Built-in engine']) expect(text).toContain(g);
+    expect(text).toContain('Binomial, complementary log-log link');
+    expect(text).toContain('regression:binomial:cloglog');
+    expect(host.querySelectorAll('.evidence-row').length).toBe(Object.keys(CARD_EVIDENCE).length);
+    // ESEM's method check is in the record; the cloglog test is newer than it.
+    expect(row('model:cbsem:esem').textContent).toContain('1 check, 1 compared; 2 pending');
+    expect(row('regression:binomial:cloglog').textContent).toContain('evidence pending regeneration');
+    expect(row('snapshot').textContent).toContain('No statistics');
+    // Search, then open an entry and follow its example to the Examples tab, opened at its check.
+    const search = host.querySelector('input[aria-label="Search analyses"]') as HTMLInputElement;
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'estimator:ML'); search.dispatchEvent(new Event('input', { bubbles: true })); });
+    expect(host.querySelectorAll('.evidence-row').length).toBeLessThan(5);
+    click(row('model:cbsem:estimator:ML'));
+    const link = [...host.querySelectorAll('button.linkish')].find((b) => b.textContent === 'lavaan-hs' || b.closest('li')!.textContent!.includes('(lavaan-hs)'))!;
+    click(link);
+    expect(tab('Examples').getAttribute('aria-selected')).toBe('true');
+    expect(host.querySelector('.evidence-row.open')!.textContent).toContain('51.3531');
+  });
+
+  it('matches checks by the card ids they carry and by the manifest’s references', () => {
+    const e = CARD_EVIDENCE['model:cbsem:esem'];
+    expect(checkIsFor('model:cbsem:esem', e, evidence.checks[2])).toBe(true);
+    expect(checkIsFor('model:cbsem:esem', e, evidence.checks[0])).toBe(false);
+    expect(checkIsFor('model:cbsem:esem', e, { ...evidence.checks[0], cards: ['model:cbsem:esem'] })).toBe(true);
+    const rows = coverage(null, ['run', 'regression'], () => 'T');
+    expect(rows.map((r) => r.key).slice(0, 2)).toEqual(['run', 'regression']);
+    expect(rows.find((r) => r.key === 'regression:gamma')).toMatchObject({ mode: true, group: 'cards', checks: [], pending: ['stats-clotting'] });
+    expect(rows.find((r) => r.key === 'builtin:stats')!.group).toBe('builtin');
+  });
+});
+
 describe('ValidationPage without a record', () => {
   it('says the record is not available (a missing file: the dev server answers with its HTML page)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, headers: new Headers({ 'content-type': 'text/html' }), json: async () => { throw new Error('not JSON'); } })));
@@ -63,6 +107,9 @@ describe('ValidationPage without a record', () => {
     await flush();
     expect(host.textContent).toContain('The validation record is not available in this copy of PLS Studio yet.');
     expect(host.textContent).not.toContain('Loading the validation record');
+    // The analyses and the evidence each should have still show, from the manifest.
+    expect(host.textContent).toContain('Analysis cards');
+    expect(host.textContent).toContain('evidence pending regeneration');
   });
 });
 

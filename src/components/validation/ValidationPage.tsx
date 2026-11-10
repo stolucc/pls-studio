@@ -6,15 +6,14 @@ import type { Check, Evidence, EvidenceLevel } from '../../validation/types';
 import { EVIDENCE_LEVELS } from '../../validation/types';
 import { evidenceKinds, largestDifference, LEVEL_TEXT, useEvidenceStatus } from '../../validation/useEvidence';
 import { IconLogo } from '../icons';
+import { AnalysesCoverage } from './AnalysesCoverage';
+import { LevelChip } from './LevelChip';
 
-type Tab = 'examples' | 'methods' | 'browser';
+export { LevelChip };
+type Tab = 'examples' | 'methods' | 'analyses' | 'browser';
 
 const num = (v: number | string) => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Math.abs(v) >= 1e5 || (v !== 0 && Math.abs(v) < 1e-4) ? v.toExponential(4) : String(Number(v.toPrecision(7)))) : v);
 const diff = (v: number | null) => (v === null ? '—' : v === 0 ? '0' : v < 1e-12 ? '< 1e−12' : v.toExponential(1));
-
-export function LevelChip({ level }: { level: EvidenceLevel }) {
-  return <span className={`chip evidence ${level}`} title={`${LEVEL_TEXT[level].long}. ${LEVEL_TEXT[level].hint}`}>{level === 'runs' ? '' : '✓ '}{LEVEL_TEXT[level].short}</span>;
-}
 
 function Sources({ c }: { c: Check }) {
   return (
@@ -25,7 +24,10 @@ function Sources({ c }: { c: Check }) {
           {s.script && <span className="hint"> ({s.script})</span>}
         </li>
       ))}
-      <li className="hint">Every run: no unexpected warning or note from R. Test: {c.test}</li>
+      {c.runtime === 'desktop' && <li className="hint">Computed in the helper’s desktop R (the package does not run in the browser), not in webR.</li>}
+      {c.runtime === 'fixture' && <li className="hint">Computed without R (the built-in engine, or a desktop run recorded in a fixture and compared again).</li>}
+      {c.subject === 'example' && c.runtime !== 'fixture' && <li className="hint">Every run: no unexpected warning or note from R.</li>}
+      <li className="hint">Test: {c.test}</li>
     </ul>
   );
 }
@@ -64,7 +66,7 @@ function CheckRow({ c, title, open, onToggle }: { c: Check; title: string; open:
       <button className="evidence-head" onClick={onToggle} aria-expanded={open}>
         <span className={`evidence-status ${c.passed ? 'ok' : 'bad'}`} aria-label={c.passed ? 'passed' : 'failed'}>{c.passed ? '✓' : '✗'}</span>
         <span className="evidence-title">{title}</span>
-        <span className="evidence-badges">{evidenceKinds(c).map((k) => <LevelChip key={k} level={k} />)}</span>
+        <span className="evidence-badges">{evidenceKinds(c).map((k) => <LevelChip key={k} level={k} />)}{c.runtime === 'desktop' && <span className="chip coverage runtime" title="Computed in desktop R, not in webR">desktop R</span>}</span>
         <span className="hint">{c.comparisons.length} compared{d !== null ? `, largest |Δ| ${diff(d)}` : ''}</span>
       </button>
       {open && <div className="evidence-body"><Sources c={c} /><Comparisons c={c} /></div>}
@@ -81,7 +83,7 @@ function Summary({ e }: { e: Evidence }) {
     <>
       <p>
         Every example and every method is run by the test suite in the same R the app uses (webR {e.webR}, R {e.R}) and compared with a reference
-        that does not come from this app. The numbers below are what the tests compared on {e.generated}: {comparisons.toLocaleString('en')} comparisons in {e.checks.length} checks{failed ? `, ${failed} failed` : ', all passed'}.
+        that does not come from this app; the packages that run only in desktop R{e.desktop ? ` (recorded on ${e.desktop})` : ''} and the built-in engine are marked as such. The numbers below are what the tests compared on {e.generated}: {comparisons.toLocaleString('en')} comparisons in {e.checks.length} checks{failed ? `, ${failed} failed` : ', all passed'}.
       </p>
       <table className="grid evidence-levels">
         <thead><tr><th>Badge</th><th className="num">Examples</th><th>What it means</th></tr></thead>
@@ -159,6 +161,18 @@ export function ValidationPage({ onBack, backLabel = 'Back', focus, titles = {} 
   const [open, setOpen] = useState<string | null>(focus ? `example:${focus}` : null);
   const [query, setQuery] = useState('');
   const [level, setLevel] = useState<EvidenceLevel | 'all'>('all');
+  // From the Analyses tab: the example whose check to scroll to once its tab shows.
+  const [jump, setJump] = useState<string | null>(null);
+  useEffect(() => { if (jump) { document.getElementById(`evidence-${jump}`)?.scrollIntoView({ block: 'center' }); setJump(null); } }, [jump, tab]);
+  const showExample = (id: string) => { setTab('examples'); setQuery(''); setLevel('all'); setOpen(`example:${id}`); setJump(`example:${id}`); };
+  const showMethods = (q: string) => { setTab('methods'); setQuery(q); setLevel('all'); };
+  const tabs = (has: boolean) => (
+    <div className="segmented" role="tablist" aria-label="Validation" style={{ marginBottom: 10 }}>
+      {(has ? [['examples', 'Examples'], ['methods', 'Methods'], ['analyses', 'Analyses'], ['browser', 'Check this browser']] as [Tab, string][] : [['analyses', 'Analyses']] as [Tab, string][]).map(([id, label]) => (
+        <button key={id} role="tab" aria-selected={tab === id || !has} className={tab === id || !has ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
+      ))}
+    </div>
+  );
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !(ev.target instanceof HTMLInputElement)) onBack(); };
     window.addEventListener('keydown', onKey);
@@ -198,17 +212,15 @@ export function ValidationPage({ onBack, backLabel = 'Back', focus, titles = {} 
               their numbers is missing here.
             </p>
             <p className="hint">Developers: <code>npm run validate:evidence</code> runs the tests and writes <code>public/validation.json</code>.</p>
+            {tabs(false)}
+            <AnalysesCoverage e={null} onExample={() => {}} onMethod={() => {}} />
           </>
         )}
         {e && (
           <>
             <Summary e={e} />
-            <div className="segmented" role="tablist" aria-label="Validation" style={{ marginBottom: 10 }}>
-              {([['examples', 'Examples'], ['methods', 'Methods'], ['browser', 'Check this browser']] as [Tab, string][]).map(([id, label]) => (
-                <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
-              ))}
-            </div>
-            {tab === 'browser' ? <BrowserCheck e={e} /> : (
+            {tabs(true)}
+            {tab === 'browser' ? <BrowserCheck e={e} /> : tab === 'analyses' ? <AnalysesCoverage e={e} onExample={showExample} onMethod={showMethods} /> : (
               <>
                 <div className="row2" style={{ marginBottom: 8 }}>
                   <input className="input" placeholder={tab === 'methods' ? 'Search methods' : 'Search examples'} value={query} onChange={(ev) => setQuery(ev.target.value)} aria-label="Search" />

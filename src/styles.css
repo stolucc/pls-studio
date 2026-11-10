@@ -973,6 +973,12 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .issue.good { background: var(--good-soft); color: var(--good); }
 .example-evidence { margin: 2px 0 8px; }
 .evidence-badges { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+/* The Analyses tab: an analysis's evidence class, where its checks were computed; a card's modes indented under it. */
+.chip.coverage { white-space: nowrap; max-width: none; flex: none; overflow: visible; cursor: help; }
+.chip.coverage.todo { background: var(--bad-soft); color: var(--bad); }
+.chip.coverage.none, .chip.coverage.modes { color: var(--text-3); }
+.chip.coverage.runtime { background: var(--warn-soft); color: var(--warn); }
+.evidence-row.mode { margin-left: 22px; }
 
 /* Fuzzy-set QCA card: one row per variable (calibration, directional expectations) and inline numeric fields. */
 .qca-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
