@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import type { Dataset } from '../engine/types';
+import { clampNum } from '../parse';
 import { fingerprint } from './codec';
 import type { AnalysisCtx } from './types';
 
@@ -64,6 +65,17 @@ export function ColumnSelect({ id, label, value, columns, exclude = [], onChange
 
 /** The explanatory paragraph at the top of a card's options. */
 export const Hint = ({ children }: { children: ReactNode }) => <p className="hint" style={{ marginTop: 0 }}>{children}</p>;
+
+/** A number field: typed text is clamped to [lo, hi] (rounded when int); anything else falls back to `fallback` (default: the value). */
+export function NumField({ id, label, value, lo, hi, step, int, fallback = value, onChange }: {
+  id?: string; label: string; value: number; lo: number; hi: number; step?: number; int?: boolean; fallback?: number; onChange: (v: number) => void;
+}) {
+  return (
+    <div className="field"><label htmlFor={id}>{label}</label>
+      <input id={id} aria-label={label} className="input num" type="number" step={step} min={lo} max={hi} value={value} onChange={(e) => onChange(clampNum(e.target.value, lo, hi, fallback, int))} />
+    </div>
+  );
+}
 
 /** A segmented choice between a few options. */
 export function Choice<T extends string>({ label, value, options, onChange, hint }: { label: string; value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void; hint?: string }) {

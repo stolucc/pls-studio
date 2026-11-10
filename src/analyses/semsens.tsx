@@ -15,7 +15,7 @@ import { clampStrict } from '../parse';
 import { SEMSENS_OBJECTIVES, type SemsensArgs, type SemsensObjective, type SemsensResult } from '../rengine/sensitivity';
 import { Axes, H, pad, W } from './charts';
 import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
-import { clampNum, isObj, name } from './common';
+import { isObj, name, NumField } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 export interface SemsensOptions {
@@ -72,14 +72,14 @@ function SemsensForm({ options: o, set, ctx, disabled }: OptionsProps<SemsensOpt
         </select>
       </div>
       <div className="row2">
-        <div className="field"><label htmlFor="ss-iter">Evaluations (at most)</label><input id="ss-iter" className="input num" type="number" min={2} max={20000} value={o.maxIter} onChange={(e) => set({ ...o, maxIter: clampNum(e.target.value, 2, 20000, 200, true) })} /></div>
-        <div className="field"><label htmlFor="ss-k">Archive size (k)</label><input id="ss-k" className="input num" type="number" min={2} max={500} value={o.k} onChange={(e) => set({ ...o, k: clampNum(e.target.value, 2, 500, 20, true) })} /></div>
+        <NumField id="ss-iter" label="Evaluations (at most)" value={o.maxIter} lo={2} hi={20000} int fallback={200} onChange={(maxIter) => set({ ...o, maxIter })} />
+        <NumField id="ss-k" label="Archive size (k)" value={o.k} lo={2} hi={500} int fallback={20} onChange={(k) => set({ ...o, k })} />
       </div>
       <div className="row2">
-        <div className="field"><label htmlFor="ss-ants">Ants per iteration</label><input id="ss-ants" className="input num" type="number" min={1} max={100} value={o.ants} onChange={(e) => set({ ...o, ants: clampNum(e.target.value, 1, 100, 10, true) })} /></div>
-        <div className="field"><label htmlFor="ss-bound">Phantom coefficients within ±</label><input id="ss-bound" className="input num" type="number" min={0.05} max={1} step={0.05} value={o.bound} onChange={(e) => set({ ...o, bound: clampNum(e.target.value, 0.05, 1, 1) })} /></div>
+        <NumField id="ss-ants" label="Ants per iteration" value={o.ants} lo={1} hi={100} int fallback={10} onChange={(ants) => set({ ...o, ants })} />
+        <NumField id="ss-bound" label="Phantom coefficients within ±" value={o.bound} lo={0.05} hi={1} step={0.05} fallback={1} onChange={(bound) => set({ ...o, bound })} />
       </div>
-      <div className="field"><label htmlFor="ss-alpha">Significance level</label><input id="ss-alpha" className="input num" type="number" min={0.001} max={0.2} step={0.01} value={o.alpha} onChange={(e) => set({ ...o, alpha: clampNum(e.target.value, 0.001, 0.2, 0.05) })} /></div>
+      <NumField id="ss-alpha" label="Significance level" value={o.alpha} lo={0.001} hi={0.2} step={0.01} fallback={0.05} onChange={(alpha) => set({ ...o, alpha })} />
     </fieldset>
   );
 }

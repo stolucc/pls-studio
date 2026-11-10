@@ -12,7 +12,7 @@ import type { EffectMeasure, PowerAnalysis, PowerInput, PowerParam, PowerResult 
 import { Axes, H, pad, W } from './charts';
 import { fingerprint } from './codec';
 import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
-import { Choice, clampNum, isObj, name, oneOf } from './common';
+import { Choice, clampNum, isObj, name, NumField, oneOf } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 export interface PowerOptions {
@@ -55,9 +55,8 @@ export function powerInput(o: PowerOptions, ctx: AnalysisCtx): PowerInput {
   return o.equivSource === 'model' ? { analysis: 'equivalence', alpha: 0.05, source: 'model' } : { analysis: 'equivalence', alpha: 0.05, source: 'manual', chisq: o.chisq, df: o.edf, n: o.en };
 }
 
-const num = (label: string, value: number, lo: number, hi: number, set: (v: number) => void, step = 1, def = value) => (
-  <div className="field"><label>{label}</label>
-    <input className="input num" type="number" aria-label={label} min={lo} max={hi} step={step} value={value} onChange={(e) => set(clampNum(e.target.value, lo, hi, def))} /></div>
+const num = (label: string, value: number, lo: number, hi: number, onChange: (v: number) => void, step = 1, fallback = value) => (
+  <NumField label={label} value={value} lo={lo} hi={hi} step={step} fallback={fallback} onChange={onChange} />
 );
 
 function PowerForm({ options: o, set, ctx, disabled }: OptionsProps<PowerOptions>) {
