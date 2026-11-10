@@ -33,7 +33,32 @@ out$alignment <- list(chisq = unname(fitMeasures(fit, "chisq")), df = unname(fit
   noninvariant05 = list(lambda = cons05$lambda_list$prop_noninvariance / 100, nu = cons05$nu_list$prop_noninvariance / 100,
     lambdaUnique = unname(cons05$lambda_list$N_unique_parm_items), nuUnique = unname(cons05$nu_list$N_unique_parm_items)))
 
+# ---- MNLFA: mnlfa ?mnlfa, example 1, model 4 as written; and a 2PL with a three-level categorical covariate ----
+suppressPackageStartupMessages(library(mnlfa))
+data(data.mnlfa01, package = "mnlfa")
+dat <- data.mnlfa01
+items <- grep("I[0-9]", colnames(dat), value = TRUE)
+formula_mean <- ~0 + female + age
+formula_sd <- ~1
+formula_int <- ~1
+formula_int <- mnlfa::mnlfa_expand_to_list(x = formula_int, names_list = items)
+mod_items <- c(4, 5, 6, 7)
+for (ii in mod_items) formula_int[[ii]] <- ~1 + female + age
+formula_slo <- ~1
+mod4 <- mnlfa::mnlfa(dat = dat, items, item_type = "1PL", formula_int = formula_int, formula_slo = formula_slo, formula_mean = formula_mean, formula_sd = formula_sd, verbose = FALSE)
+mn <- function(m) list(parm = as.character(m$item$parm), est = m$item$est, trait = as.character(m$trait$par), traitEst = m$trait$est,
+  deviance = m$ic$deviance, npar = m$ic$np, aic = m$ic$AIC, bic = m$ic$BIC, iter = m$iter)
+# 2PL: a three-level grouping (rows 1, 2, 3, 1, 2, 3, ...) as a factor, moderating the slopes of I1-I3 and the factor
+# mean; age moderating the intercepts of I1-I3 and the log SD (here written with R's own dummy coding).
+dat$grp <- factor(rep(1:3, length.out = nrow(dat)))
+dat$grp2 <- as.numeric(dat$grp == 2); dat$grp3 <- as.numeric(dat$grp == 3)  # (the mean has no intercept: dummies, not ~0 + grp)
+fi <- mnlfa::mnlfa_expand_to_list(x = ~1, names_list = items); fs <- fi
+for (ii in 1:3) { fi[[ii]] <- ~1 + age; fs[[ii]] <- ~1 + grp }
+mod2pl <- mnlfa::mnlfa(dat = dat, items, item_type = "2PL", formula_int = fi, formula_slo = fs, formula_mean = ~0 + grp2 + grp3,
+  formula_sd = ~0 + age, verbose = FALSE)
+out$mnlfa <- list(model4 = mn(mod4), twoPL = mn(mod2pl))
+
 writeLines(toJSON(list(generated = format(Sys.time()), R = R.version.string, lavaan = as.character(packageVersion("lavaan")),
-  sirt = as.character(packageVersion("sirt")), cases = out), auto_unbox = TRUE, pretty = TRUE, digits = NA, null = "null", na = "null"),
+  sirt = as.character(packageVersion("sirt")), mnlfa = as.character(packageVersion("mnlfa")), cases = out), auto_unbox = TRUE, pretty = TRUE, digits = NA, null = "null", na = "null"),
   "src/engine/__fixtures__/invariance/reference.json")
 cat("written\n")

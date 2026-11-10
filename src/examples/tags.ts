@@ -18,7 +18,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   quadml: ['Numerical integration'],
   dsem: ['Bayesian', 'Multilevel'],
   cmb: ['Measurement', 'Common method bias'], cvi: ['Measurement', 'Content validity'],
-  alignment: ['Measurement invariance', 'Multigroup', 'Alignment'],
+  alignment: ['Measurement invariance', 'Multigroup', 'Alignment'], mnlfa: ['Measurement invariance', 'Items', 'DIF', 'MNLFA'],
 };
 /** Cards about the example's model: the model's method is a topic of the example. The other cards stand on their own. */
 const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'alignment']);

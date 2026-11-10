@@ -124,6 +124,8 @@ export const R_PACKAGES = {
   dynamic: ['jsonlite', 'lavaan', 'semTools', 'dynamic'],
   // Alignment optimisation for many groups (Asparouhov & Muthén 2014) on lavaan's configural fit.
   sirt: ['jsonlite', 'lavaan', 'sirt'],
+  // Moderated nonlinear factor analysis of binary items (mnlfa).
+  mnlfa: ['jsonlite', 'mnlfa'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;

@@ -93,3 +93,78 @@ ps_alignment <- function(req_json, export = FALSE) {
     power = as.numeric(pow), scale = as.numeric(scl), weights = weights, warnings = env$.warnings,
     engine = list(package = "sirt", version = as.character(utils::packageVersion("sirt")), lavaan = as.character(utils::packageVersion("lavaan")))))
 }
+
+#' Moderated nonlinear factor analysis (Curran et al. 2014; Bauer 2017) with mnlfa: one factor of binary items
+#' (1PL or 2PL, P(x = 1) = invlogit(a theta - b)) whose item intercepts b and slopes a (2PL), mean and log SD depend
+#' on person covariates, continuous or categorical (dummy coded, the first level the reference). The mean is 0 and
+#' (2PL) the log SD 0 where every covariate is 0; for 1PL the log SD's intercept is free. mnlfa handles one factor
+#' and binary items only, and gives no standard errors. (lavaan 0.7's `:~` data-defined parameters could express
+#' such models, but lavaan cannot estimate them yet.)
+ps_mnlfa <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  items <- as.character(unlist(req$items)); covs <- as.character(unlist(req$covariates))
+  if (length(items) < 3) stop("Choose at least three binary items.")
+  if (length(intersect(items, covs))) stop("An item cannot also be a covariate.")
+  type <- req$itemType %||% "2PL"
+  if (!(is.character(type) && length(type) == 1 && type %in% c("1PL", "2PL"))) stop("Invalid item type in the request.")
+  role <- function(k) { x <- as.character(unlist(req[[k, exact = TRUE]])); if (length(setdiff(x, covs))) stop(sprintf("Unknown covariate in the request (%s).", k)); x }
+  int <- role("intercept"); slo <- if (type == "2PL") role("slope") else character(0); mu <- role("mean"); sdv <- role("sd")
+  cats <- intersect(as.character(unlist(req$categorical)), covs)
+  moderated <- as.character(unlist(req$moderated))
+  if (length(setdiff(moderated, items))) stop("Unknown moderated item in the request.")
+  if (!length(moderated)) moderated <- items
+  all_mod <- length(moderated) == length(items)
+  if (all_mod && length(intersect(int, mu))) stop("A covariate moderates the factor mean and the intercepts of every item: not identified. Leave at least one item unmoderated (an anchor).")
+  if (all_mod && length(intersect(slo, sdv))) stop("A covariate moderates the factor SD and the slopes of every item: not identified. Leave at least one item unmoderated (an anchor).")
+  fr <- ps_long_frame(req, c(items, covs))
+  iv <- unname(fr$v[items]); cv <- fr$v[covs]
+  d <- fr$data
+  # Categorical covariates: a dummy per level but the first (the reference), named covariate_level.
+  terms <- list(); used <- names(d); body_cat <- character(0); term_of <- list()
+  for (k in covs) {
+    v <- unname(cv[k])
+    if (k %in% cats) {
+      lv <- sort(unique(d[[v]][!is.na(d[[v]])]))
+      if (length(lv) < 2) stop(sprintf("The categorical covariate %s has one level.", k))
+      if (length(lv) > 20) stop(sprintf("The categorical covariate %s has more than 20 levels.", k))
+      nm <- character(0)
+      for (l in lv[-1]) {
+        t <- ps_ident(paste0(v, "_", format(l, trim = TRUE))); while (t %in% used) t <- paste0(t, "_d"); used <- c(used, t); nm <- c(nm, t)
+        body_cat <- c(body_cat, sprintf("data$%s <- as.numeric(data$%s == %s)", t, v, format(l, digits = 15)))
+        terms[[length(terms) + 1]] <- list(term = t, covariate = k, level = format(l, trim = TRUE))
+      }
+      term_of[[k]] <- nm
+    } else { term_of[[k]] <- v; terms[[length(terms) + 1]] <- list(term = v, covariate = k, level = NULL) }
+  }
+  fml <- function(x, intercept) { t <- unlist(term_of[x], use.names = FALSE); if (!length(t)) sprintf("~%d", as.integer(intercept)) else paste0("~", if (intercept) "1" else "0", " + ", paste(t, collapse = " + ")) }
+  item_fml <- function(x, what) {
+    if (!length(x) || all_mod) return(sprintf("formula_%s <- %s", what, fml(x, TRUE)))
+    c(sprintf("formula_%s <- mnlfa_expand_to_list(x = ~1, names_list = items)", what),
+      sprintf("for (i in %s) formula_%s[[i]] <- %s  # the moderated items", ps_q(unname(fr$v[moderated])), what, fml(x, TRUE)))
+  }
+  body <- c("suppressPackageStartupMessages(library(mnlfa))",
+    sprintf("items <- %s", ps_q(iv)),
+    if (length(cv)) c("# Covariates must be complete (cases without them are left out)", sprintf("data <- data[complete.cases(data[, %s, drop = FALSE]), , drop = FALSE]", ps_q(unname(cv)))),
+    "if (!all(unlist(data[items]) %in% c(0, 1, NA))) stop(\"The items must be binary, coded 0 and 1.\")",
+    if (length(body_cat)) c("# Categorical covariates as dummies: one per level but the first (the reference)", body_cat),
+    "# Item intercepts (b) and slopes (a) as functions of the covariates: P(x = 1) = invlogit(a * theta - b)",
+    item_fml(int, "int"), item_fml(slo, "slo"),
+    "# The factor's mean (0 where the covariates are 0) and log SD",
+    sprintf("formula_mean <- %s", fml(mu, FALSE)),
+    sprintf("formula_sd <- %s%s", fml(sdv, type == "1PL"), if (type == "1PL") "  # (1PL: slopes fixed at 1, the SD free)" else "  # (2PL: the SD is 1 where the covariates are 0)"),
+    sprintf("mod <- mnlfa(dat = data, items = items, item_type = \"%s\", formula_int = formula_int, formula_slo = formula_slo, formula_mean = formula_mean, formula_sd = formula_sd, verbose = FALSE)", type))
+  inputs <- list(data = d)
+  if (export) return(paste(ps_script(sprintf("Moderated nonlinear factor analysis, %s (mnlfa)", type), "mnlfa", inputs, body, c("summary(mod)", "mod$item", "mod$trait")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  m <- env$mod; it <- m$item; tr <- m$trait
+  item_rows <- lapply(seq_len(nrow(it)), function(i) {
+    p <- as.character(it$parm[i]); nm <- as.character(it$item[i]); rest <- substring(p, nchar(nm) + 2)
+    list(item = ps_back(nm, fr$back), kind = substr(rest, 1, 1), term = substring(rest, 3), est = it$est[i], free = it$estim[i] == 1)
+  })
+  trait_rows <- lapply(seq_len(nrow(tr)), function(i) list(kind = as.character(tr$type[i]), term = sub("^(mu|sigma)_", "", as.character(tr$par[i])), est = tr$est[i]))
+  ic <- m$ic
+  ps_json(list(itemType = type, n = nrow(env$data), items = item_rows, trait = trait_rows, terms = terms,
+    fit = list(deviance = ic$deviance, logLik = -ic$deviance / 2, npar = ic$np, aic = ic$AIC, bic = ic$BIC, caic = ic$CAIC, aicc = ic$AICc),
+    iterations = m$iter, converged = isTRUE(m$converged), warnings = env$.warnings,
+    engine = list(package = "mnlfa", version = as.character(utils::packageVersion("mnlfa")))))
+}

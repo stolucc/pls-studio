@@ -37,6 +37,7 @@ manymome
 marginaleffects
 mice
 mirt
+mnlfa
 modsem
 mvtnorm
 nnet

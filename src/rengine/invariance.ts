@@ -1,5 +1,5 @@
 // Measurement invariance cards (R/invariance.R): alignment optimisation for many
-// groups (sirt).
+// groups (sirt) and moderated nonlinear factor analysis (mnlfa).
 
 import type { Dataset, MissingTreatment } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
@@ -73,3 +73,34 @@ export async function alignmentR(data: Dataset, i: AlignmentInput): Promise<Alig
   } as AlignmentResult;
 }
 export const alignmentScriptR = (data: Dataset, i: AlignmentInput) => rScript('ps_alignment', alignmentRequest(data, i), 'sirt');
+
+/** Moderated nonlinear factor analysis (mnlfa): one factor of binary items; each covariate in the roles it is listed in. */
+export interface MnlfaInput {
+  items: string[]; itemType: '1PL' | '2PL'; covariates: string[]; categorical: string[];
+  /** Covariates moderating the item intercepts, the item slopes (2PL), the factor mean and its log SD. */
+  intercept: string[]; slope: string[]; mean: string[]; sd: string[];
+  /** The items whose intercepts and slopes are moderated (empty: all). */
+  moderated: string[];
+}
+/** kind b: intercept, a: slope; term: "(Intercept)" or a covariate (dummy) term. */
+export interface MnlfaItemParam { item: string; kind: 'a' | 'b'; term: string; est: number; free: boolean }
+export interface MnlfaResult {
+  itemType: MnlfaInput['itemType']; n: number; items: MnlfaItemParam[];
+  /** mu: the factor mean's regression; sigma: the log SD's. */
+  trait: { kind: 'mu' | 'sigma'; term: string; est: number }[];
+  /** A model term: a continuous covariate, or a categorical covariate's dummy for one level (its category name). */
+  terms: { term: string; covariate: string; level: string | null }[];
+  fit: { deviance: number; logLik: number; npar: number; aic: number; bic: number; caic: number; aicc: number };
+  iterations: number; converged: boolean; warnings: string[]; engine: REngineInfo;
+}
+export const mnlfaRequest = (data: Dataset, i: MnlfaInput) => invRequest(data, 'mnlfa', [...i.items, ...i.covariates], i);
+export async function mnlfaR(data: Dataset, i: MnlfaInput): Promise<MnlfaResult> {
+  const r = await rCall<Record<string, any>>('ps_mnlfa', mnlfaRequest(data, i), 'mnlfa');
+  return {
+    ...r, items: arr<MnlfaItemParam>(r.items), trait: arr<any>(r.trait),
+    // (a categorical covariate's level code as its category name)
+    terms: arr<any>(r.terms).map((t) => ({ ...t, level: t.level == null ? null : groupNames(data, t.covariate, [String(t.level)])[0] })),
+    converged: r.converged === true, warnings: rStrings(r.warnings),
+  } as MnlfaResult;
+}
+export const mnlfaScriptR = (data: Dataset, i: MnlfaInput) => rScript('ps_mnlfa', mnlfaRequest(data, i), 'mnlfa');

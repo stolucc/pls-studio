@@ -5,11 +5,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
-import type { AlignmentResult } from '../rengine/invariance';
-import { alignmentRequest, rows } from '../rengine/invariance';
+import type { AlignmentResult, MnlfaResult } from '../rengine/invariance';
+import { alignmentRequest, mnlfaRequest, rows } from '../rengine/invariance';
 import { ANALYSIS_TYPES } from './registry';
 import type { AnalysisCtx } from './types';
-import { alignmentAnalysis, alignmentInput, invLavaan, modelFactors } from './invariance';
+import { alignmentAnalysis, alignmentInput, invLavaan, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
 
 const cols = ['a1', 'a2', 'a3', 'b1', 'b2', 'g', 'x'];
 const data = { names: cols, cols: cols.map((_, k) => Float64Array.from({ length: 12 }, (_, i) => ((i * (k + 2)) % 5) + (cols[k] === 'g' ? 0 : 1))), categories: { g: ['north', 'south', 'east', 'west', 'mid'] } };
@@ -81,5 +81,49 @@ describe('alignment card', () => {
     const html = renderToStaticMarkup(<alignmentAnalysis.View result={r} options={alignmentAnalysis.defaults(ctx)} current />);
     for (const s of ['Group factor means and variances', 'south', '1.440', 'R², loadings', '25.0%', 'Aligned loadings', 'Joint (invariant) value', 'its SD 1', 'The alignment converged']) expect(html).toContain(s);
     expect(html).toMatch(/class="num warn"[^>]*>0\.710/);
+  });
+});
+
+describe('moderated nonlinear factor analysis card', () => {
+  const bin = ['u1', 'u2', 'u3', 'u4', 'sex', 'age', 'z'];
+  const bd = { names: bin, cols: bin.map((n, k) => Float64Array.from({ length: 20 }, (_, i) => (n === 'z' ? i % 3 : n === 'age' ? i / 4 : n === 'u4' && i === 3 ? NaN : (i * (k + 1)) % 2))) };
+  const bctx = { ...bare, data: bd } as AnalysisCtx;
+  const o = { ...mnlfaAnalysis.defaults(bctx), items: ['u1', 'u2', 'u3', 'u4'], covariates: ['sex', 'age'], intercept: ['sex'], mean: ['sex', 'age'], moderated: ['u2'] };
+  it('is in the Add menu under Measurement and parses its options', () => {
+    expect(ANALYSIS_TYPES.find((t) => t.id === 'mnlfa')?.group).toBe('Measurement');
+    expect(mnlfaAnalysis.parseOptions(o)).toEqual(o);
+    expect(mnlfaAnalysis.parseOptions(null)).toBeNull();
+    expect(mnlfaAnalysis.parseOptions({ items: ['a', 1], itemType: '3PL', mean: 'x' })).toEqual({ ...mnlfaAnalysis.defaults(bctx), items: ['a'] });
+  });
+  it('says what it still needs', () => {
+    expect(mnlfaAnalysis.blocked({ ...o, items: ['u1', 'u2'] }, bctx)).toMatch(/three binary items/);
+    expect(mnlfaAnalysis.blocked({ ...o, covariates: ['sex', 'age', 'u1'] }, bctx)).toMatch(/also be a covariate/);
+    expect(mnlfaAnalysis.blocked({ ...o, covariates: ['sex', 'age', 'z'] }, bctx)).toMatch(/role/);
+    expect(mnlfaAnalysis.blocked({ ...o, items: ['u1', 'u2', 'age'], covariates: ['sex'], mean: ['sex'] }, bctx)).toMatch(/age is not binary/);
+    expect(mnlfaAnalysis.blocked({ ...o, moderated: [] }, bctx)).toMatch(/sex moderates the factor mean and the intercepts of every item/);
+    expect(mnlfaAnalysis.blocked({ ...o, items: ['u1', 'u2', 'gone'] }, bctx)).toMatch(/gone/);
+    expect(mnlfaAnalysis.blocked(o, bctx)).toBeNull();
+    expect(mnlfaUnidentified(mnlfaInput({ ...o, itemType: '2PL', intercept: [], slope: ['age'], sd: ['age'], moderated: ['u1', 'u2', 'u3', 'u4'] }))).toMatch(/SD and the slopes/);
+  });
+  it('sends only the roles of chosen covariates, slopes only for the 2PL', () => {
+    const i = mnlfaInput({ ...o, itemType: '1PL', slope: ['sex'], sd: ['gone'], categorical: ['sex', 'z'], moderated: ['u2', 'x9'] });
+    expect(i).toMatchObject({ slope: [], sd: [], categorical: ['sex'], moderated: ['u2'] });
+    expect(mnlfaRequest(bd, i).data.names).toEqual(['u1', 'u2', 'u3', 'u4', 'sex', 'age']);
+    expect(mnlfaRequest(bd, i).data.cols[3][3]).toBeNull();
+    const f = mnlfaAnalysis.fingerprint(o, bctx)!;
+    expect(mnlfaAnalysis.fingerprint({ ...o, itemType: '1PL' }, bctx)).not.toBe(f);
+    expect(mnlfaAnalysis.summary(o)).toBe('4 items · 2PL · moderated by sex, age');
+  });
+  it('shows the moderated intercepts and slopes and the factor’s mean and SD', () => {
+    const r: MnlfaResult = {
+      itemType: '2PL', n: 20, converged: true, iterations: 30, warnings: [], engine: { package: 'mnlfa', version: '0.3.4' },
+      items: [{ item: 'u1', kind: 'b', term: '(Intercept)', est: -0.5, free: true }, { item: 'u1', kind: 'a', term: '(Intercept)', est: 1.2, free: true },
+        { item: 'u2', kind: 'b', term: '(Intercept)', est: 0.3, free: true }, { item: 'u2', kind: 'b', term: 'z_2', est: 0.61, free: true }, { item: 'u2', kind: 'a', term: '(Intercept)', est: 0.9, free: true }],
+      trait: [{ kind: 'mu', term: 'z_2', est: 0.25 }, { kind: 'sigma', term: 'z_2', est: Math.log(2) }],
+      terms: [{ term: 'z_2', covariate: 'z', level: 'green' }],
+      fit: { deviance: 100, logLik: -50, npar: 7, aic: 114, bic: 121, caic: 128, aicc: 115 },
+    };
+    const html = renderToStaticMarkup(<mnlfaAnalysis.View result={r} options={o} current />);
+    for (const s of ['Item intercepts (b) and their moderation', 'z = green', '0.610', 'Item slopes (a)', 'Factor mean and SD', '2.000', 'converged in 30 EM iterations', '114.00']) expect(html).toContain(s);
   });
 });

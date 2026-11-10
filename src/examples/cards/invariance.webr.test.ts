@@ -12,7 +12,7 @@ import type { Dataset } from '../../engine/types';
 import { categoriesOf } from '../../io';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { rCall, type RPackage } from '../../rengine/bridge';
-import type { AlignmentResult } from '../../rengine/invariance';
+import type { AlignmentResult, MnlfaResult } from '../../rengine/invariance';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { against, cleanRun, example, near, same } from '../../validation/record';
 import { exampleModel, examplePanels, exampleSettings, panelPreset, type ExamplePanel, type PackageExample } from '../packages';
@@ -37,7 +37,7 @@ async function runPanel<R>(id: string, ctx: AnalysisCtx, p: ExamplePanel, option
   cleanRun(r.warnings.length);
   expect(r.warnings, `${id} warned`).toEqual([]);
   const script = await t.script!(o, ctx);
-  expect(script).toContain('invariance.alignment(');
+  expect(script).toContain(p.kind === 'alignment' ? 'invariance.alignment(' : 'mod <- mnlfa(');
   return r;
 }
 
@@ -85,4 +85,32 @@ it('sirt-inv4gr-alignment: the help page’s alignment of data.inv4gr, as sirt�
   ref.leastSquares.mean.forEach((v: number, g: number) => near(`least squares: aligned mean, group ${g + 1}`, ls.factors[0].mean[g], v, 1e-6));
   ref.leastSquares.sd.forEach((v: number, g: number) => near(`least squares: aligned SD, group ${g + 1}`, ls.factors[0].sd[g], v, 1e-6));
   near('least squares: R², loadings', ls.factors[0].r2.lambda, ref.leastSquares.r2[0], 1e-6);
+}, 600_000);
+
+it('mnlfa-mnlfa01-dif: the help page’s model 4, and a 2PL with a categorical covariate, as mnlfa gives them', async () => {
+  const e = ex('mnlfa-mnlfa01-dif');
+  example(e.id, { title: e.title, method: 'Measurement', packages: ['mnlfa'], definition: e });
+  const data = await load(e);
+  const ctx: AnalysisCtx = { data, info: null, settings: exampleSettings(DEFAULT_SETTINGS, e.settings), pls: null, projectName: e.title };
+  const [panel] = examplePanels(e);
+  against({ label: `mnlfa ${REF.mnlfa} in desktop ${REF.R}: ?mnlfa example 1, model 4 as written (scripts/validation/invariance_cards.R)`, level: 'native', script: 'scripts/validation/invariance_cards.R' });
+  const check = (what: string, r: MnlfaResult, ref: { parm: string[]; est: number[]; traitEst: number[]; deviance: number; npar: number; aic: number; bic: number }, rename: (t: string) => string = (t) => t) => {
+    same(`${what}: item parameters`, r.items.map((p) => `${p.item}_${p.kind}_${rename(p.term)}`).join(' '), ref.parm.join(' '));
+    ref.est.forEach((v, k) => near(`${what}: ${ref.parm[k]}`, r.items[k].est, v, 1e-6));
+    ref.traitEst.forEach((v, k) => near(`${what}: trait parameter ${k + 1}`, r.trait[k].est, v, 1e-6));
+    near(`${what}: deviance`, r.fit.deviance, ref.deviance, 1e-6);
+    same(`${what}: parameters`, r.fit.npar, ref.npar);
+    near(`${what}: AIC`, r.fit.aic, ref.aic, 1e-6);
+    near(`${what}: BIC`, r.fit.bic, ref.bic, 1e-6);
+    same(`${what}: converged`, String(r.converged), 'true');
+  };
+  const m4 = await runPanel<MnlfaResult>(e.id, ctx, panel);
+  check('model 4', m4, REF.cases.mnlfa.model4);
+  same('model 4: trait terms', m4.trait.map((t) => `${t.kind}_${t.term}`).join(' '), REF.cases.mnlfa.model4.trait.join(' '));
+  // A three-level categorical covariate (named categories) and the 2PL
+  const n = data.cols[0].length;
+  const withGroup: AnalysisCtx = { ...ctx, data: { ...data, names: [...data.names, 'grp'], cols: [...data.cols, Float64Array.from({ length: n }, (_, i) => (i % 3) + 1)], categories: { ...data.categories, grp: ['red', 'green', 'blue'] } } };
+  const two = await runPanel<MnlfaResult>(e.id, withGroup, panel, { itemType: '2PL', covariates: ['age', 'grp'], categorical: ['grp'], intercept: ['age'], slope: ['grp'], mean: ['grp'], sd: ['age'], moderated: ['I1', 'I2', 'I3'] });
+  check('2PL, categorical covariate', two, REF.cases.mnlfa.twoPL, (t) => t.replace(/^grp_/, 'grp'));
+  same('dummy terms named by category', two.terms.map((t) => `${t.covariate}=${t.level ?? ''}`).join(' '), 'age= grp=green grp=blue');
 }, 600_000);
