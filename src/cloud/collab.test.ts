@@ -165,6 +165,7 @@ const kitchenSink: Required<ModelState> = {
   multilevel: { column: 'school', between: 'same' },
   weights: 'w',
   cluster: 'k',
+  auxiliary: ['x9', 'age'],
   constant: { x: 5, y: 6 },
   means: [{ id: 'm1', target: 'f', fixed: 2 }, { id: 'm2', target: 'b', label: 'mu', bias: 0.5 }],
   esem: { blocks: [{ id: 'e', constructs: ['a', 'b'] }], rotation: 'target' },

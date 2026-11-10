@@ -393,10 +393,10 @@ function checkCbsemEstimator(v: Ctx): Issue[] {
   return issues;
 }
 
-/** CB-SEM: pairwise deletion, the two-stage approach and multiple imputation. */
+/** CB-SEM: pairwise deletion, the two-stage approach, auxiliary variables and multiple imputation. */
 function checkCbsemMissingData(v: Ctx): Issue[] {
   const { issues, err, warn } = sink();
-  const { model, data, method, engine, missingChoice, ordered } = v;
+  const { model, data, method, engine, missingChoice, ordered, assignedSet } = v;
   if (method.method !== 'cbsem') return issues;
   if (missingChoice === 'pairwise') {
     // lavaan: pairwise deletion of the sample statistics; standard errors and test as if the data were complete.
@@ -412,6 +412,26 @@ function checkCbsemMissingData(v: Ctx): Issue[] {
     if (ordered.length) err(`${what} is for continuous indicators; with ordinal indicators (WLSMV) lavaan already uses pairwise information.`);
     if (model.multilevel) err(`${what} is not available for two-level models; use FIML.`);
     if (method.estimator === 'RML') err(`${what} cannot be combined with robust ML (rsem).`);
+  }
+  const aux = model.auxiliary ?? [];
+  if (aux.length) {
+    // Auxiliary variables (lavaan aux =): FIML's saturated correlates or the two-stage approach's first-stage EM.
+    const fimlLike = missingChoice === 'fiml' || missingChoice === 'twostage' || missingChoice === 'robusttwostage';
+    if (!fimlLike) warn(`The auxiliary variables (${aux.join(', ')}) are used with FIML or the two-stage approach to missing values; with ${missingChoice === 'mi' ? 'multiple imputation choose the imputation’s own auxiliary variables' : 'this treatment they are ignored'}.`);
+    else {
+      if (data?.moments) err('Auxiliary variables need raw data, not a covariance matrix.');
+      const gone = aux.filter((a) => data && !data.moments && !data.names.includes(a));
+      if (gone.length) err(`Auxiliary variables not in the data: ${gone.join(', ')}.`);
+      const inModel = aux.filter((a) => assignedSet.has(a));
+      if (inModel.length) err(`Auxiliary variables must not be indicators of the model: ${inModel.join(', ')}.`);
+      const roles = aux.filter((a) => a === model.multigroup?.column || a === model.weights || a === model.cluster || a === model.multilevel?.column);
+      if (roles.length) err(`${roles.join(', ')} already ${roles.length === 1 ? 'has' : 'have'} a role in the model (groups, weights or clusters): not an auxiliary variable.`);
+      if (ordered.length) err('Auxiliary variables are available for continuous indicators (lavaan); this model has ordinal ones.');
+      if (model.multilevel || model.cluster) err('Auxiliary variables are not available with clusters (two-level models or sampling clusters).');
+      if (method.estimator === 'RML') err('Robust ML (rsem) handles missing values itself: auxiliary variables are not available with it.');
+      if (model.moderations.length && method.interaction && method.interaction !== 'product') err('Auxiliary variables cannot be combined with LMS / QML latent interactions; use product indicators.');
+      if (engine === 'builtin') err('Auxiliary variables are a lavaan option: choose “R packages” under Calculated by.');
+    }
   }
   if (missingChoice === 'mi') {
     // Multiple imputation (mice) pooled by lavaan.mi: one group of continuous indicators, ML or MLR.

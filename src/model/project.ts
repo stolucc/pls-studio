@@ -271,6 +271,11 @@ export interface ModelState {
    * standard errors and, with MLR, a Yuan-Bentler scaled test, as Mplus TYPE = COMPLEX). Not a two-level model.
    */
   cluster?: string;
+  /**
+   * CB-SEM, FIML or the two-stage approach: auxiliary variables (lavaan aux =), columns not in the model that make missing at
+   * random more plausible: saturated correlates (Graham 2003) with FIML, part of the first-stage EM with the two-stage approach.
+   */
+  auxiliary?: string[];
   /** CB-SEM: exploratory SEM blocks (construct ids) and their rotation. */
   /** `epsilon`: geomin's ε (lavaan's default 0.001; Mplus uses 0.0001 for two factors). */
   /** `orthogonal`: the rotation kept orthogonal (uncorrelated factors). A bifactor rotation's general factor is the block's first. */
@@ -589,6 +594,7 @@ export function toSpec(model: ModelState): ModelSpec {
     ...(model.multilevel ? { multilevel: model.multilevel } : {}),
     ...(model.weights ? { weights: model.weights } : {}),
     ...(model.cluster ? { cluster: model.cluster } : {}),
+    ...(model.auxiliary?.length ? { auxiliary: model.auxiliary } : {}),
     ...(model.esem?.blocks.length ? { esem: { rotation: model.esem.rotation, blocks: model.esem.blocks.map((b) => b.constructs.map((id) => name.get(id) ?? id)), ...(model.esem.epsilon !== undefined ? { epsilon: model.esem.epsilon } : {}), ...(model.esem.orthogonal && ORTHOGONALISABLE_ROTATIONS.includes(model.esem.rotation) ? { orthogonal: true } : {}), ...(model.esem.invariant ? { invariant: true } : {}) } } : {}),
     ...(model.information ? { information: model.information } : {}),
     ...(model.wlsmvSe ? { wlsmvSe: model.wlsmvSe } : {}),
@@ -1067,6 +1073,7 @@ export function parseModelState(m: unknown): ModelState {
       ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
       ...(typeof m.weights === 'string' && m.weights ? { weights: str(m.weights) } : {}),
       ...(typeof m.cluster === 'string' && m.cluster ? { cluster: str(m.cluster) } : {}),
+      ...(Array.isArray(m.auxiliary) && m.auxiliary.some((x: unknown) => typeof x === 'string' && x) ? { auxiliary: [...new Set((m.auxiliary as unknown[]).slice(0, 500).filter((x): x is string => typeof x === 'string' && !!x).map((x) => x.slice(0, 200)))] } : {}),
       ...(isObj(m.multilevel) && typeof m.multilevel.column === 'string' ? { multilevel: {
         column: str(m.multilevel.column), between: m.multilevel.between === 'same' ? 'same' as const : m.multilevel.between === 'factors' ? 'factors' as const
           : m.multilevel.between === 'model' && parseBetweenModel(m.multilevel.betweenModel).length ? 'model' as const : 'saturated' as const,

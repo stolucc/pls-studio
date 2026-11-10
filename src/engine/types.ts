@@ -172,6 +172,8 @@ export interface ModelSpec {
   weights?: string;
   /** CB-SEM: sampling clusters in a single-level model (lavaan cluster =; cluster-robust standard errors). */
   cluster?: string;
+  /** CB-SEM (lavaan aux =): auxiliary variables of FIML or the two-stage approach (columns not in the model; saturated correlates). */
+  auxiliary?: string[];
   /** CB-SEM (lavaan): two-level model by a cluster column; between level saturated or with the same structure. */
   multilevel?: { column: string; between: 'same' | 'saturated' | 'factors' | 'model'; betweenCovariates?: string[]; betweenModel?: { lhs: string; op: '=~' | '~' | '~~' | '~1'; rhs: { name: string; fixed?: number; label?: string }[] }[] };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */

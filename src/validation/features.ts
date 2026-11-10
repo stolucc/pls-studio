@@ -35,6 +35,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/categorical': native('Ordinal indicators (WLSMV) and FIML', 'CB-SEM', ['lavaan'], script('categorical_fiml.R', 'desktop lavaan')),
   'rengine/ordinalFit': native('Sample polychoric correlations (SAMPSTAT) and bivariate fit (TECH10)', 'CB-SEM', ['lavaan'], script('ordinal_fit.R', 'desktop lavaan, psych::polychoric and a computation by hand')),
   'rengine/cbComposite': native('Composites in CB-SEM', 'CB-SEM', ['lavaan'], script('cb_composite.R', 'desktop lavaan')),
+  'rengine/cbDiag': native('Local fit (residual z-tests, SRMR tests, Browne’s, scaled, Hayakawa and FMG tests) and FIML auxiliary variables', 'CB-SEM', ['lavaan'], script('cbdiag.R', 'direct lavaan calls (lavResiduals, lavTest, aux =)')),
   'rengine/cbExtras': native('Bollen–Stine bootstrap, Wald tests, factor-score weights', 'CB-SEM', ['lavaan'], script('cbextras.R', 'desktop lavaan')),
   'rengine/complex': native('Cluster-robust standard errors (TYPE = COMPLEX)', 'CB-SEM', ['lavaan'], script('complex.R', 'desktop lavaan')),
   'rengine/constraints': native('Equality constraints, defined parameters', 'CB-SEM', ['lavaan'], script('categorical_fiml.R', 'desktop lavaan')),
