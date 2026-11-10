@@ -3,7 +3,9 @@
 // sizes), then blavaan's fit measures and the posterior of every parameter;
 // optionally Mplus's default priors, priors on labelled parameters (MODEL
 // PRIORS), approximate invariance across groups (DIFF priors, blavaan's wiggle),
-// a defined quantity over a moderator (LOOP) and plausible values.
+// a defined quantity over a moderator (LOOP) and plausible values. Or the same
+// model by INLAvaan (approximate Bayesian inference, also in the browser): its
+// diagnostics of the approximation instead of R-hat, and default priors by type.
 
 import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
@@ -12,7 +14,7 @@ import { fmt } from '../format';
 import { namesIn, parseExpr } from '../model/expr';
 import { labelUses, toSpec, validateModel } from '../model/project';
 import { useCompute } from '../rengine/compute';
-import type { BsemLoop, BsemLoopResult, BsemOptions, BsemPrior, BsemResult } from '../rengine/bsem';
+import type { BsemLoop, BsemLoopResult, BsemOptions, BsemPrior, BsemResult, InlaPriorType } from '../rengine/bsem';
 import { Choice, clampNum, columnsFingerprint, isObj, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { fingerprint } from './codec';
@@ -22,6 +24,23 @@ const pct = (conf: number) => `${Math.round(conf * 100)}%`;
 const modelIndicators = (ctx: AnalysisCtx) => [...new Set((ctx.model?.constructs ?? []).flatMap((k) => k.indicators))];
 const OP_NAME: Record<string, string> = { '=~': 'Loadings', '~': 'Regressions', '~~': 'Variances and covariances', '~1': 'Intercepts and means', '|': 'Thresholds' };
 const OP_FILE: Record<string, string> = { '=~': 'loadings', '~': 'regressions', '~~': 'covariances', '~1': 'means', '|': 'thresholds' };
+
+// ---- INLAvaan's default priors by parameter type (priors_for) ----
+
+export const INLA_PRIOR_TYPES: readonly InlaPriorType[] = ['lambda', 'beta', 'nu', 'alpha', 'tau', 'theta', 'psi', 'rho'];
+/** INLAvaan's own defaults (priors_for()). */
+export const INLA_PRIOR_DEFAULTS: Record<InlaPriorType, string> = { lambda: 'normal(0,10)', beta: 'normal(0,10)', nu: 'normal(0,32)', alpha: 'normal(0,10)', tau: 'normal(0,1.5)', theta: 'gamma(1,.5)[sd]', psi: 'gamma(1,.5)[sd]', rho: 'beta(1,1)' };
+const NUM = '[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?';
+const PRIOR_RE = new RegExp(`^\\s*(normal|gamma|beta)\\s*\\(\\s*(${NUM})\\s*,\\s*(${NUM})\\s*\\)\\s*(\\[sd\\]|\\[prec\\])?\\s*$`);
+/** A default prior as INLAvaan writes it, checked and rewritten from its numbers: normal(mean, SD) for loadings, regressions, intercepts, means and thresholds; gamma(shape, rate) on a variance ([sd]: on the SD; [prec]: on the precision); beta(a, b) on a correlation. Null when invalid. */
+export function inlaPrior(type: InlaPriorType, text: string): string | null {
+  const m = text.length <= 60 ? PRIOR_RE.exec(text) : null;
+  if (!m) return null;
+  const family = type === 'theta' || type === 'psi' ? 'gamma' : type === 'rho' ? 'beta' : 'normal';
+  const a = Number(m[2]), b = Number(m[3]);
+  if (m[1] !== family || !Number.isFinite(a) || !Number.isFinite(b) || !(b > 0) || (family !== 'normal' && !(a > 0)) || (m[4] && family !== 'gamma')) return null;
+  return `${family}(${a},${b})${m[4] ?? ''}`;
+}
 
 // ---- Priors on labelled parameters, written as Mplus's MODEL PRIORS: "xload1-xload6 ~ N(0, 0.01);" ----
 
@@ -59,23 +78,51 @@ function PriorBox({ value, onChange }: { value: BsemPrior[]; onChange: (v: BsemP
   );
 }
 
+const PRIOR_TYPE_NAME: Record<InlaPriorType, string> = { lambda: 'Loadings', beta: 'Regressions', nu: 'Intercepts', alpha: 'Latent means', tau: 'Thresholds', theta: 'Residual variances', psi: 'Factor variances', rho: 'Correlations' };
+
+/** INLAvaan's default priors by parameter type: its own until changed. */
+function TypePriors({ value, onChange }: { value: Partial<Record<InlaPriorType, string>>; onChange: (v: Partial<Record<InlaPriorType, string>>) => void }) {
+  const [text, setText] = useState<Partial<Record<InlaPriorType, string>>>(value);
+  const [err, setErr] = useState<string | null>(null);
+  const commit = (t: InlaPriorType, s: string) => {
+    if (!s.trim() || s.trim() === INLA_PRIOR_DEFAULTS[t]) { const { [t]: _x, ...rest } = value; onChange(rest); setErr(null); return; }
+    const p = inlaPrior(t, s);
+    if (!p) { setErr(`${PRIOR_TYPE_NAME[t]}: write ${t === 'rho' ? 'beta(a, b)' : t === 'theta' || t === 'psi' ? 'gamma(shape, rate), on the variance, or with [sd] on the SD' : 'normal(mean, SD)'}.`); return; }
+    onChange({ ...value, [t]: p }); setErr(null);
+  };
+  return (
+    <div className="field"><label>Default priors by parameter type</label>
+      <div className="row2" style={{ flexWrap: 'wrap' }}>
+        {INLA_PRIOR_TYPES.map((t) => <div key={t} className="field"><label htmlFor={`bs-dp-${t}`}>{PRIOR_TYPE_NAME[t]}</label>
+          <input id={`bs-dp-${t}`} className="input" value={text[t] ?? ''} placeholder={INLA_PRIOR_DEFAULTS[t]} onChange={(e) => setText({ ...text, [t]: e.target.value })} onBlur={(e) => commit(t, e.target.value)} /></div>)}
+      </div>
+      <div className="hint">{err ?? 'As INLAvaan’s priors_for(): normal(mean, SD); gamma(shape, rate) on a variance, [sd] on the SD, [prec] on the precision; beta(a, b) on a correlation (on −1 to 1). Empty: INLAvaan’s default (shown).'}</div></div>
+  );
+}
+
 function BsemForm({ options: o, set, disabled, ctx }: OptionsProps<BsemOptions>) {
   const n = (k: 'chains' | 'burnin' | 'sample', lo: number, hi: number) => (e: { target: { value: string } }) => { const v = Math.round(Number(e.target.value)); if (Number.isFinite(v) && v >= lo && v <= hi) set({ ...o, [k]: v }); };
   const groups = !!ctx?.model?.multigroup;
+  const inla = o.engine === 'inlavaan';
   const loop = o.loop;
   const setLoop = (p: Partial<BsemLoop>) => set({ ...o, loop: { ...loop!, ...p } });
   const lnum = (k: 'from' | 'to' | 'by') => (e: { target: { value: string } }) => { const v = Number(e.target.value); if (Number.isFinite(v)) setLoop({ [k]: v }); };
+  const priorKind = o.priors === 'mplus' ? 'mplus' : inla && o.defaultPriors ? 'custom' : 'package';
+  const setPriors = (p: 'package' | 'mplus' | 'custom') => { const { priors: _p, defaultPriors: _d, ...rest } = o; set(p === 'mplus' ? { ...rest, priors: 'mplus' } : p === 'custom' ? { ...rest, defaultPriors: {} } : rest); };
   return (
     <fieldset className="card-options" disabled={disabled}>
-      <p className="hint" style={{ marginTop: 0 }}>The CB-SEM model on the canvas, fitted by MCMC (blavaan with Stan), in desktop R through the PLS Studio Helper: Stan does not run in the browser.</p>
+      <Choice label="Engine" value={inla ? 'inlavaan' : 'blavaan'} onChange={(e) => { const { engine: _e, defaultPriors: _d, wiggle: _w, ...rest } = o; set(e === 'inlavaan' ? { ...rest, engine: 'inlavaan' } : rest); }}
+        options={[['blavaan', 'blavaan (MCMC)'], ['inlavaan', 'INLAvaan (approximate)']]}
+        hint={inla ? 'INLAvaan (Jamil & Rue): approximate Bayesian inference without MCMC — the posterior mode, a Laplace approximation with a variational-Bayes correction of the mean, and skew-normal marginals. Seconds instead of minutes, in the browser or desktop R; no chains, so no R-hat: check its diagnostics instead.' : 'blavaan with Stan: MCMC, the reference for Bayesian SEM, in desktop R through the PLS Studio Helper (Stan does not run in the browser).'} />
       <Choice label="Identification of the factors" value={o.identification} onChange={(identification) => set({ ...o, identification })}
         options={[['unit', 'Unit factor variances'], ['marker', 'Marker indicators (as the diagram)']]}
-        hint={o.identification === 'unit' ? 'Each factor’s variance fixed at 1, every loading estimated (lavaan’s std.lv): the chains mix more reliably. The loadings are then on the standardised-factor scale.' : 'The first loading of each factor fixed at 1, as in the ML fit. Chains can get stuck in a second mode; check R-hat.'} />
-      <Choice label="Default priors" value={o.priors ?? 'blavaan'} onChange={(p) => { const { priors: _p, ...rest } = o; set(p === 'mplus' ? { ...rest, priors: 'mplus' } : rest); }}
-        options={[['blavaan', 'blavaan’s'], ['mplus', 'Mplus’s (flat)']]}
-        hint={o.priors === 'mplus' ? 'Mplus’s defaults: flat for loadings, regressions, intercepts and means (N(0, 10⁶) here), flat for variances (IG(−1, 0)) and covariance matrices (IW(0, −p−1); here a uniform correlation with variance priors that make a pair’s covariance matrix flat), N(0, 5) for the loadings and thresholds of ordinal indicators.' : 'blavaan’s defaults: N(0, 10) for loadings and regressions, N(0, 32) for intercepts, Gamma(1, 0.5) on the SDs, uniform correlations.'} />
+        hint={o.identification === 'unit' ? `Each factor’s variance fixed at 1, every loading estimated (lavaan’s std.lv)${inla ? '' : ': the chains mix more reliably'}. The loadings are then on the standardised-factor scale.` : `The first loading of each factor fixed at 1, as in the ML fit.${inla ? ' Its loadings’ posteriors are skewed more, which the approximation finds harder.' : ' Chains can get stuck in a second mode; check R-hat.'}`} />
+      <Choice label="Default priors" value={priorKind} onChange={setPriors}
+        options={inla ? [['package', 'INLAvaan’s'], ['mplus', 'Mplus’s (flat)'], ['custom', 'By parameter type']] : [['package', 'blavaan’s'], ['mplus', 'Mplus’s (flat)']]}
+        hint={o.priors === 'mplus' ? 'Mplus’s defaults: flat for loadings, regressions, intercepts and means (N(0, 10⁶) here), flat for variances (IG(−1, 0)) and covariance matrices (IW(0, −p−1); here a uniform correlation with variance priors that make a pair’s covariance matrix flat), N(0, 5) for the loadings and thresholds of ordinal indicators.' : `${inla ? 'INLAvaan’s defaults, which are blavaan’s' : 'blavaan’s defaults'}: N(0, 10) for loadings and regressions, N(0, 32) for intercepts, Gamma(1, 0.5) on the SDs, uniform correlations.`} />
+      {priorKind === 'custom' && <TypePriors value={o.defaultPriors ?? {}} onChange={(defaultPriors) => set({ ...o, defaultPriors })} />}
       <PriorBox value={o.labelPriors ?? []} onChange={(ps) => { const { labelPriors: _l, ...rest } = o; set(ps.length ? { ...rest, labelPriors: ps } : rest); }} />
-      {groups && <>
+      {groups && !inla && <>
         <label className="check"><input type="checkbox" checked={!!o.wiggle} onChange={(e) => { const { wiggle: _w, ...rest } = o; set(e.target.checked ? { ...rest, wiggle: { what: ['loadings', 'intercepts'], variance: 0.01 } } : rest); }} /> Approximate invariance: parameters held equal across groups may differ a little</label>
         {o.wiggle && <div className="row2">
           <div className="field"><label>Approximately equal</label>
@@ -100,12 +147,16 @@ function BsemForm({ options: o, set, disabled, ctx }: OptionsProps<BsemOptions>)
       </>}
       <div className="field"><label htmlFor="bs-pv">Plausible values per case</label><input id="bs-pv" className="input num" type="number" min={0} max={500} value={o.plausible ?? 0} onChange={(e) => { const v = Math.round(Number(e.target.value)); if (v >= 0 && v <= 500) { const { plausible: _p, ...rest } = o; set(v ? { ...rest, plausible: v } : rest); } }} />
         <div className="hint">Draws of every case’s factor scores from the posterior (Mplus FSCORES(n)): summarised over cases and draws. 0: none.</div></div>
-      <div className="row2">
-        <div className="field"><label htmlFor="bs-ch">Chains</label><input id="bs-ch" className="input num" type="number" min={1} max={8} value={o.chains} onChange={n('chains', 1, 8)} /></div>
-        <div className="field"><label htmlFor="bs-bi">Burn-in per chain</label><input id="bs-bi" className="input num" type="number" min={100} max={100000} step={100} value={o.burnin} onChange={n('burnin', 100, 100000)} /></div>
-      </div>
-      <div className="field"><label htmlFor="bs-s">Draws per chain</label><input id="bs-s" className="input num" type="number" min={100} max={100000} step={100} value={o.sample} onChange={n('sample', 100, 100000)} />
-        <div className="hint">blavaan’s defaults: 3 chains, 500 burn-in and 1,000 draws each. The seed is the project’s.</div></div>
+      {inla ? <div className="field"><label htmlFor="bs-s">Posterior draws</label><input id="bs-s" className="input num" type="number" min={100} max={100000} step={100} value={o.sample} onChange={n('sample', 100, 100000)} />
+        <div className="hint">INLAvaan’s nsamp (default 1,000): draws from the approximate posterior for PPP, DIC, defined parameters, the loop and intervals other than 95%. The seed is the project’s.</div></div>
+      : <>
+        <div className="row2">
+          <div className="field"><label htmlFor="bs-ch">Chains</label><input id="bs-ch" className="input num" type="number" min={1} max={8} value={o.chains} onChange={n('chains', 1, 8)} /></div>
+          <div className="field"><label htmlFor="bs-bi">Burn-in per chain</label><input id="bs-bi" className="input num" type="number" min={100} max={100000} step={100} value={o.burnin} onChange={n('burnin', 100, 100000)} /></div>
+        </div>
+        <div className="field"><label htmlFor="bs-s">Draws per chain</label><input id="bs-s" className="input num" type="number" min={100} max={100000} step={100} value={o.sample} onChange={n('sample', 100, 100000)} />
+          <div className="hint">blavaan’s defaults: 3 chains, 500 burn-in and 1,000 draws each. The seed is the project’s.</div></div>
+      </>}
     </fieldset>
   );
 }
@@ -138,11 +189,69 @@ function LoopChart({ l, conf }: { l: BsemLoopResult; conf: number }) {
   );
 }
 
+const paramName = (p: BsemResult['parameters'][number]) => (p.op === '~1' ? `${p.lhs} (intercept)` : p.op === '|' ? `${p.lhs} threshold ${p.rhs.replace(/^t/, '')}` : `${p.lhs} ${p.op} ${p.rhs}`) + (p.label ? ` (${p.label})` : '');
+const present = (rows: [string, number | undefined | null][]) => rows.filter((x): x is [string, number] => x[1] !== undefined && x[1] !== null);
+
+/** The defined parameters, the loop and the plausible values: the same for both engines. */
+function Derived({ r }: { r: BsemResult }) {
+  return <>
+    {!!r.defined?.length && <Table title="Defined parameters" file="bsem-defined" columns={['Parameter', 'Posterior median', 'Mean', 'SD', `${pct(r.confidence)} credible interval`]}
+      rows={r.defined.map((d): Row => [c(`${d.name} := ${d.expr}`), c(d.median), c(d.mean), c(d.sd), c(`[${fmt(d.low)}, ${fmt(d.high)}]`)])} note="Computed from every draw of the parameters they combine." />}
+    {r.loop && <>
+      <LoopChart l={r.loop} conf={r.confidence} />
+      <Table title={`${r.loop.name} = ${r.loop.expr}`} file="bsem-loop" columns={[r.loop.variable, 'Posterior median', 'SD', `${pct(r.confidence)} credible interval`]}
+        rows={r.loop.x.map((x, i): Row => [c(fmt(x, 3)), c(r.loop!.median[i]), c(r.loop!.sd[i]), c(`[${fmt(r.loop!.low[i])}, ${fmt(r.loop!.high[i])}]`)])} />
+    </>}
+    {r.plausible && <Table title="Plausible values" file="bsem-plausible" columns={['Factor', 'Mean', 'Variance', 'Mean of the cases’ SDs']}
+      rows={r.plausible.factors.map((k, i): Row => [c(k), c(r.plausible!.mean[i]), c(r.plausible!.cov[i]?.[i] ?? null), c(r.plausible!.meanSd[i])])}
+      note={`${r.plausible.draws} draws of each of the ${r.plausible.cases} cases’ factor scores${r.engine.package === 'INLAvaan' ? ', each from a fresh draw of the parameters' : ', spaced evenly over the posterior draws'}: mean and variance over all cases and draws, and each case’s SD over its draws, averaged (Mplus’s SUMMARIES OF PLAUSIBLE VALUES).`} />}
+  </>;
+}
+
+/** INLAvaan's result: no chains; the diagnostics of the approximation instead of R-hat. */
+function InlaView({ r }: { r: BsemResult }) {
+  const f = r.fit, d = r.diagnostics ?? {};
+  const groups = r.groups?.length ? r.groups : [null];
+  const flag = (v: number | null | undefined, warn: number) => (v === null || v === undefined ? c(null) : { v: fmt(v, 3), cls: Math.abs(v) > warn ? 'warn' : '' });
+  const withPrior = r.parameters.some((p) => p.prior);
+  const cols = ['Parameter', 'Posterior median', 'Mean', 'SD', `${pct(r.confidence)} credible interval`, 'NMAD', 'VB shift (SD)', ...(withPrior ? ['Prior'] : [])];
+  const priors = r.priors === 'mplus' ? 'Mplus’s default priors' : r.priors === 'custom' ? `default priors by type (${Object.entries(r.defaultPriors ?? {}).map(([k, v]) => `${k} ${v}`).join(', ')})` : 'INLAvaan’s default priors';
+  return (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>Approximate Bayesian inference by INLAvaan {r.engine.version}{r.engine.desktop ? ` in desktop ${r.engine.desktop}` : ''} (Laplace approximation, VB-corrected mean, skew-normal marginals; no MCMC){r.seconds !== undefined && r.seconds !== null ? `, ${fmt(r.seconds, 1)} s` : ''}; n = {r.n}{r.groups?.length ? ` in ${r.groups.length} groups` : ''}; factors identified by {r.identification === 'unit' ? 'unit variances (std.lv)' : 'marker indicators'}; {priors}; {r.sample.toLocaleString('en')} posterior draws, seed {r.seed}.</p>
+      <div className="stat-cards">
+        <div className="stat-card"><div className="k">Optimiser converged</div><div className={`v ${r.converged ? 'good' : 'bad'}`}>{r.converged ? 'yes' : 'no'}</div></div>
+        {d.nmadMax !== undefined && d.nmadMax !== null && <div className="stat-card"><div className="k">Largest NMAD</div><div className={`v ${d.nmadMax > 0.1 ? 'warn' : 'good'}`}>{fmt(d.nmadMax, 3)}</div></div>}
+        {d.vbShiftMax !== undefined && d.vbShiftMax !== null && <div className="stat-card"><div className="k">Largest VB shift</div><div className={`v ${d.vbShiftMax > 1 ? 'warn' : 'good'}`}>{fmt(d.vbShiftMax, 2)} SD</div></div>}
+        {f.ppp !== undefined && f.ppp !== null && <div className="stat-card"><div className="k">PPP</div><div className="v">{fmt(f.ppp, 3)}</div></div>}
+      </div>
+      {!r.converged && <p className="hint" style={{ color: 'var(--bad)' }}>The optimiser did not converge: the posterior mode, and everything built on it, is not reliable. Try unit factor variances, or check the model for identification problems.</p>}
+      <Table title="Fit" file="bsem-fit" columns={['Measure', 'Value']} rows={present([
+        ['Posterior predictive p (PPP)', f.ppp], ['DIC', f.dic], ['Effective parameters (pD)', f.pDic], ['WAIC', f.waic], ['SE of WAIC', f.seWaic], ['Effective parameters (WAIC)', f.pWaic],
+        ['LOOIC', f.looic], ['SE of LOOIC', f.seLooic], ['Effective parameters (LOO)', f.pLoo], ['Marginal log-likelihood', f.margLogLik],
+        ['BRMSEA', f.brmsea], ['BGammaHat', f.bgammahat], ['Adjusted BGammaHat', f.adjBgammahat], ['BMc', f.bmc], ['BCFI', f.bcfi], ['BTLI', f.btli], ['BNFI', f.bnfi],
+      ]).map(([k, v]): Row => [c(k), c(v, undefined, /^(Posterior|B|Adjusted)/.test(k) ? 3 : 1)])}
+        note="PPP: near 0.5 is good, below about 0.05 signals misfit. DIC, WAIC and LOOIC compare models (smaller is better); INLAvaan computes WAIC and leave-one-out from the single fit. The Bayesian fit indices (Garnier-Villarreal & Jorgensen 2020) are posterior means, the incremental ones against the independence model." />
+      {groups.flatMap((g, gi) => ['=~', '~', '~~', '~1', '|'].map((op) => [op, r.parameters.filter((p) => p.op === op && (g === null || p.group === gi + 1))] as const).filter(([, ps]) => ps.length).map(([op, ps]) => (
+        <Table key={`${gi}${op}`} title={`${OP_NAME[op] ?? op}${g === null ? '' : ` — group ${g}`}`} file={`bsem-${OP_FILE[op] ?? 'parameters'}${g === null ? '' : `-g${gi + 1}`}`} columns={cols}
+          rows={ps.map((p): Row => [c(paramName(p)), c(p.median ?? null), c(p.mean), c(p.sd), c(`[${fmt(p.low)}, ${fmt(p.high)}]`), flag(p.nmad, 0.1), flag(p.vbShift, 1), ...(withPrior ? [c(p.prior ?? '')] : [])])} />
+      )))}
+      <Derived r={r} />
+      <Table title="Diagnostics of the approximation" file="bsem-diagnostics" columns={['Diagnostic', 'Value', 'Healthy']} rows={present([
+        ['Optimiser iterations', d.iterations], ['Largest gradient at the mode', d.gradInf], ['Largest Newton step at the mode (posterior SDs)', d.modeShiftMax], ['Condition number of the Hessian', d.hessCond],
+        ['Largest VB shift of a mean (posterior SDs)', d.vbShiftMax], ['Largest KL divergence of the VB correction', d.kldMax], ['Largest NMAD of a marginal', d.nmadMax], ['Largest mass outside a marginal’s scan', d.scanEndMassMax],
+      ]).map(([k, v]): Row => [c(k), c(v, undefined, k.startsWith('Optimiser') ? 0 : 4), c(({ 'Largest Newton step at the mode (posterior SDs)': 'below 0.1', 'Condition number of the Hessian': 'below 10⁸', 'Largest VB shift of a mean (posterior SDs)': 'below 1', 'Largest NMAD of a marginal': 'below 0.1', 'Largest mass outside a marginal’s scan': 'below 0.05', 'Largest gradient at the mode': 'near 0' } as Record<string, string>)[k] ?? '')])}
+        note="INLAvaan’s own checks (its warnings appear above when one trips): they are its defaults, prompts to look again rather than calibrated cut-offs. NMAD: how far a skew-normal marginal deviates from the scanned posterior; VB shift: how far the correction moved a mean from the mode, in posterior SDs (large values: the Gaussian approximation at the mode may be poor)." />
+      <p className="hint">{r.intervals === 'draws' ? `The ${pct(r.confidence)} intervals are quantiles of the ${r.sample.toLocaleString('en')} posterior draws (INLAvaan reports 95% intervals from its marginals).` : 'The 95% intervals are INLAvaan’s, from its skew-normal marginals.'} An approximation, close to MCMC for most models; confirm a final model with blavaan (MCMC) when the diagnostics flag a parameter.</p>
+    </div>
+  );
+}
+
 function BsemView({ r }: { r: BsemResult }) {
+  if (r.engine.package === 'INLAvaan') return <InlaView r={r} />;
   const f = r.fit;
   const groups = r.groups?.length ? r.groups : [null];
-  const name = (p: BsemResult['parameters'][number]) => (p.op === '~1' ? `${p.lhs} (intercept)` : p.op === '|' ? `${p.lhs} threshold ${p.rhs.replace(/^t/, '')}` : `${p.lhs} ${p.op} ${p.rhs}`) + (p.label ? ` (${p.label})` : '');
-  const rhatCell = (v: number | null) => (v === null || v === undefined ? c(null) : { v: fmt(v, 3), cls: v >= 1.05 ? 'bad' : v >= 1.01 ? 'warn' : 'good' });
+  const rhatCell = (v: number | null | undefined) => (v === null || v === undefined ? c(null) : { v: fmt(v, 3), cls: v >= 1.05 ? 'bad' : v >= 1.01 ? 'warn' : 'good' });
   const withPrior = r.parameters.some((p) => p.prior);
   const cols = ['Parameter', 'Posterior median', 'Mean', 'SD', `${pct(r.confidence)} credible interval`, 'R-hat', 'n_eff', ...(withPrior ? ['Prior'] : [])];
   return (
@@ -150,8 +259,8 @@ function BsemView({ r }: { r: BsemResult }) {
       <p className="hint" style={{ marginTop: 0 }}>{r.chains} chains × {r.sample.toLocaleString('en')} draws after {r.burnin.toLocaleString('en')} burn-in, seed {r.seed}; n = {r.n}{r.groups?.length ? ` in ${r.groups.length} groups` : ''}; factors identified by {r.identification === 'unit' ? 'unit variances (std.lv)' : 'marker indicators'}; {r.priors === 'mplus' ? 'Mplus’s default priors' : 'blavaan’s default priors'}{r.wiggleSd !== undefined && r.wiggleSd !== null ? `; approximate invariance, SD ${fmt(r.wiggleSd, 4)} around the first group` : ''}; blavaan {r.engine.version}{r.engine.desktop ? ` in desktop ${r.engine.desktop}` : ''}.</p>
       <div className={`stat-cards`}>
         <div className="stat-card"><div className="k">Converged</div><div className={`v ${r.converged ? 'good' : 'bad'}`}>{r.converged ? 'yes' : 'no'}</div></div>
-        <div className="stat-card"><div className="k">Largest R-hat</div><div className={`v ${r.maxRhat >= 1.05 ? 'bad' : r.maxRhat >= 1.01 ? 'warn' : 'good'}`}>{fmt(r.maxRhat, 3)}</div></div>
-        <div className="stat-card"><div className="k">Smallest n_eff</div><div className={`v ${r.minNeff < 400 ? 'warn' : ''}`}>{fmt(r.minNeff, 0)}</div></div>
+        <div className="stat-card"><div className="k">Largest R-hat</div><div className={`v ${(r.maxRhat ?? 0) >= 1.05 ? 'bad' : (r.maxRhat ?? 0) >= 1.01 ? 'warn' : 'good'}`}>{fmt(r.maxRhat, 3)}</div></div>
+        <div className="stat-card"><div className="k">Smallest n_eff</div><div className={`v ${(r.minNeff ?? 0) < 400 ? 'warn' : ''}`}>{fmt(r.minNeff, 0)}</div></div>
         {f.ppp !== undefined && f.ppp !== null && <div className="stat-card"><div className="k">PPP</div><div className="v">{fmt(f.ppp, 3)}</div></div>}
       </div>
       {!r.converged && <p className="hint" style={{ color: 'var(--bad)' }}>The chains did not converge (an R-hat of 1.05 or more): the estimates below are not reliable. Run more burn-in and draws, another seed, or unit factor variances.</p>}
@@ -161,18 +270,9 @@ function BsemView({ r }: { r: BsemResult }) {
         note="PPP: the share of draws in which data replicated from the model fit worse than the observed data; near 0.5 is good, below about 0.05 signals misfit. DIC, WAIC and LOOIC compare models: smaller is better." />
       {groups.flatMap((g, gi) => ['=~', '~', '~~', '~1', '|'].map((op) => [op, r.parameters.filter((p) => p.op === op && (g === null || p.group === gi + 1))] as const).filter(([, ps]) => ps.length).map(([op, ps]) => (
         <Table key={`${gi}${op}`} title={`${OP_NAME[op] ?? op}${g === null ? '' : ` — group ${g}`}`} file={`bsem-${OP_FILE[op] ?? 'parameters'}${g === null ? '' : `-g${gi + 1}`}`} columns={cols}
-          rows={ps.map((p): Row => [c(name(p)), c(p.median ?? null), c(p.mean), c(p.sd), c(`[${fmt(p.low)}, ${fmt(p.high)}]`), rhatCell(p.rhat), c(p.neff, undefined, 0), ...(withPrior ? [c(p.prior ?? '')] : [])])} />
+          rows={ps.map((p): Row => [c(paramName(p)), c(p.median ?? null), c(p.mean), c(p.sd), c(`[${fmt(p.low)}, ${fmt(p.high)}]`), rhatCell(p.rhat), c(p.neff ?? null, undefined, 0), ...(withPrior ? [c(p.prior ?? '')] : [])])} />
       )))}
-      {!!r.defined?.length && <Table title="Defined parameters" file="bsem-defined" columns={['Parameter', 'Posterior median', 'Mean', 'SD', `${pct(r.confidence)} credible interval`]}
-        rows={r.defined.map((d): Row => [c(`${d.name} := ${d.expr}`), c(d.median), c(d.mean), c(d.sd), c(`[${fmt(d.low)}, ${fmt(d.high)}]`)])} note="Computed from every draw of the parameters they combine." />}
-      {r.loop && <>
-        <LoopChart l={r.loop} conf={r.confidence} />
-        <Table title={`${r.loop.name} = ${r.loop.expr}`} file="bsem-loop" columns={[r.loop.variable, 'Posterior median', 'SD', `${pct(r.confidence)} credible interval`]}
-          rows={r.loop.x.map((x, i): Row => [c(fmt(x, 3)), c(r.loop!.median[i]), c(r.loop!.sd[i]), c(`[${fmt(r.loop!.low[i])}, ${fmt(r.loop!.high[i])}]`)])} />
-      </>}
-      {r.plausible && <Table title="Plausible values" file="bsem-plausible" columns={['Factor', 'Mean', 'Variance', 'Mean of the cases’ SDs']}
-        rows={r.plausible.factors.map((k, i): Row => [c(k), c(r.plausible!.mean[i]), c(r.plausible!.cov[i]?.[i] ?? null), c(r.plausible!.meanSd[i])])}
-        note={`${r.plausible.draws} draws of each of the ${r.plausible.cases} cases’ factor scores, spaced evenly over the posterior draws: mean and variance over all cases and draws, and each case’s SD over its draws, averaged (Mplus’s SUMMARIES OF PLAUSIBLE VALUES).`} />}
+      <Derived r={r} />
       <p className="hint">R-hat compares the chains with each other (1.00 means they agree; 1.05 or more: not converged). n_eff: the number of independent draws the chains are worth. The posterior median is Mplus’s point estimate for Bayes; blavaan prints the mean.</p>
     </div>
   );
@@ -197,6 +297,7 @@ function optionsProblem(o: BsemOptions, ctx: AnalysisCtx): string | null {
   const known = new Set([...labels.keys(), ...(m.defined ?? []).map((d) => d.name)]);
   for (const p of o.labelPriors ?? []) { const bad = p.labels.filter((l) => !labels.has(l)); if (bad.length) return `Priors: ${bad.join(', ')} ${bad.length === 1 ? 'is' : 'are'} not a label of the model.`; }
   if (o.plausible && m.multigroup) return 'Plausible values here are for one group (no grouping column).';
+  if (o.wiggle && o.engine === 'inlavaan') return 'Approximate invariance (blavaan’s wiggle) is not available with INLAvaan: choose blavaan.';
   if (o.wiggle && !m.multigroup) return 'Approximate invariance needs several groups (a grouping column on the Model tab).';
   if (o.wiggle && (m.multigroup?.invariance ?? 'configural') === 'configural') return 'Approximate invariance relaxes parameters held equal across groups: choose metric or scalar invariance on the Model tab.';
   if (o.loop) {
@@ -210,16 +311,23 @@ function optionsProblem(o: BsemOptions, ctx: AnalysisCtx): string | null {
 }
 
 export const bsemAnalysis: AnalysisType<BsemOptions, BsemResult> = {
-  id: 'bsem', title: 'Bayesian SEM (blavaan)', sub: 'the CB-SEM model by MCMC (Stan): posterior, R-hat, PPP, WAIC, LOO; Mplus’s priors, BSEM priors, approximate invariance; desktop R', group: 'CB-SEM model',
+  id: 'bsem', title: 'Bayesian SEM (blavaan, INLAvaan)', sub: 'the CB-SEM model by MCMC (blavaan, Stan; desktop R) or by approximate Bayesian inference (INLAvaan; also in the browser): posterior, R-hat or diagnostics, PPP, WAIC, LOO; Mplus’s priors, BSEM priors, approximate invariance', group: 'CB-SEM model',
   fitsModel: true,
-  defaults: () => ({ identification: 'unit', chains: 3, burnin: 500, sample: 1000 }),
+  // (a new card in the browser starts with INLAvaan, which runs there; with desktop R, blavaan's MCMC)
+  defaults: () => ({ ...(useCompute.getState().backend === 'helper' ? {} : { engine: 'inlavaan' as const }), identification: 'unit', chains: 3, burnin: 500, sample: 1000 }),
   parseOptions: (raw) => {
     if (!isObj(raw)) return null;
     const o: BsemOptions = {
+      ...(raw.engine === 'inlavaan' ? { engine: 'inlavaan' as const } : {}),
       identification: oneOf(raw.identification, ['unit', 'marker'] as const, 'unit'), chains: clampNum(raw.chains, 1, 8, 3, true),
       burnin: clampNum(raw.burnin, 100, 100000, 500, true), sample: clampNum(raw.sample, 100, 100000, 1000, true),
     };
     if (raw.priors === 'mplus') o.priors = 'mplus';
+    // (default priors by type: INLAvaan's only, not with Mplus's; each checked and rewritten from its numbers)
+    else if (o.engine && isObj(raw.defaultPriors)) {
+      const dp = raw.defaultPriors;
+      o.defaultPriors = Object.fromEntries(INLA_PRIOR_TYPES.flatMap((t) => { const p = typeof dp[t] === 'string' ? inlaPrior(t, dp[t]) : null; return p ? [[t, p]] : []; }));
+    }
     const ps = Array.isArray(raw.labelPriors) ? raw.labelPriors.slice(0, 100).map(prior).filter((p): p is BsemPrior => !!p) : [];
     if (ps.length) o.labelPriors = ps;
     if (isObj(raw.wiggle)) {
@@ -245,10 +353,11 @@ export const bsemAnalysis: AnalysisType<BsemOptions, BsemResult> = {
     if (m.esem?.blocks.length) return 'ESEM blocks are not available in Bayesian SEM.';
     if (m.constructs.some((k) => k.type === 'composite')) return 'Composites are not available in Bayesian SEM.';
     if (ctx.settings.missing === 'mi') return 'Bayesian SEM handles missing values itself: choose casewise or FIML, not multiple imputation.';
+    if (o.engine === 'inlavaan' && ['pairwise', 'twostage', 'robusttwostage'].includes(ctx.settings.missing)) return 'Bayesian SEM by INLAvaan: choose casewise deletion, mean replacement or FIML for the missing values.';
     if (m.constant && o.identification === 'unit') return 'Means and intercepts need marker identification: choose Marker indicators.';
     const own = optionsProblem(o, ctx);
     if (own) return own;
-    if (useCompute.getState().backend !== 'helper') return 'Bayesian SEM runs in desktop R (Stan does not run in the browser): choose Desktop R (helper) under R runs in, on the Model tab, with the PLS Studio Helper running.';
+    if (o.engine !== 'inlavaan' && useCompute.getState().backend !== 'helper') return 'Bayesian SEM by blavaan runs in desktop R (Stan does not run in the browser): choose the INLAvaan engine, which runs here, or Desktop R (helper) under R runs in, on the Model tab, with the PLS Studio Helper running.';
     const err = validateModel(m, rawData(ctx)!, { ...ctx.settings, estimator: m.ordered?.length ? 'WLSMV' : 'ML' }).find((i) => i.level === 'error');
     return err ? `Fix the model first: ${err.message}` : null;
   },
@@ -257,9 +366,10 @@ export const bsemAnalysis: AnalysisType<BsemOptions, BsemResult> = {
     const cols = columnsFingerprint(ctx, [...modelIndicators(ctx), ...(ctx.model.multigroup ? [ctx.model.multigroup.column] : [])]);
     // (the options added later enter only when set: an old run keeps its fingerprint)
     const extra = [o.priors, o.labelPriors, o.wiggle, o.loop, o.plausible].some((x) => x !== undefined) ? [JSON.stringify([o.priors ?? null, o.labelPriors ?? null, o.wiggle ?? null, o.loop ?? null, o.plausible ?? null])] : [];
-    return cols && fingerprint([cols, JSON.stringify(toSpec(ctx.model)), ctx.settings.missing, o.identification, o.chains, o.burnin, o.sample, ctx.settings.seed, ctx.settings.confidence, ...extra]);
+    const inla = o.engine === 'inlavaan' ? [JSON.stringify(['inlavaan', o.defaultPriors ?? null])] : [];
+    return cols && fingerprint([cols, JSON.stringify(toSpec(ctx.model)), ctx.settings.missing, o.identification, o.chains, o.burnin, o.sample, ctx.settings.seed, ctx.settings.confidence, ...extra, ...inla]);
   },
   run: async (o, ctx) => (await engine()).bsemR(rawData(ctx)!, toSpec(ctx.model!), ctx.settings.missing, o, ctx.settings.seed, ctx.settings.confidence),
   script: async (o, ctx) => (await engine()).bsemScriptR(rawData(ctx)!, toSpec(ctx.model!), ctx.settings.missing, o, ctx.settings.seed, ctx.settings.confidence),
-  summary: (o) => `the CB-SEM model on the canvas · ${o.chains} chains × ${o.sample} · ${o.identification === 'unit' ? 'unit variances' : 'markers'}${o.priors === 'mplus' ? ' · Mplus’s priors' : ''}${o.labelPriors?.length ? ` · ${o.labelPriors.reduce((a, p) => a + p.labels.length, 0)} priors` : ''}${o.wiggle ? ' · approximate invariance' : ''}`,
+  summary: (o) => `the CB-SEM model on the canvas · ${o.engine === 'inlavaan' ? `INLAvaan, ${o.sample} draws` : `${o.chains} chains × ${o.sample}`} · ${o.identification === 'unit' ? 'unit variances' : 'markers'}${o.priors === 'mplus' ? ' · Mplus’s priors' : o.defaultPriors ? ' · priors by type' : ''}${o.labelPriors?.length ? ` · ${o.labelPriors.reduce((a, p) => a + p.labels.length, 0)} priors` : ''}${o.wiggle ? ' · approximate invariance' : ''}`,
 };

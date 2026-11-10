@@ -3,6 +3,7 @@ BayesFactor
 EGAnet
 GLMMadaptive
 GPArotation
+INLAvaan
 MASS
 MIIVsem
 MatchIt

@@ -39,8 +39,8 @@ import { parseLavaanSyntax } from '../model/syntax';
 import { namesIn, parseExpr } from '../model/expr';
 import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -1024,6 +1024,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     shows: 'Check convergence first: R-hat close to one for every parameter. Then the posterior means and intervals of the loadings, and PPP: near one half, the model reproduces the data; near zero, it does not. WAIC and LOO compare this model with others.',
     data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [],
     panel: { kind: 'bsem', identification: 'marker', chains: 3, burnin: 500, sample: 1000 }, settings: CB('ML'),
+  },
+  {
+    id: 'inlavaan-poldem', package: 'INLAvaan', title: 'Approximate Bayesian SEM: industrialisation and political democracy', source: 'INLAvaan, ?asem (Bollen 1989)',
+    links: [{ label: '?asem', url: 'https://rdrr.io/cran/INLAvaan/man/asem.html' }, { label: 'INLAvaan', url: 'https://inlavaan.haziqj.ml' }, { label: 'Jamil & Rue (2026), arXiv:2603.25690', url: 'https://arxiv.org/abs/2603.25690' }, { label: '?PoliticalDemocracy', url: 'https://rdrr.io/cran/lavaan/man/PoliticalDemocracy.html' }],
+    description: 'Bollen’s SEM of industrialisation and democracy in 75 countries (data from lavaan), as on INLAvaan’s help page: six correlated measurement errors and the democracy loadings held equal in 1960 and 1965 (labels a, b, c). Fitted by INLAvaan’s approximate Bayesian inference — a Laplace approximation with skew-normal marginals, no MCMC — in seconds, in the browser. INLAvaan’s default priors, marker indicators, 1,000 posterior draws. Opens its card on the Analyses tab.',
+    shows: 'The posterior means and 95% intervals of the loadings and paths, close to the ML estimates; PPP about one half, so the model reproduces the data. Check the diagnostics of the approximation: every NMAD below 0.1 and VB shift below one SD. Switch the card to blavaan (desktop R) to compare with MCMC.',
+    data: { package: 'lavaan', name: 'PoliticalDemocracy' }, ...BOLLEN,
+    constructs: [BOLLEN.constructs[0], f('dem60', items('y', 4), { y2: 'a', y3: 'b', y4: 'c' }), f('dem65', items('y', 4, 5), { y6: 'a', y7: 'b', y8: 'c' })],
+    panel: { kind: 'bsem', engine: 'inlavaan', identification: 'marker', chains: 3, burnin: 500, sample: 1000 }, settings: CB('ML'),
   },
 ];
 

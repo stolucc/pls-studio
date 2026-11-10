@@ -131,6 +131,8 @@ export const R_PACKAGES = {
   BayesFactor: ['jsonlite', 'BayesFactor'],
   // Bayesian SEM (Stan): desktop R only (DESKTOP_ONLY).
   blavaan: ['jsonlite', 'lavaan', 'blavaan'],
+  // Approximate Bayesian SEM (INLAvaan, Jamil & Rue: Laplace approximation, skew-normal marginals; no Stan): also in the browser.
+  INLAvaan: ['jsonlite', 'lavaan', 'INLAvaan'],
   // Bayesian multilevel and DSEM models: a Stan program compiled and sampled by rstan (desktop R only, DESKTOP_ONLY).
   rstan: ['jsonlite', 'rstan'],
   // Dynamic fit index cutoffs (dynamic, Wolf & McNeish), on a lavaan fit. In the browser a build patched to load

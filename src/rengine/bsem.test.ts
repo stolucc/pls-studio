@@ -10,8 +10,8 @@ import { bsemAnalysis } from '../analyses/bsem';
 import type { AnalysisCtx } from '../analyses/types';
 import { DEFAULT_SETTINGS, makeCovariancesExplicit, newId, toSpec, type ModelState } from '../model/project';
 import { DESKTOP_ONLY, DesktopOnly, R_PACKAGES } from './bridge';
-import { bsemR, bsemRequest, bsemResult, bsemScriptR } from './bsem';
-import { parsePriors, printPriors } from '../analyses/bsem';
+import { bsemPackage, bsemR, bsemRequest, bsemResult, bsemScriptR, type BsemOptions } from './bsem';
+import { INLA_PRIOR_DEFAULTS, INLA_PRIOR_TYPES, inlaPrior, parsePriors, printPriors } from '../analyses/bsem';
 import { useCompute } from './compute';
 import * as runtime from './runtime';
 
@@ -45,8 +45,11 @@ describe('Bayesian SEM in the browser', () => {
     expect(bsemAnalysis.blocked(opts, { ...ctx, model: { ...model, constant: { x: 0, y: 0 } } })).toMatch(/marker/);
     expect(bsemAnalysis.blocked({ ...opts, identification: 'marker' }, { ...ctx, model: { ...model, constant: { x: 0, y: 0 } } })).toBeNull();
   });
-  it('options from a file: blavaan’s defaults, bounded', () => {
+  it('options from a file: blavaan’s defaults, bounded; a new card in the browser starts with INLAvaan, with desktop R with blavaan', () => {
+    expect(bsemAnalysis.defaults(ctx)).toEqual({ engine: 'inlavaan', identification: 'unit', chains: 3, burnin: 500, sample: 1000 });
+    useCompute.setState({ backend: 'helper' } as never);
     expect(bsemAnalysis.defaults(ctx)).toEqual({ identification: 'unit', chains: 3, burnin: 500, sample: 1000 });
+    useCompute.setState({ backend: 'browser' } as never);
     expect(bsemAnalysis.parseOptions({ identification: 'reference', chains: 99, burnin: 5, sample: 2000 })).toEqual({ identification: 'unit', chains: 8, burnin: 100, sample: 2000 });
     expect(bsemAnalysis.parseOptions(null)).toBeNull();
     const f = bsemAnalysis.fingerprint(opts, ctx);
@@ -116,5 +119,70 @@ describe('the card’s Bayesian options (Mplus’s priors, MODEL PRIORS, approxi
     expect(r.plausible!.factors).toEqual(['A']);
     expect(r.plausible!.cov).toEqual([[1]]);
     expect(r.warnings).toEqual(['w']);
+  });
+});
+
+describe('the INLAvaan engine (approximate Bayesian inference, also in the browser)', () => {
+  beforeEach(() => useCompute.setState({ backend: 'browser' } as never));
+  const inla = { ...opts, engine: 'inlavaan' as const };
+  it('runs in webR: not desktop-only, in the browser’s package lock roots and the helper’s setup', () => {
+    expect(DESKTOP_ONLY.has('INLAvaan')).toBe(false);
+    expect(R_PACKAGES.INLAvaan).toEqual(['jsonlite', 'lavaan', 'INLAvaan']);
+    expect(bsemPackage(inla)).toBe('INLAvaan'); expect(bsemPackage(opts as BsemOptions)).toBe('blavaan');
+    expect(readFileSync(join(__dirname, '..', '..', 'helper', 'r', 'packages.txt'), 'utf8').split('\n')).toContain('INLAvaan');
+    expect(readFileSync(join(__dirname, '..', '..', 'scripts', 'webr', 'fetch.mjs'), 'utf8')).toMatch(/const ROOTS = \[[^\]]*'INLAvaan'/);
+  });
+  it('the card runs it in the browser; blavaan there points to it; what INLAvaan does not offer is said before a run', () => {
+    expect(bsemAnalysis.blocked(inla, ctx)).toBeNull();
+    expect(bsemAnalysis.blocked(opts, ctx)).toMatch(/choose the INLAvaan engine/);
+    const groups = { ...ctx, model: { ...model, multigroup: { column: 'a1', invariance: 'metric' as const } } } as AnalysisCtx;
+    expect(bsemAnalysis.blocked({ ...inla, wiggle: { what: ['loadings'], variance: 0.01 } }, groups)).toMatch(/not available with INLAvaan/);
+    expect(bsemAnalysis.blocked(inla, { ...ctx, settings: { ...settings, missing: 'pairwise' } })).toMatch(/casewise deletion, mean replacement or FIML/);
+    expect(bsemAnalysis.blocked(inla, { ...ctx, settings: { ...settings, missing: 'fiml' } })).toBeNull();
+    expect(bsemAnalysis.summary(inla)).toMatch(/INLAvaan, 1000 draws/);
+  });
+  it('default priors by parameter type: INLAvaan’s families, rewritten from their numbers; anything else refused', () => {
+    expect(INLA_PRIOR_TYPES.map((t) => inlaPrior(t, INLA_PRIOR_DEFAULTS[t]))).toEqual(['normal(0,10)', 'normal(0,10)', 'normal(0,32)', 'normal(0,10)', 'normal(0,1.5)', 'gamma(1,0.5)[sd]', 'gamma(1,0.5)[sd]', 'beta(1,1)']);
+    expect(inlaPrior('lambda', ' normal( -0.5 , 1e-1 ) ')).toBe('normal(-0.5,0.1)');
+    expect(inlaPrior('theta', 'gamma(2, 1)[prec]')).toBe('gamma(2,1)[prec]');
+    for (const [t, s] of [['lambda', 'gamma(1,1)'], ['rho', 'beta(1,1)[sd]'], ['lambda', 'normal(0,0)'], ['psi', 'gamma(-1,1)'], ['nu', 'normal(0,1); q()'], ['beta', 'normal(0,1)'.padEnd(70)], ['tau', 'normal(0,Inf)']] as const) expect(inlaPrior(t, s), `${t} ${s}`).toBeNull();
+  });
+  it('options from a file: the engine and default priors only when valid; Mplus’s priors win over priors by type', () => {
+    expect(bsemAnalysis.parseOptions({ ...opts, engine: 'inlavaan', defaultPriors: { lambda: 'normal(0, 5)', rho: 'normal(0,1)', bogus: 'normal(0,1)' } })).toEqual({ ...inla, defaultPriors: { lambda: 'normal(0,5)' } });
+    expect(bsemAnalysis.parseOptions({ ...opts, engine: 'stan', defaultPriors: { lambda: 'normal(0,5)' } })).toEqual(opts);
+    expect(bsemAnalysis.parseOptions({ ...opts, engine: 'inlavaan', priors: 'mplus', defaultPriors: { lambda: 'normal(0,5)' } })).toEqual({ ...inla, priors: 'mplus' });
+    const f = bsemAnalysis.fingerprint(opts, ctx);
+    expect(bsemAnalysis.fingerprint(inla, ctx)).not.toBe(f);
+    expect(bsemAnalysis.fingerprint({ ...inla, defaultPriors: { psi: 'gamma(1,1)' } }, ctx)).not.toBe(bsemAnalysis.fingerprint(inla, ctx));
+  });
+  it('the request: the engine and default priors go to R with INLAvaan only', () => {
+    const req = bsemRequest(data, toSpec(model), 'casewise', { ...inla, defaultPriors: { lambda: 'normal(0,5)' } }, 1, 0.95) as Record<string, unknown>;
+    expect(req.engine).toBe('inlavaan'); expect(req.defaultPriors).toEqual({ lambda: 'normal(0,5)' });
+    const back = bsemRequest(data, toSpec(model), 'casewise', { ...opts, defaultPriors: { lambda: 'normal(0,5)' } }, 1, 0.95) as Record<string, unknown>;
+    expect(back).not.toHaveProperty('engine'); expect(back).not.toHaveProperty('defaultPriors');
+  });
+  it('the reply: no R-hat, INLAvaan’s diagnostics', () => {
+    const r = bsemResult({ parameters: [{ lhs: 'A', op: '=~', rhs: 'a2', mean: 1, nmad: 0.01, vbShift: 0.2 }], fit: { ppp: 0.5, waic: 10, bcfi: 0.9 }, maxRhat: null, minNeff: null, diagnostics: { nmadMax: 0.01 }, intervals: 'marginals', engine: { package: 'INLAvaan', version: '0.3.2' } });
+    expect(r.maxRhat).toBeNull(); expect(r.parameters[0].nmad).toBe(0.01); expect(r.diagnostics!.nmadMax).toBe(0.01); expect(r.fit.bcfi).toBe(0.9);
+  });
+});
+
+describe('native check of INLAvaan’s examples (desktop R, scripts/validation/inlavaan.R)', () => {
+  const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'inlavaan', 'reference.json'), 'utf8')) as Record<string, any>;
+  it.each(['acfa', 'asem', 'bcfa'])('%s: the app equals INLAvaan called directly, and the optimiser converged', (k) => {
+    expect(ref[k].maxRelDiff).toBeLessThan(1e-10);
+    expect(ref[k].converged).toBe(true);
+    expect(ref[k].parameters.length).toBe(k === 'asem' ? 31 : 21);
+  });
+  it.each(['marker', 'unit'])('against blavaan’s MCMC (%s identification): means within 0.2 posterior SD, SDs within 20%', (k) => {
+    expect(ref.vsMcmc[k].maxZ).toBeLessThan(0.2);
+    expect(ref.vsMcmc[k].sdRatio[0]).toBeGreaterThan(0.8); expect(ref.vsMcmc[k].sdRatio[1]).toBeLessThan(1.2);
+  });
+  it('the card’s options: priors on labels used, Mplus’s priors, a 90% interval from draws, loop and plausible values as the direct call', () => {
+    expect(ref.options.labelPriors.maxRelDiff).toBeLessThan(1e-10);
+    expect(ref.options.labelPriors.l2.prior).toBe('normal(0.5,0.1)');
+    expect(ref.options.mplus.l2.low).toBeCloseTo(ref.options.mplus.direct.low, 8);
+    expect(ref.options.mplus.priors).toContain('gamma(2,1e-4)');
+    expect(ref.options.mplus.plausible.draws).toBe(10);
   });
 });
