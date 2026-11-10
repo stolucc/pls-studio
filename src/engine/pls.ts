@@ -457,6 +457,9 @@ export function weightedMoments(x: ArrayLike<number>, w: ArrayLike<number>): { m
   return { mean: m, sd: Math.sqrt(ss / (n - 1)) };
 }
 
+/** Mean and sd, weighted when there are sampling weights. */
+const momentsOf = (x: Float64Array, w: Float64Array | null) => (w ? weightedMoments(x, w) : { mean: mean(x), sd: sd(x) });
+
 /**
  * Weighted PLS (WPLS; Becker & Ismail 2016, European Management Journal 34(6)): every correlation and
  * regression of the algorithm weighted by the sampling weights. Columns are standardised with the weighted
@@ -464,7 +467,7 @@ export function weightedMoments(x: ArrayLike<number>, w: ArrayLike<number>): { m
  * (corStd) are weighted correlations Σ w z_a z_b / (n − 1), and least squares on them weighted least squares.
  * With integer weights the estimates equal those of the data with each row repeated w times.
  */
-export function weightedColumns(cols: Float64Array[], names: string[], w: Float64Array): { X: Float64Array[]; Z: Float64Array[] } {
+function weightedColumns(cols: Float64Array[], names: string[], w: Float64Array): { X: Float64Array[]; Z: Float64Array[] } {
   const sw = w.map(Math.sqrt);
   const Z = cols.map((c, i) => {
     const { mean: m, sd: s } = weightedMoments(c, w);
@@ -498,7 +501,7 @@ export function indicatorProducts(c: Float64Array[], items: [number, number][], 
   const n = c[0].length;
   const z = new Map<number, Float64Array>();
   const zOf = (k: number) => {
-    if (!z.has(k)) { const mo = w ? weightedMoments(c[k], w) : { mean: mean(c[k]), sd: sd(c[k]) }; z.set(k, Float64Array.from(c[k], (v) => (v - mo.mean) / mo.sd)); }
+    if (!z.has(k)) { const mo = momentsOf(c[k], w); z.set(k, Float64Array.from(c[k], (v) => (v - mo.mean) / mo.sd)); }
     return z.get(k)!;
   };
   const prods = items.map(([a, b]) => { const za = zOf(a), zb = zOf(b); return Float64Array.from(za, (v, r) => v * zb[r]); });
@@ -609,10 +612,9 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
   });
   const estimate = (c0: Float64Array[], init?: { w1?: Float64Array; w2?: Float64Array }): PlsEstimate => {
     const { c, w } = split(c0);
-    const s1 = stdz(c, m1.indicatorNames, w);
-    const X1 = s1.X;
+    const { X: X1, Z: Z1 } = stdz(c, m1.indicatorNames, w);
     const core1 = plsCore(X1, m1, opts, init?.w1);
-    const y1 = plain(m1, core1, s1.Z, w);
+    const y1 = plain(m1, core1, Z1, w);
     const products = pairs.map((f) => Float64Array.from(y1[f[0]], (_, r) => f.reduce((p, a) => p * y1[a][r], 1)));
     if (opts.consistent) {
       // PLSc: the weights of the model without its terms, and the moments of the products corrected for measurement error.
@@ -635,23 +637,21 @@ export function preparePls(data0: Dataset, spec0: ModelSpec, opts: PlsOptions) {
     }
     const pStars = copFrom.map((a) => pStar(core1.scores[a]));
     const termCols = names.map((_, i) => { const items = termItems[i]; return items ? indicatorProducts(c, items, allMods[i].method === 'orthogonal', w) : [products[i]]; });
-    const s2 = stdz([...c, ...termCols.flat(), ...pStars], m2.indicatorNames, w);
-    const X = s2.X;
+    const { X, Z } = stdz([...c, ...termCols.flat(), ...pStars], m2.indicatorNames, w);
     const core = plsCore(X, m2, opts, init?.w2);
     const st = structural(m2, X, core, false);
     // Report interaction effects per unit of the product of standardised scores
     // (not of the re-standardised term), as seminr does: then the simple slope of
     // `from` at moderator level m (in SD) is β_from + β_int · m. A term with its own indicators is rescaled
     // as seminr's adjust_interaction does: by the loading-weighted mean sd of its (product) indicators.
-    const sdOf = (x: Float64Array) => (w ? weightedMoments(x, w).sd : sd(x));
     termCols.forEach((cols, i) => {
       const k = m2.constructs.indexOf(names[i]);
       const lam = m2.blocks[k].map((q) => Math.abs(st.loadings[q]));
-      const s = termItems[i] ? cols.reduce((a, col, q) => a + sdOf(col) * lam[q], 0) / lam.reduce((a, v) => a + v, 0) : sdOf(cols[0]);
+      const s = termItems[i] ? cols.reduce((a, col, q) => a + momentsOf(col, w).sd * lam[q], 0) / lam.reduce((a, v) => a + v, 0) : momentsOf(cols[0], w).sd;
       st.pathCoef[k] = st.pathCoef[k].map((v) => v / s);
       st.totalEffects[k] = st.totalEffects[k].map((v) => v / s);
     });
-    return { m: m2, X, core, st, w1: core1.w, ...(w ? { scores: plain(m2, core, s2.Z, w) } : {}) };
+    return { m: m2, X, core, st, w1: core1.w, ...(w ? { scores: plain(m2, core, Z, w) } : {}) };
   };
   return { m: m2, cols, dropped, estimate, moderations: allMods.map((mo, i) => ({ ...mo, ...(termItems[i] ? {} : { method: 'two_stage' as const }), construct: m2.constructs.indexOf(names[i]) })), threeWay: threes.map((t) => ({ ...t, construct: m2.constructs.indexOf(threeWayName(t)) })), copulas: cops.map((k, i) => ({ ...k, construct: m2.constructs.indexOf(copNames[i]) })) };
 }
