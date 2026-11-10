@@ -5,11 +5,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
-import type { AlignmentResult, MnlfaResult } from '../rengine/invariance';
-import { alignmentRequest, mnlfaRequest, rows } from '../rengine/invariance';
+import type { AlignmentResult, LongInvarianceResult, MnlfaResult } from '../rengine/invariance';
+import { alignmentRequest, detectOccasions, longInvarianceRequest, mnlfaRequest, rows } from '../rengine/invariance';
 import { ANALYSIS_TYPES } from './registry';
 import type { AnalysisCtx } from './types';
-import { alignmentAnalysis, alignmentInput, invLavaan, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
+import { alignmentAnalysis, alignmentInput, invLavaan, longInvarianceAnalysis, longInvarianceInput, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
 
 const cols = ['a1', 'a2', 'a3', 'b1', 'b2', 'g', 'x'];
 const data = { names: cols, cols: cols.map((_, k) => Float64Array.from({ length: 12 }, (_, i) => ((i * (k + 2)) % 5) + (cols[k] === 'g' ? 0 : 1))), categories: { g: ['north', 'south', 'east', 'west', 'mid'] } };
@@ -125,5 +125,55 @@ describe('moderated nonlinear factor analysis card', () => {
     };
     const html = renderToStaticMarkup(<mnlfaAnalysis.View result={r} options={o} current />);
     for (const s of ['Item intercepts (b) and their moderation', 'z = green', '0.610', 'Item slopes (a)', 'Factor mean and SD', '2.000', 'converged in 30 EM iterations', '114.00']) expect(html).toContain(s);
+  });
+});
+
+describe('longitudinal invariance card', () => {
+  const lc = ['x1_t1', 'x2_t1', 'x3_t1', 'x1_t2', 'x2_t2', 'x3_t2', 'x1_t3', 'x2_t3', 'age'];
+  const ld = { names: lc, cols: lc.map((_, k) => Float64Array.from({ length: 10 }, (_, i) => i * (k + 1))) };
+  const lctx = { ...bare, data: ld } as AnalysisCtx;
+  it('recognises repeated items from their names', () => {
+    expect(detectOccasions(lc)).toEqual({ occasions: [['x1_t1', 'x2_t1'], ['x1_t2', 'x2_t2'], ['x1_t3', 'x2_t3']], labels: ['1', '2', '3'] });
+    expect(detectOccasions(['anx.1', 'dep.1', 'anx.2', 'dep.2', 'id']).occasions).toEqual([['anx.1', 'dep.1'], ['anx.2', 'dep.2']]);
+    expect(detectOccasions(['a_w2', 'b_w2', 'a_w1', 'b_w1']).occasions).toEqual([['a_w1', 'b_w1'], ['a_w2', 'b_w2']]);
+    expect(detectOccasions(['y1', 'y2', 'y3']).occasions).toEqual([]);
+    expect(detectOccasions(['x_t1', 'x_t2']).occasions).toEqual([]);
+  });
+  it('starts from the recognised occasions, is in the Longitudinal group, and parses its options', () => {
+    const d = longInvarianceAnalysis.defaults(lctx);
+    expect(d.occasions).toHaveLength(3);
+    expect(longInvarianceAnalysis.defaults(bare).occasions).toEqual([[], []]);
+    expect(ANALYSIS_TYPES.find((t) => t.id === 'longinvariance')?.group).toBe('Longitudinal');
+    expect(longInvarianceAnalysis.parseOptions(d)).toEqual(d);
+    expect(longInvarianceAnalysis.parseOptions({ factor: 5, occasions: [['a', 3], 'x'], lag: 'lag2' })).toEqual({ factor: '', occasions: [['a'], []], lag: 'all' });
+  });
+  it('says what it still needs', () => {
+    const o = longInvarianceAnalysis.defaults(lctx);
+    expect(longInvarianceAnalysis.blocked(o, lctx)).toBeNull();
+    expect(longInvarianceAnalysis.blocked({ ...o, occasions: [['x1_t1', 'x2_t1']] }, lctx)).toMatch(/two or more occasions/);
+    expect(longInvarianceAnalysis.blocked({ ...o, occasions: [...o.occasions, []] }, lctx)).toMatch(/has no indicators/);
+    expect(longInvarianceAnalysis.blocked({ ...o, occasions: [['x1_t1'], ['x1_t2']] }, lctx)).toMatch(/at least two/);
+    expect(longInvarianceAnalysis.blocked({ ...o, occasions: [['x1_t1', 'x2_t1', 'x3_t1'], ['x1_t2', 'x2_t2']] }, lctx)).toMatch(/same number/);
+    expect(longInvarianceAnalysis.blocked({ ...o, occasions: [['x1_t1', 'x2_t1'], ['x1_t1', 'x2_t2']] }, lctx)).toMatch(/more than one occasion/);
+    expect(longInvarianceAnalysis.blocked({ ...o, occasions: [['x1_t1', 'x2_t1'], ['x1_t2', 'gone']] }, lctx)).toMatch(/gone/);
+  });
+  it('sends the occasions and the lavaan settings', () => {
+    const o = { ...longInvarianceAnalysis.defaults(lctx), factor: '  ' };
+    const i = longInvarianceInput(o, lctx);
+    expect(i).toMatchObject({ factor: 'F', lag: 'all', estimator: 'ML', missing: 'casewise' });
+    expect(longInvarianceRequest(ld, i).data.names).toEqual(['x1_t1', 'x2_t1', 'x1_t2', 'x2_t2', 'x1_t3', 'x2_t3']);
+    const f = longInvarianceAnalysis.fingerprint(o, lctx)!;
+    expect(longInvarianceAnalysis.fingerprint({ ...o, lag: 'adjacent' }, lctx)).not.toBe(f);
+    expect(longInvarianceAnalysis.summary(o)).toBe('F · 3 occasions × 2 items');
+  });
+  it('shows the sequence as the multigroup table does, and the means under scalar invariance', () => {
+    const lv = (level: 'configural' | 'metric' | 'scalar' | 'strict', chisq: number, df: number, extra = {}) => ({ level, chisq, df, cfi: 0.98, rmsea: 0.05, srmr: 0.03, factor: [{ mean: 0, variance: 1 }, { mean: -0.21, meanSe: 0.067, variance: 0.95, varianceSe: 0.1 }], ...extra });
+    const r: LongInvarianceResult = {
+      robust: true, n: 75, occasions: 2, items: 4, lag: 'all', warnings: [], engine: { package: 'semTools', version: '0.5.10', lavaan: '0.7.3' },
+      levels: [lv('configural', 24.9, 15), lv('metric', 29.7, 18, { chisqDiff: 4.66, dfDiff: 3, p: 0.198, cfiChange: -0.003, rmseaChange: -0.002 }), lv('scalar', 36.4, 21, { chisqDiff: 6.8, dfDiff: 3, p: 0.04, cfiChange: -0.012, rmseaChange: 0.004 }), lv('strict', 45.5, 25)],
+    };
+    const html = renderToStaticMarkup(<longInvarianceAnalysis.View result={r} options={{ factor: 'Democracy', occasions: [], lag: 'all' }} current />);
+    for (const s of ['Longitudinal measurement invariance of Democracy', 'ΔCFI', 'scaled, for the robust estimator', 'Factor means and variances under scalar invariance', '-0.210', 'fixed']) expect(html).toContain(s);
+    expect(html).toMatch(/class="num bad"[^>]*>-0\.012/);
   });
 });

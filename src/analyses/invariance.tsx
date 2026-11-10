@@ -1,11 +1,13 @@
 // Measurement invariance cards (R/invariance.R): alignment optimisation for many
 // groups (sirt, Asparouhov & Muthén 2014) on the diagram's factors, and moderated
-// nonlinear factor analysis of binary items (mnlfa; Curran et al. 2014).
+// nonlinear factor analysis of binary items (mnlfa; Curran et al. 2014), and
+// longitudinal invariance of a factor measured at several occasions (semTools).
 
 import { OrderedPicker } from '../components/OrderedPicker';
+import { InvarianceTable } from '../components/results/InvarianceTable';
 import { c, Table, type Row } from '../components/results/Table';
 import { fmt } from '../format';
-import type { AlignedFactor, AlignmentInput, AlignmentResult, InvFactor, MnlfaInput, MnlfaResult } from '../rengine/invariance';
+import { detectOccasions, type AlignedFactor, type AlignmentInput, type AlignmentResult, type InvFactor, type LongInvarianceInput, type LongInvarianceResult, type MnlfaInput, type MnlfaResult } from '../rengine/invariance';
 import { clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -298,4 +300,83 @@ export const mnlfaAnalysis: AnalysisType<MnlfaOptions, MnlfaResult> = {
   run: async (o, ctx) => (await engine()).mnlfaR(rawData(ctx)!, mnlfaInput(o)),
   script: async (o, ctx) => (await engine()).mnlfaScriptR(rawData(ctx)!, mnlfaInput(o)),
   summary: (o) => `${o.items.length} items · ${o.itemType}${o.covariates.length ? ` · moderated by ${o.covariates.join(', ')}` : ''}`,
+};
+
+// ---------------------------------------------------------------- longitudinal invariance
+
+export interface LongInvarianceOptions { factor: string; occasions: string[][]; lag: LongInvarianceInput['lag'] }
+export const longInvarianceInput = (o: LongInvarianceOptions, ctx: AnalysisCtx): LongInvarianceInput => ({ factor: o.factor.trim() || 'F', occasions: o.occasions, lag: o.lag, ...invLavaan(ctx) });
+
+function LongInvarianceForm({ options: o, set, ctx, disabled }: OptionsProps<LongInvarianceOptions>) {
+  const d = rawData(ctx);
+  if (!d) return <div className="empty-results">Import raw data with repeated measures first.</div>;
+  const used = o.occasions.flat();
+  const found = detectOccasions(d.names);
+  const setOcc = (k: number, v: string[]) => set({ ...o, occasions: o.occasions.map((x, j) => (j === k ? v : x)) });
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <p className="hint" style={{ marginTop: 0 }}>One factor measured by the same items at several occasions: the configural, metric (equal loadings), scalar (+ equal intercepts) and strict (+ equal residual variances) models, each item’s residuals correlated across occasions, built by semTools::measEq.syntax and compared like the multigroup sequence. {lavaanHint(ctx)}</p>
+      <div className="field"><label htmlFor="li-factor">Factor name</label>
+        <input id="li-factor" className="input" value={o.factor} maxLength={60} onChange={(e) => set({ ...o, factor: e.target.value })} />
+      </div>
+      <div className="table-tools">
+        <button className="btn sm" disabled={!found.occasions.length} onClick={() => set({ ...o, occasions: found.occasions })}
+          title={found.occasions.length ? `Columns named like item_t1, item_t2: ${found.occasions.length} occasions of ${found.occasions[0].length} items` : 'No columns named like x1_t1, x1_t2 (or x1.1, x1.2; x1_w1, x1_w2)'}>Recognise repeated items{found.occasions.length ? ` (${found.occasions.length} × ${found.occasions[0].length})` : ''}</button>
+        <button className="btn sm" onClick={() => set({ ...o, occasions: [...o.occasions, []] })}>Add occasion</button>
+      </div>
+      {o.occasions.map((occ, k) => (
+        <div key={k}>
+          <OrderedPicker label={`Occasion ${k + 1}: indicators (item order as at occasion 1)`} columns={d.names.filter((n) => !used.includes(n) || occ.includes(n))} value={occ} onChange={(v) => setOcc(k, v)} />
+          {o.occasions.length > 2 && <button className="btn sm ghost" onClick={() => set({ ...o, occasions: o.occasions.filter((_, j) => j !== k) })}>Remove occasion {k + 1}</button>}
+        </div>
+      ))}
+      <div className="field"><label>Residual correlations of the same item</label>
+        <div className="segmented">
+          <button className={o.lag === 'all' ? 'on' : ''} onClick={() => set({ ...o, lag: 'all' })}>All occasions</button>
+          <button className={o.lag === 'adjacent' ? 'on' : ''} onClick={() => set({ ...o, lag: 'adjacent' })}>Adjacent occasions</button>
+        </div>
+      </div>
+    </fieldset>
+  );
+}
+
+function LongInvarianceView({ r, o }: { r: LongInvarianceResult; o?: LongInvarianceOptions }) {
+  const scalar = r.levels.find((l) => l.level === 'scalar');
+  const se = (v?: number) => (v === undefined ? c('fixed', 'dim') : c(v));
+  return (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>{r.occasions} occasions × {r.items} items, N = {r.n}; semTools {r.engine.version} (measEq.syntax), lavaan {r.engine.lavaan ?? ''}. Residuals of the same item correlated across {r.lag === 'all' ? 'all occasions' : 'adjacent occasions'}.</p>
+      <InvarianceTable inv={r} title={`Longitudinal measurement invariance${o?.factor ? ` of ${o.factor}` : ''}`} file="longitudinal-invariance"
+        constraints="Each model adds equality constraints across occasions to the one before (loadings; intercepts; residual variances); the factor is standardised at the first occasion, its later means and variances freed as the constraints identify them." />
+      {scalar && (
+        <Table title="Factor means and variances under scalar invariance" file="longitudinal-invariance-means" columns={['Occasion', 'Mean', 'SE', 'Variance', 'SE']}
+          rows={scalar.factor.map((f, t): Row => [c(t + 1, undefined, 0), c(f.mean), se(f.meanSe), c(f.variance), se(f.varianceSe)])}
+          note="On the scale of the first occasion (mean 0, variance 1): with equal loadings and intercepts, the later means are change in SD units of occasion 1. Read them only if scalar invariance holds (or nearly)." />
+      )}
+    </div>
+  );
+}
+
+export const longInvarianceAnalysis: AnalysisType<LongInvarianceOptions, LongInvarianceResult> = {
+  id: 'longinvariance', title: 'Longitudinal invariance', sub: 'configural → metric → scalar → strict over occasions, correlated item residuals (semTools::measEq.syntax)', group: 'Longitudinal',
+  defaults: (ctx) => { const f = detectOccasions(rawData(ctx)?.names ?? []); return { factor: 'F', occasions: f.occasions.length ? f.occasions : [[], []], lag: 'all' }; },
+  parseOptions: (raw) => (isObj(raw) ? {
+    factor: name(raw.factor, 60), occasions: (Array.isArray(raw.occasions) ? raw.occasions.slice(0, 50) : []).map((x) => names(x)), lag: oneOf(raw.lag, ['all', 'adjacent'] as const, 'all'),
+  } : null),
+  Options: LongInvarianceForm,
+  View: ({ result, options }) => <LongInvarianceView r={result} o={options} />,
+  blocked: (o, ctx) => {
+    const occ = o.occasions.filter((x) => x.length);
+    if (occ.length < 2) return 'Choose the indicators at two or more occasions.';
+    if (occ.length < o.occasions.length) return 'An occasion has no indicators: choose them, or remove the occasion.';
+    if (occ.some((x) => x.length < 2)) return 'Each occasion needs at least two indicators.';
+    if (new Set(occ.map((x) => x.length)).size > 1) return 'Every occasion needs the same number of indicators (item k of each occasion is the same item).';
+    const all = occ.flat();
+    if (new Set(all).size < all.length) return 'A column appears at more than one occasion.';
+    return missingColumns(ctx, all, 'Longitudinal invariance');
+  },
+  fingerprint: (o, ctx) => columnsFingerprint(ctx, o.occasions.flat(), [JSON.stringify(longInvarianceInput(o, ctx))]),
+  run: async (o, ctx) => (await engine()).longInvarianceR(rawData(ctx)!, longInvarianceInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).longInvarianceScriptR(rawData(ctx)!, longInvarianceInput(o, ctx)),
+  summary: (o) => `${o.factor.trim() || 'F'} · ${o.occasions.length} occasions × ${o.occasions[0]?.length ?? 0} items`,
 };

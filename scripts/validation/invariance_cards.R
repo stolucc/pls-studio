@@ -58,6 +58,29 @@ mod2pl <- mnlfa::mnlfa(dat = dat, items, item_type = "2PL", formula_int = fi, fo
   formula_sd = ~0 + age, verbose = FALSE)
 out$mnlfa <- list(model4 = mn(mod4), twoPL = mn(mod2pl))
 
+# ---- Longitudinal invariance: PoliticalDemocracy, democracy 1960 (y1-y4) and 1965 (y5-y8), written out by hand ----
+# The four levels as plain lavaan syntax (no semTools), factor standardised at 1960, each item's residuals correlated.
+pd <- PoliticalDemocracy
+lv <- function(eqL, eqI, eqR) paste(c(
+  sprintf("d60 =~ NA*y1 + %sy1 + %sy2 + %sy3 + %sy4", if (eqL) "l1*" else "", if (eqL) "l2*" else "", if (eqL) "l3*" else "", if (eqL) "l4*" else ""),
+  sprintf("d65 =~ NA*y5 + %sy5 + %sy6 + %sy7 + %sy8", if (eqL) "l1*" else "", if (eqL) "l2*" else "", if (eqL) "l3*" else "", if (eqL) "l4*" else ""),
+  "d60 ~~ 1*d60", if (eqL) "d65 ~~ d65" else "d65 ~~ 1*d65", "d60 ~~ d65",
+  "d60 ~ 0*1", if (eqI) "d65 ~ 1" else "d65 ~ 0*1",
+  sprintf("y%d ~ %s1", 1:4, if (eqI) paste0("i", 1:4, "*") else ""), sprintf("y%d ~ %s1", 5:8, if (eqI) paste0("i", 1:4, "*") else ""),
+  sprintf("y%d ~~ %sy%d", 1:4, if (eqR) paste0("r", 1:4, "*") else "", 1:4), sprintf("y%d ~~ %sy%d", 5:8, if (eqR) paste0("r", 1:4, "*") else "", 5:8),
+  sprintf("y%d ~~ y%d", 1:4, 5:8)), collapse = "\n")
+for (est in c("ML", "MLR")) {
+  fits <- list(configural = lavaan(lv(FALSE, FALSE, FALSE), pd, estimator = est), metric = lavaan(lv(TRUE, FALSE, FALSE), pd, estimator = est),
+    scalar = lavaan(lv(TRUE, TRUE, FALSE), pd, estimator = est), strict = lavaan(lv(TRUE, TRUE, TRUE), pd, estimator = est))
+  lrt <- lavTestLRT(fits$configural, fits$metric, fits$scalar, fits$strict)
+  pick <- function(f, a, b) unname(if (est == "MLR") fitMeasures(f, b) else fitMeasures(f, a))
+  pe <- parameterEstimates(fits$scalar)
+  out[[paste0("longInvariance", est)]] <- list(chisq = sapply(fits, pick, "chisq", "chisq.scaled"), df = sapply(fits, function(f) unname(fitMeasures(f, "df"))),
+    cfi = sapply(fits, pick, "cfi", "cfi.robust"), rmsea = sapply(fits, pick, "rmsea", "rmsea.robust"), srmr = sapply(fits, function(f) unname(fitMeasures(f, "srmr"))),
+    chisqDiff = unname(lrt[["Chisq diff"]][2:4]), p = unname(lrt[["Pr(>Chisq)"]][2:4]),
+    scalarMean = pe$est[pe$lhs == "d65" & pe$op == "~1"], scalarMeanSe = pe$se[pe$lhs == "d65" & pe$op == "~1"], scalarVar = pe$est[pe$lhs == "d65" & pe$op == "~~" & pe$rhs == "d65"])
+}
+
 writeLines(toJSON(list(generated = format(Sys.time()), R = R.version.string, lavaan = as.character(packageVersion("lavaan")),
   sirt = as.character(packageVersion("sirt")), mnlfa = as.character(packageVersion("mnlfa")), cases = out), auto_unbox = TRUE, pretty = TRUE, digits = NA, null = "null", na = "null"),
   "src/engine/__fixtures__/invariance/reference.json")

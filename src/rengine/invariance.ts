@@ -3,7 +3,7 @@
 
 import type { Dataset, MissingTreatment } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import type { REngineInfo } from './lavaan';
+import type { InvarianceResult, REngineInfo } from './lavaan';
 
 /** A factor of the diagram: its name and indicators (data columns). */
 export interface InvFactor { name: string; indicators: string[] }
@@ -104,3 +104,44 @@ export async function mnlfaR(data: Dataset, i: MnlfaInput): Promise<MnlfaResult>
   } as MnlfaResult;
 }
 export const mnlfaScriptR = (data: Dataset, i: MnlfaInput) => rScript('ps_mnlfa', mnlfaRequest(data, i), 'mnlfa');
+
+/** Longitudinal invariance of one factor: `occasions` holds the indicators at each occasion, item k of each the same item. */
+export interface LongInvarianceInput { factor: string; occasions: string[][]; lag: 'all' | 'adjacent'; estimator: 'ML' | 'MLR'; missing: MissingTreatment }
+/** The factor's mean and variance at one occasion (standard errors absent where fixed). */
+export interface OccasionFactor { mean: number; meanSe?: number; variance: number; varianceSe?: number }
+export interface LongInvarianceResult extends Omit<InvarianceResult, 'levels'> {
+  levels: (InvarianceResult['levels'][number] & { factor: OccasionFactor[] })[];
+  n: number; occasions: number; items: number; lag: LongInvarianceInput['lag']; engine: REngineInfo & { lavaan?: string };
+}
+export const longInvarianceRequest = (data: Dataset, i: LongInvarianceInput) => invRequest(data, 'longinvariance', i.occasions.flat(), i);
+export async function longInvarianceR(data: Dataset, i: LongInvarianceInput): Promise<LongInvarianceResult> {
+  const r = await rCall<Record<string, any>>('ps_long_invariance', longInvarianceRequest(data, i), 'lavaan');
+  const opt = (v: unknown) => (typeof v === 'number' ? v : undefined);
+  return {
+    ...r, robust: r.robust === true, warnings: rStrings(r.warnings),
+    levels: arr<any>(r.levels).map((l) => ({ ...l, factor: arr<any>(l.factor).map((f) => ({ mean: f.mean, variance: f.variance, ...(opt(f.meanSe) !== undefined ? { meanSe: f.meanSe } : {}), ...(opt(f.varianceSe) !== undefined ? { varianceSe: f.varianceSe } : {}) })) })),
+  } as LongInvarianceResult;
+}
+export const longInvarianceScriptR = (data: Dataset, i: LongInvarianceInput) => rScript('ps_long_invariance', longInvarianceRequest(data, i), 'lavaan');
+
+/**
+ * Repeated items recognised from column names with an occasion suffix after "_" or "." (x1_t1, x1_t2; anx.1, anx.2;
+ * item_w3): one indicator set per occasion, in occasion order, holding the items measured at every occasion (in the
+ * order the columns first appear). Empty when fewer than two occasions or two items are found.
+ */
+export function detectOccasions(names: string[]): { occasions: string[][]; labels: string[] } {
+  const re = /^(.+?)[_.](t|T|w|W|time|Time|wave|Wave)?(\d+)$/;
+  const byOcc = new Map<number, Map<string, string>>(), stems: string[] = [];
+  for (const n of names) {
+    const m = re.exec(n);
+    if (!m) continue;
+    const occ = Number(m[3]);
+    if (!byOcc.has(occ)) byOcc.set(occ, new Map());
+    byOcc.get(occ)!.set(m[1], n);
+    if (!stems.includes(m[1])) stems.push(m[1]);
+  }
+  const occs = [...byOcc.keys()].sort((a, b) => a - b);
+  const common = stems.filter((s) => occs.every((o) => byOcc.get(o)!.has(s)));
+  if (occs.length < 2 || common.length < 2) return { occasions: [], labels: [] };
+  return { occasions: occs.map((o) => common.map((s) => byOcc.get(o)!.get(s)!)), labels: occs.map(String) };
+}

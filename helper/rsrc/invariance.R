@@ -168,3 +168,72 @@ ps_mnlfa <- function(req_json, export = FALSE) {
     iterations = m$iter, converged = isTRUE(m$converged), warnings = env$.warnings,
     engine = list(package = "mnlfa", version = as.character(utils::packageVersion("mnlfa")))))
 }
+
+#' Longitudinal measurement invariance: one factor measured at several occasions by the same items (`occasions`:
+#' one indicator set per occasion, item k of every set the same item). semTools::measEq.syntax builds the
+#' configural, metric (loadings), scalar (+ intercepts) and strict (+ residual variances) models with the factor
+#' standardised at the first occasion (ID.fac = "std.lv"; later occasions' means and variances freed as the
+#' constraints allow) and each item's residuals correlated across occasions (auto = "all", or adjacent occasions);
+#' lavaan fits them and lavTestLRT compares successive levels (scaled for MLR), as the multigroup sequence does.
+ps_long_invariance <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  oc <- req$occasions
+  # (equal-length sets arrive from JSON as an occasions x items matrix)
+  occ <- if (is.matrix(oc)) lapply(seq_len(nrow(oc)), function(i) as.character(oc[i, ])) else lapply(oc, function(x) as.character(unlist(x)))
+  if (length(occ) < 2) stop("Choose the indicators at two or more occasions.")
+  k <- unique(lengths(occ))
+  if (length(k) != 1) stop("Every occasion needs the same number of indicators (item k of each occasion is the same item).")
+  if (k < 2) stop("Each occasion needs at least two indicators.")
+  if (anyDuplicated(unlist(occ))) stop("A column appears at more than one occasion.")
+  fname <- as.character(req$factor %||% "F")
+  if (!(length(fname) == 1 && nzchar(fname))) stop("Invalid factor name in the request.")
+  lag <- req$lag %||% "all"
+  if (!lag %in% c("all", "adjacent")) stop("Invalid residual correlations in the request.")
+  fr <- ps_long_frame(req, unlist(occ))
+  o <- ps_long_options(req)
+  T <- length(occ)
+  base <- ps_ident(fname)
+  fv <- ps_ident(sprintf("%s_t%d", base, seq_len(T)))
+  for (j in seq_along(fv)) while (fv[j] %in% fr$v) fv[j] <- paste0(fv[j], "_lv")
+  iv <- lapply(occ, function(x) unname(fr$v[x]))
+  items <- lapply(seq_len(k), function(i) vapply(iv, `[`, "", i))
+  levels <- c("configural", "metric", "scalar", "strict")
+  equal <- list(configural = "\"\"", metric = "\"loadings\"", scalar = "c(\"loadings\", \"intercepts\")", strict = "c(\"loadings\", \"intercepts\", \"residuals\")")
+  opts <- sprintf("estimator = \"%s\"%s%s", o$est, ps_lavaan_missing(req$missing), o$extra)
+  body <- c("suppressPackageStartupMessages({ library(lavaan); library(semTools) })",
+    if (!o$fiml) ps_missing_code(req$missing),
+    "# The factor at each occasion (configural: nothing held equal)",
+    "model <- '", sprintf("  %s =~ %s", fv, vapply(iv, paste, "", collapse = " + ")), "'",
+    sprintf("longFacNames <- list(%s = %s)  # the same factor at each occasion", base, ps_q(fv)),
+    "# The same item at each occasion (its residuals are correlated across occasions)",
+    sprintf("longIndNames <- list(%s)", paste(sprintf("%s = %s", vapply(items, `[`, "", 1), vapply(items, ps_q, "")), collapse = ", ")),
+    "# Each level adds equality constraints across occasions to the one before",
+    vapply(levels, function(l) sprintf("fit_%s <- measEq.syntax(configural.model = model, data = data, ID.fac = \"std.lv\", longFacNames = longFacNames, longIndNames = longIndNames, long.equal = %s, auto = %s, meanstructure = TRUE, %s, return.fit = TRUE)",
+      l, equal[[l]], if (lag == "all") "\"all\"" else "1L", opts), ""),
+    "# Chi-square difference tests between successive levels",
+    "lrt <- lavTestLRT(fit_configural, fit_metric, fit_scalar, fit_strict)")
+  inputs <- list(data = fr$data)
+  if (export) return(paste(ps_script("Longitudinal measurement invariance (semTools::measEq.syntax, lavaan)", c("lavaan", "semTools"), inputs, body,
+    c("lrt", "sapply(list(configural = fit_configural, metric = fit_metric, scalar = fit_scalar, strict = fit_strict), fitMeasures, fit.measures = c(\"chisq\", \"df\", \"cfi\", \"rmsea\", \"srmr\"))",
+      "cat(as.character(measEq.syntax(configural.model = model, data = data, ID.fac = \"std.lv\", longFacNames = longFacNames, longIndNames = longIndNames, long.equal = c(\"loadings\", \"intercepts\"), meanstructure = TRUE)))")), collapse = "\n"))
+  env <- ps_run(body, inputs)
+  fits <- lapply(levels, function(l) env[[paste0("fit_", l)]])
+  fm <- lapply(fits, ps_inv_fit)
+  robust <- !is.na(lavaan::fitMeasures(fits[[1]])["chisq.scaled"])
+  lrt <- env$lrt; rn <- rownames(lrt)
+  at <- function(i) match(paste0("fit_", levels[i]), rn)
+  factor_pars <- function(f) {
+    pe <- lavaan::parameterEstimates(f)
+    lapply(seq_len(T), function(t) {
+      m <- pe[pe$lhs == fv[t] & pe$op == "~1", ]; v <- pe[pe$lhs == fv[t] & pe$op == "~~" & pe$rhs == fv[t], ]
+      nz <- function(x) if (length(x) && !is.na(x) && x > 0) x else NULL
+      list(mean = m$est, meanSe = nz(m$se), variance = v$est, varianceSe = nz(v$se))
+    })
+  }
+  ps_json(list(robust = robust, n = lavaan::lavInspect(fits[[1]], "nobs"), occasions = T, items = k, lag = lag,
+    levels = lapply(seq_along(levels), function(i) c(list(level = levels[i]), fm[[i]],
+      if (i > 1) list(chisqDiff = unname(lrt[["Chisq diff"]][at(i)]), dfDiff = unname(lrt[["Df diff"]][at(i)]), p = unname(lrt[["Pr(>Chisq)"]][at(i)]),
+        cfiChange = fm[[i]]$cfi - fm[[i - 1]]$cfi, rmseaChange = fm[[i]]$rmsea - fm[[i - 1]]$rmsea),
+      list(factor = factor_pars(fits[[i]])))),
+    warnings = env$.warnings, engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools")), lavaan = as.character(utils::packageVersion("lavaan")))))
+}
