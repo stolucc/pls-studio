@@ -7,6 +7,7 @@ import {
 import { endogenousIds, impliedCorrelations, indicatorsDrawnElsewhere, type Construct, type Correlation, type CorrelationEnd as CorrelationPick, type ModelState } from '../model/project';
 import { formatEstimate, semplotEdge } from '../figure/style';
 import { noLeadingZero } from '../format';
+import { heldLoading } from '../diagramLabels';
 import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
@@ -233,7 +234,8 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
       </svg>
       {sharedLoadings.map((d) => {
         const c = model.constructs.find((k) => k.id === d.construct)!;
-        const v = loadingFor(d.indicator, c.name) ?? c.fixedLoadings?.[d.indicator] ?? (active && c.scaling !== 'variance' && c.indicators[0] === d.indicator ? 1 : null);
+        // (the same held value as the figure: diagramLabels.ts heldLoading)
+        const v = loadingFor(d.indicator, c.name) ?? heldLoading(c, active ? 'cbsem' : 'pls', d.indicator) ?? null;
         return v === null ? null : (
           <div key={`sll:${d.construct}:${d.indicator}`} className="elabel shared-label" title={`${c.name} → ${d.indicator}`}
             style={{ transform: `translate(-50%, -50%) translate(${d.x1 + (d.x2 - d.x1) * 0.6}px, ${d.y1 + (d.y2 - d.y1) * 0.6}px)`, ...(figure.notation === 'semplot' ? { color: semplotEdge(v).color } : {}) }}>{formatEstimate(figure, v)}</div>

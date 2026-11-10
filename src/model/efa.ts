@@ -1,7 +1,7 @@
 // Exploratory factor analysis / principal component analysis: the design kept
 // with the project (Settings.efa), and turning a solution into constructs.
 
-import { clampNum } from '../parse';
+import { clampStrict } from '../parse';
 
 export type EfaMethod = 'pca' | 'minres' | 'ml' | 'pa' | 'lavaan';
 export type EfaRotation = 'none' | 'varimax' | 'quartimax' | 'promax' | 'oblimin' | 'geominQ' | 'bigeomin' | 'biquartimin';
@@ -67,10 +67,10 @@ export function parseEfaDesign(v: unknown): EfaDesign | undefined {
     method: EFA_METHODS.find((m) => m.id === r.method)?.id ?? DEFAULT_EFA.method,
     // Designs saved before the criterion existed gave the number.
     criterion: EFA_CRITERIA.find((m) => m.id === r.criterion)?.id ?? 'fixed',
-    nfactors: clampNum(r.nfactors, 1, 100, DEFAULT_EFA.nfactors, true),
+    nfactors: clampStrict(r.nfactors, 1, 100, DEFAULT_EFA.nfactors, true),
     rotation: EFA_ROTATIONS.find((m) => m.id === r.rotation)?.id ?? DEFAULT_EFA.rotation,
     missing: r.missing === 'listwise' ? 'listwise' : 'pairwise',
-    parallel: clampNum(r.parallel, 0, 2000, DEFAULT_EFA.parallel, true),
+    parallel: clampStrict(r.parallel, 0, 2000, DEFAULT_EFA.parallel, true),
     threshold: typeof r.threshold === 'number' && r.threshold >= 0 && r.threshold < 1 ? r.threshold : DEFAULT_EFA.threshold,
     correlation: r.correlation === 'polychoric' ? 'polychoric' : 'pearson',
     ...(typeof r.epsilon === 'number' && r.epsilon > 0 && r.epsilon <= 1 ? { epsilon: r.epsilon } : {}),

@@ -52,9 +52,11 @@ it('reports warnings outside ps_run and failed optional computations, per call',
 it('puts the user names back into labels, whole names only', async () => {
   const back = await withR(['jsonlite'], { common: commonR }, (webR) => callJson(webR, `ps_json(list(
     words = I(ps_back_names(c("x", "x2", "max", "x:x2", "B ON x"), c(x = "Age (x)", x2 = "Income", Age = "WRONG"))),
-    prefix = I(ps_back_names(c("x_hi", "Grosse_cm", "distance"), c(x = "X", Grosse = "Gr\\u00f6\\u00dfe", Grosse_cm = "Gr\\u00f6\\u00dfe (cm)"), prefix = TRUE))))`, null)) as { words: string[]; prefix: string[] };
+    missing = I(ps_back_names(c("x", NA), c(x = "X"))),
+    prefix = I(ps_back_names(c("x_hi", "Grosse_cm", "distance"), c(x = "X", Grosse = "Gr\\u00f6\\u00dfe", Grosse_cm = "Gr\\u00f6\\u00dfe (cm)"), prefix = TRUE))))`, null)) as { words: string[]; prefix: string[]; missing: (string | null)[] };
   expect(back.words).toEqual(['Age (x)', 'Income', 'max', 'Age (x):Income', 'B ON Age (x)']);
   expect(back.prefix).toEqual(['X_hi', 'Größe (cm)', 'distance']);
+  expect(back.missing).toEqual(['X', null]);
 }, 300_000);
 
 // Exact lookups: ps_back keeps a name with no match (keep = TRUE) or makes it

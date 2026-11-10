@@ -13,4 +13,6 @@ export const clampNum = (v: unknown, lo: number, hi: number, fallback: number, i
   const c = Math.max(lo, Math.min(hi, n));
   return integer ? Math.round(c) : c;
 };
+/** A finite number clamped to [lo, hi], numbers only: for values read from project files, where text is not a number. */
+export const clampStrict = (v: unknown, lo: number, hi: number, fallback: number, integer = false) => (typeof v === 'number' ? clampNum(v, lo, hi, fallback, integer) : fallback);
 export const flag = (v: unknown) => v === true;

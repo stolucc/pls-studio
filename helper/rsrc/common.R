@@ -112,6 +112,7 @@ ps_ident <- function(x) {
 #' factor's level "educ_high").
 ps_back_names <- function(x, back, prefix = FALSE) {
   if (!length(back) || !length(x)) return(x)
+  if (anyNA(x)) { ok <- !is.na(x); x[ok] <- ps_back_names(x[ok], back, prefix); return(x) }
   keys <- names(back)[order(-nchar(names(back)))]
   alt <- paste(gsub("([.\\\\|()\\[\\]{}^$*+?])", "\\\\\\1", keys, perl = TRUE), collapse = "|")
   re <- if (prefix) sprintf("^(?:%s)", alt) else sprintf("(?<![A-Za-z0-9._])(?:%s)(?![A-Za-z0-9._])", alt)

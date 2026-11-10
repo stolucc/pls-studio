@@ -156,3 +156,15 @@ describe('indicators typed by name', () => {
     expect(validateModel(m, data, { method: 'pls', consistent: false }).map((i) => i.message)).toContainEqual(expect.stringMatching(/Indicator "loy2" \(in "B"\) is not in the current dataset/));
   });
 });
+
+describe('numbers in project files', () => {
+  it('are read as numbers only: text such as "0x10" falls back to the default', () => {
+    const file = JSON.parse(serializeProject(model(), { ...DEFAULT_SETTINGS, seed: 99, bootSamples: 300 }, null, null));
+    expect(parseProject(JSON.stringify(file)).settings.seed).toBe(99);
+    file.settings.seed = '0x10';
+    file.settings.bootSamples = ' 500 ';
+    const p = parseProject(JSON.stringify(file));
+    expect(p.settings.seed).toBe(DEFAULT_SETTINGS.seed);
+    expect(p.settings.bootSamples).toBe(DEFAULT_SETTINGS.bootSamples);
+  });
+});

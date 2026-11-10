@@ -4,7 +4,7 @@
 // embedded fonts.
 
 import { noLeadingZero, stars } from '../format';
-import { clampNum } from '../parse';
+import { clampStrict } from '../parse';
 
 export type FigureFont = 'helvetica' | 'times' | 'courier';
 export type PFormat = 'stars' | 'p' | 'none';
@@ -151,10 +151,10 @@ export function parseFigureStyle(raw: unknown): FigureStyle {
   const out: FigureStyle = {
     ...d,
     font: r.font === 'times' || r.font === 'courier' ? r.font : 'helvetica',
-    fontSize: clampNum(r.fontSize, 6, 24, d.fontSize),
-    constructStrokeWidth: clampNum(r.constructStrokeWidth, 0.25, 6, d.constructStrokeWidth),
-    indicatorArrowWidth: clampNum(r.indicatorArrowWidth, 0.25, 6, d.indicatorArrowWidth),
-    pathWidth: clampNum(r.pathWidth, 0.25, 8, d.pathWidth),
+    fontSize: clampStrict(r.fontSize, 6, 24, d.fontSize),
+    constructStrokeWidth: clampStrict(r.constructStrokeWidth, 0.25, 6, d.constructStrokeWidth),
+    indicatorArrowWidth: clampStrict(r.indicatorArrowWidth, 0.25, 6, d.indicatorArrowWidth),
+    pathWidth: clampStrict(r.pathWidth, 0.25, 8, d.pathWidth),
     pathWidthByEffect: bool(r.pathWidthByEffect, d.pathWidthByEffect),
     gradientFill: bool(r.gradientFill, d.gradientFill),
     circleConstructs: bool(r.circleConstructs, d.circleConstructs),
@@ -162,7 +162,7 @@ export function parseFigureStyle(raw: unknown): FigureStyle {
     showEstimates: bool(r.showEstimates, d.showEstimates),
     showR2: bool(r.showR2, d.showR2),
     pFormat: r.pFormat === 'stars' || r.pFormat === 'none' ? r.pFormat : 'p',
-    decimals: Math.round(clampNum(r.decimals, 1, 4, d.decimals)),
+    decimals: Math.round(clampStrict(r.decimals, 1, 4, d.decimals)),
     notation: r.notation === 'amos' || r.notation === 'pls' || r.notation === 'semplot' ? r.notation : 'standard',
   };
   for (const k of COLOR_KEYS) out[k] = color(r[k], d[k]);
