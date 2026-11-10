@@ -20,6 +20,8 @@ export interface ScreenResult {
 export interface InfluenceResult {
   approach?: 'exact' | 'approximate';
   rows: number[]; gcd: number[]; md: number[]; chisq: number[]; cfi: number[]; rmsea: number[]; tli: number[];
+  /** Each complete case's contribution to Mardia's multivariate kurtosis b₂,ₚ of the indicators (d⁴ / n; absent in results saved before it). */
+  kurtosis?: { rows: number[]; contribution: number[]; b2p: number; p: number };
   warnings: string[]; engine: REngineInfo;
 }
 
@@ -46,7 +48,9 @@ export type InfluenceApproach = 'exact' | 'approximate';
 const influenceRequest = (data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, approach: InfluenceApproach) => ({ ...cbRequest(data, spec, missing, estimator), approach });
 export async function influenceR(data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, approach: InfluenceApproach = 'exact'): Promise<InfluenceResult> {
   const raw = await rCall<Record<string, any>>('ps_influence', influenceRequest(data, spec, missing, estimator, approach), 'semfindr');
-  return { approach: raw.approach === 'approximate' ? 'approximate' : 'exact', rows: nums(raw.rows), gcd: nums(raw.gcd), md: nums(raw.md), chisq: nums(raw.chisq), cfi: nums(raw.cfi), rmsea: nums(raw.rmsea), tli: nums(raw.tli), warnings: rStrings(raw.warnings), engine: raw.engine };
+  return { approach: raw.approach === 'approximate' ? 'approximate' : 'exact', rows: nums(raw.rows), gcd: nums(raw.gcd), md: nums(raw.md), chisq: nums(raw.chisq), cfi: nums(raw.cfi), rmsea: nums(raw.rmsea), tli: nums(raw.tli),
+    ...(raw.kurtosis ? { kurtosis: { rows: nums(raw.kurtosis.rows), contribution: nums(raw.kurtosis.contribution), b2p: Number(raw.kurtosis.b2p), p: Number(raw.kurtosis.p) } } : {}),
+    warnings: rStrings(raw.warnings), engine: raw.engine };
 }
 export const influenceScriptR = (data: Dataset, spec: ModelSpec, missing: MissingTreatment, estimator: CbEstimator, approach: InfluenceApproach = 'exact') => rScript('ps_influence', influenceRequest(data, spec, missing, estimator, approach), 'semfindr');
 

@@ -1,0 +1,53 @@
+{
+  "semPower": "2.2.0",
+  "lavaan": "0.7.3",
+  "dynamic": "1.1.0",
+  "apriori": {
+    "requiredN": 154,
+    "impliedPower": 0.950973247428997,
+    "impliedNCP": 76.5,
+    "chiCrit": 233.994268892325,
+    "fmin": 0.5,
+    "mc": 0.778800783071405
+  },
+  "posthoc": {
+    "power": 0.999517980482004,
+    "ncp": 124.5,
+    "chiCrit": 233.994268892325,
+    "fmin": 0.5
+  },
+  "compromise": {
+    "chiCrit": 325.555321461277,
+    "impliedAlpha": 4.80439083072663e-08,
+    "impliedBeta": 4.80439083146233e-08,
+    "impliedAbratio": 0.99999999984687
+  },
+  "agfi": {
+    "requiredN": 168,
+    "impliedPower": 0.802526286147823,
+    "fmin": 0.24390243902439,
+    "rmsea": 0.0493864798324795
+  },
+  "parameter": {
+    "estimate": 0.408232442095546,
+    "apriori": {
+      "requiredN": 59,
+      "impliedPower": 0.804707706021256,
+      "fmin": 0.136966317335576
+    },
+    "posthoc": {
+      "power": 0.957499756991895,
+      "fmin": 0.136966317335576,
+      "ncp": 13.559665416222
+    }
+  },
+  "equivalence": {
+    "chisq": 85.3055217699738,
+    "df": 24,
+    "n": 301,
+    "rmsea": 0.0921214845101694,
+    "rmseaUpper90": 0.113678016811963,
+    "dynamicRmseaT": 0.114,
+    "dynamicCutoffs": [0.048, 0.075, 0.103, 0.122]
+  }
+}
