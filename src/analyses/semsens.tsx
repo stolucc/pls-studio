@@ -8,15 +8,13 @@
 import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table } from '../components/results/Table';
-import type { CbEstimator } from '../engine/cbsem';
 import { SERIES_COLORS } from '../figure/palette';
 import { fmt, fmtP } from '../format';
-import { toSpec, type ModelState } from '../model/project';
+import { type ModelState } from '../model/project';
 import { clampStrict } from '../parse';
-import type { CbCall } from '../rengine/cbExtras';
 import { SEMSENS_OBJECTIVES, type SemsensArgs, type SemsensObjective, type SemsensResult } from '../rengine/sensitivity';
 import { Axes, H, pad, W } from './charts';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { clampNum, isObj, name } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -158,7 +156,6 @@ export function SemsensView({ r }: { r: SemsensResult }) {
   );
 }
 
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
 export const semsensArgs = (o: SemsensOptions, ctx: AnalysisCtx): SemsensArgs => ({ ...semsensTargets(o, ctx.model), optFun: o.optFun, k: o.k, ants: o.ants, maxIter: o.maxIter, bound: o.bound, alpha: o.alpha, seed: ctx.settings.seed });
 const pairs = (v: unknown): [string, string][] => (Array.isArray(v) ? v.slice(0, 200).flatMap((p) => (Array.isArray(p) && p.length === 2 && name(p[0]) && name(p[1]) ? [[name(p[0]), name(p[1])] as [string, string]] : [])) : []);
 
@@ -190,7 +187,7 @@ export const semsensAnalysis: AnalysisType<SemsensOptions, SemsensResult> = {
     return null;
   },
   fingerprint: (o, ctx) => { const a = semsensArgs(o, ctx); return cbFingerprint(ctx, [a.paths.map((p) => p.join('>')).join('|'), a.phantoms.join('|'), a.optFun, a.k, a.ants, a.maxIter, a.bound, a.alpha, a.seed]); },
-  run: async (o, ctx) => (await import('../rengine/sensitivity')).semsensR(callOf(ctx), semsensArgs(o, ctx)),
-  script: async (o, ctx) => (await import('../rengine/sensitivity')).semsensScriptR(callOf(ctx), semsensArgs(o, ctx)),
+  run: async (o, ctx) => (await import('../rengine/sensitivity')).semsensR(cbCall(ctx), semsensArgs(o, ctx)),
+  script: async (o, ctx) => (await import('../rengine/sensitivity')).semsensScriptR(cbCall(ctx), semsensArgs(o, ctx)),
   summary: (o) => `objective ${o.optFun}, ${o.maxIter} evaluations${o.paths.length ? `, ${o.paths.length} path${o.paths.length === 1 ? '' : 's'}` : ''}`,
 };

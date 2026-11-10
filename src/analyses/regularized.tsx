@@ -3,15 +3,14 @@
 // penalty levels; the level chosen by BIC (or AIC), the path of the estimates over the levels, and the selected model.
 
 import { useEffect, useState } from 'react';
-import type { CbEstimator } from '../engine/cbsem';
 import { seriesColor, OTHER_COLOR } from '../figure/palette';
 import { fmt } from '../format';
-import { toSpec } from '../model/project';
-import type { CbCall } from '../rengine/cbExtras';
+
+
 import type { Delta, Penalty, RegsemRaw, RegsemRequest, TestKind } from '../rengine/search';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table, type Row } from '../components/results/Table';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { Choice, clampNum, flag, isObj, oneOf } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
 
@@ -143,7 +142,6 @@ function Options({ options: o, set, ctx, disabled }: { options: RegsemOptions; s
   );
 }
 
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
 
 export const regsemAnalysis: AnalysisType<RegsemOptions, RegsemResult> = {
   id: 'regsem', title: 'Regularised SEM', sub: 'lasso, ridge, elastic net or MCP on chosen parameters, the penalty level by BIC (lslx)', group: 'CB-SEM model',
@@ -171,7 +169,7 @@ export const regsemAnalysis: AnalysisType<RegsemOptions, RegsemResult> = {
     ?? (!o.lambdaAuto && !(o.lambdaTo > o.lambdaFrom) ? 'The largest penalty level must be above the smallest.' : null)
     ?? ((o.penalty === 'enet' || o.penalty === 'mcp') && !o.deltas.length ? 'Give at least one δ.' : null),
   fingerprint: (o, ctx) => cbFingerprint(ctx, [JSON.stringify(requestOf(o))]),
-  run: async (o, ctx) => (await import('../rengine/search')).regsemR(callOf(ctx), requestOf(o)),
-  script: async (o, ctx) => (await import('../rengine/search')).regsemScriptR(callOf(ctx), requestOf(o)),
+  run: async (o, ctx) => (await import('../rengine/search')).regsemR(cbCall(ctx), requestOf(o)),
+  script: async (o, ctx) => (await import('../rengine/search')).regsemScriptR(cbCall(ctx), requestOf(o)),
   summary: (o) => `${PENALTIES.find(([k]) => k === o.penalty)![1].toLowerCase()} on ${o.penalise.join(', ') || 'nothing'}, by ${o.selector.toUpperCase()}`,
 };

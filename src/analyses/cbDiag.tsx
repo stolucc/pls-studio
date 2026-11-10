@@ -5,23 +5,19 @@
 // EPC-based judgement of misspecification (Saris, Satorra & van der Veld 2009).
 
 import { useState } from 'react';
-import type { CbEstimator } from '../engine/cbsem';
 import { normalP } from '../engine/stats';
 import { fmt } from '../format';
 import { parseModelState, toSpec, validateModel, type ModelState } from '../model/project';
 import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../figure/palette';
 import { clampStrict } from '../parse';
 import { c, pCell, Table, type Cell, type Row } from '../components/results/Table';
-import type { CbCall } from '../rengine/cbExtras';
 import { dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, SCALED_TESTS, epcCounts, epcVerdict, type CompareModelsResult, type DiscriminantResult, type EpcRequest, type EpcResult, type EpcRow, type DvClass, type ModelFit, type Nesting, type LocalFitBlock, type LocalFitResult, type LocalFitTest } from '../rengine/cbDiag';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
-import { clampNum, columnsFingerprint, isObj, oneOf } from './common';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
+import { clampNum, columnsFingerprint, Hint, isObj, oneOf } from './common';
 import { useStore } from '../store';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 const CB_GROUP = 'CB-SEM model' as const;
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
-const Hint = ({ text }: { text: string }) => <p className="hint" style={{ marginTop: 0 }}>{text}</p>;
 /** Why the diagnostics cannot use the model's fit (beyond cbModelBlocked); null when they can. */
 function fitBlocked(ctx: AnalysisCtx, what: string): string | null {
   const s = ctx.settings;
@@ -177,7 +173,7 @@ export const localFitAnalysis: AnalysisType<LocalFitOptions, LocalFitResult> = {
   } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text={`Where does the model miss? For every pair of observed variables the residual correlation and its z-test, the SRMR with its tests of exact and close fit, and further tests of exact fit. The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings).`} />
+      <Hint>{`Where does the model miss? For every pair of observed variables the residual correlation and its z-test, the SRMR with its tests of exact and close fit, and further tests of exact fit. The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings).`}</Hint>
       <div className="field">
         <label htmlFor="lf-top">Largest residuals listed</label>
         <input id="lf-top" aria-label="Largest residuals listed" className="input num" type="number" min={1} max={500} value={o.top} onChange={(e) => set({ ...o, top: clampNum(e.target.value, 1, 500, 15, true) })} />
@@ -212,8 +208,8 @@ export const localFitAnalysis: AnalysisType<LocalFitOptions, LocalFitResult> = {
     return bad.length ? `${bad.map(([t, why]) => `${TEST_NAMES[t]} ${why}`).join('; ')}: unselect ${bad.length === 1 ? 'it' : 'them'} or change the Model settings.` : null;
   },
   fingerprint: (o, ctx) => cbFingerprint(ctx, [o.tests.join(','), o.base]),
-  run: async (o, ctx) => (await import('../rengine/cbDiag')).localFitR(callOf(ctx), { tests: o.tests, base: o.base }),
-  script: async (o, ctx) => (await import('../rengine/cbDiag')).localFitScriptR(callOf(ctx), { tests: o.tests, base: o.base }),
+  run: async (o, ctx) => (await import('../rengine/cbDiag')).localFitR(cbCall(ctx), { tests: o.tests, base: o.base }),
+  script: async (o, ctx) => (await import('../rengine/cbDiag')).localFitScriptR(cbCall(ctx), { tests: o.tests, base: o.base }),
   summary: (o) => `residual z-tests${o.tests.length ? `, ${o.tests.length} further test${o.tests.length === 1 ? '' : 's'}${o.base === 'RLS' ? ' (base RLS)' : ''}` : ''}`,
 };
 
@@ -248,7 +244,7 @@ export const discriminantAnalysis: AnalysisType<DiscriminantOptions, Discriminan
   parseOptions: (raw) => (isObj(raw) ? { level: clampStrict(raw.level, 0.5, 0.999, 0.95), merge: raw.merge === true } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text={`Are the factors distinct? Each factor correlation with its confidence interval, and χ² difference tests against the model with the correlation fixed at .8, .9 and 1, classified as Rönkkö & Cho (2022) recommend. The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings); with paths, the correlations of endogenous factors are those of their disturbances.`} />
+      <Hint>{`Are the factors distinct? Each factor correlation with its confidence interval, and χ² difference tests against the model with the correlation fixed at .8, .9 and 1, classified as Rönkkö & Cho (2022) recommend. The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings); with paths, the correlations of endogenous factors are those of their disturbances.`}</Hint>
       <div className="field">
         <label htmlFor="dv-level">Confidence level</label>
         <input id="dv-level" aria-label="Confidence level" className="input num" type="number" min={0.5} max={0.999} step={0.01} value={o.level} onChange={(e) => set({ ...o, level: clampNum(e.target.value, 0.5, 0.999, 0.95) })} />
@@ -267,8 +263,8 @@ export const discriminantAnalysis: AnalysisType<DiscriminantOptions, Discriminan
     return factors.length < 2 ? 'Discriminant validity needs at least two factors.' : null;
   },
   fingerprint: (o, ctx) => cbFingerprint(ctx, [o.level, o.merge ? 1 : 0]),
-  run: async (o, ctx) => (await import('../rengine/cbDiag')).discriminantR(callOf(ctx), o),
-  script: async (o, ctx) => (await import('../rengine/cbDiag')).discriminantScriptR(callOf(ctx), o),
+  run: async (o, ctx) => (await import('../rengine/cbDiag')).discriminantR(cbCall(ctx), o),
+  script: async (o, ctx) => (await import('../rengine/cbDiag')).discriminantScriptR(cbCall(ctx), o),
   summary: (o) => `${fmt(o.level * 100, 0)}% CIs, χ²(sys)${o.merge ? ' and χ²(merge)' : ''}`,
 };
 
@@ -347,7 +343,7 @@ function CompareModelsForm({ options: o, set, ctx, disabled }: OptionsProps<Comp
   const alt = o.alternative;
   return (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text={`Compare the diagram (model 1) with an alternative (model 2) on the same observed variables: nesting and equivalence (lavaan::lavTestNET), the χ² difference test, Vuong’s tests for nested and non-nested models and intervals of the AIC and BIC differences (nonnest2). Both estimated with ${ctx.settings.estimator} (Model settings).`} />
+      <Hint>{`Compare the diagram (model 1) with an alternative (model 2) on the same observed variables: nesting and equivalence (lavaan::lavTestNET), the χ² difference test, Vuong’s tests for nested and non-nested models and intervals of the AIC and BIC differences (nonnest2). Both estimated with ${ctx.settings.estimator} (Model settings).`}</Hint>
       <button className="btn" disabled={!ctx.model?.constructs.length} onClick={save}>Save the current model as the alternative</button>
       <div className="hint" style={{ marginTop: 6 }}>
         {alt ? `Alternative saved: ${alt.model.constructs.length} constructs, ${alt.model.paths.length} paths${alt.model.multigroup ? `, groups by ${alt.model.multigroup.column}` : ''}${alt.savedAt ? ` (${new Date(alt.savedAt).toLocaleString()})` : ''}.` : 'No alternative saved yet: save the model, change the diagram, then compare.'}
@@ -381,8 +377,8 @@ export const compareModelsAnalysis: AnalysisType<CompareModelsOptions, CompareMo
     const alt = o.alternative?.model, col = alt?.multigroup?.column;
     return cbFingerprint(ctx, [alt ? JSON.stringify(toSpec(alt)) : null, o.nested, col ? columnsFingerprint(ctx, [col]) : null]);
   },
-  run: async (o, ctx) => (await import('../rengine/cbDiag')).compareModelsR(callOf(ctx), toSpec(o.alternative!.model), o.nested),
-  script: async (o, ctx) => (await import('../rengine/cbDiag')).compareModelsScriptR(callOf(ctx), toSpec(o.alternative!.model), o.nested),
+  run: async (o, ctx) => (await import('../rengine/cbDiag')).compareModelsR(cbCall(ctx), toSpec(o.alternative!.model), o.nested),
+  script: async (o, ctx) => (await import('../rengine/cbDiag')).compareModelsScriptR(cbCall(ctx), toSpec(o.alternative!.model), o.nested),
   summary: (o) => (o.alternative ? `diagram vs the alternative saved ${o.alternative.savedAt ? new Date(o.alternative.savedAt).toLocaleDateString() : 'with the example'}` : 'no alternative saved yet'),
 };
 
@@ -434,7 +430,7 @@ export const epcAnalysis: AnalysisType<EpcOptions, EpcResult> = {
   },
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text={`Which fixed parameters are misspecified by more than a size that matters? For every fixed parameter (cross-loadings, error covariances, paths not drawn) its modification index, expected change and the power to detect a misspecification of the smallest size of interest, judged by the J-rule (Saris, Satorra & van der Veld 2009) and by the EPC’s interval. The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings).`} />
+      <Hint>{`Which fixed parameters are misspecified by more than a size that matters? For every fixed parameter (cross-loadings, error covariances, paths not drawn) its modification index, expected change and the power to detect a misspecification of the smallest size of interest, judged by the J-rule (Saris, Satorra & van der Veld 2009) and by the EPC’s interval. The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings).`}</Hint>
       {EPC_FIELDS.map(([k, label, lo, hi, def]) => (
         <div className="field" key={k}>
           <label htmlFor={`epc-${k}`}>{label}</label>
@@ -448,8 +444,8 @@ export const epcAnalysis: AnalysisType<EpcOptions, EpcResult> = {
   View: ({ result, options }) => <EpcView r={result} show={options.show} />,
   blocked: (_o, ctx) => cbModelBlocked(ctx, 'The EPC-based judgement', false) ?? fitBlocked(ctx, 'The EPC-based judgement') ?? (ctx.model?.ordered?.length ? 'The EPC-based judgement is for continuous indicators (semTools::epcEquivFit).' : null),
   fingerprint: (o, ctx) => cbFingerprint(ctx, [o.stdLoad, o.cor, o.stdBeta, o.stdIntcept, o.cilevel, o.mialpha, o.mipower, o.adjust]),
-  run: async ({ show: _s, ...o }, ctx) => (await import('../rengine/cbDiag')).epcR(callOf(ctx), o),
-  script: async ({ show: _s, ...o }, ctx) => (await import('../rengine/cbDiag')).epcScriptR(callOf(ctx), o),
+  run: async ({ show: _s, ...o }, ctx) => (await import('../rengine/cbDiag')).epcR(cbCall(ctx), o),
+  script: async ({ show: _s, ...o }, ctx) => (await import('../rengine/cbDiag')).epcScriptR(cbCall(ctx), o),
   summary: (o) => `SESOI loading ${o.stdLoad}, correlation ${o.cor}, path ${o.stdBeta}; α ${o.mialpha}, power ${o.mipower}${o.adjust === 'bonferroni' ? ', Bonferroni' : ''}`,
 };
 

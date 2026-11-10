@@ -12,7 +12,7 @@ import { factorScoresUnavailable, SaveFactorScores } from '../components/results
 import type { FactorScores } from '../rengine/lavaan';
 import { useState } from 'react';
 import { fingerprint } from './codec';
-import { columnsFingerprint, isObj, rawData } from './common';
+import { columnsFingerprint, Hint, isObj, rawData } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
 
 const CB_GROUP = 'CB-SEM model' as const;
@@ -37,9 +37,9 @@ export function cbFingerprint(ctx: AnalysisCtx, extra: (string | number | null)[
   return cols && fingerprint([cols, JSON.stringify(spec), ctx.settings.estimator, ctx.settings.missing, ctx.settings.interaction, ...extra]);
 }
 
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
+/** The model on the canvas as the Model tab fits it (call after cbModelBlocked passes). */
+export const cbCall = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
 const fitNote = (ctx: AnalysisCtx) => `The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings).`;
-const Hint = ({ text }: { text: string }) => <p className="hint" style={{ marginTop: 0 }}>{text}</p>;
 const bootOf = (ctx: AnalysisCtx) => ({ samples: Math.max(10, Math.min(100000, Math.floor(ctx.settings.bootSamples))), seed: ctx.settings.seed });
 
 // ---------- Bollen-Stine ----------
@@ -65,12 +65,12 @@ export const bollenStineAnalysis: AnalysisType<Record<string, never>, BollenStin
   fitsModel: true,
   defaults: () => ({}),
   parseOptions: (raw) => (isObj(raw) ? {} : null),
-  Options: ({ ctx }) => <Hint text={`Bootstrap test of exact fit (Bollen & Stine 1992): the χ² p-value when the data are not multivariate normal. ${fitNote(ctx)} ${bootOf(ctx).samples} bootstrap samples and seed ${bootOf(ctx).seed} from the Model settings; each sample refits the model, so this takes a while.`} />,
+  Options: ({ ctx }) => <Hint>{`Bootstrap test of exact fit (Bollen & Stine 1992): the χ² p-value when the data are not multivariate normal. ${fitNote(ctx)} ${bootOf(ctx).samples} bootstrap samples and seed ${bootOf(ctx).seed} from the Model settings; each sample refits the model, so this takes a while.`}</Hint>,
   View: ({ result }) => <BollenStineView r={result} />,
   blocked: (_o, ctx) => cbModelBlocked(ctx, 'The Bollen–Stine bootstrap') ?? (ctx.model?.ordered?.length ? 'The Bollen–Stine bootstrap is for continuous indicators; this model has ordinal ones.' : null),
   fingerprint: (_o, ctx) => cbFingerprint(ctx, [bootOf(ctx).samples, bootOf(ctx).seed]),
-  run: async (_o, ctx) => (await import('../rengine/cbExtras')).bollenStineR(callOf(ctx), bootOf(ctx)),
-  script: async (_o, ctx) => (await import('../rengine/cbExtras')).bollenStineScriptR(callOf(ctx), bootOf(ctx)),
+  run: async (_o, ctx) => (await import('../rengine/cbExtras')).bollenStineR(cbCall(ctx), bootOf(ctx)),
+  script: async (_o, ctx) => (await import('../rengine/cbExtras')).bollenStineScriptR(cbCall(ctx), bootOf(ctx)),
   summary: () => 'the CB-SEM model on the canvas',
 };
 
@@ -109,7 +109,7 @@ export const compareParamsAnalysis: AnalysisType<CompareParamsOptions, ComparePa
   parseOptions: (raw) => (isObj(raw) ? { kinds: [...new Set((Array.isArray(raw.kinds) ? raw.kinds : []).filter((k): k is ParamKind => KINDS.some(([id]) => id === k)))] } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text={`Is one estimate larger than another? Every pair of the chosen parameters is tested. ${fitNote(ctx)}`} />
+      <Hint>{`Is one estimate larger than another? Every pair of the chosen parameters is tested. ${fitNote(ctx)}`}</Hint>
       <div className="field">
         <label>Parameters</label>
         {KINDS.map(([id, label]) => (
@@ -124,8 +124,8 @@ export const compareParamsAnalysis: AnalysisType<CompareParamsOptions, ComparePa
   View: ({ result }) => <CompareParamsView r={result} />,
   blocked: (o, ctx) => cbModelBlocked(ctx, 'Comparing parameters', false) ?? (o.kinds.length ? tooFewPaths(o, ctx) : 'Choose which parameters to compare.'),
   fingerprint: (_o, ctx) => cbFingerprint(ctx),
-  run: async (o, ctx) => (await import('../rengine/cbExtras')).compareParamsR(callOf(ctx), o.kinds),
-  script: async (o, ctx) => (await import('../rengine/cbExtras')).compareParamsScriptR(callOf(ctx), o.kinds),
+  run: async (o, ctx) => (await import('../rengine/cbExtras')).compareParamsR(cbCall(ctx), o.kinds),
+  script: async (o, ctx) => (await import('../rengine/cbExtras')).compareParamsScriptR(cbCall(ctx), o.kinds),
   summary: (o) => o.kinds.map((k) => KINDS.find(([id]) => id === k)![1].toLowerCase()).join(', ') || 'no parameters chosen',
 };
 
@@ -226,7 +226,7 @@ export const scoreWeightsAnalysis: AnalysisType<ScoreWeightsOptions, FactorScore
   parseOptions: (raw) => (isObj(raw) ? { method: raw.method === 'Bartlett' ? 'Bartlett' : 'regression' } : null),
   Options: ({ options: o, set, ctx, disabled }) => (
     <fieldset className="card-options" disabled={disabled}>
-      <Hint text={`Factor scores of the fitted model: every case’s scores, summarised, previewed and downloadable, and savable as data columns (Scores tab: regression, Bartlett or plausible values); and the weights that turn the observed variables into the scores (Weights tab). ${fitNote(ctx)}`} />
+      <Hint>{`Factor scores of the fitted model: every case’s scores, summarised, previewed and downloadable, and savable as data columns (Scores tab: regression, Bartlett or plausible values); and the weights that turn the observed variables into the scores (Weights tab). ${fitNote(ctx)}`}</Hint>
       <div className="field">
         <label>Method</label>
         <div className="segmented">
@@ -240,7 +240,7 @@ export const scoreWeightsAnalysis: AnalysisType<ScoreWeightsOptions, FactorScore
   blocked: (_o, ctx) => cbModelBlocked(ctx, 'Factor scores', false) ?? (ctx.model?.multigroup ? 'Factor scores are computed for one group: remove the grouping.' : null),
   fingerprint: (_o, ctx) => cbFingerprint(ctx),
   run: async (o, ctx) => {
-    const call = callOf(ctx);
+    const call = cbCall(ctx);
     const weights = await (await import('../rengine/cbExtras')).scoreWeightsR(call, o.method);
     // The scores of every case (lavPredict), with the same method; where they cannot be computed, why.
     const why = factorScoresUnavailable(rawData(ctx), ctx.settings);
@@ -248,6 +248,6 @@ export const scoreWeightsAnalysis: AnalysisType<ScoreWeightsOptions, FactorScore
     const scores = await (await import('../rengine/lavaan')).cbScoresR(call.data, call.spec, call.missing, call.estimator, o.method);
     return { ...weights, scores, warnings: [...new Set([...weights.warnings, ...scores.warnings])] };
   },
-  script: async (o, ctx) => (await import('../rengine/cbExtras')).scoreWeightsScriptR(callOf(ctx), o.method),
+  script: async (o, ctx) => (await import('../rengine/cbExtras')).scoreWeightsScriptR(cbCall(ctx), o.method),
   summary: (o) => `${o.method === 'regression' ? 'regression' : 'Bartlett'} method`,
 };

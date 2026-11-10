@@ -2,7 +2,7 @@
 // PLSpredict, blindfolding, model comparison, MICOM and multigroup analysis,
 // confirmatory tetrad analysis and confirmatory composite analysis.
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { fmt } from '../format';
 import type { ModelSpec, PlsOptions } from '../engine/types';
 import { layoutCcaDiagram } from '../model/ccaDiagram';
@@ -13,7 +13,7 @@ import { useStore } from '../store';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fingerprint } from './codec';
-import { clampNum, columnsFingerprint, isObj, name, rawData } from './common';
+import { clampNum, columnsFingerprint, Hint, isObj, name, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 type CcaTab = 'fit' | 'diagram' | 'weights' | 'loadings' | 'vif' | 'correlations';
@@ -247,7 +247,6 @@ export function modelFingerprint(ctx: AnalysisCtx, extraCols: string[] = [], ext
 }
 
 export const specOf = (ctx: AnalysisCtx) => toSpec(ctx.model!);
-const Hint = ({ children }: { children: ReactNode }) => <p className="hint" style={{ marginTop: 0 }}>{children}</p>;
 const APPROACH_NAME: Record<string, string> = { GSCA: 'GSCA', PCA: 'PCA weights', unit: 'sum scores' };
 const modelNote = (ctx: AnalysisCtx) => `The PLS-SEM model on the canvas, ${ctx.settings.plsApproach !== 'PLS-PM' ? `${APPROACH_NAME[ctx.settings.plsApproach]} for every construct` : `${ctx.settings.scheme} weighting`}${ctx.settings.consistent ? ', PLSc' : ''}${ctx.settings.missing === 'mean' ? ', mean replacement' : ', casewise deletion'} (Model settings).`;
 const PLS_GROUP = 'PLS-SEM model' as const;

@@ -6,15 +6,13 @@
 import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, pCell, Table, type Row } from '../components/results/Table';
-import type { CbEstimator } from '../engine/cbsem';
 import { NEGATIVE_COLOR, POSITIVE_COLOR, OTHER_COLOR } from '../figure/palette';
 import { fmt } from '../format';
-import { toSpec } from '../model/project';
 import { useCompute } from '../rengine/compute';
 import { useStore } from '../store';
 import type { CovariateType, SemTreeCovariate, SemTreeNode, SemTreeResult } from '../rengine/semtree';
 import { fingerprint } from './codec';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { Choice, clampNum, columnsFingerprint, flag, isObj, name, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -194,7 +192,6 @@ function SemTreeForm({ options: o, set, ctx, disabled }: OptionsProps<SemTreeOpt
   );
 }
 
-const modelOf = (ctx: AnalysisCtx) => ({ data: rawData(ctx)!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator });
 const inputOf = (o: SemTreeOptions, ctx: AnalysisCtx) => ({ covariates: o.covariates, method: o.method, alpha: o.alpha, maxDepth: o.maxDepth, minN: o.minN, ...(o.forest ? { forest: { trees: o.trees, seed: ctx.settings.seed } } : {}) });
 
 export const semTreeAnalysis: AnalysisType<SemTreeOptions, SemTreeResult> = {
@@ -226,7 +223,7 @@ export const semTreeAnalysis: AnalysisType<SemTreeOptions, SemTreeResult> = {
     const m = cbFingerprint(ctx), cols = columnsFingerprint(ctx, o.covariates.map((c) => c.name));
     return m && cols && fingerprint([m, cols, o.forest ? ctx.settings.seed : null]);
   },
-  run: async (o, ctx) => (await import('../rengine/semtree')).semTreeR(modelOf(ctx), inputOf(o, ctx)),
-  script: async (o, ctx) => (await import('../rengine/semtree')).semTreeScriptR(modelOf(ctx), inputOf(o, ctx)),
+  run: async (o, ctx) => (await import('../rengine/semtree')).semTreeR(cbCall(ctx), inputOf(o, ctx)),
+  script: async (o, ctx) => (await import('../rengine/semtree')).semTreeScriptR(cbCall(ctx), inputOf(o, ctx)),
   summary: (o) => `${o.covariates.map((c) => c.name).join(', ') || 'no covariates'}${o.forest ? ` · forest of ${o.trees}` : ''}`,
 };

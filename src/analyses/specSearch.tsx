@@ -3,17 +3,15 @@
 // applied to the canvas (the arrows it leaves out are deleted).
 
 import { useState } from 'react';
-import type { CbEstimator } from '../engine/cbsem';
 import { fmt } from '../format';
-import { toSpec, type ModelState } from '../model/project';
-import type { CbCall } from '../rengine/cbExtras';
+import { type ModelState } from '../model/project';
 import type { ArrowRef, SpecModel } from '../rengine/search';
 import type { REngineInfo } from '../rengine/lavaan';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { useStore } from '../store';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { Choice, isObj, oneOf } from './common';
-import type { AnalysisCtx, AnalysisType } from './types';
+import type { AnalysisType } from './types';
 
 /** At most this many optional arrows (2^12 = 4096 models). */
 export const MAX_OPTIONAL = 12;
@@ -113,7 +111,6 @@ function SpecSearchView({ r, o, current }: { r: SpecSearchResult; o: SpecSearchO
   );
 }
 
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
 const SHOWN: [string, string][] = [['10', '10'], ['25', '25'], ['100', '100'], ['0', 'All']];
 
 export const specSearchAnalysis: AnalysisType<SpecSearchOptions, SpecSearchResult> = {
@@ -140,9 +137,9 @@ export const specSearchAnalysis: AnalysisType<SpecSearchOptions, SpecSearchResul
   fingerprint: (_o, ctx) => cbFingerprint(ctx, ctx.model ? optionalArrows(ctx.model).map((a) => `${a.id}:${a.label}`) : []),
   run: async (_o, ctx) => {
     const arrows = optionalArrows(ctx.model!);
-    const r = await (await import('../rengine/search')).specSearchR(callOf(ctx), arrows.map((a) => a.ref));
+    const r = await (await import('../rengine/search')).specSearchR(cbCall(ctx), arrows.map((a) => a.ref));
     return { arrows: arrows.map(({ id, kind, label }) => ({ id, kind, label })), models: r.models, estimator: ctx.settings.estimator, warnings: r.warnings, engine: r.engine };
   },
-  script: async (_o, ctx) => (await import('../rengine/search')).specSearchScriptR(callOf(ctx), optionalArrows(ctx.model!).map((a) => a.ref)),
+  script: async (_o, ctx) => (await import('../rengine/search')).specSearchScriptR(cbCall(ctx), optionalArrows(ctx.model!).map((a) => a.ref)),
   summary: (o) => `ranked by ${o.criterion.toUpperCase()}`,
 };

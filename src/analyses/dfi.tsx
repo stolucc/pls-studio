@@ -10,14 +10,12 @@
 import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
 import { c, Table, type Row } from '../components/results/Table';
-import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset } from '../engine/types';
 import { fmt, noLeadingZero } from '../format';
-import { toSpec, type ModelState } from '../model/project';
-import type { CbCall } from '../rengine/cbExtras';
+import { type ModelState } from '../model/project';
 import { DFI_ESTIMATORS, DFI_FUNCTIONS, type DfiArgs, type DfiEstimator, type DfiFn, type DfiResult, type DfiScale, type DfiTable } from '../rengine/dfi';
 import { Axes, H, pad, W } from './charts';
-import { cbFingerprint, cbModelBlocked } from './cbModel';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { clampNum, isObj, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
 import { SERIES_COLORS } from '../figure/palette';
@@ -290,7 +288,6 @@ export const dfiCutoffText = (v: DfiVerdict) => v.cutoffs.map((k) => `${k.label.
 
 // ---------- the card ----------
 
-const callOf = (ctx: AnalysisCtx): CbCall => ({ data: ctx.data!, spec: toSpec(ctx.model!), missing: ctx.settings.missing, estimator: ctx.settings.estimator as CbEstimator, interaction: ctx.settings.interaction });
 const shapeOf = (ctx: AnalysisCtx) => dfiShape(ctx.model, ctx.data);
 const CB_ESTIMATORS = new Set(['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS', 'WLS', 'WLSMV']);
 
@@ -485,8 +482,8 @@ export const dfiAnalysis: AnalysisType<DfiOptions, DfiResult> = {
     ?? (ctx.settings.missing === 'mi' ? 'Dynamic fit cutoffs are not available with multiple imputation; use FIML or casewise deletion.' : null)
     ?? dfiBlocked(o, shapeOf(ctx)),
   fingerprint: (o, ctx) => cbFingerprint(ctx, [o.fn, o.reps, o.estimator, o.scale, ...(o.fn === 'DDDFI' ? o.mad : [])]),
-  run: async (o, ctx) => (await import('../rengine/dfi')).dfiR(callOf(ctx), o),
-  script: async (o, ctx) => (await import('../rengine/dfi')).dfiScriptR(callOf(ctx), o),
+  run: async (o, ctx) => (await import('../rengine/dfi')).dfiR(cbCall(ctx), o),
+  script: async (o, ctx) => (await import('../rengine/dfi')).dfiScriptR(cbCall(ctx), o),
   summary: (o) => `dynamic::${o.fn}${o.fn === 'equivTest' ? '' : `, ${o.reps} replications`}${o.estimator ? `, ${o.estimator}` : ''}${o.fn === 'DDDFI' ? `, ${o.scale} data` : ''}`,
 };
 

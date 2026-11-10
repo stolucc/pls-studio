@@ -1,5 +1,6 @@
 // Helpers shared by the analysis cards: option parsing, inputs, form fields.
 
+import type { ReactNode } from 'react';
 import type { Dataset } from '../engine/types';
 import { fingerprint } from './codec';
 import type { AnalysisCtx } from './types';
@@ -60,6 +61,9 @@ export function ColumnSelect({ id, label, value, columns, exclude = [], onChange
     </div>
   );
 }
+
+/** The explanatory paragraph at the top of a card's options. */
+export const Hint = ({ children }: { children: ReactNode }) => <p className="hint" style={{ marginTop: 0 }}>{children}</p>;
 
 /** A segmented choice between a few options. */
 export function Choice<T extends string>({ label, value, options, onChange, hint }: { label: string; value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void; hint?: string }) {
