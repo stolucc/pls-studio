@@ -13,11 +13,11 @@ const PANEL_TAGS: Record<string, string[]> = {
   reliability: ['Basic statistics', 'Reliability'], bttest: ['Bayesian', 't-test'], banova: ['Bayesian', 'ANOVA'], brmanova: ['Bayesian', 'ANOVA', 'Repeated measures'],
   bregression: ['Bayesian', 'Regression'], bcontingency: ['Bayesian', 'Contingency table'], bbinomial: ['Bayesian', 'Binomial test'], chart: ['Charts'],
   bollenstine: ['Bootstrap', 'Model fit'], dynamicfit: ['Model fit', 'Dynamic fit cutoffs'], cbcompare: ['Parameter comparisons'], scoreweights: ['Factor scores'], plspredict: ['Prediction'], compare: ['Model comparison'],
-  cta: ['Tetrad analysis'], minsample: ['Sample size'], pos: ['Segmentation'], mc: ['Simulation', 'Sample size'], riclpm: ['Longitudinal', 'Panel data', 'Cross-lagged'],
+  cta: ['Tetrad analysis'], minsample: ['Sample size'], pos: ['Segmentation'], mc: ['Simulation', 'Sample size'], riclpm: ['Longitudinal', 'Panel data', 'Cross-lagged'], lcs: ['Longitudinal', 'Latent change scores'],
   customml: ['Custom likelihood'], bmvreg: ['Bayesian', 'Regression'], efa2l: ['Measurement', 'Factor analysis', 'Multilevel'], missingdata: ['Missing data', 'Data screening'],
   quadml: ['Numerical integration'],
   dsem: ['Bayesian', 'Multilevel'],
-  cmb: ['Measurement', 'Common method bias'], cvi: ['Measurement', 'Content validity'],
+  cmb: ['Measurement', 'Common method bias'], cvi: ['Measurement', 'Content validity'], scoretest: ['Measurement', 'Measurement invariance'],
   alignment: ['Measurement invariance', 'Multigroup', 'Alignment'], mnlfa: ['Measurement invariance', 'Items', 'DIF', 'MNLFA'],
   sempower: ['Power analysis', 'Sample size'],
   metasem: ['Meta-analysis'],
@@ -26,7 +26,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   semsens: ['Sensitivity analysis', 'Unmeasured confounding'], medsens: ['Sensitivity analysis', 'Unmeasured confounding'],
 };
 /** Cards about the example's model: the model's method is a topic of the example. The other cards stand on their own. */
-const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'regsem', 'sempower', 'metasem', 'semtree', 'alignment', 'semsens', 'medsens']);
+const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'regsem', 'sempower', 'metasem', 'semtree', 'alignment', 'semsens', 'medsens', 'scoretest']);
 const ASSESSMENT_TAGS: Record<string, string> = { predict: 'Prediction', blindfold: 'Blindfolding', compare: 'Model comparison', groups: 'Multigroup', cca: 'Confirmatory composite analysis' };
 const SEGMENTATION_TAGS: Record<string, string> = { rebus: 'Segmentation', fimix: 'Segmentation', pathmox: 'Segmentation', pos: 'Segmentation' };
 

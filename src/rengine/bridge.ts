@@ -40,12 +40,13 @@ import metasemR from './R/metasem.R?raw';
 import semtreeR from './R/semtree.R?raw';
 import searchR from './R/search.R?raw';
 import sensitivityR from './R/sensitivity.R?raw';
+import scoreTestR from './R/scoretest.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, invariance: invarianceR};
+export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, invariance: invarianceR};
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -145,6 +146,10 @@ export const R_PACKAGES = {
   metaSEM: ['jsonlite', 'lavaan', 'OpenMx', 'metaSEM'],
   // SEM trees and forests of the canvas model (semtree on OpenMx, the model a lavaan fit): desktop R only (DESKTOP_ONLY).
   semtree: ['jsonlite', 'lavaan', 'OpenMx', 'semtree'],
+  // Score-based invariance tests along a covariate (Merkle & Zeileis): strucchange's fluctuation tests on the lavaan fit.
+  strucchange: ['jsonlite', 'lavaan', 'semTools', 'strucchange'],
+  // Datasets of psychotools (YouthGratitude: the strucchange example of Merkle, Fan & Zeileis 2014).
+  psychotools: ['jsonlite', 'psychotools'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;

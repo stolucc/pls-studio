@@ -20,6 +20,8 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/model': 'examples',
   'examples/cards/dfi': 'examples',
   'examples/cards/validity': 'examples',
+  'examples/cards/scoretest': 'examples',
+  'examples/cards/lcs': 'examples',
   'examples/cards/qca': 'examples',
   'examples/cards/invariance': 'examples',
   'examples/cards/missing': 'examples',
