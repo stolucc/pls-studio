@@ -5,7 +5,7 @@
 import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
 import { constructGeometry, interceptSegment } from '../geometry';
-import { useStore } from '../store';
+import { selectPlacedModel, useStore } from '../store';
 import { EstimateText } from './EstimateLabel';
 
 export type InterceptEdgeData = { indicator: string; value: number | null; p: number | null; labelAt?: { x: number; y: number } };
@@ -13,7 +13,7 @@ export type InterceptFlowEdge = Edge<InterceptEdgeData, 'intercept'>;
 
 function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
   const k = useStore((st) => st.model.constant);
-  const t = useStore((st) => st.model.constructs.find((c) => c.id === target));
+  const t = useStore((st) => selectPlacedModel(st).constructs.find((c) => c.id === target));
   const geo = useMemo(() => {
     if (!k || !t || !data) return null;
     const box = constructGeometry(t).indicators.find((b) => b.name === data.indicator);

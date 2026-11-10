@@ -7,7 +7,8 @@ import { copulaLayout } from '../components/CopulaLayer';
 import { covarianceLayout } from '../components/CovarianceLayer';
 import { heldLoading } from '../diagramLabels';
 import { constructGeometry, interceptSegment, meanSegment, moderatorSegment, pathOffset, pathSegment, quadraticLoop } from '../geometry';
-import { impliedIntercepts, impliedMainEffects, type Method, type ModelState } from '../model/project';
+import { impliedIntercepts, impliedMainEffects, type Method } from '../model/project';
+import type { PlacedModel } from '../placement';
 import type { FigureInput, FigureLabel } from './render';
 
 type Estimate = { value: number | null; p?: number | null } | null | undefined;
@@ -40,7 +41,8 @@ export interface FigureOptions {
 
 const label = (v: number | null | undefined, p: number | null = null, fixed = false): FigureLabel | null => (v === null || v === undefined ? null : { value: v, p, fixed });
 
-export function buildFigureInput(m: ModelState, method: Method, values: FigureValues, opts: FigureOptions): FigureInput {
+/** The figure of a model placed for this figure (placement.ts: circles, shown boxes), with these estimates. */
+export function buildFigureInput(m: PlacedModel, method: Method, values: FigureValues, opts: FigureOptions): FigureInput {
   const byId = new Map(m.constructs.map((c) => [c.id, c]));
   const nameOf = (id: string) => byId.get(id)?.name ?? id;
   const constructs = m.constructs.map((c) => {

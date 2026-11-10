@@ -24,7 +24,7 @@ import { correlationEndError, correlationPairError, endogenousIds, impliedInterc
 import { endAt } from './correlationEnds';
 import { importModelSyntax } from '../io';
 import { run } from '../runner';
-import { resultsKey, useFreshResults, useStore, type Selection, type Tool } from '../store';
+import { resultsKey, selectPlacedModel, useFreshResults, useStore, type Selection, type Tool } from '../store';
 import { ConstructNode, type ConstructFlowNode } from './ConstructNode';
 import { ConstantNode, type ConstantFlowNode } from './ConstantNode';
 import { InterceptEdge, type InterceptFlowEdge } from './InterceptEdge';
@@ -98,6 +98,8 @@ interface EmptyProps { onImport: () => void }
 
 export function Canvas({ onImport }: EmptyProps) {
   const model = useStore((s) => s.model);
+  // (laid out under the figure style: what geometry is computed from)
+  const placed = useStore(selectPlacedModel);
   const selection = useStore((s) => s.selection);
   const tool = useStore((s) => s.tool);
   const data = useStore((s) => s.data);
@@ -362,7 +364,7 @@ export function Canvas({ onImport }: EmptyProps) {
     data: { tool, hasError: errorIds.has('constant') },
   } satisfies ConstantFlowNode] : []), ...(model.notes ?? []).map((k): NoteFlowNode => ({
     id: k.id, type: 'note', position: { x: k.x, y: k.y }, width: NOTE_WIDTH, selected: selection.nodes.includes(k.id), data: { text: k.text },
-  })), ...model.constructs.map((c): ConstructFlowNode => {
+  })), ...placed.constructs.map((c): ConstructFlowNode => {
     const geom = constructGeometry(c);
     const labels = indicatorLabels(c, method, display, model.esem?.blocks.some((b) => b.constructs.includes(c.id)), (v) => formatEstimate(settings.figure, v));
     const w = geom.bounds.w, h = geom.bounds.h;
@@ -377,7 +379,7 @@ export function Canvas({ onImport }: EmptyProps) {
         picked: picked?.kind === 'construct' && picked.via !== 'disturbance' && picked.id === c.id ? true : picked?.kind === 'indicator' && c.indicators.includes(picked.id) ? picked.id : false,
       },
     };
-  })], [model.constructs, model.constant, model.esem?.blocks, model.notes, selection.nodes, display, errorIds, tool, method, picked, settings.figure]);
+  })], [placed.constructs, model.constant, model.esem?.blocks, model.notes, selection.nodes, display, errorIds, tool, method, picked, settings.figure]);
 
 
   const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
@@ -386,7 +388,7 @@ export function Canvas({ onImport }: EmptyProps) {
       if (ch.type === 'position' && ch.position) {
         if (ch.id === 'constant') { st().moveConstant(ch.position.x + CONSTANT_R + 4, ch.position.y + CONSTANT_R + 2); continue; }
         if (ch.id.startsWith('note-')) { st().moveNote(ch.id, ch.position.x, ch.position.y); continue; }
-        const c = st().model.constructs.find((k) => k.id === ch.id);
+        const c = selectPlacedModel(st()).constructs.find((k) => k.id === ch.id);
         if (!c) continue;
         const b = constructGeometry(c).bounds;
         st().moveConstruct(ch.id, ch.position.x - b.x, ch.position.y - b.y);
@@ -425,7 +427,7 @@ export function Canvas({ onImport }: EmptyProps) {
     if (state.isValid || !state.fromNode) return;
     const pt = 'changedTouches' in event ? event.changedTouches[0] : event;
     const pos = rf.screenToFlowPosition({ x: pt.clientX, y: pt.clientY });
-    const { model: m } = st();
+    const m = selectPlacedModel(st());
     const byId = new Map(m.constructs.map((c) => [c.id, c]));
     let best: { id: string; d: number; moderation?: boolean } | null = null;
     for (const p of m.paths) {
@@ -488,7 +490,7 @@ export function Canvas({ onImport }: EmptyProps) {
   const [figureOpen, setFigureOpen] = useState(false);
   const [parcelFor, setParcelFor] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const figureInput = useCallback((): FigureInput => buildFigureInput(st().model, method, {
+  const figureInput = useCallback((): FigureInput => buildFigureInput(placed, method, {
     indicator: display ? (name, construct) => display.indicator(name, construct) : undefined,
     fixed: display && 'fixed' in display ? display.fixed : undefined,
     r2: display ? (name) => display.r2(name) : undefined,
@@ -499,7 +501,7 @@ export function Canvas({ onImport }: EmptyProps) {
     correlation: correlationLabel,
     mean: meanOf,
     copula: (from, to) => copulaEstimate(results?.pls, results?.boot, from, to),
-  }, { showErrors, showIntercepts, showImpliedEffects: st().showImpliedEffects, unstd }), [st, method, display, meanOf, moderationLabel, hoLoading, showErrors, showIntercepts, errorValue, correlationLabel, unstd, results]);
+  }, { showErrors, showIntercepts, showImpliedEffects: st().showImpliedEffects, unstd }), [st, placed, method, display, meanOf, moderationLabel, hoLoading, showErrors, showIntercepts, errorValue, correlationLabel, unstd, results]);
 
   // Where each estimate label goes, so that none overlap (the figure export places them the same way).
   const labelAt = useMemo(() => placeFigureLabels(figureInput(), canvasLabelSize), [figureInput]);

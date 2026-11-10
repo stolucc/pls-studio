@@ -2,7 +2,7 @@ import { ViewportPortal } from '@xyflow/react';
 import type { MouseEvent } from 'react';
 import { moderatorSegment, pathOffset, pathSegment, quadraticLoop, type QuadraticLoop } from '../geometry';
 import type { Moderation } from '../model/project';
-import { useStore } from '../store';
+import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
 
@@ -31,7 +31,7 @@ export function ModeratorLayer({ labelFor, onMenu, labelAt }: {
   /** Right-click: open the canvas context menu. */
   onMenu: (e: MouseEvent, t: MenuTarget) => void;
 }) {
-  const model = useStore((s) => s.model);
+  const model = useStore(selectPlacedModel);
   const figure = useStore((s) => s.settings.figure);
   const selected = useStore((s) => s.selection.moderations ?? NONE);
   const setSelection = useStore((s) => s.setSelection);

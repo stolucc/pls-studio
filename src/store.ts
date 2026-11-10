@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { constructGeometry, setCircleConstructs, setDrawnElsewhere } from './geometry';
+import { constructGeometry } from './geometry';
+import { circlesFor, placeModel, type PlacedModel } from './placement';
 import { factorName } from './model/efa';
 import type { FitTestResult } from './engine/bootstrap';
 import type { CbResult } from './engine/cbsem';
@@ -15,7 +16,7 @@ import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
 import { type InteractionMethod,
   createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec, unconfirmedUncorrelated,
-  indicatorsDrawnElsewhere, type Construct, type Correlation, type Path, type DataInfo, type DefinedParameter, type ModelState, type ParameterTerm, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
+  type Construct, type Correlation, type Path, type DataInfo, type DefinedParameter, type ModelState, type ParameterTerm, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
 import type { HeldValue } from './model/heldValue';
 
 export type Tool = 'select' | 'construct' | 'connect' | 'correlate';
@@ -487,7 +488,7 @@ export const useStore = create<State>((set, get) => ({
   addConstant: () => {
     const { model } = get();
     if (model.constant) return;
-    const left = Math.min(0, ...model.constructs.map((c) => c.x - constructGeometry(c).rx)), top = model.constructs.length ? model.constructs.reduce((a, c) => a + c.y, 0) / model.constructs.length : 0;
+    const left = Math.min(0, ...selectPlacedModel(get()).constructs.map((c) => c.x - constructGeometry(c).rx)), top = model.constructs.length ? model.constructs.reduce((a, c) => a + c.y, 0) / model.constructs.length : 0;
     get().commit((m) => ({ ...m, constant: { x: left - 160, y: top } }));
   },
   moveConstant: (x, y) => readOnly(get()) ? undefined : set((s) => (s.model.constant ? { dirty: true, model: { ...s.model, constant: { x, y } } } : {})),
@@ -744,20 +745,18 @@ export const useStore = create<State>((set, get) => ({
   setResultsOpen: (resultsOpen) => set({ resultsOpen }),
 }));
 
-// Whether constructs are circles sets every construct's geometry (the figure style; conditional process analysis keeps its
-// rectangles). Arrows memoise their geometry on the construct object, so they get new objects: not a change to the model.
-let circles = false, elsewhereKey = '{}';
-useStore.subscribe((s) => {
-  const on = s.settings.figure.circleConstructs && s.settings.method !== 'process';
-  const elsewhere = indicatorsDrawnElsewhere(s.model);
-  const key = JSON.stringify([...elsewhere].map(([k, v]) => [k, [...v]]));
-  if (on === circles && key === elsewhereKey) return;
-  circles = on;
-  elsewhereKey = key;
-  setCircleConstructs(on);
-  setDrawnElsewhere(elsewhere);
-  useStore.setState((st) => ({ model: { ...st.model, constructs: st.model.constructs.map((c) => ({ ...c })) } }));
-});
+/**
+ * The model laid out under the current settings (placement.ts), for everything that draws it: the same object while the
+ * model and the circle style are unchanged, and unchanged constructs keep their placed object (memoised arrows key on it).
+ */
+export const selectPlacedModel = (() => {
+  let last: { model: ModelState; circle: boolean; placed: PlacedModel } | null = null;
+  return (s: Pick<State, 'model' | 'settings'>): PlacedModel => {
+    const circle = circlesFor(s.settings.figure, s.settings.method);
+    if (!last || last.model !== s.model || last.circle !== circle) last = { model: s.model, circle, placed: placeModel(s.model, circle, last?.placed) };
+    return last.placed;
+  };
+})();
 
 /** Results only when they match the current model; otherwise null. */
 export function useFreshResults(): Results | null {

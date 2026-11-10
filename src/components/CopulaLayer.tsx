@@ -8,7 +8,7 @@ import { copulaName } from '../engine/types';
 import { constructGeometry, distanceToSegment, pathOffset, pathSegment } from '../geometry';
 import { COPULA_R } from './copulaGeometry';
 import type { ModelState } from '../model/project';
-import { useStore } from '../store';
+import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
 
@@ -76,7 +76,7 @@ export function copulaEstimate(pls: PlsResult | null | undefined, boot: Bootstra
 }
 
 export function CopulaLayer({ pls, boot, onMenu }: { pls: PlsResult | null | undefined; boot: BootstrapResult | null | undefined; onMenu: (e: MouseEvent, t: MenuTarget) => void }) {
-  const model = useStore((s) => s.model);
+  const model = useStore(selectPlacedModel);
   const figure = useStore((s) => s.settings.figure);
   const groups = copulaLayout(model);
   if (groups.length === 0) return null;

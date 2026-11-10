@@ -32,15 +32,6 @@ export const BOX_RX = 1;
 export const CIRCLE_R = 36;
 /** Half-width of a composite's hexagon beside those circles. */
 const COMPACT_HEXAGON_RX = 46;
-// Whether common factors are circles (composites stay hexagons, in a matching size) (the figure style): every arrow's geometry hangs off the construct's shape, so this is set
-// once for all (store.ts) rather than passed through each of them.
-let circleConstructs = false;
-export const setCircleConstructs = (on: boolean) => { circleConstructs = on; };
-export const constructsAreCircles = () => circleConstructs;
-// The boxes each construct leaves to another (project.ts indicatorsDrawnElsewhere), set with the model (store.ts).
-let drawnElsewhere = new Map<string, Set<string>>();
-export const setDrawnElsewhere = (m: Map<string, Set<string>>) => { drawnElsewhere = m; };
-
 export const textWidth = (s: string, px = CHAR) => s.length * px;
 
 /** Point on an axis-aligned ellipse boundary in direction (dx, dy). */
@@ -131,13 +122,19 @@ export function shapePoint(kind: ShapeKind, rx: number, ry: number, dx: number, 
   return ellipsePoint(rx, ry, dx, dy);
 }
 
-export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'side'> & { type?: ConstructType; covariate?: boolean; shape?: 'rectangle' | 'octagon' }, circle = circleConstructs): ConstructGeom {
+/**
+ * What a construct's geometry depends on. `circle` and `shown` are its layout (placement.ts): whether common factors are
+ * circles (composites stay hexagons, in a matching size), and the indicator boxes drawn on it (all its indicators unless given).
+ */
+export type GeomInput = Pick<Construct, 'name' | 'indicators' | 'side'> & { type?: ConstructType; covariate?: boolean; shape?: 'rectangle' | 'octagon'; circle?: boolean; shown?: readonly string[] };
+
+export function constructGeometry(c: GeomInput, circle = c.circle ?? false): ConstructGeom {
   const type = shapeOf(c);
   const observed = type === 'observed';
   const rx = circle && !observed ? (type === 'composite' ? COMPACT_HEXAGON_RX : CIRCLE_R) : observed ? Math.max(40, textWidth(c.name, 7.5) / 2 + 16) : Math.max(58, textWidth(c.name, 8) / 2 + (type === 'composite' ? 34 : 24));
   const ry = observed ? 18 : CIRCLE_R;
   // An observed covariate is its own indicator: no indicator boxes.
-  const shown = observed ? [] : c.indicators.filter((i) => !drawnElsewhere.get(c.name)?.has(i));
+  const shown = observed ? [] : c.shown ?? c.indicators;
   const widths = shown.map((n) => Math.max(48, textWidth(n, 7) + 18));
   const k = shown.length;
   const vertical = c.side === 'left' || c.side === 'right';
@@ -181,7 +178,7 @@ export function constructGeometry(c: Pick<Construct, 'name' | 'indicators' | 'si
 }
 
 
-type Placed = Pick<Construct, 'name' | 'indicators' | 'side' | 'x' | 'y'> & { type?: ConstructType; covariate?: boolean };
+type Placed = GeomInput & Pick<Construct, 'x' | 'y'>;
 
 /** How far the two arrows of a reciprocal pair (A → B and B → A) sit from the centre line, each to its own right. */
 export const RECIPROCAL_OFFSET = 14;

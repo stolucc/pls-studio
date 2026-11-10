@@ -6,7 +6,7 @@ import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/
 import { memo, useMemo } from 'react';
 import { fixedText } from '../diagramLabels';
 import { meanSegment } from '../geometry';
-import { useStore } from '../store';
+import { selectPlacedModel, useStore } from '../store';
 import { EstimateText } from './EstimateLabel';
 
 export type MeanEdgeData = { value: number | null; p: number | null; fixed?: number; label?: string; labelAt?: { x: number; y: number } };
@@ -14,7 +14,7 @@ export type MeanFlowEdge = Edge<MeanEdgeData, 'mean'>;
 
 function MeanEdgeImpl({ id, target, data, selected }: EdgeProps<MeanFlowEdge>) {
   const k = useStore((st) => st.model.constant);
-  const t = useStore((st) => st.model.constructs.find((c) => c.id === target));
+  const t = useStore((st) => selectPlacedModel(st).constructs.find((c) => c.id === target));
   const geo = useMemo(() => {
     if (!k || !t) return null;
     const seg = meanSegment(k, t);

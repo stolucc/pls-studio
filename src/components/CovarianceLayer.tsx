@@ -7,7 +7,7 @@ import {
 import { endogenousIds, impliedCorrelations, indicatorsDrawnElsewhere, type Construct, type Correlation, type CorrelationEnd as CorrelationPick, type ModelState } from '../model/project';
 import { formatEstimate, semplotEdge } from '../figure/style';
 import { noLeadingZero } from '../format';
-import { useStore } from '../store';
+import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
 
@@ -130,7 +130,7 @@ export function CovarianceLayer({ active, showErrors, picked, onPick, labelFor, 
   /** Right-click: open the canvas context menu. */
   onMenu: (e: MouseEvent, t: MenuTarget) => void;
 }) {
-  const model = useStore((s) => s.model);
+  const model = useStore(selectPlacedModel);
   const figure = useStore((s) => s.settings.figure);
   const amos = figure.notation === 'amos';
   const corStyle = (k: Correlation) => { if (figure.notation !== 'semplot') return undefined; const e = semplotEdge(labelFor(k)?.value ?? null); return { stroke: e.color, strokeWidth: e.width }; };

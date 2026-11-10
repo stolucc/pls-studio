@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { pathOffset, pathSegment } from '../geometry';
 import type { Construct, ModelState } from '../model/project';
+import { placeModel } from '../placement';
 import { buildFigureInput } from './build';
 
 const C = (name: string, indicators: string[], x: number, extra: Partial<Construct> = {}): Construct => ({ id: name, name, type: 'factor', mode: 'A', indicators, x, y: 0, side: 'left', ...extra });
-const model: ModelState = {
+const raw: ModelState = {
   constructs: [C('A', ['a1', 'a2', 'a3'], 0), C('B', ['b1', 'b2', 'b3'], 500, { scaling: 'variance', fixedLoadings: { b2: 0.7 } }), C('M', ['m1', 'm2'], 250, { y: 300 } as Partial<Construct>)],
   paths: [{ id: 'ab', from: 'A', to: 'B' }, { id: 'ba', from: 'B', to: 'A' }],
   moderations: [{ id: 'mo', path: 'ab', moderator: 'M' }],
 };
+const model = placeModel(raw, false);
 
 describe('the figure of a model', () => {
   it('marks the held loadings of CB-SEM without estimates: the marker, unless variance-scaled, and fixed values', () => {
