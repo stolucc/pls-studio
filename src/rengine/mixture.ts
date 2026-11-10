@@ -5,7 +5,7 @@
 import type { MixtureSpec } from '../analyses/mixtureSyntax';
 import type { Dataset } from '../engine/types';
 import { parallelism, rCall, rCallParallel, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** A printed parameter: `at` the class of each latent class variable it belongs to (0: the same in all of its classes). */
@@ -29,11 +29,7 @@ export interface MixtureResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const columns = (data: Dataset, names: string[]) => {
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
-  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
-};
-export const mixtureRequest = (data: Dataset, spec: MixtureSpec) => ({ kind: 'mixture', spec, data: columns(data, spec.columns) });
+export const mixtureRequest = (data: Dataset, spec: MixtureSpec) => ({ kind: 'mixture', spec, data: rColumns(data, spec.columns) });
 
 /** One run of the random starts (R: mix_phase): the start, where it ended and minus its log-likelihood. */
 interface StartRun { i: number; par: number[] | number; value: number; convergence?: number }

@@ -5,7 +5,7 @@
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rList, rNum } from './rjson';
 import { cbRequest, type LatentInteraction, type REngineInfo } from './lavaan';
 
 export interface CbCall { data: Dataset; spec: ModelSpec; missing: MissingTreatment; estimator: CbEstimator; interaction: LatentInteraction }

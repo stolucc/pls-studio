@@ -2,7 +2,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export interface NcaCondition {
@@ -23,8 +23,7 @@ export const bottleneckText = (v: number | null) => (v === null ? 'NA' : v <= 1e
 
 export function ncaRequest(data: Dataset, x: string[], y: string, permutations: number) {
   if (data.moments && data.cols.length === 0) throw new Error('NCA needs raw data; this dataset is a covariance matrix.');
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => [...x, y].includes(n));
-  return { x, y, permutations, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { x, y, permutations, data: rColumns(data, [...x, y]) };
 }
 export async function ncaR(data: Dataset, x: string[], y: string, permutations: number): Promise<NcaResult> {
   const raw = await rCall<Record<string, any>>('ps_nca', ncaRequest(data, x, y, permutations), 'nca');

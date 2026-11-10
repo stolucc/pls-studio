@@ -6,7 +6,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export type Family = 'gaussian' | 'binomial' | 'poisson' | 'negbin' | 'gamma' | 'ordinal' | 'multinomial' | 'censored' | 'survival';
@@ -82,10 +82,9 @@ export function regressionRequest(data: Dataset, i: RegressionInput) {
   const status = i.family === 'survival' ? i.status ?? '' : '';
   const zero = zeroOptions(i);
   const names = [...new Set([i.outcome, ...i.predictors, ...i.interactions.flat(), ...(zero.zeroPredictors ?? []), i.trials, i.weights, cluster, status].filter(Boolean))];
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
   const categories = Object.fromEntries(names.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]));
   const { zeroModel: _z, zeroPart: _p, zeroPredictors: _q, ...rest } = i;
-  return { kind: 'regression', ...rest, ...zero, cluster, status, cuts: i.family === 'survival' ? i.cuts ?? [] : [], categories, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { kind: 'regression', ...rest, ...zero, cluster, status, cuts: i.family === 'survival' ? i.cuts ?? [] : [], categories, data: rColumns(data, names) };
 }
 
 export async function regressionR(data: Dataset, input: RegressionInput): Promise<RegressionResult> {

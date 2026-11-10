@@ -3,7 +3,7 @@
 
 import type { Dataset, ModelSpec, PlsOptions } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 import { plsRequest } from './pls';
 

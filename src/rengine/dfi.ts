@@ -5,7 +5,7 @@
 // them, so the view can draw the package's histograms.
 
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import { cbCallRequest, type CbCall } from './cbExtras';
 import type { REngineInfo } from './lavaan';
 

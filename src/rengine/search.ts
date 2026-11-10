@@ -3,7 +3,7 @@
 // regularised SEM (lslx).
 
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rList, rNum } from './rjson';
 import { cbCallRequest, type CbCall } from './cbExtras';
 import type { ModelSpec } from '../engine/types';
 import type { REngineInfo } from './lavaan';

@@ -3,7 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export interface DidInput {
@@ -36,8 +36,7 @@ export function didRequest(data: Dataset, i: DidInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Difference-in-differences needs raw panel data; this dataset is a covariance matrix.');
   const post = i.design === 'twfe' ? i.post : '';  // (the post column belongs to the two-way design only)
   const names = [...new Set([i.outcome, i.unit, i.time, i.treated, ...(post ? [post] : []), ...i.covariates])];
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
-  return { kind: 'did', ...i, post, firstPeriod: i.firstPeriod ?? undefined, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { kind: 'did', ...i, post, firstPeriod: i.firstPeriod ?? undefined, data: rColumns(data, names) };
 }
 
 export async function didR(data: Dataset, input: DidInput): Promise<DidResult> {

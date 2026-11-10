@@ -3,7 +3,7 @@
 
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export interface MetaSemOptions { n: string; method: 'FEM' | 'REM'; reType: 'Diag' | 'Symm' | 'Zero' }

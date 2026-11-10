@@ -6,6 +6,7 @@ import type { Dataset, MissingTreatment, ModelSpec, PlsOptions, PlsResult } from
 import type { REngineInfo } from './lavaan';
 import { expandCategorical } from '../engine/categorical';
 import { rCall, rScript, rStrings } from './bridge';
+import { rColumns } from './rjson';
 
 export type PlsPackage = 'cSEM' | 'seminr';
 
@@ -28,11 +29,10 @@ export function plsRequest(data0: Dataset, spec0: ModelSpec, options: PlsOptions
   // Categorical exogenous constructs travel as their dummy columns, a Mode B composite.
   const { data, spec } = expandCategorical(data0, spec0);
   const used = new Set(spec.constructs.flatMap((c) => c.indicators));
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'pls', package: pkg, missing: options.missing, ...(options.missing === 'mi' && options.mi ? { mi: options.mi } : {}),
     options: { scheme: options.scheme, consistent: !!options.consistent, tolerance: options.tolerance, maxIter: options.maxIter, approach: options.approach ?? 'PLS-PM', hocApproach: options.hocApproach ?? 'two_stage' },
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(data, used),
     model: spec,
   };
 }

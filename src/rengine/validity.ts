@@ -3,7 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** `vars`: the columns of `data` analysed (data columns, the model's indicators, or the PLS construct scores). */
@@ -32,9 +32,8 @@ function request(data: Dataset, kind: string, columns: string[], fields: object)
   if (data.moments && data.cols.length === 0) throw new Error('This analysis needs raw data; the dataset is a covariance matrix.');
   const names = [...new Set(columns.filter(Boolean))];
   for (const n of names) if (!data.names.includes(n)) throw new Error(`“${n}” is not a column of the dataset.`);
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
   const categories = Object.fromEntries(names.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]));
-  return { kind, ...fields, categories, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { kind, ...fields, categories, data: rColumns(data, names) };
 }
 
 const cmbPackage = (i: CmbInput) => (i.type === 'harman' ? 'psych' as const : 'stats' as const);

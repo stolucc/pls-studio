@@ -4,7 +4,7 @@
 import type { Dataset } from '../engine/types';
 import { parseExpr, namesIn } from '../model/expr';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export type CustomMlType = 'nominal' | 'normal' | 'probit';

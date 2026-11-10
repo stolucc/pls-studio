@@ -3,7 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** How a column becomes a set: as it is (already fuzzy or crisp), or Ragin's direct method with three anchors. */
@@ -58,14 +58,13 @@ export function caseLabels(data: Dataset, column: string): string[] | null {
 export function qcaRequest(data: Dataset, s: QcaSpec) {
   if (data.moments && data.cols.length === 0) throw new Error('QCA needs raw data; this dataset is a covariance matrix.');
   const used = [...s.conditions, s.outcome];
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => used.includes(n));
   const labels = s.labels ? caseLabels(data, s.labels) : null;
   return {
     outcome: s.outcome, conditions: s.conditions, negate: s.negate,
     calibration: Object.fromEntries(used.map((n) => [n, s.calibration[n] ?? { method: 'none' }])),
     nCut: s.nCut, inclCut: s.inclCut, priCut: s.priCut, sortBy: s.sortBy, dirExp: s.dirExp,
     ...(labels ? { labels } : {}),
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(data, used),
   };
 }
 

@@ -4,7 +4,7 @@
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rColumns, rList, rNum } from './rjson';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 export interface ScreenResult {
@@ -30,8 +30,7 @@ const nums = (v: unknown) => rList<unknown>(v).map((x) => (typeof x === 'number'
 
 export function screenRequest(data: Dataset, vars: string[], alpha: number) {
   if (data.moments && data.cols.length === 0) throw new Error('Data screening needs raw data; this dataset is a covariance matrix.');
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => vars.includes(n));
-  return { vars, alpha, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { vars, alpha, data: rColumns(data, vars) };
 }
 
 export async function screenR(data: Dataset, vars: string[], alpha: number): Promise<ScreenResult> {

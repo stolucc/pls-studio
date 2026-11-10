@@ -4,7 +4,7 @@
 import type { Dataset } from '../engine/types';
 import type { DsemSpec } from '../analyses/dsemSyntax';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** parametrization: 'noncentred' samples every level's random effects standardised (the default: centred where clusters have 20 or more rows each). */

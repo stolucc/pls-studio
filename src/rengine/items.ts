@@ -3,7 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** threepl, fourpl and mixture (a 2PL model in latent classes) are fitted by mirt, the others by ltm. */
@@ -66,10 +66,6 @@ export type LpaStructure = 'EEI' | 'VVI' | 'EEE' | 'VVV';
 /** mlca: categorical items of people in clusters (`cluster`), with `clusterClasses` classes of clusters (glca). */
 export interface LcaSpec { model?: LcaKind; structure?: LpaStructure; times?: number[]; cluster?: string; clusterClasses?: number }
 
-const columns = (data: Dataset, names: string[]) => {
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
-  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
-};
 
 export const irtRequest = (data: Dataset, items: string[], model: IrtModel, fit: IrtFit = {}) => isMirt(model)
   ? {
@@ -77,14 +73,14 @@ export const irtRequest = (data: Dataset, items: string[], model: IrtModel, fit:
     ...(fit.priorG && model !== 'mixture' ? { priorG: fit.priorG } : {}), ...(fit.priorU && model === 'fourpl' ? { priorU: fit.priorU } : {}),
     ...(fit.guessItems?.length && model === 'threepl' ? { guessItems: fit.guessItems.filter((i) => items.includes(i)) } : {}), ...(fit.freq ? { freq: fit.freq } : {}),
     ...(model === 'mixture' ? { classes: fit.classes ?? 2, nrep: fit.nrep ?? 10, seed: fit.seed ?? 1 } : {}),
-    data: columns(data, fit.freq ? [...items, fit.freq] : items),
+    data: rColumns(data, fit.freq ? [...items, fit.freq] : items),
   }
-  : ({ kind: 'irt', model, items, ...(fit.quadrature ? { quadrature: fit.quadrature } : {}), ...(fit.robust ? { robust: true } : {}), data: columns(data, items) });
+  : ({ kind: 'irt', model, items, ...(fit.quadrature ? { quadrature: fit.quadrature } : {}), ...(fit.robust ? { robust: true } : {}), data: rColumns(data, items) });
 export const lcaRequest = (data: Dataset, items: string[], classes: number[], nrep: number, seed: number, spec: LcaSpec = {}) =>
-  spec.model === 'lpa' ? { kind: 'lpa', items, classes, nrep, seed, structure: spec.structure ?? 'EEI', data: columns(data, items) }
-  : spec.model === 'lcga' ? { kind: 'lcga', items, classes, nrep, seed, times: spec.times ?? items.map((_, i) => i), data: columns(data, items) }
-  : spec.model === 'mlca' ? { kind: 'mlca', items, classes, nrep, seed, cluster: spec.cluster ?? '', clusterClasses: spec.clusterClasses ?? 2, data: columns(data, [...items, spec.cluster ?? '']) }
-  : { kind: 'lca', items, classes, nrep, seed, data: columns(data, items) };
+  spec.model === 'lpa' ? { kind: 'lpa', items, classes, nrep, seed, structure: spec.structure ?? 'EEI', data: rColumns(data, items) }
+  : spec.model === 'lcga' ? { kind: 'lcga', items, classes, nrep, seed, times: spec.times ?? items.map((_, i) => i), data: rColumns(data, items) }
+  : spec.model === 'mlca' ? { kind: 'mlca', items, classes, nrep, seed, cluster: spec.cluster ?? '', clusterClasses: spec.clusterClasses ?? 2, data: rColumns(data, [...items, spec.cluster ?? '']) }
+  : { kind: 'lca', items, classes, nrep, seed, data: rColumns(data, items) };
 const LCA_BRIDGE = { lca: ['ps_lca', 'poLCA'], lpa: ['ps_lpa', 'stats'], lcga: ['ps_lcga', 'stats'], mlca: ['ps_mlca', 'glca'] } as const;
 const IRT_BRIDGE = (model: IrtModel) => (isMirt(model) ? ['ps_mirt', 'mirt'] as const : ['ps_irt', 'ltm'] as const);
 

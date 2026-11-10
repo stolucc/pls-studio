@@ -6,7 +6,7 @@ import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { exprToR, parseExpr } from '../model/expr';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 /** A normal prior on labelled parameters, as Mplus's MODEL PRIORS writes it: label ~ N(mean, variance). */

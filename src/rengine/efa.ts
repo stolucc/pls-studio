@@ -4,7 +4,7 @@
 import type { Dataset } from '../engine/types';
 import type { EfaDesign } from '../model/efa';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export interface EfaResult {
@@ -46,12 +46,11 @@ const mat = (v: unknown, cols: number): number[][] => rList<unknown>(v).map((r) 
 
 export function efaRequest(data: Dataset, d: EfaDesign, seed: number) {
   if (data.moments && data.cols.length === 0) throw new Error('Exploratory factor analysis here needs raw data; this dataset is a covariance matrix.');
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => d.vars.includes(n));
   return {
     vars: d.vars, method: d.method, criterion: d.criterion, nfactors: d.nfactors, rotation: d.rotation, deletion: d.missing, parallel: d.parallel, seed,
     ...(d.correlation === 'polychoric' ? { correlation: 'polychoric' } : {}),
     ...(d.method === 'lavaan' ? { ...(d.epsilon !== undefined ? { epsilon: d.epsilon } : {}), ...(d.information ? { information: d.information } : {}), ...(d.wlsmvSe && d.correlation === 'polychoric' ? { wlsmvSe: d.wlsmvSe } : {}), ...(d.mimic && d.correlation === 'polychoric' ? { mimic: d.mimic } : {}), ...(d.from !== undefined ? { from: d.from } : {}) } : {}),
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(data, d.vars),
   };
 }
 

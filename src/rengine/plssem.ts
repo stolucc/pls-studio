@@ -4,7 +4,7 @@
 
 import type { Dataset, MissingTreatment, ModelSpec, WeightingScheme } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** A path (by construct names) whose coefficient varies across clusters (plssem's rv()). */
@@ -45,10 +45,9 @@ export function plssemRequest(m: PlssemModel, o: PlssemInput) {
   if (m.data.moments) throw new Error('Multilevel PLS-SEM needs raw data with a cluster column.');
   const used = new Set([...m.spec.constructs.flatMap((c) => c.indicators), ml.column, ...(ml.between === 'factors' ? ml.betweenCovariates ?? [] : []),
     ...(ml.between === 'model' ? (ml.betweenModel ?? []).flatMap((st) => [st.lhs, ...st.rhs.map((t) => t.name)]) : [])]);
-  const keep = m.data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     missing: m.missing,
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(m.data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(m.data, used),
     model: {
       constructs: m.spec.constructs, paths: m.spec.paths.map(({ from, to, fixed, label }) => ({ from, to, ...(fixed !== undefined ? { fixed } : {}), ...(label ? { label } : {}) })),
       ...(m.spec.moderations?.length ? { moderations: m.spec.moderations } : {}), ...(m.spec.threeWay?.length ? { threeWay: m.spec.threeWay } : {}),

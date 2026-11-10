@@ -8,7 +8,7 @@ import type { IpmaOptions, IpmaResult } from '../engine/ipma';
 import type { MiivResult } from '../engine/miiv';
 import type { BootstrapOptions, BootstrapResult, BootstrapStat, Dataset, MissingTreatment, ModelSpec, PlsOptions } from '../engine/types';
 import { parallelism, rCall, rCallParallel, rScript, type RPackage, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import { bootChunks } from './compute';
 import { cbRequest, type LatentInteraction } from './lavaan';
 import { plsPackages, plsRequest, type PlsPackage } from './pls';

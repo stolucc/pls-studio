@@ -2,7 +2,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export interface RsaInput {
@@ -31,8 +31,7 @@ const param = (x: any) => ({ ...x, se: rNum(x.se), stat: rNum(x.stat), p: rNum(x
 export function rsaRequest(data: Dataset, i: RsaInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Polynomial regression needs raw data; this dataset is a covariance matrix.');
   const names = [i.outcome, i.x, i.y, ...i.controls];
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
-  return { ...i, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { ...i, data: rColumns(data, names) };
 }
 
 export async function rsaR(data: Dataset, input: RsaInput): Promise<RsaResult> {

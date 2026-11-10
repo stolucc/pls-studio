@@ -6,7 +6,7 @@
 import type { QuadSpec } from '../analyses/quadmlSyntax';
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export interface QuadParam { lhs: string; op: string; rhs: string; est: number; se: number | null; fixed: boolean }
@@ -21,11 +21,7 @@ export interface QuadResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const columns = (data: Dataset, names: string[]) => {
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
-  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
-};
-export const quadRequest = (data: Dataset, spec: QuadSpec) => ({ kind: 'quadml', spec, data: columns(data, spec.columns) });
+export const quadRequest = (data: Dataset, spec: QuadSpec) => ({ kind: 'quadml', spec, data: rColumns(data, spec.columns) });
 
 export async function quadR(data: Dataset, spec: QuadSpec): Promise<QuadResult> {
   const raw = await rCall<Record<string, any>>('ps_quadml', quadRequest(data, spec), 'stats');

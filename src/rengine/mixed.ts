@@ -3,7 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** A cluster level above the first, nesting it (e.g. schools above classes), with its random slopes. */
@@ -79,10 +79,6 @@ export interface GmmModel {
 export interface GmmResult { n: number; observations: number; times: number[]; observedTimes: number[]; models: GmmModel[]; warnings: string[]; engine: REngineInfo }
 
 const n0 = (v: unknown) => (typeof v === 'number' ? v : null);
-const columns = (data: Dataset, names: string[]) => {
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
-  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
-};
 
 /** The data columns a multilevel regression uses (with repeated measures in columns: the measures and the time-varying covariates' columns, not the names they create). */
 export function lmmColumns(i: LmmInput): string[] {
@@ -94,9 +90,9 @@ export function lmmColumns(i: LmmInput): string[] {
     i.cluster, ...(i.levels ?? []).map((l) => l.cluster),
   ].filter(Boolean))];
 }
-export const lmmRequest = (data: Dataset, i: LmmInput) => ({ ...i, data: columns(data, lmmColumns(i)) });
+export const lmmRequest = (data: Dataset, i: LmmInput) => ({ ...i, data: rColumns(data, lmmColumns(i)) });
 export const gmmRequest = (data: Dataset, i: GmmInput) =>
-  ({ ...i, data: columns(data, [...(i.format === 'wide' ? i.measures : [i.subject, i.time, i.outcome]), ...i.covariates, ...(i.format === 'wide' && i.residuals ? i.membership ?? [] : [])]) });
+  ({ ...i, data: rColumns(data, [...(i.format === 'wide' ? i.measures : [i.subject, i.time, i.outcome]), ...i.covariates, ...(i.format === 'wide' && i.residuals ? i.membership ?? [] : [])]) });
 /** lcmm, or the wide model with a residual variance per occasion. */
 const gmmBridge = (i: GmmInput) => (i.format === 'wide' && i.residuals === 'occasion' ? ['ps_gmm_wide', 'stats'] as const : ['ps_gmm', 'lcmm'] as const);
 

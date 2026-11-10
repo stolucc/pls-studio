@@ -5,7 +5,7 @@
 import type { CbEstimate, CbEstimator, CbFit, CbResult } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec, MomentData } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 
 
 /** How latent interactions are estimated: product indicators (lavaan) or LMS / QML (modsem). */
@@ -36,13 +36,12 @@ export function cbRequest(data: Dataset, spec0: ModelSpec, missing: MissingTreat
       ...(spec.multilevel.between === 'model' ? (spec.multilevel.betweenModel ?? []).flatMap((st) => [st.lhs, ...st.rhs.map((t) => t.name)]) : [])] : []), ...(spec.weights ? [spec.weights] : []), ...(spec.cluster ? [spec.cluster] : []),
     // (multiple imputation: the auxiliary variables travel too; they inform the imputation, not the model)
     ...(missing === 'mi' ? mi?.auxiliary ?? [] : []), ...(spec.auxiliary ?? [])]);
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => used.has(n));
   return {
     kind: 'cb', estimator, missing, ...(interaction !== 'product' && spec.moderations?.length ? { interaction } : {}),
     ...(missing === 'mi' && mi ? { mi } : {}),
     data: data.moments && data.cols.length === 0
       ? { names: data.names, moments: data.moments }
-      : { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) },
+      : rColumns(data, used),
     model: spec,
   };
 }

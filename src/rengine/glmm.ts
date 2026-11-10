@@ -3,7 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export type GlmmFamily = 'poisson' | 'negbin' | 'zip' | 'zinb' | 'binomial';
@@ -53,10 +53,6 @@ export interface GlmmResult {
   warnings: string[]; engine: REngineInfo;
 }
 
-const columns = (data: Dataset, names: string[]) => {
-  const keep = data.names.map((n, i) => [n, i] as const).filter(([n]) => names.includes(n));
-  return { names: keep.map(([n]) => n), cols: keep.map(([, i]) => Array.from(data.cols[i], (v) => (Number.isNaN(v) ? null : v))) };
-};
 
 /** The columns the model reads. */
 export const glmmColumns = (o: GlmmInput) => (o.layout === 'wide' ? [...o.occasions, ...o.predictors]
@@ -69,7 +65,7 @@ export function glmmRequest(data: Dataset, o: GlmmInput) {
     ...(o.layout === 'wide' ? { occasions: o.occasions, times: o.times.length === o.occasions.length ? o.times : o.occasions.map((_, i) => i) }
       : { outcome: o.outcome, cluster: o.cluster, categorical: o.categorical.filter((c) => o.predictors.includes(c)), ...(o.family === 'binomial' && o.trials ? { trials: o.trials } : {}) }),
     ...(zi ? { ziPredictors: o.ziPredictors, ziRandom: o.ziRandom } : {}),
-    data: columns(data, glmmColumns(o)),
+    data: rColumns(data, glmmColumns(o)),
   };
 }
 

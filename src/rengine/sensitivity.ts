@@ -3,7 +3,7 @@
 // 2010) for the conditional process model.
 
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import { cbCallRequest, type CbCall } from './cbExtras';
 import type { CpaVariable } from './cpa';
 import type { REngineInfo } from './lavaan';
@@ -95,11 +95,10 @@ export interface MedsensResult {
 export function medsensRequest(data: Dataset, i: MedsensInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Mediation sensitivity needs raw data; this dataset is a covariance matrix.');
   const used = new Set(i.variables.flatMap((v) => v.indicators));
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => used.has(n));
   return {
     variables: i.variables.map(({ name, indicators }) => ({ name, indicators })), x: i.x, m: i.m, y: i.y, covariates: i.covariates,
     rhoBy: i.rhoBy, eps: i.eps, confidence: i.confidence, seed: i.seed,
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(data, used),
   };
 }
 const curve = (v: any): MedsensCurve => ({ est: nums(v?.est), lo: nums(v?.lo), hi: nums(v?.hi) });

@@ -3,7 +3,7 @@
 
 import type { Dataset, MissingTreatment } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rColumns, rList } from './rjson';
 import type { InvarianceResult, REngineInfo } from './lavaan';
 
 /** A factor of the diagram: its name and indicators (data columns). */
@@ -47,8 +47,7 @@ export function invRequest(data: Dataset, kind: string, columns: string[], field
   if (data.moments && data.cols.length === 0) throw new Error('This analysis needs raw data; the dataset is a covariance matrix.');
   const names = [...new Set(columns.filter(Boolean))];
   for (const n of names) if (!data.names.includes(n)) throw new Error(`“${n}” is not a column of the dataset.`);
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
-  return { kind, ...fields, data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) } };
+  return { kind, ...fields, data: rColumns(data, names) };
 }
 
 /** Group codes of a text column as its category names ("2" → "Pasteur"). */

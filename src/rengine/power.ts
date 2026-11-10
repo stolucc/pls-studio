@@ -5,7 +5,7 @@
 import type { CbEstimator } from '../engine/cbsem';
 import type { Dataset, MissingTreatment, ModelSpec } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import { cbRequest, type REngineInfo } from './lavaan';
 
 export type PowerAnalysis = 'apriori' | 'posthoc' | 'compromise' | 'parameter' | 'equivalence';

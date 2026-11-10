@@ -3,7 +3,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList, rNum } from './reply';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** 'weighting': inverse probability weighting (WeightIt) instead of matching. */
@@ -39,12 +39,11 @@ export interface MatchResult {
 export function matchRequest(data: Dataset, i: MatchInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Matching needs raw data; this dataset is a covariance matrix.');
   const names = [i.treatment, ...i.covariates, ...(i.outcome ? [i.outcome] : [])];
-  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => names.includes(n));
   // Text (categorical) covariates travel with their category names, to become factors.
   const categories = Object.fromEntries(i.covariates.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]));
   return {
     ...i, caliper: i.caliper ?? undefined, categories,
-    data: { names: keep.map(([n]) => n), cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))) },
+    data: rColumns(data, names),
   };
 }
 

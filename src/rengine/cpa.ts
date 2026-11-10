@@ -8,7 +8,7 @@ import { codeValue, expandPlan, type Dummies } from '../process/categorical';
 import { planFor } from '../process/plan';
 import type { ProcessGraph } from '../process/templates';
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 /** A variable of the model: one observed column, or the mean score of a scale's items. */

@@ -3,7 +3,7 @@
 // (strucchange::gefp), and the test the functional gives (Merkle & Zeileis 2013; Merkle, Fan & Zeileis 2014).
 
 import { rCall, rScript, rStrings } from './bridge';
-import { rList } from './reply';
+import { rList } from './rjson';
 import { cbCallRequest, type CbCall } from './cbExtras';
 import type { REngineInfo } from './lavaan';
 
