@@ -39,8 +39,8 @@ import { parseLavaanSyntax } from '../model/syntax';
 import { namesIn, parseExpr } from '../model/expr';
 import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'nonnest2' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'nonnest2', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'nonnest2' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa' | 'plssem';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'nonnest2', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa', 'plssem'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'plsmultilevel';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -760,6 +760,17 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     syntax: LGCM_SYNTAX, constructs: [], paths: [],
     panel: { kind: 'semtree', covariates: [{ name: 'agegroup', type: 'ordered' }, { name: 'training', type: 'categorical' }, { name: 'noise', type: 'numeric' }], method: 'naive', alpha: 0.05, maxDepth: 3, minN: 20, forest: false, trees: 50 },
     settings: CB('ML'),
+  },
+  {
+    id: 'plssem-randomslopes', package: 'plssem', title: 'Multilevel PLS-SEM with random slopes (MC-PLSc)', source: 'plssem, vignette “Multilevel Models with plssem” (randomSlopes)',
+    links: [{ label: 'plssem: Multilevel Models with plssem', url: 'https://kss2k.github.io/plssem/articles/multilevel-models.html' }, { label: '?randomSlopes', url: 'https://rdrr.io/cran/plssem/man/randomSlopes.html' }, { label: 'plssem on CRAN', url: 'https://cran.r-project.org/package=plssem' }],
+    description: 'plssem’s simulated randomSlopes data (3000 cases in 200 clusters) with its vignette’s random-slopes model: within clusters a factor fw of y1–y3 regressed on x1–x3, the slopes of x1 and x2 varying across clusters; between clusters a factor of the same items and both random slopes regressed on the cluster-level w1 and w2 (Clusters: Factors). Estimated by plssem’s Monte Carlo consistent PLS (MC-PLSc) with the project’s seed (1): the estimates depend on the seed, by about 0.005. The vignette prints no results, so the reference is plssem 0.2.0 itself, run directly with the same seed (scripts/validation/plssem_multilevel.R), which the card reproduces to 1e-6. Runs in desktop R through the PLS Studio Helper (the browser’s R has an older plssem). Opens its card on the Analyses tab; the Model tab’s PLS-SEM ignores the clustering.',
+    shows: 'Within clusters x1 has the largest effect on fw (0.483, then x2 0.393 and x3 0.190); its slope varies most across clusters (SD 0.190, x2’s 0.139). Between clusters w2 predicts x1’s slope (0.485) and the cluster level of fw only weakly (w1 0.160, w2 0.131). Treat the fit measures as descriptive: plssem says they are under development.',
+    data: { package: 'plssem', name: 'randomSlopes', file: 'examples/plssem/randomSlopes.csv' },
+    constructs: [f('fw', items('y', 3)), v('x1'), v('x2'), v('x3')], paths: [['x1', 'fw'], ['x2', 'fw'], ['x3', 'fw']],
+    multilevel: { column: 'cluster', between: 'factors', betweenCovariates: ['w1', 'w2'] },
+    panel: { kind: 'plsmultilevel', slopes: [{ from: 'x1', to: 'fw' }, { from: 'x2', to: 'fw' }], consistent: false, scheme: 'path', bootstrap: false, bootR: 500 },
+    settings: { ...PLS('cSEM', false), missing: 'casewise', seed: 1 },
   },
   {
     id: 'rsem-mardia', package: 'rsem', title: 'Robust ML with missing data: exam scores', source: 'rsem, ?rsem.lavaan (mardiamv25)',

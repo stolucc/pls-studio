@@ -54,6 +54,7 @@ optimx
 optmatch
 pbivnorm
 plspm
+plssem
 poLCA
 psych
 psychotools

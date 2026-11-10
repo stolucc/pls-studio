@@ -440,6 +440,7 @@ Two of them run in the browser in a build patched by PLS Studio so that they loa
 | REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV) | public/examples/rendo, validation fixtures | GPL-3, from the REndo package | Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser. |
 | Digman97 (correlation matrices of 14 studies of the Big Five) | public/examples/metasem, validation fixtures | GPL (>= 2), from the metaSEM package | Digman, J. M. (1997). Higher-order factors of the Big Five. Journal of Personality and Social Psychology, 73, 1246–1256; distributed with metaSEM (Cheung); shipped with the app because metaSEM cannot run in the browser. |
 | lgcm (simulated latent growth curve data) | public/examples/semtree, validation fixtures | GPL-3, from the semtree package | Simulated data distributed with semtree (Brandmaier, Prindle & Arnold); shipped with the app because semtree cannot run in the browser. |
+| randomSlopes (simulated two-level data with random slopes) | public/examples/plssem, validation fixtures | GPL-3, from the plssem package | Simulated data distributed with plssem (Kjell Solem Slupphaug); shipped with the app because plssem 0.2.0 does not run in the browser. |
 
 ## Published sources
 

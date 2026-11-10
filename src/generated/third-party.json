@@ -2461,6 +2461,13 @@
    "license": "GPL-3, from the semtree package",
    "credit": "Simulated data distributed with semtree (Brandmaier, Prindle & Arnold); shipped with the app because semtree cannot run in the browser.",
    "url": "https://cran.r-project.org/package=semtree"
+  },
+  {
+   "name": "randomSlopes (simulated two-level data with random slopes)",
+   "where": "public/examples/plssem, validation fixtures",
+   "license": "GPL-3, from the plssem package",
+   "credit": "Simulated data distributed with plssem (Kjell Solem Slupphaug); shipped with the app because plssem 0.2.0 does not run in the browser.",
+   "url": "https://cran.r-project.org/package=plssem"
   }
  ],
  "publishedSources": [

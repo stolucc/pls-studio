@@ -627,7 +627,8 @@ function checkMultilevel(v: Ctx): Issue[] {
   const { model, data, method, engine, assignedSet, ordered } = v;
   const ml = model.multilevel;
   if (ml) {
-    if (method.method !== 'cbsem') warn(`The two-level model (clusters by ${ml.column}) is estimated in CB-SEM only; ${method.method === 'pls' ? 'PLS-SEM' : 'regression'} ignores the clustering.`);
+    if (method.method === 'pls') warn(`The two-level model (clusters by ${ml.column}) is estimated in CB-SEM, and for PLS-SEM by the Multilevel PLS-SEM card on the Analyses tab (plssem, desktop R); the Model tab’s PLS-SEM ignores the clustering.`);
+    else if (method.method !== 'cbsem') warn(`The two-level model (clusters by ${ml.column}) is estimated in CB-SEM only; regression ignores the clustering.`);
     else {
       if (engine === 'builtin') err('Two-level models are estimated by lavaan: choose “R packages” under Calculated by.');
       if (method.estimator !== 'ML' && method.estimator !== 'MLR') err('Two-level models use the ML or MLR estimator.');
@@ -666,6 +667,60 @@ function checkMultilevel(v: Ctx): Issue[] {
     }
   }
   return issues;
+}
+
+/**
+ * Why the Multilevel PLS-SEM card (plssem 0.2.0, MC-PLSc for two-level models) cannot estimate the model on the canvas
+ * with its clusters and these random slopes (paths by construct names); [] when it can. What plssem does not support
+ * for two-level models (Mode B, higher-order constructs), and what the card does not pass to it, is refused here.
+ */
+export function plsMultilevelIssues(model: ModelState, data: Dataset | null, settings: Pick<Settings, 'missing'>, slopes: { from: string; to: string }[] = []): string[] {
+  const out: string[] = [];
+  const ml = model.multilevel;
+  if (!ml?.column) return ['Choose the cluster column under Clusters (two-level) on the Model tab: the diagram is the within-cluster model.'];
+  if (ml.between === 'saturated') out.push('Multilevel PLS-SEM needs a model between clusters: choose Same model, Factors or As written under Clusters (a saturated between level is lavaan’s).');
+  if (!model.constructs.length) out.push('Draw the within-cluster model on the canvas first.');
+  const name = new Map(model.constructs.map((c) => [c.id, c.name]));
+  for (const c of model.constructs) {
+    if (c.components?.length) out.push(`"${c.name}" is a higher-order construct: not available in multilevel PLS-SEM.`);
+    else if (!c.indicators.length) out.push(`"${c.name}" has no indicators.`);
+    else if (c.categorical && c.indicators.length === 1) out.push(`"${c.name}" is categorical (dummies forming a Mode B composite): plssem’s MC-PLSc has no Mode B; use a numeric variable.`);
+    else if (c.indicators.length > 1 && (c.mode !== 'A' || c.type === 'composite')) out.push(`"${c.name}" is a composite (${c.mode === 'B' ? 'Mode B' : c.mode === 'unit' ? 'sum scores' : 'Mode A'}): plssem’s MC-PLSc estimates common factors only (it has no Mode B yet); make it a factor with Mode A.`);
+    if (c.predefinedWeights) out.push(`"${c.name}" has pre-defined weights, which plssem does not take.`);
+  }
+  if (model.moderations.length || model.threeWay?.length || model.copulas?.length) out.push('Multilevel PLS-SEM is estimated here without interaction terms or copulas: remove them from the paths.');
+  if (model.paths.some((p) => p.fixed !== undefined || p.label)) out.push('Multilevel PLS-SEM estimates every path: remove fixed values and labels from the paths.');
+  if (model.multigroup) out.push('Multilevel PLS-SEM has no groups: remove the grouping column (Groups).');
+  if (model.weights) out.push('Multilevel PLS-SEM takes no sampling weights: clear them.');
+  if (model.cluster) out.push('Sampling clusters (cluster-robust standard errors) and a two-level model are alternatives: clear the sampling clusters.');
+  if (settings.missing !== 'mean' && settings.missing !== 'casewise') out.push('Multilevel PLS-SEM handles missing values by casewise deletion or mean replacement (plssem’s listwise and mean): choose one under Missing values.');
+  if (ml.between === 'model') for (const st of ml.betweenModel ?? []) {
+    if (st.op === '~1') out.push('Multilevel PLS-SEM has no intercepts: remove the “~ 1” statements from the between-level model.');
+    else if (st.rhs.some((t) => t.fixed !== undefined || t.label)) out.push('Multilevel PLS-SEM estimates every between-level parameter: remove fixed values and labels from the between-level model.');
+  }
+  const assigned = new Set(model.constructs.flatMap((c) => c.indicators));
+  if (!data || data.moments) out.push('Multilevel PLS-SEM needs raw data with a cluster column.');
+  else {
+    const k = data.names.indexOf(ml.column);
+    if (k < 0) out.push(`The cluster column “${ml.column}” is not in the dataset.`);
+    else if (assigned.has(ml.column)) out.push(`“${ml.column}” is an indicator and cannot also define the clusters.`);
+    else if (new Set(Array.from(data.cols[k]).filter((v) => Number.isFinite(v))).size < 2) out.push(`The cluster column “${ml.column}” has fewer than two clusters.`);
+    if (ml.between === 'factors') for (const w of ml.betweenCovariates ?? []) {
+      if (!data.names.includes(w)) out.push(`The cluster-level covariate “${w}” is not in the dataset.`);
+      else if (assigned.has(w) || w === ml.column) out.push(`“${w}” is in the model or defines the clusters: a cluster-level covariate is a further column.`);
+    }
+    if (ml.between === 'model') {
+      const factors = new Set((ml.betweenModel ?? []).filter((x) => x.op === '=~').map((x) => x.lhs));
+      for (const x of new Set((ml.betweenModel ?? []).flatMap((x) => [x.lhs, ...x.rhs.map((t) => t.name)]))) {
+        if (x !== '1' && !factors.has(x) && !data.names.includes(x)) out.push(`“${x}” in the between-level model is neither a column of the dataset nor a between-level factor.`);
+      }
+    }
+  }
+  if (ml.between === 'factors' && !model.constructs.some((c) => c.indicators.length > 1)) out.push('Between clusters the factors are measured by their indicators: the model needs a construct with several indicators.');
+  const paths = new Set(model.paths.map((p) => `${name.get(p.from)}\r${name.get(p.to)}`));
+  for (const s of slopes) if (!paths.has(`${s.from}\r${s.to}`)) out.push(`The random slope ${s.from} → ${s.to} is not a path of the model.`);
+  if (slopes.length > 20) out.push('At most 20 random slopes.');
+  return [...new Set(out)];
 }
 
 /** Multiple groups and values per group (CB-SEM). */

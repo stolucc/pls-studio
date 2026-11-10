@@ -39,6 +39,7 @@ import invarianceR from './R/invariance.R?raw';
 import powerR from './R/power.R?raw';
 import metasemR from './R/metasem.R?raw';
 import semtreeR from './R/semtree.R?raw';
+import plssemR from './R/plssem.R?raw';
 import searchR from './R/search.R?raw';
 import sensitivityR from './R/sensitivity.R?raw';
 import scoreTestR from './R/scoretest.R?raw';
@@ -47,7 +48,7 @@ import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, prob
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, cbdiag: cbdiagR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, invariance: invarianceR};
+export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, cbdiag: cbdiagR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, plssem: plssemR, invariance: invarianceR};
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -149,6 +150,8 @@ export const R_PACKAGES = {
   metaSEM: ['jsonlite', 'lavaan', 'OpenMx', 'metaSEM'],
   // SEM trees and forests of the canvas model (semtree on OpenMx, the model a lavaan fit): desktop R only (DESKTOP_ONLY).
   semtree: ['jsonlite', 'lavaan', 'OpenMx', 'semtree'],
+  // Two-level PLS-SEM (MC-PLSc, random slopes): plssem 0.2.0, desktop R only (DESKTOP_ONLY; the browser's repository has 0.1.5).
+  plssem: ['jsonlite', 'plssem'],
   // Score-based invariance tests along a covariate (Merkle & Zeileis): strucchange's fluctuation tests on the lavaan fit.
   strucchange: ['jsonlite', 'lavaan', 'semTools', 'strucchange'],
   // Datasets of psychotools (YouthGratitude: the strucchange example of Merkle, Fan & Zeileis 2014).
@@ -160,10 +163,11 @@ export const R_PACKAGES = {
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 /** Packages that R in the browser cannot run (Stan): only through the desktop helper, never webR. */
-export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>(['blavaan', 'rstan', 'metaSEM', 'semtree']);
+export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>(['blavaan', 'rstan', 'metaSEM', 'semtree', 'plssem']);
 /** Why each of them cannot run in the browser. */
 const DESKTOP_WHY: Partial<Record<RPackage, string>> = {
   blavaan: 'Stan does not run in the browser', rstan: 'Stan does not run in the browser', metaSEM: 'OpenMx does not run in the browser', semtree: 'OpenMx does not run in the browser',
+  plssem: 'the browser’s R has plssem 0.1.5, whose multilevel interface differs from 0.2.0’s',
 };
 export class DesktopOnly extends Error {}
 /** What to do when desktop R is not in use or lacks the packages. */
