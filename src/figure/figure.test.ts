@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { BOX_RX, constructGeometry, setCircleConstructs, pathSegment, quadraticLoop } from '../geometry';
+import { describe, expect, it } from 'vitest';
+import { BOX_RX, constructGeometry, pathSegment, quadraticLoop } from '../geometry';
 import type { Construct } from '../model/project';
 import { R2_ABOVE_BOX_SIZE, renderFigureSvg, type FigureInput } from './render';
 import { DEFAULT_FIGURE_STYLE, estimateText, FIGURE_PRESETS, figureForMethod, formatEstimate, isPlainFigure, matchPreset, semplotEdge, parseFigureStyle, pathStrokeWidth, significanceText } from './style';
@@ -207,11 +207,9 @@ describe('built-in styles', () => {
 
 describe('PLS style', () => {
   const style = FIGURE_PRESETS.pls.style;
-  afterEach(() => setCircleConstructs(false));
   const circled = (): FigureInput => {
-    setCircleConstructs(true);
     const f = input();
-    f.constructs = f.constructs.map((k) => ({ ...k, geom: constructGeometry(k.c) }));
+    f.constructs = f.constructs.map((k) => ({ ...k, geom: constructGeometry({ ...k.c, circle: true }) }));
     f.errors = [{ kind: 'indicator', value: 0.293, name: 'a1', term: { cx: -200, cy: 0, nx: -1, ny: 0, ax: -170, ay: 0 } }];
     f.correlations = [{ d: 'M 0 0', heads: [], lx: 0, ly: 0, nx: 0, ny: 0, points: [[0, 0]], label: null }];
     return f;

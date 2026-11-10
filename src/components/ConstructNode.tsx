@@ -1,7 +1,8 @@
 import { Handle, Position, useConnection, type Node, type NodeProps } from '@xyflow/react';
 import { memo, useState, type DragEvent } from 'react';
-import { besideLine, BOX_RX, constructsAreCircles, hexagonVertices, octagonVertices, type ConstructGeom } from '../geometry';
+import { besideLine, BOX_RX, hexagonVertices, octagonVertices, type ConstructGeom } from '../geometry';
 import type { Construct, Method } from '../model/project';
+import type { PlacedConstruct } from '../placement';
 import { formatEstimate, semplotEdge } from '../figure/style';
 import { useStore, type Tool } from '../store';
 import { readDraggedVars, VARS_MIME } from './dnd';
@@ -32,7 +33,7 @@ export function modeLabel(method: string, c: Pick<Construct, 'type' | 'mode' | '
 export interface IndicatorLabel { text: string; level: 'ok' | 'mid' | 'low'; fixed?: boolean }
 
 export type ConstructNodeData = {
-  construct: Construct;
+  construct: PlacedConstruct;
   geom: ConstructGeom;
   r2: number | null;
   labels: (IndicatorLabel | null)[] | null;
@@ -94,7 +95,7 @@ function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
   const higher = (c.components?.length ?? 0) > 0;
   // With circles, names are outside the shape: below, or above when the indicators hang below.
   const semplot = figure.notation === 'semplot';
-  const circle = constructsAreCircles() && !c.covariate && !semplot;
+  const circle = c.circle && !c.covariate && !semplot;
   // (above a name that sits above the circle)
   const modeY = circle && c.side === 'bottom' ? -ry - 20 : -ry - 8;
   const nameY = circle ? (c.side === 'bottom' ? -ry - 6 : ry + 17) : c.covariate ? 4 : (r2 !== null && !amos && figure.showR2) || (c.indicators.length === 0 && !higher) ? -5 : 4;

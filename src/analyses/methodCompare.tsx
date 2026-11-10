@@ -7,6 +7,7 @@ import { estimatePls } from '../engine/pls';
 import type { PlsResult } from '../engine/types';
 import { buildFigureInput, type FigureValues } from '../figure/build';
 import { renderFigureSvg } from '../figure/render';
+import { circlesFor, placeModel } from '../placement';
 import type { FigureStyle } from '../figure/style';
 import { toSpec, type ModelState } from '../model/project';
 import { fingerprint } from './codec';
@@ -40,7 +41,7 @@ export function comparisonFigure(model: ModelState, method: 'pls' | 'cbsem', pls
       return { value: std('~~', a, b) ?? std('~~', b, a) };
     },
   };
-  return renderFigureSvg(buildFigureInput(model, method, values, { showErrors: method === 'cbsem' }), style).svg;
+  return renderFigureSvg(buildFigureInput(placeModel(model, circlesFor(style, method)), method, values, { showErrors: method === 'cbsem' }), style).svg;
 }
 
 export function compareMethods(data: Parameters<typeof estimatePls>[0], model: ModelState, style: FigureStyle, missing: 'mean' | 'casewise'): MethodCompareResult {

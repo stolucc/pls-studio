@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   besideLine,
   clearPointOnCurve,
-  setCircleConstructs,
   shapeOf,
   constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, interceptSegment, moderatorSegment, pathOffset, QUAD_RISE, quadraticLoop, pathSegment, RECIPROCAL_OFFSET,
 } from './geometry';
@@ -27,28 +26,24 @@ describe('clearPointOnCurve', () => {
 
 describe('constructs drawn as circles', () => {
   const k = { name: 'A rather long construct name', indicators: ['a', 'b'], side: 'left' as const };
-  afterEach(() => setCircleConstructs(false));
   it('makes a factor a circle whatever its name, the indicator arrows ending on it', () => {
     expect(constructGeometry(k).rx).toBeGreaterThan(constructGeometry(k).ry);
-    setCircleConstructs(true);
-    const g = constructGeometry({ ...k, type: 'factor' });
+    const g = constructGeometry({ ...k, type: 'factor', circle: true });
     expect([g.rx, g.ry]).toEqual([36, 36]);
     expect(shapeOf({ type: 'factor' })).toBe('factor');
     for (const b of g.indicators) expect(Math.hypot(b.ex, b.ey)).toBeCloseTo(36, 6);
   });
   it('keeps a composite a hexagon, its size independent of the name, the indicator arrows ending on it', () => {
-    setCircleConstructs(true);
-    const g = constructGeometry({ ...k, type: 'composite' });
+    const g = constructGeometry({ ...k, type: 'composite', circle: true });
     expect(shapeOf({ type: 'composite' })).toBe('composite');
     expect(g.ry).toBe(36);
-    expect(g.rx).toBe(constructGeometry({ ...k, name: 'A', type: 'composite' }).rx);
+    expect(g.rx).toBe(constructGeometry({ ...k, name: 'A', type: 'composite', circle: true }).rx);
     for (const b of g.indicators) expect([b.ex, b.ey]).toEqual(hexagonPoint(g.rx, g.ry, b.ax, b.ay));
   });
   it('leaves an observed covariate a rectangle, and a caller may ask for the ordinary shape', () => {
-    setCircleConstructs(true);
     expect(shapeOf({ covariate: true })).toBe('observed');
-    expect(constructGeometry({ ...k, covariate: true }).ry).toBe(18);
-    expect(constructGeometry({ ...k, type: 'composite' }, false).rx).toBeGreaterThan(36);
+    expect(constructGeometry({ ...k, covariate: true, circle: true }).ry).toBe(18);
+    expect(constructGeometry({ ...k, type: 'composite', circle: true }, false).rx).toBeGreaterThan(36);
   });
 });
 

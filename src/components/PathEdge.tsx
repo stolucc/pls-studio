@@ -1,7 +1,7 @@
 import { BaseEdge, EdgeLabelRenderer, type Edge, type EdgeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
 import { besideLine, pathCurve, pathOffset, pathSegment } from '../geometry';
-import { useStore } from '../store';
+import { selectPlacedModel, useStore } from '../store';
 import { pathStrokeWidth, semplotEdge } from '../figure/style';
 import { fixedText } from '../diagramLabels';
 import { EstimateText } from './EstimateLabel';
@@ -15,8 +15,8 @@ export type PathEdgeData = {
 export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
 
 function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlowEdge>) {
-  const s = useStore((st) => st.model.constructs.find((c) => c.id === source));
-  const t = useStore((st) => st.model.constructs.find((c) => c.id === target));
+  const s = useStore((st) => selectPlacedModel(st).constructs.find((c) => c.id === source));
+  const t = useStore((st) => selectPlacedModel(st).constructs.find((c) => c.id === target));
   // A reciprocal pair (non-recursive model): each arrow shifted to its own side.
   const offset = useStore((st) => pathOffset(st.model.paths, source, target));
   const geo = useMemo(() => {

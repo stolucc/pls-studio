@@ -1,7 +1,7 @@
 import { ViewportPortal } from '@xyflow/react';
 import { pathSegment } from '../geometry';
 import { formatEstimate } from '../figure/style';
-import { useStore } from '../store';
+import { selectPlacedModel, useStore } from '../store';
 
 /**
  * Arrows between a higher-order construct and its first-order components: from
@@ -11,7 +11,7 @@ import { useStore } from '../store';
 export interface HoLabel { value: number; fixed: boolean }
 
 export function HigherOrderLayer({ loadingFor, labelAt }: { loadingFor: (parent: string, child: string) => HoLabel | null; labelAt?: (parentId: string, childId: string) => { x: number; y: number } | null }) {
-  const constructs = useStore((s) => s.model.constructs);
+  const constructs = useStore((s) => selectPlacedModel(s).constructs);
   const figure = useStore((s) => s.settings.figure);
   const byId = new Map(constructs.map((c) => [c.id, c]));
   const items = constructs.flatMap((parent) => (parent.components ?? []).flatMap((cid) => {

@@ -5,7 +5,8 @@ import { renderFigureSvg, type FigureInput } from '../figure/render';
 import { DEFAULT_FIGURE_STYLE, FIGURE_PRESETS, parseFigureStyle } from '../figure/style';
 import { indicatorLabels } from '../diagramLabels';
 import { autoLayout } from '../model/layout';
-import { constructGeometry, distanceToSegment, pathSegment, setDrawnElsewhere } from '../geometry';
+import { constructGeometry, distanceToSegment, pathSegment } from '../geometry';
+import { placeModel } from '../placement';
 import { DEFAULT_SETTINGS, impliedIntercepts, indicatorsDrawnElsewhere, parseProject, serializeProject, toSpec, validateModel, type Construct, type ModelState } from '../model/project';
 import { plsRequest } from '../rengine/pls';
 import { useStore } from '../store';
@@ -151,18 +152,16 @@ describe('an indicator of several factors', () => {
     const m = indicatorsDrawnElsewhere(bif());
     expect([...m.keys()]).toEqual(['G']);
     expect([...m.get('G')!].sort()).toEqual(['a1', 'a2', 'b1', 'b2']);
-    setDrawnElsewhere(m);
-    try {
-      expect(constructGeometry(bif().constructs[0]).indicators.map((i) => i.name)).toEqual(['c']);
-      expect(constructGeometry(bif().constructs[1]).indicators.map((i) => i.name)).toEqual(['a1', 'a2']);
-      const arrows = covarianceLayout(bif(), true, false).sharedLoadings;
-      expect(arrows.map((a) => [a.construct, a.indicator])).toEqual([['G', 'a1'], ['G', 'a2'], ['G', 'b1'], ['G', 'b2']]);
-      const b = constructGeometry(bif().constructs[1]).indicators[0];
-      // Ends on the box's border.
-      const hit = arrows[0];
-      expect(hit.x2).toBeGreaterThanOrEqual(b.x - 1e-6);
-      expect(hit.x2).toBeLessThanOrEqual(b.x + b.w + 1e-6);
-    } finally { setDrawnElsewhere(new Map()); }
+    const placed = placeModel(bif(), false);
+    expect(constructGeometry(placed.constructs[0]).indicators.map((i) => i.name)).toEqual(['c']);
+    expect(constructGeometry(placed.constructs[1]).indicators.map((i) => i.name)).toEqual(['a1', 'a2']);
+    const arrows = covarianceLayout(placed, true, false).sharedLoadings;
+    expect(arrows.map((a) => [a.construct, a.indicator])).toEqual([['G', 'a1'], ['G', 'a2'], ['G', 'b1'], ['G', 'b2']]);
+    const b = constructGeometry(placed.constructs[1]).indicators[0];
+    // Ends on the box's border.
+    const hit = arrows[0];
+    expect(hit.x2).toBeGreaterThanOrEqual(b.x - 1e-6);
+    expect(hit.x2).toBeLessThanOrEqual(b.x + b.w + 1e-6);
   });
   it('gets one intercept', () => {
     const m = { ...bif(), constant: { x: 0, y: 0 } };
