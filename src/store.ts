@@ -16,7 +16,7 @@ import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
 import { type InteractionMethod,
   createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec, unconfirmedUncorrelated,
-  type Construct, type Correlation, type Path, type DataInfo, type DefinedParameter, type ModelState, type ParameterTerm, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
+  type Construct, type Correlation, type CountKind, type Path, type DataInfo, type DefinedParameter, type ModelState, type ParameterTerm, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
 import type { HeldValue } from './model/heldValue';
 
 export type Tool = 'select' | 'construct' | 'connect' | 'correlate';
@@ -158,6 +158,8 @@ export interface State {
   setMultigroup: (mg: ModelState['multigroup'] | null) => void;
   /** Treat these indicators as ordered categorical (CB-SEM WLSMV; PLS-SEM OrdPLS), or as continuous again. */
   setOrdered: (names: string[], ordinal: boolean) => void;
+  /** CB-SEM: declare these indicators counts of a kind (no longer ordinal), or continuous again (null). */
+  setCount: (names: string[], kind: CountKind | null) => void;
   /** CB-SEM: hold a path coefficient, loading or drawn covariance at `value`, or free it (null). */
   fixParameter: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, value: number | null) => void;
   moveConstruct: (id: string, x: number, y: number) => void;
@@ -657,8 +659,17 @@ export function parameterSlice(_set: SetState, get: GetState) {
     setOrdered: (names, ordinal) => get().commit((m) => {
       const now = new Set(m.ordered ?? []);
       for (const n of names) { if (ordinal) now.add(n); else now.delete(n); }
-      const { ordered: _o, ...rest } = m;
-      return now.size ? { ...rest, ordered: [...now] } : rest;
+      // (an ordinal indicator is not a count)
+      const count = Object.fromEntries(Object.entries(m.count ?? {}).filter(([k]) => !(ordinal && names.includes(k))));
+      const { ordered: _o, count: _c, ...rest } = m;
+      return { ...rest, ...(now.size ? { ordered: [...now] } : {}), ...(Object.keys(count).length ? { count } : {}) };
+    }),
+    setCount: (names, kind) => get().commit((m) => {
+      const count = Object.fromEntries(Object.entries(m.count ?? {}).filter(([k]) => !names.includes(k)));
+      if (kind) for (const n of names) count[n] = kind;
+      const ordered = (m.ordered ?? []).filter((x) => !(kind && names.includes(x)));
+      const { ordered: _o, count: _c, ...rest } = m;
+      return { ...rest, ...(ordered.length ? { ordered } : {}), ...(Object.keys(count).length ? { count } : {}) };
     }),
     fixParameter: (target, value) => get().commit((m) => {
       const set = <T extends { fixed?: number }>(x: T): T => { const { fixed: _f, ...rest } = x; return (value === null ? rest : { ...rest, fixed: value }) as T; };

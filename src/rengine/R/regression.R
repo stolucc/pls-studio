@@ -34,8 +34,22 @@ ps_regression <- function(req_json, export = FALSE) {
   if (nzchar(slope) && family != "gaussian") stop("A random slope is available for a linear regression.")
   if (nzchar(slope) && !slope %in% unlist(req$predictors)) stop("The random slope must be one of the predictors.")
   if (nzchar(slope) && slope %in% cats) stop("A random slope needs a numeric predictor.")
+  # Zero-inflated and hurdle count models (pscl): the count part on the predictors, the zero part (a logit model for a
+  # structural zero, or for crossing the hurdle) on the same predictors, an intercept only, or its own predictors.
+  zmodel <- req$zeroModel %||% ""
+  if (!zmodel %in% c("", "zeroinfl", "hurdle")) stop("Invalid zero model in the request.")
+  zmod <- nzchar(zmodel)
+  if (zmod && !family %in% c("poisson", "negbin")) stop("Zero-inflated and hurdle models apply to Poisson and negative binomial counts.")
+  if (zmod && inflated) stop("Choose either the zero-inflated Poisson written out (Mplus COUNT (i)) or a pscl zero model, not both.")
+  zpart <- if (zmod) req$zeroPart %||% "same" else "same"
+  if (!zpart %in% c("same", "intercept", "chosen")) stop("Invalid zero part in the request.")
+  zpreds <- if (zpart == "chosen") unique(as.character(unlist(req$zeroPredictors))) else character(0)
+  if (zpart == "chosen" && !length(zpreds)) stop("Choose the predictors of the zero part.")
+  if (y %in% zpreds) stop("The outcome cannot be a predictor.")
+  if (zmod && nzchar(wcol)) stop("Weights are not available for zero-inflated and hurdle models.")
   own <- inflated || family %in% c("censored", "survival") || nzchar(slope)
   if (se != "model" && family == "ordinal") stop("Robust standard errors are available for lm and glm models; ordinal models report their own.")
+  if (se %in% c("HC3", "cluster") && zmod) stop("For zero-inflated and hurdle models choose model-based or HC0 (sandwich) standard errors.")
   if (se %in% c("HC3", "cluster") && (family == "multinomial" || own)) stop("For multinomial, censored, inflated and survival models choose model-based or HC0 (Mplus MLR) standard errors.")
   if (nzchar(wcol) && (family == "survival" || inflated || nzchar(slope))) stop("Weights are not available for survival, inflated and random-slope models.")
   conf <- ps_number(req$confidence %||% 0.95, "confidence level")
@@ -44,7 +58,7 @@ ps_regression <- function(req_json, export = FALSE) {
   ints <- if (is.matrix(ints)) lapply(seq_len(nrow(ints)), function(i) as.character(ints[i, ])) else lapply(ints, function(t) as.character(unlist(t)))
   if (!nzchar(y) || (!length(preds) && !length(ints))) stop("Choose the outcome and at least one predictor.")
   for (t in ints) if (length(t) < 2) stop("An interaction term must combine two or more variables.")
-  vars <- unique(c(preds, unlist(ints)))  # (a variable may enter through an interaction only: nested effects)
+  vars <- unique(c(preds, unlist(ints), zpreds))  # (a variable may enter through an interaction or the zero part only)
   cols <- unique(c(y, vars, if (nzchar(trials)) trials, if (nzchar(wcol)) wcol, if (nzchar(cluster)) cluster, if (nzchar(status)) status))
   fr <- ps_long_frame(req, cols)
   v <- fr$v
@@ -76,13 +90,15 @@ ps_regression <- function(req_json, export = FALSE) {
   preds <- vars
   lhs <- if (family == "binomial" && nzchar(trials)) sprintf("cbind(%s, %s - %s)", v[[y]], v[[trials]], v[[y]]) else v[[y]]
   fml <- sprintf("%s ~ %s", lhs, rhs)
+  zfml <- if (zpart == "intercept") sprintf("%s | 1", fml) else if (zpart == "chosen") sprintf("%s | %s", fml, paste(vapply(zpreds, function(n) v[[n]], ""), collapse = " + ")) else fml
   w <- if (nzchar(wcol)) sprintf(", weights = %s", v[[wcol]]) else ""
   piecewise <- family == "survival" && length(cuts) > 0
   # (HC0 for the negative binomial and multinomial models, and every model fitted below by survival or by
   # maximum likelihood written out, is computed here rather than by sandwich::vcovHC)
-  own_hc0 <- se == "HC0" && (family %in% c("negbin", "multinomial") || own)
+  own_hc0 <- se == "HC0" && (family %in% c("negbin", "multinomial") || own || zmod)
   libs <- c(if (family %in% c("negbin", "ordinal")) "MASS", if (family == "multinomial") "nnet", if (family == "survival" || (family == "censored" && !inflated)) "survival",
-    if (se != "model" && (!own_hc0 || piecewise)) c("sandwich", "lmtest"))
+    if (zmod) "pscl", if (zmod && se == "HC0") "sandwich", if (se != "model" && !zmod && (!own_hc0 || piecewise)) c("sandwich", "lmtest"))
+  zdist <- if (family == "negbin") "negbin" else "poisson"
   yv <- v[[y]]
   lim_line <- if (family == "censored") sprintf("lim <- %s(data$%s)  # the censoring point: the %s value (censored from %s)", if (censoring == "below") "min" else "max", yv, if (censoring == "below") "lowest" else "highest", censoring)
   event <- if (nzchar(status)) sprintf("%s == %d", v[[status]], if (status_censored) 0L else 1L)
@@ -120,6 +136,23 @@ ps_regression <- function(req_json, export = FALSE) {
     sprintf("fit <- glm(.event ~ 0 + .interval + %s + offset(log(.exposure)), family = poisson, data = long)", rhs),
     "ll <- as.numeric(logLik(fit)) - sum(long$.event * log(long$.exposure))  # the log-likelihood of the survival times",
     if (se == "HC0") "# Robust (HC0) standard errors, clustered by person (as Mplus MLR).\nvc <- vcovCL(fit, cluster = ~.id, type = \"HC0\", cadjust = FALSE)")
+  else if (zmod) c(
+    if (zmodel == "zeroinfl") sprintf("fit <- zeroinfl(%s, data = data, dist = \"%s\")", zfml, zdist)
+    else sprintf("fit <- hurdle(%s, data = data, dist = \"%s\", zero.dist = \"binomial\")", zfml, zdist),
+    "# The standard count model (no zero part), for Vuong's test and the predicted zeros.",
+    if (family == "negbin") sprintf("std <- glm.nb(%s, data = data)", fml) else sprintf("std <- glm(%s, family = poisson, data = data)", fml),
+    if (se == "HC0") "# Robust (HC0) standard errors: the sandwich of the count and zero parts' scores (sandwich::sandwich; theta held at its estimate).\nvc <- sandwich(fit)" else "vc <- vcov(fit)",
+    "ct <- cbind(Estimate = coef(fit), \"Std. Error\" = sqrt(diag(vc))); ct <- cbind(ct, \"z value\" = ct[, 1] / ct[, 2], \"Pr(>|z|)\" = 2 * pnorm(-abs(ct[, 1] / ct[, 2])))",
+    "# Vuong's non-nested test of this model against the standard one, computed as pscl::vuong does (which prints it only):",
+    "# the rows' log-probability differences, raw and with the AIC and BIC corrections; z > 0 favours this model.",
+    "vuong_z <- function(m1, m2) {",
+    "  p1 <- predprob(m1); p2 <- predprob(m2); j <- cbind(seq_along(m1$y), match(m1$y, colnames(p1)))",
+    "  m <- log(p1[j]) - log(p2[j]); ok <- is.finite(log(p1[j])) & is.finite(log(p2[j])) & is.finite(m); n <- sum(ok); k <- length(coef(m1)) - length(coef(m2))",
+    "  vapply(c(raw = 0, aic = k / n, bic = k / (2 * n) * log(n)), function(a) sum(m[ok] - a) / (sd(m[ok] - a) * sqrt(n)), 0)",
+    "}",
+    "vz <- vuong_z(fit, std)",
+    "# Zeros: observed, and expected under this model and under the standard one (the sums of the predicted P(y = 0)).",
+    "zeros <- c(observed = sum(fit$y == 0), model = sum(predict(fit, type = \"prob\")[, 1]), standard = sum(predprob(std)[, 1]))")
   else switch(family,
     gaussian = sprintf("fit <- lm(%s, data = data%s)", fml, w),
     binomial = sprintf("fit <- glm(%s, family = binomial(link = \"%s\"), data = data%s)", fml, link, w),
@@ -129,7 +162,7 @@ ps_regression <- function(req_json, export = FALSE) {
     ordinal = sprintf("fit <- polr(%s, data = data%s, method = \"%s\", Hess = TRUE)", fml, w, link),
     multinomial = sprintf("fit <- multinom(%s, data = data%s, Hess = TRUE, trace = FALSE)", fml, w),
     survival = sprintf("fit <- coxph(Surv(%s, %s) ~ %s, data = data%s)", yv, event, rhs, if (se == "HC0") ", robust = TRUE" else ""))
-  hc0 <- if (se == "HC0" && family == "negbin") c(ps_ml_source,
+  hc0 <- if (se == "HC0" && family == "negbin" && !zmod) c(ps_ml_source,
     "# HC0 (as Mplus MLR): the sandwich over the coefficients and theta together (theta is estimated too).",
     "X <- model.matrix(fit); k <- ncol(X)",
     "ll <- function(p) dnbinom(fit$y, size = p[k + 1], mu = exp(drop(X %*% p[1:k])), log = TRUE)",
@@ -153,10 +186,12 @@ ps_regression <- function(req_json, export = FALSE) {
   inputs <- list(data = fr$data)
   title <- if (nzchar(slope)) "Linear regression with a random slope (maximum likelihood, optim)"
     else if (inflated) sprintf("%s regression (maximum likelihood, optim)", if (family == "poisson") "Zero-inflated Poisson" else "Censored-inflated")
+    else if (zmod) sprintf("%s %s regression (pscl::%s)", if (zmodel == "zeroinfl") "Zero-inflated" else "Hurdle", if (family == "negbin") "negative binomial" else "Poisson", zmodel)
     else c(gaussian = "Linear regression (lm)", binomial = sprintf("%s regression (glm)", if (link == "probit") "Probit" else "Logistic"), poisson = "Poisson regression (glm)",
     gamma = "Gamma regression (glm)", negbin = "Negative binomial regression (MASS::glm.nb)", ordinal = "Ordinal regression (MASS::polr)", multinomial = "Multinomial logistic regression (nnet::multinom)",
     censored = "Censored (tobit) regression (survival::survreg)", survival = if (piecewise) "Piecewise exponential survival model (survival::survSplit, glm)" else "Cox regression (survival::coxph)")[[family]]
   report <- if (inflated || nzchar(slope)) c("cbind(estimate = fit$coefficients, se = sqrt(diag(fit$vcov)))", "fit$logLik")
+    else if (zmod) c("summary(fit)", if (se == "HC0") "ct", "exp(coef(fit))  # rate ratios (count part) and odds ratios (zero part)", "c(logLik = logLik(fit), AIC = AIC(fit), BIC = BIC(fit))", "vuong(fit, std)", "zeros")
     else c("summary(fit)", if (family %in% c("binomial", "poisson", "negbin", "ordinal", "multinomial", "survival") && !piecewise) "exp(coef(fit))  # odds, rate or hazard ratios", if (se != "model" && !own) "ct",
     if (se == "HC0" && family == "multinomial") "matrix(sqrt(diag(vc)), nrow = nrow(coef(fit)), byrow = TRUE, dimnames = dimnames(coef(fit)))  # HC0 standard errors",
     if (piecewise) c("exp(coef(fit))  # baseline hazards and hazard ratios", "ll", if (se == "HC0") "sqrt(diag(vc))"),
@@ -231,6 +266,14 @@ ps_regression <- function(req_json, export = FALSE) {
       st <- B[r, j] / S[r, j]
       coefs[[length(coefs) + 1]] <- list(level = r, term = nm(j), est = B[r, j], se = S[r, j], stat = st, p = 2 * pnorm(-abs(st)), ciLow = B[r, j] - z * S[r, j], ciHigh = B[r, j] + z * S[r, j], ratio = if (j != "(Intercept)") exp(B[r, j]) else NULL)
     }
+  } else if (zmod) {
+    # The count part (rate ratios) and the zero part (odds ratios: of a structural zero, or of a count above zero for a hurdle).
+    ct <- env$ct
+    for (i in seq_len(nrow(ct))) {
+      t <- rownames(ct)[i]; zero <- startsWith(t, "zero_"); t <- sub("^(count|zero)_", "", t)
+      coefs[[length(coefs) + 1]] <- list(part = if (zero) "zero" else NULL, term = nm(t), est = ct[i, 1], se = ct[i, 2], stat = ct[i, 3], p = ct[i, 4],
+        ciLow = ct[i, 1] - z * ct[i, 2], ciHigh = ct[i, 1] + z * ct[i, 2], ratio = if (t != "(Intercept)") exp(ct[i, 1]) else NULL)
+    }
   } else {
     ct <- if (se == "model") lmtest_free(fit) else env$ct
     # (lm and Gamma estimate a dispersion: summary and coeftest test with t on the residual df; the interval uses the same quantile)
@@ -242,7 +285,7 @@ ps_regression <- function(req_json, export = FALSE) {
   ll <- as.numeric(logLik(fit)); npar <- attr(logLik(fit), "df")
   n <- nrow(env$data)
   # The null model (intercept only) for the likelihood-ratio test and McFadden's pseudo R2.
-  null_ll <- ps_try({
+  null_ll <- if (zmod) NULL else ps_try({
     nf <- switch(family,
       gaussian = lm(as.formula(sprintf("%s ~ 1", v[[y]])), data = env$data, weights = if (nzchar(wcol)) env$data[[v[[wcol]]]]),
       ordinal = MASS::polr(as.formula(sprintf("%s ~ 1", v[[y]])), data = env$data, weights = if (nzchar(wcol)) env$data[[v[[wcol]]]], method = link, Hess = FALSE),
@@ -258,8 +301,12 @@ ps_regression <- function(req_json, export = FALSE) {
     sigma = if (family == "gaussian") summary(fit)$sigma else NULL,
     deviance = if (inherits(fit, "glm")) deviance(fit) else NULL, nullDeviance = if (inherits(fit, "glm")) fit$null.deviance else NULL,
     dfResidual = if (inherits(fit, "glm") || inherits(fit, "lm")) df.residual(fit) else NULL,
-    dispersion = if (family %in% c("poisson", "binomial")) deviance(fit) / df.residual(fit) else NULL,
-    theta = if (family == "negbin") fit$theta else NULL, thetaSe = if (family == "negbin") (if (se == "HC0") sqrt(env$vc[nrow(env$vc), ncol(env$vc)]) else fit$SE.theta) else NULL)
+    dispersion = if (family %in% c("poisson", "binomial") && !zmod) deviance(fit) / df.residual(fit) else NULL,
+    theta = if (family == "negbin") unname(fit$theta[1]) else NULL,
+    # (pscl: theta's standard error by the delta method from log(theta)'s; none with the sandwich, which holds theta fixed)
+    thetaSe = if (family == "negbin") (if (zmod) (if (se == "HC0") NULL else unname(fit$theta[1] * fit$SE.logtheta[1])) else if (se == "HC0") sqrt(env$vc[nrow(env$vc), ncol(env$vc)]) else fit$SE.theta) else NULL,
+    zeros = if (zmod) env$zeros[["observed"]] else NULL, zerosPredicted = if (zmod) env$zeros[["model"]] else NULL, zerosStandard = if (zmod) env$zeros[["standard"]] else NULL)
+  vuong <- if (zmod) lapply(c(raw = "raw", aic = "aic", bic = "bic"), function(k) { zz <- env$vz[[k]]; list(z = zz, p = if (zz > 0) pnorm(zz, lower.tail = FALSE) else pnorm(zz)) }) else NULL
   # Diagnostics: VIFs from the design matrix (each column on the others), classification for a binary outcome.
   diag <- list()
   X <- ps_try(model.matrix(fit), "The design matrix")
@@ -298,9 +345,9 @@ ps_regression <- function(req_json, export = FALSE) {
     }, sprintf("The fitted curve over %s", xn))
     if (is.null(pred)) NULL else c(list(x = xn, grid = grid), pred, if (!family %in% c("ordinal", "multinomial")) list(points = list(x = unname(d[[xv]][keep]), y = unname(yobs[keep]))))
   }))
-  ps_json(list(family = family, link = link, formula = nm(fml), se = se, coefficients = coefs, thresholds = thresholds, levels = levels_out, fit = fitv, lrt = lrt, diagnostics = diag, curves = curves,
-    warnings = env$.warnings, engine = list(package = if (family %in% c("negbin", "ordinal")) "MASS" else if (family == "multinomial") "nnet" else "stats",
-      version = as.character(if (family %in% c("negbin", "ordinal")) utils::packageVersion("MASS") else if (family == "multinomial") utils::packageVersion("nnet") else getRversion()))))
+  ps_json(list(family = family, link = link, formula = nm(if (zmod) zfml else fml), se = se, zeroModel = if (zmod) zmodel else NULL, coefficients = coefs, thresholds = thresholds, levels = levels_out, fit = fitv, lrt = lrt, vuong = vuong, diagnostics = diag, curves = curves,
+    warnings = env$.warnings, engine = list(package = if (zmod) "pscl" else if (family %in% c("negbin", "ordinal")) "MASS" else if (family == "multinomial") "nnet" else "stats",
+      version = as.character(if (zmod) utils::packageVersion("pscl") else if (family %in% c("negbin", "ordinal")) utils::packageVersion("MASS") else if (family == "multinomial") utils::packageVersion("nnet") else getRversion()))))
 }
 
 #' Maximum likelihood written out, as script lines (so the exported script runs on its own): ml_vcov gives the

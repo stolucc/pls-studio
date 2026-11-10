@@ -231,6 +231,10 @@ export interface BetweenStatement { lhs: string; op: '=~' | '~' | '~~' | '~1'; r
 /** PLS-SEM: a Gaussian copula term for this path's predictor in its outcome's equation. */
 export interface Copula { id: string; path: string }
 
+/** A count indicator's distribution. */
+export type CountKind = 'poisson' | 'nb' | 'zip' | 'zinb';
+export const COUNT_KINDS: readonly CountKind[] = ['poisson', 'nb', 'zip', 'zinb'];
+
 /** A comment on the diagram; not part of the model. */
 export interface Note { id: string; x: number; y: number; text: string }
 
@@ -244,6 +248,12 @@ export interface ModelState {
   threeWay?: ThreeWay[];
   /** Indicators (data columns) treated as ordered categorical: WLSMV in CB-SEM, OrdPLS/OrdPLSc (cSEM, polychoric correlations) in PLS-SEM. */
   ordered?: string[];
+  /**
+   * CB-SEM: indicators (data columns) declared as counts, by name: Poisson, negative binomial, zero-inflated Poisson or
+   * zero-inflated negative binomial (Mplus COUNT = u, u (nb), u (i), u (nbi)). Such models are estimated by maximum
+   * likelihood with numerical integration (the Integration ML card, from the diagram: model/countModel.ts), not lavaan.
+   */
+  count?: Record<string, CountKind>;
   defined?: DefinedParameter[];
   waldTests?: WaldTest[];
   /** CB-SEM (lavaan): inequality constraints on labelled parameters, one per line ("a > 0", "a < b"). */
@@ -304,6 +314,24 @@ export interface ModelState {
 /** An arrow from the constant: a latent mean (or an observed variable's intercept) of construct `target`. */
 /** `bias`: the marker indicator's intercept fixed at this value instead of 0 (a known measurement bias; one value per group with groups). */
 export interface MeanTerm { id: string; target: string; fixed?: number; label?: string; bias?: number | number[]; /** Values per group (lavaan c(...)): a number holds the mean in that group, null leaves it free. */ byGroup?: GroupValue[] }
+
+/**
+ * Count declarations from a project file: an object of indicator name to kind, every kind known and no indicator also
+ * ordinal (anything else is an invalid file); names that are no longer indicators of the model (removed since) are dropped.
+ */
+function parseCount(raw: unknown, indicators: Set<string>, ordered: unknown[]): Pick<ModelState, 'count'> {
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid project file: count indicators must be an object of indicator names and kinds.');
+  const entries = Object.entries(raw as Record<string, unknown>);
+  if (entries.length > 5000) throw new Error('Invalid project file: too many count indicators.');
+  for (const [k, v] of entries) {
+    if (k.length > 200) throw new Error('Invalid project file: a count indicator’s name is too long.');
+    if (!COUNT_KINDS.includes(v as CountKind)) throw new Error(`Invalid project file: “${k.slice(0, 80)}” has an unknown count kind.`);
+    if (ordered.includes(k)) throw new Error(`Invalid project file: “${k.slice(0, 80)}” is declared both ordinal and a count.`);
+  }
+  const kept = entries.filter(([k]) => indicators.has(k));
+  return kept.length ? { count: Object.fromEntries(kept) as Record<string, CountKind> } : {};
+}
 
 /** Drop mean arrows whose construct is gone, and all of them without the constant. */
 export function pruneMeans(model: ModelState): ModelState {
@@ -744,8 +772,8 @@ export interface Issue {
   level: 'error' | 'warning';
   message: string;
   constructId?: string;
-  /** Exogenous constructs left uncorrelated (no correlation drawn): offer to correlate them or confirm. */
-  action?: 'exogenous-correlations';
+  /** Exogenous constructs left uncorrelated (no correlation drawn): offer to correlate them or confirm. Count indicators: open the integration card. */
+  action?: 'exogenous-correlations' | 'count-integration';
 }
 
 /** Does adding from→to create a cycle? (PLS-SEM requires a recursive model.) */
@@ -1073,6 +1101,7 @@ export function parseModelState(m: unknown): ModelState {
   return {
       constructs, paths, moderations, ...(notes.length ? { notes } : {}), ...(copulas.length ? { copulas } : {}), ...(correlations.length ? { correlations } : {}), ...(threeWay.length ? { threeWay } : {}),
       ...(Array.isArray(m.ordered) && m.ordered.length ? { ordered: [...new Set(m.ordered.slice(0, 5000).map((x: unknown) => str(x)))] } : {}),
+      ...parseCount(m.count, indicatorNames, Array.isArray(m.ordered) ? m.ordered : []),
       ...(Array.isArray(m.defined) && m.defined.length ? { defined: m.defined.slice(0, 200).filter(isObj).map((d: Record<string, unknown>) => ({ id: str(d.id, 64), name: str(d.name, 31), expr: str(d.expr, 500) })) } : {}),
       ...(isObj(m.multigroup) && typeof m.multigroup.column === 'string' ? { multigroup: parseMultigroup(m.multigroup, ids) } : {}),
       ...(typeof m.weights === 'string' && m.weights ? { weights: str(m.weights) } : {}),

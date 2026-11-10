@@ -1,5 +1,5 @@
 // Regression card: linear, logistic / probit (also binomial counts), Poisson
-// (also zero-inflated), negative binomial, Gamma, ordinal, multinomial,
+// and negative binomial (also zero-inflated or hurdle), Gamma, ordinal, multinomial,
 // censored (tobit, also censored-inflated) and survival (Cox, piecewise
 // exponential), with categorical predictors, interaction terms, weights and
 // robust standard errors.
@@ -9,7 +9,7 @@ import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt, fmtP, pIs } from '../format';
-import type { Coefficient, Family, RegressionCurve, RegressionInput, RegressionResult } from '../rengine/regression';
+import { isZeroModel, type Coefficient, type Family, type RegressionCurve, type RegressionInput, type RegressionResult } from '../rengine/regression';
 import { confirmDialog } from '../components/Overlays';
 import { newId, type Construct, type ModelState, type Path } from '../model/project';
 import { useStore } from '../store';
@@ -18,7 +18,7 @@ import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { seriesColor } from '../figure/palette';
 
 /** `plot`: which predictor's partial-effect curve to show (display only). */
-export interface RegressionOptions extends Pick<RegressionInput, 'censoring' | 'inflated' | 'reference' | 'status' | 'statusCensored' | 'cuts' | 'randomSlope'> { outcome: string; predictors: string[]; categorical: string[]; interactions: string[][]; family: Family; link: string; trials: string; weights: string; se: RegressionInput['se']; cluster: string; plot: string }
+export interface RegressionOptions extends Pick<RegressionInput, 'censoring' | 'inflated' | 'reference' | 'status' | 'statusCensored' | 'cuts' | 'randomSlope' | 'zeroModel' | 'zeroPart' | 'zeroPredictors'> { outcome: string; predictors: string[]; categorical: string[]; interactions: string[][]; family: Family; link: string; trials: string; weights: string; se: RegressionInput['se']; cluster: string; plot: string }
 type Result = RegressionResult & { input: RegressionInput };
 
 export const FAMILIES: readonly (readonly [Family, string, string])[] = [
@@ -33,7 +33,18 @@ export const FAMILIES: readonly (readonly [Family, string, string])[] = [
   ['survival', 'Survival (Cox, piecewise exponential)', 'Time to an event, with censored times: Cox regression (survival::coxph), or a piecewise-constant baseline hazard with cut points.'],
 ];
 /** Models whose standard errors are model-based or HC0 (the maximum-likelihood sandwich, Mplus MLR) only. */
-const ownSe = (o: Pick<RegressionOptions, 'family' | 'inflated' | 'randomSlope'>) => o.family === 'multinomial' || o.family === 'censored' || o.family === 'survival' || (o.family === 'poisson' && !!o.inflated) || (o.family === 'gaussian' && !!o.randomSlope);
+const ownSe = (o: Pick<RegressionOptions, 'family' | 'inflated' | 'randomSlope' | 'zeroModel'>) => o.family === 'multinomial' || o.family === 'censored' || o.family === 'survival' || (o.family === 'poisson' && !!o.inflated) || (o.family === 'gaussian' && !!o.randomSlope) || isZeroModel(o);
+/** The zero part's predictors when chosen (y ~ x | z), otherwise none of its own. */
+const zeroPreds = (o: RegressionOptions) => (isZeroModel(o) && o.zeroPart === 'chosen' ? o.zeroPredictors ?? [] : []);
+/** The count models' treatment of zeros: none, pscl's zero-inflated or hurdle model, or (Poisson) the zero-inflated Poisson written out. */
+type ZeroChoice = 'none' | 'zeroinfl' | 'hurdle' | 'mplus';
+const zeroChoice = (o: RegressionOptions): ZeroChoice => (o.family === 'poisson' && o.inflated ? 'mplus' : isZeroModel(o) ? o.zeroModel! : 'none');
+const ZERO_HINT: Record<ZeroChoice, string> = {
+  none: 'Every zero comes from the count distribution.',
+  zeroinfl: 'Zero-inflated (pscl::zeroinfl): a share of the cases are structural zeros, with a logit model for their probability; the others follow the count distribution, which can produce zeros too. Vuong’s test compares it with the standard model.',
+  hurdle: 'Hurdle (pscl::hurdle): a logit model for whether the count is above zero (crossing the hurdle), and a zero-truncated count distribution for the positive counts. Vuong’s test compares it with the standard model.',
+  mplus: 'The zero-inflated Poisson as Mplus estimates it (COUNT = u (i)): the inflation on the same predictors, maximum likelihood written out in R (optim). It agrees with pscl::zeroinfl on the same predictors.',
+};
 /** Cut points typed as a list ("1, 2, 3") or ranges ("1:20"). */
 export function parseCuts(text: string): number[] {
   const out: number[] = [];
@@ -76,20 +87,43 @@ function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<
         </div>
       </>}
       {o.family === 'censored' && <Choice label="Censored" value={o.censoring ?? 'below'} onChange={(censoring) => set({ ...o, censoring })} options={[['below', 'From below (at the lowest value)'], ['above', 'From above (at the highest value)']]} />}
-      {(o.family === 'censored' || o.family === 'poisson') && (
+      {o.family === 'censored' && (
         <div className="field">
-          <label className="check"><input type="checkbox" checked={!!o.inflated} onChange={(e) => set({ ...o, inflated: e.target.checked, ...(e.target.checked && o.se !== 'model' && o.se !== 'HC0' ? { se: 'model', cluster: '' } : {}) })} /> {o.family === 'poisson' ? 'Zero-inflated' : 'Censored-inflated'}</label>
-          <div className="hint">{o.family === 'poisson' ? 'Extra zeros: a logistic model (the inflation) for the probability of a structural zero, on the same predictors (Mplus COUNT = u (i)).' : 'Extra values at the censoring point: a logistic model (the inflation) for their probability, on the same predictors (Mplus CENSORED = y (bi)).'} Maximum likelihood written out in R (optim).</div>
+          <label className="check"><input type="checkbox" checked={!!o.inflated} onChange={(e) => set({ ...o, inflated: e.target.checked, ...(e.target.checked && o.se !== 'model' && o.se !== 'HC0' ? { se: 'model', cluster: '' } : {}) })} /> Censored-inflated</label>
+          <div className="hint">Extra values at the censoring point: a logistic model (the inflation) for their probability, on the same predictors (Mplus CENSORED = y (bi)). Maximum likelihood written out in R (optim).</div>
         </div>
       )}
+      {(o.family === 'poisson' || o.family === 'negbin') && (
+        <div className="field">
+          <label htmlFor="reg-zero">Excess zeros</label>
+          <select id="reg-zero" className="select" value={zeroChoice(o)} onChange={(e) => {
+            const z = e.target.value as ZeroChoice;
+            const { inflated: _i, zeroModel: _m, ...rest } = o;
+            const robustOk = o.se === 'model' || o.se === 'HC0';
+            set({ ...rest, ...(z === 'mplus' ? { inflated: true } : z !== 'none' ? { zeroModel: z, zeroPart: o.zeroPart ?? 'same' } : {}), ...(z !== 'none' ? { weights: '', ...(robustOk ? {} : { se: 'model' as const, cluster: '' }) } : {}) });
+          }}>
+            <option value="none">None (the standard count model)</option>
+            <option value="zeroinfl">Zero-inflated (pscl::zeroinfl)</option>
+            <option value="hurdle">Hurdle (pscl::hurdle)</option>
+            {o.family === 'poisson' && <option value="mplus">Zero-inflated, as Mplus COUNT (i) (same predictors)</option>}
+          </select>
+          <div className="hint">{ZERO_HINT[zeroChoice(o)]}</div>
+        </div>
+      )}
+      {isZeroModel(o) && <>
+        <Choice label={o.zeroModel === 'hurdle' ? 'Zero hurdle on' : 'Zero inflation on'} value={o.zeroPart ?? 'same'} onChange={(zeroPart) => set({ ...o, zeroPart })}
+          options={[['same', 'The count part’s predictors'], ['intercept', 'An intercept only'], ['chosen', 'Its own predictors']]} />
+        {o.zeroPart === 'chosen' && <OrderedPicker label={`Predictors of the zero part (${o.zeroModel === 'hurdle' ? 'the logit model for a count above zero' : 'the logit model for a structural zero'})`} columns={columns.filter((n) => !taken.includes(n))} value={o.zeroPredictors ?? []}
+          onChange={(zeroPredictors) => set({ ...o, zeroPredictors, categorical: o.categorical.filter((x) => o.predictors.includes(x) || zeroPredictors.includes(x) || o.interactions.some((t) => t.includes(x))) })} />}
+      </>}
       {o.family === 'multinomial' && <Choice label="Reference level" value={o.reference ?? 'first'} onChange={(reference) => set({ ...o, reference })} options={[['first', 'First (R)'], ['last', 'Last (Mplus)']]} />}
       {o.family === 'binomial' && <ColumnSelect id="reg-n" label="Trials (optional: for counts of successes)" optional="None: the outcome is 0/1" value={o.trials} columns={columns} exclude={[o.outcome, ...o.predictors]} onChange={(trials) => set({ ...o, trials })} />}
-      <OrderedPicker label="Predictors (main effects)" columns={columns.filter((n) => !taken.includes(n))} value={o.predictors} onChange={(predictors) => set({ ...o, predictors, categorical: o.categorical.filter((x) => predictors.includes(x) || o.interactions.some((t) => t.includes(x))) })} />
-      {[...new Set([...o.predictors, ...o.interactions.flat()])].some((n) => !text(n)) && (
+      <OrderedPicker label={isZeroModel(o) ? 'Predictors (main effects; the count part)' : 'Predictors (main effects)'} columns={columns.filter((n) => !taken.includes(n))} value={o.predictors} onChange={(predictors) => set({ ...o, predictors, categorical: o.categorical.filter((x) => predictors.includes(x) || zeroPreds(o).includes(x) || o.interactions.some((t) => t.includes(x))) })} />
+      {[...new Set([...o.predictors, ...o.interactions.flat(), ...zeroPreds(o)])].some((n) => !text(n)) && (
         <div className="field">
           <label>Treat as categorical</label>
           <div className="chips">
-            {[...new Set([...o.predictors, ...o.interactions.flat()])].filter((n) => !text(n)).map((n) => (
+            {[...new Set([...o.predictors, ...o.interactions.flat(), ...zeroPreds(o)])].filter((n) => !text(n)).map((n) => (
               <label key={n} className="check"><input type="checkbox" checked={o.categorical.includes(n)} onChange={(e) => set({ ...o, categorical: e.target.checked ? [...o.categorical, n] : o.categorical.filter((x) => x !== n) })} /> {n}</label>
             ))}
           </div>
@@ -120,11 +154,11 @@ function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<
         </div>
       )}
       <div className="row2">
-        <ColumnSelect id="reg-w" label="Frequency weights (optional)" optional="None" value={o.weights} columns={columns} exclude={[o.outcome, ...o.predictors, o.trials, o.cluster]} onChange={(weights) => set({ ...o, weights })} />
+        <ColumnSelect id="reg-w" label="Frequency weights (optional)" optional="None" value={o.weights} columns={isZeroModel(o) ? [] : columns} exclude={[o.outcome, ...o.predictors, o.trials, o.cluster]} onChange={(weights) => set({ ...o, weights })} />
         <div className="field">
           <label htmlFor="reg-se">Standard errors</label>
           <select id="reg-se" className="select" value={o.se} disabled={o.family === 'ordinal'} onChange={(e) => { const se = e.target.value as RegressionInput['se']; set({ ...o, se, cluster: se === 'cluster' ? o.cluster : '' }); }}>
-            <option value="model">Model-based</option>{!ownSe(o) && <option value="HC3">Robust (HC3; small samples)</option>}<option value="HC0">Robust (HC0, White; as Mplus MLR)</option>{!ownSe(o) && <option value="cluster">Cluster-robust</option>}
+            <option value="model">Model-based</option>{!ownSe(o) && <option value="HC3">Robust (HC3; small samples)</option>}<option value="HC0">{isZeroModel(o) ? 'Robust (HC0, sandwich)' : 'Robust (HC0, White; as Mplus MLR)'}</option>{!ownSe(o) && <option value="cluster">Cluster-robust</option>}
           </select>
         </div>
       </div>
@@ -224,8 +258,11 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
     ...(f.residualVariance !== undefined && f.residualVariance !== null ? [['Residual variance', `${fmt(f.residualVariance)} (SE ${fmt(f.residualVarianceSe!)})`]] as [string, string][] : []),
     ...(f.censored !== undefined && f.censored !== null ? [['Censored', String(f.censored)]] as [string, string][] : []),
     ...(f.zeros !== undefined && f.zeros !== null ? [['Zeros', String(f.zeros)]] as [string, string][] : []),
+    ...(f.zerosPredicted !== undefined && f.zerosPredicted !== null ? [['Zeros predicted', fmt(f.zerosPredicted, 1)], ['… by the standard model', fmt(f.zerosStandard!, 1)]] as [string, string][] : []),
     ...(f.events !== undefined && f.events !== null ? [['Events', String(f.events)]] as [string, string][] : [])];
   const main = (r.coefficients ?? []).filter((e) => !e.part), inflation = (r.coefficients ?? []).filter((e) => e.part === 'inflation'), baseline = (r.coefficients ?? []).filter((e) => e.part === 'baseline');
+  const zero = (r.coefficients ?? []).filter((e) => e.part === 'zero'), hurdle = r.zeroModel === 'hurdle';
+  const std = r.family === 'negbin' ? 'negative binomial' : 'Poisson';
   const random = (r.coefficients ?? []).filter((e) => e.part === 'random');
   const dg = r.diagnostics;
   return (
@@ -240,8 +277,12 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
       </p>
       {r.family === 'multinomial' && r.levels
         ? r.levels.others.map((l) => <Table key={l} title={`${l} versus ${r.levels!.reference}`} file={`regression-${l}`} columns={cols} rows={r.coefficients.filter((e) => e.level === l).map((e) => coefRow(e, ratio))} />)
-        : <Table title="Coefficients" file="regression-coefficients" columns={cols} rows={main.map((e) => coefRow(e, ratio))}
-          note={ratio ? `${ratioName}s: exp(estimate), the multiplicative change in the ${r.family === 'binomial' || r.family === 'ordinal' ? 'odds' : r.family === 'survival' ? 'hazard' : 'expected count'} per unit of the predictor.` : undefined} />}
+        : <Table title={r.zeroModel ? `Count part (${hurdle ? 'zero-truncated ' : ''}${std}, log link)` : 'Coefficients'} file="regression-coefficients" columns={cols} rows={main.map((e) => coefRow(e, ratio))}
+          note={ratio ? `${ratioName}s: exp(estimate), the multiplicative change in the ${r.family === 'binomial' || r.family === 'ordinal' ? 'odds' : r.family === 'survival' ? 'hazard' : r.zeroModel ? (hurdle ? 'expected positive count' : 'expected count of the cases that are not structural zeros') : 'expected count'} per unit of the predictor.` : undefined} />}
+      {zero.length > 0 && <Table title={hurdle ? 'Zero hurdle (logit model for a count above zero)' : 'Zero inflation (logit model for a structural zero)'} file="regression-zero-part" columns={[...cols.slice(0, 6), 'Odds ratio']} rows={zero.map((e) => coefRow(e, true))}
+        note={hurdle ? 'The log-odds that the count is above zero (crossing the hurdle); odds ratios: exp(estimate).' : 'The log-odds that a case is a structural zero (always zero, whatever its count distribution); odds ratios: exp(estimate).'} />}
+      {r.vuong && <Table title={`Vuong’s test against the standard ${std} model`} file="regression-vuong" columns={['Version', 'z', 'p (one-sided)', 'Favours']} rows={(['raw', 'aic', 'bic'] as const).map((k): Row => [c(k === 'raw' ? 'Raw' : k === 'aic' ? 'AIC-corrected' : 'BIC-corrected'), c(r.vuong![k].z), pCell(r.vuong![k].p), c(r.vuong![k].z > 0 ? `the ${hurdle ? 'hurdle' : 'zero-inflated'} model` : `the standard ${std} model`)])}
+        note="Vuong’s non-nested test (as pscl::vuong): the mean difference of the cases’ log-likelihoods over its standard error, asymptotically N(0, 1) when the models fit equally well; the corrected versions penalise the zero part’s extra parameters. Compare the predicted zeros above with the observed." />}
       {inflation.length > 0 && <Table title="Inflation (logistic model for the extra values)" file="regression-inflation" columns={cols.slice(0, 6)} rows={inflation.map((e) => coefRow(e, false))}
         note={`The log-odds of a ${r.family === 'poisson' ? 'structural zero' : 'value at the censoring point beyond the censored-normal model'} (Mplus: ${r.family === 'poisson' ? 'u' : 'y'}#1 ON …).`} />}
       {random.length > 0 && <Table title={`Random slope of ${r.input.randomSlope ?? ''}: variances and covariance`} file="regression-random-slope" columns={cols.slice(0, 6)} rows={random.map((e) => coefRow(e, false))}
@@ -263,24 +304,25 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
 }
 
 export const regressionInput = (o: RegressionOptions, ctx: Pick<AnalysisCtx, 'settings'>): RegressionInput => ({ ...o, confidence: ctx.settings.confidence });
-export const regressionColumns = (o: RegressionOptions) => [...new Set([o.outcome, ...o.predictors, ...o.interactions.flat(), o.trials, o.weights, o.se === 'cluster' ? o.cluster : '', o.family === 'survival' ? o.status ?? '' : ''].filter(Boolean))];
+export const regressionColumns = (o: RegressionOptions) => [...new Set([o.outcome, ...o.predictors, ...o.interactions.flat(), ...zeroPreds(o), o.trials, o.weights, o.se === 'cluster' ? o.cluster : '', o.family === 'survival' ? o.status ?? '' : ''].filter(Boolean))];
 const FAMILY_IDS = FAMILIES.map(([id]) => id);
 
 export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
   id: 'regression',
   title: 'Regression',
-  sub: 'linear, logistic, Poisson, negative binomial, Gamma, ordinal, multinomial, censored, survival (lm, glm, MASS, nnet, survival)',
+  sub: 'linear, logistic, Poisson, negative binomial (also zero-inflated, hurdle), Gamma, ordinal, multinomial, censored, survival (lm, glm, MASS, nnet, pscl, survival)',
   group: 'Regression and causal inference',
   entries: [
     { title: 'Linear regression', sub: 'a continuous outcome (lm)', options: (o) => ({ ...o, family: 'gaussian' }) },
     { title: 'Logistic regression', sub: 'a 0/1 outcome or counts of successes (glm)', options: (o) => ({ ...o, family: 'binomial', link: 'logit' }) },
     { title: 'Count regression', sub: 'Poisson or negative binomial (glm, MASS)', options: (o) => ({ ...o, family: 'poisson' }) },
+    { title: 'Zero-inflated and hurdle count models', sub: 'Poisson or negative binomial with excess zeros (pscl)', options: (o) => ({ ...o, family: 'negbin', zeroModel: 'zeroinfl', zeroPart: 'same' }) },
     { title: 'Ordinal regression', sub: 'proportional odds (MASS::polr)', options: (o) => ({ ...o, family: 'ordinal', link: 'logistic' }) },
     { title: 'Multinomial regression', sub: 'an unordered categorical outcome (nnet)', options: (o) => ({ ...o, family: 'multinomial' }) },
     { title: 'Censored (tobit) regression', sub: 'an outcome censored at a limit (survival::survreg)', options: (o) => ({ ...o, family: 'censored' }) },
     { title: 'Survival analysis', sub: 'Cox or piecewise exponential (survival)', options: (o) => ({ ...o, family: 'survival' }) },
   ],
-  cardTitle: (o) => `${FAMILY_NAME[o.family]}${o.outcome ? `: ${o.outcome}` : ''}`,
+  cardTitle: (o) => `${isZeroModel(o) ? `${o.zeroModel === 'hurdle' ? 'Hurdle' : 'Zero-inflated'} ${FAMILY_NAME[o.family].toLowerCase()}` : FAMILY_NAME[o.family]}${o.outcome ? `: ${o.outcome}` : ''}`,
   defaults: () => ({ outcome: '', predictors: [], categorical: [], interactions: [], family: 'gaussian', link: 'logit', trials: '', weights: '', se: 'model', cluster: '', plot: '' }),
   parseOptions: (raw) => (isObj(raw) ? {
     outcome: name(raw.outcome), predictors: names(raw.predictors), categorical: names(raw.categorical),
@@ -292,6 +334,8 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     ...(name(raw.status) ? { status: name(raw.status) } : {}), ...(raw.statusCensored === true ? { statusCensored: true } : {}),
     ...(Array.isArray(raw.cuts) && raw.cuts.length ? { cuts: parseCuts(raw.cuts.filter((x) => typeof x === 'number').join(',')) } : {}),
     ...(name(raw.randomSlope) ? { randomSlope: name(raw.randomSlope) } : {}),
+    ...(raw.zeroModel === 'zeroinfl' || raw.zeroModel === 'hurdle' ? { zeroModel: raw.zeroModel, zeroPart: oneOf(raw.zeroPart, ['same', 'intercept', 'chosen'] as const, 'same') } : {}),
+    ...((raw.zeroModel === 'zeroinfl' || raw.zeroModel === 'hurdle') && names(raw.zeroPredictors).length ? { zeroPredictors: names(raw.zeroPredictors) } : {}),
   } : null),
   Options: RegressionOptionsForm,
   View: ({ result, options }) => <RegressionView r={result} plot={options.plot} o={options} />,
@@ -307,7 +351,11 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     if ((o.se === 'HC3' || o.se === 'cluster') && ownSe(o)) return 'Choose model-based or HC0 (Mplus MLR) standard errors for this model.';
     if (o.family === 'survival' && !o.status) return 'Choose the status column (0/1: which times are events, which censored).';
     if (o.family === 'survival' && o.status && o.status === o.outcome) return 'The status column cannot be the survival time.';
-    if ((o.family === 'survival' || (o.family === 'poisson' && o.inflated) || (o.family === 'censored' && o.inflated)) && o.weights) return 'Weights are not available for survival and inflated models.';
+    if ((o.family === 'survival' || (o.family === 'poisson' && o.inflated) || (o.family === 'censored' && o.inflated) || isZeroModel(o)) && o.weights) return 'Weights are not available for survival, inflated and hurdle models.';
+    if (isZeroModel(o) && o.zeroPart === 'chosen') {
+      if (!zeroPreds(o).length) return 'Choose the predictors of the zero part (or an intercept only).';
+      if (zeroPreds(o).includes(o.outcome)) return 'The outcome cannot be a predictor.';
+    }
     if (o.randomSlope && o.family === 'gaussian') {
       if (!o.predictors.includes(o.randomSlope)) return `The random slope (${o.randomSlope}) must be one of the predictors.`;
       if (o.categorical.includes(o.randomSlope) || rawData(ctx)?.categories?.[o.randomSlope]) return 'A random slope needs a numeric predictor.';
@@ -319,8 +367,9 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
     // (only options that differ from the defaults: earlier results keep their fingerprint)
     ...(o.family === 'censored' && o.censoring === 'above' ? ['above'] : []), ...((o.family === 'censored' || o.family === 'poisson') && o.inflated ? ['inflated'] : []),
     ...(o.family === 'multinomial' && o.reference === 'last' ? ['last'] : []), ...(o.family === 'survival' ? [o.statusCensored ? 'censored' : 'event', (o.cuts ?? []).join(',')] : []),
-    ...(o.family === 'gaussian' && o.randomSlope ? [`slope:${o.randomSlope}`] : [])]),
+    ...(o.family === 'gaussian' && o.randomSlope ? [`slope:${o.randomSlope}`] : []),
+    ...(isZeroModel(o) ? [`zero:${o.zeroModel}:${o.zeroPart ?? 'same'}:${zeroPreds(o).join(',')}`] : [])]),
   run: async (o, ctx) => { const input = regressionInput(o, ctx); return { ...(await (await import('../rengine/regression')).regressionR(rawData(ctx)!, input)), input }; },
   script: async (o, ctx) => (await import('../rengine/regression')).regressionScriptR(rawData(ctx)!, regressionInput(o, ctx)),
-  summary: (o) => `${FAMILY_NAME[o.family].toLowerCase()} · ${o.outcome || '…'} on ${o.predictors.length ? o.predictors.join(', ') : '…'}${o.family === 'gaussian' && o.randomSlope ? ` · random slope of ${o.randomSlope}` : ''}${o.se !== 'model' ? ` · ${o.se} SEs` : ''}`,
+  summary: (o) => `${isZeroModel(o) ? `${o.zeroModel === 'hurdle' ? 'hurdle' : 'zero-inflated'} ` : ''}${FAMILY_NAME[o.family].toLowerCase()} · ${o.outcome || '…'} on ${o.predictors.length ? o.predictors.join(', ') : '…'}${isZeroModel(o) && o.zeroPart === 'intercept' ? ' | 1' : isZeroModel(o) && o.zeroPart === 'chosen' ? ` | ${zeroPreds(o).join(', ') || '…'}` : ''}${o.family === 'gaussian' && o.randomSlope ? ` · random slope of ${o.randomSlope}` : ''}${o.se !== 'model' ? ` · ${o.se} SEs` : ''}`,
 };

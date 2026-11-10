@@ -3,6 +3,7 @@
 
 import { endogenousIds, type Method, type ModelState, type ParameterTerm } from '../model/project';
 import { heldText } from '../model/heldValue';
+import { COUNT_NAMES } from '../model/countModel';
 
 export type MenuTarget =
   | { kind: 'construct'; id: string }
@@ -19,7 +20,7 @@ export type MenuAction =
   | 'edit' | 'make-composite' | 'make-factor' | 'make-parcels' | 'correlate' | 'delete-construct'
   | 'remove-indicator' | 'reverse-path' | 'add-quadratic' | 'toggle-copula' | 'delete-path' | 'delete-moderation' | 'delete-correlation'
   | 'add-construct' | 'arrange' | 'figure' | 'make-covariate' | 'unmake-covariate' | 'process-template' | 'fix-zero' | 'fix-value' | 'free-value' | 'toggle-ordinal' | 'set-label' | 'toggle-free-loading' | 'toggle-free-intercept' | 'toggle-free-path' | 'make-esem' | 'leave-esem'
-  | 'held-variance' | 'held-intercept' | 'held-threshold' | 'group-values' | 'toggle-optional';
+  | 'held-variance' | 'held-intercept' | 'held-threshold' | 'group-values' | 'toggle-optional' | 'set-count';
 
 export interface MenuItem { action: MenuAction; label: string; danger?: boolean }
 
@@ -109,6 +110,7 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
       const held = owner2?.fixedLoadings?.[target.name];
       const isMarker = owner2?.indicators[0] === target.name;
       const ordinal = !!model.ordered?.includes(target.name);
+      const count = model.count?.[target.name];
       return out(target.name, [
         edit && cb && !owner2?.covariate && { action: 'fix-value', label: held !== undefined ? `Change fixed loading (${held})…` : isMarker ? 'Fix loading at another value than 1…' : 'Fix loading at a value…' },
         edit && cb && held !== undefined && { action: 'free-value', label: isMarker ? 'Back to the marker’s 1' : 'Free loading (estimate it)' },
@@ -117,10 +119,12 @@ export function menuFor(target: MenuTarget, model: ModelState, ctx: MenuContext)
         ...groupItems(model, edit && cb, target.construct, target.name, isMarker),
         // (PLS: ordinal indicators make cSEM estimate OrdPLS/OrdPLSc.)
         edit && (cb || (pls && !owner2?.categorical)) && !owner2?.covariate && { action: 'toggle-ordinal', label: model.ordered?.includes(target.name) ? 'Treat as continuous' : 'Treat as ordinal (categorical)' },
+        // (CB-SEM: a count indicator sends the model to the integration engine)
+        edit && cb && !owner2?.covariate && { action: 'set-count', label: count ? `Count (${COUNT_NAMES[count]})…` : 'Treat as count…' },
         // Held or labelled: the error variance (a parameter of an ordinal indicator only under the theta parameterisation),
         // the intercept (with the constant: a mean structure) or the thresholds of an ordinal indicator.
         ...(edit && cb && owner2 && !owner2.covariate && owner2.indicators.length > 1 ? [
-          (!ordinal || model.parameterization === 'theta') && { action: 'held-variance' as const, label: heldLabel('Error variance', heldOf(model, { kind: 'variance', target: target.name, indicator: true })) },
+          (!ordinal || model.parameterization === 'theta') && !count && { action: 'held-variance' as const, label: heldLabel('Error variance', heldOf(model, { kind: 'variance', target: target.name, indicator: true })) },
           !ordinal && !!model.constant && { action: 'held-intercept' as const, label: heldLabel('Intercept', heldOf(model, { kind: 'intercept', target: target.name, indicator: true })) },
           ordinal && { action: 'held-threshold' as const, label: 'Hold or label a threshold…' },
         ] : []),

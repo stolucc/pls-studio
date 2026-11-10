@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import type { Dataset } from '../engine/types';
+import { pnorm } from '../engine/stats';
 import type { DataInfo } from '../model/project';
 import { computeColumn } from '../data/compute';
 import { PACKAGE_EXAMPLES, type PackageExample } from '../examples/packages';
@@ -80,6 +81,81 @@ it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   expect(script).toContain(key === 'quine' ? 'glm.nb(' : key === 'housing' ? 'polr(' : key === 'multinom' ? 'multinom(' : ['dobson', 'gala'].includes(key) ? 'family = poisson' : key === 'clotting' ? 'family = Gamma' : key === 'menarche' ? 'binomial(link = "probit")' : LM.includes(key) ? 'fit <- lm(' : 'family = binomial');
   if (key === 'gala') { against({ label: 'Faraway, Extending the Linear Model with R: residual deviance (printed by R)', level: 'native' }); expect(r.fit.deviance, 'residual deviance').toBeCloseTo(716.8458, 3); expect(r.fit.n).toBe(30); }  // Faraway: residual deviance 716.85 on 24 df
   if (key === 'prestige') expect(r.formula).toMatch(/log2_income/);
+}, 900_000);
+
+type PsclRef = { coefficients: { term: string; est: number; se: number }[]; logLik: number; aic: number; bic: number; npar: number; theta?: number; thetaSe?: number; vuong: Record<'raw' | 'aic' | 'bic', number>; zeros: number; zerosPredicted: number; zerosStandard: number };
+const pscl = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'regression', 'pscl.json'), 'utf8')) as Record<string, PsclRef>;
+const BIO = ['fem', 'mar', 'kid5', 'phd', 'ment'];
+/** pscl's names (count_femWomen, zero_ment) as the card's part and term. */
+const psclTerm = (t: string) => ({ part: t.startsWith('zero_') ? 'zero' : null, term: t.replace(/^(count|zero)_/, '') });
+const PSCL: [string, Partial<RegressionInput>][] = [
+  ['zinb2', { family: 'negbin', zeroModel: 'zeroinfl', zeroPart: 'same' }],
+  ['zip2', { family: 'poisson', zeroModel: 'zeroinfl', zeroPart: 'same' }],
+  ['zinb', { family: 'negbin', zeroModel: 'zeroinfl', zeroPart: 'intercept' }],
+  ['hnb1', { family: 'negbin', zeroModel: 'hurdle', zeroPart: 'same' }],
+  ['hp1', { family: 'poisson', zeroModel: 'hurdle', zeroPart: 'same' }],
+  ['hp_own', { family: 'poisson', zeroModel: 'hurdle', zeroPart: 'chosen', zeroPredictors: ['kid5', 'ment'], se: 'HC0' }],
+  ['zinb_own', { family: 'negbin', zeroModel: 'zeroinfl', zeroPart: 'chosen', zeroPredictors: ['kid5', 'ment'], se: 'HC0' }],
+];
+const bioInput = (p: Partial<RegressionInput>): RegressionInput => ({ outcome: 'art', predictors: BIO, categorical: [], interactions: [], family: 'poisson', link: 'logit', trials: '', weights: '', se: 'model', cluster: '', confidence: 0.95, ...p });
+
+it.each(PSCL)('pscl %s: the zero-inflated and hurdle models reproduce pscl natively (coefficients, SEs, theta, fit, Vuong, zeros; 1e-6)', async (key, p) => {
+  const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'pscl-zinb')!;
+  if (key === 'zinb2' || key === 'hnb1') {
+    const id = key === 'zinb2' ? 'pscl-zinb' : 'pscl-hurdle', e = PACKAGE_EXAMPLES.find((x) => x.id === id)!;
+    example(id, { title: e.title, method: 'Regression', packages: ['pscl'], definition: e });
+    against({ label: 'the help page’s model in desktop R (pscl::zeroinfl / pscl::hurdle, pscl::vuong), scripts/validation/zeroinfl.R', script: 'scripts/validation/zeroinfl.R', level: 'native' });
+  }
+  const data = await load(ex);
+  const input = bioInput(p);
+  const r = await regressionR(data, input);
+  const want = pscl[key];
+  expect(r.coefficients.length).toBe(want.coefficients.length);
+  for (const w of want.coefficients) {
+    const { part, term } = psclTerm(w.term);
+    const mine = r.coefficients.find((e) => (e.part ?? null) === part && term === e.term);
+    expect(mine, `${key}: ${w.term} (have ${r.coefficients.map((e) => `${e.part ?? ''}:${e.term}`).join(', ')})`).toBeTruthy();
+    expect(Math.abs(mine!.est - w.est), w.term).toBeLessThan(1e-6);
+    expect(Math.abs(mine!.se - w.se), `SE of ${w.term}`).toBeLessThan(1e-6);
+    if (term !== '(Intercept)') expect(mine!.ratio).toBeCloseTo(Math.exp(w.est), 6);
+  }
+  for (const k of ['logLik', 'aic', 'bic'] as const) expect(Math.abs(r.fit[k] - want[k]), k).toBeLessThan(1e-6);
+  expect(r.fit.npar).toBe(want.npar);
+  if (want.theta !== undefined) expect(Math.abs(r.fit.theta! - want.theta), 'θ').toBeLessThan(1e-6);
+  if (want.thetaSe !== undefined) expect(Math.abs(r.fit.thetaSe! - want.thetaSe), 'SE of θ').toBeLessThan(1e-6);
+  else expect(r.fit.thetaSe ?? null).toBeNull();
+  for (const k of ['raw', 'aic', 'bic'] as const) expect(Math.abs(r.vuong![k].z - want.vuong[k]) / Math.max(1, Math.abs(want.vuong[k])), `Vuong ${k}`).toBeLessThan(1e-6);
+  const v = r.vuong!.raw; expect(v.p).toBeCloseTo(v.z > 0 ? 1 - pnorm(v.z) : pnorm(v.z), 6);
+  expect(r.fit.zeros).toBe(want.zeros);
+  expect(Math.abs(r.fit.zerosPredicted! - want.zerosPredicted)).toBeLessThan(1e-6);
+  expect(Math.abs(r.fit.zerosStandard! - want.zerosStandard)).toBeLessThan(1e-6);
+  expect(r.zeroModel).toBe(p.zeroModel);
+  expect(r.engine.package).toBe('pscl');
+  expect(r.lrt).toBeNull();
+  expect(r.warnings, r.warnings.join(' | ')).toEqual([]);
+  expect(r.curves.length).toBeGreaterThan(0);
+  const script = await regressionScriptR(data, input);
+  expect(script).toContain(p.zeroModel === 'hurdle' ? `fit <- hurdle(art ~ fem + mar + kid5 + phd + ment${p.zeroPart === 'chosen' ? ' | kid5 + ment' : ''}, data = data, dist = "${p.family}", zero.dist = "binomial")`
+    : `fit <- zeroinfl(art ~ fem + mar + kid5 + phd + ment${p.zeroPart === 'intercept' ? ' | 1' : p.zeroPart === 'chosen' ? ' | kid5 + ment' : ''}, data = data, dist = "${p.family}")`);
+  expect(script).toContain('vuong(fit, std)');
+  expect(script).toContain(p.se === 'HC0' ? 'vc <- sandwich(fit)' : 'vc <- vcov(fit)');
+}, 900_000);
+
+it('the zero-inflated Poisson written out (Mplus COUNT (i)) agrees with pscl::zeroinfl on the same predictors', async () => {
+  const data = await load(PACKAGE_EXAMPLES.find((e) => e.id === 'pscl-zinb')!);
+  const own = await regressionR(data, bioInput({ inflated: true }));
+  const zip = await regressionR(data, bioInput({ zeroModel: 'zeroinfl', zeroPart: 'same' }));
+  const ref = pscl.zip2;
+  expect(own.coefficients.length).toBe(zip.coefficients.length);
+  // (both maximise the same likelihood: the estimates agree to the optimisers' tolerance, pscl's default reltol about 1.5e-10)
+  own.coefficients.forEach((c) => {
+    const z = zip.coefficients.find((e) => e.term === c.term && (e.part === 'zero') === (c.part === 'inflation'))!;
+    expect(Math.abs(c.est - z.est), c.term).toBeLessThan(1e-5);
+    expect(Math.abs(c.se - z.se), `SE of ${c.term}`).toBeLessThan(1e-5);
+  });
+  expect(Math.abs(own.fit.logLik - ref.logLik)).toBeLessThan(1e-6);
+  expect(own.fit.npar).toBe(ref.npar);
+  expect(Math.abs(own.fit.aic - ref.aic)).toBeLessThan(1e-6);
 }, 900_000);
 
 it('robust and cluster-robust standard errors come from sandwich', async () => {

@@ -119,6 +119,8 @@ export const R_PACKAGES = {
   regression: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest'],
   // Censored (tobit) and survival (Cox, piecewise exponential) regressions: the regression card with survival.
   regressionSurvival: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest', 'survival'],
+  // Zero-inflated and hurdle count models (pscl::zeroinfl, pscl::hurdle): the regression card with pscl.
+  pscl: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest', 'pscl'],
   MASS: ['jsonlite', 'MASS'],
   nnet: ['jsonlite', 'nnet', 'MASS'],
   datasets: ['jsonlite'],

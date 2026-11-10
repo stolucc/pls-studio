@@ -39,8 +39,8 @@ import { parseLavaanSyntax } from '../model/syntax';
 import { namesIn, parseExpr } from '../model/expr';
 import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'nonnest2' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa' | 'plssem';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'nonnest2', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa', 'plssem'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'nonnest2' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa' | 'pscl' | 'plssem';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'nonnest2', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa', 'pscl', 'plssem'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -309,6 +309,22 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     shows: 'θ = 1.598 is the negative binomial’s overdispersion parameter (a Poisson model would need θ without limit). Read the nested terms within each sex; the largest is the ethnicity × learner term for girls, −1.358 (SE 0.377).',
     data: { package: 'MASS', name: 'quine' }, constructs: [], paths: [], tags: ['Count data'],
     panel: { kind: 'regression', family: 'negbin', link: 'logit', outcome: 'Days', predictors: ['Sex'], categorical: [], interactions: [['Sex', 'Age'], ['Sex', 'Eth'], ['Sex', 'Lrn'], ['Sex', 'Eth', 'Lrn']], trials: '', weights: '', se: 'model', cluster: '' }, settings: CB('ML'),
+  },
+  {
+    id: 'pscl-zinb', package: 'pscl', title: 'Zero-inflated negative binomial regression: articles by biochemistry PhD students', source: 'pscl, ?zeroinfl (fm_zinb2)',
+    links: [{ label: '?zeroinfl', url: 'https://rdrr.io/cran/pscl/man/zeroinfl.html' }, { label: '?bioChemists', url: 'https://rdrr.io/cran/pscl/man/bioChemists.html' }],
+    description: 'Long (1990): articles published in the last three years of the PhD by 915 biochemistry students, on gender, marital status, children under six, the prestige of the PhD department and the mentor’s articles. 30% published nothing. The help page’s zero-inflated negative binomial model art ~ . | .: a negative binomial count part and a logit model for a structural zero, both on all five predictors (pscl, GPL-2; data from Long 1990 as shipped with pscl). Opens its card on the Analyses tab.',
+    shows: 'The count part has θ = 2.655: over-dispersion beyond the zeros. Only the mentor’s articles predict a structural zero (−0.882, SE 0.316): students of productive mentors are rarely never-publishers. Vuong’s raw test favours the zero-inflated model (z = 2.24), the BIC-corrected one the standard negative binomial (z = −1.94); compare the predicted zeros with the 275 observed.',
+    data: { package: 'pscl', name: 'bioChemists' }, constructs: [], paths: [], tags: ['Count data', 'Zero-inflated'],
+    panel: { kind: 'regression', family: 'negbin', link: 'logit', outcome: 'art', predictors: ['fem', 'mar', 'kid5', 'phd', 'ment'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '', zeroModel: 'zeroinfl', zeroPart: 'same' }, settings: CB('ML'),
+  },
+  {
+    id: 'pscl-hurdle', package: 'pscl', title: 'Hurdle negative binomial regression: articles by biochemistry PhD students', source: 'pscl, ?hurdle (fm_hnb1)',
+    links: [{ label: '?hurdle', url: 'https://rdrr.io/cran/pscl/man/hurdle.html' }, { label: '?bioChemists', url: 'https://rdrr.io/cran/pscl/man/bioChemists.html' }],
+    description: 'The same 915 students (Long 1990) as a hurdle model, the help page’s logit-negbin model art ~ .: a logit model for publishing at all (crossing the hurdle) and a zero-truncated negative binomial for how many articles those who publish write, both on all five predictors (pscl, GPL-2). Opens its card on the Analyses tab.',
+    shows: 'Children under six lower the odds of publishing at all (−0.285, SE 0.111) and, among those who publish, the number of articles (−0.153, SE 0.072); the mentor’s articles raise both. θ = 1.829 for the positive counts; log-likelihood −1552.6 on 13 parameters.',
+    data: { package: 'pscl', name: 'bioChemists' }, constructs: [], paths: [], tags: ['Count data', 'Hurdle model'],
+    panel: { kind: 'regression', family: 'negbin', link: 'logit', outcome: 'art', predictors: ['fem', 'mar', 'kid5', 'phd', 'ment'], categorical: [], interactions: [], trials: '', weights: '', se: 'model', cluster: '', zeroModel: 'hurdle', zeroPart: 'same' }, settings: CB('ML'),
   },
   {
     id: 'mass-housing', package: 'MASS', title: 'Ordinal regression: satisfaction with housing', source: 'MASS, ?polr (house.plr)',

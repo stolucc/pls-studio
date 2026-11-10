@@ -56,6 +56,11 @@ export function ModelChecks() {
           <div key={k} className={`issue ${iss.level}${iss.constructId ? ' clickable' : ''}`}
             onClick={() => iss.constructId && select('construct', iss.constructId)}>
             <IconAlert size={14} /> <span>{iss.message}</span>
+            {iss.action === 'count-integration' && (
+              <span className="issue-actions">
+                <button className="btn sm" onClick={(e) => { e.stopPropagation(); void import('../../analyses/quadml').then((m) => m.openDiagramIntegration()); }}>Estimate by integration</button>
+              </span>
+            )}
             {iss.action === 'exogenous-correlations' && !readOnlyChecks && (
               <span className="issue-actions">
                 <button className="btn sm" onClick={(e) => { e.stopPropagation(); useStore.getState().resolveExogenousCorrelations(true); }}>Correlate them</button>
