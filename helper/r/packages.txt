@@ -37,7 +37,9 @@ manymome
 marginaleffects
 mice
 mirt
+misty
 modsem
+mvnmle
 mvtnorm
 nnet
 optimx

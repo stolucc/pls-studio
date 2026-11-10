@@ -92,6 +92,8 @@ export const R_PACKAGES = {
   // Exploratory factor analysis with lavaan's efa() (standard errors, the fit by number of factors).
   psychLavaan: ['jsonlite', 'psych', 'GPArotation', 'lavaan'],
   semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],
+  // Little's MCAR test and Jamshidian & Jalal's tests in the missing-data card (misty::na.test; mvnmle's ML estimates).
+  misty: ['jsonlite', 'lavaan', 'misty', 'mvnmle'],
   // Reading SPSS, Stata and Excel files.
   readData: ['jsonlite', 'haven', 'readxl'],
   bootnet: ['jsonlite', 'bootnet', 'qgraph'],
