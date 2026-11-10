@@ -1,0 +1,116 @@
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_SETTINGS, validateModel, type Construct, type ModelState, type Settings } from './project';
+import { exampleModel, PACKAGE_EXAMPLES } from '../examples/packages';
+import type { Dataset } from '../engine/types';
+
+// Pins the full issue list (level, message, construct, action, in order) of validateModel over rich models and many
+// settings: the rule groups of validate.ts must compose to exactly the list the single function gave.
+
+type Opts = Parameters<typeof validateModel>[2];
+// (construct ids as their position: the examples' ids are generated afresh each run)
+const idOf = (model: ModelState, id: string) => { const k = model.constructs.findIndex((c) => c.id === id); return k < 0 ? id : `#${k}`; };
+const show = (model: ModelState, data: Dataset | null, s: Opts) => validateModel(model, data, s).map((i) => `${i.level}: ${i.message}${i.constructId ? ` [${idOf(model, i.constructId)}]` : ''}${i.action ? ` {${i.action}}` : ''}`);
+
+// Settings variants that reach each method's branches.
+const VARIANTS: [string, Partial<Settings>][] = [
+  ['pls', { method: 'pls' }],
+  ['plsc seminr', { method: 'pls', consistent: true, plsPackage: 'seminr', scheme: 'centroid', plsApproach: 'GSCA', missing: 'fiml' }],
+  ['pls builtin mi', { method: 'pls', engine: 'builtin', missing: 'mi', miMethod: 'amelia', plsApproach: 'unit' }],
+  ['cbsem', { method: 'cbsem' }],
+  ['cbsem builtin wlsmv fiml', { method: 'cbsem', engine: 'builtin', estimator: 'WLSMV', missing: 'fiml' }],
+  ['cbsem 2sls', { method: 'cbsem', estimator: '2SLS' }],
+  ['cbsem mi lms', { method: 'cbsem', missing: 'mi', estimator: 'GLS', interaction: 'lms', miMethod: 'amelia', miAuxiliary: ['nope'], miNominal: ['zz'] }],
+  ['cbsem rml pairwise', { method: 'cbsem', estimator: 'RML', missing: 'pairwise' }],
+  ['cbsem wls twostage', { method: 'cbsem', estimator: 'WLS', missing: 'twostage', interaction: 'qml' }],
+  ['process', { method: 'process', missing: 'mi', hc: 'HC3' }],
+];
+
+const C = (id: string, name: string, indicators: string[], extra: Partial<Construct> = {}): Construct => ({ id, name, type: 'factor', mode: 'A', indicators, x: 0, y: 0, side: 'left', ...extra });
+const cols = (names: string[], n: number, f: (k: number, i: number) => number): Dataset => ({ names, cols: names.map((_, k) => Float64Array.from({ length: n }, (_, i) => f(k, i))) });
+
+// Every feature at once, many of them wrongly combined.
+const kitchen: ModelState = {
+  constructs: [
+    C('A', 'Alpha', ['a1', 'a2', 'a3'], { reliabilities: { a1: 0.8, a2: 1.5 }, fixedLoadings: { a2: 1 }, predefinedWeights: { a1: 0, a2: 0, a3: 0 }, dominant: 'a1' }),
+    C('B', 'Beta', ['b1', 'b2'], { type: 'composite', mode: 'B', loadingLabels: { b1: 'l1' } }),
+    C('G', 'Gamma', [], { components: ['A', 'D'], markerFree: true, componentLoadings: { A: NaN, D: 1 } }),
+    C('D', 'Delta', ['d1'], { reliability: 1.2, freeError: true, mode: 'unit', categorical: 'indicator' }),
+    C('E', 'Epsilon', ['e1'], { covariate: true, latent: true }),
+    C('F', 'phi', ['a1', 'f2'], { mode: 'unit', latent: true }),
+    C('H', 'Phi', ['txt', 'zz'], { mode: 'B' }),
+    C('K', '', ['k1', 'k2', 'k3'], { categorical: 'indicator' }),
+  ],
+  paths: [
+    { id: 'p1', from: 'A', to: 'B', fixed: 1 },
+    { id: 'p2', from: 'B', to: 'F', label: 'b' },
+    { id: 'p3', from: 'F', to: 'A' },
+    { id: 'p4', from: 'E', to: 'H' },
+    { id: 'p5', from: 'D', to: 'E' },
+    { id: 'p6', from: 'K', to: 'H' },
+  ],
+  moderations: [{ id: 'm1', moderator: 'H', path: 'p1', method: 'orthogonal' }, { id: 'm2', moderator: 'A', path: 'p1' }, { id: 'm3', moderator: 'K', path: 'gone' }],
+  threeWay: [{ id: 't1', moderation: 'm1', moderator: 'K' }],
+  copulas: [{ id: 'c1', path: 'p4' }],
+  correlations: [
+    { id: 'r1', kind: 'construct', a: 'A', b: 'B', byGroup: [1, 2, 3] },
+    { id: 'r2', kind: 'construct', a: 'E', b: 'K', zero: true },
+    { id: 'r3', kind: 'construct', a: 'K', b: 'D' },
+    { id: 'r4', kind: 'indicator', a: 'b1', b: 'd1', fixed: 0.2 },
+    { id: 'r5', kind: 'construct', a: 'F', b: 'B' },
+  ],
+  ordered: ['k1', 'k2'],
+  defined: [{ id: 'd1', name: 'ab', expr: 'b * zz' }],
+  waldTests: [{ id: 'w1', name: 'w', constraints: 'b == q' }],
+  information: 'observed',
+  likelihood: 'wishart',
+  sampleCovRescale: false,
+  multigroup: { column: 'grp', invariance: 'scalar', meanStructure: false, free: [{ kind: 'loading', construct: 'Q', indicator: 'x' }, { kind: 'regression', from: 'A', to: 'K' }, { kind: 'mean', construct: 'B' }], structural: ['means'] },
+  multilevel: { column: 'grp', between: 'model', betweenModel: [{ lhs: 'fb', op: '=~', rhs: [{ name: 'a1' }, { name: 'nothere' }] }] },
+  weights: 'wt',
+  cluster: 'a1',
+  esem: { blocks: [{ id: 'e1', constructs: ['A', 'B'] }, { id: 'e2', constructs: ['A', 'E', 'G'] }], rotation: 'bigeomin', invariant: true },
+  constant: { x: 0, y: 0 },
+  means: [{ id: 'mn1', target: 'G', bias: [1, NaN] }, { id: 'mn2', target: 'gone', bias: [1, 2] }, { id: 'mn3', target: 'A', bias: 0.5 }],
+  parameters: [{ id: 'v1', kind: 'variance', target: 'A', byGroup: [1] }],
+  indicatorPaths: [{ id: 'i1', from: 'A', to: 'a1' }, { id: 'i2', from: 'E', to: 'b1' }, { id: 'i3', from: 'K', to: 'd1' }, { id: 'i4', from: 'K', to: 'gone' }, { id: 'i5', from: 'K', to: 'a2' }],
+} as ModelState;
+
+const kNames = ['a1', 'a2', 'a3', 'b1', 'b2', 'd1', 'e1', 'f2', 'txt', 'k1', 'k2', 'k3', 'grp', 'wt', 'cl'];
+const kData: Dataset = { ...cols(kNames, 25, (k, i) => (kNames[k] === 'a3' ? 4 : kNames[k] === 'b2' ? NaN : kNames[k] === 'wt' ? i - 3 : kNames[k] === 'grp' ? i % 25 : kNames[k] === 'd1' ? i % 30 : (i * (k + 1)) % 4)), categories: { txt: ['x', 'y', 'z', 'w'] } };
+// (no weights column among a matrix's names: validateModel would index its missing raw column)
+const kMatrix: Dataset = { names: kNames.filter((x) => x !== 'wt'), cols: [], moments: { n: 40, cov: kNames.slice(1).map((_, i) => kNames.slice(1).map((_, j) => (i === j ? 1 : 0.1))) } } as unknown as Dataset;
+
+// A process model: X, M, Y, W with latent scales, a categorical X and a dichotomous Y.
+const proc: ModelState = {
+  constructs: [C('X', 'X', ['x1'], { categorical: 'indicator' }), C('M', 'M', ['m1', 'm2'], { latent: true }), C('Y', 'Y', ['y1']), C('W', 'W', ['w1']), C('Z', 'Z', ['z1'], { categorical: 'helmert' })],
+  paths: [{ id: 'p1', from: 'X', to: 'M' }, { id: 'p2', from: 'M', to: 'Y' }, { id: 'p3', from: 'X', to: 'Y' }],
+  moderations: [{ id: 'm1', moderator: 'W', path: 'p2' }, { id: 'm2', moderator: 'X', path: 'p2' }],
+  threeWay: [{ id: 't1', moderation: 'm1', moderator: 'Z' }],
+};
+const pNames = ['x1', 'm1', 'm2', 'y1', 'w1', 'z1'];
+const pData = cols(pNames, 200, (k, i) => (pNames[k] === 'y1' ? i % 2 : pNames[k] === 'x1' ? i % 3 : Math.sin(i * (k + 1.3)) + (i % (k + 3))));
+
+// Package examples (the shipped diagrams), with data shaped as their own test builds it.
+const diagrams = PACKAGE_EXAMPLES.filter((e) => !e.panel);
+const exampleCase = (ex: (typeof diagrams)[number]) => {
+  const model = exampleModel(ex);
+  const names = [...new Set([...model.constructs.flatMap((c) => c.indicators), ...(ex.multigroup ? [ex.multigroup.column] : []), ...(ex.multilevel ? [ex.multilevel.column, ...(ex.multilevel.betweenCovariates ?? [])] : [])])];
+  const data = cols(names, 120, (k, i) => (names[k] === ex.multigroup?.column ? 1 + (i % 2) : names[k] === ex.multilevel?.column ? 1 + (i % 12) : Math.sin(i * (k + 1.3)) + (i % (k + 3))));
+  return { model, data, own: ex.settings };
+};
+
+describe('validateModel: the full issue list is pinned', () => {
+  it.each(VARIANTS)('kitchen-sink model, raw data, %s', (_n, s) => expect(show(kitchen, kData, { ...DEFAULT_SETTINGS, ...s })).toMatchSnapshot());
+  it.each(VARIANTS)('kitchen-sink model, covariance matrix, %s', (_n, s) => expect(show(kitchen, kMatrix, { ...DEFAULT_SETTINGS, ...s })).toMatchSnapshot());
+  it.each(VARIANTS)('kitchen-sink model, no data, %s', (_n, s) => expect(show(kitchen, null, { ...DEFAULT_SETTINGS, ...s })).toMatchSnapshot());
+  it.each(VARIANTS)('process model, %s', (_n, s) => expect(show(proc, pData, { ...DEFAULT_SETTINGS, ...s })).toMatchSnapshot());
+  it('package examples under their own settings and every variant', () => {
+    const out: Record<string, string[]> = {};
+    for (const ex of diagrams) {
+      const { model, data, own } = exampleCase(ex);
+      out[`${ex.id} (own)`] = show(model, data, { ...DEFAULT_SETTINGS, ...own });
+      for (const [n, s] of VARIANTS) out[`${ex.id} (${n})`] = show(model, data, { ...DEFAULT_SETTINGS, ...own, ...s });
+    }
+    expect(out).toMatchSnapshot();
+  });
+});
