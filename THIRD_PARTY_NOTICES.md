@@ -58,6 +58,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | codetools | 0.2-20 | GPL | https://cran.r-project.org/package=codetools |
 | colorspace | 2.1-4 | BSD_3_clause + file LICENSE | https://cran.r-project.org/package=colorspace |
 | combinat | 0.0-9 | GPL-2 | https://cran.r-project.org/package=combinat |
+| CompQuadForm | 1.4.4 | GPL (>= 2) | https://cran.r-project.org/package=CompQuadForm |
 | contfrac | 1.1-12 | GPL-2 | https://cran.r-project.org/package=contfrac |
 | corpcor | 1.6.10 | GPL (>= 3) | https://cran.r-project.org/package=corpcor |
 | corrplot | 0.95 | MIT + file LICENSE | https://cran.r-project.org/package=corrplot |
@@ -223,6 +224,7 @@ The R packages below are downloaded at build time (`npm run webr:fetch`, version
 | nloptr | 2.2.1.9000 | LGPL (>= 3) | https://github.com/astamm/nloptr |
 | nnet | 7.3-21 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=nnet |
 | nnls | 1.6 | GPL (>= 2) | https://cran.r-project.org/package=nnls |
+| nonnest2 | 0.5-9 | GPL-2 \| GPL-3 | https://cran.r-project.org/package=nonnest2 |
 | numDeriv | 2016.8-1.1 | GPL-2 | https://cran.r-project.org/package=numDeriv |
 | openssl | 2.4.2 | MIT + file LICENSE | https://cran.r-project.org/package=openssl |
 | optimx | 2025-4.9 | GPL-2 | https://cran.r-project.org/package=optimx |

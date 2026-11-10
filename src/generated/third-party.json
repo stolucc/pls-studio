@@ -460,6 +460,12 @@
    "url": "https://cran.r-project.org/package=combinat"
   },
   {
+   "name": "CompQuadForm",
+   "version": "1.4.4",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=CompQuadForm"
+  },
+  {
    "name": "contfrac",
    "version": "1.1-12",
    "license": "GPL-2",
@@ -1449,6 +1455,12 @@
    "version": "1.6",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=nnls"
+  },
+  {
+   "name": "nonnest2",
+   "version": "0.5-9",
+   "license": "GPL-2 | GPL-3",
+   "url": "https://cran.r-project.org/package=nonnest2"
   },
   {
    "name": "numDeriv",

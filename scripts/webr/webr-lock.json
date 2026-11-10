@@ -737,6 +737,19 @@
         "File": "combinat_0.0-9.tgz"
       }
     },
+    "CompQuadForm": {
+      "version": "1.4.4",
+      "md5": "204e715b8c0474ce019a38da85d86e48",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "CompQuadForm",
+        "Version": "1.4.4",
+        "License": "GPL (>= 2)",
+        "MD5sum": "204e715b8c0474ce019a38da85d86e48",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-12 21:04:42 UTC; unix",
+        "File": "CompQuadForm_1.4.4.tgz"
+      }
+    },
     "contfrac": {
       "version": "1.1-12",
       "md5": "cc87d730cce0ea9e3017fb23c19284d9",
@@ -3330,6 +3343,22 @@
         "MD5sum": "3dbf6a6cbde4856008e95ac502bafbf5",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 16:49:56 UTC; unix",
         "File": "nnls_1.6.tgz"
+      }
+    },
+    "nonnest2": {
+      "version": "0.5-9",
+      "md5": "23e3eb53101bba04f9e469fe4c95905a",
+      "license": "GPL-2 | GPL-3",
+      "stanza": {
+        "Package": "nonnest2",
+        "Version": "0.5-9",
+        "Depends": "R (>= 3.0.0)",
+        "Imports": "CompQuadForm, mvtnorm, lavaan (>= 0.6-6), sandwich, methods",
+        "Suggests": "mirt (>= 1.42), OpenMx, tidySEM, AER, MASS, faraway, mlogit, ordinal, pscl, knitr, rmarkdown, testthat",
+        "License": "GPL-2 | GPL-3",
+        "MD5sum": "23e3eb53101bba04f9e469fe4c95905a",
+        "Built": "R 4.6.0; ; 2026-05-13 16:55:43 UTC; unix",
+        "File": "nonnest2_0.5-9.tgz"
       }
     },
     "numDeriv": {
