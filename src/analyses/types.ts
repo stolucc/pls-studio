@@ -1,6 +1,9 @@
 import type { ComponentType } from 'react';
 import type { CbResult } from '../engine/cbsem';
-import type { Dataset, PlsResult } from '../engine/types';
+import type { BootstrapResult, Dataset, PlsResult } from '../engine/types';
+import type { MiivResult } from '../engine/miiv';
+import type { CpaResult } from '../rengine/cpa';
+import type { InvarianceResult } from '../rengine/lavaan';
 import type { DataInfo, ModelState, Settings } from '../model/project';
 
 /** What an analysis can read from the open project. */
@@ -15,6 +18,13 @@ export interface AnalysisCtx {
   projectName: string;
   /** The diagram (for analyses that offer its indicators, or build constructs). */
   model?: ModelState;
+  /** The bootstrap, conditional process and invariance results, when current (the reporting cards describe them). */
+  boot?: BootstrapResult | null;
+  process?: CpaResult | null;
+  invariance?: InvarianceResult | null;
+  miiv?: MiivResult | null;
+  /** The key of the current results (null when there are none): changes whenever the model, settings or data do. */
+  resultsKey?: string | null;
 }
 
 /** The last completed run of an analysis card. */
@@ -33,7 +43,7 @@ export type Card =
   | { id: string; kind: 'heading' | 'note'; text: string };
 export type AnalysisCard = Extract<Card, { kind: 'analysis' }>;
 
-export type AnalysisGroup = 'Model runs' | 'Data' | 'Basic statistics' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions' | 'Set-theoretic methods';
+export type AnalysisGroup = 'Model runs' | 'Data' | 'Basic statistics' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions' | 'Set-theoretic methods' | 'Reporting';
 
 export interface OptionsProps<O> { options: O; set: (o: O) => void; ctx: AnalysisCtx; disabled: boolean }
 

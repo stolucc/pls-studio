@@ -38,7 +38,8 @@ const readOnly = () => useStore.getState().cloud?.role === 'viewer';
 export function currentCtx(): AnalysisCtx {
   const s = useStore.getState();
   const fresh = s.results && s.results.key === resultsKey(s) ? s.results : null;
-  return { data: s.data, info: s.dataInfo, settings: s.settings, pls: s.settings.method === 'pls' ? fresh?.pls ?? null : null, cb: s.settings.method === 'cbsem' ? fresh?.cb ?? null : null, projectName: s.projectName, model: s.model };
+  return { data: s.data, info: s.dataInfo, settings: s.settings, pls: s.settings.method === 'pls' ? fresh?.pls ?? null : null, cb: s.settings.method === 'cbsem' ? fresh?.cb ?? null : null, projectName: s.projectName, model: s.model,
+    boot: fresh?.boot ?? null, process: s.settings.method === 'process' ? fresh?.process ?? null : null, invariance: fresh?.invariance ?? null, miiv: fresh?.miiv ?? null, resultsKey: fresh?.key ?? null };
 }
 
 function edit(fn: (cards: Card[]) => Card[]) {
