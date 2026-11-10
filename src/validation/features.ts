@@ -59,6 +59,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
 
   // PLS-SEM
   'rengine/pls': native('PLS-SEM and PLSc estimation', 'PLS-SEM', ['cSEM', 'seminr'], script('generate.R', 'desktop cSEM and seminr'), script('categorical_pls.R', 'desktop cSEM')),
+  'rengine/ordinalPls': native('Ordinal PLS (OrdPLS / OrdPLSc) and its bootstrap', 'PLS-SEM', ['cSEM'], script('ordinal_pls.R', 'desktop cSEM on the ?predict help page’s ordinal data')),
   'rengine/plsx': native('PLS assessment: MICOM, MGA, PLSpredict, CVPAT, CTA, blindfolding', 'PLS-SEM', ['cSEM', 'seminr'], script('plsx.R', 'desktop cSEM and seminr')),
   'rengine/hoc': native('Higher-order constructs', 'PLS-SEM', ['cSEM', 'seminr'], script('hoc-approaches.R', 'desktop cSEM and seminr')),
   'rengine/bca': native('BCa bootstrap intervals', 'PLS-SEM', ['cSEM'], { label: 'cSEM::infer in the same R' }),

@@ -140,7 +140,7 @@ export interface ModelSpec {
   /** PLS-SEM: Gaussian copula terms, estimated in two stages like interaction terms. */
   copulas?: CopulaSpec[];
   covariances?: CovarianceSpec[];
-  /** CB-SEM (lavaan): indicators treated as ordered categorical (thresholds, polychoric correlations, WLSMV). */
+  /** Indicators treated as ordered categorical: CB-SEM (lavaan) thresholds, polychoric correlations, WLSMV; PLS-SEM cSEM OrdPLS/OrdPLSc. */
   ordered?: string[];
   /** CB-SEM (lavaan): defined parameters, name := expression (R syntax printed from a parsed expression). */
   defined?: { name: string; expr: string }[];
@@ -311,6 +311,8 @@ export interface PlsResult {
   imputations?: number;
   /** Second-order constructs (cSEM two-stage): loading and weight of each component, by index in `constructs`. */
   higherOrder?: { construct: number; component: number; loading: number; weight: number }[];
+  /** Ordinal indicators (cSEM's OrdPLS/OrdPLSc: weights and paths from polychoric and polyserial correlations). */
+  ordinal?: string[];
 }
 
 export interface BootstrapOptions {

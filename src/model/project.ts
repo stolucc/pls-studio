@@ -238,7 +238,7 @@ export interface ModelState {
   copulas?: Copula[];
   correlations?: Correlation[];
   threeWay?: ThreeWay[];
-  /** Indicators (data columns) treated as ordered categorical in CB-SEM (WLSMV). */
+  /** Indicators (data columns) treated as ordered categorical: WLSMV in CB-SEM, OrdPLS/OrdPLSc (cSEM, polychoric correlations) in PLS-SEM. */
   ordered?: string[];
   defined?: DefinedParameter[];
   waldTests?: WaldTest[];

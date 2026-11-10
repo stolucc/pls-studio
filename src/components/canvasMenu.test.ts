@@ -32,7 +32,15 @@ describe('canvas context menus', () => {
     expect(actions({ kind: 'construct', id: 'a' }, 'pls')).not.toContain('correlate');
     expect(menuFor({ kind: 'construct', id: 'b' }, model, { method: 'cbsem', readOnly: false })?.items.find((i) => i.action === 'correlate')?.label).toMatch(/disturbance/);
     expect(menuFor({ kind: 'construct', id: 'a' }, model, { method: 'cbsem', readOnly: false })?.items.find((i) => i.action === 'correlate')?.label).toBe('Correlate with…');
-    expect(actions({ kind: 'indicator', construct: 'a', name: 'a1' }, 'pls')).toEqual(['remove-indicator']);
+    expect(actions({ kind: 'indicator', construct: 'a', name: 'a1' }, 'pls')).toEqual(['toggle-ordinal', 'remove-indicator']);
+  });
+
+  it('offers ordinal indicators in PLS too (OrdPLS, cSEM), not for a categorical variable or in CPA', () => {
+    expect(menuFor({ kind: 'indicator', construct: 'a', name: 'a1' }, model, { method: 'pls', readOnly: false })?.items.find((i) => i.action === 'toggle-ordinal')?.label).toBe('Treat as ordinal (categorical)');
+    expect(menuFor({ kind: 'indicator', construct: 'a', name: 'a1' }, { ...model, ordered: ['a1'] }, { method: 'pls', readOnly: false })?.items.find((i) => i.action === 'toggle-ordinal')?.label).toBe('Treat as continuous');
+    const cat = { ...model, constructs: model.constructs.map((c) => (c.id === 'a' ? { ...c, categorical: 'indicator' as const } : c)) };
+    expect(menuFor({ kind: 'indicator', construct: 'a', name: 'a1' }, cat, { method: 'pls', readOnly: false })?.items.map((i) => i.action)).not.toContain('toggle-ordinal');
+    expect(menuFor({ kind: 'indicator', construct: 'a', name: 'a1' }, model, { method: 'process', readOnly: false })?.items.map((i) => i.action)).not.toContain('toggle-ordinal');
   });
 
   it('toggles between factor and composite in PLS and CB-SEM (lavaan composites)', () => {

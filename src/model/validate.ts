@@ -485,7 +485,21 @@ function checkOtherMissingData(v: Ctx): Issue[] {
   const dominants = model.constructs.filter((c) => c.dominant && c.indicators.includes(c.dominant));
   if (method.method === 'pls' && dominants.length && engine === 'r' && (method.plsPackage ?? 'cSEM') === 'seminr') warn(`seminr has no dominant indicators: the signs of ${dominants.map((c) => c.name).join(', ')} are as estimated. Choose cSEM to fix them.`);
   if (missingChoice === 'mi' && method.method === 'process') err('Multiple imputation is available in PLS-SEM and CB-SEM; conditional process analysis uses casewise deletion.');
-  if (ordered.length && method.method === 'pls') warn(`PLS-SEM treats the ordinal indicators (${ordered.join(', ')}) as continuous.`);
+  // Ordinal indicators in PLS: OrdPLS / OrdPLSc (Schuberth, Henseler & Dijkstra 2018), cSEM's estimator on polychoric correlations.
+  // (a categorical construct's column travels as dummies, never ordinal)
+  const ordPls = method.method === 'pls' ? ordered.filter((i) => !model.constructs.some((c) => c.categorical && c.indicators.includes(i))) : [];
+  if (ordPls.length) {
+    const list = `${ordPls.join(', ')} ${ordPls.length === 1 ? 'is' : 'are'} ordinal`;
+    if (engine === 'builtin' || (method.plsPackage ?? 'cSEM') !== 'cSEM') err(`${list}: ordinal PLS (OrdPLS/OrdPLSc, polychoric correlations) is estimated by cSEM. Choose R packages → cSEM, or treat ${ordPls.length === 1 ? 'it' : 'them'} as continuous (right-click).`);
+    const gaps = data && !data.moments && ordPls.some((i) => { const col = data.cols[data.names.indexOf(i)]; return !!col && col.some((x) => Number.isNaN(x)); });
+    if (missingChoice === 'mean' && gaps) err('Mean replacement would put non-category values into ordinal indicators that have missing values; choose casewise deletion.');
+    if (missingChoice === 'mi') err('Ordinal PLS (OrdPLS/OrdPLSc) is available with casewise deletion; multiple imputation is for continuous indicators.');
+    if ((method.plsApproach ?? 'PLS-PM') !== 'PLS-PM') err(`${list}: ordinal indicators are estimated by OrdPLS; choose PLS-PM as the weighting approach.`);
+    if (model.moderations?.length) err(`${list}: interaction terms (products of construct scores) are not available with ordinal PLS.`);
+    if (model.constructs.some((c) => c.components?.length)) err(`${list}: second-order constructs are not available with ordinal PLS.`);
+    // (these terms run in the built-in engine, which has no ordinal PLS)
+    if (model.copulas?.length || model.threeWay?.length || model.constructs.some((c) => c.predefinedWeights)) err(`${list}: Gaussian copulas, moderated moderations and pre-defined weights are estimated by the built-in engine, which has no ordinal PLS.`);
+  }
   return issues;
 }
 

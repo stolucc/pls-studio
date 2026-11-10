@@ -94,7 +94,7 @@ ps_boot_part_json <- function(env) {
 
 ps_pls_boot <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  b <- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE)
+  b <- ps_pls_build(req, allow_hoc = TRUE, allow_mi = TRUE, allow_ord = TRUE)  # (ordinal: cSEM resamples the ordered factors)
   mi <- identical(req$missing, "mi")
   if (mi && ps_boot_chunked(req)) stop("With multiple imputation the bootstrap runs in one piece per imputed data set.")
   B <- as.integer(req$boot$samples); seed <- as.integer(req$boot$seed); conf <- ps_number(req$boot$confidence, "confidence level")

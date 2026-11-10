@@ -156,7 +156,7 @@ export interface State {
   setCluster: (column: string | null) => void;
   /** CB-SEM: set or clear the multiple-group analysis. */
   setMultigroup: (mg: ModelState['multigroup'] | null) => void;
-  /** CB-SEM: treat these indicators as ordered categorical (WLSMV), or as continuous again. */
+  /** Treat these indicators as ordered categorical (CB-SEM WLSMV; PLS-SEM OrdPLS), or as continuous again. */
   setOrdered: (names: string[], ordinal: boolean) => void;
   /** CB-SEM: hold a path coefficient, loading or drawn covariance at `value`, or free it (null). */
   fixParameter: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, value: number | null) => void;

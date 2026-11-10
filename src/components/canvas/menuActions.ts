@@ -185,7 +185,8 @@ export function runMenuAction(target: MenuTarget, a: MenuAction, ui: MenuUi) {
       if (target.kind === 'indicator') {
         const on = !(st().model.ordered ?? []).includes(target.name);
         s.setOrdered([target.name], on);
-        if (on && st().settings.estimator !== 'WLSMV') s.toast('info', `${target.name} is ordinal now. Ordinal indicators are estimated with WLSMV: choose it under Estimator (Model inspector).`);
+        if (on && st().settings.method === 'pls') s.toast('info', `${target.name} is ordinal now: cSEM estimates ordinal PLS (OrdPLS, or OrdPLSc with consistent PLS) from polychoric correlations.`);
+        else if (on && st().settings.estimator !== 'WLSMV') s.toast('info', `${target.name} is ordinal now. Ordinal indicators are estimated with WLSMV: choose it under Estimator (Model inspector).`);
       }
       break;
     case 'free-value': {

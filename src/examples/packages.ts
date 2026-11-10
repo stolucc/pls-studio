@@ -130,7 +130,7 @@ export interface PackageExample {
   copulas?: [string, string][];
   /** CB-SEM: multiple groups; `free` names constructs by name (mapped to ids when the model is built). */
   multigroup?: MultigroupSpec;
-  /** CB-SEM: indicators treated as ordered categorical (WLSMV). */
+  /** Indicators treated as ordered categorical: WLSMV in CB-SEM, OrdPLS/OrdPLSc (cSEM) in PLS-SEM. */
   ordered?: string[];
   /** CB-SEM: standard errors from the observed information (Mplus's ML default). */
   information?: 'observed';
@@ -789,6 +789,18 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'cSEM', name: 'BergamiBagozzi2000' },
     constructs: [f('OrgPres', items('cei', 8)), f('OrgIden', items('ma', 6)), f('AffLove', ['orgcmt1', 'orgcmt2', 'orgcmt3', 'orgcmt7']), f('AffJoy', ['orgcmt5', 'orgcmt8']), c('Gender', ['gender'])],
     paths: [['OrgPres', 'OrgIden'], ...fan(['OrgPres', 'OrgIden', 'Gender'], ['AffLove', 'AffJoy'])], settings: CSEM(true, 'factor', 6),
+  },
+  {
+    id: 'csem-ordpls', package: 'cSEM', title: 'Organisational identification with ordinal items (OrdPLSc)', source: 'cSEM, ?predict (OrdPLScPredict example; BergamiBagozzi2000)',
+    links: [{ label: '?predict', url: 'https://rdrr.io/cran/cSEM/man/predict.html' }, { label: '?BergamiBagozzi2000', url: 'https://rdrr.io/cran/cSEM/man/BergamiBagozzi2000.html' }, { label: '?calculateIndicatorCor', url: 'https://rdrr.io/cran/cSEM/man/calculateIndicatorCor.html' }],
+    description: 'The OrdPLScPredict example of cSEM’s ?predict help page: the Bergami & Bagozzi (2000) rating-scale items as ordered factors, so csem() estimates ordinal consistent PLS (OrdPLSc; Schuberth, Henseler & Dijkstra 2018) from polychoric correlations, with csem()’s defaults. All 305 respondents (the help page estimates on the first 250 to predict the rest). Every item is marked ordinal (right-click an indicator → Treat as continuous to compare with PLSc).',
+    shows: 'The Algorithm card reads OrdPLSc: weights, loadings and paths come from the polychoric correlations of the ordinal items, so organisational prestige → identification is 0.40 and identification → joy 0.75. Switch PLSc off for OrdPLS, or treat the items as continuous to see how much the Pearson correlations attenuate the estimates.',
+    data: { package: 'cSEM', name: 'BergamiBagozzi2000' },
+    constructs: [f('OrgPres', items('cei', 8)), f('OrgIden', items('ma', 6)), f('AffJoy', ['orgcmt1', 'orgcmt2', 'orgcmt3', 'orgcmt7']), f('AffLove', ['orgcmt5', 'orgcmt6', 'orgcmt8'])],
+    paths: [['OrgPres', 'OrgIden'], ['OrgIden', 'AffLove'], ['OrgIden', 'AffJoy']],
+    ordered: [...items('cei', 8), ...items('ma', 6), ...['orgcmt1', 'orgcmt2', 'orgcmt3', 'orgcmt7', 'orgcmt5', 'orgcmt6', 'orgcmt8']],
+    expectedMessages: [{ pattern: 'correlate with mixed signs', why: 'AffLove’s items (orgcmt5, 6, 8) are worded against prestige, so the HTMT sign check notes OrgPres and AffLove.', level: 'note' }],
+    settings: CSEM(),
   },
   {
     id: 'csem-switching', package: 'cSEM', title: 'Switching intention: an interaction', source: 'cSEM, ?Switching (Henseler 2021)',
