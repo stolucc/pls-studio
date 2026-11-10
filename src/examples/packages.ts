@@ -39,8 +39,8 @@ import { parseLavaanSyntax } from '../model/syntax';
 import { namesIn, parseExpr } from '../model/expr';
 import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'semPower';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'semPower'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'semPower' | 'metaSEM';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'semPower', 'metaSEM'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'sempower';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'sempower' | 'metasem';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -739,6 +739,15 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     panel: { kind: 'sempower', analysis: 'apriori', measure: 'RMSEA', effect: 0.05, dfSource: 'manual', df: 200, alpha: 0.05, power: 0.95 },
     morePanels: [{ kind: 'sempower', analysis: 'parameter', param: { lhs: 'visual', op: '~~', rhs: 'textual' }, value: 0, paramType: 'apriori', alpha: 0.05, power: 0.8 }],
     settings: CB('ML'),
+  },
+  {
+    id: 'metasem-digman97', package: 'metaSEM', title: 'Meta-analytic SEM: the Big Five’s higher-order factors (Digman 1997)', source: 'metaSEM, ?Digman97',
+    links: [{ label: '?Digman97', url: 'https://rdrr.io/cran/metaSEM/man/Digman97.html' }, { label: '?tssem1', url: 'https://rdrr.io/cran/metaSEM/man/tssem1.html' }, { label: 'Cheung & Chan (2005), Psychological Methods', url: 'https://doi.org/10.1037/1082-989X.10.1.40' }],
+    description: 'Digman’s (1997) 14 studies of the Big Five (N = 4,496), each a correlation matrix of agreeableness (A), conscientiousness (C), emotional stability (ES), extraversion (E) and intellect (I): one row per study with its N and the ten correlations (A_C, A_ES, …). Two-stage SEM as on metaSEM’s help page: random-effects pooling with a diagonal heterogeneity matrix, then the two higher-order factors Alpha (A, C, ES) and Beta (E, I) drawn on the canvas. Runs in desktop R through the PLS Studio Helper (metaSEM needs OpenMx). Opens its card on the Analyses tab.',
+    shows: 'Stage 1 finds large heterogeneity (Q = 1220.33 on 130 df), so random effects are the right choice. Stage 2 fits well, χ² = 7.82 on 4 df with RMSEA 0.015, and Alpha and Beta correlate 0.378, as metaSEM run directly gives.',
+    data: { package: 'metaSEM', name: 'Digman97', file: 'examples/metasem/digman97.csv' },
+    constructs: [f('Alpha', ['A', 'C', 'ES']), f('Beta', ['E', 'I'])], paths: [],
+    panel: { kind: 'metasem', n: 'N', method: 'REM', reType: 'Diag' }, settings: CB('ML'),
   },
   {
     id: 'rsem-mardia', package: 'rsem', title: 'Robust ML with missing data: exam scores', source: 'rsem, ?rsem.lavaan (mardiamv25)',

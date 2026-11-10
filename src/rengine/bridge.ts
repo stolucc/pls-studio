@@ -35,12 +35,13 @@ import dfiR from './R/dfi.R?raw';
 import validityR from './R/validity.R?raw';
 import qcaR from './R/qca.R?raw';
 import powerR from './R/power.R?raw';
+import metasemR from './R/metasem.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, power: powerR };
+export const SOURCES = { did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, power: powerR, metasem: metasemR };
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -124,15 +125,17 @@ export const R_PACKAGES = {
   dynamic: ['jsonlite', 'lavaan', 'semTools', 'dynamic'],
   // Analytic power analysis (semPower: a priori, post hoc, compromise; a parameter of the canvas model by lavaan).
   semPower: ['jsonlite', 'lavaan', 'semPower'],
+  // Meta-analytic SEM (TSSEM on studies' correlation matrices): metaSEM on OpenMx, desktop R only (DESKTOP_ONLY).
+  metaSEM: ['jsonlite', 'lavaan', 'OpenMx', 'metaSEM'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 /** Packages that R in the browser cannot run (Stan): only through the desktop helper, never webR. */
-export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>(['blavaan', 'rstan']);
+export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>(['blavaan', 'rstan', 'metaSEM']);
 /** Why each of them cannot run in the browser. */
 const DESKTOP_WHY: Partial<Record<RPackage, string>> = {
-  blavaan: 'Stan does not run in the browser', rstan: 'Stan does not run in the browser',
+  blavaan: 'Stan does not run in the browser', rstan: 'Stan does not run in the browser', metaSEM: 'OpenMx does not run in the browser',
 };
 export class DesktopOnly extends Error {}
 /** What to do when desktop R is not in use or lacks the packages. */

@@ -2357,6 +2357,13 @@
    "license": "GPL-3, from the REndo package",
    "credit": "Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser.",
    "url": "https://cran.r-project.org/package=REndo"
+  },
+  {
+   "name": "Digman97 (correlation matrices of 14 studies of the Big Five)",
+   "where": "public/examples/metasem, validation fixtures",
+   "license": "GPL (>= 2), from the metaSEM package",
+   "credit": "Digman, J. M. (1997). Higher-order factors of the Big Five. Journal of Personality and Social Psychology, 73, 1246–1256; distributed with metaSEM (Cheung); shipped with the app because metaSEM cannot run in the browser.",
+   "url": "https://cran.r-project.org/package=metaSEM"
   }
  ],
  "publishedSources": [
