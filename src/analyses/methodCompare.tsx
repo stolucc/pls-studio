@@ -9,7 +9,7 @@ import { buildFigureInput, type FigureValues } from '../figure/build';
 import { renderFigureSvg } from '../figure/render';
 import { circlesFor, placeModel } from '../placement';
 import type { FigureStyle } from '../figure/style';
-import { toSpec, type ModelState } from '../model/project';
+import { makeCovariancesExplicit, toSpec, type ModelState } from '../model/project';
 import { fingerprint } from './codec';
 import { columnsFingerprint, isObj, rawData } from './common';
 import type { AnalysisType } from './types';
@@ -47,7 +47,10 @@ export function comparisonFigure(model: ModelState, method: 'pls' | 'cbsem', pls
 export function compareMethods(data: Parameters<typeof estimatePls>[0], model: ModelState, style: FigureStyle, missing: 'mean' | 'casewise'): MethodCompareResult {
   const spec = toSpec(model);
   const pls = estimatePls(data, spec, { missing });
-  const cb = estimateCb(data, spec, 'casewise');
+  // CB-SEM correlates the exogenous factors whose pairs are not confirmed as uncorrelated (lavaan's default, and what PLS
+  // does with every pair of exogenous composites): otherwise the comparison would set their correlation to zero.
+  const cbModel = makeCovariancesExplicit(model);
+  const cb = estimateCb(data, toSpec(cbModel), 'casewise');
   const std = (op: string, lhs: string, rhs: string) => cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)?.std ?? null;
   const C = pls.constructs;
   return {
@@ -55,7 +58,7 @@ export function compareMethods(data: Parameters<typeof estimatePls>[0], model: M
     loadings: spec.constructs.flatMap((k) => k.indicators.map((indicator) => ({ construct: k.name, indicator, pls: pls.loadings[pls.indicators.findIndex((i) => i.name === indicator)], cb: std('=~', k.name, indicator) }))),
     r2: C.flatMap((name, j) => (pls.rSquared[j] === null ? [] : [{ construct: name, pls: pls.rSquared[j], cb: cb.r2Constructs[cb.constructs.indexOf(name)] ?? null }])),
     n: { pls: pls.n, cb: cb.n },
-    figures: { pls: comparisonFigure(model, 'pls', pls, cb, style), cb: comparisonFigure(model, 'cbsem', pls, cb, style) },
+    figures: { pls: comparisonFigure(model, 'pls', pls, cb, style), cb: comparisonFigure(cbModel, 'cbsem', pls, cb, style) },
   };
 }
 
