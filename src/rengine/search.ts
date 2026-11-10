@@ -49,3 +49,25 @@ export async function equivalentFitsR(c: CbCall, variants: ModelVariant[]): Prom
   };
 }
 export const equivalentFitsScriptR = (c: CbCall, variants: ModelVariant[]) => rScript('ps_cb_equivalent', req(c, { variants: variantsOf(variants) }), 'lavaan');
+
+// ---------- multivariate LM and Wald tests (EQS) ----------
+
+export type TestKind = 'loadings' | 'paths' | 'covariances';
+/** One step: the parameter added (LM) or dropped (Wald), the multivariate statistic so far, its univariate increment, and the parameter's own statistic. */
+export interface LmWaldStep { label: string; kind: 'loading' | 'path' | 'covariance'; lavaan: string; chisq: number; df: number; p: number; increment: number; incrementP: number; univariate: number | null; epc?: number | null; est?: number | null }
+export interface LmWaldRaw { lm: { candidates: number; steps: LmWaldStep[] } | null; wald: { candidates: number; steps: LmWaldStep[] } | null; chisq: number | null; df: number | null; warnings: string[]; engine: REngineInfo }
+export interface LmWaldRequest { lm: { kinds: TestKind[]; maxCandidates: number }; wald: { kinds: TestKind[] }; alpha: number }
+
+const stepsOf = (v: unknown): LmWaldStep[] => arr<Record<string, unknown>>(v).map((s) => ({
+  label: String(s.label), kind: s.kind as LmWaldStep['kind'], lavaan: String(s.lavaan), chisq: num(s.chisq) ?? NaN, df: num(s.df) ?? 0, p: num(s.p) ?? NaN,
+  increment: num(s.increment) ?? NaN, incrementP: num(s.incrementP) ?? NaN, univariate: num(s.univariate), ...('epc' in s ? { epc: num(s.epc) } : {}), ...('est' in s ? { est: num(s.est) } : {}),
+}));
+export async function lmWaldR(c: CbCall, o: LmWaldRequest): Promise<LmWaldRaw> {
+  const r = await rCall<Record<string, any>>('ps_cb_lmwald', req(c, o), 'lavaan');
+  return {
+    lm: r.lm ? { candidates: num(r.lm.candidates) ?? 0, steps: stepsOf(r.lm.steps) } : null,
+    wald: r.wald ? { candidates: num(r.wald.candidates) ?? 0, steps: stepsOf(r.wald.steps) } : null,
+    chisq: num(r.chisq), df: num(r.df), warnings: rStrings(r.warnings), engine: r.engine,
+  };
+}
+export const lmWaldScriptR = (c: CbCall, o: LmWaldRequest) => rScript('ps_cb_lmwald', req(c, o), 'lavaan');

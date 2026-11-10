@@ -2,7 +2,8 @@
 // model, lavaan's ?sem) fixes left-out arrows at zero in the full model's parameter table; every one of its models
 // must fit exactly as that model written out and fitted on its own (scripts/validation/specsearch.R). Equivalent
 // models (Roth et al.'s path model, Kline's data): the replacing rules must give the six alternatives written by hand
-// in scripts/validation/equivalent.R, each with the model's chi-square and df.
+// in scripts/validation/equivalent.R, each with the model's chi-square and df. The multivariate LM and Wald tests
+// (Holzinger & Swineford) must take EQS's steps as scripts/validation/lmwald.R does with lavTestScore and lavTestWald.
 // Run natively: WEBR_TESTS=1 PS_NATIVE_R=1 npx vitest run src/rengine/search.webr.test.ts
 
 import { readFileSync } from 'node:fs';
@@ -11,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall } from './bridge';
 import type { CbCall } from './cbExtras';
-import { equivalentFitsR, equivalentFitsScriptR, specSearchR, specSearchScriptR, type ArrowRef } from './search';
+import { equivalentFitsR, equivalentFitsScriptR, lmWaldR, lmWaldScriptR, specSearchR, specSearchScriptR, type ArrowRef } from './search';
 import { alternativesOf, sameFit } from '../analyses/equivalent';
 import { toSpec, type ModelState } from '../model/project';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
@@ -118,5 +119,51 @@ describe('equivalent models (lavaan)', () => {
     const r = await equivalentFitsR({ data: pd, spec: toSpec(pdm), missing: 'casewise', estimator: 'ML', interaction: 'product' }, variants);
     for (const f of r.fits.slice(1)) expect(sameFit(r.fits[0], f), JSON.stringify(f)).toBe(true);
     expect(r.fits[0].df).toBe(40);
+  }, 900_000);
+});
+
+describe('multivariate LM and Wald tests (lavaan)', () => {
+  let hs: Dataset;
+  beforeAll(async () => {
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
+    hs = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  }, 900_000);
+  const F = (name: string, inds: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: inds });
+  const A: ModelSpec = {
+    constructs: [F('visual', ['x1', 'x2', 'x3']), F('textual', ['x4', 'x5', 'x6']), F('speed', ['x7', 'x8', 'x9'])],
+    paths: [{ from: 'visual', to: 'textual' }, { from: 'textual', to: 'speed' }],
+  };
+  const B: ModelSpec = { ...A, paths: [...A.paths, { from: 'visual', to: 'speed' }], covariances: [['x1', 'x4'], ['x2', 'x7'], ['x3', 'x5']].map(([a, b]) => ({ a, b, kind: 'indicator' as const })) };
+  const hsCall = (spec: ModelSpec): CbCall => ({ data: hs, spec, missing: 'casewise', estimator: 'ML', interaction: 'product' });
+  const ref = fixture('lmwald');
+
+  it('LM forward stepwise: EQS’s steps, the set’s total equal to lavTestScore(cumulative = TRUE) (native lavaan)', async () => {
+    const r = await lmWaldR(hsCall(A), { lm: { kinds: ['loadings', 'paths', 'covariances'], maxCandidates: 500 }, wald: { kinds: [] }, alpha: 0.05 });
+    expect(r.wald).toBeNull();
+    expect(r.lm!.candidates).toBe(ref.lmCandidates);
+    expect(r.lm!.steps.map((s) => s.lavaan)).toEqual(ref.lm.map((s: { parameter: string }) => s.parameter));
+    r.lm!.steps.forEach((s, i) => {
+      expect(s.chisq).toBeCloseTo(ref.lm[i].chisq, 4);
+      expect(s.increment).toBeCloseTo(ref.lm[i].increment, 4);
+      expect(s.df).toBe(i + 1);
+    });
+    expect(r.lm!.steps.at(-1)!.chisq).toBeCloseTo(ref.lavaanCumulative.chisq.at(-1), 4);
+    // (the first step's statistic is the parameter's own modification index)
+    expect(r.lm!.steps[0].univariate!).toBeCloseTo(r.lm!.steps[0].chisq, 4);
+    expect(r.lm!.steps[0].label).toBe('visual → x9');
+  }, 900_000);
+
+  it('Wald backward stepwise: EQS’s steps with lavTestWald (native lavaan); the script runs the same', async () => {
+    const r = await lmWaldR(hsCall(B), { lm: { kinds: [], maxCandidates: 60 }, wald: { kinds: ['paths', 'covariances'] }, alpha: 0.05 });
+    expect(r.lm).toBeNull();
+    expect(r.wald!.candidates).toBe(ref.waldCandidates);
+    expect(r.wald!.steps.map((s) => s.lavaan)).toEqual(ref.wald.map((s: { parameter: string }) => s.parameter));
+    r.wald!.steps.forEach((s, i) => { expect(s.chisq).toBeCloseTo(ref.wald[i].chisq, 4); expect(s.increment).toBeCloseTo(ref.wald[i].increment, 4); });
+    expect(r.wald!.steps[0].univariate!).toBeCloseTo(r.wald!.steps[0].chisq, 6);
+    expect(r.wald!.steps[0].label).toBe('textual → speed');
+    const script = await lmWaldScriptR(hsCall(B), { lm: { kinds: ['loadings'], maxCandidates: 10 }, wald: { kinds: ['paths'] }, alpha: 0.05 });
+    expect(script).toContain('lavTestScore(fit, add = ');
+    expect(script).toContain('lavTestWald(fit, constraints = ');
+    await expect(lmWaldR(hsCall(B), { lm: { kinds: [], maxCandidates: 60 }, wald: { kinds: [] }, alpha: 0.05 })).rejects.toThrow(/Choose the parameters/);
   }, 900_000);
 });

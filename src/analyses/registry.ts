@@ -24,6 +24,7 @@ import { mcAnalysis } from './simulation';
 import { bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis } from './cbModel';
 import { specSearchAnalysis } from './specSearch';
 import { equivalentAnalysis } from './equivalent';
+import { lmWaldAnalysis } from './lmWald';
 import { methodCompareAnalysis } from './methodCompare';
 import { parcelAllocationAnalysis } from './parcels';
 import { dfiAnalysis } from './dfi';
@@ -39,6 +40,6 @@ import { bmvregAnalysis, customMlAnalysis } from './customml';
 import { twoLevelEfaAnalysis } from './twolevelefa';
 import type { AnalysisType } from './types';
 
-export const ANALYSIS_TYPES: AnalysisType[] = [runAnalysis, snapshotAnalysis, methodCompareAnalysis, parcelAllocationAnalysis, screenAnalysis, missingDataAnalysis, chartAnalysis, influenceAnalysis, ...BASIC_TEST_TYPES, ...BAYES_TYPES, regressionAnalysis, customMlAnalysis, bmvregAnalysis, didAnalysis, efaAnalysis, twoLevelEfaAnalysis, ...VALIDITY_TYPES, irtAnalysis, lcaAnalysis, mixtureAnalysis, quadAnalysis, networkAnalysis, egaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, specSearchAnalysis, equivalentAnalysis, dfiAnalysis, bsemAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, qcaAnalysis, endoAnalysis, lmmAnalysis, glmmAnalysis, growthAnalysis, riclpmAnalysis, gmmAnalysis, dsemAnalysis];
+export const ANALYSIS_TYPES: AnalysisType[] = [runAnalysis, snapshotAnalysis, methodCompareAnalysis, parcelAllocationAnalysis, screenAnalysis, missingDataAnalysis, chartAnalysis, influenceAnalysis, ...BASIC_TEST_TYPES, ...BAYES_TYPES, regressionAnalysis, customMlAnalysis, bmvregAnalysis, didAnalysis, efaAnalysis, twoLevelEfaAnalysis, ...VALIDITY_TYPES, irtAnalysis, lcaAnalysis, mixtureAnalysis, quadAnalysis, networkAnalysis, egaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, specSearchAnalysis, equivalentAnalysis, lmWaldAnalysis, dfiAnalysis, bsemAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, qcaAnalysis, endoAnalysis, lmmAnalysis, glmmAnalysis, growthAnalysis, riclpmAnalysis, gmmAnalysis, dsemAnalysis];
 
 export const analysisType = (id: string): AnalysisType | undefined => ANALYSIS_TYPES.find((t) => t.id === id);

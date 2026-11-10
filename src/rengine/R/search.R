@@ -130,3 +130,81 @@ ps_cb_equivalent <- function(req_json, export = FALSE) {
   ps_json(list(fits = lapply(seq_len(nrow(E)), function(i) list(converged = isTRUE(E[i, "converged"] == 1), npar = E[i, "npar"], chisq = E[i, "chisq"], df = E[i, "df"], logl = E[i, "logl"])),
     warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }
+
+#' Parameter kinds of the LM and Wald tests: lavaan operators (covariances: between two different variables).
+PS_TEST_KINDS <- c(loadings = "=~", paths = "~", covariances = "~~")
+
+#' EQS's multivariate Lagrange multiplier test (forward stepwise; Bentler 1986, Chou & Bentler 1990) and Wald test
+#' (backward stepwise). LM: among the fixed-at-zero parameters of the chosen kinds (lavaan's modindices, the largest
+#' `maxCandidates` univariate statistics), the one that raises the multivariate score statistic of the set most is
+#' added at each step (lavTestScore of the set), while its univariate increment is significant at `alpha`. Wald: among
+#' the free parameters of the chosen kinds, the one that raises the multivariate Wald statistic of "all dropped = 0"
+#' least is dropped at each step (lavTestWald), while neither its increment nor the multivariate statistic is
+#' significant at `alpha`.
+ps_cb_lmwald <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "The multivariate LM and Wald tests", raw = FALSE)
+  if (!is.null(b$group_var) || !is.null(req$model$multigroup)) stop("The multivariate LM and Wald tests are available for one group: remove the grouping.")
+  kinds_of <- function(x) { k <- intersect(unlist(x), names(PS_TEST_KINDS)); unname(PS_TEST_KINDS[k]) }
+  lm_ops <- kinds_of(req$lm$kinds); wald_ops <- kinds_of(req$wald$kinds)
+  if (!length(lm_ops) && !length(wald_ops)) stop("Choose the parameters to test.")
+  alpha <- ps_number(req$alpha %||% 0.05, "significance level")
+  if (alpha <= 0 || alpha >= 0.5) stop("The significance level must be between 0 and 0.5.")
+  maxc <- as.integer(ps_number(req$lm$maxCandidates %||% 60, "number of candidates"))
+  if (is.na(maxc) || maxc < 1 || maxc > 500) stop("The number of LM candidates must be between 1 and 500.")
+  body <- c(b$body,
+    sprintf("alpha <- %s", format(alpha, digits = 15)),
+    if (length(lm_ops)) c(
+      "# ---- Multivariate Lagrange multiplier test, forward stepwise (EQS) ----",
+      "# Candidates: the fixed-at-zero parameters of the chosen kinds, by their univariate statistic (modification index)",
+      "mi <- modindices(fit, sort. = FALSE)",
+      sprintf("mi <- mi[mi$op %%in%% %s & (mi$op != \"~~\" | mi$lhs != mi$rhs) & is.finite(mi$mi), ]", ps_q(lm_ops)),
+      sprintf("mi <- head(mi[order(-mi$mi), ], %d)", maxc),
+      "candidates <- paste(mi$lhs, mi$op, mi$rhs)",
+      "lm_steps <- data.frame()",
+      "added <- character(0); x2_prev <- 0",
+      "while (length(added) < length(candidates)) {",
+      "  rest <- setdiff(candidates, added)",
+      "  x2 <- vapply(rest, function(s) lavTestScore(fit, add = paste(c(added, s), collapse = \"\\n\"), univariate = FALSE)$test$X2, 0)",
+      "  k <- which.max(x2); inc <- x2[k] - x2_prev",
+      "  if (pchisq(inc, 1, lower.tail = FALSE) > alpha) break",
+      "  added <- c(added, rest[k]); x2_prev <- x2[k]",
+      "  j <- match(rest[k], candidates)",
+      "  lm_steps <- rbind(lm_steps, data.frame(parameter = rest[k], lhs = mi$lhs[j], op = mi$op[j], rhs = mi$rhs[j], chisq = x2[k], df = length(added),",
+      "    p = pchisq(x2[k], length(added), lower.tail = FALSE), increment = inc, increment_p = pchisq(inc, 1, lower.tail = FALSE), univariate = mi$mi[j], epc = mi$epc[j], row.names = NULL))",
+      "}"),
+    if (length(wald_ops)) c(
+      "# ---- Multivariate Wald test, backward stepwise (EQS) ----",
+      "# Candidates: the free parameters of the chosen kinds (parameters held equal count once)",
+      "pt <- parTable(fit)",
+      sprintf("free <- pt[pt$free > 0 & !duplicated(pt$free) & pt$op %%in%% %s & (pt$op != \"~~\" | pt$lhs != pt$rhs), ]", ps_q(wald_ops)),
+      "free$name <- ifelse(nzchar(free$label), free$label, free$plabel)",
+      "se <- sqrt(diag(vcov(fit)))[free$free]",
+      "wald_steps <- data.frame()",
+      "dropped <- character(0); w_prev <- 0",
+      "while (length(dropped) < nrow(free)) {",
+      "  rest <- setdiff(free$name, dropped)",
+      "  w <- vapply(rest, function(s) lavTestWald(fit, constraints = paste(sprintf(\"%s == 0\", c(dropped, s)), collapse = \"\\n\"))$stat, 0)",
+      "  k <- which.min(w); inc <- w[k] - w_prev",
+      "  if (pchisq(inc, 1, lower.tail = FALSE) < alpha || pchisq(w[k], length(dropped) + 1, lower.tail = FALSE) < alpha) break",
+      "  dropped <- c(dropped, rest[k]); w_prev <- w[k]",
+      "  j <- match(rest[k], free$name)",
+      "  wald_steps <- rbind(wald_steps, data.frame(parameter = paste(free$lhs[j], free$op[j], free$rhs[j]), lhs = free$lhs[j], op = free$op[j], rhs = free$rhs[j], est = free$est[j], chisq = w[k], df = length(dropped),",
+      "    p = pchisq(w[k], length(dropped), lower.tail = FALSE), increment = inc, increment_p = pchisq(inc, 1, lower.tail = FALSE), univariate = (free$est[j] / se[j])^2, row.names = NULL))",
+      "}"))
+  if (export) return(paste(ps_script("Multivariate Lagrange multiplier and Wald tests, stepwise (EQS; lavaan)", "lavaan", b$inputs, body,
+    c(if (length(lm_ops)) "print(lm_steps)", if (length(wald_ops)) "print(wald_steps)")), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  back <- ps_cb_back(b)
+  nm <- function(x) ps_back(x, back)
+  label <- function(lhs, op, rhs) ifelse(op == "~", paste(nm(rhs), "\u2192", nm(lhs)), ifelse(op == "=~", paste(nm(lhs), "\u2192", nm(rhs)), paste(nm(lhs), "\u2194", nm(rhs))))
+  kind <- function(op) unname(c("=~" = "loading", "~" = "path", "~~" = "covariance")[op])
+  rows <- function(d, extra) if (is.null(d) || !nrow(d)) list() else lapply(seq_len(nrow(d)), function(i) c(list(label = label(d$lhs[i], d$op[i], d$rhs[i]), kind = kind(d$op[i]), lavaan = d$parameter[i],
+    chisq = d$chisq[i], df = d$df[i], p = d$p[i], increment = d$increment[i], incrementP = d$increment_p[i], univariate = d$univariate[i]), extra(d, i)))
+  ps_json(list(
+    lm = if (length(lm_ops)) list(candidates = length(env$candidates), steps = rows(env$lm_steps, function(d, i) list(epc = d$epc[i]))) else NULL,
+    wald = if (length(wald_ops)) list(candidates = nrow(env$free), steps = rows(env$wald_steps, function(d, i) list(est = d$est[i]))) else NULL,
+    chisq = unname(fitMeasures(env$fit, "chisq")), df = unname(fitMeasures(env$fit, "df")), warnings = env$.warnings,
+    engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}
