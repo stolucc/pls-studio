@@ -22,6 +22,8 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/validity': 'examples',
   'examples/cards/qca': 'examples',
   'examples/cards/invariance': 'examples',
+  'examples/cards/missing': 'examples',
+  'examples/cards/sensitivity': 'examples',
   'examples/cards/likelihood': 'examples',
   'examples/cards/items': 'examples',
   'examples/mplus/ch5irt': 'examples', 'examples/mplus/ch7irt': 'examples', 'examples/mplus/ch6glmm': 'examples', 'examples/mplus/ch10': 'examples',

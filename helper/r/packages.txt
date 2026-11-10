@@ -8,6 +8,7 @@ MIIVsem
 MatchIt
 OpenMx
 QCA
+SEMsens
 WeightIt
 blavaan
 boot
@@ -37,11 +38,14 @@ lslx
 ltm
 manymome
 marginaleffects
+mediation
 metaSEM
 mice
 mirt
+misty
 mnlfa
 modsem
+mvnmle
 mvtnorm
 nnet
 optimx

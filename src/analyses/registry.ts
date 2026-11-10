@@ -30,6 +30,8 @@ import { methodCompareAnalysis } from './methodCompare';
 import { nonlinearAnalysis } from './nonlinear';
 import { parcelAllocationAnalysis } from './parcels';
 import { dfiAnalysis } from './dfi';
+import { semsensAnalysis } from './semsens';
+import { medsensAnalysis } from './medsens';
 import { sampleSizeAnalysis } from './sampleSize';
 import { egaAnalysis, networkAnalysis } from './network';
 import { runAnalysis } from './runCard';
@@ -44,7 +46,7 @@ import { REPORTING_ANALYSES } from './reporting';
 import { alignmentAnalysis, longInvarianceAnalysis, mimicDifAnalysis, mnlfaAnalysis } from './invariance';
 import type { AnalysisType } from './types';
 
-export const ANALYSIS_TYPES: AnalysisType[] = [runAnalysis, snapshotAnalysis, methodCompareAnalysis, parcelAllocationAnalysis, screenAnalysis, missingDataAnalysis, chartAnalysis, influenceAnalysis, ...BASIC_TEST_TYPES, ...BAYES_TYPES, regressionAnalysis, customMlAnalysis, bmvregAnalysis, didAnalysis, efaAnalysis, twoLevelEfaAnalysis, ...VALIDITY_TYPES, alignmentAnalysis, mnlfaAnalysis, mimicDifAnalysis, irtAnalysis, lcaAnalysis, mixtureAnalysis, quadAnalysis, networkAnalysis, egaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, specSearchAnalysis, equivalentAnalysis, lmWaldAnalysis, regsemAnalysis, dfiAnalysis, powerAnalysis, metaSemAnalysis, semTreeAnalysis, bsemAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, nonlinearAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, qcaAnalysis, endoAnalysis, lmmAnalysis, glmmAnalysis, growthAnalysis, longInvarianceAnalysis, riclpmAnalysis, gmmAnalysis, dsemAnalysis, ...REPORTING_ANALYSES];
+export const ANALYSIS_TYPES: AnalysisType[] = [runAnalysis, snapshotAnalysis, methodCompareAnalysis, parcelAllocationAnalysis, screenAnalysis, missingDataAnalysis, chartAnalysis, influenceAnalysis, ...BASIC_TEST_TYPES, ...BAYES_TYPES, regressionAnalysis, customMlAnalysis, bmvregAnalysis, didAnalysis, medsensAnalysis, efaAnalysis, twoLevelEfaAnalysis, ...VALIDITY_TYPES, alignmentAnalysis, mnlfaAnalysis, mimicDifAnalysis, irtAnalysis, lcaAnalysis, mixtureAnalysis, quadAnalysis, networkAnalysis, egaAnalysis, bollenStineAnalysis, compareParamsAnalysis, scoreWeightsAnalysis, specSearchAnalysis, equivalentAnalysis, lmWaldAnalysis, regsemAnalysis, dfiAnalysis, semsensAnalysis, powerAnalysis, metaSemAnalysis, semTreeAnalysis, bsemAnalysis, predictAnalysis, blindfoldAnalysis, compareAnalysis, groupsAnalysis, ctaAnalysis, ccaAnalysis, nonlinearAnalysis, sampleSizeAnalysis, rebusAnalysis, pathmoxAnalysis, fimixAnalysis, posAnalysis, mcAnalysis, rsaAnalysis, matchAnalysis, ncaAnalysis, qcaAnalysis, endoAnalysis, lmmAnalysis, glmmAnalysis, growthAnalysis, longInvarianceAnalysis, riclpmAnalysis, gmmAnalysis, dsemAnalysis, ...REPORTING_ANALYSES];
 import { powerAnalysis } from './power';
 import { metaSemAnalysis } from './metasem';
 import { semTreeAnalysis } from './semtree';

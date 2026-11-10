@@ -81,3 +81,20 @@ it('maps model names back exactly, keeping or dropping unmatched ones', async ()
   expect(r.map).toEqual({ Quality: 'Q', Satisfaction: 'S', q_1: 'q 1', s_1: 's 1' });
   expect(r.mapOne).toEqual({ Satisfaction: 'S', q_1: 'q 1', s_1: 's 1' });
 }, 300_000);
+
+// A bridge call that leaves options(warn = 2) set does not change the next call: its warnings stay warnings.
+it('restores the warn option after every call', async () => {
+  const leaky = `
+ps_zz_leaky <- function(req_json, export = FALSE) { options(warn = 2); ps_json(list(value = 1)) }
+ps_zz_warns <- function(req_json, export = FALSE) { warning("only a warning"); ps_json(list(value = 2, warn = getOption("warn"))) }`;
+  type Out = { value: number; warn: number; warnings: string[] };
+  const [before, r] = await withR(['jsonlite'], { common: commonR, leaky }, async (webR) => {
+    const first = await callJson(webR, 'ps_call("ps_zz_warns", req)', {}) as Out;
+    await callJson(webR, 'ps_call("ps_zz_leaky", req)', {});
+    return [first, await callJson(webR, 'ps_call("ps_zz_warns", req)', {}) as Out];
+  });
+  expect(r.value).toBe(2);
+  expect(r.warn).toBe(before.warn);
+  expect(r.warn).toBeLessThan(2);
+  expect(r.warnings).toEqual(['only a warning']);
+}, 300_000);

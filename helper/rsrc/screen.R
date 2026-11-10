@@ -101,8 +101,15 @@ ps_missing <- function(req_json, export = FALSE) {
   if (length(meas) == 1 || length(meas) > 50 || anyDuplicated(meas)) stop("Dropout needs 2 to 50 repeated measures, in time order.")
   if (length(desc) && length(desc) != length(meas)) stop("The second set of variables needs one entry per occasion (empty for none).")
   if (length(desc) && !length(meas)) stop("The second set of variables is described by dropout: choose the repeated measures.")
+  # Little's (1988) MCAR test and Jamshidian & Jalal's (2010) tests (misty::na.test; mvnmle's ML estimates)
+  mcar <- isTRUE(req$mcar); jamjal <- isTRUE(req$jamjal)
+  seed <- as.integer(ps_number(req$seed %||% 42, "seed"))
+  if (is.na(seed)) stop("Invalid seed.")
+  if ((mcar || jamjal) && length(vars) > 50) stop("The MCAR tests take at most 50 variables (mvnmle::mlest).")
+  if ((mcar || jamjal) && length(vars) < 2) stop("The MCAR tests need at least two variables.")
   used <- unique(c(vars, meas, desc[nzchar(desc)]))
   fr <- ps_long_frame(req, used)
+  if ((mcar || jamjal) && !anyNA(fr$data[ps_lookup(fr$v, vars)])) { ps_note("No value of the variables is missing: the MCAR tests do not apply."); mcar <- jamjal <- FALSE }
   v <- ps_lookup(fr$v, vars); vm <- ps_lookup(fr$v, meas); vd <- vapply(desc, function(x) if (nzchar(x)) ps_lookup(fr$v, x) else "", "")
   body <- c(
     "suppressPackageStartupMessages(library(lavaan))",
@@ -128,6 +135,25 @@ ps_missing <- function(req_json, export = FALSE) {
     "}, 0)), error = function(e) NA_real_)",
     "# (a covariance matrix near singular, e.g. with variables that are functions of the missingness: no finite maximum)",
     "singular <- min(eigen(em_cov, symmetric = TRUE, only.values = TRUE)$values) < 1e-6 * max(diag(em_cov))")
+  if (mcar || jamjal) body <- c(body, "suppressPackageStartupMessages(library(misty))")
+  if (mcar) body <- c(body,
+    "# Little's (1988) MCAR test (misty::na.test): d2 = sum over the patterns j of n_j (ybar_j - mu)' Sigma^-1 (ybar_j - mu),",
+    "# each over the pattern's k_j observed variables, mu and Sigma the ML estimates (mvnmle::mlest); df = sum of k_j - p",
+    "little <- misty::na.test(as.data.frame(X), print = \"little\", output = FALSE)$result$little",
+    "# Each pattern's share of d2 (cases missing on every variable are left out, as na.test does)",
+    "Xm <- X[rowSums(!M) > 0, , drop = FALSE]",
+    "ml <- suppressWarnings(mvnmle::mlest(Xm))",
+    "km <- apply(is.na(Xm), 1, function(m) paste(as.integer(m), collapse = \"\"))",
+    "little_patterns <- lapply(sort(unique(km)), function(k) {",
+    "  i <- which(km == k); o <- strsplit(k, \"\")[[1]] == \"0\"",
+    "  dev <- colMeans(Xm[i, o, drop = FALSE]) - ml$muhat[o]",
+    "  list(observed = o, n = length(i), k = sum(o), d2 = length(i) * drop(crossprod(dev, solve(ml$sigmahat[o, o, drop = FALSE], dev))))",
+    "})")
+  if (jamjal) body <- c(body,
+    "# Jamshidian & Jalal's (2010) tests (misty::na.test, after MissMech::TestMCARNormality): the data imputed 20 times",
+    "# (nonparametric), the patterns' covariance matrices compared by Hawkins's test of homoscedasticity, and the",
+    "# patterns' distributions by a k-sample Anderson-Darling test; patterns with fewer than 6 cases are left out",
+    sprintf("jj <- tryCatch(misty::na.test(as.data.frame(X), print = \"jamjal\", seed = %d, output = FALSE)$result, error = function(e) conditionMessage(e))", seed))
   if (length(meas)) body <- c(body,
     "# Dropout (Mplus DATA MISSING: TYPE = DDROPOUT): out at occasion t (t = 1, ...) when observed at t - 1 and missing from t on",
     sprintf("Y <- as.matrix(data[, %s, drop = FALSE]); MY <- is.na(Y); Tn <- ncol(Y)", ps_q(vm)),
@@ -159,14 +185,26 @@ ps_missing <- function(req_json, export = FALSE) {
       "M2 <- matrix(FALSE, n, Tn); M2[, at2] <- is.na(as.matrix(D2))",
       "set2 <- lapply(seq_along(at2), function(k) occasion(D2[[k]], at2[k] - 1, gaps(M2)))"))
   inputs <- list(data = fr$data)
-  if (export) return(paste(ps_script("Missing data (patterns, coverage, EM estimates, dropout)", "lavaan", inputs, body,
-    c("patterns", "coverage", "em_mean", "em_cov", "loglik_h1", if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"), if (length(desc)) "set2")), collapse = "\n"))
+  if (export) return(paste(ps_script(sprintf("Missing data (patterns, coverage, EM estimates, dropout%s)", if (mcar || jamjal) ", MCAR tests" else ""), c("lavaan", if (mcar || jamjal) c("misty", "mvnmle")), inputs, body,
+    c("patterns", "coverage", "em_mean", "em_cov", "loglik_h1", if (mcar) c("little", "little_patterns"), if (jamjal) "jj[c(\"hawkins\", \"anderson\")]", if (length(meas)) c("table(out_at, useNA = \"ifany\")", "set1"), if (length(desc)) "set2")), collapse = "\n"))
   env <- ps_run(body, inputs)
   sym <- function(S) lapply(seq_len(nrow(S)), function(i) unname(S[i, ]))
   em_cor <- stats::cov2cor(env$em_cov)
   res <- list(variables = I(vars), n = env$n, patterns = env$patterns, coverage = sym(env$coverage),
     em = list(means = I(unname(env$em_mean)), cov = sym(env$em_cov), cor = sym(em_cor), loglik = if (is.finite(env$loglik_h1) && !env$singular) env$loglik_h1 else NULL, singular = env$singular),
     warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan"))))
+  if (mcar) {
+    L <- env$little
+    res$little <- list(n = L$no.cases, incomplete = L$no.incomplete, patterns = L$no.pattern, chisq = L$statistic, df = L$df, p = L$p,
+      byPattern = lapply(env$little_patterns, function(x) list(observed = I(x$observed), n = x$n, k = x$k, d2 = x$d2)))
+  }
+  if (jamjal) {
+    jj <- env$jj
+    res$jamjal <- if (is.character(jj)) list(error = ps_flat(jj)) else list(n = jj$hawkins$no.cases, incomplete = jj$hawkins$no.incomplete, patterns = jj$hawkins$no.pattern,
+      patternN = I(as.integer(jj$jamjal$n.pattern)), hawkins = list(stat = jj$hawkins$statistic, df = jj$hawkins$df, p = jj$hawkins$p),
+      anderson = list(stat = jj$anderson$statistic, p = jj$anderson$p), seed = seed)
+  }
+  if (mcar || jamjal) res$engine <- list(package = "misty", version = as.character(utils::packageVersion("misty")), lavaan = as.character(utils::packageVersion("lavaan")), mvnmle = as.character(utils::packageVersion("mvnmle")))
   if (length(meas)) {
     res$dropout <- list(measures = I(meas), dropouts = sum(env$dropout), nonDropoutsComplete = sum(env$stayer & !env$intermittent), nonDropoutsIntermittent = sum(env$stayer & env$intermittent),
       byTime = I(vapply(seq_len(length(meas) - 1), function(t) sum(env$out_at %in% t), 0L)),
