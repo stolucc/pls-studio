@@ -149,9 +149,9 @@ button, input, select { font: inherit; color: inherit; }
 .tb-right { justify-content: flex-end; }
 .tb-center { justify-content: center; position: relative; }
 .tb-center.has-dirty { padding: 0 16px; }
-.tb-center.has-example { padding: 0 150px; }
-.tb-center .example-pill, .tb-center .dirty-dot { position: absolute; top: 50%; transform: translateY(-50%); }
-.tb-center .example-pill { right: 0; }
+/* (the example pill sits beside the name: padding the centre to keep the name exactly centred left it 90 px) */
+.tb-center .dirty-dot { position: absolute; top: 50%; transform: translateY(-50%); }
+.tb-center .example-pill { flex: none; }
 .tb-center .dirty-dot { right: 4px; }
 .example-pill { border: 1px solid var(--border-strong); background: var(--surface-3); color: var(--text-2); border-radius: 99px; font-size: 11px; font-weight: 600; padding: 2px 8px; cursor: pointer; }
 .example-pill:hover { color: var(--text); border-color: var(--text-3); }
@@ -163,7 +163,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .project-name {
   border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 4px 8px;
-  font-weight: 500; color: var(--text-2); width: 200px;
+  font-weight: 500; color: var(--text-2); width: 400px;
 }
 .project-name:hover { border-color: var(--border); }
 .project-name:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); color: var(--text); }
@@ -697,6 +697,10 @@ table.grid tbody tr:hover td { background: var(--surface-2); }
 .semplot-notation .cnode .ibox { stroke-width: 0.8; }
 
 .shared-loading { stroke: var(--indicator-arrow, #9aa3b5); stroke-width: var(--indicator-arrow-width, 1.2); }
+
+.modal.parcel-dialog { width: min(620px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; }
+.parcel-table { width: 100%; margin: 8px 0; }
+.parcel-table td, .parcel-table th { padding: 4px 8px; text-align: left; }
 
 /* Gaussian copula terms */
 .gc-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }

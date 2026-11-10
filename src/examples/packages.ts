@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -881,7 +881,8 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     links: [{ label: '?mobi', url: 'https://rdrr.io/cran/seminr/man/mobi.html' }, { label: 'Hult et al. 2018', url: 'https://doi.org/10.1509/jim.17.0151' }],
     description: 'Are customer expectation and perceived quality endogenous in the equation of satisfaction? A Gaussian copula term for each predictor tests it without instruments: right-click a path to add one. Estimated by the built-in engine, whose bootstrap recomputes the terms in every sample; plain seminr calls give the same estimates.',
     shows: 'The terms are 0.195 (Expectation) and 0.356 (Quality), which move Expectation → Satisfaction to −0.114 and Quality → Satisfaction to 0.404 (R² 0.649). Bootstrap to test them, and read the normality column first: near-normal scores make the term almost collinear with its predictor, which is what these large shifts warn of.',
-    data: { package: 'seminr', name: 'mobi' }, constructs: MOBI.filter((k) => ['Expectation', 'Quality', 'Satisfaction', 'Loyalty'].includes(k.name)),
+    // (shipped: the built-in engine estimates it, so opening it needs no R and no package download)
+    data: { package: 'seminr', name: 'mobi', file: 'examples/samples/mobi.csv' }, constructs: MOBI.filter((k) => ['Expectation', 'Quality', 'Satisfaction', 'Loyalty'].includes(k.name)),
     paths: [['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction'], ['Satisfaction', 'Loyalty']], copulas: [['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction']],
     settings: SEMINR(1000),
   },

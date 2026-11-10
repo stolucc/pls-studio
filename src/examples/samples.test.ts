@@ -60,3 +60,11 @@ describe('sample-bifactor', () => {
     expect(text.trim().split('\n').slice(1).every((r) => /^[\d.,]*$/.test(r))).toBe(true);
   });
 });
+
+describe('examples the built-in engine estimates open without R', () => {
+  it.each(['seminr-copula', 'compare-pls-cb'])('%s ships its data, identical to the validation copy of seminr’s mobi', (id) => {
+    const ex = PACKAGE_EXAMPLES.find((e) => e.id === id)!;
+    expect(ex.data.file).toBe('examples/samples/mobi.csv');
+    expect(readFileSync(join(ROOT, 'public', ex.data.file!), 'utf8')).toBe(readFileSync(join(ROOT, 'src', 'engine', '__fixtures__', 'mobi.csv'), 'utf8'));
+  });
+});

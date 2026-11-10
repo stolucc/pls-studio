@@ -214,9 +214,11 @@ describe('workspace layout', () => {
     expect(at('aria-label="Redo"')).toBeGreaterThan(at('aria-label="Undo"'));
     expect(html.slice(html.indexOf('tb-center'), html.indexOf('tb-right'))).toContain('aria-label="Project name"');
     expect(html.slice(html.indexOf('tb-right'))).toContain('href="guide.html" target="_blank" rel="noopener"');
-    // the Example chip or unsaved dot sits over symmetric padding, so it never shifts the name
-    expect(rule('.tb-center .example-pill, .tb-center .dirty-dot')).toMatch(/position:\s*absolute/);
-    expect(rule('.tb-center.has-example')).toMatch(/padding:\s*0 150px/);
+    // The Example chip sits beside the name, in the flow: padding the centre for it left the name 90 px wide. The name may
+    // take 400 px, giving way first when the bar is short of room.
+    expect(rule('.tb-center .example-pill')).toMatch(/flex:\s*none/);
+    expect(rule('.tb-center.has-example')).toBe('');
+    expect(rule('.project-name')).toMatch(/width:\s*400px/);
   });
 
   it('lays the Data tab over the diagram and Inspector, which stay in their own columns', () => {

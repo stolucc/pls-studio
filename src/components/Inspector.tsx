@@ -6,6 +6,7 @@ import { fmt, fmtP } from '../format';
 import { endogenousIds, INTERACTION_METHOD_NAMES, validateModel, type Construct, type InteractionMethod, type Settings } from '../model/project';
 import { useFreshResults, useStore } from '../store';
 import { OrderedPicker } from './OrderedPicker';
+import { ParcelButton } from './ParcelDialog';
 import { IconAlert, IconSwap, IconTrash, IconX, IconSide } from './icons';
 import { switchMethod } from '../methodSwitch';
 import { exportRScript } from '../io';
@@ -292,6 +293,7 @@ function ConstructInspector({ c }: { c: Construct }) {
         </div>
       )}
       <div className="section">
+        {method === 'cbsem' && c.type === 'factor' && !c.covariate && !c.components?.length && c.indicators.length >= 4 && <ParcelButton c={c} />}
         <Appearance c={c} />
         <button className="btn danger" onClick={() => del([c.id], [])}><IconTrash size={14} /> Delete construct</button>
       </div>
