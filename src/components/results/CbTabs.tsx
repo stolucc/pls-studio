@@ -1,6 +1,6 @@
 import type { CbEstimate, CbResult } from '../../engine/cbsem';
 import type { BootstrapResult } from '../../engine/types';
-import { fmt, fmtP, pIs, stars } from '../../format';
+import { fmt, fmtP, pIs } from '../../format';
 import { useState } from 'react';
 import { johnsonNeyman } from '../../engine/jn';
 import { normalP, pnorm } from '../../engine/stats';
@@ -11,6 +11,7 @@ import { bootCells, bootCols, c, htmtCls, matrixRows, pCell, Table, type Row } f
 import { runInvariance } from '../../runner';
 import { useFreshResults, useStore } from '../../store';
 import { RScriptButton } from './RScriptButton';
+import { InvarianceTable } from './InvarianceTable';
 import type { DfiForFit } from '../../analyses/dfiFit';
 import { dfiFitSlot } from './dfiSlot';
 
@@ -256,7 +257,6 @@ function Invariance({ cb }: { cb: CbResult }) {
       ? 'Measurement invariance compares groups of cases; this dataset is a covariance matrix (one sample, no cases), so there are no groups to compare.'
       : 'Choose a grouping column under Groups (Model inspector, with nothing selected) to compare the model across groups.'}</div>;
   }
-  const d = (v: number | undefined, digits = 3) => (v === undefined ? c(null) : c(v, '', digits));
   return (
     <div className="tables">
       <div className="table-tools">
@@ -264,14 +264,8 @@ function Invariance({ cb }: { cb: CbResult }) {
         <div className="spacer" />
         <RScriptButton what="invariance" />
       </div>
-      {inv && (
-        <Table title={`Measurement invariance across ${multigroup.column || 'the groups'}`} file="cb-invariance"
-          columns={['Model', 'χ²', 'df', 'CFI', 'RMSEA', 'SRMR', 'Δχ²', 'Δdf', 'p', 'ΔCFI', 'ΔRMSEA']}
-          rows={inv.levels.map((l) => [c(l.level), c(l.chisq), c(l.df, '', 0), c(l.cfi), c(l.rmsea), c(l.srmr), d(l.chisqDiff), d(l.dfDiff, 0),
-            // A significant difference means the added equalities do not hold: a warning, not a success.
-            l.p === undefined ? c(null) : { v: `${fmtP(l.p)} ${stars(l.p)}`, cls: l.p < 0.05 ? 'bad' : 'dim' }, l.cfiChange === undefined ? c(null) : c(l.cfiChange, l.cfiChange < -0.01 ? 'bad' : 'good'), d(l.rmseaChange)])}
-          note={<>Each model adds equality constraints to the one before (loadings; intercepts or thresholds; residual variances); partial invariance as set under Groups applies throughout. Δχ²: difference test{inv.robust ? ' (scaled, for the robust estimator)' : ''} against the previous model. A drop in CFI of more than .01 (red) suggests non-invariance (Cheung &amp; Rensvold, 2002; Chen, 2007).</>} />
-      )}
+      {inv && <InvarianceTable inv={inv} title={`Measurement invariance across ${multigroup.column || 'the groups'}`} file="cb-invariance"
+        constraints="Each model adds equality constraints to the one before (loadings; intercepts or thresholds; residual variances); partial invariance as set under Groups applies throughout." />}
       {score.length > 0 && (
         <Table title={`Score tests of the equality constraints (${multigroup.invariance} model)`} file="cb-score-tests" columns={['Parameter', 'Groups', 'χ²', 'df', 'p']}
           rows={[...score].sort((a, b) => b.x2 - a.x2).map((t) => [c(t.param), c(t.groups.join(' = ')), c(t.x2, t.p < 0.05 ? 'warn' : ''), c(t.df, '', 0), pCell(t.p)])}

@@ -11,5 +11,6 @@ import { CARD_DSEM } from './dsem';
 import { CARD_DFI } from './dfi';
 import { CARD_VALIDITY } from './validity';
 import { CARD_QCA } from './qca';
+import { CARD_INVARIANCE } from './invariance';
 
-export const CARD_EXAMPLES: PackageExample[] = [...CARD_BASIC, ...CARD_BAYES, ...CARD_MODEL, ...CARD_LIKELIHOOD, ...CARD_ITEMS, ...CARD_INTEGRATION, ...CARD_DSEM, ...CARD_DFI, ...CARD_VALIDITY, ...CARD_QCA];
+export const CARD_EXAMPLES: PackageExample[] = [...CARD_BASIC, ...CARD_BAYES, ...CARD_MODEL, ...CARD_LIKELIHOOD, ...CARD_ITEMS, ...CARD_INTEGRATION, ...CARD_DSEM, ...CARD_DFI, ...CARD_VALIDITY, ...CARD_QCA, ...CARD_INVARIANCE];

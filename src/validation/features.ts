@@ -21,6 +21,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/dfi': 'examples',
   'examples/cards/validity': 'examples',
   'examples/cards/qca': 'examples',
+  'examples/cards/invariance': 'examples',
   'examples/cards/likelihood': 'examples',
   'examples/cards/items': 'examples',
   'examples/mplus/ch5irt': 'examples', 'examples/mplus/ch7irt': 'examples', 'examples/mplus/ch6glmm': 'examples', 'examples/mplus/ch10': 'examples',
@@ -82,6 +83,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   // Other analyses
   'rengine/efa': native('Exploratory factor analysis and PCA', 'EFA', ['psych'], script('efa.R', 'desktop psych'), script('efa_polychoric.R', 'desktop psych and lavaan::lavCor')),
   'rengine/items': native('IRT and latent class analysis', 'Items', ['ltm', 'poLCA', 'mirt', 'glca'], script('items.R', 'desktop ltm and poLCA')),
+  'rengine/invariance': native('Longitudinal invariance, DIF by MIMIC', 'CB-SEM', ['lavaan', 'semTools'], script('invariance_cards.R', 'desktop lavaan, the models written out by hand')),
   'rengine/longitudinal': native('Growth models, RI-CLPM', 'Longitudinal', ['lavaan'], script('longitudinal.R', 'desktop lavaan')),
   'rengine/mixed': native('Mixed models, growth mixture models', 'Longitudinal', ['lme4', 'lcmm'], script('mixed.R', 'desktop lme4 and lcmm')),
   'rengine/did': native('Difference-in-differences', 'Causal inference', ['did', 'fixest'], script('did.R', 'desktop did and fixest')),
