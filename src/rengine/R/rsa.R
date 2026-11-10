@@ -72,7 +72,7 @@ ps_rsa <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   d <- env$data
   back <- c(fr$back, rsaX = paste(xn), rsaY = paste(yn), rsaX2 = paste0(xn, "\u00b2"), rsaXY = paste(xn, "\u00d7", yn), rsaY2 = paste0(yn, "\u00b2"))
-  nm <- function(x) ifelse(x == "(Intercept)", "Intercept", ifelse(x %in% names(back), back[x], x))
+  nm <- function(x) ifelse(x == "(Intercept)", "Intercept", ps_back(x, back))
   if (est == "OLS") {
     co <- stats::coef(summary(env$fit)); cc <- stats::confint(env$fit, level = conf)
     coefs <- lapply(seq_len(nrow(co)), function(i) list(term = unname(nm(rownames(co)[i])), est = co[i, 1], se = co[i, 2], stat = co[i, 3], p = co[i, 4], ciLow = cc[i, 1], ciHigh = cc[i, 2]))

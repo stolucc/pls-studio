@@ -99,10 +99,10 @@ ps_irt <- function(req_json, export = FALSE) {
   pars <- env$pars
   if (is.list(pars) && !is.data.frame(pars)) {
     rows <- names(pars)
-    params <- lapply(seq_along(pars), function(i) list(item = unname(fr$back[rows[i]]), values = as.list(pars[[i]])))
+    params <- lapply(seq_along(pars), function(i) list(item = ps_back(rows[i], fr$back, FALSE), values = as.list(pars[[i]])))
   } else {
     pars <- as.matrix(pars)
-    params <- lapply(seq_len(nrow(pars)), function(i) list(item = unname(fr$back[rownames(pars)[i]]), values = as.list(pars[i, ])))
+    params <- lapply(seq_len(nrow(pars)), function(i) list(item = ps_back(rownames(pars)[i], fr$back, FALSE), values = as.list(pars[i, ])))
   }
   info <- env$info
   # (ltm's item fit is defined for dichotomous models: Rasch and 2PL.)
@@ -116,19 +116,19 @@ ps_irt <- function(req_json, export = FALSE) {
     se <- sqrt(pmax(diag(env$V), 0)); cf <- fit$coefficients
     coefficients <- if (model == "twopl") {
       J <- nrow(cf)
-      c(lapply(seq_len(J), function(j) list(item = unname(fr$back[rownames(cf)[j]]), parameter = "loading", est = unname(cf[j, 2]), se = unname(se[J + j]))),
-        lapply(seq_len(J), function(j) list(item = unname(fr$back[rownames(cf)[j]]), parameter = "threshold 1", est = -unname(cf[j, 1]), se = unname(se[j]))))
+      c(lapply(seq_len(J), function(j) list(item = ps_back(rownames(cf)[j], fr$back, FALSE), parameter = "loading", est = unname(cf[j, 2]), se = unname(se[J + j]))),
+        lapply(seq_len(J), function(j) list(item = ps_back(rownames(cf)[j], fr$back, FALSE), parameter = "threshold 1", est = -unname(cf[j, 1]), se = unname(se[j]))))
     } else {
       at <- cumsum(c(0, lengths(cf)))
-      unlist(lapply(seq_along(cf), function(j) { b <- cf[[j]]; K <- length(b); it <- unname(fr$back[names(cf)[j]])
+      unlist(lapply(seq_along(cf), function(j) { b <- cf[[j]]; K <- length(b); it <- ps_back(names(cf)[j], fr$back, FALSE)
         c(list(list(item = it, parameter = "loading", est = unname(b[K]), se = unname(se[at[j] + K]))),
           lapply(seq_len(K - 1), function(v) list(item = it, parameter = sprintf("step %d", v), est = -unname(b[v]), se = unname(se[at[j] + v])))) }), recursive = FALSE)
     }
   }
-  ps_json(list(model = model, n = nrow(env$items), items = unname(fr$back[fr$items]),
+  ps_json(list(model = model, n = nrow(env$items), items = ps_back(fr$items, fr$back, FALSE),
     params = params, coefficients = coefficients, quadrature = k, robust = robust, logLik = as.numeric(logLik(fit)), aic = AIC(fit), bic = BIC(fit), reliability = rel,
     theta = unname(info[, 1]), information = lapply(seq_len(ncol(info) - 1), function(j) unname(info[, j + 1])),
-    itemFit = if (is.null(ifit)) list() else lapply(seq_along(ifit$Tobs), function(i) list(item = unname(fr$back[names(ifit$Tobs)[i]]), x2 = unname(ifit$Tobs[i]), p = unname(ifit$p.values[i]))),
+    itemFit = if (is.null(ifit)) list() else lapply(seq_along(ifit$Tobs), function(i) list(item = ps_back(names(ifit$Tobs)[i], fr$back, FALSE), x2 = unname(ifit$Tobs[i]), p = unname(ifit$p.values[i]))),
     warnings = env$.warnings, engine = list(package = "ltm", version = as.character(utils::packageVersion("ltm")))))
 }
 
@@ -160,11 +160,11 @@ ps_lca <- function(req_json, export = FALSE) {
     ord <- order(-m$P)  # classes ordered by size
     list(k = length(m$P), llik = m$llik, npar = m$npar, aic = m$aic, bic = m$bic, gsq = m$Gsq, entropy = env$entropy(m),
       shares = unname(m$P[ord]),
-      probs = lapply(seq_along(m$probs), function(i) list(item = unname(fr$back[fr$items[i]]),
+      probs = lapply(seq_along(m$probs), function(i) list(item = ps_back(fr$items[i], fr$back, FALSE),
         categories = levels(factor(fr$data[[fr$items[i]]])),
         byClass = lapply(ord, function(c) unname(m$probs[[i]][c, ])))))
   })
-  ps_json(list(n = nrow(env$items), items = unname(fr$back[fr$items]), models = models,
+  ps_json(list(n = nrow(env$items), items = ps_back(fr$items, fr$back, FALSE), models = models,
     warnings = env$.warnings, engine = list(package = "poLCA", version = as.character(utils::packageVersion("poLCA")))))
 }
 
@@ -242,7 +242,7 @@ ps_lpa <- function(req_json, export = FALSE) {
       means = lapply(ord, function(c) unname(m$mu[[c]])),
       cov = lapply(ord, function(c) unname(m$S[[c]])), probs = list())
   })
-  ps_json(list(n = n, items = unname(fr$back[fr$items]), models = models, structure = structure,
+  ps_json(list(n = n, items = ps_back(fr$items, fr$back, FALSE), models = models, structure = structure,
     warnings = env$.warnings, engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))))
 }
 
@@ -314,10 +314,10 @@ ps_lcga <- function(req_json, export = FALSE) {
     list(k = k, llik = m$ll, npar = m$npar, aic = -2 * m$ll + 2 * m$npar, bic = -2 * m$ll + m$npar * log(n), gsq = NULL,
       entropy = env$entropy(m), shares = unname(m$pi),
       growth = list(thresholds = unname(m$thresholds), intercepts = unname(m$intercepts), slopes = unname(m$slopes)),
-      probs = lapply(seq_along(fr$items), function(t) list(item = unname(fr$back[fr$items[t]]), categories = as.character(m$levels),
+      probs = lapply(seq_along(fr$items), function(t) list(item = ps_back(fr$items[t], fr$back, FALSE), categories = as.character(m$levels),
         byClass = lapply(seq_len(k), function(c) unname(m$probs[[c]][, t])))))
   })
-  ps_json(list(n = n, items = unname(fr$back[fr$items]), models = models, times = times,
+  ps_json(list(n = n, items = ps_back(fr$items, fr$back, FALSE), models = models, times = times,
     warnings = env$.warnings, engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))))
 }
 
@@ -435,17 +435,16 @@ ps_mirt <- function(req_json, export = FALSE) {
   set.seed(seed)
   env <- ps_run(body, inputs)
   fit <- env$fit
-  back <- function(v) unname(fr$back[v])
   logit <- function(p) if (is.finite(p) && p > 0 && p < 1) qlogis(p) else NA_real_
   # Mplus's metric: loading a, threshold -d, u$2 = -logit(g), u$3 = -logit(u).
   rows <- function(cf, se, cls = NULL) unlist(lapply(rownames(cf), function(it) {
     s <- function(nm) { v <- se[[paste(it, nm)]]; if (is.null(v) || !is.finite(v)) NA_real_ else v }
-    one <- function(parameter, est, sv) c(list(item = back(it), parameter = parameter, est = est, se = sv), if (!is.null(cls)) list(class = cls))
+    one <- function(parameter, est, sv) c(list(item = ps_back(it, fr$back, FALSE), parameter = parameter, est = est, se = sv), if (!is.null(cls)) list(class = cls))
     c(list(one("loading", unname(cf[it, "a1"]), s("a1")), one("threshold 1", -unname(cf[it, "d"]), s("d"))),
       if (types[match(it, vi)] %in% c("3PL", "4PL")) list(one("threshold 2 (lower asymptote)", -logit(cf[it, "g"]), s("g"))),
       if (model == "fourpl") list(one("threshold 3 (upper asymptote)", -logit(cf[it, "u"]), s("u"))))
   }), recursive = FALSE)
-  irt <- function(cf, suffix = "") lapply(rownames(cf), function(it) list(item = paste0(back(it), suffix),
+  irt <- function(cf, suffix = "") lapply(rownames(cf), function(it) list(item = paste0(ps_back(it, fr$back, FALSE), suffix),
     values = as.list(c(Dscrmn = unname(cf[it, "a"]), Dffclt = unname(cf[it, "b"]), if (types[match(it, vi)] %in% c("3PL", "4PL")) c(Gussng = unname(cf[it, "g"])), if (model == "fourpl") c(Upper = unname(cf[it, "u"]))))))
   classes_out <- NULL
   if (model == "mixture") {
@@ -467,7 +466,7 @@ ps_mirt <- function(req_json, export = FALSE) {
     rel <- ps_try(unname(marginal_rxx(fit)), "Marginal reliability")
   }
   lp <- ps_try(unname(extract.mirt(fit, "logPrior")), "Log prior")
-  ps_json(list(model = model, n = nrow(env$items), items = back(vi),
+  ps_json(list(model = model, n = nrow(env$items), items = ps_back(vi, fr$back, FALSE),
     params = params, coefficients = coefficients, quadrature = as.integer(k), robust = robust,
     logLik = as.numeric(logLik(fit)), logPrior = if (length(pg) || length(pu)) lp else NULL, npar = extract.mirt(fit, "nest"),
     aic = extract.mirt(fit, "AIC"), bic = extract.mirt(fit, "BIC"), reliability = rel, classes = classes_out,
@@ -511,11 +510,11 @@ ps_mlca <- function(req_json, export = FALSE) {
     ord <- order(-shares); cord <- order(-delta)  # classes and cluster classes by size
     list(k = ncol(gamma), llik = m$gof$loglik, npar = m$model$npar, aic = m$gof$AIC, bic = m$gof$BIC, gsq = m$gof$Gsq, entropy = m$gof$entropy,
       shares = shares[ord],
-      probs = lapply(seq_along(vi), function(i) list(item = unname(fr$back[vi[i]]),
+      probs = lapply(seq_along(vi), function(i) list(item = ps_back(vi[i], fr$back, FALSE),
         categories = levels(factor(fr$data[[vi[i]]])),
         byClass = lapply(ord, function(c) unname(m$param$rho[[i]][c, ])))),
       clusters = list(shares = delta[cord], byCluster = lapply(cord, function(b) unname(gamma[b, ord]))))
   })
-  ps_json(list(n = nrow(env$d), clusters = length(unique(env$d[[vc]])), items = unname(fr$back[vi]), models = models, cluster = cluster, clusterClasses = w,
+  ps_json(list(n = nrow(env$d), clusters = length(unique(env$d[[vc]])), items = ps_back(vi, fr$back, FALSE), models = models, cluster = cluster, clusterClasses = w,
     warnings = env$.warnings, engine = list(package = "glca", version = as.character(utils::packageVersion("glca")))))
 }

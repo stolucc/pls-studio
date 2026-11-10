@@ -39,8 +39,7 @@ ps_long_estimates <- function(fit, back, lvs, also = NULL) {
   keep <- pe$op %in% c("~1", "~~", "~", "=~") & pe$lhs %in% lvs
   for (a in also) keep <- keep | (pe$op == a$op & pe$lhs %in% a$lhs & (a$op != "~~" | pe$lhs == pe$rhs))
   pe <- pe[keep, ]
-  nm <- function(x) ifelse(x %in% names(back), back[x], x)
-  lapply(seq_len(nrow(pe)), function(i) list(lhs = nm(pe$lhs[i]), op = pe$op[i], rhs = nm(pe$rhs[i]), est = pe$est[i],
+  lapply(seq_len(nrow(pe)), function(i) list(lhs = ps_back(pe$lhs[i], back), op = pe$op[i], rhs = ps_back(pe$rhs[i], back), est = pe$est[i],
     se = if (is.na(pe$se[i]) || pe$se[i] == 0) NULL else pe$se[i], z = if (is.na(pe$z[i])) NULL else pe$z[i],
     p = if (is.na(pe$pvalue[i])) NULL else pe$pvalue[i], std = pe$std.all[i]))
 }

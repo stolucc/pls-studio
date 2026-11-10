@@ -968,7 +968,7 @@ ps_cb <- function(req_json, export = FALSE) {
   is_lv <- function(x) x %in% c(lv_lname, paste0(lv_lname, "_b"), b$between_lv)
   # (an observed covariate is its own lavaan name: its "~1" is an intercept, not a latent mean)
   latent_names <- { lv <- unname(b$lname[!(b$is_cov | (b$ord_self %||% FALSE))]); c(lv, paste0(lv, "_b"), b$between_lv) }
-  nm <- function(x) unname(back[x])
+  nm <- function(x) ps_back(x, back, FALSE)
 
   levels2 <- !is.null(b$cluster_var)
   glab <- lavaan::lavInspect(fit, "group.label")
@@ -1205,10 +1205,10 @@ ps_cb <- function(req_json, export = FALSE) {
     per <- lapply(seq_along(groups), map_group)
     # ICCs: of the (first) group's data when there are groups as well.
     icc <- if (levels2) { x <- lavaan::lavInspect(fit, "icc"); if (is.list(x)) x[[1]] else x } else NULL
-    c(per[[1]], list(groups = list(labels = as.character(groups), results = per, score = if (levels2 || isTRUE(b$mi)) list() else ps_cb_score(fit, nm), levels = levels2,
+    c(per[[1]], list(groups = list(labels = as.character(groups), results = per, score = if (levels2 || isTRUE(b$mi)) list() else ps_cb_score(fit, back), levels = levels2,
       icc = if (levels2) as.list(setNames(as.numeric(icc), nm(names(icc)))) else NULL)))
   } else map_group(NULL)
-  mi <- ps_cb_modindices(if (isTRUE(b$mi)) env$fit_mi else fit, nm, groups)
+  mi <- ps_cb_modindices(if (isTRUE(b$mi)) env$fit_mi else fit, back, groups)
   out$modindices <- mi$items
   out$modindicesError <- mi$error
   out$modindicesNote <- mi$note
@@ -1226,7 +1226,7 @@ ps_per_group <- function(x, g) if (is.list(x)) x[[g]] else if (length(x) >= g) x
 
 #' Modification indices (lavaan::modindices) at or above 3.84, largest first, in the app's names:
 #' list(items, error), where error says why lavaan could not compute them (not the same as none reaching 3.84).
-ps_cb_modindices <- function(fit, nm, groups) {
+ps_cb_modindices <- function(fit, back, groups) {
   err <- NULL
   # lavaan's modindices() ignores equality constraints and warns about it on every call: the table's
   # footnote says so instead (the score test under Groups covers the constraints themselves).
@@ -1240,25 +1240,23 @@ ps_cb_modindices <- function(fit, nm, groups) {
   if (!is.null(err)) return(list(items = list(), error = err))
   if (is.null(mi) || !nrow(mi)) return(list(items = list(), error = NULL, note = note))
   mi <- mi[mi$op %in% c("=~", "~", "~~"), ]
-  back <- function(x) { y <- nm(x); ifelse(is.na(y), x, y) }
-  list(items = lapply(seq_len(nrow(mi)), function(i) list(lhs = back(mi$lhs[i]), op = mi$op[i], rhs = back(mi$rhs[i]), mi = mi$mi[i], epc = mi$epc[i],
+  list(items = lapply(seq_len(nrow(mi)), function(i) list(lhs = ps_back(mi$lhs[i], back), op = mi$op[i], rhs = ps_back(mi$rhs[i], back), mi = mi$mi[i], epc = mi$epc[i],
     sepc = mi$sepc.all[i], group = if (length(groups) > 1 && "block" %in% names(mi)) as.character(groups[mi$block[i]])
       else if (length(groups) > 1 && "group" %in% names(mi)) as.character(groups[mi$group[i]]) else NULL)), error = NULL, note = note)
 }
 
 #' Score tests of releasing each equality constraint (lavaan::lavTestScore): which across-group
 #' equality is worst (partial invariance).
-ps_cb_score <- function(fit, nm) {
+ps_cb_score <- function(fit, back) {
   # (Only with equality constraints across groups: without them there is nothing to release.)
   if (!any(lavaan::parTable(fit)$op == "==")) return(list())
   st <- ps_try(lavaan::lavTestScore(fit)$uni, "Score tests of the equality constraints (lavaan::lavTestScore)")
   if (is.null(st) || !nrow(st)) return(list())
   pt <- lavaan::parTable(fit)
   groups <- lavaan::lavInspect(fit, "group.label")
-  back <- function(x) { y <- nm(x); ifelse(is.na(y), x, y) }
   what <- function(pl) {
     r <- pt[pt$plabel == pl, ][1, ]
-    list(param = paste(back(r$lhs), r$op, if (r$op == "~1") "" else back(r$rhs)), group = as.character(groups[r$group]))
+    list(param = paste(ps_back(r$lhs, back), r$op, if (r$op == "~1") "" else ps_back(r$rhs, back)), group = as.character(groups[r$group]))
   }
   lapply(seq_len(nrow(st)), function(i) {
     a <- what(st$lhs[i]); z <- what(st$rhs[i])
@@ -1317,8 +1315,8 @@ ps_cb_modsem <- function(req, b, export) {
   ind_v <- unname(n$iv[n$all_inds])
   owner <- function(i) which(vapply(n$inds, function(x) i %in% x, TRUE))[1]
   ind_con <- unname(vapply(n$all_inds, owner, 1L)) - 1L
-  back <- c(setNames(constructs, lv_lname), setNames(indicators, ind_v))
-  nm <- function(x) unname(back[x])
+  back <- ps_back_map(b, constructs)
+  nm <- function(x) ps_back(x, back, FALSE)
   is_lv <- function(x) x %in% lv_lname
   pe <- modsem::parameter_estimates(fit)
   st <- modsem::standardized_estimates(fit)
@@ -1431,7 +1429,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
     cons <- c(b$n$cname, b$int_names)
     back <- setNames(cons, unname(b$lname[cons]))
     f <- env$factors
-    return(ps_json(list(method = method, names = unname(back[f]), rows = env$rows,
+    return(ps_json(list(method = method, names = ps_back(f, back, FALSE), rows = env$rows,
       draws = lapply(env$pv, function(d) lapply(f, function(k) unname(d[[k]]))),
       warnings = env$.warnings, engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools"))))))
   }
@@ -1453,7 +1451,7 @@ ps_cb_scores <- function(req_json, export = FALSE) {
   cons <- c(b$n$cname, b$int_names)
   back <- setNames(cons, unname(b$lname[cons]))
   sc <- env$scores
-  ps_json(c(list(method = method, names = unname(back[colnames(sc)]), rows = env$rows,
+  ps_json(c(list(method = method, names = ps_back(colnames(sc), back, FALSE), rows = env$rows,
     scores = lapply(seq_len(ncol(sc)), function(j) unname(sc[, j]))),
     if (se) list(se = lapply(colnames(sc), function(k) unname(env$se[, k]))),
     list(warnings = env$.warnings, engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan"))))))
@@ -1601,10 +1599,7 @@ ps_cor_residuals <- function(fit) {
 # ---------- CB-SEM extras: Bollen-Stine p, pairwise parameter comparisons, factor score weights ----------
 
 #' lavaan names back to the app's (constructs, interaction terms, indicators).
-ps_cb_back <- function(b) {
-  constructs <- c(b$n$cname, b$int_names)
-  c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
-}
+ps_cb_back <- function(b) ps_back_map(b, c(b$n$cname, b$int_names))
 
 #' Models these analyses cannot use (each says why).
 ps_cb_plain <- function(b, what, raw = TRUE) {
@@ -1669,7 +1664,7 @@ ps_cb_compare_params <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script("Pairwise parameter comparisons (critical ratios for differences)", "lavaan", b$inputs, body, "print(round(z, 3))"), collapse = "\n"))
   env <- ps_run(body, b$inputs)
   sel <- env$sel; back <- ps_cb_back(ps_esem_align(b, env$fit))
-  nm <- function(x) ifelse(x %in% names(back), unname(back[x]), x)
+  nm <- function(x) ps_back(x, back)
   label <- ifelse(sel$op == "~", paste(nm(sel$rhs), "→", nm(sel$lhs)),
     ifelse(sel$op == "=~", paste(nm(sel$lhs), "→", nm(sel$rhs)),
       ifelse(sel$lhs == sel$rhs, paste("Variance of", nm(sel$lhs)), paste(nm(sel$lhs), "↔", nm(sel$rhs)))))
@@ -1707,8 +1702,7 @@ ps_cb_score_weights <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script(sprintf("Factor score weights (%s)", method), "lavaan", b$inputs, body, "print(round(W, 4))"), collapse = "\n"))
   env <- ps_run(body, b$inputs)
   W <- env$W; back <- ps_cb_back(ps_esem_align(b, env$fit))
-  nm <- function(x) ifelse(x %in% names(back), unname(back[x]), x)
-  ps_json(list(method = method, factors = I(nm(rownames(W))), variables = I(nm(colnames(W))),
+  ps_json(list(method = method, factors = I(ps_back(rownames(W), back)), variables = I(ps_back(colnames(W), back)),
     weights = lapply(seq_len(nrow(W)), function(i) I(unname(W[i, ]))), warnings = env$.warnings,
     engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
 }

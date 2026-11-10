@@ -15,7 +15,6 @@ ps_bt_factor_line <- function(req, fr, n) {
 }
 
 #' A column's own name from its R name (other text, e.g. a factor name, as it is).
-ps_bt_back <- function(fr, p) if (p %in% names(fr$back)) fr$back[[p]] else p
 
 ps_bt_alt <- function(req) {
   a <- req$alternative %||% "two.sided"
@@ -148,7 +147,7 @@ ps_anova <- function(req_json, export = FALSE) {
   ssres <- sum(residuals(fit)^2); dfres <- df.residual(fit); msres <- ssres / dfres
   sstot <- sum((d[[v[[y]]]] - mean(d[[v[[y]]]]))^2)
   terms <- setdiff(rownames(tab), c("<none>", "Residuals"))
-  back <- function(t) paste(vapply(strsplit(t, ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " \u00d7 ")
+  back <- function(t) ps_back_term(t, fr$back)
   rows <- lapply(terms, function(t) {
     s <- if (ss == "III") tab[t, "Sum of Sq"] else tab[t, "Sum Sq"]; df <- tab[t, "Df"]
     f <- if (ss == "III") tab[t, "F value"] else tab[t, "F value"]; p <- tab[t, "Pr(>F)"]
@@ -218,7 +217,7 @@ ps_rmanova <- function(req_json, export = FALSE) {
   sm <- summary(env$fit)
   strat <- function(s) { t <- s[[1]]; rn <- trimws(rownames(t)); lapply(seq_len(nrow(t)), function(i) list(term = rn[i], ss = t[i, "Sum Sq"], df = t[i, "Df"], ms = t[i, "Mean Sq"], f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL, p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL)) }
   bs <- strat(sm[[grep(": subject$", names(sm))]]); ws <- strat(sm[[grep(sprintf(": subject:%s$", fname), names(sm))]])
-  ren <- function(rows) lapply(rows, function(r) { r$term <- if (r$term == "Residuals") "Residuals" else paste(vapply(strsplit(r$term, ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " \u00d7 "); r })
+  ren <- function(rows) lapply(rows, function(r) { r$term <- if (r$term == "Residuals") "Residuals" else ps_back_term(r$term, fr$back); r })
   bs <- ren(bs); ws <- ren(ws)
   res_w <- Filter(function(r) r$term == "Residuals", ws)[[1]]$ss
   res_b <- if (length(Filter(function(r) r$term == "Residuals", bs))) Filter(function(r) r$term == "Residuals", bs)[[1]]$ss else NULL
@@ -312,7 +311,7 @@ ps_rmanova_multi <- function(req, design, export) {
   if (export) return(paste(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "posthoc")), collapse = "\n"))
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
-  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " × ")
+  back <- function(t) ps_back_term(trimws(t), fr$back)
   strat <- function(s, stratum) { t <- s[[1]]; rn <- trimws(rownames(t)); res <- if ("Residuals" %in% rn) t[which(rn == "Residuals"), "Sum Sq"] else NULL
     lapply(seq_len(nrow(t)), function(i) { r <- list(term = if (rn[i] == "Residuals") "Residuals" else back(rn[i]), stratum = stratum, ss = t[i, "Sum Sq"], df = t[i, "Df"], ms = t[i, "Mean Sq"],
       f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL, p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL)
@@ -383,7 +382,7 @@ ps_rmanova_car <- function(req, design, betweens, export) {
   ut <- env$uni$univariate.tests; rn <- rownames(ut)
   parts <- strsplit(rn, ":", fixed = TRUE)
   wn <- design$names
-  name_of <- function(ps) paste(vapply(ps, function(p) ps_bt_back(fr, p), ""), collapse = " × ")
+  name_of <- function(ps) paste(ps_back(ps, fr$back), collapse = " × ")
   rows_b <- list(); rows_w <- list(); corr <- list(); sph <- list(); res_b <- NULL
   pa <- env$uni$pval.adjustments; st <- env$uni$sphericity.tests
   for (i in seq_along(rn)) {
@@ -432,7 +431,7 @@ ps_manova <- function(req_json, export = FALSE) {
   inputs <- list(data = fr$data)
   if (export) return(paste(ps_script("MANOVA", character(0), inputs, body, "res"), collapse = "\n"))
   env <- ps_run(body, inputs)
-  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " \u00d7 ")
+  back <- function(t) ps_back_term(trimws(t), fr$back)
   out <- lapply(seq_along(tests), function(i) { s <- env$res[[i]]; rn <- setdiff(trimws(rownames(s)), "Residuals")
     list(test = tests[i], rows = lapply(rn, function(t) { j <- which(trimws(rownames(s)) == t); list(term = back(t), df = s[j, 1], value = s[j, 2], f = s[j, 3], df1 = s[j, 4], df2 = s[j, 5], p = s[j, 6]) })) })
   ps_json(list(dependents = ys, factors = fac, n = nrow(env$data), tests = out, warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))

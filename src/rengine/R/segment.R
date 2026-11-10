@@ -65,17 +65,17 @@ ps_rebus <- function(req_json, export = FALSE) {
   back_lv <- setNames(ord, lv)
   back_mv <- setNames(n$all_inds, unname(n$iv[n$all_inds]))
   # "A->B" path names and "Com.X" / "R2.X" quality rows, in the app's names.
-  path_name <- function(s) { p <- strsplit(s, "->", fixed = TRUE)[[1]]; list(from = unname(back_lv[p[1]]), to = unname(back_lv[p[2]])) }
+  path_name <- function(s) { p <- strsplit(s, "->", fixed = TRUE)[[1]]; list(from = ps_back(p[1], back_lv, FALSE), to = ps_back(p[2], back_lv, FALSE)) }
   h <- env$hc$height
   top <- rev(utils::tail(h, 12))  # fusion levels of the last merges: the k-class cut lies below top[k - 1]
   models <- lapply(as.character(ks), function(k) {
     r <- env$rebus[[k]]; q <- r$quality; t <- env$tests[[k]]
-    row <- function(prefix) { i <- startsWith(rownames(q), paste0(prefix, ".")); setNames(lapply(which(i), function(j) unname(q[j, ])), unname(back_lv[sub("^[A-Za-z0-9]+\\.", "", rownames(q)[i])])) }
+    row <- function(prefix) { i <- startsWith(rownames(q), paste0(prefix, ".")); setNames(lapply(which(i), function(j) unname(q[j, ])), ps_back(sub("^[A-Za-z0-9]+\\.", "", rownames(q)[i]), back_lv, FALSE)) }
     list(k = as.integer(k), gqi = r$aux[[7]], iterations = r$aux[[6]], changeRate = r$aux[[3]],
       sizes = as.integer(table(factor(r$segments, levels = seq_len(as.integer(k))))),
       segments = unname(as.integer(r$segments)),
       paths = lapply(seq_len(nrow(r$path.coef)), function(i) c(path_name(rownames(r$path.coef)[i]), list(byClass = unname(r$path.coef[i, ])))),
-      loadings = lapply(seq_len(nrow(r$loadings)), function(i) list(indicator = unname(back_mv[rownames(r$loadings)[i]]), byClass = unname(r$loadings[i, ]))),
+      loadings = lapply(seq_len(nrow(r$loadings)), function(i) list(indicator = ps_back(rownames(r$loadings)[i], back_mv, FALSE), byClass = unname(r$loadings[i, ]))),
       communality = row("Com"), r2 = row("R2"), gof = unname(q["GoF", ]),
       tests = lapply(names(t), function(nm) {
         x <- t[[nm]]; cls <- as.integer(strsplit(sub("^test_", "", nm), "_")[[1]])
@@ -200,7 +200,7 @@ ps_fimix <- function(req_json, export = FALSE) {
       paths <- unlist(lapply(seq_along(ends), function(j) {
         pr <- flexmix::parameters(m, component = s, model = j)
         co <- pr[grepl("^coef\\.", rownames(pr)), 1]; names(co) <- sub("^coef\\.", "", names(co))
-        lapply(names(co), function(f) list(from = if (f == "(Intercept)") "Intercept" else unname(back[f]), to = ends[j], est = unname(co[[f]])))
+        lapply(names(co), function(f) list(from = if (f == "(Intercept)") "Intercept" else ps_back(f, back, FALSE), to = ends[j], est = unname(co[[f]])))
       }), recursive = FALSE)
       r2 <- lapply(seq_along(ends), function(j) {
         y <- env$scores[[cv[[ends[j]]]]][cl == s]
@@ -282,10 +282,10 @@ ps_pos <- function(req_json, export = FALSE) {
   best <- env$best
   global_r2 <- env$fit$Estimates$R2
   ps_json(list(k = K, n = nrow(env$X), objective = best$objective, globalObjective = sum(global_r2), moves = best$moves, starts = sapply(env$runs, `[[`, "objective"),
-    assignment = best$assignment, globalR2 = as.list(setNames(unname(global_r2), unname(back[names(global_r2)]))),
+    assignment = best$assignment, globalR2 = as.list(setNames(unname(global_r2), ps_back(names(global_r2), back, FALSE))),
     segments = lapply(seq_len(K), function(k) { g <- best$fits[[k]]
       list(segment = k, size = sum(best$assignment == k),
         paths = lapply(req$model$paths, function(p) list(from = p$from, to = p$to, est = g$B[cv[[p$to]], cv[[p$from]]])),
-        r2 = as.list(setNames(unname(g$r2), unname(back[names(g$r2)])))) }),
+        r2 = as.list(setNames(unname(g$r2), ps_back(names(g$r2), back, FALSE)))) }),
     warnings = env$.warnings, engine = list(package = "cSEM (PLS-POS as Becker et al. 2013)", version = as.character(utils::packageVersion("cSEM")))))
 }

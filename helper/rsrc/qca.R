@@ -12,7 +12,7 @@ qca_back_term <- function(term, back) {
   parts <- strsplit(term, "*", fixed = TRUE)[[1]]
   neg <- startsWith(parts, "~")
   nm <- sub("^~", "", parts)
-  paste0(ifelse(neg, "~", ""), unname(ifelse(nm %in% names(back), back[nm], nm)), collapse = "*")
+  paste0(ifelse(neg, "~", ""), ps_back(nm, back), collapse = "*")
 }
 
 qca_na_null <- function(x) if (length(x) != 1 || is.na(x)) NULL else unname(x)

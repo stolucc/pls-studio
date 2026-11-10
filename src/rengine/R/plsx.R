@@ -17,7 +17,7 @@ ps_plsx_back <- function(b) {
 #' "TO ~ FROM" (cSEM's parameter names) as from / to in the app's names.
 ps_plsx_path <- function(s, back) {
   p <- strsplit(s, " ~ ", fixed = TRUE)[[1]]
-  list(from = unname(back[p[2]]), to = unname(back[p[1]]))
+  list(from = ps_back(p[2], back, FALSE), to = ps_back(p[1], back, FALSE))
 }
 
 ps_pls_predict <- function(req_json, export = FALSE) {
@@ -40,7 +40,7 @@ ps_pls_predict <- function(req_json, export = FALSE) {
   back <- ps_plsx_back(b); m <- env$metrics
   owner <- function(i) { j <- which(vapply(b$n$inds, function(x) back[[i]] %in% x, TRUE))[1]; b$n$cname[j] }
   ps_json(list(folds = folds, repetitions = reps,
-    indicators = lapply(seq_len(nrow(m)), function(i) list(indicator = unname(back[m$Name[i]]), construct = owner(m$Name[i]),
+    indicators = lapply(seq_len(nrow(m)), function(i) list(indicator = ps_back(m$Name[i], back, FALSE), construct = owner(m$Name[i]),
       maePls = m$MAE_target[i], maeLm = m$MAE_benchmark[i], rmsePls = m$RMSE_target[i], rmseLm = m$RMSE_benchmark[i], q2 = m$Q2_predict[i])),
     warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
 }
@@ -108,7 +108,7 @@ ps_pls_compare <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script("Model comparison (cSEM)", "cSEM", b$inputs, body, c("msc", "msc_alt", "cvpat")), collapse = "\n"))
   env <- ps_run(body, b$inputs)
   back <- ps_plsx_back(b)
-  crit <- function(ms) lapply(names(ms), function(k) list(criterion = k, byConstruct = as.list(setNames(unname(ms[[k]]), unname(back[names(ms[[k]])])))))
+  crit <- function(ms) lapply(names(ms), function(k) list(criterion = k, byConstruct = as.list(setNames(unname(ms[[k]]), ps_back(names(ms[[k]]), back, FALSE)))))
   ps_json(list(criteria = crit(env$msc), criteriaAlt = crit(env$msc_alt),
     cvpat = list(statistic = env$cvpat$test_statistic, p = env$cvpat$p_value, df = env$cvpat$`degrees of freedom`, loss = env$losses[1], lossAlt = env$losses[2]),
     warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
@@ -143,7 +143,7 @@ ps_pls_groups <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script("Group comparison: MICOM and multigroup analysis (cSEM)", "cSEM", b$inputs, body, c("micom", "mga")), collapse = "\n"))
   env <- ps_run(body, b$inputs)
   back <- ps_plsx_back(b)
-  nm <- function(x) { y <- back[x]; ifelse(is.na(y), x, y) }
+  nm <- function(x) ps_back(x, back)
   mi <- env$micom
   first <- function(x) x[[1]]
   step3 <- function(part) { s <- mi$Step3[[part]]; list(statistic = as.list(setNames(unname(first(s$Test_statistic)), nm(names(first(s$Test_statistic))))),
@@ -228,8 +228,8 @@ ps_cta <- function(req_json, export = FALSE) {
   back_i <- setNames(n$all_inds, unname(n$iv[n$all_inds]))
   back_c <- setNames(n$cname, unname(n$cv))
   ps_json(list(samples = B, alpha = alpha, blocks = lapply(names(env$cta), function(k) { d <- env$cta[[k]]
-    list(construct = unname(back_c[k]), tetrads = lapply(seq_len(nrow(d)), function(i) list(
-      tetrad = paste(unname(back_i[strsplit(d$tetrad[i], ",", fixed = TRUE)[[1]]]), collapse = ", "),
+    list(construct = ps_back(k, back_c, FALSE), tetrads = lapply(seq_len(nrow(d)), function(i) list(
+      tetrad = paste(ps_back(strsplit(d$tetrad[i], ",", fixed = TRUE)[[1]], back_i, FALSE), collapse = ", "),
       est = d$est[i], se = d$se[i], t = d$t[i], p = d$p[i], low = d$low[i], high = d$high[i], differs = isTRUE(d$differs[i])))) }),
     warnings = env$.warnings, engine = list(package = "R (CTA-PLS as Gudergan et al. 2008)", version = as.character(getRversion()))))
 }
@@ -283,7 +283,7 @@ ps_blindfold <- function(req_json, export = FALSE) {
   back <- setNames(names(b$n$cv), unname(b$n$cv))
   q <- env$q2
   ps_json(list(distance = D, n = nrow(b$inputs$data), divisible = nrow(b$inputs$data) %% D == 0,
-    constructs = lapply(rownames(q), function(k) list(construct = unname(back[k]), sse = q[k, "SSE"], sso = q[k, "SSO"], q2 = q[k, "Q2"])),
+    constructs = lapply(rownames(q), function(k) list(construct = ps_back(k, back, FALSE), sse = q[k, "SSE"], sso = q[k, "SSO"], q2 = q[k, "Q2"])),
     warnings = env$.warnings, engine = list(package = "cSEM (blindfolding as semPLS)", version = as.character(utils::packageVersion("cSEM")))))
 }
 
@@ -320,17 +320,17 @@ ps_cca <- function(req_json, export = FALSE) {
   back <- ps_plsx_back(b)
   omf <- env$omf
   tab <- function(d) lapply(seq_len(nrow(d)), function(i) { p <- strsplit(d$Name[i], " (<~|=~) ")[[1]]
-    list(construct = unname(back[p[1]]), indicator = unname(back[p[2]]), est = d$Estimate[i], se = d$Std_err[i], p = d$p_value[i],
+    list(construct = ps_back(p[1], back, FALSE), indicator = ps_back(p[2], back, FALSE), est = d$Estimate[i], se = d$Std_err[i], p = d$p_value[i],
       low = d[[grep("L$", names(d))[1]]][i], high = d[[grep("U$", names(d))[1]]][i]) })
   vif <- env$vif
   vifs <- if (is.null(vif) || !length(vif)) list() else unlist(lapply(rownames(vif), function(k) { v <- vif[k, ]; v <- v[is.finite(v) & v != 0]
-    lapply(names(v), function(i) list(construct = unname(back[k]), indicator = unname(back[i]), vif = unname(v[i]))) }), recursive = FALSE)
+    lapply(names(v), function(i) list(construct = ps_back(k, back, FALSE), indicator = ps_back(i, back, FALSE), vif = unname(v[i]))) }), recursive = FALSE)
   R <- env$cor_composites
   ps_json(list(samples = B, alpha = alpha, admissible = omf$Information$Number_admissibles,
     # (d_G with the natural logarithm, as Dijkstra & Henseler 2015 and the app's Fit tab; cSEM prints it with log base 10)
     fit = lapply(names(omf$Test_statistic), function(k) { s <- if (k == "dG") log(10)^2 else 1
       list(measure = k, statistic = s * unname(omf$Test_statistic[k]), q95 = s * unname(omf$Critical_value[k, "95%"]), q99 = s * unname(omf$Critical_value[k, "99%"])) }),
     weights = tab(env$est$Weight_estimates), loadings = tab(env$est$Loading_estimates), vif = vifs,
-    composites = unname(back[rownames(R)]), correlations = unname(R),
+    composites = ps_back(rownames(R), back, FALSE), correlations = unname(R),
     warnings = env$.warnings, engine = list(package = "cSEM", version = as.character(utils::packageVersion("cSEM")))))
 }

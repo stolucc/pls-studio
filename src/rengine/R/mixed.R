@@ -53,7 +53,7 @@ ps_lmm <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   fit <- env$fit
   nm <- function(x) {
-    out <- ifelse(x %in% names(fr$back), fr$back[x], x)
+    out <- ps_back(x, fr$back)
     at <- match(x, cm); out[!is.na(at)] <- paste0(xs[at[!is.na(at)]], " (cluster mean)")
     unname(ifelse(x == "(Intercept)", "Intercept", out))
   }
@@ -353,8 +353,8 @@ ps_lmm_ext <- function(req, export) {
         else if (stacked && v %in% names(tdisp)) tdisp[[v]]
         else if (v %in% occ) occ_name[match(v, occ)]
         else if (v %in% cm) paste0(back[[xs[match(v, cm)]]] %||% v, " (cluster mean)")
-        else if (grepl(":", v, fixed = TRUE)) paste(vapply(strsplit(v, ":", fixed = TRUE)[[1]], function(p) if (p %in% names(back)) back[[p]] else p, ""), collapse = " × ")
-        else if (v %in% names(back)) back[[v]] else v
+        else if (grepl(":", v, fixed = TRUE)) ps_back_term(v, back)
+        else ps_back(v, back)
     }
     unname(out)
   }

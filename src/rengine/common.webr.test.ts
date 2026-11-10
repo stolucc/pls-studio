@@ -56,3 +56,26 @@ it('puts the user names back into labels, whole names only', async () => {
   expect(back.words).toEqual(['Age (x)', 'Income', 'max', 'Age (x):Income', 'B ON Age (x)']);
   expect(back.prefix).toEqual(['X_hi', 'Größe (cm)', 'distance']);
 }, 300_000);
+
+// Exact lookups: ps_back keeps a name with no match (keep = TRUE) or makes it
+// NA (keep = FALSE, as back[x]); ps_back_term maps each piece of "a:b";
+// ps_back_map is the model's construct + indicator map.
+it('maps model names back exactly, keeping or dropping unmatched ones', async () => {
+  const r = await withR(['jsonlite'], { common: commonR }, (webR) => callJson(webR, `local({
+    back <- c(x = "Age", x2 = "Income")
+    b <- list(lname = c(Q = "Quality", S = "Satisfaction"), n = list(cname = c("Q", "S"), all_inds = c("q 1", "s 1"), iv = c("q 1" = "q_1", "s 1" = "s_1")))
+    m <- ps_back_map(b)
+    ps_json(list(keep = I(ps_back(c("x", "max", "x2"), back)), drop = I(ps_back(c("x", "max"), back, FALSE)),
+      empty = I(ps_back("x", character(0))), none = I(ps_back(character(0), back)),
+      term = ps_back_term("x:z:x2", back), single = ps_back_term("x2", back),
+      map = as.list(m), mapOne = as.list(ps_back_map(b, "S"))))
+  })`, null)) as Record<string, unknown>;
+  expect(r.keep).toEqual(['Age', 'max', 'Income']);
+  expect(r.drop).toEqual(['Age', null]);
+  expect(r.empty).toEqual(['x']);
+  expect(r.none).toEqual([]);
+  expect(r.term).toBe('Age × z × Income');
+  expect(r.single).toBe('Income');
+  expect(r.map).toEqual({ Quality: 'Q', Satisfaction: 'S', q_1: 'q 1', s_1: 's 1' });
+  expect(r.mapOne).toEqual({ Satisfaction: 'S', q_1: 'q 1', s_1: 's 1' });
+}, 300_000);

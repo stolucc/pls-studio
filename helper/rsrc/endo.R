@@ -21,7 +21,7 @@ ps_coef_rows <- function(m, back, ci = NULL, equation = NULL) {
   at <- function(i) if (is.null(ci)) NA else if (nrow(ci) == nrow(m)) i else match(rownames(m)[i], rownames(ci))
   lapply(seq_len(nrow(m)), function(i) {
     term <- rownames(m)[i]; j <- at(i)
-    list(term = if (term == "(Intercept)") "Intercept" else if (term %in% names(back)) unname(back[term]) else term,
+    list(term = if (term == "(Intercept)") "Intercept" else ps_back(term, back),
       equation = if (is.null(equation)) NULL else equation[i],
       est = m[i, 1], se = m[i, 2], stat = m[i, 3], p = m[i, 4],
       ciLow = if (is.na(j)) NULL else ci[j, 1], ciHigh = if (is.na(j)) NULL else ci[j, 2])
@@ -182,8 +182,8 @@ ps_endo <- function(req_json, export = FALSE) {
     coefficients = coefs,
     ols = if (method == "heckman") list() else ps_coef_rows(stats::coef(summary(env$ols)), back, stats::confint(env$ols, level = conf)),
     diagnostics = diag,
-    normality = if (method == "copula") lapply(names(env$normality), function(k) list(variable = unname(f$fr$back[k]), p = unname(env$normality[[k]]))) else list(),
-    heteroskedasticity = if (method == "het") lapply(names(env$bp), function(k) list(variable = unname(f$fr$back[k]), p = unname(env$bp[[k]]))) else list(),
+    normality = if (method == "copula") lapply(names(env$normality), function(k) list(variable = ps_back(k, f$fr$back, FALSE), p = unname(env$normality[[k]]))) else list(),
+    heteroskedasticity = if (method == "het") lapply(names(env$bp), function(k) list(variable = ps_back(k, f$fr$back, FALSE), p = unname(env$bp[[k]]))) else list(),
     selection = if (method == "heckman") list(selected = sum(env$data[[f$v(req$selection$outcome)]] == 1), total = nrow(env$data)) else NULL,
     boot = if (method == "copula") list(samples = B, confidence = conf) else NULL,
     warnings = env$.warnings, engine = list(package = ps_endo_pkg(method), version = as.character(utils::packageVersion(ps_endo_pkg(method))))))

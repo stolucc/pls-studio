@@ -86,7 +86,7 @@ ps_nca <- function(req_json, export = FALSE) {
     peers = list(x = unname(r$peers[, 1]), y = unname(r$peers[, 2])),
     points = list(x = utils::head(r$x, 3000), y = utils::head(r$y, 3000)),
     bottleneck = lapply(seq_len(nrow(r$bottleneck)), function(i) list(y = r$bottleneck$y[i], ceFdh = r$bottleneck$ce_fdh[i], crFdh = r$bottleneck$cr_fdh[i]))))
-  names(out) <- unname(fr$back[names(env$res)])
+  names(out) <- ps_back(names(env$res), fr$back, FALSE)
   ps_json(list(y = yn, permutations = rep, conditions = lapply(names(out), function(k) c(list(x = k), out[[k]])),
     warnings = env$.warnings, engine = list(package = "R (as NCA)", version = as.character(getRversion()))))
 }

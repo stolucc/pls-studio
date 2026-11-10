@@ -32,7 +32,7 @@ ps_screen <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   d <- env$desc; m <- env$mard
   ps_json(list(
-    variables = unname(fr$back[rownames(d)]),
+    variables = ps_back(rownames(d), fr$back, FALSE),
     describe = lapply(seq_len(nrow(d)), function(i) list(n = d$n[i], missing = unname(env$missing[i]), mean = d$mean[i], sd = d$sd[i],
       median = d$median[i], min = d$min[i], max = d$max[i], skew = d$skew[i], kurtosis = d$kurtosis[i])),
     mardia = list(n = m$n.obs, p = m$n.var, b1p = m$b1p, b2p = m$b2p, skew = m$skew, smallSkew = m$small.skew, pSkew = m$p.skew,

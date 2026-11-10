@@ -299,7 +299,7 @@ ps_cb_boot <- function(req_json, export = FALSE) {
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   b <- ps_esem_align(b, env$fit)
   constructs <- c(b$n$cname, b$int_names)
-  back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
+  back <- ps_back_map(b, constructs)
   r <- env$result
   # Several groups or levels: statistics per block ("... @2"), between-level factors named *_b.
   back <- c(back, setNames(constructs, paste0(unname(b$lname[constructs]), "_b")))
@@ -309,14 +309,13 @@ ps_cb_boot <- function(req_json, export = FALSE) {
     block <- if (grepl(" @[0-9]+$", par)) as.integer(sub(".* @", "", par)) else NULL
     par <- sub(" @[0-9]+$", "", par)
     g <- sub(":.*", "", par); parts <- strsplit(sub("^[a-z0-9]+: ", "", par), " -> ")[[1]]
-    a <- unname(back[parts[1]]); z <- if (length(parts) > 1) unname(back[parts[2]]) else NA
+    a <- ps_back(parts[1], back, FALSE); z <- if (length(parts) > 1) ps_back(parts[2], back, FALSE) else NA
     # (an unstandardised parameter: "estimate: lhs|op|rhs" in lavaan's names, shown in the app's)
-    nm <- function(x) if (!is.na(back[x])) unname(back[x]) else x
     est <- if (g == "estimate") strsplit(sub("^estimate: ", "", par), "|", fixed = TRUE)[[1]] else NULL
     if (length(est) == 2) est <- c(est, "")
     k <- switch(g, path = , total = , indirect = list(key = sprintf("%s:%s:%s", g, a, z), label = sprintf("%s → %s", a, z)),
       estimate = if (est[2] == ":=") list(key = sprintf("estimate:%s", est[1]), label = sprintf("%s := %s", est[1], est[3]))
-        else list(key = sprintf("estimate:%s %s %s", nm(est[1]), est[2], nm(est[3])), label = trimws(sprintf("%s %s %s", nm(est[1]), est[2], nm(est[3])))),
+        else list(key = sprintf("estimate:%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back)), label = trimws(sprintf("%s %s %s", ps_back(est[1], back), est[2], ps_back(est[3], back)))),
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),
       weight = list(key = sprintf("weight:%s", z), label = sprintf("%s → %s", z, a)),
       r2 = list(key = sprintf("r2:%s", a), label = a))
@@ -375,12 +374,12 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
   if (ps_boot_chunked(req) && !is.null(req$boot$part)) return(ps_boot_part_json(ps_run(body[seq_len(grep("^result <- boot_summary", body) - 1)], b$inputs)))
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   constructs <- c(b$n$cname, b$int_names)
-  back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
+  back <- ps_back_map(b, constructs)
   r <- env$result
   stats <- lapply(seq_len(nrow(r)), function(i) {
     par <- r$parameter[i]
     g <- sub(":.*", "", par); parts <- strsplit(sub("^[a-z0-9]+: ", "", par), " -> ")[[1]]
-    a <- unname(back[parts[1]]); z <- if (length(parts) > 1) unname(back[parts[2]]) else NA
+    a <- ps_back(parts[1], back, FALSE); z <- if (length(parts) > 1) ps_back(parts[2], back, FALSE) else NA
     if (is.na(a) || (length(parts) > 1 && is.na(z))) return(NULL)
     k <- switch(g, path = , total = , indirect = list(key = sprintf("%s:%s:%s", g, a, z), label = sprintf("%s → %s", a, z)),
       loading = list(key = sprintf("loading:%s", z), label = sprintf("%s → %s", a, z)),

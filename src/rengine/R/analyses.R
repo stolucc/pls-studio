@@ -102,8 +102,8 @@ ps_miiv <- function(req_json, export = FALSE) {
     error = function(e) { env$.warnings <- c(env$.warnings, paste("Standardised values unavailable:", conditionMessage(e))); FALSE })
   fit <- env$fit
   constructs <- b$n$cname
-  back <- c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
-  nm <- function(x) unname(back[x])
+  back <- ps_back_map(b, constructs)
+  nm <- function(x) ps_back(x, back, FALSE)
   # (a single indicator standing for its construct is reported under the construct's name in the structural rows)
   nmc <- function(x) ifelse(x %in% names(single_ov), unname(single_ov[x]), nm(x))
   et <- MIIVsem::estimatesTable(fit)

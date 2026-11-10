@@ -120,6 +120,20 @@ ps_back_names <- function(x, back, prefix = FALSE) {
   x
 }
 
+#' Model names back to the user's names, exact names (vectorised): a name with
+#' no match is kept as it is (keep = TRUE) or becomes NA (keep = FALSE, as back[x]).
+ps_back <- function(x, back, keep = TRUE) {
+  y <- if (length(back)) unname(back[x]) else rep(NA_character_, length(x))
+  if (keep) { miss <- is.na(y); y[miss] <- x[miss] }
+  y
+}
+
+#' A term "a:b" back to the user's names, "A × B" (a piece with no match is kept).
+ps_back_term <- function(t, back) paste(ps_back(strsplit(t, ":", fixed = TRUE)[[1]], back), collapse = " \u00d7 ")
+
+#' The model's construct and indicator names back to the app's (constructs: which constructs to map).
+ps_back_map <- function(b, constructs = b$n$cname) c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
+
 #' Display name of an interaction term; a construct times itself is its quadratic term (X²).
 ps_int_name <- function(from, moderator) ifelse(from == moderator, paste0(from, "\u00b2"), paste(from, "\u00d7", moderator))
 

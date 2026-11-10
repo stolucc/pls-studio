@@ -254,7 +254,7 @@ ps_banova <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script(if (length(cov)) "Bayesian ANCOVA" else "Bayesian ANOVA", "BayesFactor", inputs, body, c("bf", "post")), collapse = "\n"))
   env <- ps_run(body, inputs)
   ex <- BayesFactor::extractBF(env$bf, logbf = TRUE)
-  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " \u00d7 ")
+  back <- function(t) ps_back_term(trimws(t), fr$back)
   mc <- ps_bayes_models(c("Null model", rownames(ex)), c(0, ex$bf), c(0, ex$error), back)
   models <- mc$models; incl <- mc$effects
   ps_json(list(dependent = y, factors = fac, covariates = cov, covariateInteractions = withCov, n = nrow(env$data), priorFixed = rf, priorCovariates = rc, seed = seed, iterations = iter,
@@ -334,7 +334,7 @@ ps_brmanova <- function(req_json, export = FALSE) {
   keep <- rownames(e) != "subject"
   strip <- function(m) trimws(setdiff(trimws(strsplit(m, "+", fixed = TRUE)[[1]]), "subject"))
   names_ <- c("Null model (subjects)", vapply(rownames(e)[keep], function(m) paste(strip(m), collapse = " + "), ""))
-  back <- function(t) paste(vapply(strsplit(trimws(t), ":", fixed = TRUE)[[1]], function(p) ps_bt_back(fr, p), ""), collapse = " × ")
+  back <- function(t) ps_back_term(trimws(t), fr$back)
   # (errors of the two Bayes factors combine as proportional errors do)
   mc <- ps_bayes_models(names_, c(0, e$bf[keep] - e0$bf[1]), c(e0$error[1], sqrt(e$error[keep]^2 + e0$error[1]^2)), back)
   ps_json(list(factorName = if (is.null(design)) fname else paste(design$names, collapse = " \u00d7 "), levels = within, between = between, n = nrow(env$Y),
@@ -375,7 +375,7 @@ ps_bregression <- function(req_json, export = FALSE) {
   if (export) return(paste(ps_script("Bayesian linear regression", "BayesFactor", inputs, body, c("bf", "summary(post)")), collapse = "\n"))
   env <- ps_run(body, inputs)
   e <- BayesFactor::extractBF(env$bf, logbf = TRUE)
-  back <- function(t) ps_bt_back(fr, trimws(t))
+  back <- function(t) ps_back(trimws(t), fr$back)
   mc <- ps_bayes_models(c("Null model", rownames(e)), c(0, e$bf), c(0, e$error), back, prior = env$prior)
   # R2 of each model (lm), for reading the comparison.
   r2 <- c(0, vapply(rownames(e), function(m) summary(stats::lm(stats::as.formula(paste(v[[y]], "~", m)), data = env$data))$r.squared, 0))
@@ -543,8 +543,7 @@ ps_bsem <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   n <- b$n
   constructs <- n$cname; lv_lname <- unname(b$lname[constructs])
-  back <- c(setNames(constructs, lv_lname), setNames(n$all_inds, unname(n$iv[n$all_inds])))
-  nm <- function(x) if (x %in% names(back)) unname(back[[x]]) else x
+  back <- ps_back_map(b, constructs)
   d <- env$draws; pt <- env$pt
   glab <- if (n_groups > 1) as.character(lavaan::lavInspect(env$fit, "group.label")) else character(0)
   # The draws' columns: one per free parameter of the parameter table (in its order), then the defined ones.
@@ -554,7 +553,7 @@ ps_bsem <- function(req_json, export = FALSE) {
   summ <- function(x) list(median = stats::median(x), mean = mean(x), sd = stats::sd(x), low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2])))
   pars <- lapply(seq_len(nrow(rows)), function(k) { r <- rows[k, ]; x <- d[, k]; p <- colnames(d)[k]
     op <- if (r$op == "~1") "~1" else r$op
-    c(list(lhs = nm(r$lhs), op = op, rhs = if (op == "~1") "" else if (op == "|") r$rhs else nm(r$rhs)), summ(x),
+    c(list(lhs = ps_back(r$lhs, back), op = op, rhs = if (op == "~1") "" else if (op == "|") r$rhs else ps_back(r$rhs, back)), summ(x),
       list(rhat = unname(env$rhat[p]), neff = unname(env$neff[p]), label = if (nzchar(r$label)) r$label else NULL,
         group = if (n_groups > 1) as.integer(r$group) else NULL, groupLabel = if (n_groups > 1) glab[r$group] else NULL, prior = if (nzchar(r$prior %||% "")) r$prior else NULL)) })
   defined <- lapply(seq_len(nrow(defs)), function(k) c(list(name = defs$lhs[k], expr = defs$rhs[k]), summ(d[, nrow(rows) + k])))

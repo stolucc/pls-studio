@@ -161,7 +161,7 @@ ps_cpa <- function(req_json, export = FALSE) {
   b <- ps_cpa_build(req)
   id <- b$id
   back <- setNames(names(b$rn), unname(b$rn))
-  nm <- function(x) unname(back[x])
+  nm <- function(x) ps_back(x, back, FALSE)
   title <- sprintf("Conditional process analysis%s (%s)", if (is.null(req$model)) "" else sprintf(", PROCESS model %d", as.integer(req$model)),
     if (b$sam) "lavaan::sam and manymome" else "manymome")
   fit_name <- if (b$sam) "fit" else "fits"
@@ -380,7 +380,7 @@ ps_cpa_glm <- function(req, export = FALSE) {
   }
   env <- ps_run(body, b$inputs)
   level <- req$confidence %||% 0.95
-  back <- setNames(names(b$rn), unname(b$rn)); nm <- function(x) unname(back[x])
+  back <- setNames(names(b$rn), unname(b$rn)); nm <- function(x) ps_back(x, back, FALSE)
   at_list <- function(at) as.list(setNames(unname(at), nm(names(at))))
   pv <- if (length(b$mods)) env$probe_values else list()
   cf0 <- env$cf0; boots <- env$boots

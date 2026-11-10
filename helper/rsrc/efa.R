@@ -126,8 +126,8 @@ ps_efa <- function(req_json, export = FALSE) {
   par <- env$parallel
   ps_json(list(
     method = method, rotation = rotation, oblique = rotation %in% PS_EFA_OBLIQUE, n = env$n, k = env$k, criterion = criterion, correlation = correlation,
-    ordinal = if (poly) I(unname(back[names(env$ordinal)[env$ordinal]])) else NULL,
-    variables = unname(back[rownames(L)]), factors = factors,
+    ordinal = if (poly) I(ps_back(names(env$ordinal)[env$ordinal], back, FALSE)) else NULL,
+    variables = ps_back(rownames(L), back, FALSE), factors = factors,
     loadings = unname(L), structure = if (is.null(S)) NULL else unname(S),
     communality = unname(fit$communality[rownames(L)]), uniqueness = unname(fit$uniquenesses[rownames(L)]),
     complexity = unname(fit$complexity[rownames(L)]),
@@ -181,8 +181,8 @@ ps_efa_lavaan <- function(env, back, method, rotation, criterion, correlation, p
   ps_json(list(
     method = method, rotation = rotation, oblique = oblique, n = lavaan::lavInspect(fit, "nobs"), k = env$k, criterion = criterion, correlation = correlation,
     estimator = if (poly) "WLSMV" else "ML",
-    ordinal = if (poly) I(unname(back[names(env$ordinal)[env$ordinal]])) else NULL,
-    variables = unname(back[ov]), factors = lv,
+    ordinal = if (poly) I(ps_back(names(env$ordinal)[env$ordinal], back, FALSE)) else NULL,
+    variables = ps_back(ov, back, FALSE), factors = lv,
     loadings = unname(L), structure = if (oblique && length(lv) > 1) unname(L %*% Phi) else NULL,
     communality = unname(1 - u), uniqueness = unname(u),
     complexity = unname(rowSums(L^2)^2 / rowSums(L^4)),
