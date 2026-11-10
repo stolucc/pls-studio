@@ -38,7 +38,6 @@ export interface FlowGraphInput {
 
 /** The nodes, the edges (labels placed) and the figure of the canvas; the figure is also the Analyses tab's snapshot source. */
 export function useFlowGraph({ model, placed, selection, tool, picked, implied, showImplied, showErrors, showIntercepts, unstd, results, estimates }: FlowGraphInput) {
-  const st = useStore.getState;
   const data = useStore((s) => s.data);
   const settings = useStore((s) => s.settings);
   const method = settings.method;
@@ -84,7 +83,7 @@ export function useFlowGraph({ model, placed, selection, tool, picked, implied, 
     correlation: correlationLabel,
     mean: meanOf,
     copula: (from, to) => copulaEstimate(results?.pls, results?.boot, from, to),
-  }, { showErrors, showIntercepts, showImpliedEffects: st().showImpliedEffects, unstd }), [st, placed, method, display, meanOf, moderationLabel, hoLoading, showErrors, showIntercepts, errorValue, correlationLabel, unstd, results]);
+  }, { showErrors, showIntercepts, showImpliedEffects: showImplied, unstd }), [placed, method, display, meanOf, moderationLabel, hoLoading, showErrors, showIntercepts, showImplied, errorValue, correlationLabel, unstd, results]);
 
   // Where each estimate label goes, so that none overlap (the figure export places them the same way).
   const labelAt = useMemo(() => placeFigureLabels(figureInput(), canvasLabelSize), [figureInput]);
