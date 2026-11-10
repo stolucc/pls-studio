@@ -1,7 +1,8 @@
 // CB-SEM diagnostics of the model on the canvas as analysis cards (lavaan):
 // local fit (residual z-tests per pair of observed variables, the SRMR's tests,
 // further tests of exact fit); discriminant validity per Rönkkö & Cho (2022);
-// comparing the diagram with a saved alternative (NET, LRT, Vuong, icci).
+// comparing the diagram with a saved alternative (NET, LRT, Vuong, icci); the
+// EPC-based judgement of misspecification (Saris, Satorra & van der Veld 2009).
 
 import { useState } from 'react';
 import type { CbEstimator } from '../engine/cbsem';
@@ -12,7 +13,7 @@ import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../figure/palette';
 import { clampStrict } from '../parse';
 import { c, pCell, Table, type Cell, type Row } from '../components/results/Table';
 import type { CbCall } from '../rengine/cbExtras';
-import { dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, SCALED_TESTS, type CompareModelsResult, type DiscriminantResult, type DvClass, type ModelFit, type Nesting, type LocalFitBlock, type LocalFitResult, type LocalFitTest } from '../rengine/cbDiag';
+import { dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, SCALED_TESTS, epcCounts, epcVerdict, type CompareModelsResult, type DiscriminantResult, type EpcRequest, type EpcResult, type EpcRow, type DvClass, type ModelFit, type Nesting, type LocalFitBlock, type LocalFitResult, type LocalFitTest } from '../rengine/cbDiag';
 import { cbFingerprint, cbModelBlocked } from './cbModel';
 import { clampNum, columnsFingerprint, isObj, oneOf } from './common';
 import { useStore } from '../store';
@@ -383,5 +384,72 @@ export const compareModelsAnalysis: AnalysisType<CompareModelsOptions, CompareMo
   run: async (o, ctx) => (await import('../rengine/cbDiag')).compareModelsR(callOf(ctx), toSpec(o.alternative!.model), o.nested),
   script: async (o, ctx) => (await import('../rengine/cbDiag')).compareModelsScriptR(callOf(ctx), toSpec(o.alternative!.model), o.nested),
   summary: (o) => (o.alternative ? `diagram vs the alternative saved ${o.alternative.savedAt ? new Date(o.alternative.savedAt).toLocaleDateString() : 'with the example'}` : 'no alternative saved yet'),
+};
+
+// ---------- EPC-based judgement of misspecification (Saris, Satorra & van der Veld 2009) ----------
+
+export interface EpcOptions extends EpcRequest { show: 'flagged' | 'all' }
+const POW_LABEL: Record<string, [string, string]> = { M: ['misspecified', 'bad'], 'EPC:M': ['misspecified (EPC)', 'bad'], I: ['inconclusive', 'warn'], NM: ['not misspecified', 'good'], 'EPC:NM': ['not misspecified (EPC)', 'good'] };
+const CI_LABEL: Record<string, [string, string]> = { M: ['misspecified', 'bad'], I: ['inconclusive', 'warn'], U: ['underpowered', 'warn'], NM: ['trivial', 'good'] };
+const decisionCell = (d: string | null, labels: Record<string, [string, string]>): Cell => (d && labels[d] ? { ...c(labels[d][0], labels[d][1]), bold: labels[d][1] === 'bad' } : c(d, 'dim'));
+const OP_WORD: Record<string, string> = { '=~': 'loading', '~~': 'covariance', '~': 'path', '~1': 'intercept' };
+const severity = (r: EpcRow) => (r.stdEpc !== null && r.stdSesoi ? Math.abs(r.stdEpc / r.stdSesoi) : 0);
+const rank = (r: EpcRow) => (r.decisionCi === 'M' || r.decisionPow === 'M' || r.decisionPow === 'EPC:M' ? 0 : r.decisionCi === 'NM' && (r.decisionPow === 'NM' || r.decisionPow === 'EPC:NM') ? 2 : 1);
+
+export function EpcView({ r, show }: { r: EpcResult; show: 'flagged' | 'all' }) {
+  const n = epcCounts(r.rows), s = r.settings;
+  const label = (x: EpcRow) => `${x.op === '=~' ? `${x.lhs} → ${x.rhs}` : x.op === '~' ? `${x.rhs} → ${x.lhs}` : x.op === '~~' ? `${x.lhs} ↔ ${x.rhs}` : `${x.lhs} (intercept)`}${r.groups && x.group ? ` (${r.groups[x.group - 1] ?? x.group})` : ''}`;
+  const sorted = [...r.rows].sort((a, b) => rank(a) - rank(b) || severity(b) - severity(a));
+  const rows = show === 'all' ? sorted : sorted.filter((x) => rank(x) === 0);
+  const pct = `${fmt(s.cilevel * 100, 0)}%`;
+  return (
+    <div className="tables">
+      <Table title="EPC-based judgement: summary" file="cb-epc-summary" columns={['Rule', 'Misspecified', 'Inconclusive', 'Underpowered', 'Not misspecified', 'Global decision']}
+        rows={[[c('J-rule: MI, power and EPC (Saris et al. 2009)'), c(n.pow.M, n.pow.M ? 'bad' : '', 0), c(n.pow.I, undefined, 0), c(null), c(n.pow.NM, undefined, 0), c(epcVerdict(n.pow).toLowerCase())],
+          [c(`EPC ${pct} CI against the SESOI (equivalence)`), c(n.ci.M, n.ci.M ? 'bad' : '', 0), c(n.ci.I, undefined, 0), c(n.ci.U, undefined, 0), c(n.ci.NM, undefined, 0), c(epcVerdict(n.ci).toLowerCase())]]}
+        note={`${r.rows.length} fixed parameters judged (semTools::epcEquivFit, ${r.engine.package} ${r.engine.version}). The smallest misspecification of interest (SESOI), standardised: loading ${s.stdLoad}, correlation ${s.cor}, path ${s.stdBeta}, intercept ${s.stdIntcept} (Cohen’s d). J-rule: the MI test at α = ${s.mialpha}${s.adjust === 'bonferroni' ? ' (Bonferroni)' : ''} and its power to detect the SESOI (high at ≥ ${s.mipower}): a significant MI with low power is a misspecification; a non-significant MI with high power is not; a significant MI with high power is judged by the size of the EPC; a non-significant MI with low power is inconclusive. Equivalence: the EPC’s CI beyond the SESOI is a misspecification, inside it trivial, too wide to tell underpowered. Global decision as semTools’ summary: any underpowered, then any misspecified, then any inconclusive.`} />
+      <Table title={`Fixed parameters${show === 'flagged' ? ': judged misspecified' : ''}`} file="cb-epc" columns={['Parameter', 'Kind', 'MI', 'EPC', 'Std. EPC', 'SESOI (std.)', 'Power', 'J-rule', `Std. EPC ${pct} CI`, 'Equivalence']}
+        rows={rows.map((x): Row => [c(label(x)), c(OP_WORD[x.op] ?? x.op, 'dim'), { ...c(x.mi, undefined, 2), bold: x.significant === true }, c(x.epc), c(x.stdEpc), c(x.stdSesoi, undefined, 2), { ...c(x.power), bold: x.highPower === true }, decisionCell(x.decisionPow, POW_LABEL),
+          c(x.lowStd !== null && x.highStd !== null ? `[${fmt(x.lowStd)}, ${fmt(x.highStd)}]` : null), decisionCell(x.decisionCi, CI_LABEL)])}
+        note={`${show === 'flagged' ? `${rows.length} of ${r.rows.length} parameters judged misspecified by either rule (show all in the card’s options). ` : ''}Bold MI: significant; bold power: high. Sorted by the size of the standardised EPC relative to the SESOI. This is the defensible alternative to freeing parameters by MI alone: free one only when it is judged misspecified and theory supports it (Saris, Satorra & van der Veld 2009; JARS asks for the rationale of every freed parameter).`} />
+      {r.warnings.length > 0 && <div>{r.warnings.map((w, i) => <div key={i} className="issue warning">{w}</div>)}</div>}
+    </div>
+  );
+}
+
+const EPC_FIELDS: [keyof EpcRequest & string, string, number, number, number][] = [
+  ['stdLoad', 'SESOI: standardised loading', 0.01, 1, 0.4], ['cor', 'SESOI: correlation (latent and residual)', 0.01, 1, 0.1], ['stdBeta', 'SESOI: standardised path', 0.01, 1, 0.1],
+  ['stdIntcept', 'SESOI: intercept (Cohen’s d)', 0.01, 5, 0.2], ['cilevel', 'Confidence level of the EPC intervals', 0.5, 0.999, 0.9], ['mialpha', 'α of the MI test', 0.0001, 0.5, 0.05], ['mipower', 'Power counted as high', 0.5, 0.999, 0.8],
+];
+
+export const epcAnalysis: AnalysisType<EpcOptions, EpcResult> = {
+  id: 'epcequiv', title: 'EPC-based misspecification', sub: 'each fixed parameter judged misspecified, not or inconclusive from MI, EPC and power (Saris et al. 2009; semTools)', group: CB_GROUP,
+  fitsModel: true,
+  display: ['show'],
+  defaults: () => ({ stdLoad: 0.4, cor: 0.1, stdBeta: 0.1, stdIntcept: 0.2, cilevel: 0.9, mialpha: 0.05, mipower: 0.8, adjust: 'none', show: 'flagged' }),
+  parseOptions: (raw) => {
+    if (!isObj(raw)) return null;
+    const o = Object.fromEntries(EPC_FIELDS.map(([k, , lo, hi, def]) => [k, clampStrict(raw[k], lo, hi, def)])) as Pick<EpcRequest, 'stdLoad' | 'cor' | 'stdBeta' | 'stdIntcept' | 'cilevel' | 'mialpha' | 'mipower'>;
+    return { ...o, adjust: oneOf(raw.adjust, ['none', 'bonferroni'] as const, 'none'), show: oneOf(raw.show, ['flagged', 'all'] as const, 'flagged') };
+  },
+  Options: ({ options: o, set, ctx, disabled }) => (
+    <fieldset className="card-options" disabled={disabled}>
+      <Hint text={`Which fixed parameters are misspecified by more than a size that matters? For every fixed parameter (cross-loadings, error covariances, paths not drawn) its modification index, expected change and the power to detect a misspecification of the smallest size of interest, judged by the J-rule (Saris, Satorra & van der Veld 2009) and by the EPC’s interval. The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings).`} />
+      {EPC_FIELDS.map(([k, label, lo, hi, def]) => (
+        <div className="field" key={k}>
+          <label htmlFor={`epc-${k}`}>{label}</label>
+          <input id={`epc-${k}`} aria-label={label} className="input num" type="number" min={lo} max={hi} step={0.01} value={o[k]} onChange={(e) => set({ ...o, [k]: clampNum(e.target.value, lo, hi, def) })} />
+        </div>
+      ))}
+      <label className="check"><input type="checkbox" checked={o.adjust === 'bonferroni'} onChange={(e) => set({ ...o, adjust: e.target.checked ? 'bonferroni' : 'none' })} /> <span>Bonferroni adjustment over all fixed parameters (MI tests and EPC intervals)</span></label>
+      <label className="check"><input type="checkbox" checked={o.show === 'all'} onChange={(e) => set({ ...o, show: e.target.checked ? 'all' : 'flagged' })} /> <span>List every fixed parameter, not only those judged misspecified</span></label>
+    </fieldset>
+  ),
+  View: ({ result, options }) => <EpcView r={result} show={options.show} />,
+  blocked: (_o, ctx) => cbModelBlocked(ctx, 'The EPC-based judgement', false) ?? fitBlocked(ctx, 'The EPC-based judgement') ?? (ctx.model?.ordered?.length ? 'The EPC-based judgement is for continuous indicators (semTools::epcEquivFit).' : null),
+  fingerprint: (o, ctx) => cbFingerprint(ctx, [o.stdLoad, o.cor, o.stdBeta, o.stdIntcept, o.cilevel, o.mialpha, o.mipower, o.adjust]),
+  run: async ({ show: _s, ...o }, ctx) => (await import('../rengine/cbDiag')).epcR(callOf(ctx), o),
+  script: async ({ show: _s, ...o }, ctx) => (await import('../rengine/cbDiag')).epcScriptR(callOf(ctx), o),
+  summary: (o) => `SESOI loading ${o.stdLoad}, correlation ${o.cor}, path ${o.stdBeta}; α ${o.mialpha}, power ${o.mipower}${o.adjust === 'bonferroni' ? ', Bonferroni' : ''}`,
 };
 

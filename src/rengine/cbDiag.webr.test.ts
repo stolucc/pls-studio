@@ -2,7 +2,8 @@
 // lavaan calls in native R (scripts/validation/cbdiag.R → src/engine/__fixtures__/cbdiag/reference.json):
 // local fit (lavResiduals z-tests, normalized residuals, the SRMR's tests, lavTest's further tests) and
 // FIML / two-stage with auxiliary variables (lavaan aux =); discriminant validity (semTools::discriminantValidity);
-// comparing two models (lavTestNET, lavTestLRT, nonnest2::vuongtest and icci).
+// comparing two models (lavTestNET, lavTestLRT, nonnest2::vuongtest and icci); the EPC-based judgement
+// (semTools::epcEquivFit).
 // Run with WEBR_TESTS=1 PS_NATIVE_R=1 (or npm run test:webr).
 
 import { readFileSync } from 'node:fs';
@@ -11,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall } from './bridge';
 import type { CbCall } from './cbExtras';
-import { compareModelsR, compareModelsScriptR, discriminantR, discriminantScriptR, dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, localFitR, localFitScriptR, type LocalFitBlock } from './cbDiag';
+import { compareModelsR, compareModelsScriptR, epcCounts, epcR, epcScriptR, epcVerdict, discriminantR, discriminantScriptR, dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, localFitR, localFitScriptR, type LocalFitBlock } from './cbDiag';
 import { estimateCbLavaan } from './lavaan';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
@@ -204,5 +205,30 @@ describe('comparing two models (lavTestNET, lavTestLRT, nonnest2)', () => {
     const fewer: ModelSpec = { constructs: [F('visual', ['x1', 'x2', 'x3']), F('textual', ['x4', 'x5', 'x6'])], paths: [] };
     await expect(compareModelsR(call(), fewer, 'auto')).rejects.toThrow(/same observed variables/);
     await expect(compareModelsR(call({ estimator: 'ULS' }), spec, 'auto')).rejects.toThrow(/maximum-likelihood/);
+  }, 900_000);
+});
+
+describe('EPC-based judgement (semTools::epcEquivFit)', () => {
+  type Ref = { lhs: string[]; op: string[]; rhs: string[]; mi: number[]; epc: number[]; stdEpc: number[]; stdSesoi: number[]; power: number[]; decisionPow: string[]; lowStd: number[]; highStd: number[]; decisionCi: string[]; globalCi: string; globalPow: string };
+  const same = (r: Awaited<ReturnType<typeof epcR>>, ref: Ref) => {
+    expect(r.rows.map((x) => `${x.lhs} ${x.op} ${x.rhs}`)).toEqual(ref.lhs.map((l, i) => `${l} ${ref.op[i]} ${ref.rhs[i]}`));
+    r.rows.forEach((x, i) => {
+      for (const k of ['mi', 'epc', 'stdEpc', 'stdSesoi', 'power', 'lowStd', 'highStd'] as const) expect(x[k], `${k} ${i}`).toBeCloseTo(ref[k][i], 6);
+      expect(x.decisionPow, `J-rule ${i}`).toBe(ref.decisionPow[i]);
+      expect(x.decisionCi, `CI ${i}`).toBe(ref.decisionCi[i]);
+    });
+    const n = epcCounts(r.rows);
+    expect(epcVerdict(n.ci)).toBe(ref.globalCi);
+    expect(epcVerdict(n.pow)).toBe(ref.globalPow);
+  };
+  const defaults = { stdLoad: 0.4, cor: 0.1, stdBeta: 0.1, stdIntcept: 0.2, cilevel: 0.9, mialpha: 0.05, mipower: 0.8, adjust: 'none' as const };
+  it('?epcEquivFit’s one-factor model with the defaults: every row, decision and the global verdicts', async () => {
+    const one: ModelSpec = { constructs: [F('onefactor', ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9'])], paths: [] };
+    same(await epcR(call({ spec: one }), defaults), REF.epc.one);
+  }, 900_000);
+  it('the HS CFA with other SESOIs, a 95% interval, α = .01, power .9 and Bonferroni', async () => {
+    const o = { stdLoad: 0.3, cor: 0.15, stdBeta: 0.2, stdIntcept: 0.2, cilevel: 0.95, mialpha: 0.01, mipower: 0.9, adjust: 'bonferroni' as const };
+    same(await epcR(call(), o), REF.epc.hs);
+    expect(await epcScriptR(call(), o)).toContain('epcEquivFit(fit, stdLoad = 0.3, cor = 0.15, stdBeta = 0.2, stdIntcept = 0.2, cilevel = 0.95, mialpha = 0.01, mipower = 0.9, adjust.method = "bonferroni")');
   }, 900_000);
 });

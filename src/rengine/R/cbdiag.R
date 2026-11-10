@@ -184,3 +184,43 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
     nestedChoice = nested, warnings = env$.warnings,
     engine = list(package = "nonnest2", version = as.character(utils::packageVersion("nonnest2")), lavaan = as.character(utils::packageVersion("lavaan")))))
 }
+
+#' EPC-based judgement of misspecification (semTools::epcEquivFit): for every fixed parameter its MI, EPC,
+#' the power of the MI test to detect a misspecification of the smallest size of interest, and the
+#' decisions of Saris, Satorra & van der Veld (2009; the J-rule) and of the EPC's confidence interval
+#' against that size (equivalence testing). The app counts the decisions and gives semTools' global verdict.
+ps_cb_epcequiv <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "The EPC-based judgement", raw = FALSE)
+  if (identical(req$estimator, "2SLS")) stop("The EPC-based judgement needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
+  if (length(unlist(req$model$ordered))) stop("The EPC-based judgement is for continuous indicators (semTools::epcEquivFit).")
+  e <- req$epc
+  val <- function(k, lo, hi, def) { x <- e[[k, exact = TRUE]] %||% def; x <- ps_number(x, k); if (x < lo || x > hi) stop(sprintf("Invalid %s in the request.", k)); x }
+  std_load <- val("stdLoad", 0.01, 1, 0.4); cor <- val("cor", 0.01, 1, 0.1); std_beta <- val("stdBeta", 0.01, 1, 0.1); std_int <- val("stdIntcept", 0.01, 5, 0.2)
+  cilevel <- val("cilevel", 0.5, 0.999, 0.9); mialpha <- val("mialpha", 0.0001, 0.5, 0.05); mipower <- val("mipower", 0.5, 0.999, 0.8)
+  adjust <- if (identical(e$adjust, "bonferroni")) "bonferroni" else "none"
+  body <- c(b$body, "",
+    "# EPC-based judgement of misspecification (Saris, Satorra & van der Veld 2009; semTools::epcEquivFit): per fixed",
+    "# parameter the MI, EPC, the power to detect a misspecification of the smallest effect size of interest (SESOI), the",
+    "# J-rule decision (decision.pow) and the EPC confidence interval against the SESOI (decision.ci).",
+    "suppressPackageStartupMessages(library(semTools))",
+    ps_call_objects(),
+    sprintf("epc <- epcEquivFit(fit, stdLoad = %s, cor = %s, stdBeta = %s, stdIntcept = %s, cilevel = %s, mialpha = %s, mipower = %s, adjust.method = \"%s\")",
+      format(std_load), format(cor), format(std_beta), format(std_int), format(cilevel), format(mialpha), format(mipower), adjust))
+  if (export) return(paste(ps_script("EPC-based judgement of misspecification (semTools::epcEquivFit)", c("lavaan", "semTools"), b$inputs, body, c("print(epc)", "summary(epc, ssv = TRUE)")), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  d <- as.data.frame(env$epc)
+  back <- ps_cb_back(ps_esem_align(b, env$fit))
+  nm <- function(x) ps_back(x, back)
+  col <- function(k) if (is.null(d[[k]])) rep(NA_real_, nrow(d)) else suppressWarnings(as.numeric(d[[k]]))
+  chr <- function(k) if (is.null(d[[k]])) rep(NA_character_, nrow(d)) else as.character(d[[k]])
+  lg <- function(k) if (is.null(d[[k]])) rep(NA, nrow(d)) else as.logical(d[[k]])
+  ps_json(list(lhs = I(nm(chr("lhs"))), op = I(chr("op")), rhs = I(nm(chr("rhs"))), group = I(col("group")),
+    mi = I(col("mi")), epc = I(col("epc")), stdEpc = I(col("std.epc")), sesoi = I(col("sesoi")), stdSesoi = I(col("std.sesoi")),
+    significant = I(lg("significant.mi")), highPower = I(lg("high.power")), power = I(col("pow")), decisionPow = I(chr("decision.pow")),
+    seEpc = I(col("se.epc")), lowStd = I(col("lower.std.epc")), highStd = I(col("upper.std.epc")), decisionCi = I(chr("decision.ci")),
+    settings = list(stdLoad = std_load, cor = cor, stdBeta = std_beta, stdIntcept = std_int, cilevel = cilevel, mialpha = mialpha, mipower = mipower, adjust = adjust),
+    groups = if (!is.null(b$group_var)) I(as.character(lavInspect(env$fit, "group.label"))) else NULL, warnings = env$.warnings,
+    engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools")))))
+}

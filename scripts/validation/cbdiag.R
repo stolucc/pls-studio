@@ -6,7 +6,8 @@
 #    removed by a fixed rule (x1 missing in every 5th row, x5 in rows 3, 10, 17, ...).
 #  - discriminant validity: semTools::discriminantValidity at the cutoffs .8, .9 and 1 and merged, on the HS CFA
 #    and Political Democracy's measurement model;
-#  - comparing models: nonnest2's vuongtest / icci (documented lavaan example) and lavTestNET / lavTestLRT.
+#  - comparing models: nonnest2's vuongtest / icci (documented lavaan example) and lavTestNET / lavTestLRT;
+#  - the EPC-based judgement: semTools::epcEquivFit (its help page's one-factor model; the HS CFA, other settings).
 # Run: Rscript scripts/validation/cbdiag.R  (writes src/engine/__fixtures__/cbdiag/reference.json)
 suppressPackageStartupMessages({ library(lavaan); library(jsonlite) })
 hs_model <- "visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9"
@@ -70,8 +71,18 @@ compare <- list(
   nested = list(net21 = net$nested[2, 1], net12 = net$nested[1, 2], lrt = list(chisq = lrt[["Chisq diff"]][2], df = lrt[["Df diff"]][2], p = lrt[["Pr(>Chisq)"]][2]),
     vuong = vt(vuongtest(fit, one_f, nested = TRUE))))
 
+# EPC-based judgement (semTools::epcEquivFit): ?epcEquivFit's one-factor example with the defaults, and the HS CFA
+# with other SESOIs and Bonferroni; semTools' global decisions from its summary() counts.
+epcs <- function(e) {
+  sm <- summary(e)
+  g <- function(n, u = 0) semTools:::global_localfit_decision(n_M = n$n_M, n_I = n$n_I, n_U = u, n_NM = n$n_NM)
+  list(lhs = e$lhs, op = e$op, rhs = e$rhs, mi = e$mi, epc = e$epc, stdEpc = e$std.epc, stdSesoi = e$std.sesoi, power = e$pow, decisionPow = e$decision.pow,
+    lowStd = e$lower.std.epc, highStd = e$upper.std.epc, decisionCi = e$decision.ci, globalCi = g(sm$epc_equivalence, sm$epc_equivalence$n_U), globalPow = g(sm$ssv))
+}
+epc <- list(one = epcs(epcEquivFit(one_f)), hs = epcs(epcEquivFit(fit, stdLoad = 0.3, cor = 0.15, stdBeta = 0.2, cilevel = 0.95, mialpha = 0.01, mipower = 0.9, adjust.method = "bonferroni")))
+
 out <- list(versions = list(lavaan = as.character(packageVersion("lavaan")), semTools = as.character(packageVersion("semTools")), nonnest2 = as.character(packageVersion("nonnest2")), R = R.version.string),
-  localfit = localfit, aux = aux, discriminant = discriminant, compare = compare)
+  localfit = localfit, aux = aux, discriminant = discriminant, compare = compare, epc = epc)
 dir.create("src/engine/__fixtures__/cbdiag", showWarnings = FALSE, recursive = TRUE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"), "src/engine/__fixtures__/cbdiag/reference.json")
 str(out, max.level = 2)

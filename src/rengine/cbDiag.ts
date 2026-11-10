@@ -164,3 +164,37 @@ export async function compareModelsR(c: CbCall, alternative: ModelSpec, nested: 
   return parseCompareModels(await rCall<Record<string, any>>('ps_cb_compare_models', compareModelsRequest(c, alternative, nested), 'nonnest2'));
 }
 export const compareModelsScriptR = (c: CbCall, alternative: ModelSpec, nested: Nesting) => rScript('ps_cb_compare_models', compareModelsRequest(c, alternative, nested), 'nonnest2');
+
+// ---------- EPC-based judgement of misspecification (semTools::epcEquivFit) ----------
+
+export interface EpcRequest { stdLoad: number; cor: number; stdBeta: number; stdIntcept: number; cilevel: number; mialpha: number; mipower: number; adjust: 'none' | 'bonferroni' }
+/** decisionPow: M / EPC:M substantially misspecified, NM / EPC:NM trivially, I inconclusive (J-rule); decisionCi: M, NM, I, U (underpowered). */
+export interface EpcRow { lhs: string; op: string; rhs: string; group: number | null; mi: number | null; epc: number | null; stdEpc: number | null; sesoi: number | null; stdSesoi: number | null; significant: boolean | null; highPower: boolean | null; power: number | null; decisionPow: string | null; seEpc: number | null; lowStd: number | null; highStd: number | null; decisionCi: string | null }
+export interface EpcResult { rows: EpcRow[]; settings: EpcRequest; groups: string[] | null; warnings: string[]; engine: REngineInfo }
+export function parseEpc(r: Record<string, any>): EpcResult {
+  const lhs = arr<string>(r.lhs), at = <T,>(k: string, f: (v: unknown) => T) => arr<unknown>(r[k]).map(f);
+  const n = (k: string) => at(k, num), s = (k: string) => at(k, str), b = (k: string) => at(k, (v) => (typeof v === 'boolean' ? v : null));
+  const [op, rhs, group, mi, epc, stdEpc, sesoi, stdSesoi, sig, high, power, dPow, seEpc, lowStd, highStd, dCi] =
+    [s('op'), s('rhs'), n('group'), n('mi'), n('epc'), n('stdEpc'), n('sesoi'), n('stdSesoi'), b('significant'), b('highPower'), n('power'), s('decisionPow'), n('seEpc'), n('lowStd'), n('highStd'), s('decisionCi')] as const;
+  return {
+    rows: lhs.map((l, i) => ({ lhs: l, op: op[i] ?? '', rhs: rhs[i] ?? '', group: group[i] ?? null, mi: mi[i] ?? null, epc: epc[i] ?? null, stdEpc: stdEpc[i] ?? null, sesoi: sesoi[i] ?? null, stdSesoi: stdSesoi[i] ?? null,
+      significant: sig[i] ?? null, highPower: high[i] ?? null, power: power[i] ?? null, decisionPow: dPow[i] ?? null, seEpc: seEpc[i] ?? null, lowStd: lowStd[i] ?? null, highStd: highStd[i] ?? null, decisionCi: dCi[i] ?? null })),
+    settings: r.settings as EpcRequest, groups: r.groups == null ? null : arr<string>(r.groups), ...out(r),
+  };
+}
+export async function epcR(c: CbCall, o: EpcRequest): Promise<EpcResult> {
+  return parseEpc(await rCall<Record<string, any>>('ps_cb_epcequiv', req(c, { epc: o }), 'lavaan'));
+}
+export const epcScriptR = (c: CbCall, o: EpcRequest) => rScript('ps_cb_epcequiv', req(c, { epc: o }), 'lavaan');
+
+/** The decisions counted as semTools' summary() counts them (the J-rule's M and NM include EPC:M and EPC:NM). */
+export function epcCounts(rows: EpcRow[]) {
+  const ci = (d: string) => rows.filter((r) => r.decisionCi === d).length;
+  const pow = (...d: string[]) => rows.filter((r) => r.decisionPow !== null && d.includes(r.decisionPow)).length;
+  return { ci: { M: ci('M'), I: ci('I'), U: ci('U'), NM: ci('NM') }, pow: { M: pow('M', 'EPC:M'), I: pow('I'), NM: pow('NM', 'EPC:NM') } };
+}
+export type EpcVerdict = 'UNDERPOWERED' | 'SUBSTANTIAL MISSPECIFICATION' | 'INCONCLUSIVE' | 'EQUIVALENT' | 'NO PARAMETERS EVALUATED';
+/** semTools' global decision (its global_localfit_decision): any underpowered, then any misspecified, then any inconclusive. */
+export function epcVerdict(n: { M: number; I: number; U?: number; NM: number }): EpcVerdict {
+  return (n.U ?? 0) > 0 ? 'UNDERPOWERED' : n.M > 0 ? 'SUBSTANTIAL MISSPECIFICATION' : n.I > 0 ? 'INCONCLUSIVE' : n.NM > 0 ? 'EQUIVALENT' : 'NO PARAMETERS EVALUATED';
+}

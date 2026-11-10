@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, parseModelState, toSpec, validateModel, type ModelState } from '../model/project';
 import { cbRequest } from '../rengine/lavaan';
-import { compareModelsRequest } from '../rengine/cbDiag';
+import { compareModelsRequest, epcCounts, epcVerdict, type EpcRow } from '../rengine/cbDiag';
 import { dvClass, dvClassChi2, LOCALFIT_TESTS } from '../rengine/cbDiag';
-import { compareModelsAnalysis as cm, compareModelsProblem, discriminantAnalysis as dv, localFitAnalysis as lf, localTestProblem, zShade } from './cbDiag';
+import { compareModelsAnalysis as cm, compareModelsProblem, epcAnalysis as ep, discriminantAnalysis as dv, localFitAnalysis as lf, localTestProblem, zShade } from './cbDiag';
 import { cbFingerprint } from './cbModel';
 import type { AnalysisCtx } from './types';
 
@@ -163,5 +163,33 @@ describe('model comparison card (CB-SEM)', () => {
     expect(r.model.multigroup).toBeUndefined();
     expect(r.alternative.multigroup?.column).toBe('g');
     expect(r.compare).toEqual({ nested: 'auto' });
+  });
+});
+
+describe('EPC-based judgement card (Saris, Satorra & van der Veld 2009)', () => {
+  it('reads its options strictly and keeps the list display-only', () => {
+    const d = ep.defaults(ctx());
+    expect(ep.parseOptions({ ...d, stdLoad: 0.3, adjust: 'bonferroni', show: 'all' })).toEqual({ ...d, stdLoad: 0.3, adjust: 'bonferroni', show: 'all' });
+    expect(ep.parseOptions({ stdLoad: '0.3', mialpha: 9, adjust: 'holm', show: 'x' })).toEqual({ ...d, mialpha: 0.5 });
+    expect(ep.parseOptions(null)).toBeNull();
+    expect(ep.display).toEqual(['show']);
+    expect(ep.fingerprint({ ...d, show: 'all' }, ctx())).toBe(ep.fingerprint(d, ctx()));
+    expect(ep.fingerprint({ ...d, cor: 0.2 }, ctx())).not.toBe(ep.fingerprint(d, ctx()));
+  });
+  it('is for continuous indicators of a model fitted as a whole', () => {
+    const d = ep.defaults(ctx());
+    expect(ep.blocked(d, ctx())).toBeNull();
+    expect(ep.blocked(d, ctx({ model: { ...model, ordered: ['a1'] }, settings: { ...settings, estimator: 'WLSMV', missing: 'casewise' } }))).toMatch(/continuous/);
+    expect(ep.blocked(d, ctx({ settings: { ...settings, estimator: '2SLS' } }))).toMatch(/equation by equation/);
+  });
+  it('counts the decisions and gives semTools’ global verdict', () => {
+    const row = (decisionPow: string, decisionCi: string) => ({ decisionPow, decisionCi }) as EpcRow;
+    const rows = [row('M', 'M'), row('EPC:M', 'I'), row('I', 'U'), row('EPC:NM', 'NM'), row('NM', 'NM')];
+    expect(epcCounts(rows)).toEqual({ ci: { M: 1, I: 1, U: 1, NM: 2 }, pow: { M: 2, I: 1, NM: 2 } });
+    expect(epcVerdict({ M: 1, I: 1, U: 1, NM: 2 })).toBe('UNDERPOWERED');
+    expect(epcVerdict({ M: 1, I: 1, NM: 2 })).toBe('SUBSTANTIAL MISSPECIFICATION');
+    expect(epcVerdict({ M: 0, I: 1, NM: 2 })).toBe('INCONCLUSIVE');
+    expect(epcVerdict({ M: 0, I: 0, NM: 2 })).toBe('EQUIVALENT');
+    expect(epcVerdict({ M: 0, I: 0, NM: 0 })).toBe('NO PARAMETERS EVALUATED');
   });
 });
