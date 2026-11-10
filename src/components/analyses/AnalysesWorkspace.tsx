@@ -1,5 +1,6 @@
 import { Component, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { analysisType, ANALYSIS_TYPES } from '../../analyses/registry';
+import { matchesSearch } from '../../analyses/search';
 import {
   addAnalysis, currentCtx, addText, cancelCard, cardStatus, duplicateCard, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, selectCard,
   setOptions, setText, setTitle, unpackCard, useAnalyses, MAX_TITLE, type CardStatus,
@@ -95,6 +96,7 @@ const PILL: Record<CardStatus['state'], [string, string]> = {
 
 function AddMenu({ disabled }: { disabled: boolean }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -102,12 +104,27 @@ function AddMenu({ disabled }: { disabled: boolean }) {
     const key = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     window.addEventListener('mousedown', away);
     window.addEventListener('keydown', key);
-    ref.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    // Typing filters at once.
+    ref.current?.querySelector<HTMLInputElement>('.menu-search')?.focus();
     return () => { window.removeEventListener('mousedown', away); window.removeEventListener('keydown', key); };
   }, [open]);
+  useEffect(() => { if (!open) setQuery(''); }, [open]);
   // (snapshots are taken from the Model tab, not added here)
   const addable = ANALYSIS_TYPES.filter((t) => !t.frozen);
-  const groups = [...new Set(addable.map((t) => t.group))] as AnalysisGroup[];
+  const entries = addable.flatMap((t) => (t.entries ?? [{ title: t.title, sub: t.sub, options: undefined }]).map((e) => ({ t, e })))
+    .filter(({ t, e }) => matchesSearch(query, e.title, e.sub, t.group, t.title));
+  const groups = [...new Set(entries.map(({ t }) => t.group))] as AnalysisGroup[];
+  const texts = [
+    { kind: 'heading' as const, title: 'Heading', sub: 'a section title for the cards below it' },
+    { kind: 'note' as const, title: 'Note', sub: 'your own text between results' },
+  ].filter((x) => matchesSearch(query, x.title, x.sub));
+  const onSearchKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    const items = ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)');
+    if (e.key === 'Enter') { e.preventDefault(); items?.[0]?.click(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); items?.[0]?.focus(); }
+    // Escape first clears the search, then closes the menu.
+    else if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); setQuery(''); }
+  };
   const onMenuKey = (e: KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
@@ -121,19 +138,24 @@ function AddMenu({ disabled }: { disabled: boolean }) {
       <button className="btn primary" aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={() => setOpen(!open)}>+ Add analysis</button>
       {open && (
         <div className="menu-pop" role="menu" aria-label="Add to the analysis log" onKeyDown={onMenuKey}>
+          <div className="menu-search-box">
+            <input className="input menu-search" type="search" placeholder="Search analyses…" aria-label="Search analyses" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onSearchKey} />
+          </div>
           {groups.map((g) => (
             <div key={g}>
               <div className="menu-group">{g}</div>
-              {addable.filter((t) => t.group === g).flatMap((t) => (t.entries ?? [{ title: t.title, sub: t.sub, options: undefined }]).map((e) => (
+              {entries.filter(({ t }) => t.group === g).map(({ t, e }) => (
                 <button key={`${t.id}:${e.title}`} role="menuitem" className="menu-item" onClick={() => pick(() => addAnalysis(t.id, e.options?.(t.defaults(currentCtx()))))}>
                   <span>{e.title}<br /><span className="sub">{e.sub}</span></span>
                 </button>
-              )))}
+              ))}
             </div>
           ))}
-          <div className="menu-sep" role="separator" />
-          <button role="menuitem" className="menu-item" onClick={() => pick(() => addText('heading'))}><span>Heading<br /><span className="sub">a section title for the cards below it</span></span></button>
-          <button role="menuitem" className="menu-item" onClick={() => pick(() => addText('note'))}><span>Note<br /><span className="sub">your own text between results</span></span></button>
+          {groups.length === 0 && texts.length === 0 && <div className="menu-empty">No analysis matches “{query}”.</div>}
+          {texts.length > 0 && groups.length > 0 && <div className="menu-sep" role="separator" />}
+          {texts.map((x) => (
+            <button key={x.kind} role="menuitem" className="menu-item" onClick={() => pick(() => addText(x.kind))}><span>{x.title}<br /><span className="sub">{x.sub}</span></span></button>
+          ))}
         </div>
       )}
     </div>

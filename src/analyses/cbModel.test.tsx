@@ -32,6 +32,18 @@ describe('CB-SEM model cards', () => {
     expect(cmp.fingerprint({ kinds: ['paths'] }, ctx({ settings: { ...settings, seed: 99 } }))).toBe(cmp.fingerprint({ kinds: ['paths'] }, ctx()));
   });
 
+  it('parameter comparisons say when there are too few structural paths, instead of failing in R', () => {
+    // The test model has one path.
+    expect(cmp.blocked({ kinds: ['paths'] }, ctx())).toMatch(/one free structural path: a comparison needs at least two/);
+    expect(cmp.blocked({ kinds: ['paths'] }, ctx({ model: { ...model, paths: [] } }))).toMatch(/no free structural paths/);
+    expect(cmp.blocked({ kinds: ['paths', 'loadings'] }, ctx())).toBeNull();
+    const two = { ...model, constructs: [...model.constructs, K('C', ['a1', 'b1', 'other'])], paths: [...model.paths, { id: 'q', from: 'C', to: 'B' }] };
+    expect(cmp.blocked({ kinds: ['paths'] }, ctx({ model: two }))).toBeNull();
+    // Held equal by one label, or one fixed: one free parameter.
+    expect(cmp.blocked({ kinds: ['paths'] }, ctx({ model: { ...two, paths: two.paths.map((p) => ({ ...p, label: 'b' })) } }))).toMatch(/one free/);
+    expect(cmp.blocked({ kinds: ['paths'] }, ctx({ model: { ...two, paths: [two.paths[0], { ...two.paths[1], fixed: 0.5 }] } }))).toMatch(/one free/);
+  });
+
   it('validate options from files', () => {
     expect(cmp.parseOptions({ kinds: ['paths', 'nonsense', 'paths', 'loadings'] })).toEqual({ kinds: ['paths', 'loadings'] });
     expect(sw.parseOptions({ method: 'ten Berge' })).toEqual({ method: 'regression' });

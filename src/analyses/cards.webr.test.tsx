@@ -223,6 +223,18 @@ it('Monte Carlo simulation (R engine), with progress, equal to the same chunks r
   expect(html).toContain('Power');
 }, 900_000);
 
+it('parameter comparisons with fewer than two parameters of the chosen kinds say so (R used to fail naming an empty matrix)', async () => {
+  const { rCall } = await import('../rengine/bridge');
+  const { compareParamsR } = await import('../rengine/cbExtras');
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
+  const hs = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const f = (name: string, ind: string[]) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: ind });
+  const cfa = { constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6'])], paths: [] };
+  await expect(compareParamsR({ data: hs, spec: cfa, missing: 'casewise', estimator: 'ML' } as never, ['paths'])).rejects.toThrow(/0 free parameters of the chosen kinds \(paths\): a comparison needs at least two/);
+  const one = { ...cfa, paths: [{ from: 'visual', to: 'textual' }] };
+  await expect(compareParamsR({ data: hs, spec: one, missing: 'casewise', estimator: 'ML' } as never, ['paths'])).rejects.toThrow(/1 free parameter of the chosen kinds/);
+}, 900_000);
+
 it('CB-SEM extras on the model on the canvas: parameter comparisons and factor score weights', async () => {
   const { rCall } = await import('../rengine/bridge');
   const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');

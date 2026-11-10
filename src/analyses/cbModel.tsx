@@ -98,6 +98,14 @@ function CompareParamsView({ r }: { r: CompareParamsResult }) {
   );
 }
 
+/** Structural paths alone: a pairwise comparison needs at least two free ones (paths held equal by a label count once). */
+function tooFewPaths(o: CompareParamsOptions, ctx: AnalysisCtx): string | null {
+  if (o.kinds.length !== 1 || o.kinds[0] !== 'paths' || !ctx.model) return null;
+  const free = ctx.model.paths.filter((p) => p.fixed === undefined);
+  const n = new Set(free.map((p) => p.label ?? p.id)).size;
+  return n >= 2 ? null : `The model has ${n === 0 ? 'no free structural paths' : 'one free structural path'}: a comparison needs at least two. Draw more paths, or compare loadings, variances or covariances too.`;
+}
+
 export const compareParamsAnalysis: AnalysisType<CompareParamsOptions, CompareParamsResult> = {
   id: 'cbcompare', title: 'Parameter comparisons', sub: 'pairwise z-tests of differences between estimates (critical ratios)', group: CB_GROUP,
   fitsModel: true,
@@ -118,7 +126,7 @@ export const compareParamsAnalysis: AnalysisType<CompareParamsOptions, ComparePa
     </fieldset>
   ),
   View: ({ result }) => <CompareParamsView r={result} />,
-  blocked: (o, ctx) => cbModelBlocked(ctx, 'Comparing parameters', false) ?? (o.kinds.length ? null : 'Choose which parameters to compare.'),
+  blocked: (o, ctx) => cbModelBlocked(ctx, 'Comparing parameters', false) ?? (o.kinds.length ? tooFewPaths(o, ctx) : 'Choose which parameters to compare.'),
   fingerprint: (_o, ctx) => cbFingerprint(ctx),
   run: async (o, ctx) => (await import('../rengine/cbExtras')).compareParamsR(callOf(ctx), o.kinds),
   script: async (o, ctx) => (await import('../rengine/cbExtras')).compareParamsScriptR(callOf(ctx), o.kinds),

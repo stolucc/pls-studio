@@ -1660,6 +1660,7 @@ ps_cb_compare_params <- function(req_json, export = FALSE) {
     "sel <- pt[keep, ]",
     "# Parameters held equal share one free parameter: keep the first.",
     "sel <- sel[!duplicated(sel$free), ]",
+    sprintf("if (nrow(sel) < 2) stop(sprintf(\"%%d free parameter%%s of the chosen kinds (%s): a comparison needs at least two. Choose more kinds, or free or draw more parameters.\", nrow(sel), if (nrow(sel) == 1) \"\" else \"s\"))", paste(kinds, collapse = ", ")),
     "V <- vcov(fit)[sel$free, sel$free, drop = FALSE]",
     "d <- outer(sel$est, sel$est, \"-\")",
     "se <- sqrt(pmax(outer(diag(V), diag(V), \"+\") - 2 * V, 0))",
