@@ -21,6 +21,8 @@ export interface PlsRequest {
 export function plsRequest(data0: Dataset, spec0: ModelSpec, options: PlsOptions, pkg: PlsPackage): PlsRequest {
   if (spec0.copulas?.length) throw new Error('This runs through the R packages, which have no Gaussian copula term: remove the copulas from the paths first.');
   if (spec0.constructs.some((c) => c.predefinedWeights)) throw new Error('This runs through the R packages, which this app calls without pre-defined weights: estimate the weights first.');
+  // (CB-SEM's lavaan weights its own requests; cSEM and seminr take no sampling weights: weighted PLS is the built-in engine's.)
+  if (spec0.weights) throw new Error('This runs through the R packages, which take no sampling weights (weighted PLS is the built-in engine’s): clear the sampling weights first.');
   if (spec0.threeWay?.length) throw new Error('This runs through the R packages, which this app calls for two-way interactions only: remove the moderated moderation first.');
   if (data0.moments && data0.cols.length === 0) throw new Error('PLS needs raw data; this dataset is a covariance matrix.');
   // Categorical exogenous constructs travel as their dummy columns, a Mode B composite.

@@ -215,6 +215,7 @@ export function rotateToImplied(Z: Float64Array[], R: number[][], Sigma: number[
  */
 function fitTestJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>): Job {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+  if (spec.weights) throw new Error('The test of exact fit is not available with sampling weights (its bootstrap is unweighted).');
   const m = compileModel(spec);
   const { cols } = extractColumns(data, m, opts.missing);
   const Z = standardizeColumns(cols, m.indicatorNames);

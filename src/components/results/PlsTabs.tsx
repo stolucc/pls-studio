@@ -56,6 +56,7 @@ function Overview({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null 
         <div className="stat-card" title={Number.isFinite(pls.fit.estimated.srmr) ? 'SRMR of the estimated model (Model fit)' : 'Not reported for this model (Model fit says why)'}><div className="k">SRMR</div><div className="v">{fmt(pls.fit.estimated.srmr)}</div></div>
         <div className="stat-card"><div className="k">Bootstrap</div><div className="v">{boot ? boot.samples : '—'}</div></div>
         {pls.droppedRows > 0 && <div className="stat-card"><div className="k">Rows dropped</div><div className="v">{pls.droppedRows}</div></div>}
+        {pls.samplingWeights && <div className="stat-card" title="Weighted PLS (Becker & Ismail 2016): weighted correlations and regressions"><div className="k">Sampling weights</div><div className="v">{pls.samplingWeights}</div></div>}
       </div>
       <div className="tables">
         <Table title="Coefficient of determination" file="r-squared" columns={['Construct', 'R²', 'R² adjusted']}

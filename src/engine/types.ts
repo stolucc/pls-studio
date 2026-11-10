@@ -168,7 +168,7 @@ export interface ModelSpec {
   sampleCovRescale?: false;
   /** CB-SEM (lavaan): multiple-group analysis by a grouping column, with a level of measurement invariance. */
   multigroup?: MultigroupSpec;
-  /** CB-SEM (lavaan): sampling (survey) weights from this column (lavaan's sampling.weights; robust standard errors). */
+  /** Sampling (survey) weights from this column: CB-SEM, lavaan's sampling.weights (robust standard errors); PLS-SEM, weighted PLS (built-in engine). */
   weights?: string;
   /** CB-SEM: sampling clusters in a single-level model (lavaan cluster =; cluster-robust standard errors). */
   cluster?: string;
@@ -307,6 +307,8 @@ export interface PlsResult {
   /** The R bridge's explanations of the result (blank cells, conventions), shown with the tables they concern. */
   notes?: string[];
   droppedRows: number;
+  /** WPLS (built-in engine): the sampling-weights column every correlation and regression was weighted by. */
+  samplingWeights?: string;
   /** Multiple imputation: the number of imputed data sets the estimates are averaged over. */
   imputations?: number;
   /** Second-order constructs (cSEM two-stage): loading and weight of each component, by index in `constructs`. */

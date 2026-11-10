@@ -294,8 +294,8 @@ describe('sampling weights (CB-SEM)', () => {
     expect(errs({ ...m, weights: 'a1' })[0]).toMatch(/cannot be both the sampling weights and an indicator/);
     expect(errs({ ...m, multilevel: { column: 'w', between: 'saturated' } }).some((x) => /two-level/.test(x))).toBe(true);
   });
-  it('warns that PLS-SEM ignores them, and survives a save and load', () => {
-    expect(validateModel(m, d, { method: 'pls', consistent: false }).some((i) => i.level === 'warning' && /PLS-SEM ignores them/.test(i.message))).toBe(true);
+  it('PLS-SEM weights them (WPLS, built-in engine), and they survive a save and load', () => {
+    expect(validateModel(m, d, { method: 'pls', consistent: false }).some((i) => i.level === 'warning' && /Weighted PLS .* built-in engine/.test(i.message))).toBe(true);
     const file = JSON.parse(serializeProject(m, DEFAULT_SETTINGS, null, null));
     expect(parseProject(JSON.stringify(file)).model.weights).toBe('w');
   });
@@ -563,11 +563,11 @@ describe('interaction terms (seminr’s method per moderation)', () => {
     expect(loose.moderations[0].method).toBeUndefined();
     expect(toSpec(loose).moderations![0]).not.toHaveProperty('method');
   });
-  it('is accepted with seminr only', () => {
+  it('is accepted with seminr and the built-in engine', () => {
     const errors = (s: Partial<Settings>) => validateModel(model, data, { ...DEFAULT_SETTINGS, method: 'pls', ...s }).filter((i) => i.level === 'error').map((i) => i.message);
     expect(errors({ engine: 'r', plsPackage: 'seminr' })).toEqual([]);
     expect(errors({ engine: 'r', plsPackage: 'cSEM' })).toEqual([expect.stringMatching(/orthogonalising: that interaction term is seminr’s/)]);
-    expect(errors({ engine: 'builtin' })).toEqual([expect.stringMatching(/seminr/)]);
+    expect(errors({ engine: 'builtin' })).toEqual([]);
     // A two-stage term (no method) is fine everywhere; CB-SEM ignores the field (lavaan has its own product indicators).
     const plain = { ...model, moderations: [{ id: 'mo', moderator: 'M', path: 'p' }] };
     expect(validateModel(plain, data, { ...DEFAULT_SETTINGS, method: 'pls', engine: 'r', plsPackage: 'cSEM' }).filter((i) => i.level === 'error')).toEqual([]);

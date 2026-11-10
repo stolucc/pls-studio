@@ -111,7 +111,7 @@ a { color: var(--accent); }
   <tr><td>Hexagon</td><td>Composite</td><td>Formed from its indicators; Mode B weights in PLS, an emergent variable in CB-SEM.</td></tr>
   <tr><td>Rectangle</td><td>Covariate / observed variable</td><td>A single observed variable in the structural model (CB-SEM: lavaan's <code>fixed.x</code> semantics).</td></tr>
 </table>
-<p>Higher-order constructs are built from other constructs (two-stage approach in PLS; second-order factors in CB-SEM). Moderation draws a dashed arrow onto a path; CB-SEM estimates latent interactions by product indicators, LMS or QML, with simple slopes and Johnson–Neyman plots.</p>
+<p>Higher-order constructs are built from other constructs (two-stage approach in PLS; second-order factors in CB-SEM). Moderation draws a dashed arrow onto a path; CB-SEM estimates latent interactions by product indicators, LMS or QML, with simple slopes and Johnson–Neyman plots. In PLS-SEM a moderation’s panel chooses its interaction term: two-stage, orthogonalising or product indicators (seminr or the built-in engine). A sampling-weights column (Model panel) weights CB-SEM (lavaan) and PLS-SEM: weighted PLS (Becker &amp; Ismail 2016) by the built-in engine, bootstrap included.</p>
 
 <h2 id="methods">Estimation methods</h2>
 <p>Switch with the segmented control on the Model tab. The diagram and data stay; results are recalculated.</p>
@@ -147,7 +147,7 @@ a { color: var(--accent); }
     <h3>Networks</h3>
     <ul><li>Network analysis</li><li>Exploratory graph analysis</li></ul>
     <h3>PLS-SEM model</h3>
-    <ul><li>PLSpredict</li><li>Blindfolding (Q²)</li><li>Model comparison</li><li>MICOM and multigroup analysis</li><li>Confirmatory tetrad analysis</li><li>Confirmatory composite analysis</li><li>Minimum sample size</li><li>Monte Carlo simulation</li></ul>
+    <ul><li>PLSpredict</li><li>Blindfolding (Q²)</li><li>Model comparison</li><li>MICOM and multigroup analysis</li><li>Confirmatory tetrad analysis</li><li>Confirmatory composite analysis</li><li>Nonlinear paths and causality (each path straight, U-shaped or S-shaped: the construct scores regressed on polynomial terms of their predictors’ scores, each curve drawn; Kock’s causality assessment indices SPR, RSCR and SSR, after WarpPLS)</li><li>Minimum sample size</li><li>Monte Carlo simulation</li></ul>
   </div>
   <div>
     <h3>CB-SEM model</h3>
