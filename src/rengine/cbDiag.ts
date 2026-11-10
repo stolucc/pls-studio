@@ -68,3 +68,56 @@ export function largestResiduals(b: LocalFitBlock, by: 'z' | 'normalized' = 'z')
   }
   return pairs.sort((x, y) => Math.abs(y.z) - Math.abs(x.z));
 }
+
+// ---------- discriminant validity (Rönkkö & Cho 2022) ----------
+
+export interface DiscriminantRequest { level: number; merge: boolean }
+type Lrt = { chisq: number | null; df: number | null; p: number | null };
+export interface DiscriminantResult {
+  level: number;
+  /** One row per factor pair: the correlation, its CI, χ²(cut) at .8, .9 and 1, and (when asked) χ²(merge). */
+  pairs: { a: string; b: string; est: number | null; low: number | null; high: number | null; cut80: Lrt; cut90: Lrt; cut100: Lrt; merge: Lrt | null }[];
+  /** The model used markers: semTools refitted it with unit factor variances. */
+  markers: boolean;
+  warnings: string[]; engine: REngineInfo;
+}
+const lrtCols = (v: any) => ({ chisq: arr<unknown>(v?.chisq).map(num), df: arr<unknown>(v?.df).map(num), p: arr<unknown>(v?.p).map(num) });
+const lrtAt = (c: ReturnType<typeof lrtCols>, i: number): Lrt => ({ chisq: c.chisq[i] ?? null, df: c.df[i] ?? null, p: c.p[i] ?? null });
+export function parseDiscriminant(r: Record<string, any>): DiscriminantResult {
+  const lhs = arr<string>(r.lhs), rhs = arr<string>(r.rhs), est = arr<unknown>(r.est).map(num), low = arr<unknown>(r.low).map(num), high = arr<unknown>(r.high).map(num);
+  const c80 = lrtCols(r.cut80), c90 = lrtCols(r.cut90), c100 = lrtCols(r.cut100), merge = r.merge ? lrtCols(r.merge) : null;
+  return {
+    level: Number(r.level), markers: r.markers === true,
+    pairs: lhs.map((a, i) => ({ a, b: rhs[i], est: est[i] ?? null, low: low[i] ?? null, high: high[i] ?? null, cut80: lrtAt(c80, i), cut90: lrtAt(c90, i), cut100: lrtAt(c100, i), merge: merge ? lrtAt(merge, i) : null })),
+    ...out(r),
+  };
+}
+export async function discriminantR(c: CbCall, o: DiscriminantRequest): Promise<DiscriminantResult> {
+  return parseDiscriminant(await rCall<Record<string, any>>('ps_cb_discriminant', req(c, { discriminant: o }), 'lavaan'));
+}
+export const discriminantScriptR = (c: CbCall, o: DiscriminantRequest) => rScript('ps_cb_discriminant', req(c, { discriminant: o }), 'lavaan');
+
+export type DvClass = 'severe' | 'moderate' | 'marginal' | 'none';
+/**
+ * Rönkkö & Cho's (2022) classification from the CI of a factor correlation: the bound furthest from 0 (the upper
+ * limit of a positive correlation) at or above 1 is a severe problem, .90 to 1 moderate, .80 to .90 marginal,
+ * below .80 none. (null without a CI.)
+ */
+export function dvClass(low: number | null, high: number | null): DvClass | null {
+  if (low === null || high === null) return null;
+  const ul = Math.max(Math.abs(low), Math.abs(high));
+  return ul >= 1 ? 'severe' : ul >= 0.9 ? 'moderate' : ul >= 0.8 ? 'marginal' : 'none';
+}
+
+/** True when the fit is significantly worse with the correlation fixed at the cutoff (p < .05; no test: null). */
+const worse = (t: Lrt) => (t.p === null ? null : t.p < 0.05);
+/**
+ * Rönkkö & Cho's (2022, Table 12) χ²(sys): a correlation belongs to the highest class it is not significantly different
+ * from: fixing it at 1 does not worsen the fit, severe; at .9, moderate; at .8 (or an estimate of .8 or more), marginal;
+ * otherwise none.
+ */
+export function dvClassChi2(p: Pick<DiscriminantResult['pairs'][number], 'est' | 'cut80' | 'cut90' | 'cut100'>): DvClass | null {
+  const w1 = worse(p.cut100), w9 = worse(p.cut90), w8 = worse(p.cut80);
+  if (w1 === null || w9 === null || w8 === null || p.est === null) return null;
+  return !w1 ? 'severe' : !w9 ? 'moderate' : !w8 || Math.abs(p.est) >= 0.8 ? 'marginal' : 'none';
+}

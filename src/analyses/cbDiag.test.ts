@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, parseModelState, toSpec, validateModel, type ModelState } from '../model/project';
 import { cbRequest } from '../rengine/lavaan';
-import { LOCALFIT_TESTS } from '../rengine/cbDiag';
-import { localFitAnalysis as lf, localTestProblem, zShade } from './cbDiag';
+import { dvClass, dvClassChi2, LOCALFIT_TESTS } from '../rengine/cbDiag';
+import { discriminantAnalysis as dv, localFitAnalysis as lf, localTestProblem, zShade } from './cbDiag';
 import { cbFingerprint } from './cbModel';
 import type { AnalysisCtx } from './types';
 
@@ -96,5 +96,37 @@ describe('auxiliary variables of FIML and the two-stage approach', () => {
     expect(m.auxiliary).toEqual(['age', 'x'.repeat(200)]);
     expect(parseModelState({ ...model, auxiliary: 'age' }).auxiliary).toBeUndefined();
     expect(parseModelState({ ...model, auxiliary: [] }).auxiliary).toBeUndefined();
+  });
+});
+
+describe('discriminant validity card (Rönkkö & Cho 2022)', () => {
+  it('classifies by the CI bound furthest from 0 (Table 12, CI-CFA(sys))', () => {
+    expect(dvClass(0.3, 0.79)).toBe('none');
+    expect(dvClass(0.6, 0.8)).toBe('marginal');
+    expect(dvClass(0.8, 0.9)).toBe('moderate');
+    expect(dvClass(0.93, 1.03)).toBe('severe');
+    expect(dvClass(-0.95, -0.85)).toBe('moderate');
+    expect(dvClass(null, 0.5)).toBeNull();
+  });
+  it('χ²(sys): the highest class the correlation is not significantly different from', () => {
+    const t = (p: number | null) => ({ chisq: 1, df: 1, p });
+    expect(dvClassChi2({ est: 0.97, cut80: t(1), cut90: t(1), cut100: t(0.3) })).toBe('severe');
+    expect(dvClassChi2({ est: 0.88, cut80: t(1), cut90: t(0.2), cut100: t(0.001) })).toBe('moderate');
+    expect(dvClassChi2({ est: 0.78, cut80: t(0.4), cut90: t(0.01), cut100: t(0.001) })).toBe('marginal');
+    expect(dvClassChi2({ est: 0.82, cut80: t(0.01), cut90: t(0.01), cut100: t(0.001) })).toBe('marginal');
+    expect(dvClassChi2({ est: 0.5, cut80: t(0.01), cut90: t(0.001), cut100: t(0.001) })).toBe('none');
+    expect(dvClassChi2({ est: 0.5, cut80: t(null), cut90: t(0.001), cut100: t(0.001) })).toBeNull();
+  });
+  it('options, blocking and staleness', () => {
+    expect(dv.parseOptions({ level: 0.9, merge: true })).toEqual({ level: 0.9, merge: true });
+    expect(dv.parseOptions({ level: '0.9', merge: 'yes' })).toEqual({ level: 0.95, merge: false });
+    expect(dv.parseOptions({ level: 2 })!.level).toBe(0.999);
+    const o = dv.defaults(ctx());
+    expect(dv.blocked(o, ctx())).toBeNull();
+    expect(dv.blocked(o, ctx({ model: { ...model, constructs: [model.constructs[0]], paths: [] } }))).toMatch(/at least two factors/);
+    expect(dv.blocked(o, ctx({ model: { ...model, multigroup: { column: 'g', invariance: 'configural', free: [] } } }))).toMatch(/one group/);
+    expect(dv.blocked(o, ctx({ model: { ...model, constructs: [model.constructs[0], { ...model.constructs[1], type: 'composite' as const }] } }))).toMatch(/composites|common factors/);
+    expect(dv.fingerprint({ ...o, merge: true }, ctx())).not.toBe(dv.fingerprint(o, ctx()));
+    expect(dv.summary({ level: 0.95, merge: true })).toBe('95% CIs, χ²(sys) and χ²(merge)');
   });
 });

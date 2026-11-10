@@ -1,7 +1,7 @@
 // CB-SEM diagnostics through the bridge on the Holzinger–Swineford CFA (lavaan's ?cfa), against direct
 // lavaan calls in native R (scripts/validation/cbdiag.R → src/engine/__fixtures__/cbdiag/reference.json):
 // local fit (lavResiduals z-tests, normalized residuals, the SRMR's tests, lavTest's further tests) and
-// FIML / two-stage with auxiliary variables (lavaan aux =).
+// FIML / two-stage with auxiliary variables (lavaan aux =); discriminant validity (semTools::discriminantValidity).
 // Run with WEBR_TESTS=1 PS_NATIVE_R=1 (or npm run test:webr).
 
 import { readFileSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall } from './bridge';
 import type { CbCall } from './cbExtras';
-import { largestResiduals, LOCALFIT_TESTS, localFitR, localFitScriptR, type LocalFitBlock } from './cbDiag';
+import { discriminantR, discriminantScriptR, dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, localFitR, localFitScriptR, type LocalFitBlock } from './cbDiag';
 import { estimateCbLavaan } from './lavaan';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
@@ -123,5 +123,42 @@ describe('auxiliary variables (lavaan aux =)', () => {
     const cw = await estimateCbLavaan(data, { ...spec, auxiliary: ['ageyr'] }, 'casewise', 'ML');
     const cw0 = await estimateCbLavaan(data, spec, 'casewise', 'ML');
     expect(cw.fit.chisq).toBeCloseTo(cw0.fit.chisq, 10);
+  }, 900_000);
+});
+
+describe('discriminant validity (semTools::discriminantValidity, Rönkkö & Cho 2022)', () => {
+  type Ref = { lhs: string[]; rhs: string[]; est: number[]; low: number[]; high: number[]; cut80: Lrt; cut90: Lrt; cut100: Lrt; merge: Lrt };
+  type Lrt = { chisq: number[]; df: number[]; p: number[] };
+  const same = (r: Awaited<ReturnType<typeof discriminantR>>, ref: Ref) => {
+    expect(r.pairs.map((p) => [p.a, p.b])).toEqual(ref.lhs.map((a, i) => [a, ref.rhs[i]]));
+    r.pairs.forEach((p, i) => {
+      expect(p.est, `est ${i}`).toBeCloseTo(ref.est[i], 6);
+      expect(p.low, `low ${i}`).toBeCloseTo(ref.low[i], 6);
+      expect(p.high, `high ${i}`).toBeCloseTo(ref.high[i], 6);
+      for (const k of ['cut80', 'cut90', 'cut100', 'merge'] as const) {
+        expect(p[k]!.chisq, `${k} ${i}`).toBeCloseTo(ref[k].chisq[i], 4);
+        expect(p[k]!.df, `${k} ${i}`).toBe(ref[k].df[i]);
+        expect(p[k]!.p, `${k} ${i}`).toBeCloseTo(ref[k].p[i], 8);
+      }
+    });
+  };
+  it('the HS factors: correlations, CIs, χ²(cut) at .8, .9, 1 and χ²(merge) as semTools gives them; no problem', async () => {
+    const r = await discriminantR(call(), { level: 0.95, merge: true });
+    same(r, REF.discriminant.hs);
+    expect(r.markers).toBe(true);
+    expect(r.pairs.map((p) => [dvClass(p.low, p.high), dvClassChi2(p)])).toEqual([['none', 'none'], ['none', 'none'], ['none', 'none']]);
+  }, 900_000);
+
+  it('Political Democracy: dem60 and dem65 (r = .98) are a severe problem by both workflows', async () => {
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'PoliticalDemocracy', na: [] }, 'lavaan');
+    const pd: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+    const pdSpec: ModelSpec = { constructs: [F('ind60', ['x1', 'x2', 'x3']), F('dem60', ['y1', 'y2', 'y3', 'y4']), F('dem65', ['y5', 'y6', 'y7', 'y8'])], paths: [] };
+    const r = await discriminantR(call({ data: pd, spec: pdSpec }), { level: 0.95, merge: true });
+    same(r, REF.discriminant.poldem);
+    expect(r.pairs.map((p) => dvClass(p.low, p.high))).toEqual(['none', 'none', 'severe']);
+    expect(r.pairs.map((p) => dvClassChi2(p))).toEqual(['none', 'none', 'severe']);
+    const s = await discriminantScriptR(call({ data: pd, spec: pdSpec }), { level: 0.95, merge: false });
+    expect(s).toContain('discriminantValidity(fit, cutoff = k, level = 0.95)');
+    expect(s).not.toContain('merge = TRUE');
   }, 900_000);
 });

@@ -4,6 +4,8 @@
 #    for each further test of exact fit, on the ML fit (base ML chi-square, and Browne's RLS);
 #  - FIML with auxiliary variables (lavaan's aux =, saturated correlates) on the data with values
 #    removed by a fixed rule (x1 missing in every 5th row, x5 in rows 3, 10, 17, ...).
+#  - discriminant validity: semTools::discriminantValidity at the cutoffs .8, .9 and 1 and merged, on the HS CFA
+#    and Political Democracy's measurement model.
 # Run: Rscript scripts/validation/cbdiag.R  (writes src/engine/__fixtures__/cbdiag/reference.json)
 suppressPackageStartupMessages({ library(lavaan); library(jsonlite) })
 hs_model <- "visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9"
@@ -36,7 +38,21 @@ fiml <- function(...) { f <- cfa(hs_model, data = hs_na, missing = "ml", ...); l
 aux <- list(none = fiml(), aux = fiml(aux = c("ageyr", "agemo")), twostage = (function() { f <- cfa(hs_model, data = hs_na, missing = "two.stage", aux = c("ageyr", "agemo"))
   list(chisq = unname(fitMeasures(f, "chisq")), est = parameterEstimates(f)$est[parameterEstimates(f)$op == "=~"], se = parameterEstimates(f)$se[parameterEstimates(f)$op == "=~"]) })())
 
-out <- list(versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string), localfit = localfit, aux = aux)
+# Discriminant validity (semTools::discriminantValidity; Ronkko & Cho 2022): cutoffs .8, .9 and 1, and merging,
+# on the HS CFA and on Political Democracy's measurement model (dem60 and dem65 correlate highly)
+suppressPackageStartupMessages(library(semTools))
+dvs <- function(f) {
+  one <- function(d) { d <- as.data.frame(d); list(chisq = d[["Chisq diff"]], df = d[["Df diff"]], p = d[["Pr(>Chisq)"]]) }
+  d <- lapply(c(0.8, 0.9, 1), function(k) suppressMessages(discriminantValidity(f, cutoff = k)))
+  m <- as.data.frame(d[[1]])
+  list(lhs = m$lhs, rhs = m$rhs, est = m$est, low = m$ci.lower, high = m$ci.upper, cut80 = one(d[[1]]), cut90 = one(d[[2]]), cut100 = one(d[[3]]),
+    merge = one(suppressMessages(discriminantValidity(f, merge = TRUE))))
+}
+pd_model <- "ind60 =~ x1 + x2 + x3\ndem60 =~ y1 + y2 + y3 + y4\ndem65 =~ y5 + y6 + y7 + y8"
+discriminant <- list(hs = dvs(fit), poldem = dvs(cfa(pd_model, data = PoliticalDemocracy)))
+
+out <- list(versions = list(lavaan = as.character(packageVersion("lavaan")), semTools = as.character(packageVersion("semTools")), R = R.version.string),
+  localfit = localfit, aux = aux, discriminant = discriminant)
 dir.create("src/engine/__fixtures__/cbdiag", showWarnings = FALSE, recursive = TRUE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, na = "null"), "src/engine/__fixtures__/cbdiag/reference.json")
 str(out, max.level = 2)

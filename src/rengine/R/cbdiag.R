@@ -9,6 +9,11 @@ PS_LOCALFIT_TESTS <- c("browne.residual.nt.model", "browne.residual.nt", "browne
 #' The tests that rescale (or, FMG, take the p-value of) a base statistic: lavTest's scaled_test applies to them.
 PS_LOCALFIT_SCALED <- c("satorra.bentler", "yuan.bentler", "mean.var.adjusted", "scaled.shifted", "mean.var.adjusted.corrected", "scaled.shifted.corrected", "peba4", "pols3", "pall")
 
+#' Script lines: functions that refit the model by update() (semTools, nonnest2) evaluate its call elsewhere, where
+#' `data` (or `S`, `N`) would not be this script's objects: the call is given the objects themselves.
+PS_CALL_OBJECTS <- c("# (the model is refitted by update() outside this script: its call takes the data objects themselves)",
+  "for (a in names(fit@call)[-1]) if (is.name(fit@call[[a]]) && exists(as.character(fit@call[[a]]), inherits = FALSE)) fit@call[[a]] <- get(as.character(fit@call[[a]]))")
+
 #' A symmetric lavaan matrix as rows of numbers (NA as null).
 ps_rows <- function(m) lapply(seq_len(nrow(m)), function(i) I(unname(as.numeric(m[i, ]))))
 
@@ -70,4 +75,42 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
   })
   ps_json(list(blocks = blocks, tests = tl, base = base, estimator = req$estimator, n = sum(lavInspect(env$fit, "nobs")), warnings = env$.warnings,
     engine = list(package = "lavaan", version = as.character(utils::packageVersion("lavaan")))))
+}
+
+#' Discriminant validity per Ronkko & Cho (2022), semTools::discriminantValidity: each factor
+#' correlation with its confidence interval (CI-CFA; factors scaled by unit variances, the model
+#' refitted so when it used markers), and the chi-square difference tests against the model with
+#' that correlation fixed at .8, .9 and 1 (chi2(sys)); optionally against the model with the two
+#' factors merged into one (chi2(merge)). The app classifies the pairs (Table 12).
+ps_cb_discriminant <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "Discriminant validity", raw = FALSE)
+  if (identical(req$estimator, "2SLS")) stop("Discriminant validity needs a model fitted as a whole; MIIV-2SLS estimates it equation by equation.")
+  if (!is.null(b$group_var) || !is.null(req$data$moments$groups)) stop("Discriminant validity is computed for one group: remove the grouping.")
+  if (length(b$composites)) stop("Discriminant validity (CI-CFA) is for common factors; the model has composites.")
+  dv <- req$discriminant
+  level <- ps_number(dv$level %||% 0.95, "confidence level")
+  if (!is.finite(level) || level < 0.5 || level >= 1) stop("The confidence level must be between 0.5 and 1.")
+  merge <- isTRUE(dv$merge)
+  body <- c(b$body, "",
+    "# Discriminant validity (Ronkko & Cho 2022, Table 12): factor correlations with confidence intervals (CI-CFA; the",
+    "# model is refitted with unit factor variances when it uses markers), and chi-square difference tests against the",
+    "# model with each correlation fixed at the classification's cutoffs .8, .9 and 1, one at a time (chi2(sys)).",
+    "suppressPackageStartupMessages(library(semTools))",
+    PS_CALL_OBJECTS,
+    sprintf("dv <- lapply(c(cut_0.8 = 0.8, cut_0.9 = 0.9, cut_1 = 1), function(k) discriminantValidity(fit, cutoff = k, level = %s))", format(level)),
+    if (merge) c("# ... and against the model with the two factors merged into one (chi2(merge)).",
+      sprintf("dv_merge <- discriminantValidity(fit, merge = TRUE, level = %s)", format(level))))
+  if (export) return(paste(ps_script("Discriminant validity, CI-CFA(sys) and chi2(sys) (semTools)", c("lavaan", "semTools"), b$inputs, body, c("print(dv)", if (merge) "print(dv_merge)")), collapse = "\n"))
+  env <- ps_run(body, b$inputs)
+  back <- ps_cb_back(ps_esem_align(b, env$fit))
+  nm <- function(x) ps_back(x, back)
+  col <- function(d, k) { v <- d[[k]]; if (is.null(v)) rep(NA_real_, nrow(d)) else as.numeric(v) }
+  pr <- function(d) { d <- as.data.frame(d); list(chisq = I(col(d, "Chisq diff")), df = I(col(d, "Df diff")), p = I(col(d, "Pr(>Chisq)"))) }
+  d <- as.data.frame(env$dv[[1]])
+  ps_json(list(level = level, lhs = I(nm(d$lhs)), rhs = I(nm(d$rhs)), est = I(as.numeric(d$est)), low = I(as.numeric(d$ci.lower)), high = I(as.numeric(d$ci.upper)),
+    cut80 = pr(env$dv[[1]]), cut90 = pr(env$dv[[2]]), cut100 = pr(env$dv[[3]]), merge = if (merge) pr(env$dv_merge) else NULL,
+    markers = !isTRUE(lavInspect(env$fit, "options")$std.lv), warnings = env$.warnings,
+    engine = list(package = "semTools", version = as.character(utils::packageVersion("semTools")))))
 }

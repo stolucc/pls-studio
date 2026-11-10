@@ -1,6 +1,6 @@
 // CB-SEM diagnostics of the model on the canvas as analysis cards (lavaan):
 // local fit (residual z-tests per pair of observed variables, the SRMR's tests,
-// further tests of exact fit).
+// further tests of exact fit); discriminant validity per Rönkkö & Cho (2022).
 
 import { useState } from 'react';
 import type { CbEstimator } from '../engine/cbsem';
@@ -11,7 +11,7 @@ import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../figure/palette';
 import { clampStrict } from '../parse';
 import { c, pCell, Table, type Cell, type Row } from '../components/results/Table';
 import type { CbCall } from '../rengine/cbExtras';
-import { largestResiduals, LOCALFIT_TESTS, SCALED_TESTS, type LocalFitBlock, type LocalFitResult, type LocalFitTest } from '../rengine/cbDiag';
+import { dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, SCALED_TESTS, type DiscriminantResult, type DvClass, type LocalFitBlock, type LocalFitResult, type LocalFitTest } from '../rengine/cbDiag';
 import { cbFingerprint, cbModelBlocked } from './cbModel';
 import { clampNum, isObj, oneOf } from './common';
 import type { AnalysisCtx, AnalysisType } from './types';
@@ -212,5 +212,60 @@ export const localFitAnalysis: AnalysisType<LocalFitOptions, LocalFitResult> = {
   run: async (o, ctx) => (await import('../rengine/cbDiag')).localFitR(callOf(ctx), { tests: o.tests, base: o.base }),
   script: async (o, ctx) => (await import('../rengine/cbDiag')).localFitScriptR(callOf(ctx), { tests: o.tests, base: o.base }),
   summary: (o) => `residual z-tests${o.tests.length ? `, ${o.tests.length} further test${o.tests.length === 1 ? '' : 's'}${o.base === 'RLS' ? ' (base RLS)' : ''}` : ''}`,
+};
+
+// ---------- discriminant validity (Rönkkö & Cho 2022) ----------
+
+export interface DiscriminantOptions { level: number; merge: boolean }
+
+const DV_LABEL: Record<DvClass, [string, string]> = { severe: ['Severe problem', 'bad'], moderate: ['Moderate problem', 'bad'], marginal: ['Marginal problem', 'warn'], none: ['No problem', 'good'] };
+const dvCell = (k: DvClass | null): Cell => (k ? { ...c(DV_LABEL[k][0], DV_LABEL[k][1]), bold: k !== 'none' } : c('—', 'dim'));
+const lrtCells = (t: { chisq: number | null; df: number | null; p: number | null }): Cell[] => [c(t.chisq, undefined, 2), pCell(t.p)];
+
+export function DiscriminantView({ r }: { r: DiscriminantResult }) {
+  if (!r.pairs.length) return <div className="muted">The model has fewer than two correlated factors: nothing to compare.</div>;
+  const pct = `${fmt(r.level * 100, 0)}%`;
+  const merge = r.pairs.some((p) => p.merge);
+  const rows: Row[] = r.pairs.map((p) => [c(`${p.a} ↔ ${p.b}`), c(p.est), c(p.low !== null && p.high !== null ? `[${fmt(p.low)}, ${fmt(p.high)}]` : null), dvCell(dvClass(p.low, p.high)),
+    ...lrtCells(p.cut80), ...lrtCells(p.cut90), ...lrtCells(p.cut100), dvCell(dvClassChi2(p)), ...(merge && p.merge ? lrtCells(p.merge) : merge ? [c(null), c(null)] : [])]);
+  return (
+    <div className="tables">
+      <Table title="Discriminant validity: CI-CFA(sys) and χ²(sys)" file="cb-discriminant"
+        columns={['Factors', 'Correlation', `${pct} CI`, 'CI-CFA(sys)', 'Δχ² (ρ = .8)', 'p', 'Δχ² (ρ = .9)', 'p', 'Δχ² (ρ = 1)', 'p', 'χ²(sys)', ...(merge ? ['Δχ² (merged)', 'p'] : [])]} rows={rows}
+        note={<>Rönkkö &amp; Cho (2022, Table 12): factor correlations from the CFA with factor variances fixed to 1{r.markers ? ' (the model uses markers, so semTools refitted it that way: same fit, the covariances are the correlations)' : ''}. CI-CFA(sys) compares the upper limit of the {pct} CI (the absolute lower limit of a negative correlation) with .8, .9 and 1: below .8 no problem, .8–.9 marginal, .9–1 moderate, 1 or above severe{r.level !== 0.95 ? '; the classification is defined for the 95% CI' : ''}. χ²(sys) fixes each correlation at .8, .9 and 1 in turn (Δχ², 1 df; semTools compares the model with itself where the estimate is already beyond the cutoff): a correlation belongs to the highest class it is not significantly different from (p ≥ .05). {merge ? 'Merged: the two factors as one (χ²(merge)). ' : ''}Marginal: the scales are probably distinct, but acknowledge and discuss the correlation; moderate: check prior evidence before interpreting; severe: the two cannot be distinguished empirically. Fornell–Larcker performs poorly as a test (Rönkkö &amp; Cho 2022). semTools::discriminantValidity, {r.engine.package} {r.engine.version}.</>} />
+      {r.warnings.length > 0 && <div>{r.warnings.map((w, i) => <div key={i} className="issue warning">{w}</div>)}</div>}
+    </div>
+  );
+}
+
+export const discriminantAnalysis: AnalysisType<DiscriminantOptions, DiscriminantResult> = {
+  id: 'cbdiscriminant', title: 'Discriminant validity (CI-CFA)', sub: 'factor correlations with CIs and χ²(cut) tests, classified per Rönkkö & Cho (2022) (semTools)', group: CB_GROUP,
+  fitsModel: true,
+  defaults: () => ({ level: 0.95, merge: false }),
+  parseOptions: (raw) => (isObj(raw) ? { level: clampStrict(raw.level, 0.5, 0.999, 0.95), merge: raw.merge === true } : null),
+  Options: ({ options: o, set, ctx, disabled }) => (
+    <fieldset className="card-options" disabled={disabled}>
+      <Hint text={`Are the factors distinct? Each factor correlation with its confidence interval, and χ² difference tests against the model with the correlation fixed at .8, .9 and 1, classified as Rönkkö & Cho (2022) recommend. The CB-SEM model on the canvas, estimated with ${ctx.settings.estimator} (Model settings); with paths, the correlations of endogenous factors are those of their disturbances.`} />
+      <div className="field">
+        <label htmlFor="dv-level">Confidence level</label>
+        <input id="dv-level" aria-label="Confidence level" className="input num" type="number" min={0.5} max={0.999} step={0.01} value={o.level} onChange={(e) => set({ ...o, level: clampNum(e.target.value, 0.5, 0.999, 0.95) })} />
+        <div className="hint">The classification uses the 95% CI.</div>
+      </div>
+      <label className="check"><input type="checkbox" checked={o.merge} onChange={(e) => set({ ...o, merge: e.target.checked })} /> <span>Also test against merging each pair into one factor (χ²(merge))</span></label>
+    </fieldset>
+  ),
+  View: ({ result }) => <DiscriminantView r={result} />,
+  blocked: (_o, ctx) => {
+    const m = cbModelBlocked(ctx, 'Discriminant validity', false) ?? fitBlocked(ctx, 'Discriminant validity');
+    if (m) return m;
+    if (ctx.model?.multigroup) return 'Discriminant validity is computed for one group: remove the grouping.';
+    if (ctx.model?.constructs.some((k) => k.type === 'composite')) return 'Discriminant validity (CI-CFA) is for common factors; the model has composites.';
+    const factors = ctx.model!.constructs.filter((k) => !k.covariate && k.indicators.length > 0);
+    return factors.length < 2 ? 'Discriminant validity needs at least two factors.' : null;
+  },
+  fingerprint: (o, ctx) => cbFingerprint(ctx, [o.level, o.merge ? 1 : 0]),
+  run: async (o, ctx) => (await import('../rengine/cbDiag')).discriminantR(callOf(ctx), o),
+  script: async (o, ctx) => (await import('../rengine/cbDiag')).discriminantScriptR(callOf(ctx), o),
+  summary: (o) => `${fmt(o.level * 100, 0)}% CIs, χ²(sys)${o.merge ? ' and χ²(merge)' : ''}`,
 };
 
