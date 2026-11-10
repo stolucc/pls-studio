@@ -5,9 +5,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useR } from '../rengine/status';
-import { plsBoot, plsInput, plsResult } from '../reporting/fixtures';
+import { cbInput, plsBoot, plsInput, plsResult } from '../reporting/fixtures';
 import { ANALYSIS_TYPES } from './registry';
-import { methodsAnalysis, reportInput } from './reporting';
+import { checklistAnalysis, checklistText, methodsAnalysis, reportInput } from './reporting';
 import { resultsKey, useStore } from '../store';
 import { currentCtx, useAnalyses } from './store';
 import type { AnalysisCtx } from './types';
@@ -70,5 +70,35 @@ describe('methods text card', () => {
     useStore.setState({ results: { key: 'old', pls: plsResult(), cb: null, miiv: null, boot: plsBoot(), fitTest: null, process: null } });
     expect(currentCtx().boot).toBeNull();
     expect(currentCtx().resultsKey).toBeNull();
+  });
+});
+
+describe('reviewer checklist card', () => {
+  beforeEach(() => { useAnalyses.setState({ cards: [{ id: 'c1', kind: 'analysis', type: 'cmb', options: {}, run: { at: 1, fingerprint: 'x', options: '{}' } }] }); });
+
+  it('is in the Add menu under Reporting, needs results, and goes stale with them', () => {
+    expect(ANALYSIS_TYPES.find((x) => x.id === 'checklist')?.group).toBe('Reporting');
+    expect(checklistAnalysis.fitsModel).toBe(true);
+    expect(checklistAnalysis.blocked({}, { ...ctx, pls: null })).toMatch(/Calculate the model first/);
+    expect(checklistAnalysis.blocked({}, ctx)).toBeNull();
+    expect(checklistAnalysis.fingerprint({}, ctx)).not.toBe(checklistAnalysis.fingerprint({}, { ...ctx, resultsKey: 'k2' }));
+    expect(checklistAnalysis.fingerprint({}, ctx)).not.toBe(methodsAnalysis.fingerprint({}, ctx));
+  });
+
+  it('runs the model check and reads the log, and shows each item with its status, evidence, sources and link', async () => {
+    const r = await checklistAnalysis.run({}, ctx, () => {});
+    expect(r.method).toBe('pls');
+    expect(r.items.find((i) => i.id === 'cmb')?.status).toBe('done'); // the cmb card in the log
+    expect(r.items.find((i) => i.id === 'specification')).toBeTruthy();
+    const html = renderToStaticMarkup(<checklistAnalysis.View result={r} options={{}} current />);
+    for (const s of ['Measurement model', 'Structural model', 'Model tab: Reliability', 'Add PLSpredict', 'Hair et al., 2019', 'Appelbaum et al., 2018', 'Not applicable', 'Your call']) expect(html, s).toContain(s);
+    expect(checklistText(r)).toMatch(/^\[(Done|Issue)\] Model specified/);
+  });
+
+  it('works for CB-SEM results', async () => {
+    const c = cbInput();
+    const r = await checklistAnalysis.run({}, { ...ctx, settings: c.settings, model: c.model, pls: null, cb: c.cb, boot: c.boot, info: c.info }, () => {});
+    expect(r.method).toBe('cbsem');
+    expect(renderToStaticMarkup(<checklistAnalysis.View result={r} options={{}} current />)).toContain('Jackson, Gillaspy &amp; Purc-Stephenson (2009)');
   });
 });

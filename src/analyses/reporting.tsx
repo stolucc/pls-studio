@@ -1,8 +1,12 @@
 // Reporting cards: a draft of the methods section (plain text, LaTeX, BibTeX)
-// from the model, the settings and the current results (reporting/methods.ts).
+// from the model, the settings and the current results (reporting/methods.ts),
+// and the reviewer checklist marked from those results (reporting/checklist.ts).
 
 import { useState } from 'react';
-import { IconCopy, IconDownload } from '../components/icons';
+import { IconAlert, IconCheck, IconCopy, IconDownload, IconHelp } from '../components/icons';
+import { validateModel } from '../model/validate';
+import { checklistBlocked, reviewerChecklist, statusCounts, type CheckItem, type CheckLink, type CheckStatus } from '../reporting/checklist';
+import { citeText } from '../reporting/citations';
 import { methodsBlocked, methodsText, type LogEntry, type MethodsText, type ReportInput } from '../reporting/methods';
 import { fingerprint } from './codec';
 import { isObj } from './common';
@@ -78,4 +82,75 @@ export const methodsAnalysis: AnalysisType<Record<string, never>, MethodsText> =
   summary: () => 'draft from the current results',
 };
 
-export const REPORTING_ANALYSES = [methodsAnalysis];
+// ---------------------------------------------------------------- reviewer checklist
+
+export interface ChecklistResult { method: 'pls' | 'cbsem' | 'process'; items: CheckItem[] }
+
+const STATUS: Record<CheckStatus, { label: string; cls: string }> = {
+  done: { label: 'Done', cls: 'good' }, issue: { label: 'Issue', cls: 'bad' }, author: { label: 'Your call', cls: 'warn' }, na: { label: 'Not applicable', cls: 'dim' },
+};
+const StatusIcon = ({ s }: { s: CheckStatus }) => (s === 'done' ? <IconCheck size={15} /> : s === 'issue' ? <IconAlert size={15} /> : s === 'author' ? <IconHelp size={15} /> : <span aria-hidden="true">–</span>);
+const sources = (keys: string[]) => keys.map((k) => citeText(k)).join('; ');
+
+/** Go where the item can be addressed: the Model tab (its results tab named on the button), or a new card. */
+async function follow(link: CheckLink) {
+  if (link.kind === 'card') { const { addAnalysis } = await import('./store'); addAnalysis(link.type); return; }
+  const { useStore } = await import('../store');
+  useStore.getState().setWorkspace('model');
+}
+
+/** The checklist as plain text (for a response to reviewers). */
+export const checklistText = (r: ChecklistResult) => r.items.map((i) => `[${STATUS[i.status].label}] ${i.label}: ${i.evidence} (${sources(i.sources)})`).join('\n');
+
+function ChecklistView({ r }: { r: ChecklistResult }) {
+  const n = statusCounts(r.items);
+  const sections = [...new Set(r.items.map((i) => i.section))];
+  return (
+    <div className="checklist">
+      <div className="table-tools">
+        <span className="hint">{n.done} done · {n.issue} {n.issue === 1 ? 'issue' : 'issues'} · {n.author} for you to answer · {n.na} not applicable</span>
+        <div className="spacer" />
+        <button className="btn sm ghost" onClick={() => void copyText(checklistText(r))} title="Copy the checklist as text"><IconCopy size={13} /> Copy</button>
+      </div>
+      {sections.map((sec) => (
+        <section key={sec}>
+          <h4 className="checklist-section">{sec}</h4>
+          <ul className="checklist-items">
+            {r.items.filter((i) => i.section === sec).map((i) => (
+              <li key={i.id} className={`checklist-item ${STATUS[i.status].cls}`}>
+                <span className="checklist-status" title={STATUS[i.status].label} aria-label={STATUS[i.status].label} role="img"><StatusIcon s={i.status} /></span>
+                <div className="checklist-body">
+                  <div className="checklist-label">{i.label} <span className="checklist-tag">{STATUS[i.status].label}</span></div>
+                  <div className="checklist-evidence">{i.evidence}</div>
+                  <div className="checklist-meta"><span className="muted">{sources(i.sources)}</span>
+                    {i.link && <button className="btn sm ghost" onClick={() => void follow(i.link!)} title={i.link.kind === 'card' ? 'Add this analysis to the log' : 'Open the Model tab'}>{i.link.kind === 'tab' ? `Model tab: ${i.link.label}` : i.link.label}</button>}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      <div className="hint">What reviewers typically ask for, marked from the current results: done (with the evidence), an issue, not applicable, or your call where nothing in the results can show it. Based on {r.method === 'pls' ? 'Hair, Risher, Sarstedt & Ringle (2019), “When to use and how to report the results of PLS-SEM”, and Becker et al. (2023)' : r.method === 'cbsem' ? 'Jackson, Gillaspy & Purc-Stephenson (2009), “Reporting practices in confirmatory factor analysis”, with Hu & Bentler’s (1999) cut-offs' : 'Hayes (2022), Introduction to mediation, moderation, and conditional process analysis'} and the JARS-Quant standards for structural equation modeling (Appelbaum et al., 2018, Table 7). Thresholds are conventions; justify departures rather than hide them.</div>
+    </div>
+  );
+}
+
+export const checklistAnalysis: AnalysisType<Record<string, never>, ChecklistResult> = {
+  id: 'checklist', title: 'Reviewer checklist', sub: 'the checks reviewers ask for, marked from the results (Hair et al. 2019; Jackson et al. 2009; JARS-Quant)', group: GROUP,
+  fitsModel: true,
+  defaults: () => ({}),
+  parseOptions: (raw) => (isObj(raw) ? {} : null),
+  Options: () => <p className="hint card-options" style={{ marginTop: 0 }}>Checks the model on the Model tab and its current results. Items that other cards answer (PLSpredict, data screening, common method bias, minimum sample size) count once those cards have run: run the checklist again after adding them.</p>,
+  View: ({ result }) => <ChecklistView r={result} />,
+  blocked: (_o, ctx) => { const input = reportInput(ctx); return input ? checklistBlocked(input) : 'Draw a model first (Model tab).'; },
+  fingerprint: (_o, ctx) => resultsFingerprint(ctx, ['checklist']),
+  run: async (_o, ctx) => {
+    const { log } = await context();
+    const input = reportInput(ctx, log)!;
+    return { method: ctx.settings.method, items: reviewerChecklist(input, validateModel(input.model, ctx.data, ctx.settings)) };
+  },
+  summary: () => 'from the current results',
+};
+
+export const REPORTING_ANALYSES = [methodsAnalysis, checklistAnalysis];
