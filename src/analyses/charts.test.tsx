@@ -1,3 +1,8 @@
+// Chart statistics: hand-checked cases, and the box plot's quartiles and whiskers and the bar chart's counts against R
+// (scripts/validation/charts.R, R's airquality).
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
@@ -6,6 +11,8 @@ import { quantileSorted } from '../engine/stats';
 import { chartAnalysis, chartColumns, chartResult, MAX_POINTS, type ChartOptions } from './charts';
 import type { Dataset } from '../engine/types';
 import type { AnalysisCtx } from './types';
+import { parseCsv } from '../engine/dataset';
+import { same } from '../validation/record';
 
 const data = {
   names: ['x', 'y', 'g', 't'],
@@ -54,6 +61,26 @@ describe('chart statistics', () => {
     expect(counts(data, 't')).toEqual([{ label: 'a', count: 4 }, { label: 'b', count: 3 }, { label: 'c', count: 3 }]);
     expect(groupsOf(data, 'y', 5)).toBeNull();
     expect(groupsOf(data, 'nope')).toBeNull();
+  });
+});
+
+describe('chart statistics against R (airquality: Ozone by Month)', () => {
+  const FX = join(__dirname, '..', 'engine', '__fixtures__', 'charts');
+  const aq = parseCsv(readFileSync(join(FX, 'airquality.csv'), 'utf8')).dataset;
+  const ref = JSON.parse(readFileSync(join(FX, 'reference.json'), 'utf8')) as { box: Record<string, Record<'n' | 'q1' | 'median' | 'q3' | 'lo' | 'hi' | 'outliers', number[]>>; counts: Record<string, number[]> };
+  const ozone = aq.cols[aq.names.indexOf('Ozone')], month = aq.cols[aq.names.indexOf('Month')];
+  it('box plots: quartiles as quantile(type = 7), Tukey whiskers and the values beyond them', () => {
+    for (const [m, w] of Object.entries(ref.box)) {
+      const b = boxStats(Float64Array.from(ozone.filter((_, i) => month[i] === Number(m))), m)!;
+      same(`month ${m}: n (missing left out)`, b.n, w.n[0]);
+      for (const k of ['q1', 'median', 'q3', 'lo', 'hi'] as const) expect(b[k], `month ${m}: ${k}`).toBeCloseTo(w[k][0], 10);
+      same(`month ${m}: outliers`, b.outliers.join(', '), w.outliers.join(', '));
+    }
+  });
+  it('bar charts: the counts of table()', () => {
+    const c = counts(aq, 'Month')!;
+    same('categories', c.map((x) => x.label).join(', '), Object.keys(ref.counts).join(', '));
+    for (const x of c) same(`count of ${x.label}`, x.count, ref.counts[x.label][0]);
   });
 });
 

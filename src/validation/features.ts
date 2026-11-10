@@ -50,7 +50,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/means': native('Mean structures', 'CB-SEM', ['lavaan'], script('means.R', 'desktop lavaan')),
   'rengine/tech4': native('Implied latent moments (TECH4)', 'CB-SEM', ['lavaan'], script('tech4.R', 'desktop lavaan, defined parameters (delta method)')),
   'rengine/mi': native('Multiple imputation', 'CB-SEM', ['lavaan', 'mice', 'lavaan.mi'], script('mi.R', 'desktop mice and lavaan.mi')),
-  'rengine/missingTwoStage': native('Two-stage missing data', 'CB-SEM', ['lavaan'], script('missing_twostage.R', 'desktop lavaan')),
+  'rengine/missingTwoStage': native('Pairwise deletion and two-stage missing data', 'CB-SEM', ['lavaan'], script('missing_twostage.R', 'desktop lavaan')),
   'rengine/multigroup': native('Multiple groups and invariance', 'CB-SEM', ['lavaan', 'semTools'], script('multigroup.R', 'desktop lavaan')),
   'rengine/twolevel': native('Two-level SEM', 'CB-SEM', ['lavaan'], { label: 'lavaan called directly in the same R' }),
   'rengine/rsem': native('Robust ML (rsem)', 'CB-SEM', ['rsem'], script('rsem.R', 'desktop rsem')),
@@ -92,7 +92,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/cpaSam': { title: 'Mediation with structural-after-measurement (manymome)', method: 'PROCESS', level: 'published', packages: ['manymome'], sources: [{ label: 'manymome’s SAM article: printed values' }] },
 
   // Other analyses
-  'rengine/efa': native('Exploratory factor analysis and PCA', 'EFA', ['psych'], script('efa.R', 'desktop psych'), script('efa_polychoric.R', 'desktop psych and lavaan::lavCor')),
+  'rengine/efa': native('Exploratory factor analysis and PCA', 'EFA', ['psych'], script('efa.R', 'desktop psych'), script('efa_polychoric.R', 'desktop psych and lavaan::lavCor'), script('efa_pa.R', 'desktop psych, principal axis')),
   'rengine/items': native('IRT and latent class analysis', 'Items', ['ltm', 'poLCA', 'mirt', 'glca'], script('items.R', 'desktop ltm and poLCA')),
   'rengine/invariance': native('Longitudinal invariance, DIF by MIMIC', 'CB-SEM', ['lavaan', 'semTools'], script('invariance_cards.R', 'desktop lavaan, the models written out by hand')),
   'rengine/longitudinal': native('Growth models, RI-CLPM', 'Longitudinal', ['lavaan'], script('longitudinal.R', 'desktop lavaan')),
@@ -100,10 +100,10 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'rengine/did': native('Difference-in-differences', 'Causal inference', ['did', 'fixest'], script('did.R', 'desktop did and fixest')),
   'rengine/match': native('Matching and weighting', 'Causal inference', ['MatchIt', 'WeightIt'], script('match.R', 'desktop MatchIt'), script('weightit.R', 'desktop WeightIt')),
   'rengine/endo': native('Endogeneity: IV, copulas, Heckman', 'Regression', ['ivreg', 'REndo', 'sampleSelection'], script('endo.R', 'desktop R')),
-  'rengine/regression': native('Regression (linear, GLM, ordinal, multinomial, censored, survival, zero-inflated and hurdle counts)', 'Regression', ['stats', 'MASS', 'nnet', 'survival', 'pscl'], script('regression.R', 'desktop R'), script('zeroinfl.R', 'desktop pscl (zeroinfl, hurdle, vuong)')),
+  'rengine/regression': native('Regression (linear, GLM, ordinal, multinomial, censored, survival, zero-inflated and hurdle counts)', 'Regression', ['stats', 'MASS', 'nnet', 'survival', 'pscl'], script('regression.R', 'desktop R'), script('zeroinfl.R', 'desktop pscl (zeroinfl, hurdle, vuong)'), script('regression_links.R', 'desktop glm and MASS::polr with the other links')),
   'rengine/rsa': native('Response surface analysis', 'Regression', ['RSA'], script('rsa.R', 'desktop RSA')),
   'rengine/nca': native('Necessary condition analysis', 'NCA', ['NCA'], script('nca.R', 'desktop NCA')),
-  'rengine/network': native('Network psychometrics and EGA', 'Networks', ['bootnet', 'EGAnet'], script('network.R', 'desktop bootnet and EGAnet')),
+  'rengine/network': native('Network psychometrics and EGA', 'Networks', ['bootnet', 'EGAnet'], script('network.R', 'desktop bootnet and EGAnet'), script('network_modes.R', 'desktop bootnet (pcor, cor, Spearman) and EGAnet (TMFG)')),
   'rengine/tests': native('Basic statistics: t-tests, ANOVA, correlations, contingency tables', 'Basic statistics', ['stats'], script('tests.R', 'desktop R')),
   'rengine/correlationPolychoric': native('Polychoric correlations', 'Basic statistics', ['lavaan'], script('correlation_polychoric.R', 'desktop lavaan and psych::polychoric')),
   'rengine/quadmlCount': { title: 'Count indicators on the canvas (numerical integration)', method: 'CB-SEM', level: 'published', packages: ['pscl'],
@@ -113,7 +113,11 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'analyses/cards': native('Analysis cards end to end', 'Analyses', [], { label: 'the native reference fixtures, through each card' }),
   'data/readFile': native('Reading SPSS, Stata and Excel files', 'Data', ['haven', 'readxl'], { label: 'R’s own iris and mtcars' }),
 
+  'rengine/fixedValues': native('Parameters fixed at values', 'CB-SEM', ['lavaan'], { label: 'lavaan 0.6-16 in desktop R (the values in the test)' }),
+  'rengine/zeroCovariance': native('Covariances fixed at zero', 'CB-SEM', ['lavaan'], { label: 'lavaan 0.6-16 in desktop R (the values in the test)' }),
+  'rengine/glmm': native('Generalised linear mixed models: negative binomial and zero-inflated negative binomial', 'Longitudinal', ['GLMMadaptive'], script('glmm.R', 'desktop GLMMadaptive on its help page’s and vignette’s simulated data')),
+
   // Plumbing: syntax, security, messages, chunking.
-  'rengine/common': 'none', 'rengine/fixedValues': 'none', 'rengine/htmt2': 'none', 'rengine/injection': 'none', 'rengine/mplus': 'none',
-  'rengine/parallel': 'none', 'validation/selfCheck': 'examples', 'rengine/quoting': 'none', 'rengine/runtime': 'none', 'rengine/zeroCovariance': 'none', 'replication/package': 'none',
+  'rengine/common': 'none', 'rengine/htmt2': 'none', 'rengine/injection': 'none', 'rengine/mplus': 'none',
+  'rengine/parallel': 'none', 'validation/selfCheck': 'examples', 'rengine/quoting': 'none', 'rengine/runtime': 'none', 'replication/package': 'none',
 };

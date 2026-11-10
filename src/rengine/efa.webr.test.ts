@@ -1,6 +1,6 @@
 // Exploratory factor analysis / PCA (psych) in webR equal psych in desktop R
 // (scripts/validation/efa.R): the Big Five items (bfi; minres + oblimin and
-// ML + varimax) and Harman.5 (?principal; PCA + varimax). Factor signs and
+// ML + varimax; principal axis + promax, scripts/validation/efa_pa.R) and Harman.5 (?principal; PCA + varimax). Factor signs and
 // order can differ between builds, so loadings are compared up to sign per
 // factor. Run with npm run test:webr.
 
@@ -61,6 +61,17 @@ describe('exploratory factor analysis (psych)', () => {
     expect(ml.fit.tli).toBeCloseTo(ref.bfi.ml.tli, 6);
     expect(ml.phi).toBeNull();
     expect(await efaScriptR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars, nfactors: 5 }, 1)).toContain('fit <- fa(X, nfactors = k, fm = "minres", rotate = "oblimin")');
+  }, 900_000);
+
+  it('bfi: principal axis factoring (fm = "pa") with promax equals desktop psych', async () => {
+    const pa = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'pa.json'), 'utf8'));
+    const d = await load('bfi');
+    const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: d.names.slice(0, 25), nfactors: 5, method: 'pa', rotation: 'promax', parallel: 0 }, 1);
+    sameLoadings(r.loadings, pa.loadings, 5);
+    r.communality.forEach((h, i) => expect(h, `communality ${i + 1}`).toBeCloseTo(pa.communality[i], 6));
+    expect(r.fit.rmsea, 'RMSEA').toBeCloseTo(pa.rmsea, 6);
+    expect(r.fit.tli, 'TLI').toBeCloseTo(pa.tli, 6);
+    expect(r.phi).toHaveLength(5);
   }, 900_000);
 
   it('Harman.5: principal components with varimax equal desktop psych', async () => {

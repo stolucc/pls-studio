@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { estimateCb } from './cbsem';
 import { parseCsv } from './dataset';
 import type { ModelSpec } from './types';
+import { near } from '../validation/record';
 
 const fx = (f: string) => join(__dirname, '__fixtures__', f);
 const data = parseCsv(readFileSync(fx('mobi.csv'), 'utf8')).dataset;
@@ -56,12 +57,12 @@ describe.each(Object.keys(MODELS))('estimateCb vs lavaan 0.6 (%s)', (name) => {
       // slightly short of the optimum we reach (see the chi-square check), so
       // parameters are compared loosely. small_cb is well conditioned: strict.
       const tol = name === 'mobi_cb' ? 2e-3 : 5e-5;
-      expect(Math.abs(mine!.est - p.est), `est ${label}`).toBeLessThan(tol);
-      expect(Math.abs(mine!.std - p['std.all']), `std ${label}`).toBeLessThan(tol);
+      near(`est ${label}`, mine!.est, p.est, tol);
+      near(`std ${label}`, mine!.std, p['std.all'], tol);
       if (p.se > 0) {
-        expect(Math.abs(mine!.se! - p.se) / p.se, `se ${label}`).toBeLessThan(name === 'mobi_cb' ? 2e-3 : 1e-4);
-        expect(Math.abs(mine!.z! - p.z!), `z ${label}`).toBeLessThan(name === 'mobi_cb' ? 2e-2 : 5e-3);
-        expect(Math.abs(mine!.p! - p.pvalue!), `p ${label}`).toBeLessThan(tol);
+        near(`se ${label}`, mine!.se!, p.se, (name === 'mobi_cb' ? 2e-3 : 1e-4) * p.se);
+        near(`z ${label}`, mine!.z!, p.z!, name === 'mobi_cb' ? 2e-2 : 5e-3);
+        near(`p ${label}`, mine!.p!, p.pvalue!, tol);
       }
     }
     // Every free parameter in lavaan is free here too.

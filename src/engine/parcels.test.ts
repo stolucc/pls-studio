@@ -8,6 +8,7 @@ import { parseCsv } from './dataset';
 import { allocationVariability, balanceParcels, itemLoadings, parcelExpr, parcelItemsOf, parcelSizes, parcelTargets, randomParcels, serpentine } from './parcels';
 import { mulberry32 } from './stats';
 import type { Dataset, ModelSpec } from './types';
+import { near } from '../validation/record';
 
 const ROOT = join(__dirname, '..', '..');
 const ref = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'parcels', 'reference.json'), 'utf8'));
@@ -80,8 +81,8 @@ describe('parcels in the model', () => {
     // (different random allocations: the averages agree to within a fraction of their spread)
     for (const [mine, theirs] of [['CFI', 'cfi'], ['χ²', 'chisq'], ['RMSEA', 'rmsea'], ['SRMR', 'srmr']] as const) {
       const t = ref.allocation2[theirs];
-      expect(Math.abs(row(mine).mean - t.Avg), mine).toBeLessThan(0.5 * t.SD);
-      expect(Math.abs(row(mine).sd - t.SD) / t.SD, `${mine} SD`).toBeLessThan(0.35);
+      near(`${mine}: mean over allocations (within half an SD; random)`, row(mine).mean, t.Avg, 0.5 * t.SD);
+      near(`${mine}: SD over allocations (within 35%; random)`, row(mine).sd, t.SD, 0.35 * t.SD);
     }
     expect(r.estimates.map((e) => e.label)).toContain('A ↔ C');
   }, 300_000);

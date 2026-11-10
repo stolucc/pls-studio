@@ -9,6 +9,8 @@ import { parseCsv } from './dataset';
 import { estimatePls } from './pls';
 import { corStd, standardize } from './stats';
 import type { ModelSpec } from './types';
+import { cases, loadData, toSpec as caseSpec } from './validationHarness';
+import { near } from '../validation/record';
 
 const data = parseCsv(readFileSync(join(__dirname, '__fixtures__', 'mobi.csv'), 'utf8')).dataset;
 const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
@@ -51,6 +53,22 @@ describe('fitTestPls (Dijkstra & Henseler 2015)', () => {
     expect(res.observed.estimated.srmr).toBeGreaterThan(res.hi99.estimated.srmr);
     // The saturated model only restricts the measurement model and fits better.
     expect(res.observed.saturated.srmr).toBeLessThan(res.observed.estimated.srmr);
+  });
+});
+
+// Against cSEM::testOMF (scripts/validation/fit_test.R): the observed discrepancies exactly, and the 95% and 99% quantiles of
+// the bootstrap under the null within Monte Carlo error (2,000 samples on each side, different random numbers).
+describe('fitTestPls against cSEM::testOMF (threecommonfactors, PLS)', () => {
+  it('testOMF: the same observed discrepancies, and quantiles within Monte Carlo error', () => {
+    const ref = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'fittest', 'threecf.json'), 'utf8')) as Record<'observed' | 'hi95' | 'hi99', Record<'srmr' | 'dULS' | 'dG', number>>;
+    const c = cases.find((x) => x.name === 'pls_csem_threecommonfactors')!;
+    const r = fitTestPls(loadData(c), caseSpec(c), { consistent: false }, { samples: 2000, seed: 1 });
+    expect(r.samples).toBe(2000);
+    for (const d of ['srmr', 'dULS', 'dG'] as const) {
+      near(`observed ${d}`, r.observed.estimated[d], ref.observed[d], 1e-6);
+      near(`95% quantile of ${d} (within 3%)`, r.hi95.estimated[d], ref.hi95[d], 0.03 * ref.hi95[d]);
+      near(`99% quantile of ${d} (within 5%)`, r.hi99.estimated[d], ref.hi99[d], 0.05 * ref.hi99[d]);
+    }
   });
 });
 

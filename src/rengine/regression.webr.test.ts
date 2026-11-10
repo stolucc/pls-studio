@@ -10,7 +10,7 @@ import { pnorm } from '../engine/stats';
 import type { DataInfo } from '../model/project';
 import { computeColumn } from '../data/compute';
 import { PACKAGE_EXAMPLES, type PackageExample } from '../examples/packages';
-import { against, example } from '../validation/record';
+import { against, example, near } from '../validation/record';
 import type { RPackage } from './bridge';
 import { rCall } from './bridge';
 import { regressionR, regressionScriptR, type RegressionInput } from './regression';
@@ -83,6 +83,37 @@ it.each(CASES)('%s reproduces the help page (native R)', async (id, key) => {
   if (key === 'prestige') expect(r.formula).toMatch(/log2_income/);
 }, 900_000);
 
+// The other links on the same help-page data (scripts/validation/regression_links.R).
+const links = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'regression', 'links.json'), 'utf8')) as Record<string, Ref>;
+async function sameAsLink(id: string, link: string, key: string) {
+  const ex = PACKAGE_EXAMPLES.find((e) => e.id === id)!;
+  const { kind: _k, ...opts } = ex.panel as { kind: 'regression' } & Omit<RegressionInput, 'confidence'>;
+  const r = await regressionR(await load(ex), { ...opts, link, confidence: 0.95 });
+  const want = links[key];
+  for (const w of want.coefficients) {
+    const mine = r.coefficients.find((e) => same(w.term, e.term)) ?? r.thresholds.find((e) => same(w.term, e.term));
+    expect(mine, `${key}: ${w.term} (have ${r.coefficients.map((e) => e.term).join(', ')})`).toBeTruthy();
+    expect(mine!.est, `${w.term} (${link})`).toBeCloseTo(w.est, 5);
+    expect(mine!.se, `SE of ${w.term} (${link})`).toBeCloseTo(w.se, 5);
+  }
+  for (const [k, v] of Object.entries(want.zeta ?? {})) expect(r.thresholds.find((t) => t.term === k)!.est, `${k} (${link})`).toBeCloseTo(v, 5);
+  expect(r.fit.logLik, `log-likelihood (${link})`).toBeCloseTo(want.logLik, 5);
+  expect(r.fit.aic, `AIC (${link})`).toBeCloseTo(want.aic, 5);
+  if (want.deviance !== undefined) expect(r.fit.deviance, `deviance (${link})`).toBeCloseTo(want.deviance, 5);
+  return r;
+}
+
+it('binomial with the complementary log-log link (cloglog) on ?menarche equals glm(binomial("cloglog")) natively', async () => {
+  const r = await sameAsLink('mass-menarche', 'cloglog', 'menarche_cloglog');
+  expect(r.warnings.every((w) => /fitted probabilities numerically 0 or 1/.test(w)), r.warnings.join(' | ')).toBe(true);  // (as natively)
+}, 900_000);
+
+it.each([['probit', 'housing_probit'], ['cloglog', 'housing_cloglog']])('ordinal with the %s link on ?housing equals polr natively', async (link, key) => {
+  const r = await sameAsLink('mass-housing', link, key);
+  expect(r.warnings, r.warnings.join(' | ')).toEqual([]);
+  expect(r.thresholds.map((t) => t.term)).toEqual(['Low|Medium', 'Medium|High']);
+}, 900_000);
+
 type PsclRef = { coefficients: { term: string; est: number; se: number }[]; logLik: number; aic: number; bic: number; npar: number; theta?: number; thetaSe?: number; vuong: Record<'raw' | 'aic' | 'bic', number>; zeros: number; zerosPredicted: number; zerosStandard: number };
 const pscl = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'regression', 'pscl.json'), 'utf8')) as Record<string, PsclRef>;
 const BIO = ['fem', 'mar', 'kid5', 'phd', 'ment'];
@@ -115,20 +146,20 @@ it.each(PSCL)('pscl %s: the zero-inflated and hurdle models reproduce pscl nativ
     const { part, term } = psclTerm(w.term);
     const mine = r.coefficients.find((e) => (e.part ?? null) === part && term === e.term);
     expect(mine, `${key}: ${w.term} (have ${r.coefficients.map((e) => `${e.part ?? ''}:${e.term}`).join(', ')})`).toBeTruthy();
-    expect(Math.abs(mine!.est - w.est), w.term).toBeLessThan(1e-6);
-    expect(Math.abs(mine!.se - w.se), `SE of ${w.term}`).toBeLessThan(1e-6);
+    near(w.term, mine!.est, w.est, 1e-6);
+    near(`SE of ${w.term}`, mine!.se, w.se, 1e-6);
     if (term !== '(Intercept)') expect(mine!.ratio).toBeCloseTo(Math.exp(w.est), 6);
   }
-  for (const k of ['logLik', 'aic', 'bic'] as const) expect(Math.abs(r.fit[k] - want[k]), k).toBeLessThan(1e-6);
+  for (const k of ['logLik', 'aic', 'bic'] as const) near(k, r.fit[k], want[k], 1e-6);
   expect(r.fit.npar).toBe(want.npar);
-  if (want.theta !== undefined) expect(Math.abs(r.fit.theta! - want.theta), 'θ').toBeLessThan(1e-6);
-  if (want.thetaSe !== undefined) expect(Math.abs(r.fit.thetaSe! - want.thetaSe), 'SE of θ').toBeLessThan(1e-6);
+  if (want.theta !== undefined) near('θ', r.fit.theta!, want.theta, 1e-6);
+  if (want.thetaSe !== undefined) near('SE of θ', r.fit.thetaSe!, want.thetaSe, 1e-6);
   else expect(r.fit.thetaSe ?? null).toBeNull();
   for (const k of ['raw', 'aic', 'bic'] as const) expect(Math.abs(r.vuong![k].z - want.vuong[k]) / Math.max(1, Math.abs(want.vuong[k])), `Vuong ${k}`).toBeLessThan(1e-6);
   const v = r.vuong!.raw; expect(v.p).toBeCloseTo(v.z > 0 ? 1 - pnorm(v.z) : pnorm(v.z), 6);
   expect(r.fit.zeros).toBe(want.zeros);
-  expect(Math.abs(r.fit.zerosPredicted! - want.zerosPredicted)).toBeLessThan(1e-6);
-  expect(Math.abs(r.fit.zerosStandard! - want.zerosStandard)).toBeLessThan(1e-6);
+  near('predicted zeros', r.fit.zerosPredicted!, want.zerosPredicted, 1e-6);
+  near('zeros predicted by the standard model', r.fit.zerosStandard!, want.zerosStandard, 1e-6);
   expect(r.zeroModel).toBe(p.zeroModel);
   expect(r.engine.package).toBe('pscl');
   expect(r.lrt).toBeNull();
@@ -153,9 +184,9 @@ it('the zero-inflated Poisson written out (Mplus COUNT (i)) agrees with pscl::ze
     expect(Math.abs(c.est - z.est), c.term).toBeLessThan(1e-5);
     expect(Math.abs(c.se - z.se), `SE of ${c.term}`).toBeLessThan(1e-5);
   });
-  expect(Math.abs(own.fit.logLik - ref.logLik)).toBeLessThan(1e-6);
+  near('logLik', own.fit.logLik, ref.logLik, 1e-6);
   expect(own.fit.npar).toBe(ref.npar);
-  expect(Math.abs(own.fit.aic - ref.aic)).toBeLessThan(1e-6);
+  near('aic', own.fit.aic, ref.aic, 1e-6);
 }, 900_000);
 
 it('robust and cluster-robust standard errors come from sandwich', async () => {
