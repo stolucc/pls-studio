@@ -114,3 +114,10 @@ describe('validateModel: the full issue list is pinned', () => {
     expect(out).toMatchSnapshot();
   });
 });
+
+// A covariance matrix has no raw columns: a weights column among its names is reported, not read.
+it('reports sampling weights on a covariance matrix instead of reading its missing column', () => {
+  const matrix = { ...kMatrix, names: kNames } as Dataset;
+  const issues = validateModel(kitchen, matrix, { ...DEFAULT_SETTINGS, method: 'cbsem', engine: 'r' } as Settings).map((i) => i.message);
+  expect(issues).toContain('Sampling weights need raw data; this dataset is a covariance matrix.');
+});

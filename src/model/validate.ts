@@ -527,7 +527,7 @@ function checkSamplingWeights(v: Ctx): Issue[] {
       if (assignedSet.has(wcol) || model.multigroup?.column === wcol) err(`“${wcol}” cannot be both the sampling weights and an indicator or the grouping column.`);
       const k = data?.names.indexOf(wcol) ?? -1;
       if (data && !data.moments && k < 0) err(`The sampling-weights column “${wcol}” is not in the current dataset.`);
-      else if (data && k >= 0 && Array.from(data.cols[k]).some((v) => !Number.isFinite(v) || v < 0)) err(`The sampling weights (${wcol}) must be non-negative numbers without missing values.`);
+      else if (data && k >= 0 && data.cols[k] && Array.from(data.cols[k]).some((v) => !Number.isFinite(v) || v < 0)) err(`The sampling weights (${wcol}) must be non-negative numbers without missing values.`);
       if (data?.moments && data.cols.length === 0) err('Sampling weights need raw data; this dataset is a covariance matrix.');
     }
   }
