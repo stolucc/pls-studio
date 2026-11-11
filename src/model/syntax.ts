@@ -418,14 +418,13 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
   // Variances, intercepts and thresholds held at values or labelled.
   const parameters: ParameterTerm[] = [];
   const held = (t: Term) => t.fixed !== undefined || !!t.label || !!t.byGroup?.length;
-  const valueOf = (t: Term) =>
-    t.byGroup?.length
-      ? { byGroup: t.byGroup }
-      : t.fixed !== undefined
-        ? { fixed: t.fixed }
-        : t.label
-          ? { label: t.label }
-          : {};
+  // (values per group win over a held value, which wins over a label)
+  const valueOf = (t: Term) => {
+    if (t.byGroup?.length) return { byGroup: t.byGroup };
+    if (t.fixed !== undefined) return { fixed: t.fixed };
+    if (t.label) return { label: t.label };
+    return {};
+  };
   // Ordinal variables (those with thresholds): a residual variance written out frees it (theta parameterisation).
   const withThresholds = new Set(rows.filter((x) => x.op === '|').flatMap((x) => x.lhs));
   // Covariances.
@@ -473,13 +472,11 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
           cb = byName.get(term.name),
           ia = indicatorOf.get(l),
           ib = indicatorOf.get(term.name);
+        // (a covariance held at 0 is an uncorrelated pair)
+        const heldValue = term.fixed === 0 ? { zero: true } : { fixed: term.fixed };
         const extra = {
           ...(term.byGroup?.length ? { byGroup: term.byGroup } : {}),
-          ...(term.fixed !== undefined
-            ? term.fixed === 0
-              ? { zero: true }
-              : { fixed: term.fixed }
-            : {}),
+          ...(term.fixed !== undefined ? heldValue : {}),
           ...(term.label ? { label: term.label } : {}),
         };
         if (ca && cb) {
@@ -557,13 +554,7 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
         means.push({
           id: newId('mt'),
           target: c.id,
-          ...(term.byGroup
-            ? { byGroup: term.byGroup }
-            : term.fixed !== undefined
-              ? { fixed: term.fixed }
-              : term.label
-                ? { label: term.label }
-                : {}),
+          ...(term.byGroup ? { byGroup: term.byGroup } : valueOf(term)),
         });
     }
   const defined: DefinedParameter[] = rows
@@ -585,11 +576,11 @@ export function parseLavaanSyntax(text: string): ParsedSyntax {
     }
     if (r.op === '|')
       for (const l of r.lhs) {
-        const ind = indicatorOf.has(l)
-          ? l
-          : byName.get(l)?.indicators.length === 1
-            ? byName.get(l)!.indicators[0]
-            : null;
+        // (a single-indicator construct's thresholds are its indicator's)
+        const construct = byName.get(l);
+        let ind: string | null = null;
+        if (indicatorOf.has(l)) ind = l;
+        else if (construct?.indicators.length === 1) ind = construct.indicators[0];
         if (!ind) {
           warn(`Thresholds of ${l} are not kept: “${l}” is not a variable of the model.`);
           continue;
@@ -677,6 +668,15 @@ const ESTIMATOR: Partial<Record<Settings['estimator'], string>> = {
   WLSMV: 'WLSMV',
 };
 
+/** The option a count indicator's kind takes in Mplus COUNT (Poisson takes none). */
+const MPLUS_COUNT_OPTION = { nb: 'nb', zip: 'i', zinb: 'nbi' } as const;
+
+/** Mplus `@value` after a held parameter ('' when it is free). */
+const mplusAt = (fixed: number | undefined) => (fixed !== undefined ? `@${fixed}` : '');
+
+/** Mplus ` (label)` after a labelled parameter ('' when it has no label). */
+const mplusLabel = (label: string | undefined) => (label ? ` (${label})` : '');
+
 /** Mplus variable names: at most 8 characters in older versions; letters, digits and _ only. */
 export function mplusName(name: string, taken: Map<string, string>): string {
   const have = taken.get(name);
@@ -746,9 +746,12 @@ export function toMplus(
       );
     const terms = c.indicators.map((i, k) => {
       mark(nm(i));
-      const f = c.fixedLoadings?.[i],
-        l = c.loadingLabels?.[i];
-      return `${nm(i)}${f !== undefined ? `@${f}` : k === 0 && c.scaling !== 'variance' ? '' : '*'}${l ? ` (${l})` : ''}`;
+      const fixed = c.fixedLoadings?.[i];
+      // Free (*), except the first loading, which Mplus fixes at 1, unless the factor is scaled by its variance.
+      let value = '*';
+      if (fixed !== undefined) value = `@${fixed}`;
+      else if (k === 0 && c.scaling !== 'variance') value = '';
+      return `${nm(i)}${value}${mplusLabel(c.loadingLabels?.[i])}`;
     });
     lines.push(statement(`${nm(c.name)} BY`, terms));
     // (scaled by its variance: every loading free, the variance fixed at 1)
@@ -765,7 +768,7 @@ export function toMplus(
       .filter((p) => p.to === to)
       .map((p) => {
         const f = byId.get(p.from)!;
-        return `${lvName(f)}${p.fixed !== undefined ? `@${p.fixed}` : ''}${p.label ? ` (${p.label})` : ''}`;
+        return `${lvName(f)}${mplusAt(p.fixed)}${mplusLabel(p.label)}`;
       });
     for (const mo of model.moderations.filter(
       (m) => model.paths.find((p) => p.id === m.path)?.to === to,
@@ -782,27 +785,21 @@ export function toMplus(
   // Direct effects on indicators.
   for (const p of model.indicatorPaths ?? []) {
     const f = byId.get(p.from);
-    if (f)
-      lines.push(
-        `${nm(p.to)} ON ${lvName(f)}${p.fixed !== undefined ? `@${p.fixed}` : ''}${p.label ? ` (${p.label})` : ''};`,
-      );
+    if (f) lines.push(`${nm(p.to)} ON ${lvName(f)}${mplusAt(p.fixed)}${mplusLabel(p.label)};`);
   }
   // Covariances.
   for (const k of model.correlations ?? []) {
     const a = k.kind === 'construct' ? lvName(byId.get(k.a)!) : nm(k.a),
       b = k.kind === 'construct' ? lvName(byId.get(k.b)!) : nm(k.b);
-    lines.push(
-      `${a} WITH ${b}${k.zero ? '@0' : k.fixed !== undefined ? `@${k.fixed}` : ''}${k.label ? ` (${k.label})` : ''};`,
-    );
+    const held = k.zero ? '@0' : mplusAt(k.fixed);
+    lines.push(`${a} WITH ${b}${held}${mplusLabel(k.label)};`);
   }
   // Means and intercepts.
   if (model.constant)
     for (const m of model.means ?? []) {
       const c = byId.get(m.target);
       if (!c) continue;
-      lines.push(
-        `[${lvName(c)}${m.fixed !== undefined ? `@${m.fixed}` : ''}]${m.label ? ` (${m.label})` : ''};`,
-      );
+      lines.push(`[${lvName(c)}${mplusAt(m.fixed)}]${mplusLabel(m.label)};`);
       if (m.fixed === undefined && !c.covariate && c.indicators.length > 1)
         lines.push(`[${nm(c.indicators[0])}@0];`);
     }
@@ -834,9 +831,7 @@ export function toMplus(
     ? [
         ...(['nb', 'zip', 'zinb'] as const).flatMap((k) => {
           const ns = count.filter(([, x]) => x === k).map(([n]) => n);
-          return ns.length
-            ? [`${ns.join(' ')} (${k === 'nb' ? 'nb' : k === 'zip' ? 'i' : 'nbi'})`]
-            : [];
+          return ns.length ? [`${ns.join(' ')} (${MPLUS_COUNT_OPTION[k]})`] : [];
         }),
         ...count.filter(([, x]) => x === 'poisson').map(([n]) => n),
       ].join(' ')
@@ -851,6 +846,13 @@ export function toMplus(
   const dataNames = data ? data.names : observedNames;
   const allNames = dataNames.map(nm);
   const file = `${project.replace(/[^A-Za-z0-9_-]+/g, '_') || 'data'}.dat`;
+  let analysis = `ANALYSIS: ESTIMATOR = ${ESTIMATOR[settings.estimator] ?? 'ML'};`;
+  if (model.cluster) analysis += ' TYPE = COMPLEX;';
+  if (xwith.length) analysis += ' TYPE = RANDOM; ALGORITHM = INTEGRATION;';
+  else if (countLine) analysis += ' ALGORITHM = INTEGRATION;';
+  if (settings.missing === 'casewise') analysis += ' LISTWISE = ON;';
+  if (model.parameterization === 'theta' && ordered.length)
+    analysis += ' PARAMETERIZATION = THETA;';
   const inp: string[] = [
     `TITLE: ${project}`,
     `DATA: FILE = "${file}";${info?.kind === 'matrix' ? ' TYPE = COVARIANCE;' : ''}${info?.kind === 'matrix' ? ` NOBSERVATIONS = ${info.rows};` : ''}`,
@@ -862,7 +864,7 @@ export function toMplus(
     ...(model.multigroup ? [`  GROUPING = ${nm(model.multigroup.column)};`] : []),
     ...(model.cluster ? [`  CLUSTER = ${nm(model.cluster)};`] : []),
     ...(model.weights ? [`  WEIGHT = ${nm(model.weights)};`] : []),
-    `ANALYSIS: ESTIMATOR = ${ESTIMATOR[settings.estimator] ?? 'ML'};${model.cluster ? ' TYPE = COMPLEX;' : ''}${xwith.length ? ' TYPE = RANDOM; ALGORITHM = INTEGRATION;' : countLine ? ' ALGORITHM = INTEGRATION;' : ''}${settings.missing === 'casewise' ? ' LISTWISE = ON;' : ''}${model.parameterization === 'theta' && ordered.length ? ' PARAMETERIZATION = THETA;' : ''}`,
+    analysis,
     'MODEL:',
     ...xwith.map((l) => `  ${l}`),
     ...lines.map((l) => `  ${l}`),

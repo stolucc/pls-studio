@@ -98,13 +98,27 @@ function tokenize(src: string): Tok[] {
     }
     const op = OPS.find((o) => src.startsWith(o, i));
     if (op) {
-      out.push({ k: 'op', v: op === '&&' ? '&' : op === '||' ? '|' : op });
+      // (R's && and || read as & and |: a formula works on whole columns)
+      let canonical = op;
+      if (op === '&&') canonical = '&';
+      else if (op === '||') canonical = '|';
+      out.push({ k: 'op', v: canonical });
       i += op.length;
       continue;
     }
     throw new Error(`Unexpected character “${ch}” in the formula.`);
   }
   return out;
+}
+
+/** How many arguments a function takes, for an error message: "1 argument", "at least 2 arguments", "2 to 3 arguments". */
+function argumentCountText([min, max]: readonly [number, number]): string {
+  let count: string;
+  if (min === max) count = `${min}`;
+  else if (max === Infinity) count = `at least ${min}`;
+  else count = `${min} to ${max}`;
+  const plural = min === 1 && max === 1 ? '' : 's';
+  return `${count} argument${plural}`;
 }
 
 /** Parse a formula; throws with a readable message. */
@@ -208,9 +222,7 @@ export function parseFormula(src: string): Node {
         }
         take(')');
         if (args.length < f.arity[0] || args.length > f.arity[1])
-          throw new Error(
-            `${t.v}() takes ${f.arity[0] === f.arity[1] ? f.arity[0] : f.arity[1] === Infinity ? `at least ${f.arity[0]}` : `${f.arity[0]} to ${f.arity[1]}`} argument${f.arity[0] === 1 && f.arity[1] === 1 ? '' : 's'}.`,
-          );
+          throw new Error(`${t.v}() takes ${argumentCountText(f.arity)}.`);
         return { t: 'call', fn: t.v, args };
       }
       return { t: 'col', name: t.v };
@@ -239,7 +251,11 @@ export function columnsIn(node: Node, out = new Set<string>()): string[] {
   return [...out];
 }
 
-const bool = (v: number) => (Number.isNaN(v) ? NaN : v !== 0 ? 1 : 0);
+/** A value as a truth value (as R): missing stays missing, any non-zero is true (1), zero is false (0). */
+function bool(v: number): number {
+  if (Number.isNaN(v)) return NaN;
+  return v !== 0 ? 1 : 0;
+}
 
 /** Evaluate a formula over the rows of `data`; missing values give missing results. */
 export function evaluate(node: Node, data: Dataset): Float64Array {
@@ -259,9 +275,11 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
         return col(nd.name);
       case 'un': {
         const e = ev(nd.e);
-        return nd.op === '-'
-          ? e.map((v) => -v)
-          : e.map((v) => (Number.isNaN(v) ? NaN : v === 0 ? 1 : 0));
+        if (nd.op === '-') return e.map((v) => -v);
+        return e.map((v) => {
+          if (Number.isNaN(v)) return NaN;
+          return v === 0 ? 1 : 0;
+        });
       }
       case 'bin': {
         const a = ev(nd.a),
@@ -272,13 +290,15 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
             y = b[i];
           // Three-valued logic as in R: a true side decides an |, a false side an &; otherwise missing stays missing.
           if (nd.op === '|') {
-            out[i] =
-              bool(x) === 1 || bool(y) === 1 ? 1 : Number.isNaN(x) || Number.isNaN(y) ? NaN : 0;
+            if (bool(x) === 1 || bool(y) === 1) out[i] = 1;
+            else if (Number.isNaN(x) || Number.isNaN(y)) out[i] = NaN;
+            else out[i] = 0;
             continue;
           }
           if (nd.op === '&') {
-            out[i] =
-              bool(x) === 0 || bool(y) === 0 ? 0 : Number.isNaN(x) || Number.isNaN(y) ? NaN : 1;
+            if (bool(x) === 0 || bool(y) === 0) out[i] = 0;
+            else if (Number.isNaN(x) || Number.isNaN(y)) out[i] = NaN;
+            else out[i] = 1;
             continue;
           }
           if (Number.isNaN(x) || Number.isNaN(y)) {
@@ -372,8 +392,10 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
           case 'ifelse': {
             const [c, a, b] = args,
               out = new Float64Array(n);
-            for (let i = 0; i < n; i++)
-              out[i] = Number.isNaN(c[i]) ? NaN : c[i] !== 0 ? a[i] : b[i];
+            for (let i = 0; i < n; i++) {
+              if (Number.isNaN(c[i])) out[i] = NaN;
+              else out[i] = c[i] !== 0 ? a[i] : b[i];
+            }
             return out;
           }
           case 'isna':
@@ -404,9 +426,11 @@ export function evaluate(node: Node, data: Dataset): Float64Array {
               ok.length > 1
                 ? Math.sqrt(ok.reduce((s, v) => s + (v - m) ** 2, 0) / (ok.length - 1))
                 : NaN;
-            return x.map((v) =>
-              Number.isNaN(v) ? NaN : nd.fn === 'center' ? v - m : sd > 0 ? (v - m) / sd : NaN,
-            );
+            return x.map((v) => {
+              if (Number.isNaN(v)) return NaN;
+              if (nd.fn === 'center') return v - m;
+              return sd > 0 ? (v - m) / sd : NaN;
+            });
           }
           case 'lag': {
             const k = args[1] ? args[1][0] : 1;

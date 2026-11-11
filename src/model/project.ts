@@ -748,14 +748,14 @@ function covarianceSpec(
             b: name.get(k.b)!,
             kind: 'construct' as const,
             ...(k.zero ? { zero: true } : {}),
-            ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}),
+            ...heldOrLabelled(k),
             ...(k.byGroup?.length && !k.zero ? { byGroup: k.byGroup } : {}),
           }
         : {
             a: k.a,
             b: k.b,
             kind: 'indicator' as const,
-            ...(k.fixed !== undefined ? { fixed: k.fixed } : k.label ? { label: k.label } : {}),
+            ...heldOrLabelled(k),
             ...(k.byGroup?.length ? { byGroup: k.byGroup } : {}),
           },
   );
@@ -875,7 +875,7 @@ export function toSpec(model: ModelState): ModelSpec {
       ...model.paths.map((p) => ({
         from: name.get(p.from)!,
         to: name.get(p.to)!,
-        ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}),
+        ...heldOrLabelled(p),
       })),
       // A moderation implies the moderator's main effect on the outcome (the convention, as in PROCESS):
       // estimated with the model even when it is not drawn.
@@ -909,13 +909,13 @@ export function toSpec(model: ModelState): ModelSpec {
       ? {
           multigroup: {
             ...model.multigroup,
-            free: model.multigroup.free.map((f) =>
-              f.kind === 'loading' || f.kind === 'mean'
-                ? { ...f, construct: name.get(f.construct) ?? f.construct }
-                : f.kind === 'regression'
-                  ? { ...f, from: name.get(f.from) ?? f.from, to: name.get(f.to) ?? f.to }
-                  : f,
-            ),
+            free: model.multigroup.free.map((f) => {
+              if (f.kind === 'loading' || f.kind === 'mean')
+                return { ...f, construct: name.get(f.construct) ?? f.construct };
+              if (f.kind === 'regression')
+                return { ...f, from: name.get(f.from) ?? f.from, to: name.get(f.to) ?? f.to };
+              return f;
+            }),
           },
         }
       : {}),
@@ -927,13 +927,7 @@ export function toSpec(model: ModelState): ModelSpec {
               ? [
                   {
                     construct: name.get(t.target)!,
-                    ...(t.byGroup?.length
-                      ? { byGroup: t.byGroup }
-                      : t.fixed !== undefined
-                        ? { fixed: t.fixed }
-                        : t.label
-                          ? { label: t.label }
-                          : {}),
+                    ...(t.byGroup?.length ? { byGroup: t.byGroup } : heldOrLabelled(t)),
                     ...(t.bias !== undefined ? { bias: t.bias } : {}),
                   },
                 ]
@@ -1000,12 +994,31 @@ export function toSpec(model: ModelState): ModelSpec {
             .map((p) => ({
               from: name.get(p.from)!,
               to: p.to,
-              ...(p.fixed !== undefined ? { fixed: p.fixed } : p.label ? { label: p.label } : {}),
+              ...heldOrLabelled(p),
             })),
         }
       : {}),
     ...(model.parameterization ? { parameterization: model.parameterization } : {}),
   };
+}
+
+/** A term's held value or, when it is free, its label (a held value wins; neither: nothing). */
+function heldOrLabelled(term: {
+  fixed?: number;
+  label?: string;
+}): { fixed: number } | { label: string } | Record<string, never> {
+  if (term.fixed !== undefined) return { fixed: term.fixed };
+  if (term.label) return { label: term.label };
+  return {};
+}
+
+/** What a variance/intercept/threshold term sets: values per group, else held or labelled, else freed. */
+function parameterValue(t: ParameterTerm) {
+  if (t.byGroup?.length) return { byGroup: t.byGroup };
+  if (t.fixed !== undefined) return { fixed: t.fixed };
+  if (t.label) return { label: t.label };
+  if (t.free) return { free: true as const };
+  return {};
 }
 
 /** Variances, intercepts and thresholds held or labelled, by construct name (terms whose construct or indicator is gone are dropped). */
@@ -1023,19 +1036,19 @@ function parameterSpec(
         target: t.indicator ? t.target : name.get(t.target)!,
         ...(t.indicator ? { indicator: true } : {}),
         ...(t.threshold !== undefined ? { threshold: t.threshold } : {}),
-        ...(t.byGroup?.length
-          ? { byGroup: t.byGroup }
-          : t.fixed !== undefined
-            ? { fixed: t.fixed }
-            : t.label
-              ? { label: t.label }
-              : t.free
-                ? { free: true as const }
-                : {}),
+        ...parameterValue(t),
       },
     ];
   });
   return parameters.length ? { parameters } : {};
+}
+
+/** A variance/intercept/scale/threshold term as the labels list names it. */
+function describeParameter(t: ParameterTerm, name: (id: string) => string): string {
+  if (t.kind === 'variance') return `variance of ${t.indicator ? t.target : name(t.target)}`;
+  if (t.kind === 'intercept') return `intercept of ${t.target}`;
+  if (t.kind === 'scale') return `scale factor of ${t.target}`;
+  return `threshold ${t.threshold ?? 1} of ${t.target}`;
 }
 
 /** Every label in use, with the parameters carrying it. */
@@ -1050,31 +1063,20 @@ export function labelUses(model: ModelState): Map<string, string[]> {
   for (const c of model.constructs)
     for (const [ind, l] of Object.entries(c.loadingLabels ?? {}))
       if (c.fixedLoadings?.[ind] === undefined) add(l, `${c.name} → ${ind}`);
+  // (a correlation between constructs is shown by their names; between indicators, by the columns)
+  const correlationText = (k: Correlation) => {
+    const end = (id: string) => (k.kind === 'construct' ? name(id) : id);
+    return `${end(k.a)} ↔ ${end(k.b)}`;
+  };
   for (const k of model.correlations ?? [])
-    if (k.fixed === undefined && !k.zero)
-      add(
-        k.label,
-        `${k.kind === 'construct' ? name(k.a) : k.a} ↔ ${k.kind === 'construct' ? name(k.b) : k.b}`,
-      );
+    if (k.fixed === undefined && !k.zero) add(k.label, correlationText(k));
   for (const k of model.correlations ?? [])
     if (!k.zero)
-      for (const v of k.byGroup ?? [])
-        if (typeof v === 'string')
-          add(
-            v,
-            `${k.kind === 'construct' ? name(k.a) : k.a} ↔ ${k.kind === 'construct' ? name(k.b) : k.b}`,
-          );
+      for (const v of k.byGroup ?? []) if (typeof v === 'string') add(v, correlationText(k));
   for (const p of model.indicatorPaths ?? [])
     if (p.fixed === undefined) add(p.label, `${name(p.from)} → ${p.to}`);
   for (const t of model.parameters ?? []) {
-    const what =
-      t.kind === 'variance'
-        ? `variance of ${t.indicator ? t.target : name(t.target)}`
-        : t.kind === 'intercept'
-          ? `intercept of ${t.target}`
-          : t.kind === 'scale'
-            ? `scale factor of ${t.target}`
-            : `threshold ${t.threshold ?? 1} of ${t.target}`;
+    const what = describeParameter(t, name);
     if (t.byGroup?.length) {
       for (const v of t.byGroup) if (typeof v === 'string') add(v, what);
     } else if (t.fixed === undefined) add(t.label, what);
@@ -1541,6 +1543,25 @@ function parseMultigroup(r: Record<string, unknown>, ids: Set<string>): Multigro
 }
 
 /** A parameter label from a file (validated again before use). */
+/** A multilevel model's between level as read from a file: unknown values, or a between model that does not parse, are saturated. */
+function betweenLevelOf(
+  between: unknown,
+  betweenModel: unknown,
+): 'same' | 'saturated' | 'factors' | 'model' {
+  if (between === 'same') return 'same';
+  if (between === 'factors') return 'factors';
+  if (between === 'model' && parseBetweenModel(betweenModel).length) return 'model';
+  return 'saturated';
+}
+
+/** A mean term's bias as read from a file: one number, or one per group (1 to 20 of them). */
+function meanBiasOf(v: unknown): { bias: number } | { bias: number[] } | Record<string, never> {
+  if (finite(v)) return { bias: v };
+  const perGroup = Array.isArray(v) && v.length >= 1 && v.length <= 20 && v.every(finite);
+  if (perGroup) return { bias: v as number[] };
+  return {};
+}
+
 const labelOf = (v: unknown): { label?: string } =>
   typeof v === 'string' && v.trim() ? { label: v.trim().slice(0, 31) } : {};
 /** Values per group from a file: numbers, labels (validated again before use) or null (free). */
@@ -1640,16 +1661,12 @@ export function parseModelState(m: unknown): ModelState {
     if (!isObj(c) || !Array.isArray(c.indicators))
       throw new Error('Invalid construct in project file.');
     const mode: Mode = c.mode === 'B' || c.mode === 'unit' ? c.mode : 'A';
+    // Files from before construct types existed: Mode B meant formative/composite.
+    const legacyType: Construct['type'] = mode === 'B' ? 'composite' : 'factor';
     return {
       id: str(c.id, 64),
       name: str(c.name, 100),
-      // Files from before construct types existed: Mode B meant formative/composite.
-      type:
-        c.type === 'composite' || c.type === 'factor'
-          ? c.type
-          : mode === 'B'
-            ? 'composite'
-            : 'factor',
+      type: c.type === 'composite' || c.type === 'factor' ? c.type : legacyType,
       mode,
       indicators: c.indicators.slice(0, 1000).map((i: unknown) => str(i)),
       x: clampStrict(c.x, -1e6, 1e6, 0),
@@ -1836,15 +1853,7 @@ export function parseModelState(m: unknown): ModelState {
       ? {
           multilevel: {
             column: str(m.multilevel.column),
-            between:
-              m.multilevel.between === 'same'
-                ? ('same' as const)
-                : m.multilevel.between === 'factors'
-                  ? ('factors' as const)
-                  : m.multilevel.between === 'model' &&
-                      parseBetweenModel(m.multilevel.betweenModel).length
-                    ? ('model' as const)
-                    : ('saturated' as const),
+            between: betweenLevelOf(m.multilevel.between, m.multilevel.betweenModel),
             ...(m.multilevel.between === 'factors' &&
             Array.isArray(m.multilevel.betweenCovariates) &&
             m.multilevel.betweenCovariates.length
@@ -1999,14 +2008,7 @@ export function parseModelState(m: unknown): ModelState {
                 const target = str(t.target, 64);
                 if (!ids.has(target) || seen.has(target)) return [];
                 seen.add(target);
-                const bias = finite(t.bias)
-                  ? { bias: t.bias }
-                  : Array.isArray(t.bias) &&
-                      t.bias.length >= 1 &&
-                      t.bias.length <= 20 &&
-                      t.bias.every(finite)
-                    ? { bias: t.bias as number[] }
-                    : {};
+                const bias = meanBiasOf(t.bias);
                 return [
                   {
                     id: str(t.id, 64),
