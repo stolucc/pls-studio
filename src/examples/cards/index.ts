@@ -31,6 +31,7 @@ export const CARD_EXAMPLES: PackageExample[] = [
   ...CARD_INVARIANCE,
   ...CARD_HYPOTHESES,
   ...CARD_APIM,
+  ...CARD_META,
 ];
 import { CARD_MISSING } from './missing';
 import { CARD_SENSITIVITY } from './sensitivity';
@@ -38,3 +39,4 @@ import { CARD_SCORETEST } from './scoretest';
 import { CARD_LCS } from './lcs';
 import { CARD_HYPOTHESES } from './hypotheses';
 import { CARD_APIM } from './apim';
+import { CARD_META } from './meta';

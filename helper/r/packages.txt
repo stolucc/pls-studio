@@ -43,6 +43,8 @@ manymome
 marginaleffects
 mediation
 metaSEM
+metadat
+metafor
 mice
 mirt
 misty

@@ -361,6 +361,107 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     title: 'Multilevel latent classes (glca)',
     examples: ['glca-nyts18-mlca', 'mplus-ex10.7'],
   },
+  meta: ex('metafor-bcg'),
+  'meta:measure:GEN': {
+    title: 'Effect sizes given with their variances',
+    features: ['rengine/meta::three-level model'],
+  },
+  'meta:measure:GEN:sei': {
+    title: 'Effect sizes given with their standard errors',
+    features: ['rengine/meta::standard errors, odds ratios'],
+  },
+  'meta:measure:SMD': {
+    title: 'Standardised mean differences (Hedges’ g)',
+    features: ['rengine/meta::standardised and raw mean differences'],
+  },
+  'meta:measure:MD': {
+    title: 'Raw mean differences',
+    features: ['rengine/meta::standardised and raw mean differences'],
+  },
+  'meta:measure:OR': {
+    title: 'Log odds ratios',
+    features: ['rengine/meta::standard errors, odds ratios'],
+  },
+  'meta:measure:RR': {
+    title: 'Log risk ratios',
+    features: ['rengine/meta::random-effects model of dat.bcg'],
+  },
+  'meta:measure:RD': {
+    title: 'Risk differences',
+    features: ['rengine/meta::standard errors, odds ratios'],
+  },
+  'meta:measure:ZCOR': {
+    title: 'Correlations (Fisher’s z, back-transformed to r)',
+    features: ['rengine/meta::Fisher’s z'],
+  },
+  'meta:measure:PLO': {
+    title: 'Proportions (logit, back-transformed)',
+    features: ['rengine/meta::proportions, logit and raw'],
+  },
+  'meta:measure:PR': {
+    title: 'Proportions (raw)',
+    features: ['rengine/meta::proportions, logit and raw'],
+  },
+  'meta:method:FE': {
+    title: 'Equal-effects (fixed-effect) model',
+    features: ['rengine/meta::every tau² estimator'],
+  },
+  'meta:method:REML': {
+    title: 'Random effects, REML',
+    features: ['rengine/meta::random-effects model of dat.bcg'],
+  },
+  'meta:method:ML': {
+    title: 'Random effects, ML',
+    features: ['rengine/meta::every tau² estimator'],
+  },
+  'meta:method:DL': {
+    title: 'Random effects, DerSimonian–Laird',
+    features: ['rengine/meta::every tau² estimator'],
+  },
+  'meta:method:PM': {
+    title: 'Random effects, Paule–Mandel',
+    features: ['rengine/meta::every tau² estimator'],
+  },
+  'meta:method:HE': {
+    title: 'Random effects, Hedges',
+    features: ['rengine/meta::every tau² estimator'],
+  },
+  'meta:method:SJ': {
+    title: 'Random effects, Sidik–Jonkman',
+    features: ['rengine/meta::every tau² estimator'],
+  },
+  'meta:method:EB': {
+    title: 'Random effects, empirical Bayes',
+    features: ['rengine/meta::every tau² estimator'],
+  },
+  'meta:method:HS': {
+    title: 'Random effects, Hunter–Schmidt',
+    features: ['rengine/meta::every tau² estimator'],
+  },
+  'meta:knha': {
+    title: 'Knapp–Hartung adjustment',
+    features: ['rengine/meta::with and without Knapp–Hartung'],
+  },
+  'meta:moderators': {
+    title: 'Meta-regression on continuous moderators',
+    features: ['rengine/meta::meta-regression on ablat and year'],
+  },
+  'meta:categorical': {
+    title: 'Categorical moderators (factor dummies)',
+    features: ['rengine/meta::categorical moderator'],
+  },
+  'meta:threelevel': {
+    title: 'Three-level model (rma.mv)',
+    features: ['rengine/meta::three-level model'],
+  },
+  'meta:bias': {
+    title: 'Publication bias: Egger, rank correlation, trim-and-fill, PET-PEESE',
+    features: ['rengine/meta::random-effects model of dat.bcg'],
+  },
+  'meta:influence': {
+    title: 'Influence diagnostics and leave-one-out',
+    features: ['rengine/meta::random-effects model of dat.bcg'],
+  },
   psem: {},
   'psem:gaussian': { title: 'Normal outcomes (lm)', features: ['rengine/psem::keeley model'] },
   'psem:binomial': {

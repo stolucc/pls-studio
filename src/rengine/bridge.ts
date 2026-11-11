@@ -46,6 +46,7 @@ import scoreTestR from './R/scoretest.R?raw';
 import psemR from './R/psem.R?raw';
 import hypothesesR from './R/hypotheses.R?raw';
 import apimR from './R/apim.R?raw';
+import metaR from './R/meta.R?raw';
 import { useCompute } from './compute';
 import {
   helperBatch,
@@ -104,6 +105,7 @@ export const SOURCES = {
   hypotheses: hypothesesR,
   apim: apimR,
   psem: psemR,
+  meta: metaR,
 };
 
 export const R_PACKAGES = {
@@ -224,6 +226,10 @@ export const R_PACKAGES = {
   restriktor: ['jsonlite', 'lavaan', 'restriktor'],
   bain: ['jsonlite', 'lavaan', 'bain'],
   informative: ['jsonlite', 'lavaan', 'restriktor', 'bain'],
+  // Univariate meta-analysis: metafor's rma / rma.mv, escalc, regtest, ranktest, trimfill, influence, leave1out.
+  metafor: ['jsonlite', 'metafor'],
+  // Datasets of metadat (dat.bcg, …): the metafor examples' data (metafor depends on metadat).
+  metadat: ['jsonlite', 'metadat'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;

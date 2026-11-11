@@ -108,7 +108,9 @@ export type ExamplePackage =
   | 'restriktor'
   | 'bain'
   | 'piecewiseSEM'
-  | 'Bayesrel';
+  | 'Bayesrel'
+  | 'metafor'
+  | 'metadat';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -172,6 +174,7 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'bain',
   'piecewiseSEM',
   'Bayesrel',
+  'metafor',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -274,7 +277,8 @@ export type CardPanelKind =
   | 'plsmultilevel'
   | 'hypotheses'
   | 'apim'
-  | 'psem';
+  | 'psem'
+  | 'meta';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage {
@@ -3501,6 +3505,22 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
     }
     case 'qca':
       return [...p.conditions, p.outcome, ...(p.labels ? [p.labels] : [])];
+    // (the meta-analysis: its summary-data columns, moderators, cluster and labels)
+    case 'meta': {
+      const o = panelPreset(p) as {
+        columns: Record<string, string>;
+        moderators?: string[];
+        cluster?: string;
+        label?: string;
+      };
+      return [
+        ...new Set(
+          [...Object.values(o.columns), ...(o.moderators ?? []), o.cluster, o.label].filter(
+            (x): x is string => !!x,
+          ),
+        ),
+      ];
+    }
     case 'efa':
       return p.vars ?? [];
     case 'screen':

@@ -68,6 +68,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/hypotheses': 'examples',
   'examples/cards/apim': 'examples',
   'examples/cards/qca': 'examples',
+  'examples/cards/meta': 'examples',
   'examples/cards/invariance': 'examples',
   'examples/cards/missing': 'examples',
   'examples/cards/sensitivity': 'examples',
@@ -441,6 +442,15 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     'Items',
     ['ltm', 'poLCA', 'mirt', 'glca'],
     script('items.R', 'desktop ltm and poLCA'),
+  ),
+  'rengine/meta': native(
+    'Meta-analysis: escalc, equal- and random-effects models, meta-regression, three-level models, bias, influence',
+    'Meta-analysis',
+    ['metafor'],
+    script(
+      'meta.R',
+      'desktop metafor on metadat’s dat.bcg, normand1999, molloy2014, pritz1997, konstantopoulos2011',
+    ),
   ),
   'rengine/psem': native(
     'Piecewise SEM: d-separation tests, Fisher’s C, AIC, standardised coefficients',

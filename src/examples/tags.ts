@@ -70,6 +70,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   sempower: ['Power analysis', 'Sample size'],
   metasem: ['Meta-analysis'],
   semtree: ['SEM trees', 'Heterogeneity'],
+  meta: ['Meta-analysis', 'Publication bias'],
   psem: ['Piecewise SEM', 'Path analysis', 'd-separation'],
   plsmultilevel: ['Multilevel', 'Random slopes'],
   regsem: ['Regularised SEM', 'Model modification'],

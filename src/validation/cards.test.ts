@@ -15,6 +15,7 @@ import { DID_DESIGNS } from '../analyses/did';
 import { ENDO_METHODS } from '../analyses/endo';
 import { IRT_MODELS, LCA_AUX_METHODS, LCA_KINDS } from '../analyses/items';
 import { PSEM_MODES } from '../analyses/psem';
+import { META_MODES } from '../analyses/meta';
 import { MATCH_METHODS } from '../analyses/match';
 import { METASEM_METHODS } from '../analyses/metasem';
 import { EGA_MODELS, NETWORK_COR_METHODS, NETWORK_ESTIMATORS } from '../analyses/network';
@@ -82,6 +83,7 @@ const CARD_MODES: Record<string, readonly string[]> = {
   dynamicfit: DFI_FUNCTIONS,
   metasem: METASEM_METHODS,
   psem: PSEM_MODES,
+  meta: META_MODES,
   bsem: BSEM_ENGINES,
   endo: ENDO_METHODS,
   glmm: GLMM_FAMILIES,
