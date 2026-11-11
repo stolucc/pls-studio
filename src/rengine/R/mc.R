@@ -18,7 +18,13 @@ ps_mc_body <- function(req) {
   reg <- vapply(ends, function(t) paste(cv[[t]], "~", paste(cv[vapply(Filter(function(p) p$to == t, spec$paths), `[[`, "", "from")], collapse = " + ")), "")
   plsm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], if (identical(spec$constructs[[j]]$type, "composite")) "<~" else "=~", paste(ind(j), collapse = " + ")), ""), reg)
   cbm <- c(vapply(seq_along(spec$constructs), function(j) paste(cv[[j]], "=~", ps_marked(ind(j))), ""), reg)
-  req$params <- lapply(req$params, function(p) { if (p$kind != "fit") { p$from <- cv[[p$from]]; p$to <- cv[[p$to]] }; p })
+  req$params <- lapply(req$params, function(p) {
+    if (p$kind != "fit") {
+      p$from <- cv[[p$from]]
+      p$to <- cv[[p$to]]
+    }
+    p
+  })
   # Population model: every indicator (co)variance fixed at its population value.
   pop <- c()
   for (i in seq_along(vars)) for (j in i:length(vars)) pop <- c(pop, sprintf("%s ~~ %s*%s", vars[i], format(S[i, j], digits = 15), vars[j]))
@@ -26,11 +32,16 @@ ps_mc_body <- function(req) {
     e <- req$estimators[[ei]]
     if (e$method == "pls") {
       boot <- if (req$bootSamples > 0) sprintf(", .resample_method = \"bootstrap\", .R = %d, .seed = boot_seed", as.integer(req$bootSamples)) else ""
-      sprintf("  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"path\"%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
-        ei, if (isTRUE(e$consistent)) "TRUE" else "FALSE", boot)
-    } else sprintf("  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })", ei, e$estimator)
+      sprintf(
+        "  res[[%d]] <- tryCatch(pls_stats(csem(data, pls_model, .disattenuate = %s, .PLS_weight_scheme_inner = \"path\"%s)), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })",
+        ei, if (isTRUE(e$consistent)) "TRUE" else "FALSE", boot
+      )
+    } else {
+      sprintf("  res[[%d]] <- tryCatch(cb_stats(sem(cb_model, data = data, estimator = \"%s\"), mc_seed), error = function(e) { mc_errors <<- c(mc_errors, conditionMessage(e)); NULL })", ei, e$estimator)
+    }
   }))
-  c("suppressPackageStartupMessages({ library(lavaan); library(cSEM) })",
+  c(
+    "suppressPackageStartupMessages({ library(lavaan); library(cSEM) })",
     sprintf("vars <- %s", ps_q(vars)),
     "pop_model <- '", paste0("  ", pop), "'",
     sprintf("skew <- %s; kurt <- %s", paste(deparse(as.numeric(req$population$skew)), collapse = ""), paste(deparse(as.numeric(req$population$kurtosis)), collapse = "")),
@@ -109,19 +120,24 @@ ps_mc_body <- function(req) {
     "  res <- list()",
     est_lines,
     "  res",
-    "}")
+    "}"
+  )
 }
 
 ps_mc <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   body <- ps_mc_body(req)
-  seeds <- req$seeds  # list of {n, rep, data, boot, mc}
-  run <- c("mc_errors <- character(0)",
+  seeds <- req$seeds # list of {n, rep, data, boot, mc}
+  run <- c(
+    "mc_errors <- character(0)",
     "results <- lapply(seq_len(nrow(seeds)), function(i) one_replication(seeds$n[i], seeds$data[i], seeds$boot[i], seeds$mc[i]))",
     "# Estimations that failed count as not converged; how many, and why, is reported.",
-    "if (length(mc_errors)) warning(sprintf(\"%d estimations failed or did not converge (counted as not converged); most common: %s\", length(mc_errors), names(sort(table(mc_errors), decreasing = TRUE))[1]))")
-  sd <- data.frame(n = vapply(seeds, `[[`, 0, "n"), rep = vapply(seeds, `[[`, 0, "rep"), data = vapply(seeds, `[[`, 0, "data"),
-    boot = vapply(seeds, `[[`, 0, "boot"), mc = vapply(seeds, `[[`, 0, "mc"))
+    "if (length(mc_errors)) warning(sprintf(\"%d estimations failed or did not converge (counted as not converged); most common: %s\", length(mc_errors), names(sort(table(mc_errors), decreasing = TRUE))[1]))"
+  )
+  sd <- data.frame(
+    n = vapply(seeds, `[[`, 0, "n"), rep = vapply(seeds, `[[`, 0, "rep"), data = vapply(seeds, `[[`, 0, "data"),
+    boot = vapply(seeds, `[[`, 0, "boot"), mc = vapply(seeds, `[[`, 0, "mc")
+  )
   if (export) {
     est_ids <- vapply(req$estimators, `[[`, "", "id")
     report <- c(
@@ -135,13 +151,17 @@ ps_mc <- function(req_json, export = FALSE) {
       "    mean = mean(x), bias = if (params$kind[k] == 'fit') NA else mean(x) - truth[k], sd = stats::sd(x),",
       "    rmse = if (params$kind[k] == 'fit') NA else sqrt(mean((x - truth[k])^2)), rejection = mean(vals[ok, 4], na.rm = TRUE))",
       "}))))))",
-      "print(summary_rows, digits = 3)")
+      "print(summary_rows, digits = 3)"
+    )
     return(ps_script("Monte Carlo simulation (lavaan::simulateData; cSEM / lavaan)", c("lavaan", "cSEM"), list(seeds = sd), c(body, run), report))
   }
   env <- ps_run(c(body, run), list(seeds = sd))
-  E <- length(req$estimators); K <- length(req$params)
+  E <- length(req$estimators)
+  K <- length(req$params)
   pick <- function(col) lapply(seq_len(E), function(e) lapply(seq_len(K), function(k) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$values[k, col], 0)))
-  ps_json(list(est = pick(1), lo = pick(2), hi = pick(3), sig = pick(4),
+  ps_json(list(
+    est = pick(1), lo = pick(2), hi = pick(3), sig = pick(4),
     proper = lapply(seq_len(E), function(e) vapply(env$results, function(r) if (is.null(r[[e]])) NA_real_ else r[[e]]$proper, 0)),
-    warnings = env$.warnings))
+    warnings = env$.warnings
+  ))
 }

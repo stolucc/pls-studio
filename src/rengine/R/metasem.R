@@ -17,7 +17,8 @@ ps_metasem_studies <- function(meta, vars) {
   if (!is.list(st) || length(st) < 2 || length(st) > 5000) stop("Meta-analytic SEM needs 2 to 5000 studies.")
   pairs <- which(upper.tri(diag(p)), arr.ind = TRUE)
   pairs <- pairs[order(pairs[, 1], pairs[, 2]), , drop = FALSE]
-  n <- numeric(length(st)); R <- vector("list", length(st))
+  n <- numeric(length(st))
+  R <- vector("list", length(st))
   for (k in seq_along(st)) {
     s <- st[[k]]
     nk <- s$n
@@ -27,15 +28,22 @@ ps_metasem_studies <- function(meta, vars) {
     if (length(r) != nrow(pairs)) stop(sprintf("Study %d: %d correlations expected, one per pair of the model's %d observed variables.", k, nrow(pairs), p))
     if (any(!is.na(r) & (!is.finite(r) | abs(r) >= 1))) stop(sprintf("Study %d: a correlation is not between -1 and 1.", k))
     if (all(is.na(r))) stop(sprintf("Study %d reports none of the correlations.", k))
-    m <- diag(p); m[pairs] <- r; m[pairs[, 2:1, drop = FALSE]] <- r
+    m <- diag(p)
+    m[pairs] <- r
+    m[pairs[, 2:1, drop = FALSE]] <- r
     # A variable a study did not measure: its whole row and column missing (metaSEM's convention), the diagonal too.
     gone <- vapply(seq_len(p), function(i) all(is.na(m[i, -i])), TRUE)
-    m[gone, ] <- NA; m[, gone] <- NA
+    m[gone, ] <- NA
+    m[, gone] <- NA
     dimnames(m) <- list(vars, vars)
-    n[k] <- nk; R[[k]] <- m
+    n[k] <- nk
+    R[[k]] <- m
   }
   seen <- Reduce(`+`, lapply(R, function(m) !is.na(m)))
-  if (any(seen[pairs] == 0)) { w <- pairs[seen[pairs] == 0, , drop = FALSE][1, ]; stop(sprintf("No study reports the correlation of %s and %s.", vars[w[1]], vars[w[2]])) }
+  if (any(seen[pairs] == 0)) {
+    w <- pairs[seen[pairs] == 0, , drop = FALSE][1, ]
+    stop(sprintf("No study reports the correlation of %s and %s.", vars[w[1]], vars[w[2]]))
+  }
   names(R) <- paste0("Study", seq_along(R))
   list(R = R, n = n)
 }
@@ -57,7 +65,8 @@ ps_metasem <- function(req_json, export = FALSE) {
   if (!is.null(req$model$multigroup) || !is.null(req$model$multilevel)) stop("Meta-analytic SEM fits one pooled matrix: remove the grouping or the levels.")
   if (length(unlist(req$model$ordered))) stop("Meta-analytic SEM pools correlations: the model cannot have ordinal indicators.")
   req$model$identification <- "unit"
-  req$estimator <- "ML"; req$missing <- "casewise"
+  req$estimator <- "ML"
+  req$missing <- "casewise"
   req$data <- list(names = vars, moments = list(S = diag(length(vars)), n = 1000))
   b <- ps_cb_build(req)
   if (length(b$composites)) stop("Composites (<~) are not available in meta-analytic SEM.")
@@ -79,12 +88,16 @@ ps_metasem <- function(req_json, export = FALSE) {
     "model <- '", ps_model_lines(b), "'",
     sprintf("RAM <- lavaan2RAM(model, obs.variables = %s)", ps_q(iv)),
     "stage2 <- tssem2(stage1, RAM = RAM)",
-    "s2 <- summary(stage2)")
-  if (export) return(ps_script(sprintf("Meta-analytic SEM (TSSEM, %s)", if (method == "FEM") "fixed effects" else "random effects"), "metaSEM", inputs, body, c("s1", "s2")))
+    "s2 <- summary(stage2)"
+  )
+  if (export) {
+    return(ps_script(sprintf("Meta-analytic SEM (TSSEM, %s)", if (method == "FEM") "fixed effects" else "random effects"), "metaSEM", inputs, body, c("s1", "s2")))
+  }
   env <- ps_run(body, inputs)
   back <- ps_back_map(b)
   nm <- function(x) unname(ps_back(x, back))
-  s1 <- env$s1; s2 <- env$s2
+  s1 <- env$s1
+  s2 <- env$s2
   # Stage 1: the pooled correlations with their standard errors (and, random effects, heterogeneity variances and I2)
   co1 <- s1$coefficients
   p <- length(iv)
@@ -96,36 +109,51 @@ ps_metasem <- function(req_json, export = FALSE) {
   pooled <- lapply(seq_len(nrow(low)), function(k) {
     i <- fixed_rows[k]
     cell <- function(col) if (col %in% colnames(co1)) co1[i, col] else NULL
-    list(a = nm(iv[low[k, 2]]), b = nm(iv[low[k, 1]]), r = co1[i, "Estimate"], se = co1[i, "Std.Error"], low = cell("lbound"), high = cell("ubound"),
-      tau2 = if (length(tau_rows) >= k && re_type != "Zero") co1[tau_rows[k], "Estimate"] else NULL, i2 = if (!is.null(i2) && length(i2) >= k) unname(i2[k]) else NULL)
+    list(
+      a = nm(iv[low[k, 2]]), b = nm(iv[low[k, 1]]), r = co1[i, "Estimate"], se = co1[i, "Std.Error"], low = cell("lbound"), high = cell("ubound"),
+      tau2 = if (length(tau_rows) >= k && re_type != "Zero") co1[tau_rows[k], "Estimate"] else NULL, i2 = if (!is.null(i2) && length(i2) >= k) unname(i2[k]) else NULL
+    )
   })
   st1 <- if (method == "FEM") s1$stat else NULL
   stat1 <- function(k) if (!is.null(st1) && k %in% rownames(st1)) unname(st1[k, 1]) else NULL
-  stage1 <- list(method = method, reType = if (method == "REM") re_type else NULL, studies = length(studies$n), totalN = sum(studies$n), pooled = pooled,
+  stage1 <- list(
+    method = method, reType = if (method == "REM") re_type else NULL, studies = length(studies$n), totalN = sum(studies$n), pooled = pooled,
     q = if (method == "REM") unname(as.numeric(s1$Q.stat$Q)) else NULL, qDf = if (method == "REM") unname(as.numeric(s1$Q.stat$Q.df)) else NULL, qP = if (method == "REM") unname(as.numeric(s1$Q.stat$pval)) else NULL,
     chisq = stat1("Chi-square of target model"), df = stat1("DF of target model"), p = stat1("p value of target model"),
-    rmsea = stat1("RMSEA"), srmr = stat1("SRMR"), cfi = stat1("CFI"), status = s1$Mx.status1)
+    rmsea = stat1("RMSEA"), srmr = stat1("SRMR"), cfi = stat1("CFI"), status = s1$Mx.status1
+  )
   # Stage 2: each free parameter by where RAM puts it (A: a regression or loading, from column to row; S: a covariance)
-  A <- env$RAM$A; S <- env$RAM$S
+  A <- env$RAM$A
+  S <- env$RAM$S
   lab <- function(x) sub("^[^*]*\\*", "", x)
   find <- function(l) {
     w <- which(grepl("\\*", A) & lab(A) == l, arr.ind = TRUE)
-    if (nrow(w)) return(list(kind = if (rownames(A)[w[1, 1]] %in% iv && !colnames(A)[w[1, 2]] %in% iv) "loading" else "regression", from = colnames(A)[w[1, 2]], to = rownames(A)[w[1, 1]]))
+    if (nrow(w)) {
+      return(list(kind = if (rownames(A)[w[1, 1]] %in% iv && !colnames(A)[w[1, 2]] %in% iv) "loading" else "regression", from = colnames(A)[w[1, 2]], to = rownames(A)[w[1, 1]]))
+    }
     w <- which(grepl("\\*", S) & lab(S) == l, arr.ind = TRUE)
-    if (nrow(w)) return(list(kind = if (w[1, 1] == w[1, 2]) "variance" else "covariance", from = colnames(S)[w[1, 2]], to = rownames(S)[w[1, 1]]))
+    if (nrow(w)) {
+      return(list(kind = if (w[1, 1] == w[1, 2]) "variance" else "covariance", from = colnames(S)[w[1, 2]], to = rownames(S)[w[1, 1]]))
+    }
     list(kind = "other", from = l, to = l)
   }
   co2 <- s2$coefficients
   params <- lapply(rownames(co2), function(l) {
     f <- find(l)
-    list(label = l, kind = f$kind, from = nm(f$from), to = nm(f$to), est = co2[l, "Estimate"], se = co2[l, "Std.Error"], low = co2[l, "lbound"], high = co2[l, "ubound"],
-      z = co2[l, "z value"], p = co2[l, "Pr(>|z|)"])
+    list(
+      label = l, kind = f$kind, from = nm(f$from), to = nm(f$to), est = co2[l, "Estimate"], se = co2[l, "Std.Error"], low = co2[l, "lbound"], high = co2[l, "ubound"],
+      z = co2[l, "z value"], p = co2[l, "Pr(>|z|)"]
+    )
   })
   st2 <- s2$stat
   stat2 <- function(k) if (k %in% rownames(st2)) unname(st2[k, 1]) else NULL
-  fit <- list(n = stat2("Sample size"), chisq = stat2("Chi-square of target model"), df = stat2("DF of target model"), p = stat2("p value of target model"),
+  fit <- list(
+    n = stat2("Sample size"), chisq = stat2("Chi-square of target model"), df = stat2("DF of target model"), p = stat2("p value of target model"),
     baselineChisq = stat2("Chi-square of independence model"), baselineDf = stat2("DF of independence model"), rmsea = stat2("RMSEA"), rmseaLow = stat2("RMSEA lower 95% CI"),
-    rmseaHigh = stat2("RMSEA upper 95% CI"), srmr = stat2("SRMR"), tli = stat2("TLI"), cfi = stat2("CFI"), aic = stat2("AIC"), bic = stat2("BIC"))
-  ps_json(list(stage1 = stage1, stage2 = list(params = params, fit = fit, status = s2$Mx.status1), variables = I(nm(iv)),
-    warnings = env$.warnings, engine = ps_engine("metaSEM", openmx = "OpenMx")))
+    rmseaHigh = stat2("RMSEA upper 95% CI"), srmr = stat2("SRMR"), tli = stat2("TLI"), cfi = stat2("CFI"), aic = stat2("AIC"), bic = stat2("BIC")
+  )
+  ps_json(list(
+    stage1 = stage1, stage2 = list(params = params, fit = fit, status = s2$Mx.status1), variables = I(nm(iv)),
+    warnings = env$.warnings, engine = ps_engine("metaSEM", openmx = "OpenMx")
+  ))
 }

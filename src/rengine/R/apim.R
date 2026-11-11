@@ -28,7 +28,8 @@ ps_apim_latent <- function(s, m1, m2, lv, dist) {
   scaling <- sprintf("# %s of member 1 scaled by %s; of member 2 %s", S, what, if (dist) "free" else "equal to them")
   free2 <- if (dist) "NA" else "1"
   mean2 <- if (dist) "NA" else "0"
-  c(sprintf("# %s: latent, %d items per member; loadings and intercepts equal across members", S, length(m1)),
+  c(
+    sprintf("# %s: latent, %d items per member; loadings and intercepts equal across members", S, length(m1)),
     sprintf("%s =~ NA*%s + %s", lv[1], m1[1], load1),
     sprintf("%s =~ NA*%s + %s", lv[2], m2[1], load2),
     sprintf("%s ~ t%s%d*1", items, s, c(K, K)),
@@ -39,17 +40,22 @@ ps_apim_latent <- function(s, m1, m2, lv, dist) {
     sprintf("%s ~~ 1*%s", lv[1], lv[1]),
     sprintf("%s ~~ %s*%s", lv[2], free2, lv[2]),
     sprintf("%s ~ 0*1", lv[1]),
-    sprintf("%s ~ %s*1", lv[2], mean2))
+    sprintf("%s ~ %s*1", lv[2], mean2)
+  )
 }
 
 #' Syntax lines for an observed variable (`lv`: the two members' columns).
 ps_apim_observed <- function(s, lv, dist) {
   S <- toupper(s)
-  if (dist) return(c(sprintf("# %s: observed", S), sprintf("%s ~~ %s", lv, lv)))
+  if (dist) {
+    return(c(sprintf("# %s: observed", S), sprintf("%s ~~ %s", lv, lv)))
+  }
   what <- if (s == "x") "variances and means" else "residual variances and intercepts"
-  c(sprintf("# %s: observed, equal %s across members", S, what),
+  c(
+    sprintf("# %s: observed, equal %s across members", S, what),
     sprintf("%s ~~ v%s*%s", lv, s, lv),
-    sprintf("%s ~ m%s*1", lv, s))
+    sprintf("%s ~ m%s*1", lv, s)
+  )
 }
 
 #' The model syntax for one dyad type (`dist`: distinguishable).
@@ -65,21 +71,27 @@ ps_apim_lines <- function(v, dist) {
   x <- v$lv$x
   y <- v$lv$y
   effects <- if (dist) {
-    c(sprintf("%s ~ a1*%s + p1*%s", y[1], x[1], x[2]),
-      sprintf("%s ~ a2*%s + p2*%s", y[2], x[2], x[1]))
+    c(
+      sprintf("%s ~ a1*%s + p1*%s", y[1], x[1], x[2]),
+      sprintf("%s ~ a2*%s + p2*%s", y[2], x[2], x[1])
+    )
   } else {
-    c(sprintf("%s ~ a*%s + p*%s", y[1], x[1], x[2]),
-      sprintf("%s ~ a*%s + p*%s", y[2], x[2], x[1]))
+    c(
+      sprintf("%s ~ a*%s + p*%s", y[1], x[1], x[2]),
+      sprintf("%s ~ a*%s + p*%s", y[2], x[2], x[1])
+    )
   }
   k <- if (dist) c("k1 := p1/a1", "k2 := p2/a2") else "k := p/a"
-  c(out,
+  c(
+    out,
     "# Actor (a) and partner (p) effects on the Y of each member",
     effects,
     "# The X of the members covary, and so do their Y residuals (nonindependence)",
     sprintf("%s ~~ %s", x[1], x[2]),
     sprintf("%s ~~ %s", y[1], y[2]),
     "# k = partner / actor effect on the Y of the same member (Kenny & Ledermann 2010)",
-    k)
+    k
+  )
 }
 
 #' The columns of the request's four roles, checked.
@@ -101,11 +113,13 @@ ps_apim_columns <- function(req) {
 ps_apim_row <- function(pe, bc, lab) {
   i <- which(pe$label == lab & pe$op %in% c("~", ":="))[1]
   j <- if (is.null(bc)) NA else which(bc$label == lab & bc$op %in% c("~", ":="))[1]
-  list(label = lab, est = pe$est[i], se = pe$se[i], z = pe$z[i], p = pe$pvalue[i],
+  list(
+    label = lab, est = pe$est[i], se = pe$se[i], z = pe$z[i], p = pe$pvalue[i],
     low = pe$ci.lower[i], high = pe$ci.upper[i],
     std = if (pe$op[i] == "~") pe$std.all[i] else NULL,
     bootLow = if (is.na(j)) NULL else bc$ci.lower[j],
-    bootHigh = if (is.na(j)) NULL else bc$ci.upper[j])
+    bootHigh = if (is.na(j)) NULL else bc$ci.upper[j]
+  )
 }
 
 #' A covariance of the reported fit and its correlation (std.all).
@@ -132,7 +146,8 @@ ps_apim <- function(req_json, export = FALSE) {
   }
   v$lv <- list(
     x = if (length(v$x1) > 1) lv_names("X") else c(v$x1, v$x2),
-    y = if (length(v$y1) > 1) lv_names("Y") else c(v$y1, v$y2))
+    y = if (length(v$y1) > 1) lv_names("Y") else c(v$y1, v$y2)
+  )
 
   boot <- req[["boot", exact = TRUE]]
   B <- 0L
@@ -146,17 +161,22 @@ ps_apim <- function(req_json, export = FALSE) {
   }
 
   call <- function(name, model, more = "") {
-    sprintf("%s <- sem(%s, data = data, meanstructure = TRUE, fixed.x = FALSE, estimator = \"%s\"%s%s%s)",
-      name, model, o$est, ps_lavaan_missing(req$missing), o$extra, more)
+    sprintf(
+      "%s <- sem(%s, data = data, meanstructure = TRUE, fixed.x = FALSE, estimator = \"%s\"%s%s%s)",
+      name, model, o$est, ps_lavaan_missing(req$missing), o$extra, more
+    )
   }
   reported <- if (dist) "apim_dist" else "apim_indist"
   boot_lines <- if (B > 0) {
-    c("# Percentile bootstrap intervals of the effects and k",
+    c(
+      "# Percentile bootstrap intervals of the effects and k",
       sprintf("set.seed(%d)", seed),
       call("fit_boot", reported, sprintf(", se = \"bootstrap\", bootstrap = %dL", B)),
-      sprintf("boot_ci <- parameterEstimates(fit_boot, boot.ci.type = \"perc\", level = %s)", format(level)))
+      sprintf("boot_ci <- parameterEstimates(fit_boot, boot.ci.type = \"perc\", level = %s)", format(level))
+    )
   }
-  body <- c("suppressPackageStartupMessages(library(lavaan))",
+  body <- c(
+    "suppressPackageStartupMessages(library(lavaan))",
     if (!o$fiml) ps_missing_code(req$missing),
     "# APIM for distinguishable dyads: effects, variances and means free for each member",
     "apim_dist <- '", paste0("  ", ps_apim_lines(v, TRUE)), "'",
@@ -168,12 +188,15 @@ ps_apim <- function(req_json, export = FALSE) {
     "distinguishability <- lavTestLRT(fit_indist, fit_dist)",
     sprintf("fit <- %s  # the model reported", if (dist) "fit_dist" else "fit_indist"),
     sprintf("estimates <- parameterEstimates(fit, standardized = TRUE, level = %s)", format(level)),
-    boot_lines)
+    boot_lines
+  )
   inputs <- list(data = fr$data)
   if (export) {
     title <- sprintf("Actor-partner interdependence model, %s dyads (lavaan)", if (dist) "distinguishable" else "indistinguishable")
-    report <- c("summary(fit, fit.measures = TRUE, standardized = TRUE)", "distinguishability",
-      if (B > 0) "subset(boot_ci, op %in% c(\"~\", \":=\"))")
+    report <- c(
+      "summary(fit, fit.measures = TRUE, standardized = TRUE)", "distinguishability",
+      if (B > 0) "subset(boot_ci, op %in% c(\"~\", \":=\"))"
+    )
     return(ps_script(title, "lavaan", inputs, body, report))
   }
 
@@ -194,7 +217,10 @@ ps_apim <- function(req_json, export = FALSE) {
     fit = ps_long_fit(env$fit),
     distFit = ps_long_fit(env$fit_dist),
     indistFit = ps_long_fit(env$fit_indist),
-    test = list(chisqDiff = unname(cmp[["Chisq diff"]][2]), dfDiff = unname(cmp[["Df diff"]][2]),
-      p = unname(cmp[["Pr(>Chisq)"]][2])),
-    level = level, boot = B, warnings = env$.warnings, engine = ps_engine("lavaan")))
+    test = list(
+      chisqDiff = unname(cmp[["Chisq diff"]][2]), dfDiff = unname(cmp[["Df diff"]][2]),
+      p = unname(cmp[["Pr(>Chisq)"]][2])
+    ),
+    level = level, boot = B, warnings = env$.warnings, engine = ps_engine("lavaan")
+  ))
 }

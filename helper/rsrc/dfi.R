@@ -17,29 +17,49 @@
 #' cutoff tables are noquote character matrices mixing numbers, "NONE" and
 #' percentages; exactFit's is numeric).
 ps_dfi_table <- function(m) {
-  if (is.null(m)) return(NULL)
+  if (is.null(m)) {
+    return(NULL)
+  }
   # (a data frame keeps its names through as.matrix; a noquote matrix needs unclass first)
   m <- if (is.data.frame(m)) as.matrix(m) else as.matrix(unclass(m))
-  if (!length(m)) return(NULL)
+  if (!length(m)) {
+    return(NULL)
+  }
   cells <- lapply(seq_len(nrow(m)), function(i) I(unname(ifelse(is.na(m[i, ]), "", as.character(m[i, ])))))
-  list(rows = I(if (is.null(rownames(m))) rep("", nrow(m)) else unname(rownames(m))),
-    columns = I(if (is.null(colnames(m))) paste0("V", seq_len(ncol(m))) else trimws(unname(colnames(m)))), cells = cells)
+  list(
+    rows = I(if (is.null(rownames(m))) rep("", nrow(m)) else unname(rownames(m))),
+    columns = I(if (is.null(colnames(m))) paste0("V", seq_len(ncol(m))) else trimws(unname(colnames(m)))), cells = cells
+  )
 }
 
 #' The simulated fit indices behind the cutoffs (one column per index and level), numeric columns only, at most 2000 rows.
 ps_dfi_columns <- function(d) {
-  if (is.null(d) || !is.data.frame(d) || !nrow(d)) return(NULL)
+  if (is.null(d) || !is.data.frame(d) || !nrow(d)) {
+    return(NULL)
+  }
   d <- d[seq_len(min(nrow(d), 2000L)), vapply(d, is.numeric, TRUE), drop = FALSE]
-  if (!ncol(d)) return(NULL)
+  if (!ncol(d)) {
+    return(NULL)
+  }
   list(names = I(names(d)), cols = lapply(d, function(x) I(unname(as.numeric(x)))))
 }
 
 #' The lavaan test name the estimator implies (lavaan's own default for it): dynamic reads the
 #' last entry of fit@Options$test, which lavaan 0.7 leaves at c("standard", "browne...") unless
 #' the test is named in the call, so the call names it. The fit is the same.
-ps_dfi_test <- function(estimator) switch(estimator,
-  ML = , GLS = , ULS = , WLS = "standard", MLM = "satorra.bentler", MLMV = "scaled.shifted", MLR = "yuan.bentler.mplus", WLSMV = "scaled.shifted",
-  stop(sprintf("Dynamic fit cutoffs are not available with the %s estimator; choose ML, MLM, MLMV, MLR, GLS, ULS, WLS or WLSMV.", estimator)))
+ps_dfi_test <- function(estimator) {
+  switch(estimator,
+    ML = ,
+    GLS = ,
+    ULS = ,
+    WLS = "standard",
+    MLM = "satorra.bentler",
+    MLMV = "scaled.shifted",
+    MLR = "yuan.bentler.mplus",
+    WLSMV = "scaled.shifted",
+    stop(sprintf("Dynamic fit cutoffs are not available with the %s estimator; choose ML, MLM, MLMV, MLR, GLS, ULS, WLS or WLSMV.", estimator))
+  )
+}
 
 ps_dfi <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
@@ -72,19 +92,25 @@ ps_dfi <- function(req_json, export = FALSE) {
   if (!grepl("test = ", call, fixed = TRUE)) call <- sub("\\)$", sprintf(", test = \"%s\")", ps_dfi_test(req$estimator)), call)
   body <- b$body
   body[body == b$call] <- call
-  args <- c("fit",
+  args <- c(
+    "fit",
     if (fn %in% .ps_dfi_with_data) "data = data",
     if (fn == "DDDFI" && scale != "normal") c("data = data", sprintf("scale = \"%s\"", scale)),
     if (fn != "equivTest") sprintf("reps = %d", reps),
     if (!is.null(est) && !fn %in% c("exactFit", "equivTest")) sprintf("estimator = \"%s\"", est),
-    if (!is.null(mad) && fn == "DDDFI") sprintf("MAD = c(%s)", paste(format(mad, digits = 15), collapse = ", ")))
-  body <- c(body,
+    if (!is.null(mad) && fn == "DDDFI") sprintf("MAD = c(%s)", paste(format(mad, digits = 15), collapse = ", "))
+  )
+  body <- c(
+    body,
     "suppressPackageStartupMessages(library(dynamic))",
     sprintf("# Dynamic fit index cutoffs (Wolf & McNeish, dynamic::%s): the package simulates this model's fit-index", fn),
     "# distributions, correctly specified and under graded misspecifications, with its own fixed seeds.",
     sprintf("dfi <- dynamic::%s(%s)", fn, paste(args, collapse = ", ")),
-    "printed <- capture.output(print(dfi))")
-  if (export) return(ps_script(sprintf("Dynamic fit index cutoffs: dynamic::%s, %s", fn, if (fn == "equivTest") "equivalence testing" else sprintf("%d replications", reps)), c("lavaan", "dynamic"), b$inputs, body, "print(dfi)"))
+    "printed <- capture.output(print(dfi))"
+  )
+  if (export) {
+    return(ps_script(sprintf("Dynamic fit index cutoffs: dynamic::%s, %s", fn, if (fn == "equivTest") "equivalence testing" else sprintf("%d replications", reps)), c("lavaan", "dynamic"), b$inputs, body, "print(dfi)"))
+  }
   env <- ps_run(body, b$inputs)
   # lavaan's warnings about single simulated replications (a negative residual variance, a fit that did not
   # converge) concern the package's simulation, not the user's model: reported as notes, as the package itself
@@ -95,13 +121,21 @@ ps_dfi <- function(req_json, export = FALSE) {
   dfi <- env$dfi
   r <- unclass(dfi)
   dist <- if (fn == "DDDFI") r$indices else r$data
-  ps_json(list(fn = fn, reps = if (fn == "equivTest") NULL else reps, n = unname(lavaan::lavInspect(env$fit, "nobs")),
+  ps_json(list(
+    fn = fn, reps = if (fn == "equivTest") NULL else reps, n = unname(lavaan::lavInspect(env$fit, "nobs")),
     estimator = if (!is.null(r$estimator)) as.character(r$estimator) else if (!is.null(est)) est else NULL, scale = if (fn == "DDDFI") scale else NULL,
     cutoffs = ps_dfi_table(r$cutoffs), fit = ps_dfi_table(r$fit), data = ps_dfi_columns(dist),
-    equiv = if (fn == "equivTest") list(rmsea = as.character(r$rmsea), cfi = as.character(r$cfi),
-      rmseaBins = I(as.character(c(r$eo_r, r$ct_r, r$ft_r, r$mf_r, r$pf_r))), cfiBins = I(as.character(c(r$pf_c, r$mf_c, r$ft_c, r$ct_c, r$eo_c)))) else NULL,
+    equiv = if (fn == "equivTest") {
+      list(
+        rmsea = as.character(r$rmsea), cfi = as.character(r$cfi),
+        rmseaBins = I(as.character(c(r$eo_r, r$ct_r, r$ft_r, r$mf_r, r$pf_r))), cfiBins = I(as.character(c(r$pf_c, r$mf_c, r$ft_c, r$ct_c, r$eo_c)))
+      )
+    } else {
+      NULL
+    },
     printed = I(ps_flat_lines(env$printed)), warnings = env$.warnings,
-    engine = ps_engine("dynamic", lavaan = "lavaan")))
+    engine = ps_engine("dynamic", lavaan = "lavaan")
+  ))
 }
 
 #' Printed output as lines without control characters (at most 200).

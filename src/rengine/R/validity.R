@@ -23,33 +23,53 @@ ps_cmb <- function(req_json, export = FALSE) {
   if (length(vars) < need) stop(sprintf("Choose at least %d variables.", need))
   fr <- ps_long_frame(req, vars)
   v <- ps_lookup(fr$v, vars)
-  body <- c(sprintf("X <- data[complete.cases(data[, %s]), %s, drop = FALSE]", ps_q(v), ps_q(v)),
-    "R <- cor(X)")
-  body <- c(body, if (type == "harman") c(
+  body <- c(
+    sprintf("X <- data[complete.cases(data[, %s]), %s, drop = FALSE]", ps_q(v), ps_q(v)),
+    "R <- cor(X)"
+  )
+  body <- c(body, if (type == "harman") {
+    c(
       "ev <- eigen(R, symmetric = TRUE, only.values = TRUE)$values  # eigenvalues of the correlation matrix",
       "suppressPackageStartupMessages(library(psych))",
-      if (extraction == "pca") "h <- principal(X, nfactors = 1, rotate = \"none\")  # one unrotated principal component (Harman's test as most papers run it)"
-      else "h <- fa(X, nfactors = 1, fm = \"minres\", rotate = \"none\")  # one unrotated common factor (minimum residual)",
-      "share <- h$Vaccounted[\"Proportion Var\", 1]  # the share of the total variance the single factor accounts for")
-    else c(
+      if (extraction == "pca") {
+        "h <- principal(X, nfactors = 1, rotate = \"none\")  # one unrotated principal component (Harman's test as most papers run it)"
+      } else {
+        "h <- fa(X, nfactors = 1, fm = \"minres\", rotate = \"none\")  # one unrotated common factor (minimum residual)"
+      },
+      "share <- h$Vaccounted[\"Proportion Var\", 1]  # the share of the total variance the single factor accounts for"
+    )
+  } else {
+    c(
       "# Full-collinearity VIFs (Kock 2015): each variable on all the others; the diagonal of the inverse correlation matrix is 1 / (1 - R²).",
       "vif <- diag(solve(R))",
-      "r2 <- 1 - 1 / vif"))
+      "r2 <- 1 - 1 / vif"
+    )
+  })
   inputs <- list(data = fr$data)
   title <- if (type == "harman") "Harman's single-factor test (psych)" else "Full-collinearity VIFs (Kock 2015)"
-  if (export) return(ps_script(title, if (type == "harman") "psych" else character(0), inputs, body,
-    if (type == "harman") c("ev", "share", "h$loadings") else "data.frame(VIF = vif, R2 = r2)"))
+  if (export) {
+    return(ps_script(
+      title, if (type == "harman") "psych" else character(0), inputs, body,
+      if (type == "harman") c("ev", "share", "h$loadings") else "data.frame(VIF = vif, R2 = r2)"
+    ))
+  }
   env <- ps_run(body, inputs)
   n <- nrow(env$X)
   out <- if (type == "harman") {
     ev <- env$ev
     ld <- unname(env$h$loadings[, 1])
-    list(extraction = extraction, share = unname(env$share), ssLoadings = unname(env$h$Vaccounted["SS loadings", 1]),
+    list(
+      extraction = extraction, share = unname(env$share), ssLoadings = unname(env$h$Vaccounted["SS loadings", 1]),
       eigenvalues = I(ev), proportions = I(ev / length(ev)), kaiser = sum(ev > 1),
-      loadings = lapply(seq_along(vars), function(i) list(variable = vars[i], loading = ld[i])))
-  } else list(rows = lapply(seq_along(vars), function(i) list(variable = vars[i], vif = unname(env$vif[i]), r2 = unname(env$r2[i]))), maxVif = max(env$vif))
-  ps_json(c(list(type = type, vars = I(vars), n = n), out, list(warnings = env$.warnings,
-    engine = if (type == "harman") ps_engine("psych") else list(package = "stats", version = as.character(getRversion())))))
+      loadings = lapply(seq_along(vars), function(i) list(variable = vars[i], loading = ld[i]))
+    )
+  } else {
+    list(rows = lapply(seq_along(vars), function(i) list(variable = vars[i], vif = unname(env$vif[i]), r2 = unname(env$r2[i]))), maxVif = max(env$vif))
+  }
+  ps_json(c(list(type = type, vars = I(vars), n = n), out, list(
+    warnings = env$.warnings,
+    engine = if (type == "harman") ps_engine("psych") else list(package = "stats", version = as.character(getRversion()))
+  )))
 }
 
 #' Content validity index of an item x expert matrix of relevance ratings (one row per item,
@@ -69,7 +89,8 @@ ps_cvi <- function(req_json, export = FALSE) {
   threshold <- ps_number(req$threshold %||% 3, "relevance threshold")
   fr <- ps_long_frame(req, c(if (nzchar(item)) item, experts))
   v <- ps_lookup(fr$v, experts)
-  body <- c(sprintf("X <- data[, %s, drop = FALSE]  # one row per item, one column per expert", ps_q(v)),
+  body <- c(
+    sprintf("X <- data[, %s, drop = FALSE]  # one row per item, one column per expert", ps_q(v)),
     "X <- X[rowSums(!is.na(X)) > 0, , drop = FALSE]  # (items nobody rated are dropped)",
     sprintf("rel <- X >= %s  # relevant: rated %s or higher", format(threshold, digits = 15), format(threshold, digits = 15)),
     "N <- rowSums(!is.na(rel))  # experts who rated the item",
@@ -79,10 +100,15 @@ ps_cvi <- function(req_json, export = FALSE) {
     "kappa <- (icvi - pc) / (1 - pc)  # modified kappa k*",
     "scviAve <- mean(icvi)  # S-CVI/Ave: the mean I-CVI",
     "scviUA <- mean(A == N)  # S-CVI/UA: items every expert found relevant",
-    "expertProportion <- colMeans(rel, na.rm = TRUE)  # the share of items each expert found relevant")
+    "expertProportion <- colMeans(rel, na.rm = TRUE)  # the share of items each expert found relevant"
+  )
   inputs <- list(data = fr$data)
-  if (export) return(ps_script("Content validity index", character(0), inputs, body,
-    c("data.frame(N, A, icvi, pc, kappa)", "c(scviAve = scviAve, scviUA = scviUA)", "expertProportion")))
+  if (export) {
+    return(ps_script(
+      "Content validity index", character(0), inputs, body,
+      c("data.frame(N, A, icvi, pc, kappa)", "c(scviAve = scviAve, scviUA = scviUA)", "expertProportion")
+    ))
+  }
   env <- ps_run(body, inputs)
   if (!nrow(env$X)) stop("No item has a rating.")
   kept <- as.integer(rownames(env$X))
@@ -90,10 +116,14 @@ ps_cvi <- function(req_json, export = FALSE) {
     x <- fr$data[[fr$v[[item]]]][kept]
     l <- unlist(req$categories[[item]])
     if (!is.null(l) && all(is.na(x) | x %in% seq_along(l))) ifelse(is.na(x), sprintf("Item %d", kept), l[x]) else ifelse(is.na(x), sprintf("Item %d", kept), format(x, trim = TRUE))
-  } else sprintf("Item %d", kept)
-  ps_json(list(experts = I(experts), threshold = threshold, nItems = nrow(env$X),
+  } else {
+    sprintf("Item %d", kept)
+  }
+  ps_json(list(
+    experts = I(experts), threshold = threshold, nItems = nrow(env$X),
     items = lapply(seq_len(nrow(env$X)), function(i) list(item = labels[i], n = unname(env$N[i]), agree = unname(env$A[i]), icvi = unname(env$icvi[i]), pc = unname(env$pc[i]), kappa = unname(env$kappa[i]))),
     scviAve = env$scviAve, scviUA = env$scviUA,
     expertProportions = lapply(seq_along(experts), function(j) list(expert = experts[j], proportion = unname(env$expertProportion[j]), rated = sum(!is.na(env$X[[j]])))),
-    warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))))
+    warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
+  ))
 }

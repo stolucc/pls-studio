@@ -18,7 +18,8 @@
 #' lavaan's estfun), the information matrix in the same parameters, the parameters tested, the process and the test.
 ps_sc_lines <- function(zv, scale, fn, sets, seed, nrep) {
   zexpr <- if (scale == "continuous") sprintf("data$%s[rows]", zv) else sprintf("factor(data$%s[rows])", zv)
-  c("# Equality constraints (a == b, from labels or group equalities) merged: lavaan's scores have one column per",
+  c(
+    "# Equality constraints (a == b, from labels or group equalities) merged: lavaan's scores have one column per",
     "# distinct parameter, the first of each set of equal ones (K maps them to the free parameters).",
     "pt <- parTable(fit)",
     "if (any(pt$op %in% c(\"<\", \">\"))) stop(\"Score-based tests are not available with inequality constraints.\")",
@@ -53,15 +54,18 @@ ps_sc_lines <- function(zv, scale, fn, sets, seed, nrep) {
       maxLM = "fun <- supLM(from = 0.1)  # maximum Lagrange multiplier, 10% trimmed at either end",
       WDMo = c("fun <- ordwmax(z)  # weighted double maximum, ordinal", sprintf("set.seed(%d)  # (its p-value is a multivariate normal probability by randomised quadrature, mvtnorm)", seed)),
       maxLMo = c(sprintf("set.seed(%d)", seed), sprintf("fun <- ordL2BB(z, nproc = NCOL(scus$process), nrep = %d)  # maximum LM, ordinal (critical values simulated)", nrep)),
-      LMuo = "fun <- catL2BB(z)  # unordered LM, categorical"),
-    "test <- sctest(scus, functional = fun)")
+      LMuo = "fun <- catL2BB(z)  # unordered LM, categorical"
+    ),
+    "test <- sctest(scus, functional = fun)"
+  )
 }
 
 #' The aggregated process as strucchange plots it (plot(scus, functional = fun)), at most about 600 points, with the
 #' 5% boundary; categories (ordinal and categorical) at their upper ends; LMuo: each category's contribution.
 ps_sc_series <- function(scus, fun, fn, z) {
   P <- as.matrix(scus$process)
-  k <- ncol(P); n <- nrow(P) - 1L
+  k <- ncol(P)
+  n <- nrow(P) - 1L
   P1 <- P[-1L, , drop = FALSE]
   crit <- fun$computeCritval(alpha = 0.05, nproc = k)
   thin <- function(y, at) {
@@ -70,13 +74,19 @@ ps_sc_series <- function(scus, fun, fn, z) {
   }
   if (fn %in% c("DM", "CvM", "maxLM")) {
     tz <- as.numeric(time(scus))[-1L]
-    if (fn == "DM") return(c(thin(apply(abs(P1), 1, max), tz), list(boundary = crit, labels = NULL)))
-    if (fn == "CvM") return(c(thin(rowSums(P1^2), tz), list(boundary = crit, labels = NULL)))
+    if (fn == "DM") {
+      return(c(thin(apply(abs(P1), 1, max), tz), list(boundary = crit, labels = NULL)))
+    }
+    if (fn == "CvM") {
+      return(c(thin(rowSums(P1^2), tz), list(boundary = crit, labels = NULL)))
+    }
     t <- seq_len(n) / n
     ok <- t >= 0.1 & t <= 0.9
     return(c(thin((rowSums(P1^2) / (t * (1 - t)))[ok], tz[ok]), list(boundary = crit, labels = NULL)))
   }
-  nc <- as.vector(table(z)); ix <- cumsum(nc); tt <- ix / n
+  nc <- as.vector(table(z))
+  ix <- cumsum(nc)
+  tt <- ix / n
   lev <- levels(z)
   if (fn == "LMuo") {
     inc <- rbind(P1[ix[1], ], diff(P1[ix, , drop = FALSE]))
@@ -120,12 +130,18 @@ ps_scoretest <- function(req_json, export = FALSE) {
   inputs <- b$inputs
   inputs$data[[zv]] <- z
   drop <- sprintf("data <- data[!is.na(data$%s)%s, , drop = FALSE]", zv, if (!is.null(b$group_var)) sprintf(" & !is.na(data$%s)", b$group_var) else "")
-  body <- c(b$body[1], sprintf("# The covariate %s: rows without it%s are left out", ps_comment(cov), if (!is.null(b$group_var)) " (or without a group)" else ""), drop,
+  body <- c(
+    b$body[1], sprintf("# The covariate %s: rows without it%s are left out", ps_comment(cov), if (!is.null(b$group_var)) " (or without a group)" else ""), drop,
     b$body[-1], "suppressPackageStartupMessages(library(strucchange))",
     sprintf("# Score-based test of parameter instability along %s (%s covariate, %s)", ps_comment(cov), scale, fn),
-    ps_sc_lines(zv, scale, fn, sets, seed, nrep))
-  if (export) return(ps_script(sprintf("Score-based invariance test along %s: %s (strucchange)", cov, fn), c("lavaan", "strucchange"), inputs, body,
-    c("test", "plot(scus, functional = fun)")))
+    ps_sc_lines(zv, scale, fn, sets, seed, nrep)
+  )
+  if (export) {
+    return(ps_script(
+      sprintf("Score-based invariance test along %s: %s (strucchange)", cov, fn), c("lavaan", "strucchange"), inputs, body,
+      c("test", "plot(scus, functional = fun)")
+    ))
+  }
   env <- ps_run(body, inputs)
   back <- ps_back_map(b)
   pk <- env$pk[env$parm, , drop = FALSE]
@@ -134,10 +150,15 @@ ps_scoretest <- function(req_json, export = FALSE) {
   glab <- if (ng > 1) lavaan::lavInspect(env$fit, "group.label") else character(0)
   OPS <- c("=~" = " → ", "~" = " ← ", "~~" = " ↔ ")
   label <- vapply(seq_len(nrow(pk)), function(i) {
-    l <- ps_back(pk$lhs[i], back); r <- ps_back(pk$rhs[i], back)
-    s <- if (pk$op[i] == "~1") sprintf("%s (%s)", l, if (pk$lhs[i] %in% env$ov) "intercept" else "mean")
-      else if (pk$op[i] == "~~" && pk$lhs[i] == pk$rhs[i]) sprintf("%s (variance)", l)
-      else paste0(l, OPS[[pk$op[i]]] %||% pk$op[i], r)
+    l <- ps_back(pk$lhs[i], back)
+    r <- ps_back(pk$rhs[i], back)
+    s <- if (pk$op[i] == "~1") {
+      sprintf("%s (%s)", l, if (pk$lhs[i] %in% env$ov) "intercept" else "mean")
+    } else if (pk$op[i] == "~~" && pk$lhs[i] == pk$rhs[i]) {
+      sprintf("%s (variance)", l)
+    } else {
+      paste0(l, OPS[[pk$op[i]]] %||% pk$op[i], r)
+    }
     if (ng > 1) sprintf("%s, %s", s, if (shared[i]) "all groups (equal)" else sprintf("group %s", glab[pk$group[i]])) else s
   }, "")
   P <- as.matrix(env$scus$process)
@@ -150,7 +171,8 @@ ps_scoretest <- function(req_json, export = FALSE) {
   # (where the aggregated process peaks: the covariate value, or the category, splitting the observations best)
   top <- which.max(series$y)
   peak <- if (scale == "continuous") as.numeric(series$x[top]) else if (fn == "LMuo") NULL else as.character(series$labels[top])
-  ps_json(list(fn = fn, scale = scale, covariate = cov, n = length(z_used), nGroups = ng,
+  ps_json(list(
+    fn = fn, scale = scale, covariate = cov, n = length(z_used), nGroups = ng,
     statistic = unname(env$test$statistic), p = unname(env$test$p.value),
     params = I(label), kinds = I(unname(env$kind[env$parm])), componentMax = I(unname(apply(abs(P), 2, max))),
     critical = critical, peak = peak,
@@ -158,5 +180,6 @@ ps_scoretest <- function(req_json, export = FALSE) {
     series = series,
     nrep = if (fn == "maxLMo") nrep else NULL, seed = if (fn %in% c("maxLMo", "WDMo")) seed else NULL,
     warnings = env$.warnings,
-    engine = ps_engine("strucchange", lavaan = "lavaan")))
+    engine = ps_engine("strucchange", lavaan = "lavaan")
+  ))
 }

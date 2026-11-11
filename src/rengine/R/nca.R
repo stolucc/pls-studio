@@ -53,7 +53,8 @@ PS_NCA_FUNCTIONS <- c(
   "  ce <- vapply(yl, function(v) { k <- which(r$peers[, 2] >= v)[1]; if (is.na(k)) NA_real_ else r$peers[k, 1] }, 0)",
   "  cr <- if (is.na(r$slope) || r$slope <= 0) rep(NA_real_, 11) else (yl - r$intercept) / r$slope",
   "  data.frame(y = (0:10) * 10, ce_fdh = pct(ce), cr_fdh = pct(cr))",
-  "}")
+  "}"
+)
 
 # Robustness checks (Dul 2026, ch. 4; SmartPLS 4.1.1.8): potential outliers as
 # NCA 5's nca_outliers() finds them with k = 1, i.e. single cases whose removal
@@ -110,31 +111,41 @@ PS_NCA_OUTLIER_FUNCTIONS <- c(
   "    out[\"p_cr_fdh\"] <- nca_p(q$cr, sims[, 2][!is.na(sims[, 2])], rep)",
   "  }",
   "  out",
-  "}")
+  "}"
+)
 
 ps_nca <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
-  xs <- unlist(req$x); yn <- req$y
+  xs <- unlist(req$x)
+  yn <- req$y
   if (!length(xs) || !length(yn) || yn %in% xs) stop("Choose the outcome Y and at least one condition X (different columns).")
   rep <- as.integer(req$permutations %||% 1000)
   if (rep < 0 || rep > 20000) stop("Invalid number of permutations.")
   outliers <- isTRUE(req$outliers)
   fr <- ps_long_frame(req, c(xs, yn))
-  v <- fr$v; X <- unname(v[xs]); Y <- v[[yn]]
-  body <- c(PS_NCA_FUNCTIONS,
+  v <- fr$v
+  X <- unname(v[xs])
+  Y <- v[[yn]]
+  body <- c(
+    PS_NCA_FUNCTIONS,
     if (outliers) PS_NCA_OUTLIER_FUNCTIONS,
     sprintf("conditions <- %s", ps_q(X)),
     "res <- lapply(conditions, function(xn) {",
     sprintf("  ok <- complete.cases(data[, c(xn, \"%s\")]); x <- data[[xn]][ok]; y <- data[[\"%s\"]][ok]", Y, Y),
     "  r <- nca_one(x, y)",
-    if (rep > 0) c(sprintf("  sims <- lapply(nca_samples(length(y), %d), function(sm) { q <- nca_one(x, y[sm]); c(q$ce, q$cr) })", rep),
-      "  sims <- do.call(rbind, sims)",
-      sprintf("  r$p <- c(ce_fdh = nca_p(r$ce, sims[, 1][!is.na(sims[, 1])], %d), cr_fdh = nca_p(r$cr, sims[, 2][!is.na(sims[, 2])], %d))", rep, rep)),
+    if (rep > 0) {
+      c(
+        sprintf("  sims <- lapply(nca_samples(length(y), %d), function(sm) { q <- nca_one(x, y[sm]); c(q$ce, q$cr) })", rep),
+        "  sims <- do.call(rbind, sims)",
+        sprintf("  r$p <- c(ce_fdh = nca_p(r$ce, sims[, 1][!is.na(sims[, 1])], %d), cr_fdh = nca_p(r$cr, sims[, 2][!is.na(sims[, 2])], %d))", rep, rep)
+      )
+    },
     "  r$bottleneck <- nca_bottleneck(r); r$n <- length(y); r$x <- x; r$y <- y",
     if (outliers) ps_nca_outlier_lines(rep),
     "  r",
     "})",
-    "names(res) <- conditions")
+    "names(res) <- conditions"
+  )
   inputs <- list(data = fr$data)
   report <- c(
     "t(sapply(res, function(r) c(d_ce_fdh = r$ce, d_cr_fdh = r$cr, p = if (is.null(r$p)) NA else r$p)))",
@@ -149,17 +160,22 @@ ps_nca <- function(req_json, export = FALSE) {
     return(ps_script(title, "stats", inputs, body, report))
   }
   env <- ps_run(body, inputs)
-  out <- lapply(env$res, function(r) list(
-    n = r$n, scope = r$scope, ceFdh = r$ce, crFdh = r$cr, intercept = if (is.na(r$intercept)) NULL else r$intercept, slope = if (is.na(r$slope)) NULL else r$slope,
-    accuracy = if (is.nan(r$above)) NULL else 100 * (r$n - r$above) / r$n,
-    p = if (is.null(r$p)) NULL else as.list(r$p),
-    peers = list(x = unname(r$peers[, 1]), y = unname(r$peers[, 2])),
-    points = list(x = utils::head(r$x, 3000), y = utils::head(r$y, 3000)),
-    bottleneck = lapply(seq_len(nrow(r$bottleneck)), function(i) list(y = r$bottleneck$y[i], ceFdh = r$bottleneck$ce_fdh[i], crFdh = r$bottleneck$cr_fdh[i])),
-    robustness = if (outliers) ps_nca_robustness_json(r)))
+  out <- lapply(env$res, function(r) {
+    list(
+      n = r$n, scope = r$scope, ceFdh = r$ce, crFdh = r$cr, intercept = if (is.na(r$intercept)) NULL else r$intercept, slope = if (is.na(r$slope)) NULL else r$slope,
+      accuracy = if (is.nan(r$above)) NULL else 100 * (r$n - r$above) / r$n,
+      p = if (is.null(r$p)) NULL else as.list(r$p),
+      peers = list(x = unname(r$peers[, 1]), y = unname(r$peers[, 2])),
+      points = list(x = utils::head(r$x, 3000), y = utils::head(r$y, 3000)),
+      bottleneck = lapply(seq_len(nrow(r$bottleneck)), function(i) list(y = r$bottleneck$y[i], ceFdh = r$bottleneck$ce_fdh[i], crFdh = r$bottleneck$cr_fdh[i])),
+      robustness = if (outliers) ps_nca_robustness_json(r)
+    )
+  })
   names(out) <- ps_back(names(env$res), fr$back, FALSE)
-  ps_json(list(y = yn, permutations = rep, conditions = lapply(names(out), function(k) c(list(x = k), out[[k]])),
-    warnings = env$.warnings, engine = list(package = "R (as NCA)", version = as.character(getRversion()))))
+  ps_json(list(
+    y = yn, permutations = rep, conditions = lapply(names(out), function(k) c(list(x = k), out[[k]])),
+    warnings = env$.warnings, engine = list(package = "R (as NCA)", version = as.character(getRversion()))
+  ))
 }
 
 #' Script lines (inside the per-condition loop) for the robustness checks: the
@@ -178,23 +194,29 @@ ps_nca_outlier_lines <- function(rep) {
 #' The robustness results of one condition for the app (positions -> row numbers).
 ps_nca_robustness_json <- function(r) {
   table <- function(o) {
-    if (is.null(o)) return(list())
-    lapply(seq_len(nrow(o)), function(i) list(
-      case = r$rows[o$at[i]],
-      d = if (is.na(o$d[i])) NULL else o$d[i],
-      change = o$change[i],
-      percent = if (is.finite(o$percent[i])) o$percent[i] else NULL,
-      ceiling = o$ceiling[i],
-      scope = o$scope[i]
-    ))
+    if (is.null(o)) {
+      return(list())
+    }
+    lapply(seq_len(nrow(o)), function(i) {
+      list(
+        case = r$rows[o$at[i]],
+        d = if (is.na(o$d[i])) NULL else o$d[i],
+        change = o$change[i],
+        percent = if (is.finite(o$percent[i])) o$percent[i] else NULL,
+        ceiling = o$ceiling[i],
+        scope = o$scope[i]
+      )
+    })
   }
   num <- function(v) if (is.na(v)) NULL else unname(v)
-  without <- lapply(r$without, function(w) list(
-    case = r$rows[w[["at"]]],
-    n = w[["n"]],
-    ceFdh = num(w[["ce_fdh"]]),
-    crFdh = num(w[["cr_fdh"]]),
-    p = if (is.na(w[["p_ce_fdh"]])) NULL else list(ce_fdh = w[["p_ce_fdh"]], cr_fdh = w[["p_cr_fdh"]])
-  ))
+  without <- lapply(r$without, function(w) {
+    list(
+      case = r$rows[w[["at"]]],
+      n = w[["n"]],
+      ceFdh = num(w[["ce_fdh"]]),
+      crFdh = num(w[["cr_fdh"]]),
+      p = if (is.na(w[["p_ce_fdh"]])) NULL else list(ce_fdh = w[["p_ce_fdh"]], cr_fdh = w[["p_cr_fdh"]])
+    )
+  })
   list(outliers = list(ceFdh = table(r$outliers$ce_fdh), crFdh = table(r$outliers$cr_fdh)), without = without)
 }

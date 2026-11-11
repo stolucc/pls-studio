@@ -14,7 +14,15 @@ ps_validate <- function(req) {
   one_of <- function(x, allowed, what) {
     if (!is.null(x) && !(length(x) == 1 && is.character(x) && x %in% allowed)) stop(sprintf("Invalid %s in the request.", what))
   }
-  get <- function(x, ...) { for (k in c(...)) { if (!is.list(x)) return(NULL); x <- x[[k, exact = TRUE]] }; x }
+  get <- function(x, ...) {
+    for (k in c(...)) {
+      if (!is.list(x)) {
+        return(NULL)
+      }
+      x <- x[[k, exact = TRUE]]
+    }
+    x
+  }
   cb_est <- c("ML", "MLM", "MLMV", "MLR", "GLS", "ULS", "WLS", "WLSMV", "2SLS", "RML")
   one_of(get(req, "estimator"), cb_est, "estimator")
   one_of(get(req, "missing"), c("mean", "casewise", "fiml", "mi", "pairwise", "twostage", "robusttwostage"), "missing-value treatment")
@@ -23,7 +31,10 @@ ps_validate <- function(req) {
   one_of(get(req, "hc"), c("none", "HC0", "HC1", "HC2", "HC3", "HC4"), "standard error type")
   one_of(get(req, "options", "scheme"), c("path", "centroid", "factor"), "weighting scheme")
   one_of(get(req, "options", "missing"), c("mean", "casewise", "fiml", "mi"), "missing-value treatment")
-  for (e in get(req, "estimators")) { one_of(get(e, "method"), c("pls", "cb"), "estimator"); one_of(get(e, "estimator"), cb_est, "estimator") }
+  for (e in get(req, "estimators")) {
+    one_of(get(e, "method"), c("pls", "cb"), "estimator")
+    one_of(get(e, "estimator"), cb_est, "estimator")
+  }
   for (c in c(get(req, "model", "constructs"), get(req, "spec", "constructs"))) {
     one_of(get(c, "mode"), c("A", "B", "unit"), "construct mode")
     one_of(get(c, "type"), c("factor", "composite"), "construct type")
@@ -65,13 +76,19 @@ ps_warn_is_error <- function() isTRUE(getOption("warn", 0) >= 2)
 #' its warnings are reported too.
 ps_try <- function(expr, what, otherwise = NULL) {
   withCallingHandlers(
-    tryCatch(expr, error = function(e) { ps_warning(sprintf("%s could not be computed: %s", what, conditionMessage(e))); otherwise }),
+    tryCatch(expr, error = function(e) {
+      ps_warning(sprintf("%s could not be computed: %s", what, conditionMessage(e)))
+      otherwise
+    }),
     warning = function(w) {
-      if (ps_warn_is_error()) return(invisible(NULL))
+      if (ps_warn_is_error()) {
+        return(invisible(NULL))
+      }
       m <- conditionMessage(w)
       if (!ps_irrelevant(m)) ps_warning(sprintf("%s: %s", what, m))
       invokeRestart("muffleWarning")
-    })
+    }
+  )
 }
 
 #' The entry point of every bridge call (browser and desktop helper): runs the
@@ -88,11 +105,14 @@ ps_call <- function(fn, req, export = FALSE) {
   on.exit(options(old_warn), add = TRUE)
   withCallingHandlers(if (isTRUE(export)) f(req, export = TRUE) else f(req),
     warning = function(w) {
-      if (ps_warn_is_error()) return(invisible(NULL))
+      if (ps_warn_is_error()) {
+        return(invisible(NULL))
+      }
       m <- conditionMessage(w)
       if (ps_irrelevant(m)) NULL else if (ps_advisory(m)) ps_note(m) else ps_warning(m)
       invokeRestart("muffleWarning")
-    })
+    }
+  )
 }
 
 ps_json <- function(x) {
@@ -122,8 +142,14 @@ ps_ident <- function(x) {
 #' never renamed again. prefix = TRUE maps only a leading name (cobalt labels a
 #' factor's level "educ_high").
 ps_back_names <- function(x, back, prefix = FALSE) {
-  if (!length(back) || !length(x)) return(x)
-  if (anyNA(x)) { ok <- !is.na(x); x[ok] <- ps_back_names(x[ok], back, prefix); return(x) }
+  if (!length(back) || !length(x)) {
+    return(x)
+  }
+  if (anyNA(x)) {
+    ok <- !is.na(x)
+    x[ok] <- ps_back_names(x[ok], back, prefix)
+    return(x)
+  }
   keys <- names(back)[order(-nchar(names(back)))]
   alt <- paste(gsub("([.\\\\|()\\[\\]{}^$*+?])", "\\\\\\1", keys, perl = TRUE), collapse = "|")
   re <- if (prefix) sprintf("^(?:%s)", alt) else sprintf("(?<![A-Za-z0-9._])(?:%s)(?![A-Za-z0-9._])", alt)
@@ -136,7 +162,10 @@ ps_back_names <- function(x, back, prefix = FALSE) {
 #' no match is kept as it is (keep = TRUE) or becomes NA (keep = FALSE, as back[x]).
 ps_back <- function(x, back, keep = TRUE) {
   y <- if (length(back)) unname(back[x]) else rep(NA_character_, length(x))
-  if (keep) { miss <- is.na(y); y[miss] <- x[miss] }
+  if (keep) {
+    miss <- is.na(y)
+    y[miss] <- x[miss]
+  }
   y
 }
 
@@ -176,12 +205,20 @@ ps_frame <- function(req, n) {
 
 #' Script lines for missing values (applied to the model's indicators).
 ps_missing_code <- function(missing) {
-  if (identical(missing, "fiml")) c("# Missing values: full-information maximum likelihood (lavaan missing = \"ml\"); no rows dropped")
-  else if (!is.null(PS_LAVAAN_MISSING[[missing %||% ""]])) sprintf("# Missing values: lavaan missing = \"%s\"; no rows dropped", PS_LAVAAN_MISSING[[missing]])
-  else if (identical(missing, "mi")) c("# Missing values: multiple imputation (mice), below; no rows dropped")
-  else if (identical(missing, "mean")) c("# Missing values: replaced by the indicator mean",
-    "for (v in names(data)) data[[v]][is.na(data[[v]])] <- mean(data[[v]], na.rm = TRUE)")
-  else c("# Missing values: casewise (listwise) deletion", "data <- data[complete.cases(data), , drop = FALSE]")
+  if (identical(missing, "fiml")) {
+    c("# Missing values: full-information maximum likelihood (lavaan missing = \"ml\"); no rows dropped")
+  } else if (!is.null(PS_LAVAAN_MISSING[[missing %||% ""]])) {
+    sprintf("# Missing values: lavaan missing = \"%s\"; no rows dropped", PS_LAVAAN_MISSING[[missing]])
+  } else if (identical(missing, "mi")) {
+    c("# Missing values: multiple imputation (mice), below; no rows dropped")
+  } else if (identical(missing, "mean")) {
+    c(
+      "# Missing values: replaced by the indicator mean",
+      "for (v in names(data)) data[[v]][is.na(data[[v]])] <- mean(data[[v]], na.rm = TRUE)"
+    )
+  } else {
+    c("# Missing values: casewise (listwise) deletion", "data <- data[complete.cases(data), , drop = FALSE]")
+  }
 }
 
 #' lavaan's missing-data options for the app's choices (CB-SEM): FIML, pairwise
@@ -220,7 +257,9 @@ ps_q <- function(x) paste0("c(", paste(encodeString(as.character(x), quote = '"'
 #' a name that is not in the map is an error (it would otherwise become NA in the code).
 ps_lookup <- function(map, x, what = "variable") {
   x <- unlist(x)
-  if (!length(x)) return(character(0))
+  if (!length(x)) {
+    return(character(0))
+  }
   if (!is.character(x) || anyNA(match(x, names(map)))) stop(sprintf("Unknown %s in the request.", what))
   unname(map[x])
 }
@@ -245,12 +284,15 @@ ps_run <- function(lines, inputs) {
   withCallingHandlers(eval(parse(text = paste(lines, collapse = "\n")), envir = env),
     # Multi-line messages ("lavaan WARNING:\n  could not ...") become one line.
     warning = function(w) {
-      if (ps_warn_is_error()) return(invisible(NULL))
+      if (ps_warn_is_error()) {
+        return(invisible(NULL))
+      }
       m <- ps_flat(conditionMessage(w))
       # R's note that a package was built under a newer R (desktop R) says nothing about the results.
       if (ps_irrelevant(m)) NULL else if (ps_advisory(m)) ps_note(m) else warn <<- c(warn, m)
       invokeRestart("muffleWarning")
-    })
+    }
+  )
   env$.warnings <- unique(warn)
   env
 }
@@ -273,17 +315,30 @@ ps_embed_matrix <- function(name, m) {
 ps_script <- function(title, packages, inputs, body, report) {
   emb <- unlist(lapply(names(inputs), function(nm) {
     v <- inputs[[nm]]
-    if (is.data.frame(v)) ps_embed_frame(nm, v)
-    else if (is.matrix(v)) { if (is.null(rownames(v))) dimnames(v) <- list(seq_len(nrow(v)), seq_len(ncol(v))); ps_embed_matrix(nm, v) }
+    if (is.data.frame(v)) {
+      ps_embed_frame(nm, v)
+    } else if (is.matrix(v)) {
+      if (is.null(rownames(v))) dimnames(v) <- list(seq_len(nrow(v)), seq_len(ncol(v)))
+      ps_embed_matrix(nm, v)
+    }
     # A stacked model: one matrix per group, then the named list lavaan takes.
-    else if (is.list(v) && length(v) && all(vapply(v, is.matrix, TRUE))) c(unlist(lapply(seq_along(v), function(i) ps_embed_matrix(sprintf("%s_%d", nm, i), v[[i]]))),
-      sprintf("%s <- list(%s)", nm, paste(sprintf("%s = %s_%d", encodeString(names(v), quote = '"'), nm, seq_along(v)), collapse = ", ")))
-    else sprintf("%s <- %s", nm, paste(deparse(v, width.cutoff = 500), collapse = ""))
+    else if (is.list(v) && length(v) && all(vapply(v, is.matrix, TRUE))) {
+      c(
+        unlist(lapply(seq_along(v), function(i) ps_embed_matrix(sprintf("%s_%d", nm, i), v[[i]]))),
+        sprintf("%s <- list(%s)", nm, paste(sprintf("%s = %s_%d", encodeString(names(v), quote = '"'), nm, seq_along(v)), collapse = ", "))
+      )
+    } else {
+      sprintf("%s <- %s", nm, paste(deparse(v, width.cutoff = 500), collapse = ""))
+    }
   }))
   vers <- vapply(packages, function(p) sprintf("%s %s", p, as.character(utils::packageVersion(p))), "")
-  paste(c(sprintf("# %s", ps_comment(title)),
-    if (length(packages)) sprintf("# Generated by PLS Studio on %s with %s (%s).", format(Sys.Date()), paste(vers, collapse = ", "), R.version.string)
-    else sprintf("# Generated by PLS Studio on %s with %s; base R only, no packages needed.", format(Sys.Date()), R.version.string),
+  paste(c(
+    sprintf("# %s", ps_comment(title)),
+    if (length(packages)) {
+      sprintf("# Generated by PLS Studio on %s with %s (%s).", format(Sys.Date()), paste(vers, collapse = ", "), R.version.string)
+    } else {
+      sprintf("# Generated by PLS Studio on %s with %s; base R only, no packages needed.", format(Sys.Date()), R.version.string)
+    },
     "# Running this script reproduces the calculation exactly.",
     "",
     if (length(packages)) c(sprintf("# install.packages(%s)", ps_q(packages)), ""),
@@ -292,13 +347,18 @@ ps_script <- function(title, packages, inputs, body, report) {
     "# ---- Calculation (as run by PLS Studio) ----",
     body, "",
     "# ---- Report ----",
-    report), collapse = "\n")
+    report
+  ), collapse = "\n")
 }
 
 #' The result's `engine`: the package that computed it and its version, and the versions of further packages it
 #' ran on (lavaan = "lavaan").
-ps_engine <- function(package, ...) c(list(package = package, version = as.character(utils::packageVersion(package))),
-  lapply(list(...), function(p) as.character(utils::packageVersion(p))))
+ps_engine <- function(package, ...) {
+  c(
+    list(package = package, version = as.character(utils::packageVersion(package))),
+    lapply(list(...), function(p) as.character(utils::packageVersion(p)))
+  )
+}
 
 #' A matrix as rows of numbers (JSON; NA as null).
 ps_rows <- function(m) lapply(seq_len(nrow(m)), function(i) I(unname(as.numeric(m[i, ]))))
@@ -315,9 +375,11 @@ ps_dataset <- function(req_json) {
   d <- as.data.frame(e[[req$name]])
   # Factors (e.g. groups, ordered items) become their codes 1, 2, ... in level order.
   levels <- list()
-  for (v in names(d)) if (is.factor(d[[v]]) || is.logical(d[[v]])) {
-    if (is.factor(d[[v]])) levels[[v]] <- levels(d[[v]])
-    d[[v]] <- as.integer(d[[v]])
+  for (v in names(d)) {
+    if (is.factor(d[[v]]) || is.logical(d[[v]])) {
+      if (is.factor(d[[v]])) levels[[v]] <- levels(d[[v]])
+      d[[v]] <- as.integer(d[[v]])
+    }
   }
   d <- d[vapply(d, is.numeric, TRUE)]
   for (v in names(d)) d[[v]][d[[v]] %in% unlist(req$na)] <- NA
@@ -339,7 +401,9 @@ ps_read_data <- function(req_json) {
   if (!is.null(pf)) {
     parts <- strsplit(as.character(pf$path), "/", fixed = TRUE)[[1]]
     if (!is.character(pf$package) || !grepl("^[A-Za-z][A-Za-z0-9.]*$", pf$package) ||
-        !length(parts) || any(!grepl("^[A-Za-z0-9_][A-Za-z0-9._-]*$", parts))) stop("Invalid example file.")
+      !length(parts) || any(!grepl("^[A-Za-z0-9_][A-Za-z0-9._-]*$", parts))) {
+      stop("Invalid example file.")
+    }
     path <- do.call(system.file, c(as.list(parts), package = pf$package))
     if (!nzchar(path)) stop("The example file is not in the package.")
   } else {
@@ -360,29 +424,36 @@ ps_read_data <- function(req_json) {
     d <- if (format == "dta") haven::read_dta(path) else haven::read_sav(path)
   }
   d <- as.data.frame(d)
-  cols <- list(); excluded <- list()
+  cols <- list()
+  excluded <- list()
   for (v in names(d)) {
     x <- d[[v]]
     if (inherits(x, "haven_labelled")) x <- as.numeric(haven::zap_labels(x))
     if (is.logical(x)) x <- as.numeric(x)
-    if (is.factor(x)) cols[[v]] <- list(kind = "factor", codes = as.integer(x), levels = levels(x))
-    else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt", "difftime"))) cols[[v]] <- list(kind = "number", values = unname(as.numeric(x)))
-    else if (is.character(x)) cols[[v]] <- list(kind = "text", values = unname(x))
-    else excluded[[length(excluded) + 1L]] <- list(name = v, reason = paste("unsupported column type", class(x)[1]))
+    if (is.factor(x)) {
+      cols[[v]] <- list(kind = "factor", codes = as.integer(x), levels = levels(x))
+    } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt", "difftime"))) {
+      cols[[v]] <- list(kind = "number", values = unname(as.numeric(x)))
+    } else if (is.character(x)) {
+      cols[[v]] <- list(kind = "text", values = unname(x))
+    } else {
+      excluded[[length(excluded) + 1L]] <- list(name = v, reason = paste("unsupported column type", class(x)[1]))
+    }
   }
   ps_json(list(names = names(cols), cols = unname(cols), n = nrow(d), sheets = I(sheets), excluded = excluded))
 }
 
 #' Multiple imputation settings from the request: number of imputations and seed.
 ps_mi_settings <- function(req) {
-  mi <- req[["mi", exact = TRUE]]  # ([[ ]]: req$mi would partially match req$missing)
+  mi <- req[["mi", exact = TRUE]] # ([[ ]]: req$mi would partially match req$missing)
   m <- as.integer(ps_number(mi[["m", exact = TRUE]] %||% 20, "number of imputations"))
   seed <- as.integer(ps_number(mi[["seed", exact = TRUE]] %||% 1, "imputation seed"))
   if (is.na(m) || m < 2L || m > 200L) stop("The number of imputations must be between 2 and 200.")
   method <- mi[["method", exact = TRUE]] %||% "mice"
   if (!(is.character(method) && length(method) == 1 && method %in% c("mice", "amelia", "micenorm", "joint"))) stop("Invalid imputation method in the request.")
   # (auxiliary and nominal columns: names, checked against the data by the caller)
-  aux <- as.character(unlist(mi[["auxiliary", exact = TRUE]])); noms <- as.character(unlist(mi[["nominal", exact = TRUE]]))
+  aux <- as.character(unlist(mi[["auxiliary", exact = TRUE]]))
+  noms <- as.character(unlist(mi[["nominal", exact = TRUE]]))
   list(m = m, seed = seed, method = method, auxiliary = aux, nominal = noms)
 }
 
@@ -393,54 +464,91 @@ ps_mi_settings <- function(req) {
 #' expansion). The imputed data sets are taken every `thin` iterations after `burn`. A script writes this function out.
 ps_joint_impute <- function(data, m, seed, categorical = character(0), burn = 1000, thin = 100) {
   set.seed(seed)
-  X <- as.matrix(data); n <- nrow(X); p <- ncol(X); vn <- colnames(X)
-  cat_j <- match(categorical, vn); miss <- is.na(X)
+  X <- as.matrix(data)
+  n <- nrow(X)
+  p <- ncol(X)
+  vn <- colnames(X)
+  cat_j <- match(categorical, vn)
+  miss <- is.na(X)
   if (anyNA(cat_j)) stop("A categorical variable of the imputation is not among its variables.")
   if (any(colSums(!miss) < 2)) stop("Every variable of the imputation needs at least two observed values.")
   lev <- lapply(seq_len(p), function(j) if (j %in% cat_j) sort(unique(X[!miss[, j], j])) else NULL)
   for (j in cat_j) if (length(lev[[j]]) < 2 || length(lev[[j]]) > 10) stop("A categorical variable of the imputation needs 2 to 10 categories.")
   code <- lapply(seq_len(p), function(j) if (j %in% cat_j) match(X[, j], lev[[j]]) else NULL)
   # thresholds from the observed proportions, the first at 0 (the latent mean carries the location)
-  tau <- lapply(seq_len(p), function(j) if (j %in% cat_j) { q <- stats::qnorm(cumsum(tabulate(code[[j]], length(lev[[j]])))[-length(lev[[j]])] / sum(!miss[, j])); q - q[1] } else NULL)
+  tau <- lapply(seq_len(p), function(j) {
+    if (j %in% cat_j) {
+      q <- stats::qnorm(cumsum(tabulate(code[[j]], length(lev[[j]])))[-length(lev[[j]])] / sum(!miss[, j]))
+      q - q[1]
+    } else {
+      NULL
+    }
+  })
   W <- X
   for (j in seq_len(p)) {
-    if (j %in% cat_j) { t <- c(tau[[j]][1] - 1, tau[[j]], tau[[j]][length(tau[[j]])] + 1); k <- code[[j]]; W[, j] <- ifelse(is.na(k), 0, (t[k] + t[k + 1]) / 2) }
-    else W[miss[, j], j] <- mean(X[, j], na.rm = TRUE)
+    if (j %in% cat_j) {
+      t <- c(tau[[j]][1] - 1, tau[[j]], tau[[j]][length(tau[[j]])] + 1)
+      k <- code[[j]]
+      W[, j] <- ifelse(is.na(k), 0, (t[k] + t[k + 1]) / 2)
+    } else {
+      W[miss[, j], j] <- mean(X[, j], na.rm = TRUE)
+    }
   }
   # a normal truncated to (a, b), by the inverse distribution function
   rtn <- function(mu, s, a, b) {
-    pa <- stats::pnorm(a, mu, s); pb <- stats::pnorm(b, mu, s)
+    pa <- stats::pnorm(a, mu, s)
+    pb <- stats::pnorm(b, mu, s)
     x <- stats::qnorm(pmin(pmax(pa + stats::runif(length(mu)) * pmax(pb - pa, 0), 1e-300), 1 - 1e-16), mu, s)
     pmin(pmax(x, a), b)
   }
-  mu <- colMeans(W); S <- crossprod(sweep(W, 2, mu)) / n
-  keep <- burn + thin * seq_len(m); out <- vector("list", m)
+  mu <- colMeans(W)
+  S <- crossprod(sweep(W, 2, mu)) / n
+  keep <- burn + thin * seq_len(m)
+  out <- vector("list", m)
   for (it in seq_len(max(keep))) {
     # the missing values (and every latent response) given the others, one variable at a time
     for (j in seq_len(p)) {
       upd <- if (j %in% cat_j) rep(TRUE, n) else miss[, j]
       if (!any(upd)) next
-      b <- solve(S[-j, -j], S[-j, j]); s <- sqrt(max(S[j, j] - sum(S[j, -j] * b), 1e-12))
+      b <- solve(S[-j, -j], S[-j, j])
+      s <- sqrt(max(S[j, j] - sum(S[j, -j] * b), 1e-12))
       cm <- mu[j] + drop(sweep(W[upd, -j, drop = FALSE], 2, mu[-j]) %*% b)
       if (j %in% cat_j) {
-        t <- c(-Inf, tau[[j]], Inf); k <- code[[j]]; o <- !is.na(k)
-        w <- stats::rnorm(n, cm, s); w[o] <- rtn(cm[o], s, t[k[o]], t[k[o] + 1]); W[, j] <- w
+        t <- c(-Inf, tau[[j]], Inf)
+        k <- code[[j]]
+        o <- !is.na(k)
+        w <- stats::rnorm(n, cm, s)
+        w[o] <- rtn(cm[o], s, t[k[o]], t[k[o] + 1])
+        W[, j] <- w
         # the other thresholds: uniform between the neighbouring categories' latent responses
         nt <- length(tau[[j]])
-        if (nt > 1) for (h in 2:nt) {
-          lo <- max(W[o & k == h, j], tau[[j]][h - 1]); hi <- min(W[o & k == h + 1, j], if (h < nt) tau[[j]][h + 1] else Inf)
-          if (hi > lo) tau[[j]][h] <- stats::runif(1, lo, hi)
+        if (nt > 1) {
+          for (h in 2:nt) {
+            lo <- max(W[o & k == h, j], tau[[j]][h - 1])
+            hi <- min(W[o & k == h + 1, j], if (h < nt) tau[[j]][h + 1] else Inf)
+            if (hi > lo) tau[[j]][h] <- stats::runif(1, lo, hi)
+          }
         }
-      } else W[upd, j] <- stats::rnorm(sum(upd), cm, s)
+      } else {
+        W[upd, j] <- stats::rnorm(sum(upd), cm, s)
+      }
     }
     # the means and covariance matrix from their posterior given the completed data (flat prior)
     wb <- colMeans(W)
     S <- solve(stats::rWishart(1, n - 1, solve(crossprod(sweep(W, 2, wb))))[, , 1])
     mu <- wb + drop(t(chol(S / n)) %*% stats::rnorm(p))
     # (the latent responses back to variance 1: their scale is not identified)
-    for (j in cat_j) { sj <- sqrt(S[j, j]); W[, j] <- W[, j] / sj; mu[j] <- mu[j] / sj; tau[[j]] <- tau[[j]] / sj; S[j, ] <- S[j, ] / sj; S[, j] <- S[, j] / sj }
+    for (j in cat_j) {
+      sj <- sqrt(S[j, j])
+      W[, j] <- W[, j] / sj
+      mu[j] <- mu[j] / sj
+      tau[[j]] <- tau[[j]] / sj
+      S[j, ] <- S[j, ] / sj
+      S[, j] <- S[, j] / sj
+    }
     if (it %in% keep) {
-      D <- as.data.frame(W); names(D) <- vn
+      D <- as.data.frame(W)
+      names(D) <- vn
       for (j in cat_j) D[[j]] <- lev[[j]][findInterval(W[, j], tau[[j]]) + 1L]
       for (j in setdiff(seq_len(p), cat_j)) D[[j]][!miss[, j]] <- X[!miss[, j], j]
       out[[match(it, keep)]] <- D
@@ -450,8 +558,12 @@ ps_joint_impute <- function(data, m, seed, categorical = character(0), burn = 10
 }
 
 #' The lines of a script that define ps_joint_impute (a replication runs the same imputation).
-ps_joint_impute_lines <- function() c("# Joint imputation under the unrestricted (H1) model (data augmentation; categorical variables through latent normal responses)",
-  paste("ps_joint_impute <-", paste(deparse(ps_joint_impute, width.cutoff = 120L), collapse = "\n")))
+ps_joint_impute_lines <- function() {
+  c(
+    "# Joint imputation under the unrestricted (H1) model (data augmentation; categorical variables through latent normal responses)",
+    paste("ps_joint_impute <-", paste(deparse(ps_joint_impute, width.cutoff = 120L), collapse = "\n"))
+  )
+}
 
 #' Versions of R and of the requested packages (NA when not installed), for a replication package's README.
 ps_versions <- function(req_json) {

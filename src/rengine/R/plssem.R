@@ -30,7 +30,12 @@ ps_plssem_build <- function(req) {
   # Single-indicator constructs enter as their observed variable (as plssem treats observed variables).
   lv <- setNames(ifelse(single, unname(n$iv[vapply(n$inds, `[`, "", 1)]), unname(n$cv)), cname)
   taken <- c(unname(n$iv), unname(n$cv))
-  fresh <- function(x) { y <- ps_ident(x); while (y %in% taken) y <- paste0(y, "_"); taken <<- c(taken, y); y }
+  fresh <- function(x) {
+    y <- ps_ident(x)
+    while (y %in% taken) y <- paste0(y, "_")
+    taken <<- c(taken, y)
+    y
+  }
   col <- function(nm) {
     at <- match(nm, req$data$names)
     if (is.na(at)) stop(sprintf("%s is not in the dataset.", nm))
@@ -45,8 +50,12 @@ ps_plssem_build <- function(req) {
   # Other columns (cluster-level covariates, variables of a between model as written), under fresh names.
   extra <- character(0)
   column <- function(nm) {
-    if (nm %in% names(n$iv)) return(unname(n$iv[[nm]]))
-    if (nm %in% names(extra)) return(unname(extra[[nm]]))
+    if (nm %in% names(n$iv)) {
+      return(unname(n$iv[[nm]]))
+    }
+    if (nm %in% names(extra)) {
+      return(unname(extra[[nm]]))
+    }
     if (identical(nm, ml$column)) stop(sprintf("%s defines the clusters and cannot be a variable of the model.", nm))
     id <- fresh(nm)
     data[[id]] <<- col(nm)
@@ -57,7 +66,8 @@ ps_plssem_build <- function(req) {
   # Random slopes: paths (by construct names) whose coefficient varies across clusters.
   slopes <- m$slopes %||% list()
   if (length(slopes) > 20) stop("At most 20 random slopes.")
-  sname <- character(0); slab <- character(0)
+  sname <- character(0)
+  slab <- character(0)
   for (s in slopes) {
     if (!(is.character(s$from) && is.character(s$to) && length(s$from) == 1 && length(s$to) == 1)) stop("Invalid random slope in the request.")
     if (!any(vapply(m$paths, function(p) identical(p$from, s$from) && identical(p$to, s$to), TRUE))) stop(sprintf("The random slope %s -> %s is not a path of the model.", s$from, s$to))
@@ -81,21 +91,29 @@ ps_plssem_build <- function(req) {
   }, "")
   level1 <- c(meas, unname(struct))
   # Level 2.
-  bname <- function(j) { id <- fresh(paste0(n$cv[[j]], "_b")); back[id] <<- paste(cname[j], "(between)"); id }
+  bname <- function(j) {
+    id <- fresh(paste0(n$cv[[j]], "_b"))
+    back[id] <<- paste(cname[j], "(between)")
+    id
+  }
   if (identical(between, "factors")) {
     fac <- which(!single)
     if (!length(fac)) stop("A between-level factor model needs factors with indicators.")
     ws <- vapply(as.character(unlist(ml$betweenCovariates)), column, "")
     fb <- vapply(fac, bname, "")
-    level2 <- c(vapply(seq_along(fac), function(k) sprintf("%s =~ %s", fb[k], paste(unname(n$iv[n$inds[[fac[k]]]]), collapse = " + ")), ""),
+    level2 <- c(
+      vapply(seq_along(fac), function(k) sprintf("%s =~ %s", fb[k], paste(unname(n$iv[n$inds[[fac[k]]]]), collapse = " + ")), ""),
       if (length(ws)) sprintf("%s ~ %s", paste(fb, collapse = " + "), paste(ws, collapse = " + ")),
-      if (length(ws) && length(sname)) sprintf("%s ~ %s", paste(unname(sname), collapse = " + "), paste(ws, collapse = " + ")))
+      if (length(ws) && length(sname)) sprintf("%s ~ %s", paste(unname(sname), collapse = " + "), paste(ws, collapse = " + "))
+    )
   } else if (identical(between, "same")) {
     # The same factors (suffix _b) and paths between clusters; observed variables as their cluster-level parts.
     fb <- setNames(lv, cname)
     for (j in which(!single)) fb[[cname[j]]] <- bname(j)
-    level2 <- c(vapply(which(!single), function(j) sprintf("%s =~ %s", fb[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")), ""),
-      unname(vapply(to, function(y) sprintf("%s ~ %s", fb[[y]], paste(vapply(Filter(function(p) identical(p$to, y), m$paths), function(p) fb[[p$from]], ""), collapse = " + ")), "")))
+    level2 <- c(
+      vapply(which(!single), function(j) sprintf("%s =~ %s", fb[[j]], paste(unname(n$iv[n$inds[[j]]]), collapse = " + ")), ""),
+      unname(vapply(to, function(y) sprintf("%s ~ %s", fb[[y]], paste(vapply(Filter(function(p) identical(p$to, y), m$paths), function(p) fb[[p$from]], ""), collapse = " + ")), ""))
+    )
   } else {
     sts <- ml$betweenModel
     if (!length(sts)) stop("The between-level model has no statements.")
@@ -104,8 +122,16 @@ ps_plssem_build <- function(req) {
     bmap <- character(0)
     name2 <- function(x) {
       if (!ok_name(x)) stop("Invalid name in the between-level model.")
-      if (x %in% names(bmap)) return(unname(bmap[[x]]))
-      id <- if (x %in% fac_b) { id <- fresh(x); back[id] <<- paste(x, "(between)"); id } else column(x)
+      if (x %in% names(bmap)) {
+        return(unname(bmap[[x]]))
+      }
+      id <- if (x %in% fac_b) {
+        id <- fresh(x)
+        back[id] <<- paste(x, "(between)")
+        id
+      } else {
+        column(x)
+      }
       bmap[x] <<- id
       id
     }
@@ -120,8 +146,10 @@ ps_plssem_build <- function(req) {
   # Ordinal variables (plssem's ordered: MC-OrdPLSc): indicators, and cluster-level variables of the between model.
   vars <- c(n$iv, extra)
   ord <- intersect(as.character(unlist(m$ordered)), names(vars))
-  list(syntax = c("level: 1", paste0("  ", level1), "level: 2", paste0("  ", level2)), data = data, cluster = cl,
-    ordered = unname(vars[ord]), ordered_names = ord, back = back, inds_map = setNames(n$all_inds, unname(n$iv[n$all_inds])), slopes = sname)
+  list(
+    syntax = c("level: 1", paste0("  ", level1), "level: 2", paste0("  ", level2)), data = data, cluster = cl,
+    ordered = unname(vars[ord]), ordered_names = ord, back = back, inds_map = setNames(n$all_inds, unname(n$iv[n$all_inds])), slopes = sname
+  )
 }
 
 ps_plssem <- function(req_json, export = FALSE) {
@@ -139,11 +167,14 @@ ps_plssem <- function(req_json, export = FALSE) {
   if (boot && (R < 10 || R > 10000)) stop("The bootstrap takes 10 to 10000 samples.")
   consistent <- isTRUE(o$consistent)
   data <- b$data
-  args <- c(sprintf("cluster = \"%s\"", b$cluster), sprintf("consistent = %s", consistent), sprintf("inner.weights = \"%s\"", scheme),
+  args <- c(
+    sprintf("cluster = \"%s\"", b$cluster), sprintf("consistent = %s", consistent), sprintf("inner.weights = \"%s\"", scheme),
     sprintf("missing = \"%s\"", if (missing == "mean") "mean" else "listwise"),
     if (length(b$ordered)) sprintf("ordered = %s", ps_q(b$ordered)),
-    if (boot) sprintf("bootstrap = TRUE, boot.R = %d", R), "verbose = FALSE")
-  body <- c("suppressPackageStartupMessages(library(plssem))",
+    if (boot) sprintf("bootstrap = TRUE, boot.R = %d", R), "verbose = FALSE"
+  )
+  body <- c(
+    "suppressPackageStartupMessages(library(plssem))",
     "# The two-level model: level 1 within clusters (the diagram), level 2 between clusters",
     "model <- '", b$syntax, "'",
     "# MC-PLSc is a Monte Carlo estimator: its estimates depend on the seed, set here",
@@ -152,9 +183,12 @@ ps_plssem <- function(req_json, export = FALSE) {
     "est <- parameter_estimates(fit)",
     "# Fit measures (plssem: under development for MC-PLSc models; simulated, so after the fit with the same seed stream)",
     "fm <- fit_measures(fit)",
-    "r2 <- summary(fit, fit = FALSE)$levels")
+    "r2 <- summary(fit, fit = FALSE)$levels"
+  )
   inputs <- list(data = data)
-  if (export) return(ps_script("Two-level PLS-SEM (plssem, MC-PLSc)", "plssem", inputs, body, c("summary(fit)", "est")))
+  if (export) {
+    return(ps_script("Two-level PLS-SEM (plssem, MC-PLSc)", "plssem", inputs, body, c("summary(fit)", "est")))
+  }
   env <- ps_run(body, inputs)
   # plssem's own note (a message) with the fit measures of MC-PLSc models, shown beside them.
   fit_note <- "Fit measures for MC-PLSc models are under development! Traditional fit criteria will likely be too strict."
@@ -170,22 +204,30 @@ ps_plssem <- function(req_json, export = FALSE) {
     rhs <- ifelse(pt$op == "=~", ps_back(pt$rhs, inds_map), nm(pt$rhs))
     lv <- env$r2[[l]]
     fm <- env$fm[[l]]
-    list(level = l, rows = lapply(seq_len(nrow(pt)), function(i) list(lhs = nm(pt$lhs[i]), op = pt$op[i], rhs = rhs[i], est = num(pt$est[i]), se = num(pt$se[i]),
-        z = num(pt$z[i]), p = num(pt$pvalue[i]), lo = num(pt$ci.lower[i]), hi = num(pt$ci.upper[i]))),
+    list(
+      level = l, rows = lapply(seq_len(nrow(pt)), function(i) {
+        list(
+          lhs = nm(pt$lhs[i]), op = pt$op[i], rhs = rhs[i], est = num(pt$est[i]), se = num(pt$se[i]),
+          z = num(pt$z[i]), p = num(pt$pvalue[i]), lo = num(pt$ci.lower[i]), hi = num(pt$ci.upper[i])
+        )
+      }),
       r2 = list(names = I(nm(names(lv$r2.etas))), values = I(num(unname(lv$r2.etas)))),
       r2Indicators = list(names = I(ps_back(names(lv$r2.inds), inds_map)), values = I(num(unname(lv$r2.inds)))),
-      fit = if (is.null(fm)) NULL else list(chisq = num(fm$chisq), df = num(fm$chisq.df), rmsea = num(fm$rmsea), srmr = num(fm$srmr)))
+      fit = if (is.null(fm)) NULL else list(chisq = num(fm$chisq), df = num(fm$chisq.df), rmsea = num(fm$rmsea), srmr = num(fm$srmr))
+    )
   }
   # Thresholds of ordinal variables: one set for both levels (plssem's level-agnostic rows).
   th <- est[is.na(est$level), , drop = FALSE]
   icc <- fit@params$icc
   rsd <- fit@params$rsd
-  ps_json(list(levels = list(level(1), level(2)),
+  ps_json(list(
+    levels = list(level(1), level(2)),
     thresholds = lapply(seq_len(nrow(th)), function(i) list(variable = ps_back(th$lhs[i], c(inds_map, bk)), threshold = th$rhs[i], est = num(th$est[i]), se = num(th$se[i]))),
     icc = list(names = I(ps_back(names(icc), inds_map)), values = I(num(unname(icc)))),
     slopes = lapply(seq_along(rsd), function(i) list(name = nm(names(rsd)[i]), sd = num(unname(rsd[i])))),
     n = fit@info$n, clusters = fit@info$nclusters, iterations = fit@status$iterations, converged = isTRUE(fit@status$converged),
     admissible = isTRUE(fit@status$is.admissible), estimator = fit@info$estimator, consistent = consistent, scheme = scheme,
     missing = missing, seed = seed, bootR = R, ordered = I(b$ordered_names), fitNote = fit_note, syntax = I(b$syntax),
-    warnings = I(env$.warnings), engine = ps_engine("plssem")))
+    warnings = I(env$.warnings), engine = ps_engine("plssem")
+  ))
 }
