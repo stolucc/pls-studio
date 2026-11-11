@@ -116,8 +116,8 @@ export function useFlowGraph({
           model.esem?.blocks.some((b) => b.constructs.includes(c.id)),
           (v) => formatEstimate(settings.figure, v),
         );
-        const w = geom.bounds.w,
-          h = geom.bounds.h;
+        const w = geom.bounds.w;
+        const h = geom.bounds.h;
         return {
           id: c.id,
           type: 'construct',

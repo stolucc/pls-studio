@@ -104,8 +104,8 @@ export function ResultsPanel({
     );
 
   const startResize = (e: React.PointerEvent) => {
-    const startY = e.clientY,
-      startH = height;
+    const startY = e.clientY;
+    const startH = height;
     const move = (ev: PointerEvent) =>
       onResize(Math.min(window.innerHeight - 160, Math.max(160, startH + startY - ev.clientY)));
     const up = () => {

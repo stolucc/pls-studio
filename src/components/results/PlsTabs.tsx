@@ -587,9 +587,9 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
 
 /** Unstandardised and mean-centred paths: the same slopes, with and without an intercept. */
 function OriginalScale({ pls }: { pls: PlsResult }) {
-  const data = useStore((s) => s.data),
-    model = useStore((s) => s.model),
-    missing = useStore((s) => s.settings.missing);
+  const data = useStore((s) => s.data);
+  const model = useStore((s) => s.model);
+  const missing = useStore((s) => s.settings.missing);
   const res = useMemo(() => {
     if (!data || data.cols.length === 0) return null;
     try {
@@ -623,8 +623,8 @@ function OriginalScale({ pls }: { pls: PlsResult }) {
 
 /** Moderators that are 0/1, read without standardising them (Becker et al. 2023). */
 function BinaryModerators({ pls }: { pls: PlsResult }) {
-  const data = useStore((s) => s.data),
-    model = useStore((s) => s.model);
+  const data = useStore((s) => s.data);
+  const model = useStore((s) => s.model);
   const C = pls.constructs;
   const rows: Row[] = pls.moderations.flatMap((mo): Row[] => {
     const item = model.constructs.find((k) => k.name === mo.moderator);

@@ -108,11 +108,11 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
       : { kind: 'point', x: pl.term.ax, y: pl.term.ay };
   };
   const curves = corrs.flatMap((k) => {
-    const a = anchorOf(k, k.a),
-      b = anchorOf(k, k.b);
+    const a = anchorOf(k, k.a);
+    const b = anchorOf(k, k.b);
     if (!a || !b) return [];
-    const pa = k.kind === 'indicator' ? places.get(k.a) : undefined,
-      pb = k.kind === 'indicator' ? places.get(k.b) : undefined;
+    const pa = k.kind === 'indicator' ? places.get(k.a) : undefined;
+    const pb = k.kind === 'indicator' ? places.get(k.b) : undefined;
     // Indicators of one construct: bow outwards, away from the construct.
     const normal =
       pa && pb && pa.owner.id === pb.owner.id
@@ -132,14 +132,14 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
     for (const g of constructGeometry(c).indicators)
       if (!boxes.has(g.name)) boxes.set(g.name, { x: c.x + g.x, y: c.y + g.y, w: g.w, h: g.h });
   const direct = (active ? (model.indicatorPaths ?? []) : []).flatMap((p) => {
-    const c = byId.get(p.from),
-      b = boxes.get(p.to);
+    const c = byId.get(p.from);
+    const b = boxes.get(p.to);
     if (!c || !b) return [];
-    const bx = b.x + b.w / 2,
-      by = b.y + b.h / 2,
-      dx = bx - c.x,
-      dy = by - c.y,
-      len = Math.hypot(dx, dy) || 1;
+    const bx = b.x + b.w / 2;
+    const by = b.y + b.h / 2;
+    const dx = bx - c.x;
+    const dy = by - c.y;
+    const len = Math.hypot(dx, dy) || 1;
     const g = constructGeometry(c);
     const [sx, sy] = shapePoint(shapeOf(c), g.rx, g.ry, dx / len, dy / len);
     // (the end on the box's border, along the line)
@@ -151,11 +151,11 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
   });
   // An indicator of several factors has one box: the other factors reach it by an arrow, like a direct effect.
   const arrowTo = (c: Construct, b: { x: number; y: number; w: number; h: number }) => {
-    const bx = b.x + b.w / 2,
-      by = b.y + b.h / 2,
-      dx = bx - c.x,
-      dy = by - c.y,
-      len = Math.hypot(dx, dy) || 1;
+    const bx = b.x + b.w / 2;
+    const by = b.y + b.h / 2;
+    const dx = bx - c.x;
+    const dy = by - c.y;
+    const len = Math.hypot(dx, dy) || 1;
     const g = constructGeometry(c);
     const [sx, sy] = shapePoint(shapeOf(c), g.rx, g.ry, dx / len, dy / len);
     const t = Math.min(
@@ -272,9 +272,9 @@ export function CovarianceLayer({
   // then its variance (unstandardised) or the indicator's reliability above the box (standardised).
   const amosNote = (t: ErrorTerm, v: number | null, box?: { x: number; y: number; w: number }) => {
     if (v === null) {
-      const x1 = t.cx - t.nx * ERR_R,
-        y1 = t.cy - t.ny * ERR_R,
-        off = besideLine(x1, y1, t.ax, t.ay, 3, 5);
+      const x1 = t.cx - t.nx * ERR_R;
+      const y1 = t.cy - t.ny * ERR_R;
+      const off = besideLine(x1, y1, t.ax, t.ay, 3, 5);
       return (
         <text
           className="err-value"
@@ -306,8 +306,8 @@ export function CovarianceLayer({
   };
   // semPlot: a double-headed loop on the shape instead of a circle (kept, unseen, as the target for drawing correlations).
   const loop = (t: ErrorTerm, v: number | null, title: string) => {
-    const l = selfLoop(t),
-      edge = semplotEdge(v);
+    const l = selfLoop(t);
+    const edge = semplotEdge(v);
     return (
       <>
         <path

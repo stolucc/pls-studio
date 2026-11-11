@@ -160,9 +160,9 @@ function ModerationInspector({ id }: { id: string }) {
   const mo = model.moderations.find((x) => x.id === id);
   const p = mo && model.paths.find((q) => q.id === mo.path);
   const nameOf = (cid: string) => model.constructs.find((c) => c.id === cid)?.name ?? '?';
-  const fromName = p ? nameOf(p.from) : '',
-    toName = p ? nameOf(p.to) : '',
-    modName = mo ? nameOf(mo.moderator) : '';
+  const fromName = p ? nameOf(p.from) : '';
+  const toName = p ? nameOf(p.to) : '';
+  const modName = mo ? nameOf(mo.moderator) : '';
   const est = useModerationEstimate(fromName, modName, toName);
   const results = useFreshResults();
   const method = useStore((s) => s.settings.method);
@@ -362,8 +362,8 @@ function CorrelationInspector({ id }: { id: string }) {
   if (!k) return null;
   const nameOf = (x: string) =>
     k.kind === 'construct' ? (model.constructs.find((c) => c.id === x)?.name ?? '?') : x;
-  const a = nameOf(k.a),
-    b = nameOf(k.b);
+  const a = nameOf(k.a);
+  const b = nameOf(k.b);
   const endo = endogenousIds(model);
   const disturbances = k.kind === 'construct' && endo.has(k.a) && endo.has(k.b);
   let what = 'Covariance of exogenous constructs';
@@ -526,8 +526,8 @@ function PathInspector({ id }: { id: string }) {
   const method = useStore((s) => s.settings.method);
   const p = model.paths.find((q) => q.id === id);
   if (!p) return null;
-  const from = model.constructs.find((c) => c.id === p.from)!,
-    to = model.constructs.find((c) => c.id === p.to)!;
+  const from = model.constructs.find((c) => c.id === p.from)!;
+  const to = model.constructs.find((c) => c.id === p.to)!;
   const pls = method === 'pls' ? results?.pls : null;
   const cbEst =
     method === 'cbsem'
@@ -539,8 +539,8 @@ function PathInspector({ id }: { id: string }) {
           .find((e) => e.outcome === to.name)
           ?.coefficients.find((k) => k.term.length === 1 && k.term[0] === from.name)
       : undefined;
-  const i = pls?.constructs.indexOf(from.name) ?? -1,
-    j = pls?.constructs.indexOf(to.name) ?? -1;
+  const i = pls?.constructs.indexOf(from.name) ?? -1;
+  const j = pls?.constructs.indexOf(to.name) ?? -1;
   const b = results?.boot?.stats.find((s) => s.key === `path:${from.name}:${to.name}`);
   return (
     <>

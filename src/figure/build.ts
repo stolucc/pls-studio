@@ -89,8 +89,8 @@ export function buildFigureInput(
     ? impliedMainEffects(m).map((e) => ({ id: '', from: e.from, to: e.to, implied: true }))
     : [];
   const paths = [...m.paths, ...impliedPaths].flatMap((p) => {
-    const s = byId.get(p.from),
-      t = byId.get(p.to);
+    const s = byId.get(p.from);
+    const t = byId.get(p.to);
     const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p.from, p.to)) : null;
     if (!seg) return [];
     const l = values.path?.(nameOf(p.from), nameOf(p.to));
@@ -108,9 +108,9 @@ export function buildFigureInput(
   });
   const moderations = m.moderations.flatMap((mo) => {
     const p = m.paths.find((q) => q.id === mo.path);
-    const s = p && byId.get(p.from),
-      t = p && byId.get(p.to),
-      mod = byId.get(mo.moderator);
+    const s = p && byId.get(p.from);
+    const t = p && byId.get(p.to);
+    const mod = byId.get(mo.moderator);
     // (a reciprocal pair: each arrow on its own side, as the moderator layer draws it)
     const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p!.from, p!.to)) : null;
     if (!seg || !mod) return [];

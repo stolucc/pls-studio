@@ -70,8 +70,8 @@ export type ConstructFlowNode = Node<ConstructNodeData, 'construct'>;
 function ConstructNodeImpl({ data, selected }: NodeProps<ConstructFlowNode>) {
   const { construct: c, geom, r2, labels, hasError, tool, method, picked } = data;
   const { rx, ry, bounds } = geom;
-  const cx = -bounds.x,
-    cy = -bounds.y;
+  const cx = -bounds.x;
+  const cy = -bounds.y;
   const connecting = useConnection((s) => s.inProgress);
   const figure = useStore((st) => st.settings.figure);
   const amos = figure.notation === 'amos';

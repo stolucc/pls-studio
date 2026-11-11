@@ -54,8 +54,8 @@ export function ModeratorLayer({
     const path = model.paths.find((p) => p.id === mo.path);
     const m = byId.get(mo.moderator);
     if (!path || !m) return [];
-    const s = byId.get(path.from),
-      t = byId.get(path.to);
+    const s = byId.get(path.from);
+    const t = byId.get(path.to);
     if (!s || !t) return [];
     const seg = pathSegment(s, t, pathOffset(model.paths, path.from, path.to));
     if (!seg) return [];

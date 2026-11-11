@@ -57,8 +57,8 @@ export function besideLine(
   halfH: number,
 ): { dx: number; dy: number } {
   const len = Math.hypot(x2 - x1, y2 - y1) || 1;
-  let nx = -(y2 - y1) / len,
-    ny = (x2 - x1) / len;
+  let nx = -(y2 - y1) / len;
+  let ny = (x2 - x1) / len;
   if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx < 0)) {
     nx = -nx;
     ny = -ny;
@@ -86,8 +86,8 @@ export function clearPointOnCurve(
     return { x: f(0), y: f(1) };
   };
   const free = ({ x, y }: { x: number; y: number }) => {
-    const left = x + (normal[0] * w) / 2 - w / 2,
-      top = y + (normal[1] * h) / 2 - h / 2;
+    const left = x + (normal[0] * w) / 2 - w / 2;
+    const top = y + (normal[1] * h) / 2 - h / 2;
     return boxes.every(
       (b) => left + w <= b.x || left >= b.x + b.w || top + h <= b.y || top >= b.y + b.h,
     );
@@ -117,8 +117,8 @@ export function hexagonPoint(rx: number, ry: number, dx: number, dy: number): [n
 
 /** Octagon a construct can be drawn as. */
 export function octagonVertices(rx: number, ry: number): [number, number][] {
-  const a = rx * 0.42,
-    b = ry * 0.42;
+  const a = rx * 0.42;
+  const b = ry * 0.42;
   return [
     [-rx, -b],
     [-a, -ry],
@@ -133,11 +133,11 @@ export function octagonVertices(rx: number, ry: number): [number, number][] {
 
 /** The control point of a path drawn curved (a quadratic curve), and the curve's midpoint. */
 export function pathCurve(s: { x1: number; y1: number; x2: number; y2: number }) {
-  const dx = s.x2 - s.x1,
-    dy = s.y2 - s.y1,
-    bow = 0.18;
-  const kx = (s.x1 + s.x2) / 2 - dy * bow,
-    ky = (s.y1 + s.y2) / 2 + dx * bow;
+  const dx = s.x2 - s.x1;
+  const dy = s.y2 - s.y1;
+  const bow = 0.18;
+  const kx = (s.x1 + s.x2) / 2 - dy * bow;
+  const ky = (s.y1 + s.y2) / 2 + dx * bow;
   return {
     kx,
     ky,
@@ -157,11 +157,11 @@ function polygonPoint(
 ): [number, number] {
   let best = Infinity;
   for (let i = 0; i < v.length; i++) {
-    const [ax, ay] = v[i],
-      [bx, by] = v[(i + 1) % v.length];
+    const [ax, ay] = v[i];
+    const [bx, by] = v[(i + 1) % v.length];
     // Solve t·d = a + u·(b − a) for t ≥ 0, u ∈ [0, 1].
-    const ex = bx - ax,
-      ey = by - ay;
+    const ex = bx - ax;
+    const ey = by - ay;
     const den = dx * ey - dy * ex;
     if (Math.abs(den) < 1e-12) continue;
     const t = (ax * ey - ay * ex) / den;
@@ -259,10 +259,10 @@ export function constructGeometry(c: GeomInput, circle = c.circle ?? false): Con
   }
 
   const PAD = 6;
-  let minX = -rx - PAD,
-    maxX = rx + PAD,
-    minY = -ry - 22,
-    maxY = ry + PAD;
+  let minX = -rx - PAD;
+  let maxX = rx + PAD;
+  let minY = -ry - 22;
+  let maxY = ry + PAD;
   for (const b of indicators) {
     minX = Math.min(minX, b.x - PAD);
     maxX = Math.max(maxX, b.x + b.w + PAD);
@@ -287,16 +287,16 @@ export function pathSegment(
   t: Placed,
   offset = 0,
 ): { x1: number; y1: number; x2: number; y2: number } | null {
-  const gs = constructGeometry(s),
-    gt = constructGeometry(t);
-  const dx = t.x - s.x,
-    dy = t.y - s.y;
+  const gs = constructGeometry(s);
+  const gt = constructGeometry(t);
+  const dx = t.x - s.x;
+  const dy = t.y - s.y;
   if (dx === 0 && dy === 0) return null;
   const [sx, sy] = shapePoint(shapeOf(s), gs.rx, gs.ry, dx, dy);
   const [tx, ty] = shapePoint(shapeOf(t), gt.rx, gt.ry, -dx, -dy);
   const l = Math.hypot(dx, dy);
-  const ox = (offset * -dy) / l,
-    oy = (offset * dx) / l;
+  const ox = (offset * -dy) / l;
+  const oy = (offset * dx) / l;
   return { x1: s.x + sx + ox, y1: s.y + sy + oy, x2: t.x + tx + ox, y2: t.y + ty + oy };
 }
 
@@ -315,8 +315,8 @@ export function distanceToSegment(
   py: number,
   seg: { x1: number; y1: number; x2: number; y2: number },
 ): number {
-  const vx = seg.x2 - seg.x1,
-    vy = seg.y2 - seg.y1;
+  const vx = seg.x2 - seg.x1;
+  const vy = seg.y2 - seg.y1;
   const len2 = vx * vx + vy * vy;
   const u =
     len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - seg.x1) * vx + (py - seg.y1) * vy) / len2));
@@ -332,8 +332,8 @@ export function meanSegment(
   t: Placed,
 ): { x1: number; y1: number; x2: number; y2: number } | null {
   const g = constructGeometry(t);
-  const dx = t.x - k.x,
-    dy = t.y - k.y;
+  const dx = t.x - k.x;
+  const dy = t.y - k.y;
   const l = Math.hypot(dx, dy);
   if (l === 0) return null;
   const [bx, by] = shapePoint(shapeOf(t), g.rx, g.ry, -dx, -dy);
@@ -351,10 +351,10 @@ export function interceptSegment(
   t: Placed,
   box: Pick<IndicatorGeom, 'x' | 'y' | 'w' | 'h'>,
 ): { x1: number; y1: number; x2: number; y2: number } | null {
-  const cx = t.x + box.x + box.w / 2,
-    cy = t.y + box.y + box.h / 2;
-  const dx = cx - k.x,
-    dy = cy - k.y;
+  const cx = t.x + box.x + box.w / 2;
+  const cy = t.y + box.y + box.h / 2;
+  const dx = cx - k.x;
+  const dy = cy - k.y;
   const l = Math.hypot(dx, dy);
   if (l === 0) return null;
   const s = Math.min(
@@ -374,8 +374,8 @@ export function moderatorSegment(
   m: Placed,
   path: { x1: number; y1: number; x2: number; y2: number },
 ) {
-  const mx = (path.x1 + path.x2) / 2,
-    my = (path.y1 + path.y2) / 2;
+  const mx = (path.x1 + path.x2) / 2;
+  const my = (path.y1 + path.y2) / 2;
   const g = constructGeometry(m);
   const [bx, by] = shapePoint(shapeOf(m), g.rx, g.ry, mx - m.x, my - m.y);
   return { x1: m.x + bx, y1: m.y + by, x2: mx, y2: my };
@@ -416,15 +416,15 @@ export function quadraticLoop(
   c: Placed,
   path: { x1: number; y1: number; x2: number; y2: number },
 ): QuadraticLoop {
-  const mx = (path.x1 + path.x2) / 2,
-    my = (path.y1 + path.y2) / 2;
-  const dx = path.x2 - path.x1,
-    dy = path.y2 - path.y1;
+  const mx = (path.x1 + path.x2) / 2;
+  const my = (path.y1 + path.y2) / 2;
+  const dx = path.x2 - path.x1;
+  const dy = path.y2 - path.y1;
   const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len,
-    uy = dy / len;
-  let nx = -uy,
-    ny = ux;
+  const ux = dx / len;
+  const uy = dy / len;
+  let nx = -uy;
+  let ny = ux;
   if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) {
     nx = -nx;
     ny = -ny;
@@ -435,18 +435,18 @@ export function quadraticLoop(
     ny = -ny;
   }
   // Leave X just beside where the path leaves it (clear of the label above X), on that side.
-  const ox = ux + 0.6 * nx,
-    oy = uy + 0.6 * ny,
-    lean = Math.hypot(ox, oy);
+  const ox = ux + 0.6 * nx;
+  const oy = uy + 0.6 * ny;
+  const lean = Math.hypot(ox, oy);
   const g = constructGeometry(c);
   const [bx, by] = shapePoint(shapeOf(c), g.rx, g.ry, ox / lean, oy / lean);
-  const x1 = c.x + bx,
-    y1 = c.y + by;
+  const x1 = c.x + bx;
+  const y1 = c.y + by;
   const h = QUAD_RISE;
-  const c1x = x1 + nx * h,
-    c1y = y1 + ny * h,
-    c2x = mx + nx * h,
-    c2y = my + ny * h;
+  const c1x = x1 + nx * h;
+  const c1y = y1 + ny * h;
+  const c2x = mx + nx * h;
+  const c2y = my + ny * h;
   const r = (v: number) => Number(v.toFixed(2));
   return {
     d: `M ${r(x1)} ${r(y1)} C ${r(c1x)} ${r(c1y)} ${r(c2x)} ${r(c2y)} ${r(mx)} ${r(my)}`,
@@ -480,8 +480,8 @@ export interface ErrorTerm {
 
 /** Measurement-error circle of an indicator, beyond its box on the far side from the construct. */
 export function errorTerm(c: Placed, ind: IndicatorGeom): ErrorTerm {
-  const midX = c.x + ind.x + ind.w / 2,
-    midY = c.y + ind.y + ind.h / 2;
+  const midX = c.x + ind.x + ind.w / 2;
+  const midY = c.y + ind.y + ind.h / 2;
   switch (c.side) {
     case 'left':
       return {
@@ -526,8 +526,8 @@ export function errorTerm(c: Placed, ind: IndicatorGeom): ErrorTerm {
 export function disturbanceTerm(c: Placed): ErrorTerm {
   const g = constructGeometry(c);
   const len = Math.hypot(0.6, 1);
-  const nx = 0.6 / len,
-    ny = (c.side === 'top' ? 1 : -1) / len;
+  const nx = 0.6 / len;
+  const ny = (c.side === 'top' ? 1 : -1) / len;
   const [bx, by] = shapePoint(shapeOf(c), g.rx, g.ry, nx, ny);
   const d = ERR_GAP + ERR_R;
   return { cx: c.x + bx + nx * d, cy: c.y + by + ny * d, ax: c.x + bx, ay: c.y + by, nx, ny };
@@ -535,18 +535,18 @@ export function disturbanceTerm(c: Placed): ErrorTerm {
 
 /** A residual as semPlot draws it: a double-headed loop on the shape's border, out along the error term's direction. */
 export function selfLoop(t: { ax: number; ay: number; nx: number; ny: number }) {
-  const spread = 8,
-    out = 24,
-    tx = -t.ny,
-    ty = t.nx;
-  const x1 = t.ax - tx * spread,
-    y1 = t.ay - ty * spread,
-    x2 = t.ax + tx * spread,
-    y2 = t.ay + ty * spread;
-  const c1x = x1 + t.nx * out - tx * spread,
-    c1y = y1 + t.ny * out - ty * spread,
-    c2x = x2 + t.nx * out + tx * spread,
-    c2y = y2 + t.ny * out + ty * spread;
+  const spread = 8;
+  const out = 24;
+  const tx = -t.ny;
+  const ty = t.nx;
+  const x1 = t.ax - tx * spread;
+  const y1 = t.ay - ty * spread;
+  const x2 = t.ax + tx * spread;
+  const y2 = t.ay + ty * spread;
+  const c1x = x1 + t.nx * out - tx * spread;
+  const c1y = y1 + t.ny * out - ty * spread;
+  const c2x = x2 + t.nx * out + tx * spread;
+  const c2y = y2 + t.ny * out + ty * spread;
   return {
     d: `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`,
     x1,
@@ -565,10 +565,10 @@ export function selfLoop(t: { ax: number; ay: number; nx: number; ny: number }) 
 /** Filled triangle with its tip at (x, y), pointing along (dx, dy). */
 export function arrowHead(x: number, y: number, dx: number, dy: number, len = 9, half = 4): string {
   const l = Math.hypot(dx, dy) || 1;
-  const ux = dx / l,
-    uy = dy / l;
-  const bx = x - ux * len,
-    by = y - uy * len;
+  const ux = dx / l;
+  const uy = dy / l;
+  const bx = x - ux * len;
+  const by = y - uy * len;
   return `M ${x} ${y} L ${bx - uy * half} ${by + ux * half} L ${bx + uy * half} ${by - ux * half} Z`;
 }
 
@@ -601,13 +601,13 @@ export function correlationCurve(
   b: Anchor,
   opts: { normal?: [number, number]; away?: { x: number; y: number } } = {},
 ) {
-  const p = centreOf(a),
-    q = centreOf(b);
-  const dx = q.x - p.x,
-    dy = q.y - p.y;
+  const p = centreOf(a);
+  const q = centreOf(b);
+  const dx = q.x - p.x;
+  const dy = q.y - p.y;
   const dist = Math.hypot(dx, dy) || 1;
-  const mx = (p.x + q.x) / 2,
-    my = (p.y + q.y) / 2;
+  const mx = (p.x + q.x) / 2;
+  const my = (p.y + q.y) / 2;
   let [nx, ny] = opts.normal ?? [-dy / dist, dx / dist];
   if (!opts.normal && opts.away && nx * (mx - opts.away.x) + ny * (my - opts.away.y) < 0) {
     nx = -nx;
@@ -615,8 +615,8 @@ export function correlationCurve(
   }
   // Longer arrows bow further, so nested arrows (and their labels) fan out.
   const bow = Math.min(240, Math.max(64, 0.45 * dist));
-  const kx = mx + nx * bow,
-    ky = my + ny * bow;
+  const kx = mx + nx * bow;
+  const ky = my + ny * bow;
   const [x1, y1] = clipAnchor(a, kx - p.x, ky - p.y);
   const [x2, y2] = clipAnchor(b, kx - q.x, ky - q.y);
   return {

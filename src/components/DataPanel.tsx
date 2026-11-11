@@ -63,8 +63,8 @@ export function DataPanel() {
   const onClick = (e: MouseEvent, name: string) => {
     if (e.shiftKey && anchor.current) {
       const names = visible.map((v) => v.name);
-      const a = names.indexOf(anchor.current),
-        b = names.indexOf(name);
+      const a = names.indexOf(anchor.current);
+      const b = names.indexOf(name);
       if (a >= 0 && b >= 0) {
         const range = names.slice(Math.min(a, b), Math.max(a, b) + 1);
         setSelected([...new Set([...selected, ...range])]);

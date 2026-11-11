@@ -34,8 +34,8 @@ export function SimpleSlopes({
   const y = (x: number, m: number) => bx * x + bm * m + bint * x * m;
   const ys = levels.flatMap((l) => [y(-1, l.m), y(1, l.m)]);
   const lim = Math.max(0.5, ...ys.map(Math.abs)) * 1.1;
-  const W = width - pad.l - pad.r,
-    H = height - pad.t - pad.b;
+  const W = width - pad.l - pad.r;
+  const H = height - pad.t - pad.b;
   const sx = (x: number) => pad.l + ((x + 1) / 2) * W;
   const sy = (v: number) => pad.t + ((lim - v) / (2 * lim)) * H;
   const caption = (
@@ -152,8 +152,8 @@ export function QuadraticCurve({
   const xs = Array.from({ length: 81 }, (_, i) => -R + (2 * R * i) / 80);
   const ys = xs.map((x) => quadraticValue(b, bq, x));
   const lim = Math.max(0.5, ...ys.map(Math.abs)) * 1.1;
-  const W = width - pad.l - pad.r,
-    H = height - pad.t - pad.b;
+  const W = width - pad.l - pad.r;
+  const H = height - pad.t - pad.b;
   const sx = (x: number) => pad.l + ((x + R) / (2 * R)) * W;
   const sy = (v: number) => pad.t + ((lim - v) / (2 * lim)) * H;
   const tp = turningPoint(b, bq);

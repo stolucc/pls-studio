@@ -11,10 +11,10 @@ export type ConstantNodeData = { tool: Tool; hasError: boolean };
 export type ConstantFlowNode = Node<ConstantNodeData, 'constant'>;
 
 function ConstantNodeImpl({ data, selected }: NodeProps<ConstantFlowNode>) {
-  const w = CONSTANT_R * 2 + 8,
-    h = CONSTANT_R * 2 + 4;
-  const cx = w / 2,
-    cy = h / 2;
+  const w = CONSTANT_R * 2 + 8;
+  const h = CONSTANT_R * 2 + 4;
+  const cx = w / 2;
+  const cy = h / 2;
   return (
     <div
       className={`cnode constant${selected ? ' selected' : ''}${data.hasError ? ' error' : ''}`}

@@ -19,9 +19,9 @@ import { IconX } from './icons';
 import { useEscape } from './useEscape';
 
 export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void }) {
-  const data = useStore((s) => s.data),
-    info = useStore((s) => s.dataInfo),
-    seed0 = useStore((s) => s.settings.seed);
+  const data = useStore((s) => s.data);
+  const info = useStore((s) => s.dataInfo);
+  const seed0 = useStore((s) => s.settings.seed);
   const n = c.indicators.length;
   const [method, setMethod] = useState<ParcelMethod>('balance');
   const [k, setK] = useState(Math.min(3, Math.floor(n / 2)));
@@ -64,8 +64,8 @@ export function ParcelDialog({ c, onClose }: { c: Construct; onClose: () => void
       setError('Every item must be in exactly one parcel.');
       return;
     }
-    let d = data,
-      i2 = info;
+    let d = data;
+    let i2 = info;
     try {
       for (let p = 0; p < groups.length; p++) {
         const clash = nameError(names[p], d, i2);

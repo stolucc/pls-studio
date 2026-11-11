@@ -438,8 +438,8 @@ export function menuFor(
       ]);
     }
     case 'implied': {
-      const a = model.constructs.find((c) => c.id === target.a),
-        b = model.constructs.find((c) => c.id === target.b);
+      const a = model.constructs.find((c) => c.id === target.a);
+      const b = model.constructs.find((c) => c.id === target.b);
       // Only implied pairs remain undrawn-but-shown: covariates (fixed at their sample values,
       // fixed.x) and factors of one ESEM block (correlated by the rotation). Nothing to change.
       if (!a || !b || !cb) return null;

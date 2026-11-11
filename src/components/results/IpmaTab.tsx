@@ -36,19 +36,19 @@ function IpmaChart({
   xLabel: string;
   yMax: number;
 }) {
-  const W = 520,
-    H = 320,
-    pad = { l: 50, r: 16, t: 14, b: 40 };
+  const W = 520;
+  const H = 320;
+  const pad = { l: 50, r: 16, t: 14, b: 40 };
   const xs = points.map((p) => p.importance);
-  const xMin = Math.min(0, ...xs),
-    xMax = Math.max(...xs, 0.01) * 1.12;
+  const xMin = Math.min(0, ...xs);
+  const xMax = Math.max(...xs, 0.01) * 1.12;
   const ys = points.map((p) => p.performance);
-  const yLo = Math.max(0, Math.floor((Math.min(...ys) - 5) / 10) * 10),
-    yHi = Math.min(yMax, Math.ceil((Math.max(...ys) + 5) / 10) * 10);
+  const yLo = Math.max(0, Math.floor((Math.min(...ys) - 5) / 10) * 10);
+  const yHi = Math.min(yMax, Math.ceil((Math.max(...ys) + 5) / 10) * 10);
   const sx = (v: number) => pad.l + ((v - xMin) / (xMax - xMin)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((yHi - v) / (yHi - yLo || 1)) * (H - pad.t - pad.b);
-  const mx = mean(xs),
-    my = mean(ys);
+  const mx = mean(xs);
+  const my = mean(ys);
   const ticks = (lo: number, hi: number, k: number) =>
     Array.from({ length: k + 1 }, (_, i) => lo + ((hi - lo) * i) / k);
   return (

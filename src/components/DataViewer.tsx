@@ -164,8 +164,8 @@ export function DataWorkspace() {
                     <tr key={r}>
                       <td className="rownum">{r + 1}</td>
                       {shown.map(([n, i]) => {
-                        const v = data.cols[i][r],
-                          cats = data.categories?.[n];
+                        const v = data.cols[i][r];
+                        const cats = data.categories?.[n];
                         return (
                           <td key={n} className={cats ? 'text' : undefined}>
                             {cats && !Number.isNaN(v) ? (cats[v - 1] ?? cell(v)) : cell(v)}

@@ -190,17 +190,29 @@ interface Pen {
   ) => void;
 }
 
+/** The dash pattern of a path: implied paths dashed short, then the path's own line style. */
+function pathDash(p: { implied?: boolean; line?: string }): string {
+  if (p.implied) return '5 4';
+  if (p.line === 'dashed') return '7 4';
+  if (p.line === 'dotted') return '1.5 4';
+  return '';
+}
+
 function makePen(style: FigureStyle): Pen {
   const fs = style.fontSize;
   const small = fs * 0.85;
-  const amos = style.notation === 'amos',
-    plsStyle = style.notation === 'pls';
+  const amos = style.notation === 'amos';
+  const plsStyle = style.notation === 'pls';
   // A plain figure has one ink: the lines' colour, for text and outlines too.
   const semplot = style.notation === 'semplot';
-  const ink = (c: string) => (semplot ? '#000000' : isPlainFigure(style) ? style.pathColor : c);
+  const ink = (c: string) => {
+    if (semplot) return '#000000';
+    if (isPlainFigure(style)) return style.pathColor;
+    return c;
+  };
   const out: string[] = [];
-  const xs: number[] = [],
-    ys: number[] = [];
+  const xs: number[] = [];
+  const ys: number[] = [];
   const extend = (x: number, y: number) => {
     xs.push(x);
     ys.push(y);
@@ -218,17 +230,19 @@ function makePen(style: FigureStyle): Pen {
     dy = 0,
   ) => {
     const text = labelText(l);
-    const w = textWidth(text, small) + 8,
-      h = small + 6;
+    const w = textWidth(text, small) + 8;
+    const h = small + 6;
     const left = anchor === 'middle' ? x - w / 2 + dx : x + dx;
     const top = y - h / 2 + dy;
     extend(left, top);
     extend(left + w, top + h);
     // Always mask the line behind the number; the outline is optional (fixed loadings: dashed).
-    const outline =
-      style.labelBoxes || (l.fixed && style.notation === 'standard')
-        ? ` stroke="${ink(l.fixed ? '#7f7f7f' : '#d0d5de')}" stroke-width="0.6"${l.fixed ? ' stroke-dasharray="2 2"' : ''}`
-        : '';
+    let outline = '';
+    if (style.labelBoxes || (l.fixed && style.notation === 'standard')) {
+      const stroke = ink(l.fixed ? '#7f7f7f' : '#d0d5de');
+      const dashed = l.fixed ? ' stroke-dasharray="2 2"' : '';
+      outline = ` stroke="${stroke}" stroke-width="0.6"${dashed}`;
+    }
     // Amos writes the number beside the line (labelOn), so there is nothing to mask.
     if (!amos)
       out.push(
@@ -316,8 +330,8 @@ function drawModerations({ style, small, out, extend, line }: Pen, f: FigureInpu
     const q = m.loop;
     if (q) {
       // The loop's apex is ¾ of the rise out; its tag sits just beyond.
-      const tx = q.lx + q.nx * (small + 6),
-        ty = q.ly + q.ny * (small + 6);
+      const tx = q.lx + q.nx * (small + 6);
+      const ty = q.ly + q.ny * (small + 6);
       extend(q.x1, q.y1);
       extend(q.x2, q.y2);
       extend(q.lx, q.ly);
@@ -341,8 +355,8 @@ function drawPaths({ style, semplot, out, extend, line }: Pen, f: FigureInput) {
   for (const p of f.paths) {
     const edge = semplot ? semplotEdge(p.label?.value ?? null) : null;
     const pathInk = edge?.color ?? style.pathColor;
-    const width = edge?.width ?? pathStrokeWidth(style, p.label?.value ?? null),
-      dash = p.implied ? '5 4' : p.line === 'dashed' ? '7 4' : p.line === 'dotted' ? '1.5 4' : '';
+    const width = edge?.width ?? pathStrokeWidth(style, p.label?.value ?? null);
+    const dash = pathDash(p);
     if (!p.curved) {
       line(p.x1, p.y1, p.x2, p.y2, pathInk, width, true, dash);
       continue;
@@ -378,8 +392,8 @@ function drawHigherOrder({ style, semplot, line }: Pen, f: FigureInput) {
 /** The constant (a triangle, "1") and its arrows: latent means and intercepts. */
 function drawConstant({ style, indicatorPaint, ink, out, extend, line }: Pen, f: FigureInput) {
   if (!f.constant) return;
-  const { x, y } = f.constant,
-    r = CONSTANT_R;
+  const { x, y } = f.constant;
+  const r = CONSTANT_R;
   extend(x - r, y - r);
   extend(x + r, y + r);
   out.push(
@@ -399,9 +413,9 @@ function drawCopulas({ style, small, ink, out, extend, line }: Pen, f: FigureInp
     for (const t of g.targets) {
       extend(t.x2, t.y2);
       line(t.x1, t.y1, t.x2, t.y2, style.copulaArrow, 1, false, '3 3');
-      const len = Math.hypot(t.x2 - t.x1, t.y2 - t.y1) || 1,
-        ux = (t.x2 - t.x1) / len,
-        uy = (t.y2 - t.y1) / len;
+      const len = Math.hypot(t.x2 - t.x1, t.y2 - t.y1) || 1;
+      const ux = (t.x2 - t.x1) / len;
+      const uy = (t.y2 - t.y1) / len;
       out.push(
         `<path d="M ${n(t.x2 - ux * 7 - uy * 3.5)} ${n(t.y2 - uy * 7 + ux * 3.5)} L ${n(t.x2)} ${n(t.y2)} L ${n(t.x2 - ux * 7 + uy * 3.5)} ${n(t.y2 - uy * 7 - ux * 3.5)}" fill="none" stroke="${style.copulaArrow}" stroke-width="1"/>`,
       );
@@ -441,8 +455,8 @@ function drawErrors(
     const t = e.term;
     numbered[e.kind]++;
     if (semplot) {
-      const l = selfLoop(t),
-        edge = semplotEdge(e.value);
+      const l = selfLoop(t);
+      const edge = semplotEdge(e.value);
       extend(l.lx, l.ly);
       extend(l.x1, l.y1);
       extend(l.x2, l.y2);
@@ -479,12 +493,12 @@ function drawErrors(
     out.push(
       `<circle cx="${n(t.cx)}" cy="${n(t.cy)}" r="${ERR_R}" ${plsStyle ? `fill="${PLS_STYLE_ERROR}"` : `fill="${indicatorPaint}" stroke="${style.indicatorStroke}" stroke-width="${n(style.indicatorArrowWidth)}"`}/>`,
     );
+    // The error variance in the circle, or its name (e1, d2, ...) when no estimate is shown.
     const inCircle = !amos && e.value !== null && style.showEstimates;
-    const text = inCircle
-      ? plsStyle
-        ? formatEstimate(style, e.value!)
-        : noLeadingZero(e.value!.toFixed(Math.min(style.decimals, 2)))
-      : `${e.kind === 'indicator' ? 'e' : 'd'}${amos ? numbered[e.kind] : ''}`;
+    let text: string;
+    if (!inCircle) text = `${e.kind === 'indicator' ? 'e' : 'd'}${amos ? numbered[e.kind] : ''}`;
+    else if (plsStyle) text = formatEstimate(style, e.value!);
+    else text = noLeadingZero(e.value!.toFixed(Math.min(style.decimals, 2)));
     out.push(
       `<text x="${n(t.cx)}" y="${n(t.cy + small * 0.35)}" font-size="${n(small * (plsStyle ? 0.7 : 0.85))}" text-anchor="middle" fill="${plsStyle ? '#ffffff' : style.pathColor}"${e.value === null && !amos ? ' font-style="italic"' : ''}>${esc(text)}</text>`,
     );
@@ -547,8 +561,8 @@ function drawConstruct(
         !(plsStyle && c.indicators.length === 1),
         semplot && fixed?.fixed ? '5 4' : '',
       );
-      const bx = c.x + ind.x,
-        by = c.y + ind.y;
+      const bx = c.x + ind.x;
+      const by = c.y + ind.y;
       extend(bx, by);
       extend(bx + ind.w, by + ind.h);
       out.push(
@@ -558,18 +572,15 @@ function drawConstruct(
         `<text x="${n(bx + ind.w / 2)}" y="${n(by + ind.h / 2 + small * 0.35)}" font-size="${n(small)}" text-anchor="middle" fill="${ink('#333333')}">${esc(ind.name)}</text>`,
       );
     });
-  const shape =
-    c.covariate || observed || c.shape === 'rectangle'
-      ? `<rect x="${n(c.x - rx)}" y="${n(c.y - ry)}" width="${n(2 * rx)}" height="${n(2 * ry)}" rx="${BOX_RX}"`
-      : c.shape === 'octagon'
-        ? `<polygon points="${octagonVertices(rx, ry)
-            .map(([x, y]) => `${n(c.x + x)},${n(c.y + y)}`)
-            .join(' ')}"`
-        : composite
-          ? `<polygon points="${hexagonVertices(rx, ry)
-              .map(([x, y]) => `${n(c.x + x)},${n(c.y + y)}`)
-              .join(' ')}"`
-          : `<ellipse cx="${n(c.x)}" cy="${n(c.y)}" rx="${n(rx)}" ry="${n(ry)}"`;
+  const points = (vertices: [number, number][]) =>
+    vertices.map(([x, y]) => `${n(c.x + x)},${n(c.y + y)}`).join(' ');
+  // Observed variables are boxes; an octagon or a hexagon (composite) is a polygon; a factor an ellipse.
+  let shape: string;
+  if (c.covariate || observed || c.shape === 'rectangle')
+    shape = `<rect x="${n(c.x - rx)}" y="${n(c.y - ry)}" width="${n(2 * rx)}" height="${n(2 * ry)}" rx="${BOX_RX}"`;
+  else if (c.shape === 'octagon') shape = `<polygon points="${points(octagonVertices(rx, ry))}"`;
+  else if (composite) shape = `<polygon points="${points(hexagonVertices(rx, ry))}"`;
+  else shape = `<ellipse cx="${n(c.x)}" cy="${n(c.y)}" rx="${n(rx)}" ry="${n(ry)}"`;
   out.push(
     `${shape} fill="${c.color ?? constructPaint}" stroke="${style.constructStroke}" stroke-width="${n(style.constructStrokeWidth)}"/>`,
   );
@@ -578,11 +589,10 @@ function drawConstruct(
   const showR2 = style.showR2 && r2 !== null;
   const r2Inside = showR2 && !amos;
   // With circles, names are outside the shape: below, or above when the indicators hang below.
-  const nameY = circle
-    ? c.side === 'bottom'
-      ? c.y - ry - 6
-      : c.y + ry + fs + 2
-    : c.y + (r2Inside ? -2 : fs * 0.35);
+  let nameY: number;
+  if (!circle) nameY = c.y + (r2Inside ? -2 : fs * 0.35);
+  else if (c.side === 'bottom') nameY = c.y - ry - 6;
+  else nameY = c.y + ry + fs + 2;
   if (circle) {
     const w = textWidth(c.name, fs) * 1.1;
     extend(c.x - w / 2, nameY - fs);
@@ -652,9 +662,11 @@ function drawEstimates(pen: Pen, f: FigureInput) {
     };
   for (const p of f.paths)
     if (p.label) {
-      const q = p.curved
-        ? (({ mx, my }) => ({ x: mx, y: my }))(pathCurve(p))
-        : at(p.key, p, p.moderated ? 0.3 : 0.5);
+      let q: { x: number; y: number };
+      if (p.curved) {
+        const { mx, my } = pathCurve(p);
+        q = { x: mx, y: my };
+      } else q = at(p.key, p, p.moderated ? 0.3 : 0.5);
       labelOn(q.x, q.y, p, p.label, semplot ? semplotEdge(p.label.value).color : tone(p.label.p));
     }
   for (const m of f.moderations)
@@ -687,8 +699,8 @@ function drawEstimates(pen: Pen, f: FigureInput) {
     if (k.label) {
       // Hang the label off the outer side of the arc.
       const text = estimateText(style, k.label.value, k.label.p);
-      const w = textWidth(text, small) + 8,
-        h = small + 6;
+      const w = textWidth(text, small) + 8;
+      const h = small + 6;
       // In these styles a label over a box garbles it or hides its name: slide it along the arc.
       const q =
         style.notation !== 'standard'
@@ -715,10 +727,10 @@ function drawEstimates(pen: Pen, f: FigureInput) {
 
 function drawNotes({ small, out, extend }: Pen, f: FigureInput) {
   for (const k of f.notes ?? []) {
-    const lines = k.text.split('\n').slice(0, 40),
-      lh = small * 1.3;
-    const w = Math.max(60, ...lines.map((l) => textWidth(l, small))) + 12,
-      h = lines.length * lh + 10;
+    const lines = k.text.split('\n').slice(0, 40);
+    const lh = small * 1.3;
+    const w = Math.max(60, ...lines.map((l) => textWidth(l, small))) + 12;
+    const h = lines.length * lh + 10;
     extend(k.x, k.y);
     extend(k.x + w, k.y + h);
     out.push(
@@ -737,10 +749,10 @@ function frame({ style, out, xs, ys }: Pen): { svg: string; width: number; heigh
   const gradientDef = (id: string, from: string) =>
     `<linearGradient id="${id}"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${style.gradientEnd}"/></linearGradient>`;
   const pad = 16;
-  const minX = Math.min(...xs) - pad,
-    minY = Math.min(...ys) - pad;
-  const width = Math.ceil(Math.max(...xs) + pad - minX),
-    height = Math.ceil(Math.max(...ys) + pad - minY);
+  const minX = Math.min(...xs) - pad;
+  const minY = Math.min(...ys) - pad;
+  const width = Math.ceil(Math.max(...xs) + pad - minX);
+  const height = Math.ceil(Math.max(...ys) + pad - minY);
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${n(minX)} ${n(minY)} ${width} ${height}" font-family='${FONT_FAMILY[style.font]}'>\n` +
     (style.gradientFill
