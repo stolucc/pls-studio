@@ -121,6 +121,7 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   alignment: ex('sirt-inv4gr-alignment'),
   mnlfa: ex('mnlfa-mnlfa01-dif'),
   lsem: ex('sirt-lsem01-age'),
+  dmacs: ex('lavaan-hs-dmacs'),
   mimicdif: ft('rengine/invariance::DIF by MIMIC'),
   irt: {},
   'irt:rasch': { title: 'Rasch', examples: ['ltm-lsat'], features: ['rengine/items::matches ltm'] },

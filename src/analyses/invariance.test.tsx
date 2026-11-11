@@ -5,11 +5,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
-import type { AlignmentResult, LongInvarianceResult, LsemResult, MimicDifResult, MnlfaResult } from '../rengine/invariance';
-import { alignmentRequest, detectOccasions, longInvarianceRequest, lsemRequest, lsemResult, mimicDifRequest, mnlfaRequest, rows } from '../rengine/invariance';
+import type { AlignmentResult, DmacsResult, LongInvarianceResult, LsemResult, MimicDifResult, MnlfaResult } from '../rengine/invariance';
+import { alignmentRequest, detectOccasions, dmacsRequest, longInvarianceRequest, lsemRequest, lsemResult, mimicDifRequest, mnlfaRequest, rows } from '../rengine/invariance';
 import { ANALYSIS_TYPES } from './registry';
 import type { AnalysisCtx } from './types';
-import { alignmentAnalysis, alignmentInput, invLavaan, lsemAnalysis, lsemInput, lsemKind, lsemLabel, moderatorRange, longInvarianceAnalysis, longInvarianceInput, mimicDifAnalysis, mimicDifInput, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
+import { alignmentAnalysis, alignmentInput, dmacsAnalysis, dmacsInput, invLavaan, modelGroups, lsemAnalysis, lsemInput, lsemKind, lsemLabel, moderatorRange, longInvarianceAnalysis, longInvarianceInput, mimicDifAnalysis, mimicDifInput, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
 
 const cols = ['a1', 'a2', 'a3', 'b1', 'b2', 'g', 'x'];
 const data = { names: cols, cols: cols.map((_, k) => Float64Array.from({ length: 12 }, (_, i) => ((i * (k + 2)) % 5) + (cols[k] === 'g' ? 0 : 1))), categories: { g: ['north', 'south', 'east', 'west', 'mid'] } };
@@ -302,3 +302,72 @@ describe('local SEM card', () => {
     expect(html).toContain('A =~ a1');
   });
 });
+
+describe('dMACS card', () => {
+  const grouped = { ...model, multigroup: { column: 'g', invariance: 'configural', free: [] } } as unknown as ModelState;
+  const settings = { ...DEFAULT_SETTINGS, method: 'cbsem' as const, estimator: 'ML' as const, missing: 'casewise' as const };
+  // (a model the validation accepts: three varying indicators of A, the grouping column g)
+  const gc = ['a1', 'a2', 'a3', 'g'];
+  const gcols = gc.map((n, k) => Float64Array.from({ length: 40 }, (_, i) => {
+    if (n === 'g') return i < 20 ? 2 : 1;
+    return Math.sin(i * (k + 1) * 1.3) + i / 20;
+  }));
+  const gdata = { names: gc, cols: gcols, categories: { g: ['north', 'south'] } };
+  const gmodel = { constructs: [model.constructs[0]], paths: [], moderations: [], multigroup: grouped.multigroup } as unknown as ModelState;
+  const gctx: AnalysisCtx = { ...bare, data: gdata, model: gmodel, settings };
+  const d = dmacsAnalysis.defaults(gctx);
+
+  it('is in the Add menu under Measurement and parses its options', () => {
+    expect(dmacsAnalysis.group).toBe('Measurement');
+    expect(dmacsAnalysis.parseOptions(d)).toEqual(d);
+    expect(dmacsAnalysis.parseOptions(null)).toBeNull();
+    expect(dmacsAnalysis.parseOptions({ reference: 3, sd: 'glass' })).toEqual({ reference: '', sd: 'pooled' });
+    expect(dmacsAnalysis.parseOptions({ reference: 'south', sd: 'reference' })).toEqual({ reference: 'south', sd: 'reference' });
+  });
+
+  it('lists the groups in order of appearance, by name, with their lavaan codes', () => {
+    expect(modelGroups(gctx)).toEqual([{ label: '2', name: 'south' }, { label: '1', name: 'north' }]);
+    expect(modelGroups({ ...gctx, model: lmodelOf(gmodel) })).toEqual([]);
+    expect(dmacsInput({ reference: 'north', sd: 'pooled' }, gctx)).toEqual({ reference: '1', sd: 'pooled' });
+    expect(dmacsInput(d, gctx)).toEqual({ reference: null, sd: 'pooled' });
+  });
+
+  it('says what it still needs', () => {
+    expect(dmacsAnalysis.blocked(d, { ...gctx, settings: DEFAULT_SETTINGS })).toMatch(/CB-SEM/);
+    expect(dmacsAnalysis.blocked(d, { ...gctx, model: lmodelOf(gmodel) })).toMatch(/grouping column/);
+    const noMeans = { ...gmodel, multigroup: { ...gmodel.multigroup!, meanStructure: false as const } };
+    expect(dmacsAnalysis.blocked(d, { ...gctx, model: noMeans })).toMatch(/mean structure/);
+    expect(dmacsAnalysis.blocked(d, { ...gctx, model: { ...gmodel, ordered: ['a1'] } })).toMatch(/ordinal/);
+    expect(dmacsAnalysis.blocked({ ...d, reference: 'east' }, gctx)).toMatch(/east is not a group/);
+    expect(dmacsAnalysis.blocked(d, gctx)).toBeNull();
+  });
+
+  it('sends the reference group’s code and the SD', () => {
+    const call = { data: gdata, spec: { constructs: [], paths: [] } as never, missing: 'casewise' as const, estimator: 'ML' as const, interaction: 'product' as const };
+    const withRef = dmacsRequest(call, { reference: '1', sd: 'reference' }) as unknown as { dmacs: unknown };
+    expect(withRef.dmacs).toEqual({ sd: 'reference', reference: '1' });
+    const first = dmacsRequest(call, { reference: null, sd: 'pooled' }) as unknown as { dmacs: unknown };
+    expect(first.dmacs).toEqual({ sd: 'pooled' });
+  });
+
+  it('shows each focal group’s items, marking dMACS from .2, and the scale biases', () => {
+    const item = { focal: 'north', factor: 'A', lambdaRef: 1, nuRef: 0, lambdaFocal: 1, nuFocal: 0, sd: 1, signed: 0, meanBias: 0, varBias: 0 };
+    const r: DmacsResult = {
+      groups: ['south', 'north', 'east'], reference: 'south', sd: 'pooled', n: [20, 20, 5],
+      items: [{ ...item, item: 'a1', dmacs: 0.05 }, { ...item, item: 'a2', dmacs: 0.45 }, { ...item, focal: 'east', item: 'a1', dmacs: 0 }],
+      scales: [{ focal: 'north', factor: 'A', items: 2, kappa: 0.1, phi: 1.2, meanBias: 0.3, varBias: -0.2 }],
+      warnings: [], engine: { package: 'lavaan', version: '0.7.3' },
+    };
+    const html = renderToStaticMarkup(<dmacsAnalysis.View result={r} options={d} current />);
+    expect(html).toContain('dMACS by item: north against south');
+    expect(html).toContain('dMACS by item: east against south');
+    expect(html).toContain('Expected bias in the scale scores');
+    expect(html).toContain('Focal group');
+    expect((html.match(/warn/g) ?? []).length).toBe(1);
+  });
+});
+
+function lmodelOf(m: ModelState): ModelState {
+  const { multigroup: _drop, ...rest } = m;
+  return rest as ModelState;
+}

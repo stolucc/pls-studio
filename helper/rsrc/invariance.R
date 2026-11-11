@@ -401,3 +401,139 @@ ps_lsem <- function(req_json, export = FALSE) {
     weight = I(nn(dens$wgt)), neff = I(nn(dens$Neff)), params = params, bootstrap = R, permutations = B, seed = seed,
     warnings = env$.warnings, engine = ps_engine("sirt", lavaan = "lavaan")))
 }
+
+#' Effect sizes of measurement non-invariance between groups (Nye & Drasgow 2011; signed dMACS and the expected bias
+#' in item and scale means and variances, Nye, Bradburn, Olenick, Bialko & Drasgow 2019) from the multigroup CB-SEM
+#' model on the canvas as the Model tab fits it (configural, or partial invariance with some parameters freed): for
+#' each focal group against the reference group, each item's expected score under the two groups' loadings and
+#' intercepts, E(X | eta) = nu + lambda eta, is compared over the focal group's latent distribution, eta ~ N(kappa_F,
+#' phi_F) (the factor's model-implied mean and variance in the focal group), by numerical integration as the dmacs
+#' package does it: dMACS = sqrt(int (E_F - E_R)^2 f_F) / SD, signed dMACS = int (E_F - E_R) f_F / SD (positive: the
+#' focal group scores higher at the same factor level), SD the item's pooled within-group SD (or the reference
+#' group's). The scale's mean bias is the sum of the items'; its variance bias phi_F ((sum lambda_F)^2 - (sum
+#' lambda_R)^2) (Nye & Drasgow's equations 7-9 summed). Continuous indicators.
+ps_dmacs <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  o <- req$dmacs %||% list()
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "dMACS")
+  if (is.null(b$group_var)) {
+    stop("Effect sizes of non-invariance compare groups: choose a grouping column under Groups (Model inspector).")
+  }
+  if (length(unlist(req$model$ordered))) {
+    stop("dMACS here is for continuous indicators (linear item functions); the model has ordinal indicators.")
+  }
+  if (length(b$composites)) stop("dMACS is for common factors; the model has composites (<~).")
+  if (isFALSE(req$model$multigroup$meanStructure)) {
+    stop("dMACS needs the groups' intercepts: keep the mean structure under Groups.")
+  }
+  sdtype <- o$sd %||% "pooled"
+  if (!(is.character(sdtype) && length(sdtype) == 1 && sdtype %in% c("pooled", "reference"))) {
+    stop("Invalid SD in the request.")
+  }
+  ref <- o$reference
+  if (!is.null(ref) && !(is.character(ref) && length(ref) == 1 && nchar(ref) <= 200)) {
+    stop("Invalid reference group in the request.")
+  }
+  ref_line <- if (is.null(ref)) {
+    "ref <- 1  # the reference group: the first"
+  } else {
+    sprintf("ref <- match('%s', groups)  # the reference group", ps_sq(ref))
+  }
+  denominator <- if (sdtype == "pooled") c(
+    "# Denominator: each item's pooled within-group SD of the two groups compared (Nye & Drasgow 2011, equation 3)",
+    "denominator <- function(f) {",
+    "  nr <- item_n(ref)",
+    "  nf <- item_n(f)",
+    "  sqrt(((nr - 1) * item_sd(ref)^2 + (nf - 1) * item_sd(f)^2) / (nr + nf - 2))",
+    "}"
+  ) else c(
+    "# Denominator: each item's SD in the reference group (Glass's choice)",
+    "denominator <- function(f) item_sd(ref)"
+  )
+  body <- c(b$body,
+    "# ---- Effect sizes of measurement non-invariance (Nye & Drasgow 2011; Nye et al. 2019) ----",
+    "est <- lavInspect(fit, \"est\")",
+    "groups <- lavInspect(fit, \"group.label\")",
+    "kappa <- lavInspect(fit, \"mean.lv\")  # each group's model-implied factor means",
+    "phi <- lavInspect(fit, \"cov.lv\")     # and factor (co)variances",
+    "obs <- lavInspect(fit, \"data\")       # each group's analysed cases",
+    ref_line,
+    "if (is.na(ref)) stop(\"The reference group is not one of the model's groups.\")",
+    "factors <- unique(parTable(fit)$lhs[parTable(fit)$op == \"=~\"])",
+    "# Expected item score E(X | eta) = nu + lambda eta, eta = kappa_F + z sqrt(phi_F), z standard normal",
+    "# (integrated over z as the dmacs package does it)",
+    "difference <- function(z, lR, nR, lF, nF, m, v) {",
+    "  eta <- m + z * sqrt(v)",
+    "  (nF + lF * eta) - (nR + lR * eta)",
+    "}",
+    "dmacs_item <- function(lR, nR, lF, nF, m, v, sd) {",
+    "  f <- function(z) difference(z, lR, nR, lF, nF, m, v)^2 * dnorm(z)",
+    "  sqrt(integrate(f, -Inf, Inf, rel.tol = 1e-10)$value) / sd",
+    "}",
+    "mean_bias <- function(lR, nR, lF, nF, m, v) {",
+    "  f <- function(z) difference(z, lR, nR, lF, nF, m, v) * dnorm(z)",
+    "  integrate(f, -Inf, Inf, rel.tol = 1e-10)$value",
+    "}",
+    "item_sd <- function(g) apply(obs[[g]], 2, sd, na.rm = TRUE)",
+    "item_n <- function(g) colSums(!is.na(obs[[g]]))",
+    denominator,
+    "effects <- NULL",
+    "for (f in setdiff(seq_along(groups), ref)) {",
+    "  sd <- denominator(f)",
+    "  for (k in factors) {",
+    "    LR <- est[[ref]]$lambda[, k]",
+    "    LF <- est[[f]]$lambda[, k]",
+    "    m <- kappa[[f]][k]",
+    "    v <- phi[[f]][k, k]",
+    "    for (i in names(LR)[LR != 0]) {",
+    "      lR <- LR[[i]]",
+    "      lF <- LF[[i]]",
+    "      nR <- est[[ref]]$nu[i, 1]",
+    "      nF <- est[[f]]$nu[i, 1]",
+    "      row <- data.frame(focal = groups[f], factor = k, item = i,",
+    "        lambda_ref = lR, nu_ref = nR, lambda_focal = lF, nu_focal = nF, kappa_focal = m, phi_focal = v, sd = sd[[i]],",
+    "        dmacs = dmacs_item(lR, nR, lF, nF, m, v, sd[[i]]),",
+    "        mean_bias = mean_bias(lR, nR, lF, nF, m, v),",
+    "        var_bias = v * (lF^2 - lR^2))",
+    "      effects <- rbind(effects, row)",
+    "    }",
+    "  }",
+    "}",
+    "effects$dmacs_signed <- effects$mean_bias / effects$sd",
+    "# The scale (sum of a factor's items): expected bias in its mean and in its variance",
+    "scales <- NULL",
+    "for (e in split(effects, list(effects$focal, effects$factor), drop = TRUE)) {",
+    "  var_bias <- e$phi_focal[1] * (sum(e$lambda_focal)^2 - sum(e$lambda_ref)^2)",
+    "  row <- data.frame(focal = e$focal[1], factor = e$factor[1], items = nrow(e),",
+    "    kappa = e$kappa_focal[1], phi = e$phi_focal[1], mean_bias = sum(e$mean_bias), var_bias = var_bias)",
+    "  scales <- rbind(scales, row)",
+    "}")
+  inputs <- b$inputs
+  if (export) {
+    title <- "Effect sizes of measurement non-invariance (dMACS)"
+    return(ps_script(title, "lavaan", inputs, body, c("summary(fit)", "effects", "scales")))
+  }
+  env <- ps_run(body, inputs)
+  e <- env$effects
+  s <- env$scales
+  if (is.null(e) || !nrow(e)) stop("No factor with loadings to compare: draw factors with indicators.")
+  back <- ps_cb_back(b)
+  nm <- function(x) ps_back(as.character(x), back)
+  items <- lapply(seq_len(nrow(e)), function(i) list(
+    focal = as.character(e$focal[i]), factor = nm(e$factor[i]), item = nm(e$item[i]),
+    lambdaRef = e$lambda_ref[i], nuRef = e$nu_ref[i], lambdaFocal = e$lambda_focal[i], nuFocal = e$nu_focal[i],
+    sd = e$sd[i], dmacs = e$dmacs[i], signed = e$dmacs_signed[i], meanBias = e$mean_bias[i], varBias = e$var_bias[i]))
+  scales <- lapply(seq_len(nrow(s)), function(i) list(
+    focal = as.character(s$focal[i]), factor = nm(s$factor[i]), items = s$items[i],
+    kappa = s$kappa[i], phi = s$phi[i], meanBias = s$mean_bias[i], varBias = s$var_bias[i]))
+  ps_json(list(
+    groups = I(as.character(env$groups)),
+    reference = as.character(env$groups[env$ref]),
+    sd = sdtype,
+    n = I(unname(as.numeric(lavaan::lavInspect(env$fit, "nobs")))),
+    items = items,
+    scales = scales,
+    warnings = env$.warnings,
+    engine = ps_engine("lavaan")))
+}

@@ -1,12 +1,14 @@
 // Examples that open the measurement invariance cards: sirt's alignment help-page example (four groups of
-// data.inv4gr), mnlfa's model 4 (data.mnlfa01) and sirt's local SEM example (data.lsem01), checked against the
-// packages run natively in cards/invariance.webr.test.ts (scripts/validation/invariance_cards.R, lsem.R).
+// data.inv4gr), mnlfa's model 4 (data.mnlfa01), sirt's local SEM example (data.lsem01), and dMACS of the lavaan
+// tutorial's partial invariance model (HolzingerSwineford1939), checked against the packages run natively in
+// cards/invariance.webr.test.ts (scripts/validation/invariance_cards.R, lsem.R, dmacs.R).
 
 import { CB, f, type ExConstruct } from '../define';
 import type { PackageExample } from '../packages';
 
 const I11 = Array.from({ length: 11 }, (_, i) => `I${String(i + 1).padStart(2, '0')}`);
 const INV4GR: ExConstruct[] = [f('F', I11)];
+const HS: ExConstruct[] = [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6']), f('speed', ['x7', 'x8', 'x9'])];
 const SIRT_ALIGN = { label: '?invariance.alignment (sirt)', url: 'https://rdrr.io/cran/sirt/man/invariance.alignment.html' };
 const AM2014 = { label: 'Asparouhov & Muthén (2014), SEM 21(4)', url: 'https://doi.org/10.1080/10705511.2014.919210' };
 
@@ -37,5 +39,15 @@ export const CARD_INVARIANCE: PackageExample[] = [
     shows: 'The loadings of v1, v3 and v4 climb to a peak around age 15 (v4 from 1.21 at age 4 to 1.77) and fall steeply into the early twenties (v3 to 0.96 at 23), while v2’s and v5’s move less (0.70–0.99 and 0.52–0.64). With the help page’s 10 permutations the p values are multiples of .1: the SD of v1’s and v4’s loadings along age exceeds that of every permutation (p = 0), v3’s p is .1, v2’s .3 and v5’s .4; the residual variances vary beyond the permutations too. Switch the chart to Residual variances or Fit to see them.',
     data: { package: 'sirt', name: 'data.lsem01' }, syntax: 'F =~ NA*v1 + v2 + v3 + v4 + v5\nF ~~ 1*F', constructs: [], paths: [],
     panel: { kind: 'lsem', moderator: 'age', from: 4, to: 23, points: 20, h: 2, kernel: 'gaussian', bootstrap: false, bootR: 100, permutation: true, permB: 10 }, settings: CB('ML'),
+  },
+  {
+    id: 'lavaan-hs-dmacs', package: 'lavaan', title: 'Effect sizes of partial non-invariance across two schools (dMACS)', source: 'lavaan tutorial: multiple groups (group.partial); Nye & Drasgow (2011)',
+    links: [{ label: 'lavaan tutorial: multiple groups', url: 'https://lavaan.ugent.be/tutorial/groups.html' }, { label: 'Nye & Drasgow (2011), J. Appl. Psychol. 96(5)', url: 'https://doi.org/10.1037/a0022955' },
+      { label: 'dmacs (Dueber), the reference implementation', url: 'https://github.com/ddueber/dmacs' }],
+    description: 'Holzinger & Swineford’s three factors in the Pasteur and Grant-White schools with the lavaan tutorial’s partial invariance: loadings and intercepts equal across the schools except visual =~ x2 and the intercept of x7 (group.partial = c("visual=~x2", "x7~1")). The dMACS card compares, item by item, the expected scores under Grant-White’s and Pasteur’s (the reference group’s) parameters over Grant-White’s factor distribution, in pooled SD units. Parameters held equal give no effect, so only x2 and x7 show one. Set the invariance level to configural under Groups to see every item’s difference. Opens its card on the Analyses tab beside the diagram.',
+    shows: 'x7 carries the non-invariance that matters: dMACS 0.41, and Grant-White pupils score 0.44 points lower on it than Pasteur pupils at the same speed (signed dMACS −0.41), which lowers the speed sum score by the same 0.44. x2’s different loading is small (dMACS 0.09) but raises the variance of the visual sum score by 0.40.',
+    data: { package: 'lavaan', name: 'HolzingerSwineford1939' }, constructs: HS, paths: [],
+    multigroup: { column: 'school', invariance: 'scalar', free: [{ kind: 'loading', construct: 'visual', indicator: 'x2' }, { kind: 'intercept', indicator: 'x7' }] },
+    panel: { kind: 'dmacs', reference: 'Pasteur', sd: 'pooled' }, settings: CB('ML'),
   },
 ];

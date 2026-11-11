@@ -203,6 +203,82 @@ export async function lsemR(m: CbCall, i: LsemInput): Promise<LsemResult> {
 }
 export const lsemScriptR = (m: CbCall, i: LsemInput) => rScript('ps_lsem', lsemRequest(m, i), 'sirt');
 
+/** Effect sizes of non-invariance (ps_dmacs) between the canvas model's groups. */
+export interface DmacsInput {
+  /** The reference group by its lavaan label (null: the first group). */
+  reference: string | null;
+  sd: 'pooled' | 'reference';
+}
+
+/** One item of one factor, a focal group against the reference group. */
+export interface DmacsItem {
+  focal: string;
+  factor: string;
+  item: string;
+  lambdaRef: number;
+  nuRef: number;
+  lambdaFocal: number;
+  nuFocal: number;
+  sd: number;
+  /** dMACS (Nye & Drasgow 2011). */
+  dmacs: number;
+  /** Signed dMACS: the mean difference, focal − reference, in SD units. */
+  signed: number;
+  /** Expected bias in the item's mean and variance (focal − reference). */
+  meanBias: number;
+  varBias: number;
+}
+
+/** A factor's scale (sum of its items) in a focal group. */
+export interface DmacsScale {
+  focal: string;
+  factor: string;
+  items: number;
+  /** The focal group's model-implied factor mean and variance (integrated over). */
+  kappa: number;
+  phi: number;
+  /** Expected bias in the scale's mean and variance. */
+  meanBias: number;
+  varBias: number;
+}
+
+export interface DmacsResult {
+  groups: string[];
+  reference: string;
+  sd: DmacsInput['sd'];
+  n: number[];
+  items: DmacsItem[];
+  scales: DmacsScale[];
+  warnings: string[];
+  engine: REngineInfo;
+}
+
+export function dmacsRequest(m: CbCall, i: DmacsInput) {
+  const dmacs = i.reference === null ? { sd: i.sd } : { sd: i.sd, reference: i.reference };
+  return cbCallRequest(m, { dmacs });
+}
+
+export async function dmacsR(m: CbCall, i: DmacsInput): Promise<DmacsResult> {
+  const r = await rCall<Record<string, any>>('ps_dmacs', dmacsRequest(m, i), 'lavaan');
+  const column = m.spec.multigroup?.column ?? '';
+  // (group codes of a text column as its category names)
+  const name = (label: unknown) => groupNames(m.data, column, [String(label)])[0];
+  const items = rList<DmacsItem>(r.items).map((x) => ({ ...x, focal: name(x.focal) }));
+  const scales = rList<DmacsScale>(r.scales).map((x) => ({ ...x, focal: name(x.focal) }));
+  return {
+    groups: rStrings(r.groups).map(name),
+    reference: name(r.reference),
+    sd: r.sd,
+    n: rList<number>(r.n),
+    items,
+    scales,
+    warnings: rStrings(r.warnings),
+    engine: r.engine,
+  };
+}
+
+export const dmacsScriptR = (m: CbCall, i: DmacsInput) => rScript('ps_dmacs', dmacsRequest(m, i), 'lavaan');
+
 /**
  * Repeated items recognised from column names with an occasion suffix after "_" or "." (x1_t1, x1_t2; anx.1, anx.2;
  * item_w3): one indicator set per occasion, in occasion order, holding the items measured at every occasion (in the

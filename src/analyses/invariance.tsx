@@ -2,8 +2,9 @@
 // groups (sirt, Asparouhov & Muthén 2014) on the diagram's factors, and moderated
 // nonlinear factor analysis of binary items (mnlfa; Curran et al. 2014), and
 // longitudinal invariance of a factor measured at several occasions (semTools),
-// uniform DIF by MIMIC (lavaan), and local SEM: the canvas model's parameters as
-// curves along a continuous moderator (sirt::lsem.estimate; Hildebrandt et al. 2016).
+// uniform DIF by MIMIC (lavaan), local SEM: the canvas model's parameters as
+// curves along a continuous moderator (sirt::lsem.estimate; Hildebrandt et al. 2016),
+// and effect sizes of non-invariance between the canvas model's groups (dMACS).
 
 import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
@@ -12,7 +13,7 @@ import { InvarianceTable } from '../components/results/InvarianceTable';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { seriesColor } from '../figure/palette';
 import { fmt, fmtP } from '../format';
-import { detectOccasions, type AlignedFactor, type AlignmentInput, type AlignmentResult, type InvFactor, type LongInvarianceInput, type LongInvarianceResult, type LsemInput, type LsemParam, type LsemResult, type MimicDifInput, type MimicDifResult, type MimicEffect, type MnlfaInput, type MnlfaResult } from '../rengine/invariance';
+import { detectOccasions, type AlignedFactor, type AlignmentInput, type AlignmentResult, type DmacsInput, type DmacsItem, type DmacsResult, type InvFactor, type LongInvarianceInput, type LongInvarianceResult, type LsemInput, type LsemParam, type LsemResult, type MimicDifInput, type MimicDifResult, type MimicEffect, type MnlfaInput, type MnlfaResult } from '../rengine/invariance';
 import { Axes, H, pad, W } from './charts';
 import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
 import { fingerprint } from './codec';
@@ -483,6 +484,200 @@ export const lsemAnalysis: AnalysisType<LsemOptions, LsemResult> = {
   script: async (o, ctx) => (await engine()).lsemScriptR(cbCall(ctx), lsemInput(o, ctx)),
   summary: (o) => `along ${o.moderator || '…'} · ${o.points} focal points, h = ${o.h}${o.bootstrap ? ` · bootstrap ${o.bootR}` : ''}${o.permutation ? ` · ${o.permB} permutations` : ''}`,
 };
+
+// ---------------------------------------------------------------- effect sizes of non-invariance (dMACS)
+
+export interface DmacsOptions {
+  /** The reference group as the data shows it (a category name or a value); empty: the first group. */
+  reference: string;
+  sd: DmacsInput['sd'];
+}
+
+/** A group of the grouping column: its name as shown and its lavaan label (the code in the data). */
+export interface ModelGroup {
+  name: string;
+  label: string;
+}
+
+/** The grouping column's groups in order of appearance (lavaan's order). */
+export function modelGroups(ctx: AnalysisCtx): ModelGroup[] {
+  const ds = rawData(ctx);
+  const column = ctx.model?.multigroup?.column ?? '';
+  const k = ds ? ds.names.indexOf(column) : -1;
+  if (!ds || k < 0) return [];
+  const categories = ds.categories?.[column];
+  const seen = new Set<number>();
+  const out: ModelGroup[] = [];
+  for (const v of ds.cols[k]) {
+    if (!Number.isFinite(v) || seen.has(v)) continue;
+    seen.add(v);
+    out.push({ label: String(v), name: categories?.[v - 1] ?? String(v) });
+  }
+  return out;
+}
+
+/** The options as sent: the reference group by its lavaan label (null: the first group). */
+export function dmacsInput(o: DmacsOptions, ctx: AnalysisCtx): DmacsInput {
+  const group = modelGroups(ctx).find((g) => g.name === o.reference);
+  return { reference: group?.label ?? null, sd: o.sd };
+}
+
+const DMACS_SD = [['pooled', 'Pooled'], ['reference', 'Reference group']] as const;
+
+function DmacsForm({ options: o, set, ctx, disabled }: OptionsProps<DmacsOptions>) {
+  const groups = modelGroups(ctx);
+  const sdHint = o.sd === 'pooled'
+    ? 'Each item’s pooled within-group SD of the two groups compared (Nye & Drasgow 2011).'
+    : 'Each item’s SD in the reference group (as Glass’s Δ).';
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <p className="hint" style={{ marginTop: 0 }}>
+        How large is the non-invariance? For each item, the expected scores implied by the reference and a focal
+        group’s loadings and intercepts are compared over the focal group’s factor distribution (dMACS, Nye &amp;
+        Drasgow 2011; signed dMACS and the expected bias in item and scale means and variances, Nye et al. 2019).
+        Uses the multigroup CB-SEM model on the canvas as the Model tab fits it: configural, or partial invariance
+        with the non-invariant loadings and intercepts freed (Groups); parameters held equal give no effect.
+      </p>
+      {groups.length > 0 && (
+        <div className="field">
+          <label htmlFor="dmacs-ref">Reference group</label>
+          <select
+            id="dmacs-ref"
+            className="select"
+            value={o.reference || groups[0].name}
+            onChange={(e) => set({ ...o, reference: e.target.value })}
+          >
+            {groups.map((g) => <option key={g.label} value={g.name}>{g.name}</option>)}
+          </select>
+          <div className="hint">Every other group is a focal group, compared with this one.</div>
+        </div>
+      )}
+      <Choice
+        label="Standard deviation (denominator)"
+        value={o.sd}
+        options={DMACS_SD}
+        onChange={(sd) => set({ ...o, sd })}
+        hint={sdHint}
+      />
+    </fieldset>
+  );
+}
+
+/** dMACS from .2 is marked (read like Cohen’s d). */
+const DMACS_MARK = 0.2;
+
+function dmacsItemRow(x: DmacsItem): Row {
+  const marked = x.dmacs >= DMACS_MARK;
+  return [
+    c(x.factor), c(x.item),
+    c(x.lambdaRef), c(x.lambdaFocal), c(x.nuRef), c(x.nuFocal), c(x.sd),
+    { ...c(x.dmacs), cls: marked ? 'warn' : '', bold: marked },
+    c(x.signed), c(x.meanBias), c(x.varBias),
+  ];
+}
+
+function DmacsItemTable({ r, focal, many }: { r: DmacsResult; focal: string; many: boolean }) {
+  const ref = r.reference;
+  const title = many ? `dMACS by item: ${focal} against ${ref}` : 'dMACS by item';
+  const columns = ['Factor', 'Item', `λ ${ref}`, `λ ${focal}`, `ν ${ref}`, `ν ${focal}`, 'SD',
+    'dMACS', 'Signed dMACS', 'Mean bias', 'Variance bias'];
+  const note = `dMACS: the root mean square difference between the item’s expected scores under ${focal}’s `
+    + `and ${ref}’s loadings (λ) and intercepts (ν), over ${focal}’s factor distribution, in SD units; `
+    + `read it like Cohen’s d (0: invariant; amber from ${DMACS_MARK}). Signed dMACS: the mean difference `
+    + `(${focal} − ${ref}) in SD units, so that differences in opposite directions can cancel across items; `
+    + 'mean bias: the same in the item’s units; variance bias: the bias in the item’s variance, '
+    + `φ(λ²_${focal} − λ²_${ref}). Integrated numerically over a normal factor with ${focal}’s `
+    + 'model-implied mean and variance, as the dmacs package does.';
+  return (
+    <Table
+      title={title}
+      file={many ? `dmacs-items-${focal}` : 'dmacs-items'}
+      columns={columns}
+      rows={r.items.filter((x) => x.focal === focal).map(dmacsItemRow)}
+      note={note}
+    />
+  );
+}
+
+function DmacsView({ r }: { r: DmacsResult }) {
+  const focal = r.groups.filter((g) => g !== r.reference);
+  const many = focal.length > 1;
+  const sizes = r.groups.map((g, i) => `${r.n[i]} (${g})`).join(', ');
+  const focalText = many ? `focal groups ${focal.join(', ')}` : `focal group ${focal[0]}`;
+  const sdText = r.sd === 'pooled' ? 'pooled within-group SDs' : 'the reference group’s SDs';
+  const scaleColumns = [...(many ? ['Focal group'] : []), 'Factor', 'Items',
+    'Factor mean (focal)', 'Factor variance (focal)', 'Mean bias', 'Variance bias'];
+  const scaleRows = r.scales.map((x): Row => [
+    ...(many ? [c(x.focal)] : []),
+    c(x.factor), c(x.items, undefined, 0), c(x.kappa), c(x.phi), c(x.meanBias), c(x.varBias),
+  ]);
+  const scaleNote = 'The sum of each factor’s items: how much higher (positive) or lower the focal group’s mean '
+    + `and variance of that sum are than they would be with ${r.reference}’s item parameters at the same factor `
+    + 'distribution (Nye & Drasgow 2011, equations 4–9). The mean bias is the items’ mean biases summed; the '
+    + 'variance bias φ((Σλ_focal)² − (Σλ_reference)²).';
+  return (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>
+        Reference group {r.reference}; {focalText}. N = {sizes}. lavaan {r.engine.version}; {sdText}.
+      </p>
+      {focal.map((f) => <DmacsItemTable key={f} r={r} focal={f} many={many} />)}
+      <Table title="Expected bias in the scale scores" file="dmacs-scales" columns={scaleColumns} rows={scaleRows} note={scaleNote} />
+    </div>
+  );
+}
+
+function dmacsBlocked(o: DmacsOptions, ctx: AnalysisCtx): string | null {
+  const m = cbModelBlocked(ctx, 'dMACS');
+  if (m) return m;
+  const mg = ctx.model?.multigroup;
+  if (!mg?.column) {
+    return 'dMACS compares groups: choose a grouping column under Groups (Model inspector, with nothing selected).';
+  }
+  if (mg.meanStructure === false) return 'dMACS needs the groups’ intercepts: keep the mean structure under Groups.';
+  if (ctx.model?.ordered?.length) return 'dMACS here is for continuous indicators; the model has ordinal ones.';
+  if (ctx.model?.multilevel) return 'dMACS is not available for two-level models.';
+  const groups = modelGroups(ctx);
+  if (groups.length < 2) return 'The grouping column has fewer than two groups.';
+  if (o.reference && !groups.some((g) => g.name === o.reference)) return `${o.reference} is not a group of ${mg.column}.`;
+  return null;
+}
+
+export const dmacsAnalysis: AnalysisType<DmacsOptions, DmacsResult> = {
+  id: 'dmacs',
+  title: 'Effect sizes of non-invariance (dMACS)',
+  group: 'Measurement',
+  fitsModel: true,
+  sub: 'how large the differences in loadings and intercepts between the model’s groups are: dMACS, signed dMACS, '
+    + 'bias in item and scale means and variances',
+  defaults: () => ({ reference: '', sd: 'pooled' }),
+  parseOptions: (raw) => {
+    if (!isObj(raw)) return null;
+    return { reference: name(raw.reference), sd: oneOf(raw.sd, ['pooled', 'reference'] as const, 'pooled') };
+  },
+  Options: DmacsForm,
+  View: ({ result }) => <DmacsView r={result} />,
+  blocked: dmacsBlocked,
+  fingerprint: (o, ctx) => {
+    const m = cbFingerprint(ctx);
+    return m && fingerprint([m, JSON.stringify(dmacsInput(o, ctx))]);
+  },
+  run: async (o, ctx) => (await engine()).dmacsR(cbCall(ctx), dmacsInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).dmacsScriptR(cbCall(ctx), dmacsInput(o, ctx)),
+  summary: (o) => {
+    const sd = o.sd === 'pooled' ? 'pooled SD' : 'reference SD';
+    return `reference ${o.reference || 'the first group'} · ${sd}`;
+  },
+};
+
+/** Open the Analyses tab on the dMACS card: the existing one, or a new one. */
+export async function openDmacsCard() {
+  const { addAnalysis, selectCard, useAnalyses } = await import('./store');
+  const { useStore } = await import('../store');
+  const existing = useAnalyses.getState().cards.find((k) => k.kind === 'analysis' && k.type === 'dmacs');
+  if (existing) selectCard(existing.id);
+  else addAnalysis('dmacs');
+  useStore.getState().setWorkspace('analyses');
+}
 
 // ---------------------------------------------------------------- longitudinal invariance
 
