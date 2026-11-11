@@ -740,6 +740,23 @@
         "File": "codetools_0.2-20.tgz"
       }
     },
+    "coin": {
+      "version": "1.4-6",
+      "md5": "843cddbbedf901ffe29ea2df741ff6a7",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "coin",
+        "Version": "1.4-6",
+        "Depends": "R (>= 3.6.0), survival",
+        "Imports": "methods, parallel, stats, stats4, utils, libcoin (>= 1.0-9), matrixStats (>= 0.54.0), modeltools (>= 0.2-9), mvtnorm (>= 1.0-5), multcomp",
+        "LinkingTo": "libcoin (>= 1.0-9)",
+        "Suggests": "xtable, e1071, vcd, TH.data (>= 1.0-7), bibtex",
+        "License": "GPL-2",
+        "MD5sum": "843cddbbedf901ffe29ea2df741ff6a7",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-09 15:21:08 UTC; unix",
+        "File": "coin_1.4-6.tgz"
+      }
+    },
     "colorspace": {
       "version": "2.1-4",
       "md5": "dac08c7deef05bffbf068dfb77e0f6cf",
@@ -1155,6 +1172,22 @@
         "File": "digest_0.6.39.tgz"
       }
     },
+    "distributional": {
+      "version": "0.9.0",
+      "md5": "cdcdd4b319c49de6ae08dc299ac61bd3",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "distributional",
+        "Version": "0.9.0",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "vctrs (>= 0.3.0), rlang (>= 0.4.5), generics, stats, numDeriv, utils, lifecycle, pillar",
+        "Suggests": "testthat (>= 2.1.0), covr, mvtnorm, actuar (>= 2.0.0), evd, ggdist, ggplot2, gk, knitr, LaplacesDemon, pkgdown, rmarkdown, tweedieDistr",
+        "License": "GPL-3",
+        "MD5sum": "cdcdd4b319c49de6ae08dc299ac61bd3",
+        "Built": "R 4.6.0; ; 2026-10-09 16:42:47 UTC; unix",
+        "File": "distributional_0.9.0.tgz"
+      }
+    },
     "doBy": {
       "version": "4.7.2",
       "md5": "dfd44b54e827e15bc92b5e47a7aaac0d",
@@ -1268,6 +1301,22 @@
         "MD5sum": "b99b5c7ad69edf3ff9f351ce6486407f",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 00:39:41 UTC; unix",
         "File": "e1071_1.7-17.tgz"
+      }
+    },
+    "effectsize": {
+      "version": "1.0.3",
+      "md5": "e41853a5872be307c680ba0c125f0795",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "effectsize",
+        "Version": "1.0.3",
+        "Depends": "R (>= 4.0)",
+        "Imports": "bayestestR (>= 0.18.1), insight (>= 1.5.2), parameters (>= 0.29.2), performance (>= 0.17.1), datawizard (>= 1.3.1), stats, utils",
+        "Suggests": "correlation (>= 0.8.7), see (>= 0.11.0), afex, BayesFactor, boot, brms, car, emmeans, gt, knitr, lavaan, lme4, lmerTest, mgcv, parsnip, pwr, rmarkdown, rms, rstanarm, rstantools, testthat (>= 3.1.0)",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "e41853a5872be307c680ba0c125f0795",
+        "Built": "R 4.6.0; ; 2026-10-09 19:00:29 UTC; unix",
+        "File": "effectsize_1.0.3.tgz"
       }
     },
     "EGAnet": {
@@ -1754,6 +1803,23 @@
         "MD5sum": "ee52f8bda279c8b4a3ce99f88382775a",
         "Built": "R 4.6.0; ; 2026-05-13 05:11:56 UTC; unix",
         "File": "GGally_2.4.0.tgz"
+      }
+    },
+    "ggdist": {
+      "version": "3.3.3",
+      "md5": "223be77d2d08e919e14e6dae8cb7f963",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "ggdist",
+        "Version": "3.3.3",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "grid, ggplot2 (>= 3.5.0), scales, rlang (>= 0.3.0), cli, tibble, vctrs, withr, glue, gtable, distributional (>= 0.3.2), numDeriv, quadprog, Rcpp",
+        "LinkingTo": "Rcpp",
+        "Suggests": "tidyselect, dplyr (>= 1.0.0), fda, posterior (>= 1.4.0), beeswarm (>= 0.4.0), rmarkdown, knitr, testthat (>= 3.0.0), vdiffr (>= 1.0.0), svglite (>= 2.1.0), fontquiver, sysfonts, showtext, mvtnorm, covr, broom (>= 0.5.6), patchwork, tidyr (>= 1.0.0), ragg (>= 1.3.0), pkgdown",
+        "License": "GPL (>= 3)",
+        "MD5sum": "223be77d2d08e919e14e6dae8cb7f963",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 05:15:31 UTC; unix",
+        "File": "ggdist_3.3.3.tgz"
       }
     },
     "ggplot2": {
@@ -2269,6 +2335,36 @@
         "File": "insight_1.5.4.tgz"
       }
     },
+    "irr": {
+      "version": "0.85",
+      "md5": "63bef26f81b7bf12aaef0e569934929a",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "irr",
+        "Version": "0.85",
+        "Depends": "lpSolve",
+        "License": "GPL (>= 2)",
+        "MD5sum": "63bef26f81b7bf12aaef0e569934929a",
+        "Built": "R 4.6.0; ; 2026-10-10 04:59:10 UTC; unix",
+        "File": "irr_0.85.tgz"
+      }
+    },
+    "irrCAC": {
+      "version": "1.4",
+      "md5": "5cf57f5eda3ef301fb89a6f9a6cc0727",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "irrCAC",
+        "Version": "1.4",
+        "Depends": "R (>= 3.5.0)",
+        "Imports": "dplyr, magrittr, tidyr, stringr, tibble",
+        "Suggests": "knitr, rmarkdown, spelling",
+        "License": "GPL (>= 2)",
+        "MD5sum": "5cf57f5eda3ef301fb89a6f9a6cc0727",
+        "Built": "R 4.6.0; ; 2026-05-13 09:14:20 UTC; unix",
+        "File": "irrCAC_1.4.tgz"
+      }
+    },
     "IsingFit": {
       "version": "0.4",
       "md5": "508f8a628ae77681609e52aa377f222f",
@@ -2346,6 +2442,22 @@
         "MD5sum": "06a26dc91c73491779189409fe6d0467",
         "Built": "R 4.6.0; ; 2026-10-10 05:03:35 UTC; unix",
         "File": "ivreg_0.6-8.tgz"
+      }
+    },
+    "jmvcore": {
+      "version": "28.3",
+      "md5": "a7f64947f4fd1cf30b4587ded8c564dc",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "jmvcore",
+        "Version": "28.3",
+        "Depends": "R (>= 3.2)",
+        "Imports": "R6 (>= 1.0.1), rlang (>= 0.3.0.1), jsonlite, base64enc",
+        "Suggests": "testthat (>= 1.0.2), RProtoBuf, knitr, commonmark, ggplot2, RColorBrewer, ragg, fastmap, export, jmvReadWrite",
+        "License": "GPL (>= 2)",
+        "MD5sum": "a7f64947f4fd1cf30b4587ded8c564dc",
+        "Built": "R 4.6.0; ; 2026-10-10 05:08:30 UTC; unix",
+        "File": "jmvcore_28.3.tgz"
       }
     },
     "jomo": {
@@ -2564,6 +2676,23 @@
         "MD5sum": "21dddce233aab1daf16bd85f111586fe",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-13 10:34:47 UTC; unix",
         "File": "lcmm_2.2.2.tgz"
+      }
+    },
+    "libcoin": {
+      "version": "1.0-13",
+      "md5": "e4f622fc996c9b2e45d6c4b0868e771a",
+      "license": "GPL-2",
+      "stanza": {
+        "Package": "libcoin",
+        "Version": "1.0-13",
+        "Depends": "R (>= 3.4.0)",
+        "Imports": "stats, mvtnorm",
+        "LinkingTo": "mvtnorm",
+        "Suggests": "coin, bibtex",
+        "License": "GPL-2",
+        "MD5sum": "e4f622fc996c9b2e45d6c4b0868e771a",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 07:29:35 UTC; unix",
+        "File": "libcoin_1.0-13.tgz"
       }
     },
     "lifecycle": {
@@ -2939,6 +3068,38 @@
         "MD5sum": "d82cce8a0b0e283d380bcd226f9ebcb9",
         "Built": "R 4.6.0; ; 2026-05-13 12:58:59 UTC; unix",
         "File": "memoise_2.0.1.tgz"
+      }
+    },
+    "metadat": {
+      "version": "1.6-0",
+      "md5": "847abf58a726453573c734916d05daee",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "metadat",
+        "Version": "1.6-0",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "utils, tools, mathjaxr",
+        "Suggests": "metafor, numDeriv, BiasedUrn, dfoptim, igraph, ape, testthat, digest, lme4, clubSandwich, meta, netmeta, mvtnorm, gridExtra, rms, bayesmeta, ellipse, metasens, mada",
+        "License": "GPL (>= 2)",
+        "MD5sum": "847abf58a726453573c734916d05daee",
+        "Built": "R 4.6.0; ; 2026-05-13 13:05:50 UTC; unix",
+        "File": "metadat_1.6-0.tgz"
+      }
+    },
+    "metafor": {
+      "version": "5.2-1",
+      "md5": "256305480c91b31b2e55ec075c08a9e1",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "metafor",
+        "Version": "5.2-1",
+        "Depends": "R (>= 4.0.0), methods, Matrix, metadat, numDeriv",
+        "Imports": "stats, utils, graphics, grDevices, nlme, mathjaxr, pbapply, digest",
+        "Suggests": "lme4, pracma, minqa, nloptr, dfoptim, ucminf, lbfgsb3c, subplex, BB, Rsolnp, alabama, optimParallel, optimx, CompQuadForm, mvtnorm, BiasedUrn, Epi, survival, GLMMadaptive, glmmTMB, car, multcomp, gsl, sp, ape, boot, clubSandwich, crayon, R.rsp, testthat, rmarkdown, wildmeta, emmeans, estmeansd, metaBLUE, rstudioapi, glmulti, MuMIn, mice, Amelia, calculus",
+        "License": "GPL (>= 2)",
+        "MD5sum": "256305480c91b31b2e55ec075c08a9e1",
+        "Built": "R 4.6.0; ; 2026-10-10 10:43:09 UTC; unix",
+        "File": "metafor_5.2-1.tgz"
       }
     },
     "mgcv": {
@@ -3504,6 +3665,20 @@
         "File": "norm_1.0-11.1.tgz"
       }
     },
+    "nortest": {
+      "version": "1.0-4",
+      "md5": "923cfaf2043feac14199175096bca61b",
+      "license": "GPL (>= 2)",
+      "stanza": {
+        "Package": "nortest",
+        "Version": "1.0-4",
+        "Imports": "stats",
+        "License": "GPL (>= 2)",
+        "MD5sum": "923cfaf2043feac14199175096bca61b",
+        "Built": "R 4.6.0; ; 2026-05-13 16:58:19 UTC; unix",
+        "File": "nortest_1.0-4.tgz"
+      }
+    },
     "numDeriv": {
       "version": "2016.8-1.1",
       "md5": "4cedc70ba377c654e2d1a3c863ba0006",
@@ -3641,6 +3816,22 @@
         "MD5sum": "61535a8dbfc3c97841661f232dfad77f",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-10 22:04:52 UTC; unix",
         "File": "parallelly_1.48.0.tgz"
+      }
+    },
+    "parameters": {
+      "version": "0.29.3",
+      "md5": "0d8784270d8e9d711bf6509ac7bdd5fb",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "parameters",
+        "Version": "0.29.3",
+        "Depends": "R (>= 3.6)",
+        "Imports": "bayestestR (>= 0.18.1), datawizard (>= 1.3.1), insight (>= 1.5.3), graphics, methods, stats, utils",
+        "Suggests": "AER, afex, aod, BayesFactor (>= 0.9.12-4.7), BayesFM, bbmle, BSDA, betareg, BH, biglm, blme, boot, brglm2, brms, broom, broom.mixed, cAIC4, car, carData, cgam, ClassDiscovery, clubSandwich, cluster, cobalt, coda, correlation (>= 0.8.8), coxme, cplm, curl, dbscan, did, discovr, distributional, domir (>= 0.2.0), drc, DRR, effectsize (>= 1.0.1), EGAnet, emmeans (>= 1.7.0), epiR, estimatr, factoextra, FactoMineR, faraway, fastICA, fixest, fpc, gam, gamlss, gee, geepack, ggplot2, GLMMadaptive, glmmTMB (>= 1.1.12), glmtoolbox, GPArotation, gt, haven, httr2, Hmisc, ivreg, knitr, lavaan, lavaan.mi, lcmm, lfe, lm.beta, lme4, lmerTest, lmtest, logistf, logitr, logspline, lqmm, M3C, marginaleffects (>= 0.29.0), modelbased (>= 0.9.0), MASS, Matrix, mclogit, mclust, MCMCglmm, mediation, merDeriv, metaBMA, metafor, mfx, mgcv, mice (>= 3.17.0), mmrm, multcomp, MuMIn, mvtnorm, NbClust, nFactors, nestedLogit, nlme, nnet, openxlsx, ordinal, panelr, pbkrtest, PCDimension, performance (>= 0.14.0), plm, PMCMRplus, poorman, posterior, PROreg (>= 1.3.0), pscl, psych, pvclust, quantreg, randomForest, RcppEigen, rmarkdown, rms, rstan, rstanarm, sampleSelection, sandwich, see (>= 0.8.1), serp, sparsepca, survey, survival, svylme, testthat (>= 3.2.1), tidyselect, tinyplot (>= 0.7.0), tinytable (>= 0.13.0), TMB, truncreg, vdiffr, VGAM, WeightIt (>= 1.2.0), withr, WRS2",
+        "License": "GPL-3",
+        "MD5sum": "0d8784270d8e9d711bf6509ac7bdd5fb",
+        "Built": "R 4.6.0; ; 2026-10-10 22:13:16 UTC; unix",
+        "File": "parameters_0.29.3.tgz"
       }
     },
     "partitions": {
@@ -4008,6 +4199,23 @@
         "MD5sum": "74097cecdb4ce627aaf926db7ed9a22d",
         "Built": "R 4.6.0; ; 2026-05-13 20:34:09 UTC; unix",
         "File": "prettyunits_1.2.0.tgz"
+      }
+    },
+    "pROC": {
+      "version": "1.19.1",
+      "md5": "b6c0f6512b71601ae4d00b918c819a9e",
+      "license": "GPL (>= 3)",
+      "stanza": {
+        "Package": "pROC",
+        "Version": "1.19.1",
+        "Depends": "R (>= 2.14)",
+        "Imports": "methods, Rcpp (>= 0.11.1)",
+        "LinkingTo": "Rcpp",
+        "Suggests": "MASS, logcondens, testthat, vdiffr, ggplot2, rlang, knitr, rmarkdown",
+        "License": "GPL (>= 3)",
+        "MD5sum": "b6c0f6512b71601ae4d00b918c819a9e",
+        "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-10-11 03:02:23 UTC; unix",
+        "File": "pROC_1.19.1.tgz"
       }
     },
     "processx": {
@@ -4519,6 +4727,21 @@
         "MD5sum": "27a0471c253afb0c150399f831982eff",
         "Built": "R 4.6.0; ; 2026-05-13 23:45:36 UTC; unix",
         "File": "rematch_2.0.0.tgz"
+      }
+    },
+    "reshape": {
+      "version": "0.8.10",
+      "md5": "9edfce917e95edca0a26be904d8c2831",
+      "license": "MIT + file LICENSE",
+      "stanza": {
+        "Package": "reshape",
+        "Version": "0.8.10",
+        "Depends": "R (>= 2.6.1)",
+        "Imports": "plyr",
+        "License": "MIT + file LICENSE",
+        "MD5sum": "9edfce917e95edca0a26be904d8c2831",
+        "Built": "R 4.6.0; ; 2026-05-13 23:55:43 UTC; unix",
+        "File": "reshape_0.8.10.tgz"
       }
     },
     "reshape2": {
@@ -5391,6 +5614,22 @@
         "File": "tmvtnorm_1.7.tgz"
       }
     },
+    "TOSTER": {
+      "version": "0.8.6",
+      "md5": "17416f07a52efc3920ebc09d1ecc3fdc",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "TOSTER",
+        "Version": "0.8.6",
+        "Depends": "R (>= 3.5)",
+        "Imports": "stats, graphics, jmvcore (>= 0.9.6.4), ggplot2, ggdist, distributional, cowplot, tidyr, utils, R6, lifecycle",
+        "Suggests": "knitr, rmarkdown, broom, car, afex, testthat (>= 3.0.0), spelling",
+        "License": "GPL-3",
+        "MD5sum": "17416f07a52efc3920ebc09d1ecc3fdc",
+        "Built": "R 4.6.0; ; 2026-05-14 09:29:47 UTC; unix",
+        "File": "TOSTER_0.8.6.tgz"
+      }
+    },
     "TruncatedNormal": {
       "version": "2.3",
       "md5": "a1eeff530633ccfbc13f12f077b5aaef",
@@ -5751,6 +5990,22 @@
         "MD5sum": "845ba0cb619e59d02eb7fa7d656cde8b",
         "Built": "R 4.6.0; wasm32-unknown-emscripten; 2026-05-14 12:01:26 UTC; unix",
         "File": "wordcloud_2.6.tgz"
+      }
+    },
+    "WRS2": {
+      "version": "1.1-7",
+      "md5": "b137361a27a2e58e67f5b064894d3025",
+      "license": "GPL-3",
+      "stanza": {
+        "Package": "WRS2",
+        "Version": "1.1-7",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "MASS, reshape, plyr, stats, graphics, grDevices, utils",
+        "Suggests": "knitr, car, ggplot2, colorspace, mediation, GGally, codetools",
+        "License": "GPL-3",
+        "MD5sum": "b137361a27a2e58e67f5b064894d3025",
+        "Built": "R 4.6.0; ; 2026-05-14 12:09:05 UTC; unix",
+        "File": "WRS2_1.1-7.tgz"
       }
     },
     "xfun": {

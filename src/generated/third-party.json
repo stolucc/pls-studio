@@ -466,6 +466,12 @@
    "url": "https://cran.r-project.org/package=codetools"
   },
   {
+   "name": "coin",
+   "version": "1.4-6",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=coin"
+  },
+  {
    "name": "colorspace",
    "version": "2.1-4",
    "license": "BSD_3_clause + file LICENSE",
@@ -627,6 +633,12 @@
    "url": "https://cran.r-project.org/package=digest"
   },
   {
+   "name": "distributional",
+   "version": "0.9.0",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=distributional"
+  },
+  {
    "name": "doBy",
    "version": "4.7.2",
    "license": "GPL (>= 2)",
@@ -669,6 +681,12 @@
    "version": "1.7-17",
    "license": "GPL-2 | GPL-3",
    "url": "https://cran.r-project.org/package=e1071"
+  },
+  {
+   "name": "effectsize",
+   "version": "1.0.3",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=effectsize"
   },
   {
    "name": "EGAnet",
@@ -857,6 +875,12 @@
    "version": "2.4.0",
    "license": "GPL (>= 2.0)",
    "url": "https://cran.r-project.org/package=GGally"
+  },
+  {
+   "name": "ggdist",
+   "version": "3.3.3",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=ggdist"
   },
   {
    "name": "ggplot2",
@@ -1049,6 +1073,18 @@
    "url": "https://cran.r-project.org/package=insight"
   },
   {
+   "name": "irr",
+   "version": "0.85",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=irr"
+  },
+  {
+   "name": "irrCAC",
+   "version": "1.4",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=irrCAC"
+  },
+  {
    "name": "IsingFit",
    "version": "0.4",
    "license": "GPL-2",
@@ -1077,6 +1113,12 @@
    "version": "0.6-8",
    "license": "GPL (>= 2)",
    "url": "https://cran.r-project.org/package=ivreg"
+  },
+  {
+   "name": "jmvcore",
+   "version": "28.3",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=jmvcore"
   },
   {
    "name": "jomo",
@@ -1161,6 +1203,12 @@
    "version": "2.2.2",
    "license": "GPL (>= 2.0)",
    "url": "https://cran.r-project.org/package=lcmm"
+  },
+  {
+   "name": "libcoin",
+   "version": "1.0-13",
+   "license": "GPL-2",
+   "url": "https://cran.r-project.org/package=libcoin"
   },
   {
    "name": "lifecycle",
@@ -1305,6 +1353,18 @@
    "version": "2.0.1",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=memoise"
+  },
+  {
+   "name": "metadat",
+   "version": "1.6-0",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=metadat"
+  },
+  {
+   "name": "metafor",
+   "version": "5.2-1",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=metafor"
   },
   {
    "name": "mgcv",
@@ -1523,6 +1583,12 @@
    "url": "https://cran.r-project.org/package=norm"
   },
   {
+   "name": "nortest",
+   "version": "1.0-4",
+   "license": "GPL (>= 2)",
+   "url": "https://cran.r-project.org/package=nortest"
+  },
+  {
    "name": "numDeriv",
    "version": "2016.8-1.1",
    "license": "GPL-2",
@@ -1575,6 +1641,12 @@
    "version": "1.48.0",
    "license": "LGPL (>= 2.1)",
    "url": "https://cran.r-project.org/package=parallelly"
+  },
+  {
+   "name": "parameters",
+   "version": "0.29.3",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=parameters"
   },
   {
    "name": "partitions",
@@ -1719,6 +1791,12 @@
    "version": "1.2.0",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=prettyunits"
+  },
+  {
+   "name": "pROC",
+   "version": "1.19.1",
+   "license": "GPL (>= 3)",
+   "url": "https://cran.r-project.org/package=pROC"
   },
   {
    "name": "processx",
@@ -1911,6 +1989,12 @@
    "version": "2.0.0",
    "license": "MIT + file LICENSE",
    "url": "https://cran.r-project.org/package=rematch"
+  },
+  {
+   "name": "reshape",
+   "version": "0.8.10",
+   "license": "MIT + file LICENSE",
+   "url": "https://cran.r-project.org/package=reshape"
   },
   {
    "name": "reshape2",
@@ -2243,6 +2327,12 @@
    "url": "https://cran.r-project.org/package=tmvtnorm"
   },
   {
+   "name": "TOSTER",
+   "version": "0.8.6",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=TOSTER"
+  },
+  {
    "name": "TruncatedNormal",
    "version": "2.3",
    "license": "GPL-3",
@@ -2379,6 +2469,12 @@
    "version": "2.6",
    "license": "LGPL-2.1",
    "url": "https://cran.r-project.org/package=wordcloud"
+  },
+  {
+   "name": "WRS2",
+   "version": "1.1-7",
+   "license": "GPL-3",
+   "url": "https://cran.r-project.org/package=WRS2"
   },
   {
    "name": "xfun",
