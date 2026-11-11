@@ -111,3 +111,10 @@ ps_zz_strict <- function(req_json, export = FALSE) {
   expect(r.failed).toBe(true);
   expect(r.message).toContain('(converted from warning) negative variance');
 }, 300_000);
+
+// A bridge call may hold several statements and end in a comment: it still evaluates, and an error keeps its message.
+it('evaluates calls with several statements or a trailing comment', async () => {
+  const r = await withR(['jsonlite'], { common: commonR }, (webR) => callJson(webR, 'x <- 1; y <- 2; ps_json(list(sum = x + y)) # the sum', null)) as { sum: number };
+  expect(r.sum).toBe(3);
+  await expect(withR(['jsonlite'], { common: commonR }, (webR) => callJson(webR, 'stop("no such thing") # failing', null))).rejects.toThrow(/no such thing/);
+}, 300_000);

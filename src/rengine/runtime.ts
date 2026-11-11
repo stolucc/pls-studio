@@ -209,7 +209,9 @@ export async function callString(webR: WebR, call: string, req: unknown): Promis
   // Without webR's condition capture: it would muffle warnings, so code that sets options(warn = 2) — SEMsens's sa.aco,
   // which drops every fit that warns — would never see them as errors (the bridge collects warnings itself, ps_call).
   // Errors therefore come back as a marked string, turned into an exception here with R's message.
-  const out = await webR.evalRString(`tryCatch(${call}, error = function(e) paste0("${R_ERROR}", conditionMessage(e)))`, { env: { req: json }, captureConditions: false });
+  // (the call on its own lines in braces: it may hold several statements or end in a comment)
+  const wrapped = `tryCatch({\n${call}\n}, error = function(e) paste0("${R_ERROR}", conditionMessage(e)))`;
+  const out = await webR.evalRString(wrapped, { env: { req: json }, captureConditions: false });
   if (out.startsWith(R_ERROR)) throw new Error(out.slice(R_ERROR.length));
   return out;
 }
