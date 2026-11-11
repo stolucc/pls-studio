@@ -276,7 +276,7 @@ it('Durbin–Watson equals lmtest::dwtest (exact p below 100 rows, normal approx
   expect(r.diagnostics.durbinWatson!.stat, 'growthofmoney: Durbin–Watson d').toBeCloseTo(want.stat, 8);
   expect(r.diagnostics.durbinWatson!.p, 'growthofmoney: Durbin–Watson p').toBeCloseTo(want.p, 6);
   expect(r.diagnostics.durbinWatson!.r1, 'growthofmoney: lag-1 autocorrelation').toBeCloseTo(want.r1, 8);
-  expect(await regressionScriptR(money, input)).toContain('dw <- dwtest(fit)');
+  expect(await regressionScriptR(money, input)).toContain('dwtest(fit)');
   // Not for weighted fits (dwtest would refit without the weights) nor other families.
   const w = Float64Array.from(money.cols[0], (_, i) => 1 + i);
   const withWeights: Dataset = { names: [...money.names, 'w'], cols: [...money.cols, w] };

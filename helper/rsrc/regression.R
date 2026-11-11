@@ -324,7 +324,7 @@ ps_regression <- function(req_json, export = FALSE) {
     diag$durbinWatson <- list(
       stat = unname(env$dw$statistic),
       p = env$dw$p.value,
-      exact = nrow(env$data) < 100,
+      exact = isTRUE(env$dw_exact),
       r1 = env$r1
     )
   }
@@ -386,7 +386,17 @@ PS_DURBIN_WATSON_LINES <- c(
   "# Durbin-Watson test for first-order autocorrelation of the residuals, in the rows' order",
   "# (H1: positive autocorrelation; exact p-value by Pan's algorithm below 100 rows, else the",
   "# normal approximation, as lmtest does), and the lag-1 autocorrelation of the residuals.",
-  "dw <- dwtest(fit)",
+  "# (when Pan's exact p-value falls outside [0, 1], lmtest uses the normal approximation: say so, not warn)",
+  "dw_exact <- nrow(data) < 100",
+  "dw <- withCallingHandlers(",
+  "  dwtest(fit),",
+  "  warning = function(w) {",
+  "    if (grepl(\"exact p value cannot be computed\", conditionMessage(w))) {",
+  "      dw_exact <<- FALSE",
+  "      invokeRestart(\"muffleWarning\")",
+  "    }",
+  "  }",
+  ")",
   "e <- residuals(fit)",
   "r1 <- sum(e[-1] * e[-length(e)]) / sum(e^2)"
 )
