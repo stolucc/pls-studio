@@ -18,6 +18,44 @@ const atCells = (mods: string[], at: At): Cell[] => mods.map((m) => c(at[m] ?? n
 /** Where the interval excludes zero. */
 const sig = (lo: number, hi: number) => (lo > 0 || hi < 0 ? 'good' : 'dim');
 
+/** The fit line under an equation: logistic, latent (SAM, no F test) or OLS. */
+function equationNote(res: CpaResult, e: CpaResult['equations'][number]) {
+  if (e.logistic)
+    return (
+      <>
+        Logistic regression (Y has two values; coefficients in log-odds). −2LL ={' '}
+        {fmt(e.deviance ?? NaN, 2)}, model χ²({fmt(e.df1 ?? NaN, 0)}) = {fmt(e.chisq ?? NaN, 2)}, p{' '}
+        {pIs(e.p ?? NaN)}; McFadden R² = {fmt(e.mcfadden ?? NaN, 3)}, Cox &amp; Snell{' '}
+        {fmt(e.coxsnell ?? NaN, 3)}, Nagelkerke {fmt(e.nagelkerke ?? NaN, 3)}. Tests are z tests.
+      </>
+    );
+  if (e.f === null || e.p === null)
+    return (
+      <>
+        R² = {fmt(e.r2, 3)}. Unstandardised coefficients in the latent variables’ metric (first
+        item’s loading fixed to 1); a product of latent variables is SAM’s latent interaction.
+      </>
+    );
+  return (
+    <>
+      R² = {fmt(e.r2, 3)}, MSE = {fmt(e.mse, 3)}, F{res.hc === 'none' ? '' : ` (${res.hc})`}(
+      {fmt(e.df1 ?? NaN, 0)}, {fmt(e.df2 ?? NaN, 0)}) = {fmt(e.f, 2)}, p {pIs(e.p)}. Unstandardised
+      OLS coefficients; products are of the variables as entered (not mean-centred, as PROCESS by
+      default).
+    </>
+  );
+}
+
+/** How the direct effect's standard errors and tests were computed. */
+function directEffectNote(res: CpaResult): string {
+  if (res.inference === 'montecarlo')
+    return 'Monte Carlo standard errors, p values and percentile intervals (manymome::do_mc).';
+  if (res.binaryY)
+    return 'In log-odds (logistic regression for the dichotomous Y): maximum-likelihood standard errors and z tests, as PROCESS.';
+  if (res.hc === 'none') return 'OLS standard errors and t tests, as PROCESS.';
+  return `${res.hc} heteroskedasticity-consistent standard errors and t tests, as PROCESS’s hc option.`;
+}
+
 function Equations({ res, title, level }: { res: CpaResult; title: string; level: number }) {
   return (
     <div className="tables">
@@ -70,31 +108,7 @@ function Equations({ res, title, level }: { res: CpaResult; title: string; level
                 c(k.hi),
               ],
             )}
-            note={
-              e.logistic ? (
-                <>
-                  Logistic regression (Y has two values; coefficients in log-odds). −2LL ={' '}
-                  {fmt(e.deviance ?? NaN, 2)}, model χ²({fmt(e.df1 ?? NaN, 0)}) ={' '}
-                  {fmt(e.chisq ?? NaN, 2)}, p {pIs(e.p ?? NaN)}; McFadden R² ={' '}
-                  {fmt(e.mcfadden ?? NaN, 3)}, Cox &amp; Snell {fmt(e.coxsnell ?? NaN, 3)},
-                  Nagelkerke {fmt(e.nagelkerke ?? NaN, 3)}. Tests are z tests.
-                </>
-              ) : e.f === null || e.p === null ? (
-                <>
-                  R² = {fmt(e.r2, 3)}. Unstandardised coefficients in the latent variables’ metric
-                  (first item’s loading fixed to 1); a product of latent variables is SAM’s latent
-                  interaction.
-                </>
-              ) : (
-                <>
-                  R² = {fmt(e.r2, 3)}, MSE = {fmt(e.mse, 3)}, F
-                  {res.hc === 'none' ? '' : ` (${res.hc})`}({fmt(e.df1 ?? NaN, 0)},{' '}
-                  {fmt(e.df2 ?? NaN, 0)}) = {fmt(e.f, 2)}, p {pIs(e.p)}. Unstandardised OLS
-                  coefficients; products are of the variables as entered (not mean-centred, as
-                  PROCESS by default).
-                </>
-              )
-            }
+            note={equationNote(res, e)}
           />
           {e.interactions.length > 0 && (
             <Table
@@ -206,15 +220,7 @@ function Effects({ res, level }: { res: CpaResult; level: number }) {
             c(r.lo),
             c(r.hi),
           ])}
-          note={
-            res.inference === 'montecarlo'
-              ? 'Monte Carlo standard errors, p values and percentile intervals (manymome::do_mc).'
-              : res.binaryY
-                ? 'In log-odds (logistic regression for the dichotomous Y): maximum-likelihood standard errors and z tests, as PROCESS.'
-                : res.hc === 'none'
-                  ? 'OLS standard errors and t tests, as PROCESS.'
-                  : `${res.hc} heteroskedasticity-consistent standard errors and t tests, as PROCESS’s hc option.`
-          }
+          note={directEffectNote(res)}
         />
       )}
       {res.indirect.map((p) => (
@@ -309,6 +315,23 @@ function Effects({ res, level }: { res: CpaResult; level: number }) {
   );
 }
 
+/** Where the Johnson–Neyman boundaries were searched, and with which standard errors. */
+function jnNote(res: CpaResult, j: CpaResult['jn'][number], level: number): string {
+  const alpha = +(1 - level).toFixed(3);
+  const significant = `where the conditional effect of ${j.from} is just significant at α = ${alpha}`;
+  if (j.latent)
+    return (
+      `Johnson–Neyman: values of the latent moderator ${j.moderator} (mean 0, SD ${fmt(j.sd, 3)}; searched within ±3 SD) ` +
+      `${significant} (two-step SAM standard errors, z test). A latent variable has no observed cases to count.`
+    );
+  const errors =
+    res.inference === 'montecarlo'
+      ? 'two-step SAM standard errors, z test'
+      : 'OLS standard errors, t with the residual df';
+  const range = `observed range ${fmt(j.range[0], 2)} to ${fmt(j.range[1], 2)}`;
+  return `Johnson–Neyman: values of ${j.moderator} (${range}) ${significant} (${errors}).`;
+}
+
 function JohnsonNeymanTab({ res, level }: { res: CpaResult; level: number }) {
   if (!res.jn.length)
     return (
@@ -335,11 +358,7 @@ function JohnsonNeymanTab({ res, level }: { res: CpaResult; level: number }) {
                     ],
                   ]
             }
-            note={
-              j.latent
-                ? `Johnson–Neyman: values of the latent moderator ${j.moderator} (mean 0, SD ${fmt(j.sd, 3)}; searched within ±3 SD) where the conditional effect of ${j.from} is just significant at α = ${+(1 - level).toFixed(3)} (two-step SAM standard errors, z test). A latent variable has no observed cases to count.`
-                : `Johnson–Neyman: values of ${j.moderator} (observed range ${fmt(j.range[0], 2)} to ${fmt(j.range[1], 2)}) where the conditional effect of ${j.from} is just significant at α = ${+(1 - level).toFixed(3)} (${res.inference === 'montecarlo' ? 'two-step SAM standard errors, z test' : 'OLS standard errors, t with the residual df'}).`
-            }
+            note={jnNote(res, j, level)}
           />
           <JohnsonNeymanPlot
             jn={processJn(j)}

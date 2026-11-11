@@ -21,6 +21,7 @@ import {
   type Construct,
   type Correlation,
   type CorrelationEnd as CorrelationPick,
+  type IndicatorPath,
   type ModelState,
 } from '../model/project';
 import { formatEstimate, semplotEdge } from '../figure/style';
@@ -186,6 +187,13 @@ export function covarianceLayout(model: ModelState, active: boolean, showErrors:
   };
 }
 
+/** " (fixed at 0.5)" or " (a1)" after a direct effect's tooltip; nothing for a free, unlabelled one. */
+function directEffectSuffix(p: IndicatorPath): string {
+  if (p.fixed !== undefined) return ` (fixed at ${p.fixed})`;
+  if (p.label) return ` (${p.label})`;
+  return '';
+}
+
 const indicatorBox = (owner: Construct, name: string) => {
   const b = constructGeometry(owner).indicators.find((x) => x.name === name);
   return b && { x: owner.x + b.x, y: owner.y + b.y, w: b.w };
@@ -339,23 +347,30 @@ export function CovarianceLayer({
     symbol: string,
     v: number | null,
     box?: { x: number; y: number; w: number },
-  ) =>
-    amos ? (
-      <>
+  ) => {
+    // Amos: the error's name in the circle, its value beside it.
+    if (amos)
+      return (
+        <>
+          <text className="err-text" x={t.cx} y={t.cy + 4} textAnchor="middle">
+            {symbol}
+          </text>
+          {amosNote(t, v, box)}
+        </>
+      );
+    // Otherwise the value in the circle, or the name until there is one.
+    if (v === null)
+      return (
         <text className="err-text" x={t.cx} y={t.cy + 4} textAnchor="middle">
           {symbol}
         </text>
-        {amosNote(t, v, box)}
-      </>
-    ) : v === null ? (
-      <text className="err-text" x={t.cx} y={t.cy + 4} textAnchor="middle">
-        {symbol}
-      </text>
-    ) : (
+      );
+    return (
       <text className="err-value" x={t.cx} y={t.cy + 3} textAnchor="middle">
         {figure.notation === 'pls' ? formatEstimate(figure, v) : noLeadingZero(v.toFixed(2))}
       </text>
     );
+  };
 
   return (
     <ViewportPortal>
@@ -468,7 +483,7 @@ export function CovarianceLayer({
             >
               <title>
                 Direct effect on the indicator {p.to}
-                {p.fixed !== undefined ? ` (fixed at ${p.fixed})` : p.label ? ` (${p.label})` : ''}
+                {directEffectSuffix(p)}
               </title>
             </line>
           </g>
@@ -541,7 +556,8 @@ export function CovarianceLayer({
       {curves.map(({ k, curve }) => {
         const l = active ? labelFor(k) : null;
         if (!l || l.value === null) return null;
-        const cls = l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns';
+        let cls = '';
+        if (l.p !== null) cls = l.p < 0.05 ? ' sig' : ' ns';
         const at =
           figure.notation !== 'standard'
             ? clearPointOnCurve(
