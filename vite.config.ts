@@ -123,5 +123,5 @@ export default defineConfig({
   test: { environment: 'node', setupFiles: ['src/validation/setup.ts'], testTimeout: process.env.STRYKER_SLOW ? 1_800_000 : 60_000,
     ...(process.env.WEBR_TESTS ? { sequence: { sequencer: WebrSequencer } } : {}),
     // (webR starts in beforeAll: under a full parallel run that can take longer than vitest's 10 s)
-    hookTimeout: process.env.WEBR_TESTS ? 300_000 : 10_000, exclude: ['server/**', 'node_modules/**', 'dist/**', '.stryker-tmp/**', 'reports/**', ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts', '**/*.webr.test.tsx']), ...(process.env.WEBR_SLOW ? [] : ['**/*.slow.webr.test.ts', '**/*.slow.webr.test.tsx']), ...(process.env.WEBR_TESTS && !process.env.PS_NATIVE_R ? EVIDENCE_RUNS.desktop : [])] },
+    hookTimeout: process.env.WEBR_TESTS ? 300_000 : 10_000, exclude: ['server/**', 'node_modules/**', 'dist/**', '.stryker-tmp/**', 'reports/**', '.claude/**' /* agents' git worktrees */, ...(process.env.WEBR_TESTS ? [] : ['**/*.webr.test.ts', '**/*.webr.test.tsx']), ...(process.env.WEBR_SLOW ? [] : ['**/*.slow.webr.test.ts', '**/*.slow.webr.test.tsx']), ...(process.env.WEBR_TESTS && !process.env.PS_NATIVE_R ? EVIDENCE_RUNS.desktop : [])] },
 } as never);
