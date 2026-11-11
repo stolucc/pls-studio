@@ -108,9 +108,10 @@ ps_call <- function(fn, req, export = FALSE) {
   if (!identical(names(formals(f))[1], "req_json")) stop("Invalid bridge function.")
   .ps_state$warnings <- character(0)
   .ps_state$notes <- character(0)
-  # (an analysis that sets options(warn = 2) and leaves it set must not turn the next call's warnings into errors)
-  old_warn <- options(warn = getOption("warn"))
-  on.exit(options(old_warn), add = TRUE)
+  # (an analysis that sets options(warn = 2) and leaves it set must not turn the next call's warnings into errors;
+  # one that sets the contrasts, as the type III ANOVA does, must not change how the next call codes its factors)
+  old_options <- options(warn = getOption("warn"), contrasts = getOption("contrasts"))
+  on.exit(options(old_options), add = TRUE)
   withCallingHandlers(if (isTRUE(export)) f(req, export = TRUE) else f(req),
     warning = function(w) {
       if (ps_warn_is_error()) {

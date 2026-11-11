@@ -63,8 +63,7 @@ ps_lmm <- function(req_json, export = FALSE) {
     if (length(Fv)) {
       c(
         "# Categorical predictors: factors, dummy-coded against their first level.",
-        vapply(factors, function(n) ps_bt_factor_line(req, fr, n), "", USE.NAMES = FALSE),
-        sprintf("contrasts(data$%s) <- \"contr.treatment\"", Fv)
+        vapply(factors, function(n) ps_bt_factor_line(req, fr, n), "", USE.NAMES = FALSE)
       )
     },
     if (center == "grand" && length(Xn)) {

@@ -300,7 +300,15 @@ ps_anova <- function(req_json, export = FALSE) {
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
     "# Factors (their levels as the groups).",
     vapply(fac, function(n) ps_bt_factor_line(req, fr, n), ""),
-    if (ss == "III") c("# Type III sums of squares: sum-to-zero contrasts, each term dropped from the full model.", "options(contrasts = c(\"contr.sum\", \"contr.poly\"))") else "options(contrasts = c(\"contr.treatment\", \"contr.poly\"))",
+    # (the session's contrasts are kept in old_contrasts and set back at the end of the script)
+    if (ss == "III") {
+      c(
+        "# Type III sums of squares: sum-to-zero contrasts, each term dropped from the full model.",
+        "old_contrasts <- options(contrasts = c(\"contr.sum\", \"contr.poly\"))"
+      )
+    } else {
+      "old_contrasts <- options(contrasts = c(\"contr.treatment\", \"contr.poly\"))"
+    },
     sprintf("fit <- lm(%s, data = data)", fml),
     if (ss == "III") "tab <- drop1(fit, ~ ., test = \"F\")" else "tab <- anova(fit)",
     "res <- residuals(fit)",
@@ -327,7 +335,8 @@ ps_anova <- function(req_json, export = FALSE) {
     },
     if (es) ps_es_anova_lines(ss, conf, oneway, fml, seed),
     ps_emm_lines(emm, "fit", emm_rn, conf, y = v[[y]]),
-    ps_rs_anova_lines(rs, v[[y]], unname(emm_rn), conf)
+    ps_rs_anova_lines(rs, v[[y]], unname(emm_rn), conf),
+    "options(old_contrasts)  # the session's contrasts back"
   )
   inputs <- list(data = fr$data)
   if (export) {

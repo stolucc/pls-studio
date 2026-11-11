@@ -9,6 +9,7 @@ import { near } from '../validation/record';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 import { slowIt } from './webrSlow';
 import { rCall } from './bridge';
+import { regressionR } from './regression';
 import {
   anovaR,
   contingencyR,
@@ -173,6 +174,42 @@ describe('ANOVA', () => {
       close(r.table[i].p, w.p, `${w.term} p`);
     });
     expect(r.tukey).toBeNull();
+  }, 600_000);
+  // The type III ANOVA's sum-to-zero contrasts stay inside it: a later call in the same R session still codes a
+  // factor against its first level (R's default), as it would in a fresh session.
+  it('type III contrasts do not reach the next call', async () => {
+    const tooth = data(ref.toothgrowth);
+    await anovaR(tooth, {
+      dependent: 'len',
+      factors: ['supp', 'dose'],
+      covariates: [],
+      ssType: 'III',
+      interactions: true,
+      confidence: 0.95,
+    });
+    const r = await regressionR(tooth, {
+      outcome: 'len',
+      predictors: ['supp'],
+      categorical: [],
+      interactions: [],
+      family: 'gaussian',
+      link: 'logit',
+      trials: '',
+      weights: '',
+      se: 'model',
+      cluster: '',
+      confidence: 0.95,
+    });
+    // supp: 1 = OJ (the reference), 2 = VC; the treatment-coded slope is mean(VC) - mean(OJ)
+    const len = ref.toothgrowth.cols[0] as number[],
+      supp = ref.toothgrowth.cols[1] as number[];
+    const mean = (code: number) => {
+      const xs = len.filter((_, i) => supp[i] === code);
+      return xs.reduce((a, b) => a + b, 0) / xs.length;
+    };
+    const slopes = r.coefficients.filter((e) => e.term !== '(Intercept)');
+    expect(slopes).toHaveLength(1);
+    close(slopes[0].est, mean(2) - mean(1), 'treatment-coded supp after a type III ANOVA');
   }, 600_000);
   it('repeated measures with a between factor: univariate tests, Mauchly, Greenhouse-Geisser, Huynh-Feldt', async () => {
     const r = await rmAnovaR(data(ref.co2), {
