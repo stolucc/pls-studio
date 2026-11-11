@@ -990,10 +990,14 @@ export const growthAnalysis: AnalysisType<GrowthOptions, WithInput<GrowthResult,
   },
   script: async (o, ctx) =>
     (await import('../rengine/longitudinal')).growthScriptR(rawData(ctx)!, growthInput(o, ctx)),
-  summary: (o) =>
-    o.syntax?.trim()
-      ? `written as lavaan syntax${o.group ? ` · groups by ${o.group}` : ''}`
-      : `${o.measures.length} occasions · ${o.shape === 'basis' ? 'latent basis' : o.shape}${o.covariates.length ? ` · ${o.covariates.length} covariates` : ''}${o.timeVarying.length ? ' · time-varying' : ''}`,
+  summary: (o) => {
+    if (o.syntax?.trim())
+      return `written as lavaan syntax${o.group ? ` · groups by ${o.group}` : ''}`;
+    const shape = o.shape === 'basis' ? 'latent basis' : o.shape;
+    const covariates = o.covariates.length ? ` · ${o.covariates.length} covariates` : '';
+    const timeVarying = o.timeVarying.length ? ' · time-varying' : '';
+    return `${o.measures.length} occasions · ${shape}${covariates}${timeVarying}`;
+  },
 };
 
 export const riclpmAnalysis: AnalysisType<RiclpmOptions, WithInput<RiclpmResult, RiclpmInput>> = {
@@ -1090,6 +1094,12 @@ export const gmmAnalysis: AnalysisType<GmmOptions, GmmResult> = {
     (await import('../rengine/mixed')).gmmR(rawData(ctx)!, gmmInput(o, ctx.settings.seed)),
   script: async (o, ctx) =>
     (await import('../rengine/mixed')).gmmScriptR(rawData(ctx)!, gmmInput(o, ctx.settings.seed)),
-  summary: (o) =>
-    `${o.format === 'wide' ? `${o.measures.length} occasions` : `${o.outcome || '…'} by ${o.time || '…'}`} · 1–${o.to} classes · ${o.random === 'none' ? 'LCGA' : `random ${o.random}`}`,
+  summary: (o) => {
+    const data =
+      o.format === 'wide'
+        ? `${o.measures.length} occasions`
+        : `${o.outcome || '…'} by ${o.time || '…'}`;
+    const model = o.random === 'none' ? 'LCGA' : `random ${o.random}`;
+    return `${data} · 1–${o.to} classes · ${model}`;
+  },
 };

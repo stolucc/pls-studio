@@ -402,6 +402,11 @@ export const missingDataAnalysis: AnalysisType<MissingDataOptions, MissingDataRe
       ...o,
       seed: ctx.settings.seed,
     }),
-  summary: (o) =>
-    `${o.vars.length} variable${o.vars.length === 1 ? '' : 's'}${o.mcar ? ' · Little’s test' : ''}${o.jamjal ? ' · Jamshidian & Jalal' : ''}${o.measures.length ? ` · dropout over ${o.measures.length} occasions` : ''}`,
+  summary: (o) => {
+    const plural = o.vars.length === 1 ? '' : 's';
+    const little = o.mcar ? ' · Little’s test' : '';
+    const jamjal = o.jamjal ? ' · Jamshidian & Jalal' : '';
+    const dropout = o.measures.length ? ` · dropout over ${o.measures.length} occasions` : '';
+    return `${o.vars.length} variable${plural}${little}${jamjal}${dropout}`;
+  },
 };

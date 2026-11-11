@@ -406,6 +406,10 @@ export const didAnalysis: AnalysisType<DidOptions, Result> = {
   },
   script: async (o, ctx) =>
     (await import('../rengine/did')).didScriptR(rawData(ctx)!, didInput(o, ctx)),
-  summary: (o) =>
-    `${o.design === 'twfe' ? 'two-way fixed effects' : 'staggered (Callaway & Sant’Anna)'} · ${o.outcome || '…'} on ${o.treated || '…'}${o.eventStudy ? ' · event study' : ''}`,
+  summary: (o) => {
+    const design =
+      o.design === 'twfe' ? 'two-way fixed effects' : 'staggered (Callaway & Sant’Anna)';
+    const eventStudy = o.eventStudy ? ' · event study' : '';
+    return `${design} · ${o.outcome || '…'} on ${o.treated || '…'}${eventStudy}`;
+  },
 };

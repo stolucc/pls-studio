@@ -685,6 +685,10 @@ export const chartAnalysis: AnalysisType<ChartOptions, ChartResult> = {
   fingerprint: (o, ctx) =>
     columnsFingerprint(ctx, chartColumns(o), [o.kind, o.bins, o.fit ? 1 : 0]),
   run: async (o, ctx) => chartResult(o, rawData(ctx)!),
-  summary: (o) =>
-    `${KIND_NAME[o.kind].toLowerCase()} of ${o.x || '…'}${o.kind === 'scatter' ? ` and ${o.y || '…'}` : ''}${o.group && (o.kind === 'scatter' || o.kind === 'box') ? ` by ${o.group}` : ''}`,
+  summary: (o) => {
+    const y = o.kind === 'scatter' ? ` and ${o.y || '…'}` : '';
+    // (only scatter plots and box plots are split by a group)
+    const grouped = o.group && (o.kind === 'scatter' || o.kind === 'box');
+    return `${KIND_NAME[o.kind].toLowerCase()} of ${o.x || '…'}${y}${grouped ? ` by ${o.group}` : ''}`;
+  },
 };
