@@ -148,15 +148,14 @@ export function applySpecModel(
   };
 }
 
-const inModel = (r: SpecSearchResult, keep: boolean[]) =>
-  keep.every(Boolean)
-    ? 'all'
-    : keep.some(Boolean)
-      ? r.arrows
-          .filter((_, j) => keep[j])
-          .map((a) => a.label)
-          .join('; ')
-      : 'none';
+const inModel = (r: SpecSearchResult, keep: boolean[]) => {
+  if (keep.every(Boolean)) return 'all';
+  if (!keep.some(Boolean)) return 'none';
+  return r.arrows
+    .filter((_, j) => keep[j])
+    .map((a) => a.label)
+    .join('; ');
+};
 
 function SpecSearchView({
   r,

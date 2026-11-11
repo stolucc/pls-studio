@@ -56,6 +56,13 @@ async function exclude(rows: number[], reason: string) {
   );
 }
 
+/** The colour of a variable's departure from normality. */
+const LEVEL_TONE: Record<ReturnType<typeof normalityLevel>, string> = {
+  ok: '',
+  moderate: 'warn',
+  severe: 'bad',
+};
+
 function Univariate({ r }: { r: ScreenResult }) {
   return (
     <Table
@@ -65,7 +72,7 @@ function Univariate({ r }: { r: ScreenResult }) {
       rows={r.variables.map((v, i) => {
         const d = r.describe[i],
           lvl = normalityLevel(d.skew, d.kurtosis);
-        const tone = lvl === 'severe' ? 'bad' : lvl === 'moderate' ? 'warn' : '';
+        const tone = LEVEL_TONE[lvl];
         return [
           c(v),
           c(d.n, undefined, 0),
@@ -495,6 +502,13 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
 }
 
 /** The cases that contribute most to Mardia's multivariate kurtosis of the model's indicators. */
+/** A case's share of the kurtosis against its expected share: orange above 4 times, red above 10. */
+function ratioTone(ratio: number) {
+  if (ratio > 10) return 'bad';
+  if (ratio > 4) return 'warn';
+  return '';
+}
+
 function KurtosisCases({
   k,
   current,
@@ -511,7 +525,7 @@ function KurtosisCases({
         columns={['Row', 'dᵢ⁴ / n', 'Share of b₂,ₚ', '× expected']}
         rows={top.map((x) => [
           c(x.row, undefined, 0),
-          c(x.contribution, x.ratio > 10 ? 'bad' : x.ratio > 4 ? 'warn' : '', 4),
+          c(x.contribution, ratioTone(x.ratio), 4),
           c(`${fmt(100 * x.share, 1)}%`),
           c(x.ratio, undefined, 1),
         ])}

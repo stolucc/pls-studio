@@ -365,7 +365,12 @@ function ScoresPanel({ r }: { r: FactorScoresCardResult }) {
                   rows={s.names.map(
                     (a, i): Row => [
                       c(a),
-                      ...s.names.map((_, j) => (j > i ? c(null) : j === i ? c('—') : c(cor[i][j]))),
+                      // (lower triangle; a dash on the diagonal)
+                      ...s.names.map((_, j) => {
+                        if (j > i) return c(null);
+                        if (j === i) return c('—');
+                        return c(cor[i][j]);
+                      }),
                     ],
                   )}
                 />

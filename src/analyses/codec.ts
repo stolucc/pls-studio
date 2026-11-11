@@ -9,28 +9,25 @@ export const MAX_UNPACKED = 64_000_000;
 
 const TYPED = '__f64';
 
+/** A non-finite number as JSON can carry it: 'NaN', 'Inf' or '-Inf'. */
+function nonFiniteName(x: number) {
+  if (Number.isNaN(x)) return 'NaN';
+  return x > 0 ? 'Inf' : '-Inf';
+}
 function replacer(_k: string, v: unknown) {
   if (v instanceof Float64Array || v instanceof Float32Array || v instanceof Int32Array) {
-    return {
-      [TYPED]: Array.from(v, (x) =>
-        Number.isFinite(x) ? x : Number.isNaN(x) ? 'NaN' : x > 0 ? 'Inf' : '-Inf',
-      ),
-    };
+    return { [TYPED]: Array.from(v, (x) => (Number.isFinite(x) ? x : nonFiniteName(x))) };
   }
-  if (typeof v === 'number' && !Number.isFinite(v))
-    return { [TYPED + 'n']: Number.isNaN(v) ? 'NaN' : v > 0 ? 'Inf' : '-Inf' };
+  if (typeof v === 'number' && !Number.isFinite(v)) return { [TYPED + 'n']: nonFiniteName(v) };
   return v;
 }
-const special = (x: unknown) =>
-  x === 'NaN'
-    ? NaN
-    : x === 'Inf'
-      ? Infinity
-      : x === '-Inf'
-        ? -Infinity
-        : typeof x === 'number'
-          ? x
-          : NaN;
+/** The number a stored value stands for (anything unreadable is NaN). */
+const special = (x: unknown) => {
+  if (x === 'NaN') return NaN;
+  if (x === 'Inf') return Infinity;
+  if (x === '-Inf') return -Infinity;
+  return typeof x === 'number' ? x : NaN;
+};
 function reviver(_k: string, v: unknown) {
   if (v && typeof v === 'object' && !Array.isArray(v)) {
     const o = v as Record<string, unknown>;

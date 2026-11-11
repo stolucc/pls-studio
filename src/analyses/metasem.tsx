@@ -25,12 +25,17 @@ export const METASEM_METHODS = ['FEM', 'REM'] as const;
 const varsOf = (ctx: AnalysisCtx) => (ctx.model ? metaVariables(toSpec(ctx.model)) : []);
 const ci = (lo?: number, hi?: number) =>
   lo === undefined || hi === undefined ? c(null) : c(`[${fmt(lo, 3)}, ${fmt(hi, 3)}]`);
-const paramName = (p: MetaParam) =>
-  p.kind === 'covariance'
-    ? `${p.from} ↔ ${p.to}`
-    : p.kind === 'variance'
-      ? `${p.from} (variance)`
-      : `${p.from} → ${p.to}`;
+const paramName = (p: MetaParam) => {
+  if (p.kind === 'covariance') return `${p.from} ↔ ${p.to}`;
+  if (p.kind === 'variance') return `${p.from} (variance)`;
+  return `${p.from} → ${p.to}`;
+};
+/** metaSEM's random-effects structure of the stage-1 heterogeneity. */
+const heterogeneityName = (reType: string | undefined) => {
+  if (reType === 'Diag') return 'diagonal';
+  if (reType === 'Symm') return 'symmetric';
+  return 'none';
+};
 const KIND: Record<MetaParam['kind'], string> = {
   loading: 'Loading',
   regression: 'Regression',
@@ -141,10 +146,8 @@ function MetaView({ r }: { r: MetaSemResult }) {
     <div className="tables">
       <p className="hint" style={{ marginTop: 0 }}>
         {s1.studies} studies, N = {s1.totalN.toLocaleString('en')} in all; stage 1 by{' '}
-        {rem
-          ? `random effects (heterogeneity: ${s1.reType === 'Diag' ? 'diagonal' : s1.reType === 'Symm' ? 'symmetric' : 'none'})`
-          : 'fixed effects'}
-        ; metaSEM {r.engine.version}
+        {rem ? `random effects (heterogeneity: ${heterogeneityName(s1.reType)})` : 'fixed effects'};
+        metaSEM {r.engine.version}
         {r.engine.openmx ? `, OpenMx ${r.engine.openmx}` : ''}
         {r.engine.desktop ? ` in desktop ${r.engine.desktop}` : ''}.
         {status > 1 ? ` OpenMx status ${status}: the optimisation may not have converged.` : ''}

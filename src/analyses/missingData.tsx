@@ -204,6 +204,14 @@ function McarTables({ r }: { r: MissingDataResult }) {
   );
 }
 
+/** The H1 log-likelihood, or why there is none. */
+function loglikNote(em: { loglik: number | null; singular: boolean }) {
+  if (em.loglik !== null) return `H1 log-likelihood ${fmt(em.loglik, 3)}.`;
+  if (em.singular)
+    return 'The covariance matrix is (near) singular, e.g. with variables that are functions of the missingness: the likelihood has no finite maximum, and no log-likelihood is shown.';
+  return '';
+}
+
 function MissingDataView({ result: r }: { result: MissingDataResult }) {
   const [tab, setTab] = useState<Tab>('patterns');
   const tabs: [Tab, string][] = [
@@ -274,7 +282,7 @@ function MissingDataView({ result: r }: { result: MissingDataResult }) {
               file="missing-em-means"
               columns={['Variable', 'Mean']}
               rows={v.map((x, i) => [c(x), c(r.em.means[i])])}
-              note={`The unrestricted (H1) model by FIML (lavaan’s EM). ${r.em.loglik !== null ? `H1 log-likelihood ${fmt(r.em.loglik, 3)}.` : r.em.singular ? 'The covariance matrix is (near) singular, e.g. with variables that are functions of the missingness: the likelihood has no finite maximum, and no log-likelihood is shown.' : ''}`}
+              note={`The unrestricted (H1) model by FIML (lavaan’s EM). ${loglikNote(r.em)}`}
             />
             <Table
               title="EM estimates: covariances"

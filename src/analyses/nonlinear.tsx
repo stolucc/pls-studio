@@ -168,7 +168,12 @@ function Curve({
 
 const verdict = (v: number, min: number) =>
   c(v >= min ? `acceptable (≥ ${min})` : `below ${min}`, v >= min ? 'good' : 'bad');
-const sup = (p: number) => (p === 2 ? '²' : p === 3 ? '³' : '');
+/** The superscript of a power: ² or ³ (nothing for 1). */
+const sup = (p: number) => {
+  if (p === 2) return '²';
+  if (p === 3) return '³';
+  return '';
+};
 
 function View({ result: r }: { result: NonlinearResult }) {
   const k = r.indices;

@@ -176,12 +176,11 @@ function SyntaxGrowthView({ r }: { r: GrowthResult & { input?: { estimator?: str
     '~*~': 'scale',
     ':=': 'defined',
   };
-  const label = (e: LongEstimate) =>
-    e.op === '~1'
-      ? `${e.lhs} (${OPS[e.op]})`
-      : e.op === '~~' && e.lhs === e.rhs
-        ? `${e.lhs} (variance)`
-        : `${e.lhs} ${OPS[e.op] ?? e.op} ${e.rhs}`;
+  const label = (e: LongEstimate) => {
+    if (e.op === '~1') return `${e.lhs} (${OPS[e.op]})`;
+    if (e.op === '~~' && e.lhs === e.rhs) return `${e.lhs} (variance)`;
+    return `${e.lhs} ${OPS[e.op] ?? e.op} ${e.rhs}`;
+  };
   const groups = r.groups?.length ? r.groups : [''];
   return (
     <div className="tables">

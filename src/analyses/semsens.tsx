@@ -199,18 +199,19 @@ function SemsensChart({ r }: { r: SemsensResult }) {
   const [fi, ti] = [at(p.from), at(p.to)];
   const both = fi >= 0 && ti >= 0,
     one = fi >= 0 ? fi : ti;
-  const xs = p.est.map((_, e) =>
-    both
-      ? r.draws.phantom[fi][e] * r.draws.phantom[ti][e]
-      : one >= 0
-        ? r.draws.phantom[one][e]
-        : e + 1,
-  );
-  const xLabel = both
-    ? `Phantom → ${p.from} × phantom → ${p.to}`
-    : one >= 0
-      ? `Phantom → ${r.phantoms[one]}`
-      : 'Evaluation';
+  // The x axis: the product of the two phantom paths, the one phantom path, or the evaluation's number.
+  let xs: number[];
+  let xLabel: string;
+  if (both) {
+    xs = p.est.map((_, e) => r.draws.phantom[fi][e] * r.draws.phantom[ti][e]);
+    xLabel = `Phantom → ${p.from} × phantom → ${p.to}`;
+  } else if (one >= 0) {
+    xs = p.est.map((_, e) => r.draws.phantom[one][e]);
+    xLabel = `Phantom → ${r.phantoms[one]}`;
+  } else {
+    xs = p.est.map((_, e) => e + 1);
+    xLabel = 'Evaluation';
+  }
   const pts = xs
     .map((x, e) => ({ x, y: p.est[e], sig: p.p[e] < r.alpha }))
     .filter((d) => Number.isFinite(d.x) && Number.isFinite(d.y));
@@ -298,6 +299,12 @@ function SemsensChart({ r }: { r: SemsensResult }) {
   );
 }
 
+/** Whether the range of the estimates includes 0 ('—' when it is not available). */
+function includesZero(lo: number, hi: number) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return '—';
+  return lo < 0 && hi > 0 ? 'yes' : 'no';
+}
+
 export function SemsensView({ r }: { r: SemsensResult }) {
   const inInterest = <T extends { from: string; to: string }>(rows: T[]) =>
     rows.filter((x) => r.interest.some((q) => key(q) === key(x)));
@@ -328,7 +335,7 @@ export function SemsensView({ r }: { r: SemsensResult }) {
             c(mean),
             c(lo),
             c(hi),
-            c(Number.isFinite(lo) && Number.isFinite(hi) ? (lo < 0 && hi > 0 ? 'yes' : 'no') : '—'),
+            c(includesZero(lo, hi)),
           ];
         })}
         note="Standardised estimates (std.all): the model’s, and their mean, minimum and maximum over the converged evaluations (SEMsens sens.tables). A range far from the model’s estimate, or one that includes 0, means a confounder within the bound could explain the path away."

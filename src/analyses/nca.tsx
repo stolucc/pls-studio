@@ -28,8 +28,12 @@ export interface NcaOptions {
 }
 
 /** Effect size labels (Dul 2016): 0–0.1 small, 0.1–0.3 medium, 0.3–0.5 large, ≥ 0.5 very large. */
-export const effectLabel = (d: number) =>
-  d < 0.1 ? 'small' : d < 0.3 ? 'medium' : d < 0.5 ? 'large' : 'very large';
+export const effectLabel = (d: number) => {
+  if (d < 0.1) return 'small';
+  if (d < 0.3) return 'medium';
+  if (d < 0.5) return 'large';
+  return 'very large';
+};
 
 function CeilingPlot({ k, y }: { k: NcaCondition; y: string }) {
   const W = 360,

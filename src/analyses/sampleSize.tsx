@@ -222,19 +222,21 @@ export const sampleSizeAnalysis: AnalysisType<SampleSizeOptions, SampleSizeResul
     </fieldset>
   ),
   View: ({ result, options }) => <SampleSizeView r={result} o={options} />,
-  blocked: (o, ctx) =>
-    o.source === 'model' && !ctx.pls
-      ? 'Calculate the PLS-SEM model first (Model tab), or enter the smallest path you expect.'
-      : o.source === 'model' && !ctx.pls!.hasPath.some((r) => r.some(Boolean))
-        ? 'The model has no structural paths.'
-        : null,
-  fingerprint: (o, ctx) =>
-    o.source === 'manual'
-      ? fingerprint(['manual'])
-      : ctx.pls
-        ? fingerprint([JSON.stringify(ctx.pls.pathCoef), ctx.pls.n])
-        : null,
+  blocked: (o, ctx) => {
+    if (o.source !== 'model') return null;
+    if (!ctx.pls)
+      return 'Calculate the PLS-SEM model first (Model tab), or enter the smallest path you expect.';
+    if (!ctx.pls.hasPath.some((r) => r.some(Boolean))) return 'The model has no structural paths.';
+    return null;
+  },
+  fingerprint: (o, ctx) => {
+    if (o.source === 'manual') return fingerprint(['manual']);
+    return ctx.pls ? fingerprint([JSON.stringify(ctx.pls.pathCoef), ctx.pls.n]) : null;
+  },
   run: async (o, ctx) => compute(o, ctx),
-  summary: (o) =>
-    `${o.source === 'manual' ? `|β| = ${fmt(o.beta, 2)}` : 'smallest path of the results'} · α ${o.alpha} ${o.tails}-tailed · power ${o.power}`,
+  summary: (o) => {
+    const effect =
+      o.source === 'manual' ? `|β| = ${fmt(o.beta, 2)}` : 'smallest path of the results';
+    return `${effect} · α ${o.alpha} ${o.tails}-tailed · power ${o.power}`;
+  },
 };

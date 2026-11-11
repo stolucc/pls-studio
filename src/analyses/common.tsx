@@ -13,12 +13,10 @@ export const rawData = (ctx: AnalysisCtx): Dataset | null =>
   ctx.data && !(ctx.data.moments && ctx.data.cols.length === 0) ? ctx.data : null;
 
 /** Data columns, or the construct scores of the current PLS-SEM results. */
-export const sourceData = (source: 'data' | 'scores', ctx: AnalysisCtx): Dataset | null =>
-  source === 'scores'
-    ? ctx.pls
-      ? { names: ctx.pls.constructs, cols: ctx.pls.scores }
-      : null
-    : rawData(ctx);
+export const sourceData = (source: 'data' | 'scores', ctx: AnalysisCtx): Dataset | null => {
+  if (source !== 'scores') return rawData(ctx);
+  return ctx.pls ? { names: ctx.pls.constructs, cols: ctx.pls.scores } : null;
+};
 
 /** Fingerprint of the columns read from data or construct scores. */
 export function sourceFingerprint(

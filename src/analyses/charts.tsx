@@ -175,13 +175,13 @@ export const W = 520,
   pad = { l: 56, r: 16, t: 14, b: 44 };
 const ticks = (lo: number, hi: number, k = 5) =>
   Array.from({ length: k + 1 }, (_, i) => lo + ((hi - lo) * i) / k);
-const tickText = (v: number, span: number) =>
-  (Math.abs(v) >= 1000 || span >= 1000
-    ? v.toFixed(0)
-    : span >= 10
-      ? v.toFixed(1)
-      : v.toFixed(2)
-  ).replace(/\.?0+$/, (m) => (m.startsWith('.') ? '' : m));
+/** A tick label with as many decimals as the axis span needs (none from 1000), trailing zeros dropped. */
+const tickText = (v: number, span: number) => {
+  let digits = 2;
+  if (Math.abs(v) >= 1000 || span >= 1000) digits = 0;
+  else if (span >= 10) digits = 1;
+  return v.toFixed(digits).replace(/\.?0+$/, (m) => (m.startsWith('.') ? '' : m));
+};
 
 export function Axes({
   xs,

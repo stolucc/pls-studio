@@ -205,6 +205,15 @@ const RULE = {
   mc: 'Monte Carlo',
 } as const;
 
+/** The note under a parameter group's table: how Mplus parameterises thresholds and base hazards. */
+function groupNote(title: string) {
+  if (title === 'Thresholds')
+    return 'Mplus’s parameterization: P(u ≤ category j) = F(threshold j − linear predictor), F logistic (or normal with LINK = PROBIT).';
+  if (title === 'Base hazards')
+    return 'The baseline hazard in each interval of the survival time; the regressions of the time multiply it by exp(slope × predictor) (proportional hazards).';
+  return undefined;
+}
+
 function QuadView({ r }: { r: Result }) {
   const z = (p: QuadParam) => (p.se && !p.fixed ? p.est / p.se : null);
   return (
@@ -240,13 +249,7 @@ function QuadView({ r }: { r: Result }) {
               p.fixed ? c('fixed', 'dim') : c(p.se),
               c(z(p)),
             ])}
-            note={
-              g.title === 'Thresholds'
-                ? 'Mplus’s parameterization: P(u ≤ category j) = F(threshold j − linear predictor), F logistic (or normal with LINK = PROBIT).'
-                : g.title === 'Base hazards'
-                  ? 'The baseline hazard in each interval of the survival time; the regressions of the time multiply it by exp(slope × predictor) (proportional hazards).'
-                  : undefined
-            }
+            note={groupNote(g.title)}
           />
         ) : null;
       })}
