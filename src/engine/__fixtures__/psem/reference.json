@@ -1,0 +1,632 @@
+{
+  "piecewiseSEM": "2.3.1",
+  "lme4": "2.1.0",
+  "keeley": {
+    "claims": [
+      {
+        "claim": "cover ~ age + firesev",
+        "df": 87,
+        "stat": -1.80183990463717,
+        "p": 0.0750343744675684
+      },
+      {
+        "claim": "rich ~ age + cover",
+        "df": 87,
+        "stat": -2.01461149158713,
+        "p": 0.0470335390093978
+      },
+      {
+        "claim": "rich ~ firesev + age + cover",
+        "df": 86,
+        "stat": -1.95461888772966,
+        "p": 0.0538767665122444
+      }
+    ],
+    "fisherC": 17.1355184440647,
+    "fisherRounded": {
+      "Fisher.C": 17.136,
+      "df": 6,
+      "P.Value": 0.009
+    },
+    "aic": 1103.4921786914,
+    "aicc": 1104.32938799373,
+    "aicRounded": {
+      "AIC": 1103.492,
+      "AICc": 1104.329,
+      "K": 9,
+      "n": 90
+    },
+    "coefs": [
+      {
+        "response": "rich",
+        "predictor": "cover",
+        "est": 15.6726990304307,
+        "se": 4.79312053644511,
+        "df": 88,
+        "stat": 3.26983202514132,
+        "p": 0.00153684917332466,
+        "std": 0.329143213413377,
+        "stdRounded": 0.3291
+      },
+      {
+        "response": "cover",
+        "predictor": "firesev",
+        "est": -0.0839256539663301,
+        "se": 0.018407262621142,
+        "df": 88,
+        "stat": -4.55937722483167,
+        "p": 1.64835325557689e-05,
+        "std": -0.43713460450915,
+        "stdRounded": -0.4371
+      },
+      {
+        "response": "firesev",
+        "predictor": "age",
+        "est": 0.059679026049338,
+        "se": 0.0124900826561287,
+        "df": 88,
+        "stat": 4.77811297910461,
+        "p": 7.02784702514236e-06,
+        "std": 0.453865357589188,
+        "stdRounded": 0.4539
+      }
+    ],
+    "r2": [
+      {
+        "Response": "rich",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.108335254936083
+      },
+      {
+        "Response": "cover",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.191086662459371
+      },
+      {
+        "Response": "firesev",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.205993762819561
+      }
+    ]
+  },
+  "poisson": {
+    "claims": [
+      {
+        "claim": "cover ~ age + firesev",
+        "df": 87,
+        "stat": -1.80183990463717,
+        "p": 0.0750343744675684
+      },
+      {
+        "claim": "rich ~ age + distance + cover",
+        "df": 86,
+        "stat": -1.99463798875779,
+        "p": 0.046082377172413
+      },
+      {
+        "claim": "firesev ~ distance + age",
+        "df": 87,
+        "stat": -1.67925275802636,
+        "p": 0.0966909370320034
+      },
+      {
+        "claim": "cover ~ distance + firesev",
+        "df": 87,
+        "stat": 1.33016629998087,
+        "p": 0.186939991080773
+      },
+      {
+        "claim": "firesev ~ hetero + age",
+        "df": 87,
+        "stat": -0.0932594307720067,
+        "p": 0.925911892743231
+      },
+      {
+        "claim": "rich ~ hetero + distance + cover",
+        "df": 86,
+        "stat": 6.9926044967088,
+        "p": 2.69829392250691e-12
+      },
+      {
+        "claim": "rich ~ firesev + age + distance + cover",
+        "df": 85,
+        "stat": -2.8058760756182,
+        "p": 0.00501799868483482
+      }
+    ],
+    "fisherC": 83.380877107957,
+    "fisherRounded": {
+      "Fisher.C": 83.381,
+      "df": 14,
+      "P.Value": 0
+    },
+    "aic": 1151.42313237519,
+    "aicc": 1152.26034167752,
+    "aicRounded": {
+      "AIC": 1151.423,
+      "AICc": 1152.26,
+      "K": 9,
+      "n": 90
+    },
+    "coefs": [
+      {
+        "response": "firesev",
+        "predictor": "age",
+        "est": 0.059679026049338,
+        "se": 0.0124900826561287,
+        "df": 88,
+        "stat": 4.77811297910461,
+        "p": 7.02784702514236e-06,
+        "std": 0.453865357589188,
+        "stdRounded": 0.4539
+      },
+      {
+        "response": "cover",
+        "predictor": "firesev",
+        "est": -0.0839256539663301,
+        "se": 0.018407262621142,
+        "df": 88,
+        "stat": -4.55937722483167,
+        "p": 1.64835325557689e-05,
+        "std": -0.43713460450915,
+        "stdRounded": -0.4371
+      },
+      {
+        "response": "rich",
+        "predictor": "cover",
+        "est": 0.197825150683071,
+        "se": 0.0489320694093415,
+        "df": 87,
+        "stat": 4.04285273586457,
+        "p": 5.28047879678879e-05,
+        "std": 0.193356407859499,
+        "stdRounded": 0.1934
+      },
+      {
+        "response": "rich",
+        "predictor": "distance",
+        "est": 0.0190965917170153,
+        "se": 0.001798280406179,
+        "df": 87,
+        "stat": 10.6193626151952,
+        "p": 2.42209251330355e-26,
+        "std": 0.519502112490621,
+        "stdRounded": 0.5195
+      },
+      {
+        "response": "~~cover",
+        "predictor": "~~hetero",
+        "est": -0.212658365681642,
+        "se": null,
+        "df": 90,
+        "stat": -2.02997764813256,
+        "p": 0.0227068455211368,
+        "std": -0.212658365681642,
+        "stdRounded": -0.2127
+      }
+    ],
+    "r2": [
+      {
+        "Response": "firesev",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.205993762819561
+      },
+      {
+        "Response": "cover",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.191086662459371
+      },
+      {
+        "Response": "rich",
+        "family": "poisson",
+        "link": "log",
+        "method": "nagelkerke",
+        "R.squared": 0.835715418004206
+      }
+    ]
+  },
+  "shipley": {
+    "claims": [
+      {
+        "claim": "Date ~ lat + DD",
+        "df": 18.6478077985098,
+        "stat": 0.0557389380521666,
+        "p": 0.815935784200486
+      },
+      {
+        "claim": "Growth ~ lat + Date",
+        "df": 18.4138066158574,
+        "stat": 0.0176382635346268,
+        "p": 0.895784919970707
+      },
+      {
+        "claim": "Live ~ lat + Growth",
+        "df": 1431,
+        "stat": 0.857068560788337,
+        "p": 0.391406995064914
+      },
+      {
+        "claim": "Growth ~ DD + lat + Date",
+        "df": 1425.21564151963,
+        "stat": 4.59894447513008,
+        "p": 0.0321603228084854
+      },
+      {
+        "claim": "Live ~ DD + lat + Growth",
+        "df": 1431,
+        "stat": 1.0031495529148,
+        "p": 0.315788708930557
+      },
+      {
+        "claim": "Live ~ Date + DD + Growth",
+        "df": 1431,
+        "stat": -1.56933252035344,
+        "p": 0.116570478498963
+      }
+    ],
+    "fisherC": 15.9808897335216,
+    "fisherRounded": {
+      "Fisher.C": 15.981,
+      "df": 12,
+      "P.Value": 0.192
+    },
+    "aic": 26605.6934867774,
+    "aicc": 26605.7944567504,
+    "aicRounded": {
+      "AIC": 26605.693,
+      "AICc": 26605.794,
+      "K": 15,
+      "n": 1431
+    },
+    "coefs": [
+      {
+        "response": "DD",
+        "predictor": "lat",
+        "est": -0.846036017917428,
+        "se": 0.117458733621086,
+        "df": 17.9934035150422,
+        "stat": 51.8807049392366,
+        "p": 1.05891992254121e-06,
+        "std": -0.696415254447708,
+        "stdRounded": -0.6964
+      },
+      {
+        "response": "Date",
+        "predictor": "DD",
+        "est": -0.467369846601512,
+        "se": 0.0195020391033708,
+        "df": 1412.62375840239,
+        "stat": 571.280007357304,
+        "p": 2.62783487239843e-106,
+        "std": -0.589919875027243,
+        "stdRounded": -0.5899
+      },
+      {
+        "response": "Growth",
+        "predictor": "Date",
+        "est": 0.135705346986373,
+        "se": 0.0263051272268518,
+        "df": 1345.78502593257,
+        "stat": 26.3879132327563,
+        "p": 3.20370241822273e-07,
+        "std": 0.172578073064555,
+        "stdRounded": 0.1726
+      },
+      {
+        "response": "Live",
+        "predictor": "Growth",
+        "est": 0.327848470557286,
+        "se": 0.0414544320784036,
+        "df": 1431,
+        "stat": 7.90864701601074,
+        "p": 2.60201237896232e-15,
+        "std": 0.761738133008423,
+        "stdRounded": 0.7617
+      }
+    ],
+    "r2": [
+      {
+        "Response": "DD",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "Marginal": 0.487723086559698,
+        "Conditional": 0.678410071169215
+      },
+      {
+        "Response": "Date",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "Marginal": 0.36790062394442,
+        "Conditional": 0.703363657361533
+      },
+      {
+        "Response": "Growth",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "Marginal": 0.0301479043648887,
+        "Conditional": 0.347990685543191
+      },
+      {
+        "Response": "Live",
+        "family": "binomial",
+        "link": "logit",
+        "method": "theoretical",
+        "Marginal": 0.563255020092961,
+        "Conditional": 0.579327785192538
+      }
+    ]
+  },
+  "binomialLT": {
+    "claims": [
+      {
+        "claim": "Date ~ lat + DD",
+        "df": 1428,
+        "stat": -0.69753750827054,
+        "p": 0.485580025043931
+      },
+      {
+        "claim": "Growth ~ lat + Date",
+        "df": 1428,
+        "stat": -2.32080944864879,
+        "p": 0.0204373821937707
+      },
+      {
+        "claim": "Live ~ lat + Growth",
+        "df": 1428,
+        "stat": 0.933311882727866,
+        "p": 0.350658961666538
+      },
+      {
+        "claim": "Growth ~ DD + lat + Date",
+        "df": 1427,
+        "stat": 5.17646481402107,
+        "p": 2.58401330530365e-07
+      },
+      {
+        "claim": "Live ~ DD + lat + Growth",
+        "df": 1427,
+        "stat": 0.944587338213649,
+        "p": 0.344869593751713
+      },
+      {
+        "claim": "Live ~ Date + DD + Growth",
+        "df": 1427,
+        "stat": -1.56933337427555,
+        "p": 0.116570279630089
+      }
+    ],
+    "fisherC": 48.0866873679357,
+    "fisherRounded": {
+      "Fisher.C": 48.087,
+      "df": 12,
+      "P.Value": 0
+    },
+    "aic": 28580.380724885,
+    "aicc": 28580.4395837474,
+    "aicRounded": {
+      "AIC": 28580.381,
+      "AICc": 28580.44,
+      "K": 11,
+      "n": 1431
+    },
+    "coefs": [
+      {
+        "response": "DD",
+        "predictor": "lat",
+        "est": -0.860098749316063,
+        "se": 0.0226957933212509,
+        "df": 1429,
+        "stat": -37.8968356444593,
+        "p": 4.07917591214968e-218,
+        "std": -0.707991003538529,
+        "stdRounded": -0.708
+      },
+      {
+        "response": "Date",
+        "predictor": "DD",
+        "est": -0.516517273484474,
+        "se": 0.0158916383058884,
+        "df": 1429,
+        "stat": -32.5024559169011,
+        "p": 5.86668792948062e-174,
+        "std": -0.651954351867226,
+        "stdRounded": -0.652
+      },
+      {
+        "response": "Growth",
+        "predictor": "Date",
+        "est": 0.172546989959119,
+        "se": 0.0202945578236055,
+        "df": 1429,
+        "stat": 8.50213103723908,
+        "p": 4.61957241322969e-17,
+        "std": 0.219430020271966,
+        "stdRounded": 0.2194
+      },
+      {
+        "response": "Live",
+        "predictor": "Growth",
+        "est": 0.319498107780031,
+        "se": 0.038414360388785,
+        "df": 1429,
+        "stat": 8.3171528706048,
+        "p": 9.01015083017649e-17,
+        "std": 0.748185944910574,
+        "stdRounded": 0.7482
+      }
+    ],
+    "r2": [
+      {
+        "Response": "DD",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.501251261091515
+      },
+      {
+        "Response": "Date",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.425044476918614
+      },
+      {
+        "Response": "Growth",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.0481495337965555
+      },
+      {
+        "Response": "Live",
+        "family": "binomial",
+        "link": "logit",
+        "method": "nagelkerke",
+        "R.squared": 0.317462677629849
+      }
+    ]
+  },
+  "binomialOE": {
+    "claims": [
+      {
+        "claim": "Date ~ lat + DD",
+        "df": 1428,
+        "stat": -0.69753750827054,
+        "p": 0.485580025043931
+      },
+      {
+        "claim": "Growth ~ lat + Date",
+        "df": 1428,
+        "stat": -2.32080944864879,
+        "p": 0.0204373821937707
+      },
+      {
+        "claim": "Live ~ lat + Growth",
+        "df": 1428,
+        "stat": 0.933311882727866,
+        "p": 0.350658961666538
+      },
+      {
+        "claim": "Growth ~ DD + lat + Date",
+        "df": 1427,
+        "stat": 5.17646481402107,
+        "p": 2.58401330530365e-07
+      },
+      {
+        "claim": "Live ~ DD + lat + Growth",
+        "df": 1427,
+        "stat": 0.944587338213649,
+        "p": 0.344869593751713
+      },
+      {
+        "claim": "Live ~ Date + DD + Growth",
+        "df": 1427,
+        "stat": -1.56933337427555,
+        "p": 0.116570279630089
+      }
+    ],
+    "fisherC": 48.0866873679357,
+    "fisherRounded": {
+      "Fisher.C": 48.087,
+      "df": 12,
+      "P.Value": 0
+    },
+    "aic": 28580.380724885,
+    "aicc": 28580.4395837474,
+    "aicRounded": {
+      "AIC": 28580.381,
+      "AICc": 28580.44,
+      "K": 11,
+      "n": 1431
+    },
+    "coefs": [
+      {
+        "response": "DD",
+        "predictor": "lat",
+        "est": -0.860098749316063,
+        "se": 0.0226957933212509,
+        "df": 1429,
+        "stat": -37.8968356444593,
+        "p": 4.07917591214968e-218,
+        "std": -0.707991003538529,
+        "stdRounded": -0.708
+      },
+      {
+        "response": "Date",
+        "predictor": "DD",
+        "est": -0.516517273484474,
+        "se": 0.0158916383058884,
+        "df": 1429,
+        "stat": -32.5024559169011,
+        "p": 5.86668792948062e-174,
+        "std": -0.651954351867226,
+        "stdRounded": -0.652
+      },
+      {
+        "response": "Growth",
+        "predictor": "Date",
+        "est": 0.172546989959119,
+        "se": 0.0202945578236055,
+        "df": 1429,
+        "stat": 8.50213103723908,
+        "p": 4.61957241322969e-17,
+        "std": 0.219430020271966,
+        "stdRounded": 0.2194
+      },
+      {
+        "response": "Live",
+        "predictor": "Growth",
+        "est": 0.319498107780031,
+        "se": 0.038414360388785,
+        "df": 1429,
+        "stat": 8.3171528706048,
+        "p": 9.01015083017649e-17,
+        "std": 0.426909748502231,
+        "stdRounded": 0.4269
+      }
+    ],
+    "r2": [
+      {
+        "Response": "DD",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.501251261091515
+      },
+      {
+        "Response": "Date",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.425044476918614
+      },
+      {
+        "Response": "Growth",
+        "family": "gaussian",
+        "link": "identity",
+        "method": "none",
+        "R.squared": 0.0481495337965555
+      },
+      {
+        "Response": "Live",
+        "family": "binomial",
+        "link": "logit",
+        "method": "nagelkerke",
+        "R.squared": 0.317462677629849
+      }
+    ]
+  }
+}

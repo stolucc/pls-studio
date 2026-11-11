@@ -53,6 +53,7 @@ nonnest2
 optimx
 optmatch
 pbivnorm
+piecewiseSEM
 plspm
 plssem
 poLCA
