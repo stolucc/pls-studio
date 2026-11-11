@@ -391,6 +391,7 @@ Two of them run in the browser in a build patched by PLS Studio so that they loa
 | Package | Version | Licence | Source |
 |---|---|---|---|
 | @xyflow/react | 12.12.0 | MIT | https://github.com/xyflow/xyflow |
+| docx | 9.15.0 | MIT | https://github.com/dolanmiu/docx |
 | jspdf | 4.2.1 | MIT | https://github.com/parallax/jsPDF |
 | react | 19.3.1 | MIT | https://github.com/react/react |
 | react-dom | 19.3.1 | MIT | https://github.com/react/react |

@@ -12,6 +12,12 @@
    "url": "https://github.com/xyflow/xyflow"
   },
   {
+   "name": "docx",
+   "version": "9.15.0",
+   "license": "MIT",
+   "url": "https://github.com/dolanmiu/docx"
+  },
+  {
    "name": "jspdf",
    "version": "4.2.1",
    "license": "MIT",

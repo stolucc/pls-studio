@@ -35,7 +35,7 @@ import {
   engineTags,
   softwareTable,
 } from './build';
-import { reportDocx, xmlText } from './docx';
+import { reportDocx, wordText } from './docx';
 import { extractBlocks } from './extract';
 import { reportHtml } from './html';
 import { DEFAULT_REPORT_OPTIONS } from './options';
@@ -289,52 +289,76 @@ describe('HTML report', () => {
 describe('Word report', () => {
   let dir = '';
   let xml = '';
+  let body: Document;
+  /** The text of an element (all its w:t descendants). */
+  const textOf = (el: Element) =>
+    [...el.getElementsByTagName('w:t')].map((t) => t.textContent).join('');
+  /** The paragraph style of a w:p. */
+  const styleOf = (p: Element) =>
+    p.getElementsByTagName('w:pStyle')[0]?.getAttribute('w:val') ?? '';
   beforeAll(async () => {
-    const blob = await reportDocx(doc, async () => PNG, WHEN);
+    const blob = await reportDocx(doc, async () => PNG);
     dir = mkdtempSync(join(tmpdir(), 'report-docx-'));
     const file = join(dir, 'report.docx');
     writeFileSync(file, Buffer.from(await blob.arrayBuffer()));
     expect(execFileSync('unzip', ['-t', file]).toString()).toContain('No errors detected');
     execFileSync('unzip', ['-q', file, '-d', dir]);
     xml = readFileSync(join(dir, 'word', 'document.xml'), 'utf8');
+    body = new DOMParser().parseFromString(xml, 'application/xml');
   });
 
   it('is a WordprocessingML package with styles, properties and the figure', () => {
     const types = readFileSync(join(dir, '[Content_Types].xml'), 'utf8');
     expect(types).toContain('wordprocessingml.document.main+xml');
-    expect(readFileSync(join(dir, 'word', 'styles.xml'), 'utf8')).toContain('w:styleId="Heading2"');
+    const styles = readFileSync(join(dir, 'word', 'styles.xml'), 'utf8');
+    expect(styles).toContain('w:styleId="Heading2"');
+    expect(styles).toContain('w:styleId="Caption"');
     expect(readFileSync(join(dir, 'docProps', 'core.xml'), 'utf8')).toContain(
-      '<dc:title>Loyalty &lt;study&gt;</dc:title>',
+      'Loyalty &lt;study&gt;',
     );
-    const rels = readFileSync(join(dir, 'word', '_rels', 'document.xml.rels'), 'utf8');
-    expect(rels).toContain('Target="media/image1.png"');
-    expect(readFileSync(join(dir, 'word', 'media', 'image1.png'))).toEqual(Buffer.from(PNG));
+    const media = execFileSync('ls', [join(dir, 'word', 'media')])
+      .toString()
+      .trim()
+      .split('\n');
+    expect(media).toHaveLength(1);
+    expect(readFileSync(join(dir, 'word', 'media', media[0]))).toEqual(Buffer.from(PNG));
   });
 
-  it('has every table as a real Word table with a header row and its caption', () => {
-    const tables = doc.blocks.filter((b) => b.kind === 'table');
-    expect(xml.match(/<w:tbl>/g)?.length).toBe(tables.length);
-    expect(xml.match(/<w:tblHeader\/>/g)?.length).toBe(tables.length);
-    const software = tables.find((t) => t.kind === 'table' && t.title === 'Software')!;
-    expect(xml).toContain('<w:tblCaption w:val="Software"/>');
-    if (software.kind === 'table') {
-      for (const col of software.columns) expect(xml).toContain(`>${col}</w:t>`);
+  it('has every table as a real Word table with a header row and its caption above', () => {
+    const tables = doc.blocks.filter((b): b is TableBlock => b.kind === 'table');
+    const wordTables = [...body.getElementsByTagName('w:tbl')];
+    expect(wordTables).toHaveLength(tables.length);
+    for (const [k, t] of tables.entries()) {
+      const table = wordTables[k];
+      const firstRow = table.getElementsByTagName('w:tr')[0];
+      if (t.columns.length) {
+        expect(firstRow.getElementsByTagName('w:tblHeader')).toHaveLength(1);
+        expect(textOf(firstRow)).toBe(t.columns.join(''));
+      }
+      const caption = table.previousElementSibling!;
+      if (t.title) {
+        expect(styleOf(caption)).toBe('Caption');
+        expect(textOf(caption)).toBe(t.title);
+      }
     }
-    const paths = tables.find((t) => t.kind === 'table' && /path coefficients/i.test(t.title));
-    expect(paths && paths.kind === 'table' && xml.includes(paths.rows[0][1].text)).toBe(true);
+    const paths = tables.find((t) => /path coefficients/i.test(t.title));
+    expect(paths && xml.includes(paths.rows[0][1].text)).toBe(true);
   });
 
   it('uses heading styles, alt text on figures and keeps the note’s line break', () => {
-    expect(xml).toContain('<w:pStyle w:val="Title"/>');
-    expect(xml).toContain('<w:pStyle w:val="Heading2"/>');
-    expect(xml).toMatch(/<wp:docPr id="1" name="Figure 1" descr="[^"]+"\/>/);
-    expect(xml).toContain('Two outliers were</w:t><w:br/><w:t xml:space="preserve">kept.');
+    const paragraphs = [...body.getElementsByTagName('w:p')];
+    expect(styleOf(paragraphs[0])).toBe('Title');
+    expect(paragraphs.some((p) => styleOf(p) === 'Heading2')).toBe(true);
+    const docPr = body.getElementsByTagName('wp:docPr')[0];
+    expect(docPr.getAttribute('descr')).toBeTruthy();
+    expect(docPr.getAttribute('name')).toBe('Figure 1');
+    const note = paragraphs.find((p) => textOf(p).startsWith('Two outliers were'))!;
+    expect(note.getElementsByTagName('w:br')).toHaveLength(1);
     expect(xml).toContain('Descriptive &lt;checks&gt;');
   });
 
   it('is well-formed XML', () => {
-    const parsed = new DOMParser().parseFromString(xml, 'application/xml');
-    expect(parsed.getElementsByTagName('parsererror')).toHaveLength(0);
+    expect(body.getElementsByTagName('parsererror')).toHaveLength(0);
     try {
       execFileSync('xmllint', ['--noout', join(dir, 'word', 'document.xml')]);
     } catch (e) {
@@ -427,10 +451,22 @@ describe('report pieces', () => {
     expect(numericColumns(t)).toEqual([false, true, false, false]);
   });
 
-  it('escapes text for Word and drops characters XML cannot hold', () => {
-    expect(xmlText('a\u0001b & <c> "d"\tö\u{1F600}')).toBe(
-      'ab &amp; &lt;c&gt; &quot;d&quot;\tö\u{1F600}',
-    );
+  it('drops characters a Word document cannot hold, keeping the rest for the library to escape', async () => {
+    expect(wordText('a\u0001b & <c> "d"\tö\u{1F600}')).toBe('ab & <c> "d"\tö\u{1F600}');
+    const odd: ReportDoc = {
+      title: 'T',
+      date: 'D',
+      blocks: [{ kind: 'paragraph', text: 'x\u0001y <&> z' }],
+    };
+    const blob = await reportDocx(odd, async () => PNG);
+    const dir = mkdtempSync(join(tmpdir(), 'report-docx-odd-'));
+    writeFileSync(join(dir, 'r.docx'), Buffer.from(await blob.arrayBuffer()));
+    execFileSync('unzip', ['-q', join(dir, 'r.docx'), '-d', dir]);
+    const xml = readFileSync(join(dir, 'word', 'document.xml'), 'utf8');
+    expect(
+      new DOMParser().parseFromString(xml, 'application/xml').getElementsByTagName('parsererror'),
+    ).toHaveLength(0);
+    expect(xml).toContain('xy &lt;&amp;&gt; z');
   });
 
   it('sanitises inline SVG: no scripts, handlers, foreign content or outside links; ids per figure', () => {
