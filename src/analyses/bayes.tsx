@@ -71,25 +71,23 @@ export function evidence(bf10: number): string {
     side = bf10 >= 1 ? 'for H1' : 'for H0';
   if (!Number.isFinite(b)) return `extreme ${side}`;
   if (b < 1.0001) return 'none';
-  const word =
-    b < 3
-      ? 'anecdotal'
-      : b < 10
-        ? 'moderate'
-        : b < 30
-          ? 'strong'
-          : b < 100
-            ? 'very strong'
-            : 'extreme';
+  let word = 'extreme';
+  if (b < 3) word = 'anecdotal';
+  else if (b < 10) word = 'moderate';
+  else if (b < 30) word = 'strong';
+  else if (b < 100) word = 'very strong';
   return `${word} ${side}`;
 }
-const bfName = (alt: Alternative) =>
-  alt === 'two.sided' ? 'BF₁₀' : alt === 'greater' ? 'BF₊₀' : 'BF₋₀';
+const bfName = (alt: Alternative) => {
+  if (alt === 'two.sided') return 'BF₁₀';
+  return alt === 'greater' ? 'BF₊₀' : 'BF₋₀';
+};
 const bfCells = (bf10: number): Row => [c(fmtBF(bf10)), c(fmtBF(1 / bf10)), c(evidence(bf10))];
-const altHint = (o: { alternative: Alternative }, what: string) =>
-  o.alternative === 'two.sided'
-    ? `H1: ${what} differs from zero.`
-    : `H1 is one-sided: ${what} ${o.alternative === 'greater' ? 'positive' : 'negative'} (the prior restricted to that side).`;
+const altHint = (o: { alternative: Alternative }, what: string) => {
+  if (o.alternative === 'two.sided') return `H1: ${what} differs from zero.`;
+  const side = o.alternative === 'greater' ? 'positive' : 'negative';
+  return `H1 is one-sided: ${what} ${side} (the prior restricted to that side).`;
+};
 const ALTS: readonly (readonly [Alternative, string])[] = [
   ['two.sided', 'Two-sided'],
   ['greater', 'Positive'],
@@ -324,6 +322,13 @@ const T_NAME = {
   independent: 'Bayesian independent-samples t-test',
 } as const;
 
+/** The effect H1 is about, for each kind of t-test. */
+const BT_EFFECT: Record<BTTestOptions['type'], string> = {
+  independent: 'the effect (first group minus second)',
+  paired: 'the effect (first minus second)',
+  one: 'the effect (mean minus test value)',
+};
+
 function BTTestForm({ options: o, set, ctx, disabled }: OptionsProps<BTTestOptions>) {
   const d = rawData(ctx);
   if (!d) return <NoData />;
@@ -416,14 +421,7 @@ function BTTestForm({ options: o, set, ctx, disabled }: OptionsProps<BTTestOptio
         value={o.alternative}
         onChange={(alternative) => set({ ...o, alternative })}
         options={ALTS}
-        hint={altHint(
-          o,
-          o.type === 'independent'
-            ? 'the effect (first group minus second)'
-            : o.type === 'paired'
-              ? 'the effect (first minus second)'
-              : 'the effect (mean minus test value)',
-        )}
+        hint={altHint(o, BT_EFFECT[o.type])}
       />
       <PriorWidth
         label="Cauchy prior width (r)"
@@ -577,8 +575,14 @@ export const bayesTtestAnalysis: AnalysisType<BTTestOptions, BTTestResult> = {
     ]),
   run: async (o, ctx) => (await engine()).bttestR(rawData(ctx)!, btInput(o, ctx)),
   script: async (o, ctx) => (await engine()).bttestScriptR(rawData(ctx)!, btInput(o, ctx)),
-  summary: (o) =>
-    `${T_NAME[o.type].toLowerCase()} · ${o.type === 'paired' ? o.pairs.map((p) => p.join(' − ')).join(', ') || '…' : o.vars.join(', ') || '…'}${o.type === 'independent' ? ` by ${o.group || '…'}` : ''} · r = ${fmt(o.priorWidth)}`,
+  summary: (o) => {
+    const variables =
+      o.type === 'paired'
+        ? o.pairs.map((p) => p.join(' − ')).join(', ') || '…'
+        : o.vars.join(', ') || '…';
+    const byGroup = o.type === 'independent' ? ` by ${o.group || '…'}` : '';
+    return `${T_NAME[o.type].toLowerCase()} · ${variables}${byGroup} · r = ${fmt(o.priorWidth)}`;
+  },
 };
 
 // ---------------------------------------------------------------- correlation
@@ -883,7 +887,7 @@ export const bayesBinomialAnalysis: AnalysisType<BBinomialOptions, BBinomialResu
           'Count',
           'Total',
           'Proportion',
-          r.alternative === 'two.sided' ? 'BF₁₀' : r.alternative === 'greater' ? 'BF₊₀' : 'BF₋₀',
+          bfName(r.alternative),
           'BF₀₁',
           'Evidence',
           'Posterior median',
@@ -1248,16 +1252,12 @@ export const bayesContingencyAnalysis: AnalysisType<BContingencyOptions, BContin
       />
     </div>
   ),
-  blocked: (o, ctx) =>
-    !o.rows || !o.columns
-      ? 'Choose the row and the column variables.'
-      : o.rows === o.columns
-        ? 'Choose two different variables.'
-        : missingColumns(
-            ctx,
-            [o.rows, o.columns, o.counts].filter(Boolean),
-            'Bayesian contingency table',
-          ),
+  blocked: (o, ctx) => {
+    if (!o.rows || !o.columns) return 'Choose the row and the column variables.';
+    if (o.rows === o.columns) return 'Choose two different variables.';
+    const columns = [o.rows, o.columns, o.counts].filter(Boolean);
+    return missingColumns(ctx, columns, 'Bayesian contingency table');
+  },
   fingerprint: (o, ctx) =>
     columnsFingerprint(ctx, [o.rows, o.columns, o.counts].filter(Boolean), [
       o.rows,
