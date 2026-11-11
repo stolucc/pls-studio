@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { congruenceLabel, congruenceMatches, constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, switchAnalysis, toggleVariables } from './efa';
+import { schmidUnavailable, congruenceLabel, congruenceMatches, constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, switchAnalysis, toggleVariables } from './efa';
 
 describe('EFA design from a project file', () => {
   it('keeps valid values and replaces invalid ones', () => {
@@ -132,5 +132,22 @@ describe('Tucker congruence (Lorenzo-Seva & ten Berge 2006)', () => {
     expect(parseEfaDesign({ ...base, compare: { method: 'ml', rotation: 'evil()' } })?.compare).toBeUndefined();
     expect(parseEfaDesign({ ...base, compare: 'ml' })?.compare).toBeUndefined();
     expect('compare' in parseEfaDesign(base)!).toBe(false);
+  });
+});
+
+describe('Schmid–Leiman availability', () => {
+  it('needs a psych factor extraction and an oblique psych rotation', () => {
+    expect(schmidUnavailable({ method: 'minres', rotation: 'oblimin' })).toBeNull();
+    expect(schmidUnavailable({ method: 'pa', rotation: 'promax' })).toBeNull();
+    expect(schmidUnavailable({ method: 'ml', rotation: 'geominQ' })).toBeNull();
+    expect(schmidUnavailable({ method: 'pca', rotation: 'oblimin' })).toContain('psych factor extraction');
+    expect(schmidUnavailable({ method: 'lavaan', rotation: 'oblimin' })).toContain('psych factor extraction');
+    expect(schmidUnavailable({ method: 'minres', rotation: 'varimax' })).toContain('oblique rotation');
+    expect(schmidUnavailable({ method: 'minres', rotation: 'bigeomin' })).toContain('oblique rotation');
+  });
+
+  it('is kept from a project file only as true', () => {
+    expect(parseEfaDesign({ vars: [], schmid: true })?.schmid).toBe(true);
+    expect('schmid' in parseEfaDesign({ vars: [], schmid: 'yes' })!).toBe(false);
   });
 });

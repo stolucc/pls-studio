@@ -38,6 +38,12 @@ describe('factor analysis / PCA card', () => {
     const compare = { method: 'ml' as const, rotation: 'varimax' as const };
     expect(t.blocked({ ...d, compare }, ctx())).toBeNull();
     expect(t.blocked({ ...d, method: 'lavaan', compare }, ctx())).toContain('congruence comparison needs a psych extraction');
+    // Schmid–Leiman: an oblique psych factor solution with three or more factors.
+    const five = { ...d, vars: ['a', 'b', 'c', 'd', 'e'], schmid: true as const };
+    expect(t.blocked({ ...five, nfactors: 3 }, ctx())).toBeNull();
+    expect(t.blocked({ ...five, nfactors: 2 }, ctx())).toContain('at least three factors');
+    expect(t.blocked({ ...five, nfactors: 3, rotation: 'varimax' }, ctx())).toContain('oblique rotation');
+    expect(t.blocked({ ...five, criterion: 'parallel', parallel: 10 }, ctx())).toBeNull();
   });
 
   it('changing the display threshold does not make the result stale', () => {

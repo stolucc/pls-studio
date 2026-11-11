@@ -56,6 +56,22 @@ export interface EfaDesign {
    * coefficients (psych::factor.congruence): a psych extraction and rotation. Absent: no comparison.
    */
   compare?: EfaComparison;
+  /**
+   * Second-order factor analysis by the Schmid–Leiman transformation, with ω hierarchical and total
+   * (psych::omega): for a psych factor extraction, an oblique rotation and three or more factors.
+   */
+  schmid?: true;
+}
+
+/** Whether the design can have the Schmid–Leiman solution: null, or why not (the number of factors aside). */
+export function schmidUnavailable(d: Pick<EfaDesign, 'method' | 'rotation'>): string | null {
+  if (d.method === 'pca' || d.method === 'lavaan') {
+    return 'The Schmid–Leiman solution needs a psych factor extraction (minimum residual, maximum likelihood or principal axis).';
+  }
+  if (!['oblimin', 'promax', 'geominQ'].includes(d.rotation)) {
+    return 'The Schmid–Leiman solution needs an oblique rotation (oblimin, promax or geomin).';
+  }
+  return null;
 }
 
 /** The second solution of a congruence comparison: a psych extraction (not lavaan's) and a non-bifactor rotation. */
@@ -90,6 +106,7 @@ export function parseEfaDesign(v: unknown): EfaDesign | undefined {
     ...(r.mimic === 'Mplus' ? { mimic: 'Mplus' as const } : {}),
     ...(typeof r.from === 'number' && Number.isFinite(r.from) && r.from >= 1 ? { from: Math.min(100, Math.round(r.from)) } : {}),
     ...parseComparison(r.compare),
+    ...(r.schmid === true ? { schmid: true as const } : {}),
   };
 }
 

@@ -66,6 +66,14 @@ ps_efa <- function(req_json, export = FALSE) {
   if (rotation %in% c("bigeomin", "biquartimin") && (from < 2 || (criterion == "fixed" && k < 2))) stop("A bifactor rotation needs at least two factors (a general and a specific one): compare fit from 2.")
   fm <- if (pca) "minres" else if (lav) "ml" else method
   compare <- ps_efa_compare(req$compare, lav, carg)
+  schmid <- isTRUE(req$schmid)
+  if (schmid && !(method %in% c("minres", "ml", "pa"))) {
+    stop("The Schmid-Leiman solution needs a psych factor extraction (minimum residual, maximum likelihood or principal axis).")
+  }
+  if (schmid && !(rotation %in% c("oblimin", "promax", "geominQ"))) {
+    stop("The Schmid-Leiman solution needs an oblique rotation (oblimin, promax or geomin).")
+  }
+  if (schmid && criterion == "fixed" && k < 3) stop("The Schmid-Leiman solution needs at least three factors.")
   unit <- if (pca) "components" else "factors"
   # k is set in the script: the given number, or what the criterion retains (at least 1, fewer than the variables).
   kline <- switch(criterion,
@@ -111,11 +119,12 @@ ps_efa <- function(req_json, export = FALSE) {
       sprintf("comparison <- t(sapply(fits, fitMeasures, %s))", if (poly) "c(\"npar\", \"chisq.scaled\", \"df.scaled\", \"pvalue.scaled\")" else "c(\"npar\", \"logl\", \"chisq\", \"df\", \"pvalue\", \"aic\", \"bic\")"))
     else sprintf("fit <- %s", call),
     compare$lines,
+    if (schmid) ps_efa_schmid_lines(fm, rotation),
     if (lav) "summary(fit)" else "print(fit, sort = TRUE)")
   inputs <- list(data = fr$data)
   if (export) return(ps_script(sprintf("%s: %s, %s rotation", PS_EFA_METHODS[[method]], what, rotation),
     c("psych", "GPArotation", if (lav) "lavaan"), inputs, body, c("kmo", "bartlett", if (iter > 0) "parallel", if (lav) c("comparison", "std") else "fit",
-      if (!is.null(compare)) "congruence")))
+      if (!is.null(compare)) "congruence", if (schmid) "sl")))
   env <- ps_run(body[-length(body)], inputs)
   if (lav) return(ps_efa_lavaan(env, fr$back, method, rotation, criterion, correlation, poly, iter, pca))
   fit <- env$fit
@@ -149,6 +158,7 @@ ps_efa <- function(req_json, export = FALSE) {
     map = list(values = unname(env$map), suggested = which.min(env$map)),
     kaiser = sum(env$eigenvalues > 1),
     congruence = if (is.null(compare)) NULL else ps_efa_congruence(env, compare),
+    schmid = if (schmid) ps_efa_schmid(env$sl, rownames(L), back) else NULL,
     fit = if (pca) list(offDiagonal = stat(fit$fit.off)) else list(
       chisq = stat(fit$STATISTIC), df = stat(fit$dof), p = stat(fit$PVAL), rmsea = stat(fit$RMSEA), rmseaLow = stat(fit$RMSEA[2]), rmseaHigh = stat(fit$RMSEA[3]),
       tli = stat(fit$TLI), bic = stat(fit$BIC), rms = stat(fit$rms)),
@@ -245,4 +255,47 @@ ps_efa_congruence <- function(env, compare) {
     factors = colnames(L2),
     coefficients = unname(env$congruence),
     loadings = unname(L2))
+}
+
+# Second-order factor analysis by the Schmid-Leiman transformation (psych::omega, which calls psych::schmid):
+# the oblique solution's factor correlations are factored by one general (second-order) factor, and the
+# general and group factors are then made orthogonal. omega also gives omega hierarchical and total, and the
+# explained common variance. It needs three or more factors (with two the general factor is not identified).
+ps_efa_schmid_lines <- function(fm, rotation) {
+  c("# Schmid-Leiman: one general factor behind the factors, then general and group factors made orthogonal;",
+    "# omega hierarchical / total and the explained common variance (psych::omega; three or more factors).",
+    sprintf("sl <- if (k >= 3) omega(R, nfactors = k, fm = \"%s\", rotate = \"%s\", n.obs = n, plot = FALSE) else NULL",
+      fm, rotation))
+}
+
+# The Schmid-Leiman results (NULL when the number of factors retained is below three): the second-order
+# loadings, the orthogonalised loadings of the variables (in the solution's variable order), the explained
+# common variance, the omegas, the omegas of each group factor, and the items omega reversed (key -1).
+ps_efa_schmid <- function(om, variables, back) {
+  if (is.null(om)) return(list(available = FALSE))
+  S <- om$schmid$sl
+  # (omega marks the items it reversed with a trailing "-")
+  rownames(S) <- sub("-$", "", rownames(S))
+  S <- S[variables, , drop = FALSE]
+  groups <- grep("\\*$", colnames(S), value = TRUE)
+  og <- om$omega.group
+  list(
+    available = TRUE,
+    firstOrder = colnames(om$schmid$oblique),
+    secondOrder = unname(as.numeric(om$schmid$gloading)),
+    groups = groups,
+    general = unname(S[, "g"]),
+    group = unname(S[, groups, drop = FALSE]),
+    h2 = unname(S[, "h2"]),
+    u2 = unname(S[, "u2"]),
+    p2 = unname(S[, "p2"]),
+    ecv = unname(om$ECV[1]),
+    omegaH = om$omega_h,
+    omegaTotal = om$omega.tot,
+    omegaLimit = om$omega.lim,
+    alpha = om$alpha,
+    omegaGroup = lapply(rownames(og), function(nm) {
+      list(name = nm, total = og[nm, "total"], general = og[nm, "general"], group = og[nm, "group"])
+    }),
+    reversed = I(ps_back(names(om$key)[om$key < 0], back, FALSE)))
 }

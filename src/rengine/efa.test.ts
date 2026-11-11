@@ -69,3 +69,37 @@ describe('EFA result', () => {
     expect([r.se, r.comparison, r.estimator]).toEqual([undefined, undefined, undefined]);
   });
 });
+
+describe('EFA Schmid–Leiman solution', () => {
+  const base = {
+    method: 'minres', rotation: 'oblimin', oblique: true, n: 3, k: 3,
+    variables: ['a', 'b', 'c'], factors: ['MR1', 'MR2', 'MR3'], loadings: [[0.7, 0, 0], [0, 0.6, 0], [0, 0, 0.8]],
+    fit: {}, engine: { package: 'psych', version: '2.6.9' },
+  };
+
+  it('is asked for only when chosen', () => {
+    expect(efaRequest(data, { ...DEFAULT_EFA, vars: ['a', 'b', 'c'], schmid: true }, 1)).toMatchObject({ schmid: true });
+    expect('schmid' in efaRequest(data, DEFAULT_EFA, 1)).toBe(false);
+  });
+
+  it('reads the second-order loadings, the orthogonal loadings and the omegas', () => {
+    const r = parseEfa({
+      ...base,
+      schmid: {
+        available: true, firstOrder: ['F1', 'F2', 'F3'], secondOrder: [0.8, 0.7, 0.6], groups: ['F1*', 'F2*', 'F3*'],
+        general: [0.5, 0.4, 0.45], group: [[0.5, 0, 0], [0, 0.4, 0], [0, 0, 0.6]],
+        h2: [0.5, 0.32, 0.5625], u2: [0.5, 0.68, 0.4375], p2: [0.5, 0.5, 0.36],
+        ecv: 0.6, omegaH: 0.55, omegaTotal: 0.8, omegaLimit: 0.7, alpha: 0.75,
+        omegaGroup: [{ name: 'g', total: 0.8, general: 0.55, group: 0.25 }],
+        reversed: ['b'],
+      },
+    });
+    const sl = r.schmid;
+    if (!sl?.available) throw new Error('expected a solution');
+    expect(sl.group[2]).toEqual([0, 0, 0.6]);
+    expect(sl.omegaGroup[0]).toEqual({ name: 'g', total: 0.8, general: 0.55, group: 0.25 });
+    expect(sl.reversed).toEqual(['b']);
+    expect(parseEfa({ ...base, schmid: { available: false } }).schmid).toEqual({ available: false });
+    expect(parseEfa(base).schmid).toBeUndefined();
+  });
+});

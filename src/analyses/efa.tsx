@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { fmt } from '../format';
-import { congruenceLabel, congruenceMatches, constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_CRITERIA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, parseEfaDesign, POLYCHORIC_PARALLEL, switchAnalysis, type EfaComparison, type EfaDesign } from '../model/efa';
+import { congruenceLabel, congruenceMatches, constructsFromSolution, crossLoadings, DEFAULT_EFA, EFA_CRITERIA, EFA_METHODS, EFA_ROTATIONS, kmoLabel, loadingOrder, parseEfaDesign, POLYCHORIC_PARALLEL, schmidUnavailable, switchAnalysis, type EfaComparison, type EfaDesign } from '../model/efa';
 import type { EfaResult } from '../rengine/efa';
 import { useStore } from '../store';
 import { ChartFrame } from '../components/ChartFrame';
@@ -14,7 +14,7 @@ import { columnsFingerprint, missingColumns, rawData } from './common';
 import type { AnalysisType, OptionsProps } from './types';
 
 export type EfaPreset = Partial<EfaDesign>;
-type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'correlations' | 'variance' | 'fit' | 'congruence';
+type EfaTab = 'suitability' | 'number' | 'loadings' | 'cross' | 'correlations' | 'variance' | 'fit' | 'congruence' | 'schmid';
 
 /** Scree plot: eigenvalues, with parallel analysis's simulated ones and the eigenvalue-1 line. */
 function Scree({ r }: { r: EfaResult }) {
@@ -57,7 +57,8 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
   const cross = crossLoadings(r.loadings, threshold);
   const clean = cross.filter((x) => x.flags.length === 0).length;
   const tabs: [EfaTab, string][] = [['suitability', 'Suitability'], ['number', `Number of ${unit}s`], ['loadings', 'Loadings'], ['cross', 'Cross-loadings'], ['correlations', 'Correlations'], ['variance', pca ? 'Components' : 'Factors'], ...(pca ? [] : [['fit', 'Fit'] as [EfaTab, string]]),
-    ...(r.congruence ? [['congruence', 'Congruence'] as [EfaTab, string]] : [])];
+    ...(r.congruence ? [['congruence', 'Congruence'] as [EfaTab, string]] : []),
+    ...(r.schmid ? [['schmid', 'Second order'] as [EfaTab, string]] : [])];
   const shown = tabs.some(([id]) => id === tab) ? tab : 'loadings';
   const flagText = { 'cross-loads': `cross-loads (≥ ${threshold})`, weak: 'weak (< .40)', close: 'close (gap < .20)' };
   return (
@@ -159,6 +160,7 @@ function EfaView({ r, threshold }: { r: EfaResult; threshold: number }) {
             note={`Likelihood-ratio test of the ${r.k}-factor model against the saturated one (psych; n = ${r.n}). RMSEA ≤ .06 and TLI ≥ .95 suggest good fit (Hu & Bentler 1999). χ² rejects easily in large samples.`} />
         )}
         {shown === 'congruence' && r.congruence && <CongruenceTables r={r} unit={unit} />}
+        {shown === 'schmid' && r.schmid && <SchmidTables r={r} />}
         <div className="hint">{r.engine.package === 'lavaan'
           ? `Solution calculated by lavaan ${r.engine.version} (efa(), ${r.estimator ?? 'ML'}, rotation with random starts); suitability and the number of factors by psych.`
           : `Calculated by psych ${r.engine.version} (Revelle)${r.rotation !== 'none' && r.oblique ? ' with GPArotation' : ''}.`}</div>
@@ -228,6 +230,69 @@ export function CongruenceTables({ r, unit }: { r: EfaResult; unit: string }) {
           + 'bold: ≥ .95. It compares the pattern of the loadings, not their size, and is not a significance test.'} />
       <Table title={`Loadings of the second solution: ${second}`} file="efa-congruence-loadings"
         columns={['Variable', ...cg.factors]} rows={loadingRows} />
+    </>
+  );
+}
+
+const SCHMID_SOURCES = 'Schmid, J., & Leiman, J. M. (1957). The development of hierarchical factor solutions. '
+  + 'Psychometrika, 22(1), 53–61; Revelle, W., & Zinbarg, R. E. (2009). Coefficients alpha, beta, omega, '
+  + 'and the glb. Psychometrika, 74(1), 145–154.';
+
+/** The Schmid–Leiman solution: second-order loadings, orthogonalised loadings, ECV and the omegas. */
+export function SchmidTables({ r }: { r: EfaResult }) {
+  const sl = r.schmid!;
+  if (!sl.available) {
+    return (
+      <p className="hint">The Schmid–Leiman solution needs three or more factors; the criterion retained {r.k}.
+        Fix the number of factors at three or more to see it.</p>
+    );
+  }
+  const secondRows: Row[] = sl.firstOrder.map((f, i) => [
+    c(`${f} (group factor ${sl.groups[i] ?? ''})`),
+    { ...c(sl.secondOrder[i]), bold: Math.abs(sl.secondOrder[i]) >= 0.5 },
+  ]);
+  const order = loadingOrder(sl.group);
+  const loadingRows: Row[] = order.map((i) => [
+    c(sl.reversed.includes(r.variables[i]) ? `${r.variables[i]} (reversed)` : r.variables[i]),
+    { ...c(sl.general[i]), bold: Math.abs(sl.general[i]) >= 0.5 },
+    ...sl.group[i].map((v) => c(v)),
+    c(sl.h2[i]),
+    c(sl.u2[i]),
+    c(sl.p2[i]),
+  ]);
+  const summaryRows: Row[] = [
+    [c('ω hierarchical (general factor)'), { ...c(sl.omegaH), bold: true }],
+    [c('ω total'), c(sl.omegaTotal)],
+    [c('ω hierarchical / ω total'), c(sl.omegaTotal > 0 ? sl.omegaH / sl.omegaTotal : null)],
+    [c('Explained common variance of g (ECV)'), c(sl.ecv)],
+    [c('ω limit (ω hierarchical for infinitely many items)'), c(sl.omegaLimit)],
+    [c('Cronbach’s α'), c(sl.alpha)],
+  ];
+  const groupRows: Row[] = sl.omegaGroup.map((x) => [
+    c(x.name === 'g' ? 'All items (g)' : x.name),
+    c(x.total),
+    c(x.general),
+    c(x.group),
+  ]);
+  return (
+    <>
+      <Table title="Reliability of the general factor" file="efa-omega" columns={['Coefficient', 'Value']}
+        rows={summaryRows}
+        note={'ω hierarchical: the share of the total score’s variance due to the general factor; ω total: due to all '
+          + 'common factors. ECV: the general factor’s share of the common variance (above about .70 with ω '
+          + 'hierarchical above .80 suggests treating the items as essentially one-dimensional; Rodriguez, Reise & '
+          + `Haviland 2016). psych::omega. ${SCHMID_SOURCES}`} />
+      <Table title="Second-order loadings: the factors on the general factor" file="efa-second-order"
+        columns={['First-order factor', 'Loading on g']} rows={secondRows}
+        note="The oblique factors’ correlations factored by one general factor (psych::schmid)." />
+      <Table title="Schmid–Leiman solution: general and group factor loadings (orthogonal)" file="efa-schmid"
+        columns={['Variable', 'g', ...sl.groups, 'h²', 'u²', 'g²/h²']} rows={loadingRows}
+        note={'Every variable’s loading on the general factor and on the group factors, made orthogonal: a loading '
+          + 'is now that factor’s own contribution. g²/h²: the general factor’s share of the communality.'
+          + (sl.reversed.length ? ` Reversed by omega before the analysis (they load negatively on g): ${sl.reversed.join(', ')}.` : '')} />
+      <Table title="ω per group factor" file="efa-omega-groups" columns={['Factor', 'ω total', 'General', 'Group']}
+        rows={groupRows}
+        note="For the items of each group factor (those loading most on it): ω total, and the parts due to the general factor and to the group factor (ω hierarchical of the subscale)." />
     </>
   );
 }
@@ -370,6 +435,15 @@ function EfaOptionsForm({ options: d, set, ctx, disabled }: OptionsProps<EfaDesi
         </div>
       )}
       {d.method !== 'lavaan' && <CompareFields d={d} setDesign={setDesign} unit={unit} />}
+      {(d.schmid || !schmidUnavailable(d)) && (
+        <label className="check">
+          <input type="checkbox" checked={!!d.schmid} onChange={(e) => setDesign({ schmid: e.target.checked ? true : undefined })} />
+          <span>Second-order factor (Schmid–Leiman) and ω hierarchical<br />
+            <span className="hint">One general factor behind the oblique factors, then general and group factors made
+              orthogonal; with ω hierarchical, ω total and the explained common variance (psych::omega). Needs three or
+              more factors.</span></span>
+        </label>
+      )}
       <div className="field"><label htmlFor="efa-thr">Hide loadings below</label>
         <input id="efa-thr" className="input num" type="number" min={0} max={0.95} step={0.05} value={d.threshold} onChange={(e) => setDesign({ threshold: Math.max(0, Math.min(0.95, Number(e.target.value) || 0)) })} />
         <div className="hint">Changes the tables and Build model only; no need to run again.</div></div>
@@ -431,6 +505,11 @@ export const efaAnalysis: AnalysisType<EfaDesign, EfaResult> = {
     if (vars.length < 3) return 'Choose at least three variables.';
     if (d.criterion === 'fixed' && d.nfactors >= vars.length) return `Choose fewer ${d.method === 'pca' ? 'components' : 'factors'} than variables.`;
     if (d.criterion === 'parallel' && d.parallel <= 0) return 'Parallel analysis needs samples.';
+    if (d.schmid) {
+      const why = schmidUnavailable(d);
+      if (why) return why;
+      if (d.criterion === 'fixed' && d.nfactors < 3) return 'The Schmid–Leiman solution needs at least three factors.';
+    }
     if (d.compare && d.method === 'lavaan') {
       return 'The congruence comparison needs a psych extraction for the solution: choose another extraction or no comparison.';
     }

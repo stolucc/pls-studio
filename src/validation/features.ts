@@ -100,7 +100,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
 
   // Other analyses
   'rengine/efa': native('Exploratory factor analysis and PCA', 'EFA', ['psych'], script('efa.R', 'desktop psych'), script('efa_polychoric.R', 'desktop psych and lavaan::lavCor'), script('efa_pa.R', 'desktop psych, principal axis'),
-    script('efa_congruence.R', 'desktop psych, factor.congruence')),
+    script('efa_congruence.R', 'desktop psych, factor.congruence'), script('efa_schmid.R', 'desktop psych, omega')),
   'rengine/items': native('IRT and latent class analysis', 'Items', ['ltm', 'poLCA', 'mirt', 'glca'], script('items.R', 'desktop ltm and poLCA')),
   'rengine/psem': native('Piecewise SEM: d-separation tests, Fisher’s C, AIC, standardised coefficients', 'Regression', ['piecewiseSEM', 'lme4'],
     script('psem.R', 'desktop piecewiseSEM on its keeley and shipley data')),

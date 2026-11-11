@@ -13,6 +13,7 @@ import { DEFAULT_EFA } from '../model/efa';
 import { rCall } from './bridge';
 import { efaR, efaScriptR } from './efa';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
+import { same } from '../validation/record';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -109,6 +110,51 @@ describe('exploratory factor analysis (psych)', () => {
     expect(script).toContain('congruence <- factor.congruence(fit, fit2, digits = 15)');
     const bad = { ...design, compare: { method: 'lavaan', rotation: 'varimax' } as never };
     await expect(efaR(d, bad, 1)).rejects.toThrow(/Invalid extraction for the comparison/);
+  }, 900_000);
+
+  it('bfi: Schmid–Leiman second-order solution and ω hierarchical equal desktop psych (omega)', async () => {
+    const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'schmid.json'), 'utf8'));
+    const d = await load('bfi');
+    const design = {
+      ...DEFAULT_EFA,
+      criterion: 'fixed' as const,
+      vars: d.names.slice(0, 25),
+      nfactors: 5,
+      parallel: 0,
+      schmid: true as const,
+    };
+    const r = await efaR(d, design, 1);
+    const sl = r.schmid!;
+    if (!sl.available) throw new Error('no Schmid–Leiman solution');
+    // The oblimin rotation inside omega is GPArotation's iterative one, which lands within a few 1e-6 of itself
+    // from run to run in desktop R (see the congruence test), so 4 digits for loadings and omegas.
+    expect(sl.omegaH, 'ω hierarchical').toBeCloseTo(ref.omegaH, 4);
+    expect(sl.omegaTotal, 'ω total').toBeCloseTo(ref.omegaTotal, 4);
+    expect(sl.ecv, 'ECV').toBeCloseTo(ref.ecv, 4);
+    // Factor order follows the rotation; second-order loadings and group columns are compared as sets.
+    const sorted = (v: number[]) => [...v].map(Math.abs).sort((a, b) => a - b);
+    sorted(sl.secondOrder).forEach((v, i) => expect(v, `second-order loading ${i + 1}`).toBeCloseTo(sorted(ref.secondOrder)[i], 4));
+    sl.general.forEach((v, i) => expect(v, `g loading ${i + 1}`).toBeCloseTo(ref.general[i], 4));
+    sl.h2.forEach((v, i) => expect(v, `h² ${i + 1}`).toBeCloseTo(ref.h2[i], 4));
+    sl.p2.forEach((v, i) => expect(v, `g²/h² ${i + 1}`).toBeCloseTo(ref.p2[i], 4));
+    for (let j = 0; j < 5; j++) {
+      const col = sl.group.map((row) => row[j]);
+      const k = ref.group[0].map((_: number, jj: number) => jj).find((jj: number) =>
+        ref.group.every((row: number[], i: number) => Math.abs(row[jj] - col[i]) < 1e-3));
+      expect(k, `group factor ${j + 1} found in psych's solution`).toBeDefined();
+      col.forEach((v, i) => expect(v, `group ${j + 1}, item ${i + 1}`).toBeCloseTo(ref.group[i][k], 4));
+    }
+    same('items reversed', sl.reversed.join(', '), ref.reversed.join(', '));
+    expect(sl.omegaGroup[0].name).toBe('g');
+    expect(sl.omegaGroup[0].general, 'ω hierarchical (omega.group)').toBeCloseTo(ref.omegaGroup[0][1], 4);
+    const script = await efaScriptR(d, design, 1);
+    expect(script).toContain('sl <- if (k >= 3) omega(R, nfactors = k, fm = "minres", rotate = "oblimin", n.obs = n, plot = FALSE) else NULL');
+    // Fewer than three factors retained by a criterion: no solution, said so.
+    const two = await efaR(d, { ...design, vars: d.names.slice(0, 10), criterion: 'kaiser' }, 1);
+    same('factors retained (Kaiser, agreeableness and conscientiousness items)', two.k, 2);
+    expect(two.schmid).toEqual({ available: false });
+    await expect(efaR(d, { ...design, nfactors: 2 }, 1)).rejects.toThrow(/at least three factors/);
+    await expect(efaR(d, { ...design, rotation: 'varimax' }, 1)).rejects.toThrow(/oblique rotation/);
   }, 900_000);
 
   it('retention criteria set the number of components in R (Kaiser, MAP, parallel analysis)', async () => {

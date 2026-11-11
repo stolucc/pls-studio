@@ -117,6 +117,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/efa::Tucker congruence'],
     note: 'bfi, minres + oblimin against ML + varimax (scripts/validation/efa_congruence.R).',
   },
+  'efa:schmid': {
+    title: 'Second-order factor by the Schmid–Leiman transformation, ω hierarchical (psych::omega)',
+    features: ['rengine/efa::Schmid–Leiman'],
+    note: 'bfi, 5 factors, minres + oblimin, against omega() on the raw data (scripts/validation/efa_schmid.R).',
+  },
   efa2l: ex('mplus-ex4.5', 'lavaan-efa2l-twolevel'),
   cmb: {},
   'cmb:harman': { title: 'Harman’s single-factor test', examples: ['seminr-corprep-cmb'] },
