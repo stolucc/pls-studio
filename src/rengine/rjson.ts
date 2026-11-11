@@ -3,8 +3,12 @@
 
 import type { Dataset } from '../engine/types';
 
-/** Any R value as an array. */
-export const rList = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
+/** Any R value as an array: a vector as it is, NULL as none, an unboxed scalar as one element. */
+export const rList = <T>(v: unknown): T[] => {
+  if (Array.isArray(v)) return v as T[];
+  if (v == null) return [];
+  return [v] as T[];
+};
 /** A finite number, or null (NA, NaN, Inf, absent). */
 export const rNum = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 

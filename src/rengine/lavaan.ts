@@ -117,6 +117,11 @@ export const LAVAAN_FIT: Record<string, keyof CbFit> = {
 };
 
 const num = (v: unknown) => (typeof v === 'number' ? v : NaN);
+/** A list of R objects, or one unboxed object, as an array; none for a missing (or empty) value. */
+const objectList = (v: any): any[] => {
+  if (Array.isArray(v)) return v;
+  return v ? [v] : [];
+};
 const mat = (m: unknown) => ((m ?? []) as (number | null)[][]).map((r) => r.map(num));
 
 export interface REngineInfo {
@@ -249,14 +254,12 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
             ecv: num(x.ecv),
             omega: num(x.omega),
             omegaH: num(x.omegaH),
-            specific: (Array.isArray(x.specific) ? x.specific : x.specific ? [x.specific] : []).map(
-              (s: any) => ({
-                factor: String(s.factor),
-                omega: num(s.omega),
-                omegaHS: num(s.omegaHS),
-                items: num(s.items),
-              }),
-            ),
+            specific: objectList(x.specific).map((s: any) => ({
+              factor: String(s.factor),
+              omega: num(s.omega),
+              omegaHS: num(s.omegaHS),
+              items: num(s.items),
+            })),
           })),
         }
       : {}),
@@ -310,7 +313,7 @@ export function parseCbOutput(raw: Record<string, any>): CbResultR {
       sepc: num(m.sepc),
       ...(m.group ? { group: String(m.group) } : {}),
     })),
-    wald: (Array.isArray(raw.wald) ? raw.wald : raw.wald ? [raw.wald] : []).map((w: any) => ({
+    wald: objectList(raw.wald).map((w: any) => ({
       name: String(w.name),
       stat: num(w.stat),
       df: num(w.df),
@@ -342,16 +345,13 @@ const cbPackage = (
   interaction: LatentInteraction,
   missing: MissingTreatment,
   estimator: CbEstimator,
-) =>
-  usesModsem(spec, interaction)
-    ? 'modsem'
-    : missing === 'mi'
-      ? 'lavaan.mi'
-      : estimator === 'RML'
-        ? 'rsem'
-        : spec.esem?.invariant
-          ? 'lavaanRotate'
-          : 'lavaan';
+) => {
+  if (usesModsem(spec, interaction)) return 'modsem';
+  if (missing === 'mi') return 'lavaan.mi';
+  if (estimator === 'RML') return 'rsem';
+  if (spec.esem?.invariant) return 'lavaanRotate';
+  return 'lavaan';
+};
 
 /** Estimate a CB-SEM model with lavaan (latent interactions by LMS / QML: modsem). */
 export async function estimateCbLavaan(
@@ -490,7 +490,7 @@ export async function cbScoresR(
     },
     'lavaan',
   );
-  const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? v : v == null ? [] : [v]) as T[];
+  const arr = rList;
   const cols = (v: unknown) => arr<unknown>(v).map((c) => arr<number>(c));
   return {
     method: raw.method,

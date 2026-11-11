@@ -175,7 +175,7 @@ export function parseMiiv(raw: Raw): MiivResultR {
     p: num(c.p),
     ...(typeof c.std === 'number' ? { std: c.std } : {}),
   });
-  const arr = (v: unknown) => (Array.isArray(v) ? v : v == null ? [] : [v]) as string[];
+  const arr = (v: unknown) => rList<string>(v);
   return {
     n: raw.n,
     equations: (raw.equations as Raw[]).map((e) => ({
