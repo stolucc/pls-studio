@@ -109,14 +109,21 @@ ps_boot_inputs <- function(req, inputs) {
   }
   v <- d$values
   # (a JSON array of rows arrives as a matrix, or as a list of rows when they contain nulls)
-  m <- if (is.matrix(v)) v else do.call(rbind, lapply(v, function(r) as.numeric(vapply(r, function(x) if (is.null(x)) NA_real_ else as.numeric(x), 0))))
+  row_values <- function(r) as.numeric(vapply(r, function(x) if (is.null(x)) NA_real_ else as.numeric(x), 0))
+  m <- if (is.matrix(v)) v else do.call(rbind, lapply(v, row_values))
   m <- matrix(as.numeric(m), nrow = nrow(m), dimnames = list(NULL, d$names))
   c(inputs, list(boot_draws = m, boot_original = setNames(as.numeric(unlist(d$original)), d$names)))
 }
 #' The draws of one chunk as JSON (in-app parallel calls).
 ps_boot_part_json <- function(env) {
   D <- env$draws
-  ps_json(list(names = colnames(D), values = unname(lapply(seq_len(nrow(D)), function(i) unname(D[i, ]))), original = unname(env$original[colnames(D)]), warnings = ps_quiet_2ndorder(env$.warnings)))
+  draw_rows <- unname(lapply(seq_len(nrow(D)), function(i) unname(D[i, ])))
+  ps_json(list(
+    names = colnames(D),
+    values = draw_rows,
+    original = unname(env$original[colnames(D)]),
+    warnings = ps_quiet_2ndorder(env$.warnings)
+  ))
 }
 
 ps_pls_boot <- function(req_json, export = FALSE) {
@@ -233,8 +240,13 @@ ps_pls_boot <- function(req_json, export = FALSE) {
   }
   env <- ps_run(body, ps_boot_inputs(req, b$inputs))
   ps_json(list(
-    stats = ps_boot_keys(env$result, b, req), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), tails = ps_boot_tails(req), interval = if (bca) "bca" else "percentile",
-    confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)
+    stats = ps_boot_keys(env$result, b, req),
+    samples = B,
+    failed = B - sum(rowSums(is.finite(env$draws)) > 0),
+    tails = ps_boot_tails(req),
+    interval = if (bca) "bca" else "percentile",
+    confidence = conf,
+    warnings = ps_quiet_2ndorder(env$.warnings)
   ))
 }
 
@@ -596,8 +608,13 @@ ps_cb_boot_modsem <- function(b, B, seed, conf, export, req) {
     )
   })
   ps_json(list(
-    stats = Filter(Negate(is.null), stats), samples = B, failed = B - sum(rowSums(is.finite(env$draws)) > 0), tails = ps_boot_tails(req), interval = "percentile",
-    confidence = conf, warnings = ps_quiet_2ndorder(env$.warnings)
+    stats = Filter(Negate(is.null), stats),
+    samples = B,
+    failed = B - sum(rowSums(is.finite(env$draws)) > 0),
+    tails = ps_boot_tails(req),
+    interval = "percentile",
+    confidence = conf,
+    warnings = ps_quiet_2ndorder(env$.warnings)
   ))
 }
 

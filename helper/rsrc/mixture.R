@@ -91,7 +91,19 @@ mix_model <- function(spec, data) {
   grp <- vapply(th, function(t) if (is.null(t$group)) NA_real_ else as.numeric(t$group), 1)
   groups <- unname(split(seq_along(grp)[!is.na(grp)], grp[!is.na(grp)]))
   list(
-    n = n, w = w, A = A, b = b, nth = nth, derived = lapply(spec$derived, function(d) d$expr), cls = cls, ks = ks, Z = Z, nz = nz, blocks = blocks, loglinear = isTRUE(spec$loglinear), groups = groups,
+    n = n,
+    w = w,
+    A = A,
+    b = b,
+    nth = nth,
+    derived = lapply(spec$derived, function(d) d$expr),
+    cls = cls,
+    ks = ks,
+    Z = Z,
+    nz = nz,
+    blocks = blocks,
+    loglinear = isTRUE(spec$loglinear),
+    groups = groups,
     free = which(rowSums(A != 0) > 0)
   )
 }
@@ -471,8 +483,10 @@ mix_candidates <- function(start, scale, starts, seed, given = NULL) {
 mix_phase <- function(phase, starts, final) {
   sl <- function(x) lapply(x, function(o) list(i = as.integer(o$i), par = as.numeric(unlist(o$par)), value = as.numeric(o$value), convergence = if (is.null(o$convergence)) NULL else as.integer(o$convergence)))
   list(
-    idx = if (length(phase$only)) as.integer(unlist(phase$only)) else NULL, stage = if (length(phase$stage)) sl(phase$stage) else NULL,
-    cont = if (isTRUE(phase$cont)) TRUE else NULL, finals = if (length(phase$finals)) sl(phase$finals) else NULL
+    idx = if (length(phase$only)) as.integer(unlist(phase$only)) else NULL,
+    stage = if (length(phase$stage)) sl(phase$stage) else NULL,
+    cont = if (isTRUE(phase$cont)) TRUE else NULL,
+    finals = if (length(phase$finals)) sl(phase$finals) else NULL
   )
 }
 # The starts continued to convergence: the `final` best short runs (ties in start order).
@@ -1934,8 +1948,15 @@ mixq_estimate <- function(spec, data) {
   given <- if (length(spec$given)) as.numeric(unlist(spec$given)) else NULL
   X <- mix_eta(M)
   fit <- mixq_fit(
-    M, X$to_eta(start), scale, X, as.integer(spec$starts %||% 20), as.integer(spec$final %||% 4), as.integer(spec$seed %||% 1),
-    if (is.null(given)) NULL else X$to_eta(given), spec$phase %||% list()
+    M,
+    X$to_eta(start),
+    scale,
+    X,
+    as.integer(spec$starts %||% 20),
+    as.integer(spec$final %||% 4),
+    as.integer(spec$seed %||% 1),
+    if (is.null(given)) NULL else X$to_eta(given),
+    spec$phase %||% list()
   )
   if (!is.null(fit$stage) || !is.null(fit$finals)) {
     return(fit)
@@ -2039,9 +2060,53 @@ mixq_reorder <- function(M, th, order, X, A) {
 }
 
 PS_MIX_FUNCTIONS <- c(
-  "mix_expr", "mix_full", "mix_full_jac", "mix_collapse", "mix_model", "mix_lse", "mix_prior", "mix_ld", "mix_mvn_parts", "mix_block", "mix_eval", "mix_fit", "mix_eta", "mix_hessian", "mix_newton", "mix_reorder", "mix_estimate", "mix_report", "mix_shares", "mix_candidates", "mix_phase", "mix_keep",
-  "mixq_rule", "mixq_lat_parts", "mixq_catidx", "mixq_dld", "mixq_dlat", "mixq_ldens", "mixq_ld", "mixq_model", "mixq_prior", "mixq_collapsed", "mixq_ess", "mixq_rowmax", "mix_lse_list", "mixq_lse_groups", "mixq_nodes", "mixq_aof", "mixq_core", "mixq_post", "mixq_eval",
-  "mixq_adapt_init", "mixq_adapt", "mixq_fit", "mixq_converge", "mixq_estimate", "mixq_reorder"
+  "mix_expr",
+  "mix_full",
+  "mix_full_jac",
+  "mix_collapse",
+  "mix_model",
+  "mix_lse",
+  "mix_prior",
+  "mix_ld",
+  "mix_mvn_parts",
+  "mix_block",
+  "mix_eval",
+  "mix_fit",
+  "mix_eta",
+  "mix_hessian",
+  "mix_newton",
+  "mix_reorder",
+  "mix_estimate",
+  "mix_report",
+  "mix_shares",
+  "mix_candidates",
+  "mix_phase",
+  "mix_keep",
+  "mixq_rule",
+  "mixq_lat_parts",
+  "mixq_catidx",
+  "mixq_dld",
+  "mixq_dlat",
+  "mixq_ldens",
+  "mixq_ld",
+  "mixq_model",
+  "mixq_prior",
+  "mixq_collapsed",
+  "mixq_ess",
+  "mixq_rowmax",
+  "mix_lse_list",
+  "mixq_lse_groups",
+  "mixq_nodes",
+  "mixq_aof",
+  "mixq_core",
+  "mixq_post",
+  "mixq_eval",
+  "mixq_adapt_init",
+  "mixq_adapt",
+  "mixq_fit",
+  "mixq_converge",
+  "mixq_estimate",
+  "mixq_reorder"
 )
 
 ps_mixture <- function(req_json, export = FALSE) {
@@ -2101,9 +2166,20 @@ ps_mixture <- function(req_json, export = FALSE) {
     ps_warning(sprintf("The best log-likelihood was reached from only one of the %d final starts: increase the starts to make sure it is the maximum.", length(lls)))
   }
   ps_json(list(
-    n = nobs, rows = nrow(data), logLik = est$ll, npar = k, aic = -2 * est$ll + 2 * k, bic = -2 * est$ll + k * log(nobs),
-    params = env$report, classes = env$shares$classes, patterns = env$shares$patterns, entropy = env$shares$entropy,
-    lls = lls, converged = est$fit$converged, theta = est$theta,
-    warnings = env$.warnings, engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))
+    n = nobs,
+    rows = nrow(data),
+    logLik = est$ll,
+    npar = k,
+    aic = -2 * est$ll + 2 * k,
+    bic = -2 * est$ll + k * log(nobs),
+    params = env$report,
+    classes = env$shares$classes,
+    patterns = env$shares$patterns,
+    entropy = env$shares$entropy,
+    lls = lls,
+    converged = est$fit$converged,
+    theta = est$theta,
+    warnings = env$.warnings,
+    engine = list(package = "R", version = paste(R.version$major, R.version$minor, sep = "."))
   ))
 }

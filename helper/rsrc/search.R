@@ -61,7 +61,8 @@ ps_cb_specsearch <- function(req_json, export = FALSE) {
   refit <- sub("^fit <- sem\\(model,", "sem(p,", b$call)
   if (identical(refit, b$call)) stop("The specification search is not available for this model.")
   body <- c(
-    b$body, b$baseline,
+    b$body,
+    b$baseline,
     "# ---- Specification search (as Amos): every combination of the optional arrows ----",
     "# An arrow left out is fixed at zero in the full model's parameter table (every variable stays in the model);",
     "# each model is refitted with the same data, estimator and options.",
@@ -100,8 +101,16 @@ ps_cb_specsearch <- function(req_json, export = FALSE) {
   ps_json(list(
     models = lapply(seq_len(nrow(S)), function(i) {
       list(
-        keep = I(unname(K[i, ])), converged = S[i, "converged"] == 1,
-        npar = S[i, "npar"], chisq = S[i, "chisq"], df = S[i, "df"], p = S[i, "pvalue"], cfi = S[i, "cfi"], rmsea = S[i, "rmsea"], aic = S[i, "aic"], bic = S[i, "bic"],
+        keep = I(unname(K[i, ])),
+        converged = S[i, "converged"] == 1,
+        npar = S[i, "npar"],
+        chisq = S[i, "chisq"],
+        df = S[i, "df"],
+        p = S[i, "pvalue"],
+        cfi = S[i, "cfi"],
+        rmsea = S[i, "rmsea"],
+        aic = S[i, "aic"],
+        bic = S[i, "bic"],
         warning = if (nzchar(env$warned[i])) ps_flat(env$warned[i]) else NULL
       )
     }),
@@ -279,8 +288,15 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
     } else {
       lapply(seq_len(nrow(d)), function(i) {
         c(list(
-          label = label(d$lhs[i], d$op[i], d$rhs[i]), kind = kind(d$op[i]), lavaan = d$parameter[i],
-          chisq = d$chisq[i], df = d$df[i], p = d$p[i], increment = d$increment[i], incrementP = d$increment_p[i], univariate = d$univariate[i]
+          label = label(d$lhs[i], d$op[i], d$rhs[i]),
+          kind = kind(d$op[i]),
+          lavaan = d$parameter[i],
+          chisq = d$chisq[i],
+          df = d$df[i],
+          p = d$p[i],
+          increment = d$increment[i],
+          incrementP = d$increment_p[i],
+          univariate = d$univariate[i]
         ), extra(d, i))
       })
     }
@@ -288,7 +304,9 @@ ps_cb_lmwald <- function(req_json, export = FALSE) {
   ps_json(list(
     lm = if (length(lm_ops)) list(candidates = length(env$candidates), steps = rows(env$lm_steps, function(d, i) list(epc = d$epc[i]))) else NULL,
     wald = if (length(wald_ops)) list(candidates = nrow(env$free), steps = rows(env$wald_steps, function(d, i) list(est = d$est[i]))) else NULL,
-    chisq = unname(fitMeasures(env$fit, "chisq")), df = unname(fitMeasures(env$fit, "df")), warnings = env$.warnings,
+    chisq = unname(fitMeasures(env$fit, "chisq")),
+    df = unname(fitMeasures(env$fit, "df")),
+    warnings = env$.warnings,
     engine = ps_engine("lavaan")
   ))
 }
@@ -463,9 +481,15 @@ ps_cb_regsem <- function(req_json, export = FALSE) {
     method = method, selector = selector, selected = list(lambda = num_of(env$selected), delta = del_of(env$selected)),
     path = lapply(env$levels, function(k) {
       list(
-        lambda = num_of(k), delta = del_of(k), aic = unname(ic[[k]]["aic"]), bic = unname(ic[[k]]["bic"]),
-        nonzero = unname(nc[[k]]["n_nonzero_coefficient"]), df = unname(nc[[k]]["degrees_of_freedom"]), loss = unname(nc[[k]]["loss_value"]),
-        converged = isTRUE(fitted$is_convergent[[k]]), values = I(unname(fitted$coefficient[[k]][rownames(spec)[pen]]))
+        lambda = num_of(k),
+        delta = del_of(k),
+        aic = unname(ic[[k]]["aic"]),
+        bic = unname(ic[[k]]["bic"]),
+        nonzero = unname(nc[[k]]["n_nonzero_coefficient"]),
+        df = unname(nc[[k]]["degrees_of_freedom"]),
+        loss = unname(nc[[k]]["loss_value"]),
+        converged = isTRUE(fitted$is_convergent[[k]]),
+        values = I(unname(fitted$coefficient[[k]][rownames(spec)[pen]]))
       )
     }),
     penalised = I(label[pen]), penalisedKind = I(kind[pen]),

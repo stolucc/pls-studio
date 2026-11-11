@@ -43,8 +43,12 @@ ps_htest <- function(h) {
     NULL
   } else {
     list(
-      stat = unname(h$statistic), df = if (is.null(h$parameter)) NULL else unname(h$parameter), p = unname(h$p.value),
-      ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1], ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2], estimate = if (is.null(h$estimate)) NULL else unname(h$estimate[1])
+      stat = unname(h$statistic),
+      df = if (is.null(h$parameter)) NULL else unname(h$parameter),
+      p = unname(h$p.value),
+      ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1],
+      ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2],
+      estimate = if (is.null(h$estimate)) NULL else unname(h$estimate[1])
     )
   }
 }
@@ -77,12 +81,7 @@ ps_ttest <- function(req_json, export = FALSE) {
   welch <- isTRUE(req$welch)
   rank <- isTRUE(req$rank)
   if (!student && !welch && !rank) stop("Choose at least one test.")
-  pairs <- if (type == "paired") {
-    p <- req$pairs
-    if (is.matrix(p)) lapply(seq_len(nrow(p)), function(i) as.character(p[i, ])) else lapply(p, function(t) as.character(unlist(t)))
-  } else {
-    NULL
-  }
+  pairs <- if (type == "paired") ps_string_rows(req$pairs) else NULL
   vars <- if (type == "paired") unique(unlist(pairs)) else unlist(req$vars)
   if (!length(vars)) {
     stop(if (type == "paired") "Choose at least one pair of variables." else "Choose at least one variable.")
@@ -203,10 +202,17 @@ ps_ttest <- function(req_json, export = FALSE) {
       lapply(levels(g), function(l) ps_desc(y[!is.na(g) & g == l]))
     }
     list(
-      label = if (type == "paired") paste(pairs[[k]], collapse = " - ") else vars[k], variables = if (type == "paired") pairs[[k]] else vars[k],
-      student = ps_htest(r$student), welch = ps_htest(r$welch), rank = ps_htest(r$rank), d = r$d, dWelch = r$dWelch, rankBiserial = r$rb,
+      label = if (type == "paired") paste(pairs[[k]], collapse = " - ") else vars[k],
+      variables = if (type == "paired") pairs[[k]] else vars[k],
+      student = ps_htest(r$student),
+      welch = ps_htest(r$welch),
+      rank = ps_htest(r$rank),
+      d = r$d,
+      dWelch = r$dWelch,
+      rankBiserial = r$rb,
       levene = if (!is.null(r$levene)) list(stat = r$levene$`F value`[1], df1 = r$levene$Df[1], df2 = r$levene$Df[2], p = r$levene$`Pr(>F)`[1]) else NULL,
-      shapiro = if (type == "independent") lapply(r$shapiro, ps_htest) else list(ps_htest(r$shapiro)), descriptives = desc
+      shapiro = if (type == "independent") lapply(r$shapiro, ps_htest) else list(ps_htest(r$shapiro)),
+      descriptives = desc
     )
   })
   groups <- if (type == "independent") {
@@ -250,7 +256,8 @@ ps_anova <- function(req_json, export = FALSE) {
   oneway <- length(fac) == 1 && !length(cov)
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
-    "# Factors (their levels as the groups).", vapply(fac, function(n) ps_bt_factor_line(req, fr, n), ""),
+    "# Factors (their levels as the groups).",
+    vapply(fac, function(n) ps_bt_factor_line(req, fr, n), ""),
     if (ss == "III") c("# Type III sums of squares: sum-to-zero contrasts, each term dropped from the full model.", "options(contrasts = c(\"contr.sum\", \"contr.poly\"))") else "options(contrasts = c(\"contr.treatment\", \"contr.poly\"))",
     sprintf("fit <- lm(%s, data = data)", fml),
     if (ss == "III") "tab <- drop1(fit, ~ ., test = \"F\")" else "tab <- anova(fit)",
@@ -318,11 +325,20 @@ ps_anova <- function(req_json, export = FALSE) {
     NULL
   }
   ps_json(list(
-    dependent = y, factors = fac, covariates = cov, ssType = ss, formula = fml,
-    table = rows, residual = list(ss = ssres, df = dfres, ms = msres), n = nrow(d),
-    levene = list(stat = env$levene$`F value`[1], df1 = env$levene$Df[1], df2 = env$levene$Df[2], p = env$levene$`Pr(>F)`[1]), shapiro = ps_htest(env$shapiro),
-    welch = if (oneway) ps_htest(env$welch) else NULL, welchDf2 = if (oneway) unname(env$welch$parameter[2]) else NULL,
-    kruskal = if (oneway) ps_htest(env$kruskal) else NULL, tukey = tk,
+    dependent = y,
+    factors = fac,
+    covariates = cov,
+    ssType = ss,
+    formula = fml,
+    table = rows,
+    residual = list(ss = ssres, df = dfres, ms = msres),
+    n = nrow(d),
+    levene = list(stat = env$levene$`F value`[1], df1 = env$levene$Df[1], df2 = env$levene$Df[2], p = env$levene$`Pr(>F)`[1]),
+    shapiro = ps_htest(env$shapiro),
+    welch = if (oneway) ps_htest(env$welch) else NULL,
+    welchDf2 = if (oneway) unname(env$welch$parameter[2]) else NULL,
+    kruskal = if (oneway) ps_htest(env$kruskal) else NULL,
+    tukey = tk,
     pairwiseRank = if (oneway) {
       m <- env$pwRank$p.value
       Filter(
@@ -392,7 +408,10 @@ ps_rmanova <- function(req_json, export = FALSE) {
     sprintf("Y <- as.matrix(data[, %s])", W),
     sprintf(
       "long <- data.frame(subject = factor(rep(seq_len(nrow(Y)), ncol(Y))), %s = factor(rep(%s, each = nrow(Y)), levels = %s), y = c(Y)%s)",
-      fname, ps_q(within), ps_q(within), if (bt) sprintf(", %s = rep(data$%s, ncol(Y))", v[[between]], v[[between]]) else ""
+      fname,
+      ps_q(within),
+      ps_q(within),
+      if (bt) sprintf(", %s = rep(data$%s, ncol(Y))", v[[between]], v[[between]]) else ""
     ),
     sprintf(
       "fit <- aov(y ~ %s%s + Error(subject/%s), data = long)",
@@ -565,8 +584,10 @@ ps_rmanova_multi <- function(req, design, export) {
     "effects <- list(",
     paste0("  ", vapply(effects, function(e) {
       sprintf(
-        "%s = list(M = ~ %s, X = ~ %s)", encodeString(paste(e, collapse = ":"), quote = "`"),
-        paste(e, collapse = " * "), if (length(e) == 1) "1" else if (length(e) == 2) paste(e, collapse = " + ") else sprintf("(%s)^%d", paste(e, collapse = " + "), length(e) - 1)
+        "%s = list(M = ~ %s, X = ~ %s)",
+        encodeString(paste(e, collapse = ":"), quote = "`"),
+        paste(e, collapse = " * "),
+        if (length(e) == 1) "1" else if (length(e) == 2) paste(e, collapse = " + ") else sprintf("(%s)^%d", paste(e, collapse = " + "), length(e) - 1)
       )
     }, ""), collapse = ",\n"),
     ")",
@@ -587,8 +608,13 @@ ps_rmanova_multi <- function(req, design, export) {
     res <- if ("Residuals" %in% rn) t[which(rn == "Residuals"), "Sum Sq"] else NULL
     lapply(seq_len(nrow(t)), function(i) {
       r <- list(
-        term = if (rn[i] == "Residuals") "Residuals" else back(rn[i]), stratum = stratum, ss = t[i, "Sum Sq"], df = t[i, "Df"], ms = t[i, "Mean Sq"],
-        f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL, p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL
+        term = if (rn[i] == "Residuals") "Residuals" else back(rn[i]),
+        stratum = stratum,
+        ss = t[i, "Sum Sq"],
+        df = t[i, "Df"],
+        ms = t[i, "Mean Sq"],
+        f = if ("F value" %in% colnames(t)) t[i, "F value"] else NULL,
+        p = if ("Pr(>F)" %in% colnames(t)) t[i, "Pr(>F)"] else NULL
       )
       if (rn[i] != "Residuals" && !is.null(res)) r$partialEta2 <- r$ss / (r$ss + res)
       r
@@ -774,11 +800,20 @@ ps_rmanova_car <- function(req, design, betweens, export) {
   }
   sp1 <- if (single && length(sph)) sph[[1]] else NULL
   ps_json(list(
-    factorName = paste(design$names, collapse = " × "), levels = design$cells, between = paste(betweens, collapse = " × "), betweenFactors = I(betweens), n = nrow(env$Y), ssType = "II",
+    factorName = paste(design$names, collapse = " × "),
+    levels = design$cells,
+    between = paste(betweens, collapse = " × "),
+    betweenFactors = I(betweens),
+    n = nrow(env$Y),
+    ssType = "II",
     factors = if (!single) lapply(seq_len(k), function(i) list(name = design$names[i], levels = I(design$levels[[i]]))) else NULL,
-    within = rows_w, betweenTable = c(rows_b, if (!is.null(res_b)) list(res_b)),
-    sphericity = if (single) (if (is.null(sp1)) NULL else sp1[c("w", "p", "gg", "hf")]) else NULL, sphericityTable = if (!single) sph else NULL,
-    corrected = corr, friedman = NULL, posthoc = ps_rm_posthoc_out(env$posthoc),
+    within = rows_w,
+    betweenTable = c(rows_b, if (!is.null(res_b)) list(res_b)),
+    sphericity = if (single) (if (is.null(sp1)) NULL else sp1[c("w", "p", "gg", "hf")]) else NULL,
+    sphericityTable = if (!single) sph else NULL,
+    corrected = corr,
+    friedman = NULL,
+    posthoc = ps_rm_posthoc_out(env$posthoc),
     cells = lapply(
       seq_along(design$cells),
       function(i) c(list(cell = if (single) design$cells[i] else sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))
@@ -870,7 +905,9 @@ ps_correlation <- function(req_json, export = FALSE) {
       )
     } else {
       sprintf(
-        "tests <- lapply(pairs, function(p) cor.test(data[[p[1]]], data[[p[2]]], method = \"%s\", alternative = \"%s\"%s))", method, alt,
+        "tests <- lapply(pairs, function(p) cor.test(data[[p[1]]], data[[p[2]]], method = \"%s\", alternative = \"%s\"%s))",
+        method,
+        alt,
         if (method == "pearson") sprintf(", conf.level = %s", format(conf)) else ", exact = FALSE"
       )
     },
@@ -885,13 +922,27 @@ ps_correlation <- function(req_json, export = FALSE) {
     p <- env$pairs[[i]]
     h <- env$tests[[i]]
     list(
-      a = fr$back[[p[1]]], b = fr$back[[p[2]]], r = unname(h$estimate), p = h$p.value, n = env$n[i], stat = unname(h$statistic),
-      ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1], ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2], exact = if (exact) env$exact[i] else NULL
+      a = fr$back[[p[1]]],
+      b = fr$back[[p[2]]],
+      r = unname(h$estimate),
+      p = h$p.value,
+      n = env$n[i],
+      stat = unname(h$statistic),
+      ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1],
+      ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2],
+      exact = if (exact) env$exact[i] else NULL
     )
   })
   ps_json(list(
-    method = method, alternative = alt, confidence = conf, deletion = if (listwise) "listwise" else "pairwise", vars = vars, pairs = rows, exact = if (exact) TRUE else NULL,
-    warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
+    method = method,
+    alternative = alt,
+    confidence = conf,
+    deletion = if (listwise) "listwise" else "pairwise",
+    vars = vars,
+    pairs = rows,
+    exact = if (exact) TRUE else NULL,
+    warnings = env$.warnings,
+    engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
 
@@ -959,15 +1010,25 @@ ps_polychoric <- function(fr, vars, alt, conf, listwise, export) {
   })
   nt <- env$normality
   ps_json(list(
-    method = "polychoric", alternative = alt, confidence = conf, deletion = if (listwise) "listwise" else "pairwise", vars = vars, pairs = rows,
+    method = "polychoric",
+    alternative = alt,
+    confidence = conf,
+    deletion = if (listwise) "listwise" else "pairwise",
+    vars = vars,
+    pairs = rows,
     ordinal = I(unname(vapply(col[ordinal], function(k) fr$back[[k]], ""))),
     normality = if (is.null(nt)) {
       list()
     } else {
       lapply(seq_len(nrow(nt)), function(i) {
         list(
-          a = fr$back[[as.character(nt$lhs[i])]], b = fr$back[[as.character(nt$rhs[i])]],
-          df = as.numeric(nt$df[i]), x2 = as.numeric(nt$X2[i]), x2p = as.numeric(nt$X2.pval[i]), g2 = as.numeric(nt$G2[i]), g2p = as.numeric(nt$G2.pval[i])
+          a = fr$back[[as.character(nt$lhs[i])]],
+          b = fr$back[[as.character(nt$rhs[i])]],
+          df = as.numeric(nt$df[i]),
+          x2 = as.numeric(nt$X2[i]),
+          x2p = as.numeric(nt$X2.pval[i]),
+          g2 = as.numeric(nt$G2[i]),
+          g2p = as.numeric(nt$G2.pval[i])
         )
       })
     },
@@ -992,7 +1053,8 @@ ps_contingency <- function(req_json, export = FALSE) {
   v <- fr$v
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(rv, cv, if (nzchar(wv)) wv)])))),
-    ps_bt_factor_line(req, fr, rv), ps_bt_factor_line(req, fr, cv),
+    ps_bt_factor_line(req, fr, rv),
+    ps_bt_factor_line(req, fr, cv),
     sprintf("tab <- xtabs(%s~ %s + %s, data = data)", if (nzchar(wv)) paste0(v[[wv]], " ") else "", v[[rv]], v[[cv]]),
     "chi <- chisq.test(tab, correct = FALSE)",
     "chiYates <- if (all(dim(tab) == 2)) chisq.test(tab, correct = TRUE)",
@@ -1017,12 +1079,23 @@ ps_contingency <- function(req_json, export = FALSE) {
   tab <- env$tab
   two <- all(dim(tab) == 2)
   ps_json(list(
-    rows = rv, columns = cv, rowLevels = rownames(tab), colLevels = colnames(tab), counts = lapply(seq_len(nrow(tab)), function(i) unname(as.numeric(tab[i, ]))),
-    expected = lapply(seq_len(nrow(tab)), function(i) unname(env$E[i, ])), n = sum(tab),
-    chisq = ps_htest(env$chi), yates = ps_htest(env$chiYates), likelihoodRatio = list(stat = env$G2, df = unname(env$chi$parameter), p = env$pG2),
-    fisher = ps_htest(env$fisher), cramerV = env$cramerV,
-    phi = if (two) env$phi else NULL, oddsRatio = if (two) list(est = env$or, ciLow = env$orCI[1], ciHigh = env$orCI[2]) else NULL, confidence = conf,
-    warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
+    rows = rv,
+    columns = cv,
+    rowLevels = rownames(tab),
+    colLevels = colnames(tab),
+    counts = lapply(seq_len(nrow(tab)), function(i) unname(as.numeric(tab[i, ]))),
+    expected = lapply(seq_len(nrow(tab)), function(i) unname(env$E[i, ])),
+    n = sum(tab),
+    chisq = ps_htest(env$chi),
+    yates = ps_htest(env$chiYates),
+    likelihoodRatio = list(stat = env$G2, df = unname(env$chi$parameter), p = env$pG2),
+    fisher = ps_htest(env$fisher),
+    cramerV = env$cramerV,
+    phi = if (two) env$phi else NULL,
+    oddsRatio = if (two) list(est = env$or, ciLow = env$orCI[1], ciHigh = env$orCI[2]) else NULL,
+    confidence = conf,
+    warnings = env$.warnings,
+    engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
 
@@ -1076,11 +1149,18 @@ ps_freqtest <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   ct <- env$counts
   ps_json(list(
-    type = type, variable = x, levels = names(ct), counts = unname(as.numeric(ct)), n = sum(ct), alternative = alt, confidence = conf,
+    type = type,
+    variable = x,
+    levels = names(ct),
+    counts = unname(as.numeric(ct)),
+    n = sum(ct),
+    alternative = alt,
+    confidence = conf,
     binomial = if (type == "binomial") unname(lapply(env$tests, function(h) c(ps_htest(h), list(proportion = unname(h$estimate))))) else NULL,
     testValue = if (type == "binomial") p0 else NULL,
     multinomial = if (type == "multinomial") c(ps_htest(env$gof), list(expected = unname(env$gof$expected))) else NULL,
-    warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
+    warnings = env$.warnings,
+    engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
 
@@ -1163,7 +1243,8 @@ ps_kappa_table <- function(req, export) {
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(rv, cv, if (nzchar(wv)) wv)])))),
     "# Both raters on the same categories (either rater's), so that the table is square.",
-    sprintf("data$%s <- factor(data$%s, %s)", v[[rv]], v[[rv]], lev), sprintf("data$%s <- factor(data$%s, %s)", v[[cv]], v[[cv]], lev),
+    sprintf("data$%s <- factor(data$%s, %s)", v[[rv]], v[[rv]], lev),
+    sprintf("data$%s <- factor(data$%s, %s)", v[[cv]], v[[cv]], lev),
     sprintf(
       "tab <- unclass(xtabs(%s~ %s + %s, data = data))  # rows: the first rater; columns: the second",
       if (nzchar(wv)) paste0(v[[wv]], " ") else "",
@@ -1171,7 +1252,8 @@ ps_kappa_table <- function(req, export) {
       v[[cv]]
     ),
     if (!is.null(nobs)) sprintf("tab <- tab / sum(tab) * %s  # proportions (or counts) scaled to the number of subjects", format(nobs, digits = 15)),
-    "suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, length(codes)),
+    "suppressPackageStartupMessages(library(psych))",
+    ps_kappa_weights(req, length(codes)),
     sprintf("k <- cohen.kappa(tab%s, alpha = %s)", ps_kappa_args(req), format(1 - conf))
   )
   inputs <- list(data = fr$data)
@@ -1181,10 +1263,19 @@ ps_kappa_table <- function(req, export) {
   env <- ps_run(body, inputs)
   cf <- env$k$confid
   ps_json(list(
-    type = "kappa", vars = c(rv, cv), n = sum(env$tab), confidence = conf, table = TRUE,
-    kappa = list(est = cf[1, 2], ciLow = cf[1, 1], ciHigh = cf[1, 3]), weighted = list(est = cf[2, 2], ciLow = cf[2, 1], ciHigh = cf[2, 3]), categories = length(codes),
-    weights = req$kappaWeights %||% "squared", levels = I(labels), counts = lapply(seq_len(nrow(env$tab)), function(i) unname(as.numeric(env$tab[i, ]))),
-    warnings = env$.warnings, engine = ps_engine("psych")
+    type = "kappa",
+    vars = c(rv, cv),
+    n = sum(env$tab),
+    confidence = conf,
+    table = TRUE,
+    kappa = list(est = cf[1, 2], ciLow = cf[1, 1], ciHigh = cf[1, 3]),
+    weighted = list(est = cf[2, 2], ciLow = cf[2, 1], ciHigh = cf[2, 3]),
+    categories = length(codes),
+    weights = req$kappaWeights %||% "squared",
+    levels = I(labels),
+    counts = lapply(seq_len(nrow(env$tab)), function(i) unname(as.numeric(env$tab[i, ]))),
+    warnings = env$.warnings,
+    engine = ps_engine("psych")
   ))
 }
 
@@ -1272,7 +1363,13 @@ ps_reliability <- function(req_json, export = FALSE) {
       dr <- a$alpha.drop
       is <- a$item.stats
       list(
-        alpha = tot$raw_alpha, stdAlpha = tot$std.alpha, averageR = tot$average_r, omegaTotal = env$o$omega.tot, glb = env$g$glb, mean = tot$mean, sd = tot$sd,
+        alpha = tot$raw_alpha,
+        stdAlpha = tot$std.alpha,
+        averageR = tot$average_r,
+        omegaTotal = env$o$omega.tot,
+        glb = env$g$glb,
+        mean = tot$mean,
+        sd = tot$sd,
         items = lapply(
           seq_len(nrow(dr)),
           function(i) list(item = vars[i], alphaIfDropped = dr$raw_alpha[i], itemRest = is$r.drop[i], mean = is$mean[i], sd = is$sd[i])

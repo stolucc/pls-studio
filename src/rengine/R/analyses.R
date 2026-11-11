@@ -201,9 +201,15 @@ ps_miiv <- function(req_json, export = FALSE) {
     }
     cf <- if (measurement) list(coef(e$IVlat, "=~", e$DVlat)) else lapply(e$IVlat, function(iv) coef(e$DVlat, "~", iv))
     list(
-      kind = kind, dv = nm(e$DVobs), regressors = nm(e$IVobs), instruments = nm(e$MIIVs), coefficients = cf,
-      sigma2 = as.numeric(e$sigma), sargan = if (is.null(e$sargan)) NULL else as.numeric(e$sargan),
-      sarganDf = if (is.null(e$sargan.df)) 0L else as.integer(e$sargan.df), sarganP = if (is.null(e$sargan.p)) NULL else as.numeric(e$sargan.p)
+      kind = kind,
+      dv = nm(e$DVobs),
+      regressors = nm(e$IVobs),
+      instruments = nm(e$MIIVs),
+      coefficients = cf,
+      sigma2 = as.numeric(e$sigma),
+      sargan = if (is.null(e$sargan)) NULL else as.numeric(e$sargan),
+      sarganDf = if (is.null(e$sargan.df)) 0L else as.integer(e$sargan.df),
+      sarganP = if (is.null(e$sargan.p)) NULL else as.numeric(e$sargan.p)
     )
   })
   n <- if (b$matrix_input) b$inputs$N else nrow(env$data)
@@ -222,8 +228,11 @@ ps_miiv <- function(req_json, export = FALSE) {
     pe <- pe[pe$op == "~~", ]
     lapply(seq_len(nrow(pe)), function(i) {
       list(
-        lhs = nm(pe$lhs[i]), rhs = nm(pe$rhs[i]), latent = pe$lhs[i] %in% unname(b$lname),
-        est = pe$est[i], std = env$std$est.std[env$std$op == "~~" & env$std$lhs == pe$lhs[i] & env$std$rhs == pe$rhs[i]][1]
+        lhs = nm(pe$lhs[i]),
+        rhs = nm(pe$rhs[i]),
+        latent = pe$lhs[i] %in% unname(b$lname),
+        est = pe$est[i],
+        std = env$std$est.std[env$std$op == "~~" & env$std$lhs == pe$lhs[i] & env$std$rhs == pe$rhs[i]][1]
       )
     })
   } else {
@@ -232,7 +241,13 @@ ps_miiv <- function(req_json, export = FALSE) {
   r2 <- ps_try(env$fit$v$rsquare, "R² (MIIVsem)")
   r2 <- if (is.null(r2)) list() else as.list(setNames(as.numeric(r2), nmc(names(r2))))
   ps_json(list(
-    n = n, equations = eqs, estimates = unlist(lapply(eqs, `[[`, "coefficients"), recursive = FALSE), r2 = r2, fixedStd = fixed_std, variances = variances,
-    warnings = env$.warnings, engine = ps_engine("MIIVsem")
+    n = n,
+    equations = eqs,
+    estimates = unlist(lapply(eqs, `[[`, "coefficients"), recursive = FALSE),
+    r2 = r2,
+    fixedStd = fixed_std,
+    variances = variances,
+    warnings = env$.warnings,
+    engine = ps_engine("MIIVsem")
   ))
 }

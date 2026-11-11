@@ -113,9 +113,17 @@ ps_influence <- function(req_json, export = FALSE) {
   infl <- env$infl
   col <- function(k) if (k %in% colnames(infl)) unname(infl[, k]) else rep(NA_real_, nrow(infl))
   ps_json(list(
-    approach = approach, rows = env$rows, gcd = col(g), md = col("md"), chisq = col("chisq"), cfi = col("cfi"), rmsea = col("rmsea"), tli = col("tli"),
+    approach = approach,
+    rows = env$rows,
+    gcd = col(g),
+    md = col("md"),
+    chisq = col("chisq"),
+    cfi = col("cfi"),
+    rmsea = col("rmsea"),
+    tli = col("tli"),
     kurtosis = list(rows = env$kurt_rows, contribution = unname(env$kurt_i), b2p = sum(env$kurt_i), p = ncol(env$Xk)),
-    warnings = env$.warnings, engine = ps_engine("semfindr")
+    warnings = env$.warnings,
+    engine = ps_engine("semfindr")
   ))
 }
 
@@ -258,7 +266,10 @@ ps_missing <- function(req_json, export = FALSE) {
   inputs <- list(data = fr$data)
   if (export) {
     return(ps_script(
-      sprintf("Missing data (patterns, coverage, EM estimates, dropout%s)", if (mcar || jamjal) ", MCAR tests" else ""), c("lavaan", if (mcar || jamjal) c("misty", "mvnmle")), inputs, body,
+      sprintf("Missing data (patterns, coverage, EM estimates, dropout%s)", if (mcar || jamjal) ", MCAR tests" else ""),
+      c("lavaan", if (mcar || jamjal) c("misty", "mvnmle")),
+      inputs,
+      body,
       c(
         "patterns",
         "coverage",
@@ -299,16 +310,23 @@ ps_missing <- function(req_json, export = FALSE) {
       list(error = ps_flat(jj))
     } else {
       list(
-        n = jj$hawkins$no.cases, incomplete = jj$hawkins$no.incomplete, patterns = jj$hawkins$no.pattern,
-        patternN = I(as.integer(jj$jamjal$n.pattern)), hawkins = list(stat = jj$hawkins$statistic, df = jj$hawkins$df, p = jj$hawkins$p),
-        anderson = list(stat = jj$anderson$statistic, p = jj$anderson$p), seed = seed
+        n = jj$hawkins$no.cases,
+        incomplete = jj$hawkins$no.incomplete,
+        patterns = jj$hawkins$no.pattern,
+        patternN = I(as.integer(jj$jamjal$n.pattern)),
+        hawkins = list(stat = jj$hawkins$statistic, df = jj$hawkins$df, p = jj$hawkins$p),
+        anderson = list(stat = jj$anderson$statistic, p = jj$anderson$p),
+        seed = seed
       )
     }
   }
   if (mcar || jamjal) res$engine <- ps_engine("misty", lavaan = "lavaan", mvnmle = "mvnmle")
   if (length(meas)) {
     res$dropout <- list(
-      measures = I(meas), dropouts = sum(env$dropout), nonDropoutsComplete = sum(env$stayer & !env$intermittent), nonDropoutsIntermittent = sum(env$stayer & env$intermittent),
+      measures = I(meas),
+      dropouts = sum(env$dropout),
+      nonDropoutsComplete = sum(env$stayer & !env$intermittent),
+      nonDropoutsIntermittent = sum(env$stayer & env$intermittent),
       byTime = I(vapply(seq_len(length(meas) - 1), function(t) sum(env$out_at %in% t), 0L)),
       set1 = lapply(seq_along(meas), function(t) list(variable = meas[t], time = t - 1, rows = env$set1[[t]])),
       set2 = if (length(desc)) {

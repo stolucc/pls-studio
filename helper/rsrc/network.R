@@ -126,13 +126,19 @@ ps_ega <- function(req_json, export = FALSE) {
   L <- L[vars, , drop = FALSE]
   st <- if (B > 0) env$items$item.stability$empirical.dimensions else NULL
   ps_json(list(
-    names = I(vars), dims = e$n.dim, membership = I(unname(as.integer(e$wc[vars]))),
+    names = I(vars),
+    dims = e$n.dim,
+    membership = I(unname(as.integer(e$wc[vars]))),
     weights = lapply(seq_len(nrow(e$network)), function(i) I(unname(e$network[i, ]))),
-    loadings = lapply(seq_len(nrow(L)), function(i) I(unname(L[i, ]))), loadingDims = I(colnames(L)),
-    layout = lapply(seq_len(nrow(env$layout)), function(i) I(unname(env$layout[i, ]))), tefi = unname(e$TEFI),
+    loadings = lapply(seq_len(nrow(L)), function(i) I(unname(L[i, ]))),
+    loadingDims = I(colnames(L)),
+    layout = lapply(seq_len(nrow(env$layout)), function(i) I(unname(env$layout[i, ]))),
+    tefi = unname(e$TEFI),
     frequency = if (B > 0) lapply(seq_len(nrow(env$boot$frequency)), function(i) list(dims = env$boot$frequency[i, 1], share = env$boot$frequency[i, 2])) else NULL,
     itemStability = if (B > 0) I(unname(as.numeric(if (is.matrix(st)) apply(st, 1, max)[vars] else st[vars]))) else NULL,
-    samples = B, n = nrow(inputs$data), warnings = env$.warnings,
+    samples = B,
+    n = nrow(inputs$data),
+    warnings = env$.warnings,
     engine = ps_engine("EGAnet")
   ))
 }

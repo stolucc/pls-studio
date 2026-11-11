@@ -51,7 +51,10 @@ ps_rebus <- function(req_json, export = FALSE) {
     sprintf("blocks <- list(%s)", paste(blocks, collapse = ", ")),
     sprintf(
       "global <- plspm(data, path, blocks, modes = rep(\"A\", %d), scheme = \"%s\", tol = %s, maxiter = %d)",
-      K, scheme, format(ps_number(req$options$tolerance %||% 1e-6, "tolerance"), scientific = TRUE), as.integer(req$options$maxIter %||% 100)
+      K,
+      scheme,
+      format(ps_number(req$options$tolerance %||% 1e-6, "tolerance"), scientific = TRUE),
+      as.integer(req$options$maxIter %||% 100)
     ),
     "# Step 1: Ward clustering of the global model's residuals: outer (standardised indicators minus",
     "# score x loading) and inner (endogenous scores minus their fitted values). This is plspm::res.clus,",
@@ -221,7 +224,11 @@ ps_pathmox <- function(req_json, export = FALSE) {
     "catvar <- data.frame(row.names = seq_len(nrow(data)))", facs,
     sprintf(
       "pmx <- pls.pathmox(.model = model, .data = data, .catvar = catvar, .scheme = \"%s\", .consistent = %s, .alpha = %s, .deep = %d, .size = %s, .tree = FALSE)",
-      c(path = "path", centroid = "centroid", factor = "factorial")[[scheme]], if (isTRUE(req$options$consistent)) "TRUE" else "FALSE", format(alpha), deep, format(size)
+      c(path = "path", centroid = "centroid", factor = "factorial")[[scheme]],
+      if (isTRUE(req$options$consistent)) "TRUE" else "FALSE",
+      format(alpha),
+      deep,
+      format(size)
     )
   )
   inputs <- list(data = fr$data)
@@ -237,15 +244,24 @@ ps_pathmox <- function(req_json, export = FALSE) {
   ps_json(list(
     nodes = lapply(seq_len(nrow(mox)), function(i) {
       list(
-        node = mox$node[i], parent = mox$parent[i], depth = mox$depth[i], terminal = mox$terminal[i] == "yes",
-        size = mox$size[i], percent = mox[["%"]][i], variable = if (is.na(mox$variable[i])) NULL else unname(fr$back[mox$variable[i]] %|NA|% mox$variable[i]),
+        node = mox$node[i],
+        parent = mox$parent[i],
+        depth = mox$depth[i],
+        terminal = mox$terminal[i] == "yes",
+        size = mox$size[i],
+        percent = mox[["%"]][i],
+        variable = if (is.na(mox$variable[i])) NULL else unname(fr$back[mox$variable[i]] %|NA|% mox$variable[i]),
         category = if (is.na(mox$category[i])) NULL else mox$category[i]
       )
     }),
     splits = lapply(seq_len(nrow(p$Fg.r)), function(i) {
       list(
-        node = p$Fg.r$node[i], f = p$Fg.r[["F value"]][i], p = p$Fg.r[["Pr(>F)"]][i],
-        variable = unname(fr$back[p$Fg.r$variable[i]] %|NA|% p$Fg.r$variable[i]), left = p$Fg.r$g1.mod[i], right = p$Fg.r$g2.mod[i],
+        node = p$Fg.r$node[i],
+        f = p$Fg.r[["F value"]][i],
+        p = p$Fg.r[["Pr(>F)"]][i],
+        variable = unname(fr$back[p$Fg.r$variable[i]] %|NA|% p$Fg.r$variable[i]),
+        left = p$Fg.r$g1.mod[i],
+        right = p$Fg.r$g2.mod[i],
         paths = {
           fc <- p$Fc.r[[i]]
           lapply(seq_len(nrow(fc)), function(j) list(path = nm(rownames(fc)[j]), f = fc[j, 1], p = fc[j, 2]))
@@ -285,7 +301,9 @@ ps_fimix <- function(req_json, export = FALSE) {
   intercepts <- !identical(req$intercepts, FALSE)
   eqs <- vapply(ends, function(t) {
     sprintf(
-      "FLXMRglm(%s ~ %s%s)", cv[[t]], paste(unique(vapply(Filter(function(p) p$to == t, req$model$paths), function(p) cv[[p$from]], "")), collapse = " + "),
+      "FLXMRglm(%s ~ %s%s)",
+      cv[[t]],
+      paste(unique(vapply(Filter(function(p) p$to == t, req$model$paths), function(p) cv[[p$from]], "")), collapse = " + "),
       if (intercepts) "" else " - 1"
     )
   }, "")
@@ -436,8 +454,14 @@ ps_pos <- function(req_json, export = FALSE) {
   best <- env$best
   global_r2 <- env$fit$Estimates$R2
   ps_json(list(
-    k = K, n = nrow(env$X), objective = best$objective, globalObjective = sum(global_r2), moves = best$moves, starts = sapply(env$runs, `[[`, "objective"),
-    assignment = best$assignment, globalR2 = as.list(setNames(unname(global_r2), ps_back(names(global_r2), back, FALSE))),
+    k = K,
+    n = nrow(env$X),
+    objective = best$objective,
+    globalObjective = sum(global_r2),
+    moves = best$moves,
+    starts = sapply(env$runs, `[[`, "objective"),
+    assignment = best$assignment,
+    globalR2 = as.list(setNames(unname(global_r2), ps_back(names(global_r2), back, FALSE))),
     segments = lapply(seq_len(K), function(k) {
       g <- best$fits[[k]]
       list(
@@ -449,6 +473,7 @@ ps_pos <- function(req_json, export = FALSE) {
         r2 = as.list(setNames(unname(g$r2), ps_back(names(g$r2), back, FALSE)))
       )
     }),
-    warnings = env$.warnings, engine = list(package = "cSEM (PLS-POS as Becker et al. 2013)", version = as.character(utils::packageVersion("cSEM")))
+    warnings = env$.warnings,
+    engine = list(package = "cSEM (PLS-POS as Becker et al. 2013)", version = as.character(utils::packageVersion("cSEM")))
   ))
 }

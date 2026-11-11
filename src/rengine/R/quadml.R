@@ -89,7 +89,15 @@ qml_model <- function(spec, data) {
     if (!length(v)) matrix(0L, 0, 3) else matrix(as.integer(v), ncol = 3, byrow = TRUE)
   }
   G <- list(
-    m = m, vars = vars, cols = gcols, obs = which(nzchar(gcols)), alpha = as.integer(unlist(g$alpha)), B = trip(g$B), Gam = trip(g$G), Psi = trip(g$Psi), x = xs,
+    m = m,
+    vars = vars,
+    cols = gcols,
+    obs = which(nzchar(gcols)),
+    alpha = as.integer(unlist(g$alpha)),
+    B = trip(g$B),
+    Gam = trip(g$G),
+    Psi = trip(g$Psi),
+    x = xs,
     X = if (length(xs)) as.matrix(data[, xs, drop = FALSE]) else matrix(0, n, 0)
   )
   Yc <- matrix(NA_real_, n, m)
@@ -108,8 +116,16 @@ qml_model <- function(spec, data) {
   }
   outs <- lapply(spec$outcomes, function(o) {
     u <- list(
-      name = o$name, column = o$column, type = o$type, link = o$link %||% "logit", y = data[[o$column]],
-      asym = o$asym, thr = as.integer(unlist(o$thr)), resvar = as.integer(o$resvar %||% -1L), disp = as.integer(o$disp %||% -1L), side = o$side %||% "below"
+      name = o$name,
+      column = o$column,
+      type = o$type,
+      link = o$link %||% "logit",
+      y = data[[o$column]],
+      asym = o$asym,
+      thr = as.integer(unlist(o$thr)),
+      resvar = as.integer(o$resvar %||% -1L),
+      disp = as.integer(o$disp %||% -1L),
+      side = o$side %||% "below"
     )
     u <- c(u, lin_part(o))
     u$infl <- lin_part(o$infl)
@@ -799,7 +815,8 @@ ps_quadml <- function(req_json, export = FALSE) {
   for (m in spec$missing) if (m$column %in% cols) fr$data[[m$column]][fr$data[[m$column]] %in% as.numeric(unlist(m$values))] <- NA
   # Cases with a missing covariate are left out (as Mplus does).
   xs <- unique(c(
-    unlist(spec$gauss$x), unlist(lapply(spec$outcomes, function(o) c(vapply(o$xs %||% list(), function(p) as.character(p[[1]]), ""), vapply(o$infl$xs %||% list(), function(p) as.character(p[[1]]), "")))),
+    unlist(spec$gauss$x),
+    unlist(lapply(spec$outcomes, function(o) c(vapply(o$xs %||% list(), function(p) as.character(p[[1]]), ""), vapply(o$infl$xs %||% list(), function(p) as.character(p[[1]]), "")))),
     unlist(lapply(spec$outcomes, function(o) if (identical(o$type, "surv") && nzchar(o$censor %||% "")) o$censor))
   ))
   keep <- if (length(xs)) {

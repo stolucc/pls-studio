@@ -117,7 +117,10 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
   pkgs <- c("lavaan", if (gorica) "restriktor", if (bf) "bain")
   if (export) {
     return(ps_script(
-      sprintf("Informative hypotheses: %s", c(gorica = "GORICA (restriktor)", bain = "Bayes factors (bain)", both = "GORICA (restriktor) and Bayes factors (bain)")[[method]]), pkgs, b$inputs, body,
+      sprintf("Informative hypotheses: %s", c(gorica = "GORICA (restriktor)", bain = "Bayes factors (bain)", both = "GORICA (restriktor) and Bayes factors (bain)")[[method]]),
+      pkgs,
+      b$inputs,
+      body,
       c(
         "print(estimates)",
         if (gorica) c("print(gorica)", "summary(gorica)"),
@@ -149,8 +152,13 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
     g <- env$gorica
     r <- g$result
     out_g <- list(
-      models = I(as.character(r$model)), loglik = num(r$loglik), penalty = num(r$penalty), gorica = num(r$gorica), weights = num(r$gorica.weights),
-      ratio = lapply(seq_len(nrow(g$ratio.gw)), function(i) num(g$ratio.gw[i, ])), comparison = comparison
+      models = I(as.character(r$model)),
+      loglik = num(r$loglik),
+      penalty = num(r$penalty),
+      gorica = num(r$gorica),
+      weights = num(r$gorica.weights),
+      ratio = lapply(seq_len(nrow(g$ratio.gw)), function(i) num(g$ratio.gw[i, ])),
+      comparison = comparison
     )
   }
   out_b <- NULL
@@ -158,14 +166,26 @@ ps_cb_hypotheses <- function(req_json, export = FALSE) {
     f <- env$bf$fit
     col <- function(k) num(if (is.null(f[[k]])) rep(NA_real_, nrow(f)) else f[[k]])
     out_b <- list(
-      rows = I(rownames(f)), fit = col("Fit"), com = col("Com"), bfu = col("BF.u"), bfc = col("BF.c"), pmpa = col("PMPa"), pmpb = col("PMPb"), pmpc = col("PMPc"),
-      matrix = lapply(seq_len(nrow(env$bf$BFmatrix)), function(i) num(env$bf$BFmatrix[i, ])), fraction = fraction
+      rows = I(rownames(f)),
+      fit = col("Fit"),
+      com = col("Com"),
+      bfu = col("BF.u"),
+      bfc = col("BF.c"),
+      pmpa = col("PMPa"),
+      pmpb = col("PMPb"),
+      pmpc = col("PMPc"),
+      matrix = lapply(seq_len(nrow(env$bf$BFmatrix)), function(i) num(env$bf$BFmatrix[i, ])),
+      fraction = fraction
     )
   }
   ps_json(list(
     hypotheses = I(vapply(hs, function(cs) paste(cs, collapse = " & "), "")),
-    estimates = list(label = I(e$label), what = I(what), est = num(est), se = num(e$se)), standardized = std, n = sum(lavInspect(env$fit, "ntotal")),
-    gorica = out_g, bain = out_b, warnings = env$.warnings,
+    estimates = list(label = I(e$label), what = I(what), est = num(est), se = num(e$se)),
+    standardized = std,
+    n = sum(lavInspect(env$fit, "ntotal")),
+    gorica = out_g,
+    bain = out_b,
+    warnings = env$.warnings,
     engine = do.call(
       ps_engine,
       c(

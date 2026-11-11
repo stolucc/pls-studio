@@ -47,7 +47,8 @@ ps_power <- function(req_json, export = FALSE) {
     }
     df <- ps_power_num(o$df, "degrees of freedom", 1, 1e6, TRUE)
     args <- c(
-      sprintf("effect = %s", effect), sprintf("effect.measure = \"%s\"", measure),
+      sprintf("effect = %s", effect),
+      sprintf("effect.measure = \"%s\"", measure),
       if (analysis != "compromise") sprintf("alpha = %s", alpha),
       if (analysis == "apriori") sprintf("power = %s", ps_power_num(o$power, "power", 0.01, 0.9999)),
       if (analysis == "compromise") sprintf("abratio = %s", ps_power_num(o$abratio %||% 1, "alpha/beta ratio", 1e-4, 1e4)),
@@ -235,9 +236,18 @@ ps_power <- function(req_json, export = FALSE) {
     pw <- env$pw
     res <- c(res, list(
       type = if (analysis == "parameter") type else analysis,
-      alpha = val(if (analysis == "compromise") pw$impliedAlpha else pw$alpha), beta = val(pw$impliedBeta %||% pw$beta),
-      power = val(pw$impliedPower %||% pw$power), n = val(pw$requiredN %||% pw$N), df = val(pw$df), ncp = val(pw$impliedNCP %||% pw$ncp),
-      chiCrit = val(pw$chiCrit), fmin = val(pw$fmin), rmsea = val(pw$rmsea), mc = val(pw$mc), gfi = val(pw$gfi), agfi = val(pw$agfi),
+      alpha = val(if (analysis == "compromise") pw$impliedAlpha else pw$alpha),
+      beta = val(pw$impliedBeta %||% pw$beta),
+      power = val(pw$impliedPower %||% pw$power),
+      n = val(pw$requiredN %||% pw$N),
+      df = val(pw$df),
+      ncp = val(pw$impliedNCP %||% pw$ncp),
+      chiCrit = val(pw$chiCrit),
+      fmin = val(pw$fmin),
+      rmsea = val(pw$rmsea),
+      mc = val(pw$mc),
+      gfi = val(pw$gfi),
+      agfi = val(pw$agfi),
       abratio = val(pw$impliedAbratio)
     ))
     if (!is.null(env$curve_n)) {

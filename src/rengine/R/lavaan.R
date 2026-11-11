@@ -1088,7 +1088,8 @@ ps_cb_build <- function(req) {
     }
     ps_note(sprintf(
       "Standard errors are robust to the clustering of cases by %s (lavaan cluster =, se = \"robust.cluster\"; as Mplus TYPE = COMPLEX).%s",
-      kcol, test_note
+      kcol,
+      test_note
     ))
   }
   # Variances kept non-negative (lavaan's bounds; a guard against Heywood cases).
@@ -1726,10 +1727,16 @@ ps_cb <- function(req_json, export = FALSE) {
       }
       # (a threshold is the variable's, also where the variable stands for its construct: an ordinal mediator)
       list(
-        kind = kind, lhs = if (r$op == "|" && r$lhs %in% ind_v) indicators[match(r$lhs, ind_v)] else nm(r$lhs), op = r$op, rhs = if (r$op %in% c("|", "~1")) r$rhs else nm(r$rhs), est = r$est,
+        kind = kind,
+        lhs = if (r$op == "|" && r$lhs %in% ind_v) indicators[match(r$lhs, ind_v)] else nm(r$lhs),
+        op = r$op,
+        rhs = if (r$op %in% c("|", "~1")) r$rhs else nm(r$rhs),
+        est = r$est,
         label = if (isTRUE(nzchar(r$label)) && !startsWith(r$label, ".")) r$label else NULL,
-        se = if (!free || is.na(r$se)) NULL else r$se, z = if (!free || is.na(r$z)) NULL else r$z,
-        p = if (!free || is.na(r$pvalue)) NULL else r$pvalue, std = r$std.all,
+        se = if (!free || is.na(r$se)) NULL else r$se,
+        z = if (!free || is.na(r$z)) NULL else r$z,
+        p = if (!free || is.na(r$pvalue)) NULL else r$pvalue,
+        std = r$std.all,
         index = if (free) r$free - 1L else NULL
       )
     })
@@ -1978,10 +1985,34 @@ ps_cb <- function(req_json, export = FALSE) {
       fm[c("chisq.scaled", "df.scaled", "pvalue.scaled")] <- c(t[["Statistic"]], t[["df"]], t[["p-value"]])
     }
     fmv <- as.list(fm[intersect(c(
-      "npar", "chisq", "df", "pvalue", "chisq.scaled", "df.scaled", "pvalue.scaled", "chisq.scaling.factor",
-      "chisq.shift.parameter", "baseline.chisq", "baseline.df", "baseline.chisq.scaled", "cfi", "tli", "cfi.scaled", "tli.scaled",
-      "cfi.robust", "tli.robust", "rmsea", "rmsea.ci.lower", "rmsea.ci.upper", "rmsea.pvalue", "rmsea.scaled", "rmsea.robust",
-      "srmr", "logl", "aic", "bic"
+      "npar",
+      "chisq",
+      "df",
+      "pvalue",
+      "chisq.scaled",
+      "df.scaled",
+      "pvalue.scaled",
+      "chisq.scaling.factor",
+      "chisq.shift.parameter",
+      "baseline.chisq",
+      "baseline.df",
+      "baseline.chisq.scaled",
+      "cfi",
+      "tli",
+      "cfi.scaled",
+      "tli.scaled",
+      "cfi.robust",
+      "tli.robust",
+      "rmsea",
+      "rmsea.ci.lower",
+      "rmsea.ci.upper",
+      "rmsea.pvalue",
+      "rmsea.scaled",
+      "rmsea.robust",
+      "srmr",
+      "logl",
+      "aic",
+      "bic"
     ), names(fm))])
     vc <- if (isTRUE(b$robust)) {
       unname(env$robust_se$vcov[[1]])
@@ -2056,7 +2087,10 @@ ps_cb <- function(req_json, export = FALSE) {
       NULL
     }
     c(per[[1]], list(groups = list(
-      labels = as.character(groups), results = per, score = if (levels2 || isTRUE(b$mi)) list() else ps_cb_score(fit, back), levels = levels2,
+      labels = as.character(groups),
+      results = per,
+      score = if (levels2 || isTRUE(b$mi)) list() else ps_cb_score(fit, back),
+      levels = levels2,
       icc = if (levels2) as.list(setNames(as.numeric(icc), nm(names(icc)))) else NULL
     )))
   } else {
@@ -2205,8 +2239,11 @@ ps_invariance <- function(req_json, export = FALSE) {
         list(level = levels[i]), fm[[i]],
         if (i > 1) {
           list(
-            chisqDiff = unname(lrt[["Chisq diff"]][i]), dfDiff = unname(lrt[["Df diff"]][i]), p = unname(lrt[["Pr(>Chisq)"]][i]),
-            cfiChange = fm[[i]]$cfi - fm[[i - 1]]$cfi, rmseaChange = fm[[i]]$rmsea - fm[[i - 1]]$rmsea
+            chisqDiff = unname(lrt[["Chisq diff"]][i]),
+            dfDiff = unname(lrt[["Df diff"]][i]),
+            p = unname(lrt[["Pr(>Chisq)"]][i]),
+            cfiChange = fm[[i]]$cfi - fm[[i - 1]]$cfi,
+            rmseaChange = fm[[i]]$rmsea - fm[[i - 1]]$rmsea
           )
         }
       )
@@ -2333,27 +2370,55 @@ ps_cb_modsem <- function(req, b, export) {
       list()
     } else {
       list(
-        npar = num1(base["npar"]), chisq = num1(base["chisq"]), df = num1(base["df"]), pvalue = num1(base["pvalue"]),
-        cfi = num1(base["cfi"]), tli = num1(base["tli"]), rmsea = num1(base["rmsea"]), rmsea.ci.lower = num1(base["rmsea.ci.lower"]), rmsea.ci.upper = num1(base["rmsea.ci.upper"]), srmr = num1(base["srmr"])
+        npar = num1(base["npar"]),
+        chisq = num1(base["chisq"]),
+        df = num1(base["df"]),
+        pvalue = num1(base["pvalue"]),
+        cfi = num1(base["cfi"]),
+        tli = num1(base["tli"]),
+        rmsea = num1(base["rmsea"]),
+        rmsea.ci.lower = num1(base["rmsea.ci.lower"]),
+        rmsea.ci.upper = num1(base["rmsea.ci.upper"]),
+        srmr = num1(base["srmr"])
       )
     },
     if (is.null(fm)) list() else list(aic = num1(fm$AIC), bic = num1(fm$BIC))
   )
   NAmat <- matrix(NA_real_, K, K)
   list(
-    estimator = "ML", interaction = b$modsem, n = nrow(env$data), iterations = 0L, converged = TRUE,
-    constructs = constructs, indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
-    estimates = est, fit = fitv, r2Indicators = unname(r2_ind), r2Constructs = r2_con, stdLoadings = std_load,
-    stdPaths = stdB, hasPath = has, stdTotal = total, stdIndirect = total - stdB, lvCor = unname(lvcor), reliability = rel,
-    residualCor = matrix(NA_real_, length(ind_v), length(ind_v)), htmt = NAmat, htmt2 = NAmat, vcov = if (is.null(V)) NULL else unname(V),
+    estimator = "ML",
+    interaction = b$modsem,
+    n = nrow(env$data),
+    iterations = 0L,
+    converged = TRUE,
+    constructs = constructs,
+    indicators = lapply(seq_along(indicators), function(i) list(name = indicators[i], construct = ind_con[i])),
+    estimates = est,
+    fit = fitv,
+    r2Indicators = unname(r2_ind),
+    r2Constructs = r2_con,
+    stdLoadings = std_load,
+    stdPaths = stdB,
+    hasPath = has,
+    stdTotal = total,
+    stdIndirect = total - stdB,
+    lvCor = unname(lvcor),
+    reliability = rel,
+    residualCor = matrix(NA_real_, length(ind_v), length(ind_v)),
+    htmt = NAmat,
+    htmt2 = NAmat,
+    vcov = if (is.null(V)) NULL else unname(V),
     moderations = lapply(
       seq_along(mods),
       function(q) list(from = mods[[q]]$from, moderator = mods[[q]]$moderator, to = mods[[q]]$to, construct = k0 + q - 1L)
     ),
-    wald = list(), modindices = list(), modindicesError = "lavaan's modification indices are not available for LMS / QML (modsem) models.",
+    wald = list(),
+    modindices = list(),
+    modindicesError = "lavaan's modification indices are not available for LMS / QML (modsem) models.",
     lrt = if (is.list(lrt) && !is.null(lrt$D)) list(D = num1(lrt$D), df = num1(lrt$df), p = num1(lrt$p), llChange = num1(lrt$llChange)) else NULL,
     fitNote = "Chi-square-based fit measures (chi-square, CFI, TLI, RMSEA, SRMR) are those of the baseline model without the interaction term, refitted with lavaan, as modsem advises; AIC and BIC are the interaction model's.",
-    warnings = env$.warnings, droppedRows = 0L,
+    warnings = env$.warnings,
+    droppedRows = 0L,
     engine = ps_engine("modsem")
   )
 }
@@ -2570,8 +2635,13 @@ ps_tech10 <- function(fit) {
   lapply(seq_len(lavaan::lavInspect(fit, "ngroups")), function(g) {
     t <- if ("group" %in% names(tb)) tb[tb$group == g, , drop = FALSE] else tb
     list(
-      lhs = as.character(t$lhs), rhs = as.character(t$rhs), df = as.numeric(t$df), x2 = as.numeric(t$X2), x2p = as.numeric(t$X2.pval),
-      g2 = as.numeric(t$G2), g2p = as.numeric(t$G2.pval)
+      lhs = as.character(t$lhs),
+      rhs = as.character(t$rhs),
+      df = as.numeric(t$df),
+      x2 = as.numeric(t$X2),
+      x2p = as.numeric(t$X2.pval),
+      g2 = as.numeric(t$G2),
+      g2p = as.numeric(t$G2.pval)
     )
   })
 }
@@ -2731,9 +2801,14 @@ ps_cb_bollen_stine <- function(req_json, export = FALSE) {
   bs <- env$bs
   boot <- env$boot_chisq
   ps_json(list(
-    chisq = bs$stat, df = bs$df, p = bs$pvalue, samples = B,
-    valid = if (is.null(boot)) NULL else sum(is.finite(boot)), boot = if (is.null(boot)) NULL else I(unname(as.numeric(boot))),
-    mlChisq = unname(fitMeasures(env$fit, "chisq")), warnings = env$.warnings,
+    chisq = bs$stat,
+    df = bs$df,
+    p = bs$pvalue,
+    samples = B,
+    valid = if (is.null(boot)) NULL else sum(is.finite(boot)),
+    boot = if (is.null(boot)) NULL else I(unname(as.numeric(boot))),
+    mlChisq = unname(fitMeasures(env$fit, "chisq")),
+    warnings = env$.warnings,
     engine = ps_engine("lavaan")
   ))
 }

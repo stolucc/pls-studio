@@ -17,9 +17,15 @@ ps_semtree_nodes <- function(node, back, fr, parent = NULL, edge = NULL) {
   leaf <- semtree::isLeaf(node)
   r <- node$rule
   me <- list(
-    id = node$node_id, parent = parent, edge = edge, n = node$N, terminal = leaf,
+    id = node$node_id,
+    parent = parent,
+    edge = edge,
+    n = node$N,
+    terminal = leaf,
     rule = if (!leaf && !is.null(r)) list(variable = ps_back(r$name, back), relation = as.character(r$relation), value = I(as.character(r$value))) else NULL,
-    lr = if (!leaf) node$lr else NULL, df = if (!leaf) node$df else NULL, p = if (!leaf) node$p else NULL,
+    lr = if (!leaf) node$lr else NULL,
+    df = if (!leaf) node$df else NULL,
+    p = if (!leaf) node$p else NULL,
     params = lapply(seq_len(nrow(fr)), function(i) {
       list(
         lhs = ps_back(fr$lhs[i], back), op = fr$op[i], rhs = if (fr$op[i] == "~1") "" else ps_back(fr$rhs[i], back),
@@ -107,7 +113,10 @@ ps_semtree <- function(req_json, export = FALSE) {
     conv,
     sprintf(
       "# The SEM tree: the fitted model split on the covariates (%s; alpha = %s, depth at most %d, at least %d cases a node)",
-      c(naive = "likelihood-ratio tests of every split", score = "score-based tests", fair = "the fair two-stage selection")[[method]], format(alpha), as.integer(depth), as.integer(minn)
+      c(naive = "likelihood-ratio tests of every split", score = "score-based tests", fair = "the fair two-stage selection")[[method]],
+      format(alpha),
+      as.integer(depth),
+      as.integer(minn)
     ),
     sprintf("tree <- semtree(model = fit, data = data, predictors = %s, control = %s)", ps_q(idents), ctrl),
     if (trees > 0) {
@@ -135,8 +144,10 @@ ps_semtree <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   imp <- if (trees > 0) {
     list(
-      variables = I(unname(ps_back(names(env$importance), back))), importance = I(unname(ifelse(is.finite(env$importance), env$importance, NA_real_))),
-      trees = length(env$forest$forest), seed = seed
+      variables = I(unname(ps_back(names(env$importance), back))),
+      importance = I(unname(ifelse(is.finite(env$importance), env$importance, NA_real_))),
+      trees = length(env$forest$forest),
+      seed = seed
     )
   } else {
     NULL
@@ -145,8 +156,15 @@ ps_semtree <- function(req_json, export = FALSE) {
   fr <- pt[pt$free > 0, , drop = FALSE]
   fr <- fr[order(fr$free), , drop = FALSE]
   ps_json(list(
-    nodes = ps_semtree_nodes(env$tree, back, fr), n = nrow(env$data), method = method, alpha = alpha, maxDepth = depth, minN = minn,
-    covariates = lapply(seq_along(cn), function(i) list(name = cn[i], type = types[i])), forest = imp,
-    warnings = env$.warnings, engine = ps_engine("semtree", openmx = "OpenMx")
+    nodes = ps_semtree_nodes(env$tree, back, fr),
+    n = nrow(env$data),
+    method = method,
+    alpha = alpha,
+    maxDepth = depth,
+    minN = minn,
+    covariates = lapply(seq_along(cn), function(i) list(name = cn[i], type = types[i])),
+    forest = imp,
+    warnings = env$.warnings,
+    engine = ps_engine("semtree", openmx = "OpenMx")
   ))
 }

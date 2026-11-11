@@ -177,14 +177,20 @@ ps_scoretest <- function(req_json, export = FALSE) {
     if (!is.null(b$group_var)) sprintf(" & !is.na(data$%s)", b$group_var) else ""
   )
   body <- c(
-    b$body[1], sprintf("# The covariate %s: rows without it%s are left out", ps_comment(cov), if (!is.null(b$group_var)) " (or without a group)" else ""), drop,
-    b$body[-1], "suppressPackageStartupMessages(library(strucchange))",
+    b$body[1],
+    sprintf("# The covariate %s: rows without it%s are left out", ps_comment(cov), if (!is.null(b$group_var)) " (or without a group)" else ""),
+    drop,
+    b$body[-1],
+    "suppressPackageStartupMessages(library(strucchange))",
     sprintf("# Score-based test of parameter instability along %s (%s covariate, %s)", ps_comment(cov), scale, fn),
     ps_sc_lines(zv, scale, fn, sets, seed, nrep)
   )
   if (export) {
     return(ps_script(
-      sprintf("Score-based invariance test along %s: %s (strucchange)", cov, fn), c("lavaan", "strucchange"), inputs, body,
+      sprintf("Score-based invariance test along %s: %s (strucchange)", cov, fn),
+      c("lavaan", "strucchange"),
+      inputs,
+      body,
       c("test", "plot(scus, functional = fun)")
     ))
   }

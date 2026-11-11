@@ -242,7 +242,8 @@ ps_cpa <- function(req_json, export = FALSE) {
   back <- setNames(names(b$rn), unname(b$rn))
   nm <- function(x) ps_back(x, back, FALSE)
   title <- sprintf(
-    "Conditional process analysis%s (%s)", if (is.null(req$model)) "" else sprintf(", PROCESS model %d", as.integer(req$model)),
+    "Conditional process analysis%s (%s)",
+    if (is.null(req$model)) "" else sprintf(", PROCESS model %d", as.integer(req$model)),
     if (b$sam) "lavaan::sam and manymome" else "manymome"
   )
   fit_name <- if (b$sam) "fit" else "fits"
@@ -283,11 +284,24 @@ ps_cpa <- function(req_json, export = FALSE) {
       o <- id(e$outcome)
       rows <- pe[pe$op == "~" & pe$lhs == o, ]
       list(
-        outcome = e$outcome, n = nrow(env$data), r2 = unname(r2[o]), mse = NULL, f = NULL, df1 = NULL, df2 = NULL, p = NULL, interactions = list(),
+        outcome = e$outcome,
+        n = nrow(env$data),
+        r2 = unname(r2[o]),
+        mse = NULL,
+        f = NULL,
+        df1 = NULL,
+        df2 = NULL,
+        p = NULL,
+        interactions = list(),
         coefficients = lapply(seq_len(nrow(rows)), function(i) {
           list(
             term = nm(strsplit(rows$rhs[i], ":", fixed = TRUE)[[1]]),
-            est = rows$est[i], se = rows$se[i], t = rows$z[i], p = rows$pvalue[i], lo = rows$ci.lower[i], hi = rows$ci.upper[i]
+            est = rows$est[i],
+            se = rows$se[i],
+            t = rows$z[i],
+            p = rows$pvalue[i],
+            lo = rows$ci.lower[i],
+            hi = rows$ci.upper[i]
           )
         })
       )
@@ -307,25 +321,43 @@ ps_cpa <- function(req_json, export = FALSE) {
       fval <- drop(t(b[k]) %*% solve(V[k, k, drop = FALSE]) %*% b[k]) / sum(k)
       # Highest-order interactions of this outcome: R² change on dropping the product(s), Wald F with V.
       labels <- attr(terms(f), "term.labels")
-      find <- function(vars) names(b)[vapply(strsplit(names(b), ":", fixed = TRUE), function(p) setequal(p, id(vars)), TRUE)]
+      # The coefficient of the product of `vars` (in any order)
+      find <- function(vars) {
+        names(b)[vapply(strsplit(names(b), ":", fixed = TRUE), function(p) setequal(p, id(vars)), TRUE)]
+      }
       test <- function(focal, vs) {
         nms <- vapply(vs, function(v) find(v$vars), "")
-        keep <- labels[!vapply(strsplit(labels, ":", fixed = TRUE), function(p) any(vapply(vs, function(v) setequal(p, id(v$vars)), TRUE)), TRUE)]
+        # The model without the tested products
+        is_tested <- function(p) any(vapply(vs, function(v) setequal(p, id(v$vars)), TRUE))
+        keep <- labels[!vapply(strsplit(labels, ":", fixed = TRUE), is_tested, TRUE)]
         reduced <- lm(reformulate(keep, response = id(e$outcome)), data = f$model)
         fq <- drop(t(b[nms]) %*% solve(V[nms, nms, drop = FALSE]) %*% b[nms]) / length(nms)
         list(
-          focal = focal, terms = lapply(vs, function(v) nm(id(v$vars))), r2change = s$r.squared - summary(reduced)$r.squared,
-          f = fq, df1 = length(nms), df2 = df, p = pf(fq, length(nms), df, lower.tail = FALSE)
+          focal = focal,
+          terms = lapply(vs, function(v) nm(id(v$vars))),
+          r2change = s$r.squared - summary(reduced)$r.squared,
+          f = fq,
+          df1 = length(nms),
+          df2 = df,
+          p = pf(fq, length(nms), df, lower.tail = FALSE)
         )
       }
-      tests <- unlist(lapply(Filter(function(i) id(i$outcome) == id(e$outcome), req$interactions %||% list()), function(i) {
+      outcome_interactions <- Filter(function(i) id(i$outcome) == id(e$outcome), req$interactions %||% list())
+      tests <- unlist(lapply(outcome_interactions, function(i) {
         rows <- lapply(i$terms, function(v) test(i$focal, list(v)))
         if (length(i$terms) > 1) rows <- c(rows, list(test(i$focal, i$terms)))
         rows
       }), recursive = FALSE)
       list(
-        outcome = e$outcome, n = length(f$residuals), r2 = s$r.squared, mse = s$sigma^2,
-        f = fval, df1 = sum(k), df2 = df, p = pf(fval, sum(k), df, lower.tail = FALSE), interactions = tests %||% list(),
+        outcome = e$outcome,
+        n = length(f$residuals),
+        r2 = s$r.squared,
+        mse = s$sigma^2,
+        f = fval,
+        df1 = sum(k),
+        df2 = df,
+        p = pf(fval, sum(k), df, lower.tail = FALSE),
+        interactions = tests %||% list(),
         coefficients = lapply(seq_along(b), function(i) {
           list(
             term = if (names(b)[i] == "(Intercept)") list() else nm(strsplit(names(b)[i], ":", fixed = TRUE)[[1]]),
@@ -393,8 +425,17 @@ ps_cpa <- function(req_json, export = FALSE) {
       sdw <- diff(range(pv[[w]])) / 2
       roots <- roots[abs(roots) <= 3 * sdw]
       return(list(
-        from = j$from, to = j$to, moderator = j$moderator, range = c(-3 * sdw, 3 * sdw), mean = 0, sd = sdw, latent = TRUE,
-        b = unname(b[from]), bint = unname(b[xw]), v = unname(c(V[from, from], V[from, xw], V[xw, xw])), crit = unname(q),
+        from = j$from,
+        to = j$to,
+        moderator = j$moderator,
+        range = c(-3 * sdw, 3 * sdw),
+        mean = 0,
+        sd = sdw,
+        latent = TRUE,
+        b = unname(b[from]),
+        bint = unname(b[xw]),
+        v = unname(c(V[from, from], V[from, xw], V[xw, xw])),
+        crit = unname(q),
         bounds = lapply(roots, function(r) list(value = unname(r), below = NULL, above = NULL))
       ))
     }
@@ -464,11 +505,19 @@ ps_cpa <- function(req_json, export = FALSE) {
   }
 
   ps_json(list(
-    n = nrow(env$data), equations = equations,
+    n = nrow(env$data),
+    equations = equations,
     moderators = lapply(b$mods, function(m) list(name = nm(m), values = pv[[m]])),
-    direct = direct, directs = directs, indirect = indirect, total = total, indices = indices, jn = jn,
+    direct = direct,
+    directs = directs,
+    indirect = indirect,
+    total = total,
+    indices = indices,
+    jn = jn,
     boot = list(samples = if (b$has_ind || b$sam) as.integer(req$boot$samples) else 0L),
-    inference = if (b$sam) "montecarlo" else "bootstrap", hc = if (b$sam) "none" else req$hc %||% "none", latent = lapply(b$latent, nm),
+    inference = if (b$sam) "montecarlo" else "bootstrap",
+    hc = if (b$sam) "none" else req$hc %||% "none",
+    latent = lapply(b$latent, nm),
     warnings = env$.warnings,
     engine = list(
       package = if (b$sam) "lavaan::sam + manymome" else "manymome",
@@ -544,7 +593,8 @@ ps_cpa_glm <- function(req, export = FALSE) {
       "lapply(eqs, summary)", if (length(b$mods)) "probe_values",
       unlist(lapply(req$indirect, function(p) {
         sprintf(
-          "ind_c(cf0, %s%s)  # point estimate; bootstrap: sapply(boots, ind_c, path = ...)", ps_q(id(p$vars)),
+          "ind_c(cf0, %s%s)  # point estimate; bootstrap: sapply(boots, ind_c, path = ...)",
+          ps_q(id(p$vars)),
           if (length(p$moderators)) sprintf(", at = c(%s)", paste(sprintf("%s = probe_values$%s[2]", id(p$moderators), id(p$moderators)), collapse = ", ")) else ""
         )
       }))
@@ -585,7 +635,12 @@ ps_cpa_glm <- function(req, export = FALSE) {
       coefficients = lapply(seq_len(nrow(ct)), function(i) {
         list(
           term = if (rownames(ct)[i] == "(Intercept)") list() else nm(strsplit(rownames(ct)[i], ":", fixed = TRUE)[[1]]),
-          est = ct[i, 1], se = ct[i, 2], t = ct[i, 3], p = ct[i, 4], lo = ct[i, 1] - q * ct[i, 2], hi = ct[i, 1] + q * ct[i, 2]
+          est = ct[i, 1],
+          se = ct[i, 2],
+          t = ct[i, 3],
+          p = ct[i, 4],
+          lo = ct[i, 1] - q * ct[i, 2],
+          hi = ct[i, 1] + q * ct[i, 2]
         )
       })
     )
@@ -726,10 +781,21 @@ ps_cpa_glm <- function(req, export = FALSE) {
     list(xref = xr, xcf = xc, effects = lapply(eff, function(e) c(list(name = e$name, label = e$label), boot_eff(e$f))))
   }
   ps_json(list(
-    n = nrow(env$data), equations = eq_out, moderators = lapply(b$mods, function(m) list(name = nm(m), values = pv[[m]])),
-    direct = direct, directs = directs, indirect = indirect, total = NULL, indices = indices, jn = list(),
-    counterfactual = counterfactual, binaryY = binary,
-    boot = list(samples = length(boots)), inference = "bootstrap", hc = "none", latent = list(),
+    n = nrow(env$data),
+    equations = eq_out,
+    moderators = lapply(b$mods, function(m) list(name = nm(m), values = pv[[m]])),
+    direct = direct,
+    directs = directs,
+    indirect = indirect,
+    total = NULL,
+    indices = indices,
+    jn = list(),
+    counterfactual = counterfactual,
+    binaryY = binary,
+    boot = list(samples = length(boots)),
+    inference = "bootstrap",
+    hc = "none",
+    latent = list(),
     warnings = c(
       env$.warnings,
       if (length(boots) < B) sprintf("%d of %d bootstrap samples failed (e.g. separation in the logistic regression) and were left out.", B - length(boots), B)

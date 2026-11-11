@@ -5,8 +5,18 @@
 
 #' lavaan's further tests of exact fit the local-fit card offers (lavaan::lavTest names).
 PS_LOCALFIT_TESTS <- c(
-  "browne.residual.nt.model", "browne.residual.nt", "browne.residual.adf", "satorra.bentler", "yuan.bentler",
-  "mean.var.adjusted", "scaled.shifted", "mean.var.adjusted.corrected", "scaled.shifted.corrected", "peba4", "pols3", "pall"
+  "browne.residual.nt.model",
+  "browne.residual.nt",
+  "browne.residual.adf",
+  "satorra.bentler",
+  "yuan.bentler",
+  "mean.var.adjusted",
+  "scaled.shifted",
+  "mean.var.adjusted.corrected",
+  "scaled.shifted.corrected",
+  "peba4",
+  "pols3",
+  "pall"
 )
 #' The tests that rescale (or, FMG, take the p-value of) a base statistic: lavTest's scaled_test applies to them.
 PS_LOCALFIT_SCALED <- c(
@@ -57,7 +67,8 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
   tests <- PS_LOCALFIT_TESTS[PS_LOCALFIT_TESTS %in% unlist(lf$tests)]
   base <- if (identical(lf$base, "RLS")) "RLS" else "standard"
   body <- c(
-    b$body, "",
+    b$body,
+    "",
     "# Local fit: residual correlations (observed minus model-implied, both scaled by the observed SDs: Bentler's",
     "# metric, as the SRMR) with their standard errors and z-tests; the SRMR's tests (Maydeu-Olivares 2017).",
     "res <- lavResiduals(fit, type = \"cor.bentler\", se = TRUE, drop_list_single_group = FALSE)",
@@ -107,8 +118,13 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
       NULL
     }
     list(
-      label = names(res)[g] %||% "", names = I(nm(v)), residual = ps_rows(r$cov), se = ps_rows(r$cov.se), z = ps_rows(r$cov.z),
-      normalized = if (!is.null(rn[[g]]$cov)) ps_rows(rn[[g]]$cov[v, v, drop = FALSE]), means = mz,
+      label = names(res)[g] %||% "",
+      names = I(nm(v)),
+      residual = ps_rows(r$cov),
+      se = ps_rows(r$cov.se),
+      z = ps_rows(r$cov.z),
+      normalized = if (!is.null(rn[[g]]$cov)) ps_rows(rn[[g]]$cov[v, v, drop = FALSE]),
+      means = mz,
       summary = list(
         srmr = sm("srmr"), se = sm("srmr.se"), z = sm("srmr.exactfit.z"), p = sm("srmr.exactfit.pvalue"),
         usrmr = sm("usrmr"), usrmrSe = sm("usrmr.se"), low = sm("usrmr.ci.lower"), high = sm("usrmr.ci.upper"),
@@ -119,12 +135,25 @@ ps_cb_localfit <- function(req_json, export = FALSE) {
   tl <- lapply(names(env$tests), function(k) {
     t <- env$tests[[k]]
     list(
-      test = k, label = ps_str1(t$label), stat = ps_num1(t$stat), df = ps_num1(t$df), p = ps_num1(t$pvalue), scaling = ps_num1(t$scaling.factor), shift = ps_num1(t$shift.parameter),
-      base = ps_str1(t$scaled.test %||% t$chisq.type), error = ps_str1(t$error), warning = ps_str1(t$warning)
+      test = k,
+      label = ps_str1(t$label),
+      stat = ps_num1(t$stat),
+      df = ps_num1(t$df),
+      p = ps_num1(t$pvalue),
+      scaling = ps_num1(t$scaling.factor),
+      shift = ps_num1(t$shift.parameter),
+      base = ps_str1(t$scaled.test %||% t$chisq.type),
+      error = ps_str1(t$error),
+      warning = ps_str1(t$warning)
     )
   })
   ps_json(list(
-    blocks = blocks, tests = tl, base = base, estimator = req$estimator, n = sum(lavInspect(env$fit, "nobs")), warnings = env$.warnings,
+    blocks = blocks,
+    tests = tl,
+    base = base,
+    estimator = req$estimator,
+    n = sum(lavInspect(env$fit, "nobs")),
+    warnings = env$.warnings,
     engine = ps_engine("lavaan")
   ))
 }
@@ -187,9 +216,18 @@ ps_cb_discriminant <- function(req_json, export = FALSE) {
   }
   d <- as.data.frame(env$dv[[1]])
   ps_json(list(
-    level = level, lhs = I(nm(d$lhs)), rhs = I(nm(d$rhs)), est = I(as.numeric(d$est)), low = I(as.numeric(d$ci.lower)), high = I(as.numeric(d$ci.upper)),
-    cut80 = pr(env$dv[[1]]), cut90 = pr(env$dv[[2]]), cut100 = pr(env$dv[[3]]), merge = if (merge) pr(env$dv_merge) else NULL,
-    markers = !isTRUE(lavInspect(env$fit, "options")$std.lv), warnings = env$.warnings,
+    level = level,
+    lhs = I(nm(d$lhs)),
+    rhs = I(nm(d$rhs)),
+    est = I(as.numeric(d$est)),
+    low = I(as.numeric(d$ci.lower)),
+    high = I(as.numeric(d$ci.upper)),
+    cut80 = pr(env$dv[[1]]),
+    cut90 = pr(env$dv[[2]]),
+    cut100 = pr(env$dv[[3]]),
+    merge = if (merge) pr(env$dv_merge) else NULL,
+    markers = !isTRUE(lavInspect(env$fit, "options")$std.lv),
+    warnings = env$.warnings,
     engine = ps_engine("semTools")
   ))
 }
@@ -240,8 +278,14 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
   seg[1] <- "model_2 <- '"
   seg[length(seg)] <- sub("^fit <- sem\\(model,", "fit_2 <- sem(model_2,", seg[length(seg)])
   body <- c(
-    b1$body, "fit_1 <- fit", "", "# Model 2: the alternative, fitted to the same data", seg, "",
-    ps_call_objects("fit_1"), ps_call_objects("fit_2"),
+    b1$body,
+    "fit_1 <- fit",
+    "",
+    "# Model 2: the alternative, fitted to the same data",
+    seg,
+    "",
+    ps_call_objects("fit_1"),
+    ps_call_objects("fit_2"),
     "# Each test on its own: one that does not apply says why.",
     "try_test <- function(expr) tryCatch(withCallingHandlers(expr, warning = function(w) { note <<- c(note, conditionMessage(w)); invokeRestart(\"muffleWarning\") }), error = function(e) conditionMessage(e))",
     "note <- character(0)",
@@ -279,8 +323,13 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
   net <- env$net
   netOut <- if (is.list(net)) {
     list(
-      nested12 = net$nested[1, 2], nested21 = net$nested[2, 1], fx12 = ps_num1(net$fx[1, 2]), fx21 = ps_num1(net$fx[2, 1]),
-      reason12 = ps_flat(net$reason[1, 2]), reason21 = ps_flat(net$reason[2, 1]), crit = ps_num1(net$crit)
+      nested12 = net$nested[1, 2],
+      nested21 = net$nested[2, 1],
+      fx12 = ps_num1(net$fx[1, 2]),
+      fx21 = ps_num1(net$fx[2, 1]),
+      reason12 = ps_flat(net$reason[1, 2]),
+      reason21 = ps_flat(net$reason[2, 1]),
+      crit = ps_num1(net$crit)
     )
   } else {
     NULL
@@ -326,9 +375,15 @@ ps_cb_compare_models <- function(req_json, export = FALSE) {
     NULL
   }
   ps_json(list(
-    fit1 = fm(env$fit_1), fit2 = fm(env$fit_2), n = sum(lavInspect(env$fit_1, "nobs")),
-    net = c(netOut, why(net, env$note_net)), lrt = c(lrtOut, why(lrt, env$note_lrt)), vuong = c(vtOut, why(vt, env$note_vt)), icci = c(icOut, why(ic, env$note_ic)),
-    nestedChoice = nested, warnings = env$.warnings,
+    fit1 = fm(env$fit_1),
+    fit2 = fm(env$fit_2),
+    n = sum(lavInspect(env$fit_1, "nobs")),
+    net = c(netOut, why(net, env$note_net)),
+    lrt = c(lrtOut, why(lrt, env$note_lrt)),
+    vuong = c(vtOut, why(vt, env$note_vt)),
+    icci = c(icOut, why(ic, env$note_ic)),
+    nestedChoice = nested,
+    warnings = env$.warnings,
     engine = ps_engine("nonnest2", lavaan = "lavaan")
   ))
 }
@@ -363,7 +418,8 @@ ps_cb_epcequiv <- function(req_json, export = FALSE) {
   mipower <- val("mipower", 0.5, 0.999, 0.8)
   adjust <- if (identical(e$adjust, "bonferroni")) "bonferroni" else "none"
   body <- c(
-    b$body, "",
+    b$body,
+    "",
     "# EPC-based judgement of misspecification (Saris, Satorra & van der Veld 2009; semTools::epcEquivFit): per fixed",
     "# parameter the MI, EPC, the power to detect a misspecification of the smallest effect size of interest (SESOI), the",
     "# J-rule decision (decision.pow) and the EPC confidence interval against the SESOI (decision.ci).",
@@ -371,7 +427,14 @@ ps_cb_epcequiv <- function(req_json, export = FALSE) {
     ps_call_objects(),
     sprintf(
       "epc <- epcEquivFit(fit, stdLoad = %s, cor = %s, stdBeta = %s, stdIntcept = %s, cilevel = %s, mialpha = %s, mipower = %s, adjust.method = \"%s\")",
-      format(std_load), format(cor), format(std_beta), format(std_int), format(cilevel), format(mialpha), format(mipower), adjust
+      format(std_load),
+      format(cor),
+      format(std_beta),
+      format(std_int),
+      format(cilevel),
+      format(mialpha),
+      format(mipower),
+      adjust
     )
   )
   if (export) {
@@ -385,10 +448,23 @@ ps_cb_epcequiv <- function(req_json, export = FALSE) {
   chr <- function(k) if (is.null(d[[k]])) rep(NA_character_, nrow(d)) else as.character(d[[k]])
   lg <- function(k) if (is.null(d[[k]])) rep(NA, nrow(d)) else as.logical(d[[k]])
   ps_json(list(
-    lhs = I(nm(chr("lhs"))), op = I(chr("op")), rhs = I(nm(chr("rhs"))), group = I(col("group")),
-    mi = I(col("mi")), epc = I(col("epc")), stdEpc = I(col("std.epc")), sesoi = I(col("sesoi")), stdSesoi = I(col("std.sesoi")),
-    significant = I(lg("significant.mi")), highPower = I(lg("high.power")), power = I(col("pow")), decisionPow = I(chr("decision.pow")),
-    seEpc = I(col("se.epc")), lowStd = I(col("lower.std.epc")), highStd = I(col("upper.std.epc")), decisionCi = I(chr("decision.ci")),
+    lhs = I(nm(chr("lhs"))),
+    op = I(chr("op")),
+    rhs = I(nm(chr("rhs"))),
+    group = I(col("group")),
+    mi = I(col("mi")),
+    epc = I(col("epc")),
+    stdEpc = I(col("std.epc")),
+    sesoi = I(col("sesoi")),
+    stdSesoi = I(col("std.sesoi")),
+    significant = I(lg("significant.mi")),
+    highPower = I(lg("high.power")),
+    power = I(col("pow")),
+    decisionPow = I(chr("decision.pow")),
+    seEpc = I(col("se.epc")),
+    lowStd = I(col("lower.std.epc")),
+    highStd = I(col("upper.std.epc")),
+    decisionCi = I(chr("decision.ci")),
     settings = list(
       stdLoad = std_load,
       cor = cor,
@@ -399,7 +475,8 @@ ps_cb_epcequiv <- function(req_json, export = FALSE) {
       mipower = mipower,
       adjust = adjust
     ),
-    groups = if (!is.null(b$group_var)) I(as.character(lavInspect(env$fit, "group.label"))) else NULL, warnings = env$.warnings,
+    groups = if (!is.null(b$group_var)) I(as.character(lavInspect(env$fit, "group.label"))) else NULL,
+    warnings = env$.warnings,
     engine = ps_engine("semTools")
   ))
 }

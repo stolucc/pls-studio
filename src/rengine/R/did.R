@@ -132,8 +132,16 @@ ps_did <- function(req_json, export = FALSE) {
     }
     d <- env$data
     ps_json(list(
-      design = "twfe", att = att, event = ev, preTrend = pt, n = nrow(d), units = length(unique(d[[ID]])), periods = length(unique(d[[TM]])),
-      treatedUnits = length(unique(d[[ID]][d[[TR]] == 1])), warnings = env$.warnings, engine = ps_engine("fixest")
+      design = "twfe",
+      att = att,
+      event = ev,
+      preTrend = pt,
+      n = nrow(d),
+      units = length(unique(d[[ID]])),
+      periods = length(unique(d[[TM]])),
+      treatedUnits = length(unique(d[[ID]][d[[TR]] == 1])),
+      warnings = env$.warnings,
+      engine = ps_engine("fixest")
     ))
   } else {
     body <- c(
@@ -144,7 +152,13 @@ ps_did <- function(req_json, export = FALSE) {
       "# Group-time average treatment effects (Callaway & Sant'Anna 2021), then aggregated.",
       sprintf(
         "out <- att_gt(yname = \"%s\", tname = \"%s\", idname = \"%s\", gname = \"%s\", xformla = %s, data = data, control_group = \"%s\", alp = %s)",
-        Y, TM, ID, TR, if (is.null(xs)) "NULL" else paste0("~", xs), control, ps_num(1 - conf)
+        Y,
+        TM,
+        ID,
+        TR,
+        if (is.null(xs)) "NULL" else paste0("~", xs),
+        control,
+        ps_num(1 - conf)
       ),
       "overall <- aggte(out, type = \"simple\")   # one ATT over all treated groups and periods",
       if (event) "dynamic <- aggte(out, type = \"dynamic\")  # by length of exposure (event study)"
@@ -157,8 +171,12 @@ ps_did <- function(req_json, export = FALSE) {
     out <- env$out
     ov <- env$overall
     att <- list(
-      est = ov$overall.att, se = ov$overall.se, t = ov$overall.att / ov$overall.se, p = 2 * pnorm(-abs(ov$overall.att / ov$overall.se)),
-      ciLow = ov$overall.att - z * ov$overall.se, ciHigh = ov$overall.att + z * ov$overall.se
+      est = ov$overall.att,
+      se = ov$overall.se,
+      t = ov$overall.att / ov$overall.se,
+      p = 2 * pnorm(-abs(ov$overall.att / ov$overall.se)),
+      ciLow = ov$overall.att - z * ov$overall.se,
+      ciHigh = ov$overall.att + z * ov$overall.se
     )
     gt <- lapply(
       seq_along(out$att),
@@ -180,8 +198,18 @@ ps_did <- function(req_json, export = FALSE) {
     }
     d <- env$data
     ps_json(list(
-      design = "staggered", att = att, event = ev, groupTime = gt, preTrend = pt, n = nrow(d), units = length(unique(d[[ID]])), periods = length(unique(d[[TM]])),
-      treatedUnits = length(unique(d[[ID]][d[[TR]] > 0])), control = control, warnings = env$.warnings, engine = ps_engine("did")
+      design = "staggered",
+      att = att,
+      event = ev,
+      groupTime = gt,
+      preTrend = pt,
+      n = nrow(d),
+      units = length(unique(d[[ID]])),
+      periods = length(unique(d[[TM]])),
+      treatedUnits = length(unique(d[[ID]][d[[TR]] > 0])),
+      control = control,
+      warnings = env$.warnings,
+      engine = ps_engine("did")
     ))
   }
 }

@@ -21,7 +21,7 @@ ps_psem <- function(req_json, export = FALSE) {
   if (!all(fam %in% names(PS_PSEM_FAMILIES))) stop("Invalid family in the request.")
   isolated <- as.character(unlist(req$isolated))
   cr <- req$correlations %||% list() # (pairs; JSON's array of pairs arrives as a matrix)
-  cors <- if (is.matrix(cr)) lapply(seq_len(nrow(cr)), function(i) as.character(cr[i, ])) else lapply(cr, function(p) as.character(unlist(p)))
+  cors <- ps_string_rows(cr)
   if (any(lengths(cors) != 2)) stop("Invalid correlated errors in the request.")
   std <- req$standardizeType %||% "latent.linear"
   if (!(length(std) == 1 && std %in% c("latent.linear", "Menard.OE"))) {
@@ -62,7 +62,9 @@ ps_psem <- function(req_json, export = FALSE) {
     "rownames(data) <- NULL  # (piecewiseSEM's observation-empirical standardisation finds the cases by their row names as numbers)",
     if (!is.null(g)) sprintf("data$%s <- factor(data$%s)  # the grouping column: a random intercept in every equation", g, g),
     "# One model per endogenous variable",
-    "eqs <- quiet(list(", paste(vapply(seq_along(ys), eq_line, ""), collapse = ",\n"), "))",
+    "eqs <- quiet(list(",
+    paste(vapply(seq_along(ys), eq_line, ""), collapse = ",\n"),
+    "))",
     if (length(extras)) {
       c(
         sprintf(
@@ -127,20 +129,43 @@ ps_psem <- function(req_json, export = FALSE) {
   coefs <- lapply(seq_len(nrow(cf)), function(i) {
     cor <- startsWith(as.character(cf$Response[i]), "~~")
     list(
-      response = back(sub("^~~", "", cf$Response[i])), predictor = back(sub("^~~", "", cf$Predictor[i])), correlation = cor,
-      est = num(cf$Estimate[i]), se = num(cf$Std.Error[i]), df = num(cf$DF[i]), stat = num(cf$Crit.Value[i]), p = num(cf$P.Value[i]), std = num(cf$Std.Estimate[i])
+      response = back(sub("^~~", "", cf$Response[i])),
+      predictor = back(sub("^~~", "", cf$Predictor[i])),
+      correlation = cor,
+      est = num(cf$Estimate[i]),
+      se = num(cf$Std.Error[i]),
+      df = num(cf$DF[i]),
+      stat = num(cf$Crit.Value[i]),
+      p = num(cf$P.Value[i]),
+      std = num(cf$Std.Estimate[i])
     )
   })
   r2 <- env$r2
   rsq <- lapply(seq_len(nrow(r2)), function(i) {
     list(
-      response = back(r2$Response[i]), family = as.character(r2$family[i]), link = as.character(r2$link[i]), method = as.character(r2$method[i]),
-      r2 = if (!is.null(r2$R.squared)) num(r2$R.squared[i]) else NULL, marginal = if (!is.null(r2$Marginal)) num(r2$Marginal[i]) else NULL, conditional = if (!is.null(r2$Conditional)) num(r2$Conditional[i]) else NULL
+      response = back(r2$Response[i]),
+      family = as.character(r2$family[i]),
+      link = as.character(r2$link[i]),
+      method = as.character(r2$method[i]),
+      r2 = if (!is.null(r2$R.squared)) num(r2$R.squared[i]) else NULL,
+      marginal = if (!is.null(r2$Marginal)) num(r2$Marginal[i]) else NULL,
+      conditional = if (!is.null(r2$Conditional)) num(r2$Conditional[i]) else NULL
     )
   })
   ps_json(list(
-    n = nrow(env$data), claims = claims, fisherC = unname(env$fisher[["C"]]), df = unname(env$fisher[["df"]]), p = if (length(claims)) unname(env$fisher[["p"]]) else NULL,
-    aic = unname(env$ic[["AIC"]]), aicc = unname(env$ic[["AICc"]]), k = unname(env$ic[["K"]]), coefs = coefs, r2 = rsq, standardizeType = std,
-    group = if (is.null(group)) NULL else group, warnings = env$.warnings, engine = ps_engine("piecewiseSEM", lme4 = "lme4")
+    n = nrow(env$data),
+    claims = claims,
+    fisherC = unname(env$fisher[["C"]]),
+    df = unname(env$fisher[["df"]]),
+    p = if (length(claims)) unname(env$fisher[["p"]]) else NULL,
+    aic = unname(env$ic[["AIC"]]),
+    aicc = unname(env$ic[["AICc"]]),
+    k = unname(env$ic[["K"]]),
+    coefs = coefs,
+    r2 = rsq,
+    standardizeType = std,
+    group = if (is.null(group)) NULL else group,
+    warnings = env$.warnings,
+    engine = ps_engine("piecewiseSEM", lme4 = "lme4")
   ))
 }

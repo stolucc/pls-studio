@@ -168,13 +168,20 @@ ps_dfi <- function(req_json, export = FALSE) {
   r <- unclass(dfi)
   dist <- if (fn == "DDDFI") r$indices else r$data
   ps_json(list(
-    fn = fn, reps = if (fn == "equivTest") NULL else reps, n = unname(lavaan::lavInspect(env$fit, "nobs")),
-    estimator = if (!is.null(r$estimator)) as.character(r$estimator) else if (!is.null(est)) est else NULL, scale = if (fn == "DDDFI") scale else NULL,
-    cutoffs = ps_dfi_table(r$cutoffs), fit = ps_dfi_table(r$fit), data = ps_dfi_columns(dist),
+    fn = fn,
+    reps = if (fn == "equivTest") NULL else reps,
+    n = unname(lavaan::lavInspect(env$fit, "nobs")),
+    estimator = if (!is.null(r$estimator)) as.character(r$estimator) else if (!is.null(est)) est else NULL,
+    scale = if (fn == "DDDFI") scale else NULL,
+    cutoffs = ps_dfi_table(r$cutoffs),
+    fit = ps_dfi_table(r$fit),
+    data = ps_dfi_columns(dist),
     equiv = if (fn == "equivTest") {
       list(
-        rmsea = as.character(r$rmsea), cfi = as.character(r$cfi),
-        rmseaBins = I(as.character(c(r$eo_r, r$ct_r, r$ft_r, r$mf_r, r$pf_r))), cfiBins = I(as.character(c(r$pf_c, r$mf_c, r$ft_c, r$ct_c, r$eo_c)))
+        rmsea = as.character(r$rmsea),
+        cfi = as.character(r$cfi),
+        rmseaBins = I(as.character(c(r$eo_r, r$ct_r, r$ft_r, r$mf_r, r$pf_r))),
+        cfiBins = I(as.character(c(r$pf_c, r$mf_c, r$ft_c, r$ct_c, r$eo_c)))
       )
     } else {
       NULL

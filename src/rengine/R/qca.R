@@ -31,8 +31,12 @@ qca_models <- function(m, back) {
     list(
       terms = lapply(terms, function(t) {
         list(
-          term = qca_back_term(t, back), inclS = unname(inc[t, "inclS"]), PRI = unname(inc[t, "PRI"]), covS = unname(inc[t, "covS"]),
-          covU = qca_na_null(inc[t, "covU"]), cases = if (!is.null(overall) && "cases" %in% names(overall) && t %in% rownames(overall)) as.character(overall[t, "cases"]) else ""
+          term = qca_back_term(t, back),
+          inclS = unname(inc[t, "inclS"]),
+          PRI = unname(inc[t, "PRI"]),
+          covS = unname(inc[t, "covS"]),
+          covU = qca_na_null(inc[t, "covU"]),
+          cases = if (!is.null(overall) && "cases" %in% names(overall) && t %in% rownames(overall)) as.character(overall[t, "cases"]) else ""
         )
       }),
       inclS = unname(sol$inclS[1]), PRI = unname(sol$PRI[1]), covS = unname(sol$covS[1]),
@@ -129,7 +133,10 @@ ps_qca <- function(req_json, export = FALSE) {
     "# ---- Truth table ----",
     sprintf(
       "tt <- truthTable(cal, outcome = outcome, conditions = conditions, incl.cut = %s, n.cut = %d, pri.cut = %s, sort.by = \"%s\", show.cases = TRUE)",
-      format(incl_cut, digits = 15), as.integer(n_cut), format(pri_cut, digits = 15), sort_by
+      format(incl_cut, digits = 15),
+      as.integer(n_cut),
+      format(pri_cut, digits = 15),
+      sort_by
     ),
     "# ---- Minimisation: conservative (complex), parsimonious, intermediate ----",
     "try_min <- function(expr) tryCatch(expr, error = function(e) { warning(conditionMessage(e)); NULL })",
@@ -154,8 +161,13 @@ ps_qca <- function(req_json, export = FALSE) {
   obs <- rows[rows$n > 0, , drop = FALSE]
   tt_rows <- lapply(seq_len(nrow(obs)), function(r) {
     list(
-      id = rownames(obs)[r], values = as.integer(unlist(obs[r, X])), out = as.character(obs$OUT[r]), n = as.integer(obs$n[r]),
-      incl = qca_na_null(num(obs$incl[r])), pri = qca_na_null(num(obs$PRI[r])), cases = if ("cases" %in% names(obs)) as.character(obs$cases[r]) else ""
+      id = rownames(obs)[r],
+      values = as.integer(unlist(obs[r, X])),
+      out = as.character(obs$OUT[r]),
+      n = as.integer(obs$n[r]),
+      incl = qca_na_null(num(obs$incl[r])),
+      pri = qca_na_null(num(obs$PRI[r])),
+      cases = if ("cases" %in% names(obs)) as.character(obs$cases[r]) else ""
     )
   })
   nec_rows <- function(p, neg) {
@@ -201,7 +213,12 @@ ps_qca <- function(req_json, export = FALSE) {
     labels = if (length(labels)) utils::head(rownames(env$cal), 3000) else NULL,
     calibration = cal_summary, necessity = necessity,
     truthTable = list(
-      rows = tt_rows, remainders = sum(rows$n == 0), nCut = n_cut, inclCut = incl_cut, priCut = pri_cut, sortBy = sort_by,
+      rows = tt_rows,
+      remainders = sum(rows$n == 0),
+      nCut = n_cut,
+      inclCut = incl_cut,
+      priCut = pri_cut,
+      sortBy = sort_by,
       counts = list(out1 = sum(obs$OUT == "1"), out0 = sum(obs$OUT == "0"), contradictions = sum(obs$OUT == "C"))
     ),
     expectations = dir_exp,

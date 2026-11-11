@@ -42,7 +42,8 @@ ps_rsa <- function(req_json, export = FALSE) {
     none = c("# X and Y as measured (no centring)."),
     mean = c(
       "# X and Y centred at their common (pooled) mean, so that the line of congruence keeps X = Y.",
-      sprintf("m <- mean(c(data$%s, data$%s))", X, Y), sprintf("data$rsaX <- data$%s - m; data$rsaY <- data$%s - m", X, Y)
+      sprintf("m <- mean(c(data$%s, data$%s))", X, Y),
+      sprintf("data$rsaX <- data$%s - m; data$rsaY <- data$%s - m", X, Y)
     ),
     midpoint = c(
       sprintf("# X and Y centred at the scale midpoint (%s).", format(mid)),
@@ -109,7 +110,10 @@ ps_rsa <- function(req_json, export = FALSE) {
   inputs <- list(data = fr$data)
   if (export) {
     return(ps_script(
-      "Polynomial regression and response surface analysis", if (est == "OLS") "stats" else "lavaan", inputs, body,
+      "Polynomial regression and response surface analysis",
+      if (est == "OLS") "stats" else "lavaan",
+      inputs,
+      body,
       if (est == "OLS") c("summary(fit)", "steps", "surface") else c("summary(fit, rsquare = TRUE)", "pe[pe$op == \":=\", ]")
     ))
   }
@@ -140,8 +144,12 @@ ps_rsa <- function(req_json, export = FALSE) {
     st <- env$steps
     steps <- lapply(1:3, function(i) {
       list(
-        step = c(if (length(C)) "Controls" else "Intercept only", "+ X and Y", "+ quadratic terms")[i], r2 = r2[i],
-        dr2 = if (i == 1) NULL else r2[i] - r2[i - 1], f = if (i == 1) NULL else st$F[i], df1 = if (i == 1) NULL else st$Df[i], p = if (i == 1) NULL else st$`Pr(>F)`[i]
+        step = c(if (length(C)) "Controls" else "Intercept only", "+ X and Y", "+ quadratic terms")[i],
+        r2 = r2[i],
+        dr2 = if (i == 1) NULL else r2[i] - r2[i - 1],
+        f = if (i == 1) NULL else st$F[i],
+        df1 = if (i == 1) NULL else st$Df[i],
+        p = if (i == 1) NULL else st$`Pr(>F)`[i]
       )
     })
     if (!length(C)) steps <- steps[-1]

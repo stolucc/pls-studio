@@ -183,8 +183,14 @@ ps_plssem_build <- function(req) {
   vars <- c(n$iv, extra)
   ord <- intersect(as.character(unlist(m$ordered)), names(vars))
   list(
-    syntax = c("level: 1", paste0("  ", level1), "level: 2", paste0("  ", level2)), data = data, cluster = cl,
-    ordered = unname(vars[ord]), ordered_names = ord, back = back, inds_map = setNames(n$all_inds, unname(n$iv[n$all_inds])), slopes = sname
+    syntax = c("level: 1", paste0("  ", level1), "level: 2", paste0("  ", level2)),
+    data = data,
+    cluster = cl,
+    ordered = unname(vars[ord]),
+    ordered_names = ord,
+    back = back,
+    inds_map = setNames(n$all_inds, unname(n$iv[n$all_inds])),
+    slopes = sname
   )
 }
 
@@ -210,15 +216,20 @@ ps_plssem <- function(req_json, export = FALSE) {
   consistent <- isTRUE(o$consistent)
   data <- b$data
   args <- c(
-    sprintf("cluster = \"%s\"", b$cluster), sprintf("consistent = %s", consistent), sprintf("inner.weights = \"%s\"", scheme),
+    sprintf("cluster = \"%s\"", b$cluster),
+    sprintf("consistent = %s", consistent),
+    sprintf("inner.weights = \"%s\"", scheme),
     sprintf("missing = \"%s\"", if (missing == "mean") "mean" else "listwise"),
     if (length(b$ordered)) sprintf("ordered = %s", ps_q(b$ordered)),
-    if (boot) sprintf("bootstrap = TRUE, boot.R = %d", R), "verbose = FALSE"
+    if (boot) sprintf("bootstrap = TRUE, boot.R = %d", R),
+    "verbose = FALSE"
   )
   body <- c(
     "suppressPackageStartupMessages(library(plssem))",
     "# The two-level model: level 1 within clusters (the diagram), level 2 between clusters",
-    "model <- '", b$syntax, "'",
+    "model <- '",
+    b$syntax,
+    "'",
     "# MC-PLSc is a Monte Carlo estimator: its estimates depend on the seed, set here",
     sprintf("set.seed(%d)", seed),
     sprintf("fit <- pls(model, data = data, %s)", paste(args, collapse = ", ")),
@@ -270,9 +281,21 @@ ps_plssem <- function(req_json, export = FALSE) {
     ),
     icc = list(names = I(ps_back(names(icc), inds_map)), values = I(num(unname(icc)))),
     slopes = lapply(seq_along(rsd), function(i) list(name = nm(names(rsd)[i]), sd = num(unname(rsd[i])))),
-    n = fit@info$n, clusters = fit@info$nclusters, iterations = fit@status$iterations, converged = isTRUE(fit@status$converged),
-    admissible = isTRUE(fit@status$is.admissible), estimator = fit@info$estimator, consistent = consistent, scheme = scheme,
-    missing = missing, seed = seed, bootR = R, ordered = I(b$ordered_names), fitNote = fit_note, syntax = I(b$syntax),
-    warnings = I(env$.warnings), engine = ps_engine("plssem")
+    n = fit@info$n,
+    clusters = fit@info$nclusters,
+    iterations = fit@status$iterations,
+    converged = isTRUE(fit@status$converged),
+    admissible = isTRUE(fit@status$is.admissible),
+    estimator = fit@info$estimator,
+    consistent = consistent,
+    scheme = scheme,
+    missing = missing,
+    seed = seed,
+    bootR = R,
+    ordered = I(b$ordered_names),
+    fitNote = fit_note,
+    syntax = I(b$syntax),
+    warnings = I(env$.warnings),
+    engine = ps_engine("plssem")
   ))
 }

@@ -52,7 +52,7 @@ ps_semsens <- function(req_json, export = FALSE) {
     stop("The significance level must be in (0, 0.5).")
   }
   # (jsonlite reads [[from, to], ...] as a matrix)
-  paths <- if (is.matrix(o$paths)) lapply(seq_len(nrow(o$paths)), function(i) as.character(o$paths[i, ])) else lapply(o$paths, function(p) as.character(unlist(p)))
+  paths <- ps_string_rows(o$paths)
   if (!length(paths) || length(paths) > 200 || any(lengths(paths) != 2)) {
     stop("Choose the paths of interest.")
   }
@@ -120,7 +120,10 @@ ps_semsens <- function(req_json, export = FALSE) {
   )
   if (export) {
     return(ps_script(
-      sprintf("Sensitivity analysis for an unmeasured confounder (SEMsens, objective %d)", opt), c("lavaan", "SEMsens"), b$inputs, body,
+      sprintf("Sensitivity analysis for an unmeasured confounder (SEMsens, objective %d)", opt),
+      c("lavaan", "SEMsens"),
+      b$inputs,
+      body,
       c(
         "tables$sens.summary   # each path: the model's standardised estimate and p, and its mean, minimum and maximum over the evaluations",
         "tables$phan.paths     # the phantom coefficients (standardised): mean, minimum, maximum",
@@ -155,11 +158,24 @@ ps_semsens <- function(req_json, export = FALSE) {
     }, 0)
   }
   ps_json(list(
-    n = unname(lavaan::lavInspect(env$fit, "nobs")), optFun = opt, k = k, ants = ants, maxIter = iter, bound = bound, alpha = alpha, seed = seed,
-    evaluations = env$sa$n.eval, tried = env$sa$n.iter, maxObjective = env$sa$max.y,
-    phantoms = I(phantoms), interest = lapply(paths, function(p) list(from = p[1], to = p[2])),
-    summary = rowsOf(t$sens.summary), phantom = lapply(seq_along(lv), function(i) list(construct = phantoms[i], values = I(unname(as.numeric(t$phan.paths[ph[i], ]))))),
-    atMin = rowsOf(t$phan.min), atMax = rowsOf(t$phan.max), flip = rowsOf(t$p.paths),
+    n = unname(lavaan::lavInspect(env$fit, "nobs")),
+    optFun = opt,
+    k = k,
+    ants = ants,
+    maxIter = iter,
+    bound = bound,
+    alpha = alpha,
+    seed = seed,
+    evaluations = env$sa$n.eval,
+    tried = env$sa$n.iter,
+    maxObjective = env$sa$max.y,
+    phantoms = I(phantoms),
+    interest = lapply(paths, function(p) list(from = p[1], to = p[2])),
+    summary = rowsOf(t$sens.summary),
+    phantom = lapply(seq_along(lv), function(i) list(construct = phantoms[i], values = I(unname(as.numeric(t$phan.paths[ph[i], ]))))),
+    atMin = rowsOf(t$phan.min),
+    atMax = rowsOf(t$phan.max),
+    flip = rowsOf(t$p.paths),
     draws = list(
       path = lapply(regs, function(r) {
         x <- nm(r)
@@ -237,13 +253,27 @@ ps_medsens <- function(req_json, export = FALSE) {
   s <- env$sens
   v <- function(z) I(unname(as.numeric(z)))
   ps_json(list(
-    n = stats::nobs(env$fit_y), rhoBy = rho_by, eps = eps, confidence = level, x = req$x, m = req$m, y = req$y, covariates = I(as.character(unlist(req$covariates))),
-    a = unname(stats::coef(env$fit_m)[[x]]), b = unname(stats::coef(env$fit_y)[[m]]), r2m = s$r.square.m, r2y = s$r.square.y,
-    rho = v(s$rho), acme = list(est = v(s$d0), lo = v(s$lower.d0), hi = v(s$upper.d0)), ade = list(est = v(s$z0), lo = v(s$lower.z0), hi = v(s$upper.z0)),
-    r2starProd = v(s$R2star.prod), r2tildeProd = v(s$R2tilde.prod),
+    n = stats::nobs(env$fit_y),
+    rhoBy = rho_by,
+    eps = eps,
+    confidence = level,
+    x = req$x,
+    m = req$m,
+    y = req$y,
+    covariates = I(as.character(unlist(req$covariates))),
+    a = unname(stats::coef(env$fit_m)[[x]]),
+    b = unname(stats::coef(env$fit_y)[[m]]),
+    r2m = s$r.square.m,
+    r2y = s$r.square.y,
+    rho = v(s$rho),
+    acme = list(est = v(s$d0), lo = v(s$lower.d0), hi = v(s$upper.d0)),
+    ade = list(est = v(s$z0), lo = v(s$lower.z0), hi = v(s$upper.z0)),
+    r2starProd = v(s$R2star.prod),
+    r2tildeProd = v(s$R2tilde.prod),
     acmeZero = list(rho = s$err.cr.d, r2star = s$R2star.d.thresh, r2tilde = s$R2tilde.d.thresh),
     adeZero = list(rho = s$err.cr.z, r2star = s$R2star.z.thresh, r2tilde = s$R2tilde.z.thresh),
-    printed = I(ps_flat_lines(utils::capture.output(summary(s)))), warnings = env$.warnings,
+    printed = I(ps_flat_lines(utils::capture.output(summary(s)))),
+    warnings = env$.warnings,
     engine = ps_engine("mediation")
   ))
 }

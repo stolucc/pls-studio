@@ -84,7 +84,8 @@ ps_endo <- function(req_json, export = FALSE) {
       stop("Two-stage least squares needs at least as many instruments as endogenous regressors.")
     }
     body <- c(
-      body, "# Two-stage least squares: the endogenous regressors replaced by their prediction from the instruments and the exogenous regressors.",
+      body,
+      "# Two-stage least squares: the endogenous regressors replaced by their prediction from the instruments and the exogenous regressors.",
       sprintf("fit <- ivreg(%s ~ %s | %s, data = data)", y, rhs(x, p), rhs(x, z)),
       "res <- summary(fit, diagnostics = TRUE)  # weak instruments, Wu-Hausman, Sargan",
       sprintf("ci <- confint(fit, level = %s)", format(conf))
@@ -251,8 +252,12 @@ ps_endo <- function(req_json, export = FALSE) {
   }
   inputs <- list(data = f$fr$data)
   title <- c(
-    iv = "Instrumental variables (ivreg)", copula = "Gaussian copula correction", het = "Heteroskedasticity-based instruments (Lewbel 2012)",
-    hm = "Higher-moment instruments (Lewbel 1997)", liv = "Latent instrumental variables (Ebbes et al. 2005)", heckman = "Heckman selection model (sampleSelection)"
+    iv = "Instrumental variables (ivreg)",
+    copula = "Gaussian copula correction",
+    het = "Heteroskedasticity-based instruments (Lewbel 2012)",
+    hm = "Higher-moment instruments (Lewbel 1997)",
+    liv = "Latent instrumental variables (Ebbes et al. 2005)",
+    heckman = "Heckman selection model (sampleSelection)"
   )[[method]]
   if (export) {
     return(ps_script(
@@ -279,8 +284,12 @@ ps_endo <- function(req_json, export = FALSE) {
   }
   if (method == "liv") {
     names_liv <- c(
-      pi1 = "Mean of P, group 1 (pi1)", pi2 = "Mean of P, group 2 (pi2)", theta5 = "Probability of group 1 (theta5)",
-      theta6 = "Outcome error variance (theta6)", theta7 = "Error covariance (theta7)", theta8 = "Regressor error variance (theta8)"
+      pi1 = "Mean of P, group 1 (pi1)",
+      pi2 = "Mean of P, group 2 (pi2)",
+      theta5 = "Probability of group 1 (theta5)",
+      theta6 = "Outcome error variance (theta6)",
+      theta7 = "Error covariance (theta7)",
+      theta8 = "Regressor error variance (theta8)"
     )
     for (i in seq_along(coefs)) if (coefs[[i]]$term %in% names(names_liv)) coefs[[i]]$term <- names_liv[[coefs[[i]]$term]]
     if (!isTRUE(env$converged)) {
@@ -288,7 +297,8 @@ ps_endo <- function(req_json, export = FALSE) {
     }
   }
   ps_json(list(
-    method = method, n = if (method %in% c("heckman", "liv")) nrow(env$data) else stats::nobs(env$fit),
+    method = method,
+    n = if (method %in% c("heckman", "liv")) nrow(env$data) else stats::nobs(env$fit),
     coefficients = coefs,
     ols = if (method == "heckman") list() else ps_coef_rows(stats::coef(summary(env$ols)), back, stats::confint(env$ols, level = conf)),
     diagnostics = diag,
@@ -296,6 +306,7 @@ ps_endo <- function(req_json, export = FALSE) {
     heteroskedasticity = if (method == "het") lapply(names(env$bp), function(k) list(variable = ps_back(k, f$fr$back, FALSE), p = unname(env$bp[[k]]))) else list(),
     selection = if (method == "heckman") list(selected = sum(env$data[[f$v(req$selection$outcome)]] == 1), total = nrow(env$data)) else NULL,
     boot = if (method == "copula") list(samples = B, confidence = conf) else NULL,
-    warnings = env$.warnings, engine = ps_engine(ps_endo_pkg(method))
+    warnings = env$.warnings,
+    engine = ps_engine(ps_endo_pkg(method))
   ))
 }

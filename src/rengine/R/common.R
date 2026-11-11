@@ -166,7 +166,9 @@ ps_back_names <- function(x, back, prefix = FALSE) {
     sprintf("(?<![A-Za-z0-9._])(?:%s)(?![A-Za-z0-9._])", alt)
   }
   m <- gregexpr(re, x, perl = TRUE)
-  regmatches(x, m) <- lapply(regmatches(x, m), function(s) vapply(s, function(k) as.character(back[[k]]), "", USE.NAMES = FALSE))
+  # Each matched name replaced by the user's name
+  to_user_names <- function(s) vapply(s, function(k) as.character(back[[k]]), "", USE.NAMES = FALSE)
+  regmatches(x, m) <- lapply(regmatches(x, m), to_user_names)
   x
 }
 
@@ -181,11 +183,25 @@ ps_back <- function(x, back, keep = TRUE) {
   y
 }
 
+#' A JSON array of string arrays as a list of character vectors: equally long arrays arrive as a matrix
+#' (one per row), others as a list.
+ps_string_rows <- function(x) {
+  if (is.matrix(x)) {
+    lapply(seq_len(nrow(x)), function(i) as.character(x[i, ]))
+  } else {
+    lapply(x, function(t) as.character(unlist(t)))
+  }
+}
+
 #' A term "a:b" back to the user's names, "A × B" (a piece with no match is kept).
 ps_back_term <- function(t, back) paste(ps_back(strsplit(t, ":", fixed = TRUE)[[1]], back), collapse = " \u00d7 ")
 
 #' The model's construct and indicator names back to the app's (constructs: which constructs to map).
-ps_back_map <- function(b, constructs = b$n$cname) c(setNames(constructs, unname(b$lname[constructs])), setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds])))
+ps_back_map <- function(b, constructs = b$n$cname) {
+  construct_names <- setNames(constructs, unname(b$lname[constructs]))
+  indicator_names <- setNames(b$n$all_inds, unname(b$n$iv[b$n$all_inds]))
+  c(construct_names, indicator_names)
+}
 
 #' Display name of an interaction term; a construct times itself is its quadratic term (X²).
 ps_int_name <- function(from, moderator) ifelse(from == moderator, paste0(from, "\u00b2"), paste(from, "\u00d7", moderator))
@@ -268,7 +284,9 @@ ps_label <- function(x) {
 #' Arithmetic over labels (as printed by the app's parser): letters, digits, _ . + - * / ^ ( ) and spaces,
 #' and no name or number directly followed by "(" (no function calls).
 ps_expr <- function(x) {
-  ok <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 && grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) && !grepl("[A-Za-z0-9_.][[:space:]]*\\(", x)
+  ok <- is.character(x) && length(x) == 1 && nchar(x) <= 2000 &&
+    grepl("^[A-Za-z0-9_ .+*/^()-]+$", x) && # only the allowed characters
+    !grepl("[A-Za-z0-9_.][[:space:]]*\\(", x) # no function calls
   if (!ok) stop("Invalid expression in the request.")
   x
 }

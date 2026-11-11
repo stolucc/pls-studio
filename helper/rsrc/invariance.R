@@ -17,7 +17,12 @@ ps_inv_factors <- function(req, extra = character(0)) {
   for (j in seq_along(fv)) while (fv[j] %in% fr$v || fv[j] %in% fv[-j]) fv[j] <- paste0(fv[j], "_lv")
   iv <- lapply(inds, function(x) unname(fr$v[x]))
   list(
-    fr = fr, names = fn, fv = fv, inds = inds, iv = iv, lines = sprintf("  %s =~ %s", fv, vapply(iv, paste, "", collapse = " + ")),
+    fr = fr,
+    names = fn,
+    fv = fv,
+    inds = inds,
+    iv = iv,
+    lines = sprintf("  %s =~ %s", fv, vapply(iv, paste, "", collapse = " + ")),
     back = c(fr$back, setNames(fn, fv))
   )
 }
@@ -146,18 +151,31 @@ ps_alignment <- function(req_json, export = FALSE) {
     es <- a$es.invariance
     side <- function(l) {
       list(
-        tolerance = l$parm_tol, noninvariant = l$prop_noninvariance / 100, joint = I(unname(l$parm_joint)), dif = ps_rows(l$parm_dif),
-        unique = I(unname(l$N_unique_parm_items)), uniqueGroups = I(unname(l$N_unique_parm_groups))
+        tolerance = l$parm_tol,
+        noninvariant = l$prop_noninvariance / 100,
+        joint = I(unname(l$parm_joint)),
+        dif = ps_rows(l$parm_dif),
+        unique = I(unname(l$N_unique_parm_items)),
+        uniqueGroups = I(unname(l$N_unique_parm_groups))
       )
     }
     list(
-      name = f$names[k], items = I(f$inds[[k]]),
-      lambda = ps_rows(a$lambda), nu = ps_rows(a$nu), lambdaAligned = ps_rows(a$lambda.aligned), nuAligned = ps_rows(a$nu.aligned),
-      mean = I(unname(a$pars$alpha0)), sd = I(unname(a$pars$psi0)),
-      r2 = list(lambda = unname(es["R2", 1]), nu = unname(es["R2", 2])), sqrtU2 = list(lambda = unname(es["sqrtU2", 1]), nu = unname(es["sqrtU2", 2])),
+      name = f$names[k],
+      items = I(f$inds[[k]]),
+      lambda = ps_rows(a$lambda),
+      nu = ps_rows(a$nu),
+      lambdaAligned = ps_rows(a$lambda.aligned),
+      nuAligned = ps_rows(a$nu.aligned),
+      mean = I(unname(a$pars$alpha0)),
+      sd = I(unname(a$pars$psi0)),
+      r2 = list(lambda = unname(es["R2", 1]), nu = unname(es["R2", 2])),
+      sqrtU2 = list(lambda = unname(es["sqrtU2", 1]), nu = unname(es["sqrtU2", 2])),
       rbar = list(lambda = unname(es["rbar", 1]), nu = unname(es["rbar", 2])),
-      fopt = a$fopt, converged = isTRUE(a$res_optim$converged), fixed = isTRUE(a$fixed),
-      lambdaConstraints = side(cons$lambda_list), nuConstraints = side(cons$nu_list)
+      fopt = a$fopt,
+      converged = isTRUE(a$res_optim$converged),
+      fixed = isTRUE(a$fixed),
+      lambdaConstraints = side(cons$lambda_list),
+      nuConstraints = side(cons$nu_list)
     )
   })
   ps_json(list(
@@ -258,7 +276,8 @@ ps_mnlfa <- function(req_json, export = FALSE) {
     "if (!all(unlist(data[items]) %in% c(0, 1, NA))) stop(\"The items must be binary, coded 0 and 1.\")",
     if (length(body_cat)) c("# Categorical covariates as dummies: one per level but the first (the reference)", body_cat),
     "# Item intercepts (b) and slopes (a) as functions of the covariates: P(x = 1) = invlogit(a * theta - b)",
-    item_fml(int, "int"), item_fml(slo, "slo"),
+    item_fml(int, "int"),
+    item_fml(slo, "slo"),
     "# The factor's mean (0 where the covariates are 0) and log SD",
     sprintf("formula_mean <- %s", fml(mu, FALSE)),
     sprintf(
@@ -322,7 +341,7 @@ ps_long_invariance <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   oc <- req$occasions
   # (equal-length sets arrive from JSON as an occasions x items matrix)
-  occ <- if (is.matrix(oc)) lapply(seq_len(nrow(oc)), function(i) as.character(oc[i, ])) else lapply(oc, function(x) as.character(unlist(x)))
+  occ <- ps_string_rows(oc)
   if (length(occ) < 2) stop("Choose the indicators at two or more occasions.")
   k <- unique(lengths(occ))
   if (length(k) != 1) {
@@ -365,7 +384,10 @@ ps_long_invariance <- function(req_json, export = FALSE) {
     vapply(levels, function(l) {
       sprintf(
         "fit_%s <- measEq.syntax(configural.model = model, data = data, ID.fac = \"std.lv\", longFacNames = longFacNames, longIndNames = longIndNames, long.equal = %s, auto = %s, meanstructure = TRUE, %s, return.fit = TRUE)",
-        l, equal[[l]], if (lag == "all") "\"all\"" else "1L", opts
+        l,
+        equal[[l]],
+        if (lag == "all") "\"all\"" else "1L",
+        opts
       )
     }, ""),
     "# Chi-square difference tests between successive levels",
@@ -380,7 +402,8 @@ ps_long_invariance <- function(req_json, export = FALSE) {
     return(ps_script(
       "Longitudinal measurement invariance (semTools::measEq.syntax, lavaan)", c("lavaan", "semTools"), inputs, body,
       c(
-        "lrt", "sapply(list(configural = fit_configural, metric = fit_metric, scalar = fit_scalar, strict = fit_strict), fitMeasures, fit.measures = c(\"chisq\", \"df\", \"cfi\", \"rmsea\", \"srmr\"))",
+        "lrt",
+        "sapply(list(configural = fit_configural, metric = fit_metric, scalar = fit_scalar, strict = fit_strict), fitMeasures, fit.measures = c(\"chisq\", \"df\", \"cfi\", \"rmsea\", \"srmr\"))",
         "cat(syntax$scalar)"
       )
     ))
@@ -408,8 +431,11 @@ ps_long_invariance <- function(req_json, export = FALSE) {
         list(level = levels[i]), fm[[i]],
         if (i > 1) {
           list(
-            chisqDiff = unname(lrt[["Chisq diff"]][at(i)]), dfDiff = unname(lrt[["Df diff"]][at(i)]), p = unname(lrt[["Pr(>Chisq)"]][at(i)]),
-            cfiChange = fm[[i]]$cfi - fm[[i - 1]]$cfi, rmseaChange = fm[[i]]$rmsea - fm[[i - 1]]$rmsea
+            chisqDiff = unname(lrt[["Chisq diff"]][at(i)]),
+            dfDiff = unname(lrt[["Df diff"]][at(i)]),
+            p = unname(lrt[["Pr(>Chisq)"]][at(i)]),
+            cfiChange = fm[[i]]$cfi - fm[[i - 1]]$cfi,
+            rmseaChange = fm[[i]]$rmsea - fm[[i - 1]]$rmsea
           )
         },
         list(factor = factor_pars(fits[[i]]), syntax = env$syntax[[levels[i]]])
@@ -450,7 +476,10 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
     if (!o$fiml) ps_missing_code(req$missing),
     sprintf("data <- data[!is.na(data$%s), , drop = FALSE]  # (cases without the covariate are left out)", x),
     "# MIMIC model: the factor regressed on the covariate, no direct effects on the items",
-    "base <- '", f$lines, sprintf("  %s ~ %s", s, x), "'",
+    "base <- '",
+    f$lines,
+    sprintf("  %s ~ %s", s, x),
+    "'",
     sprintf("fit0 <- %s", call("base")),
     sprintf("items <- %s", ps_q(items)),
     sprintf("paths <- sprintf(\"%%s ~ %s\", items)  # each item's direct effect from the covariate (uniform DIF)", x),
@@ -517,9 +546,18 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
     NULL
   }
   ps_json(list(
-    n = lavaan::lavInspect(env$fit0, "nobs"), factor = f$names, covariate = cov, adjust = adjust, alpha = alpha,
-    effect = eff(env$fit0), fit = ps_inv_fit(env$fit0), items = rows, flagged = I(ps_back(as.character(env$flagged), back)), final = final,
-    scoreError = is.null(sc), warnings = env$.warnings,
+    n = lavaan::lavInspect(env$fit0, "nobs"),
+    factor = f$names,
+    covariate = cov,
+    adjust = adjust,
+    alpha = alpha,
+    effect = eff(env$fit0),
+    fit = ps_inv_fit(env$fit0),
+    items = rows,
+    flagged = I(ps_back(as.character(env$flagged), back)),
+    final = final,
+    scoreError = is.null(sc),
+    warnings = env$.warnings,
     engine = ps_engine("lavaan")
   ))
 }
@@ -668,9 +706,12 @@ ps_lsem <- function(req_json, export = FALSE) {
     s <- S[S$par == p, , drop = FALSE]
     fit <- identical(as.character(r$op[1]), "fit")
     out <- list(
-      par = p, op = if (fit) "fit" else as.character(r$op[1]),
-      lhs = if (fit) p else ps_back(as.character(r$lhs[1]), back), rhs = if (fit) "" else ps_back(as.character(r$rhs[1]), back),
-      est = I(nn(r$est)), se = I(nn(r$se))
+      par = p,
+      op = if (fit) "fit" else as.character(r$op[1]),
+      lhs = if (fit) p else ps_back(as.character(r$lhs[1]), back),
+      rhs = if (fit) "" else ps_back(as.character(r$rhs[1]), back),
+      est = I(nn(r$est)),
+      se = I(nn(r$se))
     )
     if (nrow(s)) {
       out$summary <- list(
@@ -703,9 +744,20 @@ ps_lsem <- function(req_json, export = FALSE) {
   })
   dens <- mod$moderator.density
   ps_json(list(
-    moderator = mname, grid = I(nn(mod$moderator.grid)), n = nrow(env$data), h = nn(mod$h), bw = nn(mod$bw), kernel = kernel,
-    weight = I(nn(dens$wgt)), neff = I(nn(dens$Neff)), params = params, bootstrap = R, permutations = B, seed = seed,
-    warnings = env$.warnings, engine = ps_engine("sirt", lavaan = "lavaan")
+    moderator = mname,
+    grid = I(nn(mod$moderator.grid)),
+    n = nrow(env$data),
+    h = nn(mod$h),
+    bw = nn(mod$bw),
+    kernel = kernel,
+    weight = I(nn(dens$wgt)),
+    neff = I(nn(dens$Neff)),
+    params = params,
+    bootstrap = R,
+    permutations = B,
+    seed = seed,
+    warnings = env$.warnings,
+    engine = ps_engine("sirt", lavaan = "lavaan")
   ))
 }
 

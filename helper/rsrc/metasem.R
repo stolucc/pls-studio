@@ -119,7 +119,9 @@ ps_metasem <- function(req_json, export = FALSE) {
     "s1 <- summary(stage1)",
     if (method == "FEM") "pooled <- coef(stage1)" else c("pooled <- vec2symMat(coef(stage1, select = \"fixed\"), diag = FALSE)", "dimnames(pooled) <- list(colnames(R[[1]]), colnames(R[[1]]))"),
     "# Stage 2: the model on the canvas, its RAM matrices from its lavaan syntax, fitted to the pooled matrix (WLS)",
-    "model <- '", ps_model_lines(b), "'",
+    "model <- '",
+    ps_model_lines(b),
+    "'",
     sprintf("RAM <- lavaan2RAM(model, obs.variables = %s)", ps_q(iv)),
     "stage2 <- tssem2(stage1, RAM = RAM)",
     "s2 <- summary(stage2)"
@@ -144,17 +146,34 @@ ps_metasem <- function(req_json, export = FALSE) {
     i <- fixed_rows[k]
     cell <- function(col) if (col %in% colnames(co1)) co1[i, col] else NULL
     list(
-      a = nm(iv[low[k, 2]]), b = nm(iv[low[k, 1]]), r = co1[i, "Estimate"], se = co1[i, "Std.Error"], low = cell("lbound"), high = cell("ubound"),
-      tau2 = if (length(tau_rows) >= k && re_type != "Zero") co1[tau_rows[k], "Estimate"] else NULL, i2 = if (!is.null(i2) && length(i2) >= k) unname(i2[k]) else NULL
+      a = nm(iv[low[k, 2]]),
+      b = nm(iv[low[k, 1]]),
+      r = co1[i, "Estimate"],
+      se = co1[i, "Std.Error"],
+      low = cell("lbound"),
+      high = cell("ubound"),
+      tau2 = if (length(tau_rows) >= k && re_type != "Zero") co1[tau_rows[k], "Estimate"] else NULL,
+      i2 = if (!is.null(i2) && length(i2) >= k) unname(i2[k]) else NULL
     )
   })
   st1 <- if (method == "FEM") s1$stat else NULL
   stat1 <- function(k) if (!is.null(st1) && k %in% rownames(st1)) unname(st1[k, 1]) else NULL
   stage1 <- list(
-    method = method, reType = if (method == "REM") re_type else NULL, studies = length(studies$n), totalN = sum(studies$n), pooled = pooled,
-    q = if (method == "REM") unname(as.numeric(s1$Q.stat$Q)) else NULL, qDf = if (method == "REM") unname(as.numeric(s1$Q.stat$Q.df)) else NULL, qP = if (method == "REM") unname(as.numeric(s1$Q.stat$pval)) else NULL,
-    chisq = stat1("Chi-square of target model"), df = stat1("DF of target model"), p = stat1("p value of target model"),
-    rmsea = stat1("RMSEA"), srmr = stat1("SRMR"), cfi = stat1("CFI"), status = s1$Mx.status1
+    method = method,
+    reType = if (method == "REM") re_type else NULL,
+    studies = length(studies$n),
+    totalN = sum(studies$n),
+    pooled = pooled,
+    q = if (method == "REM") unname(as.numeric(s1$Q.stat$Q)) else NULL,
+    qDf = if (method == "REM") unname(as.numeric(s1$Q.stat$Q.df)) else NULL,
+    qP = if (method == "REM") unname(as.numeric(s1$Q.stat$pval)) else NULL,
+    chisq = stat1("Chi-square of target model"),
+    df = stat1("DF of target model"),
+    p = stat1("p value of target model"),
+    rmsea = stat1("RMSEA"),
+    srmr = stat1("SRMR"),
+    cfi = stat1("CFI"),
+    status = s1$Mx.status1
   )
   # Stage 2: each free parameter by where RAM puts it (A: a regression or loading, from column to row; S: a covariance)
   A <- env$RAM$A
@@ -175,16 +194,35 @@ ps_metasem <- function(req_json, export = FALSE) {
   params <- lapply(rownames(co2), function(l) {
     f <- find(l)
     list(
-      label = l, kind = f$kind, from = nm(f$from), to = nm(f$to), est = co2[l, "Estimate"], se = co2[l, "Std.Error"], low = co2[l, "lbound"], high = co2[l, "ubound"],
-      z = co2[l, "z value"], p = co2[l, "Pr(>|z|)"]
+      label = l,
+      kind = f$kind,
+      from = nm(f$from),
+      to = nm(f$to),
+      est = co2[l, "Estimate"],
+      se = co2[l, "Std.Error"],
+      low = co2[l, "lbound"],
+      high = co2[l, "ubound"],
+      z = co2[l, "z value"],
+      p = co2[l, "Pr(>|z|)"]
     )
   })
   st2 <- s2$stat
   stat2 <- function(k) if (k %in% rownames(st2)) unname(st2[k, 1]) else NULL
   fit <- list(
-    n = stat2("Sample size"), chisq = stat2("Chi-square of target model"), df = stat2("DF of target model"), p = stat2("p value of target model"),
-    baselineChisq = stat2("Chi-square of independence model"), baselineDf = stat2("DF of independence model"), rmsea = stat2("RMSEA"), rmseaLow = stat2("RMSEA lower 95% CI"),
-    rmseaHigh = stat2("RMSEA upper 95% CI"), srmr = stat2("SRMR"), tli = stat2("TLI"), cfi = stat2("CFI"), aic = stat2("AIC"), bic = stat2("BIC")
+    n = stat2("Sample size"),
+    chisq = stat2("Chi-square of target model"),
+    df = stat2("DF of target model"),
+    p = stat2("p value of target model"),
+    baselineChisq = stat2("Chi-square of independence model"),
+    baselineDf = stat2("DF of independence model"),
+    rmsea = stat2("RMSEA"),
+    rmseaLow = stat2("RMSEA lower 95% CI"),
+    rmseaHigh = stat2("RMSEA upper 95% CI"),
+    srmr = stat2("SRMR"),
+    tli = stat2("TLI"),
+    cfi = stat2("CFI"),
+    aic = stat2("AIC"),
+    bic = stat2("BIC")
   )
   ps_json(list(
     stage1 = stage1, stage2 = list(params = params, fit = fit, status = s2$Mx.status1), variables = I(nm(iv)),

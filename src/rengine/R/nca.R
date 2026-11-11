@@ -171,7 +171,12 @@ ps_nca <- function(req_json, export = FALSE) {
   env <- ps_run(body, inputs)
   out <- lapply(env$res, function(r) {
     list(
-      n = r$n, scope = r$scope, ceFdh = r$ce, crFdh = r$cr, intercept = if (is.na(r$intercept)) NULL else r$intercept, slope = if (is.na(r$slope)) NULL else r$slope,
+      n = r$n,
+      scope = r$scope,
+      ceFdh = r$ce,
+      crFdh = r$cr,
+      intercept = if (is.na(r$intercept)) NULL else r$intercept,
+      slope = if (is.na(r$slope)) NULL else r$slope,
       accuracy = if (is.nan(r$above)) NULL else 100 * (r$n - r$above) / r$n,
       p = if (is.null(r$p)) NULL else as.list(r$p),
       peers = list(x = unname(r$peers[, 1]), y = unname(r$peers[, 2])),

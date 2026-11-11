@@ -67,7 +67,11 @@ ps_dsem_spec <- function(req) {
       stop("Invalid parameter type in the request.")
     }
     if (t == "block") {
-      fx <- unlist(lapply(p$fixed, function(x) if (is.null(x) || (length(x) == 1 && is.na(x))) NA_real_ else ps_number(x, "fixed variance")))
+      # A fixed variance per block member; null (NA) leaves it free
+      fixed_value <- function(x) {
+        if (is.null(x) || (length(x) == 1 && is.na(x))) NA_real_ else ps_number(x, "fixed variance")
+      }
+      fx <- unlist(lapply(p$fixed, fixed_value))
       k <- length(fx)
       if (k < 1 || k > 30) stop("Invalid block in the request.")
       if (any(!is.na(fx) & fx <= 0)) stop("A fixed variance in a block must be positive.")
@@ -117,8 +121,11 @@ ps_dsem_spec <- function(req) {
   wterms <- lapply(s$wterms, function(t) {
     list(
       t = ps_dsem_int(t$t, 0, nn - 1, "term") + 1L,
-      p = if (!is.null(t$pb)) NA_integer_ else ps_dsem_int(t$p, 0, nn - 1, "term") + 1L, pb = if (is.null(t$pb)) NULL else ps_dsem_int(t$pb, 0, length(s$btargets) - 1, "term") + 1L,
-      lag = ps_dsem_int(t$lag %||% 0, 0, 2, "lag"), load = isTRUE(t$load), c = coef(t$c, "coefficient")
+      p = if (!is.null(t$pb)) NA_integer_ else ps_dsem_int(t$p, 0, nn - 1, "term") + 1L,
+      pb = if (is.null(t$pb)) NULL else ps_dsem_int(t$pb, 0, length(s$btargets) - 1, "term") + 1L,
+      lag = ps_dsem_int(t$lag %||% 0, 0, 2, "lag"),
+      load = isTRUE(t$load),
+      c = coef(t$c, "coefficient")
     )
   })
   wblocks <- lapply(
@@ -172,8 +179,17 @@ ps_dsem_spec <- function(req) {
   series <- s$series %||% list()
   sl <- if (is.null(series$level)) 0L else ps_dsem_int(series$level, 0, L, "series level")
   list(
-    levels = levels, series = list(level = sl, time = series$time, interval = if (is.null(series$interval)) NULL else ps_number(series$interval, "time interval")),
-    params = params, re = re, nodes = nodes, wterms = wterms, wblocks = wblocks, bt = bt, bterms = bterms, bblocks = bblocks, report = report
+    levels = levels,
+    series = list(level = sl, time = series$time, interval = if (is.null(series$interval)) NULL else ps_number(series$interval, "time interval")),
+    params = params,
+    re = re,
+    nodes = nodes,
+    wterms = wterms,
+    wblocks = wblocks,
+    bt = bt,
+    bterms = bterms,
+    bblocks = bblocks,
+    report = report
   )
 }
 
@@ -351,8 +367,13 @@ ps_dsem_kalman <- function(s) {
 ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
   L <- length(s$levels)
   D <- c(
-    "data {", "  int<lower=1> N;", "  int<lower=1> S;", "  array[N] int<lower=1, upper=S> sid;", "  array[S] int<lower=1, upper=N> first;",
-    "  array[N] int<lower=1> lag1;", "  array[N] int<lower=1> lag2;"
+    "data {",
+    "  int<lower=1> N;",
+    "  int<lower=1> S;",
+    "  array[N] int<lower=1, upper=S> sid;",
+    "  array[S] int<lower=1, upper=N> first;",
+    "  array[N] int<lower=1> lag1;",
+    "  array[N] int<lower=1> lag2;"
   )
   for (l in seq_len(L)) D <- c(D, sprintf("  int<lower=1> J%d;", l), sprintf("  array[N] int<lower=1, upper=J%d> cl%d;", l, l))
   P <- c("parameters {")
@@ -386,7 +407,9 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
       ib <- paste(B, collapse = ", ")
       if (length(A) > 1) P <- c(P, sprintf("  corr_matrix[%d] p%d_r;", length(A), i))
       TP <- c(
-        TP, "  {", sprintf("    vector[%d] sa = sqrt([%s]');", length(A), paste(format(fx[A], digits = 15), collapse = ", ")),
+        TP,
+        "  {",
+        sprintf("    vector[%d] sa = sqrt([%s]');", length(A), paste(format(fx[A], digits = 15), collapse = ", ")),
         if (length(A) > 1) sprintf("    matrix[%d, %d] saa = quad_form_diag(p%d_r, sa);", length(A), length(A), i) else "    matrix[1, 1] saa = rep_matrix(square(sa[1]), 1, 1);",
         sprintf("    p%d[{%s}, {%s}] = saa;", i, ia, ia)
       )
@@ -397,7 +420,9 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
           sprintf("  cov_matrix[%d] p%d_s;", length(B), i)
         )
         TP <- c(
-          TP, sprintf("    p%d[{%s}, {%s}] = p%d_c;", i, ib, ia, i), sprintf("    p%d[{%s}, {%s}] = p%d_c';", i, ia, ib, i),
+          TP,
+          sprintf("    p%d[{%s}, {%s}] = p%d_c;", i, ib, ia, i),
+          sprintf("    p%d[{%s}, {%s}] = p%d_c';", i, ia, ib, i),
           sprintf("    p%d[{%s}, {%s}] = p%d_s + quad_form_sym(saa, mdivide_left_spd(saa, p%d_c'));", i, ib, ib, i, i)
         )
       }
@@ -685,9 +710,13 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
     ms <- bl$members
     kk <- length(ms)
     M <- c(
-      M, "  {", sprintf("    matrix[N, %d] E;", kk), sprintf("    E[:, %d] = W%d - (%s);", seq_len(kk), ms, vapply(ms, function(k) mu[[k]], "")),
+      M,
+      "  {",
+      sprintf("    matrix[N, %d] E;", kk),
+      sprintf("    E[:, %d] = W%d - (%s);", seq_len(kk), ms, vapply(ms, function(k) mu[[k]], "")),
       sprintf("    matrix[%d, %d] Lw = cholesky_decompose(%s);", kk, kk, cval(bl$c)),
-      "    for (i in 1:N) target += multi_normal_cholesky_lpdf(E[i]' | rep_vector(0, rows(Lw)), Lw);", "  }"
+      "    for (i in 1:N) target += multi_normal_cholesky_lpdf(E[i]' | rep_vector(0, rows(Lw)), Lw);",
+      "  }"
     )
   }
   # An AR(1) factor measured by one indicator: the factor integrated out by the Kalman filter, series by series (the
@@ -737,7 +766,11 @@ ps_dsem_stan <- function(s, centered = rep(FALSE, length(s$levels))) {
 #' the sign of loadings that start at 1, and with the indicators' variation, so that the chains begin in the mode with
 #' positive loadings and with the factor's variance away from 0); 0 when no observed variable measures it.
 ps_dsem_score <- function(s, dd, k) {
-  ind <- unique(unlist(lapply(s$wterms, function(t) if (isTRUE(t$load) && identical(t$p, k) && s$nodes[[t$t]]$kind %in% c("y", "u")) t$t)))
+  # The observed (y, u) variables that load on k
+  observed_indicator <- function(t) {
+    if (isTRUE(t$load) && identical(t$p, k) && s$nodes[[t$t]]$kind %in% c("y", "u")) t$t
+  }
+  ind <- unique(unlist(lapply(s$wterms, observed_indicator)))
   if (!length(ind)) {
     return(rep(0, dd$N))
   }
@@ -827,7 +860,9 @@ ps_dsem <- function(req_json, export = FALSE) {
   body <- c(
     "suppressPackageStartupMessages(library(rstan))",
     "# The model as a Stan program (Mplus's default priors: flat; see the header of PLS Studio's R/dsem.R).",
-    "code <- '", ps_sq(code), "'",
+    "code <- '",
+    ps_sq(code),
+    "'",
     "# Compiled once per model (cached as an .rds next to the program's file).",
     "cache <- file.path(tools::R_user_dir(\"pls-studio\", \"cache\"), \"stan\"); dir.create(cache, recursive = TRUE, showWarnings = FALSE)",
     "tmp <- tempfile(fileext = \".stan\"); writeLines(code, tmp)",
@@ -835,7 +870,12 @@ ps_dsem <- function(req_json, export = FALSE) {
     "mod <- tryCatch(rstan::stan_model(file = stan_file, auto_write = TRUE), error = function(e) stop(\"Stan could not compile the model: a C++ toolchain is needed (macOS: Xcode Command Line Tools, xcode-select --install; Windows: Rtools; Linux: g++ and make). \", conditionMessage(e)))",
     sprintf(
       "fit <- rstan::sampling(mod, data = standata, chains = %d, warmup = %d, iter = %d, seed = %d, cores = %d, refresh = 0, pars = %s, init = if (length(inits[[1]])) inits else \"random\")",
-      chains, warmup, warmup + draws, seed, min(cores, chains), ps_q(keep)
+      chains,
+      warmup,
+      warmup + draws,
+      seed,
+      min(cores, chains),
+      ps_q(keep)
     ),
     "summ <- rstan::summary(fit)$summary",
     "post <- as.matrix(fit)"
@@ -883,8 +923,15 @@ ps_dsem <- function(req_json, export = FALSE) {
     nm <- if (!is.null(c$i)) sprintf("p%d[%d,%d]", c$p, c$i, c$j) else sprintf("p%d", c$p)
     x <- post[, nm]
     list(
-      fixed = FALSE, median = stats::median(x), mean = mean(x), sd = stats::sd(x), low = unname(stats::quantile(x, q[1])), high = unname(stats::quantile(x, q[2])),
-      rhat = unname(summ[nm, "Rhat"]), neff = unname(summ[nm, "n_eff"]), pOne = min(mean(x > 0), mean(x < 0))
+      fixed = FALSE,
+      median = stats::median(x),
+      mean = mean(x),
+      sd = stats::sd(x),
+      low = unname(stats::quantile(x, q[1])),
+      high = unname(stats::quantile(x, q[2])),
+      rhat = unname(summ[nm, "Rhat"]),
+      neff = unname(summ[nm, "n_eff"]),
+      pOne = min(mean(x > 0), mean(x < 0))
     )
   }
   rows <- lapply(s$report, function(r) c(list(lhs = r$lhs, op = r$op, rhs = r$rhs, block = r$block), stat(r$c)))
@@ -894,11 +941,26 @@ ps_dsem <- function(req_json, export = FALSE) {
   maxr <- if (length(rh) && any(is.finite(rh))) max(rh, na.rm = TRUE) else NA_real_
   sp <- rstan::get_sampler_params(env$fit, inc_warmup = FALSE)
   div <- sum(vapply(sp, function(x) sum(x[, "divergent__"]), 0))
+  min_neff <- if (length(ne) && any(is.finite(ne))) min(ne, na.rm = TRUE) else NA_real_
+  # The number of distinct free parameters among the reported values (parameter, row, column)
+  parameter_key <- function(r) if (!is.null(r$c$p)) paste(r$c$p, r$c$i %||% 0, r$c$j %||% 0)
+  npar <- length(unique(unlist(lapply(s$report, parameter_key))))
   ps_json(list(
-    chains = chains, warmup = warmup, draws = draws, seed = seed, confidence = conf, n = sdat$N, clusters = I(sdat$J), series = sdat$series,
-    parameters = rows, maxRhat = maxr, minNeff = if (length(ne) && any(is.finite(ne))) min(ne, na.rm = TRUE) else NA_real_,
-    converged = is.finite(maxr) && maxr < 1.05, divergent = div,
-    npar = length(unique(unlist(lapply(s$report, function(r) if (!is.null(r$c$p)) paste(r$c$p, r$c$i %||% 0, r$c$j %||% 0))))),
-    warnings = env$.warnings, engine = ps_engine("rstan")
+    chains = chains,
+    warmup = warmup,
+    draws = draws,
+    seed = seed,
+    confidence = conf,
+    n = sdat$N,
+    clusters = I(sdat$J),
+    series = sdat$series,
+    parameters = rows,
+    maxRhat = maxr,
+    minNeff = min_neff,
+    converged = is.finite(maxr) && maxr < 1.05,
+    divergent = div,
+    npar = npar,
+    warnings = env$.warnings,
+    engine = ps_engine("rstan")
   ))
 }

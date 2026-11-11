@@ -127,8 +127,13 @@ ps_glmm <- function(req_json, export = FALSE) {
   rhs <- function(v) if (length(v)) paste(v, collapse = " + ") else "1"
   call <- sprintf(
     "fit <- mixed_model(fixed = %s ~ %s, random = ~ %s | %s, data = d, family = %s%s, nAGQ = %d, control = list(tol1 = 1e-8, tol2 = 1e-8, tol3 = 1e-12))",
-    lhs, rhs(fixed), rhs(rs), idv, PS_GLMM_FAMILIES[[family]],
-    if (zi) sprintf(", zi_fixed = ~ %s%s", rhs(zf), if (zir) sprintf(", zi_random = ~ 1 | %s", idv) else "") else "", as.integer(k)
+    lhs,
+    rhs(fixed),
+    rhs(rs),
+    idv,
+    PS_GLMM_FAMILIES[[family]],
+    if (zi) sprintf(", zi_fixed = ~ %s%s", rhs(zf), if (zir) sprintf(", zi_random = ~ 1 | %s", idv) else "") else "",
+    as.integer(k)
   )
   body <- c(
     "suppressPackageStartupMessages(library(GLMMadaptive))", prep,
@@ -197,9 +202,22 @@ ps_glmm <- function(req_json, export = FALSE) {
   }
   ll <- logLik(fit)
   ps_json(list(
-    family = family, layout = layout, n = nrow(env$d), clusters = length(unique(env$d[[idv]])), quadrature = as.integer(k), robust = robust,
-    fixed = fixedTab, zero = zeroTab, random = random, logPhi = phi,
-    logLik = as.numeric(ll), npar = attr(ll, "df"), aic = stats::AIC(fit), bic = stats::BIC(fit), converged = isTRUE(fit$converged),
-    warnings = env$.warnings, engine = ps_engine("GLMMadaptive")
+    family = family,
+    layout = layout,
+    n = nrow(env$d),
+    clusters = length(unique(env$d[[idv]])),
+    quadrature = as.integer(k),
+    robust = robust,
+    fixed = fixedTab,
+    zero = zeroTab,
+    random = random,
+    logPhi = phi,
+    logLik = as.numeric(ll),
+    npar = attr(ll, "df"),
+    aic = stats::AIC(fit),
+    bic = stats::BIC(fit),
+    converged = isTRUE(fit$converged),
+    warnings = env$.warnings,
+    engine = ps_engine("GLMMadaptive")
   ))
 }

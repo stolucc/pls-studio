@@ -287,7 +287,9 @@ ps_customml <- function(req_json, export = FALSE) {
       aic = -2 * env$logl + 2 * env$npar,
       bic = -2 * env$logl + log(env$n) * env$npar
     ),
-    se = se_type, scaling = if (se_type == "mplus") env$scaling else NULL, warnings = c(env$.warnings, if (!conv) "The optimiser did not report convergence: check the start values."),
+    se = se_type,
+    scaling = if (se_type == "mplus") env$scaling else NULL,
+    warnings = c(env$.warnings, if (!conv) "The optimiser did not report convergence: check the start values."),
     engine = list(package = "R (stats::nlminb)", version = as.character(getRversion()))
   ))
 }

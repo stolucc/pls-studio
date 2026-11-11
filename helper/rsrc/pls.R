@@ -207,7 +207,11 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
       },
       sprintf(
         "fit <- csem(data, model, %s.PLS_weight_scheme_inner = \"%s\", .disattenuate = %s, .tolerance = %s, .iter_max = %d%s)",
-        if (gsca) sprintf(".approach_weights = \"%s\", ", approach) else sprintf(".PLS_modes = %s, ", modes), scheme, if (isTRUE(o$consistent)) "TRUE" else "FALSE", format(ps_number(o$tolerance, "tolerance"), scientific = TRUE), as.integer(o$maxIter),
+        if (gsca) sprintf(".approach_weights = \"%s\", ", approach) else sprintf(".PLS_modes = %s, ", modes),
+        scheme,
+        if (isTRUE(o$consistent)) "TRUE" else "FALSE",
+        format(ps_number(o$tolerance, "tolerance"), scientific = TRUE),
+        as.integer(o$maxIter),
         paste0(
           if (two) sprintf(", .approach_2ndorder = \"%s\"", if (hoc_approach == "embedded") "mixed" else "2stage") else "",
           dom_arg
@@ -270,7 +274,9 @@ ps_pls_build <- function(req, allow_hoc = FALSE, allow_mi = FALSE, allow_ord = F
       "structure <- relationships(", paste0("  ", sm, c(rep(",", length(sm) - 1), "")), ")",
       sprintf(
         "fit <- estimate_pls(data, measurement, structure, inner_weights = %s, maxIt = %d, stopCriterion = %d)",
-        if (o$scheme == "factor") "path_factorial" else "path_weighting", as.integer(o$maxIter), as.integer(round(-log10(o$tolerance)))
+        if (o$scheme == "factor") "path_factorial" else "path_weighting",
+        as.integer(o$maxIter),
+        as.integer(round(-log10(o$tolerance)))
       )
     )
   } else {
@@ -315,7 +321,11 @@ ps_pls <- function(req_json, export = FALSE) {
           ms$m,
           ms$seed
         ),
-        "fits <- lapply(seq_len(imp$m), function(k) {", "  data <- complete(imp, k)", paste0("  ", b$body), "  fit", "})",
+        "fits <- lapply(seq_len(imp$m), function(k) {",
+        "  data <- complete(imp, k)",
+        paste0("  ", b$body),
+        "  fit",
+        "})",
         "# Estimates averaged over the imputed data sets (Rubin's point estimate), e.g. the path coefficients:"
       )
       report <- if (b$pkg == "cSEM") "Reduce(`+`, lapply(fits, function(f) f$Estimates$Path_estimates)) / length(fits)" else "Reduce(`+`, lapply(fits, function(f) f$path_coef)) / length(fits)"
@@ -362,7 +372,11 @@ ps_pls_out <- function(req, b, env) {
   # M[rows, cols] by name; NA where a name is absent.
   mat <- function(M, rows, cols) {
     out <- matrix(NA_real_, length(rows), length(cols))
-    for (i in seq_along(rows)) for (j in seq_along(cols)) if (rows[i] %in% rownames(M) && cols[j] %in% colnames(M)) out[i, j] <- M[rows[i], cols[j]]
+    for (i in seq_along(rows)) {
+      for (j in seq_along(cols)) {
+        if (rows[i] %in% rownames(M) && cols[j] %in% colnames(M)) out[i, j] <- M[rows[i], cols[j]]
+      }
+    }
     out
   }
   # Optional statistics: a failure is reported (Messages), and the statistic left empty.
@@ -397,7 +411,12 @@ ps_pls_out <- function(req, b, env) {
     } else {
       e$Construct_scores[, cv, drop = FALSE]
     }
-    for (q in seq_along(mods)) scores <- cbind(scores, scores[, b$cv[match(mods[[q]]$from, n$cname)]] * scores[, b$cv[match(mods[[q]]$moderator, n$cname)]])
+    # Interaction terms: the products of their constructs' scores
+    for (q in seq_along(mods)) {
+      from_scores <- scores[, b$cv[match(mods[[q]]$from, n$cname)]]
+      moderator_scores <- scores[, b$cv[match(mods[[q]]$moderator, n$cname)]]
+      scores <- cbind(scores, from_scores * moderator_scores)
+    }
     ccor <- if (two) stats::cor(scores) else e$Construct_VCV[cv, cv, drop = FALSE]
     if (length(mods)) {
       full <- stats::cor(scores)
@@ -427,15 +446,21 @@ ps_pls_out <- function(req, b, env) {
       if (two && !is.null(v2)) out[b$hoc] <- unname(v2[cv[b$hoc]])
       out
     }
-    alpha <- pick(
-      if (!is.null(a)) a$Reliability$Cronbachs_alpha else safe(cSEM::calculateRhoT(fit1, .only_common_factors = FALSE), "Cronbach's alpha (cSEM::calculateRhoT)"),
-      a2$Reliability$Cronbachs_alpha
-    )
+    alpha_first <- if (!is.null(a)) {
+      a$Reliability$Cronbachs_alpha
+    } else {
+      safe(cSEM::calculateRhoT(fit1, .only_common_factors = FALSE), "Cronbach's alpha (cSEM::calculateRhoT)")
+    }
+    alpha <- pick(alpha_first, a2$Reliability$Cronbachs_alpha)
     # (cSEM's composite reliability and overall fit need the model-implied correlations, which nonlinear models do not have.)
-    rhoC <- pick(
-      if (!is.null(a)) a$Reliability$Joereskogs_rho else if (!linear) NULL else safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE), "Composite reliability (cSEM::calculateRhoC)"),
-      a2$Reliability$Joereskogs_rho
-    )
+    rhoC_first <- if (!is.null(a)) {
+      a$Reliability$Joereskogs_rho
+    } else if (!linear) {
+      NULL
+    } else {
+      safe(cSEM::calculateRhoC(fit1, .only_common_factors = FALSE), "Composite reliability (cSEM::calculateRhoC)")
+    }
+    rhoC <- pick(rhoC_first, a2$Reliability$Joereskogs_rho)
     rhoA <- pick(
       if (!is.null(a)) a$Reliability$`Dijkstra-Henselers_rho_A` else NULL,
       a2$Reliability$`Dijkstra-Henselers_rho_A`
@@ -446,30 +471,36 @@ ps_pls_out <- function(req, b, env) {
     # the weights and the indicator correlations only), so it is computed here too.
     S0 <- fit1$Estimates$Indicator_VCV
     if (!isTRUE(b$o$consistent) && is.matrix(S0) && is.matrix(W)) {
-      for (j in which(b$type[seq_len(k0)] == "factor" & b$mode[seq_len(k0)] == "A" & !b$hoc[seq_len(k0)])) {
+      mode_a_factors <- which(b$type[seq_len(k0)] == "factor" & b$mode[seq_len(k0)] == "A" & !b$hoc[seq_len(k0)])
+      for (j in mode_a_factors) {
         it <- intersect(unname(n$iv[n$inds[[j]]]), rownames(S0))
         if (length(it) < 2 || !(cv[j] %in% rownames(W))) next
         w <- W[cv[j], it]
         Sj <- S0[it, it]
         ww <- tcrossprod(w)
-        rhoA[j] <- as.numeric(sum(w^2)^2 * (t(w) %*% (Sj - diag(diag(Sj))) %*% w) / (t(w) %*% (ww - diag(diag(ww))) %*% w))
+        # rho_A = (w'w)^2 * w'(S - diag S)w / w'(ww' - diag ww')w
+        off_diagonal_s <- t(w) %*% (Sj - diag(diag(Sj))) %*% w
+        off_diagonal_ww <- t(w) %*% (ww - diag(diag(ww))) %*% w
+        rhoA[j] <- as.numeric(sum(w^2)^2 * off_diagonal_s / off_diagonal_ww)
       }
     }
-    ave <- pick(
-      if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)"),
-      a2$AVE
-    )
+    ave_first <- if (!is.null(a)) a$AVE else safe(cSEM::calculateAVE(fit1, .only_common_factors = FALSE), "AVE (cSEM::calculateAVE)")
+    ave <- pick(ave_first, a2$AVE)
     # The HTMT assumes that the items of a construct correlate positively with each other
     # and that the items of two constructs correlate all with the same sign. cSEM warns
     # about violations without naming the constructs and, for mixed-sign blocks, returns
     # NaN or an arbitrary signed root; the checks below (on the common-factor blocks that
     # the HTMT covers) name the constructs and blank the undefined values.
     htmt <- function(type) {
-      h <- safe(withCallingHandlers(cSEM::calculateHTMT(fit1, .type_htmt = type), warning = function(w) {
+      # (cSEM's sign warnings are muffled: the checks below name the constructs instead)
+      muffle_sign_warnings <- function(w) {
         if (grepl("all-positive or all-negative|show different signs|could not be computed|NaNs produced", conditionMessage(w))) {
           invokeRestart("muffleWarning")
         }
-      }), if (type == "htmt2") "HTMT2 (cSEM::calculateHTMT)" else "HTMT (cSEM::calculateHTMT)") # (first-order constructs)
+      }
+      what <- if (type == "htmt2") "HTMT2 (cSEM::calculateHTMT)" else "HTMT (cSEM::calculateHTMT)"
+      # (first-order constructs)
+      h <- safe(withCallingHandlers(cSEM::calculateHTMT(fit1, .type_htmt = type), warning = muffle_sign_warnings), what)
       if (is.list(h) && !is.null(h$htmts)) h <- h$htmts
       out <- matrix(NA_real_, K, K)
       if (is.matrix(h)) {
@@ -511,7 +542,8 @@ ps_pls_out <- function(req, b, env) {
       # (Not reported for two-stage models, cSEM's discrepancies refer to one stage only, nor with repeated
       # indicators: the copied indicators make the model-implied correlation matrix singular.)
       g <- function(f, ...) {
-        v <- if (two || !linear || isTRUE(b$repeated)) NULL else safe(f(fit, .saturated = sat, ...), sprintf("Overall fit (%s model, cSEM)", if (sat) "saturated" else "estimated"))
+        what <- sprintf("Overall fit (%s model, cSEM)", if (sat) "saturated" else "estimated")
+        v <- if (two || !linear || isTRUE(b$repeated)) NULL else safe(f(fit, .saturated = sat, ...), what)
         if (is.null(v)) NA_real_ else as.numeric(v)
       }
       list(srmr = g(cSEM::calculateSRMR), dULS = g(cSEM::calculateDL), dG = g(cSEM::calculateDG) * log(10)^2)
@@ -603,11 +635,20 @@ ps_pls_out <- function(req, b, env) {
   q4 <- function(v) c(v, nas(length(mods)))
 
   list(
-    n = nrow(env$data), iterations = iterations, converged = converged,
+    n = nrow(env$data),
+    iterations = iterations,
+    converged = converged,
     constructs = constructs,
     indicators = lapply(seq_along(item_l), function(i) list(name = n$all_inds[i], construct = owner[i] - 1L)),
-    weights = weights, loadings = loadings, pathCoef = B, hasPath = has, totalEffects = total, indirectEffects = total - B,
-    rSquared = r2v, adjRSquared = r2av, constructCor = unname(ccor),
+    weights = weights,
+    loadings = loadings,
+    pathCoef = B,
+    hasPath = has,
+    totalEffects = total,
+    indirectEffects = total - B,
+    rSquared = r2v,
+    adjRSquared = r2av,
+    constructCor = unname(ccor),
     # Redundancy analysis (cSEM): each Mode B composite correlated with a Mode A version of the same indicators.
     # Second-order constructs: loadings and weights of their components (cSEM's stage 2).
     higherOrder = if (two) {
@@ -621,8 +662,8 @@ ps_pls_out <- function(req, b, env) {
               loading = e$Loading_estimates[cv[j], ck],
               weight = e$Weight_estimates[cv[j], ck]
             )
-          } # seminr: the dimensions are the second-order construct's items.
-          else {
+          } else {
+            # seminr: the dimensions are the second-order construct's items.
             list(
               construct = j - 1L,
               component = match(k, n$cname) - 1L,
@@ -632,8 +673,8 @@ ps_pls_out <- function(req, b, env) {
           }
         })
       }), recursive = FALSE)
-    } # Repeated indicators: a dimension's loading is its correlation with the second-order construct's scores, its weight the path coefficient.
-    else if (isTRUE(b$repeated)) {
+    } else if (isTRUE(b$repeated)) {
+      # Repeated indicators: a dimension's loading is its correlation with the second-order construct's scores, its weight the path coefficient.
       unlist(lapply(which(b$hoc), function(j) {
         lapply(match(b$comps[[j]], n$cname), function(k) {
           list(
@@ -649,7 +690,11 @@ ps_pls_out <- function(req, b, env) {
     },
     redundancy = if (b$pkg == "cSEM" && !two) {
       ra <- safe(cSEM::doRedundancyAnalysis(fit), "Redundancy analysis (cSEM::doRedundancyAnalysis)")
-      if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) as.list(setNames(unname(ra), n$cname[match(names(ra), cv)])) else NULL
+      if (is.numeric(ra) && !is.null(names(ra)) && !anyNA(ra)) {
+        as.list(setNames(unname(ra), n$cname[match(names(ra), cv)]))
+      } else {
+        NULL
+      }
     } else {
       NULL
     },

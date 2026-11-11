@@ -9,8 +9,11 @@
 # TYPE = EFA 1 4).
 
 PS_EFA_METHODS <- c(
-  pca = "Principal components (psych::principal)", minres = "Minimum residual (psych::fa)",
-  ml = "Maximum likelihood (psych::fa)", pa = "Principal axis factoring (psych::fa)", lavaan = "Maximum likelihood with standard errors (lavaan::efa)"
+  pca = "Principal components (psych::principal)",
+  minres = "Minimum residual (psych::fa)",
+  ml = "Maximum likelihood (psych::fa)",
+  pa = "Principal axis factoring (psych::fa)",
+  lavaan = "Maximum likelihood with standard errors (lavaan::efa)"
 )
 PS_EFA_ROTATIONS <- c("none", "varimax", "quartimax", "promax", "oblimin", "geominQ", "bigeomin", "biquartimin")
 PS_EFA_OBLIQUE <- c("promax", "oblimin", "geominQ", "bigeomin", "biquartimin")
@@ -121,11 +124,15 @@ ps_efa <- function(req_json, export = FALSE) {
   } else if (lav) {
     sprintf(
       "lapply(seq(min(%d, k), k), function(m) efa(X, nfactors = m, rotation = list(\"%s\"%s), %s, output = \"lavaan\"))",
-      from, PS_EFA_LAVAAN_ROT[[rotation]], if (is.null(eps)) "" else sprintf(", geomin_epsilon = %s", ps_num(eps)),
+      from,
+      PS_EFA_LAVAAN_ROT[[rotation]],
+      if (is.null(eps)) "" else sprintf(", geomin_epsilon = %s", ps_num(eps)),
       paste(c(
         if (poly) c("ordered = names(X)[ordinal]", "estimator = \"WLSMV\"") else c("estimator = \"ML\"", "meanstructure = TRUE"),
         sprintf("missing = \"%s\"", if (listwise) "listwise" else if (poly) "pairwise" else "ml"),
-        if (observed && !poly) "information = \"observed\"", if (mimic) c("mimic = \"Mplus\"", "gamma.vcov.mplus = FALSE"), if (mplus_se) "information.bread = \"expected\""
+        if (observed && !poly) "information = \"observed\"",
+        if (mimic) c("mimic = \"Mplus\"", "gamma.vcov.mplus = FALSE"),
+        if (mplus_se) "information.bread = \"expected\""
       ), collapse = ", ")
     )
   } else {
@@ -189,7 +196,10 @@ ps_efa <- function(req_json, export = FALSE) {
           "# lavaan: every number of factors from %d to k, the last one the solution (standardised loadings, delta-method standard errors).",
           from
         ),
-        sprintf("fits <- %s", call), if (mplus_se) ps_mplus_se_lines("fits"), "fit <- fits[[length(fits)]]", "std <- standardizedSolution(fit)",
+        sprintf("fits <- %s", call),
+        if (mplus_se) ps_mplus_se_lines("fits"),
+        "fit <- fits[[length(fits)]]",
+        "std <- standardizedSolution(fit)",
         sprintf(
           "comparison <- t(sapply(fits, fitMeasures, %s))",
           if (poly) "c(\"npar\", \"chisq.scaled\", \"df.scaled\", \"pvalue.scaled\")" else "c(\"npar\", \"logl\", \"chisq\", \"df\", \"pvalue\", \"aic\", \"bic\")"
@@ -226,13 +236,24 @@ ps_efa <- function(req_json, export = FALSE) {
   stat <- function(x) if (is.null(x) || length(x) == 0 || !is.finite(x[1])) NULL else unname(x[1])
   par <- env$parallel
   ps_json(list(
-    method = method, rotation = rotation, oblique = rotation %in% PS_EFA_OBLIQUE, n = env$n, k = env$k, criterion = criterion, correlation = correlation,
+    method = method,
+    rotation = rotation,
+    oblique = rotation %in% PS_EFA_OBLIQUE,
+    n = env$n,
+    k = env$k,
+    criterion = criterion,
+    correlation = correlation,
     ordinal = if (poly) I(ps_back(names(env$ordinal)[env$ordinal], back, FALSE)) else NULL,
-    variables = ps_back(rownames(L), back, FALSE), factors = factors,
-    loadings = unname(L), structure = if (is.null(S)) NULL else unname(S),
-    communality = unname(fit$communality[rownames(L)]), uniqueness = unname(fit$uniquenesses[rownames(L)]),
+    variables = ps_back(rownames(L), back, FALSE),
+    factors = factors,
+    loadings = unname(L),
+    structure = if (is.null(S)) NULL else unname(S),
+    communality = unname(fit$communality[rownames(L)]),
+    uniqueness = unname(fit$uniquenesses[rownames(L)]),
     complexity = unname(fit$complexity[rownames(L)]),
-    ssLoadings = row("SS loadings"), proportion = row("Proportion Var"), cumulative = row("Cumulative Var"),
+    ssLoadings = row("SS loadings"),
+    proportion = row("Proportion Var"),
+    cumulative = row("Cumulative Var"),
     phi = if (is.null(fit$Phi)) NULL else unname(fit$Phi),
     # Item x item: the observed correlations, and the residuals the solution leaves (off-diagonal;
     # psych's residual matrix, whose diagonal holds the uniquenesses).
@@ -249,8 +270,10 @@ ps_efa <- function(req_json, export = FALSE) {
       NULL
     } else {
       list(
-        observed = unname(if (pca) par$pc.values else par$fa.values), simulated = unname(if (pca) par$pc.sim else par$fa.sim),
-        suggested = if (pca) par$ncomp else par$nfact, iterations = iter
+        observed = unname(if (pca) par$pc.values else par$fa.values),
+        simulated = unname(if (pca) par$pc.sim else par$fa.sim),
+        suggested = if (pca) par$ncomp else par$nfact,
+        iterations = iter
       )
     },
     map = list(values = unname(env$map), suggested = which.min(env$map)),
@@ -261,8 +284,15 @@ ps_efa <- function(req_json, export = FALSE) {
       list(offDiagonal = stat(fit$fit.off))
     } else {
       list(
-        chisq = stat(fit$STATISTIC), df = stat(fit$dof), p = stat(fit$PVAL), rmsea = stat(fit$RMSEA), rmseaLow = stat(fit$RMSEA[2]), rmseaHigh = stat(fit$RMSEA[3]),
-        tli = stat(fit$TLI), bic = stat(fit$BIC), rms = stat(fit$rms)
+        chisq = stat(fit$STATISTIC),
+        df = stat(fit$dof),
+        p = stat(fit$PVAL),
+        rmsea = stat(fit$RMSEA),
+        rmseaLow = stat(fit$RMSEA[2]),
+        rmseaHigh = stat(fit$RMSEA[3]),
+        tli = stat(fit$TLI),
+        bic = stat(fit$BIC),
+        rms = stat(fit$rms)
       )
     },
     warnings = env$.warnings,
@@ -311,34 +341,56 @@ ps_efa_lavaan <- function(env, back, method, rotation, criterion, correlation, p
   rob <- function(x) if (poly) c(paste0(x, ".scaled"), x) else x
   fits <- function(f) {
     list(
-      npar = fm(f, "npar"), chisq = fm(f, rob("chisq")), df = fm(f, rob("df")), p = fm(f, rob("pvalue")),
-      rmsea = fm(f, rob("rmsea")), rmseaLow = fm(f, rob("rmsea.ci.lower")), rmseaHigh = fm(f, rob("rmsea.ci.upper")),
-      cfi = fm(f, rob("cfi")), tli = fm(f, rob("tli")), srmr = fm(f, "srmr"),
-      logl = if (poly) NULL else fm(f, "logl"), aic = if (poly) NULL else fm(f, "aic"), bic = if (poly) NULL else fm(f, "bic")
+      npar = fm(f, "npar"),
+      chisq = fm(f, rob("chisq")),
+      df = fm(f, rob("df")),
+      p = fm(f, rob("pvalue")),
+      rmsea = fm(f, rob("rmsea")),
+      rmseaLow = fm(f, rob("rmsea.ci.lower")),
+      rmseaHigh = fm(f, rob("rmsea.ci.upper")),
+      cfi = fm(f, rob("cfi")),
+      tli = fm(f, rob("tli")),
+      srmr = fm(f, "srmr"),
+      logl = if (poly) NULL else fm(f, "logl"),
+      aic = if (poly) NULL else fm(f, "aic"),
+      bic = if (poly) NULL else fm(f, "bic")
     )
   }
   ks <- vapply(env$fits, function(f) length(lavaan::lavNames(f, "lv")), 1L)
   comparison <- lapply(seq_along(env$fits), function(i) c(list(k = ks[i]), fits(env$fits[[i]])))
   par <- env$parallel
   ps_json(list(
-    method = method, rotation = rotation, oblique = oblique, n = lavaan::lavInspect(fit, "nobs"), k = env$k, criterion = criterion, correlation = correlation,
+    method = method,
+    rotation = rotation,
+    oblique = oblique,
+    n = lavaan::lavInspect(fit, "nobs"),
+    k = env$k,
+    criterion = criterion,
+    correlation = correlation,
     estimator = if (poly) "WLSMV" else "ML",
     ordinal = if (poly) I(ps_back(names(env$ordinal)[env$ordinal], back, FALSE)) else NULL,
-    variables = ps_back(ov, back, FALSE), factors = lv,
-    loadings = unname(L), structure = if (oblique && length(lv) > 1) unname(L %*% Phi) else NULL,
-    communality = unname(1 - u), uniqueness = unname(u),
+    variables = ps_back(ov, back, FALSE),
+    factors = lv,
+    loadings = unname(L),
+    structure = if (oblique && length(lv) > 1) unname(L %*% Phi) else NULL,
+    communality = unname(1 - u),
+    uniqueness = unname(u),
     complexity = unname(rowSums(L^2)^2 / rowSums(L^4)),
-    ssLoadings = unname(ss), proportion = unname(ss / length(ov)), cumulative = unname(cumsum(ss) / length(ov)),
+    ssLoadings = unname(ss),
+    proportion = unname(ss / length(ov)),
+    cumulative = unname(cumsum(ss) / length(ov)),
     phi = if (length(lv) > 1) unname(Phi) else NULL,
     se = list(loadings = unname(Lse), phi = if (length(lv) > 1) unname(Phise) else NULL, uniqueness = unname(use)),
-    correlations = unname(R), residuals = unname(E),
+    correlations = unname(R),
+    residuals = unname(E),
     kmo = list(overall = unname(env$kmo$MSA), items = unname(env$kmo$MSAi[ov])),
     bartlett = list(chisq = env$bartlett$chisq, df = env$bartlett$df, p = env$bartlett$p.value),
     eigenvalues = eigen(R, symmetric = TRUE, only.values = TRUE)$values,
     parallel = if (is.null(par)) NULL else list(observed = unname(par$fa.values), simulated = unname(par$fa.sim), suggested = par$nfact, iterations = iter),
     map = list(values = unname(env$map), suggested = which.min(env$map)),
     kaiser = sum(env$eigenvalues > 1),
-    fit = fits(fit), comparison = comparison,
+    fit = fits(fit),
+    comparison = comparison,
     warnings = env$.warnings,
     engine = ps_engine("lavaan")
   ))

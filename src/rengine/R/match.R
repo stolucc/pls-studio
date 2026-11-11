@@ -63,10 +63,13 @@ ps_match <- function(req_json, export = FALSE) {
   }))
   glm_ps <- method %in% c("nearest", "optimal", "full", "subclass") && distance == "glm"
   args <- c(
-    sprintf("method = \"%s\"", method), if (method %in% c("nearest", "optimal", "full", "subclass")) sprintf("distance = \"%s\"", distance),
+    sprintf("method = \"%s\"", method),
+    if (method %in% c("nearest", "optimal", "full", "subclass")) sprintf("distance = \"%s\"", distance),
     if (glm_ps && link == "probit") "link = \"probit\"",
-    sprintf("estimand = \"%s\"", estimand), if (method %in% c("nearest", "optimal") && ratio > 1) sprintf("ratio = %d", ratio),
-    if (method == "nearest" && !is.null(caliper)) sprintf("caliper = %s", format(caliper)), if (replace) "replace = TRUE"
+    sprintf("estimand = \"%s\"", estimand),
+    if (method %in% c("nearest", "optimal") && ratio > 1) sprintf("ratio = %d", ratio),
+    if (method == "nearest" && !is.null(caliper)) sprintf("caliper = %s", format(caliper)),
+    if (replace) "replace = TRUE"
   )
   dr <- !is.null(Y) && match_effect == "dr"
   focal <- c(ATT = "md[md$%s == 1, ]", ATC = "md[md$%s == 0, ]", ATE = "md")[[estimand]]
@@ -95,20 +98,25 @@ ps_match <- function(req_json, export = FALSE) {
           estimand
         ),
         sprintf(
-          "# averaged over the %s by g-computation; %s.", c(ATT = "treated", ATC = "controls", ATE = "whole matched sample")[[estimand]],
+          "# averaged over the %s by g-computation; %s.",
+          c(ATT = "treated", ATC = "controls", ATE = "whole matched sample")[[estimand]],
           if (replace) "HC3 robust standard errors (matching with replacement)" else "standard errors clustered by matched set (HC3 without matched sets)"
         ),
         sprintf("fit <- lm(%s ~ %s * (%s), data = md, weights = weights)", Y, T, paste(X, collapse = " + ")),
         sprintf(
-          "est <- avg_comparisons(fit, variables = \"%s\", vcov = %s, newdata = %s, conf_level = %s)", T,
-          if (replace) "\"HC3\"" else "if (\"subclass\" %in% names(md)) ~subclass else \"HC3\"", sprintf(focal, T), format(conf)
+          "est <- avg_comparisons(fit, variables = \"%s\", vcov = %s, newdata = %s, conf_level = %s)",
+          T,
+          if (replace) "\"HC3\"" else "if (\"subclass\" %in% names(md)) ~subclass else \"HC3\"",
+          sprintf(focal, T),
+          format(conf)
         ),
         "effect_dr <- as.data.frame(est)"
       )
     } else if (!is.null(Y)) {
       c(
         sprintf(
-          "# Treatment effect (%s): weighted regression on the matched data; %s.", estimand,
+          "# Treatment effect (%s): weighted regression on the matched data; %s.",
+          estimand,
           if (replace) "HC3 robust standard errors (matching with replacement)" else "standard errors clustered by matched set (HC3 without matched sets)"
         ),
         sprintf("fit <- lm(%s ~ %s, data = md, weights = weights)", Y, T),
@@ -142,8 +150,12 @@ ps_match <- function(req_json, export = FALSE) {
     counts = lapply(seq_len(nrow(nn)), function(i) list(row = rownames(nn)[i], control = nn[i, 1], treated = nn[i, 2])),
     balance = lapply(seq_len(nrow(b)), function(i) {
       list(
-        variable = if (rownames(b)[i] == "distance") "Propensity score" else nm(rownames(b)[i]), type = b$Type[i],
-        diffBefore = b$Diff.Un[i], diffAfter = b$Diff.Adj[i], ratioBefore = if (is.null(b$V.Ratio.Un)) NULL else b$V.Ratio.Un[i], ratioAfter = if (is.null(b$V.Ratio.Adj)) NULL else b$V.Ratio.Adj[i]
+        variable = if (rownames(b)[i] == "distance") "Propensity score" else nm(rownames(b)[i]),
+        type = b$Type[i],
+        diffBefore = b$Diff.Un[i],
+        diffAfter = b$Diff.Adj[i],
+        ratioBefore = if (is.null(b$V.Ratio.Un)) NULL else b$V.Ratio.Un[i],
+        ratioAfter = if (is.null(b$V.Ratio.Adj)) NULL else b$V.Ratio.Adj[i]
       )
     }),
     effect = if (is.null(Y)) {
@@ -263,7 +275,10 @@ ps_weight <- function(req, export = FALSE) {
   if (export) {
     return(ps_script(
       sprintf("Inverse probability weighting (WeightIt, %s)", if (effect_model == "dr") "doubly robust" else "IPW"),
-      c("WeightIt", "cobalt", "marginaleffects"), inputs, body, c("summary(W)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (!is.null(Y)) "est")
+      c("WeightIt", "cobalt", "marginaleffects"),
+      inputs,
+      body,
+      c("summary(W)", "bal", "love.plot(bal, abs = TRUE, thresholds = c(m = .1))", if (!is.null(Y)) "est")
     ))
   }
   env <- ps_run(body, inputs)
@@ -279,8 +294,12 @@ ps_weight <- function(req, export = FALSE) {
     ),
     balance = lapply(seq_len(nrow(b)), function(i) {
       list(
-        variable = if (rownames(b)[i] == "prop.score") "Propensity score" else nm(rownames(b)[i]), type = b$Type[i],
-        diffBefore = b$Diff.Un[i], diffAfter = b$Diff.Adj[i], ratioBefore = if (is.null(b$V.Ratio.Un)) NULL else b$V.Ratio.Un[i], ratioAfter = if (is.null(b$V.Ratio.Adj)) NULL else b$V.Ratio.Adj[i]
+        variable = if (rownames(b)[i] == "prop.score") "Propensity score" else nm(rownames(b)[i]),
+        type = b$Type[i],
+        diffBefore = b$Diff.Un[i],
+        diffAfter = b$Diff.Adj[i],
+        ratioBefore = if (is.null(b$V.Ratio.Un)) NULL else b$V.Ratio.Un[i],
+        ratioAfter = if (is.null(b$V.Ratio.Adj)) NULL else b$V.Ratio.Adj[i]
       )
     }),
     weights = list(

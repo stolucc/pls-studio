@@ -67,8 +67,13 @@ ps_pls_predict <- function(req_json, export = FALSE) {
     folds = folds, repetitions = reps,
     indicators = lapply(seq_len(nrow(m)), function(i) {
       list(
-        indicator = ps_back(m$Name[i], back, FALSE), construct = owner(m$Name[i]),
-        maePls = m$MAE_target[i], maeLm = m$MAE_benchmark[i], rmsePls = m$RMSE_target[i], rmseLm = m$RMSE_benchmark[i], q2 = m$Q2_predict[i]
+        indicator = ps_back(m$Name[i], back, FALSE),
+        construct = owner(m$Name[i]),
+        maePls = m$MAE_target[i],
+        maeLm = m$MAE_benchmark[i],
+        rmsePls = m$RMSE_target[i],
+        rmseLm = m$RMSE_benchmark[i],
+        q2 = m$Q2_predict[i]
       )
     }),
     warnings = env$.warnings, engine = ps_engine("cSEM")
@@ -130,8 +135,13 @@ ps_pls_predict_seminr <- function(req, folds, reps, seed, export) {
     folds = folds, repetitions = reps, predictEngine = "seminr", technique = technique,
     indicators = lapply(items, function(i) {
       list(
-        indicator = unname(back[[i]]), construct = owner(i),
-        maePls = s$PLS_out_of_sample["MAE", i], maeLm = s$LM_out_of_sample["MAE", i], rmsePls = s$PLS_out_of_sample["RMSE", i], rmseLm = s$LM_out_of_sample["RMSE", i], q2 = unname(env$q2[i])
+        indicator = unname(back[[i]]),
+        construct = owner(i),
+        maePls = s$PLS_out_of_sample["MAE", i],
+        maeLm = s$LM_out_of_sample["MAE", i],
+        rmsePls = s$PLS_out_of_sample["RMSE", i],
+        rmseLm = s$LM_out_of_sample["RMSE", i],
+        q2 = unname(env$q2[i])
       )
     }),
     warnings = env$.warnings, engine = ps_engine("seminr")
@@ -205,7 +215,8 @@ ps_pls_groups <- function(req_json, export = FALSE) {
     b$body[seq_len(last - 1)],
     sprintf("data <- data[!is.na(data$%s), ]", gv),
     if (length(labels)) sprintf("data$%s <- factor(data$%s, levels = seq_len(%d), labels = %s)", gv, gv, length(labels), ps_q(labels)),
-    "# One PLS model per group (cSEM's .id).", b$body[last],
+    "# One PLS model per group (cSEM's .id).",
+    b$body[last],
     "# MICOM (Henseler, Ringle & Sarstedt 2016): step 2, compositional invariance (c close to 1); step 3, equal means and variances.",
     sprintf("set.seed(%d)  # (testMICOM needs an initialised random number generator)", seed),
     sprintf("micom <- testMICOM(fit, .R = %d, .seed = %d, .verbose = FALSE)", R, seed),
@@ -276,7 +287,10 @@ ps_pls_groups <- function(req_json, export = FALSE) {
     micom = list(
       c = as.list(setNames(unname(first(mi$Step2$Test_statistic)), nm(names(first(mi$Step2$Test_statistic))))),
       cP = as.list(setNames(unname(first(first(mi$Step2$P_value))), nm(names(first(first(mi$Step2$P_value)))))),
-      mean = step3("Mean"), variance = step3("Var"), admissible = mi$Information$Number_admissibles, runs = mi$Information$Total_runs
+      mean = step3("Mean"),
+      variance = step3("Var"),
+      admissible = mi$Information$Number_admissibles,
+      runs = mi$Information$Total_runs
     ),
     mga = mga, samples = R,
     warnings = env$.warnings, engine = ps_engine("cSEM")
@@ -361,11 +375,18 @@ ps_cta <- function(req_json, export = FALSE) {
       list(construct = ps_back(k, back_c, FALSE), tetrads = lapply(seq_len(nrow(d)), function(i) {
         list(
           tetrad = paste(ps_back(strsplit(d$tetrad[i], ",", fixed = TRUE)[[1]], back_i, FALSE), collapse = ", "),
-          est = d$est[i], se = d$se[i], t = d$t[i], p = d$p[i], low = d$low[i], high = d$high[i], differs = isTRUE(d$differs[i])
+          est = d$est[i],
+          se = d$se[i],
+          t = d$t[i],
+          p = d$p[i],
+          low = d$low[i],
+          high = d$high[i],
+          differs = isTRUE(d$differs[i])
         )
       }))
     }),
-    warnings = env$.warnings, engine = list(package = "R (CTA-PLS as Gudergan et al. 2008)", version = as.character(getRversion()))
+    warnings = env$.warnings,
+    engine = list(package = "R (CTA-PLS as Gudergan et al. 2008)", version = as.character(getRversion()))
   ))
 }
 
@@ -443,7 +464,8 @@ ps_blindfold <- function(req_json, export = FALSE) {
       rownames(q),
       function(k) list(construct = ps_back(k, back, FALSE), sse = q[k, "SSE"], sso = q[k, "SSO"], q2 = q[k, "Q2"])
     ),
-    warnings = env$.warnings, engine = list(package = "cSEM (blindfolding as semPLS)", version = as.character(utils::packageVersion("cSEM")))
+    warnings = env$.warnings,
+    engine = list(package = "cSEM (blindfolding as semPLS)", version = as.character(utils::packageVersion("cSEM")))
   ))
 }
 
@@ -505,8 +527,13 @@ ps_cca <- function(req_json, export = FALSE) {
     lapply(seq_len(nrow(d)), function(i) {
       p <- strsplit(d$Name[i], " (<~|=~) ")[[1]]
       list(
-        construct = ps_back(p[1], back, FALSE), indicator = ps_back(p[2], back, FALSE), est = d$Estimate[i], se = d$Std_err[i], p = d$p_value[i],
-        low = d[[grep("L$", names(d))[1]]][i], high = d[[grep("U$", names(d))[1]]][i]
+        construct = ps_back(p[1], back, FALSE),
+        indicator = ps_back(p[2], back, FALSE),
+        est = d$Estimate[i],
+        se = d$Std_err[i],
+        p = d$p_value[i],
+        low = d[[grep("L$", names(d))[1]]][i],
+        high = d[[grep("U$", names(d))[1]]][i]
       )
     })
   }
