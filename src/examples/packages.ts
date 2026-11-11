@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'plsmultilevel' | 'hypotheses';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'plsmultilevel' | 'hypotheses' | 'apim';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -1092,6 +1092,11 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
     case 'match': return [p.treatment ?? '', ...(p.covariates ?? []), p.outcome ?? ''].filter(Boolean);
     case 'rsa': return [p.outcome ?? '', p.x ?? '', p.y ?? '', ...(p.controls ?? [])].filter(Boolean);
     case 'nca': return [...p.x, p.y];
+    // (the APIM: each member's X and Y columns)
+    case 'apim': {
+      const o = panelPreset(p) as { x1: string[]; x2: string[]; y1: string[]; y2: string[] };
+      return [...o.x1, ...o.x2, ...o.y1, ...o.y2];
+    }
     case 'qca': return [...p.conditions, p.outcome, ...(p.labels ? [p.labels] : [])];
     case 'efa': return p.vars ?? [];
     case 'screen': return p.vars;

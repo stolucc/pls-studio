@@ -25,6 +25,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   plsmultilevel: ['Multilevel', 'Random slopes'],
   regsem: ['Regularised SEM', 'Model modification'],
   hypotheses: ['Informative hypotheses', 'Bayes factors'],
+  apim: ['Dyadic data', 'APIM', 'CB-SEM'],
   semsens: ['Sensitivity analysis', 'Unmeasured confounding'], medsens: ['Sensitivity analysis', 'Unmeasured confounding'],
 };
 /** Cards about the example's model: the model's method is a topic of the example. The other cards stand on their own. */
