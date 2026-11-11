@@ -44,14 +44,14 @@ type EfaTab =
 
 /** Scree plot: eigenvalues, with parallel analysis's simulated ones and the eigenvalue-1 line. */
 function Scree({ r }: { r: EfaResult }) {
-  const W = 380,
-    H = 230,
-    pad = { l: 44, r: 12, t: 12, b: 36 };
+  const W = 380;
+  const H = 230;
+  const pad = { l: 44, r: 12, t: 12, b: 36 };
   const obs = r.parallel?.observed.length ? r.parallel.observed : r.eigenvalues;
   const sim = r.parallel?.simulated ?? [];
-  const n = obs.length,
-    top = Math.max(1, ...obs, ...sim) * 1.05,
-    bottom = Math.min(0, ...obs, ...sim);
+  const n = obs.length;
+  const top = Math.max(1, ...obs, ...sim) * 1.05;
+  const bottom = Math.min(0, ...obs, ...sim);
   const sx = (i: number) => pad.l + (n === 1 ? 0 : (i / (n - 1)) * (W - pad.l - pad.r));
   const sy = (v: number) => pad.t + ((top - v) / (top - bottom || 1)) * (H - pad.t - pad.b);
   const line = (v: number[]) => v.map((y, i) => `${i ? 'L' : 'M'} ${sx(i)} ${sy(y)}`).join(' ');

@@ -72,10 +72,10 @@ export interface TreeLayout {
 export function treeLayout(nodes: SemTreeNode[]): TreeLayout {
   const kids = (id: number) =>
     nodes.filter((n) => n.parent === id).sort((a, b) => (a.edge ?? 0) - (b.edge ?? 0));
-  const x = new Map<number, number>(),
-    depth = new Map<number, number>();
-  let next = 0,
-    depthMax = 0;
+  const x = new Map<number, number>();
+  const depth = new Map<number, number>();
+  let next = 0;
+  let depthMax = 0;
   const visit = (n: SemTreeNode, d: number): number => {
     depth.set(n.id, d);
     depthMax = Math.max(depthMax, d);
@@ -146,13 +146,13 @@ function TreeChart({
   labels: Record<string, string[]>;
 }) {
   const L = treeLayout(r.nodes);
-  const BW = 150,
-    BH = 54,
-    GAP = 24,
-    LEVEL = 110,
-    M = 16;
-  const W = Math.max(420, L.leaves * (BW + GAP) + 2 * M),
-    H = (L.depthMax + 1) * LEVEL + BH - LEVEL + 2 * M + 20;
+  const BW = 150;
+  const BH = 54;
+  const GAP = 24;
+  const LEVEL = 110;
+  const M = 16;
+  const W = Math.max(420, L.leaves * (BW + GAP) + 2 * M);
+  const H = (L.depthMax + 1) * LEVEL + BH - LEVEL + 2 * M + 20;
   const cx = (id: number) =>
     M + BW / 2 + L.x.get(id)! * (BW + GAP) + (W - 2 * M - L.leaves * (BW + GAP) + GAP) / 2;
   const cy = (id: number) => M + L.depth.get(id)! * LEVEL;
@@ -178,10 +178,10 @@ function TreeChart({
             .filter((n) => n.parent !== undefined)
             .map((n) => {
               const p = r.nodes.find((q) => q.id === n.parent)!;
-              const x1 = cx(p.id),
-                y1 = cy(p.id) + BH,
-                x2 = cx(n.id),
-                y2 = cy(n.id);
+              const x1 = cx(p.id);
+              const y1 = cy(p.id) + BH;
+              const x2 = cx(n.id);
+              const y2 = cy(n.id);
               return (
                 <g key={`e${n.id}`}>
                   <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={OTHER_COLOR} strokeWidth={1.5} />
@@ -199,9 +199,9 @@ function TreeChart({
               );
             })}
           {r.nodes.map((n) => {
-            const x = cx(n.id) - BW / 2,
-              y = cy(n.id),
-              on = n.id === picked;
+            const x = cx(n.id) - BW / 2;
+            const y = cy(n.id);
+            const on = n.id === picked;
             return (
               <g
                 key={n.id}
@@ -244,11 +244,11 @@ function ImportanceChart({ f }: { f: NonNullable<SemTreeResult['forest']> }) {
   const rows = f.variables
     .map((v, i) => ({ v, imp: f.importance[i] }))
     .sort((a, b) => (b.imp ?? -Infinity) - (a.imp ?? -Infinity));
-  const W = 520,
-    bar = 26,
-    padL = 130,
-    padR = 70,
-    H = rows.length * bar + 50;
+  const W = 520;
+  const bar = 26;
+  const padL = 130;
+  const padR = 70;
+  const H = rows.length * bar + 50;
   const max = Math.max(1e-12, ...rows.map((x) => Math.abs(x.imp ?? 0)));
   const sx = (v: number) => padL + (Math.max(0, v) / max) * (W - padL - padR);
   return (
@@ -610,11 +610,11 @@ export const semTreeAnalysis: AnalysisType<SemTreeOptions, SemTreeResult> = {
       : null;
   },
   fingerprint: (o, ctx) => {
-    const m = cbFingerprint(ctx),
-      cols = columnsFingerprint(
-        ctx,
-        o.covariates.map((c) => c.name),
-      );
+    const m = cbFingerprint(ctx);
+    const cols = columnsFingerprint(
+      ctx,
+      o.covariates.map((c) => c.name),
+    );
     return m && cols && fingerprint([m, cols, o.forest ? ctx.settings.seed : null]);
   },
   run: async (o, ctx) =>

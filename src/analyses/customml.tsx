@@ -125,8 +125,8 @@ function maxOutcomes(type: CustomMlOptions['type']) {
 
 function CustomMlForm({ options: o, set, ctx, disabled }: OptionsProps<CustomMlOptions>) {
   const columns = rawData(ctx)?.names ?? [];
-  const p = o.outcomes.length,
-    pairs = pairsOf(p);
+  const p = o.outcomes.length;
+  const pairs = pairsOf(p);
   const shape = (x: CustomMlOptions): CustomMlOptions => ({
     ...x,
     means: fit(x.means, x.outcomes.length),

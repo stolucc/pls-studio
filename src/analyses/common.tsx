@@ -55,8 +55,8 @@ export function columnsFingerprint(
 
 /** A data column name not yet in use: base, base_2, base_3, … */
 export function freeColumnName(names: string[], base: string): string {
-  let name = base,
-    i = 2;
+  let name = base;
+  let i = 2;
   while (names.includes(name)) name = `${base}_${i++}`;
   return name;
 }

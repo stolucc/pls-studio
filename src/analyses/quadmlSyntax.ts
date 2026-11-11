@@ -252,25 +252,25 @@ export function buildQuad(
   // --- declarations
   const asymOf = new Map<string, '3pl' | '4pl'>();
   const missing: { column: string; values: number[] }[] = [];
-  const categorical = new Set<string>(),
-    count = new Map<string, 'p' | 'i' | 'nb' | 'nbi'>(),
-    censored = new Map<string, { side: 'below' | 'above'; infl: boolean }>();
-  let survival: { column: string; breaks: number[] } | null = null,
-    timecens: string | undefined,
-    weight: string | undefined;
-  let link: 'logit' | 'probit' = 'logit',
-    se: 'mlr' | 'ml' = 'mlr';
+  const categorical = new Set<string>();
+  const count = new Map<string, 'p' | 'i' | 'nb' | 'nbi'>();
+  const censored = new Map<string, { side: 'below' | 'above'; infl: boolean }>();
+  let survival: { column: string; breaks: number[] } | null = null;
+  let timecens: string | undefined;
+  let weight: string | undefined;
+  let link: 'logit' | 'probit' = 'logit';
+  let se: 'mlr' | 'ml' = 'mlr';
   const integ: QuadIntegration = { type: 'rect', points: 15, adaptive: true, range: 5, seed: 0 };
-  let pointsGiven = false,
-    mcGiven = false;
+  let pointsGiven = false;
+  let mcGiven = false;
   for (const raw of declText
     .split(';')
     .map((s) => s.trim())
     .filter(Boolean)) {
     const m = /^([A-Za-z]+)\s*(?:=|\s+IS\s+|\s+ARE\s+)\s*([\s\S]*)$/i.exec(raw);
     if (!m) fail(`Cannot read “${raw}”: options are written NAME = value.`);
-    const key = m![1].toUpperCase(),
-      value = m![2].trim();
+    const key = m![1].toUpperCase();
+    const value = m![2].trim();
     switch (key) {
       case 'CATEGORICAL': {
         for (const p of value.matchAll(/([^()]+?)(?:\(\s*([a-z0-9]+)\s*\)|$)/gi)) {
@@ -354,8 +354,8 @@ export function buildQuad(
       }
       case 'INTEGRATION': {
         const v = value.toUpperCase().replace(/\s+/g, '');
-        const r = /^(STANDARD|GAUSSHERMITE|MONTECARLO)?(?:\((\d+)\))?$/.exec(v),
-          n = /^\d+$/.test(v) ? Number(v) : null;
+        const r = /^(STANDARD|GAUSSHERMITE|MONTECARLO)?(?:\((\d+)\))?$/.exec(v);
+        const n = /^\d+$/.test(v) ? Number(v) : null;
         if (n !== null) {
           integ.points = n;
           pointsGiven = true;
@@ -533,8 +533,8 @@ export function buildQuad(
       for (const l of elements(mm, on[1]))
         for (const r of elements(mm, on[2])) {
           // (u#1 ON x: the inflation of a zero-inflated count or censored-inflated outcome regressed on x)
-          const infl = /^(.+)#1$/.exec(l.name),
-            ic = infl ? colOf(infl[1]) : null;
+          const infl = /^(.+)#1$/.exec(l.name);
+          const ic = infl ? colOf(infl[1]) : null;
           const ln = ic
             ? `${ic}#1`
             : (ref(l.name) ??
@@ -547,14 +547,14 @@ export function buildQuad(
     } else if (wth) {
       for (const l of elements(mm, wth[1]))
         for (const r of elements(mm, wth[2])) {
-          const a = ref(l.name) ?? fail(`${l.name} is not a column or a latent variable.`),
-            b = ref(r.name) ?? fail(`${r.name} is not a column or a latent variable.`);
+          const a = ref(l.name) ?? fail(`${l.name} is not a column or a latent variable.`);
+          const b = ref(r.name) ?? fail(`${r.name} is not a column or a latent variable.`);
           add('~~', a, b, r.mod);
         }
     } else if (/^\[.*\]$/.test(s)) {
       for (const e of elements(mm, s.slice(1, -1))) {
-        const th = /^(.+)\$(\d+)$/.exec(e.name),
-          hash = /^(.+)#(\d+)$/.exec(e.name);
+        const th = /^(.+)\$(\d+)$/.exec(e.name);
+        const hash = /^(.+)#(\d+)$/.exec(e.name);
         if (th) add(`$${th[2]}`, needCol(th[1], `[${e.name}]`), '', e.mod);
         else if (hash) add('#', needCol(hash[1], `[${e.name}]`), hash[2], e.mod);
         else
@@ -726,10 +726,10 @@ export function buildQuad(
 
   // normal part: means, regressions, loadings of continuous indicators, (co)variances
   const m = gaussVars.length;
-  const alpha: number[] = [],
-    Bm: number[][] = [],
-    Gm: number[][] = [],
-    Psi: number[][] = [];
+  const alpha: number[] = [];
+  const Bm: number[][] = [];
+  const Gm: number[][] = [];
+  const Psi: number[][] = [];
   const exo = (f: string) => !items.some((it) => it.kind === '~' && it.a === f);
   const zeroVar = (f: string) => {
     const md = items.filter((it) => it.kind === '~~' && it.a === f && it.b === f).pop()?.mod;
@@ -748,10 +748,10 @@ export function buildQuad(
     // mean / intercept
     let def: { fixed?: number; start: number; label?: string };
     if (lat && g) {
-      const gi = g.factors.indexOf(v),
-        y0 = g.outcomes[0],
-        yl = g.outcomes[g.outcomes.length - 1],
-        t0 = typeOf(y0);
+      const gi = g.factors.indexOf(v);
+      const y0 = g.outcomes[0];
+      const yl = g.outcomes[g.outcomes.length - 1];
+      const t0 = typeOf(y0);
       const dt = g.times[g.times.length - 1] - g.times[0] || 1;
       if (g.inflation || t0 === 'cat') def = gi === 0 ? { fixed: 0, start: 0 } : { start: 0 };
       else if (t0 === 'count' || t0 === 'zip' || t0 === 'nb' || t0 === 'zinb')
@@ -803,8 +803,8 @@ export function buildQuad(
     }
   });
   gaussVars.forEach((v, i) => {
-    const lat = isLatent(v),
-      g = lat ? growthFactor(v) : undefined;
+    const lat = isLatent(v);
+    const g = lat ? growthFactor(v) : undefined;
     let start = lat ? 0.5 * sdOf(v) ** 2 : 0.5 * S(v).variance;
     if (g && g.factors.indexOf(v) > 0) start *= 0.2;
     if (
@@ -817,8 +817,8 @@ export function buildQuad(
   });
   for (let i = 0; i < m; i++)
     for (let j = i + 1; j < m; j++) {
-      const a = gaussVars[i],
-        b = gaussVars[j];
+      const a = gaussVars[i];
+      const b = gaussVars[j];
       const md = find('~~', a, b);
       const both = isLatent(a) && isLatent(b) && !zeroVar(a) && !zeroVar(b) && exo(a) === exo(b);
       const s = param({ lhs: b, op: '~~', rhs: a }, md, both ? { start: 0 } : null);
@@ -843,9 +843,9 @@ export function buildQuad(
             isInfl ? find('#', y, '1') : find('~1', y),
             defIcpt,
           );
-    const loads: number[][] = [],
-      prods: number[][] = [],
-      xs: [string, number][] = [];
+    const loads: number[][] = [];
+    const prods: number[][] = [];
+    const xs: [string, number][] = [];
     for (const [f, fac] of factors) {
       const g = growthFactor(f);
       if (g) {
@@ -881,10 +881,10 @@ export function buildQuad(
     return { icpt, loads, prods, xs };
   };
   for (const y of outcomesList) {
-    const t = outType(y)!,
-      s = S(y),
-      g = growthOf(y),
-      ig = inflGrowthOf(y);
+    const t = outType(y)!;
+    const s = S(y);
+    const g = growthOf(y);
+    const ig = inflGrowthOf(y);
     const o: Partial<QuadOutcome> = { name: y, column: y, type: t };
     if (t === 'cat') {
       o.link = link;
@@ -914,10 +914,10 @@ export function buildQuad(
       o.breaks = survival!.breaks;
       o.censor = timecens;
       // (a common starting hazard: events over the total time)
-      const ti = data.names.indexOf(y),
-        ci = timecens ? data.names.indexOf(timecens) : -1;
-      let ev = 0,
-        tot = 0;
+      const ti = data.names.indexOf(y);
+      const ci = timecens ? data.names.indexOf(timecens) : -1;
+      let ev = 0;
+      let tot = 0;
       data.cols[ti].forEach((v, r) => {
         if (Number.isFinite(v)) {
           tot += v;
@@ -982,8 +982,8 @@ export function buildQuad(
       fail(
         `MODEL PRIORS: cannot read “${st}” (the card reads normal priors: label ~ N(mean, variance)).`,
       );
-    const mean = num(m![2]),
-      variance = num(m![3]);
+    const mean = num(m![2]);
+    const variance = num(m![3]);
     if (!(variance > 0)) fail(`MODEL PRIORS: ${m![1]}: the variance is positive.`);
     for (const e of elements(mm, m![1])) {
       const t =
@@ -1006,8 +1006,8 @@ export function buildQuad(
     refs: refsOf(o).filter((v) => !(isLatent(gaussVars[v]) && zeroVar(gaussVars[v]))),
   }));
   const gcol = gaussVars.map((v) => (isLatent(v) ? null : data.cols[data.names.indexOf(v)]));
-  let dims = 0,
-    work = 0;
+  let dims = 0;
+  let work = 0;
   const nrow = data.cols[0]?.length ?? 0;
   for (let r = 0; r < nrow; r++) {
     const d = new Set<number>();
@@ -1130,8 +1130,8 @@ export function quadColumns(syntax: string): string[] {
     const parts = tok.split('-').map((x) => x.replace(/[$#]\d+$/, ''));
     if (parts.some((x) => KEYWORDS.has(lc(x)) || latent.has(lc(x)))) continue;
     if (parts.length === 2) {
-      const a = /^(.*?)(\d+)$/.exec(parts[0]),
-        b = /^(.*?)(\d+)$/.exec(parts[1]);
+      const a = /^(.*?)(\d+)$/.exec(parts[0]);
+      const b = /^(.*?)(\d+)$/.exec(parts[1]);
       if (a && b && a[1] === b[1]) {
         for (let i = Number(a[2]); i <= Number(b[2]); i++) out.push(`${a[1]}${i}`);
         continue;

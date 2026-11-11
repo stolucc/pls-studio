@@ -87,8 +87,8 @@ export function inlaPrior(type: InlaPriorType, text: string): string | null {
   const m = text.length <= 60 ? PRIOR_RE.exec(text) : null;
   if (!m) return null;
   const family = priorFamily(type);
-  const a = Number(m[2]),
-    b = Number(m[3]);
+  const a = Number(m[2]);
+  const b = Number(m[3]);
   if (
     m[1] !== family ||
     !Number.isFinite(a) ||
@@ -142,8 +142,8 @@ export function parsePriors(text: string): BsemPrior[] {
         throw new Error(
           `“${l}”: write a prior as labels ~ N(mean, variance), for example xload1-xload6 ~ N(0, 0.01).`,
         );
-      const mean = Number(m[2]),
-        variance = Number(m[3]);
+      const mean = Number(m[2]);
+      const variance = Number(m[3]);
       if (!Number.isFinite(mean) || !(variance > 0))
         throw new Error(`“${l}”: the variance must be positive.`);
       return { labels: expandLabels(m[1]), mean, variance };
@@ -586,14 +586,14 @@ function BsemForm({ options: o, set, disabled, ctx }: OptionsProps<BsemOptions>)
 }
 
 function LoopChart({ l, conf }: { l: BsemLoopResult; conf: number }) {
-  const W = 520,
-    H = 300,
-    pad = { l: 56, r: 16, t: 14, b: 44 };
-  const lo = Math.min(0, ...l.low),
-    hi = Math.max(0, ...l.high),
-    m = (hi - lo || 1) * 0.06;
-  const x0 = l.x[0],
-    x1 = l.x[l.x.length - 1];
+  const W = 520;
+  const H = 300;
+  const pad = { l: 56, r: 16, t: 14, b: 44 };
+  const lo = Math.min(0, ...l.low);
+  const hi = Math.max(0, ...l.high);
+  const m = (hi - lo || 1) * 0.06;
+  const x0 = l.x[0];
+  const x1 = l.x[l.x.length - 1];
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + m - v) / (hi - lo + 2 * m)) * (H - pad.t - pad.b);
   const ticks = Array.from({ length: 6 }, (_, i) => lo - m + ((hi - lo + 2 * m) * i) / 5);
@@ -735,8 +735,8 @@ function Derived({ r }: { r: BsemResult }) {
 
 /** INLAvaan's result: no chains; the diagnostics of the approximation instead of R-hat. */
 function InlaView({ r }: { r: BsemResult }) {
-  const f = r.fit,
-    d = r.diagnostics ?? {};
+  const f = r.fit;
+  const d = r.diagnostics ?? {};
   const groups = r.groups?.length ? r.groups : [null];
   const flag = (v: number | null | undefined, warn: number) =>
     v === null || v === undefined
@@ -1026,8 +1026,8 @@ const prior = (v: unknown): BsemPrior | null => {
   const labels = v.labels
     .filter((x): x is string => typeof x === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,30}$/.test(x))
     .slice(0, 500);
-  const mean = Number(v.mean),
-    variance = Number(v.variance);
+  const mean = Number(v.mean);
+  const variance = Number(v.variance);
   return labels.length && Number.isFinite(mean) && Number.isFinite(variance) && variance > 0
     ? { labels, mean, variance }
     : null;
@@ -1040,9 +1040,9 @@ const loopOf = (v: unknown): BsemLoop | null => {
     typeof v.variable !== 'string'
   )
     return null;
-  const from = Number(v.from),
-    to = Number(v.to),
-    by = Number(v.by);
+  const from = Number(v.from);
+  const to = Number(v.to);
+  const by = Number(v.by);
   return Number.isFinite(from) && Number.isFinite(to) && by > 0
     ? {
         name: v.name.slice(0, 31),

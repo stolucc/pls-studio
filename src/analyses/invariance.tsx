@@ -282,8 +282,8 @@ function AlignmentForm({ options: o, set, ctx, disabled }: OptionsProps<Alignmen
 const pct = (x: number) => `${fmt(x * 100, 1)}%`;
 /** Aligned parameters (groups × items), the non-invariant ones (outside the tolerance) marked. */
 function alignedRows(r: AlignmentResult, f: AlignedFactor, which: 'lambda' | 'nu'): Row[] {
-  const m = which === 'lambda' ? f.lambdaAligned : f.nuAligned,
-    dif = (which === 'lambda' ? f.lambdaConstraints : f.nuConstraints).dif;
+  const m = which === 'lambda' ? f.lambdaAligned : f.nuAligned;
+  const dif = (which === 'lambda' ? f.lambdaConstraints : f.nuConstraints).dif;
   const joint = (which === 'lambda' ? f.lambdaConstraints : f.nuConstraints).joint;
   return [
     ...r.groups.map(
@@ -309,8 +309,8 @@ function alignmentNote(f: AlignedFactor): string {
 }
 
 function AlignedFactorView({ r, f }: { r: AlignmentResult; f: AlignedFactor }) {
-  const lc = f.lambdaConstraints,
-    nc = f.nuConstraints;
+  const lc = f.lambdaConstraints;
+  const nc = f.nuConstraints;
   const multi = r.factors.length > 1;
   const t = (s: string) => (multi ? `${f.name}: ${s}` : s);
   return (
@@ -602,8 +602,8 @@ function MnlfaForm({ options: o, set, ctx, disabled }: OptionsProps<MnlfaOptions
 export function mnlfaUnidentified(i: MnlfaInput): string | null {
   const all = !i.moderated.length || i.moderated.length === i.items.length;
   if (!all) return null;
-  const a = i.intercept.find((v) => i.mean.includes(v)),
-    b = i.slope.find((v) => i.sd.includes(v));
+  const a = i.intercept.find((v) => i.mean.includes(v));
+  const b = i.slope.find((v) => i.sd.includes(v));
   if (a)
     return `${a} moderates the factor mean and the intercepts of every item: not identified. Leave at least one item unmoderated (an anchor).`;
   return b
@@ -634,8 +634,8 @@ function MnlfaView({ r }: { r: MnlfaResult }) {
       ),
     };
   };
-  const b = table('b'),
-    a = table('a');
+  const b = table('b');
+  const a = table('a');
   const traitTerms = [...new Set(r.trait.map((t) => t.term))];
   const est = (kind: 'mu' | 'sigma', t: string) =>
     r.trait.find((x) => x.kind === kind && x.term === t)?.est;
@@ -787,11 +787,11 @@ const lsemModelVars = (ctx: AnalysisCtx) =>
   new Set((ctx.model?.constructs ?? []).flatMap((k) => k.indicators));
 /** The moderator's observed range (null when it has no values). */
 export function moderatorRange(ctx: AnalysisCtx, column: string): [number, number] | null {
-  const ds = rawData(ctx),
-    k = ds ? ds.names.indexOf(column) : -1;
+  const ds = rawData(ctx);
+  const k = ds ? ds.names.indexOf(column) : -1;
   if (!ds || k < 0) return null;
-  let lo = Infinity,
-    hi = -Infinity;
+  let lo = Infinity;
+  let hi = -Infinity;
   for (const v of ds.cols[k])
     if (Number.isFinite(v)) {
       if (v < lo) lo = v;
@@ -1004,16 +1004,16 @@ function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; ki
     .flatMap((p) => p.est.flatMap((v, i) => [v, ...band(p, i)]))
     .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
   if (!vals.length) return null;
-  const lo = Math.min(...vals),
-    hi = Math.max(...vals),
-    padY = (hi - lo) * 0.05 || Math.abs(hi) * 0.05 || 0.1;
-  const ys: [number, number] = [lo - padY, hi + padY],
-    xs: [number, number] = [r.grid[0], r.grid[r.grid.length - 1]];
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  const padY = (hi - lo) * 0.05 || Math.abs(hi) * 0.05 || 0.1;
+  const ys: [number, number] = [lo - padY, hi + padY];
+  const xs: [number, number] = [r.grid[0], r.grid[r.grid.length - 1]];
   const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
-  const perRow = 3,
-    legendH = Math.ceil(params.length / perRow) * 16 + 8,
-    HT = H + legendH;
+  const perRow = 3;
+  const legendH = Math.ceil(params.length / perRow) * 16 + 8;
+  const HT = H + legendH;
   const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
   return (
     <ChartFrame
@@ -1068,8 +1068,8 @@ function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; ki
             );
           })}
           {params.map((p, k) => {
-            const x = pad.l + (k % perRow) * ((W - pad.l - pad.r) / perRow),
-              y = H + 12 + Math.floor(k / perRow) * 16;
+            const x = pad.l + (k % perRow) * ((W - pad.l - pad.r) / perRow);
+            const y = H + 12 + Math.floor(k / perRow) * 16;
             return (
               <g key={`l${p.par}`}>
                 <line
@@ -1144,8 +1144,8 @@ function LsemView({ r }: { r: LsemResult }) {
         rows={r.params
           .filter((p) => p.summary)
           .map((p): Row => {
-            const s = p.summary!,
-              t = p.test;
+            const s = p.summary!;
+            const t = p.test;
             return [
               c(lsemLabel(p)),
               c(s.mean),
@@ -1264,8 +1264,8 @@ export const lsemAnalysis: AnalysisType<LsemOptions, LsemResult> = {
     return i.from < i.to ? null : 'The last focal point must be above the first.';
   },
   fingerprint: (o, ctx) => {
-    const m = cbFingerprint(ctx),
-      col = columnsFingerprint(ctx, [o.moderator]);
+    const m = cbFingerprint(ctx);
+    const col = columnsFingerprint(ctx, [o.moderator]);
     return m && col && fingerprint([m, col, JSON.stringify(lsemInput(o, ctx))]);
   },
   run: async (o, ctx) => (await engine()).lsemR(cbCall(ctx), lsemInput(o, ctx)),

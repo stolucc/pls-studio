@@ -245,8 +245,8 @@ export function moveCardNextTo(id: string, target: string, after: boolean) {
 /** Move a card one place up or down (keyboard). */
 export function nudgeCard(id: string, delta: -1 | 1) {
   edit((cs) => {
-    const i = cs.findIndex((c) => c.id === id),
-      j = i + delta;
+    const i = cs.findIndex((c) => c.id === id);
+    const j = i + delta;
     if (i < 0 || j < 0 || j >= cs.length) return cs;
     const next = [...cs];
     [next[i], next[j]] = [next[j], next[i]];
@@ -388,8 +388,8 @@ export function loadCards(cards: Card[]) {
     }
   useAnalyses.setState((s) => {
     const keep = (id: string) => {
-      const before = s.cards.find((c) => c.id === id),
-        after = cards.find((c) => c.id === id);
+      const before = s.cards.find((c) => c.id === id);
+      const after = cards.find((c) => c.id === id);
       return (
         before?.kind === 'analysis' &&
         after?.kind === 'analysis' &&

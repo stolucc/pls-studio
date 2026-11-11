@@ -150,9 +150,9 @@ function parseTech4(t: Record<string, any>): NonNullable<CbResultR['tech4']> {
 /** SAMPSTAT from R: the correlation matrix (a single indicator arrives unboxed) and the thresholds, column-wise. */
 function parseSampleCor(s: Record<string, any>): NonNullable<CbResultR['sampleCor']> {
   const th = s.thresholds ?? {};
-  const v = rList<unknown>(th.variable).map(String),
-    idx = rList<unknown>(th.index).map(num),
-    val = rList<unknown>(th.value).map(num);
+  const v = rList<unknown>(th.variable).map(String);
+  const idx = rList<unknown>(th.index).map(num);
+  const val = rList<unknown>(th.value).map(num);
   return {
     names: rStrings(s.names),
     ordinal: rList<unknown>(s.ordinal).map((x) => x === true),
@@ -163,8 +163,8 @@ function parseSampleCor(s: Record<string, any>): NonNullable<CbResultR['sampleCo
 
 /** TECH10 from R: columns, one entry per pair of ordinal indicators. */
 function parseTech10(t: Record<string, any>): NonNullable<CbResultR['tech10']> {
-  const lhs = rList<unknown>(t.lhs).map(String),
-    rhs = rList<unknown>(t.rhs).map(String);
+  const lhs = rList<unknown>(t.lhs).map(String);
+  const rhs = rList<unknown>(t.rhs).map(String);
   const col = (k: string) => rList<unknown>(t[k]).map(num);
   const [df, x2, x2p, g2, g2p] = ['df', 'x2', 'x2p', 'g2', 'g2p'].map(col);
   return lhs.map((a, i) => ({
@@ -518,8 +518,8 @@ export function scoreColumns(
   const n = data.cols[0]?.length ?? 0;
   const out = { ...data, names: [...data.names], cols: [...data.cols] };
   names.forEach((name, j) => {
-    let col = `${name.replace(/[^A-Za-z0-9_.]+/g, '_')}${suffix}`,
-      k = 2;
+    let col = `${name.replace(/[^A-Za-z0-9_.]+/g, '_')}${suffix}`;
+    let k = 2;
     const base = col;
     while (out.names.includes(col)) col = `${base}_${k++}`;
     const v = new Float64Array(n).fill(NaN);

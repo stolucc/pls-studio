@@ -519,8 +519,8 @@ export const dmacsScriptR = (m: CbCall, i: DmacsInput) =>
  */
 export function detectOccasions(names: string[]): { occasions: string[][]; labels: string[] } {
   const re = /^(.+?)[_.](t|T|w|W|time|Time|wave|Wave)?(\d+)$/;
-  const byOcc = new Map<number, Map<string, string>>(),
-    stems: string[] = [];
+  const byOcc = new Map<number, Map<string, string>>();
+  const stems: string[] = [];
   for (const n of names) {
     const m = re.exec(n);
     if (!m) continue;

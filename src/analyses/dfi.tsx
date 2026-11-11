@@ -341,12 +341,12 @@ export interface DfiLevel {
 export function dfiLevels(t: DfiTable | null): DfiLevel[] {
   if (!t) return [];
   const col = (name: string) => t.columns.findIndex((k) => k.trim().toLowerCase() === name);
-  const iS = col('srmr'),
-    iR = col('rmsea'),
-    iC = col('cfi'),
-    iX = col('chi-square'),
-    iM = col('magnitude'),
-    iH = col('90% ci');
+  const iS = col('srmr');
+  const iR = col('rmsea');
+  const iC = col('cfi');
+  const iX = col('chi-square');
+  const iM = col('magnitude');
+  const iH = col('90% ci');
   const out: DfiLevel[] = [];
   t.rows.forEach((name, i) => {
     const row = t.cells[i] ?? [];
@@ -354,8 +354,8 @@ export function dfiLevels(t: DfiTable | null): DfiLevel[] {
     if (!n || /^(specificity|sensitivity)$/i.test(n)) return;
     const at = (j: number) => (j >= 0 ? dfiNumber(row[j]) : null);
     const m = /^Level[- ](\d+)(?::\s*(95\/5|90\/10))?$/i.exec(n);
-    let kind: DfiLevel['kind'] = 'misspec',
-      label = n;
+    let kind: DfiLevel['kind'] = 'misspec';
+    let label = n;
     if (m) {
       const [, level, split] = m;
       kind = level === '0' ? 'true' : 'misspec';
@@ -774,8 +774,8 @@ function DfiOptionsForm({
 
 // ---------- the view ----------
 
-const TRUE_COLOR = SERIES_COLORS[0],
-  MISSPEC_COLOR = SERIES_COLORS[1];
+const TRUE_COLOR = SERIES_COLORS[0];
+const MISSPEC_COLOR = SERIES_COLORS[1];
 const HB: Record<string, number> = { SRMR: 0.08, RMSEA: 0.06, CFI: 0.95 };
 
 /** Overlaid histograms of the fit index under the correct and a misspecified model, with the dynamic cutoff and Hu & Bentler's. */
@@ -796,10 +796,10 @@ function DfiHistogram({
 }) {
   const all = [...truth, ...(misspec ?? [])].filter((v) => Number.isFinite(v));
   if (!all.length) return null;
-  const lo = Math.min(...all),
-    hi = Math.max(...all);
-  const k = 30,
-    width = (hi - lo) / k || 1e-9;
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const k = 30;
+  const width = (hi - lo) / k || 1e-9;
   const edges = Array.from({ length: k + 1 }, (_, i) => lo + i * width);
   const count = (v: number[]) => {
     const out = new Array(k).fill(0) as number[];
@@ -809,8 +809,8 @@ function DfiHistogram({
     }
     return out;
   };
-  const a = count(truth),
-    b = misspec ? count(misspec) : null;
+  const a = count(truth);
+  const b = misspec ? count(misspec) : null;
   const yMax = Math.max(...a, ...(b ?? [0])) * 1.05 || 1;
   const xs: [number, number] = [
     Math.min(lo, HB[index] ?? lo, cutoff ?? lo),
@@ -1050,8 +1050,8 @@ export function DfiView({ r }: { r: DfiResult }) {
                 })
               : misspec.map((l, li) =>
                   (['SRMR', 'RMSEA', 'CFI'] as const).map((idx) => {
-                    const truth = col(`${idx}_L0`),
-                      bad = col(`${idx}_L${li + 1}`);
+                    const truth = col(`${idx}_L0`);
+                    const bad = col(`${idx}_L${li + 1}`);
                     if (!truth || !bad) return null;
                     const key = idx.toLowerCase() as 'srmr' | 'rmsea' | 'cfi';
                     return (

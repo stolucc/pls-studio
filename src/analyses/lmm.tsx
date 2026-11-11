@@ -31,14 +31,14 @@ import type { AnalysisType, OptionsProps } from './types';
 
 /** Cluster-specific regression lines of the focal predictor (other predictors at 0). */
 function ClusterLines({ l }: { l: NonNullable<LmmResult['lines']> }) {
-  const W = 460,
-    H = 260,
-    pad = { l: 56, r: 14, t: 12, b: 40 };
+  const W = 460;
+  const H = 260;
+  const pad = { l: 56, r: 14, t: 12, b: 40 };
   const [x0, x1] = l.range;
   const ends = l.intercepts.flatMap((a, i) => [a + l.slopes[i] * x0, a + l.slopes[i] * x1]);
-  const lo = Math.min(...ends),
-    hi = Math.max(...ends),
-    span = hi - lo || 1;
+  const lo = Math.min(...ends);
+  const hi = Math.max(...ends);
+  const span = hi - lo || 1;
   const sx = (x: number) => pad.l + ((x - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + 0.06 * span - v) / (span * 1.12)) * (H - pad.t - pad.b);
   const shown = l.intercepts.slice(0, 200);

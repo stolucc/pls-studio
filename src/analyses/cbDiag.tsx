@@ -83,8 +83,8 @@ const HAYAKAWA: readonly LocalFitTest[] = [
 
 /** Why a test does not apply to the model and its settings (lavaan's own conditions); null when it may. */
 export function localTestProblem(t: LocalFitTest, ctx: AnalysisCtx): string | null {
-  const s = ctx.settings,
-    m = ctx.model;
+  const s = ctx.settings;
+  const m = ctx.model;
   if (HAYAKAWA.includes(t)) {
     if (s.estimator !== 'ML') return 'needs the ML estimator';
     if (m?.multigroup) return 'is for one group';
@@ -139,8 +139,8 @@ function ResidualMatrix({ b }: { b: LocalFitBlock }) {
     c(n),
     ...b.names.map((_, j): Cell => {
       if (j >= i) return c(null, 'dim');
-      const v = m[i]?.[j] ?? null,
-        z = b.z[i]?.[j] ?? null;
+      const v = m[i]?.[j] ?? null;
+      const z = b.z[i]?.[j] ?? null;
       return {
         ...c(v, undefined, metric === 'residual' ? 3 : 2),
         bg: zShade(metric === 'normalized' ? v : z),
@@ -170,8 +170,8 @@ function ResidualMatrix({ b }: { b: LocalFitBlock }) {
 
 function Pairs({ b, top }: { b: LocalFitBlock; top: number }) {
   const all = largestResiduals(b);
-  const sig = all.filter((p) => Math.abs(p.z) >= 1.96).length,
-    k = all.length;
+  const sig = all.filter((p) => Math.abs(p.z) >= 1.96).length;
+  const k = all.length;
   const bonf = 0.05 / Math.max(1, k);
   // Red below the Bonferroni level, amber below .05.
   const pClass = (p: number) => {
@@ -185,9 +185,9 @@ function Pairs({ b, top }: { b: LocalFitBlock; top: number }) {
       file="cb-localfit-largest"
       columns={['Pair', 'Residual correlation', 'SE', 'z', 'p', 'Normalized']}
       rows={all.slice(0, top).map((p): Row => {
-        const i = b.names.indexOf(p.b),
-          j = b.names.indexOf(p.a),
-          pz = normalP(p.z);
+        const i = b.names.indexOf(p.b);
+        const j = b.names.indexOf(p.a);
+        const pz = normalP(p.z);
         return [
           c(`${p.a} ↔ ${p.b}`),
           c(p.residual),
@@ -694,11 +694,11 @@ function nestingVerdict(n: CompareModelsResult['net'], equalDf: boolean): string
 }
 
 export function CompareModelsView({ r }: { r: CompareModelsResult }) {
-  const f1 = r.fit1,
-    f2 = r.fit2;
+  const f1 = r.fit1;
+  const f2 = r.fit2;
   const fitRow = (label: string, k: keyof ModelFit, d = 3, lower = false): Row => {
-    const a = f1[k],
-      b = f2[k];
+    const a = f1[k];
+    const b = f2[k];
     // Which model's value to bold (lower is better): 1, 2, or 0 for neither.
     let better = 0;
     if (lower && a !== null && b !== null && a !== b) better = a < b ? 1 : 2;
@@ -708,11 +708,11 @@ export function CompareModelsView({ r }: { r: CompareModelsResult }) {
       { ...c(b, undefined, d), bold: better === 2 },
     ];
   };
-  const n = r.net,
-    equalDf = f1.df !== null && f1.df === f2.df;
+  const n = r.net;
+  const equalDf = f1.df !== null && f1.df === f2.df;
   const netVerdict = nestingVerdict(n, equalDf);
-  const v = r.vuong,
-    ic = r.icci;
+  const v = r.vuong;
+  const ic = r.icci;
   let vuongRows: Row[];
   if (v.error) {
     vuongRows = [[c('Vuong’s tests'), c('not available', 'dim'), c(null), c(v.error, 'bad')]];
@@ -939,8 +939,8 @@ export const compareModelsAnalysis: AnalysisType<CompareModelsOptions, CompareMo
     fitBlocked(ctx, 'Comparing models') ??
     compareModelsProblem(o, ctx),
   fingerprint: (o, ctx) => {
-    const alt = o.alternative?.model,
-      col = alt?.multigroup?.column;
+    const alt = o.alternative?.model;
+    const col = alt?.multigroup?.column;
     return cbFingerprint(ctx, [
       alt ? JSON.stringify(toSpec(alt)) : null,
       o.nested,
@@ -1009,8 +1009,8 @@ const epcParameter = (x: EpcRow) => {
 };
 
 export function EpcView({ r, show }: { r: EpcResult; show: 'flagged' | 'all' }) {
-  const n = epcCounts(r.rows),
-    s = r.settings;
+  const n = epcCounts(r.rows);
+  const s = r.settings;
   const label = (x: EpcRow) => {
     const group = r.groups && x.group ? ` (${r.groups[x.group - 1] ?? x.group})` : '';
     return `${epcParameter(x)}${group}`;

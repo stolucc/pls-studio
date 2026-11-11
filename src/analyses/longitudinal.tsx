@@ -95,15 +95,15 @@ const estCols = ['Parameter', 'Estimate', 'Std. error', 'z', 'p', 'Standardised'
 
 /** The model-implied mean at each occasion (line) and the observed means (dots). */
 function Trajectory({ r }: { r: GrowthResult }) {
-  const W = 460,
-    H = 240,
-    pad = { l: 56, r: 14, t: 12, b: 40 };
+  const W = 460;
+  const H = 240;
+  const pad = { l: 56, r: 14, t: 12, b: 40 };
   const all = [...r.impliedMeans, ...r.observedMeans];
-  const lo = Math.min(...all),
-    hi = Math.max(...all),
-    span = hi - lo || 1;
-  const t0 = Math.min(...r.times),
-    t1 = Math.max(...r.times);
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const span = hi - lo || 1;
+  const t0 = Math.min(...r.times);
+  const t1 = Math.max(...r.times);
   const sx = (t: number) => pad.l + ((t - t0) / (t1 - t0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + 0.08 * span - v) / (span * 1.16)) * (H - pad.t - pad.b);
   return (
@@ -356,18 +356,18 @@ export const bestByBic = (models: GmmModel[]) =>
   models.reduce((a, b) => (b.bic < a.bic ? b : a), models[0]);
 
 function Trajectories({ r, m }: { r: GmmResult; m: GmmModel }) {
-  const W = 480,
-    H = 260,
-    pad = { l: 56, r: 14, t: 12, b: 40 };
+  const W = 480;
+  const H = 260;
+  const pad = { l: 56, r: 14, t: 12, b: 40 };
   const all = [
     ...m.trajectories.flat(),
     ...(m.observed ?? []).flat().filter((v): v is number => v !== null),
   ];
-  const lo = Math.min(...all),
-    hi = Math.max(...all),
-    span = hi - lo || 1;
-  const t0 = r.times[0],
-    t1 = r.times[r.times.length - 1];
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const span = hi - lo || 1;
+  const t0 = r.times[0];
+  const t1 = r.times[r.times.length - 1];
   const sx = (t: number) => pad.l + ((t - t0) / (t1 - t0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + 0.08 * span - v) / (span * 1.16)) * (H - pad.t - pad.b);
   return (

@@ -47,9 +47,9 @@ const shade = (t: number) => {
     [13, 148, 136],
     [245, 158, 11],
   ];
-  const s = Math.max(0, Math.min(1, t)) * 2,
-    i = Math.min(1, Math.floor(s)),
-    f = s - i;
+  const s = Math.max(0, Math.min(1, t)) * 2;
+  const i = Math.min(1, Math.floor(s));
+  const f = s - i;
   const [a, b] = [stops[i], stops[i + 1]];
   return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(',')})`;
 };
@@ -57,24 +57,24 @@ const shade = (t: number) => {
 /** The response surface as a 3D mesh (painter's algorithm), with the lines of congruence and incongruence. */
 function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
   const [az, setAz] = useState(-25);
-  const W = 520,
-    H = 400;
-  const n = r.grid.length,
-    g = r.grid;
-  const zs = r.z.flat(),
-    zmin = Math.min(...zs),
-    zmax = Math.max(...zs),
-    zr = zmax - zmin || 1;
-  const gmin = g[0],
-    gr = g[n - 1] - g[0] || 1;
-  const rad = (az * Math.PI) / 180,
-    el = (28 * Math.PI) / 180;
+  const W = 520;
+  const H = 400;
+  const n = r.grid.length;
+  const g = r.grid;
+  const zs = r.z.flat();
+  const zmin = Math.min(...zs);
+  const zmax = Math.max(...zs);
+  const zr = zmax - zmin || 1;
+  const gmin = g[0];
+  const gr = g[n - 1] - g[0] || 1;
+  const rad = (az * Math.PI) / 180;
+  const el = (28 * Math.PI) / 180;
   const nx = (x: number) => ((x - gmin) / gr) * 2 - 1;
   // Rotated, tilted coordinates; scaled afterwards so that the whole mesh fits the frame.
   const raw = (x: number, y: number, z: number) => {
-    const X = nx(x),
-      Y = nx(y),
-      Z = ((z - zmin) / zr) * 1.1 - 0.55;
+    const X = nx(x);
+    const Y = nx(y);
+    const Z = ((z - zmin) / zr) * 1.1 - 0.55;
     const u = X * Math.cos(rad) - Y * Math.sin(rad);
     const d = X * Math.sin(rad) + Y * Math.cos(rad);
     return { u, v: -(Z * Math.cos(el) - d * Math.sin(el)), depth: d };
@@ -89,10 +89,10 @@ function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
         raw(g[n - 1], a, zmin),
       ]),
     );
-  const umin = Math.min(...corners.map((p) => p.u)),
-    umax = Math.max(...corners.map((p) => p.u));
-  const vmin = Math.min(...corners.map((p) => p.v)),
-    vmax = Math.max(...corners.map((p) => p.v));
+  const umin = Math.min(...corners.map((p) => p.u));
+  const umax = Math.max(...corners.map((p) => p.u));
+  const vmin = Math.min(...corners.map((p) => p.v));
+  const vmax = Math.max(...corners.map((p) => p.v));
   const k = Math.min((W - 60) / (umax - umin || 1), (H - 70) / (vmax - vmin || 1));
   const proj = (x: number, y: number, z: number) => {
     const p = raw(x, y, z);
@@ -121,12 +121,12 @@ function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
   quads.sort((a, b) => b.depth - a.depth);
   const zAt = (x: number, y: number) => {
     // bilinear interpolation on the grid
-    const fx = ((x - gmin) / gr) * (n - 1),
-      fy = ((y - gmin) / gr) * (n - 1);
-    const i = Math.max(0, Math.min(n - 2, Math.floor(fx))),
-      j = Math.max(0, Math.min(n - 2, Math.floor(fy))),
-      u = fx - i,
-      v = fy - j;
+    const fx = ((x - gmin) / gr) * (n - 1);
+    const fy = ((y - gmin) / gr) * (n - 1);
+    const i = Math.max(0, Math.min(n - 2, Math.floor(fx)));
+    const j = Math.max(0, Math.min(n - 2, Math.floor(fy)));
+    const u = fx - i;
+    const v = fy - j;
     return (
       (1 - u) * (1 - v) * r.z[i][j] +
       u * (1 - v) * r.z[i + 1][j] +
@@ -144,8 +144,8 @@ function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
       .join(' ');
   const mid = gmin + gr / 2;
   const axis = (x: number, y: number) => proj(x, y, zmin);
-  const xa = [axis(gmin, gmin), axis(g[n - 1], gmin)],
-    ya = [axis(gmin, gmin), axis(gmin, g[n - 1])];
+  const xa = [axis(gmin, gmin), axis(g[n - 1], gmin)];
+  const ya = [axis(gmin, gmin), axis(gmin, g[n - 1])];
   return (
     <>
       <ChartFrame
@@ -211,8 +211,8 @@ function Surface({ r, input }: { r: RsaResult; input: RsaInput }) {
 function RsaView({ r, input, current }: { r: RsaResult; input: RsaInput; current: boolean }) {
   const stat = r.estimation === 'OLS' ? 't' : 'z';
   const level = Math.round(100 * input.confidence);
-  const data = useStore((s) => s.data),
-    info = useStore((s) => s.dataInfo);
+  const data = useStore((s) => s.data);
+  const info = useStore((s) => s.dataInfo);
   const save = () => {
     if (!current || !data || !info || r.nTotal !== data.cols[0]?.length) return;
     const col = new Float64Array(r.nTotal).fill(NaN);

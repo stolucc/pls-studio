@@ -283,9 +283,9 @@ export function processJn(j: CpaResult['jn'][number]): JohnsonNeyman {
   const se = (m: number) => Math.sqrt(Math.max(0, v11 + 2 * m * v13 + m * m * v33));
   // (b + bint·m)² = crit²·se(m)²: a quadratic in m.
   const q = j.crit * j.crit;
-  const A = j.bint * j.bint - q * v33,
-    B = 2 * (j.b * j.bint - q * v13),
-    C = j.b * j.b - q * v11;
+  const A = j.bint * j.bint - q * v33;
+  const B = 2 * (j.b * j.bint - q * v13);
+  const C = j.b * j.b - q * v11;
   const disc = B * B - 4 * A * C;
   const boundaries =
     disc < 0 || A === 0

@@ -197,8 +197,8 @@ function SemsensChart({ r }: { r: SemsensResult }) {
   if (!p) return null;
   const at = (n: string) => r.phantoms.indexOf(n);
   const [fi, ti] = [at(p.from), at(p.to)];
-  const both = fi >= 0 && ti >= 0,
-    one = fi >= 0 ? fi : ti;
+  const both = fi >= 0 && ti >= 0;
+  const one = fi >= 0 ? fi : ti;
   // The x axis: the product of the two phantom paths, the one phantom path, or the evaluation's number.
   let xs: number[];
   let xLabel: string;
@@ -308,8 +308,8 @@ function includesZero(lo: number, hi: number) {
 export function SemsensView({ r }: { r: SemsensResult }) {
   const inInterest = <T extends { from: string; to: string }>(rows: T[]) =>
     rows.filter((x) => r.interest.some((q) => key(q) === key(x)));
-  const summary = inInterest(r.summary),
-    flips = inInterest(r.flip);
+  const summary = inInterest(r.summary);
+  const flips = inInterest(r.flip);
   const ph = r.phantoms;
   const phCells = (v: number[]) => ph.map((_, i) => c(Number.isFinite(v[i]) ? v[i] : null));
   return (

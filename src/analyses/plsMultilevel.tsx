@@ -328,8 +328,8 @@ export const plsMultilevelAnalysis: AnalysisType<PlsMultilevelOptions, PlssemRes
   },
   fingerprint: (o, ctx) => {
     if (!ctx.model?.multilevel) return null;
-    const spec = toSpec(ctx.model),
-      ml = spec.multilevel!;
+    const spec = toSpec(ctx.model);
+    const ml = spec.multilevel!;
     const cols = columnsFingerprint(
       ctx,
       [

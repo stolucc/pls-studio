@@ -165,9 +165,9 @@ function logitNote(r: IrtResult): string {
 function IrtView({ r }: { r: IrtResult }) {
   const keys = [...new Set(r.params.flatMap((p) => Object.keys(p.values)))];
   const total = r.theta.map((_, i) => r.information.reduce((s, a) => s + (a[i] ?? 0), 0));
-  const W = 460,
-    H = 240,
-    pad = { l: 52, r: 14, t: 12, b: 40 };
+  const W = 460;
+  const H = 240;
+  const pad = { l: 52, r: 14, t: 12, b: 40 };
   const max = Math.max(...total, 1e-9);
   const sx = (t: number) => pad.l + ((t + 4) / 8) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((max * 1.08 - v) / (max * 1.08)) * (H - pad.t - pad.b);
@@ -1019,8 +1019,8 @@ const auxCols = (o: LcaOptions) =>
 /** A saved card's auxiliary variables (untrusted). */
 function parseAux(raw: unknown): LcaAux | undefined {
   if (!isObj(raw)) return undefined;
-  const distal = names(raw.distal),
-    covariates = names(raw.covariates).filter((n) => !distal.includes(n));
+  const distal = names(raw.distal);
+  const covariates = names(raw.covariates).filter((n) => !distal.includes(n));
   if (!distal.length && !covariates.length) return undefined;
   return {
     distal,
@@ -1053,8 +1053,8 @@ export const irtAnalysis: AnalysisType<IrtOptions, IrtResult> = {
       ...(raw.robust === true ? { robust: true } : {}),
     };
     // (the mirt models' options; absent in older saved cards)
-    const pg = prior(raw.priorG),
-      pu = prior(raw.priorU);
+    const pg = prior(raw.priorG);
+    const pu = prior(raw.priorU);
     if (pg) o.priorG = pg;
     if (pu) o.priorU = pu;
     if (Array.isArray(raw.guessItems)) o.guessItems = names(raw.guessItems);

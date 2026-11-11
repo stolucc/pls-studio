@@ -101,9 +101,9 @@ export function metaColumns(
   // (a name two pairs could both have: variables whose names contain underscores, "a_b" with "c" and "a" with "b_c")
   const count = new Map<string, number>();
   for (const k of keys.flat()) count.set(k, (count.get(k) ?? 0) + 1);
-  const columns: (string | null)[] = [],
-    missing: [string, string][] = [],
-    ambiguous: [string, string][] = [];
+  const columns: (string | null)[] = [];
+  const missing: [string, string][] = [];
+  const ambiguous: [string, string][] = [];
   pairs.forEach((p, i) => {
     const found = keys[i].filter((k) => names.includes(k));
     if (found.length > 1 || found.some((k) => count.get(k)! > 1)) ambiguous.push(p);

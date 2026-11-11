@@ -57,7 +57,9 @@ function Num({
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
-      onKeyDown={(e) => e.key === 'Enter' && commit()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+      }}
     />
   );
 }
@@ -95,9 +97,9 @@ function PowerChart({
   estimators: string[];
   metric: 'rejection' | 'relBias' | 'coverage';
 }) {
-  const W = 460,
-    H = 240,
-    pad = { l: 54, r: 12, t: 12, b: 36 };
+  const W = 460;
+  const H = 240;
+  const pad = { l: 54, r: 12, t: 12, b: 36 };
   const sel = rows.filter((r) => r.param.key === paramKey);
   const ns = [...new Set(sel.map((r) => r.n))].sort((a, b) => a - b);
   if (ns.length === 0) return null;

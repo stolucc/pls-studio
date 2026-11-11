@@ -36,9 +36,9 @@ export const effectLabel = (d: number) => {
 };
 
 function CeilingPlot({ k, y }: { k: NcaCondition; y: string }) {
-  const W = 360,
-    H = 280,
-    pad = { l: 48, r: 12, t: 12, b: 40 };
+  const W = 360;
+  const H = 280;
+  const pad = { l: 48, r: 12, t: 12, b: 40 };
   const [x0, x1, y0, y1] = k.scope;
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((y1 - v) / (y1 - y0 || 1)) * (H - pad.t - pad.b);
@@ -53,10 +53,10 @@ function CeilingPlot({ k, y }: { k: NcaCondition; y: string }) {
   const cr =
     k.slope !== null && k.intercept !== null
       ? (() => {
-          const a = k.intercept!,
-            b = k.slope!;
-          const xa = Math.max(x0, (y0 - a) / b),
-            xb = Math.min(x1, (y1 - a) / b);
+          const a = k.intercept!;
+          const b = k.slope!;
+          const xa = Math.max(x0, (y0 - a) / b);
+          const xb = Math.min(x1, (y1 - a) / b);
           return xa < xb ? [xa, xb].map((v) => [sx(v), sy(a + b * v)]) : null;
         })()
       : null;

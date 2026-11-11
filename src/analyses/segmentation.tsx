@@ -29,9 +29,9 @@ export function moveCategory(order: number[], i: number, delta: -1 | 1): number[
 }
 
 function Fusion({ heights }: { heights: number[] }) {
-  const W = 420,
-    H = 200,
-    pad = { l: 48, r: 10, t: 10, b: 36 };
+  const W = 420;
+  const H = 200;
+  const pad = { l: 48, r: 10, t: 10, b: 36 };
   const max = Math.max(...heights, 1e-9);
   const bw = (W - pad.l - pad.r) / heights.length;
   return (
@@ -256,8 +256,8 @@ function SaveSegments({
   base: string;
   current: boolean;
 }) {
-  const data = useStore((s) => s.data),
-    info = useStore((s) => s.dataInfo);
+  const data = useStore((s) => s.data);
+  const info = useStore((s) => s.dataInfo);
   const ok = current && !!data && !!info && assignment.length === (data.cols[0]?.length ?? -1);
   let title = 'Rows were left out (missing values), so segments cannot be matched to rows';
   if (!current) title = 'The data or the model changed since this ran: run it again first';
@@ -443,8 +443,8 @@ function RebusView({ r, current }: { r: RebusResult; current: boolean }) {
   // GQI tends to grow with more classes: show the smallest solution first, not the highest GQI.
   const [k, setK] = useState(r.models[0]?.k);
   const m = r.models.find((x) => x.k === k) ?? r.models[0];
-  const data = useStore((s) => s.data),
-    info = useStore((s) => s.dataInfo);
+  const data = useStore((s) => s.data);
+  const info = useStore((s) => s.dataInfo);
   const rows = data?.cols[0]?.length ?? 0;
   // (no number of classes could be estimated: only the failures and the Ward tree)
   if (!m) {

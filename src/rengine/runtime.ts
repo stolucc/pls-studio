@@ -219,9 +219,9 @@ export async function parallelMap<I, O>(
   onDone?: (done: number) => void,
 ): Promise<O[]> {
   const out = new Array<O>(items.length);
-  let next = 0,
-    done = 0,
-    failed = false;
+  let next = 0;
+  let done = 0;
+  let failed = false;
   const lane = async (session: number) => {
     while (!failed && next < items.length) {
       const i = next++;

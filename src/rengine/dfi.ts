@@ -100,8 +100,8 @@ const req = (c: CbCall, a: DfiArgs) =>
 function table(v: unknown): DfiTable | null {
   if (!v || typeof v !== 'object') return null;
   const t = v as Record<string, unknown>;
-  const rows = rList<unknown>(t.rows).map(str),
-    columns = rList<unknown>(t.columns).map(str);
+  const rows = rList<unknown>(t.rows).map(str);
+  const columns = rList<unknown>(t.columns).map(str);
   const cells = rList<unknown>(t.cells).map((r) => rList<unknown>(r).map(str));
   return columns.length ? { rows, columns, cells } : null;
 }

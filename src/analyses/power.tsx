@@ -447,8 +447,8 @@ function PowerView({ r, o }: { r: PowerResult; o: PowerOptions }) {
       </div>
     );
   }
-  const measure = o.measure,
-    df = r.df;
+  const measure = o.measure;
+  const df = r.df;
   let head: string;
   let what: string;
   let fn: string;
@@ -539,8 +539,8 @@ export const powerAnalysis: AnalysisType<PowerOptions, PowerResult> = {
     if (!isObj(raw)) return null;
     const measure = oneOf(raw.measure, MEASURES, 'RMSEA');
     const pr = isObj(raw.param) ? raw.param : null;
-    const lhs = pr ? name(pr.lhs) : '',
-      rhs = pr ? name(pr.rhs) : '';
+    const lhs = pr ? name(pr.lhs) : '';
+    const rhs = pr ? name(pr.rhs) : '';
     return {
       analysis: oneOf(
         raw.analysis,

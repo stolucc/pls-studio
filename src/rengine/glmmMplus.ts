@@ -56,8 +56,8 @@ export function glmmMplusSyntax(o: GlmmInput): string {
 const spec = (data: Dataset, o: GlmmInput) => buildQuad(glmmMplusSyntax(o), data).spec;
 
 const coef = (term: string, p?: { est: number; se: number | null }): GlmmCoef => {
-  const se = p?.se ?? NaN,
-    z = (p?.est ?? NaN) / se;
+  const se = p?.se ?? NaN;
+  const z = (p?.est ?? NaN) / se;
   return { term, est: p?.est ?? NaN, se, z, p: Number.isFinite(z) ? normalP(z) : NaN };
 };
 
@@ -70,8 +70,8 @@ export function glmmFromQuad(
   const get = (lhs: string, op: string, rhs = '') =>
     r.params.find((p) => p.lhs === lhs && p.op === op && p.rhs === rhs) ??
     (op === '~~' ? r.params.find((p) => p.lhs === rhs && p.op === op && p.rhs === lhs) : undefined);
-  const zi = o.family === 'zip',
-    y0 = o.occasions[0];
+  const zi = o.family === 'zip';
+  const y0 = o.occasions[0];
   const fixed = [
     coef('Intercept', get('i', '~1')),
     coef('time', get('s', '~1')),

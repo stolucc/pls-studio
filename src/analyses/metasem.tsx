@@ -109,8 +109,8 @@ function MetaForm({ options: o, set, ctx, disabled }: OptionsProps<MetaSemOption
 }
 
 function MetaView({ r }: { r: MetaSemResult }) {
-  const s1 = r.stage1,
-    f = r.stage2.fit;
+  const s1 = r.stage1;
+  const f = r.stage2.fit;
   const rem = s1.method === 'REM';
   const pooledRows: Row[] = s1.pooled.map((p) => [
     c(`${p.a} – ${p.b}`),
@@ -229,8 +229,8 @@ export const metaSemAnalysis: AnalysisType<MetaSemOptions, MetaSemResult> = {
   },
   fingerprint: (o, ctx) => {
     if (!ctx.data || !ctx.model) return null;
-    const vars = varsOf(ctx),
-      d = ctx.data;
+    const vars = varsOf(ctx);
+    const d = ctx.data;
     const cols = [o.n, ...metaColumns(d.names, vars).columns.filter((x): x is string => !!x)];
     if (cols.some((x) => !d.names.includes(x))) return null;
     return fingerprint([

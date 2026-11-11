@@ -85,8 +85,8 @@ function DiagramForm({
   ctx: AnalysisCtx;
   disabled: boolean;
 }) {
-  let d: CountSyntax | null = null,
-    why = '';
+  let d: CountSyntax | null = null;
+  let why = '';
   try {
     d = diagramSyntax(ctx);
   } catch (e) {

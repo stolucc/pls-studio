@@ -170,9 +170,9 @@ function ChartOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<Chart
   );
 }
 
-export const W = 520,
-  H = 320,
-  pad = { l: 56, r: 16, t: 14, b: 44 };
+export const W = 520;
+export const H = 320;
+export const pad = { l: 56, r: 16, t: 14, b: 44 };
 const ticks = (lo: number, hi: number, k = 5) =>
   Array.from({ length: k + 1 }, (_, i) => lo + ((hi - lo) * i) / k);
 /** A tick label with as many decimals as the axis span needs (none from 1000), trailing zeros dropped. */
@@ -238,8 +238,8 @@ function ChartView({ r }: { r: ChartResult }) {
   const id = `chart:${r.kind}:${r.x}${'y' in r ? `:${r.y}` : ''}`;
   if (r.kind === 'histogram') {
     if (!r.bins.length) return <div className="empty-results">No values to chart.</div>;
-    const xs: [number, number] = [r.bins[0].from, r.bins[r.bins.length - 1].to],
-      yMax = Math.max(...r.bins.map((b) => b.count)) * 1.05 || 1;
+    const xs: [number, number] = [r.bins[0].from, r.bins[r.bins.length - 1].to];
+    const yMax = Math.max(...r.bins.map((b) => b.count)) * 1.05 || 1;
     const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
     const sy = (v: number) => pad.t + ((yMax - v) / yMax) * (H - pad.t - pad.b);
     return (
@@ -360,8 +360,8 @@ function ChartView({ r }: { r: ChartResult }) {
   if (r.kind === 'box') {
     if (!r.boxes.length) return <div className="empty-results">No values to chart.</div>;
     const all = r.boxes.flatMap((b) => [b.lo, b.hi, ...b.outliers]);
-    let lo = Infinity,
-      hi = -Infinity;
+    let lo = Infinity;
+    let hi = -Infinity;
     for (const v of all) {
       if (v < lo) lo = v;
       if (v > hi) hi = v;
@@ -401,8 +401,8 @@ function ChartView({ r }: { r: ChartResult }) {
               </g>
             ))}
             {r.boxes.map((b, i) => {
-              const cx = pad.l + i * bw + bw / 2,
-                half = Math.min(40, bw * 0.3);
+              const cx = pad.l + i * bw + bw / 2;
+              const half = Math.min(40, bw * 0.3);
               return (
                 <g key={b.label}>
                   <line className="whisker" x1={cx} x2={cx} y1={sy(b.hi)} y2={sy(b.q3)} />
@@ -471,10 +471,10 @@ function ChartView({ r }: { r: ChartResult }) {
 
 function Scatter({ r, id }: { r: Extract<ChartResult, { kind: 'scatter' }>; id: string }) {
   const { xs, ys } = useMemo(() => {
-    let x0 = Infinity,
-      x1 = -Infinity,
-      y0 = Infinity,
-      y1 = -Infinity;
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
     for (const p of r.points) {
       if (p.x < x0) x0 = p.x;
       if (p.x > x1) x1 = p.x;
@@ -586,9 +586,9 @@ export function chartResult(o: ChartOptions, d: Dataset): ChartResult {
       : [boxStats(x, o.x)].filter((b): b is BoxStats => !!b);
     return { kind: 'box', x: o.x, group: o.group, boxes };
   }
-  const x = col(o.x),
-    y = col(o.y),
-    gc = groups ? col(o.group) : null;
+  const x = col(o.x);
+  const y = col(o.y);
+  const gc = groups ? col(o.group) : null;
   const points: { x: number; y: number; g: number }[] = [];
   let complete = 0;
   for (let i = 0; i < x.length; i++) {

@@ -74,9 +74,9 @@ const METHODS: { id: MatchMethod; label: string; hint: string }[] = [
 /** Love plot: absolute standardised mean differences before and after matching. */
 function LovePlot({ b }: { b: MatchResult['balance'] }) {
   const rows = b.filter((x) => Number.isFinite(x.diffBefore));
-  const W = 460,
-    rowH = 20,
-    pad = { l: 150, r: 16, t: 12, b: 40 };
+  const W = 460;
+  const rowH = 20;
+  const pad = { l: 150, r: 16, t: 12, b: 40 };
   const H = pad.t + pad.b + rows.length * rowH;
   const max = Math.max(
     0.25,

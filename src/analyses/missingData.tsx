@@ -136,9 +136,9 @@ export function littleText(l: LittleMcar): string {
 }
 
 function McarTables({ r }: { r: MissingDataResult }) {
-  const l = r.little,
-    j: JamJal | undefined = r.jamjal,
-    v = r.variables;
+  const l = r.little;
+  const j: JamJal | undefined = r.jamjal;
+  const v = r.variables;
   return (
     <>
       {l && (

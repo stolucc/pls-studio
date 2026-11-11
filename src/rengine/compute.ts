@@ -54,8 +54,8 @@ export const CHUNK_SAMPLES = 100;
  * exported script.
  */
 export function bootChunks(samples: number, seed: number): { R: number[]; seed: number[] } {
-  const R: number[] = [],
-    seeds: number[] = [];
+  const R: number[] = [];
+  const seeds: number[] = [];
   for (let k = 0, left = samples; left > 0; k++, left -= CHUNK_SAMPLES) {
     R.push(Math.min(CHUNK_SAMPLES, left));
     seeds.push((seed + k) % 2147483647);

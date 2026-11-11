@@ -14,8 +14,8 @@ export const rNum = (v: unknown) => (typeof v === 'number' && Number.isFinite(v)
 
 /** The data columns named in `use`, in the dataset's order, missing values as null. */
 export function rColumns(data: Dataset, use: Iterable<string>) {
-  const set = new Set(use),
-    keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => set.has(n));
+  const set = new Set(use);
+  const keep = data.names.map((n, k) => [n, k] as const).filter(([n]) => set.has(n));
   return {
     names: keep.map(([n]) => n),
     cols: keep.map(([, k]) => Array.from(data.cols[k], (v) => (Number.isNaN(v) ? null : v))),

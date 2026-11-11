@@ -74,12 +74,12 @@ const hypField = (o: HypRequest) => ({
 const nums = (v: unknown) => rList<unknown>(v).map(rNum);
 export function parseHyp(r: Record<string, any>): HypResult {
   const e = r.estimates ?? {};
-  const labels = rList<string>(e.label),
-    what = rList<string>(e.what),
-    est = nums(e.est),
-    se = nums(e.se);
-  const g = r.gorica,
-    b = r.bain;
+  const labels = rList<string>(e.label);
+  const what = rList<string>(e.what);
+  const est = nums(e.est);
+  const se = nums(e.se);
+  const g = r.gorica;
+  const b = r.bain;
   return {
     hypotheses: rList<string>(r.hypotheses),
     estimates: labels.map((label, i) => ({

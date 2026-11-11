@@ -157,16 +157,16 @@ function DidOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<DidOpti
 }
 
 function EventChart({ r }: { r: DidResult }) {
-  const W = 520,
-    H = 300,
-    pad = { l: 56, r: 16, t: 14, b: 44 };
+  const W = 520;
+  const H = 300;
+  const pad = { l: 56, r: 16, t: 14, b: 44 };
   const ev = r.event;
-  const lo = Math.min(0, ...ev.map((e) => e.ciLow)),
-    hi = Math.max(0, ...ev.map((e) => e.ciHigh)),
-    m = (hi - lo || 1) * 0.08;
+  const lo = Math.min(0, ...ev.map((e) => e.ciLow));
+  const hi = Math.max(0, ...ev.map((e) => e.ciHigh));
+  const m = (hi - lo || 1) * 0.08;
   const xs = ev.map((e) => e.rel);
-  const x0 = Math.min(...xs),
-    x1 = Math.max(...xs);
+  const x0 = Math.min(...xs);
+  const x1 = Math.max(...xs);
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi + m - v) / (hi - lo + 2 * m)) * (H - pad.t - pad.b);
   const ticks = Array.from({ length: 6 }, (_, i) => lo - m + ((hi - lo + 2 * m) * i) / 5);
@@ -249,8 +249,8 @@ function EventChart({ r }: { r: DidResult }) {
 }
 
 function DidView({ r }: { r: Result }) {
-  const a = r.att,
-    pct = Math.round(r.input.confidence * 100);
+  const a = r.att;
+  const pct = Math.round(r.input.confidence * 100);
   return (
     <div className="tables">
       <div className="stat-cards">

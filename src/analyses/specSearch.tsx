@@ -119,8 +119,8 @@ export function rankModels(models: SpecModel[], criterion: 'bic' | 'aic'): Ranke
     );
   if (!ok.length) return [];
   const best = Math.min(...ok.map((m) => m.value));
-  const w = ok.map((m) => Math.exp(-(m.value - best) / 2)),
-    total = w.reduce((a, b) => a + b, 0);
+  const w = ok.map((m) => Math.exp(-(m.value - best) / 2));
+  const total = w.reduce((a, b) => a + b, 0);
   return ok
     .map((m, i) => ({ ...m, delta: m.value - best, weight: w[i] / total }))
     .sort((a, b) => a.value - b.value || a.index - b.index);

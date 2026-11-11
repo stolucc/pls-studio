@@ -70,8 +70,8 @@ function Univariate({ r }: { r: ScreenResult }) {
       file="screening-univariate"
       columns={['Variable', 'n', 'Missing', 'Mean', 'SD', 'Min', 'Max', 'Skewness', 'Kurtosis']}
       rows={r.variables.map((v, i) => {
-        const d = r.describe[i],
-          lvl = normalityLevel(d.skew, d.kurtosis);
+        const d = r.describe[i];
+        const lvl = normalityLevel(d.skew, d.kurtosis);
         const tone = LEVEL_TONE[lvl];
         return [
           c(v),
@@ -91,8 +91,8 @@ function Univariate({ r }: { r: ScreenResult }) {
 }
 
 function Normality({ r }: { r: ScreenResult }) {
-  const m = r.mardia,
-    v = mardiaVerdict(m);
+  const m = r.mardia;
+  const v = mardiaVerdict(m);
   return (
     <div className="tables">
       <Table
@@ -123,8 +123,8 @@ function Normality({ r }: { r: ScreenResult }) {
 
 function Outliers({ r, alpha, current }: { r: ScreenResult; alpha: number; current: boolean }) {
   const flagged = flaggedCases(r.cases, alpha);
-  const data = useStore((s) => s.data),
-    info = useStore((s) => s.dataInfo);
+  const data = useStore((s) => s.data);
+  const info = useStore((s) => s.dataInfo);
   const save = async () => {
     if (!data || !info) return;
     const { scoreColumns } = await import('../rengine/lavaan');
@@ -393,8 +393,11 @@ function IndexPlot({ inf }: { inf: InfluenceResult }) {
   const s = influenceSeries(inf, stat);
   if (!s.rows.length) return null;
   const xs: [number, number] = [Math.min(...s.rows), Math.max(...s.rows)];
-  let lo = Math.min(0, ...s.values),
-    hi = Math.max(...s.values, s.fence !== null && Number.isFinite(s.fence) ? s.fence : -Infinity);
+  let lo = Math.min(0, ...s.values);
+  let hi = Math.max(
+    ...s.values,
+    s.fence !== null && Number.isFinite(s.fence) ? s.fence : -Infinity,
+  );
   const m = (hi - lo || 1) * 0.05;
   lo -= stat === 'gcd' || stat === 'md' || stat === 'kurtosis' ? 0 : m;
   hi += m;

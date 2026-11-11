@@ -34,12 +34,12 @@ function NetworkPlot({
   layout: number[][];
   groups?: number[];
 }) {
-  const W = 520,
-    H = 420,
-    pad = 36,
-    r = 14;
-  const xs = layout.map((p) => p[0]),
-    ys = layout.map((p) => p[1]);
+  const W = 520;
+  const H = 420;
+  const pad = 36;
+  const r = 14;
+  const xs = layout.map((p) => p[0]);
+  const ys = layout.map((p) => p[1]);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const sx = (v: number) => pad + ((v - x0) / (x1 - x0 || 1)) * (W - 2 * pad);
   const sy = (v: number) => pad + ((y1 - v) / (y1 - y0 || 1)) * (H - 2 * pad);

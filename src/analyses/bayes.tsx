@@ -67,8 +67,8 @@ export function fmtBF(v: number): string {
 }
 /** Evidence categories of Lee & Wagenmakers (2013), after Jeffreys (1961), for BF10 (below 1: for H0). */
 export function evidence(bf10: number): string {
-  const b = bf10 >= 1 ? bf10 : 1 / bf10,
-    side = bf10 >= 1 ? 'for H1' : 'for H0';
+  const b = bf10 >= 1 ? bf10 : 1 / bf10;
+  const side = bf10 >= 1 ? 'for H1' : 'for H0';
   if (!Number.isFinite(b)) return `extreme ${side}`;
   if (b < 1.0001) return 'none';
   let word = 'extreme';
@@ -146,19 +146,19 @@ function BFCurve({
   mark?: number;
   title: string;
 }) {
-  const W = 520,
-    H = 280,
-    pad = { l: 64, r: 16, t: 14, b: 44 };
+  const W = 520;
+  const H = 280;
+  const pad = { l: 64, r: 16, t: 14, b: 44 };
   // Points without a Bayes factor (R's NA: too few or constant cases at the start of a sequential analysis) are left out.
   const keep = yAll.map((v) => typeof v === 'number' && Number.isFinite(v) && v > 0);
-  const x = xAll.filter((_, i) => keep[i]),
-    y = yAll.filter((_, i) => keep[i]) as number[];
+  const x = xAll.filter((_, i) => keep[i]);
+  const y = yAll.filter((_, i) => keep[i]) as number[];
   if (!x.length) return null;
   const ly = y.map((v) => Math.log10(v));
-  const lo = Math.min(-1, Math.floor(Math.min(...ly))),
-    hi = Math.max(1, Math.ceil(Math.max(...ly)));
-  const x0 = Math.min(...x),
-    x1 = Math.max(...x);
+  const lo = Math.min(-1, Math.floor(Math.min(...ly)));
+  const hi = Math.max(1, Math.ceil(Math.max(...ly)));
+  const x0 = Math.min(...x);
+  const x1 = Math.max(...x);
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((hi - v) / (hi - lo || 1)) * (H - pad.t - pad.b);
   const step = Math.max(1, Math.ceil((hi - lo) / 8));

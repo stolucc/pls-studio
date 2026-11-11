@@ -45,9 +45,9 @@ export function dfiForFit(
 }
 
 export function useDfiForFit(): DfiForFit | null {
-  const cards = useAnalyses((s) => s.cards),
-    results = useAnalyses((s) => s.results),
-    running = useAnalyses((s) => s.running);
+  const cards = useAnalyses((s) => s.cards);
+  const results = useAnalyses((s) => s.results);
+  const running = useAnalyses((s) => s.running);
   // (subscribed so that a model, settings or data change re-evaluates the fingerprint)
   useStore((s) => s.model);
   useStore((s) => s.settings);

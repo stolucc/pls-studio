@@ -22,8 +22,8 @@ export function reportRWarnings(result: unknown, pkg: string) {
     notes?: unknown;
     engine?: { package?: unknown; version?: unknown };
   };
-  const warnings = strings(r.warnings),
-    notes = strings(r.notes);
+  const warnings = strings(r.warnings);
+  const notes = strings(r.notes);
   if (!warnings.length && !notes.length) return;
   const source =
     typeof r.engine?.package === 'string'

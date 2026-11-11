@@ -103,8 +103,8 @@ const colCache = new WeakMap<Float64Array, string>();
 
 /** 53-bit string hash (cyrb53). */
 function hashString(s: string, seed = 0): string {
-  let h1 = 0xdeadbeef ^ seed,
-    h2 = 0x41c6ce57 ^ seed;
+  let h1 = 0xdeadbeef ^ seed;
+  let h2 = 0x41c6ce57 ^ seed;
   for (let i = 0; i < s.length; i++) {
     const ch = s.charCodeAt(i);
     h1 = Math.imul(h1 ^ ch, 2654435761);
@@ -120,8 +120,8 @@ function hashColumn(col: Float64Array): string {
   if (hit) return hit;
   // The column's bytes, two 32-bit words per value (NaN is one bit pattern in a Float64Array from the app).
   const words = new Uint32Array(col.buffer, col.byteOffset, col.length * 2);
-  let h1 = 0x9e3779b9 ^ col.length,
-    h2 = 0x85ebca6b;
+  let h1 = 0x9e3779b9 ^ col.length;
+  let h2 = 0x85ebca6b;
   for (let i = 0; i < words.length; i++) {
     h1 = Math.imul(h1 ^ words[i], 2654435761);
     h2 = Math.imul(h2 ^ words[i], 1597334677);

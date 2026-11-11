@@ -85,16 +85,16 @@ function PathChart({ r }: { r: RegsemResult }) {
     .filter((l) => l.delta === r.selected.delta && l.converged)
     .sort((a, b) => a.lambda - b.lambda);
   if (levels.length < 2) return null;
-  const W = 560,
-    H = 300,
-    pad = { l: 54, r: 12, t: 12, b: 38 };
-  const xs = levels.map((l) => l.lambda),
-    lo = Math.min(...xs),
-    hi = Math.max(...xs);
+  const W = 560;
+  const H = 300;
+  const pad = { l: 54, r: 12, t: 12, b: 38 };
+  const xs = levels.map((l) => l.lambda);
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
   const vals = levels.flatMap((l) => l.values.filter((v): v is number => v !== null));
-  const ymin = Math.min(0, ...vals),
-    ymax = Math.max(0, ...vals),
-    span = ymax - ymin || 1;
+  const ymin = Math.min(0, ...vals);
+  const ymax = Math.max(0, ...vals);
+  const span = ymax - ymin || 1;
   const sx = (x: number) => pad.l + ((x - lo) / (hi - lo || 1)) * (W - pad.l - pad.r);
   const sy = (y: number) => pad.t + (1 - (y - ymin) / span) * (H - pad.t - pad.b);
   const sel = levels.findIndex((l) => Math.abs(l.lambda - r.selected.lambda) < 1e-12);

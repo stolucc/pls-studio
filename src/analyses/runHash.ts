@@ -191,11 +191,11 @@ const pathLabel = (m: ModelState, p: { from: string; to: string }) => {
   return `${n.get(p.from) ?? p.from} → ${n.get(p.to) ?? p.to}`;
 };
 const diffList = (before: string[], after: string[], what: string): string[] => {
-  const b = new Set(before),
-    a = new Set(after);
+  const b = new Set(before);
+  const a = new Set(after);
   const out: string[] = [];
-  const added = after.filter((x) => !b.has(x)),
-    removed = before.filter((x) => !a.has(x));
+  const added = after.filter((x) => !b.has(x));
+  const removed = before.filter((x) => !a.has(x));
   if (added.length) out.push(`+ ${what} ${added.join(', ')}`);
   if (removed.length) out.push(`− ${what} ${removed.join(', ')}`);
   return out;
@@ -212,8 +212,8 @@ export function describeChanges(
 ): string[] {
   if (!prev) return [];
   const out: string[] = [];
-  const pm = prev.model,
-    nm = next.model;
+  const pm = prev.model;
+  const nm = next.model;
   out.push(
     ...diffList(
       pm.constructs.map((c) => c.name),

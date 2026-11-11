@@ -99,8 +99,8 @@ const TTEST_GREATER_HINT: Record<TTestOptions['type'], string> = {
 function TTestForm({ options: o, set, ctx, disabled }: OptionsProps<TTestOptions>) {
   const d = rawData(ctx);
   if (!d) return <NoData />;
-  const cols = d.names,
-    numeric = cols.filter((n) => !d.categories?.[n]);
+  const cols = d.names;
+  const numeric = cols.filter((n) => !d.categories?.[n]);
   return (
     <fieldset className="card-options" disabled={disabled}>
       <Choice
@@ -469,8 +469,8 @@ export type AnovaOptions = Omit<AnovaInput, 'confidence'>;
 function AnovaForm({ options: o, set, ctx, disabled }: OptionsProps<AnovaOptions>) {
   const d = rawData(ctx);
   if (!d) return <NoData />;
-  const cols = d.names,
-    numeric = cols.filter((n) => !d.categories?.[n]);
+  const cols = d.names;
+  const numeric = cols.filter((n) => !d.categories?.[n]);
   return (
     <fieldset className="card-options" disabled={disabled}>
       <ColumnSelect
@@ -1938,13 +1938,13 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
 
 function BlandAltman({ r }: { r: ReliabilityResult }) {
   const pts = r.points!;
-  const W = 520,
-    H = 300,
-    pad = { l: 56, r: 16, t: 14, b: 44 };
-  const lo = (a: number[]) => a.reduce((m, v) => Math.min(m, v), Infinity),
-    hi = (a: number[]) => a.reduce((m, v) => Math.max(m, v), -Infinity);
-  const x0 = lo(pts.mean),
-    x1 = hi(pts.mean);
+  const W = 520;
+  const H = 300;
+  const pad = { l: 56, r: 16, t: 14, b: 44 };
+  const lo = (a: number[]) => a.reduce((m, v) => Math.min(m, v), Infinity);
+  const hi = (a: number[]) => a.reduce((m, v) => Math.max(m, v), -Infinity);
+  const x0 = lo(pts.mean);
+  const x1 = hi(pts.mean);
   const ys = [Math.min(lo(pts.diff), r.lower!), Math.max(hi(pts.diff), r.upper!)];
   const m = (ys[1] - ys[0] || 1) * 0.08;
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);

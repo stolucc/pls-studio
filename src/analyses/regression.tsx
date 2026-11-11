@@ -126,8 +126,8 @@ export function parseCuts(text: string): number[] {
   for (const piece of text.split(/[,;\s]+/).filter(Boolean)) {
     const m = /^(-?[\d.]+):(-?[\d.]+)$/.exec(piece);
     if (m) {
-      const a = Number(m[1]),
-        b = Number(m[2]);
+      const a = Number(m[1]);
+      const b = Number(m[2]);
       if (Number.isFinite(a) && Number.isFinite(b) && b - a <= 1000)
         for (let x = Math.ceil(a); x <= b; x++) out.push(x);
     } else if (Number.isFinite(Number(piece))) out.push(Number(piece));
@@ -610,15 +610,15 @@ function diagnosticsNote(dw: DurbinWatson | undefined): string {
 }
 
 function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
-  const W = 520,
-    H = 300,
-    pad = { l: 56, r: 16, t: 14, b: 44 };
+  const W = 520;
+  const H = 300;
+  const pad = { l: 56, r: 16, t: 14, b: 44 };
   const probs = cv.probs;
   const ys = probs
     ? [0, 1]
     : (() => {
-        let lo = Infinity,
-          hi = -Infinity;
+        let lo = Infinity;
+        let hi = -Infinity;
         for (const v of [...(cv.y ?? []), ...(cv.points?.y ?? [])]) {
           if (v < lo) lo = v;
           if (v > hi) hi = v;
@@ -626,8 +626,8 @@ function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
         const m = (hi - lo || 1) * 0.05;
         return [lo - m, hi + m];
       })();
-  const x0 = cv.grid[0],
-    x1 = cv.grid[cv.grid.length - 1];
+  const x0 = cv.grid[0];
+  const x1 = cv.grid[cv.grid.length - 1];
   const sx = (v: number) => pad.l + ((v - x0) / (x1 - x0 || 1)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
   const ticks = (lo: number, hi: number) =>
@@ -845,8 +845,8 @@ function robustSeName(se: string) {
 function RegressionView({ r, plot, o }: { r: Result; plot: string; o: RegressionOptions }) {
   const curves = curvesOf(r);
   const cv = curves.find((k) => k.x === plot) ?? curves[0];
-  const f = r.fit,
-    pct = Math.round(r.input.confidence * 100);
+  const f = r.fit;
+  const pct = Math.round(r.input.confidence * 100);
   const ratio = (r.coefficients ?? []).some((e) => e.ratio !== undefined && e.ratio !== null);
   const oddsFamily = r.family === 'binomial' || r.family === 'ordinal';
   let ratioName = 'Rate ratio';
@@ -901,11 +901,11 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
       ? ([['Events', String(f.events)]] as [string, string][])
       : []),
   ];
-  const main = (r.coefficients ?? []).filter((e) => !e.part),
-    inflation = (r.coefficients ?? []).filter((e) => e.part === 'inflation'),
-    baseline = (r.coefficients ?? []).filter((e) => e.part === 'baseline');
-  const zero = (r.coefficients ?? []).filter((e) => e.part === 'zero'),
-    hurdle = r.zeroModel === 'hurdle';
+  const main = (r.coefficients ?? []).filter((e) => !e.part);
+  const inflation = (r.coefficients ?? []).filter((e) => e.part === 'inflation');
+  const baseline = (r.coefficients ?? []).filter((e) => e.part === 'baseline');
+  const zero = (r.coefficients ?? []).filter((e) => e.part === 'zero');
+  const hurdle = r.zeroModel === 'hurdle';
   const std = r.family === 'negbin' ? 'negative binomial' : 'Poisson';
   // What a ratio multiplies: the odds, the hazard, or (count models) an expected count.
   let ratioScale = 'expected count';

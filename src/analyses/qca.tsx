@@ -54,9 +54,9 @@ const MAX_CONDITIONS = 12;
 /** R's default quantile (type 7) of a sorted array. */
 export function quantile7(sorted: number[], p: number): number {
   if (!sorted.length) return NaN;
-  const h = (sorted.length - 1) * p,
-    lo = Math.floor(h),
-    hi = Math.ceil(h);
+  const h = (sorted.length - 1) * p;
+  const lo = Math.floor(h);
+  const hi = Math.ceil(h);
   return sorted[lo] + (h - lo) * (sorted[hi] - sorted[lo]);
 }
 const round6 = (v: number) => Number(v.toPrecision(6));
@@ -127,9 +127,9 @@ export function qcaSpec(o: QcaOptions): QcaSpec {
 // ---- The view ----
 
 function XYPlot({ m, r }: { m: QcaModel; r: QcaResult }) {
-  const W = 320,
-    H = 300,
-    pad = { l: 44, r: 12, t: 12, b: 40 };
+  const W = 320;
+  const H = 300;
+  const pad = { l: 44, r: 12, t: 12, b: 40 };
   const sx = (v: number) => pad.l + v * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + (1 - v) * (H - pad.t - pad.b);
   const n = Math.min(m.membership.length, r.outcomeValues.length);

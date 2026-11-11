@@ -108,8 +108,8 @@ function CompareView({ r }: { r: CompareResult }) {
     .flatMap((k) => {
       const alt = r.criteriaAlt.find((a) => a.criterion === k.criterion)!;
       return names.map((n) => {
-        const a = k.byConstruct[n],
-          b = alt?.byConstruct[n];
+        const a = k.byConstruct[n];
+        const b = alt?.byConstruct[n];
         return [c(k.criterion), c(n), { ...c(a), bold: a < b }, { ...c(b), bold: b < a }];
       });
     });

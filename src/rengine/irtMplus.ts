@@ -27,8 +27,8 @@ export function irtMplusSyntax(items: string[], model: IrtModel, fit: IrtFit): s
     guess = items.filter((i) => !fit.guessItems || fit.guessItems.includes(i));
   const plain = items.filter((i) => !guess.includes(i));
   const kind = model === 'fourpl' ? '4pl' : '3pl';
-  const pg = fit.priorG,
-    pu = model === 'fourpl' ? fit.priorU : undefined;
+  const pg = fit.priorG;
+  const pu = model === 'fourpl' ? fit.priorU : undefined;
   return [
     ...(plain.length ? [`CATEGORICAL = ${plain.join(' ')};`] : []),
     ...(guess.length ? [`CATEGORICAL = ${guess.join(' ')} (${kind});`] : []),
@@ -70,10 +70,10 @@ export function irtFromQuad(
   const theta = Array.from({ length: 81 }, (_, i) => -4 + i * 0.1);
   const information: number[][] = [];
   for (const it of items) {
-    const a = get('f', '=~', it),
-      t1 = get(it, '|', 't1'),
-      t2 = get(it, '|', 't2'),
-      t3 = get(it, '|', 't3');
+    const a = get('f', '=~', it);
+    const t1 = get(it, '|', 't1');
+    const t2 = get(it, '|', 't2');
+    const t3 = get(it, '|', 't3');
     if (!a || !t1) continue;
     coefficients.push(
       { item: it, parameter: 'loading', est: a.est, se: a.se },
@@ -93,8 +93,8 @@ export function irtFromQuad(
         est: t3.est,
         se: t3.se,
       });
-    const g = t2 ? plogis(-t2.est) : 0,
-      u = t3 ? plogis(-t3.est) : 1;
+    const g = t2 ? plogis(-t2.est) : 0;
+    const u = t3 ? plogis(-t3.est) : 1;
     params.push({
       item: it,
       values: {

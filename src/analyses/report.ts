@@ -16,8 +16,8 @@ const svgImage = (svg: string) =>
 export function cleanResult(el: Element, doc: Document = document): Element {
   const out = el.cloneNode(true) as Element;
   // Charts: the drawn SVG as a standalone image (computed styles written onto it).
-  const live = [...el.querySelectorAll('svg')],
-    copies = [...out.querySelectorAll('svg')];
+  const live = [...el.querySelectorAll('svg')];
+  const copies = [...out.querySelectorAll('svg')];
   copies.forEach((svg, i) => {
     const src = live[i] as SVGSVGElement;
     const w = Number(src.getAttribute('width')) || src.getBoundingClientRect().width || 400;
@@ -102,8 +102,8 @@ export function buildReport(cards: Card[], title: string, doc: Document = docume
   };
   add('h1', title);
   add('p', `Analysis report · ${new Date().toLocaleString()}`, 'byline');
-  const ctx = currentCtx(),
-    results = useAnalyses.getState().results;
+  const ctx = currentCtx();
+  const results = useAnalyses.getState().results;
   for (const card of cards) {
     if (card.kind !== 'analysis') {
       if (card.kind === 'heading') add('h2', card.text || 'Heading');
