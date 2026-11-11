@@ -117,9 +117,12 @@ export function ConfirmModal() {
   const textField = current?.text;
   const fields = current?.fields;
   const value = Number(text);
-  const textError =
-    textField &&
-    (text.trim() === '' ? (textField.allowEmpty ? null : '') : textField.check(text.trim()));
+  // null: the text is fine; '' blocks confirming without a message (an empty required field).
+  let textError: string | null | undefined = undefined;
+  if (textField) {
+    if (text.trim() !== '') textError = textField.check(text.trim());
+    else textError = textField.allowEmpty ? null : '';
+  }
   // The fields' current text: on the first render (before the effect below fills `values`) their initial text.
   const vals = fields ? fields.map((f, i) => values[i] ?? f.initial ?? '') : [];
   const edit = (i: number, v: string) => {
@@ -140,16 +143,18 @@ export function ConfirmModal() {
   const fieldErrors = fields
     ? fields.map((f, i) => (trimmed[i] === '' ? '' : f.check(trimmed[i], trimmed)))
     : [];
-  const valid = fields
-    ? fieldErrors.every((e) => e === null)
-    : textField
-      ? textError === null
-      : !field ||
-        (text.trim() !== '' &&
-          Number.isFinite(value) &&
-          value >= field.min &&
-          value <= field.max &&
-          (!field.integer || Number.isInteger(value)));
+  // Can the dialog be confirmed: every field, the text or the number is acceptable.
+  let valid: boolean;
+  if (fields) valid = fieldErrors.every((e) => e === null);
+  else if (textField) valid = textError === null;
+  else
+    valid =
+      !field ||
+      (text.trim() !== '' &&
+        Number.isFinite(value) &&
+        value >= field.min &&
+        value <= field.max &&
+        (!field.integer || Number.isInteger(value)));
   const close = (ok: boolean, choice?: string) => {
     if (ok && !valid) return;
     current?.resolve(

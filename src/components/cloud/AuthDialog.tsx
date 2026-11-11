@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useAuth } from '../../cloud/auth';
+import { useAuth, type DialogMode } from '../../cloud/auth';
 import { useStore } from '../../store';
 import { useEscape } from '../useEscape';
 
 /** Sign in / create account / second factor / confirm Google link, all on-theme. */
+const DIALOG_TITLE: Record<DialogMode, string> = {
+  register: 'Create an account',
+  totp: 'Two-factor authentication',
+  link: 'Link your Google account',
+  forgot: 'Reset your password',
+  reset: 'Choose a new password',
+  signin: 'Sign in to PLS Studio',
+};
+
 export function AuthDialog() {
   const auth = useAuth();
   const d = auth.dialog;
@@ -44,18 +53,7 @@ export function AuthDialog() {
     }
   };
 
-  const title =
-    d.mode === 'register'
-      ? 'Create an account'
-      : d.mode === 'totp'
-        ? 'Two-factor authentication'
-        : d.mode === 'link'
-          ? 'Link your Google account'
-          : d.mode === 'forgot'
-            ? 'Reset your password'
-            : d.mode === 'reset'
-              ? 'Choose a new password'
-              : 'Sign in to PLS Studio';
+  const title = DIALOG_TITLE[d.mode];
   const register = async () => {
     await auth.register(email, password, name);
     useStore

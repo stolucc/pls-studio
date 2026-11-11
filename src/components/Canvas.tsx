@@ -155,11 +155,25 @@ export function Canvas({ onImport }: EmptyProps) {
 
   const empty = model.constructs.length === 0;
   const parcelConstruct = parcelFor ? model.constructs.find((k) => k.id === parcelFor) : undefined;
+  // The wrapper's classes carry the figure notation, which the canvas CSS styles by.
+  const notation = settings.figure.notation;
+  const wrapClass = [
+    'canvas-wrap',
+    isPlainFigure(settings.figure) ? ' plain-figure' : '',
+    notation === 'amos' ? ' amos-notation' : '',
+    notation === 'semplot' ? ' semplot-notation' : '',
+    notation === 'pls'
+      ? ` pls-notation ${method === 'cbsem' ? 'pls-notation-cb' : 'pls-notation-pls'}`
+      : '',
+  ].join('');
+  let secondEnd = 'exogenous construct';
+  if (picked?.kind === 'indicator') secondEnd = 'indicator';
+  else if (picked?.via === 'disturbance') secondEnd = 'disturbance (ζ)';
 
   return (
     <div
       ref={wrapRef}
-      className={`canvas-wrap${isPlainFigure(settings.figure) ? ' plain-figure' : ''}${settings.figure.notation === 'amos' ? ' amos-notation' : ''}${settings.figure.notation === 'semplot' ? ' semplot-notation' : ''}${settings.figure.notation === 'pls' ? ` pls-notation ${method === 'cbsem' ? 'pls-notation-cb' : 'pls-notation-pls'}` : ''}`}
+      className={wrapClass}
       style={figureCssVars(figureForMethod(settings.figure, method)) as React.CSSProperties}
       onDragOver={onDragOver}
       onDrop={onDrop}
@@ -181,15 +195,7 @@ export function Canvas({ onImport }: EmptyProps) {
       {tool === 'correlate' && (
         <div className="tool-hint" role="status">
           {picked ? (
-            <>
-              Now click the second{' '}
-              {picked.kind === 'indicator'
-                ? 'indicator'
-                : picked.via === 'disturbance'
-                  ? 'disturbance (ζ)'
-                  : 'exogenous construct'}
-              . Esc cancels.
-            </>
+            <>Now click the second {secondEnd}. Esc cancels.</>
           ) : (
             <>
               Drag from one end to the other, or click both: two exogenous constructs, two

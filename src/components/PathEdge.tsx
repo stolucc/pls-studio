@@ -55,7 +55,13 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
   const label = data?.label;
   const edge = figure.notation === 'semplot' && !selected ? semplotEdge(beta) : null;
   const width = edge ? edge.width * 1.4 : pathStrokeWidth(figure, beta) * 1.4;
-  const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
+  let cls = '';
+  if (p !== null) cls = p < 0.05 ? ' sig' : ' ns';
+  let labelTitle: string | undefined;
+  if (fixed !== undefined) labelTitle = `Fixed at ${fixedText(fixed)}: not estimated`;
+  else if (data?.implied)
+    labelTitle =
+      'Main effect implied by the moderation (estimated with the model; draw the arrow to edit it)';
   // Amos notation: the number beside the line, not on it.
   const off =
     figure.notation === 'amos'
@@ -97,13 +103,7 @@ function PathEdgeImpl({ id, source, target, data, selected }: EdgeProps<PathFlow
               transform: `translate(-50%, -50%) translate(${geo.mx + off.dx}px, ${geo.my + off.dy}px)`,
               ...(edge ? { color: edge.color } : {}),
             }}
-            title={
-              fixed !== undefined
-                ? `Fixed at ${fixedText(fixed)}: not estimated`
-                : data?.implied
-                  ? 'Main effect implied by the moderation (estimated with the model; draw the arrow to edit it)'
-                  : undefined
-            }
+            title={labelTitle}
           >
             {label && <span className="plabel-name">{label} </span>}
             <EstimateText

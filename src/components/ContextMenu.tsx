@@ -61,12 +61,11 @@ export function ContextMenu({
     e.preventDefault();
     const all = [...(ref.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
     const i = all.indexOf(document.activeElement as HTMLButtonElement);
-    const next =
-      e.key === 'Home'
-        ? 0
-        : e.key === 'End'
-          ? all.length - 1
-          : (i + (e.key === 'ArrowDown' ? 1 : -1) + all.length) % all.length;
+    // Home and End jump to the ends; the arrows step, wrapping around.
+    let next: number;
+    if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = all.length - 1;
+    else next = (i + (e.key === 'ArrowDown' ? 1 : -1) + all.length) % all.length;
     all[next]?.focus();
   };
 
