@@ -3,8 +3,8 @@
 // and multinomial tests.
 
 import type { Dataset } from '../engine/types';
-import { rCall, rScript, rStrings } from './bridge';
-import { rColumns, rList } from './rjson';
+import { rCall, rScript, rStrings, type RPackage } from './bridge';
+import { rColumns, rList, rNum } from './rjson';
 import type { REngineInfo } from './lavaan';
 
 export type Alternative = 'two.sided' | 'greater' | 'less';
@@ -24,6 +24,36 @@ export interface Desc {
   median: number;
 }
 
+/** An effect size with its confidence interval (effectsize); a one-sided interval has one open end (null). */
+export interface EffectSize {
+  /** d, g, dWelch, glass, rb (t-tests), cramerV, phi (contingency), epsilon2 (Kruskal-Wallis). */
+  id: string;
+  est: number;
+  ciLow: number | null;
+  ciHigh: number | null;
+}
+/** Equivalence bounds of a t-test: differences in raw units or standardised (Cohen's d). */
+export interface TostBounds {
+  low: number;
+  high: number;
+  units: 'raw' | 'smd';
+}
+/** A t-test's equivalence test (TOSTER::t_TOST). */
+export interface TostResult {
+  lower: { t: number; df: number; p: number };
+  upper: { t: number; df: number; p: number };
+  /** The TOST p-value: the larger of the two one-sided tests'. */
+  p: number;
+  low: number;
+  high: number;
+  lowSmd: number;
+  highSmd: number;
+  raw: { label: string; est: number; ciLow: number; ciHigh: number };
+  smd: { label: string; est: number; ciLow: number; ciHigh: number };
+  /** The level of the intervals: 1 - 2 alpha. */
+  level: number;
+}
+
 export interface TTestInput {
   type: 'one' | 'paired' | 'independent';
   vars: string[];
@@ -35,6 +65,10 @@ export interface TTestInput {
   rank: boolean;
   alternative: Alternative;
   confidence: number;
+  /** Effect sizes with confidence intervals (effectsize). */
+  effectSizes?: boolean;
+  /** An equivalence test (TOSTER) with these bounds; absent for none. */
+  tost?: TostBounds;
 }
 export interface TTestRow {
   label: string;
@@ -48,6 +82,8 @@ export interface TTestRow {
   levene: { stat: number; df1: number; df2: number; p: number } | null;
   shapiro: (HTest | null)[];
   descriptives: Desc[];
+  effects?: EffectSize[];
+  tost?: TostResult | null;
 }
 export interface TTestResult {
   type: TTestInput['type'];
@@ -67,6 +103,18 @@ export interface AnovaInput {
   ssType: 'I' | 'III';
   interactions: boolean;
   confidence: number;
+  /** Effect sizes with confidence intervals (effectsize). */
+  effectSizes?: boolean;
+  /** The seed of the bootstrap interval of Kruskal-Wallis's epsilon-squared. */
+  seed?: number;
+}
+/** An ANOVA term's effect sizes with their intervals (effectsize). */
+export interface AnovaEffect {
+  term: string;
+  eta2: Omit<EffectSize, 'id'>;
+  partialEta2: Omit<EffectSize, 'id'>;
+  omega2: Omit<EffectSize, 'id'>;
+  partialOmega2: Omit<EffectSize, 'id'>;
 }
 export interface AnovaRow {
   term: string;
@@ -96,6 +144,8 @@ export interface AnovaResult {
   /** One factor: pairwise Wilcoxon rank-sum tests after Kruskal-Wallis, p adjusted by Holm (absent in results from before they were added). */
   pairwiseRank?: { comparison: string; pHolm: number }[] | null;
   cells: (Desc & { cell: string })[];
+  effects?: AnovaEffect[] | null;
+  epsilon2?: EffectSize | null;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -215,6 +265,18 @@ export interface CorrelationInput {
   deletion: 'pairwise' | 'listwise';
   confidence: number;
   exact?: boolean;
+  /** Equivalence tests of every pair (TOSTER): bounds -tostBound and tostBound. */
+  tostBound?: number;
+}
+/** A pair's equivalence test (TOSTER::z_cor_test). */
+export interface CorrelationTost {
+  r: number;
+  z: number;
+  p: number;
+  ciLow: number;
+  ciHigh: number;
+  /** The level of the interval: 1 - 2 alpha. */
+  level: number;
 }
 /** `stat`: t, S, T or (polychoric) z; `se` and `kind` with polychoric. */
 export interface CorrelationPair {
@@ -229,6 +291,7 @@ export interface CorrelationPair {
   se?: number;
   kind?: 'polychoric' | 'tetrachoric' | 'polyserial' | 'pearson';
   exact?: boolean | null;
+  tost?: CorrelationTost | null;
 }
 /** Polychoric: each ordinal pair's test of the bivariate normal model (observed against implied two-way table). */
 export interface CorrelationNormality {
@@ -252,6 +315,7 @@ export interface CorrelationResult {
   normality?: CorrelationNormality[];
   /** Exact p-values were asked for (each pair's `exact`: whether it got one). */
   exact?: boolean;
+  tostBound?: number | null;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -261,6 +325,8 @@ export interface ContingencyInput {
   columns: string;
   counts: string;
   confidence: number;
+  /** Cramér's V and phi with confidence intervals (effectsize). */
+  effectSizes?: boolean;
 }
 export interface ContingencyResult {
   rows: string;
@@ -277,6 +343,7 @@ export interface ContingencyResult {
   cramerV: number;
   phi: number | null;
   oddsRatio: { est: number; ciLow: number; ciHigh: number } | null;
+  effects?: EffectSize[] | null;
   confidence: number;
   warnings: string[];
   engine: REngineInfo;
@@ -313,6 +380,28 @@ const withinFactors = (v: unknown): WithinFactor[] =>
 const obj = <T>(v: unknown): T | null =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as T) : null;
 
+/** Effect sizes from R (an open end of a one-sided interval, Inf, as null). */
+const effects = (v: unknown): EffectSize[] =>
+  rList<Record<string, unknown>>(v).map((e) => ({
+    id: String(e.id),
+    est: rNum(e.est) ?? NaN,
+    ciLow: rNum(e.ciLow),
+    ciHigh: rNum(e.ciHigh),
+  }));
+
+/** The R package of a t-test: TOSTER for an equivalence test, effectsize for effect sizes, base R otherwise. */
+export const ttestPackage = (i: Pick<TTestInput, 'effectSizes' | 'tost'>): RPackage => {
+  if (i.tost) return 'TOSTER';
+  return i.effectSizes ? 'effectsize' : 'stats';
+};
+const effectsPackage = (i: { effectSizes?: boolean }): RPackage =>
+  i.effectSizes ? 'effectsize' : 'stats';
+/** The R package of correlations: lavaan for polychoric, TOSTER for equivalence tests, base R otherwise. */
+export const correlationPackage = (i: Pick<CorrelationInput, 'method' | 'tostBound'>): RPackage => {
+  if (i.method === 'polychoric') return 'lavaan';
+  return i.tostBound !== undefined ? 'TOSTER' : 'stats';
+};
+
 /** The request: the named columns only (missing values as null) and the category names of text columns. */
 function testRequest(data: Dataset, kind: string, columns: string[], fields: object) {
   if (data.moments && data.cols.length === 0)
@@ -330,7 +419,7 @@ const ttestCols = (i: TTestInput) =>
   i.type === 'paired' ? i.pairs.flat() : [...i.vars, i.type === 'independent' ? i.group : ''];
 export const ttestRequest = (d: Dataset, i: TTestInput) => testRequest(d, 'ttest', ttestCols(i), i);
 export async function ttestR(d: Dataset, i: TTestInput): Promise<TTestResult> {
-  const r = await rCall<Record<string, any>>('ps_ttest', ttestRequest(d, i), 'stats');
+  const r = await rCall<Record<string, any>>('ps_ttest', ttestRequest(d, i), ttestPackage(i));
   return {
     ...r,
     groups: r.groups ? rList<string>(r.groups) : null,
@@ -343,17 +432,19 @@ export async function ttestR(d: Dataset, i: TTestInput): Promise<TTestResult> {
       levene: obj(x.levene),
       shapiro: rList<unknown>(x.shapiro).map((s) => obj<HTest>(s)),
       descriptives: rList<Desc>(x.descriptives),
+      effects: effects(x.effects),
+      tost: obj<TostResult>(x.tost),
     })),
     warnings: rStrings(r.warnings),
   } as TTestResult;
 }
 export const ttestScriptR = (d: Dataset, i: TTestInput) =>
-  rScript('ps_ttest', ttestRequest(d, i), 'stats');
+  rScript('ps_ttest', ttestRequest(d, i), ttestPackage(i));
 
 export const anovaRequest = (d: Dataset, i: AnovaInput) =>
   testRequest(d, 'anova', [i.dependent, ...i.factors, ...i.covariates], i);
 export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
-  const r = await rCall<Record<string, any>>('ps_anova', anovaRequest(d, i), 'stats');
+  const r = await rCall<Record<string, any>>('ps_anova', anovaRequest(d, i), effectsPackage(i));
   return {
     ...r,
     factors: rList<string>(r.factors),
@@ -365,11 +456,13 @@ export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
     tukey: r.tukey ? rList(r.tukey) : null,
     pairwiseRank: r.pairwiseRank ? rList(r.pairwiseRank) : null,
     cells: rList(r.cells),
+    effects: r.effects ? rList<AnovaEffect>(r.effects) : null,
+    epsilon2: r.epsilon2 ? effects(r.epsilon2)[0] : null,
     warnings: rStrings(r.warnings),
   } as AnovaResult;
 }
 export const anovaScriptR = (d: Dataset, i: AnovaInput) =>
-  rScript('ps_anova', anovaRequest(d, i), 'stats');
+  rScript('ps_anova', anovaRequest(d, i), effectsPackage(i));
 
 export const rmAnovaRequest = (d: Dataset, i: RmAnovaInput) =>
   testRequest(d, 'rmanova', rmColumns(i), i);
@@ -426,7 +519,7 @@ export async function correlationR(d: Dataset, i: CorrelationInput): Promise<Cor
   const r = await rCall<Record<string, any>>(
     'ps_correlation',
     correlationRequest(d, i),
-    i.method === 'polychoric' ? 'lavaan' : 'stats',
+    correlationPackage(i),
   );
   return {
     ...r,
@@ -439,16 +532,16 @@ export async function correlationR(d: Dataset, i: CorrelationInput): Promise<Cor
   } as CorrelationResult;
 }
 export const correlationScriptR = (d: Dataset, i: CorrelationInput) =>
-  rScript(
-    'ps_correlation',
-    correlationRequest(d, i),
-    i.method === 'polychoric' ? 'lavaan' : 'stats',
-  );
+  rScript('ps_correlation', correlationRequest(d, i), correlationPackage(i));
 
 export const contingencyRequest = (d: Dataset, i: ContingencyInput) =>
   testRequest(d, 'contingency', [i.rows, i.columns, i.counts], i);
 export async function contingencyR(d: Dataset, i: ContingencyInput): Promise<ContingencyResult> {
-  const r = await rCall<Record<string, any>>('ps_contingency', contingencyRequest(d, i), 'stats');
+  const r = await rCall<Record<string, any>>(
+    'ps_contingency',
+    contingencyRequest(d, i),
+    effectsPackage(i),
+  );
   const mat = (m: unknown) => rList<unknown>(m).map((row) => rList<number>(row));
   return {
     ...r,
@@ -460,11 +553,12 @@ export async function contingencyR(d: Dataset, i: ContingencyInput): Promise<Con
     fisher: obj<HTest>(r.fisher),
     phi: r.phi ?? null,
     oddsRatio: obj(r.oddsRatio),
+    effects: r.effects ? effects(r.effects) : null,
     warnings: rStrings(r.warnings),
   } as ContingencyResult;
 }
 export const contingencyScriptR = (d: Dataset, i: ContingencyInput) =>
-  rScript('ps_contingency', contingencyRequest(d, i), 'stats');
+  rScript('ps_contingency', contingencyRequest(d, i), effectsPackage(i));
 
 export const freqTestRequest = (d: Dataset, i: FreqTestInput) =>
   testRequest(d, 'freqtest', [i.variable], i);

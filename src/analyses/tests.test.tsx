@@ -148,9 +148,9 @@ describe('basic-statistics cards', () => {
         ctx,
       ),
     ).toMatch(/gone/);
-    expect(contingencyAnalysis.blocked({ rows: 'g', columns: 'g', counts: '' }, ctx)).toMatch(
-      /two different/,
-    );
+    expect(
+      contingencyAnalysis.blocked({ rows: 'g', columns: 'g', counts: '', effectSizes: false }, ctx),
+    ).toMatch(/two different/);
     expect(
       freqTestAnalysis.blocked({ ...freqTestAnalysis.defaults(ctx), variable: 'g' }, ctx),
     ).toBeNull();
@@ -248,5 +248,141 @@ describe('Bayesian scale reliability (Bayesrel)', () => {
     expect(html).toContain('Bayesrel 0.8.0 (strel): 3 chains of 1,000 iterations');
     expect(html).toContain('Multivariate Behavioral Research, 57(4)');
     expect(html).toMatch(/class="num bad"[^>]*>1\.050/);
+  });
+});
+
+describe('effect sizes and equivalence tests of the basic cards', () => {
+  it('are off in projects from before them, on for new cards, and keep their fingerprint when off', () => {
+    const old = ttestAnalysis.parseOptions({ type: 'independent', vars: ['y'], group: 'g' })!;
+    expect(old.effectSizes).toBe(false);
+    expect(old.tost).toBe(false);
+    expect(ttestAnalysis.defaults(ctx).effectSizes).toBe(true);
+    expect(anovaAnalysis.parseOptions({ dependent: 'y', factors: ['g'] })!.effectSizes).toBe(false);
+    expect(anovaAnalysis.defaults(ctx).effectSizes).toBe(true);
+    expect(contingencyAnalysis.parseOptions({ rows: 'g', columns: 'h' })!.effectSizes).toBe(false);
+    expect(contingencyAnalysis.defaults(ctx).effectSizes).toBe(true);
+    const cor = correlationAnalysis.parseOptions({ vars: ['y', 'x'] })!;
+    expect(cor.tost).toBeUndefined();
+    // (an option that is off adds nothing to the fingerprint: old cards stay current)
+    const t = { ...old, tostLow: -9 };
+    expect(ttestAnalysis.fingerprint(t, ctx)).toBe(ttestAnalysis.fingerprint(old, ctx));
+    expect(ttestAnalysis.fingerprint({ ...old, effectSizes: true }, ctx)).not.toBe(
+      ttestAnalysis.fingerprint(old, ctx),
+    );
+  });
+  it('validate equivalence bounds from a file and say when they are unusable', () => {
+    const o = ttestAnalysis.parseOptions({
+      type: 'one',
+      vars: ['y'],
+      tost: true,
+      tostLow: 'x',
+      tostHigh: Infinity,
+      tostUnits: 'cohen',
+    })!;
+    expect([o.tost, o.tostLow, o.tostHigh, o.tostUnits]).toEqual([true, -0.5, 0.5, 'smd']);
+    expect(ttestAnalysis.blocked({ ...o, tostLow: 1, tostHigh: 1 }, ctx)).toMatch(
+      /lower equivalence bound/,
+    );
+    expect(ttestAnalysis.blocked(o, ctx)).toBeNull();
+    const c = correlationAnalysis.parseOptions({ vars: ['y', 'x'], tost: true, tostBound: 7 })!;
+    expect(c.tostBound).toBe(0.99);
+    expect(correlationAnalysis.summary(c)).toMatch(/TOST/);
+    expect(correlationAnalysis.summary({ ...c, method: 'polychoric' })).not.toMatch(/TOST/);
+  });
+  it('show the effect sizes with their intervals, open ends of one-sided ones as infinity', () => {
+    const row = {
+      label: 'y',
+      variables: ['y'],
+      student: { stat: 2, df: 10, p: 0.07, ciLow: -0.1, ciHigh: 1 },
+      welch: null,
+      rank: null,
+      d: 0.5,
+      levene: null,
+      shapiro: [null],
+      descriptives: [{ n: 11, mean: 1, sd: 1, se: 0.3, median: 1 }],
+      effects: [
+        { id: 'd', est: 0.5, ciLow: 0.1, ciHigh: null },
+        { id: 'g', est: 0.48, ciLow: 0.09, ciHigh: null },
+      ],
+      tost: {
+        lower: { t: 3, df: 10, p: 0.01 },
+        upper: { t: -2.5, df: 10, p: 0.02 },
+        p: 0.02,
+        low: -1,
+        high: 1,
+        lowSmd: -1,
+        highSmd: 1,
+        raw: { label: 'Raw', est: 0.2, ciLow: -0.3, ciHigh: 0.7 },
+        smd: { label: 'Hedges’s g', est: 0.19, ciLow: -0.3, ciHigh: 0.6 },
+        level: 0.9,
+      },
+    };
+    const html = renderToStaticMarkup(
+      <ttestAnalysis.View
+        result={{
+          type: 'one',
+          alternative: 'greater',
+          testValue: 0,
+          confidence: 0.95,
+          groups: null,
+          rows: [row],
+          warnings: [],
+          engine: { package: 'stats', version: '4.6.2' },
+        }}
+        options={ttestAnalysis.defaults(ctx)}
+        current
+      />,
+    );
+    expect(html).toContain('Effect sizes');
+    expect(html).toContain('[0.100, ∞]');
+    expect(html).toContain('One-sided intervals (greater)');
+    expect(html).toContain('Equivalence test (TOST)');
+    expect(html).toContain('equivalent');
+  });
+  it('show ANOVA effect sizes by term and Kruskal–Wallis ε²', () => {
+    const e = { est: 0.2, ciLow: 0.05, ciHigh: 0.4 };
+    const html = renderToStaticMarkup(
+      <anovaAnalysis.View
+        result={{
+          dependent: 'y',
+          factors: ['g'],
+          covariates: [],
+          ssType: 'III',
+          formula: 'y ~ g',
+          table: [
+            {
+              term: 'g',
+              ss: 1,
+              df: 1,
+              ms: 1,
+              f: 4,
+              p: 0.1,
+              eta2: 0.2,
+              partialEta2: 0.2,
+              omega2: 0.1,
+            },
+          ],
+          residual: { ss: 4, df: 2, ms: 2 },
+          n: 4,
+          levene: { stat: 1, df1: 1, df2: 2, p: 0.4 },
+          shapiro: null,
+          welch: null,
+          kruskal: { stat: 2, df: 1, p: 0.15 },
+          tukey: null,
+          cells: [],
+          effects: [{ term: 'g', eta2: e, partialEta2: e, omega2: e, partialOmega2: e }],
+          epsilon2: { id: 'epsilon2', est: 0.3, ciLow: 0.1, ciHigh: 0.6 },
+          warnings: [],
+          engine: { package: 'stats', version: '4.6.2' },
+          confidence: 0.95,
+        }}
+        options={anovaAnalysis.defaults(ctx)}
+        current
+      />,
+    );
+    expect(html).toContain('Partial ω²');
+    expect(html).toContain('0.200 [0.050, 0.400]');
+    expect(html).toContain('Rank ε²');
+    expect(html).toContain('type III sums of squares η² and ω² divide');
   });
 });

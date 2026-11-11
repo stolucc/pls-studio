@@ -543,6 +543,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     script('tests.R', 'desktop R'),
     script('bayesrel.R', 'desktop Bayesrel, same seed'),
   ),
+  'rengine/effects': native(
+    'Effect sizes with intervals and equivalence tests of the basic tests',
+    'Basic statistics',
+    ['effectsize', 'TOSTER'],
+    script('effects.R', 'desktop effectsize and TOSTER'),
+  ),
   'rengine/correlationPolychoric': native(
     'Polychoric correlations',
     'Basic statistics',

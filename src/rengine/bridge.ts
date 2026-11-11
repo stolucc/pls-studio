@@ -23,6 +23,7 @@ import plsxR from './R/plsx.R?raw';
 import rsaR from './R/rsa.R?raw';
 import screenR from './R/screen.R?raw';
 import exploreR from './R/explore.R?raw';
+import effectsR from './R/effects.R?raw';
 import networkR from './R/network.R?raw';
 import segmentR from './R/segment.R?raw';
 import testsR from './R/tests.R?raw';
@@ -83,6 +84,7 @@ export const SOURCES = {
   efa: efaR,
   screen: screenR,
   explore: exploreR,
+  effects: effectsR,
   network: networkR,
   tests: testsR,
   bayes: bayesR,
@@ -190,6 +192,10 @@ export const R_PACKAGES = {
   stats: ['jsonlite'],
   // Normality tests of the descriptives card: Lilliefors (Kolmogorov-Smirnov) and Anderson-Darling (nortest).
   nortest: ['jsonlite', 'nortest'],
+  // Effect sizes with confidence intervals for the basic test cards (Cohen's d, Hedges' g, eta², omega², Cramér's V, …).
+  effectsize: ['jsonlite', 'effectsize'],
+  // Equivalence tests (TOST) of the t-test and correlation cards; effectsize beside it for the effect sizes.
+  TOSTER: ['jsonlite', 'effectsize', 'TOSTER'],
   // Repeated measures with several between-subjects factors: car::Anova's type II tests (car's ?Anova, OBrienKaiser).
   car: ['jsonlite', 'car'],
   EGAnet: ['jsonlite', 'EGAnet'],

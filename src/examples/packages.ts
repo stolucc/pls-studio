@@ -109,7 +109,9 @@ export type ExamplePackage =
   | 'bain'
   | 'piecewiseSEM'
   | 'Bayesrel'
-  | 'nortest';
+  | 'nortest'
+  | 'effectsize'
+  | 'TOSTER';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -174,6 +176,8 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'piecewiseSEM',
   'Bayesrel',
   'nortest',
+  'effectsize',
+  'TOSTER',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */

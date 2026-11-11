@@ -11,6 +11,7 @@ MatchIt
 OpenMx
 QCA
 SEMsens
+TOSTER
 WeightIt
 bain
 blavaan
@@ -23,6 +24,7 @@ cobalt
 corpcor
 did
 dynamic
+effectsize
 faraway
 fixest
 flexmix

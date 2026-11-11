@@ -81,22 +81,28 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   ttest: {},
   'ttest:independent': {
     title: 'Independent samples (Student, Welch, Mann–Whitney)',
-    examples: ['stats-ttest-mtcars'],
-    features: ['rengine/tests::independent samples'],
+    examples: ['stats-ttest-mtcars', 'effectsize-mtcars', 'toster-sleep'],
+    features: ['rengine/tests::independent samples', 'rengine/effects::independent samples'],
+    note: 'Effect sizes against effectsize, equivalence tests against TOSTER’s t_TOST (scripts/validation/effects.R).',
   },
   'ttest:paired': {
     title: 'Paired samples (and Wilcoxon signed rank)',
     examples: ['stats-ttest-sleep-paired'],
-    features: ['rengine/tests::paired samples'],
+    features: ['rengine/tests::paired samples', 'rengine/effects::paired samples'],
   },
   'ttest:one': {
     title: 'One sample against a test value',
     examples: ['stats-ttest-sleep-one'],
-    features: ['rengine/tests::one sample'],
+    features: ['rengine/tests::one sample', 'rengine/effects::one sample'],
   },
   anova: {
-    examples: ['stats-anova-plantgrowth', 'stats-anova-warpbreaks'],
-    features: ['rengine/tests::two-way', 'rengine/tests::one-way', 'rengine/tests::ANCOVA'],
+    examples: ['stats-anova-plantgrowth', 'stats-anova-warpbreaks', 'effectsize-mtcars-anova'],
+    features: [
+      'rengine/tests::two-way',
+      'rengine/tests::one-way',
+      'rengine/tests::ANCOVA',
+      'rengine/effects::ANOVA',
+    ],
   },
   rmanova: {
     examples: ['stats-rmanova-rounding', 'cardata-rmanova-obrienkaiser'],
@@ -107,16 +113,16 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   'correlation:pearson': {
     title: 'Pearson correlations',
     examples: ['stats-correlation-judges'],
-    features: ['rengine/tests::correlations, every pair'],
+    features: ['rengine/tests::correlations, every pair', 'rengine/effects::pearson'],
   },
   'correlation:spearman': {
     title: 'Spearman rank correlations',
-    features: ['rengine/tests::correlations, every pair'],
+    features: ['rengine/tests::correlations, every pair', 'rengine/effects::spearman'],
   },
   'correlation:kendall': {
     title: 'Kendall’s tau',
     examples: ['stats-correlation-tuna'],
-    features: ['rengine/tests::correlations, every pair'],
+    features: ['rengine/tests::correlations, every pair', 'rengine/effects::kendall'],
   },
   'correlation:polychoric': {
     title: 'Polychoric correlations',
@@ -124,7 +130,7 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   },
   contingency: {
     examples: ['stats-contingency-party', 'stats-contingency-job'],
-    features: ['rengine/tests::contingency tables'],
+    features: ['rengine/tests::contingency tables', 'rengine/effects::Cramér'],
   },
   freqtest: {},
   'freqtest:binomial': {

@@ -94,7 +94,7 @@ collaboration steps marked as such.
 | `src/analyses/` | The Analyses log: `types.ts` (card and analysis-type contracts), `registry.ts` (all analysis types), `store.ts` (cards, running, results), `persist.ts` (validated load/save), `codec.ts` (gzip + base64 packing of results), `runs.tsx` / `runHash.ts` / `runCard.tsx` (model runs and versions), `report.ts`, one file per analysis. |
 | `src/process/` | Conditional process analysis (PROCESS models): recognising the diagram, building the regression plan. |
 | `src/cloud/` | Collaboration client: `api.ts` (fetch with CSRF), `auth.ts` (accounts), `collab.ts` (Y.js document ⇄ store), `invites.ts` (emailed links). |
-| `src/examples/` | Home-screen examples (`packages.ts`: 371 package examples with their sources and documented settings; built-in examples). |
+| `src/examples/` | Home-screen examples (`packages.ts`: 374 package examples with their sources and documented settings; built-in examples). |
 | `src/figure/`, `src/replication/` | Diagram rendering for export (SVG/PDF/LaTeX); replication package (zip of data, scripts, project, README). |
 | `public/webr/` | The self-hosted R runtime and package repository (not in git; `scripts/webr/fetch.mjs` builds it from `scripts/webr/webr-lock.json`, with every package's source tarball for GPL compliance). |
 | `server/` | Express + Postgres: accounts (argon2id, TOTP, Google OIDC, email verification, reset), projects, invitations, encrypted datasets, Y.js WebSocket rooms, audit log, migrations. |
