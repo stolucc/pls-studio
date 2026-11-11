@@ -307,6 +307,34 @@ describe('correlations and frequencies', () => {
     const script = await contingencyAnalysis.script!(o, ctx);
     expect(script).toContain('"four"');
   }, 600_000);
+  it('split by group: the t-test card per group equals the test on each group’s cases', async () => {
+    const { analysisType } = await import('../analyses/registry');
+    const { subsetRows, splitGroups } = await import('../analyses/split');
+    const { DEFAULT_SETTINGS } = await import('../model/project');
+    const d = data(ref.mtcars);
+    const ctx = { data: d, info: null, settings: DEFAULT_SETTINGS, pls: null, projectName: '' };
+    const card = analysisType('ttest')!;
+    const o = { ...T, type: 'independent', vars: ['mpg'], group: 'vs', splitBy: 'am' };
+    expect(card.blocked(o, ctx)).toBeNull();
+    const r = await card.run(o, ctx, () => {});
+    const groups = r.__split.groups;
+    expect(groups.map((g: { label: string }) => g.label)).toEqual(['automatic', 'manual']);
+    for (const [k, part] of splitGroups(d, null, 'am').entries()) {
+      const direct = await ttestR(subsetRows(d, part.rows), {
+        ...T,
+        type: 'independent',
+        vars: ['mpg'],
+        group: 'vs',
+      });
+      expect(groups[k].n).toBe(part.rows.length);
+      close(
+        groups[k].result.rows[0].student.stat,
+        direct.rows[0].student!.stat!,
+        `t (${part.label})`,
+      );
+      close(groups[k].result.rows[0].student.p, direct.rows[0].student!.p!, `p (${part.label})`);
+    }
+  }, 600_000);
   it('binomial and multinomial tests', async () => {
     const b = await freqTestR(data(ref.mtcars), {
       type: 'binomial',

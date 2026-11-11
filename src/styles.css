@@ -1001,3 +1001,5 @@ table.grid.evidence-table th:last-child, table.grid.evidence-table td.hint { tex
 .recode-dialog .hint.bad { color: var(--bad); }
 .recode-formula { display: block; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; padding: 6px 8px; background: var(--surface-3); border-radius: 6px; }
 .recode-preview { margin-top: 8px; }
+.split-section + .split-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.split-heading { margin: 0 0 8px; font-size: 13px; }
