@@ -21,7 +21,11 @@ import type {
   BayesReliabilityResult,
   HTest,
   KappaTable,
+  PairedTests,
+  GwetWeights,
+  KrippLevel,
   ManovaInput,
+  PAdjust,
   ManovaResult,
   ReliabilityInput,
   ReliabilityResult,
@@ -61,14 +65,58 @@ import {
 /** The modes of the t-test, correlation, binomial and reliability cards (validation/cards.ts lists the evidence of each). */
 export const TTEST_TYPES = ['one', 'paired', 'independent'] as const;
 export const CORRELATION_METHODS = ['pearson', 'spearman', 'kendall', 'polychoric'] as const;
-export const FREQTEST_TYPES = ['binomial', 'multinomial'] as const;
-export const RELIABILITY_TYPES = ['scale', 'icc', 'kappa', 'blandaltman'] as const;
+export const FREQTEST_TYPES = ['binomial', 'multinomial', 'cochran'] as const;
+export const RELIABILITY_TYPES = [
+  'scale',
+  'icc',
+  'kappa',
+  'blandaltman',
+  'fleiss',
+  'kripp',
+  'kendallw',
+  'gwet',
+] as const;
 const ALTS: readonly (readonly [Alternative, string])[] = [
   ['two.sided', 'Two-sided'],
   ['greater', 'Greater'],
   ['less', 'Less'],
 ];
 const ALT_IDS = ALTS.map(([id]) => id);
+/** The p-value adjustments of post hoc comparisons (R's p.adjust names). */
+const ADJUSTS: readonly (readonly [PAdjust, string])[] = [
+  ['holm', 'Holm'],
+  ['bonferroni', 'Bonferroni'],
+  ['BH', 'Benjamini–Hochberg'],
+];
+const ADJUST_IDS = ADJUSTS.map(([id]) => id);
+const ADJUST_NAME: Record<PAdjust, string> = {
+  holm: 'Holm',
+  bonferroni: 'Bonferroni',
+  BH: 'Benjamini–Hochberg (false discovery rate)',
+};
+/** The adjustment choice of a post hoc table: Holm is the default, so it leaves no option behind. */
+function AdjustChoice<O extends { adjust?: PAdjust }>({
+  o,
+  set,
+  label = 'Post hoc p-value adjustment',
+}: {
+  o: O;
+  set: (o: O) => void;
+  label?: string;
+}) {
+  return (
+    <Choice
+      label={label}
+      value={o.adjust ?? 'holm'}
+      options={ADJUSTS}
+      onChange={(adjust) => {
+        const { adjust: _a, ...rest } = o;
+        set((adjust === 'holm' ? rest : { ...rest, adjust }) as O);
+      }}
+      hint="Holm and Bonferroni control the chance of any false positive; Benjamini–Hochberg the expected share of false positives."
+    />
+  );
+}
 const engine = () => import('../rengine/tests');
 /**
  * The raw data with the value labels of these (grouping) columns as their categories, so that
@@ -770,6 +818,13 @@ function AnovaForm({ options: o, set, ctx, disabled }: OptionsProps<AnovaOptions
         onChange={(effectSizes) => set({ ...o, effectSizes })}
         what="η², partial η², ω² and partial ω² for every term; with one factor, ε² of Kruskal–Wallis"
       />
+      {o.factors.length === 1 && !o.covariates.length && (
+        <AdjustChoice
+          o={o}
+          set={set}
+          label="Dunn’s test after Kruskal–Wallis: p-value adjustment"
+        />
+      )}
     </fieldset>
   );
 }
@@ -904,6 +959,19 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
           note="Normal approximation; p-values adjusted for the number of comparisons by Holm’s method."
         />
       )}
+      {r.dunn && r.dunn.length > 0 && (
+        <Table
+          title="Post hoc after Kruskal–Wallis (Dunn’s test)"
+          file="anova-dunn"
+          columns={['Comparison', 'z', 'p', 'p adjusted']}
+          rows={r.dunn.map((t): Row => [c(t.comparison), c(t.z), pCell(t.p), pCell(t.pAdjusted)])}
+          note={
+            'z: the difference of the two groups’ mean ranks (all groups ranked together, as ' +
+            'Kruskal–Wallis ranks them) over its standard error, corrected for ties (Dunn 1964). ' +
+            `p two-sided, adjusted by ${ADJUST_NAME[r.adjust ?? 'holm']}.`
+          }
+        />
+      )}
       <Table
         title="Descriptives by cell"
         file="anova-cells"
@@ -937,11 +1005,16 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
   );
 }
 
+/** The post hoc adjustment from a project file: only when it is not Holm (the default). */
+function parseAdjust(raw: Record<string, unknown>): { adjust?: PAdjust } {
+  const adjust = oneOf(raw.adjust, ADJUST_IDS, 'holm');
+  return adjust === 'holm' ? {} : { adjust };
+}
 const anovaCols = (o: AnovaOptions) => [o.dependent, ...o.factors, ...o.covariates].filter(Boolean);
 export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidence?: number }> = {
   id: 'anova',
   title: 'ANOVA',
-  sub: 'between-subjects factors, ANCOVA with covariates; type III or I',
+  sub: 'between-subjects factors, ANCOVA with covariates; type III or I; Kruskal–Wallis with Dunn’s test',
   group: 'Basic statistics',
   entries: [
     {
@@ -970,6 +1043,7 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
           ssType: oneOf(raw.ssType, ['III', 'I'] as const, 'III'),
           interactions: raw.interactions !== false,
           effectSizes: flag(raw.effectSizes),
+          ...parseAdjust(raw),
         }
       : null,
   Options: AnovaForm,
@@ -989,7 +1063,9 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
       '|',
       ...o.covariates,
       ctx.settings.confidence,
+      // (only when set: earlier fingerprints are unchanged)
       ...(o.effectSizes ? ['es', ctx.settings.seed] : []),
+      ...(o.adjust ? [o.adjust] : []),
     ]),
   run: async (o, ctx) => ({
     ...(await (await engine()).anovaR(labelled(ctx, o.factors), anovaInput(o, ctx))),
@@ -1028,6 +1104,9 @@ function RmForm({ options: o, set, ctx, disabled }: OptionsProps<RmAnovaOptions>
           value={o.moreBetween ?? []}
           onChange={(more) => set(more.length ? { ...o, moreBetween: more } : withoutMore(o))}
         />
+      )}
+      {!isMulti(o) && !o.between && (
+        <AdjustChoice o={o} set={set} label="Conover’s test after Friedman: p-value adjustment" />
       )}
     </fieldset>
   );
@@ -1145,6 +1224,27 @@ function RmView({ r }: { r: RmAnovaResult }) {
           rows={[[c(r.friedman.stat), c(df(r.friedman)), pCell(r.friedman.p)]]}
         />
       )}
+      {r.conover && r.conover.length > 0 && (
+        <Table
+          title="Post hoc after Friedman (Conover’s test)"
+          file="rmanova-conover"
+          columns={['Comparison', 't', 'df', 'p', 'p adjusted']}
+          rows={r.conover.map(
+            (x): Row => [
+              c(x.comparison),
+              c(x.t),
+              c(x.df, undefined, 0),
+              pCell(x.p),
+              pCell(x.pAdjusted),
+            ],
+          )}
+          note={
+            'The difference of two levels’ rank sums (each subject’s levels ranked) as a t statistic on ' +
+            '(n − 1)(k − 1) df, with the variance of Friedman’s ranks (Conover 1999). ' +
+            `p two-sided, adjusted by ${ADJUST_NAME[r.adjust ?? 'holm']}.`
+          }
+        />
+      )}
       {r.friedmanTable && r.friedmanTable.length > 0 && (
         <Table
           title="Friedman’s rank tests"
@@ -1185,14 +1285,18 @@ const rmName = (o: RmAnovaOptions) =>
 export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
   id: 'rmanova',
   title: 'Repeated-measures ANOVA',
-  sub: 'within-subject factors (wide columns), optional between factor; sphericity corrections, Friedman',
+  sub: 'within-subject factors (wide columns), optional between factor; sphericity corrections, Friedman with Conover’s test',
   group: 'Basic statistics',
   cardTitle: (o) => `Repeated-measures ANOVA: ${rmName(o)}`,
   defaults: () => ({ levels: [], factorName: 'condition', between: '' }),
   parseOptions: (raw) => {
     if (!isObj(raw)) return null;
     const more = names(raw.moreBetween, 3);
-    return { ...parseWithinDesign(raw), ...(more.length ? { moreBetween: more } : {}) };
+    return {
+      ...parseWithinDesign(raw),
+      ...(more.length ? { moreBetween: more } : {}),
+      ...parseAdjust(raw),
+    };
   },
   Options: RmForm,
   View: ({ result }) => <RmView r={result} />,
@@ -1223,6 +1327,8 @@ export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
       o.between,
       ...withinFingerprint(o),
       ...(o.moreBetween?.length ? ['|', ...o.moreBetween] : []),
+      // (only when set: earlier fingerprints are unchanged)
+      ...(o.adjust ? ['adjust', o.adjust] : []),
     ]),
   run: async (o, ctx) =>
     (await engine()).rmAnovaR(labelled(ctx, [o.between, ...(o.moreBetween ?? [])]), o),
@@ -1679,7 +1785,71 @@ function ContingencyForm({ options: o, set, ctx, disabled }: OptionsProps<Contin
         onChange={(effectSizes) => set({ ...o, effectSizes })}
         what="Cramér’s V and (2 × 2) φ with intervals"
       />
+      <div className="field">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={!!o.paired}
+            onChange={(e) => {
+              const { paired: _p, ...rest } = o;
+              set(e.target.checked ? { ...rest, paired: true } : rest);
+            }}
+          />{' '}
+          Paired measurements (McNemar, Bowker)
+        </label>
+        <div className="hint">
+          The rows and columns are the same subjects measured twice on the same categories (before
+          and after, two raters): McNemar’s test for two categories, Bowker’s test of symmetry for
+          more.
+        </div>
+      </div>
     </fieldset>
+  );
+}
+
+/** McNemar's tests of a paired 2 × 2 table, or Bowker's test of symmetry. */
+function PairedTable({ p }: { p: PairedTests }) {
+  if (p.bowker) {
+    return (
+      <Table
+        title="Bowker’s test of symmetry"
+        file="contingency-bowker"
+        columns={['Test', 'χ²', 'df', 'p']}
+        rows={[[c('Bowker'), c(p.bowker.stat), c(p.bowker.df, undefined, 0), pCell(p.bowker.p)]]}
+        note={
+          'Whether the subjects move from category i to j as often as from j to i, over every pair of ' +
+          'categories. Pairs of cells without any subjects are left out (their count is the df).'
+        }
+      />
+    );
+  }
+  const rows: Row[] = [];
+  if (p.mcnemar)
+    rows.push([c('McNemar χ²'), c(p.mcnemar.stat), c(1, undefined, 0), pCell(p.mcnemar.p)]);
+  if (p.mcnemarCorrected) {
+    rows.push([
+      c('McNemar χ², continuity correction'),
+      c(p.mcnemarCorrected.stat),
+      c(1, undefined, 0),
+      pCell(p.mcnemarCorrected.p),
+    ]);
+  }
+  if (p.exact) rows.push([c('Exact (binomial)'), c(null), c(null), pCell(p.exact.p)]);
+  const exactNote = p.exact
+    ? ` The exact test: the ${fmt(p.exact.b, 0)} subjects who moved one way against the ` +
+      `${fmt(p.exact.c, 0)} who moved the other, binomial with p = ½.`
+    : '';
+  return (
+    <Table
+      title="McNemar’s test (paired)"
+      file="contingency-mcnemar"
+      columns={['Test', 'χ²', 'df', 'p']}
+      rows={rows}
+      note={
+        'Whether the share in the first category changed between the two measurements: only the ' +
+        `subjects who changed category count.${exactNote} Prefer the exact test when they are few.`
+      }
+    />
   );
 }
 
@@ -1728,6 +1898,7 @@ function ContingencyView({ r }: { r: ContingencyResult }) {
         rows={rows}
         note="Each cell: count (expected count; row percentage)."
       />
+      {r.paired && <PairedTable p={r.paired} />}
       <Table
         title="Tests of independence"
         file="contingency-tests"
@@ -1802,7 +1973,7 @@ const ctCols = (o: ContingencyOptions) => [o.rows, o.columns, o.counts].filter(B
 export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyResult> = {
   id: 'contingency',
   title: 'Contingency table',
-  sub: 'χ², likelihood ratio, Fisher’s exact test, Cramér’s V, odds ratio',
+  sub: 'χ², likelihood ratio, Fisher’s exact test, Cramér’s V, odds ratio; McNemar and Bowker (paired)',
   group: 'Basic statistics',
   cardTitle: (o) => `Contingency table${o.rows && o.columns ? `: ${o.rows} × ${o.columns}` : ''}`,
   defaults: () => ({ rows: '', columns: '', counts: '', effectSizes: true }),
@@ -1813,6 +1984,7 @@ export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyRe
           columns: name(raw.columns),
           counts: name(raw.counts),
           effectSizes: flag(raw.effectSizes),
+          ...(raw.paired === true ? { paired: true as const } : {}),
         }
       : null,
   Options: ContingencyForm,
@@ -1828,7 +2000,9 @@ export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyRe
       o.columns,
       o.counts,
       ctx.settings.confidence,
+      // (only when set: earlier fingerprints are unchanged)
       ...(o.effectSizes ? ['es'] : []),
+      ...(o.paired ? ['paired'] : []),
     ]),
   run: async (o, ctx) =>
     (await engine()).contingencyR(labelled(ctx, [o.rows, o.columns]), ctInput(o, ctx)),
@@ -1854,16 +2028,34 @@ function FreqForm({ options: o, set, ctx, disabled }: OptionsProps<FreqTestOptio
         options={[
           ['binomial', 'Binomial test'],
           ['multinomial', 'Multinomial (goodness of fit)'],
+          ['cochran', 'Cochran’s Q'],
         ]}
       />
-      <ColumnSelect
-        id="fq-x"
-        label="Variable"
-        value={o.variable}
-        columns={d.names}
-        onChange={(variable) => set({ ...o, variable })}
-      />
-      {o.type === 'binomial' ? (
+      {o.type === 'cochran' ? (
+        <>
+          <OrderedPicker
+            label="Binary measures"
+            columns={d.names}
+            value={o.vars ?? []}
+            onChange={(vars) => set({ ...o, vars })}
+          />
+          <div className="hint">
+            One column per measure (occasion, condition, item), one row per subject, two values in
+            all (yes / no, 1 / 0): whether the share of the second value differs between the
+            measures.
+          </div>
+          <AdjustChoice o={o} set={set} />
+        </>
+      ) : (
+        <ColumnSelect
+          id="fq-x"
+          label="Variable"
+          value={o.variable}
+          columns={d.names}
+          onChange={(variable) => set({ ...o, variable })}
+        />
+      )}
+      {o.type === 'cochran' ? null : o.type === 'binomial' ? (
         <>
           <div className="field">
             <label htmlFor="fq-p">Test proportion</label>
@@ -1917,7 +2109,61 @@ function FreqForm({ options: o, set, ctx, disabled }: OptionsProps<FreqTestOptio
   );
 }
 
+/** Cochran's Q and the pairwise McNemar tests. */
+function CochranTables({ r }: { r: FreqTestResult }) {
+  const vars = r.vars ?? [];
+  const q = r.cochran!;
+  const adjust = ADJUST_NAME[r.adjust ?? 'holm'];
+  return (
+    <>
+      <Table
+        title={`Cochran’s Q: ${vars.length} measures, ${r.n} subjects`}
+        file="cochran"
+        columns={['Measure', `Share of “${r.success}”`]}
+        rows={vars.map((v, i): Row => [c(v), c(r.proportions?.[i] ?? null)])}
+      />
+      <Table
+        title="Cochran’s Q test"
+        file="cochran-test"
+        columns={['Q', 'df', 'p']}
+        rows={[[c(q.stat), c(q.df, undefined, 0), pCell(q.p)]]}
+        note="Whether the share of the second value is the same on all the measures (χ² approximation). Subjects with a missing value are left out."
+      />
+      <Table
+        title="Post hoc: pairs of measures (McNemar)"
+        file="cochran-posthoc"
+        columns={['Pair', 'b', 'c', 'χ²', 'p', 'p adjusted', 'Exact p', 'Exact p adjusted']}
+        rows={(r.posthoc ?? []).map(
+          (x): Row => [
+            c(x.comparison),
+            c(x.b, undefined, 0),
+            c(x.c, undefined, 0),
+            c(x.chisq),
+            pCell(x.p),
+            pCell(x.pAdjusted),
+            pCell(x.pExact),
+            pCell(x.pExactAdjusted),
+          ],
+        )}
+        note={
+          'b: subjects with the second value on the first measure of the pair and the first value on the ' +
+          'other; c: the reverse. χ²: McNemar’s test with the continuity correction (R’s default); exact: ' +
+          `the binomial test of b against c. p adjusted over the pairs by ${adjust}.`
+        }
+      />
+    </>
+  );
+}
+
 function FreqView({ r }: { r: FreqTestResult }) {
+  if (r.cochran) {
+    return (
+      <div className="tables">
+        <Engine e={r.engine} />
+        <CochranTables r={r} />
+      </div>
+    );
+  }
   return (
     <div className="tables">
       <Engine e={r.engine} />
@@ -1960,10 +2206,35 @@ function FreqView({ r }: { r: FreqTestResult }) {
   );
 }
 
+function freqCardTitle(o: FreqTestOptions): string {
+  if (o.type === 'cochran') {
+    const vars = o.vars ?? [];
+    return `Cochran’s Q${vars.length ? `: ${vars.join(', ')}` : ''}`;
+  }
+  const test = o.type === 'binomial' ? 'Binomial' : 'Multinomial';
+  return `${test} test${o.variable ? `: ${o.variable}` : ''}`;
+}
+/** The columns of a frequency test: the variable, or Cochran's measures. */
+const freqCols = (o: FreqTestOptions) => (o.type === 'cochran' ? (o.vars ?? []) : [o.variable]);
+/**
+ * The data of a frequency test: the tested variable with its value labels as categories; Cochran's
+ * measures as they are (their two values are compared as numbers across all the measures).
+ */
+const freqData = (o: FreqTestOptions, ctx: AnalysisCtx) =>
+  o.type === 'cochran' ? rawData(ctx)! : labelled(ctx, [o.variable]);
+/** Cochran's options from a project file (only when set: earlier options are unchanged). */
+function parseCochranOptions(raw: Record<string, unknown>): Partial<FreqTestOptions> {
+  const out: Partial<FreqTestOptions> = {};
+  if (raw.vars !== undefined) out.vars = names(raw.vars);
+  const adjust = oneOf(raw.adjust, ADJUST_IDS, 'holm');
+  if (adjust !== 'holm') out.adjust = adjust;
+  return out;
+}
+
 export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
   id: 'freqtest',
   title: 'Binomial and multinomial tests',
-  sub: 'a proportion against a value; counts against expected proportions',
+  sub: 'a proportion against a value; counts against expected proportions; Cochran’s Q of related binary measures',
   group: 'Basic statistics',
   entries: [
     {
@@ -1976,9 +2247,13 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
       sub: 'counts against equal or given proportions (χ²)',
       options: (o) => ({ ...o, type: 'multinomial' }),
     },
+    {
+      title: 'Cochran’s Q',
+      sub: 'k related binary measures (the same subjects), with pairwise McNemar tests',
+      options: (o) => ({ ...o, type: 'cochran' }),
+    },
   ],
-  cardTitle: (o) =>
-    `${o.type === 'binomial' ? 'Binomial' : 'Multinomial'} test${o.variable ? `: ${o.variable}` : ''}`,
+  cardTitle: freqCardTitle,
   defaults: () => ({
     type: 'binomial',
     variable: '',
@@ -1999,11 +2274,16 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
             (x): x is number => typeof x === 'number' && Number.isFinite(x) && x > 0,
           ),
           alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'),
+          ...parseCochranOptions(raw),
         }
       : null,
   Options: FreqForm,
   View: ({ result }) => <FreqView r={result} />,
   blocked: (o, ctx) => {
+    if (o.type === 'cochran') {
+      if ((o.vars ?? []).length < 2) return 'Choose at least two binary measures.';
+      return missingColumns(ctx, freqCols(o), 'Cochran’s Q');
+    }
     if (!o.variable) return 'Choose the variable.';
     if (o.type === 'binomial' && !(o.testValue > 0 && o.testValue < 1))
       return 'The test proportion must be between 0 and 1.';
@@ -2012,23 +2292,29 @@ export const freqTestAnalysis: AnalysisType<FreqTestOptions, FreqTestResult> = {
     return missingColumns(ctx, [o.variable], 'Frequency test');
   },
   fingerprint: (o, ctx) =>
-    columnsFingerprint(
-      ctx,
-      [o.variable],
-      [o.type, o.testValue, o.alternative, o.proportions.join(','), ctx.settings.confidence],
-    ),
+    columnsFingerprint(ctx, freqCols(o), [
+      o.type,
+      o.testValue,
+      o.alternative,
+      o.proportions.join(','),
+      ctx.settings.confidence,
+      // (Cochran only: earlier fingerprints are unchanged)
+      ...(o.type === 'cochran' ? [(o.vars ?? []).join(','), o.adjust ?? 'holm'] : []),
+    ]),
   run: async (o, ctx) =>
-    (await engine()).freqTestR(labelled(ctx, [o.variable]), {
+    (await engine()).freqTestR(freqData(o, ctx), {
       ...o,
       confidence: ctx.settings.confidence,
     }),
   script: async (o, ctx) =>
-    (await engine()).freqTestScriptR(labelled(ctx, [o.variable]), {
+    (await engine()).freqTestScriptR(freqData(o, ctx), {
       ...o,
       confidence: ctx.settings.confidence,
     }),
-  summary: (o) =>
-    `${o.type} · ${o.variable || '…'}${o.type === 'binomial' ? ` vs ${o.testValue}` : ''}`,
+  summary: (o) => {
+    if (o.type === 'cochran') return `Cochran’s Q · ${(o.vars ?? []).join(', ') || '…'}`;
+    return `${o.type} · ${o.variable || '…'}${o.type === 'binomial' ? ` vs ${o.testValue}` : ''}`;
+  },
 };
 
 // ---------------------------------------------------------------- reliability and agreement
@@ -2039,13 +2325,35 @@ const REL_NAME = {
   icc: 'Intraclass correlation',
   kappa: 'Cohen’s kappa',
   blandaltman: 'Bland–Altman agreement',
+  fleiss: 'Fleiss’ kappa',
+  kripp: 'Krippendorff’s alpha',
+  kendallw: 'Kendall’s W',
+  gwet: 'Gwet’s AC1 / AC2',
 } as const;
+/** Krippendorff's levels of measurement (as rengine/tests, which is loaded on demand). */
+const KRIPP_LEVELS: readonly KrippLevel[] = ['nominal', 'ordinal', 'interval', 'ratio'];
+/** Gwet's weights (irrCAC): unweighted is AC1, the others AC2. */
+const GWET_WEIGHT_OPTIONS: readonly (readonly [GwetWeights, string])[] = [
+  ['unweighted', 'Unweighted (AC1)'],
+  ['linear', 'Linear'],
+  ['quadratic', 'Quadratic'],
+  ['ordinal', 'Ordinal'],
+];
+const GWET_WEIGHTS = GWET_WEIGHT_OPTIONS.map(([id]) => id);
+/** Krippendorff's alpha: bootstrap samples by default. */
+export const KRIPP_BOOTSTRAP = 1000;
 const REL_HINT = {
   scale:
     'The items of one scale, scored in the same direction (reverse-code items first, in the data panel).',
   icc: 'One column per rater (or occasion), one row per subject rated.',
   kappa: 'Two raters’ category codes for the same subjects.',
   blandaltman: 'Two methods measuring the same quantity on the same subjects.',
+  fleiss: 'One column per rater, one row per subject: each rater’s category for the subject.',
+  kripp:
+    'One column per rater, one row per subject; missing ratings are allowed (a subject needs two ratings to count).',
+  kendallw:
+    'One column per rater, one row per subject: each rater’s score or rank of the subjects.',
+  gwet: 'One column per rater, one row per subject: each rater’s category; missing ratings are allowed.',
 } as const;
 
 /** A weight matrix typed as rows of numbers (one line per row); kept as typed while it is edited. */
@@ -2203,6 +2511,59 @@ function BayesReliabilityTable({ b }: { b: BayesReliabilityResult }) {
   );
 }
 
+/** The columns a reliability analysis can use: category columns too for the categorical ones. */
+function raterColumns(
+  o: ReliabilityOptions,
+  d: { names: string[]; categories?: object },
+): string[] {
+  const categorical =
+    o.type === 'kappa' || o.type === 'fleiss' || o.type === 'kripp' || o.type === 'gwet';
+  if (categorical) return d.names;
+  const cats = (d.categories ?? {}) as Record<string, unknown>;
+  return d.names.filter((n) => !cats[n]);
+}
+
+/** Krippendorff's alpha: the level of measurement and the bootstrap samples. */
+function KrippFields({ o, set }: { o: ReliabilityOptions; set: (o: ReliabilityOptions) => void }) {
+  return (
+    <>
+      <Choice
+        label="Level of measurement"
+        value={o.krippLevel ?? 'nominal'}
+        options={[
+          ['nominal', 'Nominal'],
+          ['ordinal', 'Ordinal'],
+          ['interval', 'Interval'],
+          ['ratio', 'Ratio'],
+        ]}
+        onChange={(level) => {
+          const { krippLevel: _l, ...rest } = o;
+          // Nominal is the default, so it leaves no option behind.
+          set(level === 'nominal' ? rest : { ...rest, krippLevel: level });
+        }}
+        hint="How far apart two different values are: not at all (nominal), by their ranks (ordinal), by their differences (interval) or by their ratios (ratio)."
+      />
+      <NumField
+        id="rel-boot"
+        label="Bootstrap samples (0: no interval)"
+        value={o.bootstrap ?? KRIPP_BOOTSTRAP}
+        lo={0}
+        hi={20000}
+        step={100}
+        int
+        onChange={(bootstrap) => {
+          const { bootstrap: _b, ...rest } = o;
+          set(bootstrap === KRIPP_BOOTSTRAP ? rest : { ...rest, bootstrap });
+        }}
+      />
+      <div className="hint">
+        Subjects drawn with replacement, α recomputed each time: the percentile interval at the
+        project’s confidence level, seeded by the project’s seed.
+      </div>
+    </>
+  );
+}
+
 function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<ReliabilityOptions>) {
   const d = rawData(ctx);
   if (!d) return <NoData />;
@@ -2226,6 +2587,10 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
           ['icc', 'ICC'],
           ['kappa', 'Kappa'],
           ['blandaltman', 'Bland–Altman'],
+          ['fleiss', 'Fleiss’ κ'],
+          ['kripp', 'Krippendorff’s α'],
+          ['kendallw', 'Kendall’s W'],
+          ['gwet', 'Gwet’s AC'],
         ]}
         hint={REL_HINT[o.type]}
       />
@@ -2308,7 +2673,7 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
       ) : (
         <OrderedPicker
           label={pair ? 'Two variables' : 'Variables'}
-          columns={o.type === 'kappa' ? d.names : d.names.filter((n) => !d.categories?.[n])}
+          columns={raterColumns(o, d)}
           value={o.vars}
           onChange={(vars) => set({ ...o, vars: pair ? vars.slice(-2) : vars })}
         />
@@ -2341,6 +2706,20 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
         </>
       )}
       {o.type === 'scale' && <BayesReliabilityFields o={o} set={set} />}
+      {o.type === 'kripp' && <KrippFields o={o} set={set} />}
+      {o.type === 'gwet' && (
+        <Choice
+          label="Weights"
+          value={o.gwetWeights ?? 'unweighted'}
+          options={GWET_WEIGHT_OPTIONS}
+          onChange={(w) => {
+            const { gwetWeights: _w, ...rest } = o;
+            // Unweighted (AC1) is the default, so it leaves no option behind.
+            set(w === 'unweighted' ? rest : { ...rest, gwetWeights: w });
+          }}
+          hint="Unweighted: Gwet’s AC1, categories without order. Weighted: AC2, ordered categories where a near miss counts as partial agreement (irrCAC’s weights)."
+        />
+      )}
     </fieldset>
   );
 }
@@ -2441,6 +2820,32 @@ const ICC_NAME: Record<string, string> = {
   ICC3k: 'ICC(3,k): mean of k raters, consistency',
 };
 
+const SCALE_NOTE =
+  'α assumes equal loadings (tau-equivalence); ω total uses a one-factor model’s loadings; the glb is the ' +
+  'largest reliability consistent with the inter-item correlations (psych’s factor-analytic estimate, ' +
+  'glb.fa). psych::alpha, omega and glb.fa.';
+const ICC_NOTE =
+  'Absolute agreement counts systematic differences between raters against agreement; consistency ' +
+  'ignores them. Use the k-rater forms when the mean of the raters is what is used.';
+
+/** How the scale's standard errors of measurement were computed (absent in results from before they were added). */
+function scaleSemNote(r: ReliabilityResult): string {
+  if (r.scoreSd === undefined) return '';
+  return (
+    ' SEM: the standard error of measurement of the scale score (the item mean), ' +
+    `SD × √(1 − reliability), with SD = ${fmt(r.scoreSd)}.`
+  );
+}
+
+/** How the ICCs' standard errors of measurement were computed. */
+function iccSemNote(r: ReliabilityResult): string {
+  if (r.sdSingle === undefined || r.sdMean === undefined) return '';
+  return (
+    ' SEM: SD × √(1 − ICC), with the SD of all ratings for a single rater ' +
+    `(${fmt(r.sdSingle)}) and the SD of the subjects’ mean ratings for k raters (${fmt(r.sdMean)}).`
+  );
+}
+
 function ReliabilityView({ r }: { r: ReliabilityResult }) {
   const conf = pct(r.confidence);
   return (
@@ -2453,15 +2858,19 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
           <Table
             title="Scale reliability"
             file="reliability-scale"
-            columns={['Coefficient', 'Value']}
+            columns={['Coefficient', 'Value', 'SEM']}
             rows={[
-              [c('Cronbach’s α'), c(r.alpha ?? null)],
-              [c('Standardised α'), c(r.stdAlpha ?? null)],
-              [c('McDonald’s ω total (one factor)'), c(r.omegaTotal ?? null)],
-              [c('Greatest lower bound (glb)'), c(r.glb ?? null)],
-              [c('Average inter-item correlation'), c(r.averageR ?? null)],
+              [c('Cronbach’s α'), c(r.alpha ?? null), c(r.sem?.alpha ?? null)],
+              [c('Standardised α'), c(r.stdAlpha ?? null), c(null)],
+              [
+                c('McDonald’s ω total (one factor)'),
+                c(r.omegaTotal ?? null),
+                c(r.sem?.omega ?? null),
+              ],
+              [c('Greatest lower bound (glb)'), c(r.glb ?? null), c(r.sem?.glb ?? null)],
+              [c('Average inter-item correlation'), c(r.averageR ?? null), c(null)],
             ]}
-            note="α assumes equal loadings (tau-equivalence); ω total uses a one-factor model’s loadings; the glb is the largest reliability consistent with the inter-item correlations (psych’s factor-analytic estimate, glb.fa). psych::alpha, omega and glb.fa."
+            note={SCALE_NOTE + scaleSemNote(r)}
           />
           <Table
             title="Items"
@@ -2479,7 +2888,7 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
         <Table
           title="Intraclass correlations (Shrout & Fleiss)"
           file="reliability-icc"
-          columns={['Type', 'ICC', 'F', 'df1', 'df2', 'p', `${conf} CI`]}
+          columns={['Type', 'ICC', 'F', 'df1', 'df2', 'p', `${conf} CI`, 'SEM']}
           rows={(r.icc ?? []).map(
             (x): Row => [
               c(ICC_NAME[x.type] ?? x.type),
@@ -2489,9 +2898,10 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
               c(x.df2, undefined, 0),
               pCell(x.p),
               c(ci(x.ciLow, x.ciHigh)),
+              c(x.sem ?? null),
             ],
           )}
-          note="Absolute agreement counts systematic differences between raters against agreement; consistency ignores them. Use the k-rater forms when the mean of the raters is what is used."
+          note={ICC_NOTE + iccSemNote(r)}
         />
       )}
       {r.type === 'kappa' && (
@@ -2535,8 +2945,126 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
           {r.points && <BlandAltman r={r} />}
         </>
       )}
+      <AgreementTables r={r} />
     </div>
   );
+}
+
+const IRR_SOURCE = 'irr::kappam.fleiss, kripp.alpha and kendall (Gamer, Lemon, Fellows & Singh).';
+
+/** Fleiss' kappa: overall (with Conger's exact kappa) and per category. */
+function FleissTables({ r }: { r: ReliabilityResult }) {
+  const f = r.fleiss!;
+  return (
+    <>
+      <Table
+        title={`Fleiss’ kappa: ${r.raters} raters, ${r.n} subjects`}
+        file="reliability-fleiss"
+        columns={['Coefficient', 'Estimate', 'z', 'p']}
+        rows={[
+          [c('Fleiss’ κ'), c(f.kappa), c(f.z), pCell(f.p)],
+          [c('Conger’s exact κ'), c(f.exact), c(null), c(null)],
+        ]}
+        note={
+          'Fleiss’ κ compares the agreement of the raters with that expected from the categories’ overall ' +
+          'shares; the z test is of κ = 0. Conger’s (1980) exact κ uses each rater’s own shares and reduces ' +
+          `to Cohen’s κ for two raters. Subjects with a missing rating are left out. ${IRR_SOURCE}`
+        }
+      />
+      <Table
+        title="Kappa of each category"
+        file="reliability-fleiss-categories"
+        columns={['Category', 'κ', 'z', 'p']}
+        rows={(r.fleissCategories ?? []).map(
+          (x): Row => [c(x.category), c(x.kappa), c(x.z), pCell(x.p)],
+        )}
+        note="The agreement on one category against all others (Fleiss 1971)."
+      />
+    </>
+  );
+}
+
+/** Krippendorff's alpha with its bootstrap interval. */
+function KrippTable({ r }: { r: ReliabilityResult }) {
+  const k = r.kripp!;
+  const boot = k.bootstrap > 0;
+  const rows: Row[] = [[c('Krippendorff’s α'), c(k.alpha), c(boot ? ci(k.ciLow, k.ciHigh) : null)]];
+  if (boot) {
+    rows.push([c('Bootstrap share of α < .667'), c(k.below667 ?? null), c(null)]);
+    rows.push([c('Bootstrap share of α < .800'), c(k.below800 ?? null), c(null)]);
+  }
+  const bootNote = boot
+    ? ` The interval: ${k.bootstrap.toLocaleString('en')} bootstrap samples of the subjects, ` +
+      `seed ${k.seed}, percentiles. Krippendorff suggests α ≥ .800, and α ≥ .667 for tentative conclusions.`
+    : '';
+  return (
+    <Table
+      title={`Krippendorff’s alpha (${k.level}): ${r.raters} raters, ${r.n} subjects`}
+      file="reliability-kripp"
+      columns={['Coefficient', 'Estimate', `${pct(r.confidence)} CI`]}
+      rows={rows}
+      note={
+        `1 − observed / expected disagreement over ${fmt(k.pairable, 0)} pairable values; ` +
+        `missing ratings are allowed.${bootNote} ${IRR_SOURCE}`
+      }
+    />
+  );
+}
+
+/** Kendall's W, without and with the correction for ties. */
+function KendallTable({ r }: { r: ReliabilityResult }) {
+  return (
+    <Table
+      title={`Kendall’s W: ${r.raters} raters, ${r.n} subjects`}
+      file="reliability-kendall"
+      columns={['Coefficient', 'W', 'χ²', 'df', 'p']}
+      rows={(r.kendall ?? []).map(
+        (x): Row => [
+          c(x.corrected ? 'W, corrected for ties' : 'W'),
+          c(x.w),
+          c(x.chisq),
+          c(x.df, undefined, 0),
+          pCell(x.p),
+        ],
+      )}
+      note={
+        'The concordance of the raters’ rankings of the subjects: 0 none, 1 complete. The χ² test is of ' +
+        `W = 0. With tied ranks prefer the corrected W. ${IRR_SOURCE}`
+      }
+    />
+  );
+}
+
+/** Gwet's AC1 or AC2 with irrCAC's standard error. */
+function GwetTable({ r }: { r: ReliabilityResult }) {
+  const g = r.gwet!;
+  return (
+    <Table
+      title={`Gwet’s ${g.name} (${g.weights}): ${r.raters} raters, ${r.n} subjects`}
+      file="reliability-gwet"
+      columns={['Coefficient', 'Estimate', 'SE', `${pct(r.confidence)} CI`, 'p (one-sided)']}
+      rows={[
+        [c(`Gwet’s ${g.name}`), c(g.value), c(g.se), c(ci(g.ciLow, g.ciHigh)), pCell(g.p)],
+        [c('Percent agreement'), c(g.pa), c(null), c(null), c(null)],
+        [c('Chance agreement'), c(g.pe), c(null), c(null), c(null)],
+      ]}
+      note={
+        'Gwet’s coefficient corrects the agreement for chance like κ, but its chance agreement stays small ' +
+        'when one category dominates (κ’s paradox). SE: irrCAC’s, to five decimals; the interval is the ' +
+        'coefficient ± t(n − 1) SE, at most 1; p tests AC > 0 (one-sided), as irrCAC does. ' +
+        `${fmt(g.ratings, 0)} ratings; missing ratings are allowed. irrCAC::gwet.ac1.raw (Gwet 2014).`
+      }
+    />
+  );
+}
+
+/** The tables of the several-rater agreement analyses. */
+function AgreementTables({ r }: { r: ReliabilityResult }) {
+  if (r.type === 'fleiss' && r.fleiss) return <FleissTables r={r} />;
+  if (r.type === 'kripp' && r.kripp) return <KrippTable r={r} />;
+  if (r.type === 'kendallw' && r.kendall) return <KendallTable r={r} />;
+  if (r.type === 'gwet' && r.gwet) return <GwetTable r={r} />;
+  return null;
 }
 
 /** The Bayesian options' part of the fingerprint (the seed too: the draws depend on it). */
@@ -2546,6 +3074,11 @@ const bayesParts = (o: ReliabilityOptions, seed: number): (string | number)[] =>
   o.iterations ?? BAYESREL_ITERATIONS,
   seed,
 ];
+/** Krippendorff's options' part of the fingerprint (the seed too, with a bootstrap). */
+const krippParts = (o: ReliabilityOptions, seed: number): (string | number)[] => {
+  const boot = o.bootstrap ?? KRIPP_BOOTSTRAP;
+  return [o.krippLevel ?? 'nominal', boot, boot > 0 ? seed : ''];
+};
 /** The kappa options apply to kappa only (they stay in the options when the analysis changes, unused). */
 const relCols = (o: ReliabilityOptions) =>
   o.type === 'kappa' && o.kappaTable
@@ -2570,7 +3103,15 @@ export const relInput = (
   ctx: Pick<AnalysisCtx, 'settings'>,
 ): ReliabilityInput => {
   const { kappaTable, kappaWeights, weightMatrix, ...rest } = o;
-  const { bayes, bayesGlb, iterations, ...plain } = rest;
+  const { bayes, bayesGlb, iterations, krippLevel, bootstrap, gwetWeights, ...plain } = rest;
+  const kripp =
+    o.type === 'kripp'
+      ? {
+          ...(krippLevel ? { krippLevel } : {}),
+          bootstrap: bootstrap ?? KRIPP_BOOTSTRAP,
+          seed: ctx.settings.seed,
+        }
+      : {};
   const bayesian =
     o.type === 'scale' && bayes
       ? {
@@ -2583,6 +3124,8 @@ export const relInput = (
   return {
     ...plain,
     ...bayesian,
+    ...kripp,
+    ...(o.type === 'gwet' && gwetWeights ? { gwetWeights } : {}),
     confidence: ctx.settings.confidence,
     ...(o.type === 'kappa'
       ? {
@@ -2593,10 +3136,25 @@ export const relInput = (
       : {}),
   };
 };
+/** Krippendorff's options from a project file: only when set (the defaults leave nothing behind). */
+function parseKrippOptions(raw: Record<string, unknown>): Partial<ReliabilityOptions> {
+  const level = oneOf(raw.krippLevel, KRIPP_LEVELS, 'nominal');
+  const out: Partial<ReliabilityOptions> = {};
+  if (level !== 'nominal') out.krippLevel = level;
+  const weights = oneOf(raw.gwetWeights, GWET_WEIGHTS, 'unweighted');
+  if (weights !== 'unweighted') out.gwetWeights = weights;
+  if (raw.bootstrap !== undefined) {
+    out.bootstrap = clampStrict(raw.bootstrap, 0, 20000, KRIPP_BOOTSTRAP, true);
+  }
+  return out;
+}
+
 export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityResult> = {
   id: 'reliability',
   title: 'Reliability and agreement',
-  sub: 'α, ω, glb (also Bayesian); ICC; Cohen’s kappa; Bland–Altman (psych, Bayesrel)',
+  sub:
+    'α, ω, glb (also Bayesian); ICC; Cohen’s and Fleiss’ kappa; Krippendorff’s α; Gwet’s AC1/AC2; ' +
+    'Kendall’s W; Bland–Altman (psych, Bayesrel, irr, irrCAC)',
   group: 'Basic statistics',
   entries: [
     {
@@ -2618,6 +3176,26 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       title: 'Bland–Altman',
       sub: 'agreement of two measurement methods',
       options: (o) => ({ ...o, type: 'blandaltman' }),
+    },
+    {
+      title: 'Fleiss’ kappa',
+      sub: 'agreement of several raters on categories, with Conger’s exact kappa (irr)',
+      options: (o) => ({ ...o, type: 'fleiss' }),
+    },
+    {
+      title: 'Krippendorff’s alpha',
+      sub: 'agreement of several raters, nominal to ratio, missing ratings allowed; bootstrap interval (irr)',
+      options: (o) => ({ ...o, type: 'kripp' }),
+    },
+    {
+      title: 'Gwet’s AC1 / AC2',
+      sub: 'chance-corrected agreement of several raters, robust to a dominant category; weighted for ordered categories (irrCAC)',
+      options: (o) => ({ ...o, type: 'gwet' }),
+    },
+    {
+      title: 'Kendall’s W',
+      sub: 'concordance of several raters’ rankings, with the correction for ties (irr)',
+      options: (o) => ({ ...o, type: 'kendallw' }),
     },
   ],
   cardTitle: (o) => REL_NAME[o.type],
@@ -2657,6 +3235,7 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       ...(raw.iterations !== undefined
         ? { iterations: clampStrict(raw.iterations, 100, 20000, BAYESREL_ITERATIONS, true) }
         : {}),
+      ...parseKrippOptions(raw),
     };
   },
   Options: ReliabilityForm,
@@ -2674,6 +3253,9 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
     if ((o.type === 'kappa' || o.type === 'blandaltman') && o.vars.length !== 2)
       return 'Choose exactly two variables.';
     if (o.vars.length < 2) return 'Choose at least two variables.';
+    const boot = o.bootstrap ?? KRIPP_BOOTSTRAP;
+    if (o.type === 'kripp' && boot > 0 && boot < 100)
+      return 'Use 0 bootstrap samples (no interval) or at least 100.';
     if (o.type === 'scale' && o.bayes && o.vars.length < 3)
       return 'Bayesian reliability needs at least three items.';
     return missingColumns(ctx, o.vars, REL_NAME[o.type]);
@@ -2684,6 +3266,8 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       ctx.settings.confidence,
       ...(o.type === 'kappa' ? kappaParts(o) : []),
       ...(o.type === 'scale' && o.bayes ? bayesParts(o, ctx.settings.seed) : []),
+      ...(o.type === 'kripp' ? krippParts(o, ctx.settings.seed) : []),
+      ...(o.type === 'gwet' ? [o.gwetWeights ?? 'unweighted'] : []),
     ]),
   run: async (o, ctx) => (await engine()).reliabilityR(rawData(ctx)!, relInput(o, ctx)),
   script: async (o, ctx) => (await engine()).reliabilityScriptR(rawData(ctx)!, relInput(o, ctx)),

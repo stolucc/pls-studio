@@ -73,7 +73,9 @@ async function runCard<R>(
   const e = ex(id);
   const kind = e.panel!.kind,
     preset = panelPreset(e.panel!);
-  const pkg = ['psych', 'Bayesrel', 'nortest', 'effectsize', 'TOSTER'].includes(e.package)
+  const pkg = ['psych', 'Bayesrel', 'nortest', 'effectsize', 'TOSTER', 'irr', 'irrCAC'].includes(
+    e.package,
+  )
     ? (e.package as RPackage)
     : (e.panel as { moreBetween?: string[] }).moreBetween?.length
       ? 'car'
@@ -475,6 +477,19 @@ describe('basic-statistics card examples in webR', () => {
     near('p', r.chisq.p, 2.953589e-7, 1e-12);
   }, 600_000);
 
+  it('stats-mcnemar-performance: mcnemar.test(Performance), paired', async () => {
+    const r = await runCard<ContingencyResult>(
+      'stats-mcnemar-performance',
+      helpRun('stats, ?mcnemar.test'),
+    );
+    const p = r.paired!;
+    near('χ², continuity correction', p.mcnemarCorrected!.stat, 16.8177966, 1e-6);
+    near('p, continuity correction', p.mcnemarCorrected!.p, 4.114562281e-5, 1e-12);
+    near('χ²', p.mcnemar!.stat, 17.3559322, 1e-6);
+    near('exact p', p.exact!.p, 3.71593614e-5, 1e-12);
+    same('approve → disapprove', p.exact!.b, 150);
+  }, 600_000);
+
   it('stats-contingency-job: fisher.test(Job)', async () => {
     const r = await runCard<ContingencyResult>(
       'stats-contingency-job',
@@ -590,6 +605,71 @@ describe('basic-statistics card examples in webR', () => {
     near('κ', r.kappa!.est, 0.4915254237, 1e-9);
     near('weighted κ CI lower (n.obs = 200)', r.weighted!.ciLow, 0.1910617521, 1e-8);
     near('weighted κ CI upper (n.obs = 200)', r.weighted!.ciHigh, 0.5157051652, 1e-8);
+  }, 600_000);
+
+  it('irr-fleiss-diagnoses: kappam.fleiss(diagnoses), exact = TRUE and detail = TRUE', async () => {
+    const r = await runCard<ReliabilityResult>(
+      'irr-fleiss-diagnoses',
+      helpPrinted('irr, ?kappam.fleiss', 'https://rdrr.io/cran/irr/man/kappam.fleiss.html'),
+    );
+    near('κ (printed: 0.43)', r.fleiss!.kappa, 0.43, 5e-3);
+    near('exact κ (printed: 0.442)', r.fleiss!.exact, 0.442, 5e-4);
+    against(helpRun('irr, ?kappam.fleiss (irr 0.85)'));
+    same('subjects', r.n, 30);
+    same('raters', r.raters!, 6);
+    near('κ', r.fleiss!.kappa, 0.4302445201, 1e-9);
+    near('z', r.fleiss!.z, 17.65183058, 1e-7);
+    near('exact κ', r.fleiss!.exact, 0.4418085403, 1e-9);
+    same('categories', r.fleissCategories!.length, 5);
+    near('κ of schizophrenia (printed: 0.520)', r.fleissCategories![2].kappa, 0.52, 1e-9);
+  }, 600_000);
+
+  it('irr-kripp-alpha: kripp.alpha(nmm, "ordinal") on Krippendorff’s coders', async () => {
+    const r = await runCard<ReliabilityResult>(
+      'irr-kripp-alpha',
+      helpPrinted('irr, ?kripp.alpha', 'https://rdrr.io/cran/irr/man/kripp.alpha.html'),
+    );
+    near('α (printed: 0.815)', r.kripp!.alpha, 0.815, 5e-4);
+    against(helpRun('irr, ?kripp.alpha (irr 0.85)'));
+    near('α', r.kripp!.alpha, 0.8153875038, 1e-9);
+    same('units', r.n, 12);
+    same('pairable values', r.kripp!.pairable, 40);
+    same('bootstrap samples', r.kripp!.bootstrap, 1000);
+    // (desktop R: set.seed(1), the units resampled 1000 times, kripp.alpha(…, "ordinal") each time)
+    near('bootstrap CI lower', r.kripp!.ciLow!, 0.4781728, 1e-6);
+    near('share below .800', r.kripp!.below800!, 0.446, 1e-9);
+  }, 600_000);
+
+  it('irr-kendall-anxiety: kendall(anxiety, TRUE)', async () => {
+    const r = await runCard<ReliabilityResult>(
+      'irr-kendall-anxiety',
+      helpPrinted('irr, ?kendall', 'https://rdrr.io/cran/irr/man/kendall.html'),
+    );
+    const [plain, tied] = r.kendall!;
+    near('Wt (printed: 0.54)', tied.w, 0.54, 5e-3);
+    near('χ² (printed: 30.8)', tied.chisq, 30.8, 0.05);
+    near('p (printed: 0.0429)', tied.p, 0.0429, 5e-5);
+    against(helpRun('irr, ?kendall (irr 0.85)'));
+    near('Wt', tied.w, 0.539656876, 1e-9);
+    near('W', plain.w, 0.5019214703, 1e-9);
+    same('df', tied.df, 19);
+  }, 600_000);
+
+  it('irrcac-gwet-raw4raters: gwet.ac1.raw(cac.raw4raters)$est', async () => {
+    const r = await runCard<ReliabilityResult>(
+      'irrcac-gwet-raw4raters',
+      helpPrinted('irrCAC, ?gwet.ac1.raw', 'https://rdrr.io/cran/irrCAC/man/gwet.ac1.raw.html'),
+    );
+    const g = r.gwet!;
+    near('AC1 (printed: 0.77544)', g.value, 0.77544, 5e-6);
+    near('SE (printed: 0.14295)', g.se, 0.14295, 1e-9);
+    near('CI lower (printed: 0.461)', g.ciLow, 0.461, 5e-4);
+    same('CI upper (printed: 1)', g.ciHigh, 1);
+    against(helpRun('irrCAC, ?gwet.ac1.raw (irrCAC 1.4)'));
+    same('coefficient', g.name, 'AC1');
+    same('ratings', g.ratings, 41);
+    near('AC1', g.value, 0.7754440681, 1e-9);
+    near('p', g.p, 0.000104360492, 1e-12);
   }, 600_000);
 
   it('psych-icc-shroutfleiss: the six intraclass correlations of Shrout & Fleiss', async () => {

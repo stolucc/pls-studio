@@ -268,6 +268,7 @@ ps_anova <- function(req_json, export = FALSE) {
   )
   fml <- sprintf("%s ~ %s", v[[y]], rhs)
   oneway <- length(fac) == 1 && !length(cov)
+  adjust <- ps_p_adjust(req)
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
     "# Factors (their levels as the groups).",
@@ -293,7 +294,8 @@ ps_anova <- function(req_json, export = FALSE) {
           "pwRank <- pairwise.wilcox.test(data$%s, data$%s, p.adjust.method = \"holm\", exact = FALSE)",
           v[[y]],
           v[[fac[1]]]
-        )
+        ),
+        ps_dunn_lines(v[[y]], v[[fac[1]]], adjust)
       )
     },
     if (es) ps_es_anova_lines(ss, ps_bt_conf(req), oneway, fml, seed)
@@ -302,7 +304,7 @@ ps_anova <- function(req_json, export = FALSE) {
   if (export) {
     report <- c(
       "tab", "shapiro", "levene",
-      if (oneway) c("welch", "kruskal", "tukey", "pwRank"),
+      if (oneway) c("welch", "kruskal", "tukey", "pwRank", "dunn"),
       if (es) c("es", if (oneway) "epsilon2")
     )
     pkgs <- if (es) "effectsize" else character(0)
@@ -372,6 +374,8 @@ ps_anova <- function(req_json, export = FALSE) {
     } else {
       NULL
     },
+    dunn = if (oneway) ps_dunn_result(env),
+    adjust = if (oneway) adjust,
     cells = lapply(names(cells), function(k) c(list(cell = k), ps_desc(cells[[k]]))),
     effects = ps_es_anova_result(env, fr$back),
     epsilon2 = if (!is.null(env$epsilon2)) ps_es_row("epsilon2", env$epsilon2) else NULL,
@@ -425,6 +429,7 @@ ps_rmanova <- function(req_json, export = FALSE) {
   v <- fr$v
   W <- ps_q(unname(unlist(v[within])))
   bt <- nzchar(between)
+  adjust <- ps_p_adjust(req)
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(within, if (bt) between)])))),
     if (bt) ps_bt_factor_line(req, fr, between),
@@ -445,7 +450,7 @@ ps_rmanova <- function(req_json, export = FALSE) {
     sprintf("mlm <- lm(Y ~ %s)", if (bt) sprintf("data$%s", v[[between]]) else "1"),
     "mauchly <- mauchly.test(mlm, X = ~ 1)",
     "spher <- anova(mlm, X = ~ 1, test = \"Spherical\")  # Greenhouse-Geisser and Huynh-Feldt corrections",
-    if (!bt) "friedman <- friedman.test(Y)",
+    if (!bt) c("friedman <- friedman.test(Y)", ps_conover_lines(adjust)),
     "# Post hoc: every pair of levels by a paired t-test, p adjusted by Holm's method.",
     "pairs <- combn(ncol(Y), 2, simplify = FALSE)",
     "posthoc <- lapply(pairs, function(p) t.test(Y[, p[1]], Y[, p[2]], paired = TRUE))",
@@ -453,7 +458,7 @@ ps_rmanova <- function(req_json, export = FALSE) {
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")))
+    return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) c("friedman", "conover"), "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")))
   }
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
@@ -505,6 +510,8 @@ ps_rmanova <- function(req_json, export = FALSE) {
     within = pe(ws, res_w), betweenTable = pe(bs, res_b),
     sphericity = list(w = unname(env$mauchly$statistic), p = env$mauchly$p.value, gg = gg, hf = hf), corrected = corr,
     friedman = if (!bt) ps_htest(env$friedman) else NULL,
+    conover = if (!bt) ps_conover_result(env, within),
+    adjust = if (!bt) adjust,
     posthoc = lapply(seq_along(env$pairs), function(i) {
       p <- env$pairs[[i]]
       h <- env$posthoc[[i]]
@@ -1082,12 +1089,14 @@ ps_contingency <- function(req_json, export = FALSE) {
   }
   conf <- ps_bt_conf(req)
   es <- isTRUE(req$effectSizes)
+  paired <- isTRUE(req$paired)
   fr <- ps_long_frame(req, unique(c(rv, cv, if (nzchar(wv)) wv)))
   v <- fr$v
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(rv, cv, if (nzchar(wv)) wv)])))),
     ps_bt_factor_line(req, fr, rv),
     ps_bt_factor_line(req, fr, cv),
+    if (paired) ps_mcnemar_lines(v[[rv]], v[[cv]], if (nzchar(wv)) v[[wv]] else ""),
     sprintf("tab <- xtabs(%s~ %s + %s, data = data)", if (nzchar(wv)) paste0(v[[wv]], " ") else "", v[[rv]], v[[cv]]),
     "chi <- chisq.test(tab, correct = FALSE)",
     "chiYates <- if (all(dim(tab) == 2)) chisq.test(tab, correct = TRUE)",
@@ -1107,7 +1116,8 @@ ps_contingency <- function(req_json, export = FALSE) {
   )
   inputs <- list(data = fr$data)
   if (export) {
-    report <- c("tab", "chi", "chiYates", "c(G2 = G2, p = pG2)", "fisher", "cramerV", if (es) "es")
+    paired_report <- c("ptab", "if (length(lev) == 2) list(mcnemar, mcnemarCC, mcnemarExact) else c(stat = bowkerStat, df = bowkerDf, p = bowkerP)")
+    report <- c("tab", "chi", "chiYates", "c(G2 = G2, p = pG2)", "fisher", "cramerV", if (paired) paired_report, if (es) "es")
     pkgs <- if (es) "effectsize" else character(0)
     return(ps_script("Contingency table", pkgs, inputs, body, report))
   }
@@ -1130,6 +1140,7 @@ ps_contingency <- function(req_json, export = FALSE) {
     phi = if (two) env$phi else NULL,
     oddsRatio = if (two) list(est = env$or, ciLow = env$orCI[1], ciHigh = env$orCI[2]) else NULL,
     effects = if (es) ps_es_rows(Filter(Negate(is.null), env$es)) else NULL,
+    paired = if (paired) ps_mcnemar_result(env),
     confidence = conf,
     warnings = env$.warnings,
     engine = list(package = "stats", version = as.character(getRversion()))
@@ -1140,6 +1151,9 @@ ps_contingency <- function(req_json, export = FALSE) {
 #' and the multinomial goodness-of-fit chi-square (equal or given proportions).
 ps_freqtest <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
+  if (identical(req$type, "cochran")) {
+    return(ps_cochran(req, export))
+  }
   x <- req$variable %||% ""
   if (!nzchar(x)) stop("Choose the variable.")
   type <- req$type %||% "binomial"
@@ -1326,6 +1340,9 @@ ps_kappa_table <- function(req, export) {
 ps_reliability <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   type <- req$type %||% "scale"
+  if (type %in% PS_AGREEMENT_TYPES) {
+    return(ps_agreement(req, type, export))
+  }
   if (!type %in% c("scale", "icc", "kappa", "blandaltman")) {
     stop("Invalid reliability analysis in the request.")
   }
@@ -1354,11 +1371,20 @@ ps_reliability <- function(req_json, export = FALSE) {
       "# Omega total of one factor (omega hierarchical is not reported: its one-factor warnings do not concern omega total).",
       "o <- suppressWarnings(suppressMessages(omega(X, nfactors = 1, plot = FALSE)))",
       "g <- glb.fa(cor(X))  # greatest lower bound (psych's factor-analytic estimate)",
+      "# Standard error of measurement of the scale score (the item mean, as psych scores it): SD * sqrt(1 - reliability).",
+      "scoreSd <- sd(rowMeans(X))",
+      "sem <- scoreSd * sqrt(1 - c(alpha = a$total$raw_alpha, omega = o$omega.tot, glb = g$glb))",
       if (!is.null(bayes)) ps_bayesrel_lines(bayes, conf)
     ),
     icc = c(
       "suppressPackageStartupMessages(library(psych))",
-      sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf))
+      sprintf("icc <- ICC(X, lmer = FALSE, alpha = %s)  # rows: subjects; columns: raters", format(1 - conf)),
+      "# Standard error of measurement, SD * sqrt(1 - ICC): the SD of all ratings for a single rater,",
+      "# the SD of the subjects' mean ratings for the mean of k raters.",
+      "sdSingle <- sd(unlist(X))",
+      "sdMean <- sd(rowMeans(X))",
+      "iccSd <- ifelse(grepl(\"k$\", icc$results$type), sdMean, sdSingle)",
+      "iccSem <- iccSd * sqrt(1 - icc$results$ICC)"
     ),
     kappa = c(
       "suppressPackageStartupMessages(library(psych))", ps_kappa_weights(req, NULL),
@@ -1384,8 +1410,8 @@ ps_reliability <- function(req_json, export = FALSE) {
     return(ps_script(
       title, packages, inputs, body,
       switch(type,
-        scale = c("a", "o$omega.tot", "g$glb", if (!is.null(bayes)) c("summary(br)", "rhat", "ess")),
-        icc = "icc",
+        scale = c("a", "o$omega.tot", "g$glb", "sem", if (!is.null(bayes)) c("summary(br)", "rhat", "ess")),
+        icc = c("icc", "data.frame(type = icc$results$type, sem = iccSem)"),
         kappa = "k",
         blandaltman = c("c(bias = bias, sd = s, lower = loa[1], upper = loa[2])", "biasCI")
       )
@@ -1407,6 +1433,8 @@ ps_reliability <- function(req_json, export = FALSE) {
         glb = env$g$glb,
         mean = tot$mean,
         sd = tot$sd,
+        scoreSd = env$scoreSd,
+        sem = as.list(env$sem),
         items = lapply(
           seq_len(nrow(dr)),
           function(i) list(item = vars[i], alphaIfDropped = dr$raw_alpha[i], itemRest = is$r.drop[i], mean = is$mean[i], sd = is$sd[i])
@@ -1416,7 +1444,20 @@ ps_reliability <- function(req_json, export = FALSE) {
     },
     icc = {
       r <- env$icc$results
-      list(icc = lapply(seq_len(nrow(r)), function(i) list(type = as.character(r$type[i]), icc = r$ICC[i], f = r$F[i], df1 = r$df1[i], df2 = r$df2[i], p = r$p[i], ciLow = r[i, "lower bound"], ciHigh = r[i, "upper bound"])))
+      rows <- lapply(seq_len(nrow(r)), function(i) {
+        list(
+          type = as.character(r$type[i]),
+          icc = r$ICC[i],
+          f = r$F[i],
+          df1 = r$df1[i],
+          df2 = r$df2[i],
+          p = r$p[i],
+          ciLow = r[i, "lower bound"],
+          ciHigh = r[i, "upper bound"],
+          sem = env$iccSem[i]
+        )
+      })
+      list(icc = rows, sdSingle = env$sdSingle, sdMean = env$sdMean)
     },
     kappa = {
       cf <- env$k$confid

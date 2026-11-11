@@ -566,6 +566,18 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['effectsize', 'TOSTER'],
     script('effects.R', 'desktop effectsize and TOSTER'),
   ),
+  'rengine/agreement': native(
+    'Reliability and agreement: standard errors of measurement, multi-rater agreement',
+    'Basic statistics',
+    ['psych', 'irr', 'irrCAC'],
+    script('agreement.R', 'desktop psych, irr and irrCAC'),
+  ),
+  'rengine/nonparametric': native(
+    'Nonparametric tests: McNemar, Bowker, Cochran’s Q, Dunn, Conover',
+    'Basic statistics',
+    ['stats'],
+    script('nonparametric.R', 'desktop R, DescTools, dunn.test and PMCMRplus'),
+  ),
   'rengine/correlationPolychoric': native(
     'Polychoric correlations',
     'Basic statistics',

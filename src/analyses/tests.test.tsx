@@ -18,7 +18,13 @@ import {
   ttestAnalysis,
 } from './tests';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ReliabilityResult } from '../rengine/tests';
+import type {
+  AnovaResult,
+  ContingencyResult,
+  FreqTestResult,
+  ReliabilityResult,
+  RmAnovaResult,
+} from '../rengine/tests';
 import type { AnalysisCtx } from './types';
 
 const data = {
@@ -384,5 +390,325 @@ describe('effect sizes and equivalence tests of the basic cards', () => {
     expect(html).toContain('0.200 [0.050, 0.400]');
     expect(html).toContain('Rank ε²');
     expect(html).toContain('type III sums of squares η² and ω² divide');
+  });
+});
+
+describe('agreement of several raters (irr)', () => {
+  const t = reliabilityAnalysis;
+  const o = { type: 'kripp' as const, vars: ['y', 'x', 'g'] };
+
+  it('keeps Krippendorff’s options from a project file only when valid and not the default', () => {
+    expect(t.parseOptions({ ...o, krippLevel: 'interval', bootstrap: 500 })).toEqual({
+      ...o,
+      krippLevel: 'interval',
+      bootstrap: 500,
+    });
+    expect(t.parseOptions({ ...o, krippLevel: 'nominal' })).toEqual(o);
+    expect(t.parseOptions({ ...o, krippLevel: 'cardinal' })).toEqual(o);
+    expect(t.parseOptions({ ...o, bootstrap: 1e9 })!.bootstrap).toBe(20000);
+    expect(t.parseOptions({ type: 'fleiss', vars: ['y', 'x'] })!.type).toBe('fleiss');
+    expect(t.parseOptions({ type: 'kendallw', vars: ['y', 'x'] })!.type).toBe('kendallw');
+  });
+
+  it('sends the level, the bootstrap samples and the seed with Krippendorff’s alpha only', () => {
+    const settings = { ...DEFAULT_SETTINGS, seed: 7 };
+    expect(relInput({ ...o, krippLevel: 'ordinal' }, { settings })).toMatchObject({
+      krippLevel: 'ordinal',
+      bootstrap: 1000,
+      seed: 7,
+    });
+    const fleiss = relInput({ ...o, type: 'fleiss', bootstrap: 200 }, { settings });
+    expect(['krippLevel', 'bootstrap', 'seed'].filter((k) => k in fleiss)).toEqual([]);
+  });
+
+  it('refuses 1 to 99 bootstrap samples; the seed matters only with a bootstrap', () => {
+    expect(t.blocked({ ...o, bootstrap: 50 }, ctx)).toMatch(/at least 100/);
+    expect(t.blocked({ ...o, bootstrap: 0 }, ctx)).toBeNull();
+    const seeded = { ...ctx, settings: { ...DEFAULT_SETTINGS, seed: 99 } };
+    expect(t.fingerprint(o, seeded)).not.toBe(t.fingerprint(o, ctx));
+    const none = { ...o, bootstrap: 0 };
+    expect(t.fingerprint(none, seeded)).toBe(t.fingerprint(none, ctx));
+    expect(t.fingerprint({ ...o, krippLevel: 'ratio' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows Fleiss’, Krippendorff’s and Kendall’s tables', () => {
+    const base = { vars: ['y', 'x'], n: 30, raters: 2, confidence: 0.95, warnings: [] };
+    const engine = { package: 'irr', version: '0.85' };
+    const view = (r: object) =>
+      renderToStaticMarkup(
+        <t.View
+          result={{ ...base, engine, ...r } as unknown as ReliabilityResult}
+          options={o}
+          current
+        />,
+      );
+    const fleiss = view({
+      type: 'fleiss',
+      fleiss: { kappa: 0.43, z: 17.6, p: 0, exact: 0.442 },
+      fleissCategories: [{ category: 'Neurosis', kappa: 0.471, z: 9.99, p: 0 }],
+    });
+    expect(fleiss).toContain('Conger’s exact κ');
+    expect(fleiss).toContain('Neurosis');
+    const kripp = view({
+      type: 'kripp',
+      kripp: {
+        alpha: 0.815,
+        level: 'ordinal',
+        pairable: 40,
+        bootstrap: 1000,
+        seed: 1,
+        ciLow: 0.48,
+        ciHigh: 1,
+        below667: 0.16,
+        below800: 0.45,
+      },
+    });
+    expect(kripp).toContain('Krippendorff’s alpha (ordinal)');
+    expect(kripp).toContain('1,000 bootstrap samples of the subjects, seed 1');
+    expect(kripp).toContain('[0.480, 1.000]');
+    const kendall = view({
+      type: 'kendallw',
+      kendall: [
+        { corrected: false, w: 0.5, chisq: 28.6, df: 19, p: 0.07 },
+        { corrected: true, w: 0.54, chisq: 30.8, df: 19, p: 0.04 },
+      ],
+    });
+    expect(kendall).toContain('W, corrected for ties');
+  });
+});
+
+describe('Gwet’s AC1 / AC2 (irrCAC)', () => {
+  const t = reliabilityAnalysis;
+  const o = { type: 'gwet' as const, vars: ['y', 'x', 'g'] };
+
+  it('keeps the weights only when valid and not unweighted, and sends them with Gwet only', () => {
+    expect(t.parseOptions({ ...o, gwetWeights: 'quadratic' })).toEqual({
+      ...o,
+      gwetWeights: 'quadratic',
+    });
+    expect(t.parseOptions({ ...o, gwetWeights: 'unweighted' })).toEqual(o);
+    expect(t.parseOptions({ ...o, gwetWeights: 'cubic' })).toEqual(o);
+    expect(relInput({ ...o, gwetWeights: 'linear' }, ctx)).toMatchObject({ gwetWeights: 'linear' });
+    const kripp = relInput({ ...o, type: 'kripp', gwetWeights: 'linear' }, ctx);
+    expect('gwetWeights' in kripp).toBe(false);
+    expect(t.fingerprint({ ...o, gwetWeights: 'linear' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows the coefficient, its standard error and the agreement', () => {
+    const result = {
+      type: 'gwet',
+      vars: ['y', 'x'],
+      n: 12,
+      raters: 4,
+      confidence: 0.95,
+      gwet: {
+        name: 'AC2',
+        weights: 'quadratic',
+        value: 0.914,
+        pa: 0.975,
+        pe: 0.714,
+        se: 0.10396,
+        ciLow: 0.685,
+        ciHigh: 1,
+        p: 1e-6,
+        ratings: 41,
+      },
+      warnings: [],
+      engine: { package: 'irrCAC', version: '1.4' },
+    } as unknown as ReliabilityResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Gwet’s AC2 (quadratic): 4 raters, 12 subjects');
+    expect(html).toContain('Chance agreement');
+    expect(html).toContain('p (one-sided)');
+  });
+});
+
+describe('paired contingency tables (McNemar, Bowker)', () => {
+  const t = contingencyAnalysis;
+  const o = { rows: 'g', columns: 'h', counts: '', effectSizes: false };
+
+  it('keeps `paired` only when true, and it makes the result stale', () => {
+    expect(t.parseOptions({ ...o, paired: true })).toEqual({ ...o, paired: true });
+    expect(t.parseOptions({ ...o, paired: 'yes' })).toEqual(o);
+    expect(t.fingerprint({ ...o, paired: true }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows McNemar’s tests for 2 × 2 and Bowker’s for larger tables', () => {
+    const base = {
+      rows: 'g',
+      columns: 'h',
+      rowLevels: ['a', 'b'],
+      colLevels: ['a', 'b'],
+      counts: [
+        [794, 150],
+        [86, 570],
+      ],
+      expected: [
+        [500, 400],
+        [400, 300],
+      ],
+      n: 1600,
+      chisq: { stat: 1, df: 1, p: 0.3 },
+      yates: null,
+      likelihoodRatio: { stat: 1, df: 1, p: 0.3 },
+      fisher: null,
+      cramerV: 0.1,
+      phi: null,
+      oddsRatio: null,
+      confidence: 0.95,
+      warnings: [],
+      engine: { package: 'stats', version: '4.6.2' },
+    };
+    const paired = {
+      levels: ['a', 'b'],
+      counts: base.counts,
+      mcnemar: { stat: 17.36, df: 1, p: 3e-5 },
+      mcnemarCorrected: { stat: 16.82, df: 1, p: 4e-5 },
+      exact: { p: 3.7e-5, b: 150, c: 86 },
+      bowker: null,
+    };
+    const view = (p: object) =>
+      renderToStaticMarkup(
+        <t.View
+          result={{ ...base, paired: p } as unknown as ContingencyResult}
+          options={o}
+          current
+        />,
+      );
+    const two = view(paired);
+    expect(two).toContain('McNemar χ², continuity correction');
+    expect(two).toContain('the 150 subjects who moved one way against the 86');
+    const three = view({
+      ...paired,
+      mcnemar: null,
+      mcnemarCorrected: null,
+      exact: null,
+      bowker: { stat: 3, df: 2, p: 0.22 },
+    });
+    expect(three).toContain('Bowker’s test of symmetry');
+    expect(three).not.toContain('McNemar');
+  });
+});
+
+describe('Cochran’s Q', () => {
+  const t = freqTestAnalysis;
+  const o = { ...t.defaults(ctx), type: 'cochran' as const, vars: ['y', 'x', 'h'] };
+
+  it('keeps the measures and the adjustment from a project file, and needs two measures', () => {
+    expect(t.parseOptions({ ...o, adjust: 'BH' })).toMatchObject({ vars: o.vars, adjust: 'BH' });
+    expect('adjust' in t.parseOptions({ ...o, adjust: 'sidak' })!).toBe(false);
+    expect(t.blocked({ ...o, vars: ['y'] }, ctx)).toMatch(/at least two binary measures/);
+    expect(t.blocked(o, ctx)).toBeNull();
+    expect(t.fingerprint({ ...o, adjust: 'bonferroni' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+    expect(t.cardTitle!(o)).toBe('Cochran’s Q: y, x, h');
+  });
+
+  it('shows the shares, Q and the pairs with the adjustment named', () => {
+    const result = {
+      type: 'cochran',
+      variable: '',
+      levels: [],
+      counts: [],
+      n: 15,
+      alternative: 'two.sided',
+      confidence: 0.95,
+      binomial: null,
+      testValue: null,
+      multinomial: null,
+      vars: ['y', 'x'],
+      success: 'yes',
+      proportions: [0.8, 0.4],
+      cochran: { stat: 8.6, df: 1, p: 0.01 },
+      posthoc: [
+        {
+          comparison: 'y - x',
+          b: 6,
+          c: 0,
+          chisq: 4.17,
+          p: 0.04,
+          pAdjusted: 0.04,
+          pExact: 0.03,
+          pExactAdjusted: 0.03,
+        },
+      ],
+      adjust: 'BH',
+      warnings: [],
+      engine: { package: 'stats', version: '4.6.2' },
+    } as unknown as FreqTestResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Share of “yes”');
+    expect(html).toContain('Cochran’s Q test');
+    expect(html).toContain('Benjamini–Hochberg');
+  });
+});
+
+describe('Dunn’s test after Kruskal–Wallis', () => {
+  const t = anovaAnalysis;
+  const o = { ...t.defaults(ctx), dependent: 'y', factors: ['g'] };
+
+  it('keeps the adjustment only when it is not Holm, and it makes the result stale', () => {
+    expect(t.parseOptions({ ...o, adjust: 'bonferroni' })).toMatchObject({ adjust: 'bonferroni' });
+    expect('adjust' in t.parseOptions({ ...o, adjust: 'holm' })!).toBe(false);
+    expect('adjust' in t.parseOptions({ ...o, adjust: 'none' })!).toBe(false);
+    expect(t.fingerprint({ ...o, adjust: 'BH' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows Dunn’s comparisons with the adjustment named', () => {
+    const result = {
+      dependent: 'y',
+      factors: ['g'],
+      covariates: [],
+      ssType: 'III',
+      formula: 'y ~ g',
+      table: [],
+      residual: { ss: 1, df: 2, ms: 0.5 },
+      n: 4,
+      levene: { stat: 1, df1: 1, df2: 2, p: 0.4 },
+      shapiro: null,
+      welch: null,
+      kruskal: null,
+      tukey: null,
+      dunn: [{ comparison: 'a - b', z: -1.2, p: 0.23, pAdjusted: 0.46 }],
+      adjust: 'bonferroni',
+      cells: [],
+      warnings: [],
+      engine: { package: 'stats', version: '4.6.2' },
+    } as unknown as AnovaResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Post hoc after Kruskal–Wallis (Dunn’s test)');
+    expect(html).toContain('adjusted by Bonferroni');
+  });
+});
+
+describe('Conover’s test after Friedman', () => {
+  const t = rmAnovaAnalysis;
+  const o = { levels: ['y', 'x', 'h'], factorName: 'condition', between: '' };
+
+  it('keeps the adjustment only when it is not Holm, and it makes the result stale', () => {
+    expect(t.parseOptions({ ...o, adjust: 'BH' })).toMatchObject({ adjust: 'BH' });
+    expect('adjust' in t.parseOptions(o)!).toBe(false);
+    expect(t.fingerprint({ ...o, adjust: 'BH' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows Conover’s comparisons after Friedman’s test', () => {
+    const result = {
+      factorName: 'condition',
+      levels: ['y', 'x'],
+      between: '',
+      n: 4,
+      within: [],
+      betweenTable: [],
+      sphericity: null,
+      corrected: [],
+      friedman: { stat: 4, df: 1, p: 0.05 },
+      conover: [{ comparison: 'y - x', t: 2.6, df: 3, p: 0.08, pAdjusted: 0.08 }],
+      adjust: 'holm',
+      cells: [],
+      warnings: [],
+      engine: { package: 'stats', version: '4.6.2' },
+    } as unknown as RmAnovaResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Post hoc after Friedman (Conover’s test)');
+    expect(html).toContain('adjusted by Holm');
   });
 });

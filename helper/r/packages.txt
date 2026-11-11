@@ -31,6 +31,8 @@ flexmix
 genpathmox
 glca
 haven
+irr
+irrCAC
 ivreg
 jsonlite
 lavaan

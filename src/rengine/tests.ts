@@ -107,6 +107,8 @@ export interface AnovaInput {
   effectSizes?: boolean;
   /** The seed of the bootstrap interval of Kruskal-Wallis's epsilon-squared. */
   seed?: number;
+  /** One factor: the adjustment of Dunn's comparisons (absent: Holm). */
+  adjust?: PAdjust;
 }
 /** An ANOVA term's effect sizes with their intervals (effectsize). */
 export interface AnovaEffect {
@@ -143,6 +145,9 @@ export interface AnovaResult {
   tukey: { comparison: string; diff: number; ciLow: number; ciHigh: number; p: number }[] | null;
   /** One factor: pairwise Wilcoxon rank-sum tests after Kruskal-Wallis, p adjusted by Holm (absent in results from before they were added). */
   pairwiseRank?: { comparison: string; pHolm: number }[] | null;
+  /** One factor: Dunn's test of every pair of groups (mean ranks, tie-corrected), p adjusted by `adjust`. */
+  dunn?: { comparison: string; z: number; p: number; pAdjusted: number }[] | null;
+  adjust?: PAdjust;
   cells: (Desc & { cell: string })[];
   effects?: AnovaEffect[] | null;
   epsilon2?: EffectSize | null;
@@ -167,6 +172,8 @@ export interface RmAnovaInput {
   cells?: string[];
   /** Further between-subjects factors, crossed with `between` (car::Anova, type II); absent with one or none. */
   moreBetween?: string[];
+  /** One within factor, no between factor: the adjustment of Conover's comparisons (absent: Holm). */
+  adjust?: PAdjust;
 }
 /** Several within factors: the design's columns (otherwise the levels). */
 export const rmColumns = (
@@ -210,6 +217,9 @@ export interface RmAnovaResult {
   factors?: WithinFactor[];
   corrected: { term: string; p: number; pGG: number; pHF: number }[];
   friedman: HTest | null;
+  /** One within factor, no between factor: Conover's test of every pair of levels after Friedman, adjusted by `adjust`. */
+  conover?: { comparison: string; t: number; df: number; p: number; pAdjusted: number }[];
+  adjust?: PAdjust;
   cells: (Desc & { cell: string })[];
   warnings: string[];
   engine: REngineInfo;
@@ -320,6 +330,7 @@ export interface CorrelationResult {
   engine: REngineInfo;
 }
 
+/** `paired`: the rows and columns are the same subjects' two measurements on the same categories (McNemar, Bowker). */
 export interface ContingencyInput {
   rows: string;
   columns: string;
@@ -327,6 +338,20 @@ export interface ContingencyInput {
   confidence: number;
   /** Cramér's V and phi with confidence intervals (effectsize). */
   effectSizes?: boolean;
+  paired?: true;
+}
+/**
+ * The paired tests: the square table on the categories of both measurements; for 2 x 2 McNemar's chi-square without
+ * and with the continuity correction and the exact (binomial) test of the discordant pairs b and c; for k x k
+ * Bowker's test of symmetry (over the pairs of cells that hold any subjects).
+ */
+export interface PairedTests {
+  levels: string[];
+  counts: number[][];
+  mcnemar: HTest | null;
+  mcnemarCorrected: HTest | null;
+  exact: { p: number; b: number; c: number } | null;
+  bowker: { stat: number; df: number; p: number } | null;
 }
 export interface ContingencyResult {
   rows: string;
@@ -344,18 +369,35 @@ export interface ContingencyResult {
   phi: number | null;
   oddsRatio: { est: number; ciLow: number; ciHigh: number } | null;
   effects?: EffectSize[] | null;
+  paired?: PairedTests;
   confidence: number;
   warnings: string[];
   engine: REngineInfo;
 }
 
+/** The p-value adjustments of post hoc comparisons (R's p.adjust). */
+export type PAdjust = 'holm' | 'bonferroni' | 'BH';
+/** `cochran`: Cochran's Q of the binary measures `vars`, pairwise McNemar tests adjusted by `adjust` (absent: Holm). */
 export interface FreqTestInput {
-  type: 'binomial' | 'multinomial';
+  type: 'binomial' | 'multinomial' | 'cochran';
   variable: string;
   testValue: number;
   proportions: number[];
   alternative: Alternative;
   confidence: number;
+  vars?: string[];
+  adjust?: PAdjust;
+}
+/** A pair of measures after Cochran's Q: McNemar's test (continuity-corrected) and the exact test, adjusted. */
+export interface CochranPair {
+  comparison: string;
+  b: number;
+  c: number;
+  chisq: number;
+  p: number;
+  pAdjusted: number;
+  pExact: number;
+  pExactAdjusted: number;
 }
 export interface FreqTestResult {
   type: FreqTestInput['type'];
@@ -368,6 +410,13 @@ export interface FreqTestResult {
   binomial: (HTest & { proportion: number })[] | null;
   testValue: number | null;
   multinomial: (HTest & { expected: number[] }) | null;
+  /** Cochran's Q: the measures, the value counted as 1, each measure's share of it, the test and the pairs. */
+  vars?: string[];
+  success?: string;
+  proportions?: number[];
+  cochran?: { stat: number; df: number; p: number };
+  posthoc?: CochranPair[];
+  adjust?: PAdjust;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -455,6 +504,7 @@ export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
     kruskal: obj<HTest>(r.kruskal),
     tukey: r.tukey ? rList(r.tukey) : null,
     pairwiseRank: r.pairwiseRank ? rList(r.pairwiseRank) : null,
+    dunn: r.dunn ? rList(r.dunn) : null,
     cells: rList(r.cells),
     effects: r.effects ? rList<AnovaEffect>(r.effects) : null,
     epsilon2: r.epsilon2 ? effects(r.epsilon2)[0] : null,
@@ -479,6 +529,7 @@ export async function rmAnovaR(d: Dataset, i: RmAnovaInput): Promise<RmAnovaResu
     betweenTable: rList<RmRow>(r.betweenTable),
     corrected: rList(r.corrected),
     friedman: obj<HTest>(r.friedman),
+    ...(r.conover ? { conover: rList(r.conover) } : {}),
     cells: rList(r.cells),
     posthoc: rList(r.posthoc),
     sphericity: obj(r.sphericity),
@@ -554,14 +605,26 @@ export async function contingencyR(d: Dataset, i: ContingencyInput): Promise<Con
     phi: r.phi ?? null,
     oddsRatio: obj(r.oddsRatio),
     effects: r.effects ? effects(r.effects) : null,
+    ...(r.paired ? { paired: parsePaired(r.paired) } : {}),
     warnings: rStrings(r.warnings),
   } as ContingencyResult;
+}
+/** The paired tests from R's JSON. */
+function parsePaired(raw: Record<string, any>): PairedTests {
+  return {
+    levels: rList<string>(raw.levels),
+    counts: rList<unknown>(raw.counts).map((row) => rList<number>(row)),
+    mcnemar: obj<HTest>(raw.mcnemar),
+    mcnemarCorrected: obj<HTest>(raw.mcnemarCorrected),
+    exact: obj(raw.exact),
+    bowker: obj(raw.bowker),
+  };
 }
 export const contingencyScriptR = (d: Dataset, i: ContingencyInput) =>
   rScript('ps_contingency', contingencyRequest(d, i), effectsPackage(i));
 
 export const freqTestRequest = (d: Dataset, i: FreqTestInput) =>
-  testRequest(d, 'freqtest', [i.variable], i);
+  testRequest(d, 'freqtest', i.type === 'cochran' ? (i.vars ?? []) : [i.variable], i);
 export async function freqTestR(d: Dataset, i: FreqTestInput): Promise<FreqTestResult> {
   const r = await rCall<Record<string, any>>('ps_freqtest', freqTestRequest(d, i), 'stats');
   const mult = obj<Record<string, unknown>>(r.multinomial);
@@ -572,6 +635,13 @@ export async function freqTestR(d: Dataset, i: FreqTestInput): Promise<FreqTestR
     binomial: r.binomial ? rList(r.binomial) : null,
     testValue: r.testValue ?? null,
     multinomial: mult ? { ...mult, expected: rList<number>(mult.expected) } : null,
+    ...(r.cochran
+      ? {
+          vars: rList<string>(r.vars),
+          proportions: rList<number>(r.proportions),
+          posthoc: rList<CochranPair>(r.posthoc),
+        }
+      : {}),
     warnings: rStrings(r.warnings),
   } as FreqTestResult;
 }
@@ -591,7 +661,7 @@ export interface KappaTable {
  * diagonal: disagreement weights).
  */
 export interface ReliabilityInput {
-  type: 'scale' | 'icc' | 'kappa' | 'blandaltman';
+  type: 'scale' | 'icc' | 'kappa' | 'blandaltman' | 'fleiss' | 'kripp' | 'kendallw' | 'gwet';
   vars: string[];
   confidence: number;
   kappaTable?: KappaTable;
@@ -604,6 +674,60 @@ export interface ReliabilityInput {
   /** Scale, Bayesian: iterations per chain (absent: Bayesrel's 1000) and the seed. */
   iterations?: number;
   seed?: number;
+  /** Krippendorff's alpha: the level of measurement (absent: nominal). */
+  krippLevel?: KrippLevel;
+  /** Krippendorff's alpha: bootstrap samples over the subjects (absent: 1000; 0: no interval), seeded by `seed`. */
+  bootstrap?: number;
+  /** Gwet's coefficient: unweighted (AC1) or weighted (AC2; irrCAC's weights). Absent: unweighted. */
+  gwetWeights?: GwetWeights;
+}
+/** irrCAC's weights for Gwet's AC2 (unweighted: AC1). */
+export type GwetWeights = 'unweighted' | 'linear' | 'quadratic' | 'ordinal';
+/**
+ * Gwet's AC1 / AC2 (irrCAC): the coefficient from the agreement `pa` and chance agreement `pe`, irrCAC's standard
+ * error (5 decimals), the interval (coefficient ± t(n − 1) SE, at most 1) and the one-sided p of AC > 0.
+ */
+export interface GwetResult {
+  name: string;
+  weights: string;
+  value: number;
+  pa: number;
+  pe: number;
+  se: number;
+  ciLow: number;
+  ciHigh: number;
+  p: number;
+  ratings: number;
+}
+/** The levels of measurement of Krippendorff's alpha. */
+export const KRIPP_LEVELS = ['nominal', 'ordinal', 'interval', 'ratio'] as const;
+export type KrippLevel = (typeof KRIPP_LEVELS)[number];
+/** Fleiss' kappa (z test of kappa = 0) and Conger's exact kappa. */
+export interface FleissResult {
+  kappa: number;
+  z: number;
+  p: number;
+  exact: number;
+}
+/** Krippendorff's alpha, with the bootstrap interval and the shares of bootstrap alphas below .667 and .8. */
+export interface KrippResult {
+  alpha: number;
+  level: KrippLevel;
+  pairable: number;
+  bootstrap: number;
+  seed?: number | null;
+  ciLow?: number | null;
+  ciHigh?: number | null;
+  below667?: number | null;
+  below800?: number | null;
+}
+/** Kendall's W without and with the correction for ties: chi-square on n - 1 degrees of freedom. */
+export interface KendallRow {
+  corrected: boolean;
+  w: number;
+  chisq: number;
+  df: number;
+  p: number;
 }
 
 /** A Bayesian reliability coefficient: posterior mean, credible interval, R-hat and effective sample size. */
@@ -643,6 +767,9 @@ export interface ReliabilityResult {
   glb?: number;
   mean?: number;
   sd?: number;
+  /** Scale: the SD of the scale score (the item mean) and the standard error of measurement, SD * sqrt(1 - reliability). */
+  scoreSd?: number;
+  sem?: { alpha: number; omega: number; glb: number };
   items?: { item: string; alphaIfDropped: number; itemRest: number; mean: number; sd: number }[];
   icc?: {
     type: string;
@@ -653,7 +780,12 @@ export interface ReliabilityResult {
     p: number;
     ciLow: number;
     ciHigh: number;
+    /** SD * sqrt(1 - ICC): the SD of all ratings (single rater) or of the subjects' means (k raters). */
+    sem?: number;
   }[];
+  /** ICC: the SD of all ratings and the SD of the subjects' mean ratings. */
+  sdSingle?: number;
+  sdMean?: number;
   kappa?: { est: number; ciLow: number; ciHigh: number };
   weighted?: { est: number; ciLow: number; ciHigh: number };
   categories?: number;
@@ -670,14 +802,25 @@ export interface ReliabilityResult {
   weights?: ReliabilityInput['kappaWeights'];
   /** Scale: Bayesian reliability (Bayesrel), when asked for. */
   bayes?: BayesReliabilityResult;
+  /** Several raters: the number of raters (columns). */
+  raters?: number;
+  fleiss?: FleissResult;
+  fleissCategories?: { category: string; kappa: number; z: number; p: number }[];
+  kripp?: KrippResult;
+  kendall?: KendallRow[];
+  gwet?: GwetResult;
   warnings: string[];
   engine: REngineInfo;
 }
 export const reliabilityRequest = (d: Dataset, i: ReliabilityInput) =>
   testRequest(d, 'reliability', reliabilityColumns(i), i);
 /** The R packages of a reliability analysis: base R (Bland–Altman), psych, or psych with Bayesrel. */
-function reliabilityPackage(i: ReliabilityInput): 'stats' | 'psych' | 'Bayesrel' {
+function reliabilityPackage(
+  i: ReliabilityInput,
+): 'stats' | 'psych' | 'Bayesrel' | 'irr' | 'irrCAC' {
   if (i.type === 'blandaltman') return 'stats';
+  if (i.type === 'gwet') return 'irrCAC';
+  if (i.type === 'fleiss' || i.type === 'kripp' || i.type === 'kendallw') return 'irr';
   if (i.type === 'scale' && i.bayes) return 'Bayesrel';
   return 'psych';
 }
@@ -718,6 +861,8 @@ export async function reliabilityR(d: Dataset, i: ReliabilityInput): Promise<Rel
         }
       : {}),
     ...(bayes ? { bayes } : {}),
+    ...(r.fleissCategories ? { fleissCategories: rList(r.fleissCategories) } : {}),
+    ...(r.kendall ? { kendall: rList<KendallRow>(r.kendall) } : {}),
     warnings: rStrings(r.warnings),
   } as ReliabilityResult;
 }

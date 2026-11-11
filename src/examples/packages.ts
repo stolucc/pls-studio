@@ -114,7 +114,9 @@ export type ExamplePackage =
   | 'TOSTER'
   | 'metafor'
   | 'metadat'
-  | 'pROC';
+  | 'pROC'
+  | 'irr'
+  | 'irrCAC';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -183,6 +185,8 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'TOSTER',
   'metafor',
   'pROC',
+  'irr',
+  'irrCAC',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */

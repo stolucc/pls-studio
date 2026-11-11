@@ -2,6 +2,7 @@
 // JSON request and returns JSON results, or (export = TRUE) the self-contained
 // R script that produces them.
 
+import agreementR from './R/agreement.R?raw';
 import analysesR from './R/analyses.R?raw';
 import bootR from './R/boot.R?raw';
 import commonR from './R/common.R?raw';
@@ -17,6 +18,7 @@ import mcR from './R/mc.R?raw';
 import mixedR from './R/mixed.R?raw';
 import mixtureR from './R/mixture.R?raw';
 import ncaR from './R/nca.R?raw';
+import nonparametricR from './R/nonparametric.R?raw';
 import plsR from './R/pls.R?raw';
 import regressionR from './R/regression.R?raw';
 import plsxR from './R/plsx.R?raw';
@@ -89,6 +91,8 @@ export const SOURCES = {
   effects: effectsR,
   network: networkR,
   tests: testsR,
+  agreement: agreementR,
+  nonparametric: nonparametricR,
   bayes: bayesR,
   customml: customMlR,
   twolevelefa: twoLevelEfaR,
@@ -164,6 +168,10 @@ export const R_PACKAGES = {
   psych: ['jsonlite', 'psych', 'GPArotation'],
   // Bayesian scale reliability (Bayesrel, Pfadt et al.): alpha, lambda-2, omega and the glb with credible intervals.
   Bayesrel: ['jsonlite', 'psych', 'GPArotation', 'Bayesrel'],
+  // Agreement of several raters: Fleiss' kappa, Krippendorff's alpha, Kendall's W (irr, on lpSolve).
+  irr: ['jsonlite', 'irr'],
+  // Gwet's AC1 / AC2 with its standard error (irrCAC, on dplyr, tidyr, stringr and tibble).
+  irrCAC: ['jsonlite', 'irrCAC'],
   // Exploratory factor analysis with lavaan's efa() (standard errors, the fit by number of factors).
   psychLavaan: ['jsonlite', 'psych', 'GPArotation', 'lavaan'],
   semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],

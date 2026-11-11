@@ -2,7 +2,7 @@
 // the numbers it prints checked in cards/basic.webr.test.ts.
 //
 // Data written inline on a help page (sleep in wide form, RoundingTimes, the plastic film, Agresti's tables, Mendel's
-// cross, Shrout & Fleiss's ratings, Hollander & Wolfe's tuna, Cohen's agreement table) are shipped as CSV files in public/examples/tests, coded as the help page codes them.
+// cross, Shrout & Fleiss's ratings, Hollander & Wolfe's tuna, Cohen's agreement table, Krippendorff's coders, Agresti's approval table) are shipped as CSV files in public/examples/tests, coded as the help page codes them.
 
 import { CB } from '../define';
 import type { PackageExample } from '../packages';
@@ -19,6 +19,10 @@ const PSYCH = (page: string) => ({
 const BAYESREL = (page: string) => ({
   label: `Bayesrel, ?${page}`,
   url: `https://rdrr.io/cran/Bayesrel/man/${page}.html`,
+});
+const IRR = (page: string) => ({
+  label: `irr, ?${page}`,
+  url: `https://rdrr.io/cran/irr/man/${page}.html`,
 });
 const OK_CELLS = ['pre', 'post', 'fup'].flatMap((p) => [1, 2, 3, 4, 5].map((h) => `${p}.${h}`));
 /** Cohen's (1968) table of proportions (?cohen.kappa), one row per cell. */
@@ -427,6 +431,43 @@ export const CARD_BASIC: PackageExample[] = [
     settings: CB('ML'),
   },
   {
+    id: 'stats-mcnemar-performance',
+    package: 'stats',
+    title: 'McNemar’s test: approval of the president, a month apart',
+    source: 'stats, ?mcnemar.test (Agresti 1990, p. 350)',
+    links: [RD('mcnemar.test')],
+    description:
+      'Agresti’s (1990) table on the help page: 1600 people asked twice, a month apart, whether they approve of the ' +
+      'president’s performance, one row per cell with its count. The help page’s mcnemar.test(Performance) gives ' +
+      'χ² = 16.82 on 1 df, p = 4.1e-5 (with the continuity correction, R’s default). With “Paired measurements” ' +
+      'the card adds that test, the uncorrected one and the exact test of the discordant pairs. Opens its card on ' +
+      'the Analyses tab.',
+    shows:
+      'Approval fell: 150 people moved from approve to disapprove and only 86 the other way. McNemar’s χ² = 16.82 ' +
+      '(continuity-corrected, the help page’s value), p = 0.00004; the uncorrected χ² (17.36) and the exact test ' +
+      '(p = 0.00004) agree. The χ² test of independence on the same card answers a different question: whether the ' +
+      'two answers are related, which they obviously are.',
+    data: {
+      package: 'stats',
+      name: 'presidential approval (?mcnemar.test)',
+      file: 'examples/tests/performance.csv',
+    },
+    constructs: [],
+    paths: [],
+    labels: {
+      first: ['Approve', 'Disapprove'],
+      second: ['Approve', 'Disapprove'],
+    },
+    panel: {
+      kind: 'contingency',
+      rows: 'first',
+      columns: 'second',
+      counts: 'count',
+      paired: true,
+    },
+    settings: CB('ML'),
+  },
+  {
     id: 'stats-contingency-job',
     package: 'stats',
     title: 'Fisher’s exact test: income and job satisfaction',
@@ -524,6 +565,130 @@ export const CARD_BASIC: PackageExample[] = [
     constructs: [],
     paths: [],
     panel: { kind: 'reliability', type: 'scale', vars: ['N1', 'N2', 'N3', 'N4', 'N5'] },
+    settings: CB('ML'),
+  },
+  {
+    id: 'irr-fleiss-diagnoses',
+    package: 'irr',
+    title: 'Fleiss’ kappa: six psychiatrists’ diagnoses',
+    source: 'irr, ?kappam.fleiss, ?diagnoses (Fleiss 1971)',
+    links: [
+      IRR('kappam.fleiss'),
+      IRR('diagnoses'),
+      {
+        label: 'Fleiss (1971), Psychological Bulletin 76(5)',
+        url: 'https://doi.org/10.1037/h0031619',
+      },
+    ],
+    description:
+      'Fleiss’s (1971) data, shipped with irr as diagnoses: 30 patients, each diagnosed by six psychiatrists into ' +
+      'five categories (depression, personality disorder, schizophrenia, neurosis, other). The help page’s ' +
+      'kappam.fleiss(diagnoses) gives κ = 0.430 (z = 17.65), kappam.fleiss(diagnoses, exact = TRUE) Conger’s exact ' +
+      'κ = 0.442, and detail = TRUE the kappa of each category. Opens its card on the Analyses tab.',
+    shows:
+      'Fleiss’ κ = 0.430 for the six psychiatrists: moderate agreement, well above chance (z = 17.65). Conger’s exact ' +
+      'κ is a little higher, 0.442. By category, the psychiatrists agree best on “other” (0.566) and schizophrenia ' +
+      '(0.520) and least on depression and personality disorder (0.245 each).',
+    data: { package: 'irr', name: 'diagnoses' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'reliability',
+      type: 'fleiss',
+      vars: ['rater1', 'rater2', 'rater3', 'rater4', 'rater5', 'rater6'],
+    },
+    settings: CB('ML'),
+  },
+  {
+    id: 'irr-kripp-alpha',
+    package: 'irr',
+    title: 'Krippendorff’s alpha: four coders with missing values',
+    source: 'irr, ?kripp.alpha (Krippendorff 2011)',
+    links: [
+      IRR('kripp.alpha'),
+      {
+        label: 'Krippendorff (2011), Computing Krippendorff’s alpha-reliability',
+        url: 'https://repository.upenn.edu/asc_papers/43/',
+      },
+    ],
+    description:
+      'Krippendorff’s example on the help page (the matrix nmm): four coders assign 12 units to five values, with ' +
+      'some units left uncoded by some coders. One row per unit here, one column per coder. The help page’s ' +
+      'kripp.alpha(nmm, "ordinal") gives α = 0.815 (nominal 0.743, interval 0.849, ratio 0.797, the values ' +
+      'Krippendorff reports). The card adds a bootstrap interval over the units (1000 samples, seed 1). ' +
+      'Opens its card on the Analyses tab.',
+    shows:
+      'Ordinal α = 0.815 over 40 pairable values: above .800, Krippendorff’s bar for reliable data, but with 12 units ' +
+      'the bootstrap interval runs from 0.48 to 1 and 45% of the bootstrap alphas fall below .800 (16% below .667). ' +
+      'Switch the level of measurement to see 0.743 (nominal), 0.849 (interval) and 0.797 (ratio).',
+    data: {
+      package: 'irr',
+      name: 'Krippendorff’s coders (?kripp.alpha)',
+      file: 'examples/tests/krippendorff.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'reliability',
+      type: 'kripp',
+      vars: ['coder1', 'coder2', 'coder3', 'coder4'],
+      krippLevel: 'ordinal',
+    },
+    settings: { ...CB('ML'), seed: 1 },
+  },
+  {
+    id: 'irr-kendall-anxiety',
+    package: 'irr',
+    title: 'Kendall’s W: three raters’ anxiety ratings',
+    source: 'irr, ?kendall, ?anxiety',
+    links: [IRR('kendall'), IRR('anxiety')],
+    description:
+      'irr’s anxiety: 20 subjects whose anxiety three raters scored from 1 to 6. The help page’s ' +
+      'kendall(anxiety, TRUE) gives the tie-corrected Wt = 0.54, χ²(19) = 30.8, p = 0.0429; the card shows W without ' +
+      'the correction too (0.502, p = 0.072). Opens its card on the Analyses tab.',
+    shows:
+      'With the correction for ties (the ratings use six values for 20 subjects, so ties are many) Wt = 0.540, ' +
+      'χ²(19) = 30.8, p = 0.043: the raters order the subjects somewhat alike. Without the correction W = 0.502 and ' +
+      'p = 0.072, which is why the corrected value is the one to report here.',
+    data: { package: 'irr', name: 'anxiety' },
+    constructs: [],
+    paths: [],
+    panel: { kind: 'reliability', type: 'kendallw', vars: ['rater1', 'rater2', 'rater3'] },
+    settings: CB('ML'),
+  },
+  {
+    id: 'irrcac-gwet-raw4raters',
+    package: 'irrCAC',
+    title: 'Gwet’s AC1: four raters with missing ratings',
+    source: 'irrCAC, ?gwet.ac1.raw, ?cac.raw4raters (Gwet 2014)',
+    links: [
+      { label: 'irrCAC, ?gwet.ac1.raw', url: 'https://rdrr.io/cran/irrCAC/man/gwet.ac1.raw.html' },
+      {
+        label: 'irrCAC, ?cac.raw4raters',
+        url: 'https://rdrr.io/cran/irrCAC/man/cac.raw4raters.html',
+      },
+      {
+        label: 'Gwet (2008), British Journal of Mathematical and Statistical Psychology 61',
+        url: 'https://doi.org/10.1348/000711006X126600',
+      },
+    ],
+    description:
+      'irrCAC’s cac.raw4raters, from Gwet’s Handbook of Inter-Rater Reliability (2014, p. 120): four raters put 12 ' +
+      'subjects into five categories, and none of them rated every subject. The help page’s ' +
+      'gwet.ac1.raw(cac.raw4raters)$est gives AC1 = 0.77544 (SE 0.14295, interval 0.461 to 1); with ' +
+      'weights = "quadratic" AC2 = 0.914. Opens its card on the Analyses tab.',
+    shows:
+      'AC1 = 0.775 with a standard error of 0.143 from 41 ratings: the raters agree on 82% of their pairs of ' +
+      'ratings, against 19% expected by chance. Choose quadratic weights to treat the categories as ordered: ' +
+      'AC2 = 0.914, as the help page shows.',
+    data: { package: 'irrCAC', name: 'cac.raw4raters' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'reliability',
+      type: 'gwet',
+      vars: ['Rater1', 'Rater2', 'Rater3', 'Rater4'],
+    },
     settings: CB('ML'),
   },
   {

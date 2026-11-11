@@ -102,11 +102,14 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
       'rengine/tests::one-way',
       'rengine/tests::ANCOVA',
       'rengine/effects::ANOVA',
+      'rengine/nonparametric::Dunn',
     ],
+    note: 'Dunn’s test after Kruskal–Wallis against dunn.test (scripts/validation/nonparametric.R).',
   },
   rmanova: {
     examples: ['stats-rmanova-rounding', 'cardata-rmanova-obrienkaiser'],
-    features: ['rengine/tests::repeated measures'],
+    features: ['rengine/tests::repeated measures', 'rengine/nonparametric::Conover'],
+    note: 'Conover’s test after Friedman against PMCMRplus::frdAllPairsConoverTest (scripts/validation/nonparametric.R).',
   },
   manova: { examples: ['stats-manova-plastic'], features: ['rengine/tests::MANOVA'] },
   correlation: {},
@@ -129,8 +132,13 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/correlationPolychoric'],
   },
   contingency: {
-    examples: ['stats-contingency-party', 'stats-contingency-job'],
-    features: ['rengine/tests::contingency tables', 'rengine/effects::Cramér'],
+    examples: ['stats-contingency-party', 'stats-contingency-job', 'stats-mcnemar-performance'],
+    features: [
+      'rengine/tests::contingency tables',
+      'rengine/effects::Cramér',
+      'rengine/nonparametric::McNemar',
+      'rengine/nonparametric::Bowker',
+    ],
   },
   freqtest: {},
   'freqtest:binomial': {
@@ -143,16 +151,22 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['stats-multinomial'],
     features: ['rengine/tests::binomial and multinomial'],
   },
+  'freqtest:cochran': {
+    title: 'Cochran’s Q with pairwise McNemar tests',
+    features: ['rengine/nonparametric::Cochran'],
+    note: 'Q against DescTools::CochranQTest; the pairs against mcnemar.test and binom.test (scripts/validation/nonparametric.R).',
+  },
   reliability: {},
   'reliability:scale': {
     title: 'Scale reliability (alpha, omega, glb)',
     examples: ['psych-alpha-neuroticism'],
-    features: ['rengine/tests::scale reliability'],
+    features: ['rengine/tests::scale reliability', 'rengine/agreement::scale reliability'],
+    note: 'The standard errors of measurement: rengine/agreement (scripts/validation/agreement.R).',
   },
   'reliability:icc': {
     title: 'Intraclass correlations',
     examples: ['psych-icc-shroutfleiss'],
-    features: ['rengine/tests::intraclass'],
+    features: ['rengine/tests::intraclass', 'rengine/agreement::intraclass'],
   },
   'reliability:kappa': {
     title: 'Cohen’s kappa',
@@ -164,6 +178,27 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['bayesrel-asrm'],
     features: ['rengine/tests::Bayesian with the glb'],
     note: 'Bayesrel::strel with the same seed (scripts/validation/bayesrel.R).',
+  },
+  'reliability:fleiss': {
+    title: 'Fleiss’ kappa and Conger’s exact kappa (irr)',
+    examples: ['irr-fleiss-diagnoses'],
+    features: ['rengine/agreement::Fleiss'],
+  },
+  'reliability:kripp': {
+    title: 'Krippendorff’s alpha with a bootstrap interval (irr)',
+    examples: ['irr-kripp-alpha'],
+    features: ['rengine/agreement::Krippendorff'],
+    note: 'The bootstrap over the units against a loop written in desktop R with the same seed.',
+  },
+  'reliability:gwet': {
+    title: 'Gwet’s AC1 / AC2 (irrCAC)',
+    examples: ['irrcac-gwet-raw4raters'],
+    features: ['rengine/agreement::Gwet'],
+  },
+  'reliability:kendallw': {
+    title: 'Kendall’s W, with the correction for ties (irr)',
+    examples: ['irr-kendall-anxiety'],
+    features: ['rengine/agreement::Kendall'],
   },
   'reliability:blandaltman': {
     title: 'Bland–Altman limits of agreement',

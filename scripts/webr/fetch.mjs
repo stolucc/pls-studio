@@ -151,6 +151,8 @@ const ROOTS = [
   'TOSTER',
   'metafor',
   'pROC',
+  'irr',
+  'irrCAC',
 ];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES
