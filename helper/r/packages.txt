@@ -12,6 +12,7 @@ OpenMx
 QCA
 SEMsens
 TOSTER
+WRS2
 WeightIt
 bain
 blavaan
@@ -21,10 +22,12 @@ cSEM
 car
 carData
 cobalt
+coin
 corpcor
 did
 dynamic
 effectsize
+emmeans
 faraway
 fixest
 flexmix
@@ -63,6 +66,7 @@ optimx
 optmatch
 pROC
 pbivnorm
+pbkrtest
 piecewiseSEM
 plspm
 plssem

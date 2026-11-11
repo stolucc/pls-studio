@@ -214,6 +214,11 @@ it('ids are unique and every R package the app calculates with has an example', 
   // psychotools: example data only (YouthGratitude), shown by the strucchange example.
   // informative: the informative-hypotheses card with both restriktor and bain, shown by their own examples.
   // metadat: example data only (dat.bcg), shown by the metafor example.
+  // carEmmeans, lme4Emmeans: emmeans with car (repeated measures, several between factors) or lme4, shown by the emmeans example.
+  // resampling: emmeans, WRS2, boot and coin together on the basic cards, shown by the WRS2 and coin examples.
+  // regressionBoot: the regression card with boot (bootstrap intervals), shown by the regression examples.
+  // basicTests: effectsize, TOSTER, emmeans, WRS2, boot and coin together (a basic card's effect sizes, equivalence tests
+  // or marginal means with the resampling), shown by those packages' examples.
   const covered = new Set<string>([
     ...EXAMPLE_PACKAGES,
     'simulation',
@@ -238,6 +243,11 @@ it('ids are unique and every R package the app calculates with has an example', 
     'psychotools',
     'informative',
     'metadat',
+    'carEmmeans',
+    'lme4Emmeans',
+    'resampling',
+    'regressionBoot',
+    'basicTests',
   ]);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });

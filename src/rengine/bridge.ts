@@ -29,6 +29,8 @@ import effectsR from './R/effects.R?raw';
 import networkR from './R/network.R?raw';
 import segmentR from './R/segment.R?raw';
 import testsR from './R/tests.R?raw';
+import emmR from './R/emm.R?raw';
+import robustR from './R/robust.R?raw';
 import bayesR from './R/bayes.R?raw';
 import customMlR from './R/customml.R?raw';
 import twoLevelEfaR from './R/twolevelefa.R?raw';
@@ -96,6 +98,8 @@ export const SOURCES = {
   tests: testsR,
   agreement: agreementR,
   nonparametric: nonparametricR,
+  emm: emmR,
+  robust: robustR,
   bayes: bayesR,
   customml: customMlR,
   twolevelefa: twoLevelEfaR,
@@ -218,6 +222,20 @@ export const R_PACKAGES = {
   TOSTER: ['jsonlite', 'effectsize', 'TOSTER'],
   // Repeated measures with several between-subjects factors: car::Anova's type II tests (car's ?Anova, OBrienKaiser).
   car: ['jsonlite', 'car'],
+  // Estimated marginal means, post hoc tests, simple effects and contrasts (emmeans) of the ANOVA cards' fits;
+  // with car for repeated measures with several between factors, with lme4 (pbkrtest: Kenward-Roger df) for LMMs.
+  emmeans: ['jsonlite', 'emmeans'],
+  carEmmeans: ['jsonlite', 'car', 'emmeans'],
+  lme4Emmeans: ['jsonlite', 'lme4', 'lmerTest', 'pbkrtest', 'emmeans'],
+  // Robust, bootstrap and permutation alternatives of the basic tests: trimmed means (WRS2), bootstrap intervals
+  // (boot), permutation tests (coin); with emmeans for the ANOVA card's marginal means.
+  WRS2: ['jsonlite', 'WRS2'],
+  coin: ['jsonlite', 'coin'],
+  resampling: ['jsonlite', 'emmeans', 'WRS2', 'boot', 'coin'],
+  // The basic cards with effect sizes, equivalence tests or marginal means and the resampling together.
+  basicTests: ['jsonlite', 'effectsize', 'TOSTER', 'emmeans', 'WRS2', 'boot', 'coin'],
+  // Linear regression with bootstrap intervals of the coefficients.
+  regressionBoot: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest', 'boot'],
   EGAnet: ['jsonlite', 'EGAnet'],
   // Bayesian tests (JZS t-tests, correlations; JASP's priors).
   BayesFactor: ['jsonlite', 'BayesFactor'],

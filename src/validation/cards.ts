@@ -95,6 +95,21 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['stats-ttest-sleep-one'],
     features: ['rengine/tests::one sample', 'rengine/effects::one sample'],
   },
+  'ttest:trimmed': {
+    title: 'Trimmed means: Yuen’s tests, the one-sample trimmed-mean t-test (WRS2)',
+    features: ['rengine/robust::robust and resampling t-tests'],
+    note: 'Against WRS2::yuen and yuend; the one-sample test against Wilcox’s trimci formula with WRS2::winvar (scripts/validation/robust.R).',
+  },
+  'ttest:bootstrap': {
+    title: 'Bootstrap intervals of the mean (difference), percentile and BCa (boot)',
+    features: ['rengine/robust::robust and resampling t-tests'],
+  },
+  'ttest:permutation': {
+    title: 'Permutation tests: two-sample and sign-flip (coin)',
+    examples: ['coin-diffusion'],
+    features: ['rengine/robust::robust and resampling t-tests'],
+    note: 'Against coin with the same seed, and its Monte Carlo p-values against coin’s exact ones.',
+  },
   anova: {
     examples: ['stats-anova-plantgrowth', 'stats-anova-warpbreaks', 'effectsize-mtcars-anova'],
     features: [
@@ -106,13 +121,46 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     ],
     note: 'Dunn’s test after Kruskal–Wallis against dunn.test (scripts/validation/nonparametric.R).',
   },
+  'anova:trimmed': {
+    title: 'Robust one- and two-way ANOVA on trimmed means (WRS2 t1way, t2way)',
+    examples: ['wrs2-viagra'],
+    features: ['rengine/robust::robust and permutation ANOVA'],
+  },
+  'anova:permutation': {
+    title: 'k-sample permutation test (coin::oneway_test)',
+    features: ['rengine/robust::permutation'],
+  },
+  'anova:emmeans': {
+    title: 'Estimated marginal means, post hoc tests, simple effects and contrasts (emmeans)',
+    examples: ['emmeans-warpbreaks'],
+    features: ['rengine/emm::marginal means after ANOVA'],
+    note: 'Against emmeans on lm fits and emmeans::joint_tests (scripts/validation/emm.R).',
+  },
+  'anova:gameshowell': {
+    title: 'Games–Howell comparisons',
+    features: ['rengine/emm::Games–Howell'],
+    note: 'Own formula against rstatix::games_howell_test (scripts/validation/emm.R).',
+  },
   rmanova: {
     examples: ['stats-rmanova-rounding', 'cardata-rmanova-obrienkaiser'],
     features: ['rengine/tests::repeated measures', 'rengine/nonparametric::Conover'],
     note: 'Conover’s test after Friedman against PMCMRplus::frdAllPairsConoverTest (scripts/validation/nonparametric.R).',
   },
+  'rmanova:emmeans': {
+    title: 'Estimated marginal means of repeated measures (emmeans, multivariate model)',
+    features: ['rengine/emm::marginal means after repeated measures'],
+    note: 'Against afex::aov_car with emmeans, afex’s default multivariate model (scripts/validation/emm.R).',
+  },
   manova: { examples: ['stats-manova-plastic'], features: ['rengine/tests::MANOVA'] },
   correlation: {},
+  'correlation:bootstrap': {
+    title: 'Bootstrap intervals of correlations, percentile and BCa (boot)',
+    features: ['rengine/robust::bootstrap interval and permutation test of every pair'],
+  },
+  'correlation:permutation': {
+    title: 'Permutation tests of Pearson and Spearman correlations (coin)',
+    features: ['rengine/robust::bootstrap interval and permutation test of every pair'],
+  },
   'correlation:pearson': {
     title: 'Pearson correlations',
     examples: ['stats-correlation-judges'],
@@ -244,6 +292,10 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   regression: {
     features: ['rengine/regression::HC0'],
     note: 'Robust (HC0, HC3) and cluster standard errors against sandwich; each family below.',
+  },
+  'regression:bootstrap': {
+    title: 'Bootstrap intervals of linear regression coefficients (boot, cases resampled)',
+    features: ['rengine/robust::bootstrap intervals of the coefficients'],
   },
   'regression:gaussian': {
     title: 'Linear (OLS)',
@@ -855,6 +907,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
       'mplus-ex9.16',
     ],
     features: ['rengine/mixed::random intercepts', 'rengine/mixed::within / between'],
+  },
+  'lmm:emmeans': {
+    title: 'Categorical predictors and their estimated marginal means (emmeans on lmer)',
+    features: ['rengine/emm::marginal means after a multilevel regression'],
+    note: 'Kenward–Roger, Satterthwaite and asymptotic df against emmeans on lmerTest::lmer (scripts/validation/emm.R).',
   },
   glmm: {},
   'glmm:poisson': { title: 'Poisson', examples: ['mplus-ex6.6'] },

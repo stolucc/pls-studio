@@ -575,6 +575,18 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     script('network.R', 'desktop bootnet and EGAnet'),
     script('network_modes.R', 'desktop bootnet (pcor, cor, Spearman) and EGAnet (TMFG)'),
   ),
+  'rengine/emm': native(
+    'Estimated marginal means, post hoc tests, simple effects, contrasts',
+    'Basic statistics',
+    ['emmeans'],
+    script('emm.R', 'desktop emmeans, afex (repeated measures), rstatix (Games–Howell), lmerTest'),
+  ),
+  'rengine/robust': native(
+    'Robust (trimmed means), bootstrap and permutation alternatives',
+    'Basic statistics',
+    ['WRS2', 'boot', 'coin'],
+    script('robust.R', 'desktop WRS2, boot and coin with the same seed; coin’s exact p-values'),
+  ),
   'rengine/tests': native(
     'Basic statistics: t-tests, ANOVA, correlations, contingency tables',
     'Basic statistics',

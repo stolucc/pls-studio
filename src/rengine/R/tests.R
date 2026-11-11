@@ -24,6 +24,18 @@ ps_bt_factor_line <- function(req, fr, n) {
   )
 }
 
+#' The level names of a factor made by ps_bt_factor_line (in its level order).
+ps_bt_labels <- function(req, fr, n) {
+  x <- fr$data[[fr$v[[n]]]]
+  codes <- sort(unique(x[!is.na(x)]))
+  l <- unlist(req$categories[[n]])
+  if (!is.null(l) && length(codes) && all(codes %in% seq_along(l))) {
+    l[codes]
+  } else {
+    format(codes, trim = TRUE)
+  }
+}
+
 #' A column's own name from its R name (other text, e.g. a factor name, as it is).
 
 ps_bt_alt <- function(req) {
@@ -91,6 +103,8 @@ ps_ttest <- function(req_json, export = FALSE) {
   for (p in pairs) if (length(p) != 2 || p[1] == p[2]) stop("Each pair needs two different variables.")
   group <- req$group %||% ""
   if (type == "independent" && !nzchar(group)) stop("Choose the grouping variable.")
+  # Trimmed means, bootstrap intervals, permutation tests (R/robust.R).
+  rs <- ps_rs_options(req, c("trimmed", "bootstrap", "permutation"))
   fr <- ps_long_frame(req, unique(c(vars, if (type == "independent") group)))
   v <- fr$v
   a <- sprintf("alternative = \"%s\", conf.level = %s", alt, format(conf))
@@ -188,11 +202,12 @@ ps_ttest <- function(req_json, export = FALSE) {
     if (!is.null(tost)) {
       body <- c(body, ps_tost_ttest_lines(type, r, tost, conf, mu, welch))
     }
+    body <- c(body, ps_rs_ttest_lines(rs, type, r, mu, conf))
   }
   inputs <- list(data = fr$data)
   title <- c(one = "One-sample t-test", paired = "Paired-samples t-test", independent = "Independent-samples t-test")[[type]]
   if (export) {
-    pkgs <- c(if (es) "effectsize", if (!is.null(tost)) "TOSTER")
+    pkgs <- c(if (es) "effectsize", if (!is.null(tost)) "TOSTER", ps_rs_packages(rs))
     report <- sprintf("r%d", seq_along(if (type == "paired") pairs else vars))
     return(ps_script(title, pkgs, inputs, body, report))
   }
@@ -224,7 +239,8 @@ ps_ttest <- function(req_json, export = FALSE) {
       shapiro = if (type == "independent") lapply(r$shapiro, ps_htest) else list(ps_htest(r$shapiro)),
       descriptives = desc,
       effects = ps_es_rows(r$es),
-      tost = ps_tost_result(r$tost)
+      tost = ps_tost_result(r$tost),
+      resampling = if (is.null(rs)) NULL else ps_rs_ttest_out(r, type)
     )
   })
   groups <- if (type == "independent") {
@@ -237,6 +253,7 @@ ps_ttest <- function(req_json, export = FALSE) {
   }
   ps_json(list(
     type = type, alternative = alt, testValue = mu, confidence = conf, groups = groups, rows = rows,
+    resampling = if (is.null(rs)) NULL else rs[c("trim", "resamples", "seed")],
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -269,6 +286,16 @@ ps_anova <- function(req_json, export = FALSE) {
   fml <- sprintf("%s ~ %s", v[[y]], rhs)
   oneway <- length(fac) == 1 && !length(cov)
   adjust <- ps_p_adjust(req)
+  conf <- ps_bt_conf(req)
+  # Marginal means, post hoc tests, simple effects, contrasts (emmeans; R/emm.R).
+  fac_levels <- setNames(lapply(fac, function(n) ps_bt_labels(req, fr, n)), fac)
+  emm <- ps_emm_options(req, fac_levels, games = TRUE)
+  emm_rn <- setNames(vapply(fac, function(n) v[[n]], ""), fac)
+  # Robust ANOVA on trimmed means, permutation test (R/robust.R): one factor, or two for t2way.
+  rs <- ps_rs_options(req, c("trimmed", "permutation"))
+  if (!is.null(rs) && (length(cov) || length(fac) > 2 || (rs$permutation && length(fac) > 1))) {
+    stop("The robust ANOVA is for one or two factors, the permutation test for one factor; neither with covariates.")
+  }
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
     "# Factors (their levels as the groups).",
@@ -288,7 +315,7 @@ ps_anova <- function(req_json, export = FALSE) {
       c(
         sprintf("welch <- oneway.test(%s, data = data, var.equal = FALSE)  # Welch's ANOVA", fml),
         sprintf("kruskal <- kruskal.test(%s, data = data)", fml),
-        sprintf("tukey <- TukeyHSD(aov(%s, data = data), conf.level = %s)", fml, format(ps_bt_conf(req))),
+        sprintf("tukey <- TukeyHSD(aov(%s, data = data), conf.level = %s)", fml, format(conf)),
         "# After Kruskal-Wallis: pairwise Wilcoxon rank-sum tests, p adjusted by Holm's method.",
         sprintf(
           "pwRank <- pairwise.wilcox.test(data$%s, data$%s, p.adjust.method = \"holm\", exact = FALSE)",
@@ -298,16 +325,23 @@ ps_anova <- function(req_json, export = FALSE) {
         ps_dunn_lines(v[[y]], v[[fac[1]]], adjust)
       )
     },
-    if (es) ps_es_anova_lines(ss, ps_bt_conf(req), oneway, fml, seed)
+    if (es) ps_es_anova_lines(ss, conf, oneway, fml, seed),
+    ps_emm_lines(emm, "fit", emm_rn, conf, y = v[[y]]),
+    ps_rs_anova_lines(rs, v[[y]], unname(emm_rn), conf)
   )
   inputs <- list(data = fr$data)
   if (export) {
     report <- c(
-      "tab", "shapiro", "levene",
+      "tab",
+      "shapiro",
+      "levene",
       if (oneway) c("welch", "kruskal", "tukey", "pwRank", "dunn"),
-      if (es) c("es", if (oneway) "epsilon2")
+      if (es) c("es", if (oneway) "epsilon2"),
+      ps_emm_report(emm),
+      if (!is.null(rs) && rs$trimmed) "robust",
+      if (!is.null(rs) && rs$permutation) "perm"
     )
-    pkgs <- if (es) "effectsize" else character(0)
+    pkgs <- c(if (es) "effectsize", if (!is.null(emm)) "emmeans", ps_rs_packages(rs))
     return(ps_script(if (length(cov)) "ANCOVA" else "ANOVA", pkgs, inputs, body, report))
   }
   env <- ps_run(body, inputs)
@@ -379,6 +413,8 @@ ps_anova <- function(req_json, export = FALSE) {
     cells = lapply(names(cells), function(k) c(list(cell = k), ps_desc(cells[[k]]))),
     effects = ps_es_anova_result(env, fr$back),
     epsilon2 = if (!is.null(env$epsilon2)) ps_es_row("epsilon2", env$epsilon2) else NULL,
+    emm = ps_emm_result(env, emm, emm_rn, conf),
+    resampling = ps_rs_anova_out(env, rs, fac),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -456,9 +492,20 @@ ps_rmanova <- function(req_json, export = FALSE) {
     "posthoc <- lapply(pairs, function(p) t.test(Y[, p[1]], Y[, p[2]], paired = TRUE))",
     "pHolm <- p.adjust(vapply(posthoc, function(h) h$p.value, 0), method = \"holm\")"
   )
+  emm <- ps_rm_emm(req, fr, fname, list(within), if (bt) between else character(0))
+  body <- c(body, emm$lines)
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) c("friedman", "conover"), "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")))
+    report <- c(
+      "summary(fit)",
+      "mauchly",
+      "spher",
+      if (!bt) c("friedman", "conover"),
+      "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)",
+      ps_emm_report(emm$o)
+    )
+    packages <- if (is.null(emm$o)) character(0) else "emmeans"
+    return(ps_script("Repeated-measures ANOVA", packages, inputs, body, report))
   }
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
@@ -525,8 +572,33 @@ ps_rmanova <- function(req_json, export = FALSE) {
       )
     }),
     cells = lapply(within, function(l) c(list(cell = l), ps_desc(env$Y[, v[[l]]]))),
+    emm = ps_emm_result(env, emm$o, emm$rn, ps_bt_conf(req)),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
+}
+
+#' Marginal means of a repeated-measures design (R/emm.R) on the multivariate linear model of
+#' the wide columns, as afex's default for emmeans: lm(Y ~ between factors), the within factors
+#' read from the response's columns (`mult.levs`; the last factor varies fastest, so the list is
+#' reversed for expand.grid). `wnames`, `wlevels`: the within factors; `betweens`: the between
+#' factors' names. Returns the options, the names map and the script lines (none without options).
+ps_rm_emm <- function(req, fr, wnames, wlevels, betweens) {
+  bvars <- vapply(betweens, function(b) fr$v[[b]], "", USE.NAMES = FALSE)
+  levels <- c(
+    setNames(wlevels, wnames),
+    setNames(lapply(betweens, function(b) ps_bt_labels(req, fr, b)), betweens)
+  )
+  o <- ps_emm_options(req, levels)
+  rn <- c(setNames(wnames, wnames), setNames(bvars, betweens))
+  k <- rev(seq_along(wnames))
+  mult <- sprintf(
+    "list(%s)",
+    paste(sprintf("%s = %s", wnames[k], vapply(wlevels[k], ps_q, "")), collapse = ", ")
+  )
+  rhs <- if (length(bvars)) paste(bvars, collapse = " * ") else "1"
+  fit <- sprintf("lm(Y ~ %s, data = data)  # the multivariate model of the cells", rhs)
+  lines <- ps_emm_lines(o, fit, rn, ps_bt_conf(req), extra = sprintf(", mult.levs = %s", mult))
+  list(o = o, rn = rn, lines = lines)
 }
 
 #' Several within-subject factors (SPSS's and JASP's "define factors"): `factors`, each
@@ -625,9 +697,13 @@ ps_rmanova_multi <- function(req, design, export) {
     "mauchly <- lapply(effects, function(e) mauchly.test(mlm, M = e$M, X = e$X, idata = idata))  # (an effect with one degree of freedom is spherical)",
     PS_RM_LEVEL_TESTS[c(1, if (!bt) 2, 3)]
   )
+  emm <- ps_rm_emm(req, fr, design$names, design$levels, if (bt) between else character(0))
+  body <- c(body, emm$lines)
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "posthoc")))
+    report <- c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "posthoc", ps_emm_report(emm$o))
+    packages <- if (is.null(emm$o)) character(0) else "emmeans"
+    return(ps_script("Repeated-measures ANOVA", packages, inputs, body, report))
   }
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
@@ -693,6 +769,7 @@ ps_rmanova_multi <- function(req, design, export) {
       seq_along(design$cells),
       function(i) c(list(cell = sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))
     ),
+    emm = ps_emm_result(env, emm$o, emm$rn, ps_bt_conf(req)),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -761,9 +838,12 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     "uni <- summary(av, multivariate = FALSE)",
     PS_RM_LEVEL_TESTS[c(1, 3)]
   )
+  emm <- ps_rm_emm(req, fr, design$names, design$levels, betweens)
+  body <- c(body, emm$lines)
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Repeated-measures ANOVA", "car", inputs, body, c("uni", "posthoc")))
+    packages <- c("car", if (!is.null(emm$o)) "emmeans")
+    return(ps_script("Repeated-measures ANOVA", packages, inputs, body, c("uni", "posthoc", ps_emm_report(emm$o))))
   }
   env <- ps_run(body, inputs)
   ut <- env$uni$univariate.tests
@@ -844,6 +924,7 @@ ps_rmanova_car <- function(req, design, betweens, export) {
     corrected = corr,
     friedman = NULL,
     posthoc = ps_rm_posthoc_out(env$posthoc),
+    emm = ps_emm_result(env, emm$o, emm$rn, ps_bt_conf(req)),
     cells = lapply(
       seq_along(design$cells),
       function(i) c(list(cell = if (single) design$cells[i] else sprintf("%s (%s)", unname(labels[i]), design$cells[i])), ps_desc(env$Y[, i]))
@@ -914,6 +995,8 @@ ps_correlation <- function(req_json, export = FALSE) {
   }
   exact <- isTRUE(req$exact) && method %in% c("spearman", "kendall")
   bound <- if (!is.null(req$tostBound)) ps_tost_cor_bound(req$tostBound)
+  # Bootstrap intervals, permutation tests (R/robust.R); no permutation test for Kendall's tau.
+  rs <- ps_rs_options(req, c("bootstrap", if (method != "kendall") "permutation"))
   body <- c(
     if (listwise) sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[vars])))),
     sprintf("vars <- %s", ps_q(unname(unlist(v[vars])))),
@@ -943,15 +1026,18 @@ ps_correlation <- function(req_json, export = FALSE) {
       )
     },
     "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)",
-    if (!is.null(bound)) ps_tost_cor_lines(method, bound, conf)
+    if (!is.null(bound)) ps_tost_cor_lines(method, bound, conf),
+    ps_rs_cor_lines(rs, method, conf)
   )
   inputs <- list(data = fr$data)
   if (export) {
     report <- c(
       "setNames(tests, vapply(pairs, paste, \"\", collapse = \" ~ \"))",
-      if (!is.null(bound)) "tost"
+      if (!is.null(bound)) "tost",
+      if (!is.null(rs) && rs$bootstrap) "boots",
+      if (!is.null(rs) && rs$permutation) "perms"
     )
-    pkgs <- if (!is.null(bound)) "TOSTER" else character(0)
+    pkgs <- c(if (!is.null(bound)) "TOSTER", ps_rs_packages(rs))
     return(ps_script(sprintf("Correlations (%s)", method), pkgs, inputs, body, report))
   }
   env <- ps_run(body, inputs)
@@ -968,7 +1054,9 @@ ps_correlation <- function(req_json, export = FALSE) {
       ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1],
       ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2],
       exact = if (exact) env$exact[i] else NULL,
-      tost = if (!is.null(bound)) ps_tost_cor_result(env$tost[[i]]) else NULL
+      tost = if (!is.null(bound)) ps_tost_cor_result(env$tost[[i]]) else NULL,
+      bootstrap = if (is.null(env$boots)) NULL else ps_rs_boot_out(env$boots[[i]]),
+      permutation = if (is.null(env$perms)) NULL else env$perms[[i]]
     )
   })
   ps_json(list(
@@ -980,6 +1068,7 @@ ps_correlation <- function(req_json, export = FALSE) {
     pairs = rows,
     exact = if (exact) TRUE else NULL,
     tostBound = bound,
+    resampling = if (is.null(rs)) NULL else rs[c("resamples", "seed")],
     warnings = env$.warnings,
     engine = list(package = "stats", version = as.character(getRversion()))
   ))

@@ -12,6 +12,18 @@ const DATA = (name: string) => ({
   label: `?${name}`,
   url: `https://rdrr.io/r/datasets/${name}.html`,
 });
+const EMMEANS = (page: string) => ({
+  label: `emmeans, ?${page}`,
+  url: `https://rdrr.io/cran/emmeans/man/${page}.html`,
+});
+const WRS2 = (page: string) => ({
+  label: `WRS2, ?${page}`,
+  url: `https://rdrr.io/cran/WRS2/man/${page}.html`,
+});
+const COIN = (page: string) => ({
+  label: `coin, ?${page}`,
+  url: `https://rdrr.io/cran/coin/man/${page}.html`,
+});
 const PSYCH = (page: string) => ({
   label: `psych, ?${page}`,
   url: `https://rdrr.io/cran/psych/man/${page}.html`,
@@ -277,6 +289,126 @@ export const CARD_BASIC: PackageExample[] = [
       covariates: [],
       ssType: 'I',
       interactions: true,
+    },
+    settings: CB('ML'),
+  },
+  {
+    id: 'emmeans-warpbreaks',
+    package: 'emmeans',
+    title: 'Marginal means and post hoc tests: breaks in yarn',
+    source: 'emmeans, ?emmeans (warp.lm)',
+    links: [
+      EMMEANS('emmeans'),
+      EMMEANS('joint_tests'),
+      {
+        label: 'emmeans vignette: basics',
+        url: 'https://cran.r-project.org/web/packages/emmeans/vignettes/basics.html',
+      },
+      DATA('warpbreaks'),
+    ],
+    description:
+      'The help page of emmeans fits warp.lm <- lm(breaks ~ wool * tension, data = warpbreaks) and asks for its estimated marginal means. The card fits the same two-way ANOVA and adds the marginal means of tension (36.39, 26.39 and 21.67 breaks, averaged over the wools), Tukey-adjusted pairwise comparisons (L − M: p = 0.0229; L − H: p = 0.0006), the simple effects of tension within each wool (emmeans::joint_tests) and the profile plot of the vignette’s emmip(warp.lm, wool ~ tension). Opens its card on the Analyses tab.',
+    shows:
+      'Low tension gives the most breaks: its marginal mean of 36.4 is 10.0 above medium (Tukey p = 0.023) and 14.7 above high (p = 0.0006), while medium and high do not differ (p = 0.40). The simple effects show why the interaction matters: tension changes the breaks of wool A (F(2, 48) = 10.31, p = 0.0002) but not clearly of wool B (F = 2.38, p = 0.10), which the profile plot draws as two lines that are far from parallel.',
+    data: { package: 'datasets', name: 'warpbreaks' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'anova',
+      dependent: 'breaks',
+      factors: ['wool', 'tension'],
+      covariates: [],
+      ssType: 'III',
+      interactions: true,
+      emm: {
+        terms: [['tension'], ['wool', 'tension']],
+        posthoc: [['tension']],
+        adjust: ['tukey'],
+        gamesHowell: false,
+        simple: { factor: 'tension', by: 'wool' },
+        contrasts: [],
+        plot: { x: 'tension', lines: 'wool' },
+        df: 'kenward-roger',
+      },
+    },
+    settings: CB('ML'),
+  },
+  {
+    id: 'wrs2-viagra',
+    package: 'WRS2',
+    title: 'Robust one-way ANOVA: libido by Viagra dose',
+    source: 'WRS2, ?t1way (viagra)',
+    links: [
+      WRS2('t1way'),
+      WRS2('viagra'),
+      {
+        label: 'Mair & Wilcox (2020), Behavior Research Methods 52',
+        url: 'https://doi.org/10.3758/s13428-019-01246-w',
+      },
+    ],
+    description:
+      'Field’s (2013) viagra data shipped with WRS2: the libido of 15 people on a placebo, a low or a high dose, five each. The help page runs set.seed(123); t1way(libido ~ dose, data = viagra), the heteroscedastic one-way ANOVA of 20% trimmed means: F = 3, df = 2 and 4, p = 0.16, explanatory effect size ξ = 0.79. The card runs the classical ANOVA with the robust test beside it, seeded with 123 as the help page is. Opens its card on the Analyses tab.',
+    shows:
+      'The robust test of the trimmed means gives F(2, 4) = 3.00, p = 0.16: with five people per dose the groups do not differ clearly, although the explanatory effect size ξ = 0.79 is large (its bootstrap interval, 0.42 to 1.33, is wide). The classical ANOVA above it, on the untrimmed means, gives F(2, 12) = 5.12, p = 0.025.',
+    data: { package: 'WRS2', name: 'viagra' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'anova',
+      dependent: 'libido',
+      factors: ['dose'],
+      covariates: [],
+      ssType: 'III',
+      interactions: true,
+      resampling: {
+        trimmed: true,
+        trim: 0.2,
+        bootstrap: false,
+        permutation: false,
+        resamples: 5000,
+      },
+    },
+    settings: { ...CB('ML'), seed: 123 },
+  },
+  {
+    id: 'coin-diffusion',
+    package: 'coin',
+    title: 'Permutation test: water diffusion across the chorioamnion',
+    source: 'coin, ?oneway_test (Hollander & Wolfe 1999, table 4.1)',
+    links: [
+      COIN('LocationTests'),
+      {
+        label: 'Hothorn et al. (2008), Journal of Statistical Software 28(8)',
+        url: 'https://doi.org/10.18637/jss.v028.i08',
+      },
+    ],
+    description:
+      'The permeability constants of human chorioamnion to tritiated water, ten at term and five at 12–26 weeks of gestation, as coin’s help page writes them out (Hollander & Wolfe 1999, table 4.1). The help page runs the Fisher–Pitman permutation test, oneway_test(pd ~ age), approximately (Monte Carlo, 10,000 resamples) and exactly: p = 0.1319. The card runs the same Monte Carlo test with 10,000 resamples beside Student’s t-test. Opens its card on the Analyses tab.',
+    shows:
+      'The permutation test, which needs no normality, gives p ≈ 0.13 (Monte Carlo with 10,000 resamples; the exact p is 0.1319), so the permeability does not differ clearly between the two ages. Student’s t-test beside it agrees (p = 0.13).',
+    data: {
+      package: 'coin',
+      name: 'diffusion (?oneway_test)',
+      file: 'examples/tests/diffusion.csv',
+    },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'ttest',
+      type: 'independent',
+      vars: ['pd'],
+      group: 'age',
+      student: true,
+      welch: false,
+      rank: false,
+      alternative: 'two.sided',
+      resampling: {
+        trimmed: false,
+        trim: 0.2,
+        bootstrap: false,
+        permutation: true,
+        resamples: 10000,
+      },
     },
     settings: CB('ML'),
   },

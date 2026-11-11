@@ -200,6 +200,11 @@ ps_regression <- function(req_json, export = FALSE) {
   }
   w <- if (nzchar(wcol)) sprintf(", weights = %s", v[[wcol]]) else ""
   piecewise <- family == "survival" && length(cuts) > 0
+  # Bootstrap intervals of a linear model's coefficients, cases resampled (R/robust.R).
+  rs <- ps_rs_options(req, "bootstrap")
+  if (!is.null(rs) && (family != "gaussian" || own || zmod || nzchar(wcol))) {
+    stop("Bootstrap intervals are for linear (gaussian) regression without weights.")
+  }
   # (HC0 for the negative binomial and multinomial models, and every model fitted below by survival or by
   # maximum likelihood written out, is computed here rather than by sandwich::vcovHC)
   own_hc0 <- se == "HC0" && (family %in% c("negbin", "multinomial") || own || zmod)
@@ -375,7 +380,8 @@ ps_regression <- function(req_json, export = FALSE) {
     if (length(blocks)) ps_block_lines(c(rhs_first, block_rhs), lhs, w),
     # (standardised coefficients and the part and partial correlations of an unweighted linear model)
     if (lm_plain && !nzchar(wcol)) PS_LM_DETAILS_LINES,
-    if (case_diag) PS_CASE_LINES
+    if (case_diag) PS_CASE_LINES,
+    ps_rs_regression_lines(rs, fml, conf)
   )
   inputs <- list(data = fr$data)
   title <- if (nzchar(slope)) {
@@ -427,11 +433,12 @@ ps_regression <- function(req_json, export = FALSE) {
       if (durbin) c("dw", "r1  # lag-1 autocorrelation of the residuals"),
       if (length(blocks)) "block_table",
       if (lm_plain && !nzchar(wcol)) "if (exists(\"details\")) details",
-      if (case_diag) "head(case_table[order(-case_table$cooks), ], 20)  # the most influential cases"
+      if (case_diag) "head(case_table[order(-case_table$cooks), ], 20)  # the most influential cases",
+      if (!is.null(rs)) "boots"
     )
   }
   if (export) {
-    return(ps_script(title, c("stats", libs), inputs, body, report))
+    return(ps_script(title, c("stats", libs, ps_rs_packages(rs)), inputs, body, report))
   }
   env <- ps_run(body, inputs)
   fit <- env$fit
@@ -847,6 +854,16 @@ ps_regression <- function(req_json, export = FALSE) {
     vuong = vuong,
     diagnostics = diag,
     curves = curves,
+    bootstrap = if (is.null(rs)) {
+      NULL
+    } else {
+      c(
+        rs[c("resamples", "seed")],
+        list(rows = lapply(names(env$boots), function(t) {
+          c(list(term = nm(t)), ps_rs_boot_out(env$boots[[t]]))
+        }))
+      )
+    },
     warnings = env$.warnings, engine = list(
       package = if (zmod) "pscl" else if (family %in% c("negbin", "ordinal")) "MASS" else if (family == "multinomial") "nnet" else "stats",
       version = as.character(if (zmod) utils::packageVersion("pscl") else if (family %in% c("negbin", "ordinal")) utils::packageVersion("MASS") else if (family == "multinomial") utils::packageVersion("nnet") else getRversion())

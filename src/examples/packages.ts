@@ -119,7 +119,10 @@ export type ExamplePackage =
   | 'metadat'
   | 'pROC'
   | 'irr'
-  | 'irrCAC';
+  | 'irrCAC'
+  | 'emmeans'
+  | 'WRS2'
+  | 'coin';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -193,6 +196,9 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'pROC',
   'irr',
   'irrCAC',
+  'emmeans',
+  'WRS2',
+  'coin',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */

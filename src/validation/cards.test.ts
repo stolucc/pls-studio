@@ -33,6 +33,8 @@ import {
 import { CMB_TYPES } from '../analyses/validity';
 import { HYP_MODES } from '../analyses/hypotheses';
 import { APIM_MODES } from '../analyses/apim';
+import { EMM_MODES } from '../analyses/emm';
+import { RESAMPLING_MODES } from '../analyses/resampling';
 import { EXAMPLES } from '../components/HomeScreen';
 import { examplePanels, PACKAGE_EXAMPLES } from '../examples/packages';
 import { EFA_METHODS } from '../model/efa';
@@ -61,10 +63,10 @@ const EFA_EXTRA_MODES = ['congruence', 'schmid'];
 /** Each card's statistically distinct modes, from its own option lists: a new family, link or engine needs an entry. */
 const CARD_MODES: Record<string, readonly string[]> = {
   chart: CHART_KINDS,
-  ttest: TTEST_TYPES,
+  ttest: [...TTEST_TYPES, ...RESAMPLING_MODES],
   pwr: PWR_TEST_IDS,
   pcor: PCOR_METHODS,
-  correlation: CORRELATION_METHODS,
+  correlation: [...CORRELATION_METHODS, 'bootstrap', 'permutation'],
   freqtest: FREQTEST_TYPES,
   reliability: [...RELIABILITY_TYPES, 'scale:bayes'],
   bttest: BTTEST_TYPES,
@@ -72,6 +74,7 @@ const CARD_MODES: Record<string, readonly string[]> = {
     ...FAMILIES.map(([f]) => f),
     ...Object.entries(LINKS).flatMap(([f, links]) => links.slice(1).map(([l]) => `${f}:${l}`)),
     ...ZERO_MODELS,
+    'bootstrap',
   ],
   customml: CUSTOMML_TYPES,
   did: DID_DESIGNS,
@@ -95,6 +98,9 @@ const CARD_MODES: Record<string, readonly string[]> = {
   glmm: GLMM_FAMILIES,
   hypotheses: HYP_MODES,
   apim: APIM_MODES,
+  anova: [...EMM_MODES, 'trimmed', 'permutation'],
+  rmanova: ['emmeans'],
+  lmm: ['emmeans'],
   // MatchIt's methods (nearest, optimal, full, …) share one code path; weighting is WeightIt's.
   match: [...new Set(MATCH_METHODS.map((m) => (m === 'weighting' ? 'weighting' : 'matchit')))],
 };

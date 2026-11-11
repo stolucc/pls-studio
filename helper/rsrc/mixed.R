@@ -12,6 +12,9 @@ ps_lmm <- function(req_json, export = FALSE) {
   needs_general <- !is.null(req$repeated) || length(req$outcomes) || length(req$levels) || length(req$independent) ||
     length(req$interactions) || !is.null(req$residuals) || !is.null(req$se)
   if (needs_general) {
+    if (length(req$factors) || !is.null(req$emm)) {
+      stop("Categorical predictors and marginal means are for one cluster level, one row per observation, without interaction terms, uncorrelated slopes or robust standard errors.")
+    }
     return(ps_lmm_ext(req, export))
   }
   y <- req$outcome
@@ -23,6 +26,10 @@ ps_lmm <- function(req_json, export = FALSE) {
     stop("The outcome, predictors and cluster column must be different columns.")
   }
   if (!all(slopes %in% xs)) stop("Random slopes need predictors in the model.")
+  # Categorical predictors (factors, dummy-coded against their first level): for marginal means.
+  factors <- as.character(unlist(req$factors))
+  if (!all(factors %in% xs)) stop("Categorical predictors must be predictors in the model.")
+  if (any(factors %in% slopes)) stop("Random slopes are for numeric predictors, not categorical ones.")
   center <- req$center %||% "none"
   if (!center %in% c("none", "grand", "cluster")) stop("Invalid centring in the request.")
   reml <- !identical(req$estimation, "ML")
@@ -32,9 +39,16 @@ ps_lmm <- function(req_json, export = FALSE) {
   C <- v[[cl]]
   X <- unname(v[xs])
   S <- unname(v[slopes])
+  Fv <- unname(v[factors])
+  # (centring and cluster means apply to the numeric predictors)
+  Xn <- setdiff(X, Fv)
+  fac_levels <- setNames(lapply(factors, function(n) ps_bt_labels(req, fr, n)), factors)
+  emm <- ps_emm_options(req, fac_levels, lmer = TRUE)
+  emm_rn <- setNames(Fv, factors)
+  conf <- ps_bt_conf(req)
   # Cluster means of the predictors (between effects), named <x>_cm.
-  cm <- if (center == "cluster" && length(X)) {
-    ps_ident(c(unname(v), paste0(X, "_cm")))[length(v) + seq_along(X)]
+  cm <- if (center == "cluster" && length(Xn)) {
+    ps_ident(c(unname(v), paste0(Xn, "_cm")))[length(v) + seq_along(Xn)]
   } else {
     character(0)
   }
@@ -46,16 +60,23 @@ ps_lmm <- function(req_json, export = FALSE) {
     "suppressPackageStartupMessages(library(lmerTest))  # lme4 with Satterthwaite degrees of freedom",
     "# Cases complete on the model's variables.",
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(c(Y, X, C))),
-    if (center == "grand" && length(X)) {
+    if (length(Fv)) {
       c(
-        "# Predictors centred at their grand mean.",
-        sprintf("data$%s <- data$%s - mean(data$%s)", X, X, X)
+        "# Categorical predictors: factors, dummy-coded against their first level.",
+        vapply(factors, function(n) ps_bt_factor_line(req, fr, n), "", USE.NAMES = FALSE),
+        sprintf("contrasts(data$%s) <- \"contr.treatment\"", Fv)
       )
     },
-    if (center == "cluster" && length(X)) {
+    if (center == "grand" && length(Xn)) {
+      c(
+        "# Predictors centred at their grand mean.",
+        sprintf("data$%s <- data$%s - mean(data$%s)", Xn, Xn, Xn)
+      )
+    },
+    if (center == "cluster" && length(Xn)) {
       c(
         "# Within / between: each predictor split into its cluster mean (between) and the deviation from it (within).",
-        sprintf("data$%s <- ave(data$%s, data$%s)", cm, X, C), sprintf("data$%s <- data$%s - data$%s", X, X, cm)
+        sprintf("data$%s <- ave(data$%s, data$%s)", cm, Xn, C), sprintf("data$%s <- data$%s - data$%s", Xn, Xn, cm)
       )
     },
     "# Intraclass correlation from the model without predictors.",
@@ -78,24 +99,38 @@ ps_lmm <- function(req_json, export = FALSE) {
       if (length(S)) paste(S, collapse = " + ") else "1"
     ),
     "vr <- mean(rowSums((Zr %*% Sg) * Zr)); ve <- sigma(fit)^2",
-    "r2 <- c(marginal = vf / (vf + vr + ve), conditional = (vf + vr) / (vf + vr + ve))"
+    "r2 <- c(marginal = vf / (vf + vr + ve), conditional = (vf + vr) / (vf + vr + ve))",
+    ps_emm_lines(emm, "fit", emm_rn, conf)
   )
   inputs <- list(data = fr$data)
   if (export) {
+    packages <- c(
+      "lme4",
+      "lmerTest",
+      if (!is.null(emm)) "emmeans",
+      if (identical(emm$df, "kenward-roger")) "pbkrtest"
+    )
     return(ps_script(
       sprintf("Multilevel regression (lme4%s)", if (length(S)) ", random slopes" else ""),
-      c("lme4", "lmerTest"),
+      packages,
       inputs,
       body,
-      c("summary(fit)", "icc", "r2", if (length(S)) "slope_test")
+      c("summary(fit)", "icc", "r2", if (length(S)) "slope_test", ps_emm_report(emm))
     ))
   }
   env <- ps_run(body, inputs)
   fit <- env$fit
+  # A factor's dummy coefficients (R name and level) as "factor [level]".
+  dummies <- unlist(lapply(factors, function(n) {
+    lv <- fac_levels[[n]][-1]
+    setNames(sprintf("%s [%s]", n, lv), paste0(v[[n]], lv))
+  }))
   nm <- function(x) {
     out <- ps_back(x, fr$back)
     at <- match(x, cm)
     out[!is.na(at)] <- paste0(xs[at[!is.na(at)]], " (cluster mean)")
+    hit <- x %in% names(dummies)
+    out[hit] <- unname(dummies[x[hit]])
     unname(ifelse(x == "(Intercept)", "Intercept", out))
   }
   co <- env$coefs
@@ -103,8 +138,8 @@ ps_lmm <- function(req_json, export = FALSE) {
   vc <- as.data.frame(lme4::VarCorr(fit))
   focal <- if (length(S)) {
     S[1]
-  } else if (length(X)) {
-    X[1]
+  } else if (length(Xn)) {
+    Xn[1]
   } else {
     NULL
   }
@@ -143,6 +178,7 @@ ps_lmm <- function(req_json, export = FALSE) {
         fixed = c(unname(lme4::fixef(fit)["(Intercept)"]), unname(lme4::fixef(fit)[focal]))
       )
     },
+    emm = ps_emm_result(env, emm, emm_rn, conf),
     warnings = env$.warnings, engine = ps_engine("lme4")
   ))
 }

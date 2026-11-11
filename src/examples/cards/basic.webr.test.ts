@@ -73,9 +73,18 @@ async function runCard<R>(
   const e = ex(id);
   const kind = e.panel!.kind,
     preset = panelPreset(e.panel!);
-  const pkg = ['psych', 'Bayesrel', 'nortest', 'effectsize', 'TOSTER', 'irr', 'irrCAC'].includes(
-    e.package,
-  )
+  const pkg = [
+    'psych',
+    'Bayesrel',
+    'nortest',
+    'effectsize',
+    'TOSTER',
+    'irr',
+    'irrCAC',
+    'emmeans',
+    'WRS2',
+    'coin',
+  ].includes(e.package)
     ? (e.package as RPackage)
     : (e.panel as { moreBetween?: string[] }).moreBetween?.length
       ? 'car'
@@ -255,6 +264,58 @@ describe('basic-statistics card examples in webR', () => {
     near('p wool × tension', row('wool × tension').p, 0.02104419, 1e-8);
     near('SS residual', r.residual.ss, 5745.1111, 1e-4);
     same('df residual', r.residual.df, 48);
+  }, 600_000);
+
+  it('emmeans-warpbreaks: emmeans(warp.lm, ~ tension), pairs (Tukey), joint_tests by wool', async () => {
+    const r = await runCard<AnovaResult>('emmeans-warpbreaks', helpRun('emmeans, ?emmeans'));
+    const e = r.emm!;
+    const m = e.means[0].rows;
+    near('mean L', m[0].emmean, 36.38888889, 1e-7);
+    near('mean M', m[1].emmean, 26.38888889, 1e-7);
+    near('mean H', m[2].emmean, 21.66666667, 1e-7);
+    near('SE', m[0].se, 2.578649677, 1e-8);
+    near('CI low L', m[0].lower, 31.20416622, 1e-7);
+    near('CI high L', m[0].upper, 41.57361156, 1e-7);
+    same('cells', e.means[1].rows.length, 6);
+    const ph = e.posthoc[0].rows;
+    near('L - M', ph[0].estimate, 10, 1e-8);
+    near('SE of a difference', ph[0].se, 3.646761346, 1e-8);
+    near('t L - M', ph[0].t, 2.742159152, 1e-8);
+    near('Tukey p L - M', ph[0].pAdjusted.tukey!, 0.0228553984, 1e-9);
+    near('Tukey p L - H', ph[1].pAdjusted.tukey!, 0.0005595392218, 1e-11);
+    near('Tukey p M - H', ph[2].pAdjusted.tukey!, 0.4049441962, 1e-9);
+    // (emmeans rounds a joint test's F to three decimals; its p-value is from the unrounded F)
+    near('F tension | wool A', e.simple!.rows[0].f, 10.312, 1e-9);
+    near('p tension | wool A', e.simple!.rows[0].p, 0.0001880700333, 1e-12);
+    near('p tension | wool B', e.simple!.rows[1].p, 0.1038637352, 1e-9);
+    same('profile plot points', e.plot!.rows.length, 6);
+  }, 600_000);
+
+  it('wrs2-viagra: set.seed(123); t1way(libido ~ dose, data = viagra)', async () => {
+    const r = await runCard<AnovaResult>('wrs2-viagra', helpRun('WRS2, ?t1way'));
+    const t = (r.resampling as { robust: Record<string, number>[] }).robust[0];
+    near('F', t.stat, 3, 1e-9);
+    same('df1', t.df1, 2);
+    near('df2', t.df2, 4, 1e-9);
+    near('p', t.p, 0.16, 1e-9);
+    near('effect size ξ', t.effsize, 0.7894413, 1e-7);
+    // (the effect size's bootstrap interval, seeded with 123 as the help page)
+    near('ξ CI low', t.effsizeLow, 0.4193932, 1e-7);
+    near('ξ CI high', t.effsizeHigh, 1.3290815, 1e-7);
+  }, 600_000);
+
+  it('coin-diffusion: oneway_test(pd ~ age, data = diffusion), Monte Carlo against exact', async () => {
+    const r = await runCard<TTestResult>('coin-diffusion', helpRun('coin, ?oneway_test'));
+    const p = r.rows[0].resampling!.permutation!;
+    // (the standardised statistic; its sign follows the order of the two groups)
+    near('|z|', Math.abs(p.z), 1.522535, 1e-6);
+    // The exact p the help page prints; 10,000 Monte Carlo resamples are within 4 standard errors of it.
+    near(
+      'p (Monte Carlo against exact)',
+      p.p,
+      0.1318681,
+      4 * Math.sqrt((0.1318681 * 0.8681319) / 10000),
+    );
   }, 600_000);
 
   it('stats-rmanova-rounding: friedman.test(RoundingTimes) and the repeated-measures ANOVA', async () => {

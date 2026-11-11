@@ -37,6 +37,16 @@ import {
 } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import { seriesColor } from '../figure/palette';
+import {
+  bootColumns,
+  bootRow,
+  resampleNote,
+  ResamplingFields,
+  resamplingFingerprint,
+  resamplingPart,
+  withResampling,
+  type ResamplingOptions,
+} from './resampling';
 
 /** `plot`: which predictor's partial-effect curve to show (display only). */
 export interface RegressionOptions
@@ -66,6 +76,8 @@ export interface RegressionOptions
   se: RegressionInput['se'];
   cluster: string;
   plot: string;
+  /** Linear regression: bootstrap intervals of the coefficients. */
+  resampling?: ResamplingOptions | null;
 }
 type Result = RegressionResult & { input: RegressionInput };
 
@@ -99,6 +111,9 @@ export const FAMILIES: readonly (readonly [Family, string, string])[] = [
 /** The count models' zero parts (pscl): zero-inflated or hurdle. */
 export const ZERO_MODELS = ['zeroinfl', 'hurdle'] as const;
 /** Models whose standard errors are model-based or HC0 (the maximum-likelihood sandwich, Mplus MLR) only. */
+/** Bootstrap intervals: a linear model without weights or a random slope. */
+const bootstrapFits = (o: RegressionOptions) =>
+  o.family === 'gaussian' && !o.weights && !o.randomSlope;
 const ownSe = (o: Pick<RegressionOptions, 'family' | 'inflated' | 'randomSlope' | 'zeroModel'>) =>
   o.family === 'multinomial' ||
   o.family === 'censored' ||
@@ -583,6 +598,15 @@ function RegressionOptionsForm({
         predictors at their means (categorical ones at their reference level). For the raw relation
         between two columns use a Chart card.
       </div>
+      {bootstrapFits(o) && (
+        <ResamplingFields
+          value={o.resampling}
+          set={(r) => set(withResampling(o, r))}
+          offer={['bootstrap']}
+          labels={{ bootstrap: 'Bootstrap intervals of the coefficients' }}
+          hint="The cases resampled and the model refitted each time (boot); percentile and BCa intervals."
+        />
+      )}
     </fieldset>
   );
 }
@@ -1001,6 +1025,15 @@ function RegressionView({
           }
         />
       )}
+      {r.bootstrap && (
+        <Table
+          title="Bootstrap confidence intervals of the coefficients"
+          file="regression-bootstrap"
+          columns={['Term', ...bootColumns(r.input.confidence).slice(1)]}
+          rows={r.bootstrap.rows.map((b) => bootRow(b.term, b))}
+          note={resampleNote(r.bootstrap, 'boot, cases resampled and the model refitted')}
+        />
+      )}
       {zero.length > 0 && (
         <Table
           title={
@@ -1114,7 +1147,11 @@ function RegressionView({
 export const regressionInput = (
   o: RegressionOptions,
   ctx: Pick<AnalysisCtx, 'settings'>,
-): RegressionInput => ({ ...o, confidence: ctx.settings.confidence });
+): RegressionInput => ({
+  ...o,
+  confidence: ctx.settings.confidence,
+  ...(o.resampling ? { seed: ctx.settings.seed } : {}),
+});
 export const regressionColumns = (o: RegressionOptions) => [
   ...new Set(
     [
@@ -1237,6 +1274,7 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
             ? { zeroPredictors: names(raw.zeroPredictors) }
             : {}),
           ...parseLinearExtras(raw),
+          ...resamplingPart(raw),
         }
       : null,
   Options: RegressionOptionsForm,
@@ -1294,6 +1332,8 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
         return 'A random slope needs a numeric predictor.';
       if (o.weights) return 'Weights are not available with a random slope.';
     }
+    if (o.resampling?.bootstrap && !bootstrapFits(o))
+      return 'Bootstrap intervals are for linear regression without weights or a random slope.';
     return missingColumns(ctx, regressionColumns(o), 'Regression');
   },
   fingerprint: (o, ctx) =>
@@ -1317,6 +1357,7 @@ export const regressionAnalysis: AnalysisType<RegressionOptions, Result> = {
         : []),
       ...linearExtras({ ...o, confidence: 0.95 }).map((b) => `block:${b.join(',')}`),
       ...(isPlainLinear(o) && o.caseDiagnostics ? ['cases'] : []),
+      ...resamplingFingerprint(o.resampling, ctx.settings.seed),
     ]),
   run: async (o, ctx) => {
     const input = regressionInput(o, ctx);
