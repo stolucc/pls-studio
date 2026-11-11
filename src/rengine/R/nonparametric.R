@@ -2,7 +2,8 @@
 # - McNemar's test of a paired 2 x 2 table (asymptotic, with and without the continuity
 #   correction, and exact) and Bowker's test of symmetry of a paired k x k table;
 # - Cochran's Q test of k related binary measures, with pairwise McNemar tests;
-# - Dunn's test after Kruskal-Wallis.
+# - Dunn's test after Kruskal-Wallis;
+# - Conover's test after Friedman.
 
 #' Script lines of the paired tests of a contingency table: the rows and the columns
 #' are the same subjects' two measurements on the same categories (already factors
@@ -185,5 +186,45 @@ ps_dunn_result <- function(env) {
   d <- env$dunn
   lapply(seq_len(nrow(d)), function(i) {
     list(comparison = d$comparison[i], z = d$z[i], p = d$p[i], pAdjusted = d$pAdjusted[i])
+  })
+}
+
+# ---- Conover's test after Friedman (the repeated-measures card, one within factor)
+
+#' Script lines of Conover's (1999, pp. 371-372) all-pairs test after Friedman's: the
+#' levels' rank sums (ranks within each subject, ties as mid-ranks) compared by a t
+#' statistic on (n - 1)(k - 1) degrees of freedom, p adjusted (`adjust`). `Y`: one row
+#' per subject, one column per level.
+ps_conover_lines <- function(adjust) {
+  c(
+    sprintf("# After Friedman: Conover's test of every pair of levels, p adjusted (%s).", adjust),
+    "withinRanks <- t(apply(Y, 1, rank))  # each subject's ranks of the levels",
+    "nSubjects <- nrow(withinRanks)",
+    "kLevels <- ncol(withinRanks)",
+    "rankSums <- colSums(withinRanks)",
+    "conoverDf <- (nSubjects - 1) * (kLevels - 1)",
+    "conoverSe <- sqrt(2 * (nSubjects * sum(withinRanks^2) - sum(rankSums^2)) / conoverDf)",
+    "conoverPairs <- combn(kLevels, 2, simplify = FALSE)",
+    "conoverPair <- function(pair) {",
+    "  t <- (rankSums[[pair[1]]] - rankSums[[pair[2]]]) / conoverSe",
+    "  c(t = t, p = 2 * pt(-abs(t), conoverDf))",
+    "}",
+    "conover <- as.data.frame(do.call(rbind, lapply(conoverPairs, conoverPair)))",
+    sprintf("conover$pAdjusted <- p.adjust(conover$p, method = \"%s\")", adjust)
+  )
+}
+
+#' Conover's comparisons from the run, named by the levels.
+ps_conover_result <- function(env, levels) {
+  d <- env$conover
+  lapply(seq_len(nrow(d)), function(i) {
+    pair <- env$conoverPairs[[i]]
+    list(
+      comparison = paste(levels[pair[1]], "-", levels[pair[2]]),
+      t = d$t[i],
+      df = env$conoverDf,
+      p = d$p[i],
+      pAdjusted = d$pAdjusted[i]
+    )
   })
 }

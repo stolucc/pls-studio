@@ -134,6 +134,49 @@ tg <- datasets::ToothGrowth
 out$toothGrowth <- list(names = c("len", "dose"), cols = list(tg$len, tg$dose), categories = list())
 out$dunnToothGrowth <- dunn_ref(tg$len, factor(tg$dose))
 
+# ---- Conover's test after Friedman: PMCMRplus::frdAllPairsConoverTest on Hollander & Wolfe's
+# rounding times (?friedman.test: 22 players, three methods of rounding first base; ties)
+rounding <- matrix(
+  c(
+    5.40, 5.50, 5.55, 5.85, 5.70, 5.75, 5.20, 5.60, 5.50, 5.55, 5.50, 5.40,
+    5.90, 5.85, 5.70, 5.45, 5.55, 5.60, 5.40, 5.40, 5.35, 5.45, 5.50, 5.35,
+    5.25, 5.15, 5.00, 5.85, 5.80, 5.70, 5.25, 5.20, 5.10, 5.65, 5.55, 5.45,
+    5.60, 5.35, 5.45, 5.05, 5.00, 4.95, 5.50, 5.50, 5.40, 5.45, 5.55, 5.50,
+    5.55, 5.55, 5.35, 5.45, 5.50, 5.55, 5.50, 5.45, 5.25, 5.65, 5.60, 5.40,
+    5.70, 5.65, 5.55, 6.30, 6.30, 6.25
+  ),
+  nrow = 22,
+  byrow = TRUE,
+  dimnames = list(NULL, c("round_out", "narrow_angle", "wide_angle"))
+)
+out$rounding <- list(
+  names = colnames(rounding),
+  cols = unname(lapply(seq_len(ncol(rounding)), function(j) rounding[, j])),
+  categories = list()
+)
+conover_ref <- function(method) {
+  suppressWarnings(test <- PMCMRplus::frdAllPairsConoverTest(
+    y = c(rounding),
+    groups = factor(rep(colnames(rounding), each = 22), levels = colnames(rounding)),
+    blocks = factor(rep(1:22, 3)),
+    p.adjust.method = method
+  ))
+  pairs <- combn(3, 2, simplify = FALSE)
+  list(
+    t = vapply(pairs, function(pr) test$statistic[pr[2] - 1, pr[1]], 0),
+    p = vapply(pairs, function(pr) test$p.value[pr[2] - 1, pr[1]], 0)
+  )
+}
+none <- conover_ref("none")
+out$conover <- list(
+  df = (22 - 1) * (3 - 1),
+  t = none$t,
+  p = none$p,
+  pHolm = conover_ref("holm")$p,
+  pBonferroni = conover_ref("bonferroni")$p,
+  pBH = conover_ref("BH")$p
+)
+
 writeLines(
   toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null", na = "null"),
   "src/engine/__fixtures__/nonparametric/reference.json"

@@ -813,6 +813,9 @@ function RmForm({ options: o, set, ctx, disabled }: OptionsProps<RmAnovaOptions>
           onChange={(more) => set(more.length ? { ...o, moreBetween: more } : withoutMore(o))}
         />
       )}
+      {!isMulti(o) && !o.between && (
+        <AdjustChoice o={o} set={set} label="Conover’s test after Friedman: p-value adjustment" />
+      )}
     </fieldset>
   );
 }
@@ -929,6 +932,27 @@ function RmView({ r }: { r: RmAnovaResult }) {
           rows={[[c(r.friedman.stat), c(df(r.friedman)), pCell(r.friedman.p)]]}
         />
       )}
+      {r.conover && r.conover.length > 0 && (
+        <Table
+          title="Post hoc after Friedman (Conover’s test)"
+          file="rmanova-conover"
+          columns={['Comparison', 't', 'df', 'p', 'p adjusted']}
+          rows={r.conover.map(
+            (x): Row => [
+              c(x.comparison),
+              c(x.t),
+              c(x.df, undefined, 0),
+              pCell(x.p),
+              pCell(x.pAdjusted),
+            ],
+          )}
+          note={
+            'The difference of two levels’ rank sums (each subject’s levels ranked) as a t statistic on ' +
+            '(n − 1)(k − 1) df, with the variance of Friedman’s ranks (Conover 1999). ' +
+            `p two-sided, adjusted by ${ADJUST_NAME[r.adjust ?? 'holm']}.`
+          }
+        />
+      )}
       {r.friedmanTable && r.friedmanTable.length > 0 && (
         <Table
           title="Friedman’s rank tests"
@@ -969,14 +993,18 @@ const rmName = (o: RmAnovaOptions) =>
 export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
   id: 'rmanova',
   title: 'Repeated-measures ANOVA',
-  sub: 'within-subject factors (wide columns), optional between factor; sphericity corrections, Friedman',
+  sub: 'within-subject factors (wide columns), optional between factor; sphericity corrections, Friedman with Conover’s test',
   group: 'Basic statistics',
   cardTitle: (o) => `Repeated-measures ANOVA: ${rmName(o)}`,
   defaults: () => ({ levels: [], factorName: 'condition', between: '' }),
   parseOptions: (raw) => {
     if (!isObj(raw)) return null;
     const more = names(raw.moreBetween, 3);
-    return { ...parseWithinDesign(raw), ...(more.length ? { moreBetween: more } : {}) };
+    return {
+      ...parseWithinDesign(raw),
+      ...(more.length ? { moreBetween: more } : {}),
+      ...parseAdjust(raw),
+    };
   },
   Options: RmForm,
   View: ({ result }) => <RmView r={result} />,
@@ -1007,6 +1035,8 @@ export const rmAnovaAnalysis: AnalysisType<RmAnovaOptions, RmAnovaResult> = {
       o.between,
       ...withinFingerprint(o),
       ...(o.moreBetween?.length ? ['|', ...o.moreBetween] : []),
+      // (only when set: earlier fingerprints are unchanged)
+      ...(o.adjust ? ['adjust', o.adjust] : []),
     ]),
   run: async (o, ctx) => (await engine()).rmAnovaR(rawData(ctx)!, o),
   script: async (o, ctx) => (await engine()).rmAnovaScriptR(rawData(ctx)!, o),

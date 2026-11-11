@@ -23,6 +23,7 @@ import type {
   ContingencyResult,
   FreqTestResult,
   ReliabilityResult,
+  RmAnovaResult,
 } from '../rengine/tests';
 import type { AnalysisCtx } from './types';
 
@@ -540,5 +541,38 @@ describe('Dunn’s test after Kruskal–Wallis', () => {
     const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
     expect(html).toContain('Post hoc after Kruskal–Wallis (Dunn’s test)');
     expect(html).toContain('adjusted by Bonferroni');
+  });
+});
+
+describe('Conover’s test after Friedman', () => {
+  const t = rmAnovaAnalysis;
+  const o = { levels: ['y', 'x', 'h'], factorName: 'condition', between: '' };
+
+  it('keeps the adjustment only when it is not Holm, and it makes the result stale', () => {
+    expect(t.parseOptions({ ...o, adjust: 'BH' })).toMatchObject({ adjust: 'BH' });
+    expect('adjust' in t.parseOptions(o)!).toBe(false);
+    expect(t.fingerprint({ ...o, adjust: 'BH' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows Conover’s comparisons after Friedman’s test', () => {
+    const result = {
+      factorName: 'condition',
+      levels: ['y', 'x'],
+      between: '',
+      n: 4,
+      within: [],
+      betweenTable: [],
+      sphericity: null,
+      corrected: [],
+      friedman: { stat: 4, df: 1, p: 0.05 },
+      conover: [{ comparison: 'y - x', t: 2.6, df: 3, p: 0.08, pAdjusted: 0.08 }],
+      adjust: 'holm',
+      cells: [],
+      warnings: [],
+      engine: { package: 'stats', version: '4.6.2' },
+    } as unknown as RmAnovaResult;
+    const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
+    expect(html).toContain('Post hoc after Friedman (Conover’s test)');
+    expect(html).toContain('adjusted by Holm');
   });
 });

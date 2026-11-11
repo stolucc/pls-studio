@@ -122,6 +122,8 @@ export interface RmAnovaInput {
   cells?: string[];
   /** Further between-subjects factors, crossed with `between` (car::Anova, type II); absent with one or none. */
   moreBetween?: string[];
+  /** One within factor, no between factor: the adjustment of Conover's comparisons (absent: Holm). */
+  adjust?: PAdjust;
 }
 /** Several within factors: the design's columns (otherwise the levels). */
 export const rmColumns = (
@@ -165,6 +167,9 @@ export interface RmAnovaResult {
   factors?: WithinFactor[];
   corrected: { term: string; p: number; pGG: number; pHF: number }[];
   friedman: HTest | null;
+  /** One within factor, no between factor: Conover's test of every pair of levels after Friedman, adjusted by `adjust`. */
+  conover?: { comparison: string; t: number; df: number; p: number; pAdjusted: number }[];
+  adjust?: PAdjust;
   cells: (Desc & { cell: string })[];
   warnings: string[];
   engine: REngineInfo;
@@ -431,6 +436,7 @@ export async function rmAnovaR(d: Dataset, i: RmAnovaInput): Promise<RmAnovaResu
     betweenTable: rList<RmRow>(r.betweenTable),
     corrected: rList(r.corrected),
     friedman: obj<HTest>(r.friedman),
+    ...(r.conover ? { conover: rList(r.conover) } : {}),
     cells: rList(r.cells),
     posthoc: rList(r.posthoc),
     sphericity: obj(r.sphericity),

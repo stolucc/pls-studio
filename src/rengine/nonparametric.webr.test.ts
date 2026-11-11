@@ -8,7 +8,14 @@ import { afterAll, beforeAll, describe, it } from 'vitest';
 import type { Dataset } from '../engine/types';
 import { near } from '../validation/record';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
-import { anovaR, contingencyR, freqTestR, type FreqTestInput, type PAdjust } from './tests';
+import {
+  anovaR,
+  contingencyR,
+  freqTestR,
+  rmAnovaR,
+  type FreqTestInput,
+  type PAdjust,
+} from './tests';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
@@ -154,4 +161,30 @@ describe('Dunn’s test after Kruskal–Wallis', () => {
       }
     }, 600_000);
   }
+});
+
+describe('Conover’s test after Friedman', () => {
+  it('rounding times: t and p as PMCMRplus::frdAllPairsConoverTest, Holm, Bonferroni, BH', async () => {
+    const want = ref.conover;
+    const levels = ['round_out', 'narrow_angle', 'wide_angle'];
+    const adjusted: [PAdjust, string][] = [
+      ['holm', 'pHolm'],
+      ['bonferroni', 'pBonferroni'],
+      ['BH', 'pBH'],
+    ];
+    for (const [adjust, field] of adjusted) {
+      const r = await rmAnovaR(data(ref.rounding), {
+        levels,
+        factorName: 'method',
+        between: '',
+        adjust,
+      });
+      r.conover!.forEach((x, i) => {
+        near(`df, ${x.comparison}`, x.df, want.df, 0);
+        close(`t, ${x.comparison}`, x.t, want.t[i]);
+        close(`p, ${x.comparison}`, x.p, want.p[i]);
+        close(`p (${adjust}), ${x.comparison}`, x.pAdjusted, want[field][i]);
+      });
+    }
+  }, 600_000);
 });

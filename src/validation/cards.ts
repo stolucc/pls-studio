@@ -101,7 +101,8 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   },
   rmanova: {
     examples: ['stats-rmanova-rounding', 'cardata-rmanova-obrienkaiser'],
-    features: ['rengine/tests::repeated measures'],
+    features: ['rengine/tests::repeated measures', 'rengine/nonparametric::Conover'],
+    note: 'Conover’s test after Friedman against PMCMRplus::frdAllPairsConoverTest (scripts/validation/nonparametric.R).',
   },
   manova: { examples: ['stats-manova-plastic'], features: ['rengine/tests::MANOVA'] },
   correlation: {},

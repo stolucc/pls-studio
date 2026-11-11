@@ -406,6 +406,7 @@ ps_rmanova <- function(req_json, export = FALSE) {
   v <- fr$v
   W <- ps_q(unname(unlist(v[within])))
   bt <- nzchar(between)
+  adjust <- ps_p_adjust(req)
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(within, if (bt) between)])))),
     if (bt) ps_bt_factor_line(req, fr, between),
@@ -426,7 +427,7 @@ ps_rmanova <- function(req_json, export = FALSE) {
     sprintf("mlm <- lm(Y ~ %s)", if (bt) sprintf("data$%s", v[[between]]) else "1"),
     "mauchly <- mauchly.test(mlm, X = ~ 1)",
     "spher <- anova(mlm, X = ~ 1, test = \"Spherical\")  # Greenhouse-Geisser and Huynh-Feldt corrections",
-    if (!bt) "friedman <- friedman.test(Y)",
+    if (!bt) c("friedman <- friedman.test(Y)", ps_conover_lines(adjust)),
     "# Post hoc: every pair of levels by a paired t-test, p adjusted by Holm's method.",
     "pairs <- combn(ncol(Y), 2, simplify = FALSE)",
     "posthoc <- lapply(pairs, function(p) t.test(Y[, p[1]], Y[, p[2]], paired = TRUE))",
@@ -434,7 +435,7 @@ ps_rmanova <- function(req_json, export = FALSE) {
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) "friedman", "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")))
+    return(ps_script("Repeated-measures ANOVA", character(0), inputs, body, c("summary(fit)", "mauchly", "spher", if (!bt) c("friedman", "conover"), "data.frame(pair = vapply(pairs, paste, \"\", collapse = \" - \"), p = vapply(posthoc, function(h) h$p.value, 0), pHolm)")))
   }
   env <- ps_run(body, inputs)
   sm <- summary(env$fit)
@@ -486,6 +487,8 @@ ps_rmanova <- function(req_json, export = FALSE) {
     within = pe(ws, res_w), betweenTable = pe(bs, res_b),
     sphericity = list(w = unname(env$mauchly$statistic), p = env$mauchly$p.value, gg = gg, hf = hf), corrected = corr,
     friedman = if (!bt) ps_htest(env$friedman) else NULL,
+    conover = if (!bt) ps_conover_result(env, within),
+    adjust = if (!bt) adjust,
     posthoc = lapply(seq_along(env$pairs), function(i) {
       p <- env$pairs[[i]]
       h <- env$posthoc[[i]]
