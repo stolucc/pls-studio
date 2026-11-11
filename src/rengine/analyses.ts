@@ -282,8 +282,12 @@ export async function bootstrapR(
   } else {
     raw = await rCall<Raw>(FN[a.kind], request(data, spec, a).req, pkg);
   }
+  // (CB-SEM bootstraps report modsem for latent interactions by LMS / QML, else lavaan)
+  let reportedPackage: string;
+  if (a.kind === 'cbBoot') reportedPackage = pkg === 'modsem' ? 'modsem' : 'lavaan';
+  else reportedPackage = a.pkg;
   return parseBoot(raw, {
-    package: a.kind === 'cbBoot' ? (pkg === 'modsem' ? 'modsem' : 'lavaan') : a.pkg,
+    package: reportedPackage,
     version: version(),
   });
 }

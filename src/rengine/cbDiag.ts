@@ -274,7 +274,10 @@ export type DvClass = 'severe' | 'moderate' | 'marginal' | 'none';
 export function dvClass(low: number | null, high: number | null): DvClass | null {
   if (low === null || high === null) return null;
   const ul = Math.max(Math.abs(low), Math.abs(high));
-  return ul >= 1 ? 'severe' : ul >= 0.9 ? 'moderate' : ul >= 0.8 ? 'marginal' : 'none';
+  if (ul >= 1) return 'severe';
+  if (ul >= 0.9) return 'moderate';
+  if (ul >= 0.8) return 'marginal';
+  return 'none';
 }
 
 /** True when the fit is significantly worse with the correlation fixed at the cutoff (p < .05; no test: null). */
@@ -291,7 +294,10 @@ export function dvClassChi2(
     w9 = worse(p.cut90),
     w8 = worse(p.cut80);
   if (w1 === null || w9 === null || w8 === null || p.est === null) return null;
-  return !w1 ? 'severe' : !w9 ? 'moderate' : !w8 || Math.abs(p.est) >= 0.8 ? 'marginal' : 'none';
+  if (!w1) return 'severe';
+  if (!w9) return 'moderate';
+  if (!w8 || Math.abs(p.est) >= 0.8) return 'marginal';
+  return 'none';
 }
 
 // ---------- comparing two models (lavTestNET, lavTestLRT, nonnest2) ----------
@@ -578,13 +584,9 @@ export type EpcVerdict =
   | 'NO PARAMETERS EVALUATED';
 /** semTools' global decision (its global_localfit_decision): any underpowered, then any misspecified, then any inconclusive. */
 export function epcVerdict(n: { M: number; I: number; U?: number; NM: number }): EpcVerdict {
-  return (n.U ?? 0) > 0
-    ? 'UNDERPOWERED'
-    : n.M > 0
-      ? 'SUBSTANTIAL MISSPECIFICATION'
-      : n.I > 0
-        ? 'INCONCLUSIVE'
-        : n.NM > 0
-          ? 'EQUIVALENT'
-          : 'NO PARAMETERS EVALUATED';
+  if ((n.U ?? 0) > 0) return 'UNDERPOWERED';
+  if (n.M > 0) return 'SUBSTANTIAL MISSPECIFICATION';
+  if (n.I > 0) return 'INCONCLUSIVE';
+  if (n.NM > 0) return 'EQUIVALENT';
+  return 'NO PARAMETERS EVALUATED';
 }

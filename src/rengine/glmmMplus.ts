@@ -29,8 +29,12 @@ export function glmmMplusSyntax(o: GlmmInput): string {
   const at = (suffix = '') => o.occasions.map((y, k) => `${y}${suffix}@${times[k]}`).join(' ');
   const zi = o.family === 'zip';
   const zx = o.ziPredictors.filter((x) => x !== 'time');
+  // Mplus's count types: (nb) negative binomial, (i) zero-inflated Poisson, nothing for Poisson.
+  let countType = '';
+  if (o.family === 'negbin') countType = ' (nb)';
+  else if (zi) countType = ' (i)';
   return [
-    `COUNT = ${o.occasions.join(' ')}${o.family === 'negbin' ? ' (nb)' : zi ? ' (i)' : ''};`,
+    `COUNT = ${o.occasions.join(' ')}${countType};`,
     `ANALYSIS: ESTIMATOR = ${o.robust ? 'MLR' : 'ML'};`,
     `INTEGRATION = ${o.quadrature};`,
     'MODEL:',

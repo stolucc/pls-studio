@@ -67,11 +67,9 @@ export async function startTestRuntime() {
   if (record)
     observeCalls((call, req) => {
       const viaCall = /^ps_call\("(ps_[a-z0-9_]+)", req[,)]/.exec(call);
-      const fn = viaCall
-        ? `${viaCall[1]}(req)`
-        : /^ps_[a-z0-9_]+\(req[,)]/.test(call)
-          ? call
-          : null;
+      let fn: string | null = null;
+      if (viaCall) fn = `${viaCall[1]}(req)`;
+      else if (/^ps_[a-z0-9_]+\(req[,)]/.test(call)) fn = call;
       if (fn) appendFileSync(record, `${JSON.stringify({ call: fn, req })}\n`);
     });
 }

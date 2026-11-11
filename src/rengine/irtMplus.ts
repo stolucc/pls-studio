@@ -20,12 +20,11 @@ export function irtMplusBlocked(items: string[], model: IrtModel, fit: IrtFit): 
 
 /** The model in Mplus's syntax. Priors on the logits of the asymptotes [mean, SD] are Mplus's priors on u$2 = −logit(g) and u$3 = −logit(u). */
 export function irtMplusSyntax(items: string[], model: IrtModel, fit: IrtFit): string {
-  const guess =
-    model === 'fourpl'
-      ? items
-      : model === 'threepl'
-        ? items.filter((i) => !fit.guessItems || fit.guessItems.includes(i))
-        : [];
+  // The items with a lower asymptote: all under 4PL, the chosen ones (default all) under 3PL.
+  let guess: string[] = [];
+  if (model === 'fourpl') guess = items;
+  else if (model === 'threepl')
+    guess = items.filter((i) => !fit.guessItems || fit.guessItems.includes(i));
   const plain = items.filter((i) => !guess.includes(i));
   const kind = model === 'fourpl' ? '4pl' : '3pl';
   const pg = fit.priorG,

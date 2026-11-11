@@ -210,49 +210,51 @@ export const lcaRequest = (
   nrep: number,
   seed: number,
   spec: LcaSpec = {},
-) =>
-  spec.model === 'lpa'
-    ? {
-        kind: 'lpa',
-        items,
-        classes,
-        nrep,
-        seed,
-        structure: spec.structure ?? 'EEI',
-        ...auxOf(spec),
-        data: rColumns(data, [...items, ...auxColumns(spec)]),
-      }
-    : spec.model === 'lcga'
-      ? {
-          kind: 'lcga',
-          items,
-          classes,
-          nrep,
-          seed,
-          times: spec.times ?? items.map((_, i) => i),
-          ...auxOf(spec),
-          data: rColumns(data, [...items, ...auxColumns(spec)]),
-        }
-      : spec.model === 'mlca'
-        ? {
-            kind: 'mlca',
-            items,
-            classes,
-            nrep,
-            seed,
-            cluster: spec.cluster ?? '',
-            clusterClasses: spec.clusterClasses ?? 2,
-            data: rColumns(data, [...items, spec.cluster ?? '']),
-          }
-        : {
-            kind: 'lca',
-            items,
-            classes,
-            nrep,
-            seed,
-            ...auxOf(spec),
-            data: rColumns(data, [...items, ...auxColumns(spec)]),
-          };
+) => {
+  if (spec.model === 'lpa')
+    return {
+      kind: 'lpa',
+      items,
+      classes,
+      nrep,
+      seed,
+      structure: spec.structure ?? 'EEI',
+      ...auxOf(spec),
+      data: rColumns(data, [...items, ...auxColumns(spec)]),
+    };
+  if (spec.model === 'lcga')
+    return {
+      kind: 'lcga',
+      items,
+      classes,
+      nrep,
+      seed,
+      times: spec.times ?? items.map((_, i) => i),
+      ...auxOf(spec),
+      data: rColumns(data, [...items, ...auxColumns(spec)]),
+    };
+  // (multilevel classes take no auxiliary variables)
+  if (spec.model === 'mlca')
+    return {
+      kind: 'mlca',
+      items,
+      classes,
+      nrep,
+      seed,
+      cluster: spec.cluster ?? '',
+      clusterClasses: spec.clusterClasses ?? 2,
+      data: rColumns(data, [...items, spec.cluster ?? '']),
+    };
+  return {
+    kind: 'lca',
+    items,
+    classes,
+    nrep,
+    seed,
+    ...auxOf(spec),
+    data: rColumns(data, [...items, ...auxColumns(spec)]),
+  };
+};
 const LCA_BRIDGE = {
   lca: ['ps_lca', 'poLCA'],
   lpa: ['ps_lpa', 'stats'],

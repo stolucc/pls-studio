@@ -141,8 +141,10 @@ export function parsePlsOutput(raw: Record<string, any>): PlsResultR {
 }
 
 /** The R packages: the PLS package, with mice for multiple imputation. */
-export const plsPackages = (pkg: PlsPackage, options: Pick<PlsOptions, 'missing'>) =>
-  options.missing === 'mi' ? (pkg === 'cSEM' ? 'cSEMMi' : 'seminrMi') : pkg;
+export const plsPackages = (pkg: PlsPackage, options: Pick<PlsOptions, 'missing'>) => {
+  if (options.missing !== 'mi') return pkg;
+  return pkg === 'cSEM' ? 'cSEMMi' : 'seminrMi';
+};
 
 export async function estimatePlsR(
   data: Dataset,

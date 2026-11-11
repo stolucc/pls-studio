@@ -53,8 +53,11 @@ export interface HypResult {
 }
 
 /** The package set a method needs (bridge.ts R_PACKAGES). */
-export const hypPackage = (m: HypMethod): RPackage =>
-  m === 'gorica' ? 'restriktor' : m === 'bain' ? 'bain' : 'informative';
+export const hypPackage = (m: HypMethod): RPackage => {
+  if (m === 'gorica') return 'restriktor';
+  if (m === 'bain') return 'bain';
+  return 'informative';
+};
 
 /** The request's hypotheses: each its constraints, printed from the parsed text (throws on invalid text). */
 const hypField = (o: HypRequest) => ({

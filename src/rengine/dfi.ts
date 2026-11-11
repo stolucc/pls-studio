@@ -9,7 +9,10 @@ import { rList } from './rjson';
 import { cbCallRequest, type CbCall } from './cbExtras';
 import type { REngineInfo } from './lavaan';
 
-const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
+const str = (v: unknown) => {
+  if (typeof v === 'string') return v;
+  return v == null ? '' : String(v);
+};
 
 /** The dynamic functions the card calls (all take the lavaan fit; likert*, nnor* and DDDFI off the normal scale take the data too). */
 export const DFI_FUNCTIONS = [
