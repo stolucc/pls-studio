@@ -98,6 +98,9 @@ ps_regression <- function(req_json, export = FALSE) {
   own_hc0 <- se == "HC0" && (family %in% c("negbin", "multinomial") || own || zmod)
   libs <- c(if (family %in% c("negbin", "ordinal")) "MASS", if (family == "multinomial") "nnet", if (family == "survival" || (family == "censored" && !inflated)) "survival",
     if (zmod) "pscl", if (zmod && se == "HC0") "sandwich", if (se != "model" && !zmod && (!own_hc0 || piecewise)) c("sandwich", "lmtest"))
+  # Durbin-Watson test of the residuals of an unweighted lm (lmtest::dwtest refits without weights).
+  durbin <- family == "gaussian" && !own && !nzchar(wcol)
+  if (durbin && !"lmtest" %in% libs) libs <- c(libs, "lmtest")
   zdist <- if (family == "negbin") "negbin" else "poisson"
   yv <- v[[y]]
   lim_line <- if (family == "censored") sprintf("lim <- %s(data$%s)  # the censoring point: the %s value (censored from %s)", if (censoring == "below") "min" else "max", yv, if (censoring == "below") "lowest" else "highest", censoring)
@@ -182,7 +185,8 @@ ps_regression <- function(req_json, export = FALSE) {
     if (se == "HC3") "# Heteroskedasticity-consistent (HC3) standard errors.\nvc <- vcovHC(fit, type = \"HC3\"); ct <- coeftest(fit, vcov. = vc)",
     # (HC0: White's sandwich without small-sample correction, the robust ML standard errors of Mplus's MLR)
     if (se == "HC0" && !own_hc0) "# Heteroskedasticity-consistent (HC0, White) standard errors: the maximum-likelihood sandwich, as Mplus MLR.\nvc <- vcovHC(fit, type = \"HC0\"); ct <- coeftest(fit, vcov. = vc)",
-    if (se == "cluster") sprintf("# Standard errors clustered by %s.\nvc <- vcovCL(fit, cluster = ~%s); ct <- coeftest(fit, vcov. = vc)", ps_comment(cluster), v[[cluster]]))
+    if (se == "cluster") sprintf("# Standard errors clustered by %s.\nvc <- vcovCL(fit, cluster = ~%s); ct <- coeftest(fit, vcov. = vc)", ps_comment(cluster), v[[cluster]]),
+    if (durbin) PS_DURBIN_WATSON_LINES)
   inputs <- list(data = fr$data)
   title <- if (nzchar(slope)) "Linear regression with a random slope (maximum likelihood, optim)"
     else if (inflated) sprintf("%s regression (maximum likelihood, optim)", if (family == "poisson") "Zero-inflated Poisson" else "Censored-inflated")
@@ -195,7 +199,8 @@ ps_regression <- function(req_json, export = FALSE) {
     else c("summary(fit)", if (family %in% c("binomial", "poisson", "negbin", "ordinal", "multinomial", "survival") && !piecewise) "exp(coef(fit))  # odds, rate or hazard ratios", if (se != "model" && !own) "ct",
     if (se == "HC0" && family == "multinomial") "matrix(sqrt(diag(vc)), nrow = nrow(coef(fit)), byrow = TRUE, dimnames = dimnames(coef(fit)))  # HC0 standard errors",
     if (piecewise) c("exp(coef(fit))  # baseline hazards and hazard ratios", "ll", if (se == "HC0") "sqrt(diag(vc))"),
-    if (family %in% c("gaussian", "binomial", "poisson", "negbin", "gamma")) "anova(fit, test = \"Chisq\")")
+    if (family %in% c("gaussian", "binomial", "poisson", "negbin", "gamma")) "anova(fit, test = \"Chisq\")",
+    if (durbin) c("dw", "r1  # lag-1 autocorrelation of the residuals"))
   if (export) return(ps_script(title, c("stats", libs), inputs, body, report))
   env <- ps_run(body, inputs)
   fit <- env$fit
@@ -315,6 +320,14 @@ ps_regression <- function(req_json, export = FALSE) {
     vifs <- vapply(seq_len(ncol(X)), function(j) { r2 <- summary(lm(X[, j] ~ X[, -j, drop = FALSE]))$r.squared; if (is.finite(r2) && r2 < 1) 1 / (1 - r2) else NA_real_ }, 0)
     diag$vif <- lapply(seq_len(ncol(X)), function(j) list(term = nm(colnames(X)[j]), vif = vifs[j]))
   }
+  if (durbin) {
+    diag$durbinWatson <- list(
+      stat = unname(env$dw$statistic),
+      p = env$dw$p.value,
+      exact = nrow(env$data) < 100,
+      r1 = env$r1
+    )
+  }
   if (family == "binomial" && !nzchar(trials)) {
     pr <- fitted(fit); yy <- fit$y
     diag$accuracy <- mean((pr >= 0.5) == (yy == 1))
@@ -367,6 +380,16 @@ ps_ml_source <- c(
   "  if (o$convergence != 0) warning(\"The maximum-likelihood estimation did not converge.\")",
   "  list(coefficients = o$par, vcov = ml_vcov(ll, o$par, robust = robust), logLik = -o$value, npar = length(o$par))",
   "}")
+
+#' Script lines: the Durbin-Watson test of a linear model's residuals, in the rows' order.
+PS_DURBIN_WATSON_LINES <- c(
+  "# Durbin-Watson test for first-order autocorrelation of the residuals, in the rows' order",
+  "# (H1: positive autocorrelation; exact p-value by Pan's algorithm below 100 rows, else the",
+  "# normal approximation, as lmtest does), and the lag-1 autocorrelation of the residuals.",
+  "dw <- dwtest(fit)",
+  "e <- residuals(fit)",
+  "r1 <- sum(e[-1] * e[-length(e)]) / sum(e^2)"
+)
 
 #' The coefficient table of an lm / glm with the model's own standard errors (as coeftest would print it).
 lmtest_free <- function(fit) {

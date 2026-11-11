@@ -111,6 +111,13 @@ describe('regression view', () => {
     expect(html({ ...base, curve })).toContain('Partial effect of a');   // the previous shape
     expect(html({ ...base, curve: null })).not.toContain('Partial effect');
     expect(html(base)).toContain('Coefficients');
+    expect(html(base)).not.toContain('Durbin');
+    const dw = { stat: 1.45, p: 0.011, exact: true, r1: 0.21 };
+    const withDw = html({ ...base, curves: [], diagnostics: { durbinWatson: dw } });
+    expect(withDw).toContain('Durbin–Watson d');
+    expect(withDw).toContain('positive autocorrelation; exact (Pan)');
+    expect(withDw).toContain('Lag-1 autocorrelation of the residuals');
+    expect(html({ ...base, curves: [], diagnostics: { durbinWatson: { ...dw, exact: false } } })).toContain('normal approximation');
   });
 });
 
