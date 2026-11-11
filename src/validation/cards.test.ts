@@ -22,6 +22,8 @@ import { QUAD_SOURCES } from '../analyses/quadml';
 import { FAMILIES, LINKS, ZERO_MODELS } from '../analyses/regression';
 import { CORRELATION_METHODS, FREQTEST_TYPES, RELIABILITY_TYPES, TTEST_TYPES } from '../analyses/tests';
 import { CMB_TYPES } from '../analyses/validity';
+import { HYP_MODES } from '../analyses/hypotheses';
+import { APIM_MODES } from '../analyses/apim';
 import { EXAMPLES } from '../components/HomeScreen';
 import { examplePanels, PACKAGE_EXAMPLES } from '../examples/packages';
 import { EFA_METHODS } from '../model/efa';
@@ -43,7 +45,7 @@ const CARD_MODES: Record<string, readonly string[]> = {
   regression: [...FAMILIES.map(([f]) => f), ...Object.entries(LINKS).flatMap(([f, links]) => links.slice(1).map(([l]) => `${f}:${l}`)), ...ZERO_MODELS],
   customml: CUSTOMML_TYPES, did: DID_DESIGNS, efa: EFA_METHODS.map((m) => m.id), cmb: CMB_TYPES, irt: IRT_MODELS, lca: [...LCA_KINDS.map((k) => k.id), ...LCA_AUX_METHODS.map(([m]) => `aux:${m}`)], quadml: QUAD_SOURCES,
   network: [...NETWORK_ESTIMATORS.map((e) => `estimator:${e}`), ...NETWORK_COR_METHODS.map((c) => `cor:${c}`)], ega: EGA_MODELS, dynamicfit: DFI_FUNCTIONS,
-  metasem: METASEM_METHODS, psem: PSEM_MODES, bsem: BSEM_ENGINES, endo: ENDO_METHODS, glmm: GLMM_FAMILIES,
+  metasem: METASEM_METHODS, psem: PSEM_MODES, bsem: BSEM_ENGINES, endo: ENDO_METHODS, glmm: GLMM_FAMILIES, hypotheses: HYP_MODES, apim: APIM_MODES,
   // MatchIt's methods (nearest, optimal, full, …) share one code path; weighting is WeightIt's.
   match: [...new Set(MATCH_METHODS.map((m) => (m === 'weighting' ? 'weighting' : 'matchit')))],
 };

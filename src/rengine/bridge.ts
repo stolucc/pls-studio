@@ -44,12 +44,14 @@ import searchR from './R/search.R?raw';
 import sensitivityR from './R/sensitivity.R?raw';
 import scoreTestR from './R/scoretest.R?raw';
 import psemR from './R/psem.R?raw';
+import hypothesesR from './R/hypotheses.R?raw';
+import apimR from './R/apim.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, cbdiag: cbdiagR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, plssem: plssemR, invariance: invarianceR, psem: psemR};
+export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, cbdiag: cbdiagR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, plssem: plssemR, invariance: invarianceR, hypotheses: hypothesesR, apim: apimR, psem: psemR};
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -163,6 +165,10 @@ export const R_PACKAGES = {
   psychotools: ['jsonlite', 'psychotools'],
   // Comparing two CB-SEM models: Vuong's tests and AIC / BIC difference intervals (nonnest2) beside lavaan's NET and LRT.
   nonnest2: ['jsonlite', 'lavaan', 'nonnest2'],
+  // Informative hypotheses on labelled parameters: GORICA (restriktor::goric) and Bayes factors (bain), or both.
+  restriktor: ['jsonlite', 'lavaan', 'restriktor'],
+  bain: ['jsonlite', 'lavaan', 'bain'],
+  informative: ['jsonlite', 'lavaan', 'restriktor', 'bain'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;

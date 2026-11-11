@@ -39,8 +39,8 @@ import { parseLavaanSyntax } from '../model/syntax';
 import { namesIn, parseExpr } from '../model/expr';
 import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'nonnest2' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa' | 'pscl' | 'plssem' | 'piecewiseSEM';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'nonnest2', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa', 'pscl', 'plssem', 'piecewiseSEM'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'nonnest2' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa' | 'pscl' | 'plssem' | 'restriktor' | 'bain' | 'piecewiseSEM';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'nonnest2', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa', 'pscl', 'plssem', 'restriktor', 'bain', 'piecewiseSEM'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'lsem' | 'dmacs' | 'plsmultilevel' | 'psem';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'lsem' | 'dmacs' | 'plsmultilevel' | 'hypotheses' | 'apim' | 'psem';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -1108,6 +1108,11 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
     case 'match': return [p.treatment ?? '', ...(p.covariates ?? []), p.outcome ?? ''].filter(Boolean);
     case 'rsa': return [p.outcome ?? '', p.x ?? '', p.y ?? '', ...(p.controls ?? [])].filter(Boolean);
     case 'nca': return [...p.x, p.y];
+    // (the APIM: each member's X and Y columns)
+    case 'apim': {
+      const o = panelPreset(p) as { x1: string[]; x2: string[]; y1: string[]; y2: string[] };
+      return [...o.x1, ...o.x2, ...o.y1, ...o.y2];
+    }
     case 'qca': return [...p.conditions, p.outcome, ...(p.labels ? [p.labels] : [])];
     case 'efa': return p.vars ?? [];
     case 'screen': return p.vars;
