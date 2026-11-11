@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { ChartFrame } from '../components/ChartFrame';
+import { IconCopy } from '../components/icons';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { InvarianceTable } from '../components/results/InvarianceTable';
 import { c, pCell, Table, type Row } from '../components/results/Table';
@@ -717,6 +718,52 @@ function LongInvarianceForm({ options: o, set, ctx, disabled }: OptionsProps<Lon
   );
 }
 
+/** The lavaan syntax of each level as measEq.syntax generated it: read-only, one level at a time, copyable. */
+export function GeneratedSyntax({ r }: { r: LongInvarianceResult }) {
+  const levels = r.levels.filter((l) => typeof l.syntax === 'string' && l.syntax.length > 0);
+  const [pick, setPick] = useState(levels[0]?.level ?? '');
+  if (!levels.length) return null;
+  const shown = levels.find((l) => l.level === pick) ?? levels[0];
+  const text = shown.syntax!;
+  const copy = async () => {
+    const { useStore } = await import('../store');
+    try {
+      await navigator.clipboard.writeText(text);
+      useStore.getState().toast('success', 'Copied.');
+    } catch {
+      useStore.getState().toast('error', 'The browser did not allow copying; select the text instead.');
+    }
+  };
+  return (
+    <details className="generated-syntax">
+      <summary>Generated lavaan syntax (semTools::measEq.syntax)</summary>
+      <div className="table-tools">
+        <div className="segmented" role="tablist" aria-label="Invariance level">
+          {levels.map((l) => (
+            <button key={l.level} role="tab" aria-selected={l.level === shown.level}
+              className={l.level === shown.level ? 'on' : ''} onClick={() => setPick(l.level)}>
+              {l.level}
+            </button>
+          ))}
+        </div>
+        <div className="spacer" />
+        <button className="btn sm ghost" title="Copy this level's syntax" onClick={() => void copy()}>
+          <IconCopy size={13} /> Copy
+        </button>
+      </div>
+      <pre className="r-script" aria-label={`lavaan syntax of the ${shown.level} model`}>
+        {text.split('\n').map((line, i) => (
+          <div key={i} className={line.trimStart().startsWith('#') ? 'cm' : undefined}>{line || ' '}</div>
+        ))}
+      </pre>
+      <p className="hint">
+        Every parameter is written out, equality constraints as shared labels: lavaan(syntax, data = …) with the
+        same estimator and missing-data option fits this model again (the R script of the card does so too).
+      </p>
+    </details>
+  );
+}
+
 function LongInvarianceView({ r, o }: { r: LongInvarianceResult; o?: LongInvarianceOptions }) {
   const scalar = r.levels.find((l) => l.level === 'scalar');
   const se = (v?: number) => (v === undefined ? c('fixed', 'dim') : c(v));
@@ -730,6 +777,7 @@ function LongInvarianceView({ r, o }: { r: LongInvarianceResult; o?: LongInvaria
           rows={scalar.factor.map((f, t): Row => [c(t + 1, undefined, 0), c(f.mean), se(f.meanSe), c(f.variance), se(f.varianceSe)])}
           note="On the scale of the first occasion (mean 0, variance 1): with equal loadings and intercepts, the later means are change in SD units of occasion 1. Read them only if scalar invariance holds (or nearly)." />
       )}
+      <GeneratedSyntax r={r} />
     </div>
   );
 }

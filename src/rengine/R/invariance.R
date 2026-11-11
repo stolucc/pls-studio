@@ -208,11 +208,15 @@ ps_long_invariance <- function(req_json, export = FALSE) {
     vapply(levels, function(l) sprintf("fit_%s <- measEq.syntax(configural.model = model, data = data, ID.fac = \"std.lv\", longFacNames = longFacNames, longIndNames = longIndNames, long.equal = %s, auto = %s, meanstructure = TRUE, %s, return.fit = TRUE)",
       l, equal[[l]], if (lag == "all") "\"all\"" else "1L", opts), ""),
     "# Chi-square difference tests between successive levels",
-    "lrt <- lavTestLRT(fit_configural, fit_metric, fit_scalar, fit_strict)")
+    "lrt <- lavTestLRT(fit_configural, fit_metric, fit_scalar, fit_strict)",
+    "# The lavaan syntax measEq.syntax generated for each level: lavaan(syntax$scalar, data = data, ...)",
+    "# with the same estimator and missing-data options fits that model again",
+    "fits <- list(configural = fit_configural, metric = fit_metric, scalar = fit_scalar, strict = fit_strict)",
+    "syntax <- lapply(fits, function(f) as.character(f@external$measEq.syntax))")
   inputs <- list(data = fr$data)
   if (export) return(ps_script("Longitudinal measurement invariance (semTools::measEq.syntax, lavaan)", c("lavaan", "semTools"), inputs, body,
     c("lrt", "sapply(list(configural = fit_configural, metric = fit_metric, scalar = fit_scalar, strict = fit_strict), fitMeasures, fit.measures = c(\"chisq\", \"df\", \"cfi\", \"rmsea\", \"srmr\"))",
-      "cat(as.character(measEq.syntax(configural.model = model, data = data, ID.fac = \"std.lv\", longFacNames = longFacNames, longIndNames = longIndNames, long.equal = c(\"loadings\", \"intercepts\"), meanstructure = TRUE)))")))
+      "cat(syntax$scalar)")))
   env <- ps_run(body, inputs)
   fits <- lapply(levels, function(l) env[[paste0("fit_", l)]])
   fm <- lapply(fits, ps_inv_fit)
@@ -231,7 +235,7 @@ ps_long_invariance <- function(req_json, export = FALSE) {
     levels = lapply(seq_along(levels), function(i) c(list(level = levels[i]), fm[[i]],
       if (i > 1) list(chisqDiff = unname(lrt[["Chisq diff"]][at(i)]), dfDiff = unname(lrt[["Df diff"]][at(i)]), p = unname(lrt[["Pr(>Chisq)"]][at(i)]),
         cfiChange = fm[[i]]$cfi - fm[[i - 1]]$cfi, rmseaChange = fm[[i]]$rmsea - fm[[i - 1]]$rmsea),
-      list(factor = factor_pars(fits[[i]])))),
+      list(factor = factor_pars(fits[[i]]), syntax = env$syntax[[levels[i]]]))),
     warnings = env$.warnings, engine = ps_engine("semTools", lavaan = "lavaan")))
 }
 

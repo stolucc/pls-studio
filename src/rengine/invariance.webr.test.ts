@@ -4,14 +4,18 @@
 // and per-item lavaan models, the reference without them.
 // Run with WEBR_TESTS=1 PS_NATIVE_R=1 npx vitest run src/rengine/invariance (or in webR without PS_NATIVE_R).
 
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { longInvarianceAnalysis, mimicDifAnalysis } from '../analyses/invariance';
 import type { AnalysisCtx } from '../analyses/types';
 import type { Dataset } from '../engine/types';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
+import { near as recorded, same as recordedSame } from '../validation/record';
 import { rCall } from './bridge';
+import { helperLibrary } from './nativeR';
 import type { LongInvarianceResult, MimicDifResult } from './invariance';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
@@ -59,6 +63,51 @@ it('longitudinal invariance of democracy 1960 / 1965 (PoliticalDemocracy) equals
   const ctx: AnalysisCtx = { data, info: null, settings: { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'ML', missing: 'casewise' }, pls: null, projectName: 'p' };
   const adj = await longInvarianceAnalysis.run({ factor: 'D', occasions: [['y1', 'y2', 'y3', 'y4'], ['y5', 'y6', 'y7', 'y8']], lag: 'adjacent' }, ctx, () => {}) as LongInvarianceResult;
   near('adjacent: configural χ²', adj.levels[0].chisq, REF.cases.longInvarianceML.chisq[0], 1e-6);
+}, 600_000);
+
+// The syntax the card shows for each level, fitted by plain lavaan() in desktop R (Rscript), gives the card's χ² and df.
+function plainLavaan(syntax: string[], estimator: 'ML' | 'MLR'): { chisq: number; df: number }[] {
+  const dir = mkdtempSync(join(tmpdir(), 'ps-long-syntax-'));
+  try {
+    syntax.forEach((text, i) => writeFileSync(join(dir, `level${i}.lav`), text));
+    const pick = estimator === 'MLR' ? 'chisq.scaled' : 'chisq';
+    const script = [
+      'suppressPackageStartupMessages(library(lavaan))',
+      'data(PoliticalDemocracy, package = "lavaan")',
+      `out <- lapply(0:${syntax.length - 1}, function(i) {`,
+      '  syntax <- paste(readLines(sprintf("level%d.lav", i)), collapse = "\\n")',
+      `  fit <- lavaan(syntax, data = PoliticalDemocracy, estimator = "${estimator}")`,
+      `  list(chisq = unname(fitMeasures(fit, "${pick}")), df = unname(fitMeasures(fit, "df")))`,
+      '})',
+      'writeLines(jsonlite::toJSON(out, digits = NA, auto_unbox = TRUE), "out.json")',
+    ].join('\n');
+    writeFileSync(join(dir, 'fit.R'), script);
+    const libs = [helperLibrary(), process.env.R_LIBS].filter(Boolean).join(':');
+    execFileSync('Rscript', ['fit.R'], { cwd: dir, env: { ...process.env, R_LIBS: libs }, stdio: 'pipe' });
+    return JSON.parse(readFileSync(join(dir, 'out.json'), 'utf8'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+it('longitudinal invariance: the generated syntax shown for each level, fitted by plain lavaan, gives the card’s χ² and df', async () => {
+  const data = await dataset('lavaan', 'PoliticalDemocracy');
+  for (const est of ['ML', 'MLR'] as const) {
+    const settings = { ...DEFAULT_SETTINGS, method: 'cbsem' as const, estimator: est, missing: 'casewise' as const };
+    const ctx: AnalysisCtx = { data, info: null, settings, pls: null, projectName: 'p' };
+    const occasions = [['y1', 'y2', 'y3', 'y4'], ['y5', 'y6', 'y7', 'y8']];
+    const o = { ...longInvarianceAnalysis.defaults(ctx), factor: 'Democracy', occasions };
+    const r = await longInvarianceAnalysis.run(o, ctx, () => {}) as LongInvarianceResult;
+    const syntax = r.levels.map((l) => l.syntax ?? '');
+    expect(syntax[1]).toContain('lambda.1_1*y1');
+    expect(syntax[2]).toContain('## INTERCEPTS:');
+    const plain = plainLavaan(syntax, est);
+    r.levels.forEach((l, i) => {
+      // (the card's fit may run in webR: ~1e-6 from WebAssembly floating point)
+      recorded(`${est} ${l.level}: χ² of the shown syntax`, plain[i].chisq, l.chisq, 1e-5);
+      recordedSame(`${est} ${l.level}: df of the shown syntax`, plain[i].df, l.df);
+    });
+  }
 }, 600_000);
 
 it('DIF by MIMIC on Holzinger & Swineford equals the hand-written per-item lavaan models: visual on sex (ML, Holm, freed) and textual on age (MLR, BH)', async () => {
