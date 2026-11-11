@@ -67,9 +67,11 @@ piecewiseSEM
 plspm
 plssem
 poLCA
+ppcor
 pscl
 psych
 psychotools
+pwr
 qgraph
 readxl
 restriktor

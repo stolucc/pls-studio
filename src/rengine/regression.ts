@@ -59,6 +59,46 @@ export interface RegressionInput {
   zeroModel?: 'zeroinfl' | 'hurdle';
   zeroPart?: 'same' | 'intercept' | 'chosen';
   zeroPredictors?: string[];
+  /**
+   * gaussian: further blocks of predictors entered in turn after the predictors and terms above (hierarchical
+   * regression): R² change and its F test per block. The coefficients are the full model's.
+   */
+  blocks?: string[][];
+  /** gaussian: each case's residuals, leverage, Cook's distance and DFBETAs (for flags and saving as columns). */
+  caseDiagnostics?: boolean;
+}
+/** One model of a hierarchical regression: R², its change from the model before and the F test of the change. */
+export interface RegressionBlock {
+  block: number;
+  r2: number;
+  adj_r2: number;
+  r2_change: number;
+  f_change: number;
+  df1: number;
+  df2: number;
+  p_change: number;
+}
+/** A term of an unweighted linear model: standardised β, zero-order, partial and part correlations, tolerance. */
+export interface TermDetail {
+  term: string;
+  beta: number;
+  zero_order: number;
+  partial: number;
+  part: number;
+  tolerance: number;
+  vif: number;
+}
+/** Case diagnostics of a linear model, one value per case used (`row`: its 1-based row in the data). */
+export interface CaseDiagnostics {
+  row: number[];
+  fitted: number[];
+  residual: number[];
+  standardized: number[];
+  studentized: number[];
+  leverage: number[];
+  cooks: number[];
+  /** Standardised DFBETAs per coefficient (the intercept first). */
+  dfbetas: { term: string; values: number[] }[];
 }
 export interface RegressionCurve {
   x: string;
@@ -128,6 +168,10 @@ export interface RegressionResult {
   };
   /** One partial-effect curve per numeric predictor: the response over it, the other predictors at their means. */
   curves: RegressionCurve[];
+  /** Linear models: the blocks of a hierarchical regression, each term's details, the case diagnostics. */
+  blocks?: RegressionBlock[];
+  details?: TermDetail[];
+  cases?: CaseDiagnostics;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -158,6 +202,7 @@ export function regressionRequest(data: Dataset, i: RegressionInput) {
         ...i.predictors,
         ...i.interactions.flat(),
         ...(zero.zeroPredictors ?? []),
+        ...linearExtras(i).flat(),
         i.trials,
         i.weights,
         cluster,
@@ -168,11 +213,22 @@ export function regressionRequest(data: Dataset, i: RegressionInput) {
   const categories = Object.fromEntries(
     names.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]),
   );
-  const { zeroModel: _z, zeroPart: _p, zeroPredictors: _q, ...rest } = i;
+  const {
+    zeroModel: _z,
+    zeroPart: _p,
+    zeroPredictors: _q,
+    blocks: _b,
+    caseDiagnostics: _c,
+    ...rest
+  } = i;
+  const blocks = linearExtras(i);
+  const linear = isPlainLinear(i);
   return {
     kind: 'regression',
     ...rest,
     ...zero,
+    ...(blocks.length ? { blocks } : {}),
+    ...(linear && i.caseDiagnostics ? { caseDiagnostics: true } : {}),
     cluster,
     status,
     cuts: i.family === 'survival' ? (i.cuts ?? []) : [],
@@ -207,6 +263,7 @@ export async function regressionR(
         : {}),
     }));
   const diag = raw.diagnostics && !Array.isArray(raw.diagnostics) ? raw.diagnostics : {};
+  const cases = raw.cases && !Array.isArray(raw.cases) ? caseDiagnostics(raw.cases) : undefined;
   return {
     ...raw,
     coefficients: rList(raw.coefficients),
@@ -219,6 +276,9 @@ export async function regressionR(
     vuong: raw.vuong && !Array.isArray(raw.vuong) ? raw.vuong : null,
     diagnostics: { ...diag, ...(diag.vif ? { vif: rList(diag.vif) } : {}) },
     curves,
+    blocks: raw.blocks ? rList<RegressionBlock>(raw.blocks) : undefined,
+    details: raw.details ? rList<TermDetail>(raw.details) : undefined,
+    cases,
     warnings: rStrings(raw.warnings),
   } as RegressionResult;
 }
@@ -246,5 +306,33 @@ export function zeroOptions(
     zeroModel: i.zeroModel,
     zeroPart: part,
     ...(part === 'chosen' ? { zeroPredictors: i.zeroPredictors ?? [] } : {}),
+  };
+}
+
+/** A linear model the extras apply to: Gaussian, no random slope. */
+export const isPlainLinear = (i: Pick<RegressionInput, 'family' | 'randomSlope'>) =>
+  i.family === 'gaussian' && !i.randomSlope;
+
+/** The blocks a request carries: non-empty ones of a plain linear model, none otherwise. */
+export function linearExtras(i: RegressionInput): string[][] {
+  if (!isPlainLinear(i)) return [];
+  return (i.blocks ?? []).filter((b) => b.length > 0);
+}
+
+/** R's case diagnostics with every list as an array of numbers (NA as NaN). */
+function caseDiagnostics(raw: Record<string, unknown>): CaseDiagnostics {
+  const nums = (v: unknown) => rList<number | null>(v).map((x) => (x === null ? NaN : Number(x)));
+  return {
+    row: nums(raw.row),
+    fitted: nums(raw.fitted),
+    residual: nums(raw.residual),
+    standardized: nums(raw.standardized),
+    studentized: nums(raw.studentized),
+    leverage: nums(raw.leverage),
+    cooks: nums(raw.cooks),
+    dfbetas: rList<{ term: string; values: unknown }>(raw.dfbetas).map((d) => ({
+      term: String(d.term),
+      values: nums(d.values),
+    })),
   };
 }

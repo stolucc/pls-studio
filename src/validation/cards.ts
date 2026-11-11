@@ -257,8 +257,8 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
       'mplus-ex6.23',
       'mplus-ex6.24',
     ],
-    features: ['rengine/regression::Durbin'],
-    note: 'mplus-ex3.9: random slope (TYPE = RANDOM). Durbin–Watson: lmtest::dwtest (scripts/validation/durbin_watson.R).',
+    features: ['rengine/regression::Durbin', 'rengine/regression::hierarchical'],
+    note: 'mplus-ex3.9: random slope (TYPE = RANDOM). Durbin–Watson: lmtest::dwtest (scripts/validation/durbin_watson.R). Hierarchical blocks (R² change, F change), standardised β, part and partial correlations, tolerance and case diagnostics: lm, ppcor, car::vif and influence.measures on ?swiss (scripts/validation/regression_extras.R).',
   },
   'regression:binomial': {
     title: 'Logistic (logit link)',
@@ -310,6 +310,58 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     title: 'Hurdle Poisson / negative binomial (pscl)',
     examples: ['pscl-hurdle'],
     features: ['rengine/regression::pscl'],
+  },
+  pcor: {
+    examples: ['ppcor-help'],
+    note: 'Partial and semi-partial correlations against ppcor in desktop R (scripts/validation/regression_extras.R).',
+  },
+  'pcor:pearson': { title: 'Pearson partial correlations', features: ['rengine/pcor::pearson'] },
+  'pcor:spearman': { title: 'Spearman partial correlations', features: ['rengine/pcor::spearman'] },
+  'pcor:kendall': { title: 'Kendall partial correlations', features: ['rengine/pcor::kendall'] },
+  pwr: {
+    examples: ['pwr-cohen'],
+    note: 'A priori N, achieved power and sensitivity against pwr in desktop R (scripts/validation/pwr.R).',
+  },
+  'pwr:t1': {
+    title: 't-test, one sample (pwr.t.test)',
+    features: ['rengine/pwr::t1_'],
+  },
+  'pwr:t2': {
+    title: 't-test, two independent samples (pwr.t.test)',
+    features: ['rengine/pwr::t2_'],
+  },
+  'pwr:paired': {
+    title: 't-test, paired (pwr.t.test)',
+    features: ['rengine/pwr::paired_'],
+  },
+  'pwr:anova': {
+    title: 'One-way ANOVA (pwr.anova.test)',
+    features: ['rengine/pwr::anova_'],
+  },
+  'pwr:p1': {
+    title: 'One proportion (pwr.p.test)',
+    features: ['rengine/pwr::p1_'],
+  },
+  'pwr:p2': {
+    title: 'Two proportions (pwr.2p.test)',
+    features: ['rengine/pwr::p2_'],
+  },
+  'pwr:r': {
+    title: 'Correlation (pwr.r.test)',
+    features: ['rengine/pwr::r_'],
+  },
+  'pwr:chisq': {
+    title: 'Chi-square test (pwr.chisq.test)',
+    features: ['rengine/pwr::chisq_'],
+  },
+  'pwr:f2': {
+    title: 'Multiple regression, f² (pwr.f2.test)',
+    features: ['rengine/pwr::f2_'],
+  },
+  km: {
+    examples: ['survival-aml'],
+    features: ['rengine/km'],
+    note: 'Curves, intervals (log, log-log, plain), medians, risk tables, log-rank and Peto tests against survfit and survdiff in desktop R (scripts/validation/survival_km.R).',
   },
   customml: {},
   'customml:normal': {

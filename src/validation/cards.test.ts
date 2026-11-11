@@ -17,6 +17,8 @@ import { IRT_MODELS, LCA_AUX_METHODS, LCA_KINDS } from '../analyses/items';
 import { PSEM_MODES } from '../analyses/psem';
 import { META_MODES } from '../analyses/meta';
 import { ROC_MODES } from '../analyses/roc';
+import { TEST_IDS as PWR_TEST_IDS } from '../analyses/stdPower';
+import { PCOR_METHODS } from '../rengine/pcor';
 import { MATCH_METHODS } from '../analyses/match';
 import { METASEM_METHODS } from '../analyses/metasem';
 import { EGA_MODELS, NETWORK_COR_METHODS, NETWORK_ESTIMATORS } from '../analyses/network';
@@ -60,6 +62,8 @@ const EFA_EXTRA_MODES = ['congruence', 'schmid'];
 const CARD_MODES: Record<string, readonly string[]> = {
   chart: CHART_KINDS,
   ttest: TTEST_TYPES,
+  pwr: PWR_TEST_IDS,
+  pcor: PCOR_METHODS,
   correlation: CORRELATION_METHODS,
   freqtest: FREQTEST_TYPES,
   reliability: [...RELIABILITY_TYPES, 'scale:bayes'],

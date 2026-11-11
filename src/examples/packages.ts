@@ -99,6 +99,9 @@ export type ExamplePackage =
   | 'mediation'
   | 'lslx'
   | 'semPower'
+  | 'pwr'
+  | 'ppcor'
+  | 'survival'
   | 'metaSEM'
   | 'semtree'
   | 'sirt'
@@ -170,6 +173,9 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'mediation',
   'lslx',
   'semPower',
+  'pwr',
+  'ppcor',
+  'survival',
   'metaSEM',
   'semtree',
   'sirt',
@@ -281,6 +287,9 @@ export type CardPanelKind =
   | 'medsens'
   | 'regsem'
   | 'sempower'
+  | 'pwr'
+  | 'pcor'
+  | 'km'
   | 'metasem'
   | 'semtree'
   | 'alignment'
@@ -2379,6 +2388,95 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: CB('ML'),
   },
   {
+    id: 'pwr-cohen',
+    package: 'pwr',
+    title: 'Power for standard tests: Cohen’s exercises (t-test, ANOVA, correlation, regression)',
+    source: 'pwr, ?pwr.t.test, ?pwr.anova.test, ?pwr.r.test and ?pwr.f2.test (Cohen 1988)',
+    links: [
+      { label: '?pwr.t.test', url: 'https://rdrr.io/cran/pwr/man/pwr.t.test.html' },
+      { label: '?pwr.anova.test', url: 'https://rdrr.io/cran/pwr/man/pwr.anova.test.html' },
+      { label: '?pwr.r.test', url: 'https://rdrr.io/cran/pwr/man/pwr.r.test.html' },
+      { label: '?pwr.f2.test', url: 'https://rdrr.io/cran/pwr/man/pwr.f2.test.html' },
+      {
+        label: 'pwr vignette',
+        url: 'https://cran.r-project.org/web/packages/pwr/vignettes/pwr-vignette.html',
+      },
+    ],
+    description:
+      'Four cards with the examples of pwr’s help pages, Cohen’s (1988) exercises: the N per group a one-sided two-sample t-test needs to detect d = 0.3 with 75% power (exercise 2.10), the N per group of a four-group ANOVA for f = 0.28 at 80% power (8.10), the N for a correlation of .3 at 80% power (3.4), and the power of an F test of five predictors explaining R² = .10 with N = 95 (9.1). No data are needed: the sleep data (Student 1908, datasets) are only loaded as the project’s dataset. Opens its cards on the Analyses tab.',
+    shows:
+      'The N needed: 121 per group for the t-test (120.2 exactly), 36 per group for the ANOVA, 85 for the correlation; the regression’s power is 0.67, as the help pages print. Each card draws the power curve over N.',
+    data: { package: 'datasets', name: 'sleep' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'pwr',
+      test: 't2',
+      solve: 'n',
+      alternative: 'greater',
+      effect: 0.3,
+      power: 0.75,
+      alpha: 0.05,
+    },
+    morePanels: [
+      { kind: 'pwr', test: 'anova', solve: 'n', effect: 0.28, k: 4, power: 0.8, alpha: 0.05 },
+      { kind: 'pwr', test: 'r', solve: 'n', effect: 0.3, power: 0.8, alpha: 0.05 },
+      { kind: 'pwr', test: 'f2', solve: 'power', effect: 0.1 / 0.9, u: 5, n: 95, alpha: 0.05 },
+    ],
+    settings: CB('ML'),
+  },
+  {
+    id: 'ppcor-help',
+    package: 'ppcor',
+    title: 'Partial and semi-partial correlations: ppcor’s help-page data',
+    source: 'ppcor, ?pcor and ?spcor.test (Kim 2015)',
+    links: [
+      { label: '?pcor', url: 'https://rdrr.io/cran/ppcor/man/pcor.html' },
+      { label: '?spcor.test', url: 'https://rdrr.io/cran/ppcor/man/spcor.test.html' },
+      {
+        label: 'Kim (2015), Communications for Statistical Applications and Methods',
+        url: 'https://doi.org/10.5351/CSAM.2015.22.6.665',
+      },
+    ],
+    description:
+      'The ten cases of four variables (hl, disp, deg, BC) that ppcor’s help pages type in: pcor(y.data), each pair’s partial correlation controlling for the other two, and the semi-partial correlations, among them spcor.test(hl, disp, deg + BC). The data are copied from the help page (GPL-2), shipped with the app. Opens its card on the Analyses tab.',
+    shows:
+      'The partial correlation of hl and disp is −0.672 (p = .068) once deg and BC are held constant; with deg and BC removed from disp only, the semi-partial correlation is −0.579 (p = .13), as the help page prints. With ten cases none of the tests reach .05.',
+    data: { package: 'ppcor', name: 'y.data (?pcor)', file: 'examples/ppcor/y-data.csv' },
+    constructs: [],
+    paths: [],
+    panel: { kind: 'pcor', vars: ['hl', 'disp', 'deg', 'BC'], controls: [], method: 'pearson' },
+    settings: CB('ML'),
+  },
+  {
+    id: 'survival-aml',
+    package: 'survival',
+    title: 'Kaplan–Meier curves: maintenance chemotherapy for acute myelogenous leukaemia',
+    source: 'survival, ?survfit.formula and ?aml (Miller 1997; Embury et al. 1977)',
+    links: [
+      { label: '?survfit.formula', url: 'https://rdrr.io/cran/survival/man/survfit.formula.html' },
+      { label: '?aml', url: 'https://rdrr.io/cran/survival/man/aml.html' },
+      { label: '?survdiff', url: 'https://rdrr.io/cran/survival/man/survdiff.html' },
+    ],
+    description:
+      'The help page’s first example: survfit(Surv(time, status) ~ x, data = aml), weeks to relapse of 23 patients with acute myelogenous leukaemia, by whether chemotherapy was maintained, with the log-rank and Peto & Peto tests between the groups (survdiff). Opens its card on the Analyses tab.',
+    shows:
+      'Median remission lasts 31 weeks with maintenance and 23 without; neither upper bound is reached. The log-rank test does not reject equal survival at .05 (χ² = 3.40, df = 1, p = .065), with 7 relapses against 10.7 expected under maintenance.',
+    data: { package: 'survival', name: 'aml' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'km',
+      time: 'time',
+      status: 'status',
+      group: 'x',
+      confType: 'log',
+      riskTimes: [0, 20, 40, 60, 80, 100, 120, 140, 160],
+      showCi: true,
+    },
+    settings: CB('ML'),
+  },
+  {
     id: 'metasem-digman97',
     package: 'metaSEM',
     title: 'Meta-analytic SEM: the Big Five’s higher-order factors (Digman 1997)',
@@ -3448,6 +3546,7 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
             p.outcome,
             ...p.predictors,
             ...p.interactions.flat(),
+            ...(p.blocks ?? []).flat(),
             p.trials,
             p.weights,
             p.cluster,
@@ -3512,6 +3611,11 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
       return [p.outcome ?? '', p.x ?? '', p.y ?? '', ...(p.controls ?? [])].filter(Boolean);
     case 'nca':
       return [...p.x, p.y];
+    // (Kaplan–Meier: the time, status and group columns)
+    case 'km': {
+      const o = panelPreset(p) as { time?: string; status?: string; group?: string };
+      return [o.time ?? '', o.status ?? '', o.group ?? ''].filter(Boolean);
+    }
     // (the APIM: each member's X and Y columns)
     case 'apim': {
       const o = panelPreset(p) as { x1: string[]; x2: string[]; y1: string[]; y2: string[] };
@@ -3615,6 +3719,7 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
 /** Options of the further cards (CardPanelKind) that hold column names. */
 const COLUMN_OPTIONS = [
   'vars',
+  'controls',
   'outcome',
   'outcomes',
   'cluster',

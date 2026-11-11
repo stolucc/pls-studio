@@ -82,8 +82,11 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   influenceAnalysis,
   // (split by group: one result section per group; see split.tsx)
   ...(BASIC_TEST_TYPES as AnalysisType[]).map((t) => withSplit(t)),
+  pcorAnalysis,
+  stdPowerAnalysis,
   ...BAYES_TYPES,
   regressionAnalysis,
+  kmAnalysis,
   customMlAnalysis,
   bmvregAnalysis,
   didAnalysis,
@@ -155,6 +158,9 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   ...REPORTING_ANALYSES,
 ];
 import { powerAnalysis } from './power';
+import { stdPowerAnalysis } from './stdPower';
+import { pcorAnalysis } from './pcor';
+import { kmAnalysis } from './km';
 import { metaSemAnalysis } from './metasem';
 import { semTreeAnalysis } from './semtree';
 import { plsMultilevelAnalysis } from './plsMultilevel';

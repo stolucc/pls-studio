@@ -108,7 +108,20 @@ ps_regression <- function(req_json, export = FALSE) {
     stop("Choose the outcome and at least one predictor.")
   }
   for (t in ints) if (length(t) < 2) stop("An interaction term must combine two or more variables.")
-  vars <- unique(c(preds, unlist(ints), zpreds)) # (a variable may enter through an interaction or the zero part only)
+  # A linear model's extras: further blocks of predictors entered in turn (hierarchical regression), and the cases'
+  # residuals, leverage and influence.
+  blocks <- Filter(length, ps_string_rows(req$blocks %||% list()))
+  case_diag <- isTRUE(req$caseDiagnostics)
+  lm_plain <- family == "gaussian" && !own && !zmod
+  if ((length(blocks) || case_diag) && !lm_plain) {
+    stop("Blocks and case diagnostics are available for a linear regression.")
+  }
+  if (length(blocks) > 20) stop("At most 20 blocks.")
+  block_vars <- unlist(blocks)
+  if (anyDuplicated(block_vars) || any(block_vars %in% c(y, preds, unlist(ints)))) {
+    stop("Each predictor enters in one block only, and not as the outcome.")
+  }
+  vars <- unique(c(preds, unlist(ints), zpreds, block_vars)) # (a variable may enter through an interaction or the zero part only)
   cols <- unique(c(y, vars, if (nzchar(trials)) trials, if (nzchar(wcol)) wcol, if (nzchar(cluster)) cluster, if (nzchar(status)) status))
   fr <- ps_long_frame(req, cols)
   v <- fr$v
@@ -162,6 +175,15 @@ ps_regression <- function(req_json, export = FALSE) {
   }
   term <- function(t) paste(vapply(t, function(n) v[[n]], ""), collapse = ":")
   rhs <- paste(c(vapply(preds, function(n) v[[n]], ""), vapply(ints, term, "")), collapse = " + ")
+  # Hierarchical regression: the right-hand side after each block (the first block: the predictors and terms above);
+  # the full model, with every block, is the one reported.
+  block_rhs <- character(0)
+  for (b in blocks) {
+    prev <- if (length(block_rhs)) block_rhs[length(block_rhs)] else rhs
+    block_rhs <- c(block_rhs, paste(c(prev, vapply(b, function(n) v[[n]], "")), collapse = " + "))
+  }
+  rhs_first <- rhs
+  if (length(block_rhs)) rhs <- block_rhs[length(block_rhs)]
   preds <- vars
   lhs <- if (family == "binomial" && nzchar(trials)) {
     sprintf("cbind(%s, %s - %s)", v[[y]], v[[trials]], v[[y]])
@@ -349,7 +371,11 @@ ps_regression <- function(req_json, export = FALSE) {
     # (HC0: White's sandwich without small-sample correction, the robust ML standard errors of Mplus's MLR)
     if (se == "HC0" && !own_hc0) "# Heteroskedasticity-consistent (HC0, White) standard errors: the maximum-likelihood sandwich, as Mplus MLR.\nvc <- vcovHC(fit, type = \"HC0\"); ct <- coeftest(fit, vcov. = vc)",
     if (se == "cluster") sprintf("# Standard errors clustered by %s.\nvc <- vcovCL(fit, cluster = ~%s); ct <- coeftest(fit, vcov. = vc)", ps_comment(cluster), v[[cluster]]),
-    if (durbin) PS_DURBIN_WATSON_LINES
+    if (durbin) PS_DURBIN_WATSON_LINES,
+    if (length(blocks)) ps_block_lines(c(rhs_first, block_rhs), lhs, w),
+    # (standardised coefficients and the part and partial correlations of an unweighted linear model)
+    if (lm_plain && !nzchar(wcol)) PS_LM_DETAILS_LINES,
+    if (case_diag) PS_CASE_LINES
   )
   inputs <- list(data = fr$data)
   title <- if (nzchar(slope)) {
@@ -398,7 +424,10 @@ ps_regression <- function(req_json, export = FALSE) {
       if (se == "HC0" && family == "multinomial") "matrix(sqrt(diag(vc)), nrow = nrow(coef(fit)), byrow = TRUE, dimnames = dimnames(coef(fit)))  # HC0 standard errors",
       if (piecewise) c("exp(coef(fit))  # baseline hazards and hazard ratios", "ll", if (se == "HC0") "sqrt(diag(vc))"),
       if (family %in% c("gaussian", "binomial", "poisson", "negbin", "gamma")) "anova(fit, test = \"Chisq\")",
-      if (durbin) c("dw", "r1  # lag-1 autocorrelation of the residuals")
+      if (durbin) c("dw", "r1  # lag-1 autocorrelation of the residuals"),
+      if (length(blocks)) "block_table",
+      if (lm_plain && !nzchar(wcol)) "if (exists(\"details\")) details",
+      if (case_diag) "head(case_table[order(-case_table$cooks), ], 20)  # the most influential cases"
     )
   }
   if (export) {
@@ -803,7 +832,8 @@ ps_regression <- function(req_json, export = FALSE) {
     )
     if (is.null(pred)) NULL else c(list(x = xn, grid = grid), pred, if (!family %in% c("ordinal", "multinomial")) list(points = list(x = unname(d[[xv]][keep]), y = unname(yobs[keep]))))
   }))
-  ps_json(list(
+  extras <- ps_lm_extras(env, nm)
+  ps_json(c(list(
     family = family,
     link = link,
     formula = nm(if (zmod) zfml else fml),
@@ -821,7 +851,114 @@ ps_regression <- function(req_json, export = FALSE) {
       package = if (zmod) "pscl" else if (family %in% c("negbin", "ordinal")) "MASS" else if (family == "multinomial") "nnet" else "stats",
       version = as.character(if (zmod) utils::packageVersion("pscl") else if (family %in% c("negbin", "ordinal")) utils::packageVersion("MASS") else if (family == "multinomial") utils::packageVersion("nnet") else getRversion())
     )
-  ))
+  ), extras))
+}
+
+#' Script lines of a hierarchical regression: one model per block (`rhs`: each model's right-hand side, the last the
+#' full model `fit`), R2 and its change, and the F test of each change against the model before (anova), as SPSS's
+#' "R Square Change" table.
+ps_block_lines <- function(rhs, lhs, w) {
+  k <- length(rhs)
+  fits <- vapply(seq_len(k - 1), function(j) {
+    sprintf("  lm(%s ~ %s, data = data%s),", lhs, rhs[j], w)
+  }, "")
+  c(
+    "# Hierarchical regression: the blocks entered in turn, each model tested against the one before (F change)",
+    "block_models <- list(",
+    fits,
+    "  fit",
+    ")",
+    "block_r2 <- vapply(block_models, function(m) summary(m)$r.squared, 0)",
+    "block_table <- do.call(rbind, lapply(seq_along(block_models), function(j) {",
+    "  m <- block_models[[j]]",
+    "  if (j == 1) {",
+    "    f <- summary(m)$fstatistic",
+    "    change <- c(f[[1]], f[[2]], f[[3]], pf(f[[1]], f[[2]], f[[3]], lower.tail = FALSE))",
+    "  } else {",
+    "    a <- anova(block_models[[j - 1]], m)",
+    "    change <- c(a$F[2], a$Df[2], a$Res.Df[2], a$`Pr(>F)`[2])",
+    "  }",
+    "  prev_r2 <- if (j == 1) 0 else block_r2[j - 1]",
+    "  data.frame(",
+    "    block = j, r2 = block_r2[j], adj_r2 = summary(m)$adj.r.squared,",
+    "    r2_change = block_r2[j] - prev_r2, f_change = change[1], df1 = change[2], df2 = change[3],",
+    "    p_change = change[4]",
+    "  )",
+    "}))"
+  )
+}
+
+#' Script lines: each term's standardised coefficient (the design matrix's columns and the outcome scaled by their
+#' standard deviations), zero-order correlation with the outcome, partial and part (semi-partial) correlations from
+#' its t value (r_partial = t / sqrt(t^2 + df), r_part = t sqrt((1 - R2) / df)) and tolerance (1 - R2 of the column on
+#' the other columns; 1 / VIF), as SPSS's Coefficients table reports them.
+PS_LM_DETAILS_LINES <- c(
+  "# Standardised coefficients, zero-order, partial and part correlations and tolerance of each term",
+  "# (not when a coefficient is not estimable: collinear terms)",
+  "if (!anyNA(coef(fit))) {",
+  "  X <- model.matrix(fit)[, -1, drop = FALSE]",
+  "  y_obs <- model.response(model.frame(fit))",
+  "  t_val <- summary(fit)$coefficients[-1, 3]",
+  "  df_res <- df.residual(fit)",
+  "  r2_fit <- summary(fit)$r.squared",
+  "  tolerance <- vapply(seq_len(ncol(X)), function(j) {",
+  "    if (ncol(X) == 1) {",
+  "      return(1)",
+  "    }",
+  "    1 - summary(lm(X[, j] ~ X[, -j, drop = FALSE]))$r.squared",
+  "  }, 0)",
+  "  details <- data.frame(",
+  "    beta = coef(fit)[-1] * apply(X, 2, sd) / sd(y_obs),",
+  "    zero_order = drop(cor(X, y_obs)),",
+  "    partial = t_val / sqrt(t_val^2 + df_res),",
+  "    part = t_val * sqrt((1 - r2_fit) / df_res),",
+  "    tolerance = tolerance,",
+  "    vif = 1 / tolerance",
+  "  )",
+  "}"
+)
+
+#' Script lines: each case's fitted value and residual, standardised and studentised (deleted) residuals, leverage,
+#' Cook's distance and standardised DFBETAs; `case_row` the case's row in the data (rows with missing values left out).
+PS_CASE_LINES <- c(
+  "# Case diagnostics: residuals, leverage and influence of each case",
+  "case_table <- data.frame(",
+  "  row = as.integer(rownames(data)),",
+  "  fitted = unname(fitted(fit)),",
+  "  residual = unname(residuals(fit)),",
+  "  standardized = unname(rstandard(fit)),",
+  "  studentized = unname(rstudent(fit)),",
+  "  leverage = unname(hatvalues(fit)),",
+  "  cooks = unname(cooks.distance(fit))",
+  ")",
+  "case_dfbetas <- dfbetas(fit)"
+)
+
+#' The linear model's extras read back from the script's environment: blocks, per-term details and case diagnostics.
+ps_lm_extras <- function(env, nm) {
+  out <- list()
+  bt <- env$block_table
+  if (!is.null(bt)) {
+    out$blocks <- lapply(seq_len(nrow(bt)), function(i) as.list(bt[i, ]))
+  }
+  d <- env$details
+  if (!is.null(d)) {
+    terms <- nm(rownames(d))
+    out$details <- lapply(seq_len(nrow(d)), function(i) c(list(term = terms[i]), as.list(d[i, ])))
+  }
+  ct <- env$case_table
+  if (!is.null(ct)) {
+    db <- env$case_dfbetas
+    out$cases <- c(
+      lapply(as.list(ct), function(x) I(unname(x))),
+      list(
+        dfbetas = lapply(seq_len(ncol(db)), function(j) {
+          list(term = nm(colnames(db)[j]), values = I(unname(db[, j])))
+        })
+      )
+    )
+  }
+  out
 }
 
 #' Maximum likelihood written out, as script lines (so the exported script runs on its own): ml_vcov gives the

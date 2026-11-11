@@ -288,6 +288,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['semPower', 'lavaan'],
     script('sempower.R', 'desktop semPower, dynamic::equivTest and lavaan'),
   ),
+  'rengine/pwr': native(
+    'Power for standard tests (t-tests, ANOVA, proportions, correlation, chi-square, regression)',
+    'Basic statistics',
+    ['pwr'],
+    script('pwr.R', 'desktop pwr on its help pages’ examples (Cohen 1988)'),
+  ),
   'rengine/screen': native(
     'Data screening (outliers, influence)',
     'CB-SEM',
@@ -526,6 +532,22 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     script('zeroinfl.R', 'desktop pscl (zeroinfl, hurdle, vuong)'),
     script('regression_links.R', 'desktop glm and MASS::polr with the other links'),
     script('durbin_watson.R', 'desktop lmtest::dwtest'),
+    script(
+      'regression_extras.R',
+      'desktop lm, ppcor, car::vif and influence.measures (blocks, part and partial r, case diagnostics)',
+    ),
+  ),
+  'rengine/km': native(
+    'Kaplan–Meier curves, median survival, risk table, log-rank and Peto tests',
+    'Regression',
+    ['survival'],
+    script('survival_km.R', 'desktop survival (survfit, survdiff) on its help pages’ data'),
+  ),
+  'rengine/pcor': native(
+    'Partial and semi-partial correlations (Pearson, Spearman, Kendall)',
+    'Basic statistics',
+    ['ppcor'],
+    script('regression_extras.R', 'desktop ppcor on its help page’s data and ?swiss'),
   ),
   'rengine/rsa': native(
     'Response surface analysis',

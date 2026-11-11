@@ -429,7 +429,15 @@ ps_in_browser <- function() grepl("emscripten", R.version$platform)
 ps_dataset <- function(req_json) {
   req <- ps_parse(req_json)
   e <- new.env()
-  utils::data(list = req$name, package = req$package, envir = e)
+  # (a dataset stored inside another data file, e.g. survival's aml in "cancer", is found among the package's lazy data)
+  suppressWarnings(utils::data(list = req$name, package = req$package, envir = e))
+  if (is.null(e[[req$name]])) {
+    lazy <- getNamespaceInfo(asNamespace(req$package), "lazydata")
+    if (!exists(req$name, envir = lazy, inherits = FALSE)) {
+      stop(sprintf("Data set %s not found in package %s.", req$name, req$package))
+    }
+    e[[req$name]] <- get(req$name, envir = lazy, inherits = FALSE)
+  }
   d <- as.data.frame(e[[req$name]])
   # Factors (e.g. groups, ordered items) become their codes 1, 2, ... in level order.
   levels <- list()
