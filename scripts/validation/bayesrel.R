@@ -20,12 +20,15 @@ set.seed(1)
 br <- strel(X, estimates = three, interval = 0.95, n.iter = 1000, n.burnin = 50, n.chains = 3, freq = FALSE)
 four <- c("alpha", "lambda2", "glb", "omega")
 set.seed(1)
-brGlb <- suppressWarnings(strel(X, estimates = four, interval = 0.95, n.iter = 1000, n.burnin = 50, n.chains = 3,
-  freq = FALSE))
+brGlb <- suppressWarnings(strel(X,
+  estimates = four, interval = 0.95, n.iter = 1000, n.burnin = 50, n.chains = 3,
+  freq = FALSE
+))
 out <- list(
   Bayesrel = as.character(packageVersion("Bayesrel")),
   n = nrow(X),
   withoutGlb = summarise(br, three),
-  withGlb = summarise(brGlb, four))
+  withGlb = summarise(brGlb, four)
+)
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/bayesrel/asrm.json")
 cat("written\n")

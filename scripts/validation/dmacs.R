@@ -13,76 +13,85 @@
 # (group.equal loadings and intercepts, group.partial visual=~x2 and x7~1), and the configural model.
 # Writes src/engine/__fixtures__/invariance/dmacs.json; cards/invariance.webr.test.ts compares the card with it.
 #   R_LIBS_USER=~/.pls-studio-helper/library Rscript scripts/validation/dmacs.R
-suppressPackageStartupMessages({ library(lavaan); library(jsonlite) })
+suppressPackageStartupMessages({
+  library(lavaan)
+  library(jsonlite)
+})
 
 # ---- dmacs 0.1.0.9002 (CC0), verbatim ----
-item_dmacs <- function (LambdaR, LambdaF,
-                        NuR, NuF,
-                        MeanF, VarF, SD,
-                        ThreshR = NULL, ThreshF = NULL,
-                        ThetaR = NULL, ThetaF = NULL,
-                        categorical = FALSE) {
+item_dmacs <- function(LambdaR, LambdaF,
+                       NuR, NuF,
+                       MeanF, VarF, SD,
+                       ThreshR = NULL, ThreshF = NULL,
+                       ThetaR = NULL, ThetaF = NULL,
+                       categorical = FALSE) {
   if (!is.null(ThreshR)) {
     categorical <- TRUE
     if (length(ThreshR) != length(ThreshF)) stop("Item must have same number of thresholds in both reference and focal group")
   }
-  if(LambdaR == 0) {return(NA)}
+  if (LambdaR == 0) {
+    return(NA)
+  }
   integrand <- function(z, LambdaR, LambdaF,
                         NuR, NuF,
                         ThreshR, ThreshF,
                         ThetaR, ThetaF,
                         MeanF, VarF, categorical) {
-    (expected_value(LambdaF, NuF, MeanF+z*sqrt(VarF), ThreshF, ThetaF, categorical) -
-       expected_value(LambdaR, NuR, MeanF+z*sqrt(VarF), ThreshR, ThetaR, categorical))^2 * dnorm(z)
+    (expected_value(LambdaF, NuF, MeanF + z * sqrt(VarF), ThreshF, ThetaF, categorical) -
+      expected_value(LambdaR, NuR, MeanF + z * sqrt(VarF), ThreshR, ThetaR, categorical))^2 * dnorm(z)
   }
   sqrt(integrate(integrand, -Inf, Inf,
-                 LambdaR, LambdaF,
-                 NuR, NuF,
-                 ThreshR, ThreshF,
-                 ThetaR, ThetaF,
-                 MeanF, VarF,
-                 categorical = categorical)$value)/SD
+    LambdaR, LambdaF,
+    NuR, NuF,
+    ThreshR, ThreshF,
+    ThetaR, ThetaF,
+    MeanF, VarF,
+    categorical = categorical
+  )$value) / SD
 }
-delta_mean_item <- function (LambdaR, LambdaF,
-                             NuR, NuF,
-                             MeanF, VarF,
-                             ThreshR = NULL, ThreshF = NULL,
-                             ThetaR = NULL, ThetaF = NULL,
-                             categorical = FALSE) {
+delta_mean_item <- function(LambdaR, LambdaF,
+                            NuR, NuF,
+                            MeanF, VarF,
+                            ThreshR = NULL, ThreshF = NULL,
+                            ThetaR = NULL, ThetaF = NULL,
+                            categorical = FALSE) {
   if (categorical) {
     categorical <- TRUE
     if (length(ThreshR) != length(ThreshF)) stop("Item must have same number of thresholds in both reference and focal group.")
   }
-  if(LambdaR == 0) {return(NA)}
+  if (LambdaR == 0) {
+    return(NA)
+  }
   integrand <- function(z, LambdaR, LambdaF,
-                           NuR, NuF,
-                           ThreshR, ThreshF,
-                           ThetaR, ThetaF,
-                           MeanF, VarF, categorical) {
-    (expected_value(LambdaF, NuF, MeanF+z*sqrt(VarF), ThreshF, ThetaF, categorical) -
-       expected_value(LambdaR, NuR, MeanF+z*sqrt(VarF), ThreshR, ThetaR, categorical)) * dnorm(z)
+                        NuR, NuF,
+                        ThreshR, ThreshF,
+                        ThetaR, ThetaF,
+                        MeanF, VarF, categorical) {
+    (expected_value(LambdaF, NuF, MeanF + z * sqrt(VarF), ThreshF, ThetaF, categorical) -
+      expected_value(LambdaR, NuR, MeanF + z * sqrt(VarF), ThreshR, ThetaR, categorical)) * dnorm(z)
   }
   integrate(integrand, -Inf, Inf,
-            LambdaR, LambdaF,
-            NuR, NuF,
-            ThreshR, ThreshF,
-            ThetaR, ThetaF,
-            MeanF, VarF,
-            categorical = categorical)$value
+    LambdaR, LambdaF,
+    NuR, NuF,
+    ThreshR, ThreshF,
+    ThetaR, ThetaF,
+    MeanF, VarF,
+    categorical = categorical
+  )$value
 }
-expected_value <- function (Lambda, Nu, Eta, Thresh = NULL, Theta = NULL, categorical = FALSE) {
+expected_value <- function(Lambda, Nu, Eta, Thresh = NULL, Theta = NULL, categorical = FALSE) {
   if (categorical) {
-    Mu <- Nu + Lambda*Eta
+    Mu <- Nu + Lambda * Eta
     max <- length(Thresh)
-    Thresh[max+1] <- Inf
+    Thresh[max + 1] <- Inf
     expected <- 0
     for (i in 1:max) {
-      expected <- expected + i*(pnorm(Mu - Thresh[i], sd = sqrt(Theta)) -
-                                                  pnorm(Mu - Thresh[i+1], sd = sqrt(Theta)))
+      expected <- expected + i * (pnorm(Mu - Thresh[i], sd = sqrt(Theta)) -
+        pnorm(Mu - Thresh[i + 1], sd = sqrt(Theta)))
     }
     expected
   } else {
-    Nu+Lambda*Eta
+    Nu + Lambda * Eta
   }
 }
 # ---- end of dmacs ----
@@ -95,31 +104,50 @@ partial <- cfa(HS.model, data = dat, group = "school", group.equal = c("loadings
 configural <- cfa(HS.model, data = dat, group = "school")
 
 effects <- function(fit, RefGroup, sdtype) {
-  est <- lavInspect(fit, "est"); groups <- lavInspect(fit, "group.label"); obs <- lavInspect(fit, "data")
-  r <- match(RefGroup, groups); f <- setdiff(seq_along(groups), r)
-  sd_of <- function(g) apply(obs[[g]], 2, sd); n_of <- function(g) nrow(obs[[g]])
+  est <- lavInspect(fit, "est")
+  groups <- lavInspect(fit, "group.label")
+  obs <- lavInspect(fit, "data")
+  r <- match(RefGroup, groups)
+  f <- setdiff(seq_along(groups), r)
+  sd_of <- function(g) apply(obs[[g]], 2, sd)
+  n_of <- function(g) nrow(obs[[g]])
   SD <- if (sdtype == "pooled") sqrt(((n_of(r) - 1) * sd_of(r)^2 + (n_of(f) - 1) * sd_of(f)^2) / (n_of(r) + n_of(f) - 2)) else sd_of(r)
-  items <- list(); scales <- list()
+  items <- list()
+  scales <- list()
   for (k in colnames(est[[r]]$lambda)) {
-    LR <- est[[r]]$lambda[, k]; LF <- est[[f]]$lambda[, k]; on <- names(LR)[LR != 0]
-    m <- est[[f]]$alpha[k, 1]; v <- est[[f]]$psi[k, k]
+    LR <- est[[r]]$lambda[, k]
+    LF <- est[[f]]$lambda[, k]
+    on <- names(LR)[LR != 0]
+    m <- est[[f]]$alpha[k, 1]
+    v <- est[[f]]$psi[k, k]
     for (i in on) {
-      lR <- LR[[i]]; lF <- LF[[i]]; nR <- est[[r]]$nu[i, 1]; nF <- est[[f]]$nu[i, 1]
-      d <- item_dmacs(lR, lF, nR, nF, m, v, SD[[i]]); mb <- delta_mean_item(lR, lF, nR, nF, m, v)
+      lR <- LR[[i]]
+      lF <- LF[[i]]
+      nR <- est[[r]]$nu[i, 1]
+      nF <- est[[f]]$nu[i, 1]
+      d <- item_dmacs(lR, lF, nR, nF, m, v, SD[[i]])
+      mb <- delta_mean_item(lR, lF, nR, nF, m, v)
       closed <- sqrt(((nF - nR) + (lF - lR) * m)^2 + (lF - lR)^2 * v) / SD[[i]]
-      items[[length(items) + 1]] <- list(factor = k, item = i, lambdaRef = lR, lambdaFocal = lF, nuRef = nR, nuFocal = nF, sd = SD[[i]],
-        dmacs = d, dmacsClosed = closed, meanBias = mb, meanBiasClosed = (nF - nR) + (lF - lR) * m, signed = mb / SD[[i]], varBias = v * (lF^2 - lR^2))
+      items[[length(items) + 1]] <- list(
+        factor = k, item = i, lambdaRef = lR, lambdaFocal = lF, nuRef = nR, nuFocal = nF, sd = SD[[i]],
+        dmacs = d, dmacsClosed = closed, meanBias = mb, meanBiasClosed = (nF - nR) + (lF - lR) * m, signed = mb / SD[[i]], varBias = v * (lF^2 - lR^2)
+      )
     }
     # Nye & Drasgow (2011), equations 7-9: the bias in each covariance of two items, summed over all pairs
-    dl <- LF[on] - LR[on]; lr <- LR[on]
+    dl <- LF[on] - LR[on]
+    lr <- LR[on]
     dcov <- outer(seq_along(on), seq_along(on), function(i, j) lr[j] * dl[i] * v + lr[i] * dl[j] * v + dl[i] * dl[j] * v)
-    scales[[length(scales) + 1]] <- list(factor = k, items = length(on), kappa = m, phi = v,
-      meanBias = sum(vapply(items[vapply(items, function(x) x$factor == k, TRUE)], function(x) x$meanBias, 0)), varBias = sum(dcov))
+    scales[[length(scales) + 1]] <- list(
+      factor = k, items = length(on), kappa = m, phi = v,
+      meanBias = sum(vapply(items[vapply(items, function(x) x$factor == k, TRUE)], function(x) x$meanBias, 0)), varBias = sum(dcov)
+    )
   }
   list(reference = groups[r], focal = groups[f], n = unname(lavInspect(fit, "nobs")), groups = groups, items = items, scales = scales)
 }
-out <- list(lavaan = as.character(packageVersion("lavaan")), R = paste(R.version$major, R.version$minor, sep = "."), dmacs = "0.1.0.9002 (github.com/ddueber/dmacs, functions copied)",
-  partialPasteur = effects(partial, "Pasteur", "pooled"), partialGrantWhite = effects(partial, "Grant-White", "reference"), configural = effects(configural, "Pasteur", "pooled"))
+out <- list(
+  lavaan = as.character(packageVersion("lavaan")), R = paste(R.version$major, R.version$minor, sep = "."), dmacs = "0.1.0.9002 (github.com/ddueber/dmacs, functions copied)",
+  partialPasteur = effects(partial, "Pasteur", "pooled"), partialGrantWhite = effects(partial, "Grant-White", "reference"), configural = effects(configural, "Pasteur", "pooled")
+)
 dir <- file.path("src", "engine", "__fixtures__", "invariance")
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), file.path(dir, "dmacs.json"))
 cat("Wrote", file.path(dir, "dmacs.json"), "\n")

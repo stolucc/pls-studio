@@ -3,7 +3,11 @@
 # Writes src/engine/__fixtures__/invariance/reference.json; cards/invariance.webr.test.ts and
 # rengine/invariance.webr.test.ts compare the cards' results with it.
 #   R_LIBS_USER=~/.pls-studio-helper/library Rscript scripts/validation/invariance_cards.R
-suppressPackageStartupMessages({ library(lavaan); library(sirt); library(jsonlite) })
+suppressPackageStartupMessages({
+  library(lavaan)
+  library(sirt)
+  library(jsonlite)
+})
 out <- list()
 rows <- function(m) lapply(seq_len(nrow(m)), function(g) unname(as.numeric(m[g, ])))
 
@@ -25,60 +29,86 @@ cons05 <- invariance_alignment_constraints(mod1, lambda_parm_tol = .05, nu_parm_
 mod1w <- invariance.alignment(lambda = lambda, nu = nu, wgt = matrix(sqrt(1000), 4, 11))
 # least squares (power 2), help page example 1's model 1
 mod2 <- invariance.alignment(lambda = lambda, nu = nu, align.pow = c(2, 2))
-al <- function(m) list(mean = m$pars$alpha0, sd = m$pars$psi0, r2 = unname(m$es.invariance["R2", ]), rbar = unname(m$es.invariance["rbar", ]),
-  sqrtU2 = unname(m$es.invariance["sqrtU2", ]), lambdaAligned = rows(m$lambda.aligned), nuAligned = rows(m$nu.aligned), fopt = m$fopt)
-out$alignment <- list(chisq = unname(fitMeasures(fit, "chisq")), df = unname(fitMeasures(fit, "df")), lambda = rows(lambda), nu = rows(nu),
+al <- function(m) {
+  list(
+    mean = m$pars$alpha0, sd = m$pars$psi0, r2 = unname(m$es.invariance["R2", ]), rbar = unname(m$es.invariance["rbar", ]),
+    sqrtU2 = unname(m$es.invariance["sqrtU2", ]), lambdaAligned = rows(m$lambda.aligned), nuAligned = rows(m$nu.aligned), fopt = m$fopt
+  )
+}
+out$alignment <- list(
+  chisq = unname(fitMeasures(fit, "chisq")), df = unname(fitMeasures(fit, "df")), lambda = rows(lambda), nu = rows(nu),
   default = al(mod1), weighted = al(mod1w), leastSquares = al(mod2),
   noninvariant = list(lambda = cons$lambda_list$prop_noninvariance / 100, nu = cons$nu_list$prop_noninvariance / 100),
-  noninvariant05 = list(lambda = cons05$lambda_list$prop_noninvariance / 100, nu = cons05$nu_list$prop_noninvariance / 100,
-    lambdaUnique = unname(cons05$lambda_list$N_unique_parm_items), nuUnique = unname(cons05$nu_list$N_unique_parm_items)))
+  noninvariant05 = list(
+    lambda = cons05$lambda_list$prop_noninvariance / 100, nu = cons05$nu_list$prop_noninvariance / 100,
+    lambdaUnique = unname(cons05$lambda_list$N_unique_parm_items), nuUnique = unname(cons05$nu_list$N_unique_parm_items)
+  )
+)
 
 # ---- MNLFA: mnlfa ?mnlfa, example 1, model 4 as written; and a 2PL with a three-level categorical covariate ----
 suppressPackageStartupMessages(library(mnlfa))
 data(data.mnlfa01, package = "mnlfa")
 dat <- data.mnlfa01
 items <- grep("I[0-9]", colnames(dat), value = TRUE)
-formula_mean <- ~0 + female + age
+formula_mean <- ~ 0 + female + age
 formula_sd <- ~1
 formula_int <- ~1
 formula_int <- mnlfa::mnlfa_expand_to_list(x = formula_int, names_list = items)
 mod_items <- c(4, 5, 6, 7)
-for (ii in mod_items) formula_int[[ii]] <- ~1 + female + age
+for (ii in mod_items) formula_int[[ii]] <- ~ 1 + female + age
 formula_slo <- ~1
 mod4 <- mnlfa::mnlfa(dat = dat, items, item_type = "1PL", formula_int = formula_int, formula_slo = formula_slo, formula_mean = formula_mean, formula_sd = formula_sd, verbose = FALSE)
-mn <- function(m) list(parm = as.character(m$item$parm), est = m$item$est, trait = as.character(m$trait$par), traitEst = m$trait$est,
-  deviance = m$ic$deviance, npar = m$ic$np, aic = m$ic$AIC, bic = m$ic$BIC, iter = m$iter)
+mn <- function(m) {
+  list(
+    parm = as.character(m$item$parm), est = m$item$est, trait = as.character(m$trait$par), traitEst = m$trait$est,
+    deviance = m$ic$deviance, npar = m$ic$np, aic = m$ic$AIC, bic = m$ic$BIC, iter = m$iter
+  )
+}
 # 2PL: a three-level grouping (rows 1, 2, 3, 1, 2, 3, ...) as a factor, moderating the slopes of I1-I3 and the factor
 # mean; age moderating the intercepts of I1-I3 and the log SD (here written with R's own dummy coding).
 dat$grp <- factor(rep(1:3, length.out = nrow(dat)))
-dat$grp2 <- as.numeric(dat$grp == 2); dat$grp3 <- as.numeric(dat$grp == 3)  # (the mean has no intercept: dummies, not ~0 + grp)
-fi <- mnlfa::mnlfa_expand_to_list(x = ~1, names_list = items); fs <- fi
-for (ii in 1:3) { fi[[ii]] <- ~1 + age; fs[[ii]] <- ~1 + grp }
-mod2pl <- mnlfa::mnlfa(dat = dat, items, item_type = "2PL", formula_int = fi, formula_slo = fs, formula_mean = ~0 + grp2 + grp3,
-  formula_sd = ~0 + age, verbose = FALSE)
+dat$grp2 <- as.numeric(dat$grp == 2)
+dat$grp3 <- as.numeric(dat$grp == 3) # (the mean has no intercept: dummies, not ~0 + grp)
+fi <- mnlfa::mnlfa_expand_to_list(x = ~1, names_list = items)
+fs <- fi
+for (ii in 1:3) {
+  fi[[ii]] <- ~ 1 + age
+  fs[[ii]] <- ~ 1 + grp
+}
+mod2pl <- mnlfa::mnlfa(
+  dat = dat, items, item_type = "2PL", formula_int = fi, formula_slo = fs, formula_mean = ~ 0 + grp2 + grp3,
+  formula_sd = ~ 0 + age, verbose = FALSE
+)
 out$mnlfa <- list(model4 = mn(mod4), twoPL = mn(mod2pl))
 
 # ---- Longitudinal invariance: PoliticalDemocracy, democracy 1960 (y1-y4) and 1965 (y5-y8), written out by hand ----
 # The four levels as plain lavaan syntax (no semTools), factor standardised at 1960, each item's residuals correlated.
 pd <- PoliticalDemocracy
-lv <- function(eqL, eqI, eqR) paste(c(
-  sprintf("d60 =~ NA*y1 + %sy1 + %sy2 + %sy3 + %sy4", if (eqL) "l1*" else "", if (eqL) "l2*" else "", if (eqL) "l3*" else "", if (eqL) "l4*" else ""),
-  sprintf("d65 =~ NA*y5 + %sy5 + %sy6 + %sy7 + %sy8", if (eqL) "l1*" else "", if (eqL) "l2*" else "", if (eqL) "l3*" else "", if (eqL) "l4*" else ""),
-  "d60 ~~ 1*d60", if (eqL) "d65 ~~ d65" else "d65 ~~ 1*d65", "d60 ~~ d65",
-  "d60 ~ 0*1", if (eqI) "d65 ~ 1" else "d65 ~ 0*1",
-  sprintf("y%d ~ %s1", 1:4, if (eqI) paste0("i", 1:4, "*") else ""), sprintf("y%d ~ %s1", 5:8, if (eqI) paste0("i", 1:4, "*") else ""),
-  sprintf("y%d ~~ %sy%d", 1:4, if (eqR) paste0("r", 1:4, "*") else "", 1:4), sprintf("y%d ~~ %sy%d", 5:8, if (eqR) paste0("r", 1:4, "*") else "", 5:8),
-  sprintf("y%d ~~ y%d", 1:4, 5:8)), collapse = "\n")
+lv <- function(eqL, eqI, eqR) {
+  paste(c(
+    sprintf("d60 =~ NA*y1 + %sy1 + %sy2 + %sy3 + %sy4", if (eqL) "l1*" else "", if (eqL) "l2*" else "", if (eqL) "l3*" else "", if (eqL) "l4*" else ""),
+    sprintf("d65 =~ NA*y5 + %sy5 + %sy6 + %sy7 + %sy8", if (eqL) "l1*" else "", if (eqL) "l2*" else "", if (eqL) "l3*" else "", if (eqL) "l4*" else ""),
+    "d60 ~~ 1*d60", if (eqL) "d65 ~~ d65" else "d65 ~~ 1*d65", "d60 ~~ d65",
+    "d60 ~ 0*1", if (eqI) "d65 ~ 1" else "d65 ~ 0*1",
+    sprintf("y%d ~ %s1", 1:4, if (eqI) paste0("i", 1:4, "*") else ""), sprintf("y%d ~ %s1", 5:8, if (eqI) paste0("i", 1:4, "*") else ""),
+    sprintf("y%d ~~ %sy%d", 1:4, if (eqR) paste0("r", 1:4, "*") else "", 1:4), sprintf("y%d ~~ %sy%d", 5:8, if (eqR) paste0("r", 1:4, "*") else "", 5:8),
+    sprintf("y%d ~~ y%d", 1:4, 5:8)
+  ), collapse = "\n")
+}
 for (est in c("ML", "MLR")) {
-  fits <- list(configural = lavaan(lv(FALSE, FALSE, FALSE), pd, estimator = est), metric = lavaan(lv(TRUE, FALSE, FALSE), pd, estimator = est),
-    scalar = lavaan(lv(TRUE, TRUE, FALSE), pd, estimator = est), strict = lavaan(lv(TRUE, TRUE, TRUE), pd, estimator = est))
+  fits <- list(
+    configural = lavaan(lv(FALSE, FALSE, FALSE), pd, estimator = est), metric = lavaan(lv(TRUE, FALSE, FALSE), pd, estimator = est),
+    scalar = lavaan(lv(TRUE, TRUE, FALSE), pd, estimator = est), strict = lavaan(lv(TRUE, TRUE, TRUE), pd, estimator = est)
+  )
   lrt <- lavTestLRT(fits$configural, fits$metric, fits$scalar, fits$strict)
   pick <- function(f, a, b) unname(if (est == "MLR") fitMeasures(f, b) else fitMeasures(f, a))
   pe <- parameterEstimates(fits$scalar)
-  out[[paste0("longInvariance", est)]] <- list(chisq = sapply(fits, pick, "chisq", "chisq.scaled"), df = sapply(fits, function(f) unname(fitMeasures(f, "df"))),
+  out[[paste0("longInvariance", est)]] <- list(
+    chisq = sapply(fits, pick, "chisq", "chisq.scaled"), df = sapply(fits, function(f) unname(fitMeasures(f, "df"))),
     cfi = sapply(fits, pick, "cfi", "cfi.robust"), rmsea = sapply(fits, pick, "rmsea", "rmsea.robust"), srmr = sapply(fits, function(f) unname(fitMeasures(f, "srmr"))),
     chisqDiff = unname(lrt[["Chisq diff"]][2:4]), p = unname(lrt[["Pr(>Chisq)"]][2:4]),
-    scalarMean = pe$est[pe$lhs == "d65" & pe$op == "~1"], scalarMeanSe = pe$se[pe$lhs == "d65" & pe$op == "~1"], scalarVar = pe$est[pe$lhs == "d65" & pe$op == "~~" & pe$rhs == "d65"])
+    scalarMean = pe$est[pe$lhs == "d65" & pe$op == "~1"], scalarMeanSe = pe$se[pe$lhs == "d65" & pe$op == "~1"], scalarVar = pe$est[pe$lhs == "d65" & pe$op == "~~" & pe$rhs == "d65"]
+  )
 }
 
 # ---- DIF by MIMIC: Holzinger & Swineford, visual (x1-x3, x9) on sex (ML, Holm) and textual (x4-x6) on age (MLR, BH) ----
@@ -89,22 +119,33 @@ mimic <- function(fac, items, x, est, adjust) {
   sc <- lavTestScore(f0, add = paste(items, "~", x))$uni
   rows <- lapply(items, function(i) {
     f1 <- sem(paste0(base, "\n", i, " ~ ", x), hs, estimator = est)
-    pe <- parameterEstimates(f1, standardized = TRUE); r <- pe[pe$lhs == i & pe$op == "~", ]
+    pe <- parameterEstimates(f1, standardized = TRUE)
+    r <- pe[pe$lhs == i & pe$op == "~", ]
     a <- anova(f1, f0)
     list(est = r$est, se = r$se, p = r$pvalue, std = r$std.all, chisq = a[["Chisq diff"]][2], pLrt = a[["Pr(>Chisq)"]][2])
   })
-  p <- sapply(rows, `[[`, "pLrt"); padj <- p.adjust(p, adjust); flagged <- items[padj < .05]
-  pe0 <- parameterEstimates(f0); e0 <- pe0[pe0$lhs == fac & pe0$op == "~", ]
+  p <- sapply(rows, `[[`, "pLrt")
+  padj <- p.adjust(p, adjust)
+  flagged <- items[padj < .05]
+  pe0 <- parameterEstimates(f0)
+  e0 <- pe0[pe0$lhs == fac & pe0$op == "~", ]
   ff <- sem(paste(c(base, if (length(flagged)) paste(flagged, "~", x)), collapse = "\n"), hs, estimator = est)
-  pef <- parameterEstimates(ff); ef <- pef[pef$lhs == fac & pef$op == "~", ]
-  list(effect = e0$est, effectSe = e0$se, est = sapply(rows, `[[`, "est"), se = sapply(rows, `[[`, "se"), p = sapply(rows, `[[`, "p"), std = sapply(rows, `[[`, "std"),
+  pef <- parameterEstimates(ff)
+  ef <- pef[pef$lhs == fac & pef$op == "~", ]
+  list(
+    effect = e0$est, effectSe = e0$se, est = sapply(rows, `[[`, "est"), se = sapply(rows, `[[`, "se"), p = sapply(rows, `[[`, "p"), std = sapply(rows, `[[`, "std"),
     chisq = sapply(rows, `[[`, "chisq"), pLrt = p, pAdj = padj, score = sc$X2, scoreP = sc$p.value, flagged = I(flagged), finalEffect = ef$est, finalEffectSe = ef$se,
-    finalChisq = unname(fitMeasures(ff, if (est == "MLR") "chisq.scaled" else "chisq")))  # (scaled for MLR, as the card reports)
+    finalChisq = unname(fitMeasures(ff, if (est == "MLR") "chisq.scaled" else "chisq"))
+  ) # (scaled for MLR, as the card reports)
 }
 out$mimicVisualSex <- mimic("visual", c("x1", "x2", "x3", "x9"), "sex", "ML", "holm")
 out$mimicTextualAge <- mimic("textual", c("x4", "x5", "x6"), "ageyr", "MLR", "BH")
 
-writeLines(toJSON(list(generated = format(Sys.time()), R = R.version.string, lavaan = as.character(packageVersion("lavaan")),
-  sirt = as.character(packageVersion("sirt")), mnlfa = as.character(packageVersion("mnlfa")), cases = out), auto_unbox = TRUE, pretty = TRUE, digits = NA, null = "null", na = "null"),
-  "src/engine/__fixtures__/invariance/reference.json")
+writeLines(
+  toJSON(list(
+    generated = format(Sys.time()), R = R.version.string, lavaan = as.character(packageVersion("lavaan")),
+    sirt = as.character(packageVersion("sirt")), mnlfa = as.character(packageVersion("mnlfa")), cases = out
+  ), auto_unbox = TRUE, pretty = TRUE, digits = NA, null = "null", na = "null"),
+  "src/engine/__fixtures__/invariance/reference.json"
+)
 cat("written\n")

@@ -8,7 +8,10 @@
 #    and covariances; at each step the one that raises lavTestWald's statistic of "all dropped = 0" least is dropped
 #    while neither the increment nor the multivariate statistic is significant at .05.
 # Run: Rscript scripts/validation/lmwald.R  (writes src/engine/__fixtures__/search/lmwald.json)
-suppressPackageStartupMessages({ library(lavaan); library(jsonlite) })
+suppressPackageStartupMessages({
+  library(lavaan)
+  library(jsonlite)
+})
 hs <- HolzingerSwineford1939
 A <- "visual =~ x1 + x2 + x3\ntextual =~ x4 + x5 + x6\nspeed =~ x7 + x8 + x9\ntextual ~ visual\nspeed ~ textual"
 B <- paste(A, "speed ~ visual", "x1 ~~ x4", "x2 ~~ x7", "x3 ~~ x5", sep = "\n")
@@ -19,7 +22,9 @@ mi <- modindices(fa)
 mi <- mi[mi$op %in% c("=~", "~", "~~") & (mi$op != "~~" | mi$lhs != mi$rhs), ]
 pool <- paste(mi$lhs, mi$op, mi$rhs)
 score <- function(set) lavTestScore(fa, add = paste(set, collapse = "\n"), univariate = FALSE)$test$X2
-chosen <- character(0); lm <- list(); last <- 0
+chosen <- character(0)
+lm <- list()
+last <- 0
 repeat {
   left <- pool[!pool %in% chosen]
   if (!length(left)) break
@@ -35,7 +40,9 @@ fb <- sem(B, data = hs, estimator = "ML", auto.cov.y = FALSE)
 pt <- parTable(fb)
 cand <- pt[pt$free > 0 & pt$op %in% c("~", "~~") & pt$lhs != pt$rhs, ]
 wald <- function(set) lavTestWald(fb, constraints = paste(paste(set, "== 0"), collapse = "\n"))$stat
-gone <- character(0); wd <- list(); last <- 0
+gone <- character(0)
+wd <- list()
+last <- 0
 repeat {
   left <- setdiff(cand$plabel, gone)
   if (!length(left)) break
@@ -46,8 +53,12 @@ repeat {
   wd[[length(wd) + 1]] <- list(parameter = paste(cand$lhs[j], cand$op[j], cand$rhs[j]), chisq = min(w), df = length(gone), increment = min(w) - last)
   last <- min(w)
 }
-out <- list(versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string), lm = lm, lmCandidates = length(pool),
-  lavaanCumulative = list(parameters = paste(cumul$lhs, cumul$rhs), chisq = cumul$X2, df = cumul$df), wald = wd, waldCandidates = nrow(cand))
+out <- list(
+  versions = list(lavaan = as.character(packageVersion("lavaan")), R = R.version.string), lm = lm, lmCandidates = length(pool),
+  lavaanCumulative = list(parameters = paste(cumul$lhs, cumul$rhs), chisq = cumul$X2, df = cumul$df), wald = wd, waldCandidates = nrow(cand)
+)
 dir.create("src/engine/__fixtures__/search", showWarnings = FALSE, recursive = TRUE)
 writeLines(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/search/lmwald.json")
-str(lm); str(wd); print(cumul)
+str(lm)
+str(wd)
+print(cumul)

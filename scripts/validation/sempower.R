@@ -7,7 +7,12 @@
 #     lavaan's upper limit of the 90% RMSEA interval, which the T-size RMSEA equals
 #   R_LIBS=/path/to/helper/library Rscript scripts/validation/sempower.R
 
-suppressPackageStartupMessages({ library(jsonlite); library(semPower); library(lavaan); library(dynamic) })
+suppressPackageStartupMessages({
+  library(jsonlite)
+  library(semPower)
+  library(lavaan)
+  library(dynamic)
+})
 pick <- function(x, ...) lapply(setNames(nm = c(...)), function(k) if (is.null(x[[k]])) NULL else unname(as.numeric(x[[k]])))
 ap <- semPower.aPriori(effect = .05, effect.measure = "RMSEA", alpha = .05, beta = .05, df = 200)
 ph <- semPower.postHoc(effect = .05, effect.measure = "RMSEA", alpha = .05, N = 250, df = 200)
@@ -32,8 +37,11 @@ out <- list(
   compromise = pick(cp, "chiCrit", "impliedAlpha", "impliedBeta", "impliedAbratio"),
   agfi = pick(ag, "requiredN", "impliedPower", "fmin", "rmsea"),
   parameter = list(estimate = unname(coef(fit)["visual~~textual"]), apriori = pick(plA, "requiredN", "impliedPower", "fmin"), posthoc = pick(plP, "power", "fmin", "ncp")),
-  equivalence = list(chisq = unname(fm["chisq"]), df = unname(fm["df"]), n = nobs(fit), rmsea = unname(fm["rmsea"]), rmseaUpper90 = unname(fm["rmsea.ci.upper"]),
-    dynamicRmseaT = as.numeric(sub("^\\.", "0.", eq$rmsea)), dynamicCutoffs = cuts))
+  equivalence = list(
+    chisq = unname(fm["chisq"]), df = unname(fm["df"]), n = nobs(fit), rmsea = unname(fm["rmsea"]), rmseaUpper90 = unname(fm["rmsea.ci.upper"]),
+    dynamicRmseaT = as.numeric(sub("^\\.", "0.", eq$rmsea)), dynamicCutoffs = cuts
+  )
+)
 dir.create("src/engine/__fixtures__/power", showWarnings = FALSE, recursive = TRUE)
 write(toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE), "src/engine/__fixtures__/power/reference.json")
 cat("written\n")

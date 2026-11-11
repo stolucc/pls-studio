@@ -18,7 +18,10 @@ suppressMessages(library(jsonlite))
 
 args <- commandArgs(TRUE)
 if (!length(args) || !file.exists(args[1])) stop("Pass the path of PROCESS's process.R.")
-local({ source(args[1], local = TRUE); process <<- process })
+local({
+  source(args[1], local = TRUE)
+  process <<- process
+})
 only <- if (length(args) > 1) args[2] else "."
 
 root <- "src/process/__fixtures__/reference"
@@ -44,7 +47,9 @@ moderation <- 1:3
 parallel <- c(4, 5, 7:22, 28, 29, 58:76)
 serial <- c(6, 83:92)
 mediators <- function(model) {
-  if (model %in% moderation) return(character())
+  if (model %in% moderation) {
+    return(character())
+  }
   k <- if (model %in% serial || model %in% 80:81) 3 else if (model == 82) 4 else 2
   paste0("m", seq_len(k))
 }
@@ -57,8 +62,10 @@ words <- function(s) strsplit(trimws(s), "\\s+")[[1]]
 # Rows of a (possibly wrapped) table that starts on the line after `start`:
 # the first column block only, which always holds the first value columns.
 table_after <- function(lines, start) {
-  rows <- list(); i <- start + 1
-  header <- words(lines[i]); i <- i + 1
+  rows <- list()
+  i <- start + 1
+  header <- words(lines[i])
+  i <- i + 1
   while (i <= length(lines) && nzchar(trimws(lines[i]))) {
     w <- words(lines[i])
     # A wrapped table continues with its remaining columns: rows of another width.
@@ -74,22 +81,26 @@ parse_output <- function(out) {
   starts <- grep("^Outcome Variable:", out)
   for (s in starts) {
     outcome <- trimws(sub("^Outcome Variable:", "", out[s]))
-    m <- grep("^Model:", out); m <- m[m > s][1]
+    m <- grep("^Model:", out)
+    m <- m[m > s][1]
     tab <- table_after(out, m)
     coef <- setNames(lapply(tab$rows, function(r) as.numeric(r[2])), vapply(tab$rows, `[`, "", 1))
     se <- setNames(lapply(tab$rows, function(r) as.numeric(r[3])), names(coef))
     # Model summary: R, R-sq, MSE, F (robust with HC), df1, df2 on the first row.
-    ms <- grep("^Model Summary:", out); ms <- ms[ms > s][1]
+    ms <- grep("^Model Summary:", out)
+    ms <- ms[ms > s][1]
     summary_row <- num(out[ms + 2])
     # "int_1  :  x  x  w" -> int_1 = x*w
     next_start <- c(starts[starts > s], length(out))[1]
-    key <- grep("^Product terms key:", out); key <- key[key > s & key < next_start]
+    key <- grep("^Product terms key:", out)
+    key <- key[key > s & key < next_start]
     if (length(key)) {
       i <- key + 1
       while (i <= length(out) && grepl("^int_[0-9]+\\s*:", out[i])) {
         parts <- strsplit(out[i], ":")[[1]]
         # PROCESS writes products as "a  x  b"; a variable called x appears as the first factor.
-        f <- words(parts[2]); vars <- f[seq(1, length(f), by = 2)]
+        f <- words(parts[2])
+        vars <- f[seq(1, length(f), by = 2)]
         names(coef)[names(coef) == trimws(parts[1])] <- paste(vars, collapse = "*")
         names(se) <- names(coef)
         i <- i + 1
@@ -98,11 +109,16 @@ parse_output <- function(out) {
     res$equations[[outcome]] <- coef
     res$se[[outcome]] <- se
     # Tests of the highest-order unconditional interactions: "X*W  R2-chng F df1 df2 p".
-    hi <- grep("^Test\\(s\\) of highest order unconditional interaction", out); hi <- hi[hi > s & hi < next_start]
+    hi <- grep("^Test\\(s\\) of highest order unconditional interaction", out)
+    hi <- hi[hi > s & hi < next_start]
     if (length(hi)) {
       tab <- table_after(out, hi[1])
-      res$interactions[[outcome]] <- lapply(tab$rows, function(r) list(label = r[1], r2change = as.numeric(r[2]), f = as.numeric(r[3]),
-        df1 = as.numeric(r[4]), df2 = as.numeric(r[5]), p = as.numeric(r[6])))
+      res$interactions[[outcome]] <- lapply(tab$rows, function(r) {
+        list(
+          label = r[1], r2change = as.numeric(r[2]), f = as.numeric(r[3]),
+          df1 = as.numeric(r[4]), df2 = as.numeric(r[5]), p = as.numeric(r[6])
+        )
+      })
     }
     res$summary[[outcome]] <- list(r2 = summary_row[2], f = summary_row[4], df1 = summary_row[5], df2 = summary_row[6])
   }
@@ -125,8 +141,10 @@ parse_output <- function(out) {
       res$indirect[[1]] <- list(path = c("x", names(eff), "y"), effects = list(list(at = setNames(list(), character()), effect = unname(eff))))
     }
     named <- setdiff(names(eff), c("TOTAL", grep("^Ind[0-9]+$", names(eff), value = TRUE)))
-    if (length(eff) > 1) for (m in named) {
-      res$indirect[[length(res$indirect) + 1]] <- list(path = c("x", m, "y"), effects = list(list(at = setNames(list(), character()), effect = unname(eff[m]))))
+    if (length(eff) > 1) {
+      for (m in named) {
+        res$indirect[[length(res$indirect) + 1]] <- list(path = c("x", m, "y"), effects = list(list(at = setNames(list(), character()), effect = unname(eff[m]))))
+      }
     }
     key <- grep("^Indirect effect key:", out)
     for (k in if (length(key)) grep("^Ind[0-9]+ ", out[-seq_len(key[1])], value = TRUE) else character()) {
@@ -140,7 +158,8 @@ parse_output <- function(out) {
     nm <- which(tab$header == "Effect") - 1
     res$indirect[[length(res$indirect) + 1]] <- list(
       path = path,
-      effects = lapply(tab$rows, function(r) list(at = as.list(setNames(as.numeric(r[seq_len(nm)]), tab$header[seq_len(nm)])), effect = as.numeric(r[nm + 1]))))
+      effects = lapply(tab$rows, function(r) list(at = as.list(setNames(as.numeric(r[seq_len(nm)]), tab$header[seq_len(nm)])), effect = as.numeric(r[nm + 1])))
+    )
     # Index rows directly below the table belong to this indirect effect.
     j <- s + 4 + length(tab$rows)
     while (j <= length(out) && !grepl("^INDIRECT EFFECT:|^\\*{5}", out[j])) {
@@ -151,8 +170,11 @@ parse_output <- function(out) {
         for (r in it$rows) {
           # A row is either labelled by its moderator ("w  0.11 ...") or, for conditional
           # indices, starts with the value of the other moderator it is conditional on.
-          entry <- if (length(r) == length(it$header) + 1) list(moderator = r[1], index = as.numeric(r[2]))
-            else list(at = as.list(setNames(as.numeric(r[seq_len(k)]), it$header[seq_len(k)])), index = as.numeric(r[k + 1]))
+          entry <- if (length(r) == length(it$header) + 1) {
+            list(moderator = r[1], index = as.numeric(r[2]))
+          } else {
+            list(at = as.list(setNames(as.numeric(r[seq_len(k)]), it$header[seq_len(k)])), index = as.numeric(r[k + 1]))
+          }
           res$indices[[length(res$indices) + 1]] <- c(list(kind = kind, path = path), entry)
         }
       }
@@ -173,10 +195,13 @@ run_model <- function(model, hc = 5) {
     data = d, y = "y", x = "x", m = if (length(ms)) ms else "xxxxx",
     w = if (uses_w) "w" else "xxxxx", z = if (uses_z) "z" else "xxxxx",
     cov = "c1", model = number, xmint = as.numeric(model == 74), xrefval = if (model == 74) c(0, 1) else 999,
-    hc = hc, boot = 1000, seed = 1, decimals = 12.8, progress = 0))
+    hc = hc, boot = 1000, seed = 1, decimals = 12.8, progress = 0
+  ))
   if (any(grepl("^ERROR", out))) stop(sprintf("model %d: %s", model, paste(grep("^ERROR", out, value = TRUE), collapse = "; ")))
-  c(list(model = model, mediators = ms, w = uses_w, z = uses_z, hc = if (hc == 5) "none" else paste0("HC", hc),
-         conditioning = "percentiles 16/50/84"), parse_output(out))
+  c(list(
+    model = model, mediators = ms, w = uses_w, z = uses_z, hc = if (hc == 5) "none" else paste0("HC", hc),
+    conditioning = "percentiles 16/50/84"
+  ), parse_output(out))
 }
 put <- function(res, file) write(toJSON(res, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"), file)
 
@@ -189,8 +214,10 @@ for (model in c(moderation, parallel, 80:82, serial)) {
 
 # Heteroskedasticity-consistent standard errors (PROCESS's hc option).
 dir.create(file.path(root, "hc"), showWarnings = FALSE)
-for (model in c(1, 3, 7, 14)) for (hc in 0:4) {
-  if (!grepl(only, as.character(model))) next
-  put(run_model(model, hc), file.path(root, "hc", sprintf("model%02d_hc%d.json", model, hc)))
+for (model in c(1, 3, 7, 14)) {
+  for (hc in 0:4) {
+    if (!grepl(only, as.character(model))) next
+    put(run_model(model, hc), file.path(root, "hc", sprintf("model%02d_hc%d.json", model, hc)))
+  }
 }
 cat("HC references written\n")
