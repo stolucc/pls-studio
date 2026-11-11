@@ -13,9 +13,14 @@ const tests = [];
 for (const f of report.testResults) {
   const name = relative(process.cwd(), f.name).split('\\').join('/');
   files[name] = Math.round((f.endTime - f.startTime) / 1000);
-  for (const t of f.assertionResults) if (t.duration) tests.push([Math.round(t.duration / 1000), `${name}: ${t.fullName}`]);
+  for (const t of f.assertionResults)
+    if (t.duration) tests.push([Math.round(t.duration / 1000), `${name}: ${t.fullName}`]);
 }
 const sorted = Object.fromEntries(Object.entries(files).sort((a, b) => b[1] - a[1]));
-writeFileSync('scripts/webr/test-timings.json', `${JSON.stringify({ recorded: new Date().toISOString().slice(0, 10), files: sorted }, null, 1)}\n`);
+writeFileSync(
+  'scripts/webr/test-timings.json',
+  `${JSON.stringify({ recorded: new Date().toISOString().slice(0, 10), files: sorted }, null, 1)}\n`,
+);
 console.log(`${Object.keys(files).length} files; the slowest tests:`);
-for (const [s, n] of tests.sort((a, b) => b[0] - a[0]).slice(0, 15)) console.log(`${String(s).padStart(6)} s  ${n}`);
+for (const [s, n] of tests.sort((a, b) => b[0] - a[0]).slice(0, 15))
+  console.log(`${String(s).padStart(6)} s  ${n}`);

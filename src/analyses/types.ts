@@ -39,13 +39,37 @@ export interface CardRun {
 }
 
 export type Card =
-  | { id: string; kind: 'analysis'; type: string; options: unknown; run?: CardRun; /** The user's own title (shown on the card, in the outline and the report instead of the analysis name). */ title?: string }
+  | {
+      id: string;
+      kind: 'analysis';
+      type: string;
+      options: unknown;
+      run?: CardRun;
+      /** The user's own title (shown on the card, in the outline and the report instead of the analysis name). */ title?: string;
+    }
   | { id: string; kind: 'heading' | 'note'; text: string };
 export type AnalysisCard = Extract<Card, { kind: 'analysis' }>;
 
-export type AnalysisGroup = 'Model runs' | 'Data' | 'Basic statistics' | 'Measurement' | 'CB-SEM model' | 'PLS-SEM model' | 'Regression and causal inference' | 'Longitudinal' | 'Networks' | 'Necessary conditions' | 'Set-theoretic methods' | 'Reporting';
+export type AnalysisGroup =
+  | 'Model runs'
+  | 'Data'
+  | 'Basic statistics'
+  | 'Measurement'
+  | 'CB-SEM model'
+  | 'PLS-SEM model'
+  | 'Regression and causal inference'
+  | 'Longitudinal'
+  | 'Networks'
+  | 'Necessary conditions'
+  | 'Set-theoretic methods'
+  | 'Reporting';
 
-export interface OptionsProps<O> { options: O; set: (o: O) => void; ctx: AnalysisCtx; disabled: boolean }
+export interface OptionsProps<O> {
+  options: O;
+  set: (o: O) => void;
+  ctx: AnalysisCtx;
+  disabled: boolean;
+}
 
 /** One kind of analysis that lives as a card on the Analyses tab. */
 // The registry holds analyses with different option and result types.

@@ -21,10 +21,17 @@ it('refills a following field when the field it follows changes, and keeps edits
   let result: Promise<string[] | null> = Promise.resolve(null);
   act(() => {
     result = formDialog({
-      title: 'A threshold', body: '', confirmLabel: 'Apply',
+      title: 'A threshold',
+      body: '',
+      confirmLabel: 'Apply',
       fields: [
         { label: 'Threshold', initial: '1', check: () => null },
-        { label: 'Value or label', initial: held[1], check: () => null, follow: (all, changed) => (changed === 0 ? held[all[0]] ?? '' : undefined) },
+        {
+          label: 'Value or label',
+          initial: held[1],
+          check: () => null,
+          follow: (all, changed) => (changed === 0 ? (held[all[0]] ?? '') : undefined),
+        },
       ],
     });
   });
@@ -36,7 +43,13 @@ it('refills a following field when the field it follows changes, and keeps edits
   expect(v.value).toBe('');
   act(() => type(v, 'lab'));
   expect(n.value).toBe('3');
-  act(() => (([...host.querySelectorAll('button')].find((b) => b.textContent === 'Apply')!) as HTMLButtonElement).click());
+  act(() =>
+    (
+      [...host.querySelectorAll('button')].find(
+        (b) => b.textContent === 'Apply',
+      )! as HTMLButtonElement
+    ).click(),
+  );
   expect(await result).toEqual(['3', 'lab']);
   act(() => root.unmount());
 });

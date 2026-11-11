@@ -32,7 +32,14 @@ export const MAX_DOC_BYTES = Number(process.env.PLS_MAX_DOC_BYTES) || 16 * 1024 
 export const MAX_CONNS_PER_USER = 10;
 export class TooBig extends Error {}
 
-interface Conn { ws: WebSocket; userId: string; role: Role; clientIds: Set<number>; tokens: number; last: number }
+interface Conn {
+  ws: WebSocket;
+  userId: string;
+  role: Role;
+  clientIds: Set<number>;
+  tokens: number;
+  last: number;
+}
 
 class Room {
   readonly doc = new Y.Doc();
@@ -58,21 +65,36 @@ class Room {
       this.broadcast(this.syncUpdate(update), origin as Conn | undefined);
       void this.persist(update);
     });
-    this.awareness.on('update', ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
-      const changed = [...added, ...updated, ...removed];
-      const conn = origin as Conn | undefined;
-      if (conn?.clientIds) { added.forEach((id) => conn.clientIds.add(id)); removed.forEach((id) => conn.clientIds.delete(id)); }
-      const enc = encoding.createEncoder();
-      encoding.writeVarUint(enc, MSG_AWARENESS);
-      encoding.writeVarUint8Array(enc, awarenessProtocol.encodeAwarenessUpdate(this.awareness, changed));
-      this.broadcast(encoding.toUint8Array(enc));
-    });
+    this.awareness.on(
+      'update',
+      (
+        { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
+        origin: unknown,
+      ) => {
+        const changed = [...added, ...updated, ...removed];
+        const conn = origin as Conn | undefined;
+        if (conn?.clientIds) {
+          added.forEach((id) => conn.clientIds.add(id));
+          removed.forEach((id) => conn.clientIds.delete(id));
+        }
+        const enc = encoding.createEncoder();
+        encoding.writeVarUint(enc, MSG_AWARENESS);
+        encoding.writeVarUint8Array(
+          enc,
+          awarenessProtocol.encodeAwarenessUpdate(this.awareness, changed),
+        );
+        this.broadcast(encoding.toUint8Array(enc));
+      },
+    );
   }
 
   async load() {
     const p = await this.db.query('SELECT yjs_state FROM projects WHERE id = $1', [this.projectId]);
     if (p.rows[0]?.yjs_state) Y.applyUpdate(this.doc, p.rows[0].yjs_state, 'load');
-    const u = await this.db.query('SELECT update FROM project_updates WHERE project_id = $1 ORDER BY id', [this.projectId]);
+    const u = await this.db.query(
+      'SELECT update FROM project_updates WHERE project_id = $1 ORDER BY id',
+      [this.projectId],
+    );
     for (const row of u.rows) Y.applyUpdate(this.doc, row.update, 'load');
     this.pending = u.rowCount ?? 0;
     this.bytes = Y.encodeStateAsUpdate(this.doc).length;
@@ -86,12 +108,16 @@ class Room {
   }
 
   private broadcast(msg: Uint8Array, except?: Conn) {
-    for (const c of this.conns) if (c !== except && c.ws.readyState === WebSocket.OPEN) c.ws.send(msg);
+    for (const c of this.conns)
+      if (c !== except && c.ws.readyState === WebSocket.OPEN) c.ws.send(msg);
   }
 
   private async persist(update: Uint8Array) {
     try {
-      await this.db.query('INSERT INTO project_updates (project_id, update) VALUES ($1, $2)', [this.projectId, Buffer.from(update)]);
+      await this.db.query('INSERT INTO project_updates (project_id, update) VALUES ($1, $2)', [
+        this.projectId,
+        Buffer.from(update),
+      ]);
       await this.db.query('UPDATE projects SET updated_at = now() WHERE id = $1', [this.projectId]);
       if (++this.pending >= COMPACT_AFTER) await this.compact();
     } catch (err) {
@@ -104,10 +130,21 @@ class Room {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
-      const maxId = (await client.query('SELECT max(id) AS m FROM project_updates WHERE project_id = $1', [this.projectId])).rows[0].m;
+      const maxId = (
+        await client.query('SELECT max(id) AS m FROM project_updates WHERE project_id = $1', [
+          this.projectId,
+        ])
+      ).rows[0].m;
       const state = Y.encodeStateAsUpdate(this.doc);
-      await client.query('UPDATE projects SET yjs_state = $2 WHERE id = $1', [this.projectId, Buffer.from(state)]);
-      if (maxId) await client.query('DELETE FROM project_updates WHERE project_id = $1 AND id <= $2', [this.projectId, maxId]);
+      await client.query('UPDATE projects SET yjs_state = $2 WHERE id = $1', [
+        this.projectId,
+        Buffer.from(state),
+      ]);
+      if (maxId)
+        await client.query('DELETE FROM project_updates WHERE project_id = $1 AND id <= $2', [
+          this.projectId,
+          maxId,
+        ]);
       await client.query('COMMIT');
       this.pending = 0;
       this.bytes = state.length;
@@ -120,7 +157,10 @@ class Room {
   }
 
   add(conn: Conn) {
-    if (this.closeTimer) { clearTimeout(this.closeTimer); this.closeTimer = null; }
+    if (this.closeTimer) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
+    }
     this.conns.add(conn);
     // Initial sync: step 1 (our state vector) and current presence.
     const enc = encoding.createEncoder();
@@ -131,7 +171,10 @@ class Room {
     if (states.length) {
       const a = encoding.createEncoder();
       encoding.writeVarUint(a, MSG_AWARENESS);
-      encoding.writeVarUint8Array(a, awarenessProtocol.encodeAwarenessUpdate(this.awareness, states));
+      encoding.writeVarUint8Array(
+        a,
+        awarenessProtocol.encodeAwarenessUpdate(this.awareness, states),
+      );
       conn.ws.send(encoding.toUint8Array(a));
     }
   }
@@ -145,7 +188,8 @@ class Room {
       if (conn.role === 'viewer') {
         // Viewers may request state but their document changes are ignored.
         const sub = decoding.readVarUint(dec);
-        if (sub === syncProtocol.messageYjsSyncStep1) syncProtocol.readSyncStep1(dec, enc, this.doc);
+        if (sub === syncProtocol.messageYjsSyncStep1)
+          syncProtocol.readSyncStep1(dec, enc, this.doc);
       } else {
         // (the message is at most the update it carries plus a few bytes: an upper bound on the growth)
         if (this.bytes + data.length > MAX_DOC_BYTES) throw new TooBig('document too big');
@@ -163,7 +207,9 @@ class Room {
     this.conns.delete(conn);
     awarenessProtocol.removeAwarenessStates(this.awareness, [...conn.clientIds], null);
     if (this.conns.size === 0) {
-      this.closeTimer = setTimeout(() => { void this.compact().finally(() => this.onEmpty()); }, 30_000);
+      this.closeTimer = setTimeout(() => {
+        void this.compact().finally(() => this.onEmpty());
+      }, 30_000);
       this.closeTimer.unref();
     }
   }
@@ -184,7 +230,12 @@ export interface Collab {
 
 type SessionMw = (req: IncomingMessage, res: unknown, next: (err?: unknown) => void) => void;
 
-export function attachCollab(server: Server, db: Db, sessionMw: SessionMw, appOrigin: string): Collab {
+export function attachCollab(
+  server: Server,
+  db: Db,
+  sessionMw: SessionMw,
+  appOrigin: string,
+): Collab {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD });
   const rooms = new Map<string, Promise<Room>>();
   const perUser = new Map<string, number>();
@@ -193,7 +244,10 @@ export function attachCollab(server: Server, db: Db, sessionMw: SessionMw, appOr
   const getRoom = (id: string) => {
     let r = rooms.get(id);
     if (!r) {
-      const room = new Room(id, db, () => { rooms.delete(id); room.destroy(); });
+      const room = new Room(id, db, () => {
+        rooms.delete(id);
+        room.destroy();
+      });
       r = room.load().then(() => room);
       rooms.set(id, r);
       r.catch(() => rooms.delete(id));
@@ -218,10 +272,18 @@ export function attachCollab(server: Server, db: Db, sessionMw: SessionMw, appOr
         if (!userId) return reject(socket, 401, 'Unauthorized');
         const role = await roleOf(db, projectId, userId);
         if (!role) return reject(socket, 403, 'Forbidden');
-        if ((perUser.get(userId) ?? 0) >= MAX_CONNS_PER_USER) return reject(socket, 429, 'Too Many Connections');
+        if ((perUser.get(userId) ?? 0) >= MAX_CONNS_PER_USER)
+          return reject(socket, 429, 'Too Many Connections');
         const room = await getRoom(projectId);
         wss.handleUpgrade(req, socket, head, (ws) => {
-          const conn: Conn = { ws, userId, role, clientIds: new Set(), tokens: RATE, last: Date.now() };
+          const conn: Conn = {
+            ws,
+            userId,
+            role,
+            clientIds: new Set(),
+            tokens: RATE,
+            last: Date.now(),
+          };
           perUser.set(userId, (perUser.get(userId) ?? 0) + 1);
           room.add(conn);
           ws.on('message', (data, isBinary) => {
@@ -234,10 +296,22 @@ export function attachCollab(server: Server, db: Db, sessionMw: SessionMw, appOr
             try {
               room.message(conn, new Uint8Array(data as Buffer));
             } catch (err) {
-              ws.close(err instanceof TooBig ? 1009 : 1007, err instanceof TooBig ? (err.message === 'document too big' ? 'Document too big' : 'Presence state too big') : 'Malformed message');
+              ws.close(
+                err instanceof TooBig ? 1009 : 1007,
+                err instanceof TooBig
+                  ? err.message === 'document too big'
+                    ? 'Document too big'
+                    : 'Presence state too big'
+                  : 'Malformed message',
+              );
             }
           });
-          ws.on('close', () => { room.remove(conn); const n = (perUser.get(userId) ?? 1) - 1; if (n > 0) perUser.set(userId, n); else perUser.delete(userId); });
+          ws.on('close', () => {
+            room.remove(conn);
+            const n = (perUser.get(userId) ?? 1) - 1;
+            if (n > 0) perUser.set(userId, n);
+            else perUser.delete(userId);
+          });
         });
       } catch (err) {
         console.error('ws upgrade failed', err);

@@ -9,9 +9,19 @@ import { rCall, rScript, rStrings } from './bridge';
 import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
-export type Family = 'gaussian' | 'binomial' | 'poisson' | 'negbin' | 'gamma' | 'ordinal' | 'multinomial' | 'censored' | 'survival';
+export type Family =
+  | 'gaussian'
+  | 'binomial'
+  | 'poisson'
+  | 'negbin'
+  | 'gamma'
+  | 'ordinal'
+  | 'multinomial'
+  | 'censored'
+  | 'survival';
 export interface RegressionInput {
-  outcome: string; predictors: string[];
+  outcome: string;
+  predictors: string[];
   /** Numeric predictors treated as categorical (factors); text columns are factors anyway. */
   categorical: string[];
   interactions: string[][];
@@ -50,21 +60,62 @@ export interface RegressionInput {
   zeroPart?: 'same' | 'intercept' | 'chosen';
   zeroPredictors?: string[];
 }
-export interface RegressionCurve { x: string; grid: number[]; y?: number[]; levels?: string[]; probs?: number[][]; points?: { x: number[]; y: number[] } }
+export interface RegressionCurve {
+  x: string;
+  grid: number[];
+  y?: number[];
+  levels?: string[];
+  probs?: number[][];
+  points?: { x: number[]; y: number[] };
+}
 /** `part`: the inflation's coefficients (inflated models), the zero part of a zero-inflated or hurdle model, a baseline hazard (piecewise exponential; est is the hazard) or a variance or covariance of a random slope. */
-export interface Coefficient { level?: string; part?: 'inflation' | 'zero' | 'baseline' | 'random' | null; term: string; est: number; se: number; stat: number; p: number; ciLow: number; ciHigh: number; ratio?: number }
+export interface Coefficient {
+  level?: string;
+  part?: 'inflation' | 'zero' | 'baseline' | 'random' | null;
+  term: string;
+  est: number;
+  se: number;
+  stat: number;
+  p: number;
+  ciLow: number;
+  ciHigh: number;
+  ratio?: number;
+}
 export interface RegressionResult {
-  family: Family; link: string; formula: string; se: string;
+  family: Family;
+  link: string;
+  formula: string;
+  se: string;
   /** Zero-inflated or hurdle count models (pscl). */
   zeroModel?: 'zeroinfl' | 'hurdle' | null;
   coefficients: Coefficient[];
   thresholds: Coefficient[];
   levels: { reference: string; others: string[] } | null;
-  fit: { n: number; logLik: number; aic: number; bic: number; npar: number; r2?: number; adjR2?: number; sigma?: number; deviance?: number; nullDeviance?: number; dfResidual?: number; dispersion?: number; theta?: number; thetaSe?: number;
+  fit: {
+    n: number;
+    logLik: number;
+    aic: number;
+    bic: number;
+    npar: number;
+    r2?: number;
+    adjR2?: number;
+    sigma?: number;
+    deviance?: number;
+    nullDeviance?: number;
+    dfResidual?: number;
+    dispersion?: number;
+    theta?: number;
+    thetaSe?: number;
     /** censored: the residual variance and its standard error (delta method), as Mplus prints it; the censored, zero and event counts. */
-    residualVariance?: number; residualVarianceSe?: number; censored?: number; zeros?: number; events?: number;
+    residualVariance?: number;
+    residualVarianceSe?: number;
+    censored?: number;
+    zeros?: number;
+    events?: number;
     /** Zero models: the zeros expected under the model and under the standard count model (sums of the predicted P(y = 0)). */
-    zerosPredicted?: number; zerosStandard?: number };
+    zerosPredicted?: number;
+    zerosStandard?: number;
+  };
   lrt: { stat: number; df: number; p: number; pseudoR2?: number } | null;
   /** Zero models: Vuong's test against the standard count model (as pscl::vuong), raw and AIC- and BIC-corrected; z > 0 favours the zero model; p one-sided. */
   vuong?: Record<'raw' | 'aic' | 'bic', { z: number; p: number }> | null;
@@ -77,9 +128,9 @@ export interface RegressionResult {
   };
   /** One partial-effect curve per numeric predictor: the response over it, the other predictors at their means. */
   curves: RegressionCurve[];
-  warnings: string[]; engine: REngineInfo;
+  warnings: string[];
+  engine: REngineInfo;
 }
-
 
 /**
  * Durbin–Watson test of an unweighted linear model's residuals in the rows' order (lmtest::dwtest):
@@ -94,38 +145,106 @@ export interface DurbinWatson {
 }
 
 export function regressionRequest(data: Dataset, i: RegressionInput) {
-  if (data.moments && data.cols.length === 0) throw new Error('Regression needs raw data; this dataset is a covariance matrix.');
+  if (data.moments && data.cols.length === 0)
+    throw new Error('Regression needs raw data; this dataset is a covariance matrix.');
   // (the cluster column only when it is used: a stale choice must not drop rows or fail the run)
   const cluster = i.se === 'cluster' ? i.cluster : '';
-  const status = i.family === 'survival' ? i.status ?? '' : '';
+  const status = i.family === 'survival' ? (i.status ?? '') : '';
   const zero = zeroOptions(i);
-  const names = [...new Set([i.outcome, ...i.predictors, ...i.interactions.flat(), ...(zero.zeroPredictors ?? []), i.trials, i.weights, cluster, status].filter(Boolean))];
-  const categories = Object.fromEntries(names.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]));
+  const names = [
+    ...new Set(
+      [
+        i.outcome,
+        ...i.predictors,
+        ...i.interactions.flat(),
+        ...(zero.zeroPredictors ?? []),
+        i.trials,
+        i.weights,
+        cluster,
+        status,
+      ].filter(Boolean),
+    ),
+  ];
+  const categories = Object.fromEntries(
+    names.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]),
+  );
   const { zeroModel: _z, zeroPart: _p, zeroPredictors: _q, ...rest } = i;
-  return { kind: 'regression', ...rest, ...zero, cluster, status, cuts: i.family === 'survival' ? i.cuts ?? [] : [], categories, data: rColumns(data, names) };
+  return {
+    kind: 'regression',
+    ...rest,
+    ...zero,
+    cluster,
+    status,
+    cuts: i.family === 'survival' ? (i.cuts ?? []) : [],
+    categories,
+    data: rColumns(data, names),
+  };
 }
 
-export async function regressionR(data: Dataset, input: RegressionInput): Promise<RegressionResult> {
-  const raw = await rCall<Record<string, any>>('ps_regression', regressionRequest(data, input), regressionPackages(input));
-  const curves: RegressionCurve[] = rList<any>(raw.curves).filter((c) => c && typeof c === 'object' && !Array.isArray(c)).map((c) => ({
-    x: String(c.x), grid: rList<number>(c.grid), ...(c.y ? { y: rList<number>(c.y) } : {}),
-    ...(c.levels ? { levels: rList<string>(c.levels), probs: rList<unknown>(c.probs).map((p) => rList<number>(p)) } : {}),
-    ...(c.points ? { points: { x: rList<number>(c.points.x), y: rList<number>(c.points.y) } } : {}),
-  }));
+export async function regressionR(
+  data: Dataset,
+  input: RegressionInput,
+): Promise<RegressionResult> {
+  const raw = await rCall<Record<string, any>>(
+    'ps_regression',
+    regressionRequest(data, input),
+    regressionPackages(input),
+  );
+  const curves: RegressionCurve[] = rList<any>(raw.curves)
+    .filter((c) => c && typeof c === 'object' && !Array.isArray(c))
+    .map((c) => ({
+      x: String(c.x),
+      grid: rList<number>(c.grid),
+      ...(c.y ? { y: rList<number>(c.y) } : {}),
+      ...(c.levels
+        ? {
+            levels: rList<string>(c.levels),
+            probs: rList<unknown>(c.probs).map((p) => rList<number>(p)),
+          }
+        : {}),
+      ...(c.points
+        ? { points: { x: rList<number>(c.points.x), y: rList<number>(c.points.y) } }
+        : {}),
+    }));
   const diag = raw.diagnostics && !Array.isArray(raw.diagnostics) ? raw.diagnostics : {};
   return {
-    ...raw, coefficients: rList(raw.coefficients), thresholds: rList(raw.thresholds), levels: raw.levels && !Array.isArray(raw.levels) ? { reference: String(raw.levels.reference), others: rList<string>(raw.levels.others) } : null,
-    lrt: raw.lrt && !Array.isArray(raw.lrt) ? raw.lrt : null, vuong: raw.vuong && !Array.isArray(raw.vuong) ? raw.vuong : null, diagnostics: { ...diag, ...(diag.vif ? { vif: rList(diag.vif) } : {}) }, curves, warnings: rStrings(raw.warnings),
+    ...raw,
+    coefficients: rList(raw.coefficients),
+    thresholds: rList(raw.thresholds),
+    levels:
+      raw.levels && !Array.isArray(raw.levels)
+        ? { reference: String(raw.levels.reference), others: rList<string>(raw.levels.others) }
+        : null,
+    lrt: raw.lrt && !Array.isArray(raw.lrt) ? raw.lrt : null,
+    vuong: raw.vuong && !Array.isArray(raw.vuong) ? raw.vuong : null,
+    diagnostics: { ...diag, ...(diag.vif ? { vif: rList(diag.vif) } : {}) },
+    curves,
+    warnings: rStrings(raw.warnings),
   } as RegressionResult;
 }
-export const regressionScriptR = (data: Dataset, input: RegressionInput) => rScript('ps_regression', regressionRequest(data, input), regressionPackages(input));
+export const regressionScriptR = (data: Dataset, input: RegressionInput) =>
+  rScript('ps_regression', regressionRequest(data, input), regressionPackages(input));
 /** survival only when the model needs it (censored without inflation, survival); pscl for the zero models. */
-export const regressionPackages = (i: Pick<RegressionInput, 'family' | 'inflated' | 'zeroModel'>) => (i.family === 'survival' || (i.family === 'censored' && !i.inflated) ? 'regressionSurvival' : isZeroModel(i) ? 'pscl' : 'regression');
+export const regressionPackages = (
+  i: Pick<RegressionInput, 'family' | 'inflated' | 'zeroModel'>,
+) =>
+  i.family === 'survival' || (i.family === 'censored' && !i.inflated)
+    ? 'regressionSurvival'
+    : isZeroModel(i)
+      ? 'pscl'
+      : 'regression';
 /** A zero-inflated or hurdle model applies (a count family, not the zero-inflated Poisson written out). */
-export const isZeroModel = (i: Pick<RegressionInput, 'family' | 'inflated' | 'zeroModel'>) => !!i.zeroModel && (i.family === 'poisson' || i.family === 'negbin') && !i.inflated;
+export const isZeroModel = (i: Pick<RegressionInput, 'family' | 'inflated' | 'zeroModel'>) =>
+  !!i.zeroModel && (i.family === 'poisson' || i.family === 'negbin') && !i.inflated;
 /** The zero-model fields the request carries: none unless a zero model applies; the zero predictors only when chosen. */
-export function zeroOptions(i: RegressionInput): Pick<RegressionInput, 'zeroModel' | 'zeroPart' | 'zeroPredictors'> {
+export function zeroOptions(
+  i: RegressionInput,
+): Pick<RegressionInput, 'zeroModel' | 'zeroPart' | 'zeroPredictors'> {
   if (!isZeroModel(i)) return {};
   const part = i.zeroPart ?? 'same';
-  return { zeroModel: i.zeroModel, zeroPart: part, ...(part === 'chosen' ? { zeroPredictors: i.zeroPredictors ?? [] } : {}) };
+  return {
+    zeroModel: i.zeroModel,
+    zeroPart: part,
+    ...(part === 'chosen' ? { zeroPredictors: i.zeroPredictors ?? [] } : {}),
+  };
 }

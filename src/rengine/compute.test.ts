@@ -16,7 +16,10 @@ describe('bootChunks', () => {
 });
 
 describe('compute preferences', () => {
-  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
   it('clamps the number of workers', () => {
     expect(clampWorkers(0)).toBe(1);
     expect(clampWorkers(3.4)).toBe(3);
@@ -30,11 +33,17 @@ describe('compute preferences', () => {
   });
   it('remembers the choice in this browser and ignores bad stored values', async () => {
     const store = new Map<string, string>();
-    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) });
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
     const { useCompute } = await import('./compute');
     expect(useCompute.getState().workers).toBe(1);
     useCompute.getState().set({ workers: 4 });
-    expect(JSON.parse(store.get('pls-studio.compute')!)).toEqual({ backend: 'browser', workers: 4 });
+    expect(JSON.parse(store.get('pls-studio.compute')!)).toEqual({
+      backend: 'browser',
+      workers: 4,
+    });
     vi.resetModules();
     expect((await import('./compute')).useCompute.getState().workers).toBe(4);
     store.set('pls-studio.compute', '{"workers":"lots","backend":"server"}');
@@ -46,10 +55,13 @@ describe('compute preferences', () => {
 
 describe('parallelMap', () => {
   it('keeps the order of the items and uses at most `workers` lanes at once', async () => {
-    let running = 0, peak = 0;
+    let running = 0,
+      peak = 0;
     const lanes = new Set<number>();
     const out = await parallelMap([5, 1, 4, 2, 3], 2, async (x, lane) => {
-      lanes.add(lane); running++; peak = Math.max(peak, running);
+      lanes.add(lane);
+      running++;
+      peak = Math.max(peak, running);
       await new Promise((r) => setTimeout(r, x));
       running--;
       return x * 10;
@@ -60,30 +72,59 @@ describe('parallelMap', () => {
   });
   it('rejects on the first failure and starts no further items', async () => {
     const started: number[] = [];
-    await expect(parallelMap([1, 2, 3, 4], 1, async (x) => { started.push(x); if (x === 2) throw new Error('boom'); return x; })).rejects.toThrow('boom');
+    await expect(
+      parallelMap([1, 2, 3, 4], 1, async (x) => {
+        started.push(x);
+        if (x === 2) throw new Error('boom');
+        return x;
+      }),
+    ).rejects.toThrow('boom');
     expect(started).toEqual([1, 2]);
   });
   it('reports progress', async () => {
     const seen: number[] = [];
-    await parallelMap([1, 2, 3], 3, async (x) => x, (d) => seen.push(d));
+    await parallelMap(
+      [1, 2, 3],
+      3,
+      async (x) => x,
+      (d) => seen.push(d),
+    );
     expect(seen).toEqual([1, 2, 3]);
   });
 });
 
 describe('compute preferences: backend', () => {
-  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
   it('restores the backend, keeps the workers when only the backend changes, and survives broken storage', async () => {
-    const store = new Map<string, string>([['pls-studio.compute', '{"backend":"helper","workers":3}']]);
-    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) });
+    const store = new Map<string, string>([
+      ['pls-studio.compute', '{"backend":"helper","workers":3}'],
+    ]);
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
     const { useCompute } = await import('./compute');
     expect(useCompute.getState()).toMatchObject({ backend: 'helper', workers: 3 });
     useCompute.getState().set({ backend: 'browser' });
     expect(useCompute.getState()).toMatchObject({ backend: 'browser', workers: 3 });
-    expect(JSON.parse(store.get('pls-studio.compute')!)).toEqual({ backend: 'browser', workers: 3 });
+    expect(JSON.parse(store.get('pls-studio.compute')!)).toEqual({
+      backend: 'browser',
+      workers: 3,
+    });
     useCompute.getState().set({ workers: 99 });
     expect(useCompute.getState().workers).toBe(8);
     vi.resetModules();
-    vi.stubGlobal('localStorage', { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('denied'); } });
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('denied');
+      },
+      setItem: () => {
+        throw new Error('denied');
+      },
+    });
     const again = (await import('./compute')).useCompute;
     expect(again.getState()).toMatchObject({ backend: 'browser', workers: 1 });
     again.getState().set({ workers: 2 });

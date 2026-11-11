@@ -9,13 +9,25 @@ import { describe, expect, it } from 'vitest';
 import { cases, checkPls, loadData, toSpec } from '../engine/validationHarness';
 import { parsePlsOutput, plsRequest } from './pls';
 
-export const PLS_R_CASES = ['pls_csem_threecommonfactors', 'plsc_csem_threecommonfactors', 'plsc_csem_satisfaction', 'plsc_csem_mobi_mixed',
-  'composite_csem_satisfaction', 'pls_seminr_mobi_A', 'pls_seminr_mobi_B', 'pls_seminr_corp_rep', 'pls_seminr_moderation_mobi', 'pls_seminr_moderation_corp_rep'];
+export const PLS_R_CASES = [
+  'pls_csem_threecommonfactors',
+  'plsc_csem_threecommonfactors',
+  'plsc_csem_satisfaction',
+  'plsc_csem_mobi_mixed',
+  'composite_csem_satisfaction',
+  'pls_seminr_mobi_A',
+  'pls_seminr_mobi_B',
+  'pls_seminr_corp_rep',
+  'pls_seminr_moderation_mobi',
+  'pls_seminr_moderation_corp_rep',
+];
 
 describe.each(PLS_R_CASES)('PLS output mapping: %s', (name) => {
   it('reproduces the reference values', () => {
     const c = cases.find((k) => k.name === name)!;
-    const res = parsePlsOutput(JSON.parse(readFileSync(join(__dirname, '__fixtures__', `${name}.r.json`), 'utf8')));
+    const res = parsePlsOutput(
+      JSON.parse(readFileSync(join(__dirname, '__fixtures__', `${name}.r.json`), 'utf8')),
+    );
     expect(res.engine.package).toBe(c.source);
     expect(res.converged).toBe(true);
     checkPls(c, res);
@@ -25,15 +37,38 @@ describe.each(PLS_R_CASES)('PLS output mapping: %s', (name) => {
 describe('PLS request', () => {
   it('refuses covariance-matrix data and passes the estimation options', () => {
     const c = cases.find((k) => k.name === 'pls_csem_threecommonfactors')!;
-    const opts = { scheme: 'path' as const, consistent: true, missing: 'mean' as const, tolerance: 1e-7, maxIter: 300 };
+    const opts = {
+      scheme: 'path' as const,
+      consistent: true,
+      missing: 'mean' as const,
+      tolerance: 1e-7,
+      maxIter: 300,
+    };
     const req = plsRequest(loadData(c), toSpec(c), opts, 'cSEM');
-    expect(req.options).toEqual({ scheme: 'path', consistent: true, tolerance: 1e-7, maxIter: 300, approach: 'PLS-PM', hocApproach: 'two_stage' });
-    expect(() => plsRequest({ names: ['a'], cols: [], moments: { S: [[1]], n: 10 } }, toSpec(c), opts, 'cSEM')).toThrow(/raw data/);
+    expect(req.options).toEqual({
+      scheme: 'path',
+      consistent: true,
+      tolerance: 1e-7,
+      maxIter: 300,
+      approach: 'PLS-PM',
+      hocApproach: 'two_stage',
+    });
+    expect(() =>
+      plsRequest({ names: ['a'], cols: [], moments: { S: [[1]], n: 10 } }, toSpec(c), opts, 'cSEM'),
+    ).toThrow(/raw data/);
   });
   it('refuses sampling weights: cSEM and seminr take none (weighted PLS is the built-in engine’s)', () => {
     const c = cases.find((k) => k.name === 'pls_csem_threecommonfactors')!;
-    const opts = { scheme: 'path' as const, consistent: false, missing: 'mean' as const, tolerance: 1e-7, maxIter: 300 };
-    expect(() => plsRequest(loadData(c), { ...toSpec(c), weights: 'w' }, opts, 'seminr')).toThrow(/no sampling weights/);
+    const opts = {
+      scheme: 'path' as const,
+      consistent: false,
+      missing: 'mean' as const,
+      tolerance: 1e-7,
+      maxIter: 300,
+    };
+    expect(() => plsRequest(loadData(c), { ...toSpec(c), weights: 'w' }, opts, 'seminr')).toThrow(
+      /no sampling weights/,
+    );
   });
 });
 
@@ -41,9 +76,16 @@ describe('ordinal PLS (OrdPLS/OrdPLSc)', () => {
   it('sends the ordinal indicators with the model and keeps them on the result', () => {
     const c = cases.find((k) => k.name === 'pls_csem_threecommonfactors')!;
     const spec = { ...toSpec(c), ordered: ['y11', 'y12'] };
-    const req = plsRequest(loadData(c), spec, { scheme: 'path', consistent: true, missing: 'casewise', tolerance: 1e-7, maxIter: 300 }, 'cSEM');
+    const req = plsRequest(
+      loadData(c),
+      spec,
+      { scheme: 'path', consistent: true, missing: 'casewise', tolerance: 1e-7, maxIter: 300 },
+      'cSEM',
+    );
     expect(req.model.ordered).toEqual(['y11', 'y12']);
-    const raw = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'plsc_csem_threecommonfactors.r.json'), 'utf8'));
+    const raw = JSON.parse(
+      readFileSync(join(__dirname, '__fixtures__', 'plsc_csem_threecommonfactors.r.json'), 'utf8'),
+    );
     expect(parsePlsOutput({ ...raw, ordinal: ['y11', 'y12'] }).ordinal).toEqual(['y11', 'y12']);
     expect(parsePlsOutput(raw).ordinal).toBeUndefined();
   });

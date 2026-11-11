@@ -9,24 +9,55 @@ import { PACKAGE_EXAMPLES } from '../packages';
 import { DATA_CACHE, remoteTestData } from '../testData';
 import { reshape } from './reshape';
 
-const ds = (cols: Record<string, number[]>): Dataset => ({ names: Object.keys(cols), cols: Object.values(cols).map((c) => Float64Array.from(c)) });
+const ds = (cols: Record<string, number[]>): Dataset => ({
+  names: Object.keys(cols),
+  cols: Object.values(cols).map((c) => Float64Array.from(c)),
+});
 const rows = (d: Dataset) => Array.from(d.cols[0], (_, i) => d.cols.map((c) => c[i]));
 
 describe('reshapes after loading', () => {
   it('person-period: a row per period at risk, until the event or the first missing period', () => {
-    const d = reshape(ds({ u1: [0, 1, 0], u2: [1, NaN, 0], u3: [NaN, NaN, NaN], x: [5, 6, 7] }),
-      { kind: 'personPeriod', events: ['u1', 'u2', 'u3'], id: 'id', period: 'period', event: 'u' });
+    const d = reshape(ds({ u1: [0, 1, 0], u2: [1, NaN, 0], u3: [NaN, NaN, NaN], x: [5, 6, 7] }), {
+      kind: 'personPeriod',
+      events: ['u1', 'u2', 'u3'],
+      id: 'id',
+      period: 'period',
+      event: 'u',
+    });
     expect(d.names).toEqual(['id', 'period', 'u', 'x']);
-    expect(rows(d)).toEqual([[1, 1, 0, 5], [1, 2, 1, 5], [2, 1, 1, 6], [3, 1, 0, 7], [3, 2, 0, 7]]);
+    expect(rows(d)).toEqual([
+      [1, 1, 0, 5],
+      [1, 2, 1, 5],
+      [2, 1, 1, 6],
+      [3, 1, 0, 7],
+      [3, 2, 0, 7],
+    ]);
   });
 
   it('wide to long (Mplus DATA WIDETOLONG): a row per id and repetition from 0, the other columns repeated', () => {
-    const d = reshape(ds({ y1: [1, 2], z: [9, 8], y2: [3, 4], a1: [5, 6], a2: [7, NaN] }),
-      { kind: 'wideToLong', wide: [['y1', 'y2'], ['a1', 'a2']], long: ['y', 'a'], id: 'person', repetition: 'time' });
+    const d = reshape(ds({ y1: [1, 2], z: [9, 8], y2: [3, 4], a1: [5, 6], a2: [7, NaN] }), {
+      kind: 'wideToLong',
+      wide: [
+        ['y1', 'y2'],
+        ['a1', 'a2'],
+      ],
+      long: ['y', 'a'],
+      id: 'person',
+      repetition: 'time',
+    });
     expect(d.names).toEqual(['person', 'time', 'y', 'a', 'z']);
-    expect(rows(d)).toEqual([[1, 0, 1, 5, 9], [1, 1, 3, 7, 9], [2, 0, 2, 6, 8], [2, 1, 4, NaN, 8]]);
-    expect(() => reshape(d, { kind: 'wideToLong', wide: [['y']], long: ['y', 'z'], id: 'i', repetition: 't' })).toThrow();
-    expect(() => reshape(d, { kind: 'personPeriod', events: ['nope'], id: 'i', period: 'p', event: 'e' })).toThrow('no column nope');
+    expect(rows(d)).toEqual([
+      [1, 0, 1, 5, 9],
+      [1, 1, 3, 7, 9],
+      [2, 0, 2, 6, 8],
+      [2, 1, 4, NaN, 8],
+    ]);
+    expect(() =>
+      reshape(d, { kind: 'wideToLong', wide: [['y']], long: ['y', 'z'], id: 'i', repetition: 't' }),
+    ).toThrow();
+    expect(() =>
+      reshape(d, { kind: 'personPeriod', events: ['nope'], id: 'i', period: 'p', event: 'e' }),
+    ).toThrow('no column nope');
   });
 });
 

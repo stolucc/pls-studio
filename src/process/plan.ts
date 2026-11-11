@@ -14,7 +14,11 @@ export type IndexSpec =
   /** W × Z in the indirect effect (index of moderated moderated mediation, and conditional indices by W at values of Z). */
   | { kind: 'mmm'; w: string; z: string };
 
-export interface IndirectSpec { vars: string[]; moderators: string[]; index: IndexSpec | null }
+export interface IndirectSpec {
+  vars: string[];
+  moderators: string[];
+  index: IndexSpec | null;
+}
 
 export interface ProcessPlan {
   equations: { outcome: string; terms: Term[] }[];
@@ -38,7 +42,10 @@ export function indirectPaths(g: ProcessGraph): string[][] {
   const walk = (at: string, seen: string[]) => {
     for (const [from, to] of g.paths) {
       if (from !== at || seen.includes(to)) continue;
-      if (to === g.y) { if (seen.length > 1) out.push([...seen, to]); continue; }
+      if (to === g.y) {
+        if (seen.length > 1) out.push([...seen, to]);
+        continue;
+      }
       if (g.mediators.includes(to)) walk(to, [...seen, to]);
     }
   };
@@ -75,11 +82,23 @@ export function indexFor(g: ProcessGraph, path: string[], order: string[] = []):
   return { kind: together && !together.threeWay ? 'partial' : 'mmm', w, z };
 }
 
-const rank = (order: string[], v: string) => { const i = order.indexOf(v); return i < 0 ? order.length : i; };
+const rank = (order: string[], v: string) => {
+  const i = order.indexOf(v);
+  return i < 0 ? order.length : i;
+};
 
-export function planFor(g: ProcessGraph, covariates: string[] = [], order: string[] = []): ProcessPlan {
-  const allMods = [...new Set([...g.moderations.map((m) => m.by), ...g.threeWay.flatMap((m) => m.by)])];
-  const sortMods = (ms: Iterable<string>) => [...ms].sort((a, b) => rank(order, a) - rank(order, b) || allMods.indexOf(a) - allMods.indexOf(b));
+export function planFor(
+  g: ProcessGraph,
+  covariates: string[] = [],
+  order: string[] = [],
+): ProcessPlan {
+  const allMods = [
+    ...new Set([...g.moderations.map((m) => m.by), ...g.threeWay.flatMap((m) => m.by)]),
+  ];
+  const sortMods = (ms: Iterable<string>) =>
+    [...ms].sort(
+      (a, b) => rank(order, a) - rank(order, b) || allMods.indexOf(a) - allMods.indexOf(b),
+    );
   const xy: Edge = [g.x, g.y];
   const hasDirect = g.paths.some((e) => same(e, xy));
   const indirect = indirectPaths(g).map((vars) => {
@@ -92,9 +111,15 @@ export function planFor(g: ProcessGraph, covariates: string[] = [], order: strin
     return by.size === 1 && !threeWay && !by.has(from) ? [{ from, to, moderator: [...by][0] }] : [];
   });
   const interactions = g.paths.flatMap(([from, to]) => {
-    const three = g.threeWay.filter((t) => same(t.path, [from, to])).map((t) => [from, ...t.by].sort());
-    const covered = new Set(g.threeWay.filter((t) => same(t.path, [from, to])).flatMap((t) => t.by));
-    const two = g.moderations.filter((m) => same(m.path, [from, to]) && m.by !== from && !covered.has(m.by)).map((m) => [from, m.by].sort());
+    const three = g.threeWay
+      .filter((t) => same(t.path, [from, to]))
+      .map((t) => [from, ...t.by].sort());
+    const covered = new Set(
+      g.threeWay.filter((t) => same(t.path, [from, to])).flatMap((t) => t.by),
+    );
+    const two = g.moderations
+      .filter((m) => same(m.path, [from, to]) && m.by !== from && !covered.has(m.by))
+      .map((m) => [from, m.by].sort());
     const terms = [...two, ...three];
     return terms.length ? [{ outcome: to, focal: from, terms }] : [];
   });

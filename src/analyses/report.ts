@@ -9,13 +9,15 @@ import { analysisType } from './registry';
 import { cardStatus, currentCtx, unpackCard, useAnalyses } from './store';
 import type { Card } from './types';
 
-const svgImage = (svg: string) => `data:image/svg+xml;base64,${btoa(String.fromCharCode(...new TextEncoder().encode(svg)))}`;
+const svgImage = (svg: string) =>
+  `data:image/svg+xml;base64,${btoa(String.fromCharCode(...new TextEncoder().encode(svg)))}`;
 
 /** Copy of a card's rendered result for the report: controls removed, charts as images, no attributes but a few safe ones. */
 export function cleanResult(el: Element, doc: Document = document): Element {
   const out = el.cloneNode(true) as Element;
   // Charts: the drawn SVG as a standalone image (computed styles written onto it).
-  const live = [...el.querySelectorAll('svg')], copies = [...out.querySelectorAll('svg')];
+  const live = [...el.querySelectorAll('svg')],
+    copies = [...out.querySelectorAll('svg')];
   copies.forEach((svg, i) => {
     const src = live[i] as SVGSVGElement;
     const w = Number(src.getAttribute('width')) || src.getBoundingClientRect().width || 400;
@@ -26,19 +28,29 @@ export function cleanResult(el: Element, doc: Document = document): Element {
     img.setAttribute('alt', src.getAttribute('aria-label') ?? 'Chart');
     svg.replaceWith(img);
   });
-  out.querySelectorAll('button, input, select, textarea, script, style, [role="tablist"], .chart-tools, .chart-style').forEach((n) => n.remove());
+  out
+    .querySelectorAll(
+      'button, input, select, textarea, script, style, [role="tablist"], .chart-tools, .chart-style',
+    )
+    .forEach((n) => n.remove());
   // Blocks left with only a title and a note (their content was a control, e.g. "Save scores").
   out.querySelectorAll('div').forEach((n) => {
     if (n.querySelector('table, img, .stat-cards')) return;
     const tools = n.querySelector(':scope > .table-tools');
-    if (tools && [...n.children].every((c) => c === tools || c.classList.contains('table-note'))) n.remove();
+    if (tools && [...n.children].every((c) => c === tools || c.classList.contains('table-note')))
+      n.remove();
   });
   // Only presentational attributes stay (and images' data: sources).
   const KEEP = new Set(['class', 'colspan', 'rowspan', 'alt', 'width', 'style']);
   for (const n of [out, ...out.querySelectorAll('*')]) {
     for (const a of [...n.attributes]) {
-      const keep = KEEP.has(a.name) || (a.name === 'src' && n.tagName === 'IMG' && /^data:image\/(svg\+xml|png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(a.value));
-      if (!keep || (a.name === 'style' && /url\(|expression|@import/i.test(a.value))) n.removeAttribute(a.name);
+      const keep =
+        KEEP.has(a.name) ||
+        (a.name === 'src' &&
+          n.tagName === 'IMG' &&
+          /^data:image\/(svg\+xml|png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(a.value));
+      if (!keep || (a.name === 'style' && /url\(|expression|@import/i.test(a.value)))
+        n.removeAttribute(a.name);
     }
   }
   return out;
@@ -67,15 +79,31 @@ footer { margin-top: 3rem; font-size: 9pt; color: #777; border-top: 1px solid #c
 export function buildReport(cards: Card[], title: string, doc: Document = document): string {
   const html = doc.implementation.createHTMLDocument(title);
   const d = html;
-  const meta = (attrs: Record<string, string>) => { const m = d.createElement('meta'); for (const [k, v] of Object.entries(attrs)) m.setAttribute(k, v); d.head.appendChild(m); };
+  const meta = (attrs: Record<string, string>) => {
+    const m = d.createElement('meta');
+    for (const [k, v] of Object.entries(attrs)) m.setAttribute(k, v);
+    d.head.appendChild(m);
+  };
   meta({ charset: 'utf-8' });
-  meta({ 'http-equiv': 'Content-Security-Policy', content: "default-src 'none'; style-src 'unsafe-inline'; img-src data:" });
+  meta({
+    'http-equiv': 'Content-Security-Policy',
+    content: "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+  });
   meta({ name: 'viewport', content: 'width=device-width, initial-scale=1' });
-  const style = d.createElement('style'); style.textContent = CSS; d.head.appendChild(style);
-  const add = (tag: string, text: string, cls?: string) => { const e = d.createElement(tag); e.textContent = text; if (cls) e.className = cls; d.body.appendChild(e); return e; };
+  const style = d.createElement('style');
+  style.textContent = CSS;
+  d.head.appendChild(style);
+  const add = (tag: string, text: string, cls?: string) => {
+    const e = d.createElement(tag);
+    e.textContent = text;
+    if (cls) e.className = cls;
+    d.body.appendChild(e);
+    return e;
+  };
   add('h1', title);
   add('p', `Analysis report · ${new Date().toLocaleString()}`, 'byline');
-  const ctx = currentCtx(), results = useAnalyses.getState().results;
+  const ctx = currentCtx(),
+    results = useAnalyses.getState().results;
   for (const card of cards) {
     if (card.kind !== 'analysis') {
       if (card.kind === 'heading') add('h2', card.text || 'Heading');
@@ -83,15 +111,27 @@ export function buildReport(cards: Card[], title: string, doc: Document = docume
       continue;
     }
     const t = analysisType(card.type);
-    add('h3', card.title || (t ? t.cardTitle?.(card.options as never) ?? t.title : card.type));
-    if (t) add('p', `${t.frozen ? 'Snapshot' : t.summary(card.options as never)}${card.run ? ` · ${new Date(card.run.at).toLocaleString()}` : ''}`, 'meta');
-    if (!card.run) { add('p', 'Not run.', 'status'); continue; }
+    add('h3', card.title || (t ? (t.cardTitle?.(card.options as never) ?? t.title) : card.type));
+    if (t)
+      add(
+        'p',
+        `${t.frozen ? 'Snapshot' : t.summary(card.options as never)}${card.run ? ` · ${new Date(card.run.at).toLocaleString()}` : ''}`,
+        'meta',
+      );
+    if (!card.run) {
+      add('p', 'Not run.', 'status');
+      continue;
+    }
     const st = cardStatus(card, ctx, false, card.id in results);
-    if (st.state === 'stale' || st.state === 'missing') add('p', `Out of date: ${st.why}`, 'status');
+    if (st.state === 'stale' || st.state === 'missing')
+      add('p', `Out of date: ${st.why}`, 'status');
     const shown = doc.getElementById(card.id)?.querySelector('.card-result');
     if (shown) d.body.appendChild(d.importNode(cleanResult(shown, doc), true));
   }
-  add('footer', 'Produced with PLS Studio. Results computed by the R packages named in each table’s note.');
+  add(
+    'footer',
+    'Produced with PLS Studio. Results computed by the R packages named in each table’s note.',
+  );
   return '<!doctype html>\n' + html.documentElement.outerHTML;
 }
 
@@ -99,11 +139,23 @@ export function buildReport(cards: Card[], title: string, doc: Document = docume
 export async function exportReport() {
   const s = useStore.getState();
   const cards = useAnalyses.getState().cards;
-  if (!cards.length) { s.toast('info', 'The analysis log is empty: add cards first.'); return; }
-  await Promise.all(cards.map((c) => (c.kind === 'analysis' && c.run?.packed ? unpackCard(c.id) : null)));
+  if (!cards.length) {
+    s.toast('info', 'The analysis log is empty: add cards first.');
+    return;
+  }
+  await Promise.all(
+    cards.map((c) => (c.kind === 'analysis' && c.run?.packed ? unpackCard(c.id) : null)),
+  );
   // (two frames: React renders the unpacked results)
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   const { downloadText, safeFileName } = await import('../format');
-  downloadText(`${safeFileName(s.projectName)}-report.html`, buildReport(cards, s.projectName), 'text/html');
-  s.toast('success', 'Report saved (HTML). Open it in a browser; print it to PDF from there, or paste the tables into Word.');
+  downloadText(
+    `${safeFileName(s.projectName)}-report.html`,
+    buildReport(cards, s.projectName),
+    'text/html',
+  );
+  s.toast(
+    'success',
+    'Report saved (HTML). Open it in a browser; print it to PDF from there, or paste the tables into Word.',
+  );
 }

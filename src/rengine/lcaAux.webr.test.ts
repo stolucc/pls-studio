@@ -23,8 +23,12 @@ const DIR = join(__dirname, '..', 'engine', '__fixtures__', 'lcaaux');
 const data = parseCsv(readFileSync(join(DIR, 'election.csv'), 'utf8')).dataset;
 const ref = JSON.parse(readFileSync(join(DIR, 'reference.json'), 'utf8'));
 const ITEMS = ['MORALG', 'CARESG', 'KNOWG', 'LEADG', 'DISHONG', 'INTELG'];
-const rel = (q: string, got: number, want: number, tol = 1e-6) => near(q, got, want, tol * Math.max(1, Math.abs(want)));
-const run = (method: LcaAuxMethod) => lcaR(data, ITEMS, [2, 3], 10, 20261111, { aux: { distal: ['EDUC', 'AGE'], covariates: ['PARTY', 'GENDER'], method, classes: 3 } });
+const rel = (q: string, got: number, want: number, tol = 1e-6) =>
+  near(q, got, want, tol * Math.max(1, Math.abs(want)));
+const run = (method: LcaAuxMethod) =>
+  lcaR(data, ITEMS, [2, 3], 10, 20261111, {
+    aux: { distal: ['EDUC', 'AGE'], covariates: ['PARTY', 'GENDER'], method, classes: 3 },
+  });
 
 describe('three-step analysis of auxiliary variables (StepMix)', () => {
   it('ML three-step: classification errors, BCH distal means and the covariates’ logit equal StepMix’s', async () => {
@@ -38,49 +42,89 @@ describe('three-step analysis of auxiliary variables (StepMix)', () => {
     a.distal!.forEach((d, j) => {
       const t = ref.distal[j];
       expect(d.name).toBe(t.name);
-      d.means.forEach((m, i) => { rel(`${d.name}: mean of class ${i + 1}`, m, t.means[i]); rel(`${d.name}: SE of class ${i + 1}`, d.se[i], t.se[i]); rel(`${d.name}: SD of class ${i + 1}`, d.sd[i], t.sd[i]); });
+      d.means.forEach((m, i) => {
+        rel(`${d.name}: mean of class ${i + 1}`, m, t.means[i]);
+        rel(`${d.name}: SE of class ${i + 1}`, d.se[i], t.se[i]);
+        rel(`${d.name}: SD of class ${i + 1}`, d.sd[i], t.sd[i]);
+      });
       rel(`${d.name}: Wald χ²`, d.chisq, t.chisq);
-      d.pairs.forEach((p, k) => rel(`${d.name}: Wald χ² class ${p.a} = ${p.b}`, p.chisq, t.pairs[k][2]));
+      d.pairs.forEach((p, k) =>
+        rel(`${d.name}: Wald χ² class ${p.a} = ${p.b}`, p.chisq, t.pairs[k][2]),
+      );
     });
     const cv = a.covariates!;
     expect(cv.terms).toEqual(['Intercept', 'PARTY', 'GENDER']);
     same('reference class', cv.reference, 3);
     rel('step-3 log-likelihood', cv.logLik, ref.ml.logLik);
-    cv.coefs.forEach((k, c) => k.est.forEach((b, j) => { rel(`ML: class ${k.class} ${cv.terms[j]}`, b, ref.ml.est[c][j]); rel(`ML: SE class ${k.class} ${cv.terms[j]}`, k.se[j], ref.ml.se[c][j]); }));
+    cv.coefs.forEach((k, c) =>
+      k.est.forEach((b, j) => {
+        rel(`ML: class ${k.class} ${cv.terms[j]}`, b, ref.ml.est[c][j]);
+        rel(`ML: SE class ${k.class} ${cv.terms[j]}`, k.se[j], ref.ml.se[c][j]);
+      }),
+    );
     cv.wald.forEach((w, j) => rel(`ML: Wald χ² ${cv.terms[j]}`, w.chisq, ref.ml.wald[j]));
   }, 600_000);
 
   it('BCH-weighted logit of the covariates equals StepMix’s', async () => {
     const cv = (await run('bch')).aux!.covariates!;
     rel('BCH: weighted log-likelihood', cv.logLik, ref.bch.logLik);
-    cv.coefs.forEach((k, c) => k.est.forEach((b, j) => { rel(`BCH: class ${k.class} ${cv.terms[j]}`, b, ref.bch.est[c][j]); rel(`BCH: SE class ${k.class} ${cv.terms[j]}`, k.se[j], ref.bch.se[c][j]); }));
+    cv.coefs.forEach((k, c) =>
+      k.est.forEach((b, j) => {
+        rel(`BCH: class ${k.class} ${cv.terms[j]}`, b, ref.bch.est[c][j]);
+        rel(`BCH: SE class ${k.class} ${cv.terms[j]}`, k.se[j], ref.bch.se[c][j]);
+      }),
+    );
     cv.wald.forEach((w, j) => rel(`BCH: Wald χ² ${cv.terms[j]}`, w.chisq, ref.bch.wald[j]));
   }, 600_000);
 
   it('chooses the lowest-BIC model, a reference class, and exports the script', async () => {
-    const r = await lcaR(data, ITEMS, [1, 2, 3], 10, 20261111, { aux: { distal: [], covariates: ['PARTY'], method: 'ml', reference: 1 } });
+    const r = await lcaR(data, ITEMS, [1, 2, 3], 10, 20261111, {
+      aux: { distal: [], covariates: ['PARTY'], method: 'ml', reference: 1 },
+    });
     const best = r.models.filter((m) => m.k >= 2).reduce((a, b) => (b.bic < a.bic ? b : a));
     same('classes chosen (lowest BIC of 2 or more)', r.aux!.k, best.k);
     same('reference class', r.aux!.covariates!.reference, 1);
     expect(r.aux!.covariates!.coefs.map((k) => k.class)).toEqual([2, 3].slice(0, best.k - 1));
     expect(r.aux!.distal).toBeUndefined();
-    const script = await lcaScriptR(data, ITEMS, [2, 3], 10, 20261111, { aux: { distal: ['EDUC'], covariates: ['PARTY'], method: 'bch', classes: 3 } });
+    const script = await lcaScriptR(data, ITEMS, [2, 3], 10, 20261111, {
+      aux: { distal: ['EDUC'], covariates: ['PARTY'], method: 'bch', classes: 3 },
+    });
     expect(script).toContain('aux_errors <- function(post)');
-    expect(script).toContain('covariates <- aux_logit(X, e$s[ok], e$D, e$w[ok, , drop = FALSE], ref, "bch")');
-    expect(script).toContain('distal <- lapply(c("EDUC"), function(v) aux_distal(as.numeric(aux[[v]]), e$w))');
+    expect(script).toContain(
+      'covariates <- aux_logit(X, e$s[ok], e$D, e$w[ok, , drop = FALSE], ref, "bch")',
+    );
+    expect(script).toContain(
+      'distal <- lapply(c("EDUC"), function(v) aux_distal(as.numeric(aux[[v]]), e$w))',
+    );
   }, 600_000);
 
   it('latent profiles and growth classes give their posterior probabilities to step 3', async () => {
     // (the same step 3 on another model's posteriors: EDUC and AGE as profile indicators, PARTY its covariate)
-    const r = await lcaR(data, ['EDUC', 'AGE'], [2], 10, 1, { model: 'lpa', structure: 'VVI', aux: { distal: ['GENDER'], covariates: ['PARTY'], method: 'bch' } });
+    const r = await lcaR(data, ['EDUC', 'AGE'], [2], 10, 1, {
+      model: 'lpa',
+      structure: 'VVI',
+      aux: { distal: ['GENDER'], covariates: ['PARTY'], method: 'bch' },
+    });
     same('classes', r.aux!.k, 2);
     same('cases', r.aux!.n, r.n);
-    r.aux!.D.forEach((row) => near('row of D sums to 1', row.reduce((s, v) => s + v, 0), 1, 1e-12));
-    const g = await lcaR(data, ITEMS.slice(0, 4), [2], 5, 1, { model: 'lcga', aux: { distal: ['AGE'], covariates: [], method: 'ml' } });
+    r.aux!.D.forEach((row) =>
+      near(
+        'row of D sums to 1',
+        row.reduce((s, v) => s + v, 0),
+        1,
+        1e-12,
+      ),
+    );
+    const g = await lcaR(data, ITEMS.slice(0, 4), [2], 5, 1, {
+      model: 'lcga',
+      aux: { distal: ['AGE'], covariates: [], method: 'ml' },
+    });
     expect(g.aux!.distal![0].means).toHaveLength(2);
   }, 600_000);
 
   it('refuses auxiliary variables that are items', async () => {
-    await expect(lcaR(data, ITEMS, [2], 2, 1, { aux: { distal: ['MORALG'], covariates: [], method: 'ml' } })).rejects.toThrow(/not items/);
+    await expect(
+      lcaR(data, ITEMS, [2], 2, 1, { aux: { distal: ['MORALG'], covariates: [], method: 'ml' } }),
+    ).rejects.toThrow(/not items/);
   }, 600_000);
 });

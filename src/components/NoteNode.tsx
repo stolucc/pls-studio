@@ -15,8 +15,18 @@ function NoteNodeImpl({ id, data, selected }: NodeProps<NoteFlowNode>) {
   return (
     <div className={`note-node${selected ? ' selected' : ''}`} style={{ width: NOTE_WIDTH }}>
       <div className="note-grip" title="Drag to move; select and press Delete to remove" />
-      <textarea className="nodrag nowheel" aria-label="Comment" rows={3} placeholder="Comment" value={draft} maxLength={5000} onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => { if (draft !== data.text) updateNote(id, draft); }} />
+      <textarea
+        className="nodrag nowheel"
+        aria-label="Comment"
+        rows={3}
+        placeholder="Comment"
+        value={draft}
+        maxLength={5000}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft !== data.text) updateNote(id, draft);
+        }}
+      />
     </div>
   );
 }

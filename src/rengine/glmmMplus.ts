@@ -11,11 +11,15 @@ import { quadR, quadScriptR, type QuadResult } from './quadml';
 
 /** Why the card cannot use Mplus's rule for these options (null: it can). */
 export function glmmMplusBlocked(o: GlmmInput): string | null {
-  if (o.layout !== 'wide') return 'Mplus’s integration rule is available for wide data (a growth model, i s | u1@0 u2@1 …).';
-  if (!['poisson', 'negbin', 'zip'].includes(o.family)) return 'Mplus’s integration rule is available for Poisson, negative binomial and zero-inflated Poisson counts.';
-  if (o.slopes.some((s) => s !== 'time')) return 'With Mplus’s integration rule the random slope is that of time.';
+  if (o.layout !== 'wide')
+    return 'Mplus’s integration rule is available for wide data (a growth model, i s | u1@0 u2@1 …).';
+  if (!['poisson', 'negbin', 'zip'].includes(o.family))
+    return 'Mplus’s integration rule is available for Poisson, negative binomial and zero-inflated Poisson counts.';
+  if (o.slopes.some((s) => s !== 'time'))
+    return 'With Mplus’s integration rule the random slope is that of time.';
   if (o.quadrature > 50) return 'Mplus’s rule: at most 50 points per dimension.';
-  if ([...o.occasions, ...o.predictors].some((c) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(c))) return 'Mplus’s integration rule needs column names of letters, digits and _ (rename the columns or use GLMMadaptive).';
+  if ([...o.occasions, ...o.predictors].some((c) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(c)))
+    return 'Mplus’s integration rule needs column names of letters, digits and _ (rename the columns or use GLMMadaptive).';
   return null;
 }
 
@@ -33,51 +37,99 @@ export function glmmMplusSyntax(o: GlmmInput): string {
     `i s | ${at()};`,
     ...(o.slopes.includes('time') ? [] : ['s@0;']),
     ...(o.predictors.length ? [`i ON ${o.predictors.join(' ')};`] : []),
-    ...(zi ? [
-      `ii si | ${at('#1')};`,
-      ...(o.ziRandom ? [] : ['ii@0;']),
-      'si@0;',
-      ...(o.ziPredictors.includes('time') ? [] : ['[si@0];']),
-      ...(zx.length ? [`ii ON ${zx.join(' ')};`] : []),
-    ] : []),
+    ...(zi
+      ? [
+          `ii si | ${at('#1')};`,
+          ...(o.ziRandom ? [] : ['ii@0;']),
+          'si@0;',
+          ...(o.ziPredictors.includes('time') ? [] : ['[si@0];']),
+          ...(zx.length ? [`ii ON ${zx.join(' ')};`] : []),
+        ]
+      : []),
   ].join('\n');
 }
 
 const spec = (data: Dataset, o: GlmmInput) => buildQuad(glmmMplusSyntax(o), data).spec;
 
 const coef = (term: string, p?: { est: number; se: number | null }): GlmmCoef => {
-  const se = p?.se ?? NaN, z = (p?.est ?? NaN) / se;
+  const se = p?.se ?? NaN,
+    z = (p?.est ?? NaN) / se;
   return { term, est: p?.est ?? NaN, se, z, p: Number.isFinite(z) ? normalP(z) : NaN };
 };
 
 /** The integration engine's result as the GLMM card shows it (Mplus's growth factors as the random effects). */
-export function glmmFromQuad(o: GlmmInput, r: QuadResult, observations = r.n * o.occasions.length): GlmmResult {
-  const get = (lhs: string, op: string, rhs = '') => r.params.find((p) => p.lhs === lhs && p.op === op && p.rhs === rhs) ?? (op === '~~' ? r.params.find((p) => p.lhs === rhs && p.op === op && p.rhs === lhs) : undefined);
-  const zi = o.family === 'zip', y0 = o.occasions[0];
-  const fixed = [coef('Intercept', get('i', '~1')), coef('time', get('s', '~1')), ...o.predictors.map((x) => coef(x, get('i', '~', x)))];
-  const zero = zi ? [coef('Intercept', get(`${y0}#1`, '~1')), ...(o.ziPredictors.includes('time') ? [coef('time', get('si', '~1'))] : []), ...o.ziPredictors.filter((x) => x !== 'time').map((x) => coef(x, get('ii', '~', x)))] : undefined;
+export function glmmFromQuad(
+  o: GlmmInput,
+  r: QuadResult,
+  observations = r.n * o.occasions.length,
+): GlmmResult {
+  const get = (lhs: string, op: string, rhs = '') =>
+    r.params.find((p) => p.lhs === lhs && p.op === op && p.rhs === rhs) ??
+    (op === '~~' ? r.params.find((p) => p.lhs === rhs && p.op === op && p.rhs === lhs) : undefined);
+  const zi = o.family === 'zip',
+    y0 = o.occasions[0];
+  const fixed = [
+    coef('Intercept', get('i', '~1')),
+    coef('time', get('s', '~1')),
+    ...o.predictors.map((x) => coef(x, get('i', '~', x))),
+  ];
+  const zero = zi
+    ? [
+        coef('Intercept', get(`${y0}#1`, '~1')),
+        ...(o.ziPredictors.includes('time') ? [coef('time', get('si', '~1'))] : []),
+        ...o.ziPredictors.filter((x) => x !== 'time').map((x) => coef(x, get('ii', '~', x))),
+      ]
+    : undefined;
   const random: GlmmResult['random'] = [];
-  const add = (a: string, b: string | undefined, zeroA: boolean, zeroB: boolean, p?: { est: number; se: number | null; fixed: boolean }) => { if (p && !p.fixed) random.push({ a, ...(b ? { b } : {}), zeroA, zeroB, est: p.est, se: p.se ?? NaN }); };
-  add('Intercept', undefined, false, false, get('i', '~~', 'i') );
-  if (o.slopes.includes('time')) { add('time', undefined, false, false, get('s', '~~', 's') ); add('Intercept', 'time', false, false, get('s', '~~', 'i') ); }
+  const add = (
+    a: string,
+    b: string | undefined,
+    zeroA: boolean,
+    zeroB: boolean,
+    p?: { est: number; se: number | null; fixed: boolean },
+  ) => {
+    if (p && !p.fixed)
+      random.push({ a, ...(b ? { b } : {}), zeroA, zeroB, est: p.est, se: p.se ?? NaN });
+  };
+  add('Intercept', undefined, false, false, get('i', '~~', 'i'));
+  if (o.slopes.includes('time')) {
+    add('time', undefined, false, false, get('s', '~~', 's'));
+    add('Intercept', 'time', false, false, get('s', '~~', 'i'));
+  }
   if (zi && o.ziRandom) {
-    add('Intercept', undefined, true, true, get('ii', '~~', 'ii') );
-    add('Intercept', 'Intercept', false, true, get('ii', '~~', 'i') );
-    if (o.slopes.includes('time')) add('time', 'Intercept', false, true, get('ii', '~~', 's') );
+    add('Intercept', undefined, true, true, get('ii', '~~', 'ii'));
+    add('Intercept', 'Intercept', false, true, get('ii', '~~', 'i'));
+    if (o.slopes.includes('time')) add('time', 'Intercept', false, true, get('ii', '~~', 's'));
   }
   const disp = r.params.find((p) => p.op === 'dispersion');
   return {
-    family: o.family, layout: 'wide', n: observations, clusters: r.n, quadrature: o.quadrature, robust: o.robust,
-    fixed, ...(zero ? { zero } : {}), random,
+    family: o.family,
+    layout: 'wide',
+    n: observations,
+    clusters: r.n,
+    quadrature: o.quadrature,
+    robust: o.robust,
+    fixed,
+    ...(zero ? { zero } : {}),
+    random,
     // (Mplus's dispersion α: variance μ + αμ², i.e. θ = 1/α)
     ...(disp ? { logPhi: { est: -Math.log(disp.est), se: (disp.se ?? NaN) / disp.est } } : {}),
-    logLik: r.logLik, npar: r.npar, aic: r.aic, bic: r.bic, converged: r.converged, integration: 'mplus',
-    warnings: r.warnings, engine: r.engine,
+    logLik: r.logLik,
+    npar: r.npar,
+    aic: r.aic,
+    bic: r.bic,
+    converged: r.converged,
+    integration: 'mplus',
+    warnings: r.warnings,
+    engine: r.engine,
   } as GlmmResult;
 }
 
 export async function glmmMplusR(data: Dataset, o: GlmmInput): Promise<GlmmResult> {
-  const obs = o.occasions.reduce((t, y) => t + Array.from(data.cols[data.names.indexOf(y)] ?? []).filter(Number.isFinite).length, 0);
+  const obs = o.occasions.reduce(
+    (t, y) => t + Array.from(data.cols[data.names.indexOf(y)] ?? []).filter(Number.isFinite).length,
+    0,
+  );
   return glmmFromQuad(o, await quadR(data, spec(data, o)), obs);
 }
 export const glmmMplusScriptR = (data: Dataset, o: GlmmInput) => quadScriptR(data, spec(data, o));

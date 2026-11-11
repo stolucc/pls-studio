@@ -12,11 +12,36 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const data = parseCsv(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'validation', 'data', 'holzinger_swineford.csv'), 'utf8')).dataset;
-const f = (name: string, indicators: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators });
+const data = parseCsv(
+  readFileSync(
+    join(
+      __dirname,
+      '..',
+      'engine',
+      '__fixtures__',
+      'validation',
+      'data',
+      'holzinger_swineford.csv',
+    ),
+    'utf8',
+  ),
+).dataset;
+const f = (name: string, indicators: string[]) => ({
+  name,
+  type: 'factor' as const,
+  mode: 'A' as const,
+  indicators,
+});
 const spec: ModelSpec = {
-  constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6']), f('speed', ['x7', 'x8', 'x9'])],
-  paths: [{ from: 'visual', to: 'speed' }, { from: 'textual', to: 'speed' }],
+  constructs: [
+    f('visual', ['x1', 'x2', 'x3']),
+    f('textual', ['x4', 'x5', 'x6']),
+    f('speed', ['x7', 'x8', 'x9']),
+  ],
+  paths: [
+    { from: 'visual', to: 'speed' },
+    { from: 'textual', to: 'speed' },
+  ],
   covariances: [{ a: 'visual', b: 'textual', kind: 'construct', zero: true }],
 };
 

@@ -44,26 +44,78 @@ export const BSEM_EXAMPLES: { key: string; nMplus: number; k?: number; sdRel?: n
 ];
 const N_OURS = 400;
 /** The medians' tolerance in posterior SDs, and the SDs' relative tolerance. */
-export const tolerances = (nMplus: number) => ({ k: 3 * 1.25 * Math.sqrt(1 / nMplus + 1 / N_OURS), sdRel: 3 * Math.sqrt(1 / (2 * nMplus) + 1 / (2 * N_OURS)) });
-export const FIXTURE = join(__dirname, '..', '..', 'engine', '__fixtures__', 'blavaan', 'mplus.json');
-export type Recorded = Record<string, { result: Pick<BsemResult, 'parameters' | 'defined' | 'loop' | 'plausible' | 'groups' | 'maxRhat' | 'minNeff' | 'converged' | 'priors' | 'wiggleSd' | 'chains' | 'burnin' | 'sample' | 'seed'>; versions?: Record<string, string> }>;
+export const tolerances = (nMplus: number) => ({
+  k: 3 * 1.25 * Math.sqrt(1 / nMplus + 1 / N_OURS),
+  sdRel: 3 * Math.sqrt(1 / (2 * nMplus) + 1 / (2 * N_OURS)),
+});
+export const FIXTURE = join(
+  __dirname,
+  '..',
+  '..',
+  'engine',
+  '__fixtures__',
+  'blavaan',
+  'mplus.json',
+);
+export type Recorded = Record<
+  string,
+  {
+    result: Pick<
+      BsemResult,
+      | 'parameters'
+      | 'defined'
+      | 'loop'
+      | 'plausible'
+      | 'groups'
+      | 'maxRhat'
+      | 'minNeff'
+      | 'converged'
+      | 'priors'
+      | 'wiggleSd'
+      | 'chains'
+      | 'burnin'
+      | 'sample'
+      | 'seed'
+    >;
+    versions?: Record<string, string>;
+  }
+>;
 export const readRecorded = (): Recorded => JSON.parse(readFileSync(FIXTURE, 'utf8')) as Recorded;
 
 /** The example's card, as the app opens it: its data (with computed columns), model and options. */
 export function bsemExample(key: string) {
   const ex = example(key);
   let data = load(key);
-  let info = { fileName: key, rows: data.cols[0]?.length ?? 0, missingCells: 0, excluded: [] } as unknown as Parameters<typeof computeColumn>[1];
+  let info = {
+    fileName: key,
+    rows: data.cols[0]?.length ?? 0,
+    missingCells: 0,
+    excluded: [],
+  } as unknown as Parameters<typeof computeColumn>[1];
   for (const k of ex.computed ?? []) ({ data, info } = computeColumn(data, info, k.name, k.expr));
   const settings = exampleSettings(DEFAULT_SETTINGS, ex.settings);
   const model = exampleModel(ex);
-  const ctx = { data, info: null, settings, pls: null, projectName: ex.title, model } as unknown as AnalysisCtx;
+  const ctx = {
+    data,
+    info: null,
+    settings,
+    pls: null,
+    projectName: ex.title,
+    model,
+  } as unknown as AnalysisCtx;
   const panel = examplePanels(ex)[0];
   return { ex, ctx, data, model, settings, options: panelPreset(panel) as unknown as BsemOptions };
 }
 export const bsemExampleRequest = (key: string, options?: BsemOptions) => {
   const { data, model, settings, options: o } = bsemExample(key);
-  return bsemRequest(data, toSpec(model), settings.missing, options ?? o, settings.seed, settings.confidence);
+  return bsemRequest(
+    data,
+    toSpec(model),
+    settings.missing,
+    options ?? o,
+    settings.seed,
+    settings.confidence,
+  );
 };
 
 /**
@@ -74,7 +126,9 @@ export const bsemExampleRequest = (key: string, options?: BsemOptions) => {
  * the posterior's width. There the SD is compared with that standard error. (11.7: s's mean, Mplus 0.061, WLSMV
  * 0.101, ours 0.107; f2's residual variance, Mplus 0.114, WLSMV 0.127, ours 0.162.)
  */
-const SHORT_CHAIN_SD: Record<string, Record<string, number>> = { 'ex11.7': { 's ~1 ': 0.101, 'f2 ~~ f2': 0.127 } };
+const SHORT_CHAIN_SD: Record<string, Record<string, number>> = {
+  'ex11.7': { 's ~1 ': 0.101, 'f2 ~~ f2': 0.127 },
+};
 
 /** Parameters whose posterior has heavy tails (an SD 1.5 times the interval's or more): their medians only. */
 const HEAVY_TAILS: Record<string, string[]> = { 'ex5.31': ['f2 =~ y6', 'f2 =~ y7', 'f2 =~ y8'] };
@@ -95,20 +149,28 @@ export function compareWithMplus(key: string, r: Recorded[string]['result']) {
   const heavy: string[] = [];
   for (const p of printed) {
     const g = printedGroup(p);
-    const mine = r.parameters.filter((e) => (e.op === p.op || (p.op === '|' && e.op === '|'))
-      && ((sameName(e.lhs, p.lhs) && (sameName(e.rhs, p.rhs) || (p.op === '|' && e.rhs === 't1'))) || (p.op === '~~' && sameName(e.lhs, p.rhs) && sameName(e.rhs, p.lhs)))
-      && (g === null || e.groupLabel === g));
+    const mine = r.parameters.filter(
+      (e) =>
+        (e.op === p.op || (p.op === '|' && e.op === '|')) &&
+        ((sameName(e.lhs, p.lhs) && (sameName(e.rhs, p.rhs) || (p.op === '|' && e.rhs === 't1'))) ||
+          (p.op === '~~' && sameName(e.lhs, p.rhs) && sameName(e.rhs, p.lhs))) &&
+        (g === null || e.groupLabel === g),
+    );
     expect(mine.length, `${key}: ${p.lhs} ${p.op} ${p.rhs} ${p.block}`).toBeGreaterThan(0);
     const e = mine[0];
     const label = `${p.lhs} ${p.op} ${p.rhs}${g ? ` (group ${g})` : ''}`;
     near(`posterior median of ${label}`, e.median!, p.est, k * p.se + 0.0015);
     const under = SHORT_CHAIN_SD[key]?.[`${p.lhs} ${p.op} ${p.rhs}`];
-    if (e.sd > 1.5 * (e.high - e.low) / 3.92) {
+    if (e.sd > (1.5 * (e.high - e.low)) / 3.92) {
       // Heavy tails (see above): the SD is not a property of the posterior; only the median is compared.
       heavy.push(label);
     } else if (under !== undefined) {
       // Mplus's SD is below the large-sample SE: its short chain did not explore the posterior (SHORT_CHAIN_SD).
-      same(`${label}: Mplus's posterior SD (${p.se}) below the WLSMV standard error (${under}), ours (${e.sd.toFixed(3)}) not`, String(p.se < under && e.sd >= under * (1 - tol.sdRel)), 'true');
+      same(
+        `${label}: Mplus's posterior SD (${p.se}) below the WLSMV standard error (${under}), ours (${e.sd.toFixed(3)}) not`,
+        String(p.se < under && e.sd >= under * (1 - tol.sdRel)),
+        'true',
+      );
     } else near(`posterior SD of ${label}`, e.sd, p.se, tol.sdRel * p.se + 0.0015);
     n++;
   }

@@ -5,12 +5,25 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { causalityIndices, nonlinearPaths, pathCurve, type PathShape } from './nonlinear';
 
-const ref = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'nonlinear', 'reference.json'), 'utf8'));
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '__fixtures__', 'nonlinear', 'reference.json'), 'utf8'),
+);
 const constructs = ['Image', 'Expectation', 'Value', 'Satisfaction', 'Loyalty'];
 const scores = constructs.map((c) => Float64Array.from(ref.scores[c] as number[]));
 const has = constructs.map(() => constructs.map(() => false));
-for (const [f, t] of [['Image', 'Satisfaction'], ['Expectation', 'Satisfaction'], ['Value', 'Satisfaction'], ['Satisfaction', 'Loyalty'], ['Image', 'Loyalty']]) has[constructs.indexOf(f)][constructs.indexOf(t)] = true;
-const shapes: Record<string, PathShape> = { 'Image→Satisfaction': 'quadratic', 'Value→Satisfaction': 'cubic', 'Satisfaction→Loyalty': 'quadratic' };
+for (const [f, t] of [
+  ['Image', 'Satisfaction'],
+  ['Expectation', 'Satisfaction'],
+  ['Value', 'Satisfaction'],
+  ['Satisfaction', 'Loyalty'],
+  ['Image', 'Loyalty'],
+])
+  has[constructs.indexOf(f)][constructs.indexOf(t)] = true;
+const shapes: Record<string, PathShape> = {
+  'Image→Satisfaction': 'quadratic',
+  'Value→Satisfaction': 'cubic',
+  'Satisfaction→Loyalty': 'quadratic',
+};
 const shape = (f: string, t: string) => shapes[`${f}→${t}`] ?? 'linear';
 // lm's term label of a predictor and power
 const label = (from: string, power: number) => (power === 1 ? from : `I(${from}^${power})`);
@@ -39,7 +52,10 @@ describe('nonlinear (polynomial) paths', () => {
     const b = (f: string, p: number) => e.terms.find((t) => t.from === f && t.power === p)!.b;
     const pts = pathCurve(e, 'Value', -2, 2, 4);
     expect(pts.map((p) => p[0])).toEqual([-2, -1, 0, 1, 2]);
-    expect(pts[4][1]).toBeCloseTo(e.intercept + 2 * b('Value', 1) + 4 * b('Value', 2) + 8 * b('Value', 3), 12);
+    expect(pts[4][1]).toBeCloseTo(
+      e.intercept + 2 * b('Value', 1) + 4 * b('Value', 2) + 8 * b('Value', 3),
+      12,
+    );
   });
 });
 
@@ -61,7 +77,21 @@ describe('causality assessment indices (Kock)', () => {
     expect(k.rscr).toBeCloseTo(0.26 / 0.28, 12);
   });
   it('are 1 for a single positive path', () => {
-    const k = causalityIndices(['X', 'Y'], [[false, true], [false, false]], [[0, 0.6], [0, 0]], [[1, 0.6], [0.6, 1]]);
+    const k = causalityIndices(
+      ['X', 'Y'],
+      [
+        [false, true],
+        [false, false],
+      ],
+      [
+        [0, 0.6],
+        [0, 0],
+      ],
+      [
+        [1, 0.6],
+        [0.6, 1],
+      ],
+    );
     expect([k.spr, k.rscr, k.ssr]).toEqual([1, 1, 1]);
   });
 });

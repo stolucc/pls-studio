@@ -18,8 +18,12 @@ describe('held and labelled parameter values typed in the dialogs', () => {
     expect(parseHeldValue('a; system("x")', { groups: false })).toHaveProperty('error');
     expect(parseHeldValue('1, "a"', { groups: true })).toHaveProperty('error');
     expect(parseHeldValue('1e9', { groups: false })).toHaveProperty('error');
-    expect(parseHeldValue('y1', { groups: false, reserved: new Set(['y1']) })).toHaveProperty('error');
-    expect(parseHeldValue('1, y1', { groups: true, reserved: new Set(['y1']) })).toHaveProperty('error');
+    expect(parseHeldValue('y1', { groups: false, reserved: new Set(['y1']) })).toHaveProperty(
+      'error',
+    );
+    expect(parseHeldValue('1, y1', { groups: true, reserved: new Set(['y1']) })).toHaveProperty(
+      'error',
+    );
   });
 
   it('writes the current state back as the dialog shows it', () => {
@@ -27,7 +31,8 @@ describe('held and labelled parameter values typed in the dialogs', () => {
     expect(heldText({ fixed: 1 })).toBe('1');
     expect(heldText({ label: 'a' })).toBe('a');
     expect(heldText({ byGroup: [1, null, 'a'] })).toBe('1, NA, a');
-    for (const t of ['2', 'lab', '1, NA, a']) expect(heldText(parseHeldValue(t, { groups: true }) as never)).toBe(t);
+    for (const t of ['2', 'lab', '1, NA, a'])
+      expect(heldText(parseHeldValue(t, { groups: true }) as never)).toBe(t);
   });
 });
 
@@ -37,13 +42,32 @@ describe('values per group in the model check', () => {
     const { parseLavaanSyntax } = await import('./syntax');
     const { model } = parseLavaanSyntax('f =~ y1 + y2 + y3');
     const f = model.constructs[0].id;
-    const data = { names: ['y1', 'y2', 'y3', 'g'], cols: [0, 1, 2].map(() => Float64Array.from({ length: 80 }, (_, i) => Math.sin(i))).concat([Float64Array.from({ length: 80 }, (_, i) => (i < 40 ? 1 : 2))]) };
+    const data = {
+      names: ['y1', 'y2', 'y3', 'g'],
+      cols: [0, 1, 2]
+        .map(() => Float64Array.from({ length: 80 }, (_, i) => Math.sin(i)))
+        .concat([Float64Array.from({ length: 80 }, (_, i) => (i < 40 ? 1 : 2))]),
+    };
     const settings = { ...DEFAULT_SETTINGS, method: 'cbsem' as const, engine: 'r' as const };
-    const errors = (m: typeof model) => validateModel(m, data, settings).filter((i) => i.level === 'error').map((i) => i.message);
-    const perGroup = { ...model, parameters: [{ id: 'v', kind: 'variance' as const, target: f, byGroup: [1, null, 2] }] };
+    const errors = (m: typeof model) =>
+      validateModel(m, data, settings)
+        .filter((i) => i.level === 'error')
+        .map((i) => i.message);
+    const perGroup = {
+      ...model,
+      parameters: [{ id: 'v', kind: 'variance' as const, target: f, byGroup: [1, null, 2] }],
+    };
     expect(errors(perGroup)).toEqual([expect.stringMatching(/no groups/)]);
-    const grouped = { ...perGroup, multigroup: { column: 'g', invariance: 'configural' as const, free: [] } };
+    const grouped = {
+      ...perGroup,
+      multigroup: { column: 'g', invariance: 'configural' as const, free: [] },
+    };
     expect(errors(grouped)).toEqual([expect.stringMatching(/one entry for each of the 2 groups/)]);
-    expect(errors({ ...grouped, parameters: [{ id: 'v', kind: 'variance' as const, target: f, byGroup: [1, null] }] })).toEqual([]);
+    expect(
+      errors({
+        ...grouped,
+        parameters: [{ id: 'v', kind: 'variance' as const, target: f, byGroup: [1, null] }],
+      }),
+    ).toEqual([]);
   });
 });

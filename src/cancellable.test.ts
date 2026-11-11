@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { cancelGroup, Cancelled, isCancelled } from './cancellable';
 
-const later = <T,>(v: T) => { let resolve!: (x: T) => void; const p = new Promise<T>((r) => { resolve = r; }); return { p, done: () => resolve(v) }; };
+const later = <T>(v: T) => {
+  let resolve!: (x: T) => void;
+  const p = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { p, done: () => resolve(v) };
+};
 
 describe('cancelGroup (Cancel button of panel analyses)', () => {
   it('passes results and errors through when not cancelled', async () => {
@@ -13,15 +19,19 @@ describe('cancelGroup (Cancel button of panel analyses)', () => {
 
   it('rejects every pending call with Cancelled, so the result is never applied', async () => {
     const g = cancelGroup();
-    const a = later('result a'), b = later('result b');
+    const a = later('result a'),
+      b = later('result b');
     let applied: string | null = null;
-    const run = (async () => { applied = await g.guard(a.p); })();
+    const run = (async () => {
+      applied = await g.guard(a.p);
+    })();
     const other = g.guard(b.p);
     expect(g.pending()).toBe(2);
     expect(g.cancel()).toBe(2);
     await expect(run).rejects.toBeInstanceOf(Cancelled);
     await expect(other).rejects.toSatisfy(isCancelled);
-    a.done(); b.done();  // R delivers afterwards: ignored
+    a.done();
+    b.done(); // R delivers afterwards: ignored
     await Promise.resolve();
     expect(applied).toBeNull();
     expect(g.pending()).toBe(0);

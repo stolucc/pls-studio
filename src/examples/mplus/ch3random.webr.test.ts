@@ -26,9 +26,20 @@ it('ex3.9: the regression card’s random slope (ML, HC0) reproduces the Mplus o
   near('BIC', r.fit.bic, want.fit.bic!, 0.002);
   // Mplus: y ON x2 and [y] are the mean model's; [s] and s ON x2 the slope of x1c and its interaction with x2c;
   // y (the residual), s and s WITH y the random part.
-  const term = (lhs: string, op: string, rhs: string) => (op === '~1' ? (lhs === 'y' ? '(Intercept)' : 'x1c')
-    : op === '~' ? (lhs === 'y' ? 'x2c' : 'x1c:x2c')
-      : lhs !== rhs ? 'Covariance of the slope of x1c and the residual' : lhs === 'y' ? 'Residual variance' : 'Variance of the slope of x1c');
+  const term = (lhs: string, op: string, rhs: string) =>
+    op === '~1'
+      ? lhs === 'y'
+        ? '(Intercept)'
+        : 'x1c'
+      : op === '~'
+        ? lhs === 'y'
+          ? 'x2c'
+          : 'x1c:x2c'
+        : lhs !== rhs
+          ? 'Covariance of the slope of x1c and the residual'
+          : lhs === 'y'
+            ? 'Residual variance'
+            : 'Variance of the slope of x1c';
   for (const e of want.estimates) {
     const c = r.coefficients.find((x) => x.term === term(e.lhs, e.op, e.rhs));
     expect(c, `${e.lhs} ${e.op} ${e.rhs}`).toBeDefined();

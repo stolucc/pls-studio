@@ -29,14 +29,17 @@ export const mplusChapter = (key: string) => key.split('.')[0];
 /** The input of an Mplus example, e.g. chap6/ex6.19.inp. */
 export const mplusInputPath = (key: string) => `chap${mplusChapter(key)}/ex${key}.inp`;
 /** The guide's page of the example: where a person can download the data themselves. */
-export const mplusPage = (key: string) => `https://www.statmodel.com/usersguide/chap${mplusChapter(key)}/ex${key}.html`;
+export const mplusPage = (key: string) =>
+  `https://www.statmodel.com/usersguide/chap${mplusChapter(key)}/ex${key}.html`;
 
 /** The page to send a person to when the download fails. */
 export const remotePage = (r: RemoteData) => (r.kind === 'mplus' ? mplusPage(r.example) : r.page);
 /** Who the data are downloaded from, for messages. */
-export const remoteHost = (r: RemoteData) => (r.kind === 'mplus' ? 'statmodel.com' : new URL(r.url).host);
+export const remoteHost = (r: RemoteData) =>
+  r.kind === 'mplus' ? 'statmodel.com' : new URL(r.url).host;
 /** The file in the test cache (.cache/) that scripts/validation/fetch_example_data.mjs writes: the converted CSV, before any reshape. */
-export const remoteCacheFile = (r: RemoteData) => (r.kind === 'mplus' ? `mplus/ex${r.example}.csv` : r.file);
+export const remoteCacheFile = (r: RemoteData) =>
+  r.kind === 'mplus' ? `mplus/ex${r.example}.csv` : r.file;
 
 /**
  * The RI-CLPM tutorial's simulated data (Mulder & Hamaker 2021): github.com/JeroenDMulder/RI-CLPM states no licence,

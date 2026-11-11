@@ -24,7 +24,12 @@ beforeAll(async () => {
   writeFileSync(join(staticDir, 'assets', 'index-abc123.js'), 'export {};');
   writeFileSync(join(staticDir, 'webr', 'R.wasm'), Buffer.from([0, 97, 115, 109]));
   writeFileSync(join(staticDir, 'webr', 'webr-worker.js'), 'self.onmessage = () => {};');
-  const config = loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB, APP_ORIGIN: ORIGIN, STATIC_DIR: staticDir });
+  const config = loadConfig({
+    NODE_ENV: 'test',
+    DATABASE_URL: TEST_DB,
+    APP_ORIGIN: ORIGIN,
+    STATIC_DIR: staticDir,
+  });
   app = createApp({ config, db, mailer: createMailer(undefined, config.MAIL_FROM, false) });
 });
 
@@ -47,8 +52,14 @@ describe('GET /api/health', () => {
 
   it('fails when the database is unreachable', async () => {
     const config = loadConfig({ NODE_ENV: 'test', DATABASE_URL: TEST_DB, APP_ORIGIN: ORIGIN });
-    const broken = { query: async () => { throw new Error('connection refused'); } } as unknown as Db;
-    const res = await request(createApp({ config, db: broken, mailer: createMailer(undefined, config.MAIL_FROM, false) })).get('/api/health');
+    const broken = {
+      query: async () => {
+        throw new Error('connection refused');
+      },
+    } as unknown as Db;
+    const res = await request(
+      createApp({ config, db: broken, mailer: createMailer(undefined, config.MAIL_FROM, false) }),
+    ).get('/api/health');
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'Internal error.' });
   });
@@ -78,12 +89,18 @@ describe('static client caching', () => {
 });
 
 describe('webR worker content security policy', () => {
-  const scriptSrc = (csp: string) => csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('script-src'));
+  const scriptSrc = (csp: string) =>
+    csp
+      .split(';')
+      .map((d) => d.trim())
+      .find((d) => d.startsWith('script-src'));
 
   it('lets the R worker eval (Emscripten builds shared-library EM_ASM code with it)', async () => {
     const res = await request(app).get('/webr/webr-worker.js');
     expect(res.status).toBe(200);
-    expect(scriptSrc(res.headers['content-security-policy'])).toBe("script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'");
+    expect(scriptSrc(res.headers['content-security-policy'])).toBe(
+      "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'",
+    );
     expect(res.headers['content-security-policy']).toContain("object-src 'none'");
     expect(res.headers['cross-origin-embedder-policy']).toBe('require-corp');
     // Revalidated on every load, so a policy change reaches browsers at once.

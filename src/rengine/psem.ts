@@ -56,11 +56,14 @@ function hasCycle(variables: Set<string>, predictors: Map<string, string[]>): bo
  * no interactions).
  */
 export function psemStructure(model: ModelState | undefined): PsemStructure | string {
-  if (!model || !model.constructs.length) return 'Draw a path model of observed variables on the canvas first.';
+  if (!model || !model.constructs.length)
+    return 'Draw a path model of observed variables on the canvas first.';
   const multi = model.constructs.find((k) => k.indicators.length !== 1 || k.components?.length);
   if (multi) {
-    return `Piecewise SEM fits observed variables: “${multi.name}” is not a single observed variable `
-      + '(give each variable on the canvas one indicator).';
+    return (
+      `Piecewise SEM fits observed variables: “${multi.name}” is not a single observed variable ` +
+      '(give each variable on the canvas one indicator).'
+    );
   }
   if (model.moderations.length || model.threeWay?.length || model.copulas?.length) {
     return 'Piecewise SEM fits the paths as drawn: remove the interactions and copula terms from the canvas.';
@@ -83,7 +86,8 @@ export function psemStructure(model: ModelState | undefined): PsemStructure | st
     const xs = predictors.get(y)!;
     if (!xs.includes(x)) xs.push(x);
   }
-  if (hasCycle(inPaths, predictors)) return 'Piecewise SEM needs an acyclic path model: remove the feedback loop.';
+  if (hasCycle(inPaths, predictors))
+    return 'Piecewise SEM needs an acyclic path model: remove the feedback loop.';
 
   // Correlated errors: between two endogenous variables (exogenous variables' covariances are free anyway).
   const correlations: [string, string][] = [];
@@ -106,7 +110,11 @@ export function psemStructure(model: ModelState | undefined): PsemStructure | st
 
 /** Every data column the structure uses. */
 export function psemColumns(s: PsemStructure): string[] {
-  const all = [...s.equations.flatMap((e) => [e.y, ...e.x]), ...s.isolated, ...s.correlations.flat()];
+  const all = [
+    ...s.equations.flatMap((e) => [e.y, ...e.x]),
+    ...s.isolated,
+    ...s.correlations.flat(),
+  ];
   return [...new Set(all)];
 }
 
@@ -168,7 +176,11 @@ export interface PsemResult {
 
 export function psemRequest(data: Dataset, s: PsemStructure, o: PsemInput) {
   const cols = psemColumns(s);
-  const equations = s.equations.map((e) => ({ y: e.y, x: e.x, family: o.families[e.y] ?? 'gaussian' }));
+  const equations = s.equations.map((e) => ({
+    y: e.y,
+    x: e.x,
+    family: o.families[e.y] ?? 'gaussian',
+  }));
   return {
     equations,
     isolated: s.isolated,
@@ -181,34 +193,40 @@ export function psemRequest(data: Dataset, s: PsemStructure, o: PsemInput) {
 
 export async function psemR(data: Dataset, s: PsemStructure, o: PsemInput): Promise<PsemResult> {
   const raw = await rCall<Record<string, any>>('ps_psem', psemRequest(data, s, o), 'piecewiseSEM');
-  const claims = rList<any>(raw.claims).map((c): PsemClaim => ({
-    y: c.y,
-    x: c.x,
-    given: rStrings(c.given),
-    df: rNum(c.df),
-    stat: rNum(c.stat),
-    p: rNum(c.p),
-  }));
-  const coefs = rList<any>(raw.coefs).map((c): PsemCoef => ({
-    response: c.response,
-    predictor: c.predictor,
-    correlation: c.correlation === true,
-    est: rNum(c.est),
-    se: rNum(c.se),
-    df: rNum(c.df),
-    stat: rNum(c.stat),
-    p: rNum(c.p),
-    std: rNum(c.std),
-  }));
-  const r2 = rList<any>(raw.r2).map((r): PsemR2 => ({
-    response: r.response,
-    family: r.family,
-    link: r.link,
-    method: r.method,
-    r2: rNum(r.r2),
-    marginal: rNum(r.marginal),
-    conditional: rNum(r.conditional),
-  }));
+  const claims = rList<any>(raw.claims).map(
+    (c): PsemClaim => ({
+      y: c.y,
+      x: c.x,
+      given: rStrings(c.given),
+      df: rNum(c.df),
+      stat: rNum(c.stat),
+      p: rNum(c.p),
+    }),
+  );
+  const coefs = rList<any>(raw.coefs).map(
+    (c): PsemCoef => ({
+      response: c.response,
+      predictor: c.predictor,
+      correlation: c.correlation === true,
+      est: rNum(c.est),
+      se: rNum(c.se),
+      df: rNum(c.df),
+      stat: rNum(c.stat),
+      p: rNum(c.p),
+      std: rNum(c.std),
+    }),
+  );
+  const r2 = rList<any>(raw.r2).map(
+    (r): PsemR2 => ({
+      response: r.response,
+      family: r.family,
+      link: r.link,
+      method: r.method,
+      r2: rNum(r.r2),
+      marginal: rNum(r.marginal),
+      conditional: rNum(r.conditional),
+    }),
+  );
   return {
     n: raw.n,
     claims,

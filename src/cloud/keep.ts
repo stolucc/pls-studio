@@ -27,26 +27,38 @@ export function keepable(now = Date.now()): boolean {
   return s.model.constructs.length > 0 || s.data !== null;
 }
 
-const defaultShare = async (user: CloudUser) => { await (await import('./collab')).shareCurrentProject(user); };
+const defaultShare = async (user: CloudUser) => {
+  await (await import('./collab')).shareCurrentProject(user);
+};
 
 /** Keep the open project in the account (once; concurrent calls share one attempt). Resolves whether it was kept now. */
-export function keepInAccount(share: (user: CloudUser) => Promise<void> = defaultShare): Promise<boolean> {
+export function keepInAccount(
+  share: (user: CloudUser) => Promise<void> = defaultShare,
+): Promise<boolean> {
   if (inFlight) return inFlight;
   if (!keepable()) return Promise.resolve(false);
   const s = useStore.getState();
   const user = useAuth.getState().user!;
-  const localId = s.projectId, name = s.projectName;
+  const localId = s.projectId,
+    name = s.projectName;
   inFlight = (async () => {
     try {
       await share(user);
       // The local copy is superseded (a cloud project keeps no copy in the browser: its data are encrypted on the server).
       await removeRecent(localId);
-      useStore.getState().toast('success', `“${name}” is saved to your account: it is on your home screen and syncs as you work.`);
+      useStore
+        .getState()
+        .toast(
+          'success',
+          `“${name}” is saved to your account: it is on your home screen and syncs as you work.`,
+        );
       return true;
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) {
         blockedFor = user.id;
-        useStore.getState().toast('info', `${e.message} Until then this project is kept in this browser only.`);
+        useStore
+          .getState()
+          .toast('info', `${e.message} Until then this project is kept in this browser only.`);
       } else {
         lastFailure = Date.now();
       }
@@ -58,7 +70,13 @@ export function keepInAccount(share: (user: CloudUser) => Promise<void> = defaul
   return inFlight;
 }
 
-export function resetKeepForTests() { inFlight = null; blockedFor = null; lastFailure = 0; }
+export function resetKeepForTests() {
+  inFlight = null;
+  blockedFor = null;
+  lastFailure = 0;
+}
 
 // Signing in keeps the project that is open; every later change goes through autosave (io.ts).
-useAuth.subscribe((s, prev) => { if (s.user && !prev.user) void keepInAccount(); });
+useAuth.subscribe((s, prev) => {
+  if (s.user && !prev.user) void keepInAccount();
+});

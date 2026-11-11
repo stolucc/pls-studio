@@ -23,9 +23,16 @@ function render(el: React.ReactElement) {
   act(() => root.unmount());
   return html;
 }
-const css = readFileSync(join(process.cwd(), 'src/styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const css = readFileSync(join(process.cwd(), 'src/styles.css'), 'utf8').replace(
+  /\/\*[\s\S]*?\*\//g,
+  '',
+);
 /** All declarations for a selector, across the stylesheet (media blocks included). */
-const rule = (sel: string) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, k]) => k.trim() === sel).map(([, , body]) => body).join(';');
+const rule = (sel: string) =>
+  [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, k]) => k.trim() === sel)
+    .map(([, , body]) => body)
+    .join(';');
 
 describe('workspace tabs', () => {
   beforeEach(() => s().newProject());
@@ -33,7 +40,13 @@ describe('workspace tabs', () => {
   it('start on the diagram; opening or starting a project returns there', () => {
     expect(s().workspace).toBe('model');
     s().setWorkspace('data');
-    s().loadProject({ name: 'Other', model: emptyModel(), settings: s().settings, data: null, info: null });
+    s().loadProject({
+      name: 'Other',
+      model: emptyModel(),
+      settings: s().settings,
+      data: null,
+      info: null,
+    });
     expect(s().workspace).toBe('model');
     s().setWorkspace('data');
     s().newProject();
@@ -55,7 +68,9 @@ describe('workspace tabs', () => {
     const html = () => render(<WorkspaceTabs />);
     expect(html()).toMatch(/id="ws-tab-model" aria-selected="true"/);
     expect(html()).toMatch(/id="ws-tab-data" aria-selected="false"/);
-    expect(html()).toMatch(/id="ws-tab-analyses" aria-selected="false"[^>]*aria-controls="ws-analyses"/);
+    expect(html()).toMatch(
+      /id="ws-tab-analyses" aria-selected="false"[^>]*aria-controls="ws-analyses"/,
+    );
     s().setWorkspace('data');
     expect(html()).toMatch(/id="ws-tab-data" aria-selected="true"[^>]*aria-controls="ws-data"/);
   });
@@ -72,7 +87,10 @@ describe('Data tab', () => {
 
   it('shows the rows of the dataset, with missing values as NA', () => {
     s().setData(
-      { names: ['x1', 'x2'], cols: [Float64Array.from([1, 2.5, 3]), Float64Array.from([4, Number.NaN, 6])] },
+      {
+        names: ['x1', 'x2'],
+        cols: [Float64Array.from([1, 2.5, 3]), Float64Array.from([4, Number.NaN, 6])],
+      },
       { fileName: 'demo.csv', rows: 3, missingCells: 1, excluded: [] },
     );
     const html = render(<DataWorkspace />);
@@ -84,7 +102,11 @@ describe('Data tab', () => {
 });
 
 describe('Analyses tab', () => {
-  beforeEach(() => { s().newProject(); loadCards([]); useAnalyses.setState({ results: {}, errors: {} }); });
+  beforeEach(() => {
+    s().newProject();
+    loadCards([]);
+    useAnalyses.setState({ results: {}, errors: {} });
+  });
 
   it('explains itself when empty', () => {
     const html = render(<AnalysesWorkspace />);
@@ -96,7 +118,9 @@ describe('Analyses tab', () => {
     addText('heading', 'Necessary conditions');
     const id = addAnalysis('nca', { source: 'data', x: ['x1'], y: 'x2', permutations: 100 })!;
     const html = render(<AnalysesWorkspace />);
-    expect(html.indexOf('Necessary conditions</h2>')).toBeLessThan(html.indexOf('Necessary condition analysis</h3>'));
+    expect(html.indexOf('Necessary conditions</h2>')).toBeLessThan(
+      html.indexOf('Necessary condition analysis</h3>'),
+    );
     expect(html).toContain('not run');
     expect(html).toContain('x1 → x2 · 100 permutations');
     expect(html).toContain(`id="${id}"`);
@@ -122,9 +146,13 @@ describe('Analyses tab', () => {
     html = render(<AnalysesWorkspace />);
     expect(html).toContain('Ceiling check, wave 1</h3>');
     expect(html).not.toContain('Necessary condition analysis</h3>');
-    expect(html).toMatch(new RegExp(`<a href="#${id}"[^>]*>(<span[^>]*>[^<]*</span>)*Ceiling check, wave 1</a>`));
+    expect(html).toMatch(
+      new RegExp(`<a href="#${id}"[^>]*>(<span[^>]*>[^<]*</span>)*Ceiling check, wave 1</a>`),
+    );
     expect(html).toContain('<h2>Ceiling check, wave 1</h2>');
-    expect(html.match(/<input id="title-card-[^"]+"[^>]*>/)?.[0]).toContain('value="Ceiling check, wave 1"');
+    expect(html.match(/<input id="title-card-[^"]+"[^>]*>/)?.[0]).toContain(
+      'value="Ceiling check, wave 1"',
+    );
   });
 
   it('renames as you type: the card and the outline follow each keystroke, before the field is left', () => {
@@ -134,17 +162,23 @@ describe('Analyses tab', () => {
     const root = createRoot(host);
     act(() => root.render(<AnalysesWorkspace />));
     const input = host.querySelector<HTMLInputElement>(`#title-${id}`)!;
-    const type = (text: string) => act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    const type = (text: string) =>
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+          input,
+          text,
+        );
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
     type('Ceiling ');
     // The field keeps the trailing space (so the next word can be typed); the store holds the tidied title.
     expect(input.value).toBe('Ceiling ');
     expect((useAnalyses.getState().cards[0] as { title?: string }).title).toBe('Ceiling');
     type('Ceiling check');
     expect(host.innerHTML).toContain('Ceiling check</h3>');
-    expect(host.innerHTML).toMatch(new RegExp(`<a href="#${id}"[^>]*>(<span[^>]*>[^<]*</span>)*Ceiling check</a>`));
+    expect(host.innerHTML).toMatch(
+      new RegExp(`<a href="#${id}"[^>]*>(<span[^>]*>[^<]*</span>)*Ceiling check</a>`),
+    );
     type('');
     expect(host.innerHTML).toContain('Necessary condition analysis</h3>');
     act(() => root.unmount());
@@ -153,17 +187,39 @@ describe('Analyses tab', () => {
 
   it('shows a model run as the current model, then as an earlier version with a way to open it once the model changes', async () => {
     const st = s();
-    st.setData({ names: ['a1', 'a2', 'b1'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([2, 3, 5]), Float64Array.from([1, 3, 2])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
-    const a = st.addConstruct(0, 0, ['a1', 'a2']), b = st.addConstruct(200, 0, ['b1']);
+    st.setData(
+      {
+        names: ['a1', 'a2', 'b1'],
+        cols: [
+          Float64Array.from([1, 2, 3]),
+          Float64Array.from([2, 3, 5]),
+          Float64Array.from([1, 3, 2]),
+        ],
+      },
+      { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] },
+    );
+    const a = st.addConstruct(0, 0, ['a1', 'a2']),
+      b = st.addConstruct(200, 0, ['b1']);
     st.addPath(a, b);
-    useStore.setState((x) => ({ results: { pls: { n: 3, converged: true, iterations: 2 } as never, cb: null, miiv: null, boot: null, fitTest: null, key: resultsKey(x) } }));
+    useStore.setState((x) => ({
+      results: {
+        pls: { n: 3, converged: true, iterations: 2 } as never,
+        cb: null,
+        miiv: null,
+        boot: null,
+        fitTest: null,
+        key: resultsKey(x),
+      },
+    }));
     const { logCurrentRun } = await import('../analyses/runs');
     expect(await logCurrentRun()).toBeTruthy();
     let html = render(<AnalysesWorkspace />);
     expect(html).toContain('Model v1</h3>');
     expect(html).toContain('current model</span>');
-    expect(html).toContain('>Open model</button>');  // every run has it: for the current one it just goes to the Model tab
-    expect(html).toMatch(/<button class="outline-open" title="Open this version of the model on the Model tab" aria-label="Open Model v1 on the Model tab">↗<\/button>/);
+    expect(html).toContain('>Open model</button>'); // every run has it: for the current one it just goes to the Model tab
+    expect(html).toMatch(
+      /<button class="outline-open" title="Open this version of the model on the Model tab" aria-label="Open Model v1 on the Model tab">↗<\/button>/,
+    );
     // The top bar's Calculate on the Analyses tab with the run selected: opens it and calculates.
     s().setWorkspace('analyses');
     expect(render(<TopBar />)).toContain('title="Open Model v1 on the Model tab and calculate it');
@@ -174,15 +230,47 @@ describe('Analyses tab', () => {
     expect(html).toMatch(/<span class="dot earlier"/);
     // With an analysis card selected, the button runs that card.
     addAnalysis('nca', { source: 'data', x: ['a1'], y: 'b1', permutations: 0 });
-    expect(render(<TopBar />)).toMatch(/title="Run the selected card: Necessary condition analysis \([^"]+\)">[^]*?Run<\/button>/);
+    expect(render(<TopBar />)).toMatch(
+      /title="Run the selected card: Necessary condition analysis \([^"]+\)">[^]*?Run<\/button>/,
+    );
   });
 
   it('marks a result whose data changed as stale, with a way to rerun it', () => {
-    s().setData({ names: ['x1', 'x2'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([1, 3, 2])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
+    s().setData(
+      { names: ['x1', 'x2'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([1, 3, 2])] },
+      { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] },
+    );
     const opts = { source: 'data', x: ['x1'], y: 'x2', permutations: 0, outliers: true };
     const id = addAnalysis('nca', opts)!;
     const options = JSON.stringify(opts);
-    useAnalyses.setState((st) => ({ cards: st.cards.map((c) => (c.kind === 'analysis' ? { ...c, run: { at: 1, fingerprint: 'old', options } } : c)), results: { [id]: { y: 'x2', permutations: 0, conditions: [{ x: 'x1', n: 3, scope: [1, 3, 1, 3], ceFdh: 0.25, crFdh: 0.2, intercept: null, slope: null, accuracy: null, p: null, peers: { x: [1], y: [1] }, points: { x: [1], y: [1] }, bottleneck: [{ y: 0, ceFdh: null, crFdh: null }] }], warnings: [] } } }));
+    useAnalyses.setState((st) => ({
+      cards: st.cards.map((c) =>
+        c.kind === 'analysis' ? { ...c, run: { at: 1, fingerprint: 'old', options } } : c,
+      ),
+      results: {
+        [id]: {
+          y: 'x2',
+          permutations: 0,
+          conditions: [
+            {
+              x: 'x1',
+              n: 3,
+              scope: [1, 3, 1, 3],
+              ceFdh: 0.25,
+              crFdh: 0.2,
+              intercept: null,
+              slope: null,
+              accuracy: null,
+              p: null,
+              peers: { x: [1], y: [1] },
+              points: { x: [1], y: [1] },
+              bottleneck: [{ y: 0, ceFdh: null, crFdh: null }],
+            },
+          ],
+          warnings: [],
+        },
+      },
+    }));
     const html = render(<AnalysesWorkspace />);
     expect(html).toContain('The data it used changed since this ran.');
     expect(html).toContain('Run again');
@@ -194,21 +282,31 @@ describe('Analyses tab', () => {
 describe('workspace layout', () => {
   it('keeps the Inspector between 250 and 300 px wide', () => {
     expect(css).toMatch(/--inspector-w:\s*clamp\(250px,\s*[\d.]+vw,\s*300px\)/);
-    expect(rule('.workspace')).toMatch(/grid-template-columns:\s*264px minmax\(0, 1fr\) var\(--inspector-w\)/);
+    expect(rule('.workspace')).toMatch(
+      /grid-template-columns:\s*264px minmax\(0, 1fr\) var\(--inspector-w\)/,
+    );
   });
 
   it('keeps top-bar controls at their size, letting the project name give way', () => {
-    expect(rule('.tb-group > .btn, .tb-group > .sep, .tb-group > .menu, .tb-group > .segmented')).toMatch(/flex:\s*none/);
-    expect(rule('.topbar')).toMatch(/grid-template-columns:\s*minmax\(max-content, 1fr\) auto minmax\(max-content, 1fr\)/);
+    expect(
+      rule('.tb-group > .btn, .tb-group > .sep, .tb-group > .menu, .tb-group > .segmented'),
+    ).toMatch(/flex:\s*none/);
+    expect(rule('.topbar')).toMatch(
+      /grid-template-columns:\s*minmax\(max-content, 1fr\) auto minmax\(max-content, 1fr\)/,
+    );
     expect(rule('.segmented.workspace-tabs')).toMatch(/flex-wrap:\s*nowrap/);
     expect(rule('.topbar .project-name')).toMatch(/flex:\s*0 1 auto/);
   });
 
   it('shows Auto-recalculate as a switch that says whether it is on', () => {
     useStore.getState().setSettings({ autoCalculate: false });
-    expect(render(<TopBar />)).toMatch(/role="switch" aria-checked="false"[^>]*title="Auto-recalculate is off/);
+    expect(render(<TopBar />)).toMatch(
+      /role="switch" aria-checked="false"[^>]*title="Auto-recalculate is off/,
+    );
     useStore.getState().setSettings({ autoCalculate: true });
-    expect(render(<TopBar />)).toMatch(/class="btn ghost auto-toggle on" role="switch" aria-checked="true"[^>]*title="Auto-recalculate is on/);
+    expect(render(<TopBar />)).toMatch(
+      /class="btn ghost auto-toggle on" role="switch" aria-checked="true"[^>]*title="Auto-recalculate is on/,
+    );
     useStore.getState().setSettings({ autoCalculate: false });
     expect(rule('.auto-toggle.on .mini-switch')).toMatch(/background:\s*var\(--accent\)/);
   });
@@ -221,8 +319,12 @@ describe('workspace layout', () => {
     expect(at('workspace-tabs')).toBeGreaterThan(at('file-menu'));
     expect(at('aria-label="Undo"')).toBeGreaterThan(at('workspace-tabs'));
     expect(at('aria-label="Redo"')).toBeGreaterThan(at('aria-label="Undo"'));
-    expect(html.slice(html.indexOf('tb-center'), html.indexOf('tb-right'))).toContain('aria-label="Project name"');
-    expect(html.slice(html.indexOf('tb-right'))).toContain('href="guide.html" target="_blank" rel="noopener"');
+    expect(html.slice(html.indexOf('tb-center'), html.indexOf('tb-right'))).toContain(
+      'aria-label="Project name"',
+    );
+    expect(html.slice(html.indexOf('tb-right'))).toContain(
+      'href="guide.html" target="_blank" rel="noopener"',
+    );
     // The Example chip sits beside the name, in the flow: padding the centre for it left the name 90 px wide. The name may
     // take 400 px, giving way first when the bar is short of room.
     expect(rule('.tb-center .example-pill')).toMatch(/flex:\s*none/);
@@ -285,14 +387,39 @@ describe('the Groups section and the invariance tab with covariance-matrix data'
     const { GroupsEditor } = await import('./GroupsEditor');
     const { CbTab } = await import('./results/CbTabs');
     useStore.getState().newProject();
-    useStore.getState().setData({ names: ['x1', 'x2'], cols: [], moments: { S: [[1, 0.3], [0.3, 1]], n: 100 } }, { fileName: 'm.csv', rows: 100, missingCells: 0, excluded: [], kind: 'matrix' });
+    useStore.getState().setData(
+      {
+        names: ['x1', 'x2'],
+        cols: [],
+        moments: {
+          S: [
+            [1, 0.3],
+            [0.3, 1],
+          ],
+          n: 100,
+        },
+      },
+      { fileName: 'm.csv', rows: 100, missingCells: 0, excluded: [], kind: 'matrix' },
+    );
     expect(render(<GroupsEditor />)).toContain('this dataset is a covariance matrix');
     const inv = render(<CbTab tab="invariance" cb={{} as never} boot={null} />);
     expect(inv).toContain('covariance matrix (one sample, no cases)');
     expect(inv).not.toContain('Choose a grouping column');
-    useStore.getState().setData({ names: ['x1', 'x2', 'g'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([3, 4, 5]), Float64Array.from([1, 2, 1])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
+    useStore.getState().setData(
+      {
+        names: ['x1', 'x2', 'g'],
+        cols: [
+          Float64Array.from([1, 2, 3]),
+          Float64Array.from([3, 4, 5]),
+          Float64Array.from([1, 2, 1]),
+        ],
+      },
+      { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] },
+    );
     expect(render(<GroupsEditor />)).toContain('Groups by g');
-    expect(render(<CbTab tab="invariance" cb={{} as never} boot={null} />)).toContain('Choose a grouping column under Groups');
+    expect(render(<CbTab tab="invariance" cb={{} as never} boot={null} />)).toContain(
+      'Choose a grouping column under Groups',
+    );
   });
 
   it('offers the groups of a dataset of several matrices (a stacked model) with the structural equalities and the freed coefficients', async () => {
@@ -300,13 +427,65 @@ describe('the Groups section and the invariance tab with covariance-matrix data'
     const { CbTab } = await import('./results/CbTabs');
     const { DataWorkspace } = await import('./DataViewer');
     useStore.getState().newProject();
-    const groups = [{ label: 'Younger', S: [[1, 0.3], [0.3, 1]], n: 100 }, { label: 'Older', S: [[2, 0.1], [0.1, 1]], n: 120 }];
-    useStore.getState().setData({ names: ['x1', 'x2'], cols: [], moments: { S: groups[0].S, n: 220, groups } }, { fileName: 'm.csv', rows: 220, missingCells: 0, excluded: [], kind: 'matrix' });
+    const groups = [
+      {
+        label: 'Younger',
+        S: [
+          [1, 0.3],
+          [0.3, 1],
+        ],
+        n: 100,
+      },
+      {
+        label: 'Older',
+        S: [
+          [2, 0.1],
+          [0.1, 1],
+        ],
+        n: 120,
+      },
+    ];
+    useStore
+      .getState()
+      .setData(
+        { names: ['x1', 'x2'], cols: [], moments: { S: groups[0].S, n: 220, groups } },
+        { fileName: 'm.csv', rows: 220, missingCells: 0, excluded: [], kind: 'matrix' },
+      );
     let html = render(<GroupsEditor />);
     expect(html).toContain('2 groups: Younger (N = 100), Older (N = 120)');
     expect(html).not.toContain('this dataset is a covariance matrix');
-    useStore.getState().commit((m) => ({ ...m, constructs: [{ id: 'a', name: 'Alpha', type: 'factor', mode: 'A', indicators: ['x1'], x: 0, y: 0, side: 'left' }, { id: 'b', name: 'Beta', type: 'factor', mode: 'A', indicators: ['x2'], x: 300, y: 0, side: 'right' }], paths: [{ id: 'p', from: 'a', to: 'b' }] }));
-    useStore.getState().setMultigroup({ column: '', invariance: 'configural', structural: ['regressions'], free: [{ kind: 'regression', from: 'a', to: 'b' }] });
+    useStore.getState().commit((m) => ({
+      ...m,
+      constructs: [
+        {
+          id: 'a',
+          name: 'Alpha',
+          type: 'factor',
+          mode: 'A',
+          indicators: ['x1'],
+          x: 0,
+          y: 0,
+          side: 'left',
+        },
+        {
+          id: 'b',
+          name: 'Beta',
+          type: 'factor',
+          mode: 'A',
+          indicators: ['x2'],
+          x: 300,
+          y: 0,
+          side: 'right',
+        },
+      ],
+      paths: [{ id: 'p', from: 'a', to: 'b' }],
+    }));
+    useStore.getState().setMultigroup({
+      column: '',
+      invariance: 'configural',
+      structural: ['regressions'],
+      free: [{ kind: 'regression', from: 'a', to: 'b' }],
+    });
     html = render(<GroupsEditor />);
     expect(html).toContain('Path coefficients (a stacked model)');
     expect(html).toContain('Alpha → Beta (coefficient)');
@@ -328,11 +507,37 @@ describe('the group switch of the results panel', () => {
   it('says which parameters invariance holds equal across groups', async () => {
     const { ResultsPanel } = await import('./ResultsPanel');
     useStore.getState().newProject();
-    const groupResult = { estimates: [], fit: {}, n: 10, constructs: [], indicators: [], warnings: [], converged: true } as never;
+    const groupResult = {
+      estimates: [],
+      fit: {},
+      n: 10,
+      constructs: [],
+      indicators: [],
+      warnings: [],
+      converged: true,
+    } as never;
     const seed = (invariance: 'configural' | 'metric' | 'scalar' | 'strict') => {
-      useStore.setState((x) => ({ resultsOpen: true, settings: { ...x.settings, method: 'cbsem' }, model: { ...x.model, multigroup: { column: 'sex', invariance, free: [] } },
-        results: { pls: null, miiv: null, boot: null, fitTest: null, key: resultsKey({ ...x, settings: { ...x.settings, method: 'cbsem' }, model: { ...x.model, multigroup: { column: 'sex', invariance, free: [] } } }),
-          cb: { ...(groupResult as object), groups: { labels: ['1', '2'], results: [groupResult, groupResult], score: [] }, groupIndex: 0 } as never } }));
+      useStore.setState((x) => ({
+        resultsOpen: true,
+        settings: { ...x.settings, method: 'cbsem' },
+        model: { ...x.model, multigroup: { column: 'sex', invariance, free: [] } },
+        results: {
+          pls: null,
+          miiv: null,
+          boot: null,
+          fitTest: null,
+          key: resultsKey({
+            ...x,
+            settings: { ...x.settings, method: 'cbsem' },
+            model: { ...x.model, multigroup: { column: 'sex', invariance, free: [] } },
+          }),
+          cb: {
+            ...(groupResult as object),
+            groups: { labels: ['1', '2'], results: [groupResult, groupResult], score: [] },
+            groupIndex: 0,
+          } as never,
+        },
+      }));
     };
     seed('scalar');
     const html = render(<ResultsPanel height={300} onResize={() => {}} />);
@@ -340,10 +545,14 @@ describe('the group switch of the results panel', () => {
     expect(html).toContain('Group 1');
     expect(html).toContain('All groups');
     useStore.getState().setCompareGroups(true);
-    expect(render(<ResultsPanel height={300} onResize={() => {}} />)).toContain('aria-checked="true"');
+    expect(render(<ResultsPanel height={300} onResize={() => {}} />)).toContain(
+      'aria-checked="true"',
+    );
     useStore.getState().setCompareGroups(false);
     seed('configural');
-    expect(render(<ResultsPanel height={300} onResize={() => {}} />)).not.toContain('equal across groups');
+    expect(render(<ResultsPanel height={300} onResize={() => {}} />)).not.toContain(
+      'equal across groups',
+    );
   });
 });
 
@@ -351,9 +560,40 @@ describe('the replication dialog', () => {
   it('offers the covariance matrix instead of the raw data for CB-SEM, a plain data checkbox otherwise', async () => {
     const { ReplicationDialog, useReplication } = await import('./analyses/ReplicationDialog');
     useStore.getState().newProject();
-    const col = (k: number) => Float64Array.from({ length: 12 }, (_, i) => ((i * (k + 3)) % 7) / 10 + (i % 3) * 0.2);
-    useStore.getState().setData({ names: ['x1', 'x2', 'y1'], cols: [col(1), col(2), col(3)] }, { fileName: 'd.csv', rows: 12, missingCells: 0, excluded: [] });
-    useStore.getState().commit((m) => ({ ...m, constructs: [{ id: 'x', name: 'X', type: 'factor', mode: 'A', indicators: ['x1', 'x2'], x: 0, y: 0, side: 'left' }, { id: 'y', name: 'Y', type: 'factor', mode: 'A', indicators: ['y1'], x: 300, y: 0, side: 'right' }], paths: [{ id: 'p', from: 'x', to: 'y' }] }));
+    const col = (k: number) =>
+      Float64Array.from({ length: 12 }, (_, i) => ((i * (k + 3)) % 7) / 10 + (i % 3) * 0.2);
+    useStore
+      .getState()
+      .setData(
+        { names: ['x1', 'x2', 'y1'], cols: [col(1), col(2), col(3)] },
+        { fileName: 'd.csv', rows: 12, missingCells: 0, excluded: [] },
+      );
+    useStore.getState().commit((m) => ({
+      ...m,
+      constructs: [
+        {
+          id: 'x',
+          name: 'X',
+          type: 'factor',
+          mode: 'A',
+          indicators: ['x1', 'x2'],
+          x: 0,
+          y: 0,
+          side: 'left',
+        },
+        {
+          id: 'y',
+          name: 'Y',
+          type: 'factor',
+          mode: 'A',
+          indicators: ['y1'],
+          x: 300,
+          y: 0,
+          side: 'right',
+        },
+      ],
+      paths: [{ id: 'p', from: 'x', to: 'y' }],
+    }));
     useStore.getState().setSettings({ method: 'cbsem', engine: 'r' });
     useReplication.setState({ open: true });
     let html = render(<ReplicationDialog />);

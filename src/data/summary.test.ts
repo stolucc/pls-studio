@@ -24,7 +24,19 @@ it('descriptives of an empty or constant column are NaN, not errors', () => {
 });
 
 it('the R script splits into header, embedded data and calculation', () => {
-  const text = ['# Title', '', '# ---- Data used (model variables only) ----', 'data <- data.frame(', '  x = c(1, 2)', ')', '', '# ---- Calculation (as run by PLS Studio) ----', 'fit <- sem(model, data)', '# ---- Report ----', 'summary(fit)'].join('\n');
+  const text = [
+    '# Title',
+    '',
+    '# ---- Data used (model variables only) ----',
+    'data <- data.frame(',
+    '  x = c(1, 2)',
+    ')',
+    '',
+    '# ---- Calculation (as run by PLS Studio) ----',
+    'fit <- sem(model, data)',
+    '# ---- Report ----',
+    'summary(fit)',
+  ].join('\n');
   const p = splitScript(text);
   expect(p.head).toEqual(['# Title', '', '# ---- Data used (model variables only) ----']);
   expect(p.data).toEqual(['data <- data.frame(', '  x = c(1, 2)', ')', '']);

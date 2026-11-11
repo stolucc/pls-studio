@@ -15,13 +15,23 @@ import { Canvas } from './Canvas';
 
 beforeAll(() => {
   // (React Flow measures its container)
-  (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+  (globalThis as { ResizeObserver?: unknown }).ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
 });
 
 function renderCanvas() {
   const host = document.createElement('div');
   const root = createRoot(host);
-  act(() => root.render(<ReactFlowProvider><Canvas onImport={() => {}} /></ReactFlowProvider>));
+  act(() =>
+    root.render(
+      <ReactFlowProvider>
+        <Canvas onImport={() => {}} />
+      </ReactFlowProvider>,
+    ),
+  );
   const html = host.innerHTML;
   act(() => root.unmount());
   return html;
@@ -56,8 +66,15 @@ describe('a new project', () => {
 });
 
 describe('side panels', () => {
-  const css = readFileSync(join(process.cwd(), 'src/styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  const rule = (sel: string) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, k]) => k.trim() === sel).map(([, , body]) => body).join(';');
+  const css = readFileSync(join(process.cwd(), 'src/styles.css'), 'utf8').replace(
+    /\/\*[\s\S]*?\*\//g,
+    '',
+  );
+  const rule = (sel: string) =>
+    [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, k]) => k.trim() === sel)
+      .map(([, , body]) => body)
+      .join(';');
   it('wrap long names and let their rows shrink instead of overflowing sideways', () => {
     expect(rule('.panel')).toMatch(/min-width:\s*0/);
     expect(rule('.panel-body')).toMatch(/overflow-wrap:\s*anywhere/);

@@ -52,16 +52,19 @@ export function gammaADF(centred: Float64Array[], pairs: Pairs): { Gamma: Mat; s
   const q = pairs.length;
   const d = pairs.map(([i, j]) => {
     const out = new Float64Array(n);
-    const a = centred[i], b = centred[j];
+    const a = centred[i],
+      b = centred[j];
     for (let r = 0; r < n; r++) out[r] = a[r] * b[r];
     return out;
   });
   const s = d.map((col) => col.reduce((acc, v) => acc + v, 0) / n);
   const G = zeros(q, q);
   for (let a = 0; a < q; a++) {
-    const da = d[a], sa = s[a];
+    const da = d[a],
+      sa = s[a];
     for (let b = a; b < q; b++) {
-      const db = d[b], sb = s[b];
+      const db = d[b],
+        sb = s[b];
       let acc = 0;
       for (let r = 0; r < n; r++) acc += (da[r] - sa) * (db[r] - sb);
       G[a][b] = acc / n;
@@ -79,10 +82,13 @@ export function deltaMatrix(derivs: { u: number[]; v: number[]; c: number }[], p
 // ---------- small dense helpers (row-major) ----------
 
 export function mm(a: Mat, b: Mat): Mat {
-  const r = a.length, k = b.length, c = b[0]?.length ?? 0;
+  const r = a.length,
+    k = b.length,
+    c = b[0]?.length ?? 0;
   const out = zeros(r, c);
   for (let i = 0; i < r; i++) {
-    const ai = a[i], oi = out[i];
+    const ai = a[i],
+      oi = out[i];
     for (let x = 0; x < k; x++) {
       const v = ai[x];
       if (v === 0) continue;

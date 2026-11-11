@@ -9,25 +9,52 @@ import { rCall, rScript, rStrings } from './bridge';
 import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
-export interface QuadParam { lhs: string; op: string; rhs: string; est: number; se: number | null; fixed: boolean }
+export interface QuadParam {
+  lhs: string;
+  op: string;
+  rhs: string;
+  est: number;
+  se: number | null;
+  fixed: boolean;
+}
 export interface QuadResult {
-  n: number; logLik: number; npar: number; aic: number; bic: number;
-  params: QuadParam[]; converged: boolean; theta: number[];
+  n: number;
+  logLik: number;
+  npar: number;
+  aic: number;
+  bic: number;
+  params: QuadParam[];
+  converged: boolean;
+  theta: number[];
   /** The most dimensions of integration of a case, and the rule. */
-  dims: number; integration: { type: 'rect' | 'gh' | 'mc'; points: number; adaptive: boolean };
+  dims: number;
+  integration: { type: 'rect' | 'gh' | 'mc'; points: number; adaptive: boolean };
   se: 'mlr' | 'ml';
   /** With MODEL PRIORS: the log prior density at the estimates (included in logLik, as Mplus prints it). */
   logPrior?: number | null;
-  warnings: string[]; engine: REngineInfo;
+  warnings: string[];
+  engine: REngineInfo;
 }
 
-export const quadRequest = (data: Dataset, spec: QuadSpec) => ({ kind: 'quadml', spec, data: rColumns(data, spec.columns) });
+export const quadRequest = (data: Dataset, spec: QuadSpec) => ({
+  kind: 'quadml',
+  spec,
+  data: rColumns(data, spec.columns),
+});
 
 export async function quadR(data: Dataset, spec: QuadSpec): Promise<QuadResult> {
   const raw = await rCall<Record<string, any>>('ps_quadml', quadRequest(data, spec), 'stats');
   return {
-    ...raw, params: rList<any>(raw.params).map((p) => ({ ...p, rhs: p.rhs ?? '', se: typeof p.se === 'number' ? p.se : null })),
-    theta: rList<number>(raw.theta), se: spec.se, warnings: rStrings(raw.warnings),
+    ...raw,
+    params: rList<any>(raw.params).map((p) => ({
+      ...p,
+      rhs: p.rhs ?? '',
+      se: typeof p.se === 'number' ? p.se : null,
+    })),
+    theta: rList<number>(raw.theta),
+    se: spec.se,
+    warnings: rStrings(raw.warnings),
   } as QuadResult;
 }
-export const quadScriptR = (data: Dataset, spec: QuadSpec) => rScript('ps_quadml', quadRequest(data, spec), 'stats');
+export const quadScriptR = (data: Dataset, spec: QuadSpec) =>
+  rScript('ps_quadml', quadRequest(data, spec), 'stats');

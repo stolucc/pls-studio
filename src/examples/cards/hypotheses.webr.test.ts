@@ -23,14 +23,30 @@ afterAll(stopTestRuntime);
 
 /** 1e-5 relative to the size of the value (absolute below 1). */
 const tol = (want: number) => 1e-5 * Math.max(1, Math.abs(want));
-const REF = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'hypotheses.json'), 'utf8'));
+const REF = JSON.parse(
+  readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'hypotheses.json'), 'utf8'),
+);
 
 async function open(id: string, packages: string[]) {
   const ex = PACKAGE_EXAMPLES.find((e) => e.id === id)!;
   exampleCheck(id, { title: ex.title, method: 'CB-SEM', packages, definition: ex });
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: ex.data.package, name: ex.data.name, na: [] }, ex.data.package as RPackage);
-  const data: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
-  const ctx: AnalysisCtx = { data, info: null, settings: exampleSettings(DEFAULT_SETTINGS, ex.settings), pls: null, projectName: ex.title, model: exampleModel(ex) };
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+    'ps_dataset',
+    { package: ex.data.package, name: ex.data.name, na: [] },
+    ex.data.package as RPackage,
+  );
+  const data: Dataset = {
+    names: raw.names,
+    cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+  };
+  const ctx: AnalysisCtx = {
+    data,
+    info: null,
+    settings: exampleSettings(DEFAULT_SETTINGS, ex.settings),
+    pls: null,
+    projectName: ex.title,
+    model: exampleModel(ex),
+  };
   const t = analysisType(ex.panel!.kind)!;
   const options = t.parseOptions({ ...t.defaults(ctx), ...panelPreset(ex.panel!) })!;
   expect(t.blocked(options as never, ctx), `${id}: the card is ready to run`).toBeNull();
@@ -40,8 +56,14 @@ async function open(id: string, packages: string[]) {
 it('restriktor-poldem-gorica: the tutorial’s SEM example, abs(beta_dem65_dem60) > abs(beta_dem65_ind60) against its complement', async () => {
   const { run } = await open('restriktor-poldem-gorica', ['lavaan', 'restriktor']);
   const r = await run();
-  against({ label: 'restriktor, vignette("Tutorial_GORICA_restriktor_lavaan"), SEM example: its code run natively (scripts/validation/hypotheses.R; the same values from semTools::goricaSEM and from goric() on the estimates and their covariance matrix)', level: 'native', url: 'https://cran.r-project.org/web/packages/restriktor/vignettes/Tutorial_GORICA_restriktor_lavaan.html' });
-  const g = r.gorica!, ref = REF.tutorial;
+  against({
+    label:
+      'restriktor, vignette("Tutorial_GORICA_restriktor_lavaan"), SEM example: its code run natively (scripts/validation/hypotheses.R; the same values from semTools::goricaSEM and from goric() on the estimates and their covariance matrix)',
+    level: 'native',
+    url: 'https://cran.r-project.org/web/packages/restriktor/vignettes/Tutorial_GORICA_restriktor_lavaan.html',
+  });
+  const g = r.gorica!,
+    ref = REF.tutorial;
   same('models', g.models.join(', '), 'H1, complement');
   near('log-likelihood (H1)', g.loglik[0], ref.loglik[0], tol(ref.loglik[0]));
   near('log-likelihood (complement)', g.loglik[1], ref.loglik[1], tol(ref.loglik[1]));
@@ -50,15 +72,22 @@ it('restriktor-poldem-gorica: the tutorial’s SEM example, abs(beta_dem65_dem60
   near('GORICA (complement)', g.gorica[1], ref.gorica[1], tol(ref.gorica[1]));
   near('GORICA weight (H1)', g.weights[0], ref.weights[0], 1e-8);
   near('GORICA (H1), as the tutorial prints it', g.gorica[0], -5.697, 0.0005);
-  for (const e of r.estimates) near(`standardised ${e.label}`, e.est!, REF.estimates[e.label], tol(REF.estimates[e.label]));
+  for (const e of r.estimates)
+    near(`standardised ${e.label}`, e.est!, REF.estimates[e.label], tol(REF.estimates[e.label]));
   same('standardised', String(r.standardized), 'true');
 }, 600_000);
 
 it('bain-sesame-latent: the vignette’s three hypotheses on the standardised latent regression', async () => {
   const { run } = await open('bain-sesame-latent', ['lavaan', 'bain']);
   const r = await run();
-  against({ label: 'bain, vignette("Introduction_to_bain"), latent regression of sesamesim: its code run natively (scripts/validation/hypotheses.R)', level: 'native', url: 'https://cran.r-project.org/web/packages/bain/vignettes/Introduction_to_bain.html' });
-  const b = r.bain!, ref = REF.bain;
+  against({
+    label:
+      'bain, vignette("Introduction_to_bain"), latent regression of sesamesim: its code run natively (scripts/validation/hypotheses.R)',
+    level: 'native',
+    url: 'https://cran.r-project.org/web/packages/bain/vignettes/Introduction_to_bain.html',
+  });
+  const b = r.bain!,
+    ref = REF.bain;
   same('rows', b.rows.join(', '), ref.rows.join(', '));
   for (const i of [0, 1, 2]) {
     near(`fit (H${i + 1})`, b.fit[i]!, ref.fit[i], tol(ref.fit[i]));

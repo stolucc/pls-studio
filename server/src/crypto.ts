@@ -1,7 +1,13 @@
 // Envelope encryption for datasets and TOTP secrets, and token helpers.
 // AES-256-GCM everywhere; ciphertext layout: version(1) | iv(12) | tag(16) | data.
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto';
 import { gunzipSync, gzipSync } from 'node:zlib';
 
 const VERSION = 1;
@@ -28,7 +34,11 @@ export function open(key: Buffer, sealed: Buffer, aad: string): Buffer {
  * project id is bound in as associated data, so ciphertexts cannot be moved
  * between projects.
  */
-export function encryptDataset(master: Buffer, projectId: string, json: string): { ciphertext: Buffer; wrappedKey: Buffer } {
+export function encryptDataset(
+  master: Buffer,
+  projectId: string,
+  json: string,
+): { ciphertext: Buffer; wrappedKey: Buffer } {
   const dek = randomBytes(32);
   const ciphertext = seal(dek, gzipSync(Buffer.from(json, 'utf8')), `dataset:${projectId}`);
   const wrappedKey = seal(master, dek, `dek:${projectId}`);
@@ -36,7 +46,12 @@ export function encryptDataset(master: Buffer, projectId: string, json: string):
   return { ciphertext, wrappedKey };
 }
 
-export function decryptDataset(master: Buffer, projectId: string, ciphertext: Buffer, wrappedKey: Buffer): string {
+export function decryptDataset(
+  master: Buffer,
+  projectId: string,
+  ciphertext: Buffer,
+  wrappedKey: Buffer,
+): string {
   const dek = open(master, wrappedKey, `dek:${projectId}`);
   try {
     return gunzipSync(open(dek, ciphertext, `dataset:${projectId}`)).toString('utf8');
@@ -54,6 +69,7 @@ export function newToken(): { token: string; hash: Buffer } {
 export const hashToken = (token: string) => createHash('sha256').update(token, 'utf8').digest();
 
 export function safeEqual(a: string, b: string): boolean {
-  const x = Buffer.from(a), y = Buffer.from(b);
+  const x = Buffer.from(a),
+    y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);
 }

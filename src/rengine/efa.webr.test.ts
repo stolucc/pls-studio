@@ -18,10 +18,19 @@ import { same } from '../validation/record';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'reference.json'), 'utf8'));
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'reference.json'), 'utf8'),
+);
 const load = async (name: string): Promise<Dataset> => {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'psych', name, na: [] }, 'psych');
-  return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+    'ps_dataset',
+    { package: 'psych', name, na: [] },
+    'psych',
+  );
+  return {
+    names: raw.names,
+    cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+  };
 };
 /** Loadings equal up to the sign of each factor. */
 const sameLoadings = (got: number[][], want: number[][], digits: number) => {
@@ -35,7 +44,19 @@ describe('exploratory factor analysis (psych)', () => {
   it('bfi: suitability, number of factors, minres + oblimin and ML + varimax equal desktop psych', async () => {
     const d = await load('bfi');
     const vars = d.names.slice(0, 25);
-    const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars, nfactors: 5, method: 'minres', rotation: 'oblimin', parallel: 10 }, 1);
+    const r = await efaR(
+      d,
+      {
+        ...DEFAULT_EFA,
+        criterion: 'fixed',
+        vars,
+        nfactors: 5,
+        method: 'minres',
+        rotation: 'oblimin',
+        parallel: 10,
+      },
+      1,
+    );
     expect(r.n).toBe(ref.bfi.n);
     expect(r.kmo.overall).toBeCloseTo(ref.bfi.kmo, 8);
     expect(r.bartlett.chisq).toBeCloseTo(ref.bfi.bartlett, 4);
@@ -49,27 +70,62 @@ describe('exploratory factor analysis (psych)', () => {
     expect(r.parallel?.observed).toHaveLength(25);
     // Item x item: residuals = observed - Λ Φ Λᵀ (off-diagonal), with the solution's own Λ and Φ.
     expect(r.correlations).toHaveLength(25);
-    for (const [i, j] of [[0, 1], [3, 17], [24, 10]]) {
+    for (const [i, j] of [
+      [0, 1],
+      [3, 17],
+      [24, 10],
+    ]) {
       let implied = 0;
-      for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) implied += r.loadings[i][a] * r.phi![a][b] * r.loadings[j][b];
+      for (let a = 0; a < 5; a++)
+        for (let b = 0; b < 5; b++) implied += r.loadings[i][a] * r.phi![a][b] * r.loadings[j][b];
       expect(r.residuals[i][j], `${i},${j}`).toBeCloseTo(r.correlations[i][j] - implied, 10);
     }
     expect(r.residuals[4][4]).toBe(0);
-    const ml = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars, nfactors: 5, method: 'ml', rotation: 'varimax', parallel: 0 }, 1);
+    const ml = await efaR(
+      d,
+      {
+        ...DEFAULT_EFA,
+        criterion: 'fixed',
+        vars,
+        nfactors: 5,
+        method: 'ml',
+        rotation: 'varimax',
+        parallel: 0,
+      },
+      1,
+    );
     sameLoadings(ml.loadings, ref.bfi.ml.loadings, 4);
     expect(ml.fit.chisq).toBeCloseTo(ref.bfi.ml.chisq, 2);
     expect(ml.fit.df).toBe(ref.bfi.ml.df);
     expect(ml.fit.tli).toBeCloseTo(ref.bfi.ml.tli, 6);
     expect(ml.phi).toBeNull();
-    expect(await efaScriptR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars, nfactors: 5 }, 1)).toContain('fit <- fa(X, nfactors = k, fm = "minres", rotate = "oblimin")');
+    expect(
+      await efaScriptR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars, nfactors: 5 }, 1),
+    ).toContain('fit <- fa(X, nfactors = k, fm = "minres", rotate = "oblimin")');
   }, 900_000);
 
   it('bfi: principal axis factoring (fm = "pa") with promax equals desktop psych', async () => {
-    const pa = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'pa.json'), 'utf8'));
+    const pa = JSON.parse(
+      readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'pa.json'), 'utf8'),
+    );
     const d = await load('bfi');
-    const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: d.names.slice(0, 25), nfactors: 5, method: 'pa', rotation: 'promax', parallel: 0 }, 1);
+    const r = await efaR(
+      d,
+      {
+        ...DEFAULT_EFA,
+        criterion: 'fixed',
+        vars: d.names.slice(0, 25),
+        nfactors: 5,
+        method: 'pa',
+        rotation: 'promax',
+        parallel: 0,
+      },
+      1,
+    );
     sameLoadings(r.loadings, pa.loadings, 5);
-    r.communality.forEach((h, i) => expect(h, `communality ${i + 1}`).toBeCloseTo(pa.communality[i], 6));
+    r.communality.forEach((h, i) =>
+      expect(h, `communality ${i + 1}`).toBeCloseTo(pa.communality[i], 6),
+    );
     expect(r.fit.rmsea, 'RMSEA').toBeCloseTo(pa.rmsea, 6);
     expect(r.fit.tli, 'TLI').toBeCloseTo(pa.tli, 6);
     expect(r.phi).toHaveLength(5);
@@ -77,14 +133,31 @@ describe('exploratory factor analysis (psych)', () => {
 
   it('Harman.5: principal components with varimax equal desktop psych', async () => {
     const d = await load('Harman.5');
-    const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: d.names, nfactors: 2, method: 'pca', rotation: 'varimax', parallel: 0 }, 1);
+    const r = await efaR(
+      d,
+      {
+        ...DEFAULT_EFA,
+        criterion: 'fixed',
+        vars: d.names,
+        nfactors: 2,
+        method: 'pca',
+        rotation: 'varimax',
+        parallel: 0,
+      },
+      1,
+    );
     sameLoadings(r.loadings, ref.harman5.loadings, 8);
     r.cumulative.forEach((c, i) => expect(c).toBeCloseTo(ref.harman5.cumulative[i], 8));
     expect(r.factors).toEqual(['RC1', 'RC2']);
   }, 900_000);
 
   it('bfi: Tucker congruence of minres + oblimin with ML + varimax equals desktop psych (factor.congruence)', async () => {
-    const cg = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'congruence.json'), 'utf8'));
+    const cg = JSON.parse(
+      readFileSync(
+        join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'congruence.json'),
+        'utf8',
+      ),
+    );
     const d = await load('bfi');
     const design = {
       ...DEFAULT_EFA,
@@ -101,9 +174,14 @@ describe('exploratory factor analysis (psych)', () => {
     // A factor's sign is arbitrary, so the coefficients are compared in absolute value. The oblimin loadings
     // come from GPArotation's iterative rotation, which lands within a few 1e-6 of itself from run to run in
     // the same desktop R (checked: fa(bfi[, 1:25], 5) twice differs by 2.8e-6), so 4 digits.
-    cg.coefficients.forEach((row: number[], i: number) => row.forEach((v, j) => {
-      expect(Math.abs(got.coefficients[i][j]), `φ[${i + 1},${j + 1}]`).toBeCloseTo(Math.abs(v), 4);
-    }));
+    cg.coefficients.forEach((row: number[], i: number) =>
+      row.forEach((v, j) => {
+        expect(Math.abs(got.coefficients[i][j]), `φ[${i + 1},${j + 1}]`).toBeCloseTo(
+          Math.abs(v),
+          4,
+        );
+      }),
+    );
     sameLoadings(got.loadings, cg.loadings, 5);
     const script = await efaScriptR(d, design, 1);
     expect(script).toContain('fit2 <- fa(X, nfactors = k, fm = "ml", rotate = "varimax")');
@@ -113,7 +191,9 @@ describe('exploratory factor analysis (psych)', () => {
   }, 900_000);
 
   it('bfi: Schmid–Leiman second-order solution and ω hierarchical equal desktop psych (omega)', async () => {
-    const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'schmid.json'), 'utf8'));
+    const ref = JSON.parse(
+      readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'schmid.json'), 'utf8'),
+    );
     const d = await load('bfi');
     const design = {
       ...DEFAULT_EFA,
@@ -133,34 +213,54 @@ describe('exploratory factor analysis (psych)', () => {
     expect(sl.ecv, 'ECV').toBeCloseTo(ref.ecv, 4);
     // Factor order follows the rotation; second-order loadings and group columns are compared as sets.
     const sorted = (v: number[]) => [...v].map(Math.abs).sort((a, b) => a - b);
-    sorted(sl.secondOrder).forEach((v, i) => expect(v, `second-order loading ${i + 1}`).toBeCloseTo(sorted(ref.secondOrder)[i], 4));
+    sorted(sl.secondOrder).forEach((v, i) =>
+      expect(v, `second-order loading ${i + 1}`).toBeCloseTo(sorted(ref.secondOrder)[i], 4),
+    );
     sl.general.forEach((v, i) => expect(v, `g loading ${i + 1}`).toBeCloseTo(ref.general[i], 4));
     sl.h2.forEach((v, i) => expect(v, `h² ${i + 1}`).toBeCloseTo(ref.h2[i], 4));
     sl.p2.forEach((v, i) => expect(v, `g²/h² ${i + 1}`).toBeCloseTo(ref.p2[i], 4));
     for (let j = 0; j < 5; j++) {
       const col = sl.group.map((row) => row[j]);
-      const k = ref.group[0].map((_: number, jj: number) => jj).find((jj: number) =>
-        ref.group.every((row: number[], i: number) => Math.abs(row[jj] - col[i]) < 1e-3));
+      const k = ref.group[0]
+        .map((_: number, jj: number) => jj)
+        .find((jj: number) =>
+          ref.group.every((row: number[], i: number) => Math.abs(row[jj] - col[i]) < 1e-3),
+        );
       expect(k, `group factor ${j + 1} found in psych's solution`).toBeDefined();
-      col.forEach((v, i) => expect(v, `group ${j + 1}, item ${i + 1}`).toBeCloseTo(ref.group[i][k], 4));
+      col.forEach((v, i) =>
+        expect(v, `group ${j + 1}, item ${i + 1}`).toBeCloseTo(ref.group[i][k], 4),
+      );
     }
     same('items reversed', sl.reversed.join(', '), ref.reversed.join(', '));
     expect(sl.omegaGroup[0].name).toBe('g');
-    expect(sl.omegaGroup[0].general, 'ω hierarchical (omega.group)').toBeCloseTo(ref.omegaGroup[0][1], 4);
+    expect(sl.omegaGroup[0].general, 'ω hierarchical (omega.group)').toBeCloseTo(
+      ref.omegaGroup[0][1],
+      4,
+    );
     const script = await efaScriptR(d, design, 1);
-    expect(script).toContain('sl <- if (k >= 3) omega(R, nfactors = k, fm = "minres", rotate = "oblimin", n.obs = n, plot = FALSE) else NULL');
+    expect(script).toContain(
+      'sl <- if (k >= 3) omega(R, nfactors = k, fm = "minres", rotate = "oblimin", n.obs = n, plot = FALSE) else NULL',
+    );
     // Fewer than three factors retained by a criterion: no solution, said so.
     const two = await efaR(d, { ...design, vars: d.names.slice(0, 10), criterion: 'kaiser' }, 1);
     same('factors retained (Kaiser, agreeableness and conscientiousness items)', two.k, 2);
     expect(two.schmid).toEqual({ available: false });
     await expect(efaR(d, { ...design, nfactors: 2 }, 1)).rejects.toThrow(/at least three factors/);
-    await expect(efaR(d, { ...design, rotation: 'varimax' }, 1)).rejects.toThrow(/oblique rotation/);
+    await expect(efaR(d, { ...design, rotation: 'varimax' }, 1)).rejects.toThrow(
+      /oblique rotation/,
+    );
   }, 900_000);
 
   it('retention criteria set the number of components in R (Kaiser, MAP, parallel analysis)', async () => {
     const d = await load('bfi');
     const vars = d.names.slice(0, 25);
-    const base = { ...DEFAULT_EFA, vars, method: 'pca' as const, rotation: 'varimax' as const, parallel: 10 };
+    const base = {
+      ...DEFAULT_EFA,
+      vars,
+      method: 'pca' as const,
+      rotation: 'varimax' as const,
+      parallel: 10,
+    };
     const kaiser = await efaR(d, { ...base, criterion: 'kaiser' }, 1);
     expect(kaiser.criterion).toBe('kaiser');
     expect(kaiser.k).toBe(kaiser.eigenvalues.filter((e) => e > 1).length);
@@ -171,33 +271,74 @@ describe('exploratory factor analysis (psych)', () => {
     expect(map.k).toBe(ref.bfi.mapK);
     const par = await efaR(d, { ...base, criterion: 'parallel' }, 1);
     expect(par.k).toBe(par.parallel!.suggested);
-    expect(par.k).toBe(ref.bfi.parallelPc);  // same seed and samples as native psych
+    expect(par.k).toBe(ref.bfi.parallelPc); // same seed and samples as native psych
     expect(par.loadings[0]).toHaveLength(par.k);
     const script = await efaScriptR(d, { ...base, criterion: 'parallel' }, 1);
     expect(script).toContain('k <- parallel$ncomp  # retained by parallel analysis');
     expect(script).toContain('principal(X, nfactors = k, rotate = "varimax")');
-    await expect(efaR(d, { ...base, criterion: 'parallel', parallel: 0 }, 1)).rejects.toThrow(/Parallel analysis needs samples/);
-    await expect(efaR(d, { ...base, criterion: 'evil' as never }, 1)).rejects.toThrow(/Invalid criterion/);
+    await expect(efaR(d, { ...base, criterion: 'parallel', parallel: 0 }, 1)).rejects.toThrow(
+      /Parallel analysis needs samples/,
+    );
+    await expect(efaR(d, { ...base, criterion: 'evil' as never }, 1)).rejects.toThrow(
+      /Invalid criterion/,
+    );
   }, 900_000);
 
   // (slow: minutes in webR; run with WEBR_SLOW, as npm run validate:evidence does)
-  slowIt('bfi with age: factor analysis of polychoric correlations equals desktop psych (cor = "mixed")', async () => {
-    const pr = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'polychoric.json'), 'utf8'));
-    const d = await load('bfi');
-    const r = await efaR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: pr.vars, nfactors: 5, method: 'minres', rotation: 'oblimin', parallel: 5, correlation: 'polychoric' }, 1);
-    expect(r.correlation).toBe('polychoric');
-    expect(r.ordinal).toEqual(pr.vars.slice(0, 25));  // age has more than 8 values: continuous (polyserial)
-    for (let i = 0; i < 26; i++) for (let j = 0; j < 26; j++) expect(r.correlations[i][j]).toBeCloseTo(pr.cor[i][j], 6);
-    expect(r.kmo.overall).toBeCloseTo(pr.kmo, 6);
-    r.eigenvalues.forEach((e, i) => expect(e).toBeCloseTo(pr.eigenvalues[i], 6));
-    sameLoadings(r.loadings, pr.loadings, 4);
-    r.communality.forEach((h, i) => expect(h).toBeCloseTo(pr.communality[i], 5));
-    r.parallel!.observed.forEach((e, i) => expect(e).toBeCloseTo(pr.parallelObserved[i], 5));
-    // Independent: lavaan's polychoric correlations on the complete cases agree with psych's (polyserial ones less).
-    const cc = pr.completeCases;
-    for (let i = 0; i < 25; i++) for (let j = 0; j < 25; j++) expect(Math.abs(cc.psych[i][j] - cc.lavaan[i][j])).toBeLessThan(1e-4);
-    // And the reason for the option: larger loadings than from Pearson correlations of the same items.
-    expect(pr.meanTopLoading[0]).toBeGreaterThan(pr.meanTopLoading[1]);
-    expect(await efaScriptR(d, { ...DEFAULT_EFA, criterion: 'fixed', vars: pr.vars, nfactors: 5, correlation: 'polychoric' }, 1)).toContain('fa(X, nfactors = k, fm = "minres", rotate = "oblimin", cor = "mixed")');
-  }, 900_000);
+  slowIt(
+    'bfi with age: factor analysis of polychoric correlations equals desktop psych (cor = "mixed")',
+    async () => {
+      const pr = JSON.parse(
+        readFileSync(
+          join(__dirname, '..', 'engine', '__fixtures__', 'efa', 'polychoric.json'),
+          'utf8',
+        ),
+      );
+      const d = await load('bfi');
+      const r = await efaR(
+        d,
+        {
+          ...DEFAULT_EFA,
+          criterion: 'fixed',
+          vars: pr.vars,
+          nfactors: 5,
+          method: 'minres',
+          rotation: 'oblimin',
+          parallel: 5,
+          correlation: 'polychoric',
+        },
+        1,
+      );
+      expect(r.correlation).toBe('polychoric');
+      expect(r.ordinal).toEqual(pr.vars.slice(0, 25)); // age has more than 8 values: continuous (polyserial)
+      for (let i = 0; i < 26; i++)
+        for (let j = 0; j < 26; j++) expect(r.correlations[i][j]).toBeCloseTo(pr.cor[i][j], 6);
+      expect(r.kmo.overall).toBeCloseTo(pr.kmo, 6);
+      r.eigenvalues.forEach((e, i) => expect(e).toBeCloseTo(pr.eigenvalues[i], 6));
+      sameLoadings(r.loadings, pr.loadings, 4);
+      r.communality.forEach((h, i) => expect(h).toBeCloseTo(pr.communality[i], 5));
+      r.parallel!.observed.forEach((e, i) => expect(e).toBeCloseTo(pr.parallelObserved[i], 5));
+      // Independent: lavaan's polychoric correlations on the complete cases agree with psych's (polyserial ones less).
+      const cc = pr.completeCases;
+      for (let i = 0; i < 25; i++)
+        for (let j = 0; j < 25; j++)
+          expect(Math.abs(cc.psych[i][j] - cc.lavaan[i][j])).toBeLessThan(1e-4);
+      // And the reason for the option: larger loadings than from Pearson correlations of the same items.
+      expect(pr.meanTopLoading[0]).toBeGreaterThan(pr.meanTopLoading[1]);
+      expect(
+        await efaScriptR(
+          d,
+          {
+            ...DEFAULT_EFA,
+            criterion: 'fixed',
+            vars: pr.vars,
+            nfactors: 5,
+            correlation: 'polychoric',
+          },
+          1,
+        ),
+      ).toContain('fa(X, nfactors = k, fm = "minres", rotate = "oblimin", cor = "mixed")');
+    },
+    900_000,
+  );
 });

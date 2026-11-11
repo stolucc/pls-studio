@@ -1,0 +1,15 @@
+# Generated, vendored or data files: not hand-written source.
+node_modules/
+dist/
+public/
+helper/
+reports/
+.stryker-tmp/
+.claude/
+**/__fixtures__/
+**/__snapshots__/
+src/generated/
+*.json
+*.md
+*.html
+*.css

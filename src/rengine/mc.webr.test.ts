@@ -11,15 +11,32 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const f = (name: string, p: string) => ({ name, type: 'factor' as const, indicators: [1, 2, 3].map((i) => `${p}${i}`), loadings: [0.8, 0.7, 0.75] });
+const f = (name: string, p: string) => ({
+  name,
+  type: 'factor' as const,
+  indicators: [1, 2, 3].map((i) => `${p}${i}`),
+  loadings: [0.8, 0.7, 0.75],
+});
 const design: McDesign = {
   population: {
     constructs: [f('Price fairness', 'a'), f('Trust', 'b'), f('Loyalty', 'c')],
-    paths: [{ from: 'Price fairness', to: 'Trust', value: 0.4 }, { from: 'Trust', to: 'Loyalty', value: 0.5 }, { from: 'Price fairness', to: 'Loyalty', value: 0 }],
+    paths: [
+      { from: 'Price fairness', to: 'Trust', value: 0.4 },
+      { from: 'Trust', to: 'Loyalty', value: 0.5 },
+      { from: 'Price fairness', to: 'Loyalty', value: 0 },
+    ],
     exoCor: [],
   },
-  estimators: [{ id: 'PLSc', method: 'pls', consistent: true }, { id: 'CB-ML', method: 'cb', estimator: 'ML' }],
-  sampleSizes: [300], replications: 40, seed: 5, alpha: 0.05, bootSamples: 0, mcDraws: 500,
+  estimators: [
+    { id: 'PLSc', method: 'pls', consistent: true },
+    { id: 'CB-ML', method: 'cb', estimator: 'ML' },
+  ],
+  sampleSizes: [300],
+  replications: 40,
+  seed: 5,
+  alpha: 0.05,
+  bootSamples: 0,
+  mcDraws: 500,
 };
 
 it('R simulation agrees with the built-in simulation up to Monte Carlo error', async () => {
@@ -36,14 +53,18 @@ it('R simulation agrees with the built-in simulation up to Monte Carlo error', a
     }
     // Two independent estimates of the same mean, each with SE ≈ sd/√40.
     const se = Math.sqrt((row.sd ** 2 + ref.sd ** 2) / 40);
-    expect(Math.abs(row.mean - ref.mean), `${row.estimator} ${row.param.key}: R ${row.mean} vs built-in ${ref.mean}`).toBeLessThan(4 * se);
-    if (row.estimator === 'CB-ML' && row.coverage !== null) expect(row.coverage).toBeGreaterThan(0.8);
+    expect(
+      Math.abs(row.mean - ref.mean),
+      `${row.estimator} ${row.param.key}: R ${row.mean} vs built-in ${ref.mean}`,
+    ).toBeLessThan(4 * se);
+    if (row.estimator === 'CB-ML' && row.coverage !== null)
+      expect(row.coverage).toBeGreaterThan(0.8);
   }
 }, 900_000);
 
 it('exports the whole simulation as one script', async () => {
   const s = await mcScriptR({ ...design, replications: 3 });
-  expect(s).toContain("simulateData(pop_model, sample.nobs = n");
+  expect(s).toContain('simulateData(pop_model, sample.nobs = n');
   expect(s).toContain('Price_fairness =~');
   expect(s).toContain('summary_rows');
 }, 900_000);

@@ -12,7 +12,13 @@ import { mergeBootstrap, runRange, sampleSeed } from './bootstrap';
 import { estimateCb, type CbEstimator } from './cbsem';
 import { mcIndirect } from './mcci';
 import { preparePls } from './pls';
-import { buildPopulation, generateData, specFromPopulation, type Population, type PopulationSpec } from './population';
+import {
+  buildPopulation,
+  generateData,
+  specFromPopulation,
+  type Population,
+  type PopulationSpec,
+} from './population';
 import { zCrit } from './stats';
 import { DEFAULT_OPTIONS } from './types';
 
@@ -43,7 +49,12 @@ export interface McParam {
   value: number;
 }
 
-export interface McTask { design: McDesign; n: number; start: number; end: number }
+export interface McTask {
+  design: McDesign;
+  n: number;
+  start: number;
+  end: number;
+}
 
 /** Raw per-replication results for one task; NaN marks a failed replication. */
 export interface McPart {
@@ -63,13 +74,32 @@ export function mcParameters(pop: Population, withFit = false): McParam[] {
   const C = pop.constructs;
   const out: McParam[] = [];
   if (withFit) out.push({ key: 'fit:chisq', kind: 'fit', from: 'model', to: 'χ² test', value: 0 });
-  C.forEach((f, i) => C.forEach((t, j) => {
-    if (pop.specified[i][j]) out.push({ key: `path:${f}:${t}`, kind: 'path', from: f, to: t, value: pop.paths[i][j] });
-  }));
-  for (const k of pop.covariances) out.push({ key: `cov:${C[k.a]}:${C[k.b]}`, kind: 'covariance', from: C[k.a], to: C[k.b], value: k.value });
-  C.forEach((f, i) => C.forEach((t, j) => {
-    if (Math.abs(pop.indirect[i][j]) > 1e-12) out.push({ key: `indirect:${f}:${t}`, kind: 'indirect', from: f, to: t, value: pop.indirect[i][j] });
-  }));
+  C.forEach((f, i) =>
+    C.forEach((t, j) => {
+      if (pop.specified[i][j])
+        out.push({ key: `path:${f}:${t}`, kind: 'path', from: f, to: t, value: pop.paths[i][j] });
+    }),
+  );
+  for (const k of pop.covariances)
+    out.push({
+      key: `cov:${C[k.a]}:${C[k.b]}`,
+      kind: 'covariance',
+      from: C[k.a],
+      to: C[k.b],
+      value: k.value,
+    });
+  C.forEach((f, i) =>
+    C.forEach((t, j) => {
+      if (Math.abs(pop.indirect[i][j]) > 1e-12)
+        out.push({
+          key: `indirect:${f}:${t}`,
+          kind: 'indirect',
+          from: f,
+          to: t,
+          value: pop.indirect[i][j],
+        });
+    }),
+  );
   return out;
 }
 
@@ -79,19 +109,40 @@ export function mcParameters(pop: Population, withFit = false): McParam[] {
  */
 export function ciTruth(design: McDesign, pop: Population, params: McParam[]): number[][] {
   const ci = (name: string) => pop.constructs.indexOf(name);
-  return design.estimators.map((e) => params.map((p) => (p.kind === 'fit' ? NaN : e.method !== 'cb' ? p.value
-    : p.kind === 'covariance' ? p.value * pop.markerLoading[ci(p.from)] * pop.markerLoading[ci(p.to)] : p.value * pop.markerLoading[ci(p.to)] / pop.markerLoading[ci(p.from)])));
+  return design.estimators.map((e) =>
+    params.map((p) =>
+      p.kind === 'fit'
+        ? NaN
+        : e.method !== 'cb'
+          ? p.value
+          : p.kind === 'covariance'
+            ? p.value * pop.markerLoading[ci(p.from)] * pop.markerLoading[ci(p.to)]
+            : (p.value * pop.markerLoading[ci(p.to)]) / pop.markerLoading[ci(p.from)],
+    ),
+  );
 }
 
-export const replicationSeed = (seed: number, n: number, r: number) => sampleSeed(seed, ((n * 100003) ^ r) >>> 0);
+export const replicationSeed = (seed: number, n: number, r: number) =>
+  sampleSeed(seed, ((n * 100003) ^ r) >>> 0);
 
-export function runMcTask(task: McTask, onProgress?: (done: number, total: number) => void): McPart {
+export function runMcTask(
+  task: McTask,
+  onProgress?: (done: number, total: number) => void,
+): McPart {
   const { design, n } = task;
   const pop = buildPopulation(design.population);
-  const params = mcParameters(pop, design.estimators.some((e) => e.method === 'cb'));
-  const E = design.estimators.length, count = Math.max(0, task.end - task.start);
-  const arr = () => Array.from({ length: E }, () => params.map(() => new Float64Array(count).fill(NaN)));
-  const est = arr(), lo = arr(), hi = arr(), sig = arr();
+  const params = mcParameters(
+    pop,
+    design.estimators.some((e) => e.method === 'cb'),
+  );
+  const E = design.estimators.length,
+    count = Math.max(0, task.end - task.start);
+  const arr = () =>
+    Array.from({ length: E }, () => params.map(() => new Float64Array(count).fill(NaN)));
+  const est = arr(),
+    lo = arr(),
+    hi = arr(),
+    sig = arr();
   const proper = Array.from({ length: E }, () => new Float64Array(count).fill(NaN));
   const C = pop.constructs;
   const ci = (name: string) => C.indexOf(name);
@@ -108,7 +159,20 @@ export function runMcTask(task: McTask, onProgress?: (done: number, total: numbe
         if (e.method === 'pls') {
           const opts = { ...DEFAULT_OPTIONS, consistent: e.consistent };
           if (design.bootSamples > 0) {
-            const boot = mergeBootstrap([runRange({ job: 'pls', data, spec: plsSpec, options: opts, seed: replicationSeed(design.seed + 1, n, r), start: 0, end: design.bootSamples })], 1 - design.alpha);
+            const boot = mergeBootstrap(
+              [
+                runRange({
+                  job: 'pls',
+                  data,
+                  spec: plsSpec,
+                  options: opts,
+                  seed: replicationSeed(design.seed + 1, n, r),
+                  start: 0,
+                  end: design.bootSamples,
+                }),
+              ],
+              1 - design.alpha,
+            );
             params.forEach((p, pi) => {
               if (p.kind === 'fit') return;
               const s = boot.stats.find((x) => x.key === p.key);
@@ -124,16 +188,29 @@ export function runMcTask(task: McTask, onProgress?: (done: number, total: numbe
             if (!core.converged) throw new Error('not converged');
             params.forEach((p, pi) => {
               if (p.kind === 'fit') return;
-              const i = ci(p.from), j = ci(p.to);
-              est[ei][pi][k] = p.kind === 'path' ? st.pathCoef[i][j] : p.kind === 'covariance' ? st.C[i][j] : st.totalEffects[i][j] - st.pathCoef[i][j];
+              const i = ci(p.from),
+                j = ci(p.to);
+              est[ei][pi][k] =
+                p.kind === 'path'
+                  ? st.pathCoef[i][j]
+                  : p.kind === 'covariance'
+                    ? st.C[i][j]
+                    : st.totalEffects[i][j] - st.pathCoef[i][j];
             });
           }
           proper[ei][k] = 1;
         } else {
           const cb = estimateCb(data, cbSpec, 'casewise', e.estimator);
           if (!cb.converged) throw new Error('not converged');
-          const mc = params.some((p) => p.kind === 'indirect') && design.mcDraws > 0
-            ? mcIndirect(cb, design.mcDraws, replicationSeed(design.seed + 2, n, r), 1 - design.alpha) : [];
+          const mc =
+            params.some((p) => p.kind === 'indirect') && design.mcDraws > 0
+              ? mcIndirect(
+                  cb,
+                  design.mcDraws,
+                  replicationSeed(design.seed + 2, n, r),
+                  1 - design.alpha,
+                )
+              : [];
           params.forEach((p, pi) => {
             if (p.kind === 'fit') {
               // Scaled statistic for robust estimators; ULS has no χ² p-value.
@@ -142,9 +219,14 @@ export function runMcTask(task: McTask, onProgress?: (done: number, total: numbe
               if (Number.isFinite(pv)) sig[ei][pi][k] = pv < design.alpha ? 1 : 0;
               return;
             }
-            const i = cb.constructs.indexOf(p.from), j = cb.constructs.indexOf(p.to);
+            const i = cb.constructs.indexOf(p.from),
+              j = cb.constructs.indexOf(p.to);
             if (p.kind === 'covariance') {
-              const e2 = cb.estimates.find((x) => x.op === '~~' && ((x.lhs === p.from && x.rhs === p.to) || (x.lhs === p.to && x.rhs === p.from)));
+              const e2 = cb.estimates.find(
+                (x) =>
+                  x.op === '~~' &&
+                  ((x.lhs === p.from && x.rhs === p.to) || (x.lhs === p.to && x.rhs === p.from)),
+              );
               if (!e2) return;
               est[ei][pi][k] = e2.std;
               if (e2.se) {
@@ -154,7 +236,9 @@ export function runMcTask(task: McTask, onProgress?: (done: number, total: numbe
               }
             } else if (p.kind === 'path') {
               est[ei][pi][k] = cb.stdPaths[i][j];
-              const e2 = cb.estimates.find((x) => x.op === '~' && x.lhs === p.to && x.rhs === p.from);
+              const e2 = cb.estimates.find(
+                (x) => x.op === '~' && x.lhs === p.to && x.rhs === p.from,
+              );
               if (e2?.se) {
                 lo[ei][pi][k] = e2.est - zc * e2.se;
                 hi[ei][pi][k] = e2.est + zc * e2.se;
@@ -200,25 +284,36 @@ export interface McSummaryRow {
 
 export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
   const pop = buildPopulation(design.population);
-  const params = mcParameters(pop, design.estimators.some((e) => e.method === 'cb'));
+  const params = mcParameters(
+    pop,
+    design.estimators.some((e) => e.method === 'cb'),
+  );
   const rows: McSummaryRow[] = [];
   for (const n of design.sampleSizes) {
     const ps = parts.filter((p) => p.n === n).sort((a, b) => a.start - b.start);
     if (ps.length === 0) continue;
     design.estimators.forEach((e, ei) => {
       params.forEach((param, pi) => {
-        const ests: number[] = [], cover: number[] = [], rej: number[] = [];
-        let failed = 0, improper = 0;
+        const ests: number[] = [],
+          cover: number[] = [],
+          rej: number[] = [];
+        let failed = 0,
+          improper = 0;
         for (const part of ps) {
           const len = part.est[ei][pi].length;
           for (let k = 0; k < len; k++) {
             const v = part.est[ei][pi][k];
-            if (!Number.isFinite(v)) { failed++; continue; }
+            if (!Number.isFinite(v)) {
+              failed++;
+              continue;
+            }
             if (part.proper[ei][k] === 0) improper++;
             ests.push(v);
-            const l = part.lo[ei][pi][k], h = part.hi[ei][pi][k];
+            const l = part.lo[ei][pi][k],
+              h = part.hi[ei][pi][k];
             const truth = part.truthCI[ei][pi];
-            if (Number.isFinite(l) && Number.isFinite(h)) cover.push(l <= truth && truth <= h ? 1 : 0);
+            if (Number.isFinite(l) && Number.isFinite(h))
+              cover.push(l <= truth && truth <= h ? 1 : 0);
             const sg = part.sig[ei][pi][k];
             if (Number.isFinite(sg)) rej.push(sg);
           }
@@ -227,13 +322,28 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
         if (param.kind === 'fit' && e.method !== 'cb') return;
         const mean = R ? ests.reduce((s, x) => s + x, 0) / R : NaN;
         const sd = R > 1 ? Math.sqrt(ests.reduce((s, x) => s + (x - mean) ** 2, 0) / (R - 1)) : NaN;
-        const rmse = param.kind === 'fit' ? NaN : R ? Math.sqrt(ests.reduce((s, x) => s + (x - param.value) ** 2, 0) / R) : NaN;
+        const rmse =
+          param.kind === 'fit'
+            ? NaN
+            : R
+              ? Math.sqrt(ests.reduce((s, x) => s + (x - param.value) ** 2, 0) / R)
+              : NaN;
         rows.push({
-          estimator: e.id, n, param, reps: R, failed, improper, mean,
+          estimator: e.id,
+          n,
+          param,
+          reps: R,
+          failed,
+          improper,
+          mean,
           // For the χ² test row, `mean` is the mean statistic; bias is not meaningful.
           bias: param.kind === 'fit' ? NaN : mean - param.value,
-          relBias: param.kind !== 'fit' && Math.abs(param.value) > 1e-12 ? (mean - param.value) / param.value : null,
-          sd, rmse,
+          relBias:
+            param.kind !== 'fit' && Math.abs(param.value) > 1e-12
+              ? (mean - param.value) / param.value
+              : null,
+          sd,
+          rmse,
           coverage: cover.length ? cover.reduce((s, x) => s + x, 0) / cover.length : null,
           rejection: rej.length ? rej.reduce((s, x) => s + x, 0) / rej.length : null,
         });
@@ -249,7 +359,8 @@ export function mcTasks(design: McDesign, chunks: number): McTask[] {
   for (const n of design.sampleSizes) {
     const k = Math.max(1, Math.min(chunks, design.replications));
     for (let i = 0; i < k; i++) {
-      const start = Math.floor((i * design.replications) / k), end = Math.floor(((i + 1) * design.replications) / k);
+      const start = Math.floor((i * design.replications) / k),
+        end = Math.floor(((i + 1) * design.replications) / k);
       if (end > start) out.push({ design, n, start, end });
     }
   }

@@ -16,7 +16,15 @@
 
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
-import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,14 +35,26 @@ const OUT_DIR = join(ROOT, 'public', 'webr');
 const SRC_CACHE = join(ROOT, '.webr-cache', 'src');
 const CRAN = 'https://cran.r-project.org/src/contrib';
 /** webR ships development builds (x.y.z.9000) of a few packages; their source is the upstream repository. */
-const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://github.com/rstudio/sass', vroom: 'https://github.com/tidyverse/vroom', later: 'https://github.com/r-lib/later' };
+const UPSTREAM = {
+  nloptr: 'https://github.com/astamm/nloptr',
+  sass: 'https://github.com/rstudio/sass',
+  vroom: 'https://github.com/tidyverse/vroom',
+  later: 'https://github.com/r-lib/later',
+};
 /**
  * Packages whose served source is a pinned snapshot of their repository, not a CRAN tarball. dynamic's CRAN release
  * 1.1.0 (2022) was archived on 2025-11-07 and no longer runs (dplyr >= 1.1 refuses its summarise() of several rows);
  * the binary in scripts/webr/vendor is built from this commit of the maintained repository (still versioned 1.1.0
  * there, no tags), and the archive below is the source of exactly that build (AGPL-3).
  */
-const SNAPSHOT = { dynamic: { commit: '90aa51f7cd34d7de936dc36ff99a7b8363ed10d7', url: 'https://github.com/melissagwolf/dynamic/tree/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7', source: 'https://github.com/melissagwolf/dynamic/archive/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7.tar.gz' } };
+const SNAPSHOT = {
+  dynamic: {
+    commit: '90aa51f7cd34d7de936dc36ff99a7b8363ed10d7',
+    url: 'https://github.com/melissagwolf/dynamic/tree/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7',
+    source:
+      'https://github.com/melissagwolf/dynamic/archive/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7.tar.gz',
+  },
+};
 /**
  * Packages the app ships patched, so that they load in webR. cubature's WebAssembly build (the webR repository's and
  * r-universe's alike) uses Emscripten's JavaScript longjmp, which webR 0.6.0's R cannot link, and GenOrd imported it
@@ -49,12 +69,84 @@ const SNAPSHOT = { dynamic: { commit: '90aa51f7cd34d7de936dc36ff99a7b8363ed10d7'
  */
 const PATCHED = {
   dynamic: 'GenOrd moved from Imports to Suggests and loaded when likertHB2() needs it',
-  GenOrd: 'cubature moved from Imports to Suggests and loaded when pmvt.alt() (a Student’s t copula with a non-integer df) needs it',
+  GenOrd:
+    'cubature moved from Imports to Suggests and loaded when pmvt.alt() (a Student’s t copula with a non-integer df) needs it',
 };
 const R_VERSION = '4.6';
 const REPO = `https://repo.r-wasm.org/bin/emscripten/contrib/${R_VERSION}`;
 /** Packages the app calls directly (and GenOrd: dynamic's suggested package, which its likertHB2() loads, kept in the closure). */
-const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 'cSEM', 'seminr', 'MIIVsem', 'semTools', 'manymome', 'sandwich', 'modsem', 'ltm', 'poLCA', 'lme4', 'lmerTest', 'lcmm', 'plspm', 'ivreg', 'sampleSelection', 'MatchIt', 'optmatch', 'cobalt', 'optimx', 'corpcor', 'mvtnorm', 'NCA', 'genpathmox', 'flexmix', 'jsonlite', 'psych', 'GPArotation', 'semfindr', 'mice', 'Amelia', 'lavaan.mi', 'WeightIt', 'marginaleffects', 'rsem', 'haven', 'readxl', 'bootnet', 'qgraph', 'EGAnet', 'BayesFactor', 'mirt', 'GLMMadaptive', 'glca', 'dynamic', 'GenOrd', 'QCA', 'nonnest2', 'INLAvaan', 'strucchange', 'psychotools', 'misty', 'mvnmle', 'SEMsens', 'mediation', 'semPower', 'sirt', 'mnlfa', 'lslx', 'pscl', 'restriktor', 'bain', 'piecewiseSEM', 'Bayesrel'];
+const ROOTS = [
+  'fixest',
+  'did',
+  'MASS',
+  'nnet',
+  'carData',
+  'faraway',
+  'lavaan',
+  'cSEM',
+  'seminr',
+  'MIIVsem',
+  'semTools',
+  'manymome',
+  'sandwich',
+  'modsem',
+  'ltm',
+  'poLCA',
+  'lme4',
+  'lmerTest',
+  'lcmm',
+  'plspm',
+  'ivreg',
+  'sampleSelection',
+  'MatchIt',
+  'optmatch',
+  'cobalt',
+  'optimx',
+  'corpcor',
+  'mvtnorm',
+  'NCA',
+  'genpathmox',
+  'flexmix',
+  'jsonlite',
+  'psych',
+  'GPArotation',
+  'semfindr',
+  'mice',
+  'Amelia',
+  'lavaan.mi',
+  'WeightIt',
+  'marginaleffects',
+  'rsem',
+  'haven',
+  'readxl',
+  'bootnet',
+  'qgraph',
+  'EGAnet',
+  'BayesFactor',
+  'mirt',
+  'GLMMadaptive',
+  'glca',
+  'dynamic',
+  'GenOrd',
+  'QCA',
+  'nonnest2',
+  'INLAvaan',
+  'strucchange',
+  'psychotools',
+  'misty',
+  'mvnmle',
+  'SEMsens',
+  'mediation',
+  'semPower',
+  'sirt',
+  'mnlfa',
+  'lslx',
+  'pscl',
+  'restriktor',
+  'bain',
+  'piecewiseSEM',
+  'Bayesrel',
+];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES
  * stanzas) instead of downloaded from repo.r-wasm.org. glasso and glassoFast
@@ -75,29 +167,59 @@ const ROOTS = ['fixest', 'did', 'MASS', 'nnet', 'carData', 'faraway', 'lavaan', 
  * Their SHA-256s are those of the files in vendor/.
  */
 const VENDOR = join(ROOT, 'scripts', 'webr', 'vendor');
-const vendored = () => new Map(parsePackages(readFileSync(join(VENDOR, 'PACKAGES'), 'utf8')).map((s) => [s.Package, s]));
+const vendored = () =>
+  new Map(parsePackages(readFileSync(join(VENDOR, 'PACKAGES'), 'utf8')).map((s) => [s.Package, s]));
 
 /** Shipped inside webR itself. */
-const BASE = new Set(['R', 'base', 'compiler', 'datasets', 'graphics', 'grDevices', 'grid', 'methods', 'parallel', 'splines', 'stats', 'stats4', 'tcltk', 'tools', 'translations', 'utils', 'webr']);
+const BASE = new Set([
+  'R',
+  'base',
+  'compiler',
+  'datasets',
+  'graphics',
+  'grDevices',
+  'grid',
+  'methods',
+  'parallel',
+  'splines',
+  'stats',
+  'stats4',
+  'tcltk',
+  'tools',
+  'translations',
+  'utils',
+  'webr',
+]);
 /** webR runtime files needed next to the page (the JS API itself is bundled from the npm package). */
 const RUNTIME = ['R.js', 'R.wasm', 'libRblas.so', 'libRlapack.so', 'webr-worker.js', 'vfs'];
 
 /** Parse a Debian-control style PACKAGES file into stanzas. */
 function parsePackages(text) {
-  return text.split(/\n\s*\n/).filter((s) => s.trim()).map((stanza) => {
-    const out = {};
-    let key = null;
-    for (const line of stanza.split('\n')) {
-      // (a blank line, e.g. a trailing newline, is no field: read as one it became ": " in PACKAGES, which R cannot parse)
-      if (!line.trim()) continue;
-      if (/^\s/.test(line) && key) out[key] += ' ' + line.trim();
-      else { const i = line.indexOf(':'); key = line.slice(0, i); out[key] = line.slice(i + 1).trim(); }
-    }
-    return out;
-  });
+  return text
+    .split(/\n\s*\n/)
+    .filter((s) => s.trim())
+    .map((stanza) => {
+      const out = {};
+      let key = null;
+      for (const line of stanza.split('\n')) {
+        // (a blank line, e.g. a trailing newline, is no field: read as one it became ": " in PACKAGES, which R cannot parse)
+        if (!line.trim()) continue;
+        if (/^\s/.test(line) && key) out[key] += ' ' + line.trim();
+        else {
+          const i = line.indexOf(':');
+          key = line.slice(0, i);
+          out[key] = line.slice(i + 1).trim();
+        }
+      }
+      return out;
+    });
 }
 
-const deps = (s) => ['Depends', 'Imports'].flatMap((f) => (s[f] ?? '').split(',')).map((d) => d.replace(/\(.*\)/, '').trim()).filter((d) => d && !BASE.has(d));
+const deps = (s) =>
+  ['Depends', 'Imports']
+    .flatMap((f) => (s[f] ?? '').split(','))
+    .map((d) => d.replace(/\(.*\)/, '').trim())
+    .filter((d) => d && !BASE.has(d));
 const md5 = (buf) => createHash('md5').update(buf).digest('hex');
 
 async function get(url) {
@@ -108,7 +230,9 @@ async function get(url) {
 
 /** The dependency closure of ROOTS. Packages in `pinned` keep their locked stanza (and so their dependencies). */
 async function resolve(pinned = {}) {
-  const index = new Map(parsePackages((await get(`${REPO}/PACKAGES`)).toString('utf8')).map((s) => [s.Package, s]));
+  const index = new Map(
+    parsePackages((await get(`${REPO}/PACKAGES`)).toString('utf8')).map((s) => [s.Package, s]),
+  );
   const own = vendored();
   const want = new Map();
   const stack = [...ROOTS];
@@ -124,7 +248,9 @@ async function resolve(pinned = {}) {
 }
 
 async function main() {
-  const webrPkg = JSON.parse(readFileSync(join(ROOT, 'node_modules', 'webr', 'package.json'), 'utf8'));
+  const webrPkg = JSON.parse(
+    readFileSync(join(ROOT, 'node_modules', 'webr', 'package.json'), 'utf8'),
+  );
   let lock;
   const adding = process.argv.includes('--add') && existsSync(LOCK);
   if (adding || process.argv.includes('--update') || !existsSync(LOCK)) {
@@ -133,22 +259,45 @@ async function main() {
     // Pin the checksum of the file actually served: the repository index can lag behind rebuilt binaries.
     const packages = {};
     for (const s of stanzas) {
-      if (pinned[s.Package]) { packages[s.Package] = pinned[s.Package]; continue; }
+      if (pinned[s.Package]) {
+        packages[s.Package] = pinned[s.Package];
+        continue;
+      }
       if (adding) console.log(`adding ${s.Package} ${s.Version}`);
       const isVendored = vendored().has(s.Package);
-      const sum = md5(isVendored ? readFileSync(join(VENDOR, `${s.Package}_${s.Version}.tgz`)) : await get(`${REPO}/${s.Package}_${s.Version}.tgz`));
-      if (!isVendored && sum !== s.MD5sum) console.warn(`note: ${s.Package} ${s.Version}: index MD5 ${s.MD5sum} is stale, pinning the served file ${sum}`);
-      packages[s.Package] = { version: s.Version, md5: sum, license: s.License, ...(isVendored ? { vendored: true } : {}), stanza: { ...s, MD5sum: sum } };
+      const sum = md5(
+        isVendored
+          ? readFileSync(join(VENDOR, `${s.Package}_${s.Version}.tgz`))
+          : await get(`${REPO}/${s.Package}_${s.Version}.tgz`),
+      );
+      if (!isVendored && sum !== s.MD5sum)
+        console.warn(
+          `note: ${s.Package} ${s.Version}: index MD5 ${s.MD5sum} is stale, pinning the served file ${sum}`,
+        );
+      packages[s.Package] = {
+        version: s.Version,
+        md5: sum,
+        license: s.License,
+        ...(isVendored ? { vendored: true } : {}),
+        stanza: { ...s, MD5sum: sum },
+      };
     }
     lock = { webr: webrPkg.version, r: R_VERSION, packages };
     writeFileSync(LOCK, JSON.stringify(lock, null, 2) + '\n');
     console.log(`Locked ${stanzas.length} packages.`);
   } else lock = JSON.parse(readFileSync(LOCK, 'utf8'));
-  if (lock.webr !== webrPkg.version) throw new Error(`webr-lock.json is for webR ${lock.webr} but ${webrPkg.version} is installed; run with --update.`);
+  if (lock.webr !== webrPkg.version)
+    throw new Error(
+      `webr-lock.json is for webR ${lock.webr} but ${webrPkg.version} is installed; run with --update.`,
+    );
   const withSources = !process.argv.includes('--no-sources');
   const stamp = join(OUT_DIR, '.lock-stamp');
   const stampText = JSON.stringify({ lock, withSources });
-  if (process.argv.includes('--if-missing') && existsSync(stamp) && readFileSync(stamp, 'utf8') === stampText) {
+  if (
+    process.argv.includes('--if-missing') &&
+    existsSync(stamp) &&
+    readFileSync(stamp, 'utf8') === stampText
+  ) {
     console.log('public/webr is up to date.');
     return;
   }
@@ -169,27 +318,46 @@ async function main() {
   let bytes = 0;
   for (const [name, p] of entries) {
     const file = `${name}_${p.version}.tgz`;
-    const buf = p.vendored ? readFileSync(join(VENDOR, file))
-      : await get(`${REPO}/${file}`).catch((e) => { throw new Error(`${e.message}\nThe pinned version may have left the repository; run with --update.`); });
-    if (md5(buf) !== p.md5) throw new Error(`${file}: MD5 mismatch (expected ${p.md5}, got ${md5(buf)}).`);
+    const buf = p.vendored
+      ? readFileSync(join(VENDOR, file))
+      : await get(`${REPO}/${file}`).catch((e) => {
+          throw new Error(
+            `${e.message}\nThe pinned version may have left the repository; run with --update.`,
+          );
+        });
+    if (md5(buf) !== p.md5)
+      throw new Error(`${file}: MD5 mismatch (expected ${p.md5}, got ${md5(buf)}).`);
     writeFileSync(join(contrib, file), buf);
     bytes += buf.length;
-    
   }
-  const stanzaText = (s) => Object.entries(s).map(([k, v]) => `${k}: ${v}`).join('\n');
+  const stanzaText = (s) =>
+    Object.entries(s)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('\n');
   const index = entries.map(([, p]) => stanzaText(p.stanza)).join('\n\n') + '\n';
   writeFileSync(join(contrib, 'PACKAGES'), index);
   writeFileSync(join(contrib, 'PACKAGES.gz'), gzipSync(index));
-  writeFileSync(join(OUT, 'LICENSES.md'), [
-    '# R packages shipped with PLS Studio',
-    '',
-    `Binaries built for webR ${lock.webr} (R ${lock.r}) by the webR project (repo.r-wasm.org); ${entries.filter(([, p]) => p.vendored).map(([n]) => n).join(', ') || 'none'} built by r-universe (cran.r-universe.dev) or, ${Object.keys(PATCHED).join(' and ')}, by PLS Studio from patched sources (see scripts/webr/fetch.mjs). Source code of each exact version is on CRAN, or served from a repository snapshot; for a patched package the served source is the modified source, with the patch (src/<package>_<version>.patch) beside it.`,
-    '',
-    '| Package | Version | Licence | Source |',
-    '|---|---|---|---|',
-    ...entries.map(([n, p]) => `| ${n} | ${p.version} | ${p.license} | src/${n}_${p.version}.tar.gz (${SNAPSHOT[n] ? `repository snapshot ${SNAPSHOT[n].commit.slice(0, 7)}` : 'from CRAN'}${PATCHED[n] ? `; patched by PLS Studio: ${PATCHED[n]}, see src/${n}_${p.version}.patch` : ''}) |`),
-    '',
-  ].join('\n'));
+  writeFileSync(
+    join(OUT, 'LICENSES.md'),
+    [
+      '# R packages shipped with PLS Studio',
+      '',
+      `Binaries built for webR ${lock.webr} (R ${lock.r}) by the webR project (repo.r-wasm.org); ${
+        entries
+          .filter(([, p]) => p.vendored)
+          .map(([n]) => n)
+          .join(', ') || 'none'
+      } built by r-universe (cran.r-universe.dev) or, ${Object.keys(PATCHED).join(' and ')}, by PLS Studio from patched sources (see scripts/webr/fetch.mjs). Source code of each exact version is on CRAN, or served from a repository snapshot; for a patched package the served source is the modified source, with the patch (src/<package>_<version>.patch) beside it.`,
+      '',
+      '| Package | Version | Licence | Source |',
+      '|---|---|---|---|',
+      ...entries.map(
+        ([n, p]) =>
+          `| ${n} | ${p.version} | ${p.license} | src/${n}_${p.version}.tar.gz (${SNAPSHOT[n] ? `repository snapshot ${SNAPSHOT[n].commit.slice(0, 7)}` : 'from CRAN'}${PATCHED[n] ? `; patched by PLS Studio: ${PATCHED[n]}, see src/${n}_${p.version}.patch` : ''}) |`,
+      ),
+      '',
+    ].join('\n'),
+  );
   // Sources for GPL compliance: CRAN tarballs of the exact versions, and webR's release source.
   const sources = {};
   if (withSources) {
@@ -200,7 +368,10 @@ async function main() {
       const cached = join(SRC_CACHE, file);
       if (!existsSync(cached)) {
         let buf = null;
-        for (const u of urls) { buf = await get(u).catch(() => null); if (buf) break; }
+        for (const u of urls) {
+          buf = await get(u).catch(() => null);
+          if (buf) break;
+        }
         if (!buf) return null;
         writeFileSync(cached, buf);
       }
@@ -210,32 +381,83 @@ async function main() {
     // (a patched package: its modified source and the patch, both kept in scripts/webr/vendor)
     const patchedSrc = (name, file) => {
       const patch = `${name}_${file.replace(`${name}_`, '').replace(/\.tar\.gz$/, '')}.patch`;
-      for (const f of [join(VENDOR, 'src', file), join(VENDOR, patch)]) if (!existsSync(f)) throw new Error(`${f} is missing: the patched source of ${name} must be vendored (see PATCHED).`);
+      for (const f of [join(VENDOR, 'src', file), join(VENDOR, patch)])
+        if (!existsSync(f))
+          throw new Error(
+            `${f} is missing: the patched source of ${name} must be vendored (see PATCHED).`,
+          );
       cpSync(join(VENDOR, 'src', file), join(srcOut, file));
       cpSync(join(VENDOR, patch), join(srcOut, patch));
       return `src/${file}`;
     };
     for (const [name, p] of entries) {
       const file = `${name}_${p.version}.tar.gz`;
-      sources[name] = PATCHED[name] ? patchedSrc(name, file) : await fetchSrc(file, SNAPSHOT[name] ? [SNAPSHOT[name].source] : [`${CRAN}/${file}`, `${CRAN}/Archive/${name}/${file}`]);
+      sources[name] = PATCHED[name]
+        ? patchedSrc(name, file)
+        : await fetchSrc(
+            file,
+            SNAPSHOT[name]
+              ? [SNAPSHOT[name].source]
+              : [`${CRAN}/${file}`, `${CRAN}/Archive/${name}/${file}`],
+          );
       if (!sources[name]) console.warn(`warning: no CRAN source found for ${name} ${p.version}`);
     }
-    sources.webr = await fetchSrc(`webr-${lock.webr}.tar.gz`, [`https://github.com/r-wasm/webr/archive/refs/tags/v${lock.webr}.tar.gz`]);
+    sources.webr = await fetchSrc(`webr-${lock.webr}.tar.gz`, [
+      `https://github.com/r-wasm/webr/archive/refs/tags/v${lock.webr}.tar.gz`,
+    ]);
     if (!sources.webr) console.warn(`warning: webR ${lock.webr} source not found`);
   }
-  writeFileSync(join(OUT, 'licenses.json'), JSON.stringify({
-    webr: { version: lock.webr, r: lock.r, license: 'GPL-3 (webR binaries, including R); MIT (webR JavaScript API)', source: sources.webr ?? null, url: `https://github.com/r-wasm/webr/releases/tag/v${lock.webr}` },
-    packages: entries.map(([name, p]) => ({ name, version: p.version, license: p.license, source: sources[name] ?? null, url: UPSTREAM[name] ?? SNAPSHOT[name]?.url ?? `https://cran.r-project.org/package=${name}`,
-      ...(UPSTREAM[name] ? { note: 'development build by webR; source: upstream repository' } : SNAPSHOT[name] ? { note: `built by PLS Studio from the repository at commit ${SNAPSHOT[name].commit} (the CRAN release is archived); source: that snapshot${PATCHED[name] ? ', patched' : ''}` } : PATCHED[name] ? { note: 'built by PLS Studio from the CRAN source, patched' } : {}),
-      ...(PATCHED[name] ? { patch: `src/${name}_${p.version}.patch`, patched: `${PATCHED[name]}, so that the package loads in webR (cubature’s WebAssembly build cannot be loaded there); no other change. The served source is the modified source.` } : {}) })),
-  }, null, 1));
+  writeFileSync(
+    join(OUT, 'licenses.json'),
+    JSON.stringify(
+      {
+        webr: {
+          version: lock.webr,
+          r: lock.r,
+          license: 'GPL-3 (webR binaries, including R); MIT (webR JavaScript API)',
+          source: sources.webr ?? null,
+          url: `https://github.com/r-wasm/webr/releases/tag/v${lock.webr}`,
+        },
+        packages: entries.map(([name, p]) => ({
+          name,
+          version: p.version,
+          license: p.license,
+          source: sources[name] ?? null,
+          url:
+            UPSTREAM[name] ?? SNAPSHOT[name]?.url ?? `https://cran.r-project.org/package=${name}`,
+          ...(UPSTREAM[name]
+            ? { note: 'development build by webR; source: upstream repository' }
+            : SNAPSHOT[name]
+              ? {
+                  note: `built by PLS Studio from the repository at commit ${SNAPSHOT[name].commit} (the CRAN release is archived); source: that snapshot${PATCHED[name] ? ', patched' : ''}`,
+                }
+              : PATCHED[name]
+                ? { note: 'built by PLS Studio from the CRAN source, patched' }
+                : {}),
+          ...(PATCHED[name]
+            ? {
+                patch: `src/${name}_${p.version}.patch`,
+                patched: `${PATCHED[name]}, so that the package loads in webR (cubature’s WebAssembly build cannot be loaded there); no other change. The served source is the modified source.`,
+              }
+            : {}),
+        })),
+      },
+      null,
+      1,
+    ),
+  );
   writeFileSync(join(OUT, '.lock-stamp'), stampText);
   const OLD = `${FINAL}.old`;
   rmSync(OLD, { recursive: true, force: true });
   if (existsSync(FINAL)) renameSync(FINAL, OLD);
   renameSync(OUT, FINAL);
   rmSync(OLD, { recursive: true, force: true });
-  console.log(`\nDone: webR ${lock.webr} runtime + ${entries.length} packages (${(bytes / 1e6).toFixed(1)} MB) in public/webr.`);
+  console.log(
+    `\nDone: webR ${lock.webr} runtime + ${entries.length} packages (${(bytes / 1e6).toFixed(1)} MB) in public/webr.`,
+  );
 }
 
-main().catch((e) => { console.error(e.message); process.exit(1); });
+main().catch((e) => {
+  console.error(e.message);
+  process.exit(1);
+});

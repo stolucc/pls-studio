@@ -8,7 +8,11 @@ describe('example topics', () => {
   it('are derived from what the example contains', () => {
     expect(tagsOf('lavaan-hs')).toEqual(['CB-SEM', 'CFA']);
     expect(tagsOf('lavaan-hs-means')).toEqual(['CB-SEM', 'CFA', 'Mean structure']);
-    expect(tagsOf('did-mpdta')).toEqual(['Causal inference', 'Difference-in-differences', 'Panel data']);
+    expect(tagsOf('did-mpdta')).toEqual([
+      'Causal inference',
+      'Difference-in-differences',
+      'Panel data',
+    ]);
     expect(tagsOf('mass-quine')).toEqual(['Regression', 'Count data']);
     expect(tagsOf('mass-birthwt')).toEqual(['Regression', 'Logistic regression']);
     expect(tagsOf('seminr-interaction-methods')).toEqual(['PLS-SEM', 'Moderation', 'Composites']);
@@ -18,14 +22,27 @@ describe('example topics', () => {
     expect(tagsOf('modsem-oneint')).toEqual(['CB-SEM', 'Moderation']);
     expect(tagsOf('manymome-modmed')).toEqual(['CPA', 'Mediation', 'Moderation', 'Covariates']);
     expect(tagsOf('csem-2ndorder')).toEqual(['PLSc', 'Mediation', 'Second-order', 'Composites']);
-    expect(tagsOf('csem-2ndorder-repeated')).toEqual(['PLSc', 'Mediation', 'Second-order', 'Composites']);
-    expect(tagsOf('seminr-corprep')).toEqual(['PLS-SEM', 'Mediation', 'Composites', 'Bootstrap'].filter((t) => t !== 'Bootstrap'));
+    expect(tagsOf('csem-2ndorder-repeated')).toEqual([
+      'PLSc',
+      'Mediation',
+      'Second-order',
+      'Composites',
+    ]);
+    expect(tagsOf('seminr-corprep')).toEqual(
+      ['PLS-SEM', 'Mediation', 'Composites', 'Bootstrap'].filter((t) => t !== 'Bootstrap'),
+    );
     expect(tagsOf('csem-gender')).toEqual(['PLSc', 'Mediation', 'Composites', 'Multigroup']);
     expect(tagsOf('miivsem-bollen')).toEqual(['MIIV-2SLS', 'Mediation', 'Correlated errors']);
     expect(tagsOf('rsem-mardia')).toEqual(['CB-SEM', 'Robust ML', 'FIML', 'CFA']);
     expect(tagsOf('mice-nhanes')).toEqual(['CB-SEM', 'Multiple imputation']);
     expect(tagsOf('rendo-copula')).toEqual(['Regression', 'Endogeneity', 'Shipped data']);
-    expect(tagsOf('mulder-riclpm')).toEqual(['FIML', 'Longitudinal', 'Panel data', 'Cross-lagged', 'Downloaded data']);
+    expect(tagsOf('mulder-riclpm')).toEqual([
+      'FIML',
+      'Longitudinal',
+      'Panel data',
+      'Cross-lagged',
+      'Downloaded data',
+    ]);
     expect(tagsOf('ivreg-kmenta')).toEqual(['Regression', 'Endogeneity', 'Instrumental variables']);
     expect(tagsOf('plspm-rebus')).toEqual(['PLS-SEM', 'Segmentation']);
     expect(tagsOf('haven-iris')).toEqual(['Measurement', 'Factor analysis', 'PCA', 'File import']);
@@ -34,8 +51,12 @@ describe('example topics', () => {
   it('give every example at least two tags, and the topic list is in alphabetical order', () => {
     for (const e of PACKAGE_EXAMPLES) expect(exampleTags(e).length, e.id).toBeGreaterThanOrEqual(2);
     const all = allTags(PACKAGE_EXAMPLES);
-    expect(all).toEqual([...all].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b)));
-    expect(sortTopics(['b', 'A', 'a', 'C', 'b'])).toEqual(['a', 'A', 'b', 'C']);  // (once each; case ignored, then lower case first)
+    expect(all).toEqual(
+      [...all].sort(
+        (a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }) || a.localeCompare(b),
+      ),
+    );
+    expect(sortTopics(['b', 'A', 'a', 'C', 'b'])).toEqual(['a', 'A', 'b', 'C']); // (once each; case ignored, then lower case first)
     expect(all).toContain('Moderation');
     expect(new Set(all).size).toBe(all.length);
   });

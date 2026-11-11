@@ -20,7 +20,12 @@ describe('one warning from R', () => {
 
   it('reaches Messages even if a result still carries it as a string', () => {
     useStore.setState({ messages: [], settings: DEFAULT_SETTINGS });
-    useStore.getState().setResults({ cb: { warnings: one, engine: { package: 'lavaan', version: '0.7-3' } } as never }, 'k');
+    useStore
+      .getState()
+      .setResults(
+        { cb: { warnings: one, engine: { package: 'lavaan', version: '0.7-3' } } as never },
+        'k',
+      );
     expect(useStore.getState().messages.map((m) => m.text)).toEqual([one]);
   });
 });

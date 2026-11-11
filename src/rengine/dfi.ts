@@ -12,11 +12,36 @@ import type { REngineInfo } from './lavaan';
 const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
 
 /** The dynamic functions the card calls (all take the lavaan fit; likert*, nnor* and DDDFI off the normal scale take the data too). */
-export const DFI_FUNCTIONS = ['cfaOne', 'cfaHB', 'catOne', 'catHB', 'likertOne', 'likertHB', 'nnorOne', 'nnorHB', 'hier1HB', 'hier2', 'exactFit', 'equivTest', 'DDDFI'] as const;
+export const DFI_FUNCTIONS = [
+  'cfaOne',
+  'cfaHB',
+  'catOne',
+  'catHB',
+  'likertOne',
+  'likertHB',
+  'nnorOne',
+  'nnorHB',
+  'hier1HB',
+  'hier2',
+  'exactFit',
+  'equivTest',
+  'DDDFI',
+] as const;
 export type DfiFn = (typeof DFI_FUNCTIONS)[number];
 export type DfiScale = 'normal' | 'nonnormal' | 'categorical';
 /** Estimators dynamic lets the simulations use (the package's own default when ''). */
-export const DFI_ESTIMATORS = ['ML', 'MLR', 'MLM', 'MLMV', 'WLSMV', 'ULSMV', 'DWLS', 'WLS', 'ULS', 'GLS'] as const;
+export const DFI_ESTIMATORS = [
+  'ML',
+  'MLR',
+  'MLM',
+  'MLMV',
+  'WLSMV',
+  'ULSMV',
+  'DWLS',
+  'WLS',
+  'ULS',
+  'GLS',
+] as const;
 export type DfiEstimator = (typeof DFI_ESTIMATORS)[number];
 
 export interface DfiArgs {
@@ -32,7 +57,11 @@ export interface DfiArgs {
 }
 
 /** A table as the package prints it: row names, column names and character cells. */
-export interface DfiTable { rows: string[]; columns: string[]; cells: string[][] }
+export interface DfiTable {
+  rows: string[];
+  columns: string[];
+  cells: string[][];
+}
 
 export interface DfiResult {
   fn: DfiFn;
@@ -54,30 +83,57 @@ export interface DfiResult {
   engine: REngineInfo & { lavaan?: string };
 }
 
-const req = (c: CbCall, a: DfiArgs) => cbCallRequest(c, {
-  dfi: { fn: a.fn, reps: a.reps, ...(a.estimator ? { estimator: a.estimator } : {}), scale: a.scale, ...(a.fn === 'DDDFI' && a.mad.length ? { mad: a.mad } : {}) },
-});
+const req = (c: CbCall, a: DfiArgs) =>
+  cbCallRequest(c, {
+    dfi: {
+      fn: a.fn,
+      reps: a.reps,
+      ...(a.estimator ? { estimator: a.estimator } : {}),
+      scale: a.scale,
+      ...(a.fn === 'DDDFI' && a.mad.length ? { mad: a.mad } : {}),
+    },
+  });
 
 function table(v: unknown): DfiTable | null {
   if (!v || typeof v !== 'object') return null;
   const t = v as Record<string, unknown>;
-  const rows = rList<unknown>(t.rows).map(str), columns = rList<unknown>(t.columns).map(str);
+  const rows = rList<unknown>(t.rows).map(str),
+    columns = rList<unknown>(t.columns).map(str);
   const cells = rList<unknown>(t.cells).map((r) => rList<unknown>(r).map(str));
   return columns.length ? { rows, columns, cells } : null;
 }
 
 export function parseDfiOutput(r: Record<string, any>): DfiResult {
-  const d = r.data && typeof r.data === 'object' ? r.data as Record<string, unknown> : null;
+  const d = r.data && typeof r.data === 'object' ? (r.data as Record<string, unknown>) : null;
   const names = d ? rList<unknown>(d.names).map(str) : [];
   const colsRaw = d?.cols;
-  const cols = names.map((n, i) => rList<unknown>(Array.isArray(colsRaw) ? colsRaw[i] : (colsRaw as Record<string, unknown> | undefined)?.[n]).map((x) => (typeof x === 'number' ? x : NaN)));
-  const e = r.equiv && typeof r.equiv === 'object' ? r.equiv as Record<string, unknown> : null;
+  const cols = names.map((n, i) =>
+    rList<unknown>(
+      Array.isArray(colsRaw) ? colsRaw[i] : (colsRaw as Record<string, unknown> | undefined)?.[n],
+    ).map((x) => (typeof x === 'number' ? x : NaN)),
+  );
+  const e = r.equiv && typeof r.equiv === 'object' ? (r.equiv as Record<string, unknown>) : null;
   return {
-    fn: r.fn, reps: typeof r.reps === 'number' ? r.reps : null, n: Number(r.n), estimator: typeof r.estimator === 'string' ? r.estimator : null,
-    scale: r.scale === 'nonnormal' || r.scale === 'categorical' || r.scale === 'normal' ? r.scale : null,
-    cutoffs: table(r.cutoffs), fit: table(r.fit), data: names.length ? { names, cols } : null,
-    equiv: e ? { rmsea: str(e.rmsea), cfi: str(e.cfi), rmseaBins: rList<unknown>(e.rmseaBins).map(str), cfiBins: rList<unknown>(e.cfiBins).map(str) } : null,
-    printed: rStrings(r.printed), warnings: rStrings(r.warnings), engine: r.engine,
+    fn: r.fn,
+    reps: typeof r.reps === 'number' ? r.reps : null,
+    n: Number(r.n),
+    estimator: typeof r.estimator === 'string' ? r.estimator : null,
+    scale:
+      r.scale === 'nonnormal' || r.scale === 'categorical' || r.scale === 'normal' ? r.scale : null,
+    cutoffs: table(r.cutoffs),
+    fit: table(r.fit),
+    data: names.length ? { names, cols } : null,
+    equiv: e
+      ? {
+          rmsea: str(e.rmsea),
+          cfi: str(e.cfi),
+          rmseaBins: rList<unknown>(e.rmseaBins).map(str),
+          cfiBins: rList<unknown>(e.cfiBins).map(str),
+        }
+      : null,
+    printed: rStrings(r.printed),
+    warnings: rStrings(r.warnings),
+    engine: r.engine,
   };
 }
 

@@ -5,32 +5,107 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../model/project';
 import { ANALYSIS_TYPES } from './registry';
-import { anovaAnalysis, BAYESREL_ITERATIONS, contingencyAnalysis, correlationAnalysis, freqTestAnalysis, manovaAnalysis, relInput, reliabilityAnalysis, rmAnovaAnalysis, ttestAnalysis } from './tests';
+import {
+  anovaAnalysis,
+  BAYESREL_ITERATIONS,
+  contingencyAnalysis,
+  correlationAnalysis,
+  freqTestAnalysis,
+  manovaAnalysis,
+  relInput,
+  reliabilityAnalysis,
+  rmAnovaAnalysis,
+  ttestAnalysis,
+} from './tests';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReliabilityResult } from '../rengine/tests';
 import type { AnalysisCtx } from './types';
 
-const data = { names: ['y', 'x', 'g', 'h'], cols: [new Float64Array([1, 2, 3, 4]), new Float64Array([2, 3, 4, 6]), new Float64Array([1, 1, 2, 2]), new Float64Array([1, 2, 1, 2])], categories: { g: ['a', 'b'] } };
-const ctx = { data, info: null, settings: DEFAULT_SETTINGS, pls: null, projectName: 'p' } as unknown as AnalysisCtx;
+const data = {
+  names: ['y', 'x', 'g', 'h'],
+  cols: [
+    new Float64Array([1, 2, 3, 4]),
+    new Float64Array([2, 3, 4, 6]),
+    new Float64Array([1, 1, 2, 2]),
+    new Float64Array([1, 2, 1, 2]),
+  ],
+  categories: { g: ['a', 'b'] },
+};
+const ctx = {
+  data,
+  info: null,
+  settings: DEFAULT_SETTINGS,
+  pls: null,
+  projectName: 'p',
+} as unknown as AnalysisCtx;
 
 describe('basic-statistics cards', () => {
   it('are in the Add menu under Basic statistics, before regression', () => {
     const ids = ANALYSIS_TYPES.map((t) => t.id);
-    for (const id of ['ttest', 'anova', 'rmanova', 'manova', 'correlation', 'contingency', 'freqtest', 'reliability']) {
+    for (const id of [
+      'ttest',
+      'anova',
+      'rmanova',
+      'manova',
+      'correlation',
+      'contingency',
+      'freqtest',
+      'reliability',
+    ]) {
       expect(ids, id).toContain(id);
       expect(ANALYSIS_TYPES.find((t) => t.id === id)!.group).toBe('Basic statistics');
       expect(ids.indexOf(id)).toBeLessThan(ids.indexOf('regression'));
     }
   });
   it('parse their options from a file, replacing invalid values', () => {
-    const t = ttestAnalysis.parseOptions({ type: 'paired', pairs: [['y', 'x'], 'junk'], alternative: 'sideways', testValue: 'NaN', student: false, rank: true })!;
-    expect(t).toMatchObject({ type: 'paired', pairs: [['y', 'x']], alternative: 'two.sided', testValue: 0, student: false, rank: true, welch: false });
-    expect(anovaAnalysis.parseOptions({ dependent: 'y', factors: ['g'], ssType: 'II' })).toMatchObject({ ssType: 'III', interactions: true });
-    expect(rmAnovaAnalysis.parseOptions({ levels: ['y', 'x'], factorName: '' })).toMatchObject({ factorName: 'condition' });
-    expect(correlationAnalysis.parseOptions({ vars: ['y', 'x'], method: 'distance' })).toMatchObject({ method: 'pearson', deletion: 'pairwise' });
-    expect(freqTestAnalysis.parseOptions({ type: 'multinomial', variable: 'g', proportions: [1, -1, 'x', 2], testValue: 2 })).toMatchObject({ proportions: [1, 2], testValue: 0.5 });
-    expect(reliabilityAnalysis.parseOptions({ type: 'cronbach', vars: ['y', 'x'] })).toEqual({ type: 'scale', vars: ['y', 'x'] });
-    for (const a of [ttestAnalysis, anovaAnalysis, rmAnovaAnalysis, manovaAnalysis, correlationAnalysis, contingencyAnalysis, freqTestAnalysis, reliabilityAnalysis]) {
+    const t = ttestAnalysis.parseOptions({
+      type: 'paired',
+      pairs: [['y', 'x'], 'junk'],
+      alternative: 'sideways',
+      testValue: 'NaN',
+      student: false,
+      rank: true,
+    })!;
+    expect(t).toMatchObject({
+      type: 'paired',
+      pairs: [['y', 'x']],
+      alternative: 'two.sided',
+      testValue: 0,
+      student: false,
+      rank: true,
+      welch: false,
+    });
+    expect(
+      anovaAnalysis.parseOptions({ dependent: 'y', factors: ['g'], ssType: 'II' }),
+    ).toMatchObject({ ssType: 'III', interactions: true });
+    expect(rmAnovaAnalysis.parseOptions({ levels: ['y', 'x'], factorName: '' })).toMatchObject({
+      factorName: 'condition',
+    });
+    expect(
+      correlationAnalysis.parseOptions({ vars: ['y', 'x'], method: 'distance' }),
+    ).toMatchObject({ method: 'pearson', deletion: 'pairwise' });
+    expect(
+      freqTestAnalysis.parseOptions({
+        type: 'multinomial',
+        variable: 'g',
+        proportions: [1, -1, 'x', 2],
+        testValue: 2,
+      }),
+    ).toMatchObject({ proportions: [1, 2], testValue: 0.5 });
+    expect(reliabilityAnalysis.parseOptions({ type: 'cronbach', vars: ['y', 'x'] })).toEqual({
+      type: 'scale',
+      vars: ['y', 'x'],
+    });
+    for (const a of [
+      ttestAnalysis,
+      anovaAnalysis,
+      rmAnovaAnalysis,
+      manovaAnalysis,
+      correlationAnalysis,
+      contingencyAnalysis,
+      freqTestAnalysis,
+      reliabilityAnalysis,
+    ]) {
       expect(a.parseOptions(null), a.id).toBeNull();
       expect(a.parseOptions(a.defaults(ctx)), a.id).toEqual(a.defaults(ctx));
     }
@@ -40,24 +115,64 @@ describe('basic-statistics cards', () => {
     expect(ttestAnalysis.blocked(tt, ctx)).toMatch(/at least one variable/);
     expect(ttestAnalysis.blocked({ ...tt, vars: ['y'] }, ctx)).toMatch(/grouping variable/);
     expect(ttestAnalysis.blocked({ ...tt, vars: ['y'], group: 'g' }, ctx)).toBeNull();
-    expect(ttestAnalysis.blocked({ ...tt, type: 'paired', pairs: [['y', 'y']] }, ctx)).toMatch(/two different/);
-    expect(ttestAnalysis.blocked({ ...tt, vars: ['y'], group: 'g', student: false, welch: false, rank: false }, ctx)).toMatch(/at least one test/);
-    expect(anovaAnalysis.blocked({ ...anovaAnalysis.defaults(ctx), dependent: 'y' }, ctx)).toMatch(/factor/);
-    expect(anovaAnalysis.blocked({ ...anovaAnalysis.defaults(ctx), dependent: 'y', factors: ['g'], covariates: ['x'] }, ctx)).toBeNull();
-    expect(rmAnovaAnalysis.blocked({ levels: ['y', 'x'], factorName: '1bad', between: '' }, ctx)).toMatch(/start with a letter/);
-    expect(rmAnovaAnalysis.blocked({ levels: ['y', 'x'], factorName: 'time', between: 'g' }, ctx)).toBeNull();
-    expect(manovaAnalysis.blocked({ dependents: ['y'], factors: ['g'], interactions: true }, ctx)).toMatch(/two dependent/);
-    expect(correlationAnalysis.blocked({ ...correlationAnalysis.defaults(ctx), vars: ['y', 'gone'] }, ctx)).toMatch(/gone/);
-    expect(contingencyAnalysis.blocked({ rows: 'g', columns: 'g', counts: '' }, ctx)).toMatch(/two different/);
-    expect(freqTestAnalysis.blocked({ ...freqTestAnalysis.defaults(ctx), variable: 'g' }, ctx)).toBeNull();
-    expect(reliabilityAnalysis.blocked({ type: 'kappa', vars: ['y', 'x', 'h'] }, ctx)).toMatch(/exactly two/);
-    expect(reliabilityAnalysis.blocked({ type: 'scale', vars: ['y'] }, ctx)).toMatch(/at least two/);
+    expect(ttestAnalysis.blocked({ ...tt, type: 'paired', pairs: [['y', 'y']] }, ctx)).toMatch(
+      /two different/,
+    );
+    expect(
+      ttestAnalysis.blocked(
+        { ...tt, vars: ['y'], group: 'g', student: false, welch: false, rank: false },
+        ctx,
+      ),
+    ).toMatch(/at least one test/);
+    expect(anovaAnalysis.blocked({ ...anovaAnalysis.defaults(ctx), dependent: 'y' }, ctx)).toMatch(
+      /factor/,
+    );
+    expect(
+      anovaAnalysis.blocked(
+        { ...anovaAnalysis.defaults(ctx), dependent: 'y', factors: ['g'], covariates: ['x'] },
+        ctx,
+      ),
+    ).toBeNull();
+    expect(
+      rmAnovaAnalysis.blocked({ levels: ['y', 'x'], factorName: '1bad', between: '' }, ctx),
+    ).toMatch(/start with a letter/);
+    expect(
+      rmAnovaAnalysis.blocked({ levels: ['y', 'x'], factorName: 'time', between: 'g' }, ctx),
+    ).toBeNull();
+    expect(
+      manovaAnalysis.blocked({ dependents: ['y'], factors: ['g'], interactions: true }, ctx),
+    ).toMatch(/two dependent/);
+    expect(
+      correlationAnalysis.blocked(
+        { ...correlationAnalysis.defaults(ctx), vars: ['y', 'gone'] },
+        ctx,
+      ),
+    ).toMatch(/gone/);
+    expect(contingencyAnalysis.blocked({ rows: 'g', columns: 'g', counts: '' }, ctx)).toMatch(
+      /two different/,
+    );
+    expect(
+      freqTestAnalysis.blocked({ ...freqTestAnalysis.defaults(ctx), variable: 'g' }, ctx),
+    ).toBeNull();
+    expect(reliabilityAnalysis.blocked({ type: 'kappa', vars: ['y', 'x', 'h'] }, ctx)).toMatch(
+      /exactly two/,
+    );
+    expect(reliabilityAnalysis.blocked({ type: 'scale', vars: ['y'] }, ctx)).toMatch(
+      /at least two/,
+    );
     expect(reliabilityAnalysis.blocked({ type: 'icc', vars: ['y', 'x', 'h'] }, ctx)).toBeNull();
   });
   it('change their fingerprint with the options that change the result', () => {
     const o = { ...correlationAnalysis.defaults(ctx), vars: ['y', 'x'] };
-    expect(correlationAnalysis.fingerprint(o, ctx)).not.toBe(correlationAnalysis.fingerprint({ ...o, method: 'kendall' }, ctx));
-    expect(correlationAnalysis.fingerprint(o, ctx)).not.toBe(correlationAnalysis.fingerprint(o, { ...ctx, settings: { ...DEFAULT_SETTINGS, confidence: 0.9 } }));
+    expect(correlationAnalysis.fingerprint(o, ctx)).not.toBe(
+      correlationAnalysis.fingerprint({ ...o, method: 'kendall' }, ctx),
+    );
+    expect(correlationAnalysis.fingerprint(o, ctx)).not.toBe(
+      correlationAnalysis.fingerprint(o, {
+        ...ctx,
+        settings: { ...DEFAULT_SETTINGS, confidence: 0.9 },
+      }),
+    );
   });
 });
 
@@ -66,7 +181,11 @@ describe('Bayesian scale reliability (Bayesrel)', () => {
   const o = { type: 'scale' as const, vars: ['y', 'x', 'h'], bayes: true as const };
 
   it('keeps the options from a project file only when valid', () => {
-    expect(t.parseOptions({ ...o, bayesGlb: true, iterations: 2000 })).toEqual({ ...o, bayesGlb: true, iterations: 2000 });
+    expect(t.parseOptions({ ...o, bayesGlb: true, iterations: 2000 })).toEqual({
+      ...o,
+      bayesGlb: true,
+      iterations: 2000,
+    });
     expect(t.parseOptions({ ...o, iterations: 5 })!.iterations).toBe(100);
     expect(t.parseOptions({ ...o, iterations: '2000' })!.iterations).toBe(BAYESREL_ITERATIONS);
     const plain = t.parseOptions({ type: 'scale', vars: ['y', 'x'], bayes: 'yes', bayesGlb: 1 })!;
@@ -74,7 +193,11 @@ describe('Bayesian scale reliability (Bayesrel)', () => {
   });
 
   it('sends the seed of the settings and the iterations with the scale analysis only', () => {
-    expect(relInput(o, { settings: { ...DEFAULT_SETTINGS, seed: 7 } })).toMatchObject({ bayes: true, iterations: 1000, seed: 7 });
+    expect(relInput(o, { settings: { ...DEFAULT_SETTINGS, seed: 7 } })).toMatchObject({
+      bayes: true,
+      iterations: 1000,
+      seed: 7,
+    });
     expect('bayesGlb' in relInput(o, ctx)).toBe(false);
     expect(relInput({ ...o, bayesGlb: true }, ctx)).toMatchObject({ bayesGlb: true });
     const icc = relInput({ ...o, type: 'icc' }, ctx);
@@ -90,20 +213,33 @@ describe('Bayesian scale reliability (Bayesrel)', () => {
     expect(t.fingerprint({ ...o, bayesGlb: true }, ctx)).not.toBe(f);
     // Without the Bayesian estimates the seed does not matter.
     const plain = { type: 'scale' as const, vars: ['y', 'x', 'h'] };
-    expect(t.fingerprint(plain, { ...ctx, settings: { ...DEFAULT_SETTINGS, seed: 99 } })).toBe(t.fingerprint(plain, ctx));
+    expect(t.fingerprint(plain, { ...ctx, settings: { ...DEFAULT_SETTINGS, seed: 99 } })).toBe(
+      t.fingerprint(plain, ctx),
+    );
   });
 
   it('shows the posterior means, credible intervals and convergence with the source', () => {
     const result = {
-      type: 'scale', vars: ['y', 'x', 'h'], n: 78, confidence: 0.95, alpha: 0.8, items: [],
+      type: 'scale',
+      vars: ['y', 'x', 'h'],
+      n: 78,
+      confidence: 0.95,
+      alpha: 0.8,
+      items: [],
       bayes: {
         estimates: [
           { estimate: 'alpha', mean: 0.786, low: 0.714, high: 0.857, rhat: 1.0001, ess: 2800 },
           { estimate: 'omega', mean: 0.774, low: 0.696, high: 0.852, rhat: 1.05, ess: 300 },
         ],
-        interval: 0.95, iterations: 1000, burnin: 50, chains: 3, seed: 1, version: '0.8.0',
+        interval: 0.95,
+        iterations: 1000,
+        burnin: 50,
+        chains: 3,
+        seed: 1,
+        version: '0.8.0',
       },
-      warnings: [], engine: { package: 'psych', version: '2.6.9' },
+      warnings: [],
+      engine: { package: 'psych', version: '2.6.9' },
     } as unknown as ReliabilityResult;
     const html = renderToStaticMarkup(<t.View result={result} options={o} current />);
     expect(html).toContain('Bayesian reliability (posterior)');

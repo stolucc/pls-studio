@@ -14,7 +14,13 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'means', 'reference.json'), 'utf8')) as { chisq: number; df: number; intercepts: { lhs: string; est: number; se: number; std: number }[] };
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'means', 'reference.json'), 'utf8'),
+) as {
+  chisq: number;
+  df: number;
+  intercepts: { lhs: string; est: number; se: number; std: number }[];
+};
 
 const spec: ModelSpec = {
   constructs: [
@@ -22,7 +28,10 @@ const spec: ModelSpec = {
     { name: 'textual', type: 'factor', mode: 'A', indicators: ['x4', 'x5', 'x6'] },
     { name: 'ageyr', type: 'factor', mode: 'A', indicators: ['ageyr'], covariate: true },
   ],
-  paths: [{ from: 'visual', to: 'textual' }, { from: 'ageyr', to: 'textual' }],
+  paths: [
+    { from: 'visual', to: 'textual' },
+    { from: 'ageyr', to: 'textual' },
+  ],
   meanStructure: true,
   // One arrow, visual's latent mean; ageyr's intercept comes with the mean structure (lavaan fixes an
   // exogenous covariate's mean at the sample mean, fixed.x); an arrow to it would estimate it freely.
@@ -30,8 +39,15 @@ const spec: ModelSpec = {
 };
 
 it('estimates a latent mean and intercepts as lavaan does (meanstructure = TRUE)', async () => {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
-  const data = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+    'ps_dataset',
+    { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] },
+    'lavaan',
+  );
+  const data = {
+    names: raw.names,
+    cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+  };
   const r = await estimateCbLavaan(data, spec, 'casewise', 'ML', 'product');
   expect(r.converged).toBe(true);
   expect(r.seType).toBe('standard');
@@ -41,8 +57,9 @@ it('estimates a latent mean and intercepts as lavaan does (meanstructure = TRUE)
   for (const x of ref.intercepts) {
     const e = means.find((m) => m.lhs === x.lhs)!;
     expect(e, x.lhs).toBeTruthy();
-    expect(e.est, x.lhs).toBeCloseTo(x.est, 4);  // (webR and native R optimise to slightly different tolerances)
-    if (x.se > 0) expect(e.se, x.lhs).toBeCloseTo(x.se, 4); else expect(e.se).toBeNull();
+    expect(e.est, x.lhs).toBeCloseTo(x.est, 4); // (webR and native R optimise to slightly different tolerances)
+    if (x.se > 0) expect(e.se, x.lhs).toBeCloseTo(x.se, 4);
+    else expect(e.se).toBeNull();
     expect(e.kind).toBe(x.lhs === 'visual' || x.lhs === 'textual' ? 'mean' : 'intercept');
   }
   // The script says what it does: the marker intercept fixed, the mean structure on.

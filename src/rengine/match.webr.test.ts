@@ -14,33 +14,66 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'match', 'reference.json'), 'utf8'));
-const base: MatchInput = { treatment: 'treat', covariates: ['age', 'educ', 'race', 'married', 'nodegree', 're74', 're75'], outcome: 're78',
-  method: 'nearest', distance: 'glm', estimand: 'ATT', ratio: 1, caliper: null, replace: false, seed: 1, confidence: 0.95 };
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'match', 'reference.json'), 'utf8'),
+);
+const base: MatchInput = {
+  treatment: 'treat',
+  covariates: ['age', 'educ', 'race', 'married', 'nodegree', 're74', 're75'],
+  outcome: 're78',
+  method: 'nearest',
+  distance: 'glm',
+  estimand: 'ATT',
+  ratio: 1,
+  caliper: null,
+  replace: false,
+  seed: 1,
+  confidence: 0.95,
+};
 
 describe('MatchIt on lalonde', () => {
   const load = async () => {
-    const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: 'MatchIt', name: 'lalonde', na: [] }, 'MatchIt');
-    return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), ...categoriesOf(raw.levels) };
+    const raw = await rCall<{
+      names: string[];
+      cols: (number | null)[][];
+      levels?: Record<string, string[]>;
+    }>('ps_dataset', { package: 'MatchIt', name: 'lalonde', na: [] }, 'MatchIt');
+    return {
+      names: raw.names,
+      cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+      ...categoriesOf(raw.levels),
+    };
   };
-  it.each([['nearest', 'ATT', 'nearest'], ['full', 'ATT', 'full'], ['full', 'ATE', 'fullATE']] as const)('%s matching (%s): sample sizes, balance and the effect equal native R', async (method, estimand, key) => {
-    const data = await load();
-    expect(data.categories?.race).toEqual(['black', 'hispan', 'white']);
-    const r = await matchR(data, { ...base, method, estimand });
-    const n = ref[key];
-    r.counts.forEach((x, i) => expect(x.treated).toBeCloseTo(n.nn[i], 8));
-    for (const [k, v] of Object.entries(n.diffAfter as Record<string, number>)) {
-      const name = k === 'distance' ? 'Propensity score' : k;
-      expect(r.balance.find((b) => b.variable === name)!.diffAfter, k).toBeCloseTo(v, 6);
-    }
-    expect(r.effect!.est).toBeCloseTo(n.effect.est, 4);
-    // (marginaleffects differentiates numerically: agreement to about 7 significant digits)
-    expect(r.effect!.se / n.effect.se).toBeCloseTo(1, 6);
-  }, 900_000);
+  it.each([
+    ['nearest', 'ATT', 'nearest'],
+    ['full', 'ATT', 'full'],
+    ['full', 'ATE', 'fullATE'],
+  ] as const)(
+    '%s matching (%s): sample sizes, balance and the effect equal native R',
+    async (method, estimand, key) => {
+      const data = await load();
+      expect(data.categories?.race).toEqual(['black', 'hispan', 'white']);
+      const r = await matchR(data, { ...base, method, estimand });
+      const n = ref[key];
+      r.counts.forEach((x, i) => expect(x.treated).toBeCloseTo(n.nn[i], 8));
+      for (const [k, v] of Object.entries(n.diffAfter as Record<string, number>)) {
+        const name = k === 'distance' ? 'Propensity score' : k;
+        expect(r.balance.find((b) => b.variable === name)!.diffAfter, k).toBeCloseTo(v, 6);
+      }
+      expect(r.effect!.est).toBeCloseTo(n.effect.est, 4);
+      // (marginaleffects differentiates numerically: agreement to about 7 significant digits)
+      expect(r.effect!.se / n.effect.se).toBeCloseTo(1, 6);
+    },
+    900_000,
+  );
 
   it('the script carries the matching call and the factor coding', async () => {
     const s = await matchScriptR(await load(), base);
-    expect(s).toContain('m <- matchit(treat ~ age + educ + race + married + nodegree + re74 + re75, data = data, method = "nearest", distance = "glm", estimand = "ATT")');
-    expect(s).toContain('data$race <- factor(data$race, levels = seq_len(3), labels = c("black", "hispan", "white"))');
+    expect(s).toContain(
+      'm <- matchit(treat ~ age + educ + race + married + nodegree + re74 + re75, data = data, method = "nearest", distance = "glm", estimand = "ATT")',
+    );
+    expect(s).toContain(
+      'data$race <- factor(data$race, levels = seq_len(3), labels = c("black", "hispan", "white"))',
+    );
   }, 900_000);
 });

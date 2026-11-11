@@ -12,7 +12,17 @@ import {
   type PsemResult,
   type PsemStandardize,
 } from '../rengine/psem';
-import { Choice, ColumnSelect, columnsFingerprint, Hint, isObj, missingColumns, name, oneOf, rawData } from './common';
+import {
+  Choice,
+  ColumnSelect,
+  columnsFingerprint,
+  Hint,
+  isObj,
+  missingColumns,
+  name,
+  oneOf,
+  rawData,
+} from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 /**
@@ -56,14 +66,19 @@ function PsemOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<PsemOp
   const columns = rawData(ctx)?.names ?? [];
   const intro = (
     <Hint>
-      Piecewise (local) estimation of the path model on the canvas: every variable with arrows into it gets its own
-      regression, so each outcome can have its own distribution, and the model is tested by the independences the
-      diagram implies (Shipley’s d-separation test, Fisher’s C; Lefcheck 2016). Each variable on the canvas must be one
-      data column.
+      Piecewise (local) estimation of the path model on the canvas: every variable with arrows into
+      it gets its own regression, so each outcome can have its own distribution, and the model is
+      tested by the independences the diagram implies (Shipley’s d-separation test, Fisher’s C;
+      Lefcheck 2016). Each variable on the canvas must be one data column.
     </Hint>
   );
   if (typeof s === 'string') {
-    return <fieldset className="card-options" disabled={disabled}>{intro}<div className="empty-results">{s}</div></fieldset>;
+    return (
+      <fieldset className="card-options" disabled={disabled}>
+        {intro}
+        <div className="empty-results">{s}</div>
+      </fieldset>
+    );
   }
   const used = psemColumns(s);
   const nonNormal = s.equations.some((e) => (o.families[e.y] ?? 'gaussian') !== 'gaussian');
@@ -78,32 +93,56 @@ function PsemOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<PsemOp
       {intro}
       {s.equations.map((e) => (
         <div className="field" key={e.y}>
-          <label htmlFor={`psem-family-${e.y}`}>{e.y} ← {e.x.join(', ')}</label>
-          <select id={`psem-family-${e.y}`} className="select" value={o.families[e.y] ?? 'gaussian'}
-            onChange={(ev) => setFamily(e.y, ev.target.value as PsemFamily)}>
-            {PSEM_FAMILIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          <label htmlFor={`psem-family-${e.y}`}>
+            {e.y} ← {e.x.join(', ')}
+          </label>
+          <select
+            id={`psem-family-${e.y}`}
+            className="select"
+            value={o.families[e.y] ?? 'gaussian'}
+            onChange={(ev) => setFamily(e.y, ev.target.value as PsemFamily)}
+          >
+            {PSEM_FAMILIES.map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
       ))}
-      <ColumnSelect id="psem-group" label="Random intercept for (optional)" value={o.group ?? ''} columns={columns}
-        exclude={used} optional="None: lm / glm"
-        onChange={(group) => set({ ...o, group: group || undefined })} />
+      <ColumnSelect
+        id="psem-group"
+        label="Random intercept for (optional)"
+        value={o.group ?? ''}
+        columns={columns}
+        exclude={used}
+        optional="None: lm / glm"
+        onChange={(group) => set({ ...o, group: group || undefined })}
+      />
       <div className="hint">
-        With a grouping column (e.g. site) every equation is a mixed model with a random intercept per group
-        (lme4’s lmer and glmer); the tests of mixed models use Kenward–Roger degrees of freedom.
+        With a grouping column (e.g. site) every equation is a mixed model with a random intercept
+        per group (lme4’s lmer and glmer); the tests of mixed models use Kenward–Roger degrees of
+        freedom.
       </div>
       {nonNormal && (
-        <Choice label="Standardising non-normal outcomes" value={o.standardize} options={PSEM_STANDARDIZE}
+        <Choice
+          label="Standardising non-normal outcomes"
+          value={o.standardize}
+          options={PSEM_STANDARDIZE}
           onChange={(standardize) => set({ ...o, standardize })}
-          hint={o.standardize === 'latent.linear'
-            ? 'Binary outcomes: on the scale of a latent propensity (the variance of the linear predictor plus π²/3); Poisson outcomes always by the observation-empirical rule (piecewiseSEM).'
-            : 'The variance of the linear predictor divided by the squared correlation of the observed and predicted values (Menard); not available for mixed models.'} />
+          hint={
+            o.standardize === 'latent.linear'
+              ? 'Binary outcomes: on the scale of a latent propensity (the variance of the linear predictor plus π²/3); Poisson outcomes always by the observation-empirical rule (piecewiseSEM).'
+              : 'The variance of the linear predictor divided by the squared correlation of the observed and predicted values (Menard); not available for mixed models.'
+          }
+        />
       )}
     </fieldset>
   );
 }
 
-const claimText = (k: PsemResult['claims'][number]) => `${k.y} ⫫ ${k.x}${k.given.length ? ` | ${k.given.join(', ')}` : ''}`;
+const claimText = (k: PsemResult['claims'][number]) =>
+  `${k.y} ⫫ ${k.x}${k.given.length ? ` | ${k.given.join(', ')}` : ''}`;
 
 function PsemView({ r }: { r: PsemResult }) {
   const paths = r.coefs.filter((k) => !k.correlation);
@@ -118,28 +157,97 @@ function PsemView({ r }: { r: PsemResult }) {
     ['AICc', fmt(r.aicc, 2)],
     ['Parameters (K)', String(r.k)],
   ];
-  const pathRows: Row[] = paths.map((k) => [c(k.response), c(k.predictor), c(k.est), c(k.se), c(k.df, '', mixed ? 1 : 0), c(k.stat), pCell(k.p), c(k.std)]);
-  const r2Rows: Row[] = r.r2.map((x) => mixed
-    ? [c(x.response), c(`${x.family} (${x.link})`), c(x.method), c(x.marginal), c(x.conditional)]
-    : [c(x.response), c(`${x.family} (${x.link})`), c(x.method), c(x.r2)]);
+  const pathRows: Row[] = paths.map((k) => [
+    c(k.response),
+    c(k.predictor),
+    c(k.est),
+    c(k.se),
+    c(k.df, '', mixed ? 1 : 0),
+    c(k.stat),
+    pCell(k.p),
+    c(k.std),
+  ]);
+  const r2Rows: Row[] = r.r2.map((x) =>
+    mixed
+      ? [c(x.response), c(`${x.family} (${x.link})`), c(x.method), c(x.marginal), c(x.conditional)]
+      : [c(x.response), c(`${x.family} (${x.link})`), c(x.method), c(x.r2)],
+  );
   return (
     <div className="tables">
       <div className="stat-cards">
-        {stats.map(([k, v]) => <div className="stat-card" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>)}
+        {stats.map(([k, v]) => (
+          <div className="stat-card" key={k}>
+            <div className="k">{k}</div>
+            <div className="v">{v}</div>
+          </div>
+        ))}
       </div>
-      {r.claims.length > 0
-        ? <Table title="Tests of directed separation (basis set)" file="psem-dsep" columns={['Independence claim', 'df', 'Statistic', 'p']}
-          rows={r.claims.map((k) => [c(claimText(k)), c(k.df, '', mixed ? 1 : 0), c(k.stat), pCell(k.p)])}
-          note={`Each pair of variables the diagram leaves unconnected must be independent given the variables shown (the claim’s outcome regressed on both, by its own family; the test of the second). Fisher’s C = −2 Σ ln p over the ${r.claims.length} claims, χ² with ${r.df} df: a small p says the diagram misses a path (Shipley 2000, 2009). The statistic is the claim’s t (or z, or F for a mixed model).`} />
-        : <p className="muted">The diagram leaves no pair of variables unconnected: no independence claims to test (a saturated model).</p>}
-      <Table title="Path coefficients" file="psem-coefs" columns={['Response', 'Predictor', 'Estimate', 'SE', 'df', 'Statistic', 'p', 'Standardised']}
+      {r.claims.length > 0 ? (
+        <Table
+          title="Tests of directed separation (basis set)"
+          file="psem-dsep"
+          columns={['Independence claim', 'df', 'Statistic', 'p']}
+          rows={r.claims.map((k) => [
+            c(claimText(k)),
+            c(k.df, '', mixed ? 1 : 0),
+            c(k.stat),
+            pCell(k.p),
+          ])}
+          note={`Each pair of variables the diagram leaves unconnected must be independent given the variables shown (the claim’s outcome regressed on both, by its own family; the test of the second). Fisher’s C = −2 Σ ln p over the ${r.claims.length} claims, χ² with ${r.df} df: a small p says the diagram misses a path (Shipley 2000, 2009). The statistic is the claim’s t (or z, or F for a mixed model).`}
+        />
+      ) : (
+        <p className="muted">
+          The diagram leaves no pair of variables unconnected: no independence claims to test (a
+          saturated model).
+        </p>
+      )}
+      <Table
+        title="Path coefficients"
+        file="psem-coefs"
+        columns={[
+          'Response',
+          'Predictor',
+          'Estimate',
+          'SE',
+          'df',
+          'Statistic',
+          'p',
+          'Standardised',
+        ]}
         rows={pathRows}
-        note={`Each equation fitted on its own${r.group ? `, with a random intercept for ${r.group}` : ''}. Standardised: the estimate × SD(x) / SD(y), where for a non-normal outcome SD(y) is that of the ${r.standardizeType === 'latent.linear' ? 'latent-theoretic' : 'observation-empirical'} scale (piecewiseSEM ${r.engine.version}). AIC and AICc are the sums over the equations.`} />
-      {errors.length > 0 && <Table title="Correlated errors" file="psem-errors" columns={['Variable', 'Variable', 'Correlation', 'df', 'Statistic', 'p']}
-        rows={errors.map((k) => [c(k.response), c(k.predictor), c(k.est), c(k.df, '', 0), c(k.stat), pCell(k.p)])}
-        note="The correlation of the two outcomes’ residuals; such a pair is left out of the basis set." />}
-      <Table title={mixed ? 'R² (marginal and conditional)' : 'R²'} file="psem-r2" columns={mixed ? ['Response', 'Family', 'Method', 'Marginal R²', 'Conditional R²'] : ['Response', 'Family', 'Method', 'R²']}
-        rows={r2Rows} note={mixed ? 'Marginal: the fixed effects; conditional: with the random intercepts (Nakagawa & Schielzeth).' : undefined} />
+        note={`Each equation fitted on its own${r.group ? `, with a random intercept for ${r.group}` : ''}. Standardised: the estimate × SD(x) / SD(y), where for a non-normal outcome SD(y) is that of the ${r.standardizeType === 'latent.linear' ? 'latent-theoretic' : 'observation-empirical'} scale (piecewiseSEM ${r.engine.version}). AIC and AICc are the sums over the equations.`}
+      />
+      {errors.length > 0 && (
+        <Table
+          title="Correlated errors"
+          file="psem-errors"
+          columns={['Variable', 'Variable', 'Correlation', 'df', 'Statistic', 'p']}
+          rows={errors.map((k) => [
+            c(k.response),
+            c(k.predictor),
+            c(k.est),
+            c(k.df, '', 0),
+            c(k.stat),
+            pCell(k.p),
+          ])}
+          note="The correlation of the two outcomes’ residuals; such a pair is left out of the basis set."
+        />
+      )}
+      <Table
+        title={mixed ? 'R² (marginal and conditional)' : 'R²'}
+        file="psem-r2"
+        columns={
+          mixed
+            ? ['Response', 'Family', 'Method', 'Marginal R²', 'Conditional R²']
+            : ['Response', 'Family', 'Method', 'R²']
+        }
+        rows={r2Rows}
+        note={
+          mixed
+            ? 'Marginal: the fixed effects; conditional: with the random intercepts (Nakagawa & Schielzeth).'
+            : undefined
+        }
+      />
     </div>
   );
 }
@@ -169,7 +277,11 @@ export const psemAnalysis: AnalysisType<PsemOptions, PsemResult> = {
     if (!isObj(raw)) return null;
     const o: PsemOptions = {
       families: parseFamilies(raw.families),
-      standardize: oneOf(raw.standardize, PSEM_STANDARDIZE.map(([id]) => id), 'latent.linear'),
+      standardize: oneOf(
+        raw.standardize,
+        PSEM_STANDARDIZE.map(([id]) => id),
+        'latent.linear',
+      ),
     };
     const group = name(raw.group);
     if (group) o.group = group;
@@ -181,14 +293,20 @@ export const psemAnalysis: AnalysisType<PsemOptions, PsemResult> = {
     const s = structureOf(ctx);
     if (typeof s === 'string') return s;
     const cols = psemColumns(s);
-    if (o.group && cols.includes(o.group)) return 'The grouping column cannot be a variable of the model.';
+    if (o.group && cols.includes(o.group))
+      return 'The grouping column cannot be a variable of the model.';
     return missingColumns(ctx, o.group ? [...cols, o.group] : cols, 'Piecewise SEM');
   },
   fingerprint: (o, ctx) => {
     const s = structureOf(ctx);
     if (typeof s === 'string') return null;
     const cols = psemColumns(s);
-    const extra = [JSON.stringify(s), JSON.stringify(familiesFor(o, ctx)), o.group ?? '', o.standardize];
+    const extra = [
+      JSON.stringify(s),
+      JSON.stringify(familiesFor(o, ctx)),
+      o.group ?? '',
+      o.standardize,
+    ];
     return columnsFingerprint(ctx, o.group ? [...cols, o.group] : cols, extra);
   },
   run: async (o, ctx) => {

@@ -11,7 +11,10 @@ beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
 const panelOf = (key: string) => {
-  const { kind: _k, ...opts } = example(key).panel as Extract<NonNullable<ReturnType<typeof example>['panel']>, { kind: 'regression' }>;
+  const { kind: _k, ...opts } = example(key).panel as Extract<
+    NonNullable<ReturnType<typeof example>['panel']>,
+    { kind: 'regression' }
+  >;
   return { ...opts, confidence: 0.95 };
 };
 
@@ -28,7 +31,7 @@ it('ex6.19: discrete-time survival as a logistic regression on person-period dat
   const icpt = coef('(Intercept)').est;
   for (const p of want.estimates) {
     const label = `${p.lhs} ${p.op} ${p.rhs}`;
-    if (p.se === 0) continue;  // (f BY u1-u4@1, f@0: the factor that writes the model, fixed)
+    if (p.se === 0) continue; // (f BY u1-u4@1, f@0: the factor that writes the model, fixed)
     if (p.op === '~') {
       const c = coef('x');
       near(label, c.est, p.est, TOL);
@@ -70,7 +73,10 @@ it('ex6.21: the piecewise exponential model reproduces the Mplus output: fit, ba
   expect(base[20].term).toBe('[20, Inf)');
   for (const p of want.estimates) {
     // (printed as t ON x, and the baseline hazards [t#k] in interval order)
-    const c = p.rhs === 'x' ? r.coefficients.find((e) => e.term === 'x' && !e.part)! : base[Number(p.rhs.slice(2)) - 1];
+    const c =
+      p.rhs === 'x'
+        ? r.coefficients.find((e) => e.term === 'x' && !e.part)!
+        : base[Number(p.rhs.slice(2)) - 1];
     near(`${p.lhs} ${p.op} ${p.rhs}`, c.est, p.est, TOL);
     near(`SE of ${p.lhs} ${p.op} ${p.rhs}`, c.se, p.se, TOL);
   }

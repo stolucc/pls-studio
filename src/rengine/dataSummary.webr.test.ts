@@ -22,20 +22,44 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const f = (name: string, indicators: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators });
+const f = (name: string, indicators: string[]) => ({
+  name,
+  type: 'factor' as const,
+  mode: 'A' as const,
+  indicators,
+});
 const HS: ModelSpec = {
-  constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6']), f('speed', ['x7', 'x8', 'x9'])],
-  paths: [{ from: 'visual', to: 'speed' }, { from: 'textual', to: 'speed' }],
+  constructs: [
+    f('visual', ['x1', 'x2', 'x3']),
+    f('textual', ['x4', 'x5', 'x6']),
+    f('speed', ['x7', 'x8', 'x9']),
+  ],
+  paths: [
+    { from: 'visual', to: 'speed' },
+    { from: 'textual', to: 'speed' },
+  ],
 };
 const items = Array.from({ length: 9 }, (_, i) => `x${i + 1}`);
 
 async function holzinger(): Promise<Dataset> {
   const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
-    'ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
+    'ps_dataset',
+    { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] },
+    'lavaan',
+  );
   return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => v ?? NaN)) };
 }
 
-interface Refit { est: number[]; se: (number | null)[]; chisq: number; df: number; lhs: string[]; op: string[]; rhs: string[]; group: number[] }
+interface Refit {
+  est: number[];
+  se: (number | null)[];
+  chisq: number;
+  df: number;
+  lhs: string[];
+  op: string[];
+  rhs: string[];
+  group: number[];
+}
 
 /** Write the package, run its refit.R in desktop R, and read the refit's estimates back. */
 function refit(files: ZipEntry[]): Refit {
@@ -53,7 +77,11 @@ function refit(files: ZipEntry[]): Refit {
     ].join('\n');
     writeFileSync(join(dir, 'check.R'), tail);
     const libs = [helperLibrary(), process.env.R_LIBS].filter(Boolean).join(':');
-    execFileSync('Rscript', ['check.R'], { cwd: dir, env: { ...process.env, R_LIBS: libs }, stdio: 'pipe' });
+    execFileSync('Rscript', ['check.R'], {
+      cwd: dir,
+      env: { ...process.env, R_LIBS: libs },
+      stdio: 'pipe',
+    });
     return JSON.parse(readFileSync(join(dir, 'refit.json'), 'utf8'));
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -81,13 +109,22 @@ function compare(label: string, r: DataSummaryResult, back: Refit, ses: boolean)
 describe('data summary for secondary analysis', () => {
   it('continuous indicators: ML from covariances and means reproduces the raw-data fit', async () => {
     const data = await holzinger();
-    const call: CbCall = { data, spec: HS, missing: 'casewise', estimator: 'ML', interaction: 'product' };
+    const call: CbCall = {
+      data,
+      spec: HS,
+      missing: 'casewise',
+      estimator: 'ML',
+      interaction: 'product',
+    };
     const r = await dataSummaryR(call);
     same('groups', r.groups.length, 1);
     same('N', r.groups[0].n, 301);
     const files = dataSummaryFiles(r, 'Holzinger');
-    same('files', files.map((x) => x.path).join(' '),
-      'groups.csv descriptives.csv correlations.csv covariances.csv means.csv model.lav estimates.csv refit.R README.txt');
+    same(
+      'files',
+      files.map((x) => x.path).join(' '),
+      'groups.csv descriptives.csv correlations.csv covariances.csv means.csv model.lav estimates.csv refit.R README.txt',
+    );
     // The descriptives are those of the data (SD with n − 1).
     const x1 = Array.from(data.cols[data.names.indexOf('x1')]);
     const mean = x1.reduce((a, b) => a + b, 0) / x1.length;
@@ -97,20 +134,32 @@ describe('data summary for secondary analysis', () => {
     near('covariance x1 x1 (n − 1)', r.groups[0].cov![0][0], sd * sd, 1e-10);
     compare('HS ML', r, refit(files), true);
     // No case-level data: no file has a row per case.
-    for (const file of files) expect(String(file.data).split('\n').length, file.path).toBeLessThan(100);
+    for (const file of files)
+      expect(String(file.data).split('\n').length, file.path).toBeLessThan(100);
     expect(await dataSummaryScriptR(call)).toContain('nacov <- if (length(ordinal))');
   }, 900_000);
 
   it('groups: lists of statistics, one per group, reproduce a multiple-group fit', async () => {
     const data = await holzinger();
-    const spec: ModelSpec = { ...HS, multigroup: { column: 'school', invariance: 'metric', free: [] } };
-    const call: CbCall = { data, spec, missing: 'casewise', estimator: 'MLR', interaction: 'product' };
+    const spec: ModelSpec = {
+      ...HS,
+      multigroup: { column: 'school', invariance: 'metric', free: [] },
+    };
+    const call: CbCall = {
+      data,
+      spec,
+      missing: 'casewise',
+      estimator: 'MLR',
+      interaction: 'product',
+    };
     const r = await dataSummaryR(call);
     same('groups', r.groups.length, 2);
     same('refit estimator (robust ML needs the raw data)', r.refitEstimator, 'ML');
     const files = dataSummaryFiles(r, 'Holzinger by school');
     expect(files.map((x) => x.path)).toContain('covariances-group2.csv');
-    expect(String(files.find((x) => x.path === 'README.txt')!.data)).toContain('robust standard errors');
+    expect(String(files.find((x) => x.path === 'README.txt')!.data)).toContain(
+      'robust standard errors',
+    );
     // MLR's point estimates and ML χ² are ML's; the refit's standard errors are ML's, so only estimates.
     compare('HS by school', r, refit(files), false);
   }, 900_000);
@@ -119,7 +168,13 @@ describe('data summary for secondary analysis', () => {
     const DIR = join(__dirname, '..', 'engine', '__fixtures__', 'categorical');
     const data = parseCsv(readFileSync(join(DIR, 'hs_ordinal.csv'), 'utf8')).dataset;
     const spec: ModelSpec = { ...HS, ordered: items };
-    const call: CbCall = { data, spec, missing: 'casewise', estimator: 'WLSMV', interaction: 'product' };
+    const call: CbCall = {
+      data,
+      spec,
+      missing: 'casewise',
+      estimator: 'WLSMV',
+      interaction: 'product',
+    };
     const r = await dataSummaryR(call);
     const g = r.groups[0];
     expect(g.ordinal.every(Boolean)).toBe(true);

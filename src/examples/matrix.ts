@@ -5,25 +5,35 @@ import { parseCsvRows } from '../engine/dataset';
  * R's write.csv). Returns null when the file is not a square, symmetric,
  * labelled matrix.
  */
-export function parseCovMatrixCsv(text: string): { names: string[]; S: number[][]; means?: number[] } | null {
+export function parseCovMatrixCsv(
+  text: string,
+): { names: string[]; S: number[][]; means?: number[] } | null {
   const rows = parseCsvRows(text, text.includes(';') && !text.includes(',') ? ';' : ',');
   if (rows.length < 3) return null;
   const header = rows[0].map((h) => h.trim());
   const names = header.slice(1);
-  if (header[0] !== '' && header.length !== rows.length && header.length !== rows.length - 1) return null;
+  if (header[0] !== '' && header.length !== rows.length && header.length !== rows.length - 1)
+    return null;
   let body = rows.slice(1);
   // An optional first row "mean" with the variables' means (so a mean structure can be estimated from the matrix).
   let means: number[] | undefined;
-  if (body.length === names.length + 1 && /^\(?means?\)?$/i.test(body[0][0]?.trim() ?? '') && body[0].length === names.length + 1) {
+  if (
+    body.length === names.length + 1 &&
+    /^\(?means?\)?$/i.test(body[0][0]?.trim() ?? '') &&
+    body[0].length === names.length + 1
+  ) {
     means = body[0].slice(1).map(Number);
     if (means.some((v) => !Number.isFinite(v))) return null;
     body = body.slice(1);
   }
   if (body.length !== names.length) return null;
-  if (!body.every((r, i) => r[0]?.trim() === names[i] && r.length === names.length + 1)) return null;
+  if (!body.every((r, i) => r[0]?.trim() === names[i] && r.length === names.length + 1))
+    return null;
   const S = body.map((r) => r.slice(1).map(Number));
   if (S.some((r) => r.some((v) => !Number.isFinite(v)))) return null;
-  for (let i = 0; i < S.length; i++) for (let j = 0; j < i; j++) if (Math.abs(S[i][j] - S[j][i]) > 1e-8 * Math.max(1, Math.abs(S[i][j]))) return null;
+  for (let i = 0; i < S.length; i++)
+    for (let j = 0; j < i; j++)
+      if (Math.abs(S[i][j] - S[j][i]) > 1e-8 * Math.max(1, Math.abs(S[i][j]))) return null;
   return { names, S, ...(means ? { means } : {}) };
 }
 

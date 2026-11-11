@@ -12,7 +12,12 @@ describe('fitting the diagram below the floating bars', () => {
   });
   it('measures the lowest bar relative to the canvas', () => {
     expect(overlayBottom(null)).toBe(0);
-    const wrap = { ...box(100, 900), querySelectorAll: (sel: string) => (expect(sel).toBe('.tool-dock, .process-bar'), [box(112, 156), box(160, 240)]) };
+    const wrap = {
+      ...box(100, 900),
+      querySelectorAll: (sel: string) => (
+        expect(sel).toBe('.tool-dock, .process-bar'), [box(112, 156), box(160, 240)]
+      ),
+    };
     expect(overlayBottom(wrap as unknown as HTMLElement)).toBe(140);
     const none = { ...box(100, 900), querySelectorAll: () => [] };
     expect(overlayBottom(none as unknown as HTMLElement)).toBe(0);

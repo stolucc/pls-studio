@@ -4,24 +4,42 @@
 import { clampStrict } from '../parse';
 
 export type EfaMethod = 'pca' | 'minres' | 'ml' | 'pa' | 'lavaan';
-export type EfaRotation = 'none' | 'varimax' | 'quartimax' | 'promax' | 'oblimin' | 'geominQ' | 'bigeomin' | 'biquartimin';
+export type EfaRotation =
+  | 'none'
+  | 'varimax'
+  | 'quartimax'
+  | 'promax'
+  | 'oblimin'
+  | 'geominQ'
+  | 'bigeomin'
+  | 'biquartimin';
 export const EFA_METHODS: { id: EfaMethod; label: string }[] = [
-  { id: 'minres', label: 'Minimum residual' }, { id: 'ml', label: 'Maximum likelihood' },
-  { id: 'pa', label: 'Principal axis' }, { id: 'pca', label: 'Principal components (PCA)' },
+  { id: 'minres', label: 'Minimum residual' },
+  { id: 'ml', label: 'Maximum likelihood' },
+  { id: 'pa', label: 'Principal axis' },
+  { id: 'pca', label: 'Principal components (PCA)' },
   { id: 'lavaan', label: 'Maximum likelihood with standard errors (lavaan)' },
 ];
 /** `lavaan`: only with the lavaan extraction (bifactor rotations: a general factor, the first, and specific factors). */
-export const EFA_ROTATIONS: { id: EfaRotation; label: string; oblique: boolean; lavaan?: true }[] = [
-  { id: 'oblimin', label: 'Oblimin', oblique: true }, { id: 'promax', label: 'Promax', oblique: true }, { id: 'geominQ', label: 'Geomin (oblique)', oblique: true },
-  { id: 'varimax', label: 'Varimax', oblique: false }, { id: 'quartimax', label: 'Quartimax', oblique: false }, { id: 'none', label: 'None', oblique: false },
-  { id: 'bigeomin', label: 'Bi-geomin (bifactor)', oblique: true, lavaan: true }, { id: 'biquartimin', label: 'Bi-quartimin (bifactor)', oblique: true, lavaan: true },
-];
+export const EFA_ROTATIONS: { id: EfaRotation; label: string; oblique: boolean; lavaan?: true }[] =
+  [
+    { id: 'oblimin', label: 'Oblimin', oblique: true },
+    { id: 'promax', label: 'Promax', oblique: true },
+    { id: 'geominQ', label: 'Geomin (oblique)', oblique: true },
+    { id: 'varimax', label: 'Varimax', oblique: false },
+    { id: 'quartimax', label: 'Quartimax', oblique: false },
+    { id: 'none', label: 'None', oblique: false },
+    { id: 'bigeomin', label: 'Bi-geomin (bifactor)', oblique: true, lavaan: true },
+    { id: 'biquartimin', label: 'Bi-quartimin (bifactor)', oblique: true, lavaan: true },
+  ];
 
 /** How many factors / components: given (nfactors), or as many as a retention criterion keeps. */
 export type EfaCriterion = 'parallel' | 'kaiser' | 'map' | 'fixed';
 export const EFA_CRITERIA: { id: EfaCriterion; label: string }[] = [
-  { id: 'parallel', label: 'Parallel analysis' }, { id: 'kaiser', label: 'Eigenvalues > 1 (Kaiser)' },
-  { id: 'map', label: 'Velicer’s MAP' }, { id: 'fixed', label: 'Fixed number' },
+  { id: 'parallel', label: 'Parallel analysis' },
+  { id: 'kaiser', label: 'Eigenvalues > 1 (Kaiser)' },
+  { id: 'map', label: 'Velicer’s MAP' },
+  { id: 'fixed', label: 'Fixed number' },
 ];
 
 export interface EfaDesign {
@@ -83,14 +101,27 @@ export interface EfaComparison {
 /** Parallel analysis on polychoric correlations recomputes them for every sample: at most this many by default. */
 export const POLYCHORIC_PARALLEL = 20;
 
-export const DEFAULT_EFA: EfaDesign = { vars: [], method: 'minres', criterion: 'parallel', nfactors: 1, rotation: 'oblimin', missing: 'pairwise', parallel: 100, threshold: 0.3, correlation: 'pearson' };
+export const DEFAULT_EFA: EfaDesign = {
+  vars: [],
+  method: 'minres',
+  criterion: 'parallel',
+  nfactors: 1,
+  rotation: 'oblimin',
+  missing: 'pairwise',
+  parallel: 100,
+  threshold: 0.3,
+  correlation: 'pearson',
+};
 
 /** A design from an (untrusted) project file. */
 export function parseEfaDesign(v: unknown): EfaDesign | undefined {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;
   const r = v as Record<string, unknown>;
   return {
-    vars: (Array.isArray(r.vars) ? r.vars : []).filter((x): x is string => typeof x === 'string').slice(0, 2000).map((x) => x.slice(0, 200)),
+    vars: (Array.isArray(r.vars) ? r.vars : [])
+      .filter((x): x is string => typeof x === 'string')
+      .slice(0, 2000)
+      .map((x) => x.slice(0, 200)),
     method: EFA_METHODS.find((m) => m.id === r.method)?.id ?? DEFAULT_EFA.method,
     // Designs saved before the criterion existed gave the number.
     criterion: EFA_CRITERIA.find((m) => m.id === r.criterion)?.id ?? 'fixed',
@@ -98,13 +129,20 @@ export function parseEfaDesign(v: unknown): EfaDesign | undefined {
     rotation: EFA_ROTATIONS.find((m) => m.id === r.rotation)?.id ?? DEFAULT_EFA.rotation,
     missing: r.missing === 'listwise' ? 'listwise' : 'pairwise',
     parallel: clampStrict(r.parallel, 0, 2000, DEFAULT_EFA.parallel, true),
-    threshold: typeof r.threshold === 'number' && r.threshold >= 0 && r.threshold < 1 ? r.threshold : DEFAULT_EFA.threshold,
+    threshold:
+      typeof r.threshold === 'number' && r.threshold >= 0 && r.threshold < 1
+        ? r.threshold
+        : DEFAULT_EFA.threshold,
     correlation: r.correlation === 'polychoric' ? 'polychoric' : 'pearson',
-    ...(typeof r.epsilon === 'number' && r.epsilon > 0 && r.epsilon <= 1 ? { epsilon: r.epsilon } : {}),
+    ...(typeof r.epsilon === 'number' && r.epsilon > 0 && r.epsilon <= 1
+      ? { epsilon: r.epsilon }
+      : {}),
     ...(r.information === 'observed' ? { information: 'observed' as const } : {}),
     ...(r.wlsmvSe === 'lavaan' ? { wlsmvSe: 'lavaan' as const } : {}),
     ...(r.mimic === 'Mplus' ? { mimic: 'Mplus' as const } : {}),
-    ...(typeof r.from === 'number' && Number.isFinite(r.from) && r.from >= 1 ? { from: Math.min(100, Math.round(r.from)) } : {}),
+    ...(typeof r.from === 'number' && Number.isFinite(r.from) && r.from >= 1
+      ? { from: Math.min(100, Math.round(r.from)) }
+      : {}),
     ...parseComparison(r.compare),
     ...(r.schmid === true ? { schmid: true as const } : {}),
   };
@@ -116,7 +154,13 @@ function parseComparison(v: unknown): { compare?: EfaComparison } {
   const r = v as Record<string, unknown>;
   const method = EFA_METHODS.find((m) => m.id === r.method && m.id !== 'lavaan')?.id;
   const rotation = EFA_ROTATIONS.find((m) => m.id === r.rotation && !m.lavaan)?.id;
-  if (!method || method === 'lavaan' || !rotation || rotation === 'bigeomin' || rotation === 'biquartimin') {
+  if (
+    !method ||
+    method === 'lavaan' ||
+    !rotation ||
+    rotation === 'bigeomin' ||
+    rotation === 'biquartimin'
+  ) {
     return {};
   }
   return { compare: { method, rotation } };
@@ -164,16 +208,23 @@ export function congruenceMatches(coefficients: number[][]): CongruenceMatch[] {
  * without variables are dropped. Oblique solutions also get the correlations
  * between the factors (drawn: they are estimated in a CFA).
  */
-export function constructsFromSolution(r: { variables: string[]; factors: string[]; loadings: number[][]; oblique: boolean }, threshold: number): {
-  constructs: { name: string; indicators: string[] }[]; correlated: boolean; left: string[];
+export function constructsFromSolution(
+  r: { variables: string[]; factors: string[]; loadings: number[][]; oblique: boolean },
+  threshold: number,
+): {
+  constructs: { name: string; indicators: string[] }[];
+  correlated: boolean;
+  left: string[];
 } {
   const groups = r.factors.map((name) => ({ name, indicators: [] as string[] }));
   const left: string[] = [];
   r.variables.forEach((v, i) => {
     const row = r.loadings[i];
     let best = -1;
-    for (let j = 0; j < row.length; j++) if (best < 0 || Math.abs(row[j]) > Math.abs(row[best])) best = j;
-    if (best >= 0 && Math.abs(row[best]) >= threshold) groups[best].indicators.push(v); else left.push(v);
+    for (let j = 0; j < row.length; j++)
+      if (best < 0 || Math.abs(row[j]) > Math.abs(row[best])) best = j;
+    if (best >= 0 && Math.abs(row[best]) >= threshold) groups[best].indicators.push(v);
+    else left.push(v);
   });
   return { constructs: groups.filter((g) => g.indicators.length > 0), correlated: r.oblique, left };
 }
@@ -183,13 +234,31 @@ export function constructsFromSolution(r: { variables: string[]; factors: string
  * factor they load most on, within a factor by the size of that loading.
  */
 export function loadingOrder(loadings: number[][]): number[] {
-  const primary = loadings.map((row) => row.reduce((b, v, j) => (Math.abs(v) > Math.abs(row[b]) ? j : b), 0));
-  return loadings.map((_, i) => i).sort((a, b) => primary[a] - primary[b] || Math.abs(loadings[b][primary[b]]) - Math.abs(loadings[a][primary[a]]));
+  const primary = loadings.map((row) =>
+    row.reduce((b, v, j) => (Math.abs(v) > Math.abs(row[b]) ? j : b), 0),
+  );
+  return loadings
+    .map((_, i) => i)
+    .sort(
+      (a, b) =>
+        primary[a] - primary[b] ||
+        Math.abs(loadings[b][primary[b]]) - Math.abs(loadings[a][primary[a]]),
+    );
 }
 
 /** Kaiser's (1974) labels for the measure of sampling adequacy. */
 export function kmoLabel(v: number): string {
-  return v >= 0.9 ? 'marvelous' : v >= 0.8 ? 'meritorious' : v >= 0.7 ? 'middling' : v >= 0.6 ? 'mediocre' : v >= 0.5 ? 'miserable' : 'unacceptable';
+  return v >= 0.9
+    ? 'marvelous'
+    : v >= 0.8
+      ? 'meritorious'
+      : v >= 0.7
+        ? 'middling'
+        : v >= 0.6
+          ? 'mediocre'
+          : v >= 0.5
+            ? 'miserable'
+            : 'unacceptable';
 }
 
 /**
@@ -212,20 +281,31 @@ export function factorName(indicators: string[], fallback: string, taken: string
  * last one clicked (`anchor`) and this one takes this one's new state (as
  * shift-click in file lists). Keeps the list's order.
  */
-export function toggleVariables(all: string[], chosen: string[], clicked: string, anchor: string | null, range: boolean): string[] {
+export function toggleVariables(
+  all: string[],
+  chosen: string[],
+  clicked: string,
+  anchor: string | null,
+  range: boolean,
+): string[] {
   const on = !chosen.includes(clicked);
-  const i = all.indexOf(clicked), a = anchor === null ? -1 : all.indexOf(anchor);
+  const i = all.indexOf(clicked),
+    a = anchor === null ? -1 : all.indexOf(anchor);
   const span = range && a >= 0 ? all.slice(Math.min(a, i), Math.max(a, i) + 1) : [clicked];
   const set = new Set(chosen);
-  for (const v of span) if (on) set.add(v); else set.delete(v);
+  for (const v of span)
+    if (on) set.add(v);
+    else set.delete(v);
   return all.filter((v) => set.has(v));
 }
 
 export interface CrossLoading {
   variable: number;
-  primary: number; primaryLoading: number;
+  primary: number;
+  primaryLoading: number;
   /** The strongest other factor (null with one factor). */
-  secondary: number | null; secondaryLoading: number | null;
+  secondary: number | null;
+  secondaryLoading: number | null;
   gap: number | null;
   /** cross-loads: a second loading reaches the threshold; weak: the primary loading is below `weak`; close: primary and second differ by less than `gap`. */
   flags: ('cross-loads' | 'weak' | 'close')[];
@@ -236,17 +316,32 @@ export interface CrossLoading {
  * warnings (e.g. Howard 2016): a cross-loading at or above the threshold, a
  * primary loading below .40, or less than .20 between the two.
  */
-export function crossLoadings(loadings: number[][], threshold: number, weak = 0.4, gap = 0.2): CrossLoading[] {
+export function crossLoadings(
+  loadings: number[][],
+  threshold: number,
+  weak = 0.4,
+  gap = 0.2,
+): CrossLoading[] {
   return loadings.map((row, variable) => {
     const order = row.map((_, j) => j).sort((a, b) => Math.abs(row[b]) - Math.abs(row[a]));
-    const p = order[0], s = order.length > 1 ? order[1] : null;
-    const pl = row[p], sl = s === null ? null : row[s];
+    const p = order[0],
+      s = order.length > 1 ? order[1] : null;
+    const pl = row[p],
+      sl = s === null ? null : row[s];
     const g = sl === null ? null : Math.abs(pl) - Math.abs(sl);
     const flags: CrossLoading['flags'] = [];
     if (sl !== null && Math.abs(sl) >= threshold) flags.push('cross-loads');
     if (Math.abs(pl) < weak) flags.push('weak');
     if (g !== null && g < gap) flags.push('close');
-    return { variable, primary: p, primaryLoading: pl, secondary: s, secondaryLoading: sl, gap: g, flags };
+    return {
+      variable,
+      primary: p,
+      primaryLoading: pl,
+      secondary: s,
+      secondaryLoading: sl,
+      gap: g,
+      flags,
+    };
   });
 }
 
@@ -258,9 +353,19 @@ const conventionalRotation = (pca: boolean): EfaRotation => (pca ? 'varimax' : '
  * `extraction` (the method used before); a rotation still at the other
  * analysis's convention follows to this one's, a rotation the user chose stays.
  */
-export function switchAnalysis(d: EfaDesign, pca: boolean, extraction: Exclude<EfaMethod, 'pca'> = 'minres'): EfaDesign {
+export function switchAnalysis(
+  d: EfaDesign,
+  pca: boolean,
+  extraction: Exclude<EfaMethod, 'pca'> = 'minres',
+): EfaDesign {
   if (pca === (d.method === 'pca')) return d;
   // (a bifactor rotation is lavaan's only: PCA takes its conventional one)
-  const keep = d.rotation !== conventionalRotation(!pca) && !(pca && EFA_ROTATIONS.find((x) => x.id === d.rotation)?.lavaan);
-  return { ...d, method: pca ? 'pca' : extraction, rotation: keep ? d.rotation : conventionalRotation(pca) };
+  const keep =
+    d.rotation !== conventionalRotation(!pca) &&
+    !(pca && EFA_ROTATIONS.find((x) => x.id === d.rotation)?.lavaan);
+  return {
+    ...d,
+    method: pca ? 'pca' : extraction,
+    rotation: keep ? d.rotation : conventionalRotation(pca),
+  };
 }

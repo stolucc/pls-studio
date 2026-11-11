@@ -14,12 +14,16 @@ interface Compute {
 
 const KEY = 'pls-studio.compute';
 export const MAX_WORKERS = 8;
-export const clampWorkers = (n: number) => Math.max(1, Math.min(MAX_WORKERS, Math.round(Number.isFinite(n) ? n : 1)));
+export const clampWorkers = (n: number) =>
+  Math.max(1, Math.min(MAX_WORKERS, Math.round(Number.isFinite(n) ? n : 1)));
 
 function load(): Pick<Compute, 'backend' | 'workers'> {
   try {
     const raw = JSON.parse(globalThis.localStorage?.getItem(KEY) ?? '{}') as Partial<Compute>;
-    return { backend: raw.backend === 'helper' ? 'helper' : 'browser', workers: clampWorkers(raw.workers ?? 1) };
+    return {
+      backend: raw.backend === 'helper' ? 'helper' : 'browser',
+      workers: clampWorkers(raw.workers ?? 1),
+    };
   } catch {
     return { backend: 'browser', workers: 1 };
   }
@@ -29,7 +33,14 @@ export const useCompute = create<Compute>((set, get) => ({
   ...load(),
   set: (p) => {
     set({ ...p, ...(p.workers !== undefined ? { workers: clampWorkers(p.workers) } : {}) });
-    try { globalThis.localStorage?.setItem(KEY, JSON.stringify({ backend: get().backend, workers: get().workers })); } catch { /* private mode: not remembered */ }
+    try {
+      globalThis.localStorage?.setItem(
+        KEY,
+        JSON.stringify({ backend: get().backend, workers: get().workers }),
+      );
+    } catch {
+      /* private mode: not remembered */
+    }
   },
 }));
 
@@ -43,7 +54,8 @@ export const CHUNK_SAMPLES = 100;
  * exported script.
  */
 export function bootChunks(samples: number, seed: number): { R: number[]; seed: number[] } {
-  const R: number[] = [], seeds: number[] = [];
+  const R: number[] = [],
+    seeds: number[] = [];
   for (let k = 0, left = samples; left > 0; k++, left -= CHUNK_SAMPLES) {
     R.push(Math.min(CHUNK_SAMPLES, left));
     seeds.push((seed + k) % 2147483647);

@@ -3,21 +3,30 @@ import type { DataSummaryResult } from '../rengine/cbExtras';
 import { dataSummaryFiles, refitScript, summaryIsOrdinal } from './dataSummary';
 
 const base: DataSummaryResult = {
-  groups: [{
-    label: '',
-    n: 3,
-    variables: ['a', 'b'],
-    ordinal: [false, false],
-    valid: [3, 3],
-    mean: [1.5, 2],
-    sd: [0.5, 1],
-    cor: [[1, 0.25], [0.25, 1]],
-    cov: [[0.25, 0.125], [0.125, 1]],
-    means: [1.5, 2],
-  }],
+  groups: [
+    {
+      label: '',
+      n: 3,
+      variables: ['a', 'b'],
+      ordinal: [false, false],
+      valid: [3, 3],
+      mean: [1.5, 2],
+      sd: [0.5, 1],
+      cor: [
+        [1, 0.25],
+        [0.25, 1],
+      ],
+      cov: [
+        [0.25, 0.125],
+        [0.125, 1],
+      ],
+      means: [1.5, 2],
+    },
+  ],
   names: { lavaan: ['f', 'a', 'b'], app: ['F', 'a', 'b'] },
   syntax: ['  f =~ 1*a + b'],
-  refitCall: 'fit <- sem(model, sample.cov = S, sample.mean = M, sample.nobs = N, estimator = "ML")',
+  refitCall:
+    'fit <- sem(model, sample.cov = S, sample.mean = M, sample.nobs = N, estimator = "ML")',
   refitAfter: [],
   refitEstimator: 'ML',
   requestedEstimator: 'MLR',
@@ -38,8 +47,15 @@ describe('data summary package', () => {
   it('writes the continuous statistics, the syntax, the estimates and a README', () => {
     const files = dataSummaryFiles(base, 'My project');
     expect(files.map((f) => f.path)).toEqual([
-      'groups.csv', 'descriptives.csv', 'correlations.csv', 'covariances.csv', 'means.csv',
-      'model.lav', 'estimates.csv', 'refit.R', 'README.txt',
+      'groups.csv',
+      'descriptives.csv',
+      'correlations.csv',
+      'covariances.csv',
+      'means.csv',
+      'model.lav',
+      'estimates.csv',
+      'refit.R',
+      'README.txt',
     ]);
     expect(text(files, 'groups.csv')).toBe('group,label,n\n1,,3\n');
     expect(text(files, 'covariances.csv')).toBe(',a,b\na,0.25,0.125\nb,0.125,1\n');
@@ -64,12 +80,23 @@ describe('data summary package', () => {
       means: undefined,
       thresholds: { variable: ['a', 'b'], index: [1, 1], value: [-0.2, 0.3] },
       nacovNames: ['a|t1', 'b|t1', 'a~~b'],
-      nacov: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
-      wlsV: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      nacov: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
+      wlsV: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
     };
     const r: DataSummaryResult = {
       ...base,
-      groups: [{ ...g, label: 'A' }, { ...g, label: 'B', ordinal: [true, false] }],
+      groups: [
+        { ...g, label: 'A' },
+        { ...g, label: 'B', ordinal: [true, false] },
+      ],
       requestedEstimator: 'WLSMV',
       refitEstimator: 'WLSMV',
       refitAfter: ['fit <- mplus_se(fit)'],
@@ -80,7 +107,9 @@ describe('data summary package', () => {
     expect(paths).toContain('nacov-group2.csv');
     expect(paths).toContain('wls_v-group2.csv');
     expect(paths).not.toContain('covariances-group1.csv');
-    expect(text(files, 'thresholds-group1.csv')).toBe('variable,threshold,value\na,1,-0.2\nb,1,0.3\n');
+    expect(text(files, 'thresholds-group1.csv')).toBe(
+      'variable,threshold,value\na,1,-0.2\nb,1,0.3\n',
+    );
     const script = refitScript(r);
     expect(script).toContain('attr(th, "th.idx")');
     expect(script).toContain('fit <- mplus_se(fit)');

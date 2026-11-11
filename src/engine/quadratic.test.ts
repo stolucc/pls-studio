@@ -9,7 +9,12 @@ import { estimatePls } from './pls';
 import { interactionName } from './types';
 import { simulateQuadratic as simulate } from './__fixtures__/quadratic';
 
-const f = (name: string, indicators: string[]) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators });
+const f = (name: string, indicators: string[]) => ({
+  name,
+  mode: 'A' as const,
+  type: 'factor' as const,
+  indicators,
+});
 const spec = {
   constructs: [f('X', ['x1', 'x2', 'x3']), f('Y', ['y1', 'y2', 'y3'])],
   paths: [{ from: 'X', to: 'Y' }],
@@ -45,7 +50,8 @@ describe('quadratic effects', () => {
     for (const x of [-1.5, 0, 0.7]) expect(jn.effect(x)).toBeCloseTo(jn.bx + 2 * jn.bint * x, 12);
     // The slope turns negative at low X: a lower region of significance with the opposite sign.
     expect(jn.boundaries.length).toBe(2);
-    for (const b of jn.boundaries) expect(Math.abs(jn.effect(b)) / jn.se(b)).toBeCloseTo(jn.crit, 8);
+    for (const b of jn.boundaries)
+      expect(Math.abs(jn.effect(b)) / jn.se(b)).toBeCloseTo(jn.crit, 8);
     expect(jn.effect(-3 * jn.sdM)).toBeLessThan(0);
     expect(jn.significantAt(-3 * jn.sdM)).toBe(true);
     expect(jn.significantAt(3 * jn.sdM)).toBe(true);
@@ -53,11 +59,15 @@ describe('quadratic effects', () => {
 
   it('PLS (two-stage, squared standardised scores) recovers the curvature', () => {
     const pls = estimatePls(data, spec);
-    const k = pls.constructs.indexOf('X²'), y = pls.constructs.indexOf('Y'), x = pls.constructs.indexOf('X');
+    const k = pls.constructs.indexOf('X²'),
+      y = pls.constructs.indexOf('Y'),
+      x = pls.constructs.indexOf('X');
     expect(k).toBeGreaterThan(0);
     expect(pls.pathCoef[x][y]).toBeGreaterThan(0.25);
     expect(pls.pathCoef[k][y]).toBeGreaterThan(0.12);
-    expect(pls.moderations).toEqual([expect.objectContaining({ from: 'X', moderator: 'X', to: 'Y', construct: k })]);
+    expect(pls.moderations).toEqual([
+      expect.objectContaining({ from: 'X', moderator: 'X', to: 'Y', construct: k }),
+    ]);
   });
 });
 

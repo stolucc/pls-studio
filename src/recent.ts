@@ -36,19 +36,24 @@ function memoryBackend(): Backend {
   return {
     persistent: false,
     all: async () => [...map.values()],
-    put: async (e) => { map.set(e.id, e); },
-    remove: async (id) => { map.delete(id); },
+    put: async (e) => {
+      map.set(e.id, e);
+    },
+    remove: async (id) => {
+      map.delete(id);
+    },
   };
 }
 
 function idbBackend(): Backend | null {
   if (typeof indexedDB === 'undefined') return null;
-  const open = () => new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open(DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' });
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  const open = () =>
+    new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
   let db: Promise<IDBDatabase> | null = null;
   const tx = async <T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>) => {
     db ??= open();
@@ -62,8 +67,12 @@ function idbBackend(): Backend | null {
   return {
     persistent: true,
     all: () => tx('readonly', (s) => s.getAll() as IDBRequest<RecentEntry[]>),
-    put: async (e) => { await tx('readwrite', (s) => s.put(e)); },
-    remove: async (id) => { await tx('readwrite', (s) => s.delete(id)); },
+    put: async (e) => {
+      await tx('readwrite', (s) => s.put(e));
+    },
+    remove: async (id) => {
+      await tx('readwrite', (s) => s.delete(id));
+    },
   };
 }
 
@@ -75,7 +84,13 @@ function getBackend(): Promise<Backend> {
   ready ??= (async () => {
     const idb = idbBackend();
     if (idb) {
-      try { await idb.all(); backend = idb; return idb; } catch { /* blocked: fall through */ }
+      try {
+        await idb.all();
+        backend = idb;
+        return idb;
+      } catch {
+        /* blocked: fall through */
+      }
     }
     backend = memoryBackend();
     return backend;
@@ -85,7 +100,11 @@ function getBackend(): Promise<Backend> {
 
 /** For tests: start from a clean in-memory store, or (probe) from scratch so the next call probes IndexedDB again. */
 export function resetRecentForTests(probe = false) {
-  if (probe) { backend = null; ready = null; return; }
+  if (probe) {
+    backend = null;
+    ready = null;
+    return;
+  }
   backend = memoryBackend();
   ready = Promise.resolve(backend);
 }
@@ -106,7 +125,11 @@ export async function listRecent(): Promise<RecentMeta[]> {
 
 export async function getRecent(id: string): Promise<RecentEntry | null> {
   const b = await getBackend();
-  try { return (await b.all()).find((e) => e.id === id) ?? null; } catch { return null; }
+  try {
+    return (await b.all()).find((e) => e.id === id) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Insert or update an entry and keep only the most recent MAX_RECENT. */
@@ -123,16 +146,25 @@ export async function saveRecent(entry: RecentEntry): Promise<void> {
 
 export async function removeRecent(id: string): Promise<void> {
   const b = await getBackend();
-  try { await b.remove(id); } catch { /* ignore */ }
+  try {
+    await b.remove(id);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** One-time migration of the old single-slot localStorage autosave. */
-export async function migrateLegacyAutosave(makeEntry: (name: string, text: string) => RecentEntry | null): Promise<void> {
+export async function migrateLegacyAutosave(
+  makeEntry: (name: string, text: string) => RecentEntry | null,
+): Promise<void> {
   try {
     const raw = localStorage.getItem(LEGACY_KEY);
     if (!raw) return;
     const { name, project } = JSON.parse(raw) as { name?: unknown; project?: unknown };
-    const entry = typeof project === 'string' ? makeEntry(typeof name === 'string' ? name : 'Untitled model', project) : null;
+    const entry =
+      typeof project === 'string'
+        ? makeEntry(typeof name === 'string' ? name : 'Untitled model', project)
+        : null;
     if (entry) await saveRecent(entry);
     localStorage.removeItem(LEGACY_KEY);
   } catch {

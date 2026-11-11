@@ -14,45 +14,116 @@ const fx = join(__dirname, '__fixtures__');
 const ref = JSON.parse(readFileSync(join(fx, 'plsc_nonlinear', 'reference.json'), 'utf8'));
 const mobi = (): Dataset => parseCsv(readFileSync(join(fx, 'mobi.csv'), 'utf8')).dataset;
 const ITEMS: Record<string, string[]> = {
-  EXPE: ['CUEX1', 'CUEX2', 'CUEX3'], QUAL: ['PERQ1', 'PERQ2', 'PERQ3', 'PERQ4', 'PERQ5', 'PERQ6', 'PERQ7'],
-  VAL: ['PERV1', 'PERV2'], SAT: ['CUSA1', 'CUSA2', 'CUSA3'], LOY: ['CUSL1', 'CUSL2', 'CUSL3'],
+  EXPE: ['CUEX1', 'CUEX2', 'CUEX3'],
+  QUAL: ['PERQ1', 'PERQ2', 'PERQ3', 'PERQ4', 'PERQ5', 'PERQ6', 'PERQ7'],
+  VAL: ['PERV1', 'PERV2'],
+  SAT: ['CUSA1', 'CUSA2', 'CUSA3'],
+  LOY: ['CUSL1', 'CUSL2', 'CUSL3'],
 };
-const K = (name: string) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: ITEMS[name] });
-const model = (names: string[], paths: [string, string][], mods: [string, string, string][]): ModelSpec => ({
-  constructs: names.map(K), paths: paths.map(([from, to]) => ({ from, to })), moderations: mods.map(([from, moderator, to]) => ({ from, moderator, to })),
+const K = (name: string) => ({
+  name,
+  mode: 'A' as const,
+  type: 'factor' as const,
+  indicators: ITEMS[name],
+});
+const model = (
+  names: string[],
+  paths: [string, string][],
+  mods: [string, string, string][],
+): ModelSpec => ({
+  constructs: names.map(K),
+  paths: paths.map(([from, to]) => ({ from, to })),
+  moderations: mods.map(([from, moderator, to]) => ({ from, moderator, to })),
 });
 const CASES: Record<string, ModelSpec> = {
-  moderation: model(['EXPE', 'QUAL', 'SAT'], [['EXPE', 'SAT'], ['QUAL', 'SAT']], [['EXPE', 'QUAL', 'SAT']]),
-  twoMod: model(['EXPE', 'QUAL', 'VAL', 'SAT'], [['EXPE', 'SAT'], ['QUAL', 'SAT'], ['VAL', 'SAT']], [['EXPE', 'QUAL', 'SAT'], ['EXPE', 'VAL', 'SAT']]),
+  moderation: model(
+    ['EXPE', 'QUAL', 'SAT'],
+    [
+      ['EXPE', 'SAT'],
+      ['QUAL', 'SAT'],
+    ],
+    [['EXPE', 'QUAL', 'SAT']],
+  ),
+  twoMod: model(
+    ['EXPE', 'QUAL', 'VAL', 'SAT'],
+    [
+      ['EXPE', 'SAT'],
+      ['QUAL', 'SAT'],
+      ['VAL', 'SAT'],
+    ],
+    [
+      ['EXPE', 'QUAL', 'SAT'],
+      ['EXPE', 'VAL', 'SAT'],
+    ],
+  ),
   quadratic: model(['QUAL', 'SAT'], [['QUAL', 'SAT']], [['QUAL', 'QUAL', 'SAT']]),
-  chain: model(['EXPE', 'QUAL', 'SAT', 'LOY'], [['EXPE', 'SAT'], ['QUAL', 'SAT'], ['SAT', 'LOY']], [['EXPE', 'QUAL', 'SAT']]),
-  endogenous: model(['EXPE', 'QUAL', 'SAT', 'LOY'], [['EXPE', 'SAT'], ['QUAL', 'SAT'], ['SAT', 'LOY'], ['EXPE', 'LOY']], [['SAT', 'EXPE', 'LOY']]),
+  chain: model(
+    ['EXPE', 'QUAL', 'SAT', 'LOY'],
+    [
+      ['EXPE', 'SAT'],
+      ['QUAL', 'SAT'],
+      ['SAT', 'LOY'],
+    ],
+    [['EXPE', 'QUAL', 'SAT']],
+  ),
+  endogenous: model(
+    ['EXPE', 'QUAL', 'SAT', 'LOY'],
+    [
+      ['EXPE', 'SAT'],
+      ['QUAL', 'SAT'],
+      ['SAT', 'LOY'],
+      ['EXPE', 'LOY'],
+    ],
+    [['SAT', 'EXPE', 'LOY']],
+  ),
 };
-const term = (name: string) => { const f = name.split('.'); return f.length === 2 && f[0] === f[1] ? interactionName(f[0], f[1]) : f.join(' × '); };
+const term = (name: string) => {
+  const f = name.split('.');
+  return f.length === 2 && f[0] === f[1] ? interactionName(f[0], f[1]) : f.join(' × ');
+};
 
 describe('PLSc with nonlinear terms', () => {
   it.each(Object.keys(CASES))('reproduces cSEM: %s', (k) => {
     const r = estimatePls(mobi(), CASES[k], { consistent: true });
     const paths = ref[k].paths as Record<string, Record<string, number>>;
-    for (const [to, row] of Object.entries(paths)) for (const [from, v] of Object.entries(row)) {
-      if (!v) continue;
-      expect(r.pathCoef[r.constructs.indexOf(term(from))][r.constructs.indexOf(to)], `${from} → ${to}`).toBeCloseTo(v, 3);
-    }
-    for (const [to, v] of Object.entries(ref[k].r2 as Record<string, number>)) expect(r.rSquared[r.constructs.indexOf(to)], `R² ${to}`).toBeCloseTo(v, 3);
-    for (const [c, v] of Object.entries(ref[k].rhoA as Record<string, number>)) expect(r.quality[r.constructs.indexOf(c)].rhoA, `ρA ${c}`).toBeCloseTo(v, 3);
+    for (const [to, row] of Object.entries(paths))
+      for (const [from, v] of Object.entries(row)) {
+        if (!v) continue;
+        expect(
+          r.pathCoef[r.constructs.indexOf(term(from))][r.constructs.indexOf(to)],
+          `${from} → ${to}`,
+        ).toBeCloseTo(v, 3);
+      }
+    for (const [to, v] of Object.entries(ref[k].r2 as Record<string, number>))
+      expect(r.rSquared[r.constructs.indexOf(to)], `R² ${to}`).toBeCloseTo(v, 3);
+    for (const [c, v] of Object.entries(ref[k].rhoA as Record<string, number>))
+      expect(r.quality[r.constructs.indexOf(c)].rhoA, `ρA ${c}`).toBeCloseTo(v, 3);
   });
   it('leaves a linear model and standard PLS with terms as they were', () => {
-    const linear = estimatePls(mobi(), { ...CASES.moderation, moderations: [] }, { consistent: true });
+    const linear = estimatePls(
+      mobi(),
+      { ...CASES.moderation, moderations: [] },
+      { consistent: true },
+    );
     expect(linear.constructs).toEqual(['EXPE', 'QUAL', 'SAT']);
     const plain = estimatePls(mobi(), CASES.moderation);
     const t = plain.constructs.indexOf(interactionName('EXPE', 'QUAL'));
-    expect(plain.pathCoef[t][plain.constructs.indexOf('SAT')]).not.toBeCloseTo(ref.moderation.paths.SAT['EXPE.QUAL'], 3);
+    expect(plain.pathCoef[t][plain.constructs.indexOf('SAT')]).not.toBeCloseTo(
+      ref.moderation.paths.SAT['EXPE.QUAL'],
+      3,
+    );
   });
   it('bootstraps, and reports a finite f² for the term', () => {
     const r = estimatePls(mobi(), CASES.moderation, { consistent: true });
-    const t = r.constructs.indexOf(interactionName('EXPE', 'QUAL')), j = r.constructs.indexOf('SAT');
+    const t = r.constructs.indexOf(interactionName('EXPE', 'QUAL')),
+      j = r.constructs.indexOf('SAT');
     expect(Number.isFinite(r.fSquare[t][j])).toBe(true);
-    const b = bootstrapPls(mobi(), CASES.moderation, { consistent: true }, { samples: 30, seed: 3, confidence: 0.95 });
+    const b = bootstrapPls(
+      mobi(),
+      CASES.moderation,
+      { consistent: true },
+      { samples: 30, seed: 3, confidence: 0.95 },
+    );
     const s = b.stats.find((x) => x.key === `path:${interactionName('EXPE', 'QUAL')}:SAT`)!;
     expect(s.sd).toBeGreaterThan(0);
     expect(s.original).toBeCloseTo(r.pathCoef[t][j], 10);
@@ -85,12 +156,21 @@ describe('three-way interactions', () => {
     ...model(['EXPE', 'QUAL', 'VAL', 'SAT'], [['EXPE', 'SAT']], [['EXPE', 'QUAL', 'SAT']]),
     threeWay: [{ from: 'EXPE', moderator: 'QUAL', moderator2: 'VAL', to: 'SAT' }],
   };
-  const beta = (r: ReturnType<typeof estimatePls>, from: string) => r.pathCoef[r.constructs.indexOf(from)][r.constructs.indexOf('SAT')];
+  const beta = (r: ReturnType<typeof estimatePls>, from: string) =>
+    r.pathCoef[r.constructs.indexOf(from)][r.constructs.indexOf('SAT')];
   const T3 = 'EXPE × QUAL × VAL';
   it('imply their lower-order terms and main effects, and reproduce two-stage seminr', () => {
     const r = estimatePls(mobi(), three);
     const ref3 = ref.threeWayStandard;
-    for (const [mine, theirs] of [['EXPE', 'EXPE'], ['QUAL', 'QUAL'], ['VAL', 'VAL'], ['EXPE × QUAL', 'EQ'], ['EXPE × VAL', 'EV'], ['QUAL × VAL', 'QV'], [T3, 'EQV']]) {
+    for (const [mine, theirs] of [
+      ['EXPE', 'EXPE'],
+      ['QUAL', 'QUAL'],
+      ['VAL', 'VAL'],
+      ['EXPE × QUAL', 'EQ'],
+      ['EXPE × VAL', 'EV'],
+      ['QUAL × VAL', 'QV'],
+      [T3, 'EQV'],
+    ]) {
       expect(beta(r, mine), mine).toBeCloseTo(ref3.paths[theirs], 3);
     }
     expect(r.rSquared[r.constructs.indexOf('SAT')]).toBeCloseTo(ref3.r2, 3);
@@ -99,7 +179,15 @@ describe('three-way interactions', () => {
   it('with PLSc reproduce cSEM', () => {
     const r = estimatePls(mobi(), three, { consistent: true });
     const p = ref.threeWay.paths.SAT;
-    for (const [mine, theirs] of [['EXPE', 'EXPE'], ['QUAL', 'QUAL'], ['VAL', 'VAL'], ['EXPE × QUAL', 'EXPE.QUAL'], ['EXPE × VAL', 'EXPE.VAL'], ['QUAL × VAL', 'QUAL.VAL'], [T3, 'EXPE.QUAL.VAL']]) {
+    for (const [mine, theirs] of [
+      ['EXPE', 'EXPE'],
+      ['QUAL', 'QUAL'],
+      ['VAL', 'VAL'],
+      ['EXPE × QUAL', 'EXPE.QUAL'],
+      ['EXPE × VAL', 'EXPE.VAL'],
+      ['QUAL × VAL', 'QUAL.VAL'],
+      [T3, 'EXPE.QUAL.VAL'],
+    ]) {
       expect(beta(r, mine), mine).toBeCloseTo(p[theirs], 3);
     }
     expect(r.rSquared[r.constructs.indexOf('SAT')]).toBeCloseTo(ref.threeWay.r2.SAT, 3);
@@ -107,13 +195,27 @@ describe('three-way interactions', () => {
   it('bootstrap, and refuse a path that is not in the model', () => {
     const b = bootstrapPls(mobi(), three, {}, { samples: 20, seed: 5, confidence: 0.95 });
     expect(b.stats.find((s) => s.key === `path:${T3}:SAT`)!.sd).toBeGreaterThan(0);
-    expect(() => estimatePls(mobi(), { ...three, threeWay: [{ from: 'SAT', moderator: 'QUAL', moderator2: 'VAL', to: 'EXPE' }] })).toThrow(/not in the model/);
+    expect(() =>
+      estimatePls(mobi(), {
+        ...three,
+        threeWay: [{ from: 'SAT', moderator: 'QUAL', moderator2: 'VAL', to: 'EXPE' }],
+      }),
+    ).toThrow(/not in the model/);
   });
 });
 
 describe('pre-defined weights', () => {
   const spec: ModelSpec = {
-    constructs: [{ name: 'EXPE', mode: 'B', type: 'composite', indicators: ITEMS.EXPE, predefinedWeights: { CUEX1: 0.5, CUEX2: 0.3, CUEX3: 0.2 } }, { name: 'SAT', mode: 'B', type: 'composite', indicators: ITEMS.SAT }],
+    constructs: [
+      {
+        name: 'EXPE',
+        mode: 'B',
+        type: 'composite',
+        indicators: ITEMS.EXPE,
+        predefinedWeights: { CUEX1: 0.5, CUEX2: 0.3, CUEX3: 0.2 },
+      },
+      { name: 'SAT', mode: 'B', type: 'composite', indicators: ITEMS.SAT },
+    ],
     paths: [{ from: 'EXPE', to: 'SAT' }],
   };
   it('reproduce cSEM: rescaled to a unit-variance score, the other block estimated', () => {
@@ -125,7 +227,10 @@ describe('pre-defined weights', () => {
     expect(r.rSquared[1]).toBeCloseTo(ref.predefined.r2, 3);
   });
   it('keep their ratio in a bootstrap sample, and a missing weight counts as 0', () => {
-    const r = estimatePls(mobi(), { ...spec, constructs: [{ ...spec.constructs[0], predefinedWeights: { CUEX1: 1 } }, spec.constructs[1]] });
+    const r = estimatePls(mobi(), {
+      ...spec,
+      constructs: [{ ...spec.constructs[0], predefinedWeights: { CUEX1: 1 } }, spec.constructs[1]],
+    });
     expect(r.weights.slice(0, 3).filter((v) => v !== 0)).toHaveLength(1);
     const b = bootstrapPls(mobi(), spec, {}, { samples: 10, seed: 1, confidence: 0.95 });
     const stat = (n: string) => b.stats.find((x) => x.key === `weight:${n}`)!;
@@ -134,16 +239,32 @@ describe('pre-defined weights', () => {
 });
 
 describe('results on the original scale', () => {
-  const spec = model(['EXPE', 'QUAL', 'SAT'], [['EXPE', 'SAT'], ['QUAL', 'SAT']], []);
+  const spec = model(
+    ['EXPE', 'QUAL', 'SAT'],
+    [
+      ['EXPE', 'SAT'],
+      ['QUAL', 'SAT'],
+    ],
+    [],
+  );
   const r = estimatePls(mobi(), spec);
   const weights = r.indicators.map((x, i) => ({ name: x.name, weight: r.weights[i] }));
   it('reproduce lm() on the rescaled composites', () => {
     const [eq] = originalScaleCoefficients(mobi(), spec, {}, weights)!;
     expect(eq.to).toBe('SAT');
-    expect(eq.coefficients.find((k) => k.from === 'EXPE')!.b).toBeCloseTo(ref.originalScale.unstandardized.EXPE, 3);
-    expect(eq.coefficients.find((k) => k.from === 'QUAL')!.b).toBeCloseTo(ref.originalScale.unstandardized.QUAL, 3);
+    expect(eq.coefficients.find((k) => k.from === 'EXPE')!.b).toBeCloseTo(
+      ref.originalScale.unstandardized.EXPE,
+      3,
+    );
+    expect(eq.coefficients.find((k) => k.from === 'QUAL')!.b).toBeCloseTo(
+      ref.originalScale.unstandardized.QUAL,
+      3,
+    );
     expect(eq.intercept).toBeCloseTo(ref.originalScale.unstandardized['(Intercept)'], 2);
-    expect(ref.originalScale.meanCentred.EXPE).toBeCloseTo(ref.originalScale.unstandardized.EXPE, 10);  // the same slopes
+    expect(ref.originalScale.meanCentred.EXPE).toBeCloseTo(
+      ref.originalScale.unstandardized.EXPE,
+      10,
+    ); // the same slopes
     expect(Math.abs(ref.originalScale.meanCentred['(Intercept)'])).toBeLessThan(1e-10);
   });
   it('are not offered for a model with terms', () => {
@@ -158,11 +279,24 @@ describe('a binary moderator', () => {
     const D = Float64Array.from(cusco, (v) => (v >= ref.binaryMedian ? 1 : 0));
     const d2: Dataset = { ...data, names: [...data.names, 'D'], cols: [...data.cols, D] };
     const r = estimatePls(d2, {
-      constructs: [K('EXPE'), K('SAT'), { name: 'GRP', mode: 'A', type: 'factor', indicators: ['D'] }],
-      paths: [{ from: 'EXPE', to: 'SAT' }, { from: 'GRP', to: 'SAT' }], moderations: [{ from: 'EXPE', moderator: 'GRP', to: 'SAT' }],
+      constructs: [
+        K('EXPE'),
+        K('SAT'),
+        { name: 'GRP', mode: 'A', type: 'factor', indicators: ['D'] },
+      ],
+      paths: [
+        { from: 'EXPE', to: 'SAT' },
+        { from: 'GRP', to: 'SAT' },
+      ],
+      moderations: [{ from: 'EXPE', moderator: 'GRP', to: 'SAT' }],
     });
     const j = r.constructs.indexOf('SAT');
-    const b = binaryModeration(r.pathCoef[r.constructs.indexOf('EXPE')][j], r.pathCoef[r.constructs.indexOf('GRP')][j], r.pathCoef[r.constructs.indexOf('EXPE × GRP')][j], D)!;
+    const b = binaryModeration(
+      r.pathCoef[r.constructs.indexOf('EXPE')][j],
+      r.pathCoef[r.constructs.indexOf('GRP')][j],
+      r.pathCoef[r.constructs.indexOf('EXPE × GRP')][j],
+      D,
+    )!;
     // (lm() on the stage 1 scores; stage 2 re-estimates the weights, so to two decimals)
     expect(b.slopeLow).toBeCloseTo(ref.binaryLm['z(EXPE)'], 1);
     expect(b.difference).toBeCloseTo(ref.binaryLm['z(EXPE):D'], 1);

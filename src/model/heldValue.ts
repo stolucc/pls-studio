@@ -18,34 +18,46 @@ function entry(raw: string): GroupValue | undefined {
 }
 
 /** The value typed in the dialog, or an error message. `reserved`: names a label may not take (variables, constructs). */
-export function parseHeldValue(text: string, opts: { groups: boolean; reserved?: Set<string> }): HeldValue | { error: string } {
+export function parseHeldValue(
+  text: string,
+  opts: { groups: boolean; reserved?: Set<string> },
+): HeldValue | { error: string } {
   const t = text.trim();
   if (!t) return null;
   const parts = t.replace(/^c\((.*)\)$/, '$1').split(',');
   if (parts.length > 1) {
-    if (!opts.groups) return { error: 'One value per group needs groups (Groups in the Model inspector).' };
+    if (!opts.groups)
+      return { error: 'One value per group needs groups (Groups in the Model inspector).' };
     const out: GroupValue[] = [];
     for (const p of parts) {
       const v = entry(p);
       if (v === undefined) return { error: `“${p.trim()}” is not a number, NA or a label.` };
-      if (typeof v === 'string' && opts.reserved?.has(v)) return { error: `“${v}” is a variable or construct name; a label must differ.` };
+      if (typeof v === 'string' && opts.reserved?.has(v))
+        return { error: `“${v}” is a variable or construct name; a label must differ.` };
       out.push(v);
     }
     return { byGroup: out };
   }
   const v = entry(t);
-  if (v === undefined) return { error: 'Type a number (held at it), a label (equal labels are equal), or leave it empty (estimated freely).' };
+  if (v === undefined)
+    return {
+      error:
+        'Type a number (held at it), a label (equal labels are equal), or leave it empty (estimated freely).',
+    };
   if (v === null) return null;
   if (typeof v === 'number') {
     if (!Number.isFinite(v) || Math.abs(v) > 1e6) return { error: 'The value is out of range.' };
     return { fixed: v };
   }
-  if (opts.reserved?.has(v)) return { error: `“${v}” is a variable or construct name; a label must differ.` };
+  if (opts.reserved?.has(v))
+    return { error: `“${v}” is a variable or construct name; a label must differ.` };
   return { label: v };
 }
 
 /** The dialog's text for a parameter's current state (the inverse of parseHeldValue). */
-export function heldText(p: { fixed?: number; label?: string; byGroup?: GroupValue[] } | undefined): string {
+export function heldText(
+  p: { fixed?: number; label?: string; byGroup?: GroupValue[] } | undefined,
+): string {
   if (!p) return '';
   if (p.byGroup?.length) return p.byGroup.map((v) => (v === null ? 'NA' : String(v))).join(', ');
   if (p.fixed !== undefined) return String(p.fixed);

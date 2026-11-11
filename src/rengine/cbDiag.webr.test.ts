@@ -12,26 +12,79 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Dataset, ModelSpec } from '../engine/types';
 import { rCall } from './bridge';
 import type { CbCall } from './cbExtras';
-import { compareModelsR, compareModelsScriptR, epcCounts, epcR, epcScriptR, epcVerdict, discriminantR, discriminantScriptR, dvClass, dvClassChi2, largestResiduals, LOCALFIT_TESTS, localFitR, localFitScriptR, type LocalFitBlock } from './cbDiag';
+import {
+  compareModelsR,
+  compareModelsScriptR,
+  epcCounts,
+  epcR,
+  epcScriptR,
+  epcVerdict,
+  discriminantR,
+  discriminantScriptR,
+  dvClass,
+  dvClassChi2,
+  largestResiduals,
+  LOCALFIT_TESTS,
+  localFitR,
+  localFitScriptR,
+  type LocalFitBlock,
+} from './cbDiag';
 import { estimateCbLavaan } from './lavaan';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const REF = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'cbdiag', 'reference.json'), 'utf8'));
-const F = (name: string, inds: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: inds });
-const spec: ModelSpec = { constructs: [F('visual', ['x1', 'x2', 'x3']), F('textual', ['x4', 'x5', 'x6']), F('speed', ['x7', 'x8', 'x9'])], paths: [] };
+const REF = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'cbdiag', 'reference.json'), 'utf8'),
+);
+const F = (name: string, inds: string[]) => ({
+  name,
+  type: 'factor' as const,
+  mode: 'A' as const,
+  indicators: inds,
+});
+const spec: ModelSpec = {
+  constructs: [
+    F('visual', ['x1', 'x2', 'x3']),
+    F('textual', ['x4', 'x5', 'x6']),
+    F('speed', ['x7', 'x8', 'x9']),
+  ],
+  paths: [],
+};
 let hs: Dataset;
-const call = (over: Partial<CbCall> = {}): CbCall => ({ data: hs, spec, missing: 'casewise', estimator: 'ML', interaction: 'product', ...over });
+const call = (over: Partial<CbCall> = {}): CbCall => ({
+  data: hs,
+  spec,
+  missing: 'casewise',
+  estimator: 'ML',
+  interaction: 'product',
+  ...over,
+});
 /** The lower triangle, column by column (as R's m[lower.tri(m)]). */
 const low = (m: (number | null)[][]) => m.flatMap((_, j) => m.slice(j + 1).map((row) => row[j]));
 /** HS with values removed by the reference's rule: x1 in every 5th row, x5 in rows 3, 10, 17, ... */
-const withMissing = (): Dataset => ({ ...hs, cols: hs.cols.map((col, k) => Float64Array.from(col, (v, i) => ((hs.names[k] === 'x1' && (i + 1) % 5 === 0) || (hs.names[k] === 'x5' && (i + 1) % 7 === 3) ? NaN : v))) });
+const withMissing = (): Dataset => ({
+  ...hs,
+  cols: hs.cols.map((col, k) =>
+    Float64Array.from(col, (v, i) =>
+      (hs.names[k] === 'x1' && (i + 1) % 5 === 0) || (hs.names[k] === 'x5' && (i + 1) % 7 === 3)
+        ? NaN
+        : v,
+    ),
+  ),
+});
 
 beforeAll(async () => {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
-  hs = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+    'ps_dataset',
+    { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] },
+    'lavaan',
+  );
+  hs = {
+    names: raw.names,
+    cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+  };
 }, 900_000);
 
 describe('local fit (lavaan::lavResiduals, lavTest)', () => {
@@ -44,7 +97,9 @@ describe('local fit (lavaan::lavResiduals, lavTest)', () => {
     low(b.residual).forEach((v, k) => expect(v, `residual ${k}`).toBeCloseTo(ref.residual[k], 8));
     low(b.se).forEach((v, k) => expect(v, `se ${k}`).toBeCloseTo(ref.se[k], 8));
     low(b.z).forEach((v, k) => expect(v, `z ${k}`).toBeCloseTo(ref.z[k], 6));
-    low(b.normalized!).forEach((v, k) => expect(v, `normalized ${k}`).toBeCloseTo(ref.normalized[k], 6));
+    low(b.normalized!).forEach((v, k) =>
+      expect(v, `normalized ${k}`).toBeCloseTo(ref.normalized[k], 6),
+    );
     expect(b.summary.srmr).toBeCloseTo(ref.srmr, 8);
     expect(b.summary.se).toBeCloseTo(ref.srmrSe, 8);
     expect(b.summary.z).toBeCloseTo(ref.srmrZ, 6);
@@ -62,17 +117,23 @@ describe('local fit (lavaan::lavResiduals, lavTest)', () => {
       expect(t.p, t.test).toBeCloseTo(want.p, 10);
       if (want.scaling !== null) expect(t.scaling, t.test).toBeCloseTo(want.scaling, 8);
     }
-    expect(r.tests.find((t) => t.test === 'standard')!.stat).toBeCloseTo(85.306, 3);  // ?cfa's χ²
+    expect(r.tests.find((t) => t.test === 'standard')!.stat).toBeCloseTo(85.306, 3); // ?cfa's χ²
     // The largest misfit: x7 ↔ x8 (the speed factor's two tests that correlate beyond it), as in lavaan's summary.
     const top = largestResiduals(b)[0];
     expect([top.a, top.b]).toEqual(['x7', 'x8']);
   }, 900_000);
 
   it('with Browne’s RLS as the base statistic the scaled, corrected and FMG tests equal lavTest(scaled_test = "RLS")', async () => {
-    const tests = ['satorra.bentler', 'mean.var.adjusted.corrected', 'scaled.shifted.corrected', 'peba4'] as const;
+    const tests = [
+      'satorra.bentler',
+      'mean.var.adjusted.corrected',
+      'scaled.shifted.corrected',
+      'peba4',
+    ] as const;
     const r = await localFitR(call(), { tests: [...tests], base: 'RLS' });
     for (const k of tests) {
-      const t = r.tests.find((x) => x.test === k)!, want = REF.localfit.rls[k];
+      const t = r.tests.find((x) => x.test === k)!,
+        want = REF.localfit.rls[k];
       expect(t.stat, k).toBeCloseTo(want.stat, 6);
       expect(t.p, k).toBeCloseTo(want.p, 10);
     }
@@ -80,12 +141,15 @@ describe('local fit (lavaan::lavResiduals, lavTest)', () => {
   }, 900_000);
 
   it('a test that does not apply says why, and the others still run (FIML: no corrected tests, no sample-based ADF test)', async () => {
-    const r = await localFitR(call({ data: withMissing(), missing: 'fiml' }), { tests: ['browne.residual.nt.model', 'browne.residual.adf', 'mean.var.adjusted.corrected'], base: 'standard' });
+    const r = await localFitR(call({ data: withMissing(), missing: 'fiml' }), {
+      tests: ['browne.residual.nt.model', 'browne.residual.adf', 'mean.var.adjusted.corrected'],
+      base: 'standard',
+    });
     const by = (k: string) => r.tests.find((t) => t.test === k)!;
     expect(by('browne.residual.nt.model').stat).toBeGreaterThan(0);
     expect(by('browne.residual.adf').error).toMatch(/incomplete|model-based/);
     expect(by('mean.var.adjusted.corrected').error).toMatch(/listwise/);
-    expect(r.blocks[0].means).not.toBeNull();  // FIML: a mean structure, its residuals reported
+    expect(r.blocks[0].means).not.toBeNull(); // FIML: a mean structure, its residuals reported
   }, 900_000);
 
   it('the exported script runs the same calls', async () => {
@@ -95,30 +159,67 @@ describe('local fit (lavaan::lavResiduals, lavTest)', () => {
   }, 900_000);
 
   it('largestResiduals sorts the pairs by |z| and leaves the diagonal out', () => {
-    const b: LocalFitBlock = { label: '', names: ['a', 'b', 'c'], residual: [[0, null, null], [0.1, 0, null], [-0.2, 0.05, 0]], se: [[0], [0.05], [0.05, 0.05]], z: [[0, null, null], [2, 0, null], [-4, 1, 0]], normalized: null, means: null, summary: {} as LocalFitBlock['summary'] };
-    expect(largestResiduals(b).map((p) => `${p.a}${p.b}:${p.z}`)).toEqual(['ac:-4', 'ab:2', 'bc:1']);
+    const b: LocalFitBlock = {
+      label: '',
+      names: ['a', 'b', 'c'],
+      residual: [
+        [0, null, null],
+        [0.1, 0, null],
+        [-0.2, 0.05, 0],
+      ],
+      se: [[0], [0.05], [0.05, 0.05]],
+      z: [
+        [0, null, null],
+        [2, 0, null],
+        [-4, 1, 0],
+      ],
+      normalized: null,
+      means: null,
+      summary: {} as LocalFitBlock['summary'],
+    };
+    expect(largestResiduals(b).map((p) => `${p.a}${p.b}:${p.z}`)).toEqual([
+      'ac:-4',
+      'ab:2',
+      'bc:1',
+    ]);
   });
 });
 
 describe('auxiliary variables (lavaan aux =)', () => {
-  const loadings = (r: Awaited<ReturnType<typeof estimateCbLavaan>>) => r.estimates.filter((e) => e.op === '=~');
+  const loadings = (r: Awaited<ReturnType<typeof estimateCbLavaan>>) =>
+    r.estimates.filter((e) => e.op === '=~');
   it('FIML with saturated correlates equals cfa(missing = "ml", aux = c("ageyr", "agemo")), and differs from FIML without', async () => {
     const data = withMissing();
     const none = await estimateCbLavaan(data, spec, 'fiml', 'ML');
-    const aux = await estimateCbLavaan(data, { ...spec, auxiliary: ['ageyr', 'agemo'] }, 'fiml', 'ML');
+    const aux = await estimateCbLavaan(
+      data,
+      { ...spec, auxiliary: ['ageyr', 'agemo'] },
+      'fiml',
+      'ML',
+    );
     expect(none.fit.chisq).toBeCloseTo(REF.aux.none.chisq, 6);
     expect(aux.fit.chisq).toBeCloseTo(REF.aux.aux.chisq, 6);
     expect(aux.fit.df).toBe(REF.aux.aux.df);
     expect(aux.fit.cfi).toBeCloseTo(REF.aux.aux.cfi, 8);
-    loadings(aux).forEach((e, k) => { expect(e.est, `${e.lhs} → ${e.rhs}`).toBeCloseTo(REF.aux.aux.est[k], 6); if (REF.aux.aux.se[k]) expect(e.se, `${e.lhs} → ${e.rhs}`).toBeCloseTo(REF.aux.aux.se[k], 6); });
+    loadings(aux).forEach((e, k) => {
+      expect(e.est, `${e.lhs} → ${e.rhs}`).toBeCloseTo(REF.aux.aux.est[k], 6);
+      if (REF.aux.aux.se[k]) expect(e.se, `${e.lhs} → ${e.rhs}`).toBeCloseTo(REF.aux.aux.se[k], 6);
+    });
     expect(Math.abs(aux.fit.chisq - none.fit.chisq)).toBeGreaterThan(1e-3);
     // The auxiliary variables are no part of the model: same parameters, same df.
-    expect(aux.estimates.filter((e) => e.op === '=~').length).toBe(none.estimates.filter((e) => e.op === '=~').length);
+    expect(aux.estimates.filter((e) => e.op === '=~').length).toBe(
+      none.estimates.filter((e) => e.op === '=~').length,
+    );
   }, 900_000);
 
   it('the two-stage approach takes them into its first-stage EM; other treatments ignore them', async () => {
     const data = withMissing();
-    const two = await estimateCbLavaan(data, { ...spec, auxiliary: ['ageyr', 'agemo'] }, 'twostage', 'ML');
+    const two = await estimateCbLavaan(
+      data,
+      { ...spec, auxiliary: ['ageyr', 'agemo'] },
+      'twostage',
+      'ML',
+    );
     expect(two.fit.chisq).toBeCloseTo(REF.aux.twostage.chisq, 6);
     loadings(two).forEach((e, k) => expect(e.est).toBeCloseTo(REF.aux.twostage.est[k], 6));
     // casewise: the request leaves them out (validate.ts warns that they are ignored)
@@ -129,7 +230,17 @@ describe('auxiliary variables (lavaan aux =)', () => {
 });
 
 describe('discriminant validity (semTools::discriminantValidity, Rönkkö & Cho 2022)', () => {
-  type Ref = { lhs: string[]; rhs: string[]; est: number[]; low: number[]; high: number[]; cut80: Lrt; cut90: Lrt; cut100: Lrt; merge: Lrt };
+  type Ref = {
+    lhs: string[];
+    rhs: string[];
+    est: number[];
+    low: number[];
+    high: number[];
+    cut80: Lrt;
+    cut90: Lrt;
+    cut100: Lrt;
+    merge: Lrt;
+  };
   type Lrt = { chisq: number[]; df: number[]; p: number[] };
   const same = (r: Awaited<ReturnType<typeof discriminantR>>, ref: Ref) => {
     expect(r.pairs.map((p) => [p.a, p.b])).toEqual(ref.lhs.map((a, i) => [a, ref.rhs[i]]));
@@ -148,18 +259,39 @@ describe('discriminant validity (semTools::discriminantValidity, Rönkkö & Cho 
     const r = await discriminantR(call(), { level: 0.95, merge: true });
     same(r, REF.discriminant.hs);
     expect(r.markers).toBe(true);
-    expect(r.pairs.map((p) => [dvClass(p.low, p.high), dvClassChi2(p)])).toEqual([['none', 'none'], ['none', 'none'], ['none', 'none']]);
+    expect(r.pairs.map((p) => [dvClass(p.low, p.high), dvClassChi2(p)])).toEqual([
+      ['none', 'none'],
+      ['none', 'none'],
+      ['none', 'none'],
+    ]);
   }, 900_000);
 
   it('Political Democracy: dem60 and dem65 (r = .98) are a severe problem by both workflows', async () => {
-    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'PoliticalDemocracy', na: [] }, 'lavaan');
-    const pd: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
-    const pdSpec: ModelSpec = { constructs: [F('ind60', ['x1', 'x2', 'x3']), F('dem60', ['y1', 'y2', 'y3', 'y4']), F('dem65', ['y5', 'y6', 'y7', 'y8'])], paths: [] };
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+      'ps_dataset',
+      { package: 'lavaan', name: 'PoliticalDemocracy', na: [] },
+      'lavaan',
+    );
+    const pd: Dataset = {
+      names: raw.names,
+      cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+    };
+    const pdSpec: ModelSpec = {
+      constructs: [
+        F('ind60', ['x1', 'x2', 'x3']),
+        F('dem60', ['y1', 'y2', 'y3', 'y4']),
+        F('dem65', ['y5', 'y6', 'y7', 'y8']),
+      ],
+      paths: [],
+    };
     const r = await discriminantR(call({ data: pd, spec: pdSpec }), { level: 0.95, merge: true });
     same(r, REF.discriminant.poldem);
     expect(r.pairs.map((p) => dvClass(p.low, p.high))).toEqual(['none', 'none', 'severe']);
     expect(r.pairs.map((p) => dvClassChi2(p))).toEqual(['none', 'none', 'severe']);
-    const s = await discriminantScriptR(call({ data: pd, spec: pdSpec }), { level: 0.95, merge: false });
+    const s = await discriminantScriptR(call({ data: pd, spec: pdSpec }), {
+      level: 0.95,
+      merge: false,
+    });
     expect(s).toContain('discriminantValidity(fit, cutoff = k, level = 0.95)');
     expect(s).not.toContain('merge = TRUE');
   }, 900_000);
@@ -167,22 +299,43 @@ describe('discriminant validity (semTools::discriminantValidity, Rönkkö & Cho 
 
 describe('comparing two models (lavTestNET, lavTestLRT, nonnest2)', () => {
   it('nonnest2’s documented example: the HS CFA (mean structure, as ?icci) against the same CFA by school', async () => {
-    const byGroup: ModelSpec = { ...spec, multigroup: { column: 'school', invariance: 'configural', free: [] } };
-    const r = await compareModelsR(call({ spec: { ...spec, meanStructure: true } }), byGroup, 'auto');
+    const byGroup: ModelSpec = {
+      ...spec,
+      multigroup: { column: 'school', invariance: 'configural', free: [] },
+    };
+    const r = await compareModelsR(
+      call({ spec: { ...spec, meanStructure: true } }),
+      byGroup,
+      'auto',
+    );
     const ref = REF.compare.documented;
     expect(r.fit1.logl).toBeCloseTo(ref.logl1, 6);
     expect(r.fit2.logl).toBeCloseTo(ref.logl2, 6);
     expect(r.vuong.error).toBeNull();
-    expect(r.vuong.nested).toBe(false);  // NET cannot check models with different numbers of groups
-    for (const k of ['omega', 'pOmega', 'stat', 'pA', 'pB'] as const) expect(r.vuong[k], k).toBeCloseTo(ref.vuong[k], 8);
-    for (const k of ['aic1', 'aic2', 'aicLow', 'aicHigh', 'bic1', 'bic2', 'bicLow', 'bicHigh'] as const) expect(r.icci[k], k).toBeCloseTo(ref.icci[k], 6);
+    expect(r.vuong.nested).toBe(false); // NET cannot check models with different numbers of groups
+    for (const k of ['omega', 'pOmega', 'stat', 'pA', 'pB'] as const)
+      expect(r.vuong[k], k).toBeCloseTo(ref.vuong[k], 8);
+    for (const k of [
+      'aic1',
+      'aic2',
+      'aicLow',
+      'aicHigh',
+      'bic1',
+      'bic2',
+      'bicLow',
+      'bicHigh',
+    ] as const)
+      expect(r.icci[k], k).toBeCloseTo(ref.icci[k], 6);
     expect(r.net.nested21).toBeNull();
     expect(r.net.reason21).toMatch(/groups/);
-    expect(r.lrt.notes.join(' ')).toMatch(/number of groups differs.*invalid/);  // lavaan computes it, and says it is invalid
+    expect(r.lrt.notes.join(' ')).toMatch(/number of groups differs.*invalid/); // lavaan computes it, and says it is invalid
   }, 900_000);
 
   it('a nested pair (three factors against one): NET finds the nesting, the χ² difference and Vuong’s nested test as lavaan and nonnest2 give them', async () => {
-    const one: ModelSpec = { constructs: [F('g', ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9'])], paths: [] };
+    const one: ModelSpec = {
+      constructs: [F('g', ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9'])],
+      paths: [],
+    };
     const r = await compareModelsR(call(), one, 'auto');
     const ref = REF.compare.nested;
     expect(r.net.nested21).toBe(true);
@@ -202,18 +355,41 @@ describe('comparing two models (lavTestNET, lavTestLRT, nonnest2)', () => {
   }, 900_000);
 
   it('refuses models on different observed variables and non-ML estimators', async () => {
-    const fewer: ModelSpec = { constructs: [F('visual', ['x1', 'x2', 'x3']), F('textual', ['x4', 'x5', 'x6'])], paths: [] };
+    const fewer: ModelSpec = {
+      constructs: [F('visual', ['x1', 'x2', 'x3']), F('textual', ['x4', 'x5', 'x6'])],
+      paths: [],
+    };
     await expect(compareModelsR(call(), fewer, 'auto')).rejects.toThrow(/same observed variables/);
-    await expect(compareModelsR(call({ estimator: 'ULS' }), spec, 'auto')).rejects.toThrow(/maximum-likelihood/);
+    await expect(compareModelsR(call({ estimator: 'ULS' }), spec, 'auto')).rejects.toThrow(
+      /maximum-likelihood/,
+    );
   }, 900_000);
 });
 
 describe('EPC-based judgement (semTools::epcEquivFit)', () => {
-  type Ref = { lhs: string[]; op: string[]; rhs: string[]; mi: number[]; epc: number[]; stdEpc: number[]; stdSesoi: number[]; power: number[]; decisionPow: string[]; lowStd: number[]; highStd: number[]; decisionCi: string[]; globalCi: string; globalPow: string };
+  type Ref = {
+    lhs: string[];
+    op: string[];
+    rhs: string[];
+    mi: number[];
+    epc: number[];
+    stdEpc: number[];
+    stdSesoi: number[];
+    power: number[];
+    decisionPow: string[];
+    lowStd: number[];
+    highStd: number[];
+    decisionCi: string[];
+    globalCi: string;
+    globalPow: string;
+  };
   const same = (r: Awaited<ReturnType<typeof epcR>>, ref: Ref) => {
-    expect(r.rows.map((x) => `${x.lhs} ${x.op} ${x.rhs}`)).toEqual(ref.lhs.map((l, i) => `${l} ${ref.op[i]} ${ref.rhs[i]}`));
+    expect(r.rows.map((x) => `${x.lhs} ${x.op} ${x.rhs}`)).toEqual(
+      ref.lhs.map((l, i) => `${l} ${ref.op[i]} ${ref.rhs[i]}`),
+    );
     r.rows.forEach((x, i) => {
-      for (const k of ['mi', 'epc', 'stdEpc', 'stdSesoi', 'power', 'lowStd', 'highStd'] as const) expect(x[k], `${k} ${i}`).toBeCloseTo(ref[k][i], 6);
+      for (const k of ['mi', 'epc', 'stdEpc', 'stdSesoi', 'power', 'lowStd', 'highStd'] as const)
+        expect(x[k], `${k} ${i}`).toBeCloseTo(ref[k][i], 6);
       expect(x.decisionPow, `J-rule ${i}`).toBe(ref.decisionPow[i]);
       expect(x.decisionCi, `CI ${i}`).toBe(ref.decisionCi[i]);
     });
@@ -221,14 +397,37 @@ describe('EPC-based judgement (semTools::epcEquivFit)', () => {
     expect(epcVerdict(n.ci)).toBe(ref.globalCi);
     expect(epcVerdict(n.pow)).toBe(ref.globalPow);
   };
-  const defaults = { stdLoad: 0.4, cor: 0.1, stdBeta: 0.1, stdIntcept: 0.2, cilevel: 0.9, mialpha: 0.05, mipower: 0.8, adjust: 'none' as const };
+  const defaults = {
+    stdLoad: 0.4,
+    cor: 0.1,
+    stdBeta: 0.1,
+    stdIntcept: 0.2,
+    cilevel: 0.9,
+    mialpha: 0.05,
+    mipower: 0.8,
+    adjust: 'none' as const,
+  };
   it('?epcEquivFit’s one-factor model with the defaults: every row, decision and the global verdicts', async () => {
-    const one: ModelSpec = { constructs: [F('onefactor', ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9'])], paths: [] };
+    const one: ModelSpec = {
+      constructs: [F('onefactor', ['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9'])],
+      paths: [],
+    };
     same(await epcR(call({ spec: one }), defaults), REF.epc.one);
   }, 900_000);
   it('the HS CFA with other SESOIs, a 95% interval, α = .01, power .9 and Bonferroni', async () => {
-    const o = { stdLoad: 0.3, cor: 0.15, stdBeta: 0.2, stdIntcept: 0.2, cilevel: 0.95, mialpha: 0.01, mipower: 0.9, adjust: 'bonferroni' as const };
+    const o = {
+      stdLoad: 0.3,
+      cor: 0.15,
+      stdBeta: 0.2,
+      stdIntcept: 0.2,
+      cilevel: 0.95,
+      mialpha: 0.01,
+      mipower: 0.9,
+      adjust: 'bonferroni' as const,
+    };
     same(await epcR(call(), o), REF.epc.hs);
-    expect(await epcScriptR(call(), o)).toContain('epcEquivFit(fit, stdLoad = 0.3, cor = 0.15, stdBeta = 0.2, stdIntcept = 0.2, cilevel = 0.95, mialpha = 0.01, mipower = 0.9, adjust.method = "bonferroni")');
+    expect(await epcScriptR(call(), o)).toContain(
+      'epcEquivFit(fit, stdLoad = 0.3, cor = 0.15, stdBeta = 0.2, stdIntcept = 0.2, cilevel = 0.95, mialpha = 0.01, mipower = 0.9, adjust.method = "bonferroni")',
+    );
   }, 900_000);
 });

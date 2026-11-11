@@ -47,11 +47,63 @@ import psemR from './R/psem.R?raw';
 import hypothesesR from './R/hypotheses.R?raw';
 import apimR from './R/apim.R?raw';
 import { useCompute } from './compute';
-import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
+import {
+  helperBatch,
+  helperCall,
+  HelperMissingPackages,
+  HelperUnavailable,
+  probeHelper,
+  useHelper,
+} from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, cbdiag: cbdiagR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, plssem: plssemR, invariance: invarianceR, hypotheses: hypothesesR, apim: apimR, psem: psemR};
+export const SOURCES = {
+  did: didR,
+  regression: regressionR,
+  common: commonR,
+  lavaan: lavaanR,
+  pls: plsR,
+  boot: bootR,
+  analyses: analysesR,
+  mc: mcR,
+  cpa: cpaR,
+  longitudinal: longitudinalR,
+  items: itemsR,
+  mixed: mixedR,
+  mixture: mixtureR,
+  segment: segmentR,
+  endo: endoR,
+  match: matchR,
+  rsa: rsaR,
+  plsx: plsxR,
+  nca: ncaR,
+  efa: efaR,
+  screen: screenR,
+  network: networkR,
+  tests: testsR,
+  bayes: bayesR,
+  customml: customMlR,
+  twolevelefa: twoLevelEfaR,
+  glmm: glmmR,
+  quadml: quadmlR,
+  dsem: dsemR,
+  dfi: dfiR,
+  validity: validityR,
+  qca: qcaR,
+  cbdiag: cbdiagR,
+  scoretest: scoreTestR,
+  sensitivity: sensitivityR,
+  search: searchR,
+  power: powerR,
+  metasem: metasemR,
+  semtree: semtreeR,
+  plssem: plssemR,
+  invariance: invarianceR,
+  hypotheses: hypothesesR,
+  apim: apimR,
+  psem: psemR,
+};
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -162,7 +214,7 @@ export const R_PACKAGES = {
   // Two-level PLS-SEM (MC-PLSc, random slopes): plssem 0.2.0, desktop R only (DESKTOP_ONLY; the browser's repository has 0.1.5).
   plssem: ['jsonlite', 'plssem'],
   // Score-based invariance tests along a covariate (Merkle & Zeileis): strucchange's fluctuation tests on the lavaan fit.
-  strucchange: ['jsonlite', 'lavaan', 'semTools', 'strucchange', 'mvtnorm'],  // (mvtnorm: WDMo's p-value; a Suggests of strucchange, so not loaded with it)
+  strucchange: ['jsonlite', 'lavaan', 'semTools', 'strucchange', 'mvtnorm'], // (mvtnorm: WDMo's p-value; a Suggests of strucchange, so not loaded with it)
   // Datasets of psychotools (YouthGratitude: the strucchange example of Merkle, Fan & Zeileis 2014).
   psychotools: ['jsonlite', 'psychotools'],
   // Comparing two CB-SEM models: Vuong's tests and AIC / BIC difference intervals (nonnest2) beside lavaan's NET and LRT.
@@ -176,20 +228,35 @@ export const R_PACKAGES = {
 } as const;
 export type RPackage = keyof typeof R_PACKAGES;
 /** Packages that R in the browser cannot run (Stan): only through the desktop helper, never webR. */
-export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>(['blavaan', 'rstan', 'metaSEM', 'semtree', 'plssem']);
+export const DESKTOP_ONLY: ReadonlySet<RPackage> = new Set<RPackage>([
+  'blavaan',
+  'rstan',
+  'metaSEM',
+  'semtree',
+  'plssem',
+]);
 /** Why each of them cannot run in the browser. */
 const DESKTOP_WHY: Partial<Record<RPackage, string>> = {
-  blavaan: 'Stan does not run in the browser', rstan: 'Stan does not run in the browser', metaSEM: 'OpenMx does not run in the browser', semtree: 'OpenMx does not run in the browser',
+  blavaan: 'Stan does not run in the browser',
+  rstan: 'Stan does not run in the browser',
+  metaSEM: 'OpenMx does not run in the browser',
+  semtree: 'OpenMx does not run in the browser',
   plssem: 'the browser’s R has plssem 0.1.5, whose multilevel interface differs from 0.2.0’s',
 };
 export class DesktopOnly extends Error {}
 /** What to do when desktop R is not in use or lacks the packages. */
 function helperAdvice(): string {
-  if (useCompute.getState().backend !== 'helper') return 'Choose Desktop R (helper) under R runs in (Model tab), with the PLS Studio Helper running.';
+  if (useCompute.getState().backend !== 'helper')
+    return 'Choose Desktop R (helper) under R runs in (Model tab), with the PLS Studio Helper running.';
   const h = useHelper.getState();
-  return h.state === 'ready' ? 'Install the packages from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.' : `Desktop R is not available (${h.message || h.state}).`;
+  return h.state === 'ready'
+    ? 'Install the packages from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.'
+    : `Desktop R is not available (${h.message || h.state}).`;
 }
-const desktopOnly = (pkg: RPackage, why: string) => new DesktopOnly(`This analysis runs in desktop R (${R_PACKAGES[pkg].filter((p) => p !== 'jsonlite').join(', ')}; ${DESKTOP_WHY[pkg] ?? 'it does not run in the browser'}). ${why}`);
+const desktopOnly = (pkg: RPackage, why: string) =>
+  new DesktopOnly(
+    `This analysis runs in desktop R (${R_PACKAGES[pkg].filter((p) => p !== 'jsonlite').join(', ')}; ${DESKTOP_WHY[pkg] ?? 'it does not run in the browser'}). ${why}`,
+  );
 
 /** Every R package the bridge uses (what the helper's `setup` installs). */
 const ALL_R_PACKAGES = [...new Set(Object.values(R_PACKAGES).flat())].sort();
@@ -197,7 +264,11 @@ const ALL_R_PACKAGES = [...new Set(Object.values(R_PACKAGES).flat())].sort();
 let probed: { at: number; p: Promise<unknown> } | null = null;
 /** Probe the helper (again after 30 s when it was not ready). */
 export function checkHelper(force = false): Promise<unknown> {
-  if (force || !probed || (useHelper.getState().state !== 'ready' && Date.now() - probed.at > 30_000)) {
+  if (
+    force ||
+    !probed ||
+    (useHelper.getState().state !== 'ready' && Date.now() - probed.at > 30_000)
+  ) {
     probed = { at: Date.now(), p: probeHelper(SOURCES, ALL_R_PACKAGES) };
   }
   return probed.p;
@@ -211,13 +282,15 @@ export async function parallelism(): Promise<{ where: 'desktop' | 'browser'; ses
   if (useCompute.getState().backend === 'helper') {
     await checkHelper();
     const h = useHelper.getState();
-    if (h.state === 'ready' && h.info) return { where: 'desktop', sessions: Math.max(1, h.info.workers) };
+    if (h.state === 'ready' && h.info)
+      return { where: 'desktop', sessions: Math.max(1, h.info.workers) };
   }
   return { where: 'browser', sessions: useCompute.getState().workers };
 }
 
 /** A request as JSON (non-finite numbers as null, as the browser's R gets them). */
-const toJson = (req: unknown) => JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
+const toJson = (req: unknown) =>
+  JSON.stringify(req, (_k, v) => (typeof v === 'number' && !Number.isFinite(v) ? null : v));
 
 /** Bridge functions whose cSEM / seminr resampling runs on several cores of one desktop R process (results identical). */
 const MULTICORE = new Set(['ps_pls_boot', 'ps_cca', 'ps_pls_groups', 'ps_influence', 'ps_dsem']);
@@ -227,27 +300,46 @@ const told = new Set<string>();
 function fallbackNotice(reason: string) {
   if (told.has(reason)) return;
   told.add(reason);
-  void import('../store').then(({ useStore }) => useStore.getState().toast('info', `${reason} Calculating in the browser's R instead.`));
+  void import('../store').then(({ useStore }) =>
+    useStore.getState().toast('info', `${reason} Calculating in the browser's R instead.`),
+  );
 }
 
 /**
  * With "Desktop R (helper)" chosen and the helper ready: the call's result
  * from the helper (JSON text or script). null: use the browser's R.
  */
-async function viaHelper(fn: string, req: unknown, pkg: RPackage, exportScript: boolean): Promise<string | null> {
+async function viaHelper(
+  fn: string,
+  req: unknown,
+  pkg: RPackage,
+  exportScript: boolean,
+): Promise<string | null> {
   if (useCompute.getState().backend !== 'helper') return null;
   await checkHelper();
   const h = useHelper.getState();
-  if (h.state !== 'ready') { fallbackNotice(`Desktop R is not available (${h.message || h.state}).`); return null; }
+  if (h.state !== 'ready') {
+    fallbackNotice(`Desktop R is not available (${h.message || h.state}).`);
+    return null;
+  }
   // cSEM / seminr resampling: all the helper's cores in this one R process (not when drawing chunks).
   const r = req as { boot?: { chunkR?: unknown } };
-  const cores = MULTICORE.has(fn) && !r.boot?.chunkR ? Math.max(1, h.info?.workers ?? 1) : undefined;
+  const cores =
+    MULTICORE.has(fn) && !r.boot?.chunkR ? Math.max(1, h.info?.workers ?? 1) : undefined;
   const json = toJson(cores ? { ...(req as object), cores } : req);
   try {
     return await helperCall(fn, json, [...R_PACKAGES[pkg]], exportScript);
   } catch (e) {
-    if (e instanceof HelperMissingPackages) { fallbackNotice(`${e.message} Install them from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.`); return null; }
-    if (e instanceof HelperUnavailable) { fallbackNotice(e.message); return null; }
+    if (e instanceof HelperMissingPackages) {
+      fallbackNotice(
+        `${e.message} Install them from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.`,
+      );
+      return null;
+    }
+    if (e instanceof HelperUnavailable) {
+      fallbackNotice(e.message);
+      return null;
+    }
     throw e;
   }
 }
@@ -255,26 +347,45 @@ async function viaHelper(fn: string, req: unknown, pkg: RPackage, exportScript: 
 /** A helper result, marked as calculated in desktop R (engine.desktop: its R version). */
 function fromDesktop<T>(json: string): T {
   const v = JSON.parse(json) as { engine?: unknown };
-  if (v && typeof v === 'object' && v.engine && typeof v.engine === 'object') (v.engine as Record<string, unknown>).desktop = useHelper.getState().info?.r ?? 'R';
+  if (v && typeof v === 'object' && v.engine && typeof v.engine === 'object')
+    (v.engine as Record<string, unknown>).desktop = useHelper.getState().info?.r ?? 'R';
   return v as T;
 }
 
 /** Every R result passes here: its warnings go to Messages (notices.ts). */
-function reported<T>(r: T, pkg: RPackage): T { reportRWarnings(r, pkg); return r; }
+function reported<T>(r: T, pkg: RPackage): T {
+  reportRWarnings(r, pkg);
+  return r;
+}
 
 export async function rCall<T>(fn: string, req: unknown, pkg: RPackage): Promise<T> {
   const h = await viaHelper(fn, req, pkg, false);
   if (h !== null) return reported(fromDesktop<T>(h), pkg);
   if (DESKTOP_ONLY.has(pkg)) throw desktopOnly(pkg, helperAdvice());
-  return reported(await withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `ps_call("${fn}", req)`, req)) as T, pkg);
+  return reported(
+    (await withR([...R_PACKAGES[pkg]], SOURCES, (webR) =>
+      callJson(webR, `ps_call("${fn}", req)`, req),
+    )) as T,
+    pkg,
+  );
 }
 
 /** As rCall, in R session `session` (parallel work; 0 is the main session). The helper has its own pool. */
-export async function rCallOn<T>(session: number, fn: string, req: unknown, pkg: RPackage): Promise<T> {
+export async function rCallOn<T>(
+  session: number,
+  fn: string,
+  req: unknown,
+  pkg: RPackage,
+): Promise<T> {
   const h = await viaHelper(fn, req, pkg, false);
   if (h !== null) return reported(fromDesktop<T>(h), pkg);
   if (DESKTOP_ONLY.has(pkg)) throw desktopOnly(pkg, helperAdvice());
-  return reported(await withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `ps_call("${fn}", req)`, req)) as T, pkg);
+  return reported(
+    (await withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) =>
+      callJson(webR, `ps_call("${fn}", req)`, req),
+    )) as T,
+    pkg,
+  );
 }
 
 /**
@@ -282,42 +393,64 @@ export async function rCallOn<T>(session: number, fn: string, req: unknown, pkg:
  * batch over all the helper's processes. The browser (also when the helper
  * cannot be used): spread over the R sessions of the Parallel setting.
  */
-export async function rCallParallel<T>(fn: string, reqs: unknown[], pkg: RPackage, onDone?: (done: number) => void): Promise<T[]> {
+export async function rCallParallel<T>(
+  fn: string,
+  reqs: unknown[],
+  pkg: RPackage,
+  onDone?: (done: number) => void,
+): Promise<T[]> {
   const p = await parallelism();
   if (p.where === 'desktop') {
     try {
       const out = await helperBatch(fn, reqs.map(toJson), [...R_PACKAGES[pkg]], onDone);
       return out.map((r) => reported(fromDesktop<T>(r), pkg));
     } catch (e) {
-      if (e instanceof HelperMissingPackages) fallbackNotice(`${e.message} Install them from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.`);
+      if (e instanceof HelperMissingPackages)
+        fallbackNotice(
+          `${e.message} Install them from the helper’s menu (Install R packages…) or with: pls-studio-helper setup.`,
+        );
       else if (e instanceof HelperUnavailable) fallbackNotice(e.message);
       else throw e;
     }
   }
   // (the browser's own setting, not the helper's process count)
-  return parallelMap(reqs, useCompute.getState().workers, (req, session) =>
-    withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) => callJson(webR, `ps_call("${fn}", req)`, req)).then((r) => reported(r as T, pkg)), onDone);
+  return parallelMap(
+    reqs,
+    useCompute.getState().workers,
+    (req, session) =>
+      withSession(session, [...R_PACKAGES[pkg]], SOURCES, (webR) =>
+        callJson(webR, `ps_call("${fn}", req)`, req),
+      ).then((r) => reported(r as T, pkg)),
+    onDone,
+  );
 }
 
 export async function rScript(fn: string, req: unknown, pkg: RPackage): Promise<string> {
   const h = await viaHelper(fn, req, pkg, true);
   if (h !== null) return h;
   if (DESKTOP_ONLY.has(pkg)) throw desktopOnly(pkg, helperAdvice());
-  return withR([...R_PACKAGES[pkg]], SOURCES, (webR) => callString(webR, `ps_call("${fn}", req, export = TRUE)`, req));
+  return withR([...R_PACKAGES[pkg]], SOURCES, (webR) =>
+    callString(webR, `ps_call("${fn}", req, export = TRUE)`, req),
+  );
 }
 
 /** Where the next calculation with `pkg` runs and that package's version there. */
 export function computeLocation(pkg: string): { where: 'desktop' | 'browser'; version: string } {
   const h = useHelper.getState();
-  if (useCompute.getState().backend === 'helper' && h.state === 'ready' && h.packages[pkg]) return { where: 'desktop', version: h.packages[pkg]! };
+  if (useCompute.getState().backend === 'helper' && h.state === 'ready' && h.packages[pkg])
+    return { where: 'desktop', version: h.packages[pkg]! };
   return { where: 'browser', version: '' };
 }
 
 /** An R error message without R's call prefix. */
-export const rMessage = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/^Error in [^:]*: /, '').replace(/^Error: /, '');
+export const rMessage = (e: unknown) =>
+  (e instanceof Error ? e.message : String(e))
+    .replace(/^Error in [^:]*: /, '')
+    .replace(/^Error: /, '');
 
 /**
  * R's JSON (auto_unbox) writes a one-element vector as a scalar: one warning
  * arrives as a string, not a list. Always a list of strings.
  */
-export const rStrings = (v: unknown): string[] => (Array.isArray(v) ? v : v == null ? [] : [v]).filter((x): x is string => typeof x === 'string');
+export const rStrings = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : v == null ? [] : [v]).filter((x): x is string => typeof x === 'string');

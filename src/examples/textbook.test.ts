@@ -6,18 +6,51 @@
 import { describe, expect, it } from 'vitest';
 import { estimateCb } from '../engine/cbsem';
 import { DEFAULT_SETTINGS, toSpec, validateModel } from '../model/project';
-import { DHP_R, fromLowerTriangle, HAYDUK_NAMES, HAYDUK_OLDER_S, HAYDUK_RELIABILITY, HAYDUK_S, HAYDUK_STACKED_NAMES, HAYDUK_YOUNGER_S, KERCKHOFF_R, makeDhpExample, makeHaydukExample, makeHaydukMeansExample, makeHaydukRevisedExample, makeHaydukStackedExample, makeHaydukStackedMeansExample, makeKerckhoffExample, makeThurstoneExample, makeWheatonExample, THURSTONE_R, WHEATON_S } from './textbook';
+import {
+  DHP_R,
+  fromLowerTriangle,
+  HAYDUK_NAMES,
+  HAYDUK_OLDER_S,
+  HAYDUK_RELIABILITY,
+  HAYDUK_S,
+  HAYDUK_STACKED_NAMES,
+  HAYDUK_YOUNGER_S,
+  KERCKHOFF_R,
+  makeDhpExample,
+  makeHaydukExample,
+  makeHaydukMeansExample,
+  makeHaydukRevisedExample,
+  makeHaydukStackedExample,
+  makeHaydukStackedMeansExample,
+  makeKerckhoffExample,
+  makeThurstoneExample,
+  makeWheatonExample,
+  THURSTONE_R,
+  WHEATON_S,
+} from './textbook';
 
-const est = (cb: ReturnType<typeof estimateCb>, op: string, lhs: string, rhs: string) => cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
+const est = (cb: ReturnType<typeof estimateCb>, op: string, lhs: string, rhs: string) =>
+  cb.estimates.find((e) => e.op === op && e.lhs === lhs && e.rhs === rhs)!;
 
 describe('matrices from the lower triangle', () => {
   it('fills a symmetric matrix with or without the diagonal', () => {
-    expect(fromLowerTriangle(['a', 'b'], [1, 0.5, 2], true)).toEqual([[1, 0.5], [0.5, 2]]);
-    expect(fromLowerTriangle(['a', 'b', 'c'], [0.1, 0.2, 0.3], false)).toEqual([[1, 0.1, 0.2], [0.1, 1, 0.3], [0.2, 0.3, 1]]);
+    expect(fromLowerTriangle(['a', 'b'], [1, 0.5, 2], true)).toEqual([
+      [1, 0.5],
+      [0.5, 2],
+    ]);
+    expect(fromLowerTriangle(['a', 'b', 'c'], [0.1, 0.2, 0.3], false)).toEqual([
+      [1, 0.1, 0.2],
+      [0.1, 1, 0.3],
+      [0.2, 0.3, 1],
+    ]);
     expect(() => fromLowerTriangle(['a', 'b'], [1, 2], true)).toThrow(/Expected 3 values/);
   });
   it('the published matrices are symmetric with the right dimensions', () => {
-    for (const [S, p] of [[WHEATON_S, 6], [THURSTONE_R, 9], [KERCKHOFF_R, 7]] as const) {
+    for (const [S, p] of [
+      [WHEATON_S, 6],
+      [THURSTONE_R, 9],
+      [KERCKHOFF_R, 7],
+    ] as const) {
       expect(S.length).toBe(p);
       for (let i = 0; i < p; i++) for (let j = 0; j < p; j++) expect(S[i][j]).toBe(S[j][i]);
     }
@@ -31,8 +64,15 @@ describe('stability of alienation (Wheaton et al. 1977)', () => {
   const ex = makeWheatonExample(DEFAULT_SETTINGS);
   it('is a valid CB-SEM project on a covariance matrix with two correlated errors', () => {
     expect(ex.settings).toMatchObject({ method: 'cbsem', estimator: 'ML' });
-    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
-    expect(ex.model.correlations!.filter((k) => k.kind === 'indicator').map((k) => [k.a, k.b])).toEqual([['Anomia67', 'Anomia71'], ['Powerless67', 'Powerless71']]);
+    expect(
+      validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
+    expect(
+      ex.model.correlations!.filter((k) => k.kind === 'indicator').map((k) => [k.a, k.b]),
+    ).toEqual([
+      ['Anomia67', 'Anomia71'],
+      ['Powerless67', 'Powerless71'],
+    ]);
     expect(ex.data.moments!.n).toBe(932);
     expect(ex.info.kind).toBe('matrix');
   });
@@ -54,7 +94,9 @@ describe('stability of alienation (Wheaton et al. 1977)', () => {
 describe('Thurstone mental tests: second-order CFA (SAS/STAT PROC CALIS manual)', () => {
   const ex = makeThurstoneExample(DEFAULT_SETTINGS);
   it('is a valid CB-SEM project with a second-order factor over three first-order factors', () => {
-    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
+    expect(
+      validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
     const general = ex.model.constructs.find((c) => c.name === 'General ability')!;
     expect(general.components!.length).toBe(3);
     expect(general.indicators).toEqual([]);
@@ -79,8 +121,15 @@ describe('Thurstone mental tests: second-order CFA (SAS/STAT PROC CALIS manual)'
 describe('ambition and attainment (Kerckhoff 1974; LISREL manual)', () => {
   const ex = makeKerckhoffExample(DEFAULT_SETTINGS);
   it('is a valid observed-variable path model with four fixed exogenous variables', () => {
-    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
-    expect(ex.model.constructs.filter((c) => c.covariate).map((c) => c.name)).toEqual(['Intelligence', 'Siblings', 'FatherEd', 'FatherOcc']);
+    expect(
+      validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
+    expect(ex.model.constructs.filter((c) => c.covariate).map((c) => c.name)).toEqual([
+      'Intelligence',
+      'Siblings',
+      'FatherEd',
+      'FatherOcc',
+    ]);
     expect(ex.model.constructs.every((c) => c.indicators.length === 1)).toBe(true);
     expect(ex.model.paths.length).toBe(15);
     expect(ex.data.moments!.n).toBe(737);
@@ -92,7 +141,7 @@ describe('ambition and attainment (Kerckhoff 1974; LISREL manual)', () => {
     expect(est(cb, '~', 'Grades', 'Intelligence').est).toBeCloseTo(0.526, 3);
     expect(est(cb, '~', 'Grades', 'Intelligence').se).toBeCloseTo(0.031, 3);
     expect(est(cb, '~', 'EducExp', 'Grades').est).toBeCloseTo(0.405, 3);
-    expect(est(cb, '~', 'OccupAsp', 'EducExp').est).toBeCloseTo(0.550, 3);
+    expect(est(cb, '~', 'OccupAsp', 'EducExp').est).toBeCloseTo(0.55, 3);
     expect(est(cb, '~', 'OccupAsp', 'Intelligence').est).toBeCloseTo(-0.039, 3);
     const r2 = (name: string) => cb.r2Constructs[cb.constructs.indexOf(name)];
     expect(r2('Grades')).toBeCloseTo(0.349, 3);
@@ -105,39 +154,68 @@ describe('smoking behaviour and antismoking acts (Hayduk 1987, ch. 4)', () => {
   const ex = makeHaydukExample(DEFAULT_SETTINGS);
   it('the transcribed covariances agree with the correlations printed above them (Figure 4.5)', () => {
     // The printed correlations, lower triangle by rows: a check on the transcription of the covariances.
-    const printed = fromLowerTriangle(HAYDUK_NAMES, [
-      0.021,
-      0.012, -0.176,
-      0.129, 0.213, 0.041,
-      -0.043, -0.173, -0.021, -0.473,
-      0.142, 0.268, -0.042, 0.641, -0.532,
-      0.120, 0.047, -0.152, 0.381, -0.175, 0.396,
-      -0.039, -0.116, -0.163, -0.176, 0.145, -0.072, -0.035,
-      -0.026, -0.107, -0.199, -0.186, 0.119, -0.076, -0.030, 0.912,
-      -0.089, -0.119, -0.120, -0.192, 0.178, -0.094, -0.039, 0.885, 0.807,
-      -0.059, -0.116, -0.179, -0.198, 0.146, -0.090, -0.032, 0.900, 0.965, 0.916,
-      0.168, 0.170, 0.078, 0.141, -0.086, 0.134, 0.150, -0.259, -0.288, -0.247, -0.288,
-      0.078, -0.076, 0.118, -0.062, 0.003, -0.029, 0.084, -0.148, -0.150, -0.096, -0.126, 0.140,
-    ], false);
+    const printed = fromLowerTriangle(
+      HAYDUK_NAMES,
+      [
+        0.021, 0.012, -0.176, 0.129, 0.213, 0.041, -0.043, -0.173, -0.021, -0.473, 0.142, 0.268,
+        -0.042, 0.641, -0.532, 0.12, 0.047, -0.152, 0.381, -0.175, 0.396, -0.039, -0.116, -0.163,
+        -0.176, 0.145, -0.072, -0.035, -0.026, -0.107, -0.199, -0.186, 0.119, -0.076, -0.03, 0.912,
+        -0.089, -0.119, -0.12, -0.192, 0.178, -0.094, -0.039, 0.885, 0.807, -0.059, -0.116, -0.179,
+        -0.198, 0.146, -0.09, -0.032, 0.9, 0.965, 0.916, 0.168, 0.17, 0.078, 0.141, -0.086, 0.134,
+        0.15, -0.259, -0.288, -0.247, -0.288, 0.078, -0.076, 0.118, -0.062, 0.003, -0.029, 0.084,
+        -0.148, -0.15, -0.096, -0.126, 0.14,
+      ],
+      false,
+    );
     const sd = HAYDUK_S.map((r, i) => Math.sqrt(r[i]));
-    for (let i = 0; i < 13; i++) for (let j = 0; j < i; j++) expect(Math.abs(HAYDUK_S[i][j] / (sd[i] * sd[j]) - printed[i][j]), `${HAYDUK_NAMES[i]} / ${HAYDUK_NAMES[j]}`).toBeLessThan(0.0025);
+    for (let i = 0; i < 13; i++)
+      for (let j = 0; j < i; j++)
+        expect(
+          Math.abs(HAYDUK_S[i][j] / (sd[i] * sd[j]) - printed[i][j]),
+          `${HAYDUK_NAMES[i]} / ${HAYDUK_NAMES[j]}`,
+        ).toBeLessThan(0.0025);
     // Standard deviations as printed (sex .500, age 15.7, antismoking acts 1.14).
-    expect(sd[0]).toBeCloseTo(0.5, 3); expect(sd[1]).toBeCloseTo(15.7, 1); expect(sd[12]).toBeCloseTo(1.14, 2);
+    expect(sd[0]).toBeCloseTo(0.5, 3);
+    expect(sd[1]).toBeCloseTo(15.7, 1);
+    expect(sd[12]).toBeCloseTo(1.14, 2);
   });
   it('is a valid CB-SEM project for the R engine: seven single indicators with known reliabilities, gamma 32 fixed at zero', () => {
     expect(ex.settings).toMatchObject({ method: 'cbsem', estimator: 'ML', engine: 'r' });
-    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
+    expect(
+      validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
     // The built-in engine cannot fix error variances: the validator says so, so the example pins the R engine.
-    expect(validateModel(ex.model, ex.data, { ...ex.settings, engine: 'builtin' }).some((i) => i.level === 'error' && /known reliability/.test(i.message))).toBe(true);
-    expect(ex.model.constructs.map((c) => [c.indicators[0], c.reliability])).toEqual(Object.entries(HAYDUK_RELIABILITY));
+    expect(
+      validateModel(ex.model, ex.data, { ...ex.settings, engine: 'builtin' }).some(
+        (i) => i.level === 'error' && /known reliability/.test(i.message),
+      ),
+    ).toBe(true);
+    expect(ex.model.constructs.map((c) => [c.indicators[0], c.reliability])).toEqual(
+      Object.entries(HAYDUK_RELIABILITY),
+    );
     expect(ex.model.constructs.some((c) => c.covariate)).toBe(false);
     const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
-    const into = (to: string) => ex.model.paths.filter((p) => name.get(p.to) === to).map((p) => name.get(p.from));
+    const into = (to: string) =>
+      ex.model.paths.filter((p) => name.get(p.to) === to).map((p) => name.get(p.from));
     expect(into('Smoking')).toEqual(['Sex', 'Age', 'Education', 'Strength of religion']);
-    expect(into('Antismoking views')).toEqual(['Smoking', 'Sex', 'Age', 'Education', 'Strength of religion']);
-    expect(into('Antismoking acts')).toEqual(['Smoking', 'Antismoking views', 'Sex', 'Education', 'Strength of religion']);
+    expect(into('Antismoking views')).toEqual([
+      'Smoking',
+      'Sex',
+      'Age',
+      'Education',
+      'Strength of religion',
+    ]);
+    expect(into('Antismoking acts')).toEqual([
+      'Smoking',
+      'Antismoking views',
+      'Sex',
+      'Education',
+      'Strength of religion',
+    ]);
     // The spec carries the reliabilities for lavaan.R (error variance = (1 - r) x the indicator's variance in the matrix).
-    expect(toSpec(ex.model).constructs.map((c) => c.reliability)).toEqual([0.99, 0.95, 0.9, 0.9, 0.9, 0.95, 0.95]);
+    expect(toSpec(ex.model).constructs.map((c) => c.reliability)).toEqual([
+      0.99, 0.95, 0.9, 0.9, 0.9, 0.95, 0.95,
+    ]);
     expect(ex.data.moments!.n).toBe(432);
     expect(ex.data.names.length).toBe(13);
   });
@@ -147,35 +225,46 @@ describe('stacked smoking model, younger and older respondents (Hayduk 1987, ch.
   const ex = makeHaydukStackedExample(DEFAULT_SETTINGS);
   it('both transcribed matrices agree with the correlations printed with them (Figure 9.2)', () => {
     // Younger: the upper-right correlations; older: the lower-left ones (lower triangles by rows, in the matrices' variable order).
-    const younger = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
-      0.904,
-      -0.328, -0.394,
-      -0.271, -0.245, 0.224,
-      -0.036, -0.050, 0.191, 0.156,
-      -0.076, -0.105, 0.014, 0.059, 0.021,
-      -0.271, -0.312, 0.150, 0.217, 0.048, 0.260,
-      -0.160, -0.215, 0.082, -0.075, 0.105, 0.067, 0.096,
-      -0.023, -0.058, 0.042, -0.101, 0.050, 0.099, 0.033, 0.606,
-    ], false);
-    const older = fromLowerTriangle(HAYDUK_STACKED_NAMES, [
-      0.895,
-      -0.153, -0.142,
-      -0.029, -0.015, 0.063,
-      -0.038, -0.062, 0.130, 0.003,
-      -0.126, -0.109, -0.003, -0.109, -0.034,
-      -0.098, -0.098, 0.062, 0.038, -0.007, -0.269,
-      -0.170, -0.162, 0.123, -0.032, 0.139, 0.088, 0.041,
-      -0.099, -0.096, 0.170, 0.073, 0.228, 0.235, -0.069, 0.647,
-    ], false);
-    for (const [S, R, who] of [[HAYDUK_YOUNGER_S, younger, 'younger'], [HAYDUK_OLDER_S, older, 'older']] as const) {
+    const younger = fromLowerTriangle(
+      HAYDUK_STACKED_NAMES,
+      [
+        0.904, -0.328, -0.394, -0.271, -0.245, 0.224, -0.036, -0.05, 0.191, 0.156, -0.076, -0.105,
+        0.014, 0.059, 0.021, -0.271, -0.312, 0.15, 0.217, 0.048, 0.26, -0.16, -0.215, 0.082, -0.075,
+        0.105, 0.067, 0.096, -0.023, -0.058, 0.042, -0.101, 0.05, 0.099, 0.033, 0.606,
+      ],
+      false,
+    );
+    const older = fromLowerTriangle(
+      HAYDUK_STACKED_NAMES,
+      [
+        0.895, -0.153, -0.142, -0.029, -0.015, 0.063, -0.038, -0.062, 0.13, 0.003, -0.126, -0.109,
+        -0.003, -0.109, -0.034, -0.098, -0.098, 0.062, 0.038, -0.007, -0.269, -0.17, -0.162, 0.123,
+        -0.032, 0.139, 0.088, 0.041, -0.099, -0.096, 0.17, 0.073, 0.228, 0.235, -0.069, 0.647,
+      ],
+      false,
+    );
+    for (const [S, R, who] of [
+      [HAYDUK_YOUNGER_S, younger, 'younger'],
+      [HAYDUK_OLDER_S, older, 'older'],
+    ] as const) {
       const sd = S.map((r, i) => Math.sqrt(r[i]));
-      for (let i = 0; i < 9; i++) for (let j = 0; j < i; j++) expect(Math.abs(S[i][j] / (sd[i] * sd[j]) - R[i][j]), `${who}: ${HAYDUK_STACKED_NAMES[i]} / ${HAYDUK_STACKED_NAMES[j]}`).toBeLessThan(0.004);
+      for (let i = 0; i < 9; i++)
+        for (let j = 0; j < i; j++)
+          expect(
+            Math.abs(S[i][j] / (sd[i] * sd[j]) - R[i][j]),
+            `${who}: ${HAYDUK_STACKED_NAMES[i]} / ${HAYDUK_STACKED_NAMES[j]}`,
+          ).toBeLessThan(0.004);
     }
   });
   it('is a valid two-group CB-SEM project: the matrices as groups, coefficients equal except the heavy arrows, age -> acts back in', () => {
     expect(ex.settings).toMatchObject({ method: 'cbsem', estimator: 'ML', engine: 'r' });
-    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
-    expect(ex.data.moments!.groups!.map((g) => [g.label, g.n])).toEqual([['Younger', 213], ['Older', 219]]);
+    expect(
+      validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
+    expect(ex.data.moments!.groups!.map((g) => [g.label, g.n])).toEqual([
+      ['Younger', 213],
+      ['Older', 219],
+    ]);
     expect(ex.data.moments!.n).toBe(432);
     expect(ex.info.rows).toBe(432);
     const mg = ex.model.multigroup!;
@@ -183,10 +272,26 @@ describe('stacked smoking model, younger and older respondents (Hayduk 1987, ch.
     expect(mg.structural).toEqual(['regressions']);
     expect(ex.model.paths.length).toBe(15);
     const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
-    const freed = mg.free.map((f) => (f.kind === 'regression' ? `${name.get(f.from)} → ${name.get(f.to)}` : f.kind));
-    expect(freed).toEqual(['Sex → Antismoking acts', 'Age → Smoking', 'Age → Antismoking views', 'Age → Antismoking acts', 'Education → Smoking', 'Education → Antismoking views', 'Education → Antismoking acts', 'Smoking → Antismoking views', 'Smoking → Antismoking acts']);
+    const freed = mg.free.map((f) =>
+      f.kind === 'regression' ? `${name.get(f.from)} → ${name.get(f.to)}` : f.kind,
+    );
+    expect(freed).toEqual([
+      'Sex → Antismoking acts',
+      'Age → Smoking',
+      'Age → Antismoking views',
+      'Age → Antismoking acts',
+      'Education → Smoking',
+      'Education → Antismoking views',
+      'Education → Antismoking acts',
+      'Smoking → Antismoking views',
+      'Smoking → Antismoking acts',
+    ]);
     const spec = toSpec(ex.model);
-    expect(spec.multigroup!.free[0]).toEqual({ kind: 'regression', from: 'Sex', to: 'Antismoking acts' });
+    expect(spec.multigroup!.free[0]).toEqual({
+      kind: 'regression',
+      from: 'Sex',
+      to: 'Antismoking acts',
+    });
     expect(spec.constructs.every((c) => c.reliability !== undefined)).toBe(true);
   });
 });
@@ -210,7 +315,7 @@ describe('non-recursive textbook models', () => {
     expect(est(cb, '~', 'FGenAsp', 'RGenAsp').est).toBeCloseTo(0.235, 3);
     expect(est(cb, '~', 'FGenAsp', 'RGenAsp').se).toBeCloseTo(0.119, 3);
     expect(est(cb, '=~', 'RGenAsp', 'REdAsp').est).toBeCloseTo(1.063, 3);
-    expect(est(cb, '=~', 'FGenAsp', 'FEdAsp').est).toBeCloseTo(0.930, 3);
+    expect(est(cb, '=~', 'FGenAsp', 'FEdAsp').est).toBeCloseTo(0.93, 3);
     expect(est(cb, '~~', 'RGenAsp', 'FGenAsp').est).toBeCloseTo(-0.023, 3);
     expect(cb.r2Constructs[cb.constructs.indexOf('RGenAsp')]).toBeCloseTo(0.522, 3);
   });
@@ -220,30 +325,65 @@ describe('non-recursive textbook models', () => {
     expect(issues.filter((i) => i.level === 'error')).toEqual([]);
     expect(issues.some((i) => /Non-recursive model/.test(i.message))).toBe(true);
     const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
-    const into = (to: string) => ex.model.paths.filter((p) => name.get(p.to) === to).map((p) => name.get(p.from));
-    expect(into('Smoking')).toEqual(['Antismoking views', 'Age', 'Education', 'Strength of religion']);
+    const into = (to: string) =>
+      ex.model.paths.filter((p) => name.get(p.to) === to).map((p) => name.get(p.from));
+    expect(into('Smoking')).toEqual([
+      'Antismoking views',
+      'Age',
+      'Education',
+      'Strength of religion',
+    ]);
     expect(into('Antismoking views')).toEqual(['Smoking', 'Sex', 'Age', 'Education']);
-    expect(into('Antismoking acts')).toEqual(['Smoking', 'Antismoking views', 'Sex', 'Education', 'Strength of religion']);
+    expect(into('Antismoking acts')).toEqual([
+      'Smoking',
+      'Antismoking views',
+      'Sex',
+      'Education',
+      'Strength of religion',
+    ]);
     // zeta 1 and zeta 2 uncorrelated, as the figure (the drawn correlations are the exogenous pairs only).
-    expect((ex.model.correlations ?? []).every((k) => k.kind === 'construct' && [k.a, k.b].every((id) => ['Sex', 'Age', 'Education', 'Strength of religion'].includes(name.get(id)!)))).toBe(true);
+    expect(
+      (ex.model.correlations ?? []).every(
+        (k) =>
+          k.kind === 'construct' &&
+          [k.a, k.b].every((id) =>
+            ['Sex', 'Age', 'Education', 'Strength of religion'].includes(name.get(id)!),
+          ),
+      ),
+    ).toBe(true);
   });
 });
 
 describe('Hayduk (1987) means models (Figures 9.8 and 9.11)', () => {
   it('the single-group model carries the means of Figure 4.5 and fixes each marker intercept at the assigned bias', () => {
     const ex = makeHaydukMeansExample(DEFAULT_SETTINGS);
-    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
+    expect(
+      validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
     expect(ex.data.moments!.means!.length).toBe(13);
     expect(ex.data.moments!.means![ex.data.names.indexOf('Age')]).toBe(38.45);
     expect(ex.model.constant).toBeTruthy();
     const name = new Map(ex.model.constructs.map((c) => [c.id, c.name]));
-    expect(ex.model.means!.map((t) => [name.get(t.target), t.bias])).toEqual([['Sex', 0], ['Age', -0.25], ['Education', 0.1], ['Strength of religion', 0.1], ['Smoking', -0.02], ['Antismoking views', 0.5], ['Antismoking acts', 0]]);
-    expect(toSpec(ex.model).means!.find((t) => t.construct === 'Age')).toEqual({ construct: 'Age', bias: -0.25 });
+    expect(ex.model.means!.map((t) => [name.get(t.target), t.bias])).toEqual([
+      ['Sex', 0],
+      ['Age', -0.25],
+      ['Education', 0.1],
+      ['Strength of religion', 0.1],
+      ['Smoking', -0.02],
+      ['Antismoking views', 0.5],
+      ['Antismoking acts', 0],
+    ]);
+    expect(toSpec(ex.model).means!.find((t) => t.construct === 'Age')).toEqual({
+      construct: 'Age',
+      bias: -0.25,
+    });
   });
   it('the stacked model: two indicators each for smoking and religion, means per group, equalities and the freed means', () => {
     const ex = makeHaydukStackedMeansExample(DEFAULT_SETTINGS);
-    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
-    expect(ex.data.moments!.groups!.map((g) => g.means![5])).toEqual([25.99, 50.56]);  // Age, Figure 9.2
+    expect(
+      validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
+    expect(ex.data.moments!.groups!.map((g) => g.means![5])).toEqual([25.99, 50.56]); // Age, Figure 9.2
     const by = new Map(ex.model.constructs.map((c) => [c.name, c]));
     expect(by.get('Smoking')!.indicators).toEqual(['S-current', 'S-p-strain']);
     expect(by.get('Smoking')!.reliabilities).toEqual({ 'S-current': 0.9 });
@@ -254,7 +394,11 @@ describe('Hayduk (1987) means models (Figures 9.8 and 9.11)', () => {
     const mg = ex.model.multigroup!;
     expect(mg.invariance).toBe('metric');
     expect(mg.structural).toEqual(['regressions', 'means']);
-    expect(mg.free.filter((f) => f.kind === 'mean').map((f) => name.get((f as { construct: string }).construct))).toEqual(['Age', 'Education', 'Strength of religion']);
+    expect(
+      mg.free
+        .filter((f) => f.kind === 'mean')
+        .map((f) => name.get((f as { construct: string }).construct)),
+    ).toEqual(['Age', 'Education', 'Strength of religion']);
     expect(mg.free.filter((f) => f.kind === 'regression').length).toBe(9);
     expect(ex.model.paths.length).toBe(15);
   });

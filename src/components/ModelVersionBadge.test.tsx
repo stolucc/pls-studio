@@ -17,15 +17,33 @@ function render() {
   return html;
 }
 const s = () => useStore.getState();
-const calculated = () => useStore.setState((x) => ({ results: { pls: { n: 3 } as never, cb: null, miiv: null, boot: null, fitTest: null, key: resultsKey(x) } }));
+const calculated = () =>
+  useStore.setState((x) => ({
+    results: {
+      pls: { n: 3 } as never,
+      cb: null,
+      miiv: null,
+      boot: null,
+      fitTest: null,
+      key: resultsKey(x),
+    },
+  }));
 
-beforeEach(() => { s().newProject(); useStore.setState({ cloud: null, toasts: [] }); loadCards([]); });
+beforeEach(() => {
+  s().newProject();
+  useStore.setState({ cloud: null, toasts: [] });
+  loadCards([]);
+});
 
 describe('the version badge on the canvas', () => {
   it('names the run the model matches, the version it was edited from, or that it is not calculated yet', async () => {
-    expect(render()).toBe('');  // no model, no badge
-    s().setData({ names: ['a1', 'b1'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([2, 3, 5])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
-    const a = s().addConstruct(0, 0, ['a1']), b = s().addConstruct(1, 0, ['b1']);
+    expect(render()).toBe(''); // no model, no badge
+    s().setData(
+      { names: ['a1', 'b1'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([2, 3, 5])] },
+      { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] },
+    );
+    const a = s().addConstruct(0, 0, ['a1']),
+      b = s().addConstruct(1, 0, ['b1']);
     expect(render()).toContain('Not calculated yet');
     expect(render()).toContain('disabled=""');
     calculated();

@@ -4,10 +4,32 @@ import type { Construct, ModelState } from '../model/project';
 import { placeModel } from '../placement';
 import { buildFigureInput } from './build';
 
-const C = (name: string, indicators: string[], x: number, extra: Partial<Construct> = {}): Construct => ({ id: name, name, type: 'factor', mode: 'A', indicators, x, y: 0, side: 'left', ...extra });
+const C = (
+  name: string,
+  indicators: string[],
+  x: number,
+  extra: Partial<Construct> = {},
+): Construct => ({
+  id: name,
+  name,
+  type: 'factor',
+  mode: 'A',
+  indicators,
+  x,
+  y: 0,
+  side: 'left',
+  ...extra,
+});
 const raw: ModelState = {
-  constructs: [C('A', ['a1', 'a2', 'a3'], 0), C('B', ['b1', 'b2', 'b3'], 500, { scaling: 'variance', fixedLoadings: { b2: 0.7 } }), C('M', ['m1', 'm2'], 250, { y: 300 } as Partial<Construct>)],
-  paths: [{ id: 'ab', from: 'A', to: 'B' }, { id: 'ba', from: 'B', to: 'A' }],
+  constructs: [
+    C('A', ['a1', 'a2', 'a3'], 0),
+    C('B', ['b1', 'b2', 'b3'], 500, { scaling: 'variance', fixedLoadings: { b2: 0.7 } }),
+    C('M', ['m1', 'm2'], 250, { y: 300 } as Partial<Construct>),
+  ],
+  paths: [
+    { id: 'ab', from: 'A', to: 'B' },
+    { id: 'ba', from: 'B', to: 'A' },
+  ],
   moderations: [{ id: 'mo', path: 'ab', moderator: 'M' }],
 };
 const model = placeModel(raw, false);
@@ -18,19 +40,34 @@ describe('the figure of a model', () => {
     const [a, b] = f.constructs;
     expect(a.indicators).toEqual([{ value: 1, p: null, fixed: true }, null, null]);
     expect(b.indicators).toEqual([null, { value: 0.7, p: null, fixed: true }, null]);
-    expect(buildFigureInput(model, 'pls', {}, { showErrors: false }).constructs[0].indicators).toEqual([null, null, null]);
+    expect(
+      buildFigureInput(model, 'pls', {}, { showErrors: false }).constructs[0].indicators,
+    ).toEqual([null, null, null]);
   });
   it('shows estimates, keeping held ones marked fixed', () => {
-    const f = buildFigureInput(model, 'cbsem', { indicator: (n) => (n === 'a1' ? 0.81 : 0.5), path: (from, to) => ({ beta: from === 'A' && to === 'B' ? 0.4 : null, p: 0.01 }) }, { showErrors: true });
+    const f = buildFigureInput(
+      model,
+      'cbsem',
+      {
+        indicator: (n) => (n === 'a1' ? 0.81 : 0.5),
+        path: (from, to) => ({ beta: from === 'A' && to === 'B' ? 0.4 : null, p: 0.01 }),
+      },
+      { showErrors: true },
+    );
     expect(f.constructs[0].indicators[0]).toEqual({ value: 0.81, p: null, fixed: true });
     expect(f.constructs[0].indicators[1]).toEqual({ value: 0.5, p: null, fixed: false });
-    expect(f.paths.find((p) => p.key === 'ab')!.label).toEqual({ value: 0.4, p: 0.01, fixed: false });
+    expect(f.paths.find((p) => p.key === 'ab')!.label).toEqual({
+      value: 0.4,
+      p: 0.01,
+      fixed: false,
+    });
     expect(f.paths.find((p) => p.key === 'ba')!.label).toBeNull();
   });
   it('draws a reciprocal pair on separate sides, the moderator onto its own arrow', () => {
     const f = buildFigureInput(model, 'pls', {}, { showErrors: false });
     const [A, B] = model.constructs;
-    const ab = f.paths.find((p) => p.key === 'ab')!, ba = f.paths.find((p) => p.key === 'ba')!;
+    const ab = f.paths.find((p) => p.key === 'ab')!,
+      ba = f.paths.find((p) => p.key === 'ba')!;
     expect(ab).toMatchObject(pathSegment(A, B, pathOffset(model.paths, 'A', 'B'))!);
     expect(ab.y1).not.toBeCloseTo(ba.y2, 3);
     expect(ab.moderated).toBe(true);
@@ -39,8 +76,13 @@ describe('the figure of a model', () => {
   });
   it('gives reliabilities beside error terms only for standardised estimates', () => {
     const v = { error: () => 0.36 };
-    expect(buildFigureInput(model, 'cbsem', v, { showErrors: true }).errors[0].r2).toBeCloseTo(0.64, 12);
-    expect(buildFigureInput(model, 'cbsem', v, { showErrors: true, unstd: true }).errors[0].r2).toBeNull();
+    expect(buildFigureInput(model, 'cbsem', v, { showErrors: true }).errors[0].r2).toBeCloseTo(
+      0.64,
+      12,
+    );
+    expect(
+      buildFigureInput(model, 'cbsem', v, { showErrors: true, unstd: true }).errors[0].r2,
+    ).toBeNull();
     expect(buildFigureInput(model, 'pls', v, { showErrors: false }).errors).toEqual([]);
   });
 });
@@ -51,10 +93,19 @@ describe('the constant', () => {
     const { constantDrawn } = await import('../model/project');
     expect(constantDrawn(withConstant, false)).toBe(false);
     expect(constantDrawn(withConstant, true)).toBe(true);
-    expect(constantDrawn({ ...withConstant, means: [{ id: 'mn', target: 'A' }] }, false)).toBe(true);
-    expect(constantDrawn({ ...withConstant, means: [{ id: 'mn', target: 'gone' }] }, false)).toBe(false);
+    expect(constantDrawn({ ...withConstant, means: [{ id: 'mn', target: 'A' }] }, false)).toBe(
+      true,
+    );
+    expect(constantDrawn({ ...withConstant, means: [{ id: 'mn', target: 'gone' }] }, false)).toBe(
+      false,
+    );
     expect(constantDrawn(raw, true)).toBe(false);
-    expect(buildFigureInput(withConstant, 'cbsem', {}, { showErrors: false }).constant).toBeUndefined();
-    expect(buildFigureInput(withConstant, 'cbsem', {}, { showErrors: false, showIntercepts: true }).constant).toEqual({ x: -200, y: 0 });
+    expect(
+      buildFigureInput(withConstant, 'cbsem', {}, { showErrors: false }).constant,
+    ).toBeUndefined();
+    expect(
+      buildFigureInput(withConstant, 'cbsem', {}, { showErrors: false, showIntercepts: true })
+        .constant,
+    ).toEqual({ x: -200, y: 0 });
   });
 });

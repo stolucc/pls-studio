@@ -21,8 +21,27 @@ describe('minimum sample size (Kock & Hadaya 2018)', () => {
   });
 
   it('uses the smallest path of the current results, or an expected value', async () => {
-    const pls = { constructs: ['A', 'B', 'C'], n: 120, pathCoef: [[0, 0.5, 0.15], [0, 0, 0.4], [0, 0, 0]], hasPath: [[false, true, true], [false, false, true], [false, false, false]] } as unknown as PlsResult;
-    const ctx: AnalysisCtx = { data: null, info: null, settings: DEFAULT_SETTINGS, pls, projectName: 'p' };
+    const pls = {
+      constructs: ['A', 'B', 'C'],
+      n: 120,
+      pathCoef: [
+        [0, 0.5, 0.15],
+        [0, 0, 0.4],
+        [0, 0, 0],
+      ],
+      hasPath: [
+        [false, true, true],
+        [false, false, true],
+        [false, false, false],
+      ],
+    } as unknown as PlsResult;
+    const ctx: AnalysisCtx = {
+      data: null,
+      info: null,
+      settings: DEFAULT_SETTINGS,
+      pls,
+      projectName: 'p',
+    };
     const o = t.defaults(ctx);
     const r = await t.run(o, ctx, () => {});
     expect(r.betaMin).toBe(0.15);
@@ -31,6 +50,8 @@ describe('minimum sample size (Kock & Hadaya 2018)', () => {
     expect(r.n).toBe(120);
     expect(t.blocked(o, { ...ctx, pls: null })).toContain('Calculate the PLS-SEM model first');
     expect(t.blocked({ ...o, source: 'manual' }, { ...ctx, pls: null })).toBeNull();
-    expect((await t.run({ ...o, source: 'manual', beta: 0.197 }, { ...ctx, pls: null }, () => {})).nMin).toBe(160);
+    expect(
+      (await t.run({ ...o, source: 'manual', beta: 0.197 }, { ...ctx, pls: null }, () => {})).nMin,
+    ).toBe(160);
   });
 });

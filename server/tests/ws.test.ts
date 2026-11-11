@@ -13,32 +13,50 @@ let owner: Agent, editor: Agent, viewer: Agent, stranger: Agent;
 let projectId: string;
 
 /** Session cookie header of an agent. */
-const cookieOf = (a: Agent) => a.cookie().map((c) => `${c.name}=${c.value}`).join('; ');
+const cookieOf = (a: Agent) =>
+  a
+    .cookie()
+    .map((c) => `${c.name}=${c.value}`)
+    .join('; ');
 
 /** A WebSocket class with the agent's cookie and Origin, for y-websocket. */
-const wsFor = (a: Agent | null, origin = ORIGIN) => class extends WebSocket {
-  constructor(url: string) { super(url, { headers: { origin, ...(a ? { cookie: cookieOf(a) } : {}) } }); }
-};
+const wsFor = (a: Agent | null, origin = ORIGIN) =>
+  class extends WebSocket {
+    constructor(url: string) {
+      super(url, { headers: { origin, ...(a ? { cookie: cookieOf(a) } : {}) } });
+    }
+  };
 
 function connect(a: Agent | null, doc = new Y.Doc(), origin = ORIGIN) {
   const p = new WebsocketProvider(`ws://127.0.0.1:${env.port}/ws/projects`, projectId, doc, {
-    WebSocketPolyfill: wsFor(a, origin) as unknown as typeof globalThis.WebSocket, disableBc: true, maxBackoffTime: 50,
+    WebSocketPolyfill: wsFor(a, origin) as unknown as typeof globalThis.WebSocket,
+    disableBc: true,
+    maxBackoffTime: 50,
   });
   return { doc, p };
 }
 
 const until = async (cond: () => boolean, ms = 5000) => {
   const t0 = Date.now();
-  while (!cond()) { if (Date.now() - t0 > ms) throw new Error('timeout'); await new Promise((r) => setTimeout(r, 20)); }
+  while (!cond()) {
+    if (Date.now() - t0 > ms) throw new Error('timeout');
+    await new Promise((r) => setTimeout(r, 20));
+  }
 };
 
 /** Raw upgrade attempt: resolves with the HTTP status of a refused handshake, or 101. */
-const handshake = (a: Agent | null, origin = ORIGIN, id = projectId) => new Promise<number>((resolve) => {
-  const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${id}`, { headers: { origin, ...(a ? { cookie: cookieOf(a) } : {}) } });
-  ws.on('open', () => { ws.close(); resolve(101); });
-  ws.on('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0));
-  ws.on('error', () => {});
-});
+const handshake = (a: Agent | null, origin = ORIGIN, id = projectId) =>
+  new Promise<number>((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${id}`, {
+      headers: { origin, ...(a ? { cookie: cookieOf(a) } : {}) },
+    });
+    ws.on('open', () => {
+      ws.close();
+      resolve(101);
+    });
+    ws.on('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0));
+    ws.on('error', () => {});
+  });
 
 beforeAll(async () => {
   env = await startEnv();
@@ -47,13 +65,20 @@ beforeAll(async () => {
   viewer = await signedUp(env, 'v@example.org');
   stranger = await signedUp(env, 's@example.org');
   projectId = (await owner.post('/api/projects', { name: 'Live' })).body.id;
-  for (const [a, email, role] of [[editor, 'e@example.org', 'editor'], [viewer, 'v@example.org', 'viewer']] as const) {
+  for (const [a, email, role] of [
+    [editor, 'e@example.org', 'editor'],
+    [viewer, 'v@example.org', 'viewer'],
+  ] as const) {
     await owner.post(`/api/projects/${projectId}/invitations`, { email, role });
-    const token = decodeURIComponent(/invite=([^\s]+)/.exec(env.deps.mailer.outbox.at(-1)!.text)![1]);
+    const token = decodeURIComponent(
+      /invite=([^\s]+)/.exec(env.deps.mailer.outbox.at(-1)!.text)![1],
+    );
     await a.post(`/api/auth/invitations/${token}/accept`);
   }
 });
-afterAll(async () => { await env.close(); });
+afterAll(async () => {
+  await env.close();
+});
 
 describe('collaboration socket', () => {
   it('refuses anonymous users, non-members, foreign origins and bad ids', async () => {
@@ -65,20 +90,27 @@ describe('collaboration socket', () => {
   });
 
   it('syncs edits between editors and persists them', async () => {
-    const a = connect(owner), b = connect(editor);
+    const a = connect(owner),
+      b = connect(editor);
     await until(() => a.p.synced && b.p.synced);
     a.doc.getMap('constructs').set('c1', 'Satisfaction');
     await until(() => b.doc.getMap('constructs').get('c1') === 'Satisfaction');
     b.doc.getMap('paths').set('p1', 'c1->c2');
     await until(() => a.doc.getMap('paths').get('p1') === 'c1->c2');
-    a.p.destroy(); b.p.destroy();
+    a.p.destroy();
+    b.p.destroy();
     await new Promise((r) => setTimeout(r, 100));
-    const n = (await env.db.query('SELECT count(*)::int AS n FROM project_updates WHERE project_id = $1', [projectId])).rows[0].n;
+    const n = (
+      await env.db.query('SELECT count(*)::int AS n FROM project_updates WHERE project_id = $1', [
+        projectId,
+      ])
+    ).rows[0].n;
     expect(n).toBeGreaterThan(0);
   });
 
   it('ignores document changes from viewers but sends them the state', async () => {
-    const v = connect(viewer), e = connect(editor);
+    const v = connect(viewer),
+      e = connect(editor);
     await until(() => v.p.synced && e.p.synced);
     expect(v.doc.getMap('constructs').get('c1')).toBe('Satisfaction');
     v.doc.getMap('constructs').set('hack', 'x');
@@ -86,27 +118,37 @@ describe('collaboration socket', () => {
     await until(() => v.doc.getMap('constructs').get('c2') === 'Loyalty');
     await new Promise((r) => setTimeout(r, 200));
     expect(e.doc.getMap('constructs').get('hack')).toBeUndefined();
-    v.p.destroy(); e.p.destroy();
+    v.p.destroy();
+    e.p.destroy();
   });
 
   it('shares presence (awareness) including from viewers', async () => {
-    const v = connect(viewer), e = connect(editor);
+    const v = connect(viewer),
+      e = connect(editor);
     await until(() => v.p.synced && e.p.synced);
     v.p.awareness.setLocalStateField('user', { name: 'Viewer' });
-    await until(() => [...e.p.awareness.getStates().values()].some((s) => s.user?.name === 'Viewer'));
-    v.p.destroy(); e.p.destroy();
+    await until(() =>
+      [...e.p.awareness.getStates().values()].some((s) => s.user?.name === 'Viewer'),
+    );
+    v.p.destroy();
+    e.p.destroy();
   });
 
   it('closes a connection that sends an oversized presence state', async () => {
     const closed = new Promise<number>((resolve) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, { headers: { origin: ORIGIN, cookie: cookieOf(editor) } });
+      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, {
+        headers: { origin: ORIGIN, cookie: cookieOf(editor) },
+      });
       ws.on('close', (code) => resolve(code));
       ws.on('open', () => {
         const aw = new awarenessProtocol.Awareness(new Y.Doc());
         aw.setLocalState({ user: { name: 'x'.repeat(MAX_AWARENESS_BYTES) } });
         const enc = encoding.createEncoder();
         encoding.writeVarUint(enc, 1);
-        encoding.writeVarUint8Array(enc, awarenessProtocol.encodeAwarenessUpdate(aw, [aw.clientID]));
+        encoding.writeVarUint8Array(
+          enc,
+          awarenessProtocol.encodeAwarenessUpdate(aw, [aw.clientID]),
+        );
         ws.send(encoding.toUint8Array(enc));
       });
     });
@@ -115,7 +157,9 @@ describe('collaboration socket', () => {
 
   it('refuses an editor’s change that would grow the document past its cap', async () => {
     const closed = new Promise<{ code: number; reason: string }>((resolve) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, { headers: { origin: ORIGIN, cookie: cookieOf(editor) } });
+      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, {
+        headers: { origin: ORIGIN, cookie: cookieOf(editor) },
+      });
       ws.on('close', (code, reason) => resolve({ code, reason: reason.toString() }));
       ws.on('open', () => {
         const d = new Y.Doc();
@@ -137,7 +181,9 @@ describe('collaboration socket', () => {
   it('caps the open sockets of one user', async () => {
     const sockets: WebSocket[] = [];
     for (let i = 0; i < MAX_CONNS_PER_USER; i++) {
-      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, { headers: { origin: ORIGIN, cookie: cookieOf(viewer) } });
+      const ws = new WebSocket(`ws://127.0.0.1:${env.port}/ws/projects/${projectId}`, {
+        headers: { origin: ORIGIN, cookie: cookieOf(viewer) },
+      });
       await new Promise<void>((r) => ws.on('open', () => r()));
       sockets.push(ws);
     }
@@ -154,12 +200,26 @@ describe('collaboration socket', () => {
     await room.compact();
     await env.collab.close(); // drop all rooms
     const fresh = await import('../src/ws.ts');
-    env.collab = fresh.attachCollab(env.server, env.db, (env.app as unknown as { sessionMiddleware: Parameters<typeof fresh.attachCollab>[2] }).sessionMiddleware, ORIGIN);
-    env.deps.onMembershipChange = (p, u) => { void env.collab.membershipChanged(p, u); };
+    env.collab = fresh.attachCollab(
+      env.server,
+      env.db,
+      (env.app as unknown as { sessionMiddleware: Parameters<typeof fresh.attachCollab>[2] })
+        .sessionMiddleware,
+      ORIGIN,
+    );
+    env.deps.onMembershipChange = (p, u) => {
+      void env.collab.membershipChanged(p, u);
+    };
     const c = connect(owner);
     await until(() => c.p.synced);
     expect(c.doc.getMap('constructs').get('c2')).toBe('Loyalty');
-    expect((await env.db.query('SELECT count(*)::int AS n FROM project_updates WHERE project_id = $1', [projectId])).rows[0].n).toBe(0);
+    expect(
+      (
+        await env.db.query('SELECT count(*)::int AS n FROM project_updates WHERE project_id = $1', [
+          projectId,
+        ])
+      ).rows[0].n,
+    ).toBe(0);
     c.p.destroy();
   });
 
@@ -167,8 +227,11 @@ describe('collaboration socket', () => {
     const e = connect(editor);
     await until(() => e.p.synced);
     let closedWith = 0;
-    e.p.ws!.addEventListener('close', (ev) => { closedWith = (ev as CloseEvent).code; });
-    const editorId = (await env.db.query("SELECT id FROM users WHERE email = 'e@example.org'")).rows[0].id;
+    e.p.ws!.addEventListener('close', (ev) => {
+      closedWith = (ev as CloseEvent).code;
+    });
+    const editorId = (await env.db.query("SELECT id FROM users WHERE email = 'e@example.org'"))
+      .rows[0].id;
     expect((await owner.del(`/api/projects/${projectId}/members/${editorId}`)).status).toBe(200);
     await until(() => closedWith !== 0);
     expect(closedWith).toBe(4403);

@@ -8,9 +8,19 @@ import type { DfiForFit } from '../../analyses/dfiFit';
 export interface DfiFitSlot {
   /** A hook: the Dynamic fit cutoffs of a run current for the model on the canvas, or null. */
   use: () => DfiForFit | null;
-  cell: (d: DfiForFit, index: 'χ²' | 'CFI' | 'RMSEA' | 'SRMR') => { text: string; verdict: string; ok: boolean | null } | null;
+  cell: (
+    d: DfiForFit,
+    index: 'χ²' | 'CFI' | 'RMSEA' | 'SRMR',
+  ) => { text: string; verdict: string; ok: boolean | null } | null;
   note: (d: DfiForFit) => string;
   open: () => void;
 }
-export const dfiFitSlot: DfiFitSlot = { use: () => null, cell: () => null, note: () => '', open: () => {} };
-export function setDfiFitSlot(s: DfiFitSlot) { Object.assign(dfiFitSlot, s); }
+export const dfiFitSlot: DfiFitSlot = {
+  use: () => null,
+  cell: () => null,
+  note: () => '',
+  open: () => {},
+};
+export function setDfiFitSlot(s: DfiFitSlot) {
+  Object.assign(dfiFitSlot, s);
+}

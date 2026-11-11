@@ -17,5 +17,4 @@ describe('correlation ends under the pointer', () => {
     expect(at('pane')).toBeNull();
     expect(endAt(null)).toBeNull();
   });
-
 });

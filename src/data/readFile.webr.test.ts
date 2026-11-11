@@ -12,8 +12,13 @@ import { readPackageFile, toDataset, type RawDataFile } from './readFile';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const inR = <T,>(code: string) => withR(['jsonlite', 'haven', 'readxl'], { common: commonR }, (webR) => callJson(webR, code, null)) as Promise<T>;
-const col = (d: { names: string[]; cols: Float64Array[] }, n: string) => [...d.cols[d.names.indexOf(n)]];
+const inR = <T>(code: string) =>
+  withR(['jsonlite', 'haven', 'readxl'], { common: commonR }, (webR) =>
+    callJson(webR, code, null),
+  ) as Promise<T>;
+const col = (d: { names: string[]; cols: Float64Array[] }, n: string) => [
+  ...d.cols[d.names.indexOf(n)],
+];
 
 describe('example files shipped with the packages', () => {
   it('haven’s iris.sav equals datasets::iris', async () => {
@@ -34,13 +39,26 @@ describe('example files shipped with the packages', () => {
     expect(data.names).toEqual(Object.keys(mt));
     for (const [k, v] of Object.entries(mt)) expect(col(data, k)).toEqual(v);
     const chick = await readPackageFile('readxl', 'extdata/datasets.xlsx', 'xlsx', 'chickwts');
-    expect(chick.data.categories?.feed).toEqual(['casein', 'horsebean', 'linseed', 'meatmeal', 'soybean', 'sunflower']);
-    expect(col(chick.data, 'weight')).toEqual(await inR<number[]>('ps_json(datasets::chickwts$weight)'));
+    expect(chick.data.categories?.feed).toEqual([
+      'casein',
+      'horsebean',
+      'linseed',
+      'meatmeal',
+      'soybean',
+      'sunflower',
+    ]);
+    expect(col(chick.data, 'weight')).toEqual(
+      await inR<number[]>('ps_json(datasets::chickwts$weight)'),
+    );
   }, 900_000);
 
   it('refuses paths outside a package and unknown formats', async () => {
-    await expect(readPackageFile('haven', '../../etc/passwd', 'sav')).rejects.toThrow('Invalid example file');
-    await expect(readPackageFile('haven', 'examples/iris.sav', 'csv' as never)).rejects.toThrow('Unsupported file type');
+    await expect(readPackageFile('haven', '../../etc/passwd', 'sav')).rejects.toThrow(
+      'Invalid example file',
+    );
+    await expect(readPackageFile('haven', 'examples/iris.sav', 'csv' as never)).rejects.toThrow(
+      'Unsupported file type',
+    );
   }, 900_000);
 });
 
@@ -57,11 +75,22 @@ describe('files from users', () => {
       b64 <- function(f) jsonlite::base64_enc(readBin(f, "raw", file.size(f)))
       ps_json(list(sav = b64(f1), dta = b64(f2)))`);
     for (const format of ['sav', 'dta'] as const) {
-      const raw = await inR<RawDataFile>(`ps_read_data(jsonlite::toJSON(list(format = "${format}", data = "${files[format]}"), auto_unbox = TRUE))`);
+      const raw = await inR<RawDataFile>(
+        `ps_read_data(jsonlite::toJSON(list(format = "${format}", data = "${files[format]}"), auto_unbox = TRUE))`,
+      );
       const { data, info } = toDataset(raw, `x.${format}`);
-      expect(col(data, 'item').map((v) => (Number.isNaN(v) ? null : v)), format).toEqual([1, 2, 5, null, 3]);
+      expect(
+        col(data, 'item').map((v) => (Number.isNaN(v) ? null : v)),
+        format,
+      ).toEqual([1, 2, 5, null, 3]);
       expect(data.categories?.town).toEqual(['Cork', 'Kerry']);
-      expect(col(data, 'town').map((v) => (Number.isNaN(v) ? null : v))).toEqual([1, 2, null, 1, 2]);
+      expect(col(data, 'town').map((v) => (Number.isNaN(v) ? null : v))).toEqual([
+        1,
+        2,
+        null,
+        1,
+        2,
+      ]);
       expect(info.excluded.map((x) => x.name)).toEqual(['when']);
       // SPSS stores the factor as labelled codes: numbers (1 = b, 2 = a); Stata the same.
       expect(col(data, 'group')).toEqual([1, 2, 1, 2, 1]);

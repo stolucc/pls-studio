@@ -15,11 +15,27 @@ export function PresenceLayer() {
         <div key={p.clientId}>
           {p.selection.map((id) => {
             const c = byId.get(id);
-            return c ? <div key={id} className="peer-select" style={{ transform: `translate(${c.x}px, ${c.y - 58}px) translateX(-50%)`, background: p.color }}>{p.name}</div> : null;
+            return c ? (
+              <div
+                key={id}
+                className="peer-select"
+                style={{
+                  transform: `translate(${c.x}px, ${c.y - 58}px) translateX(-50%)`,
+                  background: p.color,
+                }}
+              >
+                {p.name}
+              </div>
+            ) : null;
           })}
           {p.cursor && (
-            <div className="peer-cursor" style={{ transform: `translate(${p.cursor.x}px, ${p.cursor.y}px)` }}>
-              <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="M1 1l13 7-6 2-2 7z" fill={p.color} stroke="white" strokeWidth="1.2" /></svg>
+            <div
+              className="peer-cursor"
+              style={{ transform: `translate(${p.cursor.x}px, ${p.cursor.y}px)` }}
+            >
+              <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true">
+                <path d="M1 1l13 7-6 2-2 7z" fill={p.color} stroke="white" strokeWidth="1.2" />
+              </svg>
               <span style={{ background: p.color }}>{p.name}</span>
             </div>
           )}
@@ -35,11 +51,18 @@ export function PresenceBar() {
   const peers = usePresence((s) => s.peers);
   if (!cloud) return null;
   const unique = [...new Map(peers.map((p) => [p.userId, p])).values()];
-  const label = cloud.status === 'online' ? 'Live' : cloud.status === 'connecting' ? 'Connecting…' : 'Offline: changes sync when you reconnect';
+  const label =
+    cloud.status === 'online'
+      ? 'Live'
+      : cloud.status === 'connecting'
+        ? 'Connecting…'
+        : 'Offline: changes sync when you reconnect';
   return (
     <div className="presence-bar" title={label}>
       <span className={`conn-dot ${cloud.status}`} aria-label={label} />
-      {unique.slice(0, 5).map((p) => <Avatar key={p.userId} id={p.userId} name={`${p.name} (here now)`} size={24} />)}
+      {unique.slice(0, 5).map((p) => (
+        <Avatar key={p.userId} id={p.userId} name={`${p.name} (here now)`} size={24} />
+      ))}
       {unique.length > 5 && <span className="chip">+{unique.length - 5}</span>}
       {cloud.role === 'viewer' && <span className="chip">View only</span>}
     </div>

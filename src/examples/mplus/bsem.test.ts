@@ -6,19 +6,33 @@ import { describe, expect, it } from 'vitest';
 import { bsemAnalysis } from '../../analyses/bsem';
 import { useCompute } from '../../rengine/compute';
 import { MPLUS } from './testkit';
-import { BSEM_EXAMPLES, bsemExample, bsemExampleRequest, compareWithMplus, readRecorded } from './bsemkit';
+import {
+  BSEM_EXAMPLES,
+  bsemExample,
+  bsemExampleRequest,
+  compareWithMplus,
+  readRecorded,
+} from './bsemkit';
 
 const recorded = readRecorded();
 
 describe('the recorded desktop runs against Mplus', () => {
-  it.each(BSEM_EXAMPLES.map((e) => [e.key]))('%s: converged, and within Monte Carlo error of every printed parameter', (key) => {
-    const r = recorded[key];
-    expect(r, `${key}: run NATIVE_R_TESTS=1 npx vitest run src/examples/mplus/bsem.native`).toBeDefined();
-    expect(r.result.converged).toBe(true);
-    expect(r.result.maxRhat).toBeLessThan(1.05);
-    expect(r.result.priors).toBe('mplus');
-    expect(compareWithMplus(key, r.result)).toBe(MPLUS[key].estimates.filter((p) => p.se > 0).length);
-  });
+  it.each(BSEM_EXAMPLES.map((e) => [e.key]))(
+    '%s: converged, and within Monte Carlo error of every printed parameter',
+    (key) => {
+      const r = recorded[key];
+      expect(
+        r,
+        `${key}: run NATIVE_R_TESTS=1 npx vitest run src/examples/mplus/bsem.native`,
+      ).toBeDefined();
+      expect(r.result.converged).toBe(true);
+      expect(r.result.maxRhat).toBeLessThan(1.05);
+      expect(r.result.priors).toBe('mplus');
+      expect(compareWithMplus(key, r.result)).toBe(
+        MPLUS[key].estimates.filter((p) => p.se > 0).length,
+      );
+    },
+  );
 
   it('3.18: the indirect effect over the moderator (Mplus LOOP, PLOT): b·(γ1 + γ2·mod) from −2 to 2', () => {
     const l = recorded['ex3.18'].result.loop!;
@@ -36,7 +50,13 @@ describe('the recorded desktop runs against Mplus', () => {
     expect(pv.draws).toBe(20);
     expect(pv.cases).toBe(500);
     // SUMMARIES OF PLAUSIBLE VALUES: the means of F1, F2, F3, I, S over 500 × 20 draws, and the cases' SDs averaged.
-    const mplus: Record<string, [number, number]> = { f1: [-0.008, 0.612], f2: [0.966, 0.619], f3: [1.898, 0.741], i: [-0.001, 0.563], s: [0.959, 0.247] };
+    const mplus: Record<string, [number, number]> = {
+      f1: [-0.008, 0.612],
+      f2: [0.966, 0.619],
+      f3: [1.898, 0.741],
+      i: [-0.001, 0.563],
+      s: [0.959, 0.247],
+    };
     for (const [k, [mean, sd]] of Object.entries(mplus)) {
       const j = pv.factors.indexOf(k);
       expect(j, k).toBeGreaterThanOrEqual(0);

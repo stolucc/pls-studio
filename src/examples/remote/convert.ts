@@ -8,15 +8,36 @@
 // by Node directly) fills the test cache with it.
 
 /** The commands an Mplus input can have (the statements under any other label are dropped, as mplus_data.py does). */
-const COMMANDS = new Set(['TITLE', 'DATA', 'VARIABLE', 'ANALYSIS', 'MODEL', 'OUTPUT', 'SAVEDATA', 'PLOT', 'DEFINE',
-  'MONTECARLO', 'MODEL POPULATION', 'MODEL CONSTRAINT', 'MODEL INDIRECT', 'MODEL TEST',
-  'MODEL PRIORS', 'DATA WIDETOLONG', 'DATA MISSING', 'DATA IMPUTATION', 'DATA TWOPART',
-  'DATA SURVIVAL', 'MODEL MISSING', 'MODEL COVERAGE']);
+const COMMANDS = new Set([
+  'TITLE',
+  'DATA',
+  'VARIABLE',
+  'ANALYSIS',
+  'MODEL',
+  'OUTPUT',
+  'SAVEDATA',
+  'PLOT',
+  'DEFINE',
+  'MONTECARLO',
+  'MODEL POPULATION',
+  'MODEL CONSTRAINT',
+  'MODEL INDIRECT',
+  'MODEL TEST',
+  'MODEL PRIORS',
+  'DATA WIDETOLONG',
+  'DATA MISSING',
+  'DATA IMPUTATION',
+  'DATA TWOPART',
+  'DATA SURVIVAL',
+  'MODEL MISSING',
+  'MODEL COVERAGE',
+]);
 
 /** A file decoded as ISO-8859-1, byte for byte (TextDecoder's "latin1" is windows-1252, which is not). */
 export function latin1(bytes: Uint8Array): string {
   let s = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return s;
 }
 
@@ -37,7 +58,8 @@ const pySplitLines = (s: string) => {
 /** Python's float(): undefined where it raises (only finite values matter: they are compared with missing-value codes). */
 function pyFloat(v: string): number | undefined {
   const d = '\\d(?:_?\\d)*';
-  if (new RegExp(`^[+-]?(?:${d}(?:\\.(?:${d})?)?|\\.${d})(?:[eE][+-]?${d})?$`).test(v)) return Number(v.replace(/_/g, ''));
+  if (new RegExp(`^[+-]?(?:${d}(?:\\.(?:${d})?)?|\\.${d})(?:[eE][+-]?${d})?$`).test(v))
+    return Number(v.replace(/_/g, ''));
   if (/^[+-]?(?:inf|infinity|nan)$/i.test(v)) return NaN;
   return undefined;
 }
@@ -71,14 +93,19 @@ export function expandNames(names: string): string[] {
     if (m && m[1] === m[3]) {
       for (let i = Number(m[2]); i <= Number(m[4]); i++) out.push(`${m[1]}${i}`);
     } else if (ml && ml[1] === ml[3] && ml[2] < ml[4]) {
-      for (let c = ml[2].charCodeAt(0); c <= ml[4].charCodeAt(0); c++) out.push(`${ml[1]}${String.fromCharCode(c)}`);
+      for (let c = ml[2].charCodeAt(0); c <= ml[4].charCodeAt(0); c++)
+        out.push(`${ml[1]}${String.fromCharCode(c)}`);
     } else out.push(tok);
   }
   return out.map((n) => n.toLowerCase());
 }
 
 /** What an Mplus input says about its data: the file (quotes removed), the column names and the missing-value codes. */
-export interface MplusInput { file: string; names: string[]; missing: number[] }
+export interface MplusInput {
+  file: string;
+  names: string[];
+  missing: number[];
+}
 
 /** The data an input reads, or null when it names no file or no variables (a Monte Carlo study, say). */
 export function mplusInput(inp: string): MplusInput | null {
@@ -90,7 +117,8 @@ export function mplusInput(inp: string): MplusInput | null {
   const miss = mplusOption(st.VARIABLE, 'MISSING');
   if (miss) {
     for (const m of miss.matchAll(/\(([^)]*)\)/g)) {
-      for (const v of pySplit(m[1].replace(/,/g, ' '))) if (/^-?\d+(\.\d+)?$/.test(v)) missing.push(Number(v));
+      for (const v of pySplit(m[1].replace(/,/g, ' ')))
+        if (/^-?\d+(\.\d+)?$/.test(v)) missing.push(Number(v));
     }
     // ('*' and '.' are missing in every file, so MISSING = * or MISSING = . adds nothing)
   }
@@ -101,15 +129,26 @@ export function mplusInput(inp: string): MplusInput | null {
  * Free-format data as CSV: a header row, then one row per record, the values as written and missing values (`*`,
  * `.` and the codes) as empty cells. Throws when the values do not divide into records.
  */
-export function freeFormatCsv(dat: string, names: string[], missing: number[] = [], what = 'The data'): { csv: string; rows: number } {
+export function freeFormatCsv(
+  dat: string,
+  names: string[],
+  missing: number[] = [],
+  what = 'The data',
+): { csv: string; rows: number } {
   const text = universal(dat).replace(/\0/g, '').replace(/,/g, ' ');
-  const lines = pySplitLines(text).filter((l) => pyStrip(l) !== '').map(pySplit);
+  const lines = pySplitLines(text)
+    .filter((l) => pyStrip(l) !== '')
+    .map(pySplit);
   const widths = new Set(lines.map((l) => l.length));
-  const values = widths.size === 1 && [...widths][0] > names.length
-    // One record per line with trailing columns the input does not name (the generating class): dropped.
-    ? lines.flatMap((l) => l.slice(0, names.length))
-    : pySplit(text);
-  if (!names.length || values.length % names.length) throw new Error(`${what}: ${values.length} values do not divide into records of ${names.length}`);
+  const values =
+    widths.size === 1 && [...widths][0] > names.length
+      ? // One record per line with trailing columns the input does not name (the generating class): dropped.
+        lines.flatMap((l) => l.slice(0, names.length))
+      : pySplit(text);
+  if (!names.length || values.length % names.length)
+    throw new Error(
+      `${what}: ${values.length} values do not divide into records of ${names.length}`,
+    );
   const codes = new Set(missing);
   const cell = (v: string) => {
     if (v === '*' || v === '.') return '';
@@ -117,12 +156,22 @@ export function freeFormatCsv(dat: string, names: string[], missing: number[] = 
     return x !== undefined && codes.has(x) ? '' : v;
   };
   const out: string[] = [names.join(',') + '\n'];
-  for (let i = 0; i < values.length; i += names.length) out.push(values.slice(i, i + names.length).map(cell).join(',') + '\n');
+  for (let i = 0; i < values.length; i += names.length)
+    out.push(
+      values
+        .slice(i, i + names.length)
+        .map(cell)
+        .join(',') + '\n',
+    );
   return { csv: out.join(''), rows: values.length / names.length };
 }
 
 /** An Mplus example's data as CSV, from its input and the data file the input names (`readDat`). Null: the input reads no data. */
-export function mplusCsv(key: string, inp: string, readDat: (file: string) => string | null): { csv: string; rows: number; file: string } | null {
+export function mplusCsv(
+  key: string,
+  inp: string,
+  readDat: (file: string) => string | null,
+): { csv: string; rows: number; file: string } | null {
   const info = mplusInput(inp);
   if (!info) return null;
   const dat = readDat(info.file);

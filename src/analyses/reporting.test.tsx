@@ -13,11 +13,35 @@ import { currentCtx, useAnalyses } from './store';
 import type { AnalysisCtx } from './types';
 
 const base = plsInput();
-const ctx: AnalysisCtx = { data: null, info: base.info, settings: base.settings, pls: plsResult(), cb: null, boot: plsBoot(), process: null, invariance: null, miiv: null, projectName: 'p', model: base.model, resultsKey: 'k1' };
+const ctx: AnalysisCtx = {
+  data: null,
+  info: base.info,
+  settings: base.settings,
+  pls: plsResult(),
+  cb: null,
+  boot: plsBoot(),
+  process: null,
+  invariance: null,
+  miiv: null,
+  projectName: 'p',
+  model: base.model,
+  resultsKey: 'k1',
+};
 
 describe('methods text card', () => {
   beforeEach(() => {
-    useAnalyses.setState({ cards: [{ id: 'c1', kind: 'analysis', type: 'plspredict', options: {}, run: { at: 1, fingerprint: 'x', options: '{}' } }, { id: 'c2', kind: 'analysis', type: 'methodstext', options: {} }] });
+    useAnalyses.setState({
+      cards: [
+        {
+          id: 'c1',
+          kind: 'analysis',
+          type: 'plspredict',
+          options: {},
+          run: { at: 1, fingerprint: 'x', options: '{}' },
+        },
+        { id: 'c2', kind: 'analysis', type: 'methodstext', options: {} },
+      ],
+    });
     useR.setState({ versions: { R: '4.5.1', webR: '0.5.4' } });
   });
 
@@ -49,7 +73,8 @@ describe('methods text card', () => {
     expect(r.text).toContain('PLSpredict'); // a run PLSpredict card in the log
     expect(r.text).toContain('webR (version 0.5.4');
     const html = renderToStaticMarkup(<methodsAnalysis.View result={r} options={{}} current />);
-    for (const s of ['Plain text', 'LaTeX', 'BibTeX', 'Copy', 'reports no estimates']) expect(html).toContain(s);
+    for (const s of ['Plain text', 'LaTeX', 'BibTeX', 'Copy', 'reports no estimates'])
+      expect(html).toContain(s);
     expect(html).toContain('Rademaker &amp; Schuberth, 2020');
   });
 
@@ -63,25 +88,61 @@ describe('methods text card', () => {
   it('gets the current results with their bootstrap from the project, and none when they are stale', () => {
     useStore.setState({ model: base.model, settings: base.settings });
     const key = resultsKey(useStore.getState());
-    useStore.setState({ results: { key, pls: plsResult(), cb: null, miiv: null, boot: plsBoot(), fitTest: null, process: null } });
+    useStore.setState({
+      results: {
+        key,
+        pls: plsResult(),
+        cb: null,
+        miiv: null,
+        boot: plsBoot(),
+        fitTest: null,
+        process: null,
+      },
+    });
     const c = currentCtx();
     expect(c.resultsKey).toBe(key);
     expect(c.boot?.seed).toBe(1234);
-    useStore.setState({ results: { key: 'old', pls: plsResult(), cb: null, miiv: null, boot: plsBoot(), fitTest: null, process: null } });
+    useStore.setState({
+      results: {
+        key: 'old',
+        pls: plsResult(),
+        cb: null,
+        miiv: null,
+        boot: plsBoot(),
+        fitTest: null,
+        process: null,
+      },
+    });
     expect(currentCtx().boot).toBeNull();
     expect(currentCtx().resultsKey).toBeNull();
   });
 });
 
 describe('reviewer checklist card', () => {
-  beforeEach(() => { useAnalyses.setState({ cards: [{ id: 'c1', kind: 'analysis', type: 'cmb', options: {}, run: { at: 1, fingerprint: 'x', options: '{}' } }] }); });
+  beforeEach(() => {
+    useAnalyses.setState({
+      cards: [
+        {
+          id: 'c1',
+          kind: 'analysis',
+          type: 'cmb',
+          options: {},
+          run: { at: 1, fingerprint: 'x', options: '{}' },
+        },
+      ],
+    });
+  });
 
   it('is in the Add menu under Reporting, needs results, and goes stale with them', () => {
     expect(ANALYSIS_TYPES.find((x) => x.id === 'checklist')?.group).toBe('Reporting');
     expect(checklistAnalysis.fitsModel).toBe(true);
-    expect(checklistAnalysis.blocked({}, { ...ctx, pls: null })).toMatch(/Calculate the model first/);
+    expect(checklistAnalysis.blocked({}, { ...ctx, pls: null })).toMatch(
+      /Calculate the model first/,
+    );
     expect(checklistAnalysis.blocked({}, ctx)).toBeNull();
-    expect(checklistAnalysis.fingerprint({}, ctx)).not.toBe(checklistAnalysis.fingerprint({}, { ...ctx, resultsKey: 'k2' }));
+    expect(checklistAnalysis.fingerprint({}, ctx)).not.toBe(
+      checklistAnalysis.fingerprint({}, { ...ctx, resultsKey: 'k2' }),
+    );
     expect(checklistAnalysis.fingerprint({}, ctx)).not.toBe(methodsAnalysis.fingerprint({}, ctx));
   });
 
@@ -91,14 +152,38 @@ describe('reviewer checklist card', () => {
     expect(r.items.find((i) => i.id === 'cmb')?.status).toBe('done'); // the cmb card in the log
     expect(r.items.find((i) => i.id === 'specification')).toBeTruthy();
     const html = renderToStaticMarkup(<checklistAnalysis.View result={r} options={{}} current />);
-    for (const s of ['Measurement model', 'Structural model', 'Model tab: Reliability', 'Add PLSpredict', 'Hair et al., 2019', 'Appelbaum et al., 2018', 'Not applicable', 'Your call']) expect(html, s).toContain(s);
+    for (const s of [
+      'Measurement model',
+      'Structural model',
+      'Model tab: Reliability',
+      'Add PLSpredict',
+      'Hair et al., 2019',
+      'Appelbaum et al., 2018',
+      'Not applicable',
+      'Your call',
+    ])
+      expect(html, s).toContain(s);
     expect(checklistText(r)).toMatch(/^\[(Done|Issue)\] Model specified/);
   });
 
   it('works for CB-SEM results', async () => {
     const c = cbInput();
-    const r = await checklistAnalysis.run({}, { ...ctx, settings: c.settings, model: c.model, pls: null, cb: c.cb, boot: c.boot, info: c.info }, () => {});
+    const r = await checklistAnalysis.run(
+      {},
+      {
+        ...ctx,
+        settings: c.settings,
+        model: c.model,
+        pls: null,
+        cb: c.cb,
+        boot: c.boot,
+        info: c.info,
+      },
+      () => {},
+    );
     expect(r.method).toBe('cbsem');
-    expect(renderToStaticMarkup(<checklistAnalysis.View result={r} options={{}} current />)).toContain('Jackson, Gillaspy &amp; Purc-Stephenson (2009)');
+    expect(
+      renderToStaticMarkup(<checklistAnalysis.View result={r} options={{}} current />),
+    ).toContain('Jackson, Gillaspy &amp; Purc-Stephenson (2009)');
   });
 });

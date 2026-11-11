@@ -6,7 +6,9 @@ import { makePoldemExample } from './poldem';
 describe('Bollen political democracy example', () => {
   it('is valid and reproduces the published fit (lavaan: χ² = 38.125, df = 35)', () => {
     const ex = makePoldemExample(DEFAULT_SETTINGS);
-    expect(validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error')).toEqual([]);
+    expect(
+      validateModel(ex.model, ex.data, ex.settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
     const r = estimateCb(ex.data, toSpec(ex.model), 'casewise', 'ML');
     expect(r.fit.df).toBe(35);
     expect(r.fit.chisq).toBeCloseTo(38.125, 3);

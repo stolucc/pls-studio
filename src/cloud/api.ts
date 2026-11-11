@@ -6,15 +6,23 @@ let csrf: string | null = null;
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
-  constructor(message: string, status: number, code?: string) { super(message); this.status = status; this.code = code; }
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
 }
 
 function readCsrfCookie(): string | null {
-  const m = /(?:^|;\s*)csrf-token=([^;]+)/.exec(typeof document === 'undefined' ? '' : document.cookie);
+  const m = /(?:^|;\s*)csrf-token=([^;]+)/.exec(
+    typeof document === 'undefined' ? '' : document.cookie,
+  );
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-export function setCsrf(token: string | null | undefined) { csrf = token ?? null; }
+export function setCsrf(token: string | null | undefined) {
+  csrf = token ?? null;
+}
 
 async function request<T>(method: string, url: string, body?: unknown, raw = false): Promise<T> {
   const headers: Record<string, string> = {};
@@ -34,8 +42,15 @@ async function request<T>(method: string, url: string, body?: unknown, raw = fal
     throw new ApiError('Cannot reach the PLS Studio server. Check your connection.', 0);
   }
   if (raw && res.ok) return (await res.text()) as T;
-  const data = res.headers.get('content-type')?.includes('application/json') ? await res.json().catch(() => ({})) : {};
-  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? `Request failed (${res.status}).`, res.status, (data as { code?: string }).code);
+  const data = res.headers.get('content-type')?.includes('application/json')
+    ? await res.json().catch(() => ({}))
+    : {};
+  if (!res.ok)
+    throw new ApiError(
+      (data as { error?: string }).error ?? `Request failed (${res.status}).`,
+      res.status,
+      (data as { code?: string }).code,
+    );
   return data as T;
 }
 

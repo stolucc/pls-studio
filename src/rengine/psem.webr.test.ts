@@ -18,7 +18,9 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'psem', 'reference.json'), 'utf8'));
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'psem', 'reference.json'), 'utf8'),
+);
 
 interface RefCase {
   claims: { claim: string; df: number; stat: number; p: number }[];
@@ -27,13 +29,30 @@ interface RefCase {
   aic: number;
   aicc: number;
   aicRounded: { AIC: number; AICc: number; K: number; n: number };
-  coefs: { response: string; predictor: string; est: number; se: number | null; df: number; stat: number; p: number; std: number | null; stdRounded: number | null }[];
+  coefs: {
+    response: string;
+    predictor: string;
+    est: number;
+    se: number | null;
+    df: number;
+    stat: number;
+    p: number;
+    std: number | null;
+    stdRounded: number | null;
+  }[];
   r2: Record<string, number | string>[];
 }
 
 async function dataset(name: string): Promise<Dataset> {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'piecewiseSEM', name, na: [] }, 'piecewiseSEM');
-  return { names: raw.names, cols: raw.cols.map((col) => Float64Array.from(col, (v) => (typeof v === 'number' ? v : NaN))) };
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+    'ps_dataset',
+    { package: 'piecewiseSEM', name, na: [] },
+    'piecewiseSEM',
+  );
+  return {
+    names: raw.names,
+    cols: raw.cols.map((col) => Float64Array.from(col, (v) => (typeof v === 'number' ? v : NaN))),
+  };
 }
 
 const relative = (tol: number) => (q: string, got: number | null, want: number | null) => {
@@ -57,7 +76,11 @@ function compare(label: string, r: PsemResult, t: RefCase, tol: number) {
     rel(`${label}: ${text}: p`, k.p, t.claims[i].p);
   });
   rel(`${label}: Fisher's C`, r.fisherC, t.fisherC);
-  same(`${label}: Fisher's C as fisherC() prints it`, round(r.fisherC, 3), t.fisherRounded['Fisher.C']);
+  same(
+    `${label}: Fisher's C as fisherC() prints it`,
+    round(r.fisherC, 3),
+    t.fisherRounded['Fisher.C'],
+  );
   same(`${label}: df`, r.df, t.fisherRounded.df);
   same(`${label}: p as fisherC() prints it`, round(r.p!, 3), t.fisherRounded['P.Value']);
   rel(`${label}: AIC`, r.aic, t.aic);
@@ -76,29 +99,45 @@ function compare(label: string, r: PsemResult, t: RefCase, tol: number) {
     rel(`${what}: statistic`, k.stat, x.stat);
     rel(`${what}: p`, k.p, x.p);
     rel(`${what}: standardised`, k.std, x.std);
-    if (x.stdRounded !== null) same(`${what}: standardised as coefs() prints it`, round(k.std!, 4), x.stdRounded);
+    if (x.stdRounded !== null)
+      same(`${what}: standardised as coefs() prints it`, round(k.std!, 4), x.stdRounded);
   });
   r.r2.forEach((x, i) => {
     const y = t.r2[i];
     same(`${label}: R² response ${i + 1}`, x.response, y.Response);
     if (typeof y['R.squared'] === 'number') rel(`${label}: R² ${x.response}`, x.r2, y['R.squared']);
-    if (typeof y.Marginal === 'number') rel(`${label}: marginal R² ${x.response}`, x.marginal, y.Marginal);
-    if (typeof y.Conditional === 'number') rel(`${label}: conditional R² ${x.response}`, x.conditional, y.Conditional);
+    if (typeof y.Marginal === 'number')
+      rel(`${label}: marginal R² ${x.response}`, x.marginal, y.Marginal);
+    if (typeof y.Conditional === 'number')
+      rel(`${label}: conditional R² ${x.response}`, x.conditional, y.Conditional);
   });
 }
 
 const KEELEY: PsemStructure = {
-  equations: [{ y: 'rich', x: ['cover'] }, { y: 'cover', x: ['firesev'] }, { y: 'firesev', x: ['age'] }],
+  equations: [
+    { y: 'rich', x: ['cover'] },
+    { y: 'cover', x: ['firesev'] },
+    { y: 'firesev', x: ['age'] },
+  ],
   isolated: [],
   correlations: [],
 };
 const POISSON: PsemStructure = {
-  equations: [{ y: 'firesev', x: ['age'] }, { y: 'cover', x: ['firesev'] }, { y: 'rich', x: ['cover', 'distance'] }],
+  equations: [
+    { y: 'firesev', x: ['age'] },
+    { y: 'cover', x: ['firesev'] },
+    { y: 'rich', x: ['cover', 'distance'] },
+  ],
   isolated: ['hetero'],
   correlations: [['cover', 'hetero']],
 };
 const SHIPLEY: PsemStructure = {
-  equations: [{ y: 'DD', x: ['lat'] }, { y: 'Date', x: ['DD'] }, { y: 'Growth', x: ['Date'] }, { y: 'Live', x: ['Growth'] }],
+  equations: [
+    { y: 'DD', x: ['lat'] },
+    { y: 'Date', x: ['DD'] },
+    { y: 'Growth', x: ['Date'] },
+    { y: 'Live', x: ['Growth'] },
+  ],
   isolated: [],
   correlations: [],
 };
@@ -111,29 +150,52 @@ describe('piecewise SEM (piecewiseSEM)', () => {
     expect(r.warnings).toEqual([]);
     const script = await psemScriptR(await dataset('keeley'), KEELEY, normal);
     expect(script).toContain('lm(rich ~ cover, data = data)');
-    expect(script).toContain('dsep <- quiet(dSep(model, conditioning = TRUE, .progressBar = FALSE))');
+    expect(script).toContain(
+      'dsep <- quiet(dSep(model, conditioning = TRUE, .progressBar = FALSE))',
+    );
   }, 600_000);
 
   it('a Poisson outcome, a variable in no path and a correlated error equal piecewiseSEM', async () => {
     // (a correlated error: hetero is no outcome, so the canvas's psemStructure would drop it; the request keeps it)
-    const r = await psemR(await dataset('keeley'), POISSON, { families: { rich: 'poisson' }, standardize: 'latent.linear' });
+    const r = await psemR(await dataset('keeley'), POISSON, {
+      families: { rich: 'poisson' },
+      standardize: 'latent.linear',
+    });
     compare('poisson', r, ref.poisson, 1e-6);
-    expect(r.coefs.filter((k) => k.correlation).map((k) => [k.response, k.predictor])).toEqual([['cover', 'hetero']]);
+    expect(r.coefs.filter((k) => k.correlation).map((k) => [k.response, k.predictor])).toEqual([
+      ['cover', 'hetero'],
+    ]);
   }, 600_000);
 
   it('random intercepts per site (lmer, glmer binomial) equal piecewiseSEM', async () => {
-    const r = await psemR(await dataset('shipley'), SHIPLEY, { families: { Live: 'binomial' }, group: 'site', standardize: 'latent.linear' });
+    const r = await psemR(await dataset('shipley'), SHIPLEY, {
+      families: { Live: 'binomial' },
+      group: 'site',
+      standardize: 'latent.linear',
+    });
     compare('shipley', r, ref.shipley, 1e-5);
     expect(r.engine.lme4).toBeTruthy();
   }, 600_000);
 
   it('a binomial glm, latent-theoretic and observation-empirical standardisation, equals piecewiseSEM', async () => {
     const d = await dataset('shipley');
-    compare('binomial LT', await psemR(d, SHIPLEY, { families: { Live: 'binomial' }, standardize: 'latent.linear' }), ref.binomialLT, 1e-6);
-    compare('binomial OE', await psemR(d, SHIPLEY, { families: { Live: 'binomial' }, standardize: 'Menard.OE' }), ref.binomialOE, 1e-6);
+    compare(
+      'binomial LT',
+      await psemR(d, SHIPLEY, { families: { Live: 'binomial' }, standardize: 'latent.linear' }),
+      ref.binomialLT,
+      1e-6,
+    );
+    compare(
+      'binomial OE',
+      await psemR(d, SHIPLEY, { families: { Live: 'binomial' }, standardize: 'Menard.OE' }),
+      ref.binomialOE,
+      1e-6,
+    );
   }, 600_000);
 
   it('refuses a grouping column that is a model variable', async () => {
-    await expect(psemR(await dataset('keeley'), KEELEY, { ...normal, group: 'age' })).rejects.toThrow(/not a variable of the model/);
+    await expect(
+      psemR(await dataset('keeley'), KEELEY, { ...normal, group: 'age' }),
+    ).rejects.toThrow(/not a variable of the model/);
   }, 600_000);
 });

@@ -24,29 +24,73 @@ beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
 interface Ref {
-  R: string; misty: string; mvnmle: string;
-  little: { n: number; incomplete: number; patterns: number; chisq: number; df: number; p: number; byPattern: { key: string; n: number; k: number; d2: number }[] };
-  jamjal: { n: number; incomplete: number; patterns: number; patternN: number[]; hawkins: { stat: number; df: number; p: number }; anderson: { stat: number; p: number } };
+  R: string;
+  misty: string;
+  mvnmle: string;
+  little: {
+    n: number;
+    incomplete: number;
+    patterns: number;
+    chisq: number;
+    df: number;
+    p: number;
+    byPattern: { key: string; n: number; k: number; d2: number }[];
+  };
+  jamjal: {
+    n: number;
+    incomplete: number;
+    patterns: number;
+    patternN: number[];
+    hawkins: { stat: number; df: number; p: number };
+    anderson: { stat: number; p: number };
+  };
   MissMech: { version: string; hawkinsP: number; andersonP: number; patterns: number };
 }
-const REF = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'mcar', 'airquality.json'), 'utf8')) as Ref;
+const REF = JSON.parse(
+  readFileSync(
+    join(__dirname, '..', '..', 'engine', '__fixtures__', 'mcar', 'airquality.json'),
+    'utf8',
+  ),
+) as Ref;
 
 it('misty-airquality-mcar: Little’s MCAR test with each pattern’s share, and Jamshidian & Jalal’s tests, as misty’s ?na.test', async () => {
   const e = CARD_MISSING.find((x) => x.id === 'misty-airquality-mcar')!;
   example(e.id, { title: e.title, method: 'Data', packages: ['misty', 'mvnmle'], definition: e });
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: e.data.package, name: e.data.name, na: [] }, e.data.package as RPackage);
-  const data: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), ...categoriesOf(raw.levels) };
-  const ctx: AnalysisCtx = { data, info: null, settings: exampleSettings(DEFAULT_SETTINGS, e.settings), pls: null, projectName: e.title };
+  const raw = await rCall<{
+    names: string[];
+    cols: (number | null)[][];
+    levels?: Record<string, string[]>;
+  }>(
+    'ps_dataset',
+    { package: e.data.package, name: e.data.name, na: [] },
+    e.data.package as RPackage,
+  );
+  const data: Dataset = {
+    names: raw.names,
+    cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+    ...categoriesOf(raw.levels),
+  };
+  const ctx: AnalysisCtx = {
+    data,
+    info: null,
+    settings: exampleSettings(DEFAULT_SETTINGS, e.settings),
+    pls: null,
+    projectName: e.title,
+  };
   const t = analysisType('missingdata')!;
   const options = t.parseOptions({ ...t.defaults(ctx), ...panelPreset(e.panel!) })!;
   expect(options.mcar && options.jamjal).toBe(true);
   expect(t.blocked(options, ctx)).toBeNull();
-  const r = await t.run(options, ctx, () => {}) as MissingDataResult;
+  const r = (await t.run(options, ctx, () => {})) as MissingDataResult;
   cleanRun(r.warnings.length);
   expect(r.warnings).toEqual([]);
   same('engine', r.engine.package, 'misty');
 
-  against({ label: `misty ${REF.misty} in desktop ${REF.R}: na.test(airquality) (?na.test, Example 1); the shares by Little’s formula from mvnmle ${REF.mvnmle}::mlest (scripts/validation/mcar.R)`, level: 'native', script: 'scripts/validation/mcar.R' });
+  against({
+    label: `misty ${REF.misty} in desktop ${REF.R}: na.test(airquality) (?na.test, Example 1); the shares by Little’s formula from mvnmle ${REF.mvnmle}::mlest (scripts/validation/mcar.R)`,
+    level: 'native',
+    script: 'scripts/validation/mcar.R',
+  });
   const l = r.little!;
   same('cases', l.n, REF.little.n);
   same('incomplete cases', l.incomplete, REF.little.incomplete);
@@ -61,13 +105,23 @@ it('misty-airquality-mcar: Little’s MCAR test with each pattern’s share, and
     same(`pattern ${w.key}: observed`, g.observed.map((o) => (o ? '0' : '1')).join(''), w.key);
     same(`pattern ${w.key}: cases`, g.n, w.n);
     same(`pattern ${w.key}: observed variables`, g.k, w.k);
-    near(`pattern ${w.key}: share of χ²`, g.d2, w.d2, 1e-4);  // (each share from mvnmle's optimiser: ~3e-5 between builds)
+    near(`pattern ${w.key}: share of χ²`, g.d2, w.d2, 1e-4); // (each share from mvnmle's optimiser: ~3e-5 between builds)
   });
-  near('the shares sum to χ²', l.byPattern.reduce((s, x) => s + x.d2, 0), l.chisq, 1e-4);
+  near(
+    'the shares sum to χ²',
+    l.byPattern.reduce((s, x) => s + x.d2, 0),
+    l.chisq,
+    1e-4,
+  );
   // Every pattern with a share is one of the card's patterns.
-  for (const g of l.byPattern) expect(r.patterns.some((p) => p.observed.join() === g.observed.join())).toBe(true);
+  for (const g of l.byPattern)
+    expect(r.patterns.some((p) => p.observed.join() === g.observed.join())).toBe(true);
 
-  against({ label: `misty ${REF.misty}: na.test(airquality, print = "jamjal") (?na.test, Example 2, seed 42); MissMech ${REF.MissMech.version}::TestMCARNormality(airquality, imputation.number = 20, seed = 42) gives the same medians (scripts/validation/mcar.R)`, level: 'native', script: 'scripts/validation/mcar.R' });
+  against({
+    label: `misty ${REF.misty}: na.test(airquality, print = "jamjal") (?na.test, Example 2, seed 42); MissMech ${REF.MissMech.version}::TestMCARNormality(airquality, imputation.number = 20, seed = 42) gives the same medians (scripts/validation/mcar.R)`,
+    level: 'native',
+    script: 'scripts/validation/mcar.R',
+  });
   const j = r.jamjal!;
   if ('error' in j) throw new Error(j.error);
   same('cases in patterns of at least 6', j.n, REF.jamjal.n);
@@ -87,10 +141,26 @@ it('misty-airquality-mcar: Little’s MCAR test with each pattern’s share, and
 }, 900_000);
 
 it('the MCAR tests are off for data without missing values: a note, no test', async () => {
-  const data: Dataset = { names: ['a', 'b'], cols: [Float64Array.from({ length: 30 }, (_, i) => Math.sin(i)), Float64Array.from({ length: 30 }, (_, i) => Math.cos(i * 1.7))] };
-  const ctx: AnalysisCtx = { data, info: null, settings: DEFAULT_SETTINGS, pls: null, projectName: 'complete' };
+  const data: Dataset = {
+    names: ['a', 'b'],
+    cols: [
+      Float64Array.from({ length: 30 }, (_, i) => Math.sin(i)),
+      Float64Array.from({ length: 30 }, (_, i) => Math.cos(i * 1.7)),
+    ],
+  };
+  const ctx: AnalysisCtx = {
+    data,
+    info: null,
+    settings: DEFAULT_SETTINGS,
+    pls: null,
+    projectName: 'complete',
+  };
   const t = analysisType('missingdata')!;
-  const r = await t.run({ ...t.defaults(ctx), vars: ['a', 'b'], mcar: true, jamjal: true }, ctx, () => {}) as MissingDataResult;
+  const r = (await t.run(
+    { ...t.defaults(ctx), vars: ['a', 'b'], mcar: true, jamjal: true },
+    ctx,
+    () => {},
+  )) as MissingDataResult;
   expect(r.little).toBeUndefined();
   expect(r.jamjal).toBeUndefined();
   expect(r.patterns).toHaveLength(1);

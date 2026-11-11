@@ -23,7 +23,9 @@ it('ex6.12: wide data, individually varying times, a random slope of a time-vary
     if (p.op === '~') return { fixed: p.lhs === 'i' ? 'x' : `${name[p.lhs]} × x` };
     if (p.op === '~1') return { fixed: name[p.lhs] };
     if (/^y\d$/.test(p.lhs)) return { group: 'Residual', a: p.lhs };
-    return p.lhs !== p.rhs ? { group: 'Person', a: 'Intercept', b: 'a1' } : { group: 'Person', a: name[p.lhs] };
+    return p.lhs !== p.rhs
+      ? { group: 'Person', a: 'Intercept', b: 'a1' }
+      : { group: 'Person', a: name[p.lhs] };
   };
   samePrintedLmm('ex6.12', r, where);
   // The script runs on its own: nlme's lme with varIdent and pdBlocked, and the MLR sandwich.

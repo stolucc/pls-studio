@@ -21,32 +21,69 @@ describe.skipIf(!run)('Barcomb et al. (ICSE 2019)', () => {
   afterAll(stopTestRuntime);
   const raw = run ? parseCsv(readFileSync(file!, 'utf8')).dataset : { names: [], cols: [] };
   // Reverse-coded items (R in the paper's Table IV): 6 - x on the 5-point scale.
-  const data = { names: raw.names, cols: raw.cols.map((c, i) => (['socnorm7', 'orgcomm2', 'orgcomm6', 'orgcomm7'].includes(raw.names[i]) ? c.map((v) => 6 - v) : c)) };
-  const f = (name: string, indicators: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators });
+  const data = {
+    names: raw.names,
+    cols: raw.cols.map((c, i) =>
+      ['socnorm7', 'orgcomm2', 'orgcomm6', 'orgcomm7'].includes(raw.names[i])
+        ? c.map((v) => 6 - v)
+        : c,
+    ),
+  };
+  const f = (name: string, indicators: string[]) => ({
+    name,
+    type: 'factor' as const,
+    mode: 'A' as const,
+    indicators,
+  });
   // The retained items (Table IV).
   const spec: ModelSpec = {
-    constructs: [f('CBM', ['utility6']), f('SN', ['socnorm2', 'socnorm3', 'socnorm6', 'socnorm7']), f('PSC', ['psychcom3']),
-      f('SAT', ['satisfaction1', 'satisfaction2', 'satisfaction3', 'satisfaction6']), f('CC', ['orgcomm2', 'orgcomm4', 'orgcomm6', 'orgcomm7', 'orgcomm8', 'orgcomm9']),
-      f('IR', ['remain1', 'remain2', 'remain3', 'remain4', 'remain7', 'remain8'])],
+    constructs: [
+      f('CBM', ['utility6']),
+      f('SN', ['socnorm2', 'socnorm3', 'socnorm6', 'socnorm7']),
+      f('PSC', ['psychcom3']),
+      f('SAT', ['satisfaction1', 'satisfaction2', 'satisfaction3', 'satisfaction6']),
+      f('CC', ['orgcomm2', 'orgcomm4', 'orgcomm6', 'orgcomm7', 'orgcomm8', 'orgcomm9']),
+      f('IR', ['remain1', 'remain2', 'remain3', 'remain4', 'remain7', 'remain8']),
+    ],
     paths: ['CBM', 'SN', 'PSC', 'SAT', 'CC'].map((from) => ({ from, to: 'IR' })),
   };
-  const options = { scheme: 'centroid' as const, consistent: false, tolerance: 1e-6, maxIter: 100, missing: 'casewise' as const };
+  const options = {
+    scheme: 'centroid' as const,
+    consistent: false,
+    tolerance: 1e-6,
+    maxIter: 100,
+    missing: 'casewise' as const,
+  };
 
   it('the global model: R² .774 (and the loadings of Table IV)', async () => {
     const r = await estimatePlsR(data, spec, options, 'cSEM');
     expect(r.rSquared[r.constructs.indexOf('IR')]!).toBeCloseTo(0.774, 3);
     const load = (i: string) => r.loadings[r.indicators.findIndex((x) => x.name === i)];
     // Table IV: sn2 .755, sn7 (R) .726, cc2 (R) .701, cc8 .850, s2 .900, ir8 .845.
-    for (const [i, v] of [['socnorm2', 0.755], ['socnorm7', 0.726], ['orgcomm2', 0.701], ['orgcomm8', 0.85], ['satisfaction2', 0.9], ['remain8', 0.845]] as const) expect(load(i), i).toBeCloseTo(v, 3);
+    for (const [i, v] of [
+      ['socnorm2', 0.755],
+      ['socnorm7', 0.726],
+      ['orgcomm2', 0.701],
+      ['orgcomm8', 0.85],
+      ['satisfaction2', 0.9],
+      ['remain8', 0.845],
+    ] as const)
+      expect(load(i), i).toBeCloseTo(v, 3);
   }, 900_000);
 
   it('REBUS-PLS: four classes of 31, 19, 20 and 31 volunteers, GQI .795 (GoF .699), Table VIII', async () => {
-    const r = await rebusR(data, spec, options, { classes: [3, 4, 5], stopCrit: 0.005, iterMax: 100, seed: 1 });
+    const r = await rebusR(data, spec, options, {
+      classes: [3, 4, 5],
+      stopCrit: 0.005,
+      iterMax: 100,
+      seed: 1,
+    });
     expect(r.globalGof).toBeCloseTo(0.699, 3);
     const four = r.models.find((m) => m.k === 4)!;
     expect(four.gqi).toBeCloseTo(0.795, 3);
     expect(four.sizes).toEqual([31, 19, 20, 31]);
-    const p = (from: string) => four.paths.find((x) => x.from === from)!.byClass.map((v) => +v.toFixed(2));
+    const p = (from: string) =>
+      four.paths.find((x) => x.from === from)!.byClass.map((v) => +v.toFixed(2));
     // Table VIII, classes in plspm's order: satisfied, social, classic, obligated.
     expect(p('SAT')).toEqual([1.05, 0.35, 0.19, 0.01]);
     expect(p('CC')).toEqual([0.08, 0.42, 0.24, 1.03]);

@@ -12,7 +12,12 @@
  * - `runs`: the package's documented example estimates without unexpected warnings; nothing to compare with.
  */
 export type EvidenceLevel = 'published' | 'native' | 'recovery' | 'runs';
-export const EVIDENCE_LEVELS: readonly EvidenceLevel[] = ['published', 'native', 'recovery', 'runs'];
+export const EVIDENCE_LEVELS: readonly EvidenceLevel[] = [
+  'published',
+  'native',
+  'recovery',
+  'runs',
+];
 
 export interface EvidenceSource {
   /** e.g. "Mplus User's Guide, example 5.25 (output)", "desktop lavaan, scripts/validation/esem.R". */

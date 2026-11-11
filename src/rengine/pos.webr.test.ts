@@ -19,10 +19,23 @@ const csv = parseCsv(readFileSync(join(DIR, 'simdata.csv'), 'utf8')).dataset;
 const group = csv.cols[csv.names.indexOf('group')];
 const mv = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => `mv${a + i}`);
 const spec: ModelSpec = {
-  constructs: [{ name: 'Price', type: 'factor', mode: 'A', indicators: mv(1, 5) }, { name: 'Quality', type: 'factor', mode: 'A', indicators: mv(6, 10) }, { name: 'Satisfaction', type: 'factor', mode: 'A', indicators: mv(11, 13) }],
-  paths: [{ from: 'Price', to: 'Satisfaction' }, { from: 'Quality', to: 'Satisfaction' }],
+  constructs: [
+    { name: 'Price', type: 'factor', mode: 'A', indicators: mv(1, 5) },
+    { name: 'Quality', type: 'factor', mode: 'A', indicators: mv(6, 10) },
+    { name: 'Satisfaction', type: 'factor', mode: 'A', indicators: mv(11, 13) },
+  ],
+  paths: [
+    { from: 'Price', to: 'Satisfaction' },
+    { from: 'Quality', to: 'Satisfaction' },
+  ],
 };
-const options = { scheme: 'path' as const, consistent: false, tolerance: 1e-7, maxIter: 300, missing: 'casewise' as const };
+const options = {
+  scheme: 'path' as const,
+  consistent: false,
+  tolerance: 1e-7,
+  maxIter: 300,
+  missing: 'casewise' as const,
+};
 
 it('recovers the two simulated segments, reproducibly', async () => {
   const r = await posR(csv, spec, options, { segments: 2, nrep: 2, seed: 1 });
@@ -34,5 +47,7 @@ it('recovers the two simulated segments, reproducibly', async () => {
   expect(priceDriven.paths.find((p) => p.from === 'Quality')!.est).toBeLessThan(0.3);
   const again = await posR(csv, spec, options, { segments: 2, nrep: 2, seed: 1 });
   expect(again.objective).toBe(r.objective);
-  expect(await posScriptR(csv, spec, options, { segments: 2, nrep: 2, seed: 1 })).toContain('pos_run <- function(X, K, min_size, max_moves, candidates)');
+  expect(await posScriptR(csv, spec, options, { segments: 2, nrep: 2, seed: 1 })).toContain(
+    'pos_run <- function(X, K, min_size, max_moves, candidates)',
+  );
 }, 1_800_000);

@@ -20,7 +20,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { freeFormatCsv, latin1, mplusInput } from '../../src/examples/remote/convert.ts';
-import { mplusInputPath, STATMODEL_BASE, statmodelPath, URL_SOURCES } from '../../src/examples/remote/source.ts';
+import {
+  mplusInputPath,
+  STATMODEL_BASE,
+  statmodelPath,
+  URL_SOURCES,
+} from '../../src/examples/remote/source.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CACHE = join(ROOT, '.cache');
@@ -36,7 +41,11 @@ function mplusKeys() {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       const p = join(dir, e.name);
       if (e.isDirectory()) walk(p);
-      else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) for (const m of readFileSync(p, 'utf8').matchAll(/mplusData\(\s*'(\d{1,2}\.\d{1,2}[a-z0-9]*)'/g)) keys.add(m[1]);
+      else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name))
+        for (const m of readFileSync(p, 'utf8').matchAll(
+          /mplusData\(\s*'(\d{1,2}\.\d{1,2}[a-z0-9]*)'/g,
+        ))
+          keys.add(m[1]);
     }
   };
   walk(join(ROOT, 'src', 'examples'));
@@ -46,7 +55,13 @@ function mplusKeys() {
 async function download(url) {
   for (let attempt = 1; ; attempt++) {
     try {
-      const res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(60_000), headers: { 'User-Agent': 'PLS Studio test-data cache (scripts/validation/fetch_example_data.mjs)' } });
+      const res = await fetch(url, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(60_000),
+        headers: {
+          'User-Agent': 'PLS Studio test-data cache (scripts/validation/fetch_example_data.mjs)',
+        },
+      });
       if (res.status !== 200) throw new Error(`${url}: HTTP ${res.status}`);
       return new Uint8Array(await res.arrayBuffer());
     } catch (e) {
@@ -84,7 +99,8 @@ async function mplusExample(key) {
   const info = mplusInput(inp);
   if (!info) return `ex${key}: the input reads no data`;
   const datPath = statmodelPath(`chap${key.split('.')[0]}/${info.file}`);
-  if (!datPath) throw new Error(`ex${key}: the input names ${info.file}, not one of the guide's data files`);
+  if (!datPath)
+    throw new Error(`ex${key}: the input names ${info.file}, not one of the guide's data files`);
   const dat = latin1(await raw(src, info.file, STATMODEL_BASE + datPath));
   const { csv, rows } = freeFormatCsv(dat, info.names, info.missing, `ex${key}`);
   return write(out, csv, `ex${key}: ${rows} rows, ${info.names.length} columns (${info.file})`);
@@ -98,20 +114,29 @@ async function urlSource(r) {
   return write(out, csv, `${r.file}: ${rows} rows, ${r.names.length} columns (${r.url})`);
 }
 
-const keys = [...new Set([...(only ? [] : mplusKeys()), ...named])].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
-const jobs = [...keys.map((k) => () => mplusExample(k)), ...(only ? [] : URL_SOURCES.map((r) => () => urlSource(r)))];
+const keys = [...new Set([...(only ? [] : mplusKeys()), ...named])].sort((a, b) =>
+  a.localeCompare(b, 'en', { numeric: true }),
+);
+const jobs = [
+  ...keys.map((k) => () => mplusExample(k)),
+  ...(only ? [] : URL_SOURCES.map((r) => () => urlSource(r))),
+];
 let failed = 0;
 // A few at a time: statmodel.com is one small server.
-await Promise.all(Array.from({ length: 4 }, async () => {
-  for (let job = jobs.shift(); job; job = jobs.shift()) {
-    try {
-      const msg = await job();
-      if (msg) console.log(msg);
-    } catch (e) {
-      failed++;
-      console.error(`FAILED ${e instanceof Error ? e.message : e}`);
+await Promise.all(
+  Array.from({ length: 4 }, async () => {
+    for (let job = jobs.shift(); job; job = jobs.shift()) {
+      try {
+        const msg = await job();
+        if (msg) console.log(msg);
+      } catch (e) {
+        failed++;
+        console.error(`FAILED ${e instanceof Error ? e.message : e}`);
+      }
     }
-  }
-}));
-console.log(`Example data: ${keys.length} Mplus examples and ${only ? 0 : URL_SOURCES.length} other sources in ${CACHE}${failed ? `; ${failed} failed` : ''}.`);
+  }),
+);
+console.log(
+  `Example data: ${keys.length} Mplus examples and ${only ? 0 : URL_SOURCES.length} other sources in ${CACHE}${failed ? `; ${failed} failed` : ''}.`,
+);
 if (failed) process.exit(1);

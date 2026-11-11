@@ -1,7 +1,11 @@
 import { indicatorsDrawnElsewhere, type Construct, type ModelState, type Side } from './project';
 
 /** Suggest a construct name from its indicators' common alphabetic prefix (IMAG1..IMAG5 → "IMAG"). */
-export function suggestName(indicators: string[], existing: string[], fallbackIndex: number): string {
+export function suggestName(
+  indicators: string[],
+  existing: string[],
+  fallbackIndex: number,
+): string {
   const taken = new Set(existing.map((s) => s.toLowerCase()));
   let base = '';
   if (indicators.length > 0) {
@@ -12,7 +16,8 @@ export function suggestName(indicators: string[], existing: string[], fallbackIn
     if (base.length < 2) base = '';
   }
   if (!base) base = `Construct ${fallbackIndex}`;
-  let name = base, k = 2;
+  let name = base,
+    k = 2;
   while (taken.has(name.toLowerCase())) name = `${base} ${k++}`;
   return name;
 }
@@ -39,7 +44,8 @@ export function autoLayout(model: ModelState): Construct[] {
   model.constructs.forEach((c) => visit(c.id, new Set()));
   const maxLayer = Math.max(0, ...layer.values());
   const hasSucc = new Set(model.paths.map((p) => p.from));
-  const X_GAP = 380, Y_GAP = 250;
+  const X_GAP = 380,
+    Y_GAP = 250;
 
   // Barycentric ordering: each layer sits near the mean height of its
   // predecessors, then nodes are pushed apart to keep a minimum gap.
@@ -48,7 +54,9 @@ export function autoLayout(model: ModelState): Construct[] {
     const col = model.constructs.filter((c) => layer.get(c.id) === l);
     const want = col.map((c, i) => {
       const ps = (preds.get(c.id) ?? []).filter((p) => y.has(p));
-      return ps.length ? ps.reduce((s, p) => s + y.get(p)!, 0) / ps.length : (i - (col.length - 1) / 2) * Y_GAP;
+      return ps.length
+        ? ps.reduce((s, p) => s + y.get(p)!, 0) / ps.length
+        : (i - (col.length - 1) / 2) * Y_GAP;
     });
     const order = col.map((c, i) => ({ c, w: want[i] })).sort((a, b) => a.w - b.w);
     const placed: number[] = [];
@@ -63,17 +71,21 @@ export function autoLayout(model: ModelState): Construct[] {
   for (let l = 1; l < maxLayer; l++) {
     const col = model.constructs.filter((c) => layer.get(c.id) === l);
     for (const p of model.paths) {
-      const lf = layer.get(p.from), lt = layer.get(p.to);
+      const lf = layer.get(p.from),
+        lt = layer.get(p.to);
       if (lf === undefined || lt === undefined || !(lf < l && l < lt)) continue;
-      const yf = y.get(p.from)!, yt = y.get(p.to)!;
+      const yf = y.get(p.from)!,
+        yt = y.get(p.to)!;
       const yLine = yf + ((yt - yf) * (l - lf)) / (lt - lf);
       const hit = col.find((c) => Math.abs(y.get(c.id)! - yLine) < Y_GAP * 0.45);
       if (!hit) continue;
       y.set(hit.id, Math.round(yLine - Y_GAP * 0.6));
       const sorted = [...col].sort((a, b) => y.get(a.id)! - y.get(b.id)!);
       const at = sorted.indexOf(hit);
-      for (let i = at - 1; i >= 0; i--) y.set(sorted[i].id, Math.min(y.get(sorted[i].id)!, y.get(sorted[i + 1].id)! - Y_GAP));
-      for (let i = at + 1; i < sorted.length; i++) y.set(sorted[i].id, Math.max(y.get(sorted[i].id)!, y.get(sorted[i - 1].id)! + Y_GAP));
+      for (let i = at - 1; i >= 0; i--)
+        y.set(sorted[i].id, Math.min(y.get(sorted[i].id)!, y.get(sorted[i + 1].id)! - Y_GAP));
+      for (let i = at + 1; i < sorted.length; i++)
+        y.set(sorted[i].id, Math.max(y.get(sorted[i].id)!, y.get(sorted[i - 1].id)! + Y_GAP));
     }
   }
 
@@ -85,8 +97,11 @@ export function autoLayout(model: ModelState): Construct[] {
   // clear of the next, and the general factors further left, so that their arrows reach those boxes from outside.
   const elsewhere = indicatorsDrawnElsewhere(model);
   if (elsewhere.size) {
-    const owned = (c: Construct) => c.indicators.filter((i) => !elsewhere.get(c.name)?.has(i)).length;
-    const general = model.constructs.filter((c) => elsewhere.has(c.name) && !model.paths.some((p) => p.to === c.id || p.from === c.id));
+    const owned = (c: Construct) =>
+      c.indicators.filter((i) => !elsewhere.get(c.name)?.has(i)).length;
+    const general = model.constructs.filter(
+      (c) => elsewhere.has(c.name) && !model.paths.some((p) => p.to === c.id || p.from === c.id),
+    );
     const others = model.constructs.filter((c) => !general.includes(c));
     let top = 0;
     const placed = new Map<string, { x: number; y: number }>();
@@ -95,8 +110,11 @@ export function autoLayout(model: ModelState): Construct[] {
       placed.set(c.id, { x: 0, y: top + h / 2 });
       top += h + 44;
     }
-    general.forEach((c, i) => placed.set(c.id, { x: -560, y: (top - 44) / 2 + (i - (general.length - 1) / 2) * 220 }));
-    if (placed.size === model.constructs.length && general.length) return model.constructs.map((c) => ({ ...c, ...placed.get(c.id)!, side: 'left' as const }));
+    general.forEach((c, i) =>
+      placed.set(c.id, { x: -560, y: (top - 44) / 2 + (i - (general.length - 1) / 2) * 220 }),
+    );
+    if (placed.size === model.constructs.length && general.length)
+      return model.constructs.map((c) => ({ ...c, ...placed.get(c.id)!, side: 'left' as const }));
   }
   return model.constructs.map((c) => {
     const l = layer.get(c.id)!;

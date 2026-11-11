@@ -9,34 +9,75 @@ import { runHash } from './runHash';
 import { parseCards, shareableCards } from './persist';
 import { ANALYSIS_TYPES } from './registry';
 import {
-  addAnalysis, addFrozenCard, addText, cancelCard, cardStatus, currentCtx, duplicateCard, loadCards, MAX_CARDS, MAX_TEXT, moveCard, moveCardNextTo, nudgeCard, removeCard, runCard, setOptions, setText, setTitle, unpackCard, updateFrozenCard, useAnalyses,
+  addAnalysis,
+  addFrozenCard,
+  addText,
+  cancelCard,
+  cardStatus,
+  currentCtx,
+  duplicateCard,
+  loadCards,
+  MAX_CARDS,
+  MAX_TEXT,
+  moveCard,
+  moveCardNextTo,
+  nudgeCard,
+  removeCard,
+  runCard,
+  setOptions,
+  setText,
+  setTitle,
+  unpackCard,
+  updateFrozenCard,
+  useAnalyses,
 } from './store';
 import type { AnalysisCard, AnalysisType } from './types';
 
 // A stand-in analysis: the mean of one data column.
 let failNext = false;
 const meanType: AnalysisType<{ col: string }, { mean: number; values: Float64Array }> = {
-  id: 'test-mean', title: 'Mean', sub: 'test', group: 'Data',
+  id: 'test-mean',
+  title: 'Mean',
+  sub: 'test',
+  group: 'Data',
   defaults: () => ({ col: 'x' }),
-  parseOptions: (raw) => (raw && typeof (raw as { col?: unknown }).col === 'string' ? { col: (raw as { col: string }).col } : null),
-  Options: () => null, View: () => null,
+  parseOptions: (raw) =>
+    raw && typeof (raw as { col?: unknown }).col === 'string'
+      ? { col: (raw as { col: string }).col }
+      : null,
+  Options: () => null,
+  View: () => null,
   blocked: (o, ctx) => (ctx.data?.names.includes(o.col) ? null : `No column ${o.col}.`),
-  fingerprint: (o, ctx) => { const k = ctx.data?.names.indexOf(o.col) ?? -1; return k < 0 ? null : fingerprint([o.col, ctx.data!.cols[k]]); },
+  fingerprint: (o, ctx) => {
+    const k = ctx.data?.names.indexOf(o.col) ?? -1;
+    return k < 0 ? null : fingerprint([o.col, ctx.data!.cols[k]]);
+  },
   run: async (o, ctx) => {
-    if (failNext) { failNext = false; throw new Error('R said no'); }
+    if (failNext) {
+      failNext = false;
+      throw new Error('R said no');
+    }
     const col = ctx.data!.cols[ctx.data!.names.indexOf(o.col)];
     return { mean: col.reduce((a, b) => a + b, 0) / col.length, values: col };
   },
   summary: (o) => o.col,
 };
 ANALYSIS_TYPES.push(meanType);
-afterAll(() => { ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(meanType), 1); });
+afterAll(() => {
+  ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(meanType), 1);
+});
 
 const a = () => useAnalyses.getState();
 const card = (id: string) => a().cards.find((c) => c.id === id) as AnalysisCard;
-const setData = (x: number[], y = [0, 0, 0]) => useStore.getState().setData(
-  { names: ['x', 'y'], cols: [Float64Array.from(x), Float64Array.from(y)] }, { fileName: 'd.csv', rows: x.length, missingCells: 0, excluded: [] });
-const status = (id: string) => cardStatus(card(id), currentCtx(), !!a().running[id], id in a().results);
+const setData = (x: number[], y = [0, 0, 0]) =>
+  useStore
+    .getState()
+    .setData(
+      { names: ['x', 'y'], cols: [Float64Array.from(x), Float64Array.from(y)] },
+      { fileName: 'd.csv', rows: x.length, missingCells: 0, excluded: [] },
+    );
+const status = (id: string) =>
+  cardStatus(card(id), currentCtx(), !!a().running[id], id in a().results);
 
 beforeEach(() => {
   useStore.getState().newProject();
@@ -124,7 +165,7 @@ describe('running a card', () => {
     expect(card(m).run?.packed).toBeTruthy();
     expect(status(m).state).toBe('current');
 
-    setData([1, 2, 3], [5, 5, 5]);  // another column changed: still current
+    setData([1, 2, 3], [5, 5, 5]); // another column changed: still current
     expect(status(m).state).toBe('current');
     setData([1, 2, 4]);
     expect(status(m)).toEqual({ state: 'stale', why: 'The data it used changed since this ran.' });
@@ -175,9 +216,28 @@ describe('cards from files and collaborators', () => {
       { id: '../etc', kind: 'note', text: 'bad id' },
       { id: 'card-2', kind: 'analysis', type: 'no-such', options: {} },
       { id: 'card-3', kind: 'analysis', type: 'test-mean', options: { col: 7 } },
-      { id: 'card-4', kind: 'analysis', type: 'test-mean', options: { col: 'x' }, run: { at: 1, fingerprint: 'f', options: '{}', packed: 'x'.repeat(9_000_000) } },
-      { id: 'card-5', kind: 'analysis', type: 'test-mean', options: { col: 'x' }, run: { at: 'yesterday' }, title: { not: 'a string' } },
-      { id: 'card-6', kind: 'analysis', type: 'test-mean', options: { col: 'x' }, title: ' My\ttitle ' + 'x'.repeat(100) },
+      {
+        id: 'card-4',
+        kind: 'analysis',
+        type: 'test-mean',
+        options: { col: 'x' },
+        run: { at: 1, fingerprint: 'f', options: '{}', packed: 'x'.repeat(9_000_000) },
+      },
+      {
+        id: 'card-5',
+        kind: 'analysis',
+        type: 'test-mean',
+        options: { col: 'x' },
+        run: { at: 'yesterday' },
+        title: { not: 'a string' },
+      },
+      {
+        id: 'card-6',
+        kind: 'analysis',
+        type: 'test-mean',
+        options: { col: 'x' },
+        title: ' My\ttitle ' + 'x'.repeat(100),
+      },
       'junk',
     ]);
     expect(cards.map((c) => c.id)).toEqual(['card-1', 'card-4', 'card-5', 'card-6']);
@@ -192,7 +252,9 @@ describe('cards from files and collaborators', () => {
     const m = addAnalysis('test-mean')!;
     setTitle(m, 'Mean of x');
     const s = useStore.getState();
-    const back = parseCards(parseProject(serializeProject(s.model, s.settings, null, null, null, a().cards)).analyses);
+    const back = parseCards(
+      parseProject(serializeProject(s.model, s.settings, null, null, null, a().cards)).analyses,
+    );
     expect((back[0] as AnalysisCard).title).toBe('Mean of x');
   });
 
@@ -206,7 +268,12 @@ describe('cards from files and collaborators', () => {
     expect(card(m).run?.packed).toBeTruthy();
     expect(m in a().results).toBe(true);
     // A collaborator's new run: our old result goes.
-    loadCards([{ ...shared[0], run: { ...(shared[0] as AnalysisCard).run!, at: Date.now() + 1 } } as AnalysisCard]);
+    loadCards([
+      {
+        ...shared[0],
+        run: { ...(shared[0] as AnalysisCard).run!, at: Date.now() + 1 },
+      } as AnalysisCard,
+    ]);
     expect(m in a().results).toBe(false);
     expect(status(m).state).toBe('missing');
   });
@@ -224,7 +291,10 @@ describe('card status, every state', () => {
     expect(status(id)).toEqual({ state: 'current' });
     // The result gone (as on another computer of a shared project) and nothing packed: missing.
     const run = card(id).run!;
-    useAnalyses.setState((s) => ({ results: {}, cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...run, packed: undefined } } : c)) }));
+    useAnalyses.setState((s) => ({
+      results: {},
+      cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...run, packed: undefined } } : c)),
+    }));
     expect(status(id).state).toBe('missing');
     useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, run } : c)) }));
     await unpackCard(id);
@@ -233,22 +303,46 @@ describe('card status, every state', () => {
     setOptions(id, { col: 'x' });
     setData([4, 5, 6]);
     expect(status(id).state).toBe('stale');
-    useStore.getState().setData({ names: ['q'], cols: [Float64Array.from([1, 2, 3])] }, { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] });
+    useStore
+      .getState()
+      .setData(
+        { names: ['q'], cols: [Float64Array.from([1, 2, 3])] },
+        { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] },
+      );
     expect(status(id)).toEqual({ state: 'stale', why: 'No column x.' });
     // A card of a kind this version does not have.
-    useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, type: 'gone' } : c)) }));
-    expect(status(id)).toEqual({ state: 'stale', why: 'This kind of analysis is not available in this version.' });
+    useAnalyses.setState((s) => ({
+      cards: s.cards.map((c) => (c.id === id ? { ...c, type: 'gone' } : c)),
+    }));
+    expect(status(id)).toEqual({
+      state: 'stale',
+      why: 'This kind of analysis is not available in this version.',
+    });
   });
 });
 
 describe('frozen cards (model snapshots)', () => {
   const frozenType: AnalysisType<{ n: number }, { ok: boolean }> = {
-    id: 'test-frozen', title: 'Snapshot', sub: 'test', group: 'Data', frozen: true,
-    defaults: () => ({ n: 1 }), parseOptions: (raw) => raw as { n: number }, Options: () => null, View: () => null, blocked: () => null,
-    fingerprint: (o) => `fz-${o.n}`, run: async () => ({ ok: true }), summary: (o) => `n=${o.n}`,
+    id: 'test-frozen',
+    title: 'Snapshot',
+    sub: 'test',
+    group: 'Data',
+    frozen: true,
+    defaults: () => ({ n: 1 }),
+    parseOptions: (raw) => raw as { n: number },
+    Options: () => null,
+    View: () => null,
+    blocked: () => null,
+    fingerprint: (o) => `fz-${o.n}`,
+    run: async () => ({ ok: true }),
+    summary: (o) => `n=${o.n}`,
   };
-  beforeEach(() => { if (!ANALYSIS_TYPES.includes(frozenType)) ANALYSIS_TYPES.push(frozenType); });
-  afterAll(() => { ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(frozenType), 1); });
+  beforeEach(() => {
+    if (!ANALYSIS_TYPES.includes(frozenType)) ANALYSIS_TYPES.push(frozenType);
+  });
+  afterAll(() => {
+    ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(frozenType), 1);
+  });
 
   it('adds a snapshot with its packed result, and refuses ordinary types, viewers and a full workspace', async () => {
     expect(await addFrozenCard('test-mean', { col: 'x' }, { mean: 1 })).toBeNull();
@@ -262,7 +356,13 @@ describe('frozen cards (model snapshots)', () => {
     useStore.setState({ cloud: { projectId: 'p', role: 'viewer', status: 'online' } });
     expect(await addFrozenCard('test-frozen', { n: 3 }, { ok: true })).toBeNull();
     useStore.setState({ cloud: null });
-    loadCards(Array.from({ length: MAX_CARDS }, (_, i) => ({ id: `t${i}`, kind: 'note' as const, text: '' })));
+    loadCards(
+      Array.from({ length: MAX_CARDS }, (_, i) => ({
+        id: `t${i}`,
+        kind: 'note' as const,
+        text: '',
+      })),
+    );
     expect(await addFrozenCard('test-frozen', { n: 3 }, { ok: true })).toBeNull();
   });
   it('replaces a snapshot result in place, clearing its error, and refuses the rest', async () => {
@@ -299,14 +399,37 @@ describe('frozen cards (model snapshots)', () => {
 describe('cancelling, corrupt stored results, replacing the log and display-only options', () => {
   let release: ((v: { mean: number; values: Float64Array }) => void) | null = null;
   const cancelled = vi.fn();
-  const slowType: AnalysisType<{ show: boolean; col: string }, { mean: number; values: Float64Array }> = {
-    id: 'test-slow', title: 'Slow mean', sub: 'test', group: 'Data', display: ['show'], cancel: cancelled,
-    defaults: () => ({ show: true, col: 'x' }), parseOptions: (raw) => raw as { show: boolean; col: string }, Options: () => null, View: () => null,
-    blocked: meanType.blocked, fingerprint: meanType.fingerprint, summary: (o) => o.col,
-    run: () => new Promise((r) => { release = r; }),
+  const slowType: AnalysisType<
+    { show: boolean; col: string },
+    { mean: number; values: Float64Array }
+  > = {
+    id: 'test-slow',
+    title: 'Slow mean',
+    sub: 'test',
+    group: 'Data',
+    display: ['show'],
+    cancel: cancelled,
+    defaults: () => ({ show: true, col: 'x' }),
+    parseOptions: (raw) => raw as { show: boolean; col: string },
+    Options: () => null,
+    View: () => null,
+    blocked: meanType.blocked,
+    fingerprint: meanType.fingerprint,
+    summary: (o) => o.col,
+    run: () =>
+      new Promise((r) => {
+        release = r;
+      }),
   };
-  beforeEach(() => { if (!ANALYSIS_TYPES.includes(slowType)) ANALYSIS_TYPES.push(slowType); release = null; cancelled.mockClear(); interruptR.mockClear(); });
-  afterAll(() => { ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(slowType), 1); });
+  beforeEach(() => {
+    if (!ANALYSIS_TYPES.includes(slowType)) ANALYSIS_TYPES.push(slowType);
+    release = null;
+    cancelled.mockClear();
+    interruptR.mockClear();
+  });
+  afterAll(() => {
+    ANALYSIS_TYPES.splice(ANALYSIS_TYPES.indexOf(slowType), 1);
+  });
 
   it('cancels a running card: no result, no error, R interrupted, a toast; nothing when it is not running', async () => {
     setData([1, 2, 3]);
@@ -334,20 +457,29 @@ describe('cancelling, corrupt stored results, replacing the log and display-only
     const id = addAnalysis('test-mean')!;
     await runCard(id);
     const good = card(id).run!;
-    useAnalyses.setState((s) => ({ results: {}, cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...good, packed: 'AAAA' } } : c)) }));
+    useAnalyses.setState((s) => ({
+      results: {},
+      cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...good, packed: 'AAAA' } } : c)),
+    }));
     await unpackCard(id);
     expect(a().errors[id]).toMatch(/^The stored result could not be read \(.+\)\. Run it again\.$/);
     expect(a().results[id]).toBeUndefined();
     expect(a().unpacking).toEqual({});
     // Already unpacking, or no packed result: nothing happens.
-    useAnalyses.setState((s) => ({ errors: {}, unpacking: { [id]: true }, cards: s.cards.map((c) => (c.id === id ? { ...c, run: good } : c)) }));
+    useAnalyses.setState((s) => ({
+      errors: {},
+      unpacking: { [id]: true },
+      cards: s.cards.map((c) => (c.id === id ? { ...c, run: good } : c)),
+    }));
     await unpackCard(id);
     expect(a().results[id]).toBeUndefined();
     useAnalyses.setState({ unpacking: {} });
     // The card changes while its result is being unpacked: the stale result is dropped.
     const other = await packResult({ mean: 99, values: Float64Array.from([99]) });
     const p = unpackCard(id);
-    useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...good, packed: other! } } : c)) }));
+    useAnalyses.setState((s) => ({
+      cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...good, packed: other! } } : c)),
+    }));
     await p;
     expect(a().results[id]).toBeUndefined();
     await unpackCard(id);
@@ -356,9 +488,13 @@ describe('cancelling, corrupt stored results, replacing the log and display-only
 
   it('replacing the log cancels runs of cards that are gone and prunes their errors, running flags and selection', async () => {
     setData([1, 2, 3]);
-    const slow = addAnalysis('test-slow')!, keep = addAnalysis('test-mean')!;
+    const slow = addAnalysis('test-slow')!,
+      keep = addAnalysis('test-mean')!;
     const p = runCard(slow);
-    useAnalyses.setState((s) => ({ errors: { ...s.errors, [slow]: 'e1', [keep]: 'e2' }, selected: slow }));
+    useAnalyses.setState((s) => ({
+      errors: { ...s.errors, [slow]: 'e1', [keep]: 'e2' },
+      selected: slow,
+    }));
     loadCards([card(keep)]);
     await p;
     expect(a().cards.map((c) => c.id)).toEqual([keep]);
@@ -384,7 +520,11 @@ describe('cancelling, corrupt stored results, replacing the log and display-only
     setOptions(id, { show: false, col: 'y' });
     expect(status(id)).toEqual({ state: 'stale', why: 'The options changed since this ran.' });
     // A run record whose options cannot be parsed: stale rather than a crash.
-    useAnalyses.setState((s) => ({ cards: s.cards.map((c) => (c.id === id ? { ...c, run: { ...card(id).run!, options: '{bad' } } : c)) }));
+    useAnalyses.setState((s) => ({
+      cards: s.cards.map((c) =>
+        c.id === id ? { ...c, run: { ...card(id).run!, options: '{bad' } } : c,
+      ),
+    }));
     setOptions(id, { show: true, col: 'x' });
     expect(status(id).state).toBe('stale');
   });
@@ -393,9 +533,19 @@ describe('cancelling, corrupt stored results, replacing the log and display-only
     const st = useStore.getState();
     const ctx = currentCtx();
     const run = { at: 1, fingerprint: 'f', options: '{}', packed: 'AAAA' };
-    const mk = (hash: string): AnalysisCard => ({ id: 'r', kind: 'analysis', type: 'run', options: { hash }, run });
+    const mk = (hash: string): AnalysisCard => ({
+      id: 'r',
+      kind: 'analysis',
+      type: 'run',
+      options: { hash },
+      run,
+    });
     expect(cardStatus(mk('not-this'), ctx, false, true)).toEqual({ state: 'earlier' });
-    expect(cardStatus(mk(runHash(st.model, st.settings, st.data)), ctx, false, true)).toEqual({ state: 'current' });
-    expect(cardStatus({ ...mk('x'), run: { ...run, packed: undefined } }, ctx, false, false).state).toBe('missing');
+    expect(cardStatus(mk(runHash(st.model, st.settings, st.data)), ctx, false, true)).toEqual({
+      state: 'current',
+    });
+    expect(
+      cardStatus({ ...mk('x'), run: { ...run, packed: undefined } }, ctx, false, false).state,
+    ).toBe('missing');
   });
 });

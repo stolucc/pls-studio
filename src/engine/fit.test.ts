@@ -23,7 +23,9 @@ describe('rotateToImplied', () => {
     const target = R.map((row, i) => row.map((_v, j) => (i === j ? 1 : 0.4)));
     const Zs = rotateToImplied(Z, R, target).map((c) => standardize(c));
     Zs.forEach((a, i) => Zs.forEach((b, j) => expect(corStd(a, b)).toBeCloseTo(target[i][j], 10)));
-    const notPD = target.map((row, i) => row.map((_v, j) => (i === j ? 1 : 0.99 * (i < 2 && j < 2 ? 1 : -1))));
+    const notPD = target.map((row, i) =>
+      row.map((_v, j) => (i === j ? 1 : 0.99 * (i < 2 && j < 2 ? 1 : -1))),
+    );
     expect(() => rotateToImplied(Z, R, notPD)).toThrow(/not positive definite/);
   });
 });
@@ -43,11 +45,25 @@ describe('fitTestPls (Dijkstra & Henseler 2015)', () => {
   });
 
   it('rejects a clearly misspecified composite model', () => {
-    const c = (name: string, ind: string[]) => ({ name, mode: 'B' as const, type: 'composite' as const, indicators: ind });
+    const c = (name: string, ind: string[]) => ({
+      name,
+      mode: 'B' as const,
+      type: 'composite' as const,
+      indicators: ind,
+    });
     const spec: ModelSpec = {
-      constructs: [c('Image', items('IMAG', 5)), c('Expectation', items('CUEX', 3)), c('Satisfaction', items('CUSA', 3)), c('Loyalty', items('CUSL', 3))],
+      constructs: [
+        c('Image', items('IMAG', 5)),
+        c('Expectation', items('CUEX', 3)),
+        c('Satisfaction', items('CUSA', 3)),
+        c('Loyalty', items('CUSL', 3)),
+      ],
       // Image deliberately has no direct effect on Satisfaction or Loyalty.
-      paths: [{ from: 'Image', to: 'Expectation' }, { from: 'Expectation', to: 'Satisfaction' }, { from: 'Satisfaction', to: 'Loyalty' }],
+      paths: [
+        { from: 'Image', to: 'Expectation' },
+        { from: 'Expectation', to: 'Satisfaction' },
+        { from: 'Satisfaction', to: 'Loyalty' },
+      ],
     };
     const res = fitTestPls(data, spec, {}, { samples: 200, seed: 5 });
     expect(res.observed.estimated.srmr).toBeGreaterThan(res.hi99.estimated.srmr);
@@ -60,23 +76,55 @@ describe('fitTestPls (Dijkstra & Henseler 2015)', () => {
 // the bootstrap under the null within Monte Carlo error (2,000 samples on each side, different random numbers).
 describe('fitTestPls against cSEM::testOMF (threecommonfactors, PLS)', () => {
   it('testOMF: the same observed discrepancies, and quantiles within Monte Carlo error', () => {
-    const ref = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'fittest', 'threecf.json'), 'utf8')) as Record<'observed' | 'hi95' | 'hi99', Record<'srmr' | 'dULS' | 'dG', number>>;
+    const ref = JSON.parse(
+      readFileSync(join(__dirname, '__fixtures__', 'fittest', 'threecf.json'), 'utf8'),
+    ) as Record<'observed' | 'hi95' | 'hi99', Record<'srmr' | 'dULS' | 'dG', number>>;
     const c = cases.find((x) => x.name === 'pls_csem_threecommonfactors')!;
-    const r = fitTestPls(loadData(c), caseSpec(c), { consistent: false }, { samples: 2000, seed: 1 });
+    const r = fitTestPls(
+      loadData(c),
+      caseSpec(c),
+      { consistent: false },
+      { samples: 2000, seed: 1 },
+    );
     expect(r.samples).toBe(2000);
     for (const d of ['srmr', 'dULS', 'dG'] as const) {
       near(`observed ${d}`, r.observed.estimated[d], ref.observed[d], 1e-6);
-      near(`95% quantile of ${d} (within 3%)`, r.hi95.estimated[d], ref.hi95[d], 0.03 * ref.hi95[d]);
-      near(`99% quantile of ${d} (within 5%)`, r.hi99.estimated[d], ref.hi99[d], 0.05 * ref.hi99[d]);
+      near(
+        `95% quantile of ${d} (within 3%)`,
+        r.hi95.estimated[d],
+        ref.hi95[d],
+        0.03 * ref.hi95[d],
+      );
+      near(
+        `99% quantile of ${d} (within 5%)`,
+        r.hi99.estimated[d],
+        ref.hi99[d],
+        0.05 * ref.hi99[d],
+      );
     }
   });
 });
 
 describe('bootstrapCb', () => {
-  const f = (name: string, ind: string[]) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: ind });
+  const f = (name: string, ind: string[]) => ({
+    name,
+    mode: 'A' as const,
+    type: 'factor' as const,
+    indicators: ind,
+  });
   const spec: ModelSpec = {
-    constructs: [f('Image', items('IMAG', 5)), f('Quality', items('PERQ', 7)), f('Satisfaction', items('CUSA', 3)), f('Value', items('PERV', 2))],
-    paths: [['Quality', 'Value'], ['Image', 'Satisfaction'], ['Quality', 'Satisfaction'], ['Value', 'Satisfaction']].map(([from, to]) => ({ from, to })),
+    constructs: [
+      f('Image', items('IMAG', 5)),
+      f('Quality', items('PERQ', 7)),
+      f('Satisfaction', items('CUSA', 3)),
+      f('Value', items('PERV', 2)),
+    ],
+    paths: [
+      ['Quality', 'Value'],
+      ['Image', 'Satisfaction'],
+      ['Quality', 'Satisfaction'],
+      ['Value', 'Satisfaction'],
+    ].map(([from, to]) => ({ from, to })),
   };
   const res = bootstrapCb(data, spec, 'casewise', { samples: 150, seed: 11, confidence: 0.95 });
   const ml = estimateCb(data, spec);

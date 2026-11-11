@@ -9,7 +9,10 @@ import { describe, expect, it } from 'vitest';
 import { ANALYSIS_TYPES } from './analyses/registry';
 
 const html = readFileSync(join(process.cwd(), 'public', 'guide.html'), 'utf8');
-const text = html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+const text = html
+  .replace(/<[^>]+>/g, ' ')
+  .replace(/&amp;/g, '&')
+  .replace(/\s+/g, ' ');
 
 describe('user guide', () => {
   it('is a plain document: no scripts, no external resources', () => {
@@ -26,8 +29,17 @@ describe('user guide', () => {
   });
 
   it('names every analysis of the Analyses tab, and the File menu entries', () => {
-    for (const t of ANALYSIS_TYPES) expect(text, `analysis "${t.title}" is not in the guide`).toContain(t.title);
-    for (const item of ['New project', 'Open project', 'Save project', 'Inspect data', 'Create replication package', 'Download R script']) expect(text).toContain(item);
+    for (const t of ANALYSIS_TYPES)
+      expect(text, `analysis "${t.title}" is not in the guide`).toContain(t.title);
+    for (const item of [
+      'New project',
+      'Open project',
+      'Save project',
+      'Inspect data',
+      'Create replication package',
+      'Download R script',
+    ])
+      expect(text).toContain(item);
   });
 
   it('explains verification, password reset and the desktop helper', () => {
@@ -38,7 +50,9 @@ describe('user guide', () => {
 
   it('explains what an example shows and the messages an example is expected to raise', () => {
     expect(text).toContain('what the example shows');
-    expect(text).toContain('a banner over the diagram on the Model tab and above the log on the Analyses tab');
+    expect(text).toContain(
+      'a banner over the diagram on the Model tab and above the log on the Analyses tab',
+    );
     expect(text).toContain('Expected in this example');
   });
 });

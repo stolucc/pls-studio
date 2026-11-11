@@ -11,7 +11,16 @@ import type { Dataset, ModelSpec } from '../engine/types';
 import { categoriesOf } from '../io';
 import commonR from './R/common.R?raw';
 import { rCall } from './bridge';
-import { blindfoldR, blindfoldScriptR, ccaR, ccaScriptR, compareR, groupsR, predictR, predictScriptR } from './plsx';
+import {
+  blindfoldR,
+  blindfoldScriptR,
+  ccaR,
+  ccaScriptR,
+  compareR,
+  groupsR,
+  predictR,
+  predictScriptR,
+} from './plsx';
 import { estimatePlsR } from './pls';
 import { callJson, withR } from './runtime';
 import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
@@ -19,37 +28,103 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference.json'), 'utf8'));
-const ref2 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference2.json'), 'utf8'));
-const ref4 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference4.json'), 'utf8'));
-const ref5 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference5.json'), 'utf8'));
-const ref3 = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference3.json'), 'utf8'));
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference.json'), 'utf8'),
+);
+const ref2 = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference2.json'), 'utf8'),
+);
+const ref4 = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference4.json'), 'utf8'),
+);
+const ref5 = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference5.json'), 'utf8'),
+);
+const ref3 = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'plsx', 'reference3.json'), 'utf8'),
+);
 const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
-const comp = (name: string, ind: string[]) => ({ name, type: 'composite' as const, mode: 'B' as const, indicators: ind });
-const fac = (name: string, ind: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: ind });
+const comp = (name: string, ind: string[]) => ({
+  name,
+  type: 'composite' as const,
+  mode: 'B' as const,
+  indicators: ind,
+});
+const fac = (name: string, ind: string[]) => ({
+  name,
+  type: 'factor' as const,
+  mode: 'A' as const,
+  indicators: ind,
+});
 const P = (from: string, to: string) => ({ from, to });
 const spec: ModelSpec = {
-  constructs: [comp('IMAG', items('imag', 3)), comp('EXPE', items('expe', 3)), comp('QUAL', items('qual', 5)), comp('VAL', items('val', 3)), fac('SAT', items('sat', 4)), fac('LOY', items('loy', 4))],
-  paths: [P('IMAG', 'EXPE'), P('EXPE', 'QUAL'), P('EXPE', 'VAL'), P('QUAL', 'VAL'), P('IMAG', 'SAT'), P('EXPE', 'SAT'), P('QUAL', 'SAT'), P('VAL', 'SAT'), P('IMAG', 'LOY'), P('SAT', 'LOY')],
+  constructs: [
+    comp('IMAG', items('imag', 3)),
+    comp('EXPE', items('expe', 3)),
+    comp('QUAL', items('qual', 5)),
+    comp('VAL', items('val', 3)),
+    fac('SAT', items('sat', 4)),
+    fac('LOY', items('loy', 4)),
+  ],
+  paths: [
+    P('IMAG', 'EXPE'),
+    P('EXPE', 'QUAL'),
+    P('EXPE', 'VAL'),
+    P('QUAL', 'VAL'),
+    P('IMAG', 'SAT'),
+    P('EXPE', 'SAT'),
+    P('QUAL', 'SAT'),
+    P('VAL', 'SAT'),
+    P('IMAG', 'LOY'),
+    P('SAT', 'LOY'),
+  ],
 };
-const alt: ModelSpec = { ...spec, paths: spec.paths.filter((p) => !(p.from === 'IMAG' && p.to === 'LOY')) };
-const options = { scheme: 'path' as const, consistent: false, tolerance: 1e-7, maxIter: 300, missing: 'casewise' as const };
+const alt: ModelSpec = {
+  ...spec,
+  paths: spec.paths.filter((p) => !(p.from === 'IMAG' && p.to === 'LOY')),
+};
+const options = {
+  scheme: 'path' as const,
+  consistent: false,
+  tolerance: 1e-7,
+  maxIter: 300,
+  missing: 'casewise' as const,
+};
 const load = async (name: string, pkg: 'cSEM' | 'seminr' = 'cSEM'): Promise<Dataset> => {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][]; levels?: Record<string, string[]> }>('ps_dataset', { package: pkg, name, na: [] }, pkg);
-  return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))), ...categoriesOf(raw.levels) };
+  const raw = await rCall<{
+    names: string[];
+    cols: (number | null)[][];
+    levels?: Record<string, string[]>;
+  }>('ps_dataset', { package: pkg, name, na: [] }, pkg);
+  return {
+    names: raw.names,
+    cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+    ...categoriesOf(raw.levels),
+  };
 };
 const MODEL = `EXPE ~ IMAG\\nQUAL ~ EXPE\\nVAL ~ EXPE + QUAL\\nSAT ~ IMAG + EXPE + QUAL + VAL\\nLOY ~ IMAG + SAT\\nIMAG <~ imag1 + imag2 + imag3\\nEXPE <~ expe1 + expe2 + expe3\\nQUAL <~ qual1 + qual2 + qual3 + qual4 + qual5\\nVAL <~ val1 + val2 + val3\\nSAT =~ sat1 + sat2 + sat3 + sat4\\nLOY =~ loy1 + loy2 + loy3 + loy4`;
-const OPTS = '.PLS_weight_scheme_inner = "path", .disattenuate = FALSE, .tolerance = 1e-7, .iter_max = 300';
+const OPTS =
+  '.PLS_weight_scheme_inner = "path", .disattenuate = FALSE, .tolerance = 1e-7, .iter_max = 300';
 
 describe('PLS assessment (cSEM)', () => {
   it('model comparison: criteria equal native cSEM; CVPAT equals cSEM in-session', async () => {
     const d = await load('satisfaction');
     const r = await compareR(d, spec, alt, options, 1);
-    const bic = r.criteria.find((c) => c.criterion === 'BIC')!.byConstruct, bicAlt = r.criteriaAlt.find((c) => c.criterion === 'BIC')!.byConstruct;
-    for (const k of Object.keys(ref.msc.BIC)) { expect(bic[k], k).toBeCloseTo(ref.msc.BIC[k], 6); expect(bicAlt[k]).toBeCloseTo(ref.mscAlt.BIC[k], 6); }
-    const own = await withR(['jsonlite', 'cSEM'], { common: commonR }, (webR) => callJson(webR, `suppressPackageStartupMessages(library(cSEM))
+    const bic = r.criteria.find((c) => c.criterion === 'BIC')!.byConstruct,
+      bicAlt = r.criteriaAlt.find((c) => c.criterion === 'BIC')!.byConstruct;
+    for (const k of Object.keys(ref.msc.BIC)) {
+      expect(bic[k], k).toBeCloseTo(ref.msc.BIC[k], 6);
+      expect(bicAlt[k]).toBeCloseTo(ref.mscAlt.BIC[k], 6);
+    }
+    const own = (await withR(['jsonlite', 'cSEM'], { common: commonR }, (webR) =>
+      callJson(
+        webR,
+        `suppressPackageStartupMessages(library(cSEM))
       f1 <- csem(satisfaction, "${MODEL}", ${OPTS}); f2 <- csem(satisfaction, sub("LOY ~ IMAG + SAT", "LOY ~ SAT", "${MODEL}", fixed = TRUE), ${OPTS})
-      cv <- testCVPAT(f1, f2, .seed = 1, .handle_inadmissibles = "ignore"); ps_json(list(t = cv$test_statistic, p = cv$p_value))`, null)) as { t: number; p: number };
+      cv <- testCVPAT(f1, f2, .seed = 1, .handle_inadmissibles = "ignore"); ps_json(list(t = cv$test_statistic, p = cv$p_value))`,
+        null,
+      ),
+    )) as { t: number; p: number };
     expect(r.cvpat.statistic).toBeCloseTo(own.t, 10);
     expect(r.cvpat.p).toBeCloseTo(own.p, 10);
   }, 900_000);
@@ -57,30 +132,51 @@ describe('PLS assessment (cSEM)', () => {
   it('PLSpredict equals cSEM predict in-session', async () => {
     const d = await load('satisfaction');
     const r = await predictR(d, spec, options, { folds: 10, repetitions: 2, seed: 3 });
-    const own = await withR(['jsonlite', 'cSEM'], { common: commonR }, (webR) => callJson(webR, `suppressPackageStartupMessages(library(cSEM))
+    const own = (await withR(['jsonlite', 'cSEM'], { common: commonR }, (webR) =>
+      callJson(
+        webR,
+        `suppressPackageStartupMessages(library(cSEM))
       # The model's columns as numbers, in the data's order (what the app sends).
       used <- c(paste0("imag", 1:3), paste0("expe", 1:3), paste0("qual", 1:5), paste0("val", 1:3), paste0("sat", 1:4), paste0("loy", 1:4))
       d <- as.data.frame(lapply(satisfaction[, intersect(names(satisfaction), used)], as.numeric))
       f <- csem(d, "${MODEL}", ${OPTS})
       q <- lapply(1:2, function(k) predict(f, .benchmark = "lm", .cv_folds = 10, .r = 1, .seed = 3 + k, .handle_inadmissibles = "ignore")$Prediction_metrics)
-      ps_json(list(q2 = (q[[1]]$Q2_predict + q[[2]]$Q2_predict) / 2, name = q[[1]]$Name))`, null)) as { q2: number[]; name: string[] };
-    own.name.forEach((n, i) => expect(r.indicators.find((x) => x.indicator === n)!.q2).toBeCloseTo(own.q2[i], 10));
+      ps_json(list(q2 = (q[[1]]$Q2_predict + q[[2]]$Q2_predict) / 2, name = q[[1]]$Name))`,
+        null,
+      ),
+    )) as { q2: number[]; name: string[] };
+    own.name.forEach((n, i) =>
+      expect(r.indicators.find((x) => x.indicator === n)!.q2).toBeCloseTo(own.q2[i], 10),
+    );
     expect(r.indicators.find((x) => x.indicator === 'loy1')!.construct).toBe('LOY');
-    expect(await predictScriptR(d, spec, options, { folds: 10, repetitions: 2, seed: 3 })).toContain('.r = 1, .seed = 3 + k');
+    expect(
+      await predictScriptR(d, spec, options, { folds: 10, repetitions: 2, seed: 3 }),
+    ).toContain('.r = 1, .seed = 3 + k');
   }, 900_000);
 
   it('MICOM and multigroup analysis: deterministic parts equal native cSEM', async () => {
     const d = await load('satisfaction_gender');
     expect(d.categories?.gender).toEqual(['female', 'male']);
-    const r = await groupsR(d, spec, options, { group: 'gender', approaches: ['Klesel', 'Chin', 'Henseler'], samples: 30, seed: 1 });
-    for (const [k, v] of Object.entries(ref.micomC as Record<string, number>)) expect(r.micom.c[k], k).toBeCloseTo(v, 6);
+    const r = await groupsR(d, spec, options, {
+      group: 'gender',
+      approaches: ['Klesel', 'Chin', 'Henseler'],
+      samples: 30,
+      seed: 1,
+    });
+    for (const [k, v] of Object.entries(ref.micomC as Record<string, number>))
+      expect(r.micom.c[k], k).toBeCloseTo(v, 6);
     const kl = r.mga.find((a) => a.approach === 'Klesel')!.overall!;
-    expect(kl.dG.statistic).toBeCloseTo(Math.log(10) ** 2 * ref.klesel.dG, 6);  // (natural logarithm; cSEM base 10)
+    expect(kl.dG.statistic).toBeCloseTo(Math.log(10) ** 2 * ref.klesel.dG, 6); // (natural logarithm; cSEM base 10)
     expect(kl.dL.statistic).toBeCloseTo(ref.klesel.dL, 5);
     const chin = r.mga.find((a) => a.approach === 'Chin')!.comparisons![0];
     expect(chin.groups).toBe('female_male');
-    expect(chin.paths.find((p) => p.from === 'SAT' && p.to === 'LOY')!.statistic!).toBeCloseTo(ref.chin['LOY ~ SAT'], 6);
-    const g = (name: string) => r.groups.find((x) => x.group === name)!.paths.find((p) => p.from === 'VAL' && p.to === 'SAT')!.est;
+    expect(chin.paths.find((p) => p.from === 'SAT' && p.to === 'LOY')!.statistic!).toBeCloseTo(
+      ref.chin['LOY ~ SAT'],
+      6,
+    );
+    const g = (name: string) =>
+      r.groups.find((x) => x.group === name)!.paths.find((p) => p.from === 'VAL' && p.to === 'SAT')!
+        .est;
     expect(g('female')).toBeCloseTo(ref.groups.female.SAT_VAL, 6);
     expect(g('male')).toBeCloseTo(ref.groups.male.SAT_VAL, 6);
     expect(r.groups.map((x) => x.n)).toEqual([148, 102]);
@@ -91,7 +187,8 @@ describe('PLS assessment (cSEM)', () => {
 
   it('GSCA, PCA, sum scores, redundancy analysis and nonlinear PLSc equal native cSEM', async () => {
     const d = await load('satisfaction');
-    const path = (r: Awaited<ReturnType<typeof estimatePlsR>>, a: string, b: string) => r.pathCoef[r.constructs.indexOf(a)][r.constructs.indexOf(b)];
+    const path = (r: Awaited<ReturnType<typeof estimatePlsR>>, a: string, b: string) =>
+      r.pathCoef[r.constructs.indexOf(a)][r.constructs.indexOf(b)];
     const g = await estimatePlsR(d, spec, { ...options, approach: 'GSCA' }, 'cSEM');
     expect(path(g, 'VAL', 'SAT')).toBeCloseTo(ref2.gsca.SAT_VAL, 6);
     expect(path(g, 'SAT', 'LOY')).toBeCloseTo(ref2.gsca.LOY_SAT, 6);
@@ -101,11 +198,26 @@ describe('PLS assessment (cSEM)', () => {
       expect(path(w, 'SAT', 'LOY'), a).toBeCloseTo(ref3[a].LOY_SAT, 6);
     }
     const pm = await estimatePlsR(d, spec, options, 'cSEM');
-    for (const [k, v] of Object.entries(ref2.redundancy as Record<string, number>)) expect(pm.redundancy![k], k).toBeCloseTo(v, 6);
+    for (const [k, v] of Object.entries(ref2.redundancy as Record<string, number>))
+      expect(pm.redundancy![k], k).toBeCloseTo(v, 6);
     const sw = await load('Switching');
-    const f = (name: string, ind: string[]) => ({ name, type: 'factor' as const, mode: 'A' as const, indicators: ind });
-    const swSpec: ModelSpec = { constructs: [f('INV', items('INV', 4)), f('SAT', items('SAT', 3)), f('INT', items('INT', 2))], paths: [P('INV', 'INT'), P('SAT', 'INT')], moderations: [{ from: 'INV', moderator: 'SAT', to: 'INT' }] };
-    const pc = await estimatePlsR(sw, swSpec, { scheme: 'factor', consistent: true, tolerance: 1e-7, maxIter: 300, missing: 'casewise' }, 'cSEM');
+    const f = (name: string, ind: string[]) => ({
+      name,
+      type: 'factor' as const,
+      mode: 'A' as const,
+      indicators: ind,
+    });
+    const swSpec: ModelSpec = {
+      constructs: [f('INV', items('INV', 4)), f('SAT', items('SAT', 3)), f('INT', items('INT', 2))],
+      paths: [P('INV', 'INT'), P('SAT', 'INT')],
+      moderations: [{ from: 'INV', moderator: 'SAT', to: 'INT' }],
+    };
+    const pc = await estimatePlsR(
+      sw,
+      swSpec,
+      { scheme: 'factor', consistent: true, tolerance: 1e-7, maxIter: 300, missing: 'casewise' },
+      'cSEM',
+    );
     expect(path(pc, 'INV', 'INT')).toBeCloseTo(ref2.plsc.INV, 6);
     expect(path(pc, 'SAT', 'INT')).toBeCloseTo(ref2.plsc.SAT, 6);
     expect(path(pc, 'INV × SAT', 'INT')).toBeCloseTo(ref2.plsc['INV.SAT'], 6);
@@ -113,48 +225,114 @@ describe('PLS assessment (cSEM)', () => {
 
   it('blindfolding Q² equals semPLS qSquared (mean replacement, D = 7; its ?qSquared example, D = 4)', async () => {
     const tight = { ...options, tolerance: 1e-10, maxIter: 1000 };
-    const reflective: ModelSpec = { ...spec, constructs: spec.constructs.map((k) => fac(k.name, k.indicators)) };
+    const reflective: ModelSpec = {
+      ...spec,
+      constructs: spec.constructs.map((k) => fac(k.name, k.indicators)),
+    };
     const r = await blindfoldR(await load('satisfaction'), reflective, tight, 7);
     expect(r.constructs.map((k) => k.construct)).toEqual(Object.keys(ref4.q2));
     for (const k of r.constructs) expect(k.q2, k.construct).toBeCloseTo(ref4.q2[k.construct], 6);
     const M = (name: string, p: string, k: number) => fac(name, k === 1 ? [p] : items(p, k));
     const mobi: ModelSpec = {
-      constructs: [M('Image', 'IMAG', 5), M('Expectation', 'CUEX', 3), M('Quality', 'PERQ', 7), M('Value', 'PERV', 2), M('Satisfaction', 'CUSA', 3), M('Complaints', 'CUSCO', 1), M('Loyalty', 'CUSL', 3)],
-      paths: [P('Image', 'Expectation'), P('Image', 'Satisfaction'), P('Image', 'Loyalty'), P('Expectation', 'Quality'), P('Expectation', 'Value'), P('Expectation', 'Satisfaction'),
-        P('Quality', 'Value'), P('Quality', 'Satisfaction'), P('Value', 'Satisfaction'), P('Satisfaction', 'Complaints'), P('Satisfaction', 'Loyalty'), P('Complaints', 'Loyalty')],
+      constructs: [
+        M('Image', 'IMAG', 5),
+        M('Expectation', 'CUEX', 3),
+        M('Quality', 'PERQ', 7),
+        M('Value', 'PERV', 2),
+        M('Satisfaction', 'CUSA', 3),
+        M('Complaints', 'CUSCO', 1),
+        M('Loyalty', 'CUSL', 3),
+      ],
+      paths: [
+        P('Image', 'Expectation'),
+        P('Image', 'Satisfaction'),
+        P('Image', 'Loyalty'),
+        P('Expectation', 'Quality'),
+        P('Expectation', 'Value'),
+        P('Expectation', 'Satisfaction'),
+        P('Quality', 'Value'),
+        P('Quality', 'Satisfaction'),
+        P('Value', 'Satisfaction'),
+        P('Satisfaction', 'Complaints'),
+        P('Satisfaction', 'Loyalty'),
+        P('Complaints', 'Loyalty'),
+      ],
     };
-    const m = await blindfoldR(await load('mobi', 'seminr'), mobi, { ...tight, scheme: 'centroid' }, 4);
+    const m = await blindfoldR(
+      await load('mobi', 'seminr'),
+      mobi,
+      { ...tight, scheme: 'centroid' },
+      4,
+    );
     for (const k of m.constructs) expect(k.q2, k.construct).toBeCloseTo(ref4.mobi[k.construct], 6);
     expect(m.distance).toBe(4);
-    expect(await blindfoldScriptR(await load('satisfaction'), reflective, tight, 7)).toContain('blindfold <- function(data, block, endo, D)');
+    expect(await blindfoldScriptR(await load('satisfaction'), reflective, tight, 7)).toContain(
+      'blindfold <- function(data, block, endo, D)',
+    );
   }, 900_000);
 
   it('confirmatory composite analysis: ?ITFlex equals native cSEM; quantiles and intervals equal cSEM in-session', async () => {
     const d = await load('ITFlex');
     const cmp = (name: string, p: string) => comp(name, items(p, 4));
     // Paths not saturated on purpose: CCA ignores them (saturated model, structural model ignored in the weights).
-    const it: ModelSpec = { constructs: [cmp('ITComp', 'ITCOMP'), cmp('Modul', 'MOD'), cmp('ITConn', 'ITCONN'), cmp('ITPers', 'ITPSF')], paths: [P('ITComp', 'ITPers'), P('Modul', 'ITPers'), P('ITConn', 'ITPers')] };
-    const r = await ccaR(d, it, { ...options, scheme: 'factor', tolerance: 1e-6, maxIter: 100 }, { samples: 40, seed: 7, alpha: 0.05 });
+    const it: ModelSpec = {
+      constructs: [
+        cmp('ITComp', 'ITCOMP'),
+        cmp('Modul', 'MOD'),
+        cmp('ITConn', 'ITCONN'),
+        cmp('ITPers', 'ITPSF'),
+      ],
+      paths: [P('ITComp', 'ITPers'), P('Modul', 'ITPers'), P('ITConn', 'ITPers')],
+    };
+    const r = await ccaR(
+      d,
+      it,
+      { ...options, scheme: 'factor', tolerance: 1e-6, maxIter: 100 },
+      { samples: 40, seed: 7, alpha: 0.05 },
+    );
     // (cSEM's dG is in base-10 logarithms; the app's, as Dijkstra & Henseler, in natural ones: ln(10)^2 times larger)
     const LN = (m: string) => (m === 'dG' ? Math.log(10) ** 2 : 1);
-    for (const f of r.fit) expect(f.statistic, f.measure).toBeCloseTo(LN(f.measure) * ref5.statistic[f.measure], 6);
-    for (const w of r.weights) expect(w.est, w.indicator).toBeCloseTo(ref5.weights[w.construct][w.indicator], 6);
+    for (const f of r.fit)
+      expect(f.statistic, f.measure).toBeCloseTo(LN(f.measure) * ref5.statistic[f.measure], 6);
+    for (const w of r.weights)
+      expect(w.est, w.indicator).toBeCloseTo(ref5.weights[w.construct][w.indicator], 6);
     expect(r.weights).toHaveLength(16);
-    for (const v of r.vif) expect(v.vif, v.indicator).toBeCloseTo(ref5.vif[v.construct][v.indicator], 6);
-    const order = Object.keys(ref5.correlations);  // (rows in the same order as the columns)
-    r.composites.forEach((a, i) => r.composites.forEach((b, j) => expect(r.correlations[i][j], `${a}, ${b}`).toBeCloseTo(ref5.correlations[b][order.indexOf(a)], 6)));
-    const own = await withR(['jsonlite', 'cSEM'], { common: commonR }, (webR) => callJson(webR, `suppressPackageStartupMessages(library(cSEM))
+    for (const v of r.vif)
+      expect(v.vif, v.indicator).toBeCloseTo(ref5.vif[v.construct][v.indicator], 6);
+    const order = Object.keys(ref5.correlations); // (rows in the same order as the columns)
+    r.composites.forEach((a, i) =>
+      r.composites.forEach((b, j) =>
+        expect(r.correlations[i][j], `${a}, ${b}`).toBeCloseTo(
+          ref5.correlations[b][order.indexOf(a)],
+          6,
+        ),
+      ),
+    );
+    const own = (await withR(['jsonlite', 'cSEM'], { common: commonR }, (webR) =>
+      callJson(
+        webR,
+        `suppressPackageStartupMessages(library(cSEM))
       m <- "ITComp <~ ITCOMP1 + ITCOMP2 + ITCOMP3 + ITCOMP4\nModul <~ MOD1 + MOD2 + MOD3 + MOD4\nITConn <~ ITCONN1 + ITCONN2 + ITCONN3 + ITCONN4\nITPers <~ ITPSF1 + ITPSF2 + ITPSF3 + ITPSF4\nITPers ~ ITComp + Modul + ITConn\nModul ~ ITComp + ITConn\nITConn ~ ITComp"
       f <- csem(ITFlex, m, .PLS_weight_scheme_inner = "factorial", .tolerance = 1e-6, .PLS_ignore_structural_model = TRUE)
       set.seed(7); t <- testOMF(f, .R = 40, .seed = 7, .alpha = c(0.05, 0.01))
       b <- csem(ITFlex, m, .PLS_weight_scheme_inner = "factorial", .tolerance = 1e-6, .PLS_ignore_structural_model = TRUE, .resample_method = "bootstrap", .R = 40, .seed = 7)
       w <- summarize(b, .alpha = 0.05, .ci = "CI_percentile")$Estimates$Weight_estimates
-      ps_json(list(q95 = as.list(t$Critical_value[, "95%"]), low = as.list(setNames(w[[7]], w$Name)), high = as.list(setNames(w[[8]], w$Name))))`, null)) as { q95: Record<string, number>; low: Record<string, number>; high: Record<string, number> };
-    for (const f of r.fit) expect(f.q95, f.measure).toBeCloseTo(LN(f.measure) * own.q95[f.measure], 10);
+      ps_json(list(q95 = as.list(t$Critical_value[, "95%"]), low = as.list(setNames(w[[7]], w$Name)), high = as.list(setNames(w[[8]], w$Name))))`,
+        null,
+      ),
+    )) as {
+      q95: Record<string, number>;
+      low: Record<string, number>;
+      high: Record<string, number>;
+    };
+    for (const f of r.fit)
+      expect(f.q95, f.measure).toBeCloseTo(LN(f.measure) * own.q95[f.measure], 10);
     for (const w of r.weights) {
       expect(w.low, w.indicator).toBeCloseTo(own.low[`${w.construct} <~ ${w.indicator}`], 10);
       expect(w.high, w.indicator).toBeCloseTo(own.high[`${w.construct} <~ ${w.indicator}`], 10);
     }
-    expect(await ccaScriptR(d, it, options, { samples: 40, seed: 7, alpha: 0.05 })).toContain('.saturated = TRUE');
+    expect(await ccaScriptR(d, it, options, { samples: 40, seed: 7, alpha: 0.05 })).toContain(
+      '.saturated = TRUE',
+    );
   }, 900_000);
 });

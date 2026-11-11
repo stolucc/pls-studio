@@ -21,23 +21,41 @@ const LOOSE: Record<string, (p: { block: string }) => number> = {
   'ex7.8': (p) => (p.block === 'Latent Class 1' ? TOL : 0.0035),
 };
 
-it.each([['ex7.3'], ['ex7.4'], ['ex7.5'], ['ex7.6'], ['ex7.7'], ['ex7.8'], ['ex7.9'], ['ex7.10'], ['ex7.22']])('%s: the latent class card reproduces the Mplus output: fit and the class-specific estimates', async (key) => {
-  const ex = example(key);
-  const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'lca' }>;
-  evidence(key, 'Items', [p.model === 'lpa' ? 'R' : 'poLCA']);
-  expect(p.from).toBe(p.to);
-  const r = await lcaR(load(key), p.items, [p.from], 10, DEFAULT_SETTINGS.seed, lcaSpec(p));
-  const m = r.models[0];
-  same('classes', m.k, p.from);
-  const want = MPLUS[key];
-  sameFit({ npar: m.npar, logl: m.llik, aic: m.aic, bic: m.bic }, want.fit);
-  sameClasses(m, p.items, want.estimates, LOOSE[key] ?? (() => TOL));
-}, 600_000);
+it.each([
+  ['ex7.3'],
+  ['ex7.4'],
+  ['ex7.5'],
+  ['ex7.6'],
+  ['ex7.7'],
+  ['ex7.8'],
+  ['ex7.9'],
+  ['ex7.10'],
+  ['ex7.22'],
+])(
+  '%s: the latent class card reproduces the Mplus output: fit and the class-specific estimates',
+  async (key) => {
+    const ex = example(key);
+    const p = ex.panel as Extract<NonNullable<typeof ex.panel>, { kind: 'lca' }>;
+    evidence(key, 'Items', [p.model === 'lpa' ? 'R' : 'poLCA']);
+    expect(p.from).toBe(p.to);
+    const r = await lcaR(load(key), p.items, [p.from], 10, DEFAULT_SETTINGS.seed, lcaSpec(p));
+    const m = r.models[0];
+    same('classes', m.k, p.from);
+    const want = MPLUS[key];
+    sameFit({ npar: m.npar, logl: m.llik, aic: m.aic, bic: m.bic }, want.fit);
+    sameClasses(m, p.items, want.estimates, LOOSE[key] ?? (() => TOL));
+  },
+  600_000,
+);
 
 it('ex7.28: the twin bivariate probit with known classes on two custom likelihood cards: Mplus’s estimates within its quadrature error, the class logit as printed', async () => {
   evidence('ex7.28', 'Custom likelihood', ['stats', 'pbivnorm']);
   const [probit, classes] = await runCards<CustomMlResult>('ex7.28');
-  for (const r of [probit, classes]) { expect(r.converged).toBe(true); expect(r.warnings).toEqual([]); expect(r.se).toBe('robust'); }
+  for (const r of [probit, classes]) {
+    expect(r.converged).toBe(true);
+    expect(r.warnings).toEqual([]);
+    expect(r.se).toBe('robust');
+  }
   const want = MPLUS['ex7.28'];
   same('free parameters', probit.fit.npar + classes.fit.npar, want.fit.npar!);
   const logl = probit.fit.logLik + classes.fit.logLik;
@@ -50,10 +68,14 @@ it('ex7.28: the twin bivariate probit with known classes on two custom likelihoo
   const k = classes.parameters[0];
   near('cdz#1 (class logit)', k.est, 0.053, TOL);
   near('SE of cdz#1', k.se, 0.028, TOL);
-  const par = (n: string) => probit.parameters.find((x) => x.name === n) ?? probit.defined.find((x) => x.name === n)!;
+  const par = (n: string) =>
+    probit.parameters.find((x) => x.name === n) ?? probit.defined.find((x) => x.name === n)!;
   const nw = (want as unknown as { new: Record<string, { est: number; se: number }> }).new;
   // The likelihood is flat in c (SE 0.34): estimates within 0.005 of Mplus's, standard errors within 0.007.
-  for (const n of ['a', 'c', 'h']) { near(n, par(n).est!, nw[n].est, 0.005); near(`SE of ${n}`, par(n).se!, nw[n].se, 0.007); }
+  for (const n of ['a', 'c', 'h']) {
+    near(n, par(n).est!, nw[n].est, 0.005);
+    near(`SE of ${n}`, par(n).se!, nw[n].se, 0.007);
+  }
   near('threshold', par('t').est!, 0.013, TOL);
   near('SE of the threshold', par('t').se!, 0.029, TOL);
   const thr = want.estimates.find((p) => p.op === '|')!;

@@ -59,39 +59,47 @@ export function createApp(deps: AppDeps) {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
 
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        // WebAssembly compilation for the in-browser R runtime (webR); does not allow JS eval.
-        scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        fontSrc: ['https://fonts.gstatic.com'],
-        imgSrc: ["'self'", 'data:', 'blob:'],
-        // The optional desktop R helper (helper/) on the loopback interface; example data read from their source
-        // when an example opens (src/examples/remote: the RI-CLPM tutorial's file on GitHub).
-        connectSrc: ["'self'", 'http://127.0.0.1:9878', 'https://raw.githubusercontent.com'],
-        workerSrc: ["'self'", 'blob:'],
-        objectSrc: ["'none'"],
-        baseUri: ["'none'"],
-        frameAncestors: ["'none'"],
-        formAction: ["'self'"],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          // WebAssembly compilation for the in-browser R runtime (webR); does not allow JS eval.
+          scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          fontSrc: ['https://fonts.gstatic.com'],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          // The optional desktop R helper (helper/) on the loopback interface; example data read from their source
+          // when an example opens (src/examples/remote: the RI-CLPM tutorial's file on GitHub).
+          connectSrc: ["'self'", 'http://127.0.0.1:9878', 'https://raw.githubusercontent.com'],
+          workerSrc: ["'self'", 'blob:'],
+          objectSrc: ["'none'"],
+          baseUri: ["'none'"],
+          frameAncestors: ["'none'"],
+          formAction: ["'self'"],
+        },
       },
-    },
-    // Cross-origin isolation (with helmet's default COOP same-origin): the in-browser
-    // R runtime (webR) needs SharedArrayBuffer.
-    crossOriginEmbedderPolicy: { policy: 'require-corp' },
-  }));
+      // Cross-origin isolation (with helmet's default COOP same-origin): the in-browser
+      // R runtime (webR) needs SharedArrayBuffer.
+      crossOriginEmbedderPolicy: { policy: 'require-corp' },
+    }),
+  );
 
-  app.use('/api', rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }));
+  app.use(
+    '/api',
+    rateLimit({ windowMs: 60_000, limit: 600, standardHeaders: 'draft-8', legacyHeaders: false }),
+  );
 
   // Liveness + database check for the deploy scripts and monitoring. Registered
   // before the session middleware so probes never create session rows (but
   // after the rate limiter: it is unauthenticated and queries the database).
-  app.get('/api/health', h(async (_req, res) => {
-    await deps.db.query('SELECT 1');
-    res.set('Cache-Control', 'no-store').json({ ok: true });
-  }));
+  app.get(
+    '/api/health',
+    h(async (_req, res) => {
+      await deps.db.query('SELECT 1');
+      res.set('Cache-Control', 'no-store').json({ ok: true });
+    }),
+  );
 
   // Example data the browser cannot fetch itself (statmodel.com sends no CORS header), passed through and never
   // stored (routes/exampleData.ts). Before the session middleware: anonymous, it creates no session rows or cookies.
@@ -108,21 +116,29 @@ export function createApp(deps: AppDeps) {
     cookie: { httpOnly: true, sameSite: 'lax', secure: prod, maxAge: 24 * 60 * 60 * 1000 },
   });
   app.use(sessionMiddleware);
-  (app as unknown as { sessionMiddleware: typeof sessionMiddleware }).sessionMiddleware = sessionMiddleware;
+  (app as unknown as { sessionMiddleware: typeof sessionMiddleware }).sessionMiddleware =
+    sessionMiddleware;
 
   // CSRF: a per-session token, delivered by GET /api/auth/session (and the csrf-token
   // cookie), required in X-CSRF-Token on every state-changing request — login included.
   app.use('/api', (req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
       if (!req.session.csrfToken) req.session.csrfToken = crypto.randomBytes(32).toString('hex');
-      res.cookie('csrf-token', req.session.csrfToken, { sameSite: 'lax', secure: prod, httpOnly: false });
+      res.cookie('csrf-token', req.session.csrfToken, {
+        sameSite: 'lax',
+        secure: prod,
+        httpOnly: false,
+      });
       return next();
     }
     const origin = req.get('origin');
-    if (origin && origin !== config.APP_ORIGIN) return res.status(403).json({ error: 'Cross-origin request refused.' });
+    if (origin && origin !== config.APP_ORIGIN)
+      return res.status(403).json({ error: 'Cross-origin request refused.' });
     const sent = req.get('x-csrf-token');
     if (!sent || !req.session.csrfToken || !safeEqual(sent, req.session.csrfToken)) {
-      return res.status(403).json({ error: 'Missing or invalid CSRF token. Reload the page and try again.' });
+      return res
+        .status(403)
+        .json({ error: 'Missing or invalid CSRF token. Reload the page and try again.' });
     }
     next();
   });
@@ -146,24 +162,39 @@ export function createApp(deps: AppDeps) {
     // index.html is revalidated on every load so a deploy takes effect at once;
     // Vite's content-hashed bundles under /assets/ never change, so they are
     // cached for good. Everything else (the pinned R runtime) for an hour.
-    app.use(express.static(config.STATIC_DIR, {
-      index: 'index.html',
-      maxAge: '1h',
-      setHeaders: (res, filePath) => {
-        // The worker script too: browsers keep a cached copy's headers, so a
-        // CSP change for the worker would otherwise wait out the max-age.
-        if (filePath.endsWith('index.html') || filePath.endsWith('webr-worker.js')) res.setHeader('Cache-Control', 'no-cache');
-        else if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      },
-    }));
-    app.get('/', (_req, res) => res.set('Cache-Control', 'no-cache').sendFile('index.html', { root: config.STATIC_DIR }));
+    app.use(
+      express.static(config.STATIC_DIR, {
+        index: 'index.html',
+        maxAge: '1h',
+        setHeaders: (res, filePath) => {
+          // The worker script too: browsers keep a cached copy's headers, so a
+          // CSP change for the worker would otherwise wait out the max-age.
+          if (filePath.endsWith('index.html') || filePath.endsWith('webr-worker.js'))
+            res.setHeader('Cache-Control', 'no-cache');
+          else if (filePath.includes(`${path.sep}assets${path.sep}`))
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        },
+      }),
+    );
+    app.get('/', (_req, res) =>
+      res.set('Cache-Control', 'no-cache').sendFile('index.html', { root: config.STATIC_DIR }),
+    );
   }
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    if (err instanceof AccessError) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
-    if (err instanceof ZodError) return res.status(400).json({ error: err.issues[0]?.message ?? 'Invalid input.' });
-    if (err instanceof AuthError) return res.status(err.code === 'locked' ? 429 : err.code === 'exists' ? 409 : 400).json({ error: err.message, code: err.code });
-    const status = (err as { status?: number; statusCode?: number }).status ?? (err as { statusCode?: number }).statusCode;
+    if (err instanceof AccessError)
+      return res
+        .status(err.status)
+        .json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+    if (err instanceof ZodError)
+      return res.status(400).json({ error: err.issues[0]?.message ?? 'Invalid input.' });
+    if (err instanceof AuthError)
+      return res
+        .status(err.code === 'locked' ? 429 : err.code === 'exists' ? 409 : 400)
+        .json({ error: err.message, code: err.code });
+    const status =
+      (err as { status?: number; statusCode?: number }).status ??
+      (err as { statusCode?: number }).statusCode;
     if (status === 413) return res.status(413).json({ error: 'Upload too large.' });
     if (status === 400) return res.status(400).json({ error: 'Malformed request.' });
     console.error(err);
@@ -173,8 +204,11 @@ export function createApp(deps: AppDeps) {
 }
 
 /** Express handler wrapper for async routes. */
-export const h = (fn: (req: Request, res: Response) => Promise<unknown>) =>
-  (req: Request, res: Response, next: NextFunction) => { fn(req, res).catch(next); };
+export const h =
+  (fn: (req: Request, res: Response) => Promise<unknown>) =>
+  (req: Request, res: Response, next: NextFunction) => {
+    fn(req, res).catch(next);
+  };
 
 export function requireUser(req: Request): string {
   const id = req.session.userId;
@@ -187,12 +221,22 @@ export async function requireVerified(db: Db, req: Request): Promise<string> {
   const id = requireUser(req);
   const user = await getUser(db, id);
   if (!user) throw new AccessError('Please sign in.', 401);
-  if (!user.email_verified) throw new AccessError('Verify your email address first: open the link in the email we sent you (the account menu can send it again).', 403, 'unverified');
+  if (!user.email_verified)
+    throw new AccessError(
+      'Verify your email address first: open the link in the email we sent you (the account menu can send it again).',
+      403,
+      'unverified',
+    );
   return id;
 }
 
 /** Regenerate the session id on privilege change (prevents session fixation). */
-export function establishSession(req: Request, res: Response, userId: string, secure: boolean): Promise<void> {
+export function establishSession(
+  req: Request,
+  res: Response,
+  userId: string,
+  secure: boolean,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     req.session.regenerate((err) => {
       if (err) return reject(err);

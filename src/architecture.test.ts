@@ -23,20 +23,46 @@ describe('architecture page', () => {
     const sections = [...md.matchAll(/^## (.*)$/gm)].map((m) => m[1]);
     expect(sections.length).toBeGreaterThan(5);
     for (const s of sections) expect(html).toContain(`>${s.replace(/&/g, '&amp;')}</a>`);
-    for (const a of [...html.matchAll(/href="#([^"]+)"/g)].map((m) => m[1])) expect(html, `missing #${a}`).toContain(`id="${a}"`);
+    for (const a of [...html.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]))
+      expect(html, `missing #${a}`).toContain(`id="${a}"`);
   });
 
   it('renders headings, paragraphs, code, tables, lists, inline code, bold and links', () => {
-    const { title, body, headings } = render([
-      '# Title', '', '## One & two', 'A paragraph with `code`, **bold** and a [link](https://x.example/p).', 'Same paragraph.', '',
-      '```', 'raw <code>', '```', '', '| H1 | H2 |', '|---|---|', '| `a` | b |', '', '- first', '- second', '  continued', '', '1. one', '2. two', '',
-    ].join('\n'));
+    const { title, body, headings } = render(
+      [
+        '# Title',
+        '',
+        '## One & two',
+        'A paragraph with `code`, **bold** and a [link](https://x.example/p).',
+        'Same paragraph.',
+        '',
+        '```',
+        'raw <code>',
+        '```',
+        '',
+        '| H1 | H2 |',
+        '|---|---|',
+        '| `a` | b |',
+        '',
+        '- first',
+        '- second',
+        '  continued',
+        '',
+        '1. one',
+        '2. two',
+        '',
+      ].join('\n'),
+    );
     expect(title).toBe('Title');
     expect(headings).toEqual([{ id: 'one-two', text: 'One & two' }]);
     expect(body).toContain('<h2 id="one-two">One &amp; two</h2>');
-    expect(body).toContain('<p>A paragraph with <code>code</code>, <strong>bold</strong> and a <a href="https://x.example/p">link</a>. Same paragraph.</p>');
+    expect(body).toContain(
+      '<p>A paragraph with <code>code</code>, <strong>bold</strong> and a <a href="https://x.example/p">link</a>. Same paragraph.</p>',
+    );
     expect(body).toContain('<pre>raw &lt;code&gt;</pre>');
-    expect(body).toContain('<table>\n<tr><th>H1</th><th>H2</th></tr>\n<tr><td><code>a</code></td><td>b</td></tr>\n</table>');
+    expect(body).toContain(
+      '<table>\n<tr><th>H1</th><th>H2</th></tr>\n<tr><td><code>a</code></td><td>b</td></tr>\n</table>',
+    );
     expect(body).toContain('<ul><li>first</li><li>second continued</li></ul>');
     expect(body).toContain('<ol><li>one</li><li>two</li></ol>');
   });

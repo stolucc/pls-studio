@@ -18,7 +18,9 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const REF = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'apim.json'), 'utf8'));
+const REF = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'apim.json'), 'utf8'),
+);
 const CSV = join(__dirname, '..', '..', 'public', 'examples', 'dyadic', 'commitmentM.csv');
 
 /** dySEM's commitmentM as shipped with the example (empty cells are missing values). */
@@ -44,10 +46,21 @@ function withMeans(d: Dataset): Dataset {
 
 const items = (stem: string, who: string) => [1, 2, 3, 4, 5].map((i) => `${stem}${i}_${who}`);
 const LATENT: ApimInput = {
-  x1: items('sat.g', 'f'), x2: items('sat.g', 'm'), y1: items('com', 'f'), y2: items('com', 'm'),
-  dyads: 'distinguishable', estimator: 'ML', missing: 'casewise',
+  x1: items('sat.g', 'f'),
+  x2: items('sat.g', 'm'),
+  y1: items('com', 'f'),
+  y2: items('com', 'm'),
+  dyads: 'distinguishable',
+  estimator: 'ML',
+  missing: 'casewise',
 };
-const OBSERVED: ApimInput = { ...LATENT, x1: ['sat_f'], x2: ['sat_m'], y1: ['com_f'], y2: ['com_m'] };
+const OBSERVED: ApimInput = {
+  ...LATENT,
+  x1: ['sat_f'],
+  x2: ['sat_m'],
+  y1: ['com_f'],
+  y2: ['com_m'],
+};
 
 /**
  * Recorded, relative to the size of the value. The default 1e-4 is for the estimates: the reference fits the
@@ -58,7 +71,13 @@ const rel = (what: string, got: number | null, want: number, tol = 1e-4) => {
   near(what, got ?? NaN, want, tol * Math.max(1, Math.abs(want)));
 };
 
-type RefModel = { fit: { chisq: number; df: number; cfi: number; rmsea: number }; n: number; params: Record<string, { est: number; se: number; std: number; low: number; high: number }>; xCor: number; yCor: number };
+type RefModel = {
+  fit: { chisq: number; df: number; cfi: number; rmsea: number };
+  n: number;
+  params: Record<string, { est: number; se: number; std: number; low: number; high: number }>;
+  xCor: number;
+  yCor: number;
+};
 
 function sameModel(r: ApimResult, ref: RefModel, what: string) {
   same(`${what}: N`, r.n, ref.n);

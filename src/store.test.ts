@@ -24,7 +24,10 @@ describe('moderation in the store', () => {
     const names = Object.fromEntries(s().model.constructs.map((c) => [c.id, c.name]));
     const spec = toSpec(s().model);
     expect(spec.moderations).toEqual([{ from: names[x], moderator: names[m], to: names[y] }]);
-    expect(spec.paths).toEqual([{ from: names[x], to: names[y] }, { from: names[m], to: names[y] }]);
+    expect(spec.paths).toEqual([
+      { from: names[x], to: names[y] },
+      { from: names[m], to: names[y] },
+    ]);
     expect(s().selection.moderations).toHaveLength(1);
     // Drawn by the user: estimated once, not twice.
     s().addPath(m, y);
@@ -40,7 +43,11 @@ describe('moderation in the store', () => {
     s().addModeration(m, path2);
     s().addQuadratic(path);
     const names = Object.fromEntries(s().model.constructs.map((c) => [c.id, c.name]));
-    expect(toSpec(s().model).paths).toEqual([{ from: names[x], to: names[y] }, { from: names[w], to: names[y] }, { from: names[m], to: names[y] }]);
+    expect(toSpec(s().model).paths).toEqual([
+      { from: names[x], to: names[y] },
+      { from: names[w], to: names[y] },
+      { from: names[m], to: names[y] },
+    ]);
   });
 
   it('rejects the outcome as moderator, duplicates and cycles', () => {
@@ -62,20 +69,38 @@ describe('moderation in the store', () => {
     expect(s().model.paths).toHaveLength(1);
     expect(s().addQuadratic(path)).toBe(false);
     const names = Object.fromEntries(s().model.constructs.map((c) => [c.id, c.name]));
-    expect(toSpec(s().model).moderations).toEqual([{ from: names[x], moderator: names[x], to: names[y] }]);
-    const data = { names: ['x1', 'y1', 'm1'], cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)) };
-    const errors = (st: Parameters<typeof validateModel>[2]) => validateModel(s().model, data, st).filter((i) => i.level === 'error' && !i.message.includes('not connected')).map((i) => i.message);
+    expect(toSpec(s().model).moderations).toEqual([
+      { from: names[x], moderator: names[x], to: names[y] },
+    ]);
+    const data = {
+      names: ['x1', 'y1', 'm1'],
+      cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)),
+    };
+    const errors = (st: Parameters<typeof validateModel>[2]) =>
+      validateModel(s().model, data, st)
+        .filter((i) => i.level === 'error' && !i.message.includes('not connected'))
+        .map((i) => i.message);
     expect(errors({ method: 'pls', consistent: false })).toEqual([]);
     expect(errors({ method: 'cbsem', consistent: false })).toEqual([]);
     // PLSc with a quadratic term: cSEM and the built-in engine estimate it; seminr does not.
     expect(errors({ method: 'pls', consistent: true })).toEqual([]);
     expect(errors({ method: 'pls', consistent: true, engine: 'builtin' })).toEqual([]);
-    expect(errors({ method: 'pls', consistent: true, plsPackage: 'seminr' })).toEqual([expect.stringMatching(/Quadratic effects \(the quadratic effect of .* on .*\) with PLSc need cSEM or the built-in engine/)]);
-    expect(errors({ method: 'cbsem', consistent: false, estimator: '2SLS' })).toEqual([expect.stringMatching(/Quadratic effects .* not available with MIIV-2SLS/)]);
+    expect(errors({ method: 'pls', consistent: true, plsPackage: 'seminr' })).toEqual([
+      expect.stringMatching(
+        /Quadratic effects \(the quadratic effect of .* on .*\) with PLSc need cSEM or the built-in engine/,
+      ),
+    ]);
+    expect(errors({ method: 'cbsem', consistent: false, estimator: '2SLS' })).toEqual([
+      expect.stringMatching(/Quadratic effects .* not available with MIIV-2SLS/),
+    ]);
     // CB-SEM: the predictor must be exogenous (reported once, not twice).
     const { m } = { m: s().model.constructs[2].id };
     s().addPath(m, x);
-    expect(errors({ method: 'cbsem', consistent: false })).toEqual([expect.stringMatching(/^The quadratic effect of .*: in CB-SEM the predictor must be exogenous/)]);
+    expect(errors({ method: 'cbsem', consistent: false })).toEqual([
+      expect.stringMatching(
+        /^The quadratic effect of .*: in CB-SEM the predictor must be exogenous/,
+      ),
+    ]);
   });
 
   it('deleting the path or the moderator removes the moderation; undo restores it', () => {
@@ -93,23 +118,58 @@ describe('moderation in the store', () => {
   it('validates moderation per method (CB-SEM needs exogenous terms, PLSc not with seminr)', () => {
     const { m, path } = setup();
     s().addModeration(m, path);
-    const data = { names: ['x1', 'y1', 'm1'], cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)) };
-    expect(validateModel(s().model, data, { method: 'pls', consistent: false }).filter((i) => i.level === 'error')).toEqual([]);
+    const data = {
+      names: ['x1', 'y1', 'm1'],
+      cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)),
+    };
+    expect(
+      validateModel(s().model, data, { method: 'pls', consistent: false }).filter(
+        (i) => i.level === 'error',
+      ),
+    ).toEqual([]);
     // CB-SEM: fine while predictor and moderator are exogenous…
-    expect(validateModel(s().model, data, { method: 'cbsem', consistent: false }).filter((i) => i.level === 'error')).toEqual([]);
+    expect(
+      validateModel(s().model, data, { method: 'cbsem', consistent: false }).filter(
+        (i) => i.level === 'error',
+      ),
+    ).toEqual([]);
     // …but not once the predictor has an incoming path.
     const x = s().model.paths[0].from;
     s().addPath(m, x);
-    expect(validateModel(s().model, data, { method: 'cbsem', consistent: false }).some((i) => i.message.includes('exogenous'))).toBe(true);
-    expect(validateModel(s().model, data, { method: 'pls', consistent: true }).some((i) => i.message.includes('PLSc'))).toBe(false);
-    expect(validateModel(s().model, data, { method: 'pls', consistent: true, engine: 'builtin' }).some((i) => i.message.includes('PLSc need'))).toBe(false);
-    expect(validateModel(s().model, data, { method: 'pls', consistent: true, plsPackage: 'seminr' }).some((i) => i.message.includes('PLSc need'))).toBe(true);
+    expect(
+      validateModel(s().model, data, { method: 'cbsem', consistent: false }).some((i) =>
+        i.message.includes('exogenous'),
+      ),
+    ).toBe(true);
+    expect(
+      validateModel(s().model, data, { method: 'pls', consistent: true }).some((i) =>
+        i.message.includes('PLSc'),
+      ),
+    ).toBe(false);
+    expect(
+      validateModel(s().model, data, { method: 'pls', consistent: true, engine: 'builtin' }).some(
+        (i) => i.message.includes('PLSc need'),
+      ),
+    ).toBe(false);
+    expect(
+      validateModel(s().model, data, {
+        method: 'pls',
+        consistent: true,
+        plsPackage: 'seminr',
+      }).some((i) => i.message.includes('PLSc need')),
+    ).toBe(true);
   });
 });
 
 describe('correlations in the store', () => {
   function cfa() {
-    useStore.setState({ model: emptyModel(), past: [], future: [], toasts: [], settings: { ...s().settings, method: 'cbsem' } });
+    useStore.setState({
+      model: emptyModel(),
+      past: [],
+      future: [],
+      toasts: [],
+      settings: { ...s().settings, method: 'cbsem' },
+    });
     const a = s().addConstruct(0, 0, ['a1', 'a2', 'a3']);
     const b = s().addConstruct(300, 0, ['b1', 'b2', 'b3']);
     const x = s().addConstruct(0, 300, ['x1']);
@@ -164,13 +224,56 @@ describe('correlations in the store', () => {
 
 describe('GSCA', () => {
   it('needs cSEM in R', () => {
-    const m = { constructs: [{ id: 'a', name: 'A', type: 'composite' as const, mode: 'B' as const, indicators: ['a1', 'a2'], x: 0, y: 0, side: 'left' as const }, { id: 'b', name: 'B', type: 'composite' as const, mode: 'B' as const, indicators: ['b1', 'b2'], x: 0, y: 0, side: 'left' as const }], paths: [{ id: 'p', from: 'a', to: 'b' }], moderations: [] };
-    const d = { names: ['a1', 'a2', 'b1', 'b2'], cols: Array.from({ length: 4 }, (_, k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 2)))) };
-    const errs = (o: object) => validateModel(m, d, { ...s().settings, method: 'pls', plsApproach: 'GSCA', ...o }).filter((i) => i.level === 'error').map((i) => i.message);
+    const m = {
+      constructs: [
+        {
+          id: 'a',
+          name: 'A',
+          type: 'composite' as const,
+          mode: 'B' as const,
+          indicators: ['a1', 'a2'],
+          x: 0,
+          y: 0,
+          side: 'left' as const,
+        },
+        {
+          id: 'b',
+          name: 'B',
+          type: 'composite' as const,
+          mode: 'B' as const,
+          indicators: ['b1', 'b2'],
+          x: 0,
+          y: 0,
+          side: 'left' as const,
+        },
+      ],
+      paths: [{ id: 'p', from: 'a', to: 'b' }],
+      moderations: [],
+    };
+    const d = {
+      names: ['a1', 'a2', 'b1', 'b2'],
+      cols: Array.from({ length: 4 }, (_, k) =>
+        Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 2))),
+      ),
+    };
+    const errs = (o: object) =>
+      validateModel(m, d, { ...s().settings, method: 'pls', plsApproach: 'GSCA', ...o })
+        .filter((i) => i.level === 'error')
+        .map((i) => i.message);
     expect(errs({ engine: 'r', plsPackage: 'cSEM' })).toEqual([]);
-    expect(errs({ engine: 'r', plsPackage: 'seminr' }).some((x) => /GSCA is estimated with cSEM/.test(x))).toBe(true);
-    expect(errs({ engine: 'builtin' }).some((x) => /GSCA is estimated with cSEM/.test(x))).toBe(true);
-    expect(errs({ engine: 'builtin', plsApproach: 'unit' }).some((x) => /Sum scores are estimated with cSEM/.test(x))).toBe(true);
+    expect(
+      errs({ engine: 'r', plsPackage: 'seminr' }).some((x) =>
+        /GSCA is estimated with cSEM/.test(x),
+      ),
+    ).toBe(true);
+    expect(errs({ engine: 'builtin' }).some((x) => /GSCA is estimated with cSEM/.test(x))).toBe(
+      true,
+    );
+    expect(
+      errs({ engine: 'builtin', plsApproach: 'unit' }).some((x) =>
+        /Sum scores are estimated with cSEM/.test(x),
+      ),
+    ).toBe(true);
     expect(errs({ engine: 'r', plsPackage: 'cSEM', plsApproach: 'PCA' })).toEqual([]);
   });
 });
@@ -180,7 +283,13 @@ describe('messages belong to a project', () => {
     s().clearMessages();
     s().logMessage('warning', 'lavaan WARNING: not converged', 'lavaan');
     expect(s().messages.length).toBe(1);
-    s().loadProject({ name: 'Other', model: emptyModel(), settings: s().settings, data: null, info: null });
+    s().loadProject({
+      name: 'Other',
+      model: emptyModel(),
+      settings: s().settings,
+      data: null,
+      info: null,
+    });
     expect(s().messages).toEqual([]);
     s().logMessage('error', 'failed');
     s().newProject();
@@ -191,7 +300,29 @@ describe('messages belong to a project', () => {
 describe('examples', () => {
   it('are never kept: not in Recent projects, until kept as one’s own project', async () => {
     const { currentEntry } = await import('./io');
-    s().loadProject({ name: 'Example model', model: { constructs: [{ id: 'c', name: 'A', type: 'factor', mode: 'A', indicators: ['a1'], x: 0, y: 0, side: 'left' }], paths: [], moderations: [] }, settings: s().settings, data: null, info: null, example: 'lavaan-hs' });
+    s().loadProject({
+      name: 'Example model',
+      model: {
+        constructs: [
+          {
+            id: 'c',
+            name: 'A',
+            type: 'factor',
+            mode: 'A',
+            indicators: ['a1'],
+            x: 0,
+            y: 0,
+            side: 'left',
+          },
+        ],
+        paths: [],
+        moderations: [],
+      },
+      settings: s().settings,
+      data: null,
+      info: null,
+      example: 'lavaan-hs',
+    });
     expect(s().example).toBe('lavaan-hs');
     s().addConstruct(10, 10, []);
     expect(currentEntry()).toBeNull();
@@ -200,7 +331,13 @@ describe('examples', () => {
     expect(s().example).toBeNull();
     expect(s().projectId).not.toBe(id);
     expect(currentEntry()?.id).toBe(s().projectId);
-    s().loadProject({ name: 'x', model: emptyModel(), settings: s().settings, data: null, info: null });
+    s().loadProject({
+      name: 'x',
+      model: emptyModel(),
+      settings: s().settings,
+      data: null,
+      info: null,
+    });
     expect(s().example).toBeNull();
   });
 });
@@ -211,9 +348,16 @@ describe('implied main effects and cycles', () => {
     s().addPath(y, m);
     expect(s().addModeration(m, path)).toBe(false);
     // A project file can still contain one: validation reports the cycle.
-    useStore.setState({ model: { ...s().model, moderations: [{ id: 'mo1', moderator: m, path }] } });
-    const data = { names: ['x1', 'y1', 'm1'], cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)) };
-    const errs = validateModel(s().model, data, { method: 'pls', consistent: false }).filter((i) => i.level === 'error').map((i) => i.message);
+    useStore.setState({
+      model: { ...s().model, moderations: [{ id: 'mo1', moderator: m, path }] },
+    });
+    const data = {
+      names: ['x1', 'y1', 'm1'],
+      cols: [0, 1, 2].map(() => Float64Array.from({ length: 50 }, (_, i) => i % 7)),
+    };
+    const errs = validateModel(s().model, data, { method: 'pls', consistent: false })
+      .filter((i) => i.level === 'error')
+      .map((i) => i.message);
     expect(errs).toContainEqual(expect.stringMatching(/implied effect on .* would create a cycle/));
     void x;
   });
@@ -252,23 +396,38 @@ describe('factors from an exploratory factor analysis', () => {
     useStore.setState({ model: emptyModel(), past: [], future: [], toasts: [] });
     const old = s().addConstruct(0, 0, ['a1', 'q']);
     const before = s().past.length;
-    const ids = s().addFactors([['a1', 'a2'], ['b1', 'b2']], true);
+    const ids = s().addFactors(
+      [
+        ['a1', 'a2'],
+        ['b1', 'b2'],
+      ],
+      true,
+    );
     expect(s().past.length).toBe(before + 1);
     const made = s().model.constructs.filter((c) => ids.includes(c.id));
-    expect(made.map((c) => [c.type, c.mode, c.indicators])).toEqual([['factor', 'A', ['a1', 'a2']], ['factor', 'A', ['b1', 'b2']]]);
+    expect(made.map((c) => [c.type, c.mode, c.indicators])).toEqual([
+      ['factor', 'A', ['a1', 'a2']],
+      ['factor', 'A', ['b1', 'b2']],
+    ]);
     expect(s().model.constructs.find((c) => c.id === old)!.indicators).toEqual(['q']);
-    expect(s().model.correlations).toEqual([expect.objectContaining({ kind: 'construct', a: ids[0], b: ids[1] })]);
+    expect(s().model.correlations).toEqual([
+      expect.objectContaining({ kind: 'construct', a: ids[0], b: ids[1] }),
+    ]);
     s().addFactors([['c1', 'c2']], false);
     expect(s().model.correlations).toHaveLength(1);
   });
 });
 
 describe('the constant in the store', () => {
-  beforeEach(() => { useStore.getState().newProject(); useStore.setState({ toasts: [], cloud: null }); });
+  beforeEach(() => {
+    useStore.getState().newProject();
+    useStore.setState({ toasts: [], cloud: null });
+  });
   const build = () => {
     const st = useStore.getState();
     st.setSettings({ method: 'cbsem' });
-    const a = st.addConstruct(300, 100, ['a1', 'a2']), b = st.addConstruct(600, 100, ['b1', 'b2']);
+    const a = st.addConstruct(300, 100, ['a1', 'a2']),
+      b = st.addConstruct(600, 100, ['b1', 'b2']);
     st.addPath(a, b);
     useStore.setState((x) => ({ model: { ...x.model, ordered: ['a1'] } }));
     return { a, b };
@@ -279,7 +438,7 @@ describe('the constant in the store', () => {
     const st = () => useStore.getState();
     st().addConstant();
     expect(st().model.constant!.x).toBeLessThan(300);
-    st().addConstant();  // once
+    st().addConstant(); // once
     expect(st().addMean(a)).toBe(true);
     expect(st().addMean(a)).toBe(false);
     expect(st().addMean(b)).toBe(true);
@@ -314,10 +473,18 @@ describe('held and labelled parameters in the store', () => {
     const { x } = setup();
     s().setHeldParameter({ kind: 'variance', target: x }, { fixed: 1 });
     s().setHeldParameter({ kind: 'variance', target: x }, { label: 'vx' });
-    expect(s().model.parameters).toEqual([expect.objectContaining({ kind: 'variance', target: x, label: 'vx' })]);
+    expect(s().model.parameters).toEqual([
+      expect.objectContaining({ kind: 'variance', target: x, label: 'vx' }),
+    ]);
     expect(s().model.parameters![0].fixed).toBeUndefined();
-    s().setHeldParameter({ kind: 'threshold', target: 'u1', indicator: true, threshold: 2 }, { byGroup: [0.5, null] });
-    s().setHeldParameter({ kind: 'threshold', target: 'u1', indicator: true, threshold: 1 }, { fixed: 0 });
+    s().setHeldParameter(
+      { kind: 'threshold', target: 'u1', indicator: true, threshold: 2 },
+      { byGroup: [0.5, null] },
+    );
+    s().setHeldParameter(
+      { kind: 'threshold', target: 'u1', indicator: true, threshold: 1 },
+      { fixed: 0 },
+    );
     expect(s().model.parameters).toHaveLength(3);
     s().setHeldParameter({ kind: 'variance', target: x }, null);
     s().setHeldParameter({ kind: 'threshold', target: 'u1', indicator: true, threshold: 2 }, null);
@@ -348,7 +515,25 @@ describe('held and labelled parameters in the store', () => {
 
 describe('adding the constant', () => {
   it('shows its intercepts, so that the new triangle is drawn', () => {
-    useStore.setState({ model: { constructs: [{ id: 'a', name: 'A', type: 'factor', mode: 'A', indicators: ['a1', 'a2'], x: 0, y: 0, side: 'left' }], paths: [], moderations: [] }, showIntercepts: false } as never);
+    useStore.setState({
+      model: {
+        constructs: [
+          {
+            id: 'a',
+            name: 'A',
+            type: 'factor',
+            mode: 'A',
+            indicators: ['a1', 'a2'],
+            x: 0,
+            y: 0,
+            side: 'left',
+          },
+        ],
+        paths: [],
+        moderations: [],
+      },
+      showIntercepts: false,
+    } as never);
     useStore.getState().addConstant();
     expect(useStore.getState().model.constant).toBeTruthy();
     expect(useStore.getState().showIntercepts).toBe(true);

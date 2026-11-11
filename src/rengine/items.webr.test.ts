@@ -17,20 +17,30 @@ const load = (f: string) => parseCsv(readFileSync(join(DIR, f), 'utf8')).dataset
 const ref = JSON.parse(readFileSync(join(DIR, 'items.json'), 'utf8'));
 
 describe('item response theory (ltm)', () => {
-  it.each([['rasch', 'lsat.csv', 'rasch'], ['twopl', 'lsat.csv', 'twopl'], ['grm', 'science.csv', 'grm']] as const)('%s matches ltm', async (model, file, key) => {
-    const d = load(file);
-    const r = await irtR(d, d.names, model as IrtModel);
-    const theirs = ref.irt[key];
-    expect(r.logLik).toBeCloseTo(theirs.logLik, 4);
-    expect(r.aic).toBeCloseTo(theirs.aic, 4);
-    r.params.forEach((p, i) => {
-      for (const [k, v] of Object.entries(theirs.coef[i] as Record<string, number>)) expect(p.values[k], `${p.item} ${k}`).toBeCloseTo(v, 4);
-    });
-    expect(r.information).toHaveLength(d.names.length);
-    expect(r.theta[0]).toBe(-4);
-    expect(r.reliability!).toBeGreaterThan(0);
-    if (model === 'twopl') expect(await irtScriptR(d, d.names, 'twopl')).toContain('ltm(items ~ z1)');
-  }, 600_000);
+  it.each([
+    ['rasch', 'lsat.csv', 'rasch'],
+    ['twopl', 'lsat.csv', 'twopl'],
+    ['grm', 'science.csv', 'grm'],
+  ] as const)(
+    '%s matches ltm',
+    async (model, file, key) => {
+      const d = load(file);
+      const r = await irtR(d, d.names, model as IrtModel);
+      const theirs = ref.irt[key];
+      expect(r.logLik).toBeCloseTo(theirs.logLik, 4);
+      expect(r.aic).toBeCloseTo(theirs.aic, 4);
+      r.params.forEach((p, i) => {
+        for (const [k, v] of Object.entries(theirs.coef[i] as Record<string, number>))
+          expect(p.values[k], `${p.item} ${k}`).toBeCloseTo(v, 4);
+      });
+      expect(r.information).toHaveLength(d.names.length);
+      expect(r.theta[0]).toBe(-4);
+      expect(r.reliability!).toBeGreaterThan(0);
+      if (model === 'twopl')
+        expect(await irtScriptR(d, d.names, 'twopl')).toContain('ltm(items ~ z1)');
+    },
+    600_000,
+  );
 });
 
 describe('latent class analysis (poLCA)', () => {

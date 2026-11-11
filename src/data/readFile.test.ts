@@ -12,17 +12,22 @@ describe('reading SPSS, Stata and Excel files', () => {
 
   it('turns R’s columns into the dataset: numbers, factors with their levels, text as categories, free text left out', () => {
     const free = Array.from({ length: 60 }, (_, i) => `comment ${i}`);
-    const { data, info, sheets } = toDataset({
-      names: ['x', 'f', 't', 'free', 'one'], n: 60, sheets: 'Sheet1',
-      cols: [
-        { kind: 'number', values: [1, null, ...Array(58).fill(2)] },
-        { kind: 'factor', codes: [2, 1, ...Array(58).fill(null)], levels: ['high', 'low'] },
-        { kind: 'text', values: ['b', 'a', 'NA', ...Array(57).fill('a')] },
-        { kind: 'text', values: free },
-        { kind: 'number', values: 7 },
-      ],
-      excluded: [{ name: 'd', reason: 'unsupported column type Date' }],
-    }, 'f.xlsx');
+    const { data, info, sheets } = toDataset(
+      {
+        names: ['x', 'f', 't', 'free', 'one'],
+        n: 60,
+        sheets: 'Sheet1',
+        cols: [
+          { kind: 'number', values: [1, null, ...Array(58).fill(2)] },
+          { kind: 'factor', codes: [2, 1, ...Array(58).fill(null)], levels: ['high', 'low'] },
+          { kind: 'text', values: ['b', 'a', 'NA', ...Array(57).fill('a')] },
+          { kind: 'text', values: free },
+          { kind: 'number', values: 7 },
+        ],
+        excluded: [{ name: 'd', reason: 'unsupported column type Date' }],
+      },
+      'f.xlsx',
+    );
     expect(data.names).toEqual(['x', 'f', 't', 'one']);
     expect([...data.cols[0]].slice(0, 3)).toEqual([1, NaN, 2]);
     expect(data.categories).toEqual({ f: ['high', 'low'], t: ['a', 'b'] });
@@ -34,6 +39,8 @@ describe('reading SPSS, Stata and Excel files', () => {
   });
 
   it('refuses a file with no usable column', () => {
-    expect(() => toDataset({ names: [], cols: [], n: 0 }, 'empty.sav')).toThrow('No usable columns');
+    expect(() => toDataset({ names: [], cols: [], n: 0 }, 'empty.sav')).toThrow(
+      'No usable columns',
+    );
   });
 });

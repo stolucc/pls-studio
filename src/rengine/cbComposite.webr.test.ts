@@ -15,11 +15,30 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'cb_composite.json'), 'utf8'));
-const C = (id: string, inds: string[], type: 'factor' | 'composite' = 'factor') => ({ id, name: id, type, mode: type === 'composite' ? 'B' as const : 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'cb_composite.json'), 'utf8'),
+);
+const C = (id: string, inds: string[], type: 'factor' | 'composite' = 'factor') => ({
+  id,
+  name: id,
+  type,
+  mode: type === 'composite' ? ('B' as const) : ('A' as const),
+  indicators: inds,
+  x: 0,
+  y: 0,
+  side: 'left' as const,
+});
 const model: ModelState = {
-  constructs: [C('visual', ['x1', 'x2', 'x3'], 'composite'), C('textual', ['x4', 'x5', 'x6']), C('speed', ['x7', 'x8', 'x9'])],
-  paths: [{ id: 'p1', from: 'visual', to: 'speed' }, { id: 'p2', from: 'textual', to: 'speed' }], moderations: [],
+  constructs: [
+    C('visual', ['x1', 'x2', 'x3'], 'composite'),
+    C('textual', ['x4', 'x5', 'x6']),
+    C('speed', ['x7', 'x8', 'x9']),
+  ],
+  paths: [
+    { id: 'p1', from: 'visual', to: 'speed' },
+    { id: 'p2', from: 'textual', to: 'speed' },
+  ],
+  moderations: [],
   correlations: [{ id: 'k', kind: 'construct', a: 'visual', b: 'textual' }],
 };
 
@@ -31,7 +50,10 @@ const check = (r: R, want: typeof ref.ml) => {
     expect(w.est).toBeCloseTo(want.weights[x], 6);
     expect(w.std).toBeCloseTo(want.weightStd[x], 6);
     if (x !== 'x1') expect(w.se!).toBeCloseTo(want.weightSe[x], 6);
-    expect(r.stdLoadings[r.indicators.findIndex((i) => i.name === x)]).toBeCloseTo(want.loadings[x], 6);
+    expect(r.stdLoadings[r.indicators.findIndex((i) => i.name === x)]).toBeCloseTo(
+      want.loadings[x],
+      6,
+    );
     expect(r.r2Indicators[r.indicators.findIndex((i) => i.name === x)]).toBeNaN();
   }
   for (const x of ['visual', 'textual']) {
@@ -51,8 +73,15 @@ const check = (r: R, want: typeof ref.ml) => {
 
 describe('composites in CB-SEM (lavaan)', () => {
   it('HolzingerSwineford1939: visual a composite of x1-x3; ML, and FIML with missing values', async () => {
-    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
-    const data: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+      'ps_dataset',
+      { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] },
+      'lavaan',
+    );
+    const data: Dataset = {
+      names: raw.names,
+      cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+    };
     const ml = await estimateCbLavaan(data, toSpec(model), 'casewise', 'ML');
     check(ml, ref.ml);
     // lavaan computes no modification indices with composites: the reason is passed on, not shown as "none reach 3.84".
@@ -60,11 +89,26 @@ describe('composites in CB-SEM (lavaan)', () => {
     expect(ml.modindicesError).toMatch(/not available for models with composites/);
 
     const cols = data.cols.map((c) => Float64Array.from(c));
-    for (const [x, rows] of Object.entries(ref.missing as Record<string, number[]>)) for (const r of rows) cols[data.names.indexOf(x)][r - 1] = NaN;
-    check(await estimateCbLavaan({ names: data.names, cols }, toSpec(model), 'fiml', 'ML'), ref.fiml);
+    for (const [x, rows] of Object.entries(ref.missing as Record<string, number[]>))
+      for (const r of rows) cols[data.names.indexOf(x)][r - 1] = NaN;
+    check(
+      await estimateCbLavaan({ names: data.names, cols }, toSpec(model), 'fiml', 'ML'),
+      ref.fiml,
+    );
 
     // The bootstrap resamples the composite weights too (standardised, as the other statistics).
-    const boot = await bootstrapR(data, toSpec(model), { kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot: { samples: 30, seed: 7, confidence: 0.95 }, interaction: 'product' }, () => 'x');
+    const boot = await bootstrapR(
+      data,
+      toSpec(model),
+      {
+        kind: 'cbBoot',
+        estimator: 'ML',
+        missing: 'casewise',
+        boot: { samples: 30, seed: 7, confidence: 0.95 },
+        interaction: 'product',
+      },
+      () => 'x',
+    );
     for (const x of ['x1', 'x2', 'x3']) {
       const s = boot.stats.find((q) => q.key === `weight:${x}`)!;
       expect(s.label).toBe(`${x} → visual`);
@@ -78,8 +122,22 @@ describe('composites in CB-SEM (lavaan)', () => {
   }, 600_000);
 
   it('refuses composites in multiple-group models (R-side guard)', async () => {
-    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] }, 'lavaan');
-    const data: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
-    await expect(estimateCbLavaan(data, toSpec({ ...model, multigroup: { column: 'school', invariance: 'configural', free: [] } }), 'casewise', 'ML')).rejects.toThrow(/multiple-group/);
+    const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+      'ps_dataset',
+      { package: 'lavaan', name: 'HolzingerSwineford1939', na: [] },
+      'lavaan',
+    );
+    const data: Dataset = {
+      names: raw.names,
+      cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+    };
+    await expect(
+      estimateCbLavaan(
+        data,
+        toSpec({ ...model, multigroup: { column: 'school', invariance: 'configural', free: [] } }),
+        'casewise',
+        'ML',
+      ),
+    ).rejects.toThrow(/multiple-group/);
   }, 600_000);
 });

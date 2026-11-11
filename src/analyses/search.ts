@@ -1,7 +1,11 @@
 // Filtering the Add analysis menu.
 
 /** Lower case and without accents: "anova" finds ANOVA, "mediation" finds Médiation. */
-const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const fold = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 
 /** Whether every word of the search occurs in the entry's title, description or group (in any order). */
 export function matchesSearch(query: string, ...texts: string[]): boolean {

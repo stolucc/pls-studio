@@ -13,19 +13,34 @@ import { copulaName, DEFAULT_OPTIONS, type Dataset, type ModelSpec } from './typ
 const fx = join(__dirname, '__fixtures__');
 const ref = JSON.parse(readFileSync(join(fx, 'copula', 'reference.json'), 'utf8'));
 const mobi = (): Dataset => parseCsv(readFileSync(join(fx, 'mobi.csv'), 'utf8')).dataset;
-const K = (name: string, n: number) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators: Array.from({ length: n }, (_, i) => `${name}${i + 1}`) });
+const K = (name: string, n: number) => ({
+  name,
+  mode: 'A' as const,
+  type: 'factor' as const,
+  indicators: Array.from({ length: n }, (_, i) => `${name}${i + 1}`),
+});
 const spec: ModelSpec = {
   constructs: [K('CUEX', 3), K('PERQ', 7), K('CUSA', 3), K('CUSL', 3)],
-  paths: [{ from: 'CUEX', to: 'CUSA' }, { from: 'PERQ', to: 'CUSA' }, { from: 'CUSA', to: 'CUSL' }],
-  copulas: [{ from: 'CUEX', to: 'CUSA' }, { from: 'PERQ', to: 'CUSA' }],
+  paths: [
+    { from: 'CUEX', to: 'CUSA' },
+    { from: 'PERQ', to: 'CUSA' },
+    { from: 'CUSA', to: 'CUSL' },
+  ],
+  copulas: [
+    { from: 'CUEX', to: 'CUSA' },
+    { from: 'PERQ', to: 'CUSA' },
+  ],
 };
-const path = (r: ReturnType<typeof estimatePls>, from: string, to: string) => r.pathCoef[r.constructs.indexOf(from)][r.constructs.indexOf(to)];
+const path = (r: ReturnType<typeof estimatePls>, from: string, to: string) =>
+  r.pathCoef[r.constructs.indexOf(from)][r.constructs.indexOf(to)];
 
 describe('Gaussian copula term P*', () => {
   it('matches the control function on the stage 1 scores', () => {
     const noTerms = estimatePls(mobi(), { ...spec, copulas: [] });
     const scores = noTerms.scores[noTerms.constructs.indexOf('CUEX')];
-    Array.from(pStar(scores)).slice(0, 10).forEach((v, i) => expect(v).toBeCloseTo(ref.pstarHead[i], 8));
+    Array.from(pStar(scores))
+      .slice(0, 10)
+      .forEach((v, i) => expect(v).toBeCloseTo(ref.pstarHead[i], 8));
   });
   it('is finite at the largest value and with ties', () => {
     const s = pStar(Float64Array.from([1, 2, 2, 3]));
@@ -41,7 +56,9 @@ describe('Cramér–von Mises normality test', () => {
     expect(r.p).toBeCloseTo(ref.cvm[k].p, 8);
   });
   it('covers every branch of the p-value', () => {
-    const wws = Object.values(ref.cvm as Record<string, { statistic: number; x: number[] }>).map((v) => v.statistic * (1 + 0.5 / v.x.length));
+    const wws = Object.values(ref.cvm as Record<string, { statistic: number; x: number[] }>).map(
+      (v) => v.statistic * (1 + 0.5 / v.x.length),
+    );
     expect(wws.some((w) => w < 0.0275)).toBe(true);
     expect(wws.some((w) => w >= 0.051 && w < 0.092)).toBe(true);
     expect(wws.some((w) => w >= 0.092)).toBe(true);
@@ -64,7 +81,9 @@ describe('PLS-SEM with Gaussian copula terms', () => {
   });
   it('reports each term with the normality test of its predictor', () => {
     expect(r.copulas!.map((k) => [k.from, k.to, r.constructs[k.construct]])).toEqual([
-      ['CUEX', 'CUSA', copulaName('CUEX', 'CUSA')], ['PERQ', 'CUSA', copulaName('PERQ', 'CUSA')]]);
+      ['CUEX', 'CUSA', copulaName('CUEX', 'CUSA')],
+      ['PERQ', 'CUSA', copulaName('PERQ', 'CUSA')],
+    ]);
     const cuex = r.scores[r.constructs.indexOf('CUEX')];
     expect(r.copulas![0].normality.p).toBeCloseTo(cramerVonMises(cuex).p, 10);
   });
@@ -84,7 +103,9 @@ describe('PLS-SEM with Gaussian copula terms', () => {
   });
   it('refuses consistent PLS and a path that is not in the model', () => {
     expect(() => estimatePls(mobi(), spec, { consistent: true })).toThrow(/PLSc/);
-    expect(() => estimatePls(mobi(), { ...spec, copulas: [{ from: 'CUSL', to: 'CUEX' }] })).toThrow(/not in the model/);
+    expect(() => estimatePls(mobi(), { ...spec, copulas: [{ from: 'CUSL', to: 'CUEX' }] })).toThrow(
+      /not in the model/,
+    );
   });
 });
 
@@ -99,8 +120,14 @@ describe('the example card', () => {
     expect(ex.shows).toContain(Math.abs(ref.paths.CUEX_CUSA).toFixed(3));
     expect(ex.shows).toContain(ref.r2.toFixed(3));
     const spec = toSpec(exampleModel(ex));
-    expect(spec.copulas).toEqual([{ from: 'Expectation', to: 'Satisfaction' }, { from: 'Quality', to: 'Satisfaction' }]);
+    expect(spec.copulas).toEqual([
+      { from: 'Expectation', to: 'Satisfaction' },
+      { from: 'Quality', to: 'Satisfaction' },
+    ]);
     const r = estimatePls(mobi(), spec);
-    expect(path(r, copulaName('Quality', 'Satisfaction'), 'Satisfaction')).toBeCloseTo(ref.paths.GC_PERQ_CUSA, 3);
+    expect(path(r, copulaName('Quality', 'Satisfaction'), 'Satisfaction')).toBeCloseTo(
+      ref.paths.GC_PERQ_CUSA,
+      3,
+    );
   });
 });

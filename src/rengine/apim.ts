@@ -85,7 +85,12 @@ const fitOf = (v: Record<string, unknown> = {}): ApimFit => ({
   srmr: rNum(v.srmr),
 });
 
-const corOf = (v: Record<string, unknown> = {}) => ({ est: rNum(v.est), se: rNum(v.se), p: rNum(v.p), std: rNum(v.std) });
+const corOf = (v: Record<string, unknown> = {}) => ({
+  est: rNum(v.est),
+  se: rNum(v.se),
+  p: rNum(v.p),
+  std: rNum(v.std),
+});
 
 export function parseApim(r: Record<string, any>): ApimResult {
   return {
@@ -117,4 +122,5 @@ export async function apimR(data: Dataset, input: ApimInput): Promise<ApimResult
   return parseApim(raw);
 }
 
-export const apimScriptR = (data: Dataset, input: ApimInput) => rScript('ps_apim', apimRequest(data, input), 'lavaan');
+export const apimScriptR = (data: Dataset, input: ApimInput) =>
+  rScript('ps_apim', apimRequest(data, input), 'lavaan');

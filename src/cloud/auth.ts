@@ -1,7 +1,15 @@
 import { create } from 'zustand';
 import { api, ApiError, setCsrf } from './api';
 
-export interface CloudUser { id: string; email: string; display_name: string; totp_enabled: boolean; has_password: boolean; google_linked: boolean; email_verified: boolean }
+export interface CloudUser {
+  id: string;
+  email: string;
+  display_name: string;
+  totp_enabled: boolean;
+  has_password: boolean;
+  google_linked: boolean;
+  email_verified: boolean;
+}
 
 interface SessionInfo {
   user: CloudUser | null;
@@ -50,17 +58,33 @@ export const useAuth = create<AuthState>((set, get) => ({
       const s = await api.get<SessionInfo>('/api/auth/session');
       setCsrf(s.csrfToken);
       set({
-        available: true, user: s.user, googleEnabled: s.googleEnabled, pendingTotp: s.pendingTotp, pendingGoogleLink: s.pendingGoogleLink,
-        dialog: s.pendingTotp ? { mode: 'totp' } : s.pendingGoogleLink ? { mode: 'link' } : get().dialog,
+        available: true,
+        user: s.user,
+        googleEnabled: s.googleEnabled,
+        pendingTotp: s.pendingTotp,
+        pendingGoogleLink: s.pendingGoogleLink,
+        dialog: s.pendingTotp
+          ? { mode: 'totp' }
+          : s.pendingGoogleLink
+            ? { mode: 'link' }
+            : get().dialog,
       });
     } catch (err) {
-      set({ available: err instanceof ApiError && err.status !== 0 && err.status !== 404 ? true : false, user: null });
+      set({
+        available: err instanceof ApiError && err.status !== 0 && err.status !== 404 ? true : false,
+        user: null,
+      });
     }
   },
-  openDialog: (mode = 'signin', message, token) => set({ dialog: { mode, message, ...(token ? { token } : {}) } }),
+  openDialog: (mode = 'signin', message, token) =>
+    set({ dialog: { mode, message, ...(token ? { token } : {}) } }),
   closeDialog: () => set({ dialog: null }),
   async signIn(email, password, code) {
-    const r = await api.post<{ user: CloudUser }>('/api/auth/login', { email, password, ...(code ? { code } : {}) });
+    const r = await api.post<{ user: CloudUser }>('/api/auth/login', {
+      email,
+      password,
+      ...(code ? { code } : {}),
+    });
     set({ user: r.user, dialog: null });
     await get().refresh();
   },
@@ -75,7 +99,10 @@ export const useAuth = create<AuthState>((set, get) => ({
     await get().refresh();
   },
   async linkGoogle(password, code) {
-    const r = await api.post<{ user: CloudUser }>('/api/auth/google/link', { password, ...(code ? { code } : {}) });
+    const r = await api.post<{ user: CloudUser }>('/api/auth/google/link', {
+      password,
+      ...(code ? { code } : {}),
+    });
     set({ user: r.user, pendingGoogleLink: null, dialog: null });
     await get().refresh();
   },

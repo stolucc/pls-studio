@@ -13,92 +13,378 @@ const json = (p) => JSON.parse(readFileSync(join(ROOT, p), 'utf8'));
 
 function npmDeps(dir) {
   const pkg = json(join(dir, 'package.json'));
-  return Object.keys(pkg.dependencies ?? {}).sort().map((name) => {
-    const p = json(join(dir, 'node_modules', name, 'package.json'));
-    const repo = typeof p.repository === 'string' ? p.repository : p.repository?.url;
-    let url = (repo ?? p.homepage ?? `https://www.npmjs.com/package/${name}`).replace(/^git\+/, '').replace(/\.git$/, '').replace(/^git:\/\//, 'https://').replace(/^ssh:\/\/git@/, 'https://');
-    if (/^[\w.-]+\/[\w.-]+$/.test(url)) url = `https://github.com/${url}`;  // "owner/repo" shorthand
-    // webR's package.json points to its licence file: binaries GPL-3, JavaScript API MIT.
-    const license = name === 'webr' ? 'MIT (JavaScript API); GPL-3 (R binaries)' : p.license ?? 'see package';
-    return { name, version: p.version, license, url };
-  });
+  return Object.keys(pkg.dependencies ?? {})
+    .sort()
+    .map((name) => {
+      const p = json(join(dir, 'node_modules', name, 'package.json'));
+      const repo = typeof p.repository === 'string' ? p.repository : p.repository?.url;
+      let url = (repo ?? p.homepage ?? `https://www.npmjs.com/package/${name}`)
+        .replace(/^git\+/, '')
+        .replace(/\.git$/, '')
+        .replace(/^git:\/\//, 'https://')
+        .replace(/^ssh:\/\/git@/, 'https://');
+      if (/^[\w.-]+\/[\w.-]+$/.test(url)) url = `https://github.com/${url}`; // "owner/repo" shorthand
+      // webR's package.json points to its licence file: binaries GPL-3, JavaScript API MIT.
+      const license =
+        name === 'webr' ? 'MIT (JavaScript API); GPL-3 (R binaries)' : (p.license ?? 'see package');
+      return { name, version: p.version, license, url };
+    });
 }
 
 const lock = json('scripts/webr/webr-lock.json');
 // (dynamic: the CRAN release is archived; the app ships a build of the maintained repository at a pinned commit, see scripts/webr/fetch.mjs)
-const UPSTREAM = { nloptr: 'https://github.com/astamm/nloptr', sass: 'https://github.com/rstudio/sass', vroom: 'https://github.com/tidyverse/vroom', dynamic: 'https://github.com/melissagwolf/dynamic/tree/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7' };
+const UPSTREAM = {
+  nloptr: 'https://github.com/astamm/nloptr',
+  sass: 'https://github.com/rstudio/sass',
+  vroom: 'https://github.com/tidyverse/vroom',
+  dynamic: 'https://github.com/melissagwolf/dynamic/tree/90aa51f7cd34d7de936dc36ff99a7b8363ed10d7',
+};
 // Packages the browser's R runs in a build patched by PLS Studio (scripts/webr/fetch.mjs PATCHED; the patch is
 // scripts/webr/vendor/<name>_<version>.patch and the modified source is served with the app, public/webr/src, as
 // AGPL-3 and GPL-3 require): one hard import made a suggested package loaded on demand, nothing else.
 const PATCHED = {
-  dynamic: 'GenOrd moved from Imports to Suggests, loaded when likertHB2() needs it (GenOrd imported cubature, whose WebAssembly build webR cannot load)',
-  GenOrd: 'cubature moved from Imports to Suggests, loaded when pmvt.alt() (a Student’s t copula with a non-integer df) needs it (cubature’s WebAssembly build webR cannot load)',
+  dynamic:
+    'GenOrd moved from Imports to Suggests, loaded when likertHB2() needs it (GenOrd imported cubature, whose WebAssembly build webR cannot load)',
+  GenOrd:
+    'cubature moved from Imports to Suggests, loaded when pmvt.alt() (a Student’s t copula with a non-integer df) needs it (cubature’s WebAssembly build webR cannot load)',
 };
 const data = {
-  app: { name: 'PLS Studio', license: 'GPL-2.0-or-later', url: 'https://github.com/stolucc/pls-studio' },
+  app: {
+    name: 'PLS Studio',
+    license: 'GPL-2.0-or-later',
+    url: 'https://github.com/stolucc/pls-studio',
+  },
   npm: npmDeps('.'),
   server: npmDeps('server'),
-  webr: { version: lock.webr, r: lock.r, license: 'GPL-3 (webR binaries, including R); MIT (webR JavaScript API)', url: `https://github.com/r-wasm/webr/releases/tag/v${lock.webr}` },
-  rPackages: Object.entries(lock.packages).map(([name, p]) => ({ name, version: p.version, license: p.license, url: UPSTREAM[name] ?? `https://cran.r-project.org/package=${name}`, ...(PATCHED[name] ? { patched: PATCHED[name], patch: `scripts/webr/vendor/${name}_${p.version}.patch` } : {}) })),
+  webr: {
+    version: lock.webr,
+    r: lock.r,
+    license: 'GPL-3 (webR binaries, including R); MIT (webR JavaScript API)',
+    url: `https://github.com/r-wasm/webr/releases/tag/v${lock.webr}`,
+  },
+  rPackages: Object.entries(lock.packages).map(([name, p]) => ({
+    name,
+    version: p.version,
+    license: p.license,
+    url: UPSTREAM[name] ?? `https://cran.r-project.org/package=${name}`,
+    ...(PATCHED[name]
+      ? { patched: PATCHED[name], patch: `scripts/webr/vendor/${name}_${p.version}.patch` }
+      : {}),
+  })),
   fonts: [
     { name: 'Inter', license: 'OFL-1.1', url: 'https://github.com/rsms/inter' },
-    { name: 'JetBrains Mono', license: 'OFL-1.1', url: 'https://github.com/JetBrains/JetBrainsMono' },
+    {
+      name: 'JetBrains Mono',
+      license: 'OFL-1.1',
+      url: 'https://github.com/JetBrains/JetBrainsMono',
+    },
   ],
   datasets: [
-    { name: 'Gamification in software engineering (covariance and NACOV matrices)', where: 'src/examples/emse-*.csv, validation fixtures', license: 'CC BY 4.0',
-      credit: 'Stol, K., Schaarschmidt, M. & Goldblit, S. (2022). Gamification in software engineering: the mediating role of developer engagement and job satisfaction. Empirical Software Engineering 27:35. Replication package: doi:10.5281/zenodo.6322761', url: 'https://doi.org/10.5281/zenodo.6322761' },
-    { name: 'PoliticalDemocracy (Bollen 1989)', where: 'src/examples/political_democracy.csv, validation fixtures', license: 'GPL (>= 2), from the lavaan package', credit: 'Bollen, K. A. (1989). Structural Equations with Latent Variables. Wiley. Distributed with lavaan (Rosseel 2012).', url: 'https://cran.r-project.org/package=lavaan' },
-    { name: 'HolzingerSwineford1939', where: 'validation fixtures', license: 'GPL (>= 2), from the lavaan package', credit: 'Holzinger, K. & Swineford, F. (1939). Distributed with lavaan.', url: 'https://cran.r-project.org/package=lavaan' },
-    { name: 'mobi and corp_rep_data', where: 'validation fixtures; mobi also shipped with the examples estimated by the built-in engine', license: 'GPL-3, from the seminr package', credit: 'ECSI mobile phone data (Tenenhaus et al. 2005) and corporate reputation data (Hair et al. 2021), distributed with seminr.', url: 'https://cran.r-project.org/package=seminr' },
-    { name: 'satisfaction and threecommonfactors', where: 'validation fixtures', license: 'GPL-3, from the cSEM package', credit: 'Distributed with cSEM (Rademaker & Schuberth).', url: 'https://cran.r-project.org/package=cSEM' },
-    { name: 'Customer experience example', where: 'generated in the app (src/sample.ts)', license: 'GPL-2.0-or-later (synthetic)', credit: 'Synthetic data generated by PLS Studio.', url: '' },
-    { name: 'bfi', where: 'public/examples/samples/bfi.csv (the parcels example)', license: 'GPL (>= 2), from the psych package', credit: 'Revelle, W. psych: Procedures for Psychological, Psychometric, and Personality Research; the SAPA project’s Big Five items' },
-    { name: 'Examples from R packages', where: 'loaded at run time from the packages in the browser (not stored here)', license: 'per package', credit: 'lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection, MatchIt and QCA (Lipset and Cebotari & Vink) datasets; each example links to its documentation.', url: '' },
-    { name: 'NCA example data (nca.example)', where: 'public/examples/nca, validation fixtures', license: 'GPL (>= 3), from the NCA package', credit: 'Distributed with NCA (Dul); shipped with the app because NCA cannot run in the browser.', url: 'https://cran.r-project.org/package=NCA' },
-    { name: 'RSA example data (motcon)', where: 'public/examples/rsa, validation fixtures', license: 'GPL (>= 2), from the RSA package', credit: 'Distributed with RSA (Schönbrodt & Humberg); shipped with the app because RSA cannot run in the browser.', url: 'https://cran.r-project.org/package=RSA' },
-    { name: 'Mplus User’s Guide example data', where: 'not distributed: downloaded from statmodel.com each time an example is opened (passed through by the PLS Studio server or the desktop helper, nothing stored); tests: .cache/mplus (npm run data:fetch)', license: 'Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated, so not redistributed)', credit: 'Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples, read from the guide’s input and data files when an example opens; each example links to its page.', url: 'https://www.statmodel.com/ugexcerpts.shtml' },
-    { name: 'RI-CLPM tutorial data (RICLPM.dat)', where: 'not distributed: downloaded from the tutorial’s GitHub repository (pinned commit) each time the example is opened; tests: .cache/riclpm (npm run data:fetch)', license: 'Simulated data in github.com/JeroenDMulder/RI-CLPM (no licence stated, so not redistributed)', credit: 'Mulder, J. D. & Hamaker, E. L. (2021). Three extensions of the random intercept cross-lagged panel model. Structural Equation Modeling, 28(4), 638–648. Tutorial data from the authors’ repository.', url: 'https://github.com/JeroenDMulder/RI-CLPM' },
-    { name: 'Tables from R help pages (sleep, RoundingTimes, plastic film, tuna, party identification, job satisfaction, Mendel’s cross, five categories, Conover’s peas, Cohen’s table, Shrout & Fleiss’s ratings)', where: 'public/examples/tests, public/examples/bayes, validation fixtures', license: 'GPL (>= 2), from R’s datasets and stats help pages and the psych package', credit: 'The data the R help pages (?t.test, ?friedman.test, ?summary.manova, ?cor.test, ?chisq.test, ?fisher.test, ?binom.test; psych’s ?cohen.kappa and ?ICC) type in and analyse, coded as there.', url: 'https://www.r-project.org' },
-    { name: 'Polit & Beck’s (2006) Table 1 (fictitious content-validity ratings: 10 items, 3 experts)', where: 'public/examples/tests/polit2006.csv', license: 'A worked example printed in the article (fictitious ratings, re-coded as 4 = relevant, 2 = not)', credit: 'Polit, D. F. & Beck, C. T. (2006). The content validity index: Are you sure you know what’s being reported? Critique and recommendations. Research in Nursing & Health, 29(5), 489–497.', url: 'https://doi.org/10.1002/nur.20147' },
-    { name: 'chickwts, puzzles, raceDolls and a 15-of-25 proportion', where: 'public/examples/bayes, validation fixtures', license: 'GPL (>= 2), from R’s datasets package and BayesFactor', credit: 'chickwts (R datasets); puzzles and raceDolls distributed with BayesFactor (Morey & Rouder); the proportion of ?proportionBF.', url: 'https://cran.r-project.org/package=BayesFactor' },
-    { name: 'HSMiss (Holzinger & Swineford with missing values)', where: 'public/examples/mi, validation fixtures', license: 'GPL (>= 2), from lavaan and lavaan.mi', credit: 'HolzingerSwineford1939 (lavaan) with the missing values lavaan.mi’s ?lavaan.mi creates.', url: 'https://cran.r-project.org/package=lavaan.mi' },
-    { name: 'Dobson (1990) and clotting (McCullagh & Nelder)', where: 'public/examples/regression, validation fixtures', license: 'GPL (>= 2), from R’s ?glm help page', credit: 'The data ?glm types in.', url: 'https://www.r-project.org' },
-    { name: 'Monte Carlo sample (Muthén & Muthén 2002 population)', where: 'public/examples/montecarlo', license: 'GPL-2.0-or-later (generated by PLS Studio)', credit: 'One sample of 150 drawn with lavaan::simulateData from the population of Muthén & Muthén (2002), seed 53487.', url: '' },
-    { name: 'REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV)', where: 'public/examples/rendo, validation fixtures', license: 'GPL-3, from the REndo package', credit: 'Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser.', url: 'https://cran.r-project.org/package=REndo' },
-    { name: 'Digman97 (correlation matrices of 14 studies of the Big Five)', where: 'public/examples/metasem, validation fixtures', license: 'GPL (>= 2), from the metaSEM package', credit: 'Digman, J. M. (1997). Higher-order factors of the Big Five. Journal of Personality and Social Psychology, 73, 1246–1256; distributed with metaSEM (Cheung); shipped with the app because metaSEM cannot run in the browser.', url: 'https://cran.r-project.org/package=metaSEM' },
-    { name: 'lgcm (simulated latent growth curve data)', where: 'public/examples/semtree, validation fixtures', license: 'GPL-3, from the semtree package', credit: 'Simulated data distributed with semtree (Brandmaier, Prindle & Arnold); shipped with the app because semtree cannot run in the browser.', url: 'https://cran.r-project.org/package=semtree' },
-    { name: 'randomSlopes (simulated two-level data with random slopes)', where: 'public/examples/plssem, validation fixtures', license: 'GPL-3, from the plssem package', credit: 'Simulated data distributed with plssem (Kjell Solem Slupphaug); shipped with the app because plssem 0.2.0 does not run in the browser.', url: 'https://cran.r-project.org/package=plssem' },
+    {
+      name: 'Gamification in software engineering (covariance and NACOV matrices)',
+      where: 'src/examples/emse-*.csv, validation fixtures',
+      license: 'CC BY 4.0',
+      credit:
+        'Stol, K., Schaarschmidt, M. & Goldblit, S. (2022). Gamification in software engineering: the mediating role of developer engagement and job satisfaction. Empirical Software Engineering 27:35. Replication package: doi:10.5281/zenodo.6322761',
+      url: 'https://doi.org/10.5281/zenodo.6322761',
+    },
+    {
+      name: 'PoliticalDemocracy (Bollen 1989)',
+      where: 'src/examples/political_democracy.csv, validation fixtures',
+      license: 'GPL (>= 2), from the lavaan package',
+      credit:
+        'Bollen, K. A. (1989). Structural Equations with Latent Variables. Wiley. Distributed with lavaan (Rosseel 2012).',
+      url: 'https://cran.r-project.org/package=lavaan',
+    },
+    {
+      name: 'HolzingerSwineford1939',
+      where: 'validation fixtures',
+      license: 'GPL (>= 2), from the lavaan package',
+      credit: 'Holzinger, K. & Swineford, F. (1939). Distributed with lavaan.',
+      url: 'https://cran.r-project.org/package=lavaan',
+    },
+    {
+      name: 'mobi and corp_rep_data',
+      where:
+        'validation fixtures; mobi also shipped with the examples estimated by the built-in engine',
+      license: 'GPL-3, from the seminr package',
+      credit:
+        'ECSI mobile phone data (Tenenhaus et al. 2005) and corporate reputation data (Hair et al. 2021), distributed with seminr.',
+      url: 'https://cran.r-project.org/package=seminr',
+    },
+    {
+      name: 'satisfaction and threecommonfactors',
+      where: 'validation fixtures',
+      license: 'GPL-3, from the cSEM package',
+      credit: 'Distributed with cSEM (Rademaker & Schuberth).',
+      url: 'https://cran.r-project.org/package=cSEM',
+    },
+    {
+      name: 'Customer experience example',
+      where: 'generated in the app (src/sample.ts)',
+      license: 'GPL-2.0-or-later (synthetic)',
+      credit: 'Synthetic data generated by PLS Studio.',
+      url: '',
+    },
+    {
+      name: 'bfi',
+      where: 'public/examples/samples/bfi.csv (the parcels example)',
+      license: 'GPL (>= 2), from the psych package',
+      credit:
+        'Revelle, W. psych: Procedures for Psychological, Psychometric, and Personality Research; the SAPA project’s Big Five items',
+    },
+    {
+      name: 'Examples from R packages',
+      where: 'loaded at run time from the packages in the browser (not stored here)',
+      license: 'per package',
+      credit:
+        'lavaan, MIIVsem, modsem, manymome, cSEM, seminr, plspm, ltm, poLCA, mirt, glca, lme4, lcmm, ivreg, sampleSelection, MatchIt and QCA (Lipset and Cebotari & Vink) datasets; each example links to its documentation.',
+      url: '',
+    },
+    {
+      name: 'NCA example data (nca.example)',
+      where: 'public/examples/nca, validation fixtures',
+      license: 'GPL (>= 3), from the NCA package',
+      credit:
+        'Distributed with NCA (Dul); shipped with the app because NCA cannot run in the browser.',
+      url: 'https://cran.r-project.org/package=NCA',
+    },
+    {
+      name: 'RSA example data (motcon)',
+      where: 'public/examples/rsa, validation fixtures',
+      license: 'GPL (>= 2), from the RSA package',
+      credit:
+        'Distributed with RSA (Schönbrodt & Humberg); shipped with the app because RSA cannot run in the browser.',
+      url: 'https://cran.r-project.org/package=RSA',
+    },
+    {
+      name: 'Mplus User’s Guide example data',
+      where:
+        'not distributed: downloaded from statmodel.com each time an example is opened (passed through by the PLS Studio server or the desktop helper, nothing stored); tests: .cache/mplus (npm run data:fetch)',
+      license:
+        'Simulated data published with the Mplus User’s Guide examples at statmodel.com (no licence stated, so not redistributed)',
+      credit:
+        'Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén. Generated data of the user’s guide examples, read from the guide’s input and data files when an example opens; each example links to its page.',
+      url: 'https://www.statmodel.com/ugexcerpts.shtml',
+    },
+    {
+      name: 'RI-CLPM tutorial data (RICLPM.dat)',
+      where:
+        'not distributed: downloaded from the tutorial’s GitHub repository (pinned commit) each time the example is opened; tests: .cache/riclpm (npm run data:fetch)',
+      license:
+        'Simulated data in github.com/JeroenDMulder/RI-CLPM (no licence stated, so not redistributed)',
+      credit:
+        'Mulder, J. D. & Hamaker, E. L. (2021). Three extensions of the random intercept cross-lagged panel model. Structural Equation Modeling, 28(4), 638–648. Tutorial data from the authors’ repository.',
+      url: 'https://github.com/JeroenDMulder/RI-CLPM',
+    },
+    {
+      name: 'Tables from R help pages (sleep, RoundingTimes, plastic film, tuna, party identification, job satisfaction, Mendel’s cross, five categories, Conover’s peas, Cohen’s table, Shrout & Fleiss’s ratings)',
+      where: 'public/examples/tests, public/examples/bayes, validation fixtures',
+      license: 'GPL (>= 2), from R’s datasets and stats help pages and the psych package',
+      credit:
+        'The data the R help pages (?t.test, ?friedman.test, ?summary.manova, ?cor.test, ?chisq.test, ?fisher.test, ?binom.test; psych’s ?cohen.kappa and ?ICC) type in and analyse, coded as there.',
+      url: 'https://www.r-project.org',
+    },
+    {
+      name: 'Polit & Beck’s (2006) Table 1 (fictitious content-validity ratings: 10 items, 3 experts)',
+      where: 'public/examples/tests/polit2006.csv',
+      license:
+        'A worked example printed in the article (fictitious ratings, re-coded as 4 = relevant, 2 = not)',
+      credit:
+        'Polit, D. F. & Beck, C. T. (2006). The content validity index: Are you sure you know what’s being reported? Critique and recommendations. Research in Nursing & Health, 29(5), 489–497.',
+      url: 'https://doi.org/10.1002/nur.20147',
+    },
+    {
+      name: 'chickwts, puzzles, raceDolls and a 15-of-25 proportion',
+      where: 'public/examples/bayes, validation fixtures',
+      license: 'GPL (>= 2), from R’s datasets package and BayesFactor',
+      credit:
+        'chickwts (R datasets); puzzles and raceDolls distributed with BayesFactor (Morey & Rouder); the proportion of ?proportionBF.',
+      url: 'https://cran.r-project.org/package=BayesFactor',
+    },
+    {
+      name: 'HSMiss (Holzinger & Swineford with missing values)',
+      where: 'public/examples/mi, validation fixtures',
+      license: 'GPL (>= 2), from lavaan and lavaan.mi',
+      credit:
+        'HolzingerSwineford1939 (lavaan) with the missing values lavaan.mi’s ?lavaan.mi creates.',
+      url: 'https://cran.r-project.org/package=lavaan.mi',
+    },
+    {
+      name: 'Dobson (1990) and clotting (McCullagh & Nelder)',
+      where: 'public/examples/regression, validation fixtures',
+      license: 'GPL (>= 2), from R’s ?glm help page',
+      credit: 'The data ?glm types in.',
+      url: 'https://www.r-project.org',
+    },
+    {
+      name: 'Monte Carlo sample (Muthén & Muthén 2002 population)',
+      where: 'public/examples/montecarlo',
+      license: 'GPL-2.0-or-later (generated by PLS Studio)',
+      credit:
+        'One sample of 150 drawn with lavaan::simulateData from the population of Muthén & Muthén (2002), seed 53487.',
+      url: '',
+    },
+    {
+      name: 'REndo example data (dataCopCont2, dataHetIV, dataHigherMoments, dataLatentIV)',
+      where: 'public/examples/rendo, validation fixtures',
+      license: 'GPL-3, from the REndo package',
+      credit:
+        'Simulated data distributed with REndo (Gui, Meierer, Algesheimer & Schilter); shipped with the app because REndo cannot run in the browser.',
+      url: 'https://cran.r-project.org/package=REndo',
+    },
+    {
+      name: 'Digman97 (correlation matrices of 14 studies of the Big Five)',
+      where: 'public/examples/metasem, validation fixtures',
+      license: 'GPL (>= 2), from the metaSEM package',
+      credit:
+        'Digman, J. M. (1997). Higher-order factors of the Big Five. Journal of Personality and Social Psychology, 73, 1246–1256; distributed with metaSEM (Cheung); shipped with the app because metaSEM cannot run in the browser.',
+      url: 'https://cran.r-project.org/package=metaSEM',
+    },
+    {
+      name: 'lgcm (simulated latent growth curve data)',
+      where: 'public/examples/semtree, validation fixtures',
+      license: 'GPL-3, from the semtree package',
+      credit:
+        'Simulated data distributed with semtree (Brandmaier, Prindle & Arnold); shipped with the app because semtree cannot run in the browser.',
+      url: 'https://cran.r-project.org/package=semtree',
+    },
+    {
+      name: 'randomSlopes (simulated two-level data with random slopes)',
+      where: 'public/examples/plssem, validation fixtures',
+      license: 'GPL-3, from the plssem package',
+      credit:
+        'Simulated data distributed with plssem (Kjell Solem Slupphaug); shipped with the app because plssem 0.2.0 does not run in the browser.',
+      url: 'https://cran.r-project.org/package=plssem',
+    },
   ],
   // Publications whose printed numbers the examples use: their matrices (typed from the publication or its companion
   // files) as data, and their printed estimates and fit as the references the validation compares with. Only numbers
   // are used; no text, tables or figures are reproduced.
   publishedSources: [
-    { credit: 'Cañizares-Cedeño, L. (2026). CPB Ecuador Universities: Customer Participation Behavior Survey Data (N=429) (Version 3) [Data set and code]. Zenodo.', use: 'The bifactor sample project (CC BY 4.0; the 14 items, unchanged).', url: 'https://doi.org/10.5281/zenodo.23301690' },
-    { credit: 'Verisya, A. (2026). Perceptions and Intentions of Designers In Using AI-Based User Interface Design Tools [Data set]. Zenodo.', use: 'The TAM sample project (CC BY 4.0; the items used, unchanged).', url: 'https://doi.org/10.5281/zenodo.22206708' },
-    { credit: 'Purba, I. G. D. (2026). Dataset Penelitian Pengaruh Faktor UTAUT terhadap Keputusan Menggunakan SeaBank di Medan [Data set]. Zenodo.', use: 'The UTAUT sample project (CC BY 4.0; the items of the eligible respondents, unchanged).', url: 'https://doi.org/10.5281/zenodo.21942087' },
-    { credit: 'Inegbedion, H. et al. (2020). Perception of workload balance and employee job satisfaction in work organisations. Heliyon 6, e03160; data on Zenodo.', use: 'The employee-retention sample project (CC0; the items used).', url: 'https://doi.org/10.5281/zenodo.4602319' },
-    { credit: 'Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén.', use: 'The example data (see Datasets) and the printed output of each example, as validation references.', url: 'https://www.statmodel.com/ugexcerpts.shtml' },
-    { credit: 'Kline, R. B. (2023). Principles and Practice of Structural Equation Modeling (5th ed.). New York: Guilford Press.', use: 'Correlation matrices, standard deviations and means of the detailed examples (companion files) and the chi-squares of their output.', url: 'https://www.guilford.com/add/kline' },
-    { credit: 'Brown, T. A. (2015). Confirmatory Factor Analysis for Applied Research (2nd ed.). New York: Guilford Press.', use: 'Correlations and standard deviations of the examples (companion site) and printed results.', url: 'https://sites.bu.edu/tabrown/cfabook/' },
-    { credit: 'Bollen, K. A. (1989). Structural Equations with Latent Variables. New York: Wiley.', use: 'Covariance and correlation matrices of the worked examples and printed estimates.', url: '' },
-    { credit: 'Bollen, K. A. & Curran, P. J. (2004). Autoregressive latent trajectory (ALT) models: a synthesis of two traditions. Sociological Methods & Research, 32(3), 336–383.', use: 'The artificial covariance matrix of the illustration.', url: 'https://doi.org/10.1177/0049124103260222' },
-    { credit: 'Hayduk, L. A. (1987). Structural Equation Modeling with LISREL: Essentials and Advances. Baltimore: Johns Hopkins University Press.', use: 'Covariance matrices, means and reliabilities of the smoking examples, and printed results.', url: '' },
-    { credit: 'Bentler, P. M. (2006). EQS 6 Structural Equations Program Manual. Encino, CA: Multivariate Software.', use: 'Data printed in the manual’s input files and the chi-squares it prints.', url: '' },
-    { credit: 'Jöreskog, K. G. & Sörbom, D. LISREL user’s guides (Scientific Software International): Kerckhoff (1974) and Hodge & Treiman (1968) correlation matrices.', use: 'Data of the Kerckhoff and MIMIC examples.', url: '' },
-    { credit: 'Schumacker, R. E. & Lomax, R. G. (2004). A Beginner’s Guide to Structural Equation Modeling (2nd ed.). Mahwah, NJ: Erlbaum.', use: 'Printed results of the MIMIC example.', url: '' },
-    { credit: 'SAS Institute Inc. SAS/STAT User’s Guide: The CALIS Procedure. Thurstone & Thurstone (1941) mental tests.', use: 'Correlation matrix and printed results of the second-order example.', url: '' },
-    { credit: 'Wheaton, B., Muthén, B., Alwin, D. F. & Summers, G. F. (1977). Assessing reliability and stability in panel models. Sociological Methodology, 8, 84–136.', use: 'Covariance matrix (as in lavaan’s ?getCov).', url: '' },
-    { credit: 'Duncan, O. D., Haller, A. O. & Portes, A. (1968). Peer influences on aspirations: a reinterpretation. American Journal of Sociology, 74(2), 119–137.', use: 'Correlation matrix (as in the sem package’s documentation).', url: '' },
-    { credit: 'Hair, J. F., Hult, G. T. M., Ringle, C. M., Sarstedt, M., Danks, N. P. & Ray, S. (2021). Partial Least Squares Structural Equation Modeling (PLS-SEM) Using R. Cham: Springer (open access).', use: 'Printed results of the corporate reputation models, as validation references.', url: 'https://doi.org/10.1007/978-3-030-80519-7' },
-    { credit: 'Monecke, A. & Leisch, F. (2012). semPLS: structural equation modeling using partial least squares. Journal of Statistical Software, 48(3).', use: 'Printed path coefficients and loadings of the ECSI model, as validation references.', url: 'https://doi.org/10.18637/jss.v048.i03' },
-    { credit: 'Hayes, A. F. (2022). Introduction to Mediation, Moderation, and Conditional Process Analysis (3rd ed.). New York: Guilford Press.', use: 'The numbering of the PROCESS models; PROCESS for R as a validation reference.', url: 'https://www.processmacro.org' },
+    {
+      credit:
+        'Cañizares-Cedeño, L. (2026). CPB Ecuador Universities: Customer Participation Behavior Survey Data (N=429) (Version 3) [Data set and code]. Zenodo.',
+      use: 'The bifactor sample project (CC BY 4.0; the 14 items, unchanged).',
+      url: 'https://doi.org/10.5281/zenodo.23301690',
+    },
+    {
+      credit:
+        'Verisya, A. (2026). Perceptions and Intentions of Designers In Using AI-Based User Interface Design Tools [Data set]. Zenodo.',
+      use: 'The TAM sample project (CC BY 4.0; the items used, unchanged).',
+      url: 'https://doi.org/10.5281/zenodo.22206708',
+    },
+    {
+      credit:
+        'Purba, I. G. D. (2026). Dataset Penelitian Pengaruh Faktor UTAUT terhadap Keputusan Menggunakan SeaBank di Medan [Data set]. Zenodo.',
+      use: 'The UTAUT sample project (CC BY 4.0; the items of the eligible respondents, unchanged).',
+      url: 'https://doi.org/10.5281/zenodo.21942087',
+    },
+    {
+      credit:
+        'Inegbedion, H. et al. (2020). Perception of workload balance and employee job satisfaction in work organisations. Heliyon 6, e03160; data on Zenodo.',
+      use: 'The employee-retention sample project (CC0; the items used).',
+      url: 'https://doi.org/10.5281/zenodo.4602319',
+    },
+    {
+      credit:
+        'Muthén, L. K. & Muthén, B. O. (1998–2017). Mplus User’s Guide (8th ed.). Los Angeles, CA: Muthén & Muthén.',
+      use: 'The example data (see Datasets) and the printed output of each example, as validation references.',
+      url: 'https://www.statmodel.com/ugexcerpts.shtml',
+    },
+    {
+      credit:
+        'Kline, R. B. (2023). Principles and Practice of Structural Equation Modeling (5th ed.). New York: Guilford Press.',
+      use: 'Correlation matrices, standard deviations and means of the detailed examples (companion files) and the chi-squares of their output.',
+      url: 'https://www.guilford.com/add/kline',
+    },
+    {
+      credit:
+        'Brown, T. A. (2015). Confirmatory Factor Analysis for Applied Research (2nd ed.). New York: Guilford Press.',
+      use: 'Correlations and standard deviations of the examples (companion site) and printed results.',
+      url: 'https://sites.bu.edu/tabrown/cfabook/',
+    },
+    {
+      credit: 'Bollen, K. A. (1989). Structural Equations with Latent Variables. New York: Wiley.',
+      use: 'Covariance and correlation matrices of the worked examples and printed estimates.',
+      url: '',
+    },
+    {
+      credit:
+        'Bollen, K. A. & Curran, P. J. (2004). Autoregressive latent trajectory (ALT) models: a synthesis of two traditions. Sociological Methods & Research, 32(3), 336–383.',
+      use: 'The artificial covariance matrix of the illustration.',
+      url: 'https://doi.org/10.1177/0049124103260222',
+    },
+    {
+      credit:
+        'Hayduk, L. A. (1987). Structural Equation Modeling with LISREL: Essentials and Advances. Baltimore: Johns Hopkins University Press.',
+      use: 'Covariance matrices, means and reliabilities of the smoking examples, and printed results.',
+      url: '',
+    },
+    {
+      credit:
+        'Bentler, P. M. (2006). EQS 6 Structural Equations Program Manual. Encino, CA: Multivariate Software.',
+      use: 'Data printed in the manual’s input files and the chi-squares it prints.',
+      url: '',
+    },
+    {
+      credit:
+        'Jöreskog, K. G. & Sörbom, D. LISREL user’s guides (Scientific Software International): Kerckhoff (1974) and Hodge & Treiman (1968) correlation matrices.',
+      use: 'Data of the Kerckhoff and MIMIC examples.',
+      url: '',
+    },
+    {
+      credit:
+        'Schumacker, R. E. & Lomax, R. G. (2004). A Beginner’s Guide to Structural Equation Modeling (2nd ed.). Mahwah, NJ: Erlbaum.',
+      use: 'Printed results of the MIMIC example.',
+      url: '',
+    },
+    {
+      credit:
+        'SAS Institute Inc. SAS/STAT User’s Guide: The CALIS Procedure. Thurstone & Thurstone (1941) mental tests.',
+      use: 'Correlation matrix and printed results of the second-order example.',
+      url: '',
+    },
+    {
+      credit:
+        'Wheaton, B., Muthén, B., Alwin, D. F. & Summers, G. F. (1977). Assessing reliability and stability in panel models. Sociological Methodology, 8, 84–136.',
+      use: 'Covariance matrix (as in lavaan’s ?getCov).',
+      url: '',
+    },
+    {
+      credit:
+        'Duncan, O. D., Haller, A. O. & Portes, A. (1968). Peer influences on aspirations: a reinterpretation. American Journal of Sociology, 74(2), 119–137.',
+      use: 'Correlation matrix (as in the sem package’s documentation).',
+      url: '',
+    },
+    {
+      credit:
+        'Hair, J. F., Hult, G. T. M., Ringle, C. M., Sarstedt, M., Danks, N. P. & Ray, S. (2021). Partial Least Squares Structural Equation Modeling (PLS-SEM) Using R. Cham: Springer (open access).',
+      use: 'Printed results of the corporate reputation models, as validation references.',
+      url: 'https://doi.org/10.1007/978-3-030-80519-7',
+    },
+    {
+      credit:
+        'Monecke, A. & Leisch, F. (2012). semPLS: structural equation modeling using partial least squares. Journal of Statistical Software, 48(3).',
+      use: 'Printed path coefficients and loadings of the ECSI model, as validation references.',
+      url: 'https://doi.org/10.18637/jss.v048.i03',
+    },
+    {
+      credit:
+        'Hayes, A. F. (2022). Introduction to Mediation, Moderation, and Conditional Process Analysis (3rd ed.). New York: Guilford Press.',
+      use: 'The numbering of the PROCESS models; PROCESS for R as a validation reference.',
+      url: 'https://www.processmacro.org',
+    },
   ],
   // Products named in the app or its documentation, to say whose methods, defaults or results PLS Studio follows or
   // compares with. None is affiliated with PLS Studio.
   trademarks: [
     { name: 'Mplus', owner: 'Muthén & Muthén' },
     { name: 'SmartPLS', owner: 'SmartPLS GmbH' },
-    { name: 'IBM SPSS Statistics, IBM SPSS Amos', owner: 'International Business Machines Corporation' },
+    {
+      name: 'IBM SPSS Statistics, IBM SPSS Amos',
+      owner: 'International Business Machines Corporation',
+    },
     { name: 'Stata', owner: 'StataCorp LLC' },
     { name: 'SAS, SAS/STAT', owner: 'SAS Institute Inc.' },
     { name: 'LISREL', owner: 'Scientific Software International, Inc.' },
@@ -109,56 +395,105 @@ const data = {
     { name: 'Microsoft Excel, Microsoft Word', owner: 'Microsoft Corporation' },
     { name: 'Google', owner: 'Google LLC' },
   ],
-  trademarkNotice: 'Product and company names are used only to identify the software whose methods, defaults, file formats, diagram styles or published results PLS Studio follows, reads, resembles or compares with. They are trademarks or registered trademarks of their owners. PLS Studio is independent software: it is not affiliated with, endorsed by or sponsored by any of them, and it does not include or reproduce their software.',
+  trademarkNotice:
+    'Product and company names are used only to identify the software whose methods, defaults, file formats, diagram styles or published results PLS Studio follows, reads, resembles or compares with. They are trademarks or registered trademarks of their owners. PLS Studio is independent software: it is not affiliated with, endorsed by or sponsored by any of them, and it does not include or reproduce their software.',
 };
-writeFileSync(join(ROOT, 'src', 'generated', 'third-party.json'), JSON.stringify(data, null, 1) + '\n');
+writeFileSync(
+  join(ROOT, 'src', 'generated', 'third-party.json'),
+  JSON.stringify(data, null, 1) + '\n',
+);
 
-const table = (rows, cols) => [`| ${cols.map((c) => c[0]).join(' | ')} |`, `|${cols.map(() => '---').join('|')}|`, ...rows.map((r) => `| ${cols.map((c) => String(c[1](r) ?? '').replace(/\|/g, '\\|')).join(' | ')} |`)].join('\n');
-writeFileSync(join(ROOT, 'THIRD_PARTY_NOTICES.md'), [
-  '# Third-party notices',
-  '',
-  'PLS Studio is licensed under GPL-2.0-or-later (see LICENSE). It uses the components below, which keep their own licences.',
-  'This file is generated by `npm run notices`.',
-  '',
-  '## R runtime and packages (served to the browser)',
-  '',
-  `webR ${data.webr.version} (R ${data.webr.r}): ${data.webr.license}. ${data.webr.url}`,
-  '',
-  'The R packages below are downloaded at build time (`npm run webr:fetch`, versions pinned in scripts/webr/webr-lock.json) and served with the app, together with the source of each version (public/webr/src: CRAN source tarballs and the webR release source). Development builds without a CRAN release link to their upstream repository.',
-  '',
-  table(data.rPackages, [['Package', (r) => r.name], ['Version', (r) => r.version], ['Licence', (r) => r.license], ['Source', (r) => r.url]]),
-  '',
-  'Two of them run in the browser in a build patched by PLS Studio so that they load in webR (cubature’s WebAssembly build cannot be loaded there); each patch turns one hard import into a suggested package loaded on demand, and changes nothing else. The patches are in scripts/webr/vendor, and the modified source of each is the one served with the app (public/webr/src), as its licence requires of a modified version:',
-  '',
-  ...data.rPackages.filter((r) => r.patched).map((r) => `- ${r.name} ${r.version} (${r.license}): ${r.patched}. Patch: ${r.patch}.`),
-  '',
-  '## npm packages (bundled with the app)',
-  '',
-  table(data.npm, [['Package', (r) => r.name], ['Version', (r) => r.version], ['Licence', (r) => r.license], ['Source', (r) => r.url]]),
-  '',
-  '## npm packages (collaboration server)',
-  '',
-  table(data.server, [['Package', (r) => r.name], ['Version', (r) => r.version], ['Licence', (r) => r.license], ['Source', (r) => r.url]]),
-  '',
-  '## Fonts',
-  '',
-  table(data.fonts, [['Font', (r) => r.name], ['Licence', (r) => r.license], ['Source', (r) => r.url]]),
-  '',
-  '## Datasets',
-  '',
-  table(data.datasets, [['Data', (r) => r.name], ['Where', (r) => r.where], ['Licence', (r) => r.license], ['Credit', (r) => r.credit]]),
-  '',
-  '## Published sources',
-  '',
-  'The examples use numbers from these publications: matrices typed from the publication or its companion files as data, and printed estimates and fit statistics as the references the validation compares with. Only numbers are used; no text, tables or figures are reproduced.',
-  '',
-  table(data.publishedSources, [['Source', (r) => r.credit], ['Used for', (r) => r.use], ['Link', (r) => r.url]]),
-  '',
-  '## Trademarks',
-  '',
-  data.trademarkNotice,
-  '',
-  table(data.trademarks, [['Name', (r) => r.name], ['Owner', (r) => r.owner]]),
-  '',
-].join('\n'));
-console.log(`Notices: ${data.npm.length} app + ${data.server.length} server npm packages, ${data.rPackages.length} R packages.`);
+const table = (rows, cols) =>
+  [
+    `| ${cols.map((c) => c[0]).join(' | ')} |`,
+    `|${cols.map(() => '---').join('|')}|`,
+    ...rows.map(
+      (r) => `| ${cols.map((c) => String(c[1](r) ?? '').replace(/\|/g, '\\|')).join(' | ')} |`,
+    ),
+  ].join('\n');
+writeFileSync(
+  join(ROOT, 'THIRD_PARTY_NOTICES.md'),
+  [
+    '# Third-party notices',
+    '',
+    'PLS Studio is licensed under GPL-2.0-or-later (see LICENSE). It uses the components below, which keep their own licences.',
+    'This file is generated by `npm run notices`.',
+    '',
+    '## R runtime and packages (served to the browser)',
+    '',
+    `webR ${data.webr.version} (R ${data.webr.r}): ${data.webr.license}. ${data.webr.url}`,
+    '',
+    'The R packages below are downloaded at build time (`npm run webr:fetch`, versions pinned in scripts/webr/webr-lock.json) and served with the app, together with the source of each version (public/webr/src: CRAN source tarballs and the webR release source). Development builds without a CRAN release link to their upstream repository.',
+    '',
+    table(data.rPackages, [
+      ['Package', (r) => r.name],
+      ['Version', (r) => r.version],
+      ['Licence', (r) => r.license],
+      ['Source', (r) => r.url],
+    ]),
+    '',
+    'Two of them run in the browser in a build patched by PLS Studio so that they load in webR (cubature’s WebAssembly build cannot be loaded there); each patch turns one hard import into a suggested package loaded on demand, and changes nothing else. The patches are in scripts/webr/vendor, and the modified source of each is the one served with the app (public/webr/src), as its licence requires of a modified version:',
+    '',
+    ...data.rPackages
+      .filter((r) => r.patched)
+      .map((r) => `- ${r.name} ${r.version} (${r.license}): ${r.patched}. Patch: ${r.patch}.`),
+    '',
+    '## npm packages (bundled with the app)',
+    '',
+    table(data.npm, [
+      ['Package', (r) => r.name],
+      ['Version', (r) => r.version],
+      ['Licence', (r) => r.license],
+      ['Source', (r) => r.url],
+    ]),
+    '',
+    '## npm packages (collaboration server)',
+    '',
+    table(data.server, [
+      ['Package', (r) => r.name],
+      ['Version', (r) => r.version],
+      ['Licence', (r) => r.license],
+      ['Source', (r) => r.url],
+    ]),
+    '',
+    '## Fonts',
+    '',
+    table(data.fonts, [
+      ['Font', (r) => r.name],
+      ['Licence', (r) => r.license],
+      ['Source', (r) => r.url],
+    ]),
+    '',
+    '## Datasets',
+    '',
+    table(data.datasets, [
+      ['Data', (r) => r.name],
+      ['Where', (r) => r.where],
+      ['Licence', (r) => r.license],
+      ['Credit', (r) => r.credit],
+    ]),
+    '',
+    '## Published sources',
+    '',
+    'The examples use numbers from these publications: matrices typed from the publication or its companion files as data, and printed estimates and fit statistics as the references the validation compares with. Only numbers are used; no text, tables or figures are reproduced.',
+    '',
+    table(data.publishedSources, [
+      ['Source', (r) => r.credit],
+      ['Used for', (r) => r.use],
+      ['Link', (r) => r.url],
+    ]),
+    '',
+    '## Trademarks',
+    '',
+    data.trademarkNotice,
+    '',
+    table(data.trademarks, [
+      ['Name', (r) => r.name],
+      ['Owner', (r) => r.owner],
+    ]),
+    '',
+  ].join('\n'),
+);
+console.log(
+  `Notices: ${data.npm.length} app + ${data.server.length} server npm packages, ${data.rPackages.length} R packages.`,
+);

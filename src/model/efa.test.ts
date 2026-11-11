@@ -1,23 +1,80 @@
 import { describe, expect, it } from 'vitest';
-import { schmidUnavailable, congruenceLabel, congruenceMatches, constructsFromSolution, crossLoadings, DEFAULT_EFA, factorName, kmoLabel, loadingOrder, parseEfaDesign, switchAnalysis, toggleVariables } from './efa';
+import {
+  schmidUnavailable,
+  congruenceLabel,
+  congruenceMatches,
+  constructsFromSolution,
+  crossLoadings,
+  DEFAULT_EFA,
+  factorName,
+  kmoLabel,
+  loadingOrder,
+  parseEfaDesign,
+  switchAnalysis,
+  toggleVariables,
+} from './efa';
 
 describe('EFA design from a project file', () => {
   it('keeps valid values and replaces invalid ones', () => {
-    expect(parseEfaDesign({ vars: ['a', 'b', 3], method: 'ml', nfactors: 4.4, rotation: 'promax', missing: 'listwise', parallel: 50, threshold: 0.4 }))
-      .toEqual({ vars: ['a', 'b'], method: 'ml', criterion: 'fixed', nfactors: 4, rotation: 'promax', missing: 'listwise', parallel: 50, threshold: 0.4, correlation: 'pearson' });
-    expect(parseEfaDesign({ method: 'system("x")', rotation: 'evil', nfactors: 1e9, parallel: -5, threshold: 7 }))
-      .toEqual({ ...DEFAULT_EFA, criterion: 'fixed', nfactors: 100, parallel: 0 });
+    expect(
+      parseEfaDesign({
+        vars: ['a', 'b', 3],
+        method: 'ml',
+        nfactors: 4.4,
+        rotation: 'promax',
+        missing: 'listwise',
+        parallel: 50,
+        threshold: 0.4,
+      }),
+    ).toEqual({
+      vars: ['a', 'b'],
+      method: 'ml',
+      criterion: 'fixed',
+      nfactors: 4,
+      rotation: 'promax',
+      missing: 'listwise',
+      parallel: 50,
+      threshold: 0.4,
+      correlation: 'pearson',
+    });
+    expect(
+      parseEfaDesign({
+        method: 'system("x")',
+        rotation: 'evil',
+        nfactors: 1e9,
+        parallel: -5,
+        threshold: 7,
+      }),
+    ).toEqual({ ...DEFAULT_EFA, criterion: 'fixed', nfactors: 100, parallel: 0 });
     expect(parseEfaDesign({ criterion: 'kaiser' })!.criterion).toBe('kaiser');
     // (designs saved before the option analysed Pearson correlations)
     expect(parseEfaDesign({ correlation: 'polychoric' })!.correlation).toBe('polychoric');
     // WLSMV: lavaan 0.7's standard errors and Mplus's test statistic are kept; absent or invalid: Mplus's standard errors, lavaan's χ².
-    expect(parseEfaDesign({ wlsmvSe: 'lavaan', mimic: 'Mplus' })).toMatchObject({ wlsmvSe: 'lavaan', mimic: 'Mplus' });
-    expect(['wlsmvSe', 'mimic'].filter((k) => k in parseEfaDesign({ wlsmvSe: 'x', mimic: 'EQS' })!)).toEqual([]);
+    expect(parseEfaDesign({ wlsmvSe: 'lavaan', mimic: 'Mplus' })).toMatchObject({
+      wlsmvSe: 'lavaan',
+      mimic: 'Mplus',
+    });
+    expect(
+      ['wlsmvSe', 'mimic'].filter((k) => k in parseEfaDesign({ wlsmvSe: 'x', mimic: 'EQS' })!),
+    ).toEqual([]);
     expect(parseEfaDesign({ correlation: 'spearman' })!.correlation).toBe('pearson');
     expect(parseEfaDesign({ criterion: 'k <- 99' })!.criterion).toBe('fixed');
     // The lavaan extraction's options: geomin ε, observed information, the smallest number of factors compared.
-    expect(parseEfaDesign({ method: 'lavaan', rotation: 'bigeomin', epsilon: 0.01, information: 'observed', from: 2.2 }))
-      .toMatchObject({ method: 'lavaan', rotation: 'bigeomin', epsilon: 0.01, information: 'observed', from: 2 });
+    expect(
+      parseEfaDesign({
+        method: 'lavaan',
+        rotation: 'bigeomin',
+        epsilon: 0.01,
+        information: 'observed',
+        from: 2.2,
+      }),
+    ).toMatchObject({
+      method: 'lavaan',
+      rotation: 'bigeomin',
+      epsilon: 0.01,
+      information: 'observed',
+      from: 2,
+    });
     const bad = parseEfaDesign({ method: 'lavaan', epsilon: -1, information: 'robust', from: 0 })!;
     expect([bad.epsilon, bad.information, bad.from]).toEqual([undefined, undefined, undefined]);
     expect(parseEfaDesign('nope')).toBeUndefined();
@@ -36,8 +93,12 @@ describe('switching between factor analysis and PCA', () => {
     expect(switchAnalysis({ ...pca, rotation: 'quartimax' }, false).rotation).toBe('quartimax');
   });
   it('a bifactor rotation (lavaan only) does not follow to PCA', () => {
-    expect(switchAnalysis({ ...fa, method: 'lavaan', rotation: 'bigeomin' }, true).rotation).toBe('varimax');
-    expect(switchAnalysis({ ...fa, method: 'lavaan', rotation: 'geominQ' }, true).rotation).toBe('geominQ');
+    expect(switchAnalysis({ ...fa, method: 'lavaan', rotation: 'bigeomin' }, true).rotation).toBe(
+      'varimax',
+    );
+    expect(switchAnalysis({ ...fa, method: 'lavaan', rotation: 'geominQ' }, true).rotation).toBe(
+      'geominQ',
+    );
   });
   it('leaves the design alone when the analysis does not change', () => {
     expect(switchAnalysis(fa, false)).toBe(fa);
@@ -45,18 +106,56 @@ describe('switching between factor analysis and PCA', () => {
 });
 
 describe('constructs from a solution', () => {
-  const r = { variables: ['a1', 'a2', 'b1', 'b2', 'x'], factors: ['MR1', 'MR2'], loadings: [[0.8, 0.1], [-0.7, 0.2], [0.1, 0.6], [0.2, 0.55], [0.2, 0.25]], oblique: true };
+  const r = {
+    variables: ['a1', 'a2', 'b1', 'b2', 'x'],
+    factors: ['MR1', 'MR2'],
+    loadings: [
+      [0.8, 0.1],
+      [-0.7, 0.2],
+      [0.1, 0.6],
+      [0.2, 0.55],
+      [0.2, 0.25],
+    ],
+    oblique: true,
+  };
   it('assigns each variable to its strongest factor if the loading reaches the threshold', () => {
-    expect(constructsFromSolution(r, 0.3)).toEqual({ constructs: [{ name: 'MR1', indicators: ['a1', 'a2'] }, { name: 'MR2', indicators: ['b1', 'b2'] }], correlated: true, left: ['x'] });
-    expect(constructsFromSolution({ ...r, oblique: false }, 0.65).constructs).toEqual([{ name: 'MR1', indicators: ['a1', 'a2'] }]);
-    expect(constructsFromSolution(r, 0.99)).toEqual({ constructs: [], correlated: true, left: ['a1', 'a2', 'b1', 'b2', 'x'] });
+    expect(constructsFromSolution(r, 0.3)).toEqual({
+      constructs: [
+        { name: 'MR1', indicators: ['a1', 'a2'] },
+        { name: 'MR2', indicators: ['b1', 'b2'] },
+      ],
+      correlated: true,
+      left: ['x'],
+    });
+    expect(constructsFromSolution({ ...r, oblique: false }, 0.65).constructs).toEqual([
+      { name: 'MR1', indicators: ['a1', 'a2'] },
+    ]);
+    expect(constructsFromSolution(r, 0.99)).toEqual({
+      constructs: [],
+      correlated: true,
+      left: ['a1', 'a2', 'b1', 'b2', 'x'],
+    });
   });
   it('sorts the loadings table by primary factor and size', () => {
     expect(loadingOrder(r.loadings)).toEqual([0, 1, 2, 3, 4]);
-    expect(loadingOrder([[0.2, 0.6], [0.9, 0.1], [0.5, 0.0], [0.1, -0.8]])).toEqual([1, 2, 3, 0]);
+    expect(
+      loadingOrder([
+        [0.2, 0.6],
+        [0.9, 0.1],
+        [0.5, 0.0],
+        [0.1, -0.8],
+      ]),
+    ).toEqual([1, 2, 3, 0]);
   });
   it('labels sampling adequacy as Kaiser (1974)', () => {
-    expect([0.95, 0.85, 0.75, 0.65, 0.55, 0.45].map(kmoLabel)).toEqual(['marvelous', 'meritorious', 'middling', 'mediocre', 'miserable', 'unacceptable']);
+    expect([0.95, 0.85, 0.75, 0.65, 0.55, 0.45].map(kmoLabel)).toEqual([
+      'marvelous',
+      'meritorious',
+      'middling',
+      'mediocre',
+      'miserable',
+      'unacceptable',
+    ]);
   });
 });
 
@@ -85,14 +184,51 @@ describe('choosing variables', () => {
 
 describe('cross-loadings', () => {
   it('finds each variable’s primary and secondary loading and flags problems', () => {
-    const r = crossLoadings([[0.8, 0.1, 0.05], [0.45, -0.38, 0.1], [0.35, 0.3, 0.0], [0.1, 0.62, -0.5]], 0.3);
-    expect(r[0]).toEqual({ variable: 0, primary: 0, primaryLoading: 0.8, secondary: 1, secondaryLoading: 0.1, gap: expect.closeTo(0.7, 10), flags: [] });
-    expect(r[1]).toMatchObject({ primary: 0, secondary: 1, secondaryLoading: -0.38, flags: ['cross-loads', 'close'] });
+    const r = crossLoadings(
+      [
+        [0.8, 0.1, 0.05],
+        [0.45, -0.38, 0.1],
+        [0.35, 0.3, 0.0],
+        [0.1, 0.62, -0.5],
+      ],
+      0.3,
+    );
+    expect(r[0]).toEqual({
+      variable: 0,
+      primary: 0,
+      primaryLoading: 0.8,
+      secondary: 1,
+      secondaryLoading: 0.1,
+      gap: expect.closeTo(0.7, 10),
+      flags: [],
+    });
+    expect(r[1]).toMatchObject({
+      primary: 0,
+      secondary: 1,
+      secondaryLoading: -0.38,
+      flags: ['cross-loads', 'close'],
+    });
     expect(r[2].flags).toEqual(['cross-loads', 'weak', 'close']);
     expect(r[3]).toMatchObject({ primary: 1, secondary: 2, flags: ['cross-loads', 'close'] });
     expect(crossLoadings([[0.7], [0.2]], 0.3)).toEqual([
-      { variable: 0, primary: 0, primaryLoading: 0.7, secondary: null, secondaryLoading: null, gap: null, flags: [] },
-      { variable: 1, primary: 0, primaryLoading: 0.2, secondary: null, secondaryLoading: null, gap: null, flags: ['weak'] },
+      {
+        variable: 0,
+        primary: 0,
+        primaryLoading: 0.7,
+        secondary: null,
+        secondaryLoading: null,
+        gap: null,
+        flags: [],
+      },
+      {
+        variable: 1,
+        primary: 0,
+        primaryLoading: 0.2,
+        secondary: null,
+        secondaryLoading: null,
+        gap: null,
+        flags: ['weak'],
+      },
     ]);
   });
 });
@@ -114,22 +250,36 @@ describe('Tucker congruence (Lorenzo-Seva & ten Berge 2006)', () => {
       [0.96, 0.1, 0.3],
       [0.5, 0.2, 0.6],
     ]);
-    expect(m.map((x) => [x.match, x.coefficient])).toEqual([[1, -0.98], [0, 0.96], [2, 0.6]]);
+    expect(m.map((x) => [x.match, x.coefficient])).toEqual([
+      [1, -0.98],
+      [0, 0.96],
+      [2, 0.6],
+    ]);
     expect(m.some((x) => x.shared)).toBe(false);
   });
 
   it('flags two factors that match the same one', () => {
-    const m = congruenceMatches([[0.9, 0.1], [0.88, 0.2]]);
+    const m = congruenceMatches([
+      [0.9, 0.1],
+      [0.88, 0.2],
+    ]);
     expect(m.map((x) => x.shared)).toEqual([true, true]);
   });
 
   it('keeps a comparison from a project file only with a known psych extraction and rotation', () => {
     const base = { vars: ['a'], method: 'minres' };
-    expect(parseEfaDesign({ ...base, compare: { method: 'pca', rotation: 'varimax' } })?.compare)
-      .toEqual({ method: 'pca', rotation: 'varimax' });
-    expect(parseEfaDesign({ ...base, compare: { method: 'lavaan', rotation: 'varimax' } })?.compare).toBeUndefined();
-    expect(parseEfaDesign({ ...base, compare: { method: 'ml', rotation: 'bigeomin' } })?.compare).toBeUndefined();
-    expect(parseEfaDesign({ ...base, compare: { method: 'ml', rotation: 'evil()' } })?.compare).toBeUndefined();
+    expect(
+      parseEfaDesign({ ...base, compare: { method: 'pca', rotation: 'varimax' } })?.compare,
+    ).toEqual({ method: 'pca', rotation: 'varimax' });
+    expect(
+      parseEfaDesign({ ...base, compare: { method: 'lavaan', rotation: 'varimax' } })?.compare,
+    ).toBeUndefined();
+    expect(
+      parseEfaDesign({ ...base, compare: { method: 'ml', rotation: 'bigeomin' } })?.compare,
+    ).toBeUndefined();
+    expect(
+      parseEfaDesign({ ...base, compare: { method: 'ml', rotation: 'evil()' } })?.compare,
+    ).toBeUndefined();
     expect(parseEfaDesign({ ...base, compare: 'ml' })?.compare).toBeUndefined();
     expect('compare' in parseEfaDesign(base)!).toBe(false);
   });
@@ -140,10 +290,18 @@ describe('Schmid–Leiman availability', () => {
     expect(schmidUnavailable({ method: 'minres', rotation: 'oblimin' })).toBeNull();
     expect(schmidUnavailable({ method: 'pa', rotation: 'promax' })).toBeNull();
     expect(schmidUnavailable({ method: 'ml', rotation: 'geominQ' })).toBeNull();
-    expect(schmidUnavailable({ method: 'pca', rotation: 'oblimin' })).toContain('psych factor extraction');
-    expect(schmidUnavailable({ method: 'lavaan', rotation: 'oblimin' })).toContain('psych factor extraction');
-    expect(schmidUnavailable({ method: 'minres', rotation: 'varimax' })).toContain('oblique rotation');
-    expect(schmidUnavailable({ method: 'minres', rotation: 'bigeomin' })).toContain('oblique rotation');
+    expect(schmidUnavailable({ method: 'pca', rotation: 'oblimin' })).toContain(
+      'psych factor extraction',
+    );
+    expect(schmidUnavailable({ method: 'lavaan', rotation: 'oblimin' })).toContain(
+      'psych factor extraction',
+    );
+    expect(schmidUnavailable({ method: 'minres', rotation: 'varimax' })).toContain(
+      'oblique rotation',
+    );
+    expect(schmidUnavailable({ method: 'minres', rotation: 'bigeomin' })).toContain(
+      'oblique rotation',
+    );
   });
 
   it('is kept from a project file only as true', () => {

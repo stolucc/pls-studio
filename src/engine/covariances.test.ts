@@ -10,13 +10,34 @@ import { estimateMiiv } from './miiv';
 import type { CovarianceSpec, ModelSpec } from './types';
 import { cases, loadData, toSpec } from './validationHarness';
 
-const data = parseCsv(readFileSync(join(__dirname, '__fixtures__', 'validation', 'data', 'political_democracy.csv'), 'utf8')).dataset;
-const f = (name: string, indicators: string[]) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators });
+const data = parseCsv(
+  readFileSync(
+    join(__dirname, '__fixtures__', 'validation', 'data', 'political_democracy.csv'),
+    'utf8',
+  ),
+).dataset;
+const f = (name: string, indicators: string[]) => ({
+  name,
+  mode: 'A' as const,
+  type: 'factor' as const,
+  indicators,
+});
 const base: ModelSpec = {
-  constructs: [f('ind60', ['x1', 'x2', 'x3']), f('dem60', ['y1', 'y2', 'y3', 'y4']), f('dem65', ['y5', 'y6', 'y7', 'y8'])],
-  paths: [{ from: 'ind60', to: 'dem60' }, { from: 'ind60', to: 'dem65' }, { from: 'dem60', to: 'dem65' }],
+  constructs: [
+    f('ind60', ['x1', 'x2', 'x3']),
+    f('dem60', ['y1', 'y2', 'y3', 'y4']),
+    f('dem65', ['y5', 'y6', 'y7', 'y8']),
+  ],
+  paths: [
+    { from: 'ind60', to: 'dem60' },
+    { from: 'ind60', to: 'dem65' },
+    { from: 'dem60', to: 'dem65' },
+  ],
 };
-const withCov = (covariances: CovarianceSpec[], spec = base): ModelSpec => ({ ...spec, covariances });
+const withCov = (covariances: CovarianceSpec[], spec = base): ModelSpec => ({
+  ...spec,
+  covariances,
+});
 const ind = (a: string, b: string): CovarianceSpec => ({ a, b, kind: 'indicator' });
 
 describe('CB-SEM covariances', () => {
@@ -45,16 +66,29 @@ describe('CB-SEM covariances', () => {
   });
 
   it('rejects ill-posed covariances', () => {
-    expect(() => estimateCb(data, withCov([{ a: 'ind60', b: 'dem60', kind: 'construct' }]))).toThrow(/exogenous construct with the disturbance/);
+    expect(() =>
+      estimateCb(data, withCov([{ a: 'ind60', b: 'dem60', kind: 'construct' }])),
+    ).toThrow(/exogenous construct with the disturbance/);
     expect(() => estimateCb(data, withCov([ind('y1', 'y1')]))).toThrow(/itself/);
     expect(() => estimateCb(data, withCov([ind('y1', 'nope')]))).toThrow(/not in the model/);
-    const single: ModelSpec = { ...base, constructs: [...base.constructs, f('solo', ['x4'])], paths: [...base.paths] };
-    expect(() => estimateCb({ ...data, names: [...data.names, 'x4'], cols: [...data.cols, data.cols[0]] }, withCov([ind('y1', 'x4')], single))).toThrow(/single-indicator/);
+    const single: ModelSpec = {
+      ...base,
+      constructs: [...base.constructs, f('solo', ['x4'])],
+      paths: [...base.paths],
+    };
+    expect(() =>
+      estimateCb(
+        { ...data, names: [...data.names, 'x4'], cols: [...data.cols, data.cols[0]] },
+        withCov([ind('y1', 'x4')], single),
+      ),
+    ).toThrow(/single-indicator/);
   });
 
   it('MIIV-2SLS drops instruments whose errors correlate with the equation error', () => {
     const plain = estimateMiiv(data, base).equations.find((q) => q.dv === 'y2')!;
-    const corr = estimateMiiv(data, withCov([ind('y1', 'y5')])).equations.find((q) => q.dv === 'y2')!;
+    const corr = estimateMiiv(data, withCov([ind('y1', 'y5')])).equations.find(
+      (q) => q.dv === 'y2',
+    )!;
     // y2 = λ y1 + (ε2 − λ ε1): with ε1 ~~ ε5, y5 is no longer a valid instrument.
     expect(plain.instruments).toContain('y5');
     expect(corr.instruments).not.toContain('y5');

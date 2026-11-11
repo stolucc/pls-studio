@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { constraintText, hypothesisErrors, hypothesisLabels, parseHypotheses, usesAbs } from './hypothesis';
+import {
+  constraintText,
+  hypothesisErrors,
+  hypothesisLabels,
+  parseHypotheses,
+  usesAbs,
+} from './hypothesis';
 
-const printed = (text: string) => parseHypotheses(text).map((h) => h.constraints.map(constraintText));
+const printed = (text: string) =>
+  parseHypotheses(text).map((h) => h.constraints.map(constraintText));
 
 describe('informative hypotheses: the grammar', () => {
   it('splits chains into neighbouring comparisons and & or ; into constraints, one hypothesis per line', () => {
     expect(printed('b1 > b2 > 0')).toEqual([['b1 > b2', 'b2 > 0']]);
-    expect(printed('a = b = c & d < 0\n\n  a > b; c == 0  ')).toEqual([['a = b', 'b = c', 'd < 0'], ['a > b', 'c = 0']]);
+    expect(printed('a = b = c & d < 0\n\n  a > b; c == 0  ')).toEqual([
+      ['a = b', 'b = c', 'd < 0'],
+      ['a > b', 'c = 0'],
+    ]);
     expect(parseHypotheses('a > b\nc > 0').map((h) => h.text)).toEqual(['a > b', 'c > 0']);
   });
 
@@ -22,7 +32,14 @@ describe('informative hypotheses: the grammar', () => {
   });
 
   it('refuses anything else with a message naming the hypothesis', () => {
-    const err = (t: string) => { try { parseHypotheses(t); return ''; } catch (e) { return (e as Error).message; } };
+    const err = (t: string) => {
+      try {
+        parseHypotheses(t);
+        return '';
+      } catch (e) {
+        return (e as Error).message;
+      }
+    };
     expect(err('')).toMatch(/at least one hypothesis/);
     expect(err('b1')).toMatch(/compares nothing/);
     expect(err('1 > 0')).toMatch(/numbers only/);

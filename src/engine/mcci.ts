@@ -26,7 +26,8 @@ function indirectOf(B: number[][]): number[][] {
 }
 
 export function mcIndirect(cb: CbResult, draws = 20000, seed = 1, confidence = 0.95): McIndirect[] {
-  if (!cb.vcov) throw new Error('Monte Carlo CIs need the parameter covariance matrix, which is unavailable.');
+  if (!cb.vcov)
+    throw new Error('Monte Carlo CIs need the parameter covariance matrix, which is unavailable.');
   const C = cb.constructs;
   const J = C.length;
   const regs = cb.estimates.filter((e) => e.op === '~' && e.index !== undefined);
@@ -36,12 +37,16 @@ export function mcIndirect(cb: CbResult, draws = 20000, seed = 1, confidence = 0
   regs.forEach((e, a) => (B0[pos[a][0]][pos[a][1]] = e.est));
   const ind0 = indirectOf(B0);
   const pairs: [number, number][] = [];
-  for (let t = 0; t < J; t++) for (let f = 0; f < J; f++) if (f !== t && Math.abs(ind0[t][f]) > 1e-12) pairs.push([t, f]);
+  for (let t = 0; t < J; t++)
+    for (let f = 0; f < J; f++) if (f !== t && Math.abs(ind0[t][f]) > 1e-12) pairs.push([t, f]);
   if (pairs.length === 0) return [];
 
   const V = regs.map((a) => regs.map((b) => cb.vcov![a.index!][b.index!]));
   const L = cholesky(V);
-  if (!L) throw new Error('The covariance matrix of the regression coefficients is not positive definite.');
+  if (!L)
+    throw new Error(
+      'The covariance matrix of the regression coefficients is not positive definite.',
+    );
   const rnd = normalRng(seed);
   const samples = pairs.map(() => new Float64Array(draws));
   const z = new Float64Array(k);
@@ -62,6 +67,13 @@ export function mcIndirect(cb: CbResult, draws = 20000, seed = 1, confidence = 0
     const m = v.reduce((s, x) => s + x, 0) / draws;
     const se = Math.sqrt(v.reduce((s, x) => s + (x - m) ** 2, 0) / (draws - 1));
     const sorted = Float64Array.from(v).sort();
-    return { from: C[f], to: C[t], est: ind0[t][f], se, ciLow: quantileSorted(sorted, alpha), ciHigh: quantileSorted(sorted, 1 - alpha) };
+    return {
+      from: C[f],
+      to: C[t],
+      est: ind0[t][f],
+      se,
+      ciLow: quantileSorted(sorted, alpha),
+      ciHigh: quantileSorted(sorted, 1 - alpha),
+    };
   });
 }

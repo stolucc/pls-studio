@@ -15,14 +15,27 @@ vi.mock('../runner', async (orig) => ({
     useStore.getState().setJob({ kind: 'estimate', done: 0, total: 1, workers: 1, label: 'test' });
     setTimeout(() => {
       const s = useStore.getState();
-      useStore.setState({ results: { key: resultsKey(s), pls: null, cb: null, boot: null } as never });
+      useStore.setState({
+        results: { key: resultsKey(s), pls: null, cb: null, boot: null } as never,
+      });
       s.setJob(null);
     }, 10);
   },
 }));
 
 describe('a card that works on the model', () => {
-  beforeEach(() => { runs.length = 0; useStore.setState({ model: emptyModel(), results: null, job: null, data: { names: ['a1', 'b1'], cols: [Float64Array.from([1, 2, 3]), Float64Array.from([2, 1, 3])] } }); });
+  beforeEach(() => {
+    runs.length = 0;
+    useStore.setState({
+      model: emptyModel(),
+      results: null,
+      job: null,
+      data: {
+        names: ['a1', 'b1'],
+        cols: [Float64Array.from([1, 2, 3]), Float64Array.from([2, 1, 3])],
+      },
+    });
+  });
 
   it('calculates the model first and waits for the job, and not when results are current', async () => {
     useStore.getState().addConstruct(0, 0, ['a1']);
@@ -42,7 +55,25 @@ describe('a card that works on the model', () => {
 
   it('is declared by the cards that fit the model or read its scores', () => {
     const flagged = ANALYSIS_TYPES.filter((t) => t.fitsModel).map((t) => t.id);
-    for (const id of ['dynamicfit', 'bollenstine', 'cbcompare', 'scoreweights', 'plspredict', 'blindfold', 'compare', 'mga', 'cta', 'cca', 'bsem', 'nca', 'qca', 'endo', 'minsample', 'cmb']) expect(flagged, id).toContain(id);
+    for (const id of [
+      'dynamicfit',
+      'bollenstine',
+      'cbcompare',
+      'scoreweights',
+      'plspredict',
+      'blindfold',
+      'compare',
+      'mga',
+      'cta',
+      'cca',
+      'bsem',
+      'nca',
+      'qca',
+      'endo',
+      'minsample',
+      'cmb',
+    ])
+      expect(flagged, id).toContain(id);
     const nca = ANALYSIS_TYPES.find((t) => t.id === 'nca')!;
     expect((nca.fitsModel as (o: unknown) => boolean)({ source: 'scores' })).toBe(true);
     expect((nca.fitsModel as (o: unknown) => boolean)({ source: 'columns' })).toBe(false);

@@ -17,13 +17,17 @@ export const DATA_CACHE = join(ROOT, '.cache');
 /** Downloaded data from the test cache, converted and reshaped as the app does it. */
 export function remoteTestData(r: RemoteData): Dataset {
   const file = join(DATA_CACHE, remoteCacheFile(r));
-  if (!existsSync(file)) throw new Error(`${file} is missing: run npm run data:fetch (these data are downloaded from their source, not kept in the repository).`);
+  if (!existsSync(file))
+    throw new Error(
+      `${file} is missing: run npm run data:fetch (these data are downloaded from their source, not kept in the repository).`,
+    );
   return remoteFromCsv(readFileSync(file, 'utf8'), r);
 }
 
 /** The example's data when it comes from a file (shipped or downloaded); null when it comes from an R package. */
 export function exampleTestData(ex: Pick<PackageExample, 'data'>): Dataset | null {
-  if (ex.data.file) return parseCsv(readFileSync(join(ROOT, 'public', ex.data.file), 'utf8')).dataset;
+  if (ex.data.file)
+    return parseCsv(readFileSync(join(ROOT, 'public', ex.data.file), 'utf8')).dataset;
   if (ex.data.remote) return remoteTestData(ex.data.remote);
   return null;
 }

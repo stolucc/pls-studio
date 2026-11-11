@@ -8,32 +8,103 @@ import { rCall, rScript, rStrings } from './bridge';
 import { rList, rNum } from './rjson';
 import { cbRequest, type LatentInteraction, type REngineInfo } from './lavaan';
 
-export interface CbCall { data: Dataset; spec: ModelSpec; missing: MissingTreatment; estimator: CbEstimator; interaction: LatentInteraction }
-/** The request for the CB-SEM model on the canvas as the Model tab fits it, plus the analysis's own fields. */
-export const cbCallRequest = <E extends object>(c: CbCall, extra: E) => ({ ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction), ...extra });
-
-export interface BollenStineResult { chisq: number; df: number; p: number; mlChisq: number; samples: number; valid: number | null; boot: number[]; warnings: string[]; engine: REngineInfo }
-export async function bollenStineR(c: CbCall, boot: { samples: number; seed: number }): Promise<BollenStineResult> {
-  const r = await rCall<Record<string, any>>('ps_cb_bollen_stine', cbCallRequest(c, { boot }), 'lavaan');
-  return { chisq: r.chisq, df: r.df, p: r.p, mlChisq: r.mlChisq, samples: r.samples, valid: rNum(r.valid), boot: rList<number>(r.boot).filter((x) => typeof x === 'number'), warnings: rStrings(r.warnings), engine: r.engine };
+export interface CbCall {
+  data: Dataset;
+  spec: ModelSpec;
+  missing: MissingTreatment;
+  estimator: CbEstimator;
+  interaction: LatentInteraction;
 }
-export const bollenStineScriptR = (c: CbCall, boot: { samples: number; seed: number }) => rScript('ps_cb_bollen_stine', cbCallRequest(c, { boot }), 'lavaan');
+/** The request for the CB-SEM model on the canvas as the Model tab fits it, plus the analysis's own fields. */
+export const cbCallRequest = <E extends object>(c: CbCall, extra: E) => ({
+  ...cbRequest(c.data, c.spec, c.missing, c.estimator, c.interaction),
+  ...extra,
+});
+
+export interface BollenStineResult {
+  chisq: number;
+  df: number;
+  p: number;
+  mlChisq: number;
+  samples: number;
+  valid: number | null;
+  boot: number[];
+  warnings: string[];
+  engine: REngineInfo;
+}
+export async function bollenStineR(
+  c: CbCall,
+  boot: { samples: number; seed: number },
+): Promise<BollenStineResult> {
+  const r = await rCall<Record<string, any>>(
+    'ps_cb_bollen_stine',
+    cbCallRequest(c, { boot }),
+    'lavaan',
+  );
+  return {
+    chisq: r.chisq,
+    df: r.df,
+    p: r.p,
+    mlChisq: r.mlChisq,
+    samples: r.samples,
+    valid: rNum(r.valid),
+    boot: rList<number>(r.boot).filter((x) => typeof x === 'number'),
+    warnings: rStrings(r.warnings),
+    engine: r.engine,
+  };
+}
+export const bollenStineScriptR = (c: CbCall, boot: { samples: number; seed: number }) =>
+  rScript('ps_cb_bollen_stine', cbCallRequest(c, { boot }), 'lavaan');
 
 export type ParamKind = 'paths' | 'loadings' | 'variances' | 'covariances';
-export interface CompareParamsResult { params: { label: string; est: number; kind: string }[]; z: (number | null)[][]; warnings: string[]; engine: REngineInfo }
-export async function compareParamsR(c: CbCall, kinds: ParamKind[]): Promise<CompareParamsResult> {
-  const r = await rCall<Record<string, any>>('ps_cb_compare_params', cbCallRequest(c, { kinds }), 'lavaan');
-  return { params: rList<CompareParamsResult['params'][number]>(r.params), z: rList<unknown>(r.z).map((row) => rList<unknown>(row).map(rNum)), warnings: rStrings(r.warnings), engine: r.engine };
+export interface CompareParamsResult {
+  params: { label: string; est: number; kind: string }[];
+  z: (number | null)[][];
+  warnings: string[];
+  engine: REngineInfo;
 }
-export const compareParamsScriptR = (c: CbCall, kinds: ParamKind[]) => rScript('ps_cb_compare_params', cbCallRequest(c, { kinds }), 'lavaan');
+export async function compareParamsR(c: CbCall, kinds: ParamKind[]): Promise<CompareParamsResult> {
+  const r = await rCall<Record<string, any>>(
+    'ps_cb_compare_params',
+    cbCallRequest(c, { kinds }),
+    'lavaan',
+  );
+  return {
+    params: rList<CompareParamsResult['params'][number]>(r.params),
+    z: rList<unknown>(r.z).map((row) => rList<unknown>(row).map(rNum)),
+    warnings: rStrings(r.warnings),
+    engine: r.engine,
+  };
+}
+export const compareParamsScriptR = (c: CbCall, kinds: ParamKind[]) =>
+  rScript('ps_cb_compare_params', cbCallRequest(c, { kinds }), 'lavaan');
 
 export type ScoreMethod = 'regression' | 'Bartlett';
-export interface ScoreWeightsResult { method: ScoreMethod; factors: string[]; variables: string[]; weights: number[][]; warnings: string[]; engine: REngineInfo }
-export async function scoreWeightsR(c: CbCall, method: ScoreMethod): Promise<ScoreWeightsResult> {
-  const r = await rCall<Record<string, any>>('ps_cb_score_weights', cbCallRequest(c, { method }), 'lavaan');
-  return { method: r.method, factors: rList<string>(r.factors), variables: rList<string>(r.variables), weights: rList<unknown>(r.weights).map((row) => rList<number>(row)), warnings: rStrings(r.warnings), engine: r.engine };
+export interface ScoreWeightsResult {
+  method: ScoreMethod;
+  factors: string[];
+  variables: string[];
+  weights: number[][];
+  warnings: string[];
+  engine: REngineInfo;
 }
-export const scoreWeightsScriptR = (c: CbCall, method: ScoreMethod) => rScript('ps_cb_score_weights', cbCallRequest(c, { method }), 'lavaan');
+export async function scoreWeightsR(c: CbCall, method: ScoreMethod): Promise<ScoreWeightsResult> {
+  const r = await rCall<Record<string, any>>(
+    'ps_cb_score_weights',
+    cbCallRequest(c, { method }),
+    'lavaan',
+  );
+  return {
+    method: r.method,
+    factors: rList<string>(r.factors),
+    variables: rList<string>(r.variables),
+    weights: rList<unknown>(r.weights).map((row) => rList<number>(row)),
+    warnings: rStrings(r.warnings),
+    engine: r.engine,
+  };
+}
+export const scoreWeightsScriptR = (c: CbCall, method: ScoreMethod) =>
+  rScript('ps_cb_score_weights', cbCallRequest(c, { method }), 'lavaan');
 
 /** The sample statistics of one group, as lavaan fits the model to them (lavaan's variable names). */
 export interface DataSummaryGroup {
@@ -75,7 +146,14 @@ export interface DataSummaryResult {
   missing: string;
   meanstructure: boolean;
   /** The estimates from the raw data, to check a refit against. */
-  estimates: { lhs: string[]; op: string[]; rhs: string[]; group: number[]; est: number[]; se: (number | null)[] };
+  estimates: {
+    lhs: string[];
+    op: string[];
+    rhs: string[];
+    group: number[];
+    est: number[];
+    se: (number | null)[];
+  };
   chisq: number;
   df: number;
   warnings: string[];
@@ -144,4 +222,5 @@ export async function dataSummaryR(c: CbCall): Promise<DataSummaryResult> {
 }
 
 /** The R script that computes the data summary. */
-export const dataSummaryScriptR = (c: CbCall) => rScript('ps_cb_data_summary', cbCallRequest(c, {}), 'lavaan');
+export const dataSummaryScriptR = (c: CbCall) =>
+  rScript('ps_cb_data_summary', cbCallRequest(c, {}), 'lavaan');

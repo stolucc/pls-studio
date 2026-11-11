@@ -3,10 +3,16 @@ import { fingerprint, packResult, unpackResult } from './codec';
 
 describe('stored results', () => {
   it('round-trip, typed arrays and non-finite numbers included', async () => {
-    const value = { y: 'perf', cols: [Float64Array.from([1, NaN, Infinity, -Infinity, 2.5])], p: null, n: NaN, nested: [{ k: 'a', v: -Infinity }] };
+    const value = {
+      y: 'perf',
+      cols: [Float64Array.from([1, NaN, Infinity, -Infinity, 2.5])],
+      p: null,
+      n: NaN,
+      nested: [{ k: 'a', v: -Infinity }],
+    };
     const packed = await packResult(value);
     expect(packed).toMatch(/^[A-Za-z0-9+/]+=*$/);
-    const back = await unpackResult(packed!) as typeof value;
+    const back = (await unpackResult(packed!)) as typeof value;
     expect(back.y).toBe('perf');
     expect(back.cols[0]).toBeInstanceOf(Float64Array);
     expect([...back.cols[0]]).toEqual([1, NaN, Infinity, -Infinity, 2.5]);
@@ -16,7 +22,9 @@ describe('stored results', () => {
   });
 
   it('are compressed', async () => {
-    const big = { rows: Array.from({ length: 5000 }, (_, i) => ({ name: `item${i % 10}`, value: i % 7 })) };
+    const big = {
+      rows: Array.from({ length: 5000 }, (_, i) => ({ name: `item${i % 10}`, value: i % 7 })),
+    };
     const packed = (await packResult(big))!;
     expect(packed.length).toBeLessThan(JSON.stringify(big).length / 5);
   });
@@ -33,10 +41,16 @@ describe('stored results', () => {
 describe('input fingerprints', () => {
   it('follow the values of the columns, not their identity', () => {
     const a = Float64Array.from([1, 2, 3]);
-    expect(fingerprint(['data', 'x', a])).toBe(fingerprint(['data', 'x', Float64Array.from([1, 2, 3])]));
-    expect(fingerprint(['data', 'x', a])).not.toBe(fingerprint(['data', 'x', Float64Array.from([1, 2, 4])]));
+    expect(fingerprint(['data', 'x', a])).toBe(
+      fingerprint(['data', 'x', Float64Array.from([1, 2, 3])]),
+    );
+    expect(fingerprint(['data', 'x', a])).not.toBe(
+      fingerprint(['data', 'x', Float64Array.from([1, 2, 4])]),
+    );
     expect(fingerprint(['data', 'x', a])).not.toBe(fingerprint(['data', 'y', a]));
-    expect(fingerprint(['data', 'x', Float64Array.from([1, NaN])])).not.toBe(fingerprint(['data', 'x', Float64Array.from([1, 0])]));
+    expect(fingerprint(['data', 'x', Float64Array.from([1, NaN])])).not.toBe(
+      fingerprint(['data', 'x', Float64Array.from([1, 0])]),
+    );
     expect(fingerprint(['a', null])).not.toBe(fingerprint(['a', 'null']));
   });
 });

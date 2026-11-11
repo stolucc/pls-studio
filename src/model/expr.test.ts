@@ -9,7 +9,21 @@ describe('parameter expressions', () => {
   });
 
   it('refuse anything but arithmetic (the text goes into R code)', () => {
-    for (const bad of ['system("x")', 'a; b', 'a <- 1', '"a"', 'a, b', 'exp(a)', 'a b', '', '(a', 'a)', 'a $ b', '`a`', 'a[1]']) {
+    for (const bad of [
+      'system("x")',
+      'a; b',
+      'a <- 1',
+      '"a"',
+      'a, b',
+      'exp(a)',
+      'a b',
+      '',
+      '(a',
+      'a)',
+      'a $ b',
+      '`a`',
+      'a[1]',
+    ]) {
       expect(() => parseExpr(bad), bad).toThrow();
     }
   });

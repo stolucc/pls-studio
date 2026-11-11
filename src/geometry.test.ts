@@ -3,24 +3,47 @@ import {
   besideLine,
   clearPointOnCurve,
   shapeOf,
-  constructGeometry, correlationCurve, disturbanceTerm, distanceToSegment, ellipsePoint, ERR_R, errorTerm, hexagonPoint, hexagonVertices, interceptSegment, moderatorSegment, pathOffset, QUAD_RISE, quadraticLoop, pathSegment, RECIPROCAL_OFFSET,
+  constructGeometry,
+  correlationCurve,
+  disturbanceTerm,
+  distanceToSegment,
+  ellipsePoint,
+  ERR_R,
+  errorTerm,
+  hexagonPoint,
+  hexagonVertices,
+  interceptSegment,
+  moderatorSegment,
+  pathOffset,
+  QUAD_RISE,
+  quadraticLoop,
+  pathSegment,
+  RECIPROCAL_OFFSET,
 } from './geometry';
 
 describe('clearPointOnCurve', () => {
-  const p1: [number, number] = [0, -100], p2: [number, number] = [0, 100], mid: [number, number] = [-50, 0], left: [number, number] = [-1, 0];
+  const p1: [number, number] = [0, -100],
+    p2: [number, number] = [0, 100],
+    mid: [number, number] = [-50, 0],
+    left: [number, number] = [-1, 0];
   it('keeps the midpoint when it is free', () => {
     expect(clearPointOnCurve(p1, p2, mid, left, 30, 18, [])).toEqual({ x: -50, y: 0 });
-    expect(clearPointOnCurve(p1, p2, mid, left, 30, 18, [{ x: 100, y: 0, w: 20, h: 20 }])).toEqual({ x: -50, y: 0 });
+    expect(clearPointOnCurve(p1, p2, mid, left, 30, 18, [{ x: 100, y: 0, w: 20, h: 20 }])).toEqual({
+      x: -50,
+      y: 0,
+    });
   });
   it('slides along the arc off a box, to a point on the curve', () => {
     const box = { x: -90, y: -13, w: 50, h: 26 };
     const q = clearPointOnCurve(p1, p2, mid, left, 30, 18, [box]);
-    expect(Math.abs(q.y)).toBeGreaterThanOrEqual(13 + 9);        // label's half height + box's
-    const t = (q.y + 100) / 200;                                  // this arc is linear in y
+    expect(Math.abs(q.y)).toBeGreaterThanOrEqual(13 + 9); // label's half height + box's
+    const t = (q.y + 100) / 200; // this arc is linear in y
     expect(q.x).toBeCloseTo(2 * t * (1 - t) * -100, 6);
   });
   it('falls back to the midpoint when nowhere is free', () => {
-    expect(clearPointOnCurve(p1, p2, mid, left, 30, 18, [{ x: -500, y: -500, w: 1000, h: 1000 }])).toEqual({ x: -50, y: 0 });
+    expect(
+      clearPointOnCurve(p1, p2, mid, left, 30, 18, [{ x: -500, y: -500, w: 1000, h: 1000 }]),
+    ).toEqual({ x: -50, y: 0 });
   });
 });
 
@@ -38,12 +61,15 @@ describe('constructs drawn as circles', () => {
     expect(shapeOf({ type: 'composite' })).toBe('composite');
     expect(g.ry).toBe(36);
     expect(g.rx).toBe(constructGeometry({ ...k, name: 'A', type: 'composite', circle: true }).rx);
-    for (const b of g.indicators) expect([b.ex, b.ey]).toEqual(hexagonPoint(g.rx, g.ry, b.ax, b.ay));
+    for (const b of g.indicators)
+      expect([b.ex, b.ey]).toEqual(hexagonPoint(g.rx, g.ry, b.ax, b.ay));
   });
   it('leaves an observed covariate a rectangle, and a caller may ask for the ordinary shape', () => {
     expect(shapeOf({ covariate: true })).toBe('observed');
     expect(constructGeometry({ ...k, covariate: true, circle: true }).ry).toBe(18);
-    expect(constructGeometry({ ...k, type: 'composite', circle: true }, false).rx).toBeGreaterThan(36);
+    expect(constructGeometry({ ...k, type: 'composite', circle: true }, false).rx).toBeGreaterThan(
+      36,
+    );
   });
 });
 
@@ -73,7 +99,12 @@ describe('construct shapes', () => {
     expect(py).toBeCloseTo(vy, 9);
   });
   it('indicator arrows end on the composite hexagon, not the ellipse', () => {
-    const g = constructGeometry({ name: 'Quality', indicators: ['q1', 'q2', 'q3'], side: 'left', type: 'composite' });
+    const g = constructGeometry({
+      name: 'Quality',
+      indicators: ['q1', 'q2', 'q3'],
+      side: 'left',
+      type: 'composite',
+    });
     const top = g.indicators[0];
     const [hx, hy] = hexagonPoint(g.rx, g.ry, top.ax, top.ay);
     expect(top.ex).toBeCloseTo(hx, 9);
@@ -82,8 +113,22 @@ describe('construct shapes', () => {
 });
 
 describe('path and moderator geometry', () => {
-  const a = { name: 'A', indicators: [], side: 'left' as const, x: 0, y: 0, type: 'factor' as const };
-  const b = { name: 'B', indicators: [], side: 'left' as const, x: 400, y: 0, type: 'composite' as const };
+  const a = {
+    name: 'A',
+    indicators: [],
+    side: 'left' as const,
+    x: 0,
+    y: 0,
+    type: 'factor' as const,
+  };
+  const b = {
+    name: 'B',
+    indicators: [],
+    side: 'left' as const,
+    x: 400,
+    y: 0,
+    type: 'composite' as const,
+  };
   it('clips paths to both shapes', () => {
     const seg = pathSegment(a, b)!;
     expect(seg.x1).toBeCloseTo(constructGeometry(a).rx, 9);
@@ -110,15 +155,18 @@ describe('path and moderator geometry', () => {
     const q = quadraticLoop(x, seg);
     // Lands on the path midpoint, coming straight down onto it (the loop rises above a horizontal path).
     expect([q.x2, q.y2]).toEqual([(seg.x1 + seg.x2) / 2, (seg.y1 + seg.y2) / 2]);
-    expect(q.nx).toBeCloseTo(0, 9); expect(q.ny).toBeCloseTo(-1, 9);
+    expect(q.nx).toBeCloseTo(0, 9);
+    expect(q.ny).toBeCloseTo(-1, 9);
     expect(q.d).toMatch(/^M [\d.-]+ [\d.-]+ C .* 200 0$/);
     // Leaves from X's boundary, on the upper side, leaning towards Y.
     const g = constructGeometry(x);
-    expect(((q.x1 / g.rx) ** 2 + (q.y1 / g.ry) ** 2)).toBeCloseTo(1, 6);
-    expect(q.y1).toBeLessThan(0); expect(q.x1).toBeGreaterThan(0);
+    expect((q.x1 / g.rx) ** 2 + (q.y1 / g.ry) ** 2).toBeCloseTo(1, 6);
+    expect(q.y1).toBeLessThan(0);
+    expect(q.x1).toBeGreaterThan(0);
     // The apex (estimate) is ¾ of the rise above the path.
     expect(q.ly).toBeCloseTo((q.y1 + seg.y1) / 2 - 0.75 * QUAD_RISE, 6);
-    expect(q.lx).toBeGreaterThan(q.x1); expect(q.lx).toBeLessThan(q.x2);
+    expect(q.lx).toBeGreaterThan(q.x1);
+    expect(q.lx).toBeLessThan(q.x2);
   });
 
   it('puts the loop on the side away from X’s indicators', () => {
@@ -131,14 +179,20 @@ describe('path and moderator geometry', () => {
     const up = { name: 'X', indicators: ['x1'], side: 'right' as const, x: 0, y: 0 };
     const below = { name: 'Y', indicators: ['y1'], side: 'right' as const, x: 0, y: 300 };
     expect(quadraticLoop(up, pathSegment(up, below)!).nx).toBeCloseTo(-1, 9);
-    expect(quadraticLoop({ ...up, side: 'left' }, pathSegment({ ...up, side: 'left' }, below)!).nx).toBeCloseTo(1, 9);
+    expect(
+      quadraticLoop({ ...up, side: 'left' }, pathSegment({ ...up, side: 'left' }, below)!).nx,
+    ).toBeCloseTo(1, 9);
   });
 });
 
 describe('IPMA label placement', () => {
   it('pushes overlapping labels apart and leaves distant ones alone', async () => {
     const { placeLabels } = await import('./components/results/IpmaTab');
-    const out = placeLabels([{ name: 'Trust', x: 100, y: 50 }, { name: 'Service Quality', x: 104, y: 52 }, { name: 'Far', x: 400, y: 51 }]);
+    const out = placeLabels([
+      { name: 'Trust', x: 100, y: 50 },
+      { name: 'Service Quality', x: 104, y: 52 },
+      { name: 'Far', x: 400, y: 51 },
+    ]);
     const by = Object.fromEntries(out.map((p) => [p.name, p.ly]));
     expect(Math.abs(by['Trust'] - by['Service Quality'])).toBeGreaterThanOrEqual(13);
     expect(by['Far']).toBe(51);
@@ -146,14 +200,24 @@ describe('IPMA label placement', () => {
 });
 
 describe('error terms and correlation curves', () => {
-  const c = { name: 'F', indicators: ['a1', 'a2', 'a3'], side: 'left' as const, x: 0, y: 0, type: 'factor' as const };
+  const c = {
+    name: 'F',
+    indicators: ['a1', 'a2', 'a3'],
+    side: 'left' as const,
+    x: 0,
+    y: 0,
+    type: 'factor' as const,
+  };
   it('puts error circles beyond the indicator boxes, away from the construct', () => {
     const g = constructGeometry(c);
     const t = errorTerm(c, g.indicators[0]);
     expect(t.cx).toBeLessThan(g.indicators[0].x - ERR_R);
     expect(t.ax).toBe(g.indicators[0].x);
     expect([t.nx, t.ny]).toEqual([-1, 0]);
-    const top = errorTerm({ ...c, side: 'top' }, constructGeometry({ ...c, side: 'top' }).indicators[1]);
+    const top = errorTerm(
+      { ...c, side: 'top' },
+      constructGeometry({ ...c, side: 'top' }).indicators[1],
+    );
     expect(top.ny).toBe(-1);
   });
   it('places a disturbance on the construct boundary, upper right', () => {
@@ -164,7 +228,8 @@ describe('error terms and correlation curves', () => {
     expect(z.cy).toBeLessThan(-g.ry + 1);
   });
   it('bows the curve along the given normal and away from the centre otherwise', () => {
-    const a = { kind: 'circle' as const, x: 0, y: 0, r: ERR_R }, b = { kind: 'circle' as const, x: 0, y: 100, r: ERR_R };
+    const a = { kind: 'circle' as const, x: 0, y: 0, r: ERR_R },
+      b = { kind: 'circle' as const, x: 0, y: 100, r: ERR_R };
     const left = correlationCurve(a, b, { normal: [-1, 0] });
     expect(left.lx).toBeLessThan(-10);
     // Endpoints lie on the circles.
@@ -176,7 +241,8 @@ describe('error terms and correlation curves', () => {
 
 describe('double-headed correlation arrows', () => {
   it('has an arrowhead at each end, tip on the endpoint, pointing into the anchor', () => {
-    const a = { kind: 'circle' as const, x: 0, y: 0, r: ERR_R }, b = { kind: 'circle' as const, x: 0, y: 100, r: ERR_R };
+    const a = { kind: 'circle' as const, x: 0, y: 0, r: ERR_R },
+      b = { kind: 'circle' as const, x: 0, y: 100, r: ERR_R };
     const c = correlationCurve(a, b, { normal: [1, 0] });
     expect(c.heads).toHaveLength(2);
     const pts = (d: string) => d.match(/-?\d+(\.\d+)?(e-?\d+)?/g)!.map(Number);
@@ -190,15 +256,25 @@ describe('double-headed correlation arrows', () => {
 });
 
 describe('intercept arrows from the constant', () => {
-  const t = { name: 'T', indicators: ['t1', 't2'], side: 'left' as const, x: 300, y: 0, type: 'factor' as const };
+  const t = {
+    name: 'T',
+    indicators: ['t1', 't2'],
+    side: 'left' as const,
+    x: 300,
+    y: 0,
+    type: 'factor' as const,
+  };
   it('run from the triangle to the boundary of the indicator box', () => {
     const k = { x: 0, y: 0 };
     const box = constructGeometry(t).indicators[0];
     const seg = interceptSegment(k, t, box)!;
     expect(Math.hypot(seg.x1, seg.y1)).toBeCloseTo(16, 9); // 0.8 × CONSTANT_R, towards the box
-    const cx = t.x + box.x + box.w / 2, cy = t.y + box.y + box.h / 2;
+    const cx = t.x + box.x + box.w / 2,
+      cy = t.y + box.y + box.h / 2;
     // The end lies on the box's edge: one coordinate at the edge, the other within the box.
-    const onEdge = Math.abs(Math.abs(seg.x2 - cx) - box.w / 2) < 1e-9 || Math.abs(Math.abs(seg.y2 - cy) - box.h / 2) < 1e-9;
+    const onEdge =
+      Math.abs(Math.abs(seg.x2 - cx) - box.w / 2) < 1e-9 ||
+      Math.abs(Math.abs(seg.y2 - cy) - box.h / 2) < 1e-9;
     expect(onEdge).toBe(true);
     expect(Math.abs(seg.x2 - cx)).toBeLessThanOrEqual(box.w / 2 + 1e-9);
     expect(Math.abs(seg.y2 - cy)).toBeLessThanOrEqual(box.h / 2 + 1e-9);
@@ -209,21 +285,56 @@ describe('intercept arrows from the constant', () => {
   it('is straight down when the box is right below, and straight across when level', () => {
     const box = { x: -20, y: 100, w: 40, h: 26 };
     const down = interceptSegment({ x: 0, y: 0 }, { ...t, x: 0, y: 0 }, box)!;
-    expect(down.x2).toBeCloseTo(0, 9); expect(down.y2).toBeCloseTo(100, 9);
-    const across = interceptSegment({ x: 0, y: 113 }, { ...t, x: 0, y: 0 }, { x: 100, y: 100, w: 40, h: 26 })!;
-    expect(across.y2).toBeCloseTo(113, 9); expect(across.x2).toBeCloseTo(100, 9);
+    expect(down.x2).toBeCloseTo(0, 9);
+    expect(down.y2).toBeCloseTo(100, 9);
+    const across = interceptSegment(
+      { x: 0, y: 113 },
+      { ...t, x: 0, y: 0 },
+      { x: 100, y: 100, w: 40, h: 26 },
+    )!;
+    expect(across.y2).toBeCloseTo(113, 9);
+    expect(across.x2).toBeCloseTo(100, 9);
   });
 });
 
 describe('reciprocal pairs', () => {
-  const a = { id: 'a', name: 'A', type: 'factor' as const, mode: 'A' as const, indicators: ['a1'], x: 0, y: 0, side: 'left' as const };
-  const b = { id: 'b', name: 'B', type: 'factor' as const, mode: 'A' as const, indicators: ['b1'], x: 400, y: 0, side: 'right' as const };
+  const a = {
+    id: 'a',
+    name: 'A',
+    type: 'factor' as const,
+    mode: 'A' as const,
+    indicators: ['a1'],
+    x: 0,
+    y: 0,
+    side: 'left' as const,
+  };
+  const b = {
+    id: 'b',
+    name: 'B',
+    type: 'factor' as const,
+    mode: 'A' as const,
+    indicators: ['b1'],
+    x: 400,
+    y: 0,
+    side: 'right' as const,
+  };
   it('offsets each arrow of a reciprocal pair to its own right, so the two do not overlap', () => {
-    const ab = pathSegment(a, b, RECIPROCAL_OFFSET)!, ba = pathSegment(b, a, RECIPROCAL_OFFSET)!, plain = pathSegment(a, b)!;
+    const ab = pathSegment(a, b, RECIPROCAL_OFFSET)!,
+      ba = pathSegment(b, a, RECIPROCAL_OFFSET)!,
+      plain = pathSegment(a, b)!;
     expect(ab.y1).toBeCloseTo(plain.y1 + RECIPROCAL_OFFSET, 9);
     expect(ba.y1).toBeCloseTo(plain.y1 - RECIPROCAL_OFFSET, 9);
     expect(ab.x1).toBeCloseTo(plain.x1, 9);
-    expect(pathOffset([{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }], 'a', 'b')).toBe(RECIPROCAL_OFFSET);
+    expect(
+      pathOffset(
+        [
+          { from: 'a', to: 'b' },
+          { from: 'b', to: 'a' },
+        ],
+        'a',
+        'b',
+      ),
+    ).toBe(RECIPROCAL_OFFSET);
     expect(pathOffset([{ from: 'a', to: 'b' }], 'a', 'b')).toBe(0);
   });
 });

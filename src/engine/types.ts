@@ -8,9 +8,21 @@ export type WeightingScheme = 'path' | 'factor' | 'centroid';
  * 'twostage' / 'robusttwostage': the two-stage approach (Savalei & Bentler 2009)
  * — CB-SEM through lavaan only. 'mi': multiple imputation (mice), pooled.
  */
-export type MissingTreatment = 'mean' | 'casewise' | 'fiml' | 'mi' | 'pairwise' | 'twostage' | 'robusttwostage';
+export type MissingTreatment =
+  | 'mean'
+  | 'casewise'
+  | 'fiml'
+  | 'mi'
+  | 'pairwise'
+  | 'twostage'
+  | 'robusttwostage';
 /** Missing-value treatments that lavaan applies itself (CB-SEM, R engine). */
-export const LAVAAN_MISSING: readonly MissingTreatment[] = ['fiml', 'pairwise', 'twostage', 'robusttwostage'];
+export const LAVAAN_MISSING: readonly MissingTreatment[] = [
+  'fiml',
+  'pairwise',
+  'twostage',
+  'robusttwostage',
+];
 
 export interface ConstructSpec {
   name: string;
@@ -94,28 +106,63 @@ export type GroupValue = number | string | null;
  * intercept or threshold number `threshold`, 1 when absent).
  */
 /** `free`: written out without a value, freeing a parameter lavaan fixes by default (NA*). */
-export interface ParameterSpec { kind: 'variance' | 'intercept' | 'threshold' | 'scale'; target: string; indicator?: boolean; threshold?: number; fixed?: number; label?: string; byGroup?: GroupValue[]; free?: true }
+export interface ParameterSpec {
+  kind: 'variance' | 'intercept' | 'threshold' | 'scale';
+  target: string;
+  indicator?: boolean;
+  threshold?: number;
+  fixed?: number;
+  label?: string;
+  byGroup?: GroupValue[];
+  free?: true;
+}
 
 /** A three-way interaction in the equation of `to`. */
-export interface ThreeWaySpec { from: string; moderator: string; moderator2: string; to: string }
-export const threeWayName = (t: Pick<ThreeWaySpec, 'from' | 'moderator' | 'moderator2'>) => `${t.from} × ${t.moderator} × ${t.moderator2}`;
+export interface ThreeWaySpec {
+  from: string;
+  moderator: string;
+  moderator2: string;
+  to: string;
+}
+export const threeWayName = (t: Pick<ThreeWaySpec, 'from' | 'moderator' | 'moderator2'>) =>
+  `${t.from} × ${t.moderator} × ${t.moderator2}`;
 
 /** A Gaussian copula term (Park & Gupta 2012; Hult et al. 2018) for the predictor `from` in the equation of `to`. */
-export interface CopulaSpec { from: string; to: string }
+export interface CopulaSpec {
+  from: string;
+  to: string;
+}
 export const copulaName = (from: string, to: string) => `GC(${from} → ${to})`;
 
 /** Name of an interaction term; a construct times itself is its quadratic term (X²). */
-export const interactionName = (from: string, moderator: string) => (from === moderator ? `${from}²` : `${from} × ${moderator}`);
+export const interactionName = (from: string, moderator: string) =>
+  from === moderator ? `${from}²` : `${from} × ${moderator}`;
 
 /** `bigeomin`, `biquartimin`: bifactor rotations (Jennrich & Bentler 2011, 2012); the block's first factor is the general one. */
-export type EsemRotation = 'geomin' | 'oblimin' | 'quartimin' | 'varimax' | 'target' | 'bigeomin' | 'biquartimin';
+export type EsemRotation =
+  | 'geomin'
+  | 'oblimin'
+  | 'quartimin'
+  | 'varimax'
+  | 'target'
+  | 'bigeomin'
+  | 'biquartimin';
 export const BIFACTOR_ROTATIONS: readonly EsemRotation[] = ['bigeomin', 'biquartimin'];
 /** Rotations that can be made orthogonal (Mplus's GEOMIN(ORTHOGONAL); lavaan rotation.args orthogonal). */
-export const ORTHOGONALISABLE_ROTATIONS: readonly EsemRotation[] = ['geomin', 'oblimin', 'quartimin', 'bigeomin', 'biquartimin'];
+export const ORTHOGONALISABLE_ROTATIONS: readonly EsemRotation[] = [
+  'geomin',
+  'oblimin',
+  'quartimin',
+  'bigeomin',
+  'biquartimin',
+];
 export type InvarianceLevel = 'configural' | 'metric' | 'scalar' | 'strict';
 /** Parameters freed across groups despite the invariance level (partial invariance). */
-export type FreedParameter = { kind: 'loading'; construct: string; indicator: string } | { kind: 'intercept'; indicator: string }
-  | { kind: 'regression'; from: string; to: string } | { kind: 'mean'; construct: string };
+export type FreedParameter =
+  | { kind: 'loading'; construct: string; indicator: string }
+  | { kind: 'intercept'; indicator: string }
+  | { kind: 'regression'; from: string; to: string }
+  | { kind: 'mean'; construct: string };
 /** Structural parameters held equal across groups (lavaan's group.equal): the paths, the constructs' variances, covariances, and means / intercepts (the constant drawn). */
 export type StructuralEquality = 'regressions' | 'lv.variances' | 'lv.covariances' | 'means';
 /**
@@ -129,7 +176,14 @@ export type StructuralEquality = 'regressions' | 'lv.variances' | 'lv.covariance
  * variances (theta) are free in every group after the first, as Mplus's default; an indicator whose thresholds
  * are freed keeps them at 1 in every group (Mplus {u3@1}). Absent: lavaan's default, 1 in every group.
  */
-export interface MultigroupSpec { column: string; invariance: InvarianceLevel; free: FreedParameter[]; structural?: StructuralEquality[]; meanStructure?: false; ordinalScales?: 'free' }
+export interface MultigroupSpec {
+  column: string;
+  invariance: InvarianceLevel;
+  free: FreedParameter[];
+  structural?: StructuralEquality[];
+  meanStructure?: false;
+  ordinalScales?: 'free';
+}
 
 export interface ModelSpec {
   constructs: ConstructSpec[];
@@ -175,14 +229,35 @@ export interface ModelSpec {
   /** CB-SEM (lavaan aux =): auxiliary variables of FIML or the two-stage approach (columns not in the model; saturated correlates). */
   auxiliary?: string[];
   /** CB-SEM (lavaan): two-level model by a cluster column; between level saturated or with the same structure. */
-  multilevel?: { column: string; between: 'same' | 'saturated' | 'factors' | 'model'; betweenCovariates?: string[]; betweenModel?: { lhs: string; op: '=~' | '~' | '~~' | '~1'; rhs: { name: string; fixed?: number; label?: string }[] }[] };
+  multilevel?: {
+    column: string;
+    between: 'same' | 'saturated' | 'factors' | 'model';
+    betweenCovariates?: string[];
+    betweenModel?: {
+      lhs: string;
+      op: '=~' | '~' | '~~' | '~1';
+      rhs: { name: string; fixed?: number; label?: string }[];
+    }[];
+  };
   /** CB-SEM (lavaan): exploratory SEM blocks (construct names), whose factors load on all the block's indicators, rotated. */
-  esem?: { blocks: string[][]; rotation: EsemRotation; epsilon?: number; orthogonal?: boolean; invariant?: boolean };
+  esem?: {
+    blocks: string[][];
+    rotation: EsemRotation;
+    epsilon?: number;
+    orthogonal?: boolean;
+    invariant?: boolean;
+  };
   /** CB-SEM (lavaan): estimate the mean structure (meanstructure = TRUE: every indicator intercept free). */
   meanStructure?: boolean;
   /** CB-SEM (lavaan): latent means (or observed variables' intercepts) to estimate, fix or label. */
   /** `bias`: the marker indicator's intercept fixed at this value instead of 0 (a known measurement bias, Hayduk 1987); with groups one value per group. */
-  means?: { construct: string; fixed?: number; label?: string; bias?: number | number[]; byGroup?: GroupValue[] }[];
+  means?: {
+    construct: string;
+    fixed?: number;
+    label?: string;
+    bias?: number | number[];
+    byGroup?: GroupValue[];
+  }[];
   /** CB-SEM (lavaan): variances, indicator intercepts and thresholds held at values or labelled. */
   parameters?: ParameterSpec[];
   /** CB-SEM (lavaan), ordinal indicators: the theta parameterisation (residual variances of the latent responses fixed at 1) instead of delta. */
@@ -205,7 +280,12 @@ export interface MomentData {
   groups?: MomentGroup[];
 }
 /** One group's summary statistics of a multiple-group (stacked) dataset. */
-export interface MomentGroup { label: string; S: number[][]; n: number; means?: number[] }
+export interface MomentGroup {
+  label: string;
+  S: number[][];
+  n: number;
+  means?: number[];
+}
 
 export interface Dataset {
   names: string[];

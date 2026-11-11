@@ -4,5 +4,7 @@
 import type { FigureInput } from './render';
 
 let source: (() => FigureInput) | null = null;
-export const setFigureSource = (f: (() => FigureInput) | null) => { source = f; };
+export const setFigureSource = (f: (() => FigureInput) | null) => {
+  source = f;
+};
 export const figureSource = () => source;

@@ -15,10 +15,19 @@ export type CalculateTarget =
   | { kind: 'card'; id: string; title: string }
   | { kind: 'run'; id: string; title: string };
 
-const titleOf = (c: Card & { kind: 'analysis' }) => c.title || (() => { const t = analysisType(c.type); return t ? t.cardTitle?.(c.options) ?? t.title : c.type; })();
+const titleOf = (c: Card & { kind: 'analysis' }) =>
+  c.title ||
+  (() => {
+    const t = analysisType(c.type);
+    return t ? (t.cardTitle?.(c.options) ?? t.title) : c.type;
+  })();
 
 /** What Calculate would act on now (the arguments let a component pass the values it subscribes to). */
-export function calculateTarget(workspace = useStore.getState().workspace, cards = useAnalyses.getState().cards, selected = useAnalyses.getState().selected): CalculateTarget {
+export function calculateTarget(
+  workspace = useStore.getState().workspace,
+  cards = useAnalyses.getState().cards,
+  selected = useAnalyses.getState().selected,
+): CalculateTarget {
   if (workspace !== 'analyses') return { kind: 'model' };
   const card = cards.find((c) => c.id === selected);
   if (!card || card.kind !== 'analysis') return { kind: 'model' };
@@ -32,7 +41,10 @@ export function calculateTarget(workspace = useStore.getState().workspace, cards
 /** Calculate (or bootstrap) what is in front of the person. */
 export async function calculateHere(kind: 'estimate' | 'boot'): Promise<void> {
   const target = calculateTarget();
-  if (target.kind === 'card') { await runCard(target.id); return; }
+  if (target.kind === 'card') {
+    await runCard(target.id);
+    return;
+  }
   if (target.kind === 'run') {
     // Opening puts the version on the Model tab (or says it is there already); nothing runs if that is refused.
     if (!(await openRun(target.id))) return;

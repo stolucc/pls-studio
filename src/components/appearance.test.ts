@@ -4,16 +4,59 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { autoCalculateDue } from '../autoCalculate';
 import { renderFigureSvg, type FigureInput } from '../figure/render';
 import { DEFAULT_FIGURE_STYLE } from '../figure/style';
-import { constructGeometry, octagonVertices, pathCurve, pathSegment, shapePoint } from '../geometry';
-import { DEFAULT_SETTINGS, parseProject, serializeProject, toSpec, type Construct, type ModelState } from '../model/project';
+import {
+  constructGeometry,
+  octagonVertices,
+  pathCurve,
+  pathSegment,
+  shapePoint,
+} from '../geometry';
+import {
+  DEFAULT_SETTINGS,
+  parseProject,
+  serializeProject,
+  toSpec,
+  type Construct,
+  type ModelState,
+} from '../model/project';
 import { resultsKey, useStore } from '../store';
 
-const C = (id: string, x: number, more: Partial<Construct> = {}): Construct => ({ id, name: id.toUpperCase(), type: 'factor', mode: 'A', indicators: [`${id}1`, `${id}2`], x, y: 0, side: 'left', ...more });
-const model = (): ModelState => ({ constructs: [C('a', 0), C('b', 500)], paths: [{ id: 'p', from: 'a', to: 'b' }], moderations: [] });
+const C = (id: string, x: number, more: Partial<Construct> = {}): Construct => ({
+  id,
+  name: id.toUpperCase(),
+  type: 'factor',
+  mode: 'A',
+  indicators: [`${id}1`, `${id}2`],
+  x,
+  y: 0,
+  side: 'left',
+  ...more,
+});
+const model = (): ModelState => ({
+  constructs: [C('a', 0), C('b', 500)],
+  paths: [{ id: 'p', from: 'a', to: 'b' }],
+  moderations: [],
+});
 const figure = (m: ModelState): FigureInput => ({
-  constructs: m.constructs.map((c) => ({ c, geom: constructGeometry(c), r2: null, indicators: [null, null] })),
-  paths: m.paths.map((p) => ({ key: p.id, ...pathSegment(m.constructs[0], m.constructs[1])!, label: { value: 0.5, p: null }, moderated: false, line: p.line, curved: p.curved })),
-  moderations: [], higherOrder: [], errors: [], correlations: [], notes: m.notes,
+  constructs: m.constructs.map((c) => ({
+    c,
+    geom: constructGeometry(c),
+    r2: null,
+    indicators: [null, null],
+  })),
+  paths: m.paths.map((p) => ({
+    key: p.id,
+    ...pathSegment(m.constructs[0], m.constructs[1])!,
+    label: { value: 0.5, p: null },
+    moderated: false,
+    line: p.line,
+    curved: p.curved,
+  })),
+  moderations: [],
+  higherOrder: [],
+  errors: [],
+  correlations: [],
+  notes: m.notes,
 });
 
 describe('construct shapes', () => {
@@ -41,12 +84,18 @@ describe('construct shapes', () => {
 
 describe('path lines', () => {
   it('are dashed, dotted or curved in the figure', () => {
-    const svg = (p: Partial<ModelState['paths'][number]>) => { const m = model(); m.paths[0] = { ...m.paths[0], ...p }; return renderFigureSvg(figure(m), DEFAULT_FIGURE_STYLE).svg; };
+    const svg = (p: Partial<ModelState['paths'][number]>) => {
+      const m = model();
+      m.paths[0] = { ...m.paths[0], ...p };
+      return renderFigureSvg(figure(m), DEFAULT_FIGURE_STYLE).svg;
+    };
     expect(svg({})).not.toContain('stroke-dasharray');
     expect(svg({ line: 'dashed' })).toContain('stroke-dasharray="7 4"');
     expect(svg({ line: 'dotted' })).toContain('stroke-dasharray="1.5 4"');
     expect(svg({ curved: true })).toMatch(/<path d="M [^"]+ Q [^"]+" fill="none"/);
-    expect(svg({ curved: true, line: 'dashed' })).toMatch(/ Q [^"]+" fill="none"[^>]*stroke-dasharray="7 4"/);
+    expect(svg({ curved: true, line: 'dashed' })).toMatch(
+      / Q [^"]+" fill="none"[^>]*stroke-dasharray="7 4"/,
+    );
   });
   it('a curve’s midpoint lies on it, off the straight line', () => {
     const k = pathCurve({ x1: 0, y1: 0, x2: 100, y2: 0 });
@@ -56,7 +105,10 @@ describe('path lines', () => {
 });
 
 describe('comments', () => {
-  const m = (): ModelState => ({ ...model(), notes: [{ id: 'note-1', x: 10, y: 20, text: 'a < b & "c"\nline two' }] });
+  const m = (): ModelState => ({
+    ...model(),
+    notes: [{ id: 'note-1', x: 10, y: 20, text: 'a < b & "c"\nline two' }],
+  });
   it('are exported, escaped, line by line', () => {
     const { svg } = renderFigureSvg(figure(m()), DEFAULT_FIGURE_STYLE);
     expect(svg).toContain('a &lt; b &amp; &quot;c&quot;');
@@ -66,7 +118,10 @@ describe('comments', () => {
     const text = serializeProject(m(), DEFAULT_SETTINGS, null, null, null);
     expect(parseProject(text).model.notes).toEqual(m().notes);
     const raw = JSON.parse(text);
-    raw.model.notes = [{ id: 'x', x: 'NaN', y: 0, text: 'bad' }, { id: 'y', x: 0, y: 0, text: 'z'.repeat(9000) }];
+    raw.model.notes = [
+      { id: 'x', x: 'NaN', y: 0, text: 'bad' },
+      { id: 'y', x: 0, y: 0, text: 'z'.repeat(9000) },
+    ];
     const notes = parseProject(JSON.stringify(raw)).model.notes!;
     expect(notes).toHaveLength(1);
     expect(notes[0].text).toHaveLength(5000);
@@ -113,8 +168,20 @@ describe('appearance', () => {
 });
 
 describe('recalculating by itself', () => {
-  const data = { names: ['a1', 'a2', 'b1', 'b2'], cols: [0, 1, 2, 3].map((k) => Float64Array.from({ length: 30 }, (_, i) => Math.sin(i * (k + 1)))) };
-  const base = { model: model(), data, dataVersion: 1, job: null, results: null, settings: { ...DEFAULT_SETTINGS, autoCalculate: true } };
+  const data = {
+    names: ['a1', 'a2', 'b1', 'b2'],
+    cols: [0, 1, 2, 3].map((k) =>
+      Float64Array.from({ length: 30 }, (_, i) => Math.sin(i * (k + 1))),
+    ),
+  };
+  const base = {
+    model: model(),
+    data,
+    dataVersion: 1,
+    job: null,
+    results: null,
+    settings: { ...DEFAULT_SETTINGS, autoCalculate: true },
+  };
   beforeEach(() => {});
   it('runs when on and the model changed', () => {
     expect(autoCalculateDue(base as never, null)).toBe(true);
@@ -123,7 +190,12 @@ describe('recalculating by itself', () => {
     expect(autoCalculateDue({ ...base, settings: DEFAULT_SETTINGS } as never, null)).toBe(false);
     expect(autoCalculateDue({ ...base, job: { kind: 'estimate' } } as never, null)).toBe(false);
     expect(autoCalculateDue({ ...base, data: null } as never, null)).toBe(false);
-    expect(autoCalculateDue({ ...base, model: { constructs: [], paths: [], moderations: [] } } as never, null)).toBe(false);
+    expect(
+      autoCalculateDue(
+        { ...base, model: { constructs: [], paths: [], moderations: [] } } as never,
+        null,
+      ),
+    ).toBe(false);
     const dangling = model();
     dangling.constructs[0] = { ...dangling.constructs[0], indicators: [] };
     expect(autoCalculateDue({ ...base, model: dangling } as never, null)).toBe(false);
@@ -150,16 +222,36 @@ describe('indicators typed by name', () => {
   });
   it('give a model that is drawn before there is data, and is checked against the columns once there is', async () => {
     const { validateModel } = await import('../model/project');
-    const m = { constructs: [C('a', 0, { indicators: ['sat1', 'sat2'] }), C('b', 400, { indicators: ['loy1', 'loy2'] })], paths: [{ id: 'p', from: 'a', to: 'b' }], moderations: [] };
-    expect(validateModel(m, null, { method: 'pls', consistent: false }).filter((i) => /not in the current dataset/.test(i.message))).toEqual([]);
-    const data = { names: ['sat1', 'sat2', 'loy1'], cols: [0, 1, 2].map(() => Float64Array.from([1, 2, 3, 4])) };
-    expect(validateModel(m, data, { method: 'pls', consistent: false }).map((i) => i.message)).toContainEqual(expect.stringMatching(/Indicator "loy2" \(in "B"\) is not in the current dataset/));
+    const m = {
+      constructs: [
+        C('a', 0, { indicators: ['sat1', 'sat2'] }),
+        C('b', 400, { indicators: ['loy1', 'loy2'] }),
+      ],
+      paths: [{ id: 'p', from: 'a', to: 'b' }],
+      moderations: [],
+    };
+    expect(
+      validateModel(m, null, { method: 'pls', consistent: false }).filter((i) =>
+        /not in the current dataset/.test(i.message),
+      ),
+    ).toEqual([]);
+    const data = {
+      names: ['sat1', 'sat2', 'loy1'],
+      cols: [0, 1, 2].map(() => Float64Array.from([1, 2, 3, 4])),
+    };
+    expect(
+      validateModel(m, data, { method: 'pls', consistent: false }).map((i) => i.message),
+    ).toContainEqual(
+      expect.stringMatching(/Indicator "loy2" \(in "B"\) is not in the current dataset/),
+    );
   });
 });
 
 describe('numbers in project files', () => {
   it('are read as numbers only: text such as "0x10" falls back to the default', () => {
-    const file = JSON.parse(serializeProject(model(), { ...DEFAULT_SETTINGS, seed: 99, bootSamples: 300 }, null, null));
+    const file = JSON.parse(
+      serializeProject(model(), { ...DEFAULT_SETTINGS, seed: 99, bootSamples: 300 }, null, null),
+    );
     expect(parseProject(JSON.stringify(file)).settings.seed).toBe(99);
     file.settings.seed = '0x10';
     file.settings.bootSamples = ' 500 ';

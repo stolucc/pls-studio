@@ -19,35 +19,76 @@ export function ProcessBar({ onTemplates }: { onTemplates: () => void }) {
   const k = found?.roles.m.length ?? 0;
   const set = (n: number) => useStore.getState().setMediatorCount(n);
   // An unfilled slot is named by its role: show the role alone.
-  const role = (r: string, v: string | undefined) => v && <span className="role"><b>{r}</b>{isSlotName(v) ? '' : ` ${v}`}</span>;
+  const role = (r: string, v: string | undefined) =>
+    v && (
+      <span className="role">
+        <b>{r}</b>
+        {isSlotName(v) ? '' : ` ${v}`}
+      </span>
+    );
   return (
     <div className="process-bar" role="status">
       {tp && found ? (
         <>
-          <span className="chip accent model-chip" title={`PROCESS model ${tp.model}: ${describe(tp)}`}>Model {tp.model}</span>
+          <span
+            className="chip accent model-chip"
+            title={`PROCESS model ${tp.model}: ${describe(tp)}`}
+          >
+            Model {tp.model}
+          </span>
           {role('X', found.roles.x)}
-          {found.roles.m.map((m, i) => <span key={m}>{role(found.roles.m.length > 1 ? `M${i + 1}` : 'M', m)}</span>)}
+          {found.roles.m.map((m, i) => (
+            <span key={m}>{role(found.roles.m.length > 1 ? `M${i + 1}` : 'M', m)}</span>
+          ))}
           {role('W', found.roles.w)}
           {role('Z', found.roles.z)}
           {role('Y', found.roles.y)}
-          {info.covariates.length > 0 && <span className="role"><b>Cov</b> {info.covariates.join(', ')}</span>}
+          {info.covariates.length > 0 && (
+            <span className="role">
+              <b>Cov</b> {info.covariates.join(', ')}
+            </span>
+          )}
           {hi > lo && !readOnly && (
             <span className="med-count" title="Number of mediators">
-              <button className="btn sm ghost" onClick={() => set(k - 1)} disabled={k <= lo} aria-label="Remove a mediator">−</button>
+              <button
+                className="btn sm ghost"
+                onClick={() => set(k - 1)}
+                disabled={k <= lo}
+                aria-label="Remove a mediator"
+              >
+                −
+              </button>
               {k} mediator{k === 1 ? '' : 's'}
-              <button className="btn sm ghost" onClick={() => set(k + 1)} disabled={k >= hi} aria-label="Add a mediator">+</button>
+              <button
+                className="btn sm ghost"
+                onClick={() => set(k + 1)}
+                disabled={k >= hi}
+                aria-label="Add a mediator"
+              >
+                +
+              </button>
             </span>
           )}
         </>
       ) : info.graph ? (
         <>
           <span className="chip model-chip">Custom model</span>
-          <span className="hint">X {info.graph.x} → Y {info.graph.y}{info.graph.mediators.length ? `, ${info.graph.mediators.length} mediator${info.graph.mediators.length === 1 ? '' : 's'}` : ''}. Not one of PROCESS’s numbered models; estimated the same way.</span>
+          <span className="hint">
+            X {info.graph.x} → Y {info.graph.y}
+            {info.graph.mediators.length
+              ? `, ${info.graph.mediators.length} mediator${info.graph.mediators.length === 1 ? '' : 's'}`
+              : ''}
+            . Not one of PROCESS’s numbered models; estimated the same way.
+          </span>
         </>
       ) : (
         <span className="hint">{info.errors[0]?.message}</span>
       )}
-      {!readOnly && <button className="btn sm ghost" onClick={onTemplates}>Templates…</button>}
+      {!readOnly && (
+        <button className="btn sm ghost" onClick={onTemplates}>
+          Templates…
+        </button>
+      )}
     </div>
   );
 }

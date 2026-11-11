@@ -38,21 +38,73 @@ import { evidence, example, load, MPLUS } from './testkit';
  * sign of slow mixing: its draws are taken as worth those of 2,000 iterations (n_M = 40).
  */
 export const DSEM_EXAMPLES: { key: string; iterations: number; k?: number; sdRel?: number }[] = [
-  { key: 'ex6.26', iterations: 2000 }, { key: 'ex6.26b', iterations: 20000 }, { key: 'ex6.27', iterations: 2000 }, { key: 'ex6.28', iterations: 2000 },
-  { key: 'ex9.19part1', iterations: 1000 }, { key: 'ex9.19part3', iterations: 1000 },
-  { key: 'ex9.24', iterations: 2000 }, { key: 'ex9.25', iterations: 800 }, { key: 'ex9.26', iterations: 1000 }, { key: 'ex9.27', iterations: 2500 }, { key: 'ex9.28', iterations: 2000 }, { key: 'ex9.29', iterations: 10000 },
-  { key: 'ex9.30', iterations: 2000 }, { key: 'ex9.30b', iterations: 2100 }, { key: 'ex9.31', iterations: 2000 }, { key: 'ex9.32', iterations: 2000 }, { key: 'ex9.32b', iterations: 2000 },
-  { key: 'ex9.33', iterations: 6200 }, { key: 'ex9.34', iterations: 2000 }, { key: 'ex9.35', iterations: 3000 }, { key: 'ex9.37', iterations: 3000 },
-  { key: 'ex9.38', iterations: 2000 }, { key: 'ex9.38b', iterations: 200 }, { key: 'ex9.39', iterations: 6700, k: 0.62, sdRel: 0.35 }, { key: 'ex9.39b', iterations: 200 },
-  { key: 'ex9.40', iterations: 1700 }, { key: 'ex9.40part2', iterations: 1600 },
+  { key: 'ex6.26', iterations: 2000 },
+  { key: 'ex6.26b', iterations: 20000 },
+  { key: 'ex6.27', iterations: 2000 },
+  { key: 'ex6.28', iterations: 2000 },
+  { key: 'ex9.19part1', iterations: 1000 },
+  { key: 'ex9.19part3', iterations: 1000 },
+  { key: 'ex9.24', iterations: 2000 },
+  { key: 'ex9.25', iterations: 800 },
+  { key: 'ex9.26', iterations: 1000 },
+  { key: 'ex9.27', iterations: 2500 },
+  { key: 'ex9.28', iterations: 2000 },
+  { key: 'ex9.29', iterations: 10000 },
+  { key: 'ex9.30', iterations: 2000 },
+  { key: 'ex9.30b', iterations: 2100 },
+  { key: 'ex9.31', iterations: 2000 },
+  { key: 'ex9.32', iterations: 2000 },
+  { key: 'ex9.32b', iterations: 2000 },
+  { key: 'ex9.33', iterations: 6200 },
+  { key: 'ex9.34', iterations: 2000 },
+  { key: 'ex9.35', iterations: 3000 },
+  { key: 'ex9.37', iterations: 3000 },
+  { key: 'ex9.38', iterations: 2000 },
+  { key: 'ex9.38b', iterations: 200 },
+  { key: 'ex9.39', iterations: 6700, k: 0.62, sdRel: 0.35 },
+  { key: 'ex9.39b', iterations: 200 },
+  { key: 'ex9.40', iterations: 1700 },
+  { key: 'ex9.40part2', iterations: 1600 },
 ];
 const N_OURS = 400;
 export const nMplus = (iterations: number) => Math.min(100, Math.max(20, iterations / 50));
 /** The medians' tolerance in posterior SDs, and the SDs' relative tolerance. */
-export const tolerances = (iterations: number) => { const n = nMplus(iterations); return { k: 3 * 1.25 * Math.sqrt(1 / n + 1 / N_OURS), sdRel: 3 * Math.sqrt(1 / (2 * n) + 1 / (2 * N_OURS)) }; };
+export const tolerances = (iterations: number) => {
+  const n = nMplus(iterations);
+  return {
+    k: 3 * 1.25 * Math.sqrt(1 / n + 1 / N_OURS),
+    sdRel: 3 * Math.sqrt(1 / (2 * n) + 1 / (2 * N_OURS)),
+  };
+};
 export const FIXTURE = join(__dirname, '..', '..', 'engine', '__fixtures__', 'dsem', 'mplus.json');
-export type Recorded = Record<string, { result: Pick<DsemResult, 'parameters' | 'maxRhat' | 'minNeff' | 'converged' | 'divergent' | 'npar' | 'chains' | 'warmup' | 'draws' | 'seed' | 'n' | 'clusters'>; versions?: Record<string, string> }>;
-export const readRecorded = (): Recorded => { try { return JSON.parse(readFileSync(FIXTURE, 'utf8')) as Recorded; } catch { return {}; } };
+export type Recorded = Record<
+  string,
+  {
+    result: Pick<
+      DsemResult,
+      | 'parameters'
+      | 'maxRhat'
+      | 'minNeff'
+      | 'converged'
+      | 'divergent'
+      | 'npar'
+      | 'chains'
+      | 'warmup'
+      | 'draws'
+      | 'seed'
+      | 'n'
+      | 'clusters'
+    >;
+    versions?: Record<string, string>;
+  }
+>;
+export const readRecorded = (): Recorded => {
+  try {
+    return JSON.parse(readFileSync(FIXTURE, 'utf8')) as Recorded;
+  } catch {
+    return {};
+  }
+};
 
 /** The example's card, as the app opens it: its data, settings and options. */
 /**
@@ -61,13 +113,27 @@ export const readRecorded = (): Recorded => { try { return JSON.parse(readFileSy
  */
 export function dsemExample(key: string, given?: Dataset) {
   const ex = key.startsWith('ex') ? example(key) : PACKAGE_EXAMPLES.find((e) => e.id === key)!;
-  const data = given ?? (key.startsWith('ex') ? load(key) : exampleTestData(ex) ?? stub(dsemColumns((panelPreset(examplePanels(ex)[0]) as unknown as DsemOptions).syntax)));
+  const data =
+    given ??
+    (key.startsWith('ex')
+      ? load(key)
+      : (exampleTestData(ex) ??
+        stub(dsemColumns((panelPreset(examplePanels(ex)[0]) as unknown as DsemOptions).syntax))));
   const settings = exampleSettings(DEFAULT_SETTINGS, ex.settings);
-  const ctx = { data, info: null, settings, pls: null, projectName: ex.title } as unknown as AnalysisCtx;
+  const ctx = {
+    data,
+    info: null,
+    settings,
+    pls: null,
+    projectName: ex.title,
+  } as unknown as AnalysisCtx;
   const options = panelPreset(examplePanels(ex)[0]) as unknown as DsemOptions;
   return { ex, ctx, settings, options };
 }
-const stub = (names: string[]): Dataset => ({ names, cols: names.map(() => Float64Array.from([1, 2, 3, 4])) });
+const stub = (names: string[]): Dataset => ({
+  names,
+  cols: names.map(() => Float64Array.from([1, 2, 3, 4])),
+});
 export function dsemExampleRequest(key: string, given?: Dataset) {
   const { ctx, settings, options } = dsemExample(key, given);
   const m = dsemModel(options, ctx);
@@ -100,10 +166,28 @@ const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
  */
 const HEAVY_TAILS: Record<string, string[]> = {
   'ex6.27': ['f =~ u3'],
-  'ex9.30b': ['z ~ s1 (Between Level)', 'z ~ s2 (Between Level)', 'z ~ logv (Between Level)', 'z ~1  (Between Level)'],
+  'ex9.30b': [
+    'z ~ s1 (Between Level)',
+    'z ~ s2 (Between Level)',
+    'z ~ logv (Between Level)',
+    'z ~1  (Between Level)',
+  ],
 };
 
-const ML_CHECK: Record<string, Record<string, { ml?: number; mlSe?: number; truth?: number; mplusWithin?: number; truthWithin?: number; sdRel?: number }>> = {
+const ML_CHECK: Record<
+  string,
+  Record<
+    string,
+    {
+      ml?: number;
+      mlSe?: number;
+      truth?: number;
+      mplusWithin?: number;
+      truthWithin?: number;
+      sdRel?: number;
+    }
+  >
+> = {
   'ex9.24': { 'y ~1 ': { ml: 1.746, mlSe: 0.227 } },
   'ex9.25': { 'y1 ~1 ': { ml: 1.525, mlSe: 0.192 }, 'y2 ~1 ': {} },
   // 9.38: the means of the subject-level random intercept and covariate slope (crossed with time), Mplus 2.103 and 0.621
@@ -114,30 +198,46 @@ const ML_CHECK: Record<string, Record<string, { ml?: number; mlSe?: number; trut
   // time level), Mplus 0.727 and −0.002 from 6,700 iterations (the two trade off: timet runs from 1 to 100); the
   // same lmer as for 9.38, with the time slope over subjects and the covariate slope over time on timet: 0.468
   // (SE 0.101) and 0.0015 (SE 0.0016), the time slope's mean 0.0006 (SE 0.0039). Mplus within 3 posterior SDs.
-  'ex9.39': { 'sx ~1 ': { ml: 0.468, mlSe: 0.101, mplusWithin: 3 }, 'sx ~ timet': { ml: 0.0015, mlSe: 0.0016, mplusWithin: 3 }, 's ~1 ': { ml: 0.0006, mlSe: 0.0039 } },
+  'ex9.39': {
+    'sx ~1 ': { ml: 0.468, mlSe: 0.101, mplusWithin: 3 },
+    'sx ~ timet': { ml: 0.0015, mlSe: 0.0016, mplusWithin: 3 },
+    's ~1 ': { ml: 0.0006, mlSe: 0.0039 },
+  },
   // 9.39b: as 9.39 for the covariate slope's subject-level mean (Mplus 0.573 from 200 iterations, FBITERATIONS = 100;
   // lmer 0.468, SE 0.101), and as 9.38b for the random log residual variance's variance (generated constant: 0).
   // The data (ex9.39.dat, generated by mcex9.39.inp: "Same as mcex9.38") have a constant within residual variance
   // (y*1, no logv), so logv's regressions and covariances are 0 in truth: logv ON xm (Mplus −0.013, SD 0.008) and
   // y WITH logv on the subject level (Mplus 0.013, SD 0.007) are compared with 0 here, Mplus's within 3 SDs.
-  'ex9.39b': { 'sx ~1 ': { ml: 0.468, mlSe: 0.101, mplusWithin: 3 }, 'logv ~~ logv': { truth: 0, mplusWithin: 3, truthWithin: 3 },
-    'logv ~ xm': { truth: 0, mplusWithin: 3, truthWithin: 2 }, 'y ~~ logv': { truth: 0, mplusWithin: 3, truthWithin: 2 },
+  'ex9.39b': {
+    'sx ~1 ': { ml: 0.468, mlSe: 0.101, mplusWithin: 3 },
+    'logv ~~ logv': { truth: 0, mplusWithin: 3, truthWithin: 3 },
+    'logv ~ xm': { truth: 0, mplusWithin: 3, truthWithin: 2 },
+    'y ~~ logv': { truth: 0, mplusWithin: 3, truthWithin: 2 },
     // the random intercept's mean (at time 0: timew is not centred, so it trades off with the trend s over times
     // 1 to 100): Mplus's SD 0.092 from 200 iterations, 0.129 from its 6,700 for the same y and s in 9.39 (ours 0.163
     // there, 0.163 here): a short Gibbs chain does not cover the trade-off. Its SD within 100% here.
-    'y ~1 ': { sdRel: 1 } },
+    'y ~1 ': { sdRel: 1 },
+  },
   // 9.38b: the random log residual variance's variance. The data (mcex9.38.inp) were generated with a constant
   // residual variance, so its true value is 0: ours 0.002 (SD 0.001), Mplus 0.004 from 200 iterations.
   // The random intercept's mean: Mplus's posterior SD from 200 iterations, 0.060, is below the ML standard error of
   // the same intercept (lmer as for 9.38: 2.033, SE 0.089); ours 2.04 (SD 0.092). Compared with lmer, Mplus's SD within 60%.
-  'ex9.38b': { 'logv ~~ logv': { truth: 0, mplusWithin: 3, truthWithin: 3 }, 'y ~1 ': { ml: 2.033, mlSe: 0.089, sdRel: 0.6 } },
+  'ex9.38b': {
+    'logv ~~ logv': { truth: 0, mplusWithin: 3, truthWithin: 3 },
+    'y ~1 ': { ml: 2.033, mlSe: 0.089, sdRel: 0.6 },
+  },
   // 9.40 part 2: the subject-level variance of the factor whose loadings are random over subjects. Mplus prints 0.878
   // (SD 0.101), the card 1.83 (SD 0.20). In the model as written, y_kjt = ν_kj + ν_kt + s_kj (f_w,jt + f_j + f_t) + e,
   // the covariance of two indicators' subject means is E[s_kj s_lj] ψ_j, and the data's subject means covary by 2.72,
   // 3.27 and 3.09 (mean 3.03) with loading means of 1.315–1.317 (E[s_k s_l] = 1.73): ψ_j ≈ 1.75, as here. Mplus's
   // figure scales the between part of a factor with random loadings otherwise (its documentation does not say how).
   // The intercept means and their SDs move with it (their posterior is wider here: within 1.5 SDs and 70%).
-  'ex9.40part2': { 'Between SUBJECT Level|f ~~ f': { truth: 1.75, truthWithin: 1, mplusWithin: 12, sdRel: 1.2 }, 'y1 ~1 ': { sdRel: 0.7 }, 'y2 ~1 ': { sdRel: 0.7 }, 'y3 ~1 ': { sdRel: 0.7 } },
+  'ex9.40part2': {
+    'Between SUBJECT Level|f ~~ f': { truth: 1.75, truthWithin: 1, mplusWithin: 12, sdRel: 1.2 },
+    'y1 ~1 ': { sdRel: 0.7 },
+    'y2 ~1 ': { sdRel: 0.7 },
+    'y3 ~1 ': { sdRel: 0.7 },
+  },
   // 9.37: the AR slope's mean, an open difference. Ours 0.324 (SD 0.011) in two runs (2 × 2,000 and 4 × 2,000 draws,
   // R-hat 1.001), Mplus 0.316 (0.011) from 3,000 iterations: 0.71 posterior SDs, beyond the 0.52 its iterations
   // allow (Mplus's slowest parameters, TECH8, are logv's, not this one). Every other parameter, the AR slope's
@@ -155,34 +255,66 @@ const ML_CHECK: Record<string, Record<string, { ml?: number; mlSe?: number; trut
 export function compareWithMplus(key: string, r: Recorded[string]['result']) {
   const spec = DSEM_EXAMPLES.find((e) => e.key === key)!;
   const tol = tolerances(spec.iterations);
-  const k = spec.k ?? tol.k, sdRel = spec.sdRel ?? tol.sdRel;
+  const k = spec.k ?? tol.k,
+    sdRel = spec.sdRel ?? tol.sdRel;
   evidence(key, 'Bayesian', ['rstan']);
   let n = 0;
   const heavy: string[] = [];
   for (const p of MPLUS[key].estimates) {
-    const mine = r.parameters.filter((e) => e.block === p.block && e.op === p.op
-      && ((sameName(e.lhs, p.lhs) && sameName(e.rhs, p.rhs)) || (p.op === '~~' && sameName(e.lhs, p.rhs) && sameName(e.rhs, p.lhs))));
+    const mine = r.parameters.filter(
+      (e) =>
+        e.block === p.block &&
+        e.op === p.op &&
+        ((sameName(e.lhs, p.lhs) && sameName(e.rhs, p.rhs)) ||
+          (p.op === '~~' && sameName(e.lhs, p.rhs) && sameName(e.rhs, p.lhs))),
+    );
     if (p.se === 0) {
       // a fixed parameter (or one Mplus prints as 0.000 with SD 0.000)
-      if (mine.length) near(`${p.lhs} ${p.op} ${p.rhs} (${p.block || 'model'}, fixed or 0)`, mine[0].median, p.est, 0.0015 + (mine[0].fixed ? 0 : 3 * mine[0].sd));
+      if (mine.length)
+        near(
+          `${p.lhs} ${p.op} ${p.rhs} (${p.block || 'model'}, fixed or 0)`,
+          mine[0].median,
+          p.est,
+          0.0015 + (mine[0].fixed ? 0 : 3 * mine[0].sd),
+        );
       continue;
     }
     expect(mine.length, `${key}: ${p.lhs} ${p.op} ${p.rhs} ${p.block}`).toBe(1);
     const e = mine[0];
     const label = `${p.lhs} ${p.op} ${p.rhs}${p.block ? ` (${p.block})` : ''}`;
     // (an entry keyed by `block|parameter` applies on that level only)
-    const ml = ML_CHECK[key]?.[`${p.block}|${p.lhs} ${p.op} ${p.rhs}`] ?? ML_CHECK[key]?.[`${p.lhs} ${p.op} ${p.rhs}`];
+    const ml =
+      ML_CHECK[key]?.[`${p.block}|${p.lhs} ${p.op} ${p.rhs}`] ??
+      ML_CHECK[key]?.[`${p.lhs} ${p.op} ${p.rhs}`];
     if (ml) {
       const w = ml.mplusWithin ?? 1.5;
-      near(`posterior median of ${label}, Mplus's short chain (within ${w} posterior SDs)`, e.median, p.est, w * e.sd);
-      if (ml.ml !== undefined) near(`posterior median of ${label} against the ML estimate (lme4)`, e.median, ml.ml, 0.5 * ml.mlSe!);
-      if (ml.truth !== undefined) near(`posterior median of ${label} against the value the data were generated with (Mplus's Monte Carlo input)`, e.median, ml.truth, (ml.truthWithin ?? 2) * e.sd);
+      near(
+        `posterior median of ${label}, Mplus's short chain (within ${w} posterior SDs)`,
+        e.median,
+        p.est,
+        w * e.sd,
+      );
+      if (ml.ml !== undefined)
+        near(
+          `posterior median of ${label} against the ML estimate (lme4)`,
+          e.median,
+          ml.ml,
+          0.5 * ml.mlSe!,
+        );
+      if (ml.truth !== undefined)
+        near(
+          `posterior median of ${label} against the value the data were generated with (Mplus's Monte Carlo input)`,
+          e.median,
+          ml.truth,
+          (ml.truthWithin ?? 2) * e.sd,
+        );
       near(`posterior SD of ${label}`, e.sd, p.se, (ml.sdRel ?? 0.5) * p.se + 0.0015);
       n++;
       continue;
     }
     near(`posterior median of ${label}`, e.median, p.est, k * p.se + 0.0015);
-    if (e.sd > 1.5 * (e.high - e.low) / 3.92 || HEAVY_TAILS[key]?.includes(label)) heavy.push(label);
+    if (e.sd > (1.5 * (e.high - e.low)) / 3.92 || HEAVY_TAILS[key]?.includes(label))
+      heavy.push(label);
     else near(`posterior SD of ${label}`, e.sd, p.se, sdRel * p.se + 0.0015);
     n++;
   }

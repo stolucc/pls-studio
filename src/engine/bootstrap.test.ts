@@ -13,7 +13,11 @@ const spec: ModelSpec = {
     { name: 'Satisfaction', mode: 'A', indicators: ['CUSA1', 'CUSA2', 'CUSA3'] },
     { name: 'Loyalty', mode: 'A', indicators: ['CUSL1', 'CUSL2', 'CUSL3'] },
   ],
-  paths: [{ from: 'Image', to: 'Satisfaction' }, { from: 'Satisfaction', to: 'Loyalty' }, { from: 'Image', to: 'Loyalty' }],
+  paths: [
+    { from: 'Image', to: 'Satisfaction' },
+    { from: 'Satisfaction', to: 'Loyalty' },
+    { from: 'Image', to: 'Loyalty' },
+  ],
 };
 
 describe('bootstrapPls', () => {
@@ -55,7 +59,9 @@ describe('bootstrapPls', () => {
     const seen: number[] = [];
     bootstrapPls(data, spec, {}, { ...opts, samples: 50 }, { onProgress: (d) => seen.push(d) });
     expect(seen.at(-1)).toBe(50);
-    expect(() => bootstrapPls(data, spec, {}, opts, { shouldCancel: () => true })).toThrow(/cancelled/);
+    expect(() => bootstrapPls(data, spec, {}, opts, { shouldCancel: () => true })).toThrow(
+      /cancelled/,
+    );
   });
 });
 
@@ -65,7 +71,9 @@ describe('parallel bootstrapping', () => {
     const req = { job: 'pls' as const, data, spec, options: {}, seed: 99 };
     const whole = mergeBootstrap([runRange({ ...req, start: 0, end: 90 })], 0.95);
     // Ranges finishing out of order, as workers would.
-    const parts = splitRanges(90, 4).map(([start, end]) => runRange({ ...req, start, end })).reverse();
+    const parts = splitRanges(90, 4)
+      .map(([start, end]) => runRange({ ...req, start, end }))
+      .reverse();
     const split = mergeBootstrap(parts, 0.95);
     expect(split.stats).toEqual(whole.stats);
     expect(split.samples + split.failed).toBe(90);
@@ -73,8 +81,15 @@ describe('parallel bootstrapping', () => {
 
   it('splits sample ranges evenly without gaps', async () => {
     const { splitRanges } = await import('./bootstrap');
-    expect(splitRanges(10, 3)).toEqual([[0, 3], [3, 6], [6, 10]]);
-    expect(splitRanges(2, 8)).toEqual([[0, 1], [1, 2]]);
+    expect(splitRanges(10, 3)).toEqual([
+      [0, 3],
+      [3, 6],
+      [6, 10],
+    ]);
+    expect(splitRanges(2, 8)).toEqual([
+      [0, 1],
+      [1, 2],
+    ]);
   });
 
   it('per-sample seeds differ across samples and seeds', async () => {

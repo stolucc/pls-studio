@@ -5,24 +5,49 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { menuFor } from '../components/canvasMenu';
 import { covarianceLayout } from '../components/CovarianceLayer';
 import { switchMethod } from '../methodSwitch';
-import { DEFAULT_SETTINGS, parseProject, serializeProject, validateModel, type ModelState } from '../model/project';
+import {
+  DEFAULT_SETTINGS,
+  parseProject,
+  serializeProject,
+  validateModel,
+  type ModelState,
+} from '../model/project';
 import { emptyModel, resultsKey, useStore } from '../store';
 import { processGraph } from './fromModel';
 
 const s = () => useStore.getState();
 const named = (name: string) => s().model.constructs.find((c) => c.name === name)!;
-const data = { names: ['stress', 'sup', 'burn', 'r1', 'r2', 'age'], cols: Array.from({ length: 6 }, () => new Float64Array([1, 2, 3, 4, 5])) };
+const data = {
+  names: ['stress', 'sup', 'burn', 'r1', 'r2', 'age'],
+  cols: Array.from({ length: 6 }, () => new Float64Array([1, 2, 3, 4, 5])),
+};
 const yes = () => Promise.resolve(true);
 
-beforeEach(() => useStore.setState({
-  model: emptyModel(), settings: { ...DEFAULT_SETTINGS, method: 'process' }, data, past: [], future: [], toasts: [], cloud: null,
-}));
+beforeEach(() =>
+  useStore.setState({
+    model: emptyModel(),
+    settings: { ...DEFAULT_SETTINGS, method: 'process' },
+    data,
+    past: [],
+    future: [],
+    toasts: [],
+    cloud: null,
+  }),
+);
 
 describe('PROCESS templates in the store', () => {
   it('applies a template as empty slots, and names a slot after the variable dropped on it', () => {
     s().applyTemplate(7, 1);
-    expect(s().model.constructs.map((c) => c.name).sort()).toEqual(['M', 'W', 'X', 'Y']);
-    expect(validateModel(s().model, data, s().settings).some((i) => /has no variable yet/.test(i.message))).toBe(true);
+    expect(
+      s()
+        .model.constructs.map((c) => c.name)
+        .sort(),
+    ).toEqual(['M', 'W', 'X', 'Y']);
+    expect(
+      validateModel(s().model, data, s().settings).some((i) =>
+        /has no variable yet/.test(i.message),
+      ),
+    ).toBe(true);
     s().assignIndicators(named('X').id, ['stress']);
     expect(named('stress').indicators).toEqual(['stress']);
     // A scale (several items) keeps the role name: the user names it.
@@ -30,8 +55,13 @@ describe('PROCESS templates in the store', () => {
     expect(named('M').indicators).toEqual(['r1', 'r2']);
     s().assignIndicators(named('W').id, ['sup']);
     s().assignIndicators(named('Y').id, ['burn']);
-    expect(validateModel(s().model, data, s().settings).filter((i) => i.level === 'error')).toEqual([]);
-    expect(processGraph(s().model).recognised).toMatchObject({ model: 7, roles: { x: 'stress', m: ['M'], w: 'sup', y: 'burn' } });
+    expect(validateModel(s().model, data, s().settings).filter((i) => i.level === 'error')).toEqual(
+      [],
+    );
+    expect(processGraph(s().model).recognised).toMatchObject({
+      model: 7,
+      roles: { x: 'stress', m: ['M'], w: 'sup', y: 'burn' },
+    });
     s().undo();
     expect(named('Y').indicators).toEqual([]);
   });
@@ -72,7 +102,8 @@ describe('switching methods', () => {
   it('leaving process analysis adds the main-effect paths SEM draws', async () => {
     s().applyTemplate(7, 1);
     expect(await switchMethod('pls', yes)).toBe(true);
-    const w = named('W').id, m = named('M').id;
+    const w = named('W').id,
+      m = named('M').id;
     expect(s().model.paths.some((p) => p.from === w && p.to === m)).toBe(true);
     // And they read as implied main effects again in process analysis.
     expect(await switchMethod('process', yes)).toBe(true);
@@ -83,7 +114,11 @@ describe('switching methods', () => {
     s().applyTemplate(3, 0);
     expect(await switchMethod('cbsem', yes)).toBe(false);
     expect(s().toasts.at(-1)?.text).toMatch(/Moderated moderations/);
-    useStore.setState({ settings: { ...DEFAULT_SETTINGS, method: 'cbsem' }, model: emptyModel(), data: { names: ['a'], cols: [], moments: { S: [[1]], n: 50 } } });
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS, method: 'cbsem' },
+      model: emptyModel(),
+      data: { names: ['a'], cols: [], moments: { S: [[1]], n: 50 } },
+    });
     expect(await switchMethod('process', yes)).toBe(false);
     expect(s().toasts.at(-1)?.text).toMatch(/needs raw data/);
   });
@@ -111,25 +146,47 @@ describe('project files and results', () => {
 
   it('CB-SEM rejects moderated moderation; PLS-SEM has it', () => {
     s().applyTemplate(3, 0);
-    expect(validateModel(s().model, data, { ...s().settings, method: 'cbsem' }).some((i) => /Moderated moderation/.test(i.message))).toBe(true);
-    expect(validateModel(s().model, data, { ...s().settings, method: 'pls' }).some((i) => /Moderated moderation/.test(i.message))).toBe(false);
+    expect(
+      validateModel(s().model, data, { ...s().settings, method: 'cbsem' }).some((i) =>
+        /Moderated moderation/.test(i.message),
+      ),
+    ).toBe(true);
+    expect(
+      validateModel(s().model, data, { ...s().settings, method: 'pls' }).some((i) =>
+        /Moderated moderation/.test(i.message),
+      ),
+    ).toBe(false);
   });
 });
 
 describe('context menus in process analysis', () => {
   const m: ModelState = {
-    constructs: ['X', 'Y', 'Age'].map((id) => ({ id, name: id, type: 'factor', mode: 'A', indicators: [id], x: 0, y: 0, side: 'left' })),
-    paths: [{ id: 'p', from: 'X', to: 'Y' }], moderations: [],
+    constructs: ['X', 'Y', 'Age'].map((id) => ({
+      id,
+      name: id,
+      type: 'factor',
+      mode: 'A',
+      indicators: [id],
+      x: 0,
+      y: 0,
+      side: 'left',
+    })),
+    paths: [{ id: 'p', from: 'X', to: 'Y' }],
+    moderations: [],
   };
   const ctx = { method: 'process' as const, readOnly: false };
   it('offers covariates and templates, not composites or quadratic terms', () => {
-    const actions = (t: Parameters<typeof menuFor>[0], model = m) => menuFor(t, model, ctx)?.items.map((i) => i.action) ?? [];
+    const actions = (t: Parameters<typeof menuFor>[0], model = m) =>
+      menuFor(t, model, ctx)?.items.map((i) => i.action) ?? [];
     expect(actions({ kind: 'construct', id: 'Age' })).toContain('make-covariate');
     expect(actions({ kind: 'construct', id: 'X' })).not.toContain('make-covariate');
     expect(actions({ kind: 'construct', id: 'X' })).not.toContain('make-composite');
     expect(actions({ kind: 'path', id: 'p' })).not.toContain('add-quadratic');
     expect(actions({ kind: 'pane', x: 0, y: 0 })).toContain('process-template');
-    const withCov = { ...m, constructs: m.constructs.map((c) => (c.id === 'Age' ? { ...c, covariate: true } : c)) };
+    const withCov = {
+      ...m,
+      constructs: m.constructs.map((c) => (c.id === 'Age' ? { ...c, covariate: true } : c)),
+    };
     expect(actions({ kind: 'construct', id: 'Age' }, withCov)).toContain('unmake-covariate');
   });
 });
@@ -141,13 +198,18 @@ describe('exogenous correlations are drawn, or confirmed as uncorrelated', () =>
     const [x, w] = [named('X').id, named('W').id];
     s().assignIndicators(x, ['r1', 'r2']);
     s().assignIndicators(w, ['sup', 'age']);
-    const asked = () => validateModel(s().model, data, s().settings).filter((i) => i.action === 'exogenous-correlations');
+    const asked = () =>
+      validateModel(s().model, data, s().settings).filter(
+        (i) => i.action === 'exogenous-correlations',
+      );
     // Nothing drawn: no arc, fixed at zero, and the check asks.
     expect(covarianceLayout(s().model, true, false).curves).toEqual([]);
     expect(asked()).toHaveLength(1);
     // Keep uncorrelated: a confirmed zero (not drawn: no arrow means zero), and no more question.
     s().resolveExogenousCorrelations(false);
-    expect(s().model.correlations).toEqual([expect.objectContaining({ a: expect.any(String), b: expect.any(String), zero: true })]);
+    expect(s().model.correlations).toEqual([
+      expect.objectContaining({ a: expect.any(String), b: expect.any(String), zero: true }),
+    ]);
     expect(covarianceLayout(s().model, true, false).curves).toEqual([]);
     expect(asked()).toEqual([]);
     const p = parseProject(serializeProject(s().model, s().settings, null, null));
@@ -172,10 +234,25 @@ describe('session messages', () => {
     s().toast('error', 'Import a dataset first.');
     s().toast('error', 'lavaan: 2 warnings (see Messages).', { log: false });
     s().toast('info', 'Saved.');
-    s().setResults({ cb: { warnings: ['lavaan WARNING: the optimizer warns that a solution has NOT been found!', 'second'], engine: { package: 'lavaan', version: '0.7-3' } } as never }, 'k');
+    s().setResults(
+      {
+        cb: {
+          warnings: [
+            'lavaan WARNING: the optimizer warns that a solution has NOT been found!',
+            'second',
+          ],
+          engine: { package: 'lavaan', version: '0.7-3' },
+        } as never,
+      },
+      'k',
+    );
     expect(s().messages.map((m) => [m.level, m.text, m.source])).toEqual([
       ['error', 'Import a dataset first.', undefined],
-      ['warning', 'lavaan WARNING: the optimizer warns that a solution has NOT been found!', 'lavaan 0.7-3'],
+      [
+        'warning',
+        'lavaan WARNING: the optimizer warns that a solution has NOT been found!',
+        'lavaan 0.7-3',
+      ],
       ['warning', 'second', 'lavaan 0.7-3'],
     ]);
     s().clearMessages();
@@ -189,52 +266,106 @@ describe('latent variables in process analysis', () => {
     s().applyTemplate(3, 0);
     s().assignIndicators(named('X').id, ['r1', 'r2']);
     s().updateConstruct(named('X').id, { latent: true });
-    expect(validateModel(s().model, data, s().settings).some((i) => /three-way interaction\) is not available with latent/.test(i.message))).toBe(true);
+    expect(
+      validateModel(s().model, data, s().settings).some((i) =>
+        /three-way interaction\) is not available with latent/.test(i.message),
+      ),
+    ).toBe(true);
     s().applyTemplate(1, 0);
     s().assignIndicators(named('X').id, ['r1']);
     s().updateConstruct(named('r1').id, { latent: true });
-    expect(validateModel(s().model, data, s().settings).some((i) => /needs at least two/.test(i.message))).toBe(true);
+    expect(
+      validateModel(s().model, data, s().settings).some((i) =>
+        /needs at least two/.test(i.message),
+      ),
+    ).toBe(true);
     s().assignIndicators(named('r1').id, ['r2']);
-    expect(validateModel(s().model, data, s().settings).some((i) => /two items; it is identified only/.test(i.message))).toBe(true);
-    expect(processInput(s().model, s().settings)!.variables.find((v) => v.name === 'r1')).toMatchObject({ latent: true, indicators: ['r1', 'r2'] });
+    expect(
+      validateModel(s().model, data, s().settings).some((i) =>
+        /two items; it is identified only/.test(i.message),
+      ),
+    ).toBe(true);
+    expect(
+      processInput(s().model, s().settings)!.variables.find((v) => v.name === 'r1'),
+    ).toMatchObject({ latent: true, indicators: ['r1', 'r2'] });
     // Round trip through a project file.
-    expect(parseProject(serializeProject(s().model, s().settings, null, null)).model.constructs.find((c) => c.name === 'r1')!.latent).toBe(true);
+    expect(
+      parseProject(serializeProject(s().model, s().settings, null, null)).model.constructs.find(
+        (c) => c.name === 'r1',
+      )!.latent,
+    ).toBe(true);
   });
 });
 
 describe('categorical X in the app', () => {
   it('codes X from the data, refuses categorical non-X variables, and survives files', async () => {
     const { processInput } = await import('./input');
-    const groups = { names: ['g', 'm', 'y'], cols: [Float64Array.from([1, 2, 3, 1, 2]), Float64Array.from([1, 2, 3, 4, 5]), Float64Array.from([2, 3, 4, 5, 6])] };
+    const groups = {
+      names: ['g', 'm', 'y'],
+      cols: [
+        Float64Array.from([1, 2, 3, 1, 2]),
+        Float64Array.from([1, 2, 3, 4, 5]),
+        Float64Array.from([2, 3, 4, 5, 6]),
+      ],
+    };
     useStore.setState({ data: groups });
     s().applyTemplate(4, 1);
     s().assignIndicators(named('X').id, ['g']);
     s().assignIndicators(named('M').id, ['m']);
     s().assignIndicators(named('Y').id, ['y']);
     s().updateConstruct(named('g').id, { categorical: 'helmert' });
-    expect(validateModel(s().model, groups, s().settings).filter((i) => i.level === 'error')).toEqual([]);
+    expect(
+      validateModel(s().model, groups, s().settings).filter((i) => i.level === 'error'),
+    ).toEqual([]);
     const input = processInput(s().model, s().settings, groups)!;
-    expect(input.categorical).toMatchObject({ x: 'g', coding: 'helmert', levels: [1, 2, 3], names: ['g D1', 'g D2'] });
+    expect(input.categorical).toMatchObject({
+      x: 'g',
+      coding: 'helmert',
+      levels: [1, 2, 3],
+      names: ['g D1', 'g D2'],
+    });
     s().updateConstruct(named('m').id, { categorical: 'indicator' });
-    expect(validateModel(s().model, groups, s().settings).some((i) => /applies to X only/.test(i.message))).toBe(true);
-    expect(parseProject(serializeProject(s().model, s().settings, null, null)).model.constructs.find((c) => c.name === 'g')!.categorical).toBe('helmert');
+    expect(
+      validateModel(s().model, groups, s().settings).some((i) =>
+        /applies to X only/.test(i.message),
+      ),
+    ).toBe(true);
+    expect(
+      parseProject(serializeProject(s().model, s().settings, null, null)).model.constructs.find(
+        (c) => c.name === 'g',
+      )!.categorical,
+    ).toBe('helmert');
   });
 });
 
 describe('dichotomous Y and counterfactual effects', () => {
   it('detects a two-valued Y, derives the compared X values, and checks combinations', async () => {
     const { processInput, defaultCounterfactual } = await import('./input');
-    const d = { names: ['x', 'm', 'y'], cols: [Float64Array.from([0, 1, 0, 1, 1]), Float64Array.from([1, 2, 3, 4, 5]), Float64Array.from([0, 1, 1, 0, 1])] };
+    const d = {
+      names: ['x', 'm', 'y'],
+      cols: [
+        Float64Array.from([0, 1, 0, 1, 1]),
+        Float64Array.from([1, 2, 3, 4, 5]),
+        Float64Array.from([0, 1, 1, 0, 1]),
+      ],
+    };
     useStore.setState({ data: d });
     s().applyTemplate(74, 1);
     s().assignIndicators(named('X').id, ['x']);
     s().assignIndicators(named('M').id, ['m']);
     s().assignIndicators(named('Y').id, ['y']);
-    expect(validateModel(s().model, d, s().settings).some((i) => /model 74\) needs a continuous Y/.test(i.message))).toBe(true);
+    expect(
+      validateModel(s().model, d, s().settings).some((i) =>
+        /model 74\) needs a continuous Y/.test(i.message),
+      ),
+    ).toBe(true);
     const inp = processInput(s().model, s().settings, d)!;
     expect(inp.binaryY).toBe(true);
     expect(inp.counterfactual).toEqual({ xref: 0, xcf: 1 });
     expect(defaultCounterfactual(Float64Array.from([1, 2, 3]))).toEqual({ xref: 2, xcf: 3 });
-    expect(processInput(s().model, { ...s().settings, counterfactual: { xref: 2, xcf: 5 } }, d)!.counterfactual).toEqual({ xref: 2, xcf: 5 });
+    expect(
+      processInput(s().model, { ...s().settings, counterfactual: { xref: 2, xcf: 5 } }, d)!
+        .counterfactual,
+    ).toEqual({ xref: 2, xcf: 5 });
   });
 });

@@ -36,55 +36,92 @@ export function processGraph(model: ModelState): FromModel {
     return mo ? [{ path: mo.path, by: [mo.by, t.moderator] as [string, string] }] : [];
   });
   const moderatorIds = new Set([...two.map((m) => m.by), ...three.flatMap((t) => t.by)]);
-  const moderatedInto = (m: string, to: string) => two.some((x) => x.by === m && x.path.to === to) || three.some((x) => x.by.includes(m) && x.path.to === to);
+  const moderatedInto = (m: string, to: string) =>
+    two.some((x) => x.by === m && x.path.to === to) ||
+    three.some((x) => x.by.includes(m) && x.path.to === to);
   // A pure moderator (no incoming paths, outgoing paths only to outcomes it moderates) has only
   // implied main effects; a variable that is also on other paths keeps them (X in model 74).
-  const pure = (m: string) => !model.paths.some((p) => p.to === m) && model.paths.every((p) => p.from !== m || moderatedInto(m, p.to));
+  const pure = (m: string) =>
+    !model.paths.some((p) => p.to === m) &&
+    model.paths.every((p) => p.from !== m || moderatedInto(m, p.to));
   const structural = model.paths.filter((p) => !(moderatorIds.has(p.from) && pure(p.from)));
 
   for (const c of model.constructs) {
     if (!c.covariate) continue;
     if (model.paths.some((p) => p.from === c.id || p.to === c.id) || moderatorIds.has(c.id)) {
-      errors.push({ message: `Covariate "${c.name}" enters every equation by itself; remove its paths and moderations.`, constructId: c.id });
+      errors.push({
+        message: `Covariate "${c.name}" enters every equation by itself; remove its paths and moderations.`,
+        constructId: c.id,
+      });
     }
   }
-  for (const m of two) if (m.by === m.path.from) {
-    errors.push({ message: `Quadratic effects (${name(m.by)}²) are not available in conditional process analysis; use PLS-SEM or CB-SEM.`, constructId: m.by });
-  }
+  for (const m of two)
+    if (m.by === m.path.from) {
+      errors.push({
+        message: `Quadratic effects (${name(m.by)}²) are not available in conditional process analysis; use PLS-SEM or CB-SEM.`,
+        constructId: m.by,
+      });
+    }
 
   const nodes = [...new Set(structural.flatMap((p) => [p.from, p.to]))];
   const sources = nodes.filter((id) => !structural.some((p) => p.to === id));
   const sinks = nodes.filter((id) => !structural.some((p) => p.from === id));
-  if (!structural.length) errors.push({ message: 'Draw a path from X to Y (or pick a PROCESS model template).' });
+  if (!structural.length)
+    errors.push({ message: 'Draw a path from X to Y (or pick a PROCESS model template).' });
   else {
-    if (sources.length !== 1) errors.push({ message: `A conditional process model has one antecedent X, but ${sources.map(name).join(', ')} have no incoming paths. Make the others mediators or moderators, or mark them as covariates.`, constructId: sources[1] });
-    if (sinks.length !== 1) errors.push({ message: `A conditional process model has one outcome Y, but ${sinks.map(name).join(', ')} have no outgoing paths.`, constructId: sinks[1] });
+    if (sources.length !== 1)
+      errors.push({
+        message: `A conditional process model has one antecedent X, but ${sources.map(name).join(', ')} have no incoming paths. Make the others mediators or moderators, or mark them as covariates.`,
+        constructId: sources[1],
+      });
+    if (sinks.length !== 1)
+      errors.push({
+        message: `A conditional process model has one outcome Y, but ${sinks.map(name).join(', ')} have no outgoing paths.`,
+        constructId: sinks[1],
+      });
   }
   const [x, y] = [sources[0], sinks[0]];
   for (const m of moderatorIds) {
-    if (nodes.includes(m) && m !== x) errors.push({ message: `${name(m)} lies on a path and cannot also be a moderator.`, constructId: m });
+    if (nodes.includes(m) && m !== x)
+      errors.push({
+        message: `${name(m)} lies on a path and cannot also be a moderator.`,
+        constructId: m,
+      });
   }
   for (const c of model.constructs) {
     if (!c.covariate && !nodes.includes(c.id) && !moderatorIds.has(c.id)) {
-      errors.push({ message: `"${c.name}" is not in the model: connect it, use it as a moderator, or mark it as a covariate.`, constructId: c.id });
+      errors.push({
+        message: `"${c.name}" is not in the model: connect it, use it as a moderator, or mark it as a covariate.`,
+        constructId: c.id,
+      });
     }
   }
   if (errors.length || !x || !y) return { graph: null, covariates, errors, recognised: null };
 
   const e = (p: { from: string; to: string }): Edge => [name(p.from), name(p.to)];
   const graph: ProcessGraph = {
-    x: name(x), y: name(y),
+    x: name(x),
+    y: name(y),
     mediators: nodes.filter((id) => id !== x && id !== y).map(name),
     paths: structural.map(e),
     moderations: [],
-    threeWay: three.map((t) => ({ path: e(t.path), by: [name(t.by[0]), name(t.by[1])] as [string, string] })),
+    threeWay: three.map((t) => ({
+      path: e(t.path),
+      by: [name(t.by[0]), name(t.by[1])] as [string, string],
+    })),
   };
   const seen = new Set<string>();
   const addTwo = (path: Edge, by: string) => {
     const k = `${path.join('>')}|${by}`;
-    if (!seen.has(k)) { seen.add(k); graph.moderations.push({ path, by }); }
+    if (!seen.has(k)) {
+      seen.add(k);
+      graph.moderations.push({ path, by });
+    }
   };
   for (const m of two) addTwo(e(m.path), name(m.by));
-  for (const t of graph.threeWay) { addTwo(t.path, t.by[0]); addTwo(t.path, t.by[1]); }
+  for (const t of graph.threeWay) {
+    addTwo(t.path, t.by[0]);
+    addTwo(t.path, t.by[1]);
+  }
   return { graph, covariates, errors, recognised: recognise(graph) };
 }

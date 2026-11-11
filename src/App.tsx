@@ -28,7 +28,8 @@ export default function App() {
   const [resultsHeight, setResultsHeight] = useState(320);
   const view = useStore((s) => s.view);
   const workspace = useStore((s) => s.workspace);
-  const validationFocus = useStore((s) => s.validationFocus), validationReturn = useStore((s) => s.validationReturn);
+  const validationFocus = useStore((s) => s.validationFocus),
+    validationReturn = useStore((s) => s.validationReturn);
   const projectName = useStore((s) => s.projectName);
 
   // The validation page has its own address (#validation), so that it can be linked to and bookmarked.
@@ -37,7 +38,8 @@ export default function App() {
     const fromHash = () => {
       const s = useStore.getState();
       if (window.location.hash === '#validation' && s.view !== 'validation') s.openValidation();
-      else if (window.location.hash !== '#validation' && s.view === 'validation') s.closeValidation();
+      else if (window.location.hash !== '#validation' && s.view === 'validation')
+        s.closeValidation();
     };
     fromHash();
     window.addEventListener('hashchange', fromHash);
@@ -45,9 +47,13 @@ export default function App() {
       if (s.view === prev.view) return;
       const url = new URL(window.location.href);
       url.hash = s.view === 'validation' ? 'validation' : '';
-      if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url.href.replace(/#$/, ''));
+      if (url.href !== window.location.href)
+        window.history.replaceState(window.history.state, '', url.href.replace(/#$/, ''));
     });
-    return () => { window.removeEventListener('hashchange', fromHash); unsub(); };
+    return () => {
+      window.removeEventListener('hashchange', fromHash);
+      unsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -55,7 +61,13 @@ export default function App() {
     void useAuth.getState().refresh().then(handleUrlParams);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const unsub = useStore.subscribe((s, prev) => {
-      if (s.model === prev.model && s.settings === prev.settings && s.data === prev.data && s.projectName === prev.projectName) return;
+      if (
+        s.model === prev.model &&
+        s.settings === prev.settings &&
+        s.data === prev.data &&
+        s.projectName === prev.projectName
+      )
+        return;
       clearTimeout(timer);
       timer = setTimeout(() => void autosave(), 800);
     });
@@ -66,24 +78,54 @@ export default function App() {
       clearTimeout(timer);
       timer = setTimeout(() => void autosave(), 800);
     });
-    return () => { unsub(); unsubCards(); clearTimeout(timer); };
+    return () => {
+      unsub();
+      unsubCards();
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = useStore.getState();
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); void openProject(); return; }
+      if (mod && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        void openProject();
+        return;
+      }
       // Everything else is an editor shortcut.
       if (s.view !== 'editor') return;
-      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveProject(); return; }
-      if (mod && e.key === 'Enter') { e.preventDefault(); void import('./analyses/calculate').then((m) => m.calculateHere(e.shiftKey ? 'boot' : 'estimate')); return; }
+      if (mod && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveProject();
+        return;
+      }
+      if (mod && e.key === 'Enter') {
+        e.preventDefault();
+        void import('./analyses/calculate').then((m) =>
+          m.calculateHere(e.shiftKey ? 'boot' : 'estimate'),
+        );
+        return;
+      }
       if (isTyping(e)) return;
-      if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) s.redo(); else s.undo(); return; }
-      if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); s.redo(); return; }
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) s.redo();
+        else s.undo();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        s.redo();
+        return;
+      }
       // The rest act on the diagram.
       if (s.workspace !== 'model') return;
-      if ((e.key === 'Delete' || e.key === 'Backspace') && (s.selection.moderations?.length || s.selection.correlations?.length)) {
+      if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        (s.selection.moderations?.length || s.selection.correlations?.length)
+      ) {
         e.preventDefault();
         s.deleteItems([], [], s.selection.moderations ?? [], s.selection.correlations ?? []);
         return;
@@ -94,7 +136,10 @@ export default function App() {
       else if (k === 'c') s.setTool('construct');
       else if (k === 'p') s.setTool('connect');
       else if (k === 'r' && s.settings.method === 'cbsem') s.setTool('correlate');
-      else if (k === 'escape') { s.setTool('select'); s.setSelection({ nodes: [], edges: [] }); }
+      else if (k === 'escape') {
+        s.setTool('select');
+        s.setSelection({ nodes: [], edges: [] });
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -103,8 +148,12 @@ export default function App() {
   if (view === 'validation') {
     return (
       <>
-        <ValidationPage onBack={() => useStore.getState().closeValidation()} focus={validationFocus ?? undefined}
-          backLabel={validationReturn === 'editor' ? `Back to “${projectName}”` : 'Home'} titles={Object.fromEntries(EXAMPLES.map((e) => [e.id, e.title]))} />
+        <ValidationPage
+          onBack={() => useStore.getState().closeValidation()}
+          focus={validationFocus ?? undefined}
+          backLabel={validationReturn === 'editor' ? `Back to “${projectName}”` : 'Home'}
+          titles={Object.fromEntries(EXAMPLES.map((e) => [e.id, e.title]))}
+        />
         <ConfirmModal />
         <Toasts />
       </>
@@ -127,13 +176,17 @@ export default function App() {
       <div className="app">
         <TopBar />
         <div className="workspace">
-          <div className="data-col" inert={workspace === 'analyses'}><DataPanel /></div>
+          <div className="data-col" inert={workspace === 'analyses'}>
+            <DataPanel />
+          </div>
           {/* The diagram stays mounted (and laid out) behind the Data tab, so switching back keeps its viewport. */}
           <main className="center" inert={workspace !== 'model'}>
             <Canvas onImport={() => void importCsv()} />
             <ResultsPanel height={resultsHeight} onResize={setResultsHeight} />
           </main>
-          <div className="inspector-col" inert={workspace !== 'model'}><Inspector /></div>
+          <div className="inspector-col" inert={workspace !== 'model'}>
+            <Inspector />
+          </div>
           {workspace === 'data' && <DataWorkspace />}
           {workspace === 'analyses' && <AnalysesWorkspace />}
         </div>

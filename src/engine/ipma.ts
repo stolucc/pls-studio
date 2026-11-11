@@ -20,7 +20,11 @@ export interface IpmaOptions {
   max?: number;
 }
 
-export interface IpmaPoint { name: string; importance: number; performance: number }
+export interface IpmaPoint {
+  name: string;
+  importance: number;
+  performance: number;
+}
 
 export interface IpmaResult {
   target: string;
@@ -33,9 +37,18 @@ export interface IpmaResult {
   negativeWeights: string[];
 }
 
-export function ipma(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>, io: IpmaOptions): IpmaResult {
-  if (spec.moderations?.length || spec.copulas?.length) throw new Error('IPMA is not defined for models with interaction or copula terms.');
-  if (spec.weights) throw new Error('IPMA is not available with sampling weights here (its performances are unweighted means).');
+export function ipma(
+  data: Dataset,
+  spec: ModelSpec,
+  options: Partial<PlsOptions>,
+  io: IpmaOptions,
+): IpmaResult {
+  if (spec.moderations?.length || spec.copulas?.length)
+    throw new Error('IPMA is not defined for models with interaction or copula terms.');
+  if (spec.weights)
+    throw new Error(
+      'IPMA is not available with sampling weights here (its performances are unweighted means).',
+    );
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const prep = preparePls(data, spec, opts);
   const { m, core, st } = prep.estimate(prep.cols);
@@ -44,9 +57,13 @@ export function ipma(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions
 
   const scaled = prep.cols.map((col) => {
     if (!io.rescale) return col;
-    let lo = io.min ?? Infinity, hi = io.max ?? -Infinity;
+    let lo = io.min ?? Infinity,
+      hi = io.max ?? -Infinity;
     if (io.min === undefined || io.max === undefined) {
-      for (const v of col) { if (io.min === undefined) lo = Math.min(lo, v); if (io.max === undefined) hi = Math.max(hi, v); }
+      for (const v of col) {
+        if (io.min === undefined) lo = Math.min(lo, v);
+        if (io.max === undefined) hi = Math.max(hi, v);
+      }
     }
     if (!(hi > lo)) throw new Error('Scale maximum must exceed the minimum.');
     return col.map((v) => ((v - lo) / (hi - lo)) * 100);
@@ -71,10 +88,18 @@ export function ipma(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions
   return {
     target: io.target,
     targetPerformance: perf[T],
-    constructs: m.constructs.flatMap((name, j) => (j === T ? [] : [{ name, importance: importanceOf(j), performance: perf[j] }])),
+    constructs: m.constructs.flatMap((name, j) =>
+      j === T ? [] : [{ name, importance: importanceOf(j), performance: perf[j] }],
+    ),
     indicators: m.indicatorNames.map((name, k) => {
       const j = m.indicatorConstruct[k];
-      return { name, construct: m.constructs[j], weight: wNorm[k], importance: wNorm[k] * importanceOf(j), performance: mean(scaled[k]) };
+      return {
+        name,
+        construct: m.constructs[j],
+        weight: wNorm[k],
+        importance: wNorm[k] * importanceOf(j),
+        performance: mean(scaled[k]),
+      };
     }),
     negativeWeights: m.indicatorNames.filter((_, k) => wNorm[k] < 0),
   };

@@ -6,7 +6,10 @@
 // afterwards goes nowhere.
 
 export class Cancelled extends Error {
-  constructor() { super('Cancelled.'); this.name = 'Cancelled'; }
+  constructor() {
+    super('Cancelled.');
+    this.name = 'Cancelled';
+  }
 }
 export const isCancelled = (e: unknown): e is Cancelled => e instanceof Cancelled;
 
@@ -20,11 +23,12 @@ export interface CancelGroup {
 export function cancelGroup(): CancelGroup {
   const stops = new Set<() => void>();
   return {
-    guard: <T>(p: Promise<T>) => new Promise<T>((resolve, reject) => {
-      const stop = () => reject(new Cancelled());
-      stops.add(stop);
-      p.then(resolve, reject).finally(() => stops.delete(stop));
-    }),
+    guard: <T>(p: Promise<T>) =>
+      new Promise<T>((resolve, reject) => {
+        const stop = () => reject(new Cancelled());
+        stops.add(stop);
+        p.then(resolve, reject).finally(() => stops.delete(stop));
+      }),
     cancel: () => {
       const all = [...stops];
       stops.clear();

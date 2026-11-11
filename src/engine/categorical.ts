@@ -7,18 +7,32 @@
 import type { Dataset, ModelSpec } from './types';
 
 /** The categories of a column: its sorted distinct values, labelled by the text categories when it has them. */
-export function categoriesOf(data: Dataset, column: string): { values: number[]; labels: string[] } {
+export function categoriesOf(
+  data: Dataset,
+  column: string,
+): { values: number[]; labels: string[] } {
   const col = data.cols[data.names.indexOf(column)];
-  const values = col ? [...new Set(Array.from(col).filter((v) => !Number.isNaN(v)))].sort((a, b) => a - b) : [];
+  const values = col
+    ? [...new Set(Array.from(col).filter((v) => !Number.isNaN(v)))].sort((a, b) => a - b)
+    : [];
   const text = data.categories?.[column];
-  return { values, labels: values.map((v) => (text && Number.isInteger(v) && text[v - 1] !== undefined ? text[v - 1] : String(v))) };
+  return {
+    values,
+    labels: values.map((v) =>
+      text && Number.isInteger(v) && text[v - 1] !== undefined ? text[v - 1] : String(v),
+    ),
+  };
 }
 
 /** Dummy columns for the categorical constructs (single-indicator constructs marked categorical), and the specification using them. */
-export function expandCategorical(data: Dataset, spec: ModelSpec): { data: Dataset; spec: ModelSpec } {
+export function expandCategorical(
+  data: Dataset,
+  spec: ModelSpec,
+): { data: Dataset; spec: ModelSpec } {
   const cat = spec.constructs.filter((c) => c.categorical && c.indicators.length === 1);
   if (!cat.length || (data.moments && data.cols.length === 0)) return { data, spec };
-  const names = [...data.names], cols = [...data.cols];
+  const names = [...data.names],
+    cols = [...data.cols];
   const dummies = new Map<string, string[]>();
   for (const c of cat) {
     const column = c.indicators[0];
@@ -27,7 +41,8 @@ export function expandCategorical(data: Dataset, spec: ModelSpec): { data: Datas
     const { values, labels } = categoriesOf(data, column);
     const made: string[] = [];
     values.slice(1).forEach((v, i) => {
-      let name = `${column}: ${labels[i + 1]}`, k = 2;
+      let name = `${column}: ${labels[i + 1]}`,
+        k = 2;
       while (names.includes(name)) name = `${column}: ${labels[i + 1]} (${k++})`;
       names.push(name);
       cols.push(Float64Array.from(src, (x) => (Number.isNaN(x) ? NaN : x === v ? 1 : 0)));

@@ -7,7 +7,8 @@ describe('standaloneSvg', () => {
     const style = document.createElement('style');
     style.textContent = '.line { stroke: rgb(109, 40, 217); stroke-width: 2px; fill: none; }';
     document.head.appendChild(style);
-    document.body.innerHTML = '<svg class="jn"><path class="line" d="M0 0 L10 10"/><text>x</text></svg>';
+    document.body.innerHTML =
+      '<svg class="jn"><path class="line" d="M0 0 L10 10"/><text>x</text></svg>';
     const out = standaloneSvg(document.querySelector('svg')!, 320, 200);
     const doc = new DOMParser().parseFromString(out, 'image/svg+xml');
     const path = doc.querySelector('path')!;

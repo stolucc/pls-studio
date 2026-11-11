@@ -8,7 +8,12 @@ import { constructGeometry, interceptSegment } from '../geometry';
 import { selectPlacedModel, useStore } from '../store';
 import { EstimateText } from './EstimateLabel';
 
-export type InterceptEdgeData = { indicator: string; value: number | null; p: number | null; labelAt?: { x: number; y: number } };
+export type InterceptEdgeData = {
+  indicator: string;
+  value: number | null;
+  p: number | null;
+  labelAt?: { x: number; y: number };
+};
 export type InterceptFlowEdge = Edge<InterceptEdgeData, 'intercept'>;
 
 function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
@@ -18,7 +23,13 @@ function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
     if (!k || !t || !data) return null;
     const box = constructGeometry(t).indicators.find((b) => b.name === data.indicator);
     const seg = box && interceptSegment(k, t, box);
-    return seg ? { path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`, mx: data.labelAt?.x ?? (seg.x1 + seg.x2) / 2, my: data.labelAt?.y ?? (seg.y1 + seg.y2) / 2 } : null;
+    return seg
+      ? {
+          path: `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`,
+          mx: data.labelAt?.x ?? (seg.x1 + seg.x2) / 2,
+          my: data.labelAt?.y ?? (seg.y1 + seg.y2) / 2,
+        }
+      : null;
   }, [k, t, data]);
   const figure = useStore((st) => st.settings.figure);
   if (!geo) return null;
@@ -27,11 +38,20 @@ function InterceptEdgeImpl({ id, target, data }: EdgeProps<InterceptFlowEdge>) {
   const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
   return (
     <>
-      <BaseEdge id={id} path={geo.path} className="pedge mean implied intercept" markerEnd="url(#arrow-path)" interactionWidth={0} />
+      <BaseEdge
+        id={id}
+        path={geo.path}
+        className="pedge mean implied intercept"
+        markerEnd="url(#arrow-path)"
+        interactionWidth={0}
+      />
       {value !== null && (
         <EdgeLabelRenderer>
-          <div className={`elabel implied${cls}`} style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
-            title={`Intercept of ${data!.indicator} (estimated with the mean structure)`}>
+          <div
+            className={`elabel implied${cls}`}
+            style={{ transform: `translate(-50%, -50%) translate(${geo.mx}px, ${geo.my}px)` }}
+            title={`Intercept of ${data!.indicator} (estimated with the mean structure)`}
+          >
             <EstimateText figure={figure} value={value} p={p} />
           </div>
         </EdgeLabelRenderer>

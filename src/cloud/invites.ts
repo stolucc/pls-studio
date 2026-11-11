@@ -11,7 +11,10 @@ const LINK_KEYS = ['invite', 'auth', 'verify', 'reset'] as const;
  * which the browser never sends to the server; ?verify=… from older emails
  * still works. Returns the values and the address with them removed.
  */
-export function linkParams(href: string): { params: Partial<Record<(typeof LINK_KEYS)[number], string>>; cleaned: string } {
+export function linkParams(href: string): {
+  params: Partial<Record<(typeof LINK_KEYS)[number], string>>;
+  cleaned: string;
+} {
   const url = new URL(href);
   const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
   const params: Partial<Record<(typeof LINK_KEYS)[number], string>> = {};
@@ -27,16 +30,27 @@ export function linkParams(href: string): { params: Partial<Record<(typeof LINK_
 
 /** Handle #invite=…, #verify=…, #reset=… and ?auth=… after load (and after signing in). */
 export async function handleUrlParams() {
-  const { params: { invite, auth, verify, reset }, cleaned } = linkParams(location.href);
+  const {
+    params: { invite, auth, verify, reset },
+    cleaned,
+  } = linkParams(location.href);
   if (invite || auth || verify || reset) history.replaceState(null, '', cleaned);
   const toast = useStore.getState().toast;
   if (verify) {
-    try { toast('success', `${await useAuth.getState().verifyEmail(verify)} is verified. You can share projects and accept invitations.`); }
-    catch (e) { toast('error', (e as Error).message); }
+    try {
+      toast(
+        'success',
+        `${await useAuth.getState().verifyEmail(verify)} is verified. You can share projects and accept invitations.`,
+      );
+    } catch (e) {
+      toast('error', (e as Error).message);
+    }
   }
   if (reset) useAuth.getState().openDialog('reset', undefined, reset);
-  if (auth === 'google-failed') toast('error', 'Google sign-in did not complete. Please try again.');
-  if (auth === 'google-unverified') toast('error', 'Your Google account’s email address is not verified.');
+  if (auth === 'google-failed')
+    toast('error', 'Google sign-in did not complete. Please try again.');
+  if (auth === 'google-unverified')
+    toast('error', 'Your Google account’s email address is not verified.');
   if (invite) pendingInvite = invite;
   await acceptPendingInvite();
 }
@@ -55,11 +69,16 @@ export async function acceptPendingInvite() {
     return;
   }
   if (!user) {
-    openDialog('signin', `${preview.inviterName} invited you to “${preview.projectName}”. Sign in or create an account with ${preview.email} to join.`);
+    openDialog(
+      'signin',
+      `${preview.inviterName} invited you to “${preview.projectName}”. Sign in or create an account with ${preview.email} to join.`,
+    );
     return;
   }
   try {
-    const { projectId } = await api.post<{ projectId: string }>(`/api/auth/invitations/${encodeURIComponent(token)}/accept`);
+    const { projectId } = await api.post<{ projectId: string }>(
+      `/api/auth/invitations/${encodeURIComponent(token)}/accept`,
+    );
     pendingInvite = null;
     await openCloudProject(projectId, user);
     toast('success', `You joined “${preview.projectName}”.`);

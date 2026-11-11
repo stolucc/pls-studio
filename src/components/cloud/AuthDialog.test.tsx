@@ -14,13 +14,35 @@ function mount(el: React.ReactElement) {
   document.body.appendChild(host);
   const root = createRoot(host);
   act(() => root.render(el));
-  return { host, html: () => host.innerHTML, unmount: () => { act(() => root.unmount()); host.remove(); } };
+  return {
+    host,
+    html: () => host.innerHTML,
+    unmount: () => {
+      act(() => root.unmount());
+      host.remove();
+    },
+  };
 }
-const render = (el: React.ReactElement) => { const m = mount(el); const html = m.html(); m.unmount(); return html; };
+const render = (el: React.ReactElement) => {
+  const m = mount(el);
+  const html = m.html();
+  m.unmount();
+  return html;
+};
 
-const user: CloudUser = { id: 'u1', email: 'ann@example.org', display_name: 'Ann', totp_enabled: false, has_password: true, google_linked: false, email_verified: false };
+const user: CloudUser = {
+  id: 'u1',
+  email: 'ann@example.org',
+  display_name: 'Ann',
+  totp_enabled: false,
+  has_password: true,
+  google_linked: false,
+  email_verified: false,
+};
 
-beforeEach(() => useAuth.setState({ available: true, user: null, dialog: null, googleEnabled: false }));
+beforeEach(() =>
+  useAuth.setState({ available: true, user: null, dialog: null, googleEnabled: false }),
+);
 
 describe('password reset in the sign-in dialog', () => {
   it('offers the forgotten-password link when signing in', () => {
@@ -64,7 +86,9 @@ describe('account menu', () => {
   });
 
   it('offers to set a password for a Google-only account, and no verification item once verified', () => {
-    useAuth.setState({ user: { ...user, has_password: false, google_linked: true, email_verified: true } });
+    useAuth.setState({
+      user: { ...user, has_password: false, google_linked: true, email_verified: true },
+    });
     const html = open();
     expect(html).toContain('Set a password');
     expect(html).not.toContain('Email not verified');

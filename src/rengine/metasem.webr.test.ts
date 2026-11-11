@@ -14,15 +14,56 @@ beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
 const ROOT = join(__dirname, '..', '..');
-const ref = JSON.parse(readFileSync(join(ROOT, 'src', 'engine', '__fixtures__', 'metasem', 'reference.json'), 'utf8'));
-const data = parseCsv(readFileSync(join(ROOT, 'public', 'examples', 'metasem', 'digman97.csv'), 'utf8')).dataset;
-const F = (name: string, indicators: string[]) => ({ id: name, name, type: 'factor' as const, mode: 'A' as const, indicators, x: 0, y: 0, side: 'left' as const });
-const model: ModelState = { constructs: [F('Alpha', ['A', 'C', 'ES']), F('Beta', ['E', 'I'])], paths: [], moderations: [], correlations: [{ id: 'k', kind: 'construct', a: 'Alpha', b: 'Beta' }] };
-const LABEL: Record<string, string> = { AONAlpha: 'Alpha → A', CONAlpha: 'Alpha → C', ESONAlpha: 'Alpha → ES', EONBeta: 'Beta → E', IONBeta: 'Beta → I', AlphaWITHBeta: 'Alpha ↔ Beta' };
-const name = (p: MetaSemResult['stage2']['params'][number]) => (p.kind === 'covariance' ? `${p.from} ↔ ${p.to}` : `${p.from} → ${p.to}`);
+const ref = JSON.parse(
+  readFileSync(join(ROOT, 'src', 'engine', '__fixtures__', 'metasem', 'reference.json'), 'utf8'),
+);
+const data = parseCsv(
+  readFileSync(join(ROOT, 'public', 'examples', 'metasem', 'digman97.csv'), 'utf8'),
+).dataset;
+const F = (name: string, indicators: string[]) => ({
+  id: name,
+  name,
+  type: 'factor' as const,
+  mode: 'A' as const,
+  indicators,
+  x: 0,
+  y: 0,
+  side: 'left' as const,
+});
+const model: ModelState = {
+  constructs: [F('Alpha', ['A', 'C', 'ES']), F('Beta', ['E', 'I'])],
+  paths: [],
+  moderations: [],
+  correlations: [{ id: 'k', kind: 'construct', a: 'Alpha', b: 'Beta' }],
+};
+const LABEL: Record<string, string> = {
+  AONAlpha: 'Alpha → A',
+  CONAlpha: 'Alpha → C',
+  ESONAlpha: 'Alpha → ES',
+  EONBeta: 'Beta → E',
+  IONBeta: 'Beta → I',
+  AlphaWITHBeta: 'Alpha ↔ Beta',
+};
+const name = (p: MetaSemResult['stage2']['params'][number]) =>
+  p.kind === 'covariance' ? `${p.from} ↔ ${p.to}` : `${p.from} → ${p.to}`;
 
-function same(r: MetaSemResult, x: { pooled: number[]; est: Record<string, number>; se: Record<string, number>; chisq: number; df: number; rmsea: number; srmr: number; cfi: number; q?: unknown }) {
-  r.stage1.pooled.forEach((p, k) => expect(p.r, `pooled ${p.a}–${p.b}`).toBeCloseTo(x.pooled[k], 6));
+function same(
+  r: MetaSemResult,
+  x: {
+    pooled: number[];
+    est: Record<string, number>;
+    se: Record<string, number>;
+    chisq: number;
+    df: number;
+    rmsea: number;
+    srmr: number;
+    cfi: number;
+    q?: unknown;
+  },
+) {
+  r.stage1.pooled.forEach((p, k) =>
+    expect(p.r, `pooled ${p.a}–${p.b}`).toBeCloseTo(x.pooled[k], 6),
+  );
   expect(r.stage2.params).toHaveLength(6);
   for (const [l, v] of Object.entries(x.est)) {
     const p = r.stage2.params.find((q) => name(q) === LABEL[l])!;
@@ -45,9 +86,15 @@ describe('meta-analytic SEM (metaSEM, desktop R)', () => {
     expect(r.stage1.pooled[0]).toMatchObject({ a: 'A', b: 'C' });
     expect(r.stage1.pooled.every((p) => p.tau2! > 0 && p.i2! > 0 && p.i2! < 1)).toBe(true);
     expect(r.variables).toEqual(['A', 'C', 'ES', 'E', 'I']);
-    const script = await metaSemScriptR(data, toSpec(model), { n: 'N', method: 'REM', reType: 'Diag' });
+    const script = await metaSemScriptR(data, toSpec(model), {
+      n: 'N',
+      method: 'REM',
+      reType: 'Diag',
+    });
     expect(script).toContain('stage1 <- tssem1(R, n, method = "REM", RE.type = "Diag")');
-    expect(script).toContain('RAM <- lavaan2RAM(model, obs.variables = c("A", "C", "ES", "E", "I"))');
+    expect(script).toContain(
+      'RAM <- lavaan2RAM(model, obs.variables = c("A", "C", "ES", "E", "I"))',
+    );
   }, 600_000);
 
   it('fixed effects: the homogeneity test and the stage-2 fit', async () => {
@@ -59,11 +106,33 @@ describe('meta-analytic SEM (metaSEM, desktop R)', () => {
 
   it('a study that did not measure a variable (its correlations empty), and strict checks of the studies', async () => {
     const I = ['A_I', 'C_I', 'ES_I', 'E_I'].map((c) => data.names.indexOf(c));
-    const miss = { ...data, cols: data.cols.map((col, k) => (I.includes(k) ? Float64Array.from(col, (v, row) => (row === 0 ? NaN : v)) : col)) };
-    same(await metaSemR(miss, toSpec(model), { n: 'N', method: 'REM', reType: 'Diag' }), ref.missingI);
-    const bad = { ...data, cols: data.cols.map((col, k) => (data.names[k] === 'A_C' ? Float64Array.from(col, (v, row) => (row === 2 ? 1.2 : v)) : col)) };
-    await expect(metaSemR(bad, toSpec(model), { n: 'N', method: 'REM', reType: 'Diag' })).rejects.toThrow(/Study 3: a correlation is not between -1 and 1/);
-    const noN = { ...data, cols: data.cols.map((col, k) => (data.names[k] === 'N' ? Float64Array.from(col, (v, row) => (row === 4 ? 10.5 : v)) : col)) };
-    await expect(metaSemR(noN, toSpec(model), { n: 'N', method: 'REM', reType: 'Diag' })).rejects.toThrow(/Study 5: N must be a whole number/);
+    const miss = {
+      ...data,
+      cols: data.cols.map((col, k) =>
+        I.includes(k) ? Float64Array.from(col, (v, row) => (row === 0 ? NaN : v)) : col,
+      ),
+    };
+    same(
+      await metaSemR(miss, toSpec(model), { n: 'N', method: 'REM', reType: 'Diag' }),
+      ref.missingI,
+    );
+    const bad = {
+      ...data,
+      cols: data.cols.map((col, k) =>
+        data.names[k] === 'A_C' ? Float64Array.from(col, (v, row) => (row === 2 ? 1.2 : v)) : col,
+      ),
+    };
+    await expect(
+      metaSemR(bad, toSpec(model), { n: 'N', method: 'REM', reType: 'Diag' }),
+    ).rejects.toThrow(/Study 3: a correlation is not between -1 and 1/);
+    const noN = {
+      ...data,
+      cols: data.cols.map((col, k) =>
+        data.names[k] === 'N' ? Float64Array.from(col, (v, row) => (row === 4 ? 10.5 : v)) : col,
+      ),
+    };
+    await expect(
+      metaSemR(noN, toSpec(model), { n: 'N', method: 'REM', reType: 'Diag' }),
+    ).rejects.toThrow(/Study 5: N must be a whole number/);
   }, 600_000);
 });

@@ -12,7 +12,13 @@ describe('blindfoldTargets', () => {
         { name: 'Y', mode: 'A', type: 'factor', indicators: ['y1'] },
         { name: 'H', mode: 'A', indicators: [], components: ['X', 'C'] },
       ],
-      paths: [{ from: 'X', to: 'F' }, { from: 'X', to: 'C' }, { from: 'F', to: 'Y' }, { from: 'C', to: 'Y' }, { from: 'Y', to: 'H' }],
+      paths: [
+        { from: 'X', to: 'F' },
+        { from: 'X', to: 'C' },
+        { from: 'F', to: 'Y' },
+        { from: 'C', to: 'Y' },
+        { from: 'Y', to: 'H' },
+      ],
     };
     expect(blindfoldTargets(spec)).toEqual(['C', 'Y']);
   });

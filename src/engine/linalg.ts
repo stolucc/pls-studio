@@ -15,7 +15,9 @@ export function identity(n: number): Mat {
 }
 
 export function matMul(a: Mat, b: Mat): Mat {
-  const r = a.length, k = b.length, c = b[0]?.length ?? 0;
+  const r = a.length,
+    k = b.length,
+    c = b[0]?.length ?? 0;
   const out = zeros(r, c);
   for (let i = 0; i < r; i++) {
     for (let p = 0; p < k; p++) {
@@ -39,12 +41,18 @@ export function invert(m: Mat): Mat {
     [a[col], a[piv]] = [a[piv], a[col]];
     [inv[col], inv[piv]] = [inv[piv], inv[col]];
     const d = a[col][col];
-    for (let j = 0; j < n; j++) { a[col][j] /= d; inv[col][j] /= d; }
+    for (let j = 0; j < n; j++) {
+      a[col][j] /= d;
+      inv[col][j] /= d;
+    }
     for (let r = 0; r < n; r++) {
       if (r === col) continue;
       const f = a[r][col];
       if (f === 0) continue;
-      for (let j = 0; j < n; j++) { a[r][j] -= f * a[col][j]; inv[r][j] -= f * inv[col][j]; }
+      for (let j = 0; j < n; j++) {
+        a[r][j] -= f * a[col][j];
+        inv[r][j] -= f * inv[col][j];
+      }
     }
   }
   return inv;
@@ -104,11 +112,13 @@ export function invertPD(L: Mat): Mat {
     }
   }
   const out = zeros(n, n);
-  for (let i = 0; i < n; i++) for (let j = 0; j <= i; j++) {
-    let s = 0;
-    for (let k = i; k < n; k++) s += Li[k][i] * Li[k][j];
-    out[i][j] = s; out[j][i] = s;
-  }
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j <= i; j++) {
+      let s = 0;
+      for (let k = i; k < n; k++) s += Li[k][i] * Li[k][j];
+      out[i][j] = s;
+      out[j][i] = s;
+    }
   return out;
 }
 
@@ -121,24 +131,32 @@ export function symEigen(a: Mat): { values: number[]; vectors: Mat } {
     let off = 0;
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) off += A[i][j] * A[i][j];
     if (off < 1e-24) break;
-    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) {
-      if (Math.abs(A[p][q]) < 1e-300) continue;
-      const theta = (A[q][q] - A[p][p]) / (2 * A[p][q]);
-      const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
-      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
-      for (let k = 0; k < n; k++) {
-        const akp = A[k][p], akq = A[k][q];
-        A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq;
+    for (let p = 0; p < n; p++)
+      for (let q = p + 1; q < n; q++) {
+        if (Math.abs(A[p][q]) < 1e-300) continue;
+        const theta = (A[q][q] - A[p][p]) / (2 * A[p][q]);
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1),
+          s = t * c;
+        for (let k = 0; k < n; k++) {
+          const akp = A[k][p],
+            akq = A[k][q];
+          A[k][p] = c * akp - s * akq;
+          A[k][q] = s * akp + c * akq;
+        }
+        for (let k = 0; k < n; k++) {
+          const apk = A[p][k],
+            aqk = A[q][k];
+          A[p][k] = c * apk - s * aqk;
+          A[q][k] = s * apk + c * aqk;
+        }
+        for (let k = 0; k < n; k++) {
+          const vkp = V[k][p],
+            vkq = V[k][q];
+          V[k][p] = c * vkp - s * vkq;
+          V[k][q] = s * vkp + c * vkq;
+        }
       }
-      for (let k = 0; k < n; k++) {
-        const apk = A[p][k], aqk = A[q][k];
-        A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk;
-      }
-      for (let k = 0; k < n; k++) {
-        const vkp = V[k][p], vkq = V[k][q];
-        V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq;
-      }
-    }
   }
   return { values: A.map((r, i) => r[i]), vectors: V };
 }

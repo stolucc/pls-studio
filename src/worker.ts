@@ -29,18 +29,34 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   const req = e.data;
   try {
     switch (req.kind) {
-      case 'pls': post({ kind: 'pls', result: estimatePls(req.data, req.spec, req.options) }); break;
-      case 'cb': post({ kind: 'cb', result: estimateCb(req.data, req.spec, req.options.missing, req.estimator) }); break;
-      case 'miiv': post({ kind: 'miiv', result: estimateMiiv(req.data, req.spec, req.options.missing) }); break;
+      case 'pls':
+        post({ kind: 'pls', result: estimatePls(req.data, req.spec, req.options) });
+        break;
+      case 'cb':
+        post({
+          kind: 'cb',
+          result: estimateCb(req.data, req.spec, req.options.missing, req.estimator),
+        });
+        break;
+      case 'miiv':
+        post({ kind: 'miiv', result: estimateMiiv(req.data, req.spec, req.options.missing) });
+        break;
       case 'mc': {
         const part = runMcTask(req.task, (done, total) => post({ kind: 'progress', done, total }));
-        const buffers = [part.est, part.lo, part.hi, part.sig].flatMap((g) => g.flatMap((e) => e.map((a) => a.buffer))).concat(part.proper.map((a) => a.buffer));
+        const buffers = [part.est, part.lo, part.hi, part.sig]
+          .flatMap((g) => g.flatMap((e) => e.map((a) => a.buffer)))
+          .concat(part.proper.map((a) => a.buffer));
         post({ kind: 'mc', part }, buffers);
         break;
       }
       case 'range': {
-        const part = runRange(req.range, { onProgress: (done, total) => post({ kind: 'progress', done, total }) });
-        post({ kind: 'range', part }, part.draws.map((d) => d.buffer));
+        const part = runRange(req.range, {
+          onProgress: (done, total) => post({ kind: 'progress', done, total }),
+        });
+        post(
+          { kind: 'range', part },
+          part.draws.map((d) => d.buffer),
+        );
         break;
       }
     }

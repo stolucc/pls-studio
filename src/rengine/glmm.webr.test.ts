@@ -15,34 +15,59 @@ afterAll(stopTestRuntime);
 const FX = join(__dirname, '..', 'engine', '__fixtures__', 'glmm');
 const data = parseCsv(readFileSync(join(FX, 'zinb.csv'), 'utf8')).dataset;
 type Coef = { term: string; est: number; se: number };
-const ref = JSON.parse(readFileSync(join(FX, 'reference.json'), 'utf8')) as Record<'negbin' | 'zinb', { fixed: Coef[]; zero: Coef[] | null; D: number; logPhi: number; logLik: number; aic: number }>;
+const ref = JSON.parse(readFileSync(join(FX, 'reference.json'), 'utf8')) as Record<
+  'negbin' | 'zinb',
+  { fixed: Coef[]; zero: Coef[] | null; D: number; logPhi: number; logLik: number; aic: number }
+>;
 /** GLMMadaptive's names as the card's. */
 const term = (t: string) => (t === '(Intercept)' ? 'Intercept' : t);
-const input = (family: GlmmFamily, outcome: string): GlmmInput => ({ layout: 'long', outcome, cluster: 'id', occasions: [], times: [], predictors: ['female', 'time'], categorical: [], slopes: [], family,
-  ziPredictors: family === 'zinb' ? ['female'] : [], ziRandom: false, quadrature: 11, robust: false });
+const input = (family: GlmmFamily, outcome: string): GlmmInput => ({
+  layout: 'long',
+  outcome,
+  cluster: 'id',
+  occasions: [],
+  times: [],
+  predictors: ['female', 'time'],
+  categorical: [],
+  slopes: [],
+  family,
+  ziPredictors: family === 'zinb' ? ['female'] : [],
+  ziRandom: false,
+  quadrature: 11,
+  robust: false,
+});
 
 describe('GLMM card (GLMMadaptive)', () => {
-  it.each([['negbin', 'negative binomial', 'nb'], ['zinb', 'zero-inflated negative binomial', 'y']] as const)('%s: the %s model equals GLMMadaptive natively', async (family, _what, outcome) => {
-    const r = await glmmR(data, input(family, outcome));
-    const want = ref[family];
-    expect(r.converged).toBe(true);
-    expect([r.n, r.clusters]).toEqual([800, 100]);
-    for (const w of want.fixed) {
-      const mine = r.fixed.find((f) => f.term === term(w.term));
-      expect(mine, `${w.term} (have ${r.fixed.map((f) => f.term).join(', ')})`).toBeTruthy();
-      expect(mine!.est, w.term).toBeCloseTo(w.est, 5);
-      expect(mine!.se, `SE of ${w.term}`).toBeCloseTo(w.se, 5);
-    }
-    if (want.zero) for (const w of want.zero) {
-      const mine = r.zero?.find((f) => f.term === term(w.term));
-      expect(mine, `zero part: ${w.term}`).toBeTruthy();
-      expect(mine!.est, `zero part: ${w.term}`).toBeCloseTo(w.est, 5);
-      expect(mine!.se, `zero part: SE of ${w.term}`).toBeCloseTo(w.se, 5);
-    } else expect(r.zero ?? []).toEqual([]);
-    expect(r.random[0].est, 'random-intercept variance').toBeCloseTo(want.D, 5);
-    expect(r.logPhi!.est, 'log θ').toBeCloseTo(want.logPhi, 5);
-    expect(r.logLik, 'log-likelihood').toBeCloseTo(want.logLik, 5);
-    expect(r.aic, 'AIC').toBeCloseTo(want.aic, 4);
-    expect(r.warnings, r.warnings.join(' | ')).toEqual([]);
-  }, 900_000);
+  it.each([
+    ['negbin', 'negative binomial', 'nb'],
+    ['zinb', 'zero-inflated negative binomial', 'y'],
+  ] as const)(
+    '%s: the %s model equals GLMMadaptive natively',
+    async (family, _what, outcome) => {
+      const r = await glmmR(data, input(family, outcome));
+      const want = ref[family];
+      expect(r.converged).toBe(true);
+      expect([r.n, r.clusters]).toEqual([800, 100]);
+      for (const w of want.fixed) {
+        const mine = r.fixed.find((f) => f.term === term(w.term));
+        expect(mine, `${w.term} (have ${r.fixed.map((f) => f.term).join(', ')})`).toBeTruthy();
+        expect(mine!.est, w.term).toBeCloseTo(w.est, 5);
+        expect(mine!.se, `SE of ${w.term}`).toBeCloseTo(w.se, 5);
+      }
+      if (want.zero)
+        for (const w of want.zero) {
+          const mine = r.zero?.find((f) => f.term === term(w.term));
+          expect(mine, `zero part: ${w.term}`).toBeTruthy();
+          expect(mine!.est, `zero part: ${w.term}`).toBeCloseTo(w.est, 5);
+          expect(mine!.se, `zero part: SE of ${w.term}`).toBeCloseTo(w.se, 5);
+        }
+      else expect(r.zero ?? []).toEqual([]);
+      expect(r.random[0].est, 'random-intercept variance').toBeCloseTo(want.D, 5);
+      expect(r.logPhi!.est, 'log θ').toBeCloseTo(want.logPhi, 5);
+      expect(r.logLik, 'log-likelihood').toBeCloseTo(want.logLik, 5);
+      expect(r.aic, 'AIC').toBeCloseTo(want.aic, 4);
+      expect(r.warnings, r.warnings.join(' | ')).toEqual([]);
+    },
+    900_000,
+  );
 });

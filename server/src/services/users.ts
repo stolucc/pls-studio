@@ -52,7 +52,10 @@ export async function findByEmail(db: Db, email: string): Promise<User | null> {
 
 export class AuthError extends Error {
   readonly code: 'invalid' | 'locked' | 'totp_required' | 'exists' | 'weak' | 'token';
-  constructor(message: string, code: AuthError['code']) { super(message); this.code = code; }
+  constructor(message: string, code: AuthError['code']) {
+    super(message);
+    this.code = code;
+  }
 }
 
 /**
@@ -60,29 +63,46 @@ export class AuthError extends Error {
  * that account never proved it owns the address, so it is replaced (its
  * password, second factor and sessions go), and the new owner must verify.
  */
-export async function register(db: Db, email: string, password: string, displayName: string): Promise<User> {
+export async function register(
+  db: Db,
+  email: string,
+  password: string,
+  displayName: string,
+): Promise<User> {
   const weak = validatePassword(password);
   if (weak) throw new AuthError(weak, 'weak');
   const hash = await argon2.hash(password, ARGON);
-  const squat = await db.query('SELECT id FROM users WHERE email = $1 AND email_verified = false AND google_sub IS NULL', [email]);
+  const squat = await db.query(
+    'SELECT id FROM users WHERE email = $1 AND email_verified = false AND google_sub IS NULL',
+    [email],
+  );
   if (squat.rows[0]) {
     const id = squat.rows[0].id as string;
     const r = await tx(db, async (c) => {
       const u = await c.query(
         `UPDATE users SET display_name = $2, password_hash = $3, totp_enabled = false, totp_secret = NULL, failed_logins = 0, locked_until = NULL
-          WHERE id = $1 AND email_verified = false RETURNING *`, [id, displayName, hash]);
+          WHERE id = $1 AND email_verified = false RETURNING *`,
+        [id, displayName, hash],
+      );
       if (!u.rowCount) return null;
-      await c.query('UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [id]);
+      await c.query(
+        'UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL',
+        [id],
+      );
       await endSessions(c, id);
       return u.rows[0];
     });
     if (r) return toUser(r);
   }
   try {
-    const r = await db.query('INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, $3) RETURNING *', [email, displayName, hash]);
+    const r = await db.query(
+      'INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, $3) RETURNING *',
+      [email, displayName, hash],
+    );
     return toUser(r.rows[0]);
   } catch (err) {
-    if ((err as { code?: string }).code === '23505') throw new AuthError('An account with this email already exists.', 'exists');
+    if ((err as { code?: string }).code === '23505')
+      throw new AuthError('An account with this email already exists.', 'exists');
     throw err;
   }
 }
@@ -91,7 +111,13 @@ export async function register(db: Db, email: string, password: string, displayN
  * Password (and TOTP) login. Errors are deliberately generic; after
  * MAX_FAILED consecutive failures the account locks for LOCK_MINUTES.
  */
-export async function login(db: Db, totpKey: Buffer, email: string, password: string, totpCode?: string): Promise<User> {
+export async function login(
+  db: Db,
+  totpKey: Buffer,
+  email: string,
+  password: string,
+  totpCode?: string,
+): Promise<User> {
   const r = await db.query('SELECT * FROM users WHERE email = $1', [email]);
   const row = r.rows[0];
   if (!row || !row.password_hash) {
@@ -107,7 +133,8 @@ export async function login(db: Db, totpKey: Buffer, email: string, password: st
     throw new AuthError('Incorrect email or password.', 'invalid');
   }
   if (row.totp_enabled) {
-    if (!totpCode) throw new AuthError('Enter the code from your authenticator app.', 'totp_required');
+    if (!totpCode)
+      throw new AuthError('Enter the code from your authenticator app.', 'totp_required');
     if (!verifyTotp(open(totpKey, row.totp_secret, `totp:${row.id}`).toString(), totpCode)) {
       await recordFailure(db, row.id, row.failed_logins + 1);
       throw new AuthError('Incorrect authentication code.', 'invalid');
@@ -133,7 +160,10 @@ export async function verifyPassword(db: Db, id: string, password: string): Prom
 
 /** End every session of a user (all devices), or all but `keep`. */
 export async function endSessions(db: Db | import('pg').PoolClient, userId: string, keep?: string) {
-  await db.query("DELETE FROM session WHERE sess->>'userId' = $1 AND ($2::text IS NULL OR sid <> $2)", [userId, keep ?? null]);
+  await db.query(
+    "DELETE FROM session WHERE sess->>'userId' = $1 AND ($2::text IS NULL OR sid <> $2)",
+    [userId, keep ?? null],
+  );
 }
 
 // ---------- emailed tokens (verification, password reset) ----------
@@ -145,17 +175,31 @@ export const TOKEN_HOURS: Record<TokenKind, number> = { verify: 24, reset: 1 };
 export async function issueToken(db: Db, userId: string, kind: TokenKind): Promise<string> {
   const { token, hash } = newToken();
   await tx(db, async (c) => {
-    await c.query('UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND kind = $2 AND used_at IS NULL', [userId, kind]);
-    await c.query(`INSERT INTO auth_tokens (user_id, kind, token_hash, expires_at) VALUES ($1, $2, $3, now() + make_interval(hours => ${TOKEN_HOURS[kind]}))`, [userId, kind, hash]);
+    await c.query(
+      'UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND kind = $2 AND used_at IS NULL',
+      [userId, kind],
+    );
+    await c.query(
+      `INSERT INTO auth_tokens (user_id, kind, token_hash, expires_at) VALUES ($1, $2, $3, now() + make_interval(hours => ${TOKEN_HOURS[kind]}))`,
+      [userId, kind, hash],
+    );
   });
   return token;
 }
 
 /** Use a token once; returns the user id. */
-async function consumeToken(c: import('pg').PoolClient, token: string, kind: TokenKind): Promise<string> {
-  const r = await c.query('SELECT * FROM auth_tokens WHERE token_hash = $1 AND kind = $2 FOR UPDATE', [hashToken(token), kind]);
+async function consumeToken(
+  c: import('pg').PoolClient,
+  token: string,
+  kind: TokenKind,
+): Promise<string> {
+  const r = await c.query(
+    'SELECT * FROM auth_tokens WHERE token_hash = $1 AND kind = $2 FOR UPDATE',
+    [hashToken(token), kind],
+  );
   const row = r.rows[0];
-  if (!row || row.used_at || new Date(row.expires_at) < new Date()) throw new AuthError('This link is not valid any more. Request a new one.', 'token');
+  if (!row || row.used_at || new Date(row.expires_at) < new Date())
+    throw new AuthError('This link is not valid any more. Request a new one.', 'token');
   await c.query('UPDATE auth_tokens SET used_at = now() WHERE id = $1', [row.id]);
   return row.user_id as string;
 }
@@ -163,7 +207,9 @@ async function consumeToken(c: import('pg').PoolClient, token: string, kind: Tok
 export async function verifyEmail(db: Db, token: string): Promise<User> {
   return tx(db, async (c) => {
     const id = await consumeToken(c, token, 'verify');
-    const r = await c.query('UPDATE users SET email_verified = true WHERE id = $1 RETURNING *', [id]);
+    const r = await c.query('UPDATE users SET email_verified = true WHERE id = $1 RETURNING *', [
+      id,
+    ]);
     return toUser(r.rows[0]);
   });
 }
@@ -179,15 +225,25 @@ export async function resetPassword(db: Db, token: string, password: string): Pr
   const hash = await argon2.hash(password, ARGON);
   return tx(db, async (c) => {
     const id = await consumeToken(c, token, 'reset');
-    const r = await c.query('UPDATE users SET password_hash = $2, email_verified = true, failed_logins = 0, locked_until = NULL WHERE id = $1 RETURNING *', [id, hash]);
+    const r = await c.query(
+      'UPDATE users SET password_hash = $2, email_verified = true, failed_logins = 0, locked_until = NULL WHERE id = $1 RETURNING *',
+      [id, hash],
+    );
     await endSessions(c, id);
     return toUser(r.rows[0]);
   });
 }
 
 /** Change the password of a signed-in account; other sessions end. */
-export async function changePassword(db: Db, userId: string, current: string, next: string, keepSession: string): Promise<void> {
-  if (!(await verifyPassword(db, userId, current))) throw new AuthError('Incorrect password.', 'invalid');
+export async function changePassword(
+  db: Db,
+  userId: string,
+  current: string,
+  next: string,
+  keepSession: string,
+): Promise<void> {
+  if (!(await verifyPassword(db, userId, current)))
+    throw new AuthError('Incorrect password.', 'invalid');
   const weak = validatePassword(next);
   if (weak) throw new AuthError(weak, 'weak');
   const hash = await argon2.hash(next, ARGON);
@@ -198,7 +254,14 @@ export async function changePassword(db: Db, userId: string, current: string, ne
 // ---------- TOTP ----------
 
 const totpFor = (secret: string, label = 'PLS Studio') =>
-  new OTPAuth.TOTP({ issuer: 'PLS Studio', label, algorithm: 'SHA1', digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(secret) });
+  new OTPAuth.TOTP({
+    issuer: 'PLS Studio',
+    label,
+    algorithm: 'SHA1',
+    digits: 6,
+    period: 30,
+    secret: OTPAuth.Secret.fromBase32(secret),
+  });
 
 export function verifyTotp(secretBase32: string, code: string): boolean {
   if (!/^\d{6}$/.test(code)) return false;
@@ -206,14 +269,28 @@ export function verifyTotp(secretBase32: string, code: string): boolean {
 }
 
 /** Start TOTP enrolment: store an encrypted pending secret, return the otpauth URI. */
-export async function beginTotp(db: Db, totpKey: Buffer, user: User): Promise<{ uri: string; secret: string }> {
+export async function beginTotp(
+  db: Db,
+  totpKey: Buffer,
+  user: User,
+): Promise<{ uri: string; secret: string }> {
   const secret = new OTPAuth.Secret({ size: 20 }).base32;
-  await db.query('UPDATE users SET totp_secret = $2 WHERE id = $1 AND totp_enabled = false', [user.id, seal(totpKey, Buffer.from(secret), `totp:${user.id}`)]);
+  await db.query('UPDATE users SET totp_secret = $2 WHERE id = $1 AND totp_enabled = false', [
+    user.id,
+    seal(totpKey, Buffer.from(secret), `totp:${user.id}`),
+  ]);
   return { uri: totpFor(secret, user.email).toString(), secret };
 }
 
-export async function enableTotp(db: Db, totpKey: Buffer, userId: string, code: string): Promise<boolean> {
-  const r = await db.query('SELECT totp_secret FROM users WHERE id = $1 AND totp_enabled = false', [userId]);
+export async function enableTotp(
+  db: Db,
+  totpKey: Buffer,
+  userId: string,
+  code: string,
+): Promise<boolean> {
+  const r = await db.query('SELECT totp_secret FROM users WHERE id = $1 AND totp_enabled = false', [
+    userId,
+  ]);
   const enc = r.rows[0]?.totp_secret;
   if (!enc || !verifyTotp(open(totpKey, enc, `totp:${userId}`).toString(), code)) return false;
   await db.query('UPDATE users SET totp_enabled = true WHERE id = $1', [userId]);
@@ -221,7 +298,9 @@ export async function enableTotp(db: Db, totpKey: Buffer, userId: string, code: 
 }
 
 export async function disableTotp(db: Db, userId: string) {
-  await db.query('UPDATE users SET totp_enabled = false, totp_secret = NULL WHERE id = $1', [userId]);
+  await db.query('UPDATE users SET totp_enabled = false, totp_secret = NULL WHERE id = $1', [
+    userId,
+  ]);
 }
 
 // ---------- Google ----------
@@ -232,8 +311,16 @@ export async function findByGoogle(db: Db, sub: string): Promise<User | null> {
   return r.rows[0] ? toUser(r.rows[0]) : null;
 }
 
-export async function createGoogleUser(db: Db, sub: string, email: string, name: string): Promise<User> {
-  const r = await db.query('INSERT INTO users (email, display_name, google_sub, email_verified) VALUES ($1, $2, $3, true) RETURNING *', [email, name, sub]);
+export async function createGoogleUser(
+  db: Db,
+  sub: string,
+  email: string,
+  name: string,
+): Promise<User> {
+  const r = await db.query(
+    'INSERT INTO users (email, display_name, google_sub, email_verified) VALUES ($1, $2, $3, true) RETURNING *',
+    [email, name, sub],
+  );
   return toUser(r.rows[0]);
 }
 
@@ -242,13 +329,22 @@ export async function createGoogleUser(db: Db, sub: string, email: string, name:
  * proved ownership, so it becomes this Google user's: password, second factor,
  * sessions and tokens of the old account go. Null when the account is verified.
  */
-export async function claimUnverified(db: Db, userId: string, sub: string, name: string): Promise<User | null> {
+export async function claimUnverified(
+  db: Db,
+  userId: string,
+  sub: string,
+  name: string,
+): Promise<User | null> {
   return tx(db, async (c) => {
     const r = await c.query(
       `UPDATE users SET google_sub = $2, display_name = $3, email_verified = true, password_hash = NULL, totp_enabled = false, totp_secret = NULL, failed_logins = 0, locked_until = NULL
-        WHERE id = $1 AND email_verified = false RETURNING *`, [userId, sub, name]);
+        WHERE id = $1 AND email_verified = false RETURNING *`,
+      [userId, sub, name],
+    );
     if (!r.rowCount) return null;
-    await c.query('UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [userId]);
+    await c.query('UPDATE auth_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [
+      userId,
+    ]);
     await endSessions(c, userId);
     return toUser(r.rows[0]);
   });
@@ -259,7 +355,12 @@ export async function linkGoogle(db: Db, userId: string, sub: string) {
 }
 
 /** TOTP check for the second sign-in step (Google accounts with 2FA). */
-export async function verifyTotpForUser(db: Db, totpKey: Buffer, userId: string, code: string): Promise<boolean> {
+export async function verifyTotpForUser(
+  db: Db,
+  totpKey: Buffer,
+  userId: string,
+  code: string,
+): Promise<boolean> {
   const r = await db.query('SELECT totp_secret, totp_enabled FROM users WHERE id = $1', [userId]);
   const row = r.rows[0];
   if (!row?.totp_enabled || !row.totp_secret) return false;

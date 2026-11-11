@@ -4,4 +4,6 @@
 import { create } from 'zustand';
 
 export type RStatus = 'idle' | 'loading' | 'ready' | 'error';
-export const useR = create<{ status: RStatus; message: string; versions: Record<string, string> }>(() => ({ status: 'idle', message: '', versions: {} }));
+export const useR = create<{ status: RStatus; message: string; versions: Record<string, string> }>(
+  () => ({ status: 'idle', message: '', versions: {} }),
+);

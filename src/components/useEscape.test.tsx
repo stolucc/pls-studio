@@ -15,9 +15,12 @@ it('closes on Escape only while active, before anything underneath sees the key'
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
-  const first = vi.fn(), latest = vi.fn(), below = vi.fn();
+  const first = vi.fn(),
+    latest = vi.fn(),
+    below = vi.fn();
   document.addEventListener('keydown', below);
-  const press = (key = 'Escape') => document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  const press = (key = 'Escape') =>
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 
   act(() => root.render(<Probe onEscape={first} active={false} />));
   press();

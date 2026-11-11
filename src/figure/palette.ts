@@ -3,7 +3,16 @@
 // separation on the white chart surface. Charts label their series (legend or
 // direct labels), since slots 3–5 are below 3:1 contrast with white.
 
-export const SERIES_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'] as const;
+export const SERIES_COLORS = [
+  '#2a78d6',
+  '#eb6834',
+  '#1baf7a',
+  '#eda100',
+  '#e87ba4',
+  '#008300',
+  '#6250d6',
+  '#e34948',
+] as const;
 
 /** Series beyond the eighth are not given new hues: they are grey ("other"). */
 export const OTHER_COLOR = '#8a8f98';

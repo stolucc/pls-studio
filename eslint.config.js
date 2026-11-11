@@ -5,7 +5,17 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'public/**', 'reports/**', '.stryker-tmp/**', 'server/**', 'src/generated/**', 'scripts/webr/**'] },
+  {
+    ignores: [
+      'dist/**',
+      'public/**',
+      'reports/**',
+      '.stryker-tmp/**',
+      'server/**',
+      'src/generated/**',
+      'scripts/webr/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { files: ['scripts/**/*.mjs', '*.config.{js,mjs}'], languageOptions: { globals: globals.node } },
@@ -22,7 +32,10 @@ export default tseslint.config(
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
 );

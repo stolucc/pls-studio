@@ -10,10 +10,17 @@ import { EstimateText } from './EstimateLabel';
 it('writes the estimate and its significance as the figure style asks', () => {
   const host = document.createElement('div');
   const root = createRoot(host);
-  const show = (el: React.ReactElement) => { act(() => root.render(el)); return host.innerHTML; };
+  const show = (el: React.ReactElement) => {
+    act(() => root.render(el));
+    return host.innerHTML;
+  };
   const stars = { ...DEFAULT_FIGURE_STYLE, pFormat: 'stars' as const };
-  expect(show(<EstimateText figure={stars} value={0.4468} p={0.0002} />)).toBe('0.447<span class="p">***</span>');
+  expect(show(<EstimateText figure={stars} value={0.4468} p={0.0002} />)).toBe(
+    '0.447<span class="p">***</span>',
+  );
   expect(show(<EstimateText figure={stars} value={0.1} p={0.3} />)).toBe('0.100');
-  expect(show(<EstimateText figure={stars} value={0.1} p={null} text="1 (fixed)" />)).toBe('1 (fixed)');
+  expect(show(<EstimateText figure={stars} value={0.1} p={null} text="1 (fixed)" />)).toBe(
+    '1 (fixed)',
+  );
   act(() => root.unmount());
 });

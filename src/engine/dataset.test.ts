@@ -4,7 +4,10 @@ import { detectDelimiter, parseCsv, parseCsvRows } from './dataset';
 describe('parseCsv', () => {
   it('parses quoted fields, CRLF and BOM', () => {
     const rows = parseCsvRows('﻿"a","b, c"\r\n1,"he said ""hi"""\r\n', ',');
-    expect(rows).toEqual([['a', 'b, c'], ['1', 'he said "hi"']]);
+    expect(rows).toEqual([
+      ['a', 'b, c'],
+      ['1', 'he said "hi"'],
+    ]);
   });
   it('detects delimiters', () => {
     expect(detectDelimiter('a;b;c\n1;2;3')).toBe(';');
@@ -34,7 +37,10 @@ describe('parseCsv', () => {
     const rows = Array.from({ length: 80 }, (_, i) => `comment number ${i},${i}`).join('\n');
     const r = parseCsv(`note,v\n${rows}\n`);
     expect(r.dataset.names).toEqual(['v']);
-    expect(r.excludedColumns[0]).toMatchObject({ name: 'note', reason: expect.stringMatching(/text with many different values/) });
+    expect(r.excludedColumns[0]).toMatchObject({
+      name: 'note',
+      reason: expect.stringMatching(/text with many different values/),
+    });
     // Many rows, few ids: kept (cluster ids).
     const ids = Array.from({ length: 400 }, (_, i) => `cl${i % 60},${i}`).join('\n');
     expect(parseCsv(`cluster,v\n${ids}\n`).dataset.categories?.cluster).toHaveLength(60);

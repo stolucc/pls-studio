@@ -28,7 +28,15 @@ interface AnalysesState {
   progress: Record<string, { done: number; total: number }>;
 }
 
-export const useAnalyses = create<AnalysesState>(() => ({ cards: [], selected: null, results: {}, running: {}, errors: {}, unpacking: {}, progress: {} }));
+export const useAnalyses = create<AnalysesState>(() => ({
+  cards: [],
+  selected: null,
+  results: {},
+  running: {},
+  errors: {},
+  unpacking: {},
+  progress: {},
+}));
 
 const groups = new Map<string, CancelGroup>();
 const newCardId = () => `card-${crypto.randomUUID()}`;
@@ -38,39 +46,94 @@ const readOnly = () => useStore.getState().cloud?.role === 'viewer';
 export function currentCtx(): AnalysisCtx {
   const s = useStore.getState();
   const fresh = s.results && s.results.key === resultsKey(s) ? s.results : null;
-  return { data: s.data, info: s.dataInfo, settings: s.settings, pls: s.settings.method === 'pls' ? fresh?.pls ?? null : null, cb: s.settings.method === 'cbsem' ? fresh?.cb ?? null : null, projectName: s.projectName, model: s.model,
-    boot: fresh?.boot ?? null, process: s.settings.method === 'process' ? fresh?.process ?? null : null, invariance: fresh?.invariance ?? null, miiv: fresh?.miiv ?? null, resultsKey: fresh?.key ?? null };
+  return {
+    data: s.data,
+    info: s.dataInfo,
+    settings: s.settings,
+    pls: s.settings.method === 'pls' ? (fresh?.pls ?? null) : null,
+    cb: s.settings.method === 'cbsem' ? (fresh?.cb ?? null) : null,
+    projectName: s.projectName,
+    model: s.model,
+    boot: fresh?.boot ?? null,
+    process: s.settings.method === 'process' ? (fresh?.process ?? null) : null,
+    invariance: fresh?.invariance ?? null,
+    miiv: fresh?.miiv ?? null,
+    resultsKey: fresh?.key ?? null,
+  };
 }
 
 function edit(fn: (cards: Card[]) => Card[]) {
   if (readOnly()) return;
   useAnalyses.setState((s) => ({ cards: fn(s.cards) }));
 }
-const without = <T,>(o: Record<string, T>, id: string) => { const { [id]: _drop, ...rest } = o; return rest; };
+const without = <T>(o: Record<string, T>, id: string) => {
+  const { [id]: _drop, ...rest } = o;
+  return rest;
+};
 
 /** Add a frozen card (a model snapshot) with its result, after the selected card or at the end; selects it. */
-export async function addFrozenCard(type: string, options: unknown, result: unknown): Promise<string | null> {
+export async function addFrozenCard(
+  type: string,
+  options: unknown,
+  result: unknown,
+): Promise<string | null> {
   const t = analysisType(type);
   if (!t?.frozen || readOnly() || useAnalyses.getState().cards.length >= MAX_CARDS) return null;
   const packed = await packResult(result);
-  if (packed === null) useStore.getState().toast('info', 'The snapshot is too large to save with the project; it is kept until you close it.');
+  if (packed === null)
+    useStore
+      .getState()
+      .toast(
+        'info',
+        'The snapshot is too large to save with the project; it is kept until you close it.',
+      );
   const id = newCardId();
-  const card: Card = { id, kind: 'analysis', type, options, run: { at: Date.now(), fingerprint: t.fingerprint(options, currentCtx()) ?? '', options: JSON.stringify(options), ...(packed ? { packed } : {}) } };
-  useAnalyses.setState((s) => ({ cards: [...s.cards, card], results: { ...s.results, [id]: result }, selected: id }));
+  const card: Card = {
+    id,
+    kind: 'analysis',
+    type,
+    options,
+    run: {
+      at: Date.now(),
+      fingerprint: t.fingerprint(options, currentCtx()) ?? '',
+      options: JSON.stringify(options),
+      ...(packed ? { packed } : {}),
+    },
+  };
+  useAnalyses.setState((s) => ({
+    cards: [...s.cards, card],
+    results: { ...s.results, [id]: result },
+    selected: id,
+  }));
   return id;
 }
 
 /** Replace a frozen card's result (a model run that gained a bootstrap, or was calculated again). */
 export async function updateFrozenCard(id: string, result: unknown): Promise<boolean> {
-  const card = useAnalyses.getState().cards.find((c): c is AnalysisCard => c.id === id && c.kind === 'analysis');
+  const card = useAnalyses
+    .getState()
+    .cards.find((c): c is AnalysisCard => c.id === id && c.kind === 'analysis');
   const t = card && analysisType(card.type);
   if (!card || !t?.frozen || readOnly()) return false;
   const packed = await packResult(result);
   const now = useAnalyses.getState().cards.find((c) => c.id === id);
   if (!now) return false;
   useAnalyses.setState((s) => ({
-    cards: s.cards.map((c) => (c.id === id && c.kind === 'analysis' ? { ...c, run: { at: Date.now(), fingerprint: t.fingerprint(c.options, currentCtx()) ?? '', options: JSON.stringify(c.options), ...(packed ? { packed } : {}) } } : c)),
-    results: { ...s.results, [id]: result }, errors: without(s.errors, id),
+    cards: s.cards.map((c) =>
+      c.id === id && c.kind === 'analysis'
+        ? {
+            ...c,
+            run: {
+              at: Date.now(),
+              fingerprint: t.fingerprint(c.options, currentCtx()) ?? '',
+              options: JSON.stringify(c.options),
+              ...(packed ? { packed } : {}),
+            },
+          }
+        : c,
+    ),
+    results: { ...s.results, [id]: result },
+    errors: without(s.errors, id),
   }));
   return true;
 }
@@ -82,7 +145,10 @@ export function addAnalysis(type: string, options?: unknown): string | null {
   const id = newCardId();
   // Given options (an example's preset) may be partial: fill in the defaults, and validate.
   const defaults = t.defaults(currentCtx());
-  const opts = options === undefined ? defaults : t.parseOptions({ ...defaults, ...(options as object) }) ?? defaults;
+  const opts =
+    options === undefined
+      ? defaults
+      : (t.parseOptions({ ...defaults, ...(options as object) }) ?? defaults);
   edit((cs) => [...cs, { id, kind: 'analysis', type, options: opts }]);
   useAnalyses.setState({ selected: id });
   return id;
@@ -101,17 +167,23 @@ export function setOptions(id: string, options: unknown) {
 }
 
 export function setText(id: string, text: string) {
-  edit((cs) => cs.map((c) => (c.id === id && c.kind !== 'analysis' ? { ...c, text: text.slice(0, MAX_TEXT) } : c)));
+  edit((cs) =>
+    cs.map((c) =>
+      c.id === id && c.kind !== 'analysis' ? { ...c, text: text.slice(0, MAX_TEXT) } : c,
+    ),
+  );
 }
 
 /** Rename an analysis card: one line, trimmed; empty restores the analysis name. */
 export function setTitle(id: string, title: string) {
   const t = title.replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE);
-  edit((cs) => cs.map((c) => {
-    if (c.id !== id || c.kind !== 'analysis') return c;
-    const { title: _old, ...rest } = c;
-    return t ? { ...rest, title: t } : rest;
-  }));
+  edit((cs) =>
+    cs.map((c) => {
+      if (c.id !== id || c.kind !== 'analysis') return c;
+      const { title: _old, ...rest } = c;
+      return t ? { ...rest, title: t } : rest;
+    }),
+  );
 }
 
 export function duplicateCard(id: string): string | null {
@@ -119,7 +191,16 @@ export function duplicateCard(id: string): string | null {
   const i = s.cards.findIndex((c) => c.id === id);
   if (i < 0 || readOnly() || s.cards.length >= MAX_CARDS) return null;
   const src = s.cards[i];
-  const copy: Card = src.kind === 'analysis' ? { id: newCardId(), kind: 'analysis', type: src.type, options: src.options, ...(src.title ? { title: src.title } : {}) } : { ...src, id: newCardId() };
+  const copy: Card =
+    src.kind === 'analysis'
+      ? {
+          id: newCardId(),
+          kind: 'analysis',
+          type: src.type,
+          options: src.options,
+          ...(src.title ? { title: src.title } : {}),
+        }
+      : { ...src, id: newCardId() };
   edit((cs) => [...cs.slice(0, i + 1), copy, ...cs.slice(i + 1)]);
   useAnalyses.setState({ selected: copy.id });
   return copy.id;
@@ -129,8 +210,11 @@ export function removeCard(id: string) {
   if (readOnly()) return;
   groups.get(id)?.cancel();
   useAnalyses.setState((s) => ({
-    cards: s.cards.filter((c) => c.id !== id), selected: s.selected === id ? null : s.selected,
-    results: without(s.results, id), running: without(s.running, id), errors: without(s.errors, id),
+    cards: s.cards.filter((c) => c.id !== id),
+    selected: s.selected === id ? null : s.selected,
+    results: without(s.results, id),
+    running: without(s.running, id),
+    errors: without(s.errors, id),
   }));
 }
 
@@ -149,16 +233,20 @@ export function moveCard(id: string, before: string | null) {
 /** Move a card next to another: before it, or after it (dropping on its lower half). */
 export function moveCardNextTo(id: string, target: string, after: boolean) {
   if (id === target) return;
-  const ids = useAnalyses.getState().cards.map((c) => c.id).filter((x) => x !== id);
+  const ids = useAnalyses
+    .getState()
+    .cards.map((c) => c.id)
+    .filter((x) => x !== id);
   const at = ids.indexOf(target);
   if (at < 0) return;
-  moveCard(id, after ? ids[at + 1] ?? null : target);
+  moveCard(id, after ? (ids[at + 1] ?? null) : target);
 }
 
 /** Move a card one place up or down (keyboard). */
 export function nudgeCard(id: string, delta: -1 | 1) {
   edit((cs) => {
-    const i = cs.findIndex((c) => c.id === id), j = i + delta;
+    const i = cs.findIndex((c) => c.id === id),
+      j = i + delta;
     if (i < 0 || j < 0 || j >= cs.length) return cs;
     const next = [...cs];
     [next[i], next[j]] = [next[j], next[i]];
@@ -180,31 +268,70 @@ export async function ensureModelCalculated(): Promise<void> {
   run('estimate');
   // (the job is set synchronously by run(); when validation refuses, it is not set and there is nothing to await)
   await new Promise<void>((resolve) => {
-    if (!useStore.getState().job) { resolve(); return; }
-    const unsub = useStore.subscribe((s) => { if (!s.job) { unsub(); resolve(); } });
+    if (!useStore.getState().job) {
+      resolve();
+      return;
+    }
+    const unsub = useStore.subscribe((s) => {
+      if (!s.job) {
+        unsub();
+        resolve();
+      }
+    });
   });
 }
 
 export async function runCard(id: string) {
-  const card = useAnalyses.getState().cards.find((c): c is AnalysisCard => c.id === id && c.kind === 'analysis');
+  const card = useAnalyses
+    .getState()
+    .cards.find((c): c is AnalysisCard => c.id === id && c.kind === 'analysis');
   const t = card && analysisType(card.type);
   if (!card || !t || readOnly() || useAnalyses.getState().running[id]) return;
-  if (t.fitsModel && (typeof t.fitsModel === 'function' ? t.fitsModel(card.options) : true)) await ensureModelCalculated();
+  if (t.fitsModel && (typeof t.fitsModel === 'function' ? t.fitsModel(card.options) : true))
+    await ensureModelCalculated();
   const ctx = currentCtx();
   const blocked = t.blocked(card.options, ctx);
-  if (blocked) { useAnalyses.setState((s) => ({ errors: { ...s.errors, [id]: blocked } })); return; }
+  if (blocked) {
+    useAnalyses.setState((s) => ({ errors: { ...s.errors, [id]: blocked } }));
+    return;
+  }
   // The inputs as they are now: if the data change during the run, the card shows stale.
   const fp = t.fingerprint(card.options, ctx) ?? '';
   const options = card.options;
   const group = cancelGroup();
   groups.set(id, group);
-  useAnalyses.setState((s) => ({ running: { ...s.running, [id]: true }, errors: without(s.errors, id) }));
+  useAnalyses.setState((s) => ({
+    running: { ...s.running, [id]: true },
+    errors: without(s.errors, id),
+  }));
   try {
-    const result = await group.guard(t.run(options, ctx, (done, total) => useAnalyses.setState((s) => ({ progress: { ...s.progress, [id]: { done, total } } }))));
+    const result = await group.guard(
+      t.run(options, ctx, (done, total) =>
+        useAnalyses.setState((s) => ({ progress: { ...s.progress, [id]: { done, total } } })),
+      ),
+    );
     const packed = await packResult(result);
-    if (packed === null) useStore.getState().toast('info', `${t.title}: the result is too large to save with the project; it is kept until you close it.`);
+    if (packed === null)
+      useStore
+        .getState()
+        .toast(
+          'info',
+          `${t.title}: the result is too large to save with the project; it is kept until you close it.`,
+        );
     useAnalyses.setState((s) => ({
-      cards: s.cards.map((c) => (c.id === id && c.kind === 'analysis' ? { ...c, run: { at: Date.now(), fingerprint: fp, options: JSON.stringify(options), ...(packed ? { packed } : {}) } } : c)),
+      cards: s.cards.map((c) =>
+        c.id === id && c.kind === 'analysis'
+          ? {
+              ...c,
+              run: {
+                at: Date.now(),
+                fingerprint: fp,
+                options: JSON.stringify(options),
+                ...(packed ? { packed } : {}),
+              },
+            }
+          : c,
+      ),
       results: { ...s.results, [id]: result },
     }));
   } catch (e) {
@@ -214,7 +341,10 @@ export async function runCard(id: string) {
     }
   } finally {
     groups.delete(id);
-    useAnalyses.setState((s) => ({ running: without(s.running, id), progress: without(s.progress, id) }));
+    useAnalyses.setState((s) => ({
+      running: without(s.running, id),
+      progress: without(s.progress, id),
+    }));
   }
 }
 
@@ -237,10 +367,13 @@ export async function unpackCard(id: string) {
     const result = await unpackResult(packed);
     // Only if the card still holds that run.
     const now = useAnalyses.getState().cards.find((c) => c.id === id);
-    if (now?.kind === 'analysis' && now.run?.packed === packed) useAnalyses.setState((st) => ({ results: { ...st.results, [id]: result } }));
+    if (now?.kind === 'analysis' && now.run?.packed === packed)
+      useAnalyses.setState((st) => ({ results: { ...st.results, [id]: result } }));
   } catch (e) {
     const why = (e instanceof Error ? e.message : String(e)) || 'the stored data are corrupt';
-    useAnalyses.setState((st) => ({ errors: { ...st.errors, [id]: `The stored result could not be read (${why}). Run it again.` } }));
+    useAnalyses.setState((st) => ({
+      errors: { ...st.errors, [id]: `The stored result could not be read (${why}). Run it again.` },
+    }));
   } finally {
     useAnalyses.setState((st) => ({ unpacking: without(st.unpacking, id) }));
   }
@@ -248,11 +381,21 @@ export async function unpackCard(id: string) {
 
 /** Replace the log (opening a project, or a collaborator's change). Keeps results of runs that are unchanged. */
 export function loadCards(cards: Card[]) {
-  for (const [id, g] of groups) if (!cards.some((c) => c.id === id)) { g.cancel(); groups.delete(id); }
+  for (const [id, g] of groups)
+    if (!cards.some((c) => c.id === id)) {
+      g.cancel();
+      groups.delete(id);
+    }
   useAnalyses.setState((s) => {
     const keep = (id: string) => {
-      const before = s.cards.find((c) => c.id === id), after = cards.find((c) => c.id === id);
-      return before?.kind === 'analysis' && after?.kind === 'analysis' && !!before.run && before.run.at === after.run?.at;
+      const before = s.cards.find((c) => c.id === id),
+        after = cards.find((c) => c.id === id);
+      return (
+        before?.kind === 'analysis' &&
+        after?.kind === 'analysis' &&
+        !!before.run &&
+        before.run.at === after.run?.at
+      );
     };
     const results: Record<string, unknown> = {};
     for (const [id, r] of Object.entries(s.results)) if (keep(id)) results[id] = r;
@@ -260,13 +403,23 @@ export function loadCards(cards: Card[]) {
       cards: cards.map((c) => {
         // A collaborator's copy of a run arrives without its result; keep ours.
         const before = s.cards.find((b) => b.id === c.id);
-        return c.kind === 'analysis' && c.run && !c.run.packed && before?.kind === 'analysis' && before.run?.at === c.run.at && before.run.packed
-          ? { ...c, run: { ...c.run, packed: before.run.packed } } : c;
+        return c.kind === 'analysis' &&
+          c.run &&
+          !c.run.packed &&
+          before?.kind === 'analysis' &&
+          before.run?.at === c.run.at &&
+          before.run.packed
+          ? { ...c, run: { ...c.run, packed: before.run.packed } }
+          : c;
       }),
       selected: cards.some((c) => c.id === s.selected) ? s.selected : null,
       results,
-      errors: Object.fromEntries(Object.entries(s.errors).filter(([id]) => cards.some((c) => c.id === id))),
-      running: Object.fromEntries(Object.entries(s.running).filter(([id]) => cards.some((c) => c.id === id))),
+      errors: Object.fromEntries(
+        Object.entries(s.errors).filter(([id]) => cards.some((c) => c.id === id)),
+      ),
+      running: Object.fromEntries(
+        Object.entries(s.running).filter(([id]) => cards.some((c) => c.id === id)),
+      ),
     };
   });
 }
@@ -275,9 +428,14 @@ export function loadCards(cards: Card[]) {
 function sameOptions(t: { display?: string[] }, options: unknown, ran: string): boolean {
   if (!t.display?.length) return JSON.stringify(options) === ran;
   try {
-    const strip = (o: unknown) => JSON.stringify(Object.fromEntries(Object.entries(o as object).filter(([k]) => !t.display!.includes(k))));
+    const strip = (o: unknown) =>
+      JSON.stringify(
+        Object.fromEntries(Object.entries(o as object).filter(([k]) => !t.display!.includes(k))),
+      );
     return strip(options) === strip(JSON.parse(ran));
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 export type CardStatus =
@@ -290,21 +448,46 @@ export type CardStatus =
   | { state: 'missing'; why: string };
 
 /** Whether a card's result still matches its options and inputs. */
-export function cardStatus(card: AnalysisCard, ctx: AnalysisCtx, running: boolean, hasResult: boolean): CardStatus {
+export function cardStatus(
+  card: AnalysisCard,
+  ctx: AnalysisCtx,
+  running: boolean,
+  hasResult: boolean,
+): CardStatus {
   if (running) return { state: 'running' };
   if (!card.run) return { state: 'empty' };
   const t = analysisType(card.type);
   if (!t) return { state: 'stale', why: 'This kind of analysis is not available in this version.' };
   if (t.frozen) {
-    if (!card.run.packed && !hasResult) return { state: 'missing', why: 'The results are not stored here (shared projects keep results on each computer).' };
+    if (!card.run.packed && !hasResult)
+      return {
+        state: 'missing',
+        why: 'The results are not stored here (shared projects keep results on each computer).',
+      };
     const o = card.options as { hash?: string; model?: unknown };
-    if (t.id === 'run' && typeof o.hash === 'string' && ctx.model && o.hash !== runHash(ctx.model, ctx.settings, ctx.data)) return { state: 'earlier' };
+    if (
+      t.id === 'run' &&
+      typeof o.hash === 'string' &&
+      ctx.model &&
+      o.hash !== runHash(ctx.model, ctx.settings, ctx.data)
+    )
+      return { state: 'earlier' };
     return { state: 'current' };
   }
-  if (!hasResult && !card.run.packed) return { state: 'missing', why: 'The result is not stored here (shared projects keep results on each computer, and very large results are not saved). Run it again to see it.' };
-  if (!sameOptions(t, card.options, card.run.options)) return { state: 'stale', why: 'The options changed since this ran.' };
+  if (!hasResult && !card.run.packed)
+    return {
+      state: 'missing',
+      why: 'The result is not stored here (shared projects keep results on each computer, and very large results are not saved). Run it again to see it.',
+    };
+  if (!sameOptions(t, card.options, card.run.options))
+    return { state: 'stale', why: 'The options changed since this ran.' };
   const fp = t.fingerprint(card.options, ctx);
-  if (fp === null) return { state: 'stale', why: t.blocked(card.options, ctx) ?? 'Its inputs are not available now.' };
-  if (fp !== card.run.fingerprint) return { state: 'stale', why: 'The data it used changed since this ran.' };
+  if (fp === null)
+    return {
+      state: 'stale',
+      why: t.blocked(card.options, ctx) ?? 'Its inputs are not available now.',
+    };
+  if (fp !== card.run.fingerprint)
+    return { state: 'stale', why: 'The data it used changed since this ran.' };
   return { state: 'current' };
 }

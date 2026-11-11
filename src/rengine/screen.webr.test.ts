@@ -14,10 +14,19 @@ import { kurtosisCases } from '../model/screen';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'screen', 'reference.json'), 'utf8'));
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'screen', 'reference.json'), 'utf8'),
+);
 const load = async (pkg: RPackage, name: string): Promise<Dataset> => {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: pkg, name, na: [] }, pkg);
-  return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+    'ps_dataset',
+    { package: pkg, name, na: [] },
+    pkg,
+  );
+  return {
+    names: raw.names,
+    cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+  };
 };
 
 describe('data screening', () => {
@@ -25,7 +34,8 @@ describe('data screening', () => {
     const hs = await load('lavaan', 'HolzingerSwineford1939');
     const vars = Array.from({ length: 9 }, (_, i) => `x${i + 1}`);
     const x1 = hs.cols[hs.names.indexOf('x1')].slice();
-    x1[2] = NaN; x1[9] = NaN;
+    x1[2] = NaN;
+    x1[9] = NaN;
     const data = { ...hs, cols: hs.cols.map((c, k) => (hs.names[k] === 'x1' ? x1 : c)) };
     const r = await screenR(data, vars, 0.001);
     r.describe.forEach((d, i) => {
@@ -34,11 +44,15 @@ describe('data screening', () => {
       expect(d.n).toBe(ref.describe.n[i]);
     });
     expect(r.describe[0].missing).toBe(2);
-    for (const k of ['b1p', 'b2p', 'skew', 'kurtosis'] as const) expect(r.mardia[k], k).toBeCloseTo(ref.mardia[k], 8);
+    for (const k of ['b1p', 'b2p', 'skew', 'kurtosis'] as const)
+      expect(r.mardia[k], k).toBeCloseTo(ref.mardia[k], 8);
     expect(r.mardia.pKurt).toBeCloseTo(ref.mardia.pKurt, 10);
     expect(r.cases.rows).not.toContain(3);
     expect(r.cases.rows).toHaveLength(299);
-    const top = r.cases.rows.map((row, i) => ({ row, d2: r.cases.d2[i] })).sort((a, b) => b.d2 - a.d2).slice(0, 5);
+    const top = r.cases.rows
+      .map((row, i) => ({ row, d2: r.cases.d2[i] }))
+      .sort((a, b) => b.d2 - a.d2)
+      .slice(0, 5);
     expect(top.map((x) => x.row)).toEqual(ref.mahalanobis.rows);
     top.forEach((x, i) => expect(x.d2).toBeCloseTo(ref.mahalanobis.d2[i], 8));
     expect(await screenScriptR(data, vars, 0.001)).toContain('mard <- mardia(Xc, plot = FALSE)');
@@ -46,14 +60,33 @@ describe('data screening', () => {
 
   it('case influence, approximate approach as ?cfa_dat2 runs it: influence_stat(fit), close to the refits', async () => {
     const d = await load('semfindr', 'cfa_dat2');
-    const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
-    const model: ModelState = { constructs: [C('f1', ['x1', 'x2', 'x3']), C('f2', ['x4', 'x5', 'x6'])], paths: [], moderations: [], correlations: [{ id: 'k', kind: 'construct', a: 'f1', b: 'f2' }] };
+    const C = (id: string, inds: string[]) => ({
+      id,
+      name: id,
+      type: 'factor' as const,
+      mode: 'A' as const,
+      indicators: inds,
+      x: 0,
+      y: 0,
+      side: 'left' as const,
+    });
+    const model: ModelState = {
+      constructs: [C('f1', ['x1', 'x2', 'x3']), C('f2', ['x4', 'x5', 'x6'])],
+      paths: [],
+      moderations: [],
+      correlations: [{ id: 'k', kind: 'construct', a: 'f1', b: 'f2' }],
+    };
     const approx = await influenceR(d, toSpec(model), 'casewise', 'ML', 'approximate');
     expect(approx.approach).toBe('approximate');
     expect(approx.rows).toHaveLength(100);
     // The approximation ranks the cases as the refits do: the five most influential are the same (semfindr's documented use).
-    const top = approx.rows.map((row, i) => ({ row, i })).sort((a, b) => approx.gcd[b.i] - approx.gcd[a.i]).slice(0, 5);
-    expect([...top.map((x) => x.row)].sort((a, b) => a - b)).toEqual([...ref.influence.rows].sort((a: number, b: number) => a - b));
+    const top = approx.rows
+      .map((row, i) => ({ row, i }))
+      .sort((a, b) => approx.gcd[b.i] - approx.gcd[a.i])
+      .slice(0, 5);
+    expect([...top.map((x) => x.row)].sort((a, b) => a - b)).toEqual(
+      [...ref.influence.rows].sort((a: number, b: number) => a - b),
+    );
     // Each case's contribution to Mardia's kurtosis: d⁴ / n summing to psych::mardia's b₂,ₚ, the largest as the reference.
     const k = approx.kurtosis!;
     expect(k.rows).toHaveLength(100);
@@ -71,11 +104,28 @@ describe('data screening', () => {
 
   it('case influence of a CFA equals semfindr (?cfa_dat2)', async () => {
     const d = await load('semfindr', 'cfa_dat2');
-    const C = (id: string, inds: string[]) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: inds, x: 0, y: 0, side: 'left' as const });
-    const model: ModelState = { constructs: [C('f1', ['x1', 'x2', 'x3']), C('f2', ['x4', 'x5', 'x6'])], paths: [], moderations: [], correlations: [{ id: 'k', kind: 'construct', a: 'f1', b: 'f2' }] };
+    const C = (id: string, inds: string[]) => ({
+      id,
+      name: id,
+      type: 'factor' as const,
+      mode: 'A' as const,
+      indicators: inds,
+      x: 0,
+      y: 0,
+      side: 'left' as const,
+    });
+    const model: ModelState = {
+      constructs: [C('f1', ['x1', 'x2', 'x3']), C('f2', ['x4', 'x5', 'x6'])],
+      paths: [],
+      moderations: [],
+      correlations: [{ id: 'k', kind: 'construct', a: 'f1', b: 'f2' }],
+    };
     const r = await influenceR(d, toSpec(model), 'casewise', 'ML');
     expect(r.rows).toHaveLength(100);
-    const top = r.rows.map((row, i) => ({ row, i })).sort((a, b) => r.gcd[b.i] - r.gcd[a.i]).slice(0, 5);
+    const top = r.rows
+      .map((row, i) => ({ row, i }))
+      .sort((a, b) => r.gcd[b.i] - r.gcd[a.i])
+      .slice(0, 5);
     expect(top.map((x) => x.row)).toEqual(ref.influence.rows);
     top.forEach((x, k) => {
       expect(r.gcd[x.i]).toBeCloseTo(ref.influence.gcd[k], 6);

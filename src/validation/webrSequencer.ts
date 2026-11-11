@@ -10,7 +10,14 @@ import { BaseSequencer, type TestSpecification } from 'vitest/node';
 const ROOT = join(__dirname, '..', '..');
 
 function recorded(): Record<string, number> {
-  try { return JSON.parse(readFileSync(join(ROOT, 'scripts', 'webr', 'test-timings.json'), 'utf8')).files ?? {}; } catch { return {}; }
+  try {
+    return (
+      JSON.parse(readFileSync(join(ROOT, 'scripts', 'webr', 'test-timings.json'), 'utf8')).files ??
+      {}
+    );
+  } catch {
+    return {};
+  }
 }
 
 export default class WebrSequencer extends BaseSequencer {
@@ -20,8 +27,14 @@ export default class WebrSequencer extends BaseSequencer {
     const t = (f: TestSpecification) => times[relative(ROOT, f.moduleId).split('\\').join('/')];
     const rank = new Map(base.map((f, i) => [f, i]));
     return [...base].sort((a, b) => {
-      const ta = t(a), tb = t(b);
-      if (ta === undefined || tb === undefined) return ta === undefined && tb !== undefined ? -1 : tb === undefined && ta !== undefined ? 1 : rank.get(a)! - rank.get(b)!;
+      const ta = t(a),
+        tb = t(b);
+      if (ta === undefined || tb === undefined)
+        return ta === undefined && tb !== undefined
+          ? -1
+          : tb === undefined && ta !== undefined
+            ? 1
+            : rank.get(a)! - rank.get(b)!;
       return tb - ta;
     });
   }

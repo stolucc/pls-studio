@@ -26,7 +26,9 @@ describe('two-level syntax', () => {
     // (defined parameters belong to the whole model, wherever they are written)
     expect(model.defined?.map((d) => [d.name, d.expr])).toEqual([['betac', 'g01 - g10']]);
     expect(model.multilevel).toEqual({
-      column: '', between: 'model', betweenModel: [
+      column: '',
+      between: 'model',
+      betweenModel: [
         { lhs: 'y', op: '~', rhs: [{ name: 'w' }, { name: 'x', label: 'g01' }] },
         { lhs: 'fb', op: '=~', rhs: [{ name: 'y1' }, { name: 'y2', fixed: 0.5 }, { name: 'y3' }] },
         { lhs: 'y1', op: '~~', rhs: [{ name: 'y1', fixed: 0 }] },
@@ -50,20 +52,25 @@ describe('two-level syntax', () => {
   });
 
   it('an empty between level is saturated', () => {
-    expect(parseLavaanSyntax('level: 1\ny ~ x\nlevel: 2\n').model.multilevel).toEqual({ column: '', between: 'saturated' });
+    expect(parseLavaanSyntax('level: 1\ny ~ x\nlevel: 2\n').model.multilevel).toEqual({
+      column: '',
+      between: 'saturated',
+    });
   });
 });
 
 describe('a saved between-level model', () => {
   it('keeps well-formed statements only', () => {
-    expect(parseBetweenModel([
-      { lhs: 'y', op: '~', rhs: [{ name: 'w', label: 'a' }, { name: 'x); system("ls' }] },
-      { lhs: 'y', op: '%', rhs: [{ name: 'w' }] },
-      { lhs: 'f b', op: '=~', rhs: [{ name: 'y1' }] },
-      { lhs: 'y', op: '~1', rhs: [{ name: '1', fixed: 0 }] },
-      { lhs: 'y', op: '~~', rhs: [{ name: 'y', fixed: 'x' }] },
-      'junk',
-    ])).toEqual([
+    expect(
+      parseBetweenModel([
+        { lhs: 'y', op: '~', rhs: [{ name: 'w', label: 'a' }, { name: 'x); system("ls' }] },
+        { lhs: 'y', op: '%', rhs: [{ name: 'w' }] },
+        { lhs: 'f b', op: '=~', rhs: [{ name: 'y1' }] },
+        { lhs: 'y', op: '~1', rhs: [{ name: '1', fixed: 0 }] },
+        { lhs: 'y', op: '~~', rhs: [{ name: 'y', fixed: 'x' }] },
+        'junk',
+      ]),
+    ).toEqual([
       { lhs: 'y', op: '~', rhs: [{ name: 'w', label: 'a' }] },
       { lhs: 'y', op: '~1', rhs: [{ name: '1', fixed: 0 }] },
       { lhs: 'y', op: '~~', rhs: [{ name: 'y' }] },
@@ -73,9 +80,29 @@ describe('a saved between-level model', () => {
 
   it('falls back to a saturated between level when nothing usable is left', () => {
     const base = { constructs: [], paths: [], moderations: [] };
-    expect(parseModelState({ ...base, multilevel: { column: 'clus', between: 'model', betweenModel: [{ lhs: '(', op: '~', rhs: [] }] } }).multilevel)
-      .toEqual({ column: 'clus', between: 'saturated' });
-    expect(parseModelState({ ...base, multilevel: { column: 'clus', between: 'model', betweenModel: [{ lhs: 'y', op: '~', rhs: [{ name: 'w' }] }] } }).multilevel)
-      .toEqual({ column: 'clus', between: 'model', betweenModel: [{ lhs: 'y', op: '~', rhs: [{ name: 'w' }] }] });
+    expect(
+      parseModelState({
+        ...base,
+        multilevel: {
+          column: 'clus',
+          between: 'model',
+          betweenModel: [{ lhs: '(', op: '~', rhs: [] }],
+        },
+      }).multilevel,
+    ).toEqual({ column: 'clus', between: 'saturated' });
+    expect(
+      parseModelState({
+        ...base,
+        multilevel: {
+          column: 'clus',
+          between: 'model',
+          betweenModel: [{ lhs: 'y', op: '~', rhs: [{ name: 'w' }] }],
+        },
+      }).multilevel,
+    ).toEqual({
+      column: 'clus',
+      between: 'model',
+      betweenModel: [{ lhs: 'y', op: '~', rhs: [{ name: 'w' }] }],
+    });
   });
 });

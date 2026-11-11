@@ -17,18 +17,45 @@ import { startTestRuntime, stopTestRuntime } from './webrTestRuntime';
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const ref = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'endo', 'reference.json'), 'utf8'));
-const rendo = (n: string) => parseCsv(readFileSync(join(__dirname, '..', '..', 'public', 'examples', 'rendo', `${n}.csv`), 'utf8')).dataset;
+const ref = JSON.parse(
+  readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'endo', 'reference.json'), 'utf8'),
+);
+const rendo = (n: string) =>
+  parseCsv(
+    readFileSync(join(__dirname, '..', '..', 'public', 'examples', 'rendo', `${n}.csv`), 'utf8'),
+  ).dataset;
 const pkgData = async (pkg: 'ivreg' | 'sampleSelection', name: string) => {
-  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>('ps_dataset', { package: pkg, name, na: [] }, pkg);
-  return { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))) };
+  const raw = await rCall<{ names: string[]; cols: (number | null)[][] }>(
+    'ps_dataset',
+    { package: pkg, name, na: [] },
+    pkg,
+  );
+  return {
+    names: raw.names,
+    cols: raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN))),
+  };
 };
-const base: EndoInput = { method: 'iv', outcome: 'y', exogenous: ['X1', 'X2'], endogenous: ['P'], instruments: [], hetRegressors: ['X1', 'X2'], hmTypes: [],
-  selection: { outcome: '', regressors: [] }, heckmanMethod: '2step', boot: { samples: 200, seed: 1, confidence: 0.95 } };
-const term = (t: string) => (t === '(Intercept)' ? 'Intercept' : t.replace(/^PStar\.(.*)$/, 'P* ($1)'));
+const base: EndoInput = {
+  method: 'iv',
+  outcome: 'y',
+  exogenous: ['X1', 'X2'],
+  endogenous: ['P'],
+  instruments: [],
+  hetRegressors: ['X1', 'X2'],
+  hmTypes: [],
+  selection: { outcome: '', regressors: [] },
+  heckmanMethod: '2step',
+  boot: { samples: 200, seed: 1, confidence: 0.95 },
+};
+const term = (t: string) =>
+  t === '(Intercept)' ? 'Intercept' : t.replace(/^PStar\.(.*)$/, 'P* ($1)');
 
 it('Gaussian copula (two continuous endogenous regressors) equals REndo::copulaCorrection, bootstrap included', async () => {
-  const r = await endoR(rendo('dataCopCont2'), { ...base, method: 'copula', endogenous: ['P1', 'P2'] });
+  const r = await endoR(rendo('dataCopCont2'), {
+    ...base,
+    method: 'copula',
+    endogenous: ['P1', 'P2'],
+  });
   for (const c of ref.copula.summary) {
     const m = r.coefficients.find((x) => x.term === term(c.term))!;
     expect(m, c.term).toBeDefined();
@@ -39,23 +66,40 @@ it('Gaussian copula (two continuous endogenous regressors) equals REndo::copulaC
   }
   expect(r.normality.map((x) => x.variable)).toEqual(['P1', 'P2']);
   expect(r.ols.length).toBe(5);
-  const script = await endoScriptR(rendo('dataCopCont2'), { ...base, method: 'copula', endogenous: ['P1', 'P2'] });
+  const script = await endoScriptR(rendo('dataCopCont2'), {
+    ...base,
+    method: 'copula',
+    endogenous: ['P1', 'P2'],
+  });
   expect(script).toContain('pstar <- function(v)');
   // Base R only: no library() or install.packages() line (the instrument methods load ivreg).
   expect(script).not.toMatch(/library\(|install\.packages/);
   expect(script).toContain('base R only, no packages needed');
-  expect(await endoScriptR(rendo('dataCopCont2'), { ...base, method: 'het', endogenous: ['P1'] })).toContain('library(ivreg)');
+  expect(
+    await endoScriptR(rendo('dataCopCont2'), { ...base, method: 'het', endogenous: ['P1'] }),
+  ).toContain('library(ivreg)');
   // The exported script runs in a plain R installation (the system R here, whatever packages it has).
   const rscript = spawnSync('Rscript', ['--version'], { encoding: 'utf8' });
   if (rscript.status === 0) {
     const dir = mkdtempSync(join(tmpdir(), 'copula-'));
     writeFileSync(join(dir, 'copula.R'), script);
-    const run = spawnSync('Rscript', ['copula.R'], { cwd: dir, encoding: 'utf8', timeout: 300_000 });
+    const run = spawnSync('Rscript', ['copula.R'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 300_000,
+    });
     expect(run.status, run.stderr.slice(-2000)).toBe(0);
     expect(run.stdout).toContain('PStar.P1');
   }
   // Out-of-range bootstrap settings are named, not just refused.
-  await expect(endoR(rendo('dataCopCont2'), { ...base, method: 'copula', endogenous: ['P1', 'P2'], boot: { samples: 200_000, seed: 1, confidence: 0.95 } })).rejects.toThrow('between 10 and 100,000 (got 200000)');
+  await expect(
+    endoR(rendo('dataCopCont2'), {
+      ...base,
+      method: 'copula',
+      endogenous: ['P1', 'P2'],
+      boot: { samples: 200_000, seed: 1, confidence: 0.95 },
+    }),
+  ).rejects.toThrow('between 10 and 100,000 (got 200000)');
 }, 900_000);
 
 it('heteroskedasticity-based instruments equal REndo::hetErrorsIV', async () => {
@@ -69,7 +113,11 @@ it('heteroskedasticity-based instruments equal REndo::hetErrorsIV', async () => 
 }, 900_000);
 
 it('higher-moment instruments equal REndo::higherMomentsIV (gp with g = x², and yp)', async () => {
-  const r = await endoR(rendo('dataHigherMoments'), { ...base, method: 'hm', hmTypes: ['gp', 'yp'] });
+  const r = await endoR(rendo('dataHigherMoments'), {
+    ...base,
+    method: 'hm',
+    hmTypes: ['gp', 'yp'],
+  });
   for (const c of ref.hm.coef) {
     const m = r.coefficients.find((x) => x.term === term(c.term))!;
     expect(m.est, c.term).toBeCloseTo(c.est, 10);
@@ -80,21 +128,38 @@ it('higher-moment instruments equal REndo::higherMomentsIV (gp with g = x², and
 it('latent instrumental variables equal REndo::latentIV (dataLatentIV)', async () => {
   const r = await endoR(rendo('dataLatentIV'), { ...base, method: 'liv', exogenous: [] });
   expect(r.engine.package).toBe('optimx');
-  const names: Record<string, string> = { '(Intercept)': 'Intercept', P: 'P', pi1: 'Mean of P, group 1 (pi1)', pi2: 'Mean of P, group 2 (pi2)',
-    theta5: 'Probability of group 1 (theta5)', theta6: 'Outcome error variance (theta6)', theta7: 'Error covariance (theta7)', theta8: 'Regressor error variance (theta8)' };
+  const names: Record<string, string> = {
+    '(Intercept)': 'Intercept',
+    P: 'P',
+    pi1: 'Mean of P, group 1 (pi1)',
+    pi2: 'Mean of P, group 2 (pi2)',
+    theta5: 'Probability of group 1 (theta5)',
+    theta6: 'Outcome error variance (theta6)',
+    theta7: 'Error covariance (theta7)',
+    theta8: 'Regressor error variance (theta8)',
+  };
   for (const c of ref.liv.coef) {
     const m = r.coefficients.find((x) => x.term === names[c.term])!;
     expect(m, c.term).toBeDefined();
     expect(m.est).toBeCloseTo(c.est, 6);
     expect(m.se!).toBeCloseTo(c.se, 4);
   }
-  await expect(endoR(rendo('dataLatentIV'), { ...base, method: 'liv', exogenous: ['Z'] })).rejects.toThrow(/no other regressors/);
+  await expect(
+    endoR(rendo('dataLatentIV'), { ...base, method: 'liv', exogenous: ['Z'] }),
+  ).rejects.toThrow(/no other regressors/);
 }, 900_000);
 
 it('instrumental variables on Kmenta equal ivreg, with its diagnostics', async () => {
   const d = await pkgData('ivreg', 'Kmenta');
-  const r = await endoR(d, { ...base, outcome: 'Q', exogenous: ['D'], endogenous: ['P'], instruments: ['F', 'A'] });
-  for (const c of ref.iv.coef) expect(r.coefficients.find((x) => x.term === term(c.term))!.est).toBeCloseTo(c.est, 10);
+  const r = await endoR(d, {
+    ...base,
+    outcome: 'Q',
+    exogenous: ['D'],
+    endogenous: ['P'],
+    instruments: ['F', 'A'],
+  });
+  for (const c of ref.iv.coef)
+    expect(r.coefficients.find((x) => x.term === term(c.term))!.est).toBeCloseTo(c.est, 10);
   ref.iv.diagnostics.forEach((g: { test: string; stat: number }, i: number) => {
     expect(r.diagnostics[i].test).toBe(g.test);
     expect(r.diagnostics[i].stat).toBeCloseTo(g.stat, 8);
@@ -103,9 +168,18 @@ it('instrumental variables on Kmenta equal ivreg, with its diagnostics', async (
 
 it('Heckman two-step on Mroz87 equals sampleSelection', async () => {
   const d = await pkgData('sampleSelection', 'Mroz87');
-  const r = await endoR(d, { ...base, method: 'heckman', outcome: 'wage', exogenous: ['exper', 'educ', 'city'], endogenous: [],
-    selection: { outcome: 'lfp', regressors: ['age', 'faminc', 'kids5', 'educ'] }, heckmanMethod: '2step' });
-  ref.heckman_2step.coef.forEach((c: { est: number }, i: number) => expect(r.coefficients[i].est).toBeCloseTo(c.est, 8));
+  const r = await endoR(d, {
+    ...base,
+    method: 'heckman',
+    outcome: 'wage',
+    exogenous: ['exper', 'educ', 'city'],
+    endogenous: [],
+    selection: { outcome: 'lfp', regressors: ['age', 'faminc', 'kids5', 'educ'] },
+    heckmanMethod: '2step',
+  });
+  ref.heckman_2step.coef.forEach((c: { est: number }, i: number) =>
+    expect(r.coefficients[i].est).toBeCloseTo(c.est, 8),
+  );
   expect(r.coefficients.filter((x) => x.equation === 'selection')).toHaveLength(5);
   expect(r.selection).toEqual({ selected: 428, total: 753 });
 }, 900_000);

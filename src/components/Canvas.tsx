@@ -1,5 +1,13 @@
 import type React from 'react';
-import { Background, BackgroundVariant, ControlButton, Controls, MiniMap, ReactFlow, useReactFlow } from '@xyflow/react';
+import {
+  Background,
+  BackgroundVariant,
+  ControlButton,
+  Controls,
+  MiniMap,
+  ReactFlow,
+  useReactFlow,
+} from '@xyflow/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { figureCssVars, figureForMethod, isPlainFigure } from '../figure/style';
 import { FigurePanel } from './FigurePanel';
@@ -38,7 +46,9 @@ import { useFlowHandlers } from './canvas/useFlowHandlers';
 const nodeTypes = { construct: ConstructNode, constant: ConstantNode, note: NoteNode };
 const edgeTypes = { path: PathEdge, mean: MeanEdge, intercept: InterceptEdge };
 
-interface EmptyProps { onImport: () => void }
+interface EmptyProps {
+  onImport: () => void;
+}
 
 export function Canvas({ onImport }: EmptyProps) {
   const model = useStore((s) => s.model);
@@ -56,9 +66,16 @@ export function Canvas({ onImport }: EmptyProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   // Fit the diagram into view below the floating toolbars. fitView frames nodes only;
   // CB-SEM's correlation arcs and error terms reach beyond them (more padding).
-  const fitOptions = useCallback(() => ({
-    padding: fitPadding(st().settings.method === 'cbsem' ? 0.35 : 0.2, overlayBottom(wrapRef.current)), maxZoom: 1.1,
-  }), [st]);
+  const fitOptions = useCallback(
+    () => ({
+      padding: fitPadding(
+        st().settings.method === 'cbsem' ? 0.35 : 0.2,
+        overlayBottom(wrapRef.current),
+      ),
+      maxZoom: 1.1,
+    }),
+    [st],
+  );
   useEffect(() => {
     if (fitRequest === 0) return;
     const t = setTimeout(() => void rf.fitView({ ...fitOptions(), duration: 250 }), 40);
@@ -78,16 +95,51 @@ export function Canvas({ onImport }: EmptyProps) {
   // Moderators' main effects on the outcome that the diagram does not draw (estimated anyway).
   // (CPA too: Hayes's statistical diagrams draw them; PROCESS estimates them.)
   const implied = useMemo(() => impliedMainEffects(model), [model]);
-  const estimates = useEstimateLabels(model, method, settings.estimator, results, showResults, unstd);
+  const estimates = useEstimateLabels(
+    model,
+    method,
+    settings.estimator,
+    results,
+    showResults,
+    unstd,
+  );
   const { display, correlationLabel, errorValue, moderationLabel, hoLoading } = estimates;
-  const { picked, setPicked, pick, rubber, onCorrelateDown, startCorrelate } = useCorrelationTool(tool, method, readOnly);
-  const { onNodesChange, onEdgesChange, onDelete, onConnect, onConnectEnd, isValidConnection, addAt, onPaneClick, onDragOver, onDrop } = useFlowHandlers(tool, data, setPicked);
+  const { picked, setPicked, pick, rubber, onCorrelateDown, startCorrelate } = useCorrelationTool(
+    tool,
+    method,
+    readOnly,
+  );
+  const {
+    onNodesChange,
+    onEdgesChange,
+    onDelete,
+    onConnect,
+    onConnectEnd,
+    isValidConnection,
+    addAt,
+    onPaneClick,
+    onDragOver,
+    onDrop,
+  } = useFlowHandlers(tool, data, setPicked);
 
   const [figureOpen, setFigureOpen] = useState(false);
   const [parcelFor, setParcelFor] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   // The nodes and edges, and everything the figure export draws, with the same values as the diagram.
-  const { nodes, edges, figureInput, labelAt } = useFlowGraph({ model, placed, selection, tool, picked, implied, showImplied, showErrors, showIntercepts, unstd, results, estimates });
+  const { nodes, edges, figureInput, labelAt } = useFlowGraph({
+    model,
+    placed,
+    selection,
+    tool,
+    picked,
+    implied,
+    showImplied,
+    showErrors,
+    showIntercepts,
+    unstd,
+    results,
+    estimates,
+  });
 
   // Right-click menus (canvasMenu.ts decides what each one offers).
   const [menu, setMenu] = useState<{ x: number; y: number; target: MenuTarget } | null>(null);
@@ -97,7 +149,9 @@ export function Canvas({ onImport }: EmptyProps) {
     e.stopPropagation();
     setMenu({ x: e.clientX, y: e.clientY, target });
   }, []);
-  const menuContent = menu ? menuFor(menu.target, model, { method, readOnly, selected: selection.nodes }) : null;
+  const menuContent = menu
+    ? menuFor(menu.target, model, { method, readOnly, selected: selection.nodes })
+    : null;
 
   const empty = model.constructs.length === 0;
   const parcelConstruct = parcelFor ? model.constructs.find((k) => k.id === parcelFor) : undefined;
@@ -111,23 +165,44 @@ export function Canvas({ onImport }: EmptyProps) {
       onDrop={onDrop}
       onPointerDownCapture={onCorrelateDown}
       // React Flow pans on mousedown (d3-zoom): not when a correlation drag starts on an end.
-      onMouseDownCapture={(e) => { if (tool === 'correlate' && !readOnly && e.button === 0 && endAt(e.target as Element)) e.stopPropagation(); }}
+      onMouseDownCapture={(e) => {
+        if (tool === 'correlate' && !readOnly && e.button === 0 && endAt(e.target as Element))
+          e.stopPropagation();
+      }}
       // Collaborators see your pointer anywhere on the canvas (over nodes too).
-      onMouseMove={(e) => { const s = currentSession(); if (s) s.setCursor(rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}
+      onMouseMove={(e) => {
+        const s = currentSession();
+        if (s) s.setCursor(rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+      }}
       onMouseLeave={() => currentSession()?.setCursor(null)}
     >
       <Markers />
       <ToolDock empty={empty} implied={implied} onFigure={() => setFigureOpen(true)} />
       {tool === 'correlate' && (
         <div className="tool-hint" role="status">
-          {picked
-            ? <>Now click the second {picked.kind === 'indicator' ? 'indicator' : picked.via === 'disturbance' ? 'disturbance (ζ)' : 'exogenous construct'}. Esc cancels.</>
-            : <>Drag from one end to the other, or click both: two exogenous constructs, two disturbances (ζ) of endogenous constructs, or two indicators (correlated errors).</>}
+          {picked ? (
+            <>
+              Now click the second{' '}
+              {picked.kind === 'indicator'
+                ? 'indicator'
+                : picked.via === 'disturbance'
+                  ? 'disturbance (ζ)'
+                  : 'exogenous construct'}
+              . Esc cancels.
+            </>
+          ) : (
+            <>
+              Drag from one end to the other, or click both: two exogenous constructs, two
+              disturbances (ζ) of endogenous constructs, or two indicators (correlated errors).
+            </>
+          )}
         </div>
       )}
       {rubber && (
         <svg className="rubber" aria-hidden="true">
-          <path d={`M ${rubber.x1} ${rubber.y1} Q ${(rubber.x1 + rubber.x2) / 2 - (rubber.y2 - rubber.y1) * 0.25} ${(rubber.y1 + rubber.y2) / 2 + (rubber.x2 - rubber.x1) * 0.25} ${rubber.x2} ${rubber.y2}`} />
+          <path
+            d={`M ${rubber.x1} ${rubber.y1} Q ${(rubber.x1 + rubber.x2) / 2 - (rubber.y2 - rubber.y1) * 0.25} ${(rubber.y1 + rubber.y2) / 2 + (rubber.x2 - rubber.x1) * 0.25} ${rubber.x2} ${rubber.y2}`}
+          />
         </svg>
       )}
 
@@ -147,9 +222,17 @@ export function Canvas({ onImport }: EmptyProps) {
         onNodeContextMenu={(e, node) => {
           const ind = (e.target as Element).closest('[data-ind]')?.getAttribute('data-ind');
           if (!ind && !st().selection.nodes.includes(node.id)) st().select('construct', node.id);
-          openMenu(e, ind ? { kind: 'indicator', construct: node.id, name: ind } : { kind: 'construct', id: node.id });
+          openMenu(
+            e,
+            ind
+              ? { kind: 'indicator', construct: node.id, name: ind }
+              : { kind: 'construct', id: node.id },
+          );
         }}
-        onEdgeContextMenu={(e, edge) => { st().select('path', edge.id); openMenu(e, { kind: 'path', id: edge.id }); }}
+        onEdgeContextMenu={(e, edge) => {
+          st().select('path', edge.id);
+          openMenu(e, { kind: 'path', id: edge.id });
+        }}
         onPaneContextMenu={(e) => {
           // Layers drawn over the pane (correlations, moderators, error terms) open their own menus.
           if (!(e.target as Element).classList.contains('react-flow__pane')) return;
@@ -177,32 +260,85 @@ export function Canvas({ onImport }: EmptyProps) {
         maxZoom={2.5}
         fitView
         // (first fit, before the bars can be measured: the tool dock's usual extent)
-        fitViewOptions={{ padding: fitPadding(method === 'cbsem' ? 0.35 : 0.2, method === 'process' ? 140 : 60), maxZoom: 1.1 }}
+        fitViewOptions={{
+          padding: fitPadding(method === 'cbsem' ? 0.35 : 0.2, method === 'process' ? 140 : 60),
+          maxZoom: 1.1,
+        }}
         attributionPosition="top-right"
         style={{ cursor: tool === 'construct' ? 'copy' : undefined }}
       >
         <CopulaLayer pls={results?.pls} boot={results?.boot} onMenu={openMenu} />
-        <ModeratorLayer labelFor={moderationLabel} onMenu={openMenu} labelAt={(id) => labelAt.get(`mod:${id}`) ?? null} />
-        <HigherOrderLayer loadingFor={hoLoading} labelAt={(parent, child) => labelAt.get(`ho:${parent}:${child}`) ?? null} />
-        <CovarianceLayer active={method === 'cbsem'} showErrors={showErrors} picked={picked}
-          onPick={tool === 'correlate' && !readOnly ? pick : null} labelFor={correlationLabel} errorFor={errorValue} unstd={unstd} onMenu={openMenu} loadingFor={(i, n) => display?.indicator(i, n) ?? null} />
+        <ModeratorLayer
+          labelFor={moderationLabel}
+          onMenu={openMenu}
+          labelAt={(id) => labelAt.get(`mod:${id}`) ?? null}
+        />
+        <HigherOrderLayer
+          loadingFor={hoLoading}
+          labelAt={(parent, child) => labelAt.get(`ho:${parent}:${child}`) ?? null}
+        />
+        <CovarianceLayer
+          active={method === 'cbsem'}
+          showErrors={showErrors}
+          picked={picked}
+          onPick={tool === 'correlate' && !readOnly ? pick : null}
+          labelFor={correlationLabel}
+          errorFor={errorValue}
+          unstd={unstd}
+          onMenu={openMenu}
+          loadingFor={(i, n) => display?.indicator(i, n) ?? null}
+        />
         <PresenceLayer />
         <Background variant={BackgroundVariant.Dots} gap={18} size={1.2} color="#c9ceda" />
         <Controls showInteractive={false} position="bottom-left" showFitView={false}>
-          <ControlButton onClick={() => void rf.fitView({ ...fitOptions(), duration: 250 })} title="Fit view" aria-label="Fit view"><IconFitView /></ControlButton>
+          <ControlButton
+            onClick={() => void rf.fitView({ ...fitOptions(), duration: 250 })}
+            title="Fit view"
+            aria-label="Fit view"
+          >
+            <IconFitView />
+          </ControlButton>
         </Controls>
-        {!empty && <MiniMap pannable zoomable position="bottom-right" style={{ width: 150, height: 96 }} nodeColor="#c7cbff" maskColor="rgba(244,245,248,0.7)" />}
+        {!empty && (
+          <MiniMap
+            pannable
+            zoomable
+            position="bottom-right"
+            style={{ width: 150, height: 96 }}
+            nodeColor="#c7cbff"
+            maskColor="rgba(244,245,248,0.7)"
+          />
+        )}
       </ReactFlow>
       <ExampleBanner where="model" />
 
       {/* (hidden once the Construct tool is chosen, so that the first click on the canvas places a construct) */}
       {empty && tool !== 'construct' && (
-        <CanvasEmpty method={method} data={data} readOnly={readOnly} onImport={onImport} onTemplates={() => setTemplatesOpen(true)} />
+        <CanvasEmpty
+          method={method}
+          data={data}
+          readOnly={readOnly}
+          onImport={onImport}
+          onTemplates={() => setTemplatesOpen(true)}
+        />
       )}
 
       {menu && menuContent && (
-        <ContextMenu x={menu.x} y={menu.y} title={menuContent.title} items={menuContent.items}
-          onAction={(a: MenuAction) => runMenuAction(menu.target, a, { startCorrelate, setParcelFor, setFigureOpen, setTemplatesOpen })} onClose={closeMenu} />
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          title={menuContent.title}
+          items={menuContent.items}
+          onAction={(a: MenuAction) =>
+            runMenuAction(menu.target, a, {
+              startCorrelate,
+              setParcelFor,
+              setFigureOpen,
+              setTemplatesOpen,
+            })
+          }
+          onClose={closeMenu}
+        />
       )}
       {figureOpen && <FigurePanel input={figureInput} onClose={() => setFigureOpen(false)} />}
       {parcelConstruct && <ParcelDialog c={parcelConstruct} onClose={() => setParcelFor(null)} />}
@@ -212,7 +348,9 @@ export function Canvas({ onImport }: EmptyProps) {
       {hasStaleResults && !empty && (
         <div className="stale-banner">
           Model changed since the last calculation.
-          <button className="btn sm primary" onClick={() => run('estimate')}><IconPlay size={13} /> Recalculate</button>
+          <button className="btn sm primary" onClick={() => run('estimate')}>
+            <IconPlay size={13} /> Recalculate
+          </button>
         </div>
       )}
     </div>

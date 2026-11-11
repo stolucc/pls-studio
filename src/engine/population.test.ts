@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { rotateToImplied } from './bootstrap';
 import { estimateCb } from './cbsem';
 import { estimatePls } from './pls';
-import { buildPopulation, generateData, specFromPopulation, type PopulationSpec } from './population';
+import {
+  buildPopulation,
+  generateData,
+  specFromPopulation,
+  type PopulationSpec,
+} from './population';
 import { corStd, standardize } from './stats';
 import type { Dataset } from './types';
 
@@ -13,11 +18,22 @@ const factorPop: PopulationSpec = {
     { name: 'M', type: 'factor', indicators: ['m1', 'm2', 'm3'], loadings: [0.75, 0.8, 0.7] },
     { name: 'Y', type: 'factor', indicators: ['y1', 'y2', 'y3'], loadings: [0.8, 0.8, 0.65] },
   ],
-  paths: [{ from: 'X', to: 'M', value: 0.4 }, { from: 'W', to: 'M', value: 0.2 }, { from: 'M', to: 'Y', value: 0.5 }, { from: 'X', to: 'Y', value: 0.15 }],
+  paths: [
+    { from: 'X', to: 'M', value: 0.4 },
+    { from: 'W', to: 'M', value: 0.2 },
+    { from: 'M', to: 'Y', value: 0.5 },
+    { from: 'X', to: 'Y', value: 0.15 },
+  ],
   exoCor: [{ a: 'X', b: 'W', value: 0.3 }],
 };
 const compositePop: PopulationSpec = {
-  constructs: factorPop.constructs.map((c) => ({ name: c.name, type: 'composite' as const, indicators: c.indicators, weights: [0.5, 0.3, 0.4], withinCor: 0.45 })),
+  constructs: factorPop.constructs.map((c) => ({
+    name: c.name,
+    type: 'composite' as const,
+    indicators: c.indicators,
+    weights: [0.5, 0.3, 0.4],
+    withinCor: 0.45,
+  })),
   paths: factorPop.paths,
   exoCor: factorPop.exoCor,
 };
@@ -44,8 +60,15 @@ describe('population model', () => {
   });
 
   it('rejects impossible populations', () => {
-    expect(() => buildPopulation({ ...factorPop, paths: [{ from: 'X', to: 'Y', value: 1.2 }] })).toThrow(/R² ≥ 1/);
-    expect(() => buildPopulation({ ...factorPop, paths: [...factorPop.paths, { from: 'Y', to: 'X', value: 0.1 }] })).toThrow(/cycle/);
+    expect(() =>
+      buildPopulation({ ...factorPop, paths: [{ from: 'X', to: 'Y', value: 1.2 }] }),
+    ).toThrow(/R² ≥ 1/);
+    expect(() =>
+      buildPopulation({
+        ...factorPop,
+        paths: [...factorPop.paths, { from: 'Y', to: 'X', value: 0.1 }],
+      }),
+    ).toThrow(/cycle/);
   });
 
   it('generates data whose correlations approach Σ', () => {
@@ -62,7 +85,8 @@ describe('estimators recover the population from an exact sample', () => {
   it('CB-SEM ML recovers standardised paths of a common-factor population', () => {
     const cb = estimateCb(exactSample(factorPop), specFromPopulation(factorPop));
     for (const p of factorPop.paths) {
-      const i = cb.constructs.indexOf(p.from), j = cb.constructs.indexOf(p.to);
+      const i = cb.constructs.indexOf(p.from),
+        j = cb.constructs.indexOf(p.to);
       expect(cb.stdPaths[i][j]).toBeCloseTo(p.value, 6);
     }
     expect(cb.fit.chisq).toBeLessThan(1e-6);
@@ -70,17 +94,27 @@ describe('estimators recover the population from an exact sample', () => {
 
   it('PLSc recovers paths of a common-factor population; plain PLS is attenuated', () => {
     const d = exactSample(factorPop);
-    const plsc = estimatePls(d, specFromPopulation(factorPop), { consistent: true, tolerance: 1e-12, maxIter: 1000 });
+    const plsc = estimatePls(d, specFromPopulation(factorPop), {
+      consistent: true,
+      tolerance: 1e-12,
+      maxIter: 1000,
+    });
     const pls = estimatePls(d, specFromPopulation(factorPop), { tolerance: 1e-12, maxIter: 1000 });
-    const i = plsc.constructs.indexOf('M'), j = plsc.constructs.indexOf('Y');
+    const i = plsc.constructs.indexOf('M'),
+      j = plsc.constructs.indexOf('Y');
     expect(plsc.pathCoef[i][j]).toBeCloseTo(0.5, 6);
     expect(pls.pathCoef[i][j]).toBeLessThan(0.5);
   });
 
   it('PLS (Mode B) recovers paths of a composite population', () => {
-    const pls = estimatePls(exactSample(compositePop), specFromPopulation(compositePop), { tolerance: 1e-12, maxIter: 1000 });
+    const pls = estimatePls(exactSample(compositePop), specFromPopulation(compositePop), {
+      tolerance: 1e-12,
+      maxIter: 1000,
+    });
     for (const p of compositePop.paths) {
-      expect(pls.pathCoef[pls.constructs.indexOf(p.from)][pls.constructs.indexOf(p.to)]).toBeCloseTo(p.value, 6);
+      expect(
+        pls.pathCoef[pls.constructs.indexOf(p.from)][pls.constructs.indexOf(p.to)],
+      ).toBeCloseTo(p.value, 6);
     }
     expect(pls.fit.estimated.srmr).toBeLessThan(1e-6);
   });

@@ -13,8 +13,14 @@ import { example, load, MPLUS, type Printed } from './testkit';
 /** The example's data with its computed columns (Mplus's DEFINE / CENTER), as opening it gives. */
 export function exampleData(key: string): Dataset {
   let d = load(key);
-  let info: DataInfo = { fileName: example(key).data.file!, rows: d.cols[0].length, missingCells: 0, excluded: [] };
-  for (const k of example(key).computed ?? []) ({ data: d, info } = computeColumn(d, info, k.name, k.expr));
+  let info: DataInfo = {
+    fileName: example(key).data.file!,
+    rows: d.cols[0].length,
+    missingCells: 0,
+    excluded: [],
+  };
+  for (const k of example(key).computed ?? [])
+    ({ data: d, info } = computeColumn(d, info, k.name, k.expr));
   return d;
 }
 /** The card's options as the example opens it. */
@@ -26,19 +32,41 @@ export function lmmPanel(key: string): LmmInput {
 }
 /** Where a parameter Mplus prints sits in the card's output: a fixed effect, or a variance component (b: the covariance's other term). */
 export type Where = { fixed: string } | { group: string; a: string | null; b?: string };
-export const levelOf = (p: Printed) => p.block.split(' ')[p.block.startsWith('Between') ? 1 : 0].toLowerCase();
+export const levelOf = (p: Printed) =>
+  p.block.split(' ')[p.block.startsWith('Between') ? 1 : 0].toLowerCase();
 
 /**
  * Every free parameter Mplus prints (standard error above 0), at its place in the card's output, within `tol`
  * (estimates) and `seTol` (standard errors); `wide`: the parameters with a stated larger difference.
  */
-export function samePrintedLmm(key: string, r: LmmResult, where: (p: Printed) => Where, opts: { tol?: number; seTol?: number; wide?: (p: Printed) => { tol: number; seTol: number } | null } = {}) {
+export function samePrintedLmm(
+  key: string,
+  r: LmmResult,
+  where: (p: Printed) => Where,
+  opts: {
+    tol?: number;
+    seTol?: number;
+    wide?: (p: Printed) => { tol: number; seTol: number } | null;
+  } = {},
+) {
   for (const p of MPLUS[key].estimates) {
     if (p.se === 0) continue;
     const w = where(p);
     const label = `${levelOf(p)} ${p.lhs} ${p.op} ${p.rhs}`.trim();
-    const hit = 'fixed' in w ? r.fixed.find((f) => f.term === w.fixed) && { est: r.fixed.find((f) => f.term === w.fixed)!.est, se: r.fixed.find((f) => f.term === w.fixed)!.se }
-      : r.random.filter((v) => v.group === w.group && ((v.a === w.a && (v.b ?? undefined) === w.b) || (w.b !== undefined && v.a === w.b && v.b === w.a))).map((v) => ({ est: v.variance, se: v.se ?? NaN }))[0];
+    const hit =
+      'fixed' in w
+        ? r.fixed.find((f) => f.term === w.fixed) && {
+            est: r.fixed.find((f) => f.term === w.fixed)!.est,
+            se: r.fixed.find((f) => f.term === w.fixed)!.se,
+          }
+        : r.random
+            .filter(
+              (v) =>
+                v.group === w.group &&
+                ((v.a === w.a && (v.b ?? undefined) === w.b) ||
+                  (w.b !== undefined && v.a === w.b && v.b === w.a)),
+            )
+            .map((v) => ({ est: v.variance, se: v.se ?? NaN }))[0];
     expect(hit, `${key}: ${label} is not in the card's output`).toBeDefined();
     const t = opts.wide?.(p) ?? { tol: opts.tol ?? 0.001, seTol: opts.seTol ?? 0.001 };
     near(label, hit!.est, p.est, t.tol);

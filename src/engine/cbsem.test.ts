@@ -9,32 +9,66 @@ import { near } from '../validation/record';
 const fx = (f: string) => join(__dirname, '__fixtures__', f);
 const data = parseCsv(readFileSync(fx('mobi.csv'), 'utf8')).dataset;
 const items = (p: string, k: number) => Array.from({ length: k }, (_, i) => `${p}${i + 1}`);
-const factor = (name: string, indicators: string[]) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators });
+const factor = (name: string, indicators: string[]) => ({
+  name,
+  mode: 'A' as const,
+  type: 'factor' as const,
+  indicators,
+});
 const paths = (pairs: [string, string][]) => pairs.map(([from, to]) => ({ from, to }));
 
 const MODELS: Record<string, ModelSpec> = {
   mobi_cb: {
     constructs: [
-      factor('Image', items('IMAG', 5)), factor('Expectation', items('CUEX', 3)), factor('Quality', items('PERQ', 7)),
-      factor('Value', items('PERV', 2)), factor('Satisfaction', items('CUSA', 3)), factor('Complaints', ['CUSCO']),
+      factor('Image', items('IMAG', 5)),
+      factor('Expectation', items('CUEX', 3)),
+      factor('Quality', items('PERQ', 7)),
+      factor('Value', items('PERV', 2)),
+      factor('Satisfaction', items('CUSA', 3)),
+      factor('Complaints', ['CUSCO']),
       factor('Loyalty', items('CUSL', 3)),
     ],
     paths: paths([
-      ['Image', 'Expectation'], ['Expectation', 'Quality'], ['Expectation', 'Value'], ['Quality', 'Value'],
-      ['Image', 'Satisfaction'], ['Expectation', 'Satisfaction'], ['Quality', 'Satisfaction'], ['Value', 'Satisfaction'],
-      ['Satisfaction', 'Complaints'], ['Image', 'Loyalty'], ['Satisfaction', 'Loyalty'], ['Complaints', 'Loyalty'],
+      ['Image', 'Expectation'],
+      ['Expectation', 'Quality'],
+      ['Expectation', 'Value'],
+      ['Quality', 'Value'],
+      ['Image', 'Satisfaction'],
+      ['Expectation', 'Satisfaction'],
+      ['Quality', 'Satisfaction'],
+      ['Value', 'Satisfaction'],
+      ['Satisfaction', 'Complaints'],
+      ['Image', 'Loyalty'],
+      ['Satisfaction', 'Loyalty'],
+      ['Complaints', 'Loyalty'],
     ]),
   },
   small_cb: {
     constructs: [
-      factor('Image', items('IMAG', 5)), factor('Quality', items('PERQ', 7)),
-      factor('Satisfaction', items('CUSA', 3)), factor('Value', items('PERV', 2)),
+      factor('Image', items('IMAG', 5)),
+      factor('Quality', items('PERQ', 7)),
+      factor('Satisfaction', items('CUSA', 3)),
+      factor('Value', items('PERV', 2)),
     ],
-    paths: paths([['Quality', 'Value'], ['Image', 'Satisfaction'], ['Quality', 'Satisfaction'], ['Value', 'Satisfaction']]),
+    paths: paths([
+      ['Quality', 'Value'],
+      ['Image', 'Satisfaction'],
+      ['Quality', 'Satisfaction'],
+      ['Value', 'Satisfaction'],
+    ]),
   },
 };
 
-interface LavParam { lhs: string; op: string; rhs: string; est: number; se: number; z?: number; pvalue?: number; 'std.all': number }
+interface LavParam {
+  lhs: string;
+  op: string;
+  rhs: string;
+  est: number;
+  se: number;
+  z?: number;
+  pvalue?: number;
+  'std.all': number;
+}
 
 describe.each(Object.keys(MODELS))('estimateCb vs lavaan 0.6 (%s)', (name) => {
   const ref = JSON.parse(readFileSync(fx(`${name}.json`), 'utf8'));
@@ -47,9 +81,16 @@ describe.each(Object.keys(MODELS))('estimateCb vs lavaan 0.6 (%s)', (name) => {
   });
 
   it('matches every estimate, standard error, z, p and standardised value', () => {
-    const params: LavParam[] = ref.params.filter((p: LavParam) => !(p.op === '~~' && p.lhs === p.rhs && p.se === 0));
+    const params: LavParam[] = ref.params.filter(
+      (p: LavParam) => !(p.op === '~~' && p.lhs === p.rhs && p.se === 0),
+    );
     for (const p of params) {
-      const mine = res.estimates.find((e) => e.op === p.op && ((e.lhs === p.lhs && e.rhs === p.rhs) || (p.op === '~~' && e.lhs === p.rhs && e.rhs === p.lhs)));
+      const mine = res.estimates.find(
+        (e) =>
+          e.op === p.op &&
+          ((e.lhs === p.lhs && e.rhs === p.rhs) ||
+            (p.op === '~~' && e.lhs === p.rhs && e.rhs === p.lhs)),
+      );
       expect(mine, `${p.lhs} ${p.op} ${p.rhs}`).toBeDefined();
       const label = `${p.lhs} ${p.op} ${p.rhs}`;
       // mobi_cb is nearly empirically under-identified (standardised β > 2 for
@@ -111,7 +152,9 @@ describe('estimateCb diagnostics', () => {
   it('computes CR and AVE from standardised loadings', () => {
     const r = estimateCb(data, MODELS.small_cb);
     const j = r.constructs.indexOf('Satisfaction');
-    const l = r.indicators.map((x, i) => (x.construct === j ? r.stdLoadings[i] : null)).filter((v): v is number => v !== null);
+    const l = r.indicators
+      .map((x, i) => (x.construct === j ? r.stdLoadings[i] : null))
+      .filter((v): v is number => v !== null);
     expect(r.reliability[j].ave).toBeCloseTo(l.reduce((s, v) => s + v * v, 0) / l.length, 12);
   });
 });
@@ -129,16 +172,38 @@ describe('estimateCb discriminant validity', () => {
 
 describe('built-in engine refuses lavaan-only single-indicator reliability', () => {
   it('points to the R engine', () => {
-    const data = { names: ['a', 'b', 'c', 'y'], cols: [0, 1, 2, 3].map((k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1)))) };
-    const spec: ModelSpec = { constructs: [{ name: 'F', mode: 'A', indicators: ['a', 'b', 'c'] }, { name: 'Y', mode: 'A', indicators: ['y'], reliability: 0.8 }], paths: [{ from: 'F', to: 'Y' }] };
+    const data = {
+      names: ['a', 'b', 'c', 'y'],
+      cols: [0, 1, 2, 3].map((k) =>
+        Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1))),
+      ),
+    };
+    const spec: ModelSpec = {
+      constructs: [
+        { name: 'F', mode: 'A', indicators: ['a', 'b', 'c'] },
+        { name: 'Y', mode: 'A', indicators: ['y'], reliability: 0.8 },
+      ],
+      paths: [{ from: 'F', to: 'Y' }],
+    };
     expect(() => estimateCb(data, spec)).toThrow(/known reliability are estimated by lavaan/);
   });
 });
 
 describe('built-in engine refuses composites', () => {
   it('points to the R engine', () => {
-    const data = { names: ['a', 'b', 'c', 'y1', 'y2', 'y3'], cols: [0, 1, 2, 3, 4, 5].map((k) => Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1)))) };
-    const spec: ModelSpec = { constructs: [{ name: 'K', mode: 'B', type: 'composite', indicators: ['a', 'b', 'c'] }, { name: 'Y', mode: 'A', indicators: ['y1', 'y2', 'y3'] }], paths: [{ from: 'K', to: 'Y' }] };
+    const data = {
+      names: ['a', 'b', 'c', 'y1', 'y2', 'y3'],
+      cols: [0, 1, 2, 3, 4, 5].map((k) =>
+        Float64Array.from({ length: 50 }, (_, i) => Math.sin(i * (k + 1))),
+      ),
+    };
+    const spec: ModelSpec = {
+      constructs: [
+        { name: 'K', mode: 'B', type: 'composite', indicators: ['a', 'b', 'c'] },
+        { name: 'Y', mode: 'A', indicators: ['y1', 'y2', 'y3'] },
+      ],
+      paths: [{ from: 'K', to: 'Y' }],
+    };
     expect(() => estimateCb(data, spec)).toThrow(/Composites in CB-SEM are estimated by lavaan/);
   });
 });

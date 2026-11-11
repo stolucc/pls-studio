@@ -17,7 +17,10 @@ function Lines({ lines, from }: { lines: string[]; from: number }) {
   return (
     <pre className="r-script">
       {lines.map((l, i) => (
-        <div key={i} className={l.trimStart().startsWith('#') ? 'cm' : undefined}><span className="ln">{from + i}</span>{l || ' '}</div>
+        <div key={i} className={l.trimStart().startsWith('#') ? 'cm' : undefined}>
+          <span className="ln">{from + i}</span>
+          {l || ' '}
+        </div>
       ))}
     </pre>
   );
@@ -31,32 +34,60 @@ export function ScriptView() {
   const model = useStore((s) => s.model);
   const settings = useStore((s) => s.settings);
   const dataVersion = useStore((s) => s.dataVersion);
-  const [state, setState] = useState<{ text: string; file: string; pkg: string } | { error: string } | null>(null);
+  const [state, setState] = useState<
+    { text: string; file: string; pkg: string } | { error: string } | null
+  >(null);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     let live = true;
     setState(null);
     const t = setTimeout(() => {
-      buildRScript('model').then((r) => { if (live) setState(r); }, (e: Error) => { if (live) setState({ error: e.message }); });
+      buildRScript('model').then(
+        (r) => {
+          if (live) setState(r);
+        },
+        (e: Error) => {
+          if (live) setState({ error: e.message });
+        },
+      );
     }, 250);
-    return () => { live = false; clearTimeout(t); };
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
   }, [model, settings, dataVersion]);
 
   if (!state) return <div className="empty-results">Writing the R script…</div>;
   if ('error' in state) return <div className="empty-results">No R script yet: {state.error}</div>;
   const { head, data, rest } = splitScript(state.text);
   const copy = async () => {
-    try { await navigator.clipboard.writeText(state.text); setCopied(true); setTimeout(() => setCopied(false), 1500); }
-    catch { useStore.getState().toast('error', 'The browser did not allow copying; use Download instead.'); }
+    try {
+      await navigator.clipboard.writeText(state.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      useStore
+        .getState()
+        .toast('error', 'The browser did not allow copying; use Download instead.');
+    }
   };
   return (
     <div className="script-view">
       <div className="table-tools">
         <h3>R script ({state.pkg})</h3>
-        <span className="hint">Exactly what runs for this model and these settings; it updates as you edit.</span>
+        <span className="hint">
+          Exactly what runs for this model and these settings; it updates as you edit.
+        </span>
         <div className="spacer" />
-        <button className="btn sm ghost" onClick={() => void copy()}><IconCopy size={13} /> {copied ? 'Copied' : 'Copy'}</button>
-        <button className="btn sm ghost" onClick={() => downloadText(state.file, state.text, 'text/x-r-source')}>Download</button>
+        <button className="btn sm ghost" onClick={() => void copy()}>
+          <IconCopy size={13} /> {copied ? 'Copied' : 'Copy'}
+        </button>
+        <button
+          className="btn sm ghost"
+          onClick={() => downloadText(state.file, state.text, 'text/x-r-source')}
+        >
+          Download
+        </button>
       </div>
       <Lines lines={head} from={1} />
       {data.length > 0 && (

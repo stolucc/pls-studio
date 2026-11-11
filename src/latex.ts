@@ -5,16 +5,61 @@
 export type LatexCell = number | string | null;
 
 const SYMBOLS: Record<string, string> = {
-  '→': '$\\rightarrow$', '←': '$\\leftarrow$', '↔': '$\\leftrightarrow$', '×': '$\\times$', '≤': '$\\leq$', '≥': '$\\geq$',
-  '−': '$-$', '±': '$\\pm$', '…': '\\ldots{}', '—': '---', '–': '--', '“': '``', '”': "''", '‘': '`', '’': "'", '′': '$\\prime$',
-  '²': '$^2$', '³': '$^3$', 'χ': '$\\chi$', 'α': '$\\alpha$', 'β': '$\\beta$', 'γ': '$\\gamma$', 'δ': '$\\delta$', 'ε': '$\\varepsilon$',
-  'ζ': '$\\zeta$', 'η': '$\\eta$', 'θ': '$\\theta$', 'λ': '$\\lambda$', 'μ': '$\\mu$', 'ξ': '$\\xi$', 'ρ': '$\\rho$', 'σ': '$\\sigma$',
-  'τ': '$\\tau$', 'φ': '$\\phi$', 'ψ': '$\\psi$', 'ω': '$\\omega$', 'Δ': '$\\Delta$', 'Σ': '$\\Sigma$', 'Ψ': '$\\Psi$', '∞': '$\\infty$',
+  '→': '$\\rightarrow$',
+  '←': '$\\leftarrow$',
+  '↔': '$\\leftrightarrow$',
+  '×': '$\\times$',
+  '≤': '$\\leq$',
+  '≥': '$\\geq$',
+  '−': '$-$',
+  '±': '$\\pm$',
+  '…': '\\ldots{}',
+  '—': '---',
+  '–': '--',
+  '“': '``',
+  '”': "''",
+  '‘': '`',
+  '’': "'",
+  '′': '$\\prime$',
+  '²': '$^2$',
+  '³': '$^3$',
+  χ: '$\\chi$',
+  α: '$\\alpha$',
+  β: '$\\beta$',
+  γ: '$\\gamma$',
+  δ: '$\\delta$',
+  ε: '$\\varepsilon$',
+  ζ: '$\\zeta$',
+  η: '$\\eta$',
+  θ: '$\\theta$',
+  λ: '$\\lambda$',
+  μ: '$\\mu$',
+  ξ: '$\\xi$',
+  ρ: '$\\rho$',
+  σ: '$\\sigma$',
+  τ: '$\\tau$',
+  φ: '$\\phi$',
+  ψ: '$\\psi$',
+  ω: '$\\omega$',
+  Δ: '$\\Delta$',
+  Σ: '$\\Sigma$',
+  Ψ: '$\\Psi$',
+  '∞': '$\\infty$',
   '\u00a0': '~',
 };
 const SPECIAL: Record<string, string> = {
-  '\\': '\\textbackslash{}', '&': '\\&', '%': '\\%', '$': '\\$', '#': '\\#', '_': '\\_', '{': '\\{', '}': '\\}', '~': '\\textasciitilde{}', '^': '\\textasciicircum{}',
-  '<': '\\textless{}', '>': '\\textgreater{}',
+  '\\': '\\textbackslash{}',
+  '&': '\\&',
+  '%': '\\%',
+  $: '\\$',
+  '#': '\\#',
+  _: '\\_',
+  '{': '\\{',
+  '}': '\\}',
+  '~': '\\textasciitilde{}',
+  '^': '\\textasciicircum{}',
+  '<': '\\textless{}',
+  '>': '\\textgreater{}',
 };
 
 /** Escape text for LaTeX and convert the app's symbols. */
@@ -44,9 +89,18 @@ export interface LatexTable {
 
 /** A complete table environment; needs \usepackage{booktabs}. */
 export function toLatex(t: LatexTable): string {
-  const numericCol = t.columns.map((_, j) => j > 0 && t.rows.length > 0 && t.rows.every((r) => r[j]?.v === null || typeof r[j]?.v === 'number'));
+  const numericCol = t.columns.map(
+    (_, j) =>
+      j > 0 &&
+      t.rows.length > 0 &&
+      t.rows.every((r) => r[j]?.v === null || typeof r[j]?.v === 'number'),
+  );
   const cell = (c: { v: LatexCell; d?: number } | undefined) =>
-    c === undefined || c.v === null ? '---' : typeof c.v === 'number' ? latexNumber(c.v, c.d ?? 3) : latexText(c.v);
+    c === undefined || c.v === null
+      ? '---'
+      : typeof c.v === 'number'
+        ? latexNumber(c.v, c.d ?? 3)
+        : latexText(c.v);
   const line = (cells: string[]) => `    ${cells.join(' & ')} \\\\`;
   return [
     '% Requires \\usepackage{booktabs}',

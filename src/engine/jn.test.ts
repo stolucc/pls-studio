@@ -5,11 +5,28 @@ import { estimateCb } from './cbsem';
 import { parseCsv } from './dataset';
 import { johnsonNeyman, zCrit } from './jn';
 
-const data = parseCsv(readFileSync(join(__dirname, '__fixtures__', 'validation', 'data', 'holzinger_swineford.csv'), 'utf8')).dataset;
-const f = (name: string, indicators: string[]) => ({ name, mode: 'A' as const, type: 'factor' as const, indicators });
+const data = parseCsv(
+  readFileSync(
+    join(__dirname, '__fixtures__', 'validation', 'data', 'holzinger_swineford.csv'),
+    'utf8',
+  ),
+).dataset;
+const f = (name: string, indicators: string[]) => ({
+  name,
+  mode: 'A' as const,
+  type: 'factor' as const,
+  indicators,
+});
 const spec = {
-  constructs: [f('visual', ['x1', 'x2', 'x3']), f('textual', ['x4', 'x5', 'x6']), f('speed', ['x7', 'x8', 'x9'])],
-  paths: [{ from: 'visual', to: 'speed' }, { from: 'textual', to: 'speed' }],
+  constructs: [
+    f('visual', ['x1', 'x2', 'x3']),
+    f('textual', ['x4', 'x5', 'x6']),
+    f('speed', ['x7', 'x8', 'x9']),
+  ],
+  paths: [
+    { from: 'visual', to: 'speed' },
+    { from: 'textual', to: 'speed' },
+  ],
   moderations: [{ from: 'visual', moderator: 'textual', to: 'speed' }],
 };
 
@@ -24,7 +41,8 @@ describe('Johnson–Neyman', () => {
 
   it('boundaries are exactly where |θ(m)| / SE(m) equals the critical value', () => {
     expect(jn.boundaries.length).toBeGreaterThan(0);
-    for (const b of jn.boundaries) expect(Math.abs(jn.effect(b)) / jn.se(b)).toBeCloseTo(jn.crit, 8);
+    for (const b of jn.boundaries)
+      expect(Math.abs(jn.effect(b)) / jn.se(b)).toBeCloseTo(jn.crit, 8);
   });
 
   it('classifies significance consistently around a boundary', () => {
@@ -34,7 +52,9 @@ describe('Johnson–Neyman', () => {
   });
 
   it('reports the moderator standard deviation from its latent variance', () => {
-    const v = cb.estimates.find((e) => e.op === '~~' && e.lhs === 'textual' && e.rhs === 'textual')!;
+    const v = cb.estimates.find(
+      (e) => e.op === '~~' && e.lhs === 'textual' && e.rhs === 'textual',
+    )!;
     expect(jn.sdM).toBeCloseTo(Math.sqrt(v.est), 12);
   });
 

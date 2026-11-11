@@ -23,31 +23,56 @@ import { against, example as exampleCheck, near, same } from '../../validation/r
 beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
-const REF = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'apim.json'), 'utf8'));
+const REF = JSON.parse(
+  readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'apim.json'), 'utf8'),
+);
 const tol = (want: number) => 1e-4 * Math.max(1, Math.abs(want));
 const ex = PACKAGE_EXAMPLES.find((e) => e.id === 'lavaan-apim-commitment')!;
 
 function ctxOf(): AnalysisCtx {
-  return { data: exampleTestData(ex), info: null, settings: exampleSettings(DEFAULT_SETTINGS, ex.settings), pls: null, projectName: ex.title };
+  return {
+    data: exampleTestData(ex),
+    info: null,
+    settings: exampleSettings(DEFAULT_SETTINGS, ex.settings),
+    pls: null,
+    projectName: ex.title,
+  };
 }
 
 async function runCard(ctx: AnalysisCtx, over: Partial<ApimOptions> = {}) {
   const t = analysisType('apim')!;
-  const options = { ...t.parseOptions({ ...t.defaults(ctx), ...panelPreset(ex.panel!) })!, ...over };
+  const options = {
+    ...t.parseOptions({ ...t.defaults(ctx), ...panelPreset(ex.panel!) })!,
+    ...over,
+  };
   expect(t.blocked(options, ctx), 'the card is ready to run').toBeNull();
-  return { options: options as ApimOptions, r: await t.run(options, ctx, () => {}) as ApimResult };
+  return {
+    options: options as ApimOptions,
+    r: (await t.run(options, ctx, () => {})) as ApimResult,
+  };
 }
 
 it('lavaan-apim-commitment: dySEM’s latent APIM on commitmentM, distinguishable, with the test of distinguishability', async () => {
   exampleCheck(ex.id, { title: ex.title, method: 'CB-SEM', packages: ['lavaan'], definition: ex });
   const { r } = await runCard(ctxOf());
-  against({ label: 'dySEM 1.4.1, ?scriptAPIM on ?commitmentM: its syntax fitted natively by lavaan (scripts/validation/apim.R)', level: 'native', url: 'https://rdrr.io/cran/dySEM/man/scriptAPIM.html' });
+  against({
+    label:
+      'dySEM 1.4.1, ?scriptAPIM on ?commitmentM: its syntax fitted natively by lavaan (scripts/validation/apim.R)',
+    level: 'native',
+    url: 'https://rdrr.io/cran/dySEM/man/scriptAPIM.html',
+  });
   const ref = REF.latent.dist;
   same('N (complete couples)', r.n, ref.n);
   near('χ²', r.fit.chisq!, ref.fit.chisq, tol(ref.fit.chisq));
   same('df', r.fit.df!, ref.fit.df);
-  for (const e of [...r.effects, ...r.k]) near(e.label, e.est!, ref.params[e.label].est, tol(ref.params[e.label].est));
-  near('test of distinguishability: χ²', r.test.chisqDiff!, REF.latent.test.chisqDiff, tol(REF.latent.test.chisqDiff));
+  for (const e of [...r.effects, ...r.k])
+    near(e.label, e.est!, ref.params[e.label].est, tol(ref.params[e.label].est));
+  near(
+    'test of distinguishability: χ²',
+    r.test.chisqDiff!,
+    REF.latent.test.chisqDiff,
+    tol(REF.latent.test.chisqDiff),
+  );
   same('test of distinguishability: df', r.test.dfDiff!, 16);
 }, 600_000);
 
@@ -60,7 +85,9 @@ it('the drawn diagram is the card’s model: the same fit and k, for both kinds 
     near(`${dyads}: χ² of the drawn model`, fit.fit.chisq, r.fit.chisq!, tol(r.fit.chisq!));
     same(`${dyads}: df of the drawn model`, fit.fit.df, r.fit.df!);
     for (const k of r.k) {
-      const drawn = fit.estimates.find((e) => e.kind === 'defined' && (e.label === k.label || e.lhs === k.label))!;
+      const drawn = fit.estimates.find(
+        (e) => e.kind === 'defined' && (e.label === k.label || e.lhs === k.label),
+      )!;
       near(`${dyads}: ${k.label} of the drawn model`, drawn.est, k.est!, tol(k.est!));
     }
   }

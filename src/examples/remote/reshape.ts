@@ -25,18 +25,30 @@ export function reshape(d: Dataset, r: Reshape): Dataset {
         if (v === 1) break;
       }
     }
-    const cols = [Float64Array.from(rows, (x) => x.i + 1), Float64Array.from(rows, (x) => x.p + 1), Float64Array.from(rows, (x) => x.v),
-      ...others.map((k) => { const c = column(d, k); return Float64Array.from(rows, (x) => c[x.i]); })];
+    const cols = [
+      Float64Array.from(rows, (x) => x.i + 1),
+      Float64Array.from(rows, (x) => x.p + 1),
+      Float64Array.from(rows, (x) => x.v),
+      ...others.map((k) => {
+        const c = column(d, k);
+        return Float64Array.from(rows, (x) => c[x.i]);
+      }),
+    ];
     return { ...d, names: [r.id, r.period, r.event, ...others], cols };
   }
   const t = r.wide[0]?.length ?? 0;
-  if (r.wide.length !== r.long.length || r.wide.some((w) => w.length !== t)) throw new Error('Each long column needs a set of wide columns, all of the same length.');
+  if (r.wide.length !== r.long.length || r.wide.some((w) => w.length !== t))
+    throw new Error('Each long column needs a set of wide columns, all of the same length.');
   const wide = r.wide.map((w) => w.map((k) => column(d, k)));
   const used = new Set(r.wide.flat());
   const others = d.names.filter((k) => !used.has(k));
-  const at = (c: Float64Array) => Float64Array.from({ length: n * t }, (_, j) => c[Math.floor(j / t)]);
-  const cols = [Float64Array.from({ length: n * t }, (_, j) => Math.floor(j / t) + 1), Float64Array.from({ length: n * t }, (_, j) => j % t),
+  const at = (c: Float64Array) =>
+    Float64Array.from({ length: n * t }, (_, j) => c[Math.floor(j / t)]);
+  const cols = [
+    Float64Array.from({ length: n * t }, (_, j) => Math.floor(j / t) + 1),
+    Float64Array.from({ length: n * t }, (_, j) => j % t),
     ...wide.map((w) => Float64Array.from({ length: n * t }, (_, j) => w[j % t][Math.floor(j / t)])),
-    ...others.map((k) => at(column(d, k)))];
+    ...others.map((k) => at(column(d, k))),
+  ];
   return { ...d, names: [r.id, r.repetition, ...r.long, ...others], cols };
 }

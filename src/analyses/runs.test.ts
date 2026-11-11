@@ -7,14 +7,25 @@ import type { Dataset, PlsResult } from '../engine/types';
 import { parseProject, serializeProject, type Settings } from '../model/project';
 import { resultsKey, useStore } from '../store';
 import { parseCards } from './persist';
-import { dataFingerprint, describeChanges, latestRun, runData, runHash, settingChanges, type RunCard } from './runHash';
+import {
+  dataFingerprint,
+  describeChanges,
+  latestRun,
+  runData,
+  runHash,
+  settingChanges,
+  type RunCard,
+} from './runHash';
 import { currentRunHash, logCurrentRun, openRun, runCards, type RunOptions } from './runs';
 import { cardStatus, currentCtx, loadCards, useAnalyses } from './store';
 import type { AnalysisCard, Card } from './types';
 
 const s = () => useStore.getState();
 const col = (...v: number[]) => Float64Array.from(v);
-const data = (k = 1) => ({ names: ['a1', 'a2', 'b1', 'b2'], cols: [col(1, 2, 3, 4, 5), col(2, 3, 4, 5, 7), col(1, 3, 2, 5, 4), col(k, 2, 2, 3, 1)] });
+const data = (k = 1) => ({
+  names: ['a1', 'a2', 'b1', 'b2'],
+  cols: [col(1, 2, 3, 4, 5), col(2, 3, 4, 5, 7), col(1, 3, 2, 5, 4), col(k, 2, 2, 3, 1)],
+});
 const info = { fileName: 'survey.csv', rows: 5, missingCells: 0, excluded: [] };
 
 /** A two-construct PLS model on the canvas: A -> B. */
@@ -29,8 +40,16 @@ function model() {
 /** Pretend the model was calculated: results on screen that match it. */
 function calculated() {
   const st = s();
-  const pls = { n: 5, converged: true, iterations: 3, constructs: st.model.constructs.map((c) => c.name), scores: [col(1, 2)] } as unknown as PlsResult;
-  useStore.setState({ results: { pls, cb: null, miiv: null, boot: null, fitTest: null, key: resultsKey(st) } });
+  const pls = {
+    n: 5,
+    converged: true,
+    iterations: 3,
+    constructs: st.model.constructs.map((c) => c.name),
+    scores: [col(1, 2)],
+  } as unknown as PlsResult;
+  useStore.setState({
+    results: { pls, cb: null, miiv: null, boot: null, fitTest: null, key: resultsKey(st) },
+  });
 }
 const runs = () => runCards(useAnalyses.getState().cards);
 
@@ -49,7 +68,13 @@ describe('logging a run', () => {
     const id = (await logCurrentRun())!;
     const [card] = runs();
     expect(card.id).toBe(id);
-    expect(card.options).toMatchObject({ label: 'Model v1', version: 1, hash: currentRunHash(), changes: [], data: { fingerprint: expect.any(String), name: 'survey.csv', rows: 5 } });
+    expect(card.options).toMatchObject({
+      label: 'Model v1',
+      version: 1,
+      hash: currentRunHash(),
+      changes: [],
+      data: { fingerprint: expect.any(String), name: 'survey.csv', rows: 5 },
+    });
     expect(card.options.model.constructs.map((c) => c.name)).toEqual(['A', 'B']);
     expect(card.options.settings.method).toBe('pls');
     expect(card.run?.packed).toBeTruthy();
@@ -57,7 +82,8 @@ describe('logging a run', () => {
   });
 
   it('calculating the unchanged model again updates its card; a bootstrap setting alone is not a new version', async () => {
-    model(); calculated();
+    model();
+    calculated();
     const id = await logCurrentRun();
     const at = runs()[0].run!.at;
     await new Promise((r) => setTimeout(r, 2));
@@ -69,7 +95,8 @@ describe('logging a run', () => {
   });
 
   it('a changed model, setting or data starts a new version whose card says what changed', async () => {
-    const { a, b } = model(); calculated();
+    const { a, b } = model();
+    calculated();
     await logCurrentRun();
     // Model: a path removed and a construct renamed.
     s().removePaths([s().model.paths[0].id]);
@@ -77,7 +104,11 @@ describe('logging a run', () => {
     calculated();
     await logCurrentRun();
     expect(runs().map((c) => c.options.label)).toEqual(['Model v1', 'Model v2']);
-    expect(runs()[1].options.changes).toEqual(['+ constructs Loyalty', '− constructs B', '− path A → B']);
+    expect(runs()[1].options.changes).toEqual([
+      '+ constructs Loyalty',
+      '− constructs B',
+      '− path A → B',
+    ]);
     expect(cardStatus(runs()[0], currentCtx(), false, true)).toEqual({ state: 'earlier' });
     // Settings that change the estimates.
     s().setSettings({ consistent: true, scheme: 'factor' });
@@ -94,7 +125,8 @@ describe('logging a run', () => {
   });
 
   it('is not logged by a viewer of a shared project', async () => {
-    model(); calculated();
+    model();
+    calculated();
     useStore.setState({ cloud: { projectId: 'p', role: 'viewer', status: 'online' } });
     expect(await logCurrentRun()).toBeNull();
     expect(runs()).toHaveLength(0);
@@ -103,7 +135,8 @@ describe('logging a run', () => {
 
 describe('opening a version', () => {
   it('puts the model and its settings back on the Model tab, through undo; calculating it again updates its own card; editing it makes a version noted as edited from it', async () => {
-    const { b } = model(); calculated();
+    const { b } = model();
+    calculated();
     const v1 = (await logCurrentRun())!;
     s().removePaths([s().model.paths[0].id]);
     s().setSettings({ consistent: true });
@@ -134,7 +167,8 @@ describe('opening a version', () => {
   });
 
   it('asks what to do with an edited, uncalculated model: keep it as a card, discard it, or cancel', async () => {
-    model(); calculated();
+    model();
+    calculated();
     const v1 = (await logCurrentRun())!;
     s().removePaths([s().model.paths[0].id]);
     // Cancel: nothing happens.
@@ -159,7 +193,8 @@ describe('opening a version', () => {
   });
 
   it('says so when the version is already the model on the Model tab, and refuses for viewers', async () => {
-    model(); calculated();
+    model();
+    calculated();
     const v1 = (await logCurrentRun())!;
     expect(await openRun(v1)).toBe(true);
     expect(s().toasts.at(-1)!.text).toContain('is the model on the Model tab');
@@ -170,16 +205,29 @@ describe('opening a version', () => {
 
 describe('run cards in files and shared projects', () => {
   it('keep the model and settings through a project file; a card with an invalid model is dropped', async () => {
-    model(); calculated();
+    model();
+    calculated();
     await logCurrentRun();
     const st = s();
-    const back = parseCards(parseProject(serializeProject(st.model, st.settings, null, null, null, useAnalyses.getState().cards)).analyses);
+    const back = parseCards(
+      parseProject(
+        serializeProject(st.model, st.settings, null, null, null, useAnalyses.getState().cards),
+      ).analyses,
+    );
     expect(back).toHaveLength(1);
     const o = (back[0] as AnalysisCard).options as RunOptions;
     expect(o.model.constructs.map((c) => c.name)).toEqual(['A', 'B']);
     expect(o.hash).toBe(runs()[0].options.hash);
     expect(o.settings.method).toBe('pls');
-    const bad = parseCards([{ id: 'card-x', kind: 'analysis', type: 'run', options: { ...o, model: { constructs: 'no' } } }, { id: 'card-y', kind: 'analysis', type: 'run', options: { ...o, version: -1 } }]);
+    const bad = parseCards([
+      {
+        id: 'card-x',
+        kind: 'analysis',
+        type: 'run',
+        options: { ...o, model: { constructs: 'no' } },
+      },
+      { id: 'card-y', kind: 'analysis', type: 'run', options: { ...o, version: -1 } },
+    ]);
     expect(bad).toHaveLength(0);
   });
 });
@@ -189,22 +237,53 @@ describe('versions and changes', () => {
     model();
     const st = s();
     const h = runHash(st.model, st.settings, st.data);
-    expect(runHash(st.model, { ...st.settings, bootSamples: 99, seed: 1, confidence: 0.9, figure: { ...st.settings.figure, fontSize: 30 } }, st.data)).toBe(h);
+    expect(
+      runHash(
+        st.model,
+        {
+          ...st.settings,
+          bootSamples: 99,
+          seed: 1,
+          confidence: 0.9,
+          figure: { ...st.settings.figure, fontSize: 30 },
+        },
+        st.data,
+      ),
+    ).toBe(h);
     expect(runHash(st.model, { ...st.settings, missing: 'casewise' }, st.data)).not.toBe(h);
     expect(runHash(st.model, st.settings, data(2))).not.toBe(h);
-    expect(runHash({ ...st.model, constructs: st.model.constructs.map((c) => ({ ...c, x: c.x + 50 })) }, st.settings, st.data)).toBe(h);  // layout is not the model
+    expect(
+      runHash(
+        { ...st.model, constructs: st.model.constructs.map((c) => ({ ...c, x: c.x + 50 })) },
+        st.settings,
+        st.data,
+      ),
+    ).toBe(h); // layout is not the model
   });
 
   it('describe setting changes in words, inference options included', () => {
     const a = s().settings;
-    expect(settingChanges(a, { ...a, estimator: 'MLM', bootSamples: 5000, confidence: 0.9 })).toEqual(['estimator ML → MLM', 'bootstrap subsamples 1,000 → 5,000', 'confidence level 95% → 90%']);
-    expect(describeChanges(null, { model: s().model, settings: a, data: { fingerprint: 'x', name: '', rows: 0 } })).toEqual([]);
+    expect(
+      settingChanges(a, { ...a, estimator: 'MLM', bootSamples: 5000, confidence: 0.9 }),
+    ).toEqual([
+      'estimator ML → MLM',
+      'bootstrap subsamples 1,000 → 5,000',
+      'confidence level 95% → 90%',
+    ]);
+    expect(
+      describeChanges(null, {
+        model: s().model,
+        settings: a,
+        data: { fingerprint: 'x', name: '', rows: 0 },
+      }),
+    ).toEqual([]);
   });
 });
 
 describe('the mean structure in run descriptions', () => {
   it('names the constant coming or going, and each mean arrow', () => {
-    const a = s().addConstruct(0, 0, ['a1']), b = s().addConstruct(1, 0, ['b1']);
+    const a = s().addConstruct(0, 0, ['a1']),
+      b = s().addConstruct(1, 0, ['b1']);
     s().addPath(a, b);
     const data = { fingerprint: 'x', name: '', rows: 0 };
     const before = { model: s().model, settings: s().settings, data };
@@ -214,8 +293,12 @@ describe('the mean structure in run descriptions', () => {
     expect(describeChanges(before, withArrow)).toEqual(['+ mean structure (the constant)']);
     s().addMean(b);
     s().setMean(s().model.means![1].id, { fixed: 0 });
-    expect(describeChanges(withArrow, { model: s().model, settings: s().settings, data })).toEqual([`+ mean ${s().model.constructs[1].name} = 0`]);
-    expect(describeChanges({ model: s().model, settings: s().settings, data }, before)).toEqual(['− mean structure (the constant)']);
+    expect(describeChanges(withArrow, { model: s().model, settings: s().settings, data })).toEqual([
+      `+ mean ${s().model.constructs[1].name} = 0`,
+    ]);
+    expect(describeChanges({ model: s().model, settings: s().settings, data }, before)).toEqual([
+      '− mean structure (the constant)',
+    ]);
   });
 });
 
@@ -223,7 +306,9 @@ describe('describeChanges, line by line', () => {
   const data = { fingerprint: 'x', name: 'a.csv', rows: 10 };
   const at = () => ({ model: structuredClone(s().model), settings: s().settings, data });
   it('names construct, indicator, type, mode, covariate, path, moderation, correlation and field changes', () => {
-    const a = s().addConstruct(0, 0, ['a1', 'a2']), b = s().addConstruct(1, 0, ['b1']), c = s().addConstruct(2, 0, ['c1']);
+    const a = s().addConstruct(0, 0, ['a1', 'a2']),
+      b = s().addConstruct(1, 0, ['b1']),
+      c = s().addConstruct(2, 0, ['c1']);
     s().addPath(a, b);
     const v1 = at();
     s().removeIndicator(a, 'a2');
@@ -233,7 +318,11 @@ describe('describeChanges, line by line', () => {
     const v2 = at();
     const names = Object.fromEntries(s().model.constructs.map((k) => [k.id, k.name]));
     expect(describeChanges(v1, v2)).toEqual([
-      `− ${names[a]}: a2`, `${names[b]}: factor → composite`, `${names[b]}: Mode A → Mode B`, `${names[c]}: now a covariate`, `+ path ${names[c]} → ${names[b]}`,
+      `− ${names[a]}: a2`,
+      `${names[b]}: factor → composite`,
+      `${names[b]}: Mode A → Mode B`,
+      `${names[c]}: now a covariate`,
+      `+ path ${names[c]} → ${names[b]}`,
     ]);
     s().updateConstruct(c, { covariate: false });
     const v3 = at();
@@ -241,7 +330,14 @@ describe('describeChanges, line by line', () => {
     // Moderation, correlation, ordered indicators, groups.
     const p = s().model.paths.find((x) => x.from === a)!.id;
     s().addModeration(c, p);
-    useStore.setState((st) => ({ model: { ...st.model, correlations: [{ id: 'k', kind: 'indicator', a: 'a1', b: 'b1' }], ordered: ['b1'], multigroup: { column: 'g', invariance: 'metric', free: [] } } }));
+    useStore.setState((st) => ({
+      model: {
+        ...st.model,
+        correlations: [{ id: 'k', kind: 'indicator', a: 'a1', b: 'b1' }],
+        ordered: ['b1'],
+        multigroup: { column: 'g', invariance: 'metric', free: [] },
+      },
+    }));
     const v4 = at();
     const d = describeChanges(v3, v4);
     expect(d).toContain(`+ moderation ${names[c]} on ${names[a]} → ${names[b]}`);
@@ -249,17 +345,40 @@ describe('describeChanges, line by line', () => {
     expect(d).toContain('ordered indicators changed');
     expect(d).toContain('groups changed');
     // Nothing else changed than a fixed path value: caught through the specification.
-    const v5 = { ...v4, model: { ...v4.model, paths: v4.model.paths.map((x) => (x.id === p ? { ...x, fixed: 0.5 } : x)) } };
+    const v5 = {
+      ...v4,
+      model: {
+        ...v4.model,
+        paths: v4.model.paths.map((x) => (x.id === p ? { ...x, fixed: 0.5 } : x)),
+      },
+    };
     expect(describeChanges(v4, v5)).toEqual(['model parameters changed']);
     // Data.
-    expect(describeChanges(v5, { ...v5, data: { fingerprint: 'y', name: 'b.csv', rows: 12 } })).toEqual(['data: a.csv (10 rows) → b.csv (12 rows)']);
-    expect(describeChanges(v5, { ...v5, data: { fingerprint: 'y', name: '', rows: 0 } })).toEqual(['data: a.csv (10 rows) → none']);
+    expect(
+      describeChanges(v5, { ...v5, data: { fingerprint: 'y', name: 'b.csv', rows: 12 } }),
+    ).toEqual(['data: a.csv (10 rows) → b.csv (12 rows)']);
+    expect(describeChanges(v5, { ...v5, data: { fingerprint: 'y', name: '', rows: 0 } })).toEqual([
+      'data: a.csv (10 rows) → none',
+    ]);
   });
   it('writes settings values readably', () => {
     const a = s().settings;
-    expect(settingChanges(a, { ...a, method: 'cbsem', consistent: true, counterfactual: { xref: 1, xcf: 2 } })).toEqual(['method PLS-SEM → CB-SEM', 'PLSc off → on', 'counterfactual none → {"xref":1,"xcf":2}']);
+    expect(
+      settingChanges(a, {
+        ...a,
+        method: 'cbsem',
+        consistent: true,
+        counterfactual: { xref: 1, xcf: 2 },
+      }),
+    ).toEqual([
+      'method PLS-SEM → CB-SEM',
+      'PLSc off → on',
+      'counterfactual none → {"xref":1,"xcf":2}',
+    ]);
     expect(settingChanges(a, { ...a, seed: 12345 })).toEqual(['seed 1,234 → 12,345']);
-    expect(settingChanges(a, { ...a, hocApproach: 'embedded' })).toEqual(['second-order approach two-stage (disjoint) → embedded two-stage']);
+    expect(settingChanges(a, { ...a, hocApproach: 'embedded' })).toEqual([
+      'second-order approach two-stage (disjoint) → embedded two-stage',
+    ]);
   });
 });
 
@@ -274,23 +393,53 @@ describe('describeChanges, the remaining branches', () => {
     const names = Object.fromEntries(s().model.constructs.map((k) => [k.id, k.name]));
     expect(describeChanges(v1, v2)).toEqual([`+ construct ${names[b]}`]);
     const c = s().addConstruct(2, 0, ['c1']);
-    expect(describeChanges(v2, at())).toEqual([`+ construct ${names[c] ?? s().model.constructs[2].name}`]);
-    expect(describeChanges(v1, at())).toEqual([`+ constructs ${names[b]}, ${s().model.constructs[2].name}`]);
+    expect(describeChanges(v2, at())).toEqual([
+      `+ construct ${names[c] ?? s().model.constructs[2].name}`,
+    ]);
+    expect(describeChanges(v1, at())).toEqual([
+      `+ constructs ${names[b]}, ${s().model.constructs[2].name}`,
+    ]);
     // The same construct under a new id (a project reloaded from another source): matched by name.
-    const renamed = { ...v2, model: { ...v2.model, constructs: v2.model.constructs.map((k) => (k.id === a ? { ...k, id: 'other-id', type: 'composite' as const } : k)) } };
+    const renamed = {
+      ...v2,
+      model: {
+        ...v2.model,
+        constructs: v2.model.constructs.map((k) =>
+          k.id === a ? { ...k, id: 'other-id', type: 'composite' as const } : k,
+        ),
+      },
+    };
     expect(describeChanges(v2, renamed)).toEqual([`${names[a]}: factor → composite`]);
-    const hoc = { ...v2, model: { ...v2.model, constructs: v2.model.constructs.map((k) => (k.id === a ? { ...k, components: [b] } : k)) } };
+    const hoc = {
+      ...v2,
+      model: {
+        ...v2.model,
+        constructs: v2.model.constructs.map((k) => (k.id === a ? { ...k, components: [b] } : k)),
+      },
+    };
     expect(describeChanges(v2, hoc)).toEqual([`${names[a]}: components changed`]);
-    const corr = { ...v2, model: { ...v2.model, correlations: [{ id: 'k', kind: 'construct' as const, a, b }] } };
+    const corr = {
+      ...v2,
+      model: { ...v2.model, correlations: [{ id: 'k', kind: 'construct' as const, a, b }] },
+    };
     expect(describeChanges(v2, corr)).toEqual([`+ correlation ${names[a]} ↔ ${names[b]}`]);
     expect(describeChanges(corr, v2)).toEqual([`− correlation ${names[a]} ↔ ${names[b]}`]);
     const withK = { ...v2, model: { ...v2.model, constant: { x: 0, y: 0 } } };
     expect(describeChanges(v2, withK)).toEqual(['+ mean structure (the constant)']);
     expect(describeChanges(withK, v2)).toEqual(['− mean structure (the constant)']);
-    const means = (ms: { id: string; target: string; fixed?: number; label?: string }[]) => ({ ...withK, model: { ...withK.model, means: ms } });
-    expect(describeChanges(withK, means([{ id: 'm1', target: a }]))).toEqual([`+ mean ${names[a]}`]);
-    expect(describeChanges(means([{ id: 'm1', target: a }]), means([{ id: 'm1', target: a, fixed: 0 }]))).toEqual([`+ mean ${names[a]} = 0`, `− mean ${names[a]}`]);
-    expect(describeChanges(withK, means([{ id: 'm1', target: b, label: 'mb' }]))).toEqual([`+ mean ${names[b]} (mb)`]);
+    const means = (ms: { id: string; target: string; fixed?: number; label?: string }[]) => ({
+      ...withK,
+      model: { ...withK.model, means: ms },
+    });
+    expect(describeChanges(withK, means([{ id: 'm1', target: a }]))).toEqual([
+      `+ mean ${names[a]}`,
+    ]);
+    expect(
+      describeChanges(means([{ id: 'm1', target: a }]), means([{ id: 'm1', target: a, fixed: 0 }])),
+    ).toEqual([`+ mean ${names[a]} = 0`, `− mean ${names[a]}`]);
+    expect(describeChanges(withK, means([{ id: 'm1', target: b, label: 'mb' }]))).toEqual([
+      `+ mean ${names[b]} (mb)`,
+    ]);
     expect(describeChanges(withK, means([{ id: 'm1', target: 'gone' }]))).toEqual(['+ mean gone']);
     expect(describeChanges(null, v2)).toEqual([]);
   });
@@ -298,9 +447,16 @@ describe('describeChanges, the remaining branches', () => {
     s().addConstruct(0, 0, ['a1']);
     const v = at();
     const fields: [string, unknown, string][] = [
-      ['ordered', ['a1'], 'ordered indicators'], ['defined', [{ id: 'd', name: 'ind', expr: 'a*b' }], 'defined parameters'], ['waldTests', [{ id: 'w', name: 'w', constraints: 'a == 0' }], 'Wald tests'],
-      ['inequalities', 'a > 0', 'inequalities'], ['positiveVariances', true, 'variance bounds'], ['multigroup', { column: 'g', invariance: 'metric', free: [] }, 'groups'],
-      ['multilevel', { column: 'school', between: 'same' }, 'levels'], ['esem', { blocks: [], rotation: 'geomin' }, 'ESEM blocks'], ['weights', 'w', 'weights'], ['threeWay', [{ id: 't' }], 'moderated moderations'],
+      ['ordered', ['a1'], 'ordered indicators'],
+      ['defined', [{ id: 'd', name: 'ind', expr: 'a*b' }], 'defined parameters'],
+      ['waldTests', [{ id: 'w', name: 'w', constraints: 'a == 0' }], 'Wald tests'],
+      ['inequalities', 'a > 0', 'inequalities'],
+      ['positiveVariances', true, 'variance bounds'],
+      ['multigroup', { column: 'g', invariance: 'metric', free: [] }, 'groups'],
+      ['multilevel', { column: 'school', between: 'same' }, 'levels'],
+      ['esem', { blocks: [], rotation: 'geomin' }, 'ESEM blocks'],
+      ['weights', 'w', 'weights'],
+      ['threeWay', [{ id: 't' }], 'moderated moderations'],
     ];
     for (const [k, value, label] of fields) {
       const next = { ...v, model: { ...v.model, [k]: value } };
@@ -311,29 +467,68 @@ describe('describeChanges, the remaining branches', () => {
   it('shows every setting it tracks by its name and formatted value', () => {
     const base = s().settings;
     const cases: [keyof Settings, unknown, string][] = [
-      ['method', 'process', 'method PLS-SEM → conditional process analysis'], ['estimator', 'MLR', `estimator ${base.estimator} → MLR`], ['engine', base.engine === 'r' ? 'js' : 'r', `engine ${base.engine} → ${base.engine === 'r' ? 'js' : 'r'}`],
-      ['plsPackage', 'zzz', `PLS package ${base.plsPackage} → zzz`], ['plsApproach', 'zzz', `weighting approach ${base.plsApproach} → zzz`], ['scheme', 'centroid', `weighting scheme ${base.scheme} → centroid`],
-      ['maxIter', 7, `max. iterations ${base.maxIter} → 7`], ['stopExp', 3, `stop criterion (10^-k) ${base.stopExp} → 3`], ['missing', 'zzz', `missing values ${base.missing} → zzz`],
-      ['miImputations', 99, `imputations ${base.miImputations} → 99`], ['interaction', 'zzz', `latent interactions ${base.interaction} → zzz`], ['probe', 'zzz', `probing ${base.probe} → zzz`],
-      ['hc', 'zzz', `robust SEs ${base.hc} → zzz`], ['bootSamples', 12345, `bootstrap subsamples ${base.bootSamples.toLocaleString()} → 12,345`], ['confidence', 0.9, `confidence level ${Math.round(base.confidence * 100)}% → 90%`],
-      ['bootTails', 'zzz', `tests ${base.bootTails} → zzz`], ['bootInterval', 'zzz', `bootstrap intervals ${base.bootInterval} → zzz`],
+      ['method', 'process', 'method PLS-SEM → conditional process analysis'],
+      ['estimator', 'MLR', `estimator ${base.estimator} → MLR`],
+      [
+        'engine',
+        base.engine === 'r' ? 'js' : 'r',
+        `engine ${base.engine} → ${base.engine === 'r' ? 'js' : 'r'}`,
+      ],
+      ['plsPackage', 'zzz', `PLS package ${base.plsPackage} → zzz`],
+      ['plsApproach', 'zzz', `weighting approach ${base.plsApproach} → zzz`],
+      ['scheme', 'centroid', `weighting scheme ${base.scheme} → centroid`],
+      ['maxIter', 7, `max. iterations ${base.maxIter} → 7`],
+      ['stopExp', 3, `stop criterion (10^-k) ${base.stopExp} → 3`],
+      ['missing', 'zzz', `missing values ${base.missing} → zzz`],
+      ['miImputations', 99, `imputations ${base.miImputations} → 99`],
+      ['interaction', 'zzz', `latent interactions ${base.interaction} → zzz`],
+      ['probe', 'zzz', `probing ${base.probe} → zzz`],
+      ['hc', 'zzz', `robust SEs ${base.hc} → zzz`],
+      ['bootSamples', 12345, `bootstrap subsamples ${base.bootSamples.toLocaleString()} → 12,345`],
+      ['confidence', 0.9, `confidence level ${Math.round(base.confidence * 100)}% → 90%`],
+      ['bootTails', 'zzz', `tests ${base.bootTails} → zzz`],
+      ['bootInterval', 'zzz', `bootstrap intervals ${base.bootInterval} → zzz`],
     ];
-    for (const [k, value, text] of cases) expect(settingChanges(base, { ...base, [k]: value } as Settings), k).toEqual([text]);
+    for (const [k, value, text] of cases)
+      expect(settingChanges(base, { ...base, [k]: value } as Settings), k).toEqual([text]);
     expect(settingChanges(base, base)).toEqual([]);
     expect(settingChanges(base, { ...base, estimator: 'MLR' }, ['seed'])).toEqual([]);
   });
   it('fingerprints data by values and keeps run cards in version order', () => {
     expect(dataFingerprint(null)).toBe('none');
     const cols = { names: ['x'], cols: [Float64Array.from([1, 2])] };
-    expect(dataFingerprint(cols)).toBe(dataFingerprint({ names: ['x'], cols: [Float64Array.from([1, 2])] }));
-    expect(dataFingerprint(cols)).not.toBe(dataFingerprint({ names: ['x'], cols: [Float64Array.from([1, 3])] }));
-    expect(dataFingerprint(cols)).not.toBe(dataFingerprint({ names: ['y'], cols: [Float64Array.from([1, 2])] }));
-    const mom = { names: ['x'], cols: [Float64Array.from([1, 2])], moments: { n: 2, cov: [[1]] } } as unknown as Dataset;
+    expect(dataFingerprint(cols)).toBe(
+      dataFingerprint({ names: ['x'], cols: [Float64Array.from([1, 2])] }),
+    );
+    expect(dataFingerprint(cols)).not.toBe(
+      dataFingerprint({ names: ['x'], cols: [Float64Array.from([1, 3])] }),
+    );
+    expect(dataFingerprint(cols)).not.toBe(
+      dataFingerprint({ names: ['y'], cols: [Float64Array.from([1, 2])] }),
+    );
+    const mom = {
+      names: ['x'],
+      cols: [Float64Array.from([1, 2])],
+      moments: { n: 2, cov: [[1]] },
+    } as unknown as Dataset;
     expect(dataFingerprint(mom)).not.toBe(dataFingerprint(cols));
     expect(runData(null, null)).toEqual({ fingerprint: 'none', name: '', rows: 0 });
-    expect(runData(cols, { fileName: 'f.csv', rows: 2, missingCells: 0, excluded: [] })).toMatchObject({ name: 'f.csv', rows: 2 });
-    const run = (version: number): RunCard => ({ id: `r${version}`, kind: 'analysis', type: 'run', options: { version } as RunCard['options'] });
-    const cards: Card[] = [run(2), { id: 'n', kind: 'note', text: '' }, { id: 'o', kind: 'analysis', type: 'test-mean', options: {} }, run(3), run(1)];
+    expect(
+      runData(cols, { fileName: 'f.csv', rows: 2, missingCells: 0, excluded: [] }),
+    ).toMatchObject({ name: 'f.csv', rows: 2 });
+    const run = (version: number): RunCard => ({
+      id: `r${version}`,
+      kind: 'analysis',
+      type: 'run',
+      options: { version } as RunCard['options'],
+    });
+    const cards: Card[] = [
+      run(2),
+      { id: 'n', kind: 'note', text: '' },
+      { id: 'o', kind: 'analysis', type: 'test-mean', options: {} },
+      run(3),
+      run(1),
+    ];
     expect(runCards(cards).map((c) => c.id)).toEqual(['r2', 'r3', 'r1']);
     expect(latestRun(runCards(cards))?.id).toBe('r3');
     expect(latestRun([])).toBeNull();
@@ -342,7 +537,9 @@ describe('describeChanges, the remaining branches', () => {
 
 describe('a moderation’s interaction method in the change log', () => {
   it('is part of the moderation’s name', () => {
-    const a = s().addConstruct(0, 0, ['a1']), b = s().addConstruct(1, 0, ['b1']), c = s().addConstruct(2, 0, ['c1']);
+    const a = s().addConstruct(0, 0, ['a1']),
+      b = s().addConstruct(1, 0, ['b1']),
+      c = s().addConstruct(2, 0, ['c1']);
     s().addPath(a, b);
     const p = s().model.paths[0].id;
     s().addModeration(c, p);
@@ -352,7 +549,10 @@ describe('a moderation’s interaction method in the change log', () => {
     const v2 = { model: structuredClone(s().model), settings: s().settings, data };
     const names = Object.fromEntries(s().model.constructs.map((k) => [k.id, k.name]));
     const d = describeChanges(v1, v2);
-    expect(d).toEqual([`+ moderation ${names[c]} on ${names[a]} → ${names[b]} (product indicators)`, `− moderation ${names[c]} on ${names[a]} → ${names[b]}`]);
+    expect(d).toEqual([
+      `+ moderation ${names[c]} on ${names[a]} → ${names[b]} (product indicators)`,
+      `− moderation ${names[c]} on ${names[a]} → ${names[b]}`,
+    ]);
     expect(runHash(v1.model, v1.settings, data)).not.toBe(runHash(v2.model, v2.settings, data));
     s().setModerationMethod(s().model.moderations[0].id, undefined);
     expect(s().model.moderations[0]).not.toHaveProperty('method');

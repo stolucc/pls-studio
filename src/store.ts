@@ -14,19 +14,53 @@ import { autoLayout, suggestName } from './model/layout';
 import { graphToModel, isSlotName, templateModel, templatePositions } from './process/canvas';
 import { processGraph } from './process/fromModel';
 import { materialise, mediatorRange, template } from './process/templates';
-import { type InteractionMethod,
-  createsCycle, DEFAULT_SETTINGS, newId, pruneCorrelations, pruneFixedLoadings, toSpec, unconfirmedUncorrelated,
-  type Construct, type Correlation, type CountKind, type Path, type DataInfo, type DefinedParameter, type ModelState, type ParameterTerm, type Settings, type Side, type WaldTest, pruneMeans } from './model/project';
+import {
+  type InteractionMethod,
+  createsCycle,
+  DEFAULT_SETTINGS,
+  newId,
+  pruneCorrelations,
+  pruneFixedLoadings,
+  toSpec,
+  unconfirmedUncorrelated,
+  type Construct,
+  type Correlation,
+  type CountKind,
+  type Path,
+  type DataInfo,
+  type DefinedParameter,
+  type ModelState,
+  type ParameterTerm,
+  type Settings,
+  type Side,
+  type WaldTest,
+  pruneMeans,
+} from './model/project';
 import type { HeldValue } from './model/heldValue';
 
 export type Tool = 'select' | 'construct' | 'connect' | 'correlate';
-export interface Selection { nodes: string[]; edges: string[]; moderations?: string[]; correlations?: string[] }
+export interface Selection {
+  nodes: string[];
+  edges: string[];
+  moderations?: string[];
+  correlations?: string[];
+}
 export const NO_SELECTION: Selection = { nodes: [], edges: [], moderations: [], correlations: [] };
 
-export interface Toast { id: number; kind: 'error' | 'info' | 'success'; text: string }
+export interface Toast {
+  id: number;
+  kind: 'error' | 'info' | 'success';
+  text: string;
+}
 
 /** A warning or error kept for the session (Messages tab): package warnings, failed runs, refused actions. */
-export interface Message { id: number; at: number; level: 'error' | 'warning' | 'info'; text: string; source?: string }
+export interface Message {
+  id: number;
+  at: number;
+  level: 'error' | 'warning' | 'info';
+  text: string;
+  source?: string;
+}
 const MAX_MESSAGES = 300;
 
 export interface Results {
@@ -45,7 +79,13 @@ export interface Results {
 }
 
 export type JobKind = 'estimate' | 'boot' | 'fittest';
-export interface Job { kind: JobKind; done: number; total: number; workers?: number; /** Set for R calculations (no step count): what is running. */ label?: string }
+export interface Job {
+  kind: JobKind;
+  done: number;
+  total: number;
+  workers?: number;
+  /** Set for R calculations (no step count): what is running. */ label?: string;
+}
 
 /** `validation`: the record of what the examples and methods were checked against (components/validation). */
 export type View = 'home' | 'editor' | 'validation';
@@ -59,7 +99,10 @@ export interface CloudState {
 }
 
 /** Collaborative undo (Y.UndoManager, own changes only) replaces the local history. */
-export interface HistoryOverride { undo(): void; redo(): void }
+export interface HistoryOverride {
+  undo(): void;
+  redo(): void;
+}
 
 export interface State {
   /** Identifies the project in the recent-projects store. */
@@ -120,15 +163,50 @@ export interface State {
   addConstruct: (x: number, y: number, indicators?: string[]) => string;
   /** Factors from an exploratory factor analysis, as common factors (one undo step); `correlate`: draw their correlations. */
   addFactors: (groups: string[][], correlate: boolean, names?: string[]) => string[];
-  updateConstruct: (id: string, patch: Partial<Pick<Construct, 'indicators' | 'shape' | 'color' | 'predefinedWeights' | 'name' | 'type' | 'mode' | 'side' | 'covariate' | 'components' | 'latent' | 'categorical' | 'dominant' | 'reliability' | 'freeError' | 'reliabilities' | 'componentLoadings' | 'markerFree' | 'scaling'>>) => void;
+  updateConstruct: (
+    id: string,
+    patch: Partial<
+      Pick<
+        Construct,
+        | 'indicators'
+        | 'shape'
+        | 'color'
+        | 'predefinedWeights'
+        | 'name'
+        | 'type'
+        | 'mode'
+        | 'side'
+        | 'covariate'
+        | 'components'
+        | 'latent'
+        | 'categorical'
+        | 'dominant'
+        | 'reliability'
+        | 'freeError'
+        | 'reliabilities'
+        | 'componentLoadings'
+        | 'markerFree'
+        | 'scaling'
+      >
+    >,
+  ) => void;
   /** CB-SEM: label a path coefficient, loading or drawn covariance (null removes it); equal labels = equal values. */
-  setLabel: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, label: string | null) => void;
+  setLabel: (
+    target:
+      | { kind: 'path'; id: string }
+      | { kind: 'loading'; construct: string; indicator: string }
+      | { kind: 'correlation'; id: string },
+    label: string | null,
+  ) => void;
   setDefined: (defined: DefinedParameter[]) => void;
   setWaldTests: (tests: WaldTest[]) => void;
   setInequalities: (text: string) => void;
   setPositiveVariances: (on: boolean) => void;
   /** CB-SEM: hold, label or free (null) a variance, an indicator's intercept or a threshold; values per group with groups. */
-  setHeldParameter: (key: Pick<ParameterTerm, 'kind' | 'target' | 'indicator' | 'threshold'>, value: HeldValue) => void;
+  setHeldParameter: (
+    key: Pick<ParameterTerm, 'kind' | 'target' | 'indicator' | 'threshold'>,
+    value: HeldValue,
+  ) => void;
   /** CB-SEM: a drawn covariance held, labelled, given values per group, or free (null). */
   setCorrelationValue: (id: string, value: HeldValue) => void;
   /** CB-SEM with ordinal indicators: the theta parameterisation (residual variances) instead of delta (scale factors). */
@@ -161,7 +239,13 @@ export interface State {
   /** CB-SEM: declare these indicators counts of a kind (no longer ordinal), or continuous again (null). */
   setCount: (names: string[], kind: CountKind | null) => void;
   /** CB-SEM: hold a path coefficient, loading or drawn covariance at `value`, or free it (null). */
-  fixParameter: (target: { kind: 'path'; id: string } | { kind: 'loading'; construct: string; indicator: string } | { kind: 'correlation'; id: string }, value: number | null) => void;
+  fixParameter: (
+    target:
+      | { kind: 'path'; id: string }
+      | { kind: 'loading'; construct: string; indicator: string }
+      | { kind: 'correlation'; id: string },
+    value: number | null,
+  ) => void;
   moveConstruct: (id: string, x: number, y: number) => void;
   removeConstructs: (ids: string[]) => void;
   assignIndicators: (id: string, names: string[]) => void;
@@ -172,8 +256,16 @@ export interface State {
   addConstant: () => void;
   moveConstant: (x: number, y: number) => void;
   addMean: (constructId: string) => boolean;
-  setMean: (id: string, patch: { fixed?: number | null; label?: string | null; bias?: number | number[] | null }) => void;
-  deleteItems: (constructIds: string[], pathIds: string[], moderationIds?: string[], correlationIds?: string[]) => void;
+  setMean: (
+    id: string,
+    patch: { fixed?: number | null; label?: string | null; bias?: number | number[] | null },
+  ) => void;
+  deleteItems: (
+    constructIds: string[],
+    pathIds: string[],
+    moderationIds?: string[],
+    correlationIds?: string[],
+  ) => void;
   addModeration: (moderatorId: string, pathId: string) => boolean;
   /** PLS-SEM (seminr): how the moderation's interaction term is built (undefined: two-stage). */
   setModerationMethod: (id: string, method: InteractionMethod | undefined) => void;
@@ -205,7 +297,15 @@ export interface State {
   setTool: (t: Tool) => void;
   setSettings: (p: Partial<Settings>) => void;
   setData: (data: Dataset, info: DataInfo) => void;
-  loadProject: (p: { name: string; model: ModelState; settings: Settings; data: Dataset | null; info: DataInfo | null; id?: string; example?: string }) => void;
+  loadProject: (p: {
+    name: string;
+    model: ModelState;
+    settings: Settings;
+    data: Dataset | null;
+    info: DataInfo | null;
+    id?: string;
+    example?: string;
+  }) => void;
   /** Turn the open example into an ordinary project of one's own (kept from now on). */
   keepExample: () => void;
   setView: (v: View) => void;
@@ -240,7 +340,10 @@ function readOnly(s: State): boolean {
   if (s.cloud?.role !== 'viewer') return false;
   if (Date.now() - lastReadOnlyToast > 4000) {
     lastReadOnlyToast = Date.now();
-    s.toast('info', 'You have view access to this shared project. Ask the owner for edit access to make changes.');
+    s.toast(
+      'info',
+      'You have view access to this shared project. Ask the owner for edit access to make changes.',
+    );
   }
   return true;
 }
@@ -249,19 +352,31 @@ let messageId = 0;
 
 /** A warning already logged in the last few seconds (the bridge logs R warnings as they arrive; results log them again). */
 const RECENT_MS = 10_000;
-const loggedRecently = (messages: Message[], text: string, now: number) => messages.some((m) => m.text === text && now - m.at < RECENT_MS);
+const loggedRecently = (messages: Message[], text: string, now: number) =>
+  messages.some((m) => m.text === text && now - m.at < RECENT_MS);
 
 /** Every warning a new result carries (R packages or the built-in engine), added to the session's messages. */
 function withWarnings(messages: Message[], r: Partial<Omit<Results, 'key'>>): Message[] {
   const added: Message[] = [];
   const now = Date.now();
   for (const v of Object.values(r)) {
-    const res = v as { warnings?: unknown; notes?: unknown; engine?: { package?: string; version?: string } } | null;
+    const res = v as {
+      warnings?: unknown;
+      notes?: unknown;
+      engine?: { package?: string; version?: string };
+    } | null;
     if (!res) continue;
-    const source = res.engine?.package ? `${res.engine.package}${res.engine.version ? ` ${res.engine.version}` : ''}` : 'built-in engine';
-    for (const [level, raw] of [['warning', res.warnings], ['info', res.notes]] as const) {
+    const source = res.engine?.package
+      ? `${res.engine.package}${res.engine.version ? ` ${res.engine.version}` : ''}`
+      : 'built-in engine';
+    for (const [level, raw] of [
+      ['warning', res.warnings],
+      ['info', res.notes],
+    ] as const) {
       const list = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
-      for (const w of list) if (typeof w === 'string' && w.trim() && !loggedRecently(messages, w, now)) added.push({ id: ++messageId, at: now, level, text: w, source });
+      for (const w of list)
+        if (typeof w === 'string' && w.trim() && !loggedRecently(messages, w, now))
+          added.push({ id: ++messageId, at: now, level, text: w, source });
     }
   }
   return added.length ? [...messages, ...added].slice(-MAX_MESSAGES) : messages;
@@ -272,7 +387,17 @@ export const emptyModel = (): ModelState => ({ constructs: [], paths: [], modera
 /** Fingerprint used to tell whether results still describe the current model. */
 export function resultsKey(s: Pick<State, 'model' | 'settings' | 'dataVersion'>): string {
   // Inference options and the figure style do not change the estimates.
-  const { autoCalculate: _a, bootSamples: _b, seed: _s, confidence: _c, bootTails: _t, bootInterval: _v, figure: _f, charts: _h, ...plsSettings } = s.settings;
+  const {
+    autoCalculate: _a,
+    bootSamples: _b,
+    seed: _s,
+    confidence: _c,
+    bootTails: _t,
+    bootInterval: _v,
+    figure: _f,
+    charts: _h,
+    ...plsSettings
+  } = s.settings;
   // Conditional process analysis bootstraps as part of estimation; it also depends on
   // moderated moderations and covariate flags, and nothing in it reads correlations.
   if (s.settings.method === 'process') {
@@ -283,7 +408,11 @@ export function resultsKey(s: Pick<State, 'model' | 'settings' | 'dataVersion'>)
   }
   // Correlations only enter CB-SEM, so drawing one does not make PLS results stale.
   const { covariances: _k, ...plsSpec } = toSpec(s.model);
-  return JSON.stringify([s.settings.method === 'pls' ? plsSpec : toSpec(s.model), plsSettings, s.dataVersion]);
+  return JSON.stringify([
+    s.settings.method === 'pls' ? plsSpec : toSpec(s.model),
+    plsSettings,
+    s.dataVersion,
+  ]);
 }
 
 type SetState = StoreApi<State>['setState'];
@@ -294,25 +423,50 @@ export function historySlice(set: SetState, get: GetState) {
   return {
     commit: (fn) => {
       if (readOnly(get())) return;
-      set((s) => s.history
-        ? { model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))), dirty: true }
-        : { model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))), past: [...s.past.slice(-HISTORY + 1), s.model], future: [], dirty: true });
+      set((s) =>
+        s.history
+          ? { model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))), dirty: true }
+          : {
+              model: pruneMeans(pruneCorrelations(pruneFixedLoadings(fn(s.model)))),
+              past: [...s.past.slice(-HISTORY + 1), s.model],
+              future: [],
+              dirty: true,
+            },
+      );
     },
     checkpoint: () => set((s) => ({ past: [...s.past.slice(-HISTORY + 1), s.model], future: [] })),
     undo: () => {
-      if (get().history) { get().history!.undo(); return; }
+      if (get().history) {
+        get().history!.undo();
+        return;
+      }
       set((s) => {
         const prev = s.past.at(-1);
         if (!prev) return s;
-        return { model: prev, past: s.past.slice(0, -1), future: [s.model, ...s.future], dirty: true, selection: NO_SELECTION };
+        return {
+          model: prev,
+          past: s.past.slice(0, -1),
+          future: [s.model, ...s.future],
+          dirty: true,
+          selection: NO_SELECTION,
+        };
       });
     },
     redo: () => {
-      if (get().history) { get().history!.redo(); return; }
+      if (get().history) {
+        get().history!.redo();
+        return;
+      }
       set((s) => {
         const next = s.future[0];
         if (!next) return s;
-        return { model: next, past: [...s.past, s.model], future: s.future.slice(1), dirty: true, selection: NO_SELECTION };
+        return {
+          model: next,
+          past: [...s.past, s.model],
+          future: s.future.slice(1),
+          dirty: true,
+          selection: NO_SELECTION,
+        };
       });
     },
   } satisfies Partial<State>;
@@ -324,9 +478,22 @@ export function constructSlice(set: SetState, get: GetState) {
     addConstruct: (x, y, indicators = []) => {
       const id = newId('c');
       get().commit((m) => {
-        const name = suggestName(indicators, m.constructs.map((c) => c.name), m.constructs.length + 1);
-        const constructs = m.constructs.map((c) => ({ ...c, indicators: c.indicators.filter((i) => !indicators.includes(i)) }));
-        return { ...m, constructs: [...constructs, { id, name, type: 'factor', mode: 'A', indicators, x, y, side: 'left' as Side }] };
+        const name = suggestName(
+          indicators,
+          m.constructs.map((c) => c.name),
+          m.constructs.length + 1,
+        );
+        const constructs = m.constructs.map((c) => ({
+          ...c,
+          indicators: c.indicators.filter((i) => !indicators.includes(i)),
+        }));
+        return {
+          ...m,
+          constructs: [
+            ...constructs,
+            { id, name, type: 'factor', mode: 'A', indicators, x, y, side: 'left' as Side },
+          ],
+        };
       });
       set({ selection: { nodes: [id], edges: [] }, tool: 'select' });
       return id;
@@ -335,39 +502,77 @@ export function constructSlice(set: SetState, get: GetState) {
       const ids = groups.map(() => newId('c'));
       get().commit((m) => {
         const all = groups.flat();
-        let constructs = m.constructs.map((c) => ({ ...c, indicators: c.indicators.filter((i) => !all.includes(i)) }));
+        let constructs = m.constructs.map((c) => ({
+          ...c,
+          indicators: c.indicators.filter((i) => !all.includes(i)),
+        }));
         const top = constructs.length ? Math.max(...constructs.map((c) => c.y)) + 300 : 0;
         groups.forEach((indicators, k) => {
           const taken = constructs.map((c) => c.name);
-          const name = names?.[k] ? factorName(indicators, names[k], taken) : suggestName(indicators, taken, constructs.length + 1);
-          constructs = [...constructs, { id: ids[k], name, type: 'factor', mode: 'A', indicators, x: (k % 4) * 320, y: top + Math.floor(k / 4) * 260, side: 'left' as Side }];
+          const name = names?.[k]
+            ? factorName(indicators, names[k], taken)
+            : suggestName(indicators, taken, constructs.length + 1);
+          constructs = [
+            ...constructs,
+            {
+              id: ids[k],
+              name,
+              type: 'factor',
+              mode: 'A',
+              indicators,
+              x: (k % 4) * 320,
+              y: top + Math.floor(k / 4) * 260,
+              side: 'left' as Side,
+            },
+          ];
         });
-        const pairs = correlate ? ids.flatMap((a, i) => ids.slice(i + 1).map((b) => ({ id: newId('k'), kind: 'construct' as const, a, b }))) : [];
+        const pairs = correlate
+          ? ids.flatMap((a, i) =>
+              ids.slice(i + 1).map((b) => ({ id: newId('k'), kind: 'construct' as const, a, b })),
+            )
+          : [];
         return { ...m, constructs, correlations: [...(m.correlations ?? []), ...pairs] };
       });
       set({ selection: { nodes: ids, edges: [] }, tool: 'select' });
       return ids;
     },
     updateConstruct: (id, patch) =>
-      get().commit((m) => ({ ...m, constructs: m.constructs.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
-    moveConstruct: (id, x, y) =>
-      readOnly(get()) ? undefined : set((s) => ({
-        dirty: true,
-        model: { ...s.model, constructs: s.model.constructs.map((c) => (c.id === id ? { ...c, x, y } : c)) },
+      get().commit((m) => ({
+        ...m,
+        constructs: m.constructs.map((c) => (c.id === id ? { ...c, ...patch } : c)),
       })),
+    moveConstruct: (id, x, y) =>
+      readOnly(get())
+        ? undefined
+        : set((s) => ({
+            dirty: true,
+            model: {
+              ...s.model,
+              constructs: s.model.constructs.map((c) => (c.id === id ? { ...c, x, y } : c)),
+            },
+          })),
     // Delegates to deleteItems so dangling paths and moderations go too.
     removeConstructs: (ids) => get().deleteItems(ids, []),
     assignIndicators: (id, names) =>
       get().commit((m) => {
         // Conditional process slots (X, M1, W, …) take the name of the single variable dropped on them.
         const slot = m.constructs.find((c) => c.id === id);
-        const rename = get().settings.method === 'process' && slot && slot.indicators.length === 0 && isSlotName(slot.name)
-          && names.length === 1 && !m.constructs.some((c) => c.name === names[0]);
+        const rename =
+          get().settings.method === 'process' &&
+          slot &&
+          slot.indicators.length === 0 &&
+          isSlotName(slot.name) &&
+          names.length === 1 &&
+          !m.constructs.some((c) => c.name === names[0]);
         return {
           ...m,
           constructs: m.constructs.map((c) =>
             c.id === id
-              ? { ...c, ...(rename ? { name: names[0] } : {}), indicators: [...c.indicators, ...names.filter((n) => !c.indicators.includes(n))] }
+              ? {
+                  ...c,
+                  ...(rename ? { name: names[0] } : {}),
+                  indicators: [...c.indicators, ...names.filter((n) => !c.indicators.includes(n))],
+                }
               : { ...c, indicators: c.indicators.filter((i) => !names.includes(i)) },
           ),
         };
@@ -375,46 +580,100 @@ export function constructSlice(set: SetState, get: GetState) {
     removeIndicator: (id, name) =>
       get().commit((m) => ({
         ...m,
-        constructs: m.constructs.map((c) => (c.id === id ? { ...c, indicators: c.indicators.filter((i) => i !== name) } : c)),
+        constructs: m.constructs.map((c) =>
+          c.id === id ? { ...c, indicators: c.indicators.filter((i) => i !== name) } : c,
+        ),
       })),
     addConstant: () => {
       const { model } = get();
       if (model.constant) return;
-      const left = Math.min(0, ...selectPlacedModel(get()).constructs.map((c) => c.x - constructGeometry(c).rx)), top = model.constructs.length ? model.constructs.reduce((a, c) => a + c.y, 0) / model.constructs.length : 0;
+      const left = Math.min(
+          0,
+          ...selectPlacedModel(get()).constructs.map((c) => c.x - constructGeometry(c).rx),
+        ),
+        top = model.constructs.length
+          ? model.constructs.reduce((a, c) => a + c.y, 0) / model.constructs.length
+          : 0;
       get().commit((m) => ({ ...m, constant: { x: left - 160, y: top } }));
       // (the triangle is drawn only with an arrow on show: a new one has none but its intercepts)
       set({ showIntercepts: true });
     },
-    moveConstant: (x, y) => readOnly(get()) ? undefined : set((s) => (s.model.constant ? { dirty: true, model: { ...s.model, constant: { x, y } } } : {})),
+    moveConstant: (x, y) =>
+      readOnly(get())
+        ? undefined
+        : set((s) =>
+            s.model.constant ? { dirty: true, model: { ...s.model, constant: { x, y } } } : {},
+          ),
     addMean: (constructId) => {
       const { model, toast } = get();
       if (!model.constant || !model.constructs.some((c) => c.id === constructId)) return false;
-      if (model.means?.some((t) => t.target === constructId)) { toast('info', 'That construct already has a mean arrow.'); return false; }
+      if (model.means?.some((t) => t.target === constructId)) {
+        toast('info', 'That construct already has a mean arrow.');
+        return false;
+      }
       const id = newId('m');
       get().commit((m) => ({ ...m, means: [...(m.means ?? []), { id, target: constructId }] }));
       return true;
     },
-    setMean: (id, patch) => get().commit((m) => ({ ...m, means: (m.means ?? []).map((t) => {
-      if (t.id !== id) return t;
-      const { fixed: _f, label: _l, bias: _b, ...rest } = t;
-      const fixed = patch.fixed === undefined ? t.fixed : patch.fixed ?? undefined;
-      const label = patch.label === undefined ? t.label : patch.label ?? undefined;
-      const bias = patch.bias === undefined ? t.bias : patch.bias ?? undefined;
-      return { ...rest, ...(fixed !== undefined ? { fixed } : {}), ...(label && fixed === undefined ? { label } : {}), ...(bias !== undefined ? { bias } : {}) };
-    }) })),
+    setMean: (id, patch) =>
+      get().commit((m) => ({
+        ...m,
+        means: (m.means ?? []).map((t) => {
+          if (t.id !== id) return t;
+          const { fixed: _f, label: _l, bias: _b, ...rest } = t;
+          const fixed = patch.fixed === undefined ? t.fixed : (patch.fixed ?? undefined);
+          const label = patch.label === undefined ? t.label : (patch.label ?? undefined);
+          const bias = patch.bias === undefined ? t.bias : (patch.bias ?? undefined);
+          return {
+            ...rest,
+            ...(fixed !== undefined ? { fixed } : {}),
+            ...(label && fixed === undefined ? { label } : {}),
+            ...(bias !== undefined ? { bias } : {}),
+          };
+        }),
+      })),
     addNote: (x, y) => {
       const id = `note-${newId('n')}`;
       get().commit((m) => ({ ...m, notes: [...(m.notes ?? []), { id, x, y, text: '' }] }));
       set({ selection: { ...NO_SELECTION, nodes: [id] } });
     },
-    updateNote: (id, text) => get().commit((m) => ({ ...m, notes: (m.notes ?? []).map((k) => (k.id === id ? { ...k, text } : k)) })),
-    moveNote: (id, x, y) => readOnly(get()) ? undefined : set((s) => ({ dirty: true, model: { ...s.model, notes: (s.model.notes ?? []).map((k) => (k.id === id ? { ...k, x, y } : k)) } })),
+    updateNote: (id, text) =>
+      get().commit((m) => ({
+        ...m,
+        notes: (m.notes ?? []).map((k) => (k.id === id ? { ...k, text } : k)),
+      })),
+    moveNote: (id, x, y) =>
+      readOnly(get())
+        ? undefined
+        : set((s) => ({
+            dirty: true,
+            model: {
+              ...s.model,
+              notes: (s.model.notes ?? []).map((k) => (k.id === id ? { ...k, x, y } : k)),
+            },
+          })),
     deleteItems: (constructIds, pathIds, moderationIds = [], correlationIds = []) => {
-      if (constructIds.length === 0 && pathIds.length === 0 && moderationIds.length === 0 && correlationIds.length === 0) return;
+      if (
+        constructIds.length === 0 &&
+        pathIds.length === 0 &&
+        moderationIds.length === 0 &&
+        correlationIds.length === 0
+      )
+        return;
       get().commit((m) => {
-        const paths = m.paths.filter((p) => !pathIds.includes(p.id) && !constructIds.includes(p.from) && !constructIds.includes(p.to));
+        const paths = m.paths.filter(
+          (p) =>
+            !pathIds.includes(p.id) &&
+            !constructIds.includes(p.from) &&
+            !constructIds.includes(p.to),
+        );
         const keep = new Set(paths.map((p) => p.id));
-        const moderations = m.moderations.filter((mo) => !moderationIds.includes(mo.id) && keep.has(mo.path) && !constructIds.includes(mo.moderator));
+        const moderations = m.moderations.filter(
+          (mo) =>
+            !moderationIds.includes(mo.id) &&
+            keep.has(mo.path) &&
+            !constructIds.includes(mo.moderator),
+        );
         const keptMods = new Set(moderations.map((mo) => mo.id));
         // The constant travels with the nodes ('constant'), its arrows with the edges (their ids); pruneMeans drops the rest.
         const { constant, means, ...others } = m;
@@ -422,15 +681,33 @@ export function constructSlice(set: SetState, get: GetState) {
         return {
           ...others,
           ...(constant && !dropConstant ? { constant } : {}),
-          ...(means && !dropConstant ? { means: means.filter((t) => !pathIds.includes(t.id)) } : {}),
-          constructs: m.constructs.filter((c) => !constructIds.includes(c.id)).map((c) =>
-            c.components?.some((x) => constructIds.includes(x)) ? { ...c, components: c.components.filter((x) => !constructIds.includes(x)) } : c),
+          ...(means && !dropConstant
+            ? { means: means.filter((t) => !pathIds.includes(t.id)) }
+            : {}),
+          constructs: m.constructs
+            .filter((c) => !constructIds.includes(c.id))
+            .map((c) =>
+              c.components?.some((x) => constructIds.includes(x))
+                ? { ...c, components: c.components.filter((x) => !constructIds.includes(x)) }
+                : c,
+            ),
           paths,
           moderations,
           ...(m.copulas ? { copulas: m.copulas.filter((k) => keep.has(k.path)) } : {}),
           ...(m.notes ? { notes: m.notes.filter((k) => !constructIds.includes(k.id)) } : {}),
-          ...(m.correlations ? { correlations: m.correlations.filter((k) => !correlationIds.includes(k.id)) } : {}),
-          ...(m.threeWay ? { threeWay: m.threeWay.filter((t) => !moderationIds.includes(t.id) && keptMods.has(t.moderation) && !constructIds.includes(t.moderator)) } : {}),
+          ...(m.correlations
+            ? { correlations: m.correlations.filter((k) => !correlationIds.includes(k.id)) }
+            : {}),
+          ...(m.threeWay
+            ? {
+                threeWay: m.threeWay.filter(
+                  (t) =>
+                    !moderationIds.includes(t.id) &&
+                    keptMods.has(t.moderation) &&
+                    !constructIds.includes(t.moderator),
+                ),
+              }
+            : {}),
         };
       });
       set({ selection: NO_SELECTION });
@@ -447,36 +724,63 @@ export function arrowSlice(set: SetState, get: GetState) {
       // CB-SEM estimates non-recursive models (reciprocal paths, loops); PLS-SEM and process analysis need recursive ones.
       const cb = get().settings.method === 'cbsem';
       if (model.paths.some((p) => p.from === to && p.to === from) && !cb) {
-        toast('error', 'A path already runs the other way. Use "Reverse" on it instead, or switch to CB-SEM for a reciprocal effect.');
+        toast(
+          'error',
+          'A path already runs the other way. Use "Reverse" on it instead, or switch to CB-SEM for a reciprocal effect.',
+        );
         return false;
       }
       if (createsCycle(model.paths, from, to)) {
-        if (!cb) { toast('error', 'That path would create a cycle. PLS-SEM models must be recursive; CB-SEM estimates non-recursive models.'); return false; }
-        toast('info', 'Non-recursive model: each construct in the loop needs a predictor the other lacks (an instrument) to be identified.');
+        if (!cb) {
+          toast(
+            'error',
+            'That path would create a cycle. PLS-SEM models must be recursive; CB-SEM estimates non-recursive models.',
+          );
+          return false;
+        }
+        toast(
+          'info',
+          'Non-recursive model: each construct in the loop needs a predictor the other lacks (an instrument) to be identified.',
+        );
       }
       const id = newId('p');
       get().commit((m) => ({ ...m, paths: [...m.paths, { id, from, to }] }));
       return true;
     },
     removePaths: (ids) => get().deleteItems([], ids),
-    updatePath: (id, patch) => get().commit((m) => ({ ...m, paths: m.paths.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+    updatePath: (id, patch) =>
+      get().commit((m) => ({
+        ...m,
+        paths: m.paths.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+      })),
     reversePath: (id) => {
       const { model, toast } = get();
       const p = model.paths.find((q) => q.id === id);
       if (!p) return;
       const others = model.paths.filter((q) => q.id !== id);
-      if (others.some((q) => q.from === p.to && q.to === p.from)) { toast('error', 'A path already runs that way.'); return; }
-      if (createsCycle(others, p.to, p.from) && get().settings.method !== 'cbsem') {
-        toast('error', 'Reversing this path would create a cycle. PLS-SEM models must be recursive; CB-SEM estimates non-recursive models.');
+      if (others.some((q) => q.from === p.to && q.to === p.from)) {
+        toast('error', 'A path already runs that way.');
         return;
       }
-      get().commit((m) => ({ ...m, paths: m.paths.map((q) => (q.id === id ? { ...q, from: q.to, to: q.from } : q)) }));
+      if (createsCycle(others, p.to, p.from) && get().settings.method !== 'cbsem') {
+        toast(
+          'error',
+          'Reversing this path would create a cycle. PLS-SEM models must be recursive; CB-SEM estimates non-recursive models.',
+        );
+        return;
+      }
+      get().commit((m) => ({
+        ...m,
+        paths: m.paths.map((q) => (q.id === id ? { ...q, from: q.to, to: q.from } : q)),
+      }));
     },
     toggleCopula: (pathId) => {
       get().commit((m) => {
         if (!m.paths.some((p) => p.id === pathId)) return m;
         const has = m.copulas?.some((k) => k.path === pathId);
-        const copulas = has ? m.copulas!.filter((k) => k.path !== pathId) : [...(m.copulas ?? []), { id: `gc-${pathId}`, path: pathId }];
+        const copulas = has
+          ? m.copulas!.filter((k) => k.path !== pathId)
+          : [...(m.copulas ?? []), { id: `gc-${pathId}`, path: pathId }];
         const { copulas: _old, ...rest } = m;
         return copulas.length ? { ...rest, copulas } : rest;
       });
@@ -494,37 +798,59 @@ export function arrowSlice(set: SetState, get: GetState) {
         toast('error', 'The outcome of a path cannot moderate it.');
         return false;
       }
-      if (model.moderations.some((mo) => mo.moderator === moderatorId && mo.path === pathId)) return false;
+      if (model.moderations.some((mo) => mo.moderator === moderatorId && mo.path === pathId))
+        return false;
       // The moderation implies the moderator's main effect on the outcome (as in PROCESS): it is
       // estimated without being drawn (toSpec), so it must not close a cycle.
       const drawn = model.paths.some((q) => q.from === moderatorId && q.to === p.to);
       if (!drawn && createsCycle(model.paths, moderatorId, p.to)) {
-        toast('error', 'This moderator lies downstream of the outcome; moderating would create a cycle.');
+        toast(
+          'error',
+          'This moderator lies downstream of the outcome; moderating would create a cycle.',
+        );
         return false;
       }
       const id = newId('m');
-      get().commit((m) => ({ ...m, moderations: [...m.moderations, { id, moderator: moderatorId, path: pathId }] }));
+      get().commit((m) => ({
+        ...m,
+        moderations: [...m.moderations, { id, moderator: moderatorId, path: pathId }],
+      }));
       set({ selection: { nodes: [], edges: [], moderations: [id] } });
       return true;
     },
-    setModerationMethod: (id, method) => get().commit((m) => ({
-      ...m, moderations: m.moderations.map((mo) => { if (mo.id !== id) return mo; const { method: _old, ...rest } = mo; return method ? { ...rest, method } : rest; }),
-    })),
+    setModerationMethod: (id, method) =>
+      get().commit((m) => ({
+        ...m,
+        moderations: m.moderations.map((mo) => {
+          if (mo.id !== id) return mo;
+          const { method: _old, ...rest } = mo;
+          return method ? { ...rest, method } : rest;
+        }),
+      })),
     addThreeWay: (moderatorId, moderationId) => {
       const { model, toast } = get();
       const mo = model.moderations.find((x) => x.id === moderationId);
       const p = mo && model.paths.find((q) => q.id === mo.path);
       if (!mo || !p) return false;
       if ([p.from, p.to, mo.moderator].includes(moderatorId)) {
-        toast('error', 'A moderated moderation needs a third variable: not the predictor, outcome or first moderator.');
+        toast(
+          'error',
+          'A moderated moderation needs a third variable: not the predictor, outcome or first moderator.',
+        );
         return false;
       }
       if ((model.threeWay ?? []).some((t) => t.moderation === moderationId)) {
-        toast('error', 'This moderation is already moderated; at most a three-way interaction is available.');
+        toast(
+          'error',
+          'This moderation is already moderated; at most a three-way interaction is available.',
+        );
         return false;
       }
       const id = newId('t');
-      get().commit((m) => ({ ...m, threeWay: [...(m.threeWay ?? []), { id, moderation: moderationId, moderator: moderatorId }] }));
+      get().commit((m) => ({
+        ...m,
+        threeWay: [...(m.threeWay ?? []), { id, moderation: moderationId, moderator: moderatorId }],
+      }));
       set({ selection: { nodes: [], edges: [], moderations: [id] } });
       return true;
     },
@@ -532,38 +858,89 @@ export function arrowSlice(set: SetState, get: GetState) {
       const { model, toast } = get();
       if (a === b) return false;
       // Drawing a correlation between two constructs fixed at zero replaces the zero: now estimated.
-      const fixed = !zero && (model.correlations ?? []).find((k) => k.zero && k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)));
+      const fixed =
+        !zero &&
+        (model.correlations ?? []).find(
+          (k) =>
+            k.zero && k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)),
+        );
       if (fixed) {
         const id = newId('k');
-        get().commit((m) => ({ ...m, correlations: [...(m.correlations ?? []).filter((k) => k.id !== fixed.id), { id, kind, a, b }] }));
+        get().commit((m) => ({
+          ...m,
+          correlations: [
+            ...(m.correlations ?? []).filter((k) => k.id !== fixed.id),
+            { id, kind, a, b },
+          ],
+        }));
         set({ selection: { nodes: [], edges: [], moderations: [], correlations: [id] } });
         const name = (id: string) => model.constructs.find((c) => c.id === id)?.name ?? id;
         toast('info', `${name(a)} and ${name(b)} are correlated now (no longer fixed at zero).`);
         return true;
       }
-      if ((model.correlations ?? []).some((k) => k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)))) {
+      if (
+        (model.correlations ?? []).some(
+          (k) => k.kind === kind && ((k.a === a && k.b === b) || (k.a === b && k.b === a)),
+        )
+      ) {
         toast('info', 'These two are already correlated.');
         return false;
       }
       if (kind === 'construct') {
         const covariate = model.constructs.find((c) => (c.id === a || c.id === b) && c.covariate);
-        if (covariate) { toast('error', `${covariate.name} is an observed covariate; its covariances are fixed at the sample values.`); return false; }
+        if (covariate) {
+          toast(
+            'error',
+            `${covariate.name} is an observed covariate; its covariances are fixed at the sample values.`,
+          );
+          return false;
+        }
       } else {
-        const single = model.constructs.find((c) => c.indicators.length === 1 && (c.indicators.includes(a) || c.indicators.includes(b)));
-        if (single) { toast('error', `${single.name} has a single indicator, which has no measurement error to correlate.`); return false; }
+        const single = model.constructs.find(
+          (c) =>
+            c.indicators.length === 1 && (c.indicators.includes(a) || c.indicators.includes(b)),
+        );
+        if (single) {
+          toast(
+            'error',
+            `${single.name} has a single indicator, which has no measurement error to correlate.`,
+          );
+          return false;
+        }
       }
       const id = newId('k');
-      get().commit((m) => ({ ...m, correlations: [...(m.correlations ?? []), { id, kind, a, b, ...(zero ? { zero: true } : {}) }] }));
+      get().commit((m) => ({
+        ...m,
+        correlations: [
+          ...(m.correlations ?? []),
+          { id, kind, a, b, ...(zero ? { zero: true } : {}) },
+        ],
+      }));
       set({ selection: { nodes: [], edges: [], moderations: [], correlations: [id] } });
       return true;
     },
     resolveExogenousCorrelations: (correlate) => {
       const pairs = unconfirmedUncorrelated(get().model);
       if (!pairs.length) return;
-      get().commit((m) => ({ ...m, correlations: [...(m.correlations ?? []), ...pairs.map(([a, b]) => ({ id: newId('k'), kind: 'construct' as const, a: a.id, b: b.id, ...(correlate ? {} : { zero: true }) }))] }));
-      get().toast('info', correlate
-        ? `Drew ${pairs.length} correlation${pairs.length > 1 ? 's' : ''} between exogenous constructs.`
-        : `Kept ${pairs.length} pair${pairs.length > 1 ? 's' : ''} of exogenous constructs uncorrelated (fixed at zero; right-click a construct pair’s correlation to change it).`);
+      get().commit((m) => ({
+        ...m,
+        correlations: [
+          ...(m.correlations ?? []),
+          ...pairs.map(([a, b]) => ({
+            id: newId('k'),
+            kind: 'construct' as const,
+            a: a.id,
+            b: b.id,
+            ...(correlate ? {} : { zero: true }),
+          })),
+        ],
+      }));
+      get().toast(
+        'info',
+        correlate
+          ? `Drew ${pairs.length} correlation${pairs.length > 1 ? 's' : ''} between exogenous constructs.`
+          : `Kept ${pairs.length} pair${pairs.length > 1 ? 's' : ''} of exogenous constructs uncorrelated (fixed at zero; right-click a construct pair’s correlation to change it).`,
+      );
     },
   } satisfies Partial<State>;
 }
@@ -585,14 +962,20 @@ export function layoutSlice(set: SetState, get: GetState) {
       if (!found || !tp) return false;
       const [lo, hi] = mediatorRange(tp);
       if (k < lo || k > hi) {
-        toast('error', `PROCESS model ${tp.model} takes ${lo === hi ? lo : `${lo} to ${hi}`} mediators.`);
+        toast(
+          'error',
+          `PROCESS model ${tp.model} takes ${lo === hi ? lo : `${lo} to ${hi}`} mediators.`,
+        );
         return false;
       }
       const taken = new Set(model.constructs.map((c) => c.name));
       const m = found.roles.m.slice(0, k);
-      for (let i = 1; m.length < k; i++) if (!taken.has(`M${i}`) && !m.includes(`M${i}`)) m.push(`M${i}`);
+      for (let i = 1; m.length < k; i++)
+        if (!taken.has(`M${i}`) && !m.includes(`M${i}`)) m.push(`M${i}`);
       const roles = { ...found.roles, m };
-      get().commit((prev) => graphToModel(materialise(tp, roles), prev, templatePositions(tp, roles)));
+      get().commit((prev) =>
+        graphToModel(materialise(tp, roles), prev, templatePositions(tp, roles)),
+      );
       set((s) => ({ selection: NO_SELECTION, fitRequest: s.fitRequest + 1 }));
       return true;
     },
@@ -606,114 +989,285 @@ export function layoutSlice(set: SetState, get: GetState) {
 /** Parameters and estimation options kept with the model: labels, held and fixed values, constraints, ESEM, levels, groups. */
 export function parameterSlice(_set: SetState, get: GetState) {
   return {
-    setLabel: (target, label) => get().commit((m) => {
-      const set = <T extends { label?: string }>(x: T): T => { const { label: _l, ...rest } = x; return (label ? { ...rest, label } : rest) as T; };
-      if (target.kind === 'path') return { ...m, paths: m.paths.map((p) => (p.id === target.id ? set(p) : p)) };
-      if (target.kind === 'correlation') return { ...m, correlations: (m.correlations ?? []).map((k) => (k.id === target.id ? set(k) : k)) };
-      return {
-        ...m,
-        constructs: m.constructs.map((c) => {
-          if (c.id !== target.construct) return c;
-          const { [target.indicator]: _old, ...rest } = c.loadingLabels ?? {};
-          const loadingLabels = label ? { ...rest, [target.indicator]: label } : rest;
-          const { loadingLabels: _x, ...base } = c;
-          return Object.keys(loadingLabels).length ? { ...base, loadingLabels } : base;
-        }),
-      };
-    }),
-    setDefined: (defined) => get().commit((m) => { const { defined: _d, ...rest } = m; return defined.length ? { ...rest, defined } : rest; }),
-    setWaldTests: (tests) => get().commit((m) => { const { waldTests: _w, ...rest } = m; return tests.length ? { ...rest, waldTests: tests } : rest; }),
-    setInequalities: (text) => get().commit((m) => { const { inequalities: _i, ...rest } = m; return text.trim() ? { ...rest, inequalities: text } : rest; }),
-    setPositiveVariances: (on) => get().commit((m) => { const { positiveVariances: _p, ...rest } = m; return on ? { ...rest, positiveVariances: true } : rest; }),
-    setHeldParameter: (key, value) => get().commit((m) => {
-      const same = (t: ParameterTerm) => t.kind === key.kind && t.target === key.target && !!t.indicator === !!key.indicator && (key.kind !== 'threshold' || (t.threshold ?? 1) === (key.threshold ?? 1));
-      const kept = (m.parameters ?? []).filter((t) => !same(t));
-      const old = (m.parameters ?? []).find(same);
-      const parameters = value === null ? kept : [...kept, {
-        id: old?.id ?? newId('v'), kind: key.kind, target: key.target, ...(key.indicator ? { indicator: true } : {}), ...(key.kind === 'threshold' ? { threshold: key.threshold ?? 1 } : {}), ...value,
-      }];
-      const { parameters: _p, ...rest } = m;
-      return parameters.length ? { ...rest, parameters } : rest;
-    }),
-    setCorrelationValue: (id, value) => get().commit((m) => ({
-      ...m,
-      correlations: (m.correlations ?? []).map((k) => {
-        if (k.id !== id) return k;
-        const { fixed: _f, label: _l, byGroup: _g, ...rest } = k;
-        return value === null ? rest : { ...rest, ...value };
+    setLabel: (target, label) =>
+      get().commit((m) => {
+        const set = <T extends { label?: string }>(x: T): T => {
+          const { label: _l, ...rest } = x;
+          return (label ? { ...rest, label } : rest) as T;
+        };
+        if (target.kind === 'path')
+          return { ...m, paths: m.paths.map((p) => (p.id === target.id ? set(p) : p)) };
+        if (target.kind === 'correlation')
+          return {
+            ...m,
+            correlations: (m.correlations ?? []).map((k) => (k.id === target.id ? set(k) : k)),
+          };
+        return {
+          ...m,
+          constructs: m.constructs.map((c) => {
+            if (c.id !== target.construct) return c;
+            const { [target.indicator]: _old, ...rest } = c.loadingLabels ?? {};
+            const loadingLabels = label ? { ...rest, [target.indicator]: label } : rest;
+            const { loadingLabels: _x, ...base } = c;
+            return Object.keys(loadingLabels).length ? { ...base, loadingLabels } : base;
+          }),
+        };
       }),
-    })),
-    setParameterization: (p) => get().commit((m) => { const { parameterization: _p, ...rest } = m; return p ? { ...rest, parameterization: p } : rest; }),
-    setInformation: (information) => get().commit((m) => { const { information: _i, ...rest } = m; return information ? { ...rest, information } : rest; }),
-    setWlsmvSe: (se) => get().commit((m) => { const { wlsmvSe: _s, ...rest } = m; return se ? { ...rest, wlsmvSe: se } : rest; }),
-    setMimic: (mimic) => get().commit((m) => { const { mimic: _m, ...rest } = m; return mimic ? { ...rest, mimic } : rest; }),
-    setBaseline: (baseline) => get().commit((m) => { const { baseline: _b, ...rest } = m; return baseline ? { ...rest, baseline } : rest; }),
-    setConvention: (c) => get().commit((m) => { const { likelihood: _l, sampleCovRescale: _r, ...rest } = m; return c === 'wishart' ? { ...rest, likelihood: 'wishart' } : c === 'asGiven' ? { ...rest, sampleCovRescale: false } : rest; }),
-    setEsem: (esem) => get().commit((m) => {
-      const { esem: _e, ...rest } = m;
-      const blocks = esem?.blocks.filter((b) => b.constructs.length >= 2) ?? [];
-      return esem && blocks.length ? { ...rest, esem: { ...esem, blocks } } : rest;
-    }),
-    setMultilevel: (ml) => get().commit((m) => { const { multilevel: _l, ...rest } = m; return ml ? { ...rest, multilevel: ml } : rest; }),
-    setWeights: (column) => get().commit((m) => { const { weights: _w, ...rest } = m; return column ? { ...rest, weights: column } : rest; }),
-    setCluster: (column) => get().commit((m) => { const { cluster: _c, ...rest } = m; return column ? { ...rest, cluster: column } : rest; }),
-    setMultigroup: (mg) => get().commit((m) => { const { multigroup: _g, ...rest } = m; return mg ? { ...rest, multigroup: mg } : rest; }),
-    setOrdered: (names, ordinal) => get().commit((m) => {
-      const now = new Set(m.ordered ?? []);
-      for (const n of names) { if (ordinal) now.add(n); else now.delete(n); }
-      // (an ordinal indicator is not a count)
-      const count = Object.fromEntries(Object.entries(m.count ?? {}).filter(([k]) => !(ordinal && names.includes(k))));
-      const { ordered: _o, count: _c, ...rest } = m;
-      return { ...rest, ...(now.size ? { ordered: [...now] } : {}), ...(Object.keys(count).length ? { count } : {}) };
-    }),
-    setCount: (names, kind) => get().commit((m) => {
-      const count = Object.fromEntries(Object.entries(m.count ?? {}).filter(([k]) => !names.includes(k)));
-      if (kind) for (const n of names) count[n] = kind;
-      const ordered = (m.ordered ?? []).filter((x) => !(kind && names.includes(x)));
-      const { ordered: _o, count: _c, ...rest } = m;
-      return { ...rest, ...(ordered.length ? { ordered } : {}), ...(Object.keys(count).length ? { count } : {}) };
-    }),
-    fixParameter: (target, value) => get().commit((m) => {
-      const set = <T extends { fixed?: number }>(x: T): T => { const { fixed: _f, ...rest } = x; return (value === null ? rest : { ...rest, fixed: value }) as T; };
-      if (target.kind === 'path') return { ...m, paths: m.paths.map((p) => (p.id === target.id ? set(p) : p)) };
-      if (target.kind === 'correlation') return { ...m, correlations: (m.correlations ?? []).map((k) => (k.id === target.id ? set(k) : k)) };
-      return {
+    setDefined: (defined) =>
+      get().commit((m) => {
+        const { defined: _d, ...rest } = m;
+        return defined.length ? { ...rest, defined } : rest;
+      }),
+    setWaldTests: (tests) =>
+      get().commit((m) => {
+        const { waldTests: _w, ...rest } = m;
+        return tests.length ? { ...rest, waldTests: tests } : rest;
+      }),
+    setInequalities: (text) =>
+      get().commit((m) => {
+        const { inequalities: _i, ...rest } = m;
+        return text.trim() ? { ...rest, inequalities: text } : rest;
+      }),
+    setPositiveVariances: (on) =>
+      get().commit((m) => {
+        const { positiveVariances: _p, ...rest } = m;
+        return on ? { ...rest, positiveVariances: true } : rest;
+      }),
+    setHeldParameter: (key, value) =>
+      get().commit((m) => {
+        const same = (t: ParameterTerm) =>
+          t.kind === key.kind &&
+          t.target === key.target &&
+          !!t.indicator === !!key.indicator &&
+          (key.kind !== 'threshold' || (t.threshold ?? 1) === (key.threshold ?? 1));
+        const kept = (m.parameters ?? []).filter((t) => !same(t));
+        const old = (m.parameters ?? []).find(same);
+        const parameters =
+          value === null
+            ? kept
+            : [
+                ...kept,
+                {
+                  id: old?.id ?? newId('v'),
+                  kind: key.kind,
+                  target: key.target,
+                  ...(key.indicator ? { indicator: true } : {}),
+                  ...(key.kind === 'threshold' ? { threshold: key.threshold ?? 1 } : {}),
+                  ...value,
+                },
+              ];
+        const { parameters: _p, ...rest } = m;
+        return parameters.length ? { ...rest, parameters } : rest;
+      }),
+    setCorrelationValue: (id, value) =>
+      get().commit((m) => ({
         ...m,
-        constructs: m.constructs.map((c) => {
-          if (c.id !== target.construct) return c;
-          const { [target.indicator]: _old, ...rest } = c.fixedLoadings ?? {};
-          const fixedLoadings = value === null ? rest : { ...rest, [target.indicator]: value };
-          const { fixedLoadings: _x, ...base } = c;
-          return Object.keys(fixedLoadings).length ? { ...base, fixedLoadings } : base;
+        correlations: (m.correlations ?? []).map((k) => {
+          if (k.id !== id) return k;
+          const { fixed: _f, label: _l, byGroup: _g, ...rest } = k;
+          return value === null ? rest : { ...rest, ...value };
         }),
-      };
-    }),
+      })),
+    setParameterization: (p) =>
+      get().commit((m) => {
+        const { parameterization: _p, ...rest } = m;
+        return p ? { ...rest, parameterization: p } : rest;
+      }),
+    setInformation: (information) =>
+      get().commit((m) => {
+        const { information: _i, ...rest } = m;
+        return information ? { ...rest, information } : rest;
+      }),
+    setWlsmvSe: (se) =>
+      get().commit((m) => {
+        const { wlsmvSe: _s, ...rest } = m;
+        return se ? { ...rest, wlsmvSe: se } : rest;
+      }),
+    setMimic: (mimic) =>
+      get().commit((m) => {
+        const { mimic: _m, ...rest } = m;
+        return mimic ? { ...rest, mimic } : rest;
+      }),
+    setBaseline: (baseline) =>
+      get().commit((m) => {
+        const { baseline: _b, ...rest } = m;
+        return baseline ? { ...rest, baseline } : rest;
+      }),
+    setConvention: (c) =>
+      get().commit((m) => {
+        const { likelihood: _l, sampleCovRescale: _r, ...rest } = m;
+        return c === 'wishart'
+          ? { ...rest, likelihood: 'wishart' }
+          : c === 'asGiven'
+            ? { ...rest, sampleCovRescale: false }
+            : rest;
+      }),
+    setEsem: (esem) =>
+      get().commit((m) => {
+        const { esem: _e, ...rest } = m;
+        const blocks = esem?.blocks.filter((b) => b.constructs.length >= 2) ?? [];
+        return esem && blocks.length ? { ...rest, esem: { ...esem, blocks } } : rest;
+      }),
+    setMultilevel: (ml) =>
+      get().commit((m) => {
+        const { multilevel: _l, ...rest } = m;
+        return ml ? { ...rest, multilevel: ml } : rest;
+      }),
+    setWeights: (column) =>
+      get().commit((m) => {
+        const { weights: _w, ...rest } = m;
+        return column ? { ...rest, weights: column } : rest;
+      }),
+    setCluster: (column) =>
+      get().commit((m) => {
+        const { cluster: _c, ...rest } = m;
+        return column ? { ...rest, cluster: column } : rest;
+      }),
+    setMultigroup: (mg) =>
+      get().commit((m) => {
+        const { multigroup: _g, ...rest } = m;
+        return mg ? { ...rest, multigroup: mg } : rest;
+      }),
+    setOrdered: (names, ordinal) =>
+      get().commit((m) => {
+        const now = new Set(m.ordered ?? []);
+        for (const n of names) {
+          if (ordinal) now.add(n);
+          else now.delete(n);
+        }
+        // (an ordinal indicator is not a count)
+        const count = Object.fromEntries(
+          Object.entries(m.count ?? {}).filter(([k]) => !(ordinal && names.includes(k))),
+        );
+        const { ordered: _o, count: _c, ...rest } = m;
+        return {
+          ...rest,
+          ...(now.size ? { ordered: [...now] } : {}),
+          ...(Object.keys(count).length ? { count } : {}),
+        };
+      }),
+    setCount: (names, kind) =>
+      get().commit((m) => {
+        const count = Object.fromEntries(
+          Object.entries(m.count ?? {}).filter(([k]) => !names.includes(k)),
+        );
+        if (kind) for (const n of names) count[n] = kind;
+        const ordered = (m.ordered ?? []).filter((x) => !(kind && names.includes(x)));
+        const { ordered: _o, count: _c, ...rest } = m;
+        return {
+          ...rest,
+          ...(ordered.length ? { ordered } : {}),
+          ...(Object.keys(count).length ? { count } : {}),
+        };
+      }),
+    fixParameter: (target, value) =>
+      get().commit((m) => {
+        const set = <T extends { fixed?: number }>(x: T): T => {
+          const { fixed: _f, ...rest } = x;
+          return (value === null ? rest : { ...rest, fixed: value }) as T;
+        };
+        if (target.kind === 'path')
+          return { ...m, paths: m.paths.map((p) => (p.id === target.id ? set(p) : p)) };
+        if (target.kind === 'correlation')
+          return {
+            ...m,
+            correlations: (m.correlations ?? []).map((k) => (k.id === target.id ? set(k) : k)),
+          };
+        return {
+          ...m,
+          constructs: m.constructs.map((c) => {
+            if (c.id !== target.construct) return c;
+            const { [target.indicator]: _old, ...rest } = c.fixedLoadings ?? {};
+            const fixedLoadings = value === null ? rest : { ...rest, [target.indicator]: value };
+            const { fixedLoadings: _x, ...base } = c;
+            return Object.keys(fixedLoadings).length ? { ...base, fixedLoadings } : base;
+          }),
+        };
+      }),
   } satisfies Partial<State>;
 }
 
 /** The open project: settings, data, loading and starting projects, its name and saved state. */
 export function projectSlice(set: SetState, get: GetState) {
   return {
-    setSettings: (p) => { if (!readOnly(get())) set((s) => ({ settings: { ...s.settings, ...p }, dirty: true })); },
-    setData: (data, dataInfo) => set((s) => ({ data, dataInfo, dataVersion: s.dataVersion + 1, dirty: true, selectedVars: [] })),
+    setSettings: (p) => {
+      if (!readOnly(get())) set((s) => ({ settings: { ...s.settings, ...p }, dirty: true }));
+    },
+    setData: (data, dataInfo) =>
+      set((s) => ({
+        data,
+        dataInfo,
+        dataVersion: s.dataVersion + 1,
+        dirty: true,
+        selectedVars: [],
+      })),
     loadProject: ({ name, model, settings, data, info, id, example }) =>
       set((s) => ({
-        projectId: id ?? newId('proj'), view: 'editor', workspace: 'model', cloud: null, example: example ?? null, history: null, historyCounts: { undo: 0, redo: 0 },
+        projectId: id ?? newId('proj'),
+        view: 'editor',
+        workspace: 'model',
+        cloud: null,
+        example: example ?? null,
+        history: null,
+        historyCounts: { undo: 0, redo: 0 },
         exampleBaseline: example ? estimationKey(model, settings, s.dataVersion + 1) : null,
-        projectName: name, model, settings, data, dataInfo: info, dataVersion: s.dataVersion + 1,
-        past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null, dirty: false, resultsOpen: false,
-        fitRequest: s.fitRequest + 1, messages: [],
+        projectName: name,
+        model,
+        settings,
+        data,
+        dataInfo: info,
+        dataVersion: s.dataVersion + 1,
+        past: [],
+        future: [],
+        selection: NO_SELECTION,
+        selectedVars: [],
+        results: null,
+        dirty: false,
+        resultsOpen: false,
+        fitRequest: s.fitRequest + 1,
+        messages: [],
       })),
     newProject: () =>
       set((s) => ({
-        projectId: newId('proj'), view: 'editor', workspace: 'model', cloud: null, example: null, exampleBaseline: null, history: null, historyCounts: { undo: 0, redo: 0 },
-        projectName: 'Untitled model', model: emptyModel(), settings: DEFAULT_SETTINGS, data: null, dataInfo: null,
-        dataVersion: s.dataVersion + 1, past: [], future: [], selection: NO_SELECTION, selectedVars: [], results: null,
-        dirty: false, resultsOpen: false, messages: [],
+        projectId: newId('proj'),
+        view: 'editor',
+        workspace: 'model',
+        cloud: null,
+        example: null,
+        exampleBaseline: null,
+        history: null,
+        historyCounts: { undo: 0, redo: 0 },
+        projectName: 'Untitled model',
+        model: emptyModel(),
+        settings: DEFAULT_SETTINGS,
+        data: null,
+        dataInfo: null,
+        dataVersion: s.dataVersion + 1,
+        past: [],
+        future: [],
+        selection: NO_SELECTION,
+        selectedVars: [],
+        results: null,
+        dirty: false,
+        resultsOpen: false,
+        messages: [],
       })),
-    setProjectName: (projectName) => { if (!readOnly(get())) set({ projectName: projectName.slice(0, 100), dirty: true }); },
+    setProjectName: (projectName) => {
+      if (!readOnly(get())) set({ projectName: projectName.slice(0, 100), dirty: true });
+    },
     markSaved: () => set({ dirty: false }),
-    keepExample: () => set((s) => (s.example ? { example: null, exampleBaseline: null, projectId: newId('proj'), projectName: s.projectName.replace(/^Example: /, ''), dirty: true } : {})),
+    keepExample: () =>
+      set((s) =>
+        s.example
+          ? {
+              example: null,
+              exampleBaseline: null,
+              projectId: newId('proj'),
+              projectName: s.projectName.replace(/^Example: /, ''),
+              dirty: true,
+            }
+          : {},
+      ),
   } satisfies Partial<State>;
 }
 
@@ -723,18 +1277,41 @@ export function resultsSlice(set: SetState, _get: GetState) {
     setJob: (job) => set({ job }),
     setResults: (r, key) =>
       set((s) => {
-        const base = s.results && s.results.key === key ? s.results : { pls: null, cb: null, miiv: null, boot: null, fitTest: null, process: null, key };
-        return { results: { ...base, ...r, key }, resultsOpen: true, fitRequest: s.resultsOpen ? s.fitRequest : s.fitRequest + 1, messages: withWarnings(s.messages, r) };
+        const base =
+          s.results && s.results.key === key
+            ? s.results
+            : { pls: null, cb: null, miiv: null, boot: null, fitTest: null, process: null, key };
+        return {
+          results: { ...base, ...r, key },
+          resultsOpen: true,
+          fitRequest: s.resultsOpen ? s.fitRequest : s.fitRequest + 1,
+          messages: withWarnings(s.messages, r),
+        };
       }),
     setCompareGroups: (compareGroups) => set({ compareGroups }),
-    showGroup: (index) => set((s) => {
-      const cb = s.results?.cb;
-      const g = cb?.groups;
-      if (!s.results || !cb || !g || !g.results[index]) return s;
-      // The bootstrap follows: each group's (or level's) statistics.
-      const boot = s.results.boot?.byBlock?.[index] ? { ...s.results.boot, stats: s.results.boot.byBlock[index] } : s.results.boot;
-      return { results: { ...s.results, boot, cb: { ...g.results[index], groups: g, groupIndex: index, modindices: cb.modindices, wald: cb.wald } } };
-    }),
+    showGroup: (index) =>
+      set((s) => {
+        const cb = s.results?.cb;
+        const g = cb?.groups;
+        if (!s.results || !cb || !g || !g.results[index]) return s;
+        // The bootstrap follows: each group's (or level's) statistics.
+        const boot = s.results.boot?.byBlock?.[index]
+          ? { ...s.results.boot, stats: s.results.boot.byBlock[index] }
+          : s.results.boot;
+        return {
+          results: {
+            ...s.results,
+            boot,
+            cb: {
+              ...g.results[index],
+              groups: g,
+              groupIndex: index,
+              modindices: cb.modindices,
+              wald: cb.wald,
+            },
+          },
+        };
+      }),
   } satisfies Partial<State>;
 }
 
@@ -742,11 +1319,20 @@ export function resultsSlice(set: SetState, _get: GetState) {
 export function viewSlice(set: SetState, _get: GetState) {
   return {
     setSelection: (selection) => set({ selection }),
-    select: (kind, id) => set({ selection: kind === 'construct' ? { nodes: [id], edges: [] } : { nodes: [], edges: [id] } }),
+    select: (kind, id) =>
+      set({
+        selection: kind === 'construct' ? { nodes: [id], edges: [] } : { nodes: [], edges: [id] },
+      }),
     setSelectedVars: (selectedVars) => set({ selectedVars }),
     setTool: (tool) => set({ tool }),
     setView: (view) => set({ view }),
-    openValidation: (focus) => set((s) => ({ view: 'validation', validationFocus: focus ?? null, validationReturn: s.view === 'editor' ? 'editor' : s.view === 'validation' ? s.validationReturn : 'home' })),
+    openValidation: (focus) =>
+      set((s) => ({
+        view: 'validation',
+        validationFocus: focus ?? null,
+        validationReturn:
+          s.view === 'editor' ? 'editor' : s.view === 'validation' ? s.validationReturn : 'home',
+      })),
     closeValidation: () => set((s) => ({ view: s.validationReturn, validationFocus: null })),
     setWorkspace: (workspace) => set({ workspace }),
     setShowErrorTerms: (showErrorTerms) => set({ showErrorTerms }),
@@ -767,7 +1353,13 @@ export function messageSlice(set: SetState, get: GetState) {
       set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, text }] }));
       setTimeout(() => get().dismissToast(id), kind === 'error' ? 7000 : 3500);
     },
-    logMessage: (level, text, source) => set((s) => ({ messages: [...s.messages, { id: ++messageId, at: Date.now(), level, text, ...(source ? { source } : {}) }].slice(-MAX_MESSAGES) })),
+    logMessage: (level, text, source) =>
+      set((s) => ({
+        messages: [
+          ...s.messages,
+          { id: ++messageId, at: Date.now(), level, text, ...(source ? { source } : {}) },
+        ].slice(-MAX_MESSAGES),
+      })),
     clearMessages: () => set({ messages: [] }),
     dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   } satisfies Partial<State>;
@@ -827,7 +1419,8 @@ export const selectPlacedModel = (() => {
   let last: { model: ModelState; circle: boolean; placed: PlacedModel } | null = null;
   return (s: Pick<State, 'model' | 'settings'>): PlacedModel => {
     const circle = circlesFor(s.settings.figure, s.settings.method);
-    if (!last || last.model !== s.model || last.circle !== circle) last = { model: s.model, circle, placed: placeModel(s.model, circle, last?.placed) };
+    if (!last || last.model !== s.model || last.circle !== circle)
+      last = { model: s.model, circle, placed: placeModel(s.model, circle, last?.placed) };
     return last.placed;
   };
 })();
@@ -838,9 +1431,12 @@ export function useFreshResults(): Results | null {
 }
 
 // Warnings of every R call (also panels that keep their results to themselves) go to Messages.
-setWarningSink((warnings, source, level = 'warning') => useStore.setState((s) => {
-  const now = Date.now();
-  const added = [...new Set(warnings)].filter((w) => !loggedRecently(s.messages, w, now))
-    .map((text): Message => ({ id: ++messageId, at: now, level, text, source }));
-  return added.length ? { messages: [...s.messages, ...added].slice(-MAX_MESSAGES) } : {};
-}));
+setWarningSink((warnings, source, level = 'warning') =>
+  useStore.setState((s) => {
+    const now = Date.now();
+    const added = [...new Set(warnings)]
+      .filter((w) => !loggedRecently(s.messages, w, now))
+      .map((text): Message => ({ id: ++messageId, at: now, level, text, source }));
+    return added.length ? { messages: [...s.messages, ...added].slice(-MAX_MESSAGES) } : {};
+  }),
+);

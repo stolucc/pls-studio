@@ -13,9 +13,13 @@ const schema = z.object({
   APP_ORIGIN: z.string().url().default('http://localhost:5175'),
   SESSION_SECRET: z.string().min(32),
   /** 32-byte master key (base64) that wraps per-project data keys. */
-  DATA_MASTER_KEY: z.string().refine((v) => Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64'),
+  DATA_MASTER_KEY: z
+    .string()
+    .refine((v) => Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64'),
   /** Key wrapping TOTP secrets (32 bytes, base64). */
-  TOTP_KEY: z.string().refine((v) => Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64'),
+  TOTP_KEY: z
+    .string()
+    .refine((v) => Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64'),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   SMTP_URL: z.string().optional(),
@@ -23,7 +27,10 @@ const schema = z.object({
   /** Built client (../dist) to serve in production; unset when a reverse proxy serves it. */
   STATIC_DIR: z.string().optional(),
   /** Max dataset upload, bytes. */
-  MAX_DATASET_BYTES: z.coerce.number().int().default(60 * 1024 * 1024),
+  MAX_DATASET_BYTES: z.coerce
+    .number()
+    .int()
+    .default(60 * 1024 * 1024),
 });
 
 export type Config = z.infer<typeof schema>;
@@ -47,9 +54,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   if (parsed.data.NODE_ENV === 'production') {
     for (const [k, v] of Object.entries(DEV_DEFAULTS)) {
-      if ((parsed.data as Record<string, unknown>)[k] === v) throw new Error(`${k} must be set in production`);
+      if ((parsed.data as Record<string, unknown>)[k] === v)
+        throw new Error(`${k} must be set in production`);
     }
-    if (!parsed.data.APP_ORIGIN.startsWith('https://')) throw new Error('APP_ORIGIN must be https in production');
+    if (!parsed.data.APP_ORIGIN.startsWith('https://'))
+      throw new Error('APP_ORIGIN must be https in production');
   }
   return parsed.data;
 }

@@ -5,9 +5,18 @@ import { fleishman, intermediateCor, valeMaurelli } from './nonnormal';
 import { buildPopulation, generateData, type PopulationSpec } from './population';
 import { corStd, mean, standardize } from './stats';
 
-interface FlRef { skew: number; kurt: number; a: number; b: number; c: number; d: number }
-const ref: { fleishman: FlRef[]; intermediate: { i: number; j: number; r: number; rho: number }[] } =
-  JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'vale-maurelli.json'), 'utf8'));
+interface FlRef {
+  skew: number;
+  kurt: number;
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+}
+const ref: {
+  fleishman: FlRef[];
+  intermediate: { i: number; j: number; r: number; rho: number }[];
+} = JSON.parse(readFileSync(join(__dirname, '__fixtures__', 'vale-maurelli.json'), 'utf8'));
 
 describe('Fleishman coefficients vs high-precision R solutions', () => {
   it.each(ref.fleishman)('skew $skew, kurtosis $kurt', ({ skew, kurt, a, b, c, d }) => {
@@ -39,7 +48,11 @@ describe('intermediate correlations', () => {
     expect(intermediateCor(fleishman(0, 0), fleishman(0, 0), 0.37)).toBeCloseTo(0.37, 12);
   });
   it('reports non-positive-definite intermediate matrices', () => {
-    const R = [[1, 0.95, 0.95], [0.95, 1, 0.81], [0.95, 0.81, 1]];
+    const R = [
+      [1, 0.95, 0.95],
+      [0.95, 1, 0.81],
+      [0.95, 0.81, 1],
+    ];
     expect(() => valeMaurelli(R, [2, -2, 2], [7, 7, 7])).toThrow();
   });
 });
@@ -48,7 +61,14 @@ describe('non-normal populations', () => {
   const pop: PopulationSpec = {
     constructs: [
       { name: 'X', type: 'factor', indicators: ['x1', 'x2', 'x3'], loadings: [0.8, 0.7, 0.75] },
-      { name: 'Y', type: 'factor', indicators: ['y1', 'y2', 'y3'], loadings: [0.75, 0.8, 0.7], skew: 0, kurtosis: 0 },
+      {
+        name: 'Y',
+        type: 'factor',
+        indicators: ['y1', 'y2', 'y3'],
+        loadings: [0.75, 0.8, 0.7],
+        skew: 0,
+        kurtosis: 0,
+      },
     ],
     paths: [{ from: 'X', to: 'Y', value: 0.5 }],
     exoCor: [],

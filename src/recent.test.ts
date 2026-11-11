@@ -1,11 +1,28 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { autosave, currentEntry, openRecent } from './io';
-import { getRecent, listRecent, MAX_RECENT, relativeTime, removeRecent, resetRecentForTests, saveRecent, type RecentEntry } from './recent';
+import {
+  getRecent,
+  listRecent,
+  MAX_RECENT,
+  relativeTime,
+  removeRecent,
+  resetRecentForTests,
+  saveRecent,
+  type RecentEntry,
+} from './recent';
 import { makeSample } from './sample';
 import { DEFAULT_SETTINGS } from './model/project';
 import { useStore } from './store';
 
-const entry = (id: string, updated: number): RecentEntry => ({ id, name: id, method: 'pls', updated, constructs: 1, dataLabel: 'no data', text: '{}' });
+const entry = (id: string, updated: number): RecentEntry => ({
+  id,
+  name: id,
+  method: 'pls',
+  updated,
+  constructs: 1,
+  dataLabel: 'no data',
+  text: '{}',
+});
 
 describe('recent projects store', () => {
   beforeEach(() => resetRecentForTests());

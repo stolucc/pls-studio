@@ -15,11 +15,25 @@ describe('suggestName', () => {
 });
 
 describe('autoLayout', () => {
-  const C = (id: string) => ({ id, name: id, type: 'factor' as const, mode: 'A' as const, indicators: [], x: 0, y: 0, side: 'left' as const });
+  const C = (id: string) => ({
+    id,
+    name: id,
+    type: 'factor' as const,
+    mode: 'A' as const,
+    indicators: [],
+    x: 0,
+    y: 0,
+    side: 'left' as const,
+  });
   it('places constructs in layers by longest incoming path', () => {
     const m: ModelState = {
       constructs: [C('A'), C('B'), C('M'), C('Y')],
-      paths: [{ id: '1', from: 'A', to: 'M' }, { id: '2', from: 'M', to: 'Y' }, { id: '3', from: 'A', to: 'Y' }, { id: '4', from: 'B', to: 'Y' }],
+      paths: [
+        { id: '1', from: 'A', to: 'M' },
+        { id: '2', from: 'M', to: 'Y' },
+        { id: '3', from: 'A', to: 'Y' },
+        { id: '4', from: 'B', to: 'Y' },
+      ],
       moderations: [],
     };
     const out = Object.fromEntries(autoLayout(m).map((c) => [c.id, c]));
@@ -35,11 +49,17 @@ describe('autoLayout', () => {
   it('moves a mediator off a path that skips its layer (Bollen: ind60 → dem65 past dem60)', () => {
     const m: ModelState = {
       constructs: [C('ind60'), C('dem60'), C('dem65')],
-      paths: [{ id: '1', from: 'ind60', to: 'dem60' }, { id: '2', from: 'ind60', to: 'dem65' }, { id: '3', from: 'dem60', to: 'dem65' }],
+      paths: [
+        { id: '1', from: 'ind60', to: 'dem60' },
+        { id: '2', from: 'ind60', to: 'dem65' },
+        { id: '3', from: 'dem60', to: 'dem65' },
+      ],
       moderations: [],
     };
     const out = Object.fromEntries(autoLayout(m).map((c) => [c.id, c]));
-    const yLine = out.ind60.y + ((out.dem65.y - out.ind60.y) * (out.dem60.x - out.ind60.x)) / (out.dem65.x - out.ind60.x);
+    const yLine =
+      out.ind60.y +
+      ((out.dem65.y - out.ind60.y) * (out.dem60.x - out.ind60.x)) / (out.dem65.x - out.ind60.x);
     expect(Math.abs(out.dem60.y - yLine)).toBeGreaterThanOrEqual(140);
     expect(out.dem60.side).toBe('top');
   });
@@ -47,7 +67,13 @@ describe('autoLayout', () => {
   it('keeps the gap between constructs of a column when one is moved', () => {
     const m: ModelState = {
       constructs: [C('X'), C('M1'), C('M2'), C('Y')],
-      paths: [{ id: '1', from: 'X', to: 'M1' }, { id: '2', from: 'X', to: 'M2' }, { id: '3', from: 'M1', to: 'Y' }, { id: '4', from: 'M2', to: 'Y' }, { id: '5', from: 'X', to: 'Y' }],
+      paths: [
+        { id: '1', from: 'X', to: 'M1' },
+        { id: '2', from: 'X', to: 'M2' },
+        { id: '3', from: 'M1', to: 'Y' },
+        { id: '4', from: 'M2', to: 'Y' },
+        { id: '5', from: 'X', to: 'Y' },
+      ],
       moderations: [],
     };
     const out = Object.fromEntries(autoLayout(m).map((c) => [c.id, c]));

@@ -18,20 +18,38 @@ const ref = JSON.parse(readFileSync(join(DIR, 'reference.json'), 'utf8'));
 const data = parseCsv(readFileSync(join(DIR, 'simdata.csv'), 'utf8')).dataset;
 const mv = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => `mv${a + i}`);
 const spec: ModelSpec = {
-  constructs: [{ name: 'Price', type: 'factor', mode: 'A', indicators: mv(1, 5) }, { name: 'Quality', type: 'factor', mode: 'A', indicators: mv(6, 10) },
-    { name: 'Satisfaction', type: 'factor', mode: 'A', indicators: mv(11, 13) }],
-  paths: [{ from: 'Price', to: 'Satisfaction' }, { from: 'Quality', to: 'Satisfaction' }],
+  constructs: [
+    { name: 'Price', type: 'factor', mode: 'A', indicators: mv(1, 5) },
+    { name: 'Quality', type: 'factor', mode: 'A', indicators: mv(6, 10) },
+    { name: 'Satisfaction', type: 'factor', mode: 'A', indicators: mv(11, 13) },
+  ],
+  paths: [
+    { from: 'Price', to: 'Satisfaction' },
+    { from: 'Quality', to: 'Satisfaction' },
+  ],
 };
-const options = { scheme: 'centroid' as const, consistent: false, tolerance: 1e-6, maxIter: 100, missing: 'casewise' as const };
+const options = {
+  scheme: 'centroid' as const,
+  consistent: false,
+  tolerance: 1e-6,
+  maxIter: 100,
+  missing: 'casewise' as const,
+};
 
 it('REBUS with 2 and 3 classes equals native plspm', async () => {
-  const r = await rebusR(data, spec, options, { classes: [2, 3], stopCrit: 0.005, iterMax: 100, seed: 1 });
+  const r = await rebusR(data, spec, options, {
+    classes: [2, 3],
+    stopCrit: 0.005,
+    iterMax: 100,
+    seed: 1,
+  });
   expect(r.engine.package).toBe('plspm');
   expect(r.n).toBe(400);
   expect(r.globalGof).toBeCloseTo(ref.gof, 8);
   r.fusion.forEach((h, i) => expect(h).toBeCloseTo(ref.height[i], 6));
   for (const k of [2, 3]) {
-    const m = r.models.find((x) => x.k === k)!, n = ref[`k${k}`];
+    const m = r.models.find((x) => x.k === k)!,
+      n = ref[`k${k}`];
     expect(m.gqi, `k = ${k}`).toBeCloseTo(n.gqi, 8);
     expect(m.sizes).toEqual(n.sizes);
     expect(m.segments).toEqual(n.segments);
@@ -43,12 +61,26 @@ it('REBUS with 2 and 3 classes equals native plspm', async () => {
   }
   // The two simulated segments are recovered (as in plspm's example).
   expect(ref.k2.groupAgreement).toEqual([180, 20, 17, 183]);
-  const script = await rebusScriptR(data, spec, options, { classes: [2], stopCrit: 0.005, iterMax: 100, seed: 1 });
+  const script = await rebusScriptR(data, spec, options, {
+    classes: [2],
+    stopCrit: 0.005,
+    iterMax: 100,
+    seed: 1,
+  });
   expect(script).toContain('it.reb(global, hc, nk = k');
   expect(script).toContain('path["Satisfaction", "Price"] <- 1');
 }, 900_000);
 
 it('refuses formative blocks and interactions', async () => {
-  await expect(rebusR(data, { ...spec, constructs: spec.constructs.map((c, i) => (i === 0 ? { ...c, mode: 'B' as const } : c)) }, options,
-    { classes: [2], stopCrit: 0.005, iterMax: 100, seed: 1 })).rejects.toThrow(/Mode A/);
+  await expect(
+    rebusR(
+      data,
+      {
+        ...spec,
+        constructs: spec.constructs.map((c, i) => (i === 0 ? { ...c, mode: 'B' as const } : c)),
+      },
+      options,
+      { classes: [2], stopCrit: 0.005, iterMax: 100, seed: 1 },
+    ),
+  ).rejects.toThrow(/Mode A/);
 }, 900_000);

@@ -9,22 +9,35 @@ import { parseMiiv } from '../rengine/analyses';
 import { estimateMiiv } from './miiv';
 import { cases, close, loadData, toSpec } from './validationHarness';
 
-const NAMES = ['miiv_miivsem_hs', 'miiv_miivsem_poldem', 'miiv_miivsem_mobi', 'miiv_miivsem_emse', 'cov_miivsem_bollen'];
+const NAMES = [
+  'miiv_miivsem_hs',
+  'miiv_miivsem_poldem',
+  'miiv_miivsem_mobi',
+  'miiv_miivsem_emse',
+  'cov_miivsem_bollen',
+];
 const TOL = 1e-4;
 
 describe.each(NAMES)('MIIV-2SLS variance step vs MIIVsem: %s', (name) => {
   it('standardised coefficients, (co)variances and R² agree', () => {
     const c = cases.find((k) => k.name === name)!;
-    const ref = parseMiiv(JSON.parse(readFileSync(join(__dirname, '..', 'rengine', '__fixtures__', `${name}.r.json`), 'utf8')));
+    const ref = parseMiiv(
+      JSON.parse(
+        readFileSync(join(__dirname, '..', 'rengine', '__fixtures__', `${name}.r.json`), 'utf8'),
+      ),
+    );
     const mine = estimateMiiv(loadData(c), toSpec(c));
     for (const e of ref.estimates) {
       if (e.std === undefined) continue;
       const m = mine.estimates.find((x) => x.lhs === e.lhs && x.op === e.op && x.rhs === e.rhs);
       close(m?.std, e.std, TOL, `std ${e.lhs} ${e.op} ${e.rhs}`);
     }
-    for (const [k, v] of Object.entries(ref.fixedStd ?? {})) close(mine.fixedStd?.[k], v, TOL, `marker ${k}`);
+    for (const [k, v] of Object.entries(ref.fixedStd ?? {}))
+      close(mine.fixedStd?.[k], v, TOL, `marker ${k}`);
     for (const v of ref.variances ?? []) {
-      const m = mine.variances?.find((x) => (x.lhs === v.lhs && x.rhs === v.rhs) || (x.lhs === v.rhs && x.rhs === v.lhs));
+      const m = mine.variances?.find(
+        (x) => (x.lhs === v.lhs && x.rhs === v.rhs) || (x.lhs === v.rhs && x.rhs === v.lhs),
+      );
       expect(m, `${v.lhs} ~~ ${v.rhs}`).toBeDefined();
       close(m!.est, v.est, TOL, `var ${v.lhs} ~~ ${v.rhs}`);
       close(m!.std, v.std, TOL, `std var ${v.lhs} ~~ ${v.rhs}`);

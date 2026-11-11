@@ -1,12 +1,21 @@
 import { ViewportPortal } from '@xyflow/react';
 import type { MouseEvent } from 'react';
-import { moderatorSegment, pathOffset, pathSegment, quadraticLoop, type QuadraticLoop } from '../geometry';
+import {
+  moderatorSegment,
+  pathOffset,
+  pathSegment,
+  quadraticLoop,
+  type QuadraticLoop,
+} from '../geometry';
 import type { Moderation } from '../model/project';
 import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
 
-export interface ModerationLabel { beta: number | null; p: number | null }
+export interface ModerationLabel {
+  beta: number | null;
+  p: number | null;
+}
 
 interface ModItem {
   /** A moderation, or a moderated moderation (its `moderator` acting on the moderation's arrow). */
@@ -24,7 +33,11 @@ const NONE: string[] = [];
  * Moderating effects drawn as dashed arrows from the moderator onto the
  * midpoint of the moderated path. Rendered in flow coordinates.
  */
-export function ModeratorLayer({ labelFor, onMenu, labelAt }: {
+export function ModeratorLayer({
+  labelFor,
+  onMenu,
+  labelAt,
+}: {
   labelFor: (moderationId: string) => ModerationLabel | null;
   /** Where a moderation's label goes (placed so that labels do not overlap); otherwise the arrow's midpoint. */
   labelAt?: (moderationId: string) => { x: number; y: number } | null;
@@ -41,7 +54,8 @@ export function ModeratorLayer({ labelFor, onMenu, labelAt }: {
     const path = model.paths.find((p) => p.id === mo.path);
     const m = byId.get(mo.moderator);
     if (!path || !m) return [];
-    const s = byId.get(path.from), t = byId.get(path.to);
+    const s = byId.get(path.from),
+      t = byId.get(path.to);
     if (!s || !t) return [];
     const seg = pathSegment(s, t, pathOffset(model.paths, path.from, path.to));
     if (!seg) return [];
@@ -56,7 +70,13 @@ export function ModeratorLayer({ labelFor, onMenu, labelAt }: {
   for (const t of model.threeWay ?? []) {
     const target = items.find((i) => i.mo.id === t.moderation && !i.loop);
     const z = byId.get(t.moderator);
-    if (target && z) items.push({ mo: { id: t.id, moderator: t.moderator }, seg: moderatorSegment(z, target.seg), on: selected.includes(t.id), loop: null });
+    if (target && z)
+      items.push({
+        mo: { id: t.id, moderator: t.moderator },
+        seg: moderatorSegment(z, target.seg),
+        on: selected.includes(t.id),
+        loop: null,
+      });
   }
   if (items.length === 0) return null;
 
@@ -69,22 +89,58 @@ export function ModeratorLayer({ labelFor, onMenu, labelAt }: {
     <ViewportPortal>
       <svg className="mod-layer" width={1} height={1}>
         {items.map(({ mo, seg, on, loop }) => {
-          const menu = (e: MouseEvent) => { select(e, mo.id); onMenu(e, { kind: 'moderation', id: mo.id }); };
+          const menu = (e: MouseEvent) => {
+            select(e, mo.id);
+            onMenu(e, { kind: 'moderation', id: mo.id });
+          };
           const marker = on ? 'url(#arrow-mod-sel)' : 'url(#arrow-mod)';
           return (
             <g key={mo.id} className={`mod${on ? ' on' : ''}${loop ? ' quad' : ''}`}>
-              {loop
-                ? <>
-                  <path className="mod-hit" d={loop.d} onClick={(e) => select(e, mo.id)} onContextMenu={menu} />
+              {loop ? (
+                <>
+                  <path
+                    className="mod-hit"
+                    d={loop.d}
+                    onClick={(e) => select(e, mo.id)}
+                    onContextMenu={menu}
+                  />
                   <path className="mod-line" d={loop.d} markerEnd={marker} />
-                  <text className="quad-tag" x={loop.lx + loop.nx * 18} y={loop.ly + loop.ny * 18 + 4} textAnchor="middle" onClick={(e) => select(e, mo.id)} onContextMenu={menu}>
-                    {loop.tag}<title>Quadratic effect: {loop.tag} — the effect of this predictor changes with its own level</title>
+                  <text
+                    className="quad-tag"
+                    x={loop.lx + loop.nx * 18}
+                    y={loop.ly + loop.ny * 18 + 4}
+                    textAnchor="middle"
+                    onClick={(e) => select(e, mo.id)}
+                    onContextMenu={menu}
+                  >
+                    {loop.tag}
+                    <title>
+                      Quadratic effect: {loop.tag} — the effect of this predictor changes with its
+                      own level
+                    </title>
                   </text>
                 </>
-                : <>
-                  <line className="mod-hit" x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2} onClick={(e) => select(e, mo.id)} onContextMenu={menu} />
-                  <line className="mod-line" x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2} markerEnd={marker} />
-                </>}
+              ) : (
+                <>
+                  <line
+                    className="mod-hit"
+                    x1={seg.x1}
+                    y1={seg.y1}
+                    x2={seg.x2}
+                    y2={seg.y2}
+                    onClick={(e) => select(e, mo.id)}
+                    onContextMenu={menu}
+                  />
+                  <line
+                    className="mod-line"
+                    x1={seg.x1}
+                    y1={seg.y1}
+                    x2={seg.x2}
+                    y2={seg.y2}
+                    markerEnd={marker}
+                  />
+                </>
+              )}
               <circle className="mod-dot" cx={seg.x2} cy={seg.y2} r={3.5} />
             </g>
           );
@@ -95,10 +151,19 @@ export function ModeratorLayer({ labelFor, onMenu, labelAt }: {
         if (!l || l.beta === null) return null;
         const cls = l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns';
         return (
-          <div key={mo.id} className={`elabel mod-label${cls}`} onClick={(e) => select(e, mo.id)}
-            onContextMenu={(e) => { select(e, mo.id); onMenu(e, { kind: 'moderation', id: mo.id }); }}
+          <div
+            key={mo.id}
+            className={`elabel mod-label${cls}`}
+            onClick={(e) => select(e, mo.id)}
+            onContextMenu={(e) => {
+              select(e, mo.id);
+              onMenu(e, { kind: 'moderation', id: mo.id });
+            }}
             // On the arrow: a quadratic effect's estimate at the top of its loop.
-            style={{ transform: `translate(-50%, -50%) translate(${loop ? loop.lx : (labelAt?.(mo.id)?.x ?? (seg.x1 + seg.x2) / 2)}px, ${loop ? loop.ly : (labelAt?.(mo.id)?.y ?? (seg.y1 + seg.y2) / 2)}px)` }}>
+            style={{
+              transform: `translate(-50%, -50%) translate(${loop ? loop.lx : (labelAt?.(mo.id)?.x ?? (seg.x1 + seg.x2) / 2)}px, ${loop ? loop.ly : (labelAt?.(mo.id)?.y ?? (seg.y1 + seg.y2) / 2)}px)`,
+            }}
+          >
             <EstimateText figure={figure} value={l.beta} p={l.p} />
           </div>
         );

@@ -4,29 +4,51 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./runtime', () => ({
-  withR: vi.fn(async () => { throw new Error('browser R used'); }),
-  withSession: vi.fn(async () => { throw new Error('browser R used'); }),
+  withR: vi.fn(async () => {
+    throw new Error('browser R used');
+  }),
+  withSession: vi.fn(async () => {
+    throw new Error('browser R used');
+  }),
   parallelMap: vi.fn(),
-  callJson: vi.fn(), callString: vi.fn(),
+  callJson: vi.fn(),
+  callString: vi.fn(),
 }));
 vi.mock('../store', () => ({ useStore: { getState: () => ({ toast: toasts }) } }));
 const toasts = vi.fn();
 
-type Handler = (path: string, init: RequestInit) => { status?: number; body?: unknown; raw?: BodyInit; headers?: Record<string, string> } | 'down';
+type Handler = (
+  path: string,
+  init: RequestInit,
+) => { status?: number; body?: unknown; raw?: BodyInit; headers?: Record<string, string> } | 'down';
 let handler: Handler = () => 'down';
 const store = new Map<string, string>();
 
 beforeEach(() => {
-  store.clear(); toasts.mockClear();
-  vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) });
-  vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
-    expect(url.startsWith('http://127.0.0.1:9878/')).toBe(true);
-    const r = handler(url.slice('http://127.0.0.1:9878'.length), init);
-    if (r === 'down') throw new TypeError('Failed to fetch');
-    return new Response(r.raw ?? JSON.stringify(r.body ?? {}), { status: r.status ?? 200, headers: r.headers });
-  }));
+  store.clear();
+  toasts.mockClear();
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit = {}) => {
+      expect(url.startsWith('http://127.0.0.1:9878/')).toBe(true);
+      const r = handler(url.slice('http://127.0.0.1:9878'.length), init);
+      if (r === 'down') throw new TypeError('Failed to fetch');
+      return new Response(r.raw ?? JSON.stringify(r.body ?? {}), {
+        status: r.status ?? 200,
+        headers: r.headers,
+      });
+    }),
+  );
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.resetModules();
+});
 
 const TOKEN = 'a'.repeat(64);
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -34,14 +56,20 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 describe('bridgeHash', () => {
   it('hashes the sources in file-name order, as the helper does', async () => {
     const { bridgeHash } = await import('./helper');
-    expect(await bridgeHash({ pls: 'B', boot: 'A', plsx: 'C' })).toBe(sha('boot\nA\npls\nB\nplsx\nC\n'));
+    expect(await bridgeHash({ pls: 'B', boot: 'A', plsx: 'C' })).toBe(
+      sha('boot\nA\npls\nB\nplsx\nC\n'),
+    );
   });
   it('equals the hash of the helper’s embedded copy of the bridge', async () => {
     const { bridgeHash } = await import('./helper');
     const { SOURCES } = await import('./bridge');
     const dir = join(__dirname, '..', '..', 'helper', 'rsrc');
-    const files = readdirSync(dir).filter((f) => f.endsWith('.R')).sort();
-    const go = sha(files.map((f) => `${f.slice(0, -2)}\n${readFileSync(join(dir, f), 'utf8')}\n`).join(''));
+    const files = readdirSync(dir)
+      .filter((f) => f.endsWith('.R'))
+      .sort();
+    const go = sha(
+      files.map((f) => `${f.slice(0, -2)}\n${readFileSync(join(dir, f), 'utf8')}\n`).join(''),
+    );
     expect(await bridgeHash(SOURCES)).toBe(go);
   });
 });
@@ -60,15 +88,29 @@ describe('probeHelper', () => {
     expect(await probeHelper(sources, ['cSEM'])).toBe('unpaired');
     expect(store.has('pls-studio.helper.token')).toBe(false);
     store.set('pls-studio.helper.token', TOKEN);
-    handler = (p) => (p === '/health' ? { body: { ok: true } } : { body: { bridge: 'x', r_error: 'Rscript not found' } });
+    handler = (p) =>
+      p === '/health'
+        ? { body: { ok: true } }
+        : { body: { bridge: 'x', r_error: 'Rscript not found' } };
     expect(await probeHelper(sources, ['cSEM'])).toBe('no-r');
-    handler = (p) => (p === '/health' ? { body: { ok: true } } : { body: { bridge: 'other', r: 'R version 4.4.1' } });
+    handler = (p) =>
+      p === '/health'
+        ? { body: { ok: true } }
+        : { body: { bridge: 'other', r: 'R version 4.4.1' } };
     expect(await probeHelper(sources, ['cSEM'])).toBe('mismatch');
     const hash = await ok();
     handler = (p, init) => {
       if (p === '/health') return { body: { ok: true } };
       expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`);
-      if (p === '/version') return { body: { bridge: hash, r: 'R version 4.4.1 (2024-06-14)', workers: 7, helper_version: '0.1.0' } };
+      if (p === '/version')
+        return {
+          body: {
+            bridge: hash,
+            r: 'R version 4.4.1 (2024-06-14)',
+            workers: 7,
+            helper_version: '0.1.0',
+          },
+        };
       return { body: { versions: { cSEM: '0.6.1', lavaan: null } } };
     };
     expect(await probeHelper(sources, ['cSEM', 'lavaan'])).toBe('ready');
@@ -85,7 +127,10 @@ describe('pairHelper', () => {
     await expect(pairHelper('123456')).rejects.toThrow('Wrong or expired');
     handler = () => ({ body: { token: 'not-hex' } });
     await expect(pairHelper('123456')).rejects.toThrow('no valid token');
-    handler = (_p, init) => { expect(JSON.parse(String(init.body))).toEqual({ code: '123456' }); return { body: { token: TOKEN } }; };
+    handler = (_p, init) => {
+      expect(JSON.parse(String(init.body))).toEqual({ code: '123456' });
+      return { body: { token: TOKEN } };
+    };
     await pairHelper(' 123456 ');
     expect(store.get('pls-studio.helper.token')).toBe(TOKEN);
   });
@@ -95,13 +140,20 @@ describe('helperCall', () => {
   it('returns results, and tells R errors from helper problems', async () => {
     const { helperCall, HelperMissingPackages, HelperUnavailable } = await import('./helper');
     store.set('pls-studio.helper.token', TOKEN);
-    handler = (_p, init) => { const b = JSON.parse(String(init.body)); return { body: { id: b.id, ok: true, result: `${b.fn}:${b.req}:${b.export}` } }; };
+    handler = (_p, init) => {
+      const b = JSON.parse(String(init.body));
+      return { body: { id: b.id, ok: true, result: `${b.fn}:${b.req}:${b.export}` } };
+    };
     expect(await helperCall('ps_pls', '{"a":1}', ['cSEM'], true)).toBe('ps_pls:{"a":1}:true');
     handler = () => ({ body: { ok: false, kind: 'missing_packages', packages: ['seminr'] } });
-    await expect(helperCall('ps_pls', '{}', ['seminr'])).rejects.toBeInstanceOf(HelperMissingPackages);
+    await expect(helperCall('ps_pls', '{}', ['seminr'])).rejects.toBeInstanceOf(
+      HelperMissingPackages,
+    );
     handler = () => ({ body: { ok: false, kind: 'helper_error', message: 'R stopped' } });
     await expect(helperCall('ps_pls', '{}', [])).rejects.toBeInstanceOf(HelperUnavailable);
-    handler = () => ({ body: { ok: false, kind: 'r_error', message: 'Invalid weighting scheme in the request.' } });
+    handler = () => ({
+      body: { ok: false, kind: 'r_error', message: 'Invalid weighting scheme in the request.' },
+    });
     const e = await helperCall('ps_pls', '{}', []).catch((x) => x);
     expect(e).not.toBeInstanceOf(HelperUnavailable);
     expect(e.message).toBe('Invalid weighting scheme in the request.');
@@ -128,7 +180,12 @@ describe('bridge routing', () => {
       if (p === '/packages') return { body: { versions: { cSEM: '0.6.1' } } };
       const b = JSON.parse(String(init.body));
       calls.push(b.fn);
-      return { body: { ok: true, result: JSON.stringify({ n: 5, engine: { package: 'cSEM', version: '0.6.1' } }) } };
+      return {
+        body: {
+          ok: true,
+          result: JSON.stringify({ n: 5, engine: { package: 'cSEM', version: '0.6.1' } }),
+        },
+      };
     };
     const { rCall, computeLocation } = await import('./bridge');
     const r = await rCall<{ n: number; engine: { desktop?: string } }>('ps_pls', { x: 1 }, 'cSEM');
@@ -147,21 +204,35 @@ describe('bridge routing', () => {
     };
     const { rCall } = await import('./bridge');
     await expect(rCall('ps_pls', {}, 'seminr')).rejects.toThrow('browser R used');
-    await vi.waitFor(() => expect(toasts).toHaveBeenCalledWith('info', expect.stringContaining('pls-studio-helper setup')));
+    await vi.waitFor(() =>
+      expect(toasts).toHaveBeenCalledWith(
+        'info',
+        expect.stringContaining('pls-studio-helper setup'),
+      ),
+    );
   });
   it('uses the browser’s R when the helper is not running', async () => {
     await ready();
     handler = () => 'down';
     const { rCall } = await import('./bridge');
     await expect(rCall('ps_pls', {}, 'cSEM')).rejects.toThrow('browser R used');
-    await vi.waitFor(() => expect(toasts).toHaveBeenCalledWith('info', expect.stringContaining('Desktop R is not available')));
+    await vi.waitFor(() =>
+      expect(toasts).toHaveBeenCalledWith(
+        'info',
+        expect.stringContaining('Desktop R is not available'),
+      ),
+    );
   });
 });
 
 describe('connectHelper', () => {
   it('stores the token when allowed, and explains a refusal', async () => {
     const { connectHelper } = await import('./helper');
-    handler = (p, init) => { expect(p).toBe('/connect'); expect(init.method).toBe('POST'); return { body: { token: TOKEN } }; };
+    handler = (p, init) => {
+      expect(p).toBe('/connect');
+      expect(init.method).toBe('POST');
+      return { body: { token: TOKEN } };
+    };
     await connectHelper();
     expect(store.get('pls-studio.helper.token')).toBe(TOKEN);
     handler = () => ({ status: 403 });
@@ -180,15 +251,21 @@ describe('helperDownloads', () => {
     const { helperDownloads } = await import('./helper');
     const mac = helperDownloads('MacIntel');
     expect(mac.map((d) => d.label)).toEqual(['macOS (Apple Silicon)', 'macOS (Intel)']);
-    expect(mac[0].url).toBe('https://github.com/stolucc/pls-studio/releases/latest/download/PLS-Studio-Helper-arm64.dmg');
+    expect(mac[0].url).toBe(
+      'https://github.com/stolucc/pls-studio/releases/latest/download/PLS-Studio-Helper-arm64.dmg',
+    );
     expect(helperDownloads('Windows')[0].url).toMatch(/pls-studio-helper-windows-amd64\.exe$/);
     expect(helperDownloads('Linux x86_64')[0].url).toMatch(/pls-studio-helper-linux-amd64$/);
     expect(helperDownloads('')).toEqual([]);
   });
   it('names exactly the assets the release workflow publishes', async () => {
     const { helperDownloads } = await import('./helper');
-    const wf = readFileSync(join(__dirname, '..', '..', '.github', 'workflows', 'helper-release.yml'), 'utf8');
-    for (const d of ['Mac', 'Windows', 'Linux'].flatMap((p) => helperDownloads(p))) expect(wf).toContain(`dist/${d.url.split('/').pop()}`);
+    const wf = readFileSync(
+      join(__dirname, '..', '..', '.github', 'workflows', 'helper-release.yml'),
+      'utf8',
+    );
+    for (const d of ['Mac', 'Windows', 'Linux'].flatMap((p) => helperDownloads(p)))
+      expect(wf).toContain(`dist/${d.url.split('/').pop()}`);
   });
 });
 
@@ -223,18 +300,37 @@ describe('parallelism with desktop R', () => {
     useCompute.getState().set({ backend: 'helper', workers: 1 });
     const { bootParallel } = await import('./analyses');
     const boot = { samples: 500, seed: 1, confidence: 0.95 };
-    const options = { scheme: 'path' as const, consistent: false, tolerance: 1e-7, maxIter: 300, missing: 'casewise' as const };
+    const options = {
+      scheme: 'path' as const,
+      consistent: false,
+      tolerance: 1e-7,
+      maxIter: 300,
+      missing: 'casewise' as const,
+    };
     expect(await bootParallel({ kind: 'plsBoot', pkg: 'cSEM', options, boot })).toBe(false);
-    expect(await bootParallel({ kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot })).toBe(true);
+    expect(await bootParallel({ kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot })).toBe(
+      true,
+    );
     const { rCall } = await import('./bridge');
     await rCall('ps_pls_boot', { boot }, 'cSEM');
     await rCall('ps_cca', { samples: 99 }, 'cSEM');
-    await rCall('ps_pls_boot', { boot: { ...boot, chunkR: [100], chunkSeed: [1], part: 1 } }, 'cSEM');
+    await rCall(
+      'ps_pls_boot',
+      { boot: { ...boot, chunkR: [100], chunkSeed: [1], part: 1 } },
+      'cSEM',
+    );
     await rCall('ps_pls', {}, 'cSEM');
-    expect(seen.map((s) => [s.fn, s.req.cores])).toEqual([['ps_pls_boot', 13], ['ps_cca', 13], ['ps_pls_boot', undefined], ['ps_pls', undefined]]);
+    expect(seen.map((s) => [s.fn, s.req.cores])).toEqual([
+      ['ps_pls_boot', 13],
+      ['ps_cca', 13],
+      ['ps_pls_boot', undefined],
+      ['ps_pls', undefined],
+    ]);
     // In the browser, the setting decides.
     useCompute.getState().set({ backend: 'browser', workers: 1 });
-    expect(await bootParallel({ kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot })).toBe(false);
+    expect(await bootParallel({ kind: 'cbBoot', estimator: 'ML', missing: 'casewise', boot })).toBe(
+      false,
+    );
     useCompute.getState().set({ workers: 4 });
     expect(await bootParallel({ kind: 'plsBoot', pkg: 'cSEM', options, boot })).toBe(true);
     expect(await bootParallel({ kind: 'plsBoot', pkg: 'seminr', options, boot })).toBe(false);
@@ -242,26 +338,42 @@ describe('parallelism with desktop R', () => {
 });
 
 /** An NDJSON body delivered in pieces (lines split across chunks). */
-const pieces = (text: string, size: number) => new ReadableStream<Uint8Array>({
-  start(c) { const b = new TextEncoder().encode(text); for (let i = 0; i < b.length; i += size) c.enqueue(b.slice(i, i + size)); c.close(); },
-});
+const pieces = (text: string, size: number) =>
+  new ReadableStream<Uint8Array>({
+    start(c) {
+      const b = new TextEncoder().encode(text);
+      for (let i = 0; i < b.length; i += size) c.enqueue(b.slice(i, i + size));
+      c.close();
+    },
+  });
 
 describe('helperBatch', () => {
   it('reads streamed replies in any order and returns them in request order', async () => {
     const { helperBatch } = await import('./helper');
     store.set('pls-studio.helper.token', TOKEN);
-    let sent: { calls: { id: string; fn: string; req: string; packages: string[] }[] } | null = null;
+    let sent: { calls: { id: string; fn: string; req: string; packages: string[] }[] } | null =
+      null;
     handler = (p, init) => {
       expect(p).toBe('/batch');
       sent = JSON.parse(String(init.body));
-      const lines = sent!.calls.map((c) => JSON.stringify({ id: c.id, ok: true, result: `r:${c.req}` })).reverse().join('\n') + '\n';
+      const lines =
+        sent!.calls
+          .map((c) => JSON.stringify({ id: c.id, ok: true, result: `r:${c.req}` }))
+          .reverse()
+          .join('\n') + '\n';
       return { raw: pieces(lines, 7) };
     };
     const seen: number[] = [];
-    const out = await helperBatch('ps_mc', ['{"a":1}', '{"a":2}', '{"a":3}'], ['lavaan'], (d) => seen.push(d));
+    const out = await helperBatch('ps_mc', ['{"a":1}', '{"a":2}', '{"a":3}'], ['lavaan'], (d) =>
+      seen.push(d),
+    );
     expect(out).toEqual(['r:{"a":1}', 'r:{"a":2}', 'r:{"a":3}']);
     expect(seen).toEqual([1, 2, 3]);
-    expect(sent!.calls.map((c) => [c.fn, c.packages])).toEqual([['ps_mc', ['lavaan']], ['ps_mc', ['lavaan']], ['ps_mc', ['lavaan']]]);
+    expect(sent!.calls.map((c) => [c.fn, c.packages])).toEqual([
+      ['ps_mc', ['lavaan']],
+      ['ps_mc', ['lavaan']],
+      ['ps_mc', ['lavaan']],
+    ]);
     expect(new Set(sent!.calls.map((c) => c.id)).size).toBe(3);
   });
   it('rejects on an R error, on missing packages, and when replies are missing', async () => {
@@ -271,11 +383,18 @@ describe('helperBatch', () => {
       const calls = JSON.parse(String(init.body)).calls as { id: string }[];
       return { raw: calls.map((c, i) => JSON.stringify(f(c.id, i))).join('\n') };
     };
-    handler = answer((id, i) => (i === 1 ? { id, ok: false, kind: 'r_error', message: 'singular matrix' } : { id, ok: true, result: '1' }));
+    handler = answer((id, i) =>
+      i === 1
+        ? { id, ok: false, kind: 'r_error', message: 'singular matrix' }
+        : { id, ok: true, result: '1' },
+    );
     await expect(helperBatch('ps_mc', ['{}', '{}'], [])).rejects.toThrow('singular matrix');
     handler = answer((id) => ({ id, ok: false, kind: 'missing_packages', packages: ['lavaan'] }));
     await expect(helperBatch('ps_mc', ['{}'], [])).rejects.toBeInstanceOf(HelperMissingPackages);
-    handler = (_p, init) => { const c = JSON.parse(String(init.body)).calls[0]; return { raw: JSON.stringify({ id: c.id, ok: true, result: '1' }) }; };
+    handler = (_p, init) => {
+      const c = JSON.parse(String(init.body)).calls[0];
+      return { raw: JSON.stringify({ id: c.id, ok: true, result: '1' }) };
+    };
     await expect(helperBatch('ps_mc', ['{}', '{}'], [])).rejects.toBeInstanceOf(HelperUnavailable);
   });
   it('waits and retries while the helper answers 429', async () => {
@@ -284,12 +403,17 @@ describe('helperBatch', () => {
       const { helperCall } = await import('./helper');
       store.set('pls-studio.helper.token', TOKEN);
       let n = 0;
-      handler = () => (++n < 3 ? { status: 429, headers: { 'Retry-After': '1' } } : { body: { ok: true, result: 'done' } });
+      handler = () =>
+        ++n < 3
+          ? { status: 429, headers: { 'Retry-After': '1' } }
+          : { body: { ok: true, result: 'done' } };
       const p = helperCall('ps_pls', '{}', []);
       await vi.advanceTimersByTimeAsync(2500);
       expect(await p).toBe('done');
       expect(n).toBe(3);
-    } finally { vi.useRealTimers(); }
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it('desktop rCallParallel sends one batch; without the helper it uses the browser', async () => {
     const { bridgeHash } = await import('./helper');
@@ -304,7 +428,9 @@ describe('helperBatch', () => {
       if (p === '/version') return { body: { bridge: hash, r: 'R version 4.3.1', workers: 13 } };
       if (p === '/packages') return { body: { versions: {} } };
       const calls = JSON.parse(String(init.body)).calls as { id: string; req: string }[];
-      return { raw: calls.map((c) => JSON.stringify({ id: c.id, ok: true, result: c.req })).join('\n') };
+      return {
+        raw: calls.map((c) => JSON.stringify({ id: c.id, ok: true, result: c.req })).join('\n'),
+      };
     };
     const out = await rCallParallel<{ k: number }>('ps_mc', [{ k: 1 }, { k: 2 }], 'simulation');
     expect(out.map((o) => o.k)).toEqual([1, 2]);
@@ -319,7 +445,9 @@ describe('helperBatch', () => {
 
 describe('helper client edge cases', () => {
   it('helperCall: 401 un-pairs, other statuses and kinds map to the right errors', async () => {
-    const { helperCall, useHelper, HelperUnavailable, HelperMissingPackages } = await import('./helper');
+    const { helperCall, useHelper, HelperUnavailable, HelperMissingPackages } = await import(
+      './helper'
+    );
     store.set('pls-studio.helper.token', TOKEN);
     handler = () => ({ status: 401 });
     await expect(helperCall('ps_pls', '{}', [])).rejects.toBeInstanceOf(HelperUnavailable);
@@ -341,7 +469,9 @@ describe('helper client edge cases', () => {
     expect(m).toBeInstanceOf(HelperMissingPackages);
     expect(m.packages).toEqual([]);
     expect(new HelperMissingPackages(['a']).message).toBe('Desktop R lacks the R package a.');
-    expect(new HelperMissingPackages(['a', 'b']).message).toBe('Desktop R lacks the R packages a, b.');
+    expect(new HelperMissingPackages(['a', 'b']).message).toBe(
+      'Desktop R lacks the R packages a, b.',
+    );
     handler = () => ({ body: { ok: true } });
     expect(await helperCall('ps_pls', '{}', [])).toBe('');
   });
@@ -370,13 +500,22 @@ describe('helper client edge cases', () => {
     let release!: () => void;
     let callId = '';
     handler = (p, init) => {
-      if (p.startsWith('/cancel/')) { cancelled.push(p.slice('/cancel/'.length)); expect(init.method).toBe('POST'); return { status: 204 }; }
+      if (p.startsWith('/cancel/')) {
+        cancelled.push(p.slice('/cancel/'.length));
+        expect(init.method).toBe('POST');
+        return { status: 204 };
+      }
       callId = JSON.parse(String(init.body)).id;
       return { body: { ok: true, result: 'x' } };
     };
     const fetchMock = vi.mocked(fetch);
     const original = fetchMock.getMockImplementation()!;
-    fetchMock.mockImplementationOnce((url, init) => new Promise((res) => { release = () => res(original(url as string, init)); }));
+    fetchMock.mockImplementationOnce(
+      (url, init) =>
+        new Promise((res) => {
+          release = () => res(original(url as string, init));
+        }),
+    );
     const p = helperCall('ps_slow', '{}', []);
     await vi.waitFor(() => expect(release).toBeTypeOf('function'));
     cancelHelperCalls();
@@ -395,7 +534,11 @@ describe('helper client edge cases', () => {
     useHelper.setState({ state: 'ready', packages: { cSEM: '0.7.1' } });
     unpairHelper();
     expect(store.has('pls-studio.helper.token')).toBe(false);
-    expect(useHelper.getState()).toMatchObject({ state: 'unpaired', message: 'Not paired.', packages: {} });
+    expect(useHelper.getState()).toMatchObject({
+      state: 'unpaired',
+      message: 'Not paired.',
+      packages: {},
+    });
   });
   it('probe: helper errors, version details, and an unanswered package query', async () => {
     const { probeHelper, useHelper, bridgeHash } = await import('./helper');
@@ -419,13 +562,21 @@ describe('helper client edge cases', () => {
       return { status: 500 };
     };
     expect(await probeHelper(sources, ['cSEM'])).toBe('ready');
-    expect(useHelper.getState()).toMatchObject({ message: '', packages: { cSEM: null }, info: { helperVersion: '', r: '', workers: 0 } });
+    expect(useHelper.getState()).toMatchObject({
+      message: '',
+      packages: { cSEM: null },
+      info: { helperVersion: '', r: '', workers: 0 },
+    });
     expect(useHelper.getState().info).not.toHaveProperty('rError');
-    handler = (p) => (p === '/health' ? { body: { ok: true } } : { body: { bridge: 'other', helper_version: '0.1.3', r: 'R 4.5', workers: 3 } });
+    handler = (p) =>
+      p === '/health'
+        ? { body: { ok: true } }
+        : { body: { bridge: 'other', helper_version: '0.1.3', r: 'R 4.5', workers: 3 } };
     expect(await probeHelper(sources, [])).toBe('mismatch');
     expect(useHelper.getState().info).toEqual({ helperVersion: '0.1.3', r: 'R 4.5', workers: 3 });
     expect(useHelper.getState().message).toMatch(/newer than the helper installed here \(helper /);
-    handler = (p) => (p === '/health' ? { body: { ok: true } } : { body: { bridge: hash, r_error: 'no R' } });
+    handler = (p) =>
+      p === '/health' ? { body: { ok: true } } : { body: { bridge: hash, r_error: 'no R' } };
     expect(await probeHelper(sources, [])).toBe('no-r');
     expect(useHelper.getState().info).toMatchObject({ rError: 'no R' });
   });
@@ -441,7 +592,10 @@ describe('helper client edge cases', () => {
     await expect(pairHelper('123456')).rejects.toThrow('The helper answered 500.');
     handler = () => 'down';
     await expect(pairHelper('123456')).rejects.toThrow('The helper is not running.');
-    handler = (_p, init) => { expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json'); return { body: { token: TOKEN } }; };
+    handler = (_p, init) => {
+      expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+      return { body: { token: TOKEN } };
+    };
     await pairHelper('123456');
   });
   it('asks for Local Network Access once, and marks requests as loopback', async () => {
@@ -453,20 +607,31 @@ describe('helper client edge cases', () => {
     await pairHelper('123456');
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith({ name: 'local-network-access' });
-    expect(vi.mocked(fetch).mock.calls.at(-1)![1]).toMatchObject({ targetAddressSpace: 'loopback' });
+    expect(vi.mocked(fetch).mock.calls.at(-1)![1]).toMatchObject({
+      targetAddressSpace: 'loopback',
+    });
   });
   it('downloads name each system', async () => {
     const { helperDownloads } = await import('./helper');
-    expect(helperDownloads('Win32')).toEqual([{ label: 'Windows', url: expect.stringMatching(/windows-amd64\.exe$/) }]);
-    expect(helperDownloads('Linux')).toEqual([{ label: 'Linux', url: expect.stringMatching(/linux-amd64$/) }]);
-    expect(helperDownloads('Mac')[1]).toEqual({ label: 'macOS (Intel)', url: expect.stringMatching(/amd64\.dmg$/) });
+    expect(helperDownloads('Win32')).toEqual([
+      { label: 'Windows', url: expect.stringMatching(/windows-amd64\.exe$/) },
+    ]);
+    expect(helperDownloads('Linux')).toEqual([
+      { label: 'Linux', url: expect.stringMatching(/linux-amd64$/) },
+    ]);
+    expect(helperDownloads('Mac')[1]).toEqual({
+      label: 'macOS (Intel)',
+      url: expect.stringMatching(/amd64\.dmg$/),
+    });
   });
 });
 
 describe('helperAllowCommand', () => {
   it('names the command that lets the helper answer this deployment, and nothing for the origins it trusts by default', async () => {
     const { helperAllowCommand } = await import('./helper');
-    expect(helperAllowCommand('https://pls.flowtex.click')).toBe('pls-studio-helper allow-origin https://pls.flowtex.click');
+    expect(helperAllowCommand('https://pls.flowtex.click')).toBe(
+      'pls-studio-helper allow-origin https://pls.flowtex.click',
+    );
     expect(helperAllowCommand('http://localhost:5175')).toBeNull();
     expect(helperAllowCommand('http://127.0.0.1:8787')).toBeNull();
     expect(helperAllowCommand('')).toBeNull();
@@ -482,7 +647,11 @@ describe('helper self-update', () => {
       expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`);
       return { body: { current: '0.1.9', latest: '0.2.0', available: true } };
     };
-    expect(await checkHelperUpdate()).toEqual({ current: '0.1.9', latest: '0.2.0', available: true });
+    expect(await checkHelperUpdate()).toEqual({
+      current: '0.1.9',
+      latest: '0.2.0',
+      available: true,
+    });
     handler = () => ({ status: 404, raw: 'not found' });
     expect(await checkHelperUpdate()).toBeNull();
     handler = () => 'down';
@@ -494,8 +663,11 @@ describe('helper self-update', () => {
     const { updateHelper } = await import('./helper');
     let healthCalls = 0;
     handler = (path, init) => {
-      if (path === '/update') { expect(init.method).toBe('POST'); return { body: { updated: true, from: '0.1.9', to: '0.2.0' } }; }
-      if (path === '/health') return ++healthCalls < 2 ? 'down' : { body: { ok: true } };  // restarting, then up
+      if (path === '/update') {
+        expect(init.method).toBe('POST');
+        return { body: { updated: true, from: '0.1.9', to: '0.2.0' } };
+      }
+      if (path === '/health') return ++healthCalls < 2 ? 'down' : { body: { ok: true } }; // restarting, then up
       throw new Error(path);
     };
     expect(await updateHelper(20_000)).toBe('0.2.0');
@@ -507,7 +679,10 @@ describe('helper self-update', () => {
     const { updateHelper } = await import('./helper');
     handler = () => ({ status: 502, body: { error: 'the release signature is not valid' } });
     await expect(updateHelper(1000)).rejects.toThrow(/signature is not valid/);
-    handler = () => ({ status: 409, body: { current: '0.2.0', available: false, reason: 'this is the latest version' } });
+    handler = () => ({
+      status: 409,
+      body: { current: '0.2.0', available: false, reason: 'this is the latest version' },
+    });
     await expect(updateHelper(1000)).rejects.toThrow(/latest version/);
   });
 });

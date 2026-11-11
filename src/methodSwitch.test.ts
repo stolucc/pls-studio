@@ -3,13 +3,37 @@ import { switchMethod } from './methodSwitch';
 import { DEFAULT_SETTINGS, type ModelState } from './model/project';
 import { useStore } from './store';
 
-const C = (id: string, type: 'factor' | 'composite', extra = {}) => ({ id, name: id, type, mode: type === 'composite' ? 'B' as const : 'A' as const, indicators: [`${id}1`], x: 0, y: 0, side: 'left' as const, ...extra });
-const model: ModelState = { constructs: [C('A', 'composite'), C('B', 'factor')], paths: [{ id: 'p', from: 'A', to: 'B' }], moderations: [] };
+const C = (id: string, type: 'factor' | 'composite', extra = {}) => ({
+  id,
+  name: id,
+  type,
+  mode: type === 'composite' ? ('B' as const) : ('A' as const),
+  indicators: [`${id}1`],
+  x: 0,
+  y: 0,
+  side: 'left' as const,
+  ...extra,
+});
+const model: ModelState = {
+  constructs: [C('A', 'composite'), C('B', 'factor')],
+  paths: [{ id: 'p', from: 'A', to: 'B' }],
+  moderations: [],
+};
 const s = () => useStore.getState();
-const yes = () => Promise.resolve(true), no = () => Promise.resolve(false);
+const yes = () => Promise.resolve(true),
+  no = () => Promise.resolve(false);
 
 describe('switchMethod', () => {
-  beforeEach(() => useStore.setState({ model, settings: { ...DEFAULT_SETTINGS, method: 'pls' }, data: null, past: [], future: [], toasts: [] }));
+  beforeEach(() =>
+    useStore.setState({
+      model,
+      settings: { ...DEFAULT_SETTINGS, method: 'pls' },
+      data: null,
+      past: [],
+      future: [],
+      toasts: [],
+    }),
+  );
 
   it('converts composites to common factors when switching to CB-SEM, undoably', async () => {
     expect(await switchMethod('cbsem', yes)).toBe(true);
@@ -26,10 +50,22 @@ describe('switchMethod', () => {
   });
 
   it('refuses PLS for covariance-matrix data, and keeps second-order constructs (estimated by cSEM)', async () => {
-    useStore.setState({ settings: { ...DEFAULT_SETTINGS, method: 'cbsem' }, data: { names: ['A1'], cols: [], moments: { S: [[1]], n: 50 } } });
+    useStore.setState({
+      settings: { ...DEFAULT_SETTINGS, method: 'cbsem' },
+      data: { names: ['A1'], cols: [], moments: { S: [[1]], n: 50 } },
+    });
     expect(await switchMethod('pls', yes)).toBe(false);
     expect(s().toasts.at(-1)?.text).toMatch(/covariance matrix/);
-    useStore.setState({ data: null, model: { ...model, constructs: [...model.constructs, { ...C('H', 'factor'), indicators: [], components: ['B'] }] } });
+    useStore.setState({
+      data: null,
+      model: {
+        ...model,
+        constructs: [
+          ...model.constructs,
+          { ...C('H', 'factor'), indicators: [], components: ['B'] },
+        ],
+      },
+    });
     expect(await switchMethod('pls', yes)).toBe(true);
     expect(s().settings.method).toBe('pls');
     expect(s().model.constructs.find((k) => k.id === 'H')?.components).toEqual(['B']);

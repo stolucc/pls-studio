@@ -3,7 +3,12 @@
 // and the settings, carried on each construct, so the canvas, the figure export and the method comparison lay a model
 // out alike, and two layouts side by side never interfere.
 
-import { indicatorsDrawnElsewhere, type Construct, type Method, type ModelState } from './model/project';
+import {
+  indicatorsDrawnElsewhere,
+  type Construct,
+  type Method,
+  type ModelState,
+} from './model/project';
 import type { FigureStyle } from './figure/style';
 
 /** A construct with its layout: `circle`, drawn as a circle (composites as matching hexagons); `shown`, the indicator boxes drawn on it. */
@@ -12,13 +17,18 @@ export type PlacedConstruct = Construct & { circle: boolean; shown: string[] };
 export type PlacedModel = Omit<ModelState, 'constructs'> & { constructs: PlacedConstruct[] };
 
 /** Whether constructs are circles: the figure style's choice (conditional process analysis keeps its rectangles). */
-export const circlesFor = (figure: Pick<FigureStyle, 'circleConstructs'>, method: Method) => figure.circleConstructs && method !== 'process';
+export const circlesFor = (figure: Pick<FigureStyle, 'circleConstructs'>, method: Method) =>
+  figure.circleConstructs && method !== 'process';
 
 /**
  * The model with its constructs placed. `prev` (an earlier placement) lends its object to each construct whose placement
  * is unchanged, so arrows memoised on the construct object do not recompute.
  */
-export function placeModel<M extends Pick<ModelState, 'constructs'>>(m: M, circle: boolean, prev?: Pick<PlacedModel, 'constructs'>): Omit<M, 'constructs'> & { constructs: PlacedConstruct[] } {
+export function placeModel<M extends Pick<ModelState, 'constructs'>>(
+  m: M,
+  circle: boolean,
+  prev?: Pick<PlacedModel, 'constructs'>,
+): Omit<M, 'constructs'> & { constructs: PlacedConstruct[] } {
   const elsewhere = indicatorsDrawnElsewhere(m);
   const old = new Map(prev?.constructs.map((p) => [p.id, p]));
   return {
@@ -33,8 +43,18 @@ export function placeModel<M extends Pick<ModelState, 'constructs'>>(m: M, circl
 }
 
 // The placed construct p is { ...c, circle, shown }.
-function samePlacement(p: PlacedConstruct, c: Construct, circle: boolean, shown: string[]): boolean {
-  if (p.circle !== circle || p.shown.length !== shown.length || shown.some((x, i) => p.shown[i] !== x)) return false;
+function samePlacement(
+  p: PlacedConstruct,
+  c: Construct,
+  circle: boolean,
+  shown: string[],
+): boolean {
+  if (
+    p.circle !== circle ||
+    p.shown.length !== shown.length ||
+    shown.some((x, i) => p.shown[i] !== x)
+  )
+    return false;
   const keys = Object.keys(c) as (keyof Construct)[];
   return Object.keys(p).length === keys.length + 2 && keys.every((k) => p[k] === c[k]);
 }

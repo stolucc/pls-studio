@@ -2,8 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { momentsOfGroups, pooledMoments } from './moments';
 
 describe('several groups of summary statistics', () => {
-  const a = { label: 'a', S: [[1, 0.5], [0.5, 2]], n: 11 };
-  const b = { label: 'b', S: [[3, 0], [0, 4]], n: 21 };
+  const a = {
+    label: 'a',
+    S: [
+      [1, 0.5],
+      [0.5, 2],
+    ],
+    n: 11,
+  };
+  const b = {
+    label: 'b',
+    S: [
+      [3, 0],
+      [0, 4],
+    ],
+    n: 21,
+  };
   it('pools the matrices with weights N − 1 and adds the Ns', () => {
     const p = pooledMoments([a, b]);
     expect(p.n).toBe(32);
@@ -14,7 +28,10 @@ describe('several groups of summary statistics', () => {
     expect(() => pooledMoments([])).toThrow(/No groups/);
   });
   it('pools the means weighted by N when every group has them', () => {
-    const p = pooledMoments([{ ...a, means: [1, 2] }, { ...b, means: [4, 5] }]);
+    const p = pooledMoments([
+      { ...a, means: [1, 2] },
+      { ...b, means: [4, 5] },
+    ]);
     expect(p.means![0]).toBeCloseTo((11 * 1 + 21 * 4) / 32, 12);
     expect(pooledMoments([{ ...a, means: [1, 2] }, b]).means).toBeUndefined();
   });

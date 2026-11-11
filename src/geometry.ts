@@ -5,13 +5,20 @@
 import type { ConstructType } from './engine/types';
 import type { Construct } from './model/project';
 
-export interface Box { x: number; y: number; w: number; h: number }
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 export interface IndicatorGeom extends Box {
   name: string;
   /** Point on the box edge facing the construct. */
-  ax: number; ay: number;
+  ax: number;
+  ay: number;
   /** Point on the ellipse boundary facing the box. */
-  ex: number; ey: number;
+  ex: number;
+  ey: number;
 }
 export interface ConstructGeom {
   rx: number;
@@ -41,10 +48,21 @@ export function ellipsePoint(rx: number, ry: number, dx: number, dy: number): [n
 }
 
 /** How far to move a label of this half-size off a line's midpoint so that it sits beside the line: above it, or right of a vertical one. */
-export function besideLine(x1: number, y1: number, x2: number, y2: number, halfW: number, halfH: number): { dx: number; dy: number } {
+export function besideLine(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  halfW: number,
+  halfH: number,
+): { dx: number; dy: number } {
   const len = Math.hypot(x2 - x1, y2 - y1) || 1;
-  let nx = -(y2 - y1) / len, ny = (x2 - x1) / len;
-  if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx < 0)) { nx = -nx; ny = -ny; }
+  let nx = -(y2 - y1) / len,
+    ny = (x2 - x1) / len;
+  if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx < 0)) {
+    nx = -nx;
+    ny = -ny;
+  }
   const d = Math.abs(nx) * halfW + Math.abs(ny) * halfH + 2;
   return { dx: nx * d, dy: ny * d };
 }
@@ -53,24 +71,43 @@ export function besideLine(x1: number, y1: number, x2: number, y2: number, halfW
  * Where on a correlation's arc (a quadratic curve through its midpoint) a label hung off the arc by (nx, ny) clears these
  * boxes: the midpoint if free, else the nearest free point along the arc, else the midpoint after all.
  */
-export function clearPointOnCurve(p1: [number, number], p2: [number, number], mid: [number, number], normal: [number, number], w: number, h: number, boxes: Box[]): { x: number; y: number } {
+export function clearPointOnCurve(
+  p1: [number, number],
+  p2: [number, number],
+  mid: [number, number],
+  normal: [number, number],
+  w: number,
+  h: number,
+  boxes: Box[],
+): { x: number; y: number } {
   const at = (t: number) => {
     const k = [2 * mid[0] - (p1[0] + p2[0]) / 2, 2 * mid[1] - (p1[1] + p2[1]) / 2];
     const f = (i: number) => (1 - t) ** 2 * p1[i] + 2 * t * (1 - t) * k[i] + t ** 2 * p2[i];
     return { x: f(0), y: f(1) };
   };
   const free = ({ x, y }: { x: number; y: number }) => {
-    const left = x + normal[0] * w / 2 - w / 2, top = y + normal[1] * h / 2 - h / 2;
-    return boxes.every((b) => left + w <= b.x || left >= b.x + b.w || top + h <= b.y || top >= b.y + b.h);
+    const left = x + (normal[0] * w) / 2 - w / 2,
+      top = y + (normal[1] * h) / 2 - h / 2;
+    return boxes.every(
+      (b) => left + w <= b.x || left >= b.x + b.w || top + h <= b.y || top >= b.y + b.h,
+    );
   };
-  for (let d = 0; d <= 0.36; d += 0.03) for (const t of d === 0 ? [0.5] : [0.5 - d, 0.5 + d]) if (free(at(t))) return at(t);
+  for (let d = 0; d <= 0.36; d += 0.03)
+    for (const t of d === 0 ? [0.5] : [0.5 - d, 0.5 + d]) if (free(at(t))) return at(t);
   return { x: mid[0], y: mid[1] };
 }
 
 /** Horizontal hexagon used for composites (as in Henseler's ADANCO diagrams). */
 export function hexagonVertices(rx: number, ry: number): [number, number][] {
   const s = rx - ry * 0.75;
-  return [[-rx, 0], [-s, -ry], [s, -ry], [rx, 0], [s, ry], [-s, ry]];
+  return [
+    [-rx, 0],
+    [-s, -ry],
+    [s, -ry],
+    [rx, 0],
+    [s, ry],
+    [-s, ry],
+  ];
 }
 
 /** Point on the hexagon boundary in direction (dx, dy). */
@@ -80,24 +117,51 @@ export function hexagonPoint(rx: number, ry: number, dx: number, dy: number): [n
 
 /** Octagon a construct can be drawn as. */
 export function octagonVertices(rx: number, ry: number): [number, number][] {
-  const a = rx * 0.42, b = ry * 0.42;
-  return [[-rx, -b], [-a, -ry], [a, -ry], [rx, -b], [rx, b], [a, ry], [-a, ry], [-rx, b]];
+  const a = rx * 0.42,
+    b = ry * 0.42;
+  return [
+    [-rx, -b],
+    [-a, -ry],
+    [a, -ry],
+    [rx, -b],
+    [rx, b],
+    [a, ry],
+    [-a, ry],
+    [-rx, b],
+  ];
 }
 
 /** The control point of a path drawn curved (a quadratic curve), and the curve's midpoint. */
 export function pathCurve(s: { x1: number; y1: number; x2: number; y2: number }) {
-  const dx = s.x2 - s.x1, dy = s.y2 - s.y1, bow = 0.18;
-  const kx = (s.x1 + s.x2) / 2 - dy * bow, ky = (s.y1 + s.y2) / 2 + dx * bow;
-  return { kx, ky, mx: 0.25 * s.x1 + 0.5 * kx + 0.25 * s.x2, my: 0.25 * s.y1 + 0.5 * ky + 0.25 * s.y2, d: `M ${s.x1} ${s.y1} Q ${kx} ${ky} ${s.x2} ${s.y2}` };
+  const dx = s.x2 - s.x1,
+    dy = s.y2 - s.y1,
+    bow = 0.18;
+  const kx = (s.x1 + s.x2) / 2 - dy * bow,
+    ky = (s.y1 + s.y2) / 2 + dx * bow;
+  return {
+    kx,
+    ky,
+    mx: 0.25 * s.x1 + 0.5 * kx + 0.25 * s.x2,
+    my: 0.25 * s.y1 + 0.5 * ky + 0.25 * s.y2,
+    d: `M ${s.x1} ${s.y1} Q ${kx} ${ky} ${s.x2} ${s.y2}`,
+  };
 }
 
 /** Point on a polygon's boundary in direction (dx, dy). */
-function polygonPoint(v: [number, number][], rx: number, ry: number, dx: number, dy: number): [number, number] {
+function polygonPoint(
+  v: [number, number][],
+  rx: number,
+  ry: number,
+  dx: number,
+  dy: number,
+): [number, number] {
   let best = Infinity;
   for (let i = 0; i < v.length; i++) {
-    const [ax, ay] = v[i], [bx, by] = v[(i + 1) % v.length];
+    const [ax, ay] = v[i],
+      [bx, by] = v[(i + 1) % v.length];
     // Solve t·d = a + u·(b − a) for t ≥ 0, u ∈ [0, 1].
-    const ex = bx - ax, ey = by - ay;
+    const ex = bx - ax,
+      ey = by - ay;
     const den = dx * ey - dy * ex;
     if (Math.abs(den) < 1e-12) continue;
     const t = (ax * ey - ay * ex) / den;
@@ -110,13 +174,26 @@ function polygonPoint(v: [number, number][], rx: number, ry: number, dx: number,
 /** Ellipse: common factor; hexagon: composite; rectangle: observed covariate. */
 export type ShapeKind = ConstructType | 'observed' | 'rectangle' | 'octagon';
 
-export const shapeOf = (c: { type?: ConstructType; covariate?: boolean; shape?: 'rectangle' | 'octagon' }): ShapeKind => (c.covariate ? 'observed' : c.shape ?? c.type ?? 'factor');
+export const shapeOf = (c: {
+  type?: ConstructType;
+  covariate?: boolean;
+  shape?: 'rectangle' | 'octagon';
+}): ShapeKind => (c.covariate ? 'observed' : (c.shape ?? c.type ?? 'factor'));
 
-export function shapePoint(kind: ShapeKind, rx: number, ry: number, dx: number, dy: number): [number, number] {
+export function shapePoint(
+  kind: ShapeKind,
+  rx: number,
+  ry: number,
+  dx: number,
+  dy: number,
+): [number, number] {
   if (kind === 'composite') return hexagonPoint(rx, ry, dx, dy);
   if (kind === 'octagon') return polygonPoint(octagonVertices(rx, ry), rx, ry, dx, dy);
   if (kind === 'observed' || kind === 'rectangle') {
-    const t = Math.min(Math.abs(dx) > 1e-12 ? rx / Math.abs(dx) : Infinity, Math.abs(dy) > 1e-12 ? ry / Math.abs(dy) : Infinity);
+    const t = Math.min(
+      Math.abs(dx) > 1e-12 ? rx / Math.abs(dx) : Infinity,
+      Math.abs(dy) > 1e-12 ? ry / Math.abs(dy) : Infinity,
+    );
     return Number.isFinite(t) ? [dx * t, dy * t] : [rx, 0];
   }
   return ellipsePoint(rx, ry, dx, dy);
@@ -126,15 +203,28 @@ export function shapePoint(kind: ShapeKind, rx: number, ry: number, dx: number, 
  * What a construct's geometry depends on. `circle` and `shown` are its layout (placement.ts): whether common factors are
  * circles (composites stay hexagons, in a matching size), and the indicator boxes drawn on it (all its indicators unless given).
  */
-export type GeomInput = Pick<Construct, 'name' | 'indicators' | 'side'> & { type?: ConstructType; covariate?: boolean; shape?: 'rectangle' | 'octagon'; circle?: boolean; shown?: readonly string[] };
+export type GeomInput = Pick<Construct, 'name' | 'indicators' | 'side'> & {
+  type?: ConstructType;
+  covariate?: boolean;
+  shape?: 'rectangle' | 'octagon';
+  circle?: boolean;
+  shown?: readonly string[];
+};
 
 export function constructGeometry(c: GeomInput, circle = c.circle ?? false): ConstructGeom {
   const type = shapeOf(c);
   const observed = type === 'observed';
-  const rx = circle && !observed ? (type === 'composite' ? COMPACT_HEXAGON_RX : CIRCLE_R) : observed ? Math.max(40, textWidth(c.name, 7.5) / 2 + 16) : Math.max(58, textWidth(c.name, 8) / 2 + (type === 'composite' ? 34 : 24));
+  const rx =
+    circle && !observed
+      ? type === 'composite'
+        ? COMPACT_HEXAGON_RX
+        : CIRCLE_R
+      : observed
+        ? Math.max(40, textWidth(c.name, 7.5) / 2 + 16)
+        : Math.max(58, textWidth(c.name, 8) / 2 + (type === 'composite' ? 34 : 24));
   const ry = observed ? 18 : CIRCLE_R;
   // An observed covariate is its own indicator: no indicator boxes.
-  const shown = observed ? [] : c.shown ?? c.indicators;
+  const shown = observed ? [] : (c.shown ?? c.indicators);
   const widths = shown.map((n) => Math.max(48, textWidth(n, 7) + 18));
   const k = shown.length;
   const vertical = c.side === 'left' || c.side === 'right';
@@ -169,14 +259,18 @@ export function constructGeometry(c: GeomInput, circle = c.circle ?? false): Con
   }
 
   const PAD = 6;
-  let minX = -rx - PAD, maxX = rx + PAD, minY = -ry - 22, maxY = ry + PAD;
+  let minX = -rx - PAD,
+    maxX = rx + PAD,
+    minY = -ry - 22,
+    maxY = ry + PAD;
   for (const b of indicators) {
-    minX = Math.min(minX, b.x - PAD); maxX = Math.max(maxX, b.x + b.w + PAD);
-    minY = Math.min(minY, b.y - PAD); maxY = Math.max(maxY, b.y + b.h + PAD);
+    minX = Math.min(minX, b.x - PAD);
+    maxX = Math.max(maxX, b.x + b.w + PAD);
+    minY = Math.min(minY, b.y - PAD);
+    maxY = Math.max(maxY, b.y + b.h + PAD);
   }
   return { rx, ry, indicators, bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY } };
 }
-
 
 type Placed = GeomInput & Pick<Construct, 'x' | 'y'>;
 
@@ -188,27 +282,44 @@ export const RECIPROCAL_OFFSET = 14;
  * `offset` shifts it sideways (to the arrow's right): the two arrows of a
  * reciprocal pair (a non-recursive model) each get it, so they do not overlap.
  */
-export function pathSegment(s: Placed, t: Placed, offset = 0): { x1: number; y1: number; x2: number; y2: number } | null {
-  const gs = constructGeometry(s), gt = constructGeometry(t);
-  const dx = t.x - s.x, dy = t.y - s.y;
+export function pathSegment(
+  s: Placed,
+  t: Placed,
+  offset = 0,
+): { x1: number; y1: number; x2: number; y2: number } | null {
+  const gs = constructGeometry(s),
+    gt = constructGeometry(t);
+  const dx = t.x - s.x,
+    dy = t.y - s.y;
   if (dx === 0 && dy === 0) return null;
   const [sx, sy] = shapePoint(shapeOf(s), gs.rx, gs.ry, dx, dy);
   const [tx, ty] = shapePoint(shapeOf(t), gt.rx, gt.ry, -dx, -dy);
   const l = Math.hypot(dx, dy);
-  const ox = (offset * -dy) / l, oy = (offset * dx) / l;
+  const ox = (offset * -dy) / l,
+    oy = (offset * dx) / l;
   return { x1: s.x + sx + ox, y1: s.y + sy + oy, x2: t.x + tx + ox, y2: t.y + ty + oy };
 }
 
 /** The sideways offset of the arrow from → to: RECIPROCAL_OFFSET when a path runs the other way too, else 0. */
-export function pathOffset(paths: { from: string; to: string }[], from: string, to: string): number {
+export function pathOffset(
+  paths: { from: string; to: string }[],
+  from: string,
+  to: string,
+): number {
   return paths.some((p) => p.from === to && p.to === from) ? RECIPROCAL_OFFSET : 0;
 }
 
 /** Distance from point (px, py) to the segment. */
-export function distanceToSegment(px: number, py: number, seg: { x1: number; y1: number; x2: number; y2: number }): number {
-  const vx = seg.x2 - seg.x1, vy = seg.y2 - seg.y1;
+export function distanceToSegment(
+  px: number,
+  py: number,
+  seg: { x1: number; y1: number; x2: number; y2: number },
+): number {
+  const vx = seg.x2 - seg.x1,
+    vy = seg.y2 - seg.y1;
   const len2 = vx * vx + vy * vy;
-  const u = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - seg.x1) * vx + (py - seg.y1) * vy) / len2));
+  const u =
+    len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - seg.x1) * vx + (py - seg.y1) * vy) / len2));
   return Math.hypot(px - (seg.x1 + u * vx), py - (seg.y1 + u * vy));
 }
 
@@ -216,28 +327,55 @@ export function distanceToSegment(px: number, py: number, seg: { x1: number; y1:
 export const CONSTANT_R = 20;
 
 /** The arrow from the constant (centre k) to construct t's boundary. */
-export function meanSegment(k: { x: number; y: number }, t: Placed): { x1: number; y1: number; x2: number; y2: number } | null {
+export function meanSegment(
+  k: { x: number; y: number },
+  t: Placed,
+): { x1: number; y1: number; x2: number; y2: number } | null {
   const g = constructGeometry(t);
-  const dx = t.x - k.x, dy = t.y - k.y;
+  const dx = t.x - k.x,
+    dy = t.y - k.y;
   const l = Math.hypot(dx, dy);
   if (l === 0) return null;
   const [bx, by] = shapePoint(shapeOf(t), g.rx, g.ry, -dx, -dy);
-  return { x1: k.x + (dx / l) * CONSTANT_R * 0.8, y1: k.y + (dy / l) * CONSTANT_R * 0.8, x2: t.x + bx, y2: t.y + by };
+  return {
+    x1: k.x + (dx / l) * CONSTANT_R * 0.8,
+    y1: k.y + (dy / l) * CONSTANT_R * 0.8,
+    x2: t.x + bx,
+    y2: t.y + by,
+  };
 }
 
 /** The implied arrow from the constant (centre k) to an indicator box of construct t (box boundary). */
-export function interceptSegment(k: { x: number; y: number }, t: Placed, box: Pick<IndicatorGeom, 'x' | 'y' | 'w' | 'h'>): { x1: number; y1: number; x2: number; y2: number } | null {
-  const cx = t.x + box.x + box.w / 2, cy = t.y + box.y + box.h / 2;
-  const dx = cx - k.x, dy = cy - k.y;
+export function interceptSegment(
+  k: { x: number; y: number },
+  t: Placed,
+  box: Pick<IndicatorGeom, 'x' | 'y' | 'w' | 'h'>,
+): { x1: number; y1: number; x2: number; y2: number } | null {
+  const cx = t.x + box.x + box.w / 2,
+    cy = t.y + box.y + box.h / 2;
+  const dx = cx - k.x,
+    dy = cy - k.y;
   const l = Math.hypot(dx, dy);
   if (l === 0) return null;
-  const s = Math.min(dx === 0 ? Infinity : box.w / 2 / Math.abs(dx), dy === 0 ? Infinity : box.h / 2 / Math.abs(dy));
-  return { x1: k.x + (dx / l) * CONSTANT_R * 0.8, y1: k.y + (dy / l) * CONSTANT_R * 0.8, x2: cx - dx * s, y2: cy - dy * s };
+  const s = Math.min(
+    dx === 0 ? Infinity : box.w / 2 / Math.abs(dx),
+    dy === 0 ? Infinity : box.h / 2 / Math.abs(dy),
+  );
+  return {
+    x1: k.x + (dx / l) * CONSTANT_R * 0.8,
+    y1: k.y + (dy / l) * CONSTANT_R * 0.8,
+    x2: cx - dx * s,
+    y2: cy - dy * s,
+  };
 }
 
 /** Moderator arrow: from the moderator's boundary to the midpoint of the moderated path. */
-export function moderatorSegment(m: Placed, path: { x1: number; y1: number; x2: number; y2: number }) {
-  const mx = (path.x1 + path.x2) / 2, my = (path.y1 + path.y2) / 2;
+export function moderatorSegment(
+  m: Placed,
+  path: { x1: number; y1: number; x2: number; y2: number },
+) {
+  const mx = (path.x1 + path.x2) / 2,
+    my = (path.y1 + path.y2) / 2;
   const g = constructGeometry(m);
   const [bx, by] = shapePoint(shapeOf(m), g.rx, g.ry, mx - m.x, my - m.y);
   return { x1: m.x + bx, y1: m.y + by, x2: mx, y2: my };
@@ -250,12 +388,23 @@ export const QUAD_RISE = 56;
 export interface QuadraticLoop {
   /** SVG path (cubic Bézier) from X's boundary to the path midpoint. */
   d: string;
-  x1: number; y1: number; x2: number; y2: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
   /** Apex of the loop (where the estimate goes) and the outward normal there. */
-  lx: number; ly: number; nx: number; ny: number;
+  lx: number;
+  ly: number;
+  nx: number;
+  ny: number;
 }
 
-const SIDE_VEC: Record<string, [number, number]> = { top: [0, -1], bottom: [0, 1], left: [-1, 0], right: [1, 0] };
+const SIDE_VEC: Record<string, [number, number]> = {
+  top: [0, -1],
+  bottom: [0, 1],
+  left: [-1, 0],
+  right: [1, 0],
+};
 
 /**
  * A quadratic effect is X moderating its own effect (the slope of X depends on
@@ -263,27 +412,52 @@ const SIDE_VEC: Record<string, [number, number]> = { top: [0, -1], bottom: [0, 1
  * of X → Y, as a moderator's arrow does. The loop goes above the path (left of
  * a vertical one), or to the other side when X's indicators are there.
  */
-export function quadraticLoop(c: Placed, path: { x1: number; y1: number; x2: number; y2: number }): QuadraticLoop {
-  const mx = (path.x1 + path.x2) / 2, my = (path.y1 + path.y2) / 2;
-  const dx = path.x2 - path.x1, dy = path.y2 - path.y1;
+export function quadraticLoop(
+  c: Placed,
+  path: { x1: number; y1: number; x2: number; y2: number },
+): QuadraticLoop {
+  const mx = (path.x1 + path.x2) / 2,
+    my = (path.y1 + path.y2) / 2;
+  const dx = path.x2 - path.x1,
+    dy = path.y2 - path.y1;
   const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len, uy = dy / len;
-  let nx = -uy, ny = ux;
-  if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) { nx = -nx; ny = -ny; }
+  const ux = dx / len,
+    uy = dy / len;
+  let nx = -uy,
+    ny = ux;
+  if (ny > 1e-9 || (Math.abs(ny) <= 1e-9 && nx > 0)) {
+    nx = -nx;
+    ny = -ny;
+  }
   const [sx0, sy0] = SIDE_VEC[c.side ?? 'bottom'] ?? SIDE_VEC.bottom;
-  if (nx * sx0 + ny * sy0 > 0.5) { nx = -nx; ny = -ny; }
+  if (nx * sx0 + ny * sy0 > 0.5) {
+    nx = -nx;
+    ny = -ny;
+  }
   // Leave X just beside where the path leaves it (clear of the label above X), on that side.
-  const ox = ux + 0.6 * nx, oy = uy + 0.6 * ny, lean = Math.hypot(ox, oy);
+  const ox = ux + 0.6 * nx,
+    oy = uy + 0.6 * ny,
+    lean = Math.hypot(ox, oy);
   const g = constructGeometry(c);
   const [bx, by] = shapePoint(shapeOf(c), g.rx, g.ry, ox / lean, oy / lean);
-  const x1 = c.x + bx, y1 = c.y + by;
+  const x1 = c.x + bx,
+    y1 = c.y + by;
   const h = QUAD_RISE;
-  const c1x = x1 + nx * h, c1y = y1 + ny * h, c2x = mx + nx * h, c2y = my + ny * h;
+  const c1x = x1 + nx * h,
+    c1y = y1 + ny * h,
+    c2x = mx + nx * h,
+    c2y = my + ny * h;
   const r = (v: number) => Number(v.toFixed(2));
   return {
     d: `M ${r(x1)} ${r(y1)} C ${r(c1x)} ${r(c1y)} ${r(c2x)} ${r(c2y)} ${r(mx)} ${r(my)}`,
-    x1, y1, x2: mx, y2: my,
-    lx: (x1 + 3 * c1x + 3 * c2x + mx) / 8, ly: (y1 + 3 * c1y + 3 * c2y + my) / 8, nx, ny,
+    x1,
+    y1,
+    x2: mx,
+    y2: my,
+    lx: (x1 + 3 * c1x + 3 * c2x + mx) / 8,
+    ly: (y1 + 3 * c1y + 3 * c2y + my) / 8,
+    nx,
+    ny,
   };
 }
 
@@ -294,21 +468,57 @@ const ERR_GAP = 14;
 
 export interface ErrorTerm {
   /** Circle centre (flow coordinates). */
-  cx: number; cy: number;
+  cx: number;
+  cy: number;
   /** Where its arrow lands (indicator box edge or construct boundary). */
-  ax: number; ay: number;
+  ax: number;
+  ay: number;
   /** Outward unit direction, away from the construct. */
-  nx: number; ny: number;
+  nx: number;
+  ny: number;
 }
 
 /** Measurement-error circle of an indicator, beyond its box on the far side from the construct. */
 export function errorTerm(c: Placed, ind: IndicatorGeom): ErrorTerm {
-  const midX = c.x + ind.x + ind.w / 2, midY = c.y + ind.y + ind.h / 2;
+  const midX = c.x + ind.x + ind.w / 2,
+    midY = c.y + ind.y + ind.h / 2;
   switch (c.side) {
-    case 'left': return { cx: c.x + ind.x - ERR_GAP - ERR_R, cy: midY, ax: c.x + ind.x, ay: midY, nx: -1, ny: 0 };
-    case 'right': return { cx: c.x + ind.x + ind.w + ERR_GAP + ERR_R, cy: midY, ax: c.x + ind.x + ind.w, ay: midY, nx: 1, ny: 0 };
-    case 'top': return { cx: midX, cy: c.y + ind.y - ERR_GAP - ERR_R, ax: midX, ay: c.y + ind.y, nx: 0, ny: -1 };
-    default: return { cx: midX, cy: c.y + ind.y + ind.h + ERR_GAP + ERR_R, ax: midX, ay: c.y + ind.y + ind.h, nx: 0, ny: 1 };
+    case 'left':
+      return {
+        cx: c.x + ind.x - ERR_GAP - ERR_R,
+        cy: midY,
+        ax: c.x + ind.x,
+        ay: midY,
+        nx: -1,
+        ny: 0,
+      };
+    case 'right':
+      return {
+        cx: c.x + ind.x + ind.w + ERR_GAP + ERR_R,
+        cy: midY,
+        ax: c.x + ind.x + ind.w,
+        ay: midY,
+        nx: 1,
+        ny: 0,
+      };
+    case 'top':
+      return {
+        cx: midX,
+        cy: c.y + ind.y - ERR_GAP - ERR_R,
+        ax: midX,
+        ay: c.y + ind.y,
+        nx: 0,
+        ny: -1,
+      };
+    default:
+      return {
+        cx: midX,
+        cy: c.y + ind.y + ind.h + ERR_GAP + ERR_R,
+        ax: midX,
+        ay: c.y + ind.y + ind.h,
+        nx: 0,
+        ny: 1,
+      };
   }
 }
 
@@ -316,7 +526,8 @@ export function errorTerm(c: Placed, ind: IndicatorGeom): ErrorTerm {
 export function disturbanceTerm(c: Placed): ErrorTerm {
   const g = constructGeometry(c);
   const len = Math.hypot(0.6, 1);
-  const nx = 0.6 / len, ny = (c.side === 'top' ? 1 : -1) / len;
+  const nx = 0.6 / len,
+    ny = (c.side === 'top' ? 1 : -1) / len;
   const [bx, by] = shapePoint(shapeOf(c), g.rx, g.ry, nx, ny);
   const d = ERR_GAP + ERR_R;
   return { cx: c.x + bx + nx * d, cy: c.y + by + ny * d, ax: c.x + bx, ay: c.y + by, nx, ny };
@@ -324,17 +535,40 @@ export function disturbanceTerm(c: Placed): ErrorTerm {
 
 /** A residual as semPlot draws it: a double-headed loop on the shape's border, out along the error term's direction. */
 export function selfLoop(t: { ax: number; ay: number; nx: number; ny: number }) {
-  const spread = 8, out = 24, tx = -t.ny, ty = t.nx;
-  const x1 = t.ax - tx * spread, y1 = t.ay - ty * spread, x2 = t.ax + tx * spread, y2 = t.ay + ty * spread;
-  const c1x = x1 + t.nx * out - tx * spread, c1y = y1 + t.ny * out - ty * spread, c2x = x2 + t.nx * out + tx * spread, c2y = y2 + t.ny * out + ty * spread;
-  return { d: `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`, x1, y1, x2, y2, c1x, c1y, c2x, c2y, lx: t.ax + t.nx * (out + 8), ly: t.ay + t.ny * (out + 8) };
+  const spread = 8,
+    out = 24,
+    tx = -t.ny,
+    ty = t.nx;
+  const x1 = t.ax - tx * spread,
+    y1 = t.ay - ty * spread,
+    x2 = t.ax + tx * spread,
+    y2 = t.ay + ty * spread;
+  const c1x = x1 + t.nx * out - tx * spread,
+    c1y = y1 + t.ny * out - ty * spread,
+    c2x = x2 + t.nx * out + tx * spread,
+    c2y = y2 + t.ny * out + ty * spread;
+  return {
+    d: `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`,
+    x1,
+    y1,
+    x2,
+    y2,
+    c1x,
+    c1y,
+    c2x,
+    c2y,
+    lx: t.ax + t.nx * (out + 8),
+    ly: t.ay + t.ny * (out + 8),
+  };
 }
 
 /** Filled triangle with its tip at (x, y), pointing along (dx, dy). */
 export function arrowHead(x: number, y: number, dx: number, dy: number, len = 9, half = 4): string {
   const l = Math.hypot(dx, dy) || 1;
-  const ux = dx / l, uy = dy / l;
-  const bx = x - ux * len, by = y - uy * len;
+  const ux = dx / l,
+    uy = dy / l;
+  const bx = x - ux * len,
+    by = y - uy * len;
   return `M ${x} ${y} L ${bx - uy * half} ${by + ux * half} L ${bx + uy * half} ${by - ux * half} Z`;
 }
 
@@ -344,7 +578,8 @@ export type Anchor =
   | { kind: 'circle'; x: number; y: number; r: number }
   | { kind: 'point'; x: number; y: number };
 
-const centreOf = (a: Anchor) => (a.kind === 'construct' ? { x: a.c.x, y: a.c.y } : { x: a.x, y: a.y });
+const centreOf = (a: Anchor) =>
+  a.kind === 'construct' ? { x: a.c.x, y: a.c.y } : { x: a.x, y: a.y };
 
 function clipAnchor(a: Anchor, dx: number, dy: number): [number, number] {
   if (a.kind === 'point') return [a.x, a.y];
@@ -361,25 +596,40 @@ function clipAnchor(a: Anchor, dx: number, dy: number): [number, number] {
  * Curved double-headed arrow between two anchors (quadratic Bézier), bowing
  * along `normal` when given, otherwise away from `away` (e.g. the model centre).
  */
-export function correlationCurve(a: Anchor, b: Anchor, opts: { normal?: [number, number]; away?: { x: number; y: number } } = {}) {
-  const p = centreOf(a), q = centreOf(b);
-  const dx = q.x - p.x, dy = q.y - p.y;
+export function correlationCurve(
+  a: Anchor,
+  b: Anchor,
+  opts: { normal?: [number, number]; away?: { x: number; y: number } } = {},
+) {
+  const p = centreOf(a),
+    q = centreOf(b);
+  const dx = q.x - p.x,
+    dy = q.y - p.y;
   const dist = Math.hypot(dx, dy) || 1;
-  const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+  const mx = (p.x + q.x) / 2,
+    my = (p.y + q.y) / 2;
   let [nx, ny] = opts.normal ?? [-dy / dist, dx / dist];
-  if (!opts.normal && opts.away && nx * (mx - opts.away.x) + ny * (my - opts.away.y) < 0) { nx = -nx; ny = -ny; }
+  if (!opts.normal && opts.away && nx * (mx - opts.away.x) + ny * (my - opts.away.y) < 0) {
+    nx = -nx;
+    ny = -ny;
+  }
   // Longer arrows bow further, so nested arrows (and their labels) fan out.
   const bow = Math.min(240, Math.max(64, 0.45 * dist));
-  const kx = mx + nx * bow, ky = my + ny * bow;
+  const kx = mx + nx * bow,
+    ky = my + ny * bow;
   const [x1, y1] = clipAnchor(a, kx - p.x, ky - p.y);
   const [x2, y2] = clipAnchor(b, kx - q.x, ky - q.y);
   return {
     d: `M ${x1} ${y1} Q ${kx} ${ky} ${x2} ${y2}`,
-    x1, y1, x2, y2,
+    x1,
+    y1,
+    x2,
+    y2,
     /** Arrowheads at both ends (the curve's tangent there points from the control point to the end). */
     heads: [arrowHead(x1, y1, x1 - kx, y1 - ky), arrowHead(x2, y2, x2 - kx, y2 - ky)],
     /** Bow direction: labels sit on this side of the midpoint. */
-    nx, ny,
+    nx,
+    ny,
     /** Curve midpoint (t = ½), for the label. */
     lx: 0.25 * x1 + 0.5 * kx + 0.25 * x2,
     ly: 0.25 * y1 + 0.5 * ky + 0.25 * y2,

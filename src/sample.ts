@@ -23,7 +23,12 @@ const EXAMPLE_LAYOUT: { x: number; y: number; side: Side }[] = [
 
 /** Population paths [from, to, beta] over BLOCKS indices. */
 const PATHS: [number, number, number][] = [
-  [0, 2, 0.5], [0, 3, 0.4], [1, 3, 0.25], [2, 3, 0.2], [3, 4, 0.55], [2, 4, 0.2],
+  [0, 2, 0.5],
+  [0, 3, 0.4],
+  [1, 3, 0.25],
+  [2, 3, 0.2],
+  [3, 4, 0.55],
+  [2, 4, 0.2],
 ];
 /**
  * Correlated exogenous constructs [a, b, rho]: as in a real survey, a provider
@@ -33,10 +38,14 @@ const PATHS: [number, number, number][] = [
  */
 const EXOGENOUS_COR: [number, number, number][] = [[0, 1, 0.4]];
 
-export function makeSample(n = 300, seed = 2026): { data: Dataset; info: DataInfo; model: ModelState } {
+export function makeSample(
+  n = 300,
+  seed = 2026,
+): { data: Dataset; info: DataInfo; model: ModelState } {
   const rand = mulberry32(seed);
   const normal = () => {
-    const u = 1 - rand(), v = rand();
+    const u = 1 - rand(),
+      v = rand();
     return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   };
   const eta = BLOCKS.map(() => new Float64Array(n));
@@ -47,7 +56,11 @@ export function makeSample(n = 300, seed = 2026): { data: Dataset; info: DataInf
     for (let r = 0; r < n; r++) {
       let v = 0;
       for (const [f, , b] of incoming) v += b * eta[f][r];
-      eta[j][r] = incoming.length ? v + normal() * 0.75 : cor ? cor[2] * eta[cor[0]][r] + Math.sqrt(1 - cor[2] ** 2) * normal() : normal();
+      eta[j][r] = incoming.length
+        ? v + normal() * 0.75
+        : cor
+          ? cor[2] * eta[cor[0]][r] + Math.sqrt(1 - cor[2] ** 2) * normal()
+          : normal();
     }
   }
   const names: string[] = [];
@@ -56,11 +69,16 @@ export function makeSample(n = 300, seed = 2026): { data: Dataset; info: DataInf
   BLOCKS.forEach((b, j) => {
     b.loadings.forEach((l, k) => {
       names.push(`${b.prefix}${k + 1}`);
-      cols.push(Float64Array.from({ length: n }, (_, r) => {
-        if (rand() < 0.004) { missing++; return NaN; }
-        const x = l * eta[j][r] + Math.sqrt(1 - l * l) * normal();
-        return Math.min(7, Math.max(1, Math.round(4.6 + 1.25 * x)));
-      }));
+      cols.push(
+        Float64Array.from({ length: n }, (_, r) => {
+          if (rand() < 0.004) {
+            missing++;
+            return NaN;
+          }
+          const x = l * eta[j][r] + Math.sqrt(1 - l * l) * normal();
+          return Math.min(7, Math.max(1, Math.round(4.6 + 1.25 * x)));
+        }),
+      );
     });
   });
 
@@ -70,13 +88,22 @@ export function makeSample(n = 300, seed = 2026): { data: Dataset; info: DataInf
     type: b.mode === 'B' ? ('composite' as const) : ('factor' as const),
     mode: b.mode ?? ('A' as const),
     indicators: b.loadings.map((_, k) => `${b.prefix}${k + 1}`),
-    x: 0, y: 0, side: 'left' as const,
+    x: 0,
+    y: 0,
+    side: 'left' as const,
   }));
-  const paths = PATHS.map(([f, t]) => ({ id: newId('p'), from: constructs[f].id, to: constructs[t].id }));
+  const paths = PATHS.map(([f, t]) => ({
+    id: newId('p'),
+    from: constructs[f].id,
+    to: constructs[t].id,
+  }));
   const model = { constructs, paths, moderations: [] };
   return {
     data: { names, cols },
     info: { fileName: 'example-customer-survey.csv', rows: n, missingCells: missing, excluded: [] },
-    model: { ...model, constructs: model.constructs.map((c, i) => ({ ...c, ...EXAMPLE_LAYOUT[i] })) },
+    model: {
+      ...model,
+      constructs: model.constructs.map((c, i) => ({ ...c, ...EXAMPLE_LAYOUT[i] })),
+    },
   };
 }

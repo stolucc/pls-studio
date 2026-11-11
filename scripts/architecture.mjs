@@ -13,19 +13,30 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-export const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const esc = (s) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const slug = (s) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 /** Inline Markdown: code spans first (their contents are literal), then bold and links. */
 function inline(text) {
   const parts = text.split(/(`[^`]*`)/);
-  return parts.map((p, i) => {
-    if (i % 2 === 1) return `<code>${esc(p.slice(1, -1))}</code>`;
-    return esc(p)
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, t, u) => (/^(https?:\/\/|#|[a-z0-9_./-]+\.html)/i.test(u) ? `<a href="${u}">${t}</a>` : `${t} (${u})`));
-  }).join('');
+  return parts
+    .map((p, i) => {
+      if (i % 2 === 1) return `<code>${esc(p.slice(1, -1))}</code>`;
+      return esc(p)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, t, u) =>
+          /^(https?:\/\/|#|[a-z0-9_./-]+\.html)/i.test(u)
+            ? `<a href="${u}">${t}</a>`
+            : `${t} (${u})`,
+        );
+    })
+    .join('');
 }
 
 /** The document's body as HTML and its h2 headings (for the contents). */
@@ -36,7 +47,12 @@ export function render(md) {
   let title = '';
   let i = 0;
   const para = [];
-  const flush = () => { if (para.length) { out.push(`<p>${inline(para.join(' '))}</p>`); para.length = 0; } };
+  const flush = () => {
+    if (para.length) {
+      out.push(`<p>${inline(para.join(' '))}</p>`);
+      para.length = 0;
+    }
+  };
   while (i < lines.length) {
     const line = lines[i];
     if (line.startsWith('```')) {
@@ -54,9 +70,12 @@ export function render(md) {
     const h = /^(#{1,3}) (.*)$/.exec(line);
     if (h) {
       flush();
-      const level = h[1].length, text = h[2].trim();
-      if (level === 1) { title = text; out.push(`<h1>${inline(text)}</h1>`); }
-      else {
+      const level = h[1].length,
+        text = h[2].trim();
+      if (level === 1) {
+        title = text;
+        out.push(`<h1>${inline(text)}</h1>`);
+      } else {
         const id = slug(text);
         if (level === 2) headings.push({ id, text });
         out.push(`<h${level} id="${id}">${inline(text)}</h${level}>`);
@@ -68,10 +87,25 @@ export function render(md) {
       flush();
       const rows = [];
       while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
-      const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const cells = (r) =>
+        r
+          .replace(/^\||\|$/g, '')
+          .split('|')
+          .map((c) => c.trim());
       const [head, , ...body] = rows;
-      out.push('<table>', `<tr>${cells(head).map((c) => `<th>${inline(c)}</th>`).join('')}</tr>`,
-        ...body.map((r) => `<tr>${cells(r).map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`), '</table>');
+      out.push(
+        '<table>',
+        `<tr>${cells(head)
+          .map((c) => `<th>${inline(c)}</th>`)
+          .join('')}</tr>`,
+        ...body.map(
+          (r) =>
+            `<tr>${cells(r)
+              .map((c) => `<td>${inline(c)}</td>`)
+              .join('')}</tr>`,
+        ),
+        '</table>',
+      );
       continue;
     }
     const list = /^(\s*)([-*]|\d+\.) (.*)$/.exec(line);
@@ -81,14 +115,24 @@ export function render(md) {
       const items = [];
       while (i < lines.length) {
         const m = /^(\s*)([-*]|\d+\.) (.*)$/.exec(lines[i]);
-        if (m && (/\d/.test(m[2]) === ordered)) { items.push(m[3]); i++; }
-        else if (/^\s+\S/.test(lines[i]) && items.length) { items[items.length - 1] += ' ' + lines[i].trim(); i++; }
-        else break;
+        if (m && /\d/.test(m[2]) === ordered) {
+          items.push(m[3]);
+          i++;
+        } else if (/^\s+\S/.test(lines[i]) && items.length) {
+          items[items.length - 1] += ' ' + lines[i].trim();
+          i++;
+        } else break;
       }
-      out.push(`<${ordered ? 'ol' : 'ul'}>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`);
+      out.push(
+        `<${ordered ? 'ol' : 'ul'}>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`,
+      );
       continue;
     }
-    if (line.trim() === '') { flush(); i++; continue; }
+    if (line.trim() === '') {
+      flush();
+      i++;
+      continue;
+    }
     para.push(line.trim());
     i++;
   }
@@ -131,7 +175,12 @@ ${body}
 export function build() {
   const md = readFileSync(join(ROOT, 'ARCHITECTURE.md'), 'utf8');
   const guide = readFileSync(join(ROOT, 'public', 'guide.html'), 'utf8');
-  const style = /<style>[\s\S]*?<\/style>/.exec(guide)[0].replace('</style>', 'figure.diagram { margin: 12px 0 18px; overflow-x: auto; } figure.diagram svg { display: block; max-width: 100%; height: auto; } </style>');
+  const style = /<style>[\s\S]*?<\/style>/
+    .exec(guide)[0]
+    .replace(
+      '</style>',
+      'figure.diagram { margin: 12px 0 18px; overflow-x: auto; } figure.diagram svg { display: block; max-width: 100%; height: auto; } </style>',
+    );
   return page(md, style);
 }
 

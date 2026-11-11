@@ -9,7 +9,9 @@ import type { ModelState } from './project';
 export const ESTIMATOR_CHOICES: McEstimator[] = [
   { id: 'PLS', method: 'pls', consistent: false },
   { id: 'PLSc', method: 'pls', consistent: true },
-  ...(['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS'] as CbEstimator[]).map((e): McEstimator => ({ id: `CB-${e}`, method: 'cb', estimator: e })),
+  ...(['ML', 'MLM', 'MLMV', 'MLR', 'GLS', 'ULS'] as CbEstimator[]).map(
+    (e): McEstimator => ({ id: `CB-${e}`, method: 'cb', estimator: e }),
+  ),
 ];
 
 /**
@@ -17,7 +19,11 @@ export const ESTIMATOR_CHOICES: McEstimator[] = [
  * available (PLSc / CB standardised values are consistent for common factors),
  * otherwise neutral defaults (loadings .75, weights equal, paths .3).
  */
-export function populationFromModel(model: ModelState, pls: PlsResult | null, cb: CbResult | null): PopulationSpec {
+export function populationFromModel(
+  model: ModelState,
+  pls: PlsResult | null,
+  cb: CbResult | null,
+): PopulationSpec {
   const name = new Map(model.constructs.map((c) => [c.id, c.name]));
   const constructs = model.constructs.map((c) => {
     const base = { name: c.name, type: c.type, indicators: c.indicators };
@@ -37,24 +43,37 @@ export function populationFromModel(model: ModelState, pls: PlsResult | null, cb
     return { ...base, weights, withinCor: 0.5 };
   });
   const paths = model.paths.map((p) => {
-    const f = name.get(p.from)!, t = name.get(p.to)!;
+    const f = name.get(p.from)!,
+      t = name.get(p.to)!;
     let value = 0.3;
-    if (cb) { const i = cb.constructs.indexOf(f), j = cb.constructs.indexOf(t); if (i >= 0 && j >= 0) value = cb.stdPaths[i][j]; }
-    else if (pls) { const i = pls.constructs.indexOf(f), j = pls.constructs.indexOf(t); if (i >= 0 && j >= 0) value = pls.pathCoef[i][j]; }
+    if (cb) {
+      const i = cb.constructs.indexOf(f),
+        j = cb.constructs.indexOf(t);
+      if (i >= 0 && j >= 0) value = cb.stdPaths[i][j];
+    } else if (pls) {
+      const i = pls.constructs.indexOf(f),
+        j = pls.constructs.indexOf(t);
+      if (i >= 0 && j >= 0) value = pls.pathCoef[i][j];
+    }
     return { from: f, to: t, value: round(value) };
   });
-  const exo = model.constructs.filter((c) => !model.paths.some((p) => p.to === c.id)).map((c) => c.name);
+  const exo = model.constructs
+    .filter((c) => !model.paths.some((p) => p.to === c.id))
+    .map((c) => c.name);
   const exoCor: PopulationSpec['exoCor'] = [];
-  for (let a = 0; a < exo.length; a++) for (let b = a + 1; b < exo.length; b++) {
-    let value = 0.3;
-    const src = cb ?? pls;
-    if (src) {
-      const C = src.constructs, i = C.indexOf(exo[a]), j = C.indexOf(exo[b]);
-      const m = cb ? cb.lvCor : pls!.constructCor;
-      if (i >= 0 && j >= 0) value = round(m[i][j]);
+  for (let a = 0; a < exo.length; a++)
+    for (let b = a + 1; b < exo.length; b++) {
+      let value = 0.3;
+      const src = cb ?? pls;
+      if (src) {
+        const C = src.constructs,
+          i = C.indexOf(exo[a]),
+          j = C.indexOf(exo[b]);
+        const m = cb ? cb.lvCor : pls!.constructCor;
+        if (i >= 0 && j >= 0) value = round(m[i][j]);
+      }
+      exoCor.push({ a: exo[a], b: exo[b], value });
     }
-    exoCor.push({ a: exo[a], b: exo[b], value });
-  }
   return { constructs, paths, exoCor, skew: 0, kurtosis: 0 };
 }
 
@@ -63,7 +82,9 @@ const clampLoading = (v: number) => round(Math.max(-0.95, Math.min(0.95, v)));
 
 export const defaultDesign = (population: PopulationSpec): McDesign => ({
   population,
-  estimators: ESTIMATOR_CHOICES.filter((e) => e.id === 'PLS' || e.id === 'PLSc' || e.id === 'CB-ML'),
+  estimators: ESTIMATOR_CHOICES.filter(
+    (e) => e.id === 'PLS' || e.id === 'PLSc' || e.id === 'CB-ML',
+  ),
   sampleSizes: [100, 200, 300, 500],
   replications: 200,
   seed: 2026,
@@ -78,8 +99,10 @@ const str = (v: unknown) => (typeof v === 'string' ? v.slice(0, 200) : '');
 export function parseDesign(raw: unknown): McDesign | null {
   if (!isObj(raw) || !isObj(raw.population)) return null;
   const p = raw.population;
-  if (!Array.isArray(p.constructs) || !Array.isArray(p.paths) || p.constructs.length > 500) return null;
-  const nums = (a: unknown, lo: number, hi: number) => (Array.isArray(a) ? a.slice(0, 1000).map((v) => clampStrict(v, lo, hi, 0)) : undefined);
+  if (!Array.isArray(p.constructs) || !Array.isArray(p.paths) || p.constructs.length > 500)
+    return null;
+  const nums = (a: unknown, lo: number, hi: number) =>
+    Array.isArray(a) ? a.slice(0, 1000).map((v) => clampStrict(v, lo, hi, 0)) : undefined;
   const population: PopulationSpec = {
     constructs: p.constructs.filter(isObj).map((c) => ({
       name: str(c.name),
@@ -91,14 +114,31 @@ export function parseDesign(raw: unknown): McDesign | null {
       ...(c.skew !== undefined ? { skew: clampStrict(c.skew, -5, 5, 0) } : {}),
       ...(c.kurtosis !== undefined ? { kurtosis: clampStrict(c.kurtosis, -1.2, 60, 0) } : {}),
     })),
-    paths: p.paths.filter(isObj).slice(0, 5000).map((x) => ({ from: str(x.from), to: str(x.to), value: clampStrict(x.value, -0.999, 0.999, 0) })),
-    exoCor: Array.isArray(p.exoCor) ? p.exoCor.filter(isObj).slice(0, 5000).map((x) => ({ a: str(x.a), b: str(x.b), value: clampStrict(x.value, -0.999, 0.999, 0) })) : [],
+    paths: p.paths
+      .filter(isObj)
+      .slice(0, 5000)
+      .map((x) => ({
+        from: str(x.from),
+        to: str(x.to),
+        value: clampStrict(x.value, -0.999, 0.999, 0),
+      })),
+    exoCor: Array.isArray(p.exoCor)
+      ? p.exoCor
+          .filter(isObj)
+          .slice(0, 5000)
+          .map((x) => ({ a: str(x.a), b: str(x.b), value: clampStrict(x.value, -0.999, 0.999, 0) }))
+      : [],
     skew: clampStrict(p.skew, -5, 5, 0),
     kurtosis: clampStrict(p.kurtosis, -1.2, 60, 0),
   };
   const ids = Array.isArray(raw.estimators) ? raw.estimators.filter(isObj).map((e) => e.id) : [];
   const estimators = ESTIMATOR_CHOICES.filter((e) => ids.includes(e.id));
-  const sizes = Array.isArray(raw.sampleSizes) ? raw.sampleSizes.map((v) => Math.round(clampStrict(v, 10, 100000, 0))).filter((v) => v >= 10).slice(0, 20) : [];
+  const sizes = Array.isArray(raw.sampleSizes)
+    ? raw.sampleSizes
+        .map((v) => Math.round(clampStrict(v, 10, 100000, 0)))
+        .filter((v) => v >= 10)
+        .slice(0, 20)
+    : [];
   return {
     population,
     estimators: estimators.length ? estimators : ESTIMATOR_CHOICES.slice(0, 1),
