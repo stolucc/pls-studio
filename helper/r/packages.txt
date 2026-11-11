@@ -56,6 +56,7 @@ nnet
 nonnest2
 optimx
 optmatch
+pROC
 pbivnorm
 piecewiseSEM
 plspm

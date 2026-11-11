@@ -69,6 +69,7 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   'examples/cards/apim': 'examples',
   'examples/cards/qca': 'examples',
   'examples/cards/meta': 'examples',
+  'examples/cards/roc': 'examples',
   'examples/cards/invariance': 'examples',
   'examples/cards/missing': 'examples',
   'examples/cards/sensitivity': 'examples',
@@ -451,6 +452,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
       'meta.R',
       'desktop metafor on metadat’s dat.bcg, normand1999, molloy2014, pritz1997, konstantopoulos2011',
     ),
+  ),
+  'rengine/roc': native(
+    'ROC analysis: AUC intervals, cut-points, partial AUC, DeLong’s paired and unpaired tests',
+    'Basic statistics',
+    ['pROC'],
+    script('roc.R', 'desktop pROC on its aSAH data'),
   ),
   'rengine/psem': native(
     'Piecewise SEM: d-separation tests, Fisher’s C, AIC, standardised coefficients',

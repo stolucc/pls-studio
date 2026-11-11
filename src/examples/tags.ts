@@ -71,6 +71,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   metasem: ['Meta-analysis'],
   semtree: ['SEM trees', 'Heterogeneity'],
   meta: ['Meta-analysis', 'Publication bias'],
+  roc: ['Basic statistics', 'ROC curve', 'Diagnostic accuracy'],
   psem: ['Piecewise SEM', 'Path analysis', 'd-separation'],
   plsmultilevel: ['Multilevel', 'Random slopes'],
   regsem: ['Regularised SEM', 'Model modification'],

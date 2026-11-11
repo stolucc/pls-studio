@@ -462,6 +462,48 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     title: 'Influence diagnostics and leave-one-out',
     features: ['rengine/meta::random-effects model of dat.bcg'],
   },
+  roc: ex('proc-asah'),
+  'roc:ci:delong': {
+    title: 'AUC with DeLong’s interval',
+    features: ['rengine/roc::ROC curve of s100b'],
+  },
+  'roc:ci:bootstrap': {
+    title: 'AUC with a bootstrap interval',
+    features: ['rengine/roc::bootstrap interval'],
+  },
+  'roc:source:logistic': {
+    title: 'Predictor: fitted probabilities of a logistic regression',
+    features: ['rengine/roc::logistic regression'],
+  },
+  'roc:direction': {
+    title: 'Low predictor values marking cases (direction)',
+    features: ['rengine/roc::low values mark cases'],
+  },
+  'roc:positive': {
+    title: 'The outcome value marking cases chosen',
+    features: ['rengine/roc::levels reversed'],
+  },
+  'roc:cutpoint:youden': {
+    title: 'Best cut-point by Youden’s J',
+    features: ['rengine/roc::Youden cut-point'],
+  },
+  'roc:cutpoint:closest.topleft': {
+    title: 'Best cut-point closest to the top-left corner',
+    features: ['rengine/roc::closest to the top-left'],
+  },
+  'roc:compare:paired': {
+    title: 'DeLong’s paired test of two predictors',
+    features: ['rengine/roc::paired test'],
+  },
+  'roc:compare:groups': {
+    title: 'DeLong’s unpaired test between two groups',
+    features: ['rengine/roc::unpaired test'],
+  },
+  'roc:pauc': { title: 'Partial AUC', features: ['rengine/roc::partial AUCs'] },
+  'roc:pauc:correct': {
+    title: 'Partial AUC with McClish’s correction and bootstrap interval',
+    features: ['rengine/roc::McClish-corrected'],
+  },
   psem: {},
   'psem:gaussian': { title: 'Normal outcomes (lm)', features: ['rengine/psem::keeley model'] },
   'psem:binomial': {
