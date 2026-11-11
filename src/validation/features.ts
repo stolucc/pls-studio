@@ -97,6 +97,10 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
   // Other analyses
   'rengine/efa': native('Exploratory factor analysis and PCA', 'EFA', ['psych'], script('efa.R', 'desktop psych'), script('efa_polychoric.R', 'desktop psych and lavaan::lavCor'), script('efa_pa.R', 'desktop psych, principal axis')),
   'rengine/items': native('IRT and latent class analysis', 'Items', ['ltm', 'poLCA', 'mirt', 'glca'], script('items.R', 'desktop ltm and poLCA')),
+  'rengine/psem': native('Piecewise SEM: d-separation tests, Fisher’s C, AIC, standardised coefficients', 'Regression', ['piecewiseSEM', 'lme4'],
+    script('psem.R', 'desktop piecewiseSEM on its keeley and shipley data')),
+  'rengine/lcaAux': native('Latent classes’ auxiliary variables: three-step (classification errors, BCH, ML three-step)', 'Items', ['poLCA'],
+    { label: 'StepMix 3.0.0 (Python), an independent implementation, on poLCA’s election data; sandwich SEs from numerical derivatives, scripts/validation/lca_aux.py', script: 'scripts/validation/lca_aux.py' }),
   'rengine/invariance': native('Longitudinal invariance, DIF by MIMIC', 'CB-SEM', ['lavaan', 'semTools'], script('invariance_cards.R', 'desktop lavaan, the models written out by hand')),
   'rengine/longitudinal': native('Growth models, RI-CLPM', 'Longitudinal', ['lavaan'], script('longitudinal.R', 'desktop lavaan')),
   'rengine/mixed': native('Mixed models, growth mixture models', 'Longitudinal', ['lme4', 'lcmm'], script('mixed.R', 'desktop lme4 and lcmm')),

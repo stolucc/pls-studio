@@ -53,7 +53,25 @@ export interface LcaModel {
   /** Multilevel (glca): the shares of the classes of clusters (largest first) and, per cluster class, the shares of the classes of people. */
   clusters?: { shares: number[]; byCluster: number[][] };
 }
-export interface LcaResult { n: number; items: string[]; models: LcaModel[]; warnings: string[]; engine: REngineInfo; times?: number[]; structure?: LpaStructure; /** multilevel: the number of clusters, the cluster column and the number of cluster classes */ clusters?: number; cluster?: string; clusterClasses?: number }
+export interface LcaResult { n: number; items: string[]; models: LcaModel[]; warnings: string[]; engine: REngineInfo; times?: number[]; structure?: LpaStructure; /** multilevel: the number of clusters, the cluster column and the number of cluster classes */ clusters?: number; cluster?: string; clusterClasses?: number; /** the three-step analysis of auxiliary variables */ aux?: LcaAuxResult }
+
+/** How covariates are related to the classes in step 3: ML with the classification errors (Vermunt 2010; Mplus's R3STEP) or BCH weights. */
+export type LcaAuxMethod = 'ml' | 'bch';
+/**
+ * Auxiliary variables of a latent class model (three-step approach): distal outcomes (class means with BCH weights) and
+ * covariates of class membership (a multinomial logit), with the `classes`-class model (absent: the lowest BIC); the
+ * logit's reference class (absent: the last).
+ */
+export interface LcaAux { distal: string[]; covariates: string[]; method: LcaAuxMethod; classes?: number; reference?: number }
+export interface LcaAuxResult {
+  k: number; method: LcaAuxMethod; n: number;
+  /** D[c][s] = P(assigned to class s | in class c), from the posterior probabilities; counts: the cases assigned to each class. */
+  D: number[][]; counts: number[];
+  /** Per distal outcome: the class means (BCH), their robust standard errors, the within-class SDs, the Wald test of equal means and of each pair. */
+  distal?: { name: string; n: number; means: number[]; se: number[]; sd: number[]; chisq: number; df: number; p: number; pairs: { a: number; b: number; chisq: number; p: number }[] }[];
+  /** The multinomial logit: per class other than the reference, a coefficient and robust SE per term; Wald tests per term (all its coefficients 0). */
+  covariates?: { n: number; logLik: number; reference: number; terms: string[]; coefs: { class: number; est: number[]; se: number[]; p: number[] }[]; wald: { chisq: number; df: number; p: number }[] };
+}
 
 /**
  * The model of the latent class card: categorical items (poLCA), continuous items (latent profiles, a normal
@@ -64,7 +82,11 @@ export type LcaKind = 'lca' | 'lpa' | 'lcga' | 'mlca';
 /** Latent profiles: EEI variances equal across classes, no covariances (Mplus's default); VVI class-specific variances; EEE / VVV with covariances, equal / class-specific. */
 export type LpaStructure = 'EEI' | 'VVI' | 'EEE' | 'VVV';
 /** mlca: categorical items of people in clusters (`cluster`), with `clusterClasses` classes of clusters (glca). */
-export interface LcaSpec { model?: LcaKind; structure?: LpaStructure; times?: number[]; cluster?: string; clusterClasses?: number }
+export interface LcaSpec { model?: LcaKind; structure?: LpaStructure; times?: number[]; cluster?: string; clusterClasses?: number; aux?: LcaAux }
+/** The request's three-step part and its columns (none for multilevel classes, or without auxiliary variables). */
+const auxOf = (spec: LcaSpec) => (spec.aux && spec.model !== 'mlca' && (spec.aux.distal.length || spec.aux.covariates.length)
+  ? { aux: { distal: spec.aux.distal, covariates: spec.aux.covariates, method: spec.aux.method, ...(spec.aux.classes ? { classes: spec.aux.classes } : {}), ...(spec.aux.reference ? { reference: spec.aux.reference } : {}) } } : {});
+const auxColumns = (spec: LcaSpec) => { const a = auxOf(spec).aux; return a ? [...a.distal, ...a.covariates] : []; };
 
 
 export const irtRequest = (data: Dataset, items: string[], model: IrtModel, fit: IrtFit = {}) => isMirt(model)
@@ -77,10 +99,10 @@ export const irtRequest = (data: Dataset, items: string[], model: IrtModel, fit:
   }
   : ({ kind: 'irt', model, items, ...(fit.quadrature ? { quadrature: fit.quadrature } : {}), ...(fit.robust ? { robust: true } : {}), data: rColumns(data, items) });
 export const lcaRequest = (data: Dataset, items: string[], classes: number[], nrep: number, seed: number, spec: LcaSpec = {}) =>
-  spec.model === 'lpa' ? { kind: 'lpa', items, classes, nrep, seed, structure: spec.structure ?? 'EEI', data: rColumns(data, items) }
-  : spec.model === 'lcga' ? { kind: 'lcga', items, classes, nrep, seed, times: spec.times ?? items.map((_, i) => i), data: rColumns(data, items) }
+  spec.model === 'lpa' ? { kind: 'lpa', items, classes, nrep, seed, structure: spec.structure ?? 'EEI', ...auxOf(spec), data: rColumns(data, [...items, ...auxColumns(spec)]) }
+  : spec.model === 'lcga' ? { kind: 'lcga', items, classes, nrep, seed, times: spec.times ?? items.map((_, i) => i), ...auxOf(spec), data: rColumns(data, [...items, ...auxColumns(spec)]) }
   : spec.model === 'mlca' ? { kind: 'mlca', items, classes, nrep, seed, cluster: spec.cluster ?? '', clusterClasses: spec.clusterClasses ?? 2, data: rColumns(data, [...items, spec.cluster ?? '']) }
-  : { kind: 'lca', items, classes, nrep, seed, data: rColumns(data, items) };
+  : { kind: 'lca', items, classes, nrep, seed, ...auxOf(spec), data: rColumns(data, [...items, ...auxColumns(spec)]) };
 const LCA_BRIDGE = { lca: ['ps_lca', 'poLCA'], lpa: ['ps_lpa', 'stats'], lcga: ['ps_lcga', 'stats'], mlca: ['ps_mlca', 'glca'] } as const;
 const IRT_BRIDGE = (model: IrtModel) => (isMirt(model) ? ['ps_mirt', 'mirt'] as const : ['ps_irt', 'ltm'] as const);
 
@@ -108,7 +130,17 @@ export async function lcaR(data: Dataset, items: string[], classes: number[], nr
       ...(m.growth != null ? { growth: { thresholds: rList<number>(m.growth.thresholds), intercepts: rList<number>(m.growth.intercepts), slopes: rList<number>(m.growth.slopes) } } : {}),
       ...(m.clusters != null ? { clusters: { shares: rList<number>(m.clusters.shares), byCluster: num2(m.clusters.byCluster) } } : {}),
     })),
+    ...(raw.aux != null ? { aux: auxResult(raw.aux) } : {}),
   } as LcaResult;
+}
+/** The three-step results as R's JSON gives them (one-element vectors arrive as scalars). */
+function auxResult(a: Record<string, any>): LcaAuxResult {
+  const num2 = (v: unknown) => rList<unknown>(v).map((x) => rList<number>(x));
+  return {
+    k: a.k, method: a.method, n: a.n, D: num2(a.D), counts: rList<number>(a.counts),
+    ...(a.distal != null ? { distal: rList<any>(a.distal).map((d) => ({ ...d, means: rList<number>(d.means), se: rList<number>(d.se), sd: rList<number>(d.sd), pairs: rList<any>(d.pairs) })) } : {}),
+    ...(a.covariates != null ? { covariates: { ...a.covariates, terms: rStrings(a.covariates.terms), coefs: rList<any>(a.covariates.coefs).map((c) => ({ class: c.class, est: rList<number>(c.est), se: rList<number>(c.se), p: rList<number>(c.p) })), wald: rList<any>(a.covariates.wald) } } : {}),
+  };
 }
 export const lcaScriptR = (data: Dataset, items: string[], classes: number[], nrep = 10, seed = 1, spec: LcaSpec = {}) =>
   rScript(LCA_BRIDGE[spec.model ?? 'lca'][0], lcaRequest(data, items, classes, nrep, seed, spec), LCA_BRIDGE[spec.model ?? 'lca'][1]);

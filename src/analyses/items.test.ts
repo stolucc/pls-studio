@@ -42,6 +42,34 @@ describe('item analysis cards', () => {
   });
 });
 
+describe('auxiliary variables of latent classes (three-step)', () => {
+  const o = { items: ['i1', 'i2'], from: 1, to: 3 };
+  it('validates saved options strictly', () => {
+    expect(lca.parseOptions({ ...o, aux: { distal: ['i3', 'i3'], covariates: ['i3', 'x'], method: 'eval', classes: 99, reference: 0 } }))
+      .toEqual({ ...o, aux: { distal: ['i3'], covariates: ['x'], method: 'ml', classes: 10, reference: 1 } });
+    expect(lca.parseOptions({ ...o, aux: { distal: [], covariates: [] } })).toEqual(o);
+    expect(lca.parseOptions({ ...o, aux: 'x' })).toEqual(o);
+  });
+  it('sends the auxiliary variables to R, except for multilevel classes', () => {
+    const aux = { distal: ['i3'], covariates: [], method: 'bch' as const };
+    expect(lcaSpec({ aux })).toEqual({ aux });
+    expect(lcaSpec({ model: 'lpa', aux })).toEqual({ model: 'lpa', structure: 'EEI', aux });
+    expect(lcaSpec({ model: 'mlca', cluster: 'c', aux })).toEqual({ model: 'mlca', cluster: 'c', clusterClasses: 2 });
+    expect(lcaSpec({ aux: { distal: [], covariates: [], method: 'ml' } })).toEqual({});
+  });
+  it('says why it cannot run, and is stale when the auxiliary variables change', () => {
+    expect(lca.blocked({ ...o, aux: { distal: ['i1'], covariates: [], method: 'ml' } }, ctx())).toBe('An auxiliary variable cannot be one of the items.');
+    expect(lca.blocked({ ...o, aux: { distal: ['i3'], covariates: [], method: 'ml', classes: 4 } }, ctx())).toContain('fitted numbers of classes (2–3)');
+    expect(lca.blocked({ ...o, to: 1, aux: { distal: ['i3'], covariates: [], method: 'ml' } }, ctx())).toContain('two or more classes');
+    expect(lca.blocked({ ...o, aux: { distal: ['zz'], covariates: [], method: 'ml' } }, ctx())).toBe('Not in the data: zz.');
+    expect(lca.blocked({ ...o, aux: { distal: ['i3'], covariates: [], method: 'ml', classes: 3 } }, ctx())).toBeNull();
+    const a = { ...o, aux: { distal: [], covariates: ['i3'], method: 'ml' as const } };
+    expect(lca.fingerprint(a, ctx())).not.toBe(lca.fingerprint({ ...a, aux: { ...a.aux, method: 'bch' } }, ctx()));
+    expect(lca.fingerprint(a, ctx())).not.toBe(lca.fingerprint(o, ctx()));
+    expect(lca.summary!(a)).toContain('three-step');
+  });
+});
+
 describe('mirt models and multilevel latent classes', () => {
   it('older saved IRT and LCA options read as before', () => {
     expect(irt.parseOptions({ items: ['i1', 'i2'], model: 'twopl', quadrature: 81, robust: true })).toEqual({ items: ['i1', 'i2'], model: 'twopl', quadrature: 81, robust: true });

@@ -43,12 +43,13 @@ import plssemR from './R/plssem.R?raw';
 import searchR from './R/search.R?raw';
 import sensitivityR from './R/sensitivity.R?raw';
 import scoreTestR from './R/scoretest.R?raw';
+import psemR from './R/psem.R?raw';
 import { useCompute } from './compute';
 import { helperBatch, helperCall, HelperMissingPackages, HelperUnavailable, probeHelper, useHelper } from './helper';
 import { reportRWarnings } from './notices';
 import { callJson, callString, parallelMap, withR, withSession } from './runtime';
 
-export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, cbdiag: cbdiagR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, plssem: plssemR, invariance: invarianceR};
+export const SOURCES = {did: didR, regression: regressionR, common: commonR, lavaan: lavaanR, pls: plsR, boot: bootR, analyses: analysesR, mc: mcR, cpa: cpaR, longitudinal: longitudinalR, items: itemsR, mixed: mixedR, mixture: mixtureR, segment: segmentR, endo: endoR, match: matchR, rsa: rsaR, plsx: plsxR, nca: ncaR, efa: efaR, screen: screenR, network: networkR, tests: testsR, bayes: bayesR, customml: customMlR, twolevelefa: twoLevelEfaR, glmm: glmmR, quadml: quadmlR, dsem: dsemR, dfi: dfiR, validity: validityR, qca: qcaR, cbdiag: cbdiagR, scoretest: scoreTestR, sensitivity: sensitivityR, search: searchR, power: powerR, metasem: metasemR, semtree: semtreeR, plssem: plssemR, invariance: invarianceR, psem: psemR};
 
 export const R_PACKAGES = {
   lavaan: ['jsonlite', 'lavaan', 'semTools'],
@@ -152,6 +153,8 @@ export const R_PACKAGES = {
   metaSEM: ['jsonlite', 'lavaan', 'OpenMx', 'metaSEM'],
   // SEM trees and forests of the canvas model (semtree on OpenMx, the model a lavaan fit): desktop R only (DESKTOP_ONLY).
   semtree: ['jsonlite', 'lavaan', 'OpenMx', 'semtree'],
+  // Piecewise SEM (Shipley's d-separation tests, Fisher's C; lm / glm, lmer / glmer per equation): piecewiseSEM.
+  piecewiseSEM: ['jsonlite', 'piecewiseSEM', 'lme4'],
   // Two-level PLS-SEM (MC-PLSc, random slopes): plssem 0.2.0, desktop R only (DESKTOP_ONLY; the browser's repository has 0.1.5).
   plssem: ['jsonlite', 'plssem'],
   // Score-based invariance tests along a covariate (Merkle & Zeileis): strucchange's fluctuation tests on the lavaan fit.

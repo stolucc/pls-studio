@@ -39,8 +39,8 @@ import { parseLavaanSyntax } from '../model/syntax';
 import { namesIn, parseExpr } from '../model/expr';
 import type { RemoteData } from './remote/source';
 
-export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'nonnest2' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa' | 'pscl' | 'plssem';
-export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'nonnest2', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa', 'pscl', 'plssem'];
+export type ExamplePackage = 'lavaan' | 'did' | 'fixest' | 'stats' | 'datasets' | 'carData' | 'faraway' | 'MASS' | 'nnet' | 'psych' | 'semfindr' | 'rsem' | 'mice' | 'lavaan.mi' | 'WeightIt' | 'MIIVsem' | 'modsem' | 'manymome' | 'cSEM' | 'seminr' | 'ltm' | 'poLCA' | 'lme4' | 'lcmm' | 'plspm' | 'ivreg' | 'REndo' | 'sampleSelection' | 'MatchIt' | 'RSA' | 'NCA' | 'genpathmox' | 'haven' | 'readxl' | 'bootnet' | 'EGAnet' | 'BayesFactor' | 'blavaan' | 'INLAvaan' | 'mirt' | 'GLMMadaptive' | 'glca' | 'rstan' | 'dynamic' | 'QCA' | 'nonnest2' | 'strucchange' | 'psychotools' | 'misty' | 'SEMsens' | 'mediation' | 'lslx' | 'semPower' | 'metaSEM' | 'semtree' | 'sirt' | 'mnlfa' | 'pscl' | 'plssem' | 'piecewiseSEM';
+export const EXAMPLE_PACKAGES: ExamplePackage[] = ['lavaan', 'did', 'fixest', 'stats', 'datasets', 'carData', 'faraway', 'MASS', 'nnet', 'psych', 'semfindr', 'rsem', 'mice', 'lavaan.mi', 'WeightIt', 'MIIVsem', 'modsem', 'manymome', 'cSEM', 'seminr', 'plspm', 'ltm', 'poLCA', 'lme4', 'lcmm', 'ivreg', 'REndo', 'sampleSelection', 'MatchIt', 'RSA', 'NCA', 'genpathmox', 'haven', 'readxl', 'bootnet', 'EGAnet', 'BayesFactor', 'blavaan', 'INLAvaan', 'mirt', 'GLMMadaptive', 'glca', 'rstan', 'dynamic', 'QCA', 'nonnest2', 'strucchange', 'misty', 'SEMsens', 'mediation', 'lslx', 'semPower', 'metaSEM', 'semtree', 'sirt', 'mnlfa', 'pscl', 'plssem', 'piecewiseSEM'];
 
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -84,7 +84,7 @@ export function panelPreset(p: ExamplePanel): Record<string, unknown> {
  */
 export type CardPanelKind = 'ttest' | 'anova' | 'rmanova' | 'manova' | 'correlation' | 'contingency' | 'freqtest' | 'reliability'
   | 'bttest' | 'banova' | 'brmanova' | 'bregression' | 'bcontingency' | 'bbinomial' | 'chart'
-  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'lsem' | 'dmacs' | 'plsmultilevel';
+  | 'methodcompare' | 'parcelallocation' | 'bollenstine' | 'cbcompare' | 'scoreweights' | 'plspredict' | 'compare' | 'cta' | 'minsample' | 'pos' | 'mc' | 'riclpm' | 'customml' | 'bmvreg' | 'efa2l' | 'missingdata' | 'dynamicfit' | 'cmb' | 'cvi' | 'cbmodels' | 'scoretest' | 'lcs' | 'semsens' | 'medsens' | 'regsem' | 'sempower' | 'metasem' | 'semtree' | 'alignment' | 'mnlfa' | 'lsem' | 'dmacs' | 'plsmultilevel' | 'psem';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage { pattern: string; why: string; level?: 'warning' | 'note' }
@@ -775,6 +775,22 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     data: { package: 'semtree', name: 'lgcm', file: 'examples/semtree/lgcm.csv' },
     syntax: LGCM_SYNTAX, constructs: [], paths: [],
     panel: { kind: 'semtree', covariates: [{ name: 'agegroup', type: 'ordered' }, { name: 'training', type: 'categorical' }, { name: 'noise', type: 'numeric' }], method: 'naive', alpha: 0.05, maxDepth: 3, minN: 20, forest: false, trees: 50 },
+    settings: CB('ML'),
+  },
+  {
+    id: 'piecewisesem-keeley', package: 'piecewiseSEM', title: 'Piecewise SEM: fire severity and plant species richness',
+    source: 'piecewiseSEM, ?psem',
+    links: [
+      { label: '?psem', url: 'https://rdrr.io/cran/piecewiseSEM/man/psem.html' },
+      { label: '?keeley', url: 'https://rdrr.io/cran/piecewiseSEM/man/keeley.html' },
+      { label: 'Lefcheck (2016), Methods in Ecology and Evolution', url: 'https://doi.org/10.1111/2041-210X.12512' },
+    ],
+    description: 'Grace & Keeley (2006): 90 plots in California shrublands after wildfire, as shipped with piecewiseSEM (GPL-3). The help page’s model: stand age raises fire severity, severity lowers plant cover, cover raises species richness; each arrow’s equation is a linear model fitted on its own. Opens the Piecewise SEM card on the Analyses tab.',
+    shows: 'The diagram claims three independences (cover and richness of age, richness of severity, each given the variables before it); together they are rejected, Fisher’s C = 17.136 on 6 df (p = 0.009), mostly because age also affects richness (p = 0.047). Standardised paths: age → severity 0.454, severity → cover −0.437, cover → richness 0.329; AIC 1103.49.',
+    data: { package: 'piecewiseSEM', name: 'keeley' },
+    constructs: [v('age'), v('firesev'), v('cover'), v('rich')],
+    paths: [['age', 'firesev'], ['firesev', 'cover'], ['cover', 'rich']],
+    panel: { kind: 'psem', families: {}, standardize: 'latent.linear' },
     settings: CB('ML'),
   },
   {

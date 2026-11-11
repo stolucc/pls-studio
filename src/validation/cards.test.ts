@@ -13,7 +13,8 @@ import { CHART_KINDS } from '../analyses/charts';
 import { CUSTOMML_TYPES } from '../analyses/customml';
 import { DID_DESIGNS } from '../analyses/did';
 import { ENDO_METHODS } from '../analyses/endo';
-import { IRT_MODELS, LCA_KINDS } from '../analyses/items';
+import { IRT_MODELS, LCA_AUX_METHODS, LCA_KINDS } from '../analyses/items';
+import { PSEM_MODES } from '../analyses/psem';
 import { MATCH_METHODS } from '../analyses/match';
 import { METASEM_METHODS } from '../analyses/metasem';
 import { EGA_MODELS, NETWORK_COR_METHODS, NETWORK_ESTIMATORS } from '../analyses/network';
@@ -40,9 +41,9 @@ const TODO_MAX = 2;
 const CARD_MODES: Record<string, readonly string[]> = {
   chart: CHART_KINDS, ttest: TTEST_TYPES, correlation: CORRELATION_METHODS, freqtest: FREQTEST_TYPES, reliability: RELIABILITY_TYPES, bttest: BTTEST_TYPES,
   regression: [...FAMILIES.map(([f]) => f), ...Object.entries(LINKS).flatMap(([f, links]) => links.slice(1).map(([l]) => `${f}:${l}`)), ...ZERO_MODELS],
-  customml: CUSTOMML_TYPES, did: DID_DESIGNS, efa: EFA_METHODS.map((m) => m.id), cmb: CMB_TYPES, irt: IRT_MODELS, lca: LCA_KINDS.map((k) => k.id), quadml: QUAD_SOURCES,
+  customml: CUSTOMML_TYPES, did: DID_DESIGNS, efa: EFA_METHODS.map((m) => m.id), cmb: CMB_TYPES, irt: IRT_MODELS, lca: [...LCA_KINDS.map((k) => k.id), ...LCA_AUX_METHODS.map(([m]) => `aux:${m}`)], quadml: QUAD_SOURCES,
   network: [...NETWORK_ESTIMATORS.map((e) => `estimator:${e}`), ...NETWORK_COR_METHODS.map((c) => `cor:${c}`)], ega: EGA_MODELS, dynamicfit: DFI_FUNCTIONS,
-  metasem: METASEM_METHODS, bsem: BSEM_ENGINES, endo: ENDO_METHODS, glmm: GLMM_FAMILIES,
+  metasem: METASEM_METHODS, psem: PSEM_MODES, bsem: BSEM_ENGINES, endo: ENDO_METHODS, glmm: GLMM_FAMILIES,
   // MatchIt's methods (nearest, optimal, full, …) share one code path; weighting is WeightIt's.
   match: [...new Set(MATCH_METHODS.map((m) => (m === 'weighting' ? 'weighting' : 'matchit')))],
 };

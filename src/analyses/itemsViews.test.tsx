@@ -32,6 +32,22 @@ describe('views', () => {
     expect(html).toContain('Cluster class 2');
   });
 
+  it('LCA with auxiliary variables: classification errors, BCH distal means and tests, the covariates’ logit', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const m = { k: 2, llik: -10, npar: 5, aic: 30, bic: 33, gsq: null, entropy: 0.8, shares: [0.6, 0.4], probs: [] };
+    const aux = { k: 2, method: 'ml', n: 10, D: [[0.9, 0.1], [0.2, 0.8]], counts: [6, 4],
+      distal: [{ name: 'educ', n: 9, means: [4.5, 3.2], se: [0.1, 0.2], sd: [1, 1.1], chisq: 12.5, df: 1, p: 0.0004, pairs: [{ a: 1, b: 2, chisq: 12.5, p: 0.0004 }] }],
+      covariates: { n: 10, logLik: -6.25, reference: 2, terms: ['Intercept', 'party'], coefs: [{ class: 1, est: [0.5, -0.4], se: [0.2, 0.1], p: [0.01, 0.0001] }], wald: [{ chisq: 6.25, df: 1, p: 0.012 }, { chisq: 16, df: 1, p: 0.0001 }] } };
+    const html = renderToStaticMarkup(<lcaAnalysis.View result={{ n: 10, items: ['u1'], models: [m], warnings: [], engine, aux } as never} options={{ items: ['u1'], from: 2, to: 2 }} current />);
+    expect(html).toContain('classification errors (2 classes)');
+    expect(html).toContain('class 1: 6, class 2: 4');
+    expect(html).toContain('educ (n = 9)');
+    expect(html).toContain('Class 1 = class 2');
+    expect(html).toContain('ML three-step');
+    expect(html).toContain('Class 1 vs 2');
+    expect(html).toContain(String(Math.exp(-0.4).toFixed(3)));
+  });
+
   it('GLMM: fixed effects, the zero part, random effects with the zero part marked, dispersion', async () => {
     const { renderToStaticMarkup } = await import('react-dom/server');
     const coef = { term: 'Intercept', est: 0.3, se: 0.1, z: 3, p: 0.003 };
