@@ -8,7 +8,7 @@ import { columnsIn, parseFormula } from '../data/compute';
 import { fmt } from '../format';
 import { useCompute } from '../rengine/compute';
 import type { DsemParameter, DsemResult } from '../rengine/dsem';
-import { clampNum, columnsFingerprint, isObj, rawData } from './common';
+import { clampNum, columnsFingerprint, isObj, rawData, rhatClass } from './common';
 import { dsemData, DsemSyntaxError, parseDsem } from './dsemSyntax';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
@@ -176,20 +176,23 @@ function DsemForm({ options: o, set, ctx, disabled }: OptionsProps<DsemOptions>)
   );
 }
 
-const rhatCell = (v: number | null) =>
-  v === null ? c(null) : { v: fmt(v, 3), cls: v >= 1.05 ? 'bad' : v >= 1.01 ? 'warn' : 'good' };
-const label = (p: DsemParameter) =>
-  p.op === '~1'
-    ? `${p.lhs} (mean or intercept)`
-    : p.op === '|'
-      ? `${p.lhs}$1 (threshold)`
-      : p.op === '=~'
-        ? `${p.lhs} BY ${p.rhs}`
-        : p.op === '~'
-          ? `${p.lhs} ON ${p.rhs}`
-          : p.lhs === p.rhs
-            ? `${p.lhs} (variance)`
-            : `${p.lhs} WITH ${p.rhs}`;
+const rhatCell = (v: number | null) => (v === null ? c(null) : { v: fmt(v, 3), cls: rhatClass(v) });
+/** A parameter as Mplus words it. */
+const label = (p: DsemParameter) => {
+  if (p.op === '~1') return `${p.lhs} (mean or intercept)`;
+  if (p.op === '|') return `${p.lhs}$1 (threshold)`;
+  if (p.op === '=~') return `${p.lhs} BY ${p.rhs}`;
+  if (p.op === '~') return `${p.lhs} ON ${p.rhs}`;
+  if (p.lhs === p.rhs) return `${p.lhs} (variance)`;
+  return `${p.lhs} WITH ${p.rhs}`;
+};
+/** The multilevel structure an Mplus input declares. */
+const levelsOf = (syntax: string) => {
+  if (/CROSSCLASSIFIED/i.test(syntax)) return 'cross-classified';
+  if (/THREELEVEL/i.test(syntax)) return 'three-level';
+  if (/TWOLEVEL/i.test(syntax)) return 'two-level';
+  return 'single-level';
+};
 
 function DsemView({ r }: { r: DsemResult }) {
   const blocks = [...new Set(r.parameters.map((p) => p.block))];
@@ -213,9 +216,7 @@ function DsemView({ r }: { r: DsemResult }) {
         </div>
         <div className="stat-card">
           <div className="k">Largest R-hat</div>
-          <div
-            className={`v ${(r.maxRhat ?? 9) >= 1.05 ? 'bad' : (r.maxRhat ?? 9) >= 1.01 ? 'warn' : 'good'}`}
-          >
+          <div className={`v ${rhatClass(r.maxRhat ?? 9)}`}>
             {r.maxRhat === null ? '—' : fmt(r.maxRhat, 3)}
           </div>
         </div>
@@ -355,8 +356,11 @@ export const dsemAnalysis: AnalysisType<DsemOptions, DsemResult> = {
       ctx.settings.confidence,
     );
   },
-  summary: (o) =>
-    o.syntax.trim()
-      ? `${/CROSSCLASSIFIED/i.test(o.syntax) ? 'cross-classified' : /THREELEVEL/i.test(o.syntax) ? 'three-level' : /TWOLEVEL/i.test(o.syntax) ? 'two-level' : 'single-level'}${/&\d/.test(o.syntax) ? ' DSEM' : ''} · ${o.chains} chains × ${o.draws}${o.parametrization ? ' (non-centred)' : ''}`
-      : 'not set up yet',
+  summary: (o) => {
+    if (!o.syntax.trim()) return 'not set up yet';
+    // Lagged variables (y&1) make it a dynamic SEM.
+    const dynamic = /&\d/.test(o.syntax) ? ' DSEM' : '';
+    const parametrization = o.parametrization ? ' (non-centred)' : '';
+    return `${levelsOf(o.syntax)}${dynamic} · ${o.chains} chains × ${o.draws}${parametrization}`;
+  },
 };

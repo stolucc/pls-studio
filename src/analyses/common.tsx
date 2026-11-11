@@ -98,6 +98,13 @@ export function ColumnSelect({
   );
 }
 
+/** The colour of an R-hat convergence diagnostic: red from 1.05, amber from 1.01, green below. */
+export function rhatClass(rhat: number): 'bad' | 'warn' | 'good' {
+  if (rhat >= 1.05) return 'bad';
+  if (rhat >= 1.01) return 'warn';
+  return 'good';
+}
+
 /** The explanatory paragraph at the top of a card's options. */
 export const Hint = ({ children }: { children: ReactNode }) => (
   <p className="hint" style={{ marginTop: 0 }}>
