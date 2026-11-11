@@ -155,6 +155,22 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     features: ['rengine/tests::Bayesian with the glb'],
     note: 'Bayesrel::strel with the same seed (scripts/validation/bayesrel.R).',
   },
+  'reliability:fleiss': {
+    title: 'Fleiss’ kappa and Conger’s exact kappa (irr)',
+    examples: ['irr-fleiss-diagnoses'],
+    features: ['rengine/agreement::Fleiss'],
+  },
+  'reliability:kripp': {
+    title: 'Krippendorff’s alpha with a bootstrap interval (irr)',
+    examples: ['irr-kripp-alpha'],
+    features: ['rengine/agreement::Krippendorff'],
+    note: 'The bootstrap over the units against a loop written in desktop R with the same seed.',
+  },
+  'reliability:kendallw': {
+    title: 'Kendall’s W, with the correction for ties (irr)',
+    examples: ['irr-kendall-anxiety'],
+    features: ['rengine/agreement::Kendall'],
+  },
   'reliability:blandaltman': {
     title: 'Bland–Altman limits of agreement',
     features: ['rengine/tests::Bland'],

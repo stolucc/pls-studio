@@ -2,6 +2,7 @@
 // JSON request and returns JSON results, or (export = TRUE) the self-contained
 // R script that produces them.
 
+import agreementR from './R/agreement.R?raw';
 import analysesR from './R/analyses.R?raw';
 import bootR from './R/boot.R?raw';
 import commonR from './R/common.R?raw';
@@ -83,6 +84,7 @@ export const SOURCES = {
   screen: screenR,
   network: networkR,
   tests: testsR,
+  agreement: agreementR,
   bayes: bayesR,
   customml: customMlR,
   twolevelefa: twoLevelEfaR,
@@ -156,6 +158,8 @@ export const R_PACKAGES = {
   psych: ['jsonlite', 'psych', 'GPArotation'],
   // Bayesian scale reliability (Bayesrel, Pfadt et al.): alpha, lambda-2, omega and the glb with credible intervals.
   Bayesrel: ['jsonlite', 'psych', 'GPArotation', 'Bayesrel'],
+  // Agreement of several raters: Fleiss' kappa, Krippendorff's alpha, Kendall's W (irr, on lpSolve).
+  irr: ['jsonlite', 'irr'],
   // Exploratory factor analysis with lavaan's efa() (standard errors, the fit by number of factors).
   psychLavaan: ['jsonlite', 'psych', 'GPArotation', 'lavaan'],
   semfindr: ['jsonlite', 'lavaan', 'semTools', 'semfindr'],

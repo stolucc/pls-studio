@@ -12,6 +12,7 @@ local({
 suppressPackageStartupMessages({
   library(jsonlite)
   library(psych)
+  library(irr)
 })
 
 frame <- function(df) {
@@ -61,7 +62,78 @@ out$iccSem <- list(
   sem = ifelse(k_forms, sd_means, sd_all) * sqrt(1 - icc$ICC)
 )
 
+# ---- Fleiss' kappa: irr's diagnoses (Fleiss 1971), 30 patients, 6 psychiatrists, factors
+# whose codes differ between raters (rater6 has no "1. Depression"): compared by label.
+data(diagnoses, package = "irr")
+out$diagnoses <- frame(diagnoses)
+fl <- kappam.fleiss(diagnoses, detail = TRUE)
+out$fleiss <- list(
+  kappa = fl$value,
+  z = unname(fl$statistic),
+  p = fl$p.value,
+  exact = kappam.fleiss(diagnoses, exact = TRUE)$value,
+  # (irr prints the categories' kappas to 3 decimals)
+  categoryKappa3 = unname(fl$detail[, "Kappa"]),
+  categories = rownames(fl$detail)
+)
+# The categories' kappas by Fleiss's (1971) formula, unrounded.
+ratings <- as.matrix(data.frame(lapply(diagnoses, as.character)))
+m <- ncol(ratings)
+n <- nrow(ratings)
+cats <- sort(unique(c(ratings)))
+counts <- sapply(cats, function(k) rowSums(ratings == k))
+p_k <- colSums(counts) / (n * m)
+kappa_k <- 1 - colSums(counts * (m - counts)) / (n * m * (m - 1) * p_k * (1 - p_k))
+out$fleiss$categoryKappa <- unname(kappa_k)
+out$fleiss$categoryZ <- unname(kappa_k / sqrt(2 / (n * m * (m - 1))))
+
+# ---- Krippendorff's alpha: Krippendorff's (2011) example, 4 coders and 12 units with
+# missing values (?kripp.alpha); published: nominal .743, ordinal .815, interval .849, ratio .797.
+nmm <- matrix(
+  c(
+    1, 1, NA, 1, 2, 2, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 1, 2, 3, 4, 4, 4, 4, 4,
+    1, 1, 2, 1, 2, 2, 2, 2, NA, 5, 5, 5, NA, NA, 1, 1, NA, NA, 3, NA
+  ),
+  nrow = 4
+)
+units <- as.data.frame(t(nmm))
+names(units) <- paste0("coder", 1:4)
+out$krippendorff <- frame(units)
+levels_kripp <- c("nominal", "ordinal", "interval", "ratio")
+out$kripp <- lapply(setNames(levels_kripp, levels_kripp), function(l) kripp.alpha(nmm, l)$value)
+out$krippPairable <- kripp.alpha(nmm)$nmatchval
+# The bootstrap over the units: seed 7, 500 samples, 95% percentile interval.
+set.seed(7)
+boot <- numeric(500)
+for (b in seq_along(boot)) {
+  drawn <- sample(ncol(nmm), replace = TRUE)
+  boot[b] <- kripp.alpha(nmm[, drawn, drop = FALSE], "ordinal")$value
+}
+boot <- boot[is.finite(boot)]
+out$krippBoot <- list(
+  seed = 7,
+  samples = 500,
+  level = "ordinal",
+  ci = unname(quantile(boot, c(0.025, 0.975))),
+  below667 = mean(boot < 0.667),
+  below800 = mean(boot < 0.8)
+)
+
+# ---- Kendall's W: irr's anxiety, 20 subjects rated by 3 raters (?kendall)
+data(anxiety, package = "irr")
+out$anxiety <- frame(anxiety)
+kw <- kendall(anxiety, correct = FALSE)
+kwt <- kendall(anxiety, correct = TRUE)
+out$kendall <- list(
+  w = kw$value,
+  chisq = unname(kw$statistic),
+  p = kw$p.value,
+  wt = kwt$value,
+  chisqT = unname(kwt$statistic),
+  pT = kwt$p.value
+)
+
 writeLines(
-  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null"),
+  toJSON(out, auto_unbox = TRUE, digits = NA, pretty = TRUE, null = "null", na = "null"),
   "src/engine/__fixtures__/agreement/reference.json"
 )

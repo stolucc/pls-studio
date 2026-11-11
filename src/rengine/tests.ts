@@ -497,7 +497,7 @@ export interface KappaTable {
  * diagonal: disagreement weights).
  */
 export interface ReliabilityInput {
-  type: 'scale' | 'icc' | 'kappa' | 'blandaltman';
+  type: 'scale' | 'icc' | 'kappa' | 'blandaltman' | 'fleiss' | 'kripp' | 'kendallw';
   vars: string[];
   confidence: number;
   kappaTable?: KappaTable;
@@ -510,6 +510,40 @@ export interface ReliabilityInput {
   /** Scale, Bayesian: iterations per chain (absent: Bayesrel's 1000) and the seed. */
   iterations?: number;
   seed?: number;
+  /** Krippendorff's alpha: the level of measurement (absent: nominal). */
+  krippLevel?: KrippLevel;
+  /** Krippendorff's alpha: bootstrap samples over the subjects (absent: 1000; 0: no interval), seeded by `seed`. */
+  bootstrap?: number;
+}
+/** The levels of measurement of Krippendorff's alpha. */
+export const KRIPP_LEVELS = ['nominal', 'ordinal', 'interval', 'ratio'] as const;
+export type KrippLevel = (typeof KRIPP_LEVELS)[number];
+/** Fleiss' kappa (z test of kappa = 0) and Conger's exact kappa. */
+export interface FleissResult {
+  kappa: number;
+  z: number;
+  p: number;
+  exact: number;
+}
+/** Krippendorff's alpha, with the bootstrap interval and the shares of bootstrap alphas below .667 and .8. */
+export interface KrippResult {
+  alpha: number;
+  level: KrippLevel;
+  pairable: number;
+  bootstrap: number;
+  seed?: number | null;
+  ciLow?: number | null;
+  ciHigh?: number | null;
+  below667?: number | null;
+  below800?: number | null;
+}
+/** Kendall's W without and with the correction for ties: chi-square on n - 1 degrees of freedom. */
+export interface KendallRow {
+  corrected: boolean;
+  w: number;
+  chisq: number;
+  df: number;
+  p: number;
 }
 
 /** A Bayesian reliability coefficient: posterior mean, credible interval, R-hat and effective sample size. */
@@ -584,14 +618,21 @@ export interface ReliabilityResult {
   weights?: ReliabilityInput['kappaWeights'];
   /** Scale: Bayesian reliability (Bayesrel), when asked for. */
   bayes?: BayesReliabilityResult;
+  /** Several raters: the number of raters (columns). */
+  raters?: number;
+  fleiss?: FleissResult;
+  fleissCategories?: { category: string; kappa: number; z: number; p: number }[];
+  kripp?: KrippResult;
+  kendall?: KendallRow[];
   warnings: string[];
   engine: REngineInfo;
 }
 export const reliabilityRequest = (d: Dataset, i: ReliabilityInput) =>
   testRequest(d, 'reliability', reliabilityColumns(i), i);
 /** The R packages of a reliability analysis: base R (Bland–Altman), psych, or psych with Bayesrel. */
-function reliabilityPackage(i: ReliabilityInput): 'stats' | 'psych' | 'Bayesrel' {
+function reliabilityPackage(i: ReliabilityInput): 'stats' | 'psych' | 'Bayesrel' | 'irr' {
   if (i.type === 'blandaltman') return 'stats';
+  if (i.type === 'fleiss' || i.type === 'kripp' || i.type === 'kendallw') return 'irr';
   if (i.type === 'scale' && i.bayes) return 'Bayesrel';
   return 'psych';
 }
@@ -632,6 +673,8 @@ export async function reliabilityR(d: Dataset, i: ReliabilityInput): Promise<Rel
         }
       : {}),
     ...(bayes ? { bayes } : {}),
+    ...(r.fleissCategories ? { fleissCategories: rList(r.fleissCategories) } : {}),
+    ...(r.kendall ? { kendall: rList<KendallRow>(r.kendall) } : {}),
     warnings: rStrings(r.warnings),
   } as ReliabilityResult;
 }

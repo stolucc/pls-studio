@@ -250,3 +250,83 @@ describe('Bayesian scale reliability (Bayesrel)', () => {
     expect(html).toMatch(/class="num bad"[^>]*>1\.050/);
   });
 });
+
+describe('agreement of several raters (irr)', () => {
+  const t = reliabilityAnalysis;
+  const o = { type: 'kripp' as const, vars: ['y', 'x', 'g'] };
+
+  it('keeps Krippendorff’s options from a project file only when valid and not the default', () => {
+    expect(t.parseOptions({ ...o, krippLevel: 'interval', bootstrap: 500 })).toEqual({
+      ...o,
+      krippLevel: 'interval',
+      bootstrap: 500,
+    });
+    expect(t.parseOptions({ ...o, krippLevel: 'nominal' })).toEqual(o);
+    expect(t.parseOptions({ ...o, krippLevel: 'cardinal' })).toEqual(o);
+    expect(t.parseOptions({ ...o, bootstrap: 1e9 })!.bootstrap).toBe(20000);
+    expect(t.parseOptions({ type: 'fleiss', vars: ['y', 'x'] })!.type).toBe('fleiss');
+    expect(t.parseOptions({ type: 'kendallw', vars: ['y', 'x'] })!.type).toBe('kendallw');
+  });
+
+  it('sends the level, the bootstrap samples and the seed with Krippendorff’s alpha only', () => {
+    const settings = { ...DEFAULT_SETTINGS, seed: 7 };
+    expect(relInput({ ...o, krippLevel: 'ordinal' }, { settings })).toMatchObject({
+      krippLevel: 'ordinal',
+      bootstrap: 1000,
+      seed: 7,
+    });
+    const fleiss = relInput({ ...o, type: 'fleiss', bootstrap: 200 }, { settings });
+    expect(['krippLevel', 'bootstrap', 'seed'].filter((k) => k in fleiss)).toEqual([]);
+  });
+
+  it('refuses 1 to 99 bootstrap samples; the seed matters only with a bootstrap', () => {
+    expect(t.blocked({ ...o, bootstrap: 50 }, ctx)).toMatch(/at least 100/);
+    expect(t.blocked({ ...o, bootstrap: 0 }, ctx)).toBeNull();
+    const seeded = { ...ctx, settings: { ...DEFAULT_SETTINGS, seed: 99 } };
+    expect(t.fingerprint(o, seeded)).not.toBe(t.fingerprint(o, ctx));
+    const none = { ...o, bootstrap: 0 };
+    expect(t.fingerprint(none, seeded)).toBe(t.fingerprint(none, ctx));
+    expect(t.fingerprint({ ...o, krippLevel: 'ratio' }, ctx)).not.toBe(t.fingerprint(o, ctx));
+  });
+
+  it('shows Fleiss’, Krippendorff’s and Kendall’s tables', () => {
+    const base = { vars: ['y', 'x'], n: 30, raters: 2, confidence: 0.95, warnings: [] };
+    const engine = { package: 'irr', version: '0.85' };
+    const view = (r: object) =>
+      renderToStaticMarkup(
+        <t.View result={{ ...base, engine, ...r } as ReliabilityResult} options={o} current />,
+      );
+    const fleiss = view({
+      type: 'fleiss',
+      fleiss: { kappa: 0.43, z: 17.6, p: 0, exact: 0.442 },
+      fleissCategories: [{ category: 'Neurosis', kappa: 0.471, z: 9.99, p: 0 }],
+    });
+    expect(fleiss).toContain('Conger’s exact κ');
+    expect(fleiss).toContain('Neurosis');
+    const kripp = view({
+      type: 'kripp',
+      kripp: {
+        alpha: 0.815,
+        level: 'ordinal',
+        pairable: 40,
+        bootstrap: 1000,
+        seed: 1,
+        ciLow: 0.48,
+        ciHigh: 1,
+        below667: 0.16,
+        below800: 0.45,
+      },
+    });
+    expect(kripp).toContain('Krippendorff’s alpha (ordinal)');
+    expect(kripp).toContain('1,000 bootstrap samples of the subjects, seed 1');
+    expect(kripp).toContain('[0.480, 1.000]');
+    const kendall = view({
+      type: 'kendallw',
+      kendall: [
+        { corrected: false, w: 0.5, chisq: 28.6, df: 19, p: 0.07 },
+        { corrected: true, w: 0.54, chisq: 30.8, df: 19, p: 0.04 },
+      ],
+    });
+    expect(kendall).toContain('W, corrected for ties');
+  });
+});

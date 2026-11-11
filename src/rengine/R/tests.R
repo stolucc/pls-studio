@@ -1289,6 +1289,9 @@ ps_kappa_table <- function(req, export) {
 ps_reliability <- function(req_json, export = FALSE) {
   req <- ps_parse(req_json)
   type <- req$type %||% "scale"
+  if (type %in% PS_AGREEMENT_TYPES) {
+    return(ps_agreement(req, type, export))
+  }
   if (!type %in% c("scale", "icc", "kappa", "blandaltman")) {
     stop("Invalid reliability analysis in the request.")
   }

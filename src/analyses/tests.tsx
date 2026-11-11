@@ -20,6 +20,7 @@ import type {
   BayesReliabilityResult,
   HTest,
   KappaTable,
+  KrippLevel,
   ManovaInput,
   ManovaResult,
   ReliabilityInput,
@@ -58,7 +59,15 @@ import {
 export const TTEST_TYPES = ['one', 'paired', 'independent'] as const;
 export const CORRELATION_METHODS = ['pearson', 'spearman', 'kendall', 'polychoric'] as const;
 export const FREQTEST_TYPES = ['binomial', 'multinomial'] as const;
-export const RELIABILITY_TYPES = ['scale', 'icc', 'kappa', 'blandaltman'] as const;
+export const RELIABILITY_TYPES = [
+  'scale',
+  'icc',
+  'kappa',
+  'blandaltman',
+  'fleiss',
+  'kripp',
+  'kendallw',
+] as const;
 const ALTS: readonly (readonly [Alternative, string])[] = [
   ['two.sided', 'Two-sided'],
   ['greater', 'Greater'],
@@ -1630,13 +1639,25 @@ const REL_NAME = {
   icc: 'Intraclass correlation',
   kappa: 'Cohen’s kappa',
   blandaltman: 'Bland–Altman agreement',
+  fleiss: 'Fleiss’ kappa',
+  kripp: 'Krippendorff’s alpha',
+  kendallw: 'Kendall’s W',
 } as const;
+/** Krippendorff's levels of measurement (as rengine/tests, which is loaded on demand). */
+const KRIPP_LEVELS: readonly KrippLevel[] = ['nominal', 'ordinal', 'interval', 'ratio'];
+/** Krippendorff's alpha: bootstrap samples by default. */
+export const KRIPP_BOOTSTRAP = 1000;
 const REL_HINT = {
   scale:
     'The items of one scale, scored in the same direction (reverse-code items first, in the data panel).',
   icc: 'One column per rater (or occasion), one row per subject rated.',
   kappa: 'Two raters’ category codes for the same subjects.',
   blandaltman: 'Two methods measuring the same quantity on the same subjects.',
+  fleiss: 'One column per rater, one row per subject: each rater’s category for the subject.',
+  kripp:
+    'One column per rater, one row per subject; missing ratings are allowed (a subject needs two ratings to count).',
+  kendallw:
+    'One column per rater, one row per subject: each rater’s score or rank of the subjects.',
 } as const;
 
 /** A weight matrix typed as rows of numbers (one line per row); kept as typed while it is edited. */
@@ -1794,6 +1815,58 @@ function BayesReliabilityTable({ b }: { b: BayesReliabilityResult }) {
   );
 }
 
+/** The columns a reliability analysis can use: category columns too for the categorical ones. */
+function raterColumns(
+  o: ReliabilityOptions,
+  d: { names: string[]; categories?: object },
+): string[] {
+  const categorical = o.type === 'kappa' || o.type === 'fleiss' || o.type === 'kripp';
+  if (categorical) return d.names;
+  const cats = (d.categories ?? {}) as Record<string, unknown>;
+  return d.names.filter((n) => !cats[n]);
+}
+
+/** Krippendorff's alpha: the level of measurement and the bootstrap samples. */
+function KrippFields({ o, set }: { o: ReliabilityOptions; set: (o: ReliabilityOptions) => void }) {
+  return (
+    <>
+      <Choice
+        label="Level of measurement"
+        value={o.krippLevel ?? 'nominal'}
+        options={[
+          ['nominal', 'Nominal'],
+          ['ordinal', 'Ordinal'],
+          ['interval', 'Interval'],
+          ['ratio', 'Ratio'],
+        ]}
+        onChange={(level) => {
+          const { krippLevel: _l, ...rest } = o;
+          // Nominal is the default, so it leaves no option behind.
+          set(level === 'nominal' ? rest : { ...rest, krippLevel: level });
+        }}
+        hint="How far apart two different values are: not at all (nominal), by their ranks (ordinal), by their differences (interval) or by their ratios (ratio)."
+      />
+      <NumField
+        id="rel-boot"
+        label="Bootstrap samples (0: no interval)"
+        value={o.bootstrap ?? KRIPP_BOOTSTRAP}
+        lo={0}
+        hi={20000}
+        step={100}
+        int
+        onChange={(bootstrap) => {
+          const { bootstrap: _b, ...rest } = o;
+          set(bootstrap === KRIPP_BOOTSTRAP ? rest : { ...rest, bootstrap });
+        }}
+      />
+      <div className="hint">
+        Subjects drawn with replacement, α recomputed each time: the percentile interval at the
+        project’s confidence level, seeded by the project’s seed.
+      </div>
+    </>
+  );
+}
+
 function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<ReliabilityOptions>) {
   const d = rawData(ctx);
   if (!d) return <NoData />;
@@ -1817,6 +1890,9 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
           ['icc', 'ICC'],
           ['kappa', 'Kappa'],
           ['blandaltman', 'Bland–Altman'],
+          ['fleiss', 'Fleiss’ κ'],
+          ['kripp', 'Krippendorff’s α'],
+          ['kendallw', 'Kendall’s W'],
         ]}
         hint={REL_HINT[o.type]}
       />
@@ -1899,7 +1975,7 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
       ) : (
         <OrderedPicker
           label={pair ? 'Two variables' : 'Variables'}
-          columns={o.type === 'kappa' ? d.names : d.names.filter((n) => !d.categories?.[n])}
+          columns={raterColumns(o, d)}
           value={o.vars}
           onChange={(vars) => set({ ...o, vars: pair ? vars.slice(-2) : vars })}
         />
@@ -1932,6 +2008,7 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
         </>
       )}
       {o.type === 'scale' && <BayesReliabilityFields o={o} set={set} />}
+      {o.type === 'kripp' && <KrippFields o={o} set={set} />}
     </fieldset>
   );
 }
@@ -2157,8 +2234,102 @@ function ReliabilityView({ r }: { r: ReliabilityResult }) {
           {r.points && <BlandAltman r={r} />}
         </>
       )}
+      <AgreementTables r={r} />
     </div>
   );
+}
+
+const IRR_SOURCE = 'irr::kappam.fleiss, kripp.alpha and kendall (Gamer, Lemon, Fellows & Singh).';
+
+/** Fleiss' kappa: overall (with Conger's exact kappa) and per category. */
+function FleissTables({ r }: { r: ReliabilityResult }) {
+  const f = r.fleiss!;
+  return (
+    <>
+      <Table
+        title={`Fleiss’ kappa: ${r.raters} raters, ${r.n} subjects`}
+        file="reliability-fleiss"
+        columns={['Coefficient', 'Estimate', 'z', 'p']}
+        rows={[
+          [c('Fleiss’ κ'), c(f.kappa), c(f.z), pCell(f.p)],
+          [c('Conger’s exact κ'), c(f.exact), c(null), c(null)],
+        ]}
+        note={
+          'Fleiss’ κ compares the agreement of the raters with that expected from the categories’ overall ' +
+          'shares; the z test is of κ = 0. Conger’s (1980) exact κ uses each rater’s own shares and reduces ' +
+          `to Cohen’s κ for two raters. Subjects with a missing rating are left out. ${IRR_SOURCE}`
+        }
+      />
+      <Table
+        title="Kappa of each category"
+        file="reliability-fleiss-categories"
+        columns={['Category', 'κ', 'z', 'p']}
+        rows={(r.fleissCategories ?? []).map(
+          (x): Row => [c(x.category), c(x.kappa), c(x.z), pCell(x.p)],
+        )}
+        note="The agreement on one category against all others (Fleiss 1971)."
+      />
+    </>
+  );
+}
+
+/** Krippendorff's alpha with its bootstrap interval. */
+function KrippTable({ r }: { r: ReliabilityResult }) {
+  const k = r.kripp!;
+  const boot = k.bootstrap > 0;
+  const rows: Row[] = [[c('Krippendorff’s α'), c(k.alpha), c(boot ? ci(k.ciLow, k.ciHigh) : null)]];
+  if (boot) {
+    rows.push([c('Bootstrap share of α < .667'), c(k.below667 ?? null), c(null)]);
+    rows.push([c('Bootstrap share of α < .800'), c(k.below800 ?? null), c(null)]);
+  }
+  const bootNote = boot
+    ? ` The interval: ${k.bootstrap.toLocaleString('en')} bootstrap samples of the subjects, ` +
+      `seed ${k.seed}, percentiles. Krippendorff suggests α ≥ .800, and α ≥ .667 for tentative conclusions.`
+    : '';
+  return (
+    <Table
+      title={`Krippendorff’s alpha (${k.level}): ${r.raters} raters, ${r.n} subjects`}
+      file="reliability-kripp"
+      columns={['Coefficient', 'Estimate', `${pct(r.confidence)} CI`]}
+      rows={rows}
+      note={
+        `1 − observed / expected disagreement over ${fmt(k.pairable, 0)} pairable values; ` +
+        `missing ratings are allowed.${bootNote} ${IRR_SOURCE}`
+      }
+    />
+  );
+}
+
+/** Kendall's W, without and with the correction for ties. */
+function KendallTable({ r }: { r: ReliabilityResult }) {
+  return (
+    <Table
+      title={`Kendall’s W: ${r.raters} raters, ${r.n} subjects`}
+      file="reliability-kendall"
+      columns={['Coefficient', 'W', 'χ²', 'df', 'p']}
+      rows={(r.kendall ?? []).map(
+        (x): Row => [
+          c(x.corrected ? 'W, corrected for ties' : 'W'),
+          c(x.w),
+          c(x.chisq),
+          c(x.df, undefined, 0),
+          pCell(x.p),
+        ],
+      )}
+      note={
+        'The concordance of the raters’ rankings of the subjects: 0 none, 1 complete. The χ² test is of ' +
+        `W = 0. With tied ranks prefer the corrected W. ${IRR_SOURCE}`
+      }
+    />
+  );
+}
+
+/** The tables of the several-rater agreement analyses. */
+function AgreementTables({ r }: { r: ReliabilityResult }) {
+  if (r.type === 'fleiss' && r.fleiss) return <FleissTables r={r} />;
+  if (r.type === 'kripp' && r.kripp) return <KrippTable r={r} />;
+  if (r.type === 'kendallw' && r.kendall) return <KendallTable r={r} />;
+  return null;
 }
 
 /** The Bayesian options' part of the fingerprint (the seed too: the draws depend on it). */
@@ -2168,6 +2339,11 @@ const bayesParts = (o: ReliabilityOptions, seed: number): (string | number)[] =>
   o.iterations ?? BAYESREL_ITERATIONS,
   seed,
 ];
+/** Krippendorff's options' part of the fingerprint (the seed too, with a bootstrap). */
+const krippParts = (o: ReliabilityOptions, seed: number): (string | number)[] => {
+  const boot = o.bootstrap ?? KRIPP_BOOTSTRAP;
+  return [o.krippLevel ?? 'nominal', boot, boot > 0 ? seed : ''];
+};
 /** The kappa options apply to kappa only (they stay in the options when the analysis changes, unused). */
 const relCols = (o: ReliabilityOptions) =>
   o.type === 'kappa' && o.kappaTable
@@ -2192,7 +2368,15 @@ export const relInput = (
   ctx: Pick<AnalysisCtx, 'settings'>,
 ): ReliabilityInput => {
   const { kappaTable, kappaWeights, weightMatrix, ...rest } = o;
-  const { bayes, bayesGlb, iterations, ...plain } = rest;
+  const { bayes, bayesGlb, iterations, krippLevel, bootstrap, ...plain } = rest;
+  const kripp =
+    o.type === 'kripp'
+      ? {
+          ...(krippLevel ? { krippLevel } : {}),
+          bootstrap: bootstrap ?? KRIPP_BOOTSTRAP,
+          seed: ctx.settings.seed,
+        }
+      : {};
   const bayesian =
     o.type === 'scale' && bayes
       ? {
@@ -2205,6 +2389,7 @@ export const relInput = (
   return {
     ...plain,
     ...bayesian,
+    ...kripp,
     confidence: ctx.settings.confidence,
     ...(o.type === 'kappa'
       ? {
@@ -2215,10 +2400,23 @@ export const relInput = (
       : {}),
   };
 };
+/** Krippendorff's options from a project file: only when set (the defaults leave nothing behind). */
+function parseKrippOptions(raw: Record<string, unknown>): Partial<ReliabilityOptions> {
+  const level = oneOf(raw.krippLevel, KRIPP_LEVELS, 'nominal');
+  const out: Partial<ReliabilityOptions> = {};
+  if (level !== 'nominal') out.krippLevel = level;
+  if (raw.bootstrap !== undefined) {
+    out.bootstrap = clampStrict(raw.bootstrap, 0, 20000, KRIPP_BOOTSTRAP, true);
+  }
+  return out;
+}
+
 export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityResult> = {
   id: 'reliability',
   title: 'Reliability and agreement',
-  sub: 'α, ω, glb (also Bayesian); ICC; Cohen’s kappa; Bland–Altman (psych, Bayesrel)',
+  sub:
+    'α, ω, glb (also Bayesian); ICC; Cohen’s and Fleiss’ kappa; Krippendorff’s α; Kendall’s W; ' +
+    'Bland–Altman (psych, Bayesrel, irr)',
   group: 'Basic statistics',
   entries: [
     {
@@ -2240,6 +2438,21 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       title: 'Bland–Altman',
       sub: 'agreement of two measurement methods',
       options: (o) => ({ ...o, type: 'blandaltman' }),
+    },
+    {
+      title: 'Fleiss’ kappa',
+      sub: 'agreement of several raters on categories, with Conger’s exact kappa (irr)',
+      options: (o) => ({ ...o, type: 'fleiss' }),
+    },
+    {
+      title: 'Krippendorff’s alpha',
+      sub: 'agreement of several raters, nominal to ratio, missing ratings allowed; bootstrap interval (irr)',
+      options: (o) => ({ ...o, type: 'kripp' }),
+    },
+    {
+      title: 'Kendall’s W',
+      sub: 'concordance of several raters’ rankings, with the correction for ties (irr)',
+      options: (o) => ({ ...o, type: 'kendallw' }),
     },
   ],
   cardTitle: (o) => REL_NAME[o.type],
@@ -2279,6 +2492,7 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       ...(raw.iterations !== undefined
         ? { iterations: clampStrict(raw.iterations, 100, 20000, BAYESREL_ITERATIONS, true) }
         : {}),
+      ...parseKrippOptions(raw),
     };
   },
   Options: ReliabilityForm,
@@ -2296,6 +2510,9 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
     if ((o.type === 'kappa' || o.type === 'blandaltman') && o.vars.length !== 2)
       return 'Choose exactly two variables.';
     if (o.vars.length < 2) return 'Choose at least two variables.';
+    const boot = o.bootstrap ?? KRIPP_BOOTSTRAP;
+    if (o.type === 'kripp' && boot > 0 && boot < 100)
+      return 'Use 0 bootstrap samples (no interval) or at least 100.';
     if (o.type === 'scale' && o.bayes && o.vars.length < 3)
       return 'Bayesian reliability needs at least three items.';
     return missingColumns(ctx, o.vars, REL_NAME[o.type]);
@@ -2306,6 +2523,7 @@ export const reliabilityAnalysis: AnalysisType<ReliabilityOptions, ReliabilityRe
       ctx.settings.confidence,
       ...(o.type === 'kappa' ? kappaParts(o) : []),
       ...(o.type === 'scale' && o.bayes ? bayesParts(o, ctx.settings.seed) : []),
+      ...(o.type === 'kripp' ? krippParts(o, ctx.settings.seed) : []),
     ]),
   run: async (o, ctx) => (await engine()).reliabilityR(rawData(ctx)!, relInput(o, ctx)),
   script: async (o, ctx) => (await engine()).reliabilityScriptR(rawData(ctx)!, relInput(o, ctx)),

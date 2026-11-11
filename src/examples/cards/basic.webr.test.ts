@@ -73,7 +73,7 @@ async function runCard<R>(
   const kind = e.panel!.kind,
     preset = panelPreset(e.panel!);
   const pkg =
-    e.package === 'psych' || e.package === 'Bayesrel'
+    e.package === 'psych' || e.package === 'Bayesrel' || e.package === 'irr'
       ? e.package
       : (e.panel as { moreBetween?: string[] }).moreBetween?.length
         ? 'car'
@@ -519,6 +519,54 @@ describe('basic-statistics card examples in webR', () => {
     near('κ', r.kappa!.est, 0.4915254237, 1e-9);
     near('weighted κ CI lower (n.obs = 200)', r.weighted!.ciLow, 0.1910617521, 1e-8);
     near('weighted κ CI upper (n.obs = 200)', r.weighted!.ciHigh, 0.5157051652, 1e-8);
+  }, 600_000);
+
+  it('irr-fleiss-diagnoses: kappam.fleiss(diagnoses), exact = TRUE and detail = TRUE', async () => {
+    const r = await runCard<ReliabilityResult>(
+      'irr-fleiss-diagnoses',
+      helpPrinted('irr, ?kappam.fleiss', 'https://rdrr.io/cran/irr/man/kappam.fleiss.html'),
+    );
+    near('κ (printed: 0.43)', r.fleiss!.kappa, 0.43, 5e-3);
+    near('exact κ (printed: 0.442)', r.fleiss!.exact, 0.442, 5e-4);
+    against(helpRun('irr, ?kappam.fleiss (irr 0.85)'));
+    same('subjects', r.n, 30);
+    same('raters', r.raters!, 6);
+    near('κ', r.fleiss!.kappa, 0.4302445201, 1e-9);
+    near('z', r.fleiss!.z, 17.65183058, 1e-7);
+    near('exact κ', r.fleiss!.exact, 0.4418085403, 1e-9);
+    same('categories', r.fleissCategories!.length, 5);
+    near('κ of schizophrenia (printed: 0.520)', r.fleissCategories![2].kappa, 0.52, 1e-9);
+  }, 600_000);
+
+  it('irr-kripp-alpha: kripp.alpha(nmm, "ordinal") on Krippendorff’s coders', async () => {
+    const r = await runCard<ReliabilityResult>(
+      'irr-kripp-alpha',
+      helpPrinted('irr, ?kripp.alpha', 'https://rdrr.io/cran/irr/man/kripp.alpha.html'),
+    );
+    near('α (printed: 0.815)', r.kripp!.alpha, 0.815, 5e-4);
+    against(helpRun('irr, ?kripp.alpha (irr 0.85)'));
+    near('α', r.kripp!.alpha, 0.8153875038, 1e-9);
+    same('units', r.n, 12);
+    same('pairable values', r.kripp!.pairable, 40);
+    same('bootstrap samples', r.kripp!.bootstrap, 1000);
+    // (desktop R: set.seed(1), the units resampled 1000 times, kripp.alpha(…, "ordinal") each time)
+    near('bootstrap CI lower', r.kripp!.ciLow!, 0.4781728, 1e-6);
+    near('share below .800', r.kripp!.below800!, 0.446, 1e-9);
+  }, 600_000);
+
+  it('irr-kendall-anxiety: kendall(anxiety, TRUE)', async () => {
+    const r = await runCard<ReliabilityResult>(
+      'irr-kendall-anxiety',
+      helpPrinted('irr, ?kendall', 'https://rdrr.io/cran/irr/man/kendall.html'),
+    );
+    const [plain, tied] = r.kendall!;
+    near('Wt (printed: 0.54)', tied.w, 0.54, 5e-3);
+    near('χ² (printed: 30.8)', tied.chisq, 30.8, 0.05);
+    near('p (printed: 0.0429)', tied.p, 0.0429, 5e-5);
+    against(helpRun('irr, ?kendall (irr 0.85)'));
+    near('Wt', tied.w, 0.539656876, 1e-9);
+    near('W', plain.w, 0.5019214703, 1e-9);
+    same('df', tied.df, 19);
   }, 600_000);
 
   it('psych-icc-shroutfleiss: the six intraclass correlations of Shrout & Fleiss', async () => {
