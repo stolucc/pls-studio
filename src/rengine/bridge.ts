@@ -37,6 +37,7 @@ import cbdiagR from './R/cbdiag.R?raw';
 import qcaR from './R/qca.R?raw';
 import invarianceR from './R/invariance.R?raw';
 import powerR from './R/power.R?raw';
+import pwrR from './R/pwr.R?raw';
 import metasemR from './R/metasem.R?raw';
 import semtreeR from './R/semtree.R?raw';
 import plssemR from './R/plssem.R?raw';
@@ -97,6 +98,7 @@ export const SOURCES = {
   sensitivity: sensitivityR,
   search: searchR,
   power: powerR,
+  pwr: pwrR,
   metasem: metasemR,
   semtree: semtreeR,
   plssem: plssemR,
@@ -206,6 +208,8 @@ export const R_PACKAGES = {
   mnlfa: ['jsonlite', 'mnlfa'],
   // Analytic power analysis (semPower: a priori, post hoc, compromise; a parameter of the canvas model by lavaan).
   semPower: ['jsonlite', 'lavaan', 'semPower'],
+  // Power for standard tests (pwr: t-tests, one-way ANOVA, proportions, correlation, chi-square, regression f2).
+  pwr: ['jsonlite', 'pwr'],
   // Meta-analytic SEM (TSSEM on studies' correlation matrices): metaSEM on OpenMx, desktop R only (DESKTOP_ONLY).
   metaSEM: ['jsonlite', 'lavaan', 'OpenMx', 'metaSEM'],
   // SEM trees and forests of the canvas model (semtree on OpenMx, the model a lavaan fit): desktop R only (DESKTOP_ONLY).

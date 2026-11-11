@@ -78,6 +78,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   chartAnalysis,
   influenceAnalysis,
   ...BASIC_TEST_TYPES,
+  stdPowerAnalysis,
   ...BAYES_TYPES,
   regressionAnalysis,
   customMlAnalysis,
@@ -149,6 +150,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   ...REPORTING_ANALYSES,
 ];
 import { powerAnalysis } from './power';
+import { stdPowerAnalysis } from './stdPower';
 import { metaSemAnalysis } from './metasem';
 import { semTreeAnalysis } from './semtree';
 import { plsMultilevelAnalysis } from './plsMultilevel';

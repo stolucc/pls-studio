@@ -265,6 +265,46 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     examples: ['pscl-hurdle'],
     features: ['rengine/regression::pscl'],
   },
+  pwr: {
+    examples: ['pwr-cohen'],
+    note: 'A priori N, achieved power and sensitivity against pwr in desktop R (scripts/validation/pwr.R).',
+  },
+  'pwr:t1': {
+    title: 't-test, one sample (pwr.t.test)',
+    features: ['rengine/pwr::t1_'],
+  },
+  'pwr:t2': {
+    title: 't-test, two independent samples (pwr.t.test)',
+    features: ['rengine/pwr::t2_'],
+  },
+  'pwr:paired': {
+    title: 't-test, paired (pwr.t.test)',
+    features: ['rengine/pwr::paired_'],
+  },
+  'pwr:anova': {
+    title: 'One-way ANOVA (pwr.anova.test)',
+    features: ['rengine/pwr::anova_'],
+  },
+  'pwr:p1': {
+    title: 'One proportion (pwr.p.test)',
+    features: ['rengine/pwr::p1_'],
+  },
+  'pwr:p2': {
+    title: 'Two proportions (pwr.2p.test)',
+    features: ['rengine/pwr::p2_'],
+  },
+  'pwr:r': {
+    title: 'Correlation (pwr.r.test)',
+    features: ['rengine/pwr::r_'],
+  },
+  'pwr:chisq': {
+    title: 'Chi-square test (pwr.chisq.test)',
+    features: ['rengine/pwr::chisq_'],
+  },
+  'pwr:f2': {
+    title: 'Multiple regression, f² (pwr.f2.test)',
+    features: ['rengine/pwr::f2_'],
+  },
   customml: {},
   'customml:normal': {
     title: 'Normal likelihood',

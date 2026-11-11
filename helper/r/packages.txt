@@ -62,6 +62,7 @@ poLCA
 pscl
 psych
 psychotools
+pwr
 qgraph
 readxl
 restriktor

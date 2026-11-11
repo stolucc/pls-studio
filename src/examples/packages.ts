@@ -99,6 +99,7 @@ export type ExamplePackage =
   | 'mediation'
   | 'lslx'
   | 'semPower'
+  | 'pwr'
   | 'metaSEM'
   | 'semtree'
   | 'sirt'
@@ -162,6 +163,7 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'mediation',
   'lslx',
   'semPower',
+  'pwr',
   'metaSEM',
   'semtree',
   'sirt',
@@ -265,6 +267,7 @@ export type CardPanelKind =
   | 'medsens'
   | 'regsem'
   | 'sempower'
+  | 'pwr'
   | 'metasem'
   | 'semtree'
   | 'alignment'
@@ -2357,6 +2360,44 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
         alpha: 0.05,
         power: 0.8,
       },
+    ],
+    settings: CB('ML'),
+  },
+  {
+    id: 'pwr-cohen',
+    package: 'pwr',
+    title: 'Power for standard tests: Cohen’s exercises (t-test, ANOVA, correlation, regression)',
+    source: 'pwr, ?pwr.t.test, ?pwr.anova.test, ?pwr.r.test and ?pwr.f2.test (Cohen 1988)',
+    links: [
+      { label: '?pwr.t.test', url: 'https://rdrr.io/cran/pwr/man/pwr.t.test.html' },
+      { label: '?pwr.anova.test', url: 'https://rdrr.io/cran/pwr/man/pwr.anova.test.html' },
+      { label: '?pwr.r.test', url: 'https://rdrr.io/cran/pwr/man/pwr.r.test.html' },
+      { label: '?pwr.f2.test', url: 'https://rdrr.io/cran/pwr/man/pwr.f2.test.html' },
+      {
+        label: 'pwr vignette',
+        url: 'https://cran.r-project.org/web/packages/pwr/vignettes/pwr-vignette.html',
+      },
+    ],
+    description:
+      'Four cards with the examples of pwr’s help pages, Cohen’s (1988) exercises: the N per group a one-sided two-sample t-test needs to detect d = 0.3 with 75% power (exercise 2.10), the N per group of a four-group ANOVA for f = 0.28 at 80% power (8.10), the N for a correlation of .3 at 80% power (3.4), and the power of an F test of five predictors explaining R² = .10 with N = 95 (9.1). No data are needed: the sleep data (Student 1908, datasets) are only loaded as the project’s dataset. Opens its cards on the Analyses tab.',
+    shows:
+      'The N needed: 121 per group for the t-test (120.2 exactly), 36 per group for the ANOVA, 85 for the correlation; the regression’s power is 0.67, as the help pages print. Each card draws the power curve over N.',
+    data: { package: 'datasets', name: 'sleep' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'pwr',
+      test: 't2',
+      solve: 'n',
+      alternative: 'greater',
+      effect: 0.3,
+      power: 0.75,
+      alpha: 0.05,
+    },
+    morePanels: [
+      { kind: 'pwr', test: 'anova', solve: 'n', effect: 0.28, k: 4, power: 0.8, alpha: 0.05 },
+      { kind: 'pwr', test: 'r', solve: 'n', effect: 0.3, power: 0.8, alpha: 0.05 },
+      { kind: 'pwr', test: 'f2', solve: 'power', effect: 0.1 / 0.9, u: 5, n: 95, alpha: 0.05 },
     ],
     settings: CB('ML'),
   },

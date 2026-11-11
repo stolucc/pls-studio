@@ -286,6 +286,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['semPower', 'lavaan'],
     script('sempower.R', 'desktop semPower, dynamic::equivTest and lavaan'),
   ),
+  'rengine/pwr': native(
+    'Power for standard tests (t-tests, ANOVA, proportions, correlation, chi-square, regression)',
+    'Basic statistics',
+    ['pwr'],
+    script('pwr.R', 'desktop pwr on its help pages’ examples (Cohen 1988)'),
+  ),
   'rengine/screen': native(
     'Data screening (outliers, influence)',
     'CB-SEM',

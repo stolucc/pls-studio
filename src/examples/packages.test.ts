@@ -99,6 +99,9 @@ it('ESEM blocks refer to the example’s constructs by id', () => {
   expect(m.esem?.blocks[0].constructs).toEqual(m.constructs.map((c) => c.id));
 });
 
+/** Cards that compute from numbers entered on the card, not from data columns. */
+const DATA_FREE: string[] = ['pwr'];
+
 it('panel examples carry no diagram and name their columns (a Bayesian SEM card fits its diagram instead)', () => {
   for (const e of PACKAGE_EXAMPLES.filter((x) => x.panel)) {
     // (cards about the model open beside the example's diagram: Bayesian SEM, Bollen–Stine, PLSpredict, simulation, …)
@@ -167,6 +170,11 @@ it('panel examples carry no diagram and name their columns (a Bayesian SEM card 
       continue;
     }
     expect(e.constructs, e.id).toEqual([]);
+    // (cards that need no data, e.g. power for standard tests, name no columns)
+    if (examplePanels(e).every((p) => DATA_FREE.includes(p.kind))) {
+      for (const p of examplePanels(e)) expect(panelColumns(p), e.id).toEqual([]);
+      continue;
+    }
     for (const p of examplePanels(e))
       expect(panelColumns(p).length, e.id).toBeGreaterThanOrEqual(
         ['freqtest', 'bbinomial', 'chart', 'customml'].includes(p.kind) ||

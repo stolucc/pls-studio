@@ -138,6 +138,7 @@ const ROOTS = [
   'SEMsens',
   'mediation',
   'semPower',
+  'pwr',
   'sirt',
   'mnlfa',
   'lslx',
