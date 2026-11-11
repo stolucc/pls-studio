@@ -6,6 +6,7 @@
 
 import type { Dataset } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
+import { resamplingField, type BootInterval, type ResamplingOptions } from './resampling';
 import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 
@@ -59,6 +60,10 @@ export interface RegressionInput {
   zeroModel?: 'zeroinfl' | 'hurdle';
   zeroPart?: 'same' | 'intercept' | 'chosen';
   zeroPredictors?: string[];
+  /** Linear regression: bootstrap intervals of the coefficients (boot; cases resampled); absent: none. */
+  resampling?: ResamplingOptions | null;
+  /** The seed of the resampling (the project's). */
+  seed?: number;
 }
 export interface RegressionCurve {
   x: string;
@@ -128,6 +133,12 @@ export interface RegressionResult {
   };
   /** One partial-effect curve per numeric predictor: the response over it, the other predictors at their means. */
   curves: RegressionCurve[];
+  /** Bootstrap intervals of the coefficients (linear regression). */
+  bootstrap?: {
+    resamples: number;
+    seed: number;
+    rows: (BootInterval & { term: string })[];
+  } | null;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -168,10 +179,11 @@ export function regressionRequest(data: Dataset, i: RegressionInput) {
   const categories = Object.fromEntries(
     names.filter((c) => data.categories?.[c]).map((c) => [c, data.categories![c]]),
   );
-  const { zeroModel: _z, zeroPart: _p, zeroPredictors: _q, ...rest } = i;
+  const { zeroModel: _z, zeroPart: _p, zeroPredictors: _q, resampling, seed, ...rest } = i;
   return {
     kind: 'regression',
     ...rest,
+    ...resamplingField(resampling, seed ?? 1234),
     ...zero,
     cluster,
     status,
@@ -219,6 +231,13 @@ export async function regressionR(
     vuong: raw.vuong && !Array.isArray(raw.vuong) ? raw.vuong : null,
     diagnostics: { ...diag, ...(diag.vif ? { vif: rList(diag.vif) } : {}) },
     curves,
+    bootstrap: raw.bootstrap
+      ? {
+          resamples: raw.bootstrap.resamples,
+          seed: raw.bootstrap.seed,
+          rows: rList<BootInterval & { term: string }>(raw.bootstrap.rows),
+        }
+      : null,
     warnings: rStrings(raw.warnings),
   } as RegressionResult;
 }
@@ -226,8 +245,9 @@ export const regressionScriptR = (data: Dataset, input: RegressionInput) =>
   rScript('ps_regression', regressionRequest(data, input), regressionPackages(input));
 /** survival only when the model needs it (censored without inflation, survival); pscl for the zero models. */
 export const regressionPackages = (
-  i: Pick<RegressionInput, 'family' | 'inflated' | 'zeroModel'>,
+  i: Pick<RegressionInput, 'family' | 'inflated' | 'zeroModel' | 'resampling'>,
 ) => {
+  if (i.resampling?.bootstrap) return 'regressionBoot';
   if (i.family === 'survival' || (i.family === 'censored' && !i.inflated))
     return 'regressionSurvival';
   if (isZeroModel(i)) return 'pscl';

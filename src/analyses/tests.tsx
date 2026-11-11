@@ -46,6 +46,18 @@ import {
 import { clampStrict } from '../parse';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 import {
+  AnovaResamplingView,
+  bootColumns,
+  bootRow,
+  permP,
+  resampleNote,
+  ResamplingFields,
+  resamplingFingerprint,
+  resamplingPart,
+  withResampling,
+  type AnovaResampling,
+} from './resampling';
+import {
   columnLevels,
   emmBlocked,
   EmmFields,
@@ -96,7 +108,7 @@ const Engine = ({ e }: { e: { package: string; version: string } }) => (
 
 // ---------------------------------------------------------------- t-tests
 
-export type TTestOptions = Omit<TTestInput, 'confidence'>;
+export type TTestOptions = Omit<TTestInput, 'confidence' | 'seed'>;
 
 /** What "greater" means for each kind of t-test. */
 const TTEST_GREATER_HINT: Record<TTestOptions['type'], string> = {
@@ -239,6 +251,13 @@ function TTestForm({ options: o, set, ctx, disabled }: OptionsProps<TTestOptions
         options={ALTS}
         hint={TTEST_GREATER_HINT[o.type]}
       />
+      <ResamplingFields
+        value={o.resampling}
+        set={(r) => set(withResampling(o, r))}
+        offer={['trimmed', 'bootstrap', 'permutation']}
+        labels={{ trimmed: TRIMMED_NAME[o.type] }}
+        hint="Trimmed means are robust to outliers and heavy tails (WRS2). The bootstrap interval is of the mean (difference); the permutation test needs no normality (coin)."
+      />
     </fieldset>
   );
 }
@@ -248,6 +267,100 @@ function ttestEffectSize(x: TTestRow, test: 'student' | 'welch' | 'rank') {
   if (test === 'rank') return x.rankBiserial;
   if (test === 'welch') return x.dWelch;
   return x.d;
+}
+
+/** The robust test of each t-test type. */
+const TRIMMED_NAME: Record<TTestOptions['type'], string> = {
+  one: 'Trimmed-mean t-test',
+  paired: 'Yuen’s paired trimmed-means test',
+  independent: 'Yuen’s trimmed-means test',
+};
+
+/** The t-test card's robust, bootstrap and permutation tables (each when it was run). */
+function TTestResamplingView({ r }: { r: TTestResult }) {
+  const e = r.resampling;
+  if (!e) return null;
+  const rows = r.rows.filter((x) => x.resampling);
+  const trimmed = rows.filter((x) => x.resampling!.trimmed);
+  const boot = rows.filter((x) => x.resampling!.bootstrap);
+  const perm = rows.filter((x) => x.resampling!.permutation);
+  const level = pct(r.confidence);
+  const what = r.type === 'one' ? 'Trimmed mean' : 'Difference of trimmed means';
+  const bootWhat = {
+    one: 'Mean',
+    paired: 'Mean difference',
+    independent: 'Difference of the means',
+  }[r.type];
+  const oneSample = r.type === 'one';
+  return (
+    <>
+      {trimmed.length > 0 && (
+        <Table
+          title={`${TRIMMED_NAME[r.type]} (${fmt(e.trim ?? 0.2, 2)} trimmed from each end)`}
+          file="ttest-trimmed"
+          columns={[
+            'Variable',
+            what,
+            'SE',
+            't',
+            'df',
+            'p',
+            `${level} CI`,
+            ...(oneSample ? [] : ['Effect size ξ']),
+          ]}
+          rows={trimmed.map((x): Row => {
+            const t = x.resampling!.trimmed!;
+            return [
+              c(x.label),
+              c(t.estimate),
+              c(t.se),
+              c(t.t),
+              c(t.df),
+              pCell(t.p),
+              c(ci(t.ciLow, t.ciHigh)),
+              ...(oneSample ? [] : [c(t.effsize ?? null)]),
+            ];
+          })}
+          note={
+            oneSample
+              ? `Tukey–McLaughlin t-test of the trimmed mean against ${r.testValue} (Wilcox’s trimci; its SE by WRS2::trimse). Two-sided.`
+              : 'Yuen’s test (WRS2): Welch-type, on trimmed means and winsorised variances; ξ is WRS2’s explanatory measure of effect size. Two-sided.'
+          }
+        />
+      )}
+      {boot.length > 0 && (
+        <Table
+          title="Bootstrap confidence intervals"
+          file="ttest-bootstrap"
+          columns={['Variable', ...bootColumns(r.confidence, bootWhat).slice(1)]}
+          rows={boot.map((x) => bootRow(x.label, x.resampling!.bootstrap!))}
+          note={resampleNote(
+            e,
+            r.type === 'independent'
+              ? 'boot, cases resampled within each group'
+              : 'boot, cases resampled',
+          )}
+        />
+      )}
+      {perm.length > 0 && (
+        <Table
+          title="Permutation tests"
+          file="ttest-permutation"
+          columns={['Variable', 'z', 'p (Monte Carlo)']}
+          rows={perm.map((x): Row => {
+            const p = x.resampling!.permutation!;
+            return [c(x.label), c(p.z), permP(p, e.resamples)];
+          })}
+          note={resampleNote(
+            e,
+            r.type === 'independent'
+              ? 'coin::oneway_test, the group labels permuted (two-sided)'
+              : 'coin::symmetry_test, the signs of the differences flipped (two-sided)',
+          )}
+        />
+      )}
+    </>
+  );
 }
 
 function TTestView({ r }: { r: TTestResult }) {
@@ -347,6 +460,7 @@ function TTestView({ r }: { r: TTestResult }) {
         rows={rows}
         note="Effect size: Cohen’s d for the t-tests (Student: pooled SD; Welch: the average of the two variances; paired: the SD of the differences), the rank-biserial correlation for the rank tests. Statistic: t, or W (V for the signed-rank test)."
       />
+      <TTestResamplingView r={r} />
       <Table
         title="Descriptives"
         file="ttest-descriptives"
@@ -376,6 +490,7 @@ const ttestInput = (o: TTestOptions, ctx: Pick<AnalysisCtx, 'settings'>): TTestI
   group: o.type === 'independent' ? o.group : '',
   welch: o.type === 'independent' && o.welch,
   confidence: ctx.settings.confidence,
+  ...(o.resampling ? { seed: ctx.settings.seed } : {}),
 });
 const T_NAME = {
   one: 'One-sample t-test',
@@ -432,6 +547,7 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
           welch: flag(raw.welch),
           rank: flag(raw.rank),
           alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'),
+          ...resamplingPart(raw),
         }
       : null,
   Options: TTestForm,
@@ -458,6 +574,7 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
       String(o.welch),
       String(o.rank),
       ctx.settings.confidence,
+      ...resamplingFingerprint(o.resampling, ctx.settings.seed),
     ]),
   run: async (o, ctx) => (await engine()).ttestR(rawData(ctx)!, ttestInput(o, ctx)),
   script: async (o, ctx) => (await engine()).ttestScriptR(rawData(ctx)!, ttestInput(o, ctx)),
@@ -473,7 +590,7 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
 
 // ---------------------------------------------------------------- ANOVA / ANCOVA
 
-export type AnovaOptions = Omit<AnovaInput, 'confidence'>;
+export type AnovaOptions = Omit<AnovaInput, 'confidence' | 'seed'>;
 
 function AnovaForm({ options: o, set, ctx, disabled }: OptionsProps<AnovaOptions>) {
   const d = rawData(ctx);
@@ -529,6 +646,13 @@ function AnovaForm({ options: o, set, ctx, disabled }: OptionsProps<AnovaOptions
         Kruskal–Wallis and Tukey’s comparisons.
       </div>
       <EmmFields value={o.emm} factors={o.factors} games set={(emm) => set(withEmm(o, emm))} />
+      <ResamplingFields
+        value={o.resampling}
+        set={(r) => set(withResampling(o, r))}
+        offer={['trimmed', 'permutation']}
+        labels={{ trimmed: 'Robust ANOVA on trimmed means', permutation: 'Permutation test' }}
+        hint="Robust ANOVA (WRS2): one factor (t1way, with an effect size) or two (t2way), no covariates. Permutation test (coin): one factor, no covariates."
+      />
     </fieldset>
   );
 }
@@ -624,6 +748,9 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
         />
       )}
       {r.emm && <EmmView e={r.emm} dependent={r.dependent} />}
+      {r.resampling && (
+        <AnovaResamplingView r={r.resampling as unknown as AnovaResampling} conf={conf} />
+      )}
       <Table
         title="Descriptives by cell"
         file="anova-cells"
@@ -657,6 +784,21 @@ function AnovaView({ r, conf }: { r: AnovaResult; conf: number }) {
   );
 }
 
+/** The request: the settings' confidence level, and their seed when resampling. */
+const anovaInput = (o: AnovaOptions, ctx: Pick<AnalysisCtx, 'settings'>): AnovaInput => ({
+  ...o,
+  confidence: ctx.settings.confidence,
+  ...(o.resampling ? { seed: ctx.settings.seed } : {}),
+});
+/** Why the robust or permutation ANOVA cannot run (null: it can). */
+function anovaResamplingBlocked(o: AnovaOptions): string | null {
+  const r = o.resampling;
+  if (!r) return null;
+  if (o.covariates.length) return 'The robust and permutation ANOVA take no covariates.';
+  if (r.trimmed && o.factors.length > 2) return 'The robust ANOVA takes one or two factors.';
+  if (r.permutation && o.factors.length > 1) return 'The permutation test takes one factor.';
+  return null;
+}
 const anovaCols = (o: AnovaOptions) => [o.dependent, ...o.factors, ...o.covariates].filter(Boolean);
 export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidence?: number }> = {
   id: 'anova',
@@ -689,6 +831,7 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
           ssType: oneOf(raw.ssType, ['III', 'I'] as const, 'III'),
           interactions: raw.interactions !== false,
           ...emmPart(raw),
+          ...resamplingPart(raw),
         }
       : null,
   Options: AnovaForm,
@@ -703,6 +846,8 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
       const emm = emmBlocked(o.emm, o.factors, levels);
       if (emm) return emm;
     }
+    const rs = anovaResamplingBlocked(o);
+    if (rs) return rs;
     return missingColumns(ctx, anovaCols(o), 'ANOVA');
   },
   fingerprint: (o, ctx) =>
@@ -714,15 +859,13 @@ export const anovaAnalysis: AnalysisType<AnovaOptions, AnovaResult & { confidenc
       ...o.covariates,
       ctx.settings.confidence,
       emmFingerprint(o.emm),
+      ...resamplingFingerprint(o.resampling, ctx.settings.seed),
     ]),
   run: async (o, ctx) => ({
-    ...(await (
-      await engine()
-    ).anovaR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence })),
+    ...(await (await engine()).anovaR(rawData(ctx)!, anovaInput(o, ctx))),
     confidence: ctx.settings.confidence,
   }),
-  script: async (o, ctx) =>
-    (await engine()).anovaScriptR(rawData(ctx)!, { ...o, confidence: ctx.settings.confidence }),
+  script: async (o, ctx) => (await engine()).anovaScriptR(rawData(ctx)!, anovaInput(o, ctx)),
   summary: (o) =>
     `${o.dependent || '…'} by ${o.factors.join(' × ') || '…'}${o.covariates.length ? ` + ${o.covariates.join(', ')}` : ''} · type ${o.ssType}`,
 };
@@ -1082,7 +1225,7 @@ export const manovaAnalysis: AnalysisType<ManovaOptions, ManovaResult> = {
 
 // ---------------------------------------------------------------- correlation
 
-export type CorrelationOptions = Omit<CorrelationInput, 'confidence'>;
+export type CorrelationOptions = Omit<CorrelationInput, 'confidence' | 'seed'>;
 const METHOD_NAME = {
   pearson: 'Pearson',
   spearman: 'Spearman',
@@ -1156,7 +1299,53 @@ function CorrelationForm({ options: o, set, ctx, disabled }: OptionsProps<Correl
           </div>
         </div>
       )}
+      {o.method !== 'polychoric' && (
+        <ResamplingFields
+          value={o.resampling}
+          set={(r) => set(withResampling(o, r))}
+          offer={o.method === 'kendall' ? ['bootstrap'] : ['bootstrap', 'permutation']}
+          labels={{ bootstrap: 'Bootstrap intervals of each correlation' }}
+          hint="Bootstrap: the cases of each pair resampled (boot). Permutation: one variable’s values shuffled against the other’s (coin; Pearson: independence_test, Spearman: spearman_test)."
+        />
+      )}
     </fieldset>
+  );
+}
+
+/** The correlation card's bootstrap intervals and permutation tests (each when it was run). */
+function CorrelationResamplingView({ r, sym }: { r: CorrelationResult; sym: string }) {
+  const e = r.resampling;
+  if (!e) return null;
+  const boot = r.pairs.filter((p) => p.bootstrap);
+  const perm = r.pairs.filter((p) => p.permutation);
+  const test = r.method === 'spearman' ? 'coin::spearman_test' : 'coin::independence_test';
+  return (
+    <>
+      {boot.length > 0 && (
+        <Table
+          title="Bootstrap confidence intervals"
+          file="correlation-bootstrap"
+          columns={['Pair', ...bootColumns(r.confidence, sym).slice(1)]}
+          rows={boot.map((p) => bootRow(`${p.a} – ${p.b}`, p.bootstrap!))}
+          note={resampleNote(e, 'boot, the complete cases of each pair resampled')}
+        />
+      )}
+      {perm.length > 0 && (
+        <Table
+          title="Permutation tests"
+          file="correlation-permutation"
+          columns={['Pair', 'z', 'p (Monte Carlo)']}
+          rows={perm.map(
+            (p): Row => [
+              c(`${p.a} – ${p.b}`),
+              c(p.permutation!.z),
+              permP(p.permutation, e.resamples),
+            ],
+          )}
+          note={resampleNote(e, `${test}, two-sided`)}
+        />
+      )}
+    </>
   );
 }
 
@@ -1230,6 +1419,7 @@ function CorrelationView({ r }: { r: CorrelationResult }) {
         )}
         note={pairsNote}
       />
+      <CorrelationResamplingView r={r} sym={sym} />
       {poly &&
         !!r.normality?.length &&
         (() => {
@@ -1267,7 +1457,12 @@ const exactRank = (o: CorrelationOptions) =>
   !!o.exact && (o.method === 'spearman' || o.method === 'kendall');
 const corInput = (o: CorrelationOptions, ctx: Pick<AnalysisCtx, 'settings'>): CorrelationInput => {
   const { exact: _e, ...rest } = o;
-  return { ...rest, confidence: ctx.settings.confidence, ...(exactRank(o) ? { exact: true } : {}) };
+  return {
+    ...rest,
+    confidence: ctx.settings.confidence,
+    ...(exactRank(o) ? { exact: true } : {}),
+    ...(o.resampling ? { seed: ctx.settings.seed } : {}),
+  };
 };
 export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationResult> = {
   id: 'correlation',
@@ -1284,14 +1479,19 @@ export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationRe
           alternative: oneOf(raw.alternative, ALT_IDS, 'two.sided'),
           deletion: oneOf(raw.deletion, ['pairwise', 'listwise'] as const, 'pairwise'),
           ...(raw.exact === true ? { exact: true } : {}),
+          ...resamplingPart(raw),
         }
       : null,
   Options: CorrelationForm,
   View: ({ result }) => <CorrelationView r={result} />,
-  blocked: (o, ctx) =>
-    o.vars.length < 2
-      ? 'Choose at least two variables.'
-      : missingColumns(ctx, o.vars, 'Correlation'),
+  blocked: (o, ctx) => {
+    if (o.vars.length < 2) return 'Choose at least two variables.';
+    if (o.resampling && o.method === 'polychoric')
+      return 'Bootstrap intervals and permutation tests are for Pearson, Spearman and Kendall correlations.';
+    if (o.resampling?.permutation && o.method === 'kendall')
+      return 'Permutation tests are for Pearson and Spearman correlations.';
+    return missingColumns(ctx, o.vars, 'Correlation');
+  },
   fingerprint: (o, ctx) =>
     columnsFingerprint(ctx, o.vars, [
       o.method,
@@ -1299,6 +1499,7 @@ export const correlationAnalysis: AnalysisType<CorrelationOptions, CorrelationRe
       o.deletion,
       ctx.settings.confidence,
       ...(exactRank(o) ? ['exact'] : []),
+      ...resamplingFingerprint(o.resampling, ctx.settings.seed),
     ]),
   run: async (o, ctx) => (await engine()).correlationR(rawData(ctx)!, corInput(o, ctx)),
   script: async (o, ctx) => (await engine()).correlationScriptR(rawData(ctx)!, corInput(o, ctx)),

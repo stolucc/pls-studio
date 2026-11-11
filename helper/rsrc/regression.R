@@ -178,6 +178,11 @@ ps_regression <- function(req_json, export = FALSE) {
   }
   w <- if (nzchar(wcol)) sprintf(", weights = %s", v[[wcol]]) else ""
   piecewise <- family == "survival" && length(cuts) > 0
+  # Bootstrap intervals of a linear model's coefficients, cases resampled (R/robust.R).
+  rs <- ps_rs_options(req, "bootstrap")
+  if (!is.null(rs) && (family != "gaussian" || own || zmod || nzchar(wcol))) {
+    stop("Bootstrap intervals are for linear (gaussian) regression without weights.")
+  }
   # (HC0 for the negative binomial and multinomial models, and every model fitted below by survival or by
   # maximum likelihood written out, is computed here rather than by sandwich::vcovHC)
   own_hc0 <- se == "HC0" && (family %in% c("negbin", "multinomial") || own || zmod)
@@ -349,7 +354,8 @@ ps_regression <- function(req_json, export = FALSE) {
     # (HC0: White's sandwich without small-sample correction, the robust ML standard errors of Mplus's MLR)
     if (se == "HC0" && !own_hc0) "# Heteroskedasticity-consistent (HC0, White) standard errors: the maximum-likelihood sandwich, as Mplus MLR.\nvc <- vcovHC(fit, type = \"HC0\"); ct <- coeftest(fit, vcov. = vc)",
     if (se == "cluster") sprintf("# Standard errors clustered by %s.\nvc <- vcovCL(fit, cluster = ~%s); ct <- coeftest(fit, vcov. = vc)", ps_comment(cluster), v[[cluster]]),
-    if (durbin) PS_DURBIN_WATSON_LINES
+    if (durbin) PS_DURBIN_WATSON_LINES,
+    ps_rs_regression_lines(rs, fml, conf)
   )
   inputs <- list(data = fr$data)
   title <- if (nzchar(slope)) {
@@ -398,11 +404,12 @@ ps_regression <- function(req_json, export = FALSE) {
       if (se == "HC0" && family == "multinomial") "matrix(sqrt(diag(vc)), nrow = nrow(coef(fit)), byrow = TRUE, dimnames = dimnames(coef(fit)))  # HC0 standard errors",
       if (piecewise) c("exp(coef(fit))  # baseline hazards and hazard ratios", "ll", if (se == "HC0") "sqrt(diag(vc))"),
       if (family %in% c("gaussian", "binomial", "poisson", "negbin", "gamma")) "anova(fit, test = \"Chisq\")",
-      if (durbin) c("dw", "r1  # lag-1 autocorrelation of the residuals")
+      if (durbin) c("dw", "r1  # lag-1 autocorrelation of the residuals"),
+      if (!is.null(rs)) "boots"
     )
   }
   if (export) {
-    return(ps_script(title, c("stats", libs), inputs, body, report))
+    return(ps_script(title, c("stats", libs, ps_rs_packages(rs)), inputs, body, report))
   }
   env <- ps_run(body, inputs)
   fit <- env$fit
@@ -817,6 +824,16 @@ ps_regression <- function(req_json, export = FALSE) {
     vuong = vuong,
     diagnostics = diag,
     curves = curves,
+    bootstrap = if (is.null(rs)) {
+      NULL
+    } else {
+      c(
+        rs[c("resamples", "seed")],
+        list(rows = lapply(names(env$boots), function(t) {
+          c(list(term = nm(t)), ps_rs_boot_out(env$boots[[t]]))
+        }))
+      )
+    },
     warnings = env$.warnings, engine = list(
       package = if (zmod) "pscl" else if (family %in% c("negbin", "ordinal")) "MASS" else if (family == "multinomial") "nnet" else "stats",
       version = as.character(if (zmod) utils::packageVersion("pscl") else if (family %in% c("negbin", "ordinal")) utils::packageVersion("MASS") else if (family == "multinomial") utils::packageVersion("nnet") else getRversion())

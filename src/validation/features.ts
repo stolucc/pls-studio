@@ -536,6 +536,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
     ['emmeans'],
     script('emm.R', 'desktop emmeans, afex (repeated measures), rstatix (Games–Howell), lmerTest'),
   ),
+  'rengine/robust': native(
+    'Robust (trimmed means), bootstrap and permutation alternatives',
+    'Basic statistics',
+    ['WRS2', 'boot', 'coin'],
+    script('robust.R', 'desktop WRS2, boot and coin with the same seed; coin’s exact p-values'),
+  ),
   'rengine/tests': native(
     'Basic statistics: t-tests, ANOVA, correlations, contingency tables',
     'Basic statistics',

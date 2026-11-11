@@ -73,7 +73,11 @@ async function runCard<R>(
   const kind = e.panel!.kind,
     preset = panelPreset(e.panel!);
   const pkg =
-    e.package === 'psych' || e.package === 'Bayesrel' || e.package === 'emmeans'
+    e.package === 'psych' ||
+    e.package === 'Bayesrel' ||
+    e.package === 'emmeans' ||
+    e.package === 'WRS2' ||
+    e.package === 'coin'
       ? e.package
       : (e.panel as { moreBetween?: string[] }).moreBetween?.length
         ? 'car'
@@ -207,6 +211,33 @@ describe('basic-statistics card examples in webR', () => {
     near('p tension | wool A', e.simple!.rows[0].p, 0.0001880700333, 1e-12);
     near('p tension | wool B', e.simple!.rows[1].p, 0.1038637352, 1e-9);
     same('profile plot points', e.plot!.rows.length, 6);
+  }, 600_000);
+
+  it('wrs2-viagra: set.seed(123); t1way(libido ~ dose, data = viagra)', async () => {
+    const r = await runCard<AnovaResult>('wrs2-viagra', helpRun('WRS2, ?t1way'));
+    const t = (r.resampling as { robust: Record<string, number>[] }).robust[0];
+    near('F', t.stat, 3, 1e-9);
+    same('df1', t.df1, 2);
+    near('df2', t.df2, 4, 1e-9);
+    near('p', t.p, 0.16, 1e-9);
+    near('effect size ξ', t.effsize, 0.7894413, 1e-7);
+    // (the effect size's bootstrap interval, seeded with 123 as the help page)
+    near('ξ CI low', t.effsizeLow, 0.4193932, 1e-7);
+    near('ξ CI high', t.effsizeHigh, 1.3290815, 1e-7);
+  }, 600_000);
+
+  it('coin-diffusion: oneway_test(pd ~ age, data = diffusion), Monte Carlo against exact', async () => {
+    const r = await runCard<TTestResult>('coin-diffusion', helpRun('coin, ?oneway_test'));
+    const p = r.rows[0].resampling!.permutation!;
+    // (the standardised statistic; its sign follows the order of the two groups)
+    near('|z|', Math.abs(p.z), 1.522535, 1e-6);
+    // The exact p the help page prints; 10,000 Monte Carlo resamples are within 4 standard errors of it.
+    near(
+      'p (Monte Carlo against exact)',
+      p.p,
+      0.1318681,
+      4 * Math.sqrt((0.1318681 * 0.8681319) / 10000),
+    );
   }, 600_000);
 
   it('stats-rmanova-rounding: friedman.test(RoundingTimes) and the repeated-measures ANOVA', async () => {

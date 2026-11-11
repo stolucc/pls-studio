@@ -26,6 +26,7 @@ import networkR from './R/network.R?raw';
 import segmentR from './R/segment.R?raw';
 import testsR from './R/tests.R?raw';
 import emmR from './R/emm.R?raw';
+import robustR from './R/robust.R?raw';
 import bayesR from './R/bayes.R?raw';
 import customMlR from './R/customml.R?raw';
 import twoLevelEfaR from './R/twolevelefa.R?raw';
@@ -85,6 +86,7 @@ export const SOURCES = {
   network: networkR,
   tests: testsR,
   emm: emmR,
+  robust: robustR,
   bayes: bayesR,
   customml: customMlR,
   twolevelefa: twoLevelEfaR,
@@ -195,6 +197,13 @@ export const R_PACKAGES = {
   emmeans: ['jsonlite', 'emmeans'],
   carEmmeans: ['jsonlite', 'car', 'emmeans'],
   lme4Emmeans: ['jsonlite', 'lme4', 'lmerTest', 'pbkrtest', 'emmeans'],
+  // Robust, bootstrap and permutation alternatives of the basic tests: trimmed means (WRS2), bootstrap intervals
+  // (boot), permutation tests (coin); with emmeans for the ANOVA card's marginal means.
+  WRS2: ['jsonlite', 'WRS2'],
+  coin: ['jsonlite', 'coin'],
+  resampling: ['jsonlite', 'emmeans', 'WRS2', 'boot', 'coin'],
+  // Linear regression with bootstrap intervals of the coefficients.
+  regressionBoot: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest', 'boot'],
   EGAnet: ['jsonlite', 'EGAnet'],
   // Bayesian tests (JZS t-tests, correlations; JASP's priors).
   BayesFactor: ['jsonlite', 'BayesFactor'],

@@ -3,10 +3,19 @@
 // and multinomial tests.
 
 import type { Dataset } from '../engine/types';
-import { rCall, rScript, rStrings } from './bridge';
+import { rCall, rScript, rStrings, type RPackage } from './bridge';
 import { rColumns, rList } from './rjson';
 import type { REngineInfo } from './lavaan';
 import { emmRequest, parseEmm, type EmmOptions, type EmmResult } from './emm';
+import {
+  resamplingField,
+  rObj,
+  type BootInterval,
+  type PermutationTest,
+  type ResamplingEcho,
+  type ResamplingOptions,
+  type TrimmedTest,
+} from './resampling';
 
 export type Alternative = 'two.sided' | 'greater' | 'less';
 export interface HTest {
@@ -36,6 +45,10 @@ export interface TTestInput {
   rank: boolean;
   alternative: Alternative;
   confidence: number;
+  /** Trimmed means (Yuen), bootstrap intervals, permutation tests; absent: none. */
+  resampling?: ResamplingOptions | null;
+  /** The seed of the resampling (the project's). */
+  seed?: number;
 }
 export interface TTestRow {
   label: string;
@@ -49,6 +62,11 @@ export interface TTestRow {
   levene: { stat: number; df1: number; df2: number; p: number } | null;
   shapiro: (HTest | null)[];
   descriptives: Desc[];
+  resampling?: {
+    trimmed: TrimmedTest | null;
+    bootstrap: BootInterval | null;
+    permutation: PermutationTest | null;
+  } | null;
 }
 export interface TTestResult {
   type: TTestInput['type'];
@@ -57,6 +75,7 @@ export interface TTestResult {
   confidence: number;
   groups: string[] | null;
   rows: TTestRow[];
+  resampling?: ResamplingEcho | null;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -70,6 +89,9 @@ export interface AnovaInput {
   confidence: number;
   /** Estimated marginal means, post hoc tests, simple effects, contrasts (emmeans); absent: none. */
   emm?: EmmOptions | null;
+  /** Robust ANOVA on trimmed means (one or two factors), permutation test (one factor); absent: none. */
+  resampling?: ResamplingOptions | null;
+  seed?: number;
 }
 export interface AnovaRow {
   term: string;
@@ -100,6 +122,8 @@ export interface AnovaResult {
   pairwiseRank?: { comparison: string; pHolm: number }[] | null;
   cells: (Desc & { cell: string })[];
   emm?: EmmResult | null;
+  /** (analyses/resampling.tsx AnovaResampling) */
+  resampling?: Record<string, unknown> | null;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -224,6 +248,9 @@ export interface CorrelationInput {
   deletion: 'pairwise' | 'listwise';
   confidence: number;
   exact?: boolean;
+  /** Bootstrap intervals of r, permutation tests (not Kendall); absent: none. */
+  resampling?: ResamplingOptions | null;
+  seed?: number;
 }
 /** `stat`: t, S, T or (polychoric) z; `se` and `kind` with polychoric. */
 export interface CorrelationPair {
@@ -238,6 +265,8 @@ export interface CorrelationPair {
   se?: number;
   kind?: 'polychoric' | 'tetrachoric' | 'polyserial' | 'pearson';
   exact?: boolean | null;
+  bootstrap?: BootInterval | null;
+  permutation?: PermutationTest | null;
 }
 /** Polychoric: each ordinal pair's test of the bivariate normal model (observed against implied two-way table). */
 export interface CorrelationNormality {
@@ -261,6 +290,7 @@ export interface CorrelationResult {
   normality?: CorrelationNormality[];
   /** Exact p-values were asked for (each pair's `exact`: whether it got one). */
   exact?: boolean;
+  resampling?: ResamplingEcho | null;
   warnings: string[];
   engine: REngineInfo;
 }
@@ -337,9 +367,22 @@ function testRequest(data: Dataset, kind: string, columns: string[], fields: obj
 
 const ttestCols = (i: TTestInput) =>
   i.type === 'paired' ? i.pairs.flat() : [...i.vars, i.type === 'independent' ? i.group : ''];
-export const ttestRequest = (d: Dataset, i: TTestInput) => testRequest(d, 'ttest', ttestCols(i), i);
+/** A request's fields without the resampling options and seed, then those R reads (when any is on). */
+function withResampling<T extends { resampling?: ResamplingOptions | null; seed?: number }>(i: T) {
+  const { resampling, seed, ...rest } = i;
+  return { ...rest, ...resamplingField(resampling, seed ?? 1234) };
+}
+/** The R packages of a request with resampling options (WRS2, boot, coin; emmeans for the ANOVA card). */
+const resamplingPackage = (i: { resampling?: ResamplingOptions | null }, plain: RPackage) =>
+  resamplingField(i.resampling, 0).resampling ? 'resampling' : plain;
+export const ttestRequest = (d: Dataset, i: TTestInput) =>
+  testRequest(d, 'ttest', ttestCols(i), withResampling(i));
 export async function ttestR(d: Dataset, i: TTestInput): Promise<TTestResult> {
-  const r = await rCall<Record<string, any>>('ps_ttest', ttestRequest(d, i), 'stats');
+  const r = await rCall<Record<string, any>>(
+    'ps_ttest',
+    ttestRequest(d, i),
+    resamplingPackage(i, 'stats'),
+  );
   return {
     ...r,
     groups: r.groups ? rList<string>(r.groups) : null,
@@ -352,22 +395,30 @@ export async function ttestR(d: Dataset, i: TTestInput): Promise<TTestResult> {
       levene: obj(x.levene),
       shapiro: rList<unknown>(x.shapiro).map((s) => obj<HTest>(s)),
       descriptives: rList<Desc>(x.descriptives),
+      resampling: x.resampling
+        ? {
+            trimmed: rObj<TrimmedTest>(x.resampling.trimmed),
+            bootstrap: rObj<BootInterval>(x.resampling.bootstrap),
+            permutation: rObj<PermutationTest>(x.resampling.permutation),
+          }
+        : null,
     })),
+    resampling: rObj<ResamplingEcho>(r.resampling),
     warnings: rStrings(r.warnings),
   } as TTestResult;
 }
 export const ttestScriptR = (d: Dataset, i: TTestInput) =>
-  rScript('ps_ttest', ttestRequest(d, i), 'stats');
+  rScript('ps_ttest', ttestRequest(d, i), resamplingPackage(i, 'stats'));
 
 /** A request's `emm` field: present only when marginal means are asked for. */
 const emmField = (e: EmmOptions | null | undefined, mixed = false) =>
   e ? { emm: emmRequest(e, mixed) } : {};
 export const anovaRequest = (d: Dataset, i: AnovaInput) => {
-  const { emm, ...rest } = i;
+  const { emm, ...rest } = withResampling(i);
   const fields = { ...rest, ...emmField(emm) };
   return testRequest(d, 'anova', [i.dependent, ...i.factors, ...i.covariates], fields);
 };
-const anovaPackage = (i: AnovaInput) => (i.emm ? 'emmeans' : 'stats');
+const anovaPackage = (i: AnovaInput) => resamplingPackage(i, i.emm ? 'emmeans' : 'stats');
 export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
   const r = await rCall<Record<string, any>>('ps_anova', anovaRequest(d, i), anovaPackage(i));
   return {
@@ -382,6 +433,13 @@ export async function anovaR(d: Dataset, i: AnovaInput): Promise<AnovaResult> {
     pairwiseRank: r.pairwiseRank ? rList(r.pairwiseRank) : null,
     cells: rList(r.cells),
     emm: parseEmm(r.emm),
+    resampling: r.resampling
+      ? {
+          ...r.resampling,
+          robust: r.resampling.robust ? rList(r.resampling.robust) : null,
+          permutation: rObj(r.resampling.permutation),
+        }
+      : null,
     warnings: rStrings(r.warnings),
   } as AnovaResult;
 }
@@ -443,12 +501,15 @@ export const manovaScriptR = (d: Dataset, i: ManovaInput) =>
   rScript('ps_manova', manovaRequest(d, i), 'stats');
 
 export const correlationRequest = (d: Dataset, i: CorrelationInput) =>
-  testRequest(d, 'correlation', i.vars, i);
+  testRequest(d, 'correlation', i.vars, withResampling(i));
+/** lavaan for polychoric correlations (no resampling); otherwise base R, with boot and coin for the resampling. */
+const correlationPackage = (i: CorrelationInput) =>
+  i.method === 'polychoric' ? 'lavaan' : resamplingPackage(i, 'stats');
 export async function correlationR(d: Dataset, i: CorrelationInput): Promise<CorrelationResult> {
   const r = await rCall<Record<string, any>>(
     'ps_correlation',
     correlationRequest(d, i),
-    i.method === 'polychoric' ? 'lavaan' : 'stats',
+    correlationPackage(i),
   );
   return {
     ...r,
@@ -457,15 +518,12 @@ export async function correlationR(d: Dataset, i: CorrelationInput): Promise<Cor
     ...(r.method === 'polychoric'
       ? { ordinal: rStrings(r.ordinal), normality: rList<CorrelationNormality>(r.normality) }
       : {}),
+    resampling: rObj<ResamplingEcho>(r.resampling),
     warnings: rStrings(r.warnings),
   } as CorrelationResult;
 }
 export const correlationScriptR = (d: Dataset, i: CorrelationInput) =>
-  rScript(
-    'ps_correlation',
-    correlationRequest(d, i),
-    i.method === 'polychoric' ? 'lavaan' : 'stats',
-  );
+  rScript('ps_correlation', correlationRequest(d, i), correlationPackage(i));
 
 export const contingencyRequest = (d: Dataset, i: ContingencyInput) =>
   testRequest(d, 'contingency', [i.rows, i.columns, i.counts], i);

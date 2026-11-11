@@ -109,7 +109,9 @@ export type ExamplePackage =
   | 'bain'
   | 'piecewiseSEM'
   | 'Bayesrel'
-  | 'emmeans';
+  | 'emmeans'
+  | 'WRS2'
+  | 'coin';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -174,6 +176,8 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'piecewiseSEM',
   'Bayesrel',
   'emmeans',
+  'WRS2',
+  'coin',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */

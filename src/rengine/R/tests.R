@@ -101,6 +101,8 @@ ps_ttest <- function(req_json, export = FALSE) {
   for (p in pairs) if (length(p) != 2 || p[1] == p[2]) stop("Each pair needs two different variables.")
   group <- req$group %||% ""
   if (type == "independent" && !nzchar(group)) stop("Choose the grouping variable.")
+  # Trimmed means, bootstrap intervals, permutation tests (R/robust.R).
+  rs <- ps_rs_options(req, c("trimmed", "bootstrap", "permutation"))
   fr <- ps_long_frame(req, unique(c(vars, if (type == "independent") group)))
   v <- fr$v
   a <- sprintf("alternative = \"%s\", conf.level = %s", alt, format(conf))
@@ -192,11 +194,18 @@ ps_ttest <- function(req_json, export = FALSE) {
         )
       )
     }
+    body <- c(body, ps_rs_ttest_lines(rs, type, r, mu, conf))
   }
   inputs <- list(data = fr$data)
   title <- c(one = "One-sample t-test", paired = "Paired-samples t-test", independent = "Independent-samples t-test")[[type]]
   if (export) {
-    return(ps_script(title, character(0), inputs, body, sprintf("r%d", seq_along(if (type == "paired") pairs else vars))))
+    return(ps_script(
+      title,
+      ps_rs_packages(rs),
+      inputs,
+      body,
+      sprintf("r%d", seq_along(if (type == "paired") pairs else vars))
+    ))
   }
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(if (type == "paired") pairs else vars), function(k) {
@@ -224,7 +233,8 @@ ps_ttest <- function(req_json, export = FALSE) {
       rankBiserial = r$rb,
       levene = if (!is.null(r$levene)) list(stat = r$levene$`F value`[1], df1 = r$levene$Df[1], df2 = r$levene$Df[2], p = r$levene$`Pr(>F)`[1]) else NULL,
       shapiro = if (type == "independent") lapply(r$shapiro, ps_htest) else list(ps_htest(r$shapiro)),
-      descriptives = desc
+      descriptives = desc,
+      resampling = if (is.null(rs)) NULL else ps_rs_ttest_out(r, type)
     )
   })
   groups <- if (type == "independent") {
@@ -237,6 +247,7 @@ ps_ttest <- function(req_json, export = FALSE) {
   }
   ps_json(list(
     type = type, alternative = alt, testValue = mu, confidence = conf, groups = groups, rows = rows,
+    resampling = if (is.null(rs)) NULL else rs[c("trim", "resamples", "seed")],
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -271,6 +282,11 @@ ps_anova <- function(req_json, export = FALSE) {
   fac_levels <- setNames(lapply(fac, function(n) ps_bt_labels(req, fr, n)), fac)
   emm <- ps_emm_options(req, fac_levels, games = TRUE)
   emm_rn <- setNames(vapply(fac, function(n) v[[n]], ""), fac)
+  # Robust ANOVA on trimmed means, permutation test (R/robust.R): one factor, or two for t2way.
+  rs <- ps_rs_options(req, c("trimmed", "permutation"))
+  if (!is.null(rs) && (length(cov) || length(fac) > 2 || (rs$permutation && length(fac) > 1))) {
+    stop("The robust ANOVA is for one or two factors, the permutation test for one factor; neither with covariates.")
+  }
   body <- c(
     sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[c(y, fac, cov)])))),
     "# Factors (their levels as the groups).",
@@ -299,16 +315,25 @@ ps_anova <- function(req_json, export = FALSE) {
         )
       )
     },
-    ps_emm_lines(emm, "fit", emm_rn, conf, y = v[[y]])
+    ps_emm_lines(emm, "fit", emm_rn, conf, y = v[[y]]),
+    ps_rs_anova_lines(rs, v[[y]], unname(emm_rn), conf)
   )
   inputs <- list(data = fr$data)
   if (export) {
     return(ps_script(
       if (length(cov)) "ANCOVA" else "ANOVA",
-      if (is.null(emm)) character(0) else "emmeans",
+      c(if (!is.null(emm)) "emmeans", ps_rs_packages(rs)),
       inputs,
       body,
-      c("tab", "shapiro", "levene", if (oneway) c("welch", "kruskal", "tukey", "pwRank"), ps_emm_report(emm))
+      c(
+        "tab",
+        "shapiro",
+        "levene",
+        if (oneway) c("welch", "kruskal", "tukey", "pwRank"),
+        ps_emm_report(emm),
+        if (!is.null(rs) && rs$trimmed) "robust",
+        if (!is.null(rs) && rs$permutation) "perm"
+      )
     ))
   }
   env <- ps_run(body, inputs)
@@ -377,6 +402,7 @@ ps_anova <- function(req_json, export = FALSE) {
     },
     cells = lapply(names(cells), function(k) c(list(cell = k), ps_desc(cells[[k]]))),
     emm = ps_emm_result(env, emm, emm_rn, conf),
+    resampling = ps_rs_anova_out(env, rs, fac),
     warnings = env$.warnings, engine = list(package = "stats", version = as.character(getRversion()))
   ))
 }
@@ -953,6 +979,8 @@ ps_correlation <- function(req_json, export = FALSE) {
     return(ps_polychoric(fr, vars, alt, conf, listwise, export))
   }
   exact <- isTRUE(req$exact) && method %in% c("spearman", "kendall")
+  # Bootstrap intervals, permutation tests (R/robust.R); no permutation test for Kendall's tau.
+  rs <- ps_rs_options(req, c("bootstrap", if (method != "kendall") "permutation"))
   body <- c(
     if (listwise) sprintf("data <- data[complete.cases(data[, %s]), ]", ps_q(unname(unlist(v[vars])))),
     sprintf("vars <- %s", ps_q(unname(unlist(v[vars])))),
@@ -981,11 +1009,17 @@ ps_correlation <- function(req_json, export = FALSE) {
         if (method == "pearson") sprintf(", conf.level = %s", format(conf)) else ", exact = FALSE"
       )
     },
-    "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)"
+    "n <- vapply(pairs, function(p) sum(complete.cases(data[[p[1]]], data[[p[2]]])), 0)",
+    ps_rs_cor_lines(rs, method, conf)
   )
   inputs <- list(data = fr$data)
   if (export) {
-    return(ps_script(sprintf("Correlations (%s)", method), character(0), inputs, body, "setNames(tests, vapply(pairs, paste, \"\", collapse = \" ~ \"))"))
+    report <- c(
+      "setNames(tests, vapply(pairs, paste, \"\", collapse = \" ~ \"))",
+      if (!is.null(rs) && rs$bootstrap) "boots",
+      if (!is.null(rs) && rs$permutation) "perms"
+    )
+    return(ps_script(sprintf("Correlations (%s)", method), ps_rs_packages(rs), inputs, body, report))
   }
   env <- ps_run(body, inputs)
   rows <- lapply(seq_along(env$pairs), function(i) {
@@ -1000,7 +1034,9 @@ ps_correlation <- function(req_json, export = FALSE) {
       stat = unname(h$statistic),
       ciLow = if (is.null(h$conf.int)) NULL else h$conf.int[1],
       ciHigh = if (is.null(h$conf.int)) NULL else h$conf.int[2],
-      exact = if (exact) env$exact[i] else NULL
+      exact = if (exact) env$exact[i] else NULL,
+      bootstrap = if (is.null(env$boots)) NULL else ps_rs_boot_out(env$boots[[i]]),
+      permutation = if (is.null(env$perms)) NULL else env$perms[[i]]
     )
   })
   ps_json(list(
@@ -1011,6 +1047,7 @@ ps_correlation <- function(req_json, export = FALSE) {
     vars = vars,
     pairs = rows,
     exact = if (exact) TRUE else NULL,
+    resampling = if (is.null(rs)) NULL else rs[c("resamples", "seed")],
     warnings = env$.warnings,
     engine = list(package = "stats", version = as.character(getRversion()))
   ))
