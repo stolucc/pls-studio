@@ -239,3 +239,47 @@ it('censored from above mirrors censored from below; inflated models give model-
   expect(s).toContain('fit <- ml_fit(ll, start, robust = TRUE)');
   expect(await regressionScriptR(d, opts)).toContain('survreg(Surv(y1, y1 > lim, type = "left") ~ x1 + x3');
 }, 900_000);
+
+// Durbin–Watson (lmtest::dwtest) in the diagnostics of a linear model:
+// scripts/validation/durbin_watson.R on the help-page models and lmtest's ?growthofmoney.
+const dwRef = JSON.parse(readFileSync(join(__dirname, '..', 'engine', '__fixtures__', 'regression', 'durbin_watson.json'), 'utf8'));
+
+it('Durbin–Watson equals lmtest::dwtest (exact p below 100 rows, normal approximation above)', async () => {
+  const cases: [string, string][] = [
+    ['datasets-attitude', 'attitude'],
+    ['datasets-swiss', 'swiss'],
+    ['cardata-duncan', 'duncan'],
+    ['cardata-prestige', 'prestige'],
+  ];
+  for (const [id, key] of cases) {
+    const ex = PACKAGE_EXAMPLES.find((e) => e.id === id)!;
+    const { kind: _k, ...opts } = ex.panel as { kind: 'regression' } & Omit<RegressionInput, 'confidence'>;
+    const r = await regressionR(await load(ex), { ...opts, confidence: 0.95 });
+    const dw = r.diagnostics.durbinWatson!;
+    const want = dwRef[key];
+    // (d and r1 are closed forms; Pan's integral and the normal tail allow 1e-6 between webR and desktop R)
+    expect(dw.stat, `${key}: Durbin–Watson d`).toBeCloseTo(want.stat, 8);
+    expect(dw.p, `${key}: Durbin–Watson p`).toBeCloseTo(want.p, 6);
+    expect(dw.r1, `${key}: lag-1 autocorrelation`).toBeCloseTo(want.r1, 8);
+    expect(dw.exact).toBe(want.n < 100);
+  }
+  // lmtest's own example: ?growthofmoney, dwtest(TG1.TG0 ~ AG0.TG0, data = growthofmoney).
+  const raw = await rCall<{ names: string[]; cols: number[][] }>(
+    'ps_dataset', { package: 'lmtest', name: 'growthofmoney', na: [] }, 'regression');
+  const money: Dataset = { names: raw.names, cols: raw.cols.map((c) => Float64Array.from(c)) };
+  const input: RegressionInput = {
+    family: 'gaussian', link: 'identity', outcome: 'TG1.TG0', predictors: ['AG0.TG0'], categorical: [],
+    interactions: [], trials: '', weights: '', se: 'model', cluster: '', confidence: 0.95,
+  };
+  const r = await regressionR(money, input);
+  const want = dwRef.growthofmoney;
+  expect(r.diagnostics.durbinWatson!.stat, 'growthofmoney: Durbin–Watson d').toBeCloseTo(want.stat, 8);
+  expect(r.diagnostics.durbinWatson!.p, 'growthofmoney: Durbin–Watson p').toBeCloseTo(want.p, 6);
+  expect(r.diagnostics.durbinWatson!.r1, 'growthofmoney: lag-1 autocorrelation').toBeCloseTo(want.r1, 8);
+  expect(await regressionScriptR(money, input)).toContain('dw <- dwtest(fit)');
+  // Not for weighted fits (dwtest would refit without the weights) nor other families.
+  const w = Float64Array.from(money.cols[0], (_, i) => 1 + i);
+  const withWeights: Dataset = { names: [...money.names, 'w'], cols: [...money.cols, w] };
+  const weighted = await regressionR(withWeights, { ...input, weights: 'w' });
+  expect(weighted.diagnostics.durbinWatson).toBeUndefined();
+}, 900_000);

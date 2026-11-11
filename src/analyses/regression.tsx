@@ -9,7 +9,7 @@ import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fmt, fmtP, pIs } from '../format';
-import { isZeroModel, type Coefficient, type Family, type RegressionCurve, type RegressionInput, type RegressionResult } from '../rengine/regression';
+import { isZeroModel, type Coefficient, type DurbinWatson, type Family, type RegressionCurve, type RegressionInput, type RegressionResult } from '../rengine/regression';
 import { confirmDialog } from '../components/Overlays';
 import { newId, type Construct, type ModelState, type Path } from '../model/project';
 import { useStore } from '../store';
@@ -175,6 +175,26 @@ function RegressionOptionsForm({ options: o, set, ctx, disabled }: OptionsProps<
 
 const coefRow = (e: Coefficient, ratio: boolean): Row => [c(e.term), c(e.est), c(e.se), c(e.stat), pCell(e.p), c(`[${fmt(e.ciLow)}, ${fmt(e.ciHigh)}]`), ...(ratio ? [c(e.ratio ?? null)] : [])];
 
+/** Diagnostics rows of the Durbin–Watson test (lmtest::dwtest), when it ran. */
+export function durbinWatsonRows(dw: DurbinWatson | undefined): Row[] {
+  if (!dw) return [];
+  const method = dw.exact ? 'exact (Pan)' : 'normal approximation';
+  return [
+    [c('Durbin–Watson d'), c(dw.stat)],
+    [c(`p (H1: positive autocorrelation; ${method})`), pCell(dw.p)],
+    [c('Lag-1 autocorrelation of the residuals'), c(dw.r1)],
+  ];
+}
+
+function diagnosticsNote(dw: DurbinWatson | undefined): string {
+  const base = 'VIF above 5 (or 10) signals collinear predictors. '
+    + 'Hosmer–Lemeshow: a small p means the fitted probabilities do not match the observed rates.';
+  if (!dw) return base;
+  return `${base} Durbin–Watson (lmtest::dwtest): residuals in the order of the data rows; `
+    + 'd near 2 means no first-order autocorrelation (d ≈ 2(1 − r₁)), below 2 positive. '
+    + 'It is meaningful only when the row order means something (time, sequence).';
+}
+
 function Curve({ r, cv }: { r: RegressionResult; cv: RegressionCurve }) {
   const W = 520, H = 300, pad = { l: 56, r: 16, t: 14, b: 44 };
   const probs = cv.probs;
@@ -292,13 +312,14 @@ function RegressionView({ r, plot, o }: { r: Result; plot: string; o: Regression
       {baseline.length > 0 && <Table title="Baseline hazard by interval" file="regression-baseline-hazard" columns={cols.slice(0, 6)} rows={baseline.map((e) => coefRow(e, false))}
         note="The hazard in each interval for a person with all predictors at zero; z and p test its logarithm against 0; the interval is exp(log hazard ± z × SE)." />}
       {r.thresholds.length > 0 && <Table title="Thresholds (cut points between the ordered levels)" file="regression-thresholds" columns={cols.slice(0, 6)} rows={r.thresholds.map((e) => coefRow(e, false))} />}
-      {(dg.vif?.length || dg.auc !== undefined || dg.hosmerLemeshow) ? (
+      {(dg.vif?.length || dg.auc !== undefined || dg.hosmerLemeshow || dg.durbinWatson) ? (
         <Table title="Diagnostics" file="regression-diagnostics" columns={['Statistic', 'Value']} rows={[
           ...(dg.vif ?? []).map((v): Row => [c(`VIF ${v.term}`), c(v.vif)]),
           ...(dg.accuracy !== undefined ? [[c('Classification accuracy (cut-off 0.5)'), c(dg.accuracy)] as Row] : []),
           ...(dg.auc !== undefined && dg.auc !== null ? [[c('Area under the ROC curve'), c(dg.auc)] as Row] : []),
           ...(dg.hosmerLemeshow ? [[c(`Hosmer–Lemeshow χ²(${dg.hosmerLemeshow.df})`), c(`${fmt(dg.hosmerLemeshow.stat, 2)}, p ${fmtP(dg.hosmerLemeshow.p)}`)] as Row] : []),
-        ]} note="VIF above 5 (or 10) signals collinear predictors. Hosmer–Lemeshow: a small p means the fitted probabilities do not match the observed rates." />
+          ...durbinWatsonRows(dg.durbinWatson),
+        ]} note={diagnosticsNote(dg.durbinWatson)} />
       ) : null}
       {cv && <Curve r={{ ...r, curves }} cv={cv} />}
     </div>

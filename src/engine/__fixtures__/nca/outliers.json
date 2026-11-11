@@ -1,0 +1,363 @@
+{
+  "listsVersion": "5.0.2",
+  "lists": [
+    {
+      "x": "Individualism",
+      "outliers": {
+        "ce_fdh": [
+          {
+            "case": 14,
+            "d": 0.55,
+            "change": 0.14,
+            "percent": 32.7,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 28,
+            "d": 0.33,
+            "change": -0.09,
+            "percent": -21.5,
+            "ceiling": true,
+            "scope": true
+          },
+          {
+            "case": 24,
+            "d": 0.43,
+            "change": 0.02,
+            "percent": 3.6,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 22,
+            "d": 0.4,
+            "change": -0.01,
+            "percent": -3,
+            "ceiling": true,
+            "scope": true
+          },
+          {
+            "case": 7,
+            "d": 0.42,
+            "change": 0,
+            "percent": 0.2,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 15,
+            "d": 0.42,
+            "change": 0,
+            "percent": 0.1,
+            "ceiling": false,
+            "scope": true
+          }
+        ],
+        "cr_fdh": [
+          {
+            "case": 14,
+            "d": 0.44,
+            "change": 0.13,
+            "percent": 44,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 28,
+            "d": 0.22,
+            "change": -0.08,
+            "percent": -26.8,
+            "ceiling": true,
+            "scope": true
+          },
+          {
+            "case": 22,
+            "d": 0.36,
+            "change": 0.06,
+            "percent": 18.2,
+            "ceiling": true,
+            "scope": true
+          },
+          {
+            "case": 7,
+            "d": 0.31,
+            "change": 0,
+            "percent": 1.4,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 24,
+            "d": 0.3,
+            "change": 0,
+            "percent": -0.6,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 15,
+            "d": 0.31,
+            "change": 0,
+            "percent": 0.1,
+            "ceiling": false,
+            "scope": true
+          }
+        ]
+      }
+    },
+    {
+      "x": "Risk taking",
+      "outliers": {
+        "ce_fdh": [
+          {
+            "case": 14,
+            "d": 0.46,
+            "change": 0.15,
+            "percent": 49.8,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 10,
+            "d": 0.25,
+            "change": -0.06,
+            "percent": -20.3,
+            "ceiling": true,
+            "scope": true
+          },
+          {
+            "case": 28,
+            "d": 0.25,
+            "change": -0.06,
+            "percent": -18.5,
+            "ceiling": true,
+            "scope": true
+          },
+          {
+            "case": 6,
+            "d": 0.33,
+            "change": 0.02,
+            "percent": 7.2,
+            "ceiling": false,
+            "scope": true
+          },
+          {
+            "case": 3,
+            "d": 0.32,
+            "change": 0.01,
+            "percent": 2.1,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 7,
+            "d": 0.31,
+            "change": 0,
+            "percent": 0.3,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 15,
+            "d": 0.31,
+            "change": 0,
+            "percent": 0.1,
+            "ceiling": false,
+            "scope": true
+          }
+        ],
+        "cr_fdh": [
+          {
+            "case": 14,
+            "d": 0.38,
+            "change": 0.1,
+            "percent": 36.3,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 10,
+            "d": 0.25,
+            "change": -0.03,
+            "percent": -11.3,
+            "ceiling": true,
+            "scope": true
+          },
+          {
+            "case": 6,
+            "d": 0.3,
+            "change": 0.02,
+            "percent": 7.2,
+            "ceiling": false,
+            "scope": true
+          },
+          {
+            "case": 28,
+            "d": 0.26,
+            "change": -0.02,
+            "percent": -7,
+            "ceiling": true,
+            "scope": true
+          },
+          {
+            "case": 3,
+            "d": 0.27,
+            "change": -0.02,
+            "percent": -6,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 7,
+            "d": 0.27,
+            "change": -0.01,
+            "percent": -4.7,
+            "ceiling": true,
+            "scope": false
+          },
+          {
+            "case": 15,
+            "d": 0.28,
+            "change": 0,
+            "percent": 0.1,
+            "ceiling": false,
+            "scope": true
+          }
+        ]
+      }
+    }
+  ],
+  "effectsVersion": "4.0.2",
+  "permutations": 100,
+  "effects": [
+    {
+      "x": "Individualism",
+      "all": {
+        "n": 28,
+        "ce": 0.415507980158832,
+        "pce": 0.1,
+        "cr": 0.306647655412176,
+        "pcr": 0.18
+      },
+      "removed": [
+        {
+          "case": 14,
+          "n": 27,
+          "ce": 0.551549769976098,
+          "pce": 0.03,
+          "cr": 0.441543730299454,
+          "pcr": 0.03
+        },
+        {
+          "case": 28,
+          "n": 27,
+          "ce": 0.326112925663824,
+          "pce": 0.17,
+          "cr": 0.224483234151459,
+          "pcr": 0.33
+        },
+        {
+          "case": 24,
+          "n": 27,
+          "ce": 0.430671566989643,
+          "pce": 0.1,
+          "cr": 0.304933637408867,
+          "pcr": 0.25
+        },
+        {
+          "case": 22,
+          "n": 27,
+          "ce": 0.403142589118199,
+          "pce": 0.05,
+          "cr": 0.362313269483351,
+          "pcr": 0.04
+        },
+        {
+          "case": 7,
+          "n": 27,
+          "ce": 0.416279009997687,
+          "pce": 0.13,
+          "cr": 0.310906783130898,
+          "pcr": 0.19
+        },
+        {
+          "case": 15,
+          "n": 27,
+          "ce": 0.41589812849701,
+          "pce": 0.1,
+          "cr": 0.306935587482986,
+          "pcr": 0.19
+        }
+      ]
+    },
+    {
+      "x": "Risk taking",
+      "all": {
+        "n": 28,
+        "ce": 0.309415646014714,
+        "pce": 0.13,
+        "cr": 0.281898541062132,
+        "pcr": 0.08
+      },
+      "removed": [
+        {
+          "case": 14,
+          "n": 27,
+          "ce": 0.463599089318464,
+          "pce": 0.01,
+          "cr": 0.384218837719831,
+          "pcr": 0.01
+        },
+        {
+          "case": 10,
+          "n": 27,
+          "ce": 0.246734069904802,
+          "pce": 0.24,
+          "cr": 0.249964003876814,
+          "pcr": 0.12
+        },
+        {
+          "case": 28,
+          "n": 27,
+          "ce": 0.252286030594582,
+          "pce": 0.16,
+          "cr": 0.262080090020732,
+          "pcr": 0.1
+        },
+        {
+          "case": 6,
+          "n": 27,
+          "ce": 0.331783042112163,
+          "pce": 0.1,
+          "cr": 0.302276748849757,
+          "pcr": 0.08
+        },
+        {
+          "case": 3,
+          "n": 27,
+          "ce": 0.316066572506693,
+          "pce": 0.12,
+          "cr": 0.265078352950255,
+          "pcr": 0.13
+        },
+        {
+          "case": 7,
+          "n": 27,
+          "ce": 0.310443324830828,
+          "pce": 0.13,
+          "cr": 0.268656174111589,
+          "pcr": 0.14
+        },
+        {
+          "case": 15,
+          "n": 27,
+          "ce": 0.309706177137733,
+          "pce": 0.09,
+          "cr": 0.282163234527919,
+          "pcr": 0.0600000000000001
+        }
+      ]
+    }
+  ]
+}

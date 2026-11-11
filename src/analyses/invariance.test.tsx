@@ -175,6 +175,20 @@ describe('longitudinal invariance card', () => {
     const html = renderToStaticMarkup(<longInvarianceAnalysis.View result={r} options={{ factor: 'Democracy', occasions: [], lag: 'all' }} current />);
     for (const s of ['Longitudinal measurement invariance of Democracy', 'ΔCFI', 'scaled, for the robust estimator', 'Factor means and variances under scalar invariance', '-0.210', 'fixed']) expect(html).toContain(s);
     expect(html).toMatch(/class="num bad"[^>]*>-0\.012/);
+    // Results stored before the syntax view: no syntax section.
+    expect(html).not.toContain('Generated lavaan syntax');
+    const withSyntax: LongInvarianceResult = {
+      ...r,
+      levels: r.levels.map((l) => ({ ...l, syntax: `## LOADINGS:\n\nF_t1 =~ NA*y1 + lambda.1_1*y1 # ${l.level}` })),
+    };
+    const shown = renderToStaticMarkup(<longInvarianceAnalysis.View result={withSyntax} options={{ factor: 'D', occasions: [], lag: 'all' }} current />);
+    expect(shown).toContain('Generated lavaan syntax (semTools::measEq.syntax)');
+    for (const level of ['configural', 'metric', 'scalar', 'strict']) expect(shown).toContain(`>${level}</button>`);
+    // The first level is shown; comment lines are styled as comments.
+    expect(shown).toContain('lambda.1_1*y1 # configural');
+    expect(shown).not.toContain('# strict');
+    expect(shown).toContain('<div class="cm">## LOADINGS:</div>');
+    expect(shown).toContain('Copy');
   });
 });
 

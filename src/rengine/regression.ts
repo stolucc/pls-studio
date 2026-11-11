@@ -68,12 +68,30 @@ export interface RegressionResult {
   lrt: { stat: number; df: number; p: number; pseudoR2?: number } | null;
   /** Zero models: Vuong's test against the standard count model (as pscl::vuong), raw and AIC- and BIC-corrected; z > 0 favours the zero model; p one-sided. */
   vuong?: Record<'raw' | 'aic' | 'bic', { z: number; p: number }> | null;
-  diagnostics: { vif?: { term: string; vif: number | null }[]; accuracy?: number; auc?: number; hosmerLemeshow?: { stat: number; df: number; p: number } };
+  diagnostics: {
+    vif?: { term: string; vif: number | null }[];
+    accuracy?: number;
+    auc?: number;
+    hosmerLemeshow?: { stat: number; df: number; p: number };
+    durbinWatson?: DurbinWatson;
+  };
   /** One partial-effect curve per numeric predictor: the response over it, the other predictors at their means. */
   curves: RegressionCurve[];
   warnings: string[]; engine: REngineInfo;
 }
 
+
+/**
+ * Durbin–Watson test of an unweighted linear model's residuals in the rows' order (lmtest::dwtest):
+ * H1 positive autocorrelation; `exact`: Pan's algorithm (below 100 rows), else the normal approximation.
+ * `r1`: the lag-1 autocorrelation of the residuals.
+ */
+export interface DurbinWatson {
+  stat: number;
+  p: number;
+  exact: boolean;
+  r1: number;
+}
 
 export function regressionRequest(data: Dataset, i: RegressionInput) {
   if (data.moments && data.cols.length === 0) throw new Error('Regression needs raw data; this dataset is a covariance matrix.');

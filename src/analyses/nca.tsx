@@ -3,15 +3,29 @@
 
 import type { Dataset } from '../engine/types';
 import { fmt } from '../format';
-import { bottleneckText, type NcaCondition, type NcaResult } from '../rengine/nca';
+import { bottleneckText, type NcaCondition, type NcaOutlier, type NcaResult } from '../rengine/nca';
 import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
-import { c, pCell, Table } from '../components/results/Table';
+import { c, pCell, Table, type Row } from '../components/results/Table';
 import { fingerprint } from './codec';
 import type { AnalysisCtx, AnalysisType } from './types';
 
-export type NcaPreset = { x: string[]; y: string; source?: 'data' | 'scores'; permutations?: number };
-export interface NcaOptions { source: 'data' | 'scores'; x: string[]; y: string; permutations: number }
+export type NcaPreset = {
+  x: string[];
+  y: string;
+  source?: 'data' | 'scores';
+  permutations?: number;
+  outliers?: boolean;
+};
+
+/** Options of the NCA card; `outliers` adds the robustness checks (NCA's nca_outliers). */
+export interface NcaOptions {
+  source: 'data' | 'scores';
+  x: string[];
+  y: string;
+  permutations: number;
+  outliers: boolean;
+}
 
 /** Effect size labels (Dul 2016): 0–0.1 small, 0.1–0.3 medium, 0.3–0.5 large, ≥ 0.5 very large. */
 export const effectLabel = (d: number) => (d < 0.1 ? 'small' : d < 0.3 ? 'medium' : d < 0.5 ? 'large' : 'very large');
@@ -48,6 +62,58 @@ function CeilingPlot({ k, y }: { k: NcaCondition; y: string }) {
   );
 }
 
+const yesNo = (v: boolean) => c(v ? 'yes' : '');
+
+/** Rows of the potential outliers of one ceiling, for all conditions. */
+function outlierRows(r: NcaResult, pick: (k: NcaCondition) => NcaOutlier[]): Row[] {
+  return r.conditions.flatMap((k) => pick(k).map((o) => [
+    c(k.x),
+    c(o.case, undefined, 0),
+    c(o.d),
+    c(o.change),
+    c(o.percent === null ? '∞' : `${fmt(o.percent, 1)}%`),
+    yesNo(o.ceiling),
+    yesNo(o.scope),
+  ]));
+}
+
+/** Effect sizes and p-values of both ceilings with all cases and without each top outlier. */
+function sensitivityRows(r: NcaResult): Row[] {
+  return r.conditions.flatMap((k) => {
+    const all: Row = [
+      c(k.x), c('all cases'), c(k.n, undefined, 0),
+      c(k.ceFdh), pCell(k.p?.ce_fdh ?? null), c(k.crFdh), pCell(k.p?.cr_fdh ?? null),
+    ];
+    const without = (k.robustness?.without ?? []).map((w): Row => [
+      c(k.x), c(`without case ${w.case}`), c(w.n, undefined, 0),
+      c(w.ceFdh), pCell(w.p?.ce_fdh ?? null), c(w.crFdh), pCell(w.p?.cr_fdh ?? null),
+    ]);
+    return [all, ...without];
+  });
+}
+
+/** The robustness checks: effect size by ceiling technique and without potential outliers. */
+function RobustnessTables({ r }: { r: NcaResult }) {
+  const outlierColumns = ['Condition', 'Case', 'd without it', 'Change', 'Change (%)', 'Corner point', 'Moves scope'];
+  const listNote = 'NCA’s nca_outliers (one case at a time): corner points of the ceiling and cases that '
+    + 'alone define the scope, whose removal changes the effect size; largest change first. '
+    + 'Cases are row numbers in the data.';
+  const sensitivityNote = 'How the effect size and its p-value depend on the ceiling technique and on the most '
+    + 'influential potential outlier of each ceiling (Dul 2026, robustness checks). '
+    + (r.permutations ? `p from ${r.permutations} permutations of the remaining cases.` : 'No permutation test.');
+  return (
+    <>
+      <Table title="Robustness: ceiling technique and outliers" file="nca-robustness"
+        columns={['Condition', 'Cases', 'n', 'd (CE-FDH)', 'p', 'd (CR-FDH)', 'p']}
+        rows={sensitivityRows(r)} note={sensitivityNote} />
+      <Table title="Potential outliers (CE-FDH)" file="nca-outliers-ce" columns={outlierColumns}
+        rows={outlierRows(r, (k) => k.robustness?.outliers.ceFdh ?? [])} note={listNote} />
+      <Table title="Potential outliers (CR-FDH)" file="nca-outliers-cr" columns={outlierColumns}
+        rows={outlierRows(r, (k) => k.robustness?.outliers.crFdh ?? [])} />
+    </>
+  );
+}
+
 export function NcaView({ r }: { r: NcaResult }) {
   return (
     <div className="tables">
@@ -61,6 +127,7 @@ export function NcaView({ r }: { r: NcaResult }) {
         note="The level of each condition needed for a level of the outcome, both as a percentage of their observed range. NN: not necessary; NA: not reached in the data." />
       <Table title="Bottleneck table (CE-FDH)" file="nca-bottleneck-ce" columns={[`${r.y} (% of range)`, ...r.conditions.map((k) => `${k.x} needed (%)`)]}
         rows={r.conditions[0].bottleneck.map((b, i) => [c(`${b.y}`), ...r.conditions.map((k) => c(bottleneckText(k.bottleneck[i].ceFdh)))])} />
+      {r.conditions.some((k) => k.robustness) && <RobustnessTables r={r} />}
     </div>
   );
 }
@@ -102,6 +169,10 @@ function NcaOptionsForm({ options: o, set, ctx, disabled }: { options: NcaOption
             <input id="nca-perm" className="input num" type="number" min={0} max={20000} value={o.permutations}
               onChange={(e) => set({ ...o, permutations: Math.max(0, Math.min(20000, Math.round(Number(e.target.value)) || 0)) })} />
           </div>
+          <label className="check">
+            <input type="checkbox" checked={o.outliers} onChange={(e) => set({ ...o, outliers: e.target.checked })} />
+            {' '}Robustness checks: potential outliers and their influence on the effect sizes
+          </label>
         </>
       )}
     </fieldset>
@@ -114,13 +185,20 @@ export const ncaAnalysis: AnalysisType<NcaOptions, NcaResult> = {
   title: 'Necessary condition analysis',
   sub: 'NCA: ceilings, effect sizes, bottlenecks',
   group: 'Necessary conditions',
-  defaults: () => ({ source: 'data', x: [], y: '', permutations: 1000 }),
+  defaults: () => ({ source: 'data', x: [], y: '', permutations: 1000, outliers: true }),
   parseOptions: (raw) => {
     if (!raw || typeof raw !== 'object') return null;
     const r = raw as Record<string, unknown>;
     const x = Array.isArray(r.x) ? r.x.slice(0, 500).map(str).filter((v): v is string => !!v) : [];
     const p = Number(r.permutations);
-    return { source: r.source === 'scores' ? 'scores' : 'data', x: [...new Set(x)], y: str(r.y) ?? '', permutations: Number.isFinite(p) ? Math.max(0, Math.min(20000, Math.round(p))) : 1000 };
+    return {
+      source: r.source === 'scores' ? 'scores' : 'data',
+      x: [...new Set(x)],
+      y: str(r.y) ?? '',
+      permutations: Number.isFinite(p) ? Math.max(0, Math.min(20000, Math.round(p))) : 1000,
+      // (cards saved before the robustness checks existed keep running without them)
+      outliers: r.outliers === true,
+    };
   },
   Options: NcaOptionsForm,
   View: ({ result }) => <NcaView r={result} />,
@@ -141,7 +219,19 @@ export const ncaAnalysis: AnalysisType<NcaOptions, NcaResult> = {
     if (cols.some((k) => k < 0)) return null;
     return fingerprint([o.source, ...cols.flatMap((k) => [ds.names[k], ds.cols[k]])]);
   },
-  run: async (o, ctx) => (await import('../rengine/nca')).ncaR(input(o, ctx)!, o.x, o.y, o.permutations),
-  script: async (o, ctx) => (await import('../rengine/nca')).ncaScriptR(input(o, ctx)!, o.x, o.y, o.permutations),
-  summary: (o) => (o.y ? `${o.x.join(', ') || '…'} → ${o.y}${o.source === 'scores' ? ' (construct scores)' : ''} · ${o.permutations ? `${o.permutations} permutations` : 'no test'}` : 'not set up yet'),
+  run: async (o, ctx) => {
+    const { ncaR } = await import('../rengine/nca');
+    return ncaR(input(o, ctx)!, o.x, o.y, o.permutations, o.outliers);
+  },
+  script: async (o, ctx) => {
+    const { ncaScriptR } = await import('../rengine/nca');
+    return ncaScriptR(input(o, ctx)!, o.x, o.y, o.permutations, o.outliers);
+  },
+  summary: (o) => {
+    if (!o.y) return 'not set up yet';
+    const source = o.source === 'scores' ? ' (construct scores)' : '';
+    const test = o.permutations ? `${o.permutations} permutations` : 'no test';
+    const robust = o.outliers ? ' · robustness checks' : '';
+    return `${o.x.join(', ') || '…'} → ${o.y}${source} · ${test}${robust}`;
+  },
 };

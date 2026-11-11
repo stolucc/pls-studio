@@ -111,7 +111,8 @@ export interface LongInvarianceInput { factor: string; occasions: string[][]; la
 /** The factor's mean and variance at one occasion (standard errors absent where fixed). */
 export interface OccasionFactor { mean: number; meanSe?: number; variance: number; varianceSe?: number }
 export interface LongInvarianceResult extends Omit<InvarianceResult, 'levels'> {
-  levels: (InvarianceResult['levels'][number] & { factor: OccasionFactor[] })[];
+  /** `syntax`: the lavaan syntax semTools::measEq.syntax generated for the level (absent in older results). */
+  levels: (InvarianceResult['levels'][number] & { factor: OccasionFactor[]; syntax?: string })[];
   n: number; occasions: number; items: number; lag: LongInvarianceInput['lag']; engine: REngineInfo & { lavaan?: string };
 }
 export const longInvarianceRequest = (data: Dataset, i: LongInvarianceInput) => invRequest(data, 'longinvariance', i.occasions.flat(), i);

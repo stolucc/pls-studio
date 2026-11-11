@@ -88,7 +88,12 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   bcontingency: { examples: ['bayesfactor-racedolls'], features: ['rengine/bayes::contingency tables'] },
   bbinomial: { examples: ['stats-peas-binomial', 'bayesfactor-peas-proportion', 'bayesfactor-proportion'], features: ['rengine/bayes::binomial'] },
   regression: { features: ['rengine/regression::HC0'], note: 'Robust (HC0, HC3) and cluster standard errors against sandwich; each family below.' },
-  'regression:gaussian': { title: 'Linear (OLS)', examples: ['datasets-attitude', 'datasets-swiss', 'cardata-duncan', 'cardata-prestige', 'mplus-ex3.1', 'mplus-ex3.9', 'mplus-ex6.23', 'mplus-ex6.24'], note: 'mplus-ex3.9: random slope (TYPE = RANDOM).' },
+  'regression:gaussian': {
+    title: 'Linear (OLS)',
+    examples: ['datasets-attitude', 'datasets-swiss', 'cardata-duncan', 'cardata-prestige', 'mplus-ex3.1', 'mplus-ex3.9', 'mplus-ex6.23', 'mplus-ex6.24'],
+    features: ['rengine/regression::Durbin'],
+    note: 'mplus-ex3.9: random slope (TYPE = RANDOM). Durbin–Watson: lmtest::dwtest (scripts/validation/durbin_watson.R).',
+  },
   'regression:binomial': { title: 'Logistic (logit link)', examples: ['datasets-infert', 'mass-birthwt', 'mplus-ex3.5', 'mplus-ex6.19'] },
   'regression:binomial:probit': { title: 'Binomial, probit link', examples: ['mass-menarche'] },
   'regression:binomial:cloglog': { title: 'Binomial, complementary log-log link', features: ['rengine/regression::cloglog'], note: 'glm(binomial("cloglog")) on ?menarche (scripts/validation/regression_links.R).' },
