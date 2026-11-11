@@ -95,7 +95,7 @@ collaboration steps marked as such.
 | `src/report/` | The session report (HTML and Word): `build.tsx` renders the model results and every card off screen and reads them back as blocks (`extract.ts`; tables from the Table component's own data, `tableRegistry.ts`), `html.ts` (one self-contained file, sanitised inline SVG), `docx.ts` (WordprocessingML zipped by `replication/zip.ts`: real Word tables, PNG figures with alt text), `references.ts` (BibTeX to an APA-like reference list). |
 | `src/process/` | Conditional process analysis (PROCESS models): recognising the diagram, building the regression plan. |
 | `src/cloud/` | Collaboration client: `api.ts` (fetch with CSRF), `auth.ts` (accounts), `collab.ts` (Y.js document ⇄ store), `invites.ts` (emailed links). |
-| `src/examples/` | Home-screen examples (`packages.ts`: 374 package examples with their sources and documented settings; built-in examples). |
+| `src/examples/` | Home-screen examples (`packages.ts`: 376 package examples with their sources and documented settings; built-in examples). |
 | `src/figure/`, `src/replication/` | Diagram rendering for export (SVG/PDF/LaTeX); replication package (zip of data, scripts, project, README). |
 | `public/webr/` | The self-hosted R runtime and package repository (not in git; `scripts/webr/fetch.mjs` builds it from `scripts/webr/webr-lock.json`, with every package's source tarball for GPL compliance). |
 | `server/` | Express + Postgres: accounts (argon2id, TOTP, Google OIDC, email verification, reset), projects, invitations, encrypted datasets, Y.js WebSocket rooms, audit log, migrations. |

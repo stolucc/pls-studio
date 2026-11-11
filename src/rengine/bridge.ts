@@ -48,6 +48,8 @@ import scoreTestR from './R/scoretest.R?raw';
 import psemR from './R/psem.R?raw';
 import hypothesesR from './R/hypotheses.R?raw';
 import apimR from './R/apim.R?raw';
+import metaR from './R/meta.R?raw';
+import rocR from './R/roc.R?raw';
 import { useCompute } from './compute';
 import {
   helperBatch,
@@ -108,6 +110,8 @@ export const SOURCES = {
   hypotheses: hypothesesR,
   apim: apimR,
   psem: psemR,
+  meta: metaR,
+  roc: rocR,
 };
 
 export const R_PACKAGES = {
@@ -234,6 +238,12 @@ export const R_PACKAGES = {
   restriktor: ['jsonlite', 'lavaan', 'restriktor'],
   bain: ['jsonlite', 'lavaan', 'bain'],
   informative: ['jsonlite', 'lavaan', 'restriktor', 'bain'],
+  // Univariate meta-analysis: metafor's rma / rma.mv, escalc, regtest, ranktest, trimfill, influence, leave1out.
+  metafor: ['jsonlite', 'metafor'],
+  // Datasets of metadat (dat.bcg, …): the metafor examples' data (metafor depends on metadat).
+  metadat: ['jsonlite', 'metadat'],
+  // ROC analysis: pROC's curves, AUC intervals (DeLong, bootstrap), cut-points, partial AUC and DeLong's tests.
+  pROC: ['jsonlite', 'pROC'],
   // R and package versions (replication packages).
   versions: ['jsonlite'],
 } as const;

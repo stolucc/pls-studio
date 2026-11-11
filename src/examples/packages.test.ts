@@ -205,6 +205,7 @@ it('ids are unique and every R package the app calculates with has an example', 
   // lavaanRotate: ESEM blocks with invariant loadings, rotated jointly (lavaan + GPArotation), shown by Mplus 5.26.
   // psychotools: example data only (YouthGratitude), shown by the strucchange example.
   // informative: the informative-hypotheses card with both restriktor and bain, shown by their own examples.
+  // metadat: example data only (dat.bcg), shown by the metafor example.
   const covered = new Set<string>([
     ...EXAMPLE_PACKAGES,
     'simulation',
@@ -228,6 +229,7 @@ it('ids are unique and every R package the app calculates with has an example', 
     'lavaanRotate',
     'psychotools',
     'informative',
+    'metadat',
   ]);
   for (const p of Object.keys(R_PACKAGES)) expect(covered, p).toContain(p);
 });

@@ -149,6 +149,8 @@ const ROOTS = [
   'nortest',
   'effectsize',
   'TOSTER',
+  'metafor',
+  'pROC',
 ];
 /**
  * Binaries kept in this repository (scripts/webr/vendor, with their PACKAGES

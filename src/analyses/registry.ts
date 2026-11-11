@@ -119,6 +119,8 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   dfiAnalysis,
   semsensAnalysis,
   powerAnalysis,
+  metaAnalysis,
+  rocAnalysis,
   metaSemAnalysis,
   semTreeAnalysis,
   bsemAnalysis,
@@ -159,6 +161,8 @@ import { plsMultilevelAnalysis } from './plsMultilevel';
 import { scoreTestAnalysis } from './scoretest';
 import { lcsAnalysis } from './lcs';
 import { psemAnalysis } from './psem';
+import { metaAnalysis } from './meta';
+import { rocAnalysis } from './roc';
 
 export const analysisType = (id: string): AnalysisType | undefined =>
   ANALYSIS_TYPES.find((t) => t.id === id);

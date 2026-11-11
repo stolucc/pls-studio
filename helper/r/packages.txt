@@ -45,6 +45,8 @@ manymome
 marginaleffects
 mediation
 metaSEM
+metadat
+metafor
 mice
 mirt
 misty
@@ -57,6 +59,7 @@ nonnest2
 nortest
 optimx
 optmatch
+pROC
 pbivnorm
 piecewiseSEM
 plspm

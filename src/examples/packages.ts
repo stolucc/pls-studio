@@ -111,7 +111,10 @@ export type ExamplePackage =
   | 'Bayesrel'
   | 'nortest'
   | 'effectsize'
-  | 'TOSTER';
+  | 'TOSTER'
+  | 'metafor'
+  | 'metadat'
+  | 'pROC';
 export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'lavaan',
   'did',
@@ -178,6 +181,8 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'nortest',
   'effectsize',
   'TOSTER',
+  'metafor',
+  'pROC',
 ];
 
 /** Analyses that open as a card on the Analyses tab, preset with the example's columns. */
@@ -281,7 +286,9 @@ export type CardPanelKind =
   | 'plsmultilevel'
   | 'hypotheses'
   | 'apim'
-  | 'psem';
+  | 'psem'
+  | 'meta'
+  | 'roc';
 
 /** A message an example is expected to raise (see PackageExample.expectedMessages). */
 export interface ExpectedMessage {
@@ -3508,6 +3515,39 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
     }
     case 'qca':
       return [...p.conditions, p.outcome, ...(p.labels ? [p.labels] : [])];
+    // (the ROC analysis: the outcome, the predictor or the logistic regression's predictors, the comparison's column)
+    case 'roc': {
+      const o = panelPreset(p) as {
+        response: string;
+        predictor?: string;
+        predictors?: string[];
+        predictor2?: string;
+        group?: string;
+      };
+      return [
+        ...new Set(
+          [o.response, o.predictor, ...(o.predictors ?? []), o.predictor2, o.group].filter(
+            (x): x is string => !!x,
+          ),
+        ),
+      ];
+    }
+    // (the meta-analysis: its summary-data columns, moderators, cluster and labels)
+    case 'meta': {
+      const o = panelPreset(p) as {
+        columns: Record<string, string>;
+        moderators?: string[];
+        cluster?: string;
+        label?: string;
+      };
+      return [
+        ...new Set(
+          [...Object.values(o.columns), ...(o.moderators ?? []), o.cluster, o.label].filter(
+            (x): x is string => !!x,
+          ),
+        ),
+      ];
+    }
     case 'efa':
       return p.vars ?? [];
     case 'screen':
