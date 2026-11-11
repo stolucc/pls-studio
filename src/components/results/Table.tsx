@@ -30,8 +30,7 @@ export function Table({
 }) {
   const toast = useStore((s) => s.toast);
   const project = useStore((s) => s.projectName);
-  const raw = (cell: Cell) =>
-    cell.v === null ? '' : typeof cell.v === 'number' ? String(cell.v) : cell.v;
+  const raw = (cell: Cell) => (cell.v === null ? '' : String(cell.v));
   const copy = async () => {
     const tsv = [columns, ...rows.map((r) => r.map(raw))].map((r) => r.join('\t')).join('\n');
     const ok = await copyText(tsv);
@@ -98,14 +97,7 @@ export function Table({
                 <td
                   key={k}
                   className={`${typeof cell.v === 'number' ? 'num ' : ''}${cell.cls ?? ''}`}
-                  style={
-                    cell.bold || cell.bg
-                      ? {
-                          ...(cell.bold ? { fontWeight: 600 } : {}),
-                          ...(cell.bg ? { background: cell.bg } : {}),
-                        }
-                      : undefined
-                  }
+                  style={cellStyle(cell)}
                 >
                   {typeof cell.v === 'number' ? fmt(cell.v, cell.d ?? 3) : (cell.v ?? '—')}
                 </td>
@@ -117,6 +109,15 @@ export function Table({
       {note && <div className="table-note">{note}</div>}
     </div>
   );
+}
+
+/** Inline style of a bold or shaded cell; none for a plain one. */
+function cellStyle(cell: Cell) {
+  if (!cell.bold && !cell.bg) return undefined;
+  return {
+    ...(cell.bold ? { fontWeight: 600 } : {}),
+    ...(cell.bg ? { background: cell.bg } : {}),
+  };
 }
 
 /** Plain text of a table note (string or simple JSX), for exports. */
@@ -132,8 +133,26 @@ function textOf(node: ReactNode): string | undefined {
   return s || undefined;
 }
 
-export const relCls = (v: number) =>
-  v > 0.95 ? 'warn' : v >= 0.7 ? 'good' : v >= 0.6 ? 'warn' : 'bad';
+/** Reliability: .70 to .95 is good; above .95 (redundant items) or .60 to .70 is a warning. */
+export function relCls(v: number): string {
+  if (v > 0.95) return 'warn';
+  if (v >= 0.7) return 'good';
+  if (v >= 0.6) return 'warn';
+  return 'bad';
+}
+/** A reflective loading: at least .708 is good, .40 to .708 a warning, below .40 bad. */
+export function loadingCls(loading: number): string {
+  const size = Math.abs(loading);
+  if (size >= 0.708) return 'good';
+  if (size >= 0.4) return 'warn';
+  return 'bad';
+}
+/** Collinearity: a VIF above 5 is critical, above 3 a warning. */
+export function vifCls(vif: number): string {
+  if (vif > 5) return 'bad';
+  if (vif > 3) return 'warn';
+  return '';
+}
 export const pCls = (p: number) => (p < 0.05 ? 'good' : 'dim');
 export const pCell = (p: number | null): Cell =>
   p === null ? c(null) : { v: `${fmtP(p)} ${stars(p)}`, cls: pCls(p) };
@@ -142,14 +161,14 @@ export function bootCells(s: BootstrapStat | undefined): Row {
   if (!s) return [c(null), c(null), c(null), c(null), c(null), c(null)];
   return [c(s.mean), c(s.sd), c(s.t), pCell(s.p), c(s.ciLow), c(s.ciHigh)];
 }
-export const bootCols = (b: BootstrapResult) => [
-  'Sample mean',
-  'Std. error',
-  't',
-  b.tails === 1 ? 'p (one-tailed)' : 'p',
-  `${Math.round(b.confidence * 100)}% CI low${b.interval === 'bca' ? ' (BCa)' : b.interval === 'studentized' ? ' (studentized)' : ''}${b.tails === 1 ? ' (one-sided)' : ''}`,
-  'CI high',
-];
+export function bootCols(b: BootstrapResult): string[] {
+  const oneTailed = b.tails === 1;
+  let interval = '';
+  if (b.interval === 'bca') interval = ' (BCa)';
+  else if (b.interval === 'studentized') interval = ' (studentized)';
+  const ciLow = `${Math.round(b.confidence * 100)}% CI low${interval}${oneTailed ? ' (one-sided)' : ''}`;
+  return ['Sample mean', 'Std. error', 't', oneTailed ? 'p (one-tailed)' : 'p', ciLow, 'CI high'];
+}
 
 /** Lower-triangular matrix table (HTMT, correlations). */
 export function matrixRows(
@@ -166,4 +185,9 @@ export function matrixRows(
   ]);
 }
 
-export const htmtCls = (v: number) => (v > 0.9 ? 'bad' : v > 0.85 ? 'warn' : '');
+/** HTMT above .90 is bad, above .85 a warning (the stricter cut-off). */
+export function htmtCls(v: number): string {
+  if (v > 0.9) return 'bad';
+  if (v > 0.85) return 'warn';
+  return '';
+}
