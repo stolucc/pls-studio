@@ -305,3 +305,235 @@ ps_mimic_dif <- function(req_json, export = FALSE) {
     scoreError = is.null(sc), warnings = env$.warnings,
     engine = ps_engine("lavaan")))
 }
+
+#' Local structural equation models (LSEM; Hildebrandt, Wilhelm & Robitzsch 2009; Hildebrandt, Luedtke, Robitzsch,
+#' Sommer & Wilhelm 2016) with sirt::lsem.estimate: the CB-SEM model on the canvas (as lavaan syntax) is fitted at
+#' each focal point of a continuous moderator to the cases weighted by a kernel around it (bandwidth h x SD x N^-1/5),
+#' so every parameter becomes a curve along the moderator. Optionally lsem.bootstrap (resampled cases: standard
+#' errors and normal-theory intervals per focal point) and lsem.permutationTest (the moderator permuted: p values of
+#' each parameter's variation, SD and MAD over the focal points and its linear slope, and pointwise), each after
+#' set.seed() so a run reproduces. Continuous indicators, one group, ML.
+ps_lsem <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  o <- req$lsem
+  if (!is.list(o)) stop("Invalid local SEM options in the request.")
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "Local SEM")
+  if (!grepl("^fit <- sem\\(.*\\)$", b$call)) stop("Local SEM is not available for this model.")
+  if (!is.null(b$group_var)) stop("Local SEM moderates one sample by a continuous variable: remove the grouping (the moderator replaces the groups).")
+  if (!is.null(req$model$weights)) stop("Local SEM here does not take sampling weights: remove them under the model's settings.")
+  if (!is.null(req$model$cluster)) stop("Local SEM here does not take sampling clusters.")
+  if (length(b$composites)) stop("Local SEM is for common-factor models; the model has composites (<~).")
+  if (length(unlist(req$model$ordered))) stop("Local SEM here is for continuous indicators (ML); the model has ordinal indicators.")
+  if (length(b$esem_blocks)) stop("Local SEM is not available for ESEM blocks (the rotation would differ between focal points).")
+  est <- req$estimator %||% "ML"
+  if (!est %in% c("ML", "MLR")) stop("Local SEM fits each focal point by maximum likelihood: choose ML or MLR (Model settings).")
+  miss <- req$missing %||% "casewise"
+  if (miss %in% c("pairwise", "twostage", "robusttwostage", "mi")) stop("Local SEM handles missing values by FIML, casewise deletion or mean replacement (Model settings).")
+  fiml <- identical(miss, "fiml")
+  mo <- req$moderator
+  mname <- mo$name
+  if (!(is.character(mname) && length(mname) == 1 && nzchar(mname))) stop("Choose a moderator.")
+  if (mname %in% b$n$all_inds) stop("The moderator is a variable of the model; choose another column.")
+  mcol <- as.numeric(unlist(lapply(mo$col, function(v) if (is.null(v)) NA_real_ else v)))
+  if (length(mcol) != nrow(b$inputs$data)) stop("The moderator does not have one value per case.")
+  if (length(unique(mcol[is.finite(mcol)])) < 3) stop("The moderator needs at least three distinct values.")
+  mv <- ps_ident(c(names(b$inputs$data), mname))[ncol(b$inputs$data) + 1]
+  while (mv %in% names(b$inputs$data)) mv <- paste0(mv, "_mod")
+  b$inputs$data[[mv]] <- mcol
+  num <- function(x, what, lo, hi) { v <- ps_number(x, what); if (v < lo || v > hi) stop(sprintf("The %s must be between %s and %s.", what, lo, hi)); v }
+  from <- ps_number(o$from, "first focal point"); to <- ps_number(o$to, "last focal point")
+  if (from >= to) stop("The last focal point must be above the first.")
+  points <- num(o$points, "number of focal points", 2, 100)
+  if (points != round(points)) stop("The number of focal points must be a whole number.")
+  h <- num(o$h %||% 1.1, "bandwidth factor h", 0.05, 20)
+  kernel <- o$kernel %||% "gaussian"
+  if (!(is.character(kernel) && length(kernel) == 1 && kernel %in% c("gaussian", "epanechnikov", "uniform"))) stop("Invalid kernel in the request.")
+  R <- if (is.null(o$bootstrap)) 0L else as.integer(num(o$bootstrap, "number of bootstrap samples", 10, 5000))
+  B <- if (is.null(o$permutations)) 0L else as.integer(num(o$permutations, "number of permutations", 10, 5000))
+  seed <- as.integer(num(o$seed %||% 1, "seed", -2147483647, 2147483647))
+  span <- ps_model_span(b)
+  f15 <- function(x) format(x, digits = 15)
+  args <- c(sprintf("h = %s", f15(h)), sprintf("kernel = \"%s\"", kernel),
+    if (fiml) "sufficient_statistics = FALSE, missing = \"fiml\"",   # (FIML needs the cases, not weighted moments)
+    if (isTRUE(b$means)) "meanstructure = TRUE")
+  body <- c(b$body[seq_len(span[2])],
+    "suppressPackageStartupMessages(library(sirt))",
+    sprintf("data <- data[!is.na(data$%s), , drop = FALSE]  # (cases without a moderator value are left out)", mv),
+    sprintf("# Focal points of the moderator %s; each fit weights the cases by a %s kernel around the point", ps_comment(mname), kernel),
+    sprintf("# (bandwidth h x SD(moderator) x N^(-1/5), h = %s)", f15(h)),
+    sprintf("moderator_grid <- seq(%s, %s, length.out = %d)", f15(from), f15(to), as.integer(points)),
+    sprintf("mod <- lsem.estimate(data, moderator = \"%s\", moderator.grid = moderator_grid, lavmodel = model, %s, verbose = FALSE)", mv, paste(args, collapse = ", ")),
+    if (R > 0) c(sprintf("# Bootstrap: %d resamples of the cases, each refitted at every focal point (standard errors and intervals)", R),
+      sprintf("set.seed(%d)", seed), sprintf("boot <- lsem.bootstrap(mod, R = %d, verbose = FALSE)", R)),
+    if (B > 0) c(sprintf("# Permutation test of invariance: the moderator permuted %d times; how often the parameters vary as much", B),
+      sprintf("set.seed(%d)", seed), sprintf("perm <- lsem.permutationTest(mod, B = %d, verbose = FALSE)", B)))
+  inputs <- b$inputs
+  if (export) return(ps_script("Local structural equation model (sirt)", c("lavaan", "sirt"), inputs, body,
+    c("summary(mod)", if (R > 0) "boot$parameters", if (B > 0) "summary(perm)")))
+  env <- ps_run(body, inputs)
+  mod <- env$mod
+  back <- ps_cb_back(b)
+  P <- mod$parameters
+  pars <- unique(as.character(P$par))
+  S <- mod$parameters_summary
+  bp <- if (R > 0) env$boot$parameters else NULL
+  ts <- if (B > 0) env$perm$teststat else NULL
+  pw <- if (B > 0) env$perm$parameters_pointwise_test else NULL
+  nn <- function(x) unname(as.numeric(x))
+  params <- lapply(pars, function(p) {
+    r <- P[P$par == p, , drop = FALSE]; r <- r[order(r$grid_index), , drop = FALSE]
+    s <- S[S$par == p, , drop = FALSE]
+    fit <- identical(as.character(r$op[1]), "fit")
+    out <- list(par = p, op = if (fit) "fit" else as.character(r$op[1]),
+      lhs = if (fit) p else ps_back(as.character(r$lhs[1]), back), rhs = if (fit) "" else ps_back(as.character(r$rhs[1]), back),
+      est = I(nn(r$est)), se = I(nn(r$se)))
+    if (nrow(s)) out$summary <- list(mean = nn(s$M), sd = nn(s$SD), mad = nn(s$MAD), min = nn(s$Min), max = nn(s$Max), linInt = nn(s$lin_int), linSlope = nn(s$lin_slo), sdNonlin = nn(s$SD_nonlin))
+    if (!is.null(bp)) { q <- bp[bp$par == p, , drop = FALSE]; q <- q[order(q$grid_index), , drop = FALSE]
+      if (nrow(q)) out$boot <- list(se = I(nn(q$se)), lower = I(nn(q$ci.lower)), upper = I(nn(q$ci.upper))) }
+    if (!is.null(ts)) { t <- ts[ts$par == p, , drop = FALSE]
+      if (nrow(t)) { w <- pw[pw$par == p, , drop = FALSE]; w <- w[order(w$grid_index), , drop = FALSE]
+        out$test <- list(sdP = nn(t$SD_p), madP = nn(t$MAD_p), linSlopeP = nn(t$lin_slo_p), pointwise = I(nn(w$p))) } }
+    out
+  })
+  dens <- mod$moderator.density
+  ps_json(list(moderator = mname, grid = I(nn(mod$moderator.grid)), n = nrow(env$data), h = nn(mod$h), bw = nn(mod$bw), kernel = kernel,
+    weight = I(nn(dens$wgt)), neff = I(nn(dens$Neff)), params = params, bootstrap = R, permutations = B, seed = seed,
+    warnings = env$.warnings, engine = ps_engine("sirt", lavaan = "lavaan")))
+}
+
+#' Effect sizes of measurement non-invariance between groups (Nye & Drasgow 2011; signed dMACS and the expected bias
+#' in item and scale means and variances, Nye, Bradburn, Olenick, Bialko & Drasgow 2019) from the multigroup CB-SEM
+#' model on the canvas as the Model tab fits it (configural, or partial invariance with some parameters freed): for
+#' each focal group against the reference group, each item's expected score under the two groups' loadings and
+#' intercepts, E(X | eta) = nu + lambda eta, is compared over the focal group's latent distribution, eta ~ N(kappa_F,
+#' phi_F) (the factor's model-implied mean and variance in the focal group), by numerical integration as the dmacs
+#' package does it: dMACS = sqrt(int (E_F - E_R)^2 f_F) / SD, signed dMACS = int (E_F - E_R) f_F / SD (positive: the
+#' focal group scores higher at the same factor level), SD the item's pooled within-group SD (or the reference
+#' group's). The scale's mean bias is the sum of the items'; its variance bias phi_F ((sum lambda_F)^2 - (sum
+#' lambda_R)^2) (Nye & Drasgow's equations 7-9 summed). Continuous indicators.
+ps_dmacs <- function(req_json, export = FALSE) {
+  req <- ps_parse(req_json)
+  o <- req$dmacs %||% list()
+  b <- ps_cb_build(req)
+  ps_cb_plain(b, "dMACS")
+  if (is.null(b$group_var)) {
+    stop("Effect sizes of non-invariance compare groups: choose a grouping column under Groups (Model inspector).")
+  }
+  if (length(unlist(req$model$ordered))) {
+    stop("dMACS here is for continuous indicators (linear item functions); the model has ordinal indicators.")
+  }
+  if (length(b$composites)) stop("dMACS is for common factors; the model has composites (<~).")
+  if (isFALSE(req$model$multigroup$meanStructure)) {
+    stop("dMACS needs the groups' intercepts: keep the mean structure under Groups.")
+  }
+  sdtype <- o$sd %||% "pooled"
+  if (!(is.character(sdtype) && length(sdtype) == 1 && sdtype %in% c("pooled", "reference"))) {
+    stop("Invalid SD in the request.")
+  }
+  ref <- o$reference
+  if (!is.null(ref) && !(is.character(ref) && length(ref) == 1 && nchar(ref) <= 200)) {
+    stop("Invalid reference group in the request.")
+  }
+  ref_line <- if (is.null(ref)) {
+    "ref <- 1  # the reference group: the first"
+  } else {
+    sprintf("ref <- match('%s', groups)  # the reference group", ps_sq(ref))
+  }
+  denominator <- if (sdtype == "pooled") c(
+    "# Denominator: each item's pooled within-group SD of the two groups compared (Nye & Drasgow 2011, equation 3)",
+    "denominator <- function(f) {",
+    "  nr <- item_n(ref)",
+    "  nf <- item_n(f)",
+    "  sqrt(((nr - 1) * item_sd(ref)^2 + (nf - 1) * item_sd(f)^2) / (nr + nf - 2))",
+    "}"
+  ) else c(
+    "# Denominator: each item's SD in the reference group (Glass's choice)",
+    "denominator <- function(f) item_sd(ref)"
+  )
+  body <- c(b$body,
+    "# ---- Effect sizes of measurement non-invariance (Nye & Drasgow 2011; Nye et al. 2019) ----",
+    "est <- lavInspect(fit, \"est\")",
+    "groups <- lavInspect(fit, \"group.label\")",
+    "kappa <- lavInspect(fit, \"mean.lv\")  # each group's model-implied factor means",
+    "phi <- lavInspect(fit, \"cov.lv\")     # and factor (co)variances",
+    "obs <- lavInspect(fit, \"data\")       # each group's analysed cases",
+    ref_line,
+    "if (is.na(ref)) stop(\"The reference group is not one of the model's groups.\")",
+    "factors <- unique(parTable(fit)$lhs[parTable(fit)$op == \"=~\"])",
+    "# Expected item score E(X | eta) = nu + lambda eta, eta = kappa_F + z sqrt(phi_F), z standard normal",
+    "# (integrated over z as the dmacs package does it)",
+    "difference <- function(z, lR, nR, lF, nF, m, v) {",
+    "  eta <- m + z * sqrt(v)",
+    "  (nF + lF * eta) - (nR + lR * eta)",
+    "}",
+    "dmacs_item <- function(lR, nR, lF, nF, m, v, sd) {",
+    "  f <- function(z) difference(z, lR, nR, lF, nF, m, v)^2 * dnorm(z)",
+    "  sqrt(integrate(f, -Inf, Inf, rel.tol = 1e-10)$value) / sd",
+    "}",
+    "mean_bias <- function(lR, nR, lF, nF, m, v) {",
+    "  f <- function(z) difference(z, lR, nR, lF, nF, m, v) * dnorm(z)",
+    "  integrate(f, -Inf, Inf, rel.tol = 1e-10)$value",
+    "}",
+    "item_sd <- function(g) apply(obs[[g]], 2, sd, na.rm = TRUE)",
+    "item_n <- function(g) colSums(!is.na(obs[[g]]))",
+    denominator,
+    "effects <- NULL",
+    "for (f in setdiff(seq_along(groups), ref)) {",
+    "  sd <- denominator(f)",
+    "  for (k in factors) {",
+    "    LR <- est[[ref]]$lambda[, k]",
+    "    LF <- est[[f]]$lambda[, k]",
+    "    m <- kappa[[f]][k]",
+    "    v <- phi[[f]][k, k]",
+    "    for (i in names(LR)[LR != 0]) {",
+    "      lR <- LR[[i]]",
+    "      lF <- LF[[i]]",
+    "      nR <- est[[ref]]$nu[i, 1]",
+    "      nF <- est[[f]]$nu[i, 1]",
+    "      row <- data.frame(focal = groups[f], factor = k, item = i,",
+    "        lambda_ref = lR, nu_ref = nR, lambda_focal = lF, nu_focal = nF, kappa_focal = m, phi_focal = v, sd = sd[[i]],",
+    "        dmacs = dmacs_item(lR, nR, lF, nF, m, v, sd[[i]]),",
+    "        mean_bias = mean_bias(lR, nR, lF, nF, m, v),",
+    "        var_bias = v * (lF^2 - lR^2))",
+    "      effects <- rbind(effects, row)",
+    "    }",
+    "  }",
+    "}",
+    "effects$dmacs_signed <- effects$mean_bias / effects$sd",
+    "# The scale (sum of a factor's items): expected bias in its mean and in its variance",
+    "scales <- NULL",
+    "for (e in split(effects, list(effects$focal, effects$factor), drop = TRUE)) {",
+    "  var_bias <- e$phi_focal[1] * (sum(e$lambda_focal)^2 - sum(e$lambda_ref)^2)",
+    "  row <- data.frame(focal = e$focal[1], factor = e$factor[1], items = nrow(e),",
+    "    kappa = e$kappa_focal[1], phi = e$phi_focal[1], mean_bias = sum(e$mean_bias), var_bias = var_bias)",
+    "  scales <- rbind(scales, row)",
+    "}")
+  inputs <- b$inputs
+  if (export) {
+    title <- "Effect sizes of measurement non-invariance (dMACS)"
+    return(ps_script(title, "lavaan", inputs, body, c("summary(fit)", "effects", "scales")))
+  }
+  env <- ps_run(body, inputs)
+  e <- env$effects
+  s <- env$scales
+  if (is.null(e) || !nrow(e)) stop("No factor with loadings to compare: draw factors with indicators.")
+  back <- ps_cb_back(b)
+  nm <- function(x) ps_back(as.character(x), back)
+  items <- lapply(seq_len(nrow(e)), function(i) list(
+    focal = as.character(e$focal[i]), factor = nm(e$factor[i]), item = nm(e$item[i]),
+    lambdaRef = e$lambda_ref[i], nuRef = e$nu_ref[i], lambdaFocal = e$lambda_focal[i], nuFocal = e$nu_focal[i],
+    sd = e$sd[i], dmacs = e$dmacs[i], signed = e$dmacs_signed[i], meanBias = e$mean_bias[i], varBias = e$var_bias[i]))
+  scales <- lapply(seq_len(nrow(s)), function(i) list(
+    focal = as.character(s$focal[i]), factor = nm(s$factor[i]), items = s$items[i],
+    kappa = s$kappa[i], phi = s$phi[i], meanBias = s$mean_bias[i], varBias = s$var_bias[i]))
+  ps_json(list(
+    groups = I(as.character(env$groups)),
+    reference = as.character(env$groups[env$ref]),
+    sd = sdtype,
+    n = I(unname(as.numeric(lavaan::lavInspect(env$fit, "nobs")))),
+    items = items,
+    scales = scales,
+    warnings = env$.warnings,
+    engine = ps_engine("lavaan")))
+}

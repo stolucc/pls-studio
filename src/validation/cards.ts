@@ -120,6 +120,8 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
   scoretest: { examples: ['strucchange-gratitude-agegroup'], note: 'The published example (Wang, Merkle & Zeileis) and strucchange along a continuous covariate (examples/cards/scoretest).' },
   alignment: ex('sirt-inv4gr-alignment'),
   mnlfa: ex('mnlfa-mnlfa01-dif'),
+  lsem: ex('sirt-lsem01-age'),
+  dmacs: ex('lavaan-hs-dmacs'),
   mimicdif: ft('rengine/invariance::DIF by MIMIC'),
   irt: {},
   'irt:rasch': { title: 'Rasch', examples: ['ltm-lsat'], features: ['rengine/items::matches ltm'] },

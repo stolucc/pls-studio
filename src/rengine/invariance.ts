@@ -1,9 +1,11 @@
 // Measurement invariance cards (R/invariance.R): alignment optimisation for many
-// groups (sirt) and moderated nonlinear factor analysis (mnlfa).
+// groups (sirt), moderated nonlinear factor analysis (mnlfa) and local SEM along a
+// continuous moderator (sirt::lsem.estimate).
 
 import type { Dataset, MissingTreatment } from '../engine/types';
 import { rCall, rScript, rStrings } from './bridge';
-import { rColumns, rList } from './rjson';
+import { cbCallRequest, type CbCall } from './cbExtras';
+import { rColumns, rList, rNum } from './rjson';
 import type { InvarianceResult, REngineInfo } from './lavaan';
 
 /** A factor of the diagram: its name and indicators (data columns). */
@@ -149,6 +151,133 @@ export async function mimicDifR(data: Dataset, i: MimicDifInput): Promise<MimicD
   } as MimicDifResult;
 }
 export const mimicDifScriptR = (data: Dataset, i: MimicDifInput) => rScript('ps_mimic_dif', mimicDifRequest(data, i), 'lavaan');
+
+/** Local SEM (sirt::lsem.estimate) of the canvas model along `moderator`, at `points` focal points from `from` to `to`. */
+export interface LsemInput {
+  moderator: string; from: number; to: number; points: number;
+  /** Bandwidth factor: the kernel's bandwidth is h × SD(moderator) × N^(−1/5) (sirt's default 1.1). */
+  h: number; kernel: 'gaussian' | 'epanechnikov' | 'uniform';
+  /** Bootstrap resamples and permutations (0: none); both after set.seed(seed). */
+  bootstrap: number; permutations: number; seed: number;
+}
+/** One parameter (or fit index, op 'fit') along the focal points. */
+export interface LsemParam {
+  par: string; op: string; lhs: string; rhs: string; est: number[]; se: (number | null)[];
+  summary?: { mean: number; sd: number; mad: number; min: number; max: number; linInt: number; linSlope: number; sdNonlin: number };
+  boot?: { se: (number | null)[]; lower: (number | null)[]; upper: (number | null)[] };
+  /** Permutation p values: of the SD and MAD over the focal points, of the linear slope, and at each focal point. */
+  test?: { sdP: number; madP: number; linSlopeP: number; pointwise: (number | null)[] };
+}
+export interface LsemResult {
+  moderator: string; grid: number[]; n: number; h: number; bw: number; kernel: LsemInput['kernel'];
+  /** sirt's moderator density at the focal points (summing to 1) and the effective sample size of each local fit. */
+  weight: number[]; neff: number[]; params: LsemParam[]; bootstrap: number; permutations: number; seed: number;
+  warnings: string[]; engine: REngineInfo & { lavaan?: string };
+}
+
+export function lsemRequest(m: CbCall, i: LsemInput) {
+  const k = m.data.names.indexOf(i.moderator);
+  if (k < 0) throw new Error(`“${i.moderator}” is not a column of the dataset.`);
+  const { moderator, bootstrap, permutations, ...rest } = i;
+  return cbCallRequest(m, {
+    lsem: { ...rest, ...(bootstrap > 0 ? { bootstrap } : {}), ...(permutations > 0 ? { permutations } : {}) },
+    moderator: { name: moderator, col: Array.from(m.data.cols[k], (v) => (Number.isNaN(v) ? null : v)) },
+  });
+}
+const nums = (v: unknown) => rList<unknown>(v).map(rNum);
+/** The reply as the card reads it (R's single values unboxed into arrays). */
+export function lsemResult(r: Record<string, any>): LsemResult {
+  return {
+    moderator: r.moderator, grid: rList<number>(r.grid), n: r.n, h: r.h, bw: r.bw, kernel: r.kernel, weight: rList<number>(r.weight), neff: rList<number>(r.neff),
+    params: rList<Record<string, any>>(r.params).map((p): LsemParam => ({
+      par: String(p.par), op: String(p.op), lhs: String(p.lhs), rhs: String(p.rhs ?? ''), est: nums(p.est).map((v) => v ?? NaN), se: nums(p.se),
+      ...(p.summary ? { summary: p.summary } : {}),
+      ...(p.boot ? { boot: { se: nums(p.boot.se), lower: nums(p.boot.lower), upper: nums(p.boot.upper) } } : {}),
+      ...(p.test ? { test: { sdP: p.test.sdP, madP: p.test.madP, linSlopeP: p.test.linSlopeP, pointwise: nums(p.test.pointwise) } } : {}),
+    })),
+    bootstrap: r.bootstrap, permutations: r.permutations, seed: r.seed, warnings: rStrings(r.warnings), engine: r.engine,
+  };
+}
+export async function lsemR(m: CbCall, i: LsemInput): Promise<LsemResult> {
+  return lsemResult(await rCall<Record<string, any>>('ps_lsem', lsemRequest(m, i), 'sirt'));
+}
+export const lsemScriptR = (m: CbCall, i: LsemInput) => rScript('ps_lsem', lsemRequest(m, i), 'sirt');
+
+/** Effect sizes of non-invariance (ps_dmacs) between the canvas model's groups. */
+export interface DmacsInput {
+  /** The reference group by its lavaan label (null: the first group). */
+  reference: string | null;
+  sd: 'pooled' | 'reference';
+}
+
+/** One item of one factor, a focal group against the reference group. */
+export interface DmacsItem {
+  focal: string;
+  factor: string;
+  item: string;
+  lambdaRef: number;
+  nuRef: number;
+  lambdaFocal: number;
+  nuFocal: number;
+  sd: number;
+  /** dMACS (Nye & Drasgow 2011). */
+  dmacs: number;
+  /** Signed dMACS: the mean difference, focal − reference, in SD units. */
+  signed: number;
+  /** Expected bias in the item's mean and variance (focal − reference). */
+  meanBias: number;
+  varBias: number;
+}
+
+/** A factor's scale (sum of its items) in a focal group. */
+export interface DmacsScale {
+  focal: string;
+  factor: string;
+  items: number;
+  /** The focal group's model-implied factor mean and variance (integrated over). */
+  kappa: number;
+  phi: number;
+  /** Expected bias in the scale's mean and variance. */
+  meanBias: number;
+  varBias: number;
+}
+
+export interface DmacsResult {
+  groups: string[];
+  reference: string;
+  sd: DmacsInput['sd'];
+  n: number[];
+  items: DmacsItem[];
+  scales: DmacsScale[];
+  warnings: string[];
+  engine: REngineInfo;
+}
+
+export function dmacsRequest(m: CbCall, i: DmacsInput) {
+  const dmacs = i.reference === null ? { sd: i.sd } : { sd: i.sd, reference: i.reference };
+  return cbCallRequest(m, { dmacs });
+}
+
+export async function dmacsR(m: CbCall, i: DmacsInput): Promise<DmacsResult> {
+  const r = await rCall<Record<string, any>>('ps_dmacs', dmacsRequest(m, i), 'lavaan');
+  const column = m.spec.multigroup?.column ?? '';
+  // (group codes of a text column as its category names)
+  const name = (label: unknown) => groupNames(m.data, column, [String(label)])[0];
+  const items = rList<DmacsItem>(r.items).map((x) => ({ ...x, focal: name(x.focal) }));
+  const scales = rList<DmacsScale>(r.scales).map((x) => ({ ...x, focal: name(x.focal) }));
+  return {
+    groups: rStrings(r.groups).map(name),
+    reference: name(r.reference),
+    sd: r.sd,
+    n: rList<number>(r.n),
+    items,
+    scales,
+    warnings: rStrings(r.warnings),
+    engine: r.engine,
+  };
+}
+
+export const dmacsScriptR = (m: CbCall, i: DmacsInput) => rScript('ps_dmacs', dmacsRequest(m, i), 'lavaan');
 
 /**
  * Repeated items recognised from column names with an occasion suffix after "_" or "." (x1_t1, x1_t2; anx.1, anx.2;

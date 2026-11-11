@@ -53,14 +53,14 @@ it('panel examples carry no diagram and name their columns (a Bayesian SEM card 
   for (const e of PACKAGE_EXAMPLES.filter((x) => x.panel)) {
     // (cards about the model open beside the example's diagram: Bayesian SEM, Bollen–Stine, PLSpredict, simulation, …)
     // (a card on the diagram's factors by a grouping column or covariate names that column only)
-    const BY_COLUMN: Record<string, string> = { alignment: 'group', scoretest: 'covariate' };
+    const BY_COLUMN: Record<string, string> = { alignment: 'group', scoretest: 'covariate', lsem: 'moderator' };
     if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', ...Object.keys(BY_COLUMN)].includes(e.panel!.kind)) {
       expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0);
       const by = BY_COLUMN[e.panel!.kind];
       expect(panelColumns(e.panel!)).toEqual(by ? [panelPreset(e.panel!)[by]] : []);
       continue;
     }
-    if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'sempower', 'metasem', 'semtree', 'plsmultilevel', 'regsem', 'semsens', 'medsens', 'scoretest', 'cbmodels'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
+    if (['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'cbcompare', 'scoreweights', 'dynamicfit', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'sempower', 'metasem', 'semtree', 'plsmultilevel', 'regsem', 'semsens', 'medsens', 'scoretest', 'cbmodels', 'dmacs'].includes(e.panel!.kind)) { expect(e.constructs.length || (e.syntax ? 1 : 0), e.id).toBeGreaterThan(0); expect(panelColumns(e.panel!)).toEqual([]); continue; }
     expect(e.constructs, e.id).toEqual([]);
     for (const p of examplePanels(e)) expect(panelColumns(p).length, e.id).toBeGreaterThanOrEqual(['freqtest', 'bbinomial', 'chart', 'customml'].includes(p.kind) || (p as { type?: string }).type === 'one' ? 1 : 2);  // (a binomial test, a one-sample t-test, a chart of one variable and a nominal custom likelihood have one column)
   }

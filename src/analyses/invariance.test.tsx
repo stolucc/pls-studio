@@ -5,11 +5,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type ModelState } from '../model/project';
-import type { AlignmentResult, LongInvarianceResult, MimicDifResult, MnlfaResult } from '../rengine/invariance';
-import { alignmentRequest, detectOccasions, longInvarianceRequest, mimicDifRequest, mnlfaRequest, rows } from '../rengine/invariance';
+import type { AlignmentResult, DmacsResult, LongInvarianceResult, LsemResult, MimicDifResult, MnlfaResult } from '../rengine/invariance';
+import { alignmentRequest, detectOccasions, dmacsRequest, longInvarianceRequest, lsemRequest, lsemResult, mimicDifRequest, mnlfaRequest, rows } from '../rengine/invariance';
 import { ANALYSIS_TYPES } from './registry';
 import type { AnalysisCtx } from './types';
-import { alignmentAnalysis, alignmentInput, invLavaan, longInvarianceAnalysis, longInvarianceInput, mimicDifAnalysis, mimicDifInput, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
+import { alignmentAnalysis, alignmentInput, dmacsAnalysis, dmacsInput, invLavaan, modelGroups, lsemAnalysis, lsemInput, lsemKind, lsemLabel, moderatorRange, longInvarianceAnalysis, longInvarianceInput, mimicDifAnalysis, mimicDifInput, mnlfaAnalysis, mnlfaInput, mnlfaUnidentified, modelFactors } from './invariance';
 
 const cols = ['a1', 'a2', 'a3', 'b1', 'b2', 'g', 'x'];
 const data = { names: cols, cols: cols.map((_, k) => Float64Array.from({ length: 12 }, (_, i) => ((i * (k + 2)) % 5) + (cols[k] === 'g' ? 0 : 1))), categories: { g: ['north', 'south', 'east', 'west', 'mid'] } };
@@ -220,3 +220,154 @@ describe('DIF by MIMIC card', () => {
     expect(html).toMatch(/class="bad"[^>]*>0\.016/);
   });
 });
+
+describe('local SEM card', () => {
+  const lc = ['a1', 'a2', 'a3', 'g', 'x'];
+  const ldata = { names: lc, cols: lc.map((n, k) => Float64Array.from({ length: 40 }, (_, i) => (n === 'g' ? i : n === 'x' ? i % 7 : Math.sin(i * (k + 1) * 1.3) + i / 20))) };
+  const lmodel = { constructs: [model.constructs[0]], paths: [], moderations: [] } as unknown as ModelState;
+  const cb: AnalysisCtx = { ...bare, data: ldata, model: lmodel, settings: { ...DEFAULT_SETTINGS, method: 'cbsem', estimator: 'ML', missing: 'casewise' } };
+  const d = lsemAnalysis.defaults(cb);
+  it('is in the Add menu under Measurement, beside MNLFA, and parses its options', () => {
+    const ids = ANALYSIS_TYPES.map((t) => t.id);
+    expect(ids.indexOf('lsem')).toBe(ids.indexOf('mnlfa') + 1);
+    expect(lsemAnalysis.group).toBe('Measurement');
+    expect(lsemAnalysis.parseOptions(d)).toEqual(d);
+    expect(lsemAnalysis.parseOptions(null)).toBeNull();
+    expect(lsemAnalysis.parseOptions({ moderator: 'g', from: '2', to: 'x', points: 500, h: -1, kernel: 'box', bootstrap: 'yes', bootR: 3, permutation: false, permB: 1e9 }))
+      .toEqual({ ...d, moderator: 'g', from: 2, to: null, points: 100, h: 0.05, kernel: 'gaussian', bootstrap: false, bootR: 10, permutation: false, permB: 5000 });
+    expect(lsemAnalysis.parseOptions({ from: Infinity, to: 1e300 })).toMatchObject({ from: null, to: null });
+  });
+  it('says what it still needs', () => {
+    expect(lsemAnalysis.blocked(d, ctx)).toMatch(/CB-SEM/);
+    expect(lsemAnalysis.blocked(d, cb)).toMatch(/moderator/);
+    expect(lsemAnalysis.blocked({ ...d, moderator: 'a1' }, cb)).toMatch(/variable of the model/);
+    expect(lsemAnalysis.blocked({ ...d, moderator: 'gone' }, cb)).toMatch(/gone/);
+    expect(lsemAnalysis.blocked({ ...d, moderator: 'g', from: 5, to: 1 }, cb)).toMatch(/above the first/);
+    expect(lsemAnalysis.blocked({ ...d, moderator: 'g' }, cb)).toBeNull();
+    expect(lsemAnalysis.blocked({ ...d, moderator: 'g' }, { ...cb, settings: { ...cb.settings, estimator: 'WLSMV' } })).toMatch(/ML or MLR/);
+    expect(lsemAnalysis.blocked({ ...d, moderator: 'g' }, { ...cb, settings: { ...cb.settings, missing: 'pairwise' } })).toMatch(/FIML, casewise/);
+    expect(lsemAnalysis.blocked({ ...d, moderator: 'g' }, { ...cb, model: { ...lmodel, multigroup: { column: 'x', invariance: 'configural', free: [] } } })).toMatch(/remove the grouping/);
+    expect(lsemAnalysis.blocked({ ...d, moderator: 'g' }, { ...cb, model: { ...lmodel, ordered: ['a1'] } })).toMatch(/ordinal/);
+  });
+  it('sends the moderator column, the focal points (the moderator’s range by default), the kernel and the project’s seed', () => {
+    expect(moderatorRange(cb, 'g')).toEqual([0, 39]);
+    expect(moderatorRange(cb, 'nope')).toBeNull();
+    const i = lsemInput({ ...d, moderator: 'g', bootstrap: true, bootR: 50 }, cb);
+    expect(i).toEqual({ moderator: 'g', from: 0, to: 39, points: 15, h: 1.1, kernel: 'gaussian', bootstrap: 50, permutations: 100, seed: 1234 });
+    expect(lsemInput({ ...d, moderator: 'g', from: 1, permutation: false }, cb)).toMatchObject({ from: 1, to: 39, bootstrap: 0, permutations: 0 });
+    const req = lsemRequest({ data: { ...ldata, cols: ldata.cols.map((c, k) => (k === 3 ? Float64Array.from(c, (v, j) => (j === 0 ? NaN : v)) : c)) }, spec: { constructs: [], paths: [] } as never, missing: 'casewise', estimator: 'ML', interaction: 'product' }, { ...i, bootstrap: 0 }) as unknown as { lsem: unknown; moderator: { name: string; col: (number | null)[] } };
+    expect(req.lsem).toEqual({ from: 0, to: 39, points: 15, h: 1.1, kernel: 'gaussian', permutations: 100, seed: 1234 });
+    expect(req.moderator.name).toBe('g');
+    expect(req.moderator.col.slice(0, 3)).toEqual([null, 1, 2]);
+    expect(() => lsemRequest({ data: ldata, spec: { constructs: [], paths: [] } as never, missing: 'casewise', estimator: 'ML', interaction: 'product' }, { ...i, moderator: 'nope' })).toThrow(/nope/);
+  });
+  it('changes its fingerprint with the options', () => {
+    const o = { ...d, moderator: 'g' };
+    const f = lsemAnalysis.fingerprint(o, cb);
+    expect(f).toBeTruthy();
+    expect(lsemAnalysis.fingerprint({ ...o, h: 2 }, cb)).not.toBe(f);
+    expect(lsemAnalysis.fingerprint({ ...o, moderator: 'x' }, cb)).not.toBe(f);
+  });
+  const raw = {
+    moderator: 'g', grid: [1, 2], n: 12, h: 2, bw: 0.9, kernel: 'gaussian', weight: [0.5, 0.5], neff: [10, 9], bootstrap: 20, permutations: 10, seed: 1234, warnings: [], engine: { package: 'sirt', version: '4.2.133', lavaan: '0.7.3' },
+    params: [
+      { par: 'A=~a1', op: '=~', lhs: 'A', rhs: 'a1', est: [1.2, 1.4], se: [0.1, 0.12], summary: { mean: 1.3, sd: 0.1, mad: 0.1, min: 1.2, max: 1.4, linInt: 1, linSlope: 0.2, sdNonlin: 0 }, boot: { se: [0.2, 0.2], lower: [0.8, 1], upper: [1.6, 1.8] }, test: { sdP: 0.1, madP: 0.2, linSlopeP: 0.3, pointwise: [0.5, null] } },
+      { par: 'A~~A', op: '~~', lhs: 'A', rhs: 'A', est: [1, 1], se: [0, 0] },
+      { par: 'a1~~a1', op: '~~', lhs: 'a1', rhs: 'a1', est: 0.5, se: 0.1 },
+      { par: 'a1~1', op: '~1', lhs: 'a1', rhs: '', est: [3, 3], se: [0.1, 0.1] },
+      { par: 'rmsea', op: 'fit', lhs: 'rmsea', rhs: '', est: [0.01, 0.02], se: [null, null] },
+    ],
+  };
+  it('reads R’s reply (single values unboxed) and sorts the parameters by kind', () => {
+    const r = lsemResult(raw);
+    expect(r.params[2].est).toEqual([0.5]);
+    expect(r.params[0].test?.pointwise).toEqual([0.5, null]);
+    expect(r.params[1].boot).toBeUndefined();
+    const factors = new Set(['A']);
+    expect(r.params.map((p) => lsemKind(p, factors))).toEqual(['loading', 'variance', 'residual', 'intercept', 'fit']);
+    expect(lsemKind({ ...r.params[0], op: '~' }, factors)).toBe('path');
+    expect(lsemKind({ ...r.params[3], lhs: 'A' }, factors)).toBe('mean');
+    expect(lsemKind({ ...r.params[1], rhs: 'B' }, factors)).toBe('covariance');
+    expect(r.params.map(lsemLabel)).toEqual(['A =~ a1', 'A ~~ A', 'a1 ~~ a1', 'a1 ~1', 'RMSEA']);
+  });
+  it('charts the curves with bootstrap bands and tables the variation, the permutation p values and the focal points', () => {
+    const r = lsemResult(raw) as LsemResult;
+    const html = renderToStaticMarkup(<lsemAnalysis.View result={r} options={d} current />);
+    expect(html).toContain('Variation of the parameters along the moderator');
+    expect(html).toContain('<polygon');
+    expect(html).toContain('p (SD)');
+    expect(html).toContain('Bootstrap standard errors at the focal points');
+    expect(html).toContain('Pointwise permutation p values');
+    expect(html).toContain('Effective N');
+    expect(html).toContain('A =~ a1');
+  });
+});
+
+describe('dMACS card', () => {
+  const grouped = { ...model, multigroup: { column: 'g', invariance: 'configural', free: [] } } as unknown as ModelState;
+  const settings = { ...DEFAULT_SETTINGS, method: 'cbsem' as const, estimator: 'ML' as const, missing: 'casewise' as const };
+  // (a model the validation accepts: three varying indicators of A, the grouping column g)
+  const gc = ['a1', 'a2', 'a3', 'g'];
+  const gcols = gc.map((n, k) => Float64Array.from({ length: 40 }, (_, i) => {
+    if (n === 'g') return i < 20 ? 2 : 1;
+    return Math.sin(i * (k + 1) * 1.3) + i / 20;
+  }));
+  const gdata = { names: gc, cols: gcols, categories: { g: ['north', 'south'] } };
+  const gmodel = { constructs: [model.constructs[0]], paths: [], moderations: [], multigroup: grouped.multigroup } as unknown as ModelState;
+  const gctx: AnalysisCtx = { ...bare, data: gdata, model: gmodel, settings };
+  const d = dmacsAnalysis.defaults(gctx);
+
+  it('is in the Add menu under Measurement and parses its options', () => {
+    expect(dmacsAnalysis.group).toBe('Measurement');
+    expect(dmacsAnalysis.parseOptions(d)).toEqual(d);
+    expect(dmacsAnalysis.parseOptions(null)).toBeNull();
+    expect(dmacsAnalysis.parseOptions({ reference: 3, sd: 'glass' })).toEqual({ reference: '', sd: 'pooled' });
+    expect(dmacsAnalysis.parseOptions({ reference: 'south', sd: 'reference' })).toEqual({ reference: 'south', sd: 'reference' });
+  });
+
+  it('lists the groups in order of appearance, by name, with their lavaan codes', () => {
+    expect(modelGroups(gctx)).toEqual([{ label: '2', name: 'south' }, { label: '1', name: 'north' }]);
+    expect(modelGroups({ ...gctx, model: lmodelOf(gmodel) })).toEqual([]);
+    expect(dmacsInput({ reference: 'north', sd: 'pooled' }, gctx)).toEqual({ reference: '1', sd: 'pooled' });
+    expect(dmacsInput(d, gctx)).toEqual({ reference: null, sd: 'pooled' });
+  });
+
+  it('says what it still needs', () => {
+    expect(dmacsAnalysis.blocked(d, { ...gctx, settings: DEFAULT_SETTINGS })).toMatch(/CB-SEM/);
+    expect(dmacsAnalysis.blocked(d, { ...gctx, model: lmodelOf(gmodel) })).toMatch(/grouping column/);
+    const noMeans = { ...gmodel, multigroup: { ...gmodel.multigroup!, meanStructure: false as const } };
+    expect(dmacsAnalysis.blocked(d, { ...gctx, model: noMeans })).toMatch(/mean structure/);
+    expect(dmacsAnalysis.blocked(d, { ...gctx, model: { ...gmodel, ordered: ['a1'] } })).toMatch(/ordinal/);
+    expect(dmacsAnalysis.blocked({ ...d, reference: 'east' }, gctx)).toMatch(/east is not a group/);
+    expect(dmacsAnalysis.blocked(d, gctx)).toBeNull();
+  });
+
+  it('sends the reference group’s code and the SD', () => {
+    const call = { data: gdata, spec: { constructs: [], paths: [] } as never, missing: 'casewise' as const, estimator: 'ML' as const, interaction: 'product' as const };
+    const withRef = dmacsRequest(call, { reference: '1', sd: 'reference' }) as unknown as { dmacs: unknown };
+    expect(withRef.dmacs).toEqual({ sd: 'reference', reference: '1' });
+    const first = dmacsRequest(call, { reference: null, sd: 'pooled' }) as unknown as { dmacs: unknown };
+    expect(first.dmacs).toEqual({ sd: 'pooled' });
+  });
+
+  it('shows each focal group’s items, marking dMACS from .2, and the scale biases', () => {
+    const item = { focal: 'north', factor: 'A', lambdaRef: 1, nuRef: 0, lambdaFocal: 1, nuFocal: 0, sd: 1, signed: 0, meanBias: 0, varBias: 0 };
+    const r: DmacsResult = {
+      groups: ['south', 'north', 'east'], reference: 'south', sd: 'pooled', n: [20, 20, 5],
+      items: [{ ...item, item: 'a1', dmacs: 0.05 }, { ...item, item: 'a2', dmacs: 0.45 }, { ...item, focal: 'east', item: 'a1', dmacs: 0 }],
+      scales: [{ focal: 'north', factor: 'A', items: 2, kappa: 0.1, phi: 1.2, meanBias: 0.3, varBias: -0.2 }],
+      warnings: [], engine: { package: 'lavaan', version: '0.7.3' },
+    };
+    const html = renderToStaticMarkup(<dmacsAnalysis.View result={r} options={d} current />);
+    expect(html).toContain('dMACS by item: north against south');
+    expect(html).toContain('dMACS by item: east against south');
+    expect(html).toContain('Expected bias in the scale scores');
+    expect(html).toContain('Focal group');
+    expect((html.match(/warn/g) ?? []).length).toBe(1);
+  });
+});
+
+function lmodelOf(m: ModelState): ModelState {
+  const { multigroup: _drop, ...rest } = m;
+  return rest as ModelState;
+}

@@ -18,7 +18,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   quadml: ['Numerical integration'],
   dsem: ['Bayesian', 'Multilevel'],
   cmb: ['Measurement', 'Common method bias'], cvi: ['Measurement', 'Content validity'], scoretest: ['Measurement', 'Measurement invariance'],
-  alignment: ['Measurement invariance', 'Multigroup', 'Alignment'], mnlfa: ['Measurement invariance', 'Items', 'DIF', 'MNLFA'],
+  alignment: ['Measurement invariance', 'Multigroup', 'Alignment'], mnlfa: ['Measurement invariance', 'Items', 'DIF', 'MNLFA'], lsem: ['Measurement invariance', 'Local SEM'], dmacs: ['Measurement invariance', 'Effect sizes'],
   sempower: ['Power analysis', 'Sample size'],
   metasem: ['Meta-analysis'],
   semtree: ['SEM trees', 'Heterogeneity'],
@@ -27,7 +27,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   semsens: ['Sensitivity analysis', 'Unmeasured confounding'], medsens: ['Sensitivity analysis', 'Unmeasured confounding'],
 };
 /** Cards about the example's model: the model's method is a topic of the example. The other cards stand on their own. */
-const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'regsem', 'sempower', 'metasem', 'semtree', 'plsmultilevel', 'alignment', 'semsens', 'medsens', 'scoretest', 'cbmodels']);
+const MODEL_CARDS = new Set(['parcelallocation', 'methodcompare', 'bsem', 'bollenstine', 'dynamicfit', 'cbcompare', 'scoreweights', 'plspredict', 'compare', 'cta', 'minsample', 'pos', 'mc', 'cmb', 'regsem', 'sempower', 'metasem', 'semtree', 'plsmultilevel', 'alignment', 'semsens', 'medsens', 'scoretest', 'cbmodels', 'lsem', 'dmacs']);
 const ASSESSMENT_TAGS: Record<string, string> = { predict: 'Prediction', blindfold: 'Blindfolding', compare: 'Model comparison', groups: 'Multigroup', cca: 'Confirmatory composite analysis' };
 const SEGMENTATION_TAGS: Record<string, string> = { rebus: 'Segmentation', fimix: 'Segmentation', pathmox: 'Segmentation', pos: 'Segmentation' };
 

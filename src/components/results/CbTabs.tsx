@@ -261,6 +261,7 @@ function Invariance({ cb }: { cb: CbResult }) {
     <div className="tables">
       <div className="table-tools">
         <button className="btn sm primary" disabled={!!job} onClick={() => runInvariance()}>{inv ? 'Run again' : 'Compare configural, metric, scalar and strict'}</button>
+        <button className="btn sm" title="How large the differences in loadings and intercepts between the groups are (dMACS; Nye & Drasgow 2011), on the Analyses tab" onClick={() => void import('../../analyses/invariance').then((m) => m.openDmacsCard())}>Effect sizes (dMACS)</button>
         <div className="spacer" />
         <RScriptButton what="invariance" />
       </div>

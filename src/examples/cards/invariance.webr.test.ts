@@ -12,7 +12,7 @@ import type { Dataset } from '../../engine/types';
 import { categoriesOf } from '../../io';
 import { DEFAULT_SETTINGS } from '../../model/project';
 import { rCall, type RPackage } from '../../rengine/bridge';
-import type { AlignmentResult, MnlfaResult } from '../../rengine/invariance';
+import type { AlignmentResult, DmacsItem, DmacsResult, DmacsScale, LsemResult, MnlfaResult } from '../../rengine/invariance';
 import { startTestRuntime, stopTestRuntime } from '../../rengine/webrTestRuntime';
 import { against, cleanRun, example, near, same } from '../../validation/record';
 import { exampleModel, examplePanels, exampleSettings, panelPreset, type ExamplePanel, type PackageExample } from '../packages';
@@ -22,6 +22,16 @@ beforeAll(startTestRuntime);
 afterAll(stopTestRuntime);
 
 const REF = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'invariance', 'reference.json'), 'utf8'));
+/** One comparison of scripts/validation/dmacs.R (dmacs.json). */
+interface DmacsRef {
+  reference: string;
+  focal: string;
+  groups: string[];
+  items: (DmacsItem & { dmacsClosed: number })[];
+  scales: DmacsScale[];
+}
+const DMACS = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'invariance', 'dmacs.json'), 'utf8'));
+const LSEM = JSON.parse(readFileSync(join(__dirname, '..', '..', 'engine', '__fixtures__', 'invariance', 'lsem.json'), 'utf8'));
 const ex = (id: string) => { const e = CARD_INVARIANCE.find((x) => x.id === id); if (!e) throw new Error(`No example ${id}`); return e; };
 
 async function load(e: PackageExample): Promise<Dataset> {
@@ -114,4 +124,116 @@ it('mnlfa-mnlfa01-dif: the help page’s model 4, and a 2PL with a categorical c
   const two = await runPanel<MnlfaResult>(e.id, withGroup, panel, { itemType: '2PL', covariates: ['age', 'grp'], categorical: ['grp'], intercept: ['age'], slope: ['grp'], mean: ['grp'], sd: ['age'], moderated: ['I1', 'I2', 'I3'] });
   check('2PL, categorical covariate', two, REF.cases.mnlfa.twoPL, (t) => t.replace(/^grp_/, 'grp'));
   same('dummy terms named by category', two.terms.map((t) => `${t.covariate}=${t.level ?? ''}`).join(' '), 'age= grp=green grp=blue');
+}, 600_000);
+
+it('sirt-lsem01-age: the help page’s local SEM of data.lsem01, its bootstrap and permutation test, as sirt gives them', async () => {
+  const e = ex('sirt-lsem01-age');
+  example(e.id, { title: e.title, method: 'CB-SEM', packages: ['sirt', 'lavaan'], definition: e });
+  const data = await load(e);
+  const ctx: AnalysisCtx = { data, info: null, settings: exampleSettings(DEFAULT_SETTINGS, e.settings), pls: null, projectName: e.title, model: exampleModel(e) };
+  const [panel] = examplePanels(e);
+  const t = analysisType('lsem')!;
+  const opts = (more: Record<string, unknown> = {}) => t.parseOptions({ ...t.defaults(ctx), ...panelPreset(panel), ...more })!;
+  against({ label: `sirt ${LSEM.sirt} and lavaan ${LSEM.lavaan} in desktop ${LSEM.R}: ?lsem.estimate example 1, model 1 as written, lsem.bootstrap and lsem.permutationTest after set.seed(1234) (scripts/validation/lsem.R)`, level: 'native', script: 'scripts/validation/lsem.R' });
+  expect(t.blocked(opts(), ctx), 'the lsem card is ready to run').toBeNull();
+  const r = await t.run(opts(), ctx, () => {}) as LsemResult;
+  cleanRun(r.warnings.length);
+  expect(r.warnings, `${e.id} warned`).toEqual([]);
+  expect(await t.script!(opts(), ctx)).toContain('lsem.permutationTest(mod, B = 10');
+  const m = LSEM.model1;
+  same('N', r.n, m.n);
+  same('focal points', r.grid.join(' '), m.grid.join(' '));
+  near('bandwidth', r.bw, m.bw, 1e-12);
+  m.weight.forEach((v: number, i: number) => near(`density weight at ${m.grid[i]}`, r.weight[i], v, 1e-9));
+  m.neff.forEach((v: number, i: number) => near(`effective N at ${m.grid[i]}`, r.neff[i], v, 1e-9));
+  same('parameters', r.params.map((p) => p.par).join(' '), m.pars.join(' '));
+  // (webR vs desktop R: the same package versions; each local fit is an optimiser result, ~1e-6 apart in WebAssembly)
+  for (const p of r.params) {
+    const want = m.curves[p.par], s = m.summary[p.par];
+    want.est.forEach((v: number, i: number) => near(`${p.par} at ${m.grid[i]}`, p.est[i], v, 1e-5));
+    if (p.op !== 'fit') want.se.forEach((v: number, i: number) => near(`${p.par} SE at ${m.grid[i]}`, p.se[i]!, v, 1e-5));
+    near(`${p.par}: SD over the focal points`, p.summary!.sd, s.sd, 1e-5);
+    near(`${p.par}: linear slope`, p.summary!.linSlope, s.linSlope, 1e-5);
+    near(`${p.par}: mean`, p.summary!.mean, s.mean, 1e-5);
+    const perm = m.perm[p.par];
+    if (perm) {
+      near(`${p.par}: permutation p of the SD`, p.test!.sdP, perm.sdP, 1e-12);
+      near(`${p.par}: permutation p of the MAD`, p.test!.madP, perm.madP, 1e-12);
+      near(`${p.par}: permutation p of the slope`, p.test!.linSlopeP, perm.linSlopeP, 1e-12);
+      same(`${p.par}: pointwise permutation p`, p.test!.pointwise.join(' '), perm.pointwise.join(' '));
+    }
+  }
+  same('loadings and variances named back', r.params.filter((p) => p.op !== 'fit').map((p) => `${p.lhs}${p.op}${p.rhs}`).join(' '), m.pars.filter((x: string) => x.includes('~')).join(' '));
+  // Bootstrap (20 samples after set.seed(1234)): some resamples have a negative residual variance at an end of the age range, which lavaan and sirt warn about
+  const b = await t.run(opts({ permutation: false, bootstrap: true, bootR: 20 }), ctx, () => {}) as LsemResult;
+  for (const w of b.warnings) expect(w).toMatch(/ov variances are negative|NaNs produced/);
+  for (const p of b.params.filter((x) => x.op !== 'fit')) {
+    const want = m.boot[p.par];
+    want.se.forEach((v: number, i: number) => near(`${p.par}: bootstrap SE at ${m.grid[i]}`, p.boot!.se[i]!, v, 1e-5));
+    want.lower.forEach((v: number, i: number) => near(`${p.par}: bootstrap lower limit at ${m.grid[i]}`, p.boot!.lower[i]!, v, 1e-5));
+  }
+  // Another kernel, bandwidth and grid
+  const k = await t.run(opts({ permutation: false, kernel: 'epanechnikov', h: 1.1, points: 8 }), ctx, () => {}) as LsemResult;
+  const m2 = LSEM.model2;
+  m2.grid.forEach((v: number, i: number) => near(`Epanechnikov: focal point ${i + 1}`, k.grid[i], v, 1e-12));
+  near('Epanechnikov: bandwidth', k.bw, m2.bw, 1e-12);
+  for (const p of k.params) m2.curves[p.par].est.forEach((v: number, i: number) => near(`Epanechnikov, h = 1.1: ${p.par} at focal point ${i + 1}`, p.est[i], v, 1e-5));
+  // FIML: the help page's example 2, its missing values of v1 and v2 (drawn in R after set.seed(98)) deleted here
+  const fm = LSEM.fiml, drop = (name: string, rows: number[]) => { const k2 = data.names.indexOf(name); const col = Float64Array.from(data.cols[k2]); for (const r1 of rows) col[r1 - 1] = NaN; return col; };
+  const holes: Dataset = { ...data, cols: data.cols.map((c, k2) => (data.names[k2] === 'v1' ? drop('v1', fm.missingV1) : data.names[k2] === 'v2' ? drop('v2', fm.missingV2) : c)) };
+  const fctx: AnalysisCtx = { ...ctx, data: holes, settings: { ...ctx.settings, missing: 'fiml' } };
+  const fo = opts({ permutation: false, from: 4, to: 22, points: 10 });
+  expect(t.blocked(fo, fctx)).toBeNull();
+  const f = await t.run(fo, fctx, () => {}) as LsemResult;
+  same('FIML: parameters (with the mean structure FIML brings)', f.params.map((p) => p.par).join(' '), Object.keys(fm.curves).join(' '));
+  for (const p of f.params) fm.curves[p.par].est.forEach((v: number, i: number) => near(`FIML: ${p.par} at ${fm.grid[i]}`, p.est[i], v, 1e-5));
+}, 900_000);
+
+it('lavaan-hs-dmacs: dMACS, signed dMACS and the mean and variance biases of the partial and configural models, as the dmacs package’s functions give them', async () => {
+  const e = ex('lavaan-hs-dmacs');
+  example(e.id, { title: e.title, method: 'CB-SEM', packages: ['lavaan'], definition: e });
+  const data = await load(e);
+  const ctx: AnalysisCtx = { data, info: null, settings: exampleSettings(DEFAULT_SETTINGS, e.settings), pls: null, projectName: e.title, model: exampleModel(e) };
+  const [panel] = examplePanels(e);
+  const t = analysisType('dmacs')!;
+  against({ label: `dmacs ${DMACS.dmacs}: item_dmacs() and delta_mean_item() on lavaan ${DMACS.lavaan} estimates in desktop ${DMACS.R}, with Nye & Drasgow’s pooled SD and equations 7–9 for the scale variance (scripts/validation/dmacs.R)`, level: 'native', script: 'scripts/validation/dmacs.R' });
+  const run = async (c: AnalysisCtx, more: Record<string, unknown> = {}) => {
+    const o = t.parseOptions({ ...t.defaults(c), ...panelPreset(panel), ...more })!;
+    expect(t.blocked(o, c), 'the dmacs card is ready to run').toBeNull();
+    const r = await t.run(o, c, () => {}) as DmacsResult;
+    cleanRun(r.warnings.length);
+    expect(r.warnings).toEqual([]);
+    expect(await t.script!(o, c)).toContain('dmacs_item <- function');
+    return r;
+  };
+  // (lavaan's estimates are optimiser results: the app writes the equalities as labels where the reference uses group.equal, and webR's floating point
+  // differs from desktop R's, ~1e-6 apart, so the effects, functions of differences of estimates, agree to 1e-5; the SDs are closed forms of the data)
+  const check = (what: string, r: DmacsResult, ref: DmacsRef) => {
+    same(`${what}: reference group`, r.reference, ref.reference);
+    same(`${what}: groups`, r.groups.join(' '), ref.groups.join(' '));
+    same(`${what}: items`, r.items.map((x) => `${x.factor}:${x.item}`).join(' '), ref.items.map((x) => `${x.factor}:${x.item}`).join(' '));
+    ref.items.forEach((w, k) => {
+      const g = r.items[k];
+      same(`${what}: ${w.item} focal group`, g.focal, ref.focal);
+      near(`${what}: ${w.item} SD`, g.sd, w.sd, 1e-9);
+      near(`${what}: ${w.item} λ focal`, g.lambdaFocal, w.lambdaFocal, 1e-5);
+      near(`${what}: ${w.item} dMACS (dmacs::item_dmacs)`, g.dmacs, w.dmacs, 1e-5);
+      near(`${what}: ${w.item} dMACS (closed form)`, g.dmacs, w.dmacsClosed, 1e-5);
+      near(`${what}: ${w.item} mean bias (dmacs::delta_mean_item)`, g.meanBias, w.meanBias, 1e-5);
+      near(`${what}: ${w.item} signed dMACS`, g.signed, w.signed, 1e-5);
+      near(`${what}: ${w.item} variance bias`, g.varBias, w.varBias, 1e-5);
+    });
+    for (const w of ref.scales) {
+      const g = r.scales.find((x) => x.factor === w.factor)!;
+      same(`${what}: ${w.factor} items`, g.items, w.items);
+      near(`${what}: ${w.factor} factor mean (focal)`, g.kappa, w.kappa, 1e-5);
+      near(`${what}: ${w.factor} factor variance (focal)`, g.phi, w.phi, 1e-5);
+      near(`${what}: ${w.factor} scale mean bias`, g.meanBias, w.meanBias, 1e-5);
+      near(`${what}: ${w.factor} scale variance bias (Nye & Drasgow equations 7–9)`, g.varBias, w.varBias, 5e-5);  // (a sum of squared sums of loadings, each ~3e-6 apart)
+    }
+  };
+  check('partial invariance, reference Pasteur', await run(ctx), DMACS.partialPasteur);
+  check('partial invariance, reference Grant-White, its SDs', await run(ctx, { reference: 'Grant-White', sd: 'reference' }), DMACS.partialGrantWhite);
+  const conf: AnalysisCtx = { ...ctx, model: { ...ctx.model!, multigroup: { ...ctx.model!.multigroup!, invariance: 'configural', free: [] } } };
+  check('configural', await run(conf), DMACS.configural);
 }, 600_000);

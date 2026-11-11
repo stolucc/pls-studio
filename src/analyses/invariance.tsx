@@ -1,15 +1,23 @@
 // Measurement invariance cards (R/invariance.R): alignment optimisation for many
 // groups (sirt, Asparouhov & Muthén 2014) on the diagram's factors, and moderated
 // nonlinear factor analysis of binary items (mnlfa; Curran et al. 2014), and
-// longitudinal invariance of a factor measured at several occasions (semTools), and
-// uniform DIF by MIMIC (lavaan).
+// longitudinal invariance of a factor measured at several occasions (semTools),
+// uniform DIF by MIMIC (lavaan), local SEM: the canvas model's parameters as
+// curves along a continuous moderator (sirt::lsem.estimate; Hildebrandt et al. 2016),
+// and effect sizes of non-invariance between the canvas model's groups (dMACS).
 
+import { useState } from 'react';
+import { ChartFrame } from '../components/ChartFrame';
 import { OrderedPicker } from '../components/OrderedPicker';
 import { InvarianceTable } from '../components/results/InvarianceTable';
 import { c, pCell, Table, type Row } from '../components/results/Table';
+import { seriesColor } from '../figure/palette';
 import { fmt, fmtP } from '../format';
-import { detectOccasions, type AlignedFactor, type AlignmentInput, type AlignmentResult, type InvFactor, type LongInvarianceInput, type LongInvarianceResult, type MimicDifInput, type MimicDifResult, type MimicEffect, type MnlfaInput, type MnlfaResult } from '../rengine/invariance';
-import { clampNum, ColumnSelect, columnsFingerprint, isObj, missingColumns, name, names, NumField, oneOf, rawData } from './common';
+import { detectOccasions, type AlignedFactor, type AlignmentInput, type AlignmentResult, type DmacsInput, type DmacsItem, type DmacsResult, type InvFactor, type LongInvarianceInput, type LongInvarianceResult, type LsemInput, type LsemParam, type LsemResult, type MimicDifInput, type MimicDifResult, type MimicEffect, type MnlfaInput, type MnlfaResult } from '../rengine/invariance';
+import { Axes, H, pad, W } from './charts';
+import { cbCall, cbFingerprint, cbModelBlocked } from './cbModel';
+import { fingerprint } from './codec';
+import { Choice, clampNum, ColumnSelect, columnsFingerprint, flag, isObj, missingColumns, name, names, NumField, oneOf, rawData } from './common';
 import type { AnalysisCtx, AnalysisType, OptionsProps } from './types';
 
 const engine = () => import('../rengine/invariance');
@@ -293,6 +301,383 @@ export const mnlfaAnalysis: AnalysisType<MnlfaOptions, MnlfaResult> = {
   script: async (o, ctx) => (await engine()).mnlfaScriptR(rawData(ctx)!, mnlfaInput(o)),
   summary: (o) => `${o.items.length} items · ${o.itemType}${o.covariates.length ? ` · moderated by ${o.covariates.join(', ')}` : ''}`,
 };
+
+// ---------------------------------------------------------------- local SEM
+
+export interface LsemOptions {
+  moderator: string;
+  /** Focal points: `points` from `from` to `to` (null: the moderator's minimum / maximum). */
+  from: number | null; to: number | null; points: number;
+  h: number; kernel: LsemInput['kernel'];
+  bootstrap: boolean; bootR: number; permutation: boolean; permB: number;
+}
+const LSEM_KERNELS = [['gaussian', 'Gaussian'], ['epanechnikov', 'Epanechnikov'], ['uniform', 'Uniform']] as const;
+const lsemModelVars = (ctx: AnalysisCtx) => new Set((ctx.model?.constructs ?? []).flatMap((k) => k.indicators));
+/** The moderator's observed range (null when it has no values). */
+export function moderatorRange(ctx: AnalysisCtx, column: string): [number, number] | null {
+  const ds = rawData(ctx), k = ds ? ds.names.indexOf(column) : -1;
+  if (!ds || k < 0) return null;
+  let lo = Infinity, hi = -Infinity;
+  for (const v of ds.cols[k]) if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  return lo <= hi ? [lo, hi] : null;
+}
+/** The options as sent: the focal points' range defaulting to the moderator's, the project's seed. */
+export function lsemInput(o: LsemOptions, ctx: AnalysisCtx): LsemInput {
+  const r = moderatorRange(ctx, o.moderator);
+  return { moderator: o.moderator, from: o.from ?? r?.[0] ?? 0, to: o.to ?? r?.[1] ?? 1, points: o.points, h: o.h, kernel: o.kernel,
+    bootstrap: o.bootstrap ? o.bootR : 0, permutations: o.permutation ? o.permB : 0, seed: ctx.settings.seed };
+}
+const optNum = (v: unknown): number | null => { const x = typeof v === 'string' && v.trim() ? Number(v) : v; return typeof x === 'number' && Number.isFinite(x) && Math.abs(x) < 1e12 ? x : null; };
+
+function LsemForm({ options: o, set, ctx, disabled }: OptionsProps<LsemOptions>) {
+  const ds = rawData(ctx);
+  if (!ds) return <div className="empty-results">Import raw data first.</div>;
+  const range = moderatorRange(ctx, o.moderator);
+  const i = lsemInput(o, ctx);
+  const edge = (k: 'from' | 'to', label: string) => (
+    <div className="field"><label htmlFor={`lsem-${k}`}>{label}</label>
+      <input id={`lsem-${k}`} className="input num" type="number" value={o[k] ?? ''} placeholder={range ? fmt(range[k === 'from' ? 0 : 1], 3) : ''}
+        onChange={(e) => set({ ...o, [k]: optNum(e.target.value) })} />
+    </div>
+  );
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <p className="hint" style={{ marginTop: 0 }}>Local structural equation modelling (Hildebrandt et al. 2016; sirt::lsem.estimate): the CB-SEM model on the canvas is fitted at focal points of a continuous moderator such as age, each time to all cases weighted by a kernel around the point, so loadings, intercepts, variances and paths become curves along the moderator. Nonparametric where moderated nonlinear factor analysis is parametric. Continuous indicators, one group, maximum likelihood.</p>
+      <ColumnSelect id="lsem-mod" label="Moderator (continuous)" value={o.moderator} columns={ds.names} exclude={[...lsemModelVars(ctx)]} onChange={(moderator) => set({ ...o, moderator, from: null, to: null })} />
+      <div className="row2">{edge('from', 'First focal point')}{edge('to', 'Last focal point')}
+        <NumField id="lsem-points" label="Focal points" value={o.points} lo={2} hi={100} int fallback={15} onChange={(points) => set({ ...o, points })} /></div>
+      <div className="hint">{range ? `${o.moderator} ranges from ${fmt(range[0], 3)} to ${fmt(range[1], 3)}; blank: that range. ` : ''}{o.moderator ? `${i.points} focal points, every ${fmt((i.to - i.from) / Math.max(1, i.points - 1), 3)}.` : ''}</div>
+      <div className="row2">
+        <NumField id="lsem-h" label="Bandwidth factor h" value={o.h} lo={0.05} hi={20} step={0.1} fallback={1.1} onChange={(h) => set({ ...o, h })} />
+      </div>
+      <div className="hint">The kernel’s bandwidth is h × SD(moderator) × N^(−1/5) (sirt’s default h = 1.1; Hildebrandt et al. use about 2). Smaller h follows the data more closely, with noisier curves.</div>
+      <Choice label="Kernel" value={o.kernel} options={LSEM_KERNELS} onChange={(kernel) => set({ ...o, kernel })} />
+      <label className="check"><input type="checkbox" checked={o.bootstrap} onChange={(e) => set({ ...o, bootstrap: e.target.checked })} />
+        <span>Bootstrap standard errors and intervals<br /><span className="hint">lsem.bootstrap: the cases resampled and the model refitted at every focal point; 95% intervals (estimate ± 1.96 SE) as bands on the curves.</span></span></label>
+      {o.bootstrap && <NumField id="lsem-R" label="Bootstrap samples" value={o.bootR} lo={10} hi={5000} int fallback={100} onChange={(bootR) => set({ ...o, bootR })} />}
+      <label className="check"><input type="checkbox" checked={o.permutation} onChange={(e) => set({ ...o, permutation: e.target.checked })} />
+        <span>Permutation test of invariance<br /><span className="hint">lsem.permutationTest: the moderator permuted across cases; a parameter is non-invariant when it varies more along the real moderator than along the permuted ones.</span></span></label>
+      {o.permutation && <NumField id="lsem-B" label="Permutations" value={o.permB} lo={10} hi={5000} int fallback={100} onChange={(permB) => set({ ...o, permB })} />}
+      {(o.bootstrap || o.permutation) && <div className="hint">Each resample refits the model at all {i.points} focal points; the seed is the project’s ({ctx.settings.seed}).</div>}
+    </fieldset>
+  );
+}
+
+type LsemKind = 'loading' | 'path' | 'intercept' | 'mean' | 'residual' | 'variance' | 'covariance' | 'fit';
+const LSEM_KINDS: [LsemKind, string][] = [['loading', 'Loadings'], ['intercept', 'Intercepts'], ['residual', 'Residual variances'], ['variance', 'Factor variances'], ['mean', 'Factor means'], ['path', 'Paths'], ['covariance', 'Covariances'], ['fit', 'Fit']];
+/** What a parameter is: factors are the left sides of =~. */
+export function lsemKind(p: LsemParam, factors: Set<string>): LsemKind {
+  if (p.op === 'fit') return 'fit';
+  if (p.op === '=~') return 'loading';
+  if (p.op === '~') return 'path';
+  if (p.op === '~1') return factors.has(p.lhs) ? 'mean' : 'intercept';
+  if (p.lhs !== p.rhs) return 'covariance';
+  return factors.has(p.lhs) ? 'variance' : 'residual';
+}
+export const lsemLabel = (p: LsemParam) => (p.op === 'fit' ? p.par.toUpperCase() : p.op === '~1' ? `${p.lhs} ~1` : `${p.lhs} ${p.op} ${p.rhs}`);
+
+function LsemChart({ r, params, kind }: { r: LsemResult; params: LsemParam[]; kind: string }) {
+  const band = (p: LsemParam, i: number) => (p.boot ? [p.boot.lower[i], p.boot.upper[i]] : [null, null]);
+  const vals = params.flatMap((p) => p.est.flatMap((v, i) => [v, ...band(p, i)])).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  if (!vals.length) return null;
+  const lo = Math.min(...vals), hi = Math.max(...vals), padY = (hi - lo) * 0.05 || Math.abs(hi) * 0.05 || 0.1;
+  const ys: [number, number] = [lo - padY, hi + padY], xs: [number, number] = [r.grid[0], r.grid[r.grid.length - 1]];
+  const sx = (v: number) => pad.l + ((v - xs[0]) / (xs[1] - xs[0] || 1)) * (W - pad.l - pad.r);
+  const sy = (v: number) => pad.t + ((ys[1] - v) / (ys[1] - ys[0] || 1)) * (H - pad.t - pad.b);
+  const perRow = 3, legendH = Math.ceil(params.length / perRow) * 16 + 8, HT = H + legendH;
+  const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+  return (
+    <ChartFrame id={`lsem:${kind}`} name={`lsem-${kind}`} width={W} height={HT} defaults={{ x: r.moderator, y: LSEM_KINDS.find(([k]) => k === kind)?.[1] ?? 'Estimate' }}
+      caption={<span className="hint">Each line: the parameter estimated at the focal points of {r.moderator}{r.bootstrap ? `; bands: bootstrap 95% intervals (${r.bootstrap} samples)` : ''}. A flat line is an invariant parameter.</span>}>
+      {(labels) => (
+        <svg className="mc-chart data-chart" width={W} height={HT} role="img" aria-label={`Local SEM: ${kind} along ${r.moderator}`}>
+          <Axes xs={xs} ys={ys} xTitle={labels.x} yTitle={labels.y} />
+          {params.map((p, k) => {
+            const idx = r.grid.map((_, i) => i).filter((i) => fin(p.est[i]));
+            const b = p.boot ? idx.filter((i) => fin(p.boot!.lower[i]) && fin(p.boot!.upper[i])) : [];
+            return (
+              <g key={p.par}>
+                {b.length > 1 && <polygon points={[...b.map((i) => `${sx(r.grid[i])},${sy(p.boot!.upper[i]!)}`), ...[...b].reverse().map((i) => `${sx(r.grid[i])},${sy(p.boot!.lower[i]!)}`)].join(' ')} fill={seriesColor(k)} fillOpacity={0.14} />}
+                <polyline points={idx.map((i) => `${sx(r.grid[i])},${sy(p.est[i])}`).join(' ')} fill="none" stroke={seriesColor(k)} strokeWidth={2}><title>{lsemLabel(p)}</title></polyline>
+              </g>
+            );
+          })}
+          {params.map((p, k) => {
+            const x = pad.l + (k % perRow) * ((W - pad.l - pad.r) / perRow), y = H + 12 + Math.floor(k / perRow) * 16;
+            return <g key={`l${p.par}`}><line x1={x} x2={x + 18} y1={y - 4} y2={y - 4} stroke={seriesColor(k)} strokeWidth={2.5} /><text x={x + 24} y={y}>{lsemLabel(p)}</text></g>;
+          })}
+        </svg>
+      )}
+    </ChartFrame>
+  );
+}
+
+function LsemView({ r }: { r: LsemResult }) {
+  const factors = new Set(r.params.filter((p) => p.op === '=~').map((p) => p.lhs));
+  const kinds = LSEM_KINDS.filter(([k]) => r.params.some((p) => lsemKind(p, factors) === k));
+  const [pick, setPick] = useState<LsemKind>(kinds[0]?.[0] ?? 'loading');
+  const kind = kinds.some(([k]) => k === pick) ? pick : kinds[0]?.[0] ?? 'loading';
+  const shown = r.params.filter((p) => lsemKind(p, factors) === kind);
+  const model = r.params.filter((p) => p.op !== 'fit');
+  const perm = r.permutations > 0;
+  const g = (v: number) => fmt(v, 3);
+  return (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>sirt {r.engine.version} with lavaan {r.engine.lavaan ?? ''}: N = {r.n}, {r.grid.length} focal points of {r.moderator} from {g(r.grid[0])} to {g(r.grid[r.grid.length - 1])}; {r.kernel} kernel, h = {g(r.h)}, bandwidth {g(r.bw)}.{r.bootstrap ? ` Bootstrap: ${r.bootstrap} samples.` : ''}{perm ? ` Permutation test: ${r.permutations} permutations.` : ''}{r.bootstrap || perm ? ` Seed ${r.seed}.` : ''}</p>
+      <div className="field"><div className="segmented">{kinds.map(([k, l]) => <button key={k} className={k === kind ? 'on' : ''} onClick={() => setPick(k)}>{l}</button>)}</div></div>
+      <LsemChart r={r} params={shown} kind={kind} />
+      <Table title="Variation of the parameters along the moderator" file="lsem-variation"
+        columns={['Parameter', 'Mean', 'SD', 'MAD', 'Min', 'Max', 'Linear slope', 'SD (nonlinear)', ...(perm ? ['p (SD)', 'p (MAD)', 'p (slope)'] : [])]}
+        rows={r.params.filter((p) => p.summary).map((p): Row => {
+          const s = p.summary!, t = p.test;
+          return [c(lsemLabel(p)), c(s.mean), c(s.sd), c(s.mad), c(s.min), c(s.max), c(s.linSlope), c(s.sdNonlin),
+            ...(perm ? (t ? [pCell(t.sdP), pCell(t.madP), pCell(t.linSlopeP)] : [c(null), c(null), c(null)]) : [])];
+        })}
+        note={`Over the focal points, weighted by the moderator’s density there (sirt’s parameters_summary): the mean, SD and mean absolute deviation (MAD) of each parameter’s curve, its range, the slope of a weighted linear regression on ${r.moderator} and the SD of what that line leaves.${perm ? ` p: the share of the ${r.permutations} permutations of ${r.moderator} in which the statistic was at least as large (lsem.permutationTest): a small p for the SD or MAD says the parameter is not invariant along ${r.moderator}; for the slope, that it changes linearly.` : ' Tick the permutation test for p values of this variation.'}`} />
+      <Table title="Estimates at the focal points" file="lsem-estimates" columns={['Parameter', ...r.grid.map(g)]}
+        rows={r.params.map((p): Row => [c(lsemLabel(p)), ...p.est.map((v) => c(v))])}
+        note={`Each column: the model fitted to all cases weighted by the kernel around that value of ${r.moderator}. Effective sample sizes: ${r.neff.map((v) => fmt(v, 0)).join(', ')}.`} />
+      {r.bootstrap > 0 && (
+        <Table title="Bootstrap standard errors at the focal points" file="lsem-boot-se" columns={['Parameter', ...r.grid.map(g)]}
+          rows={model.map((p): Row => [c(lsemLabel(p)), ...(p.boot?.se ?? []).map((v) => c(v))])}
+          note={`The SD of the estimates over ${r.bootstrap} bootstrap samples (lsem.bootstrap); the bands of the chart are estimate ± 1.96 SE, as sirt computes them.`} />
+      )}
+      {perm && (
+        <Table title="Pointwise permutation p values" file="lsem-pointwise" columns={['Parameter', ...r.grid.map(g)]}
+          rows={model.filter((p) => p.test).map((p): Row => [c(lsemLabel(p)), ...p.test!.pointwise.map((v) => (v === null ? c(null) : pCell(v)))])}
+          note={`At each focal point, how often the permuted data put the parameter as far from its mean over the focal points (lsem.permutationTest’s pointwise test): where along ${r.moderator} a parameter departs.`} />
+      )}
+      <Table title="Focal points" file="lsem-focal" columns={[r.moderator, 'Density weight', 'Effective N']}
+        rows={r.grid.map((x, i): Row => [c(x), c(r.weight[i] ?? null), c(r.neff[i] ?? null, undefined, 1)])}
+        note="The moderator’s estimated density at each focal point (summing to 1; it weights the summaries above) and the effective sample size of the local fit, (Σw)² / Σw²." />
+    </div>
+  );
+}
+
+export const lsemAnalysis: AnalysisType<LsemOptions, LsemResult> = {
+  id: 'lsem', title: 'Local SEM', group: 'Measurement', fitsModel: true,
+  sub: 'the model’s loadings, intercepts, variances and paths as curves along a continuous moderator, with bootstrap bands and a permutation test of invariance (sirt)',
+  defaults: () => ({ moderator: '', from: null, to: null, points: 15, h: 1.1, kernel: 'gaussian', bootstrap: false, bootR: 100, permutation: true, permB: 100 }),
+  parseOptions: (raw) => (isObj(raw) ? {
+    moderator: name(raw.moderator), from: optNum(raw.from), to: optNum(raw.to), points: clampNum(raw.points, 2, 100, 15, true), h: clampNum(raw.h, 0.05, 20, 1.1),
+    kernel: oneOf(raw.kernel, LSEM_KERNELS.map(([k]) => k), 'gaussian'), bootstrap: flag(raw.bootstrap), bootR: clampNum(raw.bootR, 10, 5000, 100, true),
+    permutation: raw.permutation === undefined ? true : flag(raw.permutation), permB: clampNum(raw.permB, 10, 5000, 100, true),
+  } : null),
+  Options: LsemForm,
+  View: ({ result }) => <LsemView r={result} />,
+  blocked: (o, ctx) => {
+    const m = cbModelBlocked(ctx, 'Local SEM');
+    if (m) return m;
+    if (ctx.model?.multigroup) return 'Local SEM moderates one sample by a continuous variable: remove the grouping (Model tab).';
+    if (ctx.model?.ordered?.length) return 'Local SEM here is for continuous indicators; the model has ordinal ones.';
+    if (!['ML', 'MLR'].includes(ctx.settings.estimator)) return 'Local SEM fits each focal point by maximum likelihood: choose ML or MLR (Model settings).';
+    if (['pairwise', 'twostage', 'robusttwostage', 'mi'].includes(ctx.settings.missing)) return 'Local SEM handles missing values by FIML, casewise deletion or mean replacement (Model settings).';
+    if (!o.moderator) return 'Choose the moderator.';
+    if (lsemModelVars(ctx).has(o.moderator)) return `${o.moderator} is a variable of the model, not a moderator.`;
+    const miss = missingColumns(ctx, [o.moderator], 'Local SEM');
+    if (miss) return miss;
+    const i = lsemInput(o, ctx);
+    return i.from < i.to ? null : 'The last focal point must be above the first.';
+  },
+  fingerprint: (o, ctx) => { const m = cbFingerprint(ctx), col = columnsFingerprint(ctx, [o.moderator]); return m && col && fingerprint([m, col, JSON.stringify(lsemInput(o, ctx))]); },
+  run: async (o, ctx) => (await engine()).lsemR(cbCall(ctx), lsemInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).lsemScriptR(cbCall(ctx), lsemInput(o, ctx)),
+  summary: (o) => `along ${o.moderator || '…'} · ${o.points} focal points, h = ${o.h}${o.bootstrap ? ` · bootstrap ${o.bootR}` : ''}${o.permutation ? ` · ${o.permB} permutations` : ''}`,
+};
+
+// ---------------------------------------------------------------- effect sizes of non-invariance (dMACS)
+
+export interface DmacsOptions {
+  /** The reference group as the data shows it (a category name or a value); empty: the first group. */
+  reference: string;
+  sd: DmacsInput['sd'];
+}
+
+/** A group of the grouping column: its name as shown and its lavaan label (the code in the data). */
+export interface ModelGroup {
+  name: string;
+  label: string;
+}
+
+/** The grouping column's groups in order of appearance (lavaan's order). */
+export function modelGroups(ctx: AnalysisCtx): ModelGroup[] {
+  const ds = rawData(ctx);
+  const column = ctx.model?.multigroup?.column ?? '';
+  const k = ds ? ds.names.indexOf(column) : -1;
+  if (!ds || k < 0) return [];
+  const categories = ds.categories?.[column];
+  const seen = new Set<number>();
+  const out: ModelGroup[] = [];
+  for (const v of ds.cols[k]) {
+    if (!Number.isFinite(v) || seen.has(v)) continue;
+    seen.add(v);
+    out.push({ label: String(v), name: categories?.[v - 1] ?? String(v) });
+  }
+  return out;
+}
+
+/** The options as sent: the reference group by its lavaan label (null: the first group). */
+export function dmacsInput(o: DmacsOptions, ctx: AnalysisCtx): DmacsInput {
+  const group = modelGroups(ctx).find((g) => g.name === o.reference);
+  return { reference: group?.label ?? null, sd: o.sd };
+}
+
+const DMACS_SD = [['pooled', 'Pooled'], ['reference', 'Reference group']] as const;
+
+function DmacsForm({ options: o, set, ctx, disabled }: OptionsProps<DmacsOptions>) {
+  const groups = modelGroups(ctx);
+  const sdHint = o.sd === 'pooled'
+    ? 'Each item’s pooled within-group SD of the two groups compared (Nye & Drasgow 2011).'
+    : 'Each item’s SD in the reference group (as Glass’s Δ).';
+  return (
+    <fieldset className="card-options" disabled={disabled}>
+      <p className="hint" style={{ marginTop: 0 }}>
+        How large is the non-invariance? For each item, the expected scores implied by the reference and a focal
+        group’s loadings and intercepts are compared over the focal group’s factor distribution (dMACS, Nye &amp;
+        Drasgow 2011; signed dMACS and the expected bias in item and scale means and variances, Nye et al. 2019).
+        Uses the multigroup CB-SEM model on the canvas as the Model tab fits it: configural, or partial invariance
+        with the non-invariant loadings and intercepts freed (Groups); parameters held equal give no effect.
+      </p>
+      {groups.length > 0 && (
+        <div className="field">
+          <label htmlFor="dmacs-ref">Reference group</label>
+          <select
+            id="dmacs-ref"
+            className="select"
+            value={o.reference || groups[0].name}
+            onChange={(e) => set({ ...o, reference: e.target.value })}
+          >
+            {groups.map((g) => <option key={g.label} value={g.name}>{g.name}</option>)}
+          </select>
+          <div className="hint">Every other group is a focal group, compared with this one.</div>
+        </div>
+      )}
+      <Choice
+        label="Standard deviation (denominator)"
+        value={o.sd}
+        options={DMACS_SD}
+        onChange={(sd) => set({ ...o, sd })}
+        hint={sdHint}
+      />
+    </fieldset>
+  );
+}
+
+/** dMACS from .2 is marked (read like Cohen’s d). */
+const DMACS_MARK = 0.2;
+
+function dmacsItemRow(x: DmacsItem): Row {
+  const marked = x.dmacs >= DMACS_MARK;
+  return [
+    c(x.factor), c(x.item),
+    c(x.lambdaRef), c(x.lambdaFocal), c(x.nuRef), c(x.nuFocal), c(x.sd),
+    { ...c(x.dmacs), cls: marked ? 'warn' : '', bold: marked },
+    c(x.signed), c(x.meanBias), c(x.varBias),
+  ];
+}
+
+function DmacsItemTable({ r, focal, many }: { r: DmacsResult; focal: string; many: boolean }) {
+  const ref = r.reference;
+  const title = many ? `dMACS by item: ${focal} against ${ref}` : 'dMACS by item';
+  const columns = ['Factor', 'Item', `λ ${ref}`, `λ ${focal}`, `ν ${ref}`, `ν ${focal}`, 'SD',
+    'dMACS', 'Signed dMACS', 'Mean bias', 'Variance bias'];
+  const note = `dMACS: the root mean square difference between the item’s expected scores under ${focal}’s `
+    + `and ${ref}’s loadings (λ) and intercepts (ν), over ${focal}’s factor distribution, in SD units; `
+    + `read it like Cohen’s d (0: invariant; amber from ${DMACS_MARK}). Signed dMACS: the mean difference `
+    + `(${focal} − ${ref}) in SD units, so that differences in opposite directions can cancel across items; `
+    + 'mean bias: the same in the item’s units; variance bias: the bias in the item’s variance, '
+    + `φ(λ²_${focal} − λ²_${ref}). Integrated numerically over a normal factor with ${focal}’s `
+    + 'model-implied mean and variance, as the dmacs package does.';
+  return (
+    <Table
+      title={title}
+      file={many ? `dmacs-items-${focal}` : 'dmacs-items'}
+      columns={columns}
+      rows={r.items.filter((x) => x.focal === focal).map(dmacsItemRow)}
+      note={note}
+    />
+  );
+}
+
+function DmacsView({ r }: { r: DmacsResult }) {
+  const focal = r.groups.filter((g) => g !== r.reference);
+  const many = focal.length > 1;
+  const sizes = r.groups.map((g, i) => `${r.n[i]} (${g})`).join(', ');
+  const focalText = many ? `focal groups ${focal.join(', ')}` : `focal group ${focal[0]}`;
+  const sdText = r.sd === 'pooled' ? 'pooled within-group SDs' : 'the reference group’s SDs';
+  const scaleColumns = [...(many ? ['Focal group'] : []), 'Factor', 'Items',
+    'Factor mean (focal)', 'Factor variance (focal)', 'Mean bias', 'Variance bias'];
+  const scaleRows = r.scales.map((x): Row => [
+    ...(many ? [c(x.focal)] : []),
+    c(x.factor), c(x.items, undefined, 0), c(x.kappa), c(x.phi), c(x.meanBias), c(x.varBias),
+  ]);
+  const scaleNote = 'The sum of each factor’s items: how much higher (positive) or lower the focal group’s mean '
+    + `and variance of that sum are than they would be with ${r.reference}’s item parameters at the same factor `
+    + 'distribution (Nye & Drasgow 2011, equations 4–9). The mean bias is the items’ mean biases summed; the '
+    + 'variance bias φ((Σλ_focal)² − (Σλ_reference)²).';
+  return (
+    <div className="tables">
+      <p className="hint" style={{ marginTop: 0 }}>
+        Reference group {r.reference}; {focalText}. N = {sizes}. lavaan {r.engine.version}; {sdText}.
+      </p>
+      {focal.map((f) => <DmacsItemTable key={f} r={r} focal={f} many={many} />)}
+      <Table title="Expected bias in the scale scores" file="dmacs-scales" columns={scaleColumns} rows={scaleRows} note={scaleNote} />
+    </div>
+  );
+}
+
+function dmacsBlocked(o: DmacsOptions, ctx: AnalysisCtx): string | null {
+  const m = cbModelBlocked(ctx, 'dMACS');
+  if (m) return m;
+  const mg = ctx.model?.multigroup;
+  if (!mg?.column) {
+    return 'dMACS compares groups: choose a grouping column under Groups (Model inspector, with nothing selected).';
+  }
+  if (mg.meanStructure === false) return 'dMACS needs the groups’ intercepts: keep the mean structure under Groups.';
+  if (ctx.model?.ordered?.length) return 'dMACS here is for continuous indicators; the model has ordinal ones.';
+  if (ctx.model?.multilevel) return 'dMACS is not available for two-level models.';
+  const groups = modelGroups(ctx);
+  if (groups.length < 2) return 'The grouping column has fewer than two groups.';
+  if (o.reference && !groups.some((g) => g.name === o.reference)) return `${o.reference} is not a group of ${mg.column}.`;
+  return null;
+}
+
+export const dmacsAnalysis: AnalysisType<DmacsOptions, DmacsResult> = {
+  id: 'dmacs',
+  title: 'Effect sizes of non-invariance (dMACS)',
+  group: 'Measurement',
+  fitsModel: true,
+  sub: 'how large the differences in loadings and intercepts between the model’s groups are: dMACS, signed dMACS, '
+    + 'bias in item and scale means and variances',
+  defaults: () => ({ reference: '', sd: 'pooled' }),
+  parseOptions: (raw) => {
+    if (!isObj(raw)) return null;
+    return { reference: name(raw.reference), sd: oneOf(raw.sd, ['pooled', 'reference'] as const, 'pooled') };
+  },
+  Options: DmacsForm,
+  View: ({ result }) => <DmacsView r={result} />,
+  blocked: dmacsBlocked,
+  fingerprint: (o, ctx) => {
+    const m = cbFingerprint(ctx);
+    return m && fingerprint([m, JSON.stringify(dmacsInput(o, ctx))]);
+  },
+  run: async (o, ctx) => (await engine()).dmacsR(cbCall(ctx), dmacsInput(o, ctx)),
+  script: async (o, ctx) => (await engine()).dmacsScriptR(cbCall(ctx), dmacsInput(o, ctx)),
+  summary: (o) => {
+    const sd = o.sd === 'pooled' ? 'pooled SD' : 'reference SD';
+    return `reference ${o.reference || 'the first group'} · ${sd}`;
+  },
+};
+
+/** Open the Analyses tab on the dMACS card: the existing one, or a new one. */
+export async function openDmacsCard() {
+  const { addAnalysis, selectCard, useAnalyses } = await import('./store');
+  const { useStore } = await import('../store');
+  const existing = useAnalyses.getState().cards.find((k) => k.kind === 'analysis' && k.type === 'dmacs');
+  if (existing) selectCard(existing.id);
+  else addAnalysis('dmacs');
+  useStore.getState().setWorkspace('analyses');
+}
 
 // ---------------------------------------------------------------- longitudinal invariance
 
