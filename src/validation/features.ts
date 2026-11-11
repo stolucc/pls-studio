@@ -514,6 +514,12 @@ export const FEATURES: Record<string, FeatureEntry | 'examples' | 'none'> = {
       'desktop lm, ppcor, car::vif and influence.measures (blocks, part and partial r, case diagnostics)',
     ),
   ),
+  'rengine/km': native(
+    'Kaplan–Meier curves, median survival, risk table, log-rank and Peto tests',
+    'Regression',
+    ['survival'],
+    script('survival_km.R', 'desktop survival (survfit, survdiff) on its help pages’ data'),
+  ),
   'rengine/pcor': native(
     'Partial and semi-partial correlations (Pearson, Spearman, Kendall)',
     'Basic statistics',

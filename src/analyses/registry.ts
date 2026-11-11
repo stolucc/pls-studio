@@ -82,6 +82,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
   stdPowerAnalysis,
   ...BAYES_TYPES,
   regressionAnalysis,
+  kmAnalysis,
   customMlAnalysis,
   bmvregAnalysis,
   didAnalysis,
@@ -153,6 +154,7 @@ export const ANALYSIS_TYPES: AnalysisType[] = [
 import { powerAnalysis } from './power';
 import { stdPowerAnalysis } from './stdPower';
 import { pcorAnalysis } from './pcor';
+import { kmAnalysis } from './km';
 import { metaSemAnalysis } from './metasem';
 import { semTreeAnalysis } from './semtree';
 import { plsMultilevelAnalysis } from './plsMultilevel';

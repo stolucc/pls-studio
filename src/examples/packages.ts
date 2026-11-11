@@ -101,6 +101,7 @@ export type ExamplePackage =
   | 'semPower'
   | 'pwr'
   | 'ppcor'
+  | 'survival'
   | 'metaSEM'
   | 'semtree'
   | 'sirt'
@@ -166,6 +167,7 @@ export const EXAMPLE_PACKAGES: ExamplePackage[] = [
   'semPower',
   'pwr',
   'ppcor',
+  'survival',
   'metaSEM',
   'semtree',
   'sirt',
@@ -271,6 +273,7 @@ export type CardPanelKind =
   | 'sempower'
   | 'pwr'
   | 'pcor'
+  | 'km'
   | 'metasem'
   | 'semtree'
   | 'alignment'
@@ -2428,6 +2431,34 @@ export const PACKAGE_EXAMPLES: PackageExample[] = [
     settings: CB('ML'),
   },
   {
+    id: 'survival-aml',
+    package: 'survival',
+    title: 'Kaplan–Meier curves: maintenance chemotherapy for acute myelogenous leukaemia',
+    source: 'survival, ?survfit.formula and ?aml (Miller 1997; Embury et al. 1977)',
+    links: [
+      { label: '?survfit.formula', url: 'https://rdrr.io/cran/survival/man/survfit.formula.html' },
+      { label: '?aml', url: 'https://rdrr.io/cran/survival/man/aml.html' },
+      { label: '?survdiff', url: 'https://rdrr.io/cran/survival/man/survdiff.html' },
+    ],
+    description:
+      'The help page’s first example: survfit(Surv(time, status) ~ x, data = aml), weeks to relapse of 23 patients with acute myelogenous leukaemia, by whether chemotherapy was maintained, with the log-rank and Peto & Peto tests between the groups (survdiff). Opens its card on the Analyses tab.',
+    shows:
+      'Median remission lasts 31 weeks with maintenance and 23 without; neither upper bound is reached. The log-rank test does not reject equal survival at .05 (χ² = 3.40, df = 1, p = .065), with 7 relapses against 10.7 expected under maintenance.',
+    data: { package: 'survival', name: 'aml' },
+    constructs: [],
+    paths: [],
+    panel: {
+      kind: 'km',
+      time: 'time',
+      status: 'status',
+      group: 'x',
+      confType: 'log',
+      riskTimes: [0, 20, 40, 60, 80, 100, 120, 140, 160],
+      showCi: true,
+    },
+    settings: CB('ML'),
+  },
+  {
     id: 'metasem-digman97',
     package: 'metaSEM',
     title: 'Meta-analytic SEM: the Big Five’s higher-order factors (Digman 1997)',
@@ -3562,6 +3593,11 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
       return [p.outcome ?? '', p.x ?? '', p.y ?? '', ...(p.controls ?? [])].filter(Boolean);
     case 'nca':
       return [...p.x, p.y];
+    // (Kaplan–Meier: the time, status and group columns)
+    case 'km': {
+      const o = panelPreset(p) as { time?: string; status?: string; group?: string };
+      return [o.time ?? '', o.status ?? '', o.group ?? ''].filter(Boolean);
+    }
     // (the APIM: each member's X and Y columns)
     case 'apim': {
       const o = panelPreset(p) as { x1: string[]; x2: string[]; y1: string[]; y2: string[] };

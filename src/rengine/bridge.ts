@@ -39,6 +39,7 @@ import invarianceR from './R/invariance.R?raw';
 import powerR from './R/power.R?raw';
 import pwrR from './R/pwr.R?raw';
 import partialR from './R/partial.R?raw';
+import survivalR from './R/survival.R?raw';
 import metasemR from './R/metasem.R?raw';
 import semtreeR from './R/semtree.R?raw';
 import plssemR from './R/plssem.R?raw';
@@ -101,6 +102,7 @@ export const SOURCES = {
   power: powerR,
   pwr: pwrR,
   partial: partialR,
+  survival: survivalR,
   metasem: metasemR,
   semtree: semtreeR,
   plssem: plssemR,
@@ -181,6 +183,8 @@ export const R_PACKAGES = {
   regression: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest'],
   // Censored (tobit) and survival (Cox, piecewise exponential) regressions: the regression card with survival.
   regressionSurvival: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest', 'survival'],
+  // Kaplan-Meier curves, median survival, risk tables and log-rank / Peto tests (survfit, survdiff).
+  survival: ['jsonlite', 'survival'],
   // Zero-inflated and hurdle count models (pscl::zeroinfl, pscl::hurdle): the regression card with pscl.
   pscl: ['jsonlite', 'MASS', 'nnet', 'sandwich', 'lmtest', 'pscl'],
   MASS: ['jsonlite', 'MASS'],

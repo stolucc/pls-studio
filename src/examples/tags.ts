@@ -70,6 +70,7 @@ const PANEL_TAGS: Record<string, string[]> = {
   sempower: ['Power analysis', 'Sample size'],
   pwr: ['Basic statistics', 'Power analysis', 'Sample size'],
   pcor: ['Basic statistics', 'Partial correlations'],
+  km: ['Survival', 'Kaplan–Meier'],
   metasem: ['Meta-analysis'],
   semtree: ['SEM trees', 'Heterogeneity'],
   psem: ['Piecewise SEM', 'Path analysis', 'd-separation'],

@@ -312,6 +312,11 @@ export const CARD_EVIDENCE: Record<string, CardEvidence> = {
     title: 'Multiple regression, f² (pwr.f2.test)',
     features: ['rengine/pwr::f2_'],
   },
+  km: {
+    examples: ['survival-aml'],
+    features: ['rengine/km'],
+    note: 'Curves, intervals (log, log-log, plain), medians, risk tables, log-rank and Peto tests against survfit and survdiff in desktop R (scripts/validation/survival_km.R).',
+  },
   customml: {},
   'customml:normal': {
     title: 'Normal likelihood',
