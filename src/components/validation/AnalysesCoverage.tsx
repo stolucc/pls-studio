@@ -81,14 +81,28 @@ function Row({
   const compared = r.checks.reduce((a, c) => a + c.comparisons.length, 0);
   const awaiting = r.pending.length > 0 && !r.checks.length;
   const exampleTitle = (id: string) => PACKAGE_EXAMPLES.find((x) => x.id === id)?.title ?? id;
+  // ✗ failed or to do, ✓ checked, – no evidence expected, … waiting for evidence.
+  const bad = r.cls === 'todo' || failed;
+  let statusCls = '';
+  let statusMark = '…';
+  if (bad) {
+    statusCls = 'bad';
+    statusMark = '✗';
+  } else if (r.checks.length) {
+    statusCls = 'ok';
+    statusMark = '✓';
+  } else if (r.cls === 'none') statusMark = '–';
+  let summary = '';
+  if (r.checks.length) {
+    const plural = r.checks.length === 1 ? '' : 's';
+    const pending = r.pending.length ? `; ${r.pending.length} pending` : '';
+    summary = `${r.checks.length} check${plural}, ${compared} compared${pending}`;
+  } else if (awaiting) summary = 'evidence pending regeneration';
   return (
     <div className={`evidence-row${open ? ' open' : ''}${r.mode ? ' mode' : ''}`}>
       <button className="evidence-head" onClick={onToggle} aria-expanded={open}>
-        <span
-          className={`evidence-status ${r.cls === 'todo' || failed ? 'bad' : r.checks.length ? 'ok' : ''}`}
-          aria-hidden
-        >
-          {r.cls === 'todo' || failed ? '✗' : r.checks.length ? '✓' : r.cls === 'none' ? '–' : '…'}
+        <span className={`evidence-status ${statusCls}`} aria-hidden>
+          {statusMark}
         </span>
         <span className="evidence-title">
           {r.title} <span className="hint">{r.key}</span>
@@ -106,13 +120,7 @@ function Row({
             </span>
           ))}
         </span>
-        <span className="hint">
-          {r.checks.length
-            ? `${r.checks.length} check${r.checks.length === 1 ? '' : 's'}, ${compared} compared${r.pending.length ? `; ${r.pending.length} pending` : ''}`
-            : awaiting
-              ? 'evidence pending regeneration'
-              : ''}
-        </span>
+        <span className="hint">{summary}</span>
       </button>
       {open && (
         <div className="evidence-body">

@@ -678,9 +678,11 @@ const WORKS: Record<string, { cite: string; entry: (version?: string) => Entry }
 export function rYear(version: string): string {
   const m = /^(\d+)\.(\d+)/.exec(version);
   if (!m) return 'n.d.';
-  const major = Number(m[1]),
-    minor = Number(m[2]);
-  return major === 4 ? String(2020 + minor) : major === 3 ? String(2013 + minor) : 'n.d.';
+  const major = Number(m[1]);
+  const minor = Number(m[2]);
+  if (major === 4) return String(2020 + minor);
+  if (major === 3) return String(2013 + minor);
+  return 'n.d.';
 }
 
 export const CITATION_KEYS = Object.keys(WORKS);

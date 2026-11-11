@@ -8,7 +8,7 @@ import { currentCtx, useAnalyses } from '../analyses/store';
 import type { AnalysisCard } from '../analyses/types';
 import type { Dataset } from '../engine/types';
 import { downloadBlob, safeFileName } from '../format';
-import type { DataInfo } from '../model/project';
+import type { DataInfo, Method } from '../model/project';
 import { serializeProject } from '../model/project';
 import { useStore } from '../store';
 import { makeZip, type ZipEntry } from './zip';
@@ -24,15 +24,16 @@ export interface PackageItem {
 }
 
 /** What can go into the package: the model (and its bootstrap) and every analysis card. */
+const METHOD_NAME: Record<Method, string> = {
+  pls: 'PLS-SEM',
+  cbsem: 'CB-SEM',
+  process: 'conditional process analysis',
+};
+
 export function packageItems(): PackageItem[] {
   const s = useStore.getState();
   const items: PackageItem[] = [];
-  const method =
-    s.settings.method === 'pls'
-      ? 'PLS-SEM'
-      : s.settings.method === 'cbsem'
-        ? 'CB-SEM'
-        : 'conditional process analysis';
+  const method = METHOD_NAME[s.settings.method];
   if (s.model.constructs.length) {
     items.push({
       id: 'model',
@@ -142,7 +143,10 @@ async function versions(
     r: string;
     packages: { name: string; version: string | null }[] | { name: string; version: string | null };
   }>('ps_versions', { packages: pkgs }, 'versions');
-  const list = Array.isArray(raw.packages) ? raw.packages : raw.packages ? [raw.packages] : [];
+  // A single package comes as an object, not a list.
+  let list: { name: string; version: string | null }[] = [];
+  if (Array.isArray(raw.packages)) list = raw.packages;
+  else if (raw.packages) list = [raw.packages];
   // In the browser a package is installed into R's session when first used: pinned versions fill the gaps.
   const missing = list.filter((p) => !p.version);
   if (missing.length) {
@@ -195,11 +199,22 @@ function readme(o: {
   if (o.data && o.info) {
     const matrix = !!o.data.moments && o.data.cols.length === 0;
     L.push('## Data', '');
-    L.push(
-      matrix
-        ? `\`data/${o.dataFile}\`: ${o.data.moments?.groups ? `one covariance matrix per group (${o.data.moments.groups.map((g) => `${g.label}: N = ${g.n}`).join(', ')}) of` : 'a covariance matrix of'} ${o.data.names.length} variables, N = ${o.info.rows}${o.covarianceOnly ? ' (computed from the raw data over the complete rows, N − 1; the raw data are not shared: the matrix and N reproduce the CB-SEM estimation exactly)' : ` (from ${o.info.fileName})`}.`
-        : `\`data/${o.dataFile}\`: ${o.info.rows} observations of ${o.data.names.length} variables (from ${o.info.fileName}); empty cells are missing values (${o.info.missingCells} in all). Text columns are written with their labels.`,
-    );
+    if (matrix) {
+      const groups = o.data.moments?.groups;
+      const matrices = groups
+        ? `one covariance matrix per group (${groups.map((g) => `${g.label}: N = ${g.n}`).join(', ')}) of`
+        : 'a covariance matrix of';
+      const origin = o.covarianceOnly
+        ? ' (computed from the raw data over the complete rows, N − 1; the raw data are not shared: the matrix and N reproduce the CB-SEM estimation exactly)'
+        : ` (from ${o.info.fileName})`;
+      L.push(
+        `\`data/${o.dataFile}\`: ${matrices} ${o.data.names.length} variables, N = ${o.info.rows}${origin}.`,
+      );
+    } else
+      L.push(
+        `\`data/${o.dataFile}\`: ${o.info.rows} observations of ${o.data.names.length} variables (from ${o.info.fileName}); ` +
+          `empty cells are missing values (${o.info.missingCells} in all). Text columns are written with their labels.`,
+      );
     if (o.info.reversed?.length)
       L.push(
         '',
@@ -283,17 +298,18 @@ export async function buildPackage(
   progress: (text: string) => void = () => {},
 ) {
   const s = useStore.getState();
-  const sharing: DataSharing =
-    opts.data === true ? 'full' : opts.data === false ? 'none' : opts.data;
+  let sharing: DataSharing;
+  if (opts.data === true) sharing = 'full';
+  else if (opts.data === false) sharing = 'none';
+  else sharing = opts.data;
   const items = packageItems().filter((i) => chosen.has(i.id));
   const { buildRScript, covarianceOnly } = await import('../io');
   // Covariance matrix instead of the raw data: the model is refitted from it; everything that needs cases stays out.
   const cov = sharing === 'covariance' ? covarianceOnly() : null;
-  const shared = cov
-    ? { data: cov.data, info: cov.info, model: cov.model }
-    : sharing === 'full'
-      ? { data: s.data, info: s.dataInfo, model: s.model }
-      : { data: null, info: null, model: s.model };
+  let shared: { data: typeof s.data; info: typeof s.dataInfo; model: typeof s.model };
+  if (cov) shared = { data: cov.data, info: cov.info, model: cov.model };
+  else if (sharing === 'full') shared = { data: s.data, info: s.dataInfo, model: s.model };
+  else shared = { data: null, info: null, model: s.model };
   const root = `${safeFileName(s.projectName)}-replication`;
   const files: ZipEntry[] = [];
   const scripts: { file: string; title: string; detail: string; text: string }[] = [];
@@ -375,8 +391,11 @@ export async function buildPackage(
   progress('Reading the R and package versions…');
   const v = await versions([...new Set(scripts.flatMap((sc) => scriptPackages(sc.text)))]);
   const st = s.settings;
+  let methodSetting = 'conditional process analysis';
+  if (st.method === 'pls') methodSetting = `PLS-SEM (${st.plsPackage})`;
+  else if (st.method === 'cbsem') methodSetting = `CB-SEM, ${st.estimator}`;
   const settings = [
-    `Method: ${st.method === 'pls' ? `PLS-SEM (${st.plsPackage})` : st.method === 'cbsem' ? `CB-SEM, ${st.estimator}` : 'conditional process analysis'}`,
+    `Method: ${methodSetting}`,
     `Missing values: ${st.missing}`,
     `Bootstrap: ${st.bootSamples} samples, seed ${st.seed}, ${Math.round(st.confidence * 100)}% ${st.bootInterval === 'bca' ? 'BCa' : 'percentile'} intervals, ${st.bootTails === 'one' ? 'one' : 'two'}-tailed tests`,
   ];

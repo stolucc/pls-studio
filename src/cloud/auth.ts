@@ -46,6 +46,13 @@ interface AuthState {
 
 export type DialogMode = 'signin' | 'register' | 'totp' | 'link' | 'forgot' | 'reset';
 
+/** A sign-in left half-way (a code to enter, a Google account to link) reopens its dialog. */
+function pendingDialog(s: SessionInfo): { mode: DialogMode } | null {
+  if (s.pendingTotp) return { mode: 'totp' };
+  if (s.pendingGoogleLink) return { mode: 'link' };
+  return null;
+}
+
 export const useAuth = create<AuthState>((set, get) => ({
   available: null,
   user: null,
@@ -63,15 +70,11 @@ export const useAuth = create<AuthState>((set, get) => ({
         googleEnabled: s.googleEnabled,
         pendingTotp: s.pendingTotp,
         pendingGoogleLink: s.pendingGoogleLink,
-        dialog: s.pendingTotp
-          ? { mode: 'totp' }
-          : s.pendingGoogleLink
-            ? { mode: 'link' }
-            : get().dialog,
+        dialog: pendingDialog(s) ?? get().dialog,
       });
     } catch (err) {
       set({
-        available: err instanceof ApiError && err.status !== 0 && err.status !== 404 ? true : false,
+        available: err instanceof ApiError && err.status !== 0 && err.status !== 404,
         user: null,
       });
     }

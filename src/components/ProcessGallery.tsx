@@ -15,8 +15,8 @@ import { IconX } from './icons';
 import { confirmDialog } from './Overlays';
 import { useEscape } from './useEscape';
 
-const NODE_W = 34,
-  NODE_H = 20;
+const NODE_W = 34;
+const NODE_H = 20;
 
 /** A conceptual diagram of a template (Hayes style): boxes, solid paths, dashed moderation arrows. */
 export function TemplateDiagram({
@@ -31,10 +31,10 @@ export function TemplateDiagram({
   height?: number;
 }) {
   const pts = [...pos.values()];
-  const minX = Math.min(...pts.map((p) => p.x)),
-    maxX = Math.max(...pts.map((p) => p.x));
-  const minY = Math.min(...pts.map((p) => p.y)),
-    maxY = Math.max(...pts.map((p) => p.y));
+  const minX = Math.min(...pts.map((p) => p.x));
+  const maxX = Math.max(...pts.map((p) => p.x));
+  const minY = Math.min(...pts.map((p) => p.y));
+  const maxY = Math.max(...pts.map((p) => p.y));
   const pad = 14;
   const k = Math.min(
     (width - 2 * pad - NODE_W) / Math.max(1, maxX - minX),
@@ -46,8 +46,8 @@ export function TemplateDiagram({
   };
   // Ends of a segment trimmed to the boxes' borders.
   const clip = (a: { x: number; y: number }, b: { x: number; y: number }) => {
-    const dx = b.x - a.x,
-      dy = b.y - a.y;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
     const t = Math.min(
       NODE_W / 2 / Math.max(1e-9, Math.abs(dx)),
       NODE_H / 2 / Math.max(1e-9, Math.abs(dy)),
@@ -55,8 +55,8 @@ export function TemplateDiagram({
     return { x: a.x + dx * t, y: a.y + dy * t };
   };
   const seg = (from: string, to: string) => {
-    const a = at(from),
-      b = at(to);
+    const a = at(from);
+    const b = at(to);
     return { a: clip(a, b), b: clip(b, a) };
   };
   const mid = (s: { a: { x: number; y: number }; b: { x: number; y: number } }) => ({

@@ -107,12 +107,16 @@ async function importDataFile(f: File) {
     const missingInds = s.model.constructs
       .flatMap((c) => c.indicators)
       .filter((i) => !r.data.names.includes(i));
-    const skipped = r.info.excluded.length
-      ? ` ${r.info.excluded.length} column(s) skipped (${r.info.excluded
-          .slice(0, 3)
-          .map((x) => x.name)
-          .join(', ')}${r.info.excluded.length > 3 ? ', …' : ''}).`
-      : '';
+    const excluded = r.info.excluded;
+    let skipped = '';
+    if (excluded.length) {
+      const firstNames = excluded
+        .slice(0, 3)
+        .map((x) => x.name)
+        .join(', ');
+      const more = excluded.length > 3 ? ', …' : '';
+      skipped = ` ${excluded.length} column(s) skipped (${firstNames}${more}).`;
+    }
     s.toast(
       missingInds.length ? 'error' : 'success',
       missingInds.length
@@ -180,7 +184,10 @@ async function importMatrix(
   const s = useStore.getState();
   const n = await numberDialog({
     title: 'Covariance matrix detected',
-    body: `${fileName} is a ${m.names.length} × ${m.names.length} covariance matrix${m.means ? ' with the variables’ means' : ''}. CB-SEM can be estimated from it (ML, GLS, ULS; MLM/MLMV with a NACOV file${m.means ? '; means and intercepts too' : ''}). PLS and bootstrapping need raw data.`,
+    body:
+      `${fileName} is a ${m.names.length} × ${m.names.length} covariance matrix${m.means ? ' with the variables’ means' : ''}. ` +
+      `CB-SEM can be estimated from it (ML, GLS, ULS; MLM/MLMV with a NACOV file${m.means ? '; means and intercepts too' : ''}). ` +
+      'PLS and bootstrapping need raw data.',
     confirmLabel: 'Use matrix',
     field: { label: 'Sample size N', min: 3, max: 1e8, integer: true },
   });
@@ -315,15 +322,14 @@ export async function buildRScript(
       seed: st.seed,
       confidence: st.confidence,
     };
-    const pkg =
-      what === 'fittest' || typeof what === 'object'
-        ? 'cSEM'
-        : cb
-          ? st.estimator === '2SLS'
-            ? 'MIIVsem'
-            : 'lavaan'
-          : st.plsPackage;
-    const suffix = typeof what === 'object' ? 'ipma' : what === 'model' ? '' : what;
+    // The fit test and IPMA are cSEM's; otherwise the package that estimates the model.
+    let pkg: string;
+    if (what === 'fittest' || typeof what === 'object') pkg = 'cSEM';
+    else if (cb) pkg = st.estimator === '2SLS' ? 'MIIVsem' : 'lavaan';
+    else pkg = st.plsPackage;
+    let suffix: string;
+    if (typeof what === 'object') suffix = 'ipma';
+    else suffix = what === 'model' ? '' : what;
     const [{ analysisScript }, { cbScriptLavaan }, { plsScriptR }] = await Promise.all([
       import('./rengine/analyses'),
       import('./rengine/lavaan'),
@@ -957,16 +963,12 @@ export async function loadPackageExample(id: string, opts: { files?: ChosenFile[
   if (!ex) return;
   if (!(await confirmDiscard('Loading the example'))) return;
   const s = useStore.getState();
-  s.toast(
-    'info',
-    ex.data.remote
-      ? opts.files
-        ? `Reading ${ex.data.name}…`
-        : `Downloading ${ex.data.name}…`
-      : ex.data.file
-        ? `Loading ${ex.data.name}…`
-        : `Loading ${ex.data.package}::${ex.data.name} in R…`,
-  );
+  let loading: string;
+  if (ex.data.remote)
+    loading = opts.files ? `Reading ${ex.data.name}…` : `Downloading ${ex.data.name}…`;
+  else if (ex.data.file) loading = `Loading ${ex.data.name}…`;
+  else loading = `Loading ${ex.data.package}::${ex.data.name} in R…`;
+  s.toast('info', loading);
   try {
     const { rCall, rMessage } = await import('./rengine/bridge');
     const pf = ex.data.packageFile;
@@ -978,29 +980,31 @@ export async function loadPackageExample(id: string, opts: { files?: ChosenFile[
       : null;
     const downloaded =
       !fromFile && ex.data.remote ? await downloadedDataset(ex.data.remote, opts.files) : null;
-    const raw = fromFile
-      ? {
+    // The example's columns: from the package's file, the download, the bundled copy, or R.
+    const loadRaw = async () => {
+      if (fromFile)
+        return {
           names: fromFile.data.names,
           cols: [] as (number | null)[][],
           n: fromFile.info.rows,
           levels: undefined,
-        }
-      : downloaded
-        ? downloaded
-        : ex.data.file
-          ? await bundledDataset(ex.data.file)
-          : await rCall<{
-              names: string[];
-              cols: (number | null)[][];
-              n: number;
-              levels?: Record<string, string[] | string> | unknown[];
-            }>(
-              'ps_dataset',
-              { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] },
-              ex.data.package as RPackage,
-            ).catch((e) => {
-              throw new Error(rMessage(e));
-            });
+        };
+      if (downloaded) return downloaded;
+      if (ex.data.file) return await bundledDataset(ex.data.file);
+      return await rCall<{
+        names: string[];
+        cols: (number | null)[][];
+        n: number;
+        levels?: Record<string, string[] | string> | unknown[];
+      }>(
+        'ps_dataset',
+        { package: ex.data.package, name: ex.data.name, na: ex.data.na ?? [] },
+        ex.data.package as RPackage,
+      ).catch((e) => {
+        throw new Error(rMessage(e));
+      });
+    };
+    const raw = await loadRaw();
     const cols = fromFile
       ? fromFile.data.cols
       : raw.cols.map((c) => Float64Array.from(c, (v) => (typeof v === 'number' ? v : NaN)));
@@ -1008,18 +1012,12 @@ export async function loadPackageExample(id: string, opts: { files?: ChosenFile[
     const model = exampleModel(ex);
     model.constructs = autoLayout(model);
     let exData = fromFile ? fromFile.data : { names: raw.names, cols, ...categoriesOf(raw.levels) };
+    let sourceName = `${ex.data.package}::${ex.data.name}`;
+    if (downloaded) sourceName = downloaded.fileName;
+    else if (ex.data.file) sourceName = ex.data.file.split('/').pop()!;
     let exInfo = fromFile
       ? fromFile.info
-      : {
-          fileName: downloaded
-            ? downloaded.fileName
-            : ex.data.file
-              ? ex.data.file.split('/').pop()!
-              : `${ex.data.package}::${ex.data.name}`,
-          rows: raw.n,
-          missingCells,
-          excluded: [],
-        };
+      : { fileName: sourceName, rows: raw.n, missingCells, excluded: [] };
     // The help page's recodes: computed columns, then category labels for coded columns.
     if (ex.computed?.length) {
       const { computeColumn } = await import('./data/compute');

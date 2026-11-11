@@ -36,19 +36,19 @@ function IpmaChart({
   xLabel: string;
   yMax: number;
 }) {
-  const W = 520,
-    H = 320,
-    pad = { l: 50, r: 16, t: 14, b: 40 };
+  const W = 520;
+  const H = 320;
+  const pad = { l: 50, r: 16, t: 14, b: 40 };
   const xs = points.map((p) => p.importance);
-  const xMin = Math.min(0, ...xs),
-    xMax = Math.max(...xs, 0.01) * 1.12;
+  const xMin = Math.min(0, ...xs);
+  const xMax = Math.max(...xs, 0.01) * 1.12;
   const ys = points.map((p) => p.performance);
-  const yLo = Math.max(0, Math.floor((Math.min(...ys) - 5) / 10) * 10),
-    yHi = Math.min(yMax, Math.ceil((Math.max(...ys) + 5) / 10) * 10);
+  const yLo = Math.max(0, Math.floor((Math.min(...ys) - 5) / 10) * 10);
+  const yHi = Math.min(yMax, Math.ceil((Math.max(...ys) + 5) / 10) * 10);
   const sx = (v: number) => pad.l + ((v - xMin) / (xMax - xMin)) * (W - pad.l - pad.r);
   const sy = (v: number) => pad.t + ((yHi - v) / (yHi - yLo || 1)) * (H - pad.t - pad.b);
-  const mx = mean(xs),
-    my = mean(ys);
+  const mx = mean(xs);
+  const my = mean(ys);
   const ticks = (lo: number, hi: number, k: number) =>
     Array.from({ length: k + 1 }, (_, i) => lo + ((hi - lo) * i) / k);
   return (
@@ -201,12 +201,16 @@ export function IpmaTab({ pls }: { pls: PlsResult }) {
   if (endogenous.length === 0)
     return <div className="empty-results">The model has no endogenous construct.</div>;
 
-  const relevant =
-    typeof result === 'object' && result
-      ? level === 'constructs'
-        ? result.constructs.filter((p) => Math.abs(p.importance) > 1e-12)
-        : result.indicators.filter((p) => p.construct !== target && Math.abs(p.importance) > 1e-12)
-      : [];
+  // The points with any importance (the target's own indicators excluded).
+  let relevant: IpmaPoint[] = [];
+  if (typeof result === 'object' && result) {
+    if (level === 'constructs')
+      relevant = result.constructs.filter((p) => Math.abs(p.importance) > 1e-12);
+    else
+      relevant = result.indicators.filter(
+        (p) => p.construct !== target && Math.abs(p.importance) > 1e-12,
+      );
+  }
 
   return (
     <>

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useCompute } from '../rengine/compute';
 import { fmt, fmtP } from '../format';
 import {
@@ -7,6 +8,7 @@ import {
   type InteractionMethod,
 } from '../model/project';
 import { useFreshResults, useStore } from '../store';
+import type { CbEstimate } from '../engine/cbsem';
 import { IconSwap, IconTrash, IconX } from './icons';
 import { QuadraticCurve, SimpleSlopes } from './SimpleSlopes';
 import { JohnsonNeymanPlot } from './JohnsonNeymanPlot';
@@ -140,6 +142,16 @@ function ThreeWayInspector({ id }: { id: string }) {
   );
 }
 
+/** How each interaction term is built (the hint under the choice). */
+const INTERACTION_METHOD_HINT: Record<InteractionMethod | 'two_stage', string> = {
+  two_stage:
+    'The product of the standardised construct scores of the first stage (Chin, Marcolin & Newsted 2003; the default of seminr and cSEM).',
+  orthogonal:
+    'Products of the indicators, residualised on the main-effect indicators so the term is uncorrelated with them (Little, Bovaird & Widaman 2006; seminr’s interaction_term(method = orthogonal)).',
+  product_indicator:
+    'Every product of a predictor indicator and a moderator indicator as the term’s own indicators (Chin, Marcolin & Newsted 2003; seminr’s interaction_term(method = product_indicator)).',
+};
+
 function ModerationInspector({ id }: { id: string }) {
   const model = useStore((s) => s.model);
   const del = useStore((s) => s.deleteItems);
@@ -148,9 +160,9 @@ function ModerationInspector({ id }: { id: string }) {
   const mo = model.moderations.find((x) => x.id === id);
   const p = mo && model.paths.find((q) => q.id === mo.path);
   const nameOf = (cid: string) => model.constructs.find((c) => c.id === cid)?.name ?? '?';
-  const fromName = p ? nameOf(p.from) : '',
-    toName = p ? nameOf(p.to) : '',
-    modName = mo ? nameOf(mo.moderator) : '';
+  const fromName = p ? nameOf(p.from) : '';
+  const toName = p ? nameOf(p.to) : '';
+  const modName = mo ? nameOf(mo.moderator) : '';
   const est = useModerationEstimate(fromName, modName, toName);
   const results = useFreshResults();
   const method = useStore((s) => s.settings.method);
@@ -210,11 +222,7 @@ function ModerationInspector({ id }: { id: string }) {
             ))}
           </div>
           <div className="hint" style={{ marginTop: 6 }}>
-            {!mo.method
-              ? 'The product of the standardised construct scores of the first stage (Chin, Marcolin & Newsted 2003; the default of seminr and cSEM).'
-              : mo.method === 'orthogonal'
-                ? 'Products of the indicators, residualised on the main-effect indicators so the term is uncorrelated with them (Little, Bovaird & Widaman 2006; seminr’s interaction_term(method = orthogonal)).'
-                : 'Every product of a predictor indicator and a moderator indicator as the term’s own indicators (Chin, Marcolin & Newsted 2003; seminr’s interaction_term(method = product_indicator)).'}
+            {INTERACTION_METHOD_HINT[mo.method ?? 'two_stage']}
             {mo.method && plsPackage === 'cSEM' && (
               <>
                 {' '}
@@ -252,71 +260,95 @@ function ModerationInspector({ id }: { id: string }) {
           </div>
         </div>
       )}
-      {jn ? null : est ? (
-        <div className="section">
-          <div className="section-title">
-            {quadratic ? 'Quadratic effect' : 'Interaction effect'}
-          </div>
-          <div className="kv">
-            <span>{term}</span>
-            <span className="num">{fmt(est.bint)}</span>
-            <span>f² effect size</span>
-            <span className="num">{fmt(est.f2)}</span>
-            {est.boot && (
-              <>
-                <span>p value</span>
-                <span className="num">{fmtP(est.boot.p)}</span>
-              </>
-            )}
-            {est.boot && (
-              <>
-                <span>{Math.round((est.confidence ?? 0.95) * 100)}% CI</span>
-                <span className="num">
-                  [{fmt(est.boot.ciLow)}, {fmt(est.boot.ciHigh)}]
-                </span>
-              </>
-            )}
-          </div>
-          {!est.boot && (
-            <div className="hint" style={{ marginTop: 8 }}>
-              Run bootstrapping to test the {quadratic ? 'quadratic effect' : 'interaction'}.
+      {!jn &&
+        (est ? (
+          <div className="section">
+            <div className="section-title">
+              {quadratic ? 'Quadratic effect' : 'Interaction effect'}
             </div>
-          )}
-          <div style={{ marginTop: 12 }}>
+            <div className="kv">
+              <span>{term}</span>
+              <span className="num">{fmt(est.bint)}</span>
+              <span>f² effect size</span>
+              <span className="num">{fmt(est.f2)}</span>
+              {est.boot && (
+                <>
+                  <span>p value</span>
+                  <span className="num">{fmtP(est.boot.p)}</span>
+                </>
+              )}
+              {est.boot && (
+                <>
+                  <span>{Math.round((est.confidence ?? 0.95) * 100)}% CI</span>
+                  <span className="num">
+                    [{fmt(est.boot.ciLow)}, {fmt(est.boot.ciHigh)}]
+                  </span>
+                </>
+              )}
+            </div>
+            {!est.boot && (
+              <div className="hint" style={{ marginTop: 8 }}>
+                Run bootstrapping to test the {quadratic ? 'quadratic effect' : 'interaction'}.
+              </div>
+            )}
+            <div style={{ marginTop: 12 }}>
+              {quadratic ? (
+                <QuadraticCurve b={est.bx} bq={est.bint} from={fromName} to={toName} />
+              ) : (
+                <SimpleSlopes
+                  bx={est.bx}
+                  bm={est.bm}
+                  bint={est.bint}
+                  from={fromName}
+                  moderator={modName}
+                  to={toName}
+                />
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="section hint">
             {quadratic ? (
-              <QuadraticCurve b={est.bx} bq={est.bint} from={fromName} to={toName} />
+              <>
+                The squared standardised score of {fromName} predicts {toName} (two-stage approach;
+                in CB-SEM, squared mean-centred indicators). Calculate to see the curve.
+              </>
             ) : (
-              <SimpleSlopes
-                bx={est.bx}
-                bm={est.bm}
-                bint={est.bint}
-                from={fromName}
-                moderator={modName}
-                to={toName}
-              />
+              <>
+                Two-stage approach: the product of the standardised scores of {fromName} and{' '}
+                {modName} predicts {toName}. Calculate to see the interaction effect and simple
+                slopes.
+              </>
             )}
           </div>
-        </div>
-      ) : (
-        <div className="section hint">
-          {quadratic ? (
-            <>
-              The squared standardised score of {fromName} predicts {toName} (two-stage approach; in
-              CB-SEM, squared mean-centred indicators). Calculate to see the curve.
-            </>
-          ) : (
-            <>
-              Two-stage approach: the product of the standardised scores of {fromName} and {modName}{' '}
-              predicts {toName}. Calculate to see the interaction effect and simple slopes.
-            </>
-          )}
-        </div>
-      )}
+        ))}
       <div className="section">
         <button className="btn danger" onClick={() => del([], [], [mo.id])}>
           <IconTrash size={14} /> {quadratic ? 'Remove quadratic effect' : 'Remove moderation'}
         </button>
       </div>
+    </>
+  );
+}
+
+/** "ζ a ↔ ζ b" for disturbances, "ε a ↔ ε b" for measurement errors, "a ↔ b" otherwise. */
+function CovarianceTitle(props: { a: string; b: string; disturbances: boolean; errors: boolean }) {
+  const { a, b } = props;
+  if (props.disturbances)
+    return (
+      <>
+        ζ {a} <span className="muted">↔</span> ζ {b}
+      </>
+    );
+  if (props.errors)
+    return (
+      <>
+        ε {a} <span className="muted">↔</span> ε {b}
+      </>
+    );
+  return (
+    <>
+      {a} <span className="muted">↔</span> {b}
     </>
   );
 }
@@ -330,43 +362,34 @@ function CorrelationInspector({ id }: { id: string }) {
   if (!k) return null;
   const nameOf = (x: string) =>
     k.kind === 'construct' ? (model.constructs.find((c) => c.id === x)?.name ?? '?') : x;
-  const a = nameOf(k.a),
-    b = nameOf(k.b);
+  const a = nameOf(k.a);
+  const b = nameOf(k.b);
   const endo = endogenousIds(model);
   const disturbances = k.kind === 'construct' && endo.has(k.a) && endo.has(k.b);
-  const what =
-    k.kind === 'indicator'
-      ? 'Correlated measurement errors (ε)'
-      : disturbances
-        ? 'Correlated disturbances (ζ): what both constructs share beyond their predictors'
-        : 'Covariance of exogenous constructs';
-  const est =
-    settings.method === 'cbsem' && settings.estimator !== '2SLS'
-      ? results?.cb?.estimates.find(
-          (e) =>
-            e.op === '~~' &&
-            e.lhs !== e.rhs &&
-            ((e.lhs === a && e.rhs === b) || (e.lhs === b && e.rhs === a)) &&
-            (k.kind === 'indicator' ? e.kind === 'rescov' : e.kind !== 'rescov'),
-        )
-      : undefined;
+  let what = 'Covariance of exogenous constructs';
+  if (k.kind === 'indicator') what = 'Correlated measurement errors (ε)';
+  else if (disturbances)
+    what = 'Correlated disturbances (ζ): what both constructs share beyond their predictors';
+  // The covariance between a and b in lavaan's estimates (CB-SEM only): a residual
+  // covariance for indicators, a (co)variance of constructs otherwise.
+  const isThisCovariance = (e: CbEstimate) =>
+    e.op === '~~' &&
+    e.lhs !== e.rhs &&
+    ((e.lhs === a && e.rhs === b) || (e.lhs === b && e.rhs === a)) &&
+    (k.kind === 'indicator' ? e.kind === 'rescov' : e.kind !== 'rescov');
+  const cbEstimated = settings.method === 'cbsem' && settings.estimator !== '2SLS';
+  const est = cbEstimated ? results?.cb?.estimates.find(isThisCovariance) : undefined;
+
   return (
     <>
       <div className="section">
         <div className="path-title">
-          {disturbances ? (
-            <>
-              ζ {a} <span className="muted">↔</span> ζ {b}
-            </>
-          ) : k.kind === 'indicator' ? (
-            <>
-              ε {a} <span className="muted">↔</span> ε {b}
-            </>
-          ) : (
-            <>
-              {a} <span className="muted">↔</span> {b}
-            </>
-          )}
+          <CovarianceTitle
+            a={a}
+            b={b}
+            disturbances={disturbances}
+            errors={k.kind === 'indicator'}
+          />
         </div>
         <div className="hint" style={{ marginTop: 4 }}>
           {what}
@@ -503,8 +526,8 @@ function PathInspector({ id }: { id: string }) {
   const method = useStore((s) => s.settings.method);
   const p = model.paths.find((q) => q.id === id);
   if (!p) return null;
-  const from = model.constructs.find((c) => c.id === p.from)!,
-    to = model.constructs.find((c) => c.id === p.to)!;
+  const from = model.constructs.find((c) => c.id === p.from)!;
+  const to = model.constructs.find((c) => c.id === p.to)!;
   const pls = method === 'pls' ? results?.pls : null;
   const cbEst =
     method === 'cbsem'
@@ -516,8 +539,8 @@ function PathInspector({ id }: { id: string }) {
           .find((e) => e.outcome === to.name)
           ?.coefficients.find((k) => k.term.length === 1 && k.term[0] === from.name)
       : undefined;
-  const i = pls?.constructs.indexOf(from.name) ?? -1,
-    j = pls?.constructs.indexOf(to.name) ?? -1;
+  const i = pls?.constructs.indexOf(from.name) ?? -1;
+  const j = pls?.constructs.indexOf(to.name) ?? -1;
   const b = results?.boot?.stats.find((s) => s.key === `path:${from.name}:${to.name}`);
   return (
     <>
@@ -759,8 +782,9 @@ function MeanInspector({ id }: { id: string }) {
   );
   const mg = model.multigroup;
   const groupLabels = data?.moments?.groups?.map((g) => g.label);
-  const biasText =
-    t.bias === undefined ? '' : Array.isArray(t.bias) ? t.bias.join(', ') : String(t.bias);
+  let biasText = '';
+  if (Array.isArray(t.bias)) biasText = t.bias.join(', ');
+  else if (t.bias !== undefined) biasText = String(t.bias);
   const setBias = (text: string) => {
     const parts = text
       .split(',')
@@ -775,14 +799,13 @@ function MeanInspector({ id }: { id: string }) {
     setMean(id, { bias: parts.length === 1 ? parts[0] : parts });
   };
   const meanFree = !!mg?.free.some((f) => f.kind === 'mean' && f.construct === c.id);
-  const toggleMeanFree = () =>
-    mg &&
-    setMultigroup({
-      ...mg,
-      free: meanFree
-        ? mg.free.filter((f) => !(f.kind === 'mean' && f.construct === c.id))
-        : [...mg.free, { kind: 'mean', construct: c.id }],
-    });
+  const toggleMeanFree = () => {
+    if (!mg) return;
+    const free = meanFree
+      ? mg.free.filter((f) => !(f.kind === 'mean' && f.construct === c.id))
+      : [...mg.free, { kind: 'mean' as const, construct: c.id }];
+    setMultigroup({ ...mg, free });
+  };
   return (
     <>
       <div className="section">
@@ -917,52 +940,46 @@ export function Inspector() {
     selection.correlations?.length === 1 && !c && !pathId && !modId
       ? selection.correlations[0]
       : undefined;
-  const title = c
-    ? 'Construct'
-    : constant
-      ? 'Constant'
-      : meanId
-        ? 'Mean'
-        : pathId
-          ? 'Path'
-          : modId
-            ? 'Moderation'
-            : corId
-              ? 'Correlation'
-              : selection.nodes.length + selection.edges.length > 1
-                ? 'Selection'
-                : 'Model';
+  // The first of these that applies decides the panel's title and body.
+  let title: string;
+  let body: ReactNode;
+  if (c) {
+    title = 'Construct';
+    body = <ConstructInspector key={c.id} c={c} />;
+  } else if (constant) {
+    title = 'Constant';
+    body = <ConstantInspector />;
+  } else if (meanId) {
+    title = 'Mean';
+    body = <MeanInspector id={meanId} />;
+  } else if (pathId) {
+    title = 'Path';
+    body = <PathInspector id={pathId} />;
+  } else if (modId) {
+    title = 'Moderation';
+    const threeWay = model.threeWay?.some((t) => t.id === modId);
+    body = threeWay ? <ThreeWayInspector id={modId} /> : <ModerationInspector id={modId} />;
+  } else if (corId) {
+    title = 'Correlation';
+    body = <CorrelationInspector id={corId} />;
+  } else if (selection.nodes.length + selection.edges.length > 1) {
+    title = 'Selection';
+    body = (
+      <div className="hint">
+        {selection.nodes.length} construct(s), {selection.edges.length} path(s) selected. Press
+        Delete to remove them.
+      </div>
+    );
+  } else {
+    title = 'Model';
+    body = <ModelInspector />;
+  }
   return (
     <aside className="panel right" aria-label="Inspector">
       <div className="panel-head">
         <span>{title}</span>
       </div>
-      <div className="panel-body">
-        {c ? (
-          <ConstructInspector key={c.id} c={c} />
-        ) : constant ? (
-          <ConstantInspector />
-        ) : meanId ? (
-          <MeanInspector id={meanId} />
-        ) : pathId ? (
-          <PathInspector id={pathId} />
-        ) : modId ? (
-          model.threeWay?.some((t) => t.id === modId) ? (
-            <ThreeWayInspector id={modId} />
-          ) : (
-            <ModerationInspector id={modId} />
-          )
-        ) : corId ? (
-          <CorrelationInspector id={corId} />
-        ) : title === 'Selection' ? (
-          <div className="hint">
-            {selection.nodes.length} construct(s), {selection.edges.length} path(s) selected. Press
-            Delete to remove them.
-          </div>
-        ) : (
-          <ModelInspector />
-        )}
-      </div>
+      <div className="panel-body">{body}</div>
     </aside>
   );
 }

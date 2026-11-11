@@ -116,8 +116,15 @@ export function useFlowGraph({
           model.esem?.blocks.some((b) => b.constructs.includes(c.id)),
           (v) => formatEstimate(settings.figure, v),
         );
-        const w = geom.bounds.w,
-          h = geom.bounds.h;
+        const w = geom.bounds.w;
+        const h = geom.bounds.h;
+        // While drawing a correlation: true when this construct is the first end, the
+        // indicator's name when one of its indicators is.
+        let isPicked: boolean | string = false;
+        if (picked?.kind === 'construct' && picked.via !== 'disturbance' && picked.id === c.id)
+          isPicked = true;
+        else if (picked?.kind === 'indicator' && c.indicators.includes(picked.id))
+          isPicked = picked.id;
         return {
           id: c.id,
           type: 'construct',
@@ -134,12 +141,7 @@ export function useFlowGraph({
             hasError: errorIds.has(c.id),
             tool,
             method,
-            picked:
-              picked?.kind === 'construct' && picked.via !== 'disturbance' && picked.id === c.id
-                ? true
-                : picked?.kind === 'indicator' && c.indicators.includes(picked.id)
-                  ? picked.id
-                  : false,
+            picked: isPicked,
           },
         };
       }),

@@ -6,6 +6,7 @@ import {
   type InvarianceLevel,
   type StructuralEquality,
 } from '../engine/types';
+import type { BetweenStatement } from '../model/project';
 import { useStore } from '../store';
 import { OrderedPicker } from './OrderedPicker';
 import { IconX } from './icons';
@@ -82,14 +83,12 @@ export function GroupsEditor() {
       ...mg,
       structural: structural.includes(k) ? structural.filter((x) => x !== k) : [...structural, k],
     });
-  const freed = (f: FreedParameter) =>
-    f.kind === 'loading'
-      ? `${name(f.construct)} → ${f.indicator} (loading)`
-      : f.kind === 'intercept'
-        ? `${f.indicator} (intercept)`
-        : f.kind === 'mean'
-          ? `${name(f.construct)} (mean / intercept)`
-          : `${name(f.from)} → ${name(f.to)} (coefficient)`;
+  const freed = (f: FreedParameter) => {
+    if (f.kind === 'loading') return `${name(f.construct)} → ${f.indicator} (loading)`;
+    if (f.kind === 'intercept') return `${f.indicator} (intercept)`;
+    if (f.kind === 'mean') return `${name(f.construct)} (mean / intercept)`;
+    return `${name(f.from)} → ${name(f.to)} (coefficient)`;
+  };
   return (
     <div className="section">
       <div className="section-title">Groups</div>
@@ -469,6 +468,29 @@ export function EsemEditor() {
 }
 
 /** CB-SEM two-level model: the cluster column and the between-level model. */
+/** A term with its modifier, lavaan style: "0.5*x", "a*x" or "x". */
+function modifiedTerm(t: { fixed?: number; label?: string }, name: string): string {
+  const modifier = t.fixed ?? t.label ?? '';
+  const star = t.fixed !== undefined || t.label ? '*' : '';
+  return `${modifier}${star}${name}`;
+}
+
+/** A between-level statement as lavaan syntax ("f ~ 1", "f =~ a*y1 + y2"). */
+function betweenSyntax(st: BetweenStatement): string {
+  if (st.op === '~1') return `${st.lhs} ~ ${modifiedTerm(st.rhs[0], '1')}`;
+  return `${st.lhs} ${st.op} ${st.rhs.map((t) => modifiedTerm(t, t.name)).join(' + ')}`;
+}
+
+const BETWEEN_HINT: Record<'same' | 'saturated' | 'factors' | 'model', string> = {
+  saturated:
+    'The model is fitted to the within-cluster (co)variances; between clusters every variance and covariance is free. For clustered data when the interest is within.',
+  model:
+    'Between clusters the model as written in the imported syntax (lavaan’s level: 2 block; Mplus %BETWEEN%): the within level is the diagram.',
+  factors:
+    'Between clusters each factor is measured by the same indicators (on the cluster means; *_b in lavaan) and regressed on the cluster-level covariates, as in lavaan’s multilevel tutorial (fb =~ y1 + y2 + y3; fb ~ w1 + w2).',
+  same: 'The same factors and paths also between clusters (on the cluster means; factors suffixed “(between)” in lavaan as *_b).',
+};
+
 export function ClustersEditor() {
   const model = useStore((s) => s.model);
   const data = useStore((s) => s.data);
@@ -555,13 +577,7 @@ export function ClustersEditor() {
           </div>
           {ml.between === 'model' && (
             <pre className="hint" style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>
-              {(ml.betweenModel ?? [])
-                .map((st) =>
-                  st.op === '~1'
-                    ? `${st.lhs} ~ ${st.rhs[0].fixed ?? st.rhs[0].label ?? ''}${st.rhs[0].fixed !== undefined || st.rhs[0].label ? '*' : ''}1`
-                    : `${st.lhs} ${st.op} ${st.rhs.map((t) => `${t.fixed ?? t.label ?? ''}${t.fixed !== undefined || t.label ? '*' : ''}${t.name}`).join(' + ')}`,
-                )
-                .join('\n')}
+              {(ml.betweenModel ?? []).map(betweenSyntax).join('\n')}
             </pre>
           )}
           {ml.between === 'factors' && data && (
@@ -573,14 +589,8 @@ export function ClustersEditor() {
             />
           )}
           <div className="hint" style={{ marginTop: 6 }}>
-            {ml.between === 'saturated'
-              ? 'The model is fitted to the within-cluster (co)variances; between clusters every variance and covariance is free. For clustered data when the interest is within.'
-              : ml.between === 'model'
-                ? 'Between clusters the model as written in the imported syntax (lavaan’s level: 2 block; Mplus %BETWEEN%): the within level is the diagram.'
-                : ml.between === 'factors'
-                  ? 'Between clusters each factor is measured by the same indicators (on the cluster means; *_b in lavaan) and regressed on the cluster-level covariates, as in lavaan’s multilevel tutorial (fb =~ y1 + y2 + y3; fb ~ w1 + w2).'
-                  : 'The same factors and paths also between clusters (on the cluster means; factors suffixed “(between)” in lavaan as *_b).'}{' '}
-            Results: switch Within / Between in the results header (lavaan, ML or MLR).
+            {BETWEEN_HINT[ml.between]} Results: switch Within / Between in the results header
+            (lavaan, ML or MLR).
           </div>
         </div>
       )}

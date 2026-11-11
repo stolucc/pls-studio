@@ -72,11 +72,11 @@ export function resetExampleBanners() {
  * change, it says that it describes the example as it opened.
  */
 export function ExampleBanner({ where }: { where: 'model' | 'analyses' }) {
-  const example = useStore((s) => s.example),
-    baseline = useStore((s) => s.exampleBaseline);
-  const model = useStore((s) => s.model),
-    settings = useStore((s) => s.settings),
-    dataVersion = useStore((s) => s.dataVersion);
+  const example = useStore((s) => s.example);
+  const baseline = useStore((s) => s.exampleBaseline);
+  const model = useStore((s) => s.model);
+  const settings = useStore((s) => s.settings);
+  const dataVersion = useStore((s) => s.dataVersion);
   useSyncExternalStore(subscribe, () => version);
   const text = exampleShows(example);
   const changed = useMemo(

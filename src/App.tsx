@@ -28,8 +28,8 @@ export default function App() {
   const [resultsHeight, setResultsHeight] = useState(320);
   const view = useStore((s) => s.view);
   const workspace = useStore((s) => s.workspace);
-  const validationFocus = useStore((s) => s.validationFocus),
-    validationReturn = useStore((s) => s.validationReturn);
+  const validationFocus = useStore((s) => s.validationFocus);
+  const validationReturn = useStore((s) => s.validationReturn);
   const projectName = useStore((s) => s.projectName);
 
   // The validation page has its own address (#validation), so that it can be linked to and bookmarked.

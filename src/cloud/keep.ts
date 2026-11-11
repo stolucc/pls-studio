@@ -39,8 +39,8 @@ export function keepInAccount(
   if (!keepable()) return Promise.resolve(false);
   const s = useStore.getState();
   const user = useAuth.getState().user!;
-  const localId = s.projectId,
-    name = s.projectName;
+  const localId = s.projectId;
+  const name = s.projectName;
   inFlight = (async () => {
     try {
       await share(user);

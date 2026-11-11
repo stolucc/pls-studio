@@ -11,6 +11,7 @@ import type { Moderation } from '../model/project';
 import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
+import { significanceClass } from '../figure/style';
 
 export interface ModerationLabel {
   beta: number | null;
@@ -54,8 +55,8 @@ export function ModeratorLayer({
     const path = model.paths.find((p) => p.id === mo.path);
     const m = byId.get(mo.moderator);
     if (!path || !m) return [];
-    const s = byId.get(path.from),
-      t = byId.get(path.to);
+    const s = byId.get(path.from);
+    const t = byId.get(path.to);
     if (!s || !t) return [];
     const seg = pathSegment(s, t, pathOffset(model.paths, path.from, path.to));
     if (!seg) return [];
@@ -149,7 +150,7 @@ export function ModeratorLayer({
       {items.map(({ mo, seg, loop }) => {
         const l = labelFor(mo.id);
         if (!l || l.beta === null) return null;
-        const cls = l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns';
+        const cls = significanceClass(l.p);
         return (
           <div
             key={mo.id}

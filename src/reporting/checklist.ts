@@ -36,10 +36,16 @@ export interface CheckItem {
 const f2 = (x: number) => (Number.isFinite(x) ? x.toFixed(2) : '—');
 const f3 = (x: number) => (Number.isFinite(x) ? x.toFixed(3) : '—');
 /** p as APA writes it: no leading zero, < .001. */
-const pv = (p: number) =>
-  !Number.isFinite(p) ? '—' : p < 0.001 ? '< .001' : `= ${p.toFixed(3).replace(/^0/, '')}`;
-const join = (xs: string[], max = 8) =>
-  xs.length > max ? `${xs.slice(0, max).join(', ')} and ${xs.length - max} more` : xs.join(', ');
+function pv(p: number): string {
+  if (!Number.isFinite(p)) return '—';
+  if (p < 0.001) return '< .001';
+  return `= ${p.toFixed(3).replace(/^0/, '')}`;
+}
+/** A list of names, cut after `max` with "and N more". */
+function join(xs: string[], max = 8): string {
+  if (xs.length <= max) return xs.join(', ');
+  return `${xs.slice(0, max).join(', ')} and ${xs.length - max} more`;
+}
 
 const tab = (label: string): CheckLink => ({ kind: 'tab', label });
 const card = (type: string, label: string): CheckLink => ({ kind: 'card', type, label });
@@ -81,18 +87,18 @@ function hasMediation(input: ReportInput): boolean {
 }
 
 function specItem(issues: Issue[] | undefined, sources: string[]): CheckItem {
-  const errors = (issues ?? []).filter((i) => i.level === 'error'),
-    warnings = (issues ?? []).filter((i) => i.level === 'warning');
+  const errors = (issues ?? []).filter((i) => i.level === 'error');
+  const warnings = (issues ?? []).filter((i) => i.level === 'warning');
+  const problems = [...errors, ...warnings];
   return {
     id: 'specification',
     section: 'Specification',
     label: 'Model specified and identified without problems',
     sources,
-    status: errors.length || warnings.length ? 'issue' : 'done',
-    evidence:
-      errors.length || warnings.length
-        ? [...errors, ...warnings].map((i) => i.message).join(' ')
-        : 'The model check on the Model tab finds no problems.',
+    status: problems.length ? 'issue' : 'done',
+    evidence: problems.length
+      ? problems.map((i) => i.message).join(' ')
+      : 'The model check on the Model tab finds no problems.',
     link: { kind: 'model', label: 'Model tab' },
   };
 }
@@ -112,11 +118,19 @@ function missingItem(input: ReportInput, dropped: number, sources: string[]): Ch
     return { ...HEAD.missing, status: 'na', evidence: 'Covariance-matrix input.', sources };
   if (info && info.missingCells === 0)
     return { ...HEAD.missing, status: 'done', evidence: 'No missing values in the data.', sources };
+  const meanReplacement = s.missing === 'mean';
+  const cells = info ? `${info.missingCells} missing cells; ` : '';
+  const droppedNote = dropped ? ` (${dropped} cases dropped)` : '';
+  const meanWarning = meanReplacement
+    ? ' Mean replacement shrinks variances and correlations; reviewers prefer FIML or multiple imputation where the method allows.'
+    : '';
   return {
     ...HEAD.missing,
     sources,
-    status: s.missing === 'mean' ? 'issue' : 'done',
-    evidence: `${info ? `${info.missingCells} missing cells; ` : ''}treated by ${how[s.missing] ?? s.missing}${dropped ? ` (${dropped} cases dropped)` : ''}.${s.missing === 'mean' ? ' Mean replacement shrinks variances and correlations; reviewers prefer FIML or multiple imputation where the method allows.' : ''} Report the amount and pattern of missingness.`,
+    status: meanReplacement ? 'issue' : 'done',
+    evidence:
+      `${cells}treated by ${how[s.missing] ?? s.missing}${droppedNote}.${meanWarning}` +
+      ' Report the amount and pattern of missingness.',
     link: card('missingdata', 'Add Missing data'),
   };
 }
@@ -137,25 +151,34 @@ function bootItem(
       evidence: 'No effect in the model that needs resampling.',
       sources,
     };
-  return b
-    ? {
-        id: 'bootstrap',
-        section: 'Estimation',
-        label,
-        status: 'done',
-        evidence: `${b.samples.toLocaleString('en-US')} bootstrap resamples, ${Math.round(b.confidence * 100)}% ${b.interval === 'bca' ? 'BCa' : b.interval === 'studentized' ? 'studentized' : 'percentile'} intervals${b.failed ? ` (${b.failed} failed)` : ''}.`,
-        sources,
-        link: tab('Bootstrapping'),
-      }
-    : {
-        id: 'bootstrap',
-        section: 'Estimation',
-        label,
-        status: 'issue',
-        evidence: 'Not bootstrapped yet: run Bootstrap on the Model tab.',
-        sources,
-        link: tab('Bootstrapping'),
-      };
+  if (!b)
+    return {
+      id: 'bootstrap',
+      section: 'Estimation',
+      label,
+      status: 'issue',
+      evidence: 'Not bootstrapped yet: run Bootstrap on the Model tab.',
+      sources,
+      link: tab('Bootstrapping'),
+    };
+  const resamples = b.samples.toLocaleString('en-US');
+  const level = Math.round(b.confidence * 100);
+  const failed = b.failed ? ` (${b.failed} failed)` : '';
+  return {
+    id: 'bootstrap',
+    section: 'Estimation',
+    label,
+    status: 'done',
+    evidence: `${resamples} bootstrap resamples, ${level}% ${intervalName(b.interval)} intervals${failed}.`,
+    sources,
+    link: tab('Bootstrapping'),
+  };
+}
+
+function intervalName(interval: string | undefined): string {
+  if (interval === 'bca') return 'BCa';
+  if (interval === 'studentized') return 'studentized';
+  return 'percentile';
 }
 
 const cmbItem = (input: ReportInput, sources: string[]): CheckItem =>
@@ -191,13 +214,92 @@ const softwareItem = (
 
 // ---------------------------------------------------------------- CB-SEM
 
+type CbFit = NonNullable<ReportInput['cb']>['fit'];
+
+/** The χ² test, the scaled one when the estimator is robust. */
+function chisqItem(fit: CbFit, sources: string[]): CheckItem {
+  const item = (status: CheckStatus, evidence: string): CheckItem => ({
+    id: 'chisq',
+    section: 'Model fit',
+    label: 'χ² test reported with df and p',
+    sources,
+    status,
+    evidence,
+    link: tab('Model fit'),
+  });
+  if (!Number.isFinite(fit.chisq)) return item('issue', 'No χ² statistic in the results.');
+  const robust = fit.chisqScaled !== undefined;
+  const df = robust ? (fit.dfScaled ?? fit.df) : fit.df;
+  if (df === 0)
+    return item('na', 'The model is just-identified (df = 0): its fit cannot be tested.');
+  const name = robust ? 'Scaled χ²' : 'χ²';
+  const chisq = robust ? fit.chisqScaled! : fit.chisq;
+  const p = robust ? (fit.pvalueScaled ?? fit.pvalue) : fit.pvalue;
+  const rejected =
+    p < 0.05
+      ? ': exact fit rejected; discuss the misfit (residuals, modification indices) rather than relying on approximate indices alone'
+      : '';
+  return item('done', `${name}(${df}) = ${f2(chisq)}, p ${pv(p)}${rejected}.`);
+}
+
+/** Groups: invariance tested before comparing them. */
+function cbInvarianceItem(input: ReportInput): CheckItem {
+  const mg = input.model.multigroup;
+  const sources = ['appelbaum2018'];
+  if (!mg) return { ...HEAD.invariance, status: 'na', evidence: 'One group.', sources };
+  const link = tab('Measurement invariance');
+  if (!input.invariance)
+    return {
+      ...HEAD.invariance,
+      status: 'issue',
+      evidence: `The groups are fitted at the ${mg.invariance} level without the sequence of invariance tests in the results.`,
+      sources,
+      link,
+    };
+  const levels = input.invariance.levels.map((l) => {
+    const cfiChange = l.cfiChange !== undefined ? `, ΔCFI ${f3(l.cfiChange)}` : '';
+    const p = l.p !== undefined ? `, Δχ² p ${pv(l.p)}` : '';
+    return `${l.level} (CFI ${f3(l.cfi)}${cfiChange}${p})`;
+  });
+  return {
+    ...HEAD.invariance,
+    status: 'done',
+    evidence: `Tested: ${levels.join('; ')}.`,
+    sources,
+    link,
+  };
+}
+
+/** Normality: needed by ML-type estimators unless the data were screened. */
+function distributionItem(input: ReportInput, estimator: string, sources: string[]): CheckItem {
+  const nonnormal = ['MLR', 'MLM', 'MLMV', 'WLSMV', 'WLS'].includes(estimator);
+  const screened = ran(input, 'screen');
+  let evidence: string;
+  if (nonnormal)
+    evidence = `${estimator} does not assume multivariate normality.${screened ? ' The data were screened.' : ''}`;
+  else if (screened)
+    evidence = `${estimator}; the data screening card reports univariate and multivariate normality.`;
+  else
+    evidence = `${estimator} assumes multivariate normality: report a normality check, or use a robust estimator (MLR).`;
+  return {
+    id: 'distribution',
+    section: 'Estimation',
+    label: 'Distributional assumptions checked; estimator justified',
+    sources,
+    status: nonnormal || screened ? 'done' : 'author',
+    evidence,
+    link: card('screen', 'Add Data screening'),
+  };
+}
+
 function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] {
   const cb = input.cb!;
-  const JA = ['jackson2009'],
-    JARS = ['appelbaum2018'],
-    BOTH = ['jackson2009', 'appelbaum2018'];
+  const JA = ['jackson2009'];
+  const JARS = ['appelbaum2018'];
+  const BOTH = ['jackson2009', 'appelbaum2018'];
   const out: CheckItem[] = [specItem(issues, JARS)];
   const fit = cb.fit;
+  const warnings = cb.warnings.length ? `; warnings: ${cb.warnings.join(' ')}` : '';
   out.push({
     id: 'convergence',
     section: 'Estimation',
@@ -205,7 +307,7 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
     sources: JA,
     status: cb.converged ? 'done' : 'issue',
     evidence: cb.converged
-      ? `Converged after ${cb.iterations} iterations${cb.warnings.length ? `; warnings: ${cb.warnings.join(' ')}` : ''}.`
+      ? `Converged after ${cb.iterations} iterations${warnings}.`
       : 'The estimation did not converge.',
     link: tab('Model fit'),
   });
@@ -214,50 +316,46 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
     .filter((e) => e.op === '~~' && e.lhs === e.rhs && e.est < 0)
     .map((e) => e.lhs);
   const beyond = cb.indicators.filter((_, i) => Math.abs(cb.stdLoadings[i]) > 1).map((x) => x.name);
+  const heywood = negative.length || beyond.length;
+  const negativeText = negative.length ? `Negative variance: ${join(negative)}. ` : '';
+  const beyondText = beyond.length ? `Standardised loading beyond ±1: ${join(beyond)}.` : '';
   out.push({
     id: 'heywood',
     section: 'Estimation',
     label: 'No Heywood cases (negative variances, standardised loadings beyond ±1)',
     sources: JA,
-    status: negative.length || beyond.length ? 'issue' : 'done',
-    evidence:
-      negative.length || beyond.length
-        ? `${negative.length ? `Negative variance: ${join(negative)}. ` : ''}${beyond.length ? `Standardised loading beyond ±1: ${join(beyond)}.` : ''}`.trim()
-        : 'Every variance is non-negative and every standardised loading within ±1.',
+    status: heywood ? 'issue' : 'done',
+    evidence: heywood
+      ? `${negativeText}${beyondText}`.trim()
+      : 'Every variance is non-negative and every standardised loading within ±1.',
     link: tab('Variances & covariances'),
   });
+  out.push(chisqItem(fit, BOTH));
   const robust = fit.chisqScaled !== undefined;
   const df = robust ? (fit.dfScaled ?? fit.df) : fit.df;
-  out.push({
-    id: 'chisq',
-    section: 'Model fit',
-    label: 'χ² test reported with df and p',
-    sources: BOTH,
-    status: !Number.isFinite(fit.chisq) ? 'issue' : df === 0 ? 'na' : 'done',
-    evidence: !Number.isFinite(fit.chisq)
-      ? 'No χ² statistic in the results.'
-      : df === 0
-        ? 'The model is just-identified (df = 0): its fit cannot be tested.'
-        : `${robust ? 'Scaled χ²' : 'χ²'}(${df}) = ${f2(robust ? fit.chisqScaled! : fit.chisq)}, p ${pv(robust ? (fit.pvalueScaled ?? fit.pvalue) : fit.pvalue)}${(robust ? (fit.pvalueScaled ?? fit.pvalue) : fit.pvalue) < 0.05 ? ': exact fit rejected; discuss the misfit (residuals, modification indices) rather than relying on approximate indices alone' : ''}.`,
-    link: tab('Model fit'),
-  });
   if (df !== 0 && Number.isFinite(fit.chisq)) {
-    const cfi = fit.cfiRobust ?? fit.cfi,
-      tli = fit.tliRobust ?? fit.tli,
-      rmsea = fit.rmseaRobust ?? fit.rmsea;
+    const cfi = fit.cfiRobust ?? fit.cfi;
+    const tli = fit.tliRobust ?? fit.tli;
+    const rmsea = fit.rmseaRobust ?? fit.rmsea;
     const miss = [
       cfi < 0.95 && `CFI ${f3(cfi)} < .95`,
       tli < 0.95 && `TLI ${f3(tli)} < .95`,
       rmsea > 0.06 && `RMSEA ${f3(rmsea)} > .06`,
       fit.srmr > 0.08 && `SRMR ${f3(fit.srmr)} > .08`,
     ].filter(Boolean) as string[];
+    const robustPrefix = fit.cfiRobust !== undefined ? 'Robust ' : '';
+    const rmseaCi =
+      fit.rmseaRobust === undefined ? ` [90% CI ${f3(fit.rmseaLow)}, ${f3(fit.rmseaHigh)}]` : '';
+    const misses = miss.length ? ` Misses: ${miss.join('; ')}.` : '';
     out.push({
       id: 'indices',
       section: 'Model fit',
       label: 'CFI, TLI, RMSEA with its 90% CI, and SRMR reported (Hu & Bentler, 1999 cut-offs)',
       sources: ['hu1999', ...BOTH],
       status: miss.length ? 'issue' : 'done',
-      evidence: `${fit.cfiRobust !== undefined ? 'Robust ' : ''}CFI = ${f3(cfi)}, TLI = ${f3(tli)}, RMSEA = ${f3(rmsea)}${fit.rmseaRobust === undefined ? ` [90% CI ${f3(fit.rmseaLow)}, ${f3(fit.rmseaHigh)}]` : ''}, SRMR = ${f3(fit.srmr)}.${miss.length ? ` Misses: ${miss.join('; ')}.` : ''} The cut-offs are guidelines; dynamic fit index cut-offs tailor them to the model.`,
+      evidence:
+        `${robustPrefix}CFI = ${f3(cfi)}, TLI = ${f3(tli)}, RMSEA = ${f3(rmsea)}${rmseaCi}, SRMR = ${f3(fit.srmr)}.` +
+        `${misses} The cut-offs are guidelines; dynamic fit index cut-offs tailor them to the model.`,
       link: card('dynamicfit', 'Add Dynamic fit cutoffs'),
     });
   }
@@ -305,55 +403,28 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
     out.push(htmtItem(cb.constructs, cb.htmt, 0.85, ['henseler2015']));
   }
   // Groups: invariance before comparing them.
-  const mg = input.model.multigroup;
-  out.push(
-    !mg
-      ? { ...HEAD.invariance, status: 'na', evidence: 'One group.', sources: ['appelbaum2018'] }
-      : input.invariance
-        ? {
-            ...HEAD.invariance,
-            status: 'done',
-            evidence: `Tested: ${input.invariance.levels.map((l) => `${l.level} (CFI ${f3(l.cfi)}${l.cfiChange !== undefined ? `, ΔCFI ${f3(l.cfiChange)}` : ''}${l.p !== undefined ? `, Δχ² p ${pv(l.p)}` : ''})`).join('; ')}.`,
-            sources: ['appelbaum2018'],
-            link: tab('Measurement invariance'),
-          }
-        : {
-            ...HEAD.invariance,
-            status: 'issue',
-            evidence: `The groups are fitted at the ${mg.invariance} level without the sequence of invariance tests in the results.`,
-            sources: ['appelbaum2018'],
-            link: tab('Measurement invariance'),
-          },
-  );
+  out.push(cbInvarianceItem(input));
   // Sample size against free parameters (N:q).
   const q = fit.npar;
   if (q > 0) {
     const ratio = cb.n / q;
+    let ratioNote = '';
+    if (ratio < 10) ratioNote = ', below 10:1';
+    else if (ratio < 20) ratioNote = ' (10:1 is often taken as a minimum; 20:1 is recommended)';
     out.push({
       id: 'samplesize',
       section: 'Data',
       label: 'Sample size adequate for the number of free parameters',
       sources: JA,
       status: ratio < 10 ? 'issue' : 'done',
-      evidence: `N = ${cb.n}, q = ${q} free parameters: N:q = ${ratio.toFixed(1)}${ratio < 10 ? ', below 10:1' : ratio < 20 ? ' (10:1 is often taken as a minimum; 20:1 is recommended)' : ''}. Justify the sample size, ideally by a power analysis.`,
+      evidence:
+        `N = ${cb.n}, q = ${q} free parameters: N:q = ${ratio.toFixed(1)}${ratioNote}.` +
+        ' Justify the sample size, ideally by a power analysis.',
       link: card('mc', 'Add Monte Carlo simulation'),
     });
   }
   out.push(missingItem(input, cb.droppedRows, BOTH));
-  const nonnormal = ['MLR', 'MLM', 'MLMV', 'WLSMV', 'WLS'].includes(cb.estimator);
-  out.push({
-    id: 'distribution',
-    section: 'Estimation',
-    label: 'Distributional assumptions checked; estimator justified',
-    sources: BOTH,
-    status: nonnormal || ran(input, 'screen') ? 'done' : 'author',
-    evidence: nonnormal
-      ? `${cb.estimator} does not assume multivariate normality.${ran(input, 'screen') ? ' The data were screened.' : ''}`
-      : ran(input, 'screen')
-        ? `${cb.estimator}; the data screening card reports univariate and multivariate normality.`
-        : `${cb.estimator} assumes multivariate normality: report a normality check, or use a robust estimator (MLR).`,
-    link: card('screen', 'Add Data screening'),
-  });
+  out.push(distributionItem(input, cb.estimator, BOTH));
   out.push(
     bootItem(
       input,
@@ -362,23 +433,31 @@ function cbChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] 
       JARS,
     ),
   );
-  if (input.model.paths.length)
+  if (input.model.paths.length) {
+    const r2 = cb.constructs.flatMap((name, j) => {
+      const value = cb.r2Constructs[j];
+      return value !== null && value !== undefined ? [`${name}: ${f2(value)}`] : [];
+    });
     out.push({
       id: 'r2',
       section: 'Structural model',
       label: 'Variance explained (R²) of the endogenous constructs reported',
       sources: JARS,
       status: 'done',
-      evidence: `${cb.constructs.flatMap((n, j) => (cb.r2Constructs[j] !== null && cb.r2Constructs[j] !== undefined ? [`${n}: ${f2(cb.r2Constructs[j]!)}`] : [])).join(', ')}.`,
+      evidence: `${r2.join(', ')}.`,
       link: tab('Regressions'),
     });
+  }
+  const modindices = cb.modindices?.length
+    ? `${cb.modindices.length} modification indices ≥ 3.84 in the results. `
+    : '';
   out.push({
     id: 'modifications',
     section: 'Specification',
     label: 'Post hoc modifications reported and justified',
     sources: BOTH,
     status: 'author',
-    evidence: `${cb.modindices?.length ? `${cb.modindices.length} modification indices ≥ 3.84 in the results. ` : ''}Report every change made after seeing the data, with its theoretical justification.`,
+    evidence: `${modindices}Report every change made after seeing the data, with its theoretical justification.`,
     link: tab('Modification indices'),
   });
   out.push({
@@ -411,10 +490,11 @@ function htmtItem(
       }
     }),
   );
+  const threshold = cut === 0.85 ? '.85 (.90 for conceptually similar constructs)' : cut;
   return {
     id: 'htmt',
     section: 'Measurement model',
-    label: `Discriminant validity: HTMT below ${cut === 0.85 ? '.85 (.90 for conceptually similar constructs)' : cut}`,
+    label: `Discriminant validity: HTMT below ${threshold}`,
     sources,
     status: pairs.length ? 'issue' : 'done',
     evidence: pairs.length ? `At or above .85: ${join(pairs)}.` : `Largest HTMT ${f2(max)}.`,
@@ -455,45 +535,54 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     .map((k) => at(k.name))
     .filter((j) => j >= 0);
   if (modeA.length) {
-    const q = (j: number) => pls.quality[j];
+    const quality = (j: number) => pls.quality[j];
+    // A loading below .708 can stay when it is above .40 and its construct is reliable.
     const low = modeA.flatMap((j) =>
       block(j)
         .filter((x) => pls.loadings[x.i] < 0.708)
         .map((x) => ({
           text: `${x.name} (${f3(pls.loadings[x.i])})`,
-          ok: pls.loadings[x.i] >= 0.4 && q(j).ave >= 0.5 && q(j).rhoC >= 0.7,
+          ok: pls.loadings[x.i] >= 0.4 && quality(j).ave >= 0.5 && quality(j).rhoC >= 0.7,
         })),
     );
+    const lowAdvice = low.every((x) => x.ok)
+      ? ' Kept: each is above .40 and its construct meets the reliability and AVE thresholds.'
+      : ' Consider removing indicators below .40, or below .708 where that raises ρC or AVE above the threshold.';
     out.push({
       id: 'indicatorreliability',
       section: 'Measurement model',
       label: 'Indicator reliability: loadings of at least .708',
       sources: H,
       status: low.some((x) => !x.ok) ? 'issue' : 'done',
-      evidence: !low.length
-        ? 'Every Mode A loading is at least .708.'
-        : `Below .708: ${join(low.map((x) => x.text))}.${low.every((x) => x.ok) ? ' Kept: each is above .40 and its construct meets the reliability and AVE thresholds.' : ' Consider removing indicators below .40, or below .708 where that raises ρC or AVE above the threshold.'}`,
+      evidence: low.length
+        ? `Below .708: ${join(low.map((x) => x.text))}.${lowAdvice}`
+        : 'Every Mode A loading is at least .708.',
       link: tab('Loadings & weights'),
     });
-    const rel = modeA.map((j) => ({ name: pls.constructs[j], ...q(j) }));
+    const rel = modeA.map((j) => ({ name: pls.constructs[j], ...quality(j) }));
     const badRel = rel.filter((r) => r.rhoC < 0.7 || r.rhoA < 0.7 || r.rhoC > 0.95);
+    const redundant = badRel.some((r) => r.rhoC > 0.95) ? ' (above .95: redundant items)' : '';
+    const outside = badRel.length
+      ? ` Outside .70–.95: ${join(badRel.map((r) => r.name))}${redundant}.`
+      : '';
     out.push({
       id: 'reliability',
       section: 'Measurement model',
       label: 'Internal consistency: ρA and ρC between .70 and .95',
       sources: ['dijkstra2015', ...H],
       status: badRel.length ? 'issue' : 'done',
-      evidence: `${join(rel.map((r) => `${r.name}: ρA ${f2(r.rhoA)}, ρC ${f2(r.rhoC)}`))}.${badRel.length ? ` Outside .70–.95: ${join(badRel.map((r) => r.name))}${badRel.some((r) => r.rhoC > 0.95) ? ' (above .95: redundant items)' : ''}.` : ''}`,
+      evidence: `${join(rel.map((r) => `${r.name}: ρA ${f2(r.rhoA)}, ρC ${f2(r.rhoC)}`))}.${outside}`,
       link: tab('Reliability'),
     });
     const badAve = rel.filter((r) => r.ave < 0.5);
+    const belowAve = badAve.length ? ` Below .50: ${join(badAve.map((r) => r.name))}.` : '';
     out.push({
       id: 'ave',
       section: 'Measurement model',
       label: 'Convergent validity: AVE of at least .50',
       sources: ['fornell1981', ...H],
       status: badAve.length ? 'issue' : 'done',
-      evidence: `${join(rel.map((r) => `${r.name}: ${f2(r.ave)}`))}.${badAve.length ? ` Below .50: ${join(badAve.map((r) => r.name))}.` : ''}`,
+      evidence: `${join(rel.map((r) => `${r.name}: ${f2(r.ave)}`))}.${belowAve}`,
       link: tab('Reliability'),
     });
     out.push(htmtItem(pls.constructs, pls.htmt, 0.85, ['henseler2015', ...H]));
@@ -502,15 +591,19 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     const vifs = modeB.flatMap((j) =>
       block(j).map((x) => ({ name: x.name, v: pls.vifOuter[x.i] })),
     );
-    const high = vifs.filter((x) => x.v >= 5),
-      mid = vifs.filter((x) => x.v >= 3 && x.v < 5);
+    const high = vifs.filter((x) => x.v >= 5);
+    const mid = vifs.filter((x) => x.v >= 3 && x.v < 5);
+    const listVifs = (xs: typeof vifs) => join(xs.map((x) => `${x.name} (${f2(x.v)})`));
+    const largest = f2(Math.max(...vifs.map((x) => x.v)));
+    const highText = high.length ? ` At least 5: ${listVifs(high)}.` : '';
+    const midText = mid.length ? ` Between 3 and 5: ${listVifs(mid)}.` : '';
     out.push({
       id: 'outervif',
       section: 'Measurement model',
       label: 'Formative indicators: collinearity (VIF below 3; 5 or above is critical)',
       sources: H,
       status: high.length ? 'issue' : 'done',
-      evidence: `Largest VIF ${f2(Math.max(...vifs.map((x) => x.v)))}.${high.length ? ` At least 5: ${join(high.map((x) => `${x.name} (${f2(x.v)})`))}.` : ''}${mid.length ? ` Between 3 and 5: ${join(mid.map((x) => `${x.name} (${f2(x.v)})`))}.` : ''}`,
+      evidence: `Largest VIF ${largest}.${highText}${midText}`,
       link: tab('Loadings & weights'),
     });
     const weights = input.boot?.stats.some((s) => s.group === 'weight');
@@ -533,14 +626,20 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
       ),
     );
     const maxV = Math.max(0, ...inner.map((x) => x.v));
+    const collinear =
+      maxV >= 3 ? ` (${join(inner.filter((x) => x.v >= 3).map((x) => x.path))})` : '';
     out.push({
       id: 'innervif',
       section: 'Structural model',
       label: 'Collinearity among predictors: inner VIF below 3',
       sources: H,
       status: maxV >= 5 ? 'issue' : 'done',
-      evidence: `Largest inner VIF ${f2(maxV)}${maxV >= 3 ? ` (${join(inner.filter((x) => x.v >= 3).map((x) => x.path))})` : ''}.`,
+      evidence: `Largest inner VIF ${f2(maxV)}${collinear}.`,
       link: tab('Path coefficients'),
+    });
+    const r2 = pls.constructs.flatMap((name, j) => {
+      const value = pls.rSquared[j];
+      return value !== null ? [`${name}: ${f2(value)}`] : [];
     });
     out.push({
       id: 'r2',
@@ -548,19 +647,17 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
       label: 'R² of the endogenous constructs reported',
       sources: H,
       status: 'done',
-      evidence:
-        pls.constructs
-          .flatMap((n, j) => (pls.rSquared[j] !== null ? [`${n}: ${f2(pls.rSquared[j]!)}`] : []))
-          .join(', ') + ' (.25 / .50 / .75 weak / moderate / substantial).',
+      evidence: r2.join(', ') + ' (.25 / .50 / .75 weak / moderate / substantial).',
       link: tab('Overview'),
     });
+    const hasF2 = pls.fSquare.some((row) => row.some((v) => v !== null));
     out.push({
       id: 'f2',
       section: 'Structural model',
       label: 'Effect sizes f² reported',
       sources: ['cohen1988', ...H],
-      status: pls.fSquare.some((r) => r.some((v) => v !== null)) ? 'done' : 'issue',
-      evidence: pls.fSquare.some((r) => r.some((v) => v !== null))
+      status: hasF2 ? 'done' : 'issue',
+      evidence: hasF2
         ? 'f² of every path is in the results (.02 / .15 / .35 small / medium / large).'
         : 'No f² in the results.',
       link: tab('Path coefficients'),
@@ -568,31 +665,36 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
     out.push(
       bootItem(input, true, 'Path coefficients tested with bootstrap confidence intervals', H),
     );
-    out.push(
-      ran(input, 'plspredict')
-        ? {
-            ...HEAD.predict,
-            status: 'done',
-            evidence: 'A PLSpredict card has run.',
-            sources: ['shmueli2019', ...H],
-            link: card('plspredict', 'Add PLSpredict'),
-          }
-        : {
-            ...HEAD.predict,
-            status: 'issue',
-            evidence: `${ran(input, 'blindfold') ? 'Only blindfolding Q² has run, which mixes in-sample explanation and prediction. ' : ''}Not assessed yet.`,
-            sources: ['shmueli2019', ...H],
-            link: card('plspredict', 'Add PLSpredict'),
-          },
-    );
+    if (ran(input, 'plspredict'))
+      out.push({
+        ...HEAD.predict,
+        status: 'done',
+        evidence: 'A PLSpredict card has run.',
+        sources: ['shmueli2019', ...H],
+        link: card('plspredict', 'Add PLSpredict'),
+      });
+    else {
+      const blindfold = ran(input, 'blindfold')
+        ? 'Only blindfolding Q² has run, which mixes in-sample explanation and prediction. '
+        : '';
+      out.push({
+        ...HEAD.predict,
+        status: 'issue',
+        evidence: `${blindfold}Not assessed yet.`,
+        sources: ['shmueli2019', ...H],
+        link: card('plspredict', 'Add PLSpredict'),
+      });
+    }
   }
   const srmr = pls.fit.estimated.srmr;
+  let srmrStatus: CheckStatus = 'na';
+  if (Number.isFinite(srmr)) srmrStatus = srmr < 0.08 ? 'done' : 'issue';
   out.push({
     id: 'srmr',
     section: 'Model fit',
     label: 'Approximate fit (SRMR below .08), reported with caution',
     sources: ['henseler2014', ...H],
-    status: Number.isFinite(srmr) ? (srmr < 0.08 ? 'done' : 'issue') : 'na',
+    status: srmrStatus,
     evidence: Number.isFinite(srmr)
       ? `SRMR of the estimated model ${f3(srmr)}. Hair et al. (2019) advise against relying on fit measures in PLS-SEM.`
       : 'No SRMR in the results.',
@@ -615,13 +717,17 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
           link: card('mga', 'Add MICOM and multigroup analysis'),
         },
   );
+  const minSampleRan = ran(input, 'minsample');
+  const sampleNote = minSampleRan
+    ? ' The minimum sample size card has run.'
+    : ' Justify it, e.g. by the inverse square root method.';
   out.push({
     id: 'samplesize',
     section: 'Data',
     label: 'Sample size justified (minimum sample size)',
     sources: H,
-    status: ran(input, 'minsample') ? 'done' : 'author',
-    evidence: `N = ${pls.n}.${ran(input, 'minsample') ? ' The minimum sample size card has run.' : ' Justify it, e.g. by the inverse square root method.'}`,
+    status: minSampleRan ? 'done' : 'author',
+    evidence: `N = ${pls.n}.${sampleNote}`,
     link: card('minsample', 'Add Minimum sample size'),
   });
   out.push(missingItem(input, pls.droppedRows, H));
@@ -634,29 +740,29 @@ function plsChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[]
 
 function processChecks(input: ReportInput, issues: Issue[] | undefined): CheckItem[] {
   const r = input.process!;
-  const HY = ['hayes2022'],
-    JARS = ['appelbaum2018'];
+  const HY = ['hayes2022'];
+  const JARS = ['appelbaum2018'];
   const out: CheckItem[] = [specItem(issues, HY)];
   const latent = r.latent.length > 0;
-  out.push(
-    latent
-      ? {
-          ...HEAD.hc,
-          status: 'na',
-          evidence: 'Latent-variable model (lavaan::sam): no OLS standard errors.',
-          sources: ['hayes2007'],
-        }
-      : {
-          ...HEAD.hc,
-          sources: ['hayes2007', 'long2000'],
-          status: r.hc === 'none' ? 'author' : 'done',
-          evidence:
-            r.hc === 'none'
-              ? 'OLS standard errors assume homoskedasticity: check the residuals, or choose HC3 / HC4 in the settings.'
-              : `${r.hc} standard errors.`,
-          link: { kind: 'model', label: 'Model tab (settings)' },
-        },
-  );
+  if (latent)
+    out.push({
+      ...HEAD.hc,
+      status: 'na',
+      evidence: 'Latent-variable model (lavaan::sam): no OLS standard errors.',
+      sources: ['hayes2007'],
+    });
+  else {
+    const ols = r.hc === 'none';
+    out.push({
+      ...HEAD.hc,
+      sources: ['hayes2007', 'long2000'],
+      status: ols ? 'author' : 'done',
+      evidence: ols
+        ? 'OLS standard errors assume homoskedasticity: check the residuals, or choose HC3 / HC4 in the settings.'
+        : `${r.hc} standard errors.`,
+      link: { kind: 'model', label: 'Model tab (settings)' },
+    });
+  }
   out.push({
     id: 'assumptions',
     section: 'Data',
@@ -669,71 +775,54 @@ function processChecks(input: ReportInput, issues: Issue[] | undefined): CheckIt
     link: card('screen', 'Add Data screening'),
   });
   const indirect = r.indirect.length > 0;
-  out.push(
-    !indirect
-      ? {
-          ...HEAD.indirectBoot,
-          status: 'na',
-          evidence: 'No indirect effect in the model.',
-          sources: HY,
-        }
-      : {
-          ...HEAD.indirectBoot,
-          sources: r.inference === 'montecarlo' ? ['preacher2012', ...HY] : HY,
-          status: r.boot.samples >= 5000 ? 'done' : 'issue',
-          evidence: `${r.boot.samples.toLocaleString('en-US')} ${r.inference === 'montecarlo' ? 'Monte Carlo draws' : 'bootstrap resamples'}${r.boot.samples < 5000 ? ': increase to at least 5,000 for stable interval limits' : ''}.`,
-          link: tab('Direct & indirect effects'),
-        },
-  );
+  const monteCarlo = r.inference === 'montecarlo';
+  if (!indirect) {
+    out.push({
+      ...HEAD.indirectBoot,
+      status: 'na',
+      evidence: 'No indirect effect in the model.',
+      sources: HY,
+    });
+  } else {
+    const draws = monteCarlo ? 'Monte Carlo draws' : 'bootstrap resamples';
+    const tooFew =
+      r.boot.samples < 5000 ? ': increase to at least 5,000 for stable interval limits' : '';
+    out.push({
+      ...HEAD.indirectBoot,
+      sources: monteCarlo ? ['preacher2012', ...HY] : HY,
+      status: r.boot.samples >= 5000 ? 'done' : 'issue',
+      evidence: `${r.boot.samples.toLocaleString('en-US')} ${draws}${tooFew}.`,
+      link: tab('Direct & indirect effects'),
+    });
+  }
   const moderated = r.moderators.length > 0;
-  out.push(
-    !moderated
-      ? { ...HEAD.probing, status: 'na', evidence: 'No moderator.', sources: HY }
-      : {
-          ...HEAD.probing,
-          status: 'done',
-          sources: HY,
-          evidence: `Conditional effects at ${r.moderators.map((x) => `${x.name} = ${x.values.map((v) => f2(v)).join(' / ')}`).join('; ')}${r.jn.length ? '; Johnson–Neyman regions in the results' : ''}.`,
-          link: tab(r.jn.length ? 'Johnson–Neyman' : 'Direct & indirect effects'),
-        },
-  );
-  out.push(
-    !(moderated && indirect)
-      ? { ...HEAD.index, status: 'na', evidence: 'Not a moderated mediation model.', sources: HY }
-      : {
-          ...HEAD.index,
-          status: r.indices.length ? 'done' : 'issue',
-          sources: HY,
-          evidence: r.indices.length
-            ? `${r.indices.length} ${r.indices.length === 1 ? 'index' : 'indices'} with ${r.inference === 'montecarlo' ? 'Monte Carlo' : 'bootstrap'} intervals.`
-            : 'The model has no linear index for this moderation: compare conditional indirect effects instead.',
-          link: tab('Direct & indirect effects'),
-        },
-  );
-  const scales = input.model.constructs.filter((k) => k.indicators.length > 1 && !k.latent);
-  out.push(
-    !scales.length
-      ? {
-          ...HEAD.scales,
-          status: 'na',
-          evidence: latent ? 'The scales are latent variables.' : 'Single-item measures.',
-          sources: JARS,
-        }
-      : {
-          ...HEAD.scales,
-          sources: JARS,
-          status: ran(input, 'reliability') ? 'done' : 'issue',
-          evidence: `${scales.map((k) => k.name).join(', ')} ${scales.length === 1 ? 'is a mean score' : 'are mean scores'}, which ignores measurement error${ran(input, 'reliability') ? '; a reliability card has run' : ': report α or ω'}.`,
-          link: card('reliability', 'Add Reliability and agreement'),
-        },
-  );
+  if (!moderated) {
+    out.push({ ...HEAD.probing, status: 'na', evidence: 'No moderator.', sources: HY });
+  } else {
+    const probedAt = r.moderators
+      .map((x) => `${x.name} = ${x.values.map((v) => f2(v)).join(' / ')}`)
+      .join('; ');
+    const jn = r.jn.length ? '; Johnson–Neyman regions in the results' : '';
+    out.push({
+      ...HEAD.probing,
+      status: 'done',
+      sources: HY,
+      evidence: `Conditional effects at ${probedAt}${jn}.`,
+      link: tab(r.jn.length ? 'Johnson–Neyman' : 'Direct & indirect effects'),
+    });
+  }
+  out.push(moderatedMediationIndexItem(r, moderated && indirect, HY));
+  out.push(scalesItem(input, latent, JARS));
+  const directText = r.direct ? 'Direct' : '';
+  const indirectText = indirect ? `${r.direct ? ', ' : ''}${r.indirect.length} indirect` : '';
+  const totalText = r.total ? ' and total' : '';
   out.push({
     id: 'effects',
     section: 'Structural model',
     label: 'Direct, indirect and total effects reported with intervals',
     sources: HY,
     status: 'done',
-    evidence: `${r.direct ? 'Direct' : ''}${indirect ? `${r.direct ? ', ' : ''}${r.indirect.length} indirect` : ''}${r.total ? ' and total' : ''} effects in the results.`,
+    evidence: `${directText}${indirectText}${totalText} effects in the results.`,
     link: tab('Direct & indirect effects'),
   });
   out.push({
@@ -750,12 +839,61 @@ function processChecks(input: ReportInput, issues: Issue[] | undefined): CheckIt
   return out;
 }
 
+type ProcessResult = NonNullable<ReportInput['process']>;
+
+function moderatedMediationIndexItem(
+  r: ProcessResult,
+  moderatedMediation: boolean,
+  sources: string[],
+): CheckItem {
+  if (!moderatedMediation)
+    return { ...HEAD.index, status: 'na', evidence: 'Not a moderated mediation model.', sources };
+  const count = r.indices.length;
+  const noun = count === 1 ? 'index' : 'indices';
+  const intervals = r.inference === 'montecarlo' ? 'Monte Carlo' : 'bootstrap';
+  return {
+    ...HEAD.index,
+    status: count ? 'done' : 'issue',
+    sources,
+    evidence: count
+      ? `${count} ${noun} with ${intervals} intervals.`
+      : 'The model has no linear index for this moderation: compare conditional indirect effects instead.',
+    link: tab('Direct & indirect effects'),
+  };
+}
+
+/** Multi-item scales entered as mean scores need their reliability reported. */
+function scalesItem(input: ReportInput, latent: boolean, sources: string[]): CheckItem {
+  const scales = input.model.constructs.filter((k) => k.indicators.length > 1 && !k.latent);
+  if (!scales.length)
+    return {
+      ...HEAD.scales,
+      status: 'na',
+      evidence: latent ? 'The scales are latent variables.' : 'Single-item measures.',
+      sources,
+    };
+  const reliabilityRan = ran(input, 'reliability');
+  const names = scales.map((k) => k.name).join(', ');
+  const verb = scales.length === 1 ? 'is a mean score' : 'are mean scores';
+  const advice = reliabilityRan ? '; a reliability card has run' : ': report α or ω';
+  return {
+    ...HEAD.scales,
+    sources,
+    status: reliabilityRan ? 'done' : 'issue',
+    evidence: `${names} ${verb}, which ignores measurement error${advice}.`,
+    link: card('reliability', 'Add Reliability and agreement'),
+  };
+}
+
 /** Why there is no checklist yet; null when the results for the method are there. */
 export function checklistBlocked(input: ReportInput): string | null {
   const s = input.settings;
   if (s.method === 'cbsem' && s.estimator === '2SLS')
     return 'The checklist covers PLS-SEM, CB-SEM estimated by lavaan or the built-in engine, and conditional process analysis; not MIIV-2SLS.';
-  const have = s.method === 'pls' ? input.pls : s.method === 'process' ? input.process : input.cb;
+  let have: unknown;
+  if (s.method === 'pls') have = input.pls;
+  else if (s.method === 'process') have = input.process;
+  else have = input.cb;
   return have ? null : 'Calculate the model first (Model tab): the checklist reads its results.';
 }
 
@@ -764,11 +902,9 @@ export function reviewerChecklist(input: ReportInput, issues?: Issue[]): CheckIt
   const why = checklistBlocked(input);
   if (why) throw new Error(why);
   const s = input.settings;
-  return s.method === 'pls'
-    ? plsChecks(input, issues)
-    : s.method === 'process'
-      ? processChecks(input, issues)
-      : cbChecks(input, issues);
+  if (s.method === 'pls') return plsChecks(input, issues);
+  if (s.method === 'process') return processChecks(input, issues);
+  return cbChecks(input, issues);
 }
 
 export const statusCounts = (items: CheckItem[]) => ({

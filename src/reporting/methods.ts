@@ -58,20 +58,20 @@ export interface MethodsText {
 
 // Citation markers inside the draft: ⟦key,key⟧ parenthetical, ⟦t:key⟧ narrative, ⟦a:key⟧ bare (already inside
 // parentheses: natbib's \citealp), ⟦pre|key⟧ with a prefix inside the parentheses.
-const OPEN = '⟦',
-  CLOSE = '⟧';
+const OPEN = '⟦';
+const CLOSE = '⟧';
 const cite = (...keys: string[]) => `${OPEN}${keys.join(',')}${CLOSE}`;
 const citePre = (pre: string, ...keys: string[]) => `${OPEN}${pre}|${keys.join(',')}${CLOSE}`;
 const citet = (key: string) => `${OPEN}t:${key}${CLOSE}`;
 const citealp = (...keys: string[]) => `${OPEN}a:${keys.join(',')}${CLOSE}`;
 const MARKER = new RegExp(`${OPEN}([^${CLOSE}]*)${CLOSE}`, 'g');
 
-const list = (xs: string[]) =>
-  xs.length <= 1
-    ? xs.join('')
-    : xs.length === 2
-      ? `${xs[0]} and ${xs[1]}`
-      : `${xs.slice(0, -1).join(', ')}, and ${xs[xs.length - 1]}`;
+/** "a", "a and b", "a, b, and c". */
+function list(xs: string[]): string {
+  if (xs.length <= 1) return xs.join('');
+  if (xs.length === 2) return `${xs[0]} and ${xs[1]}`;
+  return `${xs.slice(0, -1).join(', ')}, and ${xs[xs.length - 1]}`;
+}
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const pct = (c: number) => `${Math.round(c * 1000) / 10}%`;
 
@@ -98,8 +98,10 @@ const PACKAGE_KEY: Record<string, string> = {
   MIIVsem: 'fisher2021',
 };
 /** The R version the results were computed in: the desktop helper's, or the browser session's. */
-const rVersion = (e: EngineTag | undefined, input: ReportInput) =>
-  e?.desktop ? (/R version ([0-9.]+)/.exec(e.desktop)?.[1] ?? null) : (input.runtime?.R ?? null);
+function rVersion(e: EngineTag | undefined, input: ReportInput): string | null {
+  if (e?.desktop) return /R version ([0-9.]+)/.exec(e.desktop)?.[1] ?? null;
+  return input.runtime?.R ?? null;
+}
 
 class Draft {
   readonly parts: string[] = [];
@@ -120,16 +122,21 @@ function software(e: EngineTag | undefined, input: ReportInput, d: Draft, builti
       ? `${p.name} ${citePre(`version ${p.version};`, key)}`
       : `${p.name} (version ${p.version})`;
   });
-  const rv = rVersion(e, input) ?? (enginePackages(e).find((p) => p.name === 'R')?.version || null);
+  const rPackageVersion = enginePackages(e).find((p) => p.name === 'R')?.version || null;
+  const rv = rVersion(e, input) ?? rPackageVersion;
   if (rv) d.versions.rcore = rv;
   const r = rv ? `R ${citePre(`version ${rv};`, 'rcore')}` : `R ${cite('rcore')}`;
-  const where = e.desktop
-    ? ''
-    : input.runtime?.webR
-      ? `, run in the web browser through webR ${citePre(`version ${input.runtime.webR};`, 'webr')}`
-      : '';
-  if (!e.desktop && input.runtime?.webR) d.versions.webr = input.runtime.webR;
-  return `${named.length ? `the R ${named.length === 1 ? 'package' : 'packages'} ${list(named)} in ` : ''}${r}${where}, through PLS Studio`;
+  // Results computed in the browser name webR as well.
+  const webR = e.desktop ? undefined : input.runtime?.webR;
+  let where = '';
+  if (webR) {
+    where = `, run in the web browser through webR ${citePre(`version ${webR};`, 'webr')}`;
+    d.versions.webr = webR;
+  }
+  const packages = named.length
+    ? `the R ${named.length === 1 ? 'package' : 'packages'} ${list(named)} in `
+    : '';
+  return `${packages}${r}${where}, through PLS Studio`;
 }
 
 const nameOf = (m: ModelState) => {
@@ -142,16 +149,17 @@ function measurement(m: ModelState, method: Settings['method']): string {
   const first = m.constructs.filter((k) => !k.components?.length);
   const desc = first.map((k) => {
     const n = k.indicators.length;
-    if (method === 'process')
-      return `${k.name} (${n > 1 ? (k.latent ? `latent, ${n} indicators` : `mean of ${n} items`) : 'observed'})`;
+    if (method === 'process') {
+      let scale = 'observed';
+      if (n > 1) scale = k.latent ? `latent, ${n} indicators` : `mean of ${n} items`;
+      return `${k.name} (${scale})`;
+    }
     if (k.covariate) return `${k.name} (observed covariate)`;
     if (n === 1) return `${k.name} (single indicator)`;
-    const kind =
-      k.type === 'factor'
-        ? 'reflective'
-        : method === 'pls'
-          ? `composite, Mode ${k.mode === 'unit' ? 'unit weights' : k.mode}`
-          : 'composite';
+    let kind = 'composite';
+    if (k.type === 'factor') kind = 'reflective';
+    else if (method === 'pls')
+      kind = `composite, Mode ${k.mode === 'unit' ? 'unit weights' : k.mode}`;
     return `${k.name} (${kind}, ${n} indicators)`;
   });
   const items = new Set(first.flatMap((k) => k.indicators)).size;
@@ -161,7 +169,8 @@ function measurement(m: ModelState, method: Settings['method']): string {
 function structural(m: ModelState): string | null {
   const name = nameOf(m);
   if (!m.paths.length) return null;
-  return `${count(m.paths.length, 'structural path')} (${m.paths.map((p) => `${name(p.from)} → ${name(p.to)}`).join('; ')})`;
+  const arrows = m.paths.map((p) => `${name(p.from)} → ${name(p.to)}`).join('; ');
+  return `${count(m.paths.length, 'structural path')} (${arrows})`;
 }
 
 /** "The model comprises <measurement>, and <structural paths>." */
@@ -178,17 +187,14 @@ function higherOrder(m: ModelState): string[] {
 }
 
 function moderationText(m: ModelState): string[] {
-  const name = nameOf(m),
-    path = new Map(m.paths.map((p) => [p.id, p]));
+  const name = nameOf(m);
+  const path = new Map(m.paths.map((p) => [p.id, p]));
   return m.moderations.flatMap((mo) => {
     const p = path.get(mo.path);
-    return p
-      ? [
-          mo.moderator === p.from
-            ? `${name(p.from)}² → ${name(p.to)}`
-            : `${name(mo.moderator)} moderating ${name(p.from)} → ${name(p.to)}`,
-        ]
-      : [];
+    if (!p) return [];
+    // A construct moderating its own path is a quadratic effect.
+    if (mo.moderator === p.from) return [`${name(p.from)}² → ${name(p.to)}`];
+    return [`${name(mo.moderator)} moderating ${name(p.from)} → ${name(p.to)}`];
   });
 }
 
@@ -206,41 +212,56 @@ function missingText(
   switch (s.missing) {
     case 'mean':
       return `Missing values${cells} were replaced by the indicator’s mean.`;
-    case 'casewise':
-      return `Cases with missing values${cells} were deleted listwise${dropped ? `, removing ${count(dropped, 'case')}` : ''}${n !== null ? `, leaving N = ${n}` : ''}.`;
+    case 'casewise': {
+      const removing = dropped ? `, removing ${count(dropped, 'case')}` : '';
+      const leaving = n !== null ? `, leaving N = ${n}` : '';
+      return `Cases with missing values${cells} were deleted listwise${removing}${leaving}.`;
+    }
     case 'pairwise':
       return `Missing values${cells} were handled by pairwise deletion.`;
-    case 'fiml':
-      return `Missing values${cells} were handled by full-information maximum likelihood ${abbr('FIML', ['arbuckle1996', 'enders2001'])}${s.method === 'cbsem' && s.estimator === 'MLR' ? `, with robust standard errors and test statistic for incomplete non-normal data ${cite('yuan2000')}` : ''}.`;
+    case 'fiml': {
+      const fiml = abbr('FIML', ['arbuckle1996', 'enders2001']);
+      const robust =
+        s.method === 'cbsem' && s.estimator === 'MLR'
+          ? `, with robust standard errors and test statistic for incomplete non-normal data ${cite('yuan2000')}`
+          : '';
+      return `Missing values${cells} were handled by full-information maximum likelihood ${fiml}${robust}.`;
+    }
     case 'twostage':
     case 'robusttwostage':
       return `Missing values${cells} were handled by the ${s.missing === 'robusttwostage' ? 'robust ' : ''}two-stage approach ${cite('savalei2009')}.`;
     case 'mi': {
       const m = imputations ?? s.miImputations;
-      const how =
-        s.miMethod === 'amelia'
-          ? `Amelia II ${cite('honaker2011')}`
-          : s.miMethod === 'joint'
-            ? 'joint-model data augmentation under the unrestricted multivariate normal model'
-            : `chained equations with mice ${cite('vanbuuren2011')}${s.miMethod === 'micenorm' ? ' (Bayesian normal regression)' : ' (predictive mean matching)'}`;
+      const how = imputationMethod(s.miMethod);
       return `Missing values${cells} were multiply imputed (${count(m, 'imputed data set')}) by ${how}; the estimates were pooled by Rubin’s rules ${cite('rubin1987')}.`;
     }
   }
 }
 
+function imputationMethod(miMethod: Settings['miMethod']): string {
+  if (miMethod === 'amelia') return `Amelia II ${cite('honaker2011')}`;
+  if (miMethod === 'joint')
+    return 'joint-model data augmentation under the unrestricted multivariate normal model';
+  const model =
+    miMethod === 'micenorm' ? ' (Bayesian normal regression)' : ' (predictive mean matching)';
+  return `chained equations with mice ${cite('vanbuuren2011')}${model}`;
+}
+
 function bootText(b: (BootstrapResult & { seed?: number }) | null | undefined): string | null {
   if (!b) return null;
-  const interval =
-    b.interval === 'bca'
-      ? 'bias-corrected and accelerated (BCa)'
-      : b.interval === 'studentized'
-        ? 'studentized'
-        : 'percentile';
+  let interval = 'percentile';
+  if (b.interval === 'bca') interval = 'bias-corrected and accelerated (BCa)';
+  else if (b.interval === 'studentized') interval = 'studentized';
   const failed = b.failed
     ? `, of which ${b.failed} failed and ${b.failed === 1 ? 'was' : 'were'} skipped,`
     : '';
   const seed = b.seed !== undefined ? `, random seed ${b.seed}` : '';
-  return `Standard errors and ${pct(b.confidence)} ${interval} confidence intervals came from ${b.samples.toLocaleString('en-US')} bootstrap resamples ${cite('efron1993')}${failed || ','} with ${b.tails === 1 ? 'one' : 'two'}-tailed tests${seed}.`;
+  const resamples = b.samples.toLocaleString('en-US');
+  const tails = b.tails === 1 ? 'one' : 'two';
+  return (
+    `Standard errors and ${pct(b.confidence)} ${interval} confidence intervals came from ` +
+    `${resamples} bootstrap resamples ${cite('efron1993')}${failed || ','} with ${tails}-tailed tests${seed}.`
+  );
 }
 
 /** Has a card of one of these types run (in the analysis log)? */
@@ -249,26 +270,32 @@ export const ran = (input: ReportInput, ...types: string[]) =>
 
 // ---------------------------------------------------------------- PLS-SEM
 
+function plsMethodName(approach: string, consistent: boolean | undefined): string {
+  if (approach === 'GSCA') return 'generalized structured component analysis (GSCA)';
+  if (approach === 'PCA') return 'principal component scores';
+  if (approach === 'unit') return 'unit-weighted sum scores';
+  if (consistent)
+    return `consistent partial least squares structural equation modelling ${abbr('PLSc-SEM', ['dijkstra2015'])}`;
+  return 'partial least squares structural equation modelling (PLS-SEM)';
+}
+
 function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
   const { model: m, settings: s } = input;
   const approach = pls.approach ?? 'PLS-PM';
-  const method =
-    approach === 'GSCA'
-      ? 'generalized structured component analysis (GSCA)'
-      : approach === 'PCA'
-        ? 'principal component scores'
-        : approach === 'unit'
-          ? 'unit-weighted sum scores'
-          : pls.consistent
-            ? `consistent partial least squares structural equation modelling ${abbr('PLSc-SEM', ['dijkstra2015'])}`
-            : 'partial least squares structural equation modelling (PLS-SEM)';
-  d.add(
-    `The model was estimated by ${method} with ${software(pls.engine, input, d, 'the built-in PLS-SEM engine')}, on N = ${pls.n} cases.`,
-  );
-  if (approach === 'PLS-PM')
+  const method = plsMethodName(approach, pls.consistent);
+  const by = software(pls.engine, input, d, 'the built-in PLS-SEM engine');
+  d.add(`The model was estimated by ${method} with ${by}, on N = ${pls.n} cases.`);
+  if (approach === 'PLS-PM') {
+    const scheme = s.scheme === 'factor' ? 'factorial' : s.scheme;
+    const iterations = count(pls.iterations, 'iteration');
+    const outcome = pls.converged
+      ? `converged after ${iterations}`
+      : `did not converge within ${iterations}`;
     d.add(
-      `The PLS algorithm used the ${s.scheme === 'factor' ? 'factorial' : s.scheme} weighting scheme and stopped when the outer weights changed by less than 10^−${s.stopExp} (at most ${s.maxIter} iterations); it ${pls.converged ? `converged after ${count(pls.iterations, 'iteration')}` : `did not converge within ${count(pls.iterations, 'iteration')}`}.`,
+      `The PLS algorithm used the ${scheme} weighting scheme and stopped when the outer weights changed by ` +
+        `less than 10^−${s.stopExp} (at most ${s.maxIter} iterations); it ${outcome}.`,
     );
+  }
   d.add(
     'The indicators were standardised (mean 0, variance 1) before estimation, so loadings, weights and path coefficients are standardised.',
   );
@@ -280,8 +307,10 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
       embedded: 'embedded two-stage approach',
       repeated: 'repeated indicators approach',
     }[pls.hocApproach ?? s.hocApproach];
+    const one = hoc.length === 1;
     d.add(
-      `The higher-order ${hoc.length === 1 ? 'construct' : 'constructs'} ${list(hoc)} ${hoc.length === 1 ? 'was' : 'were'} estimated with the ${how} ${cite('becker2012', 'sarstedt2019')}.`,
+      `The higher-order ${one ? 'construct' : 'constructs'} ${list(hoc)} ${one ? 'was' : 'were'} ` +
+        `estimated with the ${how} ${cite('becker2012', 'sarstedt2019')}.`,
     );
   }
   if (pls.moderations.length) {
@@ -308,20 +337,34 @@ function plsDraft(input: ReportInput, pls: WithEngine<PlsResult>, d: Draft) {
   const modeB = m.constructs.filter(
     (k) => !k.components?.length && k.indicators.length > 1 && k.mode === 'B',
   );
+  const reflectiveCriteria = modeA.length
+    ? 'the reflectively measured (Mode A) constructs were assessed by indicator loadings (at least 0.708), ' +
+      `internal consistency reliability (Cronbach’s α, ρA and ρC between 0.70 and 0.95; ρA: ${citealp('dijkstra2015')}), ` +
+      `convergent validity (average variance extracted, AVE, at least 0.50; ${citealp('fornell1981')}) ` +
+      'and discriminant validity (heterotrait–monotrait ratio, HTMT, below 0.85, or 0.90 for conceptually ' +
+      `similar constructs; ${citealp('henseler2015')})`
+    : 'the measurement models were assessed';
+  let formativeCriteria = '';
+  if (modeB.length)
+    formativeCriteria =
+      `${modeA.length ? '; the' : ', and the'} formatively measured (Mode B) constructs by indicator ` +
+      'collinearity (VIF below 3; 5 or above is critical) and the significance and relevance of their outer weights';
   d.add(
     `Following the reporting guidelines of ${citet('hair2019')} and ${citet('becker2023')}, ` +
-      (modeA.length
-        ? `the reflectively measured (Mode A) constructs were assessed by indicator loadings (at least 0.708), internal consistency reliability (Cronbach’s α, ρA and ρC between 0.70 and 0.95; ρA: ${citealp('dijkstra2015')}), convergent validity (average variance extracted, AVE, at least 0.50; ${citealp('fornell1981')}) and discriminant validity (heterotrait–monotrait ratio, HTMT, below 0.85, or 0.90 for conceptually similar constructs; ${citealp('henseler2015')})`
-        : 'the measurement models were assessed') +
-      (modeB.length
-        ? `${modeA.length ? '; the' : ', and the'} formatively measured (Mode B) constructs by indicator collinearity (VIF below 3; 5 or above is critical) and the significance and relevance of their outer weights`
-        : '') +
+      reflectiveCriteria +
+      formativeCriteria +
       '.',
   );
-  if (m.paths.length)
+  if (m.paths.length) {
+    const significance = input.boot
+      ? ' and the significance of the path coefficients by their bootstrap confidence intervals'
+      : '';
     d.add(
-      `The structural model was assessed by collinearity among predictors (inner VIF below 3), the coefficient of determination R² (0.25, 0.50 and 0.75 as weak, moderate and substantial; ${citealp('hair2019')}), the effect size f² (0.02, 0.15 and 0.35 as small, medium and large; ${citealp('cohen1988')})${input.boot ? ' and the significance of the path coefficients by their bootstrap confidence intervals' : ''}.`,
+      'The structural model was assessed by collinearity among predictors (inner VIF below 3), ' +
+        `the coefficient of determination R² (0.25, 0.50 and 0.75 as weak, moderate and substantial; ${citealp('hair2019')}), ` +
+        `the effect size f² (0.02, 0.15 and 0.35 as small, medium and large; ${citealp('cohen1988')})${significance}.`,
     );
+  }
   d.add(
     `As a measure of approximate model fit, the SRMR of the estimated model is reported against the threshold of 0.08 ${cite('henseler2014')}, with the caveat that fit measures are of limited use in PLS-SEM ${cite('hair2019')}.`,
   );
@@ -373,14 +416,20 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
   const m = input.model;
   const cfa = !m.paths.length;
   const [est, short, estKeys] = ESTIMATOR[cb.estimator] ?? [cb.estimator, cb.estimator, []];
+  const kind = cfa
+    ? 'confirmatory factor analysis (CFA)'
+    : 'covariance-based structural equation model (CB-SEM)';
+  const by = software(cb.engine, input, d, 'the built-in CB-SEM engine');
   d.add(
-    `The model was estimated as a ${cfa ? 'confirmatory factor analysis (CFA)' : 'covariance-based structural equation model (CB-SEM)'} by ${est} ${abbr(short, estKeys)} with ${software(cb.engine, input, d, 'the built-in CB-SEM engine')}, on N = ${cb.n} cases.`,
+    `The model was estimated as a ${kind} by ${est} ${abbr(short, estKeys)} with ${by}, on N = ${cb.n} cases.`,
   );
-  if (cb.engine?.package === 'modsem' || cb.interaction)
-    d.add(
-      `The latent interactions were estimated by ${cb.interaction === 'qml' ? `quasi-maximum likelihood ${abbr('QML', ['klein2007'])}` : `the latent moderated structural equations method ${abbr('LMS', ['klein2000'])}`}.`,
-    );
-  else if (m.moderations.length)
+  if (cb.engine?.package === 'modsem' || cb.interaction) {
+    const interactionMethod =
+      cb.interaction === 'qml'
+        ? `quasi-maximum likelihood ${abbr('QML', ['klein2007'])}`
+        : `the latent moderated structural equations method ${abbr('LMS', ['klein2000'])}`;
+    d.add(`The latent interactions were estimated by ${interactionMethod}.`);
+  } else if (m.moderations.length)
     d.add(
       `Latent interactions (${list(moderationText(m))}) were estimated with product indicators ${cite('marsh2004')}.`,
     );
@@ -388,8 +437,16 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
   const hoc = higherOrder(m);
   if (hoc.length) d.add(`Second-order ${hoc.length === 1 ? 'factor' : 'factors'}: ${list(hoc)}.`);
   const variance = m.constructs.filter((k) => k.scaling === 'variance').map((k) => k.name);
+  const multiItem = m.constructs.filter((k) => k.indicators.length > 1).length;
+  let scaling: string;
+  if (variance.length && variance.length === multiItem)
+    scaling = 'Each factor was scaled by fixing its variance to 1';
+  else {
+    const exceptions = variance.length ? ` (${list(variance)}: by fixing the variance to 1)` : '';
+    scaling = `Each factor was scaled by fixing the loading of its first indicator to 1${exceptions}`;
+  }
   d.add(
-    `${variance.length === m.constructs.filter((k) => k.indicators.length > 1).length && variance.length ? 'Each factor was scaled by fixing its variance to 1' : `Each factor was scaled by fixing the loading of its first indicator to 1${variance.length ? ` (${list(variance)}: by fixing the variance to 1)` : ''}`}; standardised estimates (latent and observed variables standardised) are reported alongside the unstandardised ones.`,
+    `${scaling}; standardised estimates (latent and observed variables standardised) are reported alongside the unstandardised ones.`,
   );
   if (m.ordered?.length)
     d.add(
@@ -404,18 +461,30 @@ function cbDraft(input: ReportInput, cb: WithEngine<CbResult>, d: Draft) {
   d.add(missingText(input, cb.n, cb.droppedRows, cb.imputations));
   d.add(bootText(input.boot));
   const robust = cb.fit.cfiRobust !== undefined || cb.fit.rmseaRobust !== undefined;
-  if (Number.isFinite(cb.fit.chisq))
+  if (Number.isFinite(cb.fit.chisq)) {
+    const scaled = cb.fit.chisqScaled !== undefined ? ' (scaled)' : '';
+    const robustIndices = robust
+      ? `, using the robust CFI, TLI and RMSEA ${cite('brosseau2012', 'brosseau2014')}`
+      : '';
     d.add(
-      `Global fit was evaluated with the χ² test${cb.fit.chisqScaled !== undefined ? ' (scaled)' : ''}, the comparative fit index (CFI), the Tucker–Lewis index (TLI), the root mean square error of approximation (RMSEA) with its 90% confidence interval and the standardised root mean square residual (SRMR)${robust ? `, using the robust CFI, TLI and RMSEA ${cite('brosseau2012', 'brosseau2014')}` : ''}; following ${citet('hu1999')}, CFI and TLI of at least 0.95, RMSEA of at most 0.06 and SRMR of at most 0.08 indicate good fit, cut-offs that are guidelines rather than tests ${cite('jackson2009')}.`,
+      `Global fit was evaluated with the χ² test${scaled}, the comparative fit index (CFI), the Tucker–Lewis index (TLI), ` +
+        'the root mean square error of approximation (RMSEA) with its 90% confidence interval and ' +
+        `the standardised root mean square residual (SRMR)${robustIndices}; following ${citet('hu1999')}, ` +
+        'CFI and TLI of at least 0.95, RMSEA of at most 0.06 and SRMR of at most 0.08 indicate good fit, ' +
+        `cut-offs that are guidelines rather than tests ${cite('jackson2009')}.`,
     );
+  }
   if (m.constructs.some((k) => k.type === 'factor' && k.indicators.length > 1))
     d.add(
       `Convergent validity was assessed by standardised loadings (at least 0.50, ideally 0.70), composite reliability (at least 0.70) and the average variance extracted (at least 0.50; ${citealp('fornell1981')}), and discriminant validity by the heterotrait–monotrait ratio (below 0.85; ${citealp('henseler2015')}).`,
     );
-  if (input.invariance)
+  if (input.invariance) {
+    const strict = input.invariance.levels.some((l) => l.level === 'strict') ? ' and strict' : '';
     d.add(
-      `Measurement invariance across groups was tested by comparing configural, metric, scalar${input.invariance.levels.some((l) => l.level === 'strict') ? ' and strict' : ''} models with χ² difference tests and changes in CFI and RMSEA.`,
+      `Measurement invariance across groups was tested by comparing configural, metric, scalar${strict} models ` +
+        'with χ² difference tests and changes in CFI and RMSEA.',
     );
+  }
 }
 
 function miivDraft(input: ReportInput, miiv: WithEngine<MiivResult>, d: Draft) {
@@ -439,8 +508,12 @@ function processDraft(input: ReportInput, r: CpaResult, d: Draft) {
     : 'a custom conditional process model';
   const latent = r.latent.length > 0;
   const eng: EngineTag = r.engine as EngineTag;
+  const by = software(eng, input, d, 'PLS Studio');
+  const latentScales = latent
+    ? `, the scales ${list(r.latent)} modelled as latent variables by the structural-after-measurement approach ${cite('rosseel2024')}`
+    : '';
   d.add(
-    `The conditional process analysis (${label}; ${citealp('hayes2022')}) was estimated with ${software(eng, input, d, 'PLS Studio')}${latent ? `, the scales ${list(r.latent)} modelled as latent variables by the structural-after-measurement approach ${cite('rosseel2024')}` : ''}, on N = ${r.n} cases.`,
+    `The conditional process analysis (${label}; ${citealp('hayes2022')}) was estimated with ${by}${latentScales}, on N = ${r.n} cases.`,
   );
   if (g.graph) {
     const name = nameOf(m);
@@ -450,30 +523,70 @@ function processDraft(input: ReportInput, r: CpaResult, d: Draft) {
         ...g.graph.threeWay.flatMap((x) => x.by),
       ]),
     ].map(name);
+    const { mediators } = g.graph;
+    const mediatorText = mediators.length
+      ? `, with ${mediators.length === 1 ? 'the mediator' : 'the mediators'} ${list(mediators.map(name))}`
+      : '';
+    const moderatorText = mods.length
+      ? `, ${mods.length === 1 ? 'the moderator' : 'the moderators'} ${list(mods)}`
+      : '';
+    const covariateText = g.covariates.length
+      ? `, and the ${g.covariates.length === 1 ? 'covariate' : 'covariates'} ${list(g.covariates)} in every equation`
+      : '';
     d.add(
-      `X was ${name(g.graph.x)} and Y ${name(g.graph.y)}${g.graph.mediators.length ? `, with ${g.graph.mediators.length === 1 ? 'the mediator' : 'the mediators'} ${list(g.graph.mediators.map(name))}` : ''}${mods.length ? `, ${mods.length === 1 ? 'the moderator' : 'the moderators'} ${list(mods)}` : ''}${g.covariates.length ? `, and the ${g.covariates.length === 1 ? 'covariate' : 'covariates'} ${list(g.covariates)} in every equation` : ''}.`,
+      `X was ${name(g.graph.x)} and Y ${name(g.graph.y)}${mediatorText}${moderatorText}${covariateText}.`,
     );
   }
   d.add(
     `The variables were ${measurement(m, 'process').replace(/^\d+ constructs? measured by \d+ indicators?: /, '')}.`,
   );
+  const equations = r.binaryY
+    ? `The equation of the dichotomous Y was a logistic regression and the others`
+    : 'The equations were';
+  const estimation = latent
+    ? 'estimated within the latent-variable model'
+    : 'ordinary least squares regressions';
+  const hcErrors =
+    !latent && r.hc !== 'none'
+      ? ` and ${r.hc} heteroskedasticity-consistent standard errors ${cite('hayes2007', 'long2000')}`
+      : '';
   d.add(
-    `${r.binaryY ? `The equation of the dichotomous Y was a logistic regression and the others` : 'The equations were'} ${latent ? 'estimated within the latent-variable model' : 'ordinary least squares regressions'}, with variables in their original metric (unstandardised coefficients)${!latent && r.hc !== 'none' ? ` and ${r.hc} heteroskedasticity-consistent standard errors ${cite('hayes2007', 'long2000')}` : ''}.`,
+    `${equations} ${estimation}, with variables in their original metric (unstandardised coefficients)${hcErrors}.`,
   );
-  if (r.indirect.length || r.indices.length)
+  if (r.indirect.length || r.indices.length) {
+    const samples = r.boot.samples.toLocaleString('en-US');
+    const level = pct(s.confidence);
     d.add(
       r.inference === 'montecarlo'
-        ? `Indirect effects were tested with ${pct(s.confidence)} Monte Carlo confidence intervals from ${r.boot.samples.toLocaleString('en-US')} draws ${cite('preacher2012')}, random seed ${s.seed}.`
-        : `Indirect effects were tested with ${pct(s.confidence)} percentile bootstrap confidence intervals from ${r.boot.samples.toLocaleString('en-US')} resamples ${cite('efron1993')}, random seed ${s.seed}.`,
+        ? `Indirect effects were tested with ${level} Monte Carlo confidence intervals from ${samples} draws ${cite('preacher2012')}, random seed ${s.seed}.`
+        : `Indirect effects were tested with ${level} percentile bootstrap confidence intervals from ${samples} resamples ${cite('efron1993')}, random seed ${s.seed}.`,
     );
-  if (r.moderators.length)
+  }
+  if (r.moderators.length) {
+    const probedAt =
+      s.probe === 'meansd'
+        ? 'the mean and one standard deviation below and above the mean'
+        : 'the 16th, 50th and 84th percentiles';
+    const jn = r.jn.length
+      ? ', and regions of significance were found with the Johnson–Neyman technique'
+      : '';
     d.add(
-      `Conditional effects were probed at ${s.probe === 'meansd' ? 'the mean and one standard deviation below and above the mean' : 'the 16th, 50th and 84th percentiles'} of each moderator${r.jn.length ? ', and regions of significance were found with the Johnson–Neyman technique' : ''} ${cite('hayes2022')}.`,
+      `Conditional effects were probed at ${probedAt} of each moderator${jn} ${cite('hayes2022')}.`,
     );
+  }
   d.add(missingText(input, r.n, 0, undefined));
 }
 
 // ---------------------------------------------------------------- rendering
+
+/** A parsed citation marker as a natbib command. */
+function latexCite(c: { narrative: boolean; bare: boolean; pre: string; keys: string[] }): string {
+  const keys = c.keys.join(',');
+  if (c.narrative) return `\\citet{${keys}}`;
+  if (c.bare) return `\\citealp{${keys}}`;
+  if (c.pre) return `\\citep[${latexText(c.pre)}][]{${keys}}`;
+  return `\\citep{${keys}}`;
+}
 
 /** Plain text and LaTeX of a draft with citation markers. */
 export function render(
@@ -482,14 +595,12 @@ export function render(
 ): { text: string; latex: string; keys: string[] } {
   const keys: string[] = [];
   const parse = (body: string) => {
-    const narrative = body.startsWith('t:'),
-      bare = body.startsWith('a:');
-    const [pre, ks] =
-      narrative || bare
-        ? ['', body.slice(2)]
-        : body.includes('|')
-          ? (body.split('|') as [string, string])
-          : ['', body];
+    const narrative = body.startsWith('t:');
+    const bare = body.startsWith('a:');
+    let pre = '';
+    let ks = body;
+    if (narrative || bare) ks = body.slice(2);
+    else if (body.includes('|')) [pre, ks] = body.split('|') as [string, string];
     const list = ks.split(',').filter(Boolean);
     for (const k of list) if (!keys.includes(k)) keys.push(k);
     return { narrative, bare, pre: pre.trim(), keys: list };
@@ -508,14 +619,7 @@ export function render(
   let last = 0;
   for (const mm of draft.matchAll(MARKER)) {
     latex += latexText(draft.slice(last, mm.index));
-    const c = parse(mm[1]);
-    latex += c.narrative
-      ? `\\citet{${c.keys.join(',')}}`
-      : c.bare
-        ? `\\citealp{${c.keys.join(',')}}`
-        : c.pre
-          ? `\\citep[${latexText(c.pre)}][]{${c.keys.join(',')}}`
-          : `\\citep{${c.keys.join(',')}}`;
+    latex += latexCite(parse(mm[1]));
     last = mm.index! + mm[0].length;
   }
   latex += latexText(draft.slice(last));
@@ -526,14 +630,11 @@ export function render(
 export function methodsBlocked(input: ReportInput): string | null {
   const s = input.settings;
   const twoSls = s.method === 'cbsem' && s.estimator === '2SLS';
-  const have =
-    s.method === 'pls'
-      ? input.pls
-      : s.method === 'process'
-        ? input.process
-        : twoSls
-          ? input.miiv
-          : input.cb;
+  let have: unknown;
+  if (s.method === 'pls') have = input.pls;
+  else if (s.method === 'process') have = input.process;
+  else if (twoSls) have = input.miiv;
+  else have = input.cb;
   return have
     ? null
     : 'Calculate the model first (Model tab): the text describes the results it was estimated with.';

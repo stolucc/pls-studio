@@ -115,12 +115,22 @@ export function heldOf(
       (key.kind !== 'threshold' || (t.threshold ?? 1) === (key.threshold ?? 1)),
   );
 }
-/** "Variance (held at 1)…": the menu wording with the parameter's current state. */
-const heldLabel = (what: string, t: ParameterTerm | undefined) => {
-  if (!t) return `${what}…`;
+/** A held or labelled parameter's state: "per group: 1, 2", "held at 1" or "label a". */
+export function heldState(t: ParameterTerm): string {
   const v = heldText(t);
-  return `${what} (${t.byGroup?.length ? `per group: ${v}` : t.fixed !== undefined ? `held at ${v}` : `label ${v}`})…`;
-};
+  if (t.byGroup?.length) return `per group: ${v}`;
+  if (t.fixed !== undefined) return `held at ${v}`;
+  return `label ${v}`;
+}
+/** "Variance (held at 1)…": the menu wording with the parameter's current state. */
+const heldLabel = (what: string, t: ParameterTerm | undefined) =>
+  t ? `${what} (${heldState(t)})…` : `${what}…`;
+
+function fixLoadingLabel(held: number | undefined, isMarker: boolean): string {
+  if (held !== undefined) return `Change fixed loading (${held})…`;
+  if (isMarker) return 'Fix loading at another value than 1…';
+  return 'Fix loading at a value…';
+}
 
 /** CB-SEM: hold or label a construct's variance (a disturbance's when it is explained). Not for covariates (fixed.x) or a factor scaled by its variance. */
 function varianceItem(model: ModelState, edit: boolean, id: string): MenuItem | false {
@@ -233,12 +243,7 @@ export function menuFor(
           cb &&
           !owner2?.covariate && {
             action: 'fix-value',
-            label:
-              held !== undefined
-                ? `Change fixed loading (${held})…`
-                : isMarker
-                  ? 'Fix loading at another value than 1…'
-                  : 'Fix loading at a value…',
+            label: fixLoadingLabel(held, isMarker),
           },
         edit &&
           cb &&
@@ -438,8 +443,8 @@ export function menuFor(
       ]);
     }
     case 'implied': {
-      const a = model.constructs.find((c) => c.id === target.a),
-        b = model.constructs.find((c) => c.id === target.b);
+      const a = model.constructs.find((c) => c.id === target.a);
+      const b = model.constructs.find((c) => c.id === target.b);
       // Only implied pairs remain undrawn-but-shown: covariates (fixed at their sample values,
       // fixed.x) and factors of one ESEM block (correlated by the rotation). Nothing to change.
       if (!a || !b || !cb) return null;

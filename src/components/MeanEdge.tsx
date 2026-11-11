@@ -8,6 +8,7 @@ import { fixedText } from '../diagramLabels';
 import { meanSegment } from '../geometry';
 import { selectPlacedModel, useStore } from '../store';
 import { EstimateText } from './EstimateLabel';
+import { significanceClass } from '../figure/style';
 
 export type MeanEdgeData = {
   value: number | null;
@@ -37,7 +38,7 @@ function MeanEdgeImpl({ id, target, data, selected }: EdgeProps<MeanFlowEdge>) {
   const fixed = data?.fixed;
   const value = data?.value ?? fixed ?? null;
   const p = data?.p ?? null;
-  const cls = p === null ? '' : p < 0.05 ? ' sig' : ' ns';
+  const cls = significanceClass(p);
   return (
     <>
       <BaseEdge

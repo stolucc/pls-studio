@@ -68,11 +68,9 @@ export function buildFigureInput(
       const v = values.indicator?.(name, c.name) ?? null;
       const held = heldLoading(c, method, name, esem);
       const fixed = !!values.fixed?.(name) || held !== undefined;
-      return v === null
-        ? held !== undefined
-          ? { value: held, p: null, fixed: true }
-          : null
-        : { value: v, p: null, fixed };
+      if (v !== null) return { value: v, p: null, fixed };
+      // No estimate: a held loading is still drawn.
+      return held !== undefined ? { value: held, p: null, fixed: true } : null;
     });
     // CPA: observed variables (single items, mean scores) are drawn as rectangles, latent ones as ellipses.
     const observed = method === 'process' && !(c.latent && c.indicators.length > 1);
@@ -89,8 +87,8 @@ export function buildFigureInput(
     ? impliedMainEffects(m).map((e) => ({ id: '', from: e.from, to: e.to, implied: true }))
     : [];
   const paths = [...m.paths, ...impliedPaths].flatMap((p) => {
-    const s = byId.get(p.from),
-      t = byId.get(p.to);
+    const s = byId.get(p.from);
+    const t = byId.get(p.to);
     const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p.from, p.to)) : null;
     if (!seg) return [];
     const l = values.path?.(nameOf(p.from), nameOf(p.to));
@@ -108,9 +106,9 @@ export function buildFigureInput(
   });
   const moderations = m.moderations.flatMap((mo) => {
     const p = m.paths.find((q) => q.id === mo.path);
-    const s = p && byId.get(p.from),
-      t = p && byId.get(p.to),
-      mod = byId.get(mo.moderator);
+    const s = p && byId.get(p.from);
+    const t = p && byId.get(p.to);
+    const mod = byId.get(mo.moderator);
     // (a reciprocal pair: each arrow on its own side, as the moderator layer draws it)
     const seg = s && t ? pathSegment(s, t, pathOffset(m.paths, p!.from, p!.to)) : null;
     if (!seg || !mod) return [];
@@ -136,12 +134,11 @@ export function buildFigureInput(
   const higherOrder = m.constructs.flatMap((parent) =>
     (parent.components ?? []).flatMap((cid) => {
       const child = byId.get(cid);
-      const seg = child
-        ? parent.type === 'composite'
-          ? pathSegment(child, parent)
-          : pathSegment(parent, child)
-        : null;
-      if (!seg || !child) return [];
+      if (!child) return [];
+      // A composite is formed by its components (arrows in); a factor reflected in them (arrows out).
+      const seg =
+        parent.type === 'composite' ? pathSegment(child, parent) : pathSegment(parent, child);
+      if (!seg) return [];
       const l = values.higherOrder?.(parent.name, child.name);
       return [
         {

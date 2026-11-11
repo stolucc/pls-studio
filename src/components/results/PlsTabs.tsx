@@ -16,9 +16,11 @@ import {
   bootCols,
   c,
   htmtCls,
+  loadingCls,
   matrixRows,
   relCls,
   Table,
+  vifCls,
   type Cell,
   type Row,
 } from './Table';
@@ -50,6 +52,22 @@ function useTypes() {
   return useMemo(() => new Map(constructs.map((k) => [k.name, k.type])), [constructs]);
 }
 
+/** The algorithm card of the overview: "PLS", "PLSc", "OrdPLS", "GSCA", ... */
+function algorithmName(pls: PlsResult): string {
+  if (pls.approach === 'GSCA') return 'GSCA';
+  if (pls.approach === 'PCA') return 'PCA';
+  if (pls.approach === 'unit') return 'Sum scores';
+  return `${pls.ordinal?.length ? 'Ord' : ''}${pls.consistent ? 'PLSc' : 'PLS'}`;
+}
+
+function algorithmTitle(pls: PlsResult): string | undefined {
+  if (pls.ordinal?.length)
+    return `Ordinal PLS (Schuberth, Henseler & Dijkstra, 2018; cSEM): weights, loadings and paths from polychoric and polyserial correlations of the ordinal indicators ${pls.ordinal.join(', ')}. The construct scores are the weighted standardised category codes.`;
+  if (pls.approach && pls.approach !== 'PLS-PM')
+    return 'cSEM’s weighting approach for every construct (Weighting approach, under Calculated by)';
+  return undefined;
+}
+
 function Overview({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) {
   const project = useStore((s) => s.projectName);
   const endo = pls.constructs
@@ -63,26 +81,9 @@ function Overview({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null 
   return (
     <>
       <div className="stat-cards">
-        <div
-          className="stat-card"
-          title={
-            pls.ordinal?.length
-              ? `Ordinal PLS (Schuberth, Henseler & Dijkstra, 2018; cSEM): weights, loadings and paths from polychoric and polyserial correlations of the ordinal indicators ${pls.ordinal.join(', ')}. The construct scores are the weighted standardised category codes.`
-              : pls.approach && pls.approach !== 'PLS-PM'
-                ? 'cSEM’s weighting approach for every construct (Weighting approach, under Calculated by)'
-                : undefined
-          }
-        >
+        <div className="stat-card" title={algorithmTitle(pls)}>
           <div className="k">Algorithm</div>
-          <div className="v">
-            {pls.approach === 'GSCA'
-              ? 'GSCA'
-              : pls.approach === 'PCA'
-                ? 'PCA'
-                : pls.approach === 'unit'
-                  ? 'Sum scores'
-                  : `${pls.ordinal?.length ? 'Ord' : ''}${pls.consistent ? 'PLSc' : 'PLS'}`}
-          </div>
+          <div className="v">{algorithmName(pls)}</div>
         </div>
         <div className="stat-card">
           <div className="k">Observations</div>
@@ -178,7 +179,7 @@ function Paths({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
         c(`${C[i]} → ${C[j]}`),
         c(pls.pathCoef[i][j]),
         c(f2, f2 >= 0.35 ? 'good' : ''),
-        c(vif, vif > 5 ? 'bad' : vif > 3 ? 'warn' : ''),
+        c(vif, vifCls(vif)),
         ...(boot ? bootCells(b) : []),
       ]);
     }
@@ -237,6 +238,23 @@ function Effects({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }
   );
 }
 
+/** The bootstrap columns of the measurement model: p of the loading, p of the weight, the weight's CI. */
+function bootSignificance(loading: BootstrapStat | undefined, weight: BootstrapStat | undefined) {
+  const pc = (s: BootstrapStat | undefined) =>
+    s ? c(fmtP(s.p), s.p < 0.05 ? 'good' : 'dim') : c(null);
+  const weightCi = weight ? c(`[${fmt(weight.ciLow)}, ${fmt(weight.ciHigh)}]`) : c(null);
+  return [pc(loading), pc(weight), weightCi];
+}
+
+const HOC_NOTE = {
+  repeated:
+    'Repeated indicators: the dimensions’ indicators measure the second-order construct too, and the dimensions predict it. Loading: a dimension’s correlation with the second-order construct’s scores; weight: its path coefficient. Overall fit is not reported (the copied indicators make the model-implied matrix singular).',
+  embedded:
+    'cSEM’s embedded two-stage approach (.approach_2ndorder = "mixed"): stage 1 uses the repeated indicators, so the second-order construct is in the model from the start; stage 2 measures it by its dimensions’ scores (corrected for attenuation when it is a common factor). Its paths and R² are stage 2’s.',
+  disjoint:
+    'Two-stage approach (disjoint): stage 1 estimates the first-order constructs; their scores are the indicators of the second-order construct in stage 2, which cSEM corrects for attenuation when it is a common factor. Its paths and R² are stage 2’s.',
+};
+
 function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) {
   const types = useTypes();
   const rows: Row[] = pls.indicators.map((ind, k) => {
@@ -245,44 +263,31 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
     const factor = types.get(cn) !== 'composite';
     const bl = boot?.stats.find((s) => s.key === `loading:${ind.name}`);
     const bw = boot?.stats.find((s) => s.key === `weight:${ind.name}`);
-    const pc = (s: BootstrapStat | undefined) =>
-      s ? c(fmtP(s.p), s.p < 0.05 ? 'good' : 'dim') : c(null);
     return [
       c(ind.name),
       c(cn),
       c(factor ? 'factor' : 'composite', 'dim'),
-      c(l, factor ? (Math.abs(l) >= 0.708 ? 'good' : Math.abs(l) >= 0.4 ? 'warn' : 'bad') : ''),
+      c(l, factor ? loadingCls(l) : ''),
       c(pls.weights[k]),
-      c(pls.vifOuter[k], pls.vifOuter[k] > 5 ? 'bad' : pls.vifOuter[k] > 3 ? 'warn' : ''),
-      ...(boot ? [pc(bl), pc(bw), bw ? c(`[${fmt(bw.ciLow)}, ${fmt(bw.ciHigh)}]`) : c(null)] : []),
+      c(pls.vifOuter[k], vifCls(pls.vifOuter[k])),
+      ...(boot ? bootSignificance(bl, bw) : []),
     ];
   });
   // Second-order constructs (cSEM two-stage): their components play the indicators' part.
   const ho = pls.higherOrder ?? [];
   const hoRows: Row[] = ho.map((h) => {
-    const hn = pls.constructs[h.construct],
-      cn = pls.constructs[h.component];
+    const hn = pls.constructs[h.construct];
+    const cn = pls.constructs[h.component];
     const factor = types.get(hn) !== 'composite';
     const bl = boot?.stats.find((s) => s.key === `hoLoading:${hn}:${cn}`);
     const bw = boot?.stats.find((s) => s.key === `hoWeight:${hn}:${cn}`);
-    const pc = (s: BootstrapStat | undefined) =>
-      s ? c(fmtP(s.p), s.p < 0.05 ? 'good' : 'dim') : c(null);
     return [
       c(cn),
       c(hn),
       c(factor ? 'factor' : 'composite', 'dim'),
-      c(
-        h.loading,
-        factor
-          ? Math.abs(h.loading) >= 0.708
-            ? 'good'
-            : Math.abs(h.loading) >= 0.4
-              ? 'warn'
-              : 'bad'
-          : '',
-      ),
+      c(h.loading, factor ? loadingCls(h.loading) : ''),
       c(h.weight),
-      ...(boot ? [pc(bl), pc(bw), bw ? c(`[${fmt(bw.ciLow)}, ${fmt(bw.ciHigh)}]`) : c(null)] : []),
+      ...(boot ? bootSignificance(bl, bw) : []),
     ];
   });
   return (
@@ -322,11 +327,9 @@ function Outer({ pls, boot }: { pls: PlsResult; boot: BootstrapResult | null }) 
           ]}
           rows={hoRows}
           note={
-            pls.hocApproach === 'repeated'
-              ? 'Repeated indicators: the dimensions’ indicators measure the second-order construct too, and the dimensions predict it. Loading: a dimension’s correlation with the second-order construct’s scores; weight: its path coefficient. Overall fit is not reported (the copied indicators make the model-implied matrix singular).'
-              : pls.hocApproach === 'embedded'
-                ? 'cSEM’s embedded two-stage approach (.approach_2ndorder = "mixed"): stage 1 uses the repeated indicators, so the second-order construct is in the model from the start; stage 2 measures it by its dimensions’ scores (corrected for attenuation when it is a common factor). Its paths and R² are stage 2’s.'
-                : 'Two-stage approach (disjoint): stage 1 estimates the first-order constructs; their scores are the indicators of the second-order construct in stage 2, which cSEM corrects for attenuation when it is a common factor. Its paths and R² are stage 2’s.'
+            pls.hocApproach === 'repeated' || pls.hocApproach === 'embedded'
+              ? HOC_NOTE[pls.hocApproach]
+              : HOC_NOTE.disjoint
           }
         />
       )}
@@ -429,13 +432,28 @@ function verdict(obs: number, hi95: number | undefined, hi99: number | undefined
   return c('rejected at 1%', 'bad');
 }
 
+const DISCREPANCY_LABEL = { srmr: 'SRMR', dULS: 'd_ULS', dG: 'd_G' } as const;
+
+/** Why a model has no overall fit. */
+function fitUnavailableReason(pls: PlsResult): string {
+  if (pls.hocApproach === 'repeated')
+    return 'Overall fit is not reported with repeated indicators: the copied indicators make the model-implied correlation matrix singular.';
+  if (pls.hocApproach)
+    return 'Overall fit is not reported for two-stage second-order models: cSEM’s discrepancies refer to one stage only.';
+  if (pls.moderations.length || pls.copulas?.length) {
+    const terms = pls.moderations.length ? 'interaction' : 'copula';
+    return `Overall fit is not reported for models with ${terms} terms: the model-implied correlations of a nonlinear model are not defined.`;
+  }
+  return 'Overall fit is not available for this model (the package did not report it; see Messages).';
+}
+
 function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
   const job = useStore((s) => s.job);
   const samples = useStore((s) => s.settings.bootSamples);
   const rows = (which: 'saturated' | 'estimated'): Row[] => {
     const obs: Discrepancies = pls.fit[which];
     return (['srmr', 'dULS', 'dG'] as const).map((k) => [
-      c(k === 'srmr' ? 'SRMR' : k === 'dULS' ? 'd_ULS' : 'd_G'),
+      c(DISCREPANCY_LABEL[k]),
       c(obs[k], '', 4),
       c(test ? test.hi95[which][k] : null, '', 4),
       c(test ? test.hi99[which][k] : null, '', 4),
@@ -445,17 +463,7 @@ function Fit({ pls, test }: { pls: PlsResult; test: FitTestResult | null }) {
   const unavailable =
     !Number.isFinite(pls.fit.estimated.srmr) && !Number.isFinite(pls.fit.saturated.srmr);
   if (unavailable) {
-    return (
-      <div className="empty-results">
-        {pls.hocApproach === 'repeated'
-          ? 'Overall fit is not reported with repeated indicators: the copied indicators make the model-implied correlation matrix singular.'
-          : pls.hocApproach
-            ? 'Overall fit is not reported for two-stage second-order models: cSEM’s discrepancies refer to one stage only.'
-            : pls.moderations.length || pls.copulas?.length
-              ? `Overall fit is not reported for models with ${pls.moderations.length ? 'interaction' : 'copula'} terms: the model-implied correlations of a nonlinear model are not defined.`
-              : 'Overall fit is not available for this model (the package did not report it; see Messages).'}
-      </div>
-    );
+    return <div className="empty-results">{fitUnavailableReason(pls)}</div>;
   }
   return (
     <>
@@ -512,6 +520,28 @@ const GROUPS: { id: BootstrapStat['group']; label: string }[] = [
   { id: 'estimate', label: 'Unstandardised' },
 ];
 
+/** How the bootstrap was run: subsamples, pooling over imputations, the test and the intervals. */
+function bootstrapNote(boot: BootstrapResult): string {
+  const engine = boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : '';
+  if (boot.imputations)
+    return (
+      `${boot.samples} subsamples in each of ${boot.imputations} imputed data sets, pooled by Rubin’s rules: ` +
+      'estimate = mean over the imputations; SE² = mean bootstrap variance + (1 + 1/m) × variance between imputations; ' +
+      `t test with Rubin’s degrees of freedom and t-based intervals.${engine}`
+    );
+  const oneTailed = boot.tails === 1;
+  const failed = boot.failed ? ` (${boot.failed} failed or not admissible, excluded)` : '';
+  const test = oneTailed
+    ? 'One-tailed t test (in the direction of the estimate)'
+    : 'Two-tailed t test';
+  const intervals =
+    boot.interval === 'bca'
+      ? 'bias-corrected and accelerated (BCa) intervals, from a jackknife'
+      : 'percentile confidence intervals';
+  const sided = oneTailed ? ', one-sided' : '';
+  return `${boot.samples} subsamples${failed}. ${test} with df = usable samples − 1; ${intervals}${sided}.${engine}`;
+}
+
 export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?: boolean }) {
   const groups = GROUPS.filter((g) => boot?.stats.some((s) => s.group === g.id) ?? true);
   const [group, setGroup] = useState<BootstrapStat['group']>('path');
@@ -526,6 +556,8 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
     );
   }
   const stats = boot.stats.filter((s) => s.group === group);
+  const groupLabel = GROUPS.find((g) => g.id === group)!.label.toLowerCase();
+  const standardised = std && group !== 'estimate' ? ' (standardised)' : '';
   return (
     <>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
@@ -543,15 +575,11 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
         <RScriptButton what="bootstrap" />
       </div>
       <Table
-        title={`Bootstrap: ${GROUPS.find((g) => g.id === group)!.label.toLowerCase()}${std && group !== 'estimate' ? ' (standardised)' : ''}`}
+        title={`Bootstrap: ${groupLabel}${standardised}`}
         file={`bootstrap-${group}`}
         columns={['Parameter', 'Original', ...bootCols(boot)]}
         rows={stats.map((s) => [c(s.label), c(s.original), ...bootCells(s)])}
-        note={
-          boot.imputations
-            ? `${boot.samples} subsamples in each of ${boot.imputations} imputed data sets, pooled by Rubin’s rules: estimate = mean over the imputations; SE² = mean bootstrap variance + (1 + 1/m) × variance between imputations; t test with Rubin’s degrees of freedom and t-based intervals.${boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : ''}`
-            : `${boot.samples} subsamples${boot.failed ? ` (${boot.failed} failed or not admissible, excluded)` : ''}. ${boot.tails === 1 ? 'One-tailed t test (in the direction of the estimate)' : 'Two-tailed t test'} with df = usable samples − 1; ${boot.interval === 'bca' ? 'bias-corrected and accelerated (BCa) intervals, from a jackknife' : 'percentile confidence intervals'}${boot.tails === 1 ? ', one-sided' : ''}.${boot.engine ? ` Resampling by ${boot.engine.package} ${boot.engine.version}.` : ''}`
-        }
+        note={bootstrapNote(boot)}
       />
     </>
   );
@@ -559,9 +587,9 @@ export function BootstrapTab({ boot, std }: { boot: BootstrapResult | null; std?
 
 /** Unstandardised and mean-centred paths: the same slopes, with and without an intercept. */
 function OriginalScale({ pls }: { pls: PlsResult }) {
-  const data = useStore((s) => s.data),
-    model = useStore((s) => s.model),
-    missing = useStore((s) => s.settings.missing);
+  const data = useStore((s) => s.data);
+  const model = useStore((s) => s.model);
+  const missing = useStore((s) => s.settings.missing);
   const res = useMemo(() => {
     if (!data || data.cols.length === 0) return null;
     try {
@@ -595,8 +623,8 @@ function OriginalScale({ pls }: { pls: PlsResult }) {
 
 /** Moderators that are 0/1, read without standardising them (Becker et al. 2023). */
 function BinaryModerators({ pls }: { pls: PlsResult }) {
-  const data = useStore((s) => s.data),
-    model = useStore((s) => s.model);
+  const data = useStore((s) => s.data);
+  const model = useStore((s) => s.model);
   const C = pls.constructs;
   const rows: Row[] = pls.moderations.flatMap((mo): Row[] => {
     const item = model.constructs.find((k) => k.name === mo.moderator);

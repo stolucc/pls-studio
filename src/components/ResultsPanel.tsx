@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cancelJob, run } from '../runner';
-import { useFreshResults, useStore } from '../store';
+import { useFreshResults, useStore, type State } from '../store';
 import { IconChevronDown, IconChevronUp, IconPlay } from './icons';
 import { useR } from '../rengine/status';
 import { EngineBadge, engineOf } from './EngineBadge';
@@ -14,6 +14,22 @@ import { processGraph } from '../process/fromModel';
 import { MessagesView } from './results/Messages';
 import { ScriptView } from './results/ScriptView';
 import { IconAlert } from './icons';
+
+/** The progress line: R's message, "Estimating…", or the resampling count. */
+function progressText(job: NonNullable<State['job']>, rMessage: string): string {
+  if (job.label) return rMessage || job.label;
+  if (job.kind === 'estimate') return 'Estimating…';
+  const what = job.kind === 'fittest' ? 'Fit test' : 'Bootstrapping';
+  const cores = job.workers && job.workers > 1 ? ` · ${job.workers} cores` : '';
+  return `${what} ${job.done}/${job.total}${cores}`;
+}
+
+/** Which parameters the multigroup invariance level holds equal. */
+function heldEqualText(invariance: string): string {
+  if (invariance === 'metric') return 'Loadings equal across groups';
+  if (invariance === 'scalar') return 'Loadings and intercepts equal across groups';
+  return 'Loadings, intercepts and residual variances equal across groups';
+}
 
 export function ResultsPanel({
   height,
@@ -58,16 +74,22 @@ export function ResultsPanel({
   const rMessage = useR((s) => (s.status === 'loading' ? s.message : ''));
   const engineLabel = engineOf(results, method, isMiiv);
 
-  const tabs =
-    method === 'process'
-      ? PROCESS_TABS
-      : method === 'pls'
-        ? PLS_TABS
-        : isMiiv
-          ? MIIV_TABS
-          : CB_TABS;
-  const active =
-    method === 'process' ? processTab : method === 'pls' ? plsTab : isMiiv ? miivTab : cbTab;
+  // The method's tab list and the tab chosen in it.
+  let tabs: readonly { id: string; label: string }[];
+  let active: string;
+  if (method === 'process') {
+    tabs = PROCESS_TABS;
+    active = processTab;
+  } else if (method === 'pls') {
+    tabs = PLS_TABS;
+    active = plsTab;
+  } else if (isMiiv) {
+    tabs = MIIV_TABS;
+    active = miivTab;
+  } else {
+    tabs = CB_TABS;
+    active = cbTab;
+  }
   const setTab = (id: string) => {
     setExtra(null);
     if (method === 'process') setProcessTab(id as ProcessTabId);
@@ -76,25 +98,26 @@ export function ResultsPanel({
     else setCbTab(id as CbTabId);
   };
 
-  const body =
-    extra === 'messages' ? (
-      <MessagesView />
-    ) : extra === 'script' ? (
-      <ScriptView />
-    ) : proc ? (
-      <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />
-    ) : pls ? (
-      <PlsTab tab={plsTab} pls={pls} boot={boot} fitTest={results?.fitTest ?? null} />
-    ) : miiv ? (
-      <MiivTab tab={miivTab} miiv={miiv} />
-    ) : cb && !isMiiv ? (
+  // A session tab, the current method's results, or the prompt to calculate.
+  let body: ReactNode;
+  if (extra === 'messages') body = <MessagesView />;
+  else if (extra === 'script') body = <ScriptView />;
+  else if (proc)
+    body = <ProcessTab tab={processTab} res={proc} title={procTitle} level={confidence} />;
+  else if (pls)
+    body = <PlsTab tab={plsTab} pls={pls} boot={boot} fitTest={results?.fitTest ?? null} />;
+  else if (miiv) body = <MiivTab tab={miivTab} miiv={miiv} />;
+  else if (cb && !isMiiv)
+    body = (
       <CbTab
         tab={cbTab}
         cb={cb}
         boot={boot}
         compare={compareGroups && !!cb.groups && !cb.groups.levels}
       />
-    ) : (
+    );
+  else
+    body = (
       <div className="empty-results">
         {anyResults ? 'The model or settings changed since the last run. ' : 'No results yet. '}
         <button className="btn sm primary" onClick={() => run('estimate')}>
@@ -104,8 +127,8 @@ export function ResultsPanel({
     );
 
   const startResize = (e: React.PointerEvent) => {
-    const startY = e.clientY,
-      startH = height;
+    const startY = e.clientY;
+    const startH = height;
     const move = (ev: PointerEvent) =>
       onResize(Math.min(window.innerHeight - 160, Math.max(160, startH + startY - ev.clientY)));
     const up = () => {
@@ -118,13 +141,7 @@ export function ResultsPanel({
 
   const progress = job && (
     <div className="progress">
-      <span className="muted">
-        {job.label
-          ? rMessage || job.label
-          : job.kind === 'estimate'
-            ? 'Estimating…'
-            : `${job.kind === 'fittest' ? 'Fit test' : 'Bootstrapping'} ${job.done}/${job.total}${job.workers && job.workers > 1 ? ` · ${job.workers} cores` : ''}`}
-      </span>
+      <span className="muted">{progressText(job, rMessage)}</span>
       <div className="bar">
         <div
           className={`fill${job.label ? ' indeterminate' : ''}`}
@@ -225,11 +242,7 @@ export function ResultsPanel({
             className="hint"
             title="Measurement invariance holds these parameters equal across groups; the tables that show them are the same in every group. Variances, covariances, structural paths and (from scalar on) latent means still differ per group."
           >
-            {invariance === 'metric'
-              ? 'Loadings equal across groups'
-              : invariance === 'scalar'
-                ? 'Loadings and intercepts equal across groups'
-                : 'Loadings, intercepts and residual variances equal across groups'}
+            {heldEqualText(invariance)}
           </span>
         )}
         {cb?.groups && (

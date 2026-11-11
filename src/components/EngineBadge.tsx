@@ -30,18 +30,22 @@ export function EngineBadge({ label }: { label: string | null }) {
   if (!label) return null;
   const r = label !== 'built-in engine';
   const desktop = label.includes(' · desktop ');
+  let title: string;
+  let text: string;
+  if (!r) {
+    title =
+      'Calculated by PLS Studio’s built-in engine (validated against the R reference packages).';
+    text = 'Built-in engine';
+  } else if (desktop) {
+    title = `Calculated by the R package ${label.replace(' · desktop', ' in desktop')} (through the PLS Studio helper). Cite the package when you report these results.`;
+    text = label;
+  } else {
+    title = `Calculated by the R package ${label} running in your browser (R ${versions.R ?? ''}, webR ${versions.webR ?? ''}). Cite the package when you report these results.`;
+    text = `${label} · R ${versions.R ?? ''}`;
+  }
   return (
-    <span
-      className={`chip engine-chip${r ? ' accent' : ''}`}
-      title={
-        r
-          ? desktop
-            ? `Calculated by the R package ${label.replace(' · desktop', ' in desktop')} (through the PLS Studio helper). Cite the package when you report these results.`
-            : `Calculated by the R package ${label} running in your browser (R ${versions.R ?? ''}, webR ${versions.webR ?? ''}). Cite the package when you report these results.`
-          : 'Calculated by PLS Studio’s built-in engine (validated against the R reference packages).'
-      }
-    >
-      {r ? (desktop ? label : `${label} · R ${versions.R ?? ''}`) : 'Built-in engine'}
+    <span className={`chip engine-chip${r ? ' accent' : ''}`} title={title}>
+      {text}
     </span>
   );
 }

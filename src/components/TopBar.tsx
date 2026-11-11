@@ -5,6 +5,7 @@ import { FileMenu } from './FileMenu';
 import { calculateHere, calculateTarget } from '../analyses/calculate';
 import { useAnalyses } from '../analyses/store';
 import { useStore, type Workspace } from '../store';
+import type { Method } from '../model/project';
 import { useState } from 'react';
 import { switchMethod } from '../methodSwitch';
 import { AccountMenu } from './cloud/AccountMenu';
@@ -61,6 +62,13 @@ export function WorkspaceTabs() {
   );
 }
 
+/** What Calculate does, per method. */
+const ESTIMATION: Record<Method, string> = {
+  pls: 'Run the PLS algorithm',
+  process: 'OLS regressions and bootstrap of the indirect effects (manymome)',
+  cbsem: 'Maximum-likelihood estimation',
+};
+
 export function TopBar() {
   const name = useStore((s) => s.projectName);
   const setName = useStore((s) => s.setProjectName);
@@ -87,6 +95,14 @@ export function TopBar() {
   const cards = useAnalyses((s) => s.cards);
   const cardRunning = useAnalyses((s) => !!(s.selected && s.running[s.selected]));
   const target = calculateTarget(workspace, cards, selectedCard);
+  let calculateTitle: string;
+  if (target.kind === 'card') calculateTitle = `Run the selected card: ${target.title} (${mod}↵)`;
+  else if (target.kind === 'run')
+    calculateTitle = `Open ${target.title} on the Model tab and calculate it (${mod}↵)`;
+  else calculateTitle = `${ESTIMATION[method]} (${mod}↵)`;
+  let centreCls = '';
+  if (example) centreCls = ' has-example';
+  else if (dirty) centreCls = ' has-dirty';
 
   return (
     <header className="topbar">
@@ -129,7 +145,7 @@ export function TopBar() {
         </button>
       </div>
       {/* Centre: the project's name. */}
-      <div className={`tb-group tb-center${example ? ' has-example' : dirty ? ' has-dirty' : ''}`}>
+      <div className={`tb-group tb-center${centreCls}`}>
         {/* (sized to the name; a mark on either side keeps it centred) */}
         <input
           className="project-name"
@@ -274,13 +290,7 @@ export function TopBar() {
           className="btn primary"
           onClick={() => void calculateHere('estimate')}
           disabled={target.kind === 'card' ? cardRunning : !!job || !hasModel}
-          title={
-            target.kind === 'card'
-              ? `Run the selected card: ${target.title} (${mod}↵)`
-              : target.kind === 'run'
-                ? `Open ${target.title} on the Model tab and calculate it (${mod}↵)`
-                : `${method === 'pls' ? 'Run the PLS algorithm' : method === 'process' ? 'OLS regressions and bootstrap of the indirect effects (manymome)' : 'Maximum-likelihood estimation'} (${mod}↵)`
-          }
+          title={calculateTitle}
         >
           <IconPlay size={14} /> {target.kind === 'card' ? 'Run' : 'Calculate'}
         </button>

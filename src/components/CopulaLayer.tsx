@@ -11,10 +11,11 @@ import type { ModelState } from '../model/project';
 import { selectPlacedModel, useStore } from '../store';
 import type { MenuTarget } from './canvasMenu';
 import { EstimateText } from './EstimateLabel';
+import { significanceClass } from '../figure/style';
 
 /** How far along its path the arrow lands; how long an arrow should at least be. */
-const LAND_AT = 0.35,
-  MIN_ARROW = 48;
+const LAND_AT = 0.35;
+const MIN_ARROW = 48;
 
 export interface CopulaTarget {
   pathId: string;
@@ -43,8 +44,8 @@ export function copulaLayout(model: ModelState): CopulaGroup[] {
     y: model.constructs.reduce((s, c) => s + c.y, 0) / n,
   };
   const segments = model.paths.flatMap((p) => {
-    const s = byId.get(p.from),
-      t = byId.get(p.to);
+    const s = byId.get(p.from);
+    const t = byId.get(p.to);
     const seg = s && t ? pathSegment(s, t, pathOffset(model.paths, p.from, p.to)) : null;
     return seg ? [{ id: p.id, seg }] : [];
   });
@@ -69,8 +70,8 @@ export function copulaLayout(model: ModelState): CopulaGroup[] {
   }
   const placed: { x: number; y: number }[] = [];
   return [...groups.entries()].map(([from, landings]) => {
-    const mx = landings.reduce((s, l) => s + l.x2, 0) / landings.length,
-      my = landings.reduce((s, l) => s + l.y2, 0) / landings.length;
+    const mx = landings.reduce((s, l) => s + l.x2, 0) / landings.length;
+    const my = landings.reduce((s, l) => s + l.y2, 0) / landings.length;
     const clear = COPULA_R + 10;
     const score = (x: number, y: number) => {
       const crowded =
@@ -89,9 +90,9 @@ export function copulaLayout(model: ModelState): CopulaGroup[] {
     let best = { x: mx, y: my, s: Infinity };
     for (let r = 70; r <= 340; r += 30)
       for (let a = 0; a < 24; a++) {
-        const x = mx + r * Math.cos((a * Math.PI) / 12),
-          y = my + r * Math.sin((a * Math.PI) / 12),
-          s = score(x, y);
+        const x = mx + r * Math.cos((a * Math.PI) / 12);
+        const y = my + r * Math.sin((a * Math.PI) / 12);
+        const s = score(x, y);
         if (s < best.s) best = { x, y, s };
       }
     placed.push(best);
@@ -195,7 +196,7 @@ export function CopulaLayer({
           return (
             <div
               key={t.pathId}
-              className={`elabel gc-label${l.p === null ? '' : l.p < 0.05 ? ' sig' : ' ns'}`}
+              className={`elabel gc-label${significanceClass(l.p)}`}
               onContextMenu={(e) => menu(e, t.pathId)}
               style={{
                 transform: `translate(-50%, -50%) translate(${(t.x1 + t.x2) / 2}px, ${(t.y1 + t.y2) / 2}px)`,

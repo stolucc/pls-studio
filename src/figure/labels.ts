@@ -54,11 +54,11 @@ export function placeLabels(
   const out = new Map<string, Placed>();
   const placed: Box[] = [];
   for (const it of items) {
-    const dx = it.x2 - it.x1,
-      dy = it.y2 - it.y1,
-      len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len,
-      ny = dx / len;
+    const dx = it.x2 - it.x1;
+    const dy = it.y2 - it.y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
     const p = it.prefer ?? 0.5;
     const ts = [
       ...new Set(
@@ -72,8 +72,8 @@ export function placeLabels(
     let chosen: Placed | null = null;
     search: for (const off of offs)
       for (const t of ts) {
-        const x = it.x1 + t * dx + nx * off,
-          y = it.y1 + t * dy + ny * off;
+        const x = it.x1 + t * dx + nx * off;
+        const y = it.y1 + t * dy + ny * off;
         const box = centred(x, y, it.w, it.h);
         const l = placed.reduce((s, b) => s + overlap(box, b, pad), 0);
         const o = obstacles.reduce((s, b) => s + overlap(box, b, pad), 0);

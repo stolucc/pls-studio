@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fmt } from '../../format';
-import { indicatorNameError, type Construct } from '../../model/project';
+import { indicatorNameError, type Construct, type Method } from '../../model/project';
 import { useFreshResults, useStore } from '../../store';
 import { ParcelButton } from '../ParcelDialog';
 import { canParcel } from '../canvasMenu';
@@ -75,19 +75,21 @@ function AddIndicator({ c }: { c: Construct }) {
           Add
         </button>
       </div>
-      {error ? (
+      {error && (
         <div className="hint" role="alert" style={{ color: 'var(--bad)' }}>
           {error}
         </div>
-      ) : !names ? (
+      )}
+      {!error && !names && (
         <div className="hint">
           No data yet: type the names of the columns you will import; they are matched by name then.
         </div>
-      ) : missing ? (
+      )}
+      {!error && names && !!missing && (
         <div className="hint">
           Not a column of the current data: the model cannot be estimated until it is.
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -264,19 +266,23 @@ export function ConstructBasics({ c }: { c: Construct }) {
 }
 
 /** Conditional process analysis: observed variable, scale score or latent variable; measurement level; covariate. */
+/** What a CPA variable is: empty, one observed column, a latent variable or a scale mean. */
+function processVariableHint(c: Construct): string {
+  const n = c.indicators.length;
+  if (n === 0) return 'Drop a data column on this variable, or several items of a scale.';
+  if (n === 1) return `Observed variable ${c.indicators[0]}.`;
+  if (c.latent)
+    return `Latent variable measured by its ${n} items, corrected for measurement error.`;
+  return `Scale score: the mean of its ${n} items (computed per case before the regressions).`;
+}
+
 export function ProcessVariableSection({ c }: { c: Construct }) {
   const update = useStore((s) => s.updateConstruct);
   return (
     <div className="section">
       <div className="section-title">Conditional process analysis</div>
       <div className="hint" style={{ marginBottom: 8 }}>
-        {c.indicators.length === 0
-          ? 'Drop a data column on this variable, or several items of a scale.'
-          : c.indicators.length === 1
-            ? `Observed variable ${c.indicators[0]}.`
-            : c.latent
-              ? `Latent variable measured by its ${c.indicators.length} items, corrected for measurement error.`
-              : `Scale score: the mean of its ${c.indicators.length} items (computed per case before the regressions).`}
+        {processVariableHint(c)}
       </div>
       {c.indicators.length === 1 && !c.covariate && (
         <div className="field">
@@ -494,6 +500,12 @@ export function CbsemMeasurementSection({ c }: { c: Construct }) {
 }
 
 /** PLS-SEM: a second-order construct measured by first-order constructs. */
+function secondOrderWeighting(plsPackage: string, c: Construct): string {
+  if (plsPackage === 'seminr') return 'seminr weights it as chosen under Weighting.';
+  if (c.type === 'composite') return 'cSEM weights a composite by Mode B.';
+  return 'cSEM weights a common factor by Mode A and corrects it for attenuation.';
+}
+
 export function SecondOrderSection({ c }: { c: Construct }) {
   const update = useStore((s) => s.updateConstruct);
   const plsPackage = useStore((s) => s.settings.plsPackage);
@@ -503,13 +515,8 @@ export function SecondOrderSection({ c }: { c: Construct }) {
       <div className="section-title">Second-order construct</div>
       <div className="hint" style={{ marginBottom: 6 }}>
         Measured by first-order constructs (two-stage approach): their scores are its indicators in
-        stage 2.{' '}
-        {plsPackage === 'seminr'
-          ? 'seminr weights it as chosen under Weighting.'
-          : c.type === 'composite'
-            ? 'cSEM weights a composite by Mode B.'
-            : 'cSEM weights a common factor by Mode A and corrects it for attenuation.'}{' '}
-        The components stay out of the structural model; connect this construct instead.
+        stage 2. {secondOrderWeighting(plsPackage, c)} The components stay out of the structural
+        model; connect this construct instead.
       </div>
       {constructs
         .filter((k) => k.id !== c.id && k.indicators.length > 0)
@@ -534,6 +541,12 @@ export function SecondOrderSection({ c }: { c: Construct }) {
 }
 
 /** Components or indicators, with their loadings (or weights) when there are results. */
+const HIGHER_ORDER_TIP: Record<Method, string> = {
+  cbsem: ', or tick components above to make it a higher-order factor',
+  pls: ', or tick components above to make it a second-order construct',
+  process: '',
+};
+
 export function IndicatorsSection({ c }: { c: Construct }) {
   const update = useStore((s) => s.updateConstruct);
   const removeIndicator = useStore((s) => s.removeIndicator);
@@ -554,12 +567,7 @@ export function IndicatorsSection({ c }: { c: Construct }) {
       {c.indicators.length === 0 && !c.components?.length && (
         <div className="hint">
           Drag variables from the data panel onto this construct
-          {method === 'cbsem'
-            ? ', or tick components above to make it a higher-order factor'
-            : method === 'pls'
-              ? ', or tick components above to make it a second-order construct'
-              : ''}
-          .
+          {HIGHER_ORDER_TIP[method]}.
         </div>
       )}
       {c.components?.map((id) => (
@@ -612,25 +620,19 @@ export function IndicatorsSection({ c }: { c: Construct }) {
       )}
       <div className="ind-list">
         {c.indicators.map((name) => {
+          let valueTitle = 'Loading';
+          if (cb) valueTitle = 'Standardised loading';
+          else if (c.type === 'composite') valueTitle = 'Weight';
           const k = idx.get(name);
           const kc = cbIdx.get(name);
-          const v =
-            kc !== undefined
-              ? cb!.stdLoadings[kc]
-              : k === undefined
-                ? null
-                : c.type === 'composite'
-                  ? pls!.weights[k]
-                  : pls!.loadings[k];
+          // CB-SEM: the standardised loading; PLS: a composite's weight or a factor's loading.
+          let v: number | null = null;
+          if (kc !== undefined) v = cb!.stdLoadings[kc];
+          else if (k !== undefined) v = c.type === 'composite' ? pls!.weights[k] : pls!.loadings[k];
           return (
             <div className="ind" key={name}>
               <span className="vname">{name}</span>
-              <span
-                className="num muted"
-                title={
-                  c.type === 'composite' && !cb ? 'Weight' : cb ? 'Standardised loading' : 'Loading'
-                }
-              >
+              <span className="num muted" title={valueTitle}>
                 {v === null ? '' : fmt(v)}
               </span>
               <button

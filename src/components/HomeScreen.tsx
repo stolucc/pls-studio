@@ -871,6 +871,18 @@ interface CloudProject {
   updated_at: string;
 }
 
+function roleLabel(role: string): string {
+  if (role === 'owner') return 'Owner';
+  if (role === 'editor') return 'Can edit';
+  return 'Can view';
+}
+
+function recentMethodLabel(method: string): string {
+  if (method === 'cbsem') return 'CB-SEM';
+  if (method === 'process') return 'Process';
+  return 'PLS-SEM';
+}
+
 function SharedProjects({ query }: { query: string }) {
   const auth = useAuth();
   const toast = useStore((s) => s.toast);
@@ -915,43 +927,41 @@ function SharedProjects({ query }: { query: string }) {
       toast('error', (e as Error).message);
     }
   };
+  const matching = (list ?? []).filter((p) => matchesQuery(query, [p.name, p.owner_name]));
   return (
     <section>
       <h2>Your projects</h2>
-      {list === null ? (
-        <div className="hint">Loading…</div>
-      ) : list.length === 0 ? (
+      {list === null && <div className="hint">Loading…</div>}
+      {list?.length === 0 && (
         <div className="hint">
           No projects in your account yet. A project you work on while signed in is saved here as
           soon as it has a model or data; Share invites others to it.
         </div>
-      ) : list.filter((p) => matchesQuery(query, [p.name, p.owner_name])).length === 0 ? (
+      )}
+      {!!list?.length && matching.length === 0 && (
         <div className="hint">No project of yours matches “{query}”.</div>
-      ) : (
+      )}
+      {matching.length > 0 && (
         <div className="recent-grid">
-          {list
-            .filter((p) => matchesQuery(query, [p.name, p.owner_name]))
-            .map((p) => (
-              <div key={p.id} className="recent-card">
-                <button
-                  className="recent-open"
-                  onClick={() => void open(p.id)}
-                  title={`Open ${p.name}`}
-                >
-                  <span className="recent-name">{p.name}</span>
-                  <span className="recent-meta">
-                    <span className="chip accent">
-                      {p.role === 'owner' ? 'Owner' : p.role === 'editor' ? 'Can edit' : 'Can view'}
-                    </span>
-                    {p.members} member{p.members === 1 ? '' : 's'} ·{' '}
-                    {p.role === 'owner' ? 'yours' : `by ${p.owner_name}`}
-                  </span>
-                  <span className="recent-time">
-                    edited {relativeTime(new Date(p.updated_at).getTime())}
-                  </span>
-                </button>
-              </div>
-            ))}
+          {matching.map((p) => (
+            <div key={p.id} className="recent-card">
+              <button
+                className="recent-open"
+                onClick={() => void open(p.id)}
+                title={`Open ${p.name}`}
+              >
+                <span className="recent-name">{p.name}</span>
+                <span className="recent-meta">
+                  <span className="chip accent">{roleLabel(p.role)}</span>
+                  {p.members} member{p.members === 1 ? '' : 's'} ·{' '}
+                  {p.role === 'owner' ? 'yours' : `by ${p.owner_name}`}
+                </span>
+                <span className="recent-time">
+                  edited {relativeTime(new Date(p.updated_at).getTime())}
+                </span>
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </section>
@@ -1142,6 +1152,9 @@ export function HomeScreen() {
     refresh();
   };
 
+  const matchingRecent = (recent ?? []).filter((r) =>
+    matchesQuery(query, [r.name, r.method, r.dataLabel]),
+  );
   return (
     <div className="home">
       <header className="home-head">
@@ -1234,56 +1247,48 @@ export function HomeScreen() {
               between visits. Use Save to keep project files.
             </div>
           )}
-          {recent === null ? (
-            <div className="hint">Loading…</div>
-          ) : recent.length === 0 ? (
+          {recent === null && <div className="hint">Loading…</div>}
+          {recent?.length === 0 && (
             <div className="hint">
               No recent projects yet. Projects you work on are kept here automatically, in this
               browser only.
             </div>
-          ) : recent.filter((r) => matchesQuery(query, [r.name, r.method, r.dataLabel])).length ===
-            0 ? (
+          )}
+          {!!recent?.length && matchingRecent.length === 0 && (
             <div className="hint">No recent project matches “{query}”.</div>
-          ) : (
+          )}
+          {matchingRecent.length > 0 && (
             <div className="recent-grid">
-              {recent
-                .filter((r) => matchesQuery(query, [r.name, r.method, r.dataLabel]))
-                .map((r) => (
-                  <div
-                    key={r.id}
-                    className={`recent-card${r.id === projectId && hasCurrent ? ' current' : ''}`}
+              {matchingRecent.map((r) => (
+                <div
+                  key={r.id}
+                  className={`recent-card${r.id === projectId && hasCurrent ? ' current' : ''}`}
+                >
+                  <button
+                    className="recent-open"
+                    onClick={() => void openRecent(r.id)}
+                    title={`Open ${r.name}`}
                   >
-                    <button
-                      className="recent-open"
-                      onClick={() => void openRecent(r.id)}
-                      title={`Open ${r.name}`}
-                    >
-                      <span className="recent-name">{r.name}</span>
-                      <span className="recent-meta">
-                        <span className="chip accent">
-                          {r.method === 'cbsem'
-                            ? 'CB-SEM'
-                            : r.method === 'process'
-                              ? 'Process'
-                              : 'PLS-SEM'}
-                        </span>
-                        {r.constructs} construct{r.constructs === 1 ? '' : 's'} · {r.dataLabel}
-                      </span>
-                      <span className="recent-time">
-                        {r.id === projectId && hasCurrent ? 'open now · ' : ''}edited{' '}
-                        {relativeTime(r.updated)}
-                      </span>
-                    </button>
-                    <button
-                      className="btn icon ghost sm"
-                      onClick={() => void remove(r)}
-                      aria-label={`Remove ${r.name} from recent projects`}
-                      title="Remove from list"
-                    >
-                      <IconTrash size={13} />
-                    </button>
-                  </div>
-                ))}
+                    <span className="recent-name">{r.name}</span>
+                    <span className="recent-meta">
+                      <span className="chip accent">{recentMethodLabel(r.method)}</span>
+                      {r.constructs} construct{r.constructs === 1 ? '' : 's'} · {r.dataLabel}
+                    </span>
+                    <span className="recent-time">
+                      {r.id === projectId && hasCurrent ? 'open now · ' : ''}edited{' '}
+                      {relativeTime(r.updated)}
+                    </span>
+                  </button>
+                  <button
+                    className="btn icon ghost sm"
+                    onClick={() => void remove(r)}
+                    aria-label={`Remove ${r.name} from recent projects`}
+                    title="Remove from list"
+                  >
+                    <IconTrash size={13} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
           {recent && recent.length > 0 && (

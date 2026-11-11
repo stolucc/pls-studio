@@ -73,8 +73,8 @@ export function useCorrelationTool(tool: Tool, method: Method, readOnly: boolean
     // Keep React Flow from panning the canvas along with the pointer (clicks still reach the node).
     e.stopPropagation();
     const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x0 = e.clientX,
-      y0 = e.clientY;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
     let moved = false;
     const move = (ev: PointerEvent) => {
       if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;

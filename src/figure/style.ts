@@ -335,6 +335,12 @@ export function semplotEdge(w: number | null): { color: string; width: number } 
   return { color: `#${hex}`, width: 0.4 * (1 + 6.58 * a) };
 }
 
+/** The class suffix the canvas colours an estimate's label by: significant at .05, not, or untested. */
+export function significanceClass(p: number | null): string {
+  if (p === null) return '';
+  return p < 0.05 ? ' sig' : ' ns';
+}
+
 /** An estimate as a number, in the style's decimals and notation. */
 export function formatEstimate(style: FigureStyle, v: number): string {
   const s = v.toFixed(style.decimals);

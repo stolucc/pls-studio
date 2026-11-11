@@ -26,14 +26,13 @@ const variableNames = (m: ModelState) =>
 /** The parameter a menu target stands for: a path coefficient, a loading or a drawn covariance. */
 const paramOf = (
   target: MenuTarget,
-): Parameters<ReturnType<typeof st>['fixParameter']>[0] | null =>
-  target.kind === 'path'
-    ? { kind: 'path', id: target.id }
-    : target.kind === 'indicator'
-      ? { kind: 'loading', construct: target.construct, indicator: target.name }
-      : target.kind === 'correlation'
-        ? { kind: 'correlation', id: target.id }
-        : null;
+): Parameters<ReturnType<typeof st>['fixParameter']>[0] | null => {
+  if (target.kind === 'path') return { kind: 'path', id: target.id };
+  if (target.kind === 'indicator')
+    return { kind: 'loading', construct: target.construct, indicator: target.name };
+  if (target.kind === 'correlation') return { kind: 'correlation', id: target.id };
+  return null;
+};
 const fixValue = async (target: MenuTarget) => {
   const t = paramOf(target);
   if (!t) return;
@@ -62,12 +61,10 @@ const setLabel = async (target: MenuTarget) => {
   const t = paramOf(target);
   if (!t) return;
   const m = st().model;
-  const current =
-    t.kind === 'path'
-      ? m.paths.find((p) => p.id === t.id)?.label
-      : t.kind === 'correlation'
-        ? m.correlations?.find((k) => k.id === t.id)?.label
-        : m.constructs.find((c) => c.id === t.construct)?.loadingLabels?.[t.indicator];
+  let current: string | undefined;
+  if (t.kind === 'path') current = m.paths.find((p) => p.id === t.id)?.label;
+  else if (t.kind === 'correlation') current = m.correlations?.find((k) => k.id === t.id)?.label;
+  else current = m.constructs.find((c) => c.id === t.construct)?.loadingLabels?.[t.indicator];
   const variables = variableNames(m);
   const label = await textDialog({
     title: 'Label this parameter',

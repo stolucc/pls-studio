@@ -11,8 +11,8 @@ const added = (before: number, names: string[]) =>
 
 /** PLS construct scores (standardised) as new data columns. */
 export function SavePlsScores({ pls }: { pls: PlsResult }) {
-  const data = useStore((s) => s.data),
-    info = useStore((s) => s.dataInfo);
+  const data = useStore((s) => s.data);
+  const info = useStore((s) => s.dataInfo);
   const rows = data?.cols[0]?.length ?? 0;
   const ok = !!data && !!info && pls.n === rows;
   const save = () => {
@@ -61,10 +61,10 @@ export function factorScoresUnavailable(
 export function SaveFactorScores({
   initial = 'regression',
 }: { initial?: FactorScores['method'] } = {}) {
-  const data = useStore((s) => s.data),
-    info = useStore((s) => s.dataInfo);
-  const model = useStore((s) => s.model),
-    settings = useStore((s) => s.settings);
+  const data = useStore((s) => s.data);
+  const info = useStore((s) => s.dataInfo);
+  const model = useStore((s) => s.model);
+  const settings = useStore((s) => s.settings);
   const [method, setMethod] = useState<FactorScores['method']>(initial);
   const [withSe, setWithSe] = useState(false);
   const [draws, setDraws] = useState(5);

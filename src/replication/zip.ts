@@ -45,8 +45,8 @@ function dos(d: Date) {
 export async function makeZip(entries: ZipEntry[], when = new Date()): Promise<Blob> {
   const enc = new TextEncoder();
   const { time, date } = dos(when);
-  const parts: Uint8Array[] = [],
-    central: Uint8Array[] = [];
+  const parts: Uint8Array[] = [];
+  const central: Uint8Array[] = [];
   let offset = 0;
   for (const e of entries) {
     const name = enc.encode(e.path);

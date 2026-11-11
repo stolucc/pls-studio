@@ -373,7 +373,9 @@ function withWarnings(messages: Message[], r: Partial<Omit<Results, 'key'>>): Me
       ['warning', res.warnings],
       ['info', res.notes],
     ] as const) {
-      const list = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
+      let list: unknown[] = [];
+      if (Array.isArray(raw)) list = raw;
+      else if (raw != null) list = [raw];
       for (const w of list)
         if (typeof w === 'string' && w.trim() && !loggedRecently(messages, w, now))
           added.push({ id: ++messageId, at: now, level, text: w, source });
@@ -588,12 +590,12 @@ export function constructSlice(set: SetState, get: GetState) {
       const { model } = get();
       if (model.constant) return;
       const left = Math.min(
-          0,
-          ...selectPlacedModel(get()).constructs.map((c) => c.x - constructGeometry(c).rx),
-        ),
-        top = model.constructs.length
-          ? model.constructs.reduce((a, c) => a + c.y, 0) / model.constructs.length
-          : 0;
+        0,
+        ...selectPlacedModel(get()).constructs.map((c) => c.x - constructGeometry(c).rx),
+      );
+      const top = model.constructs.length
+        ? model.constructs.reduce((a, c) => a + c.y, 0) / model.constructs.length
+        : 0;
       get().commit((m) => ({ ...m, constant: { x: left - 160, y: top } }));
       // (the triangle is drawn only with an arrow on show: a new one has none but its intercepts)
       set({ showIntercepts: true });
@@ -935,11 +937,12 @@ export function arrowSlice(set: SetState, get: GetState) {
           })),
         ],
       }));
+      const plural = pairs.length > 1 ? 's' : '';
       get().toast(
         'info',
         correlate
-          ? `Drew ${pairs.length} correlation${pairs.length > 1 ? 's' : ''} between exogenous constructs.`
-          : `Kept ${pairs.length} pair${pairs.length > 1 ? 's' : ''} of exogenous constructs uncorrelated (fixed at zero; right-click a construct pair’s correlation to change it).`,
+          ? `Drew ${pairs.length} correlation${plural} between exogenous constructs.`
+          : `Kept ${pairs.length} pair${plural} of exogenous constructs uncorrelated (fixed at zero; right-click a construct pair’s correlation to change it).`,
       );
     },
   } satisfies Partial<State>;
@@ -1096,11 +1099,9 @@ export function parameterSlice(_set: SetState, get: GetState) {
     setConvention: (c) =>
       get().commit((m) => {
         const { likelihood: _l, sampleCovRescale: _r, ...rest } = m;
-        return c === 'wishart'
-          ? { ...rest, likelihood: 'wishart' }
-          : c === 'asGiven'
-            ? { ...rest, sampleCovRescale: false }
-            : rest;
+        if (c === 'wishart') return { ...rest, likelihood: 'wishart' };
+        if (c === 'asGiven') return { ...rest, sampleCovRescale: false };
+        return rest;
       }),
     setEsem: (esem) =>
       get().commit((m) => {
@@ -1327,12 +1328,13 @@ export function viewSlice(set: SetState, _get: GetState) {
     setTool: (tool) => set({ tool }),
     setView: (view) => set({ view }),
     openValidation: (focus) =>
-      set((s) => ({
-        view: 'validation',
-        validationFocus: focus ?? null,
-        validationReturn:
-          s.view === 'editor' ? 'editor' : s.view === 'validation' ? s.validationReturn : 'home',
-      })),
+      set((s) => {
+        // Where "back" leads: the editor, wherever the validation page was opened from before, or home.
+        let validationReturn: State['validationReturn'] = 'home';
+        if (s.view === 'editor') validationReturn = 'editor';
+        else if (s.view === 'validation') validationReturn = s.validationReturn;
+        return { view: 'validation', validationFocus: focus ?? null, validationReturn };
+      }),
     closeValidation: () => set((s) => ({ view: s.validationReturn, validationFocus: null })),
     setWorkspace: (workspace) => set({ workspace }),
     setShowErrorTerms: (showErrorTerms) => set({ showErrorTerms }),

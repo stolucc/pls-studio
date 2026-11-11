@@ -56,8 +56,8 @@ export function parseChartStyle(raw: unknown): ChartStyle {
     const o = v as Record<string, unknown>;
     const pick = (s: unknown) =>
       typeof s === 'string' && s.trim() ? s.slice(0, LABEL_MAX) : undefined;
-    const x = pick(o.x),
-      y = pick(o.y);
+    const x = pick(o.x);
+    const y = pick(o.y);
     if (x || y) labels[id] = { ...(x ? { x } : {}), ...(y ? { y } : {}) };
   }
   return { font, size, color, labels };

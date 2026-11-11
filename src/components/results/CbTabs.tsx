@@ -7,7 +7,18 @@ import { normalP, pnorm } from '../../engine/stats';
 import { mcIndirect, type McIndirect } from '../../engine/mcci';
 import { JohnsonNeymanPlot } from '../JohnsonNeymanPlot';
 import { BootstrapTab } from './PlsTabs';
-import { bootCells, bootCols, c, htmtCls, matrixRows, pCell, Table, type Row } from './Table';
+import {
+  bootCells,
+  bootCols,
+  c,
+  htmtCls,
+  loadingCls,
+  matrixRows,
+  pCell,
+  Table,
+  type Cell,
+  type Row,
+} from './Table';
 import { runInvariance } from '../../runner';
 import { useFreshResults, useStore } from '../../store';
 import { RScriptButton } from './RScriptButton';
@@ -54,12 +65,8 @@ export function seLabel(cb: Pick<CbResult, 'estimator' | 'seType'>): string {
   )
     return 'Robust SE';
   if (t === 'standard' || t === 'default') return 'Std. error';
-  return cb.estimator === 'MLM' ||
-    cb.estimator === 'MLMV' ||
-    cb.estimator === 'MLR' ||
-    cb.estimator === 'RML'
-    ? 'Robust SE'
-    : 'Std. error';
+  const robustEstimator = ['MLM', 'MLMV', 'MLR', 'RML'].includes(cb.estimator);
+  return robustEstimator ? 'Robust SE' : 'Std. error';
 }
 const estCols = (cb: CbResult) => ['Estimate', seLabel(cb), 'z', 'p', 'Standardised'];
 
@@ -69,15 +76,19 @@ function CaseWeights({ w }: { w: NonNullable<CbResult['caseWeights']> }) {
     .map((row, i) => ({ row, w: w.weights[i] }))
     .filter((x) => x.w < 1)
     .sort((a, b) => a.w - b.w);
+  const weightCls = (weight: number) => {
+    if (weight < 0.5) return 'bad';
+    if (weight < 0.8) return 'warn';
+    return '';
+  };
+  const cut = low.length > 20 ? ' The 20 lowest are shown.' : '';
   return (
     <Table
       title={`Down-weighted cases: ${low.length} of ${w.rows.length}`}
       file="cb-case-weights"
       columns={['Row', 'Weight']}
-      rows={low
-        .slice(0, 20)
-        .map((x) => [c(x.row, undefined, 0), c(x.w, x.w < 0.5 ? 'bad' : x.w < 0.8 ? 'warn' : '')])}
-      note={`Huber-type case weights (rsem, varphi = 0.1): 1 = full weight; the lower, the more atypical the case.${low.length > 20 ? ' The 20 lowest are shown.' : ''}`}
+      rows={low.slice(0, 20).map((x) => [c(x.row, undefined, 0), c(x.w, weightCls(x.w))])}
+      note={`Huber-type case weights (rsem, varphi = 0.1): 1 = full weight; the lower, the more atypical the case.${cut}`}
     />
   );
 }
@@ -91,17 +102,11 @@ function Fit({ cb }: { cb: CbResult }) {
 function dfiCol(dfi: DfiForFit | null, index: 'χ²' | 'CFI' | 'RMSEA' | 'SRMR') {
   if (!dfi) return [];
   const cell = dfiFitSlot.cell(dfi, index);
-  return [
-    cell
-      ? {
-          ...c(
-            `${cell.text} — ${cell.verdict}`,
-            cell.ok === true ? 'good' : cell.ok === false ? 'bad' : undefined,
-          ),
-          bold: cell.ok !== null,
-        }
-      : c(null),
-  ];
+  if (!cell) return [c(null)];
+  let verdictCls: string | undefined;
+  if (cell.ok === true) verdictCls = 'good';
+  else if (cell.ok === false) verdictCls = 'bad';
+  return [{ ...c(`${cell.text} — ${cell.verdict}`, verdictCls), bold: cell.ok !== null }];
 }
 
 export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
@@ -119,10 +124,13 @@ export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
   // Robust ML (rsem) rescales χ² (TRML) but has no robust CFI / TLI / RMSEA: those are ML's on the robust moments.
   const robustIdx = robust && f.cfiRobust !== undefined;
   const pv = robust ? f.pvalueScaled : f.pvalue;
-  const cfi = robustIdx ? f.cfiRobust! : f.cfi,
-    tli = robustIdx ? f.tliRobust! : f.tli,
-    rmsea = robustIdx ? f.rmseaRobust! : f.rmsea;
+  const cfi = robustIdx ? f.cfiRobust! : f.cfi;
+  const tli = robustIdx ? f.tliRobust! : f.tli;
+  const rmsea = robustIdx ? f.rmseaRobust! : f.rmsea;
   const rml = cb.estimator === 'RML';
+  let chisqLabel = 'χ²';
+  if (rml) chisqLabel = 'χ² (TRML)';
+  else if (robust) chisqLabel = 'χ² (scaled)';
   const ml = cb.estimator !== 'GLS' && cb.estimator !== 'ULS' && cb.estimator !== 'WLS';
   const rows: Row[] = [
     [c('Estimator'), c(cb.estimator), c(null)],
@@ -182,10 +190,7 @@ export function FitBody({ cb, dfi }: { cb: CbResult; dfi: DfiForFit | null }) {
         </div>
       )}
       <div className="stat-cards">
-        {card(
-          rml ? 'χ² (TRML)' : robust ? 'χ² (scaled)' : 'χ²',
-          `${fmt(robust ? f.chisqScaled : f.chisq, 2)}`,
-        )}
+        {card(chisqLabel, `${fmt(robust ? f.chisqScaled : f.chisq, 2)}`)}
         {card('df', String(f.df))}
         {card('p', fmtP(pv))}
         {card(robustIdx ? 'CFI (robust)' : 'CFI', fmt(cfi), ok(cfi >= 0.95))}
@@ -290,10 +295,7 @@ function Loadings({ cb }: { cb: CbResult }) {
     .map((e) => {
       const k = cb.indicators.findIndex((i) => i.name === e.rhs);
       const row = estRow(e, `${e.lhs} → ${e.rhs}`);
-      row[5] = c(
-        e.std,
-        Math.abs(e.std) >= 0.708 ? 'good' : Math.abs(e.std) >= 0.4 ? 'warn' : 'bad',
-      );
+      row[5] = c(e.std, loadingCls(e.std));
       return [...row, c(cb.r2Indicators[k])];
     });
   const weights = cb.estimates
@@ -625,13 +627,13 @@ function Effects({ cb, boot }: { cb: CbResult; boot: BootstrapResult | null }) {
         rows={rows('total')}
       />
       <div>
-        {!mc ? (
+        {!mc && (
           <button className="btn" onClick={runMc}>
             Monte Carlo CIs for indirect effects
           </button>
-        ) : mc.error ? (
-          <div className="issue error">{mc.error}</div>
-        ) : (
+        )}
+        {mc?.error && <div className="issue error">{mc.error}</div>}
+        {mc && !mc.error && (
           <Table
             title="Monte Carlo CIs (unstandardised indirect effects)"
             file="cb-mc-indirect"
@@ -655,6 +657,10 @@ function Effects({ cb, boot }: { cb: CbResult; boot: BootstrapResult | null }) {
   );
 }
 
+const SEMTOOLS_NOTE =
+  ' ω: the model-based reliability of each factor’s indicator sum (semTools::compRelSEM; residual covariances and ordinal indicators taken into account, total variance from the unrestricted model);' +
+  ' α: coefficient alpha of the same sum (with ordinal indicators: ordinal alpha from the polychoric correlations, on the latent-response scale).';
+
 function Reliability({ cb }: { cb: CbResult }) {
   // semTools' omega and alpha come with the R engine.
   const model = cb.reliability.some((r) => r.omega !== undefined || r.alpha !== undefined);
@@ -665,19 +671,19 @@ function Reliability({ cb }: { cb: CbResult }) {
       columns={['Factor', 'Composite reliability', 'AVE', ...(model ? ['ω (semTools)', 'α'] : [])]}
       rows={cb.constructs.map((n, j) => {
         const r = cb.reliability[j];
+        // ω and α from semTools, when present: at least .70 is good.
+        const semToolsCell = (v: number | undefined) => {
+          if (v === undefined) return c(null, '');
+          return c(v, v >= 0.7 ? 'good' : 'warn');
+        };
         return [
           c(n),
           c(r.cr, r.cr >= 0.7 ? 'good' : 'warn'),
           c(r.ave, r.ave >= 0.5 ? 'good' : 'bad'),
-          ...(model
-            ? [
-                c(r.omega ?? null, r.omega === undefined ? '' : r.omega >= 0.7 ? 'good' : 'warn'),
-                c(r.alpha ?? null, r.alpha === undefined ? '' : r.alpha >= 0.7 ? 'good' : 'warn'),
-              ]
-            : []),
+          ...(model ? [semToolsCell(r.omega), semToolsCell(r.alpha)] : []),
         ];
       })}
-      note={`From standardised loadings: CR = (Σλ)² / ((Σλ)² + Σ(1−λ²)), AVE = mean λ².${model ? ' ω: the model-based reliability of each factor’s indicator sum (semTools::compRelSEM; residual covariances and ordinal indicators taken into account, total variance from the unrestricted model); α: coefficient alpha of the same sum (with ordinal indicators: ordinal alpha from the polychoric correlations, on the latent-response scale).' : ''}`}
+      note={`From standardised loadings: CR = (Σλ)² / ((Σλ)² + Σ(1−λ²)), AVE = mean λ².${model ? SEMTOOLS_NOTE : ''}`}
     />
   );
   if (!cb.bifactor?.length) return table;
@@ -772,11 +778,7 @@ function Residuals({ cb }: { cb: CbResult }) {
       title="Residual correlations (observed − implied)"
       file="cb-residual-cor"
       columns={['', ...names]}
-      rows={matrixRows(
-        names,
-        (i, j) => (i === j ? null : cb.residualCor[i][j]),
-        (v) => (Math.abs(v) > 0.1 ? 'bad' : Math.abs(v) > 0.05 ? 'warn' : ''),
-      )}
+      rows={matrixRows(names, (i, j) => (i === j ? null : cb.residualCor[i][j]), residualCls)}
       note={`Absolute residual correlations above 0.10 point to local misfit (e.g. a missing cross-loading or error covariance).${cb.sampleCor ? ' With ordinal indicators: of the polychoric correlations below.' : ''}`}
     />
   );
@@ -791,9 +793,22 @@ function Residuals({ cb }: { cb: CbResult }) {
 }
 
 /** Mplus TECH10, bivariate part: the pairs of ordinal indicators whose two-way table the model does not reproduce. */
+/** A residual correlation: above .10 in size is local misfit, above .05 a warning. */
+function residualCls(v: number): string {
+  const size = Math.abs(v);
+  if (size > 0.1) return 'bad';
+  if (size > 0.05) return 'warn';
+  return '';
+}
+
 function Tech10({ rows }: { rows: NonNullable<CbResult['tech10']> }) {
   const bonferroni = 0.05 / Math.max(1, rows.length);
-  const flag = (p: number) => (p < bonferroni ? 'bad' : p < 0.05 ? 'warn' : '');
+  const flag = (p: number) => {
+    if (p < bonferroni) return 'bad';
+    if (p < 0.05) return 'warn';
+    return '';
+  };
+  const bonferroniText = bonferroni < 0.001 ? bonferroni.toExponential(1) : bonferroni.toFixed(4);
   return (
     <Table
       title="Bivariate fit of the ordinal indicators (TECH10)"
@@ -807,7 +822,13 @@ function Tech10({ rows }: { rows: NonNullable<CbResult['tech10']> }) {
         c(r.g2p, flag(r.g2p), 3),
         c(r.df, '', 0),
       ])}
-      note={`For each pair of ordinal indicators, the observed two-way table of their categories against the table the model implies (lavaan::lavTables; Mplus TECH10). A large X² or G² points to a pair the model does not reproduce: a local dependency, a missing cross-loading or error correlation, or answers that do not follow the bivariate normal distribution the polychoric correlation assumes. With ${rows.length} pairs some will reach p < .05 by chance: amber below .05, red below the Bonferroni level ${bonferroni < 0.001 ? bonferroni.toExponential(1) : bonferroni.toFixed(4)}. In large samples every pair tends to reject; compare the pairs with each other.`}
+      note={
+        'For each pair of ordinal indicators, the observed two-way table of their categories against the table the model implies (lavaan::lavTables; Mplus TECH10). ' +
+        'A large X² or G² points to a pair the model does not reproduce: a local dependency, a missing cross-loading or error correlation, ' +
+        'or answers that do not follow the bivariate normal distribution the polychoric correlation assumes. ' +
+        `With ${rows.length} pairs some will reach p < .05 by chance: amber below .05, red below the Bonferroni level ${bonferroniText}. ` +
+        'In large samples every pair tends to reject; compare the pairs with each other.'
+      }
     />
   );
 }
@@ -851,15 +872,25 @@ export function jnNote(
   jn: { quadratic: boolean; bx: number; bint: number; crit: number },
 ): string {
   const lms = cb.interaction === 'lms' || cb.interaction === 'qml';
-  const how = lms
-    ? `Latent ${jn.quadratic ? 'quadratic term' : 'interaction'} estimated by ${cb.interaction!.toUpperCase()} (modsem; ${cb.interaction === 'lms' ? 'Klein & Moosbrugger 2000' : 'Klein & Muthén 2007'}), without product indicators.`
-    : jn.quadratic
-      ? 'Latent quadratic term from squared mean-centred indicators (Marsh, Wen & Hau 2004).'
-      : 'Latent interaction from matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004).';
+  let how: string;
+  if (lms) {
+    const term = jn.quadratic ? 'quadratic term' : 'interaction';
+    const source = cb.interaction === 'lms' ? 'Klein & Moosbrugger 2000' : 'Klein & Muthén 2007';
+    how = `Latent ${term} estimated by ${cb.interaction!.toUpperCase()} (modsem; ${source}), without product indicators.`;
+  } else if (jn.quadratic)
+    how = 'Latent quadratic term from squared mean-centred indicators (Marsh, Wen & Hau 2004).';
+  else
+    how =
+      'Latent interaction from matched-pair products of mean-centred indicators (Marsh, Wen & Hau 2004).';
   const effect = jn.quadratic
     ? `Slope of ${mo.from} at x: θ(x) = ${fmt(jn.bx)} + 2·${fmt(jn.bint)}·x`
     : `Conditional effect θ(m) = ${fmt(jn.bx)} + ${fmt(jn.bint)}·m`;
-  return `${how} ${effect} with delta-method SEs from the ${lms ? `${cb.interaction!.toUpperCase()} (modsem)` : cb.estimator} parameter covariance; boundaries solve |θ(m)|/SE(m) = ${jn.crit.toFixed(3)}.${lms ? '' : ' Validated against lavaan.'}`;
+  const covarianceFrom = lms ? `${cb.interaction!.toUpperCase()} (modsem)` : cb.estimator;
+  const validated = lms ? '' : ' Validated against lavaan.';
+  return (
+    `${how} ${effect} with delta-method SEs from the ${covarianceFrom} parameter covariance; ` +
+    `boundaries solve |θ(m)|/SE(m) = ${jn.crit.toFixed(3)}.${validated}`
+  );
 }
 
 function Moderation({ cb }: { cb: CbResult }) {
@@ -973,8 +1004,8 @@ const key = (e: Pick<CbEstimate, 'lhs' | 'op' | 'rhs'>) =>
  */
 function GroupCompare({ tab, cb }: { tab: CbTabId; cb: CbResult }) {
   const g = cb.groups!;
-  const G = g.results,
-    labels = g.labels;
+  const G = g.results;
+  const labels = g.labels;
   const score = new Map(g.score.map((t) => [t.param.trim(), t]));
   const robust = seLabel(cb);
   const pick = (r: CbResult, f: (e: CbEstimate) => boolean) => r.estimates.filter(f);
@@ -994,16 +1025,18 @@ function GroupCompare({ tab, cb }: { tab: CbTabId; cb: CbResult }) {
       const per = G.map((r) => pick(r, (x) => key(x) === key(e))[0]);
       const t = score.get(key(e));
       const allEqual = per.every((x) => x && Math.abs(x.est - per[0]!.est) < 1e-9);
-      return [
-        c(label(e)),
-        ...per.flatMap((x) => (x ? [c(x.est), c(x.se), pCell(x.p)] : [c(null), c(null), c(null)])),
-        ...(G.length === 2
-          ? [per[0] && per[1] ? c(per[1].est - per[0].est, allEqual ? 'dim' : '') : c(null)]
-          : []),
-        t
-          ? { v: `held equal; score test p ${fmtP(t.p)}`, cls: t.p < 0.05 ? 'bad' : 'dim' }
-          : c(allEqual ? 'equal (held)' : 'free per group', allEqual ? 'dim' : ''),
-      ];
+      const perGroup = per.flatMap((x) =>
+        x ? [c(x.est), c(x.se), pCell(x.p)] : [c(null), c(null), c(null)],
+      );
+      const difference: Row = [];
+      if (G.length === 2)
+        difference.push(
+          per[0] && per[1] ? c(per[1].est - per[0].est, allEqual ? 'dim' : '') : c(null),
+        );
+      const equality: Cell = t
+        ? { v: `held equal; score test p ${fmtP(t.p)}`, cls: t.p < 0.05 ? 'bad' : 'dim' }
+        : c(allEqual ? 'equal (held)' : 'free per group', allEqual ? 'dim' : '');
+      return [c(label(e)), ...perGroup, ...difference, equality];
     });
   const note =
     'One column set per group. Δ: the second group minus the first. A parameter held equal across groups shows the score test of that constraint (lavaan::lavTestScore): a small p says the groups differ on it and releasing it would improve fit (partial invariance).';
@@ -1147,15 +1180,13 @@ function GroupCompare({ tab, cb }: { tab: CbTabId; cb: CbResult }) {
             rows={cb.constructs.flatMap((a, i) =>
               cb.constructs.flatMap((b, j) => {
                 const v = G.map((r) => r.stdTotal[i][j]);
-                return i === j || v.every((x) => Math.abs(x) < 1e-12)
-                  ? []
-                  : [
-                      [
-                        c(`${a} → ${b}`),
-                        ...v.map((x) => c(x)),
-                        ...(G.length === 2 ? [c(v[1] - v[0])] : []),
-                      ] as Row,
-                    ];
+                if (i === j || v.every((x) => Math.abs(x) < 1e-12)) return [];
+                const row: Row = [
+                  c(`${a} → ${b}`),
+                  ...v.map((x) => c(x)),
+                  ...(G.length === 2 ? [c(v[1] - v[0])] : []),
+                ];
+                return [row];
               }),
             )}
             note="Standardised, so differences also reflect the groups’ variances."

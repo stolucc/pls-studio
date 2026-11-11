@@ -40,20 +40,20 @@ export function JohnsonNeymanPlot({
   level?: number;
 }) {
   const pad = { l: 52, r: 10, t: 10, b: 34 };
-  const lo = center - 3 * jn.sdM,
-    hi = center + 3 * jn.sdM;
+  const lo = center - 3 * jn.sdM;
+  const hi = center + 3 * jn.sdM;
   const N = 120;
   const pts = Array.from({ length: N + 1 }, (_, i) => {
     const m = lo + ((hi - lo) * i) / N;
-    const e = jn.effect(m),
-      h = jn.crit * jn.se(m);
+    const e = jn.effect(m);
+    const h = jn.crit * jn.se(m);
     return { m, e, l: e - h, u: e + h, sig: jn.significantAt(m) };
   });
-  const yMin = Math.min(0, ...pts.map((p) => p.l)),
-    yMax = Math.max(0, ...pts.map((p) => p.u));
+  const yMin = Math.min(0, ...pts.map((p) => p.l));
+  const yMax = Math.max(0, ...pts.map((p) => p.u));
   const span = yMax - yMin || 1;
-  const W = width - pad.l - pad.r,
-    H = height - pad.t - pad.b;
+  const W = width - pad.l - pad.r;
+  const H = height - pad.t - pad.b;
   const sx = (m: number) => pad.l + ((m - lo) / (hi - lo)) * W;
   const sy = (v: number) => pad.t + ((yMax + 0.05 * span - v) / (span * 1.1)) * H;
   const line = (key: 'e' | 'l' | 'u') =>

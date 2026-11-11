@@ -51,12 +51,9 @@ export function PresenceBar() {
   const peers = usePresence((s) => s.peers);
   if (!cloud) return null;
   const unique = [...new Map(peers.map((p) => [p.userId, p])).values()];
-  const label =
-    cloud.status === 'online'
-      ? 'Live'
-      : cloud.status === 'connecting'
-        ? 'Connecting…'
-        : 'Offline: changes sync when you reconnect';
+  let label = 'Offline: changes sync when you reconnect';
+  if (cloud.status === 'online') label = 'Live';
+  else if (cloud.status === 'connecting') label = 'Connecting…';
   return (
     <div className="presence-bar" title={label}>
       <span className={`conn-dot ${cloud.status}`} aria-label={label} />
