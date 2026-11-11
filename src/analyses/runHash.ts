@@ -163,6 +163,28 @@ export function settingChanges(
     .map((k) => `${SETTING_NAMES[k] ?? k} ${show(k, a[k])} → ${show(k, b[k])}`);
 }
 
+/** Model fields compared as a whole, in the order their changes are listed, with how a change is named. */
+const MODEL_FIELD_NAMES = [
+  ['ordered', 'ordered indicators'],
+  ['count', 'count indicators'],
+  ['defined', 'defined parameters'],
+  ['waldTests', 'Wald tests'],
+  ['inequalities', 'inequalities'],
+  ['positiveVariances', 'variance bounds'],
+  ['information', 'standard errors (information)'],
+  ['wlsmvSe', 'WLSMV standard errors'],
+  ['mimic', 'test statistic (Mplus)'],
+  ['baseline', 'CFI/TLI baseline'],
+  ['likelihood', 'sample-size convention'],
+  ['sampleCovRescale', 'sample-size convention'],
+  ['multigroup', 'groups'],
+  ['multilevel', 'levels'],
+  ['esem', 'ESEM blocks'],
+  ['weights', 'weights'],
+  ['cluster', 'sampling clusters'],
+  ['threeWay', 'moderated moderations'],
+] as const;
+
 const nameOf = (m: ModelState) => new Map(m.constructs.map((c) => [c.id, c.name]));
 const pathLabel = (m: ModelState, p: { from: string; to: string }) => {
   const n = nameOf(m);
@@ -223,7 +245,12 @@ export function describeChanges(
   );
   const modLabel = (m: ModelState, mo: { moderator: string; path: string; method?: string }) => {
     const p = m.paths.find((x) => x.id === mo.path);
-    return `${nameOf(m).get(mo.moderator) ?? mo.moderator} on ${p ? pathLabel(m, p) : mo.path}${mo.method ? ` (${mo.method === 'orthogonal' ? 'orthogonalising' : 'product indicators'})` : ''}`;
+    const moderator = nameOf(m).get(mo.moderator) ?? mo.moderator;
+    const path = p ? pathLabel(m, p) : mo.path;
+    let method = '';
+    if (mo.method)
+      method = ` (${mo.method === 'orthogonal' ? 'orthogonalising' : 'product indicators'})`;
+    return `${moderator} on ${path}${method}`;
   };
   out.push(
     ...diffList(
@@ -243,36 +270,19 @@ export function describeChanges(
       'correlation',
     ),
   );
-  for (const k of [
-    'ordered',
-    'count',
-    'defined',
-    'waldTests',
-    'inequalities',
-    'positiveVariances',
-    'information',
-    'wlsmvSe',
-    'mimic',
-    'baseline',
-    'likelihood',
-    'sampleCovRescale',
-    'multigroup',
-    'multilevel',
-    'esem',
-    'weights',
-    'cluster',
-    'threeWay',
-  ] as const) {
+  for (const [k, what] of MODEL_FIELD_NAMES) {
     if (JSON.stringify(pm[k] ?? null) !== JSON.stringify(nm[k] ?? null))
-      out.push(
-        `${k === 'ordered' ? 'ordered indicators' : k === 'count' ? 'count indicators' : k === 'defined' ? 'defined parameters' : k === 'waldTests' ? 'Wald tests' : k === 'threeWay' ? 'moderated moderations' : k === 'positiveVariances' ? 'variance bounds' : k === 'information' ? 'standard errors (information)' : k === 'wlsmvSe' ? 'WLSMV standard errors' : k === 'mimic' ? 'test statistic (Mplus)' : k === 'baseline' ? 'CFI/TLI baseline' : k === 'likelihood' || k === 'sampleCovRescale' ? 'sample-size convention' : k === 'esem' ? 'ESEM blocks' : k === 'multigroup' ? 'groups' : k === 'multilevel' ? 'levels' : k === 'cluster' ? 'sampling clusters' : k} changed`,
-      );
+      out.push(`${what} changed`);
   }
   if (!!pm.constant !== !!nm.constant)
     out.push(nm.constant ? '+ mean structure (the constant)' : '− mean structure (the constant)');
   else if (nm.constant) {
-    const label = (m: ModelState, t: { target: string; fixed?: number; label?: string }) =>
-      `${nameOf(m).get(t.target) ?? t.target}${t.fixed !== undefined ? ` = ${t.fixed}` : t.label ? ` (${t.label})` : ''}`;
+    const label = (m: ModelState, t: { target: string; fixed?: number; label?: string }) => {
+      let suffix = '';
+      if (t.fixed !== undefined) suffix = ` = ${t.fixed}`;
+      else if (t.label) suffix = ` (${t.label})`;
+      return `${nameOf(m).get(t.target) ?? t.target}${suffix}`;
+    };
     out.push(
       ...diffList(
         (pm.means ?? []).map((t) => label(pm, t)),
@@ -285,9 +295,12 @@ export function describeChanges(
   if (!out.length && JSON.stringify(toSpec(pm)) !== JSON.stringify(toSpec(nm)))
     out.push('model parameters changed');
   out.push(...settingChanges(prev.settings, next.settings));
-  if (prev.data.fingerprint !== next.data.fingerprint)
-    out.push(
-      `data: ${prev.data.name || 'none'}${prev.data.rows ? ` (${prev.data.rows.toLocaleString()} rows)` : ''} → ${next.data.name || 'none'}${next.data.rows ? ` (${next.data.rows.toLocaleString()} rows)` : ''}`,
-    );
+  if (prev.data.fingerprint !== next.data.fingerprint) {
+    const dataName = (d: typeof prev.data) => {
+      const rows = d.rows ? ` (${d.rows.toLocaleString()} rows)` : '';
+      return `${d.name || 'none'}${rows}`;
+    };
+    out.push(`data: ${dataName(prev.data)} → ${dataName(next.data)}`);
+  }
   return out;
 }

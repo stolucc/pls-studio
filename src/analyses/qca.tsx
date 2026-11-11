@@ -219,8 +219,29 @@ function XYPlot({ m, r }: { m: QcaModel; r: QcaResult }) {
   );
 }
 
+/** A truth-table row's outcome: green for 1, amber for a contradiction. */
+function outClass(out: string) {
+  if (out === '1') return 'good';
+  if (out === 'C') return 'warn';
+  return undefined;
+}
+
+/** How a condition was calibrated. */
+function calibrationName(k: { method: string; crisp?: boolean }) {
+  if (k.method === 'direct') return 'Direct (logistic)';
+  return k.crisp ? 'Crisp set as given' : 'Fuzzy set as given';
+}
+
 function SolutionTables({ s, r }: { s: QcaSolution; r: QcaResult }) {
   const many = s.models.length > 1;
+  const expectation = (e: string) => {
+    if (e === '1') return 'present';
+    if (e === '0') return 'absent';
+    return '–';
+  };
+  const expectationsText = r.conditions
+    .map((n, i) => `${n}: ${expectation(r.expectations[i])}`)
+    .join(', ');
   return (
     <>
       {s.models.map((m, k) => (
@@ -250,7 +271,7 @@ function SolutionTables({ s, r }: { s: QcaSolution; r: QcaResult }) {
                 {s.kind === 'parsimonious' &&
                   `Parsimonious solution: remainders used as simplifying assumptions (${s.counterfactuals} truth table rows).`}
                 {s.kind === 'intermediate' &&
-                  `Intermediate solution: only remainders consistent with the directional expectations (${r.conditions.map((n, i) => `${n}: ${r.expectations[i] === '1' ? 'present' : r.expectations[i] === '0' ? 'absent' : '–'}`).join(', ')}; ${s.counterfactuals} easy counterfactuals).`}
+                  `Intermediate solution: only remainders consistent with the directional expectations (${expectationsText}; ${s.counterfactuals} easy counterfactuals).`}
                 {s.essential.length > 0 &&
                   ` Essential prime implicants: ${s.essential.join(', ')}.`}
                 {many &&
@@ -292,13 +313,7 @@ export function QcaView({ r, options: o }: { r: QcaResult; options: QcaOptions }
         ]}
         rows={r.calibration.map((k) => [
           c(k.variable),
-          c(
-            k.method === 'direct'
-              ? 'Direct (logistic)'
-              : k.crisp
-                ? 'Crisp set as given'
-                : 'Fuzzy set as given',
-          ),
+          c(calibrationName(k)),
           c(k.e ?? null),
           c(k.c ?? null),
           c(k.i ?? null),
@@ -326,7 +341,7 @@ export function QcaView({ r, options: o }: { r: QcaResult; options: QcaOptions }
         columns={[...r.conditions, 'OUT', 'n', 'incl', 'PRI', 'Cases']}
         rows={r.truthTable.rows.map((row) => [
           ...row.values.map((v) => c(v, undefined, 0)),
-          c(row.out, row.out === '1' ? 'good' : row.out === 'C' ? 'warn' : undefined),
+          c(row.out, outClass(row.out)),
           c(row.n, undefined, 0),
           c(row.incl),
           c(row.pri),
@@ -816,8 +831,10 @@ export const qcaAnalysis: AnalysisType<QcaOptions, QcaResult> = {
   },
   run: async (o, ctx) => (await import('../rengine/qca')).qcaR(input(o, ctx)!, qcaSpec(o)),
   script: async (o, ctx) => (await import('../rengine/qca')).qcaScriptR(input(o, ctx)!, qcaSpec(o)),
-  summary: (o) =>
-    o.outcome
-      ? `${o.conditions.join(', ') || '…'} → ${qcaOutcomeLabel(o.outcome, o.negate)}${o.source === 'scores' ? ' (construct scores)' : ''} · incl ≥ ${o.inclCut}, n ≥ ${o.nCut}${o.priCut ? `, PRI ≥ ${o.priCut}` : ''}`
-      : 'not set up yet',
+  summary: (o) => {
+    if (!o.outcome) return 'not set up yet';
+    const scores = o.source === 'scores' ? ' (construct scores)' : '';
+    const pri = o.priCut ? `, PRI ≥ ${o.priCut}` : '';
+    return `${o.conditions.join(', ') || '…'} → ${qcaOutcomeLabel(o.outcome, o.negate)}${scores} · incl ≥ ${o.inclCut}, n ≥ ${o.nCut}${pri}`;
+  },
 };
