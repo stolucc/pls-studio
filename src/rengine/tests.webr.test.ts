@@ -278,6 +278,35 @@ describe('correlations and frequencies', () => {
     expect(r3.yates).toBeNull();
     expect(r3.oddsRatio).toBeNull();
   }, 600_000);
+  it('contingency table card: value labels of a numeric column name its categories', async () => {
+    const { contingencyAnalysis } = await import('../analyses/tests');
+    const { setVariableInfo } = await import('../data/columns');
+    const { DEFAULT_SETTINGS } = await import('../model/project');
+    // cyl as the numbers 4, 6, 8 (the fixture codes it as a text column).
+    const base = data(ref.mtcars);
+    const k = base.names.indexOf('cyl');
+    const cyl = base.cols[k].map((code) => Number(base.categories!.cyl[code - 1]));
+    const { cyl: _c, ...categories } = base.categories!;
+    const d: Dataset = { ...base, cols: base.cols.map((c, j) => (j === k ? cyl : c)), categories };
+    const info = setVariableInfo(
+      { fileName: 'mtcars', rows: d.cols[0].length, missingCells: 0, excluded: [] },
+      'cyl',
+      {
+        labels: [
+          { value: 4, label: 'four' },
+          { value: 8, label: 'eight' },
+        ],
+      },
+    );
+    const ctx = { data: d, info, settings: DEFAULT_SETTINGS, pls: null, projectName: '' };
+    const o = { rows: 'am', columns: 'cyl', counts: '' };
+    const r = await contingencyAnalysis.run(o, ctx, () => {});
+    // Labelled values by their labels, an unlabelled one by its number; the statistics as before.
+    expect(r.colLevels).toEqual(['four', '6', 'eight']);
+    close(r.chisq.stat, ref.contingency23.chisq.stat, 'χ² 2×3 with value labels');
+    const script = await contingencyAnalysis.script!(o, ctx);
+    expect(script).toContain('"four"');
+  }, 600_000);
   it('binomial and multinomial tests', async () => {
     const b = await freqTestR(data(ref.mtcars), {
       type: 'binomial',

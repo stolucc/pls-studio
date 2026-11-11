@@ -609,10 +609,17 @@ export function removeComputed(
     cols: data.cols.filter((_, i) => i !== j),
   };
   const computed = (info.computed ?? []).filter((c) => c.name !== name);
-  const { computed: _c, ...rest } = info;
+  // (its level and value labels go with it)
+  const variables = (info.variables ?? []).filter((v) => v.name !== name);
+  const { computed: _c, variables: _v, ...rest } = info;
   return {
     data: next,
-    info: { ...rest, ...(computed.length ? { computed } : {}), missingCells: countMissing(next) },
+    info: {
+      ...rest,
+      ...(computed.length ? { computed } : {}),
+      ...(variables.length ? { variables } : {}),
+      missingCells: countMissing(next),
+    },
   };
 }
 

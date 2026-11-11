@@ -94,6 +94,17 @@ describe('files from users', () => {
       expect(info.excluded.map((x) => x.name)).toEqual(['when']);
       // SPSS stores the factor as labelled codes: numbers (1 = b, 2 = a); Stata the same.
       expect(col(data, 'group')).toEqual([1, 2, 1, 2, 1]);
+      // haven's value labels come along as the columns' value labels.
+      const labels = (n: string) => info.variables?.find((v) => v.name === n)?.labels;
+      expect(labels('item'), format).toEqual([
+        { value: 1, label: 'disagree' },
+        { value: 5, label: 'agree' },
+        { value: 9, label: 'refused' },
+      ]);
+      expect(labels('group'), format).toEqual([
+        { value: 1, label: 'b' },
+        { value: 2, label: 'a' },
+      ]);
     }
   }, 900_000);
 });

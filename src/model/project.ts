@@ -27,6 +27,7 @@ import {
 } from '../engine/types';
 import { pooledMoments } from '../data/moments';
 import { filterError, normalizeData } from '../data/pipeline';
+import { parseVariables, type VariableInfo } from '../data/columns';
 import { MAX_CATEGORIES } from '../engine/dataset';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
@@ -171,6 +172,8 @@ export interface DataInfo {
    * data/compute.ts, is true are analysed; the others are the last entry of droppedRows.
    */
   filter?: { expr: string };
+  /** Measurement levels and value labels of columns (data/columns.ts). */
+  variables?: VariableInfo[];
 }
 
 /** PLS-SEM (seminr): how an interaction term is built; absent = the two-stage approach (products of construct scores). */
@@ -1387,6 +1390,8 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
     ...parseExclusions(d.info.droppedRows, names, !!filter.filter),
     ...filter,
   };
+  const variables = parseVariables(d.info.variables, data);
+  if (variables) info.variables = variables;
   if (d.moments !== undefined) {
     const moments = parseMoments(d.moments, names.length);
     data = { names, cols: [], moments };

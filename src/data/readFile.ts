@@ -6,6 +6,7 @@
 import { codeText } from '../engine/dataset';
 import type { Dataset } from '../engine/types';
 import type { DataInfo } from '../model/project';
+import { parseVariables } from './columns';
 
 export type DataFileFormat = 'sav' | 'zsav' | 'dta' | 'xlsx' | 'xls';
 
@@ -18,7 +19,12 @@ export function dataFileFormat(name: string): DataFileFormat | null {
 }
 
 type RawColumn =
-  | { kind: 'number'; values: (number | null)[] | number | null }
+  | {
+      kind: 'number';
+      values: (number | null)[] | number | null;
+      /** Value labels (haven's labels attribute), untrusted: validated by parseVariables. */
+      labels?: unknown;
+    }
   | { kind: 'factor'; codes: (number | null)[] | number | null; levels: string[] | string }
   | { kind: 'text'; values: (string | null)[] | string | null };
 export interface RawDataFile {
@@ -46,15 +52,17 @@ export function toDataset(
     cols: Float64Array[] = [],
     categories: Record<string, string[]> = {};
   const excluded = [...(raw.excluded ?? [])];
+  const variables: { name: string; labels: unknown }[] = [];
   let missingCells = 0;
   arr(raw.names).forEach((name, i) => {
     const c = raw.cols[i];
     let col: Float64Array;
-    if (c.kind === 'number')
+    if (c.kind === 'number') {
       col = Float64Array.from(arr(c.values), (v) =>
         typeof v === 'number' && Number.isFinite(v) ? v : NaN,
       );
-    else if (c.kind === 'factor') {
+      if (c.labels) variables.push({ name, labels: arr(c.labels) });
+    } else if (c.kind === 'factor') {
       col = Float64Array.from(arr(c.codes), (v) => (typeof v === 'number' ? v : NaN));
       categories[name] = arr(c.levels).map(String);
     } else {
@@ -74,11 +82,15 @@ export function toDataset(
     cols.push(col);
   });
   if (!names.length) throw new Error('No usable columns were found.');
-  return {
-    data: { names, cols, ...(Object.keys(categories).length ? { categories } : {}) },
-    info: { fileName: fileName.slice(0, 200), rows: raw.n, missingCells, excluded },
-    sheets: arr(raw.sheets),
+  const data: Dataset = {
+    names,
+    cols,
+    ...(Object.keys(categories).length ? { categories } : {}),
   };
+  const info: DataInfo = { fileName: fileName.slice(0, 200), rows: raw.n, missingCells, excluded };
+  const labelled = parseVariables(variables, data);
+  if (labelled) info.variables = labelled;
+  return { data, info, sheets: arr(raw.sheets) };
 }
 
 function base64(bytes: Uint8Array): string {

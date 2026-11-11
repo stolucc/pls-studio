@@ -488,12 +488,20 @@ ps_read_data <- function(req_json) {
   excluded <- list()
   for (v in names(d)) {
     x <- d[[v]]
-    if (inherits(x, "haven_labelled")) x <- as.numeric(haven::zap_labels(x))
+    # Value labels of numeric codes (SPSS/Stata), sent beside the numbers.
+    labels <- NULL
+    if (inherits(x, "haven_labelled")) {
+      l <- attr(x, "labels", exact = TRUE)
+      if (is.numeric(l) && length(l)) {
+        labels <- lapply(seq_along(l), function(k) list(value = unname(l[[k]]), label = names(l)[k]))
+      }
+      x <- as.numeric(haven::zap_labels(x))
+    }
     if (is.logical(x)) x <- as.numeric(x)
     if (is.factor(x)) {
       cols[[v]] <- list(kind = "factor", codes = as.integer(x), levels = levels(x))
     } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt", "difftime"))) {
-      cols[[v]] <- list(kind = "number", values = unname(as.numeric(x)))
+      cols[[v]] <- list(kind = "number", values = unname(as.numeric(x)), labels = labels)
     } else if (is.character(x)) {
       cols[[v]] <- list(kind = "text", values = unname(x))
     } else {

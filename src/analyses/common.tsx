@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { Dataset } from '../engine/types';
 import { clampNum } from '../parse';
 import { fingerprint } from './codec';
+import { labelsToText, valueLabels } from '../data/columns';
 import type { AnalysisCtx } from './types';
 
 export { clampNum, flag, isObj, name, names, oneOf } from '../parse';
@@ -50,7 +51,13 @@ export function columnsFingerprint(
   if (!ds) return null;
   const ks = [...new Set(cols.filter(Boolean))].map((c) => ds.names.indexOf(c));
   if (ks.some((k) => k < 0)) return null;
-  return fingerprint([...extra, ...ks.flatMap((k) => [ds.names[k], ds.cols[k]])]);
+  // Value labels name groups and categories in results: a changed label makes the result stale
+  // (columns without labels add nothing, so other fingerprints stay as they were).
+  const labels = ks.flatMap((k) => {
+    const l = valueLabels(ctx.info, ds.names[k]);
+    return l.length ? [`labels:${ds.names[k]}`, labelsToText(l)] : [];
+  });
+  return fingerprint([...extra, ...ks.flatMap((k) => [ds.names[k], ds.cols[k]]), ...labels]);
 }
 
 /** A data column name not yet in use: base, base_2, base_3, … */
