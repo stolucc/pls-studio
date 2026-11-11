@@ -226,16 +226,13 @@ export function cramerVonMises(x: ArrayLike<number>): { statistic: number; p: nu
     w += (pnorm((v - mean) / sd) - (2 * (i + 1) - 1) / (2 * n)) ** 2;
   });
   const m = (1 + 0.5 / n) * w;
-  const p =
-    m < 0.0275
-      ? 1 - Math.exp(-13.953 + 775.5 * m - 12542.61 * m * m)
-      : m < 0.051
-        ? 1 - Math.exp(-5.903 + 179.546 * m - 1515.29 * m * m)
-        : m < 0.092
-          ? Math.exp(0.886 - 31.62 * m + 10.897 * m * m)
-          : m < 1.1
-            ? Math.exp(1.111 - 34.242 * m + 12.832 * m * m)
-            : 7.37e-10;
+  // (Stephens' piecewise approximation of the p-value from the modified statistic)
+  let p: number;
+  if (m < 0.0275) p = 1 - Math.exp(-13.953 + 775.5 * m - 12542.61 * m * m);
+  else if (m < 0.051) p = 1 - Math.exp(-5.903 + 179.546 * m - 1515.29 * m * m);
+  else if (m < 0.092) p = Math.exp(0.886 - 31.62 * m + 10.897 * m * m);
+  else if (m < 1.1) p = Math.exp(1.111 - 34.242 * m + 12.832 * m * m);
+  else p = 7.37e-10;
   return { statistic: w, p };
 }
 
@@ -247,7 +244,9 @@ export function normalP(z: number): number {
 
 /** Standard normal quantile (Wichura 1988, algorithm AS 241; about 16 digits). */
 export function qnorm(p: number): number {
-  if (!(p > 0 && p < 1)) return p === 0 ? -Infinity : p === 1 ? Infinity : NaN;
+  if (p === 0) return -Infinity;
+  if (p === 1) return Infinity;
+  if (!(p > 0 && p < 1)) return NaN;
   const q = p - 0.5;
   if (Math.abs(q) <= 0.425) {
     const r = 0.180625 - q * q;

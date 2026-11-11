@@ -110,15 +110,14 @@ export function mcParameters(pop: Population, withFit = false): McParam[] {
 export function ciTruth(design: McDesign, pop: Population, params: McParam[]): number[][] {
   const ci = (name: string) => pop.constructs.indexOf(name);
   return design.estimators.map((e) =>
-    params.map((p) =>
-      p.kind === 'fit'
-        ? NaN
-        : e.method !== 'cb'
-          ? p.value
-          : p.kind === 'covariance'
-            ? p.value * pop.markerLoading[ci(p.from)] * pop.markerLoading[ci(p.to)]
-            : (p.value * pop.markerLoading[ci(p.to)]) / pop.markerLoading[ci(p.from)],
-    ),
+    params.map((p) => {
+      if (p.kind === 'fit') return NaN;
+      if (e.method !== 'cb') return p.value;
+      const fromLoading = pop.markerLoading[ci(p.from)];
+      const toLoading = pop.markerLoading[ci(p.to)];
+      if (p.kind === 'covariance') return p.value * fromLoading * toLoading;
+      return (p.value * toLoading) / fromLoading;
+    }),
   );
 }
 
@@ -190,12 +189,11 @@ export function runMcTask(
               if (p.kind === 'fit') return;
               const i = ci(p.from),
                 j = ci(p.to);
-              est[ei][pi][k] =
-                p.kind === 'path'
-                  ? st.pathCoef[i][j]
-                  : p.kind === 'covariance'
-                    ? st.C[i][j]
-                    : st.totalEffects[i][j] - st.pathCoef[i][j];
+              let value: number;
+              if (p.kind === 'path') value = st.pathCoef[i][j];
+              else if (p.kind === 'covariance') value = st.C[i][j];
+              else value = st.totalEffects[i][j] - st.pathCoef[i][j]; // (the indirect effect)
+              est[ei][pi][k] = value;
             });
           }
           proper[ei][k] = 1;
@@ -322,12 +320,9 @@ export function summariseMc(design: McDesign, parts: McPart[]): McSummaryRow[] {
         if (param.kind === 'fit' && e.method !== 'cb') return;
         const mean = R ? ests.reduce((s, x) => s + x, 0) / R : NaN;
         const sd = R > 1 ? Math.sqrt(ests.reduce((s, x) => s + (x - mean) ** 2, 0) / (R - 1)) : NaN;
-        const rmse =
-          param.kind === 'fit'
-            ? NaN
-            : R
-              ? Math.sqrt(ests.reduce((s, x) => s + (x - param.value) ** 2, 0) / R)
-              : NaN;
+        let rmse = NaN;
+        if (param.kind !== 'fit' && R)
+          rmse = Math.sqrt(ests.reduce((s, x) => s + (x - param.value) ** 2, 0) / R);
         rows.push({
           estimator: e.id,
           n,

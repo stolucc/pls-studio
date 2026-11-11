@@ -1329,8 +1329,12 @@ function inference(
   const Gamma = gammaOf();
   if (!Gamma)
     throw new Error(`${estimator} needs raw data or a NACOV (asymptotic covariance) matrix.`);
+  // (S with the covariances zeroed, except those among the exogenous observed variables)
   const SigmaB = S.map((r, i) =>
-    r.map((v, j) => (i === j ? v : xInd.has(i) && xInd.has(j) ? v : 0)),
+    r.map((v, j) => {
+      const kept = i === j || (xInd.has(i) && xInd.has(j));
+      return kept ? v : 0;
+    }),
   );
   const Wb = weightNT(invertPD(cholesky(SigmaB)!), pairs);
   const Eb = quad(Db, Wb);

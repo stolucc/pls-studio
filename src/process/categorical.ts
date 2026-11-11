@@ -15,9 +15,13 @@ export function codeValue(coding: XCoding, k: number, g: number, j: number): num
     case 'sequential':
       return g >= j + 1 ? 1 : 0;
     case 'effect':
-      return g === 0 ? -1 : g === j + 1 ? 1 : 0;
+      // (the first group is the reference, coded -1 on every code)
+      if (g === 0) return -1;
+      return g === j + 1 ? 1 : 0;
     case 'helmert':
-      return g < j ? 0 : g === j ? -(k - 1 - j) / (k - j) : 1 / (k - j);
+      if (g < j) return 0;
+      if (g === j) return -(k - 1 - j) / (k - j);
+      return 1 / (k - j);
   }
 }
 

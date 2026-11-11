@@ -186,12 +186,10 @@ export function materialise(tp: Template, roles: Roles): ProcessGraph {
     if (!mods) return;
     for (const p of paths) {
       if (mods === 'W*Z') g.threeWay.push({ path: p, by: [role('W'), role('Z')] });
-      for (const r of mods === 'W'
-        ? (['W'] as const)
-        : mods === 'Z'
-          ? (['Z'] as const)
-          : (['W', 'Z'] as const))
-        g.moderations.push({ path: p, by: role(r) });
+      let moderators: readonly ('W' | 'Z')[] = ['W', 'Z'];
+      if (mods === 'W') moderators = ['W'];
+      else if (mods === 'Z') moderators = ['Z'];
+      for (const r of moderators) g.moderations.push({ path: p, by: role(r) });
     }
   };
   moderate(tp.xmFirst ? xm.slice(0, 1) : xm, tp.xm);
@@ -285,15 +283,15 @@ export function recognise(g: ProcessGraph): Recognised | null {
     ...new Set([...g.moderations.map((m) => m.by), ...g.threeWay.flatMap((m) => m.by)]),
   ].filter((v) => !onPaths.has(v));
   if (moderators.length > 2 || g.mediators.length > 10) return null;
-  const assignments: { w?: string; z?: string }[] =
-    moderators.length === 0
-      ? [{}]
-      : moderators.length === 1
-        ? [{ w: moderators[0] }, { z: moderators[0] }]
-        : [
-            { w: moderators[0], z: moderators[1] },
-            { w: moderators[1], z: moderators[0] },
-          ];
+  // Every way of casting the moderators as W and Z.
+  let assignments: { w?: string; z?: string }[];
+  if (moderators.length === 0) assignments = [{}];
+  else if (moderators.length === 1) assignments = [{ w: moderators[0] }, { z: moderators[0] }];
+  else
+    assignments = [
+      { w: moderators[0], z: moderators[1] },
+      { w: moderators[1], z: moderators[0] },
+    ];
   // Factorial in the number of mediators: fine up to PROCESS's limits for structured models.
   const orders = g.mediators.length <= 6 ? [...permutations(g.mediators)] : [g.mediators];
   for (const tp of TEMPLATES) {

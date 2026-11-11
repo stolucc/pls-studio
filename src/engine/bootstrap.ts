@@ -362,18 +362,18 @@ function fitTestJob(data: Dataset, spec: ModelSpec, options: Partial<PlsOptions>
 // ---------- ranges and merging ----------
 
 /** Estimate bootstrap samples [start, end) of a job. Safe to run in parallel workers. */
+/** The estimation one bootstrap sample repeats, for the kind of job requested. */
+function jobFor(req: RangeRequest) {
+  if (req.job === 'pls') return plsJob(req.data, req.spec, req.options);
+  if (req.job === 'cb') {
+    const missing = { ...DEFAULT_OPTIONS, ...req.options }.missing;
+    return cbJob(req.data, req.spec, missing, req.estimator ?? 'ML');
+  }
+  return fitTestJob(req.data, req.spec, req.options);
+}
+
 export function runRange(req: RangeRequest, hooks: BootstrapHooks = {}): RangePart {
-  const job =
-    req.job === 'pls'
-      ? plsJob(req.data, req.spec, req.options)
-      : req.job === 'cb'
-        ? cbJob(
-            req.data,
-            req.spec,
-            { ...DEFAULT_OPTIONS, ...req.options }.missing,
-            req.estimator ?? 'ML',
-          )
-        : fitTestJob(req.data, req.spec, req.options);
+  const job = jobFor(req);
   const count = Math.max(0, req.end - req.start);
   const draws = job.params.map(() => new Float64Array(count).fill(NaN));
   const inner = req.innerSamples ?? 0;

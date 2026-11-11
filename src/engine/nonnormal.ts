@@ -138,8 +138,12 @@ export interface ValeMaurelli {
 /** Prepare Vale–Maurelli generation for a correlation matrix and per-variable skewness/kurtosis. */
 export function valeMaurelli(R: Mat, skew: number[], kurt: number[]): ValeMaurelli {
   const coef = R.map((_, i) => fleishman(skew[i], kurt[i]));
+  // The upper triangle is solved for, the lower one mirrors it.
   const Rs = R.map((row, i) =>
-    row.map((r, j) => (i === j ? 1 : i < j ? intermediateCor(coef[i], coef[j], r) : NaN)),
+    row.map((r, j) => {
+      if (i === j) return 1;
+      return i < j ? intermediateCor(coef[i], coef[j], r) : NaN;
+    }),
   );
   for (let i = 0; i < R.length; i++) for (let j = 0; j < i; j++) Rs[i][j] = Rs[j][i];
   const L = cholesky(Rs);

@@ -37,12 +37,11 @@ export function templatePositions(
 ): Map<string, { x: number; y: number }> {
   const pos = new Map<string, { x: number; y: number }>();
   const k = roles.m.length;
-  const width =
-    tp.structure === 'serial'
-      ? Math.max(2, k + 1)
-      : tp.structure === 'moderation'
-        ? 2
-        : 2 + (tp.structure === 'parallel' ? 0 : 1);
+  // Columns from X to Y: a serial chain needs one per mediator.
+  let width: number;
+  if (tp.structure === 'serial') width = Math.max(2, k + 1);
+  else if (tp.structure === 'moderation' || tp.structure === 'parallel') width = 2;
+  else width = 3;
   pos.set(roles.x, { x: 0, y: 0 });
   pos.set(roles.y, { x: width * DX, y: 0 });
   const above = (i: number, of: number) => -DY * (of - i);

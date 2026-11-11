@@ -149,6 +149,13 @@ export function parseCsv(text: string, opts: ParseOptions = {}): ParsedData {
 /** Most categories a text column may have (beyond that it is treated as free text). */
 export const MAX_CATEGORIES = 1000;
 
+/** Plain code-unit order, the tie-break when a natural comparison finds two labels equal ("a" and "A"). */
+function codeUnitOrder(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 /**
  * Code a text column as categories 1, 2, ... (natural order: "2" before "10",
  * case-insensitive). Null when it looks like free text: more than
@@ -161,8 +168,7 @@ export function codeText(
   const present = cells.filter((x) => !missing.has(x.toUpperCase()));
   const labels = [...new Set(present)].sort(
     (a, b) =>
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }) ||
-      (a < b ? -1 : a > b ? 1 : 0),
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }) || codeUnitOrder(a, b),
   );
   if (labels.length > MAX_CATEGORIES || (labels.length > 50 && labels.length > present.length / 2))
     return null;
