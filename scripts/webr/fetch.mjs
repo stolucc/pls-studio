@@ -194,6 +194,19 @@ const BASE = new Set([
 const RUNTIME = ['R.js', 'R.wasm', 'libRblas.so', 'libRlapack.so', 'webr-worker.js', 'vfs'];
 
 /** Parse a Debian-control style PACKAGES file into stanzas. */
+/** How a package's build differs from the CRAN release, for the notices (an empty object when it does not). */
+function buildNote(name) {
+  if (UPSTREAM[name]) return { note: 'development build by webR; source: upstream repository' };
+  if (SNAPSHOT[name]) {
+    const patched = PATCHED[name] ? ', patched' : '';
+    return {
+      note: `built by PLS Studio from the repository at commit ${SNAPSHOT[name].commit} (the CRAN release is archived); source: that snapshot${patched}`,
+    };
+  }
+  if (PATCHED[name]) return { note: 'built by PLS Studio from the CRAN source, patched' };
+  return {};
+}
+
 function parsePackages(text) {
   return text
     .split(/\n\s*\n/)
@@ -425,15 +438,7 @@ async function main() {
           source: sources[name] ?? null,
           url:
             UPSTREAM[name] ?? SNAPSHOT[name]?.url ?? `https://cran.r-project.org/package=${name}`,
-          ...(UPSTREAM[name]
-            ? { note: 'development build by webR; source: upstream repository' }
-            : SNAPSHOT[name]
-              ? {
-                  note: `built by PLS Studio from the repository at commit ${SNAPSHOT[name].commit} (the CRAN release is archived); source: that snapshot${PATCHED[name] ? ', patched' : ''}`,
-                }
-              : PATCHED[name]
-                ? { note: 'built by PLS Studio from the CRAN source, patched' }
-                : {}),
+          ...buildNote(name),
           ...(PATCHED[name]
             ? {
                 patch: `src/${name}_${p.version}.patch`,

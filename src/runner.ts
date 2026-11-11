@@ -100,21 +100,15 @@ function runR(kind: JobKind, key: string) {
   };
   const token = ++rToken;
   const modsem = cb && st.interaction !== 'product' && s.model.moderations.length > 0;
-  const pkg = cb
-    ? st.estimator === '2SLS'
-      ? 'MIIVsem'
-      : modsem
-        ? 'modsem'
-        : 'lavaan'
-    : kind === 'fittest'
-      ? 'cSEM'
-      : st.plsPackage;
-  const what =
-    kind === 'estimate'
-      ? 'Estimating'
-      : kind === 'fittest'
-        ? `Fit test (${boot.samples} samples)`
-        : `Bootstrapping ${boot.samples} samples`;
+  // The R package doing the work, for the progress label.
+  let pkg: string;
+  if (cb && st.estimator === '2SLS') pkg = 'MIIVsem';
+  else if (cb) pkg = modsem ? 'modsem' : 'lavaan';
+  else pkg = kind === 'fittest' ? 'cSEM' : st.plsPackage;
+  let what: string;
+  if (kind === 'estimate') what = 'Estimating';
+  else if (kind === 'fittest') what = `Fit test (${boot.samples} samples)`;
+  else what = `Bootstrapping ${boot.samples} samples`;
   s.setJob({ kind, done: 0, total: 1, workers: 1, label: `${what} with ${pkg}…` });
   const done = () => {
     if (token !== rToken) return null;
@@ -467,11 +461,10 @@ export function run(kind: JobKind) {
     };
     w.onerror = (e) => fail(`Calculation failed: ${e.message}`);
     const est = s.settings.estimator;
-    const req: WorkerRequest = !cb
-      ? { kind: 'pls', data, spec, options }
-      : est === '2SLS'
-        ? { kind: 'miiv', data, spec, options }
-        : { kind: 'cb', data, spec, options, estimator: est };
+    let req: WorkerRequest;
+    if (!cb) req = { kind: 'pls', data, spec, options };
+    else if (est === '2SLS') req = { kind: 'miiv', data, spec, options };
+    else req = { kind: 'cb', data, spec, options, estimator: est };
     w.postMessage(req);
     return;
   }
@@ -484,7 +477,8 @@ export function run(kind: JobKind) {
     return;
   }
   // Bootstrap and fit test: split the samples across a pool of workers.
-  const job: BootJobKind = kind === 'fittest' ? 'fittest' : cb ? 'cb' : 'pls';
+  let job: BootJobKind = cb ? 'cb' : 'pls';
+  if (kind === 'fittest') job = 'fittest';
   const total = Math.max(2, Math.floor(s.settings.bootSamples));
   const ranges = splitRanges(total, workerCount());
   const done = new Array<number>(ranges.length).fill(0);

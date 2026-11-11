@@ -29,8 +29,12 @@ export interface RawDataFile {
   excluded?: { name: string; reason: string }[];
 }
 
-const arr = <T>(v: T[] | T | null | undefined): T[] =>
-  Array.isArray(v) ? v : v == null ? [] : [v];
+/** A value R may give as one item, a vector or nothing, as an array. */
+function arr<T>(v: T[] | T | null | undefined): T[] {
+  if (Array.isArray(v)) return v;
+  if (v == null) return [];
+  return [v];
+}
 const MISSING_TEXT = new Set(['', 'NA', 'N/A', 'NAN', '.']);
 
 /** Convert R's columns to the app's dataset (pure; exported for tests). */

@@ -57,9 +57,13 @@ const checks = [...byKey.values()].sort(
 );
 const used = [...new Set(checks.flatMap((c) => c.packages))].sort();
 const today = new Date().toISOString().slice(0, 10);
+// (the date of the last desktop-R run: today's when this is one, else the one kept from before)
+let desktopDate = {};
+if (desktop) desktopDate = { desktop: today };
+else if (previous?.desktop) desktopDate = { desktop: previous.desktop };
 const out = {
   generated: desktop ? (previous?.generated ?? today) : today,
-  ...(desktop ? { desktop: today } : previous?.desktop ? { desktop: previous.desktop } : {}),
+  ...desktopDate,
   webR: lock.webR ?? lock.webr ?? '',
   R: lock.R ?? lock.r ?? '',
   versions: Object.fromEntries(used.map((p) => [p, version(p) ?? '']).filter(([, v]) => v)),

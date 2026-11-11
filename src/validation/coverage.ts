@@ -50,7 +50,7 @@ export function coverage(
     .map((key) => {
       const entry = CARD_EVIDENCE[key];
       const card = key.split(':')[0];
-      const group = card === 'model' ? 'model' : card === 'builtin' ? 'builtin' : 'cards';
+      const group = card === 'model' || card === 'builtin' ? card : 'cards';
       const checks = e?.checks.filter((c) => checkIsFor(key, entry, c)) ?? [];
       const pending = [
         ...(entry.examples ?? []).filter(

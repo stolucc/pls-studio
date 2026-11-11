@@ -127,14 +127,14 @@ function side(ts: Tok[]): HypTerm[] {
     });
     sign = 1;
     if (p >= ts.length) return out;
-    if (!(isOp('+') || isOp('-')))
-      throw new Error(
-        ts[p].v === '(' || ts[p].v === ')'
-          ? 'Parentheses are only allowed in abs(label).'
-          : ts[p].k === 'name' || ts[p].k === 'num'
-            ? `“${ts[p].v}” needs an operator before it (+, −, * or a comparison).`
-            : `Unexpected “${ts[p].v}”.`,
-      );
+    if (!(isOp('+') || isOp('-'))) {
+      const t = ts[p];
+      if (t.v === '(' || t.v === ')')
+        throw new Error('Parentheses are only allowed in abs(label).');
+      if (t.k === 'name' || t.k === 'num')
+        throw new Error(`“${t.v}” needs an operator before it (+, −, * or a comparison).`);
+      throw new Error(`Unexpected “${t.v}”.`);
+    }
   }
 }
 

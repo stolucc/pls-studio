@@ -99,8 +99,13 @@ const keyOf = (s: Structure) =>
     .join(',')}`;
 const parentsOf = (s: Structure, x: string) =>
   new Set([...s.paths, ...s.hidden].filter(([, t]) => t === x).map(([f]) => f));
+/** The variables x covaries with. */
 const partnersOf = (s: Structure, x: string) =>
-  s.covs.flatMap(([a, b]) => (a === x ? [b] : b === x ? [a] : []));
+  s.covs.flatMap(([a, b]) => {
+    if (a === x) return [b];
+    if (b === x) return [a];
+    return [];
+  });
 const endogenous = (s: Structure, x: string) => [...s.paths, ...s.hidden].some(([, t]) => t === x);
 const sameSet = (a: Set<string>, b: Set<string>) =>
   a.size === b.size && [...a].every((x) => b.has(x));

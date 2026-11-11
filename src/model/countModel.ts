@@ -202,10 +202,14 @@ export function countModelSyntax(
       const f = fname.get(c.id)!;
       c.indicators.forEach((i, k) => {
         const held = c.fixedLoadings?.[i];
-        const free = held === undefined && (k > 0 || c.scaling === 'variance');
-        lines.push(
-          `${f} BY ${i}${held !== undefined ? at(held) : free ? '*' : ''}${held === undefined ? label(c.loadingLabels?.[i]) : ''};`,
-        );
+        // Held: @value. Otherwise free (*) unless it is the marker, and labelled if it has a label.
+        let suffix: string;
+        if (held !== undefined) suffix = at(held);
+        else {
+          const free = k > 0 || c.scaling === 'variance';
+          suffix = `${free ? '*' : ''}${label(c.loadingLabels?.[i])}`;
+        }
+        lines.push(`${f} BY ${i}${suffix};`);
       });
       if (c.scaling === 'variance') lines.push(`${f}@1;`);
     }

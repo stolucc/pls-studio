@@ -30,16 +30,13 @@ export function definitionHash(def: unknown): string {
     for (const k of UNHASHED_FIELDS) delete rest[k];
     def = rest;
   }
-  const norm = (v: unknown): unknown =>
-    Array.isArray(v)
-      ? v.map(norm)
-      : v && typeof v === 'object'
-        ? Object.fromEntries(
-            Object.keys(v as object)
-              .sort()
-              .map((k) => [k, norm((v as Record<string, unknown>)[k])]),
-          )
-        : v;
+  // (objects with their keys sorted, all the way down, so equal records compare equal)
+  const norm = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(norm);
+    if (!v || typeof v !== 'object') return v;
+    const keys = Object.keys(v as object).sort();
+    return Object.fromEntries(keys.map((k) => [k, norm((v as Record<string, unknown>)[k])]));
+  };
   return createHash('sha256')
     .update(JSON.stringify(norm(def) ?? null))
     .digest('hex')

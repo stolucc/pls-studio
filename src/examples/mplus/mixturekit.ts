@@ -427,13 +427,12 @@ export async function checkMixture(key: string) {
       ['logl', 'log-likelihood'],
       ['aic', 'AIC'],
       ['bic', 'BIC'],
-    ] as const)
-      near(
-        label,
-        k === 'logl' ? r.logLik : k === 'aic' ? r.aic : r.bic,
-        want.fit[k]!,
-        (k === 'logl' ? 1 : 2) * t.logl,
-      );
+    ] as const) {
+      const got = { logl: r.logLik, aic: r.aic, bic: r.bic }[k];
+      // (AIC and BIC are -2 logL plus a penalty: twice the log-likelihood's tolerance)
+      const tolerance = (k === 'logl' ? 1 : 2) * t.logl;
+      near(label, got, want.fit[k]!, tolerance);
+    }
   } else sameFit({ npar: r.npar, logl: r.logLik, aic: r.aic, bic: r.bic }, want.fit);
   near2(r2.logLik, r.logLik);
   const news = (MPLUS[key] as { new?: Record<string, { est: number; se: number }> }).new ?? {};

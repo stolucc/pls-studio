@@ -990,7 +990,7 @@ function checkOtherMissingData(v: Ctx): Issue[] {
   if (method.method === 'cbsem') return issues;
   if (LAVAAN_MISSING.includes(missingChoice) && method.method === 'pls')
     err(
-      `${missingChoice === 'fiml' ? 'FIML' : missingChoice === 'pairwise' ? 'Pairwise deletion' : 'The two-stage approach'} is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.`,
+      `${lavaanMissingName(missingChoice)} is a CB-SEM option; PLS-SEM uses mean replacement, casewise deletion or multiple imputation.`,
     );
   if (missingChoice === 'mi' && method.method === 'pls') {
     if (engine === 'builtin')
@@ -1257,6 +1257,20 @@ function unknownBetweenNames(ml: Multilevel, columns: string[]): string[] {
     );
 }
 
+/** A CB-SEM-only missing-data treatment, named to start a sentence. */
+function lavaanMissingName(choice: string): string {
+  if (choice === 'fiml') return 'FIML';
+  if (choice === 'pairwise') return 'Pairwise deletion';
+  return 'The two-stage approach';
+}
+
+/** A composite's weighting, as messages name it. */
+function weightingName(mode: string): string {
+  if (mode === 'B') return 'Mode B';
+  if (mode === 'unit') return 'sum scores';
+  return 'Mode A';
+}
+
 /** Cluster-level covariates (between level `factors`) that are not further columns of the data. */
 function betweenCovariateIssues(
   ml: Multilevel,
@@ -1264,15 +1278,14 @@ function betweenCovariateIssues(
   assigned: Set<string>,
 ): string[] {
   if (ml.between !== 'factors') return [];
-  return (ml.betweenCovariates ?? []).flatMap((w) =>
-    !columns.includes(w)
-      ? [`The cluster-level covariate “${w}” is not in the dataset.`]
-      : assigned.has(w) || w === ml.column
-        ? [
-            `“${w}” is in the model or defines the clusters: a cluster-level covariate is a further column.`,
-          ]
-        : [],
-  );
+  return (ml.betweenCovariates ?? []).flatMap((w) => {
+    if (!columns.includes(w)) return [`The cluster-level covariate “${w}” is not in the dataset.`];
+    if (assigned.has(w) || w === ml.column)
+      return [
+        `“${w}” is in the model or defines the clusters: a cluster-level covariate is a further column.`,
+      ];
+    return [];
+  });
 }
 
 /** Two-level models (CB-SEM). */
@@ -1367,7 +1380,7 @@ export function plsMultilevelIssues(
       );
     else if (c.indicators.length > 1 && (c.mode !== 'A' || c.type === 'composite'))
       out.push(
-        `"${c.name}" is a composite (${c.mode === 'B' ? 'Mode B' : c.mode === 'unit' ? 'sum scores' : 'Mode A'}): plssem’s MC-PLSc estimates common factors only (it has no Mode B yet); make it a factor with Mode A.`,
+        `"${c.name}" is a composite (${weightingName(c.mode)}): plssem’s MC-PLSc estimates common factors only (it has no Mode B yet); make it a factor with Mode A.`,
       );
     if (c.predefinedWeights)
       out.push(`"${c.name}" has pre-defined weights, which plssem does not take.`);

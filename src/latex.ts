@@ -95,12 +95,11 @@ export function toLatex(t: LatexTable): string {
       t.rows.length > 0 &&
       t.rows.every((r) => r[j]?.v === null || typeof r[j]?.v === 'number'),
   );
-  const cell = (c: { v: LatexCell; d?: number } | undefined) =>
-    c === undefined || c.v === null
-      ? '---'
-      : typeof c.v === 'number'
-        ? latexNumber(c.v, c.d ?? 3)
-        : latexText(c.v);
+  const cell = (c: { v: LatexCell; d?: number } | undefined) => {
+    if (c === undefined || c.v === null) return '---';
+    if (typeof c.v === 'number') return latexNumber(c.v, c.d ?? 3);
+    return latexText(c.v);
+  };
   const line = (cells: string[]) => `    ${cells.join(' & ')} \\\\`;
   return [
     '% Requires \\usepackage{booktabs}',

@@ -248,17 +248,12 @@ export function loadingOrder(loadings: number[][]): number[] {
 
 /** Kaiser's (1974) labels for the measure of sampling adequacy. */
 export function kmoLabel(v: number): string {
-  return v >= 0.9
-    ? 'marvelous'
-    : v >= 0.8
-      ? 'meritorious'
-      : v >= 0.7
-        ? 'middling'
-        : v >= 0.6
-          ? 'mediocre'
-          : v >= 0.5
-            ? 'miserable'
-            : 'unacceptable';
+  if (v >= 0.9) return 'marvelous';
+  if (v >= 0.8) return 'meritorious';
+  if (v >= 0.7) return 'middling';
+  if (v >= 0.6) return 'mediocre';
+  if (v >= 0.5) return 'miserable';
+  return 'unacceptable';
 }
 
 /**

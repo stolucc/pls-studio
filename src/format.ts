@@ -1,15 +1,25 @@
-export const fmt = (v: number | null | undefined, d = 3): string =>
-  v === null || v === undefined || Number.isNaN(v) ? '—' : !Number.isFinite(v) ? '∞' : v.toFixed(d);
+export function fmt(v: number | null | undefined, d = 3): string {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—';
+  if (!Number.isFinite(v)) return '∞';
+  return v.toFixed(d);
+}
 
 /** A p-value for a table cell: <0.001 or three decimals. */
-export const fmtP = (p: number | null | undefined): string =>
-  p === null || p === undefined || Number.isNaN(p) ? '—' : p < 0.001 ? '<0.001' : p.toFixed(3);
+export function fmtP(p: number | null | undefined): string {
+  if (p === null || p === undefined || Number.isNaN(p)) return '—';
+  if (p < 0.001) return '<0.001';
+  return p.toFixed(3);
+}
 
 /** A p-value in a sentence, after "p ": "< 0.001" or "= 0.037". */
 export const pIs = (p: number): string => (p < 0.001 ? '< 0.001' : `= ${fmt(p, 3)}`);
 
-export const stars = (p: number): string =>
-  p < 0.001 ? '***' : p < 0.01 ? '**' : p < 0.05 ? '*' : '';
+export function stars(p: number): string {
+  if (p < 0.001) return '***';
+  if (p < 0.01) return '**';
+  if (p < 0.05) return '*';
+  return '';
+}
 
 /** A formatted number without its leading zero (APA and Amos style: .45, -.12). */
 export const noLeadingZero = (s: string): string => s.replace(/^(-?)0\./, '$1.');

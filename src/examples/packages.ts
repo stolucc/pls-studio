@@ -17,6 +17,7 @@ import {
   makeCovariancesExplicit,
   newId,
   indicatorsDrawnElsewhere,
+  renameFreedParameters,
 } from '../model/project';
 import type { GrowthInput } from '../rengine/longitudinal';
 import type { LmmInput } from '../rengine/mixed';
@@ -3542,8 +3543,12 @@ export function panelColumns(p: ExamplePanel, names?: string[]): string[] {
     }
     // (the further cards: the string and string-list options that name columns)
     default: {
-      const named = (v: unknown): string[] =>
-        typeof v === 'string' ? [v] : Array.isArray(v) ? v.flatMap(named) : [];
+      // (the column names in an option: one name, or a list of them, nested or not)
+      const named = (v: unknown): string[] => {
+        if (typeof v === 'string') return [v];
+        if (Array.isArray(v)) return v.flatMap(named);
+        return [];
+      };
       // (kappa of an agreement table: the raters' and the counts' columns)
       const o = panelPreset(p);
       const kt = o.kappaTable as Record<string, unknown> | undefined;
@@ -3675,13 +3680,7 @@ function exampleModelAsWritten(ex: PackageExample): ModelState {
       ? {
           multigroup: {
             ...ex.multigroup,
-            free: ex.multigroup.free.map((p) =>
-              p.kind === 'loading' || p.kind === 'mean'
-                ? { ...p, construct: id(p.construct) }
-                : p.kind === 'regression'
-                  ? { ...p, from: id(p.from), to: id(p.to) }
-                  : p,
-            ),
+            free: renameFreedParameters(ex.multigroup.free, id),
           },
         }
       : {}),
@@ -3743,13 +3742,7 @@ function fromSyntax(ex: PackageExample): ModelState {
       ? {
           multigroup: {
             ...ex.multigroup,
-            free: ex.multigroup.free.map((p) =>
-              p.kind === 'loading' || p.kind === 'mean'
-                ? { ...p, construct: id(p.construct) }
-                : p.kind === 'regression'
-                  ? { ...p, from: id(p.from), to: id(p.to) }
-                  : p,
-            ),
+            free: renameFreedParameters(ex.multigroup.free, id),
           },
         }
       : {}),

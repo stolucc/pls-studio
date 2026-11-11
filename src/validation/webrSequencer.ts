@@ -29,12 +29,10 @@ export default class WebrSequencer extends BaseSequencer {
     return [...base].sort((a, b) => {
       const ta = t(a),
         tb = t(b);
-      if (ta === undefined || tb === undefined)
-        return ta === undefined && tb !== undefined
-          ? -1
-          : tb === undefined && ta !== undefined
-            ? 1
-            : rank.get(a)! - rank.get(b)!;
+      // Files never timed first, then the slowest first; otherwise the base order.
+      if (ta === undefined && tb !== undefined) return -1;
+      if (tb === undefined && ta !== undefined) return 1;
+      if (ta === undefined || tb === undefined) return rank.get(a)! - rank.get(b)!;
       return tb - ta;
     });
   }

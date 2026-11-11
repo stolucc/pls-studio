@@ -7,8 +7,11 @@ import { expect } from 'vitest';
 import type { Check } from './types';
 
 /** Where this run computes (Check.runtime): desktop R with PS_NATIVE_R, webR with WEBR_TESTS, otherwise no R. */
-export const runtime = (): Check['runtime'] =>
-  process.env.PS_NATIVE_R ? 'desktop' : process.env.WEBR_TESTS ? undefined : 'fixture';
+export function runtime(): Check['runtime'] {
+  if (process.env.PS_NATIVE_R) return 'desktop';
+  if (process.env.WEBR_TESTS) return undefined;
+  return 'fixture';
+}
 
 export const checks = new Map<string, Check>();
 

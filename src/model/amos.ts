@@ -53,9 +53,12 @@ const MAX_AMW = 5_000_000;
 /** The file's text: AMOS writes UTF-16 (little-endian, with a byte order mark). */
 export function decodeAmw(bytes: Uint8Array): string {
   if (bytes.length > MAX_AMW) throw new Error('The AMOS file is too large.');
-  const le = bytes[0] === 0xff && bytes[1] === 0xfe,
-    be = bytes[0] === 0xfe && bytes[1] === 0xff;
-  const text = new TextDecoder(le ? 'utf-16le' : be ? 'utf-16be' : 'utf-8').decode(bytes);
+  const littleEndian = bytes[0] === 0xff && bytes[1] === 0xfe,
+    bigEndian = bytes[0] === 0xfe && bytes[1] === 0xff;
+  let encoding = 'utf-8';
+  if (littleEndian) encoding = 'utf-16le';
+  else if (bigEndian) encoding = 'utf-16be';
+  const text = new TextDecoder(encoding).decode(bytes);
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
@@ -120,8 +123,12 @@ export function parseAmw(text: string): AmosModel {
     const v = l ? Number(l.slice(k.length + 1)) : NaN;
     return Number.isFinite(v) ? v : undefined;
   };
+  let estimator: AmosModel['settings']['estimator'];
+  if (has('$gls')) estimator = 'GLS';
+  else if (has('$uls')) estimator = 'ULS';
+  else if (has('$ml')) estimator = 'ML';
   const settings: AmosModel['settings'] = {
-    estimator: has('$gls') ? 'GLS' : has('$uls') ? 'ULS' : has('$ml') ? 'ML' : undefined,
+    estimator,
     means: !has('$nomeansintercepts'),
     // ($unbiased: the data's covariances are the unbiased ones; $useunbiased fits them as they are, $usebiased rescales to N first)
     unbiasedAnalysis: has('$useunbiased'),
@@ -188,7 +195,9 @@ export function parseAmw(text: string): AmosModel {
   // An error term's variance fixed at a value (other than free) is kept as a fixed residual variance.
   const term = (p: AmosObject) => {
     const v = amosValue(p.value1);
-    return v.fixed !== undefined ? `${v.fixed}*` : v.label ? `${ident(v.label)}*` : '';
+    if (v.fixed !== undefined) return `${v.fixed}*`;
+    if (v.label) return `${ident(v.label)}*`;
+    return '';
   };
 
   const out: string[] = [];

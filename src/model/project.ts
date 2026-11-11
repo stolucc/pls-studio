@@ -909,13 +909,7 @@ export function toSpec(model: ModelState): ModelSpec {
       ? {
           multigroup: {
             ...model.multigroup,
-            free: model.multigroup.free.map((f) => {
-              if (f.kind === 'loading' || f.kind === 'mean')
-                return { ...f, construct: name.get(f.construct) ?? f.construct };
-              if (f.kind === 'regression')
-                return { ...f, from: name.get(f.from) ?? f.from, to: name.get(f.to) ?? f.to };
-              return f;
-            }),
+            free: renameFreedParameters(model.multigroup.free, (id) => name.get(id) ?? id),
           },
         }
       : {}),
@@ -1000,6 +994,18 @@ export function toSpec(model: ModelState): ModelSpec {
       : {}),
     ...(model.parameterization ? { parameterization: model.parameterization } : {}),
   };
+}
+
+/** Parameters freed across groups, with their constructs passed through `rename` (ids to names, or back). */
+export function renameFreedParameters(
+  free: FreedParameter[],
+  rename: (construct: string) => string,
+): FreedParameter[] {
+  return free.map((f) => {
+    if (f.kind === 'loading' || f.kind === 'mean') return { ...f, construct: rename(f.construct) };
+    if (f.kind === 'regression') return { ...f, from: rename(f.from), to: rename(f.to) };
+    return f;
+  });
 }
 
 /** A term's held value or, when it is free, its label (a held value wins; neither: nothing). */

@@ -19,7 +19,9 @@ export const oneOf = <T extends string>(v: unknown, all: readonly T[], fallback:
   all.includes(v as T) ? (v as T) : fallback;
 /** A finite number (or a number typed into a field) clamped to [lo, hi]; anything else is the fallback. */
 export const clampNum = (v: unknown, lo: number, hi: number, fallback: number, integer = false) => {
-  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+  let n = NaN;
+  if (typeof v === 'number') n = v;
+  else if (typeof v === 'string' && v.trim() !== '') n = Number(v);
   if (!Number.isFinite(n)) return fallback;
   const c = Math.max(lo, Math.min(hi, n));
   return integer ? Math.round(c) : c;
