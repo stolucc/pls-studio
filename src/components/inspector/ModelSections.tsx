@@ -197,6 +197,13 @@ export function ZeroCovariances() {
   );
 }
 
+const METHOD_HINT: Record<Settings['method'], string> = {
+  pls: 'Variance-based: common factors and composites. Turn on PLSc for consistent estimates of common-factor models.',
+  process:
+    'Conditional process analysis (Hayes): mediation, moderation and moderated mediation with observed variables or scale means, one OLS regression per outcome, bootstrap confidence intervals for indirect effects.',
+  cbsem: 'Covariance-based SEM. Common factors only; first loading of each factor fixed to 1.',
+};
+
 /** Method: PLS-SEM, CB-SEM or CPA. */
 export function MethodChoice() {
   const settings = useStore((s) => s.settings);
@@ -220,11 +227,7 @@ export function MethodChoice() {
         </button>
       </div>
       <div className="hint" style={{ marginTop: 8 }}>
-        {pls
-          ? 'Variance-based: common factors and composites. Turn on PLSc for consistent estimates of common-factor models.'
-          : proc
-            ? 'Conditional process analysis (Hayes): mediation, moderation and moderated mediation with observed variables or scale means, one OLS regression per outcome, bootstrap confidence intervals for indirect effects.'
-            : 'Covariance-based SEM. Common factors only; first loading of each factor fixed to 1.'}
+        {METHOD_HINT[settings.method]}
       </div>
     </div>
   );
@@ -253,6 +256,21 @@ export function ProcessEngine({ where }: { where: string }) {
   );
 }
 
+const HOC_APPROACH = {
+  two_stage: {
+    label: 'Two-stage',
+    hint: 'Disjoint two-stage (Sarstedt et al., 2019): the first-order constructs are estimated without the second-order construct; their scores are then its indicators. cSEM’s .approach_2ndorder = "2stage", seminr’s two_stage.',
+  },
+  embedded: {
+    label: 'Embedded two-stage',
+    hint: 'Embedded two-stage (Ringle, Sarstedt & Straub, 2012): the first stage uses the repeated indicators, so the second-order construct is in the model from the start; its dimensions’ scores are then its indicators. cSEM’s .approach_2ndorder = "mixed"; not in seminr.',
+  },
+  repeated: {
+    label: 'Repeated indicators',
+    hint: 'Repeated indicators (Lohmöller, 1989; Becker, Klein & Wetzels, 2012): the dimensions’ indicators also measure the second-order construct, and the dimensions predict it. Written out as on cSEM’s help page (indicators copied) and as a seminr composite of the repeated items. Antecedents of the second-order construct are absorbed by its dimensions (R² near 1): with antecedents, use a two-stage approach.',
+  },
+};
+
 /** PLS-SEM: the approach for second-order constructs. */
 export function HocApproach() {
   const settings = useStore((s) => s.settings);
@@ -269,23 +287,37 @@ export function HocApproach() {
             className={settings.hocApproach === id ? 'on' : ''}
             onClick={() => setSettings({ hocApproach: id })}
           >
-            {id === 'two_stage'
-              ? 'Two-stage'
-              : id === 'embedded'
-                ? 'Embedded two-stage'
-                : 'Repeated indicators'}
+            {HOC_APPROACH[id].label}
           </button>
         ))}
       </div>
       <div className="hint" style={{ marginTop: 6 }}>
-        {settings.hocApproach === 'two_stage'
-          ? 'Disjoint two-stage (Sarstedt et al., 2019): the first-order constructs are estimated without the second-order construct; their scores are then its indicators. cSEM’s .approach_2ndorder = "2stage", seminr’s two_stage.'
-          : settings.hocApproach === 'embedded'
-            ? 'Embedded two-stage (Ringle, Sarstedt & Straub, 2012): the first stage uses the repeated indicators, so the second-order construct is in the model from the start; its dimensions’ scores are then its indicators. cSEM’s .approach_2ndorder = "mixed"; not in seminr.'
-            : 'Repeated indicators (Lohmöller, 1989; Becker, Klein & Wetzels, 2012): the dimensions’ indicators also measure the second-order construct, and the dimensions predict it. Written out as on cSEM’s help page (indicators copied) and as a seminr composite of the repeated items. Antecedents of the second-order construct are absorbed by its dimensions (R² near 1): with antecedents, use a two-stage approach.'}
+        {settings.hocApproach === 'two_stage' || settings.hocApproach === 'embedded'
+          ? HOC_APPROACH[settings.hocApproach].hint
+          : HOC_APPROACH.repeated.hint}
       </div>
     </div>
   );
+}
+
+/** What the chosen engine (or R package) computes, and where it runs. */
+function engineHint(settings: Settings, where: string): string {
+  if (settings.engine === 'builtin')
+    return 'PLS Studio’s own implementation, validated against the R packages. Instant, no download.';
+  if (settings.method === 'pls') {
+    if (settings.plsPackage === 'cSEM')
+      return `cSEM (Rademaker & Schuberth), running ${where}: PLS, PLSc, composites, bootstrapping, the model fit test and IPMA. Interactions use cSEM’s products of construct scores.`;
+    const bootstrap = where.startsWith('in desktop')
+      ? 'seminr bootstraps on all cores.'
+      : 'seminr’s bootstrap needs worker processes, so bootstrap with cSEM here (or export the script).';
+    return (
+      `seminr (Ray, Danks & Calero Valdez), running ${where}: PLS, PLSc for reflective constructs, two-stage interactions. ` +
+      `No model-fit statistics; path and factor schemes only. ${bootstrap} The fit test and IPMA use cSEM.`
+    );
+  }
+  if (settings.estimator === '2SLS')
+    return `MIIVsem (Fisher, Bollen, Gates & Rönkkö), running ${where}.`;
+  return `lavaan (Rosseel), running ${where}, including bootstrapping (bootstrapLavaan).`;
 }
 
 /** Calculated by: R packages (which) or the built-in engine. */
@@ -384,15 +416,7 @@ export function EngineChoice({ where }: { where: string }) {
         </>
       )}
       <div className="hint" style={{ marginTop: 8 }}>
-        {settings.engine === 'builtin'
-          ? 'PLS Studio’s own implementation, validated against the R packages. Instant, no download.'
-          : pls
-            ? settings.plsPackage === 'cSEM'
-              ? `cSEM (Rademaker & Schuberth), running ${where}: PLS, PLSc, composites, bootstrapping, the model fit test and IPMA. Interactions use cSEM’s products of construct scores.`
-              : `seminr (Ray, Danks & Calero Valdez), running ${where}: PLS, PLSc for reflective constructs, two-stage interactions. No model-fit statistics; path and factor schemes only. ${where.startsWith('in desktop') ? 'seminr bootstraps on all cores.' : 'seminr’s bootstrap needs worker processes, so bootstrap with cSEM here (or export the script).'} The fit test and IPMA use cSEM.`
-            : settings.estimator === '2SLS'
-              ? `MIIVsem (Fisher, Bollen, Gates & Rönkkö), running ${where}.`
-              : `lavaan (Rosseel), running ${where}, including bootstrapping (bootstrapLavaan).`}
+        {engineHint(settings, where)}
         {settings.engine === 'r' &&
           ' The first calculation loads the packages; your data never leave this computer. Monte Carlo simulation also runs in R (lavaan::simulateData, cSEM, lavaan).'}
       </div>
@@ -410,6 +434,14 @@ export function EngineChoice({ where }: { where: string }) {
 }
 
 /** CB-SEM: latent interactions by product indicators, LMS or QML. */
+function interactionHint(interaction: Settings['interaction']): string {
+  if (interaction === 'product')
+    return 'Products of mean-centred indicators (Marsh, Wen & Hau, 2004), estimated by lavaan with the usual fit statistics.';
+  if (interaction === 'lms')
+    return 'Latent moderated structural equations (Klein & Moosbrugger, 2000; modsem): maximum likelihood for the latent product itself, without product indicators; usually the most efficient. Fit statistics are for the model without the interaction.';
+  return 'Quasi-maximum likelihood (Klein & Muthén, 2007; modsem): close to LMS, more robust to non-normal indicators. Fit statistics are for the model without the interaction.';
+}
+
 export function LatentInteractions() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
@@ -434,11 +466,7 @@ export function LatentInteractions() {
         ))}
       </div>
       <div className="hint" style={{ marginTop: 8 }}>
-        {settings.interaction === 'product'
-          ? 'Products of mean-centred indicators (Marsh, Wen & Hau, 2004), estimated by lavaan with the usual fit statistics.'
-          : settings.interaction === 'lms'
-            ? 'Latent moderated structural equations (Klein & Moosbrugger, 2000; modsem): maximum likelihood for the latent product itself, without product indicators; usually the most efficient. Fit statistics are for the model without the interaction.'
-            : 'Quasi-maximum likelihood (Klein & Muthén, 2007; modsem): close to LMS, more robust to non-normal indicators. Fit statistics are for the model without the interaction.'}
+        {interactionHint(settings.interaction)}
         {settings.interaction !== 'product' &&
           ' Bootstrap: cases are resampled and the model refitted with modsem, which is slow (LMS: seconds per sample); try 200 samples first.'}
       </div>
@@ -459,6 +487,9 @@ export function EstimatorOptions() {
   const setBaseline = useStore((s) => s.setBaseline);
   const setConvention = useStore((s) => s.setConvention);
   const readOnlyChecks = useStore((s) => s.cloud?.role === 'viewer');
+  let sampleSizeConvention: 'lavaan' | 'wishart' | 'asGiven' = 'lavaan';
+  if (model.likelihood === 'wishart') sampleSizeConvention = 'wishart';
+  else if (model.sampleCovRescale === false) sampleSizeConvention = 'asGiven';
   return (
     <div className="section">
       <div className="section-title">Estimator</div>
@@ -563,13 +594,7 @@ export function EstimatorOptions() {
             id="cb-convention"
             className="select"
             disabled={readOnlyChecks}
-            value={
-              model.likelihood === 'wishart'
-                ? 'wishart'
-                : model.sampleCovRescale === false
-                  ? 'asGiven'
-                  : 'lavaan'
-            }
+            value={sampleSizeConvention}
             onChange={(e) => setConvention(e.target.value as 'lavaan' | 'wishart' | 'asGiven')}
           >
             <option value="lavaan">N (lavaan, Mplus)</option>
@@ -745,11 +770,34 @@ export function ProcessOptions() {
 }
 
 /** Missing values, and the multiple imputation options. */
+function categoricalLabel(miMethod: Settings['miMethod']): string {
+  if (miMethod === 'amelia') return 'Nominal (unordered categories; Amelia’s noms)';
+  if (miMethod === 'joint')
+    return 'Categorical (ordered; imputed through latent normal responses, Mplus’s (c))';
+  return 'Categorical (imputed by logistic or multinomial regression)';
+}
+
+/** The imputation method as the hint names it; outside CB-SEM it is always mice's PMM. */
+function imputerOf(settings: Settings): { name: string; how: string } {
+  const method = settings.method === 'cbsem' ? settings.miMethod : undefined;
+  if (method === 'amelia')
+    return { name: 'Amelia', how: 'EM with bootstrapping, multivariate normal' };
+  if (method === 'micenorm')
+    return { name: 'mice', how: 'Bayesian normal regression, logistic for nominal columns' };
+  if (method === 'joint')
+    return {
+      name: 'Data augmentation',
+      how: 'draws from the unrestricted multivariate normal model, every 100 iterations after 1000',
+    };
+  return { name: 'mice', how: 'predictive mean matching' };
+}
+
 export function MissingValues() {
   const model = useStore((s) => s.model);
   const data = useStore((s) => s.data);
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
+  const imputer = imputerOf(settings);
   return (
     <div className="section">
       <div className="field">
@@ -905,13 +953,7 @@ export function MissingValues() {
                   settings.miMethod === 'micenorm' ||
                   settings.miMethod === 'joint') && (
                   <div className="field">
-                    <label>
-                      {settings.miMethod === 'amelia'
-                        ? 'Nominal (unordered categories; Amelia’s noms)'
-                        : settings.miMethod === 'joint'
-                          ? 'Categorical (ordered; imputed through latent normal responses, Mplus’s (c))'
-                          : 'Categorical (imputed by logistic or multinomial regression)'}
-                    </label>
+                    <label>{categoricalLabel(settings.miMethod)}</label>
                     {(settings.miMethod === 'amelia'
                       ? settings.miAuxiliary
                       : [
@@ -941,20 +983,8 @@ export function MissingValues() {
               </>
             )}
             <div className="hint" style={{ marginTop: 6 }}>
-              {settings.method === 'cbsem' && settings.miMethod === 'amelia'
-                ? 'Amelia'
-                : settings.method === 'cbsem' && settings.miMethod === 'joint'
-                  ? 'Data augmentation'
-                  : 'mice'}{' '}
-              imputes the missing values {settings.miImputations} times (
-              {settings.method === 'cbsem' && settings.miMethod === 'amelia'
-                ? 'EM with bootstrapping, multivariate normal'
-                : settings.method === 'cbsem' && settings.miMethod === 'micenorm'
-                  ? 'Bayesian normal regression, logistic for nominal columns'
-                  : settings.method === 'cbsem' && settings.miMethod === 'joint'
-                    ? 'draws from the unrestricted multivariate normal model, every 100 iterations after 1000'
-                    : 'predictive mean matching'}
-              , missing at random; seed as for bootstrapping
+              {imputer.name} imputes the missing values {settings.miImputations} times (
+              {imputer.how}, missing at random; seed as for bootstrapping
               {settings.miAuxiliary.length && settings.method === 'cbsem'
                 ? `; with ${settings.miAuxiliary.join(', ')}`
                 : ''}
@@ -971,11 +1001,25 @@ export function MissingValues() {
 }
 
 /** Bootstrapping: subsamples, seed, confidence, tails and intervals. */
+function intervalHint(settings: Settings): string {
+  if (settings.method === 'pls' && settings.bootInterval === 'studentized')
+    return `Studentized intervals (bootstrap-t; ${STUDENTIZED_INNER} inner samples per subsample, so about ${STUDENTIZED_INNER + 1} times as long; built-in engine)`;
+  if (settings.bootInterval === 'bca')
+    return 'BCa intervals (bias-corrected and accelerated; the jackknife adds one refit per observation)';
+  return 'Percentile intervals';
+}
+
+/** What the bootstrap covers, per method. */
+const BOOTSTRAP_SCOPE: Record<Settings['method'], string> = {
+  pls: ' The same subsample count is used for the fit test (HI95/HI99).',
+  process:
+    ' Indirect effects and indices of moderated mediation; direct and conditional effects use OLS standard errors, as PROCESS. At least 100 samples (5000 recommended for reporting).',
+  cbsem: ' CB-SEM bootstraps standardised paths and indirect effects.',
+};
+
 export function Bootstrapping() {
   const settings = useStore((s) => s.settings);
   const setSettings = useStore((s) => s.setSettings);
-  const pls = settings.method === 'pls';
-  const proc = settings.method === 'process';
   return (
     <div className="section">
       <div className="section-title">Bootstrapping</div>
@@ -1048,17 +1092,9 @@ export function Bootstrapping() {
         </div>
       </div>
       <div className="hint">
-        {settings.method === 'pls' && settings.bootInterval === 'studentized'
-          ? `Studentized intervals (bootstrap-t; ${STUDENTIZED_INNER} inner samples per subsample, so about ${STUDENTIZED_INNER + 1} times as long; built-in engine)`
-          : settings.bootInterval === 'bca'
-            ? 'BCa intervals (bias-corrected and accelerated; the jackknife adds one refit per observation)'
-            : 'Percentile intervals'}
-        ; p-values from {settings.bootTails === 'one' ? 'one-tailed' : 'two-tailed'} t tests.
-        {pls
-          ? ' The same subsample count is used for the fit test (HI95/HI99).'
-          : proc
-            ? ' Indirect effects and indices of moderated mediation; direct and conditional effects use OLS standard errors, as PROCESS. At least 100 samples (5000 recommended for reporting).'
-            : ' CB-SEM bootstraps standardised paths and indirect effects.'}
+        {intervalHint(settings)}; p-values from{' '}
+        {settings.bootTails === 'one' ? 'one-tailed' : 'two-tailed'} t tests.
+        {BOOTSTRAP_SCOPE[settings.method]}
       </div>
     </div>
   );
