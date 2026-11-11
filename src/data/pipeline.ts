@@ -1,15 +1,18 @@
 // The dataset as the analyses see it is derived from a "base" dataset: the
-// base is the data with the cases excluded in the app (outliers, …) left out;
-// on top of it the dataset filter leaves out the rows where its condition is
-// not true. The filter's rows are kept as the last entry of droppedRows (so
-// they are saved and restored like any exclusion), and they are derived again
-// from the condition whenever the data change: every change goes to the base
-// and the derived state is rebuilt from it (transformData).
+// base is the data with the cases excluded in the app (outliers, …) left out,
+// with the original values of user-missing codes. On top of it the missing
+// codes are masked (data/missingCodes.ts) and the dataset filter leaves out
+// the rows where its condition is not true. The filter's rows are kept as the
+// last entry of droppedRows (so they are saved and restored like any
+// exclusion), with their original values; both are derived again whenever the
+// data change: every change goes to the base and the derived state is rebuilt
+// from it (transformData).
 
 import type { Dataset } from '../engine/types';
 import type { DataInfo } from '../model/project';
 import { excludeRows, restoreRows, type RowExclusion } from '../model/rows';
 import { columnsIn, evaluate, parseFormula, recomputeAll } from './compute';
+import { codesColumnError, mask, unmask, withCodes, type MissingCodes } from './missingCodes';
 
 type Data = { data: Dataset; info: DataInfo };
 
@@ -25,12 +28,16 @@ function withDropped(info: DataInfo, dropped: RowExclusion[]): DataInfo {
   return dropped.length ? { ...rest, droppedRows: dropped } : rest;
 }
 
-/** The base dataset: the rows the filter left out put back (the filter's condition stays in the info). */
+/**
+ * The base dataset: the masked missing codes back to their values and the rows the filter left
+ * out put back (the codes and the filter's condition stay in the info).
+ */
 export function toBase(data: Dataset, info: DataInfo): Data {
-  const layer = filterLayer(info);
-  if (!layer) return { data, info };
-  const others = info.droppedRows!.slice(0, -1);
-  const back = restoreRows(data, { ...info, droppedRows: [layer] });
+  const plain = unmask(data, info);
+  const layer = filterLayer(plain.info);
+  if (!layer) return plain;
+  const others = plain.info.droppedRows!.slice(0, -1);
+  const back = restoreRows(plain.data, { ...plain.info, droppedRows: [layer] });
   return { data: back.data, info: withDropped(back.info, others) };
 }
 
@@ -56,12 +63,13 @@ export function filterKeeps(data: Dataset, expr: string): boolean[] {
 }
 
 /**
- * Derive the analysed dataset from the base: recompute the computed columns (when asked, or
- * when there is a filter, whose rows may have come back), then apply the filter.
+ * Derive the analysed dataset from the base: mask the missing codes, recompute the computed
+ * columns (when asked, or when codes or a filter may have changed what they read), then apply
+ * the filter (evaluated with the codes missing; the rows it leaves out keep their values).
  */
 export function fromBase(data: Dataset, info: DataInfo, recompute = false): Data {
-  let out: Data = { data, info };
-  if (recompute || info.filter) out = recomputeAll(out.data, out.info);
+  let out = mask(data, info);
+  if (recompute || info.filter || info.missingCodes?.length) out = recomputeAll(out.data, out.info);
   if (!info.filter) return out;
   const keeps = filterKeeps(out.data, info.filter.expr);
   const drop: number[] = [];
@@ -69,29 +77,39 @@ export function fromBase(data: Dataset, info: DataInfo, recompute = false): Data
     if (!keep) drop.push(i + 1);
   });
   if (!drop.length) return out;
-  const before = out.info.droppedRows?.length ?? 0;
-  const r = excludeRows(out.data, out.info, drop, `filter: ${info.filter.expr}`);
+  const plain = unmask(out.data, out.info);
+  const before = plain.info.droppedRows?.length ?? 0;
+  const r = excludeRows(plain.data, plain.info, drop, `filter: ${info.filter.expr}`);
   const dropped = r.info.droppedRows ?? [];
-  if (dropped.length === before) return r;
+  if (dropped.length === before) return mask(r.data, r.info);
   const marked = dropped.map((d, k) =>
     k === dropped.length - 1 ? { ...d, filter: true as const } : d,
   );
-  return { data: r.data, info: { ...r.info, droppedRows: marked } };
+  return mask(r.data, { ...r.info, droppedRows: marked });
 }
 
 /**
- * Apply a change to the base dataset and derive the analysed dataset again, so that the filter
- * is re-evaluated on the changed data. `recompute`: recompute the computed columns afterwards.
+ * Apply a change to the base dataset (every case, the filter's rows back in) and derive the
+ * analysed dataset again, so that missing codes and the filter are applied to the changed data.
+ * The change sees the codes as missing, unless `rows` (a change of the rows, which must keep the
+ * original values). `recompute`: recompute the computed columns afterwards.
  */
 export function transformData(
   data: Dataset,
   info: DataInfo,
   change: (data: Dataset, info: DataInfo) => Data,
-  recompute = false,
+  { recompute = false, rows = false }: { recompute?: boolean; rows?: boolean } = {},
 ): Data {
   const base = toBase(data, info);
-  const changed = change(base.data, base.info);
-  return fromBase(changed.data, changed.info, recompute);
+  if (rows) {
+    const changed = change(base.data, base.info);
+    return fromBase(changed.data, changed.info, recompute);
+  }
+  // Masked for the change; its rows stay as they are, so the masked cells still line up.
+  const masked = mask(base.data, base.info);
+  const changed = change(masked.data, masked.info);
+  const plain = unmask(changed.data, changed.info);
+  return fromBase(plain.data, plain.info, recompute);
 }
 
 /** Set (expr) or remove (null) the dataset filter. Throws with a readable message. */
@@ -133,24 +151,41 @@ export function excludeCases(data: Dataset, info: DataInfo, rows: number[], reas
     for (let i = 0; i < total + layer.at.length; i++) if (!left.has(i)) kept.push(i);
     baseRows = rows.map((r) => (kept[r - 1] ?? -1) + 1).filter((r) => r > 0);
   }
-  return transformData(data, info, (d, i) => excludeRows(d, i, baseRows, reason));
+  return transformData(data, info, (d, i) => excludeRows(d, i, baseRows, reason), { rows: true });
 }
 
 /** Put back every excluded case (the filter stays and is applied again); computed columns are recomputed. */
 export function restoreCases(data: Dataset, info: DataInfo): Data {
-  return transformData(data, info, (d, i) => restoreRows(d, i), true);
+  return transformData(data, info, (d, i) => restoreRows(d, i), { recompute: true, rows: true });
 }
 
 /**
- * Bring a dataset read from a project file into a consistent state: the filter's rows derived
- * from its condition again. A filter that cannot be evaluated is dropped (its rows come back).
+ * Bring a dataset read from a project file into a consistent state: missing codes masked and
+ * the filter's rows derived again. A filter that cannot be evaluated is dropped (its rows come
+ * back).
  */
 export function normalizeData(data: Dataset, info: DataInfo): Data {
   const base = toBase(data, info);
   try {
-    return fromBase(base.data, base.info, !!base.info.filter);
+    return fromBase(base.data, base.info);
   } catch {
     const { filter: _f, ...rest } = base.info;
-    return { data: base.data, info: rest };
+    return fromBase(base.data, rest);
   }
+}
+
+/**
+ * Set a column's missing-value codes (null removes them): the values come back or become
+ * missing, and the filter and computed columns follow.
+ */
+export function setMissingCodes(
+  data: Dataset,
+  info: DataInfo,
+  name: string,
+  codes: Pick<MissingCodes, 'values' | 'ranges'> | null,
+): Data {
+  const bad = codesColumnError(data, info, name);
+  if (bad) throw new Error(bad);
+  const base = toBase(data, info);
+  return fromBase(base.data, withCodes(base.info, name, codes), true);
 }

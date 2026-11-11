@@ -28,6 +28,7 @@ import {
 import { pooledMoments } from '../data/moments';
 import { filterError, normalizeData } from '../data/pipeline';
 import { parseVariables, type VariableInfo } from '../data/columns';
+import { parseMissingCodes, type MissingCodes } from '../data/missingCodes';
 import { MAX_CATEGORIES } from '../engine/dataset';
 
 /** PLS-SEM, CB-SEM, or conditional process analysis (Hayes's PROCESS models, by OLS regression). */
@@ -174,6 +175,8 @@ export interface DataInfo {
   filter?: { expr: string };
   /** Measurement levels and value labels of columns (data/columns.ts). */
   variables?: VariableInfo[];
+  /** User-defined missing values of numeric columns, treated as missing everywhere (data/missingCodes.ts). */
+  missingCodes?: MissingCodes[];
 }
 
 /** PLS-SEM (seminr): how an interaction term is built; absent = the two-stage approach (products of construct scores). */
@@ -1392,14 +1395,17 @@ export function parseDataSection(d: Record<string, unknown>): { data: Dataset; i
   };
   const variables = parseVariables(d.info.variables, data);
   if (variables) info.variables = variables;
+  const computedNames = (info.computed ?? []).map((c) => c.name);
+  const missingCodes = parseMissingCodes(d.info.missingCodes, data, computedNames);
+  if (missingCodes && d.moments === undefined) info.missingCodes = missingCodes;
   if (d.moments !== undefined) {
     const moments = parseMoments(d.moments, names.length);
     data = { names, cols: [], moments };
     info = { ...info, rows: moments.n, missingCells: 0, kind: 'matrix', hasNacov: !!moments.nacov };
     return { data, info };
   }
-  // The filter's rows are derived from its condition again (never trusted from the file).
-  if (info.filter) return normalizeData(data, info);
+  // The filter's rows and the masked codes are derived again (never trusted from the file).
+  if (info.filter || info.missingCodes) return normalizeData(data, info);
   return { data, info };
 }
 

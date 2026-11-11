@@ -7,6 +7,7 @@ import { codeText } from '../engine/dataset';
 import type { Dataset } from '../engine/types';
 import type { DataInfo } from '../model/project';
 import { parseVariables } from './columns';
+import { mask, parseMissingCodes } from './missingCodes';
 
 export type DataFileFormat = 'sav' | 'zsav' | 'dta' | 'xlsx' | 'xls';
 
@@ -24,6 +25,8 @@ type RawColumn =
       values: (number | null)[] | number | null;
       /** Value labels (haven's labels attribute), untrusted: validated by parseVariables. */
       labels?: unknown;
+      /** SPSS user-missing codes (haven's na_values, na_range), untrusted: parseMissingCodes. */
+      missing?: { values?: unknown; ranges?: unknown };
     }
   | { kind: 'factor'; codes: (number | null)[] | number | null; levels: string[] | string }
   | { kind: 'text'; values: (string | null)[] | string | null };
@@ -53,6 +56,7 @@ export function toDataset(
     categories: Record<string, string[]> = {};
   const excluded = [...(raw.excluded ?? [])];
   const variables: { name: string; labels: unknown }[] = [];
+  const codes: { name: string; values: unknown; ranges: unknown }[] = [];
   let missingCells = 0;
   arr(raw.names).forEach((name, i) => {
     const c = raw.cols[i];
@@ -62,6 +66,8 @@ export function toDataset(
         typeof v === 'number' && Number.isFinite(v) ? v : NaN,
       );
       if (c.labels) variables.push({ name, labels: arr(c.labels) });
+      if (c.missing)
+        codes.push({ name, values: arr(c.missing.values), ranges: arr(c.missing.ranges) });
     } else if (c.kind === 'factor') {
       col = Float64Array.from(arr(c.codes), (v) => (typeof v === 'number' ? v : NaN));
       categories[name] = arr(c.levels).map(String);
@@ -90,7 +96,11 @@ export function toDataset(
   const info: DataInfo = { fileName: fileName.slice(0, 200), rows: raw.n, missingCells, excluded };
   const labelled = parseVariables(variables, data);
   if (labelled) info.variables = labelled;
-  return { data, info, sheets: arr(raw.sheets) };
+  const missingCodes = parseMissingCodes(codes, data);
+  if (!missingCodes) return { data, info, sheets: arr(raw.sheets) };
+  // The user-missing values become missing; their values are kept to undo it.
+  const masked = mask(data, { ...info, missingCodes });
+  return { ...masked, sheets: arr(raw.sheets) };
 }
 
 function base64(bytes: Uint8Array): string {

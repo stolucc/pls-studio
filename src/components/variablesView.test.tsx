@@ -64,3 +64,37 @@ it('edits measurement levels and value labels in the Variables view, and shows l
   ]);
   act(() => root.unmount());
 });
+
+it('sets missing-value codes in the Variables view', async () => {
+  useStore
+    .getState()
+    .setData(
+      { names: ['q'], cols: [Float64Array.from([1, -99, 3])] },
+      { fileName: 'd.csv', rows: 3, missingCells: 0, excluded: [] },
+    );
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  act(() =>
+    root.render(
+      <>
+        <DataWorkspace />
+        <ConfirmModal />
+      </>,
+    ),
+  );
+  act(() => button(host, 'Variables').click());
+  act(() => button(host, 'Edit the missing codes of q').click());
+  const input = host.querySelector('.modal input') as HTMLInputElement;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '-99');
+  act(() => input.dispatchEvent(new Event('input', { bubbles: true })));
+  await act(async () => {
+    button(host, 'Apply').click();
+    await new Promise((r) => setTimeout(r, 0));
+  });
+  const s = useStore.getState();
+  expect(Number.isNaN(s.data!.cols[0][1])).toBe(true);
+  expect(s.dataInfo!.missingCells).toBe(1);
+  expect(host.querySelector('.variables-grid')?.textContent).toContain('-99');
+  act(() => root.unmount());
+});

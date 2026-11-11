@@ -481,7 +481,8 @@ ps_read_data <- function(req_json) {
     d <- readxl::read_excel(path, sheet = sheet, guess_max = 10000)
   } else {
     # Value-labelled variables (Likert items, group codes) keep their numbers (labels dropped below).
-    d <- if (format == "dta") haven::read_dta(path) else haven::read_sav(path)
+    # SPSS user-missing values are read as their values and sent with their codes (masked in the app).
+    d <- if (format == "dta") haven::read_dta(path) else haven::read_sav(path, user_na = TRUE)
   }
   d <- as.data.frame(d)
   cols <- list()
@@ -490,18 +491,28 @@ ps_read_data <- function(req_json) {
     x <- d[[v]]
     # Value labels of numeric codes (SPSS/Stata), sent beside the numbers.
     labels <- NULL
+    missing <- NULL
     if (inherits(x, "haven_labelled")) {
       l <- attr(x, "labels", exact = TRUE)
       if (is.numeric(l) && length(l)) {
         labels <- lapply(seq_along(l), function(k) list(value = unname(l[[k]]), label = names(l)[k]))
       }
-      x <- as.numeric(haven::zap_labels(x))
+      na_values <- attr(x, "na_values", exact = TRUE)
+      na_range <- attr(x, "na_range", exact = TRUE)
+      if (is.numeric(na_values) || is.numeric(na_range)) {
+        missing <- list(
+          values = I(as.numeric(na_values)),
+          ranges = if (is.numeric(na_range) && length(na_range) == 2) list(I(as.numeric(na_range))) else list()
+        )
+      }
+      x <- if (inherits(x, "haven_labelled_spss")) haven::zap_labels(x, user_na = TRUE) else haven::zap_labels(x)
+      x <- as.numeric(x)
     }
     if (is.logical(x)) x <- as.numeric(x)
     if (is.factor(x)) {
       cols[[v]] <- list(kind = "factor", codes = as.integer(x), levels = levels(x))
     } else if (is.numeric(x) && !inherits(x, c("Date", "POSIXt", "difftime"))) {
-      cols[[v]] <- list(kind = "number", values = unname(as.numeric(x)), labels = labels)
+      cols[[v]] <- list(kind = "number", values = unname(as.numeric(x)), labels = labels, missing = missing)
     } else if (is.character(x)) {
       cols[[v]] <- list(kind = "text", values = unname(x))
     } else {

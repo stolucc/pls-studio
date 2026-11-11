@@ -52,6 +52,22 @@ describe('example files shipped with the packages', () => {
     );
   }, 900_000);
 
+  it('SPSS user-missing ranges are read as codes', async () => {
+    const file = await inR<string>(`
+      d <- data.frame(x = haven::labelled_spss(c(1, -99, 995, 3), c(low = 1), na_values = -99, na_range = c(990, 999)))
+      f <- tempfile(fileext = ".sav"); haven::write_sav(d, f)
+      ps_json(jsonlite::base64_enc(readBin(f, "raw", file.size(f))))`);
+    const raw = await inR<RawDataFile>(
+      `ps_read_data(jsonlite::toJSON(list(format = "sav", data = "${file}"), auto_unbox = TRUE))`,
+    );
+    const { data, info } = toDataset(raw, 'x.sav');
+    expect(col(data, 'x').map((v) => (Number.isNaN(v) ? null : v))).toEqual([1, null, null, 3]);
+    expect(info.missingCodes).toEqual([
+      { name: 'x', values: [-99], ranges: [[990, 999]], cells: { at: [1, 2], values: [-99, 995] } },
+    ]);
+    expect(info.missingCells).toBe(2);
+  }, 900_000);
+
   it('refuses paths outside a package and unknown formats', async () => {
     await expect(readPackageFile('haven', '../../etc/passwd', 'sav')).rejects.toThrow(
       'Invalid example file',
@@ -105,6 +121,12 @@ describe('files from users', () => {
         { value: 1, label: 'b' },
         { value: 2, label: 'a' },
       ]);
+      // SPSS's user-missing code comes along: the value is missing, kept to undo it.
+      if (format === 'sav')
+        expect(info.missingCodes).toEqual([
+          { name: 'item', values: [9], ranges: [], cells: { at: [3], values: [9] } },
+        ]);
+      else expect(info.missingCodes).toBeUndefined();
     }
   }, 900_000);
 });

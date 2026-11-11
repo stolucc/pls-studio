@@ -196,12 +196,9 @@ export function DataPanel() {
     try {
       // Over every case (the filter applies afterwards); an edited formula changes the columns
       // computed from this one too.
-      const r = transformData(
-        data,
-        info,
-        (d, i) => computeColumn(d, i, values[0], values[1]),
-        !!current,
-      );
+      const r = transformData(data, info, (d, i) => computeColumn(d, i, values[0], values[1]), {
+        recompute: !!current,
+      });
       useStore.getState().setData(r.data, r.info);
       const col = r.data.cols[r.data.names.indexOf(values[0])];
       const miss = col.filter(Number.isNaN).length;

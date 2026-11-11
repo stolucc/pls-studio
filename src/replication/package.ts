@@ -3,6 +3,7 @@
 // the PLS Studio project, optionally the HTML report, and a README with the
 // exact R and package versions. Downloaded as one zip.
 
+import { codesToText } from '../data/missingCodes';
 import { analysisType } from '../analyses/registry';
 import { currentCtx, useAnalyses } from '../analyses/store';
 import type { AnalysisCard } from '../analyses/types';
@@ -227,6 +228,13 @@ function readme(o: {
       L.push(
         '',
         `Cases excluded in PLS Studio before the analyses: ${count} (${reasons}; see the project file); the CSV contains the remaining cases.`,
+      );
+    }
+    if (o.info.missingCodes?.length) {
+      const list = o.info.missingCodes.map((m) => `${m.name} (${codesToText(m)})`).join(', ');
+      L.push(
+        '',
+        `User-defined missing values (treated as missing; empty cells in the CSV): ${list}.`,
       );
     }
     const filtered = o.info.droppedRows?.find((d) => d.filter);
