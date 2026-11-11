@@ -259,17 +259,15 @@ function SaveSegments({
   const data = useStore((s) => s.data),
     info = useStore((s) => s.dataInfo);
   const ok = current && !!data && !!info && assignment.length === (data.cols[0]?.length ?? -1);
+  let title = 'Rows were left out (missing values), so segments cannot be matched to rows';
+  if (!current) title = 'The data or the model changed since this ran: run it again first';
+  else if (ok)
+    title = 'Add the segment of each observation as a data column (for multigroup analysis)';
   return (
     <button
       className="btn sm"
       disabled={!ok}
-      title={
-        !current
-          ? 'The data or the model changed since this ran: run it again first'
-          : ok
-            ? 'Add the segment of each observation as a data column (for multigroup analysis)'
-            : 'Rows were left out (missing values), so segments cannot be matched to rows'
-      }
+      title={title}
       onClick={() => {
         const name = freeColumnName(data!.names, base);
         useStore.getState().setData(
@@ -472,6 +470,10 @@ function RebusView({ r, current }: { r: RebusResult; current: boolean }) {
       .getState()
       .toast('success', `Class membership saved as the data column “${col}” (1 to ${m.k}).`);
   };
+  let saveTitle = 'Add the class of each observation as a data column (for multigroup analysis)';
+  if (!current) saveTitle = 'The data or the model changed since this ran: run it again first';
+  else if (m.segments.length !== rows)
+    saveTitle = 'Rows with missing values were left out, so classes cannot be matched to rows';
   return (
     <div className="tables">
       <RebusFailures r={r} />
@@ -516,13 +518,7 @@ function RebusView({ r, current }: { r: RebusResult; current: boolean }) {
           className="btn sm"
           disabled={m.segments.length !== rows || !current}
           onClick={saveColumn}
-          title={
-            !current
-              ? 'The data or the model changed since this ran: run it again first'
-              : m.segments.length !== rows
-                ? 'Rows with missing values were left out, so classes cannot be matched to rows'
-                : 'Add the class of each observation as a data column (for multigroup analysis)'
-          }
+          title={saveTitle}
         >
           Save classes as a data column
         </button>
@@ -863,17 +859,18 @@ export const pathmoxAnalysis: AnalysisType<PathmoxOptions, PathmoxResult> = {
       : null,
   Options: PathmoxOptionsForm,
   View: ({ result }) => <PathmoxView r={result} />,
-  blocked: (o, ctx) =>
-    plsModelBlocked(ctx) ??
-    (ctx.settings.plsApproach !== 'PLS-PM'
-      ? 'PATHMOX (genpathmox) estimates by PLS path modeling: choose PLS-PM as the weighting approach.'
-      : null) ??
-    noInteractions(ctx, 'PATHMOX') ??
-    (!o.segments.length
-      ? 'Choose at least one segmentation variable.'
-      : o.segments.some((s) => !segmentCandidates(ctx).includes(s.column))
-        ? 'A segmentation variable is no longer usable (not in the data, in the model, or more than 20 values).'
-        : null),
+  blocked: (o, ctx) => {
+    const modelProblem = plsModelBlocked(ctx);
+    if (modelProblem !== null) return modelProblem;
+    if (ctx.settings.plsApproach !== 'PLS-PM')
+      return 'PATHMOX (genpathmox) estimates by PLS path modeling: choose PLS-PM as the weighting approach.';
+    const interactions = noInteractions(ctx, 'PATHMOX');
+    if (interactions !== null) return interactions;
+    if (!o.segments.length) return 'Choose at least one segmentation variable.';
+    if (o.segments.some((s) => !segmentCandidates(ctx).includes(s.column)))
+      return 'A segmentation variable is no longer usable (not in the data, in the model, or more than 20 values).';
+    return null;
+  },
   fingerprint: (o, ctx) =>
     modelFingerprint(
       ctx,
@@ -1087,9 +1084,7 @@ export function segmentationCard(
   segments: PathmoxSegment[],
 ): [string, object] {
   const m = seg.method ?? 'rebus';
-  return m === 'pathmox'
-    ? ['pathmox', { segments }]
-    : m === 'rebus'
-      ? ['rebus', { from: seg.from ?? 2, to: seg.to ?? 4 }]
-      : [m, {}];
+  if (m === 'pathmox') return ['pathmox', { segments }];
+  if (m === 'rebus') return ['rebus', { from: seg.from ?? 2, to: seg.to ?? 4 }];
+  return [m, {}];
 }

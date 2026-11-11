@@ -37,21 +37,32 @@ const BETWEEN: Record<string, string> = {
   model: 'the model as written (As written)',
 };
 
-const KINDS: [string, string, (r: PlssemRow) => boolean][] = [
-  ['Loadings', '=~', (r) => r.op === '=~'],
-  ['Paths', '~', (r) => r.op === '~'],
-  ['Variances and covariances', '~~', (r) => r.op === '~~'],
+/** The tables of a level: title, operator, which rows, and the note. */
+const KINDS: [string, string, (r: PlssemRow) => boolean, string][] = [
+  ['Loadings', '=~', (r) => r.op === '=~', 'Standardised loadings (construct → indicator).'],
+  ['Paths', '~', (r) => r.op === '~', 'Standardised path coefficients (outcome ← predictor).'],
+  [
+    'Variances and covariances',
+    '~~',
+    (r) => r.op === '~~',
+    'Variances (residual for endogenous constructs and indicators) and covariances, standardised.',
+  ],
 ];
+
+/** A loading (construct → indicator), a path (outcome ← predictor), a covariance or a variance. */
+function parameterLabel(r: PlssemRow): string {
+  if (r.op === '~~' && r.lhs === r.rhs) return `${r.lhs} (variance)`;
+  let arrow = '↔';
+  if (r.op === '=~') arrow = '→';
+  else if (r.op === '~') arrow = '←';
+  return `${r.lhs} ${arrow} ${r.rhs}`;
+}
 
 function LevelTables({ l, boot }: { l: PlssemLevel; boot: boolean }) {
   const what = l.level === 1 ? 'Level 1 (within clusters)' : 'Level 2 (between clusters)';
   const cols = ['Parameter', 'Estimate', ...(boot ? ['Std. error', 'z', 'p', '95% CI'] : [])];
   const row = (r: PlssemRow): Row => [
-    c(
-      r.op === '~~' && r.lhs === r.rhs
-        ? `${r.lhs} (variance)`
-        : `${r.lhs} ${r.op === '=~' ? '→' : r.op === '~' ? '←' : '↔'} ${r.rhs}`,
-    ),
+    c(parameterLabel(r)),
     c(r.est),
     ...(boot
       ? [
@@ -64,7 +75,7 @@ function LevelTables({ l, boot }: { l: PlssemLevel; boot: boolean }) {
   ];
   return (
     <>
-      {KINDS.map(([title, op, pick]) => {
+      {KINDS.map(([title, op, pick, note]) => {
         const rows = l.rows.filter(pick);
         return rows.length ? (
           <Table
@@ -73,13 +84,7 @@ function LevelTables({ l, boot }: { l: PlssemLevel; boot: boolean }) {
             file={`plssem-level${l.level}-${title.split(' ')[0].toLowerCase()}`}
             columns={cols}
             rows={rows.map(row)}
-            note={
-              op === '=~'
-                ? 'Standardised loadings (construct → indicator).'
-                : op === '~'
-                  ? 'Standardised path coefficients (outcome ← predictor).'
-                  : 'Variances (residual for endogenous constructs and indicators) and covariances, standardised.'
-            }
+            note={note}
           />
         ) : null;
       })}
@@ -351,6 +356,10 @@ export const plsMultilevelAnalysis: AnalysisType<PlsMultilevelOptions, PlssemRes
   run: async (o, ctx) => (await import('../rengine/plssem')).plssemR(modelOf(ctx), inputOf(o, ctx)),
   script: async (o, ctx) =>
     (await import('../rengine/plssem')).plssemScriptR(modelOf(ctx), inputOf(o, ctx)),
-  summary: (o) =>
-    `${o.slopes.length ? `random slopes: ${o.slopes.map((s) => `${s.from} → ${s.to}`).join(', ')}` : 'random intercepts'}${o.bootstrap ? ` · bootstrap ${o.bootR}` : ''}`,
+  summary: (o) => {
+    const random = o.slopes.length
+      ? `random slopes: ${o.slopes.map((s) => `${s.from} → ${s.to}`).join(', ')}`
+      : 'random intercepts';
+    return `${random}${o.bootstrap ? ` · bootstrap ${o.bootR}` : ''}`;
+  },
 };
