@@ -28,6 +28,7 @@ import type {
   RmAnovaResult,
   TTestInput,
   TTestResult,
+  TTestRow,
 } from '../rengine/tests';
 import {
   Choice,
@@ -66,12 +67,13 @@ const ALTS: readonly (readonly [Alternative, string])[] = [
 const ALT_IDS = ALTS.map(([id]) => id);
 const engine = () => import('../rengine/tests');
 const NoData = () => <div className="empty-results">Import raw data first.</div>;
-const df = (h: HTest | null | undefined) =>
-  h?.df === undefined || h.df === null
-    ? ''
-    : Array.isArray(h.df)
-      ? h.df.map((x) => fmt(x, 2)).join(', ')
-      : fmt(h.df, Number.isInteger(h.df) ? 0 : 2);
+/** The degrees of freedom of a test: blank when absent, a list when there are several, integers without decimals. */
+function df(h: HTest | null | undefined): string {
+  if (h?.df === undefined || h.df === null) return '';
+  if (Array.isArray(h.df)) return h.df.map((x) => fmt(x, 2)).join(', ');
+  const decimals = Number.isInteger(h.df) ? 0 : 2;
+  return fmt(h.df, decimals);
+}
 const ci = (lo?: number | null, hi?: number | null) =>
   lo === undefined || lo === null || hi === undefined || hi === null
     ? null
@@ -86,6 +88,13 @@ const Engine = ({ e }: { e: { package: string; version: string } }) => (
 // ---------------------------------------------------------------- t-tests
 
 export type TTestOptions = Omit<TTestInput, 'confidence'>;
+
+/** What "greater" means for each kind of t-test. */
+const TTEST_GREATER_HINT: Record<TTestOptions['type'], string> = {
+  independent: 'Greater: the first group’s mean is larger.',
+  paired: 'Greater: the first measurement is larger.',
+  one: 'Greater: the mean exceeds the test value.',
+};
 
 function TTestForm({ options: o, set, ctx, disabled }: OptionsProps<TTestOptions>) {
   const d = rawData(ctx);
@@ -219,16 +228,17 @@ function TTestForm({ options: o, set, ctx, disabled }: OptionsProps<TTestOptions
         value={o.alternative}
         onChange={(alternative) => set({ ...o, alternative })}
         options={ALTS}
-        hint={
-          o.type === 'independent'
-            ? 'Greater: the first group’s mean is larger.'
-            : o.type === 'paired'
-              ? 'Greater: the first measurement is larger.'
-              : 'Greater: the mean exceeds the test value.'
-        }
+        hint={TTEST_GREATER_HINT[o.type]}
       />
     </fieldset>
   );
+}
+
+/** The effect size of a test: rank-biserial r for the rank test, Cohen's d (Welch's or pooled) otherwise. */
+function ttestEffectSize(x: TTestRow, test: 'student' | 'welch' | 'rank') {
+  if (test === 'rank') return x.rankBiserial;
+  if (test === 'welch') return x.dWelch;
+  return x.d;
 }
 
 function TTestView({ r }: { r: TTestResult }) {
@@ -243,7 +253,7 @@ function TTestView({ r }: { r: TTestResult }) {
       .filter((k) => x[k])
       .map((k): Row => {
         const h = x[k]!;
-        const es = k === 'rank' ? x.rankBiserial : k === 'welch' ? x.dWelch : x.d;
+        const es = ttestEffectSize(x, k);
         return [
           c(x.label),
           c(tName[k]),
@@ -256,16 +266,21 @@ function TTestView({ r }: { r: TTestResult }) {
       }),
   );
   const groups = r.groups ?? [];
+  // The label of the i-th descriptives row: a group, a variable of the pair, or the variable itself.
+  const descriptiveLabel = (x: TTestRow, i: number) => {
+    if (r.type === 'independent') return `${x.label} · ${groups[i] ?? i + 1}`;
+    if (r.type === 'paired') return x.variables[i];
+    return x.label;
+  };
+  const shapiroLabel = (x: TTestRow, i: number) => {
+    if (r.type === 'independent') return `${x.label} · ${groups[i] ?? i + 1}`;
+    if (r.type === 'paired') return `${x.label} (differences)`;
+    return `${x.label}`;
+  };
   const desc: Row[] = r.rows.flatMap((x) =>
     x.descriptives.map(
       (d, i): Row => [
-        c(
-          r.type === 'independent'
-            ? `${x.label} · ${groups[i] ?? i + 1}`
-            : r.type === 'paired'
-              ? x.variables[i]
-              : x.label,
-        ),
+        c(descriptiveLabel(x, i)),
         c(d.n, undefined, 0),
         c(d.mean),
         c(d.sd ?? null),
@@ -277,9 +292,7 @@ function TTestView({ r }: { r: TTestResult }) {
   const assumptions: Row[] = r.rows.flatMap((x) => [
     ...x.shapiro.map(
       (s, i): Row => [
-        c(
-          `${x.label}${r.type === 'independent' ? ` · ${groups[i] ?? i + 1}` : r.type === 'paired' ? ' (differences)' : ''}`,
-        ),
+        c(shapiroLabel(x, i)),
         c('Shapiro–Wilk W'),
         c(s?.stat ?? null),
         pCell(s?.p ?? null),
@@ -296,17 +309,22 @@ function TTestView({ r }: { r: TTestResult }) {
         ]
       : []),
   ]);
-  const diffName =
-    r.type === 'one'
-      ? `Mean − ${fmt(r.testValue)}`
-      : r.type === 'paired'
-        ? 'Mean difference'
-        : `${groups[0] ?? 'Group 1'} − ${groups[1] ?? 'group 2'}`;
+  let diffName: string;
+  if (r.type === 'one') diffName = `Mean − ${fmt(r.testValue)}`;
+  else if (r.type === 'paired') diffName = 'Mean difference';
+  else diffName = `${groups[0] ?? 'Group 1'} − ${groups[1] ?? 'group 2'}`;
+
+  let testKind: string;
+  if (r.type === 'one') testKind = 'One-sample';
+  else if (r.type === 'paired') testKind = 'Paired-samples';
+  else testKind = 'Independent-samples';
+  const oneSided = r.alternative !== 'two.sided' ? ` (one-sided: ${r.alternative})` : '';
+
   return (
     <div className="tables">
       <Engine e={r.engine} />
       <Table
-        title={`${r.type === 'one' ? 'One-sample' : r.type === 'paired' ? 'Paired-samples' : 'Independent-samples'} t-test${r.alternative !== 'two.sided' ? ` (one-sided: ${r.alternative})` : ''}`}
+        title={`${testKind} t-test${oneSided}`}
         file="ttest"
         columns={[
           'Variable',
@@ -434,8 +452,14 @@ export const ttestAnalysis: AnalysisType<TTestOptions, TTestResult> = {
     ]),
   run: async (o, ctx) => (await engine()).ttestR(rawData(ctx)!, ttestInput(o, ctx)),
   script: async (o, ctx) => (await engine()).ttestScriptR(rawData(ctx)!, ttestInput(o, ctx)),
-  summary: (o) =>
-    `${T_NAME[o.type].toLowerCase()} · ${o.type === 'paired' ? o.pairs.map((p) => p.join(' − ')).join(', ') || '…' : o.vars.join(', ') || '…'}${o.type === 'independent' ? ` by ${o.group || '…'}` : ''}`,
+  summary: (o) => {
+    const variables =
+      o.type === 'paired'
+        ? o.pairs.map((p) => p.join(' − ')).join(', ') || '…'
+        : o.vars.join(', ') || '…';
+    const byGroup = o.type === 'independent' ? ` by ${o.group || '…'}` : '';
+    return `${T_NAME[o.type].toLowerCase()} · ${variables}${byGroup}`;
+  },
 };
 
 // ---------------------------------------------------------------- ANOVA / ANCOVA
@@ -1089,26 +1113,38 @@ function CorrelationForm({ options: o, set, ctx, disabled }: OptionsProps<Correl
 }
 
 function CorrelationView({ r }: { r: CorrelationResult }) {
-  const sym =
-    r.method === 'pearson' || r.method === 'polychoric' ? 'r' : r.method === 'spearman' ? 'ρ' : 'τ';
+  let sym = 'τ';
+  if (r.method === 'pearson' || r.method === 'polychoric') sym = 'r';
+  else if (r.method === 'spearman') sym = 'ρ';
   const poly = r.method === 'polychoric';
   const withCi = r.method === 'pearson' || poly;
   const exact = !!r.exact;
   const at = (a: string, b: string) =>
     r.pairs.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a));
+  // Lower triangle of the correlation matrix: a dash on the diagonal, blanks above it.
+  const matrixCell = (a: string, i: number, b: string, j: number) => {
+    if (j === i) return c('—');
+    if (j > i) return c(null);
+    const p = at(a, b)!;
+    return { v: `${fmt(p.r)}${stars(p.p)}` };
+  };
   const matrix: Row[] = r.vars.map((a, i) => [
     c(a),
-    ...r.vars.map((b, j) =>
-      j === i
-        ? c('—')
-        : j > i
-          ? c(null)
-          : (() => {
-              const p = at(a, b)!;
-              return { v: `${fmt(p.r)}${stars(p.p)}` };
-            })(),
-    ),
+    ...r.vars.map((b, j) => matrixCell(a, i, b, j)),
   ]);
+
+  const deletion = r.deletion === 'pairwise' ? 'Pairwise' : 'Listwise';
+  const oneSided = r.alternative !== 'two.sided' ? `; one-sided (${r.alternative})` : '';
+  const ordinalNote = poly
+    ? ` Ordinal (integer values, at most 8 categories): ${r.ordinal?.join(', ') || 'none'}; the others are treated as continuous. z tests and Wald intervals from lavaan’s standard errors.`
+    : '';
+  const exactLimit =
+    r.method === 'kendall' ? ' or more than 200 cases' : ' or more than 1,289 cases';
+  const exactNote = exact
+    ? ` Exact p-values (R’s exact = TRUE) where they exist; pairs with ties${exactLimit} keep the normal approximation (approx.; Kendall’s statistic is then z).`
+    : '';
+  const pairsNote = `${deletion} deletion of missing values${oneSided}.${ordinalNote}${exactNote}`;
+
   return (
     <div className="tables">
       <Engine e={r.engine} />
@@ -1144,13 +1180,17 @@ function CorrelationView({ r }: { r: CorrelationResult }) {
             ...(withCi ? [c(ci(p.ciLow, p.ciHigh))] : []),
           ],
         )}
-        note={`${r.deletion === 'pairwise' ? 'Pairwise' : 'Listwise'} deletion of missing values${r.alternative !== 'two.sided' ? `; one-sided (${r.alternative})` : ''}.${poly ? ` Ordinal (integer values, at most 8 categories): ${r.ordinal?.join(', ') || 'none'}; the others are treated as continuous. z tests and Wald intervals from lavaan’s standard errors.` : ''}${exact ? ` Exact p-values (R’s exact = TRUE) where they exist; pairs with ties${r.method === 'kendall' ? ' or more than 200 cases' : ' or more than 1,289 cases'} keep the normal approximation (approx.; Kendall’s statistic is then z).` : ''}`}
+        note={pairsNote}
       />
       {poly &&
         !!r.normality?.length &&
         (() => {
           const bonferroni = 0.05 / r.normality.length;
-          const flag = (p: number) => (p < bonferroni ? 'bad' : p < 0.05 ? 'warn' : '');
+          const flag = (p: number) => {
+            if (p < bonferroni) return 'bad';
+            if (p < 0.05) return 'warn';
+            return '';
+          };
           return (
             <Table
               title="Bivariate normality of the ordinal pairs"
@@ -1377,12 +1417,11 @@ export const contingencyAnalysis: AnalysisType<ContingencyOptions, ContingencyRe
       : null,
   Options: ContingencyForm,
   View: ({ result }) => <ContingencyView r={result} />,
-  blocked: (o, ctx) =>
-    !o.rows || !o.columns
-      ? 'Choose the row and the column variables.'
-      : o.rows === o.columns
-        ? 'Choose two different variables.'
-        : missingColumns(ctx, ctCols(o), 'Contingency table'),
+  blocked: (o, ctx) => {
+    if (!o.rows || !o.columns) return 'Choose the row and the column variables.';
+    if (o.rows === o.columns) return 'Choose two different variables.';
+    return missingColumns(ctx, ctCols(o), 'Contingency table');
+  },
   fingerprint: (o, ctx) =>
     columnsFingerprint(ctx, ctCols(o), [o.rows, o.columns, o.counts, ctx.settings.confidence]),
   run: async (o, ctx) =>
@@ -1877,13 +1916,10 @@ function ReliabilityForm({ options: o, set, ctx, disabled }: OptionsProps<Reliab
             ]}
             onChange={(w) => {
               const { kappaWeights: _w, weightMatrix: _m, ...rest } = o;
-              set(
-                w === 'squared'
-                  ? rest
-                  : w === 'linear'
-                    ? { ...rest, kappaWeights: w }
-                    : { ...rest, kappaWeights: w, weightMatrix: o.weightMatrix ?? [] },
-              );
+              // Squared distances are the default, so they leave no option behind.
+              if (w === 'squared') set(rest);
+              else if (w === 'linear') set({ ...rest, kappaWeights: w });
+              else set({ ...rest, kappaWeights: w, weightMatrix: o.weightMatrix ?? [] });
             }}
             hint="Categories in their order: a near miss counts as partial agreement. Squared distances are psych’s default."
           />
