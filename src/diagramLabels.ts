@@ -55,14 +55,12 @@ export function indicatorLabels(
     const h = held(name);
     const fixed = h !== undefined || !!src.fixed?.(name);
     if (v === null) return heldLabel(name);
-    const level =
-      fixed || !src.reflectiveThresholds(c.type)
-        ? 'ok'
-        : Math.abs(v) < 0.4
-          ? 'low'
-          : Math.abs(v) < 0.708
-            ? 'mid'
-            : 'ok';
+    // Reflective loadings are graded (below .40 low, below .708 mid); fixed ones and weights are not.
+    let level: IndicatorLabel['level'] = 'ok';
+    if (!fixed && src.reflectiveThresholds(c.type)) {
+      if (Math.abs(v) < 0.4) level = 'low';
+      else if (Math.abs(v) < 0.708) level = 'mid';
+    }
     return {
       text: h !== undefined && Math.abs(v - h) < 1e-9 ? fixedText(h) : format(v),
       level,

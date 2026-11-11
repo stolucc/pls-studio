@@ -16,16 +16,20 @@ import { LevelChip } from './LevelChip';
 
 type Tab = 'examples' | 'methods' | 'analyses' | 'browser';
 
-const num = (v: number | string) =>
-  typeof v === 'number'
-    ? Number.isInteger(v)
-      ? String(v)
-      : Math.abs(v) >= 1e5 || (v !== 0 && Math.abs(v) < 1e-4)
-        ? v.toExponential(4)
-        : String(Number(v.toPrecision(7)))
-    : v;
-const diff = (v: number | null) =>
-  v === null ? '—' : v === 0 ? '0' : v < 1e-12 ? '< 1e−12' : v.toExponential(1);
+/** A reference value: integers as they are, very large or small numbers in exponent form, else 7 digits. */
+function num(v: number | string): string {
+  if (typeof v !== 'number') return v;
+  if (Number.isInteger(v)) return String(v);
+  if (Math.abs(v) >= 1e5 || (v !== 0 && Math.abs(v) < 1e-4)) return v.toExponential(4);
+  return String(Number(v.toPrecision(7)));
+}
+/** The largest difference from the reference. */
+function diff(v: number | null): string {
+  if (v === null) return '—';
+  if (v === 0) return '0';
+  if (v < 1e-12) return '< 1e−12';
+  return v.toExponential(1);
+}
 
 function Sources({ c }: { c: Check }) {
   return (
@@ -209,6 +213,14 @@ function Summary({ e }: { e: Evidence }) {
   );
 }
 
+/** One example's self-check: an error, how many numbers differ (with the first), or identical. */
+function outcomeText(o: SelfCheckOutcome): string {
+  if (o.error) return `error: ${o.error}`;
+  if (!o.differences.length) return 'identical';
+  const first = o.differences[0];
+  return `${o.differences.length} differ, e.g. ${first.path}: ${first.got} against ${first.want}`;
+}
+
 function BrowserCheck({ e }: { e: Evidence }) {
   const [state, setState] = useState<{
     running: boolean;
@@ -241,6 +253,10 @@ function BrowserCheck({ e }: { e: Evidence }) {
   };
   const title = (id: string) => PACKAGE_EXAMPLES.find((x) => x.id === id)?.title ?? id;
   const ok = state.out?.filter((o) => !o.error && !o.differences.length).length ?? 0;
+  let runButtonLabel = 'Check this browser';
+  if (state.running)
+    runButtonLabel = `Running ${state.done + 1} of ${state.total || '…'}: ${title(state.id)}`;
+  else if (state.out) runButtonLabel = 'Run again';
   return (
     <div>
       <p>
@@ -251,11 +267,7 @@ function BrowserCheck({ e }: { e: Evidence }) {
         packages are downloaded first if this browser has not loaded them yet.
       </p>
       <button className="btn" onClick={() => void run()} disabled={state.running}>
-        {state.running
-          ? `Running ${state.done + 1} of ${state.total || '…'}: ${title(state.id)}`
-          : state.out
-            ? 'Run again'
-            : 'Check this browser'}
+        {runButtonLabel}
       </button>
       {state.error && <div className="issue error">{state.error}</div>}
       {state.out && (
@@ -283,11 +295,7 @@ function BrowserCheck({ e }: { e: Evidence }) {
                   <td>{title(o.id)}</td>
                   <td className="num">{o.numbers}</td>
                   <td className={o.error || o.differences.length ? 'bad' : 'good'}>
-                    {o.error
-                      ? `error: ${o.error}`
-                      : o.differences.length
-                        ? `${o.differences.length} differ, e.g. ${o.differences[0].path}: ${o.differences[0].got} against ${o.differences[0].want}`
-                        : 'identical'}
+                    {outcomeText(o)}
                   </td>
                   <td className="num">{o.seconds.toFixed(1)}</td>
                 </tr>

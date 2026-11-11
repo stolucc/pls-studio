@@ -108,13 +108,16 @@ export function DataPanel() {
         .map(Number);
       return m.length === 2 && m.every(Number.isFinite) && m[0] < m[1] ? m : null;
     };
+    // Every chosen item already reversed: the dialog offers to undo it.
+    const undo = done.length === names.length;
+    const what = names.length === 1 ? names[0] : `${names.length} items`;
+    const itemList = names.length > 1 ? ` Items: ${names.join(', ')}.` : '';
     const text = await textDialog({
-      title:
-        done.length === names.length
-          ? `Undo the reverse-coding of ${names.length === 1 ? names[0] : `${names.length} items`}?`
-          : `Reverse-code ${names.length === 1 ? names[0] : `${names.length} items`}?`,
-      body: `Each value x becomes lowest + highest − x on the answer scale (on 1–5: 1 ↔ 5, 2 ↔ 4), for negatively worded items. Doing it again on the same scale undoes it.${names.length > 1 ? ` Items: ${names.join(', ')}.` : ''}`,
-      confirmLabel: done.length === names.length ? 'Undo' : 'Reverse-code',
+      title: undo ? `Undo the reverse-coding of ${what}?` : `Reverse-code ${what}?`,
+      body:
+        'Each value x becomes lowest + highest − x on the answer scale (on 1–5: 1 ↔ 5, 2 ↔ 4), for negatively worded items. ' +
+        `Doing it again on the same scale undoes it.${itemList}`,
+      confirmLabel: undo ? 'Undo' : 'Reverse-code',
       text: {
         label: 'Answer scale: lowest, highest',
         initial: range ? `${range[0]}, ${range[1]}` : '1, 5',

@@ -214,14 +214,11 @@ export type GeomInput = Pick<Construct, 'name' | 'indicators' | 'side'> & {
 export function constructGeometry(c: GeomInput, circle = c.circle ?? false): ConstructGeom {
   const type = shapeOf(c);
   const observed = type === 'observed';
-  const rx =
-    circle && !observed
-      ? type === 'composite'
-        ? COMPACT_HEXAGON_RX
-        : CIRCLE_R
-      : observed
-        ? Math.max(40, textWidth(c.name, 7.5) / 2 + 16)
-        : Math.max(58, textWidth(c.name, 8) / 2 + (type === 'composite' ? 34 : 24));
+  // Half-width: fixed for a compact circle (or hexagon), else wide enough for the name.
+  let rx: number;
+  if (circle && !observed) rx = type === 'composite' ? COMPACT_HEXAGON_RX : CIRCLE_R;
+  else if (observed) rx = Math.max(40, textWidth(c.name, 7.5) / 2 + 16);
+  else rx = Math.max(58, textWidth(c.name, 8) / 2 + (type === 'composite' ? 34 : 24));
   const ry = observed ? 18 : CIRCLE_R;
   // An observed covariate is its own indicator: no indicator boxes.
   const shown = observed ? [] : (c.shown ?? c.indicators);

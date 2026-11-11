@@ -13,6 +13,14 @@ export interface HoLabel {
   fixed: boolean;
 }
 
+/** The tooltip of a fixed component loading: the marker that sets the scale, or a held value. */
+function fixedLoadingTitle(label: HoLabel): string | undefined {
+  if (!label.fixed) return undefined;
+  if (label.value === 1)
+    return 'Loading fixed to 1: this component sets the scale of the higher-order factor';
+  return `Loading held at ${label.value}`;
+}
+
 export function HigherOrderLayer({
   loadingFor,
   labelAt,
@@ -59,13 +67,7 @@ export function HigherOrderLayer({
             key={key}
             className={`elabel ho-label${label.fixed ? ' fixed' : ''}`}
             style={{ transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)` }}
-            title={
-              label.fixed
-                ? label.value === 1
-                  ? 'Loading fixed to 1: this component sets the scale of the higher-order factor'
-                  : `Loading held at ${label.value}`
-                : undefined
-            }
+            title={fixedLoadingTitle(label)}
           >
             {label.fixed
               ? `${Number.isInteger(label.value) ? label.value : label.value.toFixed(3)} (fixed)`

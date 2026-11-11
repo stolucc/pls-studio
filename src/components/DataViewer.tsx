@@ -6,8 +6,11 @@ import { c, Table } from './results/Table';
 
 const PAGE = 100;
 const num = (v: number, d?: number) => c(Number.isFinite(v) ? v : null, undefined, d);
-const cell = (v: number) =>
-  Number.isNaN(v) ? <span className="na">NA</span> : Number.isInteger(v) ? String(v) : fmt(v, 4);
+function cell(v: number) {
+  if (Number.isNaN(v)) return <span className="na">NA</span>;
+  if (Number.isInteger(v)) return String(v);
+  return fmt(v, 4);
+}
 
 /** The Data tab: the dataset itself, its rows (paged) and descriptive statistics per variable. */
 export function DataWorkspace() {
@@ -27,10 +30,11 @@ export function DataWorkspace() {
   const matrix = !!data?.moments && data.cols.length === 0;
   const groups = data?.moments?.groups;
   const [group, setGroup] = useState(-1); // -1: pooled
-  const shownS = groups && group >= 0 && group < groups.length ? groups[group].S : data?.moments?.S;
-  const shownN = groups && group >= 0 && group < groups.length ? groups[group].n : data?.moments?.n;
-  const shownMeans =
-    groups && group >= 0 && group < groups.length ? groups[group].means : data?.moments?.means;
+  // The chosen group's moments, or the pooled ones.
+  const chosen = groups && group >= 0 && group < groups.length ? groups[group] : data?.moments;
+  const shownS = chosen?.S;
+  const shownN = chosen?.n;
+  const shownMeans = chosen?.means;
   const rows = data && !matrix ? (data.cols[0]?.length ?? 0) : 0;
   const pages = Math.max(1, Math.ceil(rows / PAGE));
   const q = query.trim().toLowerCase();
@@ -38,16 +42,21 @@ export function DataWorkspace() {
     ? data.names.map((n, i) => [n, i] as const).filter(([n]) => n.toLowerCase().includes(q))
     : [];
   const assigned = new Map(owner.flatMap((k) => k.indicators.map((i) => [i, k.name] as const)));
+  let datasetLine = 'no dataset';
+  if (info) {
+    let size = `${info.rows} rows`;
+    if (matrix)
+      size = groups
+        ? `${groups.length} covariance matrices, N = ${info.rows}`
+        : `covariance matrix, N = ${info.rows}`;
+    datasetLine = `${info.fileName} · ${size} · ${data?.names.length ?? 0} variables`;
+  }
   return (
     <section className="data-workspace" role="tabpanel" id="ws-data" aria-labelledby="ws-tab-data">
       <header className="sim-head">
         <div>
           <b>Data</b>
-          <span className="muted">
-            {info
-              ? `${info.fileName} · ${matrix ? `${groups ? `${groups.length} covariance matrices, N = ${info.rows}` : `covariance matrix, N = ${info.rows}`}` : `${info.rows} rows`} · ${data?.names.length ?? 0} variables`
-              : 'no dataset'}
-          </span>
+          <span className="muted">{datasetLine}</span>
         </div>
       </header>
       {!data ? (
